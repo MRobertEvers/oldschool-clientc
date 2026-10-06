@@ -1,0 +1,46 @@
+{{Confuse|Water container (Tombs of Amascut)}}
+{{Infobox NPC
+|version1 = Stationary
+|version2 = Moving
+|name = Jug
+|image = [[File:Jug (Tombs of Amascut).png|250x250px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|location = [[Tombs of Amascut]]
+|options1 = Push, Pull, Hit
+|options2 = Attack
+|examine = Doesn't look tasty.
+|map = No
+|id1 = 11735
+|id2 = 11736
+|leagueRegion = Desert
+}}
+'''Jugs''' are objects spit out by [[Zebak]] while fighting him in the [[Tombs of Amascut]]. Players must position the jugs to clear acid pools on the floor while he prepares his Great Roar attack.
+
+Jugs may be pushed or pulled, and release water in a 5x5 area (3x3 with Upset Stomach enabled) when broken. Jugs can be broken by either attacking them or by letting them hit one of the boulders that Zebak spits out.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 8 January 2025
+|update = Run Energy Changes
+|change = Water jugs in the Tombs of Amascut Zebak fight can now be attacked with Magic, as intended.
+}}
+{{Subject changes
+|date = 28 September 2022
+|update = Tombs of Amascut & Group Ironman Changes
+|change = The jugs at Zebak have been given an attack delay so as to not use extra ammunition after the first attack.
+}}
+{{Subject changes
+|date = 1 September 2022
+|update = Tombs of Amascut: Balancing & Bugfixes
+|change =
+* Two extra jugs now appear during jug-related mechanics.
+* Jugs no longer roll between rocks and more reliably break on contact.
+* Jugs no longer have an attack delay if they are attacked before Zebak.
+* Jugs roll two tiles further before stopping.
+}}
+{{Subject changes footer}}
+
+{{Tombs of Amascut}}

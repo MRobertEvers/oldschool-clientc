@@ -1,0 +1,111 @@
+# sotetseg.scope.tsv -- scope of every row of sotetseg.tsv for tools/raid_gate/raid_coverage.py
+# (all | entry | normal | hard | party | stat; overrides the name heuristic). Rows that
+# belong to two modes cannot be stated here (one scope per row); the name heuristic
+# already scopes them right in every mode, so they are the '# heuristic' lines at the end.
+mechanic_id	scope	note
+sotetseg.cadence	all	'every mode'
+sotetseg.first_attack	normal	Normal figure; Entry's is sotetseg.first_attack_entry
+sotetseg.first_attack_entry	entry	Entry figure
+sotetseg.post_death_ball_gap	all	applies in every mode; a solo room measures it
+sotetseg.magic_per_ball	all	applies in every mode; a solo room measures it
+sotetseg.melee_roll_adjacent	stat	P(melee | adjacent at T-1) = 483 permille: a distribution one room cannot settle; settle with tools/verify_tob_timings.py over Blert (a room has a few dozen adjacent attack ticks) and with a cox_sim-style measurement loop over many of our rooms
+sotetseg.melee_range	all	applies in every mode; a solo room measures it
+sotetseg.melee_hit_delay	all	applies in every mode; a solo room measures it
+sotetseg.melee_max_prayed	normal	Normal figure under Protect from Melee (half of 45); Entry's melee is sotetseg.melee_max_entry
+sotetseg.melee_max_entry	entry	Entry figure
+sotetseg.ball_max_entry	entry	Entry figure
+sotetseg.prayer_disable	all	applies in every mode; a solo room measures it
+sotetseg.ball_prayer_read_tick	all	applies in every mode (one proc, [queue,tob_sote_impact]); the quantity names 'Normal and Hard' only for blert's rooms, so the name heuristic would skip it. Seam20: not yet measured by tob_sotetseg (proved by conformance seam.tob_sotetseg_ball_prayer_read_at_landing)
+sotetseg.ricochet_count	party	the split balls aim at OTHER players: needs two or more
+sotetseg.ball_flight_by_distance	all	flight time against the solo player's distance; the name heuristic misread 'teams' as a party size
+sotetseg.death_ball_flight	all	applies in every mode; a solo room measures it
+sotetseg.death_ball_flight_distance_independent	all	death balls at two or more distances in one room
+sotetseg.death_ball_split_radius	party	the damage is divided among players in the 3x3: needs two or more
+sotetseg.death_ball_floor	party	the guaranteed-kill figure with two or more players alive
+sotetseg.death_ball_max_5	party	party size 5
+sotetseg.death_ball_max_4	party	party size 4
+sotetseg.death_ball_max_3	party	party size 3 and below, Normal (the death ball's ceiling at a scale)
+sotetseg.death_ball_hit_entry_solo	entry	Entry figure
+sotetseg.death_ball_hit_entry_group	party	Entry in groups
+sotetseg.death_ball_count_hard	hard	Hard Mode only
+sotetseg.death_ball_after_maze	all	applies in every mode; a solo room measures it
+sotetseg.hp_normal	normal	Normal hitpoints list by party size (a solo Normal room reads its element 3000)
+sotetseg.hp_hard	hard	Hard Mode only
+sotetseg.hp_entry_per_player	entry	Entry figure
+sotetseg.defence_level	all	list Normal, Entry, Hard: each mode's room reads its own element
+sotetseg.attack_level	all	list Normal, Entry, Hard: each mode's room reads its own element
+sotetseg.defence_floor	all	applies in every mode; a solo room measures it
+sotetseg.defence_restore	all	applies in every mode; a solo room measures it
+sotetseg.maze_trigger_hp	all	percent of the scaled pool; the name heuristic misread 'SCALED' as a party size
+sotetseg.maze_boss_idle_at_proc	all	applies in every mode; a solo room measures it
+sotetseg.maze_no_attacks	all	applies in every mode; a solo room measures it
+sotetseg.maze_teleport_delay	all	applies in every mode; a solo room measures it
+sotetseg.maze_first_move	all	applies in every mode; a solo room measures it
+sotetseg.maze_cycle	all	applies in every mode; a solo room measures it
+sotetseg.maze_cycle_phase	all	applies in every mode; a solo room measures it
+sotetseg.maze_off_on_3	all	applies in every mode; a solo room measures it
+sotetseg.post_maze_first_attack	all	applies in every mode; a solo room measures it
+sotetseg.maze_grid_w	all	applies in every mode; a solo room measures it
+sotetseg.maze_grid_h	all	applies in every mode; a solo room measures it
+sotetseg.maze_seeds	all	applies in every mode; a solo room measures it
+sotetseg.maze_max_x_change	stat	largest column change between seeds, the maximum over 183 mazes: one room's two mazes rarely reach 5: a distribution one room cannot settle; settle with tools/verify_tob_timings.py over Blert and with a cox_sim-style measurement loop over many of our rooms
+sotetseg.maze_start_column	all	each maze's start column inside 1-13
+sotetseg.maze_no_lateral_rate	stat	share of turns with no lateral move: a distribution one room cannot settle; settle with tools/verify_tob_timings.py over Blert (183 mazes, CI 17.8-22.2 %) and with a cox_sim-style measurement loop over many of our rooms
+sotetseg.maze_players_hard	all	spec 1 is the Normal and Entry runner count; a solo room in any mode sends its one player
+sotetseg.maze_chip_interval	all	applies in every mode; a solo room measures it
+sotetseg.maze_chip_damage	all	applies in every mode; a solo room measures it
+sotetseg.maze_first_chip	all	applies in every mode; a solo room measures it
+sotetseg.rag_interval	all	applies in every mode; a solo room measures it
+sotetseg.rag_percent	all	applies in every mode; a solo room measures it
+sotetseg.rag_flat_entry	entry	Entry figure
+sotetseg.rag_range	all	applies in every mode; a solo room measures it
+sotetseg.tornado_row	all	the tornado chases a SOLO runner in every mode (tob_sotetseg.rs2: party size 1 or Hard); the name heuristic skipped it for 'Hard Mode: also ...'
+sotetseg.tornado_speed	all	the solo runner's tornado, every mode
+sotetseg.tornado_damage	all	the solo runner's tornado, every mode
+sotetseg.magic_per_ball_proc_tick	all	applies in every mode; a solo room measures it (presentation rows read off the tick log)
+sotetseg.av.tornado.spawn_seq	all	applies in every mode; a solo room measures it (presentation rows read off the tick log)
+sotetseg.av.tornado.despawn_seq	all	applies in every mode; a solo room measures it (presentation rows read off the tick log)
+sotetseg.tornado_despawn_ticks	all	applies in every mode; a solo room measures it (presentation rows read off the tick log)
+# heuristic (two-mode rows; not read by raid_coverage, listed so every row is classified):
+# sotetseg.melee_max	normal+hard	the quantity says 'Normal and Hard'; skipped in Entry (sotetseg.melee_max_entry)
+# sotetseg.ball_max	normal+hard	the quantity says 'Normal and Hard'; skipped in Entry (sotetseg.ball_max_entry)
+# sotetseg.rag_flat	normal+hard	the quantity says 'Normal and Hard'; skipped in Entry (sotetseg.rag_flat_entry)
+sotetseg.av.ball.seq	all	8139 is a plugin constant only: the npc record's attack_anim is the melee seq
+sotetseg.av.ball.proj	all	start tick = the animation tick (+0)
+sotetseg.av.ball.cast_sound	all	cache name only; ENCOUNTER_TIMING.md section 5.1 lists it
+sotetseg.av.ball.hit_sound	all	cache name only
+sotetseg.av.ricochet.proj	party	a party run (two raiders) closes the measurement
+sotetseg.av.ricochet.hit_sound	party	party run needed
+sotetseg.av.melee.seq	all	also the attack_anim of every Sotetseg npc record in tob.npc
+sotetseg.av.melee.frame_sound	all	seam7 removed the sound_synth double
+sotetseg.av.walk_idle.seq	all	the npc record is the cache's own binding; our server sends no row
+sotetseg.av.death_ball.seq	all	blert's SOTE_BALL_ANIMATION covers the death ball cast
+sotetseg.av.death_ball.proj	all	start tick = the animation tick (+0)
+sotetseg.av.death_ball.proj_anim	all	cache binding (configs/all.spotanim:10320)
+sotetseg.av.death_ball.cast_sound	all	video narrator + cache name; seam7 took the radius from Near-Reality
+sotetseg.av.death_ball.impact_gfx	all	instrument gap, see open_issues
+sotetseg.av.death_ball.impact_sound	all	cache name only; offset unsourced
+sotetseg.av.death_ball.message	all	Jagex's wording; colour from tob-qol's raw string
+sotetseg.av.maze.boss_seq	all	only the plan's Near-Reality-derived text names it as HIS animation; the cache binds 8142 to the exit loc 33037
+sotetseg.av.maze.proc_sound	all	cache name + plan
+sotetseg.av.maze.player_anim	all	blert MAZE_TELEPORT_ANIMATION and tob-qol MAZE_TELE_ANIM; seam7 left it unproved
+sotetseg.av.maze.floor_plain	all	re-activation+1 is unsourced; blert names it DISABLED, tob-qol 'inactive overworld'
+sotetseg.av.maze.floor_dark	all	blert's INACTIVE id; tob-qol calls 33034 the underworld's inactive tile, so the arena use rests on seam7's video read (Plank2g 0:36 plain vs 1:53 dark)
+sotetseg.av.maze.lit_path	all	three plugins agree; tile counts are the generated path, see sotetseg.maze_seeds
+sotetseg.av.maze.arena_progress	all	ATR names 33035 SOTETSEG_RED_TILE
+sotetseg.av.maze.exit_portal	all	a later room test should click it
+sotetseg.av.rag.gfx	all	blert MAZE_RAG_GRAPHICS_OBJECT and ATR SOTETSEG_RAGGED_TILE
+sotetseg.av.rag.sound	all	cache name only; 3970 (the _2 variant) is unsourced and not placed
+sotetseg.av.drain.gfx	all	instrument gap
+sotetseg.av.tornado.npc	all	the _story/_hard suffix is the cache's own mode convention; the Entry/Hard ids were 'unsourced' in AV_INVENTORY but the cache dump holds them
+sotetseg.av.tornado.seq	all	the despawn seq 9005 is unsourced and not a row
+sotetseg.av.tornado.spawn_sound	all	cache name only; the wiki calls the tornado a 'red vortex'
+sotetseg.av.tornado.hit_sound	all	name-based placement (seam7)
+sotetseg.av.hit.defend_sound	all	cache name only
+sotetseg.av.death.seq	all	ATR alone (SOTETSEG_DEATH_ANIMATION); the cache's npc dump holds no death_anim field
+sotetseg.av.death.sound	all	cache name; the plan confirmed it against all.synth.compack
+sotetseg.av.death.jingle	all	raid-wide: see raidwide.tsv
+sotetseg.av.death.chest_loc	all	the wiki says players can buy supplies after Bloat and Sotetseg; the loc id is the cache name's
+sotetseg.av.music.room	all	wiki track name; the id from the cache's music row
+sotetseg.av.music.fight	all	tolerance +-1: the mark is written a tick after the barrier answer
+sotetseg.av.hard_maze.parent_locs	hard	source's value kept; ours places 0

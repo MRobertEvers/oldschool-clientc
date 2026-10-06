@@ -58,14 +58,24 @@ USER = "qdconform"
 # outgrown its cap: with 86 seam rows a clean run drew 39,510 frames (about 30
 # a tick), so the 87th row (seam.iban_temple_door_regicide_shortcut, b48-seam1)
 # was cut off mid-row as "frame cap, or the client exited 0".  At 60000 it had
-# outgrown it again, on both branches: on the waves branch 105 seam rows (raid
-# seam6's eat-delay port added seam.eat_does_not_hold_queued_hit and
-# seam.eat_delay_clocks) reached the cap at tick 1975 and the last two rows
-# ERRORed (it went to 80000 there); on v3 101 seam rows drew ~51,000 and the
-# 102nd (seam.door_revert_reaches_a_returning_client, b59-seam1) waits a door's
-# 500-tick revert out, ~15,000 frames on its own (it went to 90000 there).  The
-# merge of the two carries both row sets (116 seam rows), hence 120000.
-MAX_FRAMES = "120000"
+# outgrown it again: with 105 seam rows (raid seam6's eat-delay port added
+# seam.eat_does_not_hold_queued_hit and seam.eat_delay_clocks) a run reached the
+# cap at tick 1975 and the last two rows ERRORed on the frame cap.  At 80000 it
+# had outgrown it a third time: with 132 seam rows (raid seam8 added nineteen)
+# a run reached the cap at tick 2649 and the last row
+# (seam.verzik_entry_forms_cage_and_death) ERRORed on the frame cap.  At 120000
+# it had outgrown it a fourth time: with 146 seam rows (raid seam10 added five,
+# the Verzik yellow-pool row alone ~330 ticks) a run drew exactly 120000 frames
+# (6118 drawn, 113882 skipped) and ended at tick 3984 inside the last row
+# (seam.special_attack_spent).  At 160000 it had outgrown it a fifth time:
+# with 182 seam rows (raid seam31 added the goblin stop-and-press row, ~50
+# ticks, and three pure rows) a run reached the cap at tick 5325 inside
+# seam.raid_enter_party_branch_solo_unchanged and the last seven rows
+# ERRORed on the frame cap.  The v3 merge (2026-10-06) carries both
+# branches' rows (218 seam rows and 229 verbs against the raid branch's 182
+# and 202; v3 alone drew ~51,000 for 101 seam rows and set 120000), hence
+# 280000.
+MAX_FRAMES = "280000"
 # Render skip, as run.py: on unless --render-every-frame (run.py's RENDER_SKIP
 # banner). The harness proves the quest runs' own mode, and its render.* rows
 # switch it themselves either way.

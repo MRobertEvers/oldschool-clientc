@@ -1,0 +1,47 @@
+id	name	tier	monster	type	description
+240	Two-Down	Master	Theatre of Blood	Mechanical	Kill the Pestilent Bloat before he shuts down for the third time.
+241	Pop It	Master	Theatre of Blood	Mechanical	Kill Verzik without any Nylocas being frozen and without anyone taking damage from the Nylocas.
+242	A Timely Snack	Master	Theatre of Blood	Mechanical	Kill Sotetseg after surviving at least 3 ball attacks without sharing the damage and without anyone dying throughout the fight.
+244	Perfect Maiden	Master	Theatre of Blood	Perfection	Kill The Maiden of Sugadinti without anyone in the team taking damage from the following sources: Blood Spawn projectiles and Blood Spawn trails. Also, without taking damage off prayer and without letting any of the Nylocas Matomenos heal The Maiden.
+245	Perfect Bloat	Master	Theatre of Blood	Perfection	Kill the Pestilent Bloat without anyone in the team taking damage from the following sources: Pestilent flies, Falling body parts or The Pestilent Bloats stomp attack.
+246	Perfect Nylocas	Master	Theatre of Blood	Perfection	Kill the Nylocas Vasilias without anyone in the team attacking any Nylocas with the wrong attack style, without letting a pillar collapse and without getting hit by any of the Nylocas Vasilias attacks whilst off prayer.
+247	Perfect Sotetseg	Master	Theatre of Blood	Perfection	Kill Sotetseg without anyone in the team stepping on the wrong tile in the maze, without getting hit by the tornado and without taking any damage from Sotetseg's attacks whilst off prayer.
+248	Perfect Xarpus	Master	Theatre of Blood	Perfection	Kill Xarpus without anyone in the team taking any damage from Xarpus' attacks and without letting an exhumed heal Xarpus more than twice.
+249	Perfect Verzik	Master	Theatre of Blood	Perfection	Defeat Verzik Vitur without anyone in the team taking damage from Verzik Vitur's attacks other than her spider form's correctly prayed against regular magical and ranged attacks.
+250	Can't Drain This	Master	Theatre of Blood	Restriction	Kill The Maiden of Sugadinti without anyone in the team losing any prayer points.
+251	Can You Dance?	Master	Theatre of Blood	Restriction	Kill Xarpus without anyone in the team using a ranged or magic weapon.
+252	Morytania Only	Grandmaster	Theatre of Blood	Restriction	Complete the Theatre of Blood without any member of the team equipping a non-barrows weapon (except Dawnbringer).
+253	Back in My Day...	Master	Theatre of Blood	Restriction	Complete the Theatre of Blood without any member of the team equipping a Scythe of Vitur.
+254	Theatre (Duo) Speed-Runner	Grandmaster	Theatre of Blood	Speed	Complete the Theatre of Blood (Duo) in less than 26 minutes.
+255	Theatre (Trio) Speed-Chaser	Master	Theatre of Blood	Speed	Complete the Theatre of Blood (Trio) in less than 20 minutes.
+256	Theatre (Trio) Speed-Runner	Grandmaster	Theatre of Blood	Speed	Complete the Theatre of Blood (Trio) in less than 17 minutes and 30 seconds.
+257	Theatre (4-Scale) Speed-Chaser	Master	Theatre of Blood	Speed	Complete the Theatre of Blood (4-scale) in less than 17 minutes.
+258	Theatre (4-Scale) Speed-Runner	Grandmaster	Theatre of Blood	Speed	Complete the Theatre of Blood (4-scale) in less than 15 minutes.
+259	Theatre (5-Scale) Speed-Chaser	Master	Theatre of Blood	Speed	Complete the Theatre of Blood (5-scale) in less than 16 minutes.
+260	Theatre (5-Scale) Speed-Runner	Grandmaster	Theatre of Blood	Speed	Complete the Theatre of Blood (5-scale) in less than 14 minutes and 15 seconds.
+372	Stop Right There!	Grandmaster	Theatre of Blood: Hard Mode	Mechanical	Defeat the Maiden of Sugadinti in the Theatre of Blood: Hard Mode without letting blood spawns create more than 15 blood trails.
+373	Personal Space	Grandmaster	Theatre of Blood: Hard Mode	Mechanical	Defeat the Pestilent Bloat in the Theatre of Blood: Hard Mode with at least 3 people in the room, without anyone in your team standing on top of each other.
+374	Royal Affairs	Grandmaster	Theatre of Blood: Hard Mode	Mechanical	In the Theatre of Blood: Hard Mode, complete the Nylocas room without ever letting the Nylocas Prinkipas change styles.
+375	Harder Mode I	Grandmaster	Theatre of Blood: Hard Mode	Perfection	Defeat Sotetseg in the Theatre of Blood: Hard Mode without anyone sharing the ball with anyone, without anyone dying, and without anyone taking damage from any of its other attacks or stepping on the wrong tile in the maze.
+376	Harder Mode II	Grandmaster	Theatre of Blood: Hard Mode	Perfection	Defeat Xarpus in the Theatre of Blood: Hard Mode after letting the exhumeds heal him to full health and without anyone in the team taking any damage.
+377	Nylo Sniper	Grandmaster	Theatre of Blood: Hard Mode	Mechanical	Defeat Verzik Vitur's in the Theatre of Blood: Hard Mode without anyone in your team causing a Nylocas to explode by getting too close.
+378	Team Work Makes the Dream Work	Grandmaster	Theatre of Blood: Hard Mode	Mechanical	When Verzik Vitur in the Theatre of Blood: Hard Mode uses her yellow power blast attack while the tornadoes are active, have everyone get through the attack without taking damage. This cannot be completed with one player alive
+379	Harder Mode III	Grandmaster	Theatre of Blood: Hard Mode	Restriction	Defeat Verzik Vitur in the Theatre of Blood: Hard Mode without anyone attacking her with a melee weapon during her third phase.
+380	Pack Like a Yak	Grandmaster	Theatre of Blood: Hard Mode	Restriction	Complete the Theatre of Blood: Hard Mode within the challenge time, with no deaths and without anyone buying anything from a supply chest.
+381	Hard Mode? Completed It	Master	Theatre of Blood: Hard Mode	Speed	Complete the Theatre of Blood: Hard Mode within the challenge time.
+382	Theatre: HM (Trio) Speed-Runner	Grandmaster	Theatre of Blood: Hard Mode	Speed	Complete the Theatre of Blood: Hard Mode (Trio) with an overall time of less than 23 minutes.
+383	Theatre: HM (4-Scale) Speed-Runner	Grandmaster	Theatre of Blood: Hard Mode	Speed	Complete the Theatre of Blood: Hard Mode (4-scale) with an overall time of less than 21 minutes.
+384	Theatre: HM (5-Scale) Speed-Runner	Grandmaster	Theatre of Blood: Hard Mode	Speed	Complete the Theatre of Blood: Hard Mode (5-scale) with an overall time of less than 19 minutes.
+385	Theatre of Blood: HM Grandmaster	Grandmaster	Theatre of Blood: Hard Mode	Kill Count	Complete the Theatre of Blood: Hard Mode 50 times.
+386	Anticoagulants	Elite	Theatre of Blood: Entry Mode	Mechanical	Defeat the Maiden of Sugadinti in the Theatre of Blood: Entry Mode without letting any bloodspawn live for longer than 10 seconds.
+387	Appropriate Tools	Elite	Theatre of Blood: Entry Mode	Mechanical	Defeat the Pestilent Bloat in the Theatre of Blood: Entry Mode with everyone having a salve amulet equipped.
+388	They Won't Expect This	Elite	Theatre of Blood: Entry Mode	Mechanical	In the Theatre of Blood: Entry Mode, enter the Pestilent Bloat room from the opposite side.
+389	Chally Time	Elite	Theatre of Blood: Entry Mode	Mechanical	Defeat the Pestilent Bloat in the Theatre of Blood: Entry Mode by using a halberd special attack as your final attack.
+390	Nylocas, On the Rocks	Elite	Theatre of Blood: Entry Mode	Mechanical	In the Theatre of Blood: Entry Mode, freeze any 4 Nylocas with a single Ice Barrage spell.
+391	Just To Be Safe	Elite	Theatre of Blood: Entry Mode	Mechanical	Defeat Sotetseg in the Theatre of Blood: Entry Mode after having split the big ball with your entire team. This must be done with a group size of at least 2.
+392	Don't Look at Me!	Elite	Theatre of Blood: Entry Mode	Mechanical	Kill Xarpus in the Theatre of Blood: Entry Mode without him reflecting any damage to anyone.
+393	No-Pillar	Elite	Theatre of Blood: Entry Mode	Mechanical	Survive Verzik Vitur's pillar phase in the Theatre of Blood: Entry Mode without losing a single pillar.
+394	Attack, Step, Wait	Elite	Theatre of Blood: Entry Mode	Mechanical	Survive Verzik Vitur's second phase in the Theatre of Blood: Entry Mode without anyone getting bounced by Verzik.
+395	Pass It On	Elite	Theatre of Blood: Entry Mode	Mechanical	In the Theatre of Blood: Entry Mode, successfully pass on the green ball to a team mate.
+396	Theatre of Blood: SM Speed-Chaser	Master	Theatre of Blood: Entry Mode	Speed	Complete the Theatre of Blood: Entry Mode in less than 17 minutes.
+397	Theatre of Blood: SM Adept	Hard	Theatre of Blood: Entry Mode	Kill Count	Complete the Theatre of Blood: Entry Mode 1 time.

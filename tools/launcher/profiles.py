@@ -9,6 +9,8 @@ of its fields to work out what a run needs; it never reinterprets them.
 """
 
 import os
+import shlex
+import subprocess
 
 from . import host
 from .iniparse import Ini
@@ -280,6 +282,24 @@ class Profile:
     def manifest(self):
         return Manifest.load(self.world_path)
 
+    # -- files this profile derives at launch ----------------------------
+    def derived(self):
+        """The PROFILE's own `[derived:*]` blocks, as (name, {key: value}).
+
+        Not the world manifest's: those are staleness-checked artifacts that
+        staleness.py rebuilds with a make target. A profile block names a
+        small file this profile's client reads and that is cheaper to write
+        than to check, so it is written on every launch by `command=` (a
+        repository helper; `{out}` is the absolute `out=`, which is relative
+        to the repository root like the profile's own `world=`). The one user
+        today is osrs239-scripts' `[derived:tests]`: the scripts manifest the
+        Scripts tab asks for (tools/raid_gate/prepare_scripts.py).
+        """
+        blocks = []
+        for section in self.ini.sections_with_prefix("derived:"):
+            blocks.append((section.split(":", 1)[1], dict(self.ini.items(section))))
+        return blocks
+
 
 def profiles_dir(repo_root):
     return os.path.join(repo_root, "profiles")
@@ -312,6 +332,39 @@ def load_profile(repo_root, name):
     return Profile(name, path, Ini.load(path), repo_root)
 
 
+def run_profile_derived(profile):
+    """Write every file the profile's `[derived:*]` blocks name. Returns the
+    (name, detail) of each, and raises LaunchError when a command fails: a
+    profile whose client reads the file must not boot without it.
+
+    Called from generate_resolved_manifest, which ./launch calls once per
+    plan (cli.build_plan) -- the one launcher entry every run goes through
+    before the client starts.
+    """
+    results = []
+    for name, fields in profile.derived():
+        command = fields.get("command")
+        out = fields.get("out")
+        if not command or not out:
+            raise LaunchError(
+                "profile '%s': [derived:%s] needs both command= and out="
+                % (profile.name, name))
+        out_abs = os.path.join(profile.repo_root, out)
+        argv = [arg.replace("{out}", out_abs) for arg in shlex.split(command)]
+        if argv and argv[0].endswith(".py"):
+            argv = host.python_command(argv)
+        proc = subprocess.run(
+            argv, cwd=profile.repo_root,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        text = proc.stdout.decode("utf-8", "replace").strip()
+        if proc.returncode != 0:
+            raise LaunchError(
+                "profile '%s': [derived:%s] %s exited %d: %s"
+                % (profile.name, name, command, proc.returncode, text or "(no output)"))
+        results.append((name, text))
+    return results
+
+
 def generate_resolved_manifest(profile, out_dir):
     """Write the base manifest with `[override:*]` applied, return its path.
 
@@ -327,6 +380,8 @@ def generate_resolved_manifest(profile, out_dir):
       * the six manifest-relative keys are re-expressed relative to the copy,
         which lives at a different depth than the original — see reframe().
     """
+    for name, detail in run_profile_derived(profile):
+        print("launch: derived %s: %s" % (name, detail))
     override_blocks = profile.overrides()
     base_path = profile.world_path
     if not override_blocks:

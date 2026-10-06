@@ -1,0 +1,28 @@
+{{Infobox Combat Achievement
+|name = Blizzard Dodger
+|image = [[File:Ice demon.png|100px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Receive kill-credit for the Ice Demon without activating the Protect from Range prayer.
+|tier = Elite
+|monster = Chambers of Xeric
+|type = Restriction
+|id = 320
+|leagueRegion = Kourend
+}}
+'''Blizzard Dodger''' is an [[Combat Achievements/Elite|elite combat achievement]] which requires the player to receive kill-credit for the [[Ice Demon]] without activating the [[Protect from Range]] prayer.
+
+== Strategy ==
+'''For solo-run attempts, be sure raid scaling is set to "0" for the easiest fight, as scaling a raid to "1" doubles boss health.'''
+
+By having another player use protect from range and dodge the demon's attacks in the centre of the room, additional players can stand on the north/eastern walls and avoid the demon's aggression completely. Using [[Fire Surge]] will help secure kill-credit over players using ranged.
+
+
+
+Ironmen must be the only player damaging the Ice Demon to complete this combat achievement.
+
+==Other tasks==
+{{Combat Achievements list|Chambers of Xeric}}
+
+{{Combat Achievements}}

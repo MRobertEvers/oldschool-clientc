@@ -1,0 +1,342 @@
+{{Update|date=10 November 2023|url=https://secure.runescape.com/m=news/game-jam-iv-overview---october-2023?oldschool=1|category=devblog}}
+[[File:Game Jam IV Overview - October 2023 newspost.jpg|right]]
+{{clear}}
+__TOC__
+
+''Today we’re talking Old School's fourth Game Jam and taking a look at some of it's pitches!''
+Brr! As we enter the last quarter of the year, it's time for cosy socks, warm blankets – and Old School’s fourth Game Jam!
+
+Game Jams are our (sort-of) new and improved ideation process, where J-Mods across the team join forces and create awesome content pitches! We're talking devs, community managers, QA, art and more collaborating on passion projects that will hopefully one day make their way to the game.
+
+Later this year we’ll have a livestream where we’ll look at the projects in greater detail – but for now, we have a chunky overview of everything the team’s been working on!
+
+This jam's theme was Sailing-themed! The brief was simple: design things that make the seas of Gielinor feel alive and provide some interesting and notable new areas to explore. To be clear, we did '''NOT''' address Sailing training methods – that’s what the core Sailing team are working on! Next week, you'll find out more about our proposed timelines for Sailing and what we're doing next.
+
+Broadly, the Game Jam focused on three kinds of content:
+
+* Islands and points of interest at sea.
+* Stand-alone content that can be placed at an island or POI.
+* Traditional content that can be placed at an island or POI.
+
+Of course, we also had a few more general projects in the mix. Keep reading to see ‘em all!
+
+Before we kick off, however, please remember:
+
+==ALL THESE PROJECTS ARE JUST CONCEPTS AND ARE NOT GUARANTEED TO ENTER THE GAME.==
+''None'' of this content is confirmed for the game, and no team has been given time to refine these projects just yet. If you like the look of them, please do let us know, but don’t expect them to come to the game any time soon, if at all!
+
+As for the previous Game Jam projects, rest assured that we haven’t forgotten about them – and some of them have even made it into the game already! The others are still being reviewed, and we do take your feedback about them into account.
+
+We'd like to remind you that we want to hear directly from you about each of the Game Jam projects, so like the previous iterations, we've put together a handy survey for you to give us your feedback per project. Take a gander and then click the link to fill out the survey!
+
+==CONTENTS==
+<center>
+[[#pouch|Rune Pouch Bank Integration]]
+
+[[#lighthouse|Lighthouses]]
+
+[[#dungeon|Sailing Islands and Dungeons]]
+
+[[#revenant|Revenant Island]]
+
+[[#rebalance|Project Rebalance]]
+
+[[#quests|Sailing Quests]]
+
+[[#skilling|Intensive Skilling]]
+
+[[#package|Skilling Mini Package]]
+
+[[#raid|Sailing Mini Raid]]
+
+[[#rumble|Team Rumble]]
+
+[[#islands|Procedurally Generated Islands]]
+</center>
+
+==<span id="pouch"></span> Rune Pouch Bank Integration==
+<center>''by Mod Ash''</center>
+
+One of the biggest Quality of Life suggestions we've seen over the past few years is being able to freely interchange your Runes inside of the Bank. Well during this Game Jam, Mod Ash took it upon himself to make just that!
+
+This feature is built for your convenience and allows you to get runes in and out of your pouch much easier than before and all while inside the Bank interface! Not only will you be able to put specific Runes directly into your pouch, but there's four handy loadout options for you to customise. Speed up bossing, farm runs, and more! Take a look:
+
+[[File:Game Jam IV Overview - October 2023 (1).png|600px|center]]
+
+==<span id="lighthouse"></span> Lighthouses==
+<center>''by Mod Maylea''</center>
+
+We don’t yet know what navigating at sea will entail, but Mod Maylea has had a real ''lightbulb'' moment!
+
+It’s likely that the seas of Gielinor will be dangerous. Sailors may find themselves navigating open waters with no land in sight and perilously low draw distance. The last thing you want when you’re trying to keep an eye out for rocks and sea monsters is to have to open up your World Map, or else stick to the familiar safety of the coastline.
+
+From the west of Rellekka comes an illuminating solution to this problem: lighthouses!
+
+[[File:Game Jam IV Overview - October 2023 (2).jpg|514px|center]]
+
+Mod Maylea’s project explored how a few strategically placed lighthouses might allow players to sail more efficiently and provide new and interesting gameplay to boot.
+
+She’s designed a potential Sailing HUD featuring compass points, the sea, and the horizon. For now, lighthouses are displayed as circles. The flashing pattern and size allows you to identify a lighthouse at a glance, and they get bigger and higher on the HUD the closer you get to them. Different areas around the lighthouse display different colours to indicate danger – so you’ll know right away if there are rocks on the horizon! Don’t worry – in the final version of this HUD, we’ll be taking red-green colour-blindness into account.
+
+Here's what the interface might look like in-game. In this example, Sailing from the Karamja shipyard to Port Sarim is as easy as lining up the Sarim’s Gate and Willows beacons to set a course. Of course, you’re free to leave the HUD unopened – although that would be the equivalent of not looking at the horizon while on a boat in real life!
+
+[[File:Game Jam IV Overview - October 2023 (3).webp|600px|center]]
+
+Again, this interface is '''NOT final'''.
+
+Lighthouses aren’t just for finding your way around. Here’s how we could expand this system for different kinds of content:
+
+* Puzzling quest sections where the key to navigating treacherous waters is to follow a set of instructions using lighthouses as landmarks.
+* Navigate treacherous waters, chart the path, and then build new beacons to open traffic to other boats!
+* Is that a lighthouse, or a pretty cyclops lady winking? Better go look!
+* Do we want to signal sea hazards and points of interest? Do we want to have buoys and other sea marks? See them mapped on the World Map?
+
+[[File:Game Jam IV Overview - October 2023 (4).jpg|502px|center]]
+
+Lighthouses open up all kinds of opportunities, but we’re still considering what the best way to implement them might be. We’d really like to hear what you think of them and how you’d like to see them used!
+
+==<span id="dungeon"></span> Sailing Islands & Dungeons==
+<center>''by Mod Necro''</center>
+
+We want the far-out waters of the big blue sea to feel alive, a living environment full of wondrous creatures, mysterious objects, and many, many interesting areas to explore! This time, Mod Necro’s Game Jam project aims to give you a taste of what kinds of places you might encounter while Sailing.
+
+First up we have Crab Isle, a small island untouched by human hands… but not crabby claws! Here you’ll be able to collect special bait found exclusively on this island and use it to summon the Giant Crab Boss. Defeat every level 1 RPG player’s worst nightmare, and you’ll obtain treasures and some tasty Crab Meat!
+
+[[File:Game Jam IV Overview - October 2023 (5).jpg|600px|center]]
+
+[[File:Game Jam IV Overview - October 2023 (6).jpg|600px|center]]
+
+[[File:Game Jam IV Overview - October 2023 (7).jpg|600px|center]]
+
+Next, we’re venturing to what we’ve dubbed ‘The Lost Chasm’. This desolate island has almost been lost beneath the waves, thanks to a lingering evil hoping to return to its powerful demonic form. Venture deep inside and discover the mysteries of the depths… if you dare!
+
+[[File:Game Jam IV Overview - October 2023 (8).jpg|600px|center]]
+
+==<span id="revenant"></span> Revenant Island==
+<center>''by Mod Manked''</center>
+
+From islands of mystery to the island of risk – Mod Manked’s Game Jam project welcomes you to Revenant Island!
+
+Since the removal of multi-combat at the Revenant Caves, the Wilderness is lacking in hotspots for multi teams. Often, the risk vs reward doesn’t quite hit the mark in our existing content – but at the same time, we don’t want to go back to the dark days of players being locked out of exciting activities by powerful clans blocking off entire areas of the game. Revenant Island aims to solve these problems.
+
+Located off the eastern shore of the Wilderness, above level 30, sits a not-too-distant bit of land only accessible via a ship. You’ll also need 50,000 GP, which will be lost upon death on the island. This is a high-risk, high-reward area – there’s only one way in and one way out, so you can leave the teleports at home!
+
+Revenant Island will promote multi-combat PvP gameplay, with areas both above and below ground for you to engage in thrilling battles against other players. Below, you’ll find a dungeon similar to the old Revenant Caves, with plenty of walls to encourage ‘hugging’ – and we don’t mean a quick cuddle!
+
+There will be multiple escape routes, so players aren’t guaranteed death if they choose to engage with the content here. There’ll be plenty of variety to these routes, and there’s a bit of strategic gameplay in picking the one that advantages you the most. Of course, there’ll be fitting requirements to meet before you can use them all!
+
+[[File:Game Jam IV Overview - October 2023 (9).jpg|600px|center]]
+
+Obviously the main allure of this area is the opportunity to kill fellow players and yoink their loot, but there are also a group of revenants that call this island home. Not only can multiple players attack the revenants at once, they’ll also be in a small, consolidated area, creating less ‘down time’ when killing them. We’d also like to increase the rate at which superior creatures can spawn, creating lots of opportunities to grab more loot.
+
+The spiciest reward of them all though will be the Revenant Collector. This magical item automatically collects drops from NPCs while the user is in the Wilderness – provided you have space, of course. You will however need 500,000 GP to activate it, which will be awarded to any player that kills you.
+
+==<span id="rebalance"></span> Project Rebalance==
+<center>''by Mods Arcane, Halo, Husky and Kieren''</center>
+
+Moving away from brand new things, this team used their Game Jam time to decide how we should improve older content.
+
+We’ve seen many conversations over the years – both from our community and within the team – about healthy changes we could make to help make the game feel more well-rounded. From skills to equipment, and even changes to certain NPCs, there’s a lot to look forward to!
+
+There isn’t room in this blog to get into the details, but you can expect more information about the exact changes we want to make very soon – not least because we’d like to make them in January, and we need your feedback ASAP!
+
+What’s more, we don’t just want you to make your decision based on a bunch of numbers in a blog – we want you to get hands on and experience the difference these changes make for yourselves. To that end, we’ll be holding a beta to complement an upcoming blog with a detailed breakdown of all the changes we’re making.
+
+We’re also aware of ongoing discussions surrounding the Scythe of Vitur and Osmumten’s Fang. These are part of the discussions we’re having internally as well, and it may be that we highlight our plans for these items much earlier than the other rebalancing changes. Either way, please rest assured that you won’t have to wait long to hear more about this project!
+
+==<span id="quests"></span> Sailing Quests==
+<center>''by Mods Bruno, Elena, Errol, Halo and Other''</center>
+
+Quests are a fundamental part of Old School RuneScape. We go beyond killing ten boars to bring you exciting stories from all over Gielinor, filled with puzzles to solve, evil to defeat, and hapless citizens in need of help.
+
+Gielinor’s vast ocean is no different, and that’s why this Game Jam team used their time to come up with a collection of seafaring quests that introduce new places and characters while remaining tied to the traditional questing gameplay you know and love.
+
+We got started with not one, not two, but FOUR quests during Game Jam. Each of the first three quests is designed to tell a standalone story, while building up to a thrilling conclusion in the fourth and final (for now) tale.
+
+Without dropping any spoilers, these quests contain desert islands filled with fiendish puzzles, tricky tortugan trials, a very rude sword, and more cursed items than you can shake a hook at. We can’t wait to share more with you further down the line – but for now, we hope this gives you some idea of the sheer variety of stories we can tell at sea!
+
+[[File:Game Jam IV Overview - October 2023 (10).png|204px|center]]
+[[File:Game Jam IV Overview - October 2023 (11).png|204px|center]]
+
+==<span id="skilling"></span> Intensive Skilling==
+<center>''by Mods Elena, Goblin & Rice''</center>
+
+From one integral mechanic to another – let’s talk about skilling! Levelling up is one of the most exciting parts of Old School RuneScape, and our skill diversity is one of our biggest selling points.
+
+However, for mid to high-level players, skilling is seen as a means to an end – a grind to complete before you can access the most fun parts of the game. Our most elaborate, engaging mechanics are typically reserved for PvM combat – but this Game Jam team sought to change that.
+
+Our goal was to get more players to enjoy skilling, instead of seeing it as an obstacle on the path to the endgame – but we also want to cater to players who love skilling just the way it is! We know that players love fast-based, mechanically challenging combat content like raids and bosses, so we’ve explored how we could design similar content that focuses on skills.
+
+We do think that skilling should feel different to PvM, thematically – and it definitely does! Even skill-based bosses like the Wintertodt feel more like ‘skilling’ than ‘combat’. This is because it preserves the elements of rhythm and repetition that skilling thrives on – a learning we’re definitely building into our designs! We also want to ensure that, unlike combat, exciting new ways to train are still peppered all throughout your journey to 99 instead of all being unlocked at the end.
+
+On that note, we sought out options that went beyond skill bossing – after all, we want skilling to be engaging even when you don’t have a giant enemy monster looming over you!
+
+More intensive training methods also give us the opportunity to feed skills back into themselves and integrate them with other skills they might not have meshed well with in the past. There’s even potential to have combat upgrades as part of the reward space, bringing things full circle.
+
+While our top priority this Game Jam was thinking up some content (some of which you’ll see further down the blog!) we’ve also focused on creating an accessible method of tick manipulation. Although we’ve never ‘officially’ made this a strategy before, we recognise that it’s a popular technique and would like to create content that encourages players to give it a go. Having mastered tick manipulation in a relatively safe, but engaging skilling activity, players will be well-equipped to use it against a big scary boss when they encounter one – and we can do the same thing with other PvM-esque mechanics!
+
+Now you know what we’re going for, let’s see how Mod Rice put these ideas into practice…
+
+==<span id="package"></span> Skilling Mini Package==
+<center>''by Mod Rice''</center>
+
+===Skilling Activity: Rapids Harpoon Fishing===
+[[File:Game Jam IV Overview - October 2023 (12).jpg|600px|center]]
+''Thumbnails by @Ceed_art''
+
+This fast-paced Fishing activity delivers a more intensive version of Harpoon Fishing! Rather than simply clicking the spot and tabbing out, this activity challenges you to predict your target’s movement and react swiftly to get the catch.
+
+While stood on the bridge, you’ll see fish swimming downstream through three different columns, at varying speeds. The fish always spawn at regular intervals, but they move at varying speeds. Click the right fish at the right time, and you’ll have an improved chance to catch the fish!
+
+Sometimes, two fish might spawn at once – but watch out! One of them will be a big fish or a poisonous fish. Big ones award additional resources on a successful catch, but poisonous ones will destroy a percentage of the fish in your Inventory – and they’re a guaranteed catch!
+
+Both of these unusual fish types award the same amount of XP, so if you’re a canny player who wants to maximise your Fishing time, you can aim for the poisonous ones to free up some Inventory space. Alternatively, if you’re hoping to build your supplies, you’ll want to aim for the big fish so you can get back to the Bank faster. This kind of on-the-fly decision-making is at the heart of our plans for skilling.
+
+This activity also provides an opportunity to get to grips with tick manipulation. Players can quickly attach a rope to their harpoon to gain beneficial effects – and you’ll want to do it quickly, because these fish aren’t waiting around! Don’t worry, tick manipulation isn’t required to participate in the activity – but players who master it will be rewarded with higher catch rates.
+
+===Skilling Encounter: Mudboi===
+[[File:Game Jam IV Overview - October 2023 (13).jpg|600px|center]]
+''Thumbnails by @Ceed_art''
+
+This Mining encounter blends the themes and mechanics of Mining with PvM-oriented mechanics. The ‘Mudboi’ begins the fight lurking just below the surface. Players must mine the pillars in his boss room to release the lava within and force the creature out! It will then attempt to reseal the columns by flinging mud, all while attacking the players. Dodge the mud, mine the pillars, and whittle down the monster’s health to proceed to the next stage of the fight.
+
+At a certain health percentage, the Mudboi will become rock – which means it’s now mineable! Keep out of the way of its devastating ground-targeted attacks while Mining as much as you can.
+
+This is another skilling activity where tick manipulation is an advantage. It’s possible in both phases of the fight and, when done correctly, means that players will never have to miss a Mining action to dodge an attack.
+
+This is a challenging mechanic, but we’ve no doubts that our more dedicated skillers will pick it up in no time. For everyone else, this encounter provides a good opportunity to master the technique – or build upon the knowledge you gained while harpooning fish!
+
+===And that's it!===
+These examples just about cover the differences between a skilling encounter and a skilling activity. We hope you agree that they preserve the unique rhythm of skilling while adding all the best parts of PvM – and we’re excited to hear what you think!
+
+==<span id="raid"></span> Sailing Mini Raid==
+<center>''by Mods Hend, Skylark and West''</center>
+
+Captain Nakahi was a famed pirate, known across the seas for his sailing prowess. He led his crew to endless amounts of treasure – but no bounty could satisfy Nakahi’s greed.
+
+One day, the crew discovered a stash of buried treasure. While the rest of the crew squabbled over their shares, Nakahi was drawn to what appeared to be an ordinary human skull. Nakahi, however, could tell it wasn’t normal at all, but possessed of powerful magical energy from an unknown entity…
+
+[[File:Game Jam IV Overview - October 2023 (14).png|200px|center]]
+
+Nakahi investigated the artifact and discovered that whoever wielded it had the power to control others. Lured by the promise of such power, Nakahi used it to curse his crew and banish them to the ends of the ocean. He then searched for a suitable lair, killing the original inhabitants and cursing the few survivors to protect the skull with their very lives. But Nakahi still isn’t satisfied. His next goal is to rule over the oceans of Gielinor – and you have to stop him!
+
+This raid is aimed at mid to high-level players with moderate Sailing levels. Like other Raids, Coves of Nakahi will have a lobby where players can group up – in this case, a small island outside the coves. Once grouped up, players will sail from the island to the coves.
+
+[[File:Game Jam IV Overview - October 2023 (15).jpg|600px|center]]
+
+Although the fights are linear, the path through the coves will require some backtracking. On the way, they’ll defeat Nahlu’kai the Cursed Serpent, Cleori the Cursed Mermaid, and Eremit’i, The Cursed Crab under Nakahi’s control.
+
+[[File:Game Jam IV Overview - October 2023 (16).png|600px|center]]
+
+Defeat all the bosses, and you’ll have the chance to get some unique rewards, perhaps including:
+
+* '''Nahlu’kai's Robes:''' A new mid-level Magic set with a Sailing-themed set effect – for example, bonus Magic damage while attacking monsters at sea.
+* '''Serpent Staff:''' A new mid-level Staff with a special attack.
+* '''Raid Cape:''' A new set of tiered capes, like the ones in CoX, ToB, and ToA (tier 5 pictured).
+* '''Mermaid Figurehead:''' A figurehead modelled after Cleori which players can use to customise their ship.
+* '''Mermaid Flag:''' A mermaid-themed flag players can use to customise their ship.
+* '''Hermit Crab Shell Fragment:''' A tough crafting material which can be converted into defensive plating for ships.
+* '''Eremit'i Pet:''' With a transmog for Nahlukai and Cleori.
+
+As a reminder, these are all just ideas. If the raid ever enters the game, you can expect each reward to be refined based on your feedback – so be sure to tell us what you think in the survey below!
+
+[[File:Game Jam IV Overview - October 2023 (17).jpg|600px|center]]
+
+==<span id="rumble"></span> Team Rumble==
+<center>''by Mod Sarnie''</center>
+
+Mod Sarnie has been dipping his toes into PvP and designing a fresh, team-based experience: Team Rumble! Before we start we've got a little message from Mod Sarnie:
+
+''I'm going to front this Game Jam project with the fact that I'm not an avid PvPer, probably far from it and I do believe there are people on the team that can do a far better job in making sure the core PvP experience can be made better. This project was more about something that I thought would be a fun and exciting way to give you all a fresh, team-based experience in the form of Team Rumble.''
+
+This pitch is all about utilising cool environments in the game that don’t see a lot of use currently. Essentially, it’s a Counter-Strike style mode for Old School PvP. These were the aims:
+
+* Team-based PvP
+* Versatility and Replayability
+* Accessible for New and Returning Players
+* Competitive Potential (Ranking System, Events and Tournaments)
+
+In Team Rumble, two teams of five to six players are spawned into their chosen arena. Each arena has a unique objective. All players start with the same stats, tokens, and equipment – the Rumble set, which can be upgraded in four different ways:
+
+* Finesse Rumble Armour (minor boost to all stats)
+* Warrior Rumble Armour (major boost to Melee, vulnerability to Magic)
+* Hunter Rumble Armour (major boost to Ranged, vulnerability to Melee)
+* Magician Rumble Armour (major boost to Magic, vulnerability to Ranged)
+
+At the start of the round, players have 45 seconds to purchase more equipment and supplies using their tokens. They can choose from a range of gear, items, and unlocks that can switch up their strategy. Protection Prayers, new Spellbooks, armour and weapon upgrades, and more.
+
+During the minigame itself, the focus is about battling other players and working towards the map objectives. Each round lasts around two minutes, so combat is fast-paced and fun. Each time you earn points for your team (by completing objectives or defeating opponents), you’ll earn extra tokens to spend on better equipment in the upcoming rounds.
+
+If you die within a round, you’ll drop all your items. Any player can pick them up (except the armour) and next round, you’ll be bumped back to the basic equipment. Once players reach round six, all upgrades are reset – so even if the winning team are storming ahead, there’s always a chance to catch up. Players also have the ability to drop items on the floor for their teammates, allowing the strongest players on the team to help out the weakest.
+
+We already have a few ideas for what the arenas and associated objectives might look like:
+
+* '''Haunted Mine''' | Team Deathmatch: Rack up kills over the rounds to score points for your team. Using the environmental hazards to kill your opponent will net you more points!
+* '''Elemental Workshop''' | Control: Take over and protect different areas of the workshop in order. Gain enough points and you’ll unlock a powerful weapon for a brief time.
+* '''Keldagrim Rat Pits''' | Cats Vs Rats: Defeat the enemy team and their creature companions to earn points!
+
+When designing a project like this, there’s always the question of what gear we should include. While initially we thought about adding familiar weapons and armour, this didn’t provide the level of coordination we were hoping for. This kind of team-based strategy is something we haven’t tried in Old School RuneScape before, so to keep gameplay fresh Mod Sarnie designed some new weapons especially for this minigame:
+
+So with that in mind I've designed some top-level new weapons that try and do exactly what they say, including some new interesting utility items:
+
+[[File:Game Jam IV Overview - October 2023 (18).png|599px|center]]
+
+* '''Standard+:''' These weapons would be slightly more powerful than their standard counterpart – a cheap upgrade for a small boost.
+* '''Speed:''' Although these speedy weapons still have next-to base damage, the extra speed can make for better DPS in combination with the right armour.
+* '''Stat Reduction:''' While these weapons don’t pack a punch on their own, they lower your opponent’s stats and give an advantage to the rest of your team.
+* '''Multiple Enemies:''' As the name suggests, this effect lets you deal damage to multiple enemies at once in exchange for slightly lower damage.
+* '''Risk Vs. Reward:''' Much like the Greataxe of the mighty Dharok, these weapons give great damage output at the cost of your Hitpoints. Good for coming in hot when things are looking rough!
+* '''High Damage / Expensive:''' These powerful weapons cost a lot of tokens, but the damage output makes them worth it.
+* '''Utility:''' These weapons provide something the others don’t – utility!
+** '''Colossal Shield:''' This gives huge Defence advantages while removing the option to attack. Keep the enemy team occupied while your teammates go on the offensive.
+** '''Nature's Blessing:''' This item buffs support spells dramatically, allowing you to focus on keeping your team fighting fit!
+** '''Rumbled Salamander:''' If you don't want to think too much about swapping between weapons, this gives you a bit of everything!
+** '''Chaotic Orb:''' Use this orb’s chaotic energy to debuff your foes and change the tide of combat.
+
+Ideally, we’d like to add a match-making and ranking system which would make finding and playing games easy and encouraging.
+
+Mod Sarnie would really like to hear your thoughts on rewards – PvP is a difficult space to design for, so your feedback would be very valuable here!
+
+For those of you wondering about Mod Sarnie’s previous Game Jam project, the OSRS TCG, he’s been hard at work on it behind the scenes. It’s currently on version 7, with further testing happening very soon!
+
+==<span id="islands"></span> Procedurally Generated Islands and Caverns==
+<center>''by Mods Ed, Lenny, Meat and Ry''</center>
+
+Over the years, Old School has taken a few runs at procedurally generated content with Chambers of Xeric and the Gauntlet – but there’s still so much more that could be done with it.
+
+RuneScape, on the other hand, has made use of much more intricate procedural generation technology to really push the boundaries of what’s possible in the game. For this Game Jam, this team decided to see how Old School could make use of that same technology.
+
+The main goal was to create a set of systems for procedural generation that could be used for all kinds of content. As such, the team hasn’t put too much focus on the content itself – just some proof of concept to show off what this technology can do.
+
+Those of you who are familiar with RuneScape may remember the Uncharted Isles, which sees players exploring randomly generated islands and ‘claim’ them to revisit at a later date. This kind of map generation can be applied to all kinds of content, not just islands. When we started experimenting with it in Old School, we decided to keep things familiar by copying the island generation as-is, with the same context.
+
+[[File:Game Jam IV Overview - October 2023 (19).webp|512px|center]]
+
+Once we saw that the port worked well and procedural generation was possible, we started thinking about how we could dress the content up differently. How flexible was this system?
+
+With Sailing in mind, we decided to expand the system to include underwater caverns as well as unexplored islands. In this deep dive, we ironed out a lot of the system behind it all and started to experiment with adding different kinds of content to the generated spaces. We can still see room for improvements before we try to take this technology further in future, but it’s clear that the technology works and can be used to create a new area and populate it with various things to do. With that in mind, we thought about how we might present it to you lot!
+
+[[File:Game Jam IV Overview - October 2023 (20).webp|512px|center]]
+
+One of the coolest things about generating areas this way is that while they’re being generated ‘randomly’, we can ensure the same random generation will appear again and again, if we so desire. Players could reliably discover the same islands and caverns again and again, discovering their favourites and sticking to them. These aren’t private instances, either – although these islands won’t appear on the World Map in a way we’d recognise, we can still group players together in the same place so they can enjoy the content there together.
+
+Let’s address the elephant in the room. You probably remember a pretty significant piece of procedurally generated content in RuneScape that took a very different approach to area generation than the one we’ve used here. We’re talking about the maze generation systems behind Dungeoneering!
+
+Dungeoneering is an absolutely massive piece of content, and with just two weeks of time to work on this project we had no hope of putting together something that resembles your memories of Daemonheim. Instead, we again focused on the system itself – how could we use this technology to create more intricate mazes than the Gauntlet has to offer, in the same grid-based format? Whether we decide to make something on the scale of Dungeoneering in future or just want a gnarly maze as part of a quest, there are lots of applications for this technology. So, why not take the time to see if we could get that tech up and running, too?
+
+[[File:Game Jam IV Overview - October 2023 (21).webp|512px|center]]
+
+This maze may not look like much, but it proves that all the infrastructure is in place for us to create winding mazes, with rooms locked behind puzzles or encounters. We have the option to keep things bare bones with only a critical path to follow, or to add more space for exploration and discovery.
+
+There you have it! Although this project has been mostly behind-the-scenes work rather than a fleshed-out piece of content, we hope that this work has opened up exciting new avenues for content to come.
+That’s all for Game Jam IV! As always, we’d love to know what you think about all of these projects. You can tell us your favourites via all the usual social channels, but if you have some specific feedback you’d like to share, we’d really appreciate it if you could fill out the survey below.
+
+<center><big><big>[https://forms.office.com/Pages/ResponsePage.aspx?id=cHKPuw2LyU2JAOl_a-ccwkuFydxi__NAhv4a-l6BSp1UMDlETzZKS05FSTFPT1NKQVNFTTVJREVRWS4u Game Jam IV (October 2023) - Survey]</big></big></center>
+
+----
+
+You can also discuss this update on our [http://services.runescape.com/m=forum/forums?380,381,898,66290145 official forums], on the [https://new.reddit.com/r/2007scape/comments/17s1t78/game_jam_iv_overview_october_2023/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abyss, Arcane, Archie, Argo, Ash, Ayiza, Blossom, Boko, Bruno, Chilly, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Errol, Fed, Gecko, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Necro, Nox, Nylu, Other, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Sarnie, Shroom, Sigma, Skane, Skylark, Sova, Squid, Starry, Stevew, Surma, Sween, Tide, Titus, Torrance, Tsourorf, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

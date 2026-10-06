@@ -1,0 +1,21 @@
+{{Infobox Combat Achievement
+|name = Immortal Raider
+|image = [[File:Chambers of Xeric - keystone room.png|300px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Complete a Chambers of Xeric Challenge mode (Solo) raid without dying.
+|tier = Master
+|monster = Chambers of Xeric: Challenge Mode
+|type = Perfection
+|id = 291
+|leagueRegion = Kourend
+}}
+'''Immortal Raider''' is a [[Combat Achievements/Master|master combat achievement]] which requires the player to complete a solo [[Chambers of Xeric/Challenge Mode|Challenge Mode]] [[Chambers of Xeric]] without dying.
+
+The achievement can be completed alongside [[Immortal Raid Team]].
+
+==Other tasks==
+{{Combat Achievements list|Chambers of Xeric: Challenge Mode}}
+
+{{Combat Achievements}}

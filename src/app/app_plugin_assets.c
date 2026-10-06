@@ -339,11 +339,52 @@ app_capture_fallback_render(
      * publish a second pickset for the same frame would make a screenshot a
      * thing that can affect what a click does.
      */
-    saved_pick = app->world_mouse_in_viewport;
-    app->world_mouse_in_viewport = 0;
+    saved_pick = app->frame_view->world_mouse_in_viewport;
+    app->frame_view->world_mouse_in_viewport = 0;
     App_Render(app, pixels, width, height);
-    app->world_mouse_in_viewport = saved_pick;
+    app->frame_view->world_mouse_in_viewport = saved_pick;
     return 1;
+}
+
+/*
+ * A script's photograph while its view is attached (the runner camera split,
+ * struct App_ViewSplit): the RUNNER's view, never the presented one. The
+ * frame is laid out again through the runner's camera -- the emit walk is
+ * what projects the overlays (health bars, names, markers), so it is redone
+ * with the runner's view current -- and drawn offscreen on the software
+ * lane with the pick disarmed (a photograph must not change what a click
+ * does). The presented frame, its emit list and its pickset are untouched.
+ */
+static void
+app_capture_runner_render(
+    struct App* app,
+    int* pixels)
+{
+    struct App_WorldView* saved_view;
+    struct UITreeEmitBuffer runner_emit;
+    struct UITreeEmitBuffer presented_emit;
+
+    assert(app);
+    assert(pixels);
+    assert(app->view_split.attached);
+    if( !app->tree )
+    {
+        App_ViewSplitDrawRunner(app, pixels, 0);
+        app->view_split.offscreen_frames_for_shots++;
+        return;
+    }
+    saved_view = app->frame_view;
+    app->frame_view = App_RunnerView(app);
+    UITree_EmitBufferInit(&runner_emit);
+    UITree_EmitWalk(app->tree, &app->ui_host, &runner_emit, app->hover_com_id);
+    presented_emit = app->emit;
+    app->emit = runner_emit;
+    App_ViewSplitDrawRunner(app, pixels, 0);
+    runner_emit = app->emit;
+    app->emit = presented_emit;
+    UITree_EmitBufferFree(&runner_emit);
+    app->frame_view = saved_view;
+    app->view_split.offscreen_frames_for_shots++;
 }
 
 /*
@@ -434,7 +475,9 @@ App_DrawComplete(
     pixels = malloc((size_t)width * (size_t)height * sizeof(int));
     assert(pixels);
 
-    if( !supplier || !supplier(supplier_user, pixels, width, height) )
+    if( app->view_split.attached )
+        app_capture_runner_render(app, pixels);
+    else if( !supplier || !supplier(supplier_user, pixels, width, height) )
         app_capture_fallback_render(app, pixels, width, height);
 
     app_plugin_screenshots_write(app, pixels, width, height);

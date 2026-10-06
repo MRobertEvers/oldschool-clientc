@@ -1,0 +1,263 @@
+{{Update|date=14 January 2026|url=https://secure.runescape.com/m=news/a=1/new-player-improvements-round-2?oldschool=1|category=game}}
+[[File:New Player Improvements Round 2 newspost.jpg|right]]
+{{clear}}
+__TOC__
+''Today's game update introduces the second batch of New Player Improvements, featuring updates to Quest Journal and Dialogue, as well as more informative Skill Guides - tell your friends!''
+
+==Changelog - January 14th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Questing & Interface Improvements for New Players'''
+
+* We've updated the dialogue of some older early-game quests to better explain what's expected of new players, pointing them to the right direction more clearly.
+* Likewise, we've improved the the detail of Quest Journal entries for some of the older early-game quests, offering clearer in-game guidance.
+* New-style Skill Guides: We've given the Skill Guides a tune-up and added beginner-friendly "Overview" sections to them, explaining what each skill is, how to train it, how it connects to other skills, and which quests are relevant.
+
+====Sailing Fixes & Improvements====
+
+* Speed boosts from trimming the sails should now have the same duration whether performed by a crewmate or the player, as dictated by the sail and mast type.
+* You can now store the outfit cosmetics from Barracuda Trials in the Magic Wardrobe of the POH. These outfits are:
+** Storm Cruiser's Outfit
+** Swamp Cruiser's Outfit
+** Crystal Glider's Outfit
+* The Horn of Plenty and Gryphon Feathers can now be put in a Huntsman's Kit.
+* To make running Port Tasks smoother, we've made the first left-click option on Cargo Holds to be "Deposit-held" if you're carrying a cargo.
+* A STASH unit is added on Brittle Isle, which will come handy for the master emote clue step "Bow in front of the cave on Brittle Isle".
+* POH butlers can now correctly repeat their last Sawmill task when making Ironwood, Camphor, and Rosewood planks.
+* Players can no longer train combat beyond level 3 on Tutorial Island by shooting seaborne NPCs added for Sailing.
+
+====Maintenance Opinion Poll====
+
+* To improve performance and stability and ensure everything continues to run smoothly, our engineers must keep our systems up to date and well-maintained. With Old School RuneScape players spread all over the world, we'd like your input on when you’d prefer this maintenance to take place. Therefore, a Maintenance Opinion Poll is live in-game until Monday - make sure to share your thoughts on what timing works best for you before the poll closes!
+
+====Official Client Recommended Spec Update====
+
+* As technology continues to advance, we’ve recently reviewed Old School RuneScape’s recommended system requirements. Further down the blog, you’ll find the updated recommended specifications for running Old School RuneScape's Official Client on Windows, macOS and mobile.
+
+====Other Changes====
+
+* Reverted an efficiency change we've done last week, stopping several NPC scripts when no players were nearby, after it caused unintended behaviour in certain scenarios. This change is reverted for the following NPCs:
+** Kruk's dungeon monkeys
+** Thermy and smoke devils
+** Light creatures near Juna
+** Most hunter creatures, including chinchompas
+** Mor-Ul-Rek Tzhaars
+** Ogress Shamans
+* Fixed invisibility issues occuring when using Eye of Ayak:
+** In Tombs of Amacut, Akkha and his shadows no longer disappear after getting hit by Eye of Ayak.
+** Likewise, the player character no longer disappears after dealing damage to Yama using Eye of Ayak.
+* Resolved some Z-buffering graphical bugs for the following:
+** Waterfalls no longer have clipping issues
+** Mounted Dragon head no longer clips into the wall of Wizard Traiborn's room at Wizards' Tower
+** A skeleton in the Fight Arena jail cell no longer phases with the wall
+** The rod of the workbench in the Crafting Guild no longer sticks through the ceiling
+** Harbour archways in Fortis Cothon now render correctly
+** The star symbol on the Astral Altar no longer looks broken
+** The Morytania Swamp waterline has been cleaned up
+* To make reading polls easier on mobile, the Poll Interface now takes up the whole screen on mobile devices.
+* Fixed a bug where some Karamja Diary reward lamps could be used on skills below their intended level requirements, bringing their behaviour in line with other reward lamps:
+** Karamja Hard Diary reward lamp can now only be used on skills that meet the level 40 requirement
+** Karamja Medium Diary reward lamp can now only be used on skills that meet the level 30 requirement
+
+====PvP Rota====
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>activated</u>''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''<u>activated</u>''' with this rota.
+
+The PvP Arena is using '<b>Zerker</b>' loadouts in Ranked Duels and Tournaments this week.
+{{Collapsed section end}}
+
+==New Player Improvements==
+===Questing & Interface Improvements===
+[[File:New Player Improvements Round 2 (1).png|thumb|350px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-01-13/cutenoob.png here]!'']]
+
+Remember your early 'Scaping days? When Lumbridge felt enormous, a single Giant Rat could spell your doom, or when you might be asked to share your Fishing level at a moment's notice? We've all been there, and that feeling of wonder that comes with getting lost in a brand new world is one that we all look back on fondly.
+
+Last year, we <u>[https://secure.runescape.com/m=news/new-player-improvements---2025-and-beyond?oldschool=1 shared a blog detailing some changes]</u> aimed at improving the experience for brand new players embarking on their journeys across Gielinor. Our aims were to set new players up for long-term success while preserving that warm, fuzzy feeling that comes with your first few steps in Lumbridge. That means we set out to make changes to help players find their feet but without reinventing the wheel - no brand new tutorial areas, no NPCs with giant exclamation marks above their heads, no pop-ups telling you how you're 'supposed' to progress, just simple changes to help even the cutest of cute noobs become a true champion.
+
+We already rolled out the first batch of new player improvements <u>[https://secure.runescape.com/m=news/a=13/grid-master-rewards-poll--new-player-improvements?oldschool=1 here]</u>, and we're back today to make some small tweaks to improve quest journals, quest dialogue and provide more informative skill guides for players who are just getting started!
+
+====Improve the Journal & Dialogue of Early Game Quests====
+Picture this: You've completed Tutorial Island and arrived in Lumbridge, you open up your Quest journal and are greeted with a laundry list of stories to explore:
+
+* Cook’s Assistant
+* Sheep Shearer
+* Romeo & Juliet
+* Ernest the Chicken
+* Restless Ghost
+* Misthalin Mystery
+* Prince Ali Rescue
+* Demon Slayer
+* Rune Mysteries
+* Dragon Slayer
+
+You've probably learned what a plot twist is at an early age thanks to Romeo & Juliet, felt as if you mastered level 99 Crafting with Sheep Shearer and had a rage-filled moment of reflection during Misthalin Mystery. 
+
+Some of these quests are older than some of you reading this post, so might have unclear dialogue or particularly vague Quest journal entries. We know that many players will opt to use the OSRS Wiki to help them where they get stuck, but want to reduce how heavily we rely on taking new players out of the game to figure things out - there's still ''plenty ''of content in Gielinor that will benefit from getting familiar with the Wiki, we'd just like to help players get situated with the game's core systems and interactions first.
+
+To address this, we've tweaked some of the dialogue to better explain what's expected of players, such as the core mechanics they should interact with - talking to NPCs, using items from their inventory, solving a puzzle etc... But rest assured that while doing this, we made sure that the tone, charm and humour of Old School's dialogue are preserved.
+
+Likewise, some of these older early-game Quests could benefit from more detailed Quest Journal entries. While most players opt to use guides to complete these, we feel that the in-game guidance provided could be clearer in a lot of places, so we've improved the detail of Quest Journal entries for some of them.
+
+[[File:New Player Improvements Round 2 (2).png|thumb|450px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-01-13/mmjournalstep.png here]!'']]
+
+====New-Style Skill Guides====
+Additionally, we’ve given the Skill Guides a tune-up, so that they’re now a little more… guiding. We've added beginner-friendly "'''Overview'''" sections to the in-game Skill Guides, accessed by clicking on any icon in the Skills tab. These "Overview" sections include:
+
+* '''What the skill is''': A brief overview of what the skill is and why it matters.
+* '''How to train the skill''': Step by step instructions on how to train the skill, including tools needed, locations, and a basic method.
+* '''How the skill links to other skills''': Suggestions for early interactions with other skills. For example, you need Firemaking for Cooking, or Crafting might benefit your Ranged gear progression.
+* '''Quests''': Shows the quests for players to start the skill and the quests giving XP for the skill, as well as listing the requirements.
+
+[[File:New Player Improvements Round 2 (3).png|thumb|400px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-01-13/skilloverview.png here]!'']]
+
+[[File:New Player Improvements Round 2 (4).png|thumb|400px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-01-13/skillquests.png here]!'']]
+
+New players will have this new-style skill guide menu ''by default'', but if you also want to switch to this interface, you can enable the new-style skill guide option in the Settings menu. While you're at it, make sure to also enable interface resizing and repositioning, which allows you to move and resize the Skill Guide.
+
+[[File:New Player Improvements Round 2 (5).png|thumb|400px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-01-13/settings.png here]!'']]
+
+If you've got friends that you want to get into Old School, there's never been a better time!
+
+==Sailing Fixes & Improvements==
+This week, we've got some smaller fixes and improvements for Sailing. We're still in the process of analysing feedback from the Sailing Opinion Poll, as mentioned in our <u>[https://secure.runescape.com/m=news/a=13/qol-tweaks--fixes?oldschool=1 newspost]</u> last week. So, you can expect more quality of life changes when we've had a chance to discuss your suggestions as a team. Our biggest priority with Sailing at the moment is to address feedback around Ship Combat - this was the loudest feedback we heard coming from the Opinion Poll. We're currently working on some design changes for Ship Combat, but we're not quite ready to share them yet. We'll give you an update on what we've got planned when we've had more time to discuss them. Stay tuned!
+
+Now, back to this week's changes:
+
+* We’ve resolved an inconsistency where speed boost durations were shorter when sails were trimmed by a crewmate instead of the player. Speed boosts from trimming the sails should now have the same duration whether performed by a crewmate or the player, as dictated by the sail and mast type.
+* You can now store the outfit cosmetics from Barracuda Trials in the Magic Wardrobe of the POH. These outfits are:
+** Storm Cruiser's Outfit
+** Swamp Cruiser's Outfit
+** Crystal Glider's Outfit
+* The Horn of Plenty and Gryphon Feathers can now be put in a Huntsman's Kit.
+* To make running Port Tasks smoother, we've made the first left-click option on Cargo Holds to be "Deposit-held" if you're carrying a cargo.
+* A STASH unit is added on Brittle Isle, which will come handy for the master emote clue step "Bow in front of the cave on Brittle Isle".
+* POH butlers can now correctly repeat their last Sawmill task when making Ironwood, Camphor, and Rosewood planks.
+* Players can no longer train combat beyond level 3 on Tutorial Island by shooting seaborne NPCs added for Sailing.
+
+==Maintenance Opinion Poll==
+Last year, we shared a <u>[https://secure.runescape.com/m=news/spudworks-ddos-protection--security?oldschool=1 blog]</u> outlining major upgrades to our infrastructure, including the gradual shift to cloud-based world hosting to improve performance and stability. These will also eventually pave the way for us to add servers in new regions, which is a popular request from the community. Additionally, we need to keep our systems up-to-date and secure as new threats can arise in the fast-paced world of the internet! To ensure everything continues to run securely, our engineers must keep our systems up to date and well-maintained by installing firmware patches and kernel updates, etc. Some of this work can’t be carried out safely or feasibly while everyone's playing, meaning we need to pick times when the games may be shut down for this maintenance to take place.
+
+With Old School RuneScape players spread all over the world, any downtime will inevitably clash with the perfect playing time for some of you. That’s why we've come up with a '''Maintenance Opinion Poll '''to ask you, the players, when you’d prefer this maintenance to take place, since we can't slip it all out alongside the existing Wednesday game updates. This opinion poll will be '''live in-game until Monday''', so make sure to share your thoughts with us before the poll closes!
+
+To be extra clear, the maintenance updates we're talking about are infrastructure improvements, separate from our regular weekly game updates. And this poll will not lock in any results - it's purely to provide the team with valuable insight to help inform our decision.
+
+==Official Client Recommended Spec Update==
+As technology continues to advance, we’ve recently reviewed Old School RuneScape’s recommended system requirements. We will also be reviewing Android minimum spec again in the near future, particularly with regard to 32 bit support.
+
+Below you’ll find the updated minimum specifications for running Old School RuneScape's Official Client on Windows, macOS and mobile.
+
+<center>
+{| class="wikitable" style="text-align: center;"
+|-
+! Device
+! Current Specifications
+! Updated Specifications
+|-
+| Windows
+| 
+* Windows 10 or later
+** 64-Bit
+* CPU: Intel i3 / AMD @ 2.4+ GHz
+* GPU: GeForce 400x, Intel HD 4x, AMD Radeon 7xxx +
+* RAM: 4GB
+* At least 200 MB available storage space
+| 
+* Windows 10 or later
+** 64-Bit
+* CPU: i3-6100 / any AMD Ryzen CPU
+* GPU: GeForce GTX 600 series, Intel UHD Graphics 610, AMD Radeon R7 260
+* RAM: 8 GB
+* At least 2 GB available storage space
+* OpenGL 4.4 or higher
+* Vulkan 1.1
+|-
+| Mac
+| 
+* MacOS 11 or later
+* CPU: M1 chip
+* GPU: AMD Radeon 5xxx +
+* RAM: 4 GB
+* At least 200MB of free storage space
+| 
+* MacOS 11 (Big Sur) or later
+* CPU: M1 chip
+* RAM: 4 GB
+* At least 2 GB available storage space
+|-
+| iOS/Android
+| 
+* Android Oreo 8.0 or above / iOS 13 or later
+* Android GPU: OpenGL ES 3+
+* RAM: 3GB (Android) / 2GB (iOS)
+* At least 120MB of free storage space
+| 
+* Android Pie 9.0 or above / iOS 13 or later
+* Android GPU: OpenGL ES 3+
+* RAM: 4GB (Android) 3GB (iOS)
+* At least 2 GB available storage space
+|}
+</center>
+
+==Other Changes==
+In last week's game update, we implemented an efficiency improvement that stopped some NPC scripts when no players were nearby. However, this caused some NPCs to behave incorrectly in certain scenarios, so we’ve reverted the change for the following NPCs:
+
+* Kruk's dungeon monkeys
+* Thermy and smoke devils
+* Light creatures near Juna
+* Most hunter creatures, including chinchompas
+* Mor-Ul-Rek Tzhaars
+* Ogress Shamans
+
+Let us know if you encounter any other issues where NPCs aren't behaving as expected and we'll make sure to review them!
+
+Another bug report we received was about encountering invisibility issues when using Eye of Ayak:
+
+
+* In Tombs of Amacut, Akkha and his shadows no longer disappear after getting hit by Eye of Ayak.
+* Likewise, the player character no longer disappears after dealing damage to Yama using Eye of Ayak.
+
+Plus, we also have the following improvements:
+
+* Resolved some Z-buffering graphical bugs for the following:
+** Waterfalls no longer have clipping issues
+** Mounted Dragon head no longer clips into the wall of Wizard Traiborn's room at Wizards' Tower
+** A skeleton in the Fight Arena jail cell no longer phases with the wall
+** The rod of the workbench in the Crafting Guild no longer sticks through the ceiling
+** Harbour archways in Fortis Cothon now render correctly
+** The star symbol on the Astral Altar no longer looks broken
+** The Morytania Swamp waterline has been cleaned up
+* To make reading polls easier on mobile, the Poll Interface now takes up the whole screen on mobile devices.
+* Fixed a bug where some Karamja Diary reward lamps could be used on skills below their intended level requirements, bringing their behaviour in line with other reward lamps:
+** Karamja Hard Diary reward lamp can now only be used on skills that meet the level 40 requirement
+** Karamja Medium Diary reward lamp can now only be used on skills that meet the level 30 requirement
+
+==PvP World Rota==
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>activated</u>''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''<u>activated</u>''' with this rota.
+
+The PvP Arena is using '<b>Zerker</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1qck84k/new_player_improvements_round_2/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Acorn, Ape, Arcane, Archie, Argo, Ash, Asherz, Ayiza, BigRig, Blighted, Blossom, Boko, Brooksie, Bruno, Chilly, Criminal, Curse, Daizong, Ed, Elena, Enigma, Entropi, Freddie, Fuzz, Gecko, Gizmo, Goblin, Grace, Grub, Halo, Harold, Hend, Hornet, Husky, Ivory, Jalo, Jamesy, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Mack, Manked, Markos, Maylea, Mobius, Moogle, Morty, Moz, Necro, Nin, Nixon, Nox, Nylu, Ori, Other, Otter, Philomel, Pork, Pumpkin, Puppi, Rach, Redfield, Rice, Romy, Roq, Roy, Ry, Saiyan, Sarnie, Schmidt, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Spyro, Squid, Starry, Stilrush, Suharun, Surma, Sween, Tide, Titania, Titus, TJ, Tomb, Tsourorf, Tyran, Veda, Vegard, West, Wolfy & Yume'''
+
+''The Old School Team.''

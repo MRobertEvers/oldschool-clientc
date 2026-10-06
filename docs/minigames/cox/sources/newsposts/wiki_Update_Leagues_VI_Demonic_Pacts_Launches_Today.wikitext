@@ -1,0 +1,377 @@
+{{Update|rev=17 April 2026|date=15 April 2026|url=https://secure.runescape.com/m=news/leagues-vi-demonic-pacts---launches-today?oldschool=1|category=game}}
+[[File:Leagues VI- Demonic Pacts - Launches Today! newspost.jpg|right]]
+{{clear}}
+__TOC__
+
+''The countdown is over... today your soul is mine!''
+
+'''If you're looking for a list of fixes & issues we are investigating, then check out the [https://secure.runescape.com/m=news/leagues-vi-demonic-pacts---fixes--issues?oldschool=1 Leagues VI: Demonic Pacts - Fixes & Issues newspost] for the latest information!'''
+
+==Changelog - April 15th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Leagues VI: Demonic Pacts'''
+
+* Leagues VI: Demonic Pacts worlds will go online today at '''10:30am UTC.''' Just like previous iterations, we've made some big changes which were ''gently'' requested by Yama:
+** '''Demonic Pacts: '''We've developed a more flexible Skill Tree for you to really feel unique and powerful this time. Earn Pact Points and spend them to unlock insane buffs to combat.
+** '''Echo Bosses:''' These powerful variants return, this time with items that benefit directly from the Demonic Pacts!
+** '''New Starting Area:''' We're beginning our journey this time around in Varlamore, which is a huge shake up from previous leagues as you'd start in the iconic Misthalin. Did we mention you won't be able to visit Misthalin at all this league?
+** Brand new Relics, QoL improvements and more!
+
+'''Jagex Launcher Improvements - New RuneLite Installations'''
+We’ve improved the way new RuneLite users can install the client via the Launcher:
+
+* No longer need to click on “Install” and head to the RuneLite website to install the client. Simply select RuneLite as your preferred client within the Launcher, click “Play”, and the Launcher will automatically install the client for you and then load it.
+* You might have to wait a few moments for the installer to finish, signalled by the “Play” button changing to a progress wheel.
+
+This only applies to those who do not currently have RuneLite installed.
+
+'''Other Changes'''
+
+* We previously announced that the Easter 2026 Event would be removed today, but the Easter Bunny hasn’t packed up the stalls and decorations just yet! You have an extra week to go egg hunting before the event wraps up next Wednesday.
+* Brutus icon now appears in HiScores interface on the Official Client.
+* Some grammar has been corrected in the canoe experts' axe-related dialogue.
+* The warning before climbing down the ladder from the Seers' Village rooftop course is now only shown if you're in the middle of the course at the time.
+
+'''PvP Rota'''
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>de-activated</u>''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''<u>de-activated</u>''' with this rota.
+
+The PvP Arena is using '<b>1 Def Pure</b>' loadouts in Ranked Duels and Tournaments this week.
+
+{{Collapsed section end}}
+
+==Leagues VI: Demonic Pacts==
+[[File:Leagues VI- Demonic Pacts - Launches Today! (1).png|thumb|600px|center|If you can't see the asset above, [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-04-14/leaguesvi.png click here].]]
+
+Today's the day to roll up your sleeves and embrace the glory of Yama by committing yourself to his Demonic Pacts.
+
+Before we jump into the details of this league, let's give you an overview of how the launch itself is going to happen. ''Please note: these are the times we are aiming for and we'll keep you updated if there are any changes.''
+
+[[File:Leagues VI- Demonic Pacts - Launches Today! (2).png|thumb|600px|center|If you can't see the asset above, [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-04-14/launchtimes.png click here].]]
+
+To get started, you'll need to log into an account with active membership. From there, you can head to one of the many worlds in highlighted green with the little trophy icon from the World Select page.
+
+At launch, you'll have '''around ~150''' Leagues worlds to choose from, with some having specific themes to help you find other players for certain activities, like Raids, Forestry, etc. You'll even notice we've added some of the newly launch Brazilian worlds for Leagues this time!
+{{Collapsed section|18|Click to see US East League Worlds}}
+There are 36 US East League worlds in total:
+
+* 400
+* 401
+* 581
+* 598
+* 629 - 659
+* The following existing worlds are being temporarily repurposed as Leagues worlds:
+** ''616 and 617'' (Members)
+{{Collapsed section end}}
+
+{{Collapsed section|18|Click to see US West League Worlds}}
+There are 39 US West League worlds in total:
+
+* 605
+* 691
+* 698-723
+* The following existing worlds are being temporarily repurposed as Leagues worlds:
+** ''436, 437'' (F2P)
+** ''544, 545, 546, 547, 599, 600, 601, 602, 603, 604'' (Members)
+{{Collapsed section end}}
+
+{{Collapsed section|18|Click to see UK League Worlds}}
+There are 30 UK League worlds in total, from 660 to 690.
+{{Collapsed section end}}
+
+{{Collapsed section|18|Click to see EU League Worlds}}
+There are 32 EU League worlds in total:
+
+* 460
+* 628
+* 730-750
+* The following existing worlds are being temporarily repurposed as Leagues worlds:
+** ''553, 554, 555'' (F2P)
+** ''551, 556, 557, 582, 624, 625, 626'' (Members)
+{{Collapsed section end}}
+
+{{Collapsed section|18|Click to see AUS League Worlds}}
+There are 13 AUS League worlds in total:
+
+* 592, 593, 594
+* 724-729
+* The following existing worlds are being temporarily repurposed as Leagues worlds:
+** ''425, 536'' (Members)
+{{Collapsed section end}}
+
+{{Collapsed section|18|Click to see BR League Worlds}}
+There are 2 BR League worlds in total, which are 696 and 697.
+{{Collapsed section end}}
+
+===The Basics===
+To give you a quick run through of what a league is, then use the dropdowns below to find out more!
+
+====Rules====
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+* Your character starts in Yama's Lair with an exit to Civitas illa Fortis.
+* Your character begins restricted to the area of Varlamore. As you complete tasks, you can unlock more areas. Karamja will be locked at the start of this league, but will be a forced unlocked once you reach your first area unlock, followed by three additional regions you choose yourself. Misthalin is completely inaccessible during this league.
+* Full information about each of the areas can be found in the Area Selection menu. This can be accessed from the leagues menu in the Journal panel.
+* All experience gained is heavily increased, and this will further increase as you unlock more relics. Exact multipliers can be viewed in the Relics menu.
+* Sailing will not be enabled this league and content released during Leagues VI will be reviewed and enabled for the league on a case-by-case basis.
+* Demonic Pacts offer customisable boosts to your combat power, and are earned by completing specific league tasks. Additionally, completing some tasks will grant you a limited number of Pact resets, which will allow you to reset your talent tree.
+* Each area has an Echo Boss, these are enhanced bosses that pose a higher challenge and drop new unique rewards. Killing the regular boss may drop an Echo orb that lets you access the Echo variant. More information can be found in the area interfaces.
+* Leagues VI: Demonic Pacts will run from April 15th until the game update on June 10th (a total of 84 days).
+{{Collapsed section end}}
+
+====Initial Set Up====
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+Your character is an Ironman, meaning you cannot trade with other players or use the Grand Exchange.
+
+You will start off in a new area this League, Varlamore.
+
+You will auto complete the following quests:
+
+* Dragon Slayer I
+* Learning the Ropes
+* The Restless Ghost
+* Rune Mysteries
+* Children of the Sun
+* Desert Treasure II - The Fallen Empire
+* Druidic Ritual
+* Eagles' Peak
+* Elemental Workshop I
+* Fairytale I - Growing Pains
+* Fairytale II - Cure a Queen
+* Lost City
+* Nature Spirit
+* Perilous Moons
+* Priest in Peril
+* Twilight's Promise
+
+You will auto complete the following Combat Achievements:
+
+* Back to Our Roots
+* Demonic Rebound
+
+You will start with the following stat increases:
+
+* 3 Herblore
+* 5 Runecraft
+
+A Dramen staff will be added to your Inventory along with the usual starter items so that you can access Fairy rings. If lost, you can reclaim it from the leagues tutor in Yama's lair.
+
+You can also claim a free spade, Impling jar and two Strange devices from the leagues Tutor in Yama's Lair.
+
+As you progress through relic tiers, you'll also gain powerful passive effects starting with:
+
+* All experience is multiplied by 5x.
+* Items from eligible sources will be 2x as common.
+* Farming ticks will occur every minute instead of every five minutes.
+* Minigame points received are boosted by 4x.
+* Run energy is never drained whilst running.
+* All Clue scrolls will drop as stackable scroll boxes, and clue-step progress is saved between clues.
+
+{{Collapsed section end}}
+
+====Content Changes====
+
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+
+* Echo Boss rewards are a guaranteed drop over a certain threshold
+* Chambers of Xeric: Challenge Mode, Theatre of Blood: Hard Mode & Tombs of Amascut: 500+ have significantly buffed drop rates and difficulty, ToA and ToB will now provide uniques to all players in the raid if the raid obtains one
+* Wilderness Bosses can be accessed without the Wilderness Medium Diary
+* Zulrah has no damage cap or melee damage immunity
+* Impling spawn rates have increased and you'll be more likely to see rare implings
+* Dragon Implings drop reduced Dragon bones
+
+'''Items:'''
+
+* Most shop stock will not deplete.
+* All Soulreaper axe pieces will drop from every Desert Treasure 2 boss
+* Items that drop as components that require multiple regions to create a usable item will drop as the finished item
+* The Twisted bow, Scythe of vitur, and Tumeken's shadow are available from all three raids
+* Scythe of vitur can be charged with just Blood runes
+* Nihil shards drop in increased quantity from Nex
+* The Leagues Tutor in Yama's Lair can sell Max capes once you are eligible
+
+'''Access:'''
+
+* The Abyss and Zanaris are now counted as general regions, meaning you can access them from anywhere via a fairy ring (This includes the cosmic altar)
+* Slayer Masters all share the same task list, taking into account the areas you have currently unlocked
+* Players '''cannot''' enter the Ancient Guthixian Temple from the Chasm of Tears.
+* Teleports and transportation methods to locations outside of areas you have unlocked are restricted
+* When purchasing your Player Owned House it will be accessible from Aldarin. Your house can only be moved to areas you have unlocked
+* Unlocking new areas will complete various quests and Achievement Diary tasks but will not award any quest completion XP. However, you may complete some quests on your own to gain their XP before unlocking the area which auto-completes it
+
+'''Misc:'''
+
+* Rocks, trees, respawnable items, and main-world npcs will respawn faster than the main game. (3x in most cases, and much higher in other cases such as Runite Rocks).
+* Forestry Events are three times as likely to spawn
+* Pets and any pet transmog items that roll over between leagues do not count towards the collection log tasks
+* Pet transmogs will now roll over between leagues
+
+{{Collapsed section end}}
+
+===Key Features===
+We've got a ton of information when it comes to our sixth iteration, so if you're looking for an in-depth breakdown of everything we've showcased, then check out the <u>[https://secure.runescape.com/m=news/get-ready-for-leagues-vi-demonic-pacts---april-15th?oldschool=1 Get Ready For Leagues VI]</u> newspost!
+
+<center>
+{{Youtube|bubqREvkHrI}}
+Accept [# marketing cookies] to watch this video here.
+Alternatively, [https://youtu.be/bubqREvkHrI?si=zShqwT9u3corBQX- watch on YouTube]
+</center>
+
+===Demonic Pacts===
+Our new Combat Mastery system gives you way more flexibility with what combat styles you want to specialise in as the Demonic Pacts form a skill tree, something we're trying for the very first time!
+
+[[File:Leagues VI- Demonic Pacts - Launches Today! (3).png|thumb|600px|center|If you can't see the asset above, [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-04-08/DP-Tree.png click here].]]
+
+While your first point will be spent on the centre pact during the tutorial, from this point on you may branch out however you please, providing that you have unlocked a previous node connected to it. You'll have a total of '''40 points''' to spend if you gain them all from the specific tasks that give them and you have up to '''3 full tree resets''', by defeating your first three unique Echo Bosses and earn yourselves those sweet, sweet resets.
+
+If you want a helping hand on you build, our friends over at the OSRS Wiki have created a fantastic [https://tools.runescape.wiki/demonic-pacts Demonic Pacts Calculator] which also works with their DPS Calculator! Alongside this, we've teamed up with Faux, Sardaco, Zizaran & JonMP4 to give you a couple of recommended build for you to try!
+
+<center>
+{{Youtube|VyxQMM5PZ6I}}
+Accept [# marketing cookies] to watch this video here.
+Alternatively, [https://www.youtube.com/watch?v=VyxQMM5PZ6I watch on YouTube]
+</center>
+
+'''Note:'''
+
+* Kourend: "Equip a piece of Radiant Oathplate" is now "Equip a full set of Oathplate armour"
+* Asgarnia: "Defeat the Awakened Whisperer" is now "Equip a pair of Avernic Treads (max)"
+
+These two tasks stood out as the most 'skill-check' options where your additional power from Demonic Pacts and Relics isn't likely to be a difference maker like it is in many other Pact tasks, so we've brought them more in line with other tasks which can be reliably stat-checked by players with powerful builds, even though some of these tasks may still be more of a grind than others in spots!
+
+===Echo Bosses===
+Theses fearsome versions of iconic bosses return this leagues and while you'll be familiar with all but one of the bosses themselves, the rewards have been reworked to directly work with the Demonic Pacts to help amplify your build.
+
+Battle the original version of the boss for a chance to score an Echo Orb, which will let you fight the more powerful variant, giving you a chance to come away with their exclusive items. All areas aside from Karamja have Echo Bosses, so you'll have a choice of 4 Echo Bosses you can face-off against this time around.
+
+We worked with the wonderful Scritic to create a video all about this league's Echo Bosses and Items, so check it out for more info!
+
+<center>
+{{Youtube|v6BaYBWJiq8}}
+Accept [# marketing cookies] to watch this video here.
+Alternatively, [https://www.youtube.com/watch?v=v6BaYBWJiq8 watch on YouTube]
+</center>
+
+===Relics===
+Of course, just like a PKer without at least one spade worth of loot, what is a league without Relics? Leagues VI is no different in that aspect and we've made sure this versions roster will be one of the hardest to choose from, so beware!
+
+You can find out all the information around the relics by visiting the <u>[https://secure.runescape.com/m=news/get-ready-for-leagues-vi-demonic-pacts---april-15th?oldschool=1#relics Get Ready For Leagues VI]</u> newspost.
+
+[[File:Leagues VI- Demonic Pacts - Launches Today! (4).png|thumb|600px|center|If you can't see the asset above, [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-04-12/db28gda8dawgblv.png click here].]]
+In terms of your unlock thresholds here's what you can expect:
+
+* Tier 1 - 0 points
+* Tier 2 - 600 points
+* Tier 3 - 1,200 points
+* Tier 4 - 2,600 points
+* Tier 5 - 5,200 points
+* Tier 6 - 8,500 points
+* Tier 7 - 16,500 points
+* Tier 8 - 28,000 points
+
+===New Starting Location & Area Unlocks===
+The systems aren't the only things changing this league as you won't be starting in Misthalin for the very first time, in fact, Misthalin is not even available to visit at all! Instead you'll being your journey in a unique version of Yama's Lair and then right after the tutorial you can head into the Shining Kingdom itself, '''Varlamore!'''
+
+This presents another twist on leagues most staple version by kicking things off in the most recently released region, which has plenty of content to get lost in! Once you've got your first area unlock, you'll automatically unlock Karamja, with the next three being up to you. Make sure to keep in mind what relics and Pacts you're choosing as theses areas can really make the difference.
+
+What's nice this time around is all areas have the same amount of total points, which gives everyone racing for those top spots, some more freedom!
+
+But when can you unlock your areas? Well that will depend on the ''amount'' of tasks you complete:
+
+* Varlamore - 0 tasks
+* Karamja - 80 tasks
+* Area Choice #1 - 200 tasks
+* Area Choice #2 - 350 tasks
+* Area Choice #3 - 450 tasks
+
+As an extra bit of information for you Wilderness pickers, we've moved Krystilia into Ferox Enclave to help with Slayer!
+
+===Reward Points===
+Every League brings a new Banner, Home Teleport Animation, and Leagues Outfit, so you can show off your progress wherever you go. Plus, we have a range of new rewards to get your mitts on, including weapon ornament kits, overrides for the Slayer Helm, Thrall Imps, Yama's Throne and Butler in your POH. Check out all out at the "Rewards" section of this blog <u>[https://secure.runescape.com/m=news/leagues-vi-demonic-pacts---announcement?oldschool=1 here]</u>. You’ll also be able to get your hands on a series of Trophies, depending on where you place in the final ranking. Note that the rewards are unavailable on launch, but we'll keep you updated once the Leagues VI Rewards shop is open.
+
+* Demonic Pacts Banner: 500 points
+* Impish Ritual Kit (Home teleport override):1,000 points
+* Demonic Pacts Outfit (T1): 1,000 points
+* Demonic Staff Ornament Kit (Iban's Staff): 2,000 points
+* Demonic Throne Override: 3,000 points
+* Demonic Skin Colour (Red skin override): 3,000 points
+* Demonic Quill (Oathplate Slayer helm override): 3,000 points
+* Demonic Butler Scroll: 4,000 points
+* Demonic Trident Ornament Kit (Trident of the Seas and Trident of the Swamp): 4,500 points
+* Demonic Pacts Outfit (T2): 5,000 points
+* Impish Whistle (Thrall overrides): 8,000 points
+* Demonic Axe Ornament Kit (Soulreaper Axe): 10,000 points
+* Demonic Pacts Outfit (T3): 20,000 points
+
+====Trophy requirements:====
+
+* Dragon Trophy: 65,000 points
+* Rune Trophy: 47,500 points
+* Adamant Trophy: 32,000 points
+* Mithril Trophy: 22,000 points
+* Steel Trophy: 10,000 points
+* Iron Trophy: 4,000 points
+* Bronze Trophy: 2,000 points
+
+===Check Out Synq's Remastered CoX Solo Raids Guide!===
+[[File:Leagues VI- Demonic Pacts - Launches Today! (5).png|thumb|600px|center|If you can't see the asset above, [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-04-14/synq.png click here].]]
+
+<u>[https://twitter.com/SynqShot Synq]</u> has revisited and reworked his Chambers of Xeric solo raids guide into something truly special, making it a fantastic resource for anyone looking to take their first steps into raiding, especially if you're diving into Leagues! With boosted progression, Leagues offers the perfect opportunity to try content you may not have tackled before and build confidence along the way. A big thank you to <u>[https://www.twitch.tv/synq Synq]</u> for the time and dedication poured into creating such a comprehensive guide! Be sure to give it a watch and show your support!
+
+<center>
+{{Youtube|klhBxOH8reQ}}
+Accept marketing cookies to watch this video here.
+Alternatively, [https://youtu.be/klhBxOH8reQ?si=WQrZv1ttfgUbmcMD watch on YouTube]
+</center>
+
+What's left to say rather than good luck 'scapers and try not to give too much of your soul away…
+
+==Jagex Launcher Improvements==
+===New RuneLite Installations===
+Today introduces further improvements to the Jagex Launcher, with seamless installation of the popular community led third-party client, RuneLite! 
+
+We’ve improved the way new RuneLite users can install the client via the Launcher. Before today, you’d have had to click on “Install” and head to the RuneLite website to install the client. Now however, it is a simple case of selecting RuneLite as your preferred client within the Launcher, clicking “Play”, and the Launcher will automatically install the client for you and then load it. 
+
+You might have to wait a few moments for the installer to finish, signalled by the “Play” button changing to a progress wheel. 
+
+For many of you reading this post, you won’t notice a change, this only applies to those who do not currently have RuneLite installed. It is also possible to continue installing RuneLite directly from their site <u>[https://runelite.net/ https://runelite.net/]</u>.
+
+==Other Changes==
+We previously announced that the Easter 2026 Event would be removed today. However, the Easter Bunny hasn’t packed up the stalls and decorations just yet! You now have an extra week to go egg hunting before the event wraps up next Wednesday.
+
+Now, onto the other changes of the week:
+
+* Brutus icon now appears in HiScores interface on the Official Client.
+* Some grammar has been corrected in the canoe experts' axe-related dialogue.
+* The warning before climbing down the ladder from the Seers' Village rooftop course is now only shown if you're in the middle of the course at the time.
+
+==PvP World Rota==
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>de-activated</u>''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''<u>de-activated</u>''' with this rota.
+
+The PvP Arena is using '<b>1 Def Pure</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1sm0c8f/leagues_vi_demonic_pacts_launches_today/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Acorn, Ape, Arcane, Archie, Argo, Ash, Asherz, Ayiza, BigRig, Blighted, Blossom, Boko, Brooksie, Bruno, Chilly, Criminal, Curse, Daizong, Default, Ed, Elena, Enigma, Entropi, Freddie, Frogs, Fuzz, Gecko, Gizmo, Goblin, Grace, Grub, Halo, Harold, Hend, Hornet, Husky, Ivory, Jalo, Jamesy, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Lotus, Mack, Manked, Markos, Maylea, Mobius, Moogle, Morty, Moz, Necro, Nin, Nixon, Nox, Nylu, Ori, Other, Otter, Philomel, Pork, Pumpkin, Puppi, Rach, Redfield, Rice, Romy, Roy, Ry, Saiyan, Sarnie, Schmidt, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Spyro, Squid, Starry, Stilrush, Suharun, Surma, Sween, Tide, Titania, Titus, TJ, Tomb, Tsourorf, Tyran, Veda, Vegard, West, Wolfy, Yozora & Yume'''
+
+''The Old School Team.''

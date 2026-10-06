@@ -1,0 +1,156 @@
+{{Update|date=23 December 2021|link=https://secure.runescape.com/m=news/tombs-of-amascut-and-more-quests?oldschool=1|category=community}}
+[[File:Tombs of Amascut and More Quests! newspost.png|right]]
+{{Clear|right}}
+Today we’re bringing forward the poll questions for Tombs of Amascut, Old School’s highly anticipated third raid! We’re not quite ready to poll rewards just yet, but we’d like to get your seal of approval on the raid itself, so we can get stuck into developing it.
+
+We also have two brand new quests we’d like to run past you!
+
+The first is Beneath Cursed Sands, which will be the sequel to Contact! and will ultimately grant access to the Tombs of Amascut once completed. Should it pass the polls, we’ll be releasing this one sometime in April.
+
+The second quest is Land of the Goblins, which we mentioned in December's Gielinor Gazette. It’s the next installment in the Cave Goblin questline, and should it pass the polls, we’re expecting to release it sometime in February.
+
+Lastly, we’re looking at adding a little bit of extra spice to TzHaar-Ket-Rak's Challenge. Read on to find out more!
+{{ToC}}
+==The Tombs of Amascut==
+Long ago, the citizens of the Kharidian Desert lived prosperous and luxurious lives thanks to the benevolence of the Gods of the Menaphite Pantheon. However, that all changed when Amascut, the Goddess of Rebirth, was corrupted. Warped into the Devourer, she became intent on devouring every soul in existence.
+
+Her brother, Icthlarin, along with her former High Priestesses have since been fighting tirelessly against Amascut, in a bid to negate her destructive efforts.
+
+After years of plotting, Amascut has finally found a way to overcome the efforts of Icthalarin and his allies.
+
+Deep within the desert, an ancient pharaoh called Osmumten lies buried. His tomb has long hidden a great power. It is this great power that Amascut seeks, and if she can lay her hands on it she will become unstoppable.
+
+You must take the fight to Amascut before it's too late.
+
+[[File:Tombs of Amascut and More Quests! (1).png|thumb|centre|650px|''Sketches and references for the Tombs of Amascut. Click to see it in more detail. '''This is concept art and may not be representative of the final appearance of the Tombs!''''']]
+
+==The Raid==
+Let's dig in to what you need to know about the Tombs of Amascut:
+* Groups of up to eight participants.
+* Four initial challenges, followed by two final bosses to be fought in a twin boss encounter.
+
+Invocations will allow for customisable difficulty, which will also impact your loot potential!
+* Invocations will replace standard difficulty systems, like the ones used in other raids.
+* Each Invocation will affect the raid or your group in different ways.
+* Some Invocations can affect the health, defence, or damage modifiers for the enemies within the Raid.
+* Other Invocations might impose group restrictions, like reducing the amount you can heal or prohibiting certain spells.
+* We intend to be quite creative with these modifiers. The above examples are fairly simple and safe, with the intention to provide early insight into their impact for this blog, but we'd like to experiment with different ideas that might drastically change things.
+
+On entering the Tombs of Amascut you will encounter four paths:
+* The upper level of the Tombs will consist of four paths, each ending in a boss.
+* Each path is comprised of its own series of challenges to be overcome.
+* These challenges are more akin to puzzles rather than killing a single entity, like a boss.
+* These can range from things like traps with Sepulchre-like dodging, or defeating new foes in unconventional ways.
+* Once you reach the end of a path, you'll then fight the boss of that path in a more conventional combat encounter.
+* The raid will be altered in some way with the death of each boss, changing the remaining boss encounters.
+* This means that the path order you choose will matter!
+
+Defeat the four bosses to descend to the lower levels:
+* Once you defeat the first four bosses you'll unlock the lower level.
+* You'll enter a chamber containing the two ancient guardians of the Tombs.
+* These guardians need to be fought at the same time.
+* Defeat the guardians to drive Amascut from the tomb and claim your rewards!
+
+We'll discuss the rewards a bit later, but first let's talk about how you might access the Tombs of Amascut.
+
+{{News Poll|1|Should Tombs of Amascut be added to the game, as described in the blog? If this question passes, the rewards for the raid will be polled at a later date.}}
+
+==Beneath Cursed Sands==
+The Tombs of Amascut will be our most narratively-driven Raid yet, and no narrative is complete without a quest!
+
+''When Sophanem was beset by a series of plagues, the gates to the golden city of Menaphos quickly closed. The city has been locked down ever since, with no one allowed to leave or enter. However, rumours have escaped of strange happenings inside Menaphos and there are stories of citizens mysteriously disappearing.''
+
+These odd happenings need to be investigated, but few are willing to do so. Maisa, a spy from Al Kharid, has grown tired of inaction. She is determined to solve this mystery herself, but she won't be able to do it alone...
+
+* Beneath Cursed Sands is a Master-level quest which will advance the desert storyline.
+* In this sequel to Contact! You'll find yourself investigating mysterious disappearances from Menaphos, the city of gold. ''Note: Menaphos will not be opening its gates just yet.''
+* Solving this mystery will grant you access to the Raid itself.
+* We're aiming to release the quest before the Raid to give you ample time to ready yourself!
+
+{{Collapsed section|18|Requirements & Rewards (SPOILER WARNING!) - click to expand}}
+
+Being a Master-level quest, there are naturally some mid-level requirements to meet:
+* Completion of ''Contact!''
+* 62 Agility
+* 55 Firemaking
+* 55 Smithing
+
+Upon completion you'll be rewarded with:
+* 1 Quest Point
+* Access to the Tombs of Amascut
+* The ability to upgrade the Keris to the Keris Partisan
+* 15,000 Agility XP
+{{Collapsed section end}}
+
+{{News Poll|2|If Tombs of Amascut is added to the game, should Beneath Cursed Sands also be added? Beneath Cursed Sands is a Master-level quest which will advance the desert storyline. Completion of this quest will be required to access the Tombs of Amascut.}}
+
+===Keris Partisan===
+''Upon helping to '''[redacted]''' during the Beneath Cursed Sands quest, '''[redacted]''' will reluctantly reward you with an enhanced version of Keris, the spear-like Keris Partisan.''
+
+In addition to its Stab attack styles, the Partisan will have a Crush attack style, which should prove useful during the Tombs of Amascut and against other beetle-like enemies, like the Kalphite Queen. As the Keris Partisan is a spear-like weapon, it acts differently from normal spears. The main difference of the Keris is its Aggressive attack style that allows players to focus their combat experience on Strength. Equipping the Partisan will require 70 Attack.
+
+We'd like to try something slightly different with this weapon. The Partisan has a socket in which players can insert special jewels. These jewels are obtained as rare rewards from the Tombs of Amascut, and inserting these jewels into the Partisan will bestow different effects onto the weapon. You'll only be able to use one jewel at a time. These jewels will not be tradeable.
+
+We're still considering how we'd like to reward players with these jewels. They could be unlocked as a random drop, or given upon a certain number of Raid completions, or as a reward for killing bosses using specific methods. We're also considering whether they should be permanent one-time unlocks, or whether they should have charges. Naturally this would effect the rarity of the drop. We'd love to hear your thoughts on how they should be implemented!
+
+Let's take a look at the stats:
+
+[[File:Tombs of Amascut and More Quests! (2).png|frame|center|''Keris Partisan, a spear-like enhanced version of Keris.'']]
+
+
+We think that the Partisan's upgrade system will allow for a strong sense of progression within the Raid itself, making it very useful in that encounter without encroaching on other gear elsewhere.
+
+{{News Poll|3|If Beneath Cursed Sands is added to the game, should completion of the quest award players with the Keris Partisan, as described in the blog? The Keris Partisan is a 70 Attack spear-like weapon that has an attack style that allows players to focus their combat experience on Strength.}}
+
+==Land of the Goblins==
+This one might seem like it’s come out of nowhere, since the original Cave Goblin quest came out in 2007, just after the big backup that Old School is built upon. But after poking around in the files, we discovered that the majority of the work for this quest is already done! All that remains is to add a few missing parts and some tweaks to make it suitably Old School. After this (assuming it passes polling, of course) we can finally continue Zanik's story.
+
+Land of the Goblins is an Experienced-level quest which advances the Dorgeshuun storyline.
+
+{{Collapsed section|18|Requirements & Rewards (SPOILER WARNING!) - click to expand}}
+Being an Experienced-level quest, there are naturally a few requirements:
+
+Completion of ''Fishing Contest'' & ''Another Slice of H.A.M.''
+* 38 Agility
+* 40 Fishing
+* 45 Thieving
+* 47 Herblore
+
+Upon completion you'll be rewarded with:
+* 2 Quest Points
+* 8,000 XP in Agility, Fishing, Thieving & Herblore
+{{Collapsed section end}}
+
+{{News Poll|4|Should Land of the Goblins be added to the game, as described in the blog? Land of the Goblins is an Experienced-level quest which advances the Dorgeshuun storyline.}}
+
+==Hopespear’s Will==
+Hopespear’s Will is a miniquest that was originally launched alongside Land of the Goblins. Like with Land of the Goblins, we’ve determined that we can extract the miniquest from our original 2007 backup. In this miniquest, you must help an old goblin spirit return the remains of his successors to the lost goblin homeland.
+
+{{Collapsed section|18|Requirements & Rewards (SPOILER WARNING!) - click to expand}}
+Being an Experienced-level quest, there are naturally a few requirements:
+
+Completion of ''Land of the Goblins'', ''Desert Treasure'' & ''Fairytale II - Cure a Queen''
+* 90+ Combat Level is recommended
+
+Upon completion you'll be rewarded with:
+* 38,750 Prayer XP
+{{Collapsed section end}}
+
+{{News Poll|5|If Land of the Goblins is added to the game, should Hopespear’s Will also be added, as described in the blog? Hopespear’s Will is a miniquest where you must help an old goblin spirit return the remains of his successors to the lost goblin homeland.}}
+
+==TzHaar-Ket-Rak's Final Challenge==
+So you've managed to defeat six JalTok-Jads and at this point you’re wondering what else TzHaar-Ket-Rak could possibly have in store. How about an endurance test where you're pitted against an infinite number of JalTok-Jads until you perish?
+
+We really do mean infinite – every time one dies, another one takes its place, forever. Each freshly spawned JalTok-Jad will be on the same attack cycle, meaning they can continue going round in circles and attacking continuously. It would be possible to unlock this fiendish challenge after finishing the six previous challenges set by TzHaar-Ket-Rak.
+
+The final challenge rewards TokKul based on how many JalTok-Jads you manage to defeat, with personal and global statistics being added to the scoreboard next to TzHaar-Ket-Rak.
+
+{{News Poll|6|Should TzHaar-Ket-Rak's Final Challenge be added to the game, as described in the blog? The final challenge is an endurance test where you're pitted against an infinite number of JalTok-Jads until you perish.}}
+
+----
+
+As always, we'd love to hear what you think, so please share your feedback with us via the [http://services.runescape.com/m=forum/forums?380,381,779,66240333 official forums], on the [https://www.reddit.com/r/2007scape/comments/rmvdvr/tombs_of_amascut_and_more_quests/ 2007Scape Reddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums] or the community-led [http://discord.gg/OSRS OSRS Discord].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Brow, Bruno, Con, Curse, Daizong, Deagle, Dibber, Ditto, Dylan, Ed, Elena, Ellie, Errol, Fed, Gecko, Grub, Halo, Havik, Hornet, Husky, Jndr, John C, Kandosii, Katies, Kieren, Kirby, KT, Kurotou, Lenny, Light, Lottie, Mack, Matheus, Maylea, Markos, Meat, Morty, Nasty, Nin, Nylu, Oasis, Peppers, Regent, Redfield, Roq, Ry, Sarnie, Sigma, Skylark, Sova, Squid, Steve W, Tide, Veda, Vegard, West, Wolfy & Zuko'''
+
+''The Old School Team''

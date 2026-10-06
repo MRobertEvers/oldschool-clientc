@@ -1,0 +1,20 @@
+{{Infobox NPC
+|name = Wave
+|image = [[File:Wave (Tombs of Amascut).png|250x250px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|location = [[Tombs of Amascut]]
+|examine = Wet.
+|map = {{Map|3930,5408|mapID=-1}}
+|id = 11738
+|leagueRegion = Desert
+}}
+'''Waves''' are one of the attacks used by [[Zebak]] during the fight with him within the [[Tombs of Amascut]]. Zebak will throw jars and poison before slamming his tail, causing boulders to drop from one direction and cause a tidal wave to sweep from that side of the arena.
+
+Much like [[Galvek]]'s tsunami, players must avoid these tidal waves; getting caught by one will push the player down the direction it was going and deal moderate damage. The waves will also push jars down if they collide into one.
+[[File:Tombs of Amascut - Zebak wave attack.png|Zebak's wave attack. The acid pools will clear up as the wave passes by.|thumb|left|Zebak using his tidal wave attack.]]
+
+If players are suffering from Zebak's bleed effect, they will leave behind temporary splatters of blood in their path. Should a wave wash over these splatters, they will become [[Bloody Wave]]s; blood splatters that are always present in the north and south edges of the room also transform the waves.
+
+{{Tombs of Amascut}}

@@ -1,0 +1,5 @@
+# We Do Raids — public pages (fetched 2026-10-02)
+
+Source site https://wedoraids.com (WordPress.com; robots.txt allows these; sitemap read, 15 urls). One request per 1.5 s, User-Agent `3draster-tob-research/1.0 (mrobertevers@gmail.com)`.
+
+Result: the public site holds NO mechanics content. `resources_text_guides.md` says outright: "Guides for most bosses can be found on the discord in the channels #room-resources, #olm-resources and the various TOB channels." Gear guides likewise live in #gear-setups. The Discord is not reachable from this environment, so the role guides, room resources and mentor material are UNAVAILABLE. Pages kept for completeness and for the learner/standard/advanced/maxeff tier vocabulary (`welcome_discord_roles.md`, `raid_requirements.md`, `faq.md`): home, resources, text_guides, gear_guides, tips_and_tricks, raid_requirements, welcome, welcome_discord_roles, faq, links, workshops, about_2. Not fetched: contact, discord-rules, terms-of-service (no content of use).

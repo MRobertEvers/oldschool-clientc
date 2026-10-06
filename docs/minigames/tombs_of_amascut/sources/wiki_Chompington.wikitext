@@ -1,0 +1,120 @@
+{{Infobox Combat Achievement
+|name = Chompington
+|image = [[File:Tombs of Amascut - Fighting Zebak.png|300px]]
+|release = [[30 November]] [[2022]]
+|update = The Garden of Death & More
+|members = Yes
+|description = Defeat Zebak using only melee attacks and without dying yourself.
+|tier = Master
+|monster = Tombs of Amascut
+|type = Mechanical
+|id = 428
+|leagueRegion = Desert
+}}
+'''Chompington''' is a [[Combat Achievements/Master|master combat achievement]] which requires the player to defeat [[Zebak]] using only melee attacks without dying, at raid level 150 or above. The achievement will be earned immediately after defeating Zebak so the raid does not need to be completed.
+
+==Strategy==
+[[File:Zebak melee range.png|alt=Image showing Zebak's 1/2 tile melee attack range|thumb|Zebak can do a melee attack only if player is on any of the red tiles. However if Zebak does a melee attack it's effect will extend to yellow tiles as well and will damage all players standing in that area. Halberds can be used to safely attack Zebak from yellow tiles. However, with most melee weapons with attack range of one tile, a player must run two tiles back (or one tile, if flinching from either of the sides) immediately after attacking Zebak to avoid all melee damage. ]]
+At the minimum raid level of 150, Zebak will have 930 health. Zebak's melee attack hits the hardest and can also apply a bleeding effect that deals additional damage if the player moves. Assuming no path levelling is active (which should most likely be the case), Zebak will have an attack speed of 7, or once every 4.2 seconds. Once he enrages, his attack speed increases to 4, or every 2.4 seconds.
+
+Use the best melee weapons and armour you have access to, prioritising melee accuracy and strength bonuses over defensive bonuses. Defence reducing special attacks, such as the [[Bandos godsword]]'s, can be used since like [[Ba-Ba]] he does not reset his Defence level. However, his Defence can only be lowered to 50 (from 70 and before modifications). He has fairly high defensive bonuses (+160 stab, slash and +260 crush), so [[Osmumten's fang]] is highly effective due to its passive effect. All melee damage from Zebak can be avoided by using a flinching method. This is done by attacking Zebak from three tiles away, and immediately after, running out of his melee attack range. Zebak's melee attack has a one tick delay, so if the player only stays in his melee range for one tick at a time, his melee attacks will never damage the player. Alternative, easier but slower, strategy is to use a [[crystal halberd]] or [[noxious halberd]] to attack him standing two tiles away causing him to never use his melee attack.
+
+'''Note:''' Usage of [[Resurrect Greater Ghost|ghostly]] and [[Resurrect Greater Skeleton|skeletal]] thralls, recoil damage (e.g. [[ring of recoil]], [[Vengeance]]), and the [[Voidwaker]]'s special attack will all fail the challenge. However, both [[Resurrect Greater Zombie|zombie thralls]] and burn damage from [[Burning claws]]'s special attack will '''not''' fail the challenge, and ranged weapons '''can''' be used to break the jugs.
+
+{{Recommended equipment
+| style = Melee
+| head1 = {{plink|Oathplate helm}}
+| head2 = {{plink|Torva full helm}}
+| head3 = {{plink|Neitiznot faceguard}}
+| head4 = {{plink|Serpentine helm}}
+| head5 = {{plink|Helm of Neitiznot}}
+| neck1 = {{plink|Amulet of rancour}}
+| neck2 = {{plink|Amulet of torture}}
+| neck3 = {{plink|Amulet of blood fury}}
+| neck4 = {{plink|Amulet of fury}}
+| neck5 = {{plink|Amulet of strength}}
+| cape1 = {{plink|Infernal cape}}
+| cape2 = {{plink|Fire cape}}
+| cape3 = {{plink|Ardougne cloak 4}} /<br/>{{plink|Mythical cape}}
+| cape4 = {{plink|Max cape}}
+| cape5 = {{plink|Prayer cape}}
+| body1 = {{plink|Oathplate chest}}
+| body2 = {{plink|Torva platebody}}
+| body3 = {{plink|Bandos chestplate}} / {{plink|Blood Moon chestplate}}
+| body4 = {{plink|Fighter torso}}
+| body5 = {{plink|Obsidian platebody}}
+| legs1 = {{plink|Oathplate legs}}
+| legs2 = {{plink|Torva platelegs}}
+| legs3 = {{plink|Bandos tassets}} / {{plink|Blood Moon tassets}}
+| legs4 = {{plink|Obsidian platelegs}}
+| legs5 = {{plink|Fremennik kilt}}
+| weapon1 = {{plink|Scythe of Vitur}}
+| weapon2 = {{plink|Osmumten's fang}}
+| weapon3 = {{plink|Blade of Saeldor}}  /<br/>{{plink|Noxious halberd}}
+| weapon4 = {{plink|Abyssal tentacle}}
+| weapon5 = {{plink|Abyssal whip}}
+| shield1 = {{plink|Avernic defender}}
+| shield2 = {{plink|Dragon defender}}
+| shield3 = {{plink|Rune defender}}
+| shield4 = {{plink|Dragonfire shield}}
+| shield5 = 
+| ammo1 = {{plink|Rada's blessing 4}}
+| ammo2 = {{plink|God blessing|pic=Peaceful blessing}}
+| hands1 = {{plink|Ferocious gloves}}
+| hands2 = {{plink|Barrows gloves}}
+| hands3 = {{plink|Rune gloves}}
+| hands4 = {{plink|Regen bracelet}}
+| hands5 = {{plink|Granite gloves}}
+| feet1 = {{plink|Avernic treads (max)}}
+| feet2 = {{plink|Primordial boots}}
+| feet3 = {{plink|Guardian boots}}
+| feet4 = {{plink|Dragon boots}}
+| feet5 = {{plink|Climbing boots}}
+| ring1 = {{plink|Lightbearer}} /<br/>{{plink|Ultor ring}}
+| ring2 = {{plink|Berserker ring (i)}}
+| ring3 = {{plink|Ring of suffering (i)}}
+| ring4 = {{plink|Ring of the gods (i)}}
+| ring5 = {{plink|Brimstone ring}}
+| special1 = {{plink|Bandos godsword}}
+| special2 = {{plink|Dragon warhammer}}
+| special3 = {{plink|Dragon claws}} > {{plink|Burning claws}}
+| special4 = {{plink|Saradomin godsword}}
+| special5 = {{plink|Crystal halberd}}
+}}
+
+===Inventory===
+{{Inventory
+|1 = Toxic blowpipe
+|2 = Super combat potion(4)
+|3 = Prayer potion(4)
+|4 = Prayer potion(4)
+|5 = Anglerfish
+|6 = Cooked karambwan
+|7 = Anglerfish
+|8 = Cooked karambwan
+|9 = Anglerfish
+|10 = Cooked karambwan
+|11 = Anglerfish
+|12 = Cooked karambwan
+|13 = Anglerfish
+|14 = Cooked karambwan
+|15 = Anglerfish
+|16 = Cooked karambwan
+|17 = Anglerfish
+|18 = Cooked karambwan
+|19 = Anglerfish
+|20 = Cooked karambwan
+|21 = Bandos godsword
+|22 = 
+|23 = 
+|24 = 
+|25 = 
+|26 = 
+|27 = 
+|28 = 
+}}
+
+==Other tasks==
+{{Combat Achievements list|Tombs of Amascut}}
+
+{{Combat Achievements}}

@@ -1,0 +1,133 @@
+{{External|rs}}
+{{Infobox Item
+|name = Dragon warhammer
+|image = [[File:Dragon warhammer.png]]
+|release = [[21 January]] [[2016]]
+|update = The Dragon Warhammer
+|aka = Dwh
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = Yes
+|stackable = No
+|noteable = Yes
+|options = Wield, Drop
+|examine = Spikey, close combat weapon.
+|value = 120000
+|weight = 2.000
+|exchange = Yes
+|id = 13576
+|leagueRegion = Kourend
+}}
+[[File:Dragon warhammer detail.png|left|120px]]
+The '''dragon warhammer''' is a [[warhammer]] that requires 60 [[Strength]] to wield and is currently one of the strongest warhammers available (second only to the [[Statius's warhammer (bh)|Statius Warhammer]]) in ''[[Old School RuneScape]]''. It is obtained as an extremely rare drop from [[Lizardman shaman]]s.
+
+The dragon warhammer can be used as a substitute for a regular [[hammer]] when banging the big door at the entrance of [[Bandos' Stronghold]] in the [[God Wars Dungeon]], as well as in the [[Chambers of Xeric]] to stun [[Jewelled Crab]]s and build any [[Small storage unit|storage chest]] (with the required [[mallignum root plank]]s and [[Construction]] level). It can also be used in the [[Tombs of Amascut]] to repair the pillars in the monkey puzzle of the Path of [[Apmeken]].
+
+The dragon warhammer is popular for its special attack, as it can drastically reduce the opponent's defence and make them an easier target. Additionally, it is a popular weapon among [[Obsidian mauler|strength pures]] due to the lack of an [[Attack]] requirement and considerable damage output.
+
+As with most [[dragon equipment]], the dragon warhammer '''cannot''' be made from raw materials using the [[Smithing]] skill.
+
+==Combat stats==
+{{Infobox Bonuses
+|astab = -4
+|aslash = -4
+|acrush = 95
+|amagic = -4
+|arange = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|drange = 0
+|str = 85
+|rstr = 0
+|mdmg = 0
+|prayer = 0
+|slot = weapon
+|speed = 6
+|attackrange = 1
+|combatstyle = Blunt
+|image = [[File:Dragon warhammer equipped male.png|150px]]
+|altimage = [[File:Dragon warhammer equipped female.png|150px]]
+}}
+
+{{CombatStyles|Blunt|speed=6|attackrange=1}}
+
+==Special attack==
+[[File:Smash.gif|thumb|250px|A player performing the dragon warhammer's special attack.]]
+The dragon warhammer has a [[special attacks|special attack]], ''Smash'', which deals 50% more damage, while lowering the target's '''current''' [[Defence]] level by 30% on [[successful hit]] (i.e. the hit has to deal damage).{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/869201558839406592|date=29 May 2017|archiveurl=https://reldo.runescape.wiki/i/109129|archivedate=28 May 2020|quote=While special attacks usually do trigger on a successful roll even if the damage comes out as 0, the DWH blog said this one wouldn't.}} This attack consumes 50% of the player's special attack energy. 
+
+Defence level reductions '''will''' stack over multiple successful hits; each reduction is calculated from the current temporary level (so follow-up drains reduce fewer levels). The Defence level of the target after each respective hit, with no rounding, would be 70%, 49%, 34.3%, 24%, 16.8% then 11.8% of the original. However, fractional defence levels reduced by the special attack will be rounded down.
+
+For example, on a monster with 75 Defence, the first special attack will reduce 22 levels (rounded down from 22.5), leaving the enemy at 53 Defence. The next special attack will then reduce 15 levels (rounded down from 15.6), leaving the enemy at 38 Defence.
+
+When used against [[Tekton]], the first special attack from a dragon warhammer is guaranteed to hit,<ref>{{PlainCiteNews|url=https://secure.runescape.com/m=news/a=97/chambers-of-xeric-changes?oldschool=1|title=Chambers of Xeric Changes|newsdate=29 November 2023}}</ref> however, if subsequent attacks fail to hit, it will instead reduce 5% of his Defence level. 
+
+The dragon warhammer special attack specialises in reducing high amounts of defence based on a percentage on any successful attack. Unlike other weapons such as the [[Bandos godsword]], [[bone dagger]] or [[barrelchest anchor]], the dragon warhammer only needs to roll a successful hit to reduce 30% of the monster's defence level. 
+
+Compared to the [[elder maul]], the dragon warhammer's only advantage is it is one-handed, meaning that it is only situationally useful for specific situations, such as when the player's other weapons are all one-handed, which grants an extra inventory space for other items. Otherwise, the warhammer is a weaker version it, being less accurate (the maul is slightly more accurate and doesn't account for its 25% increased accuracy on special), deals less damage in spite of the bonus modifier and drains 5% less Defence.
+
+==Item sources==
+{{Drop sources|Dragon warhammer}}
+
+==Products==
+{{Uses material list|Dragon warhammer}}
+
+==Sound effects==
+{{SFXTableHead}}
+{{SFXLine|file=Equip blunt.wav|desc=Wielding}}
+{{SFXLine|file=Tzhaar-ket-om attack.wav|desc=Special attack}}
+{{SFXLine|file=Warhammer attack.wav|desc=Attacking}}
+{{SFXTableBottom}}
+
+==Used in recommended equipment==
+{{Used in recommended equipment|Dragon warhammer}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 29 May 2024
+|update = Project Rebalance: Combat Changes
+|change = The Dragon Warhammer now drops at a rate of 1/3,000, up from 1/5,000
+}}
+{{Subject changes
+|date = 21 April 2021
+|update = Fishing Trawler Improvements and Equipment Rebalance: Part One
+|change = Dragon warhammers now require level 60 Strength to wield instead of level 60 Attack.
+}}
+{{Subject changes
+|date = 7 April 2017
+|update = Easter 2017 Holiday Event
+|change = When using the special attack against [[Tekton]], it will now reduce the [[Defence]] stat by 5% even if you fail to deal damage.
+}}
+{{Subject changes
+|date = 19 January 2017
+|update = Raids Tweaks & QoL
+|change = The Dragon Warhammer now works as a construction hammer within Raids.
+}}
+{{Subject changes
+|date = 24 March 2016
+|update = White & Black Graceful
+|change = The Dragon Warhammer can now open the Big Door to the Bandos Encampment.
+}}
+{{Subject changes
+|date = 28 January 2016
+|update = Necromancy Improvements
+|change = Dragon warhammer special attack now drains NPC defence based off current stat and not base stat.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+[[File:Lizardman Temple - unreachable dragon warhammers.png|thumb|250px|The inaccessible stone chest containing two dragon warhammers, between the second and third shaman chambers.]]
+*The dragon warhammer's special attack animation and effect are similar to that of [[Statius's warhammer]].
+*There are two dragon warhammers inside an inaccessible chest in the [[Lizardman Temple]].
+
+==References==
+{{Reflist}}
+{{Crush weapons}}
+{{Dragon equipment}}
+[[Category:Weapons with Special attacks]]
+[[Category:Items subject to Grand Exchange item sink]]
+[[Category:Collection log items]]
+[[Category:Defence reduction]]

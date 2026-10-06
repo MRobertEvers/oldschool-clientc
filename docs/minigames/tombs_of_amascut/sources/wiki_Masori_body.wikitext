@@ -1,0 +1,94 @@
+{{Infobox Item
+|name = Masori body
+|image = [[File:Masori body.png]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = Yes
+|stackable = No
+|noteable = Yes
+|options = Wear, Drop
+|examine = Ancient armour once worn by a powerful ranger.
+|value = 1200000
+|weight = 8.000
+|exchange = Yes
+|id = 27229
+|leagueRegion = Desert
+}}
+[[File:Masori body detail.png|left|150px]]
+The '''Masori body''' is obtained as a rare drop from the [[Tombs of Amascut]]. It is part of the [[Masori armour]] set, and requires level 80 [[Ranged]] and 30 [[Defence]] to equip. As with the rest of the armour set, the body boasts the highest [[ranged]] attack bonus of any item in the [[body slot]].
+
+The body can be upgraded into a [[Masori body (f)|fortified variant]] by attaching four [[Armadylean plate]]s onto it, increasing the Defence level to equip it to level 80. This process requires level 90 [[Crafting]], and is irreversible.
+
+{{Costume storage|armour case|[[Masori armour]] set|set=true}}
+
+==Combat stats==
+{{Infobox Bonuses
+|astab = 0
+|aslash = 0
+|acrush = 0
+|amagic = -4
+|arange = +43
+|dstab = +37
+|dslash = +35
+|dcrush = +38
+|dmagic = +25
+|drange = +33
+|str = 0
+|rstr = +4
+|mdmg = 0
+|prayer = 0
+|slot = body
+|image = [[File:Masori body equipped male.png|130px]]
+|altimage = [[File:Masori body equipped female.png|130px]]
+}}
+
+==Products==
+{{Uses material list|Masori body}}
+
+==Item sources==
+{{Drop sources|Masori body}}
+
+==Used in recommended equipment==
+{{Used in recommended equipment|Masori body}}
+
+==Gallery==
+<gallery heights="250" style="text-align:left">
+Masori armour equipped male.png|The Masori armour set on body type A.
+Masori armour equipped female.png|The Masori armour set on body type B.
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|prerelease = yes
+|page = Masori chestplate (beta)
+|date = 20 October 2021
+|update = Tombs of Amascut & Nex Rewards Beta
+|poll = 
+|change = The Masori chestplate has received the following changes:
+* An additional requirement of level 70 Hitpoints to equip has been added.
+* The Defence level required to equip it has been increased from level 20 to level 30.
+* Ranged Attack bonus increased from +30 to +33.
+* Stab Defence bonus increased from +12 to +37.
+* Slash Defence bonus increased from +8 to +35.
+* Crush Defence bonus increased from +15 to +38.
+* Magic Defence bonus increased from +6 to +25.
+* Ranged Defence bonus increased from +12 to +33.
+* Prayer bonus increased from +0 to +1.
+* A 3% dodge chance has been added whilst affected by Low Life.
+}}
+{{Subject changes
+|daterange =  12 - 17 August 2021
+|beta = Tombs of Amascut: Rewards Beta
+|change = First present in the Tombs of Amascut: Rewards Beta.
+}}
+{{Subject changes footer}}
+
+{{Tombs of Amascut}}
+{{Ranged armour}}
+
+[[Category:Items storable in the costume room]]
+[[Category:Collection log items]]

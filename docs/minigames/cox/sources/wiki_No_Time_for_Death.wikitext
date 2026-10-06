@@ -1,0 +1,28 @@
+{{Infobox Combat Achievement
+|name = No Time for Death
+|image = [[File:Deathly ranger.png|100px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Clear the Tightrope room without Killing any Deathly Mages or Deathly Rangers.
+|tier = Master
+|monster = Chambers of Xeric
+|type = Mechanical
+|id = 304
+|leagueRegion = Kourend
+}}
+'''No Time for Death''' is a [[Combat Achievements/Master|master combat achievement]] which requires the player to clear the tightrope room without killing any of the [[deathly mage]]s or [[deathly ranger|rangers]].
+
+==Strategy==
+Players will need to cross the tightrope, pick up the [[keystone crystal]], return across the tightrope, and interact with the magic barrier to dispel it. The mages and rangers are unaggressive at first, but immediately attack anyone crossing the tightrope, resulting in a large stack of damage being applied at once. Dying does not fail the achievement; if a player dies with the keystone in their inventory, it drops to the floor where they died.
+
+In groups, the mages and rangers should be distracted by other players to prevent them from attacking the crosser.
+
+In solo encounters, it is recommended to maximise ranged defence and use [[Protect from Magic]] to minimise damage taken. Even though the deathly rangers have a higher max hit than the mages, they are far less accurate when wearing [[Torag the Corrupted's equipment|Torag's]] or [[Justiciar armour]] compared to the mages with [[Karil the Tainted's equipment|Karil's]] or [[fortified Masori armour]].
+
+Using an [[anglerfish]] or a [[phoenix necklace]] can help survive the stack of damage when crossing. The achievement can be easily completed over multiple runs by moving the crystal as far as possible before dying, then returning and picking it up from the ground, repeating as necessary. [[Telekinetic Grab]] can also be used once the crystal is on the ground to safely reacquire it without crossing the rope again.
+
+==Other tasks==
+{{Combat Achievements list|Chambers of Xeric}}
+
+{{Combat Achievements}}

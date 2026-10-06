@@ -1,0 +1,117 @@
+{{otheruses|the item brewed within the [[Chambers of Xeric]]|the item purchased from the [[Nightmare Zone]]|Overload (Nightmare Zone)}}
+{{Infobox Item
+|defver = 4
+|version1 = 1 dose
+|version2 = 2 dose
+|version3 = 3 dose
+|version4 = 4 dose
+|bucketname1 = (1)
+|bucketname2 = (2)
+|bucketname3 = (3)
+|bucketname4 = (4)
+|name1 = Overload (1)
+|name2 = Overload (2)
+|name3 = Overload (3)
+|name4 = Overload (4)
+|image1 = [[File:Overload (1) (Chambers of Xeric).png]]
+|image2 = [[File:Overload (2) (Chambers of Xeric).png]]
+|image3 = [[File:Overload (3) (Chambers of Xeric).png]]
+|image4 = [[File:Overload (4) (Chambers of Xeric).png]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Drink, Drop
+|examine = The power of elder warriors, twisted archers and kodai wizards combined; extremely dangerous. It was mixed reasonably well.
+|value = 50
+|weight = 0.020
+|id1 = 20989
+|id2 = 20990
+|id3 = 20991
+|id4 = 20992
+}}
+{{Synced switch
+|version1 = [[File:Overload (1) (Chambers of Xeric) detail.png|left|150x150px]]
+|version2 = [[File:Overload (2) (Chambers of Xeric) detail.png|left|150x150px]]
+|version3 = [[File:Overload (3) (Chambers of Xeric) detail.png|left|150x150px]]
+|version4 = [[File:Overload (4) (Chambers of Xeric) detail.png|left|150x150px]]
+}}
+An '''overload''' is a potion that boosts all the player's combat stats by 5 + 13%, while damaging them for 50 [[hitpoints]]. This boost is repeated every 15 seconds for five minutes until the effects wear off, and the player is then healed 50 hitpoints.
+
+It can only be made in the [[Chambers of Xeric]] with 75 to 90 [[Herblore]] by using a [[noxifer]] with any variant of an [[elder potion|elder]], [[twisted potion|twisted]], and [[kodai potion]].
+
+This potion is the standard variant of the overload potions, and cannot be taken out of the [[Chambers of Xeric]]. The [[Overload (-)|weakest variant]] requires 60 Herblore, whilst the [[Overload (+)|strongest variant]] requires 90 Herblore.
+
+==Effects==
+Boosts to most combat skills is calculated with: <math>\lfloor SkillLevel \times \frac{13}{100} \rfloor + 5</math>
+{| class="wikitable" style="text-align:center;"
+!{{SCP}} Level
+!Boost
+!{{SCP}} Level
+!Boost
+|-
+|'''1-7'''||+5||'''54-61'''||+12
+|-
+|'''8-15'''||+6||'''62-69'''||+13
+|-
+|'''16-23'''||+7||'''70-76'''||+14
+|-
+|'''24-30'''||+8||'''77-84'''||+15
+|-
+|'''31-38'''||+9||'''85-92'''||+16
+|-
+|'''39-46'''||+10||'''93-99'''||+17
+|-
+|'''47-53'''||+11
+|}
+
+==Creation==
+{{Recipe
+|skill1 = Herblore
+|skill1lvl = 75
+|skill1boostable = Yes
+|skill1exp = 50
+|members = Yes
+|ticks = 2
+|mat1 = Noxifer
+|mat1cost = No
+|mat2 = Elder potion (4)
+|mat2cost = No
+|mat3 = Twisted potion (4)
+|mat3cost = No
+|mat4 = Kodai potion (4)
+|mat4cost = No
+|output1 = Overload (Chambers of Xeric)
+|output1txt = Overload (4)
+|output1pic = Overload (Chambers of Xeric)
+|output1cost = No
+}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 28 May 2020
+|update = Chambers of Xeric Improvements
+|poll = Old School Content Poll 71: Gauntlet, Grotesques, CoX and more
+|change = The [[value]] was changed from 2 to 50 so that they are more likely to appear on top of the loot pile alongside raid supplies and bones.
+}}
+{{Subject changes
+|date = 22 March 2018
+|update = Upcoming Changes and Fake XP Drop Improvements
+|change = The item's value was increased from 1 to 2.
+}}
+{{Subject changes footer}}
+
+{{Items that can damage oneself}}
+{{Chambers of Xeric}}
+{{Potions}}
+[[Category:Temporary skill boost]]
+[[Category:Attack boosting items]]
+[[Category:Defence boosting items]]
+[[Category:Magic boosting items]]
+[[Category:Ranged boosting items]]
+[[Category:Strength boosting items]]

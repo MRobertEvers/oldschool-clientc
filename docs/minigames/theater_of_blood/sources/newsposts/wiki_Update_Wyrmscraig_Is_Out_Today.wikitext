@@ -1,0 +1,443 @@
+{{Update|date=29 July 2026|rev=31 July 2026|url=https://secure.runescape.com/m=news/wyrmscraig-is-out-today?oldschool=1|category=game}}
+[[File:Wyrmscraig Is Out Today! newspost.jpg|right]]
+__TOC__{{clear}}
+
+''Wyrmscraig, a player-designed island in collaboration with [https://x.com/ScreteMonge Gnome], is '''OUT NOW'''! Get stuck into the new quest, new Slayer Master Mortimer, repeatable boss, brand new skilling activities and rewards!''
+
+{| class="wikitable alternating-rows" style="text-align:center; width:665px;"
+! Known Issues
+! Status
+|-
+|Hunter furs fail to be used in Golem Crafting if an empty fur pouch is present in your inventory.
+|Hotfixed.
+|-
+|Teleport to Boat is missing from the Max Cape.
+|We'll get this fixed in next week's update. Apologies for the inconvenience!
+|-
+|Imps in Puro Puro cannot currently be attacked.
+|This has been fixed. Thanks for raising!
+|-
+|Players escaping from Mortimer's cavern after killing the trolls appear to be put back on a default raft rather than their own boat.
+|This has been hotfixed. Players can recover their boat from the Shipwrights, or sail there on another boat.
+|-
+|Mortimer tasks with large modifier values appear to display incorrect values when stored.
+|We've released a temporary fix for this, however, until next week's game update, the stored task will show an incorrect % in the ''stored'' interface. However, the task will have its correct value when unstored again.
+|-
+|Players that have done Fallen From Grace may find themselves unable to log in to Free to Play worlds if they've not returned to a boat after doing the quest.
+|We've deployed a fix to prevent this from happening. If you find yourself in this position, log in to members world, and board/disembark your boat to resolve this.
+|-
+|There was an issue where emptying a Meat pouch into the Bank could cause stored Furs in a Fur Pouch to be lost.
+|We've released a hotfix to prevent this from happening.
+|}
+
+==Changelog - July 29th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Wyrmscraig is OUT NOW!'''
+
+* Sail to Wyrmscraig, a brand-new island made in partnership with [https://x.com/ScreteMonge Gnome], the winner of our Player-Designed Island competition! Immerse yourself in a brand-new quest, meet a new Slayer Master, take down the repeatable Mad Angel boss, and try two brand new skilling activities!
+** You'll require 62 Sailing to get to the island. Once unlocked, you can participate in Goat Hunting with 60 Hunter.
+** To start Fallen From Grace, you'll need 62 Sailing, 60 Crafting, 47 Runecraft, and 53 Mining.
+*** This is an Experienced-tier quest which unlocks the repeatable boss and Sunstone Golem Crafting.
+**** Remember to bring your Hunter Furs along for Golem Crafting, since it's a required part of this activity.
+*** You'll also need to start this quest to access Mortimer (found in the caverns during the quest). Mortimer requires 70 Slayer and 100 Combat, or 99 Slayer.
+** New rewards await those who venture to Wyrmscraig, including:
+*** Hallowfell:
+**** A powerful two-handed sword that requires 75 Attack to wield and is dropped from the repeatable boss.
+**** Every swing cleaves through nearby enemies, hitting up to two additional targets.
+**** Against three monsters it actually outperforms every other melee weapon currently available, making it a very juicy upgrade for all different types of accounts.
+*** Jeweller's Chisel:
+**** Earned from Golem Crafting
+**** A 20% increased chance to successfully cut Opals, Jades and Topaz.
+**** A 10% chance to cut two gems at once when cutting any gem.
+**** Guaranteed success when cutting:
+***** Opals at Level 62.
+***** Jades at Level 71.
+***** Topaz at Level 76.
+**** Works as a regular Chisel
+
+An additional Sailing change:
+
+* Added the 'Teleport to Boat' spell as an additional Sailing Skillcape perk. The Greater Teleport Focus facility is still required to use it.
+
+====Other Changes====
+
+* Renamed 'NPC Contact' to 'Astral Contact' to give it an immersive and lore accurate name, much like other spells have.
+* Updated the Maggot King sacrifice messaging from ‘double pet chance’ to ‘improved pet chance’ to better reflect how the mechanic works.
+** Sacrificing replaces the standard pet roll with a chance to receive an egg. The overall chance of receiving the pet across all egg rarities has not changed and remains roughly double the normal rate.
+* The Special Attack description tooltip for the Tonalztics of Ralos has been updated.
+* The Avernic Defender and all of its variants will no longer be protected over items of higher value. All versions of the Avernic Defender will be valued at 600,000 GP, matching their repair cost.
+
+====PvP Rota====
+
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>activated</u>''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''<u>activated</u>''' with this rota.
+
+The PvP Arena is using <b>'1 Def Pure'</b> loadouts in Ranked Duels and Tournaments this week.
+
+{{Collapsed section end}}
+
+==Wyrmscraig==
+[[File:Wyrmscraig Is Out Today! (1).png|thumb|center|600px|You can find Wyrmscraig South-West of Charred Island.]]
+Wyrmscraig is a brand-new island, made with community member <u>[https://x.com/ScreteMonge Gnome]</u>... Or, RoseNMcGeet as he also likes to be called. You may also know him as ScreteMonge, the man has three names! 
+
+You may know of Gnome through his work on RuneLite's creator toolkit plug-in, or some of his collaboration with some popular community suggestions floating around on our subreddit!
+
+It's been a pleasure to work with Gnome on his fantastic concept and bring to life in-game. A huge thanks to Gnome is deserved, as well as you, our wonderful community, for your feedback and thoughts throughout the process of development.
+
+To every single of you who entered the Player-Designed Island competition when we ran it back in December: thank you. Thousands of you poured your passion (and a few memes) into your entries. Whilst we couldn't pick multiple entries for this project, your ideas have given the team many new avenues for future exploration. Seeing what kinds of ideas you are interested in is a fantastic tool for developers like us, and helps us understand what kind of content you're interested in next. 
+
+Wyrmscraig is proof of what happens when player creativity meets the sandbox that is Old School RuneScape. We are so excited to see what you think, and how our community will continue to shape future content, inspiring us, and uplifting us with all of your suggestions and ideas.
+
+So, what are you waiting for? To get started with this content, you'll need 62 Sailing.
+
+While you can start exploring the island right away, and even participate in some of the activities (like Goat Hunting), you might want to get started by completing ''Fallen From Grace.'' 
+
+==Fallen From Grace==
+Fallen from Grace is an Experienced, Short length quest.
+
+Your adventure will begin in the village of Auchrie, where a disappearance has left the locals fearful and suspicious of outsiders. With one of their own still missing, they'll reluctantly turn to you for help.
+
+As you explore the island, you'll uncover ancient secrets, investigate the mystery of the Mad Angel, and discover the truth behind the disappearances haunting the island.
+
+====Requirements====
+To start the quest you'll need '''62 Sailing, 60 Crafting, 47 Runecraft, and 53 Mining.''' Just speak to Cormac, located in the middle of the Auchrie village.
+
+[[File:Wyrmscraig Is Out Today! (2).png|center|319px]]
+
+
+[[File:Wyrmscraig Is Out Today! (3).png|center|300px]]
+
+====Rewards====
+
+* 10,000 Crafting
+* 12,500 Sailing
+* 5,000 Mining
+* 5,000 Runecraft XP
+* Access to the repeatable boss encounter
+* Access to Sunstone Golem Crafting & Mining
+* Teleports
+** Slayer Ring: Teleport to Wyrmscraig's cavern.
+** Necklace of Passage: Teleport to Wyrmscraig, south of Sunstone mine.
+
+==Repeatable Mad Angel Boss==
+[[File:Wyrmscraig Is Out Today! (4).png|center|600px]]
+
+Once you've completed ''Fallen From Grace,'' you'll be able to return to the Cathedral and challenge the repeatable version of the boss you first encountered during the quest.
+
+Designed as a mid-level PvM encounter, it's a great next step for players who have already earned their Fire Cape and are looking to take on a rewarding new challenge.
+
+During development, it was our intention to ensure that the quest version of the boss was identical to the repeatable version. However, when it came to playtesting, we made some tweaks to tone her down a little for the quest. This is because we want to ensure that the fight matches the difficulty of other quests in the same tier. 
+
+===Unique Reward: Hallowfell===
+[[File:Wyrmscraig Is Out Today! (5).gif|center|350px]]
+
+Defeating the boss gives you the chance to earn a range of unique rewards, including Hallowfell, a powerful two-handed sword that requires '''75 Attack''' to wield.
+
+[[File:Wyrmscraig Is Out Today! (6).png|center|400px]]
+
+Every swing cleaves through nearby enemies, hitting up to two additional targets. Against three monsters it actually outperforms every other melee weapon currently available, making it a very juicy upgrade for all different types of accounts.
+
+The repeatable boss also drops the following:
+
+* Boss Teleport Scrolls: Provides a direct teleport back to the encounter.
+* Granite Dust
+** ''Please note, this isn't expected to drop in large quantities, it's just an additional source which felt thematically appropriate.''
+* Boss Jar
+* New Pet
+
+[[File:Wyrmscraig Is Out Today! (7).gif|center|450px]]
+
+==New Slayer Master: Mortimer==
+[[File:Wyrmscraig Is Out Today! (8).png|center|600px]]
+
+Mortimer is a new, high-level Slayer Master built around player choice.
+
+From a design perspective, our main goal is to offer a unique twist on Slayer with  his modifiers, and to provide a different experience by boosting some typically less desirable tasks. Unlocking him should be a meaningful boost over existing methods.
+
+Instead of assigning you a single Slayer task, Mortimer gives you a choice between two assignments. As you prove yourself by completing tasks for him, you'll eventually unlock a third choice, giving you even greater flexibility when deciding what to tackle next.
+
+You unlock Mortimer with 100 Combat and 70 Slayer, or 99 Slayer, regardless of your Combat level.
+
+We've covered Mortimer in <u>[https://secure.runescape.com/m=news/a=13/meet-mortimer-your-newest-slayer-master?oldschool=1 our recent blog]</u>, but here's the TLDR:
+
+* His task list features creatures with Superior variants only.
+* Tasks assigned by Mortimer are significantly more expensive to skip (100 Slayer points), and cannot be reset through Turael.
+* While using Mortimer you'll only have access to '''two block slots''', each costing '''120 Slayer Points'''. Meaning, if you receive a task you'd rather not complete, your options are to skip it, store it or finish it before taking on any other Slayer assignment.
+* He doesn't offer Slayer Points for his tasks (unless you have the Points Mortifier active).
+* As you continue completing tasks for Mortimer, you'll begin unlocking additional bonuses: Mortifiers. These are powerful effects that may occasionally appear alongside your task choices, offering extra rewards or benefits depending on the assignment you choose.
+
+===Mortifiers===
+Based on feedback last week, we've reduced the required tasks required to unlock modifiers by around half.
+
+Here are the new tasks required to unlock each Mortifier:
+
+<center>
+{| class="wikitable" style="text-align: center;"
+|-
+! Unlock
+! Tasks Completed
+|-
+| Points Mortifier
+| 0
+|-
+| Quantity Mortifier
+| 0
+|-
+| Clue Mortifier
+| 15
+|-
+| Superior unique drop Mortifier
+| 25
+|-
+| XP Mortifier
+| 40
+|-
+| Triple task selection
+| 50
+|}
+</center>
+
+You’ll now unlock more interesting tasks much earlier in your journey, and we'll be keeping a watchful eye on community feedback over the coming days and weeks.
+
+Let us know how these tasks feel in practice, and we'll be ready to make further adjustments if needed! 
+
+===Partner Slayer===
+We've had a few questions pop up about Mortimer and Partner Slayer.
+
+When choosing a task, your available options will be determined'' independently'' of your partner's unlocks and requirements. This means your partner cannot reduce or alter your task pool.
+
+If you select a task that your partner doesn't meet the Slayer level or quest requirements for, you'll still receive the assignment as normal. 
+
+Additionally, your partner cannot be assigned your task if they have a task choice pending with Mortimer.
+
+===NPC Contact===
+While working on Mortimer, we realised this would be a good opportunity to address the fact that 'NPC Contact' sounded a bit too fourth-wall-y. We've now renamed it to Astral Contact to give it an immersive and lore accurate name, much like other spells have.
+
+[[File:Wyrmscraig Is Out Today! (9).png|center|175px]]
+
+==Goat Hunting==
+[[File:Wyrmscraig Is Out Today! (10).png|center|600px]]
+
+Goat Hunting is a brand-new Hunter training activity found on Wyrmscraig. You'll herd the island's concerning goat population into a deadly pit!
+
+This activity offers an active and engaging alternative to Red and Black Salamanders at 60 - 80 Hunter.
+
+====Requirements====
+To access Goat Hunting, you'll need:
+
+
+* 60 Hunter
+* Completion of Sheep Herder
+
+===Gameplay===
+
+* Herd goats
+** Construct a pit with the nearby resources on the island to lure goats to their doom.
+** You'll need to encourage goats into this deadly pit using a cattleprod, granting Hunter XP once inside.
+** You can also choose to use Telekinetic Grab or Dark Lure if preferred, giving Magic a little bit of extra utility.
+* Make sure the pit is full
+** The number of goats required to fill the pit scales based on your Hunter level.
+* Process XP and materials
+** For each goat successfully herded into the pit, you'll receive a small amount of Hunter XP immediately.
+** The majority of the XP comes afterwards when interacting with the pit itself and processing the goats collected inside.
+* Re-arm the pit with a new spike set and repeat.
+
+===Rewards===
+The focus of this activity is primarily on Hunter XP, which should sit between Red and Black Salamanders. However, drops include Goat Horns (useful for Combat Potions) and Goat Fur (to be used within Golem Crafting if desired).
+
+The activity also drops a pet, Mr McGroot.
+
+For those of you curious about drop rates, hang on in there. We'll reveal the details on drop rates roughly 2 weeks from now! 
+
+==Sunstone Mining & Golem Crafting==
+[[File:Wyrmscraig Is Out Today! (11).png|center|600px]]
+
+Once you have completed Fallen From Grace, you'll learn about Golem Crafting, a new Crafting training method. This is intended to be a viable alternative to Glassblowing, especially at higher levels.
+
+To access Sunstone Golem Crafting, you'll need:
+
+* Level 60 Crafting
+* Completion of ''Fallen from Grace ''
+
+During this activity, you will mine an inventory of Sunstone, sculpt Golems and clothe them with furs from Hunter. Remember, this activity requires Hunter Furs, so bring them along with you, along with your Chisel and Hammer.
+
+As a reminder, the shop stock for Moonlight Antelope Fur has been reduced to 0. You can still trade Furs with other players, it's just not buyable in shops anymore. 
+
+Golem Crafting can be a relaxed, or higher intensity training method depending on your preferred playstyle. 
+
+===Gameplay===
+The gameplay loop is very simple and similar to Vale Totems, if you're familiar with this activity from Varlamore.  
+
+====Sunstone Mining====
+You'll find sunstone rocks on Wyrmscraig. You can click them, mine them, get the resource, and then it depletes. You need''' 53 Mining '''for Sunstone.
+
+Momentum is a brand-new mechanic for mining Sunstone. This is a static bonus earned by continuously mining. As your momentum builds, you'll mine more efficiently, getting additional Sunstone ore, and bonus Mining XP. Losing your Momentum resets the benefits, which should encourage active mining for those who want to play more efficiently. At '''80 Mining, '''you'll see guaranteed success from the momentum mechanic.
+
+It's worth mentioning that during this activity, you benefit from any upgrades that enhance Mining, such as Expert Mining Gloves.
+
+For a more relaxed approach, you can click on the nearby Sunstone Monolith to gather Sunstone instead. This will be slower, but more AFK!
+
+====Golem Crafting====
+Head over to the Golem Crafting stations nearby with your Sunstone, Chisel, Hammer and Fur. 
+
+[[File:Wyrmscraig Is Out Today! (12).png|center|450px]]
+
+* Shape the Golem
+** Using a Chisel and with Sunstone in your inventory, work on the Golem from each of its four sides: North, East, South, and West. Completing all four sides earns small amounts of Crafting XP.
+* Create a Sunstone Core
+** Use a Chisel on a piece of Sunstone to create a Sunstone Core. This requires 60 Crafting and can be done in advance, so you can prepare several of them before heading to the activity.
+* Insert the Sunstone Core
+** Once all four sides have been shaped, just insert the Sunstone Core to complete the Golem.
+* Clothe Golems in Hunter Furs
+** All Hunter Furs have the same Crafting requirement (60) and use 1 Fur.
+
+===Rewards===
+====Jeweller's Chisel====
+You can earn the Jeweller's Chisel from Golem Crafting. It offers the following benefits: 
+
+* A 20% increased chance to successfully cut Opals, Jades and Topaz.
+* A 10% chance to cut two gems at once when cutting any gem.
+* Guaranteed success when cutting:
+** Opals at Level 62.
+** Jades at Level 71.
+** Topaz at Level 76.
+
+Mod Ed has also managed to ensure that the Jeweller's Chisel also functions as a regular chisel, too, so you won't need to carry two around with you in Gielinor. Bang!
+
+Lastly, we mentioned in our previous blog that you can obtain stardust in small quantities from this activity. This has been changed during our system reviews. Instead, the loot table now offers Uncut Sapphire, Emeralds, Rubies and Diamonds.
+
+===Other Sailing Changes===
+[[File:Wyrmscraig Is Out Today! (13).png|center|476px]]
+
+* Added the 'Teleport to Boat' spell as an additional Sailing Skillcape perk. The Greater Teleport Focus facility is still required to use it.
+
+==Wyrmscraig: Art Competition (29 July - 13 Aug)==
+[[File:Wyrmscraig Is Out Today! (14).png|center|500px]]
+
+Do you want to show off your artistic talents? We'd love to see your work!
+
+Get creative, interpret in your own way, and submit your artwork to the RAC Discord before 13th August for a chance to win some Bonds!
+
+====Prizes====
+15 Old School RuneScape (OSRS) Bonds will be awarded to the winners:
+
+
+* x1 Grand Prize Winner - 6 OSRS Bonds.
+* x2 Runner-Ups – each Runner-Up receives 3 OSRS Bonds.
+* x3 Bonus Category Winners (Most Creative, Most Unique and Funniest) - each Bonus Category Winner receives 1 OSRS Bond.
+
+====How to enter:====
+
+* Create an original piece inspired by Wyrmscraig. It could be anything you like. A postcard, piece of concept art, you name it.
+* Post it in the competition thread on the <u>[https://discord.gg/gqr2wQ4Bv RAC Discord]</u>. Include your RSN within your entry.
+* Be sure to read the rules posted on the server before entering,
+* Check out the Terms and Conditions <u>[https://osrs.game/RAC-Discord-T&Cs here]</u>.
+
+We'd love to feature your work on our channels and see what you come up with.
+
+The team can't wait to see what you create!
+
+==Other Changes==
+
+* Updated the Maggot King sacrifice messaging from ‘double pet chance’ to ‘improved pet chance’ to better reflect how the mechanic works.
+** Sacrificing replaces the standard pet roll with a chance to receive an egg. The overall chance of receiving the pet across all egg rarities has not changed and remains slightly more than double the normal rate.
+* The Special Attack description tooltip for the Tonalztics of Ralos has been updated.
+* The Avernic Defender and all of its variants will no longer be protected over items of higher value. All versions of the Avernic Defender will be valued at 600,000 GP, matching their repair cost.
+
+==Merch==
+===Pre-Orders Re-Opened for Monopoly: RuneScape Edition===
+[[File:Wyrmscraig Is Out Today! (15).jpg|center|600px]]
+
+Thank you so much for the interest you've shown for Monopoly: RuneScape edition!
+
+We're delighted to see the level of demand and we're re-opening pre-orders for Monopoly: RuneScape edition on the [https://runescapemerch.com/ official merch store] so everyone has a chance to get one. This second production run has no order limit until August 17th. To ensure you secure yours, place your pre-order by that date! After that date, production quantities will be finalised, and any extra stock will be available until it sells out. Also, please note that this second batch will ship in February 2027.
+
+We know some of you had some questions regarding why the board game sold out during a pre-order run, and this is due to the first pre-order round being a production run that was already in progress to leave the factory. Due to production quantities being finalised, the store could only accept pre-orders up to the amount manufactured at the time. We've also seen questions regarding the board and why some details aren't RuneScape-themed. This is due to the owners of Monopoly, Hasbro, having certain guidelines around what can and can't be changed on the board; you can see this reflected in other Monopoly board partnerships! Nevertheless, the team have customised every inch of the board that we were allowed to with:
+
+* RuneScape Game Board
+* 6 Exclusive Antique Gold Metal RuneScape Tokens
+* 28 Gielinor Title Deed Cards
+* 16 Random Event Chance Cards
+* 16 OSRS Community Chest Cards
+* 32 POH Houses
+* 12 Lumbridge Tower Style Castles
+* Gielinor Money Pack
+* OSRS Game Guide
+
+[[File:Wyrmscraig Is Out Today! (16).jpg|center|450px]]
+
+Pass GO and head straight to the merch store. If you missed out the first time, here is your second chance! Pre-order now from: [http://runescapemerch.com/ runescapemerch.com]
+
+==Survey Winners==
+Congratulations to the prize winners from one of our recent research surveys!
+
+For context, this survey was shared through a limited research campaign rather than our usual Old School channels, so many players may not have come across it. Thank you to everyone who took part. Congrats on winning £50 in vouchers! 
+
+* E. Littauer - Canada
+* S. Suresh - United Kingdom
+* M. Brown - United Kingdom
+* B. Vielhauer - Australia
+* B. Dallison - United Kingdom
+* K. Beauparlant - Canada
+* B. Smith - United Kingdom
+* D. Hancock - United Kingdom
+* D. Keogh - United States
+* A. Dempsey - United States
+* J. Nanson - United Kingdom
+* R. Stanton - United States
+* T. Hirst - United Kingdom
+* R. Loxley - Australia
+* M. Nash - United Kingdom
+* D. Hardy - United Kingdom
+* D. Gibson - United Kingdom
+* C. Smith - United Kingdom
+* J. Russell - Canada
+* J. Duclos - Canada
+* D. Wright - United Kingdom
+* A. Stoneking - United States
+* J. Mason - United Kingdom
+* J. Frink - United States
+* R.  Zue - United States
+* D. Palmer - Canada
+* S. Danby - United Kingdom
+* C. Moyers - United States
+* C. Everett - United States
+* J. Hill - Canada
+* E. Nashim - Canada
+* A. Nicolakis - United States
+* J. Choy - United States
+* K. Tanner - United Kingdom
+* C. Rodrigues - Canada
+* B. Shaffer - United States
+
+==PvP World Rota==
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>activated</u>''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''<u>activated</u>''' with this rota.
+
+The PvP Arena is using <b>'1 Def Pure'</b> loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1v9rfqr/wyrmscraig_is_out_today_game_update_29th_july_2026/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the official [https://discord.gg/OSRS OSRS Discord]. For more information, check the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Acorn, Ape, Arcane, Archie, Argo, Ash, Asherz, Ayiza, BigRig, Blighted, Blossom, Boko, Brooksie, Bruno, Bulb, Chilly, Criminal, Curse, Daizong, Default, Doctor, Ed, Elena, Enigma, Entropi, Frogs, Fuzz, Gecko, Ghost, Gizmo, Goblin, Grace, Grub, Halo, Harold, Hend, Hornet, Husky, Ivory, Jalo, Jamesy, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lotus, Lykos, Mack, Manked, Markos, Maylea, Mobius, Moogle, Morty, Moz, Necro, Nin, Nixon, Nox, Nylu, Oasis, Ori, Other, Otter, Pheasant, Philomel, Pork, Pumpkin, Puppi, Pyro, Rach, Redfield, Rice, Romy, Roy, Ry, Saiyan, Sarnie, Schmidt, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Spacebar, Spyro, Squid, Starry, Suharun, Surma, Sween, Tide, Titania, Titus, TJ, Tomb, Tsourorf, Tyran, Veda, Vegard, West, Wolfy, Yozora, Yume & Zaf'''
+
+''The Old School Team''

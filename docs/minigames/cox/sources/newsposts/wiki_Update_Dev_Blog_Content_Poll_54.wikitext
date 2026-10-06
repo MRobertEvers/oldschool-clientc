@@ -1,0 +1,268 @@
+{{Update|date=5 July 2017|link=http://services.runescape.com/m=news/dev-blog-content-poll-54?oldschool=1|category=website}}
+[[File:Dev Blog- Content Poll 54 newspost.png|right]]
+{{clear}}
+
+
+{{Headline|25|Dev Blog: Content Poll 54}}
+
+
+<center>
+'''This week we look at increasing the viability of the normal spellbook, improving the Preserve prayer, introducing upcoming balance changes, all in addition to a host of other polled content.'''
+</center>
+
+{{Horizontal Line}}
+
+
+<center>'''Improvements to F2P'''</center>
+
+
+There have been calls to make Zamorak robes available to F2P players to fill a gap in magic equipment. We'd like to make monks of Zamorak drop Zamorak robes. This would make the robes accessible to F2P players, as they can be found in two F2P locations: the Asgarnian Chaos Temple and in Varrock Palace.
+
+*'''Question''': Should Zamorak robes (top and bottom) be added to the drop table of monks of Zamorak?
+
+
+Currently the only method of re-obtaining the amulet of accuracy when the quest reward is lost is though trade. We'd like to offer Wizard Mizgog more stock, which he'd trade for a set of magic beads (black, red, yellow, white).
+
+*'''Question''': After completion of Imp Catcher should Wizard Mizgog offer an amulet of accuracy in exchange for a set of magic beads (black, red, yellow, white) following completion of Imp Catcher?
+
+
+In recent weeks there have been calls for Castle Wars to be made accessible within F2P. This was met with a very positive reaction, and so we'd like to offer the chance for this to become a reality. We'd like to add a portal from Clan Wars would which teleport players to the Castle Wars lobby. All exits to Members-only areas would be sealed.
+
+[[File:Dev Blog- Content Poll 54 (1).png|center]]
+
+*'''Question''': Should Castle Wars be made available to F2P players? A teleport will be added to Clan Wars, and all exits to Members-only areas would be sealed.
+*'''Question''': If Castle Wars is added to F2P, should Halos be made available to F2P players in exchange for Castle Wars Tickets?
+
+{{Horizontal Line}}
+
+
+<center>'''Preserve Prayer'''</center>
+
+
+Whilst the niche mechanic behind the prayer offers a useful benefit, at present the Preserve prayer is largely under-utilised. To remedy this we'd like to increase the boost offered by the prayer to 50%, and lower the rate at which it consumes prayer points to 3 points per minute.
+
+[[File:Dev Blog- Content Poll 54 (2).png|center]]
+
+*'''Question''': Should the Preserve prayer be improved so that boosted stats last 50% longer? This is an increase on it's current 30% rate.
+*'''Question''': Should the Preserve prayer’s drain rate be decreased to 3 points per minute? This is a decrease from its current 5 points per minute drain rate.
+
+{{Horizontal Line}}
+
+
+<center>'''Desert amulet 4'''</center>
+
+Since the introduction of pools within Player-Owned-Houses we've noticed that Nardah isn't quite the attractive destination it once was. With this in mind we'd like to offer unlimited teleports to the Slayer task-only Kalphite cave via the Desert amulet 4.
+
+*'''Question''': Should the Desert amulet 4 offer unlimited teleports to the task-only Kalphite cave?
+
+{{Horizontal Line}}
+
+
+<center>'''Binding spells'''</center>
+
+
+The ability to restrict the movement of other players is a core mechanic in PvP. We'd like to suggest two changes to the normal spell book which should improve its viability in combat.
+
+We'd like to introduce a new spell, called Shackle, to the normal spell book. In essence it's a stronger version of Entangle. It will require level 92 Magic, and 5 Nature runes, 6 Earth runes, and 6 Water runes. It will bind players to the spot for 20 seconds, which is equal to the duration of being frozen by Ice Barrage. 
+
+The second change we'd like to offer is one which was recently made to Seasonal Deadman Mode. A change was made to the Protect From Magic protection prayer which no meant that it no longer halved the duration of the Bind, Snare, and Entangle spells. We'd like to offer the chance to see this change implemented in the main game too. Note that if Shackle is added to the game it would also apply to this spell.
+
+[[File:Dev Blog- Content Poll 54 (3).png|center]]
+
+*'''Question''': Should a new binding spell, Shackle, be added to the normal spellbook? It will require level 92 Magic, and 5 Nature runes, 6 Earth runes, and 6 Water runes. It will bind players to the spot for 20 seconds, which is equal to the duration of being frozen by Ice Barrage. 
+*'''Question''': Should Protect From Magic cease to halve the duration of binding spells in ordinary Old School RuneScape? This change was recently implemented in Seasonal Deadman Mode.
+
+{{Horizontal Line}}
+
+
+<center>'''Puro-Puro'''</center>
+
+
+Pushing through the magical wheat found on Puro-Puro currently grants 2 Strength xp. We'd like to offer the players the ability to toggle whether or not to receive this xp.
+
+*'''Question''': Should a toggle option be added to allow players to opt out of receiving Strength xp when pushing through wheat on Puro-Puro? Pushing through the magical wheat found on Puro-Puro currently grants 2 Strength xp.
+
+{{Horizontal Line}}
+
+
+<center>'''Magic skillcape perk'''</center>
+
+
+The Magic skillcape currently offers a single spellbook swap each day. We'd like to bolster this perk by offering unlimited spellbook changes, but only as long as you're stood within a bank. 
+
+*'''Question''': Should the Magic skillcape perk be improved to allow unlimited spellbook changes? The perk would be unlimited only as long as you're stood within a bank.
+
+{{Horizontal Line}}
+
+
+<center>'''Blast Mine'''</center>
+
+
+Since the release of the Blast Mine there have been requests to add an overlay, similar to that in the Motherlode Mine, which details the number of ore available to be collected.
+
+*'''Question''': Should an overlay, akin to the Motherlode Mine, be added to the Blast Mine? It will detail the number of ore available to be collected.
+
+{{Horizontal Line}}
+
+
+<center>'''Elite Void Melee'''</center>
+
+
+With the recent changes made to the Mage and Ranged Void sets it seems somewhat suitable to offer a similar balancing tweak to the Melee set. We'd like to offer this in the form of a buff to the existing strength bonus of the elite Melee set.
+
+*'''Question''': Should the elite Void Knight equipment provide a strength bonus of 12.5% when worn with the Void melee helm (compared to the existing 10%)?
+
+{{Horizontal Line}}
+
+
+<center>'''Ironman Pking'''</center>
+
+
+There’s not so much risk when you fight an Ironman; they can’t pick up any loot you drop if they kill you, so you’re simply able to walk back and pick it up. We’d like to add a bit more risk to the encounter by making your tradeable loot be '''destroyed''' if it’s being dropped to an Iron Man who can’t pick it up.
+
+*'''Question''': Should equipment which would otherwise be dropped, be destroyed instead, when dying at the hands of an Ironman? This is to ensure that there's more risk when fighting an Ironman. At present they aren't able to pick up any loot you would drop, if this passes the tradeable loot would be destroyed.
+
+{{Horizontal Line}}
+
+
+<center>'''Lighthouse scouting'''</center>
+
+
+You have long requested the ability to see whether there are players in the dungeon of the Lighthouse. We'd like to offer two methods of gauging the activity of the dungeon. The first would allow you to directly see the area, the second would add a Peek option to the ladder itself. 
+
+*'''Question''': In the Lighthouse dungeon, players at the top of the ladder cannot see players or NPCs in the combat area below; should we change how the map works so that you can see players & NPCs in the combat area before climbing down the ladder?
+*'''Question''': If this is implemented should it come alongside a Peek option added to the ladder which would detail how many players are in the area below?
+
+{{Horizontal Line}}
+
+
+<center>'''Karambwan fishing'''</center>
+
+
+There have been calls to make fishing for karambwan more viable. We'd like to offer a solution which would help legitimate players obtain karambwan, whilst not alienating the Ironmen who rely on the stores to get them. We'd like to make raw karambwanji stackable within your inventory. Note that raw karambwanji must still be loaded inside a karambwan vessel as bait needed to fish for karambwan, but the loading is done automatically. Alongside this we propose a reduction of the stock found within Tiadeche’s Karambwan Stall. Currently there are 10 raw karambwan, we'd like to reduce this number to 5.
+
+[[File:Dev Blog- Content Poll 54 (4).png|center]]
+
+*'''Question''': Should raw karambwanji be stackable in your inventory? This will make fishing for raw karambwan a more viable method of obtaining them. 
+*'''Question''': Should the number of raw karambwan sold in Tiadeche’s Karambwan Stall be reduced from 10 to 5?
+
+{{Horizontal Line}}
+
+
+<center>'''Celebrating achievements'''</center>
+
+
+We've been thinking that we could do more to celebrate your achievements in-game. With this in mind we want to offer improved animations to make your levelling experiences more meaningful.
+
+*'''Question''': Should a new, larger, firework animation be added to celebrate achieving level 99 in a skill? 
+*'''Question''': Should new, even larger, firework animations be added to celebrate reaching the maximum total level?
+*'''Question''': Should new total level milestone notifications be added? Every 25 total levels you’ll receive a notification in your chatbox.
+
+{{Horizontal Line}}
+
+
+<center>'''Amulet of Chemistry changes'''</center>
+
+
+The more economical among you have sought a change to the Amulet of Chemistry which would prevent potions from being made once the amulet breaks. To satiate this want we're offering the ability to toggle whether or not you'd continue to make potions once the amulet breaks. 
+
+*'''Question''': Should a toggle option be added to the Amulet of Chemistry which would prevent any more potions from being made when the amulet breaks?
+
+{{Horizontal Line}}
+
+
+<center>'''More mining gloves'''</center>
+
+
+Both the normal and the superior mining gloves obtainable within the Mining Guild have been received extremely well. Within that reception has been a desire to see a new tier of gloves which possesses the effects of both. Naturally we oblige by offering expert mining gloves. They require 70 mining to equip and are obtained by combining the standard gloves and superior gloves at a cost of 60 unidentified materials.
+
+*'''Question''': Should expert mining gloves, which require 70 mining to equip, be obtainable by combining the standard gloves and superior gloves at a cost of 60 unidentified materials?
+
+{{Horizontal Line}}
+
+
+<center>'''Elite clue changes'''</center>
+
+
+Currently elite clue scrolls require 9-12 steps, which is more than the master clue, and significantly higher than hard clue scrolls. We'd like to reduce the number of steps to between 5-7 which we believe is more fitting to its tier. 
+
+*'''Question''': Should the number of steps in an elite clue scroll be reduced to between 5-7? This would place the number of steps required between that of a hard clue scroll and that of a master clue scroll.
+
+{{Horizontal Line}}
+
+
+<center>'''Mining pet recolours'''</center>
+
+
+The demand for more rock golem colours continues. Recently there was a request to allow daeyalt, elemental, and lovakite ores to be used to recolour the pet. Mod Ed has obliged by offering the below:
+
+[[File:Dev Blog- Content Poll 54 (5).png|center]]
+
+*'''Question''': Should we add recolours to the rock golem skilling pet using daeyalt, elemental, and lovakite ore?
+
+{{Horizontal Line}}
+
+
+<center>'''In-game sounds'''</center>
+
+
+The sound effects of random events and boss pets can prove to be quite annoying to players. We'd like to propose removing the sound effects from all random events and all boss pets. Note that we're offering this with boss pets because we simply aren’t able to have the sound play only for the owner of the pet, so we can only offer to remove the sound effects entirely.
+
+*'''Question''': Should we remove the sound effects from all random event encounters?
+*'''Question''': Should we remove the sound effects from all boss pets? We aren’t able to have the sound play only for the owner of the pet, so we can only offer to remove the sound effects entirely.
+
+{{Horizontal Line}}
+
+
+<center>'''Ectofuntus'''</center>
+
+
+At present it’s only possible to store 65 ecto-tokens at the Ectofuntus. To help the viability of this training method (reduce the annoyance of having to collect tokens after so few inventories) we'd like to increase the limit to 1000.
+
+*'''Question''': Should the limit of ecto-tokens stored at the Ectofuntus be increased to 1000?Currently only 65 can be stored.
+
+{{Horizontal Line}}
+
+
+<center>'''Blast Furnace'''</center>
+
+
+The dwarves of Keldagrim recently stepped up their service offerings in the Blast Furnace by assuming certain roles in fixing the furnace, for a price. This week's poll sees the dwarves offering even more services (at a greater expense, naturally). We'd like to increase the cost of using the Blast Furnace on themed worlds to 72,000 coins per hour. In return the dwarves would repair broken pipes, cogs, and the drive belt, when needed.
+
+*'''Question''': In Blast Furnace themed worlds, should the cost of the dwarves operating the Blast Furnace be increased to 72,000 coins per hour? In return the dwarves would repair broken pipes, cogs, and the drive belt, when needed.
+
+{{Horizontal Line}}
+
+
+<center>'''Balancing and content changes.'''</center>
+
+
+'''Lizard Shamans''' found within the Shayzien swamp area have been a prominent topic in recent months. Safe-spotting the Shamans makes the kills far easier than initially intended. To combat this we'd like to propose a new cave, containing 8 Shamans, to be added underneath the swamp. Shamans in this cave would be attackable only if they are your Slayer assignment, and entry would be permitted only with 100% Shayzien favour. 
+
+Alongside this we will be removing the 2 Shamans from the swamp area. Regardless of the outcome of this question, the 2 Shamans in the swamp will be removed.Question: Should a task-only Lizardman Shaman cave, containing 8 Shamans, be added under the swamp west of the Shayzien area?
+
+[[File:Dev Blog- Content Poll 54 (6).png|center]]
+
+*'''Question''': Should a task-only Lizardman Shaman cave, containing 8 Shamans, be added under the swamp west of the Shayzien area?
+
+You, the community, have been very vocal about the state of '''brutal black dragons'''. It has become apparent that the rate at which brutal black dragons are being farmed for resources is simply too high. In the coming weeks we will be implementing a '''requirement of 71 Slayer''' which is needed to kill them in order to manage this.
+
+{{Horizontal Line}}
+
+
+<center>'''Player-designed content!'''</center>
+
+
+We've been racking our brains when trying to propose a reward for the completion of 100 master clue scrolls. We've found that we simply haven't been able to agree on any feasible outcome. 
+
+So then, we'd like to acquiesce to the creative and ingenuity of you, the players.
+
+''In the coming weeks we'll be seeking proposals from the community for a suitable reward for the completion of 100 master clue scrolls. Make sure we see your suggestions! Tweet suggestions @JagexRonan or @JagexSween, post them on the /r/2007scape sub-reddit, or post them in the Old School Content Suggestions forum.''
+
+If you needed more incentive to entering this competition, there is 3 Months of Membership on offer to the winner of the competition. Is this better than the universal adulation you'll get for winning? I'm not so sure, but have both.
+
+{{Horizontal Line}}
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,400,65928364 forums].
+
+'''''Mods Archie, Ash, Ed, Ghost, Jed, John C, Kieren, Mat K, Maz, Ronan, Roq, Ry, Stone, Sween, TomH, Weath, West & Wolf'''''<br/>''The Old School Team''

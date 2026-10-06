@@ -1,0 +1,40 @@
+{{Infobox Music
+|name = Jaws of Gluttony
+|number = 720
+|file = [[File:Jaws of Gluttony.ogg]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|location = [[Tombs of Amascut]]
+|hint = This track unlocks in the Tombs of Amascut.
+|quest = No
+|instruments = Electric Bass (Finger), Taiko Drum, Orchestra Hit, Overdriven Guitar, Melodic Tom, FX 6 (goblins), String Ensemble 1, Sitar, Standard Drum Kit, Agogo, Kalimba, Reverse Cymbal, Distortion Guitar
+|duration = 05:40
+|signature = 4/4, 3/4
+|tempo = 155 BPM
+|album = ''[[RuneScape-_Tombs Of Amascut|RuneScape: Tombs Of Amascut]]''
+|composer = Ashton Mills
+|map = {{Map|3904,5376|3904,5440|3968,5440|3968,5376|mapID=-1|mtype=polygon|bucket=yes|zoom=2}}
+|cacheid = 736
+|sortname = Jaws of Gluttony
+|unlockdetail = Unlocked during the fight with [[Zebak]] in the [[Tombs of Amascut]].
+}}
+'''Jaws of Gluttony''' is a [[music]] track that is unlocked during the fight with [[Zebak]] in the [[Tombs of Amascut]].
+
+==Versions==
+{{Music changes header}}
+{{Music changes
+|version=1
+|date=24 August 2022
+|file=[[File:Jaws of Gluttony (8-bit).ogg]]
+}}
+{{Music changes
+|version=1
+|date=9 April 2025
+|change= [[Audio#16-bit_music|16-bit Music Update]]
+|file=[[File:Jaws of Gluttony.ogg]]
+}}
+{{Music changes footer}}
+{{Tombs of Amascut}}
+{{Music}}
+[[Category:Old School-exclusive music]]

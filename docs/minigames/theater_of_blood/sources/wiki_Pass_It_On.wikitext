@@ -1,0 +1,24 @@
+{{Infobox Combat Achievement
+|name = Pass It On
+|image = [[File:Verzik Vitur (final form).png|250px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = In the Theatre of Blood: Entry Mode, successfully pass on the green ball to a team mate.
+|tier = Elite
+|monster = Theatre of Blood: Entry Mode
+|type = Mechanical
+|id = 395
+|leagueRegion = Morytania
+}}
+'''Pass It On''' is an [[Combat Achievements/Elite|elite combat achievement]] which requires the player in the [[Theatre of Blood/Entry Mode|Theatre of Blood: Entry Mode]], to successfully pass on the green ball to a team mate.
+
+The green ball is a special attack launched by [[Verzik Vitur]] in her [[Theatre_of_Blood/Entry_Mode#Third_phase_2|third phase]].
+
+== Strategy ==
+The ball must either target the player or be passed from another teammate in order to attempt to pass it to another player. Once the ball is targeting the player, stand near another player to bounce the ball and complete the achievement. Right-click following another player is an easy way to stay close to them.
+
+==Other tasks==
+{{Combat Achievements list|Theatre of Blood: Entry Mode}}
+
+{{Combat Achievements}}

@@ -1,0 +1,99 @@
+{{Infobox Item
+|name = Keris partisan of breaching
+|image = [[File:Keris partisan of breaching.png]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = Yes
+|stackable = No
+|noteable = No
+|options = Wield, Dismantle, Drop
+|examine = A mystical-feeling polearm imbued with great power.
+|value = 300000
+|alchable = No
+|weight = 3.218
+|id = 25981
+}}
+[[File:Keris partisan of breaching detail.png|left|150px]]
+The '''keris partisan of breaching''' is a one-handed spear requiring 80 [[Attack]] to equip. It is made by attaching the [[Breach of the Scarab]] jewel to the [[keris partisan]], granting an additional 33% accuracy{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1704107285381787952|date=19 September 2023|archiveurl=https://reldo.runescape.wiki/i/107939|archivedate=19 September 2023|quote=[Is the Keris partisan of breaching accuracy bonus against Kalphites/Scabarites 33% or 4/3?] 33%. Do you expect it to make a noticeable difference?}} against all [[Kalphite_(attribute)|kalphites and scabarites]]. Unlike the other three jewelled keris partisans, this partisan retains its passive effect outside the [[Tombs of Amascut]] [[raid]]. It does not possess a [[special attacks|special attack]].
+
+The keris partisan of breaching retains the effects of the [[keris]] and keris partisan, including the 33% bonus damage against [[Kalphite]]s and [[Scabarites]], and the 1/51 chance of puncturing a hole in their exoskeleton that inflicts triple damage. When this special effect occurs, the chatbox will display the message: {{mes|You slip your weapon through a gap in the creature's chitin, landing a vicious blow.}}
+
+As with the keris partisan, weapon poisons cannot be applied to this partisan.
+
+==Combat stats==
+{{Infobox Bonuses
+|astab = +58
+|aslash = -2
+|acrush = +57
+|amagic = +2
+|arange = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|drange = 0
+|str = +45
+|rstr = 0
+|mdmg = 0
+|prayer = 3
+|slot = weapon
+|speed = 4
+|attackrange = 1
+|combatstyle = Partisan
+|image = [[File:Keris partisan of breaching equipped male.png|200px]]
+|altimage = [[File:Keris partisan of breaching equipped female.png|200px]]
+}}
+
+{{CombatStyles|Partisan|speed=4|attackrange=1}}
+
+==Creation==
+{{Recipe
+|members = Yes
+|ticks = 0
+|mat1 = Keris partisan
+|mat1cost = 60000
+|mat2 = Breach of the Scarab
+|mat2cost = no
+|output1 = Keris partisan of breaching 
+|output1cost = no
+}}
+
+==Used in recommended equipment==
+{{Used in recommended equipment|Keris partisan of breaching}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 20 March 2024
+|update = Varlamore: Part One
+|change = Players may no longer attach jewels obtained from the [[Tombs of Amascut]] to a wielded keris partisan if they do not have level 80 Attack.
+}}
+{{Subject changes
+|date = 21 September 2022
+|update = Tombs of Amascut Changes & Beta Tweaks
+|change = When players deal a critical hit to kalphites and scabarites with the keris partisan, the chat message was updated from "''You slip your weapon through a chink in the creature's chitin, landing a vicious blow.''" to "''You slip your weapon through a gap in the creature's chitin, landing a vicious blow.''"
+}}
+{{Subject changes
+|prerelease = yes
+|page = Keris partisan of breaching (beta)
+|date = 20 October 2021
+|update = Tombs of Amascut & Nex Rewards Beta
+|change = The item has been recategorised as a partisan (a new combat style) instead of a spear.
+}}
+{{Subject changes
+|daterange =  12 - 17 August 2021
+|beta = Tombs of Amascut: Rewards Beta
+|change = First present in the Tombs of Amascut: Rewards Beta.
+}}
+{{Subject changes footer}}
+
+==References==
+{{Reflist}}
+
+{{Stab weapons}}
+{{Crush weapons}}
+{{Attribute_affinities}}
+{{Tombs of Amascut}}

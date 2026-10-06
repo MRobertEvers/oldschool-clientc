@@ -1,0 +1,283 @@
+{{External|rs=Constitution|rsc=Hits|dw=Health}}
+{{Skill table links}}
+{{Has skill guide|members=Pay-to-play Hitpoints training|free=Free-to-play Hitpoints training|iron=Ironman Guide/Hitpoints|UIM=Ultimate Ironman Guide/Hitpoints}}
+{{Infobox Skill
+|name = Hitpoints
+|image = [[File:Hitpoints icon.png]]
+|release = [[4 January]] [[2001]]
+|update = Runescape beta is now online!
+|aka = HP, health
+|members = No
+|type = Combat
+}}
+[[File:Hitpoints icon (detail).png|left]]
+'''Hitpoints''' (also known as "health" or "HP") represent a player's health. If they reach zero, the player will [[Death|die]]. Hitpoints is the only skill for which players start with any experience initially - with 1,154 [[experience]] points, placing them at exactly level 10 on [[Tutorial Island]].
+
+{{Listen
+|align = right
+|title = [[Hitpoints Level Up! (2-49)]]
+|filename = Hitpoints Level Up! (2-49).ogg
+|desc = The music that plays when achieving levels 11-49.}}
+
+{{Listen
+|align = right
+|title = [[Hitpoints Level Up! (50-99)]]
+|filename = Hitpoints Level Up! (50-99).ogg
+|desc = The music that plays when achieving levels 50-99.}}
+
+==Types of damage==
+Players can experience damage to their hitpoints through:
+*[[Combat]]
+*Self-inflicted (see below)
+*[[Disease]]
+*Environment (see below)
+*[[Poison]]
+*[[Venom]]
+*[[Bleed]]
+*[[Burn]]
+
+==Fighting==
+While fighting, both the player and their opponent have a bar over them. This bar represents their Hitpoints.
+
+[[File:Healthbar slider.gif|Healthbar slider.gif]]
+
+There are two colours on the bar; green and red. The green part of the bar represents how many Hitpoints a character has left and the red part represents how many Hitpoints they are missing, i.e. the net damage they have suffered. So if a player is low on Hitpoints, then the bar over them would be mostly red, meaning they are near death. Players often refer to "being redbarred" when barely surviving or only just getting a kill for this reason.
+
+==Death==
+{{Main|Death}}
+When a player's Hitpoints reach zero, they [[Death|die]]. Managing hitpoints to avoid this outcome is a crucial skill in [[Old School RuneScape]].
+
+The penalties and losses from dying depend on where the player was located and what kind of combat they were engaged in. Players should familiarize themselves with the [[Death]] page if they wish to learn more about what happens ''after'' hitpoints are depleted.
+
+==Recovering Hitpoints==
+A player can heal to restore their Hitpoints up to, or occasionally above, their maximum in several ways.
+
+===Regeneration===
+Players regenerate '''1 Hitpoint per minute'''. This can be boosted with the following effects:
+*The [[Rapid Heal]] [[Prayer]] or the [[Hitpoints cape]] double the regeneration rate, healing an '''additional 1 Hitpoint per minute'''. ''These effects '''do not stack''' with each other''.
+**The [[Regen bracelet]] also doubles the regeneration rate. This can stack with either of the above effects, resulting in a regeneration rate of '''4 Hitpoints per minute'''.
+*The Lunar spell [[Dream]] will incapacitate the player, ending only once the caster reaches full health, and increase the regeneration rate to '''3 Hitpoints per minute'''.
+
+===Restoration===
+{{main|Food}}
+*[[Food]] is the most common and reliable method of restoring Hitpoints. Food can restore large amounts of Hitpoints quickly and cheaply.
+**Because of how important food is, unlocking access to stronger tiers of food is often considered a significant milestone.
+*[[Saradomin brew|Saradomin brews]] can restore more Hitpoints per inventory slot than food, but have unique drawbacks to be considered. They are often used when inventory space or sustainability is a concern.
+
+====Situational====
+*The monks at the [[Edgeville Monastery]] will heal players when asked. They heal 2 + 20% of the player's current Hitpoints, except [[Abbot Langley]], which heals 4 + 12% of the player's current Hitpoints.
+*Two [[Nelta of Ralos|Neltas]] and the [[Cuali, Teoki of Ralos|Cuali]] located at the church south of the [[Varlamore]] bazaar will heal 20% of the player's current Hitpoints.
+*[[Litlihui, Teoki of Ralos]] located directly next to [[Fairy ring]] ({{Fairycode|ais}}) in [[Auburn Valley]]. Heals 2 + 20% of the player's current Hitpoints.
+*The nurses at the [[Emir's Arena]] hospital will heal players when asked. They heal 2 + 20% of the player's current Hitpoints.
+*The [[Elidinis Statuette]] in [[Nardah]] fully restores a player's Prayer points, completely heals them, restores their run energy and special attack energy, cures poison, and gives a temporary Hitpoints boost depending on the player's Hitpoints level. Players who have completed the [[Elite Desert Diary]] can take advantage of the [[desert amulet 4]], which provides unlimited [[Nardah]] teleports and teleports the player close to the statue. It is also directly south of a [[Fairy ring]] ({{Fairycode|dlq}}). This statue can only be used after [[Spirits of the Elid]] is complete.
+*Drinking from an [[ornate rejuvenation pool]] in a player-owned house or a [[pools of refreshment|pool of refreshment]] at the [[Ferox Enclave]] restores all of a player's Hitpoints.
+*Entering the [[Free-for-all portal]] in the [[Ferox Enclave]] and then exiting will restore all of the player's Hitpoints and drained stats.
+*Entering the [[The Gauntlet|Gauntlet]] or [[Corrupted Gauntlet]] in [[Prifddinas]] and then exiting will restore all of the player's Hitpoints and drained stats.
+*Before starting Fairytale I, [[Fairy Nuff]] will offer to heal some of the player's hitpoints in exchange for cut gems
+
+====Items====
+*[[Phoenix necklace]]s automatically restore the wearer's Hitpoints by 30% of their maximum if their Hitpoints drop below 20% of their maximum.
+*[[Ring of life]] while not strictly a recovery, can prevent accidental deaths by automatically [[Teleportation|teleporting]] the player safely back to their respawn point if they take a hit which causes them to fall to or below 10% of their maximum Hitpoints; as long as that hit does not kill them outright. 
+
+===Healing from others===
+*[[Heal Other]] is a [[Lunar spellbook|Lunar spell]] which transfers up to 75% of the caster's current Hitpoints to the targeted player.
+*[[Heal Group]] is a [[Lunar spellbook|Lunar spell]] which reduces the caster's current Hitpoints by 75% and heals up to five injured players.
+*The [[Snowy knight]] [[Butterfly (Hunter)|butterfly]] restores another player's Hitpoints by 15.
+
+===Life Leech===
+{{main|Life leech}}
+The following methods can provide a percentage of damage dealt as Hitpoints restoration, commonly referred to as life leech.
+
+Life leech can occur actively through some [[special attacks]] or more passively through chance on-hit effects.
+{{:Life leech/Sources}}
+
+===Overhealing===
+Temporary hitpoints boosts can be obtained through several means, but none provide a permanent boost to hitpoints. Boosted hitpoints levels above a player's maximum Hitpoints level decay at a rate of one per minute, identically to other [[temporary boost]]s. This timer can be restarted through activating the [[Rapid Heal]] prayer or through logging out, allowing a player to remain at a boosted Hitpoints level for longer.
+
+==Losing Hitpoints==
+===Self-inflicted damage===
+Players can damage themselves with some interactions with the following items. Non-lethal items cannot kill the player under normal circumstances. When using a non-lethal item which damage would result in taking lethal damage, either no damage will be dealt or the item cannot be used. However, lethal items can still be used to take lethal damage. Damage from non-lethal items may still result in death if it is taken at the same time as damage from another source. One example would be guzzling a [[dwarven rock cake]] or feeling a [[locator orb]], both to inflict more than 50+ damage whilst drinking a dose of an [[overload]] potion. Using this mechanic may be beneficial for using the maximum set effect of wearing all pieces of [[Dharok's armour set]] during [[Nightmare Zone]].
+
+====Non-lethal====
+*[[Cave nightshade]]
+*[[Chemical compound]]
+*[[Divine potion]]s
+*[[Dwarven rock cake]]
+*[[Explosive potion]] ([[Explosive_potion_(Soul_Wars)|Soul wars]]) ([[Explosive_potion_(Song_of_the_Elves)|Song of the Elves]])
+*[[Ground bat bones]] combined with [[guam potion (unf)]]
+*[[Limestone]] (when smelted without appropriate gloves)
+*[[Locator orb]]
+*[[Mixed chemicals]]
+*[[Nitroglycerin]]
+*[[Overload]] (all variants) 
+*[[Poison chalice]]
+*[[Poison karambwan]]
+*[[Quicklime]] (when ground with a pestle and mortar without an [[Pot|empty pot]])
+*[[Rock cake]]
+*[[Scorching bow]] (when attempting to create without 74 [[fletching]])
+*[[Toxic powder]] and [[Toxic naphtha|naphtha]]
+*[[Zamorak brew]]
+
+====Lethal====
+*[[Araxyte venom sac]]
+*[[Enchanted symbol]]
+*[[Strange device]]
+*[[Lit strange object]]
+*[[Sea slug (item)]]
+
+===Scenery===
+Interacting with various scenery objects can damage or kill the player.
+
+*Picking [[Nettles (scenery)|nettles]] without wearing gloves
+*Picking up a [[Kharid Scorpion]] without the [[scorpion cage]]
+*Triggering various [[Thieving]] traps
+*Failing [[Agility]] shortcuts/obstacles
+*Taking from a [[rat trap]]
+*Taking from a [[beehive]] without protective equipment
+
+===Environment===
+{{Main|Area effects}}
+Players can experience passive damage over time (and eventually die) through the environment at either the [[Kharidian Desert]], or inside greater fog whilst participating in [[Last Man Standing]].
+
+====Kharidian Desert====
+Players who are in the [[Kharidian Desert]] will experience [[Desert heat]], except for those who have completed the [[Desert Diary#Elite|Elite Desert Diary]] and are wearing their [[Desert amulet 4]]. Players will need to bring [[Waterskin]] and wear [[Desert heat#Clothing|desert-friendly clothing]] to prevent the player from taking up to 10 damage every 30-90 seconds (depending on the type of armour worn). 
+
+====Last Man Standing====
+Players who participate in Last Man Standing will encounter fog markers; this will drive all of the remaining players into the middle of the minigame. If players are less than 16 tiles into the fog, they will take 1-3 damage every other tick, ramping up over 6 ticks. Players 16 or more tiles into the fog will be subject to greater fog, which can deal up to 10 damage every other tick. To prevent this, it is important to strategise by moving to a place that provides cover and concealment from both the fog and other players.
+
+==Other==
+===Earning experience===
+To earn [[experience]] in Hitpoints, a player has to fight, complete [[quests]] which reward Hitpoints experience, or rub [[Experience lamp|experience lamps]].
+
+When fighting, be it [[Melee]], [[Ranged]], or [[Magic]], a player will earn Hitpoints experience whenever damage is dealt. By default, for every point of damage dealt, 1.33 experience points are given to the player's Hitpoints. However, certain monsters may yield either increased or greatly reduced experience due to e.g. their ability to regenerate.
+
+==Temporary boosts==
+{{main|Temporary skill boost}}
+{{:Temporary skill boost/Hitpoints}}
+
+==Quests==
+{{Sync}}
+
+===Quests requiring Hitpoints===
+{| class="wikitable sortable qc-active lighttable mw-collapsible" style="text-align:center;"
+!Quest
+!data-sort-type="number"|Hitpoints<br/>requirement
+!Other skill requirements
+|-
+|[[Dragon Slayer II]]||{{SCP|Hitpoints|50}}||{{SCP|Magic|75}}, {{SCP|Smithing|70}}, {{SCP|Mining|68}}, {{SCP|Crafting|62}}, {{SCP|Agility|60}}, {{SCP|Thieving|60}}, {{SCP|Construction|50}}
+|-
+|}
+
+===Quests rewarding Hitpoints experience===
+{{Main|Quest experience rewards}}
+{| class="wikitable sortable qc-active lighttable mw-collapsible" style="text-align:center;"
+|+ 
+|-
+!Quest
+!Experience<br/>reward
+!data-sort-type="number"|Hitpoints<br/>requirement
+!Other requirements
+|-
+|[[A Soul's Bane]]||{{+=|Hitpoints|500|echo=2}}|| - || -
+|-
+|[[In Search of the Myreque]]||{{+=|Hitpoints|600|echo=2}}|| - || {{SCP|Agility|25}}
+|-
+|[[Nature Spirit]]||{{+=|Hitpoints|2,000|echo=2}}|| - || {{SCP|Crafting|18}}
+|-
+|[[The Fremennik Trials]]||{{+=|Hitpoints|2,812|echo=2}}|| - || {{SCP|Fletching|25}}, {{SCP|Woodcutting|40}}, {{SCP|Crafting|40}} if crafting a lyre
+|-
+|[[Heroes' Quest]]||{{+=|Hitpoints|3,075|echo=2}}|| - || {{SCP|Quest|55}}, {{SCP|Cooking|53}}, {{SCP|Fishing|53}}, {{SCP|Herblore|25}}, {{SCP|Mining|50}}
+|-
+|[[Recipe for Disaster/Freeing Sir Amik Varze]]||{{+=|Hitpoints|4,000|echo=2}}|| - || {{SCP|Quest|107}}
+|-
+|[[Grim Tales]]||{{+=|Hitpoints|5,000|echo=2}}|| - || {{SCP|Farming|45}}, {{SCP|Herblore|52}}, {{SCP|Thieving|58}}, {{SCP|Agility|59}}, {{SCP|Woodcutting|71}}
+|-
+|[[Royal Trouble]]||{{+=|Hitpoints|5,000|echo=2}}|| - || {{SCP|Agility|40}}, {{SCP|Slayer|40}}
+|-
+|[[Witch's House]]||{{+=|Hitpoints|6,325|echo=2}}|| - || -
+|-
+|[[Dream Mentor]]||{{+=|Hitpoints|15,000|echo=2}}|| - || {{SCP|Agility|32}} ([[boost]]able), {{SCP|Combat|85}}, {{SCP|Crafting|61}}, {{SCP|Defence|40}}, {{SCP|Firemaking|49}}, {{SCP|Herblore|5}}, {{SCP|Magic|65}}, {{SCP|Mining|60}}, {{SCP|Woodcutting|55}}
+|-
+|[[Camelot training room]]<br/>([[Minigames|minigame]])||{{+=|Hitpoints|20,000|echo=2}}|| - || {{SCP|Magic|45}}, {{SCP|Defence|65}}
+|-
+|[[Mourning's End Part I]]||{{+=|Hitpoints|25,000|echo=2}}|| - || {{SCP|Ranged|60}}, {{SCP|Thieving|50}}
+|-
+!Total
+!{{formatnum:{{#var:Hitpoints}}}}
+!colspan="2"|
+|}
+In addition, there is a chance that the [[Observatory Quest]] may award 875 {{SCP|Hitpoints}} Hitpoints experience.
+
+===Diaries requiring Hitpoints===
+{{main|Achievement_Diary#Hitpoints}}
+{| class="wikitable sortable lighttable mw-collapsible" style="text-align:center;"
+!Diary
+!Hitpoints<br/>requirement
+!Other requirements for<br/> tasks requiring hitpoints
+|-
+|[[Fremennik_Diary#Elite|Fremennik Elite Diary]]
+|{{SCP|Hitpoints|70}}
+|{{SCP|Strength|70}}, {{SCP|Agility|70}}, {{SCP|Ranged|70}}
+|-
+|[[Western_Provinces_Diary#Elite|Western Provinces Elite Diary]]
+|{{SCP|Hitpoints|42}}
+|{{SCP|Combat|40}}, {{SCP|Defence|42}}, {{SCP|Strength|42}}, {{SCP|Magic|42}},<br/> {{SCP|Ranged|42}}, {{SCP|Attack|42}}, {{SCP|Prayer|22}}
+|}
+
+
+===Skill choice===
+Upon completing any of the following quests, players may choose to allocate experience to Hitpoints. These rewards usually come in the form of items, such as lamps or books, and are independent of any experience rewards directly received for completing the quest.
+{{SkillChoice|Hitpoints}}
+
+==Level up messages==
+{{hastranscript|skill}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 1 September 2016
+|update = Skill Pets & Family Pest
+|change = The Hitpoints bar now displays very low Hitpoints correctly.
+}}
+{{Subject changes
+|date = 2 June 2016
+|update = The Woodcutting Guild
+|change = Corrected the capitalization in the hitpoints skill guide.
+}}
+{{Subject changes
+|date = 15 December 2015
+|update = Christmas 2015
+|poll = 
+|change =
+*Anchovy Pizzas now have the correct placement in the HP skill guide.
+*Sea turtles now state the correct healing amount in the HP skill guide.
+}}
+{{Subject changes
+|date = 10 December 2015
+|update = Key Update & Seaweed
+|poll = 
+|change = The Hitpoints skill guide now includes a list of food and how many Hitpoints each type of food heals.
+}}
+{{Subject changes
+|date = 15 January 2015
+|update = Zulrah's Snakelings
+|change = The Hitpoints skill guide now mentions venom.
+}}
+{{Subject changes
+|date = 17 December 2013
+|update = Christmas Holiday Event
+|change = The health-bars that appear during combat should now always show at least one pixel of green whenever the player or NPC has some health left; you should no longer see a completely red health-bar until their health reaches zero.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*In ''[[RuneScape Classic]]'', all players started with level ten Hits and 1,000 experience - slightly fewer experience than would be required for level ten in all other skills. When ''[[RuneScape 2]]'' was released, accounts that had not gained the Hits experience needed to reach level ten or higher had their Hitpoints stat "corrected" to level nine. The only way to have level nine Hitpoints was to have created an account prior to the release of ''RuneScape 2'' and not to have trained the Hitpoints skill since. The minimum [[combat level]] is still three for those players. However, since all accounts in ''[[Old School RuneScape]]'' start fresh, no player in ''Old School'' has nine Hitpoints.
+*Also in ''Classic'', botters and rulebreakers were punished by having all their stats reset to one, resulting in a Hits level of one. This created level one accounts, which still exist in ''{{RSL|RuneScape}}'' today.
+
+==See also==
+* [[Hitpoints/Experience table]], a list of all Hitpoints experience sources
+* [[Hitpoints/Level up table]], a list of all requirements and unlockables within the Hitpoints skill
+
+{{Skills}}
+[[Category:Combat]]
+[[Category:Free-to-play skills]]

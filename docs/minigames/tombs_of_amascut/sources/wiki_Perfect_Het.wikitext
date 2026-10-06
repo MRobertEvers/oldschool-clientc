@@ -1,0 +1,27 @@
+{{Infobox Combat Achievement
+|name = Perfect Het
+|image = [[File:Path of Het - energy beam.png|300px]]
+|release = [[30 November]] [[2022]]
+|update = The Garden of Death & More
+|members = Yes
+|description = Complete the Het room without taking any damage from the light beam and orbs. You must destroy the core after one exposure.
+|tier = Elite
+|monster = Tombs of Amascut
+|type = Perfection
+|id = 432
+|leagueRegion = Desert
+}}
+[[File:Path of Het puzzle.png|thumb|Stand on any of the marked tiles, then click the pillar the tick before the statue fires its light beam]]
+'''Perfect Het''' is an [[Combat Achievements/Elite|elite combat achievement]] which requires the player to complete the [[Path of Het]] [[Tombs of Amascut/Strategies#Challenge room 3|challenge room]] without taking any damage from the light beam or [[Orb of Darkness|orbs]], and destroying [[Het's Seal]] in one cycle, at raid level 150 or above.
+
+==Strategy==
+Level 85 [[Mining]] (boostable from 82 with a [[Dragon pickaxe]]) is required for this task in a solo encounter in order to deal enough damage to Het's Seal in one cycle. There is more leeway in group encounters depending on the Mining level of the other teammates and if they are one-tick clicking the pillar before the beam hits the shielded statue, as this provides an extra hit to the statue before the next cycle starts (see [[Tombs of Amascut/Strategies]] for the one-cycle method).
+
+The team should take time setting down mirrors to ensure that the beam won't hit them as they set it and watch out for any orbs that appear while setting the mirrors and mining the pillar, as they have a notorious habit of forcing players to move out of the way when the pillar is being destroyed.
+
+A boosted Mining level of 100 or higher will allow destroying the core without the one-tick prep in a solo encounter.
+
+==Other tasks==
+{{Combat Achievements list|Tombs of Amascut}}
+
+{{Combat Achievements}}

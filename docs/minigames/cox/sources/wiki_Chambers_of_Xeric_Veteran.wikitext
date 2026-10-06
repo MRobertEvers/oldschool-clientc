@@ -1,0 +1,29 @@
+{{Infobox Combat Achievement
+|name = Chambers of Xeric Veteran
+|image = [[File:Chambers of Xeric - keystone room.png|300px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Complete the Chambers of Xeric 25 times.
+|tier = Elite
+|monster = Chambers of Xeric
+|type = Kill Count
+|id = 299
+|leagueRegion = Kourend
+}}
+'''Chambers of Xeric Veteran''' is an [[Combat Achievements/Elite|elite combat achievement]] which requires the player to complete the [[Chambers of Xeric]] 25 times.
+
+==Other tasks==
+{{Combat Achievements list|Chambers of Xeric}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 13 April 2022
+|update = Easter 2022
+|poll = Old School Content Poll 76: Game Improvements
+|change = The amount of raid completions required to complete the "Chambers of Xeric Veteran" task has been reduced from 75 to 25.
+}}
+{{Subject changes footer}}
+
+{{Combat Achievements}}

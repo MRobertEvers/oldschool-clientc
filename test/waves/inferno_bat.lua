@@ -75,7 +75,7 @@ local function eat_if_low(t, below)
     return false
 end
 local function pray_if_low(t)
-    local _, _, pts = t.prayer.points()
+    local _, pts, _ = t.prayer.points()
     if pts and pts.level and pts.level < 30 then t.player.drink("prayer_potion") end
 end
 local function arena_base(t)
@@ -768,10 +768,10 @@ return {
         -- flicks on time (two shot as the bat swings), then late
         t.prayer.set("protectfrommissiles", false)
         t.ticklog.mark("flick.on_time")
-        local _, _, p0 = t.prayer.points()
+        local _, p0, _ = t.prayer.points()
         D.flick_from = now(t)
         D.on_time = flick_series(t, 12, false, { [3] = true, [4] = true }, "flick")
-        local _, _, p1 = t.prayer.points()
+        local _, p1, _ = t.prayer.points()
         D.pts0, D.pts1 = p0 and p0.level, p1 and p1.level
         t.ticklog.mark("flick.late")
         D.late = flick_series(t, 4, true, nil, "late")

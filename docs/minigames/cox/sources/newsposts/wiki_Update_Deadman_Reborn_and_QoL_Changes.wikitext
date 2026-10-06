@@ -1,0 +1,72 @@
+{{Update|date=9 September 2021|link=https://secure.runescape.com/m=news/deadman-reborn-and-qol-changes?oldschool=1|category=game update}}
+[[File:Deadman Reborn and QoL Changes newspost.png|right]]
+{{Clear|right}}
+
+==Hotfixes and Issues (September 9th)==
+{|class=wikitable style="text-align:center; width:665px;"
+!Issue
+!Our Response
+|-
+|Players have reported various issues with the bonuses offered from both Sigil of Rampage and Sigil of Aggression.
+|A hotfix has been deployed to resolve these issues.
+
+Sigil of Rampage should now apply the correct accuracy and damage bonuses for each stack of Rampage.
+Sigil of Aggression should now provide the correct increased damage bonus.
+The accuracy bonus from Sigil of Rampage will correctly apply, even when players have attuned to Sigil of Aggression. The damage bonuses will not stack.
+|}
+
+''We've got a small update this week, mostly focusing on Deadman tweaks, but be sure to scroll down for changes affecting Combat Achievements, Theatre of Blood and more! Plus, we’ve got all the info you need about next week’s nail-biting Deadman Finale. It’s going to be the must-see livestream of the year, so mark your calendars now!''
+
+==An Update on Updates==
+There will be no weekly game update next week (September 13th–19th) as we prepare for the Deadman Finale. We'll be back with our regular weekly update the following week.
+
+We know you have been waiting patiently for updates to the Wilderness – don’t worry, these are on the way! We didn’t want to make these changes during Deadman, but with the tournament ending soon, we’ll have more news to share.
+
+The climactic Deadman Finale begins on '''September 17th''' at '''19:00 BST''' (''11:00 PDT / 14:00 EDT''). Players have had months to prepare, three weeks to qualify and now just one epic day to be the last Deadman standing. Who will take home a piece of the $32,000 prize pool? You can find out more about the finals and how this gargantuan reward will be dished out in our [https://secure.runescape.com/m=news/deadman-reborn?oldschool=1#Finale Deadman: Reborn newspost].
+
+For those of you who have elected to stay out of the bloodbath, remember you can enjoy all the action as a spectator, with live streaming on [https://www.twitch.tv/oldschoolrs Twitch] and casters commentating on all the action! Even if you’re not a DMM player yourself, this will be a thrilling conclusion to three weeks of seriously tough ‘Scaping – we'd love for you to give it a watch and let us know what you think!
+
+==Deadman Reborn Changes==
+* The Sigil of the Menacing Mage's effect will now deal its additional damage to the Great Olm's right hand.
+* Players can now only take four instances of recoil damage per game cycle from the Sigil of the Porcupine.
+* When using the Sigil of Remote Storage and Sigil of the Forager, all resources will now be sent to the Bank instead of the inventory when fishing trout and salmon.
+* Ores collected from the Blast Mine will now be sent to the Bank un-noted instead of noted (when using a Sigil that sends resources directly to the Bank, that is).
+* HP regeneration occurs correctly while Prayer-flicking with an active Sigil of Resilience.
+* You will now receive fake XP drops when splashing with Magic against players on Deadman worlds.
+* Players can no longer enter Chambers of Xeric while under Deadman protection.
+* During the Finale Sigil cooldowns will be reset in-between the 1v1 rounds
+
+===Sigil Rebalances===
+With this update, we’re also rebalancing the following Sigils:
+* '''Sigil of the Porcupine''' - Effect duration reduced from 45 seconds to 36 seconds
+* '''Sigil of Finality''' - Cooldown reduced from 90 seconds to 60 seconds
+* '''Sigil of Specialised Strikes''' - Cooldown reduced from 30 seconds to 15 seconds
+* '''Sigil of Pious Protection''' - The increased damage taken when praying incorrectly against attacks has been reduced from 20% to 10%
+* '''Sigil of the Feral Fighter''' - Activation rate increased from 10% to 20%
+
+==Other Changes==
+You’ll notice that some of these changes were mentioned in last week's newspost. They are actually in this week's update, along with a few extras! Hurrah!
+* The party leader can now re-order their party at the Party Board in the Theatre of Blood lobby.
+* Various Combat Achievement tasks will no longer interrupt your actions, most noticeably in Chambers of Xeric.
+* We've allowed pumping at the Blast Furnace to continue giving players Strength XP, even if the pipes are broken. This is because players who repair the cogs prevent others from using established Strength training methods. This is often done to grief other players, so we’re making the change to prevent unnecessary toxicity. This has also been extended to the bicycle, meaning you can still get Agility XP whether the drive belt/cogs are broken or not.
+* Karuulm Notes may now be combined into a single book (which is untradeable). You'll need all seven pages in your inventory for this to work. When you have them, just right-click to combine them together and the book will appear on your POH bookcase.
+* Farmers, rejoice! The Humidify Spell is seeing a massive buff this week. Gricoller's Watering Can may now be filled by casting the Humidify Spell.
+* When completing random events, a message will tell you what rewards you received.
+* The information boxes for Combat Achievement rewards have been tidied up.
+* PC players now have the option to display a bond button on their interface, making it easier to acquire bonds for membership or to sell. This can be found in the settings menu.
+* We've changed any text containing 'short-cut' to 'shortcut'. It's shorter, innit?
+
+==PvP World Rota==
+The PvP rota has moved to Period A:
+* 539 - (US) - PvP World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+* 390 - (AUS) - LMS Competitive - This world has been activated with this rota.
+
+----
+That's everything for this week's game update. We'd love to hear your feedback so please let us know what you think via our [http://services.runescape.com/m=forum/forums?380,381,752,66228308 official forums], on the [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums] or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel.
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Bonsai, Brow, Bruno, Curse, Daizong, Deagle, Dibber, Ditto, Dylan, Ed, Elena, Errol, Fed, Flippy, Gecko, Grub, Halo, Havik, Husky, Jndr, John C, Kandosii, Katies, Kieren, Kirby, Lenny, Light, Lottie, Mack, Maylea, Morty, Nasty, Nin, Oasis, Roq, Ry, Sarnie, Skylark, Sova, Squid, Steve W, Sween, Tide, Vegard, West, Wolfy & Zuko'''
+
+''The Old School Team''

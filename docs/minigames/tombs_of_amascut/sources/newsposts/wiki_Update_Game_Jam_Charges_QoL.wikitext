@@ -1,0 +1,148 @@
+{{Update|date=05 March 2025|url=https://secure.runescape.com/m=news/game-jam-charges-qol?oldschool=1|category=game}}
+[[File:Game Jam- Charges QoL newspost.jpg|right]]
+{{clear}}
+__TOC__
+	
+{| class="wikitable" style="text-align: center;"
+|-
+! Known Issues
+! Status
+|-
+| The following items don't have the auto-charging feature.
+* The Crystal Shield
+* Crystal Halberd
+* Regular Crystal Bow
+* Echo Venator Bow
+* Trailerblazer Reloaded League Blowpipe
+
+| To be coldfixed with next week's game update
+|-
+| We're aware of an issue where the infusion percentage rates on Arclight are incorrect.
+| This has been fixed! Players should now receive a message informing them of their refunded permanence on login.
+|-
+| POH telescopes can't see through windows in Civitas or Canifis themed POHs.
+| To be coldfixed
+|-
+| We are aware of an issue with the messaging no longer reporting infusion percentages for the Arclight.
+| Hotfixed
+|-
+| We're aware of an issue where messages about progress towards corruption appear when they shouldn't.
+| Hotfixed
+|}
+{| class="wikitable" style="text-align: center;"
+|-
+! Player Suggestions
+|-
+| We have added a notification when players fail to withdraw the desired number of charges.
+|-
+|}
+
+''Remember the Charges QoL improvements from Game Jam V? They are now live in-game!''
+
+==Changelog - March 5th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Game Jam: Charges QoL Improvements'''
+
+* You can now work towards blessing or corruption by charging your Dizana's Quiver or Enhanced Crystal weapons and using them, similar to how the Arclight transforms into Emberlight.
+* Toggleable feature: You can now set certain items to withdraw from the bank automatically charged. What's more, you can set the desired amount of charges applied, so that each time you can just grab and go - provided you have the necessary items to charge it, of course!
+
+'''Other Changes'''
+
+* Echo Ahrim's equipment will now respect placeholders, the same as non-ornamented Barrows items.
+* Fixed an issue where certain ornament kits, painted items, and upgrade attachments were not correctly unlocking in the Collection Log for Iron players.
+* Reanimated Giants now have a chance of dropping the Champions' Challenge scroll, since the giants who drop the ensouled head are mostly the same ones who could drop that scroll.
+
+'''PvP Rota'''
+
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''activated'''</u> with this rota.
+
+The PvP Arena is using '<b>Zerker</b>' loadouts in Ranked Duels and Tournaments this week.
+
+{{Collapsed section end}}
+
+RuneFest 2025 is behind us, and what an event it was! We had an absolute blast celebrating our shared love for the game with 'Scapers from all over the world, whether in the arena or tuning in from home. With the team hard at work during the event, this week's update is small but mighty. Let’s dive in!
+
+==Game Jam: Charges QoL Improvements==
+===Corruption===
+Finally free from the red prison but feeling like you can't use your Bow of Faerdhinen until you've corrupted it? If that sounds like you, this week's update has got you covered!
+
+As of this game update, used charges now contribute to the corruption process. In other words, by charging your Dizana's Quiver or Enhanced Crystal weapons and using them, you'll make progress towards blessing or corruption - similar to how the Arclight transforms into Emberlight. Meaning you don't need to wait and accumulate a lump sum of charges to corrupt an item all at once, you can just use it, top it up and eventually it'll corrupt/bless itself - neat!
+
+===Maintaining Charges===
+[[File:Game Jam- Charges QoL (1).gif|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-03-05/ChargingTrident.gif here]!'']]
+
+Gone are the days where you have to check your item's charges, or create room in your inventory to charge the item while your raid group is yelling at you! This week, we're introducing a feature where you can charge an item up to a specific number of charges automatically when withdrawn from the bank - provided you have the necessary items to charge it. This feature is toggleable, so you can keep doing what you're used to if you'd prefer. With this new behaviour, you'll be able to set your desired number of charges with a simple right-click. Note that the bankers can only charge items you'd be able to do in your inventory, they're not going to run all the way over to Ver Sinhaza to charge your Scythe of Vitur in a blood well, they're at work after all!
+
+To view this setting, open the Bank Settings interface while your bank is open, then select the 'Bank item options' button.
+
+[[File:Game Jam- Charges QoL (2).png|thumb|482px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-03-05/charge.jpg here]!'']]
+
+With this enabled, you'll see a 'Configure-Charge' option when right-clicking on any eligible items inside your bank. Note that this moves a few options around due to some technical limitations, so you might have some muscle memory to re-learn if you'd rather not toggle this off.
+
+[[File:Game Jam- Charges QoL (3).png|thumb|400px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-03-05/trident.jpg here]!'']]
+
+Keep in mind, the toggle for 'Bank item options' only affects whether or not you can see the 'Configure-Charge' option. If you already have your charges configured, you can disable the 'Bank item options' setting and any items that are already configured will still withdraw with the correct number of charges. You'd have to re-enable the setting if you'd like to change the number of charges on an item though.
+
+Alternatively, you can chat to [https://oldschool.runescape.wiki/w/Hofuthand_(weapons_and_armour) Hofuthand at the Grand Exchange] to set a ''global ''charge withdrawal threshold. '''Please note that this threshold applies to all items, whether you own them or not. For items that don't let you reclaim charges (e.g. Crystal Armour), you won't be able to get them back. Use this global change at your own risk. '''These warnings are also made clear in-game, just in case!
+
+==Beatstar==
+[[File:Game Jam- Charges QoL (4).png|thumb|400px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-03-05/beats.jpg here]!'']]
+
+If you've watched the RuneFest 2025 livestream, you might have already heard of our collaboration with Beatstar, a mobile rhythm game. Music is undoubtedly one of the best parts about Old School RuneScape, and Amascut's Promise is truly a fan-favourite beat. This year, we've teamed up with Beatstar to bring you a whole new way to experience this banger - a hardcore cover of Amascut's Promise has dropped on the app!
+
+This challenge is perfect for you to flex your clicking skills - will you be able to keep up with the beat? Download the app on  [https://apps.apple.com/ca/app/beatstar/id1521483641 Apple Store] or [https://play.google.com/store/apps/details?id=com.spaceapegames.beatstar&hl=en Google Play] to listen and tap along to this remix!
+
+==RuneFest Medley==
+[[File:Game Jam- Charges QoL (5).mp4|thumb|338px|center|''RuneFest Medley recap in a nutshell! If you can't see the video above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-03-05/RuneFest%20Medley%20square%20video.mp4  here]!'']]
+
+Enjoyed the RuneFest Medley by Cole Rolland, played during the RuneFest 2025 opening ceremony? This epic rock tribute to some of Old School's most beloved tracks is available on all digital music platforms! You can re-listen to it and add it to your playlist on your preferred music streaming service here. Plus, it features the one and only Mod Ash on violin in Sea Shanty II!
+
+<center><big>[https://open.spotify.com/embed/track/0NJjRlm5KyLpnmJzFpLyhD?utm_source=generator RuneScape: RuneFest Medley - Remix]</big></center>''Tune into the full version of the RuneFest Medley! If you can't play the track above, click ''[https://open.spotify.com/track/0NJjRlm5KyLpnmJzFpLyhD?si=a5e1830fed1f4e68 here]''.''
+
+==Socks and More!==
+[[File:Game Jam- Charges QoL (6).jpg|thumb|600px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-03-05/socks.jpg here]!'']]
+
+Missed out on RuneFest or just too busy having a blast to make it to the merch store? No worries! Keep an eye on [https://runescape.backstreetmerch.com/ the official online merch store] over the coming weeks, as loads of new goodies are making their way there! Expect fresh Zuk, Jad, Zilyana, Graardor, and Vorkath tees, all-new caps, Tipples of Gielinor drink mats, lobster tea towels, and more.
+
+Oh, and let’s talk socks... Because we know how much you lot loved them at RuneFest! If you missed out (or just need more for your collection), all the new socks will be hitting the store soon, too! 
+
+Don’t let FOMO get the best of you - stay tuned and grab your favourites!
+
+==Other Changes==
+
+* Echo Ahrim's equipment will now respect placeholders, the same as non-ornamented Barrows items.
+* Fixed an issue where certain ornament kits, painted items, and upgrade attachments were not correctly unlocking in the Collection Log for Iron players.
+* Reanimated Giants now have a chance of dropping the Champions' Challenge scroll, since the giants who drop the ensouled head are mostly the same ones who could drop that scroll.
+
+==PvP World Rota==
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''activated'''</u> with this rota.
+
+The PvP Arena is using '<b>Zerker</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1j40d80/game_jam_charges_qol/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Entropi, Errol, Gecko, Gengis, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Mack, Manked, Markos, Maylea, Moogle, Morty, Necro, Nin, Nox, Nylu, Ori, Other, Philomel, Pumpkin, Rach, Redfield, Rice, Roq, Ry, Saiyan, Sarnie, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titus, TJ, Tsourorf, Tyran, Veda, Vegard, West, Wolfy & Yume'''
+
+''The Old School Team.''

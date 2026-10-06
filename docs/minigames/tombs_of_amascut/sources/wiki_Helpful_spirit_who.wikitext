@@ -1,0 +1,24 @@
+{{Infobox Combat Achievement
+|name = Helpful spirit who?
+|image = [[File:Tombs of Amascut - Nexus room.png|300px]]
+|release = [[30 November]] [[2022]]
+|update = The Garden of Death & More
+|members = Yes
+|description = Complete the Tombs of Amascut without using any supplies from the Helpful Spirit and without anyone dying. Honey locusts are included in this restriction.
+|tier = Elite
+|monster = Tombs of Amascut
+|type = Restriction
+|id = 425
+|leagueRegion = Desert
+}}
+'''Helpful spirit who?''' is an [[Combat Achievements/Elite|elite combat achievement]] which requires the player to complete a [[Tombs of Amascut]] raid at level 150 or above without relying on the [[Helpful Spirit]] for supplies.  The raid must be completed deathless by the entire party and will fail if any players in the raid use supplies from the Helpful Spirit.
+
+==Strategy==
+Bring a 4-dose potion of [[super combat potion|super combat]] and [[ranging potion|ranging]]. For a magic boost, bring an [[imbued heart|imbued]] or [[saturated heart]] instead. [[Ancient brew|Ancient]] and [[forgotten brew]]s can be used in place of the heart, but this will drain melee stats in the process.
+
+As the player will not have access to [[smelling salts]] and [[liquid adrenaline]], be prepared to three cycle the Warden on phase 2. Other than that, the bosses can be killed fairly easily on a raid level of 150 with good gear.
+
+==Other tasks==
+{{Combat Achievements list|Tombs of Amascut}}
+
+{{Combat Achievements}}

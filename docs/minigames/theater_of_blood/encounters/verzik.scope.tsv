@@ -1,0 +1,216 @@
+# verzik.scope.tsv -- scope of every row of verzik.tsv for tools/raid_gate/raid_coverage.py
+# (all | entry | normal | hard | party | stat; overrides the name heuristic). Rows that
+# belong to two modes cannot be stated here (one scope per row); the name heuristic
+# already scopes them right in every mode, so they are the '# heuristic' lines at the end.
+mechanic_id	scope	note
+verzik.p1_hp_5	party	hitpoints table by party size; needs a party (or the ::tobscale cheat): a solo room reads only the one-player figure
+verzik.p1_hp_4	party	hitpoints table by party size; needs a party (or the ::tobscale cheat): a solo room reads only the one-player figure
+verzik.p1_hp_3	party	hitpoints table by party size; needs a party (or the ::tobscale cheat): a solo room reads only the one-player figure
+verzik.p23_hp_5	party	hitpoints table by party size; needs a party (or the ::tobscale cheat): a solo room reads only the one-player figure
+verzik.p23_hp_4	party	hitpoints table by party size; needs a party (or the ::tobscale cheat): a solo room reads only the one-player figure
+verzik.p23_hp_3	party	hitpoints table by party size; needs a party (or the ::tobscale cheat): a solo room reads only the one-player figure
+verzik.entry_p1_hp_1p	entry	Entry figure
+verzik.entry_p2_hp_1p	entry	Entry figure
+verzik.entry_p3_hp_1p	entry	Entry figure
+verzik.entry_hp_scaling	party	percent added per extra player; needs a party (or the ::tobscale cheat): a solo room reads only the one-player figure
+verzik.entry_p1_hp_5p	party	Entry, five players; needs a party (or the ::tobscale cheat): a solo room reads only the one-player figure
+verzik.entry_p2_hp_5p	party	Entry, five players; needs a party (or the ::tobscale cheat): a solo room reads only the one-player figure
+verzik.entry_p3_hp_5p	party	Entry, five players; needs a party (or the ::tobscale cheat): a solo room reads only the one-player figure
+verzik.web_hp	all	'every mode and party size'; the name heuristic misread 'party' as a party row
+verzik.entry_pillar_hp	entry	Entry figure
+verzik.reds_hp_5	party	hitpoints table by party size; needs a party (or the ::tobscale cheat): a solo room reads only the one-player figure
+verzik.reds_hp_3	party	hitpoints table by party size; needs a party (or the ::tobscale cheat): a solo room reads only the one-player figure
+verzik.entry_reds_hp_1p	entry	Entry figure
+verzik.entry_athanatos_hp	entry	Entry figure
+verzik.entry_combat_nylo_hp	entry	Entry figure
+verzik.p1_defence	normal	Normal figure; Entry has its own records (verzik.entry_defence)
+verzik.p2_defence	normal	Normal figure; Entry has its own records (verzik.entry_defence)
+verzik.p3_defence	normal	Normal figure; Entry has its own records (verzik.entry_defence)
+verzik.p3_magic_ranged_level	normal	Normal record's levels; Entry has its own records
+verzik.entry_defence	entry	Entry figure
+verzik.p1_cadence	all	applies in every mode; a solo room measures it
+verzik.p1_first_windup	all	applies in every mode; a solo room measures it
+verzik.p1_launch_after_windup	all	applies in every mode; a solo room measures it
+verzik.p1_bolt_flight	all	applies in every mode; a solo room measures it
+verzik.p1_bolt_impact_after_launch	all	applies in every mode; a solo room measures it
+verzik.p1_verdict_tick	all	applies in every mode; a solo room measures it
+verzik.entry_p1_max_hit	entry	Entry figure
+verzik.p1_cap	all	applies in every mode; a solo room measures it
+verzik.p1_dawn_damage	all	applies in every mode; a solo room measures it
+verzik.p1_safe_swings	all	applies in every mode; a solo room measures it
+verzik.pillar_count	all	applies in every mode; a solo room measures it
+verzik.pillar_hit	normal	Normal bolt against a Normal pillar (185); Entry's pillar is verzik.entry_pillar_hp and its bolt verzik.entry_p1_max_hit, no Entry figure for this
+verzik.entry_pillar_collapse_max	entry	Entry figure
+verzik.pillar_stun	all	applies in every mode; a solo room measures it
+verzik.pillar_knockback	all	applies in every mode; a solo room measures it
+verzik.pillar_hide_range	all	applies in every mode; a solo room measures it
+verzik.pillar_collapse_range	all	applies in every mode; a solo room measures it
+verzik.hard_debris_sets	hard	Hard Mode only
+verzik.hard_debris_max	hard	Hard Mode only
+verzik.hard_debris_radius	hard	Hard Mode only
+verzik.p2_id_after_phase_event	all	applies in every mode; a solo room measures it
+verzik.p2_first_attack_after_id	all	applies in every mode; a solo room measures it
+verzik.p2_first_attack_after_phase_event	all	applies in every mode; a solo room measures it
+verzik.p2_cadence	all	applies in every mode; a solo room measures it
+verzik.p2_scan_tick	all	applies in every mode; a solo room measures it
+verzik.p2_scan_rule	all	applies in every mode; a solo room measures it
+verzik.p2_scythe_walk_ticks	all	technique; a solo step_tick measures it
+verzik.p2_bomb_max	normal	Normal figure; Entry has its own records (verzik.entry_p2_bomb_max)
+verzik.entry_p2_bomb_max	entry	Entry figure
+verzik.p2_bomb_judged_tile	all	applies in every mode; a solo room measures it
+verzik.p2_bomb_prayer_read_tick	all	applies in every mode; seam20: not yet measured by tob_verzik (proved by conformance seam.verzik_p2_urnbomb_prayer_read_at_landing)
+verzik.p2_bomb_live_ticks	all	applies in every mode; a solo room measures it
+verzik.p2_bomb_flight	all	applies in every mode; a solo room measures it
+verzik.p2_slam_damage_max	normal	Normal damage figure; Entry has its own records and no source gives Entry's slam (spec gap)
+verzik.p2_slam_knockback	all	applies in every mode; a solo room measures it
+verzik.p2_slam_stun	all	applies in every mode; a solo room measures it
+verzik.p2_slam_chance	all	grade E approx: no numeric check
+verzik.p2_stomp_max	normal	Normal damage figure; no source gives Entry's stomp (spec gap)
+verzik.p2_stomp_knockback	all	applies in every mode; a solo room measures it
+verzik.p2_stomp_stun	all	applies in every mode; a solo room measures it
+verzik.p2_zap_max	normal	Normal damage figure; no source gives Entry's zap (spec gap, tob_verzik_room2)
+verzik.p2_zap_self_damage	party	she takes 15-20 only when a leg between two raiders crosses her (Strategies:911, Mod Ash); a solo ball never bounces, so it never crosses her (seam11)
+verzik.p2_zap_bounces	party	the ball bounces between players (Strategies:911); ~tob_verzik_zap_next finds no other raider tile solo, so every solo 1585 is one leg ending in the hit (seam11 vz11_kill7 288, 308)
+verzik.p2_zap_floor	all	applies in every mode; a solo room measures it
+verzik.p2_purple_first	all	attack index of the first Athanatos cast, recorded in Normal; the summon logic is one in every mode
+verzik.p2_purple_gap	all	stall P2 to see a second cast
+verzik.p2_purple_roll	stat	25 % re-summon chance after every third lightning ball: a distribution one room cannot settle; settle with tools/verify_tob_timings.py over Blert and with a cox_sim-style measurement loop over many of our rooms
+verzik.p2_purple_gate	all	applies in every mode; a solo room measures it
+verzik.p2_crabs_with_purple	all	applies in every mode; a solo room measures it
+verzik.p2_purple_land	all	applies in every mode; a solo room measures it
+verzik.p2_purple_poison_dmg	normal	Normal damage figure; no source gives Entry's (spec gap)
+verzik.p2_purple_heal	normal	Normal heal figure; no source gives Entry's (spec gap)
+verzik.p2_purple_heal_period	all	applies in every mode; a solo room measures it
+verzik.p2_crab_per_cast	all	at most one per living raider: a solo room reads 1; the name heuristic misread 'party size' as a party row
+verzik.p2_crab_blast_near	normal	Normal damage figure; no source gives Entry's crab blast (spec gap, tob_verzik_room2)
+verzik.p2_crab_blast_mid	normal	Normal damage figure; no source gives Entry's crab blast (spec gap, tob_verzik_room2)
+verzik.p2_crab_blast_far	normal	Normal damage figure; no source gives Entry's crab blast (spec gap, tob_verzik_room2)
+verzik.p2_crab_lifetime	all	applies in every mode; a solo room measures it
+verzik.reds_threshold	all	applies in every mode; a solo room measures it
+verzik.reds_count	party	two per summon, one when a single player is alive: a solo room always reads 1
+verzik.reds_attacks_between	all	stall P2 to see a second summon
+verzik.reds_first_attack_after	all	applies in every mode; a solo room measures it
+verzik.reds_absorb_window	all	applies in every mode; a solo room measures it
+verzik.p2_heal_spell_chance	stat	75 % heal-spell chance in the reds phase: a distribution one room cannot settle; settle with tools/verify_tob_timings.py over Blert and with a cox_sim-style measurement loop over many of our rooms
+verzik.p2_heal_spell_max	normal	Normal damage figure; no source gives Entry's (spec gap)
+verzik.p2_heal_spell_fraction	all	applies in every mode; a solo room measures it
+verzik.p3_id_after_phase_event	all	applies in every mode; a solo room measures it
+verzik.p3_first_attack_after_id	all	applies in every mode; a solo room measures it
+verzik.p3_first_attack_after_phase_event	all	applies in every mode; a solo room measures it
+verzik.p3_cadence	all	applies in every mode; a solo room measures it
+verzik.p3_enraged_cadence	all	applies in every mode; a solo room measures it
+verzik.p3_enrage_threshold	all	recorded in Normal and Hard; the name heuristic skipped it for '17 hard raids'
+verzik.p3_tornado_per_raider	all	one per living raider: a solo room reads 1
+verzik.p3_attacks_between_specials	all	applies in every mode; a solo room measures it
+verzik.p3_special_order	all	applies in every mode; a solo room measures it
+verzik.p3_scan_tick	all	applies in every mode; a solo room measures it
+verzik.p3_melee_predicate	all	applies in every mode; a solo room measures it
+verzik.p3_melee_chance	all	grade E approx: no numeric check
+verzik.p3_aggro_timeout	party	re-picking the tank needs another player to pick
+verzik.p3_auto_max	normal	Normal figure; Entry has its own records (verzik.entry_p3_auto_max)
+verzik.entry_p3_auto_max	entry	Entry figure
+verzik.p3_melee_max	normal	Normal figure; Entry has its own records (verzik.entry_p3_melee_max)
+verzik.entry_p3_melee_max	entry	Entry figure
+verzik.p3_auto_miss_entry	entry	Entry figure (seam16): unprayed misses of the P3 regular attacks
+verzik.hard_yellow_pool_lifetime	hard	Hard Mode only
+verzik.hard_yellow_pools	hard	Hard Mode only
+verzik.p3_yellow_max	normal	Normal damage figure; no source gives Entry's power blast (spec gap)
+verzik.p3_after_yellows	all	applies in every mode; a solo room measures it
+verzik.p3_ball_delay	all	applies in every mode; a solo room measures it
+verzik.p3_ball_flight	all	applies in every mode; a solo room measures it
+verzik.p3_ball_damage_pct	normal	Normal damage figure; no source gives Entry's green ball (spec gap)
+verzik.hard_ball_ladder	hard	Hard Mode only
+verzik.p3_webs_per_cast	party	three at a time only across raiders on different tiles (Strategies:953 "three at a time if they are not on the same tile"): a solo raider is one tile, so one 8127 throws one 1601 and one web (seam11 vz11_kill7 556:1, vz11_kill7b 528:1 740:1, vz11_meas 325:1)
+verzik.p3_web_lifetime	all	applies in every mode; a solo room measures it
+verzik.p3_web_snap_damage	normal	Normal damage figure; no source gives Entry's web snap (spec gap)
+verzik.p3_web_rotation_ticks	party	the team's web DPS rotation
+verzik.p3_webs_to_next_auto	all	applies in every mode; a solo room measures it
+verzik.p3_after_special	all	applies in every mode; a solo room measures it
+verzik.p3_tornado_min	stat	the floor of 5 shows only on a touch at 9 hitpoints or fewer, which no driven tool reaches in a room (the dwarven rock cake is unscripted); settled by scratch: seam11 vz11_min2 with ::setlevel hitpoints 8 measured a touch of 5 and a heal of 15
+verzik.p3_tornado_pct	all	applies in every mode; a solo room measures it
+verzik.p3_tornado_heal_mult	all	applies in every mode; a solo room measures it
+verzik.p3_tornado_respawn	all	applies in every mode; a solo room measures it
+verzik.p3_proj_flight	all	applies in every mode; a solo room measures it
+verzik.hard_bomb_pct	hard	Hard Mode only
+verzik.hard_acid_ticks	hard	Hard Mode only
+verzik.hard_acid_max	hard	Hard Mode only
+verzik.hard_reds_explode	hard	Hard Mode only
+verzik.hard_nylo_cycle	hard	Hard Mode only
+verzik.hard_lastheal_threshold	hard	Hard Mode only
+verzik.hard_lastheal_amount	hard	Hard Mode only
+verzik.av.npc_form_normal	normal	t.npc / tick log npc_retype to_type. measured spec_verzik_1 (entry, solo; the log carries the type a form is worn as): 8369->8370 at the fight start, 8370->8371 (P1 death +3), 8371->8372, 8372->8374 (P2 death +6); 8373 never worn (CONTENT_BUGS:185); bat 8375 npc_spawn on the death tick+2
+verzik.av.npc_form_entry	entry	tick log npc_retype to_type. measured spec_verzik_1 (entry solo): the log shows 8370/8372/8374/8375, the NORMAL ids, in Entry (content bug: she wears the Normal forms in Entry, CONTENT_BUGS:163)
+verzik.av.npc_form_hard	hard	tick log npc_retype to_type. measured spec_verzik_hard (hard solo): 8370/8372/8374/8375 in Hard (content bug, same row as Entry)
+verzik.av.adds_nylocas_forms	normal	tick log npc_spawn type. measured spec_verzik_adj (entry solo): 8383 at the Athanatos cast (P2), 8381 at the P3 crab special; hard run spec_verzik_hard also 8381/8383 (the _hard ids 10858-10860 never spawn)
+verzik.av.athanatos.npc	normal	tick log npc_spawn type 8384. measured spec_verzik_1: npc_spawn 8384 at tick 167 (cast 161 + 6)
+verzik.av.reds.npc	normal	tick log npc_spawn type 8385. measured spec_verzik_1: npc_spawn 8385 on the 8117 tick (261), two per summon with two raiders, one solo (297, 333 re-summons)
+verzik.av.tornado.npc	normal	tick log npc_spawn type 8386. measured spec_verzik_1: npc_spawn 8386 one tick after the enrage (607 -> 608); since seam11 it plays npc_anim 9004 on the spawn tick (verzik.av.tornado.seqs)
+verzik.av.web.npc	normal	tick log npc_spawn type 8376. measured spec_verzik_1: npc_spawn 8376 at the web projectile's landing (anim 426 -> spawn 429 solo at the room's far corner; 349 -> 351 adjacent); npc_free 20 ticks later (spec verzik.p3_web_lifetime stays open, M81)
+verzik.av.idle_walk_seqs	all	not an event row: the form's own record carries them (npc_retype changes the rig). tick log shows none; t.npc rows read the type. measured: not measured (idle is the record's readyanim)
+verzik.av.spotanim_seqs	all	client-side binding, no tick log row; the graphic rows below carry the spotanim ids
+verzik.av.fight_start.music	all	tick log music row. measured spec_verzik_pil (entry solo, ticklog started before t.raid.enter): music 566 source script on the entry tick 29 and 572 source script at the fight start tick 41 (12 ticks later, the dialogue); sound 3952 (the title card) one tick after the entry; nothing else played
+verzik.av.fight_start.sound_title	all	tick log sound row, source synth. measured spec_verzik_pil: sound 3952 at entry+1 (tick 30). The raidwide table owns the title card; here only because the room plays it
+verzik.av.p1_bolt.seq	all	tick log npc_anim seq 8109. measured spec_verzik_1 (entry solo): npc_anim 8109 at 59, 73, 87, 101 (gaps 14 x3); the seq's frame sounds ride the seq (sound rows of 3543/3986: 0)
+verzik.av.p1_bolt.proj	all	tick log projectile spotanim 1580. measured spec_verzik_1: projectile 1580 20->110 on 62, 76, 90, 104 = the wind-up tick + 3 (4 of 4); matches verzik.p1_launch_after_windup
+verzik.av.p1_bolt.gfx_player	all	NO tick log row (SS_OP_SPOTANIM_PL is not logged, CONTENT_BUGS:323). measured: not measured; script tob_verzik.rs2:598
+verzik.av.p1_bolt.gfx_pillar	all	tick log npc_spotanim spotanim 1582. measured spec_verzik_pil: six npc_spotanim 1582 height 208 on the six pillar slots per volley (tobpillars 1 x4), one per pillar
+verzik.av.p1_pillar_hit.sound	all	tick log sound row, source synth. measured spec_verzik_pil: six sound rows of 3291 on the one tick of a volley (one per pillar struck), both Entry and Hard
+verzik.av.p1_pillar_collapse.seq	all	tick log npc_anim seq 8052 on the six pillar npcs at the P1->P2 transition. measured spec_verzik_1: 8052 on six slots at 116 (retype 8379->8377, loc 32687 deleted), 8104 on all six at 118 (+2, retype 8377->8378), npc_free at 121 (+5); sound 3969 rows: 0 (in-band)
+verzik.av.p1_pillar_fade.seq	all	tick log npc_anim seq 8104. measured spec_verzik_1: six rows 2 ticks after the collapse (8052)
+verzik.av.p1_pillar_collapse.loc	all	tick log loc_set loc -1 on the six pillar tiles. measured spec_verzik_1: loc_set -1 (shape 10) x6 at the collapse tick 116; loc_set 32687 x6 at room entry (spec_verzik_pil tick 29)
+verzik.av.p1_death.seq	all	tick log npc_anim seq 8111. measured spec_verzik_1: killing hit 112, npc_anim 8110 at 112, 8111 at 113 (+1); seat loc_set 32686 at 113; the 3960/3934 frame sounds ride the seq
+verzik.av.p1_death.loc_throne	all	tick log loc_set loc 32686 (and t.var 6400 = 1). measured spec_verzik_1: loc_set 32686 at (6430,100) on the P1 death seq tick (113)
+verzik.av.p2_spawn.seq	all	tick log npc_anim seq 8112. measured spec_verzik_1: 8112 on the retype to 8371 (tick 116) = the 8111 tick + 3; the P2 npc id then lands 14 ticks later (spec verzik.p2_id_after_phase_event 13, blert); 3235/3961 ride the seq
+verzik.av.p2_bomb.seq	all	tick log npc_anim seq 8114 + projectile 1583 on the same tick. measured spec_verzik_1: npc_anim 8114 and projectile 1583 on the same tick at every cast (133, 137, 141, 145...; gap 4)
+verzik.av.p2_bomb.proj	all	tick log projectile spotanim 1583. measured spec_verzik_1: 20->120 cycles, first at 133; map_spotanim 1584 follows 4 ticks after the cast and the hit one tick later (cast 133, 1584 at 137, hit 138)
+verzik.av.p2_bomb.gfx_tile	all	tick log map_spotanim spotanim 1584 delay 1. measured spec_verzik_1: map_spotanim 1584 delay 1 at cast+4 on the target tile
+verzik.av.p2_bomb.gfx_poison_hard	hard	tick log map_spotanim spotanim 1590 delay 16. measured spec_verzik_hard (hard solo): map_spotanim 1590 delay 16 on the same tick and tile as every 1584 (cast+4); Normal and Entry play none
+verzik.av.p2_slam.seq	all	tick log npc_anim seq 8116, no projectile. measured spec_verzik_adj (entry solo, standing on her west flank): npc_anim 8116 at 135, once in 18 attacks; synth rows of 3997/3968: 0
+verzik.av.p2_zap.proj	all	tick log projectile spotanim 1585 (after seq 8114). measured spec_verzik_1: projectile 1585 20->120 cycles (96 adjacent) with 8114 on 149, 169, 189 (gap 20 = every fifth attack)
+verzik.av.p2_zap.shock	all	NO tick log row (a player's own spotanim and seq are not logged). seam7 proved it by PNG (s7v_shots 008-s7s-zap-2); measured: not re-measured
+verzik.av.p2_purple.seq	all	tick log npc_anim seq 8114 with projectile 1586 on the same tick. measured spec_verzik_1: 8114 + projectile 1586 at 161
+verzik.av.p2_purple.proj	all	tick log projectile spotanim 1586. measured spec_verzik_1: 20->180 at 161; the 1589 landing graphic and the npc 6 ticks later (matches verzik.p2_purple_land 6, blert)
+verzik.av.p2_purple.gfx_land	all	tick log map_spotanim spotanim 1589. measured spec_verzik_1: map_spotanim 1589 at cast+6 (167) on the tile of the npc_spawn 8384
+verzik.av.p2_purple.spawn_seq	all	tick log npc_anim on the npc_spawn 8384 slot and tick. measured spec_verzik_1: npc_anim 8079 on slot 1080 at 167 with the spawn
+verzik.av.p2_purple.heal_proj	all	tick log projectile spotanim 1587. measured spec_verzik_1: projectile 1587 0->30 every 5 ticks (172, 177, 182, ...), 0 npc_spotanim 1587 on the Athanatos
+verzik.av.p2_purple.poison_globule	all	tick log projectile 1588 / npc_spotanim 1590 (needs a poisoned weapon on the Athanatos). measured: not measured (spec_verzik_1 hit it with no poison)
+verzik.av.reds_summon.seq	all	tick log npc_anim seq 8117 with npc_spawn 8385 on the same tick. measured spec_verzik_1: 8117 and npc_spawn 8385 at 261; 8117 again at each absorb (297, 333); no 3543/4013 synth rows
+verzik.av.reds_absorb.gfx	all	tick log npc_spotanim 1587 type 8372. measured spec_verzik_1: npc_spotanim 1587 height 92 on her at 297 and 333 (a red died); OPEN: whether it is a projectile from the red, as the Athanatos' is
+verzik.av.reds_blood_spell.proj	all	tick log projectile spotanim 1591 + npc_anim 8114 on the same tick. measured spec_verzik_1: 1591 20->120 with 8114 at 277, 281, 289, 293, 313 (reds phase only)
+verzik.av.reds_blood_spell.gfx	all	tick log map_spotanim spotanim 1592 delay 120. measured spec_verzik_1: map_spotanim 1592 delay 120 on the cast tick (277); 96 when adjacent
+verzik.av.p2_death.seq	all	tick log npc_anim seq 8118; sound 3542 is in-band (synth rows 0). measured spec_verzik_1: hit 340, 8118 at 341 (+1), P3 form 8374 and 8119 at 347 (+6 = verzik.p3_id_after_phase_event); spec_verzik_adj the same
+verzik.av.p3_spawn.seq	all	tick log npc_anim seq 8119 on the retype to 8374. measured spec_verzik_1: 8119 at 347 with npc_retype 8372->8374; first P3 attack 8125 at 353 (+6, spec verzik.p3_first_attack_after_id)
+verzik.av.p3_ranged.seq	all	tick log npc_anim seq 8125 with projectile 1593 on the same tick. measured spec_verzik_1: 8125 + 1593 at 353, 360, 367, 374 (gap 7); hit +3
+verzik.av.p3_ranged.proj	all	tick log projectile spotanim 1593. measured spec_verzik_1: 20->104 (96, 88, 80 as the raider stands nearer); hit_player 3 ticks after the launch
+verzik.av.p3_magic.seq	all	tick log npc_anim seq 8124 with projectile 1594. measured spec_verzik_1: 8124 + 1594 at 412, 468, 475 ...; one in three autos in the sample is magic
+verzik.av.p3_magic.proj	all	tick log projectile spotanim 1594. measured spec_verzik_1: 20->104 / 96 / 80 as 1593
+verzik.av.p3_melee.seq	all	tick log npc_anim seq 8123, no projectile. measured spec_verzik_adj (entry solo, standing on her west flank): 8123 at 405, 412, 440, 454, 480 ... every attack from the first melee on that tick pattern; synth rows 3957/3936: 0
+verzik.av.p3_crabs.seq	all	tick log npc_anim seq 14406 + npc_spawn 8381 same tick. measured spec_verzik_adj: 14406 and npc_spawn 8381 at 304 and 515; NO 1593/1594 projectile on that tick (content bug: blert's comment says a regular attack and its projectile come with the crabs)
+verzik.av.p3_webs.seq	all	tick log npc_anim seq 8127 with projectile 1601. measured spec_verzik_1: 8127 + 1601 at 426 and 633; npc_spawn 8376 at +2 or +3; footsteps ride the seq
+verzik.av.p3_webs.proj	all	tick log projectile spotanim 1601. measured spec_verzik_1: 1601 20->104 (80 adjacent) on the 8127 tick
+verzik.av.p3_yellows.seq	all	tick log npc_anim seq 8126 with map_spotanim 1595 on the same tick. measured spec_verzik_1: 8126 + map_spotanim 1595 (delay 14) at 496; blast hit 14 ticks later (510)
+verzik.av.p3_yellows.gfx_pool	all	tick log map_spotanim spotanim 1595 delay 14. measured spec_verzik_1: one pool per raider (1), 14 ticks; spec_verzik_hard: three pools per raider at 419 (delay 14 logged for hard too; the hard 20-tick lifetime is a content/rows question: verzik.hard_yellow_pool_lifetime)
+verzik.av.p3_yellows.gfx_blast	all	NO tick log row (player spotanims). seam7 proved the protection line by the chat message; CONTENT_BUGS:341 (1596 is a projectile in NR). measured: not measured
+verzik.av.p3_yellows.sound_blast	all	tick log sound row 4000 source synth. measured spec_verzik_1: sound 4000 at 510 (= 8126 at 496 + 14) 1 row; the client also plays it from the seq at +7.87; possible double (content bug)
+verzik.av.p3_ball.proj	all	tick log projectile spotanim 1598. measured spec_verzik_1: 1598 30->251 at 545; spec_verzik_adj 30->243; impact 1600 on the target is a player spotanim (no row)
+verzik.av.p3_ball.seq	all	tick log npc_anim on the projectile 1598 tick. measured spec_verzik_1: projectile 1598 at 545 with no npc_anim row on 545 (autos at 538 and 557); spec_verzik_adj 468 the same
+verzik.av.p3_enrage.tornado	all	npc_spawn 8386 and, since seam11, a player_spotanim 1602 row on every touch tick are tick log rows. measured spec_verzik_1: npc_spawn 8386 at enrage +1 (607 -> 608); seam11 vz11_kill7: 1602 on every touch tick (2), 3 spawns
+verzik.av.p3_death.seq	all	tick log npc_anim seq 8128. measured spec_verzik_1: hit 647, 8128 at 648 AND again at 650 (the engine's death_anim and the script; the second restarts a 2-tick seq as the bat appears)
+verzik.av.p3_death.bat	all	tick log npc_spawn 8375 + npc_anim 8129 + npc_free 8375. measured spec_verzik_1: spawn and 8129 on 650, free at 655 (+5)
+verzik.av.p3_death.bat_lifetime	all	tick log npc_free 8375 and loc_set 32738. measured spec_verzik_1: bat 650 -> 655, loc_set 32738 at 655 (+5 after the 32737 loc_set at 650)
+verzik.av.p3_death.throne_loc	all	tick log loc_set rows (32686 -1 and 32737 on 650, 32738 on 655) and t.var 6400. measured spec_verzik_1: seat deleted and 32737 at (6431,100) on 650, 32738 at 655; timing is Near Reality plus one video, no recorder
+verzik.av.p3_death.throne_seq	all	client-side (loc_anim has no tick log row). measured: not measured; seam7 read its framemap group (10275, the throne rig) and photographed it (s7v_shots 015-s7s-throne-3)
+verzik.av.p3_death.jingle	all	tick log jingle row. measured spec_verzik_1: jingle 250 length 7317 ms at 652 (death +5, transform +2), source script
+verzik.av.room.map_locs	all	t.world.loc_near at the room origin. measured: not measured (map-placed, no event)
+verzik.av.room.death_cage	all	t.world.loc_near. measured: not measured here (the raidwide table owns the cage)
+verzik.av.room.barrier	all	t.world.loc_near. measured: not measured here
+verzik.av.reds.spawn_seq	all	tick log npc_anim 8098 on the npc_spawn tick of each Matomenos (10845 Entry); presentation row, seam11
+verzik.av.tornado.seqs	all	tick log npc_anim 9004 on the tornado npc_spawn tick and 9005 on the touch tick (hit_player npc_type 10846 Entry); presentation row, seam11
+# heuristic (two-mode rows; not read by raid_coverage, listed so every row is classified):
+# verzik.pillar_hp	normal+hard	the quantity says 'normal and hard'; skipped in Entry (verzik.entry_pillar_hp)
+# verzik.athanatos_hp	normal+hard	the quantity says 'normal and hard'; skipped in Entry (verzik.entry_athanatos_hp)
+# verzik.combat_nylo_hp	normal+hard	the quantity says 'normal and hard'; skipped in Entry (verzik.entry_combat_nylo_hp)
+# verzik.p1_max_hit	normal+hard	the quantity says 'normal and hard'; skipped in Entry (verzik.entry_p1_max_hit)
+# verzik.pillar_collapse_max	normal+hard	the quantity says 'normal and hard'; skipped in Entry (verzik.entry_pillar_collapse_max)
+# verzik.p3_yellow_pool_lifetime	normal+entry	the quantity says 'normal and entry'; skipped in Hard (verzik.hard_yellow_pool_lifetime)
+# verzik.p3_yellow_pools	normal+entry	the quantity says 'normal and entry'; skipped in Hard (verzik.hard_yellow_pools)

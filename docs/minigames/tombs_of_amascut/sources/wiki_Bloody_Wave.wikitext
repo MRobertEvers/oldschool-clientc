@@ -1,0 +1,24 @@
+{{Infobox NPC
+|name = Bloody Wave
+|image = [[File:Bloody Wave.png|250x250px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|location = [[Tombs of Amascut]]
+|examine = Wet and bloody.
+|map = {{Map|3930,5408|mapID=-1}}
+|id = 11739
+|leagueRegion = Desert
+}}
+'''Bloody Waves''' are the result of [[Wave (Tombs of Amascut)|waves]] washing over the blood splatters near the edges for the first waves at the start of the fight, or temporary splatters of blood that are left behind when players are suffering from [[Zebak]]'s bleed effect.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 30 June 2026
+|update = The Blood Moon Rises - Out Today!
+|change = The blood splatters near the edge of the room now turn waves into bloody waves.
+}}
+{{Subject changes footer}}
+
+{{Tombs of Amascut}}

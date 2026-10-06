@@ -116,7 +116,7 @@ no target: `t.check`, not `t.exec`. The curses book is not handled.
 
 `t.prayer.read()` returns ok, a detail and a set of 29 booleans by name. The
 overhead icon is NOT read; the detail names the icon the varbits imply.
-`t.prayer.points()` returns ok, a detail and `{level, base_level, experience}`.
+`t.prayer.points()` returns ok, `{level, base_level, experience, points, text}` and a detail (the raid branch's seam22 order, taken at the v3 merge).
 
 A prayer pressed between server ticks T-1 and T is in force for tick T's npc phase
 (the T-1 rule). Measured drain: Protect from Melee at +0 prayer bonus cost 15 points

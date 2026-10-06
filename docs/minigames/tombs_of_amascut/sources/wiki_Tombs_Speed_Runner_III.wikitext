@@ -1,0 +1,56 @@
+{{Infobox Combat Achievement
+|name = Tombs Speed Runner III
+|image = [[File:Tombs of Amascut - Nexus room.png|300px]]
+|release = [[30 November]] [[2022]]
+|update = The Garden of Death & More
+|members = Yes
+|description = Complete the Tombs of Amascut (expert) within 18 mins in a group of 8.
+|tier = Grandmaster
+|monster = Tombs of Amascut: Expert Mode
+|type = Speed
+|id = 423
+|leagueRegion = Desert
+}}
+'''Tombs Speed Runner III''' is a [[Combat Achievements/Grandmaster|grandmaster combat achievement]] which requires the player to complete the [[Tombs of Amascut]] raid in an 8-man party within 18 minutes, at raid level 300 or above.
+
+Unlike the [[Theatre of Blood]], speed-based achievements for the Tombs of Amascut count the overall time rather than the challenge time.
+
+Like other tasks requiring a specific number of players, this combat achievement is not required for [[Group Ironman Mode|Group Ironmen]] with a smaller group size.
+
+==Strategy==
+All players should ideally have a high [[Mining]] level to clear Het's challenge in one cycle to avoid wasting extra time with the 1-tick pre-mining method to get an additional hit in. All players are required to have near or best-in-slot gear as players must burst through the bosses very quickly. The bosses will have ~5.78 times the amount of health they would in solo. As it is important to move fast in between rooms it is also recommended to leave some inventory space, as to not have to drop and pick up items. With proper play food won't be needed until Wardens, where one should use Ambrosia.
+
+Selecting easy invocations will minimise frustration during the attempt, and it is important that players do not die during the bosses, as even one player dying can significantly set the team back.
+
+The [[zaryte crossbow]] with [[Ruby dragon bolts (e)]] can deal a lot of damage with its special attack. One player should bring an [[elder maul]] or [[dragon warhammer]], while another brings a [[soulflame horn]] to make Ba-Ba and Kephri easier to handle. A player can bring a [[Keris partisan of corruption]] to use its special attack to allow teammates to deal more damage for a short duration.
+
+Another option is for the whole team to camp mage and use [[Eye of Ayak]]'s special attack at the start of each boss, with the exception of Akkha, who can be zaryte crossbow specced thrice with [[liquid adrenaline]] and [[surge potion]].
+
+The baboons in Apmeken's challenge are very straightforward following the changes on [[24 May]] [[2024]] and [[25 June]] [[2025]], as players are guaranteed max hits on combat baboons and specialist baboons barely have any health.
+
+[[Ba-Ba]] should be dragged as close to the southern end of the arena as possible reduce the amount of time spent falling after her roar. The [[Baboon|baboons]] should be ignored to send her to the next phase as soon as possible. 
+
+The path of Crondis can be sped up by synchronizing the collection of the water jugs, bypassing the respawn time on the waterfalls and avoiding any damage to the [[Palm of Resourcefulness]] from the [[Crocodile (Tombs of Amascut)|crocodiles]]. Having a person enter with the "Pass" option instead of "Quick-Pass", whilst the rest of the team spams "Pass", guarantees everyone to be synced up.
+
+[[Zebak|Zebak's]] fight is fairly straightforward. Minimize time spent pushing water jugs and avoiding waves. 
+
+For [[Kephri]], two or three players should act as swarm killers, killing the [[Scarab Swarm (Tombs of Amascut)|scarab swarms]] that appear during the interlude phases to minimise the amount of healing Kephri can recover; if done properly, she will only recover with 1 health, often resulting in the next hit putting her out. On the 2nd phase, kill the [[Soldier Scarab]] as soon as possible to limit healing while keeping the [[Arcane Scarab]] from attacking. 
+
+At Akkha, one player should serve as a butterfly, kiting Akkha so that he never gets the chance to attack the team. It is recommended to have '''Feeling Special''' active, so the memory blast attack can be performed faster. Use Tumeken's shadow on him unless he enters his magic stance, after which players should begin using a fang instead.
+
+The Wardens can be completed as normal. Try to clear the second phase within two [[core]] downs, ideally with Tumeken's Warden being fought for the last two phases.
+
+Assuming a normal raid level of 300 with no path levelling, the enemies will have the following health:
+
+*Zebak: 7400
+*Kephri: 1910 (shield), 1020 (unguarded)
+*Akkha: 5100
+*Ba-Ba: 4850
+*Obelisk: 3320
+*Wardens: 1790 (shield), 33930 (core), 11230 (phase 3)
+*Skulls: 4
+
+==Other tasks==
+{{Combat Achievements list|Tombs of Amascut: Expert Mode}}
+
+{{Combat Achievements}}

@@ -1,0 +1,136 @@
+{{Infobox Weapon Group
+|name = Powered staff
+|images = {{plinkp|Starter staff}} {{plinkp|Warped sceptre}} {{plinkp|Bone staff}} {{plinkp|Trident of the Seas}} {{plinkp|Trident of the Swamp}} {{plinkp|Thammaron's sceptre}} {{plinkp|Accursed sceptre}} {{plinkp|Sanguinesti staff}} {{plinkp|Dawnbringer}} {{plinkp|Eye of Ayak}} {{plinkp|Tumeken's shadow}}
+|primary = [[Magic]]
+|secondary = N/A
+|speed = 4
+}}
+'''Powered staves''' are a [[Weapons/Categories|category]] of [[magic]] [[weapons]] that possess a built-in magic spell that can be used regardless of the [[spellbook]] the player is using. The built-in spells give no base experience and grants the player 2 [[Magic]] experience per damage dealt.
+
+They are typically charged with [[runes]] or [[coins]] to automatically cast magic projectiles. Unlike other Magic weapons, they cannot be used to [[autocast]] spells. In addition, they have an [[attack speed]] of 4, faster than other magic weapons, which have an attack speed of 5. The [[Tumeken's shadow]], however, has an attack speed of 5 and the [[Eye of Ayak]] has an attack speed of 3.
+
+Powered staff spells '''cannot''' be cast upon other players in the [[Wilderness]], except for [[Thammaron's sceptre]] and the [[accursed sceptre]]. The only way that they can be used against other players is during the [[Castle Wars]], [[TzHaar Fight Pit]], and [[Soul Wars]] [[minigame]]s, as well as the [[Clan Wars]] minigame if the clan leaders enable it.
+
+==Combat styles==
+{{CombatStyles|Powered Staff}}
+
+==List of powered staves==
+{{Infotable Bonuses|Starter staff|Warped sceptre#Charged|Bone staff|Trident of the Seas#Charged|Trident of the Seas (e)#Charged|Trident of the Swamp#Charged|Trident of the Swamp (e)#Charged|Thammaron's sceptre#Charged|Accursed sceptre#Charged|Sanguinesti staff#Charged|Dawnbringer|Crystal staff (basic)|Crystal staff (attuned)|Crystal staff (perfected)|Eye of Ayak#Charged|Tumeken's shadow#Charged|sort=amagic|nototals=yes}}
+
+==Maximum hit==
+{{Calculator:Magic/Powered staves}}
+
+==Charge costs==
+{| class="wikitable sortable align-center-1 align-left-2 align-left-5" style="text-align: right;"
+! colspan="2" | Item
+! Resource
+! Cost/Charge
+! Charges Held
+! Total Cost to Charge
+! Casts/Hr
+! Cost/Hr
+|-
+|{{plinkt|Warped sceptre}}
+|2× {{plink|Chaos rune}}<br />5× {{plink|Earth rune}}
+|{{Coins|{{#expr: 2*{{GEP|Chaos rune}} + 5*{{GEP|Earth rune}} }}}}
+|20000
+|{{Coins|{{#expr: (2*{{GEP|Chaos rune}} + 5*{{GEP|Earth rune}}) * 20000 }}}}
+|1500
+|{{Coins|{{#expr: (2*{{GEP|Chaos rune}} + 5*{{GEP|Earth rune}}) * 1500 }}}}
+|-
+|{{plinkt|Bone staff}}
+|1× {{plink|Chaos rune}}
+|{{Coins|{{GEP|Chaos rune}}}}
+|20000
+|{{Coins|{{#expr: {{GEP|Chaos rune}} * 20000 }}}}
+|1500
+|{{Coins|{{#expr: {{GEP|Chaos rune}} * 1500 }}}}
+|-
+|{{plinkt|Trident of the Seas (e)}}
+|1× {{plink|Death rune}}<br />1× {{plink|Chaos rune}}<br />5× {{plink|Fire rune}}<br />{{Coins|10}}
+|{{Coins|{{#expr: {{GEP|Death rune}} + {{GEP|Chaos rune}} + 5*{{GEP|Fire rune}} + 10 }}}}
+|20000
+|{{Coins|{{#expr: ({{GEP|Death rune}} + {{GEP|Chaos rune}} + 5*{{GEP|Fire rune}} + 10) * 20000 }}}}
+|1500
+|{{Coins|{{#expr: ({{GEP|Death rune}} + {{GEP|Chaos rune}} + 5*{{GEP|Fire rune}} + 10) * 1500 }}}}
+|-
+|{{plinkt|Trident of the Seas}}
+|1× {{plink|Death rune}}<br />1× {{plink|Chaos rune}}<br />5× {{plink|Fire rune}}<br />{{Coins|10}}
+|{{Coins|{{#expr: {{GEP|Death rune}} + {{GEP|Chaos rune}} + 5*{{GEP|Fire rune}} + 10 }}}}
+|2500
+|{{Coins|{{#expr: ({{GEP|Death rune}} + {{GEP|Chaos rune}} + 5*{{GEP|Fire rune}} + 10) * 2500 }}}}
+|1500
+|{{Coins|{{#expr: ({{GEP|Death rune}} + {{GEP|Chaos rune}} + 5*{{GEP|Fire rune}} + 10) * 1500 }}}}
+|-
+|{{plinkt|Trident of the Swamp (e)}}
+|1× {{plink|Death rune}}<br />1× {{plink|Chaos rune}}<br />5× {{plink|Fire rune}}<br />1× {{plink|Zulrah's scales}}
+|{{Coins|{{#expr: {{GEP|Death rune}} + {{GEP|Chaos rune}} + 5*{{GEP|Fire rune}} + {{GEP|Zulrah's scales}} }}}}
+|20000
+|{{Coins|{{#expr: ({{GEP|Death rune}} + {{GEP|Chaos rune}} + 5*{{GEP|Fire rune}} + {{GEP|Zulrah's scales}}) * 20000 }}}}
+|1500
+|{{Coins|{{#expr: ({{GEP|Death rune}} + {{GEP|Chaos rune}} + 5*{{GEP|Fire rune}} + {{GEP|Zulrah's scales}}) * 1500 }}}}
+|-
+|{{plinkt|Trident of the Swamp}}
+|1× {{plink|Death rune}}<br />1× {{plink|Chaos rune}}<br />5× {{plink|Fire rune}}<br />1× {{plink|Zulrah's scales}}
+|{{Coins|{{#expr: {{GEP|Death rune}} + {{GEP|Chaos rune}} + 5*{{GEP|Fire rune}} + {{GEP|Zulrah's scales}} }}}}
+|2500
+|{{Coins|{{#expr: ({{GEP|Death rune}} + {{GEP|Chaos rune}} + 5*{{GEP|Fire rune}} + {{GEP|Zulrah's scales}}) * 2500 }}}}
+|1500
+|{{Coins|{{#expr: ({{GEP|Death rune}} + {{GEP|Chaos rune}} + 5*{{GEP|Fire rune}} + {{GEP|Zulrah's scales}}) * 1500 }}}}
+|-
+|{{plinkt|Sanguinesti staff}}
+|2× {{plink|Blood rune}}
+|{{Coins|{{#expr: 2*{{GEP|Blood rune}} }}}}
+|20000
+|{{Coins|{{#expr: 2*{{GEP|Blood rune}} * 20000 }}}}
+|1500
+|{{Coins|{{#expr: 2*{{GEP|Blood rune}} * 1500 }}}}
+|-
+|{{plinkt|Eye of Ayak}}
+|{{#ifexpr: (2*{{GEP|Death rune}} + {{GEP|Chaos rune}}) < {{GEP|Demon tear}}
+| 2× {{plink|Death rune}}<br />1× {{plink|Chaos rune}}
+| 1× {{plink|Demon tear}}}}
+|{{Coins|{{#ifexpr: (2*{{GEP|Death rune}} + {{GEP|Chaos rune}}) < {{GEP|Demon tear}}
+| 2*{{GEP|Death rune}} + {{GEP|Chaos rune}}
+| {{GEP|Demon tear}}}}}}
+|50000
+|{{Coins|{{#ifexpr: (2*{{GEP|Death rune}} + {{GEP|Chaos rune}}) < {{GEP|Demon tear}}
+| (2*{{GEP|Death rune}} + {{GEP|Chaos rune}}) * 50000
+| {{GEP|Demon tear}} * 50000}}}}
+|2000
+|{{Coins|{{#ifexpr: (2*{{GEP|Death rune}} + {{GEP|Chaos rune}}) < {{GEP|Demon tear}}
+| (2*{{GEP|Death rune}} + {{GEP|Chaos rune}}) * 2000
+| {{GEP|Demon tear}} * 2000}}}}
+|- 
+|{{plinkt|Tumeken's shadow}}
+|2× {{plink|Soul rune}}<br />5× {{plink|Chaos rune}}
+|{{Coins|{{#expr: 2*{{GEP|Soul rune}} + 5*{{GEP|Chaos rune}} }}}}
+|20000
+|{{Coins|{{#expr: (2*{{GEP|Soul rune}} + 5*{{GEP|Chaos rune}}) * 20000 }}}}
+|1200
+|{{Coins|{{#expr: (2*{{GEP|Soul rune}} + 5*{{GEP|Chaos rune}}) * 1200 }}}}
+|-
+|{{plinkt|Thammaron's sceptre}}
+|1× {{plink|Revenant ether}}
+|{{Coins|{{GEP|Revenant ether}}}}
+|17000
+|{{Coins|{{#expr: {{GEP|Revenant ether}} * 17000 }}}}
+|1500
+|{{Coins|{{#expr: {{GEP|Revenant ether}} * 1500 }}}}
+|-
+|{{plinkt|Accursed sceptre}}
+|1× {{plink|Revenant ether}}
+|{{Coins|{{GEP|Revenant ether}}}}
+|17000
+|{{Coins|{{#expr: {{GEP|Revenant ether}} * 17000 }}}}
+|1500
+|{{Coins|{{#expr: {{GEP|Revenant ether}} * 1500 }}}}
+|}
+
+==Trivia==
+* There are two identical "Accurate" combat styles on powered staves. This is because prior to [[Update:6th Birthday and QoL|an update]] on [[21 February]] [[2019]], the game did not remember the selected combat style of the previous weapon equipped, and would attempt to move selection to the same position where the style was located. For example, having the "Rapid" style on a bow and switching to a spear would result in it being on the "Swipe" style.
+** This proved to be an inconvenience when switching between a powered staff and another weapon, which would often force the staff into the "Longrange" style due to it being in the same position as the "Rapid" style on ranged weapons, and forcing ranged weapons to the "Accurate" style if players switched back to the "Accurate" style on a powered staff. Forgetting to switch the styles back to "Accurate" on a powered staff would result in gaining [[Defence]] experience (due to being on the "Longrange" style) which some players, especially [[One-defence pure|one-defence pures]], did not wish to gain.
+** This was remedied in [[Update:New Animations & Barbarian Assault Changes|an update]] on [[24 September]] [[2015]] by giving powered staves a second identical "Accurate" style to prevent it from switching the combat style for other weapons. However, this was made obsolete with the update that gave the game the ability to remember active combat styles for different types of weapons.
+
+{{Weapon}}
+{{Magic weapons}}

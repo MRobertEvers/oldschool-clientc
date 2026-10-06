@@ -172,8 +172,8 @@ drive_pointer_project_point(
     if( fine_x < 128 || fine_z < 128 )
         return 0;
     return ToriRS_WorldProjectPoint(
-        &app->world_camera,
-        &app->world_camera_pos,
+        &app->frame_view->world_camera,
+        &app->frame_view->world_camera_pos,
         app->world_emit_desc.x,
         app->world_emit_desc.y,
         app->world_emit_desc.w,
@@ -620,9 +620,9 @@ DrivePointer_PickHolds(struct App* app, int element_id, int* out_held)
      * round once more. */
     if( !App_RenderSkipCatchUp(app) )
         return DRIVE_OK;
-    for( i = 0; i < app->world_pickset.count; i++ )
+    for( i = 0; i < app->frame_view->world_pickset.count; i++ )
     {
-        if( app->world_pickset.items[i].element_id == element_id )
+        if( app->frame_view->world_pickset.items[i].element_id == element_id )
         {
             *out_held = 1;
             break;
@@ -641,9 +641,9 @@ DrivePointer_PickPoint(struct App* app, struct DrivePickPoint* out_point)
     assert(out_point);
     /* Render skip: as DrivePointer_PickHolds above -- caught up first, and a
      * stamp that cannot be reads as no stamp (valid 0). */
-    out_point->valid = App_RenderSkipCatchUp(app) ? app->world_pickset.mouse_valid : 0;
-    out_point->x = app->world_pickset.mouse_x;
-    out_point->y = app->world_pickset.mouse_y;
+    out_point->valid = App_RenderSkipCatchUp(app) ? app->frame_view->world_pickset.mouse_valid : 0;
+    out_point->x = app->frame_view->world_pickset.mouse_x;
+    out_point->y = app->frame_view->world_pickset.mouse_y;
     /* `world_emit_desc` is only a rectangle once a frame has emitted the world
      * into one -- every other reader in this tree gates on world_view_valid
      * (app_camera.c, app_overlay_entities.c) and this one must too, or a
@@ -949,7 +949,7 @@ drive_pointer_world_gate(
     /* Not a rule of the gate's own -- the open menu reaches it as a tree layer
      * -- but the reason a reader needs: a covered press leaves its menu up, and
      * while it is up no pixel anywhere is the world's. */
-    if( app->interact.minimenu.visible )
+    if( app->frame_view->minimenu->visible )
     {
         *out_why = "menu";
         return DRIVE_OK;
@@ -1009,7 +1009,7 @@ DrivePointer_MenuVisible(struct App* app, int* out_visible)
 {
     assert(app);
     assert(out_visible);
-    *out_visible = app->interact.minimenu.visible ? 1 : 0;
+    *out_visible = app->frame_view->minimenu->visible ? 1 : 0;
     return DRIVE_OK;
 }
 
@@ -1024,7 +1024,7 @@ DrivePointer_MenuRows(struct App* app, struct DriveMenuRow* out, int cap, int* o
     assert(out);
     assert(cap > 0);
     assert(out_count);
-    menu = &app->interact.minimenu;
+    menu = app->frame_view->minimenu;
     if( !menu->visible )
     {
         *out_count = 0;
@@ -1084,7 +1084,7 @@ DrivePointer_MenuRowFind(
     assert(app);
     assert(out_row);
     memset(out_row, 0, sizeof(*out_row));
-    menu = &app->interact.minimenu;
+    menu = app->frame_view->minimenu;
     if( !menu->visible )
         return DRIVE_NOT_VISIBLE;
     ui_kind = drive_pointer_ui_kind(kind);
@@ -1674,16 +1674,16 @@ drive_pointer_spell_arm(
         app_selection_clear(app);
 
     UIMinimenu_Reset(&scratch);
-    scratch.font_id = app->interact.minimenu.font_id;
+    scratch.font_id = app->frame_view->minimenu->font_id;
     if( !UIMinimenu_AddOption(&scratch, "", REVCONFIG_MINIMENU_TGT_BUTTON, -1, pick) )
     {
         *out_reason = "the scratch minimenu would not take the row";
         return DRIVE_REFUSED;
     }
-    saved = app->interact.minimenu;
-    app->interact.minimenu = scratch;
+    saved = *app->frame_view->minimenu;
+    *app->frame_view->minimenu = scratch;
     app_minimenu_run_option(app, 0, 0, 0);
-    app->interact.minimenu = saved;
+    *app->frame_view->minimenu = saved;
 
     if( !app->targetsel.active || app->targetsel.component_id != component_id )
     {
@@ -1780,17 +1780,17 @@ drive_pointer_inv_cast(
     }
 
     UIMinimenu_Reset(&scratch);
-    scratch.font_id = app->interact.minimenu.font_id;
+    scratch.font_id = app->frame_view->minimenu->font_id;
     if( !UIMinimenu_AddOption(&scratch, "", REVCONFIG_MINIMENU_TGT_HELD, 0, pick) )
     {
         app_selection_clear(app);
         *out_reason = "the scratch minimenu would not take the row";
         return DRIVE_REFUSED;
     }
-    saved = app->interact.minimenu;
-    app->interact.minimenu = scratch;
+    saved = *app->frame_view->minimenu;
+    *app->frame_view->minimenu = scratch;
     app_minimenu_run_option(app, 0, 0, 0);
-    app->interact.minimenu = saved;
+    *app->frame_view->minimenu = saved;
 
     if( app->targetsel.active )
     {
@@ -1844,11 +1844,11 @@ DrivePointer_Camera(struct App* app, int yaw, int pitch, int zoom)
      * pick) the previous frame through the NEW camera, which no frame with
      * skip off ever does. */
     (void)App_RenderSkipCatchUp(app);
-    app->orbit.yaw = app->world_camera.yaw = yaw & 2047;
-    app->orbit.pitch = app->world_camera.pitch = pitch;
-    app->world_cam_zoom = zoom;
-    app->orbit.yaw_velocity = 0;
-    app->orbit.pitch_velocity = 0;
+    app->frame_view->orbit.yaw = app->frame_view->world_camera.yaw = yaw & 2047;
+    app->frame_view->orbit.pitch = app->frame_view->world_camera.pitch = pitch;
+    app->frame_view->world_cam_zoom = zoom;
+    app->frame_view->orbit.yaw_velocity = 0;
+    app->frame_view->orbit.pitch_velocity = 0;
     app->need_redraw = 1;
     return DRIVE_OK;
 }
@@ -1864,12 +1864,219 @@ DrivePointer_CameraPose(
     assert(out_owned);
     /* The same three fields DrivePointer_Camera writes, so a pose read here
      * and written back through it is a no-op on the next follow step. */
-    *out_yaw = app->orbit.yaw & 2047;
-    *out_pitch = app->orbit.pitch;
-    *out_zoom = app->world_cam_zoom;
+    *out_yaw = app->frame_view->orbit.yaw & 2047;
+    *out_pitch = app->frame_view->orbit.pitch;
+    *out_zoom = app->frame_view->world_cam_zoom;
     /* app_world_camera_follow's own early returns, in its own order: while
      * either holds, the follow step never reads the orbit angles. */
-    *out_owned = !app->camera_unlocked && !app->cam_script.scripted && app->net;
+    *out_owned = !app->frame_view->camera_unlocked && !app->cam_script.scripted && app->net;
+    return DRIVE_OK;
+}
+
+/* ------------------------------------------------------ the camera TURN
+ *
+ * seam25 watched_camera_and_shots (owner, 2026-10-05: "The scripts should
+ * also attempt to turn the camera, rather than snap"). DrivePointer_Camera
+ * above is a SNAP: it writes the three numbers and zeroes the velocities.
+ * A watched client turns instead, the way a person does: by HOLDING the
+ * arrow keys through the bus a real key press takes (CmdBus_PushKey, the
+ * same push torirs_touch.c's pan makes), so app_world_camera_keys reads them
+ * into cam_key_* and WorldCameraOrbit_StepAngles moves the orbit at the
+ * key's own impulse; zoom moves one scroll-wheel notch at a time
+ * (CmdBus_PushMouseWheel, the wheel's own path, which only zooms while the
+ * pointer is over the world -- a notch that changed nothing marks the zoom
+ * as done rather than pushing forever).
+ *
+ * One call is one poll: the caller (QD.drive.camera_aim, the only caller)
+ * makes it once a frame and stops when what it asked for is true.  Each
+ * call holds whichever arrows still close the gap, the shortest way round,
+ * and releases an arrow once the gap is inside the distance the orbit
+ * coasts after a release (the velocity halves each step: about |v| units).
+ * DrivePointer_CameraTurnRelease lets go of everything; the caller makes it
+ * on every way out of a turn. */
+enum
+{
+    DRIVE_TURN_KEY_LEFT = 1,
+    DRIVE_TURN_KEY_RIGHT = 2,
+    DRIVE_TURN_KEY_UP = 4,
+    DRIVE_TURN_KEY_DOWN = 8,
+    /* Inside these the pose is "there": a yaw a sixty-fourth of a turn off
+     * still frames what the exact yaw frames. */
+    DRIVE_TURN_YAW_SLACK = 32,
+    DRIVE_TURN_PITCH_SLACK = 8,
+    /* Polls an arrow may be held with the angle not moving before the angle
+     * counts as against its limit (pitch is clamped by the revision's band
+     * and by the terrain; a key whose push the client ignores -- a text field
+     * holding focus -- looks the same). */
+    DRIVE_TURN_STUCK_POLLS = 4,
+};
+
+static int g_turn_keys_held;
+static int g_turn_last_yaw = -1;
+static int g_turn_last_pitch = -1;
+static int g_turn_yaw_still;
+static int g_turn_pitch_still;
+static int g_turn_wheel_pending;
+static int g_turn_wheel_zoom_before;
+static int g_turn_zoom_done;
+
+static void
+drive_turn_key(struct ToriRS_CmdBus* bus, int mask, int key, int hold)
+{
+    assert(bus);
+    if( hold && !(g_turn_keys_held & mask) )
+    {
+        /* A full bus leaves the mask clear, so the next poll asks again. */
+        if( CmdBus_PushKey(bus, TORIRS_CMD_INPUT_KEY_DOWN, (uint8_t)key) )
+            g_turn_keys_held |= mask;
+    }
+    else if( !hold && (g_turn_keys_held & mask) )
+    {
+        if( CmdBus_PushKey(bus, TORIRS_CMD_INPUT_KEY_UP, (uint8_t)key) )
+            g_turn_keys_held &= ~mask;
+    }
+}
+
+static enum DriveResult
+DrivePointer_CameraTurnRelease(struct App* app)
+{
+    struct ToriRS_CmdBus* bus;
+
+    assert(app);
+    (void)app; /* the bus is the driver's, not the App's; NDEBUG drops the assert */
+    bus = PluginDriveCore_CmdBus();
+    if( bus )
+    {
+        drive_turn_key(bus, DRIVE_TURN_KEY_LEFT, TORIRSK_LEFT, 0);
+        drive_turn_key(bus, DRIVE_TURN_KEY_RIGHT, TORIRSK_RIGHT, 0);
+        drive_turn_key(bus, DRIVE_TURN_KEY_UP, TORIRSK_UP, 0);
+        drive_turn_key(bus, DRIVE_TURN_KEY_DOWN, TORIRSK_DOWN, 0);
+    }
+    g_turn_keys_held = 0;
+    g_turn_last_yaw = -1;
+    g_turn_last_pitch = -1;
+    g_turn_yaw_still = 0;
+    g_turn_pitch_still = 0;
+    g_turn_wheel_pending = 0;
+    g_turn_zoom_done = 0;
+    return DRIVE_OK;
+}
+
+/* One poll of a turn toward (yaw, pitch, zoom).  *out_arrived is 1 when
+ * every axis is there or against its limit; the per-axis flags say which. */
+static enum DriveResult
+DrivePointer_CameraTurnToward(
+    struct App* app,
+    int yaw,
+    int pitch,
+    int zoom,
+    int* out_yaw_arrived,
+    int* out_pitch_arrived,
+    int* out_zoom_arrived)
+{
+    struct ToriRS_CmdBus* bus;
+    struct WorldCameraOrbit const* orbit;
+    int yaw_gap;
+    int pitch_gap;
+    int yaw_coast;
+    int pitch_coast;
+    int yaw_arrived;
+    int pitch_arrived;
+    int zoom_gap;
+    int wheel_step;
+
+    assert(app);
+    assert(out_yaw_arrived);
+    assert(out_pitch_arrived);
+    assert(out_zoom_arrived);
+    /* DrivePointer_Camera's own validation, so a pose one refuses the other
+     * refuses too, in both modes. */
+    if( pitch < 128 || pitch > 383 || zoom < -1000 || zoom > 10000 )
+        return DRIVE_REFUSED;
+    /* The arrows only steer the FOLLOW camera (app_world_camera_keys turns a
+     * scripted or unlocked one directly, at its own rate): a turn there is
+     * not the player's turn, and the caller snaps as it always did. */
+    if( app->frame_view->camera_unlocked || app->cam_script.scripted || !app->net )
+        return DRIVE_REFUSED;
+    bus = PluginDriveCore_CmdBus();
+    if( !bus )
+        return DRIVE_UNSUPPORTED;
+
+    orbit = &app->frame_view->orbit;
+    /* Shortest way round: the gap folded into [-1024, 1023]. */
+    yaw_gap = (((yaw & 2047) - (orbit->yaw & 2047) + 1024) & 2047) - 1024;
+    pitch_gap = pitch - orbit->pitch;
+    yaw_coast = orbit->yaw_velocity < 0 ? -orbit->yaw_velocity : orbit->yaw_velocity;
+    pitch_coast = orbit->pitch_velocity < 0 ? -orbit->pitch_velocity : orbit->pitch_velocity;
+
+    /* An angle that has not moved for DRIVE_TURN_STUCK_POLLS polls while its
+     * arrow was held is against its limit. */
+    if( (g_turn_keys_held & (DRIVE_TURN_KEY_LEFT | DRIVE_TURN_KEY_RIGHT)) &&
+        (orbit->yaw & 2047) == g_turn_last_yaw )
+        g_turn_yaw_still++;
+    else
+        g_turn_yaw_still = 0;
+    if( (g_turn_keys_held & (DRIVE_TURN_KEY_UP | DRIVE_TURN_KEY_DOWN)) &&
+        orbit->pitch == g_turn_last_pitch )
+        g_turn_pitch_still++;
+    else
+        g_turn_pitch_still = 0;
+    g_turn_last_yaw = orbit->yaw & 2047;
+    g_turn_last_pitch = orbit->pitch;
+
+    yaw_arrived = (yaw_gap < 0 ? -yaw_gap : yaw_gap) <= DRIVE_TURN_YAW_SLACK ||
+                  g_turn_yaw_still >= DRIVE_TURN_STUCK_POLLS;
+    pitch_arrived = (pitch_gap < 0 ? -pitch_gap : pitch_gap) <= DRIVE_TURN_PITCH_SLACK ||
+                    g_turn_pitch_still >= DRIVE_TURN_STUCK_POLLS;
+
+    /* Right raises the yaw, left lowers it (WorldCameraOrbit_StepAngles);
+     * up raises the pitch.  Held while the gap is wider than the coast. */
+    drive_turn_key(bus, DRIVE_TURN_KEY_RIGHT, TORIRSK_RIGHT, !yaw_arrived && yaw_gap > yaw_coast);
+    drive_turn_key(bus, DRIVE_TURN_KEY_LEFT, TORIRSK_LEFT, !yaw_arrived && yaw_gap < -yaw_coast);
+    drive_turn_key(bus, DRIVE_TURN_KEY_UP, TORIRSK_UP, !pitch_arrived && pitch_gap > pitch_coast);
+    drive_turn_key(bus, DRIVE_TURN_KEY_DOWN, TORIRSK_DOWN, !pitch_arrived && pitch_gap < -pitch_coast);
+
+    /* Zoom: one wheel notch, then one poll to see it land (a push is drained
+     * on the next loop iteration), then the next.  A notch that moved
+     * nothing -- the band's end, or the pointer off the world -- ends the
+     * zoom for this turn. */
+    wheel_step = app->revconfig_profile.camera.wheel_step;
+    zoom_gap = zoom - app->frame_view->world_cam_zoom;
+    if( g_turn_wheel_pending )
+    {
+        g_turn_wheel_pending++;
+        if( g_turn_wheel_pending > 3 )
+        {
+            if( app->frame_view->world_cam_zoom == g_turn_wheel_zoom_before )
+                g_turn_zoom_done = 1;
+            g_turn_wheel_pending = 0;
+        }
+    }
+    if( !g_turn_wheel_pending && !g_turn_zoom_done && wheel_step > 0 &&
+        (zoom_gap < 0 ? -zoom_gap : zoom_gap) * 2 > wheel_step )
+    {
+        /* The wheel zooms only with the pointer over the world (app_camera.c's
+         * app_world_mouse_gate); anywhere else a notch would scroll a panel.
+         * The last frame's pick point is where the pointer rests. */
+        if( !app->frame_view->world_pickset.mouse_valid ||
+            !app_world_mouse_gate(
+                app, app->frame_view->world_pickset.mouse_x, app->frame_view->world_pickset.mouse_y) )
+            g_turn_zoom_done = 1;
+    }
+    if( !g_turn_wheel_pending && !g_turn_zoom_done && wheel_step > 0 &&
+        (zoom_gap < 0 ? -zoom_gap : zoom_gap) * 2 > wheel_step )
+    {
+        /* The wheel subtracts: a notch up (+1) brings the eye in. */
+        if( CmdBus_PushMouseWheel(bus, (int16_t)(zoom_gap < 0 ? 1 : -1)) )
+        {
+            g_turn_wheel_pending = 1;
+            g_turn_wheel_zoom_before = app->frame_view->world_cam_zoom;
+        }
+    }
+    *out_yaw_arrived = yaw_arrived;
+    *out_pitch_arrived = pitch_arrived;
+    *out_zoom_arrived = g_turn_zoom_done || wheel_step <= 0 ||
+                        (zoom_gap < 0 ? -zoom_gap : zoom_gap) * 2 <= wheel_step;
     return DRIVE_OK;
 }
 
@@ -2352,6 +2559,56 @@ lua_drive_camera_pose(struct lua_State* L)
     return 2;
 }
 
+/* api.drive.camera_turn_toward(yaw, pitch, zoom) -> ("ok", {yaw=, pitch=,
+ * zoom=, arrived=, yaw_arrived=, pitch_arrived=, zoom_arrived=}).  One poll
+ * of a TURN (DrivePointer_CameraTurnToward): holds the arrows and rolls the
+ * wheel a person would, once a frame.  The pose read back is the live one.
+ * QD.drive.camera_aim is its only caller. */
+static int
+lua_drive_camera_turn_toward(struct lua_State* L)
+{
+    struct App* app = PluginDrive_App();
+    int yaw = PluginDrive_ArgInt(L, 1);
+    int pitch = PluginDrive_ArgInt(L, 2);
+    int zoom = PluginDrive_ArgInt(L, 3);
+    int yaw_arrived = 0, pitch_arrived = 0, zoom_arrived = 0;
+    enum DriveResult result;
+
+    assert(app);
+    result = DrivePointer_CameraTurnToward(
+        app, yaw, pitch, zoom, &yaw_arrived, &pitch_arrived, &zoom_arrived);
+    if( result != DRIVE_OK )
+        return PluginDrive_PushResult(L, result, NULL);
+    lua_pushstring(L, DriveResultName(result));
+    lua_newtable(L);
+    lua_pushinteger(L, app->frame_view->orbit.yaw & 2047);
+    lua_setfield(L, -2, "yaw");
+    lua_pushinteger(L, app->frame_view->orbit.pitch);
+    lua_setfield(L, -2, "pitch");
+    lua_pushinteger(L, app->frame_view->world_cam_zoom);
+    lua_setfield(L, -2, "zoom");
+    lua_pushboolean(L, yaw_arrived && pitch_arrived && zoom_arrived);
+    lua_setfield(L, -2, "arrived");
+    lua_pushboolean(L, yaw_arrived);
+    lua_setfield(L, -2, "yaw_arrived");
+    lua_pushboolean(L, pitch_arrived);
+    lua_setfield(L, -2, "pitch_arrived");
+    lua_pushboolean(L, zoom_arrived);
+    lua_setfield(L, -2, "zoom_arrived");
+    return 2;
+}
+
+/* api.drive.camera_turn_release() -> "ok".  Lets go of every arrow a turn
+ * holds; made on every way out of a turn. */
+static int
+lua_drive_camera_turn_release(struct lua_State* L)
+{
+    struct App* app = PluginDrive_App();
+
+    assert(app);
+    return PluginDrive_PushResult(L, DrivePointer_CameraTurnRelease(app), NULL);
+}
+
 /* ------------------------------------------------------ the camera READ side
  *
  * seam32 cutscene_verb_and_camera_read: no test could read the camera, so a
@@ -2443,17 +2700,17 @@ lua_drive_camera_state(struct lua_State* L)
 
     lua_pushstring(L, DriveResultName(DRIVE_OK));
     lua_newtable(L);
-    lua_pushinteger(L, (app->world_camera_pos.x >> 7) + base_x);
+    lua_pushinteger(L, (app->frame_view->world_camera_pos.x >> 7) + base_x);
     lua_setfield(L, -2, "x");
-    lua_pushinteger(L, (app->world_camera_pos.z >> 7) + base_z);
+    lua_pushinteger(L, (app->frame_view->world_camera_pos.z >> 7) + base_z);
     lua_setfield(L, -2, "z");
     lua_pushinteger(L, level);
     lua_setfield(L, -2, "level");
-    lua_pushinteger(L, app->world_camera.yaw & 2047);
+    lua_pushinteger(L, app->frame_view->world_camera.yaw & 2047);
     lua_setfield(L, -2, "yaw");
-    lua_pushinteger(L, app->world_camera.pitch);
+    lua_pushinteger(L, app->frame_view->world_camera.pitch);
     lua_setfield(L, -2, "pitch");
-    lua_pushinteger(L, app->world_cam_zoom);
+    lua_pushinteger(L, app->frame_view->world_cam_zoom);
     lua_setfield(L, -2, "zoom");
     lua_pushboolean(L, cam->scripted != 0);
     lua_setfield(L, -2, "server_driven");
@@ -2600,6 +2857,8 @@ static struct LuaFn const LUA_DRIVE_POINTER_FNS[] = {
     {"move_near", lua_drive_move_near},
     {"camera", lua_drive_camera},
     {"camera_pose", lua_drive_camera_pose},
+    {"camera_turn_toward", lua_drive_camera_turn_toward},
+    {"camera_turn_release", lua_drive_camera_turn_release},
     {"camera_state", lua_drive_camera_state},
     {"camera_events", lua_drive_camera_events},
     {"player_idle", lua_drive_player_idle},
@@ -2612,6 +2871,12 @@ PluginDrivePointer_RegisterLua(struct lua_State* L, void* script)
 {
     assert(L);
     assert(script);
+    /* A turn's arrows outlive the script that held them when it ends inside
+     * the turn (a Stop, a script error): a watched client reloads the
+     * quest-driver plugin at the next frame boundary, which re-registers
+     * here, so the camera never keeps spinning into the next Play. */
+    if( g_turn_keys_held )
+        (void)DrivePointer_CameraTurnRelease(PluginDrive_App());
     PluginLua_AppendModule(L, script, LUA_DRIVE_POINTER_FNS);
 }
 

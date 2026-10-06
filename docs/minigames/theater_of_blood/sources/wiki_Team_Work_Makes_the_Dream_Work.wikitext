@@ -1,0 +1,19 @@
+{{Infobox Combat Achievement
+|name = Team Work Makes the Dream Work
+|image = [[File:Verzik Vitur (final form).png|250px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = When Verzik Vitur in the Theatre of Blood: Hard Mode uses her yellow power blast attack while the tornadoes are active, have everyone get through the attack without taking damage. This cannot be completed with one player alive
+|tier = Grandmaster
+|monster = Theatre of Blood: Hard Mode
+|type = Mechanical
+|id = 378
+|leagueRegion = Morytania
+}}
+'''Team Work Makes the Dream Work''' is a [[Combat Achievements/Grandmaster|grandmaster combat achievement]] which requires the player to have everyone get through the attack without taking damage when [[Verzik Vitur]], in the [[Theatre of Blood: Hard Mode]], uses her yellow power blast attack while the tornadoes are active. This cannot be completed with one player alive.
+
+==Other tasks==
+{{Combat Achievements list|Theatre of Blood: Hard Mode}}
+
+{{Combat Achievements}}

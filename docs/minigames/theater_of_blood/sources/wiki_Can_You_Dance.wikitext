@@ -1,0 +1,19 @@
+{{Infobox Combat Achievement
+|name = Can You Dance?
+|image = [[File:Xarpus.png|300px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Kill Xarpus without anyone in the team using a ranged or magic weapon.
+|tier = Master
+|monster = Theatre of Blood
+|type = Restriction
+|id = 251
+|leagueRegion = Morytania
+}}
+'''Can You Dance?''' is a [[Combat Achievements/Master|master combat achievement]] requiring the player to kill [[Xarpus]] without anyone in the team using a [[ranged]] or [[magic]] weapon.
+
+==Other tasks==
+{{Combat Achievements list|Theatre of Blood}}
+
+{{Combat Achievements}}

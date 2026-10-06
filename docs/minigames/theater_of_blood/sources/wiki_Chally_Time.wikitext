@@ -1,0 +1,35 @@
+{{Infobox Combat Achievement
+|name = Chally Time
+|image = [[File:Pestilent Bloat.png|260px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Defeat the Pestilent Bloat in the Theatre of Blood: Entry Mode by using a halberd special attack as your final attack.
+|tier = Elite
+|monster = Theatre of Blood: Entry Mode
+|type = Mechanical
+|id = 389
+|leagueRegion = Morytania
+}}
+'''Chally Time''' is an [[Combat Achievements/Elite|elite combat achievement]] which requires the player to defeat the [[Pestilent Bloat]] in the [[Theatre of Blood/Entry Mode|Theatre of Blood: Entry Mode]] by using a [[dragon halberd]] or [[crystal halberd]] [[special attack]] as your final attack.
+
+==Strategy==
+You do not need to complete the raid to complete the combat task. Therefore, if you just leave the raid after defeating the Pestilent Bloat you can simplify your inventory as the mage gear switch required for later in the raid will not be required. Your inventory can thus hold more food and potions to get you through the task.
+
+It is advisable to take your best range gear to quickly defeat the [[The Maiden of Sugadinti|maiden]], who is  always the first boss you will encounter, (consider completing the [[Anticoagulants]] achievement at this time), then switch to your best melee gear with a suitable halberd to complete this task by killing the Pestilent Bloat with a halberd special attack. (See [[Theatre of Blood/Strategies|Theatre of Blood/Strategies]] for suggest setups you can adapt.)
+
+The [[They Won't Expect This]] and [[Appropriate Tools]] task can also be easily achieved at the same time as this task. So if you are looking for a few points to get to the next combat achievement unlock, completing these 3 tasks will reward 12 combat task points and help you on to the next combat achievement reward.
+
+==Other tasks==
+{{Combat Achievements list|Theatre of Blood: Entry Mode}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = The achievement can now be completed with the [[dragon halberd]]'s special attack.
+}}
+{{Subject changes footer}}
+
+{{Combat Achievements}}

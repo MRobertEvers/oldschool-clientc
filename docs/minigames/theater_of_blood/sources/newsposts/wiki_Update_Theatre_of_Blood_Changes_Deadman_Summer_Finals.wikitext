@@ -1,0 +1,152 @@
+{{Update|date=21 June 2018|link=http://services.runescape.com/m=news/theatre-of-blood-changes--deadman-summer-finals?oldschool=1|category=game}}
+[[File:Theatre of Blood Changes & Deadman Summer Finals newspost.png|right]]
+{{clear}}
+
+<center>''This week's update sees the arrival of a number of substantial changes to the Threatre of Blood, all of which were detailed in last week's [http://services.runescape.com/m=news/theatre-of-blood-feedback-tweaks?oldschool=1 Feedback Tweaks newspost]. The Deadman Summer Finals begin on Saturday 23rd, so this week's update also delivers a number of changes needed, some of which we'll be displaying in today's Deadman Summer Finals beta playthrough (which begins at 2pm BST).''</center>
+
+{{Horizontal Line}}
+
+
+{{Headline|25|Theatre of Blood Changes}}
+
+Last week's [http://services.runescape.com/m=news/theatre-of-blood-feedback-tweaks?oldschool=1 Feedback Tweaks newspost] detailed a number of changes we'd like to make to the Theatre of Blood, all of which were derived from the feedback you gave us.
+
+
+'''Spectating'''
+
+Viewing points have been added to each room in the Theatre. These viewing points behave similarly to the Lean option in the Duel Arena. Players in Purgatory, or players who are simply spectating, can access a View option which includes a basic menu for cycling through the different viewing angles available.
+
+[[File:Theatre of Blood Changes & Deadman Summer Finals (1).png|center|400px]]
+<center>''Control the viewing angle via this menu.''</center>
+
+[[File:Theatre of Blood Changes & Deadman Summer Finals (2).png|center|600px]]<br/>[[File:Theatre of Blood Changes & Deadman Summer Finals (3).png|center|600px]]
+<center>''Featuring full-frontal angles of the Pestilent Bloat. Admire his morbid stature like never before.''</center>
+
+
+'''Team Scaling'''
+
+In response to your requests to allow smaller teams to tackle the Theatre, we've made some additional changes to the scaling to account for team size. Players in groups of three will find that the bosses have 75% of their original hitpoints. Players in groups of four will find that bosses have 87.5% of their original hitpoints.
+
+
+'''Resource Chests'''
+
+We don't really have an official name for them, but in this section we're talking about the chests between the challenge rooms which yield supplies for you. The change we've made means that rather than just give you supplies, we'll be rewarding you with points based on your performance, you can then use these points to purchase the supplies you want. A performance considered to be ''above average'' will be rewarded with '''10-13 points''', an ''average performance'' will reward '''8-11 points''', and a ''below average'' performance will be met by just '''6-9 points'''.
+
+In the shop you will be able to purchase the following items:
+
+*Saradomin brew (4) - '''3 points'''
+*Super restore (4) - '''3 points'''
+*Prayer potion (4) - '''2 points'''
+*Sea turtle - '''2 points'''
+*Manta ray - '''2 points'''
+*Stamina potion (4) - '''1 point'''
+*Mushroom potato - '''1 point'''
+*Shark - '''1 point'''
+
+[[File:Theatre of Blood Changes & Deadman Summer Finals (4).png|center|400px]]
+
+'''Nylocas Room'''
+
+The first 21 waves of the Nylocas encounter have been removed, this follows feedback that the room felt needlessly long to complete. We've made a number of other changes in response to the removal of the waves. Firstly, the pillar health has been reduced. Players in groups of five will find that the pillar has been reduced from 140 hitpoints to 130 hitpoints. A solo player will find that the pillar has been reduced from 350 hitpoints to 330 hitpoints.
+
+We've also made a change to the Nycolas Visilias. Attacking the Nycolas Visilias with the wrong style will see 100% of your hit reflected and 100% of it healed, rather than the previous 50%. Nycolas Visilias will now generally deal more damage, and it's hitpoints has been increased from 2000 to 2500.
+
+
+'''Performance Details - Info Board'''
+
+A new information board, which displays various statistics from your raid, has been added to Lady Verzik's treasure room. You can access this via a table found to the west when you enter the room. Spectators also have accesss to a similar table. It also tracks the time taken to complete the Theatre from start to finish, including corridor time.
+
+[[File:Theatre of Blood Changes & Deadman Summer Finals (5).png|center|400px]]
+
+
+'''Other Theatre of Blood Changes'''
+
+The Justiciar legguards have had the lower section of cloth removed.
+
+A new attack animation has been created for the Ghrazi rapier.
+
+The falling hands during the Pestilent Bloat encounter, within the Theatre of Blood, now take slightly longer to fall, and their shadows increase in size as they approach the ground.
+
+The click area of the challenge exit has been reduced in size.
+
+Sotetseg's large ball of energy attack is now consistent in terms of timing, regardless of your distance from the boss. Previously it was extremely difficult to avoid the attack when at a close range.
+
+Sotetseg's projectile attacks should no longer be able to stack one player for multiple hits during the same game cycle.
+
+Some residents of Ver Sinhaza were wandering quite near to the item reclamation chest in the Theatre of Blood. They've been moved, so now they won't venture quite so close.
+
+The Theatre of Blood now has a Chat channel to help players looking for teams. This is found within the Minigames section.
+
+Lady Verzik's web damage has been stopped from hitting multiple times.
+
+The Avernic defender(.) no longer has a full stop at the end of its name.
+
+The Avernic defender has had its death-protection value increased.
+
+The following messages within the Theatre of Blood have had their colour changed for increased visibility:
+
+*Sotetseg: ''<nowiki>'A large ball of energy is shot your way'</nowiki>''
+*Xarpus: ''<nowiki>'Xarpus is staring in your direction and retaliates with a powerful attack!'</nowiki>''
+*Verzik: ''<nowiki>'The power resonating here can only protect one player!'</nowiki>''
+*Verzik: ''<nowiki>'Verzik Vitur fires a powerful projectile in your direction...'</nowiki>''
+
+[[File:Theatre of Blood Changes & Deadman Summer Finals (6).png|center]]
+
+{{Horizontal Line}}
+
+
+{{Headline|25|Deadman Summer Finals}}
+
+
+The [https://www.runescape.com/oldschool/deadman/tournament Deadman Summer Finals] begin on Saturday 23rd June at 1pm BST. Ahead of its launch we'll be conducting a playtest today at 2pm BST (in just a few hours).
+
+It's worth noting that the purpose of the beta playthrough is to determine that the mechanics in-game work as expected, and it's not an opportunity to practise and refine your game plan. As such, we're opting to go ahead with the usual open first-come first-served policy to ensure that the world will be at capacity and allows us to gather the best possible feedback. All of the information you need can be found below:
+
+[[File:Theatre of Blood Changes & Deadman Summer Finals (7).png|center|700px]]
+<center>''We've changed the appearance of the arena section of the Permadeath Stage to better reflect the seasonality of the Summer Finals.''</center>
+
+'''The playthrough specifics:'''
+
+The beta playthrough will take place on Thursday 21st June at 2pm BST (9am EST).
+
+The playthrough is going to be held on World 400.
+
+The world will be accessible from 2pm BST (9am EST) and you will be given 15 minutes to login and prepare.
+
+The playthrough begins properly at 2:15pm BST (09:15am EST).
+
+The event is expected to last around 90 minutes but will run through to its completion.
+
+The supply chests will be included in the beta playthrough.
+
+We'll also be testing our new '''contingency measures'''. For more information we recommend that you read the '''Contingency Planning''' section of the [https://www.runescape.com/oldschool/deadman/tournament Deadman Summer Finals] article. '''We will be intentionally kicking players offline and pausing gameplay at various points of this playthrough''', so read the article to make sure you aren't taken by surprise! 
+
+You will login and be given this inventory and this gear:
+
+[[File:Theatre of Blood Changes & Deadman Summer Finals (8).png|center]]
+
+Be sure to register for the event on our twitch page [https://www.twitch.tv/events/ZpzHjS-rToSZ-UlaWKN3yA twitch.tv/OldSchoolRS] to get notified when the tournament kicks off! 
+
+{{Horizontal Line}}
+
+
+{{Headline|25|In Other News}}
+
+
+Since so many of you kept misclicking, we've made it so you can't move to the tile behind the bank of the Mount Quidamortem.
+
+Xeric's talisman will no longer notify you if it has lost over 50 charges.
+
+The shortcut used to access the Trollheim herb patch now has sound effects when climbing.
+
+The apothecary now correctly takes Coins when making Antipoison potions.
+
+This week saw the arrival of [https://twitter.com/JagexBruno Mod Bruno] (Junior QA Analyst) and [https://twitter.com/JagexMunro Mod Munro] (Junior Content Developer). Follow them on Twitter, along with our other new arrival, [https://twitter.com/JagexLenny Mod Lenny]!
+
+{{Horizontal Line}}
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,491,66020886 official forums], the community-led [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the '''#gameupdate''' channel.
+
+'''''Mods Archie, Ash, Ayiza, Bruno, Curse, Ed, Ghost, Jed, John C, Kieren, Lenny, Lottie, Mat K, Maz, Munro, Roq, Ry, Stone, Sween, Weath, West & Wolf'''''
+
+''The Old School Team''

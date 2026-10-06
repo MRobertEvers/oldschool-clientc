@@ -1,0 +1,317 @@
+{{Update|date=11 January 2022|link=https://secure.runescape.com/m=news/qa-summary-060122?oldschool=1|category=community}}
+[[File:Q&A Summary 06-01-22 newspost.jpg|right]]
+{{Clear|right}}
+
+Last week, Mods Kieren (Lead Content Developer), Arcane (Content Developer), Husky (Content Developer) and Bruno (QA Analyst) were in the hot seat, taking questions from the ever-wonderful Old School community!
+
+The topics covered were as follows:
+
+* [[#Question #1|Questions about our hotfixes]]
+* [[#Question #9|Loot and drop tables]]
+* [[#Question #11|Nex's design questions]]
+* [[#Question #17|Other Nex questions and suggestions]]
+
+We weren’t able to get to every question you asked last week, but fear not – some of the more popular ones will be put to the team in our next general stream!
+
+Please enjoy a transcript of the Livestream below.
+{{ToC}}
+==Question #1==
+{{Cquote2|Any possibilities of adding a Group/Clan instance, similar to the Corporeal Beast for Nex? Would be nice to just do it with the clan and not 80 random people.}}
+
+[https://www.youtube.com/watch?v=tRpwbknxJuA&t=392s%22 Youtube Time Stamp]
+
+* '''Mod Arcane:''' In short, this is something that we would like to do, and it's just not something we want to throw in the game without running it by you all. We want a bit of feedback, so we put it in the blog earlier.
+* '''Mod Arcane:''' The current design is players that can create the private instance with the hard tier of combat achievements. We would add an option to be able to join those players' instances assuming you are friends, similar to PoH. If their friends chat is on "All" (public), or if you've got each other added and set it to friends you can effectively create your instances.
+* '''Mod Arcane:''' It's still gated behind content, it's still gated behind a fee of sorts. But we think it's more than reasonable considering that big groups can stay there quite a while.
+* '''Mod Husky:''' To play devil's advocate on the decision, there is discussion and things from players. I've seen people bring up the prices of uniques and the fact that it is expected to be busy and maybe it will be better in a couple of weeks time.
+* '''Mod Husky:''' Myself and Arcane were speaking about it and he said something along the lines of "you don't want players to have to wait two weeks to actually get to enjoy the content". Maybe there is a middle ground.
+* '''Mod Husky:''' I pitched the idea of capping it to three or four private instances per world so that there is some kind of upper limit. This is why it's all out there for the community and it's interesting to see what comes up. I'm sure we'll go over that at some point before a decision is made.
+* '''Mod Kieren:''' I think it's worth noting that if in two weeks this isn't a problem anymore, if we have instances in the game, then they won't be used then either (well, not to a massive extent anyway). If you can get a world for free, why would you go and use the instance?
+* '''Mod Kieren:''' Everyone is really excited about Nex right now. Sure, you can enjoy it, but you'll get to a point where you've done 6 hours of coughing in a 50 man mass and you want to be able to play it with your team properly. That's starting to happen.
+* '''Mod Kieren:''' I don't want to kill the hype but I do want the ability to have players be able to go and fight Nex properly. This is not to say we'll be ignoring the impact of how many items are coming into the game. It's something we will pay attention to. If it becomes a problem and we are not seeing the right rates that we want to see, where supply is outstripping demand, and the prices are really low, we will make change and go from there.
+* '''Mod Kieren:''' I expect this will allow people to play Nex to play it now and in the next few weeks particularly. That's what I want to do with this. I've seen some questions pop up in chat to ask if we'll take weeks to act on this. If the general consensus is that people are keen on this, we want to act on it as soon as possible.
+* '''Mod Husky:''' If we do have far too many items come into the game, we can just turn up the "item deletion machine" on the Grand Exchange, if we wanted to. That's been quite a fun project to watch over the few weeks.
+* '''Mod Sarnie:''' We'll be keeping a close eye on Nex feedback. The teams were discussing everything so quickly to put out an updated Blog. Just as a note for anyone who hasn't read our updates, we've reduced the cap of 80 players down to 60.
+
+==Question #2==
+{{Cquote2|Can we extend private instances to other God Wars bosses/other bosses in general, locking it behind combat diary with higher tiers = more players can join?}}
+
+[https://www.youtube.com/watch?v=tRpwbknxJuA&t=645s%22 Youtube Time Stamp]
+
+* '''Mod Arcane:''' I think we want to take a bit of a look at Combat Achievements as a whole and rewards and see if there are any changes we want to make, especially with Nex being added to Combat Achievements, there will be more content over time. I think it's fine to revisit the rewards, change them and make them stronger here and there where appropriate.
+* '''Mod Arcane:''' This is definitely something that could be in Poll 76 - maybe 77 depending on time. It's something we are interested in if the community is.
+* '''Mod Husky:''' Every boss will bring out anywhere from 5 to15 new Combat Achievements - a raid will be more. I think looking at the rewards (especially because the current perception is that they are underwhelming as a whole) even if they are prestigious, I think that's something we want to look at.
+* '''Mod Kieren:''' Instance crashing isn't fun. Especially at Nex, it can be a problem, maybe even more so than other bosses because someone can come and get the cough and scuff things up for your team.
+* '''Mod Kieren:''' If you're a private team and some random person just shows up in your world, you can't really do much about it and it could be at the detriment of your team. They could hit Nex while she's healing etc. It does put a little bit more importance on this I think.
+* '''Mod Kieren:''' The second point about Comat Achievements and reviewing the rewards - that sounds good.
+* '''Mod Kieren:''' There is a separate discussion that I would like to bring up. The idea was whether rewards are locked. We had this discussion very early on with combat achievements (whether reward unlocks can be points-based similar to the Leagues system). So, to unlock the Hard tier rewards you don't necessarily need to do all of the tasks in the tier. I was just wondering what people thought of that way of doing it.
+* '''Mod Arcane:''' I think if we're going to do that, Grandmaster would still require everything to actually be Grandmaster of combat, right? I am interested in the idea, but it is a bit of a big rewrite.
+* '''Mod Kieren:''' The top one would have to, that makes sense.
+* '''Mod Husky:''' The other thing to consider is that the amount of points required would have to go up every time we add more. Are the points based on, let's say, X% of the total points? I've seen other mixed combinations where maybe Grandmaster doesn't count towards completing Hard, but you need X% of the ones in the Hard diary.
+* '''Mod Husky:''' So when you get let's say 30% through Hard, you get the lamp. When you're 40%-50% through, you get the crossbow. Then when you complete 100% of Hard, you'll get the offhand. That gets kind of messy, though. Do you still require Hard completion for Elite completion?
+* '''Mod Kieren:''' We could super simplify it. Tier one gives one point per task, and tier two might give you 5 points per task. Then if you add up all of the tasks of the Hard, that's the points you need.
+* '''Mod Kieren:''' So you could then say, "I'm going to miss out on a couple of Hard tasks and do that next tier." You could absolutely still require a minimum threshold that you'll have to have completed, say 80%.
+* '''Mod Kieren:''' The idea that someone's done an even more challenging task probably means that they deserve it. Either way, it seems to have sparked a decent discussion in chat and we've talked briefly about making this stuff more rewarding. That might be a way to look at it, even if you unlock more stuff as you go.
+* '''Mod Husky:''' Maybe it's not a concern because the tiers already do that. The whole idea of Combat Achievements was always like this: it gives you a ladder into getting good at PvM. If you start at the bottom and work your way up by completing gradually more difficult tasks through the tiers, then eventually you'll be pretty good at the game!
+* '''Mod Husky:''' Especially if you get to Grandmaster. Even Elite is pretty impressive. I wonder if the free sort of 'picking' and having players needing to pick quests based on points might be overcomplicating the system, even if it opens up more versatility.
+* '''Mod Husky:''' I agree with what Arcane said. If you want that Zuk helm, then you've got to Zuk it up! You'll need to complete them all - beat all the Inferno and Hard ToB times.
+* '''Mod Husky:''' Some of the tasks might be too difficult compared to others. When we look at the rewards, I know there are a lot of Combat Achievements that players want us to look at as a whole. Tasks relating to KC and others about Skilling Bosses are quite contentious as well.
+* '''Mod Kieren:''' What I can imagine is that there might be a big progress bar with markers to aim for. When we add new tasks, the point threshold would change. If you go below the threshold, you've got to get back over it. Anyway, that's a discussion for another time and sorry for the derailment.
+* '''Mod Sarnie:''' It's an interesting discussion to have and will probably carry on after the stream within the team. The chat seems to be on board with some change in that direction. We'll keep you updated if any more discussions happen of course!
+
+==Question #3==
+{{Cquote2|Have you considered lowering the amount of supplies dropped? Right now, it seems way too easy to get supplies, even if it is a mass. Also, was it intentional that it would be very easy to stay at Nex indefinitely, with the number of prayer potions and food dropping on average and the fact that resupplying and re-entering is so easy as well?}}
+
+[https://www.youtube.com/watch?v=tRpwbknxJuA&t=1030s%22 Youtube Time Stamp]
+
+* '''Mod Arcane:''' No, this was an oversight of how easy it is to stay in the room with the supply drops. You get a supply drop every second kill and the fact you're using only one prayer potion per kill in larger groups just obviously meant that players profited in supplies.
+* '''Mod Arcane:''' We've already hotfixed that today so the minimum amount of supplies you get is going down from four brews and two restores, to two brews one restore. You'll still get higher amounts at lower scales, but the massive groups won't profit from brews and restores anymore. Bosses are supposed to drain supplies and not generate them.
+* '''Mod Arcane:''' We've also reduced the maximum player count in the room from 80 to 60 and tweaked some mechanics here and there. It should make Nex a little more unpredictable and engaging which should generally use up more supplies.
+* '''Mod Arcane:''' Once you start getting away from the 60 man masses we also expect more supplies to be used.
+* '''Mod Husky:''' I saw someone ask in chat how this happened. We did a lot of balancing on Nex - lots of 4 to 10 man groups. We don't have 80 people on the Old School team to test the content out at that scale. I don't think we were too far off, though.
+* '''Mod Husky:''' There's also one thing we hotfixed which is that "Nex will now target more people". We were initially concerned with how her attacks worked at launch. Every time she attacked, she was only hitting 3 out of 8 people in the room because we were cautious about how much code we were running at once. That's been increased now.
+* '''Mod Husky:''' If you were in a smaller group of 20-30, you would have noticed a larger drain on your supplies. (Now we've made a change to make sure her attacks will include more people and this should also have a knock on effect on supplies).
+
+==Question #4==
+{{Cquote2|Is it possible to increase the drop rate of the Nihil Shards on the monsters where you get kill count? As an Ironman, I have to gather 250 Nihil Shards. The current rate to get them is just absurd! I've been lucky enough to get an early Nihil Horn to make the Zaryte crossbow, but it'll take about 100 hours of Nex masses to collect 250 shards and that seems extremely excessive.}}
+
+[https://www.youtube.com/watch?v=tRpwbknxJuA&t=1180s%22 Youtube Time Stamp]
+
+* '''Mod Arcane:''' The Nihil Shard's only use is the Crossbow and the potions. The potions don't have really high demand, so I think it's fine.
+* '''Mod Arcane:''' You got very, very lucky. Congratulations - I guess this is your punishment for being lucky (having to do the content more to make your crossbow). If you start doing it in smaller groups I think you'll find that you get more Nihil Shards. It's just because it's dividing amongst many players so you're just getting one in bigger groups.
+
+==Question #5==
+{{Cquote2|Why is the default GE guide price of Nihil Horn 150,000 GP yet the price of Blood Essence is at 2m? It seems incorrect.}}
+
+[https://www.youtube.com/watch?v=tRpwbknxJuA&t=1242s%22 Youtube Time Stamp]
+
+* '''Mod Arcane:''' This has been hotfixed.
+
+==Question #6==
+{{Cquote2|There seems to be an awful lot of Blood Essence drops - if one person gets Blood Essence in my clan, everyone in the party all seems to. Is this intentional?}}
+
+[https://www.youtube.com/watch?v=tRpwbknxJuA&t=1271s%22 Youtube Time Stamp]
+
+* '''Mod Arcane:''' When Nex does loot she picks two items and then effectively rolls for that item and the n divides it amongst the group.
+* '''Mod Arcane:''' For Blood Essence, you can't get less than one of them, so everyone will get at least one. It's a fairly rare drop and that's one of the standard loot table drops that is fairly high value and scales up well with masses.}}
+
+==Question #7==
+{{Cquote2|Can you come up with an alternative solution for disconnections at Nex? Currently, if you disconnect and manage to survive, you get kicked directly out of the door, into the range of hard-hitting mobs.
+
+If you don't have enough kill count, an ancient item or a teleport out, you're in danger. Simply teleporting just inside the frozen door would make no difference to essence mechanics but would put you somewhere safe.}}
+
+[https://www.youtube.com/watch?v=tRpwbknxJuA&t=1315s%22 Youtube Time Stamp]
+
+* '''Mod Arcane:''' This has also been hotfixed. So if you log out in the room in the prison itself or the boss room (but not the bank room), you will now log somewhere safer such as where the frozen door is.
+* '''Mod Husky:''' I think this is interesting to read stuff like this as well as the player has offered three own solutions to this problem. Either have a Zaryte item equipped, make sure you have enough KC for re-entering or have a teleport on you. None of these are ideal solutions and I don't think throwing players into aggressive mobs is the best thing to be doing after a disconnect.
+
+==Question #8==
+{{Cquote2|When the hype of Nex dies down, will her mechanics be tweaked again? People are complaining about how easy the boss is, but that is just a factor of 70-80 people killing her at one time. If you make it so she doesn't drop as many supply drops, and you buff her SS delay.}}
+
+[https://www.youtube.com/watch?v=tRpwbknxJuA&t=1385s%22 Youtube Time Stamp]
+
+* '''Mod Bruno:''' I think we mainly balance around small teams anyway so I don't see us changing too much if we've already balanced for those sized teams. It's now capped at 60 rather than 70-80 so that helps.
+* '''Mod Husky:''' We did a lot of play testing in smaller groups. A lot of our thinking was 'we need to be in there long enough and get enough kills, try to get our supplies right so that we would have the 40 to re-enter'. In Masses, that's kind of free because you're using next to no supplies and getting more back.
+* '''Mod Husky:''' In smaller groups, let's say 4-5 man teams killing her, you'll be considering what gear to bring and having gear on you to at least get a couple of extra kills or KC to get back in. That's what we tried to test and we wanted to make sure that felt good. We didn't want players at 30 kill count to be unable to get back in.
+
+==Question #9==
+{{Cquote2|I don't get how the drop system works. Is only the MVP of each killable to get the unique? Or is it randomly rolled for everyone that's done damage to her? Is loot scaling to team size? If so, why?}}
+
+[https://www.youtube.com/watch?v=tRpwbknxJuA&t=1484s%22 Youtube Time Stamp]
+
+* '''Mod Arcane:''' I don't like divulging drop mechanics when not necessary, but generally, everyone will have more chances depending on your contribution. This is similar to most content in the game like Nightmare and Chambers of Xeric. The more you contribute, the higher your chance of a unique - it's not just the MVP.
+
+==Question #10==
+{{Cquote2|Any plans to make other bosses such as Corporeal Beast/God Wars Dungeon work similar to Nex in terms of loot distribution?}}
+
+[https://www.youtube.com/watch?v=tRpwbknxJuA&t=1520s%22 Youtube Time Stamp]
+
+* '''Mod Arcane:''' No. I don't like how Nightmare does loot but it's like that because it's necessary. It's not necessary for regular God Wars bosses or Corporeal beast because they are soloable.
+* '''Mod Arcane:''' It kind of is the Ironman game mode making an impact on the game, and that's just the truth of it! I know there were comments that we wouldn't make changes "because of the Ironman game mode" but admittedly it's a large portion of the player base.
+* '''Mod Arcane:''' We kind of need to consider everyone and make things possible. This is an unboostable system, and that's good and makes sense, and everyone contributes and gets their fair share of the loot.
+* '''Mod Arcane:''' If it's ever boostable, that's a problem for Ironmen and we need to come up with a system for that. I think it's fine as is and I wouldn't want to go and change other systems for the sake of it. I do prefer, where possible, the core God Wars-style system (where just the MVP gets the chance) but for Group Ironmen content that doesn't work. It only works where the boss is soloable, and Nex is not soloable (so far)!
+* '''Mod Kieren:''' To add to this, I don't like the way Nex drops the items to the floor (under the players). I always liked the idea of one big drop is under Nex, and that's exciting! But regardless, we are learning and this is something we are thinking about.
+* '''Mod Kieren:''' We've learned from Nightmare and we all acknowledge we got Nightmare slightly wrong in terms of the drop table. Hopefully, this one is better!
+* '''Mod Kieren:''' The conversations we are having should mean the next time we do a group boss we'll have a better solution. Raids work slightly differently in that you get your loot in a chest but they still have contribution systems going on also.
+* '''Mod Husky:''' We've got a lot of systems now for how to distribute loot over group content. I think they are all slightly different, and we're trying to test different things and see what works!
+* '''Mod Husky:''' Some work differently for different content. I think the whole item deletion thing' with lots of items on a space is something that was a big factor with the loot appearing under the player. It's something the engine team is looking into.
+
+==Question #11==
+{{Cquote2|Crossbows were said to be Nex's weakness, yet it feels like everyone at Nex is using a Twisted bow, Bow of Faerdhinen, and Dark Bow. Zaryte Crossbow feels underwhelming because of this, and so does Armadyl Crossbow. What are the team's thoughts on how the Zaryte Crossbow is stacking up?}}
+
+[https://www.youtube.com/watch?v=tRpwbknxJuA&t=1730s Youtube Time Stamp]
+
+* '''Mod Bruno:''' I think this is another issue with masses whereby if you don't take much damage then you don't need to eat much, which means you can spend more time 'T-Bow'-ing Nex. But in a smaller group, you will spend more time eating with a Twisted Bow because you don't have a shield and because of that, you won't be doing as much DPS. I do think it has more of a clear difference as to why a shield is better.
+* '''Mod Arcane:''' My opinion on this is that Crossbows were never really meant to be the weakness (rather a weakness), and it was never our official intention to say that all crossbows are best in the slot, but the encounter has been designed in a way where defence does matter to a larger degree compared to normal content. Because of the fact of trips and the boss does a lot of damage.
+* '''Mod Arcane:''' Mathematically (monster examine has been disabled so you guys can't figure it out math-wise), there is stuff there. Twisted Bow isn't the best for various reasons. You can't do the math right now, but once players can start engaging with the content properly on a lower scale, players start to discover different metas. Just because you see everyone Twisted Bowing it in Ancestral gear doesn't mean Twisted Bow is the best weapon. It's not that simple. A lot of the weapons are fairly close.
+* '''Mod Husky:''' There was the whole meme of Twisted Bow and Ancestral - Ancestral is just one or two accuracy points higher. The current meta makes sense as players figured out the cough mechanic but also as we said, Nex was only hitting like 30 players out of 80 (on launch) so players were not caring about DPS. When she hits more people, you'll need to consider the fact she drains prayer when she hits you. Spectral will help you out with that or an Elysian will reduce the damage outtake, and we were feeling the benefit of those two shields.
+* '''Mod Husky:''' Also, a lot of people haven't gotten to the point of using a Zaryte Crossbow yet. As Arcane said, Twisted Bow is not best in slot, but even if people are like it better and that means shield flicking is a thing - people aren't going to shield flick a lot. Nex attacks in 4 cycles and Twisted Bow attacks in 5, so you also have that awkwardness. I think the Bow of Faerdhinen doesn't have that same issue being a faster weapon. There's more to BiS than what item does the most damage but in a longer fight taking less damage is important.
+* '''Mod Husky:''' There was a lot of time where we tried Twisted Bow runs and we just weren't quite getting to that kill count for infinite kills. It's similar to how Dragon Arrows aren't BiS in all places because you might just use a ton more supplies chugging brews and restores and maybe get an extra kill an hour, but you're spending so much more on supplies. Players will eventually get the math and might end up coming round in two months saying Twisted Bow is BiS, but Crossbows are pretty dang close in terms of DPS.
+* '''Mod Husky:''' Even on top of that, we found that the Twisted Bow was pretty good in testing, but especially in masses, the potential for 100 ruby bolt procs to skyrocket your contribution is also a factor! It comes down to a complicated discussion.
+* '''Mod Arcane:''' Be patient, the meta will evolve. It's not like day one defines Nex as a whole!
+* '''Mod Husky:''' Twisted Bows being an 800 mil or 1 billion item (wherever it sits at) that thing being good at Nex isn't necessarily a bad thing either.
+* '''Mod Kieren:''' What's meta in a mass is always going to be different than what's meta in a five or six-man team. We will see what happens, as with every boss we will work out what's best over time.
+* '''Mod Bruno:''' A good example is the minions. In a mass, you barely get a bolt into them before they die, but in a small team those minions stay up for a good few seconds at least! The meta for those isn't even to use a crossbow because those are quite slow. So the meta is not set and it's way too early to think the meta is set because you can do something in a 60 man team.
+* '''Mod Husky:''' A lot of people are making a lot of assumptions about the stats Nex had back in the day. She doesn't have the same stats, I think I saw feedback asking us why it takes so long to 'copy and paste content?' We did a lot of investigation into DPS calculations to rebalance the content and make it right for Old School.
+* '''Mod Husky:''' I've seen a lot of controversy around our decision to hide Monster Examine. My opinion on that is it's interesting. I'm for seeing how that plays out. I don't know if I like it or don't like it yet. I certainly think it makes it more fun, in terms of people guessing and trying out weapons and figuring out stuff and not just 30 minutes of work after someone has run the math.
+
+==Question #12==
+{{Cquote2|In her final phase, Nex uses Ancient Curses. Could there be a chance for the prayer book to come to Old School in the future?}}
+
+[https://www.youtube.com/watch?v=tRpwbknxJuA&t=2144s Youtube Time Stamp]
+
+* '''Mod Bruno:''' I've seen many players think that because Nex uses these prayers, they're available to players, but that's not the case! Nex just has these prayers coded. There is no secret prayer book we're hiding from you!
+* '''Mod Arcane:''' I just want to clarify this now - we're not having Soul Split. That will never happen. It was the most broken thing ever!
+* '''Mod Husky:''' People get so worked up on Curses because of how they were. There's nothing to say we can't look at the old curses and say 'these were good, these were busted and we're not keeping, these were underwhelming and could be changed'. I think the concept of a new prayer book is quite exciting! The idea is that you won't have access to protect melee, magic and ranged which are very dominant in our metas.
+* '''Mod Husky:''' I know we went a tier up with Torva, but we are still primarily a horizontal-progression game (and I think that's good for a lot of reasons). We want a slow power creep that you have multiple options available. As soon as you attach the word 'curses' to a new prayer book it will automatically get a negative response because of previous issues with it.
+* '''Mod Kieren:''' Prayer as a skill is severely lacking beyond 77, so I think the skill has some room to do something with it. We don't know what this is yet, it could be something inspired by Curses. I'm very very interested in seeing some player suggestions for what we could do! I've had a few ideas. What if we had another prayerbook but on that particular book, you can't flick. This might open us up to do new things with prayers! There are all sorts of things you can do, so take this as a chance to tell us your ideas, we'd love to see some pitches!
+* '''Mod Sarnie:''' Going on a bit of a tangent here, would you guys like to see something like that in the game, or work on something like that?
+* '''Mod Arcane:''' I'd like to try it. Whether or not we end up designing something the players like is a different question but I'd like to try!
+* '''Mod Husky:''' I wonder how much of it is "I really really really hate Curses" vs. "I just never want another prayerbook in the game". It reminds me of the skill discussions we have. Some players don't want Dungeoneering or Warding, but some players are not on board with a new skill, period.
+
+==Question #13==
+{{Cquote2|What is the reason Nex is unscaled? How do you feel about people achieving 500 kill count on the day of release?}}
+
+[https://www.youtube.com/watch?v=tRpwbknxJuA&t=2405s Youtube Time Stamp]
+
+* '''Mod Arcane:''' I think this is interesting! Nightmare is scaled, right? And nobody complained about the boss fight because you get the full experience of the boss-fight and it scales so you get the full 5-minute intended adventure. But when you get into the maths of it, it was just so incredibly inefficient to kill the boss en masse. Any scale above 5 was technically bad.
+* '''Mod Arcane:''' We even tried to change the drop table to alleviate this, to no avail making it dead content. Now we have the other side of it where Nex doesn't scale at all and the boss dies quickly, similar to Corp and every other GWD boss. Mathematically this is better as you'll have a better chance at drops per hour (so it's not dead content). However, you're not experiencing the intended adventure.
+* '''Mod Arcane:''' It would be one of these options or one in the middle - imagine scaling like Nightmare but the drop rates scaled up with it. If you wanted to make an 80 man Nightmare as efficient as a 5 man Nightmare, uniques would have to be 1/10...which just feels so wrong! So unnatural! Every 10 kills you'd get a unique which isn't even rare at all! Right now for Nex, it is just a static rate, and killing the boss faster when massing will lead to people getting more, which feels right for RuneScape.
+* '''Mod Arcane:''' I think it's fine as it is. I think it's fine that massing it is a bit janky, that's just what mass content is sometimes. The only problem is that you're forced to do massed content right now and that there's no alternative.
+* '''Mod Kieren:''' Yeah I love it. Reality doesn't mean we have to have this or the other. We can have Nightmare exist as it is and Nex in the same game! I like there's variety. If you're a lower-level player without the best equipment you can still play! Yes, you need a bigger team - but you can still do it. It's fun and gives you a completely different experience.
+* '''Mod Kieren:''' It does get to the point where it's a bit silly at 40+ people! Madness happens and ensues! The idea that you can take on a boss with an additional number of people can almost be self-balancing because in theory the loot is split between a lot more people and there's an incentive to go with smaller teams as well as bigger ones. It works, and it is kind of "Old School (Corp works like that and the other GWD bosses work like that).
+* '''Mod Kieren:''' But there is room for both in this game - some bosses you want to scale and do some smarter stuff with. It's also contextual, it depends on what we're trying to do with each boss as well. Complexity increases with the number of mechanics too - some mechanics work better when you have a specific-sized team.
+* '''Mod Husky:''' I mean the *cough* mechanics aren't a concern in smaller teams, right? You just don't stack...maybe two people catch it if you're close to Nex.
+* '''Mod Kieren:''' You say that, the amount of playtests where you ran over to infect us... maybe it isn't so easy to deal with! Haha! But yes, in theory, it is easier for smaller groups.
+
+==Question #14==
+{{Cquote2|Why did you decide to not let the Ancient Ceremonial robes skip KC? Is there a chance this will be changed in the future?}}
+
+[https://www.youtube.com/watch?v=tRpwbknxJuA&t=2684s Youtube Time Stamp]
+
+* '''Mod Kieren:''' We had a lot of conversations around this. You've seen the solution now in that you can teleport out, maybe top-up your kill count, maybe you have 40, and you can get back to the bank. In the original release of Nex (2011) you needed to have a 40 kill count requirement to get into the room. It didn't work like ours - you needed 40 kills to get into the room.
+* '''Mod Kieren:''' The boss was very challenging, especially in smaller teams it was very challenging and you wouldn't last very long. You would spend most of your time getting kill count. RuneScape in 2011 then changed it a few weeks later to change how Ancient Ceremonial works. If you wore the full Ancient Ceremonial set then you could just walk in the door without the 40 kill count! That was a solution that happened because Nex was already out and they had to come up with a change.
+* '''Mod Kieren:''' We had a chance to review it and come up with a new solution specifically for Old School. We didn't want to completely remove the purpose of a kill count. Some smart stuff went into the change. The notion of Blood Essence allowed things to be easier, so you can get more than one kill. Then we came up with the altar and to add to that and to use that loot. When the teams start to get smaller, then players will see how good it is, or we at least hope it will be!
+* '''Mod Arcane:''' Downtime is important. It's not good gameplay to allow players to stay at a boss forever without any thought. In masses it almost is that but once you get to lower scale groups players will need to think more about the supplies they bring and consider different methods to play through the content.
+
+==Question #15==
+{{Cquote2|Will Combat Achievements be added for Nex?}}
+
+[https://www.youtube.com/watch?v=tRpwbknxJuA&t=2905s Youtube Time Stamp]
+
+* '''Mod Bruno:''' Combat Achievements will always come a few weeks after the release of the boss after things have settled down. This makes sense in case anything goes wrong with the boss. It'll be the same for Tombs of Amascut.}}
+
+==Question #16==
+{{Cquote2|Would it be possible to add a Group Ironman-only room to Nex, so you are not forced to abort the kill to prevent the loss of prestige if someone crashes you?}}
+
+[https://www.youtube.com/watch?v=tRpwbknxJuA&t=2944s Youtube Time Stamp]
+
+* '''Mod Arcane:''' I think the private instances we talked about would accomplish the same thing.
+
+==Question #17==
+{{Cquote2|Will Torva Armour get a set effect in the future?}}
+
+[https://www.youtube.com/watch?v=tRpwbknxJuA&t=2969s Youtube Time Stamp]
+
+* '''Mod Arcane:''' No, there are no plans. It debatably has a set effect right now because at Chambers of Xeric you gain two or three max hits with the Dragon Hunter Lance with max melee with the helmet on. Without the helmet on, you don't gain any max hits because of how broken our math is in the game! We always round down, so technically the helmet is really necessary right now!
+
+==Question #18==
+{{Cquote2|Can you make the Nex bank NPC more visible and not move?}}
+
+[https://www.youtube.com/watch?v=tRpwbknxJuA&t=3010s Youtube Time Stamp]
+
+* '''Mod Arcane:''' First time I've heard it, but if it's a common issue we can sort this.
+* '''Mod Bruno:''' We could. It might be because there are so many in the holding room that the NPC is difficult to see and annoying.
+* '''Mod Kieren:''' Does she appear on top?
+* '''Mod Arcane:''' Bit of a forward question to ask! I assume so, I haven't actually checked, but I think the moving thing is probably the most; that's what chat is talking about right now, so it must be an issue.
+* '''Mod Kieren:''' We can have her appear over players and stop moving and it should be fine!
+
+==Question #19==
+{{Cquote2|Does Blood Essence just give extra runes, like the diary reward, or does it give extra experience for those runes as well?}}
+
+[https://www.youtube.com/watch?v=tRpwbknxJuA&t=3068s Youtube Time Stamp]
+
+* '''Mod Arcane:''' No extra XP, so you'll use it if you are OK with slightly lower XP per hour for higher GP per hour.
+
+==Question #20==
+{{Cquote2|What are Ecumenical Key Shards, and where do you get them? Are they a replacement for getting full keys at the Wilderness GWD, or are they dropped by minions in the Ancient Prison?}}
+
+[https://www.youtube.com/watch?v=tRpwbknxJuA&t=3090s Youtube Time Stamp]
+
+* '''Mod Arcane:''' They are only dropped by Nex in fairly low quantities and they are fairly rare. They are a replacement for full Ecumenical Keys. You could technically do thousands of Nex KC and stack up a bunch of the Shards before going and doing all your other stuff - that's an option if you want to take it. But you don't get a lot of them so it's not more efficient to get keys from Nex than getting them from the Wilderness.
+* '''Mod Bruno:''' You'll probably want to spend those keys getting back into Nex anyway.
+
+==Question #21==
+{{Cquote2|Would you consider a KC system similar to Nex's for the other GWD generals? Currently, it doesn't make sense to grind out KC for Arma or Sara since there are no low-level NPCs to kill like for Zammy or Bandos.}}
+
+[https://www.youtube.com/watch?v=tRpwbknxJuA&t=3155s Youtube Time Stamp]
+
+* '''Mod Arcane:''' I would like to do this. I wouldn't want to come in with the perspective of 'let's make KC trivial' but it should be better than 'let's kill the same 4 goblins over and over again.' Even if it's the same amount of time to get the essence, actually having an alternative to kill other things in the room sounds more interesting. If something has five times the HP, it wouldn't necessarily give five times the KC, but even if it just gave two or three, at least it's an option.
+
+==Question #22==
+{{Cquote2|Why isn't *'''cough'''* more punishing in terms of HP damage as well to force people to get rid of it instead of camping full Ancestral gear to bypass its effects?}}
+
+[https://www.youtube.com/watch?v=tRpwbknxJuA&t=3213s Youtube Time Stamp]
+
+* '''Mod Arcane:''' It does drain prayer as well, so it's not like Ancestral completely negates it. I guess it could do damage too, I just didn't think it was necessary
+* '''Mod Bruno:''' It's also a bit more punishing to do such a harsh mechanic when it wasn't a mechanic you gave yourself. It might have just been some person running next to you, and in a mass, it's definitely not your fault. I think it's alright as it is right now.
+
+==Question #23==
+{{Cquote2|What as the work like getting Nex to sprint? Will other NPCs be able to sprint going forward?}}
+
+[https://www.youtube.com/watch?v=tRpwbknxJuA&t=3263s Youtube Time Stamp]
+
+* '''Mod Arcane:''' We do have engine support now, I can't really comment on the work or how hard it was because I didn't do it; that was more an engine update.
+* '''Mod Arcane:''' It's really a big update for all future PvM, We can do NPC pathing as well as sprinting and crawling technically Blood Reavers are the first NPCs to move less than one tile a tick, so really powerful and interesting. We can have rooms that are not squares now because they won't get stuck on every little thing.
+* '''Mod Kieren:''' It's really exciting and you can imagine the implications for future bosses. There are so many interesting things we can do. The team has been joking about The Stranger in Desert Treasure - if that thing can path find and sprint at you; it would be petrifying! Haha! Players know this but the Strangers' max hit is ''your'' max hit, Scary!
+
+==Question #24==
+{{Cquote2|Is there any potential to be able to pay someone to repair Torva from the damaged piece and Bando's<!--{{sic}}--> components rather than needing 90 Smithing? Much like you can for the Corp sigils and DFS?}}
+
+[https://www.youtube.com/watch?v=tRpwbknxJuA&t=3358s Youtube Time Stamp]
+
+* '''Mod Arcane:''' Why? It's tradable. Is this an Ironman issue? They don't want to get 90 Smithing to use BiS melee gear?
+* '''Mod Kieren:''' I like that. To a degree, if I was doing DFS and Corp Sigils again - probably would avoid this. I like that we can give Smithing and perhaps other skills use that is meaningful. Sure, it skips the cost, but if we can't redesign Smithing so that Runite isn't 99 to do the plate, at least we can add in specialist stuff like Torva to give it a purpose. I like then that 90 Smithing (if you're an Ironman that isn't buying it) is pretty significant level to hit.
+
+==Question #25==
+{{Cquote2|How are the boss mechanics for Nex different from pre-EoC RS2 or even RS3?}}
+
+[https://www.youtube.com/watch?v=tRpwbknxJuA&t=3440s Youtube Time Stamp]
+
+* '''Mod Kieren:''' There are lots of small changes. We don't have every feature of the full RuneScape engine, so the way Nex is coded is different. We are very much paying attention to past behaviour but sometimes we'd acknowledge small changes needed to be made either because it needed it or we didn't like the original design.
+* '''Mod Kieren:''' Just before EOC (mid-2012), Nex was updated to use prayers and reflect curses in the first four phase so that you'd need to switch up between ranged and melee. We didn't want that and we wanted to stay true to the 2011 Nex. it's recognizably similar to that version even though we've made few tweaks. The way that the prison works is slightly different in the ice phase for instance. Also, the way she jumps is slightly different to the original because she never jumped next to you, but she does now.
+* '''Mod Kieren:''' The biggest change of all is balancing because we couldn't just put 2011 Nex in the game with the same stats, damage output, accuracy that they had back in 2011 when players had summoning and overloads. We have other things but a player Old School today is not as powerful as they were in 2011, nor do they have the same staying power in terms of supplies so we had to balance Nex differently.
+
+==Question #26==
+{{Cquote2|If the Ancient Godsword is considered for a buff, would you consider allowing its spec to overheal?}}
+
+[https://www.youtube.com/watch?v=tRpwbknxJuA&t=3595s Youtube Time Stamp]
+
+* '''Mod Bruno:''' I think it is too early to be talking about buffs when there are very few of these items in the game and very few people using them. I wouldn't be against the idea. Mod Ayiza has suggested it shouldn't overheal vs a combat dummy, and I agree - it shouldn't be a free 125 or 126HP
+* '''Mod Arcane:''' I can't remember which streamer it was, but I saw a clip of someone getting a 56 on the Godsword and then swapping to an Ancient Godsword and getting something like a 75-25 hit splat - it was so satisfying to watch!
+
+==Question #27==
+{{Cquote2|Were there any nicknames being considered for Nex besides "The Fifth General?"}}
+
+[https://www.youtube.com/watch?v=tRpwbknxJuA&t=3670s Youtube Time Stamp]
+
+* '''Mod Arcane:''' "Bird".
+* '''Mod Sarnie:''' "Big Bird".
+* '''Mod Kieren:''' I'm sure there were, but I don't know what they are. The first, second, third, and fourth general was already taken.
+* '''Mod Druid:''' The Nex general.
+
+==Question #28==
+{{Cquote2|Why were the voice lines from the original Nex fight not added? It added so much to the feel of the boss fight.}}
+
+[https://www.youtube.com/watch?v=tRpwbknxJuA&t=3715s Youtube Time Stamp]
+
+* '''Mod Arcane:''' We just don't have the support to play normal voice files or audio files like this in general. A player messaged me saying that we technically have this in the game There's a music track at Verzik where technically she is singing, But it's not singing - it's just noise that kind of sounds like singing. however it's not an actual recorded person singing and it's hard to replicate voices, phrases, and words in what we have available to us.
+* '''Mod Bruno:''' Verzik is more about tone rather than voice.
+* '''Mod Kieren:''' Yeah it was basically sung notes, right? I love this, though and I'd have been loved to have been able to do it. But it is a departure from normal Old School, so we have to determine is this just a one-off? Do we do voice lines in all future releases? There are a lot of questions to think about. It's probably not very "Old School" to have it, but should Nex have it and nothing else?
+
+==Question #29==
+{{Cquote2|Is there any discussion on the art design of Nex? Does the Mod Team think that the design can be improved, or are they happy with the current model?}}
+
+[https://www.youtube.com/watch?v=tRpwbknxJuA&t=3842s Youtube Time Stamp]
+
+* '''Mod Arcane:''' All of our new releases will be the "New Old School" style. This model is Nex and it's effectively an old model where lots of nostalgia goes into that.

@@ -1,0 +1,22 @@
+{{Infobox Combat Achievement
+|name = Something of an expert myself
+|image = [[File:Tombs of Amascut - Nexus room.png|300px]]
+|release = [[30 November]] [[2022]]
+|update = The Garden of Death & More
+|members = Yes
+|description = Complete the Tombs of Amascut raid at level 350 or above without anyone dying.
+|tier = Master
+|monster = Tombs of Amascut: Expert Mode
+|type = Mechanical
+|id = 447
+|leagueRegion = Desert
+}}
+'''Something of an expert myself''' is a [[Combat Achievements/Master|master combat achievement]] which requires the player to complete the [[Tombs of Amascut]] raid at level 350 or above without anyone dying.
+
+==Other tasks==
+{{Combat Achievements list|Tombs of Amascut: Expert Mode}}
+
+==Trivia==
+* The name of this achievement is a reference to the 2002 superhero movie ''{{WP|Spider-Man (2002 film)|Spider-Man}}'', in which the character Norman Osborn introduces himself to Peter Parker as being "something of a scientist myself."
+
+{{Combat Achievements}}

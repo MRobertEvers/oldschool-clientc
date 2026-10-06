@@ -1,0 +1,61 @@
+{{Infobox Combat Achievement
+|name = Perfect Zebak
+|image = [[File:Tombs of Amascut - Zebak wave attack.png|300px]]
+|release = [[30 November]] [[2022]]
+|update = The Garden of Death & More
+|members = Yes
+|description = Defeat Zebak without anyone taking any damage from: poison, Zebak's basic attacks off-prayer, blood spawns and waves. You also must not push more than two jugs on the roar attack during the fight (you may destroy stationary ones). You must have all Zebak invocations activated.
+|tier = Master
+|monster = Tombs of Amascut
+|type = Perfection
+|id = 439
+|leagueRegion = Desert
+}}
+'''Perfect Zebak''' is a [[Combat Achievements/Master|master combat achievement]] which requires the player to defeat [[Zebak]] without taking any damage from incorrectly prayed attacks (excluding his blood magic), poison pools, blood spawns, and waves. All of his invocations must be activated to complete the task at raid level 150 or above.
+
+==Strategy==
+As '''Upset Stomach''' will be active, remember to take note that the water jugs have a 3x3 AoE and acid pools 5x5. 
+
+Taking damage from Zebak's roar attack will '''not''' cause the achievement to fail, so it can be significantly easier to tank the roar attack each time it happens and focus on dealing damage instead of setting up the jugs. Make sure the tile in front of you and a few tiles behind you are clear to not get pushed into acid during the attack. If one is specifically going for this achievement and healing is a concern for tanking, one can simply disable any of the lives invocations and die repeatedly to Zebak with the help of a [[Locator orb]] or [[Dwarven rock cake]] to obtain enough [[Honey locust]]s, which are stackable and can overheal above max health. Simply leave the raid after successfully completing the achievement.
+
+With sufficient DPS, it's possible to skip one of the four special attacks Zebak would use, minimising the chances of failing the achievement as the acid pools are the only concern for the task. Standing next to the ramp to the water should avoid most if not all of the acid pools.
+
+It is important to note that getting hit by the water jugs '''does not''' fail the achievement attempt.
+
+{| class="wikitable sortable sticky-header align-center-1" style="text-align:left;"
+! colspan="2" class="unsortable" style="width: 15%" | Invocation
+! Description
+
+|-
+|[[File:Zebak icon.png|link=]]
+|Not Just a Head
+|
+* Zebak will occasionally cast a form of [[Blood Blitz]] on all players. This attack will always hit regardless of defensive bonuses, unless [[Protect from Magic]] is active; if damage is inflicted, Zebak will slightly heal. Getting hit by this without Protect from Magic active will not fail the achievement.
+* He will also summon [[Blood Cloud]]s that rapidly sap the player's health if next to one.
+
+|-
+|[[File:Zebak icon.png|link=]]
+|Arterial Spray
+|Zebak's blood magic will have increased range and healing.
+
+Not Just a Head must be active in order to activate this invocation.
+
+|-
+|[[File:Zebak icon.png|link=]]
+|Blood Thinners
+|Three [[Blood Cloud]]s are summoned instead of one.
+
+Not Just a Head must be active in order to activate this invocation.
+|-
+|[[File:Zebak icon.png|link=]]
+|Upset Stomach
+|Zebak's acid pools will have increased spread, and jugs will only wash away a 3x3 area instead of 5x5.
+|}
+
+==Other tasks==
+{{Combat Achievements list|Tombs of Amascut}}
+
+==Trivia==
+* This achievement is the only Perfection boss task that can be done alone rather than a group.
+
+{{Combat Achievements}}

@@ -1,0 +1,515 @@
+{{Update|date=10 January 2019|link=http://services.runescape.com/m=news/the-kebos-lowlands?oldschool=1|category=game}}
+[[File:The Kebos Lowlands newspost.png|right]]
+{{clear}}
+
+<center>''This week sees the release of the Kebos Lowlands expansion to the continent of Zeah!''</center>
+
+{{Horizontal Line}}
+
+{{Headline|25|The Kebos Lowlands}}
+
+https://www.youtube.com/watch?v=9vnrF2x4yj0
+
+<center>''Congratulations to J1mmy for winning the Kourend So Far video competition!''</center>
+
+The Kebos Lowlands have finally come to Zeah: head to the far west of Kourend to try your hand at '''Aerial Fishing''', receive a task set by the new Slayer Master, '''Konar quo Maten''', and gain entry to the '''Farming Guild'''! Find a detailed guide on what to expect from the new content below, along with a map showing the various ways to get around Kebos. Before we delve in, a special thanks goes out to Mod Ian and Mod Surma for producing 18 amazing tracks to enjoy while exploring the Kebos Lowlands - more than any to ever accompany a previous update!
+
+{{Horizontal Line}}
+
+{{Headline|25|Getting around Kebos}}
+
+For those of you who haven't yet travelled to [[Zeah]], you can do so by speaking to Veos (below) at the Port Sarim docks. He will take you to the Kingdom of Kourend which is made of five Houses on the continent of Zeah. After arriving in Kourend on his ship, you will find yourself in the Piscarilius house, on the Eastern side of Zeah. The [[Kebos Lowlands]] can be found on the far western side.
+
+[[File:The Kebos Lowlands (1).png|center|80px|link=Veos]]
+
+
+Below is a map to help you find your way around the new areas, with a list of teleport and transportation locations and their requirements.
+
+
+[[File:The Kebos Lowlands (2).png|center]]
+
+'''1. The Farming Guild (entrance)''' - Farming Skillcape or Skills Necklace<br/>
+'''2. The Farming Guild (inside) - Spirit Tree (85 Farming)<br/>
+'''3. Fairy Ring''' - Start Fairytale Part II<br/>
+'''4. Mount Karuulm (Konar quo Maten)''' - Kourend Diary Blessing (Hard = 3 per day, Elite = Unlimited)<br/>
+'''5. Battlefront Teleport''' - the Arceuus Spellbook (60% Arceuus Favour 23 Magic)<br/>
+'''6. Lovakengj A''' - Xeric's Talisman (5% Shayzien favour)<br/>
+'''7. Kharedst's Memoirs''' - Forsaken Tower Quest<br/>
+'''8. Kourend Castle A''' - Xeric's Talisman (Architectural Alliance)<br/>
+'''9. Kourend Castle B''' - Kourend Castle Teleport (Transportation Incantations)<br/>
+'''10. Shayzien Cemetary''' - Kharedst's Memoirs (Tale of the Righteous Quest)<br/>
+'''11. Fairy Ring''' - Start Fairytale Part II<br/>
+'''12. Lake Molch''' - each dock allows transport to the others<br/>
+'''13. Mount Quidamortem''' - Xeric's Talisman (Ancient Tablet) <br/>
+
+'''Examples '''
+
+Say a player wished to see Konar to receive a Slayer task but hadn't done the Kourend achievement Diary or started Fairytale Part II, the best route would to teleport to the Farming Guild via a Skills neckalace and run North East. Once at Mount Karuulm, they could climb up using the Agility shortcuts to reach Konar. Alternatively, players on the Arceeus spellbook could cast the Battlefront Teleport and run north west. 
+
+Players looking to do a spot of Aerial Fishing may use the Fairy Ring south of the Lizardman Canyon or Kharedst's Memoirs then run west to catch a boat to the centre of Lake Molch.
+
+{{Horizontal Line}}
+
+{{Headline|25|The Farming Guild}}
+
+
+[[File:The Kebos Lowlands (3).png|center]]
+
+The land deep within the Kebos Lowlands is home to soil more fertile than anywhere else on Gielinor. Land this fertile is highly appealing to members of Hosidius house, even with the threat of the Lizardmen. Following an agreement between Lord Hosidius and Lord Shayzien, a detachment of Shayzien soldiers has been assigned to protect the area. This has allowed Hosidius house to build and maintain a guild where farmers can experiment and master their craft.
+
+The Farming Guild is a new guild found in the Kebos Lowlands. The guild is separated into three large greenhouses with each one acting as a different tier for the guild. The first tier requires '''45 Farming''' to enter, the second requires '''65''' and the third requires '''85'''. Entering the guild requires 60% Hosidius Favour. ''It is possible to use stat boosts to enter the guild areas.''
+
+{{Horizontal Line}}
+
+{{Headline|22|Tiers Breakdown}}
+
+
+'''First tier - Requires 45 Farming'''
+
+*Guildmaster: Provides background on the Guild and gives out Farming contracts.
+*Bank: A bank with a poll booth and a deposit box.
+*Equipment Shop: This stocks the same supplies as Vannah's Farm Store with the exception that it also sells empty plant pots alongside the filled ones.
+*Seed Shop: It offers the same stock as the Draynor Seed Market.
+*Garden Supplier: They offer the same stock as the Falador Garden Centre.
+*A water source.
+*Large Compost Bin: A large compost bin with double the capacity of a normal one (see 'New Patches' further down for more details).
+*Cactus Patch: This patch is identical to the Al Kharid patch. There is a farmer there who will look after the patch for you.
+*Bush Patch: Identical to other bush patches. There is a farmer there who will look after the patch for you.
+*Allotment & Flower Patch: The usual allotment setup with two allotment patches and a flower patch. There is a farmer there who will look after the patches for you.
+*Tool Leprechaun: The patches in the first tier share a single tool leprechaun.
+
+'''Second tier - Requires 65 Farming'''
+
+*A water source.
+*Tree Patch: Identical to other tree patches. There is a farmer there who will look after the patch for you.
+*Herb Patch: Identical to other herb patches. There is a farmer there who will look after the patches for you.
+*Hespori Patch: When this patch finishes growing, it can be fought as a basic demi-boss fight with various rewards (see 'New Patches' further down for more details).
+*Anima Patch: A new Patch with Worldwide Effects depending on what is grown (see 'New Patches' further down for more details).
+*Tool Leprechaun: The patches in the second tier share a single tool leprechaun.
+
+'''Third tier - Requires 85 Farming'''
+
+*Bank: A bank with a deposit box.
+*A water source.
+*Fruit Tree Patch: Identical to other fruit tree patches. There is a farmer there who will look after the patch for you.
+*Spirit Tree Patch: Identical to other spirit tree patches. There is a farmer there who will look after the patch for you.
+*Redwood Patch: A new patch to grow Redwood trees (see 'New Patches' further down for more details).
+*Celastrus Patch: A new patch to grow Celastrus trees (see 'New Patches' further down for more details).
+*Tool Leprechaun: The patches in the third tier share a single tool leprechaun.
+
+{{Horizontal Line}}
+
+{{Headline|22|Farming Contracts}}
+
+
+As mentioned above, guildmaster Jane can also be found at the Farming Guild. She can assign players contracts that require them to grow certain crops '''within the Farming guild''' in exchange for seed packs.
+
+There are three tiers of contract available; Tier 1, Tier 2 and Tier 3 which each increase in difficulty.
+
+{{Horizontal Line}}
+
+{{Headline|22|New Patches}}
+
+
+It wouldn't be an expansion to Farming if we didn't include some brand-new patches for you to grow various crops!
+
+''Farming Demiboss: The Hespori Patch - Requires 65 Farming'''
+
+The Hespori patch is a new patch unique to the second tier of the Farming guild. The only thing that can be grown here is a Hespori plant. The seeds for this plant can be randomly found while harvesting other plants (this can be toggled by talking to an NPC near the patch) or by '''completing Farming Contracts'''.
+
+Once the patch has fully grown, the Hespori can be fought as a solo demi-boss. Killing the Hespori boss grants Farming experience. It has a loot table of seeds, including the unique White lily seed (''see "Existing Patch Improvements" below''). Alongside being the only way for players to gather untradeable Anima seeds, the Hespori also has a chance of dropping the Bottomless compost bucket which can hold up to '''10,000 compost of any kind'''. The Hespori is instanced with an item reclaim service that works identically to other grave systems like Grotesque Guardians/Zulrah/Vorkath, and only one can be utilised at any time. This means that any other graves will be wiped on death.
+
+'''Bottomless Compost Bucket'''
+
+*Can be filled with regular, super, or Ultracompost.
+*Can only have 1 type of compost inside it at once.
+*Each compost used gives the bucket two charges of that kind of compost. ''Emptying the bucket will cause all compost stored within to be lost.''
+*When used on a patch, the bucket uses 1 charge of the current filled compost.
+*The bucket can hold a maximum of 10,000 charges.
+*The bucket is tradeable when empty.
+*The bucket can be stored by a Tool Leprechaun whose interface has been reworked to be friendlier to use.
+
+'''Anima Patch - Requires 76 Farming'''
+
+The Anima patch is a new patch unique to the second tier of the Farming guild. Planting something here has worldwide effects on all of your other patches. There are three types of seeds that can be planted here, which can only be obtained through fighting the Hespori and are untradeable.
+
+*Attas Seeds: When planted these grow into an Attas Plant. This plant provides increased yield to all other patches in the game.
+*Iasor Seeds: When planted these grow into an Iasor Plant. This plant decreases the disease chance for all other patches in the game.
+*Kronos Seeds: When planted these grow into a Kronos Plant. This plant increases the speed at which other patches grow by providing a chance to skip a growth stage. This affects all patches of the same type at once, keeping them in sync.
+
+These plants are active as soon as they are planted. Over their three and a half day life span, they grow from a seedling into a withering state. This state indicates that it is one stage away from death. Once it dies, it's effects will cease until re-planted.
+
+'''Celastrus Patch - Requires 85 Farming'''
+
+The Celastrus patch is a new patch unique to the third tier of the Farming guild. Once a Celastrus patch has fully grown (which is 16 hours, the same length required to grow a fruit tree), it can be harvested for a tradeable resource, Celastrus wood, which can be turned into Battlestaves with level 40 Fletching. 
+
+The amount of Celastrus wood harvested from a fully grown Celastrus patch is random, much like the way harvesting herbs works, with a minimum number of lives to ensure a guaranteed amount each harvest.
+
+'''Redwood Patch - Requires 90 Farming'''
+
+The Redwood patch is a new patch unique to the third tier of the Farming guild. Once fully grown (taking ~106 hours) the Redwood patch turns into a Redwood tree and can be cut down for logs and Woodcutting experience. ''The Redwood patch is relatively close to the bank found within the third tier of the Farming guild.''
+
+'''Large Compost Bin - Requires 45 Farming to access the first tier of the Farming guild.'''
+
+The Large Compost Bin works the same as any other Compost Bin but has the added benefit of being able to store double the usual amount of compost.
+
+{{Horizontal Line}}
+
+{{Headline|22|Existing Patch Improvements}}
+
+
+Whilst the Farming guild introduces various new patches with new crops, there are certain patches in-game that we'd also like to utilise by adding new crops for you to grow.
+
+'''Dragonfruit Trees - Requires 81 Farming'''
+
+Dragonfruit trees can be grown in Fruit tree patches around Gielinor. The seeds are tradeable and are rarely obtained through nests, boss drops or by completing Farming Contracts. Dragonfruit trees have the same growth time as other fruit trees and give the following Farming experience; 140 XP for planting, 17,335 XP for checking its health and 70 XP for harvesting.
+
+Harvesting a Dragonfruit tree gives you Dragonfruit, a new food item that can either be eaten to heal 10 hitpoints or they can be baked into Dragonfruit pies at 73 cooking. Dragonfruit pies heal 10 hitpoints per serving and provide a temporary Fletching boost of +4.
+
+In addition to being a useful stat-boosting food, 10 Dragonfruit can be squeezed into a vial which can be used on the vents in Mount Karuulm to beome bottled Dragon's breath. This can be used to '''fully charge the Dragonfire shield and similar shields instantly'''.
+
+'''White Lily - Requires 58 Farming'''
+
+White lily can be grown in flower patches around Gielinor. The seeds are only dropped by the Hespori, but they are tradable. White lily has the same growth time as other flowers and gives the following Farming experience; 42 XP for planting and 250 XP for harvesting.
+
+When fully grown, a flower patch with White lily in it will protect all types of crops in adjacent allotment patches.
+
+'''Potato Cacti - Requires 64 Farming'''
+
+Potato cacti can be grown in cactus patches around Gielinor. The seeds are tradeable and are rarely obtained through nests or by completing Farming Contracts. Potato cacti take 70 minutes to fully grow and give the following Farming experience; 68 XP for planting and 68 XP for harvesting. ''With the introduction of Potato cacti seeds, Potato cacti have been removed from the Nightmare Zone reward shop.''
+
+'''Snape Grass - Required 71 Farming'''
+
+Snape grass can be grown in allotment patches around Gielinor. The seeds are tradeable and are rarely obtained through nests or by completing Farming Contracts. Snape grass takes 70 minutes to fully grow and gives the following Farming experience; 82 XP for planting and 82 XP for harvesting. ''With the introduction of Snape grass seeds, Snape grass have been removed from the Nightmare Zone reward shop.''
+
+
+{{Horizontal Line}}
+
+{{Headline|25|Mount Karuulm}}
+
+
+[[File:The Kebos Lowlands (4).png|center]]
+
+On the northern edge of the Kebos Lowlands lies the Sulphur Volcano of Mount Karuulm. Here, the Tasakaal, masters of life and death, make their home. Within the shadow of this volcano lies the home of the Kahlith. These beings were once human, but they have abandoned their previous lives in the name of the Tasakaal. Together, the Tasakaal and the Kahlith work together to maintain the balance between life and death. Assist them, and you might just be rewarded.
+
+Atop Mount Karuulm you'll find Konar quo Maten, the newest Slayer Master. There is also a bank with a deposit box and poll booth, a furnace, and a weapon shop that sells various spears, warhammers and battleaxes.
+
+{{Horizontal Line}}
+
+{{Headline|22|New Slayer Master}}
+
+
+Konar quo Maten, a member of the Kahlith race, is a new Slayer Master located on Mount Karuulm that is accessible to players with 75 Combat. Konar is a little different when compared to your usual Slayer Master in that the tasks she assigns require you to kill monsters in a '''specific area''' Going out of your way to complete tasks from Konar has its benefits. Each task completed from Konar rewards the player with '''18 Slayer reward points''' and all kills on task from this master have a chance of hitting a new global loot table. The chance of hitting this loot table is scaled by the combat level of the NPC you're fighting, and the loot is granted in addition to any normal drop you would receive. The loot table is split into two potential rewards:
+
+*A rare chance of getting a '''new unique drop of the tradeable 1-handed Dragon hasta'''.
+
+[[File:The Kebos Lowlands (5).png|center]]<center>''The Dragon hasta is a new tradeable 1-handed weapon, dropped exclusively through completing tasks assigned by Konar quo Maten. It is dropped in a broken form and must be repaired by Otto before being used.''</center>
+
+
+Konar quo Maten (''alongside all other Slayer Masters'') also sells Boots of stone for 200gp. These require 44 Slayer to equip and are needed to go inside the Mount Karuulm Slayer Dungeon detailed below.
+
+[[File:The Kebos Lowlands (6).png|center]]
+
+
+{{Horizontal Line}}
+
+{{Headline|22|New Slayer Creatures}}
+
+
+With a new Slayer Master comes new Slayer creatures, and a new area to kill them! North of the Farming Guild lies the sulphur volcano of Mount Karuulm, home to a brand-new Slayer dungeon.
+
+The Mount Karuulm Slayer dungeon is single-way combat throughout and includes a task only area. Cannons are allowed in the entire dungeon, aside from a separate chamber where the Alchemical Hydra can be found (see "Alchemical Hydra" below for more information) and the Wyrm area. In order to stay inside the Karuulm Slayer Dungeon safely you will need to wear Boots of stone, Boots of Brimstone, Granite boots or have completed the Elite tier of the Achievement Diary - else you'll take consistent damage until you do.
+
+'''Sulphur Lizard - Requires 44 Slayer'''
+
+Sulphur Lizards, located within the Mount Karuulm Slayer Dungeon, are assigned by Mazchna, Vannaka and Chaeldar. They have no noteworthy mechanics or drops, and attack with melee only. They are intended to add some additional variety to the low-level Slayer bracket. Slayer Masters that assign Desert Lizards would instead assign "Lizards", allowing players to kill either Desert or Sulphur Lizards to complete their task. Unlike Lizards in the desert, these won't require Ice coolers to kill.
+
+'''Wyrm - Requires 62 Slayer'''
+
+Wyrms, located within the Mount Karuulm Slayer Dungeon, are assigned by Duradel, Nieve, Chaeldar and Konar quo Maten. Wyrms have a very rare chance to drop the Dragon sword and Dragon harpoon, previously found within the Chambers of Xeric. ''Both the Dragon sword and Dragon harpoon have been removed from the Chambers of Xeric loot table.''
+
+'''Drake - Requires 84 Slayer'''
+
+Drakes, located within the Mount Karuulm Slayer Dungeon, are assigned by Duradel, Nieve and Konar quo Maten. They do not fly and use both melee and ranged attacks. Drakes have a chance to drop their claws and teeth, both of which are attachments for boots.
+
+A Drake claw can be combined with Boots of stone to create the tradeable Boots of Brimstone. This process cannot be undone. Boots of Brimstone require 70 Defence, 70 Magic, 70 Ranged and 44 Slayer to equip.
+
+A Drake tooth can be combined with Holy sandals to create the tradeable Devout boots. This process cannot be undone. Devout boots require 60 Prayer to equip and are considered an item of Saradomin inside the God Wars Dungeon.
+
+[[File:The Kebos Lowlands (7).png|center]]
+
+
+'''Hydra - Requires 95 Slayer'''<br/>Hydras, located within the Mount Karuulm Slayer Dungeon, are assigned exclusively by Konar quo Maten. They use both ranged and magic attacks. Hydras have a chance to drop three untradeable ring pieces and a Hydra tail which is an attachment for the Dragonbone necklace.<br/>When the Eye of the hydra, Fang of the hydra and Heart of the hydra are combined, these pieces form the tradeable Brimstone ring. The ring has no requirements to equip and has a 1/4 chance with each spell cast to ignore 10% of your opponent's total Magic Defence.
+
+[[File:The Kebos Lowlands (8).png|center]]
+
+
+When a Hydra tail is combined with a Dragonbone necklace and a Bonecrusher, it forms the untradeable Bonecrusher necklace. The necklace requires 80 Prayer to equip and gives the effect of both the Bonecrusher and the Dragonbone necklace (''the necklace must be equipped for 9 seconds to gain the effect of the Dragonbone necklace''). The necklace is charged with Ecto-tokens as per the Bonecrusher and maintains the same Prayer restoration rate as the Dragonbone necklace. The effect of the Bonecrusher also applies whilst the Bonecrusher necklace is in your inventory. ''The process of combining these items is reversible''.
+
+[[File:The Kebos Lowlands (9).png|center]]
+
+
+'''Alchemical Hydra - Requires 95 Slayer'''<br/>The Alchemical Hydra, located within the Mount Karuulm Slayer Dungeon, is a new solo Slayer boss assigned exclusively by Konar quo Maten. It can only be fought as part of a Hydra Slayer task or a Boss task (of which only Konar quo Maten will be able to assign). The Alchemical Hydra will not be an easy opponent, and as such you will be well rewarded if you manage to defeat it. It has a chance to drop the Hydra leather which is used to make Ferocious gloves, a Hydra claw which is an attachment for the Zamorak hasta, '''all Hydra unique drops''' and of course... a pet Alchemical Hydra.
+
+Ferocious gloves are a new untradeable pair of gloves with a focus on offensive melee, requiring 80 Defence to equip. The Hydra leather used to make them is tradeable and must be taken to the Lithkren dungeon (requiring Dragon Slayer II) to be made into the gloves.
+
+[[File:The Kebos Lowlands (10).png|center]]
+
+
+When a Hydra claw is combined with a Zamorakian hasta, it forms the tradeable Dragon hunter Lance. This process cannot be undone. The lance requires 70 Attack to equip and has the added effect of 20% increased Accuracy and Damage against Dragon creatures, though it loses its defensive capabilities during its creation.
+
+[[File:The Kebos Lowlands (11).png|center]]
+
+
+'''Additional Drops'''<br/>Alongside the individual drops mentioned above, you'll have a chance to receive Dragon knives and Dragon thrownaxes from Wyrms, Drakes, Hydras and the Alchemical Hydra. ''Dragon thrownaxe have been removed from the Chambers of Xeric loot table.''
+
+Dragon knives are tradeable, require 60 Ranged to equip and can be poisoned. They have a special attack, Duality, which costs 25% Special Attack energy and causes two knives to be thrown at once, each with their own accuracy and damage rolls.
+
+[[File:The Kebos Lowlands (12).png|center]]
+
+
+'''New Unique Bones'''<br/>With the introduction of new creatures we bring new types of bones. Wyrm bones offer 30 Prayer XP, Drake bones offer 60 Prayer XP and Hydra bones offer 90 Prayer XP (both Hydras and the Alchemical Hydra drop these). These bones would work in the usual way with other features like the Gilded altar and Ectofuntus.
+
+
+{{Horizontal Line}}
+
+{{Headline|22|Aerial Fishing}}
+
+
+[[File:The Kebos Lowlands (13).png|center]]
+
+In the middle of Lake Molch is a small island home to Alry the Angler, a peculiar fisherman with a ''very different'' approach to catching fish. 
+
+Alry uses birds, specifically Cormorants, to catch and return fish and salamanders that take residence in the nearby waters. Similar to Falconry when training Hunter, the player equips the bird on their arm. When clicking a fishing pool, the bird swoops down and returns to the player with the catch. If the player's inventory is full, the bird swallows the catch and doesn't award any experience to the player. The player must have both hands free to wield the bird.
+
+A catch is guaranteed for each time the bird is sent. The pools of fish move at a somewhat frequent rate, around every 7-12 seconds. Multiple people can catch from the same pool and will see people fishing from all sides of the circular island. If the bird is sent whilst the pool is moving to a new location, it still counts as a successful catch.
+
+King Worms are used as a starting bait which can be gathered on the island. When the player starts to catch fish, they can cut the fish up into stackable 'Fish chunks'. The bird will take 1 chunk every 3-6 catches as a reward for gathering the fish.
+
+There are 4 types of catch found in Lake Molch:
+
+'''Bluegill''' require 43 Fishing and 35 Hunter to catch with Aerial Fishing. 
+
+'''Common Tench''' require 56 Fishing and 51 Hunter to catch with Aerial Fishing. 
+
+'''Mottled Eels''' require 73 Fishing and 68 Hunter to catch with Aerial Fishing. 
+
+'''Greater Sirens''' require 91 Fishing and 87 Hunter to catch with Aerial Fishing.
+
+'''Molch Pearls''' can be fished up from Lake Molch when Aerial Fishing. These have a 1/100 chance of being fished up on a successful catch. They are stackable and can be traded with the Angler in his pearl store for various untradeable rewards.
+
+*Equippable Fishing Rod - 100 Molch pearls
+*Equippable Fly Fishing Rod - 120 Molch pearls
+*Equippable Barbarian Fishing Rod - 150 Molch pearls (''can only be purchased if you've got the relevant progress with Otto'')
+*Fish sack - 1000 Molch pearls
+
+'''Golden Tench'''<br/>In addition to your expected catch, when fishing with your Cormorant, there is a very slim chance that it will return with an extremely rare 'Golden Tench'. This is a fish that can be equipped in the hand and has no stats. It is not tradeable.
+
+[[File:The Kebos Lowlands (14).png|center|200px]]<center>''A player wearing the Golden tench and Fish sack. The Golden tench is an extremely rare reward from Aerial Fishing. It has no stats, is not tradeable and is purely cosmetic.''</center>
+
+At level 43 Fishing and 35 Hunter, you should expect to earn approximately '''17k Fishing, 25k Hunter and 5k Cooking experience''' per hour from Aerial Fishing. ''Cooking experience is only granted if you are cutting the catch.''
+
+At level 99 Fishing and 99 Hunter, you should expect to earn approximately '''60k Fishing, 80k Hunter and 15k Cooking experience''' per hour from Aerial Fishing. ''Cooking experience is only granted if you are cutting the catch.''
+
+{{Horizontal Line}}
+
+{{Headline|22|Kourend & Kebos Achievement Diary}}
+
+
+The Kourend & Kebos Achievement Diary is a new diary that covers the regions of both Great Kourend and the Kebos Lowlands. It will work in the same way as other Achievement Diaries and full completion of this diary will be required for the Diary Cape. 
+
+Elise, the taskmaster for this diary, will be found in the courtyard of Kourend Castle (a teleport to her will be added to the Diary Cape).
+
+To fully complete the Kourend & Kebos Achievement Diary you will need to meet the following level requirements: 
+
+*25 Construction
+*30 Crafting
+*40 Fletching
+*42 Mining
+*49 Thieving
+*50 Firemaking
+*77 Runecraft
+*82 Fishing
+*84 Cooking
+*85 Farming
+*90 Magic
+*90 Woodcutting
+*95 Slayer
+
+Completing the Kourend & Kebos Achievement Diary will grant players various rewards including Rada's Blessing, which upgrades with each tier of the diary completed. This is a new blessing that can be equipped in the ammo slot.
+
+
+
+*Rada's Blessing 1 - No Stat Bonuses, 3 daily teleports to the Kourend Woodland and a 2% chance to catch two fish at once (no XP is given for the additional catch, must be worn)
+*2500 XP Lamp
+*Halved access cost for Crabclaw Island
+*Doubled drop rate of Xeric's talisman
+
+'''Medium Kourend & Kebos Achievement Diary'''
+
+*Rada's Blessing 2 - +1 Prayer bonus, 5 daily teleports to the Kourend Woodland and a 4% chance to catch two fish at once (no XP is given for the additional catch, must be worn)
+*7500 XP Lamp
+*Free access to Crabclaw Island
+*5% chance to mine two dense essence blocks at once
+*20 Free Dynamite a day from Thirus
+*The rewards from previous diary tiers
+
+'''Hard Kourend & Kebos Achievement Diary'''
+
+*Rada's Blessing 3 - +1 Prayer bonus, unlimited daily teleports to the Kourend Woodland, 3 daily teleports to Mount Karuulm and a 6% chance to catch two fish at once (no XP is given for the additional catch, must be worn)
+*15000 XP Lamp
+*Ability to add the Shayzien helm (5) effect to Slayer helms by talking to Captain Cleive
+*5% increased yield from the Hosidius and Farming Guild Herb Patches
+*40 Free Dynamite a day from Thirus
+*The rewards from previous diary tiers
+
+'''Elite Kourend & Kebos Achievement Diary'''
+
+*Rada's Blessing 4 - +2 Prayer bonus, unlimited daily teleports to the Kourend Woodland, unlimited daily teleports to Mount Karuulm and a 8% chance to catch two fish at once (no XP is given for the additional catch, must be worn)
+*50000 XP Lamp
+*20 Slayer Points for completing Slayer Tasks from Konar quo Maten quo Maten (up from 18)
+*10% Reduced burn chance at the City Kitchens (up from 5%)
+*80 Free Dynamite a day from Thirus-+
+*Protection from the burn effect in the Mount Karuulm dungeon without special boots
+*The rewards from previous diary tiers
+
+
+{{Horizontal Line}}
+
+{{Headline|22|The Forsaken Tower}}
+
+
+[[File:The Kebos Lowlands (15).png|center]]
+
+For thousands of years, the Wintertodt has remained safely sealed behind the great Doors of Dinh. Alas, despite the best attempts of the Lovakengj smiths and the Arceuus mages, the doors are failing. Only Dinh himself knew the secrets behind the creation of these doors. Without his knowledge, there may be nothing to stop the Wintertodt escaping and bringing ruin upon Kourend. It is up to you to recover this knowledge. 
+
+The Forsaken Tower is a brand-new novice quest that further develops on the story of the houses of Kourend. The quest can be started by speaking to Lady Vulcana Lovakengj in Lovakengj House.
+
+<div class="mw-collapsible mw-collapsed">
+''Spoiler warning! Click here to see requirements for The Forsaken Tower:''
+<div class="mw-collapsible-content">
+*Client of Kourend
+*20% Lovakengj Favour
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+''Spoiler warning! Click here to see the rewards for completion of The Forsaken Tower:''
+<div class="mw-collapsible-content">
+*1 Quest Point
+*6,000 Coins
+*500 Mining Experience
+*500 Smithing Experience
+*10% Lovakengj Favour
+*Lovakengj Memoir Page which can be used in Kharedst's memoirs, granting an additional 8 charges and a new teleport near to the Lovakengj House.
+</div></div>
+
+{{Horizontal Line}}
+
+{{Headline|22|The Ascent of Arceuus}}
+
+
+[[File:The Kebos Lowlands (16).png|center]]
+
+A long time ago, the citizens of Arceuus house gave up their human bodies and claimed immortality. This event was known as the Ascent of Arceuus and it marked the end of death within Arceuus house. Or so they believed. For the first time in a thousand years, a member of Arceuus house has fallen. You will need to solve the mystery of this death. However, time is of the essence and the fate of Arceuus house lies in your hands. 
+
+The Ascent of Arceuus is a brand-new novice quest that further develops on the story of the houses of Kourend. The quest can be started by speaking to Mori in Arceuus House.
+
+<div class="mw-collapsible mw-collapsed">
+''Spoiler warning! Click here to see requirements for The Ascent of Arceuus:''
+<div class="mw-collapsible-content">
+*Client of Kourend
+*12 Hunter
+*20% Arceuus Favour
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+''Spoiler warning! Click here to see the rewards for completion of The Ascent of Arceuus:''
+<div class="mw-collapsible-content">
+*1 Quest Point
+*2,000 Coins
+*1,500 Hunter Experience
+*500 Runecraft Experience
+*10% Arceuus Favour
+*Arceuus Memoir Page which can be used in Kharedst's memoirs, granting an additional 8 charges and a new teleport near to the Arceuus House.
+</div></div>
+
+{{Horizontal Line}}
+
+{{Headline|22|Tweaks and Changes}}
+
+
+As a result of playtesting efforts in preparation for the release of the Kebos Lowlands, we opted to make three changes to the content originally pitched. These are:
+*Protection from the burn effect in the Mount Karuulm dungeon without special boots was added as an Elite Diary reward
+*Redwood tree growth time at the Farming Guild was increased from 85 hours to 106.
+*The Shayzien helm effect will be added to the Slayer helmet upon request instead of the two items being combined. This is still done by talking to after completing the Hard Zeah Diary.
+
+{{Horizontal Line}}
+
+{{Headline|22|Competition Results}}
+
+
+The competitions described in the [http://services.runescape.com/m=news/kebos-lowlands-progress-update?oldschool=1 Kebos Lowlands Progress Update] post drew to a close late last week. The Old School team would like to thank everybody who submitted an entry - we've been impressed by your creative talents and original art styles! Here's a list of all the winners and their entries. Winners will be contacted about their prizes in the coming days.
+
+{{Headline|22|Kourend: The Story So Far Video}}
+
+Alongside the login screen competition, we challenged you guys to make a short video covering the story of Kourend so far. We received loads of fantastic entries and had a tough time whittling them down to three. However after drawing an impressive shortlist, we rated each one on their commentary and visuals. Congratulations to J1mmy whose winning entry is found at the top of this page! We also congratulate players [https://www.youtube.com/watch?v=H7hOghr562Y John Jingler] and [https://www.youtube.com/watch?v=s-bjCw6D_F8 Its Tab] for placing second and third!
+
+'''Honorable mentions:'''
+
+Click on the names of these content creators who submitted notable entries which are linked below:
+*[https://www.youtube.com/watch?v=vCBDYndorTU Beershake]
+*[https://www.youtube.com/watch?v=ocGLs1hxqcs Colonello]
+*[https://www.youtube.com/watch?v=5-8QPU7z2f4 DrPickle]
+*[https://www.youtube.com/watch?v=t3kRKP-rlRg FurgFurguson]
+*[https://www.youtube.com/watch?v=hDqtZsc5FqE IceScream Y]
+*[https://www.youtube.com/watch?v=CSvrFs4C3Lo Nyquil CF]
+*[https://www.youtube.com/watch?v=xCrq4aeITkY TeaShirt]
+
+{{Headline|22|Login Screen Competition}}
+
+
+[[File:The Kebos Lowlands (17).jpg|center]]
+
+A huge congratulations to '''God of Onion''' whose entry is going live as the login screen with this update. Their depiction of Mount Karuulm captured the mood we want players to experience when entering the Kebos Lowlands for the first time. 
+
+A further congratulations go to both '''Runezila''' and '''Tamara''' for earning 2nd and 3rd place respectively with their entries seen below.
+
+
+[[File:The Kebos Lowlands (18).jpg|center]]<center>'''''Runezilla's''' 2nd place entry''</center>
+
+[[File:The Kebos Lowlands (19).jpg|center]]<center>'''''Tamara's entry, winning 3rd place''</center>
+
+
+All competition winners can expect to hear from us soon regarding their prizes!
+
+{{Horizontal Line}}
+
+{{Headline|22|In Other News}}
+
+
+Here's a list of other changes taking place alongside the update:
+*The PvP rota is switching over to '''Period B'''.
+*Xeric's talisman no longer deducts charges when you attempt to teleport to a destination you've not unlocked.
+*An issue with the Hosidius Range where it was only burning the first fish has been fixed. The buff will now apply correctly.
+*Outside of Bounty Hunter worlds, killing a player with a Mysterious emblem of any tier will now reward the killer with a downgraded version of that emblem regardless of whether they have an emblem themselves.
+*The shade of green on the untrimmed Achievement diary cape has been adjusted to match the trimmed version.
+*A grammar error has been fixed in the Dragon Slayer II quest journal.
+*Unfeathered dragon bolts should now appear above dragonhide on the ground in Vorkath's lair.
+*A grammar error has been fixed in lazy cat dialogue.
+*The skill guide now reflects that ugthanki kebabs heal 19 rather than 18.
+*The name of the Zamorak spear has been corrected in the Attack skill-guide.
+*Attempting to teleport to one's POH when one's already inside it will now offer a warning in case this is an error.
+*Shayzien equipment crates now have a Destroy option when empty so that they don't clutter up the ground so much.
+*The name of the Anti-venom+ potion has been corrected in the Herblore skill-guide.
+*The Thermonuclear Smoke Devil now has a 1/96 chance of dropping hard clue scrolls.
+*The notifications about remaining charges on a Scythe of Vitur have been coloured to help them stand out.
+*The name of the Vanguard pet has been made more consistent as 'Vanguard' rather than 'Mini Vanguard'.
+*When Barrows kit degrades to its completely broken state, the notification now says this rather than merely saying it's degraded slightly.
+*Adding a rope to the Kalphite lair holes will now automatically trigger your character to descend the hole.
+*Guthix Rest tea now obeys the standard restrictions on healing items.
+
+{{Horizontal Line}}
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,532,66074161 official forums], the community-led [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For reference on the above content, check out the official [http://oldschool.runescape.wiki/ Wiki].
+
+'''''Mods Archie, Ash, Bruno, Curse, Ed, Gambit, Gee, Ghost, Kieren, Lenny, Lottie, Mat K, Maz, Munro, Nasty, Roq, Ry, Sween, Weath, West & Wolf'''''<br/>''The Old School Team

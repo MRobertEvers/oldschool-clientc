@@ -1,0 +1,175 @@
+{{Update|date=07 December 2023|url=https://secure.runescape.com/m=news/project-rebalance-overview-scythe--fang?oldschool=1|category=devblog}}
+[[File:Project Rebalance- Overview, Scythe & Fang newspost.png|right]]
+{{clear}}
+__TOC__
+
+'''A quick note:''' This post contains a ''lot'' of text that isn't really simple to provide a 'tldr;' for. Where possible, we've used bullet-points to get the key points across, but if reading isn't your thing then proceed with caution!
+
+As we begin our descent into the final month of the year (''ack, is that the date already?'') our thoughts naturally turn to the future, and Big Ideas to take us into 2024. Get yourself comfortable because it’s time to talk about Project Rebalance! This is a ''very'' complex topic, so today's blog will actually be more of an overview, with the initial focus on two hotly debated subjects - Scythe of Vitur and Osmumten’s Fang. We’ll lay some groundwork, set expectations for what’s to come and open up the discussion. Then we’ll be back in 2024 with much more detailed, dedicated blogs about each topic - this project is huge, and we want you to help us steer it forward.
+
+==What ''is ''Project Rebalance?==
+Project Rebalance started out as [https://secure.runescape.com/m=news/game-jam-iv-overview---october-2023?oldschool=1#rebalance a Game Jam project]. Mods Arcane, Halo, Husky and Kieren decided to use their Jam time to look at improving existing content, rather than making something new. The project has evolved quite a bit since then, touching on a range of player and dev concerns around balancing, powercreep, reward space and more. 
+
+That’s the ‘what’ - the 'why' is a little more complex. Some parts of the initial pitch were all about making under-utilised content a little less obsolete (so that players wouldn't find themselves checking the OSRS Wiki after a Level Up message and realising their brand new unlock wasn't worth their time)! Other parts looked at making early-game content a little bit more intuitive (namely low-level Slayer) so new adventurers could spend a little less time plugged into a Wiki page or YouTube video and more time immersing themselves in Gielinor. So far, so good: relatively low-stakes, nice-to-have changes.
+
+When moving beyond the initial pitch, though, there were more high-stakes questions around existing item power. Some pieces of equipment were doing far too much'' ''heavy lifting, others not doing enough to befit their station - and of course, we wanted to lay the foundation for new reward space in the future. As it stands right now, Project Rebalance has undergone some serious expansion, and while we're confident in our rationale for many of the pieces, we want to start sharing our thoughts with you - and finding out what you think.
+
+==A Very Brief Overview==
+[[File:Project Rebalance- Overview, Scythe & Fang (1).png|thumb|600px|center|''Make sure you're stocked up before stepping into the rest of this hefty blog!'']]
+
+There is a ''lot ''to go over before Project Rebalance can be put into action. When we're ready, we'll be releasing dedicated blogs for each section, with in-depth breakdowns of what we'd like to do and why. In the meantime, let’s start with an extremely'' ''brief summary of what we'll be tackling in the near future. It might not look'' ''all that brief, but in relation to the size of Project Rebalance as a whole, this is definitely just the beginning!
+
+===Agility, Slayer, Thieving and Miscellaneous Skilling Tweaks===
+This section made up the majority of the initial Game Jam pitch. While we're not going to go into specific detail, we'd like to give you a clear idea of everything that's being considered, so that if you have early thoughts then we can see how they match up, rather than leaving everybody to run wild with things that might be out of scope. So, what's on the proverbial table?
+
+* Some rebalancing of Agility Course XP rates and requirements.
+* Removing some 'fail-points' that occur really close to the end of an Agility Course.
+* Adjusting the Level/Diary requirements for some Agility shortcuts, while exploring the potential for new high-value shortcuts to make progress feel more rewarding.
+* Improving the Brimhaven Agility Dungeon and making it a competitive, high-effort alternative to more 'typical' methods like Rooftop courses.
+* Rebalancing XP and fail rates at various NPCs, to better position them within Thieving progression.
+* Rebalancing XP rates, respawn rates and drop tables of various stalls to make them a little more desirable for everyone, not just pet hunters.
+* Improving the Gloves of Silence.
+* Removing various tasks from lower level Slayer Masters.
+* Adjusting quantity of NPCs offered for lower level Slayer Master tasks.
+* Adding a new Slayer unique or two to assist with early-game Slayer.
+* Improving the Dorgesh-Kaan Light Orb activity.
+* Streamlining creation of Guthix Rests.
+* Adding make-all functionality to Barbarian potions.
+* Improving the Ring of Pursuit.
+* Improving the Necklace of Faith.
+* Reworking Efaritay's Aid.
+
+To reiterate: we'll go into significantly more detail on every single one of these points in a dedicated blog - we're figuratively drowning in spreadsheets and numbers relating to all of the above. In the meantime, we hope this gives you a convenient summary of the type of thing we're looking at.
+
+We want to give everyone more of a reason to have a go at interacting with more stalls, NPCs or Agility Courses - not to look at shifting metas, but to give intrepid explorers a little more to be excited about when trying out some of their new unlocks. While some of you might be thinking, ‘Sounds like dead content’, it's important to remember that there are thousands upon thousands of players who log on every single day without getting involved in social media or reading around much. We'd love for these players to spread themselves out a little and maybe give the Brimhaven Agility Arena a go, or pickpocket a Paladin or two. Early-game Slayer is a whole other beast, and one that we'll cover in proper detail when we get around to this section's dedicated blog!
+
+===Mining===
+Another skill, curiously not included with the three we've just mentioned... Mining's been a hot topic since our changes to Shooting Stars earlier this year, and we want more people enjoying the diversity offered by Mining without displacing existing methods or weakening their identity. Here are some of the things we'd like to dig into:
+
+* Improving Motherlode Mine's positioning as a low-intensity method with some Ore output.
+* Improving Volcanic Mine's approachability.
+* Improving Blast Mine's viability
+* Adjusting Amethyst vein mining.
+* Adjusting Mining gloves to make them feel more desirable for their price.
+* Reconsider the Hard Karamja Diary requirement for Lower Gem Mine.
+* Improve in-game messaging to encourage charged Amulet of Glory usage while Gem mining.
+* Improve Clue Geode rates from 'regular' mining.
+* Add more viable spots for granite/sandstone to reduce competition, for players looking to learn tick-manipulation methods, or just build up their supply of sand on Iron accounts.
+* Adjusting Zalcano drop system to give players more flexibility to choose between high GP per hour or high XP per hour, without impacting uniques.
+* Address group size/scaling issues with Zalcano that can make finding a world difficult at times.
+
+This might look like a lot - well, it kind of is! - but just like the changes in the previous section, we're not looking to shift existing metas in any significant way. Love it or hate it, 3-ticking granite or gems will still be the go-to if you're looking to really maximise your gains. Instead, these changes are intended to give players greater flexibility to find Mining training methods that suit them, so that the kinds of activities players are engaging with actually reflect the diversity of training methods on offer.
+
+==Ok, now the heavier stuff…==
+Now, these last two sections would be pretty easy for most players to understand, even if we just released a blog or explainer video. These next sections, however, are the reason we’re opting to tackle each section week-by-week. 
+
+We'll give you a brief overview of each section and then explain our next steps and what to expect, so hold your horses and please keep reading before you start typing! 
+
+===Run Energy Changes===
+This is likely to be the shortest section here - let's'' ''run through it! The top-level overview: we'd like to revisit some of the work from 2022's November Game Jam and take a look at Run Energy drain, Run Energy regen and how Weight and Agility level interact with all of the above.
+
+These changes will involve a whole lot of maths, and absolutely ''require ''a beta before we can discuss this in any detail. We're waiting on engine changes that would be required to make any of these adjustments in the first place, but we'll be holding off on talking any more about these until you're able to get into a beta world and try these out. That's all, just one to keep on your radar!
+
+Now for the ones you've been waiting for and we've been dreading…
+
+===NPC Defence Changes===
+Nothing feels quite as good as bringing the right tools for the job and exploiting an NPC’s weakness to devastating effect. That being said, there are a lot of NPCs who are ''technically '''weak' to a certain style, but not weak enough for it to really matter all that much. For example, Gargoyles are weak to Crush, but not by much, and often the kind of player who's killing Gargoyles in the first place is better off using an Abyssal whip than their best-available Crush weapon. We’d like to make existing NPC weaknesses feel more pronounced so that gear progression might feel a little less linear on your way to the endgame content (where bringing the right tools for the job becomes more noticeable).
+
+We're ''not'' looking to change things up to the point where you can't carry on doing what you're doing! To stick with the previous example, using an Abyssal whip against Gargoyles will still be perfectly fine - it just might be the case that the Sarachnis Cudgel pulls ahead ever-so-slightly, if you have one kicking about. We don't have a full list yet, and there'd likely be too many NPCs to list in this post anyway, so we'll move on for now.
+
+Adjusting existing weaknesses is all well and good, but the biggest beneficiary of a change like this is obviously Melee, since it has three distinct attack styles (Stab, Slash, Crush) that allow for a lot more gear diversity and also for a much broader reward space when it comes to designing new content. Ranged and Magic are what they say on the tin - an NPC weak to Ranged is weak to ''every ''Ranged weapon, and an NPC weak to Magic is equally weak to both Tumeken's shadow and Fire strike, this can make it a little challenging to add new rewards without either powercreeping at an unhealthy rate or releasing content that doesn't see much use for many existing players. We'd like to at least take a look at rolling out some new Defence types for NPCs, and exploring elemental weaknesses.
+
+Old School's Combat system is iconic and integral to the game - we have no interest in changing the feel and fundamentals of fighting in Old School and want to make sure you're comfortable with the changes, which we’ll further outline in this section's dedicated blog. We're not looking to evolve Combat - we're looking to create new avenues for rewards and give players a reason to use gear that's super cool but often just sits in the bank gathering dust. We'd like to do this by introducing Ranged-type weaknesses that mirror the breadth of Melee weaknesses - Heavy (Javelins & Bolts), Standard (Arrows) & Light (Thrown-weapons like knives or darts), and by introducing Elemental weaknesses that might shake up Magic progression beyond Trident → Sanguinesti Staff → Shadow in the form of Air/Smoke, Water/Ice, Earth/Shadow and Fire/Blood.
+
+Ultimately what this boils down to is maybe a Heavy Ballista is worth bringing to Gargoyles if you'd like to kill them with Ranged, or that Fire Giants might take a little extra damage from Water/Ice spells, which might free us up to make cool new things that fill more gaps without just moving power upwards. 
+
+We're not going to get into any more right now, because this one ''needs ''a separate blog, and we won't be releasing that blog until we're also ready to go with a playable beta. We appreciate that rebalancing on a scale like this is a lot and that it would be totally unreasonable to expect you to get a feel for things without being able to get hands-on - so we're not touching anything until you've had ample time to play around. For now, let's keep on trucking!
+
+===Combat Item Adjustments===
+To start off, we'd ''like ''to bundle all of the following in with the Defence Changes beta, or add them to a separate beta of their own so that you can once again get properly stuck in and give us valuable feedback.
+
+When we talk about 'adjustments' here, they're separated into two broad categories, and we'll just call them what they are: nerfs and buffs. Historically speaking, it's ''relatively ''rare for us to actively rebalance gear, but as the game moves forwards we get a clearer picture of more long-term issues with items that either aren't living up to their potential and befitting their status, or with items that hurt existing and future reward space and actively make progression feel less rewarding.
+
+Here's what we're looking to bring down in power, and why:
+
+* Osmumten's Fang - it's too strong on non-Stab styles (Slash) and harms the position of other high-value Melee weaponry like the Scythe of Vitur, Blade of Saeldor or Inquisitor's Mace.
+* Voidwaker - guaranteed hits (i.e. ignoring accuracy checks) in PvM makes it difficult to design worthwhile Spec-DPS weapons in future without creeping upwards significantly.
+* Ancient Godsword - current healing from Special attack elongates outlast fights, creates too big an HP delta even when prayed against correctly.
+* Occult Necklace - far too much power in a single item. Bring its power down slightly and distribute its Magic Damage across other parts of Magic progression.
+* Tome of Fire/Water - these need to be kept in mind alongside the potential for Elemental weaknesses. If Elemental weaknesses pick up some of the slack for Elemental damages, these Tomes likely become too strong and need adjusting accordingly.
+
+Here's what we're looking to bring up in power, and why:
+
+* Adjust damage on hit to roll from 1-to-max hit instead of 0-to-max hit - this makes early Combat feel better. As it stands, if your max hit is a 1, you deal 0 damage 50% of the time that you sucessfully ''hit ''the opponent, which can feel pretty terrible for new players. Also improves access to information around successful Dragon Warhammer or Arclight hits, for example.
+** Additional considerations required for the 10HP community, but we'll get to those in the blog dedicated to all of these adjustments.
+* Scythe of Vitur - not enough existing use-cases, often too expensive to be worth using. More on this later.
+* Elder Maul - not enough existing use-cases, doesn't really befit its megarare status.
+* Inquisitor's - extremely rare items. Mace often falls short of other offerings even in places where Crush should be the go-to, and is vastly more expensive than its equivalent weapons in other styles.
+* Soulreaper Axe - a little too frustrating to feel good using.
+* Reduce drain rate of 'bottom tier' prayers like Thick Skin, Burst of Strength etc - existing drain rates make them effectively unusable in any real capacity when they're unlocked.
+* Improve Sharp Eye and Burst of Strength prayers - currently, the player needs to hit 20s for these prayers to have any effect (due to how our game handles rounding), which doesn't really line up with the level they're unlocked at.
+
+We'll be going into more detail on the Scythe of Vitur and Osmumten's Fang in just a moment, but for the rest we'll be waiting on a dedicated blog and beta before getting into more detail. We know rebalancing is a scary prospect and we know that nerfs feel bad - nobody likes having their stuff getting weaker. Our hope is that by making other changes to NPC defence and bringing other gear up in power we'll be able to carve out room to fill in those gaps and introduce new rewards worth obtaining, rather than letting a handful of items limit what we're able to offer up in the future.
+
+Speaking of Combat Item adjustments…
+
+==Osmumten's Fang & the Scythe of Vitur==
+===Osmumten's Fang===
+Old School's premier tank-busting Stab weapon was introduced alongside our most recent raid, Tombs of Amascut. Since then, we've seen conversations crop up time and time again about its use across the board, and whether its power is healthy. In particular, the release of Desert Treasure II and everybody's favourite vampyre-body-puppeteered-by-a-malicious-fungus Vardorvis shone a spotlight on the Fang's efficacy when used to Slash as opposed to Stab.
+
+Ultimately, for a Stab weapon with no additional usage costs, it sits a little too close to dedicated Slash weapons that require upkeep, namely the Blade of Saeldor and Scythe of Vitur. We don't want to alter its identity as a seriously strong Stab weapon, but we feel like it's necessary to remove a lot of its Slashing power and have it properly occupy its niche as a Stab weapon, so that dedicated Slash weapons are able to shine where they're supposed to. With this in mind, we feel like the cleanest solution is to have the Fang's unique 'double accuracy roll' passive effect apply only to Stab.
+
+This means that Osmumten's Fang remains a fantastic generalist, since its accuracy re-rolling allows it to perform well even against foes who aren’t necessarily weak-to-Stab like Tekton, the Nightmare or even bosses inside the Theatre of Blood. While it's possible that potential changes to NPC Defence might diminish the Fang's 'jack of all trades' status somewhat, we still think it will prove to be an immensely valuable pickup and unlock for any player looking to make their first forays into PvM in Old School.
+
+What this change does more than anything is make more room for the Blade of Saeldor and Scythe of Vitur to be worth the cost and further cement the idea that you're bringing the right tools for the job. That being said, the Scythe of Vitur could still stand to be improved in some areas to make it feel a little more worthwhile. Let's take a look!
+
+===Scythe of Vitur===
+We'd like to buff the Scythe! Hooray! Let's chat about how and why...
+
+The 'why' is pretty simple, and comes up a lot in conversations both within the team and the community:
+
+* The Scythe of Vitur is a megarare weapon from Old School's hardest raid, but doesn't feel like it occupies the same space as the Twisted Bow or Tumeken's Shadow, since it doesn't have as many use-cases as other megarare weapons.
+* Its usage cost is one of the highest in the game, with the only more expensive weapon to use being the Toxic Blowpipe with Dragon Darts.
+* Even at some places where the Scythe is ''technically ''best-in-slot, it's often not good enough compared to the second or third best options to feel worth the cost of use. Vardorvis and Duke Sucellus encapsulate this fairly well, where Osmumten's Fang is hot on the Scythe's heels but has no upkeep cost.
+
+The 'how' is a little less simple and needs us to look both short- and long-term.
+
+Long-term, we want to commit to adding more content featuring low-Defence, Slash-weak, 3x3 (or bigger) bosses where the Scythe is likely to shine. In recent times, we've been adding more NPCs with higher Defence values and trying to make Defence feel more relevant in Old School as a balancing vector. Historically you'd generally bring your hardest hitting weapon to any fight, since monsters either had such low Defence that your accuracy didn’t matter, or you could just lower their Defence to the same point anyway. Players complained that accuracy felt useless as a stat so we've tried rectifying this in places, but it's hurt the Scythe's usability in the process. This big lesson here is to do a bit of both - we've added a lot of tanky NPCs recently, and we can pull back and release some low-Defence ones again to try and keep a healthy balance and let the Scythe shine a little more brightly.
+
+It's worth noting that when the Scythe is already good, it's ''really ''good - its DPS potential is beyond that of the Twisted Bow and Tumeken's Shadow in many places, and we believe the main thing separating the Scythe from other megarares is the sheer volume of content where the Twisted Bow and Tumeken's Shadow are best-in-slot. In the short-term, we want to make a few direct changes to the Scythe, ultimately aiming to give it an extra edge in a few more instances without overly buffing it in spots where it's already strong, and above all: make it feel good enough to be worth the cost of use.
+
+With all of this in mind, we want to give the Scythe a ''slight ''Accuracy buff, so that its use cases are slightly expanded and that it performs a little better against NPCs with slightly more respectable Defence levels. Additionally, we've aimed to cut the use cost down so that even in places where it doesn't utterly steamroll the second best-in-slot option, the time saved or extra GP per hour made feels like a worthwhile decision, rather than just a steadily increasing hole in the bank.
+
+* Add +15 Slash Accuracy to the Scythe.
+** This gives the Scythe a slight boost in many of the instances listed above, but doesn't shift its power much in places where Defence levels are already very low (TOB being a prime example).
+** In terms of existing use cases, adding +15 Slash accuracy increases Scythe's DPS by 0.2% at a really low-Defence boss like Big Nylo (20 Defence), but 7% at a boss like General Graardor.
+* Reduce charge cost from 1 Vial of Blood and 300 Blood runes → 1 Vial of Blood and '''200 '''Blood runes for 100 charges.
+** The following numbers were taken on November 28th, they may vary slightly at time of reading.
+** This reduces the cost per swing from 779.6gp → 584.6gp
+** Or, this reduces the cost per hour from 935,500gp → 701,500 gp.
+*** Note that this is an upper cap when in conjunction with the final change on this list, actual spend is likely to be a little lower.
+** This is approximately ~26% usage cost reduction.
+* Only use charge when the Scythe actually hits an enemy.
+** While this isn't a frequent occurrence with the Scythe, since all three hits roll accuracy independently, it's likely to add up over extended periods of use.
+*** In particular, the Scythe is more likely to miss at enemies with higher Defence (shocker!), which means this change has the most benefit for the Scythe in the places where it most struggles.
+
+We believe that these changes to the Scythe, intentional long-term boss design, as well as the previously mentioned changes to the Fang, put the Scythe and the Melee landscape as a whole into a much healthier spot. We're conscious of the fact that it's not a perfect solution and that there's a lot riding on the long-term commitments to intentionally design Scythe-spotlighting content, but we'll be looking out for any and all feedback and continuing to keep an eye on the Scythe so that we can get it into the best place possible - and hopefully get more of you into the Theatre of Blood! It's really good and absolutely worth the learning curve!
+
+That's everything we'd like to do to the Scythe right now. We've seen suggestions over the last year for extra mechanics under the hood that mess with NPC size or how accuracy rolls on each hit, but ultimately we think a simple approach is better for now, coupled with an ongoing commitment to just make more ''stuff ''that Scythe really shines against. Swing swing!
+
+===What's Next?===
+What's next is mostly just waiting and seeing! Many of the topics within this project are too big to properly grasp just by reading a blog or watching a video. While we're happy to kick the conversation off today, ultimately we want you to see for yourself and give feedback based on experience and ''feel,'' rather than predictions and spreadsheets.
+
+We’ll begin rolling out dedicated blogs for all of the above sections in early 2024, starting with the skilling-related adjustments, before moving into the more combat-focused stuff. We don't have any dates set in stone just yet, but we'll look to update you when we're able to start locking in dates, so you have something to look forward to.
+
+Hopefully we've made clear our plans and rationale for the Fang and the Scythe in particular, since we get asked about them an awful lot. We don't know at this stage whether we'd look to roll these out before other item adjustments or bundled into one so that they interact with other changes we've mentioned in this blog - we’ll keep you posted.
+
+If you've made it this far, drop us a message with your initial thoughts - and your favourite unusual bird to prove you're paying attention! We're keen to hear your feedback (and we imagine you'll have a ''lot ''of it), so make sure to get in touch with us in all the usual places. Remember that Project Rebalance is a collaborative marathon, not a sprint - we've got time on our hands to prepare dedicated blogs, betas, surveys and other feedback processes before we really get into the nitty gritty, so have a think over the holidays and come back refreshed and rebalance-ready for 2024!
+
+----
+
+You can also discuss this update on our [http://services.runescape.com/m=forum/forums?380,381 official forums], on the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abyss, Arcane, Archie, Argo, Ash, Ayiza, Boko, Blossom, Bruno, Chilly, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Errol, Fed, Gecko, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Necro, Nox, Nylu, Other, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Sarnie, Shroom, Sigma, Skane, Skylark, Smithy, Sova, Squid, Starry, Stevew, Surma, Sween, Tide, Titus, Torrance, Tsourorf, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

@@ -1,0 +1,211 @@
+{{Update|date=04 June 2025|url=https://secure.runescape.com/m=news/poll-84-afk-timers--more?oldschool=1|category=game}}
+[[File:Poll 84, AFK Timers & More newspost.jpg|right]]
+{{clear}}
+__TOC__
+''This week’s update delivers a handful of Poll 84 adjustments and enhances the Official Client with a new customisable AFK logout timer!''
+
+==Changelog - June 4th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+
+'''Poll 84 Changes'''
+
+* A new right-click “Modify Offer” option has been added to the Grand Exchange interface, allowing players to edit buy or sell offers directly from the status page without cancelling and re-entering them.
+* Added a "Repeat Offer" button to the Grand Exchange, allowing players to quickly resubmit their last buy or sell offer with the same item, price, and quantity.
+* The Abyssal Sire no longer fully heals when defeated too quickly during phase transitions, reducing unintended punishment for high burst damage.
+* The chance of receiving a Gout Tuber now increases with higher Woodcutting levels.
+* You can now empty the small & large meat pouch when near banks or on the top floor of the Hunters' Guild.
+* Cat chasing rats will no longer delay your character.
+
+'''Official Client & Mobile'''
+
+* Added a new AFK Logout Timer setting to the Official Client (desktop and mobile), letting players choose their idle logout time in 5-minute increments, up to a maximum of 25 minutes.
+
+'''Yama Tweaks'''
+
+* If you already own a Radiant Oathplate or any piece of the Sigil, the Contractually Unbound Combat Achievement task will now be retroactively completed.
+* Fixed a tricky bug where the Shadow Dancer Combat Achievement task could unfairly fail if you got teleported on the same tick as when the damage was dealt.
+* Voidflare HP has been lowered from 83 to 81 during the Demonic familiar and Divine severance contracts.
+* The pet contract drop rate has been boosted from 1/250 to 1/100, and now both players will benefit from the contract - unless the non-contract player is an Iron, in which case they’ll have to bring their own.
+* The number of Aether Runes required to craft each piece of Radiant Oathplate has been reduced from 10,000 to 2,500.
+* Fixed a bug where the standing pet animation for Yama wasn't working.
+
+'''Other Changes'''
+
+* Fixed a bug where Steam achievements could be unlocked without the required progression.
+* Surge potions can now be stored inside the COX storage unit.
+* Players can no longer walk into the scenery in the south of the task-only Wyvern cave at Mudskipper Point.
+* You will now be unable to enter Yama when skulled on DMM worlds.
+
+'''PvP Rota'''
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>de-activated</u>''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''<u>de-activated</u>''' with this rota.
+
+The PvP Arena is using ''''1 Def Pure'''' loadouts in Ranked Duels and Tournaments this week.
+
+{{Collapsed section end}}
+
+==Poll 84 Changes==
+===Grand Exchange Interface Improvements===
+We’ve made a couple of handy updates to the Grand Exchange (GE) interface to make your hustle better than ever!
+
+Gone are the days of cancelling and re-entering GE offers! A new right-click “Modify Offer” option has been added, allowing you to edit existing buy or sell offers directly from the status page!
+
+[[File:Poll 84, AFK Timers & More (1).gif|thumb|450px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-06-04/GEmodify.gif here]!'']]
+
+We’ve also introduced a “Repeat Offer” button, located in the top-left corner of the window. Just placed an offer? Click that button and your last deal’s item, price, and quantity are pre-filled and ready to be adjusted. Whether you were buying or selling, it’s all there, minus the admin.
+
+Selling but low on stock? The sell offer will automatically adjust to how much you’ve actually got, and if you’re fresh out of the goods, you’ll get a friendly chat message to let you know. The GE History button also still lets you repeat previous buy offers with a quick click.
+
+[[File:Poll 84, AFK Timers & More (2).jpg|thumb|450px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-06-04/offeragain.jpg here]!'']]
+
+===Abyssal Sire Healing Tweaks===
+Bursting down the Abyssal Sire during his phase transitions only to watch him bounce back to full health was about as fun as a chinchompa to the face.
+
+So, we’ve dialled down his healing a bit:
+
+* Bring him to 0 HP while he’s wandering? He now wakes up with just over 40% health.
+* Catch him setting up that big ol’ apocalypse attack? He’ll only heal to about 20%.
+* Stun him while he’s still seated? Yep, full heal and a stun as intended.
+
+No more accidental full-heal surprises, so those high-DPS plays don’t need to feel like you just fed him a full inventory of Anglerfish. 
+
+===Bonus 84 Goodness===
+
+* The chance of receiving a Gout Tuber now increases with higher Woodcutting levels
+* You can now empty the small & large meat pouch when near banks or on the top floor of the Hunters' Guild.
+* Cat chasing rats will no longer delay your character.
+
+Now, we hear you loud and clear - ''stackable clues when?'' You asked for it (and voted for it), and it’s on the way! It’s currently going through its final round of testing, and once it’s behaving, we’ll be locking in a release date. We know you’re buzzing for it (rightly so), but in the meantime, we hope these quality-of-life tweaks keep your merching and murder sprees feeling fresh while you wait for the main event.
+
+Hang tight, clue lovers!
+
+==AFK Logout Timer for the Official Client & Mobile==
+[[File:Poll 84, AFK Timers & More (3).jpg|thumb|450px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-06-03/waiting_meme.jpg here]!'']]
+
+Today’s the day - the AFK Logout Timer setting is now live on the Official Client (desktop and mobile)! If you’ve ever stepped away to answer the door, make a sandwich, or just stare at your cat for a bit too long, only to return and find yourself logged out, this update is for you.
+
+With this new setting, you can now choose how long your character stays logged in while idle, up to a max of 25 minutes.
+
+'''Where to Find it:'''
+
+* Head into Settings, then navigate to the Gameplay tab.
+* Look for the AFK Logout Timer setting - or just search for "AFK" to find it quickly.
+* Select your preferred timeout in 5-minute increments, from 5 to 25 minutes.
+* The setting defaults to 5 minutes (just like before), but now you can stretch that idle time to suit your needs.
+* A confirmation message will appear in your chat when you change the setting.
+* The setting is saved per device and will persist across sessions.
+
+[[File:Poll 84, AFK Timers & More (4).jpg|thumb|450px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-06-04/Settings.jpg here]!'']]
+
+For full transparency, we were hoping to make this a 30-minute timer, but we hit a little snag along the way. We wanted to get the timer out to you asap, rather than holding it back until we had the extra 5 minutes, but we will continue to work on the issues we came across and hopefully get you the full 30 when we can.
+
+Any in-game activity, including moving your mouse over the game window, resets the AFK timer - so you’ll need to be properly idle to see the logout kick in. Whether you're fishing, woodcutting, or just monitoring a farming patch, this feature gives you more flexibility while AFKing. Set it to suit your playstyle and avoid unwanted logouts when you're briefly away!
+
+Note for Mobile Users: This setting cannot override how your device handles backgrounded apps. Many mobile devices automatically suspend or restrict background app activity to save battery. So, even if you’ve set the AFK Logout Timer to 25 minutes, your device may still log you out much sooner if the app isn’t in the foreground. This is expected behaviour and not a bug.
+
+==Yama Tweaks==
+We've also been continuing to monitor your feedback with Yama and have made a few changes based on your suggestions: 
+
+* If you already own a piece of Radiant Oathplate or any piece of the Sigil, the Contractually Unbound Combat Achievement task will now be retroactively completed.
+* Fixed a tricky bug where the Shadow Dancer Combat Achievement task could unfairly fail if you got teleported on the exact same tick as when the damage was dealt.
+* Voidflare HP has been lowered from 83 to 81 during the Familiar Acquisition and Divine Severance contracts.
+* The Contract of Familiar Acquisition has had its pet chance boosted from 1/250 to 1/100, and now both players will benefit from the contract - unless the non-contract player is an Iron, in which case they’ll have to use their own to start the fight.
+* The number of Aether Runes required to craft each piece of Radiant Oathplate has been reduced from 10,000 to 2,500. We're investigating whether or not we can restore runes that players might have already used here, but cannot confirm that we'll be able to perform a restore at this time.
+* Fixed a bug where the standing pet animation for Yama wasn't working.
+
+==Pride 2025!==
+Show your colours and beam with PRIDE in the official RuneScape and Old School RuneScape Pride T-shirt - back by popular demand from 2024! This year, we're also introducing a brand-new Rainbow Party Hat Pin and Keyring from AngelsScapes to complete the look.
+
+[[File:Poll 84, AFK Timers & More (5).jpg|thumb|600px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-06-04/hpin.jpg here]!'']]
+
+Not only will they have you looking great on the outside, but you’ll feel great on the inside too - proceeds from all Pride merch sales will go to charity! Check out all the details and order yours [https://runescape.backstreetmerch.com/ here ]before 4th July!
+
+For a chance to win these and other fantastic goodies, don’t miss our Pride Livestream on 9th June, 16:30 - 18:30 BST, over on the [https://www.twitch.tv/oldschoolrs official Old School RuneScape Twitch channel]!
+
+Join Mod Sarnie and Mod Other as we march proudly from Varrock to Falador, spreading colour, joy, and a good dose of Gielinorian flair. Come dressed in your brightest, boldest gear - there’s no such thing as too many colours when we’re celebrating Pride!
+
+We’ll also be running multiple giveaways over on our [https://discord.com/invite/OSRS official Discord server], so keep your eyes peeled there too.
+
+Let’s make it a celebration to remember!
+
+To help you get ready, you can still get into the colourful spirit by reclaiming any previous Pride rewards you may have missed - just speak to Diango in Draynor Village. If you haven’t completed last year’s Pride event, make sure to have a word with [https://oldschool.runescape.wiki/w/Gilbert Gilbert ]first to unlock them.
+
+[[File:Poll 84, AFK Timers & More (6).jpg|thumb|450px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-06-04/pride1.jpg here]!'']]
+
+==Other Changes==
+
+* Fixed a bug where Steam achievements could be unlocked without the required progression.
+* Surge potions can now be stored inside the COX storage unit.
+* Players can no longer walk into the scenery in the south of the task-only wyvern cave at Mudskipper Point.
+* You will now be unable to enter Yama when skulled on DMM worlds.
+
+==Deadman Allstars==
+The competition is heating up! Deadman Allstars Season 2 is in full swing now, with 4 days left until the finale. Team captains are battling it out for the win and praying for RNG to be on their side.
+
+You can check out detailed penalty stats, highlights and notable items in team banks [https://osrs.runescape.com/deadman-allstars here] on our website to catch up on all the fun.
+
+It's not long now until Sunday, so let's recap on how you can watch the finale live on the 8th of June at: 
+
+* 18:00 BST
+* 13:00 EST
+* 10:00 PDT
+
+[https://www.youtube.com/solomission Solomission] has given us the pleasure of hosting it this year on the Official OldSchoolRS channel, so make sure to follow [https://www.twitch.tv/oldschoolrs OldSchoolRS] on Twitch and turn notifications on to be notified when we go live! Good luck to all teams and participants for the time being, and we'll see you there...
+
+[[File:Poll 84, AFK Timers & More (7).jpg|thumb|450px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-06-04/DMM.jpg here]!'']]
+
+
+==Community Event: Mod Wars - Castle Wars Chaos==
+Join us on June 13th 4PM BST for some JMod Castle Wars action!
+
+We're flipping your classic Castle Wars experience on its head and unleashing pure chaos.
+
+Two J-Mods, Mod Nox and Mod Manked, will be joining the battle as each team's unkillable, flag-thieving behemoths. These aren’t just mascots… they’re mobile megabosses with 1,000,000 HP and a mission.
+
+Here’s what’s going down:
+
+* As soon as the game starts, the enemy J-Mod teleports into your base and tries to steal your flag.
+* Your team must stop them at all costs, while escorting your own J-Mod and their mountain of hitpoints back to safety.
+* They'll also have a few tricks up their sleeve - so watch out!
+* Think of it as a high-stakes flag game meets escort mission meets boss fight.
+
+Bring your gear, bring your A-game, and get ready for the most absurd Castle Wars match you’ve ever seen.
+
+* '''Date:''' Friday, June 13th
+* '''Time:''' 4:00-5:00 PM BST (Massing from 3:45 PM – be ready!)
+* '''World:''' 522
+* '''Where:''' [https://discord.gg/7dFYyz3c?event=1378059963926188163 OSRS Official Discord]
+
+See you there!
+
+==PvP World Rota==
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>de-activated</u>''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''<u>de-activated</u>''' with this rota.
+
+The PvP Arena is using ''''1 Def Pure'''' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Donkey, Ed, Elena, Enigma, Entropi, Errol, Freddie, Fuzz, Gecko, Gengis, Gizmo, Goblin, Grace, Grub, Halo, Harold, Hend, Hornet, Husky, Ivory, Jalo, Jamesy, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Ludo, Lykos, Mack, Manked, Markos, Maylea, Mobius, Moogle, Morty, Moz, Necro, Nin, Nixon, Nox, Nylu, Ori, Other, Philomel, Pork, Pumpkin, Puppi, Rach, Redfield, Rice, Roq, Roy, Ry, Saiyan, Sarnie, Schmidt, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titania, Titus, TJ, Tomb, Tsourorf, Tyran, Veda, Vegard, West, Wolfy & Yume'''
+
+''The Old School Team.''

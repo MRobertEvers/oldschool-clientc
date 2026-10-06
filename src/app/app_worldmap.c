@@ -878,7 +878,7 @@ app_worldmap_drag_tick(
     drag_input.left_held = LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT);
     drag_input.left_up = input->curr.mouse_button_up[TORIRSM_LEFT];
     drag_input.pointer_consumed = pointer_consumed;
-    drag_input.minimenu_visible = app->interact.minimenu.visible;
+    drag_input.minimenu_visible = app->frame_view->minimenu->visible;
     drag_input.hover_component_id = app->hover_com_id;
     drag_input.surface_live = app_worldmap_surface_live(app);
 

@@ -1,0 +1,24 @@
+{{Infobox Combat Achievement
+|name = Perfection of Apmeken
+|image = [[File:Tombs of Amascut - Fighting Ba-Ba.png|300px]]
+|release = [[30 November]] [[2022]]
+|update = The Garden of Death & More
+|members = Yes
+|description = Complete 'Perfect Apmeken' and 'Perfect Ba-Ba' in a single run of the Tombs of Amascut.
+|tier = Grandmaster
+|monster = Tombs of Amascut: Expert Mode
+|type = Perfection
+|id = 437
+|leagueRegion = Desert
+}}
+'''Perfection of Apmeken''' is a [[Combat Achievements/Grandmaster|grandmaster combat achievement]] which requires the player to complete [[Perfect Apmeken]] and [[Perfect Ba-Ba]] in a single run of the [[Tombs of Amascut]] raid at raid level 300 or above.
+
+==Strategy==
+The Path of Apmeken does not need to be completed in 3 minutes, as is normally required for [[Perfect Apmeken]]. Additionally, it and [[Perfect Ba-Ba]] do not need to be completed in succession.
+
+As death invocations do not need to be enabled, players that complete Perfect Apmeken and then fail Perfect Ba-Ba can all die and re-attempt Perfect Ba-Ba without having to redo Perfect Apmeken.
+
+==Other tasks==
+{{Combat Achievements list|Tombs of Amascut: Expert Mode}}
+
+{{Combat Achievements}}

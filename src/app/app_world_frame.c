@@ -200,23 +200,38 @@ app_world_frame(
     app_world_sync_positions(app);
     /* Exactly one of these does anything: the follow cam returns early while a
      * cutscene is up, and the cinema cam returns early when one is not. */
-    app_world_camera_cinema(app);
-    app_world_camera_follow(app);
+    /* Per attached view (the runner camera split): each camera follows the
+     * same player its own way, and a cutscene's scripted camera -- cam_script,
+     * shared -- takes every one of them (owner decision 2). */
+    for( int view = 0; view < app->view_split.view_count; view++ )
+    {
+        app->frame_view = &app->views[view];
+        app_world_camera_cinema(app);
+        app_world_camera_follow(app);
+    }
+    app->frame_view = App_RunnerView(app);
     /* Publish the orbit angles to the CS2 host (CAM_GETANGLE_XA/YA, CAM_GETYAW)
      * and take back anything CAM_FORCEANGLE snapped since the last tick. Both
      * sides speak the reference's orbitCameraPitch/Yaw units, which is what
-     * app->orbit.pitch and app->orbit.yaw already hold, so no conversion is involved.
-     * Order matters: mirror first, then apply a force, so a snap issued this
-     * tick is not read back as "the camera moved there on its own". */
-    RS_CS2Host_SetCameraAngles(&app->host, app->orbit.pitch, app->orbit.yaw);
+     * app->frame_view->orbit.pitch and app->frame_view->orbit.yaw already hold, so no conversion is
+     * involved. Order matters: mirror first, then apply a force, so a snap issued this tick is not
+     * read back as "the camera moved there on its own". */
+    /* CAM_GETANGLE / CAM_GETYAW answer for the PRESENTED view (what the
+     * player sees; the only view headless). A CAM_FORCEANGLE takes every
+     * view, as every scripted camera does. */
+    RS_CS2Host_SetCameraAngles(
+        &app->host, App_PresentedView(app)->orbit.pitch, App_PresentedView(app)->orbit.yaw);
     {
         int forced_pitch, forced_yaw;
         if( RS_CS2Host_TakeCameraForce(&app->host, &forced_pitch, &forced_yaw) )
         {
-            app->orbit.pitch = forced_pitch;
-            app->orbit.yaw = forced_yaw & 0x7ff;
-            app->orbit.pitch_velocity = 0;
-            app->orbit.yaw_velocity = 0;
+            for( int view = 0; view < app->view_split.view_count; view++ )
+            {
+                app->views[view].orbit.pitch = forced_pitch;
+                app->views[view].orbit.yaw = forced_yaw & 0x7ff;
+                app->views[view].orbit.pitch_velocity = 0;
+                app->views[view].orbit.yaw_velocity = 0;
+            }
         }
     }
     app_world_sync_entity_animations(app);

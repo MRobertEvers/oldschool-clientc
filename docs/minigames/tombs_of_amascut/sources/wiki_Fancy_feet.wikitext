@@ -1,0 +1,56 @@
+{{Infobox Combat Achievement
+|name = Fancy feet
+|image = [[File:Tombs of Amascut - Warden floor slam.png|300px]]
+|release = [[30 November]] [[2022]]
+|update = The Garden of Death & More
+|members = Yes
+|description = Complete phase three of The Wardens in a group of two or more, using only melee attacks and without dying yourself. The 'Insanity' invocation must be activated.
+|tier = Master
+|monster = Tombs of Amascut: Expert Mode
+|type = Restriction
+|id = 429
+|leagueRegion = Desert
+}}
+'''Fancy feet''' is a [[Combat Achievements/Master|master combat achievement]] which requires the player to complete phase three of The Wardens in a group of two or more, using only melee attacks and without dying, at raid level 300 or above. The 'Insanity' invocation must be activated.
+
+==Strategy==
+Insanity can only be toggled on when both "Overclocked" and "Overclocked 2" are active, which when combined with "Insanity" will make the Warden attack every 3 ticks.
+
+The Warden will have 1940 health per player at a raid level of 300, resulting in it having a total of 1940* party size health. Each slam attack will deal roughly 40-50 damage if not avoided. The player must move immediately after attacking to avoid getting hit by the slam, as there is no time to dodge the attack when within five tiles from the boss. The boss will also have four interlude phases entwined at 20% health intervals which release more [[Energy Siphon]]s in a different layout compared to solo, however despite having "Insanity" there is still a larger amount of time to reverse the skulls before they explode. It is possible to survive with 80+ health with one skull untouched, but two or more result in instant death unless the player somehow manages to avoid the resulting explosion. Supply invocations should be left untouched, and this should leave players with a significant amount of supplies entering the Wardens.
+
+When the Warden reaches critical health, it will restore 20% of its health and any drained Defence levels and increase its Defence. This will also cause one of the two phantom bosses ([[Ba-Ba's Phantom]] for Tumeken and [[Akkha's Phantom]] for Elidinis) to attack faster.
+
+Players should use [[Osmumten's fang]] for the task, as it is the most accurate of melee weapons due to the passive effect it has while in the raid, despite the Warden's slightly higher stab resistance. To handle defence drains, one player should use a [[soulflame horn]] while the other uses a [[dragon warhammer]] or [[elder maul]] special attack, as this will reduce its Defence to the maximum; 30 drained levels pre-enrage and 60 post-enrage, significantly increasing accuracy. 
+
+'''Warning:''' While thralls can be used for this achievement, they '''must be''' [[zombified thrall]]s; using [[Ghostly thrall|ghostly]] or [[Skeletal thrall]]s '''will''' cause disqualification.
+
+{| class="wikitable sortable sticky-header align-center-1" style="text-align:left;"
+! colspan="2" class="unsortable" style="width: 15%" | Invocation
+! class="unsortable" style="width: 70%" | Details
+|-
+|[[File:Tumeken's Warden icon.png|link=]]
+|Overclocked
+|During the final phase of the Wardens' fight, the slam attack is performed 1 [[tick]] faster.
+|-
+|[[File:Tumeken's Warden icon.png|link=]]
+|Overclocked 2
+|During the final phase of the Wardens' fight, the slam attack is performed 2 [[tick]]s faster.
+
+''Overclocked must be active in order to activate this invocation.''
+|-
+|[[File:Tumeken's Warden icon.png|link=]]
+|Insanity
+|During the final phase of the Wardens' fight, the following are applied:
+* The slam attack is performed 3 [[tick]]s faster.
+* There is less time to reverse the [[Energy Siphon]]s.
+* The slam attack resumes based on where the Warden left off prior to launching Energy Siphons rather than resetting positions.
+* Red lightning strikes faster.
+* Each row of floor tiles is removed at a faster pace.
+
+''Overclocked 2 must be active in order to activate this invocation.''
+|}
+
+==Other tasks==
+{{Combat Achievements list|Tombs of Amascut: Expert Mode}}
+
+{{Combat Achievements}}

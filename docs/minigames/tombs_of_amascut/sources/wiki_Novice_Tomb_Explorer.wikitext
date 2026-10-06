@@ -1,0 +1,28 @@
+{{Infobox Combat Achievement
+|name = Novice Tomb Explorer
+|image = [[File:Tombs of Amascut - Nexus room.png|300px]]
+|release = [[30 November]] [[2022]]
+|update = The Garden of Death & More
+|members = Yes
+|description = Complete the Tombs of Amascut in Entry mode (or above) once.
+|tier = Hard
+|monster = Tombs of Amascut: Entry Mode
+|type = Kill Count
+|id = 461
+|leagueRegion = Desert
+}}
+'''Novice Tomb Explorer''' is a [[Combat Achievements/Hard|hard combat achievement]] which requires the player to complete the [[Tombs of Amascut]] raid at any level once.
+
+==Other tasks==
+{{Combat Achievements list|Tombs of Amascut: Entry Mode}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 7 December 2022
+|update = Quest Speedrunning: Batch 3 & More
+|change = The "Novice Tomb Explorer" task is now a hard-tier task instead of a medium-tier task.
+}}
+{{Subject changes footer}}
+
+{{Combat Achievements}}

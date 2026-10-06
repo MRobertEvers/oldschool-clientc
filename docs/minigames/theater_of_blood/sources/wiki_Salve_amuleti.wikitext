@@ -1,0 +1,207 @@
+{{Infobox Item
+|version1 = Nightmare Zone
+|version2 = Soul Wars
+|version3 = Emir's Arena
+|name = Salve amulet(i)
+|image = [[File:Salve amulet(i).png]]
+|release1 = [[1 May]] [[2014]]
+|release2 = [[6 January]] [[2021]]
+|release3 = [[6 July]] [[2022]]
+|update1 = Spirit trees, clues & more!
+|update2 = Soul Wars And 20th Anniversary Event
+|update3 = PvP Arena: Soft Launch
+|members = Yes
+|quest = [[Haunted Mine]]
+|tradeable = No
+|equipable = Yes
+|stackable = No
+|noteable = No
+|options = Wear, Uncharge, Drop
+|examine = Increases melee, ranged and magic damage & accuracy by 15%{{Sic|The correct value for melee and ranged is 1/6th, equal to 16.67%.}} against the undead.
+|value = 1
+|weight = 0.007
+|id1 = 12017
+|id2 = 25250
+|id3 = 26763
+|leagueRegion = Morytania&Kandarin,Morytania&Misthalin
+}}
+[[File:Salve amulet(i) detail.png|left|150px]]
+The '''Salve amulet (i)''' is the imbued form of the [[salve amulet]], granting an additional 16.67%{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1171387277655846913|date=10 September 2019|archiveurl=https://reldo.runescape.wiki/i/97380|archivedate=26 April 2020|quote=It's 1/6, so 16% is closer.}} increase in the wearer's [[ranged]] accuracy and damage, as well as a 15% increase for [[magic]], when fighting [[Undead (attribute)|undead monsters]].
+
+The salve amulet is imbued by using either 800,000 [[Nightmare Zone]] [[Nightmare Zone#Rewards|points]] (halved upon completing the [[Combat Achievements/Hard|hard combat achievements]]), 320 [[Soul Wars]] [[Zeal Tokens]], or by using a [[scroll of imbuing]] on the amulet. Amulets imbued through the latter two methods do '''not''' count for completing the [[Ardougne Diary]] task.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1355871771208134657|date=31 January 2021|archiveurl=https://reldo.runescape.wiki/i/107617|archivedate=5 February 2021|quote=No, the Soul Wars version is a different item from the NMZ item, and it doesn't do a task check.}} Furthermore, amulets imbued at one location cannot be refunded at a different location.
+
+==Combat stats==
+{{Infobox Bonuses
+|version1 = Nightmare Zone
+|version2 = Soul Wars
+|version3 = Emir's Arena
+|bucketname1 = Nightmare Zone
+|bucketname2 = Soul Wars
+|bucketname3 = Emir's Arena
+|astab = 0
+|aslash = 0
+|acrush = 0
+|amagic = 0
+|arange = 0
+|dstab = +3
+|dslash = +3
+|dcrush = +3
+|dmagic = 0
+|drange = 0
+|str = 0
+|rstr = 0
+|mdmg = 0
+|prayer = +3
+|slot = neck
+|image = [[File:Salve amulet equipped.png|110px]]
+|altimage = [[File:Salve amulet(i) equipped female.png|110px]]
+}}
+
+==Creation==
+{{Switch infobox
+|text1 = Nightmare Zone
+|item1 = {{Recipe
+|members = Yes
+|ticks = 1
+|facilities = Dom Onion's Reward Shop
+|mat1 = Salve amulet
+|mat1cost = no
+|mat2 = Nightmare Zone points
+|mat2quantity = 800000
+|mat2pic = Minigame map icon
+|mat2cost = {{Average drop value|mob=herb box|raw=y}} / 9500
+|mat2itemnote = Value based on the expected average value of spending Nightmare Zone points on [[herb box]]es.
+|output1 = Salve amulet(i)
+|output1cost = no
+|output1subtxt = Nightmare Zone
+}}
+|text2 = Soul Wars
+|item2 = {{Recipe
+|members = Yes
+|ticks = 1
+|facilities = Soul Wars Reward Shop
+|mat1 = Salve amulet
+|mat1cost = no
+|mat2 = Zeal Tokens
+|mat2quantity = 320
+|mat2pic = Minigame map icon
+|mat2cost = {{Average drop value|mob=spoils of war|raw=y}} / 30
+|mat2itemnote = Value based on the expected average value of spending [[Soul Wars]] [[Zeal Tokens]] on [[spoils of war]].
+|output1 = Salve amulet(i)
+|output1cost = no
+|output1subtxt = Soul Wars
+}}
+|text3 = Emir's Arena
+|item3 = {{Recipe
+|members = Yes
+|ticks = 1
+|mat1 = Salve amulet
+|mat1cost = no
+|mat2 = Scroll of Imbuing
+|mat2cost = No
+|mat2itemnote = When uncharged, the [[scroll of imbuing]] is returned.
+|output1 = Salve amulet(i)
+|output1cost = no
+|output1subtxt = Emir's Arena
+}}
+}}
+
+==Effects and upgrades==
+:''For a list of monsters affected by the salve amulet, [[Undead (attribute)|see here]].''
+The salve amulet's bonuses against the undead '''do not''' stack with the [[black mask]] and [[Slayer helmet|slayer helmet's]] on-task bonuses; wearing both will only apply the bonuses of the salve amulet (i). However, the bonuses of [[Void Knight equipment]] '''does''' stack. Additionally, the amulet's effects apply to all targets when using multi-hitting melee weapons in a [[multicombat area]], such as the [[Scythe of Vitur]] and the [[special attack]] of the [[dragon 2h sword]], but not for multi-hitting magic and ranged attacks (ex. [[Chinchompa (weapon)|chinchompas]] and [[burst spells]]).
+
+The salve amulet (i) can also be enchanted, increasing all of the amulet's undead bonuses to 20%. This requires using [[Tarn's diary]], acquired as part of the [[Lair of Tarn Razorlor]] miniquest.
+
+===Comparison===
+{| class="wikitable"
+! colspan="2" rowspan="2" |Items
+! colspan="2" |Melee
+! colspan="2" |Ranged
+! colspan="2" |Magic
+|-
+!Accuracy
+!Damage
+!Accuracy
+!Damage
+!Accuracy
+!Damage
+|-
+|{{plinkt|Salve amulet}}
+|16.67%
+|16.67%
+|0%
+|0%
+|0%
+|0%
+|-
+|{{plinkt|Salve amulet (e)}}
+|20%
+|20%
+|0%
+|0%
+|0%
+|0%
+|-
+|{{plinkt|Salve amulet(i)}}
+|16.67%
+|16.67%
+|16.67%
+|16.67%
+|15%
+|15%
+|-
+|{{plinkt|Salve amulet(ei)}}
+|20%
+|20%
+|20%
+|20%
+|20%
+|20%
+|}
+
+==Products==
+{{Uses material list|Salve amulet(i)}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 11 January 2023
+|update = Secrets of the North & More!
+|change = The salve amulet's combat bonuses now apply to [[Ghost (Soul Wars)|ghosts]] within [[Soul Wars]].
+}}
+{{Subject changes
+|date = 8 August 2019
+|update = Smithing and Silver Crafting Interfaces
+|poll =
+|change = Some brown patches near the salve shard around the amulet's inventory icon have been removed.
+}}
+{{Subject changes
+|date = 7 June 2018
+|update = The Theatre of Blood
+|change = The two imbued Salve amulet versions are now protected over more items on death, reflecting the time and trouble required to re-imbue them.
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="15"
+|[[File:Salve amulet(i) (v1) detail.png|center|300x150px]]
+|[[File:Salve amulet(i) detail.png|center|300x150px]]
+|-
+|[[File:Salve amulet(i) v1.png|center]]
+|[[File:Salve amulet(i).png|center]]
+|-
+|1 May 2014 –<br/>8 August 2019
+|8 August 2019 –<br/>present
+|}
+
+==Trivia==
+* Contrary to the item's examine text, its damage and accuracy increase in melee and ranged are increased by 16.67% rather than 15%.
+
+==References==
+{{Reflist}}
+
+{{Amulets}}
+{{Attribute_affinities}}
+{{Prayer items}}
+{{Nightmare Zone}}
+{{Soul Wars}}

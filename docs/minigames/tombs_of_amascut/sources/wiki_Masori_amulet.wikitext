@@ -1,0 +1,64 @@
+{{Beta|Tombs of Amascut: Rewards Beta}}
+{{Shelved content}}
+{{Infobox Item
+|name = Masori amulet
+|image = [[File:Masori amulet.png]]
+|release = [[12 August]] [[2021]]
+|update = Tombs of Amascut: Rewards Beta
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = Yes
+|stackable = No
+|noteable = No
+|options = Wear, Drop
+|examine = An ancient amulet once worn by a powerful ranger.
+|value = 1000000
+|weight = 0.010
+|id = beta25973
+}}
+[[File:Masori amulet detail.png|left|120px]]
+The '''Masori amulet''' was an amulet requiring 80 [[Ranged]], 70 [[Hitpoints]], and 30 [[Defence]] to equip, and was part of the Masori armour set. It was only available from the [[Supplies (unrestricted world)|supplies]] table in an [[unrestricted world]] as a test armour for players. It was one of the proposed rewards for the [[Tombs of Amascut]] raid.
+
+The Masori amulet made use of the [[Low Life]] status effect, where if players had less than 40% of their health, its Ranged Attack bonus would be increased to +17, and its [[Ranged Strength]] bonus increased to +7.
+
+Wearing the Masori amulet would result in players taking damage for 15% of their health every three ticks (1.8 seconds); players would be warned that this would occur upon attempting to wear the amulet. This damage would persist until the player has less than 40% of their health, where the Low Life status will take effect.
+
+==Combat stats==
+{{Infobox Bonuses
+|astab = 0
+|aslash = 0
+|acrush = 0
+|amagic = 0
+|arange = +10
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|drange = 0
+|str = 0
+|rstr = +3
+|mdmg = 0
+|prayer = +1
+|slot = neck
+|image = [[File:Masori amulet equipped.png|130px]]
+|altimage = [[File:Masori amulet equipped female.png|120px]]
+}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 20 October 2021
+|update = Tombs of Amascut & Nex Rewards Beta
+|poll = 
+|change = The Masori amulet has received the following changes:
+* An additional requirement of level 70 Hitpoints to equip has been added.
+* The Defence level required to equip it has been increased from level 20 to level 30.
+* All Melee and Magic Attack bonuses reduced from +10 to +0.
+* Ranged Strength bonus increased from +0 to +3.
+* Prayer bonus increased from +0 to +1.
+}}
+{{Subject changes footer}}
+
+{{Beta gear}}
+{{Tombs of Amascut}}

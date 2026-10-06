@@ -1,0 +1,27 @@
+{{Infobox Combat Achievement
+|name = Nylocas, On the Rocks
+|image = [[File:Fighting Nylocas hordes.png|300px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = In the Theatre of Blood: Entry Mode, freeze any 4 Nylocas with a single Ice Barrage spell.
+|tier = Elite
+|monster = Theatre of Blood: Entry Mode
+|type = Mechanical
+|id = 390
+|leagueRegion = Morytania
+}}
+'''Nylocas, On the Rocks''' is an [[Combat Achievements/Elite|elite combat achievement]] which requires the player to freeze any 4 [[nylocas]] with a single [[Ice Barrage]] spell during a [[Theatre of Blood/Entry Mode|Theatre of Blood: Entry Mode]] raid. As the achievement is completed immediately after freezing 4 nylocas, the raid does not need to be completed.
+
+==Strategy==
+The easiest way to complete this achievement is to wait until at least halfway through the Nylocas encounter. When there are enough Nylocas stacked around a pillar, casting Ice barrage on the group will likely complete the achievement. 
+
+During Maiden, in groups of 2 or more, there is a chance that the South 4,5 and North 4,5 [[Nylocas Matomenos|Matomenos]] will all spawn. They will clump together after a few seconds and can be frozen in unison, easily completing the achievement.
+
+==Other tasks==
+{{Combat Achievements list|Theatre of Blood: Entry Mode}}
+
+==Trivia==
+* "On the rocks" is a slang term used to refer to alcohol served over ice cubes. 
+
+{{Combat Achievements}}

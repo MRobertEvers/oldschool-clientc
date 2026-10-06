@@ -1,0 +1,371 @@
+{{Update|date=28 January 2022|link=https://secure.runescape.com/m=news/gielinor-gazette---january-2022?oldschool=1|category=community}}
+[[File:Gielinor Gazette - January 2022 newspost.png|right]]
+{{Clear|right}}
+Well that’s January done – everyone is back from their holiday break, and hopefully well rested, recharged and sticking to those resolutions for 2022! In RuneScape, the year has already kicked off with a bang in the form of Nex and more recently the launch of Leagues III: Shattered Relics. But this is just the beginning. We've got a lot more to come in the months ahead – so let’s have a sneak peek!
+{{ToC}}
+==Project Status Update==
+[[File:Gielinor Gazette - January 2022 (1).png|centre|600px]]
+===Released Content===
+====Leagues III: Shattered Relics====
+For just over a week now you’ve been busy unlocking, spending and working your way through the list of tasks for Leagues III, all under the watchful eye of The Sage. To keep you on track, this week's [https://secure.runescape.com/m=news/leagues-iii-changes?oldschool=1 game update] included a bunch of fixes, tweaks and changes, including reducing the prices of the skills and bosses you can buy with Sage's Renown! Keep up to date with all the new adjustments by checking out yesterday's newspost.
+
+[[File:Gielinor Gazette - January 2022 (2).png|centre|600px]]
+
+====Nex====
+Honestly, we've been a bit blown away by how many of you are willing to take on The Fifth General in all her monstrous might! Now, with Leagues III up and running there's no better time to give her a go, so why not head down to the God Wars Dungeon and show her what you’re made of? And of course, we'll be keeping an eye on how our terrifying Nihil is doing – your feedback has been invaluable so far and we'd love to hear any further ideas you have for her.
+
+====Group Ironman====
+We recently polled plans for the future of Group Ironman, and we're happy to announce that all our suggestions passed! You can now look forward to shared storage improvements, using Player-Owned Houses when the owner isn't home (and even redirecting the House Teleport to group members’ houses) and an expanded list of tradeable items. Plus, for you Hardcores, the Emergency Teleport Shards will provide an exit out of areas that are newly dangerous for you lot, but which don't already possess a teleportation method. When the going gets tough, the tough get going, eh?
+
+Stay tuned for more information soon!
+
+====New Client Features====
+First off, huge thanks to everyone who participated in the Android Beta at the end of last year. We’ve been addressing your feedback and bashing those bugs, all in preparation for an Open Beta in the near future.
+
+Once that happens, the different versions of the client will become something we see as ‘always on’, and any new features we release will be made available across all platforms.
+
+Right now we’re wrapping up the Mobile changes and gearing up for the next batch of features – this time shifting our focus to Clue Scrolls!
+
+===Upcoming Content===
+====Land of the Goblins====
+[[File:Gielinor Gazette - January 2022 (3).jpg|centre|600px]]
+
+
+Land of the Goblins, the penultimate quest in the Dorgeshuun questline, is almost ready to go! You’ll be able to experience Zanik’s latest adventure from February 9th. More details can be found [https://secure.runescape.com/m=news/tombs-of-amascut-and-more-quests?oldschool=1 here].
+
+[[File:Gielinor Gazette - January 2022 (4).png|centre|600px]]
+
+
+As an extra teaser take a look at one of the new tracks featured with our newest quest: Catacombs and Tombs.
+
+{{Listen
+|title = Catacombs and Tombs
+|align = left
+|filename = Gielinor Gazette - January 2022 (5).ogg
+}}
+{{clear}}
+====Guardians of the Rift====
+Formerly known as Guardians of Gielinor, this past ideation pitch is finally coming to fruition – a brand new minigame to train Runecraft, scheduled for March! It’s a fresh method for building up that infamously slow skill, which should offer better rewards for players who like making loads of quick decisions.
+
+
+It also features a new involving wizard, portals, fearsome Abyssal Creatures and of course, Runes, glorious Runes!
+
+
+Find out all the details [https://secure.runescape.com/m=news/guardians-of-the-rift?oldschool=1 here].
+
+[[File:Gielinor Gazette - January 2022 (6).png|centre|600px]]
+
+====Beneath Cursed Sands====
+Looking ahead to spring, Beneath Cursed Sands is the next quest in the Desert storyline, and it’s due to arrive this April. Completion of this quest will be a requirement to access the Tombs of Amascut Raid coming later in the year, so this is one to keep an eye on.
+
+Development on the quest is well underway, and today we’re excited to share our first in-game images
+
+<gallery mode="slideshow" heights="375" style="text-align:center">
+Gielinor Gazette - January 2022 (7).png|''Beneath Cursed Sands - Concept Art #1''
+Gielinor Gazette - January 2022 (8).png|''Beneath Cursed Sands - Concept Art #2''
+Gielinor Gazette - January 2022 (9).png|''Beneath Cursed Sands - Concept Art #3''
+Gielinor Gazette - January 2022 (10).png|''Where could this lead?''
+Gielinor Gazette - January 2022 (11).png|''Maisa's Campsite.''
+Gielinor Gazette - January 2022 (12).png|''Maisa's Model.''
+Gielinor Gazette - January 2022 (13).png|''Maisa in game.''
+</gallery><div class="center">'''''Click on each image to enlarge them.'''''</div>
+
+[[File:Gielinor Gazette - January 2022 (14).png|centre|frame|''Maisa's Chathead.'']]
+
+
+We'd love to hear your feedback on the above images. In particular, we're keen to get your thoughts on the new model and chathead for Maisa as we know we haven't always got these kinds of changes right. On that note, you might be wondering why we're even updating Maisa at all. We've chosen to do this as Maisa's current model from the Contact! quest is not very fitting in multiple ways. It's inconsistent with the tone of the storyline, Maisa's backstory and the thematics of the areas she's found in.
+
+====Tombs of Amascut====
+Old School’s third raid is coming later this year, and the team are hard at work on deadly but exciting new challenges for you to face! But don’t worry, there’ll be lots of lovely rewards for your troubles. We’re rustling up a revised rewards blog, and we’ll be sharing that with you very soon, so keep ‘em peeled.
+
+====Wilderness Changes====
+We know some of you have been waiting patiently for the next changes to the Wilderness and – hooray! - we've got a couple of things just around the corner for you.
+
+The Revenant Demi-Boss will make its debut in next week's update, giving you something extra to get on with inside the Caves. This scary creature will appear in a random location and can be attacked by multiple players at once.
+
+Not only will you score some sweet loot, but the players who deal the most damage will bag themselves a buff that will help them with the other inhabitants of the Revenant Caves - a 15% increase to damage and accuracy against Revenants for 30 minutes! Hopping worlds will decrease the timer by one minute. In addition, only players wearing the Amulet of Avarice can receive the buff, and if you kill a player with the it, it will be transferred to you, unless you already have it activated. To be 100% clear, you also need an Amulet of Avarice equipped to receive the buff via PKing.
+
+We’ll also be adding Abyssal Demons, Dust Devils, Jellies and Nechryaels for Wilderness Slayer Tasks, reductions in the number of kills required for said tasks, and the chance to hit a new loot table when tackling creatures in the cave. Happy slaying!
+
+====Deadman Re-Run====
+[https://secure.runescape.com/m=news/deadman-reborn-finals-re-run?oldschool=1 Last time] we updated you on the Deadman: Reborn re-run, we were aiming for a January Beta, with the full re-run to follow shortly after.
+
+Work on our anti-DDoS protection has been impacted due to the recent vulnerabilities with Java and exploits with Log4j. The team had to be moved to prioritise this work and ensure our players remained safe.
+
+Working on the solution for anti-DDoS protection will be resumed as a priority and we hope to share more info with you soon.
+
+We're committed to re-running the event, but as we mentioned previously whilst we're confident in our solution, there is still a chance that unexpected problems will crop up - and of course, they'll need fixing before we can officially re-run the finals.
+
+We appreciate that you've all been waiting patiently for some time already, but we feel it's vital for you to have confidence in our ability to deliver a smooth event, free from issues before we fully commit to a re-run.
+
+====Poll 76====
+We know it's been a while since our last big poll, but we're nearly ready to share the next one with you! This time will be talking about Clues, Pets, Combat Achievements, Clans and lots more. We'll be sharing more details in an upcoming newspost.
+
+====Mobile Client Beta====
+We touched on this earlier, but you can expect an Open Beta for the new features on mobile very soon. Again, we’d like to thank everyone who participated in the Android Beta – your feedback has been invaluable as we work to bring these features to everyone!
+
+We’ll be able to share more about the Open Beta next month.
+
+Don’t worry iOS users, we haven’t forgotten about you! Although we’ve had some delays, we hope to have a similar process to the Android Beta up and running for you shortly.
+
+Speaking of Apple products, Mac users will be excited to hear that we’ve been working on bringing Old School RuneScape to you, too. Expect more news about that soon!
+
+==Ideation Update==
+''by Mod Nin & Tide''
+
+As revealed in our last Gazette, our ideation process is taking on an exciting new form this year. However, we still have plenty of ideas from last year to talk about, so here's Mods Nin and Tide with some updates on a few of their ideas:
+
+===Marsh Island===
+Ahoy, Me Hearties! I have some interesting booty to share with you – an ideation pitch that would branch off the pirate storyline to explore the dark past of one of the brothers!
+
+Why the pirate storyline? It’s unfinished business! Also, I wanted to do something a bit different and expand the world, with the addition of Marsh Island. It’s home to the followers of Saradomin, but an ancient evil has started to rear its head – the Necromancers, followers of an Ancient god.
+
+Your task on the island would be to help the remaining followers of Saradomin remove the Necromancers and restore the town. Along the way, you’ll uncover a few secrets, and at the end of the quest you’ll get a new weapon with a twist of its own.
+
+===Canoe Expansion===
+Because are other rivers, not just the fancy-schmancy River Lum! The River Dougne would be the next river to get canoes, Gielinor’s coolest mode of transport. The stations would be as follows:
+* Castle Wars
+* Tree Gnome Village
+* Ardougne
+* Just south of Baxtorian Falls, south of the house
+
+This quality of life change would allow you take a scenic route through the west side of the continent, making travelling that little bit easier.
+
+The weapon has three slots for Charms. You would gain one from completing the quest and the rest by exploring and completing tasks on the island. These charms would have a range of benefits, from helping out with your island activities to combat buffs versus the undead!
+
+===The Corrupted Rat===
+Our story begins on a normal day in Varrock Castle. A guard was making his rounds when he spotted a suspicious masked figure – he ran towards them, only for them to teleport away, leaving nothing but a green stone. Thinking nothing of it, he threw the stone in a nearby drain and went about his duties.
+
+Years later, the stone’s power has leaked into the waters of Varrock Sewers and the rats there have started to mutate. One in particular is proving troublesome! King Roald has ordered his guards to put a stop to this weirdness, but it’s a bit much for them to handle. Can you help defeat the beast?
+
+The Corrupted Rat would be a free-to-play boss which can be killed for a new poison weapon.
+
+===Musical Instruments===
+The wandering bard Amadea is down on her luck, out of inspiration, and unable to fix her broken lyre. In exchange for your help, she might just give you a lesson or two – featuring a fun 100 bpm rhythm-based minigame!
+
+Once sufficiently inspired, Amadea will decide to settle down and open up a music shop. Should you find any musical instruments on your journey – a drum like object in the depths of Mor Ul Rek, perhaps, or panpipes crafted by the fairies of Zanaris – she’ll help you add them to your collection!
+
+Equipping an instrument lets you play music that can be heard by those around you – and it’s not limited to the usual 100-bpm rate! You’ll be able to play, and be heard, in real time using your computer’s keyboard. Yes, we can do that! Imagine busking at the Grand Exchange, playing for a dance in your Clan Hall, or performing a dirge in the Lumbridge Castle Grounds to really rub it in when someone dies.
+
+This was originally ideated as a fun new social activity that both members and free-to-play players could enjoy. You might have seen the Bard skill pitch from [https://www.reddit.com/r/2007scape/comments/rzwl1r/a_bards_dream_new_skill_concept/ GentleTractor, Caveman Only, and ScreteMonge], which takes the idea of playing music to the next level. What do you think?
+
+==Postbag from the Hedge==
+New Year, New Postbag! This year my resolution is to deliver even more of your lovely letters, in rain, heat, snow, or gloom of night! It shouldn't be too hard, since most of Gielinor doesn't have weather. Ha ha!
+
+Anyway, let's take a look at this month's post!
+
+
+To [[Messenger (The Frozen Door)|the Messenger]]
+{{Letter|To the extremely persistent Messenger,
+
+I know you're scared of your employer, but trying to pass that letter to me at the bottom of the ocean seems a bit much. Have you thought about a less hazardous use of your talents? Maybe delivering Gnomish cuisine?
+
+Signed, a slightly concerned adventurer}}
+
+What on Gielinor is this?!
+
+I was just minding my own business and this blooming talking skull popped out of nowhere and handed me a letter! What if I'd been in the bath or something?
+
+Hmm.
+
+In hindsight I may have been a bit overzealous. But you have to understand, the sender of that letter was not to be trifled with! I'm just glad the whole ordeal is over.
+
+I'm not sure what I'll do now, although your friend Pete here says the GPDT are always looking for talented delivery people. Maybe I'll give that a go!
+
+Thanks for the tip,
+
+The Messenger
+
+----
+To [[Nechryael|a Nechryael]]
+{{Letter|To a Nechryael
+
+Hey Mr Nechryael, I gotta question for you. Are you in any way related to the Mahjarrat? I've met a couple Mahjarrat in some ancient ruins in the desert and they kinda look similar to you (although I must say you look much more muscular than they did, do you work out?).
+
+Sincerely,
+
+TheWiseLoner}}
+
+Dear TheWiseLoner,
+
+What are you on about? I met a couple of Mahjarrat in the bad old days and they looked absolutely nothing like me! You ought to get your eyes checked. Thanks for the compliment though - we exercise when we can, but it's a bit difficult in this old place. We tried organising a fun run once, but it upset the crawling hands.
+
+Until next time,
+
+Mr Nechryael
+
+----
+To [[My Arm]]
+{{Letter|To My Arm,
+
+How are your farming adventures going? It only felt like yesterday when I was watching you pick your very first Gout Tuber.
+
+Maybe we can go on another adventure together sometime soon?
+
+Sincerely, your strangely-named human friend}}
+
+Hey Friend!
+
+Goutweed growin' very nicely here in Weiss! Lots of tasty tubers. An' that's not only thin' growin' around here! Snowflake an' My Arm 'ave been plantin' some seeds of our own, an' we're proud to announce dat a new friend is on der way! My Arm can already hear the STOMP STOMP of little feet... even though we didn't use no seed dibber!
+
+Hope you come and meet der little one soon. Maybe we name dem after you!
+
+All der best
+
+Your friend
+
+My Arm (an' Snowflake)
+
+----
+To [[Pontak]]
+{{Letter|Dear Pontak,
+
+Fifteen years ago, on the 29th of Septober in the 168th Year of the Fifth Age, I wrote you to give an update in my quest for Zamorak's teddy bear, Saradomin's wig, a left-handed chisel, cheese from the moon, and a dodo egg.
+
+First, I'd like to apologize for my language; I was but a mere child at the time. In the many years passed, I've since completed the trials once over again, and even slain the mighty Jormungand, and am now known as Thorkar Dräpare. It's safe to say I have grown substantially over these years. To that end, I'd like to make amends and extend my hand for a truce. What say you?
+
+Secondly, I wanted to give you an update. I've since located the Mage Gower's skull; you'll be interested to know that he actually still possesses it. I pen this note from inside my sleeping bag, which I use often. I had Guthix's climbing boots, but sold them many years ago after their street price skyrocketed. And, recently, I traveled to Zanaris and was able to craft a delicious cheese from the many cows that inhabit that realm. So, I have now retrieved that item as well. However, despite my many efforts, I have yet to locate the dodo egg. However, rest assured: my quest continues to this day.
+
+I hope this finds you well, and I do sincerely wish you all the best.
+
+aragornjack1}}
+
+Ha! Hello, Thorkar, formerly known as Thorlor.
+
+I remember your letter well! It was this one, wasn't it?
+
+{{Letter|Dear Pontak,
+
+Why do you hate all outlanders? You are mean. And by the way, I bought Zamoraks Teddy Bear, but i got rid of it. It tried to attack me. You wouldnt want one of those. And I have the left handed chisel. All regular chisels are left handed. And Saradomin's wig belongs to Veleornia. She's actually a boy who is bald. She went to the makeover mage, and he forgot to give her hair. Oh and one more thing, Im level 57 and im soooo much stronger than you. I only need to kill Koschei the Deathless and then Ill have seven votes and Brundt will let me in. hahahahah u are a noob.
+
+Hope you have a bad life,
+
+aragornjack1}}
+
+Good to see your spelling's improved, at least. We Fremenniks learn how to use apostrophes before we can talk! So you've completed multiple trials, have you? Slain the Jormungand? Humph. Still not so impressive by Fremennik standards, but I suppose I can forgive you your earlier outburst. I remember how I reacted when Old Chief Svinulf told me I had to build a longboat with nothing but a glass hammer and a box of assorted knots! It took me at least a week. Good old Svinulf - now there was a man who knew the real meaning of the word 'trial'!
+
+Maybe I'm out of touch? No, this new generation is just soft. Pah! Even Askeladden's Pet Rock could fetch me a measly Dodo Egg.
+
+Still, I will say you've made good progress with the rest of the list. In another 15 years, maybe you'll finish it off - and my left toenail will be chieftain!
+
+Keep looking,
+
+Pontak
+
+----
+To the [[Bank|Bank of Gielinor]]
+{{Letter|To the representative of the Gielinor Banking system,
+
+What was your reaction the first time you saw someone try to deposit the mythical Godsword? Are there items that the wonderful Banking staff prefer or resent? My second question is about your new branch being opened in the near future. What was the process like acquiring the land rights in the newly discovered Ancient wing of the God Wars Dungeon? I’ve been enormously impressed by your commitment to customer service (like your work with the chest on Ironman Isle on Fossil Island), and I’m very impressed that you’re taking this to the next level. Will you be getting KC for your personnel every time that items need to be brought down?
+
+Gratefully yours, The Adventurer}}
+
+Good day, Hablapata!
+
+Frankly, being handed a Godsword was quite a shock! Especially since there were three more in the queue. It's not every day you have to stick an item thought to be the stuff of myth and legend in the vault - well, actually, it is. It's every day. Hardly anything surprises us Bankers, although we're never thrilled to have to handle 28 Buckets of Compost. Can't complain, though. At least it's in a bucket!
+
+Obviously I can't share the full details, but it's all thanks to a mysterious tip-off. A messenger just showed up one day and said we might like to expand to the Ancient Prison. We didn't even know such a place existed! But as you've observed, we're always looking to improve customer service, so we made the necessary preparations and hey presto - there's your Bank.
+
+Unfortunately we won't be getting KC for trekking down there. We'd hardly be the most popular Bank in Gielinor if our staff went around murdering people!
+
+Thank you for your enquiry,
+
+
+B. Anker, Official Representative of the Bank of Gielinor
+
+----
+To [[Skotizo]]
+{{Letter|To Skotizo,
+
+Your feet so big, but flipper so small, why?
+
+Sincerely, a flipper enthusiast}}
+
+To the doomed Wasting EXP:
+
+These Dark Claws of mine are indeed awe-inspiring. I can only assume that whichever lowly wretch thou hire to turn them into 'flippers' has to shrink them to fit thine puny human tootsies. Embarrassing!
+
+Yours mockingly,
+
+Skotizo
+
+----
+To [[Konar quo Maten]]
+{{Letter|To Konar quo Maten,
+
+I found a Brimstone Key and it says it's for your heart. Can the next task you give me be a nice walk in the park with you?}}
+
+Bringer of Death,
+
+Unfortunately a walk in the park (even a nice one) would not serve the needs of balance. Perhaps you'd like to slay some Steel Dragons in the Brimhaven Dungeon instead?
+
+Yours,
+
+Konar quo Maten
+
+x
+
+----
+To [[Observatory professor|Mambo-duna-roona]] and [[Observatory assistant|Patrick]]
+{{Letter|Dear Mambo-duna-roona and Patrick,
+
+I recently built a [[Large Orrery]] in my home, and after studying it I am perplexed. It shows our home planet Gielinor, alongside our moon Zanaris, in orbit around a star. However, I also noticed a second planet with two moons also orbiting our star.
+
+What is this planet? Is it inhabited? Are its moons similarly inhabited by magical fairies like Zanaris? I'd love to know.
+
+With great inquisitiveness,
+
+Worldstream}}
+
+Dear Worldstream,
+
+How wonderful to see an adventurer like yourself with such a passionate interest in astronomy! That Orrery looks to be based on our model here at the Observatory.
+
+Unfortunately, Scorpius' notes on the project were lost in one of the many goblin raids, although we can guess that the model does indeed show our own planet, and one other. However, I must stress that this is all conjecture. I myself have not observed these other celestial bodies, and judging by this model they'd be completely uninhabitable. Take the large planet in the middle, for example; if Scorpius is to be believed, half of it would never even see daylight! What sort of creatures could survive in such conditions?
+
+Perhaps these fairies of yours could manage it? Ha - fairies on the moon. What a charming idea. Take my advice, young astronomer - lay off Patrick's wine!
+
+Yours,
+
+Professor Groningen
+
+----
+To [[Bob (cat)|Bob the Cat]]
+{{Letter|Can you please tell Bob the Cat I said pspspspsps?}}
+
+''Oh, Freak_Mage... I'm sure he knows.''
+
+
+That's all from Postie Pete for now! There will be a new Reddit thread soon where you can submit letters for the next Gazette, so keep your eyes out for that!
+
+==Player Creation Showcase==
+We're back with another batch of your biggest and best pieces of creative work! Every individual featured in the Gazette will receive three months of free membership as thanks for their superb efforts, so keep an eye on the linked social accounts inbox for more details on how to grab your reward!
+
+If you are looking to be featured in the next Gazette then make sure to submit your creations through our [https://osrs.game/Player-Showcase-Gallery-Form Player Showcase Gallery Form] and state what Gazette you would like it to feature in. We look forward to seeing more of your incredible talents!
+
+{|class=wikitable style="text-align:center;margin: auto;"
+|[[File:Gielinor Gazette - January 2022 (15).png|195x210px|centre]]
+|[[File:Gielinor Gazette - January 2022 (16).jpg|195x210px|centre]]
+|[[File:Gielinor Gazette - January 2022 (17).jpg|195x210px|centre]]
+|-
+|[https://twitter.com/nilky__ @Nilky__]
+|[https://www.instagram.com/peachhoneyart/ @PeachyHoneyArt]
+|[https://www.reddit.com/r/2007scape/comments/s8n941/a_mini_i_got_3d_printed/ u/Graxnar]
+|-
+|[[File:Gielinor Gazette - January 2022 (18).jpg|195x210px|centre]]
+|[[File:Gielinor Gazette - January 2022 (19).jpg|195x210px|centre]]
+|[[File:Gielinor Gazette - January 2022 (20).png|195x210px|centre]]
+|-
+|[https://www.reddit.com/r/2007scape/comments/s7vyn8/worldmap_acrylic_painting/ u/Frau]
+|[https://www.reddit.com/r/2007scape/comments/s4ihfw/cut_the_cake_get_a_fire_cape/ u/Gamequicc]
+|[https://www.reddit.com/r/2007scape/comments/s001p5/robes_of_darkness/ u/ArcanMakes]
+|}
+
+----
+
+That's everything for the latest edition of the Gielinor Gazette. We'd love to hear your feedback on anything featured and as with everything else, if you’ve got any ideas about the sorts of things you’d like to see in upcoming editions of the Gielinor Gazette, then please do let us know via our [http://services.runescape.com/m=forum/forums official forums], on the [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums] or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel.
+
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Brow, Bruno, Con, Curse, Daizong, Deagle, Dibber, Ditto, Dylan, Ed, Elena, Errol, Fed, Gecko, Grub, Halo, Havik, Hornet, Husky, Jalo, John C, Kandosii, Katies, Kamon, Kieren, Kirby, KT, Kurotou, Lenny, Light, Lottie, Mack, Matheus, Maylea, Markos, Meat, Morty, Nasty, Nin, Nylu, Oasis, Peppers, Regent, Redfield, Roq, Ry, Sarnie, Sigma, Skylark, Sova, Squid, Steve W, Tide, Torrance, Veda, Vegard, West, Wolfy & Zuko'''
+
+''The Old School Team''

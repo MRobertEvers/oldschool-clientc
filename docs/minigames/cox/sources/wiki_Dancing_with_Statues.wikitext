@@ -1,0 +1,23 @@
+{{Infobox Combat Achievement
+|name = Dancing with Statues
+|image = [[File:Chambers of Xeric - Guardian statue.png|300px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Receive kill-credit for a Stone Guardian without taking damage from falling rocks.
+|tier = Elite
+|monster = Chambers of Xeric
+|type = Perfection
+|id = 311
+|leagueRegion = Kourend
+}}
+'''Dancing with Statues''' is an [[Combat Achievements/Elite|elite combat achievement]] which requires the player to receive kill credit for one of the [[Guardian (Chambers of Xeric)|stone guardians]] without taking damage from their falling rocks attack.
+
+Use a flinch method to reduce the chances of the guardians attacking. The falling rock attack has a 3x3 AoE centered on the tile it would fall on, so run two spaces away to avoid getting hit.
+
+While regular accounts only need to do more than 50% of the damage to receive kill credit, Ironmen accounts need to do 100% of the damage for the achievement to count.
+
+==Other tasks==
+{{Combat Achievements list|Chambers of Xeric}}
+
+{{Combat Achievements}}

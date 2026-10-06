@@ -7,7 +7,8 @@
 -- source. Ice arrows, the boots, the lever and the key are all gathered.
 --
 -- RE-DRIVE b63 (door rule, docs/QUEST_ORCHESTRATOR.md 2026-10-03). goto_tile is used only for plain travel
--- between open tiles: the first placement (Lumbridge -> the street outside the Flying Horse Inn), the overland
+-- between open tiles: the first placement (Lumbridge -> the open ground south of the members' gate membergater
+-- 2933,3320, crossed by t.player.cross_gate; b68), the hop on to the street outside the Flying Horse Inn, the overland
 -- hop from Ardougne to the temple's entrance ladder, and Varrock (after a real Varrock Teleport) -> the street
 -- outside Lucien's house. Everything else is walked and every obstacle pressed, both ways:
 --   * the Flying Horse Inn door (poshdoor 2576,3320) in and out;
@@ -114,7 +115,17 @@ return {
         end
 
         -- ---------------------------------------------------------------- talkToLucien
-        -- First placement: the open street east of the Flying Horse Inn's south door.
+        -- First placement (owner ruling 2026-10-05: the first goto obeys the door rule): the only walk from the
+        -- Lumbridge fixture to Ardougne goes through the members' gate membergater 2933,3320 (reach.py 3206,3233 ->
+        -- 2578,3320: UNREACHABLE at 30/80/160, NEEDS-DOOR via membergater@2933,3320 at 250). So the run lands on the
+        -- open ground SOUTH of that gate (reach.py 3206,3233 -> 2933,3318: REACH closed-doors len=388 at 30/80/160),
+        -- crosses the walk-through gate by its verb (gates.rs2 [label,member_fencegate_try]), graded on the tiles,
+        -- then travels overland to the open street east of the Flying Horse Inn's south door (reach.py 2933,3322 ->
+        -- 2578,3320: REACH closed-doors len=797 at margin 250: the walk only fits the wider flood box, no door on it).
+        t.exec("goto-memberGate", t.player.goto_tile, 2933, 3318, 0)
+        t.exec("talkToLucien.memberGate", t.player.cross_gate, { loc = "membergater", at = { 2933, 3320, 0 },
+            near = { 2933, 3318 }, far_ok = function(tile) return tile.z >= 3320 and math.abs(tile.x - 2933) <= 2 end,
+            far_desc = "north of the members' gate, z >= 3320", far = { 2933, 3322 } })
         t.exec("goto-talkToLucien", t.player.goto_tile, 2578, 3320, 0)
         t.exec("talkToLucien.innDoorIn", t.player.pass_door, { closed = "poshdoor", open = "poshdooropen",
             at = { 2576, 3320, 0 }, near = { 2576, 3320 }, far = { 2575, 3320 } })
@@ -339,7 +350,7 @@ return {
         -- BEFORE the door press that brings him in, so it is lit before his first cast; prayer does not
         -- regenerate, so the points are read first (37 staged; the fight drains about 1 point per 5 ticks).
         do
-            local points_result, points_detail, points = t.prayer.points()
+            local points_result, points, points_detail = t.prayer.points()
             t.check("fightLes.prayerPoints", points_result == "ok" and points and points.level >= 25, tostring(points_detail))
         end
         t.exec("fightLes.protectFromMagic", t.prayer.set, "protectfrommagic", true)

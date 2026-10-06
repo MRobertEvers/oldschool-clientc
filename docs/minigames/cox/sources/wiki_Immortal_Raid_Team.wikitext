@@ -1,0 +1,19 @@
+{{Infobox Combat Achievement
+|name = Immortal Raid Team
+|image = [[File:Chambers of Xeric - keystone room.png|300px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Complete a Chambers of Xeric: Challenge mode raid without anyone dying.
+|tier = Master
+|monster = Chambers of Xeric: Challenge Mode
+|type = Perfection
+|id = 290
+|leagueRegion = Kourend
+}}
+'''Immortal Raid Team''' is a [[Combat Achievements/Master|master combat achievement]] which requires the player to complete a [[Chambers of Xeric/Challenge Mode|Chambers of Xeric: Challenge Mode]] raid without anyone dying.
+
+==Other tasks==
+{{Combat Achievements list|Chambers of Xeric: Challenge Mode}}
+
+{{Combat Achievements}}

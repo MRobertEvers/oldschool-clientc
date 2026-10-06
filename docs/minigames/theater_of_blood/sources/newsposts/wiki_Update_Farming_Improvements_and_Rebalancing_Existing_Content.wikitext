@@ -1,0 +1,132 @@
+{{Update|date=16 May 2019|link=https://secure.runescape.com/m=news/farming-improvements-and-rebalancing-existing-content?oldschool=1|category=game}}
+[[File:Farming Improvements and Rebalancing Existing Content newspost.png|right]]
+{{clear}}
+
+<center>''This week sees the release of changes to the Seed Vault, other various Farming improvements, and rebalancing of existing content. ''</center>
+
+{{Horizontal Line}}
+
+{{Headline|22|Seed Vault Changes}}
+
+Since the release of the [https://secure.runescape.com/m=news/the-seed-vault?oldschool=1 Seed Vault], we've taken on your suggestions regarding functionality improvements and made the following changes: 
+
+'''Saplings'''
+
+[[File:Farming Improvements and Rebalancing Existing Content (1).png|center|400px]]
+
+Previously, only seeds were able to be placed in the Seed Vault. Following player feedback, fully grown saplings may now be stored within the Seed Vault. 
+
+'''Searching'''
+
+[[File:Farming Improvements and Rebalancing Existing Content (2).png|center|400px]]
+
+[[File:Farming Improvements and Rebalancing Existing Content (3).png|center|400px]]
+
+You may now search for seeds and saplings with a search functionality in the Seed Vault. Like the search functionality found in the bank interface, the Seed Vault interface will automatically update as you type in the search box. 
+
+
+'''Placeholders'''
+
+[[File:Farming Improvements and Rebalancing Existing Content (4).png|center|400px]]
+
+The Seed Vault now contains placeholders. Removing all seeds or saplings from the Seed Vault will now result in leaving a placeholder for that item. You can remove one or all placeholders by right clicking a placeholder. If you remove a placeholder which is in the favourites slot, you will also be removing that favourite. 
+
+'''Rescaling'''
+In order to help with the usability of the interface, the Seed Vault interface now resizes to match the height of the game screen based on your display settings. 
+
+{{Horizontal Line}}
+
+{{Headline|22|Farming Improvements}}
+
+Since the release of the [https://secure.runescape.com/m=news/poll-blog-revisiting-older-content?oldschool=1 Poll Blog: Revisiting Older Content], we've made some improvements to Farming. You can find the changes below: 
+
+'''Update the Nature Amulet to show growth state'''
+
+[[File:Farming Improvements and Rebalancing Existing Content (5).png|center|400px]]
+
+The Amulet of Nature will now provide information on which state a patch is at when checking the status of the patch it is bound to. You can find this information by selecting the first option on the Amulet of Nature. The information will appear over your chatbox. States will be given in a number format such as "1/5". 
+
+'''Update the 'Inspect' on Farming patches to list growth state'''
+
+[[File:Farming Improvements and Rebalancing Existing Content (6).png|center|400px]]
+
+Likewise, if a farming patch has something growing in it, you can now see which stage of the process the patch is in when you inspect it. You can find this information by inspecting a farming patch. 
+
+'''Increase the number of tools the Tool Leprechaun can hold'''
+
+[[File:Farming Improvements and Rebalancing Existing Content (7).png|center|400px]]
+
+The Tool Leprechauns across the game can now store 100 of your rakes, dibbers, spades, gardening trowels and secateurs. Please note that they can only store one stack of secateurs; while you can store up to 100 standard secateurs or enchanted secateurs, the leprechauns won't let you mix them up together in the store.
+As for other items which can be stored in large quantities, the leprechauns now have a Banknote option for withdrawing the items in banknote form, for items that can be noted. Watering cans weren't affected by this update, since the leprechauns couldn't handle the different quantities of water that they all might contain. 
+
+{{Horizontal Line}}
+
+{{Headline|22|Rebalancing}}
+
+In a previous [https://secure.runescape.com/m=news/automated-plank-make-and-in-game-clock?oldschool=1 post] we explained that we would like to re-balance certain pieces of content following the trading change next to the Ourania altar. Below are some rebalancing changes that we have made:
+
+'''Arceuus Library'''
+
+[[File:Farming Improvements and Rebalancing Existing Content (8).png|center|100px]]
+
+The Arceuus Library was never intended to be an efficient method for training Runecrafting. We've increasingly seen players take books and bank them to be used at a later time for XP rates that are faster than training the skill as intended. We have now changed this so that you are no longer able to store the books found within the Arceuus Library within the bank or send them to your bank via magic imp box. As the books can no longer be banked, copies that you have already banked will be removed as the update comes out. However, as some of the books have legitimate uses, we'll leave one copy of each banked book rather than taking them all.
+
+'''Underwater Activity'''
+
+[[File:Farming Improvements and Rebalancing Existing Content (9).png|center|100px]]
+
+Fossil Island was polled alongside the following [https://secure.runescape.com/m=news/dev-blog-fossil-island?oldschool=1 development blog] that included various XP rates for underwater activity. The XP currently gained via the Fossil Island underwater activity was slightly higher than the polled rates after the January 2018 Fossil Island Improvement Updates. As such, the Agility and Thieving XP awarded in the Fossil Island underwater activity has been reduced by 10%.
+
+'''Farming Contract Rewards'''
+
+[[File:Farming Improvements and Rebalancing Existing Content (10).png|center|100px]]
+
+When Farming Contracts were first designed, they rewarded you with seeds based on whether you chose an Easy, Medium, or Hard contract. It did not take into account how long the contract would take to complete. This meant you could do an Easy contract that took 8 hours to grow but be rewarded with less than doing a Hard contract that took only 80 minutes to complete. As part of the discussion in January, Farming contract rewards have now been rebalanced to scale more consistently with the effort required to fulfil the contracts. This information can be seen from the [https://twitter.com/JagexTide/status/1125693373296332801 tweet] made by @JagexTide. The changes below were made following your feedback and the initial tweet from Mod Tide:
+
+*Curry Tree Seed to Tier 3 and Tier 4 rather than Tier 4 and Tier 5
+*Irit Seed weighting reduced from 4 to 3
+*Limpwurt Seed weighting increased from 2 to 3
+
+{{Horizontal Line}}
+
+{{Headline|22|A Message From Mat K}}
+
+The Old School team are sad to announce the departure of Mod Mat K. Mat, you've been with Old School RuneScape from day one, and we cannot thank you enough for your hard work. We're going to miss you, we're going to miss the data streams, and even the dad jokes. Here's a few words from Mat, to you - the community.
+
+[[File:Farming Improvements and Rebalancing Existing Content (11).png|center|200px]]
+
+''"Nearly 14 years ago I arrived at Jagex as a fresh faced new recruit full of optimism and excitement. Today, I am sorry to say that I have left Jagex to become a fresh faced new recruit elsewhere.
+
+Over the last 14 years I have seen huge changes to RuneScape, from recruitment of thousands of PMods, release of new skills, EOC and the launch of Old School RuneScape. I have overseen the remarkable phenomenon which has become Old School RuneScape, listening to and understanding you has been the key to its success and this little game has shown the entire industry just how important the community is. Old School RuneScape has been a labour of love for me and I hope that I have led it in a way which leaves it in the state of the most player focused game on the planet.
+
+I have made many lifelong friends while working at Jagex, that's other staff, players and partners that I have worked with and I do not want to lose touch with anyone. I'll still be posting on Twitter so you can follow what I am getting up to on there and I'm sure I'll be at RuneFest.
+
+Before I joined Jagex I was a player, RuneScape has been an important part of my life for 15 years now and with all the new and exciting content on the way I am not about to stop that. I shall continue to play OSRS, and who knows you may even see me stream some of it on Twitch.
+
+From me it is not a farewell, it's I am one of you now."
+-Mat K ''
+
+{{Horizontal Line}}
+
+{{Headline|22|In Other News}}
+
+The PvP World Rota is switching over to Period B. On the east of the Atlantic, host the Standard PvP world (W25, UK) and the F2P PvP world (W71, UK). On the west of the Atlantic, host the Bounty Hunter world (W19, USA) and the High Risk PvP world (W37, USA).
+*We've teamed up with Twitch Prime once again. From this evening onwards, players whose accounts are linked with Twitch Prime will be able to get one month of free membership.
+*Mary, the Fossil Collector, has been moved to the outside of her tent on Fossil Island to improve access to the bank chest in there.
+*The supply of puffer fish underwater at Fossil Island has been increased.
+*The in-game world switcher menu now has more distinctive warning menus to alert players before moving them to the PvP and High Risk PvP worlds, to make it less likely that players will hop to those worlds by mistake.
+*The in-game clock from a couple of weeks ago has been fixed and re-released.
+*Hans will now render over rats and other players if they are on the same tile.
+*A single-way combat map tile near the Graveyard of Shadows has been made multi-way like all its adjacent tiles.
+*The Mimic's loot notification messages now apply to its 3rd Age rewards as well as to its resource loot.
+*Zulrah will no longer change phase when on zero health.
+*When the Mage Arena II bosses spawn near the moss giants around level 39 Wilderness, they now spawn slightly further from the single-way combat zone.
+*Lady Verzik should now correctly re-target non-caged players within the Theatre of Blood.
+*The damage dealt from Lady Verzik's web attacks should now be dealt 1 cycle earlier and should no longer deal damage once she's been defeated.
+*A bug that caused Xarpus to deal higher damage than intended in small team sizes has been resolved. The amount that exhumed buff when consumed by Xarpus has been tweaked once again.
+
+{{Horizontal Line}}
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,574,66100897 official forums], the community-led [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the '''#gameupdate''' channel. For reference on the above content, check out the official [[Wiki]].
+
+'''''Mods Acorn, Archie, Ash, Bruno, Curse, Ed, Gambit, Ghost, Gee, Husky, John C, Kieren, Lenny, Lottie, Maz, Nasty, Roq, Ry, Sween, Tide, Weath, West & Wolf'''''<br/>''The Old School Team''

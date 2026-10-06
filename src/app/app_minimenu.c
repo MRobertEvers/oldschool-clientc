@@ -388,7 +388,7 @@ app_minimenu_entries_publish(
     struct UIMinimenu const* hover_menu)
 {
     struct RS_ClientOpState* clientop = &app->host.clientop;
-    struct UIMinimenu const* popup = &app->interact.minimenu;
+    struct UIMinimenu const* popup = app->frame_view->minimenu;
     struct UIMinimenu const* source = popup->visible ? popup : hover_menu;
 
     clientop->menu_entry_count = 0;
@@ -503,7 +503,7 @@ app_hover_text_update(
      * no pointer on the canvas at all -- after a touch tap the position is
      * still there but nothing is hovering it, and a line naming what a finger
      * touched a minute ago is the same ghost as an unmoving cursor. */
-    if( app->interact.minimenu.visible || app->pointer_absent ||
+    if( app->frame_view->minimenu->visible || app->frame_view->pointer_absent ||
         app_chrome_wants_pointer(app, mouse_x, mouse_y) || mouse_x < 0 || mouse_y < 0 ||
         mouse_x >= UITREE_LAYOUT_ROOT_W || mouse_y >= UITREE_LAYOUT_ROOT_H )
     {
@@ -533,7 +533,7 @@ app_hover_text_update(
                 .world = app->world,
                 /* Same rule the click paths use: world rows only when the
                  * pointer is over bare viewport. */
-                .world_pickset = click_in_world ? &app->world_pickset : NULL,
+                .world_pickset = click_in_world ? &app->frame_view->world_pickset : NULL,
                 .click_in_world = click_in_world != 0,
                 .wevs = &app->wevs,
                 .view_world_fn = app_minimenu_view_world,
@@ -905,7 +905,7 @@ app_minimenu_open(
         .npc_attack_option = app->npc_attack_option,
         .attack_option_model = app->features->attack_option_model,
         .world = app->world,
-        .world_pickset = &app->world_pickset,
+        .world_pickset = &app->frame_view->world_pickset,
         .click_in_world = click_in_world != 0,
         .wevs = &app->wevs,
         .view_world_fn = app_minimenu_view_world,
@@ -914,7 +914,7 @@ app_minimenu_open(
         .mapedit_select_active = app_mapedit_select_active(app),
         .plugin_io_down = app_plugin_io_down(app) != 0,
     };
-    struct UIMinimenu* menu = &app->interact.minimenu;
+    struct UIMinimenu* menu = app->frame_view->minimenu;
     struct UIMinimenuLayout layout;
     int content_w = 0;
     int line_box = 0;
@@ -952,15 +952,15 @@ app_minimenu_open(
                 click_x,
                 click_y,
                 click_in_world,
-                click_in_world ? app->world_pickset.count : 0,
+                click_in_world ? app->frame_view->world_pickset.count : 0,
                 app->player_attack_option,
                 app->npc_attack_option,
                 lp ? lp->combat_level : -1);
         }
         if( click_in_world )
-            for( int i = 0; i < app->world_pickset.count; i++ )
+            for( int i = 0; i < app->frame_view->world_pickset.count; i++ )
             {
-                struct World_Picked const* picked = &app->world_pickset.items[i];
+                struct World_Picked const* picked = &app->frame_view->world_pickset.items[i];
                 TORIRS_LOG(
                     "  pick[%d] type=%d element=%d tile=%d,%d,%d\n",
                     i,
@@ -1431,7 +1431,7 @@ app_run_default_ui_row(
 
     mctx.selection = app_minimenu_selection(app);
     UIMinimenu_Reset(&scratch);
-    scratch.font_id = app->interact.minimenu.font_id;
+    scratch.font_id = app->frame_view->minimenu->font_id;
     RS_Minimenu_Build(&mctx, click_x, click_y, &scratch);
     app_minimenu_stamp_node_identities(app, &scratch);
     app_plugin_menu_build(app, &scratch, 0);
@@ -1466,10 +1466,10 @@ app_run_default_ui_row(
     }
     if( default_idx >= 0 )
     {
-        struct UIMinimenu saved = app->interact.minimenu;
-        app->interact.minimenu = scratch;
+        struct UIMinimenu saved = *app->frame_view->minimenu;
+        *app->frame_view->minimenu = scratch;
         app_minimenu_use_option(app, default_idx, click_x, click_y);
-        app->interact.minimenu = saved;
+        *app->frame_view->minimenu = saved;
     }
     else
         /* Cancel-only menu on a FILLED cell, which is what clicking the armed
@@ -1850,7 +1850,7 @@ app_inv_drag_tick(
     /* Never arm while the right-click popup is open: its option rows overlap
      * the grid and the reference routes those clicks through the menu first. */
     if( !UIInvDrag_Armed(&app->inv_drag) && !pointer_consumed &&
-        !app->interact.minimenu.visible && LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) )
+        !app->frame_view->minimenu->visible && LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) )
     {
         struct UITreeObjCell cell;
         if( app_obj_cell_at(app, mx, my, &cell) )
@@ -2070,7 +2070,7 @@ app_minimenu_pick_refusal(
 void
 app_minimenu_close_if_stale(struct App* app)
 {
-    struct UIMinimenu* menu = &app->interact.minimenu;
+    struct UIMinimenu* menu = app->frame_view->minimenu;
 
     if( !menu->visible )
         return;
@@ -2091,7 +2091,7 @@ app_minimenu_run_option(
     int click_x,
     int click_y)
 {
-    struct UIMinimenu* menu = &app->interact.minimenu;
+    struct UIMinimenu* menu = app->frame_view->minimenu;
     struct UIMinimenuOption opt;
 
     if( option_index < 0 || option_index >= menu->option_count )
@@ -3257,7 +3257,7 @@ app_minimenu_use_option(
     int click_x,
     int click_y)
 {
-    struct UIMinimenu* menu = &app->interact.minimenu;
+    struct UIMinimenu* menu = app->frame_view->minimenu;
     int action = -1;
     int result;
 

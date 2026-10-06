@@ -1,0 +1,3 @@
+# Written by tools/raid_gate/prepare_scripts.py at every ./launch run osrs239-scripts.
+tests.ini
+tests.ini.tmp

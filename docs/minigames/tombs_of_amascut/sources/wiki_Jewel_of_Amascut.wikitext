@@ -1,0 +1,48 @@
+{{Infobox Item
+|name = Jewel of Amascut
+|image = [[File:Jewel of Amascut.png]]
+|release = [[25 June]] [[2025]]
+|update = Summer Sweep Up: Combat
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Attach, Inspect, Drop
+|examine = A jewel that amascut{{Sic}} once used and has now discarded.
+|value = 300000
+|weight = 0.951
+|id = 30893
+|leagueRegion = Desert
+}}
+[[File:Jewel of Amascut detail.png|100px|left]]
+The '''jewel of Amascut''' is an untradeable jewel that can be obtained as a reward from the [[Tombs of Amascut]].
+
+The jewel can be attached to the [[keris partisan]] to create the [[keris partisan of Amascut]], which has increased stats and a passive effect when used within the Tombs of Amascut. Outside the Tombs of Amascut it functions as a keris partisan.
+
+==Products==
+{{Uses material list|Jewel of Amascut}}
+
+==Transcript==
+{{Hastranscript|item}}
+
+==Item sources==
+{{Drop sources|Jewel of Amascut}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 19 August 2026
+|update = Summer Sweep Up - Hunter & Skilling
+|change = The item was renamed from "Jewel of amascut" to "Jewel of Amascut".
+}}
+{{Subject changes
+|date = 2 July 2025
+|update = Stackable Clues are here!
+|change = The 'Inspect' option on the Jewel of Amascut now shows a picture of the correct jewel.
+}}
+{{Subject changes footer}}
+
+{{Tombs of Amascut}}
+[[Category:Collection log items]]

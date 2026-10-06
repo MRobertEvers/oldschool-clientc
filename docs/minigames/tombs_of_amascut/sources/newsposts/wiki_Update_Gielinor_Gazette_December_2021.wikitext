@@ -1,0 +1,449 @@
+{{Update|date=17 December 2021|link=https://secure.runescape.com/m=news/gielinor-gazette---december-2021?oldschool=1|category=community}}
+[[File:Gielinor Gazette - December 2021 newspost.png|right]]
+{{Clear|right}}
+
+The end of the year is nigh, and that means we're at the final Gielinor Gazette of 2021! And just like last year, today we're showcasing a look ahead to 2022! So grab your festive brew, stick on your ugliest Christmas jumper and let's get stuck in!
+{{ToC}}
+==Project Status Update==
+It’s been an interesting year for the world and Old School RuneScape, which has now hit the ripe old age of eight! It seems crazy to think we'll soon be ten years old.
+
+Among a variety of smaller updates and QoL improvements, including those from Poll 74 & 75, we've released a variety of content this year! Ranging from new quests in both Misthalin and Kourend (such as the epic A Kingdom Divided) to new challenges for some of the most popular PvM content, with two new modes for Theatre of Blood and the return of Phosani’s Nightmare.
+
+The team also released a brand new skilling boss, the mighty Tempoross! And, after a long wait, we saw the release of the Clan System and later, Group Ironman. We even released a new C++ client on Steam which comes bundled with a plethora of handy improvements like increased draw distance, XP trackers and more - much of which we’ve recently tested on mobile with the Android Beta.
+
+With everyone longing for the next RuneFest, we also held our very first Summer Summit - a show jam-packed full of updates on some of the biggest content coming to the game.
+
+Nex is arriving on January 5th and if you haven't already seen it, we recently dropped a [https://www.youtube.com/watch?v=otB6bbcczuU teaser trailer] showcasing the arrival of the fearsome fifth general! We hope you enjoy taking on the newest edition of the God Wars Dungeon when she arrives. For those players who have completed Desert Treasure, you should keep an eye out for when you first return to Gielinor.
+
+With the rewards being designed and implemented, Leagues III is now officially ready for release on January 19th! We are super excited and will be sharing some more about Shattered Relics over the next month, so stay tuned!
+
+That being said, we know many of you feel that there’s not been as much content for YOU this year, and we understand why. While 2021 saw some fantastic, and quite frankly long-overdue system improvements, they took up a large portion of the development time that we'd usually spend on creating new playable content. This is something we'd like to avoid in 2022 - having a healthy balance between game improvements and adding new content is one of the main driving forces that shaped next year’s roadmap.
+
+To support our new roadmap, we've made some changes to how the team operates. Previously, the development team were split into five groups (excluding Art, QA, etc.), with each team having various projects assigned to them. The key problem with this approach is that with projects being distributed amongst teams, each was focused on its work specifically and few people were looking at the game as a whole.
+
+Instead, the teams have been split from groups of 4-5 people to teams of 2-3, each of which will focus on a particular area of the game. This will allow the projects they undertake to have a purpose beyond the scope of just a singular goal. We’ve now got developers working on most core areas of the games, which should result in a wide variety of content that caters to different types of players over the year.
+
+As with any change, it'll take some time to adjust, but the team is genuinely excited, and we hope you are too! We'll continue being flexible with our roadmap, as is the norm when it comes to planning, but we're hopeful this new dynamic will give us a more stable base going into 2022 and beyond.
+
+Now, onto the roadmap… let's have look at some of the core projects we'll be working on in the first half of 2022!
+
+[[File:Gielinor Gazette - December 2021 (1).png|600px|centre]]
+
+Unlike the previous roadmap, which split the content into two main sections, 2022’s version focuses mainly on our teams. Each coloured section (or row of blocks) are projects assigned to specific teams. The top row of blocks showcases what would be considered the 'Big Beats' for each month, and consists of the following:
+
+* '''January:''' Nex and Leagues III
+* '''February:''' Land of the Goblins
+* '''March:''' Guardians of Gielinor and Community Event Support
+* '''April:''' Beneath Cursed Sands and Easter Event
+* '''May:''' PvP Arena (Duel Arena Replacement)
+* '''June:''' Skilling Update and Wilderness Boss Rework
+
+Some of these projects we’ve already spoken about and some (like Nex and Leagues III) are just around the corner. Get comfy and have a read back through some of our previous newsposts for more information about those!
+
+Land of the Goblins, the next instalment in the Cave Goblin questline, is not too far away either. We're aiming for a February release, with a blog coming out in the next few weeks containing quest details. It might seem like it’s come out of nowhere, but for those of you not in the know, the original Land of the Goblins quest came out in 2007, just after the backup Old School is built upon. After poking around in the files, we discovered that the majority of the work for this quest is already done! All that remains is to add a few missing parts and some tweaks to make it suitably Old School. After this (pending it passing a poll, of course!), we can finally continue Zanik's story!
+
+[[File:Gielinor Gazette - December 2021 (2).png|600px|centre]]
+
+[[File:Gielinor Gazette - December 2021 (3).png|600px|centre]]
+
+You might have previously seen the ideation pitch for Guardians of Gielinor in last year's [https://secure.runescape.com/m=news/gielinor-gazette-december-2020?oldschool=1 December Gazette]. In short, it’s a fun and interactive way of training Runecraft that fits alongside the existing methods, while also offering a different way of training the skill. We’ve seen many players asking for a new way to train Runecraft, and we think this could be the answer.
+
+The Community Event Support involves mostly behind-the-scenes changes to help create more community-driven events, though we'll also be looking into changes that will benefit everyone! Afterwards, this team will shift their focus towards providing a better experience for several skills with the Skilling Update.
+
+We'll be dedicating one of the newly created teams to examining the experience of new players when they first step foot in Gielinor. We're not looking to make drastic sweeping changes here, but it's important we pay attention to new adventurers if the game is to continue to grow.
+
+Alongside all of this, we’ll also be continuing with our steady stream of QoL improvements, with Poll 76 coming to you via a blog in early 2022!
+
+Wondering what that big yellow box is in the middle? Well, that’s pointing towards our new ideation approach, something that Mod Ed will be talking about later.
+
+In regards to Tombs of Amascut and the Wilderness Boss Rework, we want to give you an explanation of their placement on the roadmap, which we appreciate is a little later in the year than expected.
+
+Tombs of Amascut is our third raid, and we're really looking to go BIG! It's our largest-scale raid to date and we know how important it is that we get this right, so we want to spend more time making sure it's is up to the standard you'd expect from a raid - especially since we're trying something new. Before the end of this year, we hope to share more information about Old School's third raid and the next quest in the Desert storyline.
+
+Beneath Cursed Sands will lay the foundation for the events of Tombs of Amascut, but we want to stress that it's a project in its own right. You can look forward to playing it in April.
+
+With the new team structure, we now have dedicated resources to focus on PvP and similar activities. We know that PvP has been an underserved segment of our community in recent years - we don't want that to be the same for 2022. With the Duel Arena removal happening imminently, the initial focus of this team will be on its replacement, the PvP Arena. Following this, the team will then move on to the Wilderness Boss Rework.
+
+We also know many of you want to see Bounty Hunter return. We hear you loud and clear, and as such, we're hoping to deliver in the second half of 2022! We still have a lot of work to do with a design that prevents abuse like previous iterations - it may well be that we cannot achieve this without making drastic changes. Never fear - we'll keep you updated with our progress.
+
+As for PvP, we want to take a moment to apologise to those of you who were looking forward to these upcoming changes, especially the Wilderness Boss rework. This is a project we've delayed multiple times now, so we understand the scepticism around this ever happening. We're confident that with our new team structure, and a team dedicated to delivering these projects, we'll be able to deliver a quality update for you all to enjoy.
+
+That's all we can say about the roadmap for now, but 2022 already looks to be a great year for Old School - and this roadmap only covers the first half!
+
+We’ll be looking to shed more light on what's still to come later in the year. With the success of our Summer Summit, we want to run similar events, even bigger and better! In fact, this time we’re aiming to have two - one in the spring and one in the autumn. Expect more details about upcoming content and some big yet-to-be-seen reveals - all delivered by the teams directly working on those projects! We've got some exciting things we're working on outside of this roadmap, too, so stay tuned for more information in the near future.
+
+Old School wouldn’t exist without your continued support and love for the game. We love making content that you enjoy, and your passion continues to drive us. So thank you, from the bottom of our hearts.
+
+We’ve got a lot of work ahead of us, and we can’t wait to have you onboard for the journey!
+
+==Ideation Update==
+''by Mod Ed''
+
+===What is Ideation?===
+[[File:Gielinor Gazette - December 2021 (4).png|600px|centre]]
+
+We have some exciting new plans for our ideation process throughout 2022. However, if you've not read some of our previous Gazettes, you might not actually know what ideation is. So let us explain!
+
+Ideation is a process that has existed for two years now, and the format has changed little in that time. Every four weeks, each member of the Old School team (including those in non-development roles) has the opportunity to take two ideation days. For these two days, the team has a chance to focus on coming up with ideas for potential future Old School RuneScape updates, without the distraction of their normal work duties. These ideation sessions alternate between having a set theme to follow, and open ideation where anything goes.
+
+Ideation is designed to be as flexible as possible. Some people choose to work on ideas alone, while others form teams (often with people they wouldn't normally get to work with). Some ideas come in the form of a document or presentation, but others may get an actual working prototype.
+
+Regardless of what is produced during ideation, people have a chance to pitch their ideas to the wider team in regular pitch sessions. In these, the team provides feedback and guidance to help ensure each idea is the best it can be. After that, the creators of a pitch have a few options. They may choose to discard their idea, deciding that it wasn't meant to be. Alternatively, they may decide to do further work on it in a future ideation session to address feedback. The last option is to submit the idea for the backlog, in which case it is reviewed by a small group to ensure it's appropriate.
+
+Over the past two years, many projects released into the game have come from the ideation backlog. For anyone interested, here's some of the most notable:
+
+* Leagues I: Twisted League
+* The Nightmare of Ashihama
+* Darkmeyer
+* Hallowed Sepulchre
+* Costume Room Rework
+* Getting Ahead
+* Soul Wars
+* TzHaar-Ket-Rak's Challenges
+* Shooting Stars
+* Below Ice Mountain
+* Theatre of Blood: Hard Mode
+* Phosani's Nightmare
+* Halloween 2021
+* Nex (upcoming)
+* Land of the Goblins (upcoming)
+* Guardians of Gielinor (upcoming)
+* The Tombs of Amascut (upcoming)
+
+===The Latest Pitches===
+[[File:Gielinor Gazette - December 2021 (5).png|600px|centre]]
+
+Before we go over the changes coming to ideation in 2022, let's have a look at some recent pitches. While we'd love to hear your feedback on these ideas, do be aware that ideas are all they are at this stage. None of these pitches have been approved for development, so it may be a long time (if ever) before they actually make it into the game. There's four pitches to look through in this section, and Mod Oasis has a deep dive into a fifth pitch later in the Gazette.
+
+====Fairytale III - Among Thieves====
+In this Master level finale to the Fairytale trilogy, you must help the Fairy Resistance deal with the Fairy Godfather once and for all. To do so, the Fairy Queen tasks you with performing a daring heist to steal the Fairy Nexus, a powerful device that is key to the Fairy Godfather's plans. To have any hope of success, you must gather a band of the finest (or not so finest) thieves around. Alongside the usual XP and Quest Point rewards, completing the quest will unlock new Fairy Rings and an update to the Magic Secateurs.
+
+====Guild of Shadows====
+Back in 2018, we spoke about our amazing new [https://secure.runescape.com/m=news/dev-blog-advanced-warfare-skill?oldschool=1 Advanced Warfare skill]. Hopefully you've realised by now that it was in fact just an April Fools joke. However, beyond the Tactical Nukes and Australianisers, it seems we may have accidentally designed something with real potential. That's where the Guild of Shadows comes in. This is a new guild for the Thieving skill, and it focuses on completing various Thieving-based contracts. For example, you might be asked to infiltrate an area to destroy some supplies or to plant an incriminating document on an unsuspecting character. Completing contracts will earn reputation within the guild, which can of course be exchanged for XP and other rewards.
+
+====Tourist Attraction====
+Hadley the Tourist Guide wants some help in setting up some new adventurous activities to attract new visitors to Kandarin. Once these have been set up, they can be used as new training methods in various skills. For example, the rock climbing activity requires you to make a rock climbing wall near Baxtorian Falls. Once built, you can use the climbing wall to earn Agility and Strength XP. Just make sure you choose the most optimal route, or you'll run out of energy and have to start over again.
+
+====Solphus====
+Solphus is a tortoise skilling boss designed for 1-3 players. The fight with Solphus is split into two phases. The first is all about preparation, requiring you to use you Hunter and Woodcutting skills to gather the supplies you need to defeat the boss. Once you have what you need, you can begin the actual fight, where you must use your Farming and Construction skills to build traps. By luring the boss onto these traps, you'll be able to do enough damage to defeat it. But of course, you'll need to ensure it doesn't defeat your group first! Beating the boss will offer the chance of grabbing new rewards, including new Ranged ammo, new Farming equipment, and of course, a new pet.
+
+===The Future of Ideation===
+As you can see, the past two years of ideation have delivered some amazing pitches, many of which have made it into the game for you all to enjoy. Still, despite the successes, ideation has some problems, which we're hoping our 2022 plans will solve.
+
+As mentioned above, ideation should be about coming up with new pitches without the distraction of normal work duties. While great in theory, this is something that has rarely worked in reality. Removing distractions for two full days every four weeks has proved problematic for many reasons, especially when you consider that we update our game every week. As such, we find that many team members are unable to find the time for ideation, despite wanting to take part.
+
+Finding time isn't the only problem the team has faced. While many great updates have come from the ideation backlog, there are many more great ideas that have languished there. The unfortunate reality is that our release schedule does not have enough room for many of the great ideas that ideation has produced.
+
+To address these issues, 2022 will see the end of our current ideation schedule. Rather than two days every four weeks, we're going to run week long game jams every three months. For these weeks, there will be no game update, no blog releases and all but the most critical meetings will be cancelled. This will give the team a whole week free of distractions to come up with the best ideas possible. Having a full week will also mean that the ideas produced will be far more fleshed out, making it much easier for them to make it into the release schedule.
+
+Our trial of this new approach will happen in March. We'll let you know exactly when closer to the time. If the trial is successful, we'll look to run further game jams in June, September and December.
+
+One thing we're super keen on is bringing you all along for the game jam ride. You can expect plenty of social content you can get involved with - we want your early feedback and suggestions! We'll also have a dedicated section in the Gazette after each game jam where we'll preview everything that was produced.
+
+That's all on our new ideation approach for now. As always, we'd love to hear your thoughts and feedback.
+
+==A Heated Showdown==
+''by Mod Oasis''
+
+===Twisted Beginnings===
+Before we dive into A Heated Showdown, do be aware that this is just an ideation pitch. As such, there is no guarantee this idea will ever make it into the game.
+
+Going into ideation this time round, we had a plan. Not one we stuck to... but a plan nonetheless!
+
+Last year, we released the quest 'Getting Ahead', a short one-off story based in Kourend that we referred to as a 'Twisted Tale'. Our original goal for this ideation was to design and create a number of Tales to help fill out Kourend and Kebos with more stories, characters and points of interest that players would recognise and remember. So that's exactly what we did! We have this great online whiteboard tool that makes collaboration really easy, which is vital when working from home. We took screenshots all over Kourend and Kebos, marking out areas of interest with little red question marks. We were mainly looking for locations that artists have mapped down, but have nothing specific tied to them in-game. This allows us as designers to build fitting stories that are inspired by the areas themselves.
+
+[[File:Gielinor Gazette - December 2021 (6).png|600px|thumb|centre|''The Twisted Tales ideation board.'']]
+
+[[File:Gielinor Gazette - December 2021 (7).png|600px|thumb|centre|''Some very early concepts for Twisted Tales.'']]
+
+The great thing about ideation is that inspiration can come from anywhere. Ideating in a group means you can bounce ideas off each other, finding what works and what doesn't, challenging the bias in our ideas, and really drilling down into something that hopefully becomes a great addition to the game.
+
+Two of the quest ideas even came from outside Old School. The first, from playing the beginning of Dark Chronicle, was of a travelling animal show, where the players needed to run around Kourend, trapping the animals and returning them to their ship wrecked traveling Zoo! There was also the idea of a shoot out, the inspiration for which... I'll be honest, I'm not entirely sure where this came from. It might have been a meme of The Good, The Bad and The Ugly? It hit me that we've never really explored the Western genre in Old School, a game that's filled with tropes from various media, and now would be a great chance to do so!
+
+===Pilgrimage to the Sands===
+So, you want to make a Western-themed quest. Where do you go from there? With the release of Tombs of Amascut next year, we decided it would be best to move the quest over to the desert - it's a great chance to show some love to the content drought-ridden area and add some more life.
+
+[[File:Gielinor Gazette - December 2021 (8).png|600px|thumb|centre|''Nardah, Better, Faster, Stronger'']]
+
+The quest then went through a lot of iteration, with a bunch of questions we needed to answer:
+
+* Where should it start?
+* Should there be any requirements?
+* What existing locations and characters can we leverage?
+* What kind of rewards will it have?
+
+These aren't questions you set in stone at the very start, but things we consider throughout the design phase. For example, a project that reuses existing assets and locations requires a smaller art budget, which in turn means that as long as we've got the dev time to actually implement it, the chances that it will make it into the game are higher!
+
+We chose Nardah as the starting point for a couple of reasons. Firstly, it fits the Western theme perfectly! We could picture the tumbleweed rolling across the road as the player walks into a deserted town. Secondly, there's already some narrative we can build from. By using the Spirits of the Elid, where the player restores water to the town, we've already had a starting point - a town that was run down but is now beginning to heal and repair. This leaves it ripe for some evildoers to come in and ruin the whole thing!
+
+Once we had a location and the start of a story, we split into two teams, one of which worked on a prototype of the puzzle. Our aim was to capture the cinematic Wild West shoot out experience, where the hero's taking out bandits and saving the town. But the hard part? Translating the idea into fun and memorable gameplay that fits within the Runescape world. We wanted to break away from standard Runescape combat, even though it's quite a scary thought.
+
+Essentially, the mini-game uses round-based combat. The player chooses their and their partner's actions - be it shoot, move, hide or eat. Then you click 'Go' and everything happens at once, meaning you'd need to predict what the bandits were going to do and plan your actions accordingly. It's quite a step away from anything we've done in Old School, and requires much testing and prototyping to really nail down the mechanics.
+
+[[File:Gielinor Gazette - December 2021 (9).png|600px|thumb|centre|''Tests for the fight against the Bandits.'']]
+
+We also wanted to make a new weapon that was a better fit for the quest than a Crossbow. 'Tourist Trap' introduces the Desert Mining Camp, which handily comes with a bunch of evil bandits who capture people to use as slaves. Plus, at the end of the quest you gain access to a new dart technology. We could expand on this by using darts as ammunition in a new weapon. One idea we had for this weapon was that it could only be shot a few times, after which the player would need to manually reload it in their Backpack. An alternative was that it shoots solely through special attack, meaning if you run out of special you need to wait for it to recharge before you can shoot again (the special essentially becomes the reload mechanic).
+
+===Where do we go now?===
+The design for 'A Heated Showdown' has been finished and pitched to the rest of the team. As explained above, the ideation process is undergoing some changes next year to allow us developers more time to prototype and test our ideas. We're going to make some tweaks and changes, especially to the reward weapon (to ensure it has its niche within Old School). It will then be sent off to a more formalised review, in which some of the leads will look at the quest and the roadmap over the next few years and decide where it could fit in. We can't guarantee this quest will go into the game, but it's been great to share our ideation process with the community.
+
+Thanks for reading my ramblings about a Western-style shootout in the desert! I hope it was insightful, and even stirs some creativity in you! As designers, we rarely have perfectly laid out plans, but doing some exploration can lead to some great results. Inspiration can really come from anywhere!
+
+
+==Postbag from the Hedge==
+Hello adventurers! It’s me, Postie Pete, back again with another selection of questions and answers from all over Gielinor. This time I've been chatting to bottomless pits, strange old men, and even our old pal the Chaos Elemental! Let’s see what I’ve got in my bag...
+
+To [[Sir Tiffy Cashien]]
+
+{{Letter|Dear Sir Tiffy Cashien,
+
+What action will be taken regarding the fallen expedition to the so called 'God Wars Dungeon' and the knowledge we've gained from their sacrifice? The discovery that the aviantese still live and, even more shockingly, that the millennia-old war rages on, seems like the revelation of the century Yet since the death of Sir Gerry, I've seen no overt movement from the Temple Knights whatsoever.
+
+Perhaps some of your covert scouts have already reported this, but during my own expeditions I have noticed troubling signs around a certain frozen door in that accursed temple.
+
+Yours, mpsdevil}}
+
+
+Dear mpsdevil,
+
+Quieten down, will you? We’re running a top-secret operation here! Sir Gerry was our primary agent, but he’s far from the only Knight we’ve dispatched. Of course you haven’t seen them – that’s rather the whole point of a covert mission, what!
+
+We’ve been surveying the so-called ‘God Wars Dungeon’ for some time. The presence of these ‘generals’ is startling, but they pose no threat to Gielinor as they’re all too busy scrapping among themselves.
+
+But listen, Agent mpsdevil – whatever you do, DON’T OPEN THAT DOOR! No good shall come of messing about with it, you mark my words. Whatever’s behind there was sealed away long before our time, and I’m willing to bet it was locked up for very good reason. Consider this your warning, Agent.
+
+Now, I ask that you stand by and wait for further communications.
+
+Sir Tiffy Cashien
+
+----
+To [[High Priest (Sophanem)|the High Priest of Icthlarin]]
+
+{{Letter|To the High Priest of Icthlarin,
+
+Great Temple,
+
+Sophanem,
+
+Kharidian Desert
+
+
+Greetings, friend!
+
+It has been a while since my last visit to your city, apart from a few trips to Jalsavrah pyramid of, errr, an entirely academic nature... oh look, is that Simon Templeton?!
+
+Anyway, is Sophanem faring better now that you can trade again? How goes the struggle for Klenter's soul with the Devourer? Have you settled into your new position yet? Incidentally, although we're well acquainted by now, you never told me your name. I'm embarrassed to say it never occurred to me to ask about it until now, either!
+
+To the High Priest of Icthlarin,
+
+Speaking of names, I had another question: the city of the dead is home to two great pyramids. There is Jalsavrah, tomb of kings, and the one south of it, where priests are interred. Does the latter also have a name? Indeed, the other named pyramids in the desert all seem to follow similar naming conventions; do you know anything about that, linguistically?
+
+Good luck, friend, and may Tumeken's light shine ever upon you. I have a feeling we will meet again soon!
+
+Best,
+
+Lord Drakan
+
+P.S. On a related note, your suspicions about the Sect of Scabaras were correct and you should probably know there is an implausibly dangerous system of tunnels inhabited by the Scabarites and their giant scarab monsters beneath Sophanem. You really ought to look into that.}}
+
+
+Oh, my old friend!
+
+I’m afraid I can offer no positive news. In fact, since that business with the temple, things have only gotten worse.
+
+Menaphos is still refusing to communicate, the plagues show no sign of stopping, and the thralls of The Devourer have gone mysteriously quiet, which is never good news. We’ve even had reports that a couple of Al Kharidian spies have been spotted lurking about – and if I catch them, the only intelligence they’ll be taking home is a detailed report on the sole of my sandal!
+
+I do apologise. Things have been so difficult lately, it’s hard not to lose my temper. Names, is it? I’d love to tell you... but I’d better not. You see, a name is a powerful tool. Were I to reveal mine, the agents of The Devourer might well use it to their advantage. Then where would we be?
+
+The pyramid question has a much simpler answer. The more antique pyramids were named long ago, when the people of the desert spoke a very different language. ‘Jal’ simply means ‘tomb’ in this tongue – so it is that we have the ‘Tomb of Kings’, the ‘Tomb of the Agile’ and the ‘Tomb of Magic’. These days, we name our tombs after the last person to be buried there, so the other Sophanem pyramid is known as ‘Klenter’s Pyramid’, and someday, it will be mine. Hopefully things will have quietened down by then!
+
+Thank you for your questions, my friend – and may Tumeken’s light shine upon you, also. If you are ever in Sophanem, come say hello. If nothing else, I’m certain we’ll need your help again soon…
+
+Yours,
+
+The High Priest of Icthlarin
+
+----
+To the [[Strange Old Man]]
+
+{{Letter|Strange Old Man,
+
+I was wondering if I could ask a favour of you? Recently, adventurers all over Gielinor have been debating the original colour of the Barrows Brothers armour. Would you be able to shed some light onto this to ease the burden on our troubled minds?
+
+From heldire90}}
+
+
+AAAAAAAAAAARGH? AAAAAAARGH!
+
+<i>Sorry, heldire90 – this is all I could get out of him! I did have a snoop around myself, though, and it seems like the original colour was definitely either brown or green.
+
+Hope that helps!
+
+Postie Pete</i>
+
+----
+To [[Death (NPC)|Death]]
+
+{{Letter|Dear Death,
+
+My first kitten from Gertrude ran away two years ago. Is he still alive? :(
+
+ThinkingThrust}}
+
+
+Dear ThinkingThrust,
+
+A kitten, is it? Let me take a look through the records.
+
+Well! The only record I have is one of all the things he's killed, and it seems he’s been busy – it says here he’s slain thousands of rats, hundreds of fish, and even a particularly unlucky highwayman. Well deserved, I think.
+
+In future, however, please do take better care of your pets. If they’re making a lot of noise, they probably want something to eat.
+
+Speaking of which, you’ll have to excuse me. It’s almost Muncher’s dinner time!
+
+Best of luck,
+
+Harold Death Esq.
+
+----
+To the Bottomless Pit in the [[Ruins of Camdozaal|Camdozaal Ruins]]
+
+{{Letter|Dear Bottomless Pit in the Camdozaal Ruins,
+
+I thought I heard some strange whispers when I peered into your inky depths. Might've been my imagination, but I figured I'd ask Postie Pete to toss this note down and see what happens. Either way, I hope to learn more about you in future; many of my favourite adventures have involved bottomless pits and mysterious whispers.
+
+Sincerely, LongerRoad}}
+
+
+''Well, what do you know - there are whispers down there! Luckily, I’ve been working on my transcription skills. Here’s what the Bottomless Pit had to say:''
+
+<center>"Here... In the inky depths... We languish in sorrow... Come... Come... Join our choir of shadow... Come..."</center>
+
+----
+To the [[Fire Warrior of Lesarkus]]
+
+{{Letter|Dear Fire Warrior of Lesarkus,
+
+You might not remember me as we had our encounter many moons past - we fought a most glorious battle in the cisterns of the Temple of Ikov.
+
+I see now that I was misguided by the foul wizard Lucien and hope you can find it in your heart to forgive me for my transgression?
+
+During our encounter you introduced yourself as a fire warrior of Lesarkus, though I must admit I had never heard of such a thing in my many travels. Nor have I since.
+
+What is Lesarkus? Is it a nation, a city... or perhaps an order or religion? Are there other fire warriors, or perhaps heroes representing the other elements of Gielinor?
+
+I hope my questions are not too intrusive, but alas the library of Varrock has proven unable to answer these burning questions.
+
+With great respect,
+
+Tamriel}}
+
+
+To the Great Warrior, Tamriel
+
+Of course I remember you! Many ages have passed since I was last bested in battle. I should never have underestimated an agent of the Mahjarrat. Be warned - I will not make the same mistake again!
+
+That said, I do forgive you. Long ago, I too was deceived into working for evil. Be glad, warrior, that your transgressions are more easily forgiven than mine.
+
+Ha! The ignorance of you Gielinorians never ceases to amaze me. Lesarkus is not a ‘what’, but a ‘who’! And if there are other warriors like me, you would be a fool to seek them out.
+
+Burning questions! Ha ha! I see your wits are as sharp as your Ice Arrows. A formidable foe indeed! There is no shame in my losing to such an accomplished warrior.
+
+Yours,
+
+Leka, Fire Warrior of Lesarkus
+
+----
+To [[Juna]]
+
+{{Letter|Dear Juna/Guthix,
+
+You’ve shown mercy to our friend Zanik and saved her from a most unfortunate death. Please, will you find the love and compassion in your heart to resurrect our beloved Bob, a mighty cat who has fallen to the evil Dragonkin and his minion Galvek?}}
+
+
+Dear tuc2-0,
+
+I’m afraid it doesn’t work like that. My role, and Guthix’s role before me, is to maintain the delicate balance of the world. Very rarely does that involve resurrecting the dead.
+
+Honestly, I do wish there was something I could do. I’ve heard many tales of Bob, and he seemed a brave and virtuous creature. It may bring you some comfort to remember that his death was not in vain. The Dragonkin and their brood are a dire threat to this world, and the both of you did well to defeat such an enemy.
+
+Yours,
+
+Juna
+
+----
+To [[Lady Tangwen Trahaearn]]
+
+{{Letter|Lady Tangwen Trahaearn,
+
+I hope that you are settling nicely into Prifddinas after so much unpleasantness over the past hundreds of years.
+
+After bringing you the runite bar to repair it I have always been fascinated by your exoskeleton. Could you tell me more about it?
+
+Kind Regards,
+
+7Bears}}
+
+
+Good to hear from you, 7bears.
+
+We’ve been settling in nicely, thanks to your help. Very little has changed from when I was younger, despite the Iorwerths’ occupation. They never were into civic engineering.
+
+Of course. I forged this exoskeleton myself a few years after my husband passed. Back then, the clan’s children were all quite young, and I thought they deserved a leader with a little longevity. It uses some rare crystals from our homeworld, passed down through the generations. To tell the truth, I didn’t expect it to work quite so well. But here I am, still kicking!
+
+Thank you again for helping this poor old biddy out. I wish some of the younger Trahaearns had your Smithing skills!
+
+All the best,
+
+Lady Tangwen Trahaearn
+
+----
+To the [[Chaos Elemental]]
+
+{{Letter|Dear Chaos Elemental,
+
+There's something I've been wondering for quite a while now. I hope it's not considered rude, but I really have to ask - what even are you? Yes, I know that you're an 'elemental' and all that, but what does that actually mean? Are you connected to TzTok-Jad? Apparently, he's some sort of fire elemental. Or maybe you have something to do with the Elemental Workshop? I do hope you answer this letter. It would be really nice to know you're more than just a weird tentacle cloud.
+
+Sincerely, Rockfisher82}}
+
+
+Rockfisher82,
+
+I walked across the sands and saw the ruins of time. The forgotten four were there, but now they hide from the serpent. The Abyss left a scar and she was consumed, but he hid in his prison of ice. Vardorvis wanted blood, but he was strangled instead. Now at Lassar, only whispers remain. Divided but united, their essence is delighted. With all four, you will open the door. Will he find his vessel?
+
+Yours, Lethe Napier Flem
+
+
+That's all from Postie Pete for now! There will be a new Reddit thread soon where you can submit letters for the next Gazette, so keep your eyes out for that!
+
+==Player Creation Showcase==
+We're back with another batch of your biggest and best pieces of creative work! Every individual featured in the Gazette will receive six months of free membership as thanks for their superb efforts, so keep an eye on the linked social accounts inbox for more details on how to grab your reward!
+
+If you are looking to be featured in the next Gazette then make sure to submit your creations through our [https://osrs.game/Player-Showcase-Gallery-Form Player Showcase Gallery Form] and state what Gazette you would like it to feature in. We look forward to seeing more of your incredible talents!
+
+{|class=wikitable style="text-align:center;margin: auto;"
+|[[File:Gielinor Gazette - December 2021 (10).jpg|200x180px|centre]]
+|[[File:Gielinor Gazette - December 2021 (11).png|200x180px|centre]]
+|[[File:Gielinor Gazette - December 2021 (12).jpg|200x180px|centre]]
+|-
+|[https://www.artstation.com/albertomoldes Bitcoin Chan]
+|[https://twitter.com/Pyxelyart Pixeley]
+|QueenSerene
+|-
+|[[File:Gielinor Gazette - December 2021 (13).png|200x180px|centre]]
+|[[File:Gielinor Gazette - December 2021 (14).png|200x180px|centre]]
+|[[File:Gielinor Gazette - December 2021 (15).png|200x180px|centre]]
+|-
+|[https://twitter.com/einrodd Rodein]
+|Sir Brad
+|[https://twitter.com/LordeQuase LordQuase]
+|}
+
+
+----
+
+That's everything for the latest edition of the Gielinor Gazette. We'd love to hear your feedback on anything featured and as with everything else, if you’ve got any ideas about the sorts of things you’d like to see in upcoming editions of the Gielinor Gazette, then please do let us know via our [http://services.runescape.com/m=forum/forums?380,381,777,66239527 official forums], on the [https://www.reddit.com/r/2007scape/comments/rhshyl/gielinor_gazette_december_2021/ 2007Scape Reddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums] or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel.
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Brow, Bruno, Con, Curse, Daizong, Deagle, Dibber, Ditto, Dylan, Ed, Elena, Ellie, Errol, Fed, Gecko, Grub, Halo, Havik, Hornet, Husky, Jndr, John C, Kandosii, Katies, Kieren, Kirby, KT, Kurotou, Lenny, Light, Lottie, Mack, Matheus, Maylea, Markos, Meat, Morty, Nasty, Nin, Nylu, Oasis, Peppers, Regent, Redfield, Roq, Ry, Sarnie, Sigma, Skylark, Sova, Squid, SteveW, Tide, Veda, Vegard, West, Wolfy & Zuko'''
+
+''The Old School Team''

@@ -1,0 +1,18 @@
+# Beginner's Guide to Ice Demon | How to Ice Demon | Old School RuneScape | OSRS — transcript
+
+Auto-generated captions from <https://www.youtube.com/watch?v=aU4DDfFig0c>
+(Plank2g, *Beginner's Guide to Ice Demon | How to Ice Demon | Old School RuneScape | OSRS*, uploaded 2020-05-21, 2:37, 25 fps source).
+
+Downloaded with `yt-dlp --write-auto-subs` and converted by `tools/raid_gate/vtt_to_md.py` for the Chambers of Xeric source corpus. Timestamps are `H:MM:SS` and link back to the video. Machine transcription: every tick count, npc name and item name must be cross-checked against the wiki, the cache or a recording before it is encoded as a constant.
+
+## Transcript
+
+*[0:00:02](https://www.youtube.com/watch?v=aU4DDfFig0c&t=2)* — ice demon a beginner's guide ice demon is a common puzzle room the chambers of Zurich it's quite easy to do but it's a bit time-consuming compared to other puzzles I steam in his weak to fire text so I recommend bringing fire search but because of his high magic level a twisted bow works very well if you do not bring fire surge or have a twisted bow a blowpipe is your next best bet if you bring fire surge you can bring supplemental gear like a Toma fire to increase your damage if you're raiding casually I recommend doing ice demon as it's an easy puzzle room you could spend
+
+*[0:00:35](https://www.youtube.com/watch?v=aU4DDfFig0c&t=35)* — more time scouting finding a non ice demon raid versus just doing the room itself before you pick up the accent tinderbox make sure you drop your potions on the ground and the ice demon room itself start off by picking up an axe in a tinder box next chop from the trees to gain kindling once you have your inventory filled with kindling whether it's six eight or a literal full inventory go up to one of the brazzers and light it once the brazier is lit the ice fiends will start trying to extinguish your brazier just keep adding kindling to the brazier to keep it lit
+
+*[0:01:08](https://www.youtube.com/watch?v=aU4DDfFig0c&t=68)* — if the ice beam ends up extinguishing your brazier simply relight it with more kindling once you like the brazier take note of the bar above ice demon the bar going from blue to green is the amount that you have thought ice demon keep adding kindling until the bar is 3/4 green at this point pick up your potions that you dropped earlier you want to have your potions picked up before he fully on the once you free ice demon he's gonna be mad and that means he's gonna throw balls at you you know that 3x3 square that I always talk about yep you guessed it you can dodge his
+
+*[0:01:40](https://www.youtube.com/watch?v=aU4DDfFig0c&t=100)* — snowballs by running in a 3x3 square or just running between two tiles with having one tile in between everyone should be praying ranged if you don't pray range the ice demon will perform a ice burst I'll attack that it's much harder than the ones we can cast pray the best prayer that you can whatever textile you're using rigor or augury I recommend sanding as far back as you can without being safe spotted the reason why I do not recommend safe spotting is that it's kind of a crappy thing to do to your teammates to make them tank but the farther back you are
+
+*[0:02:14](https://www.youtube.com/watch?v=aU4DDfFig0c&t=134)* — means more time it takes for that snowball to get to you which means you have more time to dodge it so stand as far back as you can and don't be a scum like me and safe spot the ice demon roughly 95% of people that watch my channel or not subscribed it would help me out a ton if you guys would just go below and tap that subscribe button for me thanks for watching

@@ -307,3 +307,12 @@ Measured: `b55s2_slice_a` (mage first) and `b55s2_slice_b` (archer first) 148/0,
   `tools/check_npc_script_player_suspend.py` does not catch it (it flags only a suspend with no
   player bound). Queue the player's half; write any stage the kill decides in the npc's half or
   in the queued script, never after a page.
+
+## An `npc_add` duration shorter than the fight despawns the npc mid-fight (Spirits of the Elid, matthew-mbp-m4-b68; FIXED b68-seam2, OSRS-Content 99061aaa2e)
+
+Swan Song's ambush trolls (50 ticks, FIXED b54-seam3) and Spirits of the Elid's door golems
+(50 ticks, FIXED b68-seam2) both despawned while the player was still fighting them, and the kill
+wait graded the despawn a kill by ABSENCE until b68-seam2 (it now answers `despawned`). When a
+quest npc's `npc_add` duration is shorter than its fight and no source names a timer, the content
+fix is 3000 ticks (walk-away clean-up only), with the sources cited at the constant
+(seam-facts: Seam pass matthew-mbp-m4-b68-seam2 (a)).

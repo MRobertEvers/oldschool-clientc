@@ -1,0 +1,26 @@
+{{Infobox Combat Achievement
+|name = Stop Drop and Roll
+|image = [[File:Vasa Nistirio.png|250px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Kill Vasa Nistirio before he performs his teleport attack for the second time.
+|tier = Master
+|monster = Chambers of Xeric
+|type = Mechanical
+|id = 309
+|leagueRegion = Kourend
+}}
+'''Stop Drop and Roll''' is a [[Combat Achievements/Master|master combat achievement]] which requires the player to kill [[Vasa Nistirio]] before he performs his teleport attack for the second time.
+
+==Strategy==
+'''For solo-run attempts, be sure raid scaling is set to "0" for the easiest fight, as scaling a raid to "1" doubles boss health.'''
+
+Successful [[dragon warhammer]] or [[Bandos godsword]] hits will help increase the player's accuracy against Vasa. Use powerful ranged weapons to take him down as quickly as possible - either a [[twisted bow]] with [[dragon arrow|dragon]] or [[amethyst arrow]]s, a [[crystal equipment#crystal armour|crystal armour set]] with the [[bow of Faerdhinen]] or a [[toxic blowpipe]] with [[dragon dart]]s.
+
+A strong [[Stab weapons|stab weapon]] is also encouraged to deal with the [[glowing crystal]]s quickly, as not disabling them fast enough will cause Vasa to perform his teleport attack. [[Vengeance]] at high health can be used against the teleport attack to rebound massive amounts of damage back onto him.
+
+==Other tasks==
+{{Combat Achievements list|Chambers of Xeric}}
+
+{{Combat Achievements}}

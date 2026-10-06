@@ -1,0 +1,22 @@
+{{Infobox Combat Achievement
+|name = Cryo No More
+|image = [[File:Chambers of Xeric - Ice demon.png|300px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Receive kill-credit for the Ice Demon without taking any damage.
+|tier = Elite
+|monster = Chambers of Xeric
+|type = Perfection
+|id = 316
+|leagueRegion = Kourend
+}}
+'''Cryo No More''' is an [[Combat Achievements/Elite|elite combat achievement]] which requires the player to receive kill-credit for the [[Ice Demon]] without taking any damage.
+
+* Iron players must kill the Ice Demon solo to be eligible.
+* '''For solo-run attempts, be sure raid scaling is set to "0" for the easiest fight, as scaling a raid to "1" doubles boss health.'''
+
+==Other tasks==
+{{Combat Achievements list|Chambers of Xeric}}
+
+{{Combat Achievements}}

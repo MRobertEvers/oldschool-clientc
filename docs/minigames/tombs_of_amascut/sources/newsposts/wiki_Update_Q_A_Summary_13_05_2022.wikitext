@@ -1,0 +1,277 @@
+{{Update|date=20 May 2022|link=https://secure.runescape.com/m=news/qa-summary-13052022?oldschool=1|category=community}}
+[[File:Q&A Summary 13-05-2022 newspost.png|right]]
+{{clear}}
+This week's Q&A Livestream covered two major topics - first the updated rewards for Tombs of Amascut, then a look at the updates to Group Ironman! The JMods covered questions on:
+* [[#Question #1|The changes to the ToA rewards]]
+* [[#Question #3|Will the Heka of Tumeken ever make it to Old School?]]
+* [[#Question #9|How the Group Boss Bash raffle will work]]
+* [[#Question #17|Regular ironmen joining unranked GIM groups]]
+* [[#Question #31|POH updates for Group Ironmen]]
+
+Thanks to Mod Light (Community Manager), Mod Elena (Content Developer), Mod Husky (Content Developer), Mod Kieren (Associate Design Director) and Mod Arcane (Senior Content Developer) for their insight!
+
+Missed the livestream? Check out the full transcript below!
+
+__TOC__
+==Question #1==
+{{Cquote2|Arcane, do you want to talk about some of the new changes we proposed in the blog that just went live?}}
+
+[https://www.youtube.com/watch?v=tfyfk9a4GJ0&t=147s Youtube Time Stamp]
+
+* '''Mod Arcane:''' We’ve already had a big poll and blog with all of the Tombs of Amascut rewards, all of which passed. There are a couple of rewards that we felt could be improved slightly, whether it was we just didn't really like what these rewards have become, or mathematically some weapons weren't really achieving what we would have liked. Some players also just had some really good ideas for alternative rewards! So we wanted to offer some changes.  We released a blog today, and it's got three big things on it. I'll go from smallest to biggest, and most of the questions that I've curated are about the big-ticket item.
+* '''Mod Arcane:''' The first one is changing how Osmumten's Fang calculates accuracy. Instead of it rolling for accuracy once, if it rolls and fails, it'll roll again. You get this really interesting damage curve (that we have on the blog) that basically makes it an incredibly accurate weapon! We've also rebalanced some of the stats slightly. We brought it down from 175 accuracy to 105, because with this double accuracy roll it's really, really accurate. We just had to rebalance the stats a bit, but we feel like it's now doing what it was trying to do a lot better without feeling artificial, since 175 accuracy on a one-handed weapon felt a little weird! That's one potential change that if everyone likes, we will go ahead with. It’s effectively the same weapon, it's just doing it slightly differently.
+* '''Mod Arcane:''' The second reward was a new reward offered that players suggested which was an upgrade to the rune pouch. The rune pouch can hold three types of runes right now with a capacity of 16k of each type. This upgrade would let you upgrade your pouch into a four-slot rune pouch, you can have 16k of four different types of runes inside of a four-slot rune pouch. This is really, really powerful. There is so much utility you get from magic all over the game. I imagine this is going to be a really, really desirable item. The one caveat is we're thinking about making this item untreatable. The idea is you would have to do ToA to get this reward. That being said, we wouldn’t have it as a crazy rare item that needs hundreds of hours of gameplay, we'd expect it to be fairly common. Maybe you go there and do 20-50 KC and you'd expect to get this item. ToA scales with difficulty. It's not just going to only be this crazy difficult raid, you can customise the difficulty to your nature. We're hoping it is quite approachable for most players to go do ToA, we don't expect you to be an expert at PvM to get it!
+* '''Mod Arcane:''' Let us know what your feedback is on this! We think it's a really good idea to have untradable rewards for most content, so every piece of content has purpose for everyone. Right now, Ironmen have to do everything but regular account can just skip 90% of the game and just go sit at TOB until the end of days and make a lot of money, which isn't really great gameplay!
+* '''Mod Arcane:''' The last one, which is going to be the bulk of this quickfire question session, is the new mage weapon. The Heka was the previously offered mage weapon - it was a fast-attacking, variable speed weapon with unique spellbook effects. People really liked the idea of this wacky weapon with unique specific interactions and the alternating gameplay, but just didn't really feel as though it would be "enough". We buffed the numbers and we changed a bunch of things around and it objectively was a strong upgrade. It still just didn't feel like that Tbow, it didn't feel like that Scythe. ToA was missing that one item that purely drives the demand of players wanting to do this content for years and years to come just like the Tbow and Scythe always will have.
+* '''Mod Arcane:''' So we wanted to revisit that and we didn't think it was right to keep iterating on Heka again and again and again. It gets really confusing and it muddies the water a lot. We're proposing a new mage weapon that would basically replace the Heka. This isn't to say the Heka will never happen ever again. We can use in the future, but for ToA the idea is we would offer this new mage weapon instead of the Heka if it passes.
+* '''Mod Arcane:''' This new mage weapon it's called the Shadow of Tumeken. The Shadow of Tumeken is going to be a two-handed 5 tick staff. It's going to have moderate stats - 35 accuracy, 20 defence, nothing special, and a bit of prayer. But does have one really really important effect. While it's equipped, all of your magic strength from gear is tripled and all of your magic accuracy from gear is tripled.
+* '''Mod Arcane:''' This makes all of your individual gear switches incredibly valuable. This is going to give Seers ring a lot of accuracy, everything gets more and more powerful. It heavily incentivizes you to bring more and more switches, which differentiates it. We don't have any two-handed 5-tick mage weapons which should make it a bit more interesting to use, and also helps it fit that whole Scythe and Tbow feel.
+* '''Mod Arcane:''' We're hoping that it's going to be quite an interest in that regard. That bonus accuracy that you get is actually huge! This is going to make it the most accurate weapon in the game by quite a large margin. It's going to make it actually possible to mage some bosses like Zilyana and Kree'arra, any boss that has pretty high regular defence and pretty high magic defence. The accuracy of this weapon will actually make it viable to use mage those bosses like Ziylana and Kree'arra. If you want more information about what bosses this might actually be good at, check the blog -it has a bunch of examples in there. That's the general idea, I think this is a pretty crazy weapon!
+
+==Question #2==
+{{Cquote2|Will the accuracy and damage triple passive only work with the inbuilt spell or with all spells casted while wielding the staff?}}
+
+[https://www.youtube.com/watch?v=tfyfk9a4GJ0&t=480s Youtube Time Stamp]
+
+* '''Mod Arcane:''' It will only work with the inbuilt spell because it's more like a powered staff, similar to Sang. It'd be anything you attack with that inbuilt spell. So if you've manually cast a Barrage, you're not gonna be benefiting from a triple accuracy and damage. That'd be crazy!
+
+==Question #3==
+{{Cquote2|I liked the Heka, can we still have it?}}
+
+[https://www.youtube.com/watch?v=tfyfk9a4GJ0&t=508s Youtube Time Stamp]
+
+* '''Mod Arcane:''' There was a lot of that sentiment, that the Heka was quite quirky and unique. I think going forward, we generally feel raids aren't the place to have these wacky weird rewards. We want to really push these really powerful, in-demand BiS items from raids. Other pieces of content like group bosses and solo bosses, I think that'd be the area to experiment with more interesting items like the Heka. We definitely are still interested in offering that weapon, just potentially not from here.
+
+==Question #4==
+{{Cquote2|We can’t equip the ward at the same time, is this a problem?}}
+
+[https://www.youtube.com/watch?v=tfyfk9a4GJ0&t=538s Youtube Time Stamp]
+
+* '''Mod Arcane:''' There's a bit of sentiment around this - we have the offhand, the Ward of Elidinis which is a new BiS mage offhand from ToA that passed . You wouldn't be able to equip that with the Shadow. Obviously, that's kind of lame... You want to be able to equip the two new best-in-slot items from this raid! I get the sentiment behind that completely. The Ward is still going to have a lot of use though. Wherever you're using barrage, Kodai, things like that, it's still gonna be best in slot. Wherever you're still going to use Sang, because four-tick still really relevant, and all of that health Sang can give you -  it's still gonna be very desirable in a lot of pieces of content. It's not like the Ward has no purpose, but it's obviously got less purpose compared to the Heka. I don't think that's necessarily a problem though!
+
+==Question #5==
+{{Cquote2|Magic is still kind of broken, why not fix magic as a whole?}}
+
+[https://www.youtube.com/watch?v=tfyfk9a4GJ0&t=590s Youtube Time Stamp]
+
+* '''Mod Arcane:''' This is something we've talked about quite a lot. Magic as a whole is kind of wonky. Things have got ridiculously high defences, and the standard spellbook's quite lacklustre and janky. There are a lot of things we can improve about Magic and we still want to do that. It's just a huge project, and we want to do it right. That's not something we're looking to tackle with ToA as a whole, it's gonna be a smaller scale, but we'd definitely be interested in doing it in the future, for sure.
+
+==Question #6==
+{{Cquote2|Weapon doesn’t have any strict drawbacks like scythe/tbow, is it too strong?}}
+
+[https://www.youtube.com/watch?v=tfyfk9a4GJ0&t=622s Youtube Time Stamp]
+
+* '''Mod Arcane:''' Scythe can only be used realistically on a 3x3, Tbow can only be used effectively on monsters with 200+ Magic level. That is seen as a restriction, but in reality, it's not really much of a restriction. Most bosses in the game are 3x3 or above and the Scythe is pretty good at that. Tbows good at a lot of monsters so it's not really niche, it's a fake niche. But I get the point, it gives you a different way to balance a weapon and give other weapons viability.
+* '''Mod Arcane:''' What we're leaning on here is the fact that you need quite a lot of magic switches for this weapon to get really, really powerful and worth using. That's the drawback - if you only want to bring Sang or a one way switch, this weapon isn't very good, and obviously you're going to lose all the healing from Sang, if you're comparing it to that. If we do eventually get around to rebalancing Elemental, Harm, etc. Harm would still have its purpose, its power.
+* '''Mod Arcane:''' So we don't think it's necessary, but again, give us feedback if you feel like it's too strong! It's obviously an iterative process.
+
+==Question #7==
+{{Cquote2|Can Harmonised staff be buffed? Can you fix the autocast on it?}}
+
+[https://www.youtube.com/watch?v=tfyfk9a4GJ0&t=687s Youtube Time Stamp]
+
+* '''Mod Arcane:''' We agree with all of this! Tome of Fire is janky, the autocast system is janky. Harm is just in a weird space where it's really, really rare. We're still aware of it but we're not looking to fix it short term or anything. I think the best solution personally is reworking elemental spells and elemental defence. It would be more natural, where Harm ends up becoming better. This may end up affecting Harm and Tome of Fire in some different ways as well. I think that would fall into that Magic rework as a whole.
+
+==Question #8==
+{{Cquote2|Lots of MMOs and other popular games use events to boost engagement. One great thing about Old School is how conservatively this is applied. What can you do to reassure players that OSRS won't lean too far into events and other limited releases?}}
+
+[https://www.youtube.com/watch?v=tfyfk9a4GJ0&t=874s Youtube Time Stamp]
+
+* '''Mod Light:''' As I said earlier, there are no in-game items to be won. This kind of raffle idea is something that we have talked about in the past on live streams and it was received quite positively as a concept. We felt that given the fact that we would like to bring in some changes to Group Ironman in the form of increasing accessibility, we thought this would the perfect opportunity to tempt people who are maybe no longer playing just to come back, or existing players who might want to have a new goal to work towards. We also think it's just something fun, so we're trialling it to see how it goes. We definitely care about the community response. That's why we have a survey for feedback, and we’ll be checking it to see how you guys respond to it.
+* '''Mod Kieren:''' I think the first point about sort of how conservative Old School is with events is absolutely so important. That's the thing that I think is at the top of most lists, it's one of these things... as much as we've not really written it down as a golden rule, it's one of these things that is absolutely paramount when when we're thinking about stuff like this. The way I think of it is no matter when you play, whether you want to play tomorrow, tonight or the weekend - it doesn't give you any inherent advantages to your progression on your account, be it skill levelling or access to different rewards. That would rule out something like a double XP weekend, and other events like that. These would obviously increase engagement, but in a way that Old School sees as not a way that fits our philosophy.
+* '''Mod Kieren:''' Whilst something like a competition, we're seeing a little bit differently. Yes, its goal is still to increase engagement, only this way it's a bit of fun.  A competition is just that, it's separate. It's separate in the way that the rewards are external to your account, and thus, you don't care about membership, and that's not really what you're going for. It's only a nice little extra if you win anyway. It's just a little bit of a nudge, a little bit of fun to have, as opposed to "I need to do this because I'm going to get double experience" or something like that.
+* '''Mod Husky:''' I saw a lot of people say "why is it just Group Ironman?". I think it just ties into what you said there. We're trying to lift some of the restrictions and get people back into playing with a friend, maybe come back and do a fun event. A lot of the thought when designing and developing the underlying code for this has been to see how can we make this more of a structure so that if we want apply this to other game modes, like ironmen, mains, the rest of the community - maybe it's not bosses, it's other things are easy to expand on. We're definitely writing it in that sort of way, where it's not gonna be a lot of work for another developer to do that. This all comes down to whether or not players want to have these kinds of events where they're competing for membership, not for a limited item or a boost in their XP or anything like that.
+* '''Mod Elena:''' I think it's just a good time to have that competition for Group Ironman now specifically, because we're going to be focusing on group bosses. If you were there at the beginning of Group Ironman when it launched, you're probably at a place now where you're looking to get into bossing. Some people have been bossing for a while already, some are really fast! But I think people who don't play as much are getting to that point now. This could be a really good push to go try something new, perhaps. Your gear might not be optimal but you can still have fun going DKs with your group, and maybe you'll win some membership at the same time!
+
+==Question #9==
+{{Cquote2|How will the raffle tickets affect your chance of winning? Because it works as a raffle? Right? It's not like the most amount of people, the most amount of points wins. So can you explain a bit more about that side of things?}}
+
+[https://www.youtube.com/watch?v=tfyfk9a4GJ0&t=1173s Youtube Time Stamp]
+
+* '''Mod Husky:''' The term "raffle" is just the best way to describe it. I'm not sure if people are familiar with that... If you can imagine, every time you kill a boss a ticket drops into the hat with your name on it. If you've got more tickets in this hat, when we pull out the winners, there is going to be a higher chance your group's name is going to be on this ticket. The first name we pull out would be a lifetime of membership, then the next nine would be a year membership. You could be an all-maxed account, super-efficient, playing 12 hours a day, and you might still only have 5% of the tickets which would be a 1/20 chance, and we all know how drop rates work after playing OSRS so even then you're still not guaranteed but you're definitely increasing your odds. I think this makes it more fair and open to a lot of people. It's less about "how can I optimise and get the most kills per hour", but more just "hey, let's participate in this", and it could change up your activities. For example, say you were going to grind out some primordial boots but you notice the raffle is on and slayer bosses are not included in it. Now maybe instead you'll say to your group "Hey, let's do some nightmare tonight, see if we get lucky and get an Inquisitor's piece of an Orb and we'll also get some raffle tickets on the side!"
+
+==Question #10==
+{{Cquote2|Are we planning or looking at implementing the raffle system for other types of accounts?}}
+
+[https://www.youtube.com/watch?v=tfyfk9a4GJ0&t=1280s Youtube Time Stamp]
+
+* '''Mod Light:''' I can actually speak to that - I looked at the survey results today. I know it's only been 24 hours, but it does seem like the majority of respondents to that survey seemed in favour of implementing this system across other types of accounts, not just group Ironmen.
+* '''Mod Kieren:''' Absolutely. It's got the potential to do that. Right now it's just an experiment to begin with, and with group Ironmen we like the social dynamics of groups. Getting group Ironmen to do something together is part of the desire here! Now that we've got a system, it can naturally be extended in theory to all accounts, or indeed, different types of content. It doesn't have to be bosses, it could be anything arbitrary. As long as we tell you what it is, and give you a list of points for completion, we could absolutely do that. I think that even ties into one of the ideas we talked about in the Game Jam yesterday, the Seasonal HiScore system. We can provide a competition such as "most agility laps completed". Okay, that maybe isn't the most exciting idea but you can see how this system works. Every lap you complete, you get a ticket. We can even have that on the HiScores so you can see how many tickets you've got compared to other people. I think there's a lot of potential to do more of this. Right now though, we are going to be looking at how well this one works, if the community likes it. Then we base our decision on that. So far there certainly seems like there's the appetite for this to extend to other things too!
+
+==Question #11==
+{{Cquote2|Will there be Free to Play bosses added to the Boss Bash?}}
+
+[https://www.youtube.com/watch?v=tfyfk9a4GJ0&t=1401s Youtube Time Stamp]
+
+* '''Mod Elena:''' We've been focusing on group bosses, and there aren't really any group bosses in free-to-play. So that makes it only members for now.
+* '''Mod Husky:''' King Black Dragon isn't free-to-play but that was the first one that jumped in my head where I thought "is it?" You're right though, it is just focusing on group bosses.
+* '''Mod Light:''' Maybe we'll look towards some free to play type things if we decide to hold this type of event in the future.
+
+==Question #12==
+{{Cquote2|Will there be a penalty for Group Ironmen who joined a team just to win the raffle and then leave straight away?}}
+
+[https://www.youtube.com/watch?v=tfyfk9a4GJ0&t=1468s Youtube Time Stamp]
+
+* '''Mod Elena:''' From my conversation with ADSE, which is our analytics department, they'll be doing the draw for this. The way we send the data across to them, I believe the group that will win, is the group you had at the time of killing the given boss. If I'm in a group with Husky and Kieren, we go kill DKs. Then my name gets pulled from that DK kill, even if the draw is a week later, I was still in the group with them at the time which means that all three of us won, even if I left the group after.
+
+==Question #13==
+{{Cquote2|What are our plans to stop cheaters from winning the raffle?}}
+
+[https://www.youtube.com/watch?v=tfyfk9a4GJ0&t=1537s Youtube Time Stamp]
+
+* '''Mod Light:''' We do a "sense check" on winners when we're holding a competition. We do that sense check like we do for DMM, etc. I believe that we'll be doing that in this situation. That's generally how we tend to approach these types of things
+* '''Mod Kieren:''' When  the winners are chosen, the sense checks will be done. If any players have broken the rules, the win will go down to the next pick on the list!
+
+==Question #14==
+{{Cquote2|Can the raffle be broken down by team size? For example, a five-man team might have better odds at winning against a two-man or three-man team.}}
+
+[https://www.youtube.com/watch?v=tfyfk9a4GJ0&t=1580s Youtube Time Stamp]
+
+* '''Mod Kieren:''' It's something I did think about when we were thinking about this, but we thought that we would rather keep it simple. Now I do realise that means a five-man team has an advantage over a two-man. But because it's in this raffle system and it’s not most tickets wins, it's kind of fair. It's still open to everybody. Generally the more you do, the better chance you will have and it's not going to make a drastic difference that the day. That's the feeling on it. It's totally possible we could look at this more in future. We'll see when we are able to take a look at the points distributions and see how many points the groups got. We can use that information to improve things in future.
+
+==Question #15==
+{{Cquote2|Where is the negative feedback on GIM tradable untradeables? Most feedback appears in favour. Why wasn't it polled and would we be open to Polling it as most GIM players seem to feel in favour of this change?}}
+
+[https://www.youtube.com/watch?v=tfyfk9a4GJ0&t=1670s Youtube Time Stamp]
+
+* '''Mod Husky:''' There are probably a lot of people who see within their circles of players around them that players really want this. I think a lot of Group Ironman players generally were for the change, maybe that's where that perception is from. We put a lot of different items in that blog. We discussed if should you be able to trade items such as Barrows gear. These are things that are tradable at a different state but you just need to do something before you trade, so it's more of a convenience step. The question was should groups only get that feature when that's something that you want to be able to do? Realistically, there's no reason why we couldn't just offer that stuff apart from the fact that when a player is trading something to somebody, we can't currently show the player in the trade window what state the item they are trading for is in. "Oh, I'm buying a 2% Torag's Platebody. I should be paying less money for this trade". Generally we will be open to offering these if weF could open it up to everybody else.
+* '''Mod Husky:''' The other stuff was super controversial, though. There were comments such as should you be able to trade Golden Nuggets to your friend. You did all the mining at Motherlode mine and you give him the nuggets, then he can buy Prospector or Graceful so you can split up the grinds. That seems super cool from a Group Ironman perspective. But what this also does is open up the ability to get these niche accounts. An example is where a player could suddenly have an account that's level one agility and has full Graceful. Then that person de-irons and becomes a main. 
+* '''Mod Husky:''' That was something there was a lot of backlash on, creating these niche accounts. That was something we specifically didn't want to have available with a Group Ironman game mode - to have these accounts that could get into states that main accounts couldn't.
+* '''Mod Husky:''' If you were liking the more harmless stuff, potentially we'll relook at it if we get the tech to be able to open that up for everyone else. As it stands, it just didn't seem fair to offer a benefit to group accounts only when it should be available for most of our other players too. That was the sentiment we seemed to get from the community at the time. We were kind of on the fence at the time and that is why we put it in a blog. Players might not be remembering all the details now but that was the conclusion we definitely drew at the time after looking at all that information.
+* '''Mod Husky:''' Again, conversations could open up if the community suddenly swings the other way. We could change our minds on that and say "sure, groups can do that". We felt it was overwhelmingly so mixed that it's not worth pushing. Maybe that does open up the whole, "maybe the answer is poll it", but it felt like it was just such a low priority thing for the sake of Barrows armour as well. 
+* '''Mod Husky:''' The big part would have been the splitting up grinds, because that changes gameplay drastically for that game mode. That's just my thoughts and my recollection for when the discussions happen at the time. I'm sorry if you were really looking forward to it, but I guess that's just how things happen. Sometimes some people are really for something and it just doesn't end up determined that it's worth proceeding as a whole.
+* '''Mod Light:''' It definitely doesn't seem like we have an answer yet for the community. Maybe it's something that we go away, look at the feedback and then come back to you on!
+* '''Mod Elena:''' I think the biggest gripe for me, personally, is the fact that players could get into really weird states and we would have to make really weird exceptions. When a player sets to de-iron, for example, trying to put them back into the right state can be really tricky. It's not really future proof either, if that makes sense. If we add something else in the future, and then we don't consider the exception upon the player leaving a group and bringing that onto their now-main account... that would be very strange.
+
+==Question #16==
+{{Cquote2|We’ve seen a fair amount of feedback asking about raising GIM Group Numbers. Could we raise the player cap for (Unranked) Group Ironmen?}}
+
+[https://www.youtube.com/watch?v=tfyfk9a4GJ0&t=2030s Youtube Time Stamp]
+
+* '''Mod Elena:''' Due to our current engine limitations, it's not really viable. Our infrastructure doesn't support it. When we built the Group Ironman system, it was very much built with the intention of five being the max. We can expand that but it would take a lot of work, and a fair bit of engine work too as it's not just changing a variable, it's not a trivial task. That said, theoretically, it is possible to do. It's based on the clan system, and clans can have many, many players. That means it's definitely within the realms of possibility.
+
+==Question #17==
+{{Cquote2|Could we allow regular ironmen to join Unranked GIM Groups? If there are no HiScores and the goal is to have fun with friends, this is something that might increase player accessibility.}}
+
+[https://www.youtube.com/watch?v=tfyfk9a4GJ0&t=2010s Youtube Time Stamp]
+
+* '''Mod Elena:''' I've been thinking about this a fair bit, actually, since it came up. The reason we didn't do this initially on launch was the fact that we didn't have unranked, everyone was starting fresh on new accounts. That was the thrill, the excitement of being the first to get a cool drop or first player to max. We didn't want to take that away from people by letting regular Ironmen convert to GIM. 
+* '''Mod Elena:''' Now that's not really an issue anymore, now that we have unranked. Personally, I would be open to it! I've seen a fair bit of concern about people bringing in items to the group and that being unfair. That is going to be a possibility between groups anyway when unranked becomes available. For example, I could be in a group, get a Tbow in that group, and then move over to another group. That is the reason why we had this really strict system in the first place. A lot of people also found that really inconvenient because they just want to play Group Ironman with the gang. We'd like to remove the restrictions for the people who just want to play a bit more casually but in return, you cannot be on the HiScores. We want to do that unranked. 
+* '''Mod Elena:''' I'm seeing a bit of feedback come up as well about wanting to see a difference between these accounts in the game. If you see an Ironman today with a Tbow, you know that that person got it themselves. If you see an iron group with a Tbow, you assume that some person in that group got it. Due to unranked, that's not going to be the case anymore, necessarily. We actually have the ability to change that icon, if that's something people want. There's a world where the unranked Group Ironman icon is green instead of blue, perhaps!
+* '''Mod Elena:''' I'd be super interested to hear what people think about that. Should we make that distinction in-game? The reason we didn't offer that initially was that we just didn't want people to feel bad about making that choice. You just want to play casually! We didn't want to see people make fun of you for being a "filthy casual" or something like that.
+* '''Mod Kieren:''' This small icon change makes perfect sense. I think it's about showing off your status. That's the key thing, people can see the level of achievement you've had because of those chat icons. When you see some character and he stood there with a Twisted Bow, it's important to understand what level of achievement that is. Did they just buy it off the Grand Exchange? Did they use their mum's credit card to buy bonds, and get it from the credit exchange that way? Or is it an Ironman who's earned it? Or even a Group Ironman? I think that's really important. 
+* '''Mod Kieren:''' Allowing Ironmen to join unranked is perfectly fine. It just becomes about whether we can technically do the work and actually tie that change in. I will always believe it's acceptable, as long as the player is moving from a harder game mode to an easier one. As an Ironman, you are playing solo. To be able to switch into a game mode where you're playing with four others - that's absolutely fine. You're not getting to a position where you can show off achievements that you've circumnavigated.
+
+==Question #18==
+{{Cquote2|Do we plan to allow GIM to change to regular ironmen?}}
+
+[https://www.youtube.com/watch?v=tfyfk9a4GJ0&t=2374s Youtube Time Stamp]
+
+* '''Mod Elena:''' No, we will never make that change. As Kieren said, we like going from a harder game mode to an easier one. We wouldn't want to do it the other way around. If you go from a group, you've had help from up to four other players and to suddenly become competitive with other players who've come this far on their own... It's not really fair to those people.
+* '''Mod Kieren:''' Here's an example; You could get a whip from somebody in your group. You could have 1 Slayer and then become an Ironman and have a whip. Which somebody else has from 85 slayer! It wouldn't be fair.
+
+==Question #19==
+{{Cquote2|We saw some questions about future GIM Group content. A lot of players seem to want things like partner slayer. Can players expect to see this return in any capacity?}}
+
+[https://www.youtube.com/watch?v=tfyfk9a4GJ0&t=2429s Youtube Time Stamp]
+
+* '''Mod Kieren:''' There are no current plans in that specific example. But I do have a huge "bee in my bonnet" about doing more social content in general, which partner slay obviously does fit. 
+* '''Mod Kieren:''' I'd love to understand what people want to see with partner Slayer. Are they happy for it just come back almost like it was? It didn't really have much incentive other than you can have a bit of fun with your friend. It wasn't necessarily efficient to do it unless you were kind of abusing the system. Is that fine? If so, why not? But absolutely, we could bring it back.
+* '''Mod Kieren:''' This speaks to something we were talking about yesterday on the Game Jam stream; a lot of the content in our game is single player. Old School RuneScape is one of the most single-player MMOs available! There is some group bossing and some of the more recent content we've done, like Guardians of the Rift, You can do with other people and you can form a team and do it. Content such as Tempoross, you can do with other people.
+* '''Mod Kieren:''' But if we come back to mining... If somebody else is in your iron ore spot or your granite mine, you're hopping to find another world. If somebody's chopping your trees, it's a disadvantage to be in the same world. That is the content that I'd love to find a way to make more social so that you can do it with others. Following on from that, I would love to find more spaces for actual team group content. Rather than doing content around other people, you do the content with other people. A raid is team content. You need a dedicated team to do that. I'd love to have some more of that through the mid-game. I find that it really does lack until you get to the endgame.
+* '''Mod Elena:''' I think group content is really what makes MMORPGs stand out from regular RPGs. I don't think there's inherently something wrong with allowing solo play in an MMO. I think that's actually really important! If you're like me, you don't always want to spend time with people. I personally like being able to when the time is right. But sometimes I just want to sit back, mine and watch Netflix, or something along those lines. 
+* '''Mod Kieren:''' We don't want to change what old school is at the same time, right? Let us embrace that is part of the game, not diminish it, We would just like to add to it and give you social options. Group Ironmen has really highlighted this to me, how much fun it is when your group reaches God Wars and you can team up and do God Wars. You're finally experiencing everything Group Ironman was designed to be! It's so much fun getting together with your friends who have worked so hard for months to get together, ready to finally go on that Bandos trip at God Wars. It is so satisfying. We would love to have more of it. Maybe even earlier than God Wars, because it takes quite a while to even get to God Wars with a reasonable setup.
+* '''Mod Elena:''' I've been seeing this before as well. I'd love to see more early game or early to mid-level group bosses. That's something that came up around the release of Group Ironman, because the majority of people are only now getting to bosses. It's been such a long time since Group Ironman came out. What if we had more to do on the way to this point? That'd be good!
+
+==Question #20==
+{{Cquote2|When can GIM display their prestige status on HiScores?}}
+
+[https://www.youtube.com/watch?v=tfyfk9a4GJ0&t=2689s Youtube Time Stamp]
+
+* '''Mod Elena:''' This is something that we promised in the design. On the release of Group Ironman as well, we said that this would be coming in the future. It is. It has been coded and developed, it's just waiting a time to release really. It's a matter of weeks at this point! Hopefully, it comes out with the raffle. I can’t guarantee you that though!
+
+==Question #21==
+{{Cquote2|We've had players really express their interest at seeing their boss HiScores on the HiScores. I know that this has proven to be technically difficult. Would you mind giving an explanation as to why this is so difficult?}}
+
+[https://www.youtube.com/watch?v=tfyfk9a4GJ0&t=2757s Youtube Time Stamp]
+
+* '''Mod Elena:''' Currently, when you look up a single player, you can see their boss kills. You can't see that when you look up a player via the group HiScores, and you also can't see the group's combined HiScores. It is on the radar for the engine team, but unfortunately there are just some other things that need to take priority. They're having to do a lot of stuff for Dead Man and other content such as raids, and that's really taking up most of their time. It's still in the backlog of things to do. We just don't have a timeline for when it can get done.
+
+==Question #22==
+{{Cquote2|Are incorrect group sizes going to be fixed on the HiScores?}}
+
+[https://www.youtube.com/watch?v=tfyfk9a4GJ0&t=2850s Youtube Time Stamp]
+
+* '''Mod Light:''' We planned to have a tool that would fix all of the incorrect group sizes automatically. We were waiting on that to be ready. Unfortunately, that tool failed. So for the time being we need to do all of those manually. 
+* '''Mod Light:''' If you can get in touch with me either on Twitter or on Old School RuneScape's official social media accounts, we can help! Just send us your group name and size and we'll pass it over, and it will be manually fixed. It's not ideal, we know, which is why we're continuing to work on that tool, but it hasn't worked so far. So we just need to do it manually. So if you're out there with incorrect group size, let us know.
+
+==Question #23==
+{{Cquote2|Do unranked Group Ironman accounts appear individually on the main HiScores?}}
+
+[https://www.youtube.com/watch?v=tfyfk9a4GJ0&t=2894s Youtube Time Stamp]
+
+* '''Mod Elena:''' No, they will appear as if they were a main account.
+
+==Question #24==
+{{Cquote2|Would we ever consider allowing them to appear individually on the main HiScores?}}
+
+[https://www.youtube.com/watch?v=tfyfk9a4GJ0&t=2918s Youtube Time Stamp]
+
+* '''Mod Elena:''' It's kind of against the point of it, isn't it, if you’re unranked? I'd be open to feedback on it, but I personally don't think they should be.
+
+'''Comment from Elena:''' I think perhaps I misunderstood the question on stream and thought they asked about appearing on individual GIM hiscores. All players will show up on the main hiscores. Unranked GIM will simply not send updates to their group hiscores anymore. That includes their individual score within the group.
+
+==Question #25==
+{{Cquote2|We saw some questions and concerns of the Unranked Mode from those who might see them not as players who achieved their items, but rather paid for high level unranked GIM to sell you items via black market concerns. In light of this, would we consider removing/changing the GIM symbol or armour for these new unranked GIMs. The main reason for this is the issue where, in-game, Unranked GIMS would be pretty indistinguishable from actual GIMs which doesn't seem right to some players. Should we look at giving unranked GIMs a different symbol/armour or something like that?}}
+
+[https://www.youtube.com/watch?v=tfyfk9a4GJ0&t=2937s Youtube Time Stamp]
+
+* '''Mod Elena:''' We may not be able to do that for a launch, but that's definitely something we can just add in later. It has some engine dependency, so we have to configure the icons properly. We can't just do it very fast. It takes a little bit, but we can do it retroactively. If we do decide to do it, and it's not there on launch, it could still be done.
+
+==Question #26==
+{{Cquote2|What is the main difference between an Unranked GIM and a main account?}}
+
+[https://www.youtube.com/watch?v=tfyfk9a4GJ0&t=3014s Youtube Time Stamp]
+
+* '''Mod Elena:''' I can see why players would ask this. I guess the only difference is that the unranked Group Ironman has the ability to be in a group with other players, while a main account cannot. That is really it!
+* '''Mod Elena:''' There's the worry about people bringing items across groups and just trading with whoever. That is an issue, it is why we didn't do this initially. But with this, we're stopping the game from limiting you. It's in your hands now to limit how much you want to play into the rules of the game mode, if that makes sense.
+* '''Mod Kieren:''' I see it as If you really wanted to become an unranked Group Ironman to then just spend your time going through the tedious process of grouping up with various different people to get all the items you want -  you would just probably become a main! This is really for people who still want to play it in the "Group Ironman way". You just want to group up with some new people because some members of your group have left. I think it's as simple as that. I think the amount of people who would want to abuse this to try and get different items is probably small. 
+* '''Mod Kieren:''' This is about allowing people to play Group Ironman because it's fun. People want that social engagement with their friends that they can't currently team up with because our current restrictions stop you from doing that. I think it's as simple as that and utterly harmless.
+
+==Question #27==
+{{Cquote2|How do groups deal with items when becoming unranked? Do you still lose all tradable items?}}
+
+[https://www.youtube.com/watch?v=tfyfk9a4GJ0&t=3186s Youtube Time Stamp]
+
+* '''Mod Elena:''' No, you get to keep them.
+
+==Question #28==
+{{Cquote2|Have we considered reworking the group storage functionality to protect groups? A player has got in touch saying that removing the trade restrictions entirely means people can jump into groups, steal all items from the group storage and run off.}}
+
+[https://www.youtube.com/watch?v=tfyfk9a4GJ0&t=3200s Youtube Time Stamp]
+
+* '''Mod Elena:''' What we can do is add a cooldown after joining where you can't take anything from the shared storage. It should probably come with a toggle as well if we do that, because some groups may actually trust the new member in their group and may just want to let them have whatever. I can see it done both ways.
+* '''Mod Kieren:''' I think that sounds good. A toggle would definitely be something I would suggest. I don't want to have to "nanny" the players because quite reasonably, you probably are friends with the person you're inviting to the group, and you are saying you trust them. So in theory, I think it's fine. I haven't exactly heard of mass scamming happening with Group Ironman today. Obviously, the restrictions as they stand today don't last that long. We could still be seeing that happening, but we're just not.
+
+==Question #29==
+{{Cquote2|Would we make solo bosses available to group irons as well with unranked mode? Group Jad, Zulrah, Inferno, etc.}}
+
+[https://www.youtube.com/watch?v=tfyfk9a4GJ0&t=3033s Youtube Time Stamp]
+
+* '''Mod Kieren:''' I think, for the same reasons we wouldn't allow you to trade Fire Capes, Infernal Capes etc. when we're talking about untradables - these pieces of content are still designed to be done solo. Let alone the technical changes that it would take to actually pull it off, to me it just undermines the point of the content. I don't think this is a good route to go down. Although five-man Inferno might actually be quite fun! I just don't think it's the right call to make.
+
+==Question #30==
+{{Cquote2|Will there be restrictions on how often unranked GIMs can join other teams?}}
+
+[https://www.youtube.com/watch?v=tfyfk9a4GJ0&t=3033s Youtube Time Stamp]
+
+* '''Mod Elena:''' I believe unranked GIMs will still have the one-week buffer when leaving a group, and this is a safety measure to make sure that you really want to leave the group and that you have the time to change your mind. This is also for security reasons, if your account got hijacked they couldn't just leave your group. Obviously, with unranked, you could just be invited back in again, so the consequences aren't that bad. We still think it's best that there is still that one-week cooldown before you can leave a group.
+
+==Question #31==
+{{Cquote2|Will we be looking at Player Owned Houses again? Players have requested a single house to use together, or a house which members may access while their owner is offline. It could be locked specifically to the group's home world.}}
+
+[https://www.youtube.com/watch?v=tfyfk9a4GJ0&t=3452s Youtube Time Stamp]
+
+* '''Mod Elena:''' When this came up before, with the launch of Group Ironman and in the months after, we discussed different implementations of this and how it could theoretically be done. One thing that a lot of people wanted was to be able to go to someone's house even though they're offline. Unfortunately, we can't do that due to tech limitations. We can't read a player's variables if they're offline. This means you can't find the right house variables and all that. We also thought about doing something similar to the clan hall. That was a really big project at the time, or a big part of clans at least. We didn't feel comfortable spending that amount of time on something that is this niche.
+* '''Mod Elena:''' We found we could instead improve the POH experience for these accounts, which is why you can now enter your groups' house, can teleport to their house, etc.
+* '''Mod Kieren:''' The teleports have definitely made an improvement. That's certainly made it a lot easier to do this. I see it as what people want. They want that one member of the group to be the person who trains construction and then everyone can use that house pretty easily. But unless there are any other easy improvements such as the teleporting that we've done, I don't really see a technical way to achieve exactly what people are asking for.

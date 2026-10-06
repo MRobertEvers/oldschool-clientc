@@ -1,0 +1,374 @@
+{{Update|date=23 March 2023|rev=27 March 2023|url=https://secure.runescape.com/m=news/poll-79-point-based-combat-achievements--more?oldschool=1|category=community}}
+[[File:Poll 79- Point-based Combat Achievements & more! newspost.png|right]]
+{{clear}}
+'''A small tweak, March 27th: We've made a small tweak to our proposal concerning Blue dragon scales, scroll down to take a look at the changes to Questions 10 and 11!'''
+
+
+''We're back with 2023's second Quality of Life poll, including the long-awaited Points-based Combat Achievements system!''
+
+Last year we set out to get a little more consistent with our Quality of Life polls, with the aim of including 15-25 changes in each poll and hosting them every 2 months or so.
+
+There's a little bit of everything this time around ranging from PvM to Skilling to the Wilderness, but where better to start than something you've been asking for ever since our last Game Jam…
+__TOC__
+==Poll 79 Questions==
+===Points-based Combat Achievements===
+During our October-November Game Jam in 2022 we spent some time working on some adjustments to Combat Achievements, following feedback we received when we polled a Combat Achievements Rewards expansion.
+
+Many players at the time expressed that Combat Achievements didn't feel rewarding enough for the amount of effort required, or that they were more than capable of completing a given tier (and tiers beyond) but didn't feel as though the rewards available made grinding for Mossy keys for Bryophyta tasks feel worthwhile. We suggested a system similar to Leagues, where players would earn points for completing various Combat Achievements, with higher-tiered achievements offering more points.
+
+The response was overwhelmingly positive and it's something we get asked about every single day. Ask no longer, because we're ready to poll them!
+
+Our design is simple and shouldn't change anything for players who've already completed any tier in particular. We've even got a few mock-up images from our original pitch to help illustrate exactly how this works!
+
+[[File:Poll 79- Point-based Combat Achievements & more! (1).png|centre|400px]]
+
+Step one: complete a task and earn points. The points are indicated beneath the task on the interface, but we've included a reference table towards the end of this section!
+
+[[File:Poll 79- Point-based Combat Achievements & more! (2).png|centre|400px]]
+
+Step two: earn enough points to fill this green bar at the top as you progress towards your next unlock!
+
+Of course, if you're thinking long-term and want to look towards unlocks beyond your current tier - you can view all the thresholds in one handy place, similar to in previous Leagues.
+
+[[File:Poll 79- Point-based Combat Achievements & more! (3).png|centre|400px]]
+
+These thresholds are determined by how many points you ''would'' have if you'd completed every task in or below your current tier.
+
+Put simply, unlocking rewards from the Medium tier would require 115 points, this is equivalent to completing all 33 Easy ''and'' all 41 Medium Combat Achievements. Perhaps you just can't stand the Dagannoth Kings (getting to their lair is a bit of a trek), or you've grown fond of Hill Giants and couldn't possibly bring yourself to tackle Obor's Combat Achievements - instead, you could earn points from higher tiers to push you up over the threshold.
+
+This means any players currently eligible for a specific rewards-tier will remain eligible and won't have to do anything to re-obtain rewards they'd already unlocked.
+
+For quick reference, here's a table showing each of the tiers off with our proposed points system, including the points per task and how many points you'd need to unlock the rewards for a given tier!
+
+<table class="wikitable" style="text-align:center">
+    <tr>
+      <th>Combat Achievement Tier</th>
+      <th>No. of Tasks</th>
+      <th>Points per Task</th>
+      <th>Rewards Threshold</th>
+    </tr>
+    <tr>
+      <td>Easy</td>
+      <td>33</td>
+      <td>1</td>
+      <td>33 Points</td>
+    </tr>
+    <tr>
+      <td>Medium</td>
+      <td>41</td>
+      <td>2</td>
+      <td>115 Points</td>
+    </tr>
+    <tr>
+      <td>Hard</td>
+      <td>63</td>
+      <td>3</td>
+      <td>304 Points</td>
+    </tr>
+    <tr>
+      <td>Elite</td>
+      <td>129</td>
+      <td>4</td>
+      <td>820 Points</td>
+    </tr>
+    <tr>
+      <td>Master</td>
+      <td>129</td>
+      <td>5</td>
+      <td>1465 Points</td>
+    </tr>
+    <tr>
+      <td>Grandmaster</td>
+      <td>90</td>
+      <td>6</td>
+      <td>2005 Points</td>
+    </tr>
+</table>
+
+We'll run a quick example by you all, using Combat Achievements progress spread across all of the tiers!
+
+[[File:Poll 79- Point-based Combat Achievements & more! (4).png|centre|400px]]
+
+* 21 Easy tasks gives 21 Points (21 x 1 Point)
+* 14 Medium tasks gives 28 Points (14 x 2 Points)
+* 23 Hard tasks gives a nice 69 Points (23 x 3 Points)
+* 39 Elite tasks gives 156 Points (39 x 4 Points)
+* 16 Master tasks gives 80 Points (16 x 5 Points)
+* 2 Grandmaster tasks gives 12 Points (2 x 6 Points)
+
+In total, this adventurer has 369 Points and would be eligible for the Hard tier of rewards, since they only require 304 Points.
+
+For their troubles, they'd be able to claim all the Easy, Medium and Hard rewards that currently exist but would have a sizeable grind ahead before getting to claim the Elite tier!
+
+Sound good? Let us know, it's time for our first question!
+
+{{News Poll|1|'''Should Combat Achievements be reworked to a points-based system, as outlined in the Poll 79 blog?'''}}
+
+Enough about farming NPCs, let's talk about farming plants whose names you can't pronounce!
+
+[[File:Poll 79- Point-based Combat Achievements & more! (5).png|centre|600px|thumb|''Planting all of these Poll 79 seeds has lead to a pretty bizarre harvest!'']]
+
+===Tithe Farm===
+Whether you're trying to speed up your next Farming level, looking to hang up your rake for good with Auto-Weed, or chasing the Farmer's outfit - you've probably set foot in Tithe Farm at some point.
+
+If you ''have'' tried your hand at a spot of Tithe farming in the past, you'll know the experience isn't entirely without frustration. Other players can disrupt your experience by planting in your allotments, or you might have to leave ''right'' before you start earning points.
+
+You've expressed numerous gripes over the years and we'd like to make some improvements!
+
+First up, we'd like to let you get on with your farming in peace by making Tithe Farm into a solo instance to cut down on any potential griefing and to give you all an easier time jumping in and out of your favourite Farming minigame.
+
+On top of that, we understand that earning no points until your 76th successful harvest can make your runs feel like a slog, especially when you can only bring in 100 seeds to start with. So we're proposing the following changes:
+* For every 3 plants you turn in, you'll be awarded 1 Point.
+* For every 100 plants you turn in, you'll be awarded an ''additional'' 2 Points.
+* You can take in as many seeds as you like, so you don't need to leave after every 100 seeds.
+
+Ultimately this means you'd get 35 Points (up from the current 25) for turning in 100 plants, while being punished much less for the odd mistake here or there ''and'' being able to stay inside the farm longer by taking in extra seeds.
+
+If you're looking at the above changes and wondering how on earth you'll ever be able to spend all those extra points, don't worry - we've got you covered!
+
+For any wine enjoyers among you who are living, laughing and loving Zamorak, we'd like to double the number of Bologa's blessings per point from Farmer Gricoller's rewards shop. Currently, as players level their Farming and increase their yield, they end up needing more of Bologa's blessings for each grape seed, meaning they'd have to spend even more time inside Tithe Farm if they're looking to stock up on Zamorak's grapes. We hope the proposed change might be of help any of you trying to stock up on this delightfully devilish wine!
+
+For our next (and final) Tithe Farm trick, we'd like to add Herb boxes, similar to those you might find at Nightmare Zone, to Farmer Gricoller's rewards shop. We've seen requests for this over the years to add some extra long-term incentive to the minigame. Since Iron players can't buy the Nightmare Zone versions of these, we've opted to include an Iron-only poll question to figure out if this would be a welcome addition!
+
+{{News Poll|2|'''Should Tithe Farm be made into instanced, solo-only content?'''}}
+
+{{News Poll|3|'''Should we adjust Tithe Farm's gameplay to function as outlined in the Poll 79 blog, by awarding points more frequently and allowing players to bring more seeds in at a time?'''}}
+
+{{News Poll|4|'''Should we double the amount of Bologa's blessings received when purchasing them from Farmer Gricoller's rewards shop?'''}}
+
+{{News Poll|5|'''Should we add Herb boxes, similar to those found at Nightmare Zone, to Farmer Gricoller's rewards shop?'''}}
+
+{{News Poll|qtext=Poll Question #6 (Irons only)|2='''If Herb boxes are added to the rewards shop, should Iron players be able to obtain them?'''}}
+
+That's enough rest and relaxation for now, back to some more PvM-centric changes, we've got loads to get through so we'll start rattling them off a little quicker from here on out!
+
+===Slepey Tablet===
+Phosani's Nightmare can be a pretty draining boss owing to its high intensity and long fight duration. On top of the fight itself, the run there is great if you're looking to get your 10,000 steps in for the day, but less great if you're trying to chase a rare item and just want to get back to grinding.
+
+The Slepey Tablet is a 1/100 drop that adds a nearby teleport option to Drakan's Medallion and is a huge QoL improvement for anybody looking to spend a lot of time at the Nightmare, but going dry on this particular item can be pretty disheartening.
+
+We'd like to give the Slepey Tablet a drop mechanic similar to Vorkath's head, where you'll be guaranteed to receive one as a drop if you hit 100 killcount without having obtained one already. For anybody already over 100 killcount and still chasing this nifty tablet, you'd receive it on your next Phosani's Nightmare kill!
+
+{{News Poll|7|'''Should the Slepey Tablet be guaranteed to drop at 100 Phosani's Nightmare killcount if the player has not already received one?'''}}
+
+===Demonic Gorillas===
+These twisted simians were added to Old School alongside Monkey Madness II and have since become a staple grind for Iron players thanks to their Zenyte shard drop.
+
+We'd like to modernise them a little bit and add a visual indicator for when they swap their attack style - similar to what we've done in the past for the Hunllef and Alchemical Hydra. This indicator wouldn't tell you exactly what style they're switching to (so you'll still have to step back or coinflip occasionally), but would cut down on the need to keep count of every attack for potentially thousands of kills.
+
+Additionally, we'll be making a small change that resets their HP if they've been damaged and left alone for a short while, which should alleviate some of the frustrations of being attacked by Demonic Gorillas who won't provide you any loot when killed.
+
+{{News Poll|8|'''Should we add a visual indicator for when a Demonic Gorilla changes its attack style, similar to changes we've made to the Hunllef and Alchemical Hydra in the past?'''}}
+
+===The Hunllef===
+2... 1... Mage!
+
+The Crystalline and Corrupted Hunllef are also enemies that like to keep you on your toes by changing their attack style. While they already have a visual indicator, we'd like to add a small audio cue whenever they switch styles. We'll aim for something a little more Old School than an Aussie voiceover, but no hard feelings if you'd like to stick to what you know!
+
+{{News Poll|9|'''Should we add an audio cue to the Crystalline and Corrupted Hunllef, to indicate when the boss has switched attack styles?'''}}
+
+===Blue Dragon Scales===
+As part of Poll 78, we improved the viability of farming Cave Nightshade, since picking them up off of the ground to make Poison Dynamite wasn't exactly the most riveting gameplay. Blue dragon scales are a Herblore secondary ingredient primarily obtained by picking them up off of the ground, meaning we've seen renewed requests for an alternate means of obtaining them to help players stock up on Antifire potions.
+
+We'd like to make them obtainable through combat, giving you the ability to obtain a Scaly hide. Using a knife on this hide while standing in a bank (in a similar fashion to Sarachnis' Giant egg sac) will reward you with 50 noted Blue dragon scales.
+
+There are a few types of Blue dragon in the game, ranging from pretty weak to fearsomely strong. Here's how often we reckon they'd have some scales intact:
+* Baby Blue dragons: 1/200 chance of Scaly hide
+* Adult Blue dragons: 1/50 chane of Scaly hide
+* Brutal Blue dragons: 1/33 chance of Scaly hide
+* Vorkath: 1/10 chance of Scaly hide
+
+Scaly hide would be dropped in addition to normal loot, similar to bones and regular ol' dragonhide.
+
+{{News Poll|10|'''Should we add Scaly hide as an additional drop from Baby, Adult and Brutal Blue dragons, as outlined in the Poll 79 blog?'''}}
+
+{{News Poll|11|'''Should we add Scaly hide as an additional drop from Vorkath, as outlined in the Poll 79 blog?'''}}
+
+===Revenant Slayer Task Extension===
+Since the loot changes to Revenants alongside the Wilderness Boss Rework, they've become a pretty appealing Wilderness Slayer task. We've seen a lot of requests for a task extension, similar to the likes of Nechryaels or Dust devils, and we'd like to offer one as part of this poll!
+
+For the low, low price of 100 Slayer points, Krystilia would assign you between 100 and 150 Revenants, a healthy step up from the current range of 40 to 100 for any of you looking to obtain some of their elusive weapon drops, or just looking for a particularly rewarding task!
+
+{{News Poll|12|'''Should we add a 'Slayer Task Extension' unlock for Revenants? This would cost 100 Slayer Points and allow Krystilia to assign 100-150 Revenants as a Slayer task.'''}}
+
+===Trouver Parchments===
+More Wilderness Slayer tweaks!
+
+Trouver Parchments are used to prevent players from losing their untradeable items on PvP deaths beyond Level 20 Wilderness. They were added to the Wilderness Slayer Cave loot table alongside the release of Last Man Standing, where they were also obtainable for 30 points from Justine's rewards shop. Since then, their cost in Justine's shop was reduced from 30 to 18 points, but their drop rate via Wilderness Slayer was never adjusted.
+
+We'd like to keep this one simple and have players receive two Trouver parchments as a drop instead of just the one, as a little something extra for players looking to take the extra risk while completing their Slayer tasks.
+
+{{News Poll|13|'''Should we double the number of Trouver parchments received as a drop in the Wilderness Slayer Caves?'''}}
+
+===Swampbark & Bloodbark Armour===
+These specialist upgrades to Splitbark armour improve the power of your bind and blood spells. Swampbark armour requires 50 Magic and Defence to equip, while Bloodbark armour requires 60 Magic and Defence to equip.
+
+Despite having higher-requirements than Mystic robes (requiring only 40 Magic and 20 Defence), these fancy bark armours have weaker offensive Magic bonuses and a higher cost, meaning they don't see a whole lot of use.
+
+We'd love to tweak these so that they're a little stronger than Mystic offensively. Additionally, we've seen suggestions in the past to rebalance these sets so that more of their unique buffing effects sit on the top and legs as opposed to the gloves and boots - giving players the ability to fit them in around more conventional setups.
+
+{{News Poll|14|'''Should we adjust the offensive capabilities of Swampbark and Bloodbark armour to better suit their requirements?'''}}
+
+===Permanent Volcanic Mine Access===
+Petrified Pete's seen his fair share of fresh faces since he added Ore packs to his shop offerings, and he's absolutely ''swimming'' in Numulite - more than he even knows what to do with!
+
+Business is so good in fact, that he's willing to offer you a one-time payment for entry to the Volcanic Mine. For a one-off payment of 3,000 Numulite (100 times the typical entry fee) you'd be granted permanent access to the mine, similar to the permanent access option for Drift Net fishing.
+
+{{News Poll|15|'''Should we add a permanent Volcanic Mine access payment, costing 3,000 Numulite from Petrified Pete?'''}}
+
+===Looting Bag===
+This handy storage option is an absolute must-have for any Wilderness adventures, allowing you to stock up on even more slots of any loot you obtain while enjoying the ambience of Old School's notorious barren wasteland.
+
+We've seen a number of requests for another means of stocking up on these or being able to reobtain them with a little more ease. We'd like to add them to the Slayer shop similar to the Rune pouch.
+
+Rune pouches can be purchased for 75 Last Man Standing points or 750 Slayer points. Since Looting bags are available for one Last Man Standing point, we'd like to offer them up for 10 Slayer points.
+
+{{News Poll|16|'''Should we add Looting bags to Slayer shops, to be purchaseable for 10 Slayer points?'''}}
+
+On top of all of the above, the Looting bag is an ''iconic'' item for any Ultimate Iron player. In keeping with that, we've got a couple of questions for any UIMs out there! If you can't conceive of life without a bank, feel free to carry on scrolling past the next two questions!
+
+===Spice Rack===
+Currently, Ultimate Iron players can't use the Spice Rack inside their Player-owned house. Some of you have been asking us to lift this restriction, so let us know if it's something you'd like to see us do!
+
+{{News Poll|qtext=Poll Question #17 (UIM only)|2='''Should Ultimate Iron players be able to use the Spice rack inside their Player-owned house?'''}}
+
+===S.T.A.S.H. Units===
+In a recent update, we allowed a greater range of items to count for Master Clue steps and to be storable in S.T.A.S.H. Units. When doing so, we blocked Ultimate Irons from storing Abyssal Tentacles, Guardian Boots and Primordial Boots and said we'd poll this change specifically for Ultimates, as we've done for other items in the past.
+
+
+This is us making good on that promise and giving you the chance to decide whether or not you'd like some increased options for Gielinor's least convenient storage system!
+
+{{News Poll|qtext=Poll Question #18 (UIM only)|2='''Should Ultimate Iron players be able to store the Abyssal tentacle in the S.T.A.S.H. unit near Miss Schism in Draynor Village?'''}}
+
+{{News Poll|qtext=Poll Question #19 (UIM only)|2='''Should Ultimate Iron players be able to store the Guardian boots in the S.T.A.S.H. unit west of the pier in Zul-Andra?'''}}
+
+{{News Poll|qtext=Poll Question #20 (UIM only)|2='''Should Ultimate Iron players be able to store the Primordial boots in the S.T.A.S.H. unit at the Fountain of Heroes, beneath the Heroes' Guild?'''}}
+
+That's all we've got for Ultimate Irons this time around, but this next question might be a welcome relief for Hardcore Iron and Hardcore Group Iron players!
+
+===Self-casting Teleport Item===
+In June, 2018, we added the Escape crystal as a consumable teleport item. Players can buy these in the Wizard's Tower or at Ver Sinhaza for 75,000 GP. When used, players can teleport away from various dangerous activities (though some of them are only dangerous to Hardcore Group Irons).
+
+They're great in a pinch, but in the case of a dreaded disconnect they don't do much beyond take up an Inventory slot.
+
+We'd like to propose either a brand new item or an update to the Escape crystal ''or'' Ring of Life that would teleport players to safety if they stop interacting with the client for a while. For example, during a disconnection where you're unable to interact with the client, you'd log back in to find yourself in a safe location. In light of recent server issues, we feel this would be a welcome addition to provide some reassurance to any Hardcore players among you.
+
+Here's a rundown of what we'd like to propose and hear from you on:
+* A new item, or an upgrade to the Escape Crystal or Ring of Life, that teleports to players after '''X''' seconds of not interacting with the client.
+** This teleport would trigger when simply AFK for long enough, or in cases such as disconnects.
+* Players can customise exactly how long '''X''' seconds is, and may wish to change it on the fly for different pieces of content.
+* The item could be in the inventory ''or'' equippable.
+* The item could be permitted to trigger on demand, similar to the current implementation of Escape crystals, on top of its 'automatic rescue service'.
+* The teleport respects standard teleport-prevention restrictions.
+** For example, the teleport would not be able to trigger beyond Level 30 Wilderness, or while Teleblocked.
+
+We'd love to hear from you on any ideas you might have to improve the design of this particular system, so make sure to get in touch and let us know your thoughts!
+
+{{News Poll|21|'''Should we add a self-casting teleport item, that would teleport players to safety if they've not interacted with their client for some time? The exact time before teleporting would be customisable by the player.'''}}
+
+==Unpolled Changes==
+[[File:Poll 79- Point-based Combat Achievements & more! (6).png|centre|600px]]
+
+===Abyssal Lantern===
+The Abyssal lantern is a staple in Guardians of the Rift. This handy light source lets players put their Firemaking abilities to use by burning various logs in exchange for a variety of effects within the minigame.
+
+Our initial poll for Guardians of the Rift suggested the Abyssal lantern would be a reward players could purchase with Abyssal pearls, similar to the Raiments of the Eye. However, during development we didn't feel as though it made sense thematically to come from a shop rather than the abyss and we didn't want players to feel like they'd have to choose between the Raiments or the lantern so we opted to make the lantern a drop from the Rewards Guardian in the hopes players could work towards both goals simultaneously.
+
+In the time since, you've made it clear that this decision missed the mark (especially those of you going particularly dry on this elusive off-hand). As a result, alongside other Poll 79 changes we'll be giving players the option to purchase the Abyssal Lantern from Apprentice Felix at a cost of 1,500 Abyssal pearls.
+
+This should act as a 'bad luck protection' for players going well beyond the drop rate, while still affording you the opportunity to get lucky and obtain an Abyssal lantern as a drop when looting the Rewards Guardian.
+
+===Larran's Keys===
+Any of you familiar with Wilderness Slayer will be no stranger to these! Any monster killed while on a Krystilia Slayer task has a chance to drop Larran's key, which can be used for a roll on Larran's small and big chests for extra loot to help amp up your profits.
+
+While the keys aren't tradeable, they are dropped to whoever killed you upon PvP death, meaning some players have taken to 'selling' their keys by accepting GP and allowing the buyer to kill them for a stack of keys. This effectively makes them tradeable with an extra step, and that extra step leaves players vulnerable to scammers and swindlers.
+
+As a result, we'd like to make them tradeable. This means Wilderness slayers could just sell off their keys for a quick profit, or likely make a little more by taking the risk and using them to open Larran's big chest.
+
+We're not polling this one since its primary intent is to combat scamming, but we're open to any feedback you might have in case there are issues with this change we might not have foreseen!
+
+===Nex===
+''Cough.''
+
+A word that strikes fear into the heart of anybody with much experience at the Zarosian God Wars General. Since Nex's release last year we've seen a number of complaints about people griefing Nex masses by intentionally spreading the infection, resulting in a cough cacophony.
+
+To cut down on this griefing, whether intentional or by players trying to secure the 'I should see a doctor' Combat Achievement, we'd like to upgrade the Face mask and Slayer helmet to prevent the cough spreading to you from other players while worn. This would be in addition to its existing effect, where the frequency of your coughs is reduced while worn.
+
+===Zealot's Robes===
+These blessed garms are obtained as a reward from looting gold chests in the Shade Catacombs, as part of the Shadoes of Mor'ton minigame. Each piece provides a 1.25% chance to prevent bones or ensouled heads from being consumed while you're training Prayer.
+
+We'd like to extend this effect to work on the Ectofuntus to give you a chance to save your bonemeal while making your offerings, ideally without any controversy about the etymology of the word 'Ectofuntus'!
+
+That's a wrap on Poll 79's unpolled changes, but stick with us because we've got ''one'' more question and ''three'' things we'd love to get you talking about so that we can see your feedback!
+
+==Future Changes==
+[[File:Poll 79- Point-based Combat Achievements & more! (7).png|centre|600px]]
+
+===Skilling Pets===
+Here's our first of three discussion points, focused on what exactly ''is'' a Skilling pet in your collective eyes. If that sounds weird, it's probably because it is - but hear us out!
+
+For those of you not in the know, if you're astronomically unlucky and reach 200 million XP in a skill with an associated pet, the drop rate of that pet will be increased by a factor of 15. For example, if you've hit 200,000,000 XP in Woodcutting without receiving a Beaver pet, you'll be 15 times more likely to be a Beaver receiver whenever you chop trees in the future.
+
+Understandably, this impacts a relatively small number of players, but we've seen some calls recently for the Phoenix pet (obtained at Wintertodt) to be given the same drop chance increase for players with over 200 million Firemaking XP.
+
+This brings us to our final poll question ''and'' opens up a wider discussion!
+
+{{News Poll|22|'''Should the drop rate of the Phoenix pet be increased 15x for players with 200,000,000 Firemaking XP, similar to the drop rate increase for skilling pets?'''}}
+
+We're interested in this because it could be argued that this sets a precedent - do you consider the Phoenix to be ''the'' Firemaking pet, even though it's technically the Wintertodt pet?
+
+We believe a lot of players do and that this opens up a wider dicussion about the potential for pets in skills that wouldn't typically receive a pet, to be added via slightly less conventional means.
+
+For example, could Gnome Delivery reward a pet that feels like a Cooking pet? Or perhaps you could obtain a Smithing-adjacent follower from Giants' Foundry!
+
+We want to work with you and understand where or not pets like these are something you'd be interested in, and if so: what kind of locations/activities do you feel represent various skills without a current pet? We're not looking to force pets into skills if you don't feel as though there are strong fits but we're looking to find out whether there are places you ''do'' think make sense for pets similar to the Phoenix that we could explore in more detail at a later date and in a future poll.
+
+If you're at all interested in the potential for new additions to your menagerie, make sure to tell us how you feel about this topic!
+
+===Splash Weapons===
+For clarity's sake, we'll be referring to 'Splash weapons' in this section. A Splash weapon is a weapon that when equipped will guarantee 0 damage when used in combat.
+
+With both the 2022 Christmas event and Old School's 10th Birthday event, we've unintentionally added weapons that do this, only to remove both of them and say we'd like to talk about them more in the future. The future is now!
+
+For many of you reading, these wouldn't be particularly impactful. For the Level 3 Skillers among you, however, this would be a significant (and seemingly welcome) change. Many Level 3 Skillers write Slayer off, even though it's possible to train Slayer without gaining Combat XP, you can expect to spend around 7,000 hours more-or-less AFK in the Varrock Museum. Slayer used to be a little more viable as a grind for these players before the removal of Partner Slayer, meaning some members of this community have been able to achieve XP rates in the past that are no longer possible.
+
+Without getting bogged down in the finer details at this point, a Splash weapon makes Slayer a more attainable goal for these accounts. If you ask us, a meagre 1,300+ hours for 99 Slayer seems like light work, but we've had many members of the Level 3 Skiller community reach out and ask for us to reconsider our stance on these weapons to give them new goals to strive for and even unlock a handful of extra quests.
+
+It's easy enough for us to do, but we'd like to hear from the skillers and wider playerbase to figure out exactly how you'd feel about us adjusting some of the 'fun' weapons in Old School to guarantee 0s and expand the horizons of some restricted accounts!
+
+===Blood, Death & Soul Runes===
+Blood rune upkeep has been the bane of any Iron player tough enough to obtain uniques from the Theatre of Blood ever since the release of Old School's second raid.
+
+Over the years we've seen numerous calls for some kind of adjustment that doesn't make maintaining weapons like the Scythe of Vitur or Sanguinesti Staff feel like a chore. In the past we've been apprehensive about adding things like Blood rune packs to shops due to concerns about so-called 'shopscape' or 'shopman mode' not being the most riveting gameplay. For Blood runes in particular we aimed to alleviate some of this frustration with the True Blood Altar and Blood essence, allowing players to put their Runecraft to use to try and ease the upkeep of these weapons.
+
+For some rough napkin math, assuming you're using Blood essence, wearing the Raiments of the Eye ''and'' being pretty speedy on your True Blood Altar runs, you can craft around 10,400 Blood runes per hour. These 10,400 Blood runes equate to around 3 hours of use for the Scythe of Vitur, or around 2.3 hours for the Sanguinesti Staff. Meaning we still see calls from players to make some kind of an adjustment allowing them to put these weapons to use without feeling guilty about the cost.
+
+While Blood runes are the main offender here for players, we've started to see calls for improved sources of Soul runes now that Tumeken's Shadow is happy to eat them up in exchange for immense power.
+
+Death runes also crop up from time to time, with the focus being more on the quantity of them (alongside Blood runes) that Irons buy for Ice Barrage while training their Slayer, so we'd like to be able to address those too!
+
+We'd like to open this discussion up and land on a proper solution that works for all of you, we're mentioning all of this now to try and gather information on the best ways for us to do this.
+
+In the past, we've seen a handful of common solutions that should provide a solid basis for discussion:
+* Add Blood & Soul rune packs to shops for a high cost. If we were to do this, we'd likely add Death rune packs as well so that it doesn't feel like the odd one out (plus you'll likely be buying a ''lot'' of these on the road to 99 Slayer as an Iron and we're sure you'd appreciate fewer world hops!)
+* Improving various skilling methods further.
+* Reducing the rate at which weapons like the Scythe of Vitur, Sanguinesti Staff and Tumeken's Shadow consume charges.
+* Consider expensive methods to make some of these weapons 'permanent', similar to corrupting the Bow of Faerdhinen.
+
+Ultimately we're not sure that there's any one right answer, or perhaps the best path forward is a combination of the above. That's what we'd love to hear from you on, in the hopes of alleviating concerns many of you have had for a long time now.
+
+So if you've got strong opinions on any of these catalytic runes in particular, get in touch with us on any of the usual channels and share them with the world!
+
+----
+
+With that, our initial Poll 79 blog comes to a close. With 22 questions, 4 unpolled changes and 3 wider dicussion points, we're certain you'll have a lot to say!
+
+We'll be keeping a close eye on any and all feedback, and we'll be sure to update this blog with any changes resulting from the discussions we have with all of you.
+
+----
+
+You can discuss this update on our [https://secure.runescape.com/m=forum/forums?380,381,thd,855,66268470 official forums], the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[osrsw:|Old School Wiki]].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Boko, Bruno, Chilly, Crystal, Curse, Daizong, Dylan, Ed, Elena, Errol, Fed, Gecko, Gizmo, Goblin, Grub, Halo, Hend, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Nin, Nylu, Other, Pumpkin, Redfield, Regent, Roq, Ry, Sarnie, Shroom, Sigma, Skylark, Sova, Squid, Starry, Stevew, Surma, Sween, Tide, Titus, Torrance, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

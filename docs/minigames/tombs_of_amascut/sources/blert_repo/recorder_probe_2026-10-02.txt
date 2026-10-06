@@ -1,0 +1,12 @@
+type=3 2026-10-03T01:39:40Z
+[]
+HTTP 200
+type=2 2026-10-03T01:39:43Z
+[]
+HTTP 200
+type=1 2026-10-03T01:39:45Z
+[{"uuid":"3a696f0f-23bd-40a2-ba2f-4464354829f6","sessionUuid":"b4112870-5490-4705-bc06-ab1ccacd8d6d","type":1,"startTime":"2026-10-03T01:39:19.614Z","finishTime":null,"status":0,"stage":0,"mode":11,"scale":3,"challengeTicks":0,"overallTicks":null,"totalDeaths":0,"party":[{"username":"Giddy Yup","cur
+HTTP 200
+type=4 2026-10-03T01:39:47Z
+[{"uuid":"2ddc3e30-a335-40e0-89e5-7ee7ec3715bd","sessionUuid":"56204aff-8ce5-4830-b59a-925696c0ad23","type":4,"startTime":"2026-10-03T01:38:59.896Z","finishTime":null,"status":0,"stage":101,"mode":0,"scale":1,"challengeTicks":26,"overallTicks":null,"totalDeaths":0,"party":[{"username":"Supalosa","cu
+HTTP 200

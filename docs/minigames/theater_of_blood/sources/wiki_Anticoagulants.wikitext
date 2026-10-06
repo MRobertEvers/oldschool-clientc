@@ -1,0 +1,28 @@
+{{Infobox Combat Achievement
+|name = Anticoagulants
+|image = [[File:The Maiden of Sugadinti.png|250px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Defeat the Maiden of Sugadinti in the Theatre of Blood: Entry Mode without letting any bloodspawn live for longer than 10 seconds.
+|tier = Elite
+|monster = Theatre of Blood: Entry Mode
+|type = Mechanical
+|id = 386
+|leagueRegion = Morytania
+}}
+'''Anticoagulants''' is an [[Combat Achievements/Elite|elite combat achievement]] which requires the player to defeat the [[Maiden of Sugadinti]] in the [[Theatre of Blood/Entry Mode|Theatre of Blood: Entry Mode]] without letting a [[blood spawn]] live for more than 10 seconds.
+
+==Strategy==
+If a blood spawn appears, immediately focus it down. Otherwise, killing the Maiden before she can summon them will also complete the achievement.
+
+
+You do not need to complete the raid to complete the combat task. As the maiden is always the first boss you fight in a raid, you can complete the task in your best range gear and just resign to exit the raid. Taking only your range gear without any other gear switches means you can have an inventory with maximum food and pots. This allows a fairly easy fight and a quick way to complete the task.
+
+==Other tasks==
+{{Combat Achievements list|Theatre of Blood: Entry Mode}}
+
+==Trivia==
+* An {{wp|anticoagulant}} is a substance that prevents blood clotting.
+
+{{Combat Achievements}}

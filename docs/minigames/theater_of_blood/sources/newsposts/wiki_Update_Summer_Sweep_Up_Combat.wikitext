@@ -1,0 +1,391 @@
+{{Update|date=25 June 2025|rev=26 June 2025|url=https://secure.runescape.com/m=news/summer-sweep-up-combat?oldschool=1|category=game}}
+[[File:Summer Sweep Up- Combat newspost.jpg|right]]
+{{clear}}
+__TOC__
+
+'''PSA: We've deployed a hotfix for a bug where all herbs were replaced with seeds at COX. Now, 33% of herbs will drop as seeds (down from 50%, following feedback). Additionally, the number of seeds received except for Ranarr, Snapdragon and Torstol have been lowered further.'''
+
+{| class="wikitable" style="text-align: center;"
+|-
+!Known Issues
+!Status
+|-
+|Reports coming in about players with an existing Obor or Bryophyta kill count needing to grind for another key to fight Bryophyta.
+|This is now hotfixed and players with an existing Obor or Bryophyta kill count no longer needs to grind for another key to fight Bryophyta. If you’ve already got a kill, you’re good to go.
+|-
+|We are aware of an issue where players cannot currently target Kree'arra or Aviansies manually with Ancients.
+|Hotfixed.
+|-
+|We are aware of players being unable to 1-tick skulls at Warden P3.
+|Hotfixed.
+|-
+|Giant bones dropped by Obor and Bryophyta need a warning.
+|Added a warning for interacting with Giant Bones from Obor & Bryophyta, in case players (particularly on Limited builds) don't want to bury them for Prayer XP.
+|-
+|We're aware that the Inferno GM perma task shows 31 max hit.
+|Hotfixed.
+|-
+|We are aware of an issue where defeating Bryophyta and using the key on the chest does not grant players the appropriate Combat Achievement Kill count tasks.
+|Hotfixed.
+|-
+|Hueycoatl's tail has 400 HP rather than the stated 300 from the blog.
+|Hotfixed.
+|-
+|We are aware that the Soul Wars 'Spoils of War' loot crates have remained unchanged.
+|Investigating.
+|-
+|We're aware that the Steel Ring only gives +2 Crush Defence bonus.
+|Investigating.
+|-
+|We're aware of an issue where if you spam-click 'feed' at Duke, it'll keep using potions past the two that it takes to wake him up.
+|Investigating.
+|}
+----
+''This week brings Summer Sweep Up combat changes! ''
+
+==Changelog June 25th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+===Summer Sweep Up: Combat, PvM and Loot Changes===
+
+'''Tombs of Amascut Boss Changes'''
+
+* Protect from Melee now mitigates all damage at Ba-Ba, unless Invocations which reduce the effectiveness of Protection Prayers are activated.
+* Ba-Ba now spawns 1-4 baboons rather than 1-8, depending on group size.
+* If Jungle Japes is enabled, baboons will spawn two banana piles on death.
+* Damage from Ba-Ba's boulder throw attack is now always split completely with any appropriate object. This means that even splitting the damage with sarcophagi will nullify the damage that you take.
+* Protection Prayers now mitigate more damage from Akkha's basic attacks.
+* Akkha now only protects against the same style that he's attacking with.
+* Akkha's Stat Drain effect now only affects Combat skills.
+* Akkha's Special Attacks now occur every 7 attacks, up from 6.
+* Akkha's Enrage Phase now spawns fewer orbs.
+* Akkha's Stay Vigilant invocation means he'll use a Special Attack every 6 attacks, as opposed to the base version's 7.
+* If the 'Stay Vigilant' Invocation is enabled, Akkha will only swap the style he's attacking with when he uses a Special attack, provided he's used a regular attack since the last Special. Don't get hit and he won't change styles.
+* Soldier Scarabs have had their Magic Defence reduced.
+* Scarabs inside Kephri's encounter no longer scale their Defence with Raid Level.
+* Arcane Scarabs are now guaranteed to move after a certain number of attacks, regardless of whether or not they hit.
+* Zebak's waves have 'smarter' interactions with pushback.
+* Cursed Baboons and Baboon Shamans now always take maximum damage from Ranged attacks. To compensate, their HP has been increased slightly.
+* Removed two waves of Baboon assailants from the Path of Apmeken.
+* Baboons at Ba-Ba will always take maximum damage from your hits.
+* The volume of water required for the Path of Crondis no longer scales linearly with the number of players, this means you'll be able to make a mistake or two in larger groups.
+* Slightly reduced Hitpoints on the Obelisk on the Path of Het.
+* The Deposit Pot in the Nexus now functions as a full deposit box.
+* Reduced overall purple chance for Raid Levels beyond 300.
+* At Raid Levels 350, 400, 450 and 500, the weighting of the Lightbearer and Osmumten's Fang reduces, while the weighting of other uniques like the Tumeken's Shadow increases. If you get a purple at a higher Raid Level, the odds of it being a Fang or a Lightbearer go down while the odds of it being an Elidinis' Ward, Masori armour piece, or Tumeken's Shadow go up.
+* Added the Jewel of Amascut, which upgrades the Keris Partisan for exclusive use in TOA - it is slightly less effective against Scarabs (Scarab-bane bonus reduced from 33% to 15%) but gains +50 Stab bonus and +22 Strength bonus.
+* Drop rates for all Jewels have been significantly improved to ease acquisition: Base drop rate improved from 1/180 to 1/50.
+* This base rate still scales as before, meaning that at 75 killcount your base drop rate is 1/16.67.
+* If you have any other jewels, this rate improves further. Meaning other jewels are obtained more often if you've already got one.
+
+'''Elemental Weakness and NPC Defence Changes'''
+
+* Air Weaknesses can be found on things that fly or float. Things with wings, ghastly ghosts and spooky spectres!
+* Water Weaknesses can be found on anything that feels particularly fiery. Demons, TzHaar and Chromatic Dragons (Vorkath being a notable exception) are the most relevant for many of you.
+* Earth Weaknesses shine against enemies with ''tough ''exteriors. Drakes, Wyrms, Trolls, the Giant Mole and Gargoyles are chief among these.
+** We know that Wyrms and Gargoyles also fly, but we can only apply one weakness at a time for now and think their rock-solid exteriors define them more strongly than them being in the air.
+* Fire Weaknesses burn icy assailants and nature-y nemeses to a crisp. Up against something icy or a nasty bug? Kill it with fire!
+* Added the Monster Inspect spell to the Standard Spellbook (Level 42 Magic), offering a quick look into Elemental weaknesses, Defensive, and Offensive stats.
+* Tweaks to Flat Armour - enemies with positive values take less damage per hit, while negative values make them take more. Specifics can be found on[https://docs.google.com/spreadsheets/d/e/2PACX-1vRXY3W0EgqsLpxkgQx-wSHd2X1E8VqjHC0psbfiM0IIlDxwMypEaOFVC68qkfTZdB1P82Ch0JvpIrEZ/pubhtml  this spreadsheet].
+
+'''Loot Table Changes'''
+
+* Made tweaks to some loot tables with a particular focus on Runes, high-tier food, herbs, seeds and gems, and add new 'Shark Lure' as a Shark fishing enhancer to various loot tables. [https://docs.google.com/spreadsheets/d/e/2PACX-1vT5aIwPYJGCdUuO5rpNtYQE7FnERytSuj99zXkTBXf3XSIumSzjMQ9T1EXczWpMPZsRyZAcezWaQc6t/pubhtml See this spreadsheet.]
+
+'''Obor, Bryophyta and Keys'''
+
+* Obor and Bryophyta no longer require a key to be fought.
+* Obor and Bryophyta can drop their own respective keys.
+** To compensate, each of them now has a reduced, simple loot table. It’s similar to regular giants’ with a chance for Giant Bones (members only) and an increased chance for their keys.
+* Inside each of their lairs is a chest requiring a Giant or Mossy key to open, with a loot table identical to the existing one. This chest can only be opened after the boss is defeated.
+* For the HiScores, killcount is only obtained by opening their respective chests.
+* Bryophyta's growthlings can be left-clicked if you have an axe equipped.
+* Bryophyta's growthlings cannot spawn back to back, they now have a short cooldown.
+
+'''Duke Sucellus'''
+
+* Mushrooms in Duke’s room can now be picked 8 times before they despawn.
+* You can prep multiple kills based on your Herblore level: 3 (62), 4 (72), or 4+ (82).
+* Duke’s HP increased from 440 to 485 to balance faster kill setups.
+* Adjusted Duke's Speed Combat Achievement times down by 45 seconds each, but the timer now starts after Duke wakes up.
+* Added left-click 'Feed' option to auto-use potions or mushrooms.
+
+'''Other Boss and PvM-Related Changes'''
+
+* Removed an earlier phase of Phosani's Nightmare. You'll effectively start at P2, meaning you'll see 2, 3 and 4 walkers between phases.
+* To compensate, Speed times for Combat Achievements have been lowered by 1:30 each.
+* The Slepey Tablet now drops at a rate of 1/25, and will be guaranteed on your 25th kill (or next kill after logging in if you've already got more than 25 killcount) if you've not already obtained one.
+* On death against Phosani's Nightmare, you'll respawn just outside of the instance rather than at your default respawn location.
+* Nex will always perform at least two more melee attacks whenever she uses one, on all phases. This only happens if the player she's attempting to attack is within melee distance.
+* Nex can be damaged slightly beyond a phase transition threshold. For example, if Nex swaps phase at 2720 HP, you'll be able to bring her down to 2550 HP before she begins nulling all damage again.
+* Nex's magic attack in her final phase will have its damage reduced by 25% if you activate Protect from Magic 'late'.
+* Damaging Blood Reavers will heal you for 75% of the damage dealt.
+* Hueycoatl now drops uniques at a rate of 1/18 instead of 1/23. This means all uniques are slightly more common. We’ve increased the weighting of the Dragon Hunter wand, too.
+* The Dragon Hunter Wand now has 40% Magic damage and 75% Magic accuracy bonus against dragons, and can now autocast Ancient Magicks.
+* Hueycoatl's tail now has 300 HP, down from 400.
+* Hueycoatl Hide now always drops as a batch of 3.
+* Hueycoatl Hide Armour pieces have had their Crafting requirements lowered by 10 levels.
+* Hunter and Fishing activities within Neypotzli have had a QoL pass and should feel less buggy.
+* Opening the chest within Neypotzli now has a cooler sound effect even if you don't obtain a unique.
+* The Blue Moon now spawns fewer tornadoes during their tornado attack.
+* The Deranged Archaeologist drops the new 'Steel Ring'. This ring has +24 Stab, Slash and Crush defence. We've included a Stats image at the end of the list.
+* The Granite Ring now provides +12 Ranged Defence, +2 Stab, Slash and Crush Defence, and -2 Magic Defence. All of these values are doubled upon imbuing. We've included a Stats image at the end of the list.
+* Adjusted Cerberus' Fire special. They no longer deal damage in an area of effect and appear more predictably - making it a little easier to react to them and mitigate damage.
+* Ward of Arceuus now reduces Prayer drain from demon attacks by 33%. This effect stacks multiplicatively with the Spectral Spirit Shield, meaning you'd lose 10 Prayer points per ghost at Cerberus if you're using both of these.
+* Key Master Teleport scrolls now drop in batches of seven rather than three, so should be sustained if you're able to complete nine kills per trip. Additionally, they're now tradeable!
+* The Grotesque Guardians' rockfall attack now only stuns you in the centre but still deals damage in a 3x3 area as before.
+* The Tonalztics of Ralos has had its range increased by 1. On Rapid, you can hit 6 tiles away. On Longrange, you can hit 8 tiles away.
+* Halberds can now hit 'flying' enemies like Aviansies, including Kree'arra. If it's not immediately obvious whether or not an enemy technically counts as 'flying', you'll be able to see this on Monster Examine!
+* Demonbane weaponry is now effective against the Ice Demon at the Chambers of Xeric.
+* Desert Treasure II bosses now drop a Gold Ring whenever you hit one of the 'behind the scenes' vestige rolls. You can also check retroactively how close you are. For example, if you're already at 2/3 when you log in after the change, you'll receive two gold rings on your next kill (assuming you don't get a unique).
+* You can now show your Zuk Slayer Helmet to TzHaar-Ket-Keh to benefit from an equipped Zuk Helm within the Inferno and Fight Caves. Note that no Slayer experience is provided unless you're actually on a task, and you won't have an improved chance at the pet.
+* The Combat Achievements Reward to double the duration of your summoned Thralls has been moved to Master tier, down from Grandmaster tier.
+* Halberd-related Combat Achievements for Bloat and the Corporeal Beast now specify 'with a Halberd Special Attack'. This means players of all builds can tick them off using a Dragon Halberd if they're not able to obtain a Crystal one.
+* Various spellcasting animations have been tidied up to reduce 'visual rubberbanding'.
+
+===Other Changes===
+
+
+* A Clue Scroll has had its missing 'Check steps' option restored.
+* Following last week's fix to the in-game Skill Guide for Crafting, it has now been updated again to reflect that Crafting is actually available to non-members.
+* Surge potions have been restored to the Herblore Skill Guide, having gone missing from it a few weeks ago during code maintenance.
+
+===PvP Rota===
+
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>activated</u>''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''<u>activated</u>''' with this rota.
+
+The PvP Arena is using '<b>1 Def Pure</b>' loadouts in Ranked Duels and Tournaments this week.
+
+{{Collapsed section end}}
+
+If you're struggling like us in this sweltering heat wave, this week's update should bring some welcome refreshment. 
+
+This week features '''all '''of the changes we outlined in our initial Summer Sweep-Up blogs! If you're not in the know then you can check those blogs out [https://secure.runescape.com/m=news/a=13/summer-sweep-up-combat--loot?oldschool=1 here] and [https://secure.runescape.com/m=news/a=13/summer-sweep-up-blog-update-combat--loot?oldschool=1 here].
+
+==Summer Sweep-Up: Combat, PvM and Loot Changes==
+We'll go section-by-section and try to give you every change in a list format. If you're wondering on the rationale behind a certain change, we'd really recommend checking out the blogs linked above.
+
+Let's kick things off with...
+
+===Tombs of Amascut===
+[[File:Summer Sweep Up- Combat (1).png|600px|center]]
+
+Boss Changes
+
+* Protect from Melee now mitigates all damage at Ba-Ba, unless Invocations which reduce the effectiveness of Protection Prayers are activated.
+* Ba-Ba now spawns 1-4 baboons rather than 1-8, depending on group size.
+* If Jungle Japes is enabled, baboons will spawn two banana piles on death.
+* Damage from Ba-Ba's boulder throw attack is now always split completely with any appropriate object. This means that even splitting the damage with sarcophagi will nullify the damage that you take.
+* Protection Prayers now mitigate more damage from Akkha's basic attacks.
+* Akkha now only protects against the same style that he's attacking with.
+* Akkha's Stat Drain effect now only affects Combat skills.
+* Akkha's Special Attacks now occur every 7 attacks, up from 6.
+* Akkha's Enrage Phase now spawns fewer orbs.
+* Akkha's Stay Vigilant invocation means he'll use a Special Attack every 6 attacks, as opposed to the base version's 7.
+* Soldier Scarabs have had their Magic Defence reduced.
+* Scarabs inside Kephri's encounter no longer scale their Defence with Raid Level.
+* Arcane Scarabs are now guaranteed to move after a certain number of attacks, regardless of whether or not they hit.
+* Zebak's waves have 'smarter' interactions with pushback.
+
+Changes to Other Rooms
+
+* Cursed Baboons and Baboon Shamans now always take maximum damage from Ranged attacks. To compensate, their HP has been increased slightly.
+* Removed two waves of Baboon assailants from the Path of Apmeken.
+* The volume of water required for the Path of Crondis no longer scales linearly with the number of players, this means you'll be able to make a mistake or two in larger groups.
+* Slightly reduced Hitpoints on the Obelisk on the Path of Het.
+* The Deposit Pot in the Nexus now functions as a full deposit box.
+
+Loot Changes
+We recommend that you [https://secure.runescape.com/m=news/a=13/summer-sweep-up-blog-update-combat--loot?oldschool=1 check out our write-up in this blog] for full details.
+
+As a quick overview, here's what's changing:
+
+* Overall purple chance for Raid Levels beyond 300 is reduced.
+* At Raid Levels 350, 400, 450 and 500, the weighting of the Lightbearer and Osmumten's Fang reduces. This in turn means that the weighting of other uniques like the Tumeken's Shadow increases. In essence, if you get a purple at a higher Raid Level, the odds of it being a Fang or a Lightbearer go down while the odds of it being an Elidinis' Ward, Masori armour piece or Tumeken's Shadow go up.
+
+For the Fangless among you, we've added the Jewel of Amascut.
+
+When attached to a Keris Partisan, you'll have a Keris Partisan of Amascut. This version of the Keris Partisan is slightly less effective against Scarabs (Scarab-bane bonus reduced from 33% to 15%) but gains +50 Stab bonus and +22 Strength bonus, and only works within the Tombs of Amascut. It should slot neatly between the existing Keris Partisan and Osmumten's Fang, being slightly stronger than the Zamorakian Hasta inside the Tombs.
+
+[[File:Summer Sweep Up- Combat (2).png|thumb|220px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-06-25/Partisan.png here]!'']]
+
+Of course, obtaining these Jewels can feel like a monumental struggle, so we're making some changes to make these significantly less annoying to obtain:
+
+* Base drop rate improved from 1/180 to 1/50.
+* This base rate still scales as before, meaning that at 75 killcount your base drop rate is 1/16.67.
+* If you have any other Jewels, this rate improves further.
+
+===Elemental Weakness and NPC Defence Changes===
+[[File:Summer Sweep Up- Combat (3).png|600px|center]]
+
+Building on some of the systems we implemented with Project Rebalance in 2024, we're rolling out more Elemental Weaknesses and making further adjustments to existing Defences on a variety of monsters.
+
+The specifics are absolutely massive, so we'd recommend [https://docs.google.com/spreadsheets/d/e/2PACX-1vRXY3W0EgqsLpxkgQx-wSHd2X1E8VqjHC0psbfiM0IIlDxwMypEaOFVC68qkfTZdB1P82Ch0JvpIrEZ/pubhtml checking out this spreadsheet] or waiting for the OSRS Wiki to update everything that you're interested in taking down!
+
+For Elemental Weaknesses, most of them have been applied according to the following 'rules':
+
+* Air Weaknesses can be found on things that fly or float. Things with wings, ghastly ghosts and spooky spectres!
+* Water Weaknesses can be found on anything that feels particularly fiery. Demons, TzHaar and Chromatic Dragons (Vorkath being a notable exception) are the most relevant for many of you.
+* Earth Weaknesses shine against enemies with ''tough'' exteriors. Drakes, Wyrms, Trolls, the Giant Mole and Gargoyles are chief among these.
+** We know that Wyrms and Gargoyles also fly, but we can only apply one weakness at a time for now and think their rock-solid exteriors define them more strongly than them being in the air.
+* Fire Weaknesses burn icy assailants and nature-y nemesis to a crisp. Up against something icy or a nasty bug? Kill it with fire!
+
+Perhaps the most interesting thing you'll see on that spreadsheet is 'Flat Armour'. If you're not in the know, a Flat Armour value of 2 means an enemy takes 2 less damage than you would have hit (meaning if you hit a 10, they'll only receive 8 damage). Negative Flat Armour values mean enemies take more damage per hit. In practise then, an enemy with positive Flat Armour might encourage slower-hitting weapons or weapons with fewer hitsplats, while enemies with negative Flat Armour encourage fast-hitting weapons or weapons with numerous hitsplats like the Scythe of Vitur or Dual Machuahuitl - this is why you see them shine against the Moons of Peril.
+
+Realistically, we aren't likely to say 'this NPC has 20 Flat Armour, hope you brought your Elder Maul!', but it's a small balancing lever that we can tweak to nudge things one way or the other, similar to the more traditional defensive stats. In cases where we've introduced positive Flat Armour to an NPC, we're bumping HP down slightly so that kill-time isn't likely to change considerably with your existing setup but ''may slightly'' favour a change in setup.
+
+At this stage we've taken a very light-touch approach to any Flat Armour antics and focused more on traditional defensive stats, but we'll be keeping a close eye on how these changes feel in practise, or even thoughts you might have at this preliminary stage!
+
+Of course, this is a lot of information to intuit without the OSRS Wiki. We have no shortage of players who progress either entirely without Wiki usage or very minimal research, and with creators like the [https://www.youtube.com/playlist?list=PLZ1r83HxniSXUcxA2uRNHNWqyMDDRtUtZ Golden Gnome-winning Alien Food], or World of Warcraft converts in [https://www.youtube.com/playlist?list=PL0hAOfdoZQkJUdgwTQ-qY_V4Dg7caKs1B MadSeasonShow], [https://www.youtube.com/playlist?list=PLlWQpDjLw0g2LY_dJ-v5_ZPZilJf8WG41 Karadus] and [https://www.youtube.com/playlist?list=PLsOaQCUZ_btMieZu1xUD8m-Od5b5L5Z6V Guzu] showcasing their own Wiki-less journeys, we reckon that this information should be more accessible in-game.
+
+So we've added a new spell, Monster Inspect, to the Standard Spellbook. Monster Inspect requires Level 42 Magic and displays slightly less information than the Lunar Spell 'Monster Examine'. This means that it's perfect for a quick look at elemental weaknesses, defensive and offensive stats, but won't show some or the more 'niche' bits like Freeze threshold. Handy for learning what you need to in a pinch, provided you have 2 Cosmic and 2 Mind Runes on-hand'''.'''
+
+===Loot Table Changes===
+[[File:Summer Sweep Up- Combat (4).png|600px|center]]
+
+In what's becoming a theme, we'd heavily advise you to check out the [https://secure.runescape.com/m=news/a=13/summer-sweep-up-combat--loot?oldschool=1 blog where we spoke about these in much more detail], and the [https://docs.google.com/spreadsheets/d/e/2PACX-1vT5aIwPYJGCdUuO5rpNtYQE7FnERytSuj99zXkTBXf3XSIumSzjMQ9T1EXczWpMPZsRyZAcezWaQc6t/pubhtml spreadsheet where we detailed all of the tweaks being made].
+
+In short, we’re making tweaks to some loot tables with a particular focus on Runes, high-tier food, herbs, seeds and gems. These changes are intended to reduce and redistribute the incoming volume of some resource drops, with the aim being to strengthen the value of these drops in the economy and for future loot tables.
+
+The example that we gave in our initial blog sums it up nicely: consider that Torstol Seeds used to sell for north of 50,000 GP to other players. Following the addition of Phantom Muspah and Tombs of Amascut, the supply of Torstol seeds rose drastically and they now fetch a comparatively meagre ~6,500 GP. The knock-on effect of this is that for a future table to have a 'good' Torstol Seed drop (meaning one that has a similar GP value to 'good' Torstol Seed drops at the time of release for Tombs of Amascut or Phantom Muspah), we'd have to drop almost eight times as many and continue snowballing the plummeting price of Torstol Seeds.
+
+Keep an eye out for the new Fishing enhancers: Shark lure! Zulrah, Muspah, Vorkath, Larran's Chest and the Brimstone Chest all have a chance at rewarding some of these in lieu of typical food drops, they'll have you catching more Shark than you can carry!
+
+Additionally, Spoils of War have been nerfed considerably and now have a loot table mirroring the Castle Wars rewards crate, with Pure Essence thrown into the mix too. 
+
+We believe these changes should have some economic benefits for the majority of our players but will be keeping a close eye on herb and seed drops in particular in case we've overshot a little.
+
+===Obor, Bryophyta and Keys===
+It's no secret that the key system used to fight Obor and Bryophyta isn't the most well-liked, particularly if you're gated out of Combat Achievements because you've not done your shift at the Hill or Moss Giants. On the flipside, their uniques are valuable for the tier of players that they're aimed at and would likely plummet in value if they were freely obtainable.
+
+We've made a chunk of changes here to improve access, address some common Bryophyta pain points, and respect the existing commitment of players who've racked up a bunch of kills against these gigantic foes.
+
+* Obor and Bryophyta no longer require a key to be fought.
+* Obor and Bryophyta can drop their own respective keys.
+** To compensate, each of them now has a reduced, simple loot table. It’s similar to regular giants’ with a chance for Giant Bones (members only) and an increased chance for their keys.
+* Inside each of their lairs is a chest requiring a Giant or Mossy key to open, with a loot table identical to the existing one. This chest can only be opened after the boss is defeated.
+* For the HiScores, killcount is only obtained by opening their respective chests.
+* Bryophyta's growthlings can be left-clicked if you have an axe equipped.
+* Bryophyta's growthlings cannot spawn back to back, they now have a short cooldown.
+
+You'll still need to use at least one key to access their respective lairs, but beyond that the choice is yours!
+
+===Duke Sucellus===
+We're splitting this big fella out as well because he's got a lot going on!
+
+Following today's update, you'll be able to pick the mushrooms in Duke Sucellus' prison eight times, then they'll despawn. Letting you stock up on a handful of potions to weaken Duke.
+
+"But won't my mushrooms and potions despawn after each kill?" you ask. "No!" we respond, you'll be able to hold on to them between kills, which means that depending on your Herblore level you can prep for 2, 3, or 4 kills at once if you've got Level 62, 72 or 82 Herblore respectively.
+
+For most players, this will speed up Duke kills, so his HP has been increased from 440 to 485 to compensate. While we're on the topic of speed, we've adjusted Duke's Speed Combat Achievement times down by 45 seconds each but changed their behaviour so that they only begin once Duke Sucellus wakes up. In effect, prep is no longer part of the time consideration for speed Combat Achievements at Duke Sucellus! All that matters is how quickly you dish out damage once the proper fight begins.
+
+Last up for Duke is a teeny quality-of-life improvement to save those wrists. We've added a left-click 'Feed' option to Duke that will automatically use any potions or crushed mushrooms that you've got to weaken Duke, meaning you won't need to spam click any more - particularly useful if you're using the mushrooms themselves rather than completed potions.
+
+===Other Boss and PvM-Related Changes===
+
+* Removed an earlier phase of Phosani's Nightmare. You'll effectively start at P2, meaning you'll see 2, 3 and 4 walkers between phases.
+* To compensate, Speed times for Combat Achievements have been lowered by 1:30 each.
+* The Slepey Tablet now drops at a rate of 1/25, and will be guaranteed on your 25th kill (or next kill after logging in if you've already got more than 25 killcount) if you've not already obtained one.
+* On death against Phosani's Nightmare, you'll respawn just outside of the instance rather than at your default respawn location.
+* Nex will always perform at least two more melee attacks whenever she uses one, on all phases. This only happens if the player she's attempting to attack is within melee distance.
+* Nex can be damaged slightly beyond a phase transition threshold. For example, if Nex swaps phase at 2720 HP, you'll be able to bring her down to 2550 HP before she begins nulling all damage again.
+* Nex's magic attack in her final phase will have its damage reduced by 25% if you activate Protect from Magic 'late'.
+* Damaging Blood Reavers will heal you for 75% of the damage dealt.
+* Hueycoatl now drops uniques at a rate of 1/18 instead of 1/23. This means all uniques are slightly more common. We’ve increased the weighting of the Dragon Hunter wand, too.
+* The Dragon Hunter Wand now has 40% Magic damage and 75% Magic accuracy bonus against dragons, and can now autocast Ancient Magicks.
+* Hueycoatl's tail now has 300 HP, down from 400.
+* Hueycoatl Hide now always drops as a batch of 3.
+* Hueycoatl Hide Armour pieces have had their Crafting requirements lowered by 10 levels.
+* Hunter and Fishing activities within Neypotzli have had a QoL pass and should feel less buggy.
+* Opening the chest within Neypotzli now has a cooler sound effect even if you don't obtain a unique.
+* The Blue Moon now spawns fewer tornadoes during their tornado attack.
+* The Deranged Archaeologist drops the new 'Steel Ring'. This ring has +24 Stab, Slash and Crush defence. We've included a Stats image at the end of the list.
+* The Granite Ring now provides +12 Ranged Defence, +2 Stab, Slash and Crush Defence, and -2 Magic Defence. All of these values are doubled upon imbuing. We've included a Stats image at the end of the list.
+* Adjusted Cerberus' Fire special. They no longer deal damage in an area of effect and appear more predictably - making it a little easier to react to them and mitigate damage.
+* Ward of Arceuus now reduces Prayer drain from demon attacks by 33%. This effect stacks multiplicatively with the Spectral Spirit Shield, meaning you'd lose 10 Prayer points per ghost at Cerberus if you're using both of these.
+* Key Master Teleport scrolls now drop in batches of seven rather than three, so should be sustained if you're able to complete nine kills per trip. Additionally, they're now tradeable!
+* The Grotesque Guardians' rockfall attack now only stuns you in the centre but still deals damage in a 3x3 area as before.
+* The Tonalztics of Ralos has had its range increased by 1. On Rapid, you can hit 6 tiles away. On Longrange, you can hit 8 tiles away.
+* Halberds can now hit 'flying' enemies like Aviansies, including Kree'arra. If it's not immediately obvious whether or not an enemy technically counts as 'flying', you'll be able to see this on Monster Examine!
+* Demonbane weaponry is now effective against the Ice Demon at the Chambers of Xeric.
+* Desert Treasure II bosses now drop a Gold Ring whenever you hit one of the 'behind the scenes' vestige rolls. You can also check retroactively how close you are. For example, if you're already at 2/3 when you log in after the change, you'll receive two gold rings on your next kill (assuming you don't get a unique).
+* You can now show your Zuk Slayer Helmet to TzHaar-Ket-Keh to benefit from an equipped Zuk Helm within the Inferno and Fight Caves. Note that no Slayer experience is provided unless you're actually on a task, and you won't have an improved chance at the pet.
+* The Combat Achievements Reward to double the duration of your summoned Thralls has been moved to Master tier, down from Grandmaster tier.
+* Halberd-related Combat Achievements for Bloat and the Corporeal Beast now specify 'with a Halberd Special Attack'. This means players of all builds can tick them off using a Dragon Halberd if they're not able to obtain a Crystal one.
+* Various spellcasting animations have been tidied up to reduce 'visual rubberbanding'.
+
+[[File:Summer Sweep Up- Combat (5).png|220px|center]]
+[[File:Summer Sweep Up- Combat (6).png|220px|center]]
+[[File:Summer Sweep Up- Combat (7).png|220px|center]]
+
+==Merch Update - Celebrating Desert Treasure II!==
+===Two New Soundtrack Releases===
+This week Laced Records bring you not one but two Desert Treasure II digital album releases!   Out now on all major streaming and digital music platforms – add them to your playlist! 
+
+====Desert Treasure II: Ashes of Empire====
+[[File:Summer Sweep Up- Combat (8).jpg|thumb|450px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-06-25/DT22.jpg here]!'']]
+
+Uncover the history of the ancient Zarosian empire, the Mahjarrat and the forgotten city beneath Ice Mountain with this soundtrack on your journey to Desert Treasure II.
+
+Journey towards the Fallen Empire by uncovering forgotten secrets of the past. From ancient dwarven ruins to a forgotten underwater temple, this soundtrack album will take you back to the quests that led towards the unforgettable events of Desert Treasure II.
+
+From ancient dwarven ruins to a forgotten underwater temple, this soundtrack album will take you on a journey leading directly to the Fallen Empire. Composed by the talented Jagex audio team  Mod Surma and Mod Grace.
+
+Check out this page for where to listen and play all the tracks!
+
+====Desert Treasure II: The Fallen Empire====
+[[File:Summer Sweep Up- Combat (9).jpg|thumb|450px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-06-25/DT.jpg here]!'']]
+
+Envelop yourself in forgotten histories and Mahjarrat conflicts with tracks that take you back to the fallen empire of the Empty Lord.
+
+Reminisce on your journey through one of Old School’s most legendary quests with ambient soundtracks that immerse you in the ruins of the Fallen Empire. Then, as your adventure continues, heed the call of battle with the thrilling music that accompanies the legendary boss fights against some of the most powerful servants of the Empty Lord. Composed by the talented Jagex audio team Mod Surma, Mod Grace, Mod Nixon and guest composer Mod Ash.
+
+Check out this page for where to listen and play all the tracks!
+
+===Desert Treasure II Pins & Keyrings===
+If you want a memento from your Desert Treasure II experience, then look no further than the merch store this week as we bring you a bumper collection of Desert Treasure II Pins and Keyrings, all designed by Angels Scapes! 
+
+Check out the full collection [https://runescape.backstreetmerch.com/ here ]– in stock and ready to ship now!
+
+[[File:Summer Sweep Up- Combat (10).jpg|thumb|600px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-06-25/DT2.jpg here]!'']]
+
+You can get your hands on a Baron and Blood Ancient Sceptre Keyring as well as a host of limited Edition pins including The Whisperer, The Leviathan, Duke, Vardorvis, Soulreaper’s Axe, a Virtus Mage and Awakener’s Orb.
+
+==Other Changes==
+
+* A Clue Scroll has had its missing 'Check steps' option restored.
+* Following last week's fix to the in-game Skill Guide for Crafting, it has now been updated again to reflect that Crafting is actually available to non-members.
+
+Surge potions have been restored to the Herblore Skill Guide, having gone missing from it a few weeks ago during code maintenance.
+
+==PvP World Rota==
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>activated</u>''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''<u>activated</u>''' with this rota.
+
+The PvP Arena is using '<b>1 Def Pure</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1lk1dgn/game_update_summersweep_up_combat_pvm_loot/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Donkey, Ed, Elena, Enigma, Entropi, Errol, Freddie, Fuzz, Gecko, Gengis, Gizmo, Goblin, Grace, Grub, Halo, Harold, Hend, Hornet, Husky, Ivory, Jalo, Jamesy, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Ludo, Lykos, Mack, Manked, Markos, Maylea, Mobius, Moogle, Morty, Moz, Necro, Nin, Nixon, Nox, Nylu, Ori, Other, Philomel, Pork, Pumpkin, Puppi, Rach, Redfield, Rice, Roq, Roy, Ry, Saiyan, Sarnie, Schmidt, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titania, Titus, TJ, Tomb, Tsourorf, Tyran, Veda, Vegard, West, Wolfy & Yume'''
+
+''The Old School Team.''

@@ -1,0 +1,124 @@
+{{Update|date=13 July 2017|link=http://services.runescape.com/m=news/lizardman-shaman-improvements?oldschool=1|category=game}}
+[[File:Lizardman Shaman Improvements newspost.png|right]]
+{{clear}}
+
+
+{{Headline|25|Lizardman Shaman Improvements}}
+
+
+<center>'''This week we have a number of balancing tweaks to content such as the Preserve prayer, Brutal Black Dragons and Elite clue scrolls, as well as a brand new Lizardman Shaman cave!'''</center>
+
+
+{{Horizontal Line}}
+
+
+{{Headline|22|Task-Only Lizardman Shaman}}
+
+
+A cave containing 8 Lizardman Shamans can now be found on the northern end of the Lizardman Settlement.
+
+[[File:Lizardman Shaman Improvements (1).png|center]]
+
+The Lizardman Shaman found within can only be killed when on a Lizardman Slayer assignment '''and''' with 100% Shayzien favour.
+
+[[File:Lizardman Shaman Improvements (2).png|center]]
+
+As was mentioned in the developer blog for poll 54, the 2 Shaman spawns found within the Lizardman Settlement '''have now been removed'''. Also, the safespots in the Lizardman Shaman area of the Lizardman Canyon have been removed.
+
+[[File:Lizardman Shaman Improvements (3).png|center|140px]]
+
+{{Horizontal Line}}
+
+
+{{Headline|22|Brutal Black Dragon Changes}}
+
+
+Brutal Black Dragons and their combination of great profit, ease of access and simple combat mechanics has been a common talking point in recent times. Many of you believed these dragons much too easy to farm for a piece of content with no requirements.
+
+Well, we agreed! As such, we've now added a '''level 77 Slayer requirement''' in order to kill Brutal Black Dragons.
+
+In addition to this, we have now '''removed the Dragon full helm''' from their drop table.
+
+[[File:Lizardman Shaman Improvements (4).png|center]]
+
+{{Horizontal Line}}
+
+
+{{Headline|22|Master Scroll Book}}
+
+
+The Master Scroll Book is now available as a rare reward from all tiers of clue scroll. It is tradeable, so it can also be purchased from other players.
+
+[[File:Lizardman Shaman Improvements (5).png|center|160px]]
+
+You can store up to 1,000 of each type of teleport scroll within the book. This includes all scrolls received as rewards from treasure trails, as well as Zul-andra and Key master teleport scrolls.
+
+[[File:Lizardman Shaman Improvements (6).png|center]]
+
+When charged with any number of scrolls, the book is untradeable. It will become tradeable once again when it is emptied, which can be done easily with the 'Remove' option.
+
+With scrolls stored in the book you can select a '''default teleport'''. This sets the left-click option of the book to use that teleport immediately.
+
+{{Horizontal Line}}
+
+
+{{Headline|22|Elite Clue Scroll Steps}}
+
+
+Between hard clue scrolls and elite clue scrolls there is a substanital jump in the number of steps required to complete a Treasure Trail. To bring the elite tier of clue scrolls into line with the others, the maximum steps of an elite clue scroll has been reduced from 9 - 12 to 5 - 7.
+
+Elites are now sat between the length of hard clues and master clues - where they belong.
+
+{{Horizontal Line}}
+
+
+{{Headline|22|More Golem Colours}}
+
+
+It is now possible to recolour your rock golem pet using daeyalt, elemental and lovakite ore.
+
+[[File:Lizardman Shaman Improvements (7).png|center]]
+
+''Smashing!''
+
+{{Horizontal Line}}
+
+
+{{Headline|22|Preserve Improvements}}
+
+
+The Preserve prayer has now been improved to make the prayer a bit more useful:
+
+*Boosted stats now last 50% longer when Preserve is active, rather than the original 20%.
+*The prayer point drain rate when using Preserve has been decreased from 5 points per minute to 3 points per minute.
+
+[[File:Lizardman Shaman Improvements (8).png|center]]
+
+
+'''In other news'''
+
+*The Magic skillcape perk now allows for 5 spellbook switches per day, rather than only 1.
+*Players can now continue to use the Ectofunctus until there are 1000 Ectotokens being held by the Ghost disciples.
+*Removed some clickboxes from around the Blast Mine bank chest to reduce misclicks.
+*Repositioned the Minnow icon so that the amount is easier to see.
+*Added a filtered notification to the Fertile Soil spell.
+
+'''Bugfixes'''
+
+*Karambwan and gnome food are no longer edible immediately after using a bank in Deadman Mode.
+*Removed some out of date dialogue from Sam in the Games Room.
+*The bridges in Taverly Dungeon and Keldagrim have been added to the World Map.
+*Added the quest complete music to the Tail of Two Cats quest.
+*Added a missing full stop to the examine text of Minnows.
+*Corrected the spelling of Etceteria in various places.
+*Corrected some dialogue with the Haunted Mine Zealot.
+*Corrected some spelling in the Shield of Arrav quest.
+*Corrected some map markers on the World Map in the Kourend Catacombs.
+*Corrected some dialogue with Molly in the Evil twin random event.
+*Corrected multiple spellings of the word truly.
+*Corrected the name of Soulless NPCs.
+*The Lovakengj Furnace will no longer allow players to smelt items from the side of the Furnace.
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,402,65930677 forums].
+
+'''Mods Archie, Ash, Ed, Ghost, Jed, John C, Kieren, Mat K, Maz, Ronan, Roq, Ry, Stone, Sween, TomH, Weath, West & Wolf'''<br/>''The Old School Team''

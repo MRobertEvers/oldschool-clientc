@@ -1,0 +1,45 @@
+{{Infobox Combat Achievement
+|name = All Praise Zebak
+|image = [[File:Tombs of Amascut - Zebak wave attack.png|300px]]
+|release = [[30 November]] [[2022]]
+|update = The Garden of Death & More
+|members = Yes
+|description = Defeat Zebak without losing a single prayer point. You must also meet the conditions of the 'Rockin' Around The Croc' achievement.
+|tier = Grandmaster
+|monster = Tombs of Amascut: Expert Mode
+|type = Mechanical
+|id = 454
+|leagueRegion = Desert
+}}
+'''All Praise Zebak''' is a [[Combat Achievements/Grandmaster|grandmaster combat achievement]] which requires the player to kill [[Zebak]] without losing prayer points at raid level 300 or above, while also satisfying the requirements of [[Rockin' around the croc]] achievement.
+
+==Strategy==
+Along with meeting the aforementioned combat achievement, players must not lose a prayer point during the fight. Toggling the '''Deadly Prayers''' invocation off can help incase a mistake is made, as the heavy damage that would likely be inflicted from a mistake will result in disqualification.
+
+Players may turn off Invocations that limit the number of attempts as previous deaths against Zebak during the same raid do not affect the task. It is recommended to attempt the achievement on a level 300 raid, with '''Pathmaster and Walk The Path''' active to force all bosses to a path level of 3. Then clear the Path of Scabaras, as it uses minimal supplies. There is a 33% chance for the Crondis' path to not level up, as it will be competing with both Apmeken and Het's paths; if this occurs, reset the raid until Crondis' path levels up. Alternatively, one can clear the Path of Apmeken next. The upside to doing so is gaining smelling salts for Zebak which can make the fight significantly easier. The downside is the potential to waste even more time if the Path of Crondis still does not level to 4 after Apmeken, which has a 50% of occurring (giving a ~17% chance overall that Crondis does not level up a single time by the midpoint of the raid). 
+
+Bring lots of [[ranging potion]]s (and optionally super attack and strength) if not using smelling salts. Similarly to [[Attack, Step, Wait]], the achievement is only recorded per attempt, so turning off death invocations will give the player unlimited attempts.
+
+Zebak's attacks will only damage on impact of the player, not when the projectile is launched. At a path level of 4 or above, Zebak has a 5-tick attack cycle, until the enrage phase at which point it becomes a 2-tick attack cycle.
+
+Toggling auto retaliate on as soon as enrage phase is triggered can be very helpful as players can click across the arena when blood spawns. It is advised to turn auto retaliate off for the first 75% of the fight as going out of your weapon's attack range during waves will drag your character.
+
+Rotating your camera angle to have the other side of the arena close to your protect magic and ranged prayers may also be helpful.
+
+If using Runelite, turning metronome on may be helpful; when a magic or ranged attack explodes above your head after Zebak throws it, the damage is calculated exactly 2 ticks later.
+
+Players may also use thralls to increase DPS and may even use the [[Keris partisan of the sun]] as neither will fail the task.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 7 December 2022
+|update = Quest Speedrunning: Batch 3 & More
+|change = Players will no longer fail the task when losing prayer points in other rooms.
+}}
+{{Subject changes footer}}
+
+==Other tasks==
+{{Combat Achievements list|Tombs of Amascut: Expert Mode}}
+
+{{Combat Achievements}}

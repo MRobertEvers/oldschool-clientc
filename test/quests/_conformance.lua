@@ -63,13 +63,13 @@
 --     ledger's SUMMARY row says exit=0 and the process exited 0.
 --
 -- ---------------------------------------------------------------------------
--- 186 verbs, one row each.  tools/quest_gate/verb_list.py --check reads the
+-- 229 verbs, one row each.  tools/quest_gate/verb_list.py --check reads the
 -- `step("<name>", ...)` lines below and the QD.* definitions in
 -- script/plugins/quest_driver/*.lua and refuses to agree when they differ, so
 -- a verb added to the driver with no row here fails a make gate rather than
 -- being quietly never called.  The count is asserted in the harness too, so
 -- editing this file alone cannot drift either.
--- @verb-count 186
+-- @verb-count 229
 -- ---------------------------------------------------------------------------
 --
 -- SEAM ROWS -- `seam("seam.<name>", ...)`, counted separately.
@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 125
+-- @seam-count 218
 -- ---------------------------------------------------------------------------
 
-local VERB_COUNT = 186
-local SEAM_COUNT = 125
+local VERB_COUNT = 229
+local SEAM_COUNT = 218
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -987,6 +987,57 @@ return {
                 field("id", is_number), "the row carried no loc id")
         end)
 
+        -- seam11 ticklog_raw_damage_and_loc_count: VERB_COUNT +1 (world.loc_copies).
+        step("world.loc_copies", function()
+            local fn = verb("world", "loc_copies")
+            if not fn then return missing("world", "loc_copies") end
+            local near = verb("world", "loc_near")
+            if not near then return missing("world", "loc_near") end
+            local result, summary, rows = fn(LOC_SYMBOL, 60)
+            local text = LOC_SYMBOL .. " r=60 -> " .. describe(summary)
+            if result ~= "ok" then return result, text end
+            if not is_table(rows) or type(rows.total) ~= "number" or #rows == 0 then
+                return "hollow", "answered ok without rows or a total: " .. text
+            end
+            -- every row is the symbol's own placement, nearest first, and the count is
+            -- the rows (60 tiles of Lumbridge hold far fewer than the 1024 cap)
+            local nr, nrow = near(LOC_SYMBOL, 60)
+            if nr ~= "ok" or not is_table(nrow) then
+                return "no_subject", "world.loc_near found no " .. LOC_SYMBOL .. ": " .. describe(nrow)
+            end
+            local tile = verb("world", "tile")
+            if not tile then return missing("world", "tile") end
+            local here_ok, here = tile()
+            if here_ok ~= "ok" or not is_table(here) then
+                return "no_subject", "world.tile -> " .. describe(here_ok) .. ": " .. text
+            end
+            local function d2(r) return (r.x - here.x) ^ 2 + (r.z - here.z) ^ 2 end
+            for i, r in ipairs(rows) do
+                if r.loc_id ~= nrow.id then
+                    return "refused", "row " .. i .. " is loc " .. describe(r.loc_id) .. ", not "
+                        .. describe(nrow.id) .. ": " .. text
+                end
+                if i > 1 and d2(r) < d2(rows[i - 1]) then
+                    return "refused", "row " .. i .. " is nearer than row " .. (i - 1) .. ": " .. text
+                end
+            end
+            if rows.total ~= #rows then
+                return "refused", "total " .. rows.total .. " is not the " .. #rows .. " rows: " .. text
+            end
+            if d2(rows[1]) ~= (nrow.tile_x - here.x) ^ 2 + (nrow.tile_z - here.z) ^ 2 then
+                return "refused", "the nearest copy " .. rows[1].x .. "," .. rows[1].z
+                    .. " is not as near as world.loc_near's " .. nrow.tile_x .. "," .. nrow.tile_z
+                    .. ": " .. text
+            end
+            local _, _, small = fn(LOC_SYMBOL, 5)
+            local small_total = is_table(small) and small.total or 0
+            if small_total > rows.total then
+                return "refused", "radius 5 found " .. small_total .. " > radius 60's " .. rows.total
+            end
+            local _, absent_summary = fn(LOC_SYMBOL, 1)
+            return "ok", text .. " [r=5: " .. small_total .. "; r=1: " .. describe(absent_summary) .. "]"
+        end)
+
         step("world.obj_near", function()
             local fn = verb("world", "obj_near")
             if not fn then return missing("world", "obj_near") end
@@ -1309,6 +1360,208 @@ return {
             end
             local result, detail = fn(npc_target, 1)
             return result, "LOGGED bypass, op 1 -> " .. describe(detail)
+        end)
+
+        -- drive.status / drive.start / drive.stop (raid seam23,
+        -- script_start_on_demand): on this TEST run status reads the run
+        -- itself and start/stop are refused with the reason naming
+        -- TORIRS_DRIVE_ON_DEMAND, so the harness's own script is never
+        -- replaced or stopped from inside.  The on-demand path (start, a stop
+        -- at the next yield, a second start) cannot be set per row; it is
+        -- proved headless under TORIRS_DRIVE_ON_DEMAND=1 (DRIVER_NOTES.md,
+        -- "Watching a test: the Scripts tab").
+        step("drive.status", function()
+            local fn = verb("drive", "status")
+            if not fn then return missing("drive", "status") end
+            local result, status = fn()
+            if result ~= "ok" then
+                return result, describe(status)
+            end
+            if type(status) ~= "table" then
+                return "hollow", "answered ok without a status table: " .. describe(status)
+            end
+            if status.state ~= "running" then
+                return "hollow", "a test run read its own state as " .. describe(status.state)
+            end
+            if status.on_demand ~= false then
+                return "hollow", "a test run claims on_demand=" .. describe(status.on_demand)
+            end
+            if type(status.script) ~= "string" or not string.find(status.script, "%.lua$") then
+                return "hollow", "no script named: " .. describe(status.script)
+            end
+            if math.type(status.rows) ~= "integer" or status.rows < 1 then
+                return "hollow", "rows is not this run's count: " .. describe(status.rows)
+            end
+            return "ok", "state=running on_demand=false rows=" .. status.rows .. " last="
+                .. tostring(status.step) .. "/" .. tostring(status.verdict) .. " script="
+                .. string.match(status.script, "[^/]*$")
+        end)
+
+        step("drive.start", function()
+            local fn = verb("drive", "start")
+            if not fn then return missing("drive", "start") end
+            -- Knob off: refused before the path is ever looked at, so the
+            -- harness's own coroutine is never replaced.
+            local result, detail = fn("/nonexistent/seam23_probe.lua", "/nonexistent/seam23_session")
+            if result == "refused" and string.find(tostring(detail), "not an on-demand client", 1, true) then
+                return "ok", "refused on a test run, as it must be: " .. tostring(detail)
+            end
+            if result == "ok" then
+                return "hollow", "a test run accepted a start: " .. describe(detail)
+            end
+            return result, describe(detail)
+        end)
+
+        step("drive.stop", function()
+            local fn = verb("drive", "stop")
+            if not fn then return missing("drive", "stop") end
+            local result, detail = fn()
+            if result == "refused" and string.find(tostring(detail), "not an on-demand client", 1, true) then
+                return "ok", "refused on a test run, as it must be: " .. tostring(detail)
+            end
+            if result == "ok" then
+                return "hollow", "a test run accepted a stop of its own script: " .. describe(detail)
+            end
+            return result, describe(detail)
+        end)
+
+        -- raid seam24 scripts_tab_every_script: t.drive.tests and t.drive.play
+        -- (VERB_COUNT +2).  On this TEST run both are refused with the reason
+        -- naming the on-demand knob: a test run never reads the scripts
+        -- manifest and its own script is never replaced.  The on-demand path
+        -- (the manifest read, a Play on a fresh account, the reload on every
+        -- Play) is proved headless under TORIRS_DRIVE_ON_DEMAND=1
+        -- (DRIVER_NOTES.md, "Watching a test: the Scripts tab").
+        step("drive.tests", function()
+            local fn = verb("drive", "tests")
+            if not fn then return missing("drive", "tests") end
+            local result, detail = fn(false)
+            if result == "refused" and string.find(tostring(detail), "not an on-demand client", 1, true) then
+                return "ok", "refused on a test run, as it must be: " .. tostring(detail)
+            end
+            if result == "ok" or result == "timeout" then
+                return "hollow", "a test run asked for the scripts manifest: " .. describe(result)
+            end
+            return result, describe(detail)
+        end)
+
+        step("drive.play", function()
+            local fn = verb("drive", "play")
+            if not fn then return missing("drive", "play") end
+            local result, detail = fn({ id = "seam24_probe", source = "tests/raids/nonexistent.lua",
+                fixture = "tests/raids/fixtures/fresh_lumbridge.ini" })
+            if result == "refused" and string.find(tostring(detail), "not an on-demand client", 1, true) then
+                return "ok", "refused on a test run, as it must be: " .. tostring(detail)
+            end
+            if result == "ok" then
+                return "hollow", "a test run accepted a Play: " .. describe(detail)
+            end
+            return result, describe(detail)
+        end)
+
+        -- camera seam2 runner_view_split: t.view.attach / status / interact /
+        -- watcher / detach (VERB_COUNT +5).  A conformance run presents
+        -- nothing (SDL dummy, render skip), so the split attaches NOTHING and
+        -- says so; the two-view behaviour is proved by the seam's scratch runs
+        -- under TORIRS_VIEW_SPLIT_FORCE=1 (DRIVER_NOTES.md, "Two views").
+        step("view.attach", function()
+            local fn = verb("view", "attach")
+            if not fn then return missing("view", "attach") end
+            local result, status = fn("AutomationRunner")
+            if result ~= "ok" or type(status) ~= "table" then
+                return result, describe(status)
+            end
+            if status.attached then
+                -- A test run presents nothing; a second view here would be a
+                -- cost the gate says a headless run never pays.
+                fn = verb("view", "detach")
+                if fn then fn() end
+                return "hollow", "a test run attached a second view: " .. describe(status)
+            end
+            if status.views ~= 1 or type(status.reason) ~= "string" or status.reason == "" then
+                return "hollow", "not attached but did not say why: " .. describe(status)
+            end
+            local wrong_result = verb("view", "attach")("PlayerClient")
+            if wrong_result ~= "refused" then
+                return "hollow", "attaching a role other than AutomationRunner answered " .. tostring(wrong_result)
+            end
+            return "ok", "one view, nothing created: " .. status.reason
+        end)
+
+        step("view.status", function()
+            local fn = verb("view", "status")
+            if not fn then return missing("view", "status") end
+            local result, status = fn()
+            if result ~= "ok" or type(status) ~= "table" then
+                return result, describe(status)
+            end
+            if status.attached or status.views ~= 1 or status.watcher ~= nil or type(status.runner) ~= "table"
+                or math.type(status.runner.yaw) ~= "integer" or math.type(status.offscreen) ~= "integer" then
+                return "hollow", "status of a one-view client: " .. describe(status)
+            end
+            return "ok", string.format("views=1 runner yaw=%d pitch=%d zoom=%d offscreen=%d presented=%d",
+                status.runner.yaw, status.runner.pitch, status.runner.zoom, status.offscreen, status.presented)
+        end)
+
+        step("view.interact", function()
+            local fn = verb("view", "interact")
+            if not fn then return missing("view", "interact") end
+            local read_result, status = fn()
+            if read_result ~= "ok" or type(status) ~= "table" or status.interact ~= false then
+                return "hollow", "the read: " .. tostring(read_result) .. " " .. describe(status)
+            end
+            local result, detail = fn(true)
+            if result == "refused" and string.find(tostring(detail), "no script's view is attached", 1, true) then
+                return "ok", "refused with one view, as it must be: " .. tostring(detail)
+            end
+            return "hollow", "switching Interact with no second view answered " .. tostring(result) .. " " .. describe(detail)
+        end)
+
+        step("view.watcher", function()
+            local fn = verb("view", "watcher")
+            if not fn then return missing("view", "watcher") end
+            local result, actions = fn(0)
+            if result ~= "ok" or type(actions) ~= "table" then
+                return result, describe(actions)
+            end
+            if #actions ~= 0 then
+                return "hollow", "a test run recorded watcher actions: " .. describe(actions)
+            end
+            return "ok", "no watcher actions on a test run"
+        end)
+
+        step("view.detach", function()
+            local fn = verb("view", "detach")
+            if not fn then return missing("view", "detach") end
+            local result, status = fn()
+            if result ~= "ok" or type(status) ~= "table" or status.attached or status.views ~= 1 then
+                return "hollow", "detach with nothing attached: " .. tostring(result) .. " " .. describe(status)
+            end
+            return "ok", "a no-op with nothing attached (views=1)"
+        end)
+
+        -- camera seam2 watch_debug_aids (SEAM_COUNT +1): the shape of
+        -- view_status().runner, which the Scripts page's "Runner pointer" row
+        -- reads every 10 frames.
+        seam("seam.watch_runner_reading", function()
+            local fn = verb("view", "status")
+            if not fn then return missing("view", "status") end
+            local result, status = fn()
+            if result ~= "ok" or type(status) ~= "table" or type(status.runner) ~= "table" then
+                return result, describe(status)
+            end
+            local runner = status.runner
+            for _, key in ipairs({ "pointer_x", "pointer_y", "picked", "yaw", "pitch", "zoom" }) do
+                if math.type(runner[key]) ~= "integer" then
+                    return "hollow", "view_status().runner." .. key .. " is not an integer: " .. describe(runner)
+                end
+            end
+            if type(runner.menu_open) ~= "boolean" or type(status.interact) ~= "boolean" then
+                return "hollow", "menu_open / interact are not booleans: " .. describe(status)
+            end
+            return "ok", string.format("runner %d,%d picked %d menu_open=%s yaw %d pitch %d zoom %d interact=%s",
+                runner.pointer_x, runner.pointer_y, runner.picked, tostring(runner.menu_open),
+                runner.yaw, runner.pitch, runner.zoom, tostring(status.interact))
         end)
 
         step("player.idle", function()
@@ -2986,6 +3239,64 @@ return {
                 .. " npc_death, " .. #swings .. " npc_anim"
         end)
 
+        -- seam22: t.ticklog.rows' `area` filter {x0, z0, x1, z1[, level]}: a
+        -- row is kept when its own tile (x, z, else dst_x, dst_z) is inside;
+        -- a row with no tile is dropped. Proved on the player's own
+        -- player_tile rows: a 3x3 box on the tile keeps some and nothing
+        -- outside it, a far box keeps none, and a tile-less kind keeps none.
+        seam("seam.ticklog_rows_area", function()
+            local fn = verb("ticklog", "rows")
+            if not fn then return missing("ticklog", "rows") end
+            local tr, tile = t.world.tile()
+            if tr ~= "ok" or type(tile) ~= "table" then return "no_subject", "no player tile: " .. describe(tile) end
+            local box = { tile.x - 1, tile.z - 1, tile.x + 1, tile.z + 1 }
+            local wr, whole = fn({ kind = "player_tile" })
+            local ar, near = fn({ kind = "player_tile", area = box })
+            local fr, far = fn({ kind = "player_tile", area = { tile.x + 200, tile.z + 200, tile.x + 210, tile.z + 210 } })
+            local hr, hits = fn({ kind = "hit_npc", area = box })
+            local br, bad = fn({ kind = "player_tile", area = { 1, 2 } })
+            if wr ~= "ok" or ar ~= "ok" or fr ~= "ok" or hr ~= "ok" then
+                return "refused", "rows: " .. describe(wr) .. " " .. describe(ar) .. " " .. describe(fr) .. " " .. describe(hr)
+            end
+            local outside = 0
+            for _, row in ipairs(near) do
+                if row.x < box[1] or row.x > box[3] or row.z < box[2] or row.z > box[4] then outside = outside + 1 end
+            end
+            if #near == 0 or #near > #whole or outside ~= 0 or #far ~= 0 or #hits ~= 0 or br ~= "refused" then
+                return "hollow", string.format("player_tile whole %d, in the 3x3 box %d (%d outside), far box %d,"
+                    .. " hit_npc in the box %d (want 0: no tile), a two-number area %s",
+                    #whole, #near, outside, #far, #hits, describe(br))
+            end
+            return "ok", string.format("player_tile rows: %d in the whole log, %d with area {%d,%d,%d,%d} around"
+                .. " %d,%d (0 outside), 0 in a box 200 tiles off, 0 hit_npc rows (no tile); {1,2} refused",
+                #whole, #near, box[1], box[2], box[3], box[4], tile.x, tile.z)
+        end)
+        -- seam29 raid_log_raider_state: the raider's side of the tick log
+        -- (raider / input / consume rows) is FILE-ONLY -- written to
+        -- ticklog.tsv, never into the row array rows() reads, so no serial
+        -- moves and no ledger changes. rows() must REFUSE those kinds by name
+        -- (an empty list would read as "the raider did nothing"), and still
+        -- serve an ordinary kind. No VERB_COUNT change (no new verb); SEAM_COUNT +1.
+        seam("seam.ticklog_raider_rows_file_only", function()
+            local fn = verb("ticklog", "rows")
+            if not fn then return missing("ticklog", "rows") end
+            local refused = {}
+            for _, kind in ipairs({ "raider", "input", "consume" }) do
+                local result, detail = fn({ kind = kind })
+                if result ~= "refused" or not string.find(tostring(detail), "file-only", 1, true) then
+                    return "hollow", "rows({kind = '" .. kind .. "'}) answered " .. describe(result)
+                        .. " " .. describe(detail) .. " (want refused, naming file-only)"
+                end
+                refused[#refused + 1] = kind
+            end
+            local tr, tiles = fn({ kind = "player_tile" })
+            if tr ~= "ok" or #tiles == 0 then
+                return "hollow", "player_tile rows: " .. describe(tr) .. " " .. describe(tiles)
+            end
+            return "ok", "rows() refused " .. table.concat(refused, ", ")
+                .. " as file-only (ticklog.tsv; tools/raid_gate/raid_report.py) and served "
+                .. #tiles .. " player_tile row(s)"
+        end)
         step("ticklog.gaps", function()
             local fn = verb("ticklog", "gaps")
             if not fn then return missing("ticklog", "gaps") end
@@ -3190,9 +3501,27 @@ return {
         step("prayer.points", function()
             local fn = verb("prayer", "points")
             if not fn then return missing("prayer", "points") end
-            local result, detail, reading = fn()
-            return answered(result, reading, describe(detail) .. " ",
-                field("base_level", equals(43)), "the reading's base_level is not the Prayer 43 stated above")
+            -- seam22: the reading is the SECOND value, as t.skill.read's is;
+            -- the detail text is the third (and reading.text).
+            local result, reading, detail = fn()
+            if result ~= "ok" then return result, describe(reading) end
+            if type(reading) ~= "table" or reading.base_level ~= 43 then
+                return "hollow", "the second value is not the prayer reading with base_level 43 (the Prayer 43"
+                    .. " stated above): " .. describe(reading)
+            end
+            if reading.points ~= reading.level or math.type(reading.points) ~= "integer" then
+                return "hollow", "reading.points is not the level (points left): " .. describe(reading.points)
+                    .. " vs " .. describe(reading.level)
+            end
+            if not is_text(detail) or detail ~= reading.text then
+                return "hollow", "the third value is not the reading's text: " .. describe(detail)
+            end
+            local sr, stat = verb("skill", "read")("prayer")
+            if sr ~= "ok" or type(stat) ~= "table" or stat.level ~= reading.level then
+                return "hollow", "t.skill.read('prayer') reads " .. describe(stat) .. ", points() read "
+                    .. reading.level
+            end
+            return "ok", detail .. " (reading.points " .. reading.points .. " = t.skill.read('prayer').level)"
         end)
 
         -- PLACEMENT: test/quests/_conformance.lua PLAN, directly AFTER
@@ -3327,7 +3656,7 @@ return {
             if not server then return missing("var", "server") end
             local function reading()
                 settle(2)
-                local _, _, r = points_fn()
+                local _, r = points_fn()
                 local cr, counter = server("varp6296_prayer_drain_counter")
                 if type(r) ~= "table" or cr ~= "ok" or type(counter) ~= "number" then
                     return nil, "points " .. describe(r and r.level) .. ", counter " .. describe(cr) .. " " .. describe(counter)
@@ -4302,6 +4631,171 @@ return {
                 .. tostring(slot) .. ", absent from the npc pool, is a kill ONLY after a health bar "
                 .. "(" .. describe(bar_result) .. ") and `no_row` without one ("
                 .. describe(no_bar_result) .. ", stamp not consumed)"
+        end)
+
+        -- AN ABSENCE AFTER A HIGH BAR IS A DESPAWN, NOT A KILL (b68-seam2,
+        -- await_dead_engaged_grades_a_despawn_as_a_kill_by_absence).
+        --
+        -- The row above settles WHETHER an absent slot may be a kill (only
+        -- after a health bar); this one settles WHICH absences are.  A vouched
+        -- absence is also what an npc_add running out, an npc_del or a player
+        -- walking off looks like, and the watch credited every one of them:
+        -- Spirits of the Elid's 50-tick golems read `whiteGolem.dead PASS ...
+        -- last hp 29/30 ... corroborated by ABSENCE` (build/quest_gate/
+        -- spiritsoftheelid row 56), and a Hill Giant hit once to 29/30 and
+        -- left behind by a ::goto read `ok ... dead after 3 tick(s)` while it
+        -- stood alive (build/quest_gate/s2abs_before row 6).  The rule
+        -- (combat.lua, the banner over QD.COMBAT_ABSENT_POLLS): the watch keeps
+        -- the last bar it or its stamp read; an absence from a last bar at
+        -- most a quarter of the bar's width is a kill, from above a quarter it
+        -- is `despawned`, and with no bar ever known it stays a kill.
+        --
+        -- Stated the way the row above states it, on a SLOT NUMBER THE POOL
+        -- DOES NOT HOLD and synthetic stamps, so no fight and no despawn is
+        -- needed: (a) 29/30 answers `despawned`, consumes the stamp and names
+        -- the bar; (b) 1/30 is still a kill; (c) the boundary 7/30 (a kill)
+        -- against 8/30 (despawned), and a wait's written-back bar beats the
+        -- attack's older one; (d) no bar ever known stays a kill, and the
+        -- shared watch arm -- the one t.npc.await_dead answers from too --
+        -- names the same two kinds when it is read directly.
+        seam("seam.absence_after_a_high_bar_is_a_despawn", function()
+            local row_by_slot = verb("_combat_row_by_slot")
+            local watch_new = verb("_combat_watch_new")
+            local watch_read = verb("_combat_watch_read")
+            local await_engaged = verb("npc", "await_dead_engaged")
+            if not row_by_slot then return missing("_combat_row_by_slot") end
+            if not watch_new then return missing("_combat_watch_new") end
+            if not watch_read then return missing("_combat_watch_read") end
+            if not await_engaged then return missing("npc", "await_dead_engaged") end
+
+            local held = t._combat_last
+            local slot = nil
+            local absent = { 65535, 65534, 65533, 65532 }
+            for i = 1, #absent do
+                local result = row_by_slot(absent[i])
+                if result == "no_row" then
+                    slot = absent[i]
+                    break
+                end
+            end
+            if slot == nil then
+                return "hollow", "no slot number could be found that the npc pool does not hold, "
+                    .. "so the absence arbitration cannot be stated"
+            end
+
+            -- One wait on a synthetic stamp for the absent slot; the stamp is
+            -- returned so its consumption and write-back can be read.  SIX
+            -- ticks, not the row above's one: the verdict still comes at the
+            -- second poll the pool vouches for, and the cap only matters when
+            -- the pool here sits at its 64 rows and cannot vouch for a slot
+            -- with no last tile (the full-pool note before the wave rows) --
+            -- the first run of this row read 8/30 as `timeout` on one tick.
+            local function wait_on(health, last_ratio, last_scale)
+                local stamp = {
+                    symbol = "conformance_absent_slot",
+                    slot = slot,
+                    op = 2,
+                    npc_id = -1,
+                    name = "a slot the npc pool does not hold",
+                    health_before = "no bar",
+                    health = health,
+                    bar_seen = true,
+                    tick = 0,
+                    consumed = false,
+                    last_ratio = last_ratio,
+                    last_scale = last_scale,
+                }
+                t._combat_last = stamp
+                local result, detail = await_engaged(6)
+                return result, detail, stamp
+            end
+
+            local high_result, high_detail, high_stamp = wait_on("29/30")
+            local low_result, low_detail, low_stamp = wait_on("1/30")
+            local edge_kill_result, edge_kill_detail = wait_on("7/30")
+            local edge_gone_result, edge_gone_detail = wait_on("8/30")
+            local newer_result, newer_detail = wait_on("1/30", 29, 30)
+            local none_result, none_detail, none_stamp = wait_on("no bar")
+            t._combat_last = held
+
+            -- The shared arm, read directly: two vouched polls of the absent
+            -- slot, once with a high bar seeded and once with none.
+            local function arm_kind(stamp)
+                local watch = watch_new(nil, stamp)
+                local kind, verdict = nil, nil
+                for _ = 1, 6 do
+                    local _r, _row, v, _s, _st, k = watch_read(watch, slot)
+                    verdict, kind = v, k
+                    if verdict ~= nil then
+                        break
+                    end
+                    t.ticks(1)
+                end
+                return kind, verdict
+            end
+            local arm_high, arm_high_verdict = arm_kind({ health = "29/30" })
+            local arm_none, arm_none_verdict = arm_kind(nil)
+
+            -- (a)
+            if high_result ~= "despawned" then
+                return "refused", "a slot that left the pool with its last bar at 29/30 is answered "
+                    .. describe(high_result) .. " / " .. describe(high_detail)
+                    .. " -- an npc taken away alive is credited as a kill"
+            end
+            if not high_stamp.consumed then
+                return "refused", "a `despawned` answer did not consume its stamp, so a second wait "
+                    .. "would watch an engagement that is over"
+            end
+            if not is_text(high_detail) or not string.find(high_detail, "29/30", 1, true) then
+                return "refused", "the `despawned` detail does not name the last bar 29/30: "
+                    .. describe(high_detail)
+            end
+            -- (b)
+            if low_result ~= "ok" or not low_stamp.consumed then
+                return "refused", "a slot that left the pool from a last bar of 1/30 is no longer a "
+                    .. "kill: " .. describe(low_result) .. " / " .. describe(low_detail)
+                    .. " (stamp consumed " .. describe(low_stamp.consumed) .. ")"
+            end
+            -- (c)
+            if edge_kill_result ~= "ok" then
+                return "refused", "7/30 -- at most a quarter -- is not a kill: "
+                    .. describe(edge_kill_result) .. " / " .. describe(edge_kill_detail)
+            end
+            if edge_gone_result ~= "despawned" then
+                return "refused", "8/30 -- above a quarter -- is not `despawned`: "
+                    .. describe(edge_gone_result) .. " / " .. describe(edge_gone_detail)
+            end
+            if newer_result ~= "despawned" then
+                return "refused", "a stamp whose written-back bar reads 29/30 was judged on its "
+                    .. "older 1/30: " .. describe(newer_result) .. " / " .. describe(newer_detail)
+            end
+            if high_stamp.last_ratio ~= 29 or high_stamp.last_scale ~= 30 then
+                return "refused", "the wait did not write its last bar back to the stamp: "
+                    .. describe(high_stamp.last_ratio) .. "/" .. describe(high_stamp.last_scale)
+            end
+            -- (d)
+            if none_result ~= "ok" or not none_stamp.consumed then
+                return "refused", "an absence with no bar ever known is no longer a kill: "
+                    .. describe(none_result) .. " / " .. describe(none_detail)
+            end
+            if arm_high == nil or arm_none == nil then
+                return "hollow", "two polls of absent slot " .. tostring(slot) .. " gave the watch "
+                    .. "no verdict (the pool could not vouch?): " .. describe(arm_high_verdict)
+                    .. " / " .. describe(arm_none_verdict)
+            end
+            if arm_high ~= "despawned" or arm_none ~= "kill" then
+                return "refused", "the shared watch arm names the kinds wrong: a 29/30 seed -> "
+                    .. describe(arm_high) .. ", no bar -> " .. describe(arm_none)
+                    .. " (want despawned, kill)"
+            end
+
+            return "ok", "absent slot " .. tostring(slot) .. ": last bar 29/30 -> "
+                .. describe(high_result) .. " (stamp consumed, bar named, written back 29/30), "
+                .. "1/30 -> " .. describe(low_result) .. ", 7/30 -> " .. describe(edge_kill_result)
+                .. ", 8/30 -> " .. describe(edge_gone_result) .. ", written-back 29/30 over 1/30 -> "
+                .. describe(newer_result) .. ", no bar ever known -> " .. describe(none_result)
+                .. "; the shared watch arm names " .. describe(arm_high) .. " / "
+                .. describe(arm_none)
         end)
 
         -- AN NPC'S OWN SQUARE IS STEPPED OFF BEFORE THE PRESS.
@@ -7753,6 +8247,60 @@ return {
             end
             return "ok", text
         end)
+
+        -- ================================================================== ROW 2 of 2
+        -- raid seam27 several_inputs_one_tick: the driver eater at the SERVER's food delay.
+        -- NO VERB ADDED OR RENAMED: a new option of npc.await_dead_engaged / npc.await_dead,
+        -- opts.eat.quick = true.  SEAM_COUNT / @seam-count +1.
+        -- PLACE: directly AFTER seam("seam.await_dead_engaged_recasts_and_eats", ...) and BEFORE the
+        -- stage that sets ::passive chronozon -- it fights the Chronozon that stage spawned.
+        -- food.constant:29 ^eat_delay = 2 and consume_shared.rs2:80/:89: the next bite lands on the
+        -- press tick + 3 (wiki Food/Fast foods: "The 3 tick Eat delay").  Proved in
+        -- build/quest_gate/siot_probe4 (row 6) and this row as run in build/quest_gate/siot_conf: bites at 101, 104, 107, 110, 113, then 117, 120 when
+        -- hitpoints reached the threshold; the default eater in the same fight (row 4): 4 bites in
+        -- 20 ticks against the quick eater's 7.
+        seam("seam.quick_eater_food_delay", function()
+            local cast = verb("player", "cast")
+            local fn = verb("npc", "await_dead_engaged")
+            if not cast then return missing("player", "cast") end
+            if not fn then return missing("npc", "await_dead_engaged") end
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::setlevel defence 1")
+            setup_cheat("::give shark 8")
+            settle(2)
+            -- Chronozon's own hits bring hitpoints down (defence 1); no eating until under 60.
+            local cast_result, cast_detail = cast("wind_strike", "chronozon", 14)
+            if cast_result ~= "ok" then
+                setup_cheat("::setlevel defence 99")
+                return "no_subject", "cast wind_strike on chronozon -> " .. describe(cast_result) .. " "
+                    .. describe(cast_detail)
+            end
+            t.await({
+                level = function()
+                    local _, hp = t.skill.read("hitpoints")
+                    return type(hp) == "table" and hp.level < 60
+                end,
+                note = "chronozon brings hitpoints under 60",
+            }, 60)
+            local result, detail = fn(14, 30, { eat = { item = "shark", below = 99, quick = true } })
+            setup_cheat("::setlevel defence 99")
+            local text = "await_dead_engaged(14, 30, {eat shark below 99, quick}) -> " .. describe(result)
+                .. " " .. describe(detail)
+            local ticks = {}
+            for at in string.gmatch(tostring(detail), "%->%d+@(%d+)") do
+                ticks[#ticks + 1] = tonumber(at)
+            end
+            if #ticks < 3 then
+                return "refused", "fewer than three bites named with their tick -- " .. text
+            end
+            for i = 2, 3 do
+                if ticks[i] - ticks[i - 1] ~= 3 then
+                    return "refused", "bites " .. (i - 1) .. " and " .. i .. " are " .. (ticks[i] - ticks[i - 1])
+                        .. " ticks apart, not the food delay's 3 -- " .. text
+                end
+            end
+            return "ok", text
+        end)
         stage(function()
             setup_cheat("::passive chronozon")                  -- setup
             settle(3)
@@ -9080,6 +9628,944 @@ return {
             return "ok", text
         end)
 
+        -- ONE COPY ASKED, ONE COPY PRESSED (raid seam3 attack_exact_copy).  Two
+        -- goblins spawned on ONE tile (::spawn twice from the same player tile
+        -- lands both on player.x+1, player.z+1, torirs_server_world.c's spawn
+        -- cheat) draw over each other, and a press names one of them by slot.
+        -- Graded from the client: the asked copy is hit (a health bar, or gone
+        -- inside the settle) and the wait holds THAT slot, while the other copy
+        -- never carries a bar -- a client is sent a HEADBAR only once something
+        -- has hit the npc, so health_ratio < 0 is "nothing ever hit it".
+        -- Scratch proof with the server's tick log: s3ec_after1 "asked world
+        -- slot 1080 ...: 8 hit_npc row(s) on it, 0 on the other copy (world
+        -- 1079)".  The press-into-an-open-menu half (a press naming B landing
+        -- inside the menu a covered press left over A SELECTED A's Attack row:
+        -- s3ec_stale_before1 5 hit_npc rows on A, 0 on B) is OPEN: its fix cost
+        -- three green quests a tick and the seam3 closer reverted it
+        -- (raid_loop/CONTENT_BUGS.md); the repro stays a scratch
+        -- (build/seam_state/matthew-mbp-m4-raid-b1-seam3/scratch/stale_menu.lua).
+        seam("seam.attack_exact_copy_on_one_tile", function()
+            local goto_tile = verb("player", "goto_tile")
+            local attack = verb("player", "attack")
+            local engaged = verb("npc", "await_dead_engaged")
+            local tiles = verb("npc", "tiles")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not attack then return missing("player", "attack") end
+            if not engaged then return missing("npc", "await_dead_engaged") end
+            if not tiles then return missing("npc", "tiles") end
+            local GOBLIN = "goblin_unarmed_melee_1"
+            -- The stage before the Dayth rows set ranged 99: one arrow would
+            -- kill a goblin inside the attack's own settle, and a fight that is
+            -- several hits long is the subject here.  Put back on every exit.
+            setup_cheat("::setlevel ranged 1")
+            local function teardown()
+                setup_cheat("::kill " .. GOBLIN .. " 10")
+                setup_cheat("::kill " .. GOBLIN .. " 10")
+                setup_cheat("::setlevel ranged 99")
+                settle(2)
+            end
+            local goto_result = goto_tile(3229, 3233, 0)
+            if goto_result ~= "ok" then
+                teardown()
+                return "no_subject", "goto 3229,3233 -> " .. describe(goto_result)
+            end
+            setup_cheat("::spawn " .. GOBLIN)
+            settle(1)
+            setup_cheat("::spawn " .. GOBLIN)
+            settle(3)
+            local _, _, rows = tiles(GOBLIN, 3)
+            local copies = {}
+            for _, row in ipairs(rows or {}) do
+                if row.x == 3230 and row.z == 3234 then copies[#copies + 1] = row end
+            end
+            if #copies < 2 then
+                teardown()
+                return "no_subject", "two ::spawn " .. GOBLIN .. " did not put two copies on 3230,3234 ("
+                    .. #copies .. ")"
+            end
+            table.sort(copies, function(x, y) return x.slot < y.slot end)
+            local other, asked = copies[1], copies[2]
+            local result, detail = attack(GOBLIN, 2, 20, { slot = asked.slot })
+            local text = "two copies on 3230,3234: asked slot " .. asked.slot .. " (element "
+                .. describe(asked.element_id) .. "), other slot " .. other.slot .. " (element "
+                .. describe(other.element_id) .. "); attack -> " .. describe(result) .. " " .. describe(detail)
+            if result ~= "ok" and result ~= "timeout" then
+                teardown()
+                return result, text
+            end
+            if string.find(tostring(detail), "pressed slot " .. asked.slot .. " ", 1, true) == nil then
+                teardown()
+                return "hollow", text .. " -- the detail does not name the asked slot as the one pressed"
+            end
+            local wait_result, wait_detail = engaged(60, 4)
+            text = text .. "; await_dead_engaged -> " .. describe(wait_result) .. " " .. describe(wait_detail)
+            -- The whole pool (radius 0): a spawned goblin wanders off its tile.
+            local _, _, after = tiles(GOBLIN, 0)
+            local other_now = nil
+            for _, row in ipairs(after or {}) do
+                if row.slot == other.slot then other_now = row end
+            end
+            teardown()
+            if wait_result ~= "ok" or string.find(tostring(wait_detail), "slot " .. asked.slot .. " ", 1, true) == nil then
+                return "refused", text .. " -- the wait did not finish the asked slot"
+            end
+            if other_now == nil then
+                return "refused", text .. " -- the copy NOT asked for left the pool too"
+            end
+            if type(other_now.health_ratio) ~= "number" or other_now.health_ratio >= 0 then
+                return "refused", text .. " -- the copy NOT asked for carries a health bar ("
+                    .. describe(other_now.health_ratio) .. "/" .. describe(other_now.health_scale)
+                    .. "): something hit the other copy"
+            end
+            return "ok", text .. " [other slot " .. other.slot .. " never hit: health_ratio "
+                .. describe(other_now.health_ratio) .. "]"
+        end)
+
+        -- AN NPC'S FOOTPRINT, READ FROM THE PLAYER'S SIDE (raid seam4
+        -- npc_state_size_and_stale_menu).  Before, a pool row carried no size,
+        -- so Xarpus's 3 -> 5 (xarpus.size.p1_p2) had to be looked up by hand
+        -- and a footprint guessed.  Graded on two ordinary npcs the cache
+        -- sizes differently: goblin_unarmed_melee_1 (configs/all.npc states no
+        -- size: 1) and cow (`size=2`), each read through t.npc.state and
+        -- t.npc.nearest (the same pool row), and state_text naming it.
+        -- Scratch proof: s4size_after1 (goblin 1, cow 2; the shared binary
+        -- without the field, s4size_before1, reads nil); s4xsize_after1 Entry
+        -- Xarpus: static form 3, fighting form (npc 10768) 5.  Note the
+        -- triage's "cow (1)" is wrong: the cache states cow size=2, which makes
+        -- the cow the ordinary size-2 npc this row wanted.
+        seam("seam.npc_state_size", function()
+            local state = verb("npc", "state")
+            local nearest = verb("npc", "nearest")
+            local state_text = verb("npc", "state_text")
+            local goto_tile = verb("player", "goto_tile")
+            if not state then return missing("npc", "state") end
+            if not nearest then return missing("npc", "nearest") end
+            if not state_text then return missing("npc", "state_text") end
+            if not goto_tile then return missing("player", "goto_tile") end
+            local GOBLIN = "goblin_unarmed_melee_1"
+            local COW = "cow"
+            local function teardown()
+                setup_cheat("::kill " .. GOBLIN .. " 10")
+                setup_cheat("::kill " .. COW .. " 10")
+                settle(2)
+            end
+            local goto_result = goto_tile(3229, 3233, 0)
+            if goto_result ~= "ok" then
+                teardown()
+                return "no_subject", "goto 3229,3233 -> " .. describe(goto_result)
+            end
+            setup_cheat("::spawn " .. GOBLIN)
+            settle(1)
+            goto_result = goto_tile(3225, 3233, 0)
+            if goto_result ~= "ok" then
+                teardown()
+                return "no_subject", "goto 3225,3233 -> " .. describe(goto_result)
+            end
+            setup_cheat("::spawn " .. COW)
+            settle(3)
+            local text = {}
+            for _, want in ipairs({ { GOBLIN, 1 }, { COW, 2 } }) do
+                local symbol, size = want[1], want[2]
+                local near_result, near = nearest(symbol, 8)
+                if near_result ~= "ok" then
+                    teardown()
+                    return "no_subject", symbol .. ": npc.nearest -> " .. describe(near_result) .. " " .. describe(near)
+                end
+                local state_result, row = state(symbol, { slot = near.slot })
+                if state_result ~= "ok" then
+                    teardown()
+                    return state_result, symbol .. ": npc.state -> " .. describe(row)
+                end
+                local line = state_text(row)
+                text[#text + 1] = symbol .. ": nearest size " .. describe(near.size) .. ", " .. line
+                if near.size ~= size or row.size ~= size then
+                    teardown()
+                    return "refused", table.concat(text, "; ") .. " -- the cache sizes " .. symbol .. " "
+                        .. size
+                end
+                if not string.find(line, "size " .. size, 1, true) then
+                    teardown()
+                    return "hollow", table.concat(text, "; ") .. " -- state_text does not name 'size " .. size .. "'"
+                end
+            end
+            teardown()
+            return "ok", table.concat(text, "; ")
+        end)
+
+-- ===================================================================
+-- raid seam9 client_played_anim_reads.  FOUR NEW SEAM ROWS (SEAM_COUNT +4,
+-- @seam-count +4).  No verb gains or loses an argument: t.npc.state (and every
+-- npc pool row: t.npc.nearest, raid.lua's boss read), t.world.projectiles,
+-- t.world.spotanims, t.world.hazard_at's `locs` rows and every api_drive.locs
+-- row gain FIELDS, read from what the client is drawing on the frame of the
+-- read (src/plugin/torirs_plugin_drive_ui.c drive_ui_fill_npc_pose,
+-- drive_ui_element_seq, drive_ui_locs_attach_ambient):
+--   npc row:   pose_anim, pose_frame, pose_kind, ready_anim, walk_anim,
+--              turn_anim, run_anim
+--   loc row:   seq, seq_frame, ambient_sound, ambient_range, ambient_inner,
+--              ambient_random
+--   projectile / spotanim row: seq, seq_frame
+-- The existing step rows (npc.state, world.projectiles, world.spotanims,
+-- world.hazard_at) are unchanged; these four rows pin the new fields.
+--
+-- (1) PLACE: directly AFTER seam("seam.npc_state_size", ...) and BEFORE
+-- seam("seam.attack_fast_path", ...).  Rows A and B both start and end in the
+-- Lumbridge goblin field at 3225,3233 with ::god on, the state
+-- seam.npc_state_size leaves and seam.attack_fast_path expects, and kill their
+-- own npcs on every exit.
+--
+-- Row A: THE POSE.  A Canifis citizen (canafis_man1: readyanim human_ready
+-- 808, walkanim human_walk_f 819, no turnanim, configs/all.npc) standing draws
+-- 808 on its secondary track with anim_id -1 (the action track empty: no
+-- SEQUENCE op is ever sent for a stand or a walk); hit by a wind strike from
+-- five tiles it walks to the player and draws 819 with pose_kind "walk".  The
+-- row's ready_anim / walk_anim are the idle set the client holds for the
+-- entity (Row D pins that it follows a retype).
+        seam("seam.npc_pose_reads_the_drawn_track", function()
+            local state = verb("npc", "state")
+            local nearest = verb("npc", "nearest")
+            local goto_tile = verb("player", "goto_tile")
+            local cast = verb("player", "cast")
+            if not state then return missing("npc", "state") end
+            if not nearest then return missing("npc", "nearest") end
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not cast then return missing("player", "cast") end
+            local CITIZEN = "canafis_man1"
+            local function teardown()
+                setup_cheat("::kill " .. CITIZEN .. " 10")
+                settle(2)
+                goto_tile(3225, 3233, 0)
+            end
+            setup_cheat("::give airrune 20")
+            setup_cheat("::give mindrune 20")
+            local goto_result = goto_tile(3229, 3233, 0)
+            if goto_result ~= "ok" then
+                teardown()
+                return "no_subject", "goto 3229,3233 -> " .. describe(goto_result)
+            end
+            setup_cheat("::spawn " .. CITIZEN)
+            settle(2)
+            local near_result, near = nearest(CITIZEN, 8)
+            if near_result ~= "ok" then
+                teardown()
+                return "no_subject", CITIZEN .. ": npc.nearest -> " .. describe(near_result) .. " " .. describe(near)
+            end
+            local slot = near.slot
+            goto_tile(3234, 3233, 0)
+            local seen = {}
+            local function note(row)
+                local k = tostring(row.pose_kind) .. "=" .. tostring(row.pose_anim)
+                seen[k] = (seen[k] or 0) + 1
+            end
+            local stand
+            local text = "none"
+            t.await({
+                level = function()
+                    local r, row = state({ slot = slot })
+                    if r ~= "ok" then
+                        text = describe(row)
+                        return false
+                    end
+                    if row.pose_anim == nil then
+                        text = "no pose_anim field"
+                        return true
+                    end
+                    note(row)
+                    if row.pose_kind == "ready" and row.pose_anim == row.ready_anim and row.anim_id == -1 then
+                        stand = row
+                        return true
+                    end
+                    return false
+                end,
+                note = "the citizen standing in its readyanim",
+            }, 20)
+            if stand == nil then
+                teardown()
+                return (text == "no pose_anim field") and "hollow" or "timeout",
+                    "no standing ready pose on " .. CITIZEN .. " in 20 ticks: " .. text
+            end
+            local walk
+            local casts = 0
+            local last_cast = "none"
+            while walk == nil and casts < 3 do
+                casts = casts + 1
+                local cast_result, cast_detail = cast("wind_strike", CITIZEN, 2, 2, { slot = slot })
+                last_cast = tostring(cast_result) .. " " .. describe(cast_detail)
+                t.await({
+                    level = function()
+                        local r, row = state({ slot = slot })
+                        if r ~= "ok" then return false end
+                        note(row)
+                        if row.pose_kind == "walk" and row.pose_anim == row.walk_anim then
+                            walk = row
+                            return true
+                        end
+                        return false
+                    end,
+                    note = "the citizen walking to the player in its walkanim",
+                }, 8)
+            end
+            teardown()
+            local parts = {}
+            for k, n in pairs(seen) do parts[#parts + 1] = k .. " x" .. n end
+            table.sort(parts)
+            local reading = CITIZEN .. ": ready_anim " .. stand.ready_anim .. " walk_anim " .. stand.walk_anim
+                .. " turn_anim " .. stand.turn_anim .. "; standing pose ready=" .. stand.pose_anim .. " anim_id "
+                .. stand.anim_id .. "; poses read " .. table.concat(parts, ", ")
+            if walk == nil then
+                return "timeout", reading .. "; never walking after " .. casts .. " cast(s), last " .. last_cast
+            end
+            reading = reading .. "; walking pose walk=" .. walk.pose_anim .. " frame " .. walk.pose_frame
+            if stand.ready_anim ~= 808 or stand.walk_anim ~= 819 or walk.pose_anim ~= 819 then
+                return "refused", reading .. " -- a Canifis citizen's idle set is human_ready 808 / human_walk_f 819"
+            end
+            return "ok", reading
+        end)
+
+-- Row B: THE ELEMENT'S SEQ.  A wind strike's projectile (windstrike_travel 91)
+-- is drawn with its record's seq strike_travel (659) bound on its scene
+-- element (`seq` >= 0 only once the element plays it); a Lumbridge tree (no
+-- record anim, no soundid) reads seq -1 and no ambient: the static control.
+-- PLACE: directly after Row A.
+        seam("seam.element_seq_projectile_and_static_loc", function()
+            local projectiles = verb("world", "projectiles")
+            local loc_near = verb("world", "loc_near")
+            local hazard_at = verb("world", "hazard_at")
+            local goto_tile = verb("player", "goto_tile")
+            local cast = verb("player", "cast")
+            if not projectiles then return missing("world", "projectiles") end
+            if not loc_near then return missing("world", "loc_near") end
+            if not hazard_at then return missing("world", "hazard_at") end
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not cast then return missing("player", "cast") end
+            local GOBLIN = "goblin_unarmed_melee_1"
+            local function teardown()
+                setup_cheat("::kill " .. GOBLIN .. " 10")
+                settle(2)
+                goto_tile(3225, 3233, 0)
+            end
+            setup_cheat("::give airrune 10")
+            setup_cheat("::give mindrune 10")
+            local goto_result = goto_tile(3237, 3233, 0)
+            if goto_result ~= "ok" then
+                teardown()
+                return "no_subject", "goto 3237,3233 -> " .. describe(goto_result)
+            end
+            setup_cheat("::spawn " .. GOBLIN)
+            settle(2)
+            -- four tiles off, so the bolt flies long enough to be read in the air
+            goto_tile(3233, 3233, 0)
+            local tree_result, tree = loc_near("tree", 30)
+            if tree_result ~= "ok" then
+                teardown()
+                return "no_subject", "tree: loc_near -> " .. describe(tree_result) .. " " .. describe(tree)
+            end
+            local hz_result, hz = hazard_at(tree.tile_x, tree.tile_z, tree.level)
+            local tree_row
+            for i = 1, (hz_result == "ok" and #hz.locs or 0) do
+                if hz.locs[i].loc_id == tree.id then tree_row = hz.locs[i] end
+            end
+            if tree_row == nil then
+                teardown()
+                return "no_subject", "hazard_at " .. tree.tile_x .. "," .. tree.tile_z .. " has no loc " .. tostring(tree.id)
+            end
+            local reading = "tree " .. tree.id .. " at " .. tree.tile_x .. "," .. tree.tile_z .. ": seq "
+                .. tostring(tree_row.seq) .. ", ambient " .. tostring(tree_row.ambient_sound)
+            if tree_row.seq ~= -1 or tree_row.ambient_sound ~= -1 or tree_row.ambient_range ~= -1 then
+                teardown()
+                return (tree_row.seq == nil) and "hollow" or "refused",
+                    reading .. " -- a static, silent loc must read seq -1 and ambient -1"
+            end
+            -- ticks 2: the quick press, back while the bolt is in the air
+            local cast_result, cast_detail = cast("wind_strike", GOBLIN, 2)
+            local bolt
+            local first = "never"
+            t.await({
+                level = function()
+                    local r, rows = projectiles(0)
+                    if r ~= "ok" then return false end
+                    for i = 1, #rows do
+                        if rows[i].spotanim_id == 91 then
+                            if first == "never" then first = tostring(rows[i].seq) .. "@" .. rows[i].cycles_left end
+                            if rows[i].seq ~= nil and rows[i].seq >= 0 then
+                                bolt = rows[i]
+                                return true
+                            end
+                        end
+                    end
+                    return false
+                end,
+                note = "windstrike_travel 91 with its seq bound",
+            }, 8)
+            teardown()
+            if bolt == nil then
+                return "timeout", reading .. "; no projectile 91 with a bound seq in 8 ticks (first read seq@cycles_left "
+                    .. first .. "); cast " .. tostring(cast_result) .. " " .. describe(cast_detail)
+            end
+            reading = reading .. "; projectile 91 seq " .. bolt.seq .. " frame " .. tostring(bolt.seq_frame)
+                .. " cycles_left " .. bolt.cycles_left .. " (first read " .. first .. ")"
+            if bolt.seq ~= 659 then
+                return "refused", reading .. " -- windstrike_travel's element plays strike_travel 659"
+            end
+            return "ok", reading
+        end)
+
+        -- ===================================================================
+        -- raid seam5 attack_fast_path.
+        --
+        -- NO step row changes: t.player.attack, t.player.cast and
+        -- t.npc.await_dead* keep their signatures, and every existing call in
+        -- _conformance.lua passes the default ticks (or 20/40) and no
+        -- opts.quick, so it takes the quest press exactly as before -- the
+        -- rows step("player.attack"), step("npc.await_dead"),
+        -- step("npc.await_dead_engaged"), step("player.cast"),
+        -- seam("seam.attack_presses_the_watched_slot"),
+        -- seam("seam.cast_presses_the_named_copy") and
+        -- seam("seam.attack_exact_copy_on_one_tile") are unchanged (they ran
+        -- PASS in the fixer's run of _conformance.lua with this snippet inserted,
+        -- under conformance.py's own client environment,
+        -- build/quest_gate/s5fp_conf_rows3).
+        --
+        -- (1) NEW SEAM ROW. PLACE: in _conformance.lua's PLAN directly AFTER
+        -- seam("seam.npc_state_size", ...) (the raid seam4 row; it leaves the
+        -- character in the Lumbridge goblin field at 3225,3233 with the
+        -- stage's kit and ::god on, and kills its own npcs on every exit).
+        -- SEAM row: SEAM_COUNT +1, @seam-count +1.
+        --
+        -- A PRESS THAT LANDS IN A TICK OR TWO, OR ANSWERS (raid seam5
+        -- attack_fast_path).  t.player.attack / t.player.cast with ticks <= 2
+        -- (or opts.quick = true) press through QD.drive._press_quick
+        -- (pointer.lua, end of file): one aim, one press, on `covered`
+        -- exactly one re-aim (the copy's new tile, a line hunt through the
+        -- missed pixel, or a camera nudge) and one more press -- never the
+        -- cover recovery, never walk_near, no hunt past one tick an aim --
+        -- and npc.await_dead_engaged re-presses a fast fight the same way.
+        -- Graded on three goblins spawned in the field, each fought BY SLOT:
+        --   A  attack(ticks=1), the player walks off, and await_dead_engaged
+        --      re-presses it: its detail says "N re-engagement(s) (fast path
+        --      re-presses)" with N >= 1 (and the re-engagement note carries
+        --      the press's own "fast path: ..." account);
+        --   B  killed by repeated attack(ticks=1, {slot}): every press says
+        --      "fast path:", answers ok/timeout/covered, and spends at most
+        --      QUICK_MAX ticks; and one attack with the default ticks on the
+        --      same copy does NOT say it (the quest press is untouched);
+        --   C  one cast(wind_strike, ticks=1, {slot}) with exactly one air
+        --      and one mind rune given for it (the cast spends them): "fast
+        --      path:", and Magic XP paid inside 10 ticks (the copy can stand
+        --      several tiles off, so the payment can trail the one-tick
+        --      settle), then killed by attack(ticks=1).
+        -- Scratch proof: build/quest_gate/s5fp_conf_rows3 (this row PASS
+        -- beside the unchanged attack/cast/await rows), s5fp_gob_quick6
+        -- (8/8), the Nylocas copies s5fp_copy_nylo_quick*/slow*.
+        seam("seam.attack_fast_path", function()
+            local goto_tile = verb("player", "goto_tile")
+            local attack = verb("player", "attack")
+            local cast = verb("player", "cast")
+            local engaged = verb("npc", "await_dead_engaged")
+            local tiles = verb("npc", "tiles")
+            local walk_to = verb("player", "walk_to")
+            local tile = verb("world", "tile")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not attack then return missing("player", "attack") end
+            if not cast then return missing("player", "cast") end
+            if not engaged then return missing("npc", "await_dead_engaged") end
+            if not tiles then return missing("npc", "tiles") end
+            if not walk_to then return missing("player", "walk_to") end
+            if not tile then return missing("world", "tile") end
+            local GOBLIN = "goblin_unarmed_melee_1"
+            -- The most server ticks one fast press may spend: aim + press,
+            -- the one re-aim (<= 1 tick of hunting) + press, the menu
+            -- dismissals.  Measured max 3 (s5fp_copy_nylo_quick1, 72 presses
+            -- in the Nylocas room; every goblin press 0-1).
+            local QUICK_MAX = 4
+            -- As seam.attack_exact_copy_on_one_tile: a fight several hits long.
+            setup_cheat("::setlevel ranged 1")
+            local function teardown()
+                setup_cheat("::kill " .. GOBLIN .. " 12")
+                setup_cheat("::kill " .. GOBLIN .. " 12")
+                setup_cheat("::kill " .. GOBLIN .. " 12")
+                setup_cheat("::setlevel ranged 99")
+                settle(2)
+            end
+            local spots = { { 3229, 3233 }, { 3226, 3236 }, { 3232, 3236 } }
+            for i = 1, #spots do
+                local goto_result = goto_tile(spots[i][1], spots[i][2], 0)
+                if goto_result ~= "ok" then
+                    teardown()
+                    return "no_subject", "goto " .. spots[i][1] .. "," .. spots[i][2] .. " -> "
+                        .. describe(goto_result)
+                end
+                setup_cheat("::spawn " .. GOBLIN)
+            end
+            setup_cheat("::passive " .. GOBLIN)
+            goto_tile(3229, 3235, 0)
+            settle(3)
+            local r0, _, rows = tiles(GOBLIN, 4)
+            if r0 ~= "ok" or not is_table(rows) or #rows < 3 then
+                teardown()
+                return "no_subject", "fewer than three goblins within 4 (" .. describe(rows and #rows) .. ")"
+            end
+            local slots = { rows[1].slot, rows[2].slot, rows[3].slot }
+            local function alive(slot)
+                local _, _, now = tiles(GOBLIN, 0)
+                for _, row in ipairs(now or {}) do
+                    if row.slot == slot then return true end
+                end
+                return false
+            end
+            local function server_tick()
+                local _, tick_now = t.tick()
+                return tick_now or 0
+            end
+            local text = {}
+            -- A: open fast, walk off, await_dead_engaged re-presses fast.
+            local ra, da = attack(GOBLIN, COMBAT_ATTACK_OP, 1, { slot = slots[1] })
+            if (ra ~= "ok" and ra ~= "timeout") or not string.find(tostring(da), "fast path:", 1, true) then
+                teardown()
+                return ra == "ok" and "hollow" or ra, "A: attack(ticks=1) -> " .. describe(ra) .. " " .. describe(da)
+            end
+            local _, here = tile()
+            if is_table(here) then
+                walk_to(here.x - 4, here.z, 8)
+            end
+            local re, de = engaged(80, 8)
+            if re ~= "ok" then
+                teardown()
+                return re, "A: await_dead_engaged after walking off -> " .. describe(de)
+            end
+            if string.find(tostring(de), " 0 re-engagement(s)", 1, true)
+                or not string.find(tostring(de), "re-engagement(s) (fast path re-presses)", 1, true) then
+                teardown()
+                return "hollow", "A: killed, but no fast re-engagement named: " .. describe(de)
+            end
+            text[#text + 1] = "A slot " .. slots[1] .. " re-pressed fast and killed"
+            -- B: the quest press on the default ticks says nothing of a fast path.
+            local rs, ds = attack(GOBLIN, COMBAT_ATTACK_OP, nil, { slot = slots[2] })
+            if string.find(tostring(ds), "fast path:", 1, true) then
+                teardown()
+                return "refused", "B: attack with the default ticks took the fast path: " .. describe(ds)
+            end
+            text[#text + 1] = "B default-ticks press " .. describe(rs) .. " (quest press)"
+            -- B: killed by fast presses by slot.
+            local presses, worst, results = 0, 0, {}
+            local start = server_tick()
+            while alive(slots[2]) and server_tick() - start < 60 do
+                local before = server_tick()
+                local rb, db = attack(GOBLIN, COMBAT_ATTACK_OP, 1, { slot = slots[2] })
+                local spent = server_tick() - before
+                presses = presses + 1
+                if spent > worst then worst = spent end
+                results[#results + 1] = describe(rb) .. ":" .. spent
+                if rb ~= "ok" and rb ~= "timeout" and rb ~= "covered" then
+                    if not alive(slots[2]) then break end
+                    teardown()
+                    return rb, "B: press " .. presses .. " -> " .. describe(db)
+                end
+                if not string.find(tostring(db), "fast path:", 1, true) then
+                    if not alive(slots[2]) then break end
+                    teardown()
+                    return "hollow", "B: press " .. presses .. " does not name the fast path: " .. describe(db)
+                end
+                if spent > QUICK_MAX then
+                    teardown()
+                    return "refused", "B: press " .. presses .. " spent " .. spent .. " ticks (max "
+                        .. QUICK_MAX .. "): " .. describe(db)
+                end
+                t.ticks(2)
+            end
+            if alive(slots[2]) then
+                teardown()
+                return "timeout", "B: slot " .. slots[2] .. " alive after 60 ticks of fast presses ("
+                    .. table.concat(results, " ") .. ")"
+            end
+            text[#text + 1] = "B slot " .. slots[2] .. " killed in " .. presses .. " fast press(es), worst "
+                .. worst .. " tick(s) [" .. table.concat(results, " ") .. "]"
+            -- C: one fast cast with exactly the runes it spends, then fast presses.
+            setup_cheat("::give airrune 1")
+            setup_cheat("::give mindrune 1")
+            settle(2)
+            -- Stand two tiles from C first, as a test would: a passive goblin
+            -- wanders, and C stood 8 tiles off across the field when A and B
+            -- were done (s5fp_conf_rows4..6), where the press landed and the
+            -- server never cast -- reach and line of sight are the world's
+            -- business, not the press's.
+            local c_where = "?"
+            do
+                local _, _, now_rows = tiles(GOBLIN, 0)
+                for _, row in ipairs(now_rows or {}) do
+                    if row.slot == slots[3] then
+                        goto_tile(row.x - 2, row.z, 0)
+                        settle(2)
+                    end
+                end
+                local _, _, again = tiles(GOBLIN, 0)
+                local _, me = tile()
+                for _, row in ipairs(again or {}) do
+                    if row.slot == slots[3] and is_table(me) then
+                        c_where = me.x .. "," .. me.z .. " with slot " .. slots[3] .. " at " .. row.x
+                            .. "," .. row.z
+                    end
+                end
+            end
+            local skill = t.skill
+            local read = is_table(skill) and type(skill.read) == "function" and skill.read or nil
+            if not read then
+                teardown()
+                return missing("skill", "read")
+            end
+            local _, xp_before = read("magic")
+            local before_cast = server_tick()
+            local rc, dc = cast("wind_strike", GOBLIN, 1, COMBAT_ATTACK_OP, { slot = slots[3] })
+            local cast_spent = server_tick() - before_cast
+            if (rc ~= "ok" and rc ~= "timeout") or not string.find(tostring(dc), "fast path:", 1, true) then
+                teardown()
+                return rc == "ok" and "hollow" or rc, "C: cast(ticks=1) from " .. c_where .. " -> "
+                    .. describe(rc) .. " " .. string.sub(tostring(dc), 1, 1800)
+            end
+            -- ticks=1 settles before a copy several tiles off is in range and
+            -- paid for, so the PAYMENT is awaited here: Magic XP up (one air
+            -- and one mind rune spent with it, ~pvm_spell_cast).
+            local paid = t.await({
+                level = function()
+                    local _, xp_now = read("magic")
+                    return is_table(xp_now) and is_table(xp_before)
+                        and xp_now.experience > xp_before.experience
+                end,
+                note = "seam.attack_fast_path: the fast cast paid",
+            }, 10)
+            if paid ~= "ok" then
+                teardown()
+                return "timeout", "C: the fast cast from " .. c_where .. " pressed but no Magic XP inside"
+                    .. " 10 ticks -- " .. string.sub(tostring(dc), 1, 1500)
+            end
+            text[#text + 1] = "C cast " .. describe(rc) .. " pressed in " .. cast_spent
+                .. " tick(s) from " .. c_where .. ", Magic XP paid"
+            start = server_tick()
+            while alive(slots[3]) and server_tick() - start < 60 do
+                attack(GOBLIN, COMBAT_ATTACK_OP, 1, { slot = slots[3] })
+                t.ticks(2)
+            end
+            if alive(slots[3]) then
+                teardown()
+                return "timeout", "C: slot " .. slots[3] .. " alive after 60 ticks of fast presses"
+            end
+            text[#text + 1] = "C slot " .. slots[3] .. " killed"
+            teardown()
+            return "ok", table.concat(text, "; ")
+        end)
+
+        -- AN EAT IS TWO CLOCKS, NEVER A PARK (raid seam6 eat_delay_port).  No
+        -- verb changed; two SEAM rows for the eat-delay port (consume_shared.rs2
+        -- + food.rs2 + every consumption script), placed after the raid seam5
+        -- row seam("seam.attack_fast_path", ...).
+        --
+        -- (1) seam.eat_does_not_hold_queued_hit -- seam5's row, unchanged (written in
+        --     build/seam_state/matthew-mbp-m4-raid-b1-seam5/conformance.tob_sotetseg_hit_delay.lua,
+        --     held until the food fix landed; it lands with this seam).  RED on the
+        --     committed content (an eat held the wizard's bolt +3), GREEN with this
+        --     seam.  The same logic as the eat_delay_scratch wizard row:
+        --       HEAD copy  seam6_eat_head1  eat on the cast tick +3,+3,+5,+3,+3,+3 (plain +1)
+        --       fixed      seam6_eat_fix5   eat on the cast tick +1,+1,+5,+1,+1,+1 (plain +1/+5)
+        --     and this snippet run as written under a harness that defines the PLAN
+        --     helpers (eat_delay/conf_harness.lua, run seam6_conf_rows*).
+        -- (2) seam.eat_delay_clocks -- NEW.  The gate procs answered in one tick by
+        --     ::eatgate (consume_shared.rs2's readout: food after food refused, a combo
+        --     food after a food allowed, a combo after a combo refused, a potion after
+        --     a food allowed, a potion after a potion refused, both refused through +2
+        --     = a 3-tick gap, a ready weapon +0, a running one +3 then +2), then an
+        --     unarmed goblin fight where every second swing is followed by a shark:
+        --     uneaten gaps 4, eaten gaps 7 (wiki Food/Fast foods: an eat while the
+        --     weapon delay runs adds 3).  HEAD copy: no ::eatgate, and the eaten gap
+        --     was 6/4 (the eat's p_stopaction let the retaliate flinch reset the
+        --     delay); fixed: 7,7.
+        -- (1) rewritten in raid seam14: the eat is now AIMED -- pressed
+        --     with the fast t.player.eat at the reading of the cast's own server tick
+        --     (a press there is processed in that tick), the eat's own tick read
+        --     from the ticklog's player_anim row, and only an eat on the cast tick or
+        --     the tick before (inside the queued hit's delay window) is counted.  The
+        --     old row ate with the slow inv_op after SEEING the cast, so its eats landed
+        --     on or after the hit's own tick and it passed on the pre-port content too
+        --     (the waves loop's ENG-58, MERGE_CHECKLIST.md).  seam14: FAILS on a
+        --     scratchpad copy with the pre-port food.rs2 (fsip_conf_preport1, +3) and
+        --     PASSES on the tree (fsip_conf2, +1 x6).
+        seam("seam.eat_does_not_hold_queued_hit", function()
+            local goto_tile = verb("player", "goto_tile")
+            local attack = verb("player", "attack")
+            local eat = verb("player", "eat")
+            local by_symbol = verb("npc", "by_symbol")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not attack then return missing("player", "attack") end
+            if not eat then return missing("player", "eat") end
+            if not by_symbol then return missing("npc", "by_symbol") end
+            if type(t.ticklog) ~= "table" or not t.ticklog.rows then return missing("ticklog", "rows") end
+            if not verb("tick") then return missing("tick") end
+            local WIZ = "young_dark_wizard"
+            -- The PLAN reaches this row with seam.attack_fast_path's magic
+            -- shortbow still worn, and a bow fights the wizard from range,
+            -- where its bolt takes +2..+4 to land.  An eat's park (p_delay 2)
+            -- held a +1 hit to +3, and a plain +3 from range is the same
+            -- number: that is how the old version of this row passed on the
+            -- pre-port content (the waves loop's ENG-58).  So the bow comes
+            -- off (back on at teardown) and the fight is adjacent, and a plain
+            -- delay over +2 is refused as no subject below.
+            local BOW = "magic_shortbow"
+            local equip = verb("player", "equip")
+            local unequip = verb("player", "unequip")
+            local bow_off = false
+            local function teardown()
+                setup_cheat("::kill " .. WIZ .. " 10")
+                settle(2)
+                if bow_off and equip then equip(BOW) end
+            end
+            local function now()
+                local _, tick = t.tick()
+                return tick
+            end
+            setup_cheat("::setlevel attack 1")
+            setup_cheat("::setlevel strength 1")
+            setup_cheat("::setlevel defence 1")
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::give shark 12")
+            -- not_found when no bow is worn (the row run on its own): unarmed already
+            if unequip and unequip(BOW) == "ok" then bow_off = true end
+            local goto_result = goto_tile(3242, 3248, 0)
+            if goto_result ~= "ok" then
+                teardown()
+                return "no_subject", "goto 3242,3248 -> " .. describe(goto_result)
+            end
+            setup_cheat("::spawn " .. WIZ .. " 1")
+            settle(3)
+            t.ticklog.start()
+            t.ticklog.mark("seam.eat_does_not_hold_queued_hit")
+            local _, marks = t.ticklog.rows({ kind = "mark" })
+            local since = marks[#marks].serial
+            local ws, engaged, pcur, guard = nil, false, since, 0
+            local presses, eat_this, aimed = {}, false, {}
+            while guard < 220 and #presses < 6 do
+                local nr, nrow = by_symbol(WIZ)
+                if nr ~= "ok" then
+                    setup_cheat("::spawn " .. WIZ .. " 1")
+                    settle(2)
+                    engaged, ws = false, nil
+                else
+                    if ws == nil then ws = select(2, t.ticklog.slot(nrow)) end
+                    if not engaged then engaged = (attack(WIZ, 2, 20) == "ok") end
+                end
+                settle(1)
+                guard = guard + 1
+                -- The wizard's casts are its projectile launches (the only
+                -- caster on this tile).  MEASURED (seam14 fsip_probe5): a cast
+                -- is in the log at the reading of its own server tick R, and a
+                -- press made at reading R is processed in tick R after the npc
+                -- (the eat's player_anim is stamped R) -- so eating the moment
+                -- the cast is seen puts the eat ON THE CAST TICK, inside the
+                -- window between the hit being queued and the hit landing.
+                local newest = nil
+                local _, launched = t.ticklog.rows({ kind = "projectile", since = pcur })
+                for _, p in ipairs(launched) do
+                    pcur = math.max(pcur, p.serial)
+                    newest = p.tick
+                    eat_this = not eat_this
+                end
+                local tick_now = now()
+                if newest ~= nil and newest == tick_now and eat_this and not aimed[newest] then
+                    aimed[newest] = true
+                    local er, ed = eat("shark")
+                    presses[#presses + 1] = { pressed = tick_now, result = er, detail = ed }
+                end
+            end
+            teardown()
+            local all_casts = {}
+            local _, launched_all = t.ticklog.rows({ kind = "projectile", since = since })
+            for _, p in ipairs(launched_all) do all_casts[#all_casts + 1] = p.tick end
+            local _, hits = t.ticklog.rows({ kind = "hit_player", since = since, slot = ws })
+            local _, anims = t.ticklog.rows({ kind = "player_anim", since = since })
+            -- The eat's own tick: the first player_anim in [pressed, pressed+2]
+            -- whose seq the player had not shown before the first press (the
+            -- punch is the only animation before it).
+            local first_press = presses[1] and presses[1].pressed or math.huge
+            local before_seqs = {}
+            for _, a in ipairs(anims) do
+                if a.tick < first_press then before_seqs[a.seq] = true end
+            end
+            local eats, eat_seq = {}, nil
+            for _, pr in ipairs(presses) do
+                for _, a in ipairs(anims) do
+                    if a.tick >= pr.pressed and a.tick <= pr.pressed + 2 and not before_seqs[a.seq] then
+                        eats[#eats + 1] = a.tick
+                        eat_seq = a.seq
+                        break
+                    end
+                end
+            end
+            local function eaten_near(c, low, high)
+                for _, e in ipairs(eats) do
+                    if e >= c + low and e <= c + high then return e end
+                end
+                return nil
+            end
+            local plain, plain_count, eaten, outside = {}, {}, {}, {}
+            for _, c in ipairs(all_casts) do
+                local hit = nil
+                for _, h in ipairs(hits) do
+                    if h.tick > c and h.tick <= c + 3 then hit = h.tick break end
+                end
+                if hit ~= nil then
+                    local d = hit - c
+                    local e = eaten_near(c, -1, 0)
+                    if e ~= nil then
+                        eaten[#eaten + 1] = { cast = c, eat = e, delta = d }
+                    elseif eaten_near(c, -3, 1) == nil then
+                        plain[#plain + 1] = d
+                        plain_count[d] = (plain_count[d] or 0) + 1
+                    else
+                        outside[#outside + 1] = d
+                    end
+                end
+            end
+            local mode, mode_n = nil, 0
+            for d, n in pairs(plain_count) do
+                if n > mode_n then mode, mode_n = d, n end
+            end
+            local eaten_text = {}
+            for _, row in ipairs(eaten) do
+                eaten_text[#eaten_text + 1] = "cast " .. row.cast .. " eat " .. row.eat .. " hit +" .. row.delta
+            end
+            local text = "casts " .. #all_casts .. ", presses " .. #presses .. " (eat seq " .. describe(eat_seq)
+                .. ", eats at " .. table.concat(eats, ",") .. "); no eat near the cast: +"
+                .. table.concat(plain, ",+") .. "; eat on the cast tick or the tick before: "
+                .. table.concat(eaten_text, "; ") .. "; eat elsewhere: +" .. table.concat(outside, ",+")
+            if #plain < 2 or mode == nil then
+                return "no_subject", text .. " -- fewer than two uneaten casts with a hit"
+            end
+            if mode > 2 then
+                return "no_subject", text .. " -- the uneaten hits land +" .. mode .. ": an eat's two-tick park"
+                    .. " would hold a +1 hit to +3, which no hit this late can tell from its own tick"
+            end
+            if #eaten < 2 then
+                return "no_subject", text .. " -- fewer than two eats landed inside a queued hit's delay window"
+            end
+            for _, row in ipairs(eaten) do
+                if row.delta ~= mode then
+                    return "refused", text .. " -- the hit of the cast on " .. row.cast .. " landed +" .. row.delta
+                        .. ", not on its own tick (+" .. mode .. "): the eat on " .. row.eat
+                        .. " held the queued npc hit (an eat's p_delay parks the player's queue)"
+                end
+            end
+            return "ok", text .. " -- every hit landed on its own tick (+" .. mode .. ")"
+        end)
+
+        seam("seam.eat_delay_clocks", function()
+            local goto_tile = verb("player", "goto_tile")
+            local attack = verb("player", "attack")
+            local inv_op = verb("player", "inv_op")
+            local by_symbol = verb("npc", "by_symbol")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not attack then return missing("player", "attack") end
+            if not inv_op then return missing("player", "inv_op") end
+            if not by_symbol then return missing("npc", "by_symbol") end
+            if type(t.ticklog) ~= "table" or not t.ticklog.rows then return missing("ticklog", "rows") end
+            if type(t.msg) ~= "table" or not t.msg.last then return missing("msg", "last") end
+            local GOB = "goblin_unarmed_melee_1"
+            -- The stage before seam.attack_fast_path wields a magic shortbow
+            -- (ranged 99), which kills a 5-hp goblin with its first arrow and
+            -- leaves no swing gap to measure (closer's first full run: 0 gaps
+            -- in 166 ticks).  The gap under test is an UNARMED 4, so the bow
+            -- comes off for this row and goes back on at its teardown.
+            local BOW = "magic_shortbow"
+            local equip = verb("player", "equip")
+            local unequip = verb("player", "unequip")
+            local bow_off = false
+            local function line(prefix)
+                local _, list = t.msg.last(20)
+                for _, m in ipairs(list or {}) do
+                    if string.sub(m.text, 1, #prefix) == prefix then return m.text end
+                end
+                return nil
+            end
+            local function teardown()
+                setup_cheat("::kill " .. GOB .. " 10")
+                settle(2)
+                if bow_off and equip then equip(BOW) end
+            end
+            -- (a) the gate procs in one tick (consume_shared.rs2 ::eatgate)
+            setup_cheat("::eatgate")
+            local g1, g2 = line("eatgate:"), line("eatgate+:")
+            local want1 = "food 1 food-after-food 0 combo-after-food 1 combo-after-combo 0 potion-after-food 1 potion-after-potion 0"
+            local want2 = "food-refused-through +2 potion-refused-through +2 attack-ready +0 attack-running-2 +7"
+            if g1 == nil or g2 == nil then
+                return "refused", "no ::eatgate reply (" .. describe(g1) .. " / " .. describe(g2) .. "): consume_shared.rs2 is not in the pack"
+            end
+            if not string.find(g1, want1, 1, true) or not string.find(g2, want2, 1, true) then
+                return "refused", g1 .. " | " .. g2 .. " -- want " .. want1 .. " | " .. want2
+            end
+            -- (b) an eat while the weapon delay runs adds 3: unarmed (4) swing
+            -- gaps, measured hit_npc to hit_npc, with a shark eaten the tick a
+            -- swing's hit lands on every second swing
+            setup_cheat("::setlevel attack 1")
+            setup_cheat("::setlevel strength 1")
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::give shark 6")
+            -- not_found when no bow is worn (the row run on its own): unarmed already
+            if unequip and unequip(BOW) == "ok" then bow_off = true end
+            local goto_result = goto_tile(3242, 3248, 0)
+            if goto_result ~= "ok" then
+                teardown()
+                return "no_subject", "goto 3242,3248 -> " .. describe(goto_result)
+            end
+            setup_cheat("::spawn " .. GOB .. " 1")
+            settle(3)
+            t.ticklog.start()
+            t.ticklog.mark("seam.eat_delay_clocks")
+            local _, marks = t.ticklog.rows({ kind = "mark" })
+            local since = marks[#marks].serial
+            local gs, hcur, guard, engaged, last_hit, ate = nil, since, 0, false, nil, false
+            local plain, eaten = {}, {}
+            while guard < 160 and #eaten < 2 do
+                local nr, nrow = by_symbol(GOB)
+                if nr ~= "ok" then
+                    setup_cheat("::spawn " .. GOB .. " 1")
+                    settle(2)
+                    gs, engaged, last_hit, ate = nil, false, nil, false
+                else
+                    if gs == nil then gs = select(2, t.ticklog.slot(nrow)) end
+                    if not engaged then engaged = (attack(GOB, 2, 10) == "ok") end
+                end
+                settle(1)
+                guard = guard + 1
+                if gs ~= nil then
+                    local _, hn = t.ticklog.rows({ kind = "hit_npc", since = hcur, slot = gs })
+                    for i, h in ipairs(hn) do
+                        hcur = math.max(hcur, h.serial)
+                        if last_hit ~= nil then
+                            if ate then eaten[#eaten + 1] = h.tick - last_hit else plain[#plain + 1] = h.tick - last_hit end
+                        end
+                        last_hit, ate = h.tick, false
+                        if i == #hn and (#plain + #eaten) % 2 == 1 then
+                            inv_op("shark", 1)
+                            ate = true
+                        end
+                    end
+                end
+            end
+            teardown()
+            local text = "eatgate ok; unarmed swing gaps: no eat " .. table.concat(plain, ",")
+                .. "; a shark eaten after the swing " .. table.concat(eaten, ",")
+            if #plain < 2 or #eaten < 2 then
+                return "no_subject", text .. " -- fewer than two gaps of each kind"
+            end
+            for _, d in ipairs(plain) do
+                if d ~= 4 then return "refused", text .. " -- an uneaten unarmed gap of " .. d end
+            end
+            for _, d in ipairs(eaten) do
+                if d ~= 7 then
+                    return "refused", text .. " -- an eat while the weapon delay ran gave " .. d
+                        .. ", not 4 + 3 (wiki Food/Fast foods)"
+                end
+            end
+            return "ok", text
+        end)
+
         -- A [MAPZONE] TRIGGER FIRES ON A SQUARE'S UPPER LEVEL (seam36
         -- mapzone_triggers_fire_on_every_level).  A [mapzone] subject is always
         -- level 0 (LostCity NetworkPlayer.ts:252 latches the square with
@@ -9677,6 +11163,154 @@ return {
             return "ok", text
         end)
 
+        -- PLACE: in _conformance.lua's PLAN directly AFTER
+        -- seam("seam.drop_second_copy_on_one_tile", ...) (it reuses that row's
+        -- subject: logs, dropped on the player's own tile).  No new verb; this
+        -- is an ENGINE seam row (SEAM_COUNT +1, @seam-count +1).
+        --
+        -- TWO IDENTICAL DROPS ARE TWO GROUND ROWS (raid seam1
+        -- client_ground_obj_merge, src/app/app_world_rebuild.c).  The server
+        -- gives a non-stackable obj its own ground slot and its own OBJ_ADD
+        -- per copy (torirs_server_world.c world_obj_add), and the reference
+        -- client pushes one ClientObj per OBJ_ADD and unlinks ONE (the oldest
+        -- id match) per OBJ_DEL (Client-TS Client.ts OBJ_ADD / OBJ_DEL).  Our
+        -- App_WorldObjStackAdd used to find the id on the tile and overwrite
+        -- that row's count, so two logs read as one row, the first Take
+        -- removed it, and the second log -- still on the server -- was
+        -- invisible and unclickable.  Graded: each drop adds exactly one row
+        -- on the player's tile (drop's own "(N row(s))" detail; the tile may
+        -- already hold the previous row's logs, so the row compares the two
+        -- drops, not absolute counts); after one Take a log is STILL on the
+        -- client's tile (world.obj_near r0) and the backpack holds 1; a
+        -- second Take succeeds, so the server held it (backpack 2).
+        -- Before the fix: drop 2 "ground 1 -> 1 (1 row(s))", then obj_near
+        -- not_found after the first Take (scratch s1_objmerge_before).
+        seam("seam.two_identical_drops_are_two_ground_rows", function()
+            local drop = verb("player", "drop")
+            local click_obj = verb("player", "click_obj")
+            local obj_near = verb("world", "obj_near")
+            local count = verb("inv", "count")
+            local await = verb("inv", "await")
+            if not drop then return missing("player", "drop") end
+            if not click_obj then return missing("player", "click_obj") end
+            if not obj_near then return missing("world", "obj_near") end
+            if not count then return missing("inv", "count") end
+            if not await then return missing("inv", "await") end
+            setup_cheat("::clearinv")
+            setup_cheat("::give logs 2")
+            settle(2)
+            local _, before = count("logs")
+            local first_result, first_detail = drop("logs")
+            settle(1)
+            local second_result, second_detail = drop("logs")
+            settle(2)
+            local function rows_of(detail)
+                if type(detail) ~= "string" then return nil end
+                return tonumber(string.match(detail, "%((%d+) row%(s%)%)"))
+            end
+            local rows_first, rows_second = rows_of(first_detail), rows_of(second_detail)
+            local text = "logs " .. describe(before) .. "; drop 1 -> " .. describe(first_result) .. " "
+                .. describe(first_detail) .. "; drop 2 -> " .. describe(second_result) .. " "
+                .. describe(second_detail)
+            if before ~= 2 then
+                return "no_subject", text .. " -- ::give logs 2 did not put two logs in the backpack"
+            end
+            if first_result ~= "ok" or second_result ~= "ok" then
+                return "no_subject", text .. " -- a drop did not land"
+            end
+            if rows_first == nil or rows_second ~= rows_first + 1 then
+                return "refused", text .. " -- the second identical drop did not add a ground row ("
+                    .. describe(rows_first) .. " -> " .. describe(rows_second) .. ")"
+            end
+            local take1_result, take1_detail = click_obj("logs")
+            local await1 = await("logs", 1, 5)
+            settle(2)
+            local near_result, near = obj_near("logs", 0)
+            local _, held1 = count("logs")
+            text = text .. "; take 1 -> " .. describe(take1_result) .. " " .. describe(take1_detail)
+                .. " (backpack " .. describe(held1) .. ", await " .. describe(await1)
+                .. "); obj_near logs r0 -> " .. describe(near_result)
+                .. (type(near) == "table" and (" " .. describe(near.tile_x) .. "," .. describe(near.tile_z)) or "")
+            if take1_result ~= "ok" or held1 ~= 1 then
+                return "no_subject", text .. " -- the first Take did not put one log in the backpack"
+            end
+            if near_result ~= "ok" then
+                return "refused", text .. " -- after one Take the client shows no log on the tile, while the server still holds one"
+            end
+            local take2_result, take2_detail = click_obj("logs")
+            local await2 = await("logs", 2, 5)
+            local _, held2 = count("logs")
+            text = text .. "; take 2 -> " .. describe(take2_result) .. " " .. describe(take2_detail)
+                .. " (backpack " .. describe(held2) .. ", await " .. describe(await2) .. ")"
+            if take2_result ~= "ok" or held2 ~= 2 then
+                return "refused", text .. " -- the second log the client showed could not be taken"
+            end
+            return "ok", text
+        end)
+
+        -- PLACE: directly AFTER seam.two_identical_drops_are_two_ground_rows
+        -- above (SEAM_COUNT +1, @seam-count +1).
+        --
+        -- TWO COLD IDENTICAL PILES BOTH LAND (raid seam1
+        -- client_ground_obj_merge).  Two OBJ_ADDs of an obj the client has
+        -- never drawn (no objtype, no model resident) on one tile in one tick
+        -- each become a placeholder row.  The placeholder finds its stack by
+        -- (tile, obj id) -- the OLDEST row -- so without app_obj_stack_land
+        -- landing the element-less siblings, the second row never got a scene
+        -- element: listed, never drawn, never clickable.  dragon_med_helm is
+        -- chosen because nothing earlier in this file draws one.  Graded:
+        -- two rows on the tile, both taken by click (backpack 2).  Measured
+        -- with the sibling landing removed (throwaway worktree): take 2 ->
+        -- "target shares the player's tile and the step off it did not land",
+        -- backpack 1.
+        seam("seam.two_cold_identical_piles_both_land", function()
+            local click_obj = verb("player", "click_obj")
+            local by_symbol = verb("player", "by_symbol")
+            local count = verb("inv", "count")
+            local await = verb("inv", "await")
+            local obj_near = verb("world", "obj_near")
+            if not click_obj then return missing("player", "click_obj") end
+            if not by_symbol then return missing("player", "by_symbol") end
+            if not count then return missing("inv", "count") end
+            if not await then return missing("inv", "await") end
+            if not obj_near then return missing("world", "obj_near") end
+            if type(t.player._ground_on_tile) ~= "function" then
+                return "missing", "t.player._ground_on_tile (pointer.lua) is not a function"
+            end
+            setup_cheat("::clearinv")
+            settle(1)
+            local near_before = obj_near("dragon_med_helm", 3)
+            if near_before == "ok" then
+                return "no_subject", "a dragon_med_helm is already on the ground here -- not cold"
+            end
+            setup_cheat("::dropobj dragon_med_helm 1", false)
+            setup_cheat("::dropobj dragon_med_helm 1", false)
+            settle(4)
+            local target = by_symbol("obj", "dragon_med_helm")
+            local total, rows = t.player._ground_on_tile(target.id)
+            local text = "two ::dropobj dragon_med_helm in one tick -> " .. describe(rows)
+                .. " row(s) on the player's tile (total " .. describe(total) .. ")"
+            if rows ~= 2 then
+                return "refused", text .. " -- two OBJ_ADDs of one cold obj are not two rows"
+            end
+            local take1_result, take1_detail = click_obj("dragon_med_helm")
+            local await1 = await("dragon_med_helm", 1, 5)
+            local take2_result, take2_detail = click_obj("dragon_med_helm")
+            local await2 = await("dragon_med_helm", 2, 5)
+            local _, held = count("dragon_med_helm")
+            text = text .. "; take 1 -> " .. describe(take1_result) .. " " .. describe(take1_detail)
+                .. " (await " .. describe(await1) .. "); take 2 -> " .. describe(take2_result) .. " "
+                .. describe(take2_detail) .. " (await " .. describe(await2) .. "); backpack "
+                .. describe(held)
+            if take1_result ~= "ok" or await1 ~= "ok" then
+                return "no_subject", text .. " -- the first pile could not be taken"
+            end
+            if take2_result ~= "ok" or held ~= 2 then
+                return "refused", text .. " -- the second cold pile never landed a clickable model"
+            end
+            return "ok", text
+        end)
+
         -- TWO COPIES OF ONE OBJ ON ONE TILE ARE TWO GROUND ROWS
         -- (matthew-mbp-m4-b53-seam1 drop_verb_followups_and_grip_lure).  The
         -- client used to find the tile's stack of an obj id and overwrite its
@@ -9810,698 +11444,6 @@ return {
             end
             if after.level ~= 6 then
                 return "refused", text .. " -- the xp grant undid the drain"
-            end
-            return "ok", text
-        end)
-
-        -- PLACED AFTER seam.drain_survives_xp_gain (waves seam pass 1, driver_port).
-        -- In the raid branch these three rows sit before the mapzone row.  There they
-        -- add ~123 ticks between session.relog and seam.drain_survives_xp_gain, and
-        -- that row then straddles a [timer,stat_restore] tick (player/scripts/
-        -- stat_restore.rs2: one level back every 100 ticks from login), reading 7/60
-        -- for its staged 6/60 (build/quest_gate/qdconform_port_run1: relog -> drain
-        -- row = 397 ticks; v3's own order 274).  Here they cannot move its phase.
-
-        -- ONE COPY ASKED, ONE COPY PRESSED (raid seam3 attack_exact_copy).  Two
-        -- goblins spawned on ONE tile (::spawn twice from the same player tile
-        -- lands both on player.x+1, player.z+1, torirs_server_world.c's spawn
-        -- cheat) draw over each other, and a press names one of them by slot.
-        -- Graded from the client: the asked copy is hit (a health bar, or gone
-        -- inside the settle) and the wait holds THAT slot, while the other copy
-        -- never carries a bar -- a client is sent a HEADBAR only once something
-        -- has hit the npc, so health_ratio < 0 is "nothing ever hit it".
-        -- Scratch proof with the server's tick log: s3ec_after1 "asked world
-        -- slot 1080 ...: 8 hit_npc row(s) on it, 0 on the other copy (world
-        -- 1079)".  The press-into-an-open-menu half (a press naming B landing
-        -- inside the menu a covered press left over A SELECTED A's Attack row:
-        -- s3ec_stale_before1 5 hit_npc rows on A, 0 on B) is OPEN: its fix cost
-        -- three green quests a tick and the seam3 closer reverted it
-        -- (raid_loop/CONTENT_BUGS.md); the repro stays a scratch
-        -- (build/seam_state/matthew-mbp-m4-raid-b1-seam3/scratch/stale_menu.lua).
-        seam("seam.attack_exact_copy_on_one_tile", function()
-            local goto_tile = verb("player", "goto_tile")
-            local attack = verb("player", "attack")
-            local engaged = verb("npc", "await_dead_engaged")
-            local tiles = verb("npc", "tiles")
-            if not goto_tile then return missing("player", "goto_tile") end
-            if not attack then return missing("player", "attack") end
-            if not engaged then return missing("npc", "await_dead_engaged") end
-            if not tiles then return missing("npc", "tiles") end
-            local GOBLIN = "goblin_unarmed_melee_1"
-            -- The stage before the Dayth rows set ranged 99: one arrow would
-            -- kill a goblin inside the attack's own settle, and a fight that is
-            -- several hits long is the subject here.  Put back on every exit.
-            setup_cheat("::setlevel ranged 1")
-            local function teardown()
-                setup_cheat("::kill " .. GOBLIN .. " 10")
-                setup_cheat("::kill " .. GOBLIN .. " 10")
-                setup_cheat("::setlevel ranged 99")
-                settle(2)
-            end
-            local goto_result = goto_tile(3229, 3233, 0)
-            if goto_result ~= "ok" then
-                teardown()
-                return "no_subject", "goto 3229,3233 -> " .. describe(goto_result)
-            end
-            setup_cheat("::spawn " .. GOBLIN)
-            settle(1)
-            setup_cheat("::spawn " .. GOBLIN)
-            settle(3)
-            local _, _, rows = tiles(GOBLIN, 3)
-            local copies = {}
-            for _, row in ipairs(rows or {}) do
-                if row.x == 3230 and row.z == 3234 then copies[#copies + 1] = row end
-            end
-            if #copies < 2 then
-                teardown()
-                return "no_subject", "two ::spawn " .. GOBLIN .. " did not put two copies on 3230,3234 ("
-                    .. #copies .. ")"
-            end
-            table.sort(copies, function(x, y) return x.slot < y.slot end)
-            local other, asked = copies[1], copies[2]
-            local result, detail = attack(GOBLIN, 2, 20, { slot = asked.slot })
-            local text = "two copies on 3230,3234: asked slot " .. asked.slot .. " (element "
-                .. describe(asked.element_id) .. "), other slot " .. other.slot .. " (element "
-                .. describe(other.element_id) .. "); attack -> " .. describe(result) .. " " .. describe(detail)
-            if result ~= "ok" and result ~= "timeout" then
-                teardown()
-                return result, text
-            end
-            if string.find(tostring(detail), "pressed slot " .. asked.slot .. " ", 1, true) == nil then
-                teardown()
-                return "hollow", text .. " -- the detail does not name the asked slot as the one pressed"
-            end
-            local wait_result, wait_detail = engaged(60, 4)
-            text = text .. "; await_dead_engaged -> " .. describe(wait_result) .. " " .. describe(wait_detail)
-            -- The whole pool (radius 0): a spawned goblin wanders off its tile.
-            local _, _, after = tiles(GOBLIN, 0)
-            local other_now = nil
-            for _, row in ipairs(after or {}) do
-                if row.slot == other.slot then other_now = row end
-            end
-            teardown()
-            if wait_result ~= "ok" or string.find(tostring(wait_detail), "slot " .. asked.slot .. " ", 1, true) == nil then
-                return "refused", text .. " -- the wait did not finish the asked slot"
-            end
-            if other_now == nil then
-                return "refused", text .. " -- the copy NOT asked for left the pool too"
-            end
-            if type(other_now.health_ratio) ~= "number" or other_now.health_ratio >= 0 then
-                return "refused", text .. " -- the copy NOT asked for carries a health bar ("
-                    .. describe(other_now.health_ratio) .. "/" .. describe(other_now.health_scale)
-                    .. "): something hit the other copy"
-            end
-            return "ok", text .. " [other slot " .. other.slot .. " never hit: health_ratio "
-                .. describe(other_now.health_ratio) .. "]"
-        end)
-
-        -- AN NPC'S FOOTPRINT, READ FROM THE PLAYER'S SIDE (raid seam4
-        -- npc_state_size_and_stale_menu).  Before, a pool row carried no size,
-        -- so Xarpus's 3 -> 5 (xarpus.size.p1_p2) had to be looked up by hand
-        -- and a footprint guessed.  Graded on two ordinary npcs the cache
-        -- sizes differently: goblin_unarmed_melee_1 (configs/all.npc states no
-        -- size: 1) and cow (`size=2`), each read through t.npc.state and
-        -- t.npc.nearest (the same pool row), and state_text naming it.
-        -- Scratch proof: s4size_after1 (goblin 1, cow 2; the shared binary
-        -- without the field, s4size_before1, reads nil); s4xsize_after1 Entry
-        -- Xarpus: static form 3, fighting form (npc 10768) 5.  Note the
-        -- triage's "cow (1)" is wrong: the cache states cow size=2, which makes
-        -- the cow the ordinary size-2 npc this row wanted.
-        seam("seam.npc_state_size", function()
-            local state = verb("npc", "state")
-            local nearest = verb("npc", "nearest")
-            local state_text = verb("npc", "state_text")
-            local goto_tile = verb("player", "goto_tile")
-            if not state then return missing("npc", "state") end
-            if not nearest then return missing("npc", "nearest") end
-            if not state_text then return missing("npc", "state_text") end
-            if not goto_tile then return missing("player", "goto_tile") end
-            local GOBLIN = "goblin_unarmed_melee_1"
-            local COW = "cow"
-            local function teardown()
-                setup_cheat("::kill " .. GOBLIN .. " 10")
-                setup_cheat("::kill " .. COW .. " 10")
-                settle(2)
-            end
-            local goto_result = goto_tile(3229, 3233, 0)
-            if goto_result ~= "ok" then
-                teardown()
-                return "no_subject", "goto 3229,3233 -> " .. describe(goto_result)
-            end
-            setup_cheat("::spawn " .. GOBLIN)
-            settle(1)
-            goto_result = goto_tile(3225, 3233, 0)
-            if goto_result ~= "ok" then
-                teardown()
-                return "no_subject", "goto 3225,3233 -> " .. describe(goto_result)
-            end
-            setup_cheat("::spawn " .. COW)
-            settle(3)
-            local text = {}
-            for _, want in ipairs({ { GOBLIN, 1 }, { COW, 2 } }) do
-                local symbol, size = want[1], want[2]
-                local near_result, near = nearest(symbol, 8)
-                if near_result ~= "ok" then
-                    teardown()
-                    return "no_subject", symbol .. ": npc.nearest -> " .. describe(near_result) .. " " .. describe(near)
-                end
-                local state_result, row = state(symbol, { slot = near.slot })
-                if state_result ~= "ok" then
-                    teardown()
-                    return state_result, symbol .. ": npc.state -> " .. describe(row)
-                end
-                local line = state_text(row)
-                text[#text + 1] = symbol .. ": nearest size " .. describe(near.size) .. ", " .. line
-                if near.size ~= size or row.size ~= size then
-                    teardown()
-                    return "refused", table.concat(text, "; ") .. " -- the cache sizes " .. symbol .. " "
-                        .. size
-                end
-                if not string.find(line, "size " .. size, 1, true) then
-                    teardown()
-                    return "hollow", table.concat(text, "; ") .. " -- state_text does not name 'size " .. size .. "'"
-                end
-            end
-            teardown()
-            return "ok", table.concat(text, "; ")
-        end)
-
-        -- ===================================================================
-        -- raid seam5 attack_fast_path.
-        --
-        -- NO step row changes: t.player.attack, t.player.cast and
-        -- t.npc.await_dead* keep their signatures, and every existing call in
-        -- _conformance.lua passes the default ticks (or 20/40) and no
-        -- opts.quick, so it takes the quest press exactly as before -- the
-        -- rows step("player.attack"), step("npc.await_dead"),
-        -- step("npc.await_dead_engaged"), step("player.cast"),
-        -- seam("seam.attack_presses_the_watched_slot"),
-        -- seam("seam.cast_presses_the_named_copy") and
-        -- seam("seam.attack_exact_copy_on_one_tile") are unchanged (they ran
-        -- PASS in the fixer's run of _conformance.lua with this snippet inserted,
-        -- under conformance.py's own client environment,
-        -- build/quest_gate/s5fp_conf_rows3).
-        --
-        -- (1) NEW SEAM ROW. PLACE: in _conformance.lua's PLAN directly AFTER
-        -- seam("seam.npc_state_size", ...) (the raid seam4 row; it leaves the
-        -- character in the Lumbridge goblin field at 3225,3233 with the
-        -- stage's kit and ::god on, and kills its own npcs on every exit).
-        -- SEAM row: SEAM_COUNT +1, @seam-count +1.
-        --
-        -- A PRESS THAT LANDS IN A TICK OR TWO, OR ANSWERS (raid seam5
-        -- attack_fast_path).  t.player.attack / t.player.cast with ticks <= 2
-        -- (or opts.quick = true) press through QD.drive._press_quick
-        -- (pointer.lua, end of file): one aim, one press, on `covered`
-        -- exactly one re-aim (the copy's new tile, a line hunt through the
-        -- missed pixel, or a camera nudge) and one more press -- never the
-        -- cover recovery, never walk_near, no hunt past one tick an aim --
-        -- and npc.await_dead_engaged re-presses a fast fight the same way.
-        -- Graded on three goblins spawned in the field, each fought BY SLOT:
-        --   A  attack(ticks=1), the player walks off, and await_dead_engaged
-        --      re-presses it: its detail says "N re-engagement(s) (fast path
-        --      re-presses)" with N >= 1 (and the re-engagement note carries
-        --      the press's own "fast path: ..." account);
-        --   B  killed by repeated attack(ticks=1, {slot}): every press says
-        --      "fast path:", answers ok/timeout/covered, and spends at most
-        --      QUICK_MAX ticks; and one attack with the default ticks on the
-        --      same copy does NOT say it (the quest press is untouched);
-        --   C  one cast(wind_strike, ticks=1, {slot}) with exactly one air
-        --      and one mind rune given for it (the cast spends them): "fast
-        --      path:", and Magic XP paid inside 10 ticks (the copy can stand
-        --      several tiles off, so the payment can trail the one-tick
-        --      settle), then killed by attack(ticks=1).
-        -- Scratch proof: build/quest_gate/s5fp_conf_rows3 (this row PASS
-        -- beside the unchanged attack/cast/await rows), s5fp_gob_quick6
-        -- (8/8), the Nylocas copies s5fp_copy_nylo_quick*/slow*.
-        seam("seam.attack_fast_path", function()
-            local goto_tile = verb("player", "goto_tile")
-            local attack = verb("player", "attack")
-            local cast = verb("player", "cast")
-            local engaged = verb("npc", "await_dead_engaged")
-            local tiles = verb("npc", "tiles")
-            local walk_to = verb("player", "walk_to")
-            local tile = verb("world", "tile")
-            if not goto_tile then return missing("player", "goto_tile") end
-            if not attack then return missing("player", "attack") end
-            if not cast then return missing("player", "cast") end
-            if not engaged then return missing("npc", "await_dead_engaged") end
-            if not tiles then return missing("npc", "tiles") end
-            if not walk_to then return missing("player", "walk_to") end
-            if not tile then return missing("world", "tile") end
-            local GOBLIN = "goblin_unarmed_melee_1"
-            -- The most server ticks one fast press may spend: aim + press,
-            -- the one re-aim (<= 1 tick of hunting) + press, the menu
-            -- dismissals.  Measured max 3 (s5fp_copy_nylo_quick1, 72 presses
-            -- in the Nylocas room; every goblin press 0-1).
-            local QUICK_MAX = 4
-            -- As seam.attack_exact_copy_on_one_tile: a fight several hits long.
-            setup_cheat("::setlevel ranged 1")
-            local function teardown()
-                setup_cheat("::kill " .. GOBLIN .. " 12")
-                setup_cheat("::kill " .. GOBLIN .. " 12")
-                setup_cheat("::kill " .. GOBLIN .. " 12")
-                setup_cheat("::setlevel ranged 99")
-                settle(2)
-            end
-            local spots = { { 3229, 3233 }, { 3226, 3236 }, { 3232, 3236 } }
-            for i = 1, #spots do
-                local goto_result = goto_tile(spots[i][1], spots[i][2], 0)
-                if goto_result ~= "ok" then
-                    teardown()
-                    return "no_subject", "goto " .. spots[i][1] .. "," .. spots[i][2] .. " -> "
-                        .. describe(goto_result)
-                end
-                setup_cheat("::spawn " .. GOBLIN)
-            end
-            setup_cheat("::passive " .. GOBLIN)
-            goto_tile(3229, 3235, 0)
-            settle(3)
-            local r0, _, rows = tiles(GOBLIN, 4)
-            if r0 ~= "ok" or not is_table(rows) or #rows < 3 then
-                teardown()
-                return "no_subject", "fewer than three goblins within 4 (" .. describe(rows and #rows) .. ")"
-            end
-            local slots = { rows[1].slot, rows[2].slot, rows[3].slot }
-            local function alive(slot)
-                local _, _, now = tiles(GOBLIN, 0)
-                for _, row in ipairs(now or {}) do
-                    if row.slot == slot then return true end
-                end
-                return false
-            end
-            local function server_tick()
-                local _, tick_now = t.tick()
-                return tick_now or 0
-            end
-            local text = {}
-            -- A: open fast, walk off, await_dead_engaged re-presses fast.
-            local ra, da = attack(GOBLIN, COMBAT_ATTACK_OP, 1, { slot = slots[1] })
-            if (ra ~= "ok" and ra ~= "timeout") or not string.find(tostring(da), "fast path:", 1, true) then
-                teardown()
-                return ra == "ok" and "hollow" or ra, "A: attack(ticks=1) -> " .. describe(ra) .. " " .. describe(da)
-            end
-            local _, here = tile()
-            if is_table(here) then
-                walk_to(here.x - 4, here.z, 8)
-            end
-            local re, de = engaged(80, 8)
-            if re ~= "ok" then
-                teardown()
-                return re, "A: await_dead_engaged after walking off -> " .. describe(de)
-            end
-            if string.find(tostring(de), " 0 re-engagement(s)", 1, true)
-                or not string.find(tostring(de), "re-engagement(s) (fast path re-presses)", 1, true) then
-                teardown()
-                return "hollow", "A: killed, but no fast re-engagement named: " .. describe(de)
-            end
-            text[#text + 1] = "A slot " .. slots[1] .. " re-pressed fast and killed"
-            -- B: the quest press on the default ticks says nothing of a fast path.
-            local rs, ds = attack(GOBLIN, COMBAT_ATTACK_OP, nil, { slot = slots[2] })
-            if string.find(tostring(ds), "fast path:", 1, true) then
-                teardown()
-                return "refused", "B: attack with the default ticks took the fast path: " .. describe(ds)
-            end
-            text[#text + 1] = "B default-ticks press " .. describe(rs) .. " (quest press)"
-            -- B: killed by fast presses by slot.
-            local presses, worst, results = 0, 0, {}
-            local start = server_tick()
-            while alive(slots[2]) and server_tick() - start < 60 do
-                local before = server_tick()
-                local rb, db = attack(GOBLIN, COMBAT_ATTACK_OP, 1, { slot = slots[2] })
-                local spent = server_tick() - before
-                presses = presses + 1
-                if spent > worst then worst = spent end
-                results[#results + 1] = describe(rb) .. ":" .. spent
-                if rb ~= "ok" and rb ~= "timeout" and rb ~= "covered" then
-                    if not alive(slots[2]) then break end
-                    teardown()
-                    return rb, "B: press " .. presses .. " -> " .. describe(db)
-                end
-                if not string.find(tostring(db), "fast path:", 1, true) then
-                    if not alive(slots[2]) then break end
-                    teardown()
-                    return "hollow", "B: press " .. presses .. " does not name the fast path: " .. describe(db)
-                end
-                if spent > QUICK_MAX then
-                    teardown()
-                    return "refused", "B: press " .. presses .. " spent " .. spent .. " ticks (max "
-                        .. QUICK_MAX .. "): " .. describe(db)
-                end
-                t.ticks(2)
-            end
-            if alive(slots[2]) then
-                teardown()
-                return "timeout", "B: slot " .. slots[2] .. " alive after 60 ticks of fast presses ("
-                    .. table.concat(results, " ") .. ")"
-            end
-            text[#text + 1] = "B slot " .. slots[2] .. " killed in " .. presses .. " fast press(es), worst "
-                .. worst .. " tick(s) [" .. table.concat(results, " ") .. "]"
-            -- C: one fast cast with exactly the runes it spends, then fast presses.
-            setup_cheat("::give airrune 1")
-            setup_cheat("::give mindrune 1")
-            settle(2)
-            -- Stand two tiles from C first, as a test would: a passive goblin
-            -- wanders, and C stood 8 tiles off across the field when A and B
-            -- were done (s5fp_conf_rows4..6), where the press landed and the
-            -- server never cast -- reach and line of sight are the world's
-            -- business, not the press's.
-            local c_where = "?"
-            do
-                local _, _, now_rows = tiles(GOBLIN, 0)
-                for _, row in ipairs(now_rows or {}) do
-                    if row.slot == slots[3] then
-                        goto_tile(row.x - 2, row.z, 0)
-                        settle(2)
-                    end
-                end
-                local _, _, again = tiles(GOBLIN, 0)
-                local _, me = tile()
-                for _, row in ipairs(again or {}) do
-                    if row.slot == slots[3] and is_table(me) then
-                        c_where = me.x .. "," .. me.z .. " with slot " .. slots[3] .. " at " .. row.x
-                            .. "," .. row.z
-                    end
-                end
-            end
-            local skill = t.skill
-            local read = is_table(skill) and type(skill.read) == "function" and skill.read or nil
-            if not read then
-                teardown()
-                return missing("skill", "read")
-            end
-            local _, xp_before = read("magic")
-            local before_cast = server_tick()
-            local rc, dc = cast("wind_strike", GOBLIN, 1, COMBAT_ATTACK_OP, { slot = slots[3] })
-            local cast_spent = server_tick() - before_cast
-            if (rc ~= "ok" and rc ~= "timeout") or not string.find(tostring(dc), "fast path:", 1, true) then
-                teardown()
-                return rc == "ok" and "hollow" or rc, "C: cast(ticks=1) from " .. c_where .. " -> "
-                    .. describe(rc) .. " " .. string.sub(tostring(dc), 1, 1800)
-            end
-            -- ticks=1 settles before a copy several tiles off is in range and
-            -- paid for, so the PAYMENT is awaited here: Magic XP up (one air
-            -- and one mind rune spent with it, ~pvm_spell_cast).
-            local paid = t.await({
-                level = function()
-                    local _, xp_now = read("magic")
-                    return is_table(xp_now) and is_table(xp_before)
-                        and xp_now.experience > xp_before.experience
-                end,
-                note = "seam.attack_fast_path: the fast cast paid",
-            }, 10)
-            if paid ~= "ok" then
-                teardown()
-                return "timeout", "C: the fast cast from " .. c_where .. " pressed but no Magic XP inside"
-                    .. " 10 ticks -- " .. string.sub(tostring(dc), 1, 1500)
-            end
-            text[#text + 1] = "C cast " .. describe(rc) .. " pressed in " .. cast_spent
-                .. " tick(s) from " .. c_where .. ", Magic XP paid"
-            start = server_tick()
-            while alive(slots[3]) and server_tick() - start < 60 do
-                attack(GOBLIN, COMBAT_ATTACK_OP, 1, { slot = slots[3] })
-                t.ticks(2)
-            end
-            if alive(slots[3]) then
-                teardown()
-                return "timeout", "C: slot " .. slots[3] .. " alive after 60 ticks of fast presses"
-            end
-            text[#text + 1] = "C slot " .. slots[3] .. " killed"
-            teardown()
-            return "ok", table.concat(text, "; ")
-        end)
-
-        -- AN EAT IS TWO CLOCKS, NEVER A PARK (waves seam3 eat_delay_port, the
-        -- raid's content 7936c59bf9 brought over).  Two SEAM rows for the port
-        -- (consume_shared.rs2 + food.rs2 + every consumption script).
-        -- (1) seam.eat_does_not_hold_queued_hit: a young dark wizard's spell lands on
-        --     its own tick through an eat that LANDS on the cast tick or on the plain
-        --     hit tick. The eat is aimed from the wizard's own cadence (press at
-        --     land-1). The row it replaces pressed only after it read the cast, so the
-        --     eat landed after the +1 hit and the row passed on the old content too
-        --     (CONTENT_BUGS ENG-58). Proof, waves seam pass 5 (build/quest_gate/):
-        --     sf_eat_row_head3 PASS "eat at cast+0 +1, cast+1 +1, cast+1 +1, cast+0 +1"
-        --     on HEAD; sf_eat_row_old (HEAD content with the 38 eat-port files of
-        --     content c93c574f20 put back to c93c574f20^, in a throwaway worktree,
-        --     TORIRSSERVER_CONTENT) FAIL refused "eat at cast+0 -> +2, cast+1 -> +3,
-        --     cast+1 -> +3, cast+0 -> +2 -- 4 of 4 eats moved the queued hit".
-        --     Wiki Tick eating: "eating a piece of food between the time a monster's
-        --     attack calculates its damage and when it hits the player".
-        -- (2) seam.eat_delay_clocks: ::eatgate's one-tick answers (food after
-        --     food refused, combo after food allowed, combo after combo refused,
-        --     potion after food allowed, potion after potion refused, both
-        --     refused through +2 = a 3-tick gap, a ready weapon +0, a running
-        --     one +3 then +2), then an unarmed goblin fight with a shark eaten
-        --     after every second swing: uneaten gaps 4, eaten gaps 7 (wiki
-        --     Food/Fast foods: an eat while the weapon delay runs adds 3).
-        --     Old content: no ::eatgate (no_row).
-        seam("seam.eat_does_not_hold_queued_hit", function()
-            local goto_tile = verb("player", "goto_tile")
-            local attack = verb("player", "attack")
-            local inv_op = verb("player", "inv_op")
-            local by_symbol = verb("npc", "by_symbol")
-            local tick = verb("tick")
-            local count = verb("inv", "count")
-            if not goto_tile then return missing("player", "goto_tile") end
-            if not attack then return missing("player", "attack") end
-            if not inv_op then return missing("player", "inv_op") end
-            if not by_symbol then return missing("npc", "by_symbol") end
-            if not tick then return missing("tick") end
-            if not count then return missing("inv", "count") end
-            if type(t.ticklog) ~= "table" or not t.ticklog.rows then return missing("ticklog", "rows") end
-            local WIZ = "young_dark_wizard"
-            local function now() local _, n = tick() return n or -1 end
-            -- The stage before seam.attack_fast_path wields a magic shortbow (ranged 99): it
-            -- kills the wizard in a cast or two and leaves no cadence to aim the eats from
-            -- (closer's first harness run: one plain cast with a hit). Unarmed, as in the
-            -- seam's own proof (sf_eat_row_head3); the bow goes back on at teardown.
-            local BOW = "magic_shortbow"
-            local equip = verb("player", "equip")
-            local unequip = verb("player", "unequip")
-            local bow_off = false
-            local function teardown()
-                setup_cheat("::kill " .. WIZ .. " 10")
-                settle(2)
-                if bow_off and equip then equip(BOW) end
-            end
-            if unequip and unequip(BOW) == "ok" then bow_off = true end
-            setup_cheat("::setlevel attack 1")
-            setup_cheat("::setlevel strength 1")
-            setup_cheat("::setlevel defence 1")
-            setup_cheat("::setlevel hitpoints 99")
-            setup_cheat("::give shark 12")
-            local goto_result = goto_tile(3242, 3248, 0)
-            if goto_result ~= "ok" then teardown() return "no_subject", "goto 3242,3248 -> " .. describe(goto_result) end
-            setup_cheat("::spawn " .. WIZ .. " 1")
-            settle(3)
-            t.ticklog.start()
-            t.ticklog.mark("seam.eat_does_not_hold_queued_hit")
-            local _, marks = t.ticklog.rows({ kind = "mark" })
-            local since = marks[#marks].serial
-            local ws, cast_seq, epoch = nil, nil, since
-            -- every cast of the current wizard with its hit: { tick, hit }
-            local function casts()
-                local out = {}
-                if ws == nil then return out end
-                local _, an = t.ticklog.rows({ kind = "npc_anim", since = epoch, slot = ws })
-                local _, hp = t.ticklog.rows({ kind = "hit_player", since = epoch, slot = ws })
-                if cast_seq == nil and #hp > 0 then
-                    for _, r in ipairs(an) do if r.tick <= hp[1].tick then cast_seq = r.seq end end
-                end
-                for _, r in ipairs(an) do
-                    if cast_seq ~= nil and r.seq == cast_seq then out[#out + 1] = { tick = r.tick } end
-                end
-                -- a hit belongs to the newest cast before it (a splash writes no
-                -- row, so the next cast's hit must not be paired with it)
-                for k, c in ipairs(out) do
-                    local limit = math.min(c.tick + 8, out[k + 1] and out[k + 1].tick or c.tick + 8)
-                    for _, h in ipairs(hp) do
-                        if c.hit == nil and h.tick > c.tick and h.tick <= limit then c.hit = h.tick end
-                    end
-                end
-                return out
-            end
-            local function engage()
-                local nr, nrow = by_symbol(WIZ)
-                if nr ~= "ok" then
-                    setup_cheat("::spawn " .. WIZ .. " 1")
-                    settle(2)
-                    nr, nrow = by_symbol(WIZ)
-                    if nr ~= "ok" then return false end
-                    local _, m2 = t.ticklog.rows({ kind = "npc_spawn", since = since })
-                    epoch = (m2[#m2] and m2[#m2].serial) or epoch
-                end
-                ws = select(2, t.ticklog.slot(nrow))
-                for _ = 1, 6 do if attack(WIZ, 2, 20) == "ok" then return true end settle(1) end
-                return false
-            end
-            if not engage() then teardown() return "no_subject", "the young dark wizard was never engaged" end
-            -- At least two plain casts that HIT: a splash writes no hit row, and in the
-            -- harness's world a run of splashes is common, so wait for up to 120 ticks.
-            local function hit_casts()
-                local n = 0
-                for _, c in ipairs(casts()) do if c.hit then n = n + 1 end end
-                return n
-            end
-            local guard = 0
-            while (#casts() < 3 or hit_casts() < 2) and guard < 120 do settle(1) guard = guard + 1 end
-            local plain, eaten, held = {}, {}, {}
-            for _, c in ipairs(casts()) do
-                if c.hit then plain[#plain + 1] = c.hit - c.tick end
-            end
-            if #plain < 2 then teardown() return "no_subject", "fewer than two plain casts with a hit: " .. #plain end
-            -- the queued hit's own offset: the smallest a plain cast shows (the young
-            -- dark wizard's is +1; a held hit only ever lands later)
-            local plain_off = plain[1]
-            for _, d in ipairs(plain) do if d < plain_off then plain_off = d end end
-            for i = 1, 6 do
-                if #eaten >= 4 then break end
-                local cs = casts()
-                if #cs < 2 then if not engage() then break end settle(6) cs = casts() end
-                if #cs >= 2 then
-                    local gap = cs[#cs].tick - cs[#cs - 1].tick
-                    if gap <= 0 then gap = 4 end
-                    local A = cs[#cs].tick + gap
-                    while A - 2 <= now() do A = A + gap end
-                    local land_at = A + ((i % 2 == 1) and 0 or plain_off)
-                    while now() < land_at - 1 do settle(1) end
-                    if now() == land_at - 1 then
-                        local _, n0 = count("shark")
-                        local press = now()
-                        inv_op("shark", 1)
-                        settle(8)
-                        local _, n1 = count("shark")
-                        local got = nil
-                        for _, c in ipairs(casts()) do if c.tick == A then got = c end end
-                        local txt = "press " .. press .. " eat lands " .. land_at .. " cast " .. describe(got and got.tick or ("none at " .. A))
-                            .. " hit " .. describe(got and got.hit)
-                        if got and got.hit and n1 == n0 - 1 then
-                            local d = got.hit - got.tick
-                            txt = txt .. " (+" .. d .. ", eat at cast+" .. (land_at - got.tick) .. ")"
-                            eaten[#eaten + 1] = txt
-                            if d ~= plain_off then held[#held + 1] = txt end
-                        end
-                        attack(WIZ, 2, 2)
-                    end
-                end
-            end
-            teardown()
-            local text = "cast seq " .. describe(cast_seq) .. "; plain +" .. table.concat(plain, ",+") .. " (own +" .. describe(plain_off) .. ")"
-                .. "; eats aimed at the cast/hit tick: " .. table.concat(eaten, "; ")
-            if #eaten < 2 then return "no_subject", text .. " -- fewer than two eats landed on a predicted cast" end
-            if #held > 0 then
-                return "refused", text .. " -- " .. #held .. " of " .. #eaten .. " eats moved the queued hit off the plain offset"
-                    .. " (the eat's p_delay held the player's queue)"
-            end
-            return "ok", text
-        end)
-
-        seam("seam.eat_delay_clocks", function()
-            local goto_tile = verb("player", "goto_tile")
-            local attack = verb("player", "attack")
-            local inv_op = verb("player", "inv_op")
-            local by_symbol = verb("npc", "by_symbol")
-            if not goto_tile then return missing("player", "goto_tile") end
-            if not attack then return missing("player", "attack") end
-            if not inv_op then return missing("player", "inv_op") end
-            if not by_symbol then return missing("npc", "by_symbol") end
-            if type(t.ticklog) ~= "table" or not t.ticklog.rows then return missing("ticklog", "rows") end
-            if type(t.msg) ~= "table" or not t.msg.last then return missing("msg", "last") end
-            local GOB = "goblin_unarmed_melee_1"
-            -- The stage before seam.attack_fast_path wields a magic shortbow
-            -- (ranged 99), which kills a 5-hp goblin with its first arrow and
-            -- leaves no swing gap to measure (closer's first full run: 0 gaps
-            -- in 166 ticks).  The gap under test is an UNARMED 4, so the bow
-            -- comes off for this row and goes back on at its teardown.
-            local BOW = "magic_shortbow"
-            local equip = verb("player", "equip")
-            local unequip = verb("player", "unequip")
-            local bow_off = false
-            local function line(prefix)
-                local _, list = t.msg.last(20)
-                for _, m in ipairs(list or {}) do
-                    if string.sub(m.text, 1, #prefix) == prefix then return m.text end
-                end
-                return nil
-            end
-            local function teardown()
-                setup_cheat("::kill " .. GOB .. " 10")
-                settle(2)
-                if bow_off and equip then equip(BOW) end
-            end
-            -- (a) the gate procs in one tick (consume_shared.rs2 ::eatgate)
-            setup_cheat("::eatgate")
-            local g1, g2 = line("eatgate:"), line("eatgate+:")
-            local want1 = "food 1 food-after-food 0 combo-after-food 1 combo-after-combo 0 potion-after-food 1 potion-after-potion 0"
-            local want2 = "food-refused-through +2 potion-refused-through +2 attack-ready +0 attack-running-2 +7"
-            if g1 == nil or g2 == nil then
-                return "refused", "no ::eatgate reply (" .. describe(g1) .. " / " .. describe(g2) .. "): consume_shared.rs2 is not in the pack"
-            end
-            if not string.find(g1, want1, 1, true) or not string.find(g2, want2, 1, true) then
-                return "refused", g1 .. " | " .. g2 .. " -- want " .. want1 .. " | " .. want2
-            end
-            -- (b) an eat while the weapon delay runs adds 3: unarmed (4) swing
-            -- gaps, measured hit_npc to hit_npc, with a shark eaten the tick a
-            -- swing's hit lands on every second swing
-            setup_cheat("::setlevel attack 1")
-            setup_cheat("::setlevel strength 1")
-            setup_cheat("::setlevel hitpoints 99")
-            setup_cheat("::give shark 6")
-            -- not_found when no bow is worn (the row run on its own): unarmed already
-            if unequip and unequip(BOW) == "ok" then bow_off = true end
-            local goto_result = goto_tile(3242, 3248, 0)
-            if goto_result ~= "ok" then
-                teardown()
-                return "no_subject", "goto 3242,3248 -> " .. describe(goto_result)
-            end
-            setup_cheat("::spawn " .. GOB .. " 1")
-            settle(3)
-            t.ticklog.start()
-            t.ticklog.mark("seam.eat_delay_clocks")
-            local _, marks = t.ticklog.rows({ kind = "mark" })
-            local since = marks[#marks].serial
-            local gs, hcur, guard, engaged, last_hit, ate = nil, since, 0, false, nil, false
-            local plain, eaten = {}, {}
-            while guard < 160 and #eaten < 2 do
-                local nr, nrow = by_symbol(GOB)
-                if nr ~= "ok" then
-                    setup_cheat("::spawn " .. GOB .. " 1")
-                    settle(2)
-                    gs, engaged, last_hit, ate = nil, false, nil, false
-                else
-                    if gs == nil then gs = select(2, t.ticklog.slot(nrow)) end
-                    if not engaged then engaged = (attack(GOB, 2, 10) == "ok") end
-                end
-                settle(1)
-                guard = guard + 1
-                if gs ~= nil then
-                    local _, hn = t.ticklog.rows({ kind = "hit_npc", since = hcur, slot = gs })
-                    for i, h in ipairs(hn) do
-                        hcur = math.max(hcur, h.serial)
-                        if last_hit ~= nil then
-                            if ate then eaten[#eaten + 1] = h.tick - last_hit else plain[#plain + 1] = h.tick - last_hit end
-                        end
-                        last_hit, ate = h.tick, false
-                        if i == #hn and (#plain + #eaten) % 2 == 1 then
-                            inv_op("shark", 1)
-                            ate = true
-                        end
-                    end
-                end
-            end
-            teardown()
-            local text = "eatgate ok; unarmed swing gaps: no eat " .. table.concat(plain, ",")
-                .. "; a shark eaten after the swing " .. table.concat(eaten, ",")
-            if #plain < 2 or #eaten < 2 then
-                return "no_subject", text .. " -- fewer than two gaps of each kind"
-            end
-            for _, d in ipairs(plain) do
-                if d ~= 4 then return "refused", text .. " -- an uneaten unarmed gap of " .. d end
-            end
-            for _, d in ipairs(eaten) do
-                if d ~= 7 then
-                    return "refused", text .. " -- an eat while the weapon delay ran gave " .. d
-                        .. ", not 4 + 3 (wiki Food/Fast foods)"
-                end
             end
             return "ok", text
         end)
@@ -12829,7 +13771,7 @@ return {
             if not server then return missing("var", "server") end
             local function reading()
                 settle(2)
-                local _, _, r = points_fn()
+                local _, r = points_fn()
                 local cr, counter = server("varp6296_prayer_drain_counter")
                 if type(r) ~= "table" or cr ~= "ok" or type(counter) ~= "number" then
                     return nil, "points " .. describe(r and r.level) .. ", counter " .. describe(cr) .. " " .. describe(counter)
@@ -12856,6 +13798,7596 @@ return {
                 return "hollow", text
             end
             return "ok", text
+        end)
+
+-- conformance.ticklog_sound_and_music_rows.lua (seam7 of the raid loop)
+--
+-- NO VERB WAS ADDED OR RENAMED.  t.ticklog.rows gained three row KINDS
+-- (`sound`, `music`, `jingle`, written by the server) and four filters
+-- (`sound=`, `track=`, `jingle=`, `source=`), so no step() row is owed and
+-- verb_list.py does not move.  Two SEAM rows: SEAM_COUNT / @seam-count +2.
+--
+-- PLACE: the snippet asked for directly after step("ticklog.gaps"); the closer
+-- moved both rows here, after the last world seam row and before raid.enter,
+-- because their goblin fight and the Varrock crossing moved the player and
+-- broke seam.attack_presses_the_watched_slot, and a backpack filled by eighty
+-- rows had no slot for the bones.  Both rows tear down what they spawn.
+--
+-- (1) seam.ticklog_sound_rows -- a bone buried (skill_prayer/scripts/
+--     bury_bone.rs2:40 `sound_synth(bones_down, 1, 0)`, synth 2738 in
+--     pack/4_soundeffects.pack) is ONE `sound` row, source "synth", sent to
+--     the player's pid, 1 loop, 0 delay; then an ordinary goblin fight (the
+--     Lumbridge [goblin], areas/lumbridge/configs/lumbridge.npc:
+--     attack_sound 469, defend_sound 472, death_sound 471) gives `sound` rows
+--     of source "npc" naming the goblin's WORLD slot (its defend/death noise,
+--     torirs_server_combat.c npc_sound_nearby: coord = its tile, radius 12),
+--     and the C kind+slot filter (`rows{kind="sound", slot=}`) returns exactly
+--     those.  Before this seam: no sound row of any kind (scratch run
+--     snd_before_1 on the shared binary: 0 sound rows over the same actions).
+-- (2) seam.ticklog_music_row -- a ::goto from Lumbridge (map square 50,50,
+--     track 76 "Harmony") to Varrock (50,53, track 125 "Garden") and back is a
+--     `music` row of source "region" per crossing, with the track the music
+--     region table names (torirs_server_music_regions.gen.h).  Before: none.
+        seam("seam.ticklog_sound_rows", function()
+            local goto_tile = verb("player", "goto_tile")
+            local attack = verb("player", "attack")
+            local inv_op = verb("player", "inv_op")
+            local by_symbol = verb("npc", "by_symbol")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not attack then return missing("player", "attack") end
+            if not inv_op then return missing("player", "inv_op") end
+            if not by_symbol then return missing("npc", "by_symbol") end
+            if type(t.ticklog) ~= "table" or not t.ticklog.rows then return missing("ticklog", "rows") end
+            local GOB = "goblin"
+            local BONES_DOWN = 2738 -- pack/4_soundeffects.pack: 2738=bones_down
+            local GOBLIN_SOUNDS = { [469] = "attack", [472] = "defend", [471] = "death" }
+            local function teardown()
+                setup_cheat("::kill " .. GOB .. " 10")
+                settle(2)
+            end
+            setup_cheat("::setlevel attack 40")
+            setup_cheat("::setlevel strength 40")
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::clearinv")
+            setup_cheat("::give bones 1")
+            local goto_result = goto_tile(3242, 3248, 0)
+            if goto_result ~= "ok" then
+                return "no_subject", "goto 3242,3248 -> " .. describe(goto_result)
+            end
+            t.ticklog.start()
+            t.ticklog.mark("seam.ticklog_sound_rows")
+            local _, marks = t.ticklog.rows({ kind = "mark" })
+            local since = marks[#marks].serial
+            -- (a) the bury: one synth row, to this player, on the bury's tick
+            local bury_result, bury_detail = inv_op("bones", 1)
+            settle(3)
+            local _, tiles = t.ticklog.rows({ kind = "player_tile", since = since })
+            local pid = #tiles > 0 and tiles[#tiles].pid or nil
+            local _, buried = t.ticklog.rows({ kind = "sound", since = since, sound = BONES_DOWN })
+            if bury_result ~= "ok" or #buried ~= 1 then
+                return "refused", "bury -> " .. describe(bury_result) .. " " .. describe(bury_detail)
+                    .. "; " .. #buried .. " sound row(s) of bones_down " .. BONES_DOWN .. " (want 1)"
+            end
+            local b = buried[1]
+            if b.source ~= "synth" or b.pid ~= pid or b.loops ~= 1 or b.delay ~= 0
+                or b.coord ~= -1 or b.radius ~= -1 then
+                return "refused", string.format("the bury's sound row reads source=%s pid=%s "
+                    .. "loops=%s delay=%s coord=%s radius=%s (want synth, pid %s, 1, 0, -1, -1)",
+                    describe(b.source), describe(b.pid), describe(b.loops), describe(b.delay),
+                    describe(b.coord), describe(b.radius), describe(pid))
+            end
+            -- (b) an ordinary goblin fight: the goblin's own noise is "npc" rows
+            -- naming its world slot
+            setup_cheat("::spawn " .. GOB .. " 1")
+            settle(3)
+            local fight_since = b.serial
+            local gs, engaged, guard, dead = nil, false, 0, false
+            while guard < 120 and not dead do
+                local nr, nrow = by_symbol(GOB)
+                if nr == "ok" then
+                    if gs == nil then gs = select(2, t.ticklog.slot(nrow)) end
+                    if not engaged then engaged = (attack(GOB, 2, 10) == "ok") end
+                end
+                settle(1)
+                guard = guard + 1
+                if gs ~= nil then
+                    local _, deaths = t.ticklog.rows({ kind = "npc_death", since = fight_since, slot = gs })
+                    dead = #deaths > 0
+                end
+            end
+            settle(3)
+            teardown()
+            if gs == nil or not dead then
+                return "no_subject", "the goblin fight did not finish (world slot "
+                    .. describe(gs) .. ", " .. guard .. " ticks)"
+            end
+            local _, all = t.ticklog.rows({ kind = "sound", since = fight_since })
+            local _, by_slot = t.ticklog.rows({ kind = "sound", since = fight_since, slot = gs })
+            local npc_rows, synth_rows, parts = 0, 0, {}
+            for _, r in ipairs(all) do
+                parts[#parts + 1] = r.tick .. ":" .. r.sound .. "/" .. tostring(r.source)
+                if r.source == "npc" and r.npc_slot == gs then
+                    npc_rows = npc_rows + 1
+                    if GOBLIN_SOUNDS[r.sound] == nil or r.radius ~= 12 or r.coord < 0 then
+                        return "refused", "an npc sound row of the goblin reads sound "
+                            .. r.sound .. " radius " .. describe(r.radius) .. " coord "
+                            .. describe(r.coord) .. " (want 469/472/471, 12, its tile)"
+                    end
+                elseif r.source == "synth" then
+                    synth_rows = synth_rows + 1
+                end
+            end
+            local text = string.format("bury: 1 synth row bones_down %d to pid %d at tick %d; "
+                .. "goblin world slot %d: %d npc row(s), %d synth row(s), slot filter %d "
+                .. "[tick:sound/source %s]", BONES_DOWN, pid, b.tick, gs, npc_rows, synth_rows,
+                #by_slot, table.concat(parts, " "))
+            if npc_rows == 0 then
+                return "refused", text .. " -- no npc-source row for the goblin"
+            end
+            if #by_slot ~= npc_rows then
+                return "refused", text .. " -- the C slot filter disagrees with the Lua count"
+            end
+            return "ok", text
+        end)
+
+-- conformance.sound_area_loops.lua (seam8 of the raid loop)
+--
+-- NO VERB WAS ADDED OR RENAMED.  One SEAM row: SEAM_COUNT / @seam-count +1.
+--
+-- PLACE: directly after seam("seam.ticklog_sound_rows", ...) and before
+-- seam("seam.ticklog_music_row", ...) -- it reads the same `sound` rows that
+-- row proved, from the same Lumbridge tile, and tears down what it spawns.
+--
+-- seam.area_sound_plays_once -- `~sound_area` (general/scripts/misc/sound.rs2)
+--     sent loops 0, which the OSRS client drops (Message.queueSoundEffect needs
+--     var1 != 0; src/game/rs_audio.c queue_effect), so every area sound in the
+--     tree was silent.  An ordinary npc: eadgar_storeroom_guard
+--     (quest_eadgar.npc timer=10) snores ~sound_area(troll_snore 869, 0,
+--     npc_coord, 5) on each [ai_timer] (eadgar_troll_chief_cook.rs2:204), every
+--     8-16 ticks.  Spawned beside the player, its snore must be an `area` row to
+--     this player with loops >= 1, radius 5, coord = its tile.  Before the fix
+--     (run sa8_before, shared binary, pre-fix pack): "2 of 2 troll_snore area
+--     rows carry loops 0: t16 ... | t29 ..."; after (sa8_after_trace): loops 1,
+--     and the client trace queues and plays 869 ("rs_audio: queued effect 869
+--     loops=1", "play effect 869 loops=1 vol=255").
+        seam("seam.area_sound_plays_once", function()
+            local goto_tile = verb("player", "goto_tile")
+            local by_symbol = verb("npc", "by_symbol")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not by_symbol then return missing("npc", "by_symbol") end
+            if type(t.ticklog) ~= "table" or not t.ticklog.rows then return missing("ticklog", "rows") end
+            local GUARD = "eadgar_storeroom_guard"
+            local TROLL_SNORE = 869 -- pack/4_soundeffects.pack: 869=troll_snore
+            local goto_result = goto_tile(3222, 3222, 0)
+            if goto_result ~= "ok" then
+                return "no_subject", "goto 3222,3222 -> " .. describe(goto_result)
+            end
+            t.ticklog.start()
+            t.ticklog.mark("seam.area_sound_plays_once")
+            local _, marks = t.ticklog.rows({ kind = "mark" })
+            local since = marks[#marks].serial
+            setup_cheat("::spawn " .. GUARD .. " 1")
+            settle(2)
+            local nr, nrow = by_symbol(GUARD)
+            if nr ~= "ok" then
+                setup_cheat("::kill " .. GUARD .. " 10")
+                return "no_subject", "::spawn " .. GUARD .. " -> by_symbol " .. describe(nr)
+            end
+            local rows, guard = {}, 0
+            while #rows < 2 and guard < 40 do
+                settle(1)
+                guard = guard + 1
+                rows = select(2, t.ticklog.rows({ kind = "sound", source = "area", sound = TROLL_SNORE, since = since }))
+            end
+            local _, tiles = t.ticklog.rows({ kind = "player_tile", since = since })
+            local pid = #tiles > 0 and tiles[#tiles].pid or nil
+            setup_cheat("::kill " .. GUARD .. " 10")
+            settle(2)
+            local parts, bad = {}, 0
+            for _, r in ipairs(rows) do
+                parts[#parts + 1] = string.format("t%d pid %s loops %d radius %d at %d,%d", r.tick,
+                    describe(r.pid), r.loops, r.radius, r.x or -1, r.z or -1)
+                if r.loops < 1 or r.radius ~= 5 or r.pid ~= pid or r.x ~= nrow.x or r.z ~= nrow.z then
+                    bad = bad + 1
+                end
+            end
+            local text = string.format("%s at %d,%d: %d area row(s) of troll_snore %d in %d ticks [%s]",
+                GUARD, nrow.x, nrow.z, #rows, TROLL_SNORE, guard, table.concat(parts, " | "))
+            if #rows == 0 then
+                return "refused", text .. " -- the guard's snore wrote no area row"
+            end
+            if bad > 0 then
+                return "refused", text .. " -- " .. bad .. " row(s) not (loops >= 1, radius 5, pid "
+                    .. describe(pid) .. ", the guard's tile); loops 0 is dropped by the client"
+            end
+            return "ok", text
+        end)
+
+        seam("seam.ticklog_music_row", function()
+            local goto_tile = verb("player", "goto_tile")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if type(t.ticklog) ~= "table" or not t.ticklog.rows then return missing("ticklog", "rows") end
+            t.ticklog.start()
+            t.ticklog.mark("seam.ticklog_music_row")
+            local _, marks = t.ticklog.rows({ kind = "mark" })
+            local since = marks[#marks].serial
+            -- Lumbridge first, so the crossing to Varrock is a change of square
+            -- whatever square the row before left the player on.
+            local back1 = goto_tile(3222, 3218, 0)
+            settle(2)
+            local _, start_rows = t.ticklog.rows({ kind = "player_tile", since = since })
+            local s1 = start_rows[#start_rows] and start_rows[#start_rows].serial or since
+            local there = goto_tile(3212, 3428, 0)
+            settle(3)
+            local _, to_varrock = t.ticklog.rows({ kind = "music", since = s1, source = "region" })
+            local _, mid = t.ticklog.rows({ kind = "player_tile", since = s1 })
+            local s2 = mid[#mid] and mid[#mid].serial or s1
+            local back2 = goto_tile(3222, 3218, 0)
+            settle(3)
+            local _, to_lumbridge = t.ticklog.rows({ kind = "music", since = s2, source = "region" })
+            local function list(rows)
+                local out = {}
+                for _, r in ipairs(rows) do
+                    out[#out + 1] = r.tick .. ":" .. r.track .. "/pid" .. r.pid
+                end
+                return table.concat(out, " ")
+            end
+            local text = "goto " .. describe(back1) .. "/" .. describe(there) .. "/" .. describe(back2)
+                .. "; to Varrock (50,53): " .. list(to_varrock) .. "; back to Lumbridge (50,50): "
+                .. list(to_lumbridge)
+            if #to_varrock ~= 1 or to_varrock[1].track ~= 125 then
+                return "refused", text .. " -- want one region row, track 125 Garden"
+            end
+            if #to_lumbridge ~= 1 or to_lumbridge[1].track ~= 76 then
+                return "refused", text .. " -- want one region row, track 76 Harmony"
+            end
+            return "ok", text
+        end)
+
+-- conformance.ticklog_player_kinds_and_engine_rows.lua (seam8 of the raid loop)
+--
+-- NO VERB WAS ADDED OR RENAMED.  t.ticklog.rows gained four row KINDS written
+-- by the server (`player_anim`, `player_spotanim`, `loc_anim`, `npc_say`) and
+-- two filters (`loc=`, `text=`); `seq=` and `spotanim=` now also match the
+-- player and loc kinds.  So no step() row is owed and verb_list.py does not
+-- move.  Five SEAM rows: SEAM_COUNT / @seam-count +5.
+--
+-- PROVED: build/seam_state/matthew-mbp-m4-raid-b1-seam8/tl8/tl8_conf.lua runs
+-- these five bodies as written under the PLAN's shims (verb/missing/describe/
+-- setup_cheat/settle).  Private binary src/torirs_qd_tl8, run tl8_conf_after3:
+-- 5/5 PASS.  Shared binary (HEAD C): tl8_conf_before stops at row 1 with
+-- "drive.ticklog: no row kind 'player_anim'"; tl8_engine_before (rows 4-5
+-- only) 0/2 -- "musicmulti_18 0 -> 0 (bit 8 clear); musicplay 0 -> 256" and
+-- "Back (sub 0) -> ok; tob_partylist timeout, tob_partydetails ok".
+--
+-- PLACE (rows 1-4): in _conformance.lua's PLAN directly AFTER
+-- seam("seam.ticklog_music_row", ...) and before step("raid.enter", ...), in
+-- this order.  Row 1 starts with ::clearinv (the closer of seam7 found the
+-- backpack full at this point of the plan; nothing after it until raid.enter
+-- reads the backpack, and raid.enter's ::tobmode hands its own kit).  Row 4
+-- ends with a ::goto back to Lumbridge 3222,3218, the tile the music row
+-- leaves the player on, so raid.enter starts where it did.
+--
+-- PLACE (row 5): directly AFTER seam("seam.tob_party_board_forms_a_party",
+-- ...) -- the same board, the same lobby; its teardown disbands the party it
+-- forms and closes the panel, as that row's does.
+--
+-- (1) seam.ticklog_player_presentation_rows -- Low Level Alchemy on a held
+--     bronze dagger (skill_magic/scripts/spells/alchemy.rs2:101-102
+--     `anim(human_castlowlvlalchemy, 0); spotanim_pl(lowlvlalchemy_casting,
+--     92, 0);`, seq 712 and spotanim 112 in configs/all.seq.compack /
+--     all.spotanim.compack) is ONE player_anim row (seq 712, delay 0) and ONE
+--     player_spotanim row (spotanim 112, height 92, delay 0) on the same tick,
+--     to the player's pid; then the Wave emote through the emote tab
+--     (interface_emote: ~emote_perform, seq 863 emote_wave) is one more
+--     player_anim row, seq 863.  Before this seam: no such kind
+--     ("drive.ticklog: no row kind 'player_anim'").
+-- (2) seam.ticklog_loc_anim_row -- the Brimhaven rope swing to Moss Giant
+--     Island (skill_agility/scripts/rope_swings.rs2:90-91 `loc_anim(
+--     ropeswing_long); ~agility_exactmove(human_ropeswing_long, ...)`; loc
+--     tree_ropeswing1 23568 at 2705,3209, seq 497 ropeswing_long, player seq
+--     751 human_ropeswing_long) is ONE loc_anim row naming the loc, its tile
+--     and seq 497, and a player_anim row 751 on the same tick.  (No door in
+--     either content tree animates: a door is a loc_change, which is a
+--     loc_set row; every ordinary loc_anim caller is an obstacle like this.)
+-- (3) seam.ticklog_npc_say_row -- Hans, told "I have come to kill everyone
+--     in this castle!" (areas/lumbridge/scripts/hans.rs2:40-42, LostCity's
+--     area_lumbridge hans.rs2: `npc_setmode(playerescape); p_delay(0);
+--     npc_say("Help! Help!");`), is an npc_say row with the whole line, type
+--     3105 and his world slot, and the C slot filter returns it.  He flees and
+--     respawns on his own clock (hans.rs2 [ai_queue5]); nothing after this row
+--     talks to him.  Two ambient sources were tried first and never speak in
+--     this engine, both content/engine gaps, not this seam: a Lumbridge cow's
+--     "Moo" (general/scripts/flavour_text/cows.rs2 -- no cow record carries
+--     timer= and nothing calls npc_settimer first, so its [ai_timer] is never
+--     armed: 0 npc_say rows in 150 ticks, run tl8_conf_after) and the Al Kharid
+--     warriors' "Brother, I will help thee with this infidel!"
+--     (al_kharid_warrior.rs2 [ai_queue1]: 6 hits on a warrior with a brother 4
+--     tiles away, no say, run tl8_say_after).
+-- (4) seam.music_region_unlocks_its_musicmulti -- crossing into Ver Sinhaza
+--     (map square 57,50 = region 14642, "Welcome to the Theatre", song 556,
+--     DBTable 44 music:variable (18, 8)) sets bit 8 of varp 1681
+--     musicmulti_18 (clientscript 7305 torirs_music_varp_get.cs2: variable
+--     18 -> %varp1681_musicmulti_18; [proc,music_unlock] music.rs2:134),
+--     says the unlock line once, and leaves varp 18 musicplay alone.  Before
+--     (shared binary): bit 8 of VARP 18 was written (musicplay read 256 at
+--     the lobby) and musicmulti_18 never changed.
+-- (5) seam.pausebutton_sub_zero_latches -- on tob_partydetails, Back is the
+--     panel's RESUME_PAUSEBUTTON with sub id 0; tob_board.rs2's
+--     [if_button,tob_partydetails:universe] takes slot 1 as "redraw the
+--     panel" and anything unlisted (0) as Back to the list.  After "Make
+--     party" (tob_partylist:contents sub 1), Back must open tob_partylist.
+--     Before (shared binary): handle_resume_pausebutton latched only sub > 0,
+--     last_slot stayed 1, and Back redrew the party panel.
+        seam("seam.ticklog_player_presentation_rows", function()
+            local cast = verb("player", "cast")
+            local emote = verb("player", "emote")
+            if not cast then return missing("player", "cast") end
+            if not emote then return missing("player", "emote") end
+            if type(t.ticklog) ~= "table" or not t.ticklog.rows then return missing("ticklog", "rows") end
+            local SEQ_ALCH, GFX_ALCH, SEQ_WAVE = 712, 112, 863
+            setup_cheat("::clearinv")
+            setup_cheat("::setlevel magic 99")
+            setup_cheat("::give firerune 3")
+            setup_cheat("::give naturerune 1")
+            setup_cheat("::give bronze_dagger 1")
+            settle(2)
+            t.ticklog.start()
+            t.ticklog.mark("seam.ticklog_player_presentation_rows")
+            local _, marks = t.ticklog.rows({ kind = "mark" })
+            local since = marks[#marks].serial
+            local cr, cd = cast("low_alchemy", { kind = "held", id = "bronze_dagger" })
+            settle(2)
+            local _, tiles = t.ticklog.rows({ kind = "player_tile", since = since })
+            local pid = #tiles > 0 and tiles[#tiles].pid or nil
+            local _, anims = t.ticklog.rows({ kind = "player_anim", since = since })
+            local _, gfx = t.ticklog.rows({ kind = "player_spotanim", since = since })
+            local function list(rows, field)
+                local out = {}
+                for _, r in ipairs(rows) do
+                    out[#out + 1] = r.tick .. ":" .. tostring(r[field]) .. "/pid" .. tostring(r.pid)
+                end
+                return table.concat(out, " ")
+            end
+            local text = "alch -> " .. describe(cr) .. "; player_anim [" .. list(anims, "seq")
+                .. "] player_spotanim [" .. list(gfx, "spotanim") .. "]"
+            if cr ~= "ok" then return cr, text .. " " .. describe(cd) end
+            if #anims ~= 1 or anims[1].seq ~= SEQ_ALCH or anims[1].delay ~= 0 or anims[1].pid ~= pid then
+                return "refused", text .. " -- want one player_anim 712 delay 0 to pid " .. describe(pid)
+            end
+            local g = gfx[1]
+            if #gfx ~= 1 or g.spotanim ~= GFX_ALCH or g.height ~= 92 or g.delay ~= 0 or g.pid ~= pid then
+                return "refused", text .. " -- want one player_spotanim 112 height 92 delay 0"
+            end
+            if g.tick ~= anims[1].tick then
+                return "refused", text .. " -- the cast's anim and graphic are on different ticks"
+            end
+            local er, ed = emote("wave")
+            settle(2)
+            local _, waves = t.ticklog.rows({ kind = "player_anim", since = g.serial, seq = SEQ_WAVE })
+            text = text .. "; wave -> " .. describe(er) .. " [" .. list(waves, "seq") .. "]"
+            if #waves ~= 1 or waves[1].pid ~= pid then
+                return "refused", text .. " -- want one player_anim 863 for the Wave emote ("
+                    .. describe(ed) .. ")"
+            end
+            return "ok", text
+        end)
+
+        seam("seam.ticklog_loc_anim_row", function()
+            local goto_tile = verb("player", "goto_tile")
+            local click_loc = verb("player", "click_loc")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not click_loc then return missing("player", "click_loc") end
+            if type(t.ticklog) ~= "table" or not t.ticklog.rows then return missing("ticklog", "rows") end
+            local LOC, SEQ_LOC, SEQ_PLAYER, LX, LZ = 23568, 497, 751, 2705, 3209
+            setup_cheat("::setlevel agility 10")
+            local gr, gd = goto_tile(2704, 3209, 0)
+            if gr ~= "ok" then return "no_subject", "goto 2704,3209 -> " .. describe(gr) .. " " .. describe(gd) end
+            t.ticklog.mark("seam.ticklog_loc_anim_row")
+            local _, marks = t.ticklog.rows({ kind = "mark" })
+            local since = marks[#marks].serial
+            local cr, cd = click_loc("tree_ropeswing1", 1)
+            settle(5)
+            local _, locs = t.ticklog.rows({ kind = "loc_anim", since = since })
+            local _, swings = t.ticklog.rows({ kind = "player_anim", since = since, seq = SEQ_PLAYER })
+            local out = {}
+            for _, r in ipairs(locs) do
+                out[#out + 1] = string.format("%d:loc %d seq %d at %d,%d,%d shape %d angle %d",
+                    r.tick, r.loc, r.seq, r.x, r.z, r.level, r.shape, r.angle)
+            end
+            local text = "Swing-on -> " .. describe(cr) .. "; loc_anim [" .. table.concat(out, "; ")
+                .. "]; player_anim 751 x" .. #swings .. (swings[1] and (" at " .. swings[1].tick) or "")
+            if cr ~= "ok" then return cr, text .. " " .. describe(cd) end
+            local _, by_loc = t.ticklog.rows({ kind = "loc_anim", since = since, loc = LOC, seq = SEQ_LOC })
+            if #locs ~= 1 or #by_loc ~= 1 or locs[1].x ~= LX or locs[1].z ~= LZ then
+                return "refused", text .. " -- want one loc_anim: loc 23568 seq 497 at 2705,3209"
+            end
+            if #swings ~= 1 or swings[1].tick ~= locs[1].tick then
+                return "refused", text .. " -- want the player's 751 on the loc's tick"
+            end
+            return "ok", text
+        end)
+
+        seam("seam.ticklog_npc_say_row", function()
+            local goto_tile = verb("player", "goto_tile")
+            local by_symbol = verb("player", "by_symbol")
+            local walk_near = verb("player", "walk_near")
+            local talk_to = verb("player", "talk_to")
+            local drain = verb("chat", "drain")
+            local choose = verb("chat", "choose")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not by_symbol then return missing("player", "by_symbol") end
+            if not walk_near then return missing("player", "walk_near") end
+            if not talk_to then return missing("player", "talk_to") end
+            if not drain then return missing("chat", "drain") end
+            if not choose then return missing("chat", "choose") end
+            if type(t.ticklog) ~= "table" or not t.ticklog.rows then return missing("ticklog", "rows") end
+            local HANS_TYPE, LINE = 3105, "Help! Help!"
+            -- hans.lua's own approach: stand in the castle grounds (goto_tile
+            -- returns once the npc pool around the tile has landed), walk up to
+            -- him (he patrols the castle ring), talk, menu, flee row.
+            local gr, gd = goto_tile(3222, 3218, 0)
+            if gr ~= "ok" then return "no_subject", "goto 3222,3218 -> " .. describe(gr) .. " " .. describe(gd) end
+            local npc_row = verb("npc", "by_symbol")
+            if not npc_row then return missing("npc", "by_symbol") end
+            local waited_hans = 0
+            while npc_row("hans") ~= "ok" and waited_hans < 10 do
+                settle(1)
+                waited_hans = waited_hans + 1
+            end
+            local target = by_symbol("npc", "hans")
+            if target == nil then return "no_subject", "Hans is not in the client's pool" end
+            walk_near(target)
+            t.ticklog.mark("seam.ticklog_npc_say_row")
+            local _, marks = t.ticklog.rows({ kind = "mark" })
+            local since = marks[#marks].serial
+            local tr, td = talk_to("hans")
+            if tr ~= "ok" then return "no_subject", "talk to Hans -> " .. describe(tr) .. " " .. describe(td) end
+            drain({ stop_at = "options" })
+            local cr, cd = choose("I have come to kill everyone in this castle!")
+            local pr, pd = drain({ stop_at = "none" })
+            local say, waited = nil, 0
+            while say == nil and waited < 10 do
+                settle(1)
+                waited = waited + 1
+                local _, says = t.ticklog.rows({ kind = "npc_say", since = since, text = "Help" })
+                say = says[1]
+            end
+            local text = "talk " .. describe(tr) .. "; flee row " .. describe(cr) .. "; drain "
+                .. describe(pr) .. " " .. describe(pd)
+            if say == nil then
+                return "refused", text .. " -- no npc_say row in " .. waited .. " ticks"
+            end
+            local _, by_slot = t.ticklog.rows({ kind = "npc_say", since = since, slot = say.slot })
+            text = text .. string.format("; t%d npc_say slot %d type %d at %d,%d,%d text '%s'; "
+                .. "slot filter %d row(s)", say.tick, say.slot, say.type, say.x, say.z, say.level,
+                tostring(say.text), #by_slot)
+            if say.type ~= HANS_TYPE or say.text ~= LINE then
+                return "refused", text .. " -- want Hans (3105) and the whole line 'Help! Help!'"
+            end
+            local found = false
+            for _, r in ipairs(by_slot) do
+                if r.serial == say.serial then found = true end
+                if r.slot ~= say.slot then
+                    return "refused", text .. " -- the C slot filter returned slot " .. describe(r.slot)
+                end
+            end
+            if not found then
+                return "refused", text .. " -- the C slot filter dropped the row"
+            end
+            return "ok", text
+        end)
+
+-- conformance.tob_death_stage_arrive_delay_and_heal_row.lua (seam9 of the raid loop)
+--
+-- NO VERB WAS ADDED OR RENAMED. t.ticklog.rows gained one row KIND written by the
+-- server, `npc_heal` (slot, type, amount, hitpoints, base; `source` = the healing
+-- script's name), from needs.ticklog_npc_heal.patch. So no step() row is owed and
+-- verb_list.py does not move. THREE seam rows: SEAM_COUNT / @seam-count +3.
+--
+-- PROVED: scratch_d9/conf_harness.lua runs these three bodies as written under the
+-- PLAN's shims (verb/missing/describe/is_table/setup_cheat/settle/seam).
+--   AFTER (private binary torirs_d9 = this seam's C + needs.ticklog_npc_heal.patch, its
+--   driver Lua, content = HEAD + tob.rs2/tob_maiden.rs2/tob.npc/tob.constant as in the
+--   tree; run d9_conf_after2): 3/3 PASS -- "2 npc_heal row(s) on banshee world slot
+--   1301: t12 +1 -> 20/22 [proc,slayer_after_player_hit]; t16 +1 -> 19/22 ...";
+--   "her death K=103: dying_a K+1, fade K+5, npc_free K+9 ...; 0 of 3 pool landings
+--   (graphic 1579) put loc 32984 on their tile"; "15 of 15 small deaths animate t+1 and
+--   despawn t+2 (10 walking on t or t-1)".
+--   BEFORE (shared binary, HEAD content, tree Lua; run d9_conf_before): 0/3 -- "t.ticklog.
+--   rows: no row kind 'npc_heal'"; "dying_a K+3 ...; 3 of 3 pool landings ... put loc
+--   32984"; "5 of 13 small deaths ... slot 1090 walking anim+2 free+3; ...".
+-- The rows need the closer to land needs.ticklog_npc_heal.patch (row 1) and the tree's
+-- tob.npc/tob.constant data (rows 2; already in the tree, see the report).
+--
+-- PLACE (row 1): directly AFTER seam("seam.ticklog_npc_say_row", ...) -- an
+-- ordinary-npc tick-log row like it. It ends with a ::goto back to Lumbridge
+-- 3222,3218, the tile the npc_say row leaves the player on, and takes the earmuffs
+-- off again.
+--
+-- PLACE (row 2): directly AFTER seam("seam.tob_maiden_cage_and_one_death_anim", ...)
+-- (the same room, the same ::tobout / raid.enter / ::tobmaidenpct pattern); teardown
+-- ::tobout. That row's own comment says "when that lands the row's detail reads K+1
+-- and nothing here needs to change": it now reads dying_a K+1, and this row is what
+-- asserts it.
+--
+-- PLACE (row 3): directly AFTER seam("seam.nylocas_cage_skipped_support_unanimated",
+-- ...) (the same room entry); teardown ::tobout.
+--
+-- (1) seam.ticklog_npc_heal_row -- a Slayer Tower banshee regains one hitpoint when
+--     a player's hit lands ([proc,slayer_after_player_hit], skill_slayer/scripts/
+--     slayer_specials.rs2:107-114 `npc_statadd(hitpoints, 1, 0)`, called from
+--     skill_combat/npc_combat.rs2:124); it takes damage only from a player wearing
+--     earmuffs (slayer_specials.rs2:64-66). Each landed hit is ONE npc_heal row on
+--     the banshee's world slot, on the hit_npc row's tick, +1, hitpoints <= base,
+--     source "[proc,slayer_after_player_hit]". Before (shared binary): "t.ticklog.rows:
+--     no row kind 'npc_heal'".
+-- (2) seam.maiden_death_forms_on_recorded_ticks -- her death: dying_a (10818) at
+--     K+1, the fade (10819) at K+5, free K+9 (blert 13 of 13 rooms, spec row
+--     maiden.av.death.dying_a_form_ticks); every thrown pool (graphic 1579) lands with
+--     no loc 32984 on its tile that tick (CONTENT_BUGS.md:357, spec row
+--     maiden.av.blood_throw.pool_loc = 0). Before (HEAD C + HEAD content): "10817->10818
+--     at K+3; 10818->10819 at K+5; free at K+9" and "3 of 3 pool landings put loc 32984".
+--     ::tobmaidenpct is a measurement debugproc (its 0 is the killing blow, as in
+--     seam.tob_maiden_cage_and_one_death_anim; an Entry Maiden's blood spawns heal her
+--     faster than a scratch's arrow chips the last 2 %).
+-- (3) seam.small_nylocas_dies_without_arrive_wait -- a small Nylocas the player kills
+--     animates at t+1 and despawns at t+2 walking or standing (blert guide
+--     tob_nylocas_mechanics_page.tsx:483-493), where it used to wait out the engine's
+--     arrive delay first (before: "small moved_on_D-1 anim+2 free+3 x7").
+--     ::tobmate and the hitpoints top-up are measurement debugprocs.
+        seam("seam.ticklog_npc_heal_row", function()
+            local equip = verb("player", "equip")
+            local unequip = verb("player", "unequip")
+            local goto_tile = verb("player", "goto_tile")
+            local attack = verb("player", "attack")
+            local nearest = verb("npc", "nearest")
+            if not equip then return missing("player", "equip") end
+            if not unequip then return missing("player", "unequip") end
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not attack then return missing("player", "attack") end
+            if not nearest then return missing("npc", "nearest") end
+            if type(t.ticklog) ~= "table" or not t.ticklog.rows then return missing("ticklog", "rows") end
+            local BANSHEE, SOURCE = "slayer_banshee_1", "[proc,slayer_after_player_hit]"
+            setup_cheat("::clearinv")
+            setup_cheat("::setlevel slayer 99")
+            setup_cheat("::setlevel attack 99")
+            setup_cheat("::setlevel strength 25")
+            setup_cheat("::setlevel defence 99")
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::give slayer_earmuffs")
+            settle(2)
+            local er, ed = equip("slayer_earmuffs")
+            if er ~= "ok" then return "no_subject", "wear slayer_earmuffs -> " .. describe(er) .. " " .. describe(ed) end
+            local gr, gd = goto_tile(3434, 3556, 0)
+            if gr ~= "ok" then return "no_subject", "goto 3434,3556 -> " .. describe(gr) .. " " .. describe(gd) end
+            settle(3)
+            local nr, row = nearest(BANSHEE, 15)
+            if nr ~= "ok" or not is_table(row) then return "no_subject", "no banshee near 3434,3556: " .. describe(row) end
+            local sr, wslot = t.ticklog.slot(row)
+            if sr ~= "ok" then return "no_subject", "banshee world slot -> " .. describe(wslot) end
+            t.ticklog.start()
+            t.ticklog.mark("seam.ticklog_npc_heal_row")
+            local _, marks = t.ticklog.rows({ kind = "mark" })
+            local since = marks[#marks].serial
+            local heals, presses = {}, {}
+            for i = 1, 12 do
+                local ar = attack(BANSHEE, 2, 4, { slot = row.slot })
+                presses[#presses + 1] = describe(ar)
+                local hr, h = t.ticklog.rows({ kind = "npc_heal", slot = wslot, since = since })
+                if hr ~= "ok" then
+                    unequip("slayer_earmuffs")
+                    setup_cheat("::clearinv")
+                    goto_tile(3222, 3218, 0)
+                    return hr, describe(h)
+                end
+                heals = h
+                if #heals >= 2 then break end
+            end
+            local _, hits = t.ticklog.rows({ kind = "hit_npc", slot = wslot, since = since })
+            local landed = {}
+            for _, h in ipairs(hits) do
+                if h.damage > 0 then landed[h.tick] = true end
+            end
+            local parts, bad = {}, 0
+            for _, r in ipairs(heals) do
+                parts[#parts + 1] = string.format("t%d +%d -> %d/%d %s", r.tick, r.amount, r.hitpoints,
+                    r.base, describe(r.source))
+                if r.amount ~= 1 or r.type ~= row.npc_id or r.hitpoints > r.base or r.source ~= SOURCE
+                    or not landed[r.tick] then
+                    bad = bad + 1
+                end
+            end
+            unequip("slayer_earmuffs")
+            setup_cheat("::clearinv")
+            goto_tile(3222, 3218, 0)
+            local text = #heals .. " npc_heal row(s) on banshee world slot " .. describe(wslot) .. ": "
+                .. table.concat(parts, "; ") .. " (attack presses: " .. table.concat(presses, ",") .. ")"
+            if #heals == 0 then return "refused", text .. " -- a landed hit wrote no npc_heal row" end
+            if bad > 0 then
+                return "refused", text .. " -- " .. bad .. " row(s) not (+1, type " .. describe(row.npc_id)
+                    .. ", hitpoints <= base, source " .. SOURCE .. ", on a landed hit_npc tick)"
+            end
+            return "ok", text
+        end)
+
+        -- seam11 ticklog_raw_damage_and_loc_count (seam row 1 of 2). SEAM_COUNT +1.
+        -- (1) seam.ticklog_hit_raw -- the tick log's hit rows carry the hit as dealt
+        --     beside the splat as shown. Under `::god 1` every landed swing a Man makes
+        --     on the player is a hit_player row with damage 0 and raw = his roll (>0 on
+        --     a landed swing); then at strength 99 the killing blow on a 7-hitpoint Man
+        --     overkills: hit_npc damage = the hitpoints he had, raw = the swing. Every
+        --     other hit_npc row has raw = damage. Before (shared binary, tree Lua): rows
+        --     carry no `raw` (nil).
+        seam("seam.ticklog_hit_raw", function()
+            local attack = verb("player", "attack")
+            local nearest = verb("npc", "nearest")
+            local goto_tile = verb("player", "goto_tile")
+            if not attack then return missing("player", "attack") end
+            if not nearest then return missing("npc", "nearest") end
+            if not goto_tile then return missing("player", "goto_tile") end
+            if type(t.ticklog) ~= "table" or not t.ticklog.rows then return missing("ticklog", "rows") end
+            -- The stages before this row leave a magic shortbow worn (see
+            -- seam.attack_fast_path's neighbour above): at ranged 99 it kills a
+            -- 7-hitpoint Man with its first arrow, so he never swings back (closer's
+            -- first full run: 2 hit_npc rows of 7, 0 hit_player rows). It comes off
+            -- for this row, after the ::clearinv that would delete it, and goes
+            -- back on at the teardown.
+            local BOW = "magic_shortbow"
+            local bow_off = false
+            local function restore()
+                setup_cheat("::god 0")
+                setup_cheat("::setlevel strength 99")
+                if verb("player", "unequip") then t.player.unequip("abyssal_whip") end
+                if bow_off and verb("player", "equip") then t.player.equip(BOW) end
+                setup_cheat("::clearinv")
+            end
+            setup_cheat("::clearinv")
+            if verb("player", "unequip") and t.player.unequip(BOW) == "ok" then bow_off = true end
+            setup_cheat("::setlevel attack 99")
+            setup_cheat("::setlevel strength 1")
+            setup_cheat("::setlevel defence 1")
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::god 1")
+            goto_tile(3222, 3218, 0)
+            settle(2)
+            t.ticklog.start()
+            t.ticklog.mark("seam.ticklog_hit_raw")
+            local _, marks = t.ticklog.rows({ kind = "mark" })
+            local since = marks[#marks].serial
+            -- phase 1: strength 1, ::god 1 -- he lives long enough to swing back
+            local god_rows, slots, presses = {}, {}, {}
+            for i = 1, 10 do
+                local nr, row = nearest(NPC_SYMBOL, 10)
+                if nr ~= "ok" or not is_table(row) then break end
+                local sr, wslot = t.ticklog.slot(row)
+                if sr == "ok" then slots[wslot] = true end
+                presses[#presses + 1] = describe((attack(NPC_SYMBOL, 2, 6, { slot = row.slot })))
+                local _, hp = t.ticklog.rows({ kind = "hit_player", since = since })
+                god_rows = {}
+                for _, h in ipairs(hp) do
+                    if h.raw ~= nil and h.raw > 0 then god_rows[#god_rows + 1] = h end
+                end
+                if #god_rows >= 2 then break end
+            end
+            -- phase 2: strength 99 and a whip -- kill a Man or two (a killing blow
+            -- overkills only when the engine's clamp bites; see the end of the row)
+            setup_cheat("::setlevel strength 99")
+            setup_cheat("::give abyssal_whip 1")
+            setup_cheat("::wield abyssal_whip")
+            settle(1)
+            local over = nil
+            for i = 1, 2 do
+                local nr, row = nearest(NPC_SYMBOL, 15)
+                if nr ~= "ok" or not is_table(row) then break end
+                local sr, wslot = t.ticklog.slot(row)
+                if sr == "ok" then slots[wslot] = true end
+                attack(NPC_SYMBOL, 2, 8, { slot = row.slot })
+                t.npc.await_dead(NPC_SYMBOL, 20)
+                local _, hn = t.ticklog.rows({ kind = "hit_npc", since = since })
+                for _, h in ipairs(hn) do
+                    if slots[h.slot] and h.raw ~= nil and h.raw > h.damage then over = h end
+                end
+                if over then break end
+            end
+            local _, all_hp = t.ticklog.rows({ kind = "hit_player", since = since })
+            local _, all_hn = t.ticklog.rows({ kind = "hit_npc", since = since })
+            restore()
+            goto_tile(3222, 3218, 0)
+            local bad, nil_raw = {}, 0
+            for _, h in ipairs(all_hp) do
+                if h.raw == nil then nil_raw = nil_raw + 1
+                elseif h.damage ~= 0 then bad[#bad + 1] = "hit_player t" .. h.tick .. " damage "
+                    .. h.damage .. " under ::god"
+                end
+            end
+            -- raw > damage only where the clamp bit: a killing blow, which
+            -- ToriRSServer_CombatHitNpc logs as an npc_death row on the same slot and
+            -- tick straight after the hit row (a Man respawns into his old slot, so
+            -- "the slot's last hit" would not do)
+            local ours, deaths = 0, {}
+            local _, dr = t.ticklog.rows({ kind = "npc_death", since = since })
+            for _, d in ipairs(dr) do deaths[d.slot .. ":" .. d.tick] = true end
+            for _, h in ipairs(all_hn) do
+                if slots[h.slot] then
+                    ours = ours + 1
+                    if h.raw == nil then nil_raw = nil_raw + 1
+                    elseif h.raw < h.damage then bad[#bad + 1] = "hit_npc t" .. h.tick .. " raw "
+                        .. h.raw .. " < damage " .. h.damage
+                    elseif h.raw > h.damage and not deaths[h.slot .. ":" .. h.tick] then
+                        bad[#bad + 1] = "hit_npc t" .. h.tick .. " raw " .. h.raw .. " > damage "
+                            .. h.damage .. " on a hit that killed nothing"
+                    end
+                end
+            end
+            local gparts = {}
+            for i = 1, math.min(#god_rows, 4) do
+                local h = god_rows[i]
+                gparts[#gparts + 1] = string.format("t%d npc slot %s dmg %d raw %d", h.tick,
+                    describe(h.npc_slot), h.damage, h.raw)
+            end
+            local text = #all_hp .. " hit_player row(s) under ::god (" .. table.concat(gparts, "; ")
+                .. "), " .. ours .. " hit_npc row(s) on the Men fought; killing blow "
+                .. (over and string.format("t%d slot %d damage %d raw %d", over.tick, over.slot,
+                    over.damage, over.raw) or "none overkilled")
+                .. " (presses " .. table.concat(presses, ",") .. ")"
+            if nil_raw > 0 then return "refused", nil_raw .. " hit row(s) carry no raw (binary before seam11): " .. text end
+            if #bad > 0 then return "refused", table.concat(bad, "; ", 1, math.min(#bad, 4)) .. " -- " .. text end
+            if #god_rows == 0 then return "no_subject", "no Man swing landed under ::god: " .. text end
+            if ours == 0 then return "no_subject", "no hit_npc row on the Men fought: " .. text end
+            -- An overkill is NOT required: content clamps a player's hit to the npc's
+            -- hitpoints when it is prepared (player_hit_npc_prepare.rs2:230), so the
+            -- engine's clamp only bites when the hitpoints fell between the swing and
+            -- the landing. The row requires raw on every hit row and raw > damage
+            -- nowhere but a killing blow; the ::god rows are the divergence.
+            return "ok", text
+        end)
+
+        seam("seam.music_region_unlocks_its_musicmulti", function()
+            local goto_tile = verb("player", "goto_tile")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if type(t.var) ~= "table" or not t.var.server then return missing("var", "server") end
+            if type(t.msg) ~= "table" or not t.msg.last then return missing("msg", "last") end
+            if type(t.ticklog) ~= "table" or not t.ticklog.rows then return missing("ticklog", "rows") end
+            local BIT = 1 << 8
+            local LINE = "unlocked a new music track: Welcome to the Theatre"
+            -- Lumbridge first, so the lobby is a crossing whatever came before.
+            local g1 = goto_tile(3222, 3218, 0)
+            settle(2)
+            local _, multi0 = t.var.server("varp1681_musicmulti_18")
+            if type(multi0) ~= "number" then return "refused", "varp1681_musicmulti_18 unreadable" end
+            if multi0 & BIT ~= 0 then
+                setup_cheat("::setvar varp1681_musicmulti_18 " .. (multi0 & ~BIT))
+                settle(2)
+            end
+            local _, play0 = t.var.server("varp18_musicplay")
+            local _, ring = t.msg.last(1)
+            local msg_since = (ring and ring[1] and ring[1].serial) or 0
+            t.ticklog.mark("seam.music_region_unlocks_its_musicmulti")
+            local _, marks = t.ticklog.rows({ kind = "mark" })
+            local since = marks[#marks].serial
+            local g2 = goto_tile(3677, 3219, 0)
+            settle(3)
+            local _, multi1 = t.var.server("varp1681_musicmulti_18")
+            local _, play1 = t.var.server("varp18_musicplay")
+            local _, music = t.ticklog.rows({ kind = "music", since = since, source = "region" })
+            local _, lines = t.msg.last(20)
+            local unlocks = 0
+            for _, m in ipairs(lines or {}) do
+                if (m.serial or 0) > msg_since and string.find(m.text or "", LINE, 1, true) then
+                    unlocks = unlocks + 1
+                end
+            end
+            local tracks = {}
+            for _, r in ipairs(music) do tracks[#tracks + 1] = r.tick .. ":" .. r.track end
+            goto_tile(3222, 3218, 0)
+            settle(2)
+            local text = string.format("goto %s/%s; musicmulti_18 %s -> %s (bit 8 %s); musicplay %s -> %s; "
+                .. "region music [%s]; unlock line x%d", describe(g1), describe(g2), describe(multi0),
+                describe(multi1), (type(multi1) == "number" and multi1 & BIT ~= 0) and "set" or "clear",
+                describe(play0), describe(play1), table.concat(tracks, " "), unlocks)
+            if type(multi1) ~= "number" or multi1 & BIT == 0 then
+                return "refused", text .. " -- want bit 8 of varp 1681 set"
+            end
+            if play1 ~= play0 then
+                return "refused", text .. " -- varp 18 musicplay must not change"
+            end
+            if #music ~= 1 or music[1].track ~= 556 then
+                return "refused", text .. " -- want one region row, track 556"
+            end
+            if unlocks ~= 1 then
+                return "refused", text .. " -- want the unlock line once"
+            end
+            return "ok", text
+        end)
+
+        -- PLACE: LAST of the world-reading rows, after the willow seam row and
+        -- before finish.  These rows teleport the player into the Theatre and
+        -- leave him at Ver Sinhaza (::tobout lands at ^tob_outside 3677,3219),
+        -- and ::tobmode's ~tob_debug_kit puts eight potions in the backpack; at
+        -- their first placement (after seam.goto_tile_budget) that moved every
+        -- later tick and slot, and three wander-sensitive rows below went red
+        -- (seam.attack_presses_the_watched_slot pressed a goblin it could not
+        -- fight; the man of npc.await_anim never swung).  Here nothing follows
+        -- that reads the world.  Four verbs (raid.enter, raid.state,
+        -- raid.start_tile, raid.leave).
+        --
+        -- raid seam 1 (raid_room_entry_verbs).  t.raid.enter lands a player in
+        -- a raid room the way he arrives there -- the real instance, corridor
+        -- side of the barrier, boss built, fight UNSTARTED -- through the
+        -- raid's own landing debugproc (`::tobmode 1 0` here: Maiden, Entry
+        -- mode) and reads the room back from the server's own registers
+        -- (`::tobstate`).  Graded: the room, the mode and started=0 read back,
+        -- the boss in the client's pool, and the player on the corridor side
+        -- of the fight tile.  Never on a started room: nothing here crosses
+        -- the barrier, so Maiden never swings at the conformance character.
+        step("raid.enter", function()
+            local fn = verb("raid", "enter")
+            if not fn then return missing("raid", "enter") end
+            local result, detail = fn("tob", "maiden", { mode = "entry" })
+            if result ~= "ok" then
+                return result, "tob maiden entry -> " .. describe(detail)
+            end
+            if not string.find(tostring(detail), "in tob maiden (entry)", 1, true)
+                or not string.find(tostring(detail), "boss present (tob_maiden_100", 1, true)
+                or not string.find(tostring(detail), "started 0", 1, true) then
+                return "hollow", "answered ok but the detail does not name the room, the mode,"
+                    .. " a present boss and started 0 -- " .. describe(detail)
+            end
+            return "ok", describe(detail)
+        end)
+
+        -- t.raid.state: the active raid's registers as a table.  Graded against
+        -- the room raid.enter just built: raid tob, room maiden, mode entry,
+        -- started false, a handle, and the boss's client slot.
+        step("raid.state", function()
+            local fn = verb("raid", "state")
+            if not fn then return missing("raid", "state") end
+            local result, state = fn()
+            if result ~= "ok" or not is_table(state) then
+                return result, describe(state)
+            end
+            if state.raid ~= "tob" or state.room ~= "maiden" or state.mode ~= "entry"
+                or state.started ~= false or type(state.handle) ~= "number" or state.handle == 0
+                or state.boss_slot == nil then
+                return "hollow", "answered ok but the state is not the Entry Maiden room just"
+                    .. " entered -- " .. describe(state)
+            end
+            return "ok", tostring(state.line) .. " boss_slot=" .. tostring(state.boss_slot)
+        end)
+
+        -- t.raid.start_tile: the room's first tile inside its barrier
+        -- (~tob_room_fight_tile).  Graded: the tile is west of the player (the
+        -- Maiden's barrier is the column at local x49; the landing is the
+        -- corridor at x52, the fight tile x48) on the player's plane.
+        step("raid.start_tile", function()
+            local fn = verb("raid", "start_tile")
+            local tile_of = verb("world", "tile")
+            if not fn then return missing("raid", "start_tile") end
+            if not tile_of then return missing("world", "tile") end
+            local result, fight, text = fn()
+            if result ~= "ok" or not is_table(fight) then
+                return result, describe(fight)
+            end
+            local read, here = tile_of()
+            if read ~= "ok" or not is_table(here) then
+                return "hollow", "no player tile to compare: " .. describe(here)
+            end
+            if not (fight.x < here.x) or fight.level ~= here.level then
+                return "hollow", "answered ok but the fight tile " .. describe(text)
+                    .. " is not inside the barrier from " .. describe(here)
+            end
+            return "ok", tostring(text) .. " (player " .. here.x .. "," .. here.z .. "," .. here.level .. ")"
+        end)
+
+        -- t.raid.leave: the raid's own leave cheat (::tobout), then the
+        -- server's active varp read back 0 and the walk-out settled.  Graded:
+        -- t.raid.state answers not_found afterwards.
+        step("raid.leave", function()
+            local fn = verb("raid", "leave")
+            local state_of = verb("raid", "state")
+            if not fn then return missing("raid", "leave") end
+            if not state_of then return missing("raid", "state") end
+            local result, detail = fn()
+            if result ~= "ok" then
+                return result, describe(detail)
+            end
+            local after, after_detail = state_of()
+            if after ~= "not_found" then
+                return "hollow", "answered ok but raid.state still answers " .. describe(after)
+                    .. " -- " .. describe(after_detail)
+            end
+            return "ok", describe(detail) .. "; then " .. describe(after_detail)
+        end)
+
+-- raid seam27 raid_play_by_tick_intent: ONE row for the ONE public verb the
+-- play library adds (t.raid.play, script/plugins/quest_driver/raid_play.lua; room plans
+-- raid_play_tob_<room>.lua; its skills are private QD.raid._play_*).
+-- PLACE: in _conformance.lua's PLAN directly AFTER step("raid.leave", ...)
+-- (the raid stanza, ~:11477) and BEFORE the party rows (step("party.role")).
+-- VERB_COUNT / verb_list 184 -> 185 (raid.play) on top of seam27's `together`.
+-- The row runs where the raid stanza has left the room (after raid.leave), so
+-- it proves the verb's CONTRACT without a boss: an unknown plan and a plan
+-- whose strategy is written but has no decide function (tob_maiden, this
+-- seam) both answer `unsupported` and name why, and nothing is pressed.  The
+-- play itself is proved on Bloat by test/raids/_play_smoke.lua (five names
+-- green, build/quest_gate/sv{a,b,c,d}bloat + playbloat); a conformance row
+-- that played Bloat would cost the harness a whole room per run.
+-- raid seam29 play_library_own_files (merged by the seam29 closer): the library
+-- moved out of raid.lua into raid_play.lua and one part per room plan
+-- (DRIVE_SCRIPT_PARTS); the row also proves the four other room parts are loaded
+-- and registered, each answering unsupported and naming the seam that writes it.
+-- No verb added; VERB_COUNT and SEAM_COUNT unchanged by it.
+-- raid seam30 (the five room plans, merged by the seam30 closer): every room
+-- part now has a decide, so the row no longer calls t.raid.play on a room (it
+-- would play it); it asserts each decide is registered.  No verb added.
+        step("raid.play", function()
+            local fn = verb("raid", "play")
+            if not fn then return missing("raid", "play") end
+            local r1, d1 = fn("no_such_plan", { mode = "entry" })
+            if r1 ~= "unsupported" or not string.find(tostring(d1), "no plan named no_such_plan", 1, true) then
+                return "hollow", "an unknown plan answered " .. describe(r1) .. " -- " .. describe(d1)
+            end
+            -- raid seam30 (merged by the seam30 closer): all five room parts now
+            -- register a decide, so none is called here -- t.raid.play outside
+            -- its room would PLAY it, looping up to max_ticks for a boss that is
+            -- not there.  The row proves each part is loaded and its decide is
+            -- registered; each play is proved by its harness under
+            -- tools/raid_gate/seed_survey.py (test/raids/_play_<room>.lua).
+            local have = {}
+            for _, room in ipairs({ "maiden", "nylocas", "sotetseg", "xarpus", "verzik" }) do
+                local dec = verb("raid", "_play_" .. room .. "_decide")
+                if not dec then
+                    return "hollow", "tob_" .. room .. ": its part registered no decide function (raid_play_tob_" .. room
+                        .. ".lua QD.raid._play_" .. room .. "_decide missing)"
+                end
+                have[#have + 1] = "tob_" .. room
+            end
+            return "ok", "unknown plan: " .. tostring(d1) .. "; " .. table.concat(have, ", ")
+                .. " have their decide (raid seam30; played by test/raids/_play_<room>.lua)"
+        end)
+
+        -- raid seam30 play_tob_sotetseg (merged by the seam30 closer): the library's
+        -- death test (a jump of more than 20 tiles) is skipped while st.teleport_until
+        -- covers the tick (raid_play.lua _play_tick); Sotetseg's portal sets it.
+        -- SEAM_COUNT +1.
+        seam("seam.raid_play_teleport_until", function()
+            local state_fn = verb("raid", "_play_state")
+            local tick_fn = verb("raid", "_play_tick")
+            if not state_fn then return missing("raid", "_play_state") end
+            if not tick_fn then return missing("raid", "_play_tick") end
+            t.raid._conformance_teleport_decide = function(st, v) return { want = {}, attack = false } end
+            local plan = { room = "probe", boss = { entry = "tob_sotetseg_combat_story" }, modes = { entry = {} },
+                walk_prayers = {}, down_prayers = {}, decide = "_conformance_teleport_decide" }
+            local st = state_fn(plan, "_conformance_teleport", "entry", plan.modes.entry, { speed = 5, seqs = {} }, {})
+            local _, here = t.world.tile()
+            local _, now = t.tick()
+            st.last_me = { x = here.x + 40, z = here.z }
+            st.teleport_until = now + 5
+            local r1 = tick_fn(st)
+            st.last_me = { x = here.x + 40, z = here.z }
+            st.teleport_until = nil
+            local r2 = tick_fn(st)
+            if r1 ~= nil or r2 ~= "died" then
+                return "hollow", "a covered 40-tile jump answered " .. describe(r1) .. " (want nil), an uncovered one " .. describe(r2) .. " (want died)"
+            end
+            return "ok", "a 40-tile jump inside st.teleport_until played on; the same jump with none answered died"
+        end)
+
+        -- raid seam39 play_tob_normal_relay: t.raid.play's opts.role (raid_play.lua
+        -- QD.raid.play banner; _play_state: role = opts.role or QD.party.role()).
+        -- A seat is not a role: the whole-raid Normal relay (test/raids/_play_normal.lua
+        -- ROLE_IN) plays Maiden's tank on seat 1 but Bloat's role 1 on seat 3 and the
+        -- Nylocas mage on seat 3.  The row builds a state with and without the option
+        -- (no room is played) and reads the role back.  SEAM_COUNT +1.
+        seam("seam.raid_play_opts_role", function()
+            local state_fn = verb("raid", "_play_state")
+            if not state_fn then return missing("raid", "_play_state") end
+            local plan = { room = "probe", boss = { entry = "tob_bloat_story" }, modes = { entry = {} },
+                walk_prayers = {}, down_prayers = {}, decide = "_conformance_teleport_decide" }
+            local seat = t.party.role()
+            local st0 = state_fn(plan, "_conformance_role", "entry", plan.modes.entry, { speed = 5, seqs = {} }, {})
+            local st3 = state_fn(plan, "_conformance_role", "entry", plan.modes.entry, { speed = 5, seqs = {} }, { role = 3 })
+            if st0.role ~= seat then
+                return "hollow", "no opts.role: role " .. tostring(st0.role) .. ", the seat is " .. tostring(seat)
+            end
+            if st3.role ~= 3 then
+                return "hollow", "opts.role = 3 read back as " .. tostring(st3.role)
+            end
+            return "ok", "no opts.role: role " .. tostring(st0.role) .. " (the seat); opts.role = 3: role " .. tostring(st3.role)
+                .. " (party size " .. tostring(st3.party) .. ")"
+        end)
+
+        -- raid seam30 play_tob_xarpus (merged by the seam30 closer): the plan's
+        -- quadrant split is the server's (tob_xarpus.rs2 ~tob_xarpus_quadrant_from:
+        -- dz > 0 north, dx > 0 east).  A pure function, no npc.  SEAM_COUNT +1.
+        seam("seam.raid_play_xarpus_quadrant", function()
+            local q = verb("raid", "_xarpus_quadrant")
+            if not q then return missing("raid", "_xarpus_quadrant") end
+            local cases = {
+                { 6435, 100, "NE" }, { 6433, 100, "NW" }, { 6435, 98, "SE" }, { 6433, 98, "SW" },
+                { 6434, 100, "NW" }, { 6435, 99, "SE" }, { 6434, 99, "SW" }, { 6434, 98, "SW" },
+            }
+            local bad = {}
+            for _, c in ipairs(cases) do
+                local got = q(6434, 99, c[1], c[2])
+                if got ~= c[3] then bad[#bad + 1] = c[1] .. "," .. c[2] .. " gave " .. tostring(got) .. " want " .. c[3] end
+            end
+            if #bad > 0 then
+                return "fail", "quadrant split differs from tob_xarpus.rs2 ~tob_xarpus_quadrant_from: " .. table.concat(bad, "; ")
+            end
+            return "ok", "8 of 8 tiles in the server's quadrant (diagonals and the four boundary tiles; centre row south, centre column west)"
+        end)
+
+        -- raid seam34x play_tob_xarpus_normal: the Normal trio's phase 1 split.
+        -- The k-th exhumed to rise (as every raider sees them; two on one tick
+        -- by tile) is raider ((k - 1) mod 3) + 1's; a raider walks only to its
+        -- own and otherwise to its own wait tile.  A pure function on a made-up
+        -- view, no npc.  SEAM_COUNT +1.
+        seam("seam.raid_play_xarpus_trio_split", function()
+            local f = verb("raid", "_xarpus_p1_trio")
+            if not f then return missing("raid", "_xarpus_p1_trio") end
+            local plan = { wait = { 34, 32 }, trio = { waits = { { 34, 32 }, { 31, 35 }, { 37, 35 } } } }
+            -- rises: t10 one at 6430,95; t18 one at 6440,100; t26 two on one
+            -- tick, 6436,104 and 6428,104 (by tile: 6428 first); t34 6433,93
+            local timeline = {
+                { 10, { { x = 6430, z = 95 } } },
+                { 18, { { x = 6430, z = 95 }, { x = 6440, z = 100 } } },
+                { 26, { { x = 6440, z = 100 }, { x = 6436, z = 104 }, { x = 6428, z = 104 } } },
+                { 34, { { x = 6436, z = 104 }, { x = 6428, z = 104 }, { x = 6433, z = 93 } } },
+            }
+            -- what each role must walk to on each of those ticks
+            local want = {
+                [1] = { "6430,95", "6430,95", "6436,104", "6436,104" },
+                [2] = { "6431,99", "6440,100", "6440,100", "6433,93" },
+                [3] = { "6437,99", "6437,99", "6428,104", "6428,104" },
+            }
+            local bad = {}
+            for role = 1, 3 do
+                local st = { plan = plan, origin = { x = 6400, z = 64 }, party = 3, role = role }
+                local X = { covers = {} }
+                for i, step in ipairs(timeline) do
+                    local intent = { want = {} }
+                    f(st, { tick = step[1], me = { x = 6400, z = 64 }, exhumed = step[2] }, X, intent)
+                    local got = intent.walk and (intent.walk.x .. "," .. intent.walk.z) or "none"
+                    if got ~= want[role][i] then
+                        bad[#bad + 1] = "p" .. role .. " t" .. step[1] .. " walked to " .. got .. " want " .. want[role][i]
+                    end
+                end
+            end
+            if #bad > 0 then
+                return "fail", "the trio's exhumed split differs: " .. table.concat(bad, "; ")
+            end
+            return "ok", "12 of 12 walks: the k-th exhumed is raider ((k-1) mod 3)+1's (two on one tick by tile), the others wait on their own tile (34,32 / 31,35 / 37,35 local)"
+        end)
+
+        -- raid seam30 play_tob_verzik (merged by the seam30 closer): the footprint
+        -- distance every Verzik slam, melee, pillar-fall and blast rule reads
+        -- (V verzik.p2_scan_rule, p3_melee_predicate, pillar_collapse_range 2).
+        -- A pure function, no npc.  SEAM_COUNT +1.
+        seam("seam.raid_play_verzik_footprint_distance", function()
+            local dist = verb("raid", "_verzik_dist")
+            if not dist then return missing("raid", "_verzik_dist") end
+            local p2 = { x = 6431, z = 89, size = 3 }
+            local one = { x = 6430, z = 90 }
+            local cases = {
+                { 6432, 90, p2, 0 }, { 6433, 91, p2, 0 }, { 6430, 90, p2, 1 }, { 6434, 92, p2, 1 },
+                { 6429, 91, p2, 2 }, { 6429, 87, p2, 2 }, { 6436, 89, p2, 3 }, { 6430, 90, one, 0 },
+                { 6432, 91, one, 2 },
+            }
+            local bad = {}
+            for _, c in ipairs(cases) do
+                local got = dist(c[1], c[2], c[3])
+                if got ~= c[4] then bad[#bad + 1] = c[1] .. "," .. c[2] .. " gave " .. tostring(got) .. " want " .. c[4] end
+            end
+            if #bad > 0 then return "fail", "QD.raid._verzik_dist: " .. table.concat(bad, "; ") end
+            return "ok", "QD.raid._verzik_dist: 9 tiles against her P2 3x3 at 6431,89 and a 1x1 row (under 0, adjacent 1, two out 2) all as the slam, melee, pillar-fall and blast rules read them"
+        end)
+
+        -- raid seam31 play_library_faults (merged by the seam31 closer): one verb
+        -- (t.prayer.conflicts, prayer.lua: VERB_COUNT 193 -> 194) and two seam rows
+        -- (the prayer exclusion rule of QD.raid._play_pray; the boss stop and the
+        -- true-answer press on Lumbridge goblins).  Proved as scratches in
+        -- build/quest_gate/s31lib_b and s31conf_b.  SEAM_COUNT +2.
+        -- t.prayer.conflicts(a, b): lighting `a` puts `b` out on the server
+        -- (they share a prayers.dbrow exclusion group; QD.prayer.GROUPS).
+        step("prayer.conflicts", function()
+            local fn = verb("prayer", "conflicts")
+            if not fn then return missing("prayer", "conflicts") end
+            local cases = {
+                { "protectfrommagic", "protectfrommissiles", true }, { "protectfrommelee", "smite", true },
+                { "piety", "rigour", true }, { "eagleeye", "mysticmight", true }, { "thickskin", "steelskin", true },
+                { "piety", "protectfrommelee", false }, { "protectitem", "piety", false },
+                { "rapidheal", "rapidrestore", false }, { "protectfrommagic", "protectfrommagic", false },
+                { "clarityofthought", "burstofstrength", false },
+            }
+            local bad = {}
+            for _, c in ipairs(cases) do
+                if fn(c[1], c[2]) ~= c[3] then bad[#bad + 1] = c[1] .. "/" .. c[2] .. " want " .. tostring(c[3]) end
+            end
+            if #bad > 0 then return "fail", "prayer.conflicts: " .. table.concat(bad, "; ") end
+            return "ok", "prayer.conflicts: 10 pairs as prayers.dbrow's groups say (overheads exclude each other, "
+                .. "piety/rigour share every lane, protect item and the restores conflict with nothing)"
+        end)
+
+        -- raid seam31 FAULT 1: QD.raid._play_pray never sends an "off" for a
+        -- prayer the one it lights shares a group with (a press is a toggle;
+        -- the server already put it out: prayer.rs2:309-318).  Pure, no press.
+        seam("seam.raid_play_pray_exclusion", function()
+            local pray = verb("raid", "_play_pray")
+            if not pray then return missing("raid", "_play_pray") end
+            local PR = { "protectfrommagic", "protectfrommissiles", "protectfrommelee", "rigour" }
+            local st = {}
+            local function sends(lit, want)
+                local out = pray(st, { prayer = 50, lit = lit }, want, PR)
+                local parts = {}
+                for _, s in ipairs(out) do parts[#parts + 1] = s[1] .. "=" .. tostring(s[2]) end
+                return table.concat(parts, ",")
+            end
+            local a = sends({ protectfrommissiles = true }, { protectfrommagic = true })
+            local b = sends({ protectfrommissiles = true, rigour = true }, { protectfrommelee = true })
+            local c = sends({ protectfrommissiles = true }, {})
+            local d = sends({ protectfrommagic = true }, { protectfrommagic = true, rigour = true })
+            if a ~= "protectfrommagic=true" or b ~= "protectfrommelee=true,rigour=false" or c ~= "protectfrommissiles=false"
+                or d ~= "rigour=true" then
+                return "fail", "switches: missiles->magic [" .. a .. "], missiles+rigour->melee [" .. b .. "], missiles->none ["
+                    .. c .. "], magic->magic+rigour [" .. d .. "]"
+            end
+            return "ok", "missiles->magic sends only magic on (the off kept back " .. tostring(st.pray_skips)
+                .. "x); rigour off still sent beside melee on (no shared group); an off with nothing lit is sent"
+        end)
+
+        -- raid seam31 FAULTS 2 and 4, and (3) the press answers, on goblins.
+        --   2: a goblin dies in world slot S, another spawns into S; a play
+        --      whose boss is the second must NOT stop on its first tick (the
+        --      earlier death row is seeded past: st.death_serial_seeded).
+        --   4: the boss lookup failing for 4 ticks (what a retype does to the
+        --      SEE step) with the log and the slot known plays on
+        --      (gone_without_death 1); its real death (::kill) ends it `ok`.
+        --   3: a Wind Strike through QD.raid._play_press answers `pressed` or
+        --      `ok`, and every pressed one answers `ok` on the tick its hit
+        --      shows; the canned refusals read as one-line reasons.
+        seam("seam.raid_play_stop_and_press", function()
+            local state_fn = verb("raid", "_play_state")
+            local tick_fn = verb("raid", "_play_tick")
+            local see_fn = verb("raid", "_play_see")
+            local press_fn = verb("raid", "_play_press")
+            local answer_fn = verb("raid", "_play_press_answer")
+            local goto_tile = verb("player", "goto_tile")
+            if not state_fn then return missing("raid", "_play_state") end
+            if not tick_fn then return missing("raid", "_play_tick") end
+            if not see_fn then return missing("raid", "_play_see") end
+            if not press_fn then return missing("raid", "_play_press") end
+            if not answer_fn then return missing("raid", "_play_press_answer") end
+            if not goto_tile then return missing("player", "goto_tile") end
+            -- the canned answers first (pure)
+            local canned = {
+                { "timeout", "attack x op2 [Attack @yel@Goblin] in 1 press(es)", "pressed" },
+                { "refused", "cast bind [Cast Bind] -- the SERVER refused the cast: 'That target is already frozen.' (x)",
+                    "refused", "server refused the cast: That target is already frozen." },
+                { "refused", "attack x op2: pressed 'Talk-to Goblin', which is not an Attack row -- y", "refused",
+                    "pressed a row that is not Attack: Talk-to Goblin" },
+                { "covered", "attack x op2: element 5 at 1,2: pickset held=true -- fast path: z", "covered" },
+            }
+            for _, c in ipairs(canned) do
+                local a, why = answer_fn(c[1], c[2])
+                if a ~= c[3] or (c[4] ~= nil and why ~= c[4]) then
+                    return "fail", "_play_press_answer(" .. c[1] .. ") -> " .. describe(a) .. " / " .. describe(why)
+                end
+            end
+            local G = "goblin_unarmed_melee_1"
+            t.ticklog.start()
+            setup_cheat("::setlevel magic 99")
+            setup_cheat("::give airrune 50")
+            setup_cheat("::give mindrune 50")
+            local function teardown()
+                setup_cheat("::kill " .. G .. " 12")
+                settle(2)
+            end
+            t.raid._s31_conf_decide = function(st, v) return { want = {}, attack = false } end
+            local function new_st()
+                local plan = { room = "probe", boss = { entry = G }, modes = { entry = {} },
+                    walk_prayers = {}, down_prayers = {}, decide = "_s31_conf_decide" }
+                return state_fn(plan, "_s31_conf", "entry", plan.modes.entry, { speed = 4, seqs = {} }, {})
+            end
+            if goto_tile(3229, 3233, 0) ~= "ok" then return "no_subject", "goto the goblin field" end
+            -- a goblin whose world slot already carries an npc_death row: spawn
+            -- one, kill, spawn again (the server hands a freed slot back), at
+            -- most three rounds; the precondition is read, never assumed
+            local s2, earlier, tried = nil, 0, {}
+            for _ = 1, 3 do
+                setup_cheat("::spawn " .. G)
+                settle(3)
+                setup_cheat("::kill " .. G .. " 12")
+                settle(8)
+                setup_cheat("::spawn " .. G)
+                setup_cheat("::passive " .. G)
+                settle(3)
+                local r2, row2 = t.npc.nearest(G, 6)
+                if r2 == "ok" then
+                    local _, slot = t.ticklog.slot(row2)
+                    local dr, rows = t.ticklog.rows({ kind = "npc_death", slot = slot or -1, since = 0 })
+                    tried[#tried + 1] = describe(slot) .. ":" .. (dr == "ok" and #rows or -1)
+                    if dr == "ok" and #rows >= 1 then
+                        s2, earlier = slot, #rows
+                        break
+                    end
+                end
+            end
+            if s2 == nil then
+                teardown()
+                return "no_subject", "no goblin spawned into a slot with an earlier death row (slot:deaths " .. table.concat(tried, " ") .. ")"
+            end
+            local st = new_st()
+            local first = tick_fn(st)
+            if first ~= nil or st.death_serial_seeded == nil or st.death_serial_seeded.earlier < 1 then
+                teardown()
+                return "fail", "FAULT 2: the play's first tick on a reused slot answered " .. describe(first) .. "; seeded "
+                    .. describe(st.death_serial_seeded)
+            end
+            local real = st.boss_symbol
+            st.boss_symbol = "goblin_unarmed_melee_2"
+            local outs = {}
+            for _ = 1, 4 do outs[#outs + 1] = describe(tick_fn(st)) end
+            st.boss_symbol = real
+            if table.concat(outs, ",") ~= "nil,nil,nil,nil" or st.gone_without_death ~= 1 then
+                teardown()
+                return "fail", "FAULT 4: 4 ticks of a failing boss lookup answered " .. table.concat(outs, ",")
+                    .. "; gone_without_death " .. describe(st.gone_without_death)
+            end
+            -- (3) the press, live
+            local st3 = new_st()
+            local firsts = {}
+            for _ = 1, 3 do
+                local v = see_fn(st3)
+                local a = press_fn(st3, v, { symbol = G, op = 2, spell = "wind_strike" })
+                firsts[#firsts + 1] = a
+                for _ = 1, 6 do settle(1) see_fn(st3) end
+            end
+            for _ = 1, 10 do settle(1) see_fn(st3) end
+            local ok3 = (st3.press_answers and st3.press_answers.ok) or 0
+            if ok3 < 2 or #(st3.press_pending or {}) > 0 then
+                teardown()
+                return "fail", "press: wind strike first answers " .. table.concat(firsts, ",") .. "; final "
+                    .. t.raid._play_press_text(st3)
+            end
+            setup_cheat("::kill " .. G .. " 12")
+            local final = nil
+            for _ = 1, 12 do
+                final = tick_fn(st)
+                if final ~= nil then break end
+            end
+            teardown()
+            if final ~= "ok" or st.death_tick == nil then
+                return "fail", "FAULT 4: the boss's real death answered " .. describe(final) .. " (" .. describe(st.stop) .. ")"
+            end
+            return "ok", "reused world slot " .. s2 .. " (" .. st.death_serial_seeded.earlier .. " earlier death row) did not stop the play; "
+                .. "4 ticks of a failing lookup played on; its death stopped it (" .. tostring(st.stop) .. "); wind strike "
+                .. table.concat(firsts, ",") .. " -> " .. t.raid._play_press_text(st3)
+        end)
+
+        -- raid seam31 play_tob_nylocas_green (merged by the seam31 closer): the
+        -- Nylocas plan's supply guards.  No npc.  SEAM_COUNT +1.
+        seam("seam.raid_play_nylocas_supplies", function()
+            local sup = verb("raid", "_play_nylocas_supplies")
+            if not sup then return missing("raid", "_play_nylocas_supplies") end
+            setup_cheat("::give shark 1")
+            setup_cheat("::give br_4dosepotionofsaradomin 1")
+            setup_cheat("::give tob_bandages 1")
+            settle(3)
+            local food = { { item = "shark", heal = 20 }, { item = "tob_bandages", heal = 20 } }
+            local function run(hp, need, interlude)
+                local st = { plan = { food_waves = food, food_boss = food }, ny = {}, engaged = false,
+                    last_eat = -1000, last_drink = -1000, last_swing = -1000, weapon = { speed = 4 }, swings = {} }
+                local v = { tick = 100, hp = hp, hp_base = 99, prayer = 99, prayer_base = 99, vas = nil }
+                local eat, drink = sup(st, v, function() return need end, interlude)
+                return tostring(eat) .. "/" .. tostring(drink), st
+            end
+            local cases = {
+                -- hp, threat, interlude, want (eat/drink)
+                { 99, 200, false, "nil/nil" },                          -- sva t583: nothing lands at the base
+                { 92, 200, false, "nil/nil" },                          -- 7 of 20 and 7 of 16: under half
+                { 88, 200, false, "shark/nil" },                        -- 11 of 20 lands; a brew first would leave the shark 0
+                { 85, 200, false, "shark/nil" },
+                { 50, 200, false, "shark/br_4dosepotionofsaradomin" },  -- brew 16 then shark 20: both land
+                { 50, 30, false, "nil/nil" },                           -- over the threat: nothing
+            }
+            local bad = {}
+            for _, c in ipairs(cases) do
+                local got = run(c[1], c[2], c[3])
+                if got ~= c[4] then bad[#bad + 1] = "hp " .. c[1] .. " need " .. c[2] .. " gave " .. got .. " want " .. c[4] end
+            end
+            local boost, st = run(99, 30, true)
+            if boost ~= "tob_bandages/nil" or st.ny.boosted ~= 100 then
+                bad[#bad + 1] = "interlude at 99 gave " .. boost .. " boosted " .. tostring(st.ny.boosted) .. " want tob_bandages/nil at 100"
+            end
+            if #bad > 0 then return "fail", "QD.raid._play_nylocas_supplies: " .. table.concat(bad, "; ") end
+            return "ok", "QD.raid._play_nylocas_supplies: 7 of 7 (nothing at 99 or 92 under a threat of 200; the shark alone at 88 and 85; brew and shark at 50; "
+                .. "nothing over the threat; the interlude bandage once at 99)"
+        end)
+
+        -- conformance.play_tob_nylocas_normal (raid seam32).  ONE seam row, no verb.
+        -- PLACE: test/quests/_conformance.lua, right after seam("seam.raid_play_nylocas_supplies", ...)
+        -- (it ends at about line 12017 on f54d63893).  SEAM_COUNT +1 (@seam-count).
+        --
+        -- What it proves, on an ordinary npc: the own-swing read the Nylocas plan's
+        -- party MEMBERS use in place of the tick log they do not hold
+        -- (raid_play_tob_nylocas.lua "THE PARTY'S OWN-SWING READ" (2)): every swing
+        -- that lands is paid experience the client reads, and the first read at or
+        -- after the swing's tick shows the rise -- on that tick or the next whenever a
+        -- read was taken then.  Proved first as a scratch script:
+        -- build/seam_state/matthew-mbp-m4-raid-b1-seam32/scratch_xp_swing.lua, run
+        -- s32xpswing (PASS: casts at 8, 17, 25; Magic XP rises read at 10, 17, 25 --
+        -- the first cast's press held the script to tick 10).  The same run showed a
+        -- manual cast followed by the player's own melee five ticks later (seq 422 at
+        -- 13 and 21, a punch at the goblin): noted in DRIVER_NOTES, not asserted.
+        -- raid seam32 play_tob_nylocas_normal: a party member's own swing,
+        -- read off the screen (Magic experience paid on each cast).
+        seam("seam.raid_play_member_swing_xp", function()
+            local G = "goblin_unarmed_melee_1"
+            local goto_tile = verb("player", "goto_tile")
+            local cast = verb("player", "cast")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not cast then return missing("player", "cast") end
+            t.ticklog.start()
+            -- closer seam32: the log is shared with every earlier row and the
+            -- server's tick restarts within a conformance run, so this row's
+            -- casts are the rows after its own mark, never "tick >= now"
+            t.ticklog.mark("seam.raid_play_member_swing_xp")
+            local _, xp_marks = t.ticklog.rows({ kind = "mark" })
+            local xp_since = (xp_marks and #xp_marks > 0) and xp_marks[#xp_marks].serial or 0
+            setup_cheat("::setlevel magic 99")
+            setup_cheat("::give airrune 60")
+            setup_cheat("::give mindrune 60")
+            if goto_tile(3229, 3233, 0) ~= "ok" then return "no_subject", "goto the goblin field" end
+            setup_cheat("::spawn " .. G)
+            setup_cheat("::passive " .. G)
+            settle(3)
+            local function xp()
+                local _, m = t.skill.read("magic")
+                return type(m) == "table" and m.experience or -1
+            end
+            local _, start_tick = t.tick()
+            local rises, reads = {}, {}
+            local m0 = xp()
+            for _ = 1, 3 do
+                cast("wind_strike", G, 1, 2, { quick = true })
+                for _ = 1, 6 do
+                    settle(1)
+                    local m1 = xp()
+                    local _, now = t.tick()
+                    reads[#reads + 1] = now
+                    if m1 > m0 then rises[now] = true end
+                    m0 = m1
+                end
+            end
+            setup_cheat("::kill " .. G .. " 12")
+            settle(2)
+            local _, anims = t.ticklog.rows({ kind = "player_anim", since = xp_since })
+            -- Wind Strike's cast is seq 711 (s32xpswing's player_anim rows)
+            local casts = {}
+            for _, r in ipairs(anims or {}) do
+                if r.seq == 711 and r.tick >= start_tick then casts[#casts + 1] = r.tick end
+            end
+            local matched, prompt = 0, 0
+            for _, ct in ipairs(casts) do
+                local first = nil
+                for _, rd in ipairs(reads) do
+                    if first == nil and rd >= ct then first = rd end
+                end
+                if first ~= nil and rises[first] then
+                    matched = matched + 1
+                    if first <= ct + 1 then prompt = prompt + 1 end
+                end
+            end
+            if #casts < 2 or matched ~= #casts or prompt < #casts - 1 then
+                return "fail", "casts " .. table.concat(casts, ",") .. ": " .. matched .. " shown by the first Magic XP read at or after them, "
+                    .. prompt .. " on the tick or the next"
+            end
+            return "ok", #casts .. " Wind Strike casts (player_anim 711 at " .. table.concat(casts, ",") .. "): the first Magic XP read at or after "
+                .. "each showed the rise, " .. prompt .. " of them on the cast's tick or the next"
+        end)
+
+        -- raid seam33 play_tob_nylocas_normal_green: a powered staff charged by
+        -- its own op and swinging on by itself at its own speed.
+        seam("seam.raid_play_powered_staff_cadence", function()
+            local G = "goblin_unarmed_melee_1"
+            local goto_tile = verb("player", "goto_tile")
+            local inv_op = verb("player", "inv_op")
+            local equip = verb("player", "equip")
+            local attack = verb("player", "attack")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not inv_op then return missing("player", "inv_op") end
+            if not equip then return missing("player", "equip") end
+            if not attack then return missing("player", "attack") end
+            t.ticklog.start()
+            setup_cheat("::setlevel magic 99")
+            setup_cheat("::give eye_of_ayak_uncharged 1")
+            setup_cheat("::give demon_tear 200")
+            if goto_tile(3229, 3233, 0) ~= "ok" then return "no_subject", "goto the goblin field" end
+            local cr, cd = inv_op("eye_of_ayak_uncharged", 3)
+            settle(2)
+            local _, ayaks = t.inv.count("eye_of_ayak")
+            local _, tears = t.inv.count("demon_tear")
+            if cr ~= "ok" or ayaks ~= 1 or tears ~= 0 then
+                return "fail", "Charge " .. tostring(cr) .. " " .. string.sub(tostring(cd), 1, 80) .. "; eye_of_ayak " .. tostring(ayaks) .. ", demon tears left " .. tostring(tears)
+            end
+            local er = equip("eye_of_ayak")
+            settle(1)
+            if er ~= "ok" then return "fail", "equip eye_of_ayak " .. tostring(er) end
+            -- closer seam33: the staff's max hit is floor(Magic / 3) - 6
+            -- (gear/powered_staff.rs2 ~powered_staff_maxhit); at 99 it is 27
+            -- and a 5-hitpoint goblin died on the second swing (4 then 1), so
+            -- the cadence was never seen.  Magic 21 after the wield makes it 1:
+            -- the goblin outlives the window and every swing is the staff's own.
+            setup_cheat("::setlevel magic 21")
+            setup_cheat("::spawn " .. G)
+            setup_cheat("::passive " .. G)
+            settle(3)
+            -- the server's tick restarts within a conformance run (seam32
+            -- closer), so this row's swings are the rows after its own mark
+            t.ticklog.mark("seam.raid_play_powered_staff_cadence")
+            local _, staff_marks = t.ticklog.rows({ kind = "mark" })
+            local since = (staff_marks and #staff_marks > 0) and staff_marks[#staff_marks].serial or 0
+            local ar = attack(G, 2, 3, { quick = true })
+            settle(14)
+            local _, anims = t.ticklog.rows({ kind = "player_anim" })
+            local swings, gaps, three = {}, {}, 0
+            for _, r in ipairs(anims) do if r.seq == 12397 and r.serial > since then swings[#swings + 1] = r.tick end end
+            for i = 2, #swings do
+                gaps[#gaps + 1] = swings[i] - swings[i - 1]
+                if swings[i] - swings[i - 1] == 3 then three = three + 1 end
+            end
+            if #swings < 3 or three ~= #swings - 1 then
+                return "fail", "one press " .. tostring(ar) .. "; seq 12397 swings at " .. table.concat(swings, ",") .. " (gaps " .. table.concat(gaps, ",") .. ")"
+            end
+            return "ok", "Charge ok (eye_of_ayak 1, tears 0); one press " .. tostring(ar) .. ", seq 12397 swings at " .. table.concat(swings, ",")
+                .. " (gaps " .. table.concat(gaps, ",") .. "): a powered staff swings on by itself every 3 ticks"
+        end)
+
+        -- raid seam33 play_tob_sotetseg_normal: the trio plan's seats (W:791),
+        -- pure geometry: no two seats in 1-tick ricochet range.
+        seam("seam.raid_play_sotetseg_trio_seats", function()
+            local seat = verb("raid", "_play_sotetseg_seat")
+            local range = verb("raid", "_play_sotetseg_range")
+            if not seat then return missing("raid", "_play_sotetseg_seat") end
+            if not range then return missing("raid", "_play_sotetseg_range") end
+            -- his footprint in s33soa's tick log: south-west 6413,104, size 5
+            local b = { x = 6413, z = 104, size = 5 }
+            local cx, cz = b.x + 2, b.z + 2
+            local seats, parts = {}, {}
+            for role = 1, 3 do
+                local x, z = seat({ role = role }, b)
+                seats[role] = { x, z }
+                parts[#parts + 1] = "p" .. role .. " " .. x .. "," .. z
+                -- the scythe's reach: an edge of his footprint, never a corner
+                local dx = math.max(0, b.x - x, x - (b.x + 4))
+                local dz = math.max(0, b.z - z, z - (b.z + 4))
+                if range(b, x, z) ~= 1 or (dx > 0 and dz > 0) then
+                    return "fail", "role " .. role .. " seat " .. x .. "," .. z .. " is not on an edge of his footprint"
+                end
+                if math.max(math.abs(x - cx), math.abs(z - cz)) < 3 then
+                    return "fail", "role " .. role .. " seat " .. x .. "," .. z .. " is under 3 tiles from his centre (a 1-tick ball)"
+                end
+            end
+            for i = 1, 3 do
+                for j = i + 1, 3 do
+                    local d = math.max(math.abs(seats[i][1] - seats[j][1]), math.abs(seats[i][2] - seats[j][2]))
+                    if d < 3 then
+                        return "fail", "seats " .. i .. " and " .. j .. " are " .. d .. " apart (a ricochet under 2 ticks)"
+                    end
+                end
+            end
+            return "ok", "east, west, north-west (W:791): " .. table.concat(parts, "; ")
+                .. "; every seat on an edge, 3+ tiles from his centre and from each other"
+        end)
+
+        -- conformance.play_tob_entry_relay (raid seam35e).  TWO seam rows, no verb added.
+        -- PLACE: test/quests/_conformance.lua, right after
+        -- seam("seam.raid_play_sotetseg_trio_seats", ...) (it starts at line 12202 on 60bdce4b5),
+        -- before step("party.role", ...).  SEAM_COUNT +2 (187 -> 189, @seam-count).
+        -- Merged by the seam35e closer: SEAM_COUNT 187 -> 189, @seam-count likewise.
+        --
+        -- What they prove, on no boss: the two LIBRARY changes the whole-raid relay
+        -- (test/raids/_play_entry.lua) needed and no room test showed
+        -- (docs/minigames/raid_loop/PLAY_NOTES.md "The whole raid, Entry solo").  Proved first
+        -- as a scratch script: build/seam_state/matthew-mbp-m4-raid-b1-seam35e/scratch/conf_rows.lua,
+        -- run e35confrows (both PASS: "hp 30 under a threat of 50 gave tob_bandages/nil; hp 80 gave
+        -- nil/nil"; "newest player_anim serial 2; _play_state started anim_serial at 2").  Before the
+        -- fix the first gives nil/nil (the food table held no bandages) and the second 0.
+        --
+        -- (1) The Theatre's bandages are food to the play library (QD.RAID_PLAY_FOOD, last row,
+        -- heal 20: wiki_Theatre_of_Blood_Entry_Mode.wikitext:151; tob_spectate.rs2
+        -- [opheld1,tob_bandages]).  The pick is the first of anglerfish, shark, tob_bandages
+        -- the pack holds, so a pack an earlier row left fish in still grades.
+        seam("seam.raid_play_supplies_bandages", function()
+            local sup = verb("raid", "_play_supplies")
+            if not sup then return missing("raid", "_play_supplies") end
+            local count = verb("inv", "count")
+            if not count then return missing("inv", "count") end
+            setup_cheat("::give tob_bandages 1")
+            settle(3)
+            local want = "tob_bandages"
+            for _, fish in ipairs({ "shark", "anglerfish" }) do
+                local cr, n = count(fish)
+                if cr == "ok" and n > 0 then want = fish end
+            end
+            local function run(hp, need)
+                local st = { engaged = false, last_eat = -1000, last_drink = -1000, last_swing = -1000,
+                    engaged_tick = -1000, weapon = { speed = 4 }, swings = {} }
+                local v = { tick = 100, hp = hp, hp_base = 99, prayer = 99, prayer_base = 99 }
+                local eat, drink = sup(st, v, function() return need end)
+                return tostring(eat), tostring(drink)
+            end
+            local e1 = run(30, 50)
+            local e2 = run(80, 50)
+            if e1 ~= want or e2 ~= "nil" then
+                return "fail", "QD.raid._play_supplies: hp 30 under a threat of 50 ate " .. e1 .. " (want " .. want
+                    .. "), hp 80 ate " .. e2 .. " (want nil)"
+            end
+            return "ok", "QD.raid._play_supplies: hp 30 under a threat of 50 eats " .. e1 .. " (the first of anglerfish, shark, "
+                .. "tob_bandages held), hp 80 eats nothing"
+        end)
+
+        -- (2) A play's swings start at the play (QD.raid._play_state seeds st.anim_serial at the
+        -- newest player_anim row).  A room test's tick log starts at its room; the relay's starts
+        -- in the lobby, and the first _play_see used to count every earlier player_anim row whose
+        -- seq was the weapon row's as this play's swings (Verzik's plan read 60 scythe swings
+        -- from Bloat, Sotetseg and Xarpus as its P1 punches and swapped to the bow 15 ticks in).
+        seam("seam.raid_play_swings_start_at_play", function()
+            local state = verb("raid", "_play_state")
+            if not state then return missing("raid", "_play_state") end
+            local start = verb("ticklog", "start")
+            if not start then return missing("ticklog", "start") end
+            local rows_fn = verb("ticklog", "rows")
+            if not rows_fn then return missing("ticklog", "rows") end
+            local eat = verb("player", "eat")
+            if not eat then return missing("player", "eat") end
+            setup_cheat("::give tob_bandages 1")
+            settle(3)
+            local lr = start()
+            eat("tob_bandages")
+            settle(3)
+            local _, rows = rows_fn({ kind = "player_anim" })
+            local newest, seen = 0, false
+            for _, r in ipairs(rows or {}) do
+                newest = math.max(newest, r.serial)
+                if r.seq == 829 then seen = true end
+            end
+            local st = state({ boss = { entry = "man" } }, "conformance", "entry", {}, { speed = 4, seqs = { [829] = true } }, {})
+            if lr ~= "ok" or not seen or newest <= 0 or st.anim_serial ~= newest then
+                return "fail", "tick log " .. tostring(lr) .. ", seq 829 logged " .. tostring(seen) .. ", newest player_anim serial "
+                    .. newest .. ", _play_state anim_serial " .. tostring(st.anim_serial)
+            end
+            return "ok", "the eat (seq 829) is player_anim serial " .. newest .. " and _play_state starts anim_serial there: "
+                .. "it is not this play's swing"
+        end)
+
+        -- seam17 party_run_and_verbs: conformance rows for t.party.* (script/plugins/
+        -- quest_driver/raid.lua). PLACE: in _conformance.lua's PLAN directly AFTER
+        -- step("raid.leave", ...) (the raid stanza), in this order. VERB_COUNT +12.
+        -- The conformance run is ONE client, so every row below proves the verb on a
+        -- party of one (QD_PARTY absent): role/size/names/name/barrier/players/see
+        -- answer as a party of one; form + ready drive the real board and door solo
+        -- ("Members: 1"); apply / accept / follow_in prove their refusal shapes here
+        -- (no party listed, nobody applied, no party at the door). Their party
+        -- behaviour is proved by the three-client smoke test/raids/_party_smoke.lua
+        -- (rows p2:party.apply, party.accept.2/3, p2:party.follow_in), which the
+        -- closer runs: python3 tools/raid_gate/run.py _party_smoke --no-build --no-publish.
+        -- Merged by the seam17 closer: VERB_COUNT 165 -> 177, @verb-count likewise.
+        step("party.role", function()
+            local fn = verb("party", "role")
+            if not fn then return missing("party", "role") end
+            local role = fn()
+            if role ~= 1 then return "refused", "a solo run is raider 1, read " .. describe(role) end
+            return "ok", "role " .. role .. " (a party of one)"
+        end)
+        step("party.size", function()
+            local fn = verb("party", "size")
+            if not fn then return missing("party", "size") end
+            local size = fn()
+            if size ~= 1 then return "refused", "a solo run is a party of 1, read " .. describe(size) end
+            return "ok", "size " .. size
+        end)
+        step("party.names", function()
+            local fn = verb("party", "names")
+            if not fn then return missing("party", "names") end
+            local names = fn()
+            if type(names) ~= "table" or #names ~= 1 or type(names[1]) ~= "string" or names[1] == "" then
+                return "refused", "a solo run names itself once, read " .. describe(names)
+            end
+            return "ok", "names {" .. names[1] .. "}"
+        end)
+        step("party.name", function()
+            local fn = verb("party", "name")
+            if not fn then return missing("party", "name") end
+            local mine, first = fn(), fn(1)
+            if mine == nil or mine ~= first then
+                return "refused", "name() " .. describe(mine) .. " vs name(1) " .. describe(first)
+            end
+            return "ok", "name() = name(1) = " .. mine
+        end)
+        step("party.barrier", function()
+            local fn = verb("party", "barrier")
+            if not fn then return missing("party", "barrier") end
+            return fn("conformance", 5)
+        end)
+        -- seam21 party_determinism_gate (raid). NO verb added: one SEAM row,
+        -- SEAM_COUNT / @seam-count +1. t.party.barrier's wait is COUNTED IN FRAMES:
+        -- a party of one answers "waited 0 frame(s) (0 tick(s))", and the counter it
+        -- waits with (t.party._await_counted, raid.lua) reads exactly 60 frames for a
+        -- two-tick deadline at k = 1 (one evaluation when armed, then one per frame
+        -- held; a tick is 30 frames). The party behaviour (the same frames in every
+        -- run) is proved by tools/raid_gate/party_repeat.py _party_smoke --runs 3 --load.
+        seam("seam.party_barrier_frame_counted", function()
+            local barrier = verb("party", "barrier")
+            if not barrier then return missing("party", "barrier") end
+            if type(t.party._await_counted) ~= "function" then
+                return missing("party", "_await_counted")
+            end
+            if t.party.size() ~= 1 then
+                return "refused", "the conformance harness is not a party of one: size " .. describe(t.party.size())
+            end
+            local br, bd = barrier("conformance_frames", 5)
+            if br ~= "ok" or not string.find(tostring(bd), "p1 waited 0 frame(s) (0 tick(s))", 1, true) then
+                return "refused", "a party of one waits 0 frames; read " .. describe(br) .. " " .. describe(bd)
+            end
+            -- Let any shot of the row before land first: a frame the content-test
+            -- clock holds for a capture runs no cycle.
+            settle(1)
+            local cr, frames, ticks = t.party._await_counted(function() return false end, 2,
+                "conformance: two ticks counted in frames")
+            if cr ~= "timeout" or frames ~= 60 or ticks ~= 2 then
+                return "refused", string.format("a two-tick deadline at k=1 should time out after 60 frames "
+                    .. "(2 ticks); read %s after %s frame(s) (%s tick(s))", describe(cr), describe(frames), describe(ticks))
+            end
+            return "ok", describe(bd) .. "; a two-tick deadline timed out after " .. frames
+                .. " frame(s) (" .. ticks .. " tick(s)): 30 frames a tick at k=1"
+        end)
+        -- seam22 party_death_and_member_readers: t.party.allow_death(reason).
+        -- A member's death is a row, not the end of its run; this verb makes
+        -- that row PASS. On the leader (a party of one IS the leader) it is
+        -- refused, naming why: the leader's death ends the world.
+        step("party.allow_death", function()
+            local fn = verb("party", "allow_death")
+            if not fn then return missing("party", "allow_death") end
+            if t.party.role() ~= 1 then
+                return "refused", "the conformance harness is not the leader: role " .. describe(t.party.role())
+            end
+            local result, detail = fn("conformance: the leader may not allow its own death")
+            if result ~= "refused" or not string.find(tostring(detail), "ends the world", 1, true) then
+                return "hollow", "the leader's allow_death should be refused naming 'ends the world'; read "
+                    .. describe(result) .. " " .. describe(detail)
+            end
+            return "ok", "refused on the leader, as it must be: " .. describe(detail)
+        end)
+        -- seam22: the member readers on a party of one are what they were.
+        -- t.tick() still reads srv->tick (the member fallback,
+        -- api_drive.session().lockstep_tick, is nil outside a party), and
+        -- the leader's death rule is still the quest's (raid.lua delegates
+        -- QD.player._death_fence to combat.lua's on role 1).
+        seam("seam.party_member_readers_solo", function()
+            local tick = verb("tick")
+            if not tick then return missing("tick") end
+            if t.party.size() ~= 1 or t.party.role() ~= 1 then
+                return "refused", "the conformance harness is not a party of one"
+            end
+            if type(t.player._death_fence_solo) ~= "function" then
+                return missing("player", "_death_fence_solo")
+            end
+            local r1, before = tick()
+            settle(2)
+            local r2, after = tick()
+            if r1 ~= "ok" or r2 ~= "ok" or math.type(before) ~= "integer" or math.type(after) ~= "integer"
+                or after <= before then
+                return "hollow", "t.tick on a party of one: " .. describe(r1) .. " " .. describe(before)
+                    .. " -> " .. describe(r2) .. " " .. describe(after)
+            end
+            if t.party._death_written ~= false or t.party._death_allowed ~= nil then
+                return "hollow", "a solo run carries member death state: written " .. describe(t.party._death_written)
+                    .. " allowed " .. describe(t.party._death_allowed)
+            end
+            return "ok", "party of one: t.tick() " .. before .. " -> " .. after
+                .. " over t.ticks(2) (srv->tick; no lockstep fallback); no member death state"
+        end)
+        step("party.players", function()
+            local fn = verb("party", "players")
+            if not fn then return missing("party", "players") end
+            settle(3)
+            local result, detail, rows = fn(15)
+            if result ~= "ok" then return result, describe(detail) end
+            if type(rows) ~= "table" then return "refused", "no row list: " .. describe(rows) end
+            if not string.find(tostring(detail), " at ", 1, true) then
+                return "refused", "the local player is not in its own pool: " .. describe(detail)
+            end
+            return "ok", describe(detail) .. " (" .. #rows .. " other player(s) within 15)"
+        end)
+        step("party.see", function()
+            local fn = verb("party", "see")
+            if not fn then return missing("party", "see") end
+            -- A party of one has nobody else to see: ok at once.
+            return fn(nil, 15, 3)
+        end)
+        step("party.apply", function()
+            local goto_tile = verb("player", "goto_tile")
+            local fn = verb("party", "apply")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not fn then return missing("party", "apply") end
+            local gr, gd = goto_tile(3662, 3216, 0)
+            if gr ~= "ok" then return gr, "goto the board: " .. describe(gd) end
+            -- Nobody else is in this world: the list holds no party to apply to.
+            local result, detail = fn("nobody_here", 6)
+            if verb("key") then t.key("escape") end
+            settle(2)
+            if result ~= "not_found" or not string.find(tostring(detail), "no party named", 1, true) then
+                return "refused", "expected not_found 'no party named', got " .. describe(result) .. " " .. describe(detail)
+            end
+            return "ok", "solo refusal: " .. describe(detail)
+        end)
+        step("party.follow_in", function()
+            local fn = verb("party", "follow_in")
+            if not fn then return missing("party", "follow_in") end
+            -- No party: the door refuses (tob_party.rs2 [oploc1,tob_surface_raid_entrance]).
+            local result, detail = fn()
+            if result == "ok" or not string.find(tostring(detail), "You need to be in a party", 1, true) then
+                return "refused", "expected the door's party refusal, got " .. describe(result) .. " " .. describe(detail)
+            end
+            return "ok", "solo refusal: " .. describe(detail)
+        end)
+        step("party.form", function()
+            local fn = verb("party", "form")
+            if not fn then return missing("party", "form") end
+            return fn("entry")
+        end)
+        step("party.accept", function()
+            local fn = verb("party", "accept")
+            if not fn then return missing("party", "accept") end
+            -- The panel party.form left open; nobody applies in a solo world.
+            local result, detail = fn("nobody_here", 4)
+            if result ~= "not_found" or not string.find(tostring(detail), "never applied", 1, true) then
+                return "refused", "expected not_found 'never applied', got " .. describe(result) .. " " .. describe(detail)
+            end
+            if verb("key") then t.key("escape") end
+            settle(2)
+            return "ok", "solo refusal: " .. describe(detail)
+        end)
+        step("party.ready", function()
+            local fn = verb("party", "ready")
+            if not fn then return missing("party", "ready") end
+            local result, detail = fn()
+            -- Out again and the party disbanded, so later rows find the lobby as it was.
+            setup_cheat("::tobout")
+            settle(3)
+            local click_loc = verb("player", "click_loc")
+            if click_loc and click_loc("tob_surface_notice_board", 1) == "ok" then
+                settle(2)
+                local wr, wid = t.ui.widget("tob_partylist:myparty")
+                if wr == "ok" then t.ui.invoke(wid, 1) settle(3) end
+                local ar, aid = t.ui.widget("tob_partydetails:action")
+                if ar == "ok" then t.ui.invoke(aid, 1) settle(2) end
+                if verb("key") then t.key("escape") end
+                settle(2)
+            end
+            if result ~= "ok" then return result, describe(detail) end
+            if not string.find(tostring(detail), "Members: 1. Mode: Entry.", 1, true) then
+                return "refused", "the ready check did not read 'Members: 1. Mode: Entry.': " .. describe(detail)
+            end
+            return "ok", describe(detail)
+        end)
+
+        -- raid seam37 client_launch_channel: SEVEN NEW VERBS (VERB_COUNT +7, @verb-count +7;
+        -- tools/quest_gate/verb_list.py gains launch.open, launch.spawn, launch.command,
+        -- launch.status, launch.close, launch.host, launch.party). No seam row.
+        -- PLACE: in the party stanza, right AFTER step("party.allow_death", ...) and its
+        -- seam22 member-reader rows, i.e. after the last party.* row and before the next
+        -- stanza; in this order. The conformance run is ONE client (a test run, frame
+        -- clock, its own world), so these rows prove each verb's round trip through the
+        -- embedded IO server's launch service (src/platform/launch_sessions.h, answered in
+        -- this process: platform_x_io.c answer_launch_item) WITHOUT starting a client:
+        -- open/status/close for real, spawn and command by their refusal shapes (an account
+        -- with a space; a seat never spawned), host by its size refusal (a size-2 host would
+        -- attach and hold every boundary for a member). Their party behaviour -- two members
+        -- spawned headless by the leader's own IO server, AUTOPLAY, the mailbox and status
+        -- over the party link, the leader SIGKILLed -> members gone -- is the seam37 proof
+        -- (build/seam_state/matthew-mbp-m4-raid-b1-seam37/fix.client_launch_channel.json).
+        step("launch.open", function()
+            local fn = verb("launch", "open")
+            if not fn then return missing("launch", "open") end
+            local result, opened = fn({ size = 2, port = 0 })
+            if result ~= "ok" or type(opened) ~= "table" or type(opened.session) ~= "string"
+                or math.type(opened.port) ~= "integer" or opened.port <= 0 then
+                return "refused", "open{size=2, port=0} should answer ok {session, port}; read "
+                    .. describe(result) .. " " .. describe(opened)
+            end
+            return "ok", "session " .. opened.session .. " on port " .. opened.port .. " (a free loopback port)"
+        end)
+        step("launch.status", function()
+            local fn = verb("launch", "status")
+            if not fn then return missing("launch", "status") end
+            local result, status = fn()
+            if result ~= "ok" or type(status) ~= "table" or type(status.session) ~= "table"
+                or status.session.state ~= "open" or type(status.seats[2]) ~= "table"
+                or status.seats[2].pid ~= 0 or status.seats[2].alive ~= 0 then
+                return "refused", "status should read the open session and seat 2 never spawned; read "
+                    .. describe(result) .. " " .. describe(status)
+            end
+            return "ok", "session state=" .. status.session.state .. " size=" .. tostring(status.session.size)
+                .. "; seat 2 pid=0 alive=0 status=" .. tostring(status.seats[2].status_text)
+        end)
+        step("launch.spawn", function()
+            local fn = verb("launch", "spawn")
+            if not fn then return missing("launch", "spawn") end
+            local result, detail = fn({ { seat = 2, account = "has a space", password = "test" } })
+            if result ~= "refused" or not string.find(tostring(detail), "needs account=", 1, true) then
+                return "hollow", "a seat whose account has a space must be refused before any spawn; read "
+                    .. describe(result) .. " " .. describe(detail)
+            end
+            return "ok", "refused before spawning, as it must be: " .. describe(detail)
+        end)
+        step("launch.command", function()
+            local fn = verb("launch", "command")
+            if not fn then return missing("launch", "command") end
+            local result, detail = fn(2, "stop")
+            if result ~= "refused" or not string.find(tostring(detail), "never been spawned", 1, true) then
+                return "hollow", "a command to a seat never spawned must be refused; read "
+                    .. describe(result) .. " " .. describe(detail)
+            end
+            return "ok", "refused, as it must be: " .. describe(detail)
+        end)
+        step("launch.host", function()
+            local fn = verb("launch", "host")
+            if not fn then return missing("launch", "host") end
+            local result, detail = fn(1, 1)
+            if result ~= "refused" or not string.find(tostring(detail), "size 2..4", 1, true) then
+                return "hollow", "a party of one is not hosted; read " .. describe(result) .. " " .. describe(detail)
+            end
+            return "ok", "refused, as it must be: " .. describe(detail)
+        end)
+        step("launch.party", function()
+            local fn = verb("launch", "party")
+            if not fn then return missing("launch", "party") end
+            local result, party = fn()
+            if result ~= "ok" or type(party) ~= "table" or party.role ~= 1 or party.size ~= 1
+                or party.launched ~= false or party.frame_locked ~= true then
+                return "refused", "a solo test run is role 1 of 1, not launched, frame-locked; read "
+                    .. describe(result) .. " " .. describe(party)
+            end
+            return "ok", "role 1 of 1, launched=false, frame_locked=true, mail_answers=" .. tostring(party.mail_answers)
+        end)
+        step("launch.close", function()
+            local fn = verb("launch", "close")
+            if not fn then return missing("launch", "close") end
+            local result, state = fn()
+            if result ~= "ok" or state ~= "closed" then
+                return "refused", "close with no live seat closes at once; read " .. describe(result) .. " " .. describe(state)
+            end
+            return "ok", "state " .. state .. " (no live seat: no grace)"
+        end)
+
+        -- raid seam37 scripts_tab_party_play: ONE SEAM ROW (SEAM_COUNT +1, @seam-count +1), no new verb
+        -- (VERB_COUNT unchanged). The Scripts tab is a plugin, not a driver verb; what it needs from
+        -- the driver is two CHANGED readings, which only exist once the cross-seam hook patch
+        -- build/seam_state/matthew-mbp-m4-raid-b1-seam37/scripts_tab_party_play.hook.patch is applied
+        -- (torirs_plugin_drive.c, raid.lua, plugin_api.meta.lua):
+        --   * api.drive.party() / t.launch.party() gains launch_session and launch_token: the session
+        --     this client's driver last opened ("" until one is open, "" again once its close lands),
+        --     so another plugin of the same client (the tab's PARTY block) can read launch/status and
+        --     send Stop all / close for the party a Play brought up;
+        --   * api.drive.play's party table takes windowed = {[seat] = true} (the tab's Windowed tick),
+        --     handed to QD.launch._party_up as options.party.windowed: that seat spawns with headless=0.
+        --     A conformance run cannot spawn a window; the Windowed path is proved by the tab run
+        --     (seam37 tab/runB: p2 'view attached', p3 'presents nothing').
+        -- PLACE: right AFTER step("launch.close", ...) of client_launch_channel's rows (it opens and
+        -- closes a session of its own, so the rows before it are untouched).
+        seam("seam.launch_own_session", function()
+            local open_fn, party_fn, close_fn = verb("launch", "open"), verb("launch", "party"), verb("launch", "close")
+            if not (open_fn and party_fn and close_fn) then return missing("launch", "open/party/close") end
+            local opened_result, opened = open_fn({ size = 2, port = 0 })
+            if opened_result ~= "ok" or type(opened) ~= "table" then
+                return "refused", "open{size=2} should answer ok; read " .. describe(opened_result) .. " " .. describe(opened)
+            end
+            local _, while_open = party_fn()
+            local seen_session = type(while_open) == "table" and while_open.launch_session or nil
+            local seen_token = type(while_open) == "table" and while_open.launch_token or nil
+            local closed_result, state = close_fn()
+            local _, after_close = party_fn()
+            local after_session = type(after_close) == "table" and after_close.launch_session or nil
+            if seen_session ~= opened.session or type(seen_token) ~= "string" or #seen_token < 16 then
+                return "refused", "while open, drive.party().launch_session should be " .. tostring(opened.session)
+                    .. " with its token; read session=" .. tostring(seen_session) .. " token length "
+                    .. tostring(seen_token and #seen_token)
+            end
+            if closed_result ~= "ok" or after_session ~= "" then
+                return "refused", "after the close lands, launch_session should be \"\"; read close "
+                    .. describe(closed_result) .. " " .. describe(state) .. ", session=" .. describe(after_session)
+            end
+            return "ok", "drive.party() named session " .. seen_session .. " (token " .. #seen_token
+                .. " chars) while open, and \"\" once its close (" .. tostring(state) .. ") landed"
+        end)
+
+        -- PROTECTION PRAYERS BLOCK A WAVE NYLOCAS'S HIT (raid seam6
+        -- tob_nylocas_prayer_and_damage).  Content only, no verb changed:
+        -- tob_damage.rs2 ~tob_nylo_prayed_against / ~tob_nylo_wave_damage,
+        -- tob_nylocas.rs2 ~tob_nylo_swing, tob_nylocas_boss.rs2
+        -- ~tob_vasilias_hit.  Pinned through verbs that already have rows
+        -- (raid.enter, raid.start_tile, player.walk_to, player.click_loc,
+        -- chat.play, prayer.set, ticklog.start/rows).  It enters and STARTS a
+        -- ToB room, so it runs here, after the raid.* step rows and last of
+        -- the rows that touch the world; its teardown is ::tobout.  Graded:
+        -- three melee nylocas hits after Protect from Melee is in force, all
+        -- 0, and at least one ranged/magic hit landed as the control.
+        -- Fixer proof: s6np_conf_row PASS on the seam's content, s6np_conf_row_head
+        -- FAIL (m5,m5,m4) on the committed content.
+        seam("seam.nylocas_protect_blocks_wave_hit", function()
+            local enter = verb("raid", "enter")
+            local start_tile = verb("raid", "start_tile")
+            local walk_to = verb("player", "walk_to")
+            local click_loc = verb("player", "click_loc")
+            local play = verb("chat", "play")
+            local pray = verb("prayer", "set")
+            local log_start = verb("ticklog", "start")
+            local log_rows = verb("ticklog", "rows")
+            local now_tick = verb("tick")
+            if not enter then return missing("raid", "enter") end
+            if not start_tile then return missing("raid", "start_tile") end
+            if not walk_to then return missing("player", "walk_to") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not play then return missing("chat", "play") end
+            if not pray then return missing("prayer", "set") end
+            if not log_start then return missing("ticklog", "start") end
+            if not log_rows then return missing("ticklog", "rows") end
+            if not now_tick then return missing("tick") end
+            -- Entry wave nylocas types (cache_npc_nylocas / all.npc.compack):
+            -- 10774..10785, style = (type - 10774) % 3 (0 melee, 1 ranged, 2 magic).
+            local function teardown(prayed)
+                if prayed then pray("protectfrommelee", false) end
+                setup_cheat("::tobout")
+            end
+            setup_cheat("::setlevel prayer 99")
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::setlevel defence 99")
+            local entered, entered_detail = enter("tob", "nylocas", { mode = "entry" })
+            if entered ~= "ok" then return entered, "tob nylocas entry -> " .. describe(entered_detail) end
+            log_start()
+            local tile_result, fight = start_tile()
+            if tile_result ~= "ok" or not is_table(fight) then teardown(false) return tile_result, describe(fight) end
+            walk_to(fight.x + 1, fight.z, 20)
+            local clicked, click_detail = click_loc("tob_arena_barrier", 1)
+            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            if clicked ~= "ok" or played ~= "ok" then
+                teardown(false)
+                return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
+            end
+            local prayed, pray_detail = pray("protectfrommelee", true)
+            if prayed ~= "ok" then teardown(false) return prayed, "Protect from Melee -> " .. describe(pray_detail) end
+            local _, in_force = now_tick()
+            in_force = in_force + 2
+            -- The idle player is swung at by the room's aggro forms from the first waves on
+            -- (s6np_waves_after6: 27 melee swings into Protect from Melee in 40 ticks of window).
+            -- Wait for three melee hits and one thrown (ranged/magic) hit after the prayer is in force.
+            local melee, thrown, landed_melee, landed_thrown = 0, 0, 0, 0
+            local samples = {}
+            for _ = 1, 200 do
+                settle(1)
+                melee, thrown, landed_melee, landed_thrown = 0, 0, 0, 0
+                samples = {}
+                local _, hits = log_rows({ kind = "hit_player" })
+                for _, h in ipairs(hits or {}) do
+                    if h.tick > in_force and h.npc_type ~= nil and h.npc_type >= 10774 and h.npc_type <= 10785 then
+                        if (h.npc_type - 10774) % 3 == 0 then
+                            melee = melee + 1
+                            if h.damage > 0 then landed_melee = landed_melee + 1 end
+                            samples[#samples + 1] = "m" .. h.damage
+                        else
+                            thrown = thrown + 1
+                            if h.damage > 0 then landed_thrown = landed_thrown + 1 end
+                        end
+                    end
+                end
+                if melee >= 3 and landed_thrown >= 1 then break end
+            end
+            teardown(true)
+            local reading = "melee nylocas hits under Protect from Melee " .. melee .. " (" .. landed_melee .. " landed: "
+                .. table.concat(samples, ",") .. "), thrown hits " .. thrown .. " (" .. landed_thrown .. " landed, the control)"
+            if melee < 3 or landed_thrown < 1 then return "timeout", reading end
+            -- Explosions are not prayable but come from a detonating slot; an idle player
+            -- beside one can take one as a melee-type hit. Allow none here: the row's window
+            -- is the first waves, before the first natural detonation at spawn+52.
+            if landed_melee > 0 then return "refused", reading .. " -- a melee nylocas hit through Protect from Melee (tob_nylocas.rs2 ~tob_nylo_swing)" end
+            return "ok", reading
+        end)
+
+        -- seam14 tob_nylocas_entry_damage_taken: two SEAM rows, no verb added or changed
+        -- (the Nylocas wave swing and Vasilias' swing are accuracy-rolled; an Entry frozen
+        -- chewer does not bite).  Teardown ::tobout.  SEAM_COUNT +2, @seam-count +2.
+        -- The 'before' is measured, not mutated: before the seam every unprayed swing
+        -- landed 1..max (s14ny_pre1..3); the Normal control (s14ny_freeze_probe_normal)
+        -- keeps biting every 3 ticks through the same freeze.
+
+        -- A WAVE NYLOCAS'S SWING IS ROLLED (raid seam14 tob_nylocas_entry_damage_taken).
+        -- Content only: tob_nylocas.rs2 ~tob_nylo_swing / ~tob_nylo_hit_roll (the npc's attack
+        -- roll against the player's defence roll, then 0..max; LostCity npc_combat_melee.rs2
+        -- ~npc_meleeattack), tob_nylocas_boss.rs2 ~tob_vasilias_damage. Graded: no prayer on,
+        -- at least ten swings from the fighting (aggro) forms 10780..10785 that follow one of
+        -- their attack animations (7989/7999/8004) within 6 ticks, at least one at 0 and at
+        -- least one above 0. Before the seam every such swing was 1..max (0 zeros).
+        seam("seam.nylocas_swing_rolls_accuracy", function()
+            local enter = verb("raid", "enter")
+            local start_tile = verb("raid", "start_tile")
+            local walk_to = verb("player", "walk_to")
+            local click_loc = verb("player", "click_loc")
+            local play = verb("chat", "play")
+            local log_start = verb("ticklog", "start")
+            local log_rows = verb("ticklog", "rows")
+            if not enter then return missing("raid", "enter") end
+            if not start_tile then return missing("raid", "start_tile") end
+            if not walk_to then return missing("player", "walk_to") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not play then return missing("chat", "play") end
+            if not log_start then return missing("ticklog", "start") end
+            if not log_rows then return missing("ticklog", "rows") end
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::setlevel defence 99")
+            local entered, entered_detail = enter("tob", "nylocas", { mode = "entry" })
+            if entered ~= "ok" then return entered, "tob nylocas entry -> " .. describe(entered_detail) end
+            log_start()
+            local tile_result, fight = start_tile()
+            if tile_result ~= "ok" or not is_table(fight) then setup_cheat("::tobout") return tile_result, describe(fight) end
+            walk_to(fight.x + 1, fight.z, 20)
+            local clicked, click_detail = click_loc("tob_arena_barrier", 1)
+            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            if clicked ~= "ok" or played ~= "ok" then
+                setup_cheat("::tobout")
+                return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
+            end
+            local swings, zeros, landed, top = 0, 0, 0, 0
+            for _ = 1, 40 do
+                settle(5)
+                swings, zeros, landed, top = 0, 0, 0, 0
+                local attacks = {}
+                local _, anims = log_rows({ kind = "npc_anim" })
+                for _, a in ipairs(anims or {}) do
+                    if a.seq == 7989 or a.seq == 7999 or a.seq == 8004 then
+                        attacks[a.slot] = attacks[a.slot] or {}
+                        local list = attacks[a.slot]
+                        list[#list + 1] = a.tick
+                    end
+                end
+                local _, hits = log_rows({ kind = "hit_player" })
+                for _, h in ipairs(hits or {}) do
+                    local at = nil
+                    for _, tick in ipairs(attacks[h.npc_slot] or {}) do
+                        if tick <= h.tick and (at == nil or tick > at) then at = tick end
+                    end
+                    if h.npc_type ~= nil and h.npc_type >= 10780 and h.npc_type <= 10785 and at ~= nil and h.tick - at <= 6 then
+                        swings = swings + 1
+                        if h.damage == 0 then zeros = zeros + 1 else landed = landed + 1 end
+                        if h.damage > top then top = h.damage end
+                    end
+                end
+                if swings >= 10 and zeros >= 1 and landed >= 1 then break end
+            end
+            setup_cheat("::tobout")
+            local detail = swings .. " unprayed aggro swings: " .. zeros .. " at 0, " .. landed .. " landed (max " .. top .. ")"
+            if swings >= 10 and zeros >= 1 and landed >= 1 then return "ok", detail end
+            return "refused", detail .. " (want >= 10 swings, >= 1 at 0 and >= 1 landed)"
+        end)
+
+        -- A FROZEN ENTRY NYLOCAS DOES NOT BITE ITS SUPPORT (raid seam14). Content only:
+        -- tob_nylocas.rs2 ~tob_nylo_pillar_tick reads npc_frozen in Entry Mode (Entry Mode page
+        -- :166 "Frozen nylocas cannot attack the pillars until unfrozen, even if they are in melee
+        -- range"). Graded: Ice Burst on a chewing grey or green nylocas (wrong style: nulled, so it
+        -- lives on frozen), at least one bite animation in the 9 ticks up to the hit, none in the
+        -- 15 after it (Ice Burst freezes 16). Before the seam it bit on through the freeze every
+        -- 3 ticks (the Normal control s14ny_freeze_probe_normal still does: +2,+5,+8,+11,+14).
+        seam("seam.nylocas_frozen_no_bite_entry", function()
+            local enter = verb("raid", "enter")
+            local start_tile = verb("raid", "start_tile")
+            local walk_to = verb("player", "walk_to")
+            local click_loc = verb("player", "click_loc")
+            local play = verb("chat", "play")
+            local log_start = verb("ticklog", "start")
+            local log_rows = verb("ticklog", "rows")
+            local log_slot = verb("ticklog", "slot")
+            local tiles = verb("npc", "tiles")
+            local cast = verb("player", "cast")
+            local now_tick = verb("tick")
+            if not enter then return missing("raid", "enter") end
+            if not start_tile then return missing("raid", "start_tile") end
+            if not walk_to then return missing("player", "walk_to") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not play then return missing("chat", "play") end
+            if not log_start then return missing("ticklog", "start") end
+            if not log_rows then return missing("ticklog", "rows") end
+            if not log_slot then return missing("ticklog", "slot") end
+            if not tiles then return missing("npc", "tiles") end
+            if not cast then return missing("player", "cast") end
+            if not now_tick then return missing("tick") end
+            setup_cheat("::setlevel magic 99")
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::setvar varb4070_spellbook 1")
+            setup_cheat("::give water_rune 200")
+            setup_cheat("::give chaos_rune 100")
+            setup_cheat("::give death_rune 100")
+            local entered, entered_detail = enter("tob", "nylocas", { mode = "entry" })
+            if entered ~= "ok" then setup_cheat("::setvar varb4070_spellbook 0") return entered, "tob nylocas entry -> " .. describe(entered_detail) end
+            log_start()
+            local function teardown()
+                setup_cheat("::tobout")
+                setup_cheat("::setvar varb4070_spellbook 0")
+            end
+            local tile_result, fight = start_tile()
+            if tile_result ~= "ok" or not is_table(fight) then teardown() return tile_result, describe(fight) end
+            walk_to(fight.x + 1, fight.z, 20)
+            local clicked, click_detail = click_loc("tob_arena_barrier", 1)
+            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            if clicked ~= "ok" or played ~= "ok" then
+                teardown()
+                return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
+            end
+            local tried = {}
+            for _ = 1, 200 do
+                local _, now = now_tick()
+                local pick = nil
+                for _, style in ipairs({ "melee", "ranged" }) do
+                    local sym = "tob_nylocas_incoming_" .. style .. "_story"
+                    local nr, _, rows = tiles(sym, 20)
+                    if nr == "ok" and pick == nil then
+                        for _, row in ipairs(rows) do
+                            local _, ws = log_slot(row)
+                            if ws ~= nil and not tried[ws] and pick == nil then
+                                local _, anims = log_rows({ kind = "npc_anim", slot = ws })
+                                local bites = 0
+                                for _, a in ipairs(anims or {}) do
+                                    if (a.seq == 7999 or a.seq == 8004) and a.tick >= now - 7 then bites = bites + 1 end
+                                end
+                                if bites >= 2 then pick = { row = row, sym = sym, ws = ws } end
+                            end
+                        end
+                    end
+                end
+                if pick ~= nil then
+                    tried[pick.ws] = true
+                    local cast_result = cast("ice_burst", pick.sym, 2, 2, { slot = pick.row.slot })
+                    settle(16)
+                    local _, hits = log_rows({ kind = "hit_npc", slot = pick.ws })
+                    local hit_at = nil
+                    for _, h in ipairs(hits or {}) do if hit_at == nil and h.tick >= now then hit_at = h.tick end end
+                    if hit_at ~= nil then
+                        local before, after, died = 0, 0, nil
+                        local _, anims = log_rows({ kind = "npc_anim", slot = pick.ws })
+                        for _, a in ipairs(anims or {}) do
+                            if a.seq == 7999 or a.seq == 8004 then
+                                if a.tick >= hit_at - 9 and a.tick <= hit_at then before = before + 1 end
+                                if a.tick > hit_at and a.tick <= hit_at + 15 then after = after + 1 end
+                            elseif a.tick > hit_at and a.tick <= hit_at + 15 and died == nil then
+                                died = a.tick - hit_at
+                            end
+                        end
+                        -- a chewer that detonated before +6 says nothing about the freeze: try another
+                        if died == nil or died >= 6 then
+                            teardown()
+                            local detail = pick.sym .. " slot " .. pick.ws .. " Ice Burst (" .. tostring(cast_result) .. ") hit at t" .. hit_at
+                                .. ": bites in the 9 ticks up to it " .. before .. ", in the 15 after " .. after
+                                .. (died ~= nil and (" (detonated +" .. died .. ")") or "")
+                            if before >= 1 and after == 0 then return "ok", detail end
+                            return "refused", detail .. " (want >= 1 before and 0 after)"
+                        end
+                    end
+                else
+                    settle(1)
+                end
+            end
+            teardown()
+            return "timeout", "no chewing grey or green nylocas was frozen in 200 polls"
+        end)
+
+-- seam8 tob_rewards_and_completion: CONTENT seam, no driver verb added or changed.
+-- Nothing to merge into test/quests/_conformance.lua's PLAN; SEAM_COUNT unchanged.
+-- The proof is three content scratches in build/seam_state/matthew-mbp-m4-raid-b1-seam8/:
+--   scratch_s8rw_entry.lua   s8rw_entry_b 31/31, s8rw_entry_c 31/31 (Entry: chest at 20 percent,
+--                            no completion, SM Adept 397)
+--   scratch_s8rw_normal.lua  s8rw_normal_b 30/30, s8rw_normal_c 32/32 (team roll latched once,
+--                            completion 0 -> 1, chest at 100 percent, dry allocation = the raider)
+--   scratch_s8rw_hard.lua    s8rw_hard_a 33/33 (130 percent inside the solo target, 381, a Holy
+--                            ornament kit drawn by the run-name seed)
+--   BEFORE: build/quest_gate/spec_raidwide_vault row 21 s8rw-equivalent s7v.chest_contents
+--     "tobvault items=[ 0:565x186 1:995x130110]" -- an Entry chest paying the whole 4-row table.
+-- New debug affordance (a cheat, not a verb), tob_rewards.rs2:
+--   ::tobrewards   READ-ONLY: the unique chance and weights per mode, the 29-row common table with
+--                  each row's Entry range, the mode shares, the Hard targets, the tertiary rates,
+--                  the task thresholds, the player's completions and Theatre task states; in a raid
+--                  the latch (0 none / 1 miss / 2 hit), the allocated uid, overall/challenge time,
+--                  the share, a dry allocation draw; the chest contents against their rows.
+-- A raid test can read its ending with existing verbs:
+--   t.cheat("::tobrewards") then t.msg.last(..) lines "tobrewards raid ...", "tobrewards chest ...";
+--   t.var.server("varp6826_tob_completions").
+--
+-- Seam row (merged by the seam8 closer) (cheap: no raid, ~4 s). Place in _conformance.lua's PLAN after
+-- the last seam6/seam7 Theatre row (seam.nylocas_protect_blocks_wave_hit) if the closer wants the
+-- reward table pinned by the conformance suite; it reads only ::tobrewards and ::tobrun.
+        seam("seam.tob_reward_table", function()
+            local last = verb("msg", "last")
+            local ticks = verb("ticks")
+            if not last then return missing("msg", "last") end
+            if not ticks then return missing("ticks") end
+            local _, before = last(1)
+            local s0 = (is_table(before) and before[1] and before[1].serial) or 0
+            setup_cheat("::tobrewards")
+            ticks(2)
+            local _, ms = last(40)
+            local got = {}
+            if not is_table(ms) then return "refused", "msg.last answered no lines" end
+            for _, m in ipairs(ms) do
+                if m.serial > s0 then got[#got + 1] = tostring(m.text) end
+            end
+            local all = table.concat(got, " | ")
+            local want = {
+                "normal=10/91 hard=10/77 entry=none team=1",           -- wiki Monumental chest:70/:72
+                "normal=8,2,2,2,2,2,1/19 hard=7,2,2,2,2,2,1/18",        -- :80-99
+                "rolls=3 slots=30 rows=29",                              -- :65, :106-134
+                "entry=20 normal=100 hard=115 hard_in_time=130",         -- :103; Jagex newspost:87
+                "1..5=7000,3500,3000,2700,2500",                         -- Hard Mode:379-394
+                "duo=2600 trio=2000,1750 4s=1700,1500 5s=1600,1425 sm=1700 hm=2300,2100,1900",
+            }
+            local absent = {}
+            for _, w in ipairs(want) do
+                if string.find(all, w, 1, true) == nil then absent[#absent + 1] = w end
+            end
+            return (#absent == 0) and "ok" or "refused",
+                (#absent == 0) and (#got .. " readout lines, all six table pins present")
+                    or ("missing: " .. table.concat(absent, " ; ") .. " | " .. all)
+        end)
+
+-- conformance.tob_maiden_presentation.lua (seam7). NO VERB was added or changed by
+-- this seam: the one content edit is tob_maiden.rs2 ~tob_maiden_blackstorm no longer
+-- sending sound_synth(tob_maiden_shadow_attack) on top of maiden_attack_special's
+-- in-band frame-3 copy (configs/all.seq:181900).
+--
+-- ONE SEAM ROW, proposed. It needs the tick log's `sound` rows
+-- (ticklog_sound_and_music_rows, this pass): merge it only if that seam lands, and
+-- place it right AFTER seam("seam.nylocas_protect_blocks_wave_hit", ...) (the last
+-- raid seam row before step("finish")), or after the ticklog seam's own sound row
+-- if it adds one there. Proved as a scratch: build/quest_gate/s7m_sound_after
+-- (live pack, QUEST_BINARY=src/torirs_qd_snd) PASS "blackstorms 9 -> synth 3293
+-- sent 0", and s7m_sound_before (HEAD tob_maiden.rs2 pack) FAIL "3293/synth x9".
+        seam("seam.maiden_blackstorm_sound_once", function()
+            local enter = verb("raid", "enter")
+            local click_loc = verb("player", "click_loc")
+            local play = verb("chat", "play")
+            local log_start = verb("ticklog", "start")
+            local log_rows = verb("ticklog", "rows")
+            local await_anim = verb("npc", "await_anim")
+            if not enter then return missing("raid", "enter") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not play then return missing("chat", "play") end
+            if not log_start then return missing("ticklog", "start") end
+            if not log_rows then return missing("ticklog", "rows") end
+            if not await_anim then return missing("npc", "await_anim") end
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::setlevel prayer 99")
+            setup_cheat("::setlevel defence 99")
+            local entered, entered_detail = enter("tob", "maiden", { mode = "entry" })
+            if entered ~= "ok" then return entered, "tob maiden entry -> " .. describe(entered_detail) end
+            local clicked, click_detail = click_loc("tob_arena_barrier", 1)
+            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            if clicked ~= "ok" or played ~= "ok" then
+                setup_cheat("::tobout")
+                return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
+            end
+            log_start()
+            setup_cheat("::god 1")
+            -- Her Entry body attacks every 10 ticks from tick 9 of the room; three
+            -- blackstorms (seq 8092) arrive within the first 40 ticks (s7m_sound_after:
+            -- 8091@21 8092@31 8092@41 8092@51 ...).
+            local storms, throws = 0, 0
+            for _ = 1, 8 do
+                local ar, _, _, aseq = await_anim("tob_maiden_100_story", nil, 15)
+                if ar == "ok" and aseq == 8092 then storms = storms + 1 end
+                if ar == "ok" and aseq == 8091 then throws = throws + 1 end
+                if storms >= 3 then break end
+            end
+            local sr, sounds = log_rows({ kind = "sound" })
+            setup_cheat("::god 0")
+            setup_cheat("::tobout")
+            if sr ~= "ok" then return sr, "ticklog sound rows -> " .. describe(sounds) end
+            local storm_sound, throw_sound = 0, 0
+            for _, row in ipairs(sounds) do
+                if row.sound == 3293 then storm_sound = storm_sound + 1 end
+                if row.sound == 3981 then throw_sound = throw_sound + 1 end
+            end
+            local reading = "blackstorms " .. storms .. ", synth 3293 sent " .. storm_sound
+                .. " (its frame-3 copy is the client's, configs/all.seq:181900); blood throws "
+                .. throws .. ", synth 3981 sent " .. throw_sound .. " (the control)"
+            if storms < 3 then return "timeout", reading end
+            if storm_sound > 0 then return "refused", reading .. " -- the blackstorm's sound is sent on top of its seq (tob_maiden.rs2 ~tob_maiden_blackstorm)" end
+            if throw_sound ~= throws then return "refused", reading .. " -- the blood throw's synth no longer matches its throws" end
+            return "ok", reading
+        end)
+
+-- conformance.tob_maiden_entry_prayed_autos.lua (raid seam16)
+-- PLAN placement: proposed directly after seam("seam.nylocas_frozen_no_bite_entry"); the closer put it
+-- AFTER seam("seam.maiden_blackstorm_sound_once"), whose sound count reads the whole session's log
+-- and would count this row's blood throws. One more seam row: SEAM_COUNT +1. No verb added or changed.
+-- Proved by scratch build/seam_state/matthew-mbp-m4-raid-b1-seam16/m16/seam_scratch.lua, run m16_seam_row:
+--   seam.maiden_blackstorm_always_lands_entry PASS "ok: 6 blackstorms launched, 6 landed, 6 raw 9 (Entry,
+--   Protect from Magic, c 0, Defence 99): L28/H33=9 L38/H43=9 L48/H53=9 L58/H63=9 L68/H73=9 L78/H83=9"
+--
+        -- MAIDEN'S BLACKSTORM IS NOT ROLLED (raid seam16, tob_maiden_entry_prayed_autos). A content
+        -- VERDICT, not an edit: "The attack always lands as a [[successful hit]] and deals damage equal
+        -- to 36.5 + (3.5 * c) ... This can be halved by activating [[Protect from Magic]]"
+        -- (wiki_Theatre_of_Blood_Strategies.wikitext:590); Entry halves the curve (Maiden infobox max
+        -- hit1 18 against 36, wiki_The_Maiden_of_Sugadinti.wikitext:39-40). A raider at Defence 99 under
+        -- Protect from Magic who never attacks her (no Matomenos spawn, so c stays 0): every blackstorm
+        -- (npc_anim 8092 on her slot) lands within 7 ticks at raw 9. The row exists so nobody carries
+        -- seam14's Nylocas accuracy roll over to her: a rolled-then-randominc(max) blackstorm shows 0s
+        -- and anything 0..9 (it does NOT strongly separate a roll that keeps the fixed damage: at 99
+        -- Defence and Magic 1 such a roll lands ~0.9 of the time). ::god 1 keeps him up through the
+        -- pools; `raw` is the hit before ::god (ticklog.lua hit_player).
+        seam("seam.maiden_blackstorm_always_lands_entry", function()
+            local enter = verb("raid", "enter")
+            local click_loc = verb("player", "click_loc")
+            local play = verb("chat", "play")
+            local pray = verb("prayer", "set")
+            local nearest = verb("npc", "nearest")
+            local log_start = verb("ticklog", "start")
+            local log_slot = verb("ticklog", "slot")
+            local log_rows = verb("ticklog", "rows")
+            if not enter then return missing("raid", "enter") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not play then return missing("chat", "play") end
+            if not pray then return missing("prayer", "set") end
+            if not nearest then return missing("npc", "nearest") end
+            if not log_start then return missing("ticklog", "start") end
+            if not log_slot then return missing("ticklog", "slot") end
+            if not log_rows then return missing("ticklog", "rows") end
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::setlevel defence 99")
+            setup_cheat("::setlevel prayer 99")
+            setup_cheat("::god 1")
+            local function teardown()
+                pray("protectfrommagic", false)
+                setup_cheat("::god 0")
+                setup_cheat("::tobout")
+            end
+            local entered, entered_detail = enter("tob", "maiden", { mode = "entry" })
+            if entered ~= "ok" then setup_cheat("::god 0") return entered, "tob maiden entry -> " .. describe(entered_detail) end
+            log_start()
+            local br, brow = nearest("tob_maiden_100_story", 30)
+            local sr, slot = log_slot(brow)
+            if br ~= "ok" or sr ~= "ok" then teardown() return "not_found", "maiden " .. tostring(br) .. " slot " .. tostring(sr) end
+            local prayed, pray_detail = pray("protectfrommagic", true)
+            if prayed ~= "ok" then teardown() return "refused", "protectfrommagic " .. tostring(prayed) .. " " .. describe(pray_detail) end
+            local clicked, click_detail = click_loc("tob_arena_barrier", 1)
+            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            if clicked ~= "ok" or played ~= "ok" then
+                teardown()
+                return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
+            end
+            -- CLOSER (seam16): the tick log is one session-wide log (ticklog.start is
+            -- idempotent), so only this row's own ticks count, and a raider left
+            -- standing in her blood loses half of each pool hit from his prayer
+            -- (tob_maiden.rs2 stat_sub(prayer, ...)); 10 a tick put Protect from
+            -- Magic out by the fourth storm in the full harness. Prayer is topped up
+            -- every 5 ticks so the row reads the blackstorm, not the pool drain.
+            local tick_verb = verb("tick")
+            local from_tick = 0
+            if tick_verb then local _, t0 = tick_verb() from_tick = tonumber(t0) or 0 end
+            local launches, landed, nines, parts = 0, 0, 0, {}
+            for _ = 1, 24 do
+                settle(5)
+                setup_cheat("::setlevel prayer 99")
+                pray("protectfrommagic", true)
+                launches, landed, nines, parts = 0, 0, 0, {}
+                local _, anims = log_rows({ kind = "npc_anim", slot = slot })
+                local _, hits = log_rows({ kind = "hit_player" })
+                local last = 0
+                for _, h in ipairs(hits or {}) do if h.tick > last then last = h.tick end end
+                for _, a in ipairs(anims or {}) do
+                    if a.seq == 8092 and a.tick >= from_tick and a.tick + 7 <= last then
+                        launches = launches + 1
+                        local got = nil
+                        for _, h in ipairs(hits or {}) do
+                            if got == nil and h.npc_slot == slot and h.tick >= a.tick + 1 and h.tick <= a.tick + 7 then got = h end
+                        end
+                        if got ~= nil then
+                            landed = landed + 1
+                            local raw = got.raw or got.damage
+                            if raw == 9 then nines = nines + 1 end
+                            parts[#parts + 1] = "L" .. a.tick .. "/H" .. got.tick .. "=" .. tostring(raw)
+                        else
+                            parts[#parts + 1] = "L" .. a.tick .. "/none"
+                        end
+                    end
+                end
+                if launches >= 6 then break end
+            end
+            teardown()
+            local detail = launches .. " blackstorms launched, " .. landed .. " landed, " .. nines .. " raw 9 (Entry, Protect from Magic, c 0, Defence 99): " .. table.concat(parts, " ")
+            if launches >= 6 and landed == launches and nines == launches then return "ok", detail end
+            return "refused", detail .. " (want >= 6, every one landed at raw 9: wiki Strategies:590 'always lands as a successful hit')"
+        end)
+
+-- seam7 tob_bloat_presentation: one seam row, no verb added or changed.
+--
+-- PLACE: test/quests/_conformance.lua PLAN, directly after
+-- seam("seam.nylocas_protect_blocks_wave_hit", ...) (the raid rows run last,
+-- DRIVER_NOTES "t.raid.enter": ::tobmode's potions shift every later slot).
+-- DEPENDS ON the ticklog_sound_and_music_rows seam (the tick log's `sound` kind,
+-- one row per SYNTH_SOUND sent, field `sound`, label = its source); land that
+-- seam first. Until the log knows the kind the row answers `refused` naming it.
+--
+-- What it pins: a Bloat down sends NO server sound. tob_bloat_sleep 8082 carries
+-- the snore 3976 (frames 26-66) and the shout 3545 (frame 101) in-band and the
+-- client plays a seq's frame sounds itself (src/app/app_world_sync.c
+-- app_play_frame_sounds); the old sound_synth(tob_bloat_snore) on the down tick
+-- and sound_synth(tob_bloat_shout) on the stomp tick doubled them
+-- (AV_INVENTORY.md "Sounds played twice": MT/tob_bloat.rs2:646,697). The flies'
+-- sound_synth (3945/3954/4016) is the control: it proves the log saw the room's
+-- sounds at all. Before the fix (build/quest_gate/seam7_bloat_before2, same
+-- room, TORIRSSERVER_VERBOSE): sound_synth(3976) x2 at both downs, (3545) x1.
+-- ::god 1 keeps the idle player alive through Hard Bloat's flies (damage is
+-- not what this row reads); teardown turns it off.
+        seam("seam.bloat_down_sounds_in_band", function()
+            local enter = verb("raid", "enter")
+            local click_loc = verb("player", "click_loc")
+            local play = verb("chat", "play")
+            local log_start = verb("ticklog", "start")
+            local log_rows = verb("ticklog", "rows")
+            if not enter then return missing("raid", "enter") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not play then return missing("chat", "play") end
+            if not log_start then return missing("ticklog", "start") end
+            if not log_rows then return missing("ticklog", "rows") end
+            local function teardown()
+                setup_cheat("::god 0")
+                setup_cheat("::tobout")
+            end
+            setup_cheat("::god 1")
+            local entered, entered_detail = enter("tob", "bloat", { mode = "hard" })
+            if entered ~= "ok" then teardown() return entered, "tob bloat hard -> " .. describe(entered_detail) end
+            log_start()
+            local clicked, click_detail = click_loc("tob_arena_barrier", 1)
+            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            if clicked ~= "ok" or played ~= "ok" then
+                teardown()
+                return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
+            end
+            -- Wait for one whole down: npc_anim 8082 (tob_bloat_sleep) on tick D, the stomp on
+            -- D+29, the rise on D+33 (^tob_bloat_stomp_offset / ^tob_bloat_up_offset).
+            local down = nil
+            local _, now = verb("tick")()
+            for _wait = 1, 160 do
+                settle(1)
+                _, now = verb("tick")()
+                if down == nil then
+                    local _, anims = log_rows({ kind = "npc_anim", seq = 8082 })
+                    if anims ~= nil and #anims > 0 then down = anims[1].tick end
+                end
+                if down ~= nil and now >= down + 34 then break end
+            end
+            if down == nil or now < down + 34 then
+                teardown()
+                return "timeout", "no whole Bloat down seen (down " .. tostring(down) .. ", tick " .. tostring(now) .. ")"
+            end
+            local snore, shout, flies = 0, 0, 0
+            local sounds_result, sounds = log_rows({ kind = "sound" })
+            if sounds_result ~= "ok" then
+                teardown()
+                return "refused", "t.ticklog.rows{kind=sound} -> " .. tostring(sounds_result) .. " " .. describe(sounds)
+                    .. " (the ticklog_sound_and_music_rows seam is not on this tree)"
+            end
+            for _, s in ipairs(sounds or {}) do
+                if s.sound == 3976 then snore = snore + 1 end
+                if s.sound == 3545 then shout = shout + 1 end
+                if s.sound == 3945 or s.sound == 3954 or s.sound == 4016 then flies = flies + 1 end
+            end
+            teardown()
+            local reading = "down at tick " .. down .. ", read to " .. now .. ": server sounds snore 3976 x" .. snore
+                .. ", shout 3545 x" .. shout .. ", flies 3945/3954/4016 x" .. flies .. " (the control)"
+            if flies == 0 then return "refused", reading .. " -- the log saw no fly sound, so it read nothing" end
+            if snore > 0 or shout > 0 then
+                return "refused", reading .. " -- a down sound sent by script as well as by tob_bloat_sleep's frames (tob_bloat.rs2 ~tob_bloat_go_down / ~tob_bloat_stomp)"
+            end
+            return "ok", reading
+        end)
+
+-- seam8 tob_bloat_sounds_and_cage -- conformance snippet for the closer.
+--
+-- NO driver verb was added or changed by this seam (content only: tob_bloat.rs2
+-- ~tob_bloat_target / ~tob_bloat_hand_sound, and the proposed tob.npc lines in
+-- build/seam_state/matthew-mbp-m4-raid-b1-seam8/bloat8/tob.npc.defend_sound.patch).
+-- Two seam rows pin the behaviour through verbs that already have rows (raid.enter,
+-- player.click_loc, chat.play, player.attack, npc.nearest, ticklog.start/slot/rows,
+-- tick) and the tick log's `sound`, `map_spotanim` and `hit_player` kinds.
+--
+-- PLACE: in _conformance.lua's PLAN right after seam("seam.bloat_down_sounds_in_band")
+-- (the seam7 Bloat row), among the raid seam rows. SEAM_COUNT / @seam-count +1 for the
+-- first row; +1 more for the second ONLY when the tob.npc patch lands (the nylocas seam
+-- owned tob.npc this pass): without it seam.bloat_defend_sound answers refused
+-- "0 of N hits carried 3971".
+--
+-- Measurement cheats, as in the seam7 raid rows: ::god keeps the idle raider alive;
+-- ::tobmate (a party member who is not a player) keeps a forced jail from reading as
+-- a wipe; ::setvar varp6840_tob_died_in 1 sets bit 0, the spectator-cage flag
+-- ~tob_jailed reads (tob_spectate.rs2), while the raider stands where the flies reach
+-- him. Proved by build/seam_state/matthew-mbp-m4-raid-b1-seam8/bloat8/scratch_b8_conf.lua
+-- (runs b8_conf on the shared pack: row 1 ok; b8_conf_priv on the private root with
+-- the tob.npc patch: both ok).
+        seam("seam.bloat_hand_sound_and_cage", function()
+            local enter = verb("raid", "enter")
+            local click_loc = verb("player", "click_loc")
+            local play = verb("chat", "play")
+            local log_start = verb("ticklog", "start")
+            local log_rows = verb("ticklog", "rows")
+            local tick = verb("tick")
+            if not enter then return missing("raid", "enter") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not play then return missing("chat", "play") end
+            if not log_start then return missing("ticklog", "start") end
+            if not log_rows then return missing("ticklog", "rows") end
+            if not tick then return missing("tick") end
+            local function teardown()
+                setup_cheat("::setvar varp6840_tob_died_in 0")
+                setup_cheat("::god 0")
+                setup_cheat("::tobout")
+            end
+            setup_cheat("::god 1")
+            local entered, entered_detail = enter("tob", "bloat", { mode = "hard" })
+            if entered ~= "ok" then teardown() return entered, "tob bloat hard -> " .. describe(entered_detail) end
+            setup_cheat("::tobmate")
+            log_start()
+            -- Every read below is since this mark (seam8 closer): the log runs from the
+            -- harness's first raid row, so a whole-log read matched another row's rows on a
+            -- reused world slot and ran out the instruction budget (closer runs 1-2).
+            t.ticklog.mark("seam.bloat_hand_sound_and_cage")
+            local _, base_marks = log_rows({ kind = "mark" })
+            local base = (is_table(base_marks) and #base_marks > 0) and base_marks[#base_marks].serial or 0
+            local clicked, click_detail = click_loc("tob_arena_barrier", 1)
+            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            if clicked ~= "ok" or played ~= "ok" then
+                teardown()
+                return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
+            end
+            -- 1. the first hand volley (Hard drops from the start): one barbassault_splat
+            --    3308 to this raider on the landing tick, and no tob_bloat_hit 3971 synth.
+            local landed = nil
+            for _wait = 1, 40 do
+                settle(1)
+                local _, splats = log_rows({ since = base, kind = "map_spotanim", spotanim = 1576 })
+                if splats ~= nil and #splats > 0 then landed = splats[1].tick break end
+            end
+            if landed == nil then teardown() return "timeout", "no hand landed (map_spotanim 1576) in 40 ticks" end
+            settle(1)
+            local _, sounds = log_rows({ since = base, kind = "sound" })
+            local splat_rows, hit_synth = 0, 0
+            for _, s in ipairs(sounds or {}) do
+                if s.tick == landed and s.sound == 3308 then splat_rows = splat_rows + 1 end
+                if s.sound == 3971 and s.source ~= "npc" then hit_synth = hit_synth + 1 end
+            end
+            if splat_rows ~= 1 or hit_synth ~= 0 then
+                teardown()
+                return "refused", "volley landed at tick " .. landed .. ": 3308 rows on it " .. splat_rows .. " (want 1), synth 3971 rows " .. hit_synth .. " (want 0; tob_bloat.rs2 ~tob_bloat_splat / ~tob_bloat_hand_sound)"
+            end
+            -- 2. the cage: the flies reached this tile (control), then nothing does.
+            local _, before = log_rows({ since = base, kind = "hit_player" })
+            local control = #(before or {})
+            setup_cheat("::setvar varp6840_tob_died_in 1")
+            settle(1)
+            local _, jailed_at = tick()
+            settle(16)
+            local _, after = log_rows({ since = base, kind = "hit_player" })
+            local late = {}
+            for _, h in ipairs(after or {}) do
+                if h.tick >= jailed_at + 4 then late[#late + 1] = h.tick .. ":" .. tostring(h.damage) end
+            end
+            local _, sounds2 = log_rows({ since = base, kind = "sound" })
+            local caged_splats = 0
+            for _, s in ipairs(sounds2 or {}) do
+                if s.tick > jailed_at and s.sound == 3308 then caged_splats = caged_splats + 1 end
+            end
+            local _, splats2 = log_rows({ since = base, kind = "map_spotanim", spotanim = 1576 })
+            local volleys, seen = 0, {}
+            for _, s in ipairs(splats2 or {}) do
+                if s.tick > jailed_at and not seen[s.tick] then seen[s.tick] = true volleys = volleys + 1 end
+            end
+            teardown()
+            local reading = "volley at " .. landed .. ": one 3308, no 3971; " .. control .. " hit_player before the jail (control); jailed at "
+                .. jailed_at .. ": " .. #late .. " hit_player from +4 to +16 (" .. table.concat(late, " ") .. "), "
+                .. volleys .. " volley(s) landed, " .. caged_splats .. " volley sound(s) to the caged raider"
+            if control == 0 then return "refused", reading .. " -- the flies never reached this tile, so the cage check read nothing" end
+            if volleys == 0 then return "refused", reading .. " -- no volley landed while jailed" end
+            if #late > 0 or caged_splats > 0 then return "refused", reading .. " -- a jailed raider is still a target (tob_bloat.rs2 ~tob_bloat_target)" end
+            return "ok", reading
+        end)
+
+        -- MERGE ONLY WITH THE tob.npc PATCH (bloat8/tob.npc.defend_sound.patch).
+        seam("seam.bloat_defend_sound", function()
+            local enter = verb("raid", "enter")
+            local click_loc = verb("player", "click_loc")
+            local play = verb("chat", "play")
+            local attack = verb("player", "attack")
+            local nearest = verb("npc", "nearest")
+            local log_start = verb("ticklog", "start")
+            local log_slot = verb("ticklog", "slot")
+            local log_rows = verb("ticklog", "rows")
+            if not enter then return missing("raid", "enter") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not play then return missing("chat", "play") end
+            if not attack then return missing("player", "attack") end
+            if not nearest then return missing("npc", "nearest") end
+            if not log_start then return missing("ticklog", "start") end
+            if not log_slot then return missing("ticklog", "slot") end
+            if not log_rows then return missing("ticklog", "rows") end
+            local function teardown()
+                setup_cheat("::god 0")
+                setup_cheat("::tobout")
+            end
+            -- MELEE, not a bow (seam8 closer): the engine's defend sound carries 12 tiles
+            -- from the npc's SOUTH-WEST tile (torirs_server_combat.c npc_sound_nearby,
+            -- tile_distance <= TORIRSSERVER_NPC_SOUND_TILES), so a twisted bow fired from
+            -- the far side of a walking 5x5 Bloat took hits out of earshot (closer run 1:
+            -- 0 of 5 carried, 2 npc sound rows). A raider beside him is always in range.
+            setup_cheat("::setlevel attack 99")
+            setup_cheat("::setlevel strength 99")
+            setup_cheat("::give dragon_scimitar")
+            setup_cheat("::wield dragon_scimitar")
+            setup_cheat("::god 1")
+            local entered, entered_detail = enter("tob", "bloat", { mode = "normal" })
+            if entered ~= "ok" then teardown() return entered, "tob bloat normal -> " .. describe(entered_detail) end
+            log_start()
+            -- Every read below is since this mark (seam8 closer): the log runs from the
+            -- harness's first raid row, so a whole-log read matched another row's rows on a
+            -- reused world slot and ran out the instruction budget (closer runs 1-2).
+            t.ticklog.mark("seam.bloat_defend_sound")
+            local _, base_marks = log_rows({ kind = "mark" })
+            local base = (is_table(base_marks) and #base_marks > 0) and base_marks[#base_marks].serial or 0
+            local clicked, click_detail = click_loc("tob_arena_barrier", 1)
+            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            if clicked ~= "ok" or played ~= "ok" then
+                teardown()
+                return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
+            end
+            local found, boss = nearest("tob_bloat", 40)
+            if found ~= "ok" or not is_table(boss) then teardown() return "not_found", "tob_bloat -> " .. describe(boss) end
+            local slot_result, world_slot = log_slot(boss)
+            if slot_result ~= "ok" then teardown() return slot_result, describe(world_slot) end
+            local hits = {}
+            for _ = 1, 60 do
+                attack("tob_bloat", 2, 1)
+                settle(1)
+                local _, h = log_rows({ since = base, kind = "hit_npc", slot = world_slot })
+                if h ~= nil and #h >= 3 then hits = h break end
+            end
+            settle(1)
+            local _, s = log_rows({ since = base, kind = "sound", source = "npc", slot = world_slot })
+            teardown()
+            if #hits == 0 then return "timeout", "no hit_npc row on Bloat (world slot " .. tostring(world_slot) .. ") in 60 ticks" end
+            local by_tick = {}
+            for _, r in ipairs(s or {}) do
+                if r.sound == 3971 then by_tick[r.tick] = true end
+            end
+            local carried = 0
+            for _, h in ipairs(hits) do if by_tick[h.tick] then carried = carried + 1 end end
+            local reading = carried .. " of " .. #hits .. " hits on Bloat carried npc sound 3971 (tob_bloat_hit) on the hit tick; " .. #(s or {}) .. " npc sound row(s)"
+            if carried ~= #hits then return "refused", reading .. " (tob.npc [tob_bloat] param=defend_sound,tob_bloat_hit)" end
+            return "ok", reading
+        end)
+
+-- seam16 tob_entry_solo_room_costs -- conformance snippet for the closer.
+--
+-- NO driver verb was added or changed by this seam (content only: tob_bloat.rs2
+-- ~tob_bloat_stomp asks ~tob_bloat_sees, ~tob_bloat_hand_repeat; tob_verzik.rs2
+-- ~tob_verzik_p3_regular and [queue,tob_verzik_p3_auto_land] roll accuracy).
+-- Two seam rows pin the behaviour through verbs that already have rows
+-- (raid.enter, player.click_loc, chat.play, npc.nearest, player.talk_to, player.equip,
+-- player.unequip, msg.last, ticklog.start/slot/rows, tick, ticks) and the
+-- measurement debugprocs ::tobbloatlos / ::tobwarp / ::tobvzskip (tob_selftest.rs2).
+--
+-- PLACE: in _conformance.lua's PLAN, row 1 right after seam("seam.bloat_defend_sound")
+-- (the last Bloat row), row 2 right after seam("seam.verzik_tornado_gone_with_her").
+-- SEAM_COUNT / @seam-count +2. Both were proved as scratches with the same bodies:
+--   build/seam_state/matthew-mbp-m4-raid-b1-seam16/s16r/s16_bloat_stomp.lua
+--     before (HEAD pack): s16_bloat_before2 FAIL "HIDDEN at local 29,27 (6 from his SW):
+--       stomp raw 34; SEEN at 26,24: raw 21"
+--     after:  s16_bloat_after PASS "HIDDEN at 29,27: stomp none; SEEN at 24,24: raw 26"
+--   build/seam_state/matthew-mbp-m4-raid-b1-seam16/s16r/s16_vz_p3.lua
+--     before (HEAD pack): s16_vz_before FAIL "16 unprayed autos, 0 at 0, max 20; 17 melee, 0 at 0"
+--     after:  s16_vz_after PASS "16 unprayed autos, 9 at 0, max 18; 6 melee, 5 at 0"
+
+        seam("seam.bloat_stomp_needs_sight", function()
+            local enter = verb("raid", "enter")
+            local click_loc = verb("player", "click_loc")
+            local play = verb("chat", "play")
+            local nearest = verb("npc", "nearest")
+            local log_start = verb("ticklog", "start")
+            local log_slot = verb("ticklog", "slot")
+            local log_rows = verb("ticklog", "rows")
+            local last = verb("msg", "last")
+            local ticks = verb("ticks")
+            local tick = verb("tick")
+            if not enter then return missing("raid", "enter") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not play then return missing("chat", "play") end
+            if not nearest then return missing("npc", "nearest") end
+            if not log_start then return missing("ticklog", "start") end
+            if not log_slot then return missing("ticklog", "slot") end
+            if not log_rows then return missing("ticklog", "rows") end
+            if not last then return missing("msg", "last") end
+            if not ticks then return missing("ticks") end
+            if not tick then return missing("tick") end
+            local function ask(cmd, prefix)
+                local _, before = last(1)
+                local s0 = (is_table(before) and before[1] ~= nil and before[1].serial) or 0
+                setup_cheat(cmd)
+                for _try = 1, 3 do
+                    local _, ms = last(12)
+                    for _, m in ipairs(ms or {}) do
+                        if m.serial > s0 and string.find(tostring(m.text), prefix, 1, true) == 1 then return tostring(m.text) end
+                    end
+                    ticks(1)
+                end
+                return nil
+            end
+            local function teardown() setup_cheat("::god 0") setup_cheat("::tobout") ticks(2) end
+            setup_cheat("::tobout")
+            ticks(2)
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::god 1")
+            local entered, entered_detail = enter("tob", "bloat", { mode = "entry" })
+            if entered ~= "ok" then teardown() return entered, "tob bloat entry -> " .. describe(entered_detail) end
+            log_start()
+            local br, brow = nearest("tob_bloat_story", 40)
+            local sr, slot = log_slot(brow)
+            if br ~= "ok" or sr ~= "ok" then teardown() return "not_found", "bloat " .. tostring(br) .. " slot " .. tostring(sr) end
+            local clicked, click_detail = click_loc("tob_arena_barrier", 1)
+            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            if clicked ~= "ok" or played ~= "ok" then
+                teardown()
+                return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
+            end
+            local function next_down(after)
+                for _wait = 1, 140 do
+                    ticks(1)
+                    local _, anims = log_rows({ kind = "npc_anim", slot = slot, seq = 8082 })
+                    for _, a in ipairs(anims or {}) do
+                        if a.tick > after then
+                            local _, tiles = log_rows({ kind = "npc_tile", slot = slot })
+                            local bx, bz = nil, nil
+                            for _, r in ipairs(tiles or {}) do if r.tick <= a.tick then bx, bz = r.x, r.z end end
+                            return a.tick, bx, bz
+                        end
+                    end
+                end
+                return nil
+            end
+            -- Fight square local 24..39, tank 29..34 (tob.constant); the stomp's reach is 6
+            -- from his south-west tile (^tob_bloat_stomp_range, [M65]).
+            local function in_tank(lx, lz) return lx >= 29 and lx <= 34 and lz >= 29 and lz <= 34 end
+            local function cheb(ax, az, bx, bz) return math.max(math.abs(ax - bx), math.abs(az - bz)) end
+            local function line_blocked(ax, az, bx2, bz2)
+                local n = math.max(math.abs(bx2 - ax), math.abs(bz2 - az))
+                for i = 1, n - 1 do
+                    if in_tank(math.floor(ax + (bx2 - ax) * i / n + 0.5), math.floor(az + (bz2 - az) * i / n + 0.5)) then return true end
+                end
+                return false
+            end
+            local function guess_hidden(lbx, lbz, lx, lz)
+                for i = 0, 4 do
+                    for j = 0, 4 do
+                        if (i == 0 or i == 4 or j == 0 or j == 4) and not line_blocked(lbx + i, lbz + j, lx, lz) then return false end
+                    end
+                end
+                return true
+            end
+            -- The server's own answer decides (::tobbloatlos = ~tob_bloat_sees); the
+            -- geometry only orders the tiles it is asked about.
+            local function pick(lbx, lbz, want_seen)
+                local cands = {}
+                for lx = 24, 39 do
+                    for lz = 24, 39 do
+                        local under = lx >= lbx and lx <= lbx + 4 and lz >= lbz and lz <= lbz + 4
+                        local d = cheb(lx, lz, lbx, lbz)
+                        if not in_tank(lx, lz) and not under and d <= 6 and d >= 2 and (want_seen or guess_hidden(lbx, lbz, lx, lz)) then
+                            cands[#cands + 1] = { lx = lx, lz = lz, d = d }
+                        end
+                    end
+                end
+                table.sort(cands, function(a, b) if want_seen then return a.d < b.d end return a.d > b.d end)
+                local asked = 0
+                for _, c in ipairs(cands) do
+                    if asked >= 12 then break end
+                    asked = asked + 1
+                    local line = ask("::tobbloatlos " .. c.lx .. " " .. c.lz, "tobbloatlos ")
+                    if line ~= nil and string.find(line, want_seen and "tobbloatlos 1" or "tobbloatlos 0", 1, true) == 1 then return c, asked end
+                end
+                return nil, asked
+            end
+            local parts = {}
+            local after = 0
+            local hidden_done, seen_done = nil, nil
+            for round = 1, 6 do
+                if hidden_done ~= nil and seen_done ~= nil then break end
+                local down, bx, bz = next_down(after)
+                if down == nil or bx == nil then teardown() return "timeout", "no down in round " .. round .. " " .. table.concat(parts, "; ") end
+                after = down
+                local ox, oz = math.floor(bx / 64) * 64, math.floor(bz / 64) * 64
+                local lbx, lbz = bx - ox, bz - oz
+                local c, asked = nil, 0
+                local want_seen = false
+                if hidden_done == nil then c, asked = pick(lbx, lbz, false) end
+                if c == nil then
+                    parts[#parts + 1] = "down " .. down .. " SW local " .. lbx .. "," .. lbz .. ": no hidden tile in reach (" .. asked .. " asked)"
+                    if seen_done == nil then want_seen = true c, asked = pick(lbx, lbz, true) end
+                end
+                if c ~= nil then
+                    ask("::tobwarp " .. c.lx .. " " .. c.lz, "tobwarp ")
+                    local _, now = tick()
+                    while now < down + 31 do ticks(1) _, now = tick() end
+                    local _, hits = log_rows({ kind = "hit_player" })
+                    local stomp = nil
+                    for _, h in ipairs(hits or {}) do
+                        if h.tick == down + 29 and h.npc_slot == slot then stomp = (h.raw or h.damage) end
+                    end
+                    if want_seen then seen_done = stomp or false else hidden_done = stomp or false end
+                    parts[#parts + 1] = "down " .. down .. " SW local " .. lbx .. "," .. lbz .. ", me " .. (want_seen and "SEEN" or "HIDDEN")
+                        .. " at local " .. c.lx .. "," .. c.lz .. " (" .. c.d .. " from his SW): stomp on down+29 " .. (stomp and ("raw " .. stomp) or "none")
+                end
+            end
+            teardown()
+            local detail = table.concat(parts, "; ")
+            if hidden_done == nil or seen_done == nil then return "timeout", detail .. " -- six downs without both a hidden and a seen reading" end
+            if seen_done == false then return "refused", detail .. " -- the control: a seen raider in reach was not stomped, so the log read nothing" end
+            if hidden_done ~= false then return "refused", detail .. " -- a raider Bloat cannot see was stomped (tob_bloat.rs2 ~tob_bloat_stomp; Entry Mode :134, :145 'out of his line of sight to avoid it')" end
+            return "ok", detail
+        end)
+
+-- seam7 tob_nylocas_presentation -- conformance snippet for the closer.
+--
+-- NO driver verb was added or changed by this seam (content only: tob_nylocas.rs2
+-- ~tob_nylo_swing / ~tob_nylo_projectile / ~tob_nylo_detonate / ~tob_nylo_small_death_gfx /
+-- ~tob_nylo_drop_in and the eighteen small [ai_queue3] hooks; tob_nylocas_boss.rs2
+-- ~tob_nylo_land_boss / ~tob_vasilias_swing). This one seam row pins the presentation
+-- through verbs that already have rows (raid.enter, raid.start_tile, player.walk_to,
+-- player.click_loc, chat.play, ticklog.start/rows, npc.nearest, tick).
+--
+-- PLACE: in _conformance.lua's PLAN right after seam("seam.nylocas_protect_blocks_wave_hit")
+-- (the seam6 Nylocas row, after raid.leave): it enters the same room the same way and
+-- tears down with ::tobout. SEAM_COUNT / @seam-count +1.
+--
+-- What it reads (server tick log): a small killed on the engine's death path (::kill, the
+-- same npc_death_step -> [ai_queue3] a player kill takes) leaves its colour's
+-- tob_nylocas_death_<style>_standard graphic (1562-1564) on the tick and tile it despawns,
+-- and Vasilias' spawning form (10786, Entry) plays top_spider_melee_spawn_noloop (9030) on
+-- its spawn tick. ::kill and ::tobnyloskip are measurement cheats: fine in a seam row,
+-- never in a room test.
+--
+-- Proved by build/seam_state/matthew-mbp-m4-raid-b1-seam7/scratch_conformance_row.lua
+-- (the same body under shims for verb/missing/describe/setup_cheat/settle/seam).
+        seam("seam.nylocas_presentation", function()
+            local enter = verb("raid", "enter")
+            local start_tile = verb("raid", "start_tile")
+            local walk_to = verb("player", "walk_to")
+            local click_loc = verb("player", "click_loc")
+            local play = verb("chat", "play")
+            local log_start = verb("ticklog", "start")
+            local log_rows = verb("ticklog", "rows")
+            local nearest = verb("npc", "nearest")
+            local now_tick = verb("tick")
+            if not enter then return missing("raid", "enter") end
+            if not start_tile then return missing("raid", "start_tile") end
+            if not walk_to then return missing("player", "walk_to") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not play then return missing("chat", "play") end
+            if not log_start then return missing("ticklog", "start") end
+            if not log_rows then return missing("ticklog", "rows") end
+            if not nearest then return missing("npc", "nearest") end
+            if not now_tick then return missing("tick") end
+            local function teardown()
+                setup_cheat("::god 0")
+                setup_cheat("::tobout")
+            end
+            setup_cheat("::setlevel hitpoints 99")
+            local entered, entered_detail = enter("tob", "nylocas", { mode = "entry" })
+            if entered ~= "ok" then return entered, "tob nylocas entry -> " .. describe(entered_detail) end
+            log_start()
+            -- Rows of THIS row only: the harness's log runs from step("ticklog.start"),
+            -- world slots are reused, and a whole-log read in a raid room runs out
+            -- the per-resume instruction budget (closer seam7).
+            t.ticklog.mark("seam.nylocas_presentation")
+            local _, base_marks = log_rows({ kind = "mark" })
+            local base = base_marks[#base_marks].serial
+            local tile_result, fight = start_tile()
+            if tile_result ~= "ok" or not is_table(fight) then teardown() return tile_result, describe(fight) end
+            walk_to(fight.x + 1, fight.z, 20)
+            local clicked, click_detail = click_loc("tob_arena_barrier", 1)
+            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            if clicked ~= "ok" or played ~= "ok" then
+                teardown()
+                return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
+            end
+            setup_cheat("::god 1")
+            -- Wave 1 (room tick 4): a melee small for pillar 3, a magic small for pillar 4, a ranged aggro small
+            -- (configs/tob_nylo.dbrow tob_nylo_spawn_01_*). Kill all three on the engine's death path, then mark the
+            -- other thirty waves out so Vasilias lands through the room's own clock once they have despawned.
+            local smalls = { "tob_nylocas_incoming_melee_story", "tob_nylocas_incoming_magic_story", "tob_nylocas_incoming_ranged_story" }
+            local killed = {}
+            for _ = 1, 30 do
+                settle(1)
+                for _, name in ipairs(smalls) do
+                    if not killed[name] and nearest(name, 40) == "ok" then
+                        setup_cheat("::kill " .. name .. " 40")
+                        killed[name] = true
+                    end
+                end
+                if killed[smalls[1]] and killed[smalls[2]] and killed[smalls[3]] then break end
+            end
+            setup_cheat("::tobnyloskip")
+            local boss = nil
+            for _ = 1, 120 do
+                settle(1)
+                local _, spawns = log_rows({ kind = "npc_spawn", type = 10786, since = base })
+                if is_table(spawns) and spawns[1] ~= nil then boss = spawns[1] break end
+            end
+            settle(2)
+            -- the standard death graphic on every killed small's despawn tick and tile
+            local STANDARD = { [10774] = 1562, [10775] = 1563, [10776] = 1564 }
+            local _, frees = log_rows({ kind = "npc_free", since = base })
+            -- killed ones only: a later wave's small that was let detonate leaves the detonate graphic instead
+            local _, deaths = log_rows({ kind = "npc_death", since = base })
+            local died_at = {}
+            for _, d in ipairs(deaths or {}) do
+                died_at[d.slot] = died_at[d.slot] or {}
+                table.insert(died_at[d.slot], d.tick)
+            end
+            local function was_killed(f)
+                for _, tick in ipairs(died_at[f.slot] or {}) do
+                    if tick <= f.tick and tick >= f.tick - 10 then return true end
+                end
+                return false
+            end
+            local _, spots = log_rows({ kind = "map_spotanim", since = base })
+            local spot_at = {}
+            for _, s in ipairs(spots or {}) do spot_at[s.tick .. ":" .. s.x .. ":" .. s.z .. ":" .. s.spotanim] = true end
+            local small_ok, small_seen, small_text = 0, 0, {}
+            for _, f in ipairs(frees or {}) do
+                local want = STANDARD[f.type]
+                if want ~= nil and was_killed(f) then
+                    small_seen = small_seen + 1
+                    local here = spot_at[f.tick .. ":" .. f.x .. ":" .. f.z .. ":" .. want] == true
+                    if here then small_ok = small_ok + 1 end
+                    small_text[#small_text + 1] = f.type .. "@" .. f.tick .. (here and ("+" .. want) or "-none")
+                end
+            end
+            local boss_seq = {}
+            if boss ~= nil then
+                local _, anims = log_rows({ kind = "npc_anim", slot = boss.slot, since = base })
+                for _, a in ipairs(anims or {}) do
+                    if a.tick == boss.tick then boss_seq[#boss_seq + 1] = a.seq end
+                end
+            end
+            teardown()
+            local reading = "killed smalls with their standard graphic on the despawn tick+tile " .. small_ok .. " of " .. small_seen
+                .. " (" .. table.concat(small_text, ",") .. "); Vasilias spawning form "
+                .. (boss and ("tick " .. boss.tick .. " npc_anim [" .. table.concat(boss_seq, ",") .. "]") or "never landed")
+            if small_seen < 3 or boss == nil then return "timeout", reading end
+            if small_ok ~= small_seen then return "refused", reading .. " -- tob_nylocas.rs2 [ai_queue3] -> ~tob_nylo_small_killed" end
+            local dropped = false
+            for _, s in ipairs(boss_seq) do if s == 9030 then dropped = true end end
+            if not dropped then return "refused", reading .. " -- tob_nylocas.rs2 ~tob_nylo_drop_in" end
+            return "ok", reading
+        end)
+
+-- seam10 tob_nylocas_vasilias_entry_rows -- conformance snippet for the closer.
+--
+-- NO driver verb was added or changed by this seam (content only: tob_nylocas.constant
+-- ^tob_vasilias_entry_window_ticks / ^tob_nylo_pillar_collapse_min_entry; tob_nylocas_boss.rs2
+-- ~tob_vasilias_switch_ticks / ~tob_vasilias_first_switch; tob_nylocas.rs2 ~tob_nylo_detonate
+-- (footprint reach) and ~tob_nylo_pillar_fell (Entry floor); tob_damage.rs2 wrong-style branch
+-- (Vasilias reflected and healed, never nulled)). This one seam row pins the Vasilias half
+-- through verbs that already have rows (raid.enter, raid.start_tile, player.walk_to,
+-- player.click_loc, chat.play, ticklog.start/rows, player.equip, player.attack, world.tile).
+--
+-- PLACE: in _conformance.lua's PLAN right after seam("seam.nylocas_presentation") (the seam7
+-- Nylocas row, itself after seam("seam.nylocas_protect_blocks_wave_hit")): it enters the same
+-- room the same way and tears down with ::tobout. SEAM_COUNT / @seam-count +1.
+--
+-- What it reads (server tick log): Entry Vasilias' colour windows are 14 then 15 (npc_retype
+-- rows on her slot), a whip into her non-melee form heals her (npc_heal) with a reflect
+-- hit_player row from her slot on that tick (absorbed under ::god: hitsplat 26, damage 0 --
+-- the reflect's SIZE is the scratch's job, s10ny_vas4), and the same whip damages her in a
+-- later melee form (one wrong hit no longer nulls the raider on her). ::tobnyloskip and
+-- ::god are measurement cheats: fine in a seam row, never in a room test.
+--
+-- Proved by build/seam_state/matthew-mbp-m4-raid-b1-seam10/scratch_nylo/s10ny_row.lua (the same
+-- body under the seam7 shims): build/quest_gate/s10ny_row3/ledger.tsv PASS "retype gaps after
+-- the melee form [14,15,15,15]; probe tick 65, heal 5 on tick 65, reflect row hitsplat 26
+-- damage 0, right-style hit after it 10 on tick 112". Its first two runs (row1, row2) failed on
+-- a probe whose one roll missed (0 reflected, 0 healed): the row now presses up to four times.
+        seam("seam.vasilias_entry_window_and_reflect", function()
+            local enter = verb("raid", "enter")
+            local start_tile = verb("raid", "start_tile")
+            local walk_to = verb("player", "walk_to")
+            local click_loc = verb("player", "click_loc")
+            local play = verb("chat", "play")
+            local log_start = verb("ticklog", "start")
+            local log_rows = verb("ticklog", "rows")
+            local nearest = verb("npc", "nearest")
+            local equip = verb("player", "equip")
+            local attack = verb("player", "attack")
+            local tile = verb("world", "tile")
+            if not enter then return missing("raid", "enter") end
+            if not start_tile then return missing("raid", "start_tile") end
+            if not walk_to then return missing("player", "walk_to") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not play then return missing("chat", "play") end
+            if not log_start then return missing("ticklog", "start") end
+            if not log_rows then return missing("ticklog", "rows") end
+            if not nearest then return missing("npc", "nearest") end
+            if not equip then return missing("player", "equip") end
+            if not attack then return missing("player", "attack") end
+            if not tile then return missing("world", "tile") end
+            local FORM = { [10787] = "melee", [10788] = "magic", [10789] = "ranged" }
+            local SYMBOL = { melee = "nylocas_boss_melee_story", magic = "nylocas_boss_magic_story", ranged = "nylocas_boss_ranged_story" }
+            local function teardown()
+                setup_cheat("::god 0")
+                setup_cheat("::tobout")
+                setup_cheat("::clearinv")
+            end
+            setup_cheat("::setlevel attack 99")
+            setup_cheat("::setlevel strength 99")
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::give abyssal_whip 1")
+            local entered, entered_detail = enter("tob", "nylocas", { mode = "entry" })
+            if entered ~= "ok" then teardown() return entered, "tob nylocas entry -> " .. describe(entered_detail) end
+            log_start()
+            t.ticklog.mark("seam.vasilias_entry_window_and_reflect")
+            local _, base_marks = log_rows({ kind = "mark" })
+            local base = base_marks[#base_marks].serial
+            local tile_result, fight = start_tile()
+            if tile_result ~= "ok" or not is_table(fight) then teardown() return tile_result, describe(fight) end
+            walk_to(fight.x + 1, fight.z, 20)
+            local clicked, click_detail = click_loc("tob_arena_barrier", 1)
+            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            if clicked ~= "ok" or played ~= "ok" then
+                teardown()
+                return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
+            end
+            -- typed before wave 1 (room tick 4): every wave is marked out and she lands alone (tob_nylocas.rs2 ::tobnyloskip).
+            -- ::god keeps the raider up; the reflect is then an absorbed hit_player row, so this row pins the reflect's
+            -- presence and the heal, and the scratch with real hitpoints pins its size (seam10 s10ny_vas4).
+            setup_cheat("::tobnyloskip")
+            setup_cheat("::god 1")
+            equip("abyssal_whip")
+            local boss = nil
+            for _ = 1, 120 do
+                settle(1)
+                local _, spawns = log_rows({ kind = "npc_spawn", type = 10786, since = base })
+                if is_table(spawns) and spawns[1] ~= nil then boss = spawns[1] break end
+            end
+            if boss == nil then teardown() return "timeout", "Vasilias never landed after ::tobnyloskip" end
+            -- the whip is right only in her melee form: hit her there, probe once in the first other form, then wait for
+            -- a melee form again and hit her with the same whip
+            local form, probe_tick, probed, later_hit, presses, last_press = nil, nil, false, nil, 0, -100
+            for _ = 1, 110 do
+                -- her form from the server's own retype rows (the three records share one name, so a lookup by
+                -- symbol cannot tell them apart)
+                local now_form = nil
+                local _, forms = log_rows({ kind = "npc_retype", slot = boss.slot, since = base })
+                for _, r in ipairs(forms or {}) do if FORM[r.to_type] ~= nil then now_form = FORM[r.to_type] end end
+                local changed = now_form ~= nil and now_form ~= form
+                if now_form ~= nil then form = now_form end
+                if changed and form == "melee" then attack(SYMBOL.melee, 2, 2) end
+                -- the probe: whip presses into her first non-melee form after she has taken damage, until one roll
+                -- lands (a missed roll reflects 0 and heals nothing), at most four presses, then step off
+                if form ~= nil and form ~= "melee" and not probed then
+                    local _, before = log_rows({ kind = "hit_npc", slot = boss.slot, since = base })
+                    local dealt = 0
+                    for _, h in ipairs(before or {}) do dealt = dealt + h.damage end
+                    local _, now = t.tick()
+                    if dealt > 0 and presses < 4 and now - last_press >= 4 then
+                        attack(SYMBOL[form], 2, 2)
+                        presses = presses + 1
+                        last_press = now
+                        if probe_tick == nil then probe_tick = now end
+                    end
+                    local _, healed = log_rows({ kind = "npc_heal", slot = boss.slot, since = base })
+                    if (is_table(healed) and healed[1] ~= nil) or presses >= 4 then
+                        probed = true
+                        local _, here = tile()
+                        if is_table(here) then walk_to(here.x, here.z - 1, 3) end
+                    end
+                end
+                if probed then
+                    local _, hits = log_rows({ kind = "hit_npc", slot = boss.slot, since = base })
+                    for _, h in ipairs(hits or {}) do if h.tick > last_press + 4 and h.damage > 0 then later_hit = h end end
+                    if later_hit ~= nil then break end
+                end
+                settle(1)
+            end
+            local _, retypes = log_rows({ kind = "npc_retype", slot = boss.slot, since = base })
+            local gaps, last = {}, nil
+            for _, r in ipairs(retypes or {}) do
+                if FORM[r.to_type] ~= nil then
+                    if last ~= nil then gaps[#gaps + 1] = r.tick - last end
+                    last = r.tick
+                end
+            end
+            local _, heals = log_rows({ kind = "npc_heal", slot = boss.slot, since = base })
+            local _, reflects = log_rows({ kind = "hit_player", since = base })
+            local heal, reflect = nil, nil
+            for _, h in ipairs(heals or {}) do if heal == nil and probe_tick ~= nil and h.tick >= probe_tick then heal = h end end
+            if heal ~= nil then
+                for _, r in ipairs(reflects or {}) do if r.tick == heal.tick and r.npc_slot == boss.slot then reflect = r end end
+            end
+            teardown()
+            local reading = "retype gaps after the melee form [" .. table.concat(gaps, ",") .. "]; probe tick " .. tostring(probe_tick)
+                .. ", heal " .. (heal and (heal.amount .. " on tick " .. heal.tick) or "none")
+                .. ", reflect row " .. (reflect and ("hitsplat " .. reflect.hitsplat .. " damage " .. reflect.damage) or "none")
+                .. ", right-style hit after it " .. (later_hit and (later_hit.damage .. " on tick " .. later_hit.tick) or "none")
+            if #gaps < 2 or probe_tick == nil or later_hit == nil then return "timeout", reading end
+            if gaps[1] ~= 14 then return "refused", reading .. " -- the first Entry window is 14 (tob_nylocas_boss.rs2 ~tob_vasilias_first_switch)" end
+            for k = 2, #gaps do if gaps[k] ~= 15 then return "refused", reading .. " -- Entry windows are 15 (^tob_vasilias_entry_window_ticks)" end end
+            if heal == nil or reflect == nil then return "refused", reading .. " -- a wrong-style hit on Vasilias reflects and heals (tob_damage.rs2)" end
+            return "ok", reading
+        end)
+
+-- seam7 tob_boss_hit_and_defend_sounds -- conformance snippet for the closer.
+--
+-- NO driver verb was added or changed by this seam (content only: tob.npc's
+-- `param=defend_sound,<name>` on 72 ToB boss blocks, six Verzik hard/story ledgers
+-- pinned, their six npc_anims.generated.npc blocks). This one seam row pins the
+-- behaviour through verbs that already have rows plus the tick log's `sound` kind.
+--
+-- DEPENDS ON the concurrent seam ticklog_sound_and_music_rows (the `sound` row kind,
+-- source "npc <slot> <type>"): merge this row only once that seam lands, and place it
+-- AFTER that seam's own row(s).
+--
+-- PLACE: in _conformance.lua's PLAN after seam("seam.nylocas_protect_blocks_wave_hit")
+-- (the last raid seam row today), among the raid seam rows; it enters a ToB room, so
+-- it runs after the raid.* step rows, and its teardown is ::tobout.
+-- SEAM_COUNT / @seam-count +1.
+--
+-- Proved by build/seam_state/matthew-mbp-m4-raid-b1-seam7/scratch_s7h_hitsounds.lua
+-- (run s7h_hitsounds2: sotetseg.sound_rows "4019@156" on the hit_npc tick 156).
+        seam("seam.tob_boss_hit_sound", function()
+            local enter = verb("raid", "enter")
+            local click_loc = verb("player", "click_loc")
+            local play = verb("chat", "play")
+            local attack = verb("player", "attack")
+            local nearest = verb("npc", "nearest")
+            local log_start = verb("ticklog", "start")
+            local log_slot = verb("ticklog", "slot")
+            local log_rows = verb("ticklog", "rows")
+            if not enter then return missing("raid", "enter") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not play then return missing("chat", "play") end
+            if not attack then return missing("player", "attack") end
+            if not nearest then return missing("npc", "nearest") end
+            if not log_start then return missing("ticklog", "start") end
+            if not log_slot then return missing("ticklog", "slot") end
+            if not log_rows then return missing("ticklog", "rows") end
+            local function teardown()
+                setup_cheat("::god 0")
+                setup_cheat("::tobout")
+            end
+            setup_cheat("::setlevel ranged 99")
+            setup_cheat("::give twisted_bow")
+            setup_cheat("::wield twisted_bow")
+            setup_cheat("::give dragon_arrow 200")
+            setup_cheat("::wield dragon_arrow")
+            local entered, entered_detail = enter("tob", "sotetseg", { mode = "normal" })
+            if entered ~= "ok" then return entered, "tob sotetseg normal -> " .. describe(entered_detail) end
+            setup_cheat("::god 1")
+            log_start()
+            -- Rows of THIS row only: the harness's log runs from step("ticklog.start"),
+            -- world slots are reused, and a whole-log read in a raid room runs out
+            -- the per-resume instruction budget (closer seam7).
+            t.ticklog.mark("seam.tob_boss_hit_sound")
+            local _, base_marks = log_rows({ kind = "mark" })
+            local base = base_marks[#base_marks].serial
+            local clicked, click_detail = click_loc("tob_arena_barrier", 1)
+            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            if clicked ~= "ok" or played ~= "ok" then
+                teardown()
+                return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
+            end
+            local found, boss = nearest("tob_sotetseg_combat", 40)
+            if found ~= "ok" or not is_table(boss) then teardown() return "not_found", "tob_sotetseg_combat -> " .. describe(boss) end
+            local slot_result, world_slot = log_slot(boss)
+            if slot_result ~= "ok" then teardown() return slot_result, describe(world_slot) end
+            attack("tob_sotetseg_combat", 2, 6, { slot = boss.slot })
+            -- every hit he takes (a blocked 0 included) must carry tob_sotetseg_hit 4019
+            -- from the engine's npc noise path, on the same tick as the hit
+            local hits, sounds = {}, {}
+            for _ = 1, 30 do
+                local _, h = log_rows({ kind = "hit_npc", slot = world_slot, since = base })
+                if #h > 0 then hits = h break end
+                settle(1)
+            end
+            settle(1)
+            local _, s = log_rows({ kind = "sound", source = "npc", slot = world_slot, since = base })
+            sounds = s
+            teardown()
+            if #hits == 0 then return "timeout", "no hit_npc row on Sotetseg (world slot " .. tostring(world_slot) .. ") in 30 ticks" end
+            local by_tick = {}
+            for _, r in ipairs(sounds) do
+                if r.sound == 4019 then by_tick[r.tick] = true end
+            end
+            local first = hits[1]
+            if not by_tick[first.tick] then
+                return "refused", "hit at tick " .. first.tick .. " (damage " .. first.damage .. ") had no 4019 npc sound row; sound rows: " .. #sounds
+            end
+            return "ok", "hit tick " .. first.tick .. " damage " .. first.damage .. " -> npc sound 4019 (tob_sotetseg_hit) on the same tick; " .. #sounds .. " npc sound row(s)"
+        end)
+
+-- seam7 tob_death_spectate_and_lobby_services -- conformance snippet for the closer.
+--
+-- NO driver verb was added or changed by this seam (content only: player/death.rs2,
+-- minigame_tob tob_spectate.rs2 (new), tob_hud.rs2, tob_chest.rs2, tob.rs2). This one
+-- seam row pins the Theatre death through verbs that already have rows (raid.enter,
+-- player.click_loc, chat.play, msg.last, inv.count, ticks): a solo Entry raider who
+-- dies is caged ("You have died. Death count: 1.", ::tobjail jailed=1, orb 30), the
+-- party is all down so three ticks later the room restarts ("You have failed.",
+-- jailed=0, started=0) and the raider holds 3 bandages more.
+--
+-- `::die` (player/death.rs2) is the death: it queues the same [queue,player_death]
+-- the engine's [playerdeath] trigger does, which is where the Theatre hook lives.
+--
+-- PLACE: in _conformance.lua's PLAN after seam("seam.nylocas_protect_blocks_wave_hit")
+-- (the last raid seam row), among the raid seam rows after the raid.* step rows; its
+-- teardown is ::tobout. SEAM_COUNT / @seam-count +1.
+--
+-- Proved by build/seam_state/matthew-mbp-m4-raid-b1-seam7/scratch/conformance_row_scratch.lua
+-- (the same body under shims for verb/missing/describe/setup_cheat), run s7conf.
+        seam("seam.tob_death_cage_then_entry_restart", function()
+            local enter = verb("raid", "enter")
+            local click_loc = verb("player", "click_loc")
+            local play = verb("chat", "play")
+            local last = verb("msg", "last")
+            local count = verb("inv", "count")
+            local ticks = verb("ticks")
+            if not enter then return missing("raid", "enter") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not play then return missing("chat", "play") end
+            if not last then return missing("msg", "last") end
+            if not count then return missing("inv", "count") end
+            if not ticks then return missing("ticks") end
+            -- The newest line with this prefix (msg.last is newest first, so the
+            -- highest serial wins: an older readout must not answer a newer ask).
+            local function newest(prefix)
+                local _, lines = last(40)
+                local found, best = nil, -1
+                if not is_table(lines) then return nil end
+                for l = 1, #lines do
+                    if string.find(lines[l].text, prefix, 1, true) ~= nil and lines[l].serial > best then
+                        found = lines[l].text
+                        best = lines[l].serial
+                    end
+                end
+                return found
+            end
+            local function readout(cmd, prefix)
+                setup_cheat(cmd)
+                ticks(1)
+                return newest(prefix)
+            end
+            local entered, entered_detail = enter("tob", "maiden", { mode = "entry" })
+            if entered ~= "ok" then return entered, "tob maiden entry -> " .. describe(entered_detail) end
+            local _, bandages0 = count("tob_bandages")
+            local clicked, click_detail = click_loc("tob_arena_barrier", 1)
+            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            if clicked ~= "ok" or played ~= "ok" then
+                setup_cheat("::tobout")
+                return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
+            end
+            setup_cheat("::die")
+            local died = nil
+            local guard = 0
+            while died == nil and guard < 15 do
+                ticks(1)
+                died = newest("You have died. Death count: 1.")
+                guard = guard + 1
+            end
+            local caged = readout("::tobjail", "tobjail ")
+            local failed = nil
+            guard = 0
+            while failed == nil and guard < 10 do
+                ticks(1)
+                failed = newest("You have failed.")
+                guard = guard + 1
+            end
+            ticks(2)
+            local freed = readout("::tobjail", "tobjail ")
+            local state = readout("::tobstate", "tobstate ")
+            local _, bandages1 = count("tob_bandages")
+            setup_cheat("::tobout")
+            local detail = "death '" .. tostring(died) .. "'; cage '" .. tostring(caged) .. "'; wipe '" .. tostring(failed)
+                .. "'; after '" .. tostring(freed) .. "' / '" .. tostring(state) .. "'; bandages "
+                .. tostring(bandages0) .. " -> " .. tostring(bandages1)
+            if died == nil or caged == nil or string.find(caged, "jailed=1", 1, true) == nil
+                or string.find(caged, "orbs=30,", 1, true) == nil then
+                return "refused", "no cage: " .. detail
+            end
+            if failed == nil or freed == nil or string.find(freed, "jailed=0", 1, true) == nil
+                or state == nil or string.find(state, "started=0", 1, true) == nil then
+                return "refused", "no Entry restart: " .. detail
+            end
+            if (bandages1 or 0) ~= (bandages0 or 0) + 3 then
+                return "refused", "wipe bandages: " .. detail
+            end
+            return "ok", detail
+        end)
+
+-- seam8 tob_maiden_death_and_cage -- conformance snippet for the closer.
+--
+-- NO driver verb was added or changed (content only: minigame_tob tob.rs2's Maiden
+-- death queue and tob_maiden.rs2's target hunts). This one seam row pins the two
+-- behaviours through verbs that already have rows (raid.enter, player.click_loc,
+-- chat.play, msg.last, ticks, ticklog.start, ticklog.rows):
+--   * a raider caged in the Maiden's room takes no hit over 40 ticks (before the
+--     fix: blackstorms at death+8, +28, +48, run s8mc_before), and
+--   * her death sends maiden_death_a 8093 once (before: twice, K+1 and K+3, run
+--     s8md_before3), with the dying_a retype at K+3 and the free at K+9 (the K+3 is
+--     the engine's corpse stage, CONTENT_BUGS engine row; when that lands the row's
+--     detail reads K+1 and nothing here needs to change).
+-- `::tobmate`, `::die` and `::tobmaidenpct` are measurement debugprocs (allowed in a
+-- conformance row, never in a room test).
+--
+-- PLACE: in _conformance.lua's PLAN after seam("seam.tob_death_cage_then_entry_restart")
+-- (seam7's cage row, the last raid seam row); teardown ::tobout. SEAM_COUNT / @seam-count +1.
+--
+-- Proved by build/seam_state/matthew-mbp-m4-raid-b1-seam8/scratch_maiden/conformance_row_scratch.lua
+-- (this body under seam7's shims for verb/missing/describe/is_table/setup_cheat/seam), run s8m_conf:
+--   seam.tob_maiden_cage_and_one_death_anim PASS "ok: died You have died. Death count: 1. at tick 29;
+--   hit_player rows in the cage over 40 ticks: 0; her death K=69: 8093 sent 1, dying_a K+3, npc_free K+9"
+        seam("seam.tob_maiden_cage_and_one_death_anim", function()
+            local enter = verb("raid", "enter")
+            local click_loc = verb("player", "click_loc")
+            local play = verb("chat", "play")
+            local last = verb("msg", "last")
+            local ticks = verb("ticks")
+            local tl_start = verb("ticklog", "start")
+            local tl_rows = verb("ticklog", "rows")
+            if not enter then return missing("raid", "enter") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not play then return missing("chat", "play") end
+            if not last then return missing("msg", "last") end
+            if not ticks then return missing("ticks") end
+            if not tl_start then return missing("ticklog", "start") end
+            if not tl_rows then return missing("ticklog", "rows") end
+            local floor = -1
+            local function newest(prefix)
+                local _, lines = last(40)
+                local found, best = nil, floor
+                if not is_table(lines) then return nil end
+                for l = 1, #lines do
+                    if string.find(lines[l].text, prefix, 1, true) ~= nil and lines[l].serial > best then
+                        found = lines[l].text
+                        best = lines[l].serial
+                    end
+                end
+                return found
+            end
+            -- Out of the room the last row left, and two ticks for the teleport to land:
+            -- ::tobmode 1 lands on the tile that row's Entry restart left the player on, and
+            -- raid.enter's arrival test needs the tile to change (seam8 closer, run 1:
+            -- "never arrived: still at 6452,94,0 (left 6452,94,0)").
+            setup_cheat("::tobout")
+            settle(2)
+            local entered, entered_detail = enter("tob", "maiden", { mode = "entry" })
+            if entered ~= "ok" then return entered, "tob maiden entry -> " .. describe(entered_detail) end
+            -- a party member who is not a player (measurement debugproc): the party is
+            -- never all down, so the cage holds while she keeps fighting
+            setup_cheat("::tobmate")
+            tl_start()
+            -- Every read below is since this mark (seam8 closer): the log runs from the
+            -- harness's first raid row, so a whole-log read matched another row's rows on a
+            -- reused world slot and ran out the instruction budget (closer runs 1-2).
+            t.ticklog.mark("seam.tob_maiden_cage_and_one_death_anim")
+            local _, base_marks = tl_rows({ kind = "mark" })
+            local base = (is_table(base_marks) and #base_marks > 0) and base_marks[#base_marks].serial or 0
+            local clicked, click_detail = click_loc("tob_arena_barrier", 1)
+            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            if clicked ~= "ok" or played ~= "ok" then
+                setup_cheat("::tobout")
+                return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
+            end
+            ticks(12)
+            -- Only a line newer than this ::die counts (seam8 closer): an earlier raid row's
+            -- 'You have died. Death count: 1.' is still in the last 40 lines, and read as
+            -- this death it sent ::tobjail a tick before the cage (closer run 1).
+            do
+                local _, seen = last(40)
+                for l = 1, (is_table(seen) and #seen or 0) do
+                    if seen[l].serial > floor then floor = seen[l].serial end
+                end
+            end
+            setup_cheat("::die")
+            local died, guard = nil, 0
+            while died == nil and guard < 15 do
+                ticks(1)
+                died = newest("You have died. Death count: 1.")
+                guard = guard + 1
+            end
+            local death_tick = nil
+            t.ticklog.mark("seam.tob_maiden_cage died")
+            local _, died_marks = tl_rows({ since = base, kind = "mark" })
+            if is_table(died_marks) and #died_marks > 0 then death_tick = died_marks[#died_marks].tick end
+            ticks(40)
+            local _, hits = tl_rows({ since = base, kind = "hit_player" })
+            local caged_hits = 0
+            for h = 1, (is_table(hits) and #hits or 0) do
+                if death_tick and hits[h].tick > death_tick + 2 then caged_hits = caged_hits + 1 end
+            end
+            -- her death: one maiden_death_a 8093, the dying_a retype at K+3, the free at K+9
+            setup_cheat("::tobmaidenpct 0")
+            local K, slot = nil, nil
+            guard = 0
+            while K == nil and guard < 10 do
+                ticks(1)
+                local _, d = tl_rows({ since = base, kind = "npc_death" })
+                for i = 1, (is_table(d) and #d or 0) do
+                    if d[i].type == 10817 or d[i].type == 10814 or d[i].type == 10815 or d[i].type == 10816 then K = d[i].tick; slot = d[i].slot end
+                end
+                guard = guard + 1
+            end
+            ticks(12)
+            local a8093, retype_at, free_at = 0, nil, nil
+            local _, anims = tl_rows({ since = base, kind = "npc_anim" })
+            for i = 1, (is_table(anims) and #anims or 0) do
+                if anims[i].slot == slot and anims[i].seq == 8093 then a8093 = a8093 + 1 end
+            end
+            local _, rt = tl_rows({ since = base, kind = "npc_retype" })
+            for i = 1, (is_table(rt) and #rt or 0) do
+                if rt[i].slot == slot and rt[i].to_type == 10818 and retype_at == nil then retype_at = rt[i].tick end
+            end
+            local _, fr = tl_rows({ since = base, kind = "npc_free" })
+            for i = 1, (is_table(fr) and #fr or 0) do
+                if fr[i].slot == slot then free_at = fr[i].tick end
+            end
+            setup_cheat("::tobout")
+            local detail = "died " .. tostring(died) .. " at tick " .. tostring(death_tick) .. "; hit_player rows in the cage over 40 ticks: " .. caged_hits ..
+                "; her death K=" .. tostring(K) .. ": 8093 sent " .. a8093 .. ", dying_a K+" .. tostring(retype_at and K and retype_at - K) ..
+                ", npc_free K+" .. tostring(free_at and K and free_at - K)
+            if died == nil or K == nil then return "refused", detail end
+            if caged_hits ~= 0 or a8093 ~= 1 then return "refused", detail end
+            return "ok", detail
+        end)
+
+-- raid seam9 tob_death_stage_arrive_delay_and_heal_row, row (2) -- see the
+-- block above seam("seam.ticklog_npc_heal_row", ...) for its account.
+        seam("seam.maiden_death_forms_on_recorded_ticks", function()
+            local enter = verb("raid", "enter")
+            local click_loc = verb("player", "click_loc")
+            local play = verb("chat", "play")
+            local equip = verb("player", "equip")
+            local attack = verb("player", "attack")
+            local nearest = verb("npc", "nearest")
+            local ticks = verb("ticks")
+            if not enter then return missing("raid", "enter") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not play then return missing("chat", "play") end
+            if not equip then return missing("player", "equip") end
+            if not attack then return missing("player", "attack") end
+            if not nearest then return missing("npc", "nearest") end
+            if not ticks then return missing("ticks") end
+            if type(t.ticklog) ~= "table" or not t.ticklog.rows then return missing("ticklog", "rows") end
+            local DYING_A, DYING_B, POOL_GFX, POOL_LOC = 10818, 10819, 1579, 32984
+            local BODIES = { "tob_maiden_100_story", "tob_maiden_70_story", "tob_maiden_50_story",
+                "tob_maiden_30_story" }
+            setup_cheat("::tobout")
+            settle(2)
+            setup_cheat("::clearinv")
+            setup_cheat("::setlevel ranged 99")
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::give twisted_bow")
+            setup_cheat("::give dragon_arrow 500")
+            settle(2)
+            local entered, entered_detail = enter("tob", "maiden", { mode = "entry" })
+            if entered ~= "ok" then return entered, "tob maiden entry -> " .. describe(entered_detail) end
+            equip("twisted_bow")
+            equip("dragon_arrow")
+            local br, brow = nearest("tob_maiden_100_story", 30)
+            if br ~= "ok" or not is_table(brow) then
+                setup_cheat("::tobout")
+                return "no_subject", "no tob_maiden_100_story in the room: " .. describe(brow)
+            end
+            local _, wslot = t.ticklog.slot(brow)
+            t.ticklog.start()
+            t.ticklog.mark("seam.maiden_death_forms_on_recorded_ticks")
+            local _, base_marks = t.ticklog.rows({ kind = "mark" })
+            local base = base_marks[#base_marks].serial
+            local clicked, click_detail = click_loc("tob_arena_barrier", 1)
+            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            if clicked ~= "ok" or played ~= "ok" then
+                setup_cheat("::tobout")
+                return "refused", "barrier " .. describe(clicked) .. " " .. describe(click_detail)
+                    .. ", confirm " .. describe(played) .. " " .. describe(play_detail)
+            end
+            local function swing()
+                for _, sym in ipairs(BODIES) do
+                    if nearest(sym, 30) == "ok" then
+                        attack(sym, 2, 2)
+                        return sym
+                    end
+                end
+                return nil
+            end
+            -- forty ticks of the fight for her throws, then down to 2 % and the arrow kills
+            for i = 1, 20 do
+                setup_cheat("::setlevel hitpoints 99", false)
+                swing()
+                ticks(1)
+            end
+            -- down through her thresholds, then the killing blow by the same debugproc
+            -- (her blood spawns heal an Entry Maiden faster than an arrow chips 2 %)
+            for _, pct in ipairs({ 69, 49, 29, 0 }) do
+                setup_cheat("::tobmaidenpct " .. pct, false)
+                setup_cheat("::setlevel hitpoints 99", false)
+                ticks(4)
+            end
+            local K = nil
+            for i = 1, 10 do
+                local _, d = t.ticklog.rows({ kind = "npc_death", slot = wslot, since = base })
+                if is_table(d) and #d > 0 then K = d[1].tick break end
+                ticks(1)
+            end
+            ticks(12)
+            local a, b, f = nil, nil, nil
+            if K ~= nil then
+                local _, rt = t.ticklog.rows({ kind = "npc_retype", slot = wslot, since = base })
+                for _, r in ipairs(rt) do
+                    if r.to_type == DYING_A and a == nil then a = r.tick - K end
+                    if r.to_type == DYING_B and b == nil then b = r.tick - K end
+                end
+                local _, fr = t.ticklog.rows({ kind = "npc_free", slot = wslot, since = base })
+                if #fr > 0 then f = fr[1].tick - K end
+            end
+            local _, sp = t.ticklog.rows({ kind = "map_spotanim", spotanim = POOL_GFX, since = base })
+            local _, ls = t.ticklog.rows({ kind = "loc_set", loc = POOL_LOC, since = base })
+            local loc_at = {}
+            for _, r in ipairs(ls) do loc_at[r.coord .. ":" .. r.tick] = true end
+            local with_loc = 0
+            for _, r in ipairs(sp) do
+                if loc_at[r.coord .. ":" .. r.tick] then with_loc = with_loc + 1 end
+            end
+            setup_cheat("::tobout")
+            settle(2)
+            local detail = "her death K=" .. describe(K) .. ": dying_a K+" .. describe(a) .. ", fade K+"
+                .. describe(b) .. ", npc_free K+" .. describe(f) .. " (blert K+1 / K+5 / K+9); "
+                .. with_loc .. " of " .. #sp .. " pool landings (graphic 1579) put loc 32984 on their tile"
+            if K == nil then return "refused", detail .. " -- she did not die" end
+            if a ~= 1 or b ~= 5 or f ~= 9 then return "refused", detail end
+            if #sp == 0 then return "no_subject", detail .. " -- she threw no pool in the window" end
+            if with_loc ~= 0 then return "refused", detail end
+            return "ok", detail
+        end)
+
+-- seam11 tob_rig_ledger_faults (2 of 2): a Matomenos plays elemental_spawn 8098 on
+-- the tick it spawns. Leaves the raid on every exit. SEAM_COUNT +1.
+        seam("seam.matomenos_spawn_seq_on_spawn_tick", function()
+            local enter = verb("raid", "enter")
+            local click_loc = verb("player", "click_loc")
+            local play = verb("chat", "play")
+            local ticks = verb("ticks")
+            if not enter then return missing("raid", "enter") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not play then return missing("chat", "play") end
+            if not ticks then return missing("ticks") end
+            if type(t.ticklog) ~= "table" or not t.ticklog.rows then return missing("ticklog", "rows") end
+            local CRAB, SPAWN_SEQ = 10820, 8098
+            local function teardown()
+                setup_cheat("::god 0")
+                setup_cheat("::tobout")
+                settle(2)
+            end
+            setup_cheat("::tobout")
+            settle(2)
+            local entered, entered_detail = enter("tob", "maiden", { mode = "entry" })
+            if entered ~= "ok" then return entered, "tob maiden entry -> " .. describe(entered_detail) end
+            setup_cheat("::god 1")
+            t.ticklog.start()
+            t.ticklog.mark("seam.matomenos_spawn_seq_on_spawn_tick")
+            local _, marks = t.ticklog.rows({ kind = "mark" })
+            local base = marks[#marks].serial
+            local clicked, click_detail = click_loc("tob_arena_barrier", 1)
+            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            if clicked ~= "ok" or played ~= "ok" then
+                teardown()
+                return "refused", "barrier " .. describe(clicked) .. " " .. describe(click_detail)
+                    .. ", confirm " .. describe(played) .. " " .. describe(play_detail)
+            end
+            ticks(4)
+            setup_cheat("::tobmaidenpct 69")
+            ticks(6)
+            local _, spawns = t.ticklog.rows({ kind = "npc_spawn", type = CRAB, since = base })
+            local _, anims = t.ticklog.rows({ kind = "npc_anim", type = CRAB, since = base })
+            teardown()
+            local at = {}
+            for _, a in ipairs(anims) do at[a.slot .. ":" .. a.tick] = a.seq end
+            local same, parts = 0, {}
+            for _, s in ipairs(spawns) do
+                local seq = at[s.slot .. ":" .. s.tick]
+                if seq == SPAWN_SEQ then same = same + 1 end
+                parts[#parts + 1] = "slot " .. s.slot .. " tick " .. s.tick .. " seq " .. describe(seq)
+            end
+            local detail = #spawns .. " Matomenos spawn(s), " .. same .. " with npc_anim 8098 on the spawn tick ("
+                .. table.concat(parts, "; ") .. ")"
+            if #spawns == 0 then return "no_subject", detail .. " -- she called no crabs at 69 %" end
+            if same ~= #spawns then return "refused", detail end
+            return "ok", detail
+        end)
+
+-- seam8 tob_nylocas_deaths_and_cage -- conformance snippet for the closer.
+--
+-- NO driver verb was added or changed by this seam (content only: tob_nylocas.rs2,
+-- tob_nylocas_boss.rs2, tob.npc). One seam row pins the two content facts through
+-- verbs that already have rows (raid.enter, raid.start_tile, player.walk_to,
+-- player.click_loc, chat.play, msg.last, ticklog.start/rows, tick):
+--   * a raider in the spectator cage is not hit in the Nylocas room: after ::die
+--     (with ::tobmate, so the party is not all down and the cage holds) a support is
+--     collapsed (::tobnylobreak, the room's own ai_queue3 collapse) and no hit_player
+--     row lands on the caged raider -- before the fix the same scratch logged 16
+--     (nylo8_before2: the collapse 15/27/3/13 plus the aggros' swings);
+--   * the support npc plays no animation of its own: no npc_anim row on the support
+--     records (8358 / 10790 / 10811) across a bite-filled room and two collapses --
+--     before, 424 on every bite, 836 at its death and 8074 at the collapse.
+-- ::tobmate / ::tobnylobreak / ::die are measurement cheats (allowed in a seam row,
+-- never in a room test).
+--
+-- PLACE: in _conformance.lua's PLAN after seam("seam.tob_death_cage_then_entry_restart")
+-- (it reuses that row's ::die + ::tobjail pattern), among the raid seam rows; its
+-- teardown is ::tobout. SEAM_COUNT / @seam-count +1.
+--
+-- Proved by build/seam_state/matthew-mbp-m4-raid-b1-seam8/nylo8/conf_row_scratch.lua (this
+-- body under the seam7 shims), runs nylo8_conf_after (PASS) and nylo8_conf_before (FAIL on
+-- the HEAD pack, naming the hits and the support anims).
+        seam("seam.nylocas_cage_skipped_support_unanimated", function()
+            local enter = verb("raid", "enter")
+            local start_tile = verb("raid", "start_tile")
+            local walk_to = verb("player", "walk_to")
+            local click_loc = verb("player", "click_loc")
+            local play = verb("chat", "play")
+            local last = verb("msg", "last")
+            local log_start = verb("ticklog", "start")
+            local log_rows = verb("ticklog", "rows")
+            local now_tick = verb("tick")
+            if not enter then return missing("raid", "enter") end
+            if not start_tile then return missing("raid", "start_tile") end
+            if not walk_to then return missing("player", "walk_to") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not play then return missing("chat", "play") end
+            if not last then return missing("msg", "last") end
+            if not log_start then return missing("ticklog", "start") end
+            if not log_rows then return missing("ticklog", "rows") end
+            if not now_tick then return missing("tick") end
+            local function newest(prefix)
+                local _, lines = last(40)
+                local found, best = nil, -1
+                if not is_table(lines) then return nil end
+                for l = 1, #lines do
+                    if string.find(lines[l].text, prefix, 1, true) ~= nil and lines[l].serial > best then
+                        found = lines[l].text
+                        best = lines[l].serial
+                    end
+                end
+                return found, best
+            end
+            local function teardown() setup_cheat("::tobout") end
+            -- a collapse needs two chewers latched on one support; ask until the room has them
+            local function collapse(after_serial)
+                for _ = 1, 40 do
+                    setup_cheat("::tobnylobreak", false)
+                    settle(1)
+                    local line, serial = newest("tobnylobreak latched")
+                    if line ~= nil and serial > after_serial then return line, serial end
+                    settle(3)
+                end
+                return nil, after_serial
+            end
+            setup_cheat("::setlevel hitpoints 99")
+            local entered, entered_detail = enter("tob", "nylocas", { mode = "entry" })
+            if entered ~= "ok" then return entered, "tob nylocas entry -> " .. describe(entered_detail) end
+            setup_cheat("::tobmate")
+            settle(1)
+            log_start()
+            t.ticklog.mark("seam.nylocas_cage_skipped_support_unanimated")
+            local _, base_marks = log_rows({ kind = "mark" })
+            local base = base_marks[#base_marks].serial
+            local tile_result, fight = start_tile()
+            if tile_result ~= "ok" or not is_table(fight) then teardown() return tile_result, describe(fight) end
+            walk_to(fight.x + 1, fight.z, 20)
+            local clicked, click_detail = click_loc("tob_arena_barrier", 1)
+            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            if clicked ~= "ok" or played ~= "ok" then
+                teardown()
+                return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
+            end
+            -- let the waves bite the supports for a while (the support's bite reaction is what the old default animated)
+            for _ = 1, 60 do
+                setup_cheat("::setlevel hitpoints 99", false)
+                settle(1)
+            end
+            local _, s0 = newest("tobnylobreak latched")
+            local first = collapse(s0 or -1)
+            if first == nil then teardown() return "refused", "no support had two chewers latched in 160 ticks" end
+            settle(6)
+            setup_cheat("::die")
+            local jailed, jailed_at = nil, nil
+            for _ = 1, 40 do
+                setup_cheat("::tobjail", false)
+                settle(1)
+                local line = newest("tobjail ")
+                if line ~= nil and string.find(line, "jailed=1", 1, true) ~= nil then
+                    jailed = line
+                    local _, now = now_tick()
+                    jailed_at = now
+                    break
+                end
+            end
+            if jailed == nil then teardown() return "refused", "::die did not cage the raider (::tobmate keeps the party up)" end
+            local _, s1 = newest("tobnylobreak latched")
+            local second = collapse(s1 or -1)
+            settle(12)
+            local _, hits = log_rows({ kind = "hit_player", since = base })
+            local caged = {}
+            for _, h in ipairs(hits or {}) do
+                if h.tick >= jailed_at then caged[#caged + 1] = "t" .. h.tick .. ":" .. tostring(h.damage) .. "(npc " .. tostring(h.npc_type) .. ")" end
+            end
+            local SUPPORT = { [8358] = true, [10790] = true, [10811] = true }
+            local _, anims = log_rows({ kind = "npc_anim", since = base })
+            local support_anims = {}
+            for _, a in ipairs(anims or {}) do
+                if SUPPORT[a.type] then support_anims[#support_anims + 1] = tostring(a.seq) .. "@" .. a.tick end
+            end
+            local _, locs = log_rows({ kind = "loc_set", since = base })
+            local collapsing = 0
+            for _, l in ipairs(locs or {}) do if l.loc == 32863 then collapsing = collapsing + 1 end end
+            teardown()
+            local text = "caged at tick " .. jailed_at .. "; collapses " .. tostring(first) .. " / " .. tostring(second)
+                .. " (loc 32863 placed " .. collapsing .. "x); hit_player on the caged raider: "
+                .. (#caged == 0 and "none" or table.concat(caged, " ", 1, math.min(#caged, 8)))
+                .. "; support npc_anim rows: " .. (#support_anims == 0 and "none" or table.concat(support_anims, " ", 1, math.min(#support_anims, 6)) .. " (" .. #support_anims .. ")")
+            if second == nil or collapsing < 2 then return "refused", "the second collapse never came: " .. text end
+            if #caged > 0 or #support_anims > 0 then return "refused", text end
+            return "ok", text
+        end)
+
+-- raid seam9 tob_death_stage_arrive_delay_and_heal_row, row (3) -- see the
+-- block above seam("seam.ticklog_npc_heal_row", ...) for its account.
+        seam("seam.small_nylocas_dies_without_arrive_wait", function()
+            local enter = verb("raid", "enter")
+            local start_tile = verb("raid", "start_tile")
+            local walk_to = verb("player", "walk_to")
+            local click_loc = verb("player", "click_loc")
+            local play = verb("chat", "play")
+            local equip = verb("player", "equip")
+            local attack = verb("player", "attack")
+            local nearest = verb("npc", "nearest")
+            local now_tick = verb("tick")
+            local ticks = verb("ticks")
+            if not enter then return missing("raid", "enter") end
+            if not start_tile then return missing("raid", "start_tile") end
+            if not walk_to then return missing("player", "walk_to") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not play then return missing("chat", "play") end
+            if not equip then return missing("player", "equip") end
+            if not attack then return missing("player", "attack") end
+            if not nearest then return missing("npc", "nearest") end
+            if not now_tick then return missing("tick") end
+            if not ticks then return missing("ticks") end
+            if type(t.ticklog) ~= "table" or not t.ticklog.rows then return missing("ticklog", "rows") end
+            local MELEE = { "tob_nylocas_fighting_melee_story", "tob_nylocas_incoming_melee_story",
+                "tob_nylocas_big_fighting_melee_story", "tob_nylocas_big_incoming_melee_story" }
+            local SMALL = { [10774] = true, [10775] = true, [10776] = true, [10780] = true,
+                [10781] = true, [10782] = true }
+            local DEATHSEQ = { [8005] = true, [7998] = true, [7991] = true }
+            setup_cheat("::tobout")
+            settle(2)
+            setup_cheat("::clearinv")
+            setup_cheat("::setlevel attack 99")
+            setup_cheat("::setlevel strength 99")
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::give scythe_of_vitur 1")
+            settle(2)
+            local entered, entered_detail = enter("tob", "nylocas", { mode = "entry" })
+            if entered ~= "ok" then return entered, "tob nylocas entry -> " .. describe(entered_detail) end
+            setup_cheat("::tobmate")
+            equip("scythe_of_vitur")
+            t.ticklog.start()
+            t.ticklog.mark("seam.small_nylocas_dies_without_arrive_wait")
+            local _, base_marks = t.ticklog.rows({ kind = "mark" })
+            local base = base_marks[#base_marks].serial
+            local _, fight = start_tile()
+            walk_to(fight.x + 1, fight.z, 20)
+            local clicked = click_loc("tob_arena_barrier", 1)
+            local played = play({ "options", "choose:Yes, begin the fight." })
+            if clicked ~= "ok" or played ~= "ok" then
+                setup_cheat("::tobout")
+                return "refused", "barrier " .. describe(clicked) .. ", confirm " .. describe(played)
+            end
+            local _, tick0 = now_tick()
+            local cur, since = nil, -99
+            while true do
+                local _, now = now_tick()
+                if now - tick0 >= 200 then break end
+                if (now - tick0) % 2 == 0 then setup_cheat("::setlevel hitpoints 99", false) end
+                local pick, pick_sym = nil, nil
+                for _, sym in ipairs(MELEE) do
+                    local r, row = nearest(sym, 30)
+                    if r == "ok" and is_table(row) then pick, pick_sym = row, sym break end
+                end
+                if pick and (cur ~= pick.slot or now - since >= 5) then
+                    attack(pick_sym, 2, 1, { slot = pick.slot })
+                    cur, since = pick.slot, now
+                end
+                ticks(1)
+            end
+            ticks(8)
+            local _, deaths = t.ticklog.rows({ kind = "npc_death", since = base })
+            local _, anims = t.ticklog.rows({ kind = "npc_anim", since = base })
+            local _, frees = t.ticklog.rows({ kind = "npc_free", since = base })
+            local n, walking, bad, bad_text = 0, 0, 0, {}
+            for _, d in ipairs(deaths) do
+                if SMALL[d.type] then
+                    local D, anim, free = d.tick, nil, nil
+                    for _, x in ipairs(anims) do
+                        if x.slot == d.slot and x.tick >= D and x.tick <= D + 8 and DEATHSEQ[x.seq] then anim = x.tick break end
+                    end
+                    for _, x in ipairs(frees) do
+                        if x.slot == d.slot and x.tick >= D and x.tick <= D + 12 then free = x.tick break end
+                    end
+                    local _, tiles = t.ticklog.rows({ kind = "npc_tile", slot = d.slot, since = base })
+                    local moved = false
+                    for _, x in ipairs(tiles) do
+                        if x.tick == D or x.tick == D - 1 then moved = true end
+                    end
+                    n = n + 1
+                    if moved then walking = walking + 1 end
+                    if anim == nil or anim - D ~= 1 or free == nil or free - D ~= 2 then
+                        bad = bad + 1
+                        bad_text[#bad_text + 1] = string.format("slot %d%s anim+%s free+%s", d.slot,
+                            moved and " walking" or "", anim and tostring(anim - D) or "?",
+                            free and tostring(free - D) or "?")
+                    end
+                end
+            end
+            setup_cheat("::tobout")
+            settle(2)
+            local detail = (n - bad) .. " of " .. n .. " small deaths animate t+1 and despawn t+2 ("
+                .. walking .. " walking on t or t-1)"
+            if n == 0 then return "no_subject", detail .. " -- no small died" end
+            if bad > 0 then return "refused", detail .. ": " .. table.concat(bad_text, "; ", 1, math.min(#bad_text, 6)) end
+            if walking == 0 then return "no_subject", detail .. " -- no walking small died this run" end
+            return "ok", detail
+        end)
+
+-- seam8 tob_sotetseg_tornado_and_cage -- conformance snippet for the closer.
+--
+-- NO driver verb was added or changed by this seam (content only:
+-- minigame_tob/scripts/tob_sotetseg.rs2). Two seam rows pin the content through verbs
+-- that already have rows (raid.enter, player.click_loc, chat.play, msg.last,
+-- world.tile/level, npc.nearest, player.step_tick, ticklog.start/slot/rows, ticks):
+--
+--   seam.tob_sotetseg_cage_not_targeted -- a solo Entry raider with `::tobmate` (a
+--     party member who is not a player, so the party is never all down) dies (`::die`)
+--     and is caged; in 28 caged ticks Sotetseg makes no attack (no 8138/8139 npc_anim
+--     on his slot), no hit_player row lands, and the maze proc (::tobsotepct 660)
+--     neither chooses nor moves the caged raider (no "Sotetseg chooses you", tile and
+--     level unchanged). Before the fix: 7 attack anims, 4 hits, chosen and teleported
+--     into the realm (scratch sote8_cage_arena_before).
+--   seam.tob_sotetseg_tornado_mode_record -- the Entry maze tornado is
+--     tob_sotetseg_creeper_story 10866 (cache_npc_sotetseg.txt:140), not the Normal
+--     8389 (spec run spec_sotetseg_3 spawned 8389 at ticks 120 and 210).
+--
+-- PLACE: in _conformance.lua's PLAN right after seam("seam.tob_death_cage_then_entry_restart")
+-- (the cage row; both raid rows run among the raid seam rows after the raid.* step rows),
+-- in this order. Each tears down with ::tobout (the tornado row also ::god 0).
+-- SEAM_COUNT / @seam-count +2; verb_list.py needs nothing (no verb).
+--
+-- Proved by build/seam_state/matthew-mbp-m4-raid-b1-seam8/sote8/sote8_conformance_rows.lua
+-- (these bodies byte-identical under shims for verb/missing/describe/setup_cheat/seam),
+-- run sote8_conf_rows2: 2/2 PASS.
+        seam("seam.tob_sotetseg_cage_not_targeted", function()
+            local enter = verb("raid", "enter")
+            local click_loc = verb("player", "click_loc")
+            local play = verb("chat", "play")
+            local last = verb("msg", "last")
+            local tile = verb("world", "tile")
+            local level = verb("world", "level")
+            local nearest = verb("npc", "nearest")
+            local log_start = verb("ticklog", "start")
+            local log_slot = verb("ticklog", "slot")
+            local log_rows = verb("ticklog", "rows")
+            local ticks = verb("ticks")
+            if not enter then return missing("raid", "enter") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not play then return missing("chat", "play") end
+            if not last then return missing("msg", "last") end
+            if not tile then return missing("world", "tile") end
+            if not level then return missing("world", "level") end
+            if not nearest then return missing("npc", "nearest") end
+            if not log_start then return missing("ticklog", "start") end
+            if not log_slot then return missing("ticklog", "slot") end
+            if not log_rows then return missing("ticklog", "rows") end
+            if not ticks then return missing("ticks") end
+            local floor = -1
+            local function newest(prefix)
+                local _, lines = last(40)
+                local found, best = nil, floor
+                if not is_table(lines) then return nil end
+                for l = 1, #lines do
+                    if string.find(lines[l].text, prefix, 1, true) ~= nil and lines[l].serial > best then
+                        found = lines[l].text
+                        best = lines[l].serial
+                    end
+                end
+                return found
+            end
+            local function readout(cmd, prefix)
+                setup_cheat(cmd)
+                ticks(1)
+                return newest(prefix)
+            end
+            local entered, entered_detail = enter("tob", "sotetseg", { mode = "entry" })
+            if entered ~= "ok" then return entered, "tob sotetseg entry -> " .. describe(entered_detail) end
+            -- a party member who is not a player keeps the party from being all down,
+            -- so the cage holds instead of wiping three ticks later
+            setup_cheat("::tobmate")
+            log_start()
+            t.ticklog.mark("seam.tob_sotetseg_cage_not_targeted")
+            local _, base_marks = log_rows({ kind = "mark" })
+            local base = base_marks[#base_marks].serial
+            local found, boss = nearest("tob_sotetseg_combat_story", 40)
+            if found ~= "ok" or not is_table(boss) then setup_cheat("::tobout") return "not_found", "tob_sotetseg_combat_story -> " .. describe(boss) end
+            local _, world_slot = log_slot(boss)
+            local clicked, click_detail = click_loc("tob_arena_barrier", 1)
+            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            if clicked ~= "ok" or played ~= "ok" then
+                setup_cheat("::tobout")
+                return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
+            end
+            -- Only a line newer than this ::die counts (seam8 closer): an earlier raid row's
+            -- 'You have died. Death count: 1.' is still in the last 40 lines, and read as
+            -- this death it sent ::tobjail a tick before the cage (closer run 1).
+            do
+                local _, seen = last(40)
+                for l = 1, (is_table(seen) and #seen or 0) do
+                    if seen[l].serial > floor then floor = seen[l].serial end
+                end
+            end
+            setup_cheat("::die")
+            local died, guard = nil, 0
+            while died == nil and guard < 15 do
+                ticks(1)
+                died = newest("You have died. Death count: 1.")
+                guard = guard + 1
+            end
+            local caged = readout("::tobjail", "tobjail ")
+            local _, cage = tile()
+            t.ticklog.mark("seam.tob_sotetseg_cage_not_targeted caged")
+            local _, caged_marks = log_rows({ kind = "mark" })
+            local since = caged_marks[#caged_marks].serial
+            -- 20 ticks in the cage (four of his 5-tick attack slots), then the maze proc
+            ticks(20)
+            setup_cheat("::tobsotepct 660")
+            ticks(8)
+            local chosen = newest("Sotetseg chooses you")
+            local _, at = tile()
+            local _, lv = level()
+            local _, anims = log_rows({ kind = "npc_anim", slot = world_slot, since = since })
+            local _, hits = log_rows({ kind = "hit_player", since = since })
+            local _, retypes = log_rows({ kind = "npc_retype", slot = world_slot, since = since })
+            setup_cheat("::tobout")
+            local swings = 0
+            for _, r in ipairs(anims) do
+                if r.seq == 8138 or r.seq == 8139 then swings = swings + 1 end
+            end
+            local detail = "death '" .. tostring(died) .. "'; cage '" .. tostring(caged) .. "'; in 28 caged ticks: "
+                .. swings .. " attack anim(s) (8138/8139), " .. #hits .. " hit_player row(s), "
+                .. #retypes .. " retype(s) (the maze proc), chooses-you '" .. tostring(chosen) .. "', tile "
+                .. tostring(cage and cage.x) .. "," .. tostring(cage and cage.z) .. " -> " .. tostring(at and at.x) .. "," .. tostring(at and at.z) .. " L" .. tostring(lv)
+            if died == nil or caged == nil or string.find(caged, "jailed=1", 1, true) == nil then
+                return "refused", "no cage: " .. detail
+            end
+            if #retypes < 1 then return "refused", "the maze never procced: " .. detail end
+            if swings > 0 or #hits > 0 or chosen ~= nil or at.x ~= cage.x or at.z ~= cage.z or lv ~= 0 then
+                return "refused", "the caged raider was targeted: " .. detail
+            end
+            return "ok", detail
+        end)
+
+        seam("seam.tob_sotetseg_tornado_mode_record", function()
+            local enter = verb("raid", "enter")
+            local click_loc = verb("player", "click_loc")
+            local play = verb("chat", "play")
+            local tile = verb("world", "tile")
+            local level = verb("world", "level")
+            local step_tick = verb("player", "step_tick")
+            local nearest = verb("npc", "nearest")
+            local log_start = verb("ticklog", "start")
+            local log_slot = verb("ticklog", "slot")
+            local log_rows = verb("ticklog", "rows")
+            local ticks = verb("ticks")
+            if not enter then return missing("raid", "enter") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not play then return missing("chat", "play") end
+            if not tile then return missing("world", "tile") end
+            if not level then return missing("world", "level") end
+            if not step_tick then return missing("player", "step_tick") end
+            if not nearest then return missing("npc", "nearest") end
+            if not log_start then return missing("ticklog", "start") end
+            if not log_slot then return missing("ticklog", "slot") end
+            if not log_rows then return missing("ticklog", "rows") end
+            if not ticks then return missing("ticks") end
+            local function teardown()
+                setup_cheat("::god 0")
+                setup_cheat("::tobout")
+            end
+            local entered, entered_detail = enter("tob", "sotetseg", { mode = "entry" })
+            if entered ~= "ok" then return entered, "tob sotetseg entry -> " .. describe(entered_detail) end
+            log_start()
+            t.ticklog.mark("seam.tob_sotetseg_tornado_mode_record")
+            local _, base_marks = log_rows({ kind = "mark" })
+            local base = base_marks[#base_marks].serial
+            local found, boss = nearest("tob_sotetseg_combat_story", 40)
+            if found ~= "ok" or not is_table(boss) then setup_cheat("::tobout") return "not_found", "tob_sotetseg_combat_story -> " .. describe(boss) end
+            local _, world_slot = log_slot(boss)
+            local clicked, click_detail = click_loc("tob_arena_barrier", 1)
+            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            if clicked ~= "ok" or played ~= "ok" then
+                setup_cheat("::tobout")
+                return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
+            end
+            setup_cheat("::god 1")
+            setup_cheat("::tobsotepct 660")
+            local lv, guard = 0, 0
+            while lv ~= 3 and guard < 15 do
+                ticks(1)
+                local _, l = level()
+                lv = l
+                guard = guard + 1
+            end
+            if lv ~= 3 then teardown() return "timeout", "the runner never reached the realm (level " .. tostring(lv) .. ")" end
+            -- the path is lit from the landing: wait out the stall, then read it back
+            ticks(4)
+            local _, start = tile()
+            local path = {}
+            local _, lit = log_rows({ kind = "loc_set", since = base })
+            for _, r in ipairs(lit) do
+                if r.level == 3 and r.loc == 33035 then path[r.x .. "," .. r.z] = true end
+            end
+            -- walk the lit path to the fourth row (index 3): the tornado spawns
+            local cx, cz = start.x, start.z
+            local seen = { [cx .. "," .. cz] = true }
+            local steps = 0
+            while cz - start.z < 3 and steps < 12 do
+                local nx, nz = nil, nil
+                if path[cx .. "," .. (cz + 1)] and not seen[cx .. "," .. (cz + 1)] then
+                    nx, nz = cx, cz + 1
+                elseif path[(cx - 1) .. "," .. cz] and not seen[(cx - 1) .. "," .. cz] then
+                    nx, nz = cx - 1, cz
+                elseif path[(cx + 1) .. "," .. cz] and not seen[(cx + 1) .. "," .. cz] then
+                    nx, nz = cx + 1, cz
+                end
+                if nx == nil or step_tick(nx, nz) ~= "ok" then break end
+                seen[nx .. "," .. nz] = true
+                cx, cz = nx, nz
+                steps = steps + 1
+            end
+            ticks(2)
+            local _, spawns = log_rows({ kind = "npc_spawn", since = base })
+            teardown()
+            local types = ""
+            local last_type = nil
+            for _, r in ipairs(spawns) do
+                if r.level == 3 then
+                    types = types .. " t" .. r.tick .. ":" .. tostring(r.type)
+                    last_type = r.type
+                end
+            end
+            local detail = steps .. " path step(s) to row index " .. (cz - start.z) .. "; realm npc_spawn rows:" .. (types == "" and " none" or types)
+            if last_type == nil then return "timeout", "no tornado spawned: " .. detail end
+            if last_type ~= 10866 then
+                return "refused", "the Entry tornado is not tob_sotetseg_creeper_story 10866: " .. detail
+            end
+            return "ok", detail .. " (tob_sotetseg_creeper_story, cache_npc_sotetseg.txt:140)"
+        end)
+
+-- seam20 tob_prayer_read_on_send (row 1 of 2). NO verb added or changed and NO content
+-- behaviour changed: Sotetseg's ball reads the protection prayer at the LANDING, a sourced
+-- exception to the owner's send-tick default (blert, CONTENT_BUGS.md "From seam20"; spec row
+-- sotetseg.ball_prayer_read_tick). Solo Entry at the barrier (end_cycle 232, 7 ticks): a
+-- ball thrown unprayed with Protect from Magic raised in flight is blocked (hitsplat 26, 0)
+-- on throw + end_cycle // 30; one thrown prayed with the prayer dropped in flight is his hit
+-- a tick later, and the next press is refused (the lock). Arrivals are matched by landing
+-- tick. Teardown ::tobout. SEAM_COUNT / @seam-count +1.
+        seam("seam.tob_sotetseg_ball_prayer_read_at_landing", function()
+            local enter = verb("raid", "enter")
+            local click_loc = verb("player", "click_loc")
+            local play = verb("chat", "play")
+            local nearest = verb("npc", "nearest")
+            local log_start = verb("ticklog", "start")
+            local log_slot = verb("ticklog", "slot")
+            local log_rows = verb("ticklog", "rows")
+            local pset = verb("prayer", "set")
+            local ticks = verb("ticks")
+            if not enter then return missing("raid", "enter") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not play then return missing("chat", "play") end
+            if not nearest then return missing("npc", "nearest") end
+            if not log_start then return missing("ticklog", "start") end
+            if not log_slot then return missing("ticklog", "slot") end
+            if not log_rows then return missing("ticklog", "rows") end
+            if not pset then return missing("prayer", "set") end
+            if not ticks then return missing("ticks") end
+            local BALL_PROJ = 1606    -- tob_sotetseg_maging, his ordinary ball (solo: no ricochet)
+            local BLOCK_SPLAT = 26    -- hitsplat_block, the prayed ball's damage(uid, hitsplat_block, 0)
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::setlevel prayer 99")
+            local entered, entered_detail = enter("tob", "sotetseg", { mode = "entry" })
+            if entered ~= "ok" then return entered, "tob sotetseg entry -> " .. describe(entered_detail) end
+            log_start()
+            local found, boss = nearest("tob_sotetseg_combat_story", 40)
+            if found ~= "ok" or not is_table(boss) then setup_cheat("::tobout") return "not_found", "tob_sotetseg_combat_story -> " .. describe(boss) end
+            local _, world_slot = log_slot(boss)
+            pset("protectfrommagic", false)
+            local clicked, click_detail = click_loc("tob_arena_barrier", 1)
+            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            if clicked ~= "ok" or played ~= "ok" then
+                setup_cheat("::tobout")
+                return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
+            end
+            local function mark(text)
+                t.ticklog.mark(text)
+                local _, ms = log_rows({ kind = "mark" })
+                return ms[#ms]
+            end
+            -- the next ordinary ball thrown after `since`: its projectile row (tick = the throw)
+            local function next_throw(since)
+                for _ = 1, 30 do
+                    local _, pj = log_rows({ kind = "projectile", since = since })
+                    for _, r in ipairs(pj or {}) do
+                        if r.spotanim == BALL_PROJ then return r end
+                    end
+                    ticks(1)
+                end
+                return nil
+            end
+            -- that ball's arrival on the player. It lands on throw + end_cycle // 30 (the
+            -- queue's delay, `~tob_flight_ticks`); a prayed ball is a block splat ON that tick
+            -- (damage(uid, hitsplat_block, 0)), an unprayed one his own hit one tick later
+            -- (combat_damage_player at delay 0). Matched by tick: his next ball is thrown five
+            -- ticks later and an earlier one can still be in the air, so "the next splat" is
+            -- not necessarily this ball's.
+            local function arrival(since, throw)
+                local land = throw.tick + math.floor(throw.end_cycle / 30)
+                for _ = 1, 15 do
+                    local _, hs = log_rows({ kind = "hit_player", since = since })
+                    for _, r in ipairs(hs or {}) do
+                        if r.tick == land and r.hitsplat == BLOCK_SPLAT and r.damage == 0 then return r, "prayed", land end
+                        if r.tick == land + 1 and r.npc_slot == world_slot and r.damage > 0 then return r, "unprayed", land end
+                    end
+                    ticks(1)
+                end
+                return nil, "none", land
+            end
+            -- one trial: the prayer stands at `before` when the ball leaves, is switched to
+            -- `after` only once the throw row is in the log (so the switch is in force from
+            -- the tick after the throw at the earliest), and the mark written after the switch
+            -- is older than the arrival; a ball that arrived first is not a trial, take the next
+            local function trial(before, after)
+                local tries, note = 0, ""
+                while tries < 4 do
+                    tries = tries + 1
+                    local r0 = pset("protectfrommagic", before)
+                    if r0 ~= "ok" then
+                        -- the unprayed ball's lock refuses a press for five ticks: wait it out
+                        ticks(6)
+                        r0 = pset("protectfrommagic", before)
+                    end
+                    if r0 ~= "ok" then return nil, "could not set the prayer " .. tostring(before) .. ": " .. tostring(r0) end
+                    local m0 = mark("s20 trial before=" .. tostring(before))
+                    local throw = next_throw(m0.serial)
+                    if throw == nil then return nil, "no ordinary ball thrown in 30 ticks" end
+                    local r1, d1 = pset("protectfrommagic", after)
+                    local m1 = mark("s20 switched to " .. tostring(after))
+                    local hit, verdict, land = arrival(throw.serial, throw)
+                    if hit == nil then return nil, "no arrival for the ball thrown at tick " .. throw.tick .. " (landing " .. land .. ")" end
+                    local line = "throw " .. throw.tick .. " (prayer " .. tostring(before) .. "), switch " .. tostring(r1)
+                        .. " in force by mark " .. m1.tick .. ", landing " .. land .. " (end_cycle " .. throw.end_cycle .. ") "
+                        .. verdict .. " (splat tick " .. hit.tick .. ", damage " .. hit.damage .. ", hitsplat " .. hit.hitsplat .. ")"
+                    if r1 == "ok" and throw.tick <= m1.tick and m1.tick < land then return verdict, line end
+                    note = note .. "; not a trial: " .. line .. " " .. describe(d1)
+                end
+                return nil, "no ball arrived after its switch in 4 tries" .. note
+            end
+            local v_on, d_on = trial(false, true)
+            local v_off, d_off = trial(true, false)
+            -- the lock that follows an unprayed hit: a press right after the second arrival is refused
+            local lock = pset("protectfrommagic", true)
+            setup_cheat("::tobout")
+            local detail = "OFF at the throw, ON before it landed: " .. tostring(d_on) .. " | ON at the throw, OFF before it landed: "
+                .. tostring(d_off) .. " | Protect from Magic pressed after that arrival: " .. tostring(lock)
+            if v_on ~= "prayed" then return "refused", "a prayer raised in flight was not read at the landing: " .. detail end
+            if v_off ~= "unprayed" then return "refused", "a prayer dropped in flight was not read at the landing: " .. detail end
+            if lock ~= "refused" then return "refused", "the unprayed arrival did not lock the protection prayers: " .. detail end
+            return "ok", detail
+        end)
+
+-- seam7 tob_party_board_and_scoreboard_interfaces -- conformance snippet for the closer.
+--
+-- NO driver verb was added or changed by this seam (content only: tob_board.rs2
+-- and tob_party.rs2). This one seam row pins the content behaviour through verbs
+-- that already have rows (player.goto_tile, player.click_loc, chat.drain/kind/choose,
+-- ui.await_open, ui.widget, ui.invoke, ui.expect_text, msg.last).
+--
+-- PLACE: in _conformance.lua's PLAN after seam("seam.nylocas_protect_blocks_wave_hit")
+-- (its teardown ::tobout leaves the player free in the lobby world). It needs no
+-- raid; its own teardown disbands the party (the leader's action button) and
+-- closes the panel. SEAM_COUNT / @seam-count +1.
+--
+-- Proved by build/seam_state/matthew-mbp-m4-raid-b1-seam7/party_board/conformance_row_scratch.lua
+-- (the same body under shims for verb/missing/describe/setup_cheat/settle).
+        seam("seam.tob_party_board_forms_a_party", function()
+            local goto_tile = verb("player", "goto_tile")
+            local click_loc = verb("player", "click_loc")
+            local drain = verb("chat", "drain")
+            local kind = verb("chat", "kind")
+            local choose = verb("chat", "choose")
+            local await_open = verb("ui", "await_open")
+            local widget = verb("ui", "widget")
+            local invoke = verb("ui", "invoke")
+            local expect_text = verb("ui", "expect_text")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not drain then return missing("chat", "drain") end
+            if not kind then return missing("chat", "kind") end
+            if not choose then return missing("chat", "choose") end
+            if not await_open then return missing("ui", "await_open") end
+            if not widget then return missing("ui", "widget") end
+            if not invoke then return missing("ui", "invoke") end
+            if not expect_text then return missing("ui", "expect_text") end
+            if type(t.msg) ~= "table" or not t.msg.last then return missing("msg", "last") end
+            local function line(prefix)
+                local _, list = t.msg.last(20)
+                for _, m in ipairs(list or {}) do
+                    if string.sub(m.text, 1, #prefix) == prefix then return m.text end
+                end
+                return nil
+            end
+            local function teardown()
+                -- Disband (the leader's action button, sub 5) and close.
+                local ar, aid = widget("tob_partydetails:action")
+                if ar == "ok" then invoke(aid, 1) end
+                settle(2)
+                if verb("key") then t.key("escape") end
+                settle(2)
+            end
+            -- The lobby, beside the notice board (Ver Sinhaza, map 57_50).
+            local gr, gd = goto_tile(3662, 3216, 0)
+            if gr ~= "ok" then return gr, "goto the board: " .. describe(gd) end
+            local cr, cd = click_loc("tob_surface_notice_board", 1)
+            if cr ~= "ok" then return cr, "Read the notice board: " .. describe(cd) end
+            settle(2)
+            -- A first reading asks how experienced the player is; answer it.
+            if kind() == "mesbox" then
+                drain({ stop_at = "options", max_pages = 3 })
+                choose("Not very experienced. I'll start with Entry Mode.")
+                settle(2)
+                drain({ max_pages = 2 })
+            end
+            local lr, ld = await_open("tob_partylist", 10)
+            if lr ~= "ok" then return lr, "the board did not open tob_partylist: " .. describe(ld) end
+            local tr, td = expect_text("tob_partylist:frame", "Performers for the Theatre", 5, 1)
+            if tr ~= "ok" then return tr, describe(td) end
+            local wr, wid = widget("tob_partylist:myparty")
+            if wr ~= "ok" then return wr, "tob_partylist:myparty: " .. describe(wid) end
+            invoke(wid, 1)
+            local pr, pd = await_open("tob_partydetails", 10)
+            if pr ~= "ok" then teardown() return pr, "Make party did not open tob_partydetails: " .. describe(pd) end
+            -- The panel's own Refresh twice: the first push of a panel whose
+            -- clientscripts call a proc the client has not loaded draws only its
+            -- last row (seam7 engine finding).
+            local rr, rid = widget("tob_partydetails:refresh")
+            if rr == "ok" then invoke(rid, 1) settle(3) invoke(rid, 1) settle(3) end
+            local hr, hd = expect_text("tob_partydetails:frame", "Party of", 5, 1)
+            local mr, md = expect_text("tob_partydetails:mode", "Mode:", 5, 0)
+            local dr, dd = expect_text("tob_partydetails:action", "Disband", 5, 9)
+            setup_cheat("::tobparty")
+            local rec = line("tobparty: handle")
+            teardown()
+            if hr ~= "ok" then return hr, describe(hd) end
+            if mr ~= "ok" then return mr, describe(md) end
+            if dr ~= "ok" then return dr, describe(dd) end
+            if rec == nil or not string.find(rec, "role 2 members 1", 1, true) then
+                return "refused", "no leader record after Make party: " .. describe(rec)
+            end
+            return "ok", describe(hd) .. " | " .. describe(md) .. " | " .. rec
+        end)
+
+-- seam8 ticklog_player_kinds_and_engine_rows, row (5) of five (rows 1-4 sit after
+-- seam.ticklog_music_row with the snippet's full header): RESUME_PAUSEBUTTON
+-- latches sub 0 (torirs_server_world.c handle_resume_pausebutton), so
+-- tob_partydetails' Back acts on its own row. SEAM_COUNT / @seam-count +1.
+        seam("seam.pausebutton_sub_zero_latches", function()
+            local goto_tile = verb("player", "goto_tile")
+            local click_loc = verb("player", "click_loc")
+            local drain = verb("chat", "drain")
+            local kind = verb("chat", "kind")
+            local choose = verb("chat", "choose")
+            local await_open = verb("ui", "await_open")
+            local widget = verb("ui", "widget")
+            local invoke = verb("ui", "invoke")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not drain then return missing("chat", "drain") end
+            if not kind then return missing("chat", "kind") end
+            if not choose then return missing("chat", "choose") end
+            if not await_open then return missing("ui", "await_open") end
+            if not widget then return missing("ui", "widget") end
+            if not invoke then return missing("ui", "invoke") end
+            local function press(name)
+                local r, id = widget(name)
+                if r ~= "ok" then return r, name .. ": " .. describe(id) end
+                return invoke(id, 1)
+            end
+            local function teardown()
+                -- Back to the party (My party, sub 1), Disband (action, sub 5), close.
+                if await_open("tob_partylist", 2) == "ok" then
+                    press("tob_partylist:myparty")
+                    await_open("tob_partydetails", 5)
+                end
+                press("tob_partydetails:action")
+                settle(2)
+                if verb("key") then t.key("escape") end
+                settle(2)
+            end
+            local gr, gd = goto_tile(3662, 3216, 0)
+            if gr ~= "ok" then return gr, "goto the board: " .. describe(gd) end
+            local cr, cd = click_loc("tob_surface_notice_board", 1)
+            if cr ~= "ok" then return cr, "Read the notice board: " .. describe(cd) end
+            settle(2)
+            if kind() == "mesbox" then
+                drain({ stop_at = "options", max_pages = 3 })
+                choose("Not very experienced. I'll start with Entry Mode.")
+                settle(2)
+                drain({ max_pages = 2 })
+            end
+            local lr, ld = await_open("tob_partylist", 10)
+            if lr ~= "ok" then return lr, "the board did not open tob_partylist: " .. describe(ld) end
+            press("tob_partylist:myparty") -- contents, sub 1
+            local pr, pd = await_open("tob_partydetails", 10)
+            if pr ~= "ok" then teardown() return pr, "Make party did not open tob_partydetails: " .. describe(pd) end
+            settle(2)
+            local br, bd = press("tob_partydetails:back") -- universe, sub 0
+            settle(3)
+            local back_r, back_d = await_open("tob_partylist", 5)
+            local still_r = await_open("tob_partydetails", 1)
+            local text = "Make party (sub 1) -> tob_partydetails; Back (sub 0) -> " .. describe(br)
+                .. "; tob_partylist " .. describe(back_r) .. ", tob_partydetails " .. describe(still_r)
+            teardown()
+            if back_r ~= "ok" then
+                return "refused", text .. " -- Back acted on a stale slot (" .. describe(back_d) .. ")"
+            end
+            return "ok", text
+        end)
+
+-- seam8 tob_hud_chat_lines_and_room_flow -- conformance snippet for the closer.
+--
+-- NO driver verb was added or changed by this seam (content only: tob_hud.rs2,
+-- tob_raid.rs2, tob_party.rs2). Two seam rows pin the content through verbs that
+-- already have rows (raid.enter, player.click_loc, chat.play, var.varbit,
+-- msg.last, inv.count, ticks):
+--
+--   seam.tob_hud_status_and_wave_line   a solo Entry Maiden: 6440 = 2 and 6447 = 0
+--       before the barrier (the HUD's "raid started" from arrival), 6448 = 6449 = 1000
+--       at the fight start (permille, blert/ATR FULL_HP), and the room's wave line
+--       "Wave 'The Maiden of Sugadinti' (Entry Mode) complete!<br>Duration: <col=ff0000>m:ss</col>"
+--       after the kill (::kill, the way seam.tob_death_cage_then_entry_restart uses ::die).
+--   seam.tob_logout_in_fight_is_death   ::toblogoutdrill (tob_raid.rs2; runs
+--       ~tob_on_logout, ends the temp varps, runs ~tob_on_reenter -- a driver relog
+--       re-boots the embedded server) in a started solo Entry Maiden: the team death
+--       counted (deaths=0->1, orb=30) and, nobody left standing, the Entry wipe
+--       ("You have failed.", started=0, 3 bandages).
+--
+-- PLACE: in _conformance.lua's PLAN after seam("seam.tob_party_board_forms_a_party")
+-- (the last ToB seam row), both with their own ::tobout teardown. Each starts with
+-- ::tobout so a raid left by an earlier row cannot carry its party into this build
+-- (::tobmode after ::tobmode re-joins a carried party: measured, two jingle rows).
+-- SEAM_COUNT / @seam-count +2.
+--
+-- Proved by build/seam_state/matthew-mbp-m4-raid-b1-seam8/scratch_hud/conformance_row_scratch.lua
+-- (the same bodies under shims for verb/missing/describe/setup_cheat/is_table), run s8hud_conf.
+        seam("seam.tob_hud_status_and_wave_line", function()
+            local enter = verb("raid", "enter")
+            local click_loc = verb("player", "click_loc")
+            local play = verb("chat", "play")
+            local varbit = verb("var", "varbit")
+            local last = verb("msg", "last")
+            local ticks = verb("ticks")
+            if not enter then return missing("raid", "enter") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not play then return missing("chat", "play") end
+            if not varbit then return missing("var", "varbit") end
+            if not last then return missing("msg", "last") end
+            if not ticks then return missing("ticks") end
+            local function vb(name)
+                local r, v = varbit(name)
+                if r ~= "ok" then return -1 end
+                return v
+            end
+            local function hud()
+                return "6440=" .. vb("varb6440_tob_client_partystatus") .. " 6447=" .. vb("varb6447_tob_client_waveprogress_type")
+                    .. " 6448=" .. vb("varb6448_tob_client_waveprogress_val") .. " 6449=" .. vb("varb6449_tob_client_waveprogress_max")
+            end
+            local function newest(prefix)
+                local _, lines = last(40)
+                local found, best = nil, -1
+                if not is_table(lines) then return nil end
+                for l = 1, #lines do
+                    if string.find(lines[l].text, prefix, 1, true) ~= nil and lines[l].serial > best then
+                        found = lines[l].text
+                        best = lines[l].serial
+                    end
+                end
+                return found
+            end
+            local function teardown()
+                setup_cheat("::god 0")
+                setup_cheat("::tobout")
+            end
+            setup_cheat("::tobout")
+            local entered, entered_detail = enter("tob", "maiden", { mode = "entry" })
+            if entered ~= "ok" then return entered, "tob maiden entry -> " .. describe(entered_detail) end
+            ticks(2)
+            local before = hud()
+            local clicked, click_detail = click_loc("tob_arena_barrier", 1)
+            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            if clicked ~= "ok" or played ~= "ok" then
+                teardown()
+                return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
+            end
+            ticks(1)
+            local started = hud()
+            setup_cheat("::god 1")
+            setup_cheat("::kill tob_maiden_100_story 40")
+            local wave = nil
+            local guard = 0
+            while wave == nil and guard < 20 do
+                ticks(1)
+                wave = newest("Wave 'The Maiden of Sugadinti' (Entry Mode) complete!<br>Duration: <col=ff0000>")
+                guard = guard + 1
+            end
+            teardown()
+            local detail = "before the barrier " .. before .. "; at the start " .. started .. "; wave '" .. tostring(wave) .. "'"
+            if before ~= "6440=2 6447=0 6448=0 6449=0" then return "refused", "pre-barrier HUD: " .. detail end
+            if string.find(started, "6440=2 6447=1 6448=1000 6449=1000", 1, true) == nil then return "refused", "fight-start bar: " .. detail end
+            if wave == nil or string.match(string.gsub(wave, "<[^>]*>", ""), "complete!Duration: %d+:%d%d$") == nil then
+                return "refused", "wave line: " .. detail
+            end
+            return "ok", detail
+        end)
+
+        seam("seam.tob_logout_in_fight_is_death", function()
+            local enter = verb("raid", "enter")
+            local click_loc = verb("player", "click_loc")
+            local play = verb("chat", "play")
+            local last = verb("msg", "last")
+            local count = verb("inv", "count")
+            local ticks = verb("ticks")
+            if not enter then return missing("raid", "enter") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not play then return missing("chat", "play") end
+            if not last then return missing("msg", "last") end
+            if not count then return missing("inv", "count") end
+            if not ticks then return missing("ticks") end
+            local function newest(prefix)
+                local _, lines = last(40)
+                local found, best = nil, -1
+                if not is_table(lines) then return nil end
+                for l = 1, #lines do
+                    if string.find(lines[l].text, prefix, 1, true) ~= nil and lines[l].serial > best then
+                        found = lines[l].text
+                        best = lines[l].serial
+                    end
+                end
+                return found
+            end
+            setup_cheat("::tobout")
+            local entered, entered_detail = enter("tob", "maiden", { mode = "entry" })
+            if entered ~= "ok" then return entered, "tob maiden entry -> " .. describe(entered_detail) end
+            local clicked, click_detail = click_loc("tob_arena_barrier", 1)
+            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            if clicked ~= "ok" or played ~= "ok" then
+                setup_cheat("::tobout")
+                return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
+            end
+            ticks(3)
+            local _, bandages0 = count("tob_bandages")
+            setup_cheat("::toblogoutdrill")
+            ticks(2)
+            local out = newest("toblogoutdrill logout")
+            local back = newest("toblogoutdrill reenter")
+            local failed = newest("You have failed.")
+            local _, bandages1 = count("tob_bandages")
+            setup_cheat("::tobout")
+            local detail = "'" .. tostring(out) .. "' / '" .. tostring(back) .. "'; wipe '" .. tostring(failed)
+                .. "'; bandages " .. tostring(bandages0) .. " -> " .. tostring(bandages1)
+            if out == nil or string.find(out, "started=1", 1, true) == nil or string.find(out, "deaths=0->1", 1, true) == nil
+                or string.find(out, "orb=30", 1, true) == nil then
+                return "refused", "logout not a death: " .. detail
+            end
+            if back == nil or string.find(back, "started=0", 1, true) == nil or failed == nil
+                or (bandages1 or 0) ~= (bandages0 or 0) + 3 then
+                return "refused", "no Entry wipe on the comeback: " .. detail
+            end
+            return "ok", detail
+        end)
+
+-- seam8 tob_lobby_stranger_and_supply_chest -- conformance snippet for the closer.
+--
+-- NO driver verb was added or changed by this seam (content only: tob.rs2,
+-- tob_chest.rs2, tob.varp, the new tob_lobby.constant and tob_lobby.inv). These
+-- three seam rows pin the content through verbs that already have rows
+-- (player.goto_tile, player.click_loc, player.inv_op, chat.drain/kind/choose,
+-- ui.await_open, ui.widget, ui.invoke, ui.text, shop.open/buy/close, inv.count,
+-- world.tile, world.loc_near, msg.last, skill.read).
+--
+-- PLACE: in _conformance.lua's PLAN after seam("seam.tob_party_board_forms_a_party")
+-- (the last seam row before step("finish")), in this order. Each row tears
+-- down after itself (escape, ::tobout). The stranger row begins with ::clearinv
+-- (the closer of seam7 found the backpack full by this point) and the chest row
+-- raises hitpoints to 99 for the room and puts the level back. SEAM_COUNT /
+-- @seam-count +3.
+--
+-- Proved by build/seam_state/matthew-mbp-m4-raid-b1-seam8/lobby/conformance_rows_scratch.lua
+-- (these bodies verbatim under shims for verb/missing/describe/setup_cheat/settle/
+-- is_table), run as s8lobby_conf_rows on the seam's private pack.
+
+        -- varp 1740 (tob_mycontroller) is declared transmit=yes, so the party
+        -- list's button reads -1 as "Make party" (tob_partylist_setpartybutton_2339.cs2;
+        -- the label is the stone button's text child, sub 9). Undeclared it was
+        -- server-only and the client's 0 drew "My party" with no party.
+        seam("seam.tob_partylist_button_reads_mycontroller", function()
+            local goto_tile = verb("player", "goto_tile")
+            local click_loc = verb("player", "click_loc")
+            local drain = verb("chat", "drain")
+            local kind = verb("chat", "kind")
+            local choose = verb("chat", "choose")
+            local await_open = verb("ui", "await_open")
+            local text = verb("ui", "text")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not drain then return missing("chat", "drain") end
+            if not kind then return missing("chat", "kind") end
+            if not choose then return missing("chat", "choose") end
+            if not await_open then return missing("ui", "await_open") end
+            if not text then return missing("ui", "text") end
+            local gr, gd = goto_tile(3662, 3216, 0)
+            if gr ~= "ok" then return gr, "goto the board: " .. describe(gd) end
+            local cr, cd = click_loc("tob_surface_notice_board", 1)
+            if cr ~= "ok" then return cr, "Read the notice board: " .. describe(cd) end
+            settle(2)
+            if kind() == "mesbox" then
+                drain({ stop_at = "options", max_pages = 3 })
+                choose("Not very experienced. I'll start with Entry Mode.")
+                settle(2)
+                drain({ max_pages = 2 })
+            end
+            local lr, ld = await_open("tob_partylist", 10)
+            if lr ~= "ok" then return lr, "the board did not open tob_partylist: " .. describe(ld) end
+            settle(2)
+            local tr, label = text("tob_partylist:myparty", 9)
+            if verb("key") then t.key("escape") end
+            settle(2)
+            if tr ~= "ok" or label ~= "Make party" then
+                return "refused", "no party, button child 9 reads '" .. describe(label) .. "' (" .. tostring(tr) .. "), want 'Make party'"
+            end
+            return "ok", "no party: tob_partylist:myparty[9] = '" .. label .. "' (varp1740 -1 reached the client)"
+        end)
+
+        -- The Mysterious Stranger's Trade (escape crystal, 75,000 coins; wiki
+        -- Mysterious Stranger stock) and the crystal's Teleport out of the Theatre
+        -- (~tob_leave to ^tob_outside, the crystal consumed). varb15607 bit 0 is
+        -- the Trade form A Night at the Theatre's first talk unlocks (staged).
+        seam("seam.tob_stranger_sells_escape_crystal_and_it_leaves", function()
+            local goto_tile = verb("player", "goto_tile")
+            local inv_op = verb("player", "inv_op")
+            local count = verb("inv", "count")
+            local tile = verb("world", "tile")
+            local last = verb("msg", "last")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not inv_op then return missing("player", "inv_op") end
+            if not count then return missing("inv", "count") end
+            if not tile then return missing("world", "tile") end
+            if not last then return missing("msg", "last") end
+            if type(t.shop) ~= "table" or type(t.shop.open) ~= "function" then return missing("shop", "open") end
+            if type(t.shop.buy) ~= "function" then return missing("shop", "buy") end
+            if type(t.shop.close) ~= "function" then return missing("shop", "close") end
+            local function newest(prefix)
+                local _, lines = last(40)
+                local found, best = nil, -1
+                if not is_table(lines) then return nil end
+                for l = 1, #lines do
+                    if string.find(lines[l].text, prefix, 1, true) == 1 and lines[l].serial > best then
+                        found = lines[l].text
+                        best = lines[l].serial
+                    end
+                end
+                return found
+            end
+            setup_cheat("::clearinv")
+            setup_cheat("::give coins 80000")
+            setup_cheat("::setvar varb15607_tobquest_stranger_vis 1")
+            local gr, gd = goto_tile(3673, 3221, 0)
+            if gr ~= "ok" then return gr, "goto the Stranger: " .. describe(gd) end
+            settle(2)
+            local _, c0 = count("coins")
+            local orr, od = t.shop.open("tob_stranger", 3, "tob_stranger_shop")
+            if orr ~= "ok" then return orr, "Trade: " .. describe(od) end
+            local br, bd = t.shop.buy("tob_teleport", 1)
+            t.shop.close()
+            settle(1)
+            local _, c1 = count("coins")
+            local _, n1 = count("tob_teleport")
+            if br ~= "ok" or n1 ~= 1 or (c0 or 0) - (c1 or 0) ~= 75000 then
+                return "refused", "buy " .. tostring(br) .. " " .. describe(bd) .. "; crystals " .. tostring(n1) .. ", coins " .. tostring(c0) .. " -> " .. tostring(c1)
+            end
+            setup_cheat("::tobmode 1 1")
+            settle(3)
+            local ir, id = inv_op("tob_teleport", 1)
+            settle(3)
+            local _, at = tile()
+            local _, n2 = count("tob_teleport")
+            setup_cheat("::tobstate")
+            settle(1)
+            local st = newest("tobstate ")
+            setup_cheat("::tobout")
+            settle(2)
+            local where = is_table(at) and (tostring(at.x) .. "," .. tostring(at.z)) or describe(at)
+            local detail = "bought 1 for " .. tostring((c0 or 0) - (c1 or 0)) .. " coins; Teleport " .. tostring(ir)
+                .. " -> crystals " .. tostring(n2) .. ", at " .. where .. ", " .. tostring(st)
+            if n2 ~= 0 or not is_table(at) or at.x ~= 3677 or at.z ~= 3219
+                or st == nil or string.find(st, "active=0", 1, true) == nil then
+                return "refused", detail
+            end
+            return "ok", detail
+        end)
+
+        -- The Hard supply chest pays fewer points (wiki Theatre of Blood/Hard
+        -- Mode:5: 6..9 a chest deathless) and the store's "Points Available"
+        -- label reads the balance (varbit 6460 on varp 1746, declared
+        -- transmit=yes). Bloat is removed by ::kill (a measurement of the chest).
+        seam("seam.tob_hard_chest_pays_fewer_and_label_reads_it", function()
+            local goto_tile = verb("player", "goto_tile")
+            local click_loc = verb("player", "click_loc")
+            local await_open = verb("ui", "await_open")
+            local text = verb("ui", "text")
+            local loc_near = verb("world", "loc_near")
+            local last = verb("msg", "last")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not await_open then return missing("ui", "await_open") end
+            if not text then return missing("ui", "text") end
+            if not loc_near then return missing("world", "loc_near") end
+            if not last then return missing("msg", "last") end
+            local function newest(prefix, after)
+                local _, lines = last(40)
+                local found, best = nil, after or -1
+                if not is_table(lines) then return nil end
+                for l = 1, #lines do
+                    if string.find(lines[l].text, prefix, 1, true) ~= nil and lines[l].serial > best then
+                        found = lines[l].text
+                        best = lines[l].serial
+                    end
+                end
+                return found
+            end
+            local function readout(cmd, prefix)
+                setup_cheat(cmd)
+                settle(1)
+                return newest(prefix)
+            end
+            local hp_level = nil
+            if type(t.skill) == "table" and type(t.skill.read) == "function" then
+                local sr, row = t.skill.read("hitpoints")
+                if sr == "ok" and is_table(row) then hp_level = row.base_level or row.level end
+            end
+            local _, mark_lines = last(1)
+            local mark = (is_table(mark_lines) and mark_lines[1] and mark_lines[1].serial) or -1
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::tobmode 2 2")
+            settle(4)
+            setup_cheat("::tobgo")
+            settle(2)
+            setup_cheat("::kill tob_bloat_hard 60")
+            local st, guard = nil, 0
+            while st == nil and guard < 30 do
+                settle(1)
+                local s = readout("::tobstate", "tobstate ")
+                if s ~= nil and string.find(s, "cleared=1", 1, true) ~= nil then st = s end
+                guard = guard + 1
+            end
+            local function teardown()
+                if verb("key") then t.key("escape") end
+                settle(1)
+                setup_cheat("::tobout")
+                if hp_level ~= nil then setup_cheat("::setlevel hitpoints " .. tostring(hp_level)) end
+                settle(2)
+            end
+            if st == nil then teardown() return "refused", "Hard Bloat room never cleared" end
+            local died = newest("You have died", mark)
+            -- the client lists the chest once the player is near it
+            goto_tile(6406, 97, 0)
+            settle(2)
+            local lr, row = loc_near("tob_midway_chest_closed", 16)
+            if lr ~= "ok" then teardown() return lr, "no supply chest near 6406,97: " .. describe(row) end
+            local cr, cd = click_loc("tob_midway_chest_closed", 1)
+            local ur, ud = await_open("tob_midway_stores", 10)
+            if cr ~= "ok" or ur ~= "ok" then teardown() return "refused", "chest " .. tostring(cr) .. " " .. describe(cd) .. "; store " .. tostring(ur) .. " " .. describe(ud) end
+            settle(2)
+            local tr, label = text("tob_midway_stores:points_text")
+            local client_points = tonumber(string.match(tostring(label), "(%d+)"))
+            local sr = readout("::tobstores", "tobstores ")
+            local server_points = sr and tonumber(string.match(sr, "points=(%d+)"))
+            teardown()
+            local detail = "Hard chest: client '" .. tostring(label) .. "', server points " .. tostring(server_points)
+                .. (died and ("; DIED: " .. died) or "; deathless")
+            if died ~= nil then return "refused", "a death changes the band: " .. detail end
+            if tr ~= "ok" or client_points == nil or client_points ~= server_points then
+                return "refused", "label does not read the balance: " .. detail
+            end
+            if server_points < 6 or server_points > 9 then
+                return "refused", "deathless Hard band is 6..9: " .. detail
+            end
+            return "ok", detail .. " (Hard 6..9; label = balance)"
+        end)
+
+        -- seam15 tob_relay_joined -- conformance snippet for the closer (a CONTENT seam: no verb added or changed).
+        --
+        -- PLACE: in _conformance.lua's PLAN directly after
+        --   seam("seam.tob_hard_chest_pays_fewer_and_label_reads_it", ...)
+        -- (the seam8 supply chest rows). SEAM row: SEAM_COUNT +1. It enters an Entry raid by the bring-along
+        -- (t.raid.enter), starts and clears Bloat by cheat (a measurement of the CHEST, as the Hard chest row does),
+        -- fills 25 slots and leaves by ::tobout and ::clearinv, so it leaves nothing behind for the next row.
+        --
+        -- What it proves (tob_chest.rs2 [oploc1,tob_midway_chest_closed], Entry branch): the chest holds ten and
+        -- keeps what a full backpack could not take. wiki Bandages (Theatre of Blood):27 "The chest can only contain a
+        -- maximum of 10 bandages, so uncollected bandages are deleted"; Theatre of Blood/Entry Mode:7 "Leftover
+        -- bandages in the supply chest do not carry over from each boss". Before the fix the first Open gave
+        -- min(10, free slots) and every later Open said "The chest is empty." (close14_r1a ledger rows 62-64: 3, then
+        -- empty). Scratch: build/seam_state/matthew-mbp-m4-raid-b1-seam15/trj/chest_leftovers.lua, run s15chest3 13/13.
+        seam("seam.tob_entry_chest_keeps_leftovers", function()
+            local enter = verb("raid", "enter")
+            local state = verb("raid", "state")
+            local goto_tile = verb("player", "goto_tile")
+            local click_loc = verb("player", "click_loc")
+            local drop = verb("player", "drop")
+            local count = verb("inv", "count")
+            local loc_near = verb("world", "loc_near")
+            local last = verb("msg", "last")
+            if not enter then return missing("raid", "enter") end
+            if not state then return missing("raid", "state") end
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not drop then return missing("player", "drop") end
+            if not count then return missing("inv", "count") end
+            if not loc_near then return missing("world", "loc_near") end
+            if not last then return missing("msg", "last") end
+            local function bandages() local _, c = count("tob_bandages"); return c or 0 end
+            local function teardown()
+                setup_cheat("::tobout")
+                settle(2)
+                setup_cheat("::clearinv")
+                settle(1)
+            end
+            local er, ed = enter("tob", "bloat", { mode = "entry" })
+            if er ~= "ok" then teardown() return "refused", "enter: " .. describe(ed) end
+            setup_cheat("::clearinv")
+            setup_cheat("::tobgo")
+            settle(3)
+            setup_cheat("::kill tob_bloat_story 60")
+            local cleared, guard = nil, 0
+            while cleared == nil and guard < 40 do
+                settle(1)
+                local sr, st = state()
+                if sr == "ok" and is_table(st) and string.find(tostring(st.line), "cleared=1", 1, true) then cleared = st.line end
+                guard = guard + 1
+            end
+            if cleared == nil then teardown() return "refused", "Entry Bloat room never cleared" end
+            setup_cheat("::give shark 25")
+            settle(2)
+            goto_tile(6406, 97, 0)
+            settle(2)
+            local lr, row = loc_near("tob_midway_chest_closed", 16)
+            if lr ~= "ok" then teardown() return lr, "no supply chest near 6406,97: " .. describe(row) end
+            local seen = {}
+            local function open()
+                click_loc("tob_midway_chest_closed", 1)
+                settle(3)
+                seen[#seen + 1] = bandages()
+            end
+            open()                                            -- 3 free slots
+            for _ = 1, 5 do drop("shark"); settle(1) end
+            open()                                            -- 5 more free
+            for _ = 1, 5 do drop("shark"); settle(1) end
+            open()                                            -- 2 left in the chest
+            local _, mark_lines = last(1)
+            local mark = (is_table(mark_lines) and mark_lines[1] and mark_lines[1].serial) or -1
+            open()                                            -- nothing left
+            local empty = false
+            local _, lines = last(10)
+            for _, l in ipairs(is_table(lines) and lines or {}) do
+                if l.serial > mark and string.find(l.text or "", "The chest is empty.", 1, true) then empty = true end
+            end
+            teardown()
+            local detail = "bandages after each Open with 3, +5, +5 free slots, then a fourth: "
+                .. table.concat(seen, " -> ") .. "; fourth Open 'The chest is empty.' " .. tostring(empty)
+                .. " (wiki: the chest holds 10 and keeps the rest; before the fix 3 -> 3 -> 3 -> 3)"
+            if seen[1] == 3 and seen[2] == 8 and seen[3] == 10 and seen[4] == 10 and empty then return "ok", detail end
+            return "refused", detail
+        end)
+
+-- seam8 tob_verzik_forms_and_presentation: one seam row, no verb added or changed.
+--
+-- PLACE: test/quests/_conformance.lua PLAN, after the last raid seam row before
+-- step("finish") -- today seam("seam.tob_party_board_forms_a_party", ...) (the raid
+-- rows run last, DRIVER_NOTES "t.raid.enter": ::tobmode's potions shift every later
+-- slot). It leaves the room with ::tobout and clears the jail bit it sets.
+--
+-- What it proves (content, OSRS-Content tob_verzik.rs2 + configs/tob_verzik.npc):
+--   * an Entry Verzik is her Entry records end to end: seated 10830 (found by
+--     its own symbol), P1 10831, P1->P2 10832, P2 10833, P2->P3 10834, P3 10835,
+--     the death bat 10836 (advancedraidtracker TobIDs.java:254-277, blert
+--     TobNpc.java:139-170);
+--   * the P2 -> P3 change wears the transition form: 8118 on the P2 body, the
+--     8373-family form 2 ticks later with 8119, the P3 id at +6 (blert, 62 of 62);
+--   * a raider with the spectator-cage bit set draws none of her P2 attacks, and
+--     draws them again once it is cleared (Near Reality isValidTarget);
+--   * the P3 death seq 8128 is sent once (the engine's death_anim), not twice.
+-- Proved as scratches (shared binary, live pack): build/quest_gate/s8vz_after_entry
+-- 18/18 PASS ("retypes 10830>10831@49 ... 10833>10834@292 10834>10835@296";
+-- "8118 @290, transition form @292, P3 id @296, 8119 @292"; "0 in 24 ticks caged,
+-- 6 in 24 ticks after the cage"; "8128 @559"), and the same file on the HEAD
+-- content, build/quest_gate/s8vz_before2_entry, FAIL on every one of those rows
+-- ("nearest verzik_initial_story -> no_row", "transition form @nil", "8128
+-- @554,556"; cage 6 / 6 counted offline from its ticklog.tsv).
+        seam("seam.verzik_entry_forms_cage_and_death", function()
+            local enter = verb("raid", "enter")
+            local nearest = verb("npc", "nearest")
+            local talk = verb("player", "talk_to")
+            local play = verb("chat", "play")
+            local log_start = verb("ticklog", "start")
+            local log_rows = verb("ticklog", "rows")
+            local log_mark = verb("ticklog", "mark")
+            local ticks = verb("ticks")
+            if not enter then return missing("raid", "enter") end
+            if not nearest then return missing("npc", "nearest") end
+            if not talk then return missing("player", "talk_to") end
+            if not play then return missing("chat", "play") end
+            if not log_start then return missing("ticklog", "start") end
+            if not log_rows then return missing("ticklog", "rows") end
+            if not log_mark then return missing("ticklog", "mark") end
+            if not ticks then return missing("ticks") end
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::setlevel prayer 99")
+            setup_cheat("::setlevel defence 99")
+            local entered, entered_detail = enter("tob", "verzik", { mode = "entry" })
+            if entered ~= "ok" then return entered, "tob verzik entry -> " .. describe(entered_detail) end
+            log_start()
+            -- Every read below is since this mark (seam8 closer): the log runs from the
+            -- harness's first raid row, so a whole-log read matched another row's rows on a
+            -- reused world slot and ran out the instruction budget (closer runs 1-2).
+            t.ticklog.mark("seam.verzik_entry_forms_cage_and_death")
+            local _, base_marks = log_rows({ kind = "mark" })
+            local base = (is_table(base_marks) and #base_marks > 0) and base_marks[#base_marks].serial or 0
+            ticks(2)
+            local seated = nearest("verzik_initial_story", 30)
+            local talked, talk_detail = talk("verzik_initial_story", 1)
+            local played, play_detail = play({ "npc:So, you wish to entertain me", "options", "choose:Yes, begin the fight." })
+            if talked ~= "ok" or played ~= "ok" then
+                setup_cheat("::tobout")
+                return "refused", "seated verzik_initial_story " .. tostring(seated) .. ", talk " .. tostring(talked) .. " "
+                    .. describe(talk_detail) .. ", begin " .. tostring(played) .. " " .. describe(play_detail)
+            end
+            setup_cheat("::god 1")
+            local function retyped_to(id)
+                local _, rows = log_rows({ since = base, kind = "npc_retype" })
+                if not is_table(rows) then return nil end
+                for i = 1, #rows do
+                    if rows[i].to_type == id then return rows[i] end
+                end
+                return nil
+            end
+            local function wait_retype(id, n)
+                local guard = 0
+                while retyped_to(id) == nil and guard < n do
+                    ticks(1)
+                    guard = guard + 1
+                end
+                return retyped_to(id)
+            end
+            local function aimed_since(serial)
+                local _, rows = log_rows({ since = base, kind = "projectile", since = serial })
+                local n = 0
+                if not is_table(rows) then return 0 end
+                for i = 1, #rows do
+                    -- every projectile but the Athanatos' heal / poison globules (to her)
+                    if rows[i].spotanim ~= 1587 and rows[i].spotanim ~= 1588 then n = n + 1 end
+                end
+                return n
+            end
+            local function newest_serial(label)
+                log_mark(label)
+                local _, rows = log_rows({ kind = "mark" })
+                if not is_table(rows) or #rows == 0 then return 0 end
+                return rows[#rows].serial
+            end
+            ticks(4)
+            setup_cheat("::tobvzskip")
+            local p2 = wait_retype(10833, 40)
+            if p2 == nil then
+                setup_cheat("::god 0")
+                setup_cheat("::tobout")
+                return "refused", "no Entry P2 (10833) within 40 ticks of ::tobvzskip in P1"
+            end
+            ticks(8)
+            -- the cage: her P2 attacks with the jail bit set, then cleared
+            setup_cheat("::setvar varp6840_tob_died_in 1")
+            local s_cage = newest_serial("seam.verzik caged")
+            ticks(20)
+            local caged = aimed_since(s_cage)
+            setup_cheat("::setvar varp6840_tob_died_in 0")
+            local s_free = newest_serial("seam.verzik uncaged")
+            ticks(20)
+            local freed = aimed_since(s_free)
+            setup_cheat("::tobvzskip")
+            local p3 = wait_retype(10835, 15)
+            local mid = retyped_to(10834)
+            setup_cheat("::tobvzskip")
+            ticks(8)
+            local _, anims = log_rows({ since = base, kind = "npc_anim" })
+            local _, spawns = log_rows({ since = base, kind = "npc_spawn" })
+            setup_cheat("::god 0")
+            setup_cheat("::tobout")
+            local e8118, d8128 = nil, 0
+            if is_table(anims) then
+                for i = 1, #anims do
+                    if anims[i].seq == 8118 and e8118 == nil then e8118 = anims[i].tick end
+                    if anims[i].seq == 8128 then d8128 = d8128 + 1 end
+                end
+            end
+            local bat = false
+            if is_table(spawns) then
+                for i = 1, #spawns do if spawns[i].type == 10836 then bat = true end end
+            end
+            local forms = {}
+            for _, id in ipairs({ 10831, 10832, 10833, 10834, 10835 }) do
+                forms[#forms + 1] = id .. (retyped_to(id) and ("@" .. retyped_to(id).tick) or "@-")
+            end
+            local reading = "seated verzik_initial_story " .. tostring(seated) .. "; forms " .. table.concat(forms, " ")
+                .. "; 8118 @" .. tostring(e8118) .. "; bat 10836 " .. tostring(bat)
+                .. "; her projectiles: " .. caged .. " in 20 ticks caged, " .. freed .. " in 20 after; 8128 sent " .. d8128
+            if seated ~= "ok" or retyped_to(10831) == nil or retyped_to(10832) == nil or p3 == nil or not bat then
+                return "refused", reading .. " -- an Entry Verzik is not wearing her Entry records (tob_verzik.rs2 ~tob_verzik_form)"
+            end
+            if mid == nil or e8118 == nil or mid.tick - e8118 ~= 2 or p3.tick - e8118 ~= 6 then
+                return "refused", reading .. " -- the 8373 transition form is not worn for 8119 (tob_verzik.rs2 ~tob_verzik_p3_transit_tick)"
+            end
+            if caged ~= 0 or freed == 0 then
+                return "refused", reading .. " -- her hunts do not skip a raider in the spectator cage (~tob_verzik_target)"
+            end
+            if d8128 ~= 1 then
+                return "refused", reading .. " -- the P3 death seq is sent " .. d8128 .. " times (tob_verzik.rs2 ~tob_verzik_death)"
+            end
+            return "ok", reading
+        end)
+
+-- seam10 tob_verzik_purple_globule_and_yellow_blast: two content seam rows, no new or changed verb.
+--
+-- PLACE: in _conformance.lua's PLAN directly AFTER
+--   seam("seam.verzik_entry_forms_cage_and_death", ...)
+-- and BEFORE the "Row C" seam("seam.loc_and_graphic_seq_in_bloat_room", ...) (keep that row's
+-- own "right BEFORE step(\"finish\")" placement). Both rows leave the raid (::tobout) on every exit.
+-- Each counts as one seam row: SEAM_COUNT / @seam-count + 2.
+--
+-- Row 1: A POISONED HIT BURSTS THE ATHANATOS (OSRS-Content tob_verzik.rs2
+-- ~tob_verzik_athanatos_poisoned). Rune arrows (p) from a twisted bow are poisonous to
+-- ~tob_hit_is_poisonous (tob_damage.rs2: the quiver's ~weapon_unpoisoned_obj). On the poisoned
+-- hit the Athanatos shows 1590 at height 92, sends projectile 1588 to her (she takes up to 70),
+-- and dies on the SAME tick (npc_death) with no 1587 heal ever flying from it
+-- (wiki_Nylocas_Athanatos.wikitext:54 "will instead burst"; Strategies.wikitext:923).
+-- Measured (scratch vz10_glob_poison2): Athanatos 10844 spawn t78, 1590 + 1588 + 52 on her +
+-- npc_death t79, death anim 8078 t80, npc_free t82; second Athanatos the same at t167.
+        seam("seam.verzik_athanatos_poison_bursts", function()
+            local enter = verb("raid", "enter")
+            local nearest = verb("npc", "nearest")
+            local talk = verb("player", "talk_to")
+            local play = verb("chat", "play")
+            local attack = verb("player", "attack")
+            local log_start = verb("ticklog", "start")
+            local log_rows = verb("ticklog", "rows")
+            local log_mark = verb("ticklog", "mark")
+            local ticks = verb("ticks")
+            if not enter then return missing("raid", "enter") end
+            if not nearest then return missing("npc", "nearest") end
+            if not talk then return missing("player", "talk_to") end
+            if not play then return missing("chat", "play") end
+            if not attack then return missing("player", "attack") end
+            if not log_start then return missing("ticklog", "start") end
+            if not log_rows then return missing("ticklog", "rows") end
+            if not log_mark then return missing("ticklog", "mark") end
+            if not ticks then return missing("ticks") end
+            local function teardown()
+                setup_cheat("::tobout")
+                ticks(2)
+            end
+            setup_cheat("::tobout")
+            ticks(2)
+            setup_cheat("::setlevel ranged 99")
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::give twisted_bow 1")
+            setup_cheat("::wield twisted_bow")
+            setup_cheat("::give rune_arrow_p 100")
+            setup_cheat("::wield rune_arrow_p")
+            local entered, entered_detail = enter("tob", "verzik", { mode = "entry" })
+            if entered ~= "ok" then teardown() return entered, "tob verzik entry -> " .. describe(entered_detail) end
+            log_start()
+            log_mark("seam.verzik_athanatos_poison_bursts")
+            local _, marks = log_rows({ kind = "mark" })
+            local base = (is_table(marks) and #marks > 0) and marks[#marks].serial or 0
+            setup_cheat("::god 1")
+            local talked = talk("verzik_initial_story", 1)
+            local played, play_detail = play({ "npc:So, you wish to entertain me", "options", "choose:Yes, begin the fight." })
+            if talked ~= "ok" or played ~= "ok" then
+                teardown()
+                return "refused", "begin: talk " .. tostring(talked) .. ", play " .. tostring(played) .. " " .. describe(play_detail)
+            end
+            ticks(25)
+            setup_cheat("::tobvzleft 0")    -- the P1 shield: this row is about P2's Athanatos
+            local shot, attack_detail = nil, ""
+            for _ = 1, 160 do
+                local found = nearest("tob_verzik_phase2_armourednylocas_story", 30)
+                if found == "ok" then
+                    shot, attack_detail = attack("tob_verzik_phase2_armourednylocas_story", 2, 6)
+                    break
+                end
+                ticks(1)
+            end
+            if shot == nil then teardown() return "refused", "no Entry Athanatos landed within 160 ticks of P2" end
+            ticks(4)
+            local _, rows = log_rows({ since = base, kind = { "npc_spawn", "npc_spotanim", "projectile", "npc_death" } })
+            teardown()
+            if not is_table(rows) then return "refused", "ticklog.rows answered no table" end
+            local slot, spawn_tick, aura_tick, globule_tick, death_tick, heals = nil, nil, nil, nil, nil, 0
+            for _, row in ipairs(rows) do
+                if row.kind == "npc_spawn" and row.type == 10844 and slot == nil then slot, spawn_tick = row.slot, row.tick end
+            end
+            for _, row in ipairs(rows) do
+                if row.kind == "npc_spotanim" and row.slot == slot and row.spotanim == 1590 and aura_tick == nil then aura_tick = row.tick end
+                if row.kind == "projectile" and row.spotanim == 1588 and globule_tick == nil then globule_tick = row.tick end
+                if row.kind == "projectile" and row.spotanim == 1587 then heals = heals + 1 end
+                if row.kind == "npc_death" and row.slot == slot and death_tick == nil then death_tick = row.tick end
+            end
+            local detail = string.format("Athanatos 10844 slot %s spawned t%s; shot %s (%s); aura 1590 t%s, globule 1588 t%s, npc_death t%s, heals 1587 x%d",
+                tostring(slot), tostring(spawn_tick), tostring(shot), describe(attack_detail), tostring(aura_tick), tostring(globule_tick), tostring(death_tick), heals)
+            if aura_tick == nil or globule_tick == nil or death_tick == nil then return "refused", detail end
+            if aura_tick ~= globule_tick or death_tick ~= globule_tick then return "refused", "not one tick: " .. detail end
+            if heals ~= 0 then return "refused", "a burst Athanatos still healed her: " .. detail end
+            return "ok", detail
+        end)
+
+-- seam20 tob_prayer_read_on_send (row 2 of 2). Verzik P2's urnbomb reads Protect from
+-- Missiles at the LANDING, the wiki's named exception (wiki_Verzik_Vitur.wikitext:394, :397;
+-- spec row verzik.p2_bomb_prayer_read_tick). Solo Entry, ::tobvzleft 0 past P1, ::god 1 on
+-- and each splat's raw read: six bombs prayed only in flight all deal at most the halved
+-- Entry max 8; six prayed only at the throw deal over 8 at least once. Teardown ::god 0 +
+-- ::tobout. SEAM_COUNT / @seam-count +1.
+        seam("seam.verzik_p2_urnbomb_prayer_read_at_landing", function()
+            local enter = verb("raid", "enter")
+            local talk = verb("player", "talk_to")
+            local play = verb("chat", "play")
+            local log_start = verb("ticklog", "start")
+            local log_rows = verb("ticklog", "rows")
+            local log_mark = verb("ticklog", "mark")
+            local pset = verb("prayer", "set")
+            local ticks = verb("ticks")
+            if not enter then return missing("raid", "enter") end
+            if not talk then return missing("player", "talk_to") end
+            if not play then return missing("chat", "play") end
+            if not log_start then return missing("ticklog", "start") end
+            if not log_rows then return missing("ticklog", "rows") end
+            if not log_mark then return missing("ticklog", "mark") end
+            if not pset then return missing("prayer", "set") end
+            if not ticks then return missing("ticks") end
+            local BOMB_PROJ, BOMB_SEQ = 1583, 8114   -- verzik_phase2_ranged, verzik_phase2_attack_magic
+            local PRAYED_MAX = 8                     -- the Entry bomb's 16, halved (verzik.entry_p2_bomb_max)
+            local function teardown()
+                setup_cheat("::god 0")
+                setup_cheat("::tobout")
+                ticks(2)
+            end
+            setup_cheat("::tobout")
+            ticks(2)
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::setlevel prayer 99")
+            local entered, entered_detail = enter("tob", "verzik", { mode = "entry" })
+            if entered ~= "ok" then teardown() return entered, "tob verzik entry -> " .. describe(entered_detail) end
+            log_start()
+            setup_cheat("::god 1")
+            local talked = talk("verzik_initial_story", 1)
+            local played, play_detail = play({ "npc:So, you wish to entertain me", "options", "choose:Yes, begin the fight." })
+            if talked ~= "ok" or played ~= "ok" then
+                teardown()
+                return "refused", "begin: talk " .. tostring(talked) .. ", play " .. tostring(played) .. " " .. describe(play_detail)
+            end
+            ticks(25)
+            setup_cheat("::tobvzleft 0")    -- the P1 shield: this row is about P2's urnbomb
+            local function mark(text)
+                log_mark(text)
+                local _, ms = log_rows({ kind = "mark" })
+                return ms[#ms]
+            end
+            -- the next urnbomb thrown after `since`: its projectile row (tick = the throw)
+            -- and her slot from the 8114 cast on the same tick
+            local function next_throw(since)
+                for _ = 1, 60 do
+                    local _, pj = log_rows({ kind = "projectile", since = since })
+                    for _, r in ipairs(pj or {}) do
+                        if r.spotanim == BOMB_PROJ then
+                            local _, an = log_rows({ kind = "npc_anim", since = since })
+                            for _, a in ipairs(an or {}) do
+                                if a.tick == r.tick and a.seq == BOMB_SEQ then return r, a.slot end
+                            end
+                        end
+                    end
+                    ticks(1)
+                end
+                return nil, nil
+            end
+            -- it lands on throw + end_cycle // 30 and the splat is her hit one tick later
+            -- (combat_damage_player at delay 0); the raider never leaves the tile
+            local function arrival(since, throw, slot)
+                local land = throw.tick + math.floor(throw.end_cycle / 30)
+                for _ = 1, 10 do
+                    local _, hs = log_rows({ kind = "hit_player", since = since })
+                    for _, r in ipairs(hs or {}) do
+                        if r.tick == land + 1 and r.npc_slot == slot then return r, land end
+                    end
+                    ticks(1)
+                end
+                return nil, land
+            end
+            local function trial(before, after)
+                for _ = 1, 3 do
+                    if pset("protectfrommissiles", before) ~= "ok" then return nil, "could not set the prayer " .. tostring(before) end
+                    local m0 = mark("s20 bomb before=" .. tostring(before))
+                    local throw, slot = next_throw(m0.serial)
+                    if throw == nil then return nil, "no urnbomb in 60 ticks" end
+                    local r1 = pset("protectfrommissiles", after)
+                    local m1 = mark("s20 bomb switched to " .. tostring(after))
+                    local hit, land = arrival(throw.serial, throw, slot)
+                    if hit ~= nil and hit.raw ~= nil and r1 == "ok" and throw.tick <= m1.tick and m1.tick < land then
+                        return hit.raw, "throw " .. throw.tick .. " landing " .. land .. " raw " .. tostring(hit.raw)
+                    end
+                end
+                return nil, "no urnbomb landed after its switch in 3 tries"
+            end
+            local raised, dropped, lines = {}, {}, {}
+            -- `::god 1` stays on so twelve bombs cannot kill the raider: the row reads each
+            -- splat's `raw` (the hit as the content dealt it, prayer applied, before ::god)
+            for _ = 1, 6 do
+                local a, ad = trial(false, true)
+                local b, bd = trial(true, false)
+                if a == nil or b == nil then teardown() return "refused", tostring(ad) .. " / " .. tostring(bd) .. " | " .. table.concat(lines, "; ") end
+                raised[#raised + 1] = a
+                dropped[#dropped + 1] = b
+                lines[#lines + 1] = "OFF->ON " .. ad .. ", ON->OFF " .. bd
+            end
+            -- Six unprayed bombs can all roll 8 or less (seam38 closer: 6,5,2,3,6,7 on the
+            -- conformance seed, while a 14-bomb scratch on the same tree, c38urn1, read
+            -- 1,6,14,6,3,1,15,7,12,3,2,11,1,11).  The claim is that SOME bomb dropped in
+            -- flight deals over the halved max, so keep sampling, up to eight more.
+            for _ = 1, 8 do
+                local over = false
+                for _, v in ipairs(dropped) do if v > PRAYED_MAX then over = true end end
+                if over then break end
+                local b, bd = trial(true, false)
+                if b == nil then break end
+                dropped[#dropped + 1] = b
+                lines[#lines + 1] = "extra ON->OFF " .. bd
+            end
+            teardown()
+            local raised_max, dropped_max = 0, 0
+            for _, v in ipairs(raised) do if v > raised_max then raised_max = v end end
+            for _, v in ipairs(dropped) do if v > dropped_max then dropped_max = v end end
+            local detail = "Protect from Missiles OFF at the throw and ON at the landing dealt raw " .. table.concat(raised, ",")
+                .. " (max " .. raised_max .. ", halved max " .. PRAYED_MAX .. "); ON at the throw and OFF at the landing dealt raw "
+                .. table.concat(dropped, ",") .. " (max " .. dropped_max .. ") | " .. table.concat(lines, "; ")
+            if raised_max > PRAYED_MAX then return "refused", "a prayer raised in flight was not read at the landing: " .. detail end
+            if dropped_max <= PRAYED_MAX then return "refused", "no bomb dropped-in-flight dealt over the halved max (read at the throw?): " .. detail end
+            return "ok", detail
+        end)
+
+-- seam11 tob_verzik_webs_and_unmeasured_rows: one content seam row. SEAM_COUNT +1.
+--
+-- THE ENRAGE TORNADO TOUCHES A RAIDER WHO STANDS STILL (OSRS-Content tob_verzik.rs2
+-- ~tob_verzik_tornado_tick: contact at npc_range 1, was 0). The engine keeps an npc off a tile a
+-- player stands on (torirs_server_world.c npc_travel_extra: player occupancy), so a walker can
+-- never reach range 0: before the fix the tornado stopped beside a standing raider and never hit
+-- (scratch vz11_meas2: it reached 6430,85 beside 6430,84 at t170, no touch in 200 ticks).
+-- Also proves the tornado's own rig seqs (CONTENT_BUGS U10): 9004 tob_shadow_projectile_spawn on
+-- its spawn tick, 9005 _despawn on the touch tick, removed (npc_free) one tick later, and the touch
+-- itself: half my hitpoints, 1602 on me, a [proc,tob_verzik_tornado_heal] npc_heal of three times
+-- the touch (wiki_Theatre_of_Blood_Strategies.wikitext:981).
+-- Measured (scratch vz11_min2): spawn 61 (9004), touch 65: 49 of 99, heal 147, 1602, 9005, free 66.
+        seam("seam.verzik_tornado_touches_a_standing_raider", function()
+            local enter = verb("raid", "enter")
+            local nearest = verb("npc", "nearest")
+            local talk = verb("player", "talk_to")
+            local play = verb("chat", "play")
+            local walk = verb("player", "walk_to")
+            local pray = verb("prayer", "set")
+            local log_start = verb("ticklog", "start")
+            local log_rows = verb("ticklog", "rows")
+            local log_mark = verb("ticklog", "mark")
+            local ticks = verb("ticks")
+            if not enter then return missing("raid", "enter") end
+            if not nearest then return missing("npc", "nearest") end
+            if not talk then return missing("player", "talk_to") end
+            if not play then return missing("chat", "play") end
+            if not walk then return missing("player", "walk_to") end
+            if not pray then return missing("prayer", "set") end
+            if not log_start then return missing("ticklog", "start") end
+            if not log_rows then return missing("ticklog", "rows") end
+            if not log_mark then return missing("ticklog", "mark") end
+            if not ticks then return missing("ticks") end
+            local function teardown()
+                setup_cheat("::god 1")
+                setup_cheat("::setlevel hitpoints 99")
+                setup_cheat("::tobout")
+                ticks(2)
+                setup_cheat("::god 0")
+            end
+            local function await_npc(sym, limit)
+                for _ = 1, limit do
+                    if nearest(sym, 40) == "ok" then return true end
+                    ticks(1)
+                end
+                return false
+            end
+            setup_cheat("::tobout")
+            ticks(2)
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::setlevel prayer 99")
+            local entered, entered_detail = enter("tob", "verzik", { mode = "entry" })
+            if entered ~= "ok" then teardown() return entered, "tob verzik entry -> " .. describe(entered_detail) end
+            log_start()
+            log_mark("seam.verzik_tornado_touches_a_standing_raider")
+            local _, marks = log_rows({ kind = "mark" })
+            local base = (is_table(marks) and #marks > 0) and marks[#marks].serial or 0
+            setup_cheat("::god 1")
+            local talked = talk("verzik_initial_story", 1)
+            local played, play_detail = play({ "npc:So, you wish to entertain me", "options", "choose:Yes, begin the fight." })
+            if talked ~= "ok" or played ~= "ok" then
+                teardown()
+                return "refused", "begin: talk " .. tostring(talked) .. ", play " .. tostring(played) .. " " .. describe(play_detail)
+            end
+            -- P1 and P2 are not this row: skipped with the scratch damage cheat
+            if not await_npc("verzik_phase1_story", 40) then teardown() return "refused", "no P1 form" end
+            ticks(2)
+            setup_cheat("::tobvzleft -20")
+            if not await_npc("verzik_phase2_story", 40) then teardown() return "refused", "no P2 form" end
+            ticks(2)
+            setup_cheat("::tobvzleft -60")
+            if not await_npc("verzik_phase3_story", 40) then teardown() return "refused", "no P3 form" end
+            walk(6430, 84, 8)       -- open floor five tiles south of her: nothing between me and the tornado
+            ticks(4)
+            pray("protectfrommagic", true)
+            setup_cheat("::god 0")  -- the touch is half my REAL hitpoints
+            setup_cheat("::tobvzleft 120")
+            local touched = false
+            for _ = 1, 40 do
+                local _, seen = log_rows({ since = base, kind = "player_spotanim", spotanim = 1602 })
+                if is_table(seen) and #seen > 0 then touched = true break end
+                ticks(1)
+            end
+            ticks(2)
+            local _, rows = log_rows({ since = base, kind = { "npc_spawn", "npc_anim", "hit_player", "player_spotanim", "npc_heal", "npc_free" } })
+            pray("protectfrommagic", false)
+            teardown()
+            if not is_table(rows) then return "refused", "ticklog.rows answered no table" end
+            local spawn, spawn_seq, touch, gfx, desp, heal, freed
+            for _, row in ipairs(rows) do
+                if row.kind == "npc_spawn" and row.type == 10846 and spawn == nil then spawn = row end
+            end
+            if spawn == nil then return "refused", "no Entry tornado (npc 10846) spawned after ::tobvzleft 120" end
+            for _, row in ipairs(rows) do
+                if row.kind == "npc_anim" and row.slot == spawn.slot and row.tick == spawn.tick and row.seq == 9004 then spawn_seq = row.tick end
+                if row.kind == "hit_player" and row.npc_type == 10846 and touch == nil then touch = row end
+            end
+            if not touched or touch == nil then
+                return "refused", "a raider standing on 6430,84 was never touched in 40 ticks (tornado spawned " .. spawn.tick .. " at " .. spawn.x .. "," .. spawn.z .. ")"
+            end
+            for _, row in ipairs(rows) do
+                if row.kind == "player_spotanim" and row.spotanim == 1602 and row.tick == touch.tick then gfx = row.tick end
+                if row.kind == "npc_anim" and row.slot == spawn.slot and row.seq == 9005 and row.tick == touch.tick then desp = row.tick end
+                if row.kind == "npc_heal" and row.source == "[proc,tob_verzik_tornado_heal]" and row.tick == touch.tick then heal = row.amount end
+                if row.kind == "npc_free" and row.slot == spawn.slot and row.tick > touch.tick and freed == nil then freed = row.tick end
+            end
+            local detail = string.format("tornado spawn %d at %d,%d (9004 %s), touch %d for %d (1602 %s, 9005 %s), heal %s, npc_free %s",
+                spawn.tick, spawn.x, spawn.z, tostring(spawn_seq), touch.tick, touch.damage, tostring(gfx), tostring(desp), tostring(heal), tostring(freed))
+            if spawn_seq == nil or gfx == nil or desp == nil then return "refused", detail .. " -- a seq or graphic is missing" end
+            if heal ~= 3 * touch.damage then return "refused", detail .. " -- the heal is not three times the touch" end
+            if touch.damage < 40 or touch.damage > 50 then return "refused", detail .. " -- the touch is not half of 80..99 hitpoints" end
+            if freed ~= touch.tick + 1 then return "refused", detail .. " -- not removed one tick after its despawn seq" end
+            return "ok", detail
+        end)
+
+        -- seam15 tob_verzik_tornado_removed_on_death: one content seam row, no new or changed verb.
+        --
+        -- PLACE: in _conformance.lua's PLAN directly AFTER
+        --   seam("seam.verzik_tornado_touches_a_standing_raider", ...)   (seam11)
+        -- Leaves the raid (::tobout) on every exit. Counts as one seam row: SEAM_COUNT / @seam-count + 1.
+        --
+        -- HER TORNADO GOES WITH HER (OSRS-Content tob_verzik.rs2: ~tob_verzik_tornado_tick asks
+        -- ~tob_verzik_p3_state -- no contact once she has fallen, it walks on; ~tob_verzik_death fades
+        -- every tornado on the bat's tick through ~tob_verzik_tornado_fade, removed one tick later; the
+        -- respawn queue refuses a fallen Verzik). Before the fix a tornado outlived her: rooms-tob launch
+        -- 12 killed her on tick 824 and the tornado spawned on 697 touched the raider on 841 for 49 and
+        -- was freed on 842. Sources: Near Reality PurpleTornado.kt:34-37 (finish() once she isDead, before
+        -- contact) and :54 (no respawn on a dead Verzik); blert VerzikDataTracker.java:446-456 (every
+        -- tornado despawned at the P3 -> death-form change) and 62 P3 recordings in which the tornadoes
+        -- keep moving from her last hitpoint to that change (2-7 ticks).
+        -- Measured (scratch vzt_kill_b): death 69, tornado walked 6432,82 -> 81 -> 80 beside me while she
+        -- lay dying, no touch; bat 72 with 9005 on the tornado; npc_free 73; no tornado spawn after 69.
+        seam("seam.verzik_tornado_gone_with_her", function()
+            local enter = verb("raid", "enter")
+            local nearest = verb("npc", "nearest")
+            local talk = verb("player", "talk_to")
+            local play = verb("chat", "play")
+            local walk = verb("player", "walk_to")
+            local pray = verb("prayer", "set")
+            local tile = verb("world", "tile")
+            local log_start = verb("ticklog", "start")
+            local log_rows = verb("ticklog", "rows")
+            local log_mark = verb("ticklog", "mark")
+            local ticks = verb("ticks")
+            if not enter then return missing("raid", "enter") end
+            if not nearest then return missing("npc", "nearest") end
+            if not talk then return missing("player", "talk_to") end
+            if not play then return missing("chat", "play") end
+            if not walk then return missing("player", "walk_to") end
+            if not pray then return missing("prayer", "set") end
+            if not tile then return missing("world", "tile") end
+            if not log_start then return missing("ticklog", "start") end
+            if not log_rows then return missing("ticklog", "rows") end
+            if not log_mark then return missing("ticklog", "mark") end
+            if not ticks then return missing("ticks") end
+            local function teardown()
+                setup_cheat("::god 1")
+                setup_cheat("::setlevel hitpoints 99")
+                setup_cheat("::tobout")
+                ticks(2)
+                setup_cheat("::god 0")
+            end
+            local function await_npc(sym, limit)
+                for _ = 1, limit do
+                    if nearest(sym, 40) == "ok" then return true end
+                    ticks(1)
+                end
+                return false
+            end
+            setup_cheat("::tobout")
+            ticks(2)
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::setlevel prayer 99")
+            local entered, entered_detail = enter("tob", "verzik", { mode = "entry" })
+            if entered ~= "ok" then teardown() return entered, "tob verzik entry -> " .. describe(entered_detail) end
+            log_start()
+            log_mark("seam.verzik_tornado_gone_with_her")
+            local _, marks = log_rows({ kind = "mark" })
+            local base = (is_table(marks) and #marks > 0) and marks[#marks].serial or 0
+            setup_cheat("::god 1")
+            local talked = talk("verzik_initial_story", 1)
+            local played, play_detail = play({ "npc:So, you wish to entertain me", "options", "choose:Yes, begin the fight." })
+            if talked ~= "ok" or played ~= "ok" then
+                teardown()
+                return "refused", "begin: talk " .. tostring(talked) .. ", play " .. tostring(played) .. " " .. describe(play_detail)
+            end
+            -- P1 and P2 are not this row: skipped with the scratch damage cheat
+            if not await_npc("verzik_phase1_story", 40) then teardown() return "refused", "no P1 form" end
+            ticks(2)
+            setup_cheat("::tobvzleft -20")
+            if not await_npc("verzik_phase2_story", 40) then teardown() return "refused", "no P2 form" end
+            ticks(2)
+            setup_cheat("::tobvzleft -60")
+            if not await_npc("verzik_phase3_story", 40) then teardown() return "refused", "no P3 form" end
+            walk(6432, 79, 12)      -- open floor far south of her: the tornado walks a while to reach me
+            ticks(3)
+            pray("protectfrommagic", true)
+            setup_cheat("::god 0")  -- a touch would be half my REAL hitpoints
+            setup_cheat("::tobvzleft 120")
+            -- kill her when her tornado is within 3 tiles: it would reach contact while she lies dying
+            local near
+            for _ = 1, 60 do
+                local tor
+                local _, seen = log_rows({ since = base, kind = "npc_tile" })
+                for _, row in ipairs(is_table(seen) and seen or {}) do
+                    if row.type == 10846 then tor = row end
+                end
+                local _, me = tile()
+                if tor and is_table(me) and math.max(math.abs(tor.x - me.x), math.abs(tor.z - me.z)) <= 3 then
+                    near = tor.x .. "," .. tor.z .. " vs " .. me.x .. "," .. me.z
+                    setup_cheat("::tobvzleft 0")
+                    break
+                end
+                ticks(1)
+            end
+            if near == nil then pray("protectfrommagic", false) teardown() return "refused", "no Entry tornado (10846) came within 3 tiles in 60 ticks" end
+            ticks(30)
+            local _, rows = log_rows({ since = base })
+            pray("protectfrommagic", false)
+            teardown()
+            if not is_table(rows) then return "refused", "ticklog.rows answered no table" end
+            local death, bat, tslot, fade, freed, late_spawn, touches = nil, nil, nil, nil, nil, 0, {}
+            for _, row in ipairs(rows) do
+                if row.kind == "npc_death" and row.type == 10835 and death == nil then death = row.tick end
+                if row.kind == "npc_spawn" and row.type == 10836 and bat == nil then bat = row.tick end
+                if row.kind == "npc_spawn" and row.type == 10846 then
+                    tslot = row.slot
+                    if death and row.tick > death then late_spawn = late_spawn + 1 end
+                end
+            end
+            for _, row in ipairs(rows) do
+                if death and row.tick > death and row.kind == "hit_player" and row.npc_type == 10846 then touches[#touches + 1] = row.tick .. ":" .. row.damage end
+                if row.kind == "npc_anim" and row.slot == tslot and row.seq == 9005 then fade = row.tick end
+                if row.kind == "npc_free" and row.slot == tslot and row.type == 10846 then freed = row.tick end
+            end
+            local detail = string.format("tornado near %s; her npc_death %s, bat %s; tornado 9005 %s, npc_free %s; touches after her death [%s]; spawns after it %d",
+                near, tostring(death), tostring(bat), tostring(fade), tostring(freed), table.concat(touches, ","), late_spawn)
+            if death == nil or bat == nil then return "refused", detail .. " -- she did not die into her bat" end
+            if #touches > 0 then return "refused", detail .. " -- her tornado touched a raider after she fell" end
+            if late_spawn > 0 then return "refused", detail .. " -- a tornado spawned after she fell" end
+            if fade ~= bat or freed ~= bat + 1 then return "refused", detail .. " -- not faded on the bat's tick and removed one tick later" end
+            return "ok", detail
+        end)
+
+-- seam16 tob_entry_solo_room_costs, row 2 of 2 (row 1, seam.bloat_stomp_needs_sight, sits after
+-- seam.bloat_defend_sound with the snippet's header). Verzik P3 regular attacks roll accuracy:
+-- tob_verzik.rs2 ~tob_verzik_p3_regular and [queue,tob_verzik_p3_auto_land]. SEAM_COUNT +1.
+        seam("seam.verzik_p3_attacks_roll_accuracy", function()
+            local enter = verb("raid", "enter")
+            local talk = verb("player", "talk_to")
+            local play = verb("chat", "play")
+            local equip = verb("player", "equip")
+            local unequip = verb("player", "unequip")
+            local log_start = verb("ticklog", "start")
+            local log_rows = verb("ticklog", "rows")
+            local last = verb("msg", "last")
+            local ticks = verb("ticks")
+            local tick = verb("tick")
+            if not enter then return missing("raid", "enter") end
+            if not talk then return missing("player", "talk_to") end
+            if not play then return missing("chat", "play") end
+            if not equip then return missing("player", "equip") end
+            if not unequip then return missing("player", "unequip") end
+            if not log_start then return missing("ticklog", "start") end
+            if not log_rows then return missing("ticklog", "rows") end
+            if not last then return missing("msg", "last") end
+            if not ticks then return missing("ticks") end
+            if not tick then return missing("tick") end
+            local ARMOUR = { "rune_full_helm", "rune_chainbody", "rune_platelegs", "rune_kiteshield" }
+            local function ask(cmd, prefix)
+                local _, before = last(1)
+                local s0 = (is_table(before) and before[1] ~= nil and before[1].serial) or 0
+                setup_cheat(cmd)
+                for _try = 1, 3 do
+                    local _, ms = last(12)
+                    for _, m in ipairs(ms or {}) do
+                        if m.serial > s0 and string.find(tostring(m.text), prefix, 1, true) == 1 then return tostring(m.text) end
+                    end
+                    ticks(1)
+                end
+                return nil
+            end
+            local function teardown()
+                setup_cheat("::god 0")
+                setup_cheat("::tobout")
+                ticks(2)
+                for _, w in ipairs(ARMOUR) do unequip(w) end
+                setup_cheat("::clearinv")   -- the four pieces, back in the pack after unequip
+            end
+            setup_cheat("::tobout")
+            ticks(2)
+            -- CLOSER (seam16): the raid rows before this one leave ::tobmode's supplies
+            -- in the backpack, and the four pieces need four free slots.
+            setup_cheat("::clearinv")
+            -- Unprayed and in rune armour at Defence 99: a 0 can only be a missed roll,
+            -- never a prayed 1 halved.
+            setup_cheat("::setlevel defence 99")
+            setup_cheat("::setlevel hitpoints 99")
+            -- All four given first and the backpack let settle, as the proving scratch
+            -- did: an equip pressed on the tick of its own ::give can read the backpack
+            -- before the item is in it (closer, seam16: "not in the backpack").
+            for _, w in ipairs(ARMOUR) do setup_cheat("::give " .. w .. " 1") end
+            ticks(2)
+            for _, w in ipairs(ARMOUR) do
+                local er, ed = equip(w)
+                if er ~= "ok" then teardown() return "refused", "equip " .. w .. " " .. tostring(er) .. " " .. describe(ed) end
+            end
+            setup_cheat("::god 1")
+            local entered, entered_detail = enter("tob", "verzik", { mode = "entry" })
+            if entered ~= "ok" then teardown() return entered, "tob verzik entry -> " .. describe(entered_detail) end
+            log_start()
+            -- CLOSER (seam16): the tick log is session-wide (ticklog.start is idempotent)
+            -- and the Verzik rows before this one retyped her too; only this row's ticks.
+            local _, from_tick = tick()
+            from_tick = tonumber(from_tick) or 0
+            local tr, td = talk("verzik_initial_story", 1)
+            local cr, cd = play({ "npc:So, you wish to entertain me", "options", "choose:Yes, begin the fight." })
+            if tr ~= "ok" or cr ~= "ok" then teardown() return "refused", "talk " .. tostring(tr) .. " " .. describe(td) .. ", begin " .. tostring(cr) .. " " .. describe(cd) end
+            local function retyped_to(types)
+                local _, rt = log_rows({ kind = "npc_retype" })
+                for _, x in ipairs(rt or {}) do if types[x.to_type] and x.tick >= from_tick then return x end end
+                return nil
+            end
+            local P2 = { [8372] = true, [10833] = true, [10850] = true }
+            local P3 = { [8374] = true, [10835] = true, [10852] = true }
+            ticks(10)
+            ask("::tobvzskip", "tobvzskip")
+            for _ = 1, 120 do if retyped_to(P2) then break end ticks(1) end
+            if not retyped_to(P2) then teardown() return "timeout", "no retype to phase 2" end
+            ticks(10)
+            ask("::tobvzskip", "tobvzskip")
+            for _ = 1, 160 do if retyped_to(P3) then break end ticks(1) end
+            local p3 = retyped_to(P3)
+            if not p3 then teardown() return "timeout", "no retype to phase 3" end
+            local slot = p3.slot
+            local autos, melees, zeros_a, zeros_m, maxa, parts = 0, 0, 0, 0, 0, {}
+            for _ = 1, 40 do
+                ticks(10)
+                local _, anims = log_rows({ kind = "npc_anim", slot = slot })
+                local _, hits = log_rows({ kind = "hit_player" })
+                local _, now = tick()
+                autos, melees, zeros_a, zeros_m, maxa, parts = 0, 0, 0, 0, 0, {}
+                for _, a in ipairs(anims or {}) do
+                    local melee = (a.seq == 8123)
+                    if (a.seq == 8124 or a.seq == 8125 or melee) and a.tick >= p3.tick and a.tick + 6 <= now then
+                        local got = nil
+                        local lo, hi = a.tick + 1, a.tick + 5
+                        if melee then lo, hi = a.tick, a.tick + 1 end
+                        for _, h in ipairs(hits or {}) do
+                            if got == nil and h.npc_slot == slot and h.tick >= lo and h.tick <= hi then got = h end
+                        end
+                        if got ~= nil then
+                            local raw = got.raw or got.damage
+                            if melee then
+                                melees = melees + 1
+                                if raw == 0 then zeros_m = zeros_m + 1 end
+                            elseif raw <= 20 then
+                                autos = autos + 1
+                                if raw == 0 then zeros_a = zeros_a + 1 end
+                                if raw > maxa then maxa = raw end
+                            end
+                            parts[#parts + 1] = (melee and "M" or "A") .. a.tick .. "=" .. tostring(raw)
+                        end
+                    end
+                end
+                if autos >= 16 then break end
+            end
+            teardown()
+            local detail = "P3 from tick " .. p3.tick .. ": " .. autos .. " unprayed ranged/magic autos, " .. zeros_a .. " at 0, max " .. maxa
+                .. "; " .. melees .. " melee, " .. zeros_m .. " at 0 (rune armour, Defence 99): " .. table.concat(parts, " ")
+            if autos < 12 then return "timeout", detail .. " (want >= 12 autos)" end
+            if zeros_a == 0 then return "refused", detail .. " -- every auto landed: no accuracy roll (tob_verzik.rs2 [queue,tob_verzik_p3_auto_land]; Strategies:942 'very accurate'; cache verzik_phase3_story Ranged/Magic 180, +20)" end
+            if maxa > 20 then return "refused", detail .. " -- an auto above the Entry 20" end
+            return "ok", detail
+        end)
+
+-- Row 2: A YELLOW POOL IS ALWAYS ON A TILE A RAIDER CAN STAND ON (tob_verzik.rs2
+-- ~tob_verzik_pool_near: map_blocked; a blocked draw takes the next open tile of the 5x5 from
+-- the drawn offset). The raider waits in the arena's north-west corner 6418,98 (x <= 6417 and
+-- z >= 99 are wall: 16 of the 25 tiles of the draw), walks onto the pool and must get 1597
+-- "protected" on the blast, 14 ticks after the pool. Before the fix the room test's run 10 drew
+-- 6423,99 (wall) for a raider on 6423,98: 1596 + 1600 + the hit. Measured (scratch
+-- vz10_yellow_nw): four pools from 6418,98 (t238 6418,96; t449 6418,96; t660 6420,98;
+-- t871 6420,97), each reached the next tick, each blast 1597. ~260 ticks.
+        seam("seam.verzik_yellow_pool_walkable", function()
+            local enter = verb("raid", "enter")
+            local talk = verb("player", "talk_to")
+            local play = verb("chat", "play")
+            local walk_to = verb("player", "walk_to")
+            local tile = verb("world", "tile")
+            local log_start = verb("ticklog", "start")
+            local log_rows = verb("ticklog", "rows")
+            local log_mark = verb("ticklog", "mark")
+            local ticks = verb("ticks")
+            local tick = verb("tick")
+            if not enter then return missing("raid", "enter") end
+            if not talk then return missing("player", "talk_to") end
+            if not play then return missing("chat", "play") end
+            if not walk_to then return missing("player", "walk_to") end
+            if not tile then return missing("world", "tile") end
+            if not log_start then return missing("ticklog", "start") end
+            if not log_rows then return missing("ticklog", "rows") end
+            if not log_mark then return missing("ticklog", "mark") end
+            if not ticks then return missing("ticks") end
+            if not tick then return missing("tick") end
+            local function teardown()
+                setup_cheat("::tobout")
+                ticks(2)
+            end
+            setup_cheat("::tobout")
+            ticks(2)
+            setup_cheat("::setlevel hitpoints 99")
+            local entered, entered_detail = enter("tob", "verzik", { mode = "entry" })
+            if entered ~= "ok" then teardown() return entered, "tob verzik entry -> " .. describe(entered_detail) end
+            log_start()
+            log_mark("seam.verzik_yellow_pool_walkable")
+            local _, marks = log_rows({ kind = "mark" })
+            local since = (is_table(marks) and #marks > 0) and marks[#marks].serial or 0
+            setup_cheat("::god 1")
+            local talked = talk("verzik_initial_story", 1)
+            local played, play_detail = play({ "npc:So, you wish to entertain me", "options", "choose:Yes, begin the fight." })
+            if talked ~= "ok" or played ~= "ok" then
+                teardown()
+                return "refused", "begin: talk " .. tostring(talked) .. ", play " .. tostring(played) .. " " .. describe(play_detail)
+            end
+            ticks(25)
+            setup_cheat("::tobvzleft 0")    -- P1 shield
+            ticks(40)
+            -- P2 to P3: her P2 pool 60 PAST its floor (::tobvzleft's negative n is an overkill the
+            -- phase change does not carry), again until the P3 form (Entry 10835) is in the log.
+            -- `0` is not enough when she is the higher npc slot (this row's second instance): a
+            -- live Athanatos's heal (+9-10, [proc,tob_verzik_athanatos_tick]) runs before her
+            -- [proc,tob_verzik_p2_tick] reads phase_hp <= 0, so she reads 10, crosses 35% and
+            -- summons the reds instead (shim run 1: 400 at t158, heal + reds 10845 at t159).
+            local p3 = false
+            for _ = 1, 10 do
+                setup_cheat("::tobvzleft -60")
+                ticks(15)
+                local _, retypes = log_rows({ since = since, kind = "npc_retype" })
+                for _, row in ipairs(is_table(retypes) and retypes or {}) do
+                    if row.to_type == 10835 then p3 = true end
+                end
+                if p3 then break end
+            end
+            if not p3 then teardown() return "refused", "her P3 form 10835 never came: ten ::tobvzleft -60 in P2" end
+            local CX, CZ = 6418, 98
+            local _, t0 = tick()
+            local pool, blast, reached = nil, nil, nil
+            while blast == nil do
+                local _, now = tick()
+                if now > t0 + 330 then break end
+                local _, rows = log_rows({ since = since, kind = { "map_spotanim", "player_spotanim" } })
+                for _, row in ipairs(is_table(rows) and rows or {}) do
+                    if row.serial > since then since = row.serial end
+                    if row.kind == "map_spotanim" and row.spotanim == 1595 and pool == nil then
+                        local _, me = tile()
+                        pool = { tick = row.tick, x = row.x, z = row.z, from = me and (me.x .. "," .. me.z) or "?" }
+                    elseif row.kind == "player_spotanim" and pool and (row.spotanim == 1597 or row.spotanim == 1600) then
+                        blast = row
+                    end
+                end
+                local _, me = tile()
+                if me and pool and blast == nil then
+                    if me.x ~= pool.x or me.z ~= pool.z then
+                        walk_to(pool.x, pool.z, 4)
+                    elseif reached == nil then
+                        local _, r_now = tick()
+                        reached = r_now
+                    end
+                elseif me and pool == nil and (me.x ~= CX or me.z ~= CZ) then
+                    walk_to(CX, CZ, 6)
+                end
+                if blast == nil then ticks(1) end
+            end
+            teardown()
+            if pool == nil then return "refused", "no yellow pool (1595) within 330 ticks of P3" end
+            local detail = string.format("pool 1595 t%d at %d,%d for a raider on %s; on it t%s; blast %s t%s",
+                pool.tick, pool.x, pool.z, pool.from, tostring(reached), tostring(blast and blast.spotanim), tostring(blast and blast.tick))
+            if blast == nil or blast.spotanim ~= 1597 then return "refused", detail end
+            if blast.tick ~= pool.tick + 14 then return "refused", "blast not on pool + 14: " .. detail end
+            return "ok", detail
+        end)
+
+-- seam11 ticklog_raw_damage_and_loc_count (seam row 2 of 2): every copy of a loc.
+-- SEAM_COUNT +1.
+        -- (2) seam.loc_copies_verzik_death_cage -- the Verzik room's spectator cages:
+        --     the cache map places `tob_dungeon_verzik_death_cage` 32717 twenty-four
+        --     times (OSRS-Content/osrs239-content/maps/m49_67.jl2:255-278, AV_INVENTORY
+        --     .tsv:375 "map 49_67 x24") on local tiles x 21..26 and 39..44, z 36..38. The
+        --     instance copy must stand all 24, on the same pattern (each copy's offset
+        --     from the south-west-most copy equals the map's). Before: t.world.loc_copies
+        --     is not a function; t.world.loc_near answers one copy.
+        seam("seam.loc_copies_verzik_death_cage", function()
+            local fn = verb("world", "loc_copies")
+            if not fn then return missing("world", "loc_copies") end
+            if type(t.raid) ~= "table" or not t.raid.enter then return missing("raid", "enter") end
+            local MAP = { -- m49_67.jl2:255-278, local x,z
+                {21,36},{21,37},{21,38},{22,37},{23,36},{23,37},{23,38},{24,37},
+                {25,36},{25,37},{25,38},{26,37},{39,36},{39,37},{39,38},{40,37},
+                {41,36},{41,37},{41,38},{42,37},{43,36},{43,37},{43,38},{44,37} }
+            local er, ed = t.raid.enter("tob", "verzik", { mode = "entry" })
+            if er ~= "ok" then
+                setup_cheat("::tobout")
+                return "no_subject", "raid.enter tob verzik -> " .. describe(er) .. " " .. describe(ed)
+            end
+            settle(2)
+            local result, summary, rows = fn("tob_dungeon_verzik_death_cage", 0)
+            setup_cheat("::tobout")
+            settle(2)
+            if result ~= "ok" then return result, describe(summary) end
+            local min_x, min_z = math.huge, math.huge
+            for _, r in ipairs(rows) do
+                if r.x < min_x then min_x = r.x end
+                if r.z < min_z then min_z = r.z end
+            end
+            local want, have, extra = {}, {}, {}
+            for _, p in ipairs(MAP) do want[(p[1] - 21) .. "," .. (p[2] - 36)] = true end
+            for _, r in ipairs(rows) do
+                local key = (r.x - min_x) .. "," .. (r.z - min_z)
+                have[key] = true
+                if not want[key] then extra[#extra + 1] = r.x .. "," .. r.z end
+            end
+            local miss = {}
+            for key in pairs(want) do if not have[key] then miss[#miss + 1] = key end end
+            local text = describe(summary) .. " [south-west copy " .. min_x .. "," .. min_z
+                .. "; map m49_67 places 24]"
+            if rows.total ~= 24 or #extra > 0 or #miss > 0 then
+                return "refused", "total " .. describe(rows.total) .. ", off-pattern "
+                    .. table.concat(extra, " ") .. ", missing offsets " .. table.concat(miss, " ")
+                    .. " -- " .. text
+            end
+            return "ok", text
+        end)
+
+-- seam9 tob_cage_release_on_room_win -- conformance snippet for the closer.
+--
+-- NO driver verb was added or changed (content only: minigame_tob/scripts/tob_spectate.rs2
+-- and tob_xarpus.rs2). Two seam rows, one per rule, through verbs that already have rows
+-- (raid.enter, player.click_loc, chat.play, msg.last, world.tile, ticklog.start/rows, ticks):
+--
+--   seam.tob_cage_released_on_room_win -- "Players who die during the raid will be placed in
+--     purgatory. If the room is successfully cleared by the remaining players, those who have
+--     died will be reunited with the rest of their team." (sources/wiki_Theatre_of_Blood_
+--     Strategies.wikitext:3). A solo Entry raider with ::tobmate dies (::die) in Bloat's room
+--     and is caged; the boss is killed (::kill); within 30 ticks ::tobjail reads jailed=0
+--     cleared=1. Before the fix (run s9cage_before) Bloat, Nylocas, Sotetseg, Xarpus and Verzik
+--     all held the raider in the cage for 30 ticks after cleared=1; only the Maiden let go.
+--   seam.tob_xarpus_landing_ignores_a_dying_target -- every Xarpus spit lands on spit tick +
+--     floor(end_cycle/30) and every thrown orb on throw tick + floor(end_cycle/30)
+--     (ENCOUNTER_TIMING.md 1.2 "Impact | T+f"), including spits in flight across the target's
+--     death. Before (s9cage_before): spits of 110, 114 and 118 all landed at 119, when the
+--     raider killed at 112 got up.
+--
+-- `::tobmate`, `::die`, `::kill`, `::tobjail` and `::god` are measurement cheats (allowed in a
+-- conformance row, never in a room test).
+--
+-- PLACE: in _conformance.lua's PLAN after seam("seam.tob_death_cage_then_entry_restart")'s
+-- block of raid cage rows (after the last seam8 raid row that follows it), in this order. Each
+-- tears down with ::tobout (the Xarpus row also ::god 0). SEAM_COUNT / @seam-count +2;
+-- verb_list.py needs nothing (no verb).
+--
+-- Proved by build/seam_state/matthew-mbp-m4-raid-b1-seam9/cage/conformance_rows_scratch.lua
+-- (these bodies byte-identical under the seam7/seam8 shims for verb/missing/describe/
+-- is_table/setup_cheat/seam), run s9cage_conf1: 2/2 PASS --
+--   seam.tob_cage_released_on_room_win PASS "cage 'tobjail jailed=1 ... room=2 cleared=0 ...
+--     tile=6431,107,0'; kill 'Killed Pestilent Bloat (slot 1079, 10 tiles).'; after 6 poll(s)
+--     'tobjail jailed=0 ... cleared=1 ... tile=6442,95,0' standing at 6442,95"
+--   seam.tob_xarpus_landing_ignores_a_dying_target PASS "4/4 spits and 7/7 orbs land on throw
+--     tick + floor(end_cycle/30) on their tile, 2 spit(s) landing while the target dies (die
+--     cheat 168, death anim 836 at 171): spit 162->166 spit 166->170 spit 170->174 spit 174->178"
+        seam("seam.tob_cage_released_on_room_win", function()
+            local enter = verb("raid", "enter")
+            local click_loc = verb("player", "click_loc")
+            local play = verb("chat", "play")
+            local last = verb("msg", "last")
+            local tile = verb("world", "tile")
+            local ticks = verb("ticks")
+            if not enter then return missing("raid", "enter") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not play then return missing("chat", "play") end
+            if not last then return missing("msg", "last") end
+            if not tile then return missing("world", "tile") end
+            if not ticks then return missing("ticks") end
+            local floor = -1
+            local function newest(prefix)
+                local _, lines = last(40)
+                local found, best = nil, floor
+                if not is_table(lines) then return nil end
+                for l = 1, #lines do
+                    if string.find(lines[l].text, prefix, 1, true) ~= nil and lines[l].serial > best then
+                        found = lines[l].text
+                        best = lines[l].serial
+                    end
+                end
+                return found
+            end
+            local function readout(cmd, prefix)
+                setup_cheat(cmd)
+                ticks(1)
+                return newest(prefix)
+            end
+            local entered, entered_detail = enter("tob", "bloat", { mode = "entry" })
+            if entered ~= "ok" then return entered, "tob bloat entry -> " .. describe(entered_detail) end
+            -- a party member who is not a player keeps the party from being all down,
+            -- so the death is the cage and not the wipe
+            setup_cheat("::tobmate")
+            local clicked, click_detail = click_loc("tob_arena_barrier", 1)
+            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            if clicked ~= "ok" or played ~= "ok" then
+                setup_cheat("::tobout")
+                return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
+            end
+            -- only lines newer than this ::die count: an earlier raid row's death line
+            -- is still in the last 40
+            do
+                local _, seen = last(40)
+                for l = 1, (is_table(seen) and #seen or 0) do
+                    if seen[l].serial > floor then floor = seen[l].serial end
+                end
+            end
+            setup_cheat("::die")
+            local died, guard = nil, 0
+            while died == nil and guard < 15 do
+                ticks(1)
+                died = newest("You have died. Death count:")
+                guard = guard + 1
+            end
+            ticks(2)
+            local caged = readout("::tobjail", "tobjail ")
+            local _, cage = tile()
+            -- the rest of the party wins the room: the boss dies the way the room's own
+            -- death path sees it
+            local killed = readout("::kill tob_bloat_story 60", "Killed")
+            local freed, last_jail, polls = nil, nil, 0
+            while freed == nil and polls < 30 do
+                last_jail = readout("::tobjail", "tobjail ")
+                if last_jail ~= nil and string.find(last_jail, "jailed=0", 1, true) ~= nil then freed = last_jail end
+                polls = polls + 1
+            end
+            local _, stand = tile()
+            setup_cheat("::tobout")
+            ticks(3)
+            local detail = "death '" .. tostring(died) .. "'; cage '" .. tostring(caged) .. "' at "
+                .. (is_table(cage) and (tostring(cage.x) .. "," .. tostring(cage.z)) or "?") .. "; kill '" .. tostring(killed)
+                .. "'; after " .. polls .. " poll(s) '" .. tostring(last_jail) .. "' standing at "
+                .. (is_table(stand) and (tostring(stand.x) .. "," .. tostring(stand.z)) or "?")
+            if died == nil or caged == nil or string.find(caged, "jailed=1", 1, true) == nil
+                or string.find(caged, "cleared=0", 1, true) == nil then
+                return "refused", "no cage: " .. detail
+            end
+            if killed == nil then return "refused", "the boss was not killed: " .. detail end
+            if freed == nil or string.find(freed, "cleared=1", 1, true) == nil then
+                return "refused", "still caged after the room was won: " .. detail
+            end
+            return "ok", detail
+        end)
+
+        seam("seam.tob_xarpus_landing_ignores_a_dying_target", function()
+            local enter = verb("raid", "enter")
+            local click_loc = verb("player", "click_loc")
+            local play = verb("chat", "play")
+            local last = verb("msg", "last")
+            local log_start = verb("ticklog", "start")
+            local log_rows = verb("ticklog", "rows")
+            local ticks = verb("ticks")
+            if not enter then return missing("raid", "enter") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not play then return missing("chat", "play") end
+            if not last then return missing("msg", "last") end
+            if not log_start then return missing("ticklog", "start") end
+            if not log_rows then return missing("ticklog", "rows") end
+            if not ticks then return missing("ticks") end
+            local floor = -1
+            local function newest(prefix)
+                local _, lines = last(40)
+                local found, best = nil, floor
+                if not is_table(lines) then return nil end
+                for l = 1, #lines do
+                    if string.find(lines[l].text, prefix, 1, true) ~= nil and lines[l].serial > best then
+                        found = lines[l].text
+                        best = lines[l].serial
+                    end
+                end
+                return found
+            end
+            local entered, entered_detail = enter("tob", "xarpus", { mode = "entry" })
+            if entered ~= "ok" then return entered, "tob xarpus entry -> " .. describe(entered_detail) end
+            setup_cheat("::tobmate")
+            log_start()
+            t.ticklog.mark("seam.tob_xarpus_landing_ignores_a_dying_target")
+            local _, base_marks = log_rows({ kind = "mark" })
+            local base = base_marks[#base_marks].serial
+            local clicked, click_detail = click_loc("tob_arena_barrier", 1)
+            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            if clicked ~= "ok" or played ~= "ok" then
+                setup_cheat("::tobout")
+                return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
+            end
+            -- the acid must not kill before ::die does
+            setup_cheat("::god 1")
+            local first, guard = nil, 0
+            while first == nil and guard < 400 do
+                local _, anims = log_rows({ kind = "npc_anim", seq = 8059, since = base })
+                if is_table(anims) and anims[1] then first = anims[1].tick end
+                if first == nil then ticks(1) end
+                guard = guard + 1
+            end
+            if first == nil then
+                setup_cheat("::god 0")
+                setup_cheat("::tobout")
+                return "refused", "no spit (npc_anim 8059) in 400 ticks of the fight"
+            end
+            -- two spits at a living target, then die: the spits in flight land on a dying raider
+            ticks(6)
+            do
+                local _, seen = last(40)
+                for l = 1, (is_table(seen) and #seen or 0) do
+                    if seen[l].serial > floor then floor = seen[l].serial end
+                end
+            end
+            local _, now_tick = t.tick()
+            setup_cheat("::die")
+            local died
+            guard = 0
+            while died == nil and guard < 15 do
+                ticks(1)
+                died = newest("You have died. Death count:")
+                guard = guard + 1
+            end
+            ticks(14)
+            local _, anims = log_rows({ kind = "npc_anim", seq = 8059, since = base })
+            local _, projs = log_rows({ kind = "projectile", spotanim = 1555, since = base })
+            local _, splats = log_rows({ kind = "map_spotanim", spotanim = 1556, since = base })
+            local _, deaths = log_rows({ kind = "player_anim", seq = 836, since = base })
+            local _, end_tick = t.tick()
+            setup_cheat("::god 0")
+            setup_cheat("::tobout")
+            ticks(3)
+            local spit_tick = {}
+            for i = 1, #anims do spit_tick[anims[i].tick] = true end
+            -- his mouth is the source of the first spit, thrown before any orb exists;
+            -- orbs are thrown from a landing tile, often on a spit tick too
+            local mouth = nil
+            for j = 1, #projs do
+                if projs[j].tick == first then mouth = projs[j].src_x .. "," .. projs[j].src_z break end
+            end
+            local dying = (is_table(deaths) and deaths[1]) and deaths[1].tick or nil
+            local spits, spits_on, orbs, orbs_on, in_death, text = 0, 0, 0, 0, 0, ""
+            for j = 1, #projs do
+                local p = projs[j]
+                if p.tick <= end_tick - 9 then
+                    local due = p.tick + math.floor(p.end_cycle / 30)
+                    local hit = false
+                    for k = 1, #splats do
+                        if splats[k].tick == due and splats[k].x == p.dst_x and splats[k].z == p.dst_z then hit = true end
+                    end
+                    local is_spit = spit_tick[p.tick] and (p.src_x .. "," .. p.src_z) == mouth
+                    if is_spit then
+                        spits = spits + 1
+                        if hit then spits_on = spits_on + 1 end
+                        if hit and dying ~= nil and due >= dying and p.tick < dying + 4 then in_death = in_death + 1 end
+                        text = text .. " spit " .. p.tick .. "->" .. due .. (hit and "" or "!")
+                    else
+                        orbs = orbs + 1
+                        if hit then orbs_on = orbs_on + 1 end
+                        if not hit then text = text .. " orb " .. p.tick .. "->" .. due .. "!" end
+                    end
+                end
+            end
+            local detail = spits_on .. "/" .. spits .. " spits and " .. orbs_on .. "/" .. orbs
+                .. " orbs land on throw tick + floor(end_cycle/30) on their tile, " .. in_death
+                .. " spit(s) landing while the target dies (die cheat " .. tostring(now_tick) .. ", death anim 836 at "
+                .. tostring(dying) .. ", '" .. tostring(died) .. "'):" .. text
+            if died == nil or dying == nil then return "refused", "no death: " .. detail end
+            if spits < 3 or spits_on ~= spits or orbs < 1 or orbs_on ~= orbs then return "refused", detail end
+            if in_death < 1 then return "refused", "no spit was in flight across the death: " .. detail end
+            return "ok", detail
+        end)
+
+-- seam10 tob_xarpus_entry_solo_survival -- conformance snippet for the closer.
+--
+-- NO driver verb was added or changed (content only: minigame_tob/scripts/tob_xarpus.rs2,
+-- ~tob_xarpus_on_acid). One seam row, through verbs that already have rows (raid.enter,
+-- raid.start_tile, player.walk_to, player.click_loc, chat.play, player.step_tick, world.tile,
+-- ticklog.start/rows/mark, ticks):
+--
+--   seam.tob_xarpus_acid_is_the_puddle_tile -- a Xarpus puddle costs only the player standing
+--     on it, its 3x3 is the landing hit alone: "create a permanent 1-tile puddle of poison ...
+--     dealing some damage if you stand or run over it" (sources/wiki_Theatre_of_Blood_Entry_
+--     Mode.wikitext:207); "occupies that tile ... each tick a player stands on or crosses over
+--     it" (sources/wiki_Xarpus.wikitext:257); Near-Reality Xarpus.kt processMechanics
+--     `player.location == poisonSplat`. Measured in Hard Mode's phase 1, where the only damage
+--     is the 98-puddle opening ring (wiki_Xarpus.wikitext:261) and he never spits: 6 ticks on
+--     the third layer (6429,99, one tile from the ring) take 0 hits, 5 ticks on the ring
+--     (6428,99) take at least 4.
+--
+-- `::tobout` is the teardown (as every raid row).
+--
+-- PLACE: in _conformance.lua's PLAN right after seam("seam.tob_xarpus_landing_ignores_a_dying_target")
+-- (seam9's last raid row, ~line 13413). SEAM_COUNT / @seam-count +1; verb_list.py needs nothing.
+--
+-- Proved by build/seam_state/matthew-mbp-m4-raid-b1-seam10/x/s10x_conf_rows.lua (this body
+-- byte-identical, under the seam9 shims verb/missing/describe/is_table/setup_cheat/seam):
+--   s10x_conf_after (tree content):  seam.tob_xarpus_acid_is_the_puddle_tile PASS "ok: 98 ring
+--     puddles; 6 ticks at 6429,99 (one tile from the ring): 0 hit(s); step ok step 6428,99 issued
+--     at tick 24, resolved at tick 25 (+1); 5 ticks at 6428,99 (on the ring): 4 hit(s), max 8"
+--   s10x_conf_before (HEAD tob_xarpus.rs2, symlink-farm pack, TORIRSSERVER_CONTENT/SCRIPTS):
+--     FAIL "refused: a puddle hurt the tile beside it: ... 6 ticks at 6429,99 ...: 6 hit(s) ...
+--     5 ticks at 6428,99 (on the ring): 4 hit(s), max 7"
+        seam("seam.tob_xarpus_acid_is_the_puddle_tile", function()
+            local enter = verb("raid", "enter")
+            local start_tile = verb("raid", "start_tile")
+            local walk_to = verb("player", "walk_to")
+            local click_loc = verb("player", "click_loc")
+            local play = verb("chat", "play")
+            local step_tick = verb("player", "step_tick")
+            local tile = verb("world", "tile")
+            local tl_start = verb("ticklog", "start")
+            local tl_rows = verb("ticklog", "rows")
+            local tl_mark = verb("ticklog", "mark")
+            local ticks = verb("ticks")
+            if not enter then return missing("raid", "enter") end
+            if not start_tile then return missing("raid", "start_tile") end
+            if not walk_to then return missing("player", "walk_to") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not play then return missing("chat", "play") end
+            if not step_tick then return missing("player", "step_tick") end
+            if not tile then return missing("world", "tile") end
+            if not tl_start then return missing("ticklog", "start") end
+            if not tl_rows then return missing("ticklog", "rows") end
+            if not tl_mark then return missing("ticklog", "mark") end
+            if not ticks then return missing("ticks") end
+            tl_start()
+            -- Hard Mode's opening paints the two outer layers of his arena with acid on fight
+            -- tick 3 (wiki_Xarpus.wikitext:261), in phase 1, where he never spits: the only
+            -- damage in the room is the acid itself. The third layer is one tile from a puddle.
+            local entered, entered_detail = enter("tob", "xarpus", { mode = "hard" })
+            if entered ~= "ok" then return entered, "tob xarpus hard -> " .. describe(entered_detail) end
+            local _, fight = start_tile()
+            if not is_table(fight) then
+                setup_cheat("::tobout")
+                return "refused", "no fight tile"
+            end
+            walk_to(fight.x, fight.z - 3, 20)
+            local clicked, click_detail = click_loc("tob_arena_barrier", 1)
+            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            if clicked ~= "ok" or played ~= "ok" then
+                setup_cheat("::tobout")
+                return "refused", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm " .. tostring(played) .. " " .. describe(play_detail)
+            end
+            local pools, guard = 0, 0
+            while pools < 98 and guard < 15 do
+                ticks(1)
+                local _, ls = tl_rows({ kind = "loc_set", loc = 32744 })
+                pools = is_table(ls) and #ls or 0
+                guard = guard + 1
+            end
+            -- inside the clean middle, then onto the third layer beside the west ring
+            walk_to(6434, 95, 8)
+            walk_to(6429, 99, 10)
+            ticks(3)
+            local _, beside = tile()
+            local _, md1 = tl_mark("beside a puddle")
+            local m1 = tonumber(tostring(md1):match("serial (%d+)")) or 0
+            ticks(6)
+            local _, h1 = tl_rows({ kind = "hit_player", since = m1 })
+            local n_beside = is_table(h1) and #h1 or -1
+            local stepped, step_detail = step_tick(6428, 99)
+            local _, md2 = tl_mark("on a puddle")
+            local m2 = tonumber(tostring(md2):match("serial (%d+)")) or 0
+            ticks(5)
+            local _, on = tile()
+            local _, h2 = tl_rows({ kind = "hit_player", since = m2 })
+            local n_on, max_on = 0, 0
+            for i = 1, (is_table(h2) and #h2 or 0) do
+                n_on = n_on + 1
+                if h2[i].damage > max_on then max_on = h2[i].damage end
+            end
+            step_tick(6429, 99)
+            setup_cheat("::tobout")
+            ticks(3)
+            local detail = pools .. " ring puddles; 6 ticks at "
+                .. (is_table(beside) and (beside.x .. "," .. beside.z) or "?") .. " (one tile from the ring): "
+                .. n_beside .. " hit(s); step " .. tostring(stepped) .. " " .. describe(step_detail)
+                .. "; 5 ticks at " .. (is_table(on) and (on.x .. "," .. on.z) or "?") .. " (on the ring): "
+                .. n_on .. " hit(s), max " .. max_on
+            if pools < 98 then return "refused", "the Hard ring never opened: " .. detail end
+            if not is_table(beside) or beside.x ~= 6429 or beside.z ~= 99 then return "refused", "never reached the third layer: " .. detail end
+            if n_beside ~= 0 then return "refused", "a puddle hurt the tile beside it: " .. detail end
+            if not is_table(on) or on.x ~= 6428 or on.z ~= 99 then return "refused", "never stood on the ring: " .. detail end
+            if n_on < 4 then return "refused", "standing on a puddle cost too little: " .. detail end
+            return "ok", detail
+        end)
+
+-- (2) PLACE: Row C right BEFORE step("finish", ...), i.e. after
+-- seam("seam.verzik_entry_forms_cage_and_death", ...) (the last raid row).  It
+-- leaves the raid first (::tobout) whatever room the row before ended in, and
+-- leaves it again on every exit.
+--
+-- Row C: A MAP LOC'S SEQ AND LOOPING SOUND, AND A MAP GRAPHIC'S SEQ, in Bloat's
+-- room (Hard).  Map-placed locs (no server LOC_ANIM): tob_bloat_chamber 32957
+-- plays tob_bloat_chamber_idle 8086 and the client registered its soundid 3288
+-- at sounddistance 5; the chain hooks 32951/32952 play
+-- tob_bloat_swinging_chain 8087 and are silent; tob_arena_barrier plays 7929
+-- with sound 3139 at distance 1.  Once the fight starts the falling-flesh map
+-- graphics (1570-1573) play tob_bloat_falling_flesh 8088 on their elements,
+-- and Bloat draws its walkanim 8081 (pose_kind "walk") with anim_id -1 and an
+-- idle set of ready 8080 / walk 8081.
+        seam("seam.loc_and_graphic_seq_in_bloat_room", function()
+            local enter = verb("raid", "enter")
+            local loc_near = verb("world", "loc_near")
+            local hazard_at = verb("world", "hazard_at")
+            local spotanims = verb("world", "spotanims")
+            local state = verb("npc", "state")
+            local click_loc = verb("player", "click_loc")
+            local play = verb("chat", "play")
+            if not enter then return missing("raid", "enter") end
+            if not loc_near then return missing("world", "loc_near") end
+            if not hazard_at then return missing("world", "hazard_at") end
+            if not spotanims then return missing("world", "spotanims") end
+            if not state then return missing("npc", "state") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not play then return missing("chat", "play") end
+            local function teardown()
+                setup_cheat("::tobout")
+                settle(2)
+            end
+            setup_cheat("::tobout")
+            settle(2)
+            setup_cheat("::god 1")
+            local entered, entered_detail = enter("tob", "bloat", { mode = "hard" })
+            if entered ~= "ok" then
+                teardown()
+                return entered, "tob bloat hard -> " .. describe(entered_detail)
+            end
+            setup_cheat("::tobmate")
+            local function loc_row(symbol)
+                local lr, l = loc_near(symbol, 60)
+                if lr ~= "ok" then return nil, symbol .. ": loc_near " .. tostring(lr) end
+                local hr, h = hazard_at(l.tile_x, l.tile_z, l.level)
+                if hr ~= "ok" then return nil, symbol .. ": hazard_at " .. tostring(hr) end
+                for i = 1, #h.locs do
+                    if h.locs[i].loc_id == l.id then return h.locs[i] end
+                end
+                return nil, symbol .. ": hazard_at " .. l.tile_x .. "," .. l.tile_z .. " has no loc " .. tostring(l.id)
+            end
+            -- { symbol, seq, ambient_sound, ambient_range } (-1 = silent)
+            local want = {
+                { "tob_bloat_chamber", 8086, 3288, 5 },
+                { "tob_bloat_chain_hook_hand1_anim", 8087, -1, -1 },
+                { "tob_bloat_chain_hook_hand2_anim", 8087, -1, -1 },
+                { "tob_arena_barrier", 7929, 3139, 1 },
+            }
+            local text = {}
+            for _, w in ipairs(want) do
+                local row, why = loc_row(w[1])
+                if row == nil then
+                    teardown()
+                    return "no_subject", table.concat(text, "; ") .. " " .. why
+                end
+                text[#text + 1] = string.format("%s seq %s frame %s ambient %s range %s", w[1], tostring(row.seq),
+                    tostring(row.seq_frame), tostring(row.ambient_sound), tostring(row.ambient_range))
+                if row.seq ~= w[2] or row.ambient_sound ~= w[3] or row.ambient_range ~= w[4] then
+                    teardown()
+                    return (row.seq == nil) and "hollow" or "refused", table.concat(text, "; ")
+                        .. " -- wanted seq " .. w[2] .. " ambient " .. w[3] .. " range " .. w[4]
+                end
+            end
+            local clicked, click_detail = click_loc("tob_arena_barrier", 1)
+            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            if clicked ~= "ok" or played ~= "ok" then
+                teardown()
+                return "no_subject", table.concat(text, "; ") .. "; barrier " .. tostring(clicked) .. " "
+                    .. describe(click_detail) .. ", begin " .. tostring(played) .. " " .. describe(play_detail)
+            end
+            local flesh, bloat
+            local poses = {}
+            t.await({
+                level = function()
+                    local r, spots = spotanims(0)
+                    if r == "ok" and flesh == nil then
+                        for i = 1, #spots do
+                            local s = spots[i]
+                            if s.spotanim_id >= 1570 and s.spotanim_id <= 1573 and s.active and s.seq ~= nil and s.seq >= 0 then
+                                flesh = s
+                            end
+                        end
+                    end
+                    local br, b = state("tob_bloat_hard")
+                    if br == "ok" then
+                        local k = tostring(b.pose_kind) .. "=" .. tostring(b.pose_anim)
+                        poses[k] = (poses[k] or 0) + 1
+                        if b.pose_kind == "walk" and b.pose_anim == b.walk_anim then bloat = b end
+                    end
+                    return flesh ~= nil and bloat ~= nil
+                end,
+                note = "a falling-flesh graphic with its seq, and Bloat walking",
+            }, 40)
+            teardown()
+            local parts = {}
+            for k, n in pairs(poses) do parts[#parts + 1] = k .. " x" .. n end
+            table.sort(parts)
+            text[#text + 1] = "flesh " .. (flesh and (flesh.spotanim_id .. " seq " .. flesh.seq .. " frame "
+                .. tostring(flesh.seq_frame)) or "none")
+            text[#text + 1] = "Bloat " .. (bloat and ("anim_id " .. bloat.anim_id .. " ready " .. bloat.ready_anim
+                .. " walk " .. bloat.walk_anim) or "never walking") .. "; poses " .. table.concat(parts, ", ")
+            local reading = table.concat(text, "; ")
+            if flesh == nil or bloat == nil then return "timeout", reading end
+            if flesh.seq ~= 8088 then return "refused", reading .. " -- the falling flesh plays 8088" end
+            if bloat.walk_anim ~= 8081 or bloat.ready_anim ~= 8080 or bloat.pose_anim ~= 8081 then
+                return "refused", reading .. " -- Bloat's idle set is ready 8080 / walk 8081"
+            end
+            return "ok", reading
+        end)
+
+-- (3) PLACE: Row D directly after Row C (before step("finish", ...)).  It enters
+-- the Nylocas room (Entry) the way seam("seam.nylocas_presentation", ...) does
+-- and tears down with ::tobout.
+--
+-- Row D: THE IDLE SET FOLLOWS A RETYPE.  Vasilias lands as her spawning form
+-- and then changes form on the room's clock (tob_nylocas_boss.rs2); her melee,
+-- magic and ranged records carry different idle sets (top_spider_melee_idle /
+-- _magic_idle / _ranged_idle, configs/all.npc).  After a server npc_retype row
+-- the client row for her slot must carry the NEW type (npc_id = the retype
+-- row's type), an idle set different from her first one, and draw the new
+-- readyanim as her standing pose (she never leaves her landing tile).  A
+-- lookup of her spawn symbol would answer the first idle set forever.
+-- (A cheaper ordinary subject was tried first: a Canifis citizen hit by melee
+-- or magic never retypes here -- no npc_retype row, npc_id unchanged -- so the
+-- row uses the raid's own retype.)
+        seam("seam.npc_pose_follows_a_retype", function()
+            local enter = verb("raid", "enter")
+            local start_tile = verb("raid", "start_tile")
+            local walk_to = verb("player", "walk_to")
+            local click_loc = verb("player", "click_loc")
+            local play = verb("chat", "play")
+            local log_start = verb("ticklog", "start")
+            local log_rows = verb("ticklog", "rows")
+            local nearest = verb("npc", "nearest")
+            local state = verb("npc", "state")
+            if not enter then return missing("raid", "enter") end
+            if not start_tile then return missing("raid", "start_tile") end
+            if not walk_to then return missing("player", "walk_to") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not play then return missing("chat", "play") end
+            if not log_start then return missing("ticklog", "start") end
+            if not log_rows then return missing("ticklog", "rows") end
+            if not nearest then return missing("npc", "nearest") end
+            if not state then return missing("npc", "state") end
+            local function teardown()
+                setup_cheat("::god 0")
+                setup_cheat("::tobout")
+                settle(2)
+            end
+            setup_cheat("::tobout")
+            settle(2)
+            setup_cheat("::setlevel hitpoints 99")
+            local entered, entered_detail = enter("tob", "nylocas", { mode = "entry" })
+            if entered ~= "ok" then return entered, "tob nylocas entry -> " .. describe(entered_detail) end
+            log_start()
+            t.ticklog.mark("seam.npc_pose_follows_a_retype")
+            local _, base_marks = log_rows({ kind = "mark" })
+            local base = (is_table(base_marks) and #base_marks > 0) and base_marks[#base_marks].serial or 0
+            local tile_result, fight = start_tile()
+            if tile_result ~= "ok" or not is_table(fight) then teardown() return tile_result, describe(fight) end
+            walk_to(fight.x + 1, fight.z, 20)
+            local clicked, click_detail = click_loc("tob_arena_barrier", 1)
+            local played, play_detail = play({ "options", "choose:Yes, begin the fight." })
+            if clicked ~= "ok" or played ~= "ok" then
+                teardown()
+                return "no_subject", "barrier " .. tostring(clicked) .. " " .. describe(click_detail) .. ", confirm "
+                    .. tostring(played) .. " " .. describe(play_detail)
+            end
+            setup_cheat("::god 1")
+            local smalls = { "tob_nylocas_incoming_melee_story", "tob_nylocas_incoming_magic_story", "tob_nylocas_incoming_ranged_story" }
+            local killed = {}
+            for _ = 1, 30 do
+                settle(1)
+                for _, name in ipairs(smalls) do
+                    if not killed[name] and nearest(name, 40) == "ok" then
+                        setup_cheat("::kill " .. name .. " 40")
+                        killed[name] = true
+                    end
+                end
+                if killed[smalls[1]] and killed[smalls[2]] and killed[smalls[3]] then break end
+            end
+            setup_cheat("::tobnyloskip")
+            local boss
+            for _ = 1, 120 do
+                settle(1)
+                local _, spawns = log_rows({ kind = "npc_spawn", type = 10786, since = base })
+                if is_table(spawns) and spawns[1] ~= nil then boss = spawns[1] break end
+            end
+            if boss == nil then
+                teardown()
+                return "no_subject", "Vasilias (10786) never spawned after ::tobnyloskip"
+            end
+            -- her CLIENT pool slot: the spawning form by symbol (the log's slot is
+            -- the server's), held across the retypes
+            local client_slot
+            local VASILIAS = "nylocas_boss_spawning_story"
+            for _ = 1, 10 do
+                local nr, near = nearest(VASILIAS, 40)
+                if nr == "ok" and is_table(near) then client_slot = near.slot break end
+                settle(1)
+            end
+            if client_slot == nil then
+                teardown()
+                return "no_subject", "Vasilias spawned @" .. tostring(boss.tick) .. " (server slot " .. tostring(boss.slot)
+                    .. ") but no " .. VASILIAS .. " in the client pool within 10 ticks"
+            end
+            local first, after, retype
+            local seen = {}
+            t.await({
+                level = function()
+                    local r, row = state({ slot = client_slot })
+                    if r ~= "ok" then return false end
+                    first = first or row
+                    local k = row.npc_id .. ":" .. tostring(row.pose_kind) .. "=" .. tostring(row.pose_anim)
+                    seen[k] = (seen[k] or 0) + 1
+                    if row.ready_anim == first.ready_anim then return false end
+                    local _, rts = log_rows({ kind = "npc_retype", slot = boss.slot, since = base })
+                    for _, rt in ipairs(rts or {}) do
+                        if rt.to_type == row.npc_id then retype = rt end
+                    end
+                    if retype ~= nil and row.pose_kind == "ready" and row.pose_anim == row.ready_anim then
+                        after = row
+                        return true
+                    end
+                    return false
+                end,
+                note = "Vasilias in a form with a different idle set, standing in its readyanim",
+            }, 60)
+            teardown()
+            local parts = {}
+            for k, n in pairs(seen) do parts[#parts + 1] = k .. " x" .. n end
+            table.sort(parts)
+            local reading = "Vasilias (client slot " .. client_slot .. ", server slot " .. boss.slot .. ") spawned @" .. tostring(boss.tick) .. ": first row id "
+                .. tostring(first and first.npc_id) .. " ready " .. tostring(first and first.ready_anim) .. " walk "
+                .. tostring(first and first.walk_anim) .. "; reads id:pose " .. table.concat(parts, ", ")
+            if first == nil then return "no_subject", reading end
+            if after == nil then
+                return "refused", reading .. " -- no read after a retype row carried the new type's idle set and drew its readyanim"
+            end
+            return "ok", reading .. "; npc_retype " .. tostring(retype.from_type) .. " -> " .. retype.to_type .. " @" .. tostring(retype.tick) .. " -> row id "
+                .. after.npc_id .. " ready " .. after.ready_anim .. " walk " .. after.walk_anim .. ", standing pose ready="
+                .. after.pose_anim
+        end)
+
+-- seam11 tob_rig_ledger_faults (1 of 2): an authored attack_anim null holds in the
+-- running server over the generated record (::tobnpcanim, a measurement debugproc).
+-- SEAM_COUNT +1.
+        seam("seam.authored_null_attack_anim_holds", function()
+            local last = verb("msg", "last")
+            local ticks = verb("ticks")
+            if not last then return missing("msg", "last") end
+            if not ticks then return missing("ticks") end
+            local function read(sym)
+                local _, before = last(1)
+                local floor = (is_table(before) and before[1] and before[1].serial) or -1
+                setup_cheat("::tobnpcanim " .. sym)
+                ticks(1)
+                local _, lines = last(20)
+                if not is_table(lines) then return nil end
+                local key = "tobnpcanim " .. sym .. " "
+                for l = 1, #lines do
+                    if lines[l].serial > floor and string.find(lines[l].text, key, 1, true) ~= nil then
+                        return lines[l].text
+                    end
+                end
+                return nil
+            end
+            -- { npc, attack, death or nil }: the control, the record that was
+            -- already authored null before seam11 (the rig pass said it was
+            -- overlaid; it was not), a record seam11 authored, and the bat whose
+            -- one seq was ledgered as both its attack and its death.
+            local want = {
+                { "tob_maiden_100", "set", "set" },
+                { "tob_verzik_phase2_armourednylocas", "null", nil },
+                { "tob_bloat", "null", nil },
+                { "maiden_elemental_story", "null", nil },
+                { "verzik_death_bat", "null", "null" },
+            }
+            local text = {}
+            for _, w in ipairs(want) do
+                local line = read(w[1])
+                if line == nil then
+                    return "no_reply", table.concat(text, "; ") .. "; no ::tobnpcanim reply for " .. w[1]
+                end
+                text[#text + 1] = line
+                local ok = string.find(line, "attack_anim=" .. w[2], 1, true) ~= nil
+                if ok and w[3] ~= nil then
+                    ok = string.find(line, "death_anim=" .. w[3], 1, true) ~= nil
+                end
+                if not ok then
+                    return "refused", table.concat(text, "; ") .. " -- wanted " .. w[1] .. " attack " .. w[2]
+                        .. (w[3] and (" death " .. w[3]) or "")
+                end
+            end
+            return "ok", table.concat(text, "; ")
+        end)
+
+        -- seam10 tob_bloat_stomp_defence -- the LAST row before step("finish").
+        -- The fixer placed it after prayer.points; there the backpack is full (the ::runes
+        -- and phase 7b items), so `::give dragon_warhammer` landed nothing and equip answered
+        -- not_found (closer run, 2026-10-03). Every raid row above clears the backpack anyway,
+        -- so it runs here from a cleared backpack at the ::tele lumbridge landing, on a Man
+        -- there, and nothing after it reads the inventory or the levels it moves.
+        --
+        -- A special attack is armed from the MINIMAP ORB and proved by the ENERGY IT SPENDS.
+        -- Neither of the two readings an author reaches for first says it fired:
+        --  * varp301_sa_attack is cleared by the swing that fires it, so a 0 read after a press
+        --    can hide a special that already fired (seam10 probe3, Bloat: the combat-tab button
+        --    armed and fired inside one tick, 600 -> 100 energy, varp301 read 0 -> 0);
+        --  * the first hitsplat after the press can be a PLAIN swing (seam10 probe2, Bloat: a 21
+        --    on tick 131 with varp301 still 1, the special on the next swing, tick 137).
+        -- Content: specs/pvm_dragon_warhammer.rs2 drains only when the prepared damage is > 0,
+        -- so the splat of the spending swing says whether a Defence drain can have happened.
+        seam("seam.special_attack_spent", function()
+            local nearest = verb("npc", "nearest")
+            local attack = verb("player", "attack")
+            local equip = verb("player", "equip")
+            if not nearest or not attack or not equip or not t.ui or not t.var or not t.ticklog then
+                return "unsupported", "npc.nearest / player.attack / player.equip / ui / var / ticklog missing"
+            end
+            setup_cheat("::tobout")
+            setup_cheat("::clearinv")
+            setup_cheat("::tele lumbridge")
+            settle(6)
+            local _, before_att = t.skill.read("attack")
+            local _, before_str = t.skill.read("strength")
+            local att_level = is_table(before_att) and before_att.base or nil
+            local str_level = is_table(before_str) and before_str.base or nil
+            -- the warhammer's wield requirement here: Attack 60 and Strength 60 (refused one at a time)
+            t.cheat("::setlevel attack 60")
+            t.cheat("::setlevel strength 60")
+            t.cheat("::give dragon_warhammer 1")
+            t.ticks(2)
+            local er, ed = equip("dragon_warhammer")
+            if er ~= "ok" then
+                return er, "equip dragon_warhammer: " .. describe(ed)
+            end
+            local _, e0 = t.var.varp("varp300_sa_energy")
+            if not is_number(e0) or e0 < 500 then
+                return "no_subject", "special energy " .. describe(e0) .. " of 1000, a warhammer special costs 500"
+            end
+            -- The subject is SPAWNED beside the player (::spawn lands at the player's tile + 1)
+            -- and made passive, as the cast rows' goblin is: Lumbridge's own Men wander, the
+            -- fight rows killed one, and the closer's runs of this row found none within eight
+            -- tiles of the landing, then pressed one at 3233,3207 the player never reached.
+            setup_cheat("::spawn " .. NPC_SYMBOL)
+            setup_cheat("::passive " .. NPC_SYMBOL)
+            settle(2)
+            local nr, row = nearest(NPC_SYMBOL, 8)
+            if nr ~= "ok" or not is_table(row) then
+                return "no_subject", NPC_SYMBOL .. " is not within eight tiles after ::spawn (" .. describe(nr) .. ")"
+            end
+            local _, world = t.ticklog.slot(row)
+            local wr, wid = t.ui.widget("orbs:specbutton")
+            if wr ~= "ok" then
+                return wr, "orbs:specbutton: " .. describe(wid)
+            end
+            local ir, idetail = t.ui.invoke(wid, 1)
+            t.ticks(1)
+            local _, armed = t.var.varp("varp301_sa_attack")
+            if armed ~= 1 then
+                return "refused", "the orb press answered " .. describe(ir) .. " " .. describe(idetail)
+                    .. " but varp301_sa_attack reads " .. describe(armed)
+            end
+            local ar, ad = attack(NPC_SYMBOL, COMBAT_ATTACK_OP, 20)
+            local spent_tick, waited = nil, 0
+            while waited <= 12 do
+                local _, en = t.var.varp("varp300_sa_energy")
+                if is_number(en) and en <= e0 - 500 then
+                    local _, tk = t.tick()
+                    spent_tick = tk
+                    break
+                end
+                waited = waited + 1
+                t.ticks(1)
+            end
+            local splat = "none"
+            if spent_tick ~= nil then
+                -- the watched copy's slot first; the bare-symbol press can take another Man
+                -- (seam.attack_presses_the_watched_slot), and the raider's swing is the only
+                -- hit_npc in Lumbridge, so any slot within a tick of the spend is the special's
+                t.ticks(1)
+                local _, hits = t.ticklog.rows({ kind = "hit_npc" })
+                local other = nil
+                for k = #(hits or {}), 1, -1 do
+                    if hits[k].tick >= spent_tick - 1 and hits[k].tick <= spent_tick + 1 then
+                        local text = tostring(hits[k].damage) .. " on tick " .. hits[k].tick .. " (slot " .. tostring(hits[k].slot) .. ")"
+                        if world ~= nil and hits[k].slot == world then
+                            splat = text
+                            break
+                        end
+                        if other == nil then other = text end
+                    end
+                end
+                if splat == "none" and other ~= nil then splat = other end
+            end
+            local ue = verb("player", "unequip")
+            if ue then ue("dragon_warhammer") end
+            if is_number(att_level) then t.cheat("::setlevel attack " .. att_level) end
+            if is_number(str_level) then t.cheat("::setlevel strength " .. str_level) end
+            if spent_tick == nil then
+                return "hollow", "armed (varp301 1) and attack answered " .. describe(ar) .. " " .. describe(ad)
+                    .. ", but special energy never fell from " .. describe(e0) .. " in 12 ticks"
+            end
+            if splat == "none" then
+                return "hollow", "energy fell on tick " .. spent_tick .. " but no hit_npc row on world slot "
+                    .. describe(world) .. " within a tick of it"
+            end
+            return "ok", "orb armed (varp301 1), energy " .. e0 .. " -> spent on server tick " .. spent_tick
+                .. " after " .. waited .. " tick(s) past the attack's answer, the special's splat " .. splat
+                .. " (attack " .. describe(ar) .. ")"
+        end)
+
+        -- PLACE: in _conformance.lua's PLAN right after seam("seam.special_attack_spent", ...)
+        -- (the raw recipe this row drives through the play library).  SEAM_COUNT +1.
+        --
+        -- raid seam32 play_tob_bloat_normal: THE LOADOUT AND THE SPECIAL in the play
+        -- library's SEND (QD.raid._play_send).  `intent.gear` is a list of worn items
+        -- put on inside the tick's one t.together block (after food, before the step),
+        -- so a swap rides the same tick as the walk that leaves ("the scythe back the
+        -- same tick"); `intent.spec` arms the special from the minimap orb on the tick
+        -- of the attack press (DRIVER_NOTES "Bloat: Defence reads 80 of 80 after a
+        -- Dragon warhammer special": never the combat tab's bar).  A plan that sets
+        -- neither sends exactly what it sent before.  Proved on an ordinary npc (a
+        -- passive Man in Lumbridge, as seam.special_attack_spent): (1) a block's gear
+        -- wears the item (backpack count 1 -> 0), (2) a second block swaps the hammer
+        -- in, (3) spec + attack spend 500 energy within 12 ticks, (4) the scimitar back
+        -- in the same block as a two-tile walk: the hammer is in the pack and the
+        -- player moved.  Scratch proof: build/seam_state/matthew-mbp-m4-raid-b1-seam32/
+        -- scratch_loadout_spec.lua, run s32loadout (5 of 5 PASS: energy 1000 -> spent
+        -- on the press tick; swaps t8 rune_scimitar ok | t9 dragon_warhammer ok |
+        -- t11 rune_scimitar ok).
+        seam("seam.raid_play_loadout_spec", function()
+            local state_fn = verb("raid", "_play_state")
+            local see_fn = verb("raid", "_play_see")
+            local send_fn = verb("raid", "_play_send")
+            local nearest = verb("npc", "nearest")
+            local ue = verb("player", "unequip")
+            if not state_fn then return missing("raid", "_play_state") end
+            if not see_fn then return missing("raid", "_play_see") end
+            if not send_fn then return missing("raid", "_play_send") end
+            if not nearest then return missing("npc", "nearest") end
+            setup_cheat("::tobout")
+            setup_cheat("::clearinv")
+            setup_cheat("::tele lumbridge")
+            settle(6)
+            -- closer seam32: seam.special_attack_spent (the row before) leaves the
+            -- player swinging at its Man until it dies (conformance s32 attempt 1:
+            -- punches t4073/t4077, npc_death t4078, this row's press at t4080 found
+            -- only the dying one).  A one-tile walk ends the engagement and the
+            -- wait lets a dead Man leave before this row spawns its own.
+            local _, me0 = t.world.tile()
+            if is_table(me0) then t.player.walk_to(me0.x + 1, me0.z, 1) end
+            settle(8)
+            local _, before_att = t.skill.read("attack")
+            local _, before_str = t.skill.read("strength")
+            local att_level = is_table(before_att) and before_att.base or nil
+            local str_level = is_table(before_str) and before_str.base or nil
+            local function teardown()
+                if ue then ue("dragon_warhammer") ue("rune_scimitar") end
+                if is_number(att_level) then t.cheat("::setlevel attack " .. att_level) end
+                if is_number(str_level) then t.cheat("::setlevel strength " .. str_level) end
+                setup_cheat("::clearinv")
+                settle(2)
+            end
+            t.cheat("::setlevel attack 60")
+            t.cheat("::setlevel strength 60")
+            t.cheat("::give dragon_warhammer 1")
+            t.cheat("::give rune_scimitar 1")
+            t.ticks(2)
+            setup_cheat("::spawn " .. NPC_SYMBOL)
+            setup_cheat("::passive " .. NPC_SYMBOL)
+            settle(2)
+            local nr, row = nearest(NPC_SYMBOL, 8)
+            if nr ~= "ok" or not is_table(row) then
+                teardown()
+                return "no_subject", NPC_SYMBOL .. " is not within eight tiles after ::spawn (" .. describe(nr) .. ")"
+            end
+            t.raid._s32_conf_decide = function() return { want = {} } end
+            local plan = { room = "probe", boss = { entry = NPC_SYMBOL }, modes = { entry = {} },
+                walk_prayers = {}, down_prayers = {}, decide = "_s32_conf_decide" }
+            local st = state_fn(plan, "_s32_conf", "entry", plan.modes.entry, { speed = 6, seqs = {} }, {})
+            -- (1) a block's gear
+            local v = see_fn(st)
+            send_fn(st, v, { want = {}, gear = { "rune_scimitar" } })
+            settle(1)
+            local _, n1 = t.inv.count("rune_scimitar")
+            if n1 ~= 0 then
+                teardown()
+                return "fail", "gear {rune_scimitar}: backpack still holds " .. describe(n1) .. "; block " .. describe(st.gear_swaps)
+            end
+            -- (2) the hammer in
+            v = see_fn(st)
+            send_fn(st, v, { want = {}, gear = { "dragon_warhammer" } })
+            settle(1)
+            local _, n2 = t.inv.count("dragon_warhammer")
+            local _, n3 = t.inv.count("rune_scimitar")
+            if n2 ~= 0 or n3 ~= 1 then
+                teardown()
+                return "fail", "gear {dragon_warhammer}: hammer in pack " .. describe(n2) .. ", scimitar " .. describe(n3)
+            end
+            local _, e0 = t.var.varp("varp300_sa_energy")
+            if not is_number(e0) or e0 < 500 then
+                teardown()
+                return "no_subject", "special energy " .. describe(e0) .. " of 1000, a warhammer special costs 500"
+            end
+            -- (3) the special armed from the orb with the attack press, proved by the energy it spends
+            v = see_fn(st)
+            send_fn(st, v, { want = {}, spec = true, attack = true })
+            local spent, waited = nil, 0
+            while waited <= 12 and spent == nil do
+                local _, en = t.var.varp("varp300_sa_energy")
+                if is_number(en) and en <= e0 - 500 then
+                    local _, tk = t.tick()
+                    spent = tk
+                else
+                    settle(1)
+                    see_fn(st)
+                    waited = waited + 1
+                end
+            end
+            if spent == nil then
+                teardown()
+                return "fail", "spec + attack: energy " .. describe(e0) .. " never fell by 500 in 12 ticks; arms " .. describe(st.spec_arms)
+            end
+            -- (4) the scimitar back in the same block as a two-tile walk
+            local _, me = t.world.tile()
+            v = see_fn(st)
+            send_fn(st, v, { want = {}, gear = { "rune_scimitar" }, walk = { x = me.x + 2, z = me.z } })
+            settle(2)
+            local _, n4 = t.inv.count("dragon_warhammer")
+            local _, me2 = t.world.tile()
+            local list = {}
+            for _, g in ipairs(st.gear_swaps or {}) do list[#list + 1] = "t" .. g.tick .. " " .. g.items .. " " .. tostring(g.result) end
+            teardown()
+            if n4 ~= 1 or (me2.x == me.x and me2.z == me.z) then
+                return "fail", "back with the walk: hammer in pack " .. describe(n4) .. ", tile " .. me.x .. "," .. me.z .. " -> " .. me2.x .. "," .. me2.z
+            end
+            return "ok", "gear blocks " .. table.concat(list, " | ") .. "; special spent on t" .. spent .. " (energy " .. e0
+                .. " -> " .. (e0 - 500) .. " or less), armed " .. #(st.spec_arms or {}) .. " time(s) from the orb; the scimitar went back with a walk "
+                .. me.x .. "," .. me.z .. " -> " .. me2.x .. "," .. me2.z
+        end)
+
+        -- seam13 (tob_relay_sotetseg_to_vault), a CONTENT seam: the Entry bandages' Heal.
+        -- tob_bandages carried ifop1=Heal in the cache with nothing bound to it, so every press
+        -- said "Nothing interesting happens." (CONTENT_BUGS.md).  tob_spectate.rs2 now binds it
+        -- from the wiki item page (Bandages (Theatre of Blood), pinned at
+        -- build/seam_state/matthew-mbp-m4-raid-b1-seam13/s13b/): 20 hitpoints, Attack/Strength/
+        -- Defence floor(L*15/100)+4, Ranged floor(L/10)+4, Magic +4, cure poison, the stamina
+        -- effect; prayer NOT restored (no source gives a figure).  It boosts stats and starts a
+        -- stamina timer, so it runs last, after every other row.  SEAM row: SEAM_COUNT +1.
+        seam("seam.tob_entry_bandages_heal", function()
+            local inv_op = verb("player", "inv_op")
+            local count = verb("inv", "count")
+            local read = verb("skill", "read")
+            local varbit = verb("var", "varbit")
+            local ticks = verb("ticks")
+            if not inv_op then return missing("player", "inv_op") end
+            if not count then return missing("inv", "count") end
+            if not read then return missing("skill", "read") end
+            if not varbit then return missing("var", "varbit") end
+            if not ticks then return missing("ticks") end
+            setup_cheat("::setlevel attack 99")
+            setup_cheat("::setlevel ranged 99")
+            setup_cheat("::setlevel magic 99")
+            setup_cheat("::give tob_bandages 1")
+            ticks(2)
+            local _, n0 = count("tob_bandages")
+            local function lvl(s) local _, r = read(s); return is_table(r) and r.level or -1 end
+            local a0, r0, m0 = lvl("attack"), lvl("ranged"), lvl("magic")
+            local pressed, press_detail = inv_op("tob_bandages", 1)
+            -- closer seam32: read on the tick the bandage leaves the pack, not
+            -- three ticks on: a boosted stat falls by one on the player's stat
+            -- restore tick, and one landed inside the old three-tick wait
+            -- (conformance s32 attempt 1: 116/111/102, each exactly one under)
+            local _, n1 = count("tob_bandages")
+            local waited_b = 0
+            while n1 == n0 and waited_b < 3 do
+                ticks(1)
+                waited_b = waited_b + 1
+                _, n1 = count("tob_bandages")
+            end
+            local a1, r1, m1 = lvl("attack"), lvl("ranged"), lvl("magic")
+            local _, st = varbit("varb25_stamina_active")
+            local detail = "Heal " .. tostring(pressed) .. " " .. describe(press_detail) .. "; bandages " .. tostring(n0) .. " -> " .. tostring(n1)
+                .. "; attack " .. a0 .. " -> " .. a1 .. " (wiki 99 + floor(99*15/100)+4 = 117), ranged " .. r0 .. " -> " .. r1
+                .. " (99 + 13 = 112), magic " .. m0 .. " -> " .. m1 .. " (+4 = 103), stamina " .. tostring(st)
+            if n1 == (n0 or 0) - 1 and a1 == 117 and r1 == 112 and m1 == 103 and st == 1 then return "ok", detail end
+            return "refused", detail
+        end)
+
+        -- (B) ----------------------------------------------------------------
+        -- t.player.eat / t.player.drink: one click on the backpack cell, ok
+        -- when the cell changed on the next read.  A detail that does not name
+        -- the cell's before -> after is the hollow these rows catch.
+        step("player.eat", function()
+            local fn = verb("player", "eat")
+            if not fn then return missing("player", "eat") end
+            setup_cheat("::clearinv")
+            setup_cheat("::give shark 2")
+            settle(3)
+            local result, detail = fn("shark")
+            if result == "ok" and not string.find(tostring(detail), "shark -> ", 1, true) then
+                return "hollow", "answered ok without naming the cell's change -- " .. describe(detail)
+            end
+            local _, left = t.inv.count("shark")
+            if result == "ok" and left ~= 1 then
+                return "refused", "ok, but the backpack holds " .. describe(left) .. " shark (want 1) -- " .. describe(detail)
+            end
+            return result, describe(detail) .. "; sharks left " .. describe(left)
+        end)
+
+        -- The v3 merge (2026-10-06): t.player.drink is ONE verb with two shapes
+        -- (combat.lua's dispatcher).  step("player.drink") above grades the
+        -- supply-family shape; this row keeps the raid seam14 item-list shape
+        -- (the fast press) as a seam row, so the verb keeps one step row.
+        seam("seam.drink_item_list_fast_press", function()
+            local fn = verb("player", "drink")
+            if not fn then return missing("player", "drink") end
+            setup_cheat("::clearinv")
+            setup_cheat("::give 4dose2combat")
+            settle(3)
+            -- A list: the first dose held is drunk (here the only one).
+            local result, detail = fn({ "1dose2combat", "2dose2combat", "3dose2combat", "4dose2combat" })
+            if result == "ok" and not string.find(tostring(detail), "4dose2combat -> 3dose2combat", 1, true) then
+                return "hollow", "answered ok without naming the dose going down -- " .. describe(detail)
+            end
+            return result, describe(detail)
+        end)
+
+        -- raid seam15 super_restore_heals_hitpoints, a CONTENT seam.  NO VERB ADDED OR RENAMED
+        -- (verb_list.py does not move).  One SEAM row: SEAM_COUNT +1, @seam-count +1.
+        -- PLACE: in _conformance.lua's PLAN directly AFTER step("player.drink", ...) (section (B),
+        -- the t.player.eat / t.player.drink rows) and BEFORE seam("seam.held_press_fight_speed", ...).
+        -- It resets its own levels with ::setlevel, so the Entry bandages' boosts before it do not leak in.
+        --
+        -- [proc,super_restore_effect] (prayer_potion.rs2) healed Hitpoints 8 + 25% of base: 32 a dose
+        -- at 99, through the super restore, its br_ supply copy (br_potion.rs2:74) and the Castlewars
+        -- brew.  Wiki [Super restore] oldid 15183989 (docs/minigames/theater_of_blood/sources/
+        -- wiki_Super_restore.wikitext:53): "restores all player stats that have been lowered, including
+        -- Prayer, but not Hitpoints"; :55 "8 + 25% of the player's base level (rounded down)".
+        -- Staged with real content only: three Saradomin brew doses drain Attack (2 + 10% each:
+        -- 99 -> 66) and lift Hitpoints to 115; cave nightshade hits 15 a bite (nightshade.rs2) until
+        -- Hitpoints are 40 or more under base.  RED before the fix: hitpoints 54 -> 86 of 99
+        -- (srh15_pre2); GREEN after: 54 -> 54, attack 55 -> 87 (srh15_post).
+        seam("seam.super_restore_no_hitpoints", function()
+            local drink = verb("player", "drink")
+            local eat = verb("player", "eat")
+            local read = verb("skill", "read")
+            local ticks = verb("ticks")
+            if not drink then return missing("player", "drink") end
+            if not eat then return missing("player", "eat") end
+            if not read then return missing("skill", "read") end
+            if not ticks then return missing("ticks") end
+            setup_cheat("::clearinv")
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::setlevel attack 99")
+            setup_cheat("::give 4dosepotionofsaradomin")
+            setup_cheat("::give nightshade 6")
+            setup_cheat("::give 4dose2restore")
+            settle(3)
+            local function lvl(s)
+                local _, r = read(s)
+                if is_table(r) then return r.level or -1, r.base_level or -1 end
+                return -1, -1
+            end
+            local brew = { "1dosepotionofsaradomin", "2dosepotionofsaradomin", "3dosepotionofsaradomin", "4dosepotionofsaradomin" }
+            for _ = 1, 3 do
+                local r, d = drink(brew)
+                if r ~= "ok" then return "refused", "staging brew: " .. describe(r) .. " " .. describe(d) end
+                ticks(3)  -- the potion delay: a second drink two ticks after the first is refused
+            end
+            local hp, hp_base = lvl("hitpoints")
+            local bites = 0
+            while hp > hp_base - 40 and bites < 6 do
+                bites = bites + 1
+                local r, d = eat("nightshade", { op = 4 })
+                if r ~= "ok" then return "refused", "staging nightshade: " .. describe(r) .. " " .. describe(d) end
+                ticks(2)
+                hp, hp_base = lvl("hitpoints")
+            end
+            local h1, hb = lvl("hitpoints")
+            local a1, ab = lvl("attack")
+            if not (h1 > 0 and h1 < hb and ab - a1 > 8 + math.floor(ab * 25 / 100)) then
+                return "refused", string.format("staging left hitpoints %d/%d, attack %d/%d (want both under base, attack by more than one dose)", h1, hb, a1, ab)
+            end
+            local result, detail = drink({ "1dose2restore", "2dose2restore", "3dose2restore", "4dose2restore" })
+            ticks(2)
+            local h2 = lvl("hitpoints")
+            local a2 = lvl("attack")
+            local want_a = math.min(ab, a1 + 8 + math.floor(ab * 25 / 100))
+            local text = string.format(
+                "super restore %s; hitpoints %d -> %d of %d (wiki: unchanged; +1 allowed for a natural regen tick; the old proc healed +%d), attack %d -> %d (want %d = 8 + 25%% of %d) -- %s",
+                describe(result), h1, h2, hb, 8 + math.floor(hb * 25 / 100), a1, a2, want_a, ab, describe(detail))
+            if result == "ok" and h2 - h1 >= 0 and h2 - h1 <= 1 and a2 == want_a then return "ok", text end
+            return "refused", text
+        end)
+
+        -- raid seam18 saradomin_brew_raises_defence, a CONTENT seam.  NO VERB ADDED OR RENAMED
+        -- (verb_list.py does not move).  Two SEAM rows: SEAM_COUNT +2, @seam-count +2.
+        -- PLACE: in _conformance.lua's PLAN directly AFTER seam("seam.super_restore_no_hitpoints", ...)
+        -- (section (B), the t.player.eat / t.player.drink rows) and BEFORE the "(C)" banner and
+        -- seam("seam.held_press_fight_speed", ...).  Each row resets its own levels with ::setlevel.
+        --
+        -- [label,consume_effect_sara_brew] (sara_brew.rs2) ran stat_drain(defence, 2, 10): every
+        -- dose made the drinker SOFTER.  Wiki [Saradomin brew] revid 15322175 (docs/minigames/
+        -- theater_of_blood/sources/wiki_Saradomin_brew.wikitext:56): "raises Hitpoints by 15% + 2
+        -- and Defence by 20% + 2 of their base levels, all rounded down. This can boost the player's
+        -- Hitpoints and Defence above their base level by up to the amount restored."; :89 "Defence
+        -- boost is calculated with: floor((Defence Level) * 1/5) + 2"; table :109 "95-99 || +21";
+        -- :83 Hitpoints "94-99 || +16".  So at 99: Defence 99 -> 120, Hitpoints 99 -> 115, and
+        -- Strength 99 -> 88 (:114 floor(99 / 10) + 2; :129 "90-99 || -11").  Grade C at best (one wiki item page,
+        -- its prose, formula and table agreeing).  The second row is the cap: "by up to the amount
+        -- restored" -- a second dose at Defence 120 leaves 120 (stat_boost's min(current + d, base + d)).
+        -- RED before the fix (pack from HEAD sara_brew.rs2, run sbd18_red): defence 99 -> 88 (want 120).
+        -- GREEN after (run sbd18_green): defence 99 -> 120, strength 99 -> 88, hitpoints 99 -> 115;
+        -- second dose: defence 120 -> 120 of base 99.  (The triage's 121 / 87 / 116 are each one off
+        -- the page's own tables: +21 at 95-99, -11 at 90-99, +16 at 94-99.)
+        seam("seam.brew_raises_defence", function()
+            local drink = verb("player", "drink")
+            local read = verb("skill", "read")
+            local ticks = verb("ticks")
+            if not drink then return missing("player", "drink") end
+            if not read then return missing("skill", "read") end
+            if not ticks then return missing("ticks") end
+            setup_cheat("::clearinv")
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::setlevel attack 99")
+            setup_cheat("::setlevel strength 99")
+            setup_cheat("::setlevel defence 99")
+            setup_cheat("::give 4dosepotionofsaradomin")
+            settle(3)
+            local function lvl(s)
+                local _, r = read(s)
+                if is_table(r) then return r.level or -1, r.base_level or -1 end
+                return -1, -1
+            end
+            local d0, db = lvl("defence")
+            local s0, sb = lvl("strength")
+            local h0, hb = lvl("hitpoints")
+            if not (d0 == db and s0 == sb and h0 == hb) then
+                return "refused", string.format("staging left defence %d/%d, strength %d/%d, hitpoints %d/%d (want all at base)", d0, db, s0, sb, h0, hb)
+            end
+            local result, detail = drink({ "1dosepotionofsaradomin", "2dosepotionofsaradomin", "3dosepotionofsaradomin", "4dosepotionofsaradomin" })
+            ticks(1)  -- read back the next tick
+            local d1 = lvl("defence")
+            local s1 = lvl("strength")
+            local h1 = lvl("hitpoints")
+            local want_d = db + math.floor(db / 5) + 2
+            local want_s = s0 - (math.floor(s0 / 10) + 2)
+            local want_h = math.min(h0 + math.floor(hb * 15 / 100) + 2, hb + math.floor(hb * 15 / 100) + 2)
+            local text = string.format(
+                "brew %s; defence %d -> %d (want %d = base %d + floor(%d/5) + 2), strength %d -> %d (want %d), hitpoints %d -> %d (want %d) -- %s",
+                describe(result), d0, d1, want_d, db, db, s0, s1, want_s, h0, h1, want_h, describe(detail))
+            if result == "ok" and d1 == want_d and s1 == want_s and h1 == want_h then return "ok", text end
+            return "refused", text
+        end)
+
+        seam("seam.brew_defence_no_stack", function()
+            local drink = verb("player", "drink")
+            local read = verb("skill", "read")
+            local ticks = verb("ticks")
+            if not drink then return missing("player", "drink") end
+            if not read then return missing("skill", "read") end
+            if not ticks then return missing("ticks") end
+            setup_cheat("::clearinv")
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::setlevel defence 99")
+            setup_cheat("::give 4dosepotionofsaradomin")
+            settle(3)
+            local function lvl(s)
+                local _, r = read(s)
+                if is_table(r) then return r.level or -1, r.base_level or -1 end
+                return -1, -1
+            end
+            local brew = { "1dosepotionofsaradomin", "2dosepotionofsaradomin", "3dosepotionofsaradomin", "4dosepotionofsaradomin" }
+            local r1, x1 = drink(brew)
+            if r1 ~= "ok" then return "refused", "first dose: " .. describe(r1) .. " " .. describe(x1) end
+            ticks(3)  -- the potion delay: a second drink two ticks after the first is refused
+            local d1, db = lvl("defence")
+            local want = db + math.floor(db / 5) + 2
+            if d1 ~= want then
+                return "refused", string.format("first dose left defence %d/%d (want %d)", d1, db, want)
+            end
+            local r2, x2 = drink(brew)
+            ticks(1)  -- read back the next tick
+            local d2 = lvl("defence")
+            local text = string.format(
+                "second dose %s; defence %d -> %d of base %d (wiki :56 \"above their base level by up to the amount restored\": want %d) -- %s",
+                describe(r2), d1, d2, db, want, describe(x2))
+            if r2 == "ok" and d2 == want then return "ok", text end
+            return "refused", text
+        end)
+
+        -- (C) ----------------------------------------------------------------
+        -- A HELD PRESS AT FIGHT SPEED (raid seam14).  Every fast press is read
+        -- back on the NEXT tick and must return within two server ticks of
+        -- being pressed; the slow inv_op is timed beside it for the contrast.
+        -- RED on the old driver: inv_op ignored opts (3 ticks) and t.player.eat
+        -- / drink did not exist.
+        seam("seam.held_press_fight_speed", function()
+            local equip = verb("player", "equip")
+            local inv_op = verb("player", "inv_op")
+            local eat = verb("player", "eat")
+            local drink = verb("player", "drink")
+            if not equip then return missing("player", "equip") end
+            if not inv_op then return missing("player", "inv_op") end
+            if not eat then return missing("player", "eat") end
+            if not drink then return missing("player", "drink") end
+            if not verb("tick") then return missing("tick") end
+            local function now()
+                local _, tick = t.tick()
+                return tick
+            end
+            local function count(name)
+                local _, n = t.inv.count(name)
+                return n
+            end
+            setup_cheat("::clearinv")
+            setup_cheat("::setlevel attack 99")
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::give abyssal_whip")
+            setup_cheat("::give rune_scimitar")
+            setup_cheat("::give shark 4")
+            setup_cheat("::give 4dose2combat")
+            setup_cheat("::give 4dosepotionofsaradomin")
+            settle(3)
+            local text = {}
+            local function fast(label, fn, ...)
+                local before = now()
+                local result, detail = fn(...)
+                local spent = now() - before
+                text[#text + 1] = label .. " " .. describe(result) .. " in " .. spent
+                return result, tostring(detail), spent
+            end
+            local function bad(why, detail)
+                setup_cheat("::setlevel attack 99")
+                return "refused", table.concat(text, "; ") .. " -- " .. why .. ": " .. string.sub(describe(detail), 1, 600)
+            end
+            local r, d, spent = fast("equip whip", equip, "abyssal_whip", { quick = true })
+            if r ~= "ok" or spent > 2 or not string.find(d, "WORN abyssal_whip", 1, true) or count("abyssal_whip") ~= 0 then
+                return bad("the fast equip did not put the whip on within two ticks", d)
+            end
+            r, d, spent = fast("equip scimitar", equip, "rune_scimitar", { quick = true })
+            if r ~= "ok" or spent > 2 or not string.find(d, "WORN rune_scimitar", 1, true) or count("abyssal_whip") ~= 1 then
+                return bad("the fast swap did not put the scimitar on and the whip back", d)
+            end
+            r, d, spent = fast("eat", eat, "shark")
+            if r ~= "ok" or spent > 2 or count("shark") ~= 3 then
+                return bad("the fast eat did not take one shark within two ticks", d)
+            end
+            -- Inside the food timer the server ignores a bite silently: the
+            -- fast press answers timeout, says it did not press again, and
+            -- the shark stays.
+            r, d, spent = fast("eat again", eat, "shark")
+            if r ~= "timeout" or not string.find(d, "not re-pressed", 1, true) or count("shark") ~= 3 then
+                return bad("a bite inside the food timer was not reported as an unanswered single click", d)
+            end
+            r, d, spent = fast("drink", drink, { "1dose2combat", "2dose2combat", "3dose2combat", "4dose2combat" })
+            if r ~= "ok" or spent > 2 or not string.find(d, "-> 3dose2combat", 1, true) then
+                return bad("the fast drink did not lower the dose within two ticks", d)
+            end
+            settle(3)
+            r, d, spent = fast("inv_op quick brew", inv_op, "4dosepotionofsaradomin", 1, { quick = true })
+            if r ~= "ok" or spent > 2 or not string.find(d, "-> 3dosepotionofsaradomin", 1, true) then
+                return bad("inv_op { quick = true } did not drink the brew within two ticks", d)
+            end
+            settle(3)
+            local slow_before = now()
+            local slow_result = inv_op("shark", 1)
+            local slow_spent = now() - slow_before
+            text[#text + 1] = "slow inv_op eat " .. describe(slow_result) .. " in " .. slow_spent
+            setup_cheat("::setlevel attack 1")
+            settle(2)
+            r, d, spent = fast("under-levelled whip", equip, "abyssal_whip", { quick = true })
+            setup_cheat("::setlevel attack 99")
+            if r ~= "refused" or not string.find(d, "Attack level", 1, true) then
+                return bad("an under-levelled fast equip did not answer refused with the server's sentence", d)
+            end
+            return "ok", table.concat(text, "; ")
+        end)
+
+        -- ================================================================== ROW 1 of 2
+        -- raid seam27 several_inputs_one_tick.  ONE VERB ADDED: t.together (root of t;
+        -- verb_list.py --check: 183 -> 184, it reads "together (pointer.lua) has no row" until
+        -- this lands).  SEAM_COUNT / @seam-count +1 (row 2 below).
+        -- PLACE: in _conformance.lua's PLAN directly AFTER seam("seam.held_press_fight_speed", ...)
+        -- (section (C) of the held-press rows) -- it uses the same Lumbridge staging and leaves the
+        -- prayers off and nothing worn that a later row reads.
+        --
+        -- Two prayers, a two-item swap, a food and a step pressed inside ONE block: every press
+        -- is made before the block waits, and the block confirms each effect.  Proved in
+        -- build/quest_gate/siot_probe1 (row 3): six inputs pressed on server tick 5, prayers read
+        -- back on 5, whip/kiteshield/shark/step on 6, 4 frames waited (the inventory tab's re-paint
+        -- after the prayer tab, 3, and the prayer button's paint, 1); the tick log's player_tile row
+        -- for the step is on tick 6 (row 4).  The same six one at a time: 4 ticks (row 5).
+        -- RED on the old driver: t.together is nil (missing).  RED on the drop-one mutant
+        -- (the eat press never sent): `timeout ... input(s) 5 left and never showed an effect`.
+        step("together", function()
+            local together = verb("together")
+            if not together then return missing("together") end
+            setup_cheat("::clearinv")
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::setlevel attack 99")
+            setup_cheat("::setlevel defence 99")
+            setup_cheat("::setlevel prayer 99")
+            setup_cheat("::give abyssal_whip")
+            setup_cheat("::give rune_kiteshield")
+            setup_cheat("::give shark 2")
+            settle(3)
+            local start_result, start_detail = t.ticklog.start()
+            if start_result ~= "ok" then
+                return start_result, "t.ticklog.start answered " .. describe(start_result)
+            end
+            -- Read only the rows from here on (closer, seam27): this row runs ~4,000 ticks into the
+            -- harness, and t.ticklog.rows from serial 0 turned every earlier player_tile row into a
+            -- Lua table in one resume -- "instruction budget exhausted (400000)" in the first live run.
+            local log_since = tonumber(string.match(tostring(start_detail), "serial (%d+)")) or 0
+            local _, here = t.world.tile()
+            if type(here) ~= "table" then return "no_subject", "no player tile" end
+            local hx, hz = here.x, here.z
+            local result, detail = together(function()
+                t.prayer.set("protectfrommelee", true)
+                t.prayer.set("incrediblereflexes", true)
+                t.player.equip("abyssal_whip")
+                t.player.equip("rune_kiteshield")
+                t.player.eat("shark")
+                t.player.step_tick(hx + 1, hz)
+            end)
+            local text = describe(result) .. " " .. describe(detail)
+            -- Put things back for the rows after: prayers off (two presses, one tick).
+            together(function()
+                t.prayer.set("protectfrommelee", false)
+                t.prayer.set("incrediblereflexes", false)
+            end)
+            if result ~= "ok" then
+                return result, text
+            end
+            local function input_text(label)
+                return string.match(tostring(detail), "%] " .. label .. "[^;]*")
+            end
+            for _, label in ipairs({ "prayer protectfrommelee on", "prayer incrediblereflexes on",
+                "equip abyssal_whip", "equip rune_kiteshield", "eat shark", "step " }) do
+                local part = input_text(label)
+                if part == nil or not string.find(part, "confirmed", 1, true) then
+                    return "hollow", "ok without naming input '" .. label .. "' confirmed -- " .. text
+                end
+            end
+            if not string.find(tostring(detail), "WORN abyssal_whip", 1, true)
+                or not string.find(tostring(detail), "WORN rune_kiteshield", 1, true) then
+                return "hollow", "ok without the worn total of both items -- " .. text
+            end
+            local first_press = tonumber(string.match(tostring(detail), "pressed on (%d+)"))
+            local span = tonumber(string.match(tostring(detail), "first press %-> last confirmation (%d+) tick"))
+            if string.find(tostring(detail), "pressed on %d+%.%.%d+") or span == nil or span > 1 then
+                return "refused", "the six inputs did not land within one tick -- " .. text
+            end
+            -- The step read back from the server's own tick log.
+            local rows_result, rows = t.ticklog.rows({ kind = "player_tile", since = log_since })
+            local stepped = nil
+            if rows_result == "ok" and type(rows) == "table" then
+                for _, row in ipairs(rows) do
+                    if stepped == nil and row.x == hx + 1 and row.z == hz then
+                        stepped = row.tick
+                    end
+                end
+            end
+            if stepped == nil or first_press == nil or stepped - first_press > 1 then
+                return "refused", "the tick log has no player_tile " .. (hx + 1) .. "," .. hz
+                    .. " within one tick of the first press (" .. describe(stepped) .. ") -- " .. text
+            end
+            return "ok", text .. "; tick log: player_tile " .. (hx + 1) .. "," .. hz .. " on tick " .. stepped
+        end)
+
+        -- seam15 give_takes_the_exact_symbol (ENGINE, src/torirsserver/torirs_server_world.c).
+        -- PLACE: in test/quests/_conformance.lua's PLAN, right AFTER
+        --        seam("seam.held_press_fight_speed", ...) and BEFORE step("finish", ...).
+        -- NO VERB was added or renamed (verb_list.py does not move, check-drive-abi
+        -- unchanged).  ONE SEAM row: SEAM_COUNT 155 -> 156, @seam-count 155 -> 156.
+        -- This supersedes seam14's unmerged copy of the same row
+        -- (build/seam_state/matthew-mbp-m4-raid-b1-seam14/conformance.fight_speed_inventory_presses.lua,
+        -- part D): same name, it now also asks the middle tier and that the underscored
+        -- rung still answers.
+        -- RED on HEAD (cheat_id_from_name underscored the argument before the gameval
+        -- lookup, so `dragon_dagger_p++` became `dragon_dagger_p`, obj 1231); GREEN after
+        -- cheat_symbol_exact asks the typed spelling first (5698 / 5680).
+
+        seam("seam.give_takes_the_exact_symbol", function()
+            local count = verb("inv", "count")
+            if not count then return missing("inv", "count") end
+            local function given(arg, symbol, other)
+                setup_cheat("::clearinv")
+                setup_cheat("::give " .. arg)
+                settle(3)
+                local _, exact = t.inv.count(symbol)
+                local _, wrong = t.inv.count(other)
+                return exact, wrong
+            end
+            local pp, pp_plain = given("dragon_dagger_p++", "dragon_dagger_p++", "dragon_dagger_p")
+            local p1, p1_plain = given("dragon_dagger_p+", "dragon_dagger_p+", "dragon_dagger_p")
+            -- the underscored rung must still answer a display-style spelling
+            local sword = given("Bronze_sword", "bronze_sword", "bronze_dagger")
+            setup_cheat("::clearinv")
+            settle(1)
+            local seen = "dragon_dagger_p++ x" .. describe(pp) .. " (dragon_dagger_p x" .. describe(pp_plain)
+                .. "), dragon_dagger_p+ x" .. describe(p1) .. " (dragon_dagger_p x" .. describe(p1_plain)
+                .. "), Bronze_sword -> bronze_sword x" .. describe(sword)
+            if pp ~= 1 or p1 ~= 1 then
+                return "refused", seen
+                    .. " -- cheat_id_from_name underscored the '+' away before the exact gameval lookup"
+            end
+            if sword ~= 1 then
+                return "refused", seen .. " -- the underscored (display-name) rung stopped answering"
+            end
+            return "ok", seen
+        end)
+
+        -- Merged by the seam19 closer (matthew-mbp-m4-raid-b1-seam19): SEAM_COUNT 164 -> 167.
+        -- seam19 tob_party_room_bring_along: two seam rows, no verb added or changed.
+        --
+        -- PLACE: test/quests/_conformance.lua PLAN, immediately before step("finish"),
+        -- after seam("seam.give_takes_the_exact_symbol", ...) -- with the other raid
+        -- rows that end at Ver Sinhaza (DRIVER_NOTES "t.raid.enter": ::tobmode's kit
+        -- adds potions, so a raid row runs where no later row reads the backpack).
+        -- Each row leaves with ::tobout and ::clearinv. SEAM_COUNT +2.
+        --
+        -- What they prove (content, OSRS-Content minigame_tob/scripts/tob.rs2,
+        -- tob_hud.rs2, tob_raid.rs2; a party of THREE is proved by the party scratch
+        -- bring_along/scratch_tobjoin.lua and test/raids/_party_smoke.lua, which a
+        -- one-client harness cannot run):
+        --   * ::tobjoinroom (a member's half of ::tobmode) refuses with the door's
+        --     lines: no raid -> "Your party leader has not entered the Theatre yet.",
+        --     already inside -> "You're already inside the Theatre."
+        --   * ::tobstate carries party=N and scale=K (the instance's ^tob_var_party_n
+        --     and ^tob_var_scale); solo: party=1 scale=1 before and after the barrier,
+        --     and the party-of-one orb path is unchanged (partyslot 1, p0 = 27 at the
+        --     entrance).
+        seam("seam.tobjoinroom_refuses_like_the_door", function()
+            local enter = verb("raid", "enter")
+            local ticks = verb("ticks")
+            if not enter then return missing("raid", "enter") end
+            if not ticks then return missing("ticks") end
+            if type(t.msg) ~= "table" or not t.msg.last then return missing("msg", "last") end
+            local function line_since(since, needle)
+                local _, lines = t.msg.last(20)
+                for _, m in ipairs(lines or {}) do
+                    if (m.serial or 0) > since and string.find(m.text or "", needle, 1, true) then return m.text end
+                end
+                return nil
+            end
+            local function serial_now()
+                local _, ring = t.msg.last(1)
+                return (ring and ring[1] and ring[1].serial) or 0
+            end
+            setup_cheat("::tobout")
+            settle(2)
+            local s0 = serial_now()
+            setup_cheat("::tobjoinroom")
+            ticks(2)
+            local none = line_since(s0, "Your party leader has not entered the Theatre yet.")
+            local entered, enter_detail = enter("tob", "bloat", { mode = "normal" })
+            local s1 = serial_now()
+            setup_cheat("::tobjoinroom")
+            ticks(2)
+            local inside = line_since(s1, "You're already inside the Theatre.")
+            setup_cheat("::tobout")
+            setup_cheat("::clearinv")
+            settle(2)
+            local text = string.format("no raid: %s; raid.enter %s (%s); inside: %s",
+                describe(none), describe(entered), describe(enter_detail), describe(inside))
+            if none and entered == "ok" and inside then return "ok", text end
+            return "refused", text
+        end)
+
+        seam("seam.tobstate_reads_party_and_scale", function()
+            local enter = verb("raid", "enter")
+            local varbit = verb("var", "varbit")
+            local ticks = verb("ticks")
+            -- (closer, seam19) An earlier row can leave a chat page open --
+            -- seam.super_restore_no_hitpoints' nightshade leaves a "player"
+            -- page -- and the arrival's orb write is a NORMAL queue
+            -- ([queue,tob_room_settle], tob_raid.rs2), which waits while a
+            -- modal is open: measured partyslot 0 / p0 0 for six ticks behind
+            -- that page, 1 / 27 with it closed. Close it first.
+            local close_chat = verb("chat", "close")
+            if not close_chat then return missing("chat", "close") end
+            close_chat()
+            if not enter then return missing("raid", "enter") end
+            if not varbit then return missing("var", "varbit") end
+            if not ticks then return missing("ticks") end
+            if type(t.msg) ~= "table" or not t.msg.last then return missing("msg", "last") end
+            local function state_line()
+                local _, ring = t.msg.last(1)
+                local since = (ring and ring[1] and ring[1].serial) or 0
+                setup_cheat("::tobstate")
+                ticks(2)
+                local _, lines = t.msg.last(20)
+                for _, m in ipairs(lines or {}) do
+                    if (m.serial or 0) > since and string.find(m.text or "", "tobstate active=", 1, true) then return m.text end
+                end
+                return nil
+            end
+            local entered, enter_detail = enter("tob", "bloat", { mode = "normal" })
+            local before = state_line()
+            -- The orb at the entrance, before any fight can hit it.
+            local _, slot = varbit("varb6441_tob_client_partyslot")
+            local _, p0 = varbit("varb6442_tob_client_p0")
+            setup_cheat("::tobgo")
+            ticks(3)
+            local after = state_line()
+            setup_cheat("::tobout")
+            setup_cheat("::clearinv")
+            settle(2)
+            local function has(s, k) return s ~= nil and string.find(s, k, 1, true) ~= nil end
+            local text = string.format("raid.enter %s (%s); before the barrier: %s; after ::tobgo: %s; partyslot %s, p0 %s",
+                describe(entered), describe(enter_detail), describe(before), describe(after), describe(slot), describe(p0))
+            if entered == "ok" and has(before, "started=0") and has(before, " party=1 scale=1")
+                and has(after, "started=1") and has(after, " party=1 scale=1") and slot == 1 and p0 == 27 then
+                return "ok", text
+            end
+            return "refused", text
+        end)
+
+        -- seam19 tob_party_room_test_shape: one seam row, no verb added (t.raid.enter
+        -- gained a party branch; QD.raid._join / _enter_party are private), so
+        -- VERB_COUNT is unchanged. SEAM_COUNT +1.
+        --
+        -- PLACE: test/quests/_conformance.lua PLAN, immediately before step("finish"),
+        -- AFTER the seam19 bring_along rows (seam("seam.tobstate_reads_party_and_scale",
+        -- ...), conformance.tob_party_room_bring_along.lua) -- with the other raid rows
+        -- that end at Ver Sinhaza. It leaves with t.raid.leave (::tobout) and ::clearinv.
+        --
+        -- What a one-client harness can prove (the three-raider behaviour is the smoke's:
+        -- test/raids/_party_smoke.lua phase C, rows raid.enter.bloat_normal and
+        -- p2:/p3:raid.enter.bloat_normal, party.bloat.three_on_one_tile,
+        -- raid.bloat.tobstate_party_3, p2:/p3:raid.state.member_unsupported):
+        --   * the member's join refuses on a party of one, typing nothing (the tile
+        --     does not move);
+        --   * t.raid.enter on a party of one is the solo path unchanged: ::tobmode, the
+        --     detail ends "handle H, started 0, fight x,z,level" with no "party N of N"
+        --     suffix, and no party barrier was taken (t.raid._party_enters stays 0);
+        --   * t.raid.state is not "unsupported" on a party of one (the member guard
+        --     is a member's only).
+        -- The fixture test/raids/fixtures/tob_normal_done.ini (completions 1) cannot be
+        -- loaded by this harness (one fixture per run, fresh_lumbridge); its proof is
+        -- the fixer's scratch run build/seam_state/<pass>/test_shape/scratch_hard_door.lua
+        -- (fixture.completions 1, 'Members: 3. Mode: Hard.', the members' Hard door),
+        -- with fresh_lumbridge as the control (the door's "You must complete ..." line).
+        seam("seam.raid_enter_party_branch_solo_unchanged", function()
+            local enter = verb("raid", "enter")
+            local state_of = verb("raid", "state")
+            local leave = verb("raid", "leave")
+            local tile_of = verb("world", "tile")
+            if not enter then return missing("raid", "enter") end
+            if not state_of then return missing("raid", "state") end
+            if not leave then return missing("raid", "leave") end
+            if not tile_of then return missing("world", "tile") end
+            if type(t.raid._join) ~= "function" or type(t.raid._ROOMS) ~= "table" then
+                return missing("raid", "_join")
+            end
+            if t.party.size() ~= 1 then
+                return "refused", "the conformance harness is not a party of one: size " .. describe(t.party.size())
+            end
+            setup_cheat("::tobout")
+            settle(2)
+            local _, before = tile_of()
+            local jr, jd = t.raid._join("bloat", t.raid._ROOMS.tob.bloat, 1, "normal")
+            settle(2)
+            local _, after = tile_of()
+            local still = is_table(before) and is_table(after) and before.x == after.x and before.z == after.z
+            local enters_before = t.raid._party_enters
+            local er, ed = enter("tob", "bloat", { mode = "normal" })
+            local sr, sd = state_of()
+            local lr, ld = leave()
+            setup_cheat("::clearinv")
+            settle(2)
+            local text = string.format("join on a party of one: %s (%s), tile %s; enter: %s (%s); state: %s; leave: %s",
+                describe(jr), describe(jd), still and "unmoved" or "MOVED", describe(er), describe(ed),
+                describe(sr), describe(lr))
+            if jr ~= "refused" or not string.find(tostring(jd), "needs a party", 1, true) or not still then
+                return "refused", text
+            end
+            if er ~= "ok" or not string.find(tostring(ed), "in tob bloat (normal)", 1, true)
+                or not string.find(tostring(ed), "started 0, fight", 1, true)
+                or string.find(tostring(ed), " of 1 in the instance", 1, true)
+                or t.raid._party_enters ~= enters_before then
+                return "hollow", "the solo path changed -- " .. text
+            end
+            if sr ~= "ok" or lr ~= "ok" then
+                return "refused", text
+            end
+            return "ok", text
+        end)
+
+        -- raid seam25 watched_camera_and_shots: QD.drive.camera_aim, the one camera
+        -- call (VERB_COUNT +1) and one seam row (SEAM_COUNT +1).  Placed at the END
+        -- (the seam25 closer): the forced turn spends ticks, and a row early in
+        -- phase 3 shifted every wandering npc after it (seam.attack_presses_the_
+        -- watched_slot went red on the goblins' new tiles).  Back to the Man first.
+        stage(function()
+            local goto_tile = verb("player", "goto_tile")
+            local walk = verb("player", "walk_near")
+            if goto_tile then
+                goto_tile(3222, 3218, 0)
+            end
+            settle(2)
+            if walk and npc_target then
+                walk(npc_target)
+            end
+        end)
+
+        -- The ONE camera call in both modes, at a target BEHIND the camera:
+        -- first a snap (a test run's mode), then the same aim with the turn
+        -- forced (the watched client's mode, driven headless on the virtual
+        -- clock).  Each must answer ok with the target projecting.
+        step("drive.camera_aim", function()
+            local aim = verb("drive", "camera_aim")
+            if not aim then return missing("drive", "camera_aim") end
+            local screen = verb("drive", "screen_position")
+            local tile_of = t.drive._target_tile
+            if not (screen and tile_of and npc_target) then
+                return "FAIL", "no subject to aim at"
+            end
+            local function projects()
+                local r = screen(npc_target)
+                return r == "ok"
+            end
+            local function behind_then_aim(forced)
+                local tile_result, tile_x, tile_z = tile_of(npc_target)
+                local player_result, player = t.world.tile()
+                local px, pz = nil, nil
+                if type(player) == "table" then px, pz = player.x, player.z end
+                if tile_result ~= "ok" or px == nil then
+                    return "FAIL", "no tiles"
+                end
+                local yaw = t.drive._yaw_towards(tile_x - px, tile_z - pz)
+                if yaw == nil then return "FAIL", "subject on the player's tile" end
+                -- Behind: half a turn off, as a SNAP (setup, not the proof).
+                t.drive._camera_turn_forced = false
+                aim({ yaw = (yaw + 1024) % 2048, pitch = 128, zoom = 600, purpose = "pose",
+                    note = "conformance behind" })
+                t.ticks(1)
+                local hidden = not projects()
+                t.drive._camera_turn_forced = forced
+                local result, detail = aim({ yaw = yaw, pitch = 128, zoom = 600, purpose = "press",
+                    projects = projects, snap_await = 3, note = "conformance aim" })
+                t.drive._camera_turn_forced = false
+                return result, string.format("forced=%s hidden_before=%s mode=%s held=%s projects=%s",
+                    tostring(forced), tostring(hidden), tostring(detail and detail.mode),
+                    tostring(detail and detail.held), tostring(projects()))
+            end
+            local snap_result, snap_detail = behind_then_aim(false)
+            local turn_result, turn_detail = behind_then_aim(true)
+            local pass = snap_result == "ok" and turn_result == "ok"
+                and snap_detail:find("mode=snap", 1, true) and snap_detail:find("projects=true", 1, true)
+                and turn_detail:find("mode=turn ", 1, true) and turn_detail:find("projects=true", 1, true)
+            return pass and "ok" or "hollow", snap_detail .. " | " .. turn_detail
+        end)
+
+        -- A watched client never moves the camera for a photograph
+        -- (63ea41d39): the one call refuses that purpose in turn mode.
+        seam("seam.camera_aim_photograph_refused_when_watched", function()
+            local aim = verb("drive", "camera_aim")
+            if not aim then return missing("drive", "camera_aim") end
+            t.drive._camera_turn_forced = true
+            local result, detail = aim({ yaw = 0, pitch = 300, zoom = 600, purpose = "photograph",
+                note = "conformance shot" })
+            t.drive._camera_turn_forced = false
+            return result == "refused" and "ok" or "hollow",
+                tostring(result) .. " " .. tostring(detail and detail.why)
+        end)
+
+        -- raid seam38 stopaction_and_stat_rows. PLACE: directly AFTER
+        -- seam("seam.camera_aim_photograph_refused_when_watched", ...) (the last
+        -- seam row in PLAN). No verb was added or changed by this seam; this row
+        -- pins the content fix it made: a Saradomin brew's overheal decays one
+        -- level a minute on [timer,health_regen] (health_regen.rs2; wiki
+        -- Hitpoints:95 "decay at a rate of one per minute"). A server that holds
+        -- the overheal (the old stat_heal clamp) reads 115 after 101 ticks:
+        -- hollow. Proved by scratch s38_hp1: 115 at t255, 114 at t301, 113 at t401.
+        seam("seam.overheal_decays_one_a_minute", function()
+            local cheat = verb("cheat")
+            local read = verb("skill", "read")
+            local inv_op = verb("player", "inv_op")
+            if not cheat then return missing("cheat") end
+            if not read then return missing("skill", "read") end
+            if not inv_op then return missing("player", "inv_op") end
+            local r0, before = read("hitpoints")
+            if r0 ~= "ok" then return "hollow", "skill.read hitpoints " .. tostring(r0) end
+            cheat("::setlevel hitpoints 99")
+            cheat("::give br_4dosepotionofsaradomin 1")
+            t.ticks(2)
+            local pr = inv_op("br_4dosepotionofsaradomin", 1, { quick = true })
+            t.ticks(1)
+            local r1, drunk = read("hitpoints")
+            local first_decay = nil
+            for i = 1, 101 do
+                t.ticks(1)
+                local r2, now = read("hitpoints")
+                if r2 == "ok" and now.level == 114 then first_decay = i break end
+            end
+            cheat("::setlevel hitpoints " .. tostring(before.base_level or before.level))
+            t.ticks(2)
+            local ok = r1 == "ok" and drunk.level == 115 and first_decay ~= nil
+            return ok and "ok" or "hollow",
+                "brew " .. tostring(pr) .. " -> " .. tostring(drunk and drunk.level)
+                .. ", 114 after " .. tostring(first_decay) .. " tick(s) (need <= 101)"
+        end)
+
+        -- seam38 scythe_arc_and_salve_accuracy. No driver verb added or changed: the seam
+        -- is content (gear/scythe_of_vitur.rs2). One seam row, so the conformance pass
+        -- keeps the arc proved on ordinary npcs. PLAN placement: after
+        -- seam("seam.attack_exact_copy_on_one_tile") (it reuses that row's goblin and its
+        -- teardown shape). Bring-alongs: ::fullscythe, ::wield scythe_of_vitur,
+        -- ::setvar varp172_option_nodef 1, ::god 1; put the character's weapon back after.
+        -- Proof run: build/quest_gate/s38arc_after2 (arc.multiway_three PASS).
+        -- Merged by the seam38 closer HERE, not after seam.attack_exact_copy_on_one_tile:
+        -- the row wields the scythe, and every row between there and here was authored
+        -- against the stage weapon; at the end of the PLAN no later row swings one.
+        seam("seam.scythe_arc_three_in_a_row", function()
+            local GOB = "goblin_unarmed_melee_1"
+            setup_cheat("::fullscythe")
+            setup_cheat("::wield scythe_of_vitur")
+            setup_cheat("::setvar varp172_option_nodef 1")
+            local function teardown()
+                setup_cheat("::kill " .. GOB .. " 10")
+                setup_cheat("::kill " .. GOB .. " 10")
+                settle(2)
+            end
+            -- multiway.csv 0_48_53 (Barbarian Village): the arc is multi-way only.
+            setup_cheat("::goto 3104 3418 0")
+            settle(2)
+            setup_cheat("::spawn " .. GOB .. " 3")
+            settle(1)
+            setup_cheat("::goto 3106 3418 0")
+            settle(1)
+            local _, _, rows = t.npc.tiles(GOB, 3)
+            local mid = nil
+            for _, r in ipairs(rows or {}) do
+                if r.x == 3106 and r.z == 3419 then mid = r end
+            end
+            if mid == nil then
+                teardown()
+                return "no_subject", "no goblin on 3106,3419 after ::spawn " .. GOB .. " 3"
+            end
+            t.ticklog.start()
+            local _, since = t.tick()
+            local result, detail = t.player.attack(GOB, 2, 2, { slot = mid.slot, quick = true })
+            settle(6)
+            local _, hits = t.ticklog.rows({ kind = "hit_npc" })
+            local first, slots = nil, {}
+            for _, r in ipairs(hits or {}) do
+                if r.tick > since and (first == nil or r.tick == first) then
+                    first = r.tick
+                    slots[r.slot] = true
+                end
+            end
+            local n = 0
+            for _ in pairs(slots) do n = n + 1 end
+            teardown()
+            local text = "attack " .. tostring(result) .. "; first swing tick " .. tostring(first)
+                .. ": hit_npc on " .. n .. " slot(s)"
+            if n ~= 3 then
+                return "refused", text .. " -- want three goblins hit by one swing (wiki_Scythe_of_vitur:81)"
+            end
+            return "ok", text
+        end)
+
+        -- raid seam33 kit_loaded_blowpipe: t.inv.blowpipe() reads the toxic
+        -- blowpipe's load from the SERVER (the darts and scales are item vars on
+        -- the item instance, blowpipe_ammo.rs2, which no client record carries)
+        -- through the read-only `::blowpipe` readout. The subject is made by the
+        -- kit line itself, `::blowpipe dragon_dart 7 5` (torirs_server_world.c,
+        -- beside ::give): the pipe, 7 darts and 5 scales given, then the
+        -- content's own use-on loads them. The row asks the exact counts back and
+        -- that the darts left the backpack, so a reader that answered ok on an
+        -- empty pipe, or a load that left the darts loose, is hollow.
+        step("inv.blowpipe", function()
+            local fn = verb("inv", "blowpipe")
+            local cheat = verb("cheat")
+            local count = verb("inv", "count")
+            if not fn then return missing("inv", "blowpipe") end
+            if not cheat then return missing("cheat") end
+            if not count then return missing("inv", "count") end
+            cheat("::clearinv")
+            local load_result, load_detail = cheat("::blowpipe dragon_dart 7 5")
+            if load_result ~= "ok" then
+                return "no_subject", "::blowpipe dragon_dart 7 5 -> " .. describe(load_result) .. " "
+                    .. describe(load_detail)
+            end
+            t.ticks(2)
+            local result, pipe = fn()
+            if result ~= "ok" then
+                return result, describe(pipe)
+            end
+            if type(pipe) ~= "table" or pipe.where ~= "inv" or pipe.darts ~= 7 or pipe.scales ~= 5
+                or not is_number(pipe.dart) or pipe.dart < 0 then
+                return "hollow", "loaded 7 darts and 5 scales, read back "
+                    .. (type(pipe) == "table" and tostring(pipe.line) or describe(pipe))
+            end
+            local loose_result, loose = count("dragon_dart")
+            if loose_result ~= "ok" or loose ~= 0 then
+                return "hollow", "the pipe reads 7 but the backpack still holds "
+                    .. describe(loose) .. " dragon darts (" .. describe(loose_result) .. ")"
+            end
+            return "ok", pipe.line .. "; backpack dragon darts 0"
+        end)
+
+        -- raid seam25 starting_character_state: t.session.held and t.session.reset
+        -- (VERB_COUNT +2).  Last before finish: the reset empties the backpack and
+        -- every worn slot, so no row after it may lean on the fixture's kit.
+        step("session.held", function()
+            local fn = verb("session", "held")
+            local cheat = verb("cheat")
+            if not fn then return missing("session", "held") end
+            if not cheat then return missing("cheat") end
+            local give_result, give_detail = cheat("::give " .. OBJ_SYMBOL .. " 1")
+            if give_result ~= "ok" then
+                return give_result, "::give " .. OBJ_SYMBOL .. " -> " .. describe(give_detail)
+            end
+            t.ticks(3)
+            local result, held = fn()
+            if result ~= "ok" then
+                return result, describe(held)
+            end
+            if type(held) ~= "table" or type(held.backpack) ~= "table" or type(held.worn) ~= "table" then
+                return "hollow", "t.session.held() answered ok without { backpack = {}, worn = {} }"
+            end
+            local found = false
+            for i = 1, #held.backpack do
+                if held.backpack[i] == OBJ_SYMBOL then found = true end
+            end
+            if not found then
+                return "hollow", "gave " .. OBJ_SYMBOL .. " but the backpack reads ["
+                    .. table.concat(held.backpack, ",") .. "]"
+            end
+            return "ok", string.format("backpack %d [.. %s ..], worn %d", #held.backpack, OBJ_SYMBOL,
+                #held.worn)
+        end)
+
+        step("session.reset", function()
+            local fn = verb("session", "reset")
+            local held = verb("session", "held")
+            local cheat = verb("cheat")
+            if not fn then return missing("session", "reset") end
+            if not held then return missing("session", "held") end
+            if not cheat then return missing("cheat") end
+            -- Dress and fill first, so an empty read-back is the reset's doing.
+            cheat("::give " .. WEARABLE_OBJ_SYMBOL .. " 1")
+            cheat("::wield " .. WEARABLE_OBJ_SYMBOL)
+            cheat("::give " .. OBJ_SYMBOL .. " 1")
+            t.ticks(3)
+            local before_result, before = held()
+            if before_result ~= "ok" or #before.worn == 0 or #before.backpack == 0 then
+                return "hollow", "could not dress and fill the character first: "
+                    .. describe(before_result) .. " "
+                    .. (type(before) == "table" and (#before.worn .. " worn, " .. #before.backpack .. " held") or describe(before))
+            end
+            local result, detail = fn()
+            if result ~= "ok" then
+                return result, describe(detail)
+            end
+            local after_result, after = held()
+            if after_result ~= "ok" or #after.worn ~= 0 or #after.backpack ~= 0 then
+                return "hollow", "t.session.reset() answered ok but the client holds "
+                    .. (type(after) == "table" and (#after.worn .. " worn, " .. #after.backpack .. " held") or describe(after))
+            end
+            if not string.find(tostring(detail), "Reset character:", 1, true) then
+                return "hollow", "no server line in the detail: " .. describe(detail)
+            end
+            return "ok", string.format("%d worn + %d held -> 0 + 0; %s", #before.worn, #before.backpack,
+                describe(detail))
         end)
 
         step("finish", function()

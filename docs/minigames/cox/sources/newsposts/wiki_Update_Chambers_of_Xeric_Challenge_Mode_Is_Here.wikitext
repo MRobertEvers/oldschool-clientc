@@ -1,0 +1,140 @@
+{{Update|date=17 May 2018|link=http://services.runescape.com/m=news/chambers-of-xeric-challenge-mode-is-here?oldschool=1|category=game}}
+[[File:Chambers of Xeric- Challenge Mode Is Here! newspost.png|right]]
+{{clear}}
+
+{{Headline|25|Chambers of Xeric: Challenge Mode Is Here!}}
+
+
+<center>'''''You've perfected your strategies, honed your skills, and triumphed against the Great Olm. Now, it's time to race for the fastest completion time...''' For those looking for a twist on the usual raid encounter, this week sees the release of Chambers of Xeric: Challenge Mode.''</center>
+
+{{Horizontal Line}}
+
+{{Headline|22|Challenge Mode}}<br/>[[File:Chambers of Xeric- Challenge Mode Is Here! (1).png|center|700px]]
+
+Raid leaders can select the "Challenge Mode" box via the party interface for the Chambers of Xeric when forming a raid party. Once selected, any raids started by the leader will now follow the set room order which will always remain the same for 'Challenge Mode' raids. Once inside the raid, you'll find all its inhabitants have become stronger than their standard counterpart, so be sure to come prepared for a ''challenge''. 
+
+[[File:Chambers of Xeric- Challenge Mode Is Here! (2).png|center]]
+Changing the party between regular and Challenge Mode will update the kill count on the player list between the regular Chambers and Challenge Mode, so you can easily verify others have the kill count they say they do. If you're hoping to find a team for Challenge Mode, you will be able to tell teams apart with the help of the Challenge Mode icon displayed on the team finder interface. 
+
+[[File:Chambers of Xeric- Challenge Mode Is Here! (3).png|center]]
+Challenge Mode will push the limits of your PvM skills and strategising. To encourage those of you looking to battle for the fastest completion times, we've added an in-game leaderboard, recording your results for all of Gielinor to see during that week!
+
+Each world has its own leaderboard that shows the 5 fastest completion times and the team leaders on that world, as well as the global fastest completion time for each bracket. 
+
+[[File:Chambers of Xeric- Challenge Mode Is Here! (4).png|center]]
+
+'''Outside of the game''', we will be hosting a dedicated page that will contain the name of the player or the raid leader of the fastest completion time for that week across all worlds. ''Details of this page will be revealed early next week''. This will not be updated live with each raid completion, but will be manually updated with each game update, and will track the following team sizes: 
+
+Solo<br/>
+Team of 2<br/>
+Team of 3<br/>
+Team of 4<br/>
+Team of 5<br/>
+Team of 6<br/>
+Team of 7<br/>
+Team of 8<br/>
+Team of 9<br/>
+Team of 10<br/>
+Team of 11-15<br/>
+Team of 16-23<br/>
+Team of 24+ 
+
+''This differs slightly when compared to the [http://services.runescape.com/m=news/chambers-of-xeric-challenge-mode?oldschool=1 original dev blog] for the following reason:''
+
+After testing the content it was clear to us that once teams were higher than 20 or so players, the damage dealt inside the raid is substantial to the point where larger teams would only be doing suicide runs to hit the leaderboard.
+
+As a result of this, we have kept the original separations of party sizes between 1 and 10, and instead opted for fewer larger brackets.
+
+The reason the larger team brackets are set as they are is because they're now split based on how many Olm phases the team would have. This seemed the most logical method to organise the brackets and in hindsight is how the brackets should have been made in the beginning.
+
+We'd like to give a '''huge thank you''' to the following players who assisted us throughout the testing of Challenge Mode: 
+
+[https://twitter.com/ClassixOnly Classix]<br/>
+[https://twitter.com/JonWilSenze JonWilSenze]<br/>
+[https://twitter.com/LatiasRS Latias]<br/>
+[https://twitter.com/124426rs 124426]<br/>
+[https://twitter.com/realauntmabel Auntie Mabel]
+
+Each of these players have thousands of Olm kills to their name, so we invited them in for 3 days of gruelling testing. Their knowledge and expertise of the Chambers has helped us to shape Challenge Mode into what it is today. 
+
+{{Horizontal Line}}
+
+{{Headline|25|The Rewards}}
+
+It wouldn't be a new PvM challenge if there wasn't a fitting reward. Alongside the '''leaderboard''' mentioned above, you'll also be rewarded with the '''standard loot you'd normally receive''' for completing the Chambers of Xeric. Whilst the type of loot you will get is no different from a standard raid, as Challenge Mode has more difficult bosses, '''you will earn more points from killing them'''.
+
+Finishing a "Challenge Mode" run within a set amount of time will also grant you a chance of obtaining a '''transmog for the Olmlet pet''', which allows you to change it at will into miniature versions of Tekton, Vespula, Vanguard, Muttadile, or Vasa Nistirio. This unlock can be earned regardless of whether you have the Olmlet pet or not, though you'll need the actual pet before you can utilise the unlocks of course! 
+
+[[File:Chambers of Xeric- Challenge Mode Is Here! (5).png|center|700px]]
+
+[[File:Chambers of Xeric- Challenge Mode Is Here! (6).png|center|700px]]
+<center>''Whilst it's not all of them, we thought you may want to see how some of the bosses look as their pet counterpart.''</center>
+
+The current completion times required to have a chance at obtaining the Olmlet transmog for each team size are as follows:
+
+Solo - 01:10:00<br/>
+Team of 2 - 01:05:00<br/>
+Team of 3 - 00:50:00<br/>
+Team of 4 - 00:45:00<br/>
+Team of 5 - 00:42:00<br/>
+Team of 6 - 00:42:00<br/>
+Team of 7 - 00:42:00<br/>
+Team of 8 - 00:42:00<br/>
+Team of 9 - 00:42:00<br/>
+Team of 10 - 00:42:00<br/>
+Team of 11-15 - 00:45:00<br/>
+Team of 16-23 - 01:00:00<br/>
+Team of 24+ - 01:20:00
+
+''As with any update involving large groups of players, our balancing is preliminary and may change based on the data that you as players generate.''
+
+In addition to the above, completing 100, 200, 500, 1000 and 2000 Challenge Mode raids will grant you access to a range of new capes which can be claimed from Rimor, who is located just outside the entrance to the Chambers of Xeric. 
+
+[[File:Chambers of Xeric- Challenge Mode Is Here! (7).jpg|center|700px]]
+<center>''The capes can be mounted in the PoH and added to the Cape Rack.
+''</center>
+
+{{Horizontal Line}}
+
+{{Headline|22|PvP World Rota Changes}}
+
+The current active rota is '''Period B'''. For the next '''two weeks''', until Thursday 31st of May. More information can be found on the dedicated [https://www.runescape.com/oldschool/pvpworldrota PvP World Rota page], which is updated every two weeks.
+
+*World 18, which hosts Bounty Hunter, has moved to World 19.
+*World 24, which hosts Standard PvP, has moved to World 25.
+*World 43, which hosts High Risk PvP, has moved to World 37.
+*World 117, which hosts F2P PvP, has moved to World 71. 
+
+{{Horizontal Line}}
+
+{{Headline|22|In Other News}}
+
+*We're very happy with what we're seeing from the week Android has been Always On, and you can expect to hear more from us in the next few weeks as to how we're going to be expanding the size of the test.
+*The Barrows interface has been updated on mobile so players are able to see their progress better.
+*The Stronghold of Security Goblins now have a chance of dropping a Champion scroll.
+*Some unclear dialogue from the Gypsy in Recipe for Disaster has been rewritten.
+*The Bonds interface has been updated for the upcoming Summer Special. More information can be found in [http://services.runescape.com/m=news/osrs-mobile-android-is-always-on?oldschool=1 this newspost]. 
+
+[[File:Chambers of Xeric- Challenge Mode Is Here! (8).png|center]]
+
+{{Horizontal Line}}
+
+{{Headline|25|If You Missed It: New AngelsScapes Pins & Keyrings on Pre-sale!}}
+
+[[File:Chambers of Xeric- Challenge Mode Is Here! (9).jpg|center|700px]]
+
+New AngelsScapes pins and keyrings are now available on the official store.
+
+Reach 2,277 total and beat Zuk all with one click with the Infernal max cape, relive the God Wars with God sword keyrings and pins, or offer up a prayer with Retribution and Smite pins. 
+
+[[File:Chambers of Xeric- Challenge Mode Is Here! (10).png|center|700px]]
+
+These new designs will be ready to ship on the 21st May. Other popular lines including the Max Cape and Dragonfire shield have been restocked too!
+
+The full range of pins and keyrings can be found on our official merch store [https://runescape.backstreetmerch.com/ here].
+
+{{Horizontal Line}}
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,485,66012797 official forums], the community-led [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the '''#gameupdate''' channel.
+
+'''''Mods Archie, Ash, Ayiza, Curse, Ed, Ghost, Jed, John C, Kieren, Lottie, Mat K, Maz, Roq, Ry, Stone, Sween, Weath, West & Wolf'''''<br/>''The Old School Team''

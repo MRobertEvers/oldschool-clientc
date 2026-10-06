@@ -1,0 +1,96 @@
+{{Infobox Scenery
+|version1 = Empty
+|version2 = Iron
+|version3 = Steel
+|version4 = Black
+|version5 = Mithril
+|version6 = Adamant
+|version7 = Rune
+|version8 = Gilded
+|version9 = Dragon
+|version10 = Dragon (or)
+|version11 = Dragon (upgraded)
+|version12 = 3rd age
+|version13 = Infernal
+|version14 = Crystal
+|version15 = Trailblazer
+|version16 = Echo
+|name = Cavity
+|image1 = [[File:Cavity (empty).png|180px]]
+|image2 = [[File:Cavity (iron).png|180px]]
+|image3 = [[File:Cavity (steel).png|180px]]
+|image4 = [[File:Cavity (black).png|180px]]
+|image5 = [[File:Cavity (mithril).png|180px]]
+|image6 = [[File:Cavity (adamant).png|180px]]
+|image7 = [[File:Cavity (rune).png|180px]]
+|image8 = [[File:Cavity (gilded).png|180px]]
+|image9 = [[File:Cavity (dragon).png|180px]]
+|image10 = [[File:Cavity (ornamental).png|180px]]
+|image11 = [[File:Cavity (upgraded).png|180px]]
+|image12 = [[File:Cavity (3rd age).png|180px]]
+|image13 = [[File:Cavity (infernal).png|180px]]
+|image14 = [[File:Cavity (crystal).png|180px]]
+|image15 = [[File:Cavity (trailblazer).png|180px]]
+|image16 = [[File:Cavity (echo).png|180px]]
+|release = [[30 August]] [[2023]]
+|update = Poll 80 ToA Changes & DMM Tweaks
+|members = Yes
+|quest = No
+|location = [[Tombs of Amascut]] lobby
+|options1 = Deposit-pickaxe
+|options2 = Take-pickaxe, Deposit-pickaxe
+|options3 = Take-pickaxe, Deposit-pickaxe
+|options4 = Take-pickaxe, Deposit-pickaxe
+|options5 = Take-pickaxe, Deposit-pickaxe
+|options6 = Take-pickaxe, Deposit-pickaxe
+|options7 = Take-pickaxe, Deposit-pickaxe
+|options8 = Take-pickaxe, Deposit-pickaxe
+|options9 = Take-pickaxe, Deposit-pickaxe
+|options10 = Take-pickaxe, Deposit-pickaxe
+|options11 = Take-pickaxe, Deposit-pickaxe
+|options12 = Take-pickaxe, Deposit-pickaxe
+|options13 = Take-pickaxe, Deposit-pickaxe
+|options14 = Take-pickaxe, Deposit-pickaxe
+|options15 = Take-pickaxe, Deposit-pickaxe
+|options16 = Take-pickaxe, Deposit-pickaxe
+|examine1 = There's nothing here, but I feel like it would fit my pickaxe perfectly.
+|examine2 = Wait, isn't it my iron pickaxe?
+|examine3 = Wait, isn't it my steel pickaxe?
+|examine4 = Wait, isn't it my black pickaxe?
+|examine5 = Wait, isn't it my mithril pickaxe?
+|examine6 = Wait, isn't it my adamant pickaxe?
+|examine7 = Wait, isn't it my rune pickaxe?
+|examine8 = Wait, isn't it my gilded rune pickaxe?
+|examine9 = Wait, isn't it my dragon pickaxe?
+|examine10 = Wait, isn't it my dragon pickaxe?
+|examine11 = Wait, isn't it my dragon pickaxe?
+|examine12 = Wait, isn't it my 3rd age pickaxe?
+|examine13 = Wait, isn't it my infernal pickaxe?
+|examine14 = Wait, isn't it my crystal pickaxe?
+|examine15 = Wait, isn't it my trailblazer pickaxe?
+|examine16 = Wait, isn't it my echo pickaxe?
+|map = {{Map|3367,9114|mapID=-1|mtype=pin}}
+|id1 = 49568
+|id2 = 49569
+|id3 = 49570
+|id4 = 49571
+|id5 = 49572
+|id6 = 49573
+|id7 = 49574
+|id8 = 49575
+|id9 = 49576
+|id10 = 49577
+|id11 = 49578
+|id12 = 49579
+|id13 = 49580
+|id14 = 49581
+|id15 = 49582
+|id16 = 55810
+}}
+A '''cavity''' can be found in the lobby area of the [[Tombs of Amascut]]. It allows players to deposit and retrieve their [[pickaxe]] that is used during the [[Tombs_of_Amascut/Strategies#Challenge_room_3|Path of Het challenge room]] from the lobby, and functions identically to the [[Statue (Tombs of Amascut)|statue]] in the same room. As such, using it requires having first reached the challenge room during the [[miniquest]] [[Into the Tombs]], as it will appear as a generic wall before doing so.
+
+If a player attempts to place a [[bronze pickaxe]] in the cavity, they will receive a game message stating {{Mes|There's no point storing a bronze pickaxe here. Het will provide.}}
+
+When adding in the [[Trailblazer pickaxe|Trailblazer Reloaded pickaxe]], the model will still show the old 2020 model.
+
+{{Tombs of Amascut}}

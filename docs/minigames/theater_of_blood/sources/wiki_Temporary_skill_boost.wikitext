@@ -1,0 +1,160 @@
+{{External|rsc|rs}}
+{| class="wikitable" style="text-align:center;" align="right"
+|+Quick links
+|-
+|[[File:Attack icon.png|link=#Attack]]
+|[[File:Hitpoints icon.png|link=#Hitpoints]]
+|[[File:Mining icon.png|link=#Mining]]
+|-
+|[[File:Strength icon.png|link=#Strength]]
+|[[File:Agility icon.png|link=#Agility]]
+|[[File:Smithing icon.png|link=#Smithing]]
+|-
+|[[File:Defence icon.png|link=#Defence]]
+|[[File:Herblore icon.png|link=#Herblore]]
+|[[File:Fishing icon.png|link=#Fishing]]
+|-
+|[[File:Ranged icon.png|link=#Ranged]]
+|[[File:Thieving icon.png|link=#Thieving]]
+|[[File:Cooking icon.png|link=#Cooking]]
+|-
+|[[File:Prayer icon.png|link=#Prayer]]
+|[[File:Crafting icon.png|link=#Crafting]]
+|[[File:Firemaking icon.png|link=#Firemaking]]
+|-
+|[[File:Magic icon.png|link=#Magic]]
+|[[File:Fletching icon.png|link=#Fletching]]
+|[[File:Woodcutting icon.png|link=#Woodcutting]]
+|-
+|[[File:Runecraft icon.png|link=#Runecraft]]
+|[[File:Slayer icon.png|link=#Slayer]]
+|[[File:Farming icon.png|link=#Farming]]
+|-
+|[[File:Construction icon.png|link=#Construction]]
+|[[File:Hunter icon.png|link=#Hunter]]
+|[[File:Sailing icon.png|link=#Sailing]]
+|}
+
+'''Skill boosts''', often just called '''boosts''', are temporary buffs that increase a player's level in one or more [[skills]]. Boosts typically come from consuming [[Food|foods]] or [[potions]], but can also come from activating [[Special attacks#Non-combat special attacks|non-combat special attacks]], equipping certain weapons, or standing in certain areas. Beyond increasing some success rates, boosts can be used to access content with skill requirements that players currently don't have.
+
+==Overview==
+Not all game content can be accessed with a temporary boost. Players cannot equip items that require a base level they don't have, and some [[quests]], such as [[Song of the Elves]], require the player to possess the required stats in order to begin. Similarly, while boosts allow players to access most [[guilds]], [[Warriors' Guild]] cannot be entered with boosted levels. Skill requirements that cannot be met with boosts are known in-community as '''''hard requirements'''''.
+
+Some boosts, but not all, give benefits from going beyond level 99. Invisible skill boosts (see below) increase the speed of gathering skills slightly after level 99, but visible skill boosts for these skills have no effect beyond that point. For example, the dragon axe special boosts the visible Woodcutting level to 102 from 99, but players will not gain any benefit from this. Conversely, for example, an invisible +7 boost to your Fishing level inside the Fishing Guild or a +4 invisible boost to Mining from the celestial ring will have an impact on those respective skills.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1375844352098975753|date=27 March 2021|archiveurl=https://reldo.runescape.wiki/i/98237|archivedate=29 March 2021|quote=I did a little more trawling of the code, and can confirm that the visible stat is now treated as 99 if it's above 99 - that is a recent change. It seems to have been applied to Mining, Fishing and Woodcutting.}}
+
+==Mechanics==
+Boosts do not last forever, with a few exceptions. Logging into or world hopping to a [[free-to-play]] world resets all boosts, except those to [[Prayer]], [[Mining]], and [[Smithing]]. Beyond this, skills that are temporarily boosted will decay at a rate of 1 level per minute, unless the [[Preserve]] prayer is active. This timer '''does not start''' when you receive the temporary boost, but is instead a continuous cycle running in the background. Therefore, the first level of the boost will almost certainly decay faster than subsequent levels. Note that combat skills are on a separate timer to non-combat skills.
+
+===Boost cycle===
+The cycle is split into five 12-second segments. The segment you are in when you log out (or switch worlds) is the segment you will be on when you log back in, although the segment will restart. For example, if you log out 10 seconds after applying a boost (segment 1), with 50 seconds remaining, you will have 60 seconds when you log back in. Knowing this, players can maintain a boost infinitely, as long as the action can be completed within 12 seconds.
+
+Maintaining boosts is useful for activities such as [[achievement diary]] tasks that may require a player to boost with [[spicy stew]], especially if the player is boosting while far away from the location of the diary task itself. In these cases, the player must eat the stews until they have their required level, and then make as much progress towards their required location as they can within 12 seconds, before logging out or switching worlds. As long as the logout was before the end of the segment, the player will have another 60 seconds to get to their location instead of whatever remaining time they had when they logged out. This method can be done within any segment, but segment 1 allows for more mistakes in case the player accidentally stays logged in for longer than 12 seconds at a time.
+
+===Preserve===
+The [[Preserve]] prayer can be used to extend the cycle from 60 seconds to 90 seconds. Although the prayer point drain of Preserve is slow anyway, players can further reduce the drain by only activating it just over 15 seconds before the end of the cycle (Preserve requires it to have been active for 15 seconds before affecting a boost) and then deactivating it once the level decays. This gives the full 90 seconds of boost whilst reducing the time Preserve is active by however long the player waited before activation. For example, waiting until 20 seconds of a boost remain before activating the prayer will give the full 90 seconds while being active for 40 fewer seconds.
+
+In order to check when their stats will go down again, players can consume a cheap, portable boost, such as [[beer]], wait for the boosted stat to decrease 1 level, then quickly use the boost they wish to use. Combat and non-combat skills use different timers, so make sure to use an appropriate boost when checking the drain time.
+
+===Divine potions===
+{{Main|Divine potion}}
+The exception to this cycle are divine potions and their variants. Skill boosts through these potions will persist at the boosted level for 5 minutes. Once the 5 minutes are over, the player's boosted skill will be reset to the base level. [[Preserve]] will not affect this duration. If the player drinks a [[Menaphite remedy]], the boosted skill will start decaying at the usual rate. This allows players to drink a Menaphite remedy near the end of a 5 minute divine potion timer to prevent the boosted skill from being instantly reset to the base level.
+
+==Visible and invisible boosts==
+There are two forms of boosts: ''visible'' boosts, which can be seen in the stat menu, and ''invisible'' boosts, which are active, but not seen on the skill tab. Visible boosts do not stack. For example, a [[dwarven stout]] provides +1 Mining and Smithing, and a [[dwarven stout(m)|mature dwarven stout]] provides +2 to the same skills; using them together will not produce +3, but +2, as that is the highest boost. Invisible boosts typically ''do'' stack with visible ones in skills below level 99, however. For example, since a [[crystal saw]] provides an invisible +3 boost to [[Construction]], and a [[trimmed cup of tea]] provides a ''visible'' +3 boost as well, players can combine the two to build something that requires 6 levels above their base level.
+
+Although they stack with visible boosts, all invisible boosts (except for that of the [[crystal saw]]) '''do not allow''' a player to perform activities above their base level. For example, the [[Woodcutting Guild]] provides an invisible [[Woodcutting]] boost of seven levels, but this boost does not allow a player with 68 Woodcutting to chop [[magic trees]], which require level 75. Instead, the boost allows the player to chop trees with the same speed as if they were seven levels higher. Unlike visible boosts, invisible boosts '''do''' stack with other invisible boosts; for example, the [[Mining Guild]] gives a +7 invisible [[Mining]] boost, and the [[celestial ring]] gives a +4 invisible Mining boost, granting the player a combined +11 invisible Mining boost if they wear the ring or signet inside the Mining Guild.
+
+===Invisible boost list===
+{| class="wikitable sortable"
+|-
+! Source !! Boost 
+|-
+| [[Flamtaer hammer]]|| +40 {{SCP|Crafting|link=yes}}<ref group=s>Only applies to rebuilding the Flamtaer temple.</ref>
+|-
+| Being in the [[Woodcutting Guild]]|| +7 {{SCP|Woodcutting|link=yes}}
+|-
+| Being in the [[Mining Guild]]|| +7 {{SCP|Mining|link=yes}}
+|-
+| Being in the [[Fishing Guild]]|| +7 {{SCP|Fishing|link=yes}}
+|-
+| [[Celestial ring]]/[[Celestial signet|signet]]|| +4 {{SCP|Mining|link=yes}}
+|-
+| [[Crystal saw]] || +3 {{SCP|Construction|link=yes}}
+|-
+| ''Accurate'' [[Combat Options|attack style]] ([[melee]]) || +3 {{SCP|Attack|link=yes}}
+|-
+| ''Aggressive'' [[Combat Options|attack style]] ([[melee]]) || +3 {{SCP|Strength|link=yes}}
+|-
+| ''Defensive'' [[Combat Options|attack style]] ([[melee]]) || +3 {{SCP|Defence|link=yes}}
+|-
+| ''Controlled'' [[Combat Options|attack style]] ([[melee]]) || +1 {{SCP|Attack|link=yes}}, {{SCP|Strength|link=yes}}, and {{SCP|Defence|link=yes}}
+|-
+| ''Accurate'' [[Combat Options|attack style]] ([[ranged]]) || +3 {{SCP|Ranged|link=yes}}
+|-
+| ''Longrange'' [[Combat Options|attack style]] ([[ranged]]) || +3 {{SCP|Defence|link=yes}}
+|-
+| ''Accurate'' [[Combat Options|attack style]] ([[magic]]) || +3 {{SCP|Magic|link=yes}}
+|-
+| [[Horn of plenty]] || +2 {{SCP|Hunter|link=yes}} if empty, +4 {{SCP|Hunter|link=yes}} if charged
+|-
+| [[Whirlpool surprise]] onboard a ship's [[Keg (facility)|keg]] || +2 {{SCP|Sailing|link=yes}}
+|-
+| [[Eagle Eye]]|| Between +1 and +14 {{SCP|Ranged|link=yes}}<ref group=s>Boost is 15% of player's base Ranged level, rounded down.</ref>
+|-
+| [[Forestry]] group bonus || Between +1 and +10 {{SCP|Woodcutting|link=yes}}<ref group=s>One bonus level is added for each person chopping a tree, up to a maximum of +10. Does not apply to any [[Farming trees|player-grown trees]], or whilst in the [[Woodcutting Guild]].</ref>
+|}
+
+{{Reflist|group=s}}
+
+==List of all temporary boosts==
+===Free-to-play boosts===
+The following boosts are available to free-to-play players. Click the skill name to jump to the relevant skill section on this page.
+* [[#Attack|Attack]], [[#Strength|Strength]] and [[#Defence|Defence]]: '''[[Kebab]]'''
+* [[#Defence|Defence]]: '''[[Cabbage (Draynor Manor)|Draynor Manor cabbages]]'''
+* [[#Magic|Magic]]: '''[[Wizard's mind bomb]]'''
+* [[#Mining|Mining]] and [[#Smithing|Smithing]]: '''[[Dwarven stout]]'''
+* [[#Prayer|Prayer]]: '''[[Altar (Edgeville Monastery)|Edgeville Monastery altar]]'''
+* [[#Strength|Strength]]: '''[[Beer]], [[Strength potion]], and [[Cooked t-bone steak]]'''
+* [[#Woodcutting|Woodcutting]]: '''[[Forestry#Core_Woodcutting_changes|Invisible Woodcutting group boost]]'''
+
+{{/Agility}}
+{{/Attack}}
+{{/Construction}}
+{{/Cooking}}
+{{/Crafting}}
+{{/Defence}}
+{{/Farming}}
+{{/Firemaking}}
+{{/Fishing}}
+{{/Fletching}}
+{{/Herblore}}
+{{/Hitpoints}}
+{{/Hunter}}
+{{/Magic}}
+{{/Mining}}
+{{/Prayer}}
+{{/Ranged}}
+{{/Runecraft}}
+{{/Sailing}}
+{{/Slayer}}
+{{/Smithing}}
+{{/Strength}}
+{{/Thieving}}
+{{/Woodcutting}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 2 February 2017
+|update = Silver Jewellery, Tournament World & QoL!
+|change = If you boost a stat, and hadn't already boosted any stats, your stat-boost is now more likely to last for longer before restoring down.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*Prior to the {{UD|Chambers of Xeric|update}} which released the [[Preserve]] [[Prayer]], players who had temporarily boosted a stat were able to log out before a stat would be restored towards its base level, allowing players to keep the boost for another 60 seconds.
+
+==References==
+{{Reflist}}
+[[Category:Mechanics]]
+[[Category:Temporary skill boost]]

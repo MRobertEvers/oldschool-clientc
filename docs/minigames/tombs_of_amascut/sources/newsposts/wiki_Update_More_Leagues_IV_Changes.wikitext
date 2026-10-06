@@ -1,0 +1,195 @@
+{{Update|date=06 December 2023|url=https://secure.runescape.com/m=news/more-leagues-iv-changes?oldschool=1|category=game}}
+[[File:More Leagues IV Changes newspost.jpg|right]]
+{{clear}}
+__TOC__
+
+''We’ve made even more fixes, how exciting!''
+
+{| class="wikitable" style="text-align:center; width:665px;"
+!Last Updated
+!Issue
+!Progress
+!Status
+|-
+|12:25 GMT - 06/12
+|Some players are reporting some Combat Achievements aren't autocompleting.
+|These achievements have been identified and fixed with next week's game update.
+* Dress Like You Mean It
+* Versatile Drainer
+* Salamander Muspah
+* Salamander Kree'arra
+* Finding The Weak Spot
+* Using Soul Stealer within Barrows.
+|INVESTIGATING
+|-
+|12:25 GMT - 06/12
+|Some players are being teleported out of the Sepulchre in certain areas.
+|The team is aware and investigating some areas that might be causing this.
+|INVESTIGATING
+|}
+
+'''Reminder:''' Game Updates are now accompanied by a 30-minute downtime period to ensure we can take an up-to-date backup. Game Worlds will be offline at '''11:30 GMT''' and should be back online at '''12:00 GMT'''.
+
+Next week's game update is the final update of the year and will be taking place on Tuesday, 12th December. As it stands, Leagues will remain as it is over the Christmas period after next week's update unless there are major bugs or issues that need addressing. Please continue to report your bugs and issues via the in-game Bug Report feature.
+
+We’ve been busy making important QoL changes to Leagues IV: Trailblazer Reloaded. Check the changelog for a breakdown of all this week’s updates!
+
+Plus: get ready for the 2023 Christmas Event, coming next week!
+
+==Changelog - December 6th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+
+'''Leagues IV Changes'''
+
+* Added a toggle to the Guardian Horn which automatically summons the Guardian during combat.
+* Region-specific Combat Achievements will now be auto-completed.
+* Using Globetrotter's last destination will now correctly account for Dragonstone jewellery teleports, so it can be used in up to level 30 Wilderness.
+* Reduced the maximum amount of Soul Wars Points players can use at one time to 1,000 to prevent glitches caused by players receiving too much XP at once.
+* Players who reach the point threshold for Combat Achievement tiers will now correctly unlock that tier, instead of needing at least one point over the threshold.
+* The non-Leagues Vengeance spell now uses the original sound instead of the Trailblazer version. You can pick your favourite by right-clicking the spell if you've unlocked the Leagues Vengeance.
+* Equipping any combination of Gold/Normal Prospector outfit parts now correctly completes the ’Equip a Full Prospector Outfit’ task.
+* Tumeken's Shadow now benefits from the attack speed increase from Superior Sorcerer in Soul Wars.
+* Fixed an issue where the Guardian was not stunning the Abyssal Sire correctly.
+* Corrected the ‘Create 100 Divine Super Potions’ task to ‘Create 50 Divine Super Combat Potions’.
+* The Leagues IV emote will now correctly show if the player has the full set of Leagues IV Relic Hunter on their League Outfit Stand.
+* Fixed an issue where the ‘Equip Every Draconic Shield’ task could not be completed.
+* Having a Clue Nest, Geode or Bottle in your Bank will now allow you to pick up a Clue Scroll.
+* The ‘Complete all Muspah Combat Achievements’ task will now be checked off when the requirements are met.
+* Fixed an issue where Zimberfizz would try to escape the Soul Wars tutorial. Not today, pal!
+* Removed the Kourend task ‘Equip a Full Angler’s Outfit’ as there is a global task with the same requirements.
+* Nex will now count towards the 100/250/500 God Wars Dungeon KC tasks.
+* The PoH Leagues Trophy Room Scroll now correctly states the player's rank from previous Leagues.
+* Hit splats on the Guardian and Thralls will now no longer show incorrect max hits.
+* Fixed clipping issues that occurred when performing the new Alchemy animations while wearing items in both hands.
+* Using Purge as one of three different Prayer drain methods will now count towards completing the ‘Versatile Drainer’ Combat Achievement.
+* Updated the Leagues Firsts board.
+* Added a warning if your Guardian has the rare outfit when you reroll.
+
+'''Other Changes'''
+
+* Removed level up messages for the Ruinous Powers.
+* Party balloons in Clan Halls should no longer drop inside the walls.
+* The Pursuer will no longer attack players when they are on a different level to it.
+* Players should no longer get stuck when generating new floors of the Sepulchre.
+
+'''PvP Rota'''
+
+World 569 (AUS) for Bounty Hunter has been <u>'''activated'''</u> with this rota.
+
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''de-activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''de-activated'''</u> with this rota.
+
+The PvP Arena is using ''''1 Def Pure'''' loadouts in Ranked Duels and Tournaments this week.
+
+{{Collapsed section end}}
+
+==Leagues IV: Trailblazer Reloaded==
+The latest League has been live for three weeks now, and Trailblazers across Gielinor have been popping tasks, scooping up drops and even reaching the heights of Dragon Tier! While you've been slaying, questing, and skilling, our team has been squashing bugs and deploying hotfixes to ensure your journey is as smooth as possible.
+
+If you're looking for the [https://www.youtube.com/channel/UCnJutVTtn3ZXyapoGUmuRTA latest scoop on stats from Soup] (which is a really fun thing to say out loud!) then check out the video he put together for our YouTube Channel!
+
+<center><big><big>[https://www.youtube.com/embed/uK_OmiZhimw?si=rqgATOnL8rhJraOX 1,989,786 Deaths And Counting...]</big></big></center>
+<center>''If you can't see the video,  try clicking ''[https://www.youtube.com/watch?v=uK_OmiZhimw here]'' instead!''</center>
+
+Now, let's take a look at that fresh list of fixes!
+
+===Task Updates===
+Tasks are how you progress in the League, so we’ve kept a tight ship when it comes to dealing with flagged issues! This week we've cleaned up the following bugbears:
+
+* Players can now equip any combination of Gold and Normal Prospector outfit parts to complete the ‘Equip a Full Prospector Outfit’ task.
+* Corrected ‘Create 100 Divine Super Combat Potions’ task to ‘Create 50 Divine Super Combat Potions’, which was always the requirement to complete it.
+* Fixed an issue where the ‘Equip Every Draconic Shield’ task could not be completed, even after equipping all three shields.
+* The ‘Complete all Muspah Combat Achievements’ task will now complete correctly when the requirements are met.
+* Removed the task ‘Equip a Full Angler’s Outfit’ from the Kourend task list as there is an existing global task with the same requirements.
+* Nex will now count towards the 100/250/500 God Wars Dungeon KC tasks.
+
+===Combat Achievements===
+* Combat Achievements that are region-specific will now be autocompleted.
+* Players who reach the point threshold for Combat Achievement tiers will now correctly unlock that tier, instead of needing at least one point over the threshold.
+* Using Purge as one of three different Prayer drain methods will now count towards completing the ‘Versatile Drainer’ Combat Achievement.
+
+===Clue Hunting===
+We’re continuing to remove clues that are inaccessible during this League so that nobody’s wasting time on Clue Scrolls they can’t complete!
+
+This week, we’ve rounded up a few more stragglers, including:
+
+* The Easy clue which requires players to dance at the Grand Exchange with a Pink Skirt, Pink Robe Top, and a Body Tiara. This clue is no longer obtainable for players who have not unlocked Kandarin.
+* The Master cryptic clue which requires players to talk to Sir Vyvin while wearing a White Platebody and Legs/Skirt. We’ve removed this clue from the League entirely.
+
+Lastly, we’ve ensured that you’ll still be able to pick up Clue Scrolls when you have a Clue Nest, Geode or Bottle in your Bank.
+
+===Guardian Fixes===
+Your Guardian does some pretty heavy lifting in combat, so to make sure it doesn’t miss a moment of the action we’ve added a toggleable option to the Guardian Horn which will let you automatically summon the Guardian when you attack enemies. The toggle is '''ON''' by default.
+
+In addition, we’ve fixed an issue where hit splats on both the Guardian and thralls were showing incorrect max hits.
+
+Lastly, a little something for you FashionScapers – as of today, you’ll be warned if your Guardian is wearing *that* rare outfit when you try to reroll it.
+
+===General Tweaks===
+* Using Globetrotter's last destination will now correctly account for Dragonstone jewellery teleports, so it can be used in up to level 30 Wilderness.
+* Reduced the maximum amount of Soul Wars Points players can use at one time to 1,000. This is because players were receiving too much XP at once, causing their levels to wrap around into negative numbers. Just calm down, you lot!
+* Players can now switch between the Leagues sound and regular sound of the Vengeance spell by right-clicking on it if they have unlocked the Leagues Vengeance. The default sound has been restored to the regular version.
+* Tumeken's Shadow now benefits from the attack speed increase from Superior Sorcerer in Soul Wars.
+* The Guardian will now stun the Abyssal Sire correctly.
+* The Leagues IV emote will now be available when the player has the full set of Leagues IV Relic Hunter on their League Outfit Stand in the Player Owned House.
+* Fixed an issue where Zimberfizz would try to escape the Soul Wars tutorial.
+* The Scroll in the Leagues Trophy Room now correctly states your rank in previous Leagues.
+* Fixed a clipping issue with the new Alchemy animations which appeared when wearing items in both hands.
+* Updated the Leagues Firsts board!
+
+On the topic of updates, we want to remind everyone that the record of your League Points in the main game are not updated in real time and could take a while to catch up to their actual value. This is a safety measure we’ve implemented to keep our backend systems happy – so don’t worry, your missing Points will appear as soon as the system catches up.
+
+On the hunt for more Leagues content to enjoy? Check out our [https://youtube.com/playlist?list=PLRs68iqW7gYvWZAFs7-rW2bBQF0QtAH9g&si=KsLlNuvv3tebZxP6 Community Playlist], full to the brim with videos from a veritable smörgåsbord of creators!
+
+<center><big><big>[https://www.youtube.com/embed/videoseries?si=OGuGwHt9Lm_lbz6L&list=PLRs68iqW7gYvWZAFs7-rW2bBQF0QtAH9g I will hit 100 every 1.2 seconds on Leagues]</big></big></center>
+
+==Chambers of Xeric QoL Changes==
+Last week’s long-awaited Chambers of Xeric tweaks have gone over an absolute treat. Thanks to everyone who gave the new-and-improved raid a whirl and sent us feedback, we have a few changes in the backlog.
+
+Firstly, when scaling the party during Party Creation, players sometimes encounter fewer Skeletal Mystics than they expect. These fellas are an unusual case – unlike most everything else, they spawn dynamically based on the number of players who are ''actually'' in the Raid. They’re not fooled by your invisible mates! We’re looking to adjust this so that players receive the points they expect from scaled Raids.
+
+Next up, a couple of Magic weapons have problems with our old friends, the Jewelled Crabs. Casting spells with the Harmonised Nightmare Staff still results in an attack delay, and Tumeken’s Shadow doesn’t guarantee a splash against the Crabs even when the Magic bonus on the equipment interface claims to be -64. Technically, that’s the Shadow’s fault, but we’ll be fixing it anyway!
+
+‘Failing’ Thieving chests paradoxically gives players with 95 Thieving and above a minimum of two Grubs, instead of one. Although you’re big fans of this bug, we will be rolling it back as it makes Thieving a little too good. Sorry!
+
+Lastly, we’re investigating feedback that Potions dropped by NPCs within the Raid aren’t giving as many points as expected. We’re still nailing the root cause of this issue down, but we’ll hopefully be able to reunite you with your potion-y points soon!
+
+We hope to roll these changes out in next week’s update. In the meantime, please do reach out if you think we’ve missed anything!
+
+==Other Changes==
+* Removed the level up messages for the Ruinous Powers.
+* Party balloons in Clan Halls should no longer drop inside the walls.
+* The Pursuer will no longer attack players on a different level to it.
+* Players should no longer get stuck when generating new floors of the Sepulchre.
+
+==PvP World Rota==
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''de-activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty hunter has been <u>'''de-activated'''</u> with this rota.
+
+The PvP Arena is using ''''Max/Med'''' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on our [http://services.runescape.com/m=forum/forums?380,381,901,66291481 official forums], on the [https://reddit.com/r/2007scape/comments/18c1ccf/more_leagues_iv_changes/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abyss, Arcane, Archie, Argo, Ash, Ayiza, Boko, Blossom, Bruno, Chilly, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Errol, Fed, Gecko, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Necro, Nox, Nylu, Other, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Sarnie, Shroom, Sigma, Skane, Skylark, Smithy, Sova, Squid, Starry, Stevew, Surma, Sween, Tide, Titus, Torrance, Tsourorf, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

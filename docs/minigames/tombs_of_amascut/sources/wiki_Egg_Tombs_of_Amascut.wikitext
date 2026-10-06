@@ -1,0 +1,53 @@
+{{Infobox Monster
+|version1 = Explode
+|version2 = Hatch
+|name = Egg
+|image1 = [[File:Egg (Tombs of Amascut, explode).png|200px]]
+|image2 = [[File:Egg (Tombs of Amascut, hatch).png|200px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|combat = 0
+|size = 1
+|examine = Looks gross.
+|xpbonus = 
+|max hit = 0
+|aggressive = No
+|poisonous = No
+|attack style = None
+|attack speed = No
+|hitpoints = 35
+|att = 1{{CiteDiscord|author=Mod Ash|url=https://discord.com/channels/324132423636090880/431834766325841920/1339158194274041887|archiveurl=https://reldo.runescape.wiki/i/27962705#chat-messages-431834766325841920-1339158194274041887|archivedate=7 March 2026|date=12 February 2025|quote=They'd have a specific XP-per-damage value assigned to them. Often 0.1 visible XP per damage.<br>
+Scarab swarm: 1 Attack, 1 Strength, 0 Defence, 10 HP<br>
+Egg: As above but with 35 HP<br>
+Jug: As above (I think) but with 5 HP|image=Ash jug, egg, scarab swarm offensive stats.png}}
+|str = 1
+|def = 0
+|mage = 1
+|range = 1
+|attbns = 0
+|strbns = 0
+|amagic = 0
+|mbns = 0
+|arange = 0
+|rngbns = 0
+|dstab = -100{{CiteDiscord|author=Mod Ash|url=https://discord.com/channels/324132423636090880/431834766325841920/1339511045387194378|date=13 February 2025|archiveurl=https://reldo.runescape.wiki/i/27962706#chat-messages-431834766325841920-1339511045387194378|archivedate=7 March 2026|quote=[(...) Do they then have 0 all offensive/defensive stats?] The jugs have 0, the others have -100 in all defensive bonuses and no offensive bonuses.|image=Ash jug, egg, scarab swarm defensive stats.png}}
+|dslash = -100
+|dcrush = -100
+|dmagic = -100
+|dlight = -100
+|dstandard = -100
+|dheavy = -100
+|poisonresistance = 
+|venomresistance = 
+|id1 = 11728
+|id2 = 11729
+}}
+'''Eggs''' are laid by [[Kephri]] during the [[Tombs of Amascut]] raid, as part of her 'Mass Incubation' attack. Kephri can use this special attack while shielded, splattering two types of egg across the arena: a small light-coloured egg and a large darker-coloured egg. If left unattended, the lighter eggs will explode in a 3x3 area, while the darker eggs will hatch [[Agile Scarab]]s.
+
+Players will always inflict their maximum hit on the eggs regardless of their combat style.
+
+==References==
+{{Reflist}}
+
+{{Tombs of Amascut}}

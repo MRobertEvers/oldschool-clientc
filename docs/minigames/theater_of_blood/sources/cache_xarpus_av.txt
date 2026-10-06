@@ -1,0 +1,73 @@
+# Xarpus presentation bindings read from the rev239 cache's own config records (copied verbatim, 2026-10-03, no fetch).
+# Section A: OSRS-Content/osrs239-content/configs/all.loc lines 372705-372719 (the two Xarpus locs and their anim= bindings).
+# Section B: OSRS-Content/osrs239-content/configs/all.spotanim lines 9934-9985 (the graphics and their anim= bindings).
+# A loc's anim= and a spotanim's anim= are the cache's own binding, grade A; a symbol name alone is D.
+== A all.loc
+372705	[tob_xarpus_exhumed]
+372706	name=Exhumed
+372707	shape1=22,35401
+372708	blockwalk=0
+372709	blockrange=0
+372710	active=1
+372711	anim=tob_xarpus_exhumed_start
+372712	
+372713	[tob_xarpus_acidpool]
+372714	name=Acidic miasma
+372715	shape1=22,35394
+372716	blockwalk=0
+372717	blockrange=0
+372718	active=1
+372719	anim=tob_xarpus_acid_splat_start
+== B all.spotanim
+9934	[tob_xarpus_exhumed_end]
+9935	model=35401
+9936	anim=tob_xarpus_exhumed_end
+9937	
+9938	[tob_xarpus_exhumed_energyorb]
+9939	model=35732
+9940	anim=book_spin
+9941	
+9942	[tob_xarpus_acidpool_end_0]
+9943	model=35394
+9944	anim=tob_xarpus_acid_splat_end
+9945	
+9946	[tob_xarpus_acidpool_end_1]
+9947	model=35394
+9948	anim=tob_xarpus_acid_splat_end
+9949	angle=90
+9950	
+9951	[tob_xarpus_acidpool_end_2]
+9952	model=35394
+9953	anim=tob_xarpus_acid_splat_end
+9954	angle=180
+9955	
+9956	[tob_xarpus_acidpool_end_3]
+9957	model=35394
+9958	anim=tob_xarpus_acid_splat_end
+9959	angle=270
+9960	
+9961	[tob_xarpus_acidspit]
+9962	model=35394
+9963	anim=verzik_blood_projectile
+9964	resizeh=150
+9965	resizev=150
+9966	
+9967	[tob_xarpus_acidsplash]
+9968	model=2223
+9969	recol1s=43237
+9970	recol1d=14259
+9971	anim=watersplash
+9972	resizeh=72
+9973	resizev=72
+9974	
+9975	[tob_xarpus_guano]
+9976	model=18029
+9977	recol1s=37099
+9978	recol1d=43125
+9979	anim=myq3_vampire_teleport_projectile_anim
+9980	resizeh=32
+9981	resizev=32
+9982	
+9983	[tob_nylocas_shielded]
+9984	model=3569
+9985	recol1s=16320

@@ -1,0 +1,23 @@
+{{Otheruses|the Combat Achievement|the Invocation|Tombs of Amascut#Invocations and Raid Level}}
+{{Infobox Combat Achievement
+|name = Insanity
+|image = [[File:Tombs of Amascut - fighting Tumeken's Warden.png|300px]]
+|release = [[30 November]] [[2022]]
+|update = The Garden of Death & More
+|members = Yes
+|description = Complete 'Perfect Wardens' at expert or above.
+|tier = Grandmaster
+|monster = Tombs of Amascut: Expert Mode
+|type = Perfection
+|id = 445
+|leagueRegion = Desert
+}}
+'''Insanity''' is a [[Combat Achievements/Grandmaster|grandmaster combat achievement]] which requires the player to complete [[Perfect Wardens]] in the [[Tombs of Amascut]] raid at level 300 or above.
+
+== Strategy ==
+As death invocations do not need to be enabled, players can all die and re-attempt Wardens without having to redo the entire raid.
+
+==Other tasks==
+{{Combat Achievements list|Tombs of Amascut: Expert Mode}}
+
+{{Combat Achievements}}

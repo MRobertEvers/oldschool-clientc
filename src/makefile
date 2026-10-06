@@ -828,7 +828,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	platform/sockstream.c platform/platform_mdns.c platform/platform_socket.c \
 	platform/net_transport_tcp.c platform/net_transport_ws.c \
 	platform/net_transport_ws_frame.c platform/net_transport_ws_handshake.c \
-	platform/net_transport_embed.c \
+	platform/net_transport_embed.c platform/launch_sessions.c \
 	net/loginproto_xrsps.c net/loginproto_osrs230.c \
 	net/loginproto_osrs239.c net/sha256.c net/pow_sha256.c \
 	net/rev/xrsps233/gameproto_rev_xrsps233.c \
@@ -1487,17 +1487,23 @@ $(IO_SERVER_OBJ_DIR)/io_server: $(IO_SERVER_SRCS) \
 		$(IO_SERVER_OBJ_DIR)/bzip_encode.o $(IO_SERVER_OBJ_DIR)/miniz.o \
 		$(IO_SERVER_OBJ_DIR)/xteas.o | $(IO_SERVER_OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/ioserver -o $@ $(IO_SERVER_SRCS) \
-		-DTORIRS_PLATFORM_X_IO_NO_JS5=1 \
+		-DTORIRS_PLATFORM_X_IO_NO_JS5=1 -DTORIRS_PLATFORM_X_IO_NO_LAUNCH=1 \
 		$(IO_SERVER_OBJ_DIR)/rscache_unity.o $(IO_SERVER_OBJ_DIR)/bzip.o \
 		$(IO_SERVER_OBJ_DIR)/bzip_encode.o $(IO_SERVER_OBJ_DIR)/miniz.o \
 		$(IO_SERVER_OBJ_DIR)/xteas.o -lm $(IO_SERVER_SOCKET_LIBS)
 	@echo "built $@"
 
+# TORIRS_PLATFORM_X_IO_NO_LAUNCH (raid seam37): the standalone io_server does
+# NOT host the launch service (owner, 2026-10-06: only the client's embedded
+# IO server spawns members), and neither link carries launch_sessions.c; a
+# platform_x_io.c built with it answers a `launch/*` item `unsupported:`.
+
 # IO wire codec round-trip: encode a request/response pair for every item kind
 # and assert the decoded item matches field for field.
 test-io-wire: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
-	$(CC) $(CFLAGS) -DTORIRS_PLATFORM_X_IO_NO_JS5=1 -DTORIRS_PLATFORM_X_IO_NO_ONDEMAND=1 -o $(OBJ_DIR)/io_wire_test \
+	$(CC) $(CFLAGS) -DTORIRS_PLATFORM_X_IO_NO_JS5=1 -DTORIRS_PLATFORM_X_IO_NO_ONDEMAND=1 \
+		-DTORIRS_PLATFORM_X_IO_NO_LAUNCH=1 -o $(OBJ_DIR)/io_wire_test \
 		platform/io_wire.c platform/platform_x_io.c platform/platform_x_http.c \
 		platform/sockstream.c platform/platform_mdns.c platform/test/io_wire_test.c \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
@@ -2111,6 +2117,18 @@ test-client-scale: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/client_scale_test$(PLATFORM_EXE_SUFFIX) \
 		platform/test/client_scale_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/client_scale_test$(PLATFORM_EXE_SUFFIX)
+
+# The launch service of the embedded IO server (raid seam37,
+# platform/launch_sessions.h): the session table under a fake spawner and a
+# fake clock (open/spawn/status, the member env, one process group, a leader
+# that exits, a heartbeat that stops, a member exit, close then kill, the
+# host's exit, tokens, peers), then one REAL spawn whose fake leader is
+# SIGKILLed and whose member must be gone within 15 s. POSIX only.
+.PHONY: test-launch-sessions
+test-launch-sessions: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/launch_sessions_test$(PLATFORM_EXE_SUFFIX) \
+		platform/launch_sessions.c platform/test/launch_sessions_test.c $(LDFLAGS)
+	./$(OBJ_DIR)/launch_sessions_test$(PLATFORM_EXE_SUFFIX)
 
 .PHONY: test-pacer
 test-pacer: $(OBJ_DIR)
@@ -3670,6 +3688,28 @@ test-sdl-chrome-geometry: $(OBJ_DIR)
 else
 test-sdl-chrome-geometry:
 	@echo "test-sdl-chrome-geometry requires PLATFORM=macos or PLATFORM=linux"
+	@false
+endif
+
+# Where a mouse press lands in the layout against where the present draws it
+# (raid seam25, watched_client_mouse_mapping): the pure mapping
+# (platform/platform_pointer_map.h) across density, pane, title/in-game layout
+# and window size, then platform_sdl2.c's own MapMouse under the dummy driver
+# at 1x and at a claimed 2x drawable (TORIRS_SIM_PIXEL_DENSITY=2).
+.PHONY: test-sdl-pointer-map
+ifneq ($(filter $(PLATFORM),macos linux),)
+test-sdl-pointer-map: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/sdl_pointer_map_test \
+		platform/test/sdl_pointer_map_test.c platform/platform_sdl2.c \
+		$(PLATFORM_OBJC_SRCS) \
+		ui/torirs_chrome_rail.c engine/torirs_chrome_skin_baked.c \
+		platform/platform_app_icon.c cmd/cmdbus.c cmd/cmdring.c \
+		input/torirs_keymap.c input/torirs_touch.c $(LDFLAGS)
+	SDL_VIDEODRIVER=dummy ./$(OBJ_DIR)/sdl_pointer_map_test
+	SDL_VIDEODRIVER=dummy TORIRS_SIM_PIXEL_DENSITY=2 ./$(OBJ_DIR)/sdl_pointer_map_test
+else
+test-sdl-pointer-map:
+	@echo "test-sdl-pointer-map requires PLATFORM=macos or PLATFORM=linux"
 	@false
 endif
 
@@ -6246,6 +6286,22 @@ test-torirsserver-embed: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)
 		net/net_out.c \
 		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_EmbedTest
+
+# The party link's framing (torirs_server_embed.h): torn frames, a 3 MB DATA
+# frame byte-exact, frame order, a closed peer read as closed. Over a
+# socketpair, no world booted -- the three-client run in test/raids/README.md
+# ("A party run") is the end-to-end proof. Native POSIX only, like the link.
+# And the lock step's own rules (raid seam21, "Lockstep, pinned"): SEAT's
+# protocol version and k, a member running F frames per tick accepted and one
+# running F-1 refused (at k=1 and k=10), and one TICK's digest read the same
+# by two members and moved by a tile, a hitpoint or an npc.
+.PHONY: test-embed-party-link
+test-embed-party-link: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ToriRSServer_EmbedPartyLinkTest \
+		torirsserver/test/embed_party_link_test.c $(filter-out net/rev/osrs239/osrs239_entity_info.c net/bitbuffer.c,$(TORIRSSERVER_CORE_SRCS)) \
+		net/net_out.c \
+		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
+	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_EmbedPartyLinkTest
 
 # Revision 239's login response states the local player's index, and it is the
 # only statement of it. Two clients, so the index is allowed to be wrong: with

@@ -1,0 +1,121 @@
+{{Update|date=22 March 2018|link=http://services.runescape.com/m=news/upcoming-changes-and-fake-xp-drop-improvements?oldschool=1|category=game}}
+[[File:Upcoming Changes and Fake XP Drop Improvements newspost.png|right]]
+{{clear}}
+
+{{Headline|25|Upcoming Changes and Fake XP Drop Improvements}}
+
+
+<center>''This week we release more of the outstanding QoL Month updates that came from the PvP week. In addition to this, we'd like to discuss some changes to content and how some of the current PvP worlds are allocated.''</center>
+
+{{Horizontal Line}}
+
+{{Headline|22|Corporeal Beast Cave & God Wars Dungeon}}
+
+
+Last week we released an updated revision of the [http://services.runescape.com/m=news/protecting-game-integrity-revision?oldschool=1 Protecting Game Integrity news post] which highlighted a number of content changes we wish to make. We're still in the processes of gathering and reviewing your feedback before making any changes. In the meantime, there are other areas of content we wish to look at too. The next section of this post is aimed at addressing those.
+
+'''God Wars Dungeon'''<br/>
+A common frustration for many Ironman players is within the God Wars Dungeon. It is more often than not where they will spend time gaining 40 Kill Count in order to enter a boss room, to only find they are starting a kill which has already been hit by a previous player that has since left. This means they are left high and dry, and have to waste their time either re-banking and getting more Kill Count, or waste their time killing a boss they will get no loot from.
+
+Because of this, we're looking to make some slight tweaks to the God Wars Dungeon bosses so that they will reset when the room becomes empty. This will mean that after a few seconds without any players in the room, provided that the boss has taken some damage, it will reset and spawn again at the usual respawn rate.
+
+'''Corporeal Beast Cave'''<br/>
+We get many reports of Ironmen being griefed by other players whilst at the Corporeal Beast. The griefers intention is to prevent Ironmen from gaining loot from the Corporeal Beast. The griefers will run in, deal damage and then leave. Because of the time it takes to kill the Corporeal Beast, it's extremely frustrating for Ironmen to not receive the drop.
+
+In addition to this, the best method for Ironmen to kill the Corporeal Beast is to heavily reduce its stats down with various weapons so it can effectively be solo'd. The Dragon Warhammer in particular is incredibly useful for this, but can be time consuming to obtain. Many players have been benefitting from other accounts to do stat lowering because of the way the cave works. When this is done, the Corporeal Beast still resets its health to 100% when everyone leaves the cave, but the reduced stats remain.
+
+To best combat both of the above, we'd like to incorporate a new Corporeal Beast cave. This new cave would only be accessible by Ironmen accounts with a combat level of 50 or higher. Ironmen below level 50 combat will still use the same cave as regular players.
+
+This means any '''Ironmen with level 50 combat or higher will no longer be able to enter the same Corporeal Beast cave as regular players''', however all other cave functionality, including teleports, will remain the same.
+
+''Whilst the above are particularly common areas of frustration, we're aware they're not the only places that could benefit from similar changes or tweaks and so '''we may consider more changes similar to these in the future'''. We're aiming to have these changes implemented as part of next week's game update. These will not be polled, but we welcome any feedback on the subject.''
+
+{{Horizontal Line}}
+
+{{Headline|22|Bounty Hunter and PvP World Schedules}}
+
+A common discussion point we see is regarding restricted activities that are locked to specific worlds. For many, this isn't a problem. However, activities such as PvP can depend on good ping, making the location of the world more important.
+
+Bounty Hunter is on W18.<br/>
+- ''This is a UK world.''<br/>
+The standard PvP worlds are W25 and W92.<br/>
+- ''These are in the UK and Australia respectively.''<br/>
+High Risk PvP is on W37.<br/>
+- ''This is US-East.''<br/>
+A new F2P PvP world is coming soon. 
+
+The two most popular of these worlds are '''W18 (Bounty Hunter) and W25 (PvP)''', both of which have '''always been in the UK'''. This is a source of irritation to the many players in countries like the USA and Canada, since the higher ping they experience can at times put them at a disadvantage.
+
+'''We'd like to propose a change''' to the world that these activities are restricted to, so that every two weeks, their location changes. We're proposing the following:
+
+On a two-weekly period, change the Bounty Hunter world between W18 (UK) and W19 (USA).<br/>
+On a two-weekly period, change the standard PvP world between W25 (UK) and W24 (USA).<br/>
+On a two-weekly period, change the High Risk PvP world between W37 (USA) and W43 (Germany).<br/>
+On a two-weekly period, change the F2P PvP world between the UK and USA (world numbers to be decided once the new world becomes available).
+
+For example...
+
+'''Two-weekly Period A''':<br/>
+Bounty Hunter is on W18 (UK) and High Risk PvP is on W43 (Germany), on the '''east''' side of the Atlantic.<br/>
+Standard PvP is on W24 (USA) and F2P PvP is in the USA, on the '''west''' side of the Atlantic.
+
+'''Two-weekly Period B''':<br/>
+Bounty Hunter is on W19 (USA) and High Risk PvP is on W37 (USA), on the '''west''' side of the Atlantic.<br/>
+Standard PvP is on W25 (UK) and F2P PvP is in the UK, on the '''east''' side of the Atlantic.
+
+By alternating between Two-weekly Period A and B, in any two weeks, one side of the Atlantic has better access to Bounty Hunter and the other has better access to the standard & F2P PvP worlds.
+
+We believe that with these changes, there will be a much better distribution of activity restricted worlds for all players. We intend to create a new page on the Old School RuneScape website homepage that will clearly highlight which world will correspond to each activity at any given week in the year.
+
+We'd like to trial the world restriction schedule next week, so as with any changes like these, your feedback is very much welcomed and appreciated.
+
+{{Horizontal Line}}
+
+{{Headline|22|QoL Improvements}}
+
+The PJ timer used on PvP worlds has now been applied to Bounty Hunter worlds.
+
+Fake XP drops will now appear for Ironmen when attacking other players. We've also made the fake XP drops respect the 'Grouping' toggle from the XP drop setup menu, which they previously didn't do.
+
+[[File:Upcoming Changes and Fake XP Drop Improvements (1).png|center|700px]]
+
+Any damage received during the Lunar Isle cutscene is now cleared when the cutscene ends.
+
+Upon completing the Chambers of Xeric, loot notifications are now able to support longer messages, so they can now describe a triple loot - ''if you're lucky enough to get that at least''.
+
+Using the Tip jar in a player owned house now once again lets the owner know how much was tipped.
+
+{{Horizontal Line}}
+
+{{Headline|22|Friends List Sorting}}
+
+Previously, players with Friends and Ignore lists longer than 200 entries could not use the Sorting buttons on the side-panels. While the Clan Setup screen did allow sorting, it would freeze your client while doing so.
+
+[[File:Upcoming Changes and Fake XP Drop Improvements (2).png|center]]
+
+All the lists can now be sorted regardless of how long they are, and without causing your client to freeze like that.
+
+An additional sorting option has been added, allowing you to sort the Friends and Clan lists according to when the player last changed worlds. The old Legacy sort options took this into account, so we've now given it an extra Sorting button of its own.
+
+If you sort the list by something that isn't unique - such as 'world number', since many of your friends may have the same world number - the list will take into account the previous sorting option you'd chosen.
+
+Friends who are online, or on the same world as you, will tend to appear nearer the top of the list for convenience, regardless of your other options.
+
+{{Horizontal Line}}
+
+{{Headline|22|In Other News}}
+
+*The render order of platebody pauldrons has been adjusted to prevent clipping issues.
+*The Mystic robe bottom no longer attaches itself to the Heavy ballista when equipped on a male character.
+*The description of the great Telescope in the Observatory has been changed to a famous quote from the late Stephen Hawking, as a tribute to the beloved Cambridge professor.
+*The Chambers of Xeric previously required party leaders to have 'Kick' rank in the channel. This has been changed to always require the rank of Recruit instead, similar to the requirement for initiating a fight at Clan Wars, so that members of a channel may start a raid without necessarily needing to be entrusted with 'Kick' privileges in the channel.
+*Cave worms will now tend to appear lower down the minimenu when picking up items in the Chambers of Xeric.
+*Collectors in Barbarian Assault will now have their horn put in their inventory before their bag, rather than the other way around.
+*Bird nests will now tend to appear above bird meat in the minimenu when picking up items.
+*In Deadman Mode, the Wilderness Hard diary task of killing a Lava Dragon and burying its bones on Lava Dragon Isle now only requires killing a Lava dragon, as they do not drop bones in Deadman.
+
+{{Horizontal Line}}
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,471,65999542 forums].
+
+'''''Mods Archie, Ash, Ayiza, Curse, Ed, Ghost, Jed, John C, Kieren, Lottie, Mat K, Maz, Roq, Ry, Stone, Sween, Weath, West & Wolf'''''<br/>''The Old School Team''

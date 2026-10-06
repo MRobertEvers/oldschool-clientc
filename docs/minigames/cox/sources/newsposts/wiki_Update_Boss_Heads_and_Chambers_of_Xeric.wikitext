@@ -1,0 +1,73 @@
+{{Update|date=14 February 2019|link=http://services.runescape.com/m=news/boss-heads-and-chambers-of-xeric?oldschool=1|category=game}}
+[[File:Boss Heads and Chambers of Xeric newspost.png|right]]
+{{clear}}
+
+<center>''This week sees the release of increased utility for boss heads and further Chambers of Xeric Chambers changes.''</center>
+
+{{Horizontal Line}}
+
+{{Headline|22|Boss Heads}}
+
+
+As the stacks of boss heads have been building in players' banks, we've received more and more requests to add ways to make them useful, beyond the one-off uses such as re-colouring your Slayer helm. In response, we have made the changes found below to give some additional options.
+
+'''Assembler Effect for the Ranging Cape'''
+
+Those of you who have slain Vorkath enough times to get a Vorkath head drop can now use it on a Ranging cape to give it the same ammo collection rates as Ava's assembler. Until now, the Ranging cape has had the ammo-saving effects equivalent to Ava's accumalator. Bear in mind that you'll need to use Vorkath's head directly onto the cape - using a pre-made Ava's assembler will not work.
+
+[[File:Boss Heads and Chambers of Xeric (1).png|center]]
+
+
+'''The Dark Altar'''
+
+You can now sacrifice your excess trophy head drops on Dark Altar to gain Prayer XP. This gives a flat rate of 2,500 XP for each head except Vorkath's which grants 1,000 XP as it's the most common. Using the Dark Altar in this way does not require any Arceuus or other favour and can be done in bulk, hence the reduced XP compared to using Vorkath's head as an Ensouled dragon's head sacrifice - which remains an option.
+
+[[File:Boss Heads and Chambers of Xeric (2).png|center]]
+
+
+{{Horizontal Line}}
+
+{{Headline|22|Chambers of Xeric QoL}}
+
+[[File:Boss Heads and Chambers of Xeric (3).png|center|250px]]
+
+
+This update also brings more of the changes we proposed in last month’s Chambers of Xeric Revisited blog. We’re still not done with the Chambers; in particular, we’ve yet to address an issue with the Vanguard detailed in the blog, and players have suggested other things they’d like us to improve about the balancing of the Chambers. In the meantime, the following changes have been made:
+*The Great Olm's fire may now be doused with various vessels of water and the Humidify spell.
+*Clue scrolls received in the Chambers of Xeric now count as an additional loot item.
+*Monster Examine may now be cast on monsters within the Chambers of Xeric.
+
+
+{{Horizontal Line}}
+
+{{Headline|22|In Other News}}
+
+
+'''World Rota'''
+
+Last week we switched the rota to Period A, but we left world 325 open as a second PvP world, as an experiment to see whether there’d be enough traffic for two of them. If this had worked out, we’d have been able to take worlds 324 and 325 out of the rota, and leave them both open as standard PvP worlds, permanently.
+
+However, the splitting of the traffic between the two worlds hasn’t worked well, and we’d like to end the experiment now. As it’s Period A, world 324 will remain open as the standard PvP world, and world 325 will no longer be a PvP world until the rota switches to Period B, on Thursday 21st.
+
+*Items dropped in the Blast Furnace room will now only ever appear to the person who dropped them. Items dropped at the Wintertodt will behave the same way except empty Vials and Jugs which will be destroyed on drop. Any items awarded by the Wintertodt crates which are dropped, will appear to other players after one minute as usual since most of those items have value, and players commented that they enjoy being able to scavenge each other’s unwanted rewards
+*Unfinished Torstol vials are now able to be used in place of a clean Torstol when making Super Combat potions.
+*Veos has been relocated to the Northern part of Port Sarim - replacing the corsairs who are now found at a dock in Rimmington. The Sheared Ram pub in Lumbridge remains the same as there were far fewer complaints that this does not fit thematically.
+*The strange portal that appeared by Port Sarim was removed.
+*The Regen bracelet's effect no longer works in free to play.
+*A typo during the “Forgettable tale…” quest has been corrected.
+*Scrolls of redirection now correctly check against certain Construction level requirements.
+*Mistakenly redirecting a teleport tablet to where it is currently redirected will no longer consume a Scroll of redirection.
+*Bunnies will no longer stand on top of Tool Leprechauns in the Farming Guild.
+*The shape puzzle interface in the Barrows no longer blocks out the whole screen in resizeable mode. Instead, its filler fades out towards its edges.
+*The Examine text of the Devout boots has been corrected.
+*The Examine text of the Dragon hasta (kp) has been made consistent with other (kp) hastae.
+*An open doorway in Piscarillius can now be walked through.
+*Some floating dirt in the Monkey Madness II caverns now correctly obeys gravity.
+*Some typos in the Wintertodt messaging have been corrected.
+*When collecting items from the take-all section in the gravestone menu, equippable items are now prioritised. This has not changed for Ultimate Ironmen.
+
+{{Horizontal Line}}
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,545,66083328 official forums], the community-led [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the '''#gameupdate''' channel. For reference on the above content, check out the official [[Wiki]].
+
+'''''Mods Archie, Ash, Bruno, Curse, Ed, Gambit, Ghost, Gee, Kieren, Lenny, Lottie, Mat K, Maz, Munro, Nasty, Roq, Ry, Sween, Tide, Weath, West & Wolf'''''<br/>''The Old School Team''

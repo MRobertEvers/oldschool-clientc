@@ -131,6 +131,7 @@ BETWEENAROCK_NPC = CONTENT / "quests/quest_betweenarock/configs/betweenarock.npc
 BETWEENAROCK_REALM = CONTENT / "quests/quest_betweenarock/scripts/betweenarock_realm.rs2"
 RUMDEAL_NPC = CONTENT / "quests/quest_rumdeal/configs/rumdeal.npc"
 RUMDEAL_COMBAT = CONTENT / "quests/quest_rumdeal/scripts/deal_combat.rs2"
+RUMDEAL_CONSTANT = CONTENT / "quests/quest_rumdeal/configs/rumdeal.constant"
 WANTED_NPC = CONTENT / "quests/quest_wanted/configs/wanted.npc"
 WANTED_HUNT = CONTENT / "quests/quest_wanted/scripts/wanted_hunt.rs2"
 SCORPION_STATS_NPC = CONTENT / "npc/configs/combat_stats.generated.npc"
@@ -5161,7 +5162,16 @@ def check_rum_deal() -> None:
         "[opnpc2,deal_evil_spirit]\n~npc_retaliate(0);\n@player_combat_start;",
         "[ai_queue3,deal_evil_spirit]\nif (npc_findhero = true) {",
         "%varp600_deal_quest = ^deal_told_kill_spider;",
+        # b68-seam1: the page's max hit 28, not ~npc_melee_maxhit's 16.
+        "[ai_opplayer2,deal_evil_spirit]",
+        "~playerhit_n_melee(^crush_style, randominc(^deal_evil_spirit_melee_maxhit));",
     ), "Rum Deal Evil spirit fight")
+    require_text(RUMDEAL_CONSTANT.read_text(), ("^deal_evil_spirit_melee_maxhit = 28",),
+                 "Rum Deal Evil spirit max hit")
+    require(not any("max hit 28 is not what" in gap for gap in
+                    [row for row in json.loads(MANIFEST.read_text())["encounters"]
+                     if row["id"] == "quest-rum-deal"][0]["known_gaps"]),
+            "Rum Deal: the max-hit-28 known gap is closed (deal_combat.rs2 rolls it)")
 
 
 def check_wanted() -> None:
@@ -5193,6 +5203,104 @@ def check_wanted() -> None:
         "%varb1051_wanted_main = ^wanted_final_battle;",
         "npc_add($knight_spot, wanted_summoned_black_knight, 200);",
     ), "Wanted! Solus fight")
+
+
+# The test-fought npcs that fought on the engine default (matthew-mbp-m4-b68-seam1):
+# (manifest quest name, .npc file under CONTENT, symbol, wiki oldid, hitpoints,
+#  lines the block must carry; a leading "!" is a line it must NOT carry).
+# Values: each npc's OSRS wiki Infobox Monster at the oldid, compared with its
+# configs/all.npc record (the block's own header cites both).
+TEST_FOUGHT_NPC_BLOCKS: tuple[tuple[str, str, str, int, int, tuple[str, ...]], ...] = (
+    ("Spirits of the Elid", "quests/quest_spiritsoftheelid/configs/spiritsoftheelid.npc", "elid_golem_white", 15338923, 80,
+     ("attack=80", "strength=30", "defence=80", "magic=1", "ranged=1", "param=damagetype,^crush_style", "param=attackrate,4", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,0", "param=strengthbonus,0", "param=rangebonus,0", "param=stabdefence,1", "param=slashdefence,300", "param=crushdefence,300", "param=magicdefence,300", "param=rangedefence,300")),
+    ("Spirits of the Elid", "quests/quest_spiritsoftheelid/configs/spiritsoftheelid.npc", "elid_golem_grey", 15338925, 80,
+     ("attack=80", "strength=30", "defence=80", "magic=1", "ranged=1", "param=damagetype,^crush_style", "param=attackrate,4", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,0", "param=strengthbonus,0", "param=rangebonus,0", "param=stabdefence,300", "param=slashdefence,1", "param=crushdefence,300", "param=magicdefence,300", "param=rangedefence,300")),
+    ("Spirits of the Elid", "quests/quest_spiritsoftheelid/configs/spiritsoftheelid.npc", "elid_golem_black", 15338922, 80,
+     ("attack=80", "strength=30", "defence=80", "magic=1", "ranged=1", "param=damagetype,^crush_style", "param=attackrate,4", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,0", "param=strengthbonus,0", "param=rangebonus,0", "param=stabdefence,300", "param=slashdefence,300", "param=crushdefence,1", "param=magicdefence,300", "param=rangedefence,300")),
+    ("The Feud", "quests/quest_thefeud/configs/thefeud.npc", "feud_menap_toughguy", 15292989, 75,
+     ("attack=85", "strength=50", "defence=50", "magic=80", "ranged=0", "param=damagetype,^crush_style", "param=attackrate,4", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,9", "param=strengthbonus,9", "param=rangebonus,0", "param=stabdefence,9", "param=slashdefence,8", "param=crushdefence,10", "param=magicdefence,0", "param=rangedefence,0")),
+    ("The Feud", "quests/quest_thefeud/configs/thefeud.npc", "feud_bandit_toughguy", 15292988, 50,
+     ("attack=59", "strength=80", "defence=50", "magic=0", "ranged=0", "param=damagetype,^slash_style", "param=attackrate,4", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,9", "param=crushattack,0", "param=strengthbonus,9", "param=rangebonus,0", "param=stabdefence,9", "param=slashdefence,8", "param=crushdefence,10", "param=magicdefence,0", "param=rangedefence,0")),
+    ("Biohazard", "areas/area_ardougne_west/configs/mourner.npc", "mournerstew2", 15238134, 19,
+     ("attack=10", "strength=10", "defence=10", "magic=1", "ranged=1", "param=damagetype,^crush_style", "param=attackrate,4", "!huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,0", "param=strengthbonus,0", "param=rangebonus,0", "param=stabdefence,3", "param=slashdefence,2", "param=crushdefence,4", "param=magicdefence,0", "param=rangedefence,0")),
+    ("Mourning's End Part I", "quests/quest_mourningsendparti/configs/mend1.npc", "mourning_overpass_mourner", 15242506, 19,
+     ("attack=8", "strength=8", "defence=8", "magic=1", "ranged=1", "param=damagetype,^crush_style", "param=attackrate,4", "!huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,6", "param=strengthbonus,2", "param=rangebonus,0", "param=stabdefence,6", "param=slashdefence,6", "param=crushdefence,9", "param=magicdefence,0", "param=rangedefence,0")),
+    ("Recruitment Drive", "quests/quest_recruitmentdrive/configs/recruitmentdrive.npc", "rd_combat_npc_room_3", 15262507, 20,
+     ("attack=18", "strength=18", "defence=15", "magic=1", "ranged=1", "param=damagetype,^crush_style", "param=attackrate,5", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,0", "param=strengthbonus,0", "param=rangebonus,0", "param=stabdefence,0", "param=slashdefence,0", "param=crushdefence,0", "param=magicdefence,0", "param=rangedefence,0")),
+    ("Prying Times", "quests/quest_pryingtimes/configs/pryingtimes.npc", "sailing_charting_drink_crate_prying_times_effect_troll", 15200619, 25,
+     ("attack=9", "strength=9", "defence=9", "magic=1", "ranged=1", "param=damagetype,^crush_style", "param=attackrate,4", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,0", "param=strengthbonus,0", "param=rangebonus,0", "param=stabdefence,0", "param=slashdefence,0", "param=crushdefence,0", "param=magicdefence,0", "param=rangedefence,0")),
+    ("Below Ice Mountain", "quests/quest_belowicemountain/configs/belowicemountain.npc", "bim_golem_boss", 15200249, 40,
+     ("attack=25", "strength=33", "defence=25", "magic=1", "ranged=1", "param=damagetype,^crush_style", "param=attackrate,5", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,20", "param=strengthbonus,50", "param=rangebonus,0", "param=stabdefence,40", "param=slashdefence,40", "param=crushdefence,0", "param=magicdefence,5", "param=rangedefence,30")),
+    ("The Ribbiting Tale of a Lily Pad Labour Dispute", "quests/quest_ribbitingtale/configs/ribbitingtale.npc", "frog_quest_cuthbert_combat", 15207602, 1,
+     ("attack=1", "strength=1", "defence=1", "magic=1", "ranged=1", "param=damagetype,^crush_style", "param=attackrate,4", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,0", "param=strengthbonus,0", "param=rangebonus,0", "param=stabdefence,0", "param=slashdefence,0", "param=crushdefence,0", "param=magicdefence,0", "param=rangedefence,0")),
+    ("The Depths of Despair", "quests/quest_depthsofdespair/configs/depthsofdespair.npc", "hosidiusquest_snake", 15364396, 60,
+     ("attack=30", "strength=20", "defence=20", "magic=1", "ranged=1", "param=damagetype,^crush_style", "param=attackrate,4", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,0", "param=strengthbonus,0", "param=rangebonus,0", "param=stabdefence,0", "param=slashdefence,0", "param=crushdefence,0", "param=magicdefence,0", "param=rangedefence,0")),
+    ("Olaf's Quest", "quests/quest_olafsquest/configs/olafsquest.npc", "olaf2_ulfric", 15351186, 60,
+     ("attack=100", "strength=100", "defence=82", "magic=1", "ranged=1", "param=damagetype,^slash_style", "param=attackrate,4", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,0", "param=strengthbonus,0", "param=rangebonus,0", "param=stabdefence,0", "param=slashdefence,0", "param=crushdefence,0", "param=magicdefence,0", "param=rangedefence,0")),
+    ("A Porcine of Interest", "quests/quest_porcineofinterest/configs/porcineofinterest.npc", "porcine_sourhog_second", 15275486, 40,
+     ("attack=35", "strength=30", "defence=25", "magic=25", "ranged=35", "param=damagetype,^crush_style", "param=attackrate,5", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,0", "param=strengthbonus,0", "param=rangebonus,20", "param=stabdefence,0", "param=slashdefence,30", "param=crushdefence,10", "param=magicdefence,30", "param=rangedefence,0")),
+    ("A Soul's Bane", "quests/quest_soulsbane/configs/soulsbane.npc", "soulbane_anger_unicorn", 15199351, 200,
+     ("attack=37", "strength=38", "defence=38", "magic=1", "ranged=1", "param=damagetype,^stab_style", "param=attackrate,4", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,0", "param=strengthbonus,0", "param=rangebonus,0", "param=stabdefence,0", "param=slashdefence,0", "param=crushdefence,0", "param=magicdefence,0", "param=rangedefence,0")),
+    ("A Soul's Bane", "quests/quest_soulsbane/configs/soulsbane.npc", "soulbane_fear_reaper", 15199746, 25,
+     ("attack=39", "strength=41", "defence=40", "magic=1", "ranged=1", "param=damagetype,^slash_style", "param=attackrate,4", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,0", "param=strengthbonus,0", "param=rangebonus,0", "param=stabdefence,0", "param=slashdefence,0", "param=crushdefence,0", "param=magicdefence,0", "param=rangedefence,0")),
+    ("A Soul's Bane", "quests/quest_soulsbane/configs/soulsbane.npc", "soulbane_confu_creeper", 15199269, 28,
+     ("attack=42", "strength=41", "defence=40", "magic=1", "ranged=1", "param=damagetype,^stab_style", "param=attackrate,4", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,0", "param=strengthbonus,0", "param=rangebonus,0", "param=stabdefence,0", "param=slashdefence,0", "param=crushdefence,0", "param=magicdefence,0", "param=rangedefence,0")),
+    ("A Soul's Bane", "quests/quest_soulsbane/configs/soulsbane.npc", "soulbane_confu_creeper_fake1", 15199269, 28,
+     ("attack=42", "strength=41", "defence=40", "magic=1", "ranged=1", "param=damagetype,^crush_style", "param=attackrate,4", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,0", "param=strengthbonus,0", "param=rangebonus,0", "param=stabdefence,0", "param=slashdefence,0", "param=crushdefence,0", "param=magicdefence,0", "param=rangedefence,0")),
+    ("A Soul's Bane", "quests/quest_soulsbane/configs/soulsbane.npc", "soulbane_hope_monst3", 15362688, 25,
+     ("attack=38", "strength=36", "defence=39", "magic=1", "ranged=1", "param=damagetype,^stab_style", "param=attackrate,4", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,0", "param=strengthbonus,0", "param=rangebonus,0", "param=stabdefence,0", "param=slashdefence,0", "param=crushdefence,0", "param=magicdefence,0", "param=rangedefence,0")),
+    ("A Soul's Bane", "quests/quest_soulsbane/configs/soulsbane.npc", "soulbane_hope_monst2", 15362688, 25,
+     ("attack=38", "strength=36", "defence=39", "magic=1", "ranged=1", "param=damagetype,^stab_style", "param=attackrate,4", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,0", "param=strengthbonus,0", "param=rangebonus,0", "param=stabdefence,0", "param=slashdefence,0", "param=crushdefence,0", "param=magicdefence,0", "param=rangedefence,0")),
+    ("A Soul's Bane", "quests/quest_soulsbane/configs/soulsbane.npc", "soulbane_hope_monst1", 15362688, 25,
+     ("attack=38", "strength=36", "defence=39", "magic=1", "ranged=1", "param=damagetype,^stab_style", "param=attackrate,4", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,0", "param=strengthbonus,0", "param=rangebonus,0", "param=stabdefence,0", "param=slashdefence,0", "param=crushdefence,0", "param=magicdefence,0", "param=rangedefence,0")),
+    ("A Soul's Bane", "quests/quest_soulsbane/configs/soulsbane.npc", "soulbane_final_tolna1", 15199356, 37,
+     ("attack=42", "strength=41", "defence=40", "magic=1", "ranged=1", "param=damagetype,^slash_style", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,0", "param=strengthbonus,0", "param=rangebonus,0", "param=stabdefence,0", "param=slashdefence,0", "param=crushdefence,0", "param=magicdefence,50", "param=rangedefence,50")),
+    ("A Soul's Bane", "quests/quest_soulsbane/configs/soulsbane.npc", "soulbane_final_tolna2", 15199356, 37,
+     ("attack=42", "strength=41", "defence=40", "magic=1", "ranged=1", "param=damagetype,^slash_style", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,0", "param=strengthbonus,0", "param=rangebonus,0", "param=stabdefence,0", "param=slashdefence,0", "param=crushdefence,0", "param=magicdefence,50", "param=rangedefence,50")),
+    ("A Soul's Bane", "quests/quest_soulsbane/configs/soulsbane.npc", "soulbane_final_tolna3", 15199356, 37,
+     ("attack=42", "strength=41", "defence=40", "magic=1", "ranged=1", "param=damagetype,^slash_style", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,0", "param=strengthbonus,0", "param=rangebonus,0", "param=stabdefence,0", "param=slashdefence,0", "param=crushdefence,0", "param=magicdefence,50", "param=rangedefence,50")),
+    ("Troll Stronghold", "quests/quest_troll/configs/quest_troll.npc", "troll_prison_guard1_awake", 15326896, 90,
+     ("attack=40", "strength=90", "defence=25", "magic=0", "ranged=0", "param=damagetype,^crush_style", "param=attackrate,6", "!huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,20", "param=strengthbonus,20", "param=rangebonus,0", "param=stabdefence,0", "param=slashdefence,0", "param=crushdefence,10", "param=magicdefence,200", "param=rangedefence,200")),
+    ("Troll Stronghold", "quests/quest_troll/configs/quest_troll.npc", "troll_prison_guard2_awake", 15326895, 90,
+     ("attack=40", "strength=90", "defence=25", "magic=0", "ranged=0", "param=damagetype,^crush_style", "param=attackrate,6", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,20", "param=strengthbonus,20", "param=rangebonus,0", "param=stabdefence,0", "param=slashdefence,0", "param=crushdefence,10", "param=magicdefence,200", "param=rangedefence,200")),
+    ("Shilo Village", "quests/quest_zombiequeen/configs/zombiequeen.npc", "zq_mainzombie1", 15199510, 70,
+     ("attack=85", "strength=80", "defence=80", "magic=0", "ranged=0", "param=damagetype,^slash_style", "param=attackrate,4", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,0", "param=strengthbonus,0", "param=rangebonus,0", "param=stabdefence,0", "param=slashdefence,0", "param=crushdefence,0", "param=magicdefence,0", "param=rangedefence,0")),
+    ("Shilo Village", "quests/quest_zombiequeen/configs/zombiequeen.npc", "zq_mainzombie2", 15199510, 70,
+     ("attack=58", "strength=54", "defence=58", "magic=0", "ranged=0", "param=damagetype,^slash_style", "param=attackrate,4", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,15", "param=crushattack,0", "param=strengthbonus,15", "param=rangebonus,0", "param=stabdefence,5", "param=slashdefence,5", "param=crushdefence,5", "param=magicdefence,5", "param=rangedefence,5")),
+    ("Shilo Village", "quests/quest_zombiequeen/configs/zombiequeen.npc", "zq_mainzombie3", 15199510, 80,
+     ("attack=85", "strength=80", "defence=80", "magic=0", "ranged=0", "param=damagetype,^slash_style", "param=attackrate,4", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,0", "param=strengthbonus,0", "param=rangebonus,0", "param=stabdefence,0", "param=slashdefence,0", "param=crushdefence,0", "param=magicdefence,0", "param=rangedefence,0")),
+)
+
+
+def check_test_fought_npc_blocks() -> None:
+    """Every npc a quest test fights carries its sourced stat block (b68-seam1:
+    29 of them had none and fought at the engine default's 10 hp and 1/1/1 --
+    spiritsoftheelid's 80-hp white golem read `hp no bar -> 18/30` after one
+    hit of 4). Each block cites its oldid, and the manifest row pins it."""
+    manifest = {row["name"]: row for row in json.loads(MANIFEST.read_text())["encounters"]}
+    texts: dict[str, str] = {}
+    for quest, path, symbol, oldid, hitpoints, lines in TEST_FOUGHT_NPC_BLOCKS:
+        scope = f"{quest} [{symbol}]"
+        if path not in texts:
+            texts[path] = (CONTENT / path).read_text()
+        text = texts[path]
+        require(f"oldid {oldid}" in text, f"{scope}: {path} does not cite wiki oldid {oldid}")
+        block = _npc_block(text, symbol)
+        require(bool(block), f"{scope}: no [{symbol}] block in {path}")
+        hitpoint_lines = [line for line in block if line.startswith("hitpoints=")]
+        require(hitpoint_lines == [f"hitpoints={hitpoints}"],
+                f"{scope}: hitpoints {hitpoint_lines} (want {hitpoints})")
+        for line in lines:
+            if line.startswith("!"):
+                require(line[1:] not in block, f"{scope}: carries `{line[1:]}` (the page says no)")
+            else:
+                require(line in block, f"{scope}: lacks `{line}`")
+        row = manifest.get(quest)
+        require(row is not None, f"{scope}: no manifest row named {quest!r}")
+        pinned = {audit["revision"] for audit in row["source_audits"]}
+        require(oldid in pinned, f"{scope}: manifest row does not pin oldid {oldid}")
+        require(any(entry.startswith(f"{symbol}:") for entry in row["npc_gamevals"]),
+                f"{scope}: manifest row has no npc_gamevals entry for {symbol}")
 
 
 def check_taleoftherighteous() -> None:
@@ -5329,13 +5437,14 @@ def main() -> int:
         check_between_a_rock()
         check_rum_deal()
         check_wanted()
+        check_test_fought_npc_blocks()
         check_opnpc2_combat_start()
         check_apnpc2_twins()
         check_quest_progress_varps()
     except (OSError, ValueError, KeyError, json.JSONDecodeError) as error:
         print(f"quest combat contract: {error}", file=sys.stderr)
         return 1
-    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment, Fight Arena, Hazeel Cult, The Grand Tree, Underground Pass, Observatory Quest, The Tourist Trap, Watchtower, Legends' Quest, Big Chompy Bird Hunting, Elemental Workshops I/II, Nature Spirit, Priest in Peril, Regicide, Tai Bwo Wannai Trio, Troll Stronghold, Shades of Mort'ton, The Fremennik Trials, Horror from the Deep, Monkey Madness I, Haunted Mine, Troll Romance, In Search of the Myreque, Creature of Fenkenstrain, Roving Elves, Ghosts Ahoy, One Small Favour, Contact!, Swan Song, Troubled Tortugans, The Ascent of Arceuus, Another Slice of H.A.M., Meat and Greet, Twilight's Promise, The Eyes of Glouphrie, Dream Mentor, Tale of the Righteous, Shadow of the Storm, Between a Rock..., Rum Deal and Wanted!, plus the repo-wide trap 31 [opnpc2]/[apnpc2] combat-start sweep, the gated-[opnpc2] [apnpc2]-twin sweep and the quest progress-varp transmit/perm sweep (ok)")
+    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment, Fight Arena, Hazeel Cult, The Grand Tree, Underground Pass, Observatory Quest, The Tourist Trap, Watchtower, Legends' Quest, Big Chompy Bird Hunting, Elemental Workshops I/II, Nature Spirit, Priest in Peril, Regicide, Tai Bwo Wannai Trio, Troll Stronghold, Shades of Mort'ton, The Fremennik Trials, Horror from the Deep, Monkey Madness I, Haunted Mine, Troll Romance, In Search of the Myreque, Creature of Fenkenstrain, Roving Elves, Ghosts Ahoy, One Small Favour, Contact!, Swan Song, Troubled Tortugans, The Ascent of Arceuus, Another Slice of H.A.M., Meat and Greet, Twilight's Promise, The Eyes of Glouphrie, Dream Mentor, Tale of the Righteous, Shadow of the Storm, Between a Rock..., Rum Deal and Wanted!, the 29 test-fought npc stat blocks, plus the repo-wide trap 31 [opnpc2]/[apnpc2] combat-start sweep, the gated-[opnpc2] [apnpc2]-twin sweep and the quest progress-varp transmit/perm sweep (ok)")
     return 0
 
 

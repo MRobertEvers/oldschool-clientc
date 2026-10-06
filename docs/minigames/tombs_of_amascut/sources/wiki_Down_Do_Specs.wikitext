@@ -1,0 +1,88 @@
+{{Infobox Combat Achievement
+|name = Down Do Specs
+|image = [[File:Tombs of Amascut - attacking Warden core.png|300px]]
+|release = [[30 November]] [[2022]]
+|update = The Garden of Death & More
+|members = Yes
+|description = Defeat the Wardens after staggering the boss a maximum of twice during phase two, without dying yourself.
+|tier = Elite
+|monster = Tombs of Amascut
+|type = Mechanical
+|id = 458
+|leagueRegion = Desert
+}}
+'''Down Do Specs''' is an [[Combat Achievements/Elite|elite combat achievement]] which requires the player to defeat the Wardens after staggering the boss twice during phase 2 without dying, at raid level 150 or above.
+
+==Strategy==
+This achievement is a reference to the two-cycle method used to finish the Wardens quickly. The player should have as much strength bonus as possible to maximise their melee hits. Make sure that you are under the effects of [[smelling salts]] to boost damage.
+
+Keep one [[liquid adrenaline]] for this task. A [[lightbearer]] is not needed for lower raid levels, but is still helpful for reducing wait times. If on the Arceuus Spellbook, the spell [[Death Charge]] will restore energy when the core is returned to the Warden, as it counts as a "death" for the spell as long as the player has attacked the core at least once.
+
+During the first cycle, dump five [[dragon dagger]] specials and follow up with a powerful two-handed weapon (e.g a godsword) as the final hit. On the second cycle, drink another dose of adrenaline (if the first one was used on the obelisk) and dump as many special attacks as possible - ideally having six or seven specials on hand should be enough for lower raid levels, followed with a 4-tick weapon (e.g whip). In group encounters, the overall damage is higher and should usually be enough to two cycle as long as each player's max hit is high enough.
+
+==Recommended Equipment==
+{{Recommended equipment
+| style = Melee
+| head1 = {{plink|Torva full helm}}
+| head2 = {{plink|Neitiznot faceguard}}
+| head3 = {{plink|Serpentine helm}}
+| head4 = {{plink|Inquisitor's great helm}}
+| head5 = {{plink|Helm of Neitiznot}} /<br/>{{plink|Berserker helm}} /<br/>{{plink|Obsidian helmet}}
+| neck1 = {{plink|Amulet of rancour}}
+| neck2 = {{plink|Amulet of torture}}
+| neck3 = {{plink|Amulet of blood fury}}
+| neck4 = {{plink|Amulet of fury}}
+| neck5 = {{plink|Amulet of the Damned}}
+| neck6 = {{plink|Amulet of glory}}
+| cape1 = {{plink|Infernal cape}}
+| cape2 = {{plink|Fire cape}}
+| cape3 = {{plink|Ardougne cloak 4}} /<br/>{{plink|Mythical cape}}
+| cape4 = {{plink|Max cape}}
+| cape5 = {{plink|Prayer cape}}
+| body1 = {{plink|Torva platebody}}
+| body2 = {{plink|Bandos chestplate}}
+| body3 = {{plink|Fighter torso}}
+| body4 = {{plink|Inquisitor's hauberk}}
+| body5 = {{plink|Obsidian platebody}}
+| legs1 = {{plink|Torva platelegs}}
+| legs2 = {{plink|Bandos tassets}}
+| legs3 = {{plink|Inquisitor's plateskirt}}
+| legs4 = {{plink|Obsidian platelegs}}
+| legs5 = {{plink|Fremennik kilt}}
+| weapon1 = {{plink|Bandos godsword}}
+| weapon2 = {{plink|Armadyl godsword|txt=Any Godsword}}
+| weapon3 = {{plink|Dharok's greataxe}}
+| weapon4 = {{plink|Leaf-bladed battleaxe}}/<br/>{{plink|Barrelchest anchor}}
+| weapon5 = {{plink|Dragon warhammer}}
+| shield1 = {{plink|Avernic defender}}
+| shield2 = {{plink|Dragonfire shield}}
+| shield3 = {{plink|Dragon defender}}
+| shield4 = {{plink|Rune defender}}
+| shield5 = {{plink|Toktz-ket-xil}}
+| ammo1 = {{plink|Rada's blessing 4}}
+| ammo2 = {{plink|God blessing|pic=Peaceful blessing}}/ {{plink|Rada's blessing 3|txt=Rada's blessing 3/2}}
+| hands1 = {{plink|Ferocious gloves}}
+| hands2 = {{plink|Barrows gloves}}
+| hands3 = {{plink|Rune gloves}}
+| hands4 = {{plink|Regen bracelet}}
+| hands5 = {{plink|Granite gloves}}
+| feet1 = {{plink|Avernic treads (max)}}
+| feet2 = {{plink|Primordial boots}}
+| feet3 = {{plink|Dragon boots}}
+| feet4 = {{plink|Spiked manacles}}
+| feet5 = {{plink|Granite boots}}
+| ring1 = {{plink|Lightbearer}}
+| ring2 = {{plink|Ultor ring}}
+| ring3 = {{plink|Berserker ring (i)}}
+| ring4 = {{plink|Bellator ring}}
+| ring5 = {{plink|Brimstone ring}}
+| special1 = {{plink|Dragon dagger}}
+}}
+
+==Other tasks==
+{{Combat Achievements list|Tombs of Amascut}}
+
+==Trivia==
+* The name of this achievement can be abbreviated as "DDS", which is a common nickname for a [[dragon dagger#Poison++|dragon dagger with weapon poison(++) applied]].
+
+{{Combat Achievements}}

@@ -37,10 +37,14 @@ return {
         -- while the world's single random stream happened to favour it; on
         -- the player's own stream (seam28) Sir Leye killed him at tick 201.
         -- Staged to a character that meets the stated requirement.
-        "::setlevel attack 20",
-        "::setlevel strength 20",
-        "::setlevel defence 20",
-        "::setlevel hitpoints 20",
+        -- owner ruling 2026-10-06: bare-handed, stats staged 25 for margin.
+        -- Combat-level branch check: quest_recruitmentdrive/scripts has no read of
+        -- combat level or Attack/Strength/Defence/Hitpoints (only the npc_type test
+        -- at recruitmentdrive_kuam.rs2:60), so the staged stats change nothing but the fight.
+        "::setlevel attack 25",
+        "::setlevel strength 25",
+        "::setlevel defence 25",
+        "::setlevel hitpoints 25",
     },
 
     run = function(t)
@@ -288,9 +292,9 @@ return {
         t.exec("killSirLeye-attack", t.player.attack, "rd_combat_npc_room_3", 2, 20)
         t.exec("killSirLeye", t.npc.await_dead_engaged, 300, 30)
         local hp_after = hp_now()
-        t.check("killSirLeye.margin", hp_after ~= nil and hp_after >= 5,
+        t.check("killSirLeye.margin", hp_after ~= nil and hp_after >= 7,
             "Sir Leye, bare-handed: hitpoints " .. tostring(hp_before) .. " before, " .. tostring(hp_after)
-                .. " after (margin: lowest hp >= 5, a quarter of 20; food: none -- the quest bars every carried item)")
+                .. " after (margin: lowest hp >= 7, a quarter of 25 rounded up; food: none -- the quest bars every carried item)")
         local room3_r, room3_v = t.var.server("varb661_rd_room3_complete")
         t.check("killSirLeye.room3_complete", room3_r == "ok" and room3_v == 1,
             "var.server(rd_room3_complete) -> " .. tostring(room3_r) .. " " .. tostring(room3_v))

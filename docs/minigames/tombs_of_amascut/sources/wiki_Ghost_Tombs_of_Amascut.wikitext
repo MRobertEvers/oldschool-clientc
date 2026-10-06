@@ -1,0 +1,18 @@
+{{Infobox NPC
+|name = Ghost
+|image = [[File:Ghost (Tombs of Amascut).png|140px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|race = Ghost
+|location = [[Tombs of Amascut]]
+|examine = Eeek! A ghost!
+|map = No
+|id = 11695
+|leagueRegion = Desert
+}}
+[[File:Ghost (Tombs of Amascut) chathead.png|left]]
+The '''ghost'''  is a transmogrification character. Although the player transforms into them upon dying in the [[Tombs of Amascut]], the NPC itself can never actually be seen ingame.
+[[File:Tombs of Amascut player ghost.png|thumb|left|400px|The players transformed into the ghost upon dying.]]
+
+{{Tombs of Amascut}}

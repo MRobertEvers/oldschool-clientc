@@ -1,0 +1,109 @@
+{{Infobox NPC
+|version1 = Dim
+|version2 = Red
+|version3 = Green
+|version4 = Blue
+|name1 = Jewelled Crab
+|name2 = Jewelled Crab (red)
+|name3 = Jewelled Crab (green)
+|name4 = Jewelled Crab (blue)
+|image1 = [[File:Jewelled Crab.png|150px]]
+|image2 = [[File:Jewelled Crab (red).png|150px]]
+|image3 = [[File:Jewelled Crab (green).png|150px]]
+|image4 = [[File:Jewelled Crab (blue).png|150px]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|race = [[Crab]]
+|location = [[Chambers of Xeric]]
+|options = Attack, Smash
+|examine1 = The gems on its rocky carapace are glowing dimly.
+|examine2 = The gems on its rocky carapace are glowing red.
+|examine3 = The gems on its rocky carapace are glowing green.
+|examine4 = The gems on its rocky carapace are glowing blue.
+|map = No
+|id1 = 7576
+|id2 = 7577
+|id3 = 7578
+|id4 = 7579
+|leagueRegion = Kourend
+}}
+'''Jewelled Crabs''' are found in the [[Chambers of Xeric/Strategies#Crab puzzle|crab puzzle]] room within the [[Chambers of Xeric]]. These crabs cannot be killed by conventional [[combat]]. However, the crystals which are on the crabs can be attacked in order to change their colour. Attacking with [[melee]] (or smashing it with a hammer) will cause a crab to change {{Colour|#ff0000|Red}}, [[magic]] for {{Colour|#0000ff|Blue}}, and [[ranged]] for {{Colour|#00ff00|Green}}.
+
+They regenerate their stats at a rate of 1 per tick, faster than the standard rate of 1 per 100 ticks.{{CiteDiscord|author=Mod Ash|url=https://discord.com/channels/324132423636090880/434286997360738305/1524701424460628080|date=9 July 2026|quote=Stone guardians - 8 Muttadiles - 15 Vasa Nistirio - 10 Vasa's crystal - 9 Tekton - 15 LizardShamans - 20 Skeletal mystics - 25 Jewelled Crabs - 1 Vespula - 10 Vespula's portal - 45 Vespula's grubs - 10000 (i.e. never) Vespine soldier (flying) - 16 Vespine soldier (walking) - 10000 Otherwise default should be 100, as for outside CoX.|ctxquote=Hi@JagexAsh would you per chance be able to say the regen time (in ticks) for mobs in chambers?}}
+
+For solo players, they can use a standard [[hammer]], or any [[blunt]] weapon with crush bonuses, including but not limited to: the [[dragon warhammer|(dragon)]] [[warhammer]](s), the [[elder maul]], the [[abyssal bludgeon]], the [[cursed goblin hammer]], [[Torag's hammers]], [[granite maul]], [[granite hammer]], [[frying pan]], [[meat tenderiser]], etc. and use the right-click "Smash" option on the crab. This will stun the crab in place for a while.
+
+Each crystal requires the following orbs:
+{| class="wikitable"
+|-
+!Crystal
+!Orb Colour
+!Style
+|-
+|Black
+|{{Colour|#ffffff|White}}
+|None
+|-
+|{{Colour|#ffff00|Yellow}}
+|{{Colour|#0000ff|Blue}}
+|Mage
+|-
+|{{Colour|#00ffff|Cyan (Blue)}}
+|{{Colour|#ff0000|Red}}
+|Melee
+|-
+|{{Colour|#ff00ff|Magenta (Purple)}}
+|{{Colour|#00ff00|Green}}
+|Range
+|}
+
+The duration of the stun is dependent on the size of the party.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1235164787119738880|date=4 March 2020|archiveurl=https://reldo.runescape.wiki/i/99812|archivedate=5 August 2023|quote=1 player: 50-60 ticks; 2-3 players: 30-40 ticks; 4-5 players: 20-30 ticks; 6+ playerss: 10-20 ticks}}
+
+{| class="wikitable align-center-1"
+|-
+!Party size
+!Stun duration
+|-
+|Solo
+|50 to 60 ticks
+|-
+|2 – 3
+|30 to 40 ticks
+|-
+|4 – 5
+|20 to 30 ticks
+|-
+|6+
+|10 to 20 ticks
+|}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 16 September 2026
+|update = Summer Sweep-Up Pet Improvements & More
+|change = [[Thrall]]s will now change the colour of jewelled crabs with their attacks, with the same interactions as player attacks.
+* Zombified thralls change their colour to red.
+* Skeletal thralls change their colour to green.
+* Ghostly thralls change their colour to blue.
+}}
+{{Subject changes
+|date = 12 December 2023
+|update = Christmas 2023
+|change = [[Tumeken's shadow]] will now 'splash' on crabs if the player's [[Magic bonus]] is -64 or lower.
+}}
+{{Subject changes
+|date = 29 November 2023
+|update = Chambers of Xeric Changes
+|poll = Chambers of Xeric Room Improvements
+|change =
+* Players can no longer 'splash' on crabs if their [[Magic bonus]] is higher than -64.
+* Attacks no longer have any delay after hitting a crab. If your attack changes the crab's colour, you will not automatically re-attack.
+}}
+{{Subject changes footer}}
+
+==References==
+{{Reflist}}
+
+{{Chambers of Xeric}}

@@ -1,0 +1,71 @@
+{{Update|date=26 April 2018|link=http://services.runescape.com/m=news/resizeable-chat-toggle-and-ios-beta-end?oldschool=1|category=game}}
+[[File:Resizeable Chat Toggle and iOS Beta End newspost.png|right]]
+{{clear}}
+
+<center>''This week sees the release of some more QoL changes, worlds return to normality following maintenance work, and the very first #OSRSMobile iOS beta comes to an end.''</center>
+
+
+{{Horizontal Line}}{{Headline|25|QoL Changes}}<br/>'''Resizeable Mode Chat'''
+
+Previously it was possible for players to click the scrollbar when in resizeable mode, rather than interacting with what they had intended. Today's update will allow players to click through that region of the chatbox when in resizeable mode. You may now change the location of the scrollbar within your chat window. Simply open the Options tab, and within the Display options menu you'll find the Advanced options interface. From here you'll be able to toggle the Resizeable mode scrollbar position to appear either on the left or on the right of your chat window.
+
+[[File:Resizeable Chat Toggle and iOS Beta End (1).png|center]]<br/>'''Music Player Song Counter'''
+
+The Music Player tab now displays a counter for unlocked songs at the bottom of the display. This should aid your efforts in acquiring the Music cape, particularly when used alongside the relatively recent addition of song hints (''right-click a song to be give a hint as to where it unlocks!'')
+
+[[File:Resizeable Chat Toggle and iOS Beta End (2).png|center]]<br/>'''Penance Armour Storage'''
+
+You are now able to store a full set of Penance armour within the Armour case of your player-owned house. Once the Penance Fighter torso, Penance Runner boots, Penance gloves, and the Penance skirt have '''all''' been stored you'll also be able to store the Penance Fighter hat, the Penance Range hat, the Penance Runner hat, and the Penance Healer hat. ''You will not be able to store the hats until the armour pieces have been stored.''
+
+[[File:Resizeable Chat Toggle and iOS Beta End (3).png|center]]
+
+{{Horizontal Line}}{{Headline|25|In Other News}}<br/>Literally unplayable you say? Here are the usual fixes to which you've all grown accustomed:
+
+The Max cape's teleport menu now uses the main-screen parchment menu, rather than the chatbox menu, so that it can fit all its options into one panel rather than having some on a second screen.
+
+The Crafting guild teleport has been reverted to its original hotkey location when viewing Max cape teleports.
+
+You'll no longer be interrupted when laying a Boxtrap if another of your traps falls.
+
+The option text when left-clicking a Spinning wheel is now clearer in its description of the two ways to make Crossbow strings.
+
+The Kudos requirement for accessing the Volcanic Mine will now be properly displayed in the level up message when reaching level 50 Mining.
+
+
+{{Horizontal Line}}{{Headline|25|&#35;OSRSMobile iOS Beta End}}<br/>Last week saw the impromptu extension of the #OSRSMobile iOS beta. We regret to inform you that as of this game update, the iOS beta is very much ended. The beta has been incredibly useful, providing a wealth of usability data and feedback. With the beta end we expect thousands more of the beta testers to complete the survey they were sent. ''If you're a tester for the iOS beta, please do check your RuneScape message centre for a message containing the instructions to fill out the survey.''
+
+We imagine that all of you are eagerly awaiting the answer to the question of ''what's next for OSRS Mobile?''. We aren't able to reveal any key dates just yet, but we’ll communicate the next course of action as soon as we’re able, but for your reference: we don't expect the next step to be the cross-platform beta we pitched on our 5th Birthday livestream. Instead, what we envisage next is a larger scale Android beta before the next iOS beta begins. Once we have exact dates, we’ll communicate them to you. It’s an exciting time for #OSRSMobile!
+
+
+{{Horizontal Line}}{{Headline|25|Recent Issue (The DMM World Change)}}<br/>On Tuesday there was an issue related to the world changes we were implementing to prepare for the maintenance work. This process involves changing a series of flags that set the activity type of each world. One of the flags was for W45, which is the permanent Deadman world, which was due to move to W47. Unfortunately, part of these changes meant that the flags required to enable a server to be considered a Deadman server went live on W47 2 minutes prior to the world going offline. This meant that for that 2-minute period, players that were already logged into the server could gain the 5x experience offered with the permanent Deadman server and attack other players. Our initial investigations have shown three instances of players dying during this period. Two of these accounts are currently under investigation with our anti-cheating team for suspected use of macro tools. One player however has lost some of the items they owned, including some of their XP, as would usually happen in a Deadman world.
+
+There has always been a policy of no item return whatsoever in Old School RuneScape. On this occasion, however, we've compensated the player with 12 months of membership, a number of Old School Bonds which would have a resale value equivalent to the wealth lost, and will be investigating the return of XP.
+
+
+{{Horizontal Line}}{{Headline|25|World Changes}}<br/>The maintenance work undertaken yesterday (not to be confused with the issue above pertaining to the world change) was successful, and so we're able to reverse the world changes we'd made to accommodate for the downtime.
+
+*20 will revert to a normal world
+*22 will revert to Duel Arena
+*37 will revert to PvP High risk
+*39 will revert to a normal world
+*45 will return to being Deadman
+*47 will revert to a normal world
+*53 will revert to 1250 skill total
+*55 will revert to a normal world
+*57 will revert to a normal world
+*61 will revert to 2000 skill total
+*82 will revert to a normal world
+*85 will revert to 750 skill total
+*117 will revert to F2P PvP world
+*118 reverts to inactive.
+
+As a reminder, there'll be more maintenance work in the coming weeks. We'll continue to inform you via newspost at the beginning of the week, but for a full schedule please see [https://support.runescape.com/hc/en-gb/articles/360000746929-Game-World-Maintenance the Support Centre article].
+
+
+{{Horizontal Line}}{{Headline|25|What's Polling?}}<br/>Earlier this week saw the close of the Chambers of Xeric: Challenge Mode poll. The challenge itself passed, as did the two rewards! We'd recommend you take the time to familarise yourself with this bit of upcoming content by visiting the [http://services.runescape.com/m=news/chambers-of-xeric-challenge-mode?oldschool=1 Challenge Mode blog].
+
+There's (potentially, if it passes) something lurking within the Varrock sewers. Go and read the [http://services.runescape.com/m=news/the-moss-giant-boss-bryophyta?oldschool=1 Moss giant boss blog] to learn more about what is currently in poll booths near you! There's a new mid-level F2P boss fight on offer among other things!
+
+{{Horizontal Line}}
+
+'''''Mods Archie, Ash, Ayiza, Curse, Ed, Ghost, Jed, John C, Kieren, Lottie, Mat K, Maz, Roq, Ry, Stone, Sween, Weath, West & Wolf'''''<br/>''The Old School Team''

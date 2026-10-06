@@ -1,0 +1,207 @@
+{{Update|date=27 June 2018|rev=02 July 2018|link=http://services.runescape.com/m=news/revenant-cave-rewards-revisited-content-poll--theatre-of-blood?oldschool=1|category=devblog}}
+[[File:Revenant Cave Rewards- Revisited, Content Poll & Theatre of Blood newspost.png|right]]
+{{clear}}
+
+
+{{Headline|25|Revenant Cave Rewards: Revisited, Content Poll & Theatre of Blood}}
+
+
+<center>We announced back in February that we were open to replacing the Statuette drops from the Revenants. We've been through your suggestions and ideas for new Revenant Caves rewards and we're now ready to show off the most popular and suitable ones to you! In addition to this, we'd also like put forward some poll questions, tackling a number of the quality of life and content changes you've raised. We have no shortage of your suggestions to put forward to the polls, so expect '''more of these''' types of blogs in the coming weeks.
+
+
+As with all other poll focused Dev Blogs, we want to take some time to collate your feedback. The poll is due to go '''live in-game this Friday 29th June''', meaning there's plenty of time to provide feedback!
+</center>
+
+{{Horizontal Line}}
+
+'''Changelog'''
+
+[28/06/18] - Added 2 Prayer bonus to Viggorra's chainmace.<br/>
+[28/06/18] - Removed the 1 Prayer bonus from the Barbed rete.<br/>
+[28/06/18] - Added detail to clarify Viggorra's chainmace, Craw's bow and Thammaron's sceptre effects stack when worn with either the Slayer helmet or Salve amulet.<br/>
+[28/06/18] - Corrected the image used for the Amulet of avarice. It now correctly displays the intended stats.<br/>
+[28/06/18] - Added further detail to state the F2P Tele Block scroll would apply a 1-minute immunity to a Tele Block scroll being cast on that player once the effect wears off. The 1-minute immunity would NOT apply to the spellbook Tele Block, and players could cast a spellbook Tele Block during the Tele Block scroll immunity period.<br/>
+[28/06/18] - Removed Poll Question #13 "Should we add superior Elves to the current list of superior Slayer monsters? Superior Elves would have a chance of dropping an alternate Tiny elf crystal that has unlimited charges." as this will now come from another piece of content in the future. No spoilers here, you'll have to wait and find out what we have planned!<br/>
+[28/06/18] - Added further detail to Poll Question #16 to clarify that the increase in Agility experience would only be for handing in the stick.<br/>
+[28/06/18] - Added further detail to Poll Question #18 to clarify that this change would not increase the current cooking experience rates.<br/>
+[02/07/18] - Added a new Poll Question (#28) offering the chance to change the model used for the Dramen staff so it no longer looks like a regular Battlestaff.<br/>
+[02/07/18] - Added level requirements to Viggorra's chaimnace, Craw's bow and Thammaron's sceptre.<br/>
+[02/07/18] - Remove Poll Question #13 "Should we add a cosmetic reward for when players complete 100 Master clues scrolls?". This will instead be polled once a design has been finalised.<br/>
+
+
+{{Horizontal Line}}
+
+{{Headline|22|Viggorra's Chainmace}}
+
+Viggorra was the creator of the Slayer Tower, and the only human among the Empty Lord's trusted generals. During his many conquests, he wielded a great chainmace against his foes. After his death, his chainmace was claimed by a follower of Zamorak, who used it extensively during the God Wars. Although the God Wars are long over, many participants still cling to this world as revenants. Among these revenants, the wielder of Viggorra's Chainmace can still be found.
+
+Viggorra's chainmace is a tradeable 1-handed flail that can deal additional damage to Wilderness NPCs. It has stats similar to that of a Dragon scimitar and requires 60 Attack to equip. When charged with a minimum of 1000 Revenant ether, an additional 50% Melee accuracy and 50% Melee damage boost is activated vs any Wilderness NPC. This effect will stack with either a Slayer helmet or a Salve amulet equipped, but does not allow the effects of both the Slayer helmet and Salve amulet to stack. This includes imbued versions of both the Slayer helmet and the Salve amulet.
+
+1 Revenant ether is used per hit, even if a hit misses. Any Revenant ether stored within the chainmace is always dropped on death when inside the Wilderness. 
+[[File:Revenant Cave Rewards- Revisited, Content Poll & Theatre of Blood (1).png|center]]
+
+
+{{News Poll|1|Should Revenant NPC's have a chance to drop a new tradeable 1-handed flail, Viggorra's Chainmace? The chainmace requies 60 Attack to equip and is charged with Revenant ether to activate an additional 50% Melee accuracy and 50% Melee damage boost against Wilderness NPCs. 1 Revenant ether is used per hit, even if a hit misses. Any Revenant ether stored within the chainmace is always dropped on death when inside the Wilderness.}}
+{{Horizontal Line}}
+
+{{Headline|22|Craw's Bow}}
+
+Of all of Armadyl's followers in the God Wars, few were more formidable than Craw. An expert with the bow, Craw personally eliminated some of Armadyl's greatest enemies. When the God Wars ended, Craw was one of the many soldiers killed in the destruction of Forinthry. Now, an undead Craw can be found amongst the revenants of the Wilderness, still wielding the trusted bow that helped them in the past.
+
+Craw's bow is a tradeable 2-handed bow that can deal additional damage to Wilderness NPCs. It has the same stats as the Magic shortbow (i) and requires 60 Ranged to equip. When charged with a minimum of 1000 Revenant ether, an additional 50% Ranged accuracy and 50% Ranged damage boost is activated vs any Wilderness NPC. This effect will stack with either a Slayer helmet or a Salve amulet equipped, but does not allow the effects of both the Slayer helmet and Salve amulet to stack. This includes imbued versions of both the Slayer helmet and the Salve amulet.
+
+The bow does not use any ammo, much like the Crystal bow. Instead, it relies on the use of the Revenant ether stored within it. 1 Revenant ether is used per hit, even if a hit misses. Any Revenant ether stored within the bow is always dropped on death when inside the Wilderness. 
+
+[[File:Revenant Cave Rewards- Revisited, Content Poll & Theatre of Blood (2).png|center]]
+
+
+{{News Poll|2|Should Revenant NPC's have a chance to drop a new tradeable 2-handed bow, Craw's bow? The bow requires 60 Ranged to equip and is charged with Revenant ether to activate an additional 50% Ranged accuracy and 50% Ranged damage boost against Wilderness NPCs. The bow does not use any ammo, much like the Crystal bow. 1 Revenant ether is used per hit, even if a hit misses. Any Revenant ether stored within the bow is always dropped on death when inside the Wilderness.}}
+
+{{Horizontal Line}}
+
+{{Headline|22|Thammaron's Sceptre}}
+
+During the God Wars, one of Zamorak's most trusted allies was the demon Thammaron. A member of the Tsutsaroth tribe, Thammaron's abilities were near unmatched amongst his kind. While primarily a melee user, Thammaron was also a highly proficient mage and his magical sceptre was as dangerous as Thammaron himself. This sceptre was eventually lost during the Battle of Uzer and was later claimed by one of the many warriors fighting in the war. Now, the sceptre can be found among the revenants, ghosts of warriors killed in the God Wars.
+
+Thammaron's sceptre is a tradeable 1-handed magic weapon that can deal additional damage to Wilderness NPCs. It has the same stats as the Master wand and requires 60 Magic to equip. When charged with a minimum of 1000 Revenant ether, an additional 100% Magic accuracy and 25% Magic damage boost is activated vs any Wilderness NPC. This effect will stack with either a Slayer helmet or a Salve amulet equipped, but does not allow the effects of both the Slayer helmet and Salve amulet to stack. This includes imbued versions of both the Slayer helmet and the Salve amulet.
+
+The sceptre can be used much like the Master wand, though it cannot autocast ancient spells. Each spell that is cast using the sceptre uses 1 Revenant ether, regardless of the spell hitting or not, alongside the standard runes required. 
+
+[[File:Revenant Cave Rewards- Revisited, Content Poll & Theatre of Blood (3).png|center]]
+
+
+{{News Poll|3|Should Revenant NPC's have a chance to drop a new tradeable 1-handed magic weapon, Thammarons sceptre? The sceptre requires 60 Magic to equip and is charged with Revenant ether to activate an additional 100% Magic accuracy and 25% Magic damage boost against Wilderness NPCs. Each spell that is cast using the sceptre uses 1 Revenant ether, regardless of the spell hitting or not, alongside the standard runes required. Any Revenant ether stored within the sceptre is always dropped on death when inside the Wilderness.}}
+
+{{Horizontal Line}}
+
+{{Headline|22|Amulet of Avarice}}
+
+Within the Revenant Caves are a plethora of NPCs, many of which are killed frequently for Wilderness Slayer tasks. It's no secret that a lot of Wilderness activities are a trade-off between risk and reward. We want to further extend the risk vs reward factor with a new reward from Revenant NPCs - the Amulet of avarice.
+
+The Amulet of avarice provides the same stats as an Amulet of glory, with the added ability of causing all drops within the Revenant Caves to be noted whilst it's worn - this includes the non-Revenant NPCs also in the cave. The downside to this benefit however, is that the player is constantly skulled while wearing the amulet. If removed, a normal 20-minute skull will remain. 
+
+[[File:Revenant Cave Rewards- Revisited, Content Poll & Theatre of Blood (4).png|center]]
+
+{{News Poll|4|Should Revenant NPC's have a chance to drop the tradeable Amulet of avarice? The Amulet of avarice has the same stats as an Amulet of glory, with the added ability of causing all drops within the Revenant Caves to be noted whilst it's worn, including the non-Revenant NPCs also in the cave. The player is constantly skulled while wearing the amulet. If removed, a normal 20-minute skull will remain.}}
+{{Horizontal Line}}
+
+{{Headline|22|Ferocious Ring}}
+
+The Ferocious ring continues with the risk vs reward factor by offering stats similar to that of the unimbued Fremennik rings combined, with the added effect of increasing your Accuracy and Damage for all combat styles the deeper you venture into the Wilderness. 
+
+1 to 9 Wilderness = +1% Accuracy and Damage<br/>
+10 to 19 Wilderness = +2% Accuracy and Damage<br/>
+20 to 29 Wilderness = +3% Accuracy and Damage<br/>
+30 to 39 Wilderness = +4% Accuracy and Damage<br/>
+40 Wilderness and above = +5% Accuracy and Damage<br/>
+
+The player is constantly skulled while wearing the ring. If removed, a normal 20-minute skull will remain.
+[[File:Revenant Cave Rewards- Revisited, Content Poll & Theatre of Blood (5).png|center]]
+
+
+{{News Poll|5|Should Revenant NPC's have a chance to drop the tradeable Ferocious ring? The Ferocious ring offers stats similar to that of the unimbued Fremennik rings combined, with the added effect of increasing your Accuracy and Damage for all combat styles the deeper you venture into the Wilderness. The player is constantly skulled while wearing the ring. If removed, a normal 20-minute skull will remain.}}
+
+{{Horizontal Line}}
+
+{{Headline|22|Restraint}}
+
+With the recent introduction of Surge spells from Dragon Slayer II, there have been more and more players utilising the Standard Spellbook. One of the most common frustrations many have with using the Standard Spellbook is that there are no effective freezes against players. With the Ancient Spellbook most players will opt to use Ice Barrage, a level 94 spell capable of hitting up to 30 damage, as well as being able to freeze opponents in a 3x3 area for 20 seconds.
+
+The Standard Spellbook equivalent is Entangle, a level 79 spell capable of hitting up to 5 damage and being able to freeze a single opponent for 15 seconds if they aren't using Protect from Magic, else the duration is reduced by 50%.
+
+We recently polled changing it so that Protect from Magic no longer reduces the binding effect of the Entangle spell, but the question failed with only 60.9% of players in favour of the change. As an alternative option, we'd like to offer a brand-new spell called Restraint.
+
+Restraint is activated via a spell scroll that would drop from Revenant NPCs. Once activated, you would permanently unlock Restraint, which is an upgraded version of Entangle. Costing 5 Wrath, 10 Fire and 10 Earth runes per cast, Restraint can bind enemies not using Protect from Magic for 20 seconds. With Protect from Magic the bind duration is reduced to 15 seconds. 
+
+[[File:Revenant Cave Rewards- Revisited, Content Poll & Theatre of Blood (6).png|center]]
+
+Restraint would require 89 Magic and it would deal up to 8 damage on a successful cast. Splashing the spell would also provide a slightly lower amount of XP than a successful 0 damage cast.
+
+{{News Poll|6|Should Revenant NPC's a chance to drop a spell scroll that would unlock a new spell called Restraint? Requiring 89 Magic and costing 5 Wrath, 10 Fire and 10 Earth runes per cast, Restraint can bind enemies not using Protect from Magic for 20 seconds. With Protect from Magic the bind duration is reduced to 15 seconds.}}
+
+{{Horizontal Line}}
+
+{{Headline|22|F2P Teleblock}}
+
+Allowing Teleblock in F2P has failed a poll multiple times. The recent launch of the F2P PvP world in April has led to a lot of calls for Tele Block being made F2P. We're not particularly keen on re-polling it yet again, so we invited you to bring forward an alternative.
+
+We'd like to offer Revenant NPCs the chance to drop a Tele Block scroll. This scroll would allow players to cast Tele Block on another player without the required runes, in both members and free-to-play.
+
+Unlike teleport tablets, you will be required to have 85 Magic and be on the Standard Spellbook to use the Tele Block scroll, but it would never splash when used on another player. The Tele Block would last for 1-minute, regardless of Protect from Magic being active or not. Casting the Tele Block would require you to use the scroll on another player. A player that had been Tele Blocked via the Tele Block scroll would be immune from the effects of another Tele Block scroll for 1-minute. ''The 1-minute immunity would NOT apply to the spellbook Tele Block, and players could cast a spellbook Tele Block during the Tele Block scroll immunity period.''
+
+{{News Poll|7|Should Revenant NPC'shave a chance to drop the Teleblock scroll? This scroll would allow players to cast Teleblock on another player in both members and free-to-play. This requires 85 Magic and being on the Standard Spellbook. The Teleblock would last for 1-minute, regardless of Protect from Magic being active or not. A player that has been Tele Blocked via the Tele Block scroll would be immune from the effects of another Tele Block scroll for 1-minute.}}
+
+{{News Poll|8|If the Teleblock scroll is added to the game, should the Revenant Caves be accessible to free-to-play? The caves would only contain NPC's that are available to non-members, apart from Revenants. The only drop from the Revenants would be the Teleblock scroll.}}
+{{Horizontal Line}}
+
+{{Headline|22|Barbed Rete}}
+
+The Rete was a weapon utilised by bandits that hailed from the Kharidian Desert. Known to be fierce followers of the Empty Lord, they were frequently sent on snatching missions to disrupt the growth of Zamorakian forces after their leader was betrayed. Many met untimely ends all over Forinthry during these missions and their ancient nets eventually found homes within the caves of long dead warriors.
+
+The Barbed rete is a tradeable offhand requiring 60 Ranged to equip. When the rete is charged with a minimum of 1000 Revenant ether, a special effect "It's a trap!" can be used by right-clicking it, similar to how the Dragonfire shield special effects work. On a successful "It's a trap!" hit, the opponent will be unable to move for 20 seconds and will be poisoned. This has a 15 second cooldown and costs 10 Revenant ether per charge. 
+
+[[File:Revenant Cave Rewards- Revisited, Content Poll & Theatre of Blood (7).png|center]]
+
+The accuracy of the Barbed rete's special effect is based on your opponents ranged defence (scaling from 0 - 500) & weight (scaling from 0kg - 50kg). Your opponent can '''reduce the time they are held for''' by attacking the player who has trapped them. Each attack will remove 5 seconds from the overall time. 
+
+'''Example 1'''<br/>
+If a trapped opponent attacks back with regular darts, after 4 attacks on rapid (4.8 seconds), they will be able to move again. 
+
+'''Example 2'''<br/>
+If a trapped opponent attacks back with a crossbow, after 3 attacks on rapid (9 seconds), they will be able to move again. 
+
+{{News Poll|9|Should Revenant NPC's have a chance to drop a new tradeable offhand, the Barbed rete? The rete is charged with Revenant ether to activate a special effect, "It's a trap!", which prevents your opponent from moving for 20 seconds and poisoning them. This has a 15 second cooldown and costs 10 Revenant ether per use. The duration of the rete's hold can be reduced by attacking the opponent that hit you with it. Any Revenant ether stored within the rete is always dropped on death when inside the Wilderness.}}
+
+{{Horizontal Line}}
+
+{{Headline|22|Quality of Life and Content Changes}}
+
+{{News Poll|10|Should the number of Cactus spines rewarded from picking a fully-grown Cactus be increased based on your farming level?}}
+{{News Poll|11|Should the number of Seaweed spores dropped by NPCs on Fossil Island, such as the Lobstrosity, be increased?}}
+{{News Poll|12|Should random Seaweed spores appear whilst underwater on Fossil Island?}}
+{{News Poll|13|Should the Xeric's talisman be changed to have its own unique teleport animation?}}
+{{News Poll|14|Should we tweak the mapping of the Tar monsters found within the Tar Swamp area of Fossil Island so that they no longer cause so much trouble near the 3rd Sulliuscep mushroom?}}
+{{News Poll|15|Should the amount of experience granted for handing in the stick at the Werewolf Agility Course be increased to 2 times the current amount? This would increase the Agility experienced gained from 190 to 380.}}
+{{News Poll|16|Should the delay when picking up Zygomites be reduced?}}
+{{News Poll|17|Should it be possible to left-click to cook on all ranges? The options on the range would be limited to the first 10 types of cookable items in your inventory at the time. This would not increase the maximum experience gained per hour compared to currently existing cooking methods.}}
+{{News Poll|18|Should we reduce the HP of the Grotesque Guardians by 25%?}}
+{{News Poll|19|Should a new Slayer reward unlock be added, giving players the ability to toggle when killing the Grotesque Guardians, they count as two Slayer kills rather than just one?}}
+{{News Poll|20|Should the Kourend statue be changed slightly so that you can left-click to enter the Kourend Catacombs rather than having to right-click and select "Investigate"?}}
+{{News Poll|21|Should deposit boxes be added to bank locations that do not currently have one. These would be the Motherlode Mine, Lunar Isle, Barbarian Assault, Mage Arena, Arceuus, Lovakengj, Shayzien, Hosidius, TzHaar and Etceteria.}}
+{{News Poll|22|Should it be possible to right-click Askeladden to obtain a new Pet rock?}}
+{{News Poll|23|Should the left click of Spirit trees be changed to "Travel" rather than the current "Talk to" after completion of the Tree Gnome Village?}}
+{{News Poll|24|Should it be possible for players to check the age of their kitten and display how long is left until it turns into a cat?}}
+{{News Poll|25|Should the House teleport be changed so that you can select either inside or outside your POH with a right-click? This would also apply to the House teleport tablet.}}
+{{News Poll|26|Should the Wise Old Man be updated so he is able to remove any unnecessary quest items for members from the bank?}}
+{{News Poll|27|Should the model used for the Dramen staff be changed so it no longer looks like an ordinary Battlestaff?}}
+
+[[File:Revenant Cave Rewards- Revisited, Content Poll & Theatre of Blood (8).png|400px|center]]
+
+{{Horizontal Line}}
+
+{{Headline|22|Theatre of Blood: Entry Mode}}
+
+We've been keen to keep on top of all the feedback you've been sending us regarding the Theatre of Blood, and with our most recent batch of changes, we're really happy with how the content has evolved into the rewarding challenge it currently is.
+
+One of the largest pieces of feedback from everything we've seen on social media, your feedback in the recent surveys and the masses of you that watched on Twitch, is that aside from the small but impactful changes we've made, it's very apparent that more of you want to be able to experience this fantastic piece of content the team have worked so hard on. We're aware it can often be seen that these updates cater more specifically towards the higher-level portion of our community, and that those of you who are still working on building your characters and gathering your gear often miss out on exploring such great content.
+
+Changing the Theatre of Blood in terms of difficulty and group size requirements would be a heavy hit to those that have already spent hundreds of hours and thousands ''(more like millions)'' in gold to perfect their strategies, push for the fastest completion times and have their chance of the prestigious rewards currently on offer. Because of this, we don't want to make any changes to how difficult or accessible the current Theatre of Blood is.
+
+However, we are more than willing to explore the options available to us that make it possible for more of you to enjoy this content, not only from viewing it and seeing others complete it, but '''participate''' yourself. We want to open the doors to those of you that may not have maxed combat or the ultimate gear setup, but still want a shot at the challenge and hopefully train your skills, so when the time is right, you'll be able to take on the full challenge of the Theatre with your newly developed teams.
+
+There is no concrete design in place just yet but we'd like to start communications with you on an Entry Mode version of the Theatre of Blood - your feedback will determine what the Theatre of Blood: Entry Mode should be. We'd like to propose the following as something to kickstart our initial discussions: 
+
+*Entry Mode would be aimed at any '''group size of 1-3 players''', with 3 being the maximum group size allowed.
+*All encounters within the Theatre would be rebalanced to be aimed at lower level players with less expensive gear. ''We're thinking somewhere around 100-110 combat''.
+*The health of monsters found within would scale to suit the team size. This would work for solo, duo or trio.
+*The gravestone cost would be reduced to 50k rather than 100k.
+*The chance of obtaining a unique could be '''vastly''' reduced, specific uniques can be removed from the table, or the chance for a unique could be removed entirely.
+*Entry Mode will '''never''' grant a chance of the Lil' zik pet. 
+
+As mentioned above, '''your feedback is vital''' to help us shape what the Theatre of Blood: Entry Mode would look like. Once we've gathered enough of your feedback you can expect a '''dedicated Dev Blog''' outlining the full details, with an '''in-game poll''' to follow shortly after. 
+
+{{Horizontal Line}}
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,492,66022224 official forums], the community-led [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the '''#gameupdate''' channel.
+
+'''''Mods Archie, Ash, Ayiza, Bruno, Curse, Ed, Ghost, Jed, John C, Kieren, Lenny, Lottie, Mat K, Maz, Munro, Roq, Ry, Stone, Sween, Weath, West & Wolf'''''<br/>''The Old School Team''

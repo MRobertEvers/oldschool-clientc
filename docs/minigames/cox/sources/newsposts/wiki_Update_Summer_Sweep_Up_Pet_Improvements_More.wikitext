@@ -1,0 +1,419 @@
+{{Update|date=16 September 2026|url=https://secure.runescape.com/m=news/summer-sweep-up-pet-improvements--more?oldschool=1|category=game}}
+[[File:Summer Sweep-Up Pet Improvements & More newspost.jpg|right]]
+{{clear}}
+__TOC__
+
+''The pet-related Summer Sweep Up changes have arrived! Plus, some tweaks for our canine companions, a whole heap of Z-buffer fixes and more…''
+
+==Changelog - September 16th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Summer Sweep Up - Pet Changes'''
+
+* Pets will now follow you into The Gauntlet, Corrupted Gauntlet and Impetuous Impulses, meaning you won't need to bank them before entering and they will be visibly following you inside.
+* For other minigames ''except Temple Trekking'', you'll now be able to enter them without needing to bank your pet, if you have one following you. However, pets will be invisible once inside the minigame, still saving you the trouble of banking them.
+** Our initial intent was to allow pets to fully follow you into various other minigames, but unfortunately we had technical limitations for a number of these, where new NPCs wandering around would mean the minigame would break. We've managed to crack the Gauntlet and Impetuous Impulses, but other instances have had to settle for at least allowing you access without needing to bank your pet.
+** Temple Trekking is excluded from this list since you already have an NPC following in that minigame, so you'll still need to bank your pet to be able to enter there.
+* You'll now be able to enter the Fossil Island's Underwater area without needing to bank the pet following you, but it will be invisible.
+** We'll look to apply this to Tortugan Island's Underwater area as well in a future update.
+* Pets will now respawn with you on death and will keep on following you.
+
+Note that for all the above minigame and underwater related pet changes:
+
+* Your pet needs to be in a summoned status before entering, meaning you cannot take an Inventory item pet into the minigames.
+* Once you leave the underwater area and minigames that your pet is invisible, your pet will go back to visibly following you.
+* If you die within the minigame or drown in the Fossil Island's Underwater area, pets will be kept in a status of following you.
+* These changes apply to all pets except the list of "[https://oldschool.runescape.wiki/w/Pet#Other_(Generic) Other (Generic)]": Dogs, cats, Broav, Pet fish, Hellcat, Pet rock, Toy cat, Humphrey Dumphrey, Spooky chair, Mayor of Catherby, and Archibald.
+
+<u>An additional Summer Sweep Up Tweak</u>
+
+* Reduced the amount of energy potions dropped from Goblins, Banshees and Crawling Hands. Players should still receive a useful amount, but these should no longer dominate loot tables or feel overly abundant.
+
+'''Tweaks for Our Canine Companions'''
+
+* Fixed a bug where you couldn't see the location of locked puppies in the adoption interface if you already owned a dog.
+* The following food can no longer be fed to dogs:
+** Onions sacks
+** Poison Karambwan
+** Easter egg
+** Green, Plain, Red, Black, Gold and Rune satchels
+
+'''Z-buffer Related Fixes'''
+
+* Fixed clipping issues for:
+** Drops on the floor of Cerberus' lair
+** Drops on a few tiles in the Tormented Demon dungeon
+** Two entrance locations for Fortis Colosseum
+** The decorative tiles in the Kephri arena
+** Empty Sarcophagus, dripping bloods on the wall, stone blocks and tiles in Sarachnis' lair
+** Idle version of The Nightmare found in Sisterhood Sanctuary
+** The cliff poking through the cave entrances at Hueycoatl
+** Shadows of Ents in the Woodcutting Guild Dungeon
+** The cave entrance to the Wolf Den
+** Player feet sinking into the Combat Ring floor in the Player-Owned House
+** Lil' Zik pet
+** Various Thieving stalls
+** Trees sticking out of the first floor in the Tree Gnome Village
+** Crates in Port Piscarilius docks as well as crates and pier struts in Lunar Isle
+** Bank chests and crates in Ruins of Unkah, Slayer Tower basement, Deepfin Point and Barbarian Outpost
+** The floor and a doorway in Tarn's lair
+** The edges of stairs where they meet the terrain at Myth's Guild
+** Windows of Father Urhney's hut in Lumbridge Swamp
+** Watermelon crops in farming patches
+** Walls of various buildings in Ardougne and Slepe
+** The book shelf and the mounted dragon head at Lord Handelmort's mansion
+** A shelf digging into the wall at Brimhaven
+** A book case digging into the wall at the house near Baxtorian Falls
+** A cushion and a bed clipping through the wall at Shayzien
+* Hueycoatl's tail no longer spawns facing the incorrect orientation during the tail fight phase.
+* The ladder entrance of the Catherby Dungeon no longer appears blocked.
+* Railings no longer disappear on Varrock rooftops.
+* Fixed minor graphical issues on the walls of a Catherby building.
+* The floors of the Port Piscarilius docks no longer have gaps.
+* Fixed flickering issues for:
+** The Giant Anvil in Giants' Plateau
+** The venom pools on the floor during the Arrav encounter
+** The wall tops within a dungeon during King's Ransom
+** The spike traps on the floor of the Sophanem Dungeon
+** The striped tape of the Balance Beam in the Player-Owned House
+** The walls of the Civitas illa Fortis Bazaar
+** Hellcat and Wily Hellcat
+** Mushrooms throughout Gielinor
+
+'''Other Changes'''
+
+* Fixed an issue where certain Mortimer Partner Slayer scenarios could lock players out from Slayer. Players affected by this issue should now be able to get Slayer tasks again.
+* In Chambers of Xeric, the range, magic and melee thralls now respectively change the colours of the Jewelled crabs upon attacking.
+** The Ghost thrall dealing magic damage changes the colour of the crab to blue.
+** The Skeleton thrall dealing ranged damage changes to the colour of the crab to green.
+** The Zombie thrall dealing melee damage changes the colour of the crab to red.
+* Players using a Medallion of the Deep to breathe underwater are now permitted to equip capes and helms down there, since they are not using those slots for diving gear.
+* When sorting salvage, players who are eligible to receive clue boxes can now receive those, instead of just clues. This resolves the issue whereby a player who already had a clue could not receive another one of that tier from their salvage even if they had unlocked clue boxes.
+* Making Guthix Balance potions now uses the make-x interface.
+* Resolved an issue where the 'Play' option of the Enchanted Lyre couldn't be used without completing the Hard and Elite Fremennik Diary.
+* Fixed a bug where completing Achievement Diary tasks didn't show the relevant messaging in the chatbox if a player hasn't relogged at least once after finishing Tutorial Island.
+* Adjusted various inventory icons:
+** Sunlight and Moonlight moth mixes now have different inventory icons and no longer share the same one as Sapphire Glacialis.
+** The inventory icons of all butterfly and moth mixes have been adjusted to distinguish them from their non-mix variants.
+** Tweaked the inventory icons for cooked Hunter meat and cooked Halibut to better display that they are the cooked variants.
+** Increased the size of the Crystal Legs inventory icons so that they'd be more user-friendly.
+* Mausoleum-Repair bridge entry is no longer blank in the Construction skill guide.
+* Some more item names have had their capitalisation adjusted, including schematics, more Scythe of Vitur variants, Perilous Moons equipment and more books.
+* Fixed a typo at the second plaque in Ruins of Ullek.
+* Some text has been corrected for interacting with fur pouches.
+
+'''PvP Rota'''
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>de-activated</u>''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''<u>de-activated</u>''' with this rota.
+
+The PvP Arena is using '<b>Max/Med</b>' loadouts in Ranked Duels and Tournaments this week.
+
+{{Collapsed section end}}
+
+==Summer Sweep Up - Pet Changes==
+The very last batch from the [https://secure.runescape.com/m=news/summer-sweep-up-2026?oldschool=1 Summer Sweep Up] have arrived, bringing all the proposed changes from the blog to a close! In case you've missed it, we've already released all the other changes [https://secure.runescape.com/m=news/a=13/summer-sweep-up-gear--pvm-changes?oldschool=1 here], [https://secure.runescape.com/m=news/a=97/summer-sweep-up---agility--chambers-of-xeric-changes?oldschool=1 here], [https://secure.runescape.com/m=news/a=97/summer-sweep-up---hunter--skilling?oldschool=1 here] and [https://secure.runescape.com/m=news/a=13/summer-sweep-up-miscellaneous?oldschool=1 here]. This week sees the only remaining round of changes, which are the pet-related improvements. Let's get straight to the details!
+
+[[File:Summer Sweep-Up Pet Improvements & More (1).png|600px|center]]
+
+* Pets will now follow you into The Gauntlet, Corrupted Gauntlet and Impetuous Impulses, meaning you won't need to bank them before entering and they will be visibly following you inside.
+* For other minigames ''except Temple Trekking'', you'll now be able to enter them without needing to bank your pet, if you have one following you. However, pets will be invisible once inside the minigame, still saving you the trouble of banking them.
+** Our initial intent was to allow pets to fully follow you into various other minigames, but unfortunately we had technical limitations for a number of these, where new NPCs wandering around would mean the minigame would break. We've managed to crack the Gauntlet and Impetuous Impulses, but other instances have had to settle for at least allowing you access without needing to bank your pet.
+** Temple Trekking is excluded from this list since you already have an NPC following in that minigame, so you'll still need to bank your pet to be able to enter there.
+* You'll now be able to enter the Fossil Island's Underwater area without needing to bank the pet following you, but it will be invisible.
+** We'll look to apply this to Tortugan Island's Underwater area as well in a future update.
+* Pets will now respawn with you on death and will keep on following you.
+
+Note that for all the above minigame and underwater related pet changes:
+
+* Your pet needs to be in a summoned status before entering, meaning you cannot take an Inventory item pet into the minigames.
+* Once you leave the underwater area and minigames that your pet is invisible, your pet will go back to visibly following you.
+* If you die within the minigame or drown in the Fossil Island's Underwater area, pets will be kept in a status of following you.
+* These changes apply to all pets except the list of "[https://oldschool.runescape.wiki/w/Pet#Other_(Generic) Other (Generic)]": Dogs, cats, Broav, Pet fish, Hellcat, Pet rock, Toy cat, Humphrey Dumphrey, Spooky chair, Mayor of Catherby, and Archibald.
+
+====An Additional Summer Sweep Up Tweak====
+
+* Reduced the amount of energy potions dropped from Goblins, Banshees and Crawling Hands. Players should still receive a useful amount, but these should no longer dominate loot tables or feel overly abundant.
+
+==Tweaks for Our Canine Companions==
+[[File:Summer Sweep-Up Pet Improvements & More (2).jpg|thumb|600px|center|''Good boi army'']]
+
+Who let the dogs out? We did, last week! Thank you so much to all who've completed the 'A Ruff Situation' quest and adopted a dog! It's been peak pawsitive vibes seeing players journey across Gielinor with their canine companions.
+
+This week, we've got some slight tweaks regarding them:
+
+* Fixed a bug where you couldn't see the location of locked puppies in the adoption interface if you already owned a dog.
+* Must protect our barking furry friends at all costs! We wouldn't want them eating suspicious food or getting an upset tummy. The following food can no longer be fed to dogs:
+** Onion sacks
+** Poison Karambwan
+** Easter egg
+** Green, Plain, Red, Black, Gold and Rune satchels
+
+==Z-buffer Related Fixes==
+[[File:Summer Sweep-Up Pet Improvements & More (3).png|600px|center]]
+
+* Fixed clipping issues for:
+** Drops on the floor of Cerberus' lair
+** Drops on a few tiles in the Tormented Demon dungeon
+** Two entrance locations for Fortis Colosseum
+** The decorative tiles in the Kephri arena
+** Empty Sarcophagus, dripping bloods on the wall, stone blocks and tiles in Sarachnis' lair
+** Idle version of The Nightmare found in Sisterhood Sanctuary
+** The cliff poking through the cave entrances at Hueycoatl
+** Shadows of Ents in the Woodcutting Guild Dungeon
+** The cave entrance to the Wolf Den
+** Player feet sinking into the Combat Ring floor in the Player-Owned House
+** Lil' Zik pet
+** Various Thieving stalls
+** Trees sticking out of the first floor in the Tree Gnome Village
+** Crates in Port Piscarilius docks as well as crates and pier struts in Lunar Isle
+** Bank chests and crates in Ruins of Unkah, Slayer Tower basement, Deepfin Point and Barbarian Outpost
+** The floor and a doorway in Tarn's lair
+** The edges of stairs where they meet the terrain at Myth's Guild
+** Windows of Father Urhney's hut in Lumbridge Swamp
+** Watermelon crops in farming patches
+** Walls of various buildings in Ardougne and Slepe
+** The book shelf and the mounted dragon head at Lord Handelmort's mansion
+** A shelf digging into the wall at Brimhaven
+** A book case digging into the wall at the house near Baxtorian Falls
+** A cushion and a bed clipping through the wall at Shayzien
+* Hueycoatl's tail no longer spawns facing the incorrect orientation during the tail fight phase.
+* The ladder entrance of the Catherby Dungeon no longer appears blocked.
+* Railings no longer disappear on Varrock rooftops.
+* Fixed minor graphical issues on the walls of a Catherby building.
+* The floors of the Port Piscarilius docks no longer have gaps.
+* Fixed flickering issues for:
+** The Giant Anvil in Giants' Plateau
+** The venom pools on the floor during the Arrav encounter
+** The wall tops within a dungeon during King's Ransom
+** The spike traps on the floor of the Sophanem Dungeon
+** The striped tape of the Balance Beam in the Player-Owned House
+** The walls of the Civitas illa Fortis Bazaar
+** Hellcat and Wily Hellcat
+** Mushrooms throughout Gielinor
+
+==Other Changes==
+
+* Fixed an issue where certain Mortimer Partner Slayer scenarios could lock players out from Slayer. Players affected by this issue should now be able to get Slayer tasks again.
+* In Chambers of Xeric, the range, magic and melee thralls now respectively change the colours of the Jewelled crabs upon attacking.
+** The Ghost thrall dealing magic damage changes the colour of the crab to blue.
+** The Skeleton thrall dealing ranged damage changes to the colour of the crab to green.
+** The Zombie thrall dealing melee damage changes the colour of the crab to red.
+* Perdu can now return the Arkan blade, charging 350,000 GP due to the convenience of his service.
+* Players using a Medallion of the Deep to breathe underwater are now permitted to equip capes and helms down there, since they are not using those slots for diving gear.
+* When sorting salvage, players who are eligible to receive clue boxes can now receive those, instead of just clues. This resolves the issue whereby a player who already had a clue could not receive another one of that tier from their salvage even if they had unlocked clue boxes.
+* Making Guthix Balance potions now uses the make-x interface.
+* Resolved an issue where the 'Play' option of the Enchanted Lyre couldn't be used without completing the Hard and Elite Fremennik Diary.
+* Fixed a bug where completing Achievement Diary tasks didn't show the relevant messaging in the chatbox if a player hasn't relogged at least once after finishing Tutorial Island.
+* Adjusted various inventory icons:
+** Sunlight and Moonlight moth mixes now have different inventory icons and no longer share the same one as Sapphire Glacialis.
+** The inventory icons of all butterfly and moth mixes have been adjusted to distinguish them from their non-mix variants.
+** Tweaked the inventory icons for cooked Hunter meat and cooked Halibut to better display that they are the cooked variants.
+** Increased the size of the Crystal Legs inventory icons so that they'd be more user-friendly.
+* Mausoleum-Repair bridge entry is no longer blank in the Construction skill guide.
+* Some more item names have had their capitalisation adjusted, including schematics, more Scythe of Vitur variants, Perilous Moons equipment and more books.
+* Fixed a typo at the second plaque in Ruins of Ullek.
+* Some text has been corrected for interacting with fur pouches.
+
+==RuneScape: Dragonwilds 1.0 is Live!==
+<center>
+{{Youtube|fwhFJUP-dPY}}
+
+If you can't see the embedded content above, [https://www.youtube.com/watch?v=fwhFJUP-dPY?si=jkdKpcNGRqhaSiO2 click here].
+</center>
+
+Yesterday marked the release of RuneScape: Dragonwilds' 1.0 full release not just on desktop, but consoles, too! Dragonwilds is now live on '''[https://store.playstation.com/product/EP5300-PPSA34114_00-0779566544583078 PlayStation 5]''', '''Nintendo Switch 2''', '''[https://www.microsoft.com/store/productid/9NZCGJJB5R61 XBOX Series X | S]''' and '''PC''' on '''[https://store.epicgames.com/p/runescape-dragonwilds-runescape-dragonwilds-deluxe-edition-6d127e Epic Games Store]''', '''[https://dragonwilds.runescape.com/download Jagex Launcher]''' and '''[https://store.steampowered.com/app/1374490/RuneScape_Dragonwilds/ Steam]'''.
+
+From all of us on the Old School team, we want to say a massive thank you to each and every one of you who has ventured into Ashenfall, traversed new lands, took on terrifying beasts, and created your very own sanctuary to call home. Seeing a Jagex game played on console is an incredible feeling, especially when you consider our humble browser beginnings! All players, no matter the game or platform are what make RuneScape games truly one (or three) of a kind, and today especially we are proud and honoured to sit side by side with Dragonwilds, presumably on your second monitor, in fact.
+
+Check out the dedicated [https://secure.runescape.com/m=news/runescape-dragonwilds-10-out-now?oldschool=1 blog] for more details on this exciting news!
+
+That's not all...
+
+From today, until '''October 4th''', you can earn yourself the '''Dragonwilds Twitch Badge'''! Tune in to your [https://www.twitch.tv/directory/category/runescape-dragonwilds favourite streamer] and watch 30-minutes of RuneScape: Dragonwilds to earn yourself a badge for your Twitch account to wear with pride!
+
+Who doesn't love a good quest? Well RuneScape: Dragonwilds has you covered! Join the '''[https://discord.com/quests/1536463146980483122 RuneScape: Dragonwilds Discord Quest]''' by creating a lodestone to earn 700 Orbs, which can be spent in the Discord Shop. Drop into the hut in Ashenfall, locate the stones, rune essence, and other necessary materials to craft, and you will be rewarded nicely!
+
+This is not the end of RuneScape: Dragonwilds. A new chapter begins with this release, and the start of an ambitious, multi-year journey into Ashenfall and its secrets.
+
+[[File:Summer Sweep-Up Pet Improvements & More (4).png|600px|center]]
+
+What's left but to log in? We'll see you in Ashenfall!
+
+==RuneFest 2026==
+[[File:Summer Sweep-Up Pet Improvements & More (5).png|450px|center]]
+
+The countdown is on, there is less than 3 weeks to go until our biggest RuneFest ever takes place on October 3rd-4th at the Birmingham NEC, and we can't wait to see you there!
+
+If you won't be able to make it in person, make sure you tune into [https://www.twitch.tv/oldschoolrs our Twitch channel] on Saturday, October 3rd at 1:00 PM UTC for our OSRS RuneFest Summit, where we'll be revealing what's coming next on our roadmap.
+
+Be there to find out, see you soon!
+
+==Checking In: Jagex Launcher on Mac==
+In case you've missed [https://secure.runescape.com/m=news/a=13/checking-in-jagex-launcher-on-mac?oldschool=1 our blog] yesterday, we want to check in with you regarding Jagex Launcher on Mac.
+
+We’ve been working away on an Apple Silicon native version of the Jagex Launcher, with a provisional release window within the next two months.
+
+This means we’ll be well ahead of the compatibility for Intel-based applications ending, which is due to take place with macOS 28 in 2027. However, with MacOS 27 having released yesterday, there will be a temporary step up until our native Launcher version releases that we want you to be aware of.
+
+Our current Launcher is an Intel-based application which relies on Rosetta for compatibility. '''Rosetta is not installed by default on macOS 27''', so if you upgrade to this OS, the launcher may fail to open the first time you boot it.
+
+If that happens, you’ll immediately see a one-time prompt to install Rosetta; you’ll need to be online, accept the install and may need to re-enter your macOS credentials. After that, everything should work normally with no further disruptions.
+
+====Jagex Launcher Minimum Spec====
+We also want to let you know about a change to the minimum spec for the Jagex Launcher. We avoid these changes as much as we can, but this key change will mean we can better support the majority of our Mac players.
+
+For Mac users, minimum spec will move from macOS Big Sur (macOS 11) up to macOS Monterey (macOS 12). So, if you're still on macOS 11 or earlier, you'll need to update your OS to keep using the Launcher once this update goes live.
+
+The minimum spec stays at Windows 10 for Windows players. That said, if you're on Windows 7 or 8, it's worth knowing these are already unsupported - so we can't promise the Launcher will keep working on them once the update rolls out.
+
+==Jagex Launcher for Linux Beta==
+[[File:Summer Sweep-Up Pet Improvements & More (6).gif|600px|center]]
+
+In case you missed it, back in July we released the Jagex Launcher for Linux beta! Through this Launcher, you can login to your Jagex Account securely and access RuneLite to play OSRS on Linux.
+
+You can read up on it in our launch blog, [https://secure.runescape.com/m=news/jagex-launcher-for-linux-beta-out-now?oldschool=1 here].
+
+Since then, we've been working away on updates and fixes, with five updates under our belts that have addressed key feedback we've received from you, including:
+
+* Adding in-app persisted log in
+* Removing the need for you to install Fuse 2 to launch the application
+* Improved automatic update checks from being too aggressive
+* Allowed you to choose if the Launcher minimises on game launch
+* Given you the ability to configure RuneLite from the App itself
+* And many more under the hood tweaks to improve the experience!
+
+We want to say a massive thank you for your support and feedback so far, your reports have really helped us identify bugs and make improvements.
+
+In the bottom right of the launcher, there’s a quick logout style satisfaction rating you can provide. Please do let us know what you think.
+
+If you encounter any bugs or issues, drop a report via our Official Discord server, through the [https://osrs.game/Linux-Launcher-Beta-Feedback #Linux-Launcher] channel. Our team will be logging any reports in here for our technical folks, and we may reach out from time to time for more information.
+
+Thank you to all our Linux players for your continued support. We hope you enjoy a more direct route to getting onto the grind.
+
+==Player Support and Anti-Cheating Statistics==
+Welcome back to our monthly snapshot of Player Support and Anti-Cheating activity - your behind-the-scenes look at all the hard work going into keeping Gielinor fair and fun for everyone.
+
+Each month, we share key stats from our Player Support and Anti-Cheating teams so you can see exactly what’s been happening behind the curtain. From how quickly we’re responding to your queries, to the number of bots and rule breakers taken down, here’s the latest data for August 2026:
+
+<center>
+{| class="wikitable" style="text-align: center;"
+|-
+! Metric
+! August 2026
+! Year to Date**
+|-
+| Average Response Time
+| 29 hours
+| -
+|-
+| Support Queries Resolved
+| 79,241
+| 615K
+|-
+| Live Chat Queries Resolved
+| 7,278
+| 42,821
+|-
+| Report Action Messages
+| 137K
+| 1.15M
+|-
+| Macro Bans (OSRS)
+| Total - 125,803
+F2P - 111,712
+P2P*- 14,090
+| Total - 7.47M
+F2P - 7.07M
+P2P*- 400K
+|-
+| Wealth Removed (OSRS)
+| 3.96 Trillion
+| 29.4 Trillion
+|-
+| RWT Bans (OSRS)
+| Total - 19,750
+F2P - 3,528
+P2P* - 16,222
+| 139,864
+|-
+| Chat Spam Mutes
+| 2,032
+| 26,239
+|}
+</center>
+
+''*P2P refers to an account with access to members’ worlds and features, either through a Bond or direct payment.''
+
+''**“Year to Date” refers to the period from January 1st, 2026 through to the end of the month covered by the stats - in this case, the end of August 2026.''
+
+You can check these out in the [https://support.runescape.com/hc/en-gb/articles/34686319959441-Player-Support-Statistics Player Support Statistics] and [https://support.runescape.com/hc/en-gb/articles/46608582202001-Anti-Cheating-Statistics Anti-Cheat Statistics] pages. Our teams remain as dedicated as ever to tackling cheaters, scammers, and spammers to ensure a fair playing field for all. As a result of these ongoing efforts, we're seeing an overall decline in rule-breaking activity. We're also seeing that the average account age and average account level of bots are decreasing, indicating that longer-standing and higher-level bots are being detected and removed from the game. Thanks for all the reports and support you send our way - it really does make a difference!
+
+Additionally, we’ve had a few reports of some players being phished out of their accounts. As always, bad actors are always cooking up new tricks. We've heard of a new few ones including fake P-Mod application forms asking for login details and illegitimate Jagex Launcher downloads hosted on other websites. This is a quick reminder to stay safe out there and think twice before entering sensitive details or downloading anything advertised as relative to RuneScape. There are no P-Mod Application forms, and anything you download for RuneScape must be a subdomain of [http://jagex.com/ Jagex.com] or [http://runescape.com/ RuneScape.com] to be considered safe. Always download anything directly through our website or Launcher – nowhere else.
+
+Some rules we always recommend:
+
+* Don't click suspicious links or download unknown files.
+* Jagex will never ask for your password or verification codes via email or messages. Never give away credentials that could be used to access your account.
+* Use your browser's phishing filters.
+
+You can find out more about phishing on our '''[https://support.runescape.com/hc/en-gb/articles/115001257125-Phishing Support Centre]'''.
+
+==Nightmare Mass==
+Join us on Friday, September 25th at 3:00 PM UTC for a [https://oldschool.runescape.wiki/w/The_Nightmare/Strategies Nightmare] Mass with endgame PvM creator [https://www.twitch.tv/widega_ Widega_!]
+
+[[File:Summer Sweep-Up Pet Improvements & More (7).png|600px|center]]
+
+The event will be streamed on [https://www.twitch.tv/oldschoolrs Twitch] and span across worlds 505 - 525, with up to 80 players battling in each encounter.
+
+Widega is also a bit of a gamer; their achievements include reaching Delve wave 221, defeating Awakened Vardorvis with only 1 prayer point, using only thrawls and recoils for damage, and completing Awakened Leviathan with only 1 prayer point and no stuns!
+
+Alongside the mass, we’ll be speaking to Widega about their route into high-level PvM, the mindset behind their unusual challenges, and how they keep going when a single completion takes hundreds of deaths.
+
+Bring suitable Nightmare gear and supplies - and make sure you've got access to [https://oldschool.runescape.wiki/w/Slepe Slepe!]
+
+==25th Anniversary Hoodie Now Available==
+<center>
+[[File:Summer Sweep-Up Pet Improvements & More (8).jpg|300px]]
+[[File:Summer Sweep-Up Pet Improvements & More (9).jpg|300px]]
+</center>
+
+For 25 years, RuneScape has been home to unforgettable quests, memorable characters, and adventures that have stayed with generations of players. The history of our games is your story to celebrate, and a quarter-century of Gielinor later, commemorate them all with our 25th Anniversary Hoodie.
+
+Featuring a collection of iconic weapons, this design pays tribute to the gear that has accompanied players on countless journeys; from humble beginnings to endgame achievements.
+
+Carry gaming history wherever you go, spanning every era from RuneScape Classic to Old School RuneScape, RuneScape, and RuneScape: Dragonwilds.
+
+This premium hoodie features back and sleeve details with iconic weaponry such as: Dragon Scimitar, Godswords, Silverlight, the Drygore Longsword and a Chieftans Blade. There is a small RS25 logo on left chest and a commemorative neck print.
+
+Get yours now from our [https://runescapemerch.com merch store]!
+
+==PvP World Rota==
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>de-activated</u>''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''<u>de-activated</u>''' with this rota.
+
+The PvP Arena is using '<b>Max/Med</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the official [https://discord.gg/OSRS OSRS Discord]. For more information, check the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Acorn, Ape, Arcane, Archie, Argo, Ash, Asherz, Ayiza, BigRig, Blighted, Blossom, Boko, Brooksie, Bruno, Bulb, Chilly, Criminal, Curse, Daizong, Default, Doctor, Ed, Elena, Enigma, Entropi, Frogs, Fuzz, Gecko, Ghost, Gizmo, Goblin, Grace, Grub, Halo, Harold, Hend, Hornet, Husky, Ivory, Jalo, Jamesy, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lotus, Lykos, Mack, Manked, Markos, Maylea, Mobius, Moogle, Morty, Moz, Necro, Nin, Nixon, Nox, Nylu, Oasis, Ori, Other, Otter, Pheasant, Philomel, Pork, Pumpkin, Puppi, Pyro, Rach, Redfield, Rice, Romy, Roy, Ry, Saiyan, Sarnie, Schmidt, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Spacebar, Spyro, Squid, Starry, Suharun, Surma, Sween, Tide, Titania, Titus, TJ, Tomb, Tsourorf, Tyran, Veda, Vegard, West, Wolfy, Yozora, Yume & Zaf'''
+
+''The Old School Team''

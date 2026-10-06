@@ -1,0 +1,318 @@
+{
+  "category": "encounterPhaseType",
+  "updatedAt": "2026-01-30",
+  "items": [
+    {
+      "id": "TOB_MAIDEN_70S",
+      "status": "active",
+      "summary": "Maiden 70s",
+      "introduced": "2026-01-30",
+      "details": "Occurs on the tick that Maiden reaches 70% HP and spawns Nylocas Matomenos.",
+      "tags": ["tob", "maiden"]
+    },
+    {
+      "id": "TOB_MAIDEN_50S",
+      "status": "active",
+      "summary": "Maiden 50s",
+      "introduced": "2026-01-30",
+      "details": "Occurs on the tick that Maiden reaches 50% HP and spawns Nylocas Matomenos.",
+      "tags": ["tob", "maiden"]
+    },
+    {
+      "id": "TOB_MAIDEN_30S",
+      "status": "active",
+      "summary": "Maiden 30s",
+      "introduced": "2026-01-30",
+      "details": "Occurs on the tick that Maiden reaches 30% HP and spawns Nylocas Matomenos.",
+      "tags": ["tob", "maiden"]
+    },
+    {
+      "id": "TOB_NYLO_WAVE_1",
+      "status": "active",
+      "summary": "Nylocas wave 1",
+      "introduced": "2026-01-30",
+      "details": "Occurs on the tick that wave 1 spawns in the Nylocas room.",
+      "tags": ["tob", "nylocas"]
+    },
+    {
+      "id": "TOB_NYLO_WAVE_2",
+      "status": "active",
+      "summary": "Nylocas wave 2",
+      "introduced": "2026-01-30",
+      "details": "Occurs on the tick that wave 2 spawns in the Nylocas room.",
+      "tags": ["tob", "nylocas"]
+    },
+    {
+      "id": "TOB_NYLO_WAVE_3",
+      "status": "active",
+      "summary": "Nylocas wave 3",
+      "introduced": "2026-01-30",
+      "details": "Occurs on the tick that wave 3 spawns in the Nylocas room.",
+      "tags": ["tob", "nylocas"]
+    },
+    {
+      "id": "TOB_NYLO_WAVE_4",
+      "status": "active",
+      "summary": "Nylocas wave 4",
+      "introduced": "2026-01-30",
+      "details": "Occurs on the tick that wave 4 spawns in the Nylocas room.",
+      "tags": ["tob", "nylocas"]
+    },
+    {
+      "id": "TOB_NYLO_WAVE_5",
+      "status": "active",
+      "summary": "Nylocas wave 5",
+      "introduced": "2026-01-30",
+      "details": "Occurs on the tick that wave 5 spawns in the Nylocas room.",
+      "tags": ["tob", "nylocas"]
+    },
+    {
+      "id": "TOB_NYLO_WAVE_6",
+      "status": "active",
+      "summary": "Nylocas wave 6",
+      "introduced": "2026-01-30",
+      "details": "Occurs on the tick that wave 6 spawns in the Nylocas room.",
+      "tags": ["tob", "nylocas"]
+    },
+    {
+      "id": "TOB_NYLO_WAVE_7",
+      "status": "active",
+      "summary": "Nylocas wave 7",
+      "introduced": "2026-01-30",
+      "details": "Occurs on the tick that wave 7 spawns in the Nylocas room.",
+      "tags": ["tob", "nylocas"]
+    },
+    {
+      "id": "TOB_NYLO_WAVE_8",
+      "status": "active",
+      "summary": "Nylocas wave 8",
+      "introduced": "2026-01-30",
+      "details": "Occurs on the tick that wave 8 spawns in the Nylocas room.",
+      "tags": ["tob", "nylocas"]
+    },
+    {
+      "id": "TOB_NYLO_WAVE_9",
+      "status": "active",
+      "summary": "Nylocas wave 9",
+      "introduced": "2026-01-30",
+      "details": "Occurs on the tick that wave 9 spawns in the Nylocas room.",
+      "tags": ["tob", "nylocas"]
+    },
+    {
+      "id": "TOB_NYLO_WAVE_10",
+      "status": "active",
+      "summary": "Nylocas wave 10",
+      "introduced": "2026-01-30",
+      "details": "Occurs on the tick that wave 10 spawns in the Nylocas room.",
+      "tags": ["tob", "nylocas"]
+    },
+    {
+      "id": "TOB_NYLO_WAVE_11",
+      "status": "active",
+      "summary": "Nylocas wave 11",
+      "introduced": "2026-01-30",
+      "details": "Occurs on the tick that wave 11 spawns in the Nylocas room.",
+      "tags": ["tob", "nylocas"]
+    },
+    {
+      "id": "TOB_NYLO_WAVE_12",
+      "status": "active",
+      "summary": "Nylocas wave 12",
+      "introduced": "2026-01-30",
+      "details": "Occurs on the tick that wave 12 spawns in the Nylocas room.",
+      "tags": ["tob", "nylocas"]
+    },
+    {
+      "id": "TOB_NYLO_WAVE_13",
+      "status": "active",
+      "summary": "Nylocas wave 13",
+      "introduced": "2026-01-30",
+      "details": "Occurs on the tick that wave 13 spawns in the Nylocas room.",
+      "tags": ["tob", "nylocas"]
+    },
+    {
+      "id": "TOB_NYLO_WAVE_14",
+      "status": "active",
+      "summary": "Nylocas wave 14",
+      "introduced": "2026-01-30",
+      "details": "Occurs on the tick that wave 14 spawns in the Nylocas room.",
+      "tags": ["tob", "nylocas"]
+    },
+    {
+      "id": "TOB_NYLO_WAVE_15",
+      "status": "active",
+      "summary": "Nylocas wave 15",
+      "introduced": "2026-01-30",
+      "details": "Occurs on the tick that wave 15 spawns in the Nylocas room.",
+      "tags": ["tob", "nylocas"]
+    },
+    {
+      "id": "TOB_NYLO_WAVE_16",
+      "status": "active",
+      "summary": "Nylocas wave 16",
+      "introduced": "2026-01-30",
+      "details": "Occurs on the tick that wave 16 spawns in the Nylocas room.",
+      "tags": ["tob", "nylocas"]
+    },
+    {
+      "id": "TOB_NYLO_WAVE_17",
+      "status": "active",
+      "summary": "Nylocas wave 17",
+      "introduced": "2026-01-30",
+      "details": "Occurs on the tick that wave 17 spawns in the Nylocas room.",
+      "tags": ["tob", "nylocas"]
+    },
+    {
+      "id": "TOB_NYLO_WAVE_18",
+      "status": "active",
+      "summary": "Nylocas wave 18",
+      "introduced": "2026-01-30",
+      "details": "Occurs on the tick that wave 18 spawns in the Nylocas room.",
+      "tags": ["tob", "nylocas"]
+    },
+    {
+      "id": "TOB_NYLO_WAVE_19",
+      "status": "active",
+      "summary": "Nylocas wave 19",
+      "introduced": "2026-01-30",
+      "details": "Occurs on the tick that wave 19 spawns in the Nylocas room.",
+      "tags": ["tob", "nylocas"]
+    },
+    {
+      "id": "TOB_NYLO_WAVE_20",
+      "status": "active",
+      "summary": "Nylocas wave 20",
+      "introduced": "2026-01-30",
+      "details": "Occurs on the tick that wave 20 spawns in the Nylocas room. This is the cap increase wave.",
+      "tags": ["tob", "nylocas"]
+    },
+    {
+      "id": "TOB_NYLO_WAVE_21",
+      "status": "active",
+      "summary": "Nylocas wave 21",
+      "introduced": "2026-01-30",
+      "details": "Occurs on the tick that wave 21 spawns in the Nylocas room.",
+      "tags": ["tob", "nylocas"]
+    },
+    {
+      "id": "TOB_NYLO_WAVE_22",
+      "status": "active",
+      "summary": "Nylocas wave 22",
+      "introduced": "2026-01-30",
+      "details": "Occurs on the tick that wave 22 spawns in the Nylocas room.",
+      "tags": ["tob", "nylocas"]
+    },
+    {
+      "id": "TOB_NYLO_WAVE_23",
+      "status": "active",
+      "summary": "Nylocas wave 23",
+      "introduced": "2026-01-30",
+      "details": "Occurs on the tick that wave 23 spawns in the Nylocas room.",
+      "tags": ["tob", "nylocas"]
+    },
+    {
+      "id": "TOB_NYLO_WAVE_24",
+      "status": "active",
+      "summary": "Nylocas wave 24",
+      "introduced": "2026-01-30",
+      "details": "Occurs on the tick that wave 24 spawns in the Nylocas room.",
+      "tags": ["tob", "nylocas"]
+    },
+    {
+      "id": "TOB_NYLO_WAVE_25",
+      "status": "active",
+      "summary": "Nylocas wave 25",
+      "introduced": "2026-01-30",
+      "details": "Occurs on the tick that wave 25 spawns in the Nylocas room.",
+      "tags": ["tob", "nylocas"]
+    },
+    {
+      "id": "TOB_NYLO_WAVE_26",
+      "status": "active",
+      "summary": "Nylocas wave 26",
+      "introduced": "2026-01-30",
+      "details": "Occurs on the tick that wave 26 spawns in the Nylocas room.",
+      "tags": ["tob", "nylocas"]
+    },
+    {
+      "id": "TOB_NYLO_WAVE_27",
+      "status": "active",
+      "summary": "Nylocas wave 27",
+      "introduced": "2026-01-30",
+      "details": "Occurs on the tick that wave 27 spawns in the Nylocas room.",
+      "tags": ["tob", "nylocas"]
+    },
+    {
+      "id": "TOB_NYLO_WAVE_28",
+      "status": "active",
+      "summary": "Nylocas wave 28",
+      "introduced": "2026-01-30",
+      "details": "Occurs on the tick that wave 28 spawns in the Nylocas room.",
+      "tags": ["tob", "nylocas"]
+    },
+    {
+      "id": "TOB_NYLO_WAVE_29",
+      "status": "active",
+      "summary": "Nylocas wave 29",
+      "introduced": "2026-01-30",
+      "details": "Occurs on the tick that wave 29 spawns in the Nylocas room.",
+      "tags": ["tob", "nylocas"]
+    },
+    {
+      "id": "TOB_NYLO_WAVE_30",
+      "status": "active",
+      "summary": "Nylocas wave 30",
+      "introduced": "2026-01-30",
+      "details": "Occurs on the tick that wave 30 spawns in the Nylocas room.",
+      "tags": ["tob", "nylocas"]
+    },
+    {
+      "id": "TOB_NYLO_WAVE_31",
+      "status": "active",
+      "summary": "Nylocas wave 31",
+      "introduced": "2026-01-30",
+      "details": "Occurs on the tick that wave 31 spawns in the Nylocas room. This is the final wave.",
+      "tags": ["tob", "nylocas"]
+    },
+    {
+      "id": "TOB_NYLO_CLEANUP",
+      "status": "active",
+      "summary": "End of Nylocas cleanup",
+      "introduced": "2026-01-30",
+      "details": "Occurs on the tick that the last wave Nylocas despawns.",
+      "tags": ["tob", "nylocas"]
+    },
+    {
+      "id": "TOB_NYLO_BOSS_SPAWN",
+      "status": "active",
+      "summary": "Nylocas boss spawn",
+      "introduced": "2026-01-30",
+      "details": "Occurs on the tick that Nylocas Vasilias spawns.",
+      "tags": ["tob", "nylocas"]
+    },
+    {
+      "id": "TOB_SOTETSEG_MAZE_1",
+      "status": "active",
+      "summary": "Sotetseg maze 1",
+      "introduced": "2026-01-30",
+      "details": "Occurs on the tick that Sotetseg reaches 66% health and the first maze begins.",
+      "tags": ["tob", "sotetseg"]
+    },
+    {
+      "id": "TOB_SOTETSEG_MAZE_2",
+      "status": "active",
+      "summary": "Sotetseg maze 2",
+      "introduced": "2026-01-30",
+      "details": "Occurs on the tick that Sotetseg reaches 33% health and the second maze begins.",
+      "tags": ["tob", "sotetseg"]
+    },
+    {
+      "id": "COLOSSEUM_REINFORCEMENTS",
+      "status": "active",
+      "summary": "Colosseum reinforcements",
+      "introduced": "2026-01-30",
+      "details": "Occurs on the tick that reinforcement enemies spawn during a Colosseum wave.",
+      "tags": ["colosseum"]
+    }
+  ]
+}

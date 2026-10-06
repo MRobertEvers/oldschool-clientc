@@ -1,0 +1,1188 @@
+{{redirect|Chambers|Chamber (disambiguation)}}
+{{Safe activity|instance=true}}
+{{HasStrategy}}
+{{Infobox Activity
+|name = Chambers of Xeric
+|image = [[File:Chambers of Xeric logo.png|250px]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|aka = Raids 1, CoX, Chambers
+|type = Raid
+|members = Yes
+|location = [[Mount Quidamortem]]
+|players = 1-100
+|skills = [[Combat]], [[Mining]], [[Woodcutting]], [[Herblore]], [[Farming]], [[Hunter]], [[Cooking]], [[Fishing]], [[Thieving]], [[Firemaking]], [[Agility]]
+|currency = N/A
+|tutorial = No
+|music = [[Lower Depths]], [[Upper Depths]], [[Fire in the Deep]]
+|map = {{Map|name=Chambers of Xeric|1245,3557|zoom=2}}
+|leagueRegion = Kourend
+}}
+The '''Chambers of Xeric''' is a [[raid]] located within a sprawling cave system beneath [[Mount Quidamortem]] in the [[Kebos Lowlands]]. It was the first raid introduced to ''[[Old School RuneScape]]''.
+
+Long ago, [[Xeric]] and some of his followers travelled to the mountain after his exile from the kingdom of [[Great Kourend]]. The Chambers themselves and the now-ruined temple that sits above them were built by Xeric's personal artisan, [[Tekton]]. The experiments conducted within the Chambers resulted in, among many other things, the creation of the [[Muttadile]], an attempted coup by Xeric's [[Vasa Nistirio|High Priest]] (which resulted in Xeric ordering the destruction of the temple), and accidentally letting in [[Vespula|a powerful Abyssal creature]].
+
+Even after Xeric took the power he sought within the Chambers, the caves still house the results of his many experiments, with [[Great Olm|the Guardian in the Deep]] Xeric himself fought against now protecting the weapons and armour he had created.
+
+[[Ironman_Mode|Ironmen]] are eligible for rewards from the raid when completing it alongside other players. [[Group Ironman Mode|Group ironman players]] will lose their [[Group Ironman Mode#Prestige|prestige]] upon entering the raid with a player outside of their group.
+
+==Transportation==
+[[File:Path to Raids.png|thumb|380px|Getting to Mount Quidamortem from the Shayziens' Wall.]]
+The Chambers of Xeric are located on [[Mount Quidamortem]], which can be quickly accessed via the [[Lovakengj Minecart Network]]. This costs 20 [[coins]] per ride unless the player has completed [[The Forsaken Tower]], in which case it is free.
+
+Otherwise, players will need to head to the [[Shayziens' Wall]] and make their way west to Mount Quidamortem; be wary of aggressive [[lizardmen]] and [[lizardmen brute]]s. For those arriving there without the mine cart system, speak to the [[Mountain Guide]] (who is located on the mountain next to [[Gnosi]], [[Historian Duffy]], and the [[Natural Historian (Mount Quidamortem)|Natural Historian]]) before leaving; doing so will establish a two-way transportation system between the mountain and the Shayziens' Wall which can be accessed by using the [[Book of the Dead#Teleportation|book of the dead]] and use the [[History and Hearsay]] option, then run south-west.
+
+Once players receive an [[ancient tablet]] as a reward from the Chambers of Xeric, they are able to use it on [[Xeric's talisman]] to unlock a teleport directly to the mountain.
+
+The [[fairy ring]] {{fairycode|BLS}} will bring the player near Mount Quidamortem. Run west, then take the path leading up the mountain in the north-west.
+
+==Mechanics==
+{{main|Chambers of Xeric/Strategies}}
+
+The Chambers of Xeric uses a unique party finding system to help determine how strong the team is. The raid can be started with just one player or up to 100 at a time. Players in smaller groups can also scale the raid without having to rely on others to fill in the actual slots. The stats of the enemies in the raid will likewise scale accordingly to the team size, while the skill requirements are based on the team's overall skilling levels. The layout of the raid is determined by the leader's selection; small, large and full-sized raids. 
+
+To start a raid, the leader must create a team. This "team" is the leader's [[chat-channel]], which other players may join by manually typing in the channel's name. Additionally, the leader must register on the recruitment board. Once everyone is ready, the leader should enter the chambers, where a starting room is located. The raid officially starts once the leader starts the raid; when that happens, all the mechanics will be calculated and no one may join the instance if they were not in by the time the raid started. If the leader leaves by any means, the next leader will be whoever has the highest rank in the Clan Chat, with a minimum rank of recruit; if no suitable rank is found, everyone is thrown out of the [[instance]].
+
+The entrance room contains a bank chest to allow players to adjust their inventories accordingly to whatever rooms are generated in the raid. Players will not be able to drop items before the raid starts, and the bank chest will be closed shut once the raid begins.
+
+There are three floors in each raid: two floors of pre-combat/skilling rooms, and the third floor houses the final boss and is always static in every layout. [[Energy well]]s are found in scavenger rooms, resource rooms and the final room in the first two floors, which fully replenish run energy when interacted with.
+
+In normal raids, a floor will consist of both a starting and exit room, one resource room, one or two scavenger rooms, and two or three combat and/or skilling rooms. In the event that two scavenger rooms are in a single floor, one of these will always use the large layout with a skilling obstacle inside it. These floors will either consist of seven or eight rooms.
+
+If large raids are toggled, the floors will be entirely filled with eight rooms, and each floor will consist of both a starting and exit room, one resource room, one scavenger room, and four combat and/or skilling rooms. Duplicate skilling rooms are enabled in large raids, meaning that it is possible to get two tightrope rooms in the same raid.
+
+If full raids are toggled, the layout is the same as in challenge mode.
+
+===Challenge Mode===
+{{Main|Chambers of Xeric/Challenge Mode}}
+
+[[File:Chambers of Xeric Challenge Mode icon.png|left|20px]]
+Challenge Mode is a "hard" version of the existing Chambers of Xeric, which can be toggled on. All combat and puzzle rooms are featured in challenge mode, and all enemies' stats and health (barring the Great Olm, who only has increased stats) are increased. Unlike normal mode, the layout is always static, and with all puzzle and combat rooms being featured, players must clear through four floors of enemies rather than three.
+
+Completion of the mode in a specific time frame can yield [[metamorphic dust]] to reskin an [[olmlet]], and [[twisted ancestral colour kit]] to recolour ancestral robes. Cosmetic capes are awarded at specific clear milestones.
+
+==Resources==
+The Chambers of Xeric have various resources which can be used in the raid to make things easier.
+
+[[Scavenger beast]]s can be found around the dungeon. One scavenger room is always guaranteed somewhere in the raid, and it will always be before the first puzzle room. It is common to encounter one scavenger room on each floor, though in uncommon circumstances players may encounter two scavenger rooms on the floor. They are primarily killed for tool and Herblore secondary drops, which are used in the resource rooms, such as [[butterfly net]]s and [[cave worm]]s.
+
+The scavengers encountered are random, in addition to the room type they appear in - some rooms may be a small bend or curve, others a spacious area (which will always contain a [[Boulder (Chambers of Xeric)|boulder]], mining [[Rocks (Chambers of Xeric)|rock]] or [[rotten sapling]] shortcut which can be cleared away for points). The amount of scavengers in the room, along with their strength (to a very mild degree) is determined by the amount of players in the raid.
+
+If the player dies in the Chambers, they will drop '''all''' raid-only items upon death; for example, if the player died with 10 Xeric's aid (+), those potions are dropped immediately upon dying. Other items that can be found, such as a hammer, will not be dropped upon death.
+
+===Food===
+All these [[cooking]] resources require the same level for [[hunting]] or [[fishing]] them, with the tier being determined by the team's overall Hunter/Fishing level. They are not often utilised in normal raids as Xeric's aid heals more per inventory space.
+
+To catch bats, a [[butterfly net]] is required.
+
+To catch fish, a [[fishing rod]] is required, with [[cave worms]] as bait. In fishing rooms, there are three fishing spots. One of these three spots contains a [[cave snake]], which will damage the player (or take their fish). If a snake appears in the fishing spot, stop fishing and click elsewhere to avoid taking damage. Only spots containing plain fish and cave snakes will move occasionally.
+
+All the items required to capture bats and fish can be dropped by scavengers.
+
+====Fishing====
+{|class="wikitable" style="width:100%; max-width:400px; text-align:center;"
+!colspan="2"|Food
+!Levels
+!XP
+!Heals
+|-
+|{{plinkp|Pysk fish|pic=Pysk fish (0)}}
+|[[Pysk fish (0)]]
+|{{SCP|Fishing|1}}<br/>
+{{SCP|Cooking|1}}
+|{{SCP|Fishing|20}}<br/>
+{{SCP|Cooking|10}}
+|5
+|-
+|{{plinkp|Suphi fish|pic=Suphi fish (1)}}
+|[[Suphi fish (1)]]
+|{{SCP|Fishing|15}}<br/>
+{{SCP|Cooking|15}}
+|{{SCP|Fishing|23}}<br/>
+{{SCP|Cooking|13}}
+|8
+|-
+|{{plinkp|Leckish fish|pic=Leckish fish (2)}}
+|[[Leckish fish (2)]]
+|{{SCP|Fishing|30}}<br/>
+{{SCP|Cooking|30}}
+|{{SCP|Fishing|26}}<br/>
+{{SCP|Cooking|16}}
+|11
+|-
+|{{plinkp|Brawk fish|pic=Brawk fish (3)}}
+|[[Brawk fish (3)]]
+|{{SCP|Fishing|45}}<br/>
+{{SCP|Cooking|45}}
+|{{SCP|Fishing|29}}<br/>
+{{SCP|Cooking|19}}
+|14
+|-
+|{{plinkp|Mycil fish|pic=Mycil fish (4)}}
+|[[Mycil fish (4)]]
+|{{SCP|Fishing|60}}<br/>
+{{SCP|Cooking|60}}
+|{{SCP|Fishing|32}}<br/>
+{{SCP|Cooking|22}}
+|17
+|-
+|{{plinkp|Roqed fish|pic=Roqed fish (5)}}
+|[[Roqed fish (5)]]
+|{{SCP|Fishing|75}}<br/>
+{{SCP|Cooking|75}}
+|{{SCP|Fishing|35}}<br/>
+{{SCP|Cooking|25}}
+|20
+|-
+|{{plinkp|Kyren fish|pic=Kyren fish (6)}}
+|[[Kyren fish (6)]]
+|{{SCP|Fishing|90}}<br/>
+{{SCP|Cooking|90}}
+|{{SCP|Fishing|38}}<br/>
+{{SCP|Cooking|28}}
+|23
+|}
+
+====Hunter====
+In resource rooms without fishing spots, there will be two to three bats flying around in the chamber, which can be caught and cooked for food. Players with 99 [[Hunter]] can catch any bats barehanded.
+{|class="wikitable" style="width:100%; max-width:400px; text-align:center;"
+!colspan="2"|Food
+!Levels
+!XP
+!Heals
+|-
+|{{plinkp|Guanic bat|pic=Guanic bat (0)}}
+|[[Guanic bat (0)]]
+|{{SCP|Hunter|1}}<br/>
+{{SCP|Cooking|1}}
+|{{SCP|Hunter|5}}<br/>
+{{SCP|Cooking|10}}
+|5
+|-
+|{{plinkp|Prael bat|pic=Prael bat (1)}}
+|[[Prael bat (1)]]
+|{{SCP|Hunter|15}}<br/>
+{{SCP|Cooking|15}}
+|{{SCP|Hunter|9}}<br/>
+{{SCP|Cooking|13}}
+|8
+|-
+|{{plinkp|Giral bat|pic=Giral bat (2)}}
+|[[Giral bat (2)]]
+|{{SCP|Hunter|30}}<br/>
+{{SCP|Cooking|30}}
+|{{SCP|Hunter|13}}<br />
+{{SCP|Cooking|16}}
+|11
+|-
+|{{plinkp|Phluxia bat|pic=Phluxia bat (3)}}
+|[[Phluxia bat (3)]]
+|{{SCP|Hunter|45}}<br/>
+{{SCP|Cooking|45}}
+|{{SCP|Hunter|17}}<br />
+{{SCP|Cooking|19}}
+|14
+|-
+|{{plinkp|Kryket bat|pic=Kryket bat (4)}}
+|[[Kryket bat (4)]]
+|{{SCP|Hunter|60}}<br/>
+{{SCP|Cooking|60}}
+|{{SCP|Hunter|21}}<br/>
+{{SCP|Cooking|22}}
+|17
+|-
+|{{plinkp|Murng bat|pic=Murng bat (5)}}
+|[[Murng bat (5)]]
+|{{SCP|Hunter|75}}<br/>
+{{SCP|Cooking|75}}
+|{{SCP|Hunter|25}}<br/>
+{{SCP|Cooking|25}}
+|20
+|-
+|{{plinkp|Psykk bat|pic=Psykk bat (6)}}
+|[[Psykk bat (6)]]
+|{{SCP|Hunter|90}}<br/>
+{{SCP|Cooking|90}}
+|{{SCP|Hunter|29}}<br />
+{{SCP|Cooking|28}}
+|23
+|}
+
+===Farming===
+Seeds can be obtained from several bosses, such as the [[Skeletal mystic]]s, [[Lizardmen shaman]]s, and [[Guardian (Chambers of Xeric)|Guardian statues]]. They can also be found by raking [[weeds (Chambers of Xeric)|weeds]] in the top and lower floors (the last area in those floors and the first area in the lower floor).
+
+There are two farming plots in each resource room for players to grow herbs. Due to the magic of the chambers, herbs grow faster and are fully grown in 30 seconds.
+{|class="wikitable"
+!colspan="2"|Seed
+!Level
+!Planting XP
+!Harvest XP
+|-
+|{{plinkt|Golpar seed}}
+|{{SCP|Farming|27}}
+|4
+|10
+|-
+|{{plinkt|Buchu seed}}
+|{{SCP|Farming|39}}
+|6
+|15
+|-
+|{{plinkt|Noxifer seed}}
+|{{SCP|Farming|55}}
+|12
+|30
+|}
+
+===Herblore===
+Potions can be dropped in small amounts by the bosses. Some bosses drop herblore secondaries, although they are primarily obtained from scavengers.
+
+There are three types of potions a player can make:
+*Golpar (combat potions)
+*Buchu (recovery potions)
+*Noxifer (overload-type potions)
+
+To create potions in the chambers, a gourd must be collected from the nearby gourd tree, then filled with water from the nearby water spout or with [[Humidify]]. Gourds can be picked en masse with the "Pick-lots" option. Gourds automatically break upon drinking the last dose of the potion.
+
+'''Note:''' Potion tiers are capped on the player's Herblore level upon creation and will downgrade accordingly for overloads; e.g a player with 80 Herblore would be able to make combat+ potions, but as overload+ requires 90 Herblore, they will downgrade into a normal overload upon creation.
+
+====Weak potions====
+{|class="wikitable sortable" style="text-align:center; width:800px;"
+!colspan="2"|Potion
+!Level
+!Herb
+!Second ingredient
+!XP
+!Effect
+|-
+|{{plinkt|Elder (-)}}
+|{{SCP|Herblore|47}}
+|{{plink|Golpar}}
+|{{plink|Stinkhorn mushroom}}
+|6.5
+|Increases [[Attack]], [[Strength]], and [[Defence]] levels.
+|-
+|{{plinkt|Twisted (-)}}
+|{{SCP|Herblore|47}}
+|{{plink|Golpar}}
+|{{plink|Cicely}}
+|6.5
+|Increases your [[Ranged]] level.
+|-
+|{{plinkt|Kodai (-)}}
+|{{SCP|Herblore|47}}
+|{{plink|Golpar}}
+|{{plink|Endarkened juice}}
+|6.5
+|Increases your [[Magic]] level.
+|-
+|{{plinkt|Revitalisation (-)}}
+|{{SCP|Herblore|52}}
+|{{plink|Buchu leaf}}
+|{{plink|Stinkhorn mushroom}}
+|13.5
+|Restores your [[stats]] and [[Prayer]].
+|-
+|{{plinkt|Prayer enhance (-)}}
+|{{SCP|Herblore|52}}
+|{{plink|Buchu leaf}}
+|{{plink|Cicely}}
+|13.5
+|Regenerates [[prayer points]] over time.
+|-
+|{{plinkt|Xeric's aid (-)}}
+|{{SCP|Herblore|52}}
+|{{plink|Buchu leaf}}
+|{{plink|Endarkened juice}}
+|13.5
+|Works as [[Saradomin brew]].
+|-
+|{{plinkt|Antipoison (-)}}
+|{{SCP|Herblore|60}}
+|{{plink|Noxifer}}
+|{{plink|Cicely}}
+|13.5
+|Cures [[poison]] and provides immunity to it for 90 seconds.
+|-
+|{{plinkt|Overload (-)}}
+|{{SCP|Herblore|60}}
+|{{plink|Noxifer}}
+|{{plink|Elder (-)|pic=Elder potion (4)}}<br/>{{plink|Twisted (-)|pic=Twisted potion (4)}}<br/>{{plink|Kodai (-)|pic=Kodai potion (4)}}
+|33.5
+|Boosts all the player's combat stats by 4 + 10%, while damaging them for 50 hitpoints. This boost is reapplied every 15 seconds for 5 minutes until the effects wear off, and the player is then healed 50 hitpoints.
+|}
+
+====Standard potions====
+Standard potions have the effects of their super variants outside (e.g. the Overload is exactly the same as the one in Nightmare Zone).
+{|class="wikitable sortable" style="text-align:center; width:800px;"
+!colspan="2"|Potion
+!Level
+!Herb
+!Second ingredient
+!XP
+!Effect
+|-
+|{{plinkt|Elder potion}}
+|{{SCP|Herblore|59}}
+|{{plink|Golpar}}
+|{{plink|Stinkhorn mushroom}}
+|10
+|Increases [[Attack]], [[Strength]], and [[Defence]] levels.
+|-
+|{{plinkt|Twisted potion}}
+|{{SCP|Herblore|59}}
+|{{plink|Golpar}}
+|{{plink|Cicely}}
+|10
+|Increases your [[Ranged]] level.
+|-
+|{{plinkt|Kodai potion}}
+|{{SCP|Herblore|59}}
+|{{plink|Golpar}}
+|{{plink|Endarkened juice}}
+|10
+|Increases your [[Magic]] level.
+|-
+|{{plinkt|Revitalisation potion|pic=Revitalisation potion (4)}}
+|{{SCP|Herblore|65}}
+|{{plink|Buchu leaf}}
+|{{plink|Stinkhorn mushroom}}
+|20
+|Restores your [[stats]] and [[Prayer]].
+|-
+|{{plinkt|Prayer enhance|pic=Prayer enhance (4)}}
+|{{SCP|Herblore|65}}
+|{{plink|Buchu leaf}}
+|{{plink|Cicely}}
+|20
+|Regenerates [[prayer points]] over time.
+|-
+|{{plinkt|Xeric's aid|pic=Xeric's aid (4)}}
+|{{SCP|Herblore|65}}
+|{{plink|Buchu leaf}}
+|{{plink|Endarkened juice}}
+|20
+|Works as [[Saradomin brew]].
+|-
+|{{plinkt|Antipoison potion}}
+|{{SCP|Herblore|75}}
+|{{plink|Noxifer}}
+|{{plink|Cicely}}
+|20
+|Cures [[poison]] and provides immunity to it for six minutes.
+|-
+|{{plinkt|Overload (Chambers of Xeric)|pic=Overload (4) (Chambers of Xeric)|txt=Overload}}
+|{{SCP|Herblore|75}}
+|{{plink|Noxifer}}
+|{{plink|Elder potion|pic=Elder potion (4)}}<br/>{{plink|Twisted potion|pic=Twisted potion (4)}}<br/>{{plink|Kodai potion|pic=Kodai potion (4)}}
+|50
+|Boosts all the player's combat stats by 5 + 13%, while damaging them for 50 hitpoints. This boost is reapplied every 15 seconds for 5 minutes until the effects wear off, and the player is then healed 50 hitpoints.
+|}
+
+====Strong potions====
+{|class="wikitable sortable" style="text-align:center; width:800px;"
+!colspan="2"|Potion
+!Level
+!Herb
+!Second ingredient
+!XP
+!Effect
+|-
+|{{plinkt|Elder (+)|pic=Elder potion (4)}}
+|{{SCP|Herblore|70}}
+|{{plink|Golpar}}
+|{{plink|Stinkhorn mushroom}}
+|13
+|Increases [[Attack]], [[Strength]], and [[Defence]] levels.
+|-
+|{{plinkt|Twisted (+)|pic=Twisted potion (4)}}
+|{{SCP|Herblore|70}}
+|{{plink|Golpar}}
+|{{plink|Cicely}}
+|13
+|Increases your [[Ranged]] level.
+|-
+|{{plinkt|Kodai (+)|pic=Kodai potion (4)}}
+|{{SCP|Herblore|70}}
+|{{plink|Golpar}}
+|{{plink|Endarkened juice}}
+|13
+|Increases your [[Magic]] level.
+|-
+|{{plinkt|Revitalisation (+)|pic=Revitalisation potion (4)}}
+|{{SCP|Herblore|78}}
+|{{plink|Buchu leaf}}
+|{{plink|Stinkhorn mushroom}}
+|26.5
+|Restores your [[stats]] and [[Prayer]].
+|-
+|{{plinkt|Prayer enhance (+)|pic=Prayer enhance (4)}}
+|{{SCP|Herblore|78}}
+|{{plink|Buchu leaf}}
+|{{plink|Cicely}}
+|26.5
+|Regenerates [[prayer points]] over time.
+|-
+|{{plinkt|Xeric's aid (+)|pic=Xeric's aid (4)}}
+|{{SCP|Herblore|78}}
+|{{plink|Buchu leaf}}
+|{{plink|Endarkened juice}}
+|26.5
+|Works as [[Saradomin brew]].
+|-
+|{{plinkt|Antipoison (+)}}
+|{{SCP|Herblore|90}}
+|{{plink|Noxifer}}
+|{{plink|Cicely}}
+|26.5
+|Cures [[poison]] and provides immunity to it for nine minutes.
+|-
+|{{plinkt|Overload (+)|pic=Overload (4) (Chambers of Xeric)}}
+|{{SCP|Herblore|90}}
+|{{plink|Noxifer}}
+|{{plink|Elder (+)|pic=Elder potion (4)}}<br/>{{plink|Twisted (+)|pic=Twisted potion (4)}}<br/>{{plink|Kodai (+)|pic=Kodai potion (4)}}
+|66.5
+|Boosts all the player's combat stats by 6 + 16%, while damaging them for 50 hitpoints. This boost is reapplied every 15 seconds for 5 minutes until the effects wear off, and the player is then healed 50 hitpoints.
+|}
+
+===Storage units===
+Storage units are built from [[mallignum root plank]]s, obtained as drops from scavengers. A [[hammer]] is required in building storage units, with the [[dragon warhammer]] or [[elder maul]] being a suitable substitute.
+
+[[Ultimate Ironman Mode|Ultimate Ironman]] players are able to upgrade the storage unit, but cannot store any items or supplies in it.
+
+Once a storage unit is built, anyone can use it. Storage units have a shared and personal inventory. The shared inventory allows players to store items used in the raid, such as the tools, seeds, herbs, Herblore secondaries, and potions. The personal inventory is much like the shared inventory, but it can also hold the player's belongings, such as weapons and armour. The player can also put in raid-unique items in there if desired. In addition to this, once a storage unit is built anywhere in the Chambers, they will appear in all potential hotspots where they may be found.
+
+Storage units can be found at the end of each floor, in addition to appearing in resource rooms, the corrupted scavenger, ice demon chambers, and outside of the [[Great Olm]] chamber.
+
+While higher levelled storage units can be built immediately, they still require the materials to build the previous tiers. So in order to build a large storage unit instantly, you need 6 planks (4 for the first two storage units, then 2 for the remaining upgrade).
+
+Players who leave the Chambers with their personal items still stored in the storage units can retrieve them from the private storage unit next to the bank chest on the mountain. The private storage unit '''must be emptied''' before players can re-enter the Chambers of Xeric. Should a player die outside of the Chambers of Xeric before claiming any items left in the chest, the items will not be destroyed.
+
+{|class="wikitable" style="text-align:center;"
+!colspan="2"|Storage units
+!{{SCP|Construction}} level
+!Planks required
+!Experience
+!Capacity
+!Capacity<br/>(personal)
+|-
+|{{plinkt|Small storage unit|pic=Small storage unit icon}}
+|30
+|2
+|150
+|250
+|30
+|-
+|{{plinkt|Medium storage unit|pic=Medium storage unit icon}}
+|60
+|4
+|150
+|500
+|60
+|-
+|{{plinkt|Large storage unit|pic=Large storage unit icon}}
+|90
+|6
+|150
+|1,000
+|90
+|-
+|{{plinkt|Massive storage unit|pic=Massive storage unit icon}}
+|99
+|8
+|150
+|1,500
+|120
+|}
+
+==Bosses==
+[[File:Fighting Great Olm.png|thumb|right|300px|A group of players fighting the Great Olm.]]
+
+Bosses drop various items on defeat, apart from Great Olm. These drops are awarded to the player who dealt the most damage to them in the encounter. If this player should be an Ironman player, then the items can be picked up by all players.
+
+*[[Ice Demon]]
+*[[Lizardman shaman (Chambers of Xeric)|Lizardman Shamans]]
+*[[Muttadile]]s
+*[[Skeletal Mystic]]s
+*[[Tekton]]
+*[[Vanguard]]s
+*[[Vasa Nistirio]]
+*[[Vespula]]
+*[[Great Olm]] (final boss)
+
+==Reward system==
+Player rewards are based on "participation" points. As the team collects more points, they have an increased chance of obtaining unique items. Individually, these points determine the quantity of common rewards. If a player dies in a raid, they will lose 40% of the points that they had before their death. If the player dies with none, or extremely few, personal points (less than 5% of the total points before death), the team's overall points are reduced instead by 5%.
+
+Common loot awarded at the end of the raid scales up to 131,071 points. Additional points earned by a player after this point are still included when rolling for uniques.
+
+If a member of a raid party leaves early, the points multiplier and difficulty for that raid will remain the same. To prevent megascale boosting abuse at Chambers of Xeric, players who leave a raid in progress are eligible to receive unique items, but if they would do so, the reward is discarded instead. This ensures that leaving a CoX raid no longer transfers loot chances onto remaining participants.
+
+===Gaining Points===
+Gaining points in raids is possible in multiple ways, all of which have a cap which scales to the number of players in the raid. Below is a short description for all ways to gain points within the Chambers of Xeric.
+
+====Combat====
+Dealing damage within the Chambers of Xeric will reward the player with points based on damage dealt.
+
+====Storage unit====
+Building or upgrading the [[storage unit]] will give 100 points per tier.
+
+====Shortcuts====
+In some [[scavenger]] rooms, a shortcut which requires [[Mining]], [[Woodcutting]], or [[Strength]] to clear can be found. Clearing this shortcut rewards the player with points equal to the level requirement times 5. For example, for a shortcut that requires 86 Mining, clearing the shortcut will result in 430 points.
+
+====Muttadile====
+In the [[Muttadile]] room, there is a [[meat tree]]. Cutting this tree awards some points.
+
+====Guardians====
+When a player steps between the [[Guardian (Chambers of Xeric)|Guardians]], they will push the player away, dealing damage and awarding some points. The point cap for this is currently believed to scale non-linearly with the number of players in the raid,{{CiteTwitter|author=Mod Ash|url=https://x.com/JagexAsh/status/1797662810505425005|date=3 June 2024|archiveurl=https://reldo.runescape.wiki/i/27963409|archivedate=07 April 2026}} but the exact formula is not currently known.
+
+====Cooking Food====
+A player is able to catch bats using [[Hunter]] and catch fish using [[Fishing]] within the Chambers of Xeric. When any player (including the person who cooked the food) eats them and heals damage, the player that cooked the food is awarded 4 + (8 * bat tier) points. If a different player to the one cooking the food uses that food to heal, the player that cooked the food receives 50% more points than if they were to eat it themselves. [[Psykk bat (6)|Psykk bats]] found in the Thieving room count as food cooked by the player who found them. There is a soft cap on food that grants points equal to 20 times the number of people participating in the raid, and a hard cap at 40 times the number of people participating in the raid, with points gradually diminishing for each piece of food eaten past 20. 
+
+====Potions====
+Appropriate use of potions that the player makes will award some points to the player that made them or got them from one of the bosses. The points awarded are capped at 5 sips times the number of people participating in the raid, plus five extra at a reduced amount. More points are given if a player other than the one who created the potion drinks them.
+Overloads award the highest amount of points, so players should try to refrain from drinking other potions during the raid, as the point cap for potions is based on doses drunk, not points gained. 75 Herblore for overload, 90 Herblore for overload+.
+
+====Crabs====
+In the [[Jewelled Crab]] room, attacking or being targeted by one of the crabs (including ones not used to bounce the floating crystal) will reward some points upon each successful crystal colour change.
+
+====Ice Demon====
+When a player deposits [[kindling (Chambers of Xeric)|kindling]] in the [[brazier (Chambers of Xeric)|braziers]] in the [[Ice demon]] room, they are rewarded with points. In regular (non CM) chambers max points is capped at approximately 6.5x sets of 28 kindling for about 6050 points. In a solo CM, the max points attainable is 6480 with the following sequence due to an unknown point cutoff formula: light one brazier with 28 kindling, add 28, add another 28, add exactly 21, then light a second brazier with 28 kindling.
+
+====Thieving====
+When a player fills the [[trough (Chambers of Xeric)|trough]] with [[cavern grub]]s in the [[Thieving]] room, they are awarded with 115 points per grub.
+The number of grubs required scales linearly based on the total thieving level of players participating in the raid.{{CiteTwitter|author=JagexAsh|url=https://x.com/JagexAsh/status/1800838061409939503|date=12 June 2024|quote=Scales linearly off the party's total Thieving stat, up to a cap.|archiveurl=https://reldo.runescape.wiki/i/27963411|archivedate=07 April 2026}}
+
+The minimum number of grubs required to complete the room is equal to 16 times the number of players in the raid, or 30 in a solo raid.
+
+Note that this is different to the number of grubs that will grant points. The formula to get the total grubs that will grant points is as follows:
+
+<math>\begin{align}
+\text{Max Points} &= max(4500, \lfloor totalThievingLevel / 6\rfloor * 150) \\
+\text{Max Grubs} &= \lceil maxPoints / 115\rceil
+\end{align}</math>
+
+====Tightrope====
+When a player uses the [[keystone crystal]] on the [[shimmering barrier|barrier]] in the [[tightrope (Chambers of Xeric)|tightrope]] room, some points are awarded.
+
+==Money making==
+{{Mmgsection|Chambers of Xeric (Normal Mode)|Chambers of Xeric (Challenge Mode)}}
+
+==Rewards==
+{{Main|Ancient chest}}
+[[File:Chambers of Xeric - lootbeam alternating purple green.gif|thumb|230px|A player receives both a unique drop and a twisted kit.]]
+Depending on the points obtained in the raid, players have a chance to obtain a reward from the [[Ancient chest|Ancient Chest]] via the unique drop table. If the player does not roll into the unique drop table, they will obtain two rolls of standard loot instead (both a different loot), with their quantity depending on points obtained.
+
+Regardless of whether a unique drop was obtained, players may always additionally obtain the [[dark journal]] if they do not have it already, and the [[metamorphic dust]]/[[twisted ancestral colour kit]] for players completing a [[Chambers of Xeric/Challenge Mode|challenge mode]] raid if successfully rolled on.
+
+The beam of light above the chest will vary for the player depending on the loot obtained: by default, the light is white; if the player obtained an item from the unique drop table, it is purple; if the player obtained a metamorphic dust, it is turquoise; if the player obtained a twisted ancestral colour kit, it is green. If multiple such drops are obtained simultaneously, the light alternates between each appropriate colour.
+
+Players can find books during the raid.
+{| class="wikitable"
+|+
+!Book
+!Obtained via
+|-
+|{{plink|Creature keeper's journal}}
+|Searching the corpse of the [[creature keeper]] in the [[Corrupted scavenger]] room.
+|-
+|{{plink|Houndmaster's diary}}
+|Dropped by [[Muttadile]].
+|-
+|{{plink|Nistirio's manifesto}}
+|Dropped by [[Vasa Nistirio]].
+|-
+|{{plink|Tekton's journal}}
+|Dropped by [[Tekton]].
+|-
+|{{plink|Vanguard judgement}}
+|Dropped by [[Vanguard]].
+|-
+|{{plink|Transdimensional notes}}
+|Dropped by [[Vespula]].
+|-
+|{{plink|Dark journal}}
+|Found in the [[Ancient chest]] after defeating the [[Great Olm]].
+|}
+
+Players can earn Xerician capes through repeated completions of the Chambers of Xeric, claimed from [[Captain Rimor]].
+{| class="wikitable"
+|+
+!Accolade
+!Earned at
+|-
+|{{plink|Xeric's guard}}
+|100 completions of Challenge mode
+|-
+|{{plink|Xeric's warrior}}
+|500 completions of Challenge mode
+|-
+|{{plink|Xeric's sentinel}}
+|1000 completions of Challenge mode
+|-
+|{{plink|Xeric's general}}
+|1500 completions of Challenge mode
+|-
+|{{plink|Xeric's champion}}
+|2000 completions of Challenge mode
+|}
+
+==Collection log==
+The Chambers of Xeric has 23 [[collection log]] items.
+{{Sync}}
+{{Collection log list|category=Chambers of Xeric}}
+
+==Combat Achievements==
+{{Sync}}
+===Normal Mode===
+{{Combat Achievements list|Chambers of Xeric|mobname=the Chambers of Xeric}}
+
+===Challenge Mode===
+{{Combat Achievements list|Chambers of Xeric: Challenge Mode|mobname=the Chambers of Xeric: Challenge Mode}}
+
+==Music==
+{| class="wikitable sortable"
+|-
+!Name
+! class="unsortable" | Unlock details
+! class="unsortable" | Music track
+|-
+|[[Upper Depths]]
+|Unlocked upon entering the Chambers of Xeric
+|[[File:Upper Depths.ogg]]
+|-
+|[[Lower Depths]]
+|Unlocked upon descending to the middle floor of the Chambers of Xeric
+|[[File:Lower Depths.ogg]]
+|-
+|[[Fire in the Deep]]
+|Unlocked upon descending to the lowest floor of the Chambers of Xeric
+|[[File:Fire in the Deep.ogg]]
+|}
+
+==Pre-release teaser==
+On the 29th of December 2016, an [[Unannounced phenomena]] occurred, in which a chatbox message stated {{mes|You feel a disturbance deep below the ground, as if some ancient beast had stirred.|color=Red}} with the ground shaking at the same time.
+
+==Scrapped rewards==
+{{Shelved content|section=yes}}
+In advance of the raid's release, five Developer's Blogs detailing proposed rewards were released over the course of the latter half of 2016.
+
+Many of the rewards proposed went through several changes before they were scrapped or failed a poll, or passed one.
+
+{| class="wikitable" style="width:350px;"
+!Blog
+!Date
+|-
+|{{UD|Dev Blog: Raid Rewards}}
+|28 June
+|-
+|{{UD|Dev Blog: Raids Rewards 2}}
+|13 July
+|-
+|{{UD|Dev Blog: Raids Rewards 3}}
+|16 August
+|-
+|{{UD|Dev Blog: Raids Armours & Rewards}}
+|26 August
+|-
+|{{UD|Dev Blog: Raids Rewards}}
+|28 October
+|}
+
+===Ancient insignias===
+Ancient insignias were proposed to be equipped in the ammunition slot, providing combat stats and effects.
+
+They were scrapped in the second rewards blog following "a large amount of feedback from the community".
+
+{| class="wikitable" style="max-width: 800px"
+! style="width:15%;" | Insignia
+! style="width:25%;" | Combat stats
+! style="width:30%;" | Effect
+! style="width:30%;" | Name notes
+|-
+|Yumi insignia
+|
+* +5 Ranged Attack
+* +5 Magic defence
+|10% chance to hit two additional targets
+|Yumi (弓) is Japanese for bow.
+|-
+|Seji insignia
+|
+* +5 Magic Attack
+* +5 Stab, Slash, and Crush defence
+|10% chance to negate rune costs (stacked additively with [[Staff of the Dead|staff of the dead]])
+|Seji (世辞) is Japanese for compliment/flattery.
+|-
+|Benkei insignia
+|
+* -10 Prayer bonus
+|Boosts stat boosting prayers by 10% (ex. [[Eagle Eye]] boosted Ranged by 16.5% instead of 15%)
+|Benkei (弁慶) is the name of a 12th century Japanese warrior monk, who is commonly depicted as a man of great strength and loyalty.
+|-
+|Kabe insignia
+|
+* +5 Defence bonus across all styles
+|None
+|Kabe (かべ) can be written as "壁" in Japanese, which translates to wall.
+|-
+|Risutoa insignia
+|
+* +2 Attack bonus across all styles
+* +2 Defence bonus across all styles
+|[[Special attack]] energy regenerates twice as fast outside of combat
+|Risutoa (リストア) is a Japanese transliteration of "restore".
+|}
+
+===Forgotten prayers===
+Initially, six prayers were proposed to be unlocked via a single tradeable scroll obtained as a reward. The scroll will prompt players to choose which prayer to learn, after which it would crumble to dust.
+
+{| class="wikitable" style="width:600px;"
+!{{SCP|Prayer}} Level
+!Prayer
+!Effect
+|-
+|55
+|Preserve
+|Boosted stats last 20% longer.
+|-
+|65
+|Poison Absorb
+|[[Poison]] damage that would have been dealt to the player drains prayer points instead.
+|-
+|74
+|Rigour
+|Boosts Ranged attack by 20%, Ranged strength by 23% and Defence by 25%.
+|-
+|75
+|Divine Grace
+|When running, prayer points are drained instead of [[run energy]].
+|-
+|77
+|Augury
+|Boosts Magic accuracy and defence by 25%.
+|-
+|85
+|Venom Absorb
+|[[Venom]] damage that would have been dealt to the player drains prayer points instead.
+|}
+
+In the third rewards blog, the requirements for Rigour and Augury were swapped, and a level 70 Defence requirement was added to both prayers.
+
+In the fourth blog, the Divine Grace, Poison Absorb, and Venom Absorb prayers were scrapped.
+
+===High-tier armour===
+The Kodai robes, elder armour, and twisted armours were first proposed in the fourth rewards blog, and was polled in [[Poll:Old School Content Poll 47: Rewards for Raids & Slayer|Old School Content Poll 47: Rewards for Raids & Slayer]], failing the poll by 2.6% of the required votes to pass.
+
+It was repolled in [[Poll:Old School Content Poll 48: Rewards for Raids & Quality of Life|Old School Content Poll 48: Rewards for Raids & Quality of Life]] a month later to emphasise that the set degrades with a 100,000 repair cost for each hour of usage. This failed the poll by 10.2% of the required votes to pass.
+
+In order to assess what changes should be made to the armours to have it pass a poll, a new poll, [[Poll:Old School Raids Armours Survey|Old School Raids Armours Survey]] was made available. After feedback, the final rewards blog proposed adjusted stats, and the final rewards poll, [[Poll:More Raids Rewards|More Raids Rewards]], split each armour set into its own question. All three armour sets failed by around 4%.
+
+====Kodai robes====
+First proposed in the first rewards blog, the robes required level 75 Magic & Defence to equip, and were proposed to be "slightly more powerful than Ahrim's robes" and undegradeable.
+
+{{Infotable Bonuses header}}
+{{Infotable Bonuses row|nolink=yes|hideicon=yes|name=Kodai hat|astab=0|aslash=0|acrush=0|amagic=+7|arange=-2|dstab=+17|dslash=+17|dcrush=+17|dmagic=+8|drange=0|str=0|rstr=0|mdmg=0|prayer=+1}}
+{{Infotable Bonuses row|name=Kodai robetop|nolink=yes|hideicon=yes|astab=0|aslash=0|acrush=0|amagic=+35|arange=-10|dstab=+60|dslash=+45|dcrush=+75|dmagic=+35|drange=0|str=0|rstr=0|mdmg=0|prayer=+1}}
+{{Infotable Bonuses row|name=Kodai robelegs|nolink=yes|hideicon=yes|astab=0|aslash=0|acrush=0|amagic=+25|arange=-7|dstab=+40|dslash=+40|dcrush=+40|dmagic=+25|drange=0|str=0|rstr=0|mdmg=0|prayer=+1}}
+{{Infotable Bonuses totals}}
+{{Infotable Bonuses footer}}
+
+On the release of the second blog, the requirement to wear them was changed to level 75 Magic & Prayer, and their stats changed, as there were concerns of the price impact on Ahrim's robes.
+
+{{Infotable Bonuses header}}
+{{Infotable Bonuses row|nolink=yes|hideicon=yes|name=Kodai hood|astab=-5|aslash=-5|acrush=-5|amagic=+7|arange=-4|dstab=0|dslash=0|dcrush=0|dmagic=+3|drange=0|str=0|rstr=0|mdmg=0|prayer=+3}}
+{{Infotable Bonuses row|name=Kodai robe top|nolink=yes|hideicon=yes|astab=-7|aslash=-7|acrush=-7|amagic=+35|arange=-20|dstab=0|dslash=0|dcrush=0|dmagic=+10|drange=0|str=0|rstr=0|mdmg=0|prayer=+5}}
+{{Infotable Bonuses row|name=Kodai robe legs|nolink=yes|hideicon=yes|astab=-6|aslash=-6|acrush=-6|amagic=+25|arange=-14|dstab=0|dslash=0|dcrush=0|dmagic=+8|drange=0|str=0|rstr=0|mdmg=0|prayer=+4}}
+{{Infotable Bonuses totals}}
+{{Infotable Bonuses footer}}
+
+With the release of the fourth rewards blog alongside elder and twisted armour, the Kodai robes were reworked entirely, again requiring level 75 Magic & Defence to equip, and being given increased bonuses. As a tradeoff, they degrade and become unusable after 10 hours of continuous usage in combat.
+
+{{Infotable Bonuses header}}
+{{Infotable Bonuses row|nolink=yes|hideicon=yes|name=Kodai hat|astab=-5|aslash=-5|acrush=-5|amagic=+12|arange=-4|dstab=+18|dslash=+16|dcrush=+20|dmagic=+8|drange=0|str=0|rstr=0|mdmg=0|prayer=+2}}
+{{Infotable Bonuses row|name=Kodai robetop|nolink=yes|hideicon=yes|astab=-7|aslash=-7|acrush=-7|amagic=+38|arange=-20|dstab=+58|dslash=+42|dcrush=+68|dmagic=+35|drange=0|str=0|rstr=0|mdmg=0|prayer=+2}}
+{{Infotable Bonuses row|name=Kodai robelegs|nolink=yes|hideicon=yes|astab=-6|aslash=-6|acrush=-6|amagic=+30|arange=-14|dstab=+36|dslash=+35|dcrush=+40|dmagic=+25|drange=0|str=0|rstr=0|mdmg=0|prayer=+2}}
+{{Infotable Bonuses totals}}
+{{Infotable Bonuses footer}}
+
+After having failed a poll twice, the final rewards blog did not adjust the Kodai robe's stats; rather, it proposed a second set of magic robes, the ancestral robes, which placed emphasis on [[magic damage]]. The ancestral robes passed the final reward poll, while Kodai robes did not.
+
+====Elder armour====
+A top-tier set of melee armour requiring level 75 Defence to equip, the set will degrade and become unusable after 10 hours of continuous usage in combat.
+
+The set was proposed to have the following stats:
+{{Infotable Bonuses header}}
+{{Infotable Bonuses row|nolink=yes|hideicon=yes|name=Elder helm|astab=+3|aslash=+3|acrush=+3|amagic=-5|arange=-5|dstab=+60|dslash=+62|dcrush=+60|dmagic=-10|drange=+52|str=+5|rstr=0|mdmg=0|prayer=+2}}
+{{Infotable Bonuses row|name=Elder platebody|nolink=yes|hideicon=yes|astab=+5|aslash=+5|acrush=+5|amagic=-15|arange=-10|dstab=+130|dslash=+125|dcrush=+110|dmagic=-20|drange=+135|str=+6|rstr=0|mdmg=0|prayer=+2}}
+{{Infotable Bonuses row|name=Elder platelegs|nolink=yes|hideicon=yes|astab=+4|aslash=+4|acrush=+4|amagic=-10|arange=-8|dstab=+90|dslash=+90|dcrush=+85|dmagic=-15|drange=+95|str=+4|rstr=0|mdmg=0|prayer=+2}}
+{{Infotable Bonuses totals}}
+{{Infotable Bonuses footer}}
+
+Following player concerns on the impact elder armour will have on the price of [[Bandos armour]], the strength bonus was reduced to match them, alongside a slight increase to the elder armour's magic defence:
+{{Infotable Bonuses header}}
+{{Infotable Bonuses row|nolink=yes|hideicon=yes|name=Elder helm|astab=+3|aslash=+3|acrush=+3|amagic=-5|arange=-5|dstab=+60|dslash=+62|dcrush=+60|dmagic=-2|drange=+52|str=+5|rstr=0|mdmg=0|prayer=+2}}
+{{Infotable Bonuses row|name=Elder platebody|nolink=yes|hideicon=yes|astab=+5|aslash=+5|acrush=+5|amagic=-15|arange=-10|dstab=+130|dslash=+125|dcrush=+110|dmagic=-8|drange=+135|str=+4|rstr=0|mdmg=0|prayer=+2}}
+{{Infotable Bonuses row|name=Elder platelegs|nolink=yes|hideicon=yes|astab=+4|aslash=+4|acrush=+4|amagic=-10|arange=-8|dstab=+90|dslash=+90|dcrush=+85|dmagic=-5|drange=+95|str=+2|rstr=0|mdmg=0|prayer=+2}}
+{{Infotable Bonuses totals}}
+{{Infotable Bonuses footer}}
+
+After having failed a poll twice, the stats of the elder armour were adjusted in the final rewards blog, which consisted of a minor increase to the set's magic attack bonus.
+{{Infotable Bonuses header}}
+{{Infotable Bonuses row|nolink=yes|hideicon=yes|name=Elder helm|astab=+3|aslash=+3|acrush=+3|amagic=-2|arange=-5|dstab=+60|dslash=+62|dcrush=+60|dmagic=-2|drange=+52|str=+5|rstr=0|mdmg=0|prayer=+2}}
+{{Infotable Bonuses row|name=Elder platebody|nolink=yes|hideicon=yes|astab=+5|aslash=+5|acrush=+5|amagic=-8|arange=-10|dstab=+130|dslash=+125|dcrush=+110|dmagic=-8|drange=+135|str=+4|rstr=0|mdmg=0|prayer=+2}}
+{{Infotable Bonuses row|name=Elder platelegs|nolink=yes|hideicon=yes|astab=+4|aslash=+4|acrush=+4|amagic=-5|arange=-8|dstab=+90|dslash=+90|dcrush=+85|dmagic=-5|drange=+95|str=+2|rstr=0|mdmg=0|prayer=+2}}
+{{Infotable Bonuses totals}}
+{{Infotable Bonuses footer}}
+
+====Twisted armour====
+A top-tier set of ranged armour requiring level 75 Defence to equip, the set will degrade and become unusable after 10 hours of continuous usage in combat.
+
+The set was proposed to have the following stats:
+{{Infotable Bonuses header}}
+{{Infotable Bonuses row|nolink=yes|hideicon=yes|name=Twisted coif|astab=-6|aslash=-6|acrush=-6|amagic=-6|arange=+15|dstab=+7|dslash=+7|dcrush=+7|dmagic=+12|drange=+10|str=0|rstr=+2|mdmg=0|prayer=+2}}
+{{Infotable Bonuses row|name=Twisted body|nolink=yes|hideicon=yes|astab=-10|aslash=-10|acrush=-10|amagic=-10|arange=+38|dstab=+59|dslash=+51|dcrush=+64|dmagic=+72|drange=+61|str=0|rstr=+3|mdmg=0|prayer=+2}}
+{{Infotable Bonuses row|name=Twisted chaps|nolink=yes|hideicon=yes|astab=-8|aslash=-8|acrush=-8|amagic=-8|arange=+25|dstab=+34|dslash=+28|dcrush=+36|dmagic=+42|drange=+35|str=0|rstr=+3|mdmg=0|prayer=+2}}
+{{Infotable Bonuses totals}}
+{{Infotable Bonuses footer}}
+
+==Gallery==
+<gallery mode="nolines" widths="220" heights="220">
+File:Chambers of Xeric work-in-progress.png|Pre-release view of the rooms
+File:Chambers of Xeric work-in-progress 2.png|Pre-release view of the rooms
+File:Chambers of Xeric work-in-progress 3.png|Pre-release view of the rooms
+File:Chambers of Xeric work-in-progress 4.png|Pre-release view of the rooms
+File:Chambers of Xeric work-in-progress 5.png|Pre-release view of the rooms
+File:Chambers of Xeric artwork.jpg|A piece of artwork depicting a group of players fighting the Great Olm.
+File:Chambers of Xeric login screen.png|Login screen for the Chambers of Xeric update.
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 16 September 2026
+|update = Summer Sweep-Up Pet Improvements & More
+|change = [[Thrall]]s will now change the colour of jewelled crabs with their attacks, with the same interactions as player attacks.
+* Zombified thralls change their colour to red.
+* Skeletal thralls change their colour to green.
+* Ghostly thralls change their colour to blue.
+}}
+{{Subject changes
+|date = 12 August 2026
+|update = Summer Sweep Up - Agility & Chambers of Xeric Changes
+|change = Significantly adjusted the weighting of uniques obtained from the raid:
+*Normal Mode: Reduced the total weight value from 69 to 60, and the weighting of both the arcane and dexterous prayer scrolls' weighting reduced from 20 to 14, resulting in scrolls being ~19.5% less common.
+*Challenge Mode: Reduced total weight value from 69 to 56. The weighting of prayer scrolls is reduced from 20 to 12, resulting in scrolls being ~26.1% less common.
+*Both modes: The weighting of ancestral pieces increased from 3 to 4.
+}}
+{{Subject changes
+|date = 23 April 2026
+|update = Leagues VI Changes
+|change = You can now build storage units in the Chambers of Xeric without owning a Player-Owned House, provided you satisfy the Construction level requirements.
+}}
+{{Subject changes
+|date = 27 August 2025
+|update = Summer Sweep Up Slayer & More
+|change = Challenge Mode raid layouts can no longer be rerolled by switching leaders or relogging.
+}}
+{{Subject changes
+|date = 7 May 2025
+|update = More Poll 84 & Yama Prep
+|change = Players will now get a message indicating what size of raid layout they embark on when starting a Chambers of Xeric raid.
+}}
+{{Subject changes
+|date = 30 April 2025
+|update = Poll 84: Batch II
+|poll = Poll 84 - PvM Improvements, Agility Shortcuts & more!
+|change = A "full" layout toggle has been added in the Chambers of Xeric raid creation interface that allows players to generate a challenge mode style layout for a regular Chambers of Xeric raid.
+}}
+{{Subject changes
+|date = 26 March 2025
+|update = Poll 83 QoL Changes
+|change = Lore books will no longer drop once a player has read them.
+}}
+{{Subject changes
+|date = 22 January 2025
+|update = Bank QoL & Mini Menu Improvements
+|change= Further changes to Chambers of Xeric points have been made to prevent megascale boosting: Personal points are no longer capped at 131,071 during the raid, while regular loot reward rolls are still capped at 131,071 points.
+}}
+{{Subject changes
+|date = 8 January 2025
+|update = Run Energy Changes
+|change = To prevent megascale boosting abuse at Chambers of Xeric, we've changed how unique rewards are distributed. Now players who leave a raid in progress are eligible to receive unique items, but if they would do so, the reward is discarded instead. This ensures that leaving a CoX raid no longer transfers loot chances onto remaining participants.
+}}
+{{Subject changes
+|date = 21 August 2024
+|update = Miscellaneous Fixes
+|change = [[Ironmen]] can now pick up the [[keystone crystal]] if a teammate drops it in the Chambers of Xeric, with points still being awarded to the player who initially collected it.
+}}
+{{Subject changes
+|date = 26 June 2024
+|update = Colosseum NPC Clickboxes & More
+|change = 
+* A [[bronze axe]] spawn has been added to the [[muttadile]] room, useable by main and ironman accounts.
+* Upper levels of the bat rooms should no longer render over the player character model.
+}}
+{{Subject changes
+|date = 12 December 2023
+|update = Christmas 2023
+|change =
+* Skeletal Mystics now scale correctly when manually scaling upon raid creation.
+* Players may no longer place kindling in storage units.
+* [[Tumeken's shadow]] will now 'splash' on crabs if the player's [[Magic bonus]] is -64 or lower.
+* Potions now correctly award points when sipped.
+}}
+{{Subject changes
+|date = 29 November 2023
+|update = Chambers of Xeric Changes
+|poll = Chambers of Xeric Room Improvements
+|change = * General
+** Added a new 'Reload' option to the lobby staircase, allowing the raid leader to generate a new layout and boot anyone in the current instance.
+** Added a new scaling option to the recruitment board party interface, allowing the raid leader to increase the raid's difficulty without requiring additional players.
+** [[Energy well]]s have been placed throughout the raid.
+** Various unnoted consumable items (namely common food and potions) will now appear to other players when dropped.
+** Sped up the growth times of [[buchu]], [[golpar]] and [[noxifer]] plants.
+* Scavengers
+** Since scavengers roll multiple drops, it is possible to get multiple sets of the components above.
+** Tweaked drops so that whenever any potion secondary would be dropped, scavengers now drop 3-11 [[stinkhorn mushroom]]s, 3-6 [[cicely]] and 5-14 [[endarkened juice]].
+** Scavengers now only roll two drops at a time.
+** Sped up both the [[Mining]] and [[Woodcutting]] shortcuts, which now provide points comparable with the boulder shortcut.
+** [[Mallignum root plank]]s are now stackable.
+* Tekton
+** The first [[dragon warhammer]] [[special attack]] against [[Tekton]] is now guaranteed to hit.
+** Tekton no longer resets his [[Defence]] when healing at the anvil.
+* Crabs
+** Players can no longer 'splash' on crabs if their [[Magic bonus]] is higher than -64.
+** Attacks no longer have any delay after hitting a crab. If your attack changes the crab's colour, you will not automatically re-attack.
+* Ice Demon
+** [[Kindling (Chambers of Xeric)|Kindling]] is now stackable, up to a cap of 28.
+** Lighting braziers and burning kindling now provide more points.
+** Ice demon drops stinkhorn mushroom, endarkened juice and cicely to each player when defeated.
+** Reduced the ice demon's [[Magic defence]] from 60 to 40.
+* Vanguards
+** Vanguards drops have been standardized with overload drop mechanics remaining unchanged.
+** Melee Vanguard now drops 2 [[Xeric's aid]] and an [[elder potion]].
+** Ranged Vanguard now drops 1 Xeric's aid, 2 [[revitalisation potion]]s and a [[twisted potion]].
+** Magic Vanguard now drops 1 Xeric's aid, 1 [[prayer enhance]] and a [[kodai potion]].
+* Thieving
+** Increased the chance to successfully steal from [[Chest (Chambers of Xeric)|chests]].
+** [[Cavern grubs]] are stackable up to a cap of 28.
+** Successful chest openings now guarantee a minimum of one cavern grub.
+** Slightly increased the points given per cavern grub.
+** Players now receive stinkhorn mushrooms, endarkened juice and cicely upon completion.
+* Vespula
+** Increased [[lux grub]]s' HP from 100 to 125.
+** [[Medivaemia blossom]]s now heal lux grubs for 35 HP, up from 20.
+** Reduced the [[Ranged strength|Ranged]] and [[Melee strength]] of Vespula and vespine soldiers.
+** Reduced abyssal portal healing for vespine soldiers.
+** Vespula now drops a guaranteed Overload(+).
+* Vasa Nistirio
+** Reduced Vasa's [[Ranged]] defence.
+** Vasa will now only heal if a crystal isn't destroyed in time.
+** Vasa now drops a guaranteed Overload(+).
+* Mystics
+** A handy set of portals will now appear after all mystics are defeated, allowing for easier traversal across the room.
+* Muttadiles
+** Adjusted the damage formula for the [[meat tree]] to be more consistent.
+** Both [[muttadile]]s will attempt to heal at the meat tree when reduced below 50% HP (up from 40%).
+** Both muttadiles can now be damaged while frozen, even if they were trying to move towards the meat tree.
+** Reduced the max hits of both muttadiles.
+** Big muttadile will now only swap between Magic and Ranged attacks after using the same style three times, not counting Melee attacks.
+* Great Olm
+** Olm's portal swap special now spawns a portal within 10 tiles of players in a solo encounter.
+** Olm's healing pool attack now has a 'cooldown' of 10 attacks.
+}}
+{{Subject changes
+|date = 3 May 2023
+|update = Points-Based Combat Achievements
+|change = * A bank chest has been added inside the raid lobby, which can be used prior to beginning a raid.
+* Two storage units have been added to the Great Olm's antechamber for ease of access without having to climb back up a level.
+}}
+{{Subject changes
+|date = 27 July 2022
+|update = New Client Update: Clue Scroll Helper
+|change = For [[Ultimate Ironman]] players, any unclaimed Chambers of Xeric rewards may now be dropped outside the Chambers rather than being put in the private storage, since Ultimate Ironmen cannot use it.
+}}
+{{Subject changes
+|date = 9 December 2021
+|update = Grand Exchange Tax & Item Sink
+|change = The minimum [[HiScores]] 'killcount' required for Chambers of Xeric Challenge Mode has been lowered from 10 to 5.
+}}
+{{Subject changes
+|date = 16 June 2021
+|update = A Kingdom Divided
+|change = *Level scaling can be removed by talking to Captain Rimor.
+*A default chest has been added to store 25 items for personal use.
+*Antipoisons for the raid can be made inside.
+*Vanguards can be damaged during their transition phase.
+*Great Olm's fire wall attack can be extinguished with ice spells.
+*A pickaxe spawn has been added to all Guardian rooms.
+*More herbs can be harvested on average in larger raid sizes.
+*Points scale linearly with combat level, allowing for more consistent point gains for players of specific levels.
+*Challenge Mode's submerged Muttadile deals 20-80% of its maximum hit; this ensures more consistent damage, but avoids potential combos from both it and its young.
+*Challenge Mode Vasa's crystals have had their challenge mode modifier removed.
+*A Raid Party can receive up to six unique rewards from a raid if they earn enough points.
+}}
+{{Subject changes
+|date = 20 January 2021
+|update = Puro-Puro Improvements and Barbarian Assault Changes
+|poll = 
+|change = Multiple graphical wall issues within a raid have been fixed.
+}}
+{{Subject changes
+|date = 13 January 2021
+|update = God Wars Instancing and Soul Wars Improvements
+|change = The Chambers of Xeric Party Board will now let you unselect the Challenge Mode option correctly.
+}}
+{{Subject changes
+|date = 11 November 2020
+|update = The Nightmare and Chambers of Xeric QoL
+|poll = Old School Content Poll 73: The :Joy: of Polls
+|change = *Maps pools have been updated; the large pool now uniformly contain five combat and three puzzle rooms per raid. The regular pool now has equal amounts of small and medium raids. To complement this change, a secondary checkbox has been added to the Party Board outside the Chambers of Xeric that lets you toggle between regular and large map pools.
+*Scavengers will spawn more consistently, with a preference for locations near players.
+*When killing a scavenger, a message will appear that makes it clear who received the drop.
+*If an Iron player deals the most but not all of the damage to a Chambers of Xeric boss, all other raiders will receive a message announcing that they have earned the drop.
+}}
+{{Subject changes
+|date = 16 July 2020
+|update = Ferox Enclave
+|change = An issue in which players would be hit by Vespula's melee attack if the portal was closed has been fixed.
+}}
+{{Subject changes
+|date = 2 July 2020
+|update = Poll 71 and Death Feedback Changes
+|poll = 
+|change = An issue in which points were not being awarded in certain challenge rooms has been fixed.
+}}
+{{Subject changes
+|date = 18 June 2020
+|update = Poll 71 and Darkmeyer Updates
+|poll = Old School Content Poll 71: Gauntlet, Grotesques, CoX and more
+|change = *A toggleable healthbar interface has been added to Tekton, Vespula's Abyssal Portal, Muttadiles, Vanguards, Vasa Nistirio and the Great Olm. For the Vanguards, the HUD will show each of their healthbars individually.
+*Players can now right click the tool rack in resource rooms to select a specific tool.
+}}
+{{Subject changes
+|date = 28 May 2020
+|update = Chambers of Xeric Improvements
+|poll = Old School Content Poll 71: Gauntlet, Grotesques, CoX and more
+|change = *The [[Vanguard]]s have received additional changes.
+*Players with higher Thieving levels will now have a chance of receiving multiple grubs from a chest.
+*Potion drops now have a higher value, and are thus more likely to appear on top of the lootpile alongside raid supplies and bones.
+*Players can now build an extra large storage chest with a capacity of 1,500. To make it, 99 Construction and 8 planks are needed.
+*Players now have the chance to obtain the metamorphic dust again even if they have already previously obtained it in Challenge Mode.
+*Unique rewards collected from the reward chest will now be given as items rather than banknotes.
+}}
+{{Subject changes
+|date = 21 May 2020
+|update = Vanguard Improvements
+|poll = Old School Content Poll 71: Gauntlet, Grotesques, CoX and more
+|change = *The [[Vanguard]]s have received several changes which aim to make the encounter less annoying while preserving its difficulty.
+*Fastest completion times of both regular and Challenge Mode are now displayed in the [[Adventure log space|adventure log]].
+*The loot table of [[scavenger beast]]s has been rebalanced to include a more reasonable amount of [[cicely|cicelies]] and [[endarkened juice]].
+*One of the possible orientations of the [[Jewelled Crab]] room has had its crystal positions altered.
+*An issue in which players would be hit by [[Vespula]]'s melee attack if the [[Abyssal portal]] has been destroyed has been fixed.
+}}
+{{Subject changes
+|date = 9 January 2020
+|update = Eating in the Bank
+|poll = 
+|change = Lizardman Shamans, Skeletal Mystics and Stone Guardians now tell the party which individual received the seed drops upon death, if applicable.
+}}
+{{Subject changes
+|date = 12 September 2019
+|update = POH Board and PvP Balancing
+|poll = 
+|change = Stun effects in the Chambers of Xeric can no longer be dodged by lighting fires.
+}}
+{{Subject changes
+|date = 14 March 2019
+|update = Updated Quest Panel, Sandstone Grinder and QoL
+|change = Enchant spells are no longer offered in the Chambers of Xeric, as the stat-boosts in there are unusually large and were not intended for getting oneself permanent access to items unrelated to the Chambers.
+}}
+{{Subject changes
+|date = 7 March 2019
+|update = QoL and W45 Changes
+|change = NPC stats are now scaled based on the player with the highest combat stats rather than the average combat stats of all party members
+}}
+{{Subject changes
+|date = 28 February 2019
+|update = QoL and CoX Changes
+|change = *Trees found within the ice demon room in Chambers of Xeric are now less likely to fall.
+*Players will now receive more wood than before when successfully chopping trees within the room based on Woodcutting level.
+*As saplings can now give more wood than before, the Woodcutting XP gained per item of kindling has been reduced slightly.
+*The ice demon's defences are now lower than before and its magic defence is now calculated from its defence level rather than magic, making it weaker to spells overall, including its additional weakness to fire spells.
+*In Challenge Mode, the 5k bonus points are now added to the team's reward rather than individual party members.
+*A bit of wall sticking out of one of the Skeletal Mystic's rooms in the Chambers of Xeric has been removed.
+*Tweaks to the Vanguard's reset mechanic have been made to ensure they are reset correctly
+}}
+{{Subject changes
+|date = 14 February 2019
+|update = Boss Heads and Chambers of Xeric
+|change = *Great Olm's flame attack can now be doused with [[Humidify]] and vessels of water.
+*Elite clue scrolls are now an additional reward instead of replacing the second reward.
+*[[Monster Examine]] may now be cast on all monsters in the raid.
+}}
+{{Subject changes
+|date = 10 January 2019
+|poll = The Kebos Lowlands
+|update = The Kebos Lowlands
+|change = [[Dragon sword]], [[dragon harpoon]] and [[dragon thrownaxe]] were removed from the drop table and moved to monsters in [[Karuulm Slayer Dungeon]]. This did not affect the rarity of other drops, as they were re-weighted.
+}}
+{{Subject changes
+|date = 17 May 2018
+|poll = Chambers of Xeric: Challenge Mode
+|update = Chambers of Xeric: Challenge Mode Is Here!
+|change = Challenge Mode was implemented, providing a more difficult raid with every room in a static layout.
+}}
+{{Subject changes
+|date = 8 February 2018
+|poll = Quality of Life - PvM Suggestions 2018
+|update = PvM QoL updates & Wilderness Rejuvenation improvements
+|change = *A [[bronze axe]] spawn was added in the [[ice demon]] room. Previously, a [[tinderbox]] was also added.
+*Whenever a mini-boss is killed, a broadcast will go out to player as to who obtained its drops.
+*The party interface now shows how many times the player has successfully completed the Chambers of Xeric.
+*The three storage chests were modified to now require 2, 4 and 6 [[mallignum root plank]]s respectively, down from 4, 8 and 15.
+}}
+{{Subject changes
+|date = 4 May 2017
+|update = Skotos & Dark Claws
+|change = * Long bones, curved bones, and rune pouches can now be stored within raid private storage.
+* Fixed an issue where the Muttadile would sometimes become permanently invincible.
+}}
+{{Subject changes
+|date = 23 February 2017
+|update = Shift-Click Drop & QoL
+|change = *You now have a chance of receiving Elite clues from Raids.
+*A notification is now given to the party if someone clears a farming patch in raid.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+[[File:Paradigm of Exodus.png|thumb|250px|Concept art of the Paradigm of Exodus, a raid whose concept was later reshaped into the Chambers of Xeric.]]
+*The Chambers of Xeric was originally proposed in [[2014]] as the "Paradigm of Exodus", a large dungeon found in and around an active volcano, allowing 5 to 30 players to take on powerful monsters and solving puzzles in a randomly generated layout, with a boss at the end of the raid.
+*Despite the fact that players are not allowed to drop items in the entrance room before the raid starts, excess [[molten glass]] from [[Superglass Make]] will drop to the floor and can be picked up.
+*The Chambers of Xeric is currently the only raid that:
+**Allows teams to roll on multiple unique drops, provided they meet the requirements.
+**Has its [[Olmlet|pet drop]] tied to unique rewards.
+**Has three distinct mega-rare drops; the [[kodai insignia]], [[elder maul]], and [[twisted bow]], whereas the other two raids only have one mega-rare.
+**Has a randomly generated layout in small and large mode.
+**Has a dedicated resource room.
+**Has enemies in the raid with no combat levels (outside of the Great Olm).
+**Does not have a joke reward if the player finishes the raid with low points.
+**Lacks a team scoreboard.
+**Does not have a death system of any sorts - players that die in the raid are returned to the start of the previous floor and the raid does not have a death coffer.
+***This makes the raid safe for hardcore ironmen players, though group hardcore ironmen are an exception and will lose a life/status on death.
+**Requires players to be in an eligible [[chat-channel]] in order to participate.
+**Does not require a quest to access.
+
+==See also==
+* Other [[raid]]s:
+** {{plink|Theatre of Blood|pic=Scythe of Vitur}}
+** {{plink|Tombs of Amascut|pic=Tumeken's shadow}}
+
+==References==
+{{Reflist}}
+
+{{Chambers of Xeric}}
+{{Kebos Lowlands}}
+{{Activities}}
+{{Dungeons}}

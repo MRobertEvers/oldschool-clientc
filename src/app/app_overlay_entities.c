@@ -630,11 +630,28 @@ app_entity_overlay_layout(struct App* app)
  * The plugin canvas overlay, built on demand.
  *
  * A whole function for four lines because the shape has to match the world
- * list's exactly: empty it, let the pushers fill it, hand the array over. What is
- * NOT here is any of the client's own drawing -- nothing but a plugin ever
- * writes to this list, which is why the pass that asks for it can be
- * unconditional and still cost nothing on a client with no plugins.
+ * list's exactly: empty it, let the pushers fill it, hand the array over. The
+ * client's own drawing is NOT here, with one exception: while a script's view
+ * is attached (App_ViewSplit), the watcher's badge and the runner's ghost
+ * cursor go last. Otherwise only a plugin writes to this list, which is why
+ * the pass that asks for it can be unconditional and still cost nothing on a
+ * client with no plugins.
+ *
+ * The watcher's aids (app_overlay.c, camera seam2 watch_debug_aids). Declared
+ * here, at their only calls, because app/app_internal.h belongs to another
+ * seam's file list in that pass.
  */
+int
+app_overlay_build_watch_canvas(
+    struct App* app,
+    int count);
+int
+app_overlay_watch_canvas_count(
+    struct App* app,
+    int count);
+void
+app_overlay_build_watch_world(struct App* app);
+
 int
 app_build_canvas_overlays(
     struct App* app,
@@ -645,7 +662,7 @@ app_build_canvas_overlays(
 
     *out_items = OverlayStage_Items(&app->overlays, OVERLAY_SURFACE_CANVAS);
     if( app->overlays.canvas_prepared )
-        return OverlayStage_Count(&app->overlays, OVERLAY_SURFACE_CANVAS);
+        return app_overlay_watch_canvas_count(app, OverlayStage_Count(&app->overlays, OVERLAY_SURFACE_CANVAS));
 
     app->overlays.canvas_prepared = true;
     OverlayStage_ResetCanvas(&app->overlays);
@@ -653,7 +670,10 @@ app_build_canvas_overlays(
         return 0;
 
     PluginHost_DrawCanvas(app->plugins, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-    return OverlayStage_Count(&app->overlays, OVERLAY_SURFACE_CANVAS);
+    /* The client's only writer to this list, after every plugin so a
+     * plugin's drawing never covers it: the badge and the runner's ghost
+     * cursor while a script's view is attached (nothing otherwise). */
+    return app_overlay_build_watch_canvas(app, OverlayStage_Count(&app->overlays, OVERLAY_SURFACE_CANVAS));
 }
 
 int
@@ -806,6 +826,9 @@ app_build_entity_overlays(
      * above so a select-tool session and TORIRS_HOVER_FOOTPRINT can be on at
      * once without one drawing over the other's meaning. */
     app_overlay_build_editor_selection(app);
+    /* What the script's runner just pressed, outlined in the watcher's own
+     * projection (a no-op with one view). */
+    app_overlay_build_watch_world(app);
 
     /*
      * Plugins last, so their marks layer above every built-in in this pass.

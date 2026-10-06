@@ -1,0 +1,26 @@
+{{Infobox Combat Achievement
+|name = Harder Mode III
+|image = [[File:Fighting Nylocas hordes.png|300px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Defeat Verzik Vitur in the Theatre of Blood: Hard Mode without anyone attacking her with a melee weapon during her third phase.
+|tier = Grandmaster
+|monster = Theatre of Blood: Hard Mode
+|type = Restriction
+|id = 379
+|leagueRegion = Morytania
+}}
+'''Harder Mode III''' is a [[Combat Achievements/Grandmaster|grandmaster combat achievement]] which requires the player to defeat [[Verzik Vitur]] in [[Theatre of Blood: Hard Mode|hard mode]] without using melee weapons during her third phase.
+
+==Strategy==
+The player has the option to choose between the [[Staff of the Dead|staff of the dead]] (as it is considered a magic weapon), a [[twisted bow]] or [[Tumeken's shadow]] for this achievement.
+
+Verzik has a [[Defence]] level of 150 along with +30 slash, +100 magic and +230 ranged defence bonuses. Verzik's magic defence rolls off her Defence level rather than Magic in a manner similar to the [[ice demon]], which can make Tumeken's shadow more consistent and high-hitting. It is best to avoid brewing whenever possible however, as this will reduce its effectiveness.
+
+As long as the player does not die against Verzik, the achievement will be gained.
+
+==Other tasks==
+{{Combat Achievements list|Theatre of Blood: Hard Mode}}
+
+{{Combat Achievements}}

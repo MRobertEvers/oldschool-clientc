@@ -1,0 +1,31 @@
+{{Stub}}
+{{Infobox Beta
+|name = Theatre of Blood Rewards Testing
+|image = [[File:Tournament_Worlds-_Theatre_of_Blood_rewards_newspost.png]]
+|open = [[8 March]] [[2018]]
+|end = [[17 March]] [[2018]]
+|update = Tournament Worlds: Theatre of Blood rewards
+|removalupdate = Deadman Summer Season, live now!
+}}
+''Duration: [[8 March]] - [[17 March]] [[2018]]''
+[[File:Raids Rewards beta.png|thumb|250px|A player uses the [[Scythe of vitur (beta)|Scythe of Vitur]] against [[Glough]].]]
+
+In preparation of the [[Theatre of Blood]], players were able to log in to an unrestricted world to test various rewards to be polled for the raid, including:
+
+*[[Justiciar armour]]
+**[[Justiciar faceguard (beta)|Justiciar faceguard]]
+**[[Justiciar chestguard (beta)|Justiciar chestguard]]
+**[[Justiciar leg guards (beta)|Justiciar leg guards]]
+*[[Ghrazi rapier (beta)|Ghrazi rapier]]
+*[[Avernic defender (beta)|Avernic defender]]
+*[[Sanguinesti staff (beta)|Sanguinesti staff]]
+*[[Scythe of vitur (beta)|Scythe of vitur]]
+*[[Vampyrium vambraces]]
+
+[[File:Raids Rewards beta house.png|thumb|250px|A view of the pre-made player-owned house in the beta]]
+
+As the beta was intended to test the rewards against various scenarios, players, for the first time, were allowed complete access to the world (excluding the [[Inferno]]), unlike previous openings in which players were mostly confined to the [[Clan Wars]] area.
+
+In addition, [[magic tablet]]s, [[teleport scroll]]s and other various items were added to the supplies table for convenience, as well as [[ecumenical key]]s to instantly access [[God Wars Dungeon]] [[bosses]]. Players were also given a [[player-owned house]] fully furnished with the highest level furnitures for all rooms.
+
+Players are also able to receive a [[Slayer task]] free of charge by right-clicking ''Assignment'' after receiving one from a [[Slayer master]], allowing them to do so until they receive their desired task. Players were also given 100,000 [[slayer reward point]]s and 2,147,483,647 [[Nightmare Zone]] points.

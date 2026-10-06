@@ -1,0 +1,14 @@
+# Sotetseg animation lengths from the rev-239 cache (OSRS-Content/osrs239-content/configs/all.seq), computed 2026-10-02: sum of the frame durations (client ticks of 20 ms, 30 per game tick) of every frame= line.
+# seq                                cycles  frames  game ticks
+tob_sotetseg_walk                        60      18       2.00
+tob_sotetseg_idle                        60      14       2.00
+tob_sotetseg_attack_melee                60      14       2.00
+tob_sotetseg_attack_ranged               60      16       2.00
+tob_sotetseg_death                       60      15       2.00
+tob_sotetseg_wall_float                 240      48       8.00
+tob_sotetseg_shadow_portal              160      32       5.33
+tob_sotetseg_tile_glow                   60      30       2.00
+tob_sotetseg_shared_projectile           64      16       2.13
+tob_sotetseg_walk_pet                    36      18       1.20
+# tob_sotetseg_attack_melee (8138) and tob_sotetseg_attack_ranged (8139) are both 60 cycles = 2 game ticks, well inside the 5-tick cadence; shadow_portal (8142) is 160 cycles = 5.33 ticks.
+# spotanim 1604 tob_sotetseg_sharedattack, anim=tob_sotetseg_shared_projectile (8144, 64 cycles); 1606 maging / 1607 ranging anim=inferno_splitter_proj; 1605 impact anim=verzik_lightning_impact. Projectile flight cycles are NOT in the cache (they are sent per projectile by the server).

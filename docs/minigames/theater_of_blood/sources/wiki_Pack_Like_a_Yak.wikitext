@@ -1,0 +1,31 @@
+{{Infobox Combat Achievement
+|name = Pack Like a Yak
+|image = [[File:Fighting Nylocas hordes.png|300px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Complete the Theatre of Blood: Hard Mode within the challenge time, with no deaths and without anyone buying anything from a supply chest.
+|tier = Grandmaster
+|monster = Theatre of Blood: Hard Mode
+|type = Restriction
+|id = 380
+|leagueRegion = Morytania
+}}
+'''Pack Like a Yak''' is a [[Combat Achievements/Grandmaster|grandmaster combat achievement]] which requires the player to complete a [[Theatre of Blood: Hard Mode]] raid within the challenge time, without anyone dying and without buying anything from the [[Chest (Theatre of Blood)|supply chest]].
+
+==Strategy==
+A [[stamina potion]] may be helpful to bring for both the [[Nylocas]] room and [[Verzik]]'s fight. Only 1-2 players need to bring one with [[Boost Potion Share]] if they share the doses before the Nylocas room and/or before Verzik's web attack.
+
+Players should try to only use supplies at the Nylocas and Verzik's fight. Prayer potions might be needed at the Maiden, Bloat and [[Sotetseg]] if necessary, but do not waste too much as the supplies will be needed for Verzik. Plan on saving at least 3 [[Saradomin brew|Saradomin brews]] and 3 [[Super restore|Super restores]] for Verzik's fight in case of mistakes, meaning you should try to bring at least 4 brews and 4 restores into the raid to be safe.
+
+* Avoid extra hits at bloat if they would result in tanking flies or stomps.
+* Bring an extra brew and hard food for emergencies and to heal before [[Nylocas Vasilias]] or during the waves
+* Time Sotetseg's death ball with his shadow maze attack to remove the need to heal off its damage or camp low hitpoints.
+
+==Other tasks==
+{{Combat Achievements list|Theatre of Blood: Hard Mode}}
+
+==Trivia==
+*The achievement's name appears to be a reference to {{RSL|pack yak}}s from ''{{RSL|RuneScape}}''. Pack yaks are a type of {{RSL|Summoning}} familiar called a beast of burden, which can carry items for the player.
+
+{{Combat Achievements}}

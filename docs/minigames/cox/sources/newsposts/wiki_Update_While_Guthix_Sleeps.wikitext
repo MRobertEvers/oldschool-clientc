@@ -1,0 +1,366 @@
+{{Update|date=10 July 2024|rev=11 July 2024|url=https://secure.runescape.com/m=news/while-guthix-sleeps?oldschool=1|category=game}}
+[[File:While Guthix Sleeps newspost.jpg|right]]
+{{clear}}
+__TOC__
+==Feedback Update - Thursday, July 11th==
+Before we kick things off: '''we are postponing today's planned Q&A for While Guthix Sleeps'''.
+
+At this stage, we don't feel comfortable hosting a Q&A that gives confident answers to many of the questions we've seen from you. We'd like to protect our team's time to allow them to make necessary fixes and changes as soon as possible, while also further considering feedback on complicated topics like loot tables rather than overcorrecting with a knee-jerk reaction only a day after release. There's loads for us to get through and it's important for us to talk about things properly within the team before sharing our response with you all.
+
+While we've got your attention, it makes sense to at least share where we're at so that you're not left totally in the dark without a Sapphire Lantern to guide you.
+
+===Loot Tables===
+As we have with most releases of late, we opted for a more cautious loot table than an overly generous one - this has worked well for us (and the health of the game) and is something we'll continue to do. That being said, we hear you loud and clear - the Tormented Demon loot tables need some work. We'll be taking the time to get this right and making sure that we're making a decision that's well-informed by data as well as your feedback. We'll be looking to speak in more detail on these next week when we have more datapoints for factors like kills per hour and/or unique prices. It's also worth pointing out that some of the intricacies of the demons' Shield mechanics and ways to really maximise your damage output and kills per hour don't seem to be particularly widespread - we're especially interested to see how the unique rates stack up as people get more efficient with their kills or start taking on multiple Tormented Demons at once.
+
+Admittedly this doesn't tell you all that much, but to be crystal clear: we '''will''' be looking carefully at loot tables and plan to make changes in line with your feedback once we're armed with better data. We're ''always'' open to making changes where necessary, and is no exception.
+
+While we're here though, a request! Please stop targeting or singling out individual developers while providing your feedback. In many cases, the developers being targeted aren't heavily involved with the content that you're criticising. In '''all''' cases, loot mechanics and tables are passed around the team and reviewed - we succeed as a team and we fail as a team. We're more than happy for you to be critical of our work as a team, but the repeated targeting of individual team members needs to stop.
+
+===Hotfixes===
+There are a couple of changes we can hotfix today, our devs are working away right now!
+
+* We'll be doing a balance pass on the quest's combat difficulty compared to other Grandmaster quests. Effectively we just want to make sure that While Guthix Sleeps stacks up sensibly against the likes of Dragon Slayer 2 or Monkey Madness 2 after seeing feedback that it might feel a little too easy at the moment. If we do make changes here we likely won't go overboard, just enough to improve the challenge a little so that it better stands the test of time!
+* Allow players to use temporary boosts for the crafting requirements of new unique items.
+
+===Next Week===
+If you scroll a little further down this post you'll see a table detailing a number of fixes we were able to make throughout yesterday, so it might be worth checking if any problems you encountered during the release have since been fixed.
+
+We've also got a very clear sense of what we'd like to get into next week's game update:
+* Renaming the Bone Claws to Burning Claws.
+* Adding a teleport item to quickly take you to the Guthixian Temple, this will likely be a drop from Tormented Demons. The aim here is to cut down the time required running back either between trips or to collect loot from your gravestone. This should prove a nice additional reward since the added benefit is an increase in your kills per hour by significantly reducing your time between trips!
+* Adding a UI icon when inside the Guthixian Temple that shows you how many demons you can tackle at once. This should address some of the confusion that many of you are facing where you're getting attacked by more demons than you intended, or haven't been able to find the right areas to tackle your Combat Achievements.
+
+===Beyond Next Week===
+This section loosely falls into two categories. The first is "simple fixes we'll be able to make but lower priority than those already listed" which is a bit of a mouthful. The second is "stuff we can't firmly commit to changing yet because we need more time to talk through it as a team".
+
+Let's tackle the simple fixes first!
+* Allow players to store the Broav inside their POH. We're not going to make this adorable little critter a fully-fledged pet, but you'll be able to keep your very own Broav at home - make sure to check in on him from time-to-time, or he'll track you down and steal all of your loot.
+* Allow players to use temporary boosts for the crafting requirements of new unique items.
+* Allow players to use runes from the Rune Pouch for Lucien's teleorb. Spoiler: he's got a teleorb, whatever that means...
+* Allow players to store the Dark Squall Robes and Elite Black Armour in their POH Costume room. FashionScape is important, this feels like a no-brainer.
+* Allow players to use the Emberlight for the Treasure Trail step requiring an Arclight in the Catacombs of Kourend.
+
+While it's important to be clear: we are not able to hard-commit to any of these next points, we think it's equally important to give you a look at some of the conversations beyond loot tables that we'll be having in the near future.
+* Talking through feedback on Lucien's new look and animations. This one's been hotly debated following a handful of you suggesting his new look could stand to be a little more fearsome.
+* Talking through feedback on Laidee Gnonock's model. If you're not sure who this NPC is then we'll keep our mouths shut. Needless to say we'll be taking a look!
+* Review changes we could make to the fight with the Dark Squall (whose actual name we're not using for spoiler purposes) to improve its accessibility for colourblind players.
+* Consider restoring some of the missing text from Movario's notes about Dragonkin and Tormented Demons, so long as it lines up with our plans for Old School's narrative.
+* Similarly, reviewing the dialogue that was ''removed'' from the original version of the quest and re-instating or adjusting where needed. Just like the above point, these inclusions need to line up with our plans for the likes of the Mahjarrat, the Stone of Jas and the Dragonkin, so we need to review carefully to strike up the right balance between more of the dialogue you were expecting and having it all make sense in Old School.
+** On this one in particular, if you have some ideas about which bits of dialogue you'd like restoring then we'd love to hear from you. Let us know!
+
+We're sure there's likely even more to come - it's only been a day after all - but for now this is more or less where we're at with everything.
+
+Once more we'd like to apologise for postponing today's stream to last minute, it was a tough call for us to make but ultimately we want to spend our time where it's most effective right now and that's going to mean making fixes, talking through balancing changes and keeping an eye out for anything else we need to change.
+
+Thank you so much to all of you who've played through While Guthix Sleeps already, please keep your feedback coming whether it's positive or negative, we really appreciate everything you've shared with us so far!
+
+{{Collapsed section|18|Click here to see our release day feedback/hotfix table}}
+{|class=wikitable style="text-align:center; width:665px;"
+!Problem Raised
+!Our Response
+|-
+|Perilous Moons bosses had become stuck as invisible.
+|This has now been hotfixed, they're visible once again!
+|-
+|Sapphire Bolts are hitting for double the damage during Muspah's prayer phase.
+|We've now fixed this bug, so Sapphire Bolts now hit for their correct damage.
+|-
+|There is an error with the Burn damage effect with Tormented Demos and Demonic Gorillas.
+|A hotfix has been deployed to solve this error.
+|-
+|The Chaos Altar was showing as singles rather than multi-way.
+|We have deployed a hotfix to return the area to multi.
+|-
+|A bug with the Court Room during the King's Ransom quest was causing players to be unable to speak to witnesses or log out.	
+|We have solved this via a hotfix.
+|-
+|There is a bug with the Eclipse Moon boss causing her to get stuck at 1hp and become unhittable.
+|We have solved this via a hotfix.
+|-
+|It's been reported that some Black Knights have been getting stuck inside the walls.
+|This has been solved.
+|-
+|Players are incorrectly able to safespot Tormented Demons.
+|We have solved this via a hotfix.
+|-
+|There is an issue where Bone Claws aren't protecting expected.
+|This issue is unable to be hotfixed so we will look to coldfix as soon as we are able.
+|-
+|We've identified a bug where if a light creature is unable to path to a character, players will get stuck.
+|We are investigating the issue.
+|-
+|There is a bug causing Tormented Demons to swap aggro to other players.
+|We have solved this via a hotfix.
+|-
+|Players have reported losing their Elite Black Armour collected from the wardrobe upon dropping it.
+|We have solved this via a hotfix. You will now see a warning when you are about to drop the items, and if you already have, you should find it easier to farm from the Black Knights.
+|-
+|The Dark Squall has been found to deal the incorrect amount of damage.
+|We have solved this via a hotfix.
+|-
+|The Scorching Bow's stats are showing the incorrect Ranged strength.
+|We have solved this via a hotfix.
+|-
+|There is a bug with the Desert Treasure II Worshipper puzzle.
+|This has been solved.
+|-
+|There was an issue where the Death Charge spell would not restore a special attack upon killing a Tormented Demon.
+|This has been solved.
+|-
+|Players were unable to alch Surok Bombs if they had alchemy warnings on for untradeable items.
+|This has been solved.
+|-
+|There was an issue where a Master Clue scroll step that used the Arclight was not functional when using the Emberlight.
+|This has been solved.
+|}
+{{Collapsed section end}}
+
+----
+
+''One of RuneScape's most iconic quests has finally made the jump to Old School!''
+
+==Changelog July 10th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''While Guthix Sleeps'''
+
+* While Guthix Sleeps, a classic RuneScape quest, has now made its way to Old School! This is a Grandmaster quest, so make sure you're prepared.
+* Added tormented demons to the game, unlocked after the quest is completed.
+** Tormented demons have the chance to drop two unique items: Tormented Synapse and Bone Claws.
+** The Tormented Synapse can be used to craft three new demonbane weapons: Emberlight, the Scorching Bow, and the Purging Staff.
+
+'''Other Changes'''
+
+* Removed Larran Keys from the zombie pirates’ loot table and slightly increased the average quantity of cannonballs. Larran Keys can still be obtained while on a zombie or pirate Slayer Task.
+* Fixed a bug where Nex's minions could take burn damage whilst invulnerable.
+* When you put Sandstone into the desert grinder, your progress is now output via a game message rather than having Drew pop up a dialogue box every time. He'll still call out to warn you if the grinder is full.
+* Added audio feedback to some buttons on the Grand Exchange Offer menu.
+* An Agility short-cut is no longer listed twice in the Skill Guide.
+* You can now collect Herblore supplies from the Perilous Moons dungeon faster.
+
+'''PvP Rota'''
+
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''activated'''</u> with this rota.
+
+The PvP Arena is using '<b>Zerker</b>' loadouts in Ranked Duels and Tournaments this week.
+
+{{Collapsed section end}}
+
+==While Guthix Sleeps==
+This week we're bringing one of RuneScape’s most iconic quests to Old School. It’s While Guthix Sleeps! The incredibly talented OnlyTrails has summed up our latest quest additions in video format for those who might want something to watch during downtime:
+
+<center>{{Youtube|qmHw2nXBqtM}}</center>
+<center>''If you can't see the video above, click ''[https://youtu.be/qmHw2nXBqtM?si=5YPngevw5Zro4UPZ here]'' to watch it!''</center>
+
+This Grandmaster quest sees you continue the Mahjarrat storyline, hunting down one of the most powerful artefacts in existence while ensuring it doesn't fall into the wrong hands. 
+
+This artefact is known by many names – most recently, the Stone of Jas. It has shaped the course of Gielinor’s history, from the creation of the first Runes to the fall of Zaros. It was last seen at the devastating end of the God Wars, when Zamorak, in a fit of rage, used it to reduce the land of Forinthry to the Wilderness we know today.
+
+Angered by Zamorak’s actions, Guthix rose from his age-long slumber and banished the gods. He hid the Stone of Jas far underground, where it could never disturb the balance again...
+
+But while Guthix sleeps, nefarious forces have been gathering; the Mahjarrat. Shaped by war and deadly ritual, their plans for the Stone can only lead to catastrophe.
+
+Facing off against the Mahjarrat is nothing new for dedicated adventurers – at every turn, they seem to grow in power and wage war against the people of Gielinor. In their last attempt, we saw them set out to tear Varrock apart with an undead army in Defender of Varrock. What are they plotting now? You’ll have to play the quest to find out!
+
+If all that lore is a bit much to digest, PoisonedPotion has condensed it all into one epic video breakdown. Check it out below:
+
+<center>{{Youtube|4SQb6lH29x4}}</center>
+<center>''If you can't see the video above, click ''[https://youtu.be/4SQb6lH29x4?si=H-ex4tFlFGUpFUaG here ]''to watch it!''</center>
+
+==Requirements==
+===Quest Requirements===
+This grandmaster quest is not for the unprepared! You’ll need to complete the following quests before taking it on:
+
+* Defender of Varrock
+* The Path of Glouphrie
+* Fight Arena
+* Dream Mentor
+* The Hand in the Sand
+* Wanted
+* Temple of the Eye
+* Tears of Guthix
+* Nature Spirit
+* A Tail of Two Cats
+
+You’ll also need a total of 180 Quest Points to start the quest.
+
+===Skill Requirements===
+Here are the skills you need to stand a chance against the evil Mahjarrat:
+
+* 72 Thieving
+* 67 Magic
+* 66 Agility
+* 65 Farming
+* 65 Herblore
+* 62 Hunter
+* Ability to enter the Warriors' Guild
+
+==Quest Rewards==
+
+* 5 Quest Points
+* 80,000 Thieving XP
+* 75,000 Farming XP
+* 75,000 Herblore XP
+* 50,000 Hunter XP
+* Access to the Ancient Guthixian Temple and tormented demons
+
+If you think you’re ready to get started, head to Taverley and speak to Ivy Sophista, who’s keen to follow up on an ominous letter...
+
+[[File:While Guthix Sleeps (1).png|600px|center]]
+
+
+[[File:While Guthix Sleeps (2).png|thumb|600px|center|''If you need a visual, here's where you can start the quest!'']]
+
+===Tormented Demons===
+As part of this historic quest, we're summoning back an iconic enemy: the tormented demons. Wreathed in flame and called forth to stop you meddling in Mahjarrat plans, these monsters aren't to be taken lightly. But with great risk comes great reward, as the tormented demons have the chance to drop the Tormented Synapse and the brand-new Bone Claws.
+
+The Tormented Synapse is a tradeable unique drop that can be used to craft three new Demonbane weapons: Emberlight, the Scorching Bow, and the Purging Staff. You’ll need at least level 74 in the relevant skill to craft all three weapons. Unlike other craftables, we’re not giving you the option to have a skilled NPC craft it for you. This means that mains and Irons alike will have to graft for their spoils, but these powerful weapons are well worth the effort.
+
+We developed all four new weapons, including the Bone Claws, through community consultation, taking on your feedback and tweaking the stats so each item felt more in-line with their positioning. 
+
+===Demonbane Weapons===
+We discussed all the new weapons in detail in our [https://secure.runescape.com/m=news/while-guthix-sleeps---rewards?oldschool=1 rewards blog], but there have been a few tweaks since then. Let’s get up to speed...
+
+[[File:While Guthix Sleeps (3).png|400px|center]]
+
+
+[[File:While Guthix Sleeps (4).png|400px|center]]
+
+
+[[File:While Guthix Sleeps (5).png|400px|center]]
+
+Emberlight is created from a fully charged Arclight and a Tormented Synapse, and you'll need 74 Smithing to do it. You no longer need to charge this weapon with Ancient Shards. It has increased Stab and Slash Accuracy, as well as the same 70% increased Accuracy and Damage bonuses as its predecessor. Additionally, it improves on Arclight’s Special Attack, lowering the Strength, Attack and Defence of demons by 15% of their base level +1, and non-demons by 5% of their base level +1. That’s a 5% increase!
+
+Scorching Bow requires 74 Fletching and a Tormented Synapse, but once created has 124 Ranged Accuracy and 40 Ranged Strength. It also has 30% increased Accuracy and Damage against demons, plus a nasty Special Attack which binds your enemy for 5 ticks while dealing 1 bonus damage – and if they’re a demon, it binds them for 20 ticks, increasing the bonus damage to 5.
+
+Purging Staff can be synthesised using a Tormented Synapse and 74 Crafting. Rather than giving you an outright damage boost against demons, this weapon instead autocasts combat spells from the Arceuus Spellbook. On its own that doesn’t sound like such a great reward – but using Demonbane spells will double the bonuses. Additionally, the Purging Staff has a Special Attack. You must be on the Arceuus Spellbook to cast it (which is handy, given the Staff’s effect), and you must be targeting a demon. When used, the Special Attack will cast the highest available Demonbane spell at your target. If your target is killed by the spell, you’ll restore 25% of your Special Attack energy, and the delay on your next attack will be reduced by 3.
+
+If the sight of all those numbers fills you with DEMONIC RAGE, you’re ready to pick up our next weapon...
+
+===Bone Claws===
+[[File:While Guthix Sleeps (6).png|400px|center]]
+As the Dragon Claws are remaining in Chambers of Xeric, we wanted to develop a new set of claws that matched the rush of landing the originals. The Bone Claws also bridge the gap in Melee spec weapons between the cheap and cheerful Dragon Dagger and the monstrously expensive Dragon Claws. You'll find that the Tormented Demons drop the singular Bone Claw, and you'll need to collect and combine two to get your hands on the finished Bone Claws.
+
+This weapon works much the same as the latter, while giving you a chance to inflict Burn on your target. While Burnt, the target will be dealt 10 damage over the course of 40 ticks (1 every 4 ticks). This effect can stack up to five times.
+
+So that's two new unique drops leading to four brand new demonic weapons – not a bad haul!
+
+==New Discord Emotes==
+To celebrate the launch of While Guthix Sleeps, we worked with community creator Jordbear to bring a suite of new OSRS and While Guthix Sleeps emotes to our [http://discord.gg/OSRS Official Discord server] and [https://www.twitch.tv/oldschoolrs Twitch channel]! You can check out more of Jordbear's work on her [https://jordbear.art/ website] or on her X [https://x.com/jordbearr (Twitter) account].
+
+Staying on theme, we have seven quest-inspired emotes, though to avoid spoilers, we're keeping a couple secret until tomorrow.
+
+[[File:While Guthix Sleeps (7).png|600px|center]]
+
+We also wanted to have a set of core emotes that encapsulate both classic OSRS vibes and more recent favourites.
+
+[[File:While Guthix Sleeps (8).png|600px|center]]
+
+We love these familiar faces in Mina's adorable art style, and if you do too, you can have access to them on our Discord server and Twitch channel now. We hope to see you spam your favourites in our future streams!
+
+Speaking of which…
+
+==Launch Stream==
+Tomorrow, July 11th from 16:00 BST you can catch the While Guthix Sleeps launch stream live on Twitch and YouTube! We'll be chatting to Mods Ed, Kieren and Rice all about the quest, the rewards and of course the lore. We want your questions, so keep an eye out for our Reddit thread and social posts where you can ask ‘em! Not only will you get to hear firsthand how this quest made its way to Old School, you'll also get to meet our newest Community Manager, Mod Blossom, who’s finally making her livestream debut!
+
+We'll see you there!
+
+==Limited Edition Pins==
+To celebrate While Guthix Sleeps coming to OSRS, AngelsScapes has worked her magic on four new limited edition pins! Check out the Tormented Demon,  Lucien, Broav, and Surok Magis below. Available on the [https://runescape.backstreetmerch.com/ official merch store now].
+
+[[File:While Guthix Sleeps (9).png|600px|center]]
+
+Follow [https://x.com/angelsscapes @AngelsScapes] for all the news on new official pin and keyring releases!
+
+==Pride Event==
+[[File:While Guthix Sleeps (10).png|600px|center]]
+
+As we move from June to July, the 2024 Pride event comes to an end. We hope all of you enjoyed helping Kit on his quest, and we’d like to thank you all for helping ''us ''celebrate with pride!
+
+The event may be over, but you can still find Sir Kit Breaker hanging out with Gilbert in the Glade, ready to supply you with any previous years’ rewards you’ve missed out on. He's holding back on this year's rewards though, so you'll need to check back next June for those!
+
+Our team pours so much love into our Pride events and it brings us so much happiness to see you all playing and enjoying them. Thank you again for making Pride 2024 special!
+
+==Deadman: Armageddon==
+With Deadman: All-Stars fresh in our minds we want to take a moment to look forward and remind you all that Deadman: Armageddon will open next week on Friday July 19th, at 17:00 BST!
+
+[[File:While Guthix Sleeps (11).png|600px|center]]
+If you're looking for rapid progression, game-changing Sigils, Breach-based battlegrounds, numbers going up, and all-out PvP chaos then you’re in luck, because Armageddon is looming. This is two weeks of Old School as you’ve never experienced it before, alongside a bunch of fearsome cosmetic kits you can bring back to the main game. There's bound to be something for you, whether you're after a new look for your Imbued God Cape, some ''darker'' themes for weaponry like the Voidwaker or Volatile Nightmare staff, or just a big ol' rug for your Player Owned House. It really ties the room together!
+
+To read up on all things Armageddon, check out [https://secure.runescape.com/m=news/a=13/deadman-armageddon---first-look?oldschool=1 this blog ]detailing all of the core gameplay features and a recently-updated table highlighting a helping of hotly-requested tweaks.
+
+Remember, even if you're not looking to participate for yourself, you'll be able to catch a brand new, bracket-by-bracket Finale format on Saturday, August 3rd from 6pm BST by visiting our livestream over on [https://twitch.tv/oldschoolrs Twitch]! Worlds open for participants at 5pm BST.
+
+==OSRS at SGDQ!==
+That's a whole lot of letters...
+
+We wanted to take a moment to extend our congratulations to [https://www.twitch.tv/acoldone A Cold One] for representing Old School over at [https://crowd.gamesdonequick.com/ Summer Games Done Quick] (SGDQ for short)!
+
+Games Done Quick are a charity organisation who've been raising money for ''years ''via speedrunning marathon events. Near enough every video game you could think of has been featured at a Games Done Quick event and this year Old School RuneScape made its way onto the list!
+
+Congratulations to A Cold One for putting up a very respectable 29:35 Chambers of Xeric: Challenge Mode Solo time while sporting some fetching Mole Slippers, and a huge thank you to everyone who supported his run by watching along at home, donating via GDQ to Doctors Without Borders (a.k.a. Medecins Sans Frontieres) or enjoying a watch party after crashing Keizaron's UIM at Sand Crabs.
+
+You can watch the run back by [https://www.youtube.com/watch?v=rIHcdiSI6vg clicking here] or checking out the video below, and even though SGDQ has ended for the year, you can still donate directly by visiting[https://msf.org/donate  this page].
+
+
+<center>{{Youtube|rIHcdiSI6vg}}</center>
+
+
+==Cookbook Cookout==
+'Scapers have been taking to their kitchens and grinding their IRL cooking skills with the Official RuneScape Cookbook! We've loved seeing all of your tasty creations, and reading your glowing reviews. Thanks to your help, we’ve reached 4.7 out of 5 stars on [https://www.amazon.com/RuneScape-Official-Cookbook-Sandra-Rosner/dp/B0CC9ZMDP6/ref=tmm_hrd_swatch_0?_encoding=UTF8&dib_tag=se&dib=eyJ2IjoiMSJ9.srza-KwPnYZyD2nf5AbvnHA6E71b6cG6jHeBA8tNGM8a-iyyDhXS1lKnkQGSmw1ZFfW2Cw-sT7Nbae9TF-0_wg.vyREFOEanIKOfKeKr5BHNrqQTSej4mwRlf_DHpOhpO0&qid=1720111922&sr=1-1 Amazon] - Thank you!
+
+We just had to share some of the delicious creations you've been whipping up, so take a look at some of the more recent offerings below.
+
+[[File:While Guthix Sleeps (12).png|600px|center]]
+Infernal sauce and Shrimps from Lauren, there's even a [https://www.facebook.com/share/r/WmLHpDXjiTDvPmDA/?mibextid=WC7FNe video].
+
+[[File:While Guthix Sleeps (13).png|600px|center]]
+Green Gloop Soup, Shrimps and Cake from @sarahdominist.
+
+[[File:While Guthix Sleeps (14).png|600px|center]]
+And a host of other recipes! Tasty!
+
+If you’ve got your copy, we want to see what’s cooking! Share your photos and videos using #runescapecookbook. No judgement here – we’re all levelling up our Cooking skill to beat the Culinaromancer together!
+
+We ''have'' heard rumours of some great flash discounts on [https://www.amazon.com/RuneScape-Official-Cookbook-Sandra-Rosner/dp/B0CC9ZMDP6/ref=tmm_hrd_swatch_0?_encoding=UTF8&dib_tag=se&dib=eyJ2IjoiMSJ9.srza-KwPnYZyD2nf5AbvnHA6E71b6cG6jHeBA8tNGM8a-iyyDhXS1lKnkQGSmw1ZFfW2Cw-sT7Nbae9TF-0_wg.vyREFOEanIKOfKeKr5BHNrqQTSej4mwRlf_DHpOhpO0&qid=1720111922&sr=1-1 Amazon], but you’ll need to be quick – we don’t know how long they’ll last!
+
+==Other Changes==
+
+* Removed Larran Keys from the zombie pirates’ loot table and slightly increased the average quantity of cannonballs. Larran Keys can still be obtained while on a zombie or pirate Slayer Task.
+* Fixed a bug where Nex's minions could take burn damage whilst invulnerable.
+* When you put Sandstone into the desert grinder, your progress is now output via a game message rather than having Drew pop up a dialogue box every time. He'll still call out to warn you if the grinder is full.
+* Added audio feedback to some buttons on the Grand Exchange Offer menu.
+* An Agility short-cut is no longer listed twice in the Skill Guide.
+* You can now collect Herblore supplies from the Perilous Moons dungeon faster.
+
+==PvP World Rota==
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''activated'''</u> with this rota.
+
+The PvP Arena is using '<b>Zerker</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1dzqw88/while_guthix_sleeps/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Errol, Gecko, Gengis, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hooti, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Necro, Nin, Nox, Nylu, Other, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Saiyan, Sarnie, Shogun, Shroom, Sigma, Skane, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titus, Tsourorf, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

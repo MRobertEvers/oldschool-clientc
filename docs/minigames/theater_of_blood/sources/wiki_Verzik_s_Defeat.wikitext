@@ -1,0 +1,44 @@
+{{Infobox Music
+|name = Verzik's Defeat
+|file = [[File:Verzik's Defeat.ogg]]
+|release = [[7 June]] [[2018]]
+|update = The Theatre of Blood
+|members = Yes
+|location = [[Theatre of Blood]]
+|hint = N/A
+|quest = N/A
+|instruments = Tremolo Strings, Fretless Bass, Acoustic Grand Piano, Church Organ, Standard Drum Kit, Reverse Cymbal, Tubular Bells, Rock Organ
+|tempo = Varies
+|duration = 00:11
+|album = ''[[RuneScape-_Theatre of Blood|RuneScape: Theatre of Blood]]''
+|composer = Ian Taylor
+|map = No
+|cacheid = 250
+|jingle = Yes
+|sortname = Verzik's Defeat
+}}
+'''Verzik's Defeat''' is a [[jingle]] that is played upon defeating each boss fight within the [[Theatre of Blood]].
+
+It's tempo begins at 105 BPM and gradually slows down to 54.
+
+==Versions==
+{{Music changes header}}
+{{Music changes
+|version=1
+|date=7 June 2018
+|file=[[File:Verzik's Defeat (8-bit).ogg]]
+}}
+{{Music changes
+|version=1
+|date=9 April 2025
+|file=[[File:Verzik's Defeat.ogg]]
+|change= [[Audio#16-bit_music|16-bit Music Update]]
+}}
+{{Music changes footer}}
+
+==Trivia==
+*The midi file for this track starts with infinity tempo but is set to the actual tempo within the same midi tick.
+
+{{Music}}
+
+[[Category:Old School-exclusive music]]

@@ -1,0 +1,15 @@
+# Xarpus sequence durations, read 2026-10-02 from OSRS-Content/osrs239-content/configs/all.seq (read-only; cycles of 20 ms, 30 per game tick)
+# seq_name	frames	cycles	ticks	cycles_before_frame10	sound_lines
+tob_xarpus_idle	52	120	4.00	26	1,3541,1,7,0,100;14,3975,1,7,0,100;27,3964,1,7,0,100
+tob_xarpus_attack_ranged	21	60	2.00	27	10,3290,1,7,0,100
+tob_xarpus_absorb	13	60	2.00	46	
+tob_xarpus_fly_up	27	90	3.00	39	1,3962,1,7,0,100;10,3548,1,7,0,100
+tob_xarpus_death_a	10	30	1.00	30	1,4014,1,15,0,100
+tob_xarpus_death_b	16	60	2.00	36	1,3549,1,15,0,100
+tob_xarpus_exhumed_start	1	5	0.17	5	
+tob_xarpus_exhumed_loop	10	300	10.00	300	
+tob_xarpus_exhumed_end	20	60	2.00	30	
+tob_xarpus_acid_splat_start	1	5	0.17	5	
+tob_xarpus_acid_splat_loop	6	300	10.00	300	
+tob_xarpus_acid_splat_end	4	16	0.53	16	
+# tob_xarpus_attack_ranged: sound=10,3290 = chirp on frame 10, which starts at cycle 27 of 60

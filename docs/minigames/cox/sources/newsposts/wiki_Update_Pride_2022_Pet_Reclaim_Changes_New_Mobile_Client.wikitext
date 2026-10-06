@@ -1,0 +1,105 @@
+{{Update|date=22 June 2022|link=https://secure.runescape.com/m=news/pride-2022-pet-reclaim-changes--new-mobile-client?oldschool=1|category=game}}
+[[File:Pride 2022, Pet Reclaim Changes & New Mobile Client! newspost.png|right]]
+{{clear}}
+
+''This week, we're introducing a holiday event full of love and dazzling colours! It's Pride 2022!''
+__TOC__
+==Pride 2022==
+Pride Month is a time to celebrate LGBTQIA+ identity all over the world, and Old School RuneScape is no exception! We’re proud of our fantastic, diverse community, all linked together by a mutual love of the game. This year’s Pride Event is our commitment to helping our LGBTQIA+ players feel safe, included, and supported in Old School – but everyone can join in the fun!
+
+Gilbert the Leprechaun has returned to Gielinor and is once again asking for your help to spread colourful joy across the land. Catch up with him south-east of Barbarian Village, on the banks of the River Lum – and bring your greenest thumbs!
+
+[[File:Pride 2022, Pet Reclaim Changes & New Mobile Client! (1).png|centre]]
+
+The Pride event is available on both members and free-to-play worlds and completing it will score you some fabulously floral FashionScape: your very own Rainbow Flower Crown! You’ll also receive the Rainbow Scarf from 2017, if you don’t have one already.
+
+[[File:Pride 2022, Pet Reclaim Changes & New Mobile Client! (2).png|centre]]
+
+The whole Old School team has worked hard to create this event, and we hope that you enjoy playing it as much as we enjoyed bringing it to life!
+
+Also of note: Gilbert has had such a warm welcome that he’ll be sticking around even after the event to hand out Rainbow Flower Crowns and Scarves to anyone who’d like one. Of course, you’ll still be able to claim these items from Diango and your Player Owned House.
+
+Happy Pride, everyone!
+
+==In-Game Pride March==
+We know that not everyone is able to attend Pride marches in person – but you can still celebrate here in Gielinor, by taking part in our very first official Old School Pride march!
+
+Here's the deets:
+
+'''Date''': June 23rd 2022
+
+'''Time:''' 18:00 BST - 19:30 BST
+
+'''World:''' 500 (Free-to-play)
+
+'''Secondary World:''' 562 (Free-to-play)
+
+We will be walking during the Pride March to allow everyone to keep up, starting at the location of the event. For more information please refer to the picture below!
+
+[[File:Pride 2022, Pet Reclaim Changes & New Mobile Client! (3).png|centre|frameless|650px]]
+
+We J-Mods will be attending in our finest rainbow gear – and we can’t wait to see what colourful outfits you all bring to the table!
+
+We want everyone to feel safe and included during the event, so please note that our Player Support Teams will be on-hand to remove anyone looking to spoil the fun. This is an event to celebrate our LGBTQIA+ players, and we will not tolerate intimidation or harassment.
+
+===Further Diversity and Inclusion Changes===
+Old School RuneScape really is OLD School RuneScape, and we recognise that certain elements of the game are far less acceptable than they were 20 years ago. Moving forward, we’ll address a number of issues to make Gielinor a more inclusive and welcoming place to be.
+
+We’ll tell you all about our plans in the next Gielinor Gazette, which is due at the end of the month. Stay tuned!
+
+==Pet Changes from Poll 76==
+It’s the update you’ve been waiting for – time to fill up your menagerie with a collection of pet changes!
+
+First and foremost, any pets you receive in-game will now be automatically insured. If you’re unlucky enough to lose your pet, you will be able to retrieve it from Probita for the standard 1 million GP fee.
+
+Both players who ‘would have been followed’ but did not receive their pet and players who have lost their pet on death can collect it from Probita, as long as it was marked in their Collection Log. Bank Placeholders also work as sufficient proof that the pet existed.
+
+Unfortunately, we’re unable to retrieve pets which were received and then lost before the Collection Log was released, or pets whose Bank Placeholder has been deleted.
+
+Any pets you achieve in-game are now automatically insured. If you are unlucky enough to lose your pet, your pet is redeemable from Probita for her usual fee of 1 million GP.
+
+If you’ve previously paid an insurance fee, it’ll be added to Probita’s reclaim fee coffer and can then be used as a discount towards any further reclaims. For example, if you’ve insured two pets for 500,000 GP each, you will be given 1 free reclaim token. If you've insured 5 pets, you will be given 2 free reclaim tokens and a 500,000 GP discount towards your next reclaim token purchase. Nice!
+
+Lastly, we’ve enabled loot drop broadcasts for all pets, including duplicate drops. Happy hunting!
+
+==New Mobile Client Features and Full Release==
+Great news for adventurers on the go – we’ve fully released our new client features on both Android and iOS devices! The new client will become available over the course of today, so keep an eye out for an update!
+
+This means that the Java app is no longer in use. To play Old School RuneScape on mobile, your device must meet the following requirements:
+
+* '''Android:''' Android 8.0 (Oreo) or later, and at least 2GB RAM.
+* '''iOS:''' iOS Version 13.0 or later.
+
+On the upside, mobile players now have access to all the exciting features we’ve been beta testing, including:
+
+* Buff Bars
+* Fishing Spot Indicators
+* HUD Improvements (NPC Information and Combat Styles)
+* Agility and Slayer Helpers
+* Chambers of Xeric Helper
+* Woodcutting and Ore Respawn Timers
+* Increased Draw Distance
+* Navigation Tile Indicators
+* Chat Improvements
+* Entity Highlights for NPCs
+* And more!
+
+So what’s next? Take a look at this [https://secure.runescape.com/m=news/mobile-new-client-launch--next-steps?oldschool=1 newspost], where we share all the details about future client features we’re looking to implement.
+
+==Other Changes==
+* Increased the Friends Chat capacity from 100 to 500. Please note that this change does NOT allow for even larger raiding parties in Chambers of Xeric or battles in Soul Wars. We apologise if this is disappointing.
+* The Minimap's HP orb now shows your health in Last Man Standing as a proportion of 99, as that’s the base HP level used in the minigame.
+* The Edgeville and Ardougne teleport levers now have a separate warning message if they are used on High Risk Worlds. Both this new message and the pre-existing warning can be toggled on and off via the Settings menu, lest players change their minds about dismissing them permanently. The warning on the exit of Ferox Enclave can also be re-enabled via the Settings menu.
+* The appearance of the Observatory Professor, if he appears in Traiborn's quiz during Recipe for Disaster, has been corrected.
+* All Birds’ Nests will now take four times longer to disappear from the floor.
+* Ironmen fighting the Kalphite Queen will no longer find her lair devoid of Potato Cacti.
+* TzHaar Bank Chests can now be accessed from the side. Thrilling!
+* The entrance and exits of the Revenant Caves are now even further apart.
+
+----
+
+You can also discuss this update on our [http://services.runescape.com/m=forum/forums?380,381,817,66255460 official forums], on the [https://www.reddit.com/r/2007scape/comments/vcr06f/giants_foundry_changes_weekly_game_update_june/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[osrsw:|Old School Wiki]].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Brow, Bruno, Curse, Daizong, Dibber, Ditto, Dylan, Ed, Elena, Errol, Fed, Gecko, Goblin, Grub, Halo, Havik, Hornet, Husky, Jalo, John C, Kandosii, Katies, Kieren, Kirby, Kurotou, Lenny, Light, Lottie, Mack, Matheus, Maylea, Markos, Meat, Morty, Nin, Nylu, Peppers, Regent, Redfield, Roq, Ry, Sarnie, Sigma, Skylark, Soffan, Sova, Squid, Steve W, Tide, Torrance, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

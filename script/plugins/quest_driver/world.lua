@@ -219,6 +219,54 @@ function QD.world.loc_near(sym, radius, opts)
     return "not_found", text
 end
 
+-- RAID SEAM11 ticklog_raw_damage_and_loc_count -- EVERY COPY OF A LOC.
+--
+-- loc_near answers the nearest copy.  The Verzik room's AV row counts the
+-- spectator cages, and the map places `tob_dungeon_verzik_death_cage` 32717
+-- twenty-four times (OSRS-Content/osrs239-content/maps/m49_67.jl2:255-278):
+-- a count needs every copy.  api_drive.locs(0) plus a filter is not one -- it
+-- keeps the nearest 8192 placements of every id (a Lumbridge scene holds
+-- 8,515) and builds a Lua table for each -- so api_drive.loc_copies filters on
+-- the id in C before it ranks (DriveUi_LocCopies) and also answers `total`,
+-- every match inside `radius` even past its cap.
+--
+-- `sym` is matched on the PLACED id: for a multiloc that is the wrapper the
+-- map names, not the child it draws as (rows carry `resolved_loc_id`).  No
+-- multiloc swap here, on purpose: that resolve walks the whole pool
+-- (QD.player._live_loc_id), which is the cost this verb exists to avoid.
+--
+-- THREE RETURNS like t.npc.tiles: (result, summary, rows).  rows.total is the
+-- count; rows[i] = {loc_id, resolved_loc_id, x, z, level, element_id, shape,
+-- seq, ...} nearest first.  `no_row` when none is placed inside `radius`.
+function QD.world.loc_copies(sym, radius)
+    if api_drive.loc_copies == nil then
+        return "unsupported", "world.loc_copies: this binary has no "
+            .. "api_drive.loc_copies (rebuild with raid seam11)", nil
+    end
+    local sym_result, loc_id = api_drive.symbol("loc", sym)
+    if sym_result ~= "ok" then
+        return "not_found", sym, nil
+    end
+    local result, rows = api_drive.loc_copies(loc_id, radius or 0)
+    if result ~= "ok" or type(rows) ~= "table" then
+        return result, sym, nil
+    end
+    local total = rows.total or #rows
+    if total == 0 then
+        return "no_row", string.format("%s (loc %d): no copy placed within %d",
+            sym, loc_id, radius or 0), rows
+    end
+    local parts = {}
+    for i = 1, math.min(#rows, 8) do
+        parts[#parts + 1] = tostring(rows[i].x) .. "," .. tostring(rows[i].z)
+            .. " L" .. tostring(rows[i].level)
+    end
+    local more = #rows > 8 and string.format(" (+%d more)", #rows - 8) or ""
+    return "ok", string.format("%s (loc %d): %d copy(s)%s -- %s%s", sym, loc_id,
+        total, total > #rows and string.format(", %d listed", #rows) or "",
+        table.concat(parts, "; "), more), rows
+end
+
 function QD.world.obj_near(sym, radius)
     local sym_result, id = api_drive.symbol("obj", sym)
     if sym_result ~= "ok" then

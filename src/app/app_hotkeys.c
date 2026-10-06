@@ -128,7 +128,7 @@ app_ui_hotkeys(
         return;
     /* An open right-click menu owns the pointer; let it own the keyboard too,
      * matching how interact_minimenu swallows everything until it closes. */
-    if( app->interact.minimenu.visible )
+    if( app->frame_view->minimenu->visible )
         return;
 
     for( int i = 0; i < app->tree->hotkey_count; i++ )
@@ -288,18 +288,21 @@ app_world_hotkeys(
      * instead. */
     if( app_text_input_focused(app) )
         return;
-    if( app->world_hover_tile_x < 0 || app->world_hover_tile_z < 0 )
+    if( app->frame_view->world_hover_tile_x < 0 || app->frame_view->world_hover_tile_z < 0 )
         return;
 
     if( app_debug_world_key(app, input, APP_DEBUG_HOTKEY_SPAWN_PLAYER) )
         app_world_spawn_player(
-            app, app->world_hover_tile_x, app->world_hover_tile_z, app->world_hover_tile_level);
+            app,
+            app->frame_view->world_hover_tile_x,
+            app->frame_view->world_hover_tile_z,
+            app->frame_view->world_hover_tile_level);
     if( (binding = app_debug_world_key(app, input, APP_DEBUG_HOTKEY_SPAWN_NPC)) )
         app_world_spawn_npc(
             app,
-            app->world_hover_tile_x,
-            app->world_hover_tile_z,
-            app->world_hover_tile_level,
+            app->frame_view->world_hover_tile_x,
+            app->frame_view->world_hover_tile_z,
+            app->frame_view->world_hover_tile_level,
             binding->args);
     if( app_debug_world_key(app, input, APP_DEBUG_HOTKEY_DAMAGE_TEST) )
         app_world_damage_test(app);
@@ -308,22 +311,22 @@ app_world_hotkeys(
     if( (binding = app_debug_world_key(app, input, APP_DEBUG_HOTKEY_SPAWN_SPOTANIM)) )
         app_world_spawn_spotanim(
             app,
-            app->world_hover_tile_x,
-            app->world_hover_tile_z,
-            app->world_hover_tile_level,
+            app->frame_view->world_hover_tile_x,
+            app->frame_view->world_hover_tile_z,
+            app->frame_view->world_hover_tile_level,
             binding->args);
     if( (binding = app_debug_world_key(app, input, APP_DEBUG_HOTKEY_SPAWN_OBJ)) )
         app_world_spawn_obj(
             app,
-            app->world_hover_tile_x,
-            app->world_hover_tile_z,
-            app->world_hover_tile_level,
+            app->frame_view->world_hover_tile_x,
+            app->frame_view->world_hover_tile_z,
+            app->frame_view->world_hover_tile_level,
             binding->args);
     if( (binding = app_debug_world_key(app, input, APP_DEBUG_HOTKEY_SPAWN_PROJECTILE)) )
         app_world_spawn_projectile(
             app,
-            app->world_hover_tile_x,
-            app->world_hover_tile_z,
-            app->world_hover_tile_level,
+            app->frame_view->world_hover_tile_x,
+            app->frame_view->world_hover_tile_z,
+            app->frame_view->world_hover_tile_level,
             binding->args);
 }

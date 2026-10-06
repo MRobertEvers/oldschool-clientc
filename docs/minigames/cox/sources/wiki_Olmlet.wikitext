@@ -1,0 +1,235 @@
+{{Multi Infobox
+|text1 = Follower
+|item1 =
+{{Infobox NPC
+|version1 = Olmlet
+|version2 = Puppadile
+|version3 = Tektiny
+|version4 = Enraged Tektiny
+|version5 = Vanguard
+|version6 = Vasa Minirio
+|version7 = Vespina
+|version8 = Flying Vespina
+|name1 = Olmlet
+|name2 = Puppadile
+|name3 = Tektiny
+|name4 = Enraged Tektiny
+|name5 = Vanguard
+|name6 = Vasa Minirio
+|name7 = Vespina
+|name8 = Flying Vespina
+|image1 = [[File:Olmlet (follower).png|130px]]
+|image2 = [[File:Puppadile (follower).png|290px]]
+|image3 = [[File:Tektiny (follower).png|120px]]
+|image4 = [[File:Enraged Tektiny (follower).png|120px]]
+|image5 = [[File:Vanguard (follower).png|280px]]
+|image6 = [[File:Vasa Minirio (follower).png|250px]]
+|image7 = [[File:Vespina (follower).png|290px]]
+|image8 = [[File:Flying Vespina (follower).png|290px]]
+|release1 = [[5 January]] [[2017]]
+|release2 = [[17 May]] [[2018]]
+|release3 = [[17 May]] [[2018]]
+|release4 = [[28 May]] [[2020]]
+|release5 = [[17 May]] [[2018]]
+|release6 = [[17 May]] [[2018]]
+|release7 = [[17 May]] [[2018]]
+|release8 = [[28 May]] [[2020]]
+|update1 = Chambers of Xeric
+|update2 = Chambers of Xeric: Challenge Mode Is Here!
+|update3 = Chambers of Xeric: Challenge Mode Is Here!
+|update4 = Chambers of Xeric Improvements
+|update5 = Chambers of Xeric: Challenge Mode Is Here!
+|update6 = Chambers of Xeric: Challenge Mode Is Here!
+|update7 = Chambers of Xeric: Challenge Mode Is Here!
+|update8 = Chambers of Xeric Improvements
+|members = Yes
+|race1 = Olm
+|race2 = Mutated dog/crocodile
+|race3 = Former [[human]]
+|race4 = Former human
+|race5 = Former human
+|race6 = [[Arceuus]] Elder
+|race7 = Abyssal Vespine
+|race8 = Abyssal Vespine
+|location = [[Chambers of Xeric]]
+|options = Talk-to, Metamorphosis, Pick-up
+|examine1 = The most cuddly Spawn of the Guardian in the Deep.
+|examine2 = A puppy of a mutated guardian of Xeric.
+|examine3 = Xeric's former artisan's former helper.
+|examine4 = Xeric's former artisan's former helper.
+|examine5 = A very small member of Xeric's elite tactical unit.
+|examine6 = The son of a former High Priest, fused with the rock and bound to the dark crystals.
+|examine7 = Princess of the Abyssal Vespine.
+|examine8 = Princess of the Abyssal Vespine.
+|map = No
+|id1 = 7519,7520
+|id2 = 8196,8201
+|id3 = 8202,8197
+|id4 = 9511,9513
+|id5 = 8198,8203
+|id6 = 8204,8199
+|id7 = 8200,8205
+|id8 = 9512,9514
+|leagueRegion = Kourend
+}}
+|text2 = Item
+|item2 =
+{{Infobox Item
+|version1 = Olmlet
+|version2 = Puppadile
+|version3 = Tektiny
+|version4 = Enraged Tektiny
+|version5 = Vanguard
+|version6 = Vasa Minirio
+|version7 = Vespina
+|version8 = Flying Vespina
+|name1 = Olmlet
+|name2 = Puppadile
+|name3 = Tektiny
+|name4 = Enraged Tektiny
+|name5 = Vanguard
+|name6 = Vasa Minirio
+|name7 = Vespina
+|name8 = Flying Vespina
+|image1 = [[File:Olmlet.png]]
+|image2 = [[File:Puppadile.png]]
+|image3 = [[File:Tektiny.png]]
+|image4 = [[File:Enraged Tektiny.png]]
+|image5 = [[File:Vanguard (pet).png]]
+|image6 = [[File:Vasa Minirio.png]]
+|image7 = [[File:Vespina.png]]
+|image8 = [[File:Flying Vespina.png]]
+|release1 = [[5 January]] [[2017]]
+|release2 = [[17 May]] [[2018]]
+|release3 = [[17 May]] [[2018]]
+|release4 = [[28 May]] [[2020]]
+|release5 = [[17 May]] [[2018]]
+|release6 = [[17 May]] [[2018]]
+|release7 = [[17 May]] [[2018]]
+|release8 = [[28 May]] [[2020]]
+|update1 = Chambers of Xeric
+|update2 = Chambers of Xeric: Challenge Mode Is Here!
+|update3 = Chambers of Xeric: Challenge Mode Is Here!
+|update4 = Chambers of Xeric Improvements
+|update5 = Chambers of Xeric: Challenge Mode Is Here!
+|update6 = Chambers of Xeric: Challenge Mode Is Here!
+|update7 = Chambers of Xeric: Challenge Mode Is Here!
+|update8 = Chambers of Xeric Improvements
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = No
+|noteable = 
+|options = Drop
+|examine1 = The cuddly Spawn of the Guardian in the Deep.
+|examine2 = A puppy of a mutated guardian of Xeric.
+|examine3 = Xeric's former artisan's former helper.
+|examine4 = Xeric's former artisan's former helper.
+|examine5 = A very small member of Xeric's elite tactical unit.
+|examine6 = The son of a former High Priest, fused with the rock and bound to the dark crystals.
+|examine7 = Princess of the Abyssal Vespine.
+|examine8 = Princess of the Abyssal Vespine.
+|value = 1
+|alchable = No
+|weight = 0.015
+|id1 = 20851
+|id2 = 22376
+|id3 = 22378
+|id4 = 24656
+|id5 = 22380
+|id6 = 22382
+|id7 = 22384
+|id8 = 24658
+|leagueRegion = Kourend
+}}
+}}
+{{Synced switch
+|version1 = [[File:Olmlet chathead.png|left]]
+|version2 = [[File:Puppadile chathead.png|left]]
+|version3 = [[File:Tektiny chathead.png|left]]
+|version4 = [[File:Tektiny chathead.png|left]]
+|version5 = [[File:Vanguard (pet) chathead.png|left]]
+|version6 = [[File:Vasa Minirio chathead.png|left]]
+|version7 = [[File:Vespina chathead.png|left]]
+|version8 = [[File:Vespina chathead.png|left]]
+|version9 = [[File:Olmlet detail.png|left|120px]]
+|version10 = [[File:Puppadile detail.png|left|150px]]
+|version11 = [[File:Tektiny detail.png|left|100px]]
+|version12 = [[File:Enraged Tektiny detail.png|left|100px]]
+|version13 = [[File:Vanguard (pet) detail.png|left|150px]]
+|version14 = [[File:Vasa Minirio detail.png|left|120px]]
+|version15 = [[File:Vespina detail.png|left|140px]]
+|version16 = [[File:Flying Vespina detail.png|left|140px]]
+}}
+The '''Olmlet''' is a [[pet]] obtained from the [[Chambers of Xeric]]. It is a much smaller version of the [[Great Olm]], with its body fully visible. Players have a 1/53 chance of receiving the pet when they receive an item from the [[Ancient chest#Unique drop table|unique drop table]] after killing the Great Olm.
+
+The olmlet is able to ''[[Metamorphosis|metamorphose]]'' into five other pets which are smaller versions of the other bosses encountered inside the Chambers of Xeric, which requires using [[metamorphic dust]] on it. The dust can be acquired from the Chambers' Challenge Mode version and clearing it under a specific time.
+
+When a player receives the pet, it will automatically try to appear as their follower. At the same time, a message in the [[Chat Interface|chatbox]] will state {{mes|You have a funny feeling like you're being followed.|color=red}} However, if a player receives a pet while having a follower out (for example, a [[cat]]), it will be placed into their [[inventory]]. When this occurs, the message in the chatbox will instead state {{mes|You feel something weird sneaking into your backpack.|color=red}}
+
+If a player's inventory is full '''and''' they have a follower already, they '''will not''' receive the pet; it must instead be claimed from [[Probita]] in [[East Ardougne]].
+
+==Item sources==
+{{Drop sources|Olmlet}}
+
+==Dialogue==
+{{Hastranscript|npc}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 12 August 2026
+|update = Summer Sweep Up - Agility & Chambers of Xeric Changes
+|change = Certain variants of the pet's item form have been capitalised:
+* "Enraged tektiny" is now "Enraged Tektiny"
+* "Vasa minirio" is now "Vasa Minirio"
+* "Flying vespina" is now "Flying Vespina"
+}}
+{{Subject changes
+|date = 24 March 2021
+|update = Fishing Skill Boss and Easter Event
+|change = Players will no longer find all their metamorphic dust consumed by using it on an olmlet. A new message informs them if they have previously unlocked the metamorphosis ability.
+}}
+{{Subject changes
+|date = 28 May 2020
+|update = Chambers of Xeric Improvements
+|poll = Old School Content Poll 71: Gauntlet, Grotesques, CoX and more
+|change = Olmlet can now metamorphose into a flying Vespina and an enraged Tektiny.
+}}
+{{Subject changes
+|date = 17 January 2019
+|update = Kebos Graphical Changes and Other Fixes
+|change = 
+* Olmlet pet variants now have the correct names and chatheads whilst stored in the [[menagerie]] of [[player-owned house]]s.
+* When roaming freely in a player-owned house, "Tektonne" is now named "Tektiny", and "Mini Nistirio" is now named "Vasa Minirio", as they are named so whilst following the player.
+}}
+{{Subject changes
+|date = 10 January 2019
+|update = The Kebos Lowlands
+|change = *The drop rate was increased from 1/65 to 1/53 to make up for the removal of [[dragon sword]]s, [[dragon harpoon|harpoons]] and [[dragon thrownaxe|thrownaxes]] in the [[Chambers of Xeric]] unique loot table.
+*The Vanguard pet was renamed from "Mini vanguard" to "Vanguard".
+}}
+{{Subject changes
+|date = 17 May 2018
+|update = Chambers of Xeric: Challenge Mode Is Here!
+|change = The metamorphosis option was added.
+}}
+{{Subject changes
+|date = 9 February 2017
+|update = Colourful Golems & Graphical Improvements
+|change = Drop rate was changed from 1/650 to 1/65 (when receiving special loot).
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*Prior to [[9 February]] [[2017]], the drop rate of the Olmlet was 1/650 after rolling a unique drop before it was buffed to 1/65, or ten times the original rate. Before this drop rate buff, twelve players had obtained an Olmlet.
+*The olmlet, along with [[Skotos]], has one of the highest drop rates for a one-off pet at 1/53, due to how the Chamber of Xeric's unique drop table works.
+** Of the three raid pets (itself, [[Lil' Zik]] and [[Tumeken's guardian]]), the olmlet is the only one of the trio that requires the player to roll on the unique drop table in order to have a chance to obtain it.
+*Olmlet's name could be a play on the word "{{WP|omelette}}".{{Citation needed}}
+*Olmlet had a festive override wearing a [[red partyhat]] during the [[2020 Christmas event/Gallery|2020]], [[2021 Christmas event/Gallery|2021]], [[2022 Christmas event/Gallery|2022]], [[2023 Christmas event/Gallery|2023]], [[2024 Christmas event/Gallery|2024]], and [[2025 Christmas event/Gallery|2025]] Christmas events.
+*Tektiny's dialogue "STOP! HAMMER TIME!" is a reference to the song "{{wp|U Can't Touch This}}" by {{wp|MC Hammer}}.
+
+{{Pets}}
+{{Chambers of Xeric}}
+[[Category:Collection log items]]

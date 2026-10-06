@@ -1,0 +1,76 @@
+{{Update|date=03 October 2023|url=https://secure.runescape.com/m=news/chambers-of-xeric-scouting--scaling?oldschool=1|category=devblog}}
+[[File:Chambers of Xeric- Scouting & Scaling newspost.png|right]]
+{{clear}}
+
+In this year’s Summer Summit giga-poll, you voted overwhelmingly in favour of improvements to scouting and scaling in the Chambers of Xeric. After a lot of conversation among the team about what these improvements should look like, we’ve got some thoughts to share!
+
+==Scouting and Scaling==
+Unlike other Raids, Chambers of Xeric doesn’t have a fixed layout. Instead, Raid instances are generated upon entry, giving players a variety of unique encounter combinations. As such, it’s incredibly unlikely that you’ll get the same route back-to-back, which keeps things fresh and lets players make meaningful choices. However, this system has its downsides.
+
+For example, some rooms are more mechanically demanding than others, or require better gear. Players learning the content for the first time might have a couple of rooms they’d like to avoid while they get to grips with other encounters – like the Raid’s final boss, the Great Olm. At the opposite end of the spectrum, the most confident players might want to push for record-breaking completion times but can’t reliably scout a speedy layout.
+
+Improving the current scouting system presents some unique challenges, too. Firstly, only the players at both extremes of the skill scale stand to benefit. We need to ensure the system meets their needs as well as providing for players in the middle, who aren’t so concerned about finding the perfect layout.
+
+Secondly, we ''already'' have a scouting system which generates layouts using a ‘rotation system’, where one room ''must'' be followed by another according to a specific set of rules. This image from the OSRS Wiki illustrates the system nicely:
+
+[[File:Chambers of Xeric- Scouting & Scaling (1).png|600px|center]]
+
+Rewriting the generation system to ignore these rotations is not a simple task – although it will allow players to generate layouts that have never been seen before.
+
+Lastly, allowing players to select their own layouts will lead to more consistently fast Raid completions over time, which could significantly impact the Raid’s profitability when uniques start entering the game at an increased rate.
+
+Since the poll, we’ve been hard at work considering all the above points, and we think we’ve come up with a proposal that addresses all of them.
+
+===Our Proposal===
+In short, this is what we’re proposing:
+
+* Players can select the number of rooms in the raid, between 5 and 8, to determine the 'size' of the Raid layout.
+* Players can select a specific layout based on their selected size.
+* Players can select specific encounters to fill each room in the layout. These are irrespective of pre-existing rotations - in other words, you'll be able to ''fully'' customise your Raid.
+* Players also have the option to pick a pre-defined, static layout. We're exploring a more 'beginner friendly' layout initially.
+* There’s also the potential to add a 'competition' layout which would let speedrunners compete fairly with one another. so that people could compete on a different, fixed layout - although this feature is low priority at the moment.
+* Players are shown the cost of their raid:
+** 500,000 GP for a fully custom raid.
+** A reduced fee for a pre-defined, 'beginner friendly' raid layout, which would exclude Vanguards, Vespula, Vasa and Tekton – the most frequently skipped encounters.
+** Additional costs for scaling. One additional player costs 100,000 GP, a second costs an extra 99,000 GP, a third costs an extra 98,000 GP, and so on.
+* The layout itself and any costs incurred depend solely on the player creating the Raid. If you're raiding in a group, one player will be responsible for setting up layouts and paying the cost - though you could always agree to split this cost between yourselves beforehand!
+* All these settings will be 'stored' on your character, so if you'd like to repeat your previous layout then you'll be able to do so at the click of a button!
+
+Let’s see how this might work in detail. Say you pick five rooms and a layout containing four combat rooms and one puzzle room. From here, you can populate those combat and puzzle rooms however you like, as long as you can cough up 500,000 GP for the privilege.
+
+Although this is a fully custom system, some existing rules will still be in effect. You ''must'' have at least five rooms in the Raid, and at least one room must be a puzzle room. There can be no duplicate combat rooms and in smaller layouts there can be no duplicate puzzle rooms either. At least one scavenger and one farming room are placed on the map automatically, regardless of the layout you’ve chosen.
+
+Why 500,000 GP? While we’re not married to this specific value, we think this is a decent ballpark – and we have the maths explain that figure a little!
+
+* According to the OSRS Wiki, every 1,000 points earned inside Chambers of Xeric amounts to ~96,000 GP from unique drops and ~14,000 GP from common drops, totalling ~110,000 GP.
+* Conservatively, the average number of points earned in an unscaled solo raid is around 30,000, amounting to ~3.3million GP worth of loot, made up of ~420,000 GP from common drops and ~2,880,000 GP from uniques.
+* The number of points earned in other scales varies heavily. Duos often average around 40,000 points, trios in the region of 50,000 - 60,000 points – depending on the layout, of course.
+* Solos make for a useful comparison, since you'd be incurring the full cost of a custom layout entirely on your own.
+* At 500,000 GP per layout, even if you ''never'' see a unique item (we’ve all been there), on average you'll make back over 80% of your upfront cost from common drops alone. Once you factor in uniques, you'll still be making a tidy sum from each completed Raid.
+
+For experienced players who want to experiment with new layouts, this cost feels balanced. For those of you just starting out, the amount may be a little high – but shared between your Raid buddies, it’s a little more reasonable.
+
+If you’re ''really'' looking to maximise your profit, your goal should be to familiarise yourself with every room, so that you don’t have to pay the custom layout fee at all – which ''is'' something we still want players to do, rather than only running ‘meta’ layouts. Ultimately, we want players to keep engaging with everything CoX has to offer – the Raid is designed for replayability and variety, not playing it the same way every single time.
+
+Iron players may still choose to incur the full cost while soloing. Alternatively, they can use an alternate account to make the layout, or group up with friends and take turns to pay the fee over several sessions. Of course, you can also keep hunting for that Twisted Bow the good old-fashioned way, with the random generation you know and love.
+Moving on from scouting, scaling should be as simple as ticking a box and entering a number on the initial Party Creation interface – as long as you have the funds! We’re currently kicking costs off at 100,000 GP, decreasing by 1,000 GP with each additional ‘player’ added.
+
+This cost is a bit trickier to balance – the ‘value’ of these invisible ‘players’ is hard to measure. If each additional real player adds 10,000 points, then a cost of 100,000 GP ''seems'' like a fair trade – but it doesn’t factor in the additional difficulty, or the fact that combat and puzzle rooms scale at different group sizes to Olm, where the majority of points are obtained.
+
+Additionally, there’s the cost of ''having'' an alt account to set up the layout in the first place in the current implementation and whether or not this might work out cheaper than the costs we've outlined here.
+
+Ultimately, we’re not sure there ''is'' a correct value for either scouting custom layouts or scaling up Raids solo, so we’ll be keeping a close eye on your feedback to make sure we’re at least in the right ballpark. As is tradition, we have a [https://forms.office.com/e/F663rc65ES short survey] where you can share your thoughts.   
+
+[[File:Chambers of Xeric- Scouting & Scaling (2).png|199px|center|link=https://forms.office.com/e/F663rc65ES]]
+
+So, those are the plans. We know this update has been a long time coming, but we needed that extra time to investigate what’s possible, figure out what we can actually deliver on time, and decide what changes we’re comfortable making. The last thing we wanted to do was over-promise and come up short. We’d like to thank everyone for their patience, and we hope this proposal is in line with your expectations!
+
+We'd really appreciate you taking the time to fill out the survey above, or just getting in touch on all the usual social channels. In the meantime, happy raiding and good luck with the ongoing grinds!
+
+----
+
+You can also discuss this update on our [http://services.runescape.com/m=forum/forums?380,381 official forums], on the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abyss, Arcane, Archie, Argo, Ash, Ayiza, Boko, Bruno, Chilly, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Errol, Fed, Gecko, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Necro, Nox, Nylu, Other, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Sarnie, Shroom, Sigma, Skane, Skylark, Sova, Squid, Starry, Stevew, Surma, Sween, Tide, Titus, Torrance, Tsourorf, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

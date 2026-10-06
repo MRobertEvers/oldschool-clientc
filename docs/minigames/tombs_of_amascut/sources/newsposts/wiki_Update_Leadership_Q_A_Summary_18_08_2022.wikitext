@@ -1,0 +1,265 @@
+{{Update|date=23 August 2022|link=https://secure.runescape.com/m=news/leadership-qa-summary-18082022?oldschool=1|category=community}}
+[[File:Leadership Q&A Summary 18-08-2022 newspost.png|right]]
+{{clear}}
+This week's live stream featured a Q&A with the Old School leadership team. Topics included:
+* [[#Question #1|If there are plans to add a Puzzle Box Helper in the future]]
+* [[#Question #5|Stackable Clues]]
+* [[#Question #13|Future Mobile UI updates]]
+* [[#Question #18|Future Enhanced Client updates]]
+
+Thanks to Mod Kieren (Associate Design Director), Mod Markos (Executive Producer), Mod Ayiza (Lead Community Manager) for their insight!
+
+Missed the live stream? Check out the transcript below!
+
+DISCLAIMER: Livestreams are a glimpse into the ongoing creative process at Jagex. JMods are speaking off-the-cuff and their comments are not intended to be read in the same way as prepared updates from the company. Please keep this in mind when discussing the Q&A!
+
+__TOC__
+==Introduction==
+[https://www.youtube.com/watch?v=HPRsYQX5Avk&t=30s Youtube Time Stamp]
+
+* '''Mod Ayiza:''' Seeing as it has been a while, I think it's worthwhile if you both could tell us about what you do at Old School within the team.
+* '''Mod Markos:''' I'm the Executive Producer of the game, which means I'm broadly responsible for how the game runs. I work very closely with Mod Ayiza and Mod Kieren regarding the day-to-day things around the updates and working on the community response.
+* '''Mod Ayiza:''' Have you done anything interesting this week?
+* '''Mod Markos:''' A lot of my work involves PowerPoints and spreadsheets. So it may not be that interesting if I go into it in detail!
+* '''Mod Ayiza:''' Thank you, Markos. How about you, Kieren? Do you want to kick things off with your little intro?
+* '''Mod Kieren:''' It's been a fun week. I've done many different things; some final Raids playtests because that’s the hype next week - and Tombs of Amascut will be out next week! Six days to go!
+* '''Mod Kieren:''' I'm the Associate Design Director. Essentially, I'm heading up our Game Design team, which many of you may recognise as content developers, and we're responsible for designing most of the game's features.
+* '''Mod Kieren:''' I think about the longer-term view; what we're doing for the roadmap, the balance of the content we offer, and what we're trying to achieve with the different things we add to the game.
+
+==Question #1==
+{{Cquote2|Why are you implementing Fresh Start Servers, who are they for, and how does it benefit the game and the playerbase?}}
+
+[https://www.youtube.com/watch?v=HPRsYQX5Avk&t=350s Youtube Time Stamp]
+
+* '''Mod Ayiza:''' Most of this has been covered in the FAQ, but to reiterate the "why". We did some research, and you may have seen a survey that we put out, which indicated that this type of fresh start service could appeal to those players. Given that they require minimal dev time, we just thought "why don't we test out the theory and see whether we're right or not?"
+* '''Mod Ayiza:''' Regarding the "who", I think this is a crucial one to cover. It's a large topic of conversation within the community. Fresh Start Worlds are aimed at new players or players who haven't been on Old School for a long time. It's not intended to be content that attracts you away from the main game. I'm sure people will be drawn to it - some people will want to fight for the highscores and just experience that fresh start.
+* '''Mod Ayiza:''' Fresh Start Worlds is aimed at people who don't currently play; who don't have existing accounts. One thing that has been overlooked is the power of having so many people at the same stage of the game together.
+* '''Mod Ayiza:''' If you were to throw a returning plyayer back into the current game, they're going to be met with heaps of players who are high-level and have so much gear. They'll go to an earlier game area and find that it will have much less activity.
+* '''Mod Ayiza:''' Fresh Start worlds offer an opportunity for like-minded players at a similar level of experience and progression - as they'll all be starting again - to play together and experience that without the interruption of much higher-level players.
+* '''Mod Ayiza:''' I'm sure you've seen it before; some people will stand out at Lumbridge, and these people will hand out hundreds of k's worth of gear to help a player start their journey on day one. While it's lovely to see this, the other side of being given this help is that it opens up more of the game than intended to new players; it just sometimes adds extra confusion.
+* '''Mod Ayiza:''' Regarding the benefits, it's always good for new players to come into the game! It helps us identify any pain points better than we can at the moment in the early stages of progression. This is something that would hopefully cause a lot of new players to come into the game at one moment as opposed to them trickling in when their feedback could be lost.
+* '''Mod Ayiza:''' So from a CM perspective, I'm hopeful that it will help us identify pain points so we can look to improve for future new players.
+* '''Mod Kieren:''' I've been reading many of the comments posted on Reddit and social media across the internet. I'll give a little insight into my thinking on what we're trying to do with Old School's Fresh Start Worlds.
+* '''Mod Kieren:''' One of the issues is if you're a new player, when is the point you want to join? All of you have joined at some point - you can join any day of the year - but when you think of other MMOs, like World of Warcraft, there's a very clear point to join; when the expansions come out. You're not going to join World of Warcraft today; you're going to join it around the time the expansion comes out. You're going to join alongside other people. World of Warcraft gets to reimagine how this sort of progression through the game is thought of.
+* '''Mod Kieren:''' With Old School, it's very difficult to create that really strong point in time to say, "Okay, if you were interested in Old School, join now. You'll be surrounded by other people at the same time, part of a community and so on." So the thinking is to create a mode like Fresh Start where you can temporarily be in a separate server playing alongside other people, and it's a good chance to do so.
+* '''Mod Kieren:''' I say this as we're looking primarily at brand new people and people who maybe haven't played Old School for a long time or played RuneScape back in the day and want to come back today. That's where I feel like it could be effective.
+* '''Mod Kieren:''' Now, that's yet to be proven. This is a bit of an experiment, and we'll learn along the way. Primarily, I don't want to move people from main Old School to this, nor do I really want people to feel like they want to create a second account to play this. That's not what we intend to do with Fresh Start Worlds.
+* '''Mod Kieren:''' That's where I feel it is very different to Leagues and other game modes. This is about trying to create something that can be of interest to new players or long-lapsed plauers. That's why I think it is the way that it is. You'll come along, and this is why you're starting a new account - because it's aimed at new people completely.
+* '''Mod Kieren:''' That's also why we want to eventually merge it into the main game after six months. This is your entry point - it's a way to get into the game, stick around and join the wider community at a point of your choosing.
+* '''Mod Kieren:''' Certainly, it's been a lot of reading and a lot of thinking about the different points people have been making online. It's all stuff we're processing and really trying to think about and understand.
+* '''Mod Kieren:''' One of the leading concerns is this point about the economy after six months. We still need to think more about these things and make sure that we are okay with that happening and if we think the economy will be good after that change.
+
+==Question #2==
+{{Cquote2|Additional game modes can segment the Old School community whilst also taking up valuable dev resources away from the main game. Are Fresh Start Servers going to take up a lot of dev resources from the main game? Is leadership concerned about the number of game modes that are in OSRS?}}
+
+[https://www.youtube.com/watch?v=HPRsYQX5Avk&t=740s Youtube Time Stamp]
+
+* '''Mod Markos:''' Fresh Start servers is a relatively cheap update, as Kieren said a moment ago. We don't expect to take up that much resource. It will be done relatively quickly compared to most of the updates we do. As you would have seen, the design is relatively simple with what we've implemented.
+* '''Mod Markos:''' We generally see game modes as having a clear value in the sense that they give players an opportunity to re-experience parts of the game in different ways from what they've seen before. Things like Leagues are also quite good at creating a strong moment in time, which gets people back into the game and encourages them to try out again.
+* '''Mod Markos:''' We do recognise there's a balance to be had. We must ensure that while we do some game modes, there will always be content going to the main game that’s fun and engaging.
+* '''Mod Markos:''' For 2022 overall, we had a League in January, and now we're about to have the Fresh Start Worlds in October, so we've had two kinds of modes to bookend the year. We've also had some conversations about speed-running, which is a game mode but a very different experience.
+* '''Mod Markos:''' In terms of what we want to do in the future, we'll probably look at a similar-ish balance. We've got a provisional roadmap for 2023 that we'll give more detail in a future livestream, but we would probably be looking to strike a similar balance, where the vast majority of the updates will be going into the main game, and there are maybe a couple of game modes across the year.
+* '''Mod Markos:''' One of the things we've spoken about before is what we do with things like Deadman in the future when we are trying to think about what we could do to refresh that a bit.
+
+==Question #3==
+{{Cquote2|How much of the player survey that was run a few months ago, or RS3’s plans to introduce Fresh Start Worlds, influenced your decision to proceed with the idea of Fresh Start Servers on Old School?}}
+
+[https://www.youtube.com/watch?v=HPRsYQX5Avk&t=875s Youtube Time Stamp]
+
+* '''Mod Markos:''' The idea has been floating around for a while. There's been some discussion on it over the last year or so, and it's been an idea we've been discussing for a while. We did look at the survey results, and we looked at what responses were across different types of players. We've also been talking to Runescape a bit as they've been developing the idea in parallel. So, yes, to all those things.
+
+==Question #4==
+{{Cquote2|Are Fresh Start Servers a complete replacement for Leagues?}}
+
+[https://www.youtube.com/watch?v=HPRsYQX5Avk&t=920s Youtube Time Stamp]
+
+* '''Mod Markos:''' No, they’re completely separate.
+
+==Question #5==
+{{Cquote2|When is Leagues 4 coming - can we have any information about it?}}
+
+[https://www.youtube.com/watch?v=HPRsYQX5Avk&t=935s Youtube Time Stamp]
+
+* '''Mod Markos:''' Mod Kieren and I discussed this a bit earlier - it's an ongoing discussion theme. We would like to do another League; we just haven't settled on a design yet. So it might be something we reach out to talk to players about in the future.
+* '''Mod Ayiza:''' Is it realistic to expect a League this year? Or are we talking more next year?
+* '''Mod Markos:''' It will be 2023.
+
+==Question #6==
+{{Cquote2|Why do players need a brand new account to play on the Fresh Start Worlds? Players do not require new accounts for other game modes like DMM and Leagues. Is this a way to entice members to pay for more subscriptions?}}
+
+[https://www.youtube.com/watch?v=HPRsYQX5Avk&t=980s Youtube Time Stamp]
+
+* '''Mod Markos:''' So, tying into what Kieren talked about earlier, the fundamental audience we expect to be playing Fresh Start worlds are long-lapsed players and new players. The key is creating a shared starting point, which means, realistically, you need to be on a new account, starting the experience from scratch.
+* '''Mod Markos:''' We don't expect it to be a thing that the currently highly active players will be playing. There is a free-to-play part of it, so you can go and experience it if you want, just generally to see what it's like. But it was never in our mind to try and encourage people to get extra subscriptions, and we thought the target audience was people who don't currently play the game.
+* '''Mod Kieren:''' One of the key things we wanted for this was that it's a good chance to start an account. It's a good point in time to join the game for the first time and then stick around and play it for the long run.
+* '''Mod Kieren:''' Now, that meant we wanted to bring your account into the main Old School after six months, and if we didn't do it on a separate account, we opened ourselves to a problem. After all, if you already have a main account saved, we would need to introduce a much more complex - long development cost - to create a proper character selection system because you'd have two main accounts. That is not something we can reasonably do.
+* '''Mod Kieren:''' We're not trying to get people to double dip here. The point I'm trying to make is that this is about people coming back and joining the game for the first time. Inevitably, some of you are probably going to be interested in wanting to play this and enjoy the experience, but genuinely this is about new people coming to the game and people returning after a long time.
+* '''Mod Kieren:''' We don't have a strong technical solution to allow you to choose between multiple accounts on main. The way it works for Leagues is quite different; that's not trying to play in the same game mode.
+* '''Mod Ayiza:''' We haven't mentioned the full announcement as of yet. We've only really come alongside RuneScape’s announcement and gave an FAQ to give some insights into what we felt would be the big, hot topic questions being asked.
+* '''Mod Ayiza:''' We are still yet to put out the full details, and I think it's probably very worthwhile that we actually go into a bit more detail around the technicalities of why it's a new account versus migrating and what that would have meant in terms of change. I think there is a significant difference in having two accounts running simultaneously in what is the main game because I assume that's how we're able to do this with low development costs. It's just another version of Old School that runs simultaneously and gets updated in the same way versus two accounts running or even having to merge experience and items over to an existing character, especially when we have limited tools for items and player profiles!
+* '''Mod Ayiza:''' We'll take that one on and hopefully be able to explain a little bit more if that's something that you're interested in.
+
+==Question #7==
+{{Cquote2|Why did you decide to implement Fresh Start Servers without polling how the current community feels about it?}}
+
+[https://www.youtube.com/watch?v=HPRsYQX5Avk&t=1210s Youtube Time Stamp]
+
+* '''Mod Markos:''' This is essentially following a precedent. Historically, when we introduce new modes like this, we typically poll the rewards rather than the mode itself, and because there's no reward attached to Fresh Start Worlds because, as Ayiza was just saying, it is essentially a parallel like a facsimile of the main game, we didn't think it'd be appropriate to poll it in this case.
+
+==Question #8==
+{{Cquote2|How is this going to affect the economy once FSW is over and all the accounts are migrated over to the main servers? Is this something that has been taken into consideration?}}
+
+[https://www.youtube.com/watch?v=HPRsYQX5Avk&t=1250s Youtube Time Stamp]
+
+* '''Mod Kieren:''' This is something we still need to think about. We'll have to keep an eye on it as it will be quite a unique effect. We've never had a situation where a six-month-old set of accounts have come in at once. I don't think it's true that all those six months old accounts are gonna log on and dump everything on the Grand Exchange, but that's not to say it won't make an impact.
+* '''Mod Kieren:''' People have said and talked about that when you're playing on a Fresh Start, the GE will have nothing. It's going to be a harder environment than playing on the main server. The difference is you'll be part of a community with like-minded people, and that's a unique experience.
+* '''Mod Kieren:''' Essentially, in those first six months, there will be primarily low-level items rather than high-end equipment, like Twisted Bows. Not to say there wouldn't be any, but generally, I feel that content that will come into the main game will be a drop in the ocean.
+* '''Mod Kieren:''' We need to do more research and confirm that, especially as the servers go live and we get to see how popular they are and how many people are playing on them. That's how we're going to be able to make an assessment. Right now, all we can do is estimate how many people will play, so it's hard to gauge it.
+
+==Question #9==
+{{Cquote2|Fresh Start Worlds do not provide a new experience to the existing player base. Have you considered releasing 2011scape or RS Classic instead of Fresh Start Worlds to provide a new and unique experience?}}
+
+[https://www.youtube.com/watch?v=HPRsYQX5Avk&t=1380s Youtube Time Stamp]
+
+* '''Mod Markos:''' We've looked at lots of options for similar things to this. Generally, these kinds of updates sound straightforward, but they're complicated from what I’ve found. So in many of these cases, they're interesting ideas, but they're very complex and expensive to do.
+* '''Mod Markos:''' They're quite significant projects that will take a long time to deliver to the standard we think they'd need to be. So I'll say “never say never” with these things as we could revisit them in the future, but at the moment, they're not something we expect to be doing.
+
+==Question #10==
+{{Cquote2|What can you do to improve the current server quality and stability? There are slow logins/hopping, world lag after 400 population and 2200 total world lag. When the servers become highly populated, and when players do activities that are more server-intensive activities, servers seem to run poorly, which causes issues.}}
+
+[https://www.youtube.com/watch?v=HPRsYQX5Avk&t=1455s Youtube Time Stamp]
+
+* '''Mod Kieren:''' This is something I've been thinking about and talking to others about this week. We're actively looking to improve all aspects of game performance, and this is something that comes up every single week. We're talking about it; it's stuff that we're constantly monitoring and trying to find the little tweaks to make and find the fixes that we can address because generally, it's not just one thing; it's multiple different things.
+* '''Mod Kieren:''' This ranges from optimising and improving the game server - even just the content logic where it's not written optimally - to refreshing and migrating the game worlds themselves. This is always happening, but it's also delicate and intricate as it's not straightforward work.
+* '''Mod Kieren:''' We're also in the process of refreshing much of the hardware, and we're constantly reviewing much of our tech stack. It's everything at once, and everything will hopefully contribute to better game performance. There are various causes of this. Some people will allude to the 400 population, and sometimes it's slow hopping, sometimes it's a lot of the total level of worlds like the 2200 worlds, which experience a lot of lag.
+* '''Mod Kieren:''' Most of these are different causes, and we have to investigate and add different telemetry and understand the primary causes, so we can make changes and try and fix some of these things.
+* '''Mod Kieren:''' It's not straightforward, but hopefully, we can start to improve it. We have already made changes, and we've seen improvements; it's just that we haven't tackled all of the problems.
+
+==Question #11==
+{{Cquote2|Will the release of ToA have a negative impact on server performance?}}
+
+[https://www.youtube.com/watch?v=HPRsYQX5Avk&t=1640s Youtube Time Stamp]
+
+* '''Mod Kieren:''' No, we don't think so. Tombs of Amascut got a whole bunch of newer engine and tech integrations. You'll hopefully see some of that in the animation work that's also gone into the content.
+* '''Mod Kieren:''' Next Wednesday, the new raid comes out. I'm so pumped about it. It hit me this week: "oh my god, it's happening next week”! It’s exciting, and it looks phenomenal. Some of the graphics work going in, and some of the ideas for the mechanics are quite cool. I can't wait to watch all the streams on Wednesday next week.
+
+==Question #12==
+{{Cquote2|Can you address recent world crashes? Is anything being done to restore lost items in GIM Storage for those affected by a world crash?}}
+
+[https://www.youtube.com/watch?v=HPRsYQX5Avk&t=1728s Youtube Time Stamp]
+
+* '''Mod Markos:''' The recent world crashes weren’t caused by malicious activity or anything; they were more just a native bug in the architecture. So we've identified that, and we're fixing it appropriately. So it will hopefully stop that in the future.
+* '''Mod Ayiza:''' I know that from our side, we have reached out to various players who had reported that they lost items. So, if you have a message from us and have not yet responded, please do so.
+* '''Mod Ayiza:''' We are looking to do the best we can given the situation. Fingers crossed, now that the bug has been resolved, this won't be an issue again, even if the worlds do experience crashes. Again, please just let us know, and we'll do what we can.
+
+==Question #13==
+{{Cquote2|Can you explain where the roadmap is to players? Will there be a Summer Summit? What can players expect to see in the next 6-12 months?}}
+
+[https://www.youtube.com/watch?v=HPRsYQX5Avk&t=1800s Youtube Time Stamp]
+
+* '''Mod Markos:''' We've got a roadmap that goes out to the end of next year, along with ideas for things further on than that as well. In the short term, we're talking about doing a summer summit-type event, which we're currently planning.
+* '''Mod Markos:''' We're also looking at how we do these kinds of events and how regularly we do them. So maybe they’ll become a bit more regular than before. For the roadmap year, we'll begin unveiling that with the events and try to progressively update players better in terms of what's coming in the future.
+
+==Question #14==
+{{Cquote2|Typically Jagex used to share important upcoming news via Runefest. Will there be a Runefest happening this year? If not, when? Mod Pips confirmed it hasn’t been scrapped on Twitter, but we have heard nothing since. Can you give any more details about Runefest, please?}}
+
+[https://www.youtube.com/watch?v=HPRsYQX5Avk&t=1880s Youtube Time Stamp]
+
+* '''Mod Markos:''' To be clear, I imagine most people realised there wouldn't be a Runefest this year. We want to potentially do something along those lines in the future. With everything that's happened in the last couple of years around the world, the challenge of doing these kinds of events is quite different from before.
+* '''Mod Markos:''' We are keen to try and get something like that up and running again. We're trying to see what's practical and what options we have.
+
+==Question #15==
+{{Cquote2|Players will often equate the number of devs on the Old School team to the frequency and the quality of game updates. Players are looking for more main game content to be added. Are you hiring more developers to give content to players faster than what’s currently available?}}
+
+[https://www.youtube.com/watch?v=HPRsYQX5Avk&t=1930s Youtube Time Stamp]
+
+* '''Mod Markos:''' We are looking to hire more developers. It's probably worth reiterating that it's not quite as simple as the more developers we get, the more content that gets released.
+* '''Mod Markos:''' Sometimes the developers are on quite complex, long-term projects, which means that it's not obvious that stuff is being released, but when it gets released, it's a very large update.
+* '''Mod Markos:''' We're looking to add extra developers and then maintain a steady release schedule of content to the main game, largely as we've done this year.
+* '''Mod Kieren:''' We will be putting up a role for a junior content developer very soon. So I'm particularly keen to bring in somebody who knows the game well. If you're interested, keep an eye out. I'll post about it when it's up.
+
+==Question #16==
+{{Cquote2|We have had one poll this year, which has taken a long time to release; it was blogged in February and still has yet to have some items to come out, such as Poison Dynamite. Why have the Poll 76 changes taken over 6 months to release? Additionally, do you have information about Poll 77?}}
+
+[https://www.youtube.com/watch?v=HPRsYQX5Avk&t=2010s Youtube Time Stamp]
+
+* '''Mod Markos:''' At the moment, Poll 77 is being planned - we talked about it in stand-up this morning. For Poll 76, what happened is that the people working on the releases for it had to help with some other updates, some of which were a bit larger than originally planned.
+* '''Mod Markos:''' Their dev team is a bit smaller than in previous years, so we're looking to try and bring back an extra dev into that team to help them release the updates for the next poll more quickly.
+* '''Mod Ayiza:''' I think it's also worth just iterating that whilst this is an excuse, we should have been able to identify it much sooner when it came to Poll 76. I think it's fair to say that some of the changes ended up being a lot bigger than we first anticipated when we were scoping them out and agreeing to put them forward for the poll.
+* '''Mod Ayiza:''' The QoL polls or game improvement polls that we do are meant to typically be the smaller, faster changes that we can turn around consistently. You get them trickled out throughout the weeks throughout the content pieces coming out, and we just missed the mark.
+* '''Mod Ayiza:''' I think some of them, especially in the sense of Poison Dynamite and the Hitsplats, touched on so much combat code. Maybe there's something you can talk about on that one, Kieren, but from what I understand, it ended up going on longer than we had originally planned.
+* '''Mod Ayiza:''' So while it’s still an excuse, that is part of the reason as well why things took a lot longer. We’ll be more mindful of it with Poll 77, for sure.
+* '''Mod Kieren:''' The Clan Hall is the other one that's been more painful than expected. The drop party features for the Clan Halls proved a lot more difficult than we first anticipated, which means it’s taken a lot longer. We've had a couple of people leave as well.
+* '''Mod Kieren:''' As much as they say “excuses”, I'd like to be transparent and talk more about when this sort of thing happens; to be smarter with how we size polls in future so that we have more regular polls going out even if they're a bit smaller.
+
+==Question #17==
+{{Cquote2|What are your future plans with DMM and Bounty Hunter?}}
+
+[https://www.youtube.com/watch?v=HPRsYQX5Avk&t=2210s Youtube Time Stamp]
+
+* '''Mod Markos:''' Generally, with the PvP schedule for next year, we’re currently looking at the survey that went out recently, and we've been doing our analysis of the activity in the game.
+* '''Mod Markos:''' We're looking to build a roadmap for PvP content next year, and we have a short list of ideas. Deadman Mode is something we think is valuable to the players, and the PvP community is keen on it. So we would like to revisit that, although we recognise we need to make some changes to try and avoid some of the issues we've had before.
+* '''Mod Markos:''' Bounty Hunter is also something we have looked at, which is a complicated update to do well. We're looking at that and a few other ideas around what we could do in PvP.
+* '''Mod Kieren:''' I’ll just add to the recap of how the LMS updates have gone. That's been out a little while now, and it's been interesting to see people's choices on which mode they like to play.
+* '''Mod Kieren:''' Maybe we should give some of the data we got the other day. For me, it's interesting.
+
+==Question #18==
+{{Cquote2|Do you have more news on the Wilderness Boss rework project? Why has this project taken a longer time than expected to release?}}
+
+[https://www.youtube.com/watch?v=HPRsYQX5Avk&t=2310s Youtube Time Stamp]
+
+* '''Mod Ayiza:''' We actually released a blog today, and no, it wasn't intentional timing it alongside this stream! We'd planned to do this before pulling the question into the Q&A, and it just ended up being a lot sooner than we'd first thought. Mod Goblin did some fantastic work and got it ready.
+* '''Mod Ayiza:''' We were going to release the blog at the end of this month after ToA had settled down after the first two weeks, but we thought, “Hey, why not? We'll just get it out sooner.” And hopefully, you've enjoyed reading it. As I said, check it out! There's a lot of detail in there. Fill out the survey and let us know your thoughts.
+* '''Mod Markos:''' About the release date, it’s not that far away. I think we talked about it quite some time ago about why it's taken a while. It was a question of finding some people who were free to work on it, and the previous project that we were working on just took longer than expected.
+* '''Mod Markos:''' That's why it hasn’t come out as quickly as we would have liked. We are keen to get it released and looking at an autumn release.
+
+==Question #19==
+{{Cquote2|Can you give some information about the future of the mobile client and what changes might be upcoming?}}
+
+[https://www.youtube.com/watch?v=HPRsYQX5Avk&t=2430s Youtube Time Stamp]
+
+* '''Mod Kieren:''' We've also done a couple of iterations of a blog talking about the UI for mobile. So problem number one: People love all RuneLite features. So many of you use RuneLite on desktop, but you cannot use RuneLite on mobile.
+* '''Mod Kieren:''' We want to let you have that better experience, so we spent a lot of time working on those features, bringing many of them over to the mobile client. So you'll already notice that many of those features are in place if you go on mobile. It does make a huge difference!
+* '''Mod Kieren:''' Because of that, we've also spent some time looking at other related mobile improvements like Haptic Feedback - you hold down a right click on something, and you get a little buzz on the finger so you know exactly when it comes up and it feels satisfying. It's a big difference.
+* '''Mod Kieren:''' We've also improved the response time and how long it takes to right-click. However, some of these features will need interactive elements added to the interface, whether it's showing you helpful advice, whether it's being able to highlight tiles and having a method to implement that.
+* '''Mod Kieren:''' We needed to look at how the interface is laid out on mobile so that we could create a bit more space for that and try to make some improvements simultaneously. So that's what we've been doing. Those are the contents of very much of that blog, talking about the UI.
+* '''Mod Kieren:''' Safe to say, I think mobile is already a drastic improvement over what the mobile experience was last year. We expect it to further improve with every new drop of these client features we add over the coming months.
+
+==Question #20==
+{{Cquote2|Will there be more 3rd party client bans, or was it a one-time thing?}}
+
+[https://www.youtube.com/watch?v=HPRsYQX5Avk&t=2570s Youtube Time Stamp]
+
+* '''Mod Markos:''' That's an ongoing process. It's a permanent initiative that's running in the background the whole time, and it’s a constant thing that we’re always working on.
+* '''Mod Ayiza:''' Just as a reminder for anyone out there, don’t use clients that aren't on our approved list. If you need a reminder, there’s the Steam client, the Java client, RuneLite, HDOS, OSHD and mobile.
+* '''Mod Ayiza:''' You are safe if you can load it through the Jagex launcher! If you use any other clients, then you do risk being banned. More than one offence leads to a permaban.
+
+==Question #21==
+{{Cquote2|Can you give updates on Account Security and Jagex Launcher progress since the last leadership livestream in March?}}
+
+[https://www.youtube.com/watch?v=HPRsYQX5Avk&t=2655s Youtube Time Stamp]
+
+* '''Mod Markos:''' We think that the new account system will be rolling out soon. Again, it's another kind of awesome update, and we’ll give you a more exact date soon.
+* '''Mod Markos:''' That's a new account system that includes all the extra security features we discussed previously. There'll be some work to make sure your current account works with the account system. I think we need to do another livestream with the account team to explain how that works and to go through the features in more detail.
+* '''Mod Markos:''' Due to the sheer volume of accounts created over time and the different states that some accounts are in since we’ve changed a lot over time, it's going to take multiple months to roll all this out. It will be done systematically in terms of going through different types of accounts.
+* '''Mod Markos:''' For the launcher, we've previously talked about things like adding multi-account support, so we're looking to do progressive updates to the launcher over the next few months. That will include multi-account support and getting the new C++ clients into the launcher very soon.
+* '''Mod Markos:''' We're also looking to see what other updates can be delivered. So we'll ask the platform team to come back on the stream sometime to go through them.
+* '''Mod Ayiza:''' I had a meeting with the publishing team today, talking about how we can communicate some of the updates and changes that are coming out. I can confirm what Markos has said that over the next few months, you’ll see some progress changes.
+* '''Mod Ayiza:''' I believe we’ll have a blog coming out in the next month or so that goes over everything to expect.
+
+==Question #22==
+{{Cquote2|Are you planning to do anything about GE spam bots?}}
+
+[https://www.youtube.com/watch?v=HPRsYQX5Avk&t=2790s Youtube Time Stamp]
+
+* '''Mod Markos:''' “Yes”, is the short answer. We are looking within the team at different options around that and how we can tackle the problem.
+* '''Mod Ayiza:''' You just have to trust that we're well aware of the problem and want to look at fixing it. It's something that has been raised, even more so recently. I know that discussions are ongoing because I'm involved in them regarding how we can help tackle them with both short-term and long-term solutions.
+* '''Mod Ayiza:''' We're just not at a point where we can share what those are because it's still very early. I'm hopeful that, similar to getting the publishing team on board with more livestreams in regards to the launcher, we can maybe do the same with the support team and talk about updates and progress there.
+* '''Mod Ayiza:''' There’s quite a lot changing, which I think people will be excited about. Hopefully, we'll be able to share details about what we want to do going forward.
+
+==Question #23==
+{{Cquote2|There are many places online to buy gold and sell account services. What is Jagex doing to combat this?}}
+
+[https://www.youtube.com/watch?v=HPRsYQX5Avk&t=2885s Youtube Time Stamp]
+
+* '''Mod Markos:''' Similar to the question on bots, this is something we've always dealt with. We don't publicise that we're doing it too much, but we are constantly trying to identify these places and get them shut down.

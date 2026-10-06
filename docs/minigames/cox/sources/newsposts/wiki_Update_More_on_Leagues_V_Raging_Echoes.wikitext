@@ -1,0 +1,330 @@
+{{Update|date=04 December 2024|url=https://secure.runescape.com/m=news/a=13/more-on-leagues-v-raging-echoes?oldschool=1|category=game}}
+[[File:More on Leagues V- Raging Echoes newspost.jpg|right]]
+{{clear}}
+__TOC__
+
+----
+{| class="wikitable" style="text-align: center;"
+|-
+! Issue
+! Status
+|-
+| Some fruit trees are not providing Check Health XP when using the Overgrown Relic.
+| COLDFIX REQUIRED
+|}
+----
+
+''Leagues V: Raging Echoes continues!''
+
+==Changelog December 4th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Leagues V: Raging Echoes'''
+
+* The [https://secure.runescape.com/m=news/leagues-v-raging-echoes---issues--fixes?oldschool=1 Issues and Fixes] blog includes all the hotfixes we’ve made since launch.
+
+This week also brings the following coldfixes:
+
+* The League area emote animation now no longer hides other animations.
+* There was a bug causing both the Crush Hour Combat Achievement from Phosani's Nightmare and the Temotli Triumph CA for Amoxliatl to fail.
+* The Treasure Arbiter now works with the master cryptic clue featuring Juna.
+* "Complete all Combat Tasks" were not registering for VVardorvis, Leviathan, Duke, Whisperer, Araxxor, and Perilous Moons despite all Combat Achievements being completed.
+* We fixed a bug causing the Jewelled Crabs at CoX to switch to the wrong attack style when using Nature's Reprisal, plus roll incorrect accuracy with the melee style.
+* Players with Grimoire activated can now complete the Task for redeeming an Arcane/Dex scroll, as intended.
+* Fixed an issue where players couldn't get hydra or araxyte tasks.
+* Equipping the Corrupted Bofa now correctly completes the regular enhanced weapon Task.
+
+And the following hotfix in case you missed it earlier this week:
+
+* Using the Total Recall orb to save a Runecrafting altar in a Region you don't have access to was causing the inability to store new memories to the orb.
+
+===Other Changes===
+
+* Added a toggle for the minimenu scrollbar, which appears when minimenus contain more than 12 entries.
+* Fixed a bug with the Rock Cake stall which prevented progress on the Watchtower Quest in main game worlds.
+* The Rune Thrownaxe’s special attack now correctly deals damage when bouncing after being used on the doors of the Dagannoth Kings’ lair.
+* The Infernal Axe now keeps its charges upon using the ‘Change-style’ option when ornamented.
+
+===PvP Rota===
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''de-activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''de-activated'''</u> with this rota.
+
+The PvP Arena is using ''''Max/Med'''' loadouts in Ranked Duels and Tournaments this week.
+
+{{Collapsed section end}}
+
+==Leagues V: Raging Echoes Changes==
+We're officially one week into Leagues V: Raging Echoes! While you've been blasting your way through Tasks, agonising over Relic picks and facing off against Echo bosses, our team has been working to fix those first-week bugs.
+
+We've been keeping our [https://secure.runescape.com/m=news/leagues-v-raging-echoes---issues--fixes?oldschool=1 Issues and Fixes] blog up to date with the changes we've been able to make so far.
+
+We've made the following coldfixes with this week's update:
+
+* The League area emote animation now no longer hides other animations.
+* There was a bug causing both the Crush Hour Combat Achievement from Phosani's Nightmare and the Temotli Triumph CA for Amoxliatl to fail.
+* The Treasure Arbiter now works with the master cryptic clue featuring Juna.
+* "Complete all Combat Tasks" were not registering for Vardorvis, Leviathan, Duke, Whisperer, Araxxor, and Perilous Moons despite all Combat Achievements being completed.
+* We fixed a bug causing the Jewelled Crabs at CoX to switch to the wrong attack style when using Nature's Reprisal, plus roll incorrect accuracy with the melee style.
+* Players with Grimoire activated can now complete the Task for redeeming an Arcane/Dex scroll, as intended.
+* Fixed an issue where players couldn't get hydra or araxyte tasks.
+* Equipping the Corrupted Bofa now correctly completes the regular enhanced weapon Task.
+
+The following hotfix came earlier this week, so in case you missed it:
+
+* Using the Total Recall orb to save a Runecrafting altar in a Region you don't have access to was causing the inability to store new memories to the orb.
+
+We're working through bugs based on priority, so as other issues have cropped up, it's meant some of the bugs listed in the Issues & Fixes blog table are now being looked at in the following week.
+
+===Reward Point Thresholds===
+We've spotted you wondering just how many Points you need to rack up to nab yourself our Raging Echoes rewards. So, while these rewards will be available to pick up at the end of the League, here's a breakdown of the points needed for each:
+
+{| class="wikitable" style="text-align: center;"
+|-
+! Reward
+! Points
+|-
+| Echoing Banner
+| 500
+|-
+| Echoing home teleport scroll
+| 1000
+|-
+| Echoing Death Scroll
+| 3000
+|-
+| Echoing NPC Contact scroll
+| 5000
+|-
+| Echoing Ahrim's ornament kit
+| 8000
+|-
+| Echoing Venator Bow Ornament kit
+| 10000
+|-
+| Echoing Relic Hunter (T1)
+| 1000
+|-
+| Echoing Relic Hunter (T2)
+| 5000
+|-
+| Echoing Relic Hunter (T3)
+| 20000
+|-
+| Echo Spirit Tree
+| 6000
+|-
+| Echo Virtus
+| 10000
+|-
+| Echo Portal Nexus Rug + Curtains
+| 6000
+|-
+| Echo Scrying Pool
+| 6000
+|}
+
+===New Activity Worlds===
+To make it easier to find groups taking on specific activities, we're opening up a few more activity worlds for Leagues.
+
+{{Collapsed section|18|Sorceress' Garden (Click to see the worlds)}}
+
+* US West: 324
+* US East: 394
+* EU: 303
+* AU: 412
+
+{{Collapsed section end}}
+
+{{Collapsed section|18|GOTR (Click to see the worlds)}}
+
+* UK: 317
+* US West: 339
+* US East: 402
+* AU: 425
+
+{{Collapsed section end}}
+
+{{Collapsed section|18|Tempoross (Click to see the worlds)}}
+
+* UK: 325
+* US West: 340
+* US East: 403
+* AU: 536
+
+{{Collapsed section end}}
+
+{{Collapsed section|18|Soul Wars (Click to see the worlds)}}
+
+* US West: 347
+* US East: 404
+* EU: 328
+* AU: 537
+
+{{Collapsed section end}}
+
+{{Collapsed section|18|Pest Control (Click to see the worlds)}}
+
+* US West: 411
+* US East: 417
+* EU: 335
+* AU: 538
+
+{{Collapsed section end}}
+
+===Leagues V on YouTube===
+<center>
+{{Youtube|type=playlist|PLRs68iqW7gYuNxBQ8Tzr0_LqhzwFMXADB}}
+If you can't view the playlist above, click [https://www.youtube.com/playlist?list=PLRs68iqW7gYuNxBQ8Tzr0_LqhzwFMXADB here].
+</center>
+
+We've been keeping an eye on community videos about Leagues V, and have updated our Leagues V Community playlist with latest from some of your favourite content creators. Check out the playlist above for guides, tips and tricks, and what the community has been up to in their Leagues V journey!
+
+===Discord Leaderboard===
+Our Moderators over on our official Discord server are hosting a leaderboard! 
+
+To sign up, visit the [https://discord.com/channels/324132423636090880/1309479543131869235 #Leagues-Leaderboard] channel and click the green 'Join Leaderboard!' button. Full instructions can be found in the channel so make sure to give it a read. We hear there's over 300 of you battling it out at the moment!
+
+Let's take a look at our sweatiest 'Scapers! This leaderboard is correct as of '''Wednesday, December 4th'''.
+
+[[File:More on Leagues V- Raging Echoes (1).png|thumb|400px|center|''If you can’t view the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-12-03/Leagues-Discord-Hiscores1.jpg here].'']]
+
+==Guardians of the Rift==
+While our GOTR changes came in a few weeks ago, we did spot we may have missed giving a heads up about one of the changes. We know a couple of you were caught out by this so we wanted to share it here to clear it up.
+
+* The minimum point threshold needed to get your hands on rewards has been raised from 150 to 300.
+
+The threshold was raised to avoid unintended behaviour and abuse by hopping between worlds, contributing just enough to snag rewards, and moving on - disrupting the balance we aimed to create with recent scaling changes. The updated threshold should now ensure a more cohesive experience for everyone.
+
+==Other Changes==
+We rolled out our biggest-ever Mobile UI update last month! Among the many improvements, we introduced a scrollbar to the minimenu for entries exceeding 12. This week, we’ve also added a Settings option to toggle the scrollbar on or off, depending on your preference.
+
+We’ve also made some general changes:
+
+* Fixed a bug with the Rock Cake stall which prevented progress on the Watchtower Quest in main game worlds.
+* The Rune Thrownaxe’s special attack now correctly deals damage when bouncing after being used on the doors of the Dagannoth Kings’ lair.
+
+==Merch Update==
+<gallery mode="packed", heights="180", style="text-align:center">
+More on Leagues V- Raging Echoes (4).jpg
+More on Leagues V- Raging Echoes (5).png
+</gallery>
+
+Issue #2 of RuneScape's first ever comic series is out now!
+
+Expanding on the epic tale of the God Wars Dungeon, this new comic book series delves into the Temple of Lost Ancients during the catastrophic God Wars – featuring iconic characters and Maro, an unfamiliar familiar trapped at the heart of the conflict, who dreams of breaking free from his master’s clutches.  A chance to escape leads to a thrilling journey for Maro when he finds allies – and enemies – across the front lines.
+
+You can get a free introduction to the series, by downloading Issue #0 as a pdf from the [https://runescape.backstreetmerch.com/collections/books?sort_by=created-descending Merch Store] or [https://www.amazon.com/RuneScape-Untold-Tales-God-Wars-ebook/dp/B0DLBPWSZH Comixology ]for your Kindle.  For full details of all issues, cover variants and where to order, check out [https://titan-comics.com/news/how-to-order-runescape/ Titan Comics website].
+
+===What Old School Merchandise Would You Like?===
+Got a few minutes? We’d love your input on some upcoming merch ideas! [https://forms.office.com/e/VAm4y4D8SZ Our quick survey] will ask about the goodies you’d love to see, why you do or don’t buy merch, and your thoughts on potential plushie ranges. Your feedback means the world to us, so give it a go if you can!
+
+==Xmas Gift Guide!==
+This holiday season, the Merch Store has something for everyone!
+
+===For Tabletop Gamers...===
+<gallery mode="packed", heights="180", style="text-align:center">
+More on Leagues V- Raging Echoes (10).png
+More on Leagues V- Raging Echoes (11).png
+More on Leagues V- Raging Echoes (12).png
+More on Leagues V- Raging Echoes (13).png
+</gallery>
+
+Forget Monopoly - our range of games are a great addition to your holiday games table, and they're great for introducing friends and family to the wonderful world of Gielinor! 
+
+'''RuneScape Kingdoms: Shadow of Elvarg''' is an award winning board game for 1-5 players, developed by Steamforged Games. The core game and some of the popular expansions have just been restocked on the [https://steamforged.com/en-gb/collections/runescape-kingdoms?sort_by=best-selling&filter.p.vendor=RuneScape+Kingdoms%3A+Board+Game Steamforged Games store], which ships globally. The core game and King Black Dragon expansion are also available from board game retailers and online stores around the world! Check out [https://steamforged.com/blogs/brands/tagged/runescape Steamforged Games' blogs] to find out more about the game.  The core game and expansions all come with miniatures – ideal for the mini painters out there - and the expansive campaign promises hours of fun. 
+
+Ever fancied being a games master, creating your own quests and running your own tabletop roleplaying game? Then download this free [https://steamforged.com/products/runescape-kingdoms-roleplaying-game-quickstart-guide-pdf RuneScape Kingdoms Roleplaying Game Quickstart Guide] from Steamforged games!  It introduces the fundamentals of the system with a starter campaign set in the bustling city of Varrock, where a recent crime wave has cast a shadow over the once-lively streets. With King Roald yet to respond and put his people at ease, it's up to you and your friends to bring back the city's cheer and restore peace! The full standard and collectors' edition roleplaying handbooks are the complete guide to creating your own campaigns in the RuneScape universe. All books are available from the [https://steamforged.com/en-gb/collections/runescape-kingdoms?sort_by=best-selling&filter.p.vendor=RuneScape+Kingdoms%3A+RPG Steamforged Games store] and local and online retailers. Order today to get it in time for the holidays! 
+
+Battle against your opponent in [https://runescape.backstreetmerch.com/products/osrs-boss-top-trumps?_pos=1&_sid=719a03881&_ss=r OSRS Boss Top Trumps],  with beautifully illustrated cards comparing stats for some classic OSRS baddies! Take a nostalgia trip and relive battles with formidable foes from across the history of OSRS.  Who knows, you might even pick up a wild card - look out for the Evil Chicken and other surprise appearances!
+
+Lastly, for keen puzzlers - the [https://runescape.backstreetmerch.com/products/map-of-gielinor-jigsaw?_pos=1&_sid=41610d0b3&_ss=r 1,000 piece Map of Gielinor puzzle] is an Official Merch Store exclusive, sure to provide hours of fun. 
+
+===For the reader…===
+[[File:More on Leagues V- Raging Echoes (14).jpg|thumb|600px|center|''If you can’t view the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-12-03/Gift%20of%20Guthix%20novel_1920x1080.jpg here].'']]
+
+'''Two new standalone novels''' that retell iconic moments in the history of Gielinor, introducing new characters, expanding on in-game lore, and providing an epic read. Available from the [https://runescape.backstreetmerch.com/collections/books?sort_by=created-descending Official Merch Store], local bookstores and [https://a.co/d/gyVwxgX online retailers].
+
+[[File:More on Leagues V- Raging Echoes (15).jpg|thumb|600px|center|''If you can’t view the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-12-03/HallowvaleNovel_1920x1080.jpg here].'']]
+
+Discover the history behind the founding of Falador and the doomed Fremennik Great Invasion in [https://titanbooks.com/71617-runescape-the-gift-of-guthix/ The Gift of Guthix], or discover why Lord Drakan became obsessed with claiming Hallowvale in [https://titanbooks.com/71616-runescape-the-fall-of-hallowvale/ The Fall of Hallowvale]. Both novels have been receiving rave reviews from your fellow 'Scapers, and are just the thing for curling up with a nice cup of tea.
+
+===For the music lover…===
+[[File:More on Leagues V- Raging Echoes (16).jpg|thumb|600px|center|''If you can’t view the image above, click ''[https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-12-03/Old%20School%20Runebreaks%20Album.jpg here]''.'']]
+
+The  '''Old Schoool Runebreaks double deluxe vinyl''', featuring 11 official drum and bass covers by Pizza Hotline is now in stock and shipping from [https://www.lacedrecords.co/collections/runescape Laced Records],  the [https://runescape.backstreetmerch.com/collections/soundtracks Merch Store] and music retailers around the world. 
+
+You can also stream all tracks on leading music platforms or listen to the full album with animations from Uber on the [https://www.youtube.com/watch?v=4FtfFMpOrYc OSRS Youtube channel].
+
+[[File:More on Leagues V- Raging Echoes (17).jpg|thumb|600px|center|''If you can’t view the image above, click ''[https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-12-03/Battleaxes%20and%20Ballads%20album%20release.jpg here]''.'']]
+
+We also have a few more copies of the [https://runescape.backstreetmerch.com/collections/soundtracks heavy metal remix album] '''Battleaxes and Ballads,''' where composer Mykel Dunn reinterprets beloved tunes with epic battle metal performances.
+
+===For Cook's Assistants and around the home...===
+[[File:More on Leagues V- Raging Echoes (18).png|thumb|600px|center|''If you can’t view the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-12-03/cookbook.jpg here].'']]
+
+If you haven't got your hands on the Official RuneScape Cookbook - where've you been? Whether your cooking is a Recipe for Disaster or you're well on your way to the Cooking Guild, this is the definitive guide to Gielinorian cuisine. Available from most major bookstores and [https://a.co/d/1SvNwxp online retailers] and the Official Merch Store. Also available in [https://amzn.eu/d/9U0aFhO German]! 
+
+[[File:More on Leagues V- Raging Echoes (19).jpg|thumb|600px|center|''If you can’t view the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-12-03/Group%20shot.jpg here].'']]
+
+And if you plan on sipping some eggnog this holiday season, check out these stylish mugs, the Jolly Boar Inn Tankard, and our range of bottle openers, all available exclusively from the [https://runescape.backstreetmerch.com/collections/home-gift Merch Store].
+
+This popular Map of Gielinor illustration is available as a [https://runescape.backstreetmerch.com/collections/prints Fine Art Print] at various sizes and as a [https://runescape.backstreetmerch.com/collections/computer-phone-accessories large format deskmat] from the official merch store. Our range of deskmats feature a variety of iconic RuneScape art - so there's sure to be something to match your office! 
+
+[[File:More on Leagues V- Raging Echoes (20).jpg|thumb|600px|center|''If you can’t view the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-12-03/Map_Mat.jpg here].'']]
+
+===For the collector…===
+[[File:More on Leagues V- Raging Echoes (21).jpg|thumb|600px|center|''If you can’t view the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-12-03/Collection.jpg here].'']]
+
+Get your hands on our official selection of pins and keyrings, as created by [https://runescape.backstreetmerch.com/collections/angels-scapes AngelsScapes]!
+
+Alternatively, the Merch Store has loads of other exclusive stocking fillers. Take a look – you’re sure to find something for the ‘Scapers in your life! 
+
+[[File:More on Leagues V- Raging Echoes (22).png|thumb|600px|center|''If you can’t view the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-12-03/MDE2002-Launch.png here].'']]
+
+Which RuneScape god do you follow?  These adorable deities may still be banished from the world of Old School RuneScape, but they sure are cute! Available exclusively from [https://www.makeship.com/shop/runescape Makeship]!  
+
+==PvP World Rota==
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''de-activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''de-activated'''</u> with this rota.
+
+The PvP Arena is using '<b>Max/Med</b>' loadouts in Ranked Duels and Tournaments this week.
+
+==From the Community: Creator Crafted==
+Creator Crafted are back again with new designs created by the OSRS community.
+
+Look out, here comes a '''TzTok-Jad''' mousepad, featuring artwork by community artist Uber!
+
+[[File:More on Leagues V- Raging Echoes (23).jpg|thumb|600px|center|''If you can’t view the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-12-03/Jad_Promotional.jpg here].'']]
+
+You can also get your hands on the '''Piety''' and '''Defence''' LED signs to add some ambiance to your setup.
+
+[[File:More on Leagues V- Raging Echoes (24).jpg|thumb|600px|center|''If you can’t view the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-12-03/November1_LED_Promotional.jpg here].'']]
+
+To top it all off, you can get 10% off your order by using the code '<b>PIETY</b>' at checkout. If you're interested in any of the designs above or want to see what else is on offer, click [https://creatorcrafted.com/discount/PIETY?ref=BLOG003 here] to take a look!
+
+''Creator Crafted LED signs and mousepads are produced in collaboration with members of the OSRS art community, under license from Jagex.''
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1h6daos/more_on_leagues_v_raging_echoes/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Entropi, Errol, Gecko, Gengis, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hooti, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Mack, Manked, Markos, Maylea, Moogle, Morty, Necro, Nin, Nox, Nylu, Ori, Other, Philomel, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Saiyan, Sarnie, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titus, TJ, Tsourorf, Tyran, Veda, Vegard, West, Wolfy & Yume'''
+
+''The Old School Team.''

@@ -1,0 +1,36 @@
+{{Infobox Item
+|defver = 2
+|version1 = 1 use
+|version2 = 2 uses
+|bucketname1 = (1)
+|bucketname2 = (2)
+|name1 = Silk dressing (1)
+|name2 = Silk dressing (2)
+|image1 = [[File:Silk dressing (1).png]]
+|image2 = [[File:Silk dressing (2).png]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = No
+|noteable = Yes
+|options = Apply, Drop
+|examine = Restores a large amount of health over time.
+|value = 30
+|weight = 0.453
+|id1 = 27325
+|id2 = 27323
+}}
+{{Synced switch
+|version1 = [[File:Silk dressing (1) detail.png|left|150px]]
+|version2 = [[File:Silk dressing (2) detail.png|left|150px]]
+}}
+'''Silk dressing''' is an item that can be obtained from the [[Supplies (Tombs of Amascut)|supplies bag]] within the [[Tombs of Amascut]].
+
+Applying it will heal players by 5 hitpoints every 5 ticks (3 seconds) 20 times, for a total healing amount of 100 hitpoints over 100 ticks (60 seconds), and can boost the player's hitpoints up to 5 above their maximum.
+
+As silk dressing is considered as a food item, it cannot be obtained if the "On a Diet" invocation is enabled.
+
+{{Tombs of Amascut}}

@@ -1,0 +1,37 @@
+{{Infobox Combat Achievement
+|name = I'm in a rush
+|image = [[File:Tombs of Amascut - Ba-Ba boulders.png|300px]]
+|release = [[30 November]] [[2022]]
+|update = The Garden of Death & More
+|members = Yes
+|description = Defeat Ba-Ba after destroying four or fewer rolling boulders in total without dying yourself.
+|tier = Elite
+|monster = Tombs of Amascut
+|type = Mechanical
+|id = 452
+|leagueRegion = Desert
+}}
+'''I'm in a rush''' is an [[Combat Achievements/Elite|elite combat achievement]] which requires the player to defeat [[Ba-Ba]] after destroying four or fewer rolling [[boulder (Tombs of Amascut)|boulders]] in total without dying, at raid level 150 or above.
+
+==Strategy==
+This achievement can be easily completed simultaneously along with [[No skipping allowed]].
+
+Create a 150 raid (with Boulderdash active if completing along with [[No skipping allowed]]).
+
+Prepare by dying repeatedly to farm ~25 [[honey locust|honey locusts]]. This can be sped up with the help of a [[Locator orb]] or [[Dwarven rock cake|Dwarven rock cake.]] During boulder phase, you will be tanking boulders in a corner of the room. All of them. There are seven boulders in each phase, so fourteen boulders will need to be tanked in total. Each boulder can deal 20 to 27 damage at 150 raid level. 27 damage x 14 boulders = 378 damage, 378/20 healing per [[Honey locust]] = ~19 Honey locusts to negate the incoming damage.
+
+Survive both boulder phases taking full damage and you will receive both combat achievements.
+
+==Other tasks==
+{{Combat Achievements list|Tombs of Amascut}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 7 December 2022
+|update = Quest Speedrunning: Batch 3 & More
+|change = Players will no longer fail the task after breaking one boulder.
+}}
+{{Subject changes footer}}
+
+{{Combat Achievements}}
