@@ -1818,6 +1818,6 @@ all clean. No C and no content changed.
   PASS. check-quest-verbs, check-drive-abi, check-pt-switch, test-plugin-lua and
   test-quest-cheats all pass. No C changed and this pass made no content change, and the
   pass's method said no quest-suite runs. The Maiden fixer ran cooks_assistant 78/78 and
-  druid 55/55, and gate.py was green on both. The uncommitted tob_maiden.rs2 leak-label edit
-  in the content tree is the tools seam's work. This pass left it alone (not committed, not
-  reverted).
+  druid 55/55, and gate.py was green on both. The tob_maiden.rs2 leak-label edit that was in
+  the content tree during this pass is the tools seam's work. The tools seam committed it
+  itself (af76d14935, parent de221c093), and this pass did not touch it.
