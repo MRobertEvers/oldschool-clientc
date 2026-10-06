@@ -1764,3 +1764,25 @@ all clean. No C and no content changed.
   re-asserted for the rolled storm. check-quest-verbs, check-drive-abi, check-pt-switch,
   test-plugin-lua, test-quest-cheats PASS; torirsserver-scripts clean. No quest suite run
   (closer capped at conformance plus verb list); no C changed.
+
+## matthew-mbp-m4-raid-b1-seam56 (2026-10-06)
+
+- play_tob_nylocas_waves_like_blert: NOT LANDED (0 of 3 names, so no five-name survey). The
+  fixer fetched the 27 Blert reference rooms and generated P.waves (31 rows: wave tick, each
+  role's tile and arrival tick, and each spawn's lane, size, colour, owning role and death
+  offset). The plan scored targets from it and held each seat on its tile for 6 ticks after
+  the wave spawned. it1 was worse (room 688-724 ticks); it2 was level with seam55 (last wave
+  300/304, room 594-626 ticks) and still red. The south-west support (25,18) fell on
+  svaplaynyloc and svbplaynyloc, and the weakest support on _play_nylocas was at 0.04. The two
+  Nylocas files were put back to seam55's uncommitted state (not to HEAD, which lacks seam55's
+  style edits that its closer commits). it2 and the generator are kept in
+  build/seam_state/matthew-mbp-m4-raid-b1-seam56/nylocas/ (plan.it2.lua, harness.it2.lua,
+  ny_table.py, ny_waves.lua). OPEN: which copies chew the south supports, wave by wave, by seat
+  (raid_report.py --against could not place the p1 run: "the run is in None"); per-seat wave
+  numbering drifts by one when a seat misses a wave (re-anchor on P.waves[w].tick); weights
+  wave_own/wave_other 40, wave_late 6 and stand_hold 6 were never tuned.
+- Closer: no verb added or changed, so nothing was merged into _conformance.lua or
+  verb_list.py. No C or content change. check-pt-switch PASS. check-quest-verbs is red on
+  the tree only because seam55's uncommitted raid.watch (raid_play.lua:978) has no conformance
+  row yet; seam55's closer owns that. Conformance and the quest suite were not run: this pass
+  has no code delta, and seam55's closer was running run.py --all on the same tree.
