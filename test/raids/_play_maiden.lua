@@ -115,15 +115,26 @@ local function party_run(t)
     -- 0 / 0 (all.npc tob_maiden_100).  The slot carries across the weapon
     -- swap (varp43), so the bow's rapid was the scythe's Chop all fight.
     -- The freezer keeps the bow's rapid.
-    local style_slot = (role == 2) and 1 or 0
-    t.ui.tab("combat")
-    t.ticks(1)
-    local style_widget_result, style_widget = t.ui.widget("combat_interface:style_slot_" .. style_slot)
-    local style_press_result = t.ui.invoke(style_widget, 1)
-    t.ticks(2)
+    -- raid seam55: the style by its button's NAME (t.ui.style, ui.lua), never
+    -- a slot.  A scythe seat puts the scythe on to press "Reap" (the button
+    -- exists only on the scythe), then the bow back as the kit had it.  Our
+    -- content keeps ONE style slot for every weapon (varp43_com_mode carries
+    -- across a swap: the seam54 finding, the bow's rapid was the scythe's
+    -- Chop), so Reap's slot rides every later swap; the plan never needs to
+    -- re-press it.  The freezer keeps the bow's "Rapid".
+    local style_name = (role == 2) and "Rapid" or "Reap"
+    if role ~= 2 then
+        t.player.equip("scythe_of_vitur")
+        t.ticks(2)
+    end
+    local style_result, style_detail = t.ui.style(style_name)
+    if role ~= 2 then
+        t.player.equip("twisted_bow")
+        t.ticks(2)
+    end
     local _, style_read = t.var.varp("varp43_com_mode")
-    t.check(role == 2 and "setup.rapid" or "setup.reap", style_widget_result == "ok" and style_press_result == "ok" and style_read == style_slot,
-        "p" .. role .. " style slot " .. style_slot .. ": widget " .. tostring(style_widget_result) .. ", press " .. tostring(style_press_result) .. ", varp43_com_mode " .. tostring(style_read))
+    t.check(role == 2 and "setup.rapid" or "setup.reap", style_result == "ok",
+        "p" .. role .. " " .. tostring(style_detail) .. "; varp43_com_mode after the bow is back " .. tostring(style_read))
     local er, ed = t.raid.enter("tob", "maiden", { mode = mode })
     t.check("play.enter", er == "ok", "p" .. role .. " " .. tostring(ed))
     if role ~= 2 then
@@ -684,7 +695,19 @@ return {
         -- THE TECHNIQUE ROWS, copied unchanged from tob_maiden.lua :1706-1710
         local techs = {}
         techs[#techs + 1] = { "tech.sidestep_scan", lead_ok > 0 and lead_bad == 0, "stepped on tick T so the throw at T aimed at the tick T-1 tile: " .. lead_ok .. " throws aimed at the old tile, " .. lead_bad .. " at the new tile; sidesteps issued " .. sidesteps .. ", resolved on the next tick " .. sidesteps_plus1 .. "; rows " .. lead_notes }
-        techs[#techs + 1] = { "tech.protect_magic", #protected_hits > 0 and #unprotected_hits > 0 and protected_hits[1] * 2 <= unprotected_hits[1] + 1, "Protect from Magic lit after the first unprotected blackstorm: first protected hit " .. tostring(protected_hits[1]) .. " against the first unprotected " .. tostring(unprotected_hits[1]) .. " (" .. #protected_hits .. " protected, " .. #unprotected_hits .. " unprotected hits before the first transmog); prayer set tick " .. tostring(prayer_on_tick) .. "; rows " .. protect_notes }
+        -- raid seam55: since ab1c3e602 the storm is ROLLED 0..max, so the first
+        -- protected hit against the first unprotected one compared two rolls
+        -- (every name's first unprotected storm rolled 1, the boss's stream is
+        -- seeded from her spawn tile, and the protected 4 failed the row on all
+        -- five).  The prayer's effect on a rolled hit is its CAP: the Entry
+        -- blackstorm's max is 18 (maiden.tsv maiden.auto_max_entry, the
+        -- infobox, wiki_The_Maiden_of_Sugadinti.wikitext:39) and Protect from
+        -- Magic halves it (CONTENT_BUGS.md, ab1c3e602): no protected hit above
+        -- 9, none unprotected above 18.
+        local protected_max, unprotected_max = 0, 0
+        for _, h in ipairs(protected_hits) do protected_max = math.max(protected_max, h) end
+        for _, h in ipairs(unprotected_hits) do unprotected_max = math.max(unprotected_max, h) end
+        techs[#techs + 1] = { "tech.protect_magic", #protected_hits > 0 and #unprotected_hits > 0 and protected_max <= 9 and unprotected_max <= 18, "Protect from Magic lit after the first unprotected blackstorm (protected max " .. protected_max .. " <= 9, unprotected max " .. unprotected_max .. " <= 18): first protected hit " .. tostring(protected_hits[1]) .. " against the first unprotected " .. tostring(unprotected_hits[1]) .. " (" .. #protected_hits .. " protected, " .. #unprotected_hits .. " unprotected hits before the first transmog); prayer set tick " .. tostring(prayer_on_tick) .. "; rows " .. protect_notes }
         techs[#techs + 1] = { "tech.far_dodge", #dodge_values > 0 and dodge_hits == 0, #far_moves .. " three-tile moves on the tick a throw was aimed at me; " .. #dodge_values .. " resolved; splat hits on the tile I left after the move: " .. dodge_hits .. "; rows " .. dodge_notes }
         techs[#techs + 1] = { "tech.bow_flick", drain_ok > 0, "whip equipped by tick A+4 of her aim and the Ranged level fell on the impact: " .. drain_ok .. " of " .. #flicks .. " flicks" }
         -- the room's end, copied unchanged from tob_maiden.lua :1714-1715

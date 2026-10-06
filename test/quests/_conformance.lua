@@ -69,7 +69,7 @@
 -- a verb added to the driver with no row here fails a make gate rather than
 -- being quietly never called.  The count is asserted in the harness too, so
 -- editing this file alone cannot drift either.
--- @verb-count 231
+-- @verb-count 232
 -- ---------------------------------------------------------------------------
 --
 -- SEAM ROWS -- `seam("seam.<name>", ...)`, counted separately.
@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 222
+-- @seam-count 224
 -- ---------------------------------------------------------------------------
 
-local VERB_COUNT = 231
-local SEAM_COUNT = 222
+local VERB_COUNT = 232
+local SEAM_COUNT = 224
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -15140,6 +15140,60 @@ return {
                 table.concat(seen, ","), table.concat(logged, ","))
         end)
 
+        -- conformance.play_tob_maiden_triggers_like_blert (raid seam55).  ONE new
+        -- library verb, t.raid.watch (QD.raid.watch), and the play loop's
+        -- trigger machinery it rides on (st.on / st.watch, QD.raid._play_fire,
+        -- _play_fold, _play_merge: raid_play.lua "TRIGGERS AND WATCHES").
+        -- PLACE: test/quests/_conformance.lua's PLAN directly AFTER
+        -- step("raid.own_anim", ...).  VERB_COUNT +1 (raid.watch), SEAM_COUNT +1
+        -- (@seam-count) for seam.raid_play_triggers.
+        -- Merged by the seam55 closer (VERB_COUNT 231 -> 232, SEAM_COUNT -> 224).  Proved in the world first by
+        -- build/seam_state/matthew-mbp-m4-raid-b1-seam55/_play_triggers.lua (run
+        -- m55trig, Maiden Entry): crab_spawn 6/6, blood_thrown 9/9, pool_landed 9/9
+        -- on the tick log's own ticks (lag +0, one pool +1), 24 of 24 rows.
+        step("raid.watch", function()
+            local f = verb("raid", "watch")
+            if not f then return missing("raid", "watch") end
+            local init = verb("raid", "_play_triggers_init")
+            if not init then return missing("raid", "_play_triggers_init") end
+            local st = { plan = {}, mode = "entry", party = 1, log = false }
+            init(st, nil)
+            f(st, "probe", function(_, v) return v.n end, function()
+                return { pri = 1, want = { piety = true } }
+            end)
+            if #st.watches ~= 1 then return "fail", "t.raid.watch registered " .. #st.watches .. " watches, want 1" end
+            return "ok", "t.raid.watch: one watch registered on the play state (reader, on_change)"
+        end)
+        seam("seam.raid_play_triggers", function()
+            local init, fire, merge = verb("raid", "_play_triggers_init"), verb("raid", "_play_fire"), verb("raid", "_play_merge")
+            if not init then return missing("raid", "_play_triggers_init") end
+            if not fire then return missing("raid", "_play_fire") end
+            if not merge then return missing("raid", "_play_merge") end
+            local st = { plan = {}, mode = "entry", party = 1, log = false }
+            init(st, nil)
+            -- hit_taken (own hp fell 5) -> two handlers: a step (pri 8) and a cast
+            -- (pri 5); a watch whose reading changes -> a prayer (pri 1)
+            st.on("hit_taken", function(_, _, e) return { pri = 8, walk = { x = 1, z = 2 }, why = "took " .. e.amount } end)
+            st.on("hit_taken", function() return { pri = 5, cast = { spell = "ice_barrage", symbol = "x", slot = 7 } } end)
+            st.watch("n", function(_, v) return v.n end, function() return { pri = 1, want = { piety = true } } end)
+            local bad = {}
+            local v1 = { tick = 100, hp = 90, me = { x = 0, z = 0 }, n = 1 }
+            st.ev.hp = 95
+            local f1 = fire(st, v1)
+            if f1 == nil or f1.walk == nil or f1.walk.x ~= 1 then bad[#bad + 1] = "tick 1: the pri-8 step did not win the walk" end
+            if f1 ~= nil and f1.cast ~= nil then bad[#bad + 1] = "tick 1: the cast went out with the step (it must be HELD)" end
+            if st.trig_hold == nil or st.trig_hold.field ~= "cast" then bad[#bad + 1] = "tick 1: no held cast" end
+            if (st.trig_counts.hit_taken or 0) ~= 1 then bad[#bad + 1] = "tick 1: hit_taken counted " .. tostring(st.trig_counts.hit_taken) end
+            local v2 = { tick = 101, hp = 90, me = { x = 1, z = 2 }, n = 2 }
+            local f2 = fire(st, v2)
+            if f2 == nil or f2.cast == nil or f2.cast.slot ~= 7 then bad[#bad + 1] = "tick 2: the held cast did not go out" end
+            if f2 == nil or f2.want.piety ~= true then bad[#bad + 1] = "tick 2: the watch's change (1->2) gave no prayer" end
+            local m = merge(st, v2, { want = {}, attack = true, walk = { x = 9, z = 9 } }, f2)
+            if m.attack ~= false or m.walk ~= nil or m.cast == nil then bad[#bad + 1] = "merge: a trigger cast must clear the default attack and walk" end
+            if #bad > 0 then return "fail", table.concat(bad, "; ") end
+            return "ok", "fold by priority: the step won tick 1 and the cast was held to tick 2; the watch fired on 1->2; the merge cleared the default attack and walk"
+        end)
+
         -- raid seam31 play_tob_nylocas_green (merged by the seam31 closer): the
         -- Nylocas plan's supply guards.  No npc.  SEAM_COUNT +1.
         seam("seam.raid_play_nylocas_supplies", function()
@@ -15259,6 +15313,38 @@ return {
             return "ok", "QD.raid._play_sotetseg_gap: 9 of 9 (straight runs, the parity corner of a one-tick read, "
                 .. "the seam51 blast gaps (19,27) and (16,31) two-way, the corners the maze's shape names)"
         end)
+        -- conformance.play_tob_sotetseg_room_ticks (raid seam55).  ONE seam row, no
+        -- new library verb: the plan helper QD.raid._play_sotetseg_seat now takes
+        -- st.sote.seat_shift and walks round the four Blert corners (THE NEXT
+        -- CORNER: a raider whose press framed nothing twice steps to the next).
+        -- PLACE: test/quests/_conformance.lua, right after
+        -- seam("seam.raid_play_sotetseg_gap", ...).  SEAM_COUNT +1 (@seam-count).
+        -- Merged by the seam55 closer (SEAM_COUNT 222 -> 223).
+        -- Proved as build/seam_state/matthew-mbp-m4-raid-b1-seam55/sotetseg/
+        -- sote_corner_probe.lua, run s55corner2: PASS 8 of 8; its copy with case
+        -- 7 flipped (sote_corner_probe_neg.lua, s55cornerneg) FAILS
+        -- "case 7 role 2 shift 4: 99,200 (want 104,199)".
+        seam("seam.raid_play_sotetseg_corner", function()
+            local seat = verb("raid", "_play_sotetseg_seat")
+            if not seat then return missing("raid", "_play_sotetseg_seat") end
+            local b = { x = 100, z = 200, size = 5 }
+            -- role, shift, want x, want z (corners from his SW tile: -1,0 4,-1 5,4 0,5)
+            local cases = {
+                { 1, 0, 105, 204 }, { 2, 0, 99, 200 }, { 3, 0, 104, 199 },
+                { 2, 1, 104, 199 }, { 2, 2, 105, 204 }, { 2, 3, 100, 205 }, { 2, 4, 99, 200 },
+                { 1, 1, 100, 205 },
+            }
+            local bad = {}
+            for i, c in ipairs(cases) do
+                local x, z = seat({ role = c[1], sote = { seat_shift = c[2] } }, b)
+                if x ~= c[3] or z ~= c[4] then
+                    bad[#bad + 1] = string.format("case %d role %d shift %d: %s,%s (want %d,%d)", i, c[1], c[2], tostring(x), tostring(z), c[3], c[4])
+                end
+            end
+            if #bad > 0 then return "fail", "QD.raid._play_sotetseg_seat: " .. table.concat(bad, "; ") end
+            return "ok", "QD.raid._play_sotetseg_seat: 8 of 8 (three home corners, the shift round all four and back)"
+        end)
+
 
         -- conformance.play_tob_maiden_whole (raid seam54).  ONE seam row, no new
         -- library verb: the Maiden plan helper QD.raid._play_maiden_in_blood

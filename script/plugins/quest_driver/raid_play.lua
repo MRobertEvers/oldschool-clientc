@@ -197,6 +197,8 @@ function QD.raid._play_state(plan, plan_id, mode, numbers, weapon, opts)
     -- the starts before this room are not this room's swings
     local orr, own = QD.raid.own_anim()
     if orr == "ok" then st.own_starts = own.starts end
+    -- raid seam55: the plan's triggers and watches (QD.raid._play_triggers_init)
+    QD.raid._play_triggers_init(st, opts)
     return st
 end
 
@@ -690,6 +692,26 @@ function QD.raid._play_send(st, v, intent)
             st.lines[#st.lines + 1] = "t" .. v.tick .. " attack " .. tostring(ar) .. ": " .. tostring(why)
         end
     end
+    -- raid seam55: a trigger's press on a named row, or a cast on one (the
+    -- freezer's barrage on the crab its crab_spawn picked), through the same
+    -- library press and its true answer
+    for _, f in ipairs({ "press", "cast" }) do
+        local p = intent[f]
+        if p ~= nil then
+            local ar, why = QD.raid._play_press(st, v, { symbol = p.symbol, slot = p.slot, op = p.op or 2, spell = p.spell })
+            n = n + 1
+            st.trig_presses = st.trig_presses or {}
+            if #st.trig_presses < 80 then
+                st.trig_presses[#st.trig_presses + 1] = { tick = v.tick, field = f, slot = p.slot, spell = p.spell, answer = tostring(ar), why = p.why }
+            end
+            if ar == "ok" or ar == "pressed" then
+                if f == "press" then st.engaged, st.engaged_tick = true, v.tick end
+                st.walk_target = nil
+            elseif #st.lines < 6 then
+                st.lines[#st.lines + 1] = "t" .. v.tick .. " " .. f .. " " .. tostring(ar) .. ": " .. string.sub(tostring(why), 1, 120)
+            end
+        end
+    end
     st.inputs[v.tick] = (st.inputs[v.tick] or 0) + n
 end
 
@@ -868,6 +890,414 @@ end
 
 -- One turn of the loop: SEE, stop if the room is over, DECIDE, SEND, then
 -- wait for the next server tick (the loop's beat, never a wait for an effect).
+-- ==========================================================================
+-- SEAM play_tob_maiden_triggers_like_blert (raid seam55, 2026-10-06) --
+-- TRIGGERS AND WATCHES.  The owner, 2026-10-06: "You need to do what the
+-- blert raid players do and you need to add triggers and watch capabilities
+-- to the script api so you can do so."
+--
+--   st.on(event, handler)              handler(st, v, ev) -> intent | nil
+--   st.watch(name, reader, on_change)  reader(st, v) -> value;
+--                                      on_change(st, v, value, old) -> intent | nil
+--   QD.raid.watch(st, name, reader, on_change)   the same, as a library call
+--
+-- Every server tick, before the plan's decide, the loop DIFFS what the
+-- client shows against the previous tick (QD.raid._play_events) and raises
+-- the events below; each registered handler, then each watch whose reading
+-- changed, may answer an INTENT for this tick: the fields of the plan's own
+-- intent (walk, attack, press = {symbol, slot, op}, cast = {spell, symbol,
+-- slot}, want = {prayer = bool}, eat, drink, gear, spec) plus `pri` (default
+-- 1) and `why`.  THE FOLD (QD.raid._play_fold): field by field, the highest
+-- `pri` wins (a tie keeps the first registered); `want` merges prayer by
+-- prayer the same way.  The plan's decide then runs with v.events (this
+-- tick's events) and v.trigger (the folded intent) in view, and its intent
+-- is the DEFAULT: every field the fold set replaces the default's.  A walk
+-- and a press/cast in one tick cannot both land (the press's path replaces
+-- the step on the server), so the walk is sent and the press/cast is HELD to
+-- the next tick at its own priority (st.trig_hold; "step and KEEP the
+-- cast"), dropped after QD.RAID_PLAY_HOLD_TICKS.
+--
+-- The events, all from the client's own view (npc rows, projectiles,
+-- spotanims, its own hitpoints), configured by the plan's `events` table:
+--   <add>_spawn  {slot, x, z, dx, dz, wave, index, label}  a new add row
+--                (events.add names the plan key whose [mode] is the add's
+--                symbol; `add_event` its event prefix, "crab" -> crab_spawn).
+--                dx/dz from the boss's SW tile; `wave` counts spawn bursts
+--                (a gap of more than 3 ticks starts a new one), `index` the
+--                n-th of its burst, `label` events.label(dx, dz) if given.
+--   <add>_walk   {slot, x, z, gap, was}   its tile moved closer to the boss
+--   <add>_frozen {slot, x, z, how}        how = "graphic" (a spotanim in
+--                events.freeze_spotanims landed on it) or "halted" (it had
+--                walked and did not move this tick); once per freeze
+--   <add>_gone   {slot, x, z, at_her}     its row left the scene; at_her = it
+--                was within one tile of her footprint (a leak, not a kill)
+--   <proj>       events.projectiles[spotanim] names it: {x, z, cycles, ticks,
+--                mine, near}: a projectile row not there last tick (by
+--                spotanim and destination); `mine` = it lands on this tile
+--   <pool>       events.pools[spotanim]: {x, z, mine} a ground spotanim new
+--                at a tile this tick
+--   <boss seq>   events.boss_seqs[seq]: {seq, tick, target} the boss started
+--                that sequence on a new seq_tick (target = the row's
+--                interacting target when the binary carries one)
+--   hit_taken    {amount, hp, was}  own hitpoints fell since last tick
+--                (net of food eaten in between; the client sees the bar and
+--                the number, not who hit)
+--   boss_phase   {from, to, symbol}  the boss's npc id changed (a retype)
+-- The ticklog: the loop records per tick which events fired and which
+-- intent won each field (st.trig_log, the record's `triggers`, and one
+-- summary clause); the leader also writes a ticklog MARK on a tick a
+-- trigger's intent won ("trig <event>:<field>"), when opts.trigger_marks.
+-- ==========================================================================
+QD.RAID_PLAY_HOLD_TICKS = 2
+QD.RAID_PLAY_INTENT_FIELDS = { "walk", "attack", "press", "cast", "eat", "drink", "gear", "spec" }
+
+function QD.raid._play_triggers_init(st, opts)
+    st.handlers, st.watches, st.trig_log, st.trig_counts, st.trig_wins = {}, {}, {}, {}, {}
+    st.ev = { adds = {}, add_ids = nil, projs = {}, pools = {}, boss_seq = nil, boss_id = nil, hp = nil,
+        wave = 0, wave_tick = -1000, wave_n = 0 }
+    st.on = function(name, handler)
+        assert(type(name) == "string", "st.on: an event name is a string")
+        assert(handler ~= nil, "st.on: no handler for " .. name)
+        local list = st.handlers[name]
+        if list == nil then
+            list = {}
+            st.handlers[name] = list
+        end
+        list[#list + 1] = handler
+    end
+    st.watch = function(name, reader, on_change)
+        QD.raid.watch(st, name, reader, on_change)
+    end
+    if st.plan.on_start ~= nil then QD.raid[st.plan.on_start](st) end
+    if opts ~= nil and opts.on ~= nil then
+        for name, handler in pairs(opts.on) do st.on(name, handler) end
+    end
+    st.trigger_marks = opts ~= nil and opts.trigger_marks == true
+end
+
+function QD.raid.watch(st, name, reader, on_change)
+    assert(type(st) == "table", "t.raid.watch: no play state")
+    assert(type(name) == "string", "t.raid.watch: a watch name is a string")
+    assert(reader ~= nil, "t.raid.watch: no reader for " .. name)
+    assert(on_change ~= nil, "t.raid.watch: no on_change for " .. name)
+    st.watches[#st.watches + 1] = { name = name, reader = reader, on_change = on_change, primed = false }
+end
+
+function QD.raid._play_call(f, ...)
+    if type(f) == "string" then return QD.raid[f](...) end
+    return f(...)
+end
+
+-- The boss footprint's Chebyshev gap to a tile (0 = under or adjacent edge).
+function QD.raid._play_gap(b, x, z)
+    local size = b.size or 1
+    local gx = math.max(b.x - x, 0, x - (b.x + size - 1))
+    local gz = math.max(b.z - z, 0, z - (b.z + size - 1))
+    return math.max(gx, gz)
+end
+
+-- DIFF: this tick's events, from what the client shows now against what it
+-- showed last tick (st.ev).  Pure reads; nothing is sent.
+function QD.raid._play_events(st, v)
+    local E, ev = st.plan.events or {}, st.ev
+    local out = {}
+    local function raise(name, e)
+        e.name = name
+        out[#out + 1] = e
+    end
+    -- one npc scan serves the boss (every form the plan names, so a retype
+    -- is seen on its own tick) and the adds
+    local nr, rows = api_drive.npcs(0)
+    if nr ~= "ok" then rows = {} end
+    local b = v.boss
+    if E.forms ~= nil then
+        if ev.form_ids == nil then
+            ev.form_ids = {}
+            for _, sym in ipairs(st.plan[E.forms][st.mode]) do
+                local r, id = api_drive.symbol("npc", sym)
+                if r == "ok" then ev.form_ids[id] = true end
+            end
+        end
+        for _, row in ipairs(rows) do
+            if ev.form_ids[row.npc_id] or ev.form_ids[row.base_npc_id] then b = row end
+        end
+    end
+    v.ev_boss = b
+    -- own hitpoints
+    if ev.hp ~= nil and v.hp < ev.hp then
+        raise("hit_taken", { amount = ev.hp - v.hp, hp = v.hp, was = ev.hp })
+    end
+    ev.hp = v.hp
+    -- the boss: a retype, a new sequence
+    if b ~= nil then
+        if ev.boss_id ~= nil and b.npc_id ~= ev.boss_id then
+            raise("boss_phase", { from = ev.boss_id, to = b.npc_id, symbol = st.boss_symbol })
+        end
+        ev.boss_id = b.npc_id
+        if E.boss_seqs ~= nil and b.seq_id ~= nil and E.boss_seqs[b.seq_id] ~= nil and b.seq_tick ~= ev.boss_seq then
+            raise(E.boss_seqs[b.seq_id], { seq = b.seq_id, tick = b.seq_tick, target = b.target })
+        end
+        if b.seq_tick ~= nil then ev.boss_seq = b.seq_tick end
+    end
+    -- the adds: spawn, walk, frozen, gone
+    if E.add ~= nil and b ~= nil then
+        if ev.add_ids == nil then
+            ev.add_ids = {}
+            local sym = st.plan[E.add][st.mode]
+            local r, id = api_drive.symbol("npc", sym)
+            if r == "ok" then ev.add_ids[id] = true end
+        end
+        local pre = E.add_event or E.add
+        local here = {}
+        do
+            for _, row in ipairs(rows) do
+                if (ev.add_ids[row.npc_id] or ev.add_ids[row.base_npc_id]) and (row.health_ratio == nil or row.health_ratio ~= 0) then
+                    here[row.slot] = true
+                    local a = ev.adds[row.slot]
+                    local dx, dz = row.x - b.x, row.z - b.z
+                    if a == nil or a.gone then
+                        if v.tick - ev.wave_tick > 3 then
+                            ev.wave, ev.wave_n = ev.wave + 1, 0
+                        end
+                        ev.wave_tick = v.tick
+                        ev.wave_n = ev.wave_n + 1
+                        a = { x = row.x, z = row.z, first = v.tick, moved = false, frozen = false, spot = row.spotanim_tick }
+                        ev.adds[row.slot] = a
+                        local label = nil
+                        if E.label ~= nil then label = QD.raid._play_call(E.label, dx, dz) end
+                        a.label = label
+                        raise(pre .. "_spawn", { slot = row.slot, x = row.x, z = row.z, dx = dx, dz = dz, wave = ev.wave,
+                            index = ev.wave_n, label = label, row = row })
+                    else
+                        local moved = row.x ~= a.x or row.z ~= a.z
+                        if moved then
+                            local was = QD.raid._play_gap(b, a.x, a.z)
+                            local gap = QD.raid._play_gap(b, row.x, row.z)
+                            if gap < was then
+                                raise(pre .. "_walk", { slot = row.slot, x = row.x, z = row.z, gap = gap, was = was, label = a.label, row = row })
+                            end
+                            a.moved, a.frozen = true, false
+                        end
+                        local graphic = E.freeze_spotanims ~= nil and row.spotanim_sent_id ~= nil
+                            and E.freeze_spotanims[row.spotanim_sent_id] and row.spotanim_tick ~= a.spot
+                        if not a.frozen and (graphic or (not moved and a.moved)) then
+                            a.frozen = true
+                            raise(pre .. "_frozen", { slot = row.slot, x = row.x, z = row.z, label = a.label,
+                                how = graphic and "graphic" or "halted", row = row })
+                        end
+                        a.x, a.z = row.x, row.z
+                    end
+                    a.spot = row.spotanim_tick
+                end
+            end
+        end
+        for slot, a in pairs(ev.adds) do
+            if not a.gone and not here[slot] then
+                a.gone = true
+                raise(pre .. "_gone", { slot = slot, x = a.x, z = a.z, label = a.label, at_her = QD.raid._play_gap(b, a.x, a.z) <= 1 })
+            end
+        end
+    end
+    -- projectiles: new by spotanim and destination.  A throw is remembered
+    -- while it is listed and two ticks past its flight at first sight; its
+    -- cycles_left is NOT a re-throw signal (probe m55trig: re-raising on a
+    -- larger cycles_left read 9 throws as 18, one extra a tick in flight)
+    if E.projectiles ~= nil then
+        local known = {}
+        for key, k in pairs(ev.projs) do
+            if v.tick <= k.until_tick then known[key] = k end
+        end
+        local pr, projs = QD.world.projectiles(0)
+        if pr == "ok" and type(projs) == "table" then
+            for _, p in ipairs(projs) do
+                local name = E.projectiles[p.spotanim_id]
+                if name ~= nil then
+                    -- a throw AT an entity follows it on the client (its dst
+                    -- moves with the raider: probe m55trig read one throw a
+                    -- tick while the solo walked), so such a throw is keyed by
+                    -- its source and target, and its dst is the one at first
+                    -- sight (where the server aimed it); a ground throw by its
+                    -- destination
+                    -- (target: an npc's slot + 1, a player's -(pid + 1),
+                    -- 0 a tile; the probe's moving dst was a player's)
+                    local target = p.target or 0
+                    local key
+                    if target ~= 0 then
+                        key = p.spotanim_id .. ":" .. tostring(p.src_x) .. ":" .. tostring(p.src_z) .. ":t" .. target
+                    else
+                        key = p.spotanim_id .. ":" .. p.dst_x .. ":" .. p.dst_z
+                    end
+                    local cyc = p.cycles_left or 0
+                    local k = known[key]
+                    if k == nil then
+                        local ticks = (cyc + QD.RAID_PLAY_CYCLES_PER_TICK - 1) // QD.RAID_PLAY_CYCLES_PER_TICK
+                        raise(name, { x = p.dst_x, z = p.dst_z, cycles = cyc, ticks = ticks,
+                            mine = p.dst_x == v.me.x and p.dst_z == v.me.z,
+                            near = math.max(math.abs(p.dst_x - v.me.x), math.abs(p.dst_z - v.me.z)) <= 1 })
+                        known[key] = { cycles = cyc, until_tick = v.tick + math.max(ticks, 1) + 2, x = p.dst_x, z = p.dst_z }
+                        ev.proj_log = ev.proj_log or {}
+                        if #ev.proj_log < 40 then ev.proj_log[#ev.proj_log + 1] = "t" .. v.tick .. " " .. key .. " c" .. cyc .. " d" .. p.dst_x .. "," .. p.dst_z end
+                    else
+                        -- still listed: the same throw (its cycles_left is
+                        -- not monotonic before launch, probe m55trig)
+                        k.cycles = cyc
+                        k.until_tick = math.max(k.until_tick, v.tick + 1)
+                    end
+                end
+            end
+        end
+        ev.projs = known
+    end
+    -- ground spotanims: new at a tile
+    if E.pools ~= nil then
+        local now = {}
+        local sr, spots = QD.world.spotanims(0)
+        if sr == "ok" and type(spots) == "table" then
+            for _, s in ipairs(spots) do
+                local name = E.pools[s.spotanim_id]
+                if name ~= nil then
+                    local key = s.spotanim_id .. ":" .. s.x .. ":" .. s.z
+                    if not ev.pools[key] then
+                        raise(name, { x = s.x, z = s.z, mine = s.x == v.me.x and s.z == v.me.z })
+                    end
+                    now[key] = true
+                end
+            end
+        end
+        ev.pools = now
+    end
+    return out
+end
+
+-- FOLD: the intents of this tick's handlers and watches, by priority.
+function QD.raid._play_fold(intents)
+    local fold, win = { want = {} }, {}
+    for _, it in ipairs(intents) do
+        local pri = it.pri or 1
+        for _, f in ipairs(QD.RAID_PLAY_INTENT_FIELDS) do
+            if it[f] ~= nil and it[f] ~= false and (win[f] == nil or pri > win[f].pri) then
+                fold[f] = it[f]
+                win[f] = { pri = pri, by = it.by }
+            end
+        end
+        if it.want ~= nil then
+            for name, on in pairs(it.want) do
+                local k = "want." .. name
+                if win[k] == nil or pri > win[k].pri then
+                    fold.want[name] = on
+                    win[k] = { pri = pri, by = it.by }
+                end
+            end
+        end
+    end
+    -- a step and a press cannot both land in one tick: the step goes, the
+    -- press is held (QD.raid._play_fire)
+    return fold, win
+end
+
+-- FIRE: raise the events, run the handlers and the watches, fold.  Returns
+-- the events and the folded trigger intent (nil when nothing answered).
+function QD.raid._play_fire(st, v)
+    local events = QD.raid._play_events(st, v)
+    local intents = {}
+    local fired = {}
+    if st.trig_hold ~= nil then
+        local h = st.trig_hold
+        st.trig_hold = nil
+        if v.tick <= h.until_tick then
+            local it = { pri = h.pri, by = "hold:" .. h.by, why = "held" }
+            it[h.field] = h.value
+            intents[#intents + 1] = it
+        end
+    end
+    for _, e in ipairs(events) do
+        st.trig_counts[e.name] = (st.trig_counts[e.name] or 0) + 1
+        fired[#fired + 1] = e.name
+        local list = st.handlers[e.name]
+        if list ~= nil then
+            for _, handler in ipairs(list) do
+                local it = QD.raid._play_call(handler, st, v, e)
+                if it ~= nil then
+                    it.by = it.by or e.name
+                    intents[#intents + 1] = it
+                end
+            end
+        end
+    end
+    for _, w in ipairs(st.watches) do
+        local value = QD.raid._play_call(w.reader, st, v)
+        if w.primed and value ~= w.value then
+            st.trig_counts["watch:" .. w.name] = (st.trig_counts["watch:" .. w.name] or 0) + 1
+            fired[#fired + 1] = "watch:" .. w.name
+            local it = QD.raid._play_call(w.on_change, st, v, value, w.value)
+            if it ~= nil then
+                it.by = it.by or ("watch:" .. w.name)
+                intents[#intents + 1] = it
+            end
+        end
+        w.value, w.primed = value, true
+    end
+    v.events = events
+    if #intents == 0 then
+        if #fired > 0 and #st.trig_log < 600 then st.trig_log[#st.trig_log + 1] = { tick = v.tick, fired = table.concat(fired, ","), won = "" } end
+        return nil
+    end
+    local fold, win = QD.raid._play_fold(intents)
+    if fold.walk ~= nil then
+        for _, f in ipairs({ "press", "cast" }) do
+            if fold[f] ~= nil then
+                st.trig_hold = { field = f, value = fold[f], pri = win[f].pri, by = win[f].by,
+                    until_tick = v.tick + QD.RAID_PLAY_HOLD_TICKS }
+                st.trig_holds = (st.trig_holds or 0) + 1
+                fold[f], win[f] = nil, nil
+            end
+        end
+        if fold.attack ~= nil then fold.attack, win.attack = nil, nil end
+    end
+    fold.wins = win
+    local won = {}
+    for f, w in pairs(win) do
+        won[#won + 1] = f .. "=" .. tostring(w.by) .. "(" .. w.pri .. ")"
+        local k = f .. ":" .. tostring(w.by)
+        st.trig_wins[k] = (st.trig_wins[k] or 0) + 1
+    end
+    table.sort(won)
+    if #st.trig_log < 600 then
+        st.trig_log[#st.trig_log + 1] = { tick = v.tick, fired = table.concat(fired, ","), won = table.concat(won, " ") }
+    end
+    if st.trigger_marks and st.log and #won > 0 then QD.ticklog.mark("trig " .. table.concat(won, " ")) end
+    return fold
+end
+
+-- MERGE: the plan's default intent with the folded trigger intent.
+function QD.raid._play_merge(st, v, intent, fold)
+    if fold == nil then return intent end
+    intent = intent or { want = {} }
+    for _, f in ipairs(QD.RAID_PLAY_INTENT_FIELDS) do
+        if fold[f] ~= nil then intent[f] = fold[f] end
+    end
+    intent.want = intent.want or {}
+    for name, on in pairs(fold.want) do intent.want[name] = on end
+    if fold.walk ~= nil then intent.attack = false end
+    if fold.press ~= nil or fold.cast ~= nil then
+        intent.attack = false
+        if fold.walk == nil then intent.walk = nil end
+    end
+    intent.trigger = fold
+    return intent
+end
+
+-- The summary clause: the events seen and the intents that won.
+function QD.raid._play_summary_triggers(st)
+    if st.trig_counts == nil or next(st.trig_counts) == nil then return "" end
+    local c, w = {}, {}
+    for k, n in pairs(st.trig_counts) do c[#c + 1] = k .. " " .. n end
+    for k, n in pairs(st.trig_wins) do w[#w + 1] = k .. " " .. n end
+    table.sort(c)
+    table.sort(w)
+    return "; triggers [" .. table.concat(c, ", ") .. "] won [" .. table.concat(w, ", ") .. "] held " .. (st.trig_holds or 0)
+end
+
 function QD.raid._play_tick(st)
     local v = QD.raid._play_see(st)
     for _, f in ipairs(st.flinches) do
@@ -952,7 +1382,12 @@ function QD.raid._play_tick(st)
             return "ok"
         end
     end
+    -- raid seam55: the events of this tick fire first; the plan's decide sees
+    -- them (v.events, v.trigger) and its intent is the default the folded
+    -- trigger intent overrides field by field (QD.raid._play_merge)
+    v.trigger = QD.raid._play_fire(st, v)
     local intent = QD.raid[st.plan.decide](st, v)
+    intent = QD.raid._play_merge(st, v, intent, v.trigger)
     QD.raid._play_send(st, v, intent)
     st.last_me = { x = v.me.x, z = v.me.z }
     local _, after = QD.tick()
@@ -987,6 +1422,7 @@ function QD.raid._play_summary(st)
         #st.lines > 0 and table.concat(st.lines, " | ") or "no refusals")
         .. string.format("; own screen saw %d weapon starts", #st.seen_swings)
         .. QD.raid._play_summary_seam31(st)
+        .. QD.raid._play_summary_triggers(st)
 end
 
 -- raid seam31 play_library_faults: the stop's reason, the prayer offs the

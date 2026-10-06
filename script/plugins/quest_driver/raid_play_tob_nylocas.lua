@@ -359,7 +359,100 @@ QD.raid._play_plan("tob_nylocas", {
     -- at 37,21, each pressed by p0, p1 and p2 within two ticks) while a green
     -- split chewed the south-east support from t308 to t342.
     cleanup_order = { age = 0.5, expire = 10, pass = 30, side = 15, north_z = 24, north_role = "mage" },
+    -- raid seam55 play_tob_nylocas_stands_like_blert: THE STYLE AT HER, BY
+    -- NAME.  The style is one index (varp43) carried across every swap, and
+    -- the harness sets it by name for the waves (Rapid, Lash).  On that index
+    -- the scythe swings Chop, which this content's scythe table makes stab
+    -- (seam52 kit.melee_damage_per_swing.md: "Leave style slot 0 (Reap, slash
+    -- accurate) on the scythe"), and Blert's trios swing the scythe on her
+    -- melee form in 26, 23 and 22 of 27 rooms (reference weapons mage|boss,
+    -- range|boss, melee|boss).  From her landing a seat whose worn weapon is
+    -- named here presses that style's button by its name, read off the combat
+    -- tab (combat_interface:<n>_text, ui.lua QD.ui.style), the tick after the
+    -- swap has landed: Reap on the scythe, Rapid back on the bow or the pipe.
+    -- The press needs the combat tab shown (seam55 probe_style: with the
+    -- inventory open the press leaves varp43 unchanged), so the tab is opened
+    -- first when the names read as hidden.  `give_up` ticks without the name
+    -- on any button ends the wait for that weapon.
+    -- MEASURED OFF (seam55 it1/it2, three names): boss ticks 123, 139, 157
+    -- against 129, 119, 131 without it, and 38 -> 60, 58 -> 66 ticks with no
+    -- attack: the tab opens and presses cost swings that the slash bonus does
+    -- not give back (her melee form's defence is 50, tob.npc).  Kept as the
+    -- table to turn on once a press costs no swing:
+    -- { scythe_of_vitur = "Reap", twisted_bow = "Rapid", toxic_blowpipe_loaded = "Rapid" }
+    boss_styles = nil,
+    boss_style_give_up = 6,
 })
+
+-- raid seam55: THE STYLE AT HER (P.boss_styles).  Called once a tick from
+-- the decide step while she is in the room; presses at most one style button
+-- a tick, never blocks.
+function QD.raid._play_nylocas_style(st, v)
+    local P, ny = st.plan, st.ny
+    local L = st.weapon
+    local want = (L ~= nil) and P.boss_styles[L.item] or nil
+    if want == nil or ny.style_done == L.item then return end
+    if ny.style_item ~= L.item then
+        ny.style_item, ny.style_since, ny.style_press_tick, ny.style_tab_for = L.item, v.tick, nil, nil
+    end
+    if ny.style_press_tick ~= nil and v.tick - ny.style_press_tick < 2 then return end
+    if v.tick - ny.style_since > P.boss_style_give_up then
+        ny.style_done = L.item
+        ny.style_gave_up = (ny.style_gave_up or 0) + 1
+        return
+    end
+    -- the names a weapon shows are learned once, while the tab is shown, and
+    -- remembered per item: varp43 alone then says whether the style is right,
+    -- and the tab is opened only for a press the remembered names call for
+    ny.style_map = ny.style_map or {}
+    local cur_result, cur = QD.var.varp("varp43_com_mode")
+    if cur_result ~= "ok" then return end
+    local map = ny.style_map[L.item]
+    if map == nil then
+        local names, hidden = {}, false
+        for n = 0, 3 do
+            local text_result, text = QD.ui.text("combat_interface:" .. n .. "_text")
+            if text_result == "not_visible" then hidden = true end
+            if text_result == "ok" then names[string.lower(text)] = names[string.lower(text)] or n end
+        end
+        -- (the names are the worn weapon's only once its swap has landed:
+        -- a name this weapon must show proves the read is fresh)
+        if not hidden and names[string.lower(want)] ~= nil then
+            ny.style_map[L.item] = names
+            map = names
+        elseif hidden and ny.style_tab_for ~= L.item then
+            QD.ui.tab("combat")
+            ny.style_tab_for = L.item
+            ny.style_tabs = (ny.style_tabs or 0) + 1
+            return
+        else
+            return
+        end
+    end
+    local slot = map[string.lower(want)]
+    if slot == nil then ny.style_done = L.item return end
+    if cur == slot then
+        ny.style_done = L.item
+        ny.style_set = (ny.style_set or 0) + 1
+        return
+    end
+    -- a press needs the combat tab shown (seam55 probe_style)
+    local text_result = QD.ui.text("combat_interface:" .. slot .. "_text")
+    if text_result == "not_visible" then
+        if ny.style_tab_for ~= L.item then
+            QD.ui.tab("combat")
+            ny.style_tab_for = L.item
+            ny.style_tabs = (ny.style_tabs or 0) + 1
+        end
+        return
+    end
+    local widget_result, widget = QD.ui.widget("combat_interface:style_slot_" .. slot)
+    if widget_result ~= "ok" then return end
+    QD.ui.invoke(widget, 1)
+    ny.style_press_tick = v.tick
+    ny.style_presses = (ny.style_presses or 0) + 1
+    st.inputs[v.tick] = (st.inputs[v.tick] or 0) + 1
+end
 
 -- The ids of the room's npcs, once per play (a symbol is a content name, an id
 -- is what the npc rows carry).
@@ -685,6 +778,10 @@ function QD.raid._play_nylocas_decide(st, v)
     -- library's death_serial starting at 0 is gone -- the library seeds it
     -- when the boss slot is first resolved, raid_play.lua _play_tick FAULT 2.)
     QD.raid._play_nylocas_see(st, v)
+    -- raid seam55: THE STYLE AT HER, by name (P.boss_styles)
+    if P.boss_styles ~= nil and st.party ~= nil and st.party > 1 and (v.vas ~= nil or ny.landed ~= nil) then
+        QD.raid._play_nylocas_style(st, v)
+    end
     -- raid seam47 play_tob_nylocas_no_nulling: THE HEART.  The seat that
     -- carries one (the mage) invigorated it at the door; it is pressed again
     -- once its cooldown is over and Magic has fallen under the heart's boost

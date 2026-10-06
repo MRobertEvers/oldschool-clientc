@@ -40,6 +40,12 @@ trio_kit = {
     -- raid seam42: the elder maul the Blert trios spec once a phase
     -- (sotetseg_normal_3.json weapons ELDER_MAUL; the plan's THE ELDER MAUL)
     "::give elder_maul 1",
+    -- raid seam55: the twisted bow the Blert trios open the room with, one
+    -- arrow each on the walk in (sotetseg_normal_3.json weapons, start:
+    -- TWISTED_BOW in 14, 12 and 13 of 19 rooms, count 1; the plan's THE BOW
+    -- OPENER), its dragon arrows (cheat_max_gear.rs2 ::maxrange's quiver)
+    -- and the Ranged it is wielded with
+    "::setlevel ranged 99", "::give twisted_bow 1", "::give dragon_arrow 100",
 }
 
 trio_run = function(t)
@@ -64,6 +70,12 @@ trio_run = function(t)
     t.ticks(1)
     local ar2, att2 = t.skill.read("attack")
     t.check("play.potion", ar2 == "ok" and att2.level > 99, "p" .. role .. " super combat before the barrier: attack " .. tostring(att2 and att2.level) .. " (" .. tostring(pr0) .. ")")
+    -- raid seam55: the arrows into the quiver (the bow opener's), and the
+    -- scythe's style by its NAME (ui.style; slot 1 "Chop" is stab)
+    local qr, qd = t.player.equip("dragon_arrow")
+    t.check("kit.arrows", qr == "ok", "p" .. role .. " " .. tostring(qd))
+    local yr, yd = t.ui.style("Reap")
+    t.check("kit.style", yr == "ok", "p" .. role .. " " .. tostring(yd))
     -- "to start the room pray magic and piety" (yt_KF9y2GYTJ-A.md:151)
     t.exec("prayer.magic", t.prayer.set, "protectfrommagic", true)
     if role == 1 then t.player.walk_to(fight.x, fight.z - 2, 20) end
@@ -107,6 +119,7 @@ trio_run = function(t)
     t.check("play.mazes", true, "p" .. role .. " " .. maze_text() .. "; death balls seen " .. tostring(S.death_balls)
         .. ", gathers " .. tostring(S.gathers) .. " (" .. tostring(S.gather_ticks) .. " ticks), seat ticks " .. tostring(S.seat_ticks)
         .. ", seats given up " .. tostring(S.seats_given_up or 0) .. ", ticks a ball flew at me " .. tostring(S.aimed)
+            .. ", bow " .. tostring(S.bow_log) .. ", corner shifts " .. tostring(S.seat_shifts or 0)
         .. "; elder maul " .. ((S.em and #S.em.log > 0) and table.concat(S.em.log, ", ") or "none")
         -- raid seam51: his attack clock as this raider read it, and the boosts
         .. "; his attacks seen " .. tostring(S.attacks_seen or 0) .. ", melee prayer on his due tick " .. tostring(S.melee_due or 0)

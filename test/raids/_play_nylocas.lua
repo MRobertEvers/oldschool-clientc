@@ -287,16 +287,39 @@ return {
             elseif size > 1 and role == 3 then t.player.equip("abyssal_whip")
             else t.player.equip("magic_shortbow") end
         end
+        -- raid seam55 play_tob_nylocas_stands_like_blert: THE STYLE BY NAME
+        -- (t.ui.style), never a slot number.  Every seat pressed slot 1, so
+        -- every scythe swing in the room was Chop, which this content's
+        -- scythe table makes stab (seam52 kit.melee_damage_per_swing.md;
+        -- ui.lua QD.ui.style).  The ranger's pipe and the solo's bow: Rapid.
+        -- The meleer's whip: Lash.  The mage's Ayak shows Bash / Pound /
+        -- Focus here (seam55 probe_style2: a staff's table, where the wiki's
+        -- powered staff shows Accurate, Accurate, Longrange), so its style is
+        -- set by name on the pipe it also carries -- Rapid, index 1 -- and the
+        -- Ayak is worn back on that index, the powered staff's second
+        -- Accurate.  At her, the plan picks Reap on the scythe and Rapid on
+        -- the bow by name (the plan's boss_styles).
+        local style_name = "Rapid"
+        if size > 1 and role == 3 then style_name = "Lash" end
+        if size > 1 and role == 1 then
+            t.player.equip("toxic_blowpipe_loaded")
+            t.ticks(1)
+        end
         local tab_result, tab_detail = t.ui.tab("combat")
         t.ticks(1)
-        local style_widget_result, style_widget = t.ui.widget("combat_interface:style_slot_1")
-        local style_press_result, style_press_detail = t.ui.invoke(style_widget, 1)
-        t.ticks(2)
+        local style_result, style_detail = t.ui.style(style_name)
+        if size > 1 and role == 1 then
+            t.player.equip("eye_of_ayak")
+            t.ticks(2)
+            -- (the equip shows the inventory; the retaliate button below is
+            -- the combat tab's and lands only while that tab is shown)
+            t.ui.tab("combat")
+            t.ticks(1)
+        end
         local style_read_result, style_read = t.var.varp("varp43_com_mode")
-        t.check("setup.rapid", style_widget_result == "ok" and style_press_result == "ok" and style_read == 1,
-            "combat tab style slot 1 pressed for the bow: tab " .. tostring(tab_result) .. " " .. tostring(tab_detail) .. ", widget "
-            .. tostring(style_widget_result) .. " " .. tostring(style_widget) .. ", press " .. tostring(style_press_result)
-            .. " " .. tostring(style_press_detail) .. ", varp43_com_mode reads " .. tostring(style_read_result) .. " " .. tostring(style_read))
+        t.check("setup.style", style_result == "ok" and style_read_result == "ok",
+            "p" .. role .. " combat style " .. style_name .. " by name: tab " .. tostring(tab_result) .. " " .. tostring(tab_detail) .. "; "
+            .. tostring(style_detail) .. "; varp43_com_mode reads " .. tostring(style_read))
         local retaliate_before_result, retaliate_before = t.var.varp("varp172_option_nodef")
         local retaliate_widget_result, retaliate_widget = t.ui.widget("combat_interface:retaliate")
         local retaliate_press_result = "skipped"
@@ -356,6 +379,12 @@ return {
         -- THE FIGHT: the library and the room's plan, nothing else
         local result, detail, rec = t.raid.play("tob_nylocas", { mode = mode, max_ticks = size > 1 and 3000 or 2000 })
         local ny = rec.ny or {}
+        -- raid seam55: the plan's styles at her, by name (P.boss_styles)
+        if size > 1 then
+            t.check("note.style", true, "p" .. role .. " at her: styles set by name " .. tostring(ny.style_set or 0) .. ", presses "
+                .. tostring(ny.style_presses or 0) .. ", combat tab opened " .. tostring(ny.style_tabs or 0) .. ", gave up "
+                .. tostring(ny.style_gave_up or 0))
+        end
         local res = {}
         for k, c in pairs(ny.results or {}) do res[#res + 1] = k .. " " .. c end
         table.sort(res)

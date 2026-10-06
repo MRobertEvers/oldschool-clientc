@@ -465,12 +465,26 @@ end
 -- (4,-1) 12-20% each).  Ours takes the three nearest the maze's north exit
 -- (the grid ends a row south of his south face): every raider is a step or
 -- two from its seat when he wakes, as theirs are (first attack a tick after).
+-- raid seam55 play_tob_sotetseg_room_ticks: THE NEXT CORNER.  A raider whose
+-- attack press answers `not_visible` from its corner (seam52 _play p2: 14
+-- presses from (-1,0), t245-t282, 37 ticks without a swing; svc p2 13) takes
+-- the next of the four Blert corners round him (st.sote.seat_shift), as a
+-- player who cannot click him steps round to a face he can.
+QD.raid.SOTETSEG_CORNERS = { { -1, 0 }, { 4, -1 }, { 5, 4 }, { 0, 5 } }
 function QD.raid._play_sotetseg_seat(st, b)
     local n = b.size or 5
     local role = st.role or 1
-    if role == 2 then return b.x - 1, b.z end               -- (-1,0): west face, south end
-    if role == 3 then return b.x + n - 1, b.z - 1 end       -- (4,-1): south face, east end
-    return b.x + n, b.z + n - 1                             -- (5,4): east face, north end
+    local base = 3                                          -- (5,4): east face, north end
+    if role == 2 then base = 1 end                          -- (-1,0): west face, south end
+    if role == 3 then base = 2 end                          -- (4,-1): south face, east end
+    local shift = (st.sote and st.sote.seat_shift) or 0
+    local o = QD.raid.SOTETSEG_CORNERS[((base - 1 + shift) % 4) + 1]
+    local ox, oz = o[1], o[2]
+    if ox == 5 then ox = n end
+    if oz == 5 then oz = n end
+    if ox == 4 then ox = n - 1 end
+    if oz == 4 then oz = n - 1 end
+    return b.x + ox, b.z + oz
 end
 
 function QD.raid._play_sotetseg_trio(st, v)
@@ -686,6 +700,21 @@ function QD.raid._play_sotetseg_trio(st, v)
         end
         S.gather_ticks = S.gather_ticks + 1
     end
+    -- raid seam55: an attack press that framed nothing twice running from
+    -- the corner moves the seat to the next corner (THE NEXT CORNER above)
+    local nv = (st.press_answers and st.press_answers.not_visible) or 0
+    if nv > (S.nv_seen or 0) then
+        S.nv_streak = (S.nv_streak or 0) + (nv - (S.nv_seen or 0))
+        S.nv_seen = nv
+        if S.nv_streak >= 2 and not gathering then
+            S.seat_shift = (S.seat_shift or 0) + 1
+            S.seat_shifts = (S.seat_shifts or 0) + 1
+            S.nv_streak = 0
+            sx, sz = QD.raid._play_sotetseg_seat(st, b)
+        end
+    elseif st.engaged and st.last_swing ~= nil and st.last_swing >= v.tick - 6 then
+        S.nv_streak = 0
+    end
     local at_seat = v.me.x == sx and v.me.z == sz
     local moved = st.last_me ~= nil and (st.last_me.x ~= v.me.x or st.last_me.z ~= v.me.z)
     local key = sx * 100000 + sz
@@ -779,6 +808,52 @@ function QD.raid._play_sotetseg_trio(st, v)
     -- (pvm_elder_maul.rs2:4-41) and costs 500 energy; it is armed from the
     -- orb like Maiden's hammer (raid_play_tob_maiden.lua opener), proved by
     -- the energy it spends, and the scythe goes back on the tick after.
+    -- raid seam55 play_tob_sotetseg_room_ticks: THE BOW OPENER.  The Blert
+    -- Normal trios open the room with ONE twisted bow arrow each on the walk
+    -- in (sotetseg_normal_3.json weapons, start: TWISTED_BOW in 14, 12 and 13
+    -- of 19 rooms for melee1/2/3, count 1), then the maul and the scythe.
+    -- Ours walked the 20 tiles from the barrier with nothing out (first swing
+    -- mark+13 to +19: seam52 survey).  The bow goes on in the first block of
+    -- the room with the attack press (the server stops the walk in the bow's
+    -- reach and looses), the shot is proved by this raider's own seq 426
+    -- (t.raid.own_anim), and the next tick the walk to the corner goes on
+    -- with the scythe (or the maul below) back in hand.  A kit without the
+    -- bow plays as before.
+    if (S.phase or 0) == 0 and S.bow == nil and not gathering and st.party > 1 then
+        local cr, cn = QD.inv.count("twisted_bow")
+        if cr == "ok" and (tonumber(cn) or 0) > 0 and S.bow_checked == nil then
+            S.bow = { stage = "equip", at = v.tick }
+        end
+        S.bow_checked = true
+    end
+    if S.bow ~= nil and S.bow.stage ~= "done" then
+        local bw = S.bow
+        if bw.stage == "equip" then
+            bw.stage, bw.press = "shoot", v.tick
+            intent.gear = { "twisted_bow" }
+            intent.walk = nil
+            intent.attack = true
+            st.engaged = false
+            return intent
+        end
+        local orr, own = QD.raid.own_anim()
+        if orr == "ok" then
+            for _, h in ipairs(own.history or {}) do
+                if h.seq == 426 and h.tick >= bw.press then bw.fired = bw.fired or h.tick end
+            end
+        end
+        if bw.fired == nil and v.tick - bw.press <= 8 then
+            -- the server walks the raider into the bow's reach; re-press if
+            -- the press did not take (engaged false after a refusal)
+            intent.walk = nil
+            intent.attack = not st.engaged
+            return intent
+        end
+        bw.stage, bw.done = "done", v.tick
+        S.bow_log = (bw.fired and ("fired t" .. bw.fired) or "gave up") .. " (pressed t" .. bw.press .. ", done t" .. v.tick .. ")"
+        intent.gear = { "scythe_of_vitur" }
+        st.engaged = false
+    end
     local phase = S.phase or 0
     S.em = S.em or { phases = {}, log = {} }
     local em = S.em.phases[phase]

@@ -7510,3 +7510,56 @@ attacked at any tick, the share of rooms and the offset of its first hit); --wav
 prints it as `lanes`.  The leak row is proven to compile and the splat path still reads
 heal_found (scratch run build/quest_gate/tools_leak1, Entry solo); that run had no crab
 reach her, so the first leak row will appear in the next run that leaks.
+
+## tech.protect_magic on a rolled storm asserts the cap (seam55)
+
+Since the blackstorm is rolled 0..max (content 081bb7e61a), comparing the first
+protected storm hit with the first unprotected one compares two rolls: every name's
+first unprotected storm rolled 1 and the row failed on all five.  `_play_maiden.lua`
+now asserts the cap instead: no protected hit above 9 and no unprotected hit above 18
+(the Entry blackstorm's max, maiden.auto_max_entry 18, halved by the prayer).
+
+## A combat style press needs the combat tab shown (seam55)
+
+A style press lands only while the combat tab is shown.  With the inventory open,
+`combat_interface:<n>_text` reads not_visible and `if_click` on `style_slot_<n>` leaves
+varp43 unchanged (seam55 probe_style).  An equip shows the inventory, so a retaliate or
+style press right after an equip needs `t.ui.tab("combat")` first.  `t.ui.style(name)`
+does that for you; a hand-rolled press does not.
+
+The style is one index (varp43) carried across swaps.  Index 1 is Rapid on the pipe and
+the bow, Lash on the whip, Chop on the scythe (stab on this content) and Pound on the
+Eye of Ayak.  Set it by name on the weapon whose name you want, then swap.  The Ayak
+shows Bash / Pound / Focus here, so `t.ui.style("Accurate")` answers no_style on it:
+pick the style on another weapon and put the Ayak back on.
+
+Pressing styles mid-fight from a room plan (a tab flip plus a press) cost 8-22 ticks
+with no attack in a Nylocas trio boss phase, more than Reap's slash bonus gave back.
+The Nylocas plan keeps the helper (`_play_nylocas_style`) switched off
+(`boss_styles = nil`).
+
+## Sotetseg, Normal trio: where the room's time goes (seam55)
+
+From the seam52 tick logs against sotetseg_normal_3.json: the mazes are fine (30-39
+ticks against [14-47]).  The start phase is decided by the elder maul's luck: two mauls
+landed gave 56 ticks, two missed gave 81, against [42-67].  Scythe splats after each
+maze are 0 on 30-45% of hits, against 12-20% before the first maze.  For room ticks,
+read the maul outcomes and the zero rate per phase, not the maze.  The seam55 survey
+went 5 of 5 inside [164-262] (251/244/252/233/238), but no mechanism was proved: treat
+that green as RNG-sensitive.
+
+## Sotetseg bow opener (seam55)
+
+The Blert start weapons list TWISTED_BOW once per raider in 12-14 of 19 rooms.  The
+trio kit now carries `::setlevel ranged 99`, a twisted bow and dragon arrows; in phase 0
+a raider with the bow in its pack equips it with the attack press, the shot is proved by
+its own seq 426 (`t.raid.own_anim` history, not the swing counter: `st.weapon` is the
+scythe), and the scythe goes back on.  With the recorded melee kit the arrow hit 1 of 15
+times.  Read the Blert equipmentDeltas at the bow tick before keeping or dropping it.
+
+## Sotetseg's next corner (seam55)
+
+`QD.raid._play_sotetseg_seat(st, b)` takes `st.sote.seat_shift` and steps round the four
+Blert corners (-1,0), (4,-1), (5,4), (0,5) from his SW tile.  The trio plan shifts after
+two not_visible press answers (`st.press_answers.not_visible`).  It never fired in the
+seam55 survey.  Conformance row: `seam.raid_play_sotetseg_corner`.

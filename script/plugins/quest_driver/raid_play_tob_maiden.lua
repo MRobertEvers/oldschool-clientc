@@ -217,7 +217,289 @@ QD.raid._play_plan("tob_maiden", {
     -- re-boost below never drinks them): one potion, the next room's door dose
     reboost_keep = 4,
     decide = "_play_maiden_decide",
+    -- raid seam55: the events the play loop raises for this room
+    -- (raid_play.lua "TRIGGERS AND WATCHES") and the reactions it registers
+    events = { forms = "forms", add = "crab", add_event = "crab", label = "_play_maiden_label",
+        projectiles = { [1578] = "blood_thrown" }, pools = { [1579] = "pool_landed" },
+        boss_seqs = { [8092] = "storm_sent", [8091] = "blood_sent" },
+        -- Ice Barrage's impact graphic (wiki Ice Barrage: graphic 369)
+        freeze_spotanims = { [369] = true } },
+    on_start = "_play_maiden_on_start",
 })
+
+-- ==========================================================================
+-- raid seam55 play_tob_maiden_triggers_like_blert: THE TRIO ON TRIGGERS, as
+-- the recorded raiders play it.  Source: the 26 Regular-mode scale-3 Blert
+-- rooms (docs/minigames/theater_of_blood/sources/blert_api/maiden_trio_crabs,
+-- streams build/blert_maiden/*.json; read per wave and per raider by
+-- seam55's ref.py: the spawn tiles by maidenCrab.position, every
+-- PLAYER_ATTACK's tick from the spawn, its target's position and the
+-- raider's tile).  What they do, wave after wave:
+--   * spawn positions from her SW tile: 0 (11,-8) 1 (11,12) 2 (15,-8)
+--     3 (15,12) 4 (19,-8) 5 (19,12) 6 (23,-6) 7 (23,-8) 8 (23,10) 9 (23,12)
+--     (46-48 of 52 waves each; the rest one tile off);
+--   * THE FREEZER casts a barrage on the spawn's tick (its attack shows at
+--     spawn + 1 in 17 / 18 / 19 of 26 waves at 70 / 50 / 30), first at
+--     position 0 (14 / 18 / 13), then every 5 ticks (72 / 86 / 67 of the
+--     gaps): +6 at 2 or 3, +11 at 4, +16 at 6, 7 or 9, from her east side
+--     (15,-1..3: the freezer's tile at the first cast);
+--   * THE SCYTHE SEATS stand on her NE corner (5,6) / (6,5) and leave her
+--     for the north crabs only: the first crab swing is at +4 on position 1
+--     (20 / 19 / 23 of 52 seat-waves), the second seat's at +9 on position 3
+--     (5 / 6 / 1); one or two crab swings a wave (median), back on her
+--     at +9 .. +14 (median); the 30 percent wave is spent on her (0 or 1
+--     crab swings, 12 of 52 seat-waves none).
+-- The plan below registers those reactions (QD.raid._play_maiden_on_start);
+-- the default plan (decide) still carries the walks, the prayers, the
+-- supplies and the gear, and a solo (Entry) registers nothing.
+-- ==========================================================================
+QD.RAID_MAIDEN_REF = {
+    -- the freezer's order: one group per 5-tick cast, then the rest
+    cast_groups = { { 0 }, { 2, 3 }, { 4 }, { 6, 7, 9 }, { 5, 8, 1 } },
+    cast_casts = 8,           -- casts a wave at most (2-8, median 4 / 5 / 3.5)
+    -- the scythe seats' crab: role -> { position, from (ticks after the
+    -- spawn the press goes out: the swing lands about two ticks later),
+    -- leave (ticks after the spawn it gives up and goes back on her),
+    -- waves (the waves it does this in) }
+    seat_crab = {
+        -- `nth`: the seat takes the nth north crab of the burst in the order
+        -- 1, 3, 5, 8, 9 (the reference's first crab is position 1 in 62 of
+        -- 156 seat-waves, position 3 when 1 did not spawn)
+        [1] = { nth = 1, from = 1, leave = 10, waves = { true, true, true } },
+        [3] = { nth = 2, from = 5, leave = 14, waves = { true, true, false } },
+    },
+    -- the second trip: the reference's east seat leaves her again for the
+    -- FROZEN south crabs at +18 .. +29 ("19:c2 24:c0 29:c4", "18:c2 23:c0
+    -- 28:c0" from (6,5)), the kills that keep the leak at 1-2 a wave (the
+    -- killed crabs die 20-50 ticks after the spawn: kill.py, 216 of 233
+    -- under the freezer's barrage or a scythe); the north seat only for a
+    -- frozen north crab close to her.  side, window (ticks after the spawn),
+    -- the furthest gap to her it walks to, the waves.
+    seat_clean = {
+        [1] = { side = "north", from = 15, till = 35, gap = 4, waves = { true, true, true } },
+        [3] = { side = "south", from = 15, till = 35, gap = 8, waves = { true, true, true } },
+    },
+    -- the 30 percent wave: the reference spends it on her (0-1 crab swings a
+    -- seat) because she dies 48 [34-75] ticks after it; a seat leaves her
+    -- only for a frozen crab within this gap of her (the one that walks in
+    -- first: "9:c0@7,-2" at 30 percent)
+    clean_gap_30 = 3,
+    blood_pri = 8, cast_pri = 5, storm_pri = 3,
+}
+
+-- Position label (0-9) of a crab tile from her SW tile, by the spawn grid
+-- above; nil off the grid.
+function QD.raid._play_maiden_label(dx, dz)
+    local col = math.floor((dx - 11 + 2) / 4)
+    if col < 0 or col > 3 then return nil end
+    if dz < 0 then
+        if col == 3 then return (dz >= -7) and 6 or 7 end
+        return col * 2
+    elseif dz > 5 then
+        if col == 3 then return (dz <= 11) and 8 or 9 end
+        return col * 2 + 1
+    end
+    return nil
+end
+
+function QD.raid._play_maiden_on_start(st)
+    if st.party <= 1 then return end
+    st.on("crab_spawn", "_play_maiden_on_crab_spawn")
+    st.on("blood_thrown", "_play_maiden_on_blood")
+    st.on("pool_landed", "_play_maiden_on_pool")
+    st.on("storm_sent", "_play_maiden_on_storm")
+    st.watch("freezer_cast_due", "_play_maiden_cast_due", "_play_maiden_cast_change")
+end
+
+-- crab_spawn: the freezer opens the wave's cast clock; a scythe seat arms
+-- its reference crab (the plan's add path presses it: party_wave).
+function QD.raid._play_maiden_on_crab_spawn(st, v, ev)
+    local m = st.m
+    if m == nil or m.R == nil then return nil end
+    m.ref = m.ref or { waves = {}, seat = {} }
+    local W = m.ref.waves[ev.wave]
+    if W == nil then
+        W = { tick = v.tick, slots = {}, casts = 0 }
+        m.ref.waves[ev.wave] = W
+        m.ref.wave = ev.wave
+    end
+    W.slots[ev.slot] = ev.label
+    local S = QD.RAID_MAIDEN_REF.seat_crab[st.role]
+    if m.R.melee and S ~= nil and S.waves[math.min(ev.wave, 3)] and ev.label ~= nil then
+        -- the burst lands on one tick: re-rank its north crabs on each spawn
+        -- event and keep the seat's nth
+        local order = { [1] = 1, [3] = 2, [5] = 3, [8] = 4, [9] = 5 }
+        local north = {}
+        for slot, label in pairs(W.slots) do
+            if order[label] ~= nil then north[#north + 1] = { slot = slot, k = order[label] } end
+        end
+        table.sort(north, function(x, y) return x.k < y.k end)
+        for slot, _ in pairs(m.ref.seat) do
+            if m.ref.seat[slot].wave == ev.wave then m.ref.seat[slot] = nil end
+        end
+        local pick = north[S.nth]
+        if pick ~= nil then
+            m.ref.seat[pick.slot] = { from = W.tick + S.from, leave = W.tick + S.leave, wave = ev.wave }
+            m.ref.armed = (m.ref.armed or 0) + 1
+        end
+    end
+    return nil
+end
+
+-- The freezer's cast clock: the index of the 5-tick cast due now in the
+-- newest wave (-1 when no wave or past its casts).
+function QD.raid._play_maiden_cast_due(st, v)
+    local m = st.m
+    if m == nil or m.R == nil or not m.R.freezer or m.ref == nil or m.ref.wave == nil then return -1 end
+    local W = m.ref.waves[m.ref.wave]
+    local k = (v.tick - W.tick) // st.plan.cast_every
+    if k >= QD.RAID_MAIDEN_REF.cast_casts then return -1 end
+    return k
+end
+
+-- The cast for the clock's new index: the first group in the reference's
+-- order holding a live crab that walks (not frozen, not cast at inside
+-- recast_after, not at her yet) in barrage range; the 3x3 with the most
+-- walkers wins inside a group.  None walking: the oldest freeze past
+-- ice_refresh.  Nothing: no cast (the reference's waves end at 2-8 casts).
+function QD.raid._play_maiden_cast_change(st, v, k, old)
+    if k < 0 then return nil end
+    local P, m = st.plan, st.m
+    local adds = st.ev.adds
+    local b = v.ev_boss
+    if b == nil then return nil end
+    local W = m.ref.waves[m.ref.wave]
+    local function cheb(ax, az, bx, bz) return math.max(math.abs(ax - bx), math.abs(az - bz)) end
+    local function walking(slot, a)
+        local cast_at = m.crab_cast and m.crab_cast[slot]
+        return not a.gone and not a.frozen and QD.raid._play_gap(b, a.x, a.z) > 1
+            and not (cast_at ~= nil and v.tick - cast_at < P.recast_after)
+    end
+    local target, tn, why = nil, -1, nil
+    for g, group in ipairs(QD.RAID_MAIDEN_REF.cast_groups) do
+        for _, pos in ipairs(group) do
+            for slot, a in pairs(adds) do
+                if a.label == pos and walking(slot, a) and cheb(a.x, a.z, v.me.x, v.me.z) <= 10 then
+                    local n = 0
+                    for s2, o in pairs(adds) do
+                        if walking(s2, o) and math.abs(o.x - a.x) <= 1 and math.abs(o.z - a.z) <= 1 then n = n + 1 end
+                    end
+                    if n > tn then target, tn, why = slot, n, "ref g" .. g .. " pos" .. pos .. " x" .. n end
+                end
+            end
+        end
+        if target ~= nil then break end
+    end
+    if target == nil then
+        -- every walker is frozen: the reference keeps casting every 5 ticks
+        -- (4-8 casts a wave; "11:c4 21:c4 26:c4") at the frozen crabs, and
+        -- its barrage is what kills them (kill.py: 64 + 11 + 7 of 233 kills
+        -- the freezer's own, 50 more with no direct hit = the 3x3).  The
+        -- clump with the most live crabs in its 3x3; a tie, the crab
+        -- frozen longest (the first to walk again).
+        local best, bn, bage = nil, -1, -1
+        for slot, a in pairs(adds) do
+            if not a.gone and QD.raid._play_gap(b, a.x, a.z) > 1 and cheb(a.x, a.z, v.me.x, v.me.z) <= 10 then
+                local n = 0
+                for _, o in pairs(adds) do
+                    if not o.gone and QD.raid._play_gap(b, o.x, o.z) > 1 and math.abs(o.x - a.x) <= 1 and math.abs(o.z - a.z) <= 1 then n = n + 1 end
+                end
+                local since = m.crab_frozen and m.crab_frozen[slot]
+                local age = since ~= nil and (v.tick - since) or 0
+                if n > bn or (n == bn and age > bage) then best, bn, bage = slot, n, age end
+            end
+        end
+        if best ~= nil then target, why = best, "ref clump x" .. bn .. " age" .. bage end
+    end
+    if target == nil then return nil end
+    W.casts = W.casts + 1
+    m.last_cast = v.tick
+    m.crab_cast = m.crab_cast or {}
+    m.crab_cast[target] = v.tick
+    local _, mg = QD.skill.read("magic")
+    m.casts[#m.casts + 1] = { tick = v.tick, slot = target, result = "trigger", wave = m.waves, form = #m.forms,
+        magic = mg and mg.level, why = why, k = k, since = v.tick - W.tick }
+    return { pri = QD.RAID_MAIDEN_REF.cast_pri, by = "freezer_cast_due",
+        cast = { spell = P.freeze_spell, symbol = P.crab[st.mode], slot = target, why = why } }
+end
+
+-- The shortest safe tile off a tile something lands on: one tile first, then
+-- two; never a pool, never another throw's tile; a scythe seat keeps to a
+-- tile beside her when one is safe.
+function QD.raid._play_maiden_off_tile(st, v, lx, lz)
+    local P, m = st.plan, st.m
+    local b = v.ev_boss
+    local marked = {}
+    for k, on in pairs(v.shadows or {}) do if on then marked[k] = true end end
+    for _, e in ipairs(v.events or {}) do
+        if e.name == "blood_thrown" or e.name == "pool_landed" then marked[e.x * 100000 + e.z] = true end
+    end
+    for _, k in pairs(st.ev.projs or {}) do
+        if k.x ~= nil then marked[k.x * 100000 + k.z] = true end
+    end
+    -- the blood spawns' trails (loc 32984) hurt as a pool does: the handler
+    -- runs before decide, whose v.marks carry them, so it reads them itself
+    -- (survey5b: two raiders walked a trail at 36 a tick and died)
+    if api_drive.loc_copies ~= nil then
+        local lr, locs = api_drive.loc_copies(P.trail_loc, 0)
+        if lr == "ok" and type(locs) == "table" then
+            for _, l in ipairs(locs) do marked[l.x * 100000 + l.z] = true end
+        end
+    end
+    local ox, oz = m.ox or 0, m.oz or 0
+    local best, bx, bz = nil, nil, nil
+    for r = 1, 2 do
+        for dx = -r, r do
+            for dz = -r, r do
+                if math.max(math.abs(dx), math.abs(dz)) == r then
+                    local x, z = v.me.x + dx, v.me.z + dz
+                    local on_floor = x >= P.floor[1] + ox and x <= P.floor[3] + ox and z >= P.floor[2] + oz and z <= P.floor[4] + oz
+                    local under = b ~= nil and x >= b.x and x <= b.x + (b.size or 1) - 1 and z >= b.z and z <= b.z + (b.size or 1) - 1
+                    if on_floor and not under and not marked[x * 100000 + z] and (x ~= lx or z ~= lz) then
+                        local score = r * 10
+                        if m.R ~= nil and m.R.melee and b ~= nil and QD.raid._play_gap(b, x, z) ~= 1 then score = score + 5 end
+                        if best == nil or score < best then best, bx, bz = score, x, z end
+                    end
+                end
+            end
+        end
+        if best ~= nil then break end
+    end
+    return bx, bz
+end
+
+-- blood_thrown on this raider's tile: step by the shortest safe tile before
+-- it lands (the T-1 rule: it is judged against the tile of the tick before
+-- impact); the freezer's cast is HELD a tick and goes out from the new tile.
+function QD.raid._play_maiden_on_blood(st, v, ev)
+    local m = st.m
+    if m == nil or m.R == nil or not ev.mine then return nil end
+    local x, z = QD.raid._play_maiden_off_tile(st, v, ev.x, ev.z)
+    if x == nil then return nil end
+    m.trig_until = v.tick + math.max(ev.ticks, 1)
+    m.trig_steps = (m.trig_steps or 0) + 1
+    return { pri = QD.RAID_MAIDEN_REF.blood_pri, walk = { x = x, z = z }, why = "blood on my tile" }
+end
+
+-- pool_landed under this raider (a throw it did not see, or an extra): off.
+function QD.raid._play_maiden_on_pool(st, v, ev)
+    local m = st.m
+    if m == nil or m.R == nil or not ev.mine then return nil end
+    local x, z = QD.raid._play_maiden_off_tile(st, v, ev.x, ev.z)
+    if x == nil then return nil end
+    m.trig_until = v.tick + 1
+    m.trig_steps = (m.trig_steps or 0) + 1
+    return { pri = QD.RAID_MAIDEN_REF.blood_pri, walk = { x = x, z = z }, why = "pool under me" }
+end
+
+-- storm_sent: the prayer is Protect from Magic (wiki: the blackstorm is
+-- magic); the eat stays the plan's (_play_supplies, by the largest hit due).
+function QD.raid._play_maiden_on_storm(st, v, ev)
+    local m = st.m
+    if m == nil or m.R == nil then return nil end
+    m.storms_seen = (m.storms_seen or 0) + 1
+    return { pri = QD.RAID_MAIDEN_REF.storm_pri, want = { protectfrommagic = true }, why = "storm" }
+end
 
 -- SEE, the room's part (what a person at the screen sees beyond the
 -- library's read): every npc in one pool read -- her current form, the
@@ -699,7 +981,7 @@ function QD.raid._play_maiden_party_wave(st, v, m, R, mg, moving, gap_to_her, ch
             QD.raid._play_maiden_block(st, v, "ranged set", P.ranged_set)
             m.fz = nil
             st.engaged = false
-        elseif m.fz == "magic" and v.tick - m.last_cast >= P.cast_every and (not moving or walkers_up())
+        elseif m.fz == "magic" and m.ref == nil and v.tick - m.last_cast >= P.cast_every and (not moving or walkers_up())
             and not QD.raid._play_maiden_in_blood(v, m) then
             -- a walking nylocas the barrage can still stop: the one with the
             -- most walking nylocas in its 3x3 (Ice Barrage's area: "the other
@@ -843,6 +1125,36 @@ function QD.raid._play_maiden_party_wave(st, v, m, R, mg, moving, gap_to_her, ch
     -- gap 5 while the barrage was two casts from it).  The freezer casts on
     -- the wave's first tick and every `cast_every` after (its m.casts), so
     -- the next cast is the next multiple of that from the wave's first tick.
+    -- raid seam55: on triggers a scythe seat takes the crab its crab_spawn
+    -- armed (the reference's position and window, QD.RAID_MAIDEN_REF
+    -- seat_crab) and nothing else: back on her outside it
+    if R.melee and m.ref ~= nil then
+        for _, c in ipairs(v.crabs) do
+            local s = m.ref.seat[c.slot]
+            if s ~= nil and v.tick >= s.from and v.tick <= s.leave then
+                s.pressed = (s.pressed or 0) + 1
+                return { row = c, symbol = P.crab[st.mode], ref = true }
+            end
+        end
+        local C = QD.RAID_MAIDEN_REF.seat_clean[st.role]
+        local W = m.ref.wave ~= nil and m.ref.waves[m.ref.wave] or nil
+        if C ~= nil and W ~= nil and C.waves[math.min(m.ref.wave, 3)] and v.tick >= W.tick + C.from and v.tick <= W.tick + C.till then
+            local best, bg = nil, nil
+            for _, c in ipairs(v.crabs) do
+                local a = st.ev.adds[c.slot]
+                local side = (C.side == "north" and c.z > v.boss.z + 5) or (C.side == "south" and c.z < v.boss.z)
+                local g = gap_to_her(c.x, c.z)
+                local limit = C.gap
+                if m.ref.wave >= 3 then limit = math.min(limit, QD.RAID_MAIDEN_REF.clean_gap_30) end
+                if a ~= nil and a.frozen and side and g > 1 and g <= limit and (best == nil or g < bg) then best, bg = c, g end
+            end
+            if best ~= nil then
+                m.ref.cleans = (m.ref.cleans or 0) + 1
+                return { row = best, symbol = P.crab[st.mode], ref = true }
+            end
+        end
+        return nil
+    end
     m.wave_first = m.wave_first or {}
     if #v.crabs > 0 and m.wave_first[wave] == nil then m.wave_first[wave] = v.tick end
     local left = nil
@@ -1355,7 +1667,14 @@ function QD.raid._play_maiden_decide(st, v)
     end
     local threatened = near_blood(me.x, me.z, P.scatter) or v.marks[here] == true
     local new_walk = nil
-    if m.move == nil then
+    -- raid seam55: a trigger's step (blood_thrown / pool_landed on this
+    -- tile) is the move; the plan's own dodge and pool walks stand down
+    -- until it has landed (m.trig_until)
+    if v.trigger ~= nil and v.trigger.walk ~= nil then
+        m.move = { x = v.trigger.walk.x, z = v.trigger.walk.z, why = "trigger" }
+        m.still = 0
+    end
+    if m.move == nil and not (m.trig_until ~= nil and v.tick <= m.trig_until) then
         local next_attack = m.last_attack ~= nil and (m.last_attack + P.attack_every) or nil
         -- raid seam32: the freezer holds its tile for the barrage while a
         -- nylocas still walks (s32mzn7: a dodge put nine ticks between two
@@ -1467,7 +1786,7 @@ function QD.raid._play_maiden_decide(st, v)
         -- her edge (dist_boss 1): so the seat keeps an add only when it is a
         -- walker two tiles or less from her and from the seat, never a walk
         -- across the room.
-        if add ~= nil and not R.freezer and st.boss_symbol ~= nil and st.boss_symbol:find("_30", 1, true) ~= nil then
+        if add ~= nil and not add.ref and not R.freezer and st.boss_symbol ~= nil and st.boss_symbol:find("_30", 1, true) ~= nil then
             local c = add.row
             if c == nil or c.x == nil or gap_to_her(c.x, c.z) > 2 or cheb(c.x, c.z, me.x, me.z) > 2 then
                 add = nil

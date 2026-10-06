@@ -1786,3 +1786,38 @@ all clean. No C and no content changed.
   the tree only because seam55's uncommitted raid.watch (raid_play.lua:978) has no conformance
   row yet; seam55's closer owns that. Conformance and the quest suite were not run: this pass
   has no code delta, and seam55's closer was running run.py --all on the same tree.
+
+## matthew-mbp-m4-raid-b1-seam55 (2026-10-06; the commit that carries this heading, OSRS-Content unchanged by this pass): triggers and watches, Maiden on triggers, Nylocas styles, Sotetseg room ticks
+
+- play_tob_maiden_triggers_like_blert: the library part LANDED and the room did NOT.
+  Triggers and watches are in raid_play.lua: `st.on`, `st.watch` and `t.raid.watch`. Events:
+  spawn, walk, frozen and gone for adds, projectiles, ground pools, boss seqs, `hit_taken` and
+  `boss_phase`. Handler intents are folded by priority, and a press or cast is held behind a
+  step. The probe m55trig read 24 of 24 on the tick log's own ticks. Conformance rows
+  raid.watch and seam.raid_play_triggers PASS. The Maiden trio plan now runs on the triggers,
+  built from the 26 Blert rooms (QD.RAID_MAIDEN_REF), and is kept. The room is still 0 of 5,
+  the same as seam54. Entry solo is 5 of 5, and its tech.protect_magic row now checks the
+  rolled storm's cap. OPEN: 11-15 leaks against a median of 5. Phase 100 runs 50 ticks
+  against 42, so damage on her is about 17% low. In the 30% wave, frozen crabs thaw before
+  she dies. On sva, p0 and p2 died at 6431,98 and the cause was not found. varp43 keeps one
+  style for every weapon, and this has no CONTENT_BUGS row yet.
+- play_tob_nylocas_stands_like_blert: NOT LANDED (0 of 5). Kept: each seat picks its style
+  by name with t.ui.style, and retaliate now presses with the combat tab shown. The boss-phase
+  style helper is switched off (boss_styles = nil). OPEN: the stands, the wave kill order and
+  the cleanup did not change, and seam56 is carrying them on. The south-west support falls,
+  the last wave is late at 296/304 against at most 293, the cleanup takes 55-68 ticks against
+  32, and the boss takes 124-130 against [75-123]. The Ayak shows Bash/Pound/Focus.
+- play_tob_sotetseg_room_ticks: LANDED on the survey's terms. The five-name trio survey is
+  5 of 5 inside [164-262] (251/244/252/233/238), the repeat agrees, and Entry solo is
+  green. Kept: the bow opener (the Blert start weapons list a twisted bow) and the next-corner
+  rotation. Conformance row seam.raid_play_sotetseg_corner PASS. OPEN: the cause is not
+  proved. The bow hit 1 of 15 and the corner shift never fired, so treat the green as
+  RNG-sensitive. After each maze, 30-45% of scythe hits are 0, and no source covers it.
+  The runner's return tile and raid_report.py's Sotetseg boss ids are also open.
+- Closer: VERB_COUNT 231 -> 232 and SEAM_COUNT 222 -> 224. Conformance had 456/456 rows
+  PASS. check-quest-verbs, check-drive-abi, check-pt-switch, test-plugin-lua and
+  test-quest-cheats all pass. No C changed and this pass made no content change, and the
+  pass's method said no quest-suite runs. The Maiden fixer ran cooks_assistant 78/78 and
+  druid 55/55, and gate.py was green on both. The uncommitted tob_maiden.rs2 leak-label edit
+  in the content tree is the tools seam's work. This pass left it alone (not committed, not
+  reverted).
