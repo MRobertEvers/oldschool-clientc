@@ -7,27 +7,30 @@
 -- through for an unqualified player (OSRS-Content 33c8b2ac6a), so the
 -- quest starts from Bolren normally -- no more content_bug block there.
 --
--- Resumed from build/seam_state/seam23/tree_fix/tree_full.lua (the 66/66
--- reference), with one change: that file's single goto_tile from the
--- ballista straight to (2505,3258,1) skipped BOTH the crumbled wall and the
--- ladder the guide names (TreeGnomeVillage.java's cRetrieveOrb: "Enter the
--- tower by the Crumbled wall and climb the ladder to retrieve the first
--- orb from chest."). "wall" is a GATE_WORDS hit and rule (b) applies --
--- click it for real. The wall's own [oploc1,khazzacklowwall] trigger
--- (quest_tree_locs.rs2) requires %treequest >= ^tree_ballista_fired and is
--- approached from the SOUTH (it refuses "You can't get over the wall from
--- this side." from the north/inside), plays a mesbox and a forced climb
--- animation, and lands the player across it. The ladder itself has no
--- quest-specific trigger anywhere in quest_tree/ or area_gnome/ (grepped),
--- so it is plain TRAVEL_WORDS travel per QUEST_AUTHORING.md section 2 --
--- goto_tile onto ITS OWN tile at its level (2503,3252,1) is legitimate
--- driving, not a second cheat.
+-- Door rule (b67 re-drive). Every trip is walked or taken by what a player
+-- uses; the static tools (test/quests/orchestrator/matthew-mbp-m4/reports/
+-- sample_tools, --root this checkout) read every goto below REACH
+-- closed-doors at margins 30/80/160:
+-- * Bolren's village (2541,3170) is a 357-tile walled pocket whose only
+--   way in is the Loose Railing treegnomelooserailing 2515,3161
+--   (gnomevillage_fence.rs2: squeeze one tile north/south). South of it is
+--   the maze (elkoy_maze_coord 2515,3159), walked from its entrance 2504,3190
+--   (215 tiles, REACH closed-doors at margin 40).
+-- * Lumbridge to Kandarin crosses a members' wall on foot, so the run starts
+--   with a real Camelot Teleport (Magic is staged 99 for the warlord's
+--   fire bolts anyway); Camelot -> the maze entrance is REACH len 541.
+-- * Bolren's accept and first-orb pages p_telejump the player out to
+--   2504,3191 (king_bolren.rs2:146-156); the later trips in are Elkoy's own
+--   "Yes please." telejump to 2515,3159 (elkoy.rs2:89-106, 162-200: the
+--   guide's elkoySkip / elkoySkip2), then the railing, then a walk.
+-- * The jail door poordoor 2524,3254 is opened in and walked out; the
+--   stronghold is entered over the crumbled wall (south side only), the
+--   ladder 2503,3252 climbed up and down, and left by
+--   khazard_stronghold_door 2502,3250 (a walk-through from inside only,
+--   quest_tree_locs.rs2:36-49).
+-- * Combat-level branches: none in quest_tree/ or area_gnome/ (grepped
+--   combat_level), so the staged combat stats change no page.
 --
--- Four guide steps are alternate ways to a leg this file already drives
--- another way (helper_coverage.py's ANY-OF vocabulary):
--- ANY-OF: goThroughMaze talkToKingBolren king_bolren.rs2:18 ([opnpc1,king_bolren]'s dispatch reads only %varp111_treequest, no maze/lever/door state -- the same pure-navigation precedent QUEST_AUTHORING.md section 8 gives Ernest the Chicken's maze) -- goto-bolren + bolren.greet reach and talk to him directly instead of walking the marked path
--- ANY-OF: elkoySkip talkToKingBolrenFirstOrb elkoy.rs2:79 (Elkoy's own "Yes please" -> p_telejump is the identical centre-of-maze shortcut a goto_tile is) -- bolren.first_orb (TreeGnomeVillage.java:267-269's insideGnomeVillage branch) drives the same first-orb hand-in
--- ANY-OF: elkoySkip2 returnOrbs elkoy.rs2:146 (same Elkoy "Yes please" shortcut as elkoySkip, offered again once the orbs are recovered) -- bolren.orbs (TreeGnomeVillage.java:283's insideGnomeVillage branch) drives the same orbs hand-in
 -- ANY-OF: pickupOrb warlord.satchel khazard_warlord.rs2:110 (the kill's own inv_add(inv, orbs_of_protection, 1) grants the orbs straight into the backpack -- they never land on the ground, so orbsOfProtectionNearby never trips in this port)
 
 return {
@@ -55,7 +58,8 @@ return {
         "::give rune_kiteshield 1",
         "::give chaosrune 60", -- fire_bolt: 1 chaos + 4 fire + 3 air per cast (magic_combat_spells.dbrow)
         "::give firerune 200",
-        "::give airrune 150",
+        "::give airrune 160", -- 150 for fire bolts + two Camelot Teleports' 5 (magic_spells.dbrow [magic_spell_teleport_camelot])
+        "::give lawrune 2", -- two Camelot Teleports (airrune 5 + lawrune 1 each, level 45; Magic is staged 99 above): the start and out of the Khazard stronghold
         "::give shark 6", -- recommended food
     },
 
@@ -91,13 +95,66 @@ return {
         t.exec("equip.legs", t.player.equip, "rune_platelegs")
         t.exec("equip.shield", t.player.equip, "rune_kiteshield")
 
-        -- talkToBolrenAtCentreOfMaze: the Tree Gnome maze is pure navigation
-        -- (king_bolren.rs2's own switch reads only %treequest/inv, no
-        -- lever/door/maze-progress state), the same precedent
-        -- QUEST_AUTHORING.md section 8 gives for Ernest the Chicken's
-        -- six-lever maze -- so goto_tile straight to the centre is legal
-        -- evidence, not a puzzle bypass.
-        t.exec("goto-bolren", t.player.goto_tile, 2541, 3170, 0)
+        -- ---------------------------------------------------------------
+        -- Shared travel pieces (see the banner for the static evidence).
+        -- ---------------------------------------------------------------
+        local function tile_is(name, want, slack, why)
+            local r, v = t.world.tile()
+            local ok = r == "ok" and type(v) == "table" and v.level == want[3]
+                and math.abs(v.x - want[1]) <= slack and math.abs(v.z - want[2]) <= slack
+            t.check(name, ok, why .. ": want " .. want[1] .. "," .. want[2] .. "," .. want[3]
+                .. " (within " .. slack .. "), read " .. tostring(r) .. " "
+                .. ((type(v) == "table" and v.x) and (v.x .. "," .. v.z .. "," .. v.level) or "?"))
+        end
+        -- A page a script MAY raise after a telejump (an npc_find-gated line):
+        -- played when it comes, written as a note when it does not.
+        local function maybe_page(name, line, why)
+            local r = t.await({ level = function() return t.chat.kind() ~= "none" end }, 4)
+            if r == "ok" then
+                t.exec(name, t.chat.play, { line })
+            else
+                t.note(name .. ": no page in 4 ticks (" .. tostring(r) .. "; " .. why .. ")")
+            end
+        end
+        -- The maze, entrance 2504,3190 to the railing's outer tile 2515,3160:
+        -- the 215-tile closed-doors path reach.py's flood finds at margin 40,
+        -- one waypoint per corner (hops <= 9).
+        local MAZE = {
+            { 2504, 3190 }, { 2512, 3190 }, { 2512, 3188 }, { 2521, 3188 }, { 2530, 3188 },
+            { 2532, 3188 }, { 2532, 3183 }, { 2529, 3183 }, { 2529, 3181 }, { 2523, 3181 },
+            { 2523, 3184 }, { 2520, 3184 }, { 2520, 3179 }, { 2514, 3179 }, { 2514, 3177 },
+            { 2523, 3177 }, { 2527, 3177 }, { 2527, 3179 }, { 2529, 3179 }, { 2529, 3177 },
+            { 2531, 3177 }, { 2531, 3179 }, { 2533, 3179 }, { 2533, 3177 }, { 2542, 3177 },
+            { 2544, 3177 }, { 2544, 3175 }, { 2549, 3175 }, { 2549, 3166 }, { 2549, 3165 },
+            { 2545, 3165 }, { 2545, 3159 }, { 2550, 3159 }, { 2550, 3156 }, { 2548, 3156 },
+            { 2548, 3147 }, { 2548, 3145 }, { 2539, 3145 }, { 2539, 3150 }, { 2542, 3150 },
+            { 2542, 3148 }, { 2544, 3148 }, { 2544, 3150 }, { 2545, 3150 }, { 2545, 3152 },
+            { 2544, 3152 }, { 2544, 3155 }, { 2535, 3155 }, { 2534, 3155 }, { 2534, 3156 },
+            { 2525, 3156 }, { 2519, 3156 }, { 2519, 3158 }, { 2515, 3158 }, { 2515, 3160 },
+        }
+        -- Inside the railing to Bolren's clearing (REACH closed-doors len 36).
+        local VILLAGE = {
+            { 2515, 3161 }, { 2515, 3162 }, { 2516, 3162 }, { 2516, 3164 }, { 2517, 3164 },
+            { 2517, 3171 }, { 2526, 3171 }, { 2535, 3171 },
+        }
+        local function railing_in(name)
+            t.exec(name, t.player.cross_trap, { loc = "treegnomelooserailing", op_name = "Squeeze-through",
+                at = { 2515, 3161, 0 }, src = { 2515, 3160 }, dest = { 2515, 3161 }, attempts = 2 })
+        end
+        local function village_walk(name)
+            t.exec(name, t.player.walk_route, VILLAGE)
+        end
+        -- The maze entrance, outside, beside Elkoy: an overland hop between
+        -- open tiles of one walking component.
+        local ENTRANCE = { 2504, 3190, 0 }
+
+        -- ================= talkToKingBolren (goThroughMaze) =================
+        t.player.teleport_cast("camelot_teleport", { 2757, 3478, 0 }, { name = "talkToKingBolren.camelotTeleport",
+            runes = { { "airrune", 5 }, { "lawrune", 1 } }, where = "Camelot" })
+        t.exec("goto-mazeEntrance", t.player.goto_tile, ENTRANCE[1], ENTRANCE[2], 0)
+        t.exec("goThroughMaze", t.player.walk_route, MAZE)
+        railing_in("goThroughMaze.railingIn")
+        village_walk("goThroughMaze.toBolren")
         t.exec("bolren.greet", t.player.talk_to, "king_bolren", 1)
         -- king_bolren.rs2 ^tree_not_started: TGV's own opener (seam23: the
         -- PoG hub now falls through for an unqualified player).
@@ -123,6 +180,10 @@ return {
             "npc:My assistant shall guide you out.",
         })
         t.exec("stage.started", t.var.await_server, "varp111_treequest", 1, 10)
+        -- @bolren_leavemaze_initial: p_telejump(entrance - 1 z) = 2504,3191.
+        maybe_page("bolren.leaveMaze.elkoy", "npc:We're out of the maze now.",
+            "Elkoy speaks only when npc_find finds him within 4 tiles, king_bolren.rs2:148")
+        tile_is("bolren.leaveMaze", { 2504, 3191, 0 }, 0, "Bolren's assistant guided the player out of the maze (king_bolren.rs2:147 p_telejump)")
 
         t.exec("goto-montai", t.player.goto_tile, 2523, 3207, 0)
         t.exec("montai.talk", t.player.talk_to, "commander_montai", 1)
@@ -177,7 +238,12 @@ return {
             "npc:The other two tracker gnomes",
             "player:OK, take care.",
         })
-        t.exec("goto-tracker2", t.player.goto_tile, 2524, 3255, 0)
+        -- secondTracker: "inside the jail". The jail is an 8-tile room
+        -- (2522-2526 x 3255-3256) behind poordoor 2524,3254 (its wall on the
+        -- tile's north edge): opened going in, walked out through it.
+        t.exec("goto-tracker2", t.player.goto_tile, 2524, 3253, 0)
+        t.exec("secondTracker.jailDoorIn", t.player.pass_door, { closed = "poordoor", open = "poordooropen",
+            at = { 2524, 3254, 0 }, near = { 2524, 3253 }, far = { 2524, 3255 } })
         t.exec("tracker2.talk", t.player.talk_to, "tracker2", 1)
         t.exec("tracker2.y", t.chat.play, {
             "player:Are you OK?",
@@ -191,6 +257,8 @@ return {
             "player:Hang in there.",
             "npc:Go!",
         })
+        t.exec("secondTracker.jailDoorOut", t.player.pass_door, { closed = "poordoor", open = "poordooropen",
+            at = { 2524, 3254, 0 }, near = { 2524, 3255 }, far = { 2524, 3253 } })
         t.exec("goto-tracker3", t.player.goto_tile, 2497, 3233, 0)
         t.exec("tracker3.talk", t.player.talk_to, "tracker3", 1)
         t.exec("tracker3.riddle", t.chat.play, {
@@ -227,13 +295,12 @@ return {
         t.exec("ballista.hit", t.chat.play, { "mesbox:screams down directly" })
         t.exec("stage.ballista_fired", t.var.await_server, "varp111_treequest", 5, 10)
 
-        -- Stronghold: the crumbled wall is a GATE_WORDS loc the guide names
-        -- ("Enter the tower by the Crumbled wall and climb the ladder..." --
-        -- TreeGnomeVillage.java's cRetrieveOrb) -- climb it for real from
-        -- the south, the only side its own script accepts
-        -- (quest_tree_locs.rs2's [oploc1,khazzacklowwall]: "You can't get
-        -- over the wall from this side." when coordz(coord) > loc's).
-        t.exec("goto-wall", t.player.goto_tile, 2509, 3245, 0)
+        -- cRetrieveOrb: "Enter the tower by the Crumbled wall and climb the
+        -- ladder". quest_tree_locs.rs2's [oploc1,khazzacklowwall] accepts only
+        -- the south side ("You can't get over the wall from this side." when
+        -- coordz(coord) > loc's), forcewalks to 2509,3252, climbs 2 north and
+        -- p_teleports one more.
+        t.exec("goto-wall", t.player.goto_tile, 2509, 3251, 0)
         t.exec("wall.climb", t.player.click_loc, "khazzacklowwall", 1)
         t.exec("wall.mesbox", t.chat.play, { "mesbox:reduced to rubble" })
         t.ticks(3) -- the forced climb animation (forcewalk2 + agility_exactmove) runs before the landing teleport
@@ -241,21 +308,69 @@ return {
         t.check("wall.crossed", wall_tile_r == "ok" and wall_tile_v and wall_tile_v.z > 3253,
             "tile after the climb: " .. tostring(wall_tile_r) .. " " ..
             (wall_tile_v and (wall_tile_v.x .. "," .. wall_tile_v.z .. "," .. wall_tile_v.level) or "?"))
-
-        -- The ladder itself (TreeGnomeVillage.java's climbTheLadder,
-        -- WorldPoint(2503,3252,0)) has no quest-specific trigger anywhere
-        -- in quest_tree/ or area_gnome/ -- a bare TRAVEL_WORDS object, so
-        -- goto_tile onto its own tile at its level is legitimate travel
-        -- (QUEST_AUTHORING.md section 2), not a second cheat past it.
-        t.exec("goto-ladder", t.player.goto_tile, 2503, 3252, 1)
+        -- climbTheLadder (2503,3252,0): the plain `ladder` op1 is
+        -- ~climb_ladder(1) (zogre_finish.rs2:354, ladders.rs2:137) -- one plane
+        -- up on the tile the player stands on, so stand on 2503,3253 (inside,
+        -- REACH closed-doors len 10 from the wall landing).
+        t.exec("walk-climbTheLadder", t.player.walk_to, 2503, 3253)
+        t.exec("climbTheLadder", t.player.climb, { loc = "ladder", op = 1, op_name = "Climb-up",
+            at = { 2503, 3252, 0 }, src = { 2503, 3253 }, dest = { 2503, 3253, 1 }, slack = 1 })
         t.exec("chest.open", t.player.click_loc, "chestclosed_khazard", 1)
         t.ticks(2)
         t.exec("chest.search", t.player.click_loc, "chestopen_khazard", 1)
         t.exec("chest.orb_page", t.chat.play, { "mesbox:Inside you find the gnomes' stolen orb" })
         t.exec("orb.held", t.inv.await, "orb_of_protection", 1, 10)
         t.exec("stage.retrieved_orb", t.var.await_server, "varp111_treequest", 6, 10)
+        -- Out: the laddertop down, then the way out. CONTENT BUG: the
+        -- stronghold's front door does not let the player out.
+        -- quest_tree_locs.rs2:36-49 [oploc1,khazard_stronghold_door] (pressed
+        -- from inside, coordz > the door's) always runs the ENTERING half of
+        -- LostCity's ~open_and_close_door: p_teleport onto the door tile
+        -- 2502,3250 (outside), then p_teleport(movecoord(door, ~door_open(
+        -- north, wall_straight) = 0,+1)) = 2502,3251, back inside. LostCity
+        -- (quest_tree.rs2:32-36) passes ~check_axis(coord, loc_coord,
+        -- loc_angle), so from inside $entering is false and $dest stays on
+        -- the door tile, outside (open_and_close_doors.rs2:20-35). b67 run 1:
+        -- `click_loc -> timeout settle_after_click; landed 2502,3251,0`. The
+        -- crumbled wall refuses from the north (quest_tree_locs.rs2:57-59), so
+        -- no on-foot exit works: the player leaves the way a stuck player
+        -- does, a real Camelot Teleport. The door press stays as an attempt
+        -- (a note) so the run keeps the evidence; when the door is fixed this
+        -- becomes t.player.cross_gate{ loc = "khazard_stronghold_door",
+        -- at = {2502,3250,0}, near = {2502,3251}, far_ok = z <= 3250 }.
+        t.exec("retrieveOrb.ladderDown", t.player.climb, { loc = "laddertop", op = 1, op_name = "Climb-down",
+            at = { 2503, 3252, 1 }, src = { 2503, 3253 }, dest = { 2503, 3253, 0 }, slack = 1 })
+        do
+            local door_r, door_d = t.player.walk_to(2502, 3251)
+            local press_r, press_d = t.player.click_loc("khazard_stronghold_door", 1)
+            t.ticks(3)
+            local after_r, after_v = t.world.tile()
+            t.note("retrieveOrb.strongholdDoor (content bug, quest_tree_locs.rs2:36-49): walk_to 2502,3251 -> "
+                .. tostring(door_r) .. "; click_loc khazard_stronghold_door op1 -> " .. tostring(press_r) .. " "
+                .. tostring(press_d) .. "; tile after 3 ticks " .. tostring(after_r) .. " "
+                .. ((type(after_v) == "table" and after_v.x) and (after_v.x .. "," .. after_v.z .. "," .. after_v.level) or "?"))
+        end
+        t.player.teleport_cast("camelot_teleport", { 2757, 3478, 0 }, { name = "retrieveOrb.leaveStronghold.camelotTeleport",
+            runes = { { "airrune", 5 }, { "lawrune", 1 } }, where = "Camelot" })
 
-        t.exec("goto-bolren2", t.player.goto_tile, 2541, 3170, 0)
+        -- returnFirstOrb via elkoySkip: Elkoy outside the maze, "Yes please."
+        -- -> p_telejump(^elkoy_maze_coord) 2515,3159 (elkoy.rs2:89-106).
+        t.exec("goto-elkoySkip", t.player.goto_tile, ENTRANCE[1], ENTRANCE[2], 0)
+        t.exec("elkoySkip", t.player.talk_to, "elkoy", 1)
+        t.exec("elkoySkip.dialog", t.chat.play, {
+            "player:Hello Elkoy.",
+            "npc:You're back! And the orb?",
+            "player:I have it here.",
+            "npc:You're our saviour.",
+            "choose:Yes please.",
+            "player:Yes please.",
+            "npc:Ok then, follow me.",
+            "npc:Here we are. Take the orb to King Bolren",
+        })
+        tile_is("elkoySkip.landed", { 2515, 3159, 0 }, 0, "Elkoy's telejump to the maze's inner end (^elkoy_maze_coord 0_39_49_19_23)")
+        t.exec("walk-returnFirstOrb.railing", t.player.walk_to, 2515, 3160)
+        railing_in("returnFirstOrb.railingIn")
+        village_walk("returnFirstOrb.toBolren")
         t.exec("bolren.orb_talk", t.player.talk_to, "king_bolren", 1)
         t.exec("bolren.first_orb", t.chat.play, {
             "player:I have the orb.",
@@ -276,10 +391,15 @@ return {
             "npc:I will safeguard this orb",
         })
         t.exec("stage.returned_first_orb", t.var.await_server, "varp111_treequest", 7, 10)
-        t.chat.close()
+        t.exec("orb.handed_in", t.inv.expect_absent, "orb_of_protection")
+        -- @bolren_leavemaze_second: p_telejump to 2504,3191 again.
+        maybe_page("bolren.leaveMaze2.elkoy", "npc:Good luck friend.",
+            "Elkoy speaks only when npc_find finds him within 4 tiles, king_bolren.rs2:154")
+        tile_is("bolren.leaveMaze2", { 2504, 3191, 0 }, 0, "Bolren's assistant guided the player out again (king_bolren.rs2:153 p_telejump)")
 
-        -- The warlord: Talk-to arms the combat form, then a real fight.
-        t.exec("goto-warlord", t.player.goto_tile, 2459, 3302, 0)
+        -- The warlord, west of West Ardougne's wall (ardoungewall x 2459-2460):
+        -- an open tile beside him, REACH closed-doors from the maze entrance.
+        t.exec("goto-warlord", t.player.goto_tile, 2457, 3300, 0)
         t.exec("warlord.talk", t.player.talk_to, "khazard_warlord", 1)
         t.exec("warlord.dialog", t.chat.play, {
             "player:You there, stop!",
@@ -291,20 +411,36 @@ return {
         })
         -- Magic (Quest Helper's combatGear hint: "magic is best"), not
         -- melee -- fire_bolt (level 35, magic_combat_spells.dbrow) against
-        -- this npc's magic=1 (quest_tree.npc) lands almost every cast.
-        -- Cast directly in a loop (section 8's retry-loop rule: the outcome
-        -- row is what's graded, not one row per attempt -- a cast that
-        -- only closes the distance or whose hit didn't land is not a
-        -- verb failure), then let await_dead_engaged both re-cast on any
-        -- stall and give the corroborated kill.
-        t.exec("warlord.cast1", t.player.cast, "fire_bolt", "khazard_warlord_combat", 14)
-        local warlord_casts = 1
-        while warlord_casts < 40 and t.npc.nearest("khazard_warlord_combat", 20) == "ok" do
-            t.player.cast("fire_bolt", "khazard_warlord_combat", 14)
-            warlord_casts = warlord_casts + 1
+        -- this npc's magic=1 (quest_tree.npc:50, 170 hp) lands almost every
+        -- cast. The casts between the first and the kill wait are attempts
+        -- (a note), the kill and the margin are the graded outcome. Hitpoints
+        -- are sampled before every cast and a shark eaten under 60.
+        local fight = { low = nil, casts = 1 }
+        local function sample_hp()
+            local hr, hp = t.skill.read("hitpoints")
+            if hr == "ok" and type(hp) == "table" and hp.level then
+                if fight.low == nil or hp.level < fight.low then fight.low = hp.level end
+                if hp.level < 60 then t.player.inv_op("shark", 1) end
+            end
         end
-        t.check("warlord.cast_loop", true, "cast fire_bolt " .. warlord_casts .. " time(s) total")
-        t.exec("warlord.dead", t.npc.await_dead_engaged, 400, 6)
+        sample_hp()
+        t.exec("fightTheWarlord", t.player.cast, "fire_bolt", "khazard_warlord_combat", 14)
+        while fight.casts < 40 and t.npc.nearest("khazard_warlord_combat", 20) == "ok" do
+            sample_hp()
+            t.player.cast("fire_bolt", "khazard_warlord_combat", 14)
+            fight.casts = fight.casts + 1
+        end
+        t.note("fightTheWarlord: cast fire_bolt " .. fight.casts .. " time(s) before the kill wait")
+        local dead_r, dead_d = t.npc.await_dead_engaged(400, 6, { eat = { item = "shark", below = 60 } })
+        t.step("warlord.dead", dead_r == "ok" and "PASS" or "FAIL", tostring(dead_r) .. " " .. tostring(dead_d))
+        local wait_low = tonumber(string.match(tostring(dead_d), "lowest hp (%d+)/") or "")
+        if wait_low ~= nil and (fight.low == nil or wait_low < fight.low) then fight.low = wait_low end
+        sample_hp()
+        local food_r, food = t.inv.count("shark")
+        t.check("fightTheWarlord.margin", fight.low ~= nil and fight.low >= 25 and food_r == "ok" and (food or 0) >= 1,
+            "Khazard warlord (level 112, 170 hp): " .. fight.casts .. " fire bolt(s), lowest hp " .. tostring(fight.low)
+                .. "/99, sharks left " .. tostring(food) .. " of 6 staged (" .. tostring(food_r)
+                .. ") (margin: lowest hp >= 25, a quarter of 99, AND food left)")
         t.exec("warlord.satchel", t.chat.play, { "mesbox:You search his satchel and find the orbs of protection." })
         t.exec("stage.defeated_warlord", t.var.await_server, "varp111_treequest", 8, 10)
         t.exec("orbs.held", t.inv.await, "orbs_of_protection", 1, 10)
@@ -314,15 +450,31 @@ return {
         -- cutscene's own mesboxes) is what runs stat_advance(attack,
         -- 114500) -- so the reward snapshot has to be taken before THIS
         -- dialogue, not merely before quest.expect_complete() (measured
-        -- run 2: a snapshot taken after stage.complete/reward.amulet had
-        -- already passed read the POST-grant value both times and reported
-        -- delta=0 -- the grant runs in the same script pass that sets
-        -- %treequest=^tree_complete and adds the amulet, all three ahead of
-        -- where that snapshot sat).
+        -- run 2 of the seam23 author: a later snapshot read the POST-grant
+        -- value and reported delta=0).
         local snap_r, snap_v = t.skill.snapshot()
         t.check("reward.snapshot", snap_r == "ok", "skill.snapshot before the hand-in dialogue -> " .. tostring(snap_r))
+        local amulet_before_r, amulet_before = t.inv.count("gnome_amulet")
 
-        t.exec("goto-bolren3", t.player.goto_tile, 2541, 3170, 0)
+        -- returnOrbs via elkoySkip2: Elkoy's hero page offers the way in
+        -- again (elkoy.rs2:162-200, ^elkoy_maze_coord).
+        t.exec("goto-elkoySkip2", t.player.goto_tile, ENTRANCE[1], ENTRANCE[2], 0)
+        t.exec("elkoySkip2", t.player.talk_to, "elkoy", 1)
+        t.exec("elkoySkip2.dialog", t.chat.play, {
+            "player:Hello Elkoy.",
+            "npc:You truly are a hero.",
+            "player:Thanks.",
+            "npc:You saved us by returning the orbs",
+            "npc:Would you like me to show you the way",
+            "choose:Yes please.",
+            "player:Yes please.",
+            "npc:Ok then, follow me.",
+            "npc:Here we are. Feel free to look around.",
+        })
+        tile_is("elkoySkip2.landed", { 2515, 3159, 0 }, 0, "Elkoy's telejump to the maze's inner end (^elkoy_maze_coord 0_39_49_19_23)")
+        t.exec("walk-returnOrbs.railing", t.player.walk_to, 2515, 3160)
+        railing_in("returnOrbs.railingIn")
+        village_walk("returnOrbs.toBolren")
         t.exec("bolren.orbs_talk", t.player.talk_to, "king_bolren", 1)
         t.exec("bolren.orbs", t.chat.play, {
             "player:Bolren, I have returned.",
@@ -346,7 +498,13 @@ return {
             "npc:The tree has many other powers",
         })
         t.exec("stage.complete", t.var.await_server, "varp111_treequest", 9, 10)
+        t.exec("orbs.handed_in", t.inv.expect_absent, "orbs_of_protection")
         t.exec("reward.amulet", t.inv.await, "gnome_amulet", 1, 10)
+        local amulet_after_r, amulet_after = t.inv.count("gnome_amulet")
+        t.check("reward.amulet_delta", amulet_before_r == "ok" and amulet_after_r == "ok"
+            and amulet_before == 0 and amulet_after == 1,
+            "gnome_amulet " .. tostring(amulet_before) .. " -> " .. tostring(amulet_after)
+                .. " (literal reward: one Gnome amulet, king_bolren.rs2 [queue,tree_quest_complete])")
         t.ticks(3)
 
         t.quest.expect_complete()
