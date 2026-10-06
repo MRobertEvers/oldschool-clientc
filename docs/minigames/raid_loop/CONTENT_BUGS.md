@@ -1648,3 +1648,62 @@ with the margin; X xarpus.p3.screech_pct 22.5 for Entry, W:851 "~25%"). Not fixe
 says which (his Normal hit points at the screech, or the scythe's three hits on a 5x5 in phase 3);
 measure the screech hit points from the npc row against Blert's npc hitpoints (event 8 at the
 xarpusPhase 2 tick) before changing anything.
+## From seam46 nylocas_waves_and_vasilias_rows (matthew-mbp-m4-raid-b1-seam46, 2026-10-06)
+
+Settles the four seam40 Nylocas rows above against their sources. None is a content defect in
+minigame_tob: every number the rows suspected matches its source, and no content file changed.
+
+### Nylocas wave stall from wave 11 -- CLOSED, content matches the source (no change)
+
+The cap, what it counts and when it is tested are all sourced and our content has all three:
+- value: "Before wave 20, the cap is 12 nylocas; afterwards, the cap is doubled to 24."
+  (wiki_Theatre_of_Blood_Strategies_Nylocas.wikitext:3); blert `waveCap()` is
+  `currentWave < CAP_INCREASE_WAVE ? 12 : 24` (Hard 15) (blert_plugin/NylocasDataTracker.java:88-92).
+  No source scales it with the party. Ours: tob.constant `^tob_nylo_cap_early` 12, `_hard` 15, `_late` 24,
+  `^tob_nylo_cap_increase_wave` 20.
+- count: blert `roomNyloCount()` is `nylosInRoom.size()` (+3 for a Prinkipas), a nylo leaving the map only
+  on its DESPAWN (NylocasDataTracker.java:84-86, :215): splits and bigs count one each, a corpse counts until
+  it despawns. Ours: `~tob_nylo_count` (tob_nylocas.rs2), the same.
+- test: on the tick the wave is due, `roomNyloCount() >= waveCap()` is a stall (NylocasDataTracker.java:123);
+  ours `~tob_nylo_count >= ~tob_nylo_cap(...)` (tob_nylocas.rs2 `[proc,tob_nylo_wave_tick]`), retried every
+  4-tick cycle.
+Blert's "14 alive right after a spawn" is a room under 12 on the due tick plus the 2-4 the wave adds, so the
+same cap. Our stalls from w11 are the room holding 12 on the due tick because copies die slower (the grey
+row below and the plan's weapon switching), not a different rule. Spec rows nylocas.cap_pre20 / cap_post20 /
+cap_pre20_hard / cap_increase_gate already carry it (grade B/C).
+
+### Small greys 1.34-1.40 attacks per kill -- CLOSED as content; the zeros are NULLING (sourced) after a plan misclick
+
+- Stat block matches: wiki Nylocas Ischyros `def1 = 1`, `dstab..dheavy = 0`, `hitpoints1 = 11`, `scaledhp = Yes`
+  (wiki_Nylocas_Ischyros.wikitext:29-75); cache 8342 has no stat2 and no defence params
+  (cache_npc_nylocas.txt:1-20); tob.npc `[tob_nylocas_incoming_melee]` defence=1; trio hp 8 / 9 / 11
+  (tob.constant `^tob_nylo_small_hp_3/4/5`). Big: wiki def2 20, cache stat2=20, tob.npc 20.
+- A pillar-chewer is hittable: nothing in tob_nylocas.rs2 or tob_damage.rs2 blocks a hit on a copy that is
+  biting a support.
+- The four zeros in ny40j are NULLING. build/quest_gate/ny40j/ticklog.tsv: raider 2 `tgt 1096` holding 12926
+  (toxic blowpipe), player_anim 5061 at t154 -> `hit_npc 1096 8342 0 26` at t157 (ranged on an Ischyros); from
+  t157 raider 2 holds 4151 (whip), anims 1658 at t170/174/178/182 -> `hit_npc 1096 8342 0 26` at
+  t171/175/179/183. The rule is the wiki's: "Each spider is immune to damage outside of their combat style ...
+  If the nylocas is attacked with a wrong style, the player that attacked them can no longer damage them."
+  (wiki_Theatre_of_Blood_Strategies.wikitext:724), implemented in tob_damage.rs2 `~tob_nylo_nulled_here`.
+  OPEN, DRIVER (not content): the trio plan fires its previous weapon at a newly chosen target before the
+  colour's weapon is equipped, which nulls that copy for the seat for life. The plan must equip the colour's
+  weapon BEFORE the attack click on a new target (raid driver / _play_nylocas, not minigame_tob).
+
+### Vasilias 12.5 hp per tick vs Blert 20.3 -- CLOSED as content (stats match); per-swing gap OPEN (player side)
+
+- wiki Nylocas Vasilias `def = 50`, `dstab..dheavy = 0`, `hitpoints2 = 2500`, `scaledhp = Yes`
+  (wiki_Nylocas_Vasilias.wikitext:31-68); cache 8355 stat2=50, stab/slash/crush/magicdefence 0
+  (cache_npc_nylocas.txt:306-336); tob.npc `[nylocas_boss_melee/_magic/_ranged]` defence=50; tob.constant
+  `^tob_vasilias_hp_3/4/5` 1875 / 2187 / 2500. Nothing to change.
+- ny40j: 175 hits on her, 34 at 0 (19%), spread evenly over the 10-tick window (dt0 3/13, dt3 8/40, dt9 6/19),
+  so wrong-style reflects at the turn are not the gap. With def 50 and no bonuses a 118-attack scythe should
+  almost never miss: the gap is on the player side (boosts -- see the heart row -- prayer, the scythe's three
+  hits on a size-4, or accuracy), not in her content. OPEN with that evidence; no source settles it here.
+
+### Mage level 112 in Blert -- the heart EXISTS in content (correction of the seam40 row)
+
+skill_slayer/scripts/imbued_heart.rs2: `[opheld1,imbued_heart]` -> `stat_boost(magic, 1, 10)` (99 -> 109) and
+`[opheld1,saturated_heart]` -> `stat_boost(magic, 4, 10)` (99 -> 112). Blert's 112 is the SATURATED heart
+exactly. OPEN, DRIVER (plan): give the mage seat a saturated heart and invigorate at the door instead of the
+magic potion (103). Not a content row.
