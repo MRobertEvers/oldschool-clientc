@@ -3923,9 +3923,140 @@ class Grader:
     # npc/loc. False is the reading before seam matthew-mbp-m4-b66-seam1,
     # kept for the fixtures.
     USE_ON_OWN_TARGET = True
+    # A use_on of the step's item on ANOTHER loc credits a "use X on <loc>"
+    # step when that loc is what this cache uses in the guide's loc's place
+    # (use_stand_in): Quest Helper names a later cache's loc, and rev 239
+    # puts the use trigger on a multiloc, or on another loc, at the same
+    # spot. Icthlarin's useSymbolOnSarcopagus names
+    # deserttreasure_sarcophigi_wall (3312,9197: no name, no ops), and the
+    # map places multiloc ics_sarcophigi_door_2 on those tiles, whose state
+    # ics_sarcophigi_door_2_op takes the symbol ([oplocu]
+    # icthlarin_ceremony.rs2:90). Shilo Village's useKeyOnDoor names the
+    # right leaf hillsidedoorr_multi; the key goes on the left leaf's
+    # closed state, the same @zq_tombdoor_outer_use
+    # (quest_zombiequeen.rs2:175-176). Plague City's useRopeOnGrill names
+    # plague_grill (no use trigger anywhere); the rope is tied to
+    # plaguesewerpipe_open two tiles south (sewerpipe.rs2:53). The use's
+    # row must still show its effect (USE_NEEDS_EFFECT). False is the
+    # reading before seam matthew-mbp-m4-b69 (each test declared a
+    # GUIDE-GAP), kept for helper_coverage_use_stand_in_test.py.
+    USE_ON_STAND_IN = True
+    USE_TRIGGERS = ("oplocu", "aplocu")
+    PRESSED_COPY = re.compile(r"\bpressed the copy at (\d{4}),(\d{4,5}),([0-3])\b")
     NOT_AN_EFFECT = re.compile(r"Nothing interesting happens\.?", re.I)
     NO_USE_EFFECT = ("no item left the pack, no var, page, interface, server line or landing on it or on a "
                      "row named after it")
+
+    @classmethod
+    def use_handlers(cls, names):
+        """{handler: (relpath, line, trigger kind, subject)} of every [oplocu]/[aplocu]
+        trigger on a loc in `names` or its category: the handler is what the
+        header line jumps to (`@zq_tombdoor_outer_use`), else the trigger
+        itself (a body of its own is a handler no other loc shares)."""
+        triggers, categories, _ = content_index()
+        out = {}
+        for name in sorted(names):
+            subjects = [name] + (["_" + categories[name]] if categories.get(name) else [])
+            for subject in subjects:
+                for rel, number, kind in triggers.get(subject, ()):
+                    if kind not in cls.USE_TRIGGERS:
+                        continue
+                    with open(os.path.join(CONTENT_ROOT, rel), "r", encoding="utf-8", errors="replace") as handle:
+                        header = handle.read().split("\n")[number - 1]
+                    jump = re.sub(r"^\[[^\]]*\]", "", header).split("//")[0].strip().rstrip(";").strip()
+                    out.setdefault(jump or "%s:%d" % (rel, number), (rel, number, kind, subject))
+        return out
+
+    @staticmethod
+    def loc_names(symbol, up=True):
+        """`symbol`, its multiloc states, and (`up`) the multiloc parents that
+        show it with their states: every config a copy of it may be placed as."""
+        names = {symbol} | set(loc_states(symbol))
+        if up:
+            for parent in family(symbol):
+                names.add(parent)
+                names.update(loc_states(parent))
+        return names
+
+    def _copies_near(self, names, point, slack):
+        """[(origin, symbol)] of the placed copies of any of `names` with a
+        tile (its footprint) within `slack` of `point` on its level, the
+        nearest origin first."""
+        walls = map_walls()
+        px, pz = point[0], point[1]
+        level = point[2] if len(point) > 2 else 0
+        walls._ready(px, pz)
+        out = []
+        for dx in range(-slack, slack + 1):
+            for dz in range(-slack, slack + 1):
+                for name, origin in walls.locs_at.get((px + dx, pz + dz, level), ()):
+                    if name in names and (origin, name) not in out:
+                        out.append((origin, name))
+        # nearest the point first (by origin), so a reason names the copy on it
+        out.sort(key=lambda found: (max(abs(found[0][0] - px), abs(found[0][1] - pz)), found[0], found[1]))
+        return out
+
+    def use_stand_in(self, step, texts):
+        """(loc symbol, why) when a use_on that names loc `texts` instead of
+        the step's own loc works the guide's loc's spot in this cache
+        (USE_ON_STAND_IN), else None. All of: the step is a loc step with a
+        WorldPoint; a copy of the guide's loc (or a multiloc state of it)
+        and a copy of the used loc (or the multiloc that shows it) both lie
+        within POINT_SLACK tiles of that point; the used loc takes a use
+        ([oplocu]/[aplocu] on it or its states); and the guide's loc takes
+        none, or only the very handler the used one jumps to (a double
+        door's other leaf). The caller still holds the call to the step's
+        item and to a row showing the use's effect."""
+        if not self.USE_ON_STAND_IN or not step.point:
+            return None
+        guide_locs = [symbol for kind, symbol in step.targets if kind == "loc" and resolves("loc", symbol)]
+        if not guide_locs or len(guide_locs) != len(step.targets):
+            return None
+        guide_names = set()
+        for symbol in guide_locs:
+            guide_names |= self.loc_names(symbol)
+        guide_here = self._copies_near(guide_names, step.point, self.POINT_SLACK)
+        if not guide_here:
+            return None
+        guide_handlers = self.use_handlers(guide_names)
+        point = "%d,%d,%d" % (step.point[0], step.point[1], step.point[2] if len(step.point) > 2 else 0)
+        for text in sorted(texts):
+            if not resolves("loc", text) or text in guide_names:
+                continue
+            handlers = self.use_handlers(self.loc_names(text, up=False))
+            if not handlers:
+                continue
+            here = self._copies_near(self.loc_names(text), step.point, self.POINT_SLACK)
+            if not here:
+                continue
+            shared = sorted(set(handlers) & set(guide_handlers))
+            if guide_handlers and not shared:
+                continue
+            handler = shared[0] if shared else sorted(handlers)[0]
+            rel, number, kind, subject = handlers[handler]
+            (ox, oz, ol), placed = here[0]
+            guide_origin, guide_placed = guide_here[0]
+            return text, "%s stands in for the guide's %s: %s placed at %d,%d,%d beside %s at %d,%d,%d (within " \
+                "%d tiles of the guide's %s), and the use is [%s,%s] %s:%d%s" % (
+                    text, "/".join(guide_locs), placed, ox, oz, ol, guide_placed, guide_origin[0], guide_origin[1],
+                    guide_origin[2], self.POINT_SLACK, point, kind, subject, os.path.basename(rel), number,
+                    (", the same %s as the guide's loc" % handler) if shared else
+                    "; the guide's loc takes no use of its own")
+        return None
+
+    def stand_in_off_copy(self, step, passed):
+        """Why a stand-in use's rows say it worked a copy away from the
+        guide's WorldPoint (`pressed the copy at x,z,l` farther than
+        POINT_SLACK), or None."""
+        for row in passed:
+            for x, z, level in self.PRESSED_COPY.findall(row.get("detail") or ""):
+                x, z, level = int(x), int(z), int(level)
+                plevel = step.point[2] if len(step.point) > 2 else level
+                if level != plevel or max(abs(x - step.point[0]), abs(z - step.point[1])) > self.POINT_SLACK:
+                    return "ledger row %s %r pressed the copy at %d,%d,%d, not one within %d tiles of the " \
+                        "guide's %d,%d" % (row["index"], row["step"], x, z, level, self.POINT_SLACK,
+                                          step.point[0], step.point[1])
+        return None
 
     def _answer_row(self, line):
         """The row a bare `local r, d = ...use_on(...)` on `line` writes
@@ -4024,6 +4155,10 @@ class Grader:
             named_row = bool(row_name) and any(self.row_names_step(row_name, name) for name in names)
             on_target = any(same_thing(kind, symbol, text) or shown_by(kind, symbol, text)
                             for text in call["target"] for kind, symbol in step.targets)
+            # ...or the loc this cache uses in the guide's loc's place
+            # (USE_ON_STAND_IN): judged below like the step's own loc
+            stand_in = None if on_target else self.use_stand_in(step, call["target"])
+            on_target = on_target or bool(stand_in)
             # A use credits the step only on the step's own npc or loc: a
             # row named after the step stands in for the target only when
             # the call names no npc/loc this cache has (an unbound variable).
@@ -4075,6 +4210,13 @@ class Grader:
             if why:
                 refused.append(why)
                 continue
+            if stand_in:
+                off = self.stand_in_off_copy(step, passed)
+                if off:
+                    refused.append(off)
+                    seen.append("%s: %s" % (where, off))
+                    continue
+                where = "%s (%s)" % (where, stand_in[1])
             effect = self._use_effect(passed, row_name) if self.USE_NEEDS_EFFECT else "(effect not read)"
             if not effect:
                 refused.append("line %d's row %r PASSed and shows no effect: %s" % (
@@ -4101,6 +4243,46 @@ class Grader:
             wants, targets, "; ".join(seen[:3]) if seen else "no use_on of it names the target")
         return None
 
+    # A step's own row first (own_row): a row named exactly after the step
+    # whose press is not the wrong op credits it before any other, and a
+    # row named exactly after ANOTHER guide step is that step's, never this
+    # one's by row_names_step's short-prefix rule. Tribal Totem's
+    # talkToKangaiMauAgain was credited to row 16 `talkToKangaiMau` (the
+    # first talk: 15 of the step name's 20 letters) ahead of its own row 131
+    # `talkToKangaiMauAgain` (b69). When no own row holds, the rows are
+    # tried in ledger order as before. False is the reading before it.
+    OWN_ROW_FIRST = True
+
+    def _row_conflict(self, step, row):
+        """The op_conflict of `row`'s press on the step's target, or None."""
+        line = self.row_line(row["step"])
+        conflict = None
+        if line is not None:
+            for kind, symbol in step.targets:
+                named = next((named for number, named in self.test.action_lines if number == line), ())
+                for text in named:
+                    if same_thing(kind, symbol, text) or shown_by(kind, symbol, text):
+                        conflict = conflict or self.op_conflict(step, line, kind, symbol, text)
+        return conflict
+
+    def own_row(self, step, names):
+        """The first action row named exactly after `step` (one of `names`,
+        normalised) whose press is not the wrong op, or None (OWN_ROW_FIRST)."""
+        if not self.OWN_ROW_FIRST:
+            return None
+        own = {norm(name) for name in names}
+        return next((row for row in self.action_rows
+                     if norm(row["step"]) in own and not self._row_conflict(step, row)), None)
+
+    def another_steps_row(self, step, names, row):
+        """Is `row` named exactly after another guide step (OWN_ROW_FIRST)?"""
+        if not self.OWN_ROW_FIRST:
+            return False
+        name = norm(row["step"])
+        if name in {norm(own) for own in names}:
+            return False
+        return any(norm(other) == name for other in list(self.guide.steps) + list(self.guide.step_alias))
+
     def driven(self, step):
         self.refusals.pop(step.name, None)
         self.item_refusals.pop(step.name, None)
@@ -4113,19 +4295,16 @@ class Grader:
         # (`pwMsHynnTerprett` for msHynnDialogQuiz).
         names = [step.name] + [alias for alias, target in self.guide.step_alias.items()
                                if self.guide.resolve(alias) == step.name]
+        own = self.own_row(step, names)
+        if own is not None:
+            return "ledger row %s %r PASS" % (own["index"], own["step"])
         for row in self.action_rows:
-            if any(self.row_names_step(row["step"], name) for name in names):
+            if any(self.row_names_step(row["step"], name) for name in names) and \
+                    not self.another_steps_row(step, names, row):
                 if any(row["step"].startswith(bad) and row["step"][len(bad):][:1] in ("-", ".", ":", "/", "_", " ")
                        for bad in conflicted):
                     continue  # `x-dialog` of a press that was the wrong op
-                line = self.row_line(row["step"])
-                conflict = None
-                if line is not None:
-                    for kind, symbol in step.targets:
-                        named = next((named for number, named in self.test.action_lines if number == line), ())
-                        for text in named:
-                            if same_thing(kind, symbol, text) or shown_by(kind, symbol, text):
-                                conflict = conflict or self.op_conflict(step, line, kind, symbol, text)
+                conflict = self._row_conflict(step, row)
                 if conflict:
                     conflicted.append(row["step"])
                     self.refusals.setdefault(step.name, []).append(
