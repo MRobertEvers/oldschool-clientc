@@ -67,16 +67,23 @@ QD.RAID_PLAY_WEAPONS = {
 -- with fish eats the fish first as before; a raider whose fish are gone
 -- after the supply chest eats them (the relay's Xarpus died at 14 hp with
 -- ten bandages in the pack because this table did not know them).
+-- (owner_tob_normal, the relay: the Normal supply chest sells manta ray,
+-- sea turtle and shark, and the plain Saradomin brew and super restore --
+-- enum_1952 / tob_chest.rs2; heals general/configs/food.dbrow)
 QD.RAID_PLAY_FOOD = {
     { item = "anglerfish", heal = 22 },
+    { item = "mantaray", heal = 22 },
+    { item = "seaturtle", heal = 21 },
     { item = "shark", heal = 20 },
     { item = "tob_bandages", heal = 20 },
 }
 QD.RAID_PLAY_BREWS = { "br_1dosepotionofsaradomin", "br_2dosepotionofsaradomin",
-    "br_3dosepotionofsaradomin", "br_4dosepotionofsaradomin" }
+    "br_3dosepotionofsaradomin", "br_4dosepotionofsaradomin",
+    "1dosepotionofsaradomin", "2dosepotionofsaradomin", "3dosepotionofsaradomin", "4dosepotionofsaradomin" }
 QD.RAID_PLAY_BREW_HEAL = 16
 -- Super restore: 8 + 25% of the Prayer level = 32 at 99 (wiki Super restore).
-QD.RAID_PLAY_RESTORES = { "br_1dose2restore", "br_2dose2restore", "br_3dose2restore", "br_4dose2restore" }
+QD.RAID_PLAY_RESTORES = { "br_1dose2restore", "br_2dose2restore", "br_3dose2restore", "br_4dose2restore",
+    "1dose2restore", "2dose2restore", "3dose2restore", "4dose2restore" }
 QD.RAID_PLAY_RESTORE_AMOUNT = 32
 -- Food "adds a 3 tick penalty to when a player may eat again"; a potion
 -- "delay[s] your next potion consumption by 3 ticks" (consume_shared.rs2:31-48).
