@@ -178,8 +178,8 @@ return {
         -- Head phase: twisted bow (ranged weakness on head).
                 "::give twisted_bow",
         "::give dragon_arrow 2000",
-        "::give shark 16",
-        "::give br_4dose2restore 6",
+        "::give shark 12",
+        "::give br_4dose2restore 4",
         "::give br_4dosepotionofsaradomin 3",
         "::give 4dose2combat 1",
     },
@@ -274,20 +274,22 @@ return {
             t.player.equip("br_tormented_bracelet")
         end
 
-        -- Sphere pending varp (+1) → overhead before impact. Chat line is the
-        -- secondary tell (RuneLite / Synq); cover both so a missed varp read
-        -- still flicks in time for ^cox_olm_sphere_delay.
+        -- Sphere pending varp (+1) → overhead before impact. Chat is a one-shot
+        -- fallback only while pending is unread; never re-flick off a stale
+        -- mes line after impact (that blocked style prayer for 6 ticks).
         local function sphere_kind_from_chat()
-            local mr, lines = t.msg.last(6)
+            local mr, lines = t.msg.last(4)
             if mr ~= "ok" or type(lines) ~= "table" then return nil end
             for i = 1, #lines do
                 local text = lines[i].text or ""
-                if string.find(text, "sphere of aggression", 1, true) then
-                    return 0
+                if string.find(text, "prayers have been sapped", 1, true) then
+                    -- skip sapped follow-up
+                elseif string.find(text, "sphere of aggression", 1, true) then
+                    return 0, text
                 elseif string.find(text, "sphere of accuracy", 1, true) then
-                    return 1
+                    return 1, text
                 elseif string.find(text, "sphere of magical power", 1, true) then
-                    return 2
+                    return 2, text
                 end
             end
             return nil
@@ -298,8 +300,22 @@ return {
             local kind = nil
             if pending > 0 then
                 kind = pending - 1
-            else
-                kind = sphere_kind_from_chat()
+                sm._sphere_flight = true
+            elseif sm._sphere_flight then
+                -- Impact cleared the varp: drop sphere override immediately.
+                sm._sphere_flight = false
+                sm._sphere_pray = nil
+                sm._sphere_ticks = 0
+                sm.last_pray = nil
+                sm._sphere_chat = nil
+                return
+            elseif sm._sphere_chat == nil then
+                local chat_kind, chat_text = sphere_kind_from_chat()
+                if chat_kind ~= nil then
+                    kind = chat_kind
+                    sm._sphere_chat = chat_text
+                    sm._sphere_flight = true
+                end
             end
             if kind == nil then return end
             local pray = "protectfrommagic"
@@ -309,7 +325,7 @@ return {
             if sm._sphere_pray ~= pray then
                 t.prayer.set(pray, true)
                 sm._sphere_pray = pray
-                sm._sphere_ticks = 6
+                sm._sphere_ticks = 8
                 sm.last_pray = pray
                 sm.pray_flicks = sm.pray_flicks + 1
             end
@@ -375,15 +391,18 @@ return {
         local function decide()
             on_event()
             sphere_flick()
-            -- After a sphere lands, restore style prayer.
-            if sm._sphere_pray ~= nil then
-                sm._sphere_ticks = (sm._sphere_ticks or 5) - 1
+            -- While a sphere is in flight, keep the sphere overhead. As soon as
+            -- pending clears (or the tick budget expires), restore style+offence.
+            if sm._sphere_flight and sm._sphere_pray ~= nil then
+                sm._sphere_ticks = (sm._sphere_ticks or 8) - 1
                 if sm._sphere_ticks <= 0 then
+                    sm._sphere_flight = false
                     sm._sphere_pray = nil
-                    sm.last_pray = nil -- force prayer_flick to re-apply style
+                    sm.last_pray = nil
+                    sm._sphere_chat = nil
                 end
             end
-            if sm._sphere_pray == nil then
+            if not sm._sphere_flight then
                 prayer_flick()
             end
             -- Always sustain under fire; KILL_MAGE also calls sustain at the
@@ -438,6 +457,14 @@ return {
                 local mrow = npc_ok(t, mage)
                 if mrow == nil then
                     sm.mage_kills = sm.mage_kills + 1
+                    -- Stabilize before the melee claw: pray + food first so a
+                    -- late sphere/lightning during the gear swap cannot 50% us
+                    -- on 80 HP with no overhead (prior death at tick 191).
+                    sm.last_pray = nil
+                    sm._sphere_flight = false
+                    sm._sphere_pray = nil
+                    prayer_flick()
+                    sustain(t, sm)
                     equip_melee()
                     t.prayer.set("piety", true)
                     t.player.inv_op("4dose2combat", 1)
@@ -472,6 +499,7 @@ return {
                 -- Synq lazy setup [2:49:50]: after basic1 → empty → basic2, turn head
                 -- to skip the special, then delay attack one tick after the turn.
                 refresh_geometry()
+                sustain(t, sm)
                 local melee = sm.tiles.hand
                 if not hand_alive(melee) then
                     sm.melee_kills = sm.melee_kills + 1
@@ -481,13 +509,15 @@ return {
                 sm.setup_waits = sm.setup_waits + 1
                 local empty = sm.tiles.empty_east
                 local mrow = npc_ok(t, melee)
+                local thumb = sm.tiles.thumb
                 if sm.setup_waits < 8 then
                     if mrow ~= nil then
                         t.player.attack(melee, 2, 4, { quick = true, slot = mrow.slot })
                     end
-                    t.player.walk_to(sm.tiles.thumb.x, sm.tiles.thumb.z, 4)
+                    -- Step on odd ticks so crystal/acid cannot pin the thumb.
+                    t.player.walk_to(thumb.x + (sm.setup_waits % 2), thumb.z, 2)
                 elseif sm.setup_waits < 16 then
-                    t.player.walk_to(empty.x, empty.z, 4)
+                    t.player.walk_to(empty.x + (sm.setup_waits % 2), empty.z, 2)
                 else
                     set_state(STATE.CYCLE_TANK)
                     return
