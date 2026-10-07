@@ -704,31 +704,15 @@ return {
                 elseif style == "range" then want_sym = "raids_lasercrabs_crab_green"
                 elseif style == "melee" then want_sym = "raids_lasercrabs_crab_red"
                 end
-                -- Cheap wait: var reads + ticks only. npc.pack every tick was
-                -- blowing the 400k/resume budget after crystal 2 seated (run24).
-                t.player.walk_to(sx + 1, sz + 1, 20)
-                t.ticks(2)
+                -- Cheap wait: only var reads + ticks. No pack/paint on entry
+                -- (run25 died in t.settle right after a fresh coloured seat).
+                t.player.walk_to(sx + 2, sz, 20)
                 local wait = 0
-                while wait < 36 do
+                while wait < 30 do
+                    t.ticks(5)
+                    wait = wait + 5
                     if (var_num(t, info.flag) or 0) == 1 then break end
                     if (var_num(t, "varp7044_cox_crab_big_stage") or 0) >= 4 then break end
-                    if wait > 0 and wait % 12 == 0 then
-                        sustain(t)
-                        if want_sym ~= nil then
-                            local seated = crab_at(t, wx, wz, 0)
-                            if seated ~= nil and seated.symbol ~= want_sym then
-                                t.player.walk_to(wx - 1, wz, 8)
-                                if style ~= "melee" then
-                                    paint_style(t, style, seated)
-                                else
-                                    smash(t, seated)
-                                end
-                                t.player.walk_to(sx + 1, sz + 1, 8)
-                            end
-                        end
-                    end
-                    t.ticks(3)
-                    wait = wait + 3
                 end
                 if (var_num(t, info.flag) or 0) == 1 then
                     sm.crystal_i = sm.crystal_i + 1
