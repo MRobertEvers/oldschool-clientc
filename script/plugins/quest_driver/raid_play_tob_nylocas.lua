@@ -416,6 +416,7 @@ QD.raid._play_plan("tob_nylocas", {
 --  carries state=<state>/<wave>/<idx> (::tlnote).
 -- =====================================================================
 local NY_STATES
+local NY_IN_REACH, NY_OWN_IN_REACH
 
 -- copies and their keys ("S-magic", "W-ranged-big", "split-melee")
 function QD.raid._nym_key(n)
@@ -690,6 +691,7 @@ local function nym_own_in_reach(c)
     return best
 end
 local function nym_tile(c, t) return c.O.x + c.P.stand_anchor[1] + t[1], c.O.z + c.P.stand_anchor[2] + t[2] end
+NY_IN_REACH, NY_OWN_IN_REACH = nym_in_reach, nym_own_in_reach
 -- AT_STAND
 local function at_stand_tick(c)
     -- before wave 1 only: to the first wave's tile
@@ -869,6 +871,22 @@ function QD.raid._play_nylocas_machine(c)
     end
     ny.last_hp = v.hp
     local pick = NY_STATES[m.state].tick(c)
+    -- A SEAT NEVER IDLES: a state whose own action has no copy this tick does
+    -- the KILL action for the tick and stays where it is -- the wave's listed
+    -- copy if in reach, else the nearest copy of its colour in reach (the
+    -- traced svd meleer: 12 swings in 53 ticks of PILLAR_DEFENCE, standing for
+    -- chewers to come within reach; 105 idle ticks a room)
+    if pick == nil and m.state ~= "BOSS" and m.state ~= "AT_STAND" then
+        local list = P.waves[math.max(1, math.min(m.wave, 31))][c.R.name].targets
+        local n = (m.idx <= #list) and QD.raid._nym_find(c, list[m.idx]) or nil
+        if n ~= nil and not NY_IN_REACH(c, n) then n = nil end
+        if n == nil then n = NY_OWN_IN_REACH(c) end
+        if n ~= nil then
+            pick = QD.raid._nym_pick(c, n)
+            c.walk = nil
+            ny.fill_ins = (ny.fill_ins or 0) + 1
+        end
+    end
     QD.raid._nym_note(c)
     ny.state_ticks = ny.state_ticks or {}
     ny.state_ticks[m.state] = (ny.state_ticks[m.state] or 0) + 1
