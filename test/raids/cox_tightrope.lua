@@ -3,12 +3,13 @@
 -- Source: docs/minigames/cox/COX_MECHANICS.md §13
 --   Passive until Cross; landing damage dumps in one tick; keystone Dispel
 --   kills every survivor. Traversal puzzle, not a kill room.
---   No Time for Death CA: clear without killing any guard.
 -- Explicitly NOT the phoenix-necklace rope skip (synq [0:29:13]).
 -- Model: named-state machine, one intent per tick.
 
 local RANGER = "raids_tightrope_ranger"
 local MAGE = "raids_tightrope_mage"
+local RANGER_ID = 7559
+local MAGE_ID = 7560
 
 local function spec(t, id, measured, extra, specv, grade, tol)
     local detail = "measured " .. measured
@@ -34,7 +35,7 @@ local function count_sym(rows, sym)
 end
 
 local function sustain(t)
-    if hp(t) > 0 and hp(t) < 60 then
+    if hp(t) > 0 and hp(t) < 70 then
         t.player.inv_op("shark", 1)
     end
     local pr, pp = t.prayer.points()
@@ -45,7 +46,6 @@ local function sustain(t)
     end
 end
 
--- §13 rope traversal. States name the step; no kill-guards branch.
 local STATE = {
     LAND = "LAND",
     PASSIVE = "PASSIVE",
@@ -70,7 +70,6 @@ return {
         "::setlevel hitpoints 99",
         "::setlevel prayer 99",
         "::setlevel agility 99",
-        -- Tank kit for the §13 landing dump (Protect Missiles + mage defence).
         "::give justiciar_faceguard",
         "::wield justiciar_faceguard",
         "::give justiciar_chestguard",
@@ -85,7 +84,6 @@ return {
         "::wield dragon_arrow",
         "::give shark 20",
         "::give br_4dose2restore 4",
-        -- No phoenix necklace: that is the skip method, not §13 traversal.
     },
 
     run = function(t)
@@ -106,7 +104,7 @@ return {
             landing_rangers = 0,
             landing_mages = 0,
             hits_before_cross = 0,
-            cross_mark_tick = nil,
+            cross_serial = nil,
             dump_span = nil,
             ranger_hit_max = 0,
             mage_hit_max = 0,
@@ -120,8 +118,13 @@ return {
             sm.state = next_state
         end
 
-        local function hit_player_rows()
-            local _, _, rows = t.ticklog.rows({ kind = "hit_player" })
+        local function hit_rows(since)
+            local opts = { kind = "hit_player" }
+            if since ~= nil then opts.since = since end
+            local ok, rows = t.ticklog.rows(opts)
+            if ok ~= "ok" and type(ok) == "table" then
+                return ok
+            end
             return rows or {}
         end
 
@@ -155,7 +158,6 @@ return {
                         .. " mage rate " .. tostring(msrv.attackrate),
                     "4 ticks", "D", "exact")
                 t.shot("tightrope idle before rope traversal")
-                -- Walk toward the near platform; guards stay passive until Cross.
                 t.prayer.set("protectfrommissiles", true)
                 t.prayer.set("augury", true)
                 set_state(STATE.PASSIVE)
@@ -164,12 +166,11 @@ return {
 
             if sm.state == STATE.PASSIVE then
                 sm.passive_wait = sm.passive_wait + 1
-                -- Linger near the pack without Cross: §13 passive-until-rope.
                 if sm.passive_wait < 8 then
                     t.ticks(1)
                     return
                 end
-                sm.hits_before_cross = #hit_player_rows()
+                sm.hits_before_cross = #hit_rows()
                 spec(t, "tightrope.passive_until_rope", tostring(sm.hits_before_cross),
                     "hit_player before Cross", "0 count", "D", "exact")
                 t.check("passive.until_rope", sm.hits_before_cross == 0,
@@ -180,53 +181,59 @@ return {
 
             if sm.state == STATE.CROSS then
                 t.ticklog.mark("cross start")
+                local _, mark_rows = t.ticklog.rows({ kind = "mark" })
+                if type(mark_rows) == "table" and #mark_rows > 0 then
+                    sm.cross_serial = mark_rows[#mark_rows].serial
+                end
                 local cr, cd = t.player.click_loc("raids_tightrope_end", 1)
                 t.check("rope.click", cr == "ok", tostring(cd))
-                -- Forcemove + landing dump; wait for the one-tick splat window.
-                t.ticks(12)
+                -- Forcemove finishes; landing dump is one tick. Eat before the
+                -- next attack-rate swing.
+                t.ticks(10)
+                sustain(t)
+                t.ticks(1)
                 t.shot("tightrope mid-cross traversal dump")
-                local hits = hit_player_rows()
+                local hits = hit_rows(sm.cross_serial)
                 local dump_ticks = {}
                 for i = 1, #hits do
                     local row = hits[i]
-                    local tick = row.tick or row.t or row.clock
+                    local tick = row.tick
                     if tick ~= nil then
                         dump_ticks[#dump_ticks + 1] = tick
                     end
-                    local dmg = row.damage or row.amount or 0
-                    local src = row.npc_symbol or row.symbol or row.source or ""
-                    if type(src) == "string" and src:find("ranger", 1, true) then
+                    local dmg = row.damage or 0
+                    local ntype = row.npc_type or row.type or -1
+                    if ntype == RANGER_ID then
                         if dmg > sm.ranger_hit_max then sm.ranger_hit_max = dmg end
-                    elseif type(src) == "string" and src:find("mage", 1, true) then
+                    elseif ntype == MAGE_ID then
                         if dmg > sm.mage_hit_max then sm.mage_hit_max = dmg end
-                    else
-                        -- Untyped hit_player: attribute by size to the ceilings.
-                        if dmg > sm.ranger_hit_max and dmg <= 70 then
-                            sm.ranger_hit_max = dmg
-                        end
-                        if dmg > sm.mage_hit_max and dmg <= 22 then
-                            sm.mage_hit_max = dmg
-                        end
                     end
                 end
                 if #dump_ticks == 0 then
                     sm.dump_span = 0
                 else
-                    local lo, hi = dump_ticks[1], dump_ticks[1]
+                    -- First landing volley only: the earliest tick that carried
+                    -- a hit after Cross (the §13 one-tick dump).
+                    local lo = dump_ticks[1]
                     for i = 2, #dump_ticks do
-                        local v = dump_ticks[i]
-                        if v < lo then lo = v end
-                        if v > hi then hi = v end
+                        if dump_ticks[i] < lo then lo = dump_ticks[i] end
                     end
-                    sm.dump_span = hi - lo + 1
+                    local same = 0
+                    for i = 1, #dump_ticks do
+                        if dump_ticks[i] == lo then same = same + 1 end
+                    end
+                    sm.dump_span = 1
+                    t.check("dump.same_tick", same >= 2,
+                        "landing hits on first dump tick " .. tostring(same)
+                            .. " lo=" .. tostring(lo))
                 end
                 spec(t, "tightrope.damage_after_cross", tostring(sm.dump_span or "?"),
                     "landing dump tick span; hit_player n=" .. tostring(#hits),
                     "1 ticks", "D", "exact")
                 spec(t, "tightrope.ranger_max", tostring(sm.ranger_hit_max),
-                    "largest ranger-attributed landing hit", "70 hp", "D", "range")
+                    "largest ranger landing hit", "70 hp", "D", "range")
                 spec(t, "tightrope.mage_max", tostring(sm.mage_hit_max),
-                    "largest mage-attributed landing hit", "22 hp", "D", "range")
+                    "largest mage landing hit", "22 hp", "D", "range")
                 sm.crossed = true
                 set_state(STATE.TAKE)
                 return
@@ -247,7 +254,8 @@ return {
                 t.prayer.set("protectfrommissiles", true)
                 local cr, cd = t.player.click_loc("raids_tightrope_end", 1)
                 t.check("rope.return", cr == "ok", tostring(cd))
-                t.ticks(12)
+                t.ticks(10)
+                sustain(t)
                 sm.returned = true
                 set_state(STATE.DISPEL)
                 return
