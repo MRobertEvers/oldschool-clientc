@@ -160,24 +160,9 @@ return {
         "::setlevel magic 99",
         "::setlevel hitpoints 99",
         "::setlevel prayer 99",
-        -- Synq [0:31:54]: salve + ranged. Twisted bow is acceptable learner
-        -- kit; its 5-tick cycle survives the await eater better than blowpipe.
-        "::give masori_mask",
-        "::wield masori_mask",
-        "::give masori_body",
-        "::wield masori_body",
-        "::give masori_chaps",
-        "::wield masori_chaps",
-        "::give avas_assembler",
-        "::wield avas_assembler",
-        "::give nzone_salve_amulet_e",
-        "::wield nzone_salve_amulet_e",
-        "::give twisted_bow",
-        "::wield twisted_bow",
-        "::give dragon_arrow 2000",
-        "::wield dragon_arrow",
-        -- Max sharks: run9 cleared mystic 1 on 17 sharks then died OUT OF
-        -- food on mystic 2. Trim brew/restore so the backpack holds 22 fish.
+        -- Synq [0:31:54]: "The shadow is best in slot for skeletal mystics".
+        -- ::maxmage equips charged Tumeken's shadow + ancestral (cheat_max_gear).
+        "::maxmage",
         "::give br_4dose2restore 1",
         "::give br_4dosepotionofsaradomin 2",
         "::give shark 22",
@@ -185,7 +170,7 @@ return {
     },
 
     run = function(t)
-        t.check("spec.scope", true, "mode=all party=1; synq learner Protect Magic + tbow")
+        t.check("spec.scope", true, "mode=all party=1; synq BiS shadow + Protect Magic")
         local lr, ld = t.ticklog.start()
         t.check("ticklog.start", lr == "ok", tostring(ld))
 
