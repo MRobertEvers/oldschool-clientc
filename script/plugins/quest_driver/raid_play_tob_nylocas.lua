@@ -811,6 +811,14 @@ local function rc_segment(c)
     local w = math.max(1, math.min(ny.waves, 31))
     return w, (ny.wave_at and ny.wave_at[w]) or ny.last_wave_tick or c.v.tick
 end
+-- CORRECTION (owner_nylocas, measured 2026-10-06 late): copies carry no
+-- wave tag in this plan (ny.seen[slot].wave is never set), so rc_find below
+-- never matches an entry and no entry is ever pressed: every copy reads as one
+-- the room never had, so the choice is the scored pick, and with nothing to
+-- press the seat stands on the tile of its next entry.  That is what measured
+-- 3 of 5 (04253efd1).  With the wave tag set (s.wave at first sight) the
+-- literal copy runs and measured 0 of 5 on library aa9488741 (rc5: boss
+-- starts 365-421; rc6 with the in-order cursor: 373-425) -- progress.md step 16.
 local function rc_find(c, e)
     local ow = e.ow >= 32 and 31 or e.ow
     for _, n in ipairs(c.v.nylos) do
