@@ -65,9 +65,16 @@ local function is_mystic_hit(sm, row)
 end
 
 local function nearest_mystic(t)
+    -- Prefer client-visible nearest for attack(); fall back to pack world row.
+    for i = 1, #FORMS do
+        local r, row = t.npc.nearest(FORMS[i], 40)
+        if r == "ok" and row ~= nil then
+            return row, FORMS[i]
+        end
+    end
     local rows = mystic_rows(t)
-    if #rows == 0 then return nil end
-    return rows[1]
+    if #rows == 0 then return nil, nil end
+    return rows[1], rows[1].symbol
 end
 
 local function hp(t)
@@ -157,8 +164,12 @@ return {
             "landing pack count " .. tostring(#landing))
         local count_solo = #landing
         local first = landing[1]
-        local wr, wslot = t.ticklog.slot(first)
-        t.check("mystic.slot", wr == "ok", tostring(wslot))
+        -- npc.pack.slot is the WORLD slot (tick log key). ticklog.slot() wants
+        -- a client-row slot from t.npc.state/nearest, so use pack.slot directly.
+        local wslot = first.slot
+        t.check("mystic.slot", type(wslot) == "number" and wslot >= 0,
+            "world slot " .. tostring(wslot)
+                .. " client_slot " .. tostring(first.client_slot))
 
         local rr, rdetail, rec = t.npc.record(first.symbol)
         t.check("mystic.record", rr == "ok", tostring(rdetail))
@@ -260,12 +271,12 @@ return {
             end
 
             if sm.state == STATE.BAIT then
-                local target = nearest_mystic(t)
-                if target ~= nil then
-                    t.player.attack(target.symbol, 2, 1)
+                local target, sym = nearest_mystic(t)
+                if target ~= nil and sym ~= nil then
+                    t.player.attack(sym, 2, 1)
                 end
                 sm.bait_ticks = sm.bait_ticks + 1
-                if sm.bait_ticks >= 8 or sm.unprot_hits >= 1 then
+                if sm.bait_ticks >= 12 or sm.unprot_hits >= 1 then
                     set_state(STATE.ARM_PRAYER)
                 end
                 return
@@ -282,24 +293,28 @@ return {
 
             if sm.state == STATE.FOCUS then
                 t.prayer.set("protectfrommagic", true)
-                local target = nearest_mystic(t)
-                if target == nil then
+                local target, sym = nearest_mystic(t)
+                if target == nil or sym == nil then
                     set_state(STATE.DONE)
                     return
                 end
-                if sm.focus_slot ~= target.slot then
-                    sm.focus_sym = target.symbol
+                if sm.focus_sym ~= sym then
+                    sm.focus_sym = sym
                     sm.focus_slot = target.slot
                 end
-                local ar, ad = t.player.attack(target.symbol, 2, 1)
-                if ar == "ok" and not sm.mid_shot and sm.kills == 0 then
-                    -- After first sustained engagement.
-                    if (target.hitpoints or 160) < 120 then
+                local ar = t.player.attack(sym, 2, 1)
+                if ar == "ok" and not sm.mid_shot then
+                    local pack = mystic_rows(t)
+                    local lowest = 160
+                    for i = 1, #pack do
+                        local h = pack[i].hitpoints or 160
+                        if h < lowest then lowest = h end
+                    end
+                    if lowest < 120 then
                         t.shot("mystics mid-mechanic focus kill")
                         sm.mid_shot = true
                     end
                 end
-                -- Count deaths via empty pack shrinkage tracked at DONE.
                 return
             end
         end
