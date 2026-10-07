@@ -184,14 +184,14 @@ end
 local function paint_style(t, style, crab)
     local sym = type(crab) == "table" and crab.symbol or crab
     local row = type(crab) == "table" and (crab.row or crab) or nil
-    -- Prefer at={x,z} over world slot: cast's quick path with a mismatched
-    -- slot returns no_row and never presses (run16 seat paint: kodai equipped,
-    -- zero spell inputs). Mid-measure painted when the picker chose by tile.
-    local opts = {}
+    -- nil opts = nearest copy. An empty {} is NOT nil and trips
+    -- "_npc_copy: give at or slot" (run17 mid paint). Prefer at={x,z} when
+    -- the pack row is known so the seated crab is the one painted.
+    local opts = nil
     if row ~= nil and row.x ~= nil and row.z ~= nil then
-        opts.at = { row.x, row.z }
+        opts = { at = { row.x, row.z } }
     elseif row ~= nil and row.slot ~= nil then
-        opts.slot = row.slot
+        opts = { slot = row.slot }
     end
     if style == "mage" then
         -- Wand Attack is melee here (paints red). Cast a wave so
@@ -573,7 +573,7 @@ return {
                 -- Mage a crab with kodai (magic bonus >> -64); paint proves no splash.
                 local crab = nearest_crab(t)
                 if crab ~= nil then
-                    paint_style(t, "mage", crab.symbol)
+                    paint_style(t, "mage", crab)
                     t.shot("crabs mid: mage paint without splash")
                 end
                 spec(t, "crabs.magic_splash_floor", tostring(consts.magic_splash_floor or -64),
