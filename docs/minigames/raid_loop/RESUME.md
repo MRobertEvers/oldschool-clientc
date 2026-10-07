@@ -449,7 +449,13 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   217-227. Her Defence is now drained to 0 by +20 (the scythe seats' Tonalztics specials had never fired:
   144a8c00f; probe ::tobmaidendef, content 5dc63a94c3); clean scythe swing 41.6 (ref 40.1); heal per phase
   70/50/30 = 75/76/240 (ref 1/76/49). Gap: attacks on her per tick 0.31 vs 0.42 -- the leader's ~15 eats
-  (storm sharing re-test) and the dps crab trips (decisions on 24 names: scratchpad rooms24.sh). More content fixed from the
+  (storm sharing re-test) and the dps crab trips (decisions on 24 names: scratchpad rooms24.sh).
+  OPEN PLAYER GAP found 2026-10-07 03:00 (owner: "Are all players running?"): a seat whose run energy hits 0
+  has run turned OFF by the server (torirs_server_world.c run_energy_tick sets varp173_option_run 0) and
+  nothing turns it back on; the room harnesses carry no stamina (the relay gives one dose). Many one-tile
+  moves in both rooms' logs. The Maiden owner measures energy/run-off per seat in Maiden and Nylocas, copies
+  the reference's staminas and re-toggles run. Owner's rule: ALL THREE seats attack the crabs at every
+  wave's spawn (verify per role per wave from the streams, copy). More content fixed from the
   wiki on 2026-10-07: Normal blood-spawn trail 5-13 (35366f400e), Dinh's bulwark 11x11 Shield Bash
   (a1eb26c34), Zaryte crossbow Evoke = guaranteed ruby bolt effect 22% capped 110 (ade9c689b0).
 - Owner's rules added this day: model every role as an explicit STATE MACHINE (named states, every event
