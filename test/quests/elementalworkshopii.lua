@@ -195,6 +195,24 @@ return {
         -- The schematic crate south of the stairs (elem2_repair.rs2 [oploc1,elem2_maintenance_book_crate]).
         t.exec("walk-takeSchematics", t.player.walk_to, 1952, 5149, 60)
         t.exec("takeSchematics", t.player.click_loc, "elem2_maintenance_book_crate", 1)
+        -- Transcript:Elemental_Workshop_II oldid 15340241 "Schematic crate": a two-option choice, then
+        -- "You take a copy of the schematic drawing." (an item box) for the option picked. Both are taken.
+        local sch_drain, sch_kind = t.chat.drain({ stop_at = "options" })
+        t.check("schematicsChoice", t.chat.kind() == "options",
+            "chat.drain -> " .. tostring(sch_drain) .. "/" .. tostring(sch_kind) .. ", kind " .. tostring(t.chat.kind())
+            .. " (want the two-option 'There are two schematics here...' page)")
+        local lever_pick, lever_pick_detail = t.chat.choose("Lever schematic")
+        t.check("schematicsChoice.lever", lever_pick == "ok", "choose Lever schematic -> " .. tostring(lever_pick) .. " " .. tostring(lever_pick_detail))
+        t.exec("takeLeverSchematic.dismiss", t.chat.drain, {})
+        local lever_result, lever_detail = t.inv.await("elemental_workshop_lever_book", 1, 10)
+        t.check("gotLeverSchematic", lever_result == "ok",
+            "inv.await(elemental_workshop_lever_book,1) -> " .. tostring(lever_result) .. " " .. tostring(lever_detail))
+        t.exec("takeCraneSchematic", t.player.click_loc, "elem2_maintenance_book_crate", 1)
+        local crane_drain, crane_kind = t.chat.drain({ stop_at = "options" })
+        t.check("schematicsChoice.again", t.chat.kind() == "options",
+            "chat.drain -> " .. tostring(crane_drain) .. "/" .. tostring(crane_kind) .. ", kind " .. tostring(t.chat.kind()))
+        local crane_pick, crane_pick_detail = t.chat.choose("Crane schematic")
+        t.check("schematicsChoice.crane", crane_pick == "ok", "choose Crane schematic -> " .. tostring(crane_pick) .. " " .. tostring(crane_pick_detail))
         t.exec("takeSchematics.dismiss", t.chat.drain, {})
         local sch_result, sch_detail = t.inv.await("elemental_workshop_claw_book", 1, 10)
         t.check("gotCraneSchematic", sch_result == "ok",
@@ -497,6 +515,12 @@ return {
         t.exec("placeBar.dismiss", t.chat.drain, {})
         t.exec("placeBar.var", t.var.await_server, JIG_STATE, 1, 10)
         press("lowerCraneOntoBar", "elem2_fire_lever_2", 1953, 5149, FIRE_POS, 1)
+        -- Transcript:Elemental_Workshop_II oldid 15340241 "Rotating the claw while the arm is down": the
+        -- rotate lever refuses while the claw is lowered; the arm stays down.
+        t.exec("walk-rotateRefusedClawDown", t.player.walk_to, 1955, 5149, 60)
+        t.exec("rotateRefusedClawDown", t.player.click_loc, "elem2_fire_lever_1", 1)
+        t.exec("rotateRefusedClawDown.message", t.chat.play, { "mesbox:The arm cannot be rotated while the claw is down." })
+        t.exec("rotateRefusedClawDown.armStillDown", t.var.await_server, FIRE_POS, 1, 5)
         press("raiseCraneWithBar", "elem2_fire_lever_2", 1953, 5149, FIRE_STATE, 2)
         press("rotateCraneToLava", "elem2_fire_lever_1", 1955, 5149, FIRE_POS, 2)
         press("lowerBarIntoLava", "elem2_fire_lever_2", 1953, 5149, FIRE_POS, 3)
@@ -504,6 +528,13 @@ return {
         press("rotateCraneFromLava", "elem2_fire_lever_1", 1955, 5149, FIRE_POS, 0)
         press("lowerCraneWithBar", "elem2_fire_lever_2", 1953, 5149, FIRE_POS, 1)
         press("raiseCraneFromBar", "elem2_fire_lever_2", 1953, 5149, JIG_STATE, 2)
+        -- "Pulling the press lever at the wrong time": the hot bar is still at the lava end, the jig not
+        -- under the press, so the real press lever refuses and the bar stays unflattened.
+        t.exec("walk-pressRefusedJigAway", t.player.walk_to, 1950, 5154, 60)
+        t.exec("pressRefusedJigAway", t.player.click_loc, "elem2_earth_lever_1", 1)
+        t.exec("pressRefusedJigAway.message", t.chat.play,
+            { "mesbox:You pull the lever but nothing happens. Maybe the jig needs to be under the press first." })
+        t.exec("pressRefusedJigAway.barUnflattened", t.var.await_server, JIG_STATE, 2, 5)
         press("pullLeverToMoveToPress", "elem2_lever_3way", 1953, 5150, JIG_POS, 1)
         press("lowerPress", "elem2_earth_lever_1", 1950, 5154, JIG_STATE, 3)
         press("pullLeverToMoveToTank", "elem2_lever_3way", 1953, 5150, JIG_POS, 2)
