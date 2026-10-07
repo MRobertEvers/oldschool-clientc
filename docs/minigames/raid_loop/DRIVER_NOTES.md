@@ -7611,9 +7611,12 @@ without waiting for the seq's load, and an unloaded seq's priority read the seq 
 8111 posed the 8371 model on the wrong rig, held on its last frame for the whole flight (verts 2075, radius 841).
 Now world.c parks an ANIM whose seq is not resident (WorldEntityFacet_Animation.pending_*, World_SeqSource.resident)
 and judges it by the full rule the cycle it lands (World_EntityResolvePendingAnimation, world_cycle.c); a later
-ANIM or a cancel supersedes it. Same commit, server: `npc_anim(null)` now ships 65535 (SS_OP_NPC_ANIM, the player
-op's rule) -- it had been dropped, so the stop of 8112 one tick later never reached the client and 8112 would have
-held at priority 11 over P2's attacks. Check: `python3 tools/raid_gate/run.py _verzik_throne_rig --no-publish`
+ANIM or a cancel supersedes it. Server: a LITERAL `npc_anim(null)` now ships 65535 -- it had been dropped, so the
+stop of 8112 one tick later never reached the client and 8112 would have held at priority 11 over P2's attacks. Only
+the literal: the compiler marks it SS_NPC_ANIM_STOP_SEQ (-2, ss_meta.h); a seq that is null at run time
+(`npc_anim(npc_param(defend_anim), d)` on Xarpus, Maiden, Sotetseg, the Nylocas, Verzik P2/P3 -- ~40 player-attack
+scripts) is still dropped. Shipping every -1 (1e90c684a alone) erased those bosses' attacks on each player hit
+(anim audit, a7a2565bb039fe9de). Tick logs carry the literal stop as an npc_anim row with seq -1. Check: `python3 tools/raid_gate/run.py _verzik_throne_rig --no-publish`
 (throne.anim_on_rig: every tick from the dismount to P2, the drawn action seq is on her record's framemap);
 unit: `make -C src test-world` (test_cold_seq_is_parked_not_refused). Crops:
 build/seam_state/owner_verzik_anim/{before,after}_sheet.png, crop_compare.png.

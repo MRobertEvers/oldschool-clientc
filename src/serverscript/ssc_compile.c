@@ -1285,8 +1285,18 @@ parse_command(struct SSC_Compiler* compiler, const char* name, int* is_string)
                     compiler->arg_is_script_name = arg_index < script_args;
                     compiler->arg_script_trigger =
                         arg_index < script_args ? script_trigger : NULL;
+                    int const arg_first_op = compiler->build.op_count;
                     if( !parse_expression(compiler, &arg_is_string) )
                         return 0;
+                    /* A literal `null` (or -1) as npc_anim's seq is a stop;
+                     * see SS_NPC_ANIM_STOP_SEQ. Exactly one push of -1 and
+                     * nothing else -- an expression that merely evaluates to
+                     * -1 (an npc_param, a local) keeps meaning "nothing". */
+                    if( arg_index == 0 && op_name && strcmp(op_name, "NPC_ANIM") == 0 &&
+                        compiler->build.op_count == arg_first_op + 1 &&
+                        compiler->build.opcodes[arg_first_op] == SS_OP_PUSH_CONSTANT_INT &&
+                        compiler->build.int_operands[arg_first_op] == -1 )
+                        compiler->build.int_operands[arg_first_op] = SS_NPC_ANIM_STOP_SEQ;
                     compiler->arg_is_script_name = 0;
                     compiler->arg_script_trigger = NULL;
                     /* `db_getfield(row, table:column, index)`: the column names

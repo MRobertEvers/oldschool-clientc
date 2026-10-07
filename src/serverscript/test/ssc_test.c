@@ -652,6 +652,52 @@ test_symbols_and_constants(void)
     fixture_close(&fixture);
 }
 
+/*
+ * A literal `npc_anim(null, ...)` is a stop; an expression that comes out null
+ * is not. Both are -1 on the stack, so the compiler marks the literal
+ * (SS_NPC_ANIM_STOP_SEQ). Shipping every -1 as a stop erased bosses' attack
+ * animations: ~40 player-attack scripts play `npc_param(defend_anim)`, null on
+ * Xarpus, Sotetseg, Maiden and the Nylocas, on every hit.
+ */
+static void
+test_npc_anim_literal_null_is_a_stop(void)
+{
+    struct Fixture fixture;
+    const struct SSVM_Script* script;
+
+    printf("npc_anim(null) literal vs an expression that is null\n");
+
+    if( !fixture_compile(&fixture,
+                         "[proc,anim_stop]\n"
+                         "npc_anim(null, 0);\n"
+                         "[proc,anim_maybe](seq $s)\n"
+                         "npc_anim($s, 20);\n",
+                         "npcanim") )
+        return;
+
+    script = SSVM_ProviderGetByName(&fixture.provider, "[proc,anim_stop]");
+    CHECK(script != NULL, "the literal script compiled");
+    if( script )
+    {
+        CHECK_EQ(script->opcodes[0], SS_OP_PUSH_CONSTANT_INT, "the seq is a pushed constant");
+        CHECK_EQ(script->int_operands[0], SS_NPC_ANIM_STOP_SEQ, "a literal null is marked a stop");
+        CHECK_EQ(script->opcodes[2], SS_OP_NPC_ANIM, "and npc_anim takes it");
+    }
+    script = SSVM_ProviderGetByName(&fixture.provider, "[proc,anim_maybe]");
+    CHECK(script != NULL, "the expression script compiled");
+    if( script )
+    {
+        int marked = 0;
+        for( int i = 0; i < script->op_count; i++ )
+            if( script->opcodes[i] == SS_OP_PUSH_CONSTANT_INT &&
+                script->int_operands[i] == SS_NPC_ANIM_STOP_SEQ )
+                marked = 1;
+        CHECK(!marked, "a seq that is only null at run time is not marked a stop");
+    }
+
+    fixture_close(&fixture);
+}
+
 static void
 test_varp(void)
 {
@@ -2266,6 +2312,7 @@ main(void)
     test_strings();
     test_symbols_and_constants();
     test_varp();
+    test_npc_anim_literal_null_is_a_stop();
     test_trigger_subject();
     test_stacked_headers();
     test_coord_subject();

@@ -8933,16 +8933,18 @@ ToriRSServer_ScriptCommand(
                 (int)(npc - srv->npcs),
                 values[0],
                 values[1]);
-        /* `npc_anim(null)` is the script's way to END an animation (the
-         * reference sends 65535 and the client clears the action track), the
-         * npc twin of the player op's rule above. `ToriRSServer_AnimPlayNpc`
-         * refuses -1 on purpose -- from C it only means "the content named
-         * nothing" -- so this op had silently dropped every npc cancel.
-         * Verzik's throne exit is the case that showed it: tob_verzik.rs2
-         * stops 8112 (framestep=1, it holds its last frame for 99 loops) one
-         * tick after playing it, and without the stop the client was still
-         * holding it, at priority 11, when P2's attacks (priority 6) arrived. */
-        if( values[0] < 0 )
+        /* A LITERAL `npc_anim(null)` is the script's way to END an animation
+         * (the reference sends 65535 and the client clears the action track),
+         * the npc twin of the player op's rule above. The compiler marks the
+         * literal as SS_NPC_ANIM_STOP_SEQ; a plain -1 is an expression that
+         * came out null -- `npc_anim(npc_param(defend_anim), 20)` on an npc
+         * with no defend anim -- and plays nothing, as before (sending it
+         * as a stop erased bosses' attacks on every player hit).
+         * Verzik's throne exit is the stop that needs it: tob_verzik.rs2 ends
+         * 8112 (framestep=1, it holds its last frame for 99 loops) one tick
+         * after playing it, and without the stop the client was still holding
+         * it, at priority 11, when P2's attacks (priority 6) arrived. */
+        if( values[0] == SS_NPC_ANIM_STOP_SEQ )
         {
             npc->anim_id = -1;
             npc->anim_delay = (int)values[1];
