@@ -398,6 +398,10 @@ QD.raid._play_plan("tob_nylocas", {
     boss_no_brew = true,
     -- every seat computes the other seats' choice this tick and yields it (QD.raid._nym_claims)
     sim_others = true,
+    -- after wave 31 each seat's own-colour bigs first (the rooms' last big dies 17 ticks after wave 31)
+    cleanup_bigs_first = true,
+    -- after wave 31 the leave-to-owner rule is off (every seat on the leftovers)
+    cleanup_help = true,
     -- owner_nylocas: THE SCORED PLAN'S PICK, the machine's KILL / PRE_STAND choice
     -- (QD.raid._play_nylocas_scored_pick): its terms, unchanged from 738ef1466,
     -- whose seats hold 7-18 alive at waves 21-26 against the list machine's 13-23
@@ -838,6 +842,37 @@ local function rc_due(c, e, cw, cstart)
 end
 function QD.raid._nym_room_copy(c)
     local ny, P, R = c.ny, c.P, c.R
+    -- THE CLEANUP'S BIGS FIRST (the 27 rooms: 3 bigs alive at wave 31, the last
+    -- of them dead 17 ticks after it, p75 28; ours 3-5 alive and the last at
+    -- +27..+44, its splits then the room's last copies at +43..+56): after wave
+    -- 31 a seat takes the oldest big of its own colour on the floor first
+    -- the support's own-colour chewer first when the support is under the
+    -- reference's weakest-at-landing median (P.defend_below 0.31): its colour
+    -- seat takes it (ctrace: cb1 lost 36,29 when its chewers' colour seat was
+    -- on a big)
+    if P.cleanup_bigs_first and ny.waves >= 31 then
+        local chew, cf = nil, nil
+        for _, n in ipairs(c.v.nylos) do
+            if n.style == R.colour and QD.raid._nym_pressable(c, n) then
+                local sp = QD.raid._nym_support_of(c, n)
+                if sp ~= nil and sp.frac < P.defend_below and (cf == nil or sp.frac < cf) then chew, cf = n, sp.frac end
+            end
+        end
+        if chew ~= nil then
+            ny.cleanup_chews = (ny.cleanup_chews or 0) + 1
+            return QD.raid._nym_pick(c, chew)
+        end
+    end
+    if P.cleanup_bigs_first and ny.waves >= 31 then
+        local big, ba = nil, nil
+        for _, n in ipairs(c.v.nylos) do
+            if n.big and n.style == R.colour and QD.raid._nym_pressable(c, n) and (ba == nil or n.age > ba) then big, ba = n, n.age end
+        end
+        if big ~= nil then
+            ny.cleanup_bigs = (ny.cleanup_bigs or 0) + 1
+            return QD.raid._nym_pick(c, big)
+        end
+    end
     local list = P.room_copy[R.name]
     if list == nil then return nil end
     ny.rc = ny.rc or 1
@@ -1554,6 +1589,10 @@ function QD.raid._play_nylocas_scored_pick(c)
                     owned = true
                     ny.claim_skips = (ny.claim_skips or 0) + 1
                 end
+                -- (the cleanup: every seat on the leftovers -- the room's helpers
+                -- swing at other colours there, ctrace: our meleer stood through
+                -- the svc cleanup with three targets in 50 ticks)
+                if ny.waves >= 31 and P.cleanup_help then owned = false end
                 if P.leave_to_owner_rule and owned then
                     ny.owner_left = (ny.owner_left or 0) + 1
                 else
