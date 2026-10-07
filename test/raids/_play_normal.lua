@@ -142,6 +142,11 @@ else
         -- (owner_verzik's slow snippet: seats 2 and 3 are the noxious halberd
         -- seats at her P3 -- the Blert team that reaches her ball)
         "::give noxious_halberd",
+        -- (the Nylocas plan's magic weapon for EVERY role: owner_nylocas,
+        -- relay19 -- seats 2 and 3 held the bow through all 60 ticks of
+        -- Vasilias' magic form with no target, her phase 139 ticks against the
+        -- harness's 91, and seat 1 took 112 of her damage against Blert's 31.5)
+        "::give eye_of_ayak_uncharged", "::give demon_tear 2000",
         "::give 4dose2combat", "::give 4dosedivinecombat",
         "::give 4doserangerspotion", "::give 4dosedivinerange" }) do KIT[#KIT + 1] = c end
     if role == 2 then KIT[#KIT + 1] = "::give chinchompa_black 300" end
@@ -181,18 +186,26 @@ local DROP_AFTER = {
     -- (Maiden-only pieces; the freezer keeps its barrage runes for the
     -- Nylocas mage)
     maiden = { [1] = { "kodai_wand", "ancestral_hat", "ancestral_robe_top", "ancestral_robe_bottom", "arcane", "tonalztics_of_ralos_charged",
-        "zaryte_xbow", "xbows_crossbow_bolts_adamantite_tipped_ruby_enchanted" },
+        -- (the Tonalztics both ways -- its special spends the charge, and
+        -- relay21's seats still held the uncharged one and its splinters)
+        "tonalztics_of_ralos_uncharged", "sunfiresplinter", "zaryte_xbow", "xbows_crossbow_bolts_adamantite_tipped_ruby_enchanted" },
         -- (seats 2 and 3: the ranging potion's last doses too -- their Nylocas
         -- boost is the divine ranging potion -- so the chest after Bloat has
         -- one more slot for food)
-        [2] = { "tonalztics_of_ralos_charged", "dinhs_bulwark", "3doserangerspotion", "2doserangerspotion", "1doserangerspotion" },
-        [3] = { "tonalztics_of_ralos_charged", "dinhs_bulwark", "3doserangerspotion", "2doserangerspotion", "1doserangerspotion" } },
+        [2] = { "tonalztics_of_ralos_charged", "tonalztics_of_ralos_uncharged", "sunfiresplinter", "dinhs_bulwark", "3doserangerspotion", "2doserangerspotion", "1doserangerspotion" },
+        [3] = { "tonalztics_of_ralos_charged", "tonalztics_of_ralos_uncharged", "sunfiresplinter", "dinhs_bulwark", "3doserangerspotion", "2doserangerspotion", "1doserangerspotion" } },
     bloat = { [1] = { "lotr_crystalshard_necklace_upgrade" }, [2] = { "lotr_crystalshard_necklace_upgrade" },
         [3] = { "lotr_crystalshard_necklace_upgrade" } },
+    -- (and after the Nylocas every seat's room-only pieces: the Ayak, the
+    -- ranging potions -- no later room drinks one -- and seats 2 and 3's
+    -- blowpipe; the slots go to the Sotetseg chest's food)
     nylocas = {
-        [1] = { "eye_of_ayak", "waterrune", "bloodrune", "deathrune" },
-        [2] = { "chinchompa_black" },
-        [3] = { "abyssal_whip", "sulphur_blades" },
+        [1] = { "eye_of_ayak", "waterrune", "bloodrune", "deathrune", "saturated_heart",
+            "1doserangerspotion", "2doserangerspotion", "3doserangerspotion", "4doserangerspotion" },
+        [2] = { "chinchompa_black", "eye_of_ayak", "toxic_blowpipe_loaded",
+            "1dosedivinerange", "2dosedivinerange", "3dosedivinerange", "4dosedivinerange" },
+        [3] = { "abyssal_whip", "sulphur_blades", "eye_of_ayak", "toxic_blowpipe_loaded",
+            "1dosedivinerange", "2dosedivinerange", "3dosedivinerange", "4dosedivinerange" },
     },
 }
 
@@ -380,7 +393,23 @@ local function prayers_off(t, name)
         P .. "switched off [" .. table.concat(off, " ") .. "]; now " .. string.sub(tostring(d2), 1, 120))
 end
 
+-- The empty vials every drink leaves (relay21: 2-4 slots a seat after Bloat,
+-- when the chest's food had none left): on the floor after every room.
+local VIALS = { "vial_empty", "br_vial_empty" }
+local function drop_vials(t, name)
+    local n = 0
+    for _, v in ipairs(VIALS) do
+        for _ = 1, 28 do
+            local cr, c = t.inv.count(v)
+            if cr ~= "ok" or (tonumber(c) or 0) == 0 then break end
+            t.player.drop(v)
+            n = n + 1
+        end
+    end
+    t.check(name .. ".drop_vials", true, P .. "empty vials left on the floor: " .. n)
+end
 local function drop_spent(t, name)
+    drop_vials(t, name)
     local per = DROP_AFTER[name]
     local list = per and per[role] or nil
     if list == nil then return end
@@ -634,6 +663,20 @@ local function free_slots(t)
     end
     return n
 end
+-- The pack, slot by slot, for the chest's row (which slots hold what).
+local function pack_text(t)
+    local seen, order = {}, {}
+    for i = 0, 27 do
+        local r, sl = t.inv.slot(i)
+        if r == "ok" and type(sl) == "table" and sl.count > 0 then
+            if seen[sl.name] == nil then seen[sl.name] = 0 order[#order + 1] = sl.name end
+            seen[sl.name] = seen[sl.name] + 1
+        end
+    end
+    local parts = {}
+    for _, n in ipairs(order) do parts[#parts + 1] = n .. (seen[n] > 1 and ("x" .. seen[n]) or "") end
+    return table.concat(parts, " ")
+end
 local function restock(t, name)
     local chr, chrow = t.world.loc_near("tob_midway_chest_closed", 40)
     t.check(name .. ".chest_found", chr == "ok" and chrow ~= nil, P .. tostring(chr) .. " " .. tostring(chrow and chrow.tile_x) .. "," .. tostring(chrow and chrow.tile_z))
@@ -704,6 +747,7 @@ local function restock(t, name)
         slots = free_slots(t) - keep
     end
     local _, left = t.var.varbit("varb6460_tob_midwaychest_points")
+    t.check(name .. ".chest_pack", true, P .. "after the chest, free " .. free_slots(t) .. ": " .. pack_text(t))
     t.check(name .. ".chest_bought", #bought > 0, P .. "points " .. p0 .. " -> " .. tostring(left) .. "; bought " .. table.concat(bought, " ") .. "; now " .. supplies_text(supplies(t)))
     t.key("escape")
     t.ticks(1)
@@ -1960,6 +2004,14 @@ PRE.nylocas = function(t, ox, oz)
         wear(t, "nylocas.equip.own", "eye_of_ayak")
         set_style(t, "nylocas.style", "Accurate")
     elseif nrole == 2 then
+        -- (the harness's ranger WEARS the void ranged set and rupture -- the
+        -- snippet's KIT -- with the melee set in the pack for her melee form;
+        -- relay20-22's ranger stayed in ::tobkit's melee armour from Bloat and
+        -- took 107-137 from the big nylos against the harness's 13)
+        for _, it in ipairs({ "game_pest_archer_helm", "elite_void_knight_top", "elite_void_knight_robes",
+            "pest_void_knight_gloves", "necklace_of_rupture" }) do
+            wear(t, "nylocas.equip." .. it, it)
+        end
         wear(t, "nylocas.equip.own", "toxic_blowpipe_loaded")
         set_style(t, "nylocas.style", "Rapid")
     else
@@ -1988,15 +2040,36 @@ PRE.nylocas = function(t, ox, oz)
         end
         return dose
     end
+    -- a super restore first while a combat stat is under its base (owner_nylocas,
+    -- relay19: seat 2 came in at Ranged 75 / Magic 67, brewed down at Bloat,
+    -- and its divine ranging only reached 88)
+    for _ = 1, 3 do
+        local low = false
+        for _, sk in ipairs({ "attack", "strength", "ranged", "magic" }) do
+            local _, rd = t.skill.read(sk)
+            if rd ~= nil and rd.level < rd.base_level then low = true end
+        end
+        if not low or door_dose(RESTORE_DOSES) == nil then break end
+    end
     local dc = door_dose({ "1dosedivinecombat", "2dosedivinecombat", "3dosedivinecombat", "4dosedivinecombat",
         "1dose2combat", "2dose2combat", "3dose2combat", "4dose2combat" })
     local dr = door_dose({ "1dosedivinerange", "2dosedivinerange", "3dosedivinerange", "4dosedivinerange",
         "1doserangerspotion", "2doserangerspotion", "3doserangerspotion", "4doserangerspotion" })
-    if nrole == 1 then t.player.inv_op("saturated_heart", 1, { quick = true }) t.ticks(2) end
+    if nrole == 1 then
+        -- (pressed again until Magic moves: relay19's mage stayed at 99)
+        local _, m0 = t.skill.read("magic")
+        for _ = 1, 3 do
+            t.player.inv_op("saturated_heart", 1, { quick = true })
+            t.ticks(2)
+            local _, m1 = t.skill.read("magic")
+            if m1.level > m0.level then break end
+        end
+    end
     local _, rg = t.skill.read("ranged")
+    local _, mgk = t.skill.read("magic")
     local _, sg = t.skill.read("strength")
     t.check("nylocas.boosts", rg.level > rg.base_level, P .. tostring(dc) .. ", " .. tostring(dr) .. " at the door: ranged " .. rg.level
-        .. ", strength " .. sg.level)
+        .. ", strength " .. sg.level .. ", magic " .. mgk.level)
     stamina(t, "nylocas")
     -- the leader beside the fight tile BEFORE the crossing, the members to
     -- the barrier's north side (harness door.together)
@@ -2287,7 +2360,7 @@ return {
         t.ticks(2)
         local tir, tin = t.inv.count("tonalztics_of_ralos_charged")
         t.check("kit.tonalztics", tir == "ok" and tin == 1, P .. "Charge " .. tostring(tcr) .. " " .. string.sub(tostring(tcd), 1, 80) .. "; charged " .. tostring(tin))
-        if mrole == 2 then
+        do
             local chr, chd = t.player.inv_op("eye_of_ayak_uncharged", 3)
             t.ticks(2)
             local sr, sn = t.inv.count("eye_of_ayak")
@@ -2303,7 +2376,8 @@ return {
         for _, c in ipairs(SUPPLIES) do t.cheat(c) end
         t.ticks(2)
         local kit0 = supplies(t)
-        t.check("kit.supplies", kit0.restore > 0 and kit0.angler > 0, P .. "one raid's supplies at the start: " .. supplies_text(kit0))
+        t.check("kit.supplies", kit0.restore > 0 and kit0.angler > 0, P .. "one raid's supplies at the start: " .. supplies_text(kit0)
+            .. "; free slots " .. free_slots(t))
 
         -- THE LOBBY (_party_smoke.lua phases A and B): the board, the party, the door
         t.exec("lobby.goto", t.player.goto_tile, LOBBY_X - 1 + role, LOBBY_Z, 0)
@@ -2394,7 +2468,7 @@ return {
                 t.raid.verzik_p3_rows(t, { pace = "slow", cycle = true }, rec, R.verzik.mark)
             end
             if result == "ok" then prayers_off(t, name) end
-            if AFTER[name] ~= nil then AFTER[name](t) end
+            if AFTER[name] ~= nil then AFTER[name](t) else drop_spent(t, name) end
             R[name].after = supplies(t)
             t.check(name .. ".supplies", true, P .. "used " .. used_text(R[name].before, R[name].after) .. "; eats "
                 .. tostring(rec and #(rec.eats or {})) .. ", drinks " .. tostring(rec and #(rec.drinks or {})) .. "; left " .. supplies_text(R[name].after))
