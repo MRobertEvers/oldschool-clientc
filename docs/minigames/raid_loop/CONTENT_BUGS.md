@@ -2358,6 +2358,17 @@ Fixed (OSRS-Content 7a70ed5169, 8491f556a5, 55d34897e9, 964c87af49, f0478f39c7):
   one per style (1565 / 1566 / 1567) and the Nylocas room maps them by style (`~tob_nylo_detonate_gfx`). Fixed
   964c87af49.
 
+- ToB, Verzik P1 pillar collapse: `[proc,tob_verzik_collapse_pillar]` knocked every raider in range back two tiles
+  with human_troll_flyback 1157 -- flat on the back and up again, which the owner saw live as "a full death animation"
+  and a revive. No source puts a knockback on a pillar: the collapse is damage (wiki Perfect_Verzik:19; guide
+  bCkpMm0ZDHE 7:06 "collapse and cause huge damage") and the Hard Mode debris is "up to 35 damage and temporarily
+  stuns" (wiki Verzik_Vitur:408, under ===Hard Mode===; transcript l57Jlt1wbnA 2:16). Blert and the plugins record no
+  player animation for either; the only 1157 any source names is the P2 bounce (tobmistaketracker
+  VerzikP2MistakeDetector.java:38; wiki :393 "body-slammed away which stuns"), which keeps its knockback. The pillar now
+  deals damage and stuns (human_stunned + spotanim 245) only; `^tob_verzik_pillar_knockback` is unused. Fixed 8b927584d8.
+  The harness never stands a raider under a falling pillar (0 collapse hits in 10 Verzik trio runs), so this path is
+  read, compiled and committed, not exercised.
+
 Open:
 - (fixed, below) Engine, every room (parent 1e90c684a): the npc_anim op now ships seq < 0 as a cancel, and ~40 player-attack scripts
   play the defender's block as `npc_anim(npc_param(defend_anim), d)` (skill_combat/scripts/player/player_ranged.rs2:165,
