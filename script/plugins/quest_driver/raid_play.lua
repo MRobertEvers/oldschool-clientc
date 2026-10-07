@@ -1709,18 +1709,35 @@ function QD.raid.cross_together(name, opts)
         end
         local _
         _, door = QD.world.tile()
-        local presses, crossed = 0, false
-        while presses < 5 and not crossed do
+        -- (coordinator 03:30) back to the caller on the tick after the press:
+        -- it either stepped the seat through on that tick or drew the wait
+        -- message, and the message is the only thing polled -- a member's
+        -- own-tile read runs about two ticks behind the server (Nylocas: the
+        -- crossing at t113, the read at t115, the members' loops 4 ticks late)
+        local presses, refused = 0, true
+        while presses < 5 and refused do
             presses = presses + 1
-            QD.player.click_loc(loc, 1, { at = { row.tile_x, row.tile_z } })
+            local _, since = api_drive.message_serial()
+            -- a QUICK press: the menu click alone, no settle (click_loc waits
+            -- out its settle -- two ticks here -- before it returns)
+            local target = QD.player.by_symbol("loc", loc)
+            local pressed = false
+            if target then
+                local cr2 = QD.player._loc_copy(target, { at = { row.tile_x, row.tile_z } })
+                if cr2 == "ok" then pressed = (QD.drive.click_minimenu(target, 1) == "ok") end
+            end
+            if not pressed then QD.player.click_loc(loc, 1, { at = { row.tile_x, row.tile_z } }) end
+            QD.ticks(1)
             if QD.chat.kind() == "options" then QD.chat.play({ "options", "choose:Not yet." }) end
-            for _ = 1, 2 do
-                local _, now = QD.world.tile()
-                if now ~= nil and (now.x ~= door.x or now.z ~= door.z) then crossed = true break end
-                QD.ticks(1)
+            refused = false
+            local mr, list = api_drive.messages()
+            if mr == "ok" and type(list) == "table" then
+                for i = 1, #list do
+                    if (list[i].serial or 0) > (since or 0) and string.find(list[i].text or "", "wait for the party leader", 1, true) then refused = true end
+                end
             end
         end
-        detail = presses .. " press(es)" .. (crossed and "" or ", not seen past the gate")
+        detail = presses .. " press(es)" .. (refused and ", still told to wait" or "")
     end
     local _, after = QD.world.tile()
     local _, t_after = QD.tick()
