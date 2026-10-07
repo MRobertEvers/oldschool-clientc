@@ -387,9 +387,10 @@ asserts after it. Each was measured with a scratch script that entered the room 
   npc turn, so `npc_queue(q, arg, N)` from a timer fires on T+N-1, and one armed
   elsewhere fires on T+N. Verzik's P1 bolt, yellows and webs ask for N+1 for this
   reason.
-- Per-room rolls replay: a boss's rolls are seeded from its spawn key and a lives
-  counter, so two runs with the same history replay identical rooms. Offset runs by
-  entering and leaving rooms, not with a new `--name`. About 16,000 server ticks is the
+- Per-room rolls replay: a boss's rolls are seeded from its spawn key, a lives counter
+  and (since 2026-10-07) the run's name, so two runs under one name with the same history
+  replay identical rooms, and a new `--name` is a new boss and crab scenario (see "Npc
+  rolls are seeded by the run name" at the end). About 16,000 server ticks is the
   480000-frame ceiling.
 
 ## tools/verify_tob_timings.py --ticklog: our run against the blert checks
@@ -7620,3 +7621,27 @@ scripts) is still dropped. Shipping every -1 (1e90c684a alone) erased those boss
 (throne.anim_on_rig: every tick from the dismount to P2, the drawn action seq is on her record's framemap);
 unit: `make -C src test-world` (test_cold_seq_is_parked_not_refused). Crops:
 build/seam_state/owner_verzik_anim/{before,after}_sheet.png, crop_compare.png.
+
+## Npc rolls are seeded by the run name (owner, 2026-10-07)
+
+The owner: npc randomness varies by the run's name, so each test name is its own boss and crab
+scenario, deterministic per name. Before, an npc's stream was keyed by its spawn tile, type,
+ordinal and life only, so all five seed_survey names of a room replayed one boss and the same
+three Maiden crab layouts per spawn tile (and the relay's Maiden tile 6426,156 always got layouts
+the harness's 6426,92 never saw).
+
+- `npc_random_seed` (src/torirsserver/torirs_server_world.c) XORs `srv->npc_run_seed` into the
+  key after the tile/ordinal/life mix, so different npcs in one run still differ.
+- `npc_run_seed` is `ToriRSServer_NpcRunSeedFromName(TORIRSSERVER_RUN_NAME)`, read once in
+  `ToriRSServer_WorldInit` before the boot spawns: FNV-1a 64 of the whole case-folded name, so
+  unlike the player stream (`name37`, first 12 characters) every character counts.
+- tools/quest_gate/run.py sets TORIRSSERVER_RUN_NAME to the account the hosting client logs in
+  as: the run name for a solo run, the leader's account (`<name[:9]>_p1`) for a party, handed to
+  every member too. It is always set, never inherited from the shell.
+- Same name, same tick log: `party_repeat.py` must still AGREE.
+- The server logs `torirsserver: npc seed from run name "<name>" (0x...)` in client.log.
+- `TORIRS_NPC_SEED_LEGACY=1` (exported before run.py, or seed_survey/party_repeat) brings back
+  the old streams; it logs `npc seed LEGACY`. A server with no TORIRSSERVER_RUN_NAME (the
+  standalone server, any launcher other than the quest gate) also runs the old streams.
+- Unit: `TORIRSSERVER_SELFTEST_NPC_SEED_ONLY=1 ./src/build_opt/torirsserver --selftest`
+  (`selftest_npc_run_seed`; also in the full selftest). The selftest unsets both variables.

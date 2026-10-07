@@ -4463,6 +4463,19 @@ struct ToriRSServer
         uint32_t lives;
     } npc_seed_lives[TORIRSSERVER_NPC_SEED_LIVES];
 
+    /** The run's world seed, mixed into every npc stream `npc_random_seed`
+     *  starts: `ToriRSServer_NpcRunSeedFromName` of TORIRSSERVER_RUN_NAME,
+     *  read once by `ToriRSServer_WorldInit` before the first spawn. Without
+     *  it an npc's rolls were a function of its spawn tile and life alone, so
+     *  every test name replayed one boss and one set of Maiden crab layouts
+     *  per spawn tile (owner, 2026-10-07: each run name is its own scenario,
+     *  deterministic per name). The quest gate sets the variable to the
+     *  account the hosting client logs in as -- a party's leader, so every
+     *  seat shares one seed. 0 is "no run seed": the old tile-and-life
+     *  streams exactly, which is what a server with no run name (or with
+     *  TORIRS_NPC_SEED_LEGACY=1) gets. */
+    uint64_t npc_run_seed;
+
     /** Selftest affordance: nonzero means scripts draw straight from
      *  `script_env->rng` as the test seeded it (`SSVM_EnvSeed`), with no
      *  per-entity swap. Never set outside a selftest. */
@@ -6135,6 +6148,13 @@ ToriRSServer_WorldPlayerRandom(struct ToriRSServerPlayer* player);
  *  entity's script stream starts where a seeded env would. */
 uint64_t
 ToriRSServer_RandomScriptSeed(uint64_t seed);
+
+/** A run name's npc world seed (`ToriRSServer.npc_run_seed`): a 64-bit hash
+ *  of the whole name, case folded as a login is, never 0. Every character
+ *  counts -- unlike `name37`, two names that share their first 12 still
+ *  differ. */
+uint64_t
+ToriRSServer_NpcRunSeedFromName(const char* name);
 
 /** An npc reached zero hitpoints: run its drop table and leave the loot. */
 /** Spawn an npc and return its slot, or -1. `npc_add`'s entry point. */

@@ -3374,6 +3374,126 @@ selftest_sailing_deck_drop(struct ToriRSServer* srv, struct ToriRSServerPlayer* 
 #include "test/quest_ghostsahoy_selftest.u.h"
 #include "test/combat_reach_flag_selftest.u.h"
 
+enum
+{
+    SELFTEST_NPC_SEED_DRAWS = 24
+};
+
+/* Stand `type` up on (x, z, level) under `run_seed` as the key's first life,
+ * record its first draws, and take it down again. The lives table is put back
+ * as it was, so nothing after this reads a life this made. */
+static void
+selftest_npc_seed_rolls(
+    struct ToriRSServer* srv,
+    uint64_t run_seed,
+    int type,
+    int x,
+    int z,
+    int level,
+    int* out_rolls)
+{
+    size_t lives_size = sizeof(srv->npc_seed_lives);
+    void* saved_lives = malloc(lives_size);
+    uint64_t saved_seed = srv->npc_run_seed;
+    int slot;
+
+    assert(saved_lives);
+    memcpy(saved_lives, srv->npc_seed_lives, lives_size);
+    memset(srv->npc_seed_lives, 0, lives_size);
+    srv->npc_run_seed = run_seed;
+    slot = npc_spawn(srv, type, x, z, level);
+    SELFTEST_CHECK(slot >= 0, "type %d should stand up on %d,%d", type, x, z);
+    for( int i = 0; i < SELFTEST_NPC_SEED_DRAWS; i++ )
+        out_rolls[i] = slot >= 0 ? ToriRSServer_RandomFrom(&srv->npcs[slot].random, 0, 1 << 30)
+                                 : -1;
+    if( slot >= 0 )
+    {
+        ToriRSServer_WorldNpcFree(srv, slot);
+        ToriRSServer_WorldNpcReap(srv);
+    }
+    srv->npc_run_seed = saved_seed;
+    memcpy(srv->npc_seed_lives, saved_lives, lives_size);
+    free(saved_lives);
+}
+
+/*
+ * Owner, 2026-10-07: an npc's randomness varies by the run's name. Its stream
+ * was keyed by its spawn tile and life alone, so every gate name of a ToB room
+ * replayed the same boss and the same three Maiden crab layouts per spawn
+ * tile. `ToriRSServer.npc_run_seed` now mixes the run in: two run seeds give
+ * one spawn tile different rolls, one run seed gives it the same rolls twice,
+ * two tiles in one run still differ, and seed 0 is the old stream.
+ */
+static void
+selftest_npc_run_seed(struct ToriRSServer* srv)
+{
+    int seed_a[SELFTEST_NPC_SEED_DRAWS];
+    int seed_a_again[SELFTEST_NPC_SEED_DRAWS];
+    int seed_b[SELFTEST_NPC_SEED_DRAWS];
+    int other_tile[SELFTEST_NPC_SEED_DRAWS];
+    int legacy[SELFTEST_NPC_SEED_DRAWS];
+    int legacy_again[SELFTEST_NPC_SEED_DRAWS];
+    uint64_t run_a = ToriRSServer_NpcRunSeedFromName("svamaiden_p1");
+    uint64_t run_b = ToriRSServer_NpcRunSeedFromName("svbmaiden_p1");
+    const struct ToriRSServerNpc* first = NULL;
+    const struct ToriRSServerNpc* second = NULL;
+
+    fprintf(stderr, "ToriRSServer selftest: npc rolls vary by the run's name, not only the tile\n");
+    SELFTEST_CHECK(run_a != 0 && run_b != 0, "a run seed is never 0 (0 is no run seed)");
+    SELFTEST_CHECK(run_a != run_b, "two run names give two run seeds");
+    SELFTEST_CHECK(ToriRSServer_NpcRunSeedFromName("SvaMaiden_P1") == run_a,
+                   "a run name is case folded, as a login is");
+    SELFTEST_CHECK(ToriRSServer_NpcRunSeedFromName("svaplaymaidenA") !=
+                       ToriRSServer_NpcRunSeedFromName("svaplaymaidenB"),
+                   "names that share their first 12 characters still differ");
+
+    /* tree-walk-exempt: selftest, not the frame loop. */
+    for( int i = 0; i < srv->npc_slot_max && !second; i++ )
+    {
+        const struct ToriRSServerNpc* npc = &srv->npcs[i];
+
+        if( !npc->active )
+            continue;
+        if( !first )
+            first = npc;
+        else if( npc->spawn_x != first->spawn_x || npc->spawn_z != first->spawn_z )
+            second = npc;
+    }
+    SELFTEST_CHECK(first && second, "the scene should hold npcs on two spawn tiles");
+    if( !first || !second )
+        return;
+    {
+        int type = first->spawn_type;
+        int x = first->spawn_x;
+        int z = first->spawn_z;
+        int level = first->spawn_level;
+        int second_x = second->spawn_x;
+        int second_z = second->spawn_z;
+        int second_level = second->spawn_level;
+
+        selftest_npc_seed_rolls(srv, run_a, type, x, z, level, seed_a);
+        selftest_npc_seed_rolls(srv, run_b, type, x, z, level, seed_b);
+        selftest_npc_seed_rolls(srv, run_a, type, x, z, level, seed_a_again);
+        selftest_npc_seed_rolls(srv, run_a, type, second_x, second_z, second_level, other_tile);
+        selftest_npc_seed_rolls(srv, 0, type, x, z, level, legacy);
+        selftest_npc_seed_rolls(srv, 0, type, x, z, level, legacy_again);
+
+        SELFTEST_CHECK(memcmp(seed_a, seed_a_again, sizeof(seed_a)) == 0,
+                       "one run seed gives type %d on %d,%d the same rolls twice", type, x, z);
+        SELFTEST_CHECK(memcmp(seed_a, seed_b, sizeof(seed_a)) != 0,
+                       "two run seeds give type %d on %d,%d different rolls", type, x, z);
+        SELFTEST_CHECK(memcmp(seed_a, other_tile, sizeof(seed_a)) != 0,
+                       "in one run, %d,%d and %d,%d still roll differently", x, z, second_x,
+                       second_z);
+        SELFTEST_CHECK(memcmp(seed_a, legacy, sizeof(seed_a)) != 0,
+                       "a run seed moves the tile off its legacy (seed 0) stream");
+        SELFTEST_CHECK(memcmp(legacy, legacy_again, sizeof(legacy)) == 0,
+                       "seed 0 (TORIRS_NPC_SEED_LEGACY) is still deterministic");
+        fprintf(stderr, "  type %d at %d,%d: first roll %d (svamaiden_p1) %d (svbmaiden_p1) %d (legacy)\n",
+                type, x, z, seed_a[0], seed_b[0], legacy[0]);
+    }
+}
+
 int
 ToriRSServer_WorldSelftest(void)
 {
@@ -3494,8 +3614,21 @@ ToriRSServer_WorldSelftest(void)
         ToriRSServer_SeqInfoLoad(cache_env && cache_env[0] ? cache_env
                                                        : TORIRSSERVER_CACHE_DIR_DEFAULT);
     }
+    /* The selftest's npcs roll the legacy streams whatever the shell holds:
+     * a run name (`ToriRSServer.npc_run_seed`) is a gate run's, not this. */
+    unsetenv("TORIRSSERVER_RUN_NAME");
+    unsetenv("TORIRS_NPC_SEED_LEGACY");
     ToriRSServer_WorldInit(srv, 426, 408);
     ToriRSServer_WorldPlayerInit(player);
+
+    if( getenv("TORIRSSERVER_SELFTEST_NPC_SEED_ONLY") )
+    {
+        selftest_npc_run_seed(srv);
+        fprintf(stderr, "ToriRSServer npc seed selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("npc_seed");
+        return g_selftest_failures;
+    }
 
     if( getenv("TORIRSSERVER_SELFTEST_SAILING_ONLY") )
     {
@@ -37467,6 +37600,8 @@ ToriRSServer_WorldSelftest(void)
             }
         }
     }
+
+    selftest_npc_run_seed(srv);
 
     fprintf(stderr, "ToriRSServer selftest: one npc's walk does not depend on the rest of the world\n");
     {

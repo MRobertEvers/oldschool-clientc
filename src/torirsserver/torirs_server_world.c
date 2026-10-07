@@ -263,7 +263,55 @@ npc_random_seed(
     lives = npc_seed_lives_find(srv, spawn_key, 0);
     if( lives && *lives > 0 )
         key = random_mix(key) + (uint64_t)*lives * 0x9e3779b97f4a7c15ull;
+    /* The run's seed on top of what the npc is: two npcs in one run still
+     * differ by tile, ordinal and life, and one npc differs run name to run
+     * name. 0 leaves the key -- and the stream -- exactly as it was. */
+    key ^= srv->npc_run_seed;
     random_seed(&npc->random, key);
+}
+
+uint64_t
+ToriRSServer_NpcRunSeedFromName(const char* name)
+{
+    /* FNV-1a 64 over the case-folded name, then the splitmix finaliser. */
+    uint64_t hash = 0xcbf29ce484222325ull;
+
+    assert(name);
+    for( const char* at = name; *at; at++ )
+    {
+        hash ^= (uint64_t)(unsigned char)tolower((unsigned char)*at);
+        hash *= 0x100000001b3ull;
+    }
+    hash = random_mix(hash);
+    /* 0 means "no run seed" (`ToriRSServer.npc_run_seed`). */
+    return hash != 0 ? hash : 1;
+}
+
+/*
+ * `ToriRSServer.npc_run_seed` from the environment: TORIRSSERVER_RUN_NAME
+ * (the quest gate sets it to the hosting account), or 0 -- the old
+ * tile-and-life streams -- when it is unset, empty, or TORIRS_NPC_SEED_LEGACY=1
+ * asks for them.
+ */
+static uint64_t
+npc_run_seed_from_env(void)
+{
+    const char* legacy = getenv("TORIRS_NPC_SEED_LEGACY");
+    const char* name = getenv("TORIRSSERVER_RUN_NAME");
+    uint64_t seed;
+
+    if( legacy && legacy[0] && strcmp(legacy, "0") != 0 )
+    {
+        fprintf(stderr, "torirsserver: npc seed LEGACY (TORIRS_NPC_SEED_LEGACY=%s): "
+                        "spawn tile and life only\n", legacy);
+        return 0;
+    }
+    if( !name || !name[0] )
+        return 0;
+    seed = ToriRSServer_NpcRunSeedFromName(name);
+    fprintf(stderr, "torirsserver: npc seed from run name \"%s\" (0x%016llx)\n", name,
+            (unsigned long long)seed);
+    return seed;
 }
 
 struct ToriRSServerRandomStream*
@@ -14849,6 +14897,8 @@ ToriRSServer_WorldInit(
     srv->world_random.engine = 0x5eed1234u;
     srv->world_random.seeded = 1;
     srv->tick = 0;
+    /* Before WorldBuildEntities: the boot spawns are seeded with it too. */
+    srv->npc_run_seed = npc_run_seed_from_env();
 
     /* Collision before anything is placed: a spawn on a blocked tile is worth
      * knowing about, and the walk helpers consult the scene from their first

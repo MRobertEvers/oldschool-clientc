@@ -1177,6 +1177,15 @@ def launch_client(binary, manifest_path, user, directory, saves, script, log_pat
     command = [binary, "--manifest", manifest_path, "--user", user, "--pass", QUEST_PASSWORD,
                "--soft3d", "--window", "765x503"]
     environment = client_env(directory, saves, script, max_frames, extra_env)
+    # The npc world seed (src/torirsserver/torirs_server.h npc_run_seed): the
+    # account this client logs in as, so each run name is its own npc
+    # scenario, deterministic per name. A party's leader passes its own
+    # account and the members are handed the leader's (run_party), so every
+    # seat agrees. TORIRS_NPC_SEED_LEGACY=1 in the caller's environment brings
+    # back the tile-and-life streams (docs/minigames/raid_loop/DRIVER_NOTES.md).
+    # Set, never inherited: a name left exported in a shell would make every
+    # run one scenario again.
+    environment["TORIRSSERVER_RUN_NAME"] = (extra_env or {}).get("TORIRSSERVER_RUN_NAME", user)
     print("+ " + " ".join(command), flush=True)
     if max_frames != int(DEFAULT_MAX_FRAMES):
         print("run.py: %s declares max_frames = %d (wall-clock timeout %d s)"
@@ -1898,6 +1907,8 @@ def run_party(name, source_file, fixture_name, binary, manifest_path, timeout, s
                 "TORIRS_EMBED_PARTY_SEAT": str(seat),
                 "TORIRS_EMBED_PARTY_WAIT_S": wait_s,
                 "TORIRS_EMBED_PARTY_TRACE": "1",
+                # The leader hosts the world; one run, one npc seed.
+                "TORIRSSERVER_RUN_NAME": accounts[0],
             })
             print("+ [p%d] %s" % (seat, " ".join(command)), flush=True)
             log = open(os.path.join(session, "client.log"), "wb")
