@@ -1331,6 +1331,25 @@ enum DriveResult DriveUi_LocVariants(
 enum DriveResult DriveUi_PlayerTile(
     struct App* app, int* out_x, int* out_z, int* out_level);
 
+/** The walk a click on dst would take, every tile in walk order (absolute),
+ *  from the player's whole tile on the client's collision map --
+ *  collision_map_route_tiles, the server's own flood (api.drive.route).
+ *  entity_size > 0: to the reach of that size's entity with its south-west
+ *  tile at dst. DRIVE_NOT_FOUND: no route; DRIVE_REFUSED: dst outside the
+ *  scene; DRIVE_NOT_VISIBLE: no player or world. */
+enum DriveResult DriveUi_Route(
+    struct App* app,
+    int dst_x,
+    int dst_z,
+    int entity_size,
+    int* out_x,
+    int* out_z,
+    int cap,
+    int* out_count,
+    int* out_arrive_x,
+    int* out_arrive_z,
+    int* out_nearest);
+
 /** torirs_keymap.c's named table, wider than content_test.c's four names. */
 enum DriveResult DriveUi_Key(struct App* app, char const* name, int down);
 /** 1..63 printable ASCII, validated up front. */

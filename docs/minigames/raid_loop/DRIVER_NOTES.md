@@ -7598,3 +7598,5 @@ In the Nylocas trio (_play_nylocas, svaplaynyloc) the members stepped across on 
 cross_together returned on t112-113 (the click_loc press plus the next-tick read), so their t.raid.play loop
 started on the wave-1 spawn tick and the ranger's first shot came at +3 against the script's +1. The library is
 owner_tob_normal's; a return on the press tick would give the members those ticks.
+
+`api_drive.route(x, z [, {size = n, run = bool}])` (owner_rooms4, 2026-10-07): the walk a click on x,z would take, from the client's own collision map with the server's own flood (collision_map_route_tiles; every seat has it) -- `tiles` in walk order, `ticks` the tile stood on at the end of each tick (two a tick with `run = true`, the caller reads its run orb), `arrive`, `nearest`, `from`; `size` routes to an npc's reach. Probe (_play_bloat, every plan walk): 186 of 192 per-tick tiles equal the server's player_tile rows, 40 of 42 walks routed round the tank's corner; the misses are views whose own tile is a tick old (the route is from where the client shows the player).

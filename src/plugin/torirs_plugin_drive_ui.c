@@ -1257,6 +1257,8 @@ drive_ui_nearest_insert(
 /* Graphics and projectiles in one scene are tens, not thousands (a Nylocas
  * wave, a Zebak wave); 512 is the bound the two readers rank within. */
 #define DRIVE_UI_HAZARD_CAP 512
+/* api.drive.route: as many tiles as app_world_click.c routes a click over */
+#define DRIVE_UI_ROUTE_CAP 4000
 
 enum DriveResult
 DriveUi_Spotanims(
@@ -1391,6 +1393,120 @@ DriveUi_PlayerTile(struct App* app, int* out_x, int* out_z, int* out_level)
         *out_level = 0;
         return DRIVE_NOT_VISIBLE;
     }
+    return DRIVE_OK;
+}
+
+/*
+ * api.drive.route (owner_rooms4, 2026-10-07; the owner: "Does the lua
+ * scripting engine have access to a function that provides the full path? It
+ * should."). The walk a click on (dst_x, dst_z) would take, as the client's
+ * own collision map answers it: collision_map_route_tiles -- the same flood
+ * and backtrace ToriRSServer_SceneRoute / _SceneRouteOp run on the server
+ * (collision_map.c collision_flood: west, east, south, north, then the four
+ * diagonals; a diagonal needs both its sides open) -- from the player's whole
+ * tile (route[0], App_LocalPlayerTiles), every tile in walk order. With
+ * entity_size > 0 the arrival is the reach of an entity of that size whose
+ * south-west tile is dst (the npc approach app_try_move_npc builds under the
+ * RECT model, the op click's nearest search); 0 is a ground click (the ground
+ * nearest model, as the click itself). Absolute tiles in and out. Every seat
+ * has it: a party member has no server of its own.
+ *
+ * Why (the Bloat Normal trio, _play_bloat t227-229): the plan judged a walk
+ * by two straight shapes toward its tile, the server routed it round the
+ * tank's corner and the tick ended on a falling-flesh shadow.
+ */
+enum DriveResult
+DriveUi_Route(
+    struct App* app,
+    int dst_x,
+    int dst_z,
+    int entity_size,
+    int* out_x,
+    int* out_z,
+    int cap,
+    int* out_count,
+    int* out_arrive_x,
+    int* out_arrive_z,
+    int* out_nearest)
+{
+    struct WorldEntity_Player* player;
+    struct CollisionMap* cm;
+    struct CollisionNearestOpts nearest_opts = { 0 };
+    struct CollisionApproach approach = { 0 };
+    int src_x, src_z, level;
+    int base_x, base_z, arrive_x, arrive_z, nearest = 0;
+    int steps;
+    int i;
+
+    assert(app);
+    assert(out_x);
+    assert(out_z);
+    assert(cap > 0);
+    assert(out_count);
+    assert(out_arrive_x);
+    assert(out_arrive_z);
+    assert(out_nearest);
+    assert(entity_size >= 0);
+
+    *out_count = 0;
+    *out_nearest = 0;
+    if( !app->world || !app->world->load_complete )
+        return DRIVE_NOT_VISIBLE;
+    player = drive_ui_local_player(app);
+    if( !player )
+        return DRIVE_NOT_VISIBLE;
+    level = player->grid_position.level;
+    if( level < 0 )
+        level = 0;
+    if( level >= COLLISION_LEVELS )
+        level = COLLISION_LEVELS - 1;
+    cm = app->world->collision_maps[level];
+    if( !cm )
+        return DRIVE_NO_ROW;
+    base_x = app->world->_base_tile_x;
+    base_z = app->world->_base_tile_z;
+    if( player->pathing.route_length > 0 )
+    {
+        src_x = player->pathing.route_x[0];
+        src_z = player->pathing.route_z[0];
+    }
+    else
+    {
+        src_x = player->grid_position.x;
+        src_z = player->grid_position.z;
+    }
+    if( dst_x - base_x < 0 || dst_z - base_z < 0 || dst_x - base_x >= app->world->_scene_size ||
+        dst_z - base_z >= app->world->_scene_size )
+        return DRIVE_REFUSED;
+    if( entity_size > 0 )
+    {
+        collision_approach_from_shape(-2, 0, entity_size, entity_size, 0, 1, &approach);
+        nearest_opts.range = app->features->op_click_nearest_range;
+        nearest_opts.max_dist = 100;
+        nearest_opts.rank_by_rect_distance = app->features->nearest_ranks_by_rect_distance;
+        nearest_opts.unbounded = 0;
+    }
+    else
+    {
+        collision_nearest_opts_from_model(app->features->ground_click_nearest_model, &nearest_opts);
+        nearest_opts.unbounded = app->features->ground_click_nearest_unbounded;
+    }
+    arrive_x = dst_x - base_x;
+    arrive_z = dst_z - base_z;
+    steps = collision_map_route_tiles(
+        cm, src_x, src_z, dst_x - base_x, dst_z - base_z, entity_size > 0 ? &approach : NULL,
+        &nearest_opts, out_x, out_z, cap, &nearest, &arrive_x, &arrive_z);
+    if( steps < 0 )
+        return DRIVE_NOT_FOUND;
+    for( i = 0; i < steps; i++ )
+    {
+        out_x[i] += base_x;
+        out_z[i] += base_z;
+    }
+    *out_count = steps;
+    *out_arrive_x = arrive_x + base_x;
+    *out_arrive_z = arrive_z + base_z;
+    *out_nearest = nearest;
     return DRIVE_OK;
 }
 
@@ -2301,6 +2417,102 @@ lua_drive_player_tile(struct lua_State* L)
     return 2;
 }
 
+/* api_drive.route(x, z [, opts]) -> result, { tiles = { {x, z}, ... },
+ * ticks = { {x, z}, ... }, arrive = {x, z}, nearest, run, from = {x, z} }
+ * (DriveUi_Route). `tiles` is every tile of the walk in walk order (the
+ * player's own tile is not one); `ticks` the tile the player stands on at the
+ * end of each server tick of it -- two tiles a tick running, one walking, the
+ * last tick the remainder; tiles[k].run says the step is the second of a
+ * tick's two. opts.size > 0 routes to the reach of an entity of that size
+ * whose south-west tile is (x, z) (an npc); opts.run (boolean, default false:
+ * the caller reads its own run orb) is the rate. "not_found" = no route. */
+static int
+lua_drive_route(struct lua_State* L)
+{
+    static int path_x[DRIVE_UI_ROUTE_CAP];
+    static int path_z[DRIVE_UI_ROUTE_CAP];
+    struct App* app = PluginDrive_App();
+    int x = PluginDrive_ArgInt(L, 1);
+    int z = PluginDrive_ArgInt(L, 2);
+    int size = 0, run = 0, count = 0, arrive_x = 0, arrive_z = 0, nearest = 0, per, ticks, i;
+    int from_x = 0, from_z = 0, from_level = 0;
+    enum DriveResult result;
+
+    assert(app);
+    if( lua_gettop(L) >= 3 && !lua_isnil(L, 3) )
+    {
+        luaL_checktype(L, 3, LUA_TTABLE);
+        lua_getfield(L, 3, "size");
+        if( !lua_isnil(L, -1) )
+            size = (int)luaL_checkinteger(L, -1);
+        lua_pop(L, 1);
+        lua_getfield(L, 3, "run");
+        if( !lua_isnil(L, -1) )
+        {
+            luaL_checktype(L, -1, LUA_TBOOLEAN);
+            run = lua_toboolean(L, -1);
+        }
+        lua_pop(L, 1);
+    }
+    luaL_argcheck(L, size >= 0, 3, "opts.size is an entity size, 0 or more");
+    result = DriveUi_Route(
+        app, x, z, size, path_x, path_z, DRIVE_UI_ROUTE_CAP, &count, &arrive_x, &arrive_z, &nearest);
+    lua_pushstring(L, DriveResultName(result));
+    if( result != DRIVE_OK )
+    {
+        lua_pushnil(L);
+        return 2;
+    }
+    DriveUi_PlayerTile(app, &from_x, &from_z, &from_level);
+    per = run ? 2 : 1;
+    ticks = (count + per - 1) / per;
+    lua_createtable(L, 0, 6);
+    lua_createtable(L, count, 0);
+    for( i = 0; i < count; i++ )
+    {
+        lua_createtable(L, 0, 3);
+        lua_pushinteger(L, path_x[i]);
+        lua_setfield(L, -2, "x");
+        lua_pushinteger(L, path_z[i]);
+        lua_setfield(L, -2, "z");
+        lua_pushboolean(L, run && (i % 2) == 1);
+        lua_setfield(L, -2, "run");
+        lua_rawseti(L, -2, i + 1);
+    }
+    lua_setfield(L, -2, "tiles");
+    lua_createtable(L, ticks, 0);
+    for( i = 0; i < ticks; i++ )
+    {
+        int k = (i + 1) * per - 1;
+        if( k > count - 1 )
+            k = count - 1;
+        lua_createtable(L, 0, 2);
+        lua_pushinteger(L, path_x[k]);
+        lua_setfield(L, -2, "x");
+        lua_pushinteger(L, path_z[k]);
+        lua_setfield(L, -2, "z");
+        lua_rawseti(L, -2, i + 1);
+    }
+    lua_setfield(L, -2, "ticks");
+    lua_createtable(L, 0, 2);
+    lua_pushinteger(L, arrive_x);
+    lua_setfield(L, -2, "x");
+    lua_pushinteger(L, arrive_z);
+    lua_setfield(L, -2, "z");
+    lua_setfield(L, -2, "arrive");
+    lua_createtable(L, 0, 2);
+    lua_pushinteger(L, from_x);
+    lua_setfield(L, -2, "x");
+    lua_pushinteger(L, from_z);
+    lua_setfield(L, -2, "z");
+    lua_setfield(L, -2, "from");
+    lua_pushboolean(L, nearest != 0);
+    lua_setfield(L, -2, "nearest");
+    lua_pushboolean(L, run != 0);
+    lua_setfield(L, -2, "run");
+    return 2;
+}
+
 static int
 lua_drive_key(struct lua_State* L)
 {
@@ -2491,6 +2703,7 @@ static struct LuaFn const LUA_DRIVE_UI_FNS[] = {
     {"spotanims", lua_drive_spotanims},
     {"projectiles", lua_drive_projectiles},
     {"player_tile", lua_drive_player_tile},
+    {"route", lua_drive_route},
     {"key", lua_drive_key},
     {"text", lua_drive_text},
     {"shot", lua_drive_shot},
