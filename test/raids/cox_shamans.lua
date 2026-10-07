@@ -86,23 +86,26 @@ return {
         "::setlevel magic 99",
         "::setlevel hitpoints 99",
         "::setlevel prayer 99",
-        -- Synq [0:34:39]: shadow / bofa / blowpipe; TBow for long-range wall-hug.
+        -- Synq [0:34:39]: TBow for long-range wall-hug. Full Shayzien tier-5
+        -- nulls the unprayerable poison splash (20% per piece; wiki / COX
+        -- mechanics) so the kill path is food-survivable once land applies.
         "::give twisted_bow",
         "::wield twisted_bow",
         "::give dragon_arrow 2000",
         "::wield dragon_arrow",
-        "::give masori_mask",
-        "::wield masori_mask",
-        "::give masori_body",
-        "::wield masori_body",
-        "::give masori_chaps",
-        "::wield masori_chaps",
-        "::give avas_assembler",
-        "::wield avas_assembler",
-        -- Backpack is 28. Blobs are unprayerable 20-40; 18 sharks emptied mid
-        -- second-shaman kill once poison land actually applied (seed1 death).
-        "::give shark 22",
-        "::give br_4dose2restore 2",
+        "::give shayzien_helm_5",
+        "::wield shayzien_helm_5",
+        "::give shayzien_body_5",
+        "::wield shayzien_body_5",
+        "::give shayzien_legs_5",
+        "::wield shayzien_legs_5",
+        "::give shayzien_gloves_5",
+        "::wield shayzien_gloves_5",
+        "::give shayzien_boots_5",
+        "::wield shayzien_boots_5",
+        -- Backpack is 28.
+        "::give shark 20",
+        "::give br_4dose2restore 3",
         "::give br_4dosepotionofsaradomin 2",
         "::give 4doseantipoison 2",
     },
