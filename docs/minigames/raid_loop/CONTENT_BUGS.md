@@ -2422,3 +2422,7 @@ Open:
   11/8/8; "Verzik will pick one player in the team and pick them as their primary target for the duration of the
   phase" (wiki_Theatre_of_Blood_Strategies.wikitext:946). FIXED (0e35991215): a random target; she faces it while
   it is in her reach (Blert reads the tank as her interacting target, VerzikDataTracker.java:651).
+- Correction (owner_verzik, 2026-10-07): the Verzik plan's P2 bar line was already fixed in c25cd0c93
+  (`pct = health_ratio*100/health_scale`). The two 0-of-5 Verzik surveys above read owner_verzik's uncommitted WIP plan,
+  which was in the shared tree at the time. On engine 346bf3c05 or later with content f0478f39c7, the committed plans
+  measure Verzik fast 5 of 5 and slow 4 of 5. The health-bar fix is not implicated.
