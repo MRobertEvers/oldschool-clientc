@@ -1186,6 +1186,19 @@ def launch_client(binary, manifest_path, user, directory, saves, script, log_pat
     # Set, never inherited: a name left exported in a shell would make every
     # run one scenario again.
     environment["TORIRSSERVER_RUN_NAME"] = (extra_env or {}).get("TORIRSSERVER_RUN_NAME", user)
+    # QUEST_WATCH=1 (owner 2026-10-07: "How do I run it so I can watch
+    # vzslow?"): THIS client -- a solo run, or a party's leader; the members
+    # stay headless and follow it in lock step -- opens a real window and draws
+    # every frame, so the run can be watched while it is measured.  Nothing
+    # else changes: the same accounts, the same frame clock
+    # (TORIRS_EMBED_CLOCK_MS=20 a frame, so about real speed at a 50-60 Hz
+    # present), the same ledger.  Pass --timeout generously: the wall-clock
+    # ceiling assumes an uncapped headless client.
+    if os.environ.get("QUEST_WATCH") == "1":
+        environment.pop("SDL_VIDEODRIVER", None)
+        environment.pop("SDL_AUDIODRIVER", None)
+        environment["TORIRS_RENDER_SKIP"] = "0"
+        print("run.py: QUEST_WATCH=1 -- %s opens a window" % user, flush=True)
     print("+ " + " ".join(command), flush=True)
     if max_frames != int(DEFAULT_MAX_FRAMES):
         print("run.py: %s declares max_frames = %d (wall-clock timeout %d s)"
