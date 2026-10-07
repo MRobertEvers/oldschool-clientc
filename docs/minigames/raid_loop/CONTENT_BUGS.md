@@ -532,6 +532,9 @@ Open:
 - Open, ToB, supply chests: an Entry chest hands over min(10, free slots) and then answers "The
   chest is empty." (tob_chest.rs2:159). No source says whether a raider may come back for the
   rest after freeing slots.
+  **CLOSED 2026-10-07 content_bugs (content already does it):** tob_chest.rs2 `[oploc1,tob_midway_chest_closed]` keeps
+  `left = ^tob_entry_bandages - taken` per player (`%varp6854/6855_tob_supply_*`), so a raider who took 6 of 10 for
+  want of slots gets the other 4 on the next Open; "The chest is empty." only once all 10 are taken.
 
 ## From seam14 (matthew-mbp-m4-raid-b1-seam14, 2026-10-04)
 
@@ -560,6 +563,8 @@ Open:
   supply chest do not carry over from each boss") say the leftovers stay until the next chest.
   Patch proposed at build/seam_state/matthew-mbp-m4-raid-b1-seam14/verz/chest_proposal/ (not in
   the seam's files, not applied, not compiled).
+  **CLOSED 2026-10-07 content_bugs:** the leftovers already stay in the same chest for that raider (row above); they
+  are not carried to the second chest (each chest has its own `%varp685x_tob_supply_*`), as the pages say.
 - Open, ToB, bandages: no prayer restore (tob_spectate.rs2). Entry Mode :7/:35 say the bandage
   acts as a prayer potion; :151 says it "slightly restores Prayer"; the item page says "more
   research is needed". A prayer-potion restore would be grade E at best: the owner decides. The
@@ -572,6 +577,11 @@ Open:
   Entry "a percentage", :256) has no Entry figure either.
 - Open, ToB, Verzik: her pillars spawn as the Normal records 8379/8377/8378, not Entry
   10840/10838/10839, in every run (npc_retype rows); hp is set to 200 by script. Presentation only.
+  Re-checked 2026-10-07 content_bugs, NOT CHANGED: all.npc `verzik_story_pillar_npc` and `verzik_pillar_npc` are
+  byte-identical apart from stat4 (md5 of the remaining fields equal; the same for the collapsing forms), and the
+  script sets the Entry 200; the only observable difference is the npc id a client sees. Swapping the record by
+  mode means per-mode `[ai_queue1,...]` triggers and five `npc_find` sites in tob_verzik.rs2: left OPEN (presentation
+  only, low value).
 - Closed as stale, ToB, Verzik: tob.constant's "25 with insulated boots" comment is the
   Strategies page's figure, not stale; the 60 percent is now ^tob_verzik_p2_zap_boots_pct with
   both quotes (behaviour unchanged).
@@ -601,16 +611,28 @@ Open:
   4 + 30% (restore_potion.rs2:79-83, and the br copy at br_potion.rs2:93-97). Wiki [Sanfew
   serum] oldid 15236706 line 53: "restores 4 + 30% of the player's base level (rounded down) per
   dose in all skills except Hitpoints". Both copies should change together.
+  **FIXED 2026-10-07 content_bugs (OSRS-Content 3bd2334365):** `~sanfew_serum_restore` (prayer_potion.rs2), the
+  super restore's list at 4 + 30%, called by both copies; the page is pinned at sources/wiki_Sanfew_serum.wikitext:53.
+  Probe cb_potions1: agility 59 -> 92, prayer 39 -> 72.
 - Open, potions, Super restore mix (barbarian_mix.rs2 `[proc,brutal_mix_restore_all]`):
   restores only the five combat stats, not Prayer or the other skills. Wiki [Super restore]
   line 61: the mix is a super restore with caviar, healing 6 Hitpoints a dose (the 6 is there).
+  **FIXED 2026-10-07 content_bugs (3bd2334365):** `[proc,brutal_mix_restore_all]` is `~super_restore_effect` (Prayer and
+  every other skill but Hitpoints; the unsourced poison immunity is gone). wiki_Super_restore.wikitext:61. Probe
+  cb_potions1: prayer 0 -> 34.
 - Open, potions: a super restore drunk with a Prayer cape or ring of the gods (i) worn, or a
   holy wrench carried, should restore Prayer by 8 + 27% (wiki [Super restore] line 57). Not
   implemented.
+  **FIXED 2026-10-07 content_bugs (3bd2334365):** `~prayer_restore_pct` (prayer_potion.rs2) adds 2 to the Prayer percent
+  of the prayer potion, the super restore (and through it the br_ copy, the Castlewars brew and the restore mix)
+  and the brutal prayer mix when a ring of the gods (i) or a Prayer / max cape is worn, or a holy wrench / Prayer or
+  max cape is carried: wiki_Prayer_potion.wikitext:90 (fetched by name; the longer list) and wiki_Super_restore
+  .wikitext:57. Probe cb_potions1: super restore with a wrench, prayer 0 -> 34 (8 + floor(99 x 27/100)).
 - Open, ToB, configs/tob.constant: `^tob_verzik_nvar_expire` (register 2) is documented as
   "crab / web: the tick it dies"; seam15's tornado fade also keeps the tick its despawn began
   there. Suggested comment: "crab / web: the tick it dies; tornado: the tick its despawn began".
   Documentation only.
+  **FIXED 2026-10-07 content_bugs (3bd2334365):** tob.constant:2620 now says so.
 
 ## From seam16 (matthew-mbp-m4-raid-b1-seam16, 2026-10-04)
 
@@ -650,6 +672,7 @@ Open:
   sources/ with a manifest row). Every brew a raider drinks makes each accuracy-rolled hit
   land more often. Engine-wide: the quest suite must be re-run after the fix. Found by the
   tob_relay_wiki_kit fixer.
+  **Already FIXED (seam36, checked 2026-10-07):** sara_brew.rs2:52 `stat_boost(defence, 2, 20)`.
 - Open, ToB, Xarpus [M70]: the poison buff counts an exhumed as fully absorbed when one orb
   reaches him. s15k1 leaked 1-4 orbs from 6 of 7 exhumeds, giving +85% and Entry poison hits of
   4-6. Mod Kieren's "buffed by a percentage based upon how many exhumed absorbs you missed"
@@ -695,6 +718,7 @@ Open:
   the Tombs of Amascut supply brew; the file's header says it mirrors the ordinary families
   "constant for constant") still runs `stat_drain(defence, 2, 10)`. The same one-line fix,
   `stat_boost(defence, 2, 20)` in place of that drain, was outside seam18's file list.
+  **Already FIXED (seam36, checked 2026-10-07):** br_potion.rs2:85 `stat_boost(defence, 2, 20)`.
 - Open, potions, Saradomin brew drains, of the base or the current level: line 56 and line 114
   ("Attack/Strength/Ranged/Magic drain is calculated with: floor((Current Stat Level) * 1/10) +
   2") say the drain is of the current level; `stat_drain(x, 2, 10)` steps by the base level.
