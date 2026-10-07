@@ -175,6 +175,45 @@ All 18 Xarpus states are entered across the two shapes.
 | verzik | `verzik_rotation` **ball**, `verzik_enrage` **SHARE** | **(a)** for this run | She died before her green ball, which is expected for the fast pace. `_vzslowp3` exists precisely to reach the ball; these two are covered there, not here. |
 | verzik | `verzik_enrage` **EAT** | **(b)** | My demonstration state. Did not fire on this seed, but fires on others — its change moved the tick logs on 5 of 19 survey runs. |
 
+### RESOLVED: the leader's terminal state is unreachable BY CONSTRUCTION
+
+This was recorded as an open gap needing new tooling. It is not open, and no
+tooling is needed — the answer is determined by the play loop, and I read it
+rather than testing for it.
+
+`QD.raid._play_tick` returns `"ok"` **the moment it sees the boss's
+`npc_death` row** (`raid_play.lua`, the `st.stop = "npc_death of slot ..."`
+arm; the `room_cleared` arm does the same), and `QD.raid.play`'s loop breaks on
+that outcome and returns. **The machine is stepped only inside that loop.** So
+the leader's machine stops being stepped at the kill, and a terminal state
+whose entry depends on reading her row *gone* can never be entered on the
+leader — in any room, in any test shape.
+
+**The relay does not change this**, and it was the natural thing to try.
+`test/raids/_play_normal.lua` does keep the leader alive and deciding for
+hundreds of ticks after each boss dies — it crosses to the next room, buys at
+the supply chest after Bloat and after Sotetseg, and takes the trapdoor — but
+all of that happens **outside `t.raid.play`**, after the loop has returned,
+with the machine no longer being stepped. The next room opens a fresh
+`t.raid.play` with a fresh `st` and fresh instances. So a relay run will show
+the same zeros.
+
+**Why members DO enter it**, which is the detail that proves the mechanism: a
+member's loop does not see the death row on the same tick — it reads the gap a
+tick or two later, and in those ticks the derivation raises the boss-gone event
+and the machine transitions. Hence Xarpus's `xarpus_room dead` reading of
+**NEVER for p1 and 2/1 for p2 and p3**, and the same shape in all six rooms.
+
+So the classification is **(a), definitively** — unreachable for one seat by
+construction, reachable for the other two — and the states should stay
+declared, because two of three seats do enter them. Nothing to fix, nothing to
+build.
+
+**What would overturn this:** a leader terminal-state entry in any run. The
+relay should still have its coverage captured when it next runs, since that
+costs nothing and would confirm or refute the reading; the prediction on record
+is that the leader's terminal states remain zero and the members' do not.
+
 ### A systematic finding across all six rooms
 
 **Every room's terminal state is NEVER entered by the seat whose play ends
