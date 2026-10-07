@@ -183,6 +183,18 @@ d1+d2 1381-1500 of 1500; party_repeat 3 runs AGREE (sha 19c6e0ae66bf, 264 bounda
 (_play_smoke) 5 of 5. Still outside the reference (raid_report --against): hp lost 262-409 a raider
 (ref ~100), eat at 80-87% (ref 25%), a third down on 4 of 5 names (ref 2 of 19) -- the rooms sit at the cap.
 
+#### Bloat, Normal trio: the far side (owner_rooms4, 2026-10-07)
+
+Every hit the seats took was a fly: 157-299 a seat against the recorded trios' median 116 (max 217, build/blert/
+bloat, scale 3, PLAYER hitpoints). In his sight (any tile of his 5x5 with a line past the tank to the seat), per seat,
+median: Blert entry 3 of 37, rise (down+33..+45) 1 of 13.5, walk 0 of 26; ours 6 of 36, 11 of 21, 1 of 22. The hug
+(seam49) chose the hidden ring tile NEAREST his footprint and the seats stood on the lane he rose in. The recorded seats
+stand on the tank's ring opposite him (him west -> x 35, south -> z 35, east -> x 28, north -> z 28): the mirror tile
+clamped to the ring (hug_tank), hug_seen off. After: in sight 2 of 34 / 1 of 26 / 0 of 31; taken 16-118 a seat; 10
+names green (rooms 138/147/138/147/147/141/141/193/141/147); party_repeat AGREE (sha cb1cab05b11b); Entry solo 5 of 5.
+Eats and drinks a seat (10 names; pid0 the leader): pid0 3-4 fish, 2 brew doses, 1-2 restore, 2-3 combat sips; pid1
+1-5 fish, 0-1 brew, 0-1 restore, 1-2 combat; pid2 1-4 fish, 0-1 brew, 0-1 restore, 1-2 combat.
+
 ## Maiden: the full plan (decide function: the re-author pass)
 
 | Mechanic | Sourced answer | Source |

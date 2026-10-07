@@ -78,7 +78,19 @@ QD.raid._play_plan("tob_bloat", {
         -- that fits the farthest raider (24 for everyone).
         normal = { fly = 20, stomp = 80, hand = 50, stomp_plan = "leave",
             fly_prayed = 15, offence_pots = true, hand_dodge = true, leave_from_here = true,
-            hug_tank = true, hug_seen = true, leave_straight = true, down_spec = 2,
+            -- owner_rooms4 (2026-10-07): THE FAR SIDE, NOT THE NEAREST HIDDEN
+            -- TILE (hug_seen off).  Every hit our seats took was a fly, 157-299 a
+            -- seat against the recorded trios' median 116 (max 217): the hug
+            -- (seam49) picked the hidden ring tile NEAREST his footprint, and at
+            -- his rise -- he may walk either way -- the seats stood on the lane he
+            -- rose in (svaplaybloat down 1: on 28-34,28 with him rising at 27,24)
+            -- and were in his sight 11 of 21 rise ticks.  The recorded seats stand
+            -- on the tank's far ring from him (build/blert/bloat, 90 seats: him on
+            -- the west lane -> them on x 35, south -> z 35, east -> x 28, north ->
+            -- z 28), in his sight a median 3 of 37 entry ticks, 1 of 13.5 rise
+            -- ticks, 0 of 26 walk ticks.  The mirror tile through the tank clamped
+            -- to its ring (hug_tank) is that tile.
+            hug_tank = true, hug_seen = false, leave_straight = true, down_spec = 2,
             -- raid seam51 play_tob_bloat_whole: the hug scored by the walk to
             -- the reach ring, the late-walk window, and the rise swing (the
             -- block above _play_bloat_path_dist).
