@@ -1262,6 +1262,15 @@ sit 0-6 apart (ref 2 [0-4]).
 
 NOT LANDED. The closer's survey on HEAD 407dc4a25 (after the follower-prayer fix) put the plan below at 0 of 3 (two deaths, one unfinished run) against HEAD's own plan at 2 of 3; the files were restored from HEAD and the work is kept at build/seam_state/matthew-mbp-m4-raid-b1-seam42/close/sotetseg_unproved.patch. The measurements stand.
 
+#### Xarpus, Normal trio, on the lockstep engine (owner_rooms4, 2026-10-07) -- 5 of 5, every seat running
+
+Pinned bin 38aa954b3, private pack 4dfdd180c4. HEAD as-is: 5 of 5 (the engine change moved nothing red).
+Run kept on (QD.raid._play_run_keep, trio only) + a stamina dose in the trio kit: seed_survey --party 3 5 of 5,
+plays 266 / 261 / 254 / 247 / 271 ticks; the server reads run on every tick of every seat; party_repeat 3 AGREE
+(sha dabfa652c5db, build/seam_state/owner_rooms4/_play_xarpus_trio.lua); Entry solo 5 of 5.
+Sotetseg on the same pin (content's seq 1816 clear, 4dfdd180c4): 5 of 5, rooms 267 / 237 / 268 / 245 / 272,
+repeat AGREE (sha 2ce00c12c475); Bloat 5 of 5 (143 / 139 / 143 / 133 / 133), repeat AGREE (sha 1da6772536ef).
+
 ### Sotetseg, Normal trio, against Blert (seam42 play_tob_sotetseg_follows_blert)
 
 Reference: `docs/minigames/theater_of_blood/sources/blert_api/reference/sotetseg_normal_3.json`

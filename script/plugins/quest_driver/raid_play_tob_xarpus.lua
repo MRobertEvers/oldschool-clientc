@@ -131,6 +131,8 @@ function QD.raid._play_xarpus_decide(st, v)
                   u_tick = nil, p3_tick = nil, lines = {} }
     end
     local X = st.xa
+    -- owner_rooms4: every seat runs (raid_play_tob_bloat.lua QD.raid._play_run_keep)
+    if (st.party or 1) > 1 then QD.raid._play_run_keep(st, v) end
     QD.raid._xarpus_see(st, v)
     local intent = { want = {}, walk = nil, attack = false }
     local function floor_ok(x, z)

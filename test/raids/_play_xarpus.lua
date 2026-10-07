@@ -35,6 +35,9 @@ local trio_kit = {
     -- the Defence drain W:839 asks for ("at least two successful hammer/maul
     -- specials"; the Dragon warhammer is the cache's hammer, _play_bloat.lua)
     "::give dragon_warhammer 1",
+    -- owner_rooms4: a stamina dose (the owner's "are all players running?"; the
+    -- plan's run keep drinks it only if run goes off)
+    "::give 4dosestamina 1",
 }
 local trio_run = nil
 local solo_kit = {
@@ -117,6 +120,8 @@ trio_run = function(t, role, size)
     -- THE FIGHT: the library and the room's plan, nothing else
     local result, detail, rec = t.raid.play("tob_xarpus", { mode = mode, weapon = "scythe_of_vitur", max_ticks = 1400 })
     t.check("play.fight", result == "ok", "p" .. role .. " " .. tostring(detail))
+    t.check("note.run", true, "p" .. role .. " run: varp173 read 0 on " .. tostring(rec.run_offs or 0) .. " ticks, orb presses "
+        .. tostring(rec.run_presses or 0) .. ", stamina doses " .. tostring(rec.staminas or 0))
     if role ~= 1 then
         t.expect("party.barrier.done", t.party.barrier("done", 9000))
         t.finish(0)
