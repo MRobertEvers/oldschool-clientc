@@ -2,7 +2,9 @@
 -- helpers/quests/elementalworkshopii (ElementalWorkshopII.java) and the content scripts
 -- OSRS-Content/osrs239-content/server/scripts/quests/quest_elementalworkshopii/scripts/*.rs2;
 -- driven end to end after the b72 content fix (the boiler's hide-key varbit, the six deep
--- workshop climbs, the crane claw on the placed crane, the jig cart's spawn).
+-- workshop climbs, the crane claw on the placed crane, the jig cart's spawn). The junction box is
+-- the cache's own pipe screen (interface 262), wired end by end and read off the screen, and the
+-- cogs and pipe sit in crates drawn per player when the book is taken (b72 junction-box pass).
 --
 -- Stage var: varb2639_elemental_quest_2_main, constants from elementalworkshopii.constant.
 --
@@ -280,36 +282,158 @@ return {
             at = { 1949, 5149, 2 }, dest = { 1948, 5149, 3 } })
         t.ticks(2)
 
-        -- The junction box (elem2_repair.rs2 [oploc1,elem2_press_junction_box]).
-        -- (Quest Helper ConnectPipes) The junction box's pipe interface (ElemMagicpressPipes) is collapsed into its Open op, which writes the solved pipe states 5/6/13 itself: OSRS-Content/osrs239-content/server/scripts/quests/quest_elementalworkshopii/scripts/elem2_repair.rs2:156
+        -- The junction box (elem2_repair.rs2 [oploc1,elem2_press_junction_box]) opens the cache's pipe
+        -- screen, interface 262 elem_magicpress_pipes. It is an IF1 screen (every component if3=no),
+        -- so each "Attach/Detach Pipe" press is op 0 (trap 33, as Tower of Life's cage). Six pipe ends:
+        -- a b c along the top (inletam/bm/cm), 1 2 3 along the bottom (inlet1m/2m/3m). Click one end
+        -- and then another to lay a spare pipe between them; click an end a pipe is on to take it off.
+        -- A laid pipe is one of the screen's fifteen connection<x>_<y>_l layers, which the server
+        -- shows with if_sethide -- the state is read off the screen (t.ui.shown), never off a varbit.
+        -- The answer (wiki Elemental_Workshop_II oldid 15271178 "Making repairs": top-right to
+        -- top-middle, bottom-right to top-left, bottom-middle to bottom-left; Quest Helper
+        -- ConnectPipes.java draws inletBM-inletCM, inletAM-inlet3M, inlet1M-inlet2M) is c-b, 3-a, 2-1.
         t.exec("walk-openJunctionBox", t.player.walk_to, 1942, 5153, 60)
         t.exec("openJunctionBox", t.player.click_loc, "elem2_press_junction_box", 1)
-        t.exec("openJunctionBox.dismiss", t.chat.drain, {})
-        t.exec("openJunctionBox.var", t.var.await_server, "varb2646_elemental_quest_2_earth_pipe_1_state", 5, 10)
-
-        -- The parts: the two quest crates on the catwalk, then two on the floor below (wiki
-        -- Elemental_Workshop_II "Making repairs": "Upstairs try searching the double-stacked crate
-        -- south-east above the old crane and the double-stacked crate directly north-west of the
-        -- junction box"; elem2_repair.rs2 ~elem2_search_crate gives the next missing part).
-        local function search_box(name, box, wx, wz)
-            t.exec("walk-" .. name, t.player.walk_to, wx, wz, 60)
-            t.exec(name, t.player.click_loc, box, 1)
-            t.exec(name .. ".dismiss", t.chat.drain, {})
+        t.exec("openJunctionBox.screen", t.ui.await_open, "elem_magicpress_pipes", 10)
+        local PIPE_END = { a = "inletam", b = "inletbm", c = "inletcm", ["1"] = "inlet1m", ["2"] = "inlet2m",
+            ["3"] = "inlet3m" }
+        local PIPE_PAIRS = { "a_b", "a_c", "a_1", "a_2", "a_3", "b_c", "b_1", "b_2", "b_3", "c_1", "c_2", "c_3",
+            "1_2", "1_3", "2_3" }
+        local function pipes_on_screen()
+            local shown = {}
+            for _, pair in ipairs(PIPE_PAIRS) do
+                local r, on = t.ui.shown("elem_magicpress_pipes:connection" .. pair .. "_l")
+                if r == "ok" and on then
+                    shown[#shown + 1] = pair
+                end
+            end
+            table.sort(shown)
+            return table.concat(shown, ",")
         end
-        search_box("getCogsAndPipe-1", "elemental_workshop_2_box_6", 1942, 5158)
-        t.exec("getCogsAndPipe-1.inv", t.inv.await, "elem2_smallgear", 1, 10)
-        search_box("getCogsAndPipe-2", "elemental_workshop_2_box_7", 1957, 5142)
-        t.exec("getCogsAndPipe-2.inv", t.inv.await, "elem2_medgear", 1, 10)
+        local function expect_pipes(name, want)
+            local seen = pipes_on_screen()
+            for _ = 1, 8 do
+                if seen == want then
+                    break
+                end
+                t.ticks(1)
+                seen = pipes_on_screen()
+            end
+            t.check(name, seen == want, "pipes on screen {" .. seen .. "}, want {" .. want .. "}")
+        end
+        local function pipe_end(name, e)
+            local w = nil
+            for _ = 1, 15 do
+                local r, id = t.ui.widget("elem_magicpress_pipes:" .. PIPE_END[e])
+                if r == "ok" and id then
+                    w = id
+                    break
+                end
+                t.ticks(1)
+            end
+            -- t.ui.invoke is hollow (trap 12): the press is graded by the pipes the screen then shows.
+            local press_result = w and t.ui.invoke(w, 0) or "no_widget"
+            t.check(name, press_result == "ok", "Attach/Detach Pipe on end " .. e .. " (elem_magicpress_pipes:"
+                .. PIPE_END[e] .. ", op 0) -> " .. tostring(press_result))
+            t.ticks(1)
+        end
+        local function expect_closed(name, why)
+            local close_result = t.ui.await_close("elem_magicpress_pipes", 10)
+            t.check(name, close_result == "ok", "elem_magicpress_pipes unmounted (" .. why .. ") -> "
+                .. tostring(close_result))
+        end
+        expect_pipes("openJunctionBox.noPipes", "")
+        -- A wrong pipe first: a-b goes on, then clicking a takes it off again.
+        pipe_end("connectPipes.wrongA", "a")
+        pipe_end("connectPipes.wrongB", "b")
+        expect_pipes("connectPipes.wrongLaid", "a_b")
+        pipe_end("connectPipes.wrongDetach", "a")
+        expect_pipes("connectPipes.wrongRemoved", "")
+        -- The answer, in the wiki's order.
+        pipe_end("connectPipes.topRight", "c")
+        pipe_end("connectPipes.topMiddle", "b")
+        expect_pipes("connectPipes.firstPipe", "b_c")
+        pipe_end("connectPipes.bottomRight", "3")
+        pipe_end("connectPipes.topLeft", "a")
+        expect_pipes("connectPipes.secondPipe", "a_3,b_c")
+        pipe_end("connectPipes.bottomMiddle", "2")
+        pipe_end("connectPipes.bottomLeft", "1")
+        -- The third pipe closes the box (Transcript:Elemental_Workshop_II oldid 15340241,
+        -- "Connecting the junction box pipes").
+        expect_closed("connectPipes.closed", "the third pipe's if_close")
+        t.exec("connectPipes", t.chat.play, { "player:I hope I got that right." })
+        -- Reopened, the box shows the three pipes as they were left.
+        t.exec("connectPipes.reopen", t.player.click_loc, "elem2_press_junction_box", 1)
+        t.exec("connectPipes.reopenScreen", t.ui.await_open, "elem_magicpress_pipes", 10)
+        expect_pipes("connectPipes.wired", "1_2,a_3,b_c")
+        -- The screen's close icon is an IF1 buttontype=3, which op 0 does not close (trap 33): Escape.
+        t.key("escape")
+        expect_closed("connectPipes.closedAgain", "Escape")
+
+        -- The parts (wiki Elemental_Workshop_II oldid 15271178 "Making repairs": "The small cog, medium
+        -- cog, large cog and piece of pipe are located randomly in crates for each player"; upstairs
+        -- the crate south-east above the old crane and the one north-west of the junction box, the rest
+        -- on the floor below). Which crate holds which part is drawn when the book is taken, so every
+        -- quest crate is searched in turn and each answer read off the page: "You find a small cog." /
+        -- "a medium-sized cog." / "a big cog." / "a pipe.", or "It's empty." (Transcript oldid
+        -- 15340241 "Searching crates"), until all four parts are held.
+        local PARTS = {
+            { obj = "elem2_smallgear", line = "You find a small cog." },
+            { obj = "elem2_medgear", line = "You find a medium-sized cog." },
+            { obj = "elem2_biggear", line = "You find a big cog." },
+            { obj = "elem2_spare_pipe", line = "You find a pipe." },
+        }
+        local held = 0
+        local function search_crate(box, wx, wz)
+            if held >= #PARTS then
+                return
+            end
+            local name = "getCogsAndPipe-" .. box
+            t.exec("walk-" .. name, t.player.walk_to, wx, wz, 60)
+            t.exec(name .. ".search", t.player.click_loc, "elemental_workshop_2_" .. box, 1)
+            local text_result, text = t.chat.text()
+            text = tostring(text)
+            t.exec(name .. ".dismiss", t.chat.drain, {})
+            local found = nil
+            for _, part in ipairs(PARTS) do
+                if string.find(text, part.line, 1, true) then
+                    found = part
+                end
+            end
+            if found then
+                local inv_result, inv_detail = t.inv.await(found.obj, 1, 10)
+                t.check(name, inv_result == "ok", "'" .. text .. "' -> inv.await(" .. found.obj .. ",1) "
+                    .. tostring(inv_result) .. " " .. tostring(inv_detail))
+                if inv_result == "ok" then
+                    held = held + 1
+                end
+            else
+                t.check(name, text_result == "ok" and string.find(text, "It's empty.", 1, true) ~= nil,
+                    "chat.text -> " .. tostring(text_result) .. " '" .. text .. "' (want a part or It's empty.)")
+            end
+        end
+        search_crate("box_6", 1942, 5158)
+        search_crate("box_7", 1957, 5142)
 
         -- Down by the second gantry stairs (1958,5159; elem2_travel.rs2: 1957,5159,2).
         t.exec("walk-climbDownStairs", t.player.walk_to, 1959, 5159, 80)
         t.exec("climbDownStairs", t.player.climb, { loc = "elem_gantry_stairs_top", op = 1, op_name = "Climb-down",
             at = { 1958, 5159, 3 }, dest = { 1957, 5159, 2 } })
         t.ticks(2)
-        search_box("getCogsAndPipe-3", "elemental_workshop_2_box_3", 1951, 5155)
-        t.exec("getCogsAndPipe-3.inv", t.inv.await, "elem2_biggear", 1, 10)
-        search_box("getCogsAndPipe-4", "elemental_workshop_2_box_1", 1951, 5149)
-        t.exec("getCogsAndPipe-4.inv", t.inv.await, "elem2_spare_pipe", 1, 10)
+        -- The six crates below, nearest first from the stairs (reach.py REACH from 1957,5159,2 to each
+        -- standing tile).
+        search_crate("box_8", 1948, 5160)
+        search_crate("box_2", 1950, 5160)
+        search_crate("box_3", 1951, 5155)
+        search_crate("box_1", 1951, 5149)
+        search_crate("box_4", 1958, 5149)
+        search_crate("box_5", 1959, 5151)
+        local parts_seen = {}
+        for _, part in ipairs(PARTS) do
+            local count_result, count = t.inv.count(part.obj)
+            parts_seen[#parts_seen + 1] = part.obj .. "=" .. tostring(count_result == "ok" and count or count_result)
+        end
+        t.check("getCogsAndPipe", held == #PARTS, "parts held " .. held .. "/4: " .. table.concat(parts_seen, " "))
 
         -- Back up to mend the broken pipe at the catwalk's north end (elem2_repair.rs2
         -- [oplocu,elemental_piping_blue_broken], the varb2650 = 0 leaf of the placed multiloc).

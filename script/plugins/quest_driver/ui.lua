@@ -82,6 +82,25 @@ function QD.ui.widget(sym, sub)
     return result, component_id
 end
 
+-- ui.shown(sym, sub) -> result, shown
+-- Whether a widget is on screen now: mounted, and neither it nor any parent
+-- hidden (api_drive.widget_presented, the read chat.text's own presented
+-- test uses). Results: ok (with true/false), no_row (unknown symbol),
+-- not_visible (not mounted -- its interface is not open). A puzzle whose
+-- pieces are layers the server shows and hides (if_sethide) is read with this:
+-- Elemental Workshop II's junction box draws each pipe as one hidden layer.
+function QD.ui.shown(sym, sub)
+    local result, component_id = api_drive.component(sym, sub or -1)
+    if result ~= "ok" then
+        return result, false
+    end
+    local presented_result, presented = api_drive.widget_presented(component_id)
+    if presented_result ~= "ok" then
+        return presented_result, false
+    end
+    return "ok", presented == true
+end
+
 -- ui.model_pose(sym, sub) -> result, detail, pose
 -- The pose a MODEL component (type 6) is drawn with now: pose.xan, .yan,
 -- .zan, .zoom, .x_speed, .y_speed, .model, .component -- what the cache's
