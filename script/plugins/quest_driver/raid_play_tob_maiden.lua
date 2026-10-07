@@ -642,6 +642,22 @@ function QD.raid.mz_nearest_walker(st, v, skip)
     end
     return best
 end
+function QD.raid.mz_bunch_pick(st, v, skip)
+    local b = v.ev_boss or v.boss
+    if b == nil then return nil end
+    local best, bn, bg = nil, -1, nil
+    for slot, a in pairs(st.ev.adds) do
+        local g = QD.raid._play_gap(b, a.x, a.z)
+        if not a.gone and not skip[slot] and g >= 2 and math.max(math.abs(a.x - v.me.x), math.abs(a.z - v.me.z)) <= 10 then
+            local n = 0
+            for _, q in pairs(st.ev.adds) do
+                if not q.gone and math.max(math.abs(q.x - a.x), math.abs(q.z - a.z)) <= 1 then n = n + 1 end
+            end
+            if n > bn or (n == bn and g < bg) then best, bn, bg = { slot = slot, a = a, n = n }, n, g end
+        end
+    end
+    return best
+end
 -- put on the items of a set still in the pack (one block; nothing when worn)
 function QD.raid.mz_wear(intent, items)
     local list = {}
@@ -821,12 +837,24 @@ function QD.raid.mz_cast_tick(st, v, intent)
     -- (sent the tick before: the cast the client sends at +k animates at the
     -- server's +k+1 -- owner sm4 svaplaymaide, casts sent +1/+6/+11/+16 drew
     -- at +1/+7/+12/+17 against the script's 1/6/11/16)
-    if v.tick < st.ev.wave_tick + c[1] - 1 then return end
+    -- (sm24: every cast sent a tick early drew at +0/+5/+10/+15 -- the first
+    -- one draws on its send tick, the later ones a tick after theirs, behind
+    -- the 5-tick cooldown; so cast 1 is sent at +1, casts 2-4 at +k-1)
+    if v.tick < st.ev.wave_tick + c[1] - ((m.idx > 1) and 1 or 0) then return end
     -- (the script's lane, else the next walker to arrive: sm15 svb, the
     -- most-crabs pick froze the three 4s at (13,0) at +10, seven tiles out;
     -- the streams' frozen crabs sit at (7,0) (8,0) (8,1), one step from her,
     -- because each cast takes the crab that arrives next)
-    local t = QD.raid.mz_lane_crab(st, v, c[2], false, true, skip) or QD.raid.mz_nearest_walker(st, v, skip)
+    -- casts 2-4 (coordinator 22:30): the crab whose barrage 3x3 holds the
+    -- most live crabs RIGHT NOW (ties: nearest her), no prediction, no hold
+    -- -- sm16 svb t123: 1083/1084/1085 on one tile and 1081 behind them went
+    -- untouched while cast 2 took the lone 1080
+    local t = nil
+    if m.idx == 1 then
+        t = QD.raid.mz_lane_crab(st, v, c[2], false, true, skip) or QD.raid.mz_nearest_walker(st, v, skip)
+    else
+        t = QD.raid.mz_bunch_pick(st, v, skip)
+    end
     if t == nil then
         local seen = {}
         for slot, a in pairs(st.ev.adds) do
@@ -837,7 +865,7 @@ function QD.raid.mz_cast_tick(st, v, intent)
     if t ~= nil then
         intent.cast = { spell = st.plan.freeze_spell, symbol = st.plan.crab[st.mode], slot = t.slot, why = "cast " .. m.idx .. " " .. c[2] }
         m.casts[#m.casts + 1] = { tick = v.tick, slot = t.slot, result = "cast", wave = QD.raid.mz_form(st), form = #m.forms,
-            why = c[2] .. (QD.RAID_MAIDEN_REF.lanes[t.a.label] == c[2] and "" or (">" .. tostring(QD.RAID_MAIDEN_REF.lanes[t.a.label]))) }
+            why = c[2] .. (QD.RAID_MAIDEN_REF.lanes[t.a.label] == c[2] and "" or (">" .. tostring(QD.RAID_MAIDEN_REF.lanes[t.a.label]))) .. (t.n and ("x" .. t.n) or "") }
     end
     QD.raid.mz_go(st, v, "CAST", m.idx + 1)
 end
@@ -1027,7 +1055,16 @@ function QD.raid._play_maiden_trio(st, v)
         end
         local fr, fish = QD.inv.count("anglerfish")
         if intent.drink ~= nil and is_brew(intent.drink) and fr == "ok" and (tonumber(fish) or 0) > 0 and v.hp > 20 then intent.drink = nil end
-        if intent.drink == nil and drink_ready then
+        -- at 45 or under with no fish: the brew, never the super combat (sm25
+        -- sva: out of fish at 43 the leader drank two combat doses and her
+        -- next auto, 43, killed it)
+        if v.hp <= P.melee_eat_at and intent.eat == nil and drink_ready and (fr ~= "ok" or (tonumber(fish) or 0) == 0) then
+            for _, name in ipairs(QD.RAID_PLAY_BREWS) do
+                local br, bn = QD.inv.count(name)
+                if br == "ok" and (tonumber(bn) or 0) > 0 then intent.drink = name break end
+            end
+        end
+        if intent.drink == nil and drink_ready and v.hp > P.melee_eat_at then
             local _, sg = QD.skill.read("strength")
             if sg ~= nil and sg.level < 112 then
                 local doses = 0
