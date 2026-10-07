@@ -94,6 +94,31 @@ python3 tools/raid_gate/prepare_scripts.py
 Diagnose failures from the tick log first (`tools/raid_gate/raid_report.py`),
 not by replaying visually. Save visual verification for a green run.
 
+## Solo play strategy (owner, 2026-10-07)
+
+Every AutomationRunner script is a **state machine**: named states, explicit
+transitions, one intent per tick from the current state. Prefer
+`QD.raid._play_plan` / `t.raid.play` with a `decide` that keys off `st.state`
+(see ToB `raid_play_tob_*.lua`). Do not write linear “spam attack until dead”
+loops for kill-path rooms.
+
+**Default:** the **simplest** published solo method for that room
+(`synq_transcript.md` / wiki Strategies / `COX_MECHANICS.md`). No speedrun
+skips, no mage-hand glitch, no phoenix-necklace rope skip, unless this table
+names a harder method.
+
+| Room | Solo strategy (required) | Source |
+|---|---|---|
+| `olm` | **Melee 4-tick 4:1** first (head-turn skip of basic-2 + special). Duo script next, then trio. Each party size is its own harness. | synq [2:48:05] Melee 4-Tick 4:1; `COX_MECHANICS.md` §2 |
+| `vespula` | **Redemption** on the portal safe tiles (quick-pray Redemption + rigor/augury; attack portal → step back; restores/enhance). Not face-tank. | synq [1:25:36] / [1:29:03] |
+| `tightrope` | **Synq solo guide**: defeat mages then rangers (TBow), then Cross → Take keystone → Dispel. **No** phoenix-necklace / brew rope skip ([0:29:13]). | synq [0:26:22]–[0:29:13] |
+| `tekton` | **Run-around cycle** (monkey / 4-tick walk-around counterclockwise on the green pre-corner tile; lure far from anvil; dodge mid-phase sparks; re-engage after anvil). Not stand-and-tank. | synq [1:16:04] monkey method / [1:17:50] normal 4-tick |
+| all others | Simplest learner solo that still clears the kill path | synq room section; wiki Strategies |
+
+Harness naming: `test/raids/cox_<room>.lua` for the default solo SM;
+Olm party follow-ups are `cox_olm_solo_4t41.lua`, then `cox_olm_duo.lua`,
+`cox_olm_trio.lua` (or equivalent ids registered for `run.py`).
+
 ## Standing rules
 
 - Assert contracts in C (`CLAUDE.md`); do not add silent NULL returns.
