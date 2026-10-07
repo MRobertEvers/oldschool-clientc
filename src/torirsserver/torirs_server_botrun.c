@@ -38,6 +38,13 @@
  *     <pid> button <component uid>
  *     <pid> resume <component uid>
  *     <pid> cheat <text without ::>
+ *     <pid> collision <x0> <z0> <w> <h>   a query, not a packet: the next tick's
+ *                                      stream carries "coll <x0> <z0> <w> <h>
+ *                                      <w*h of 0/1, z-major>" (1: walk-blocked,
+ *                                      the scene's static collision) -- the floor
+ *                                      as the server walks it, not as a policy
+ *                                      guessed it (a Verzik pool landed at x 44
+ *                                      of a floor the policy had ending at 41)
  *     <pid> close                     (the client's CLOSE_MODAL: a modal left open
  *                                      blocks every normal queue -- the Verzik
  *                                      P1 bolt lands through one)
@@ -100,6 +107,12 @@ struct BotRun
     size_t msgs_capacity;
     int commands;
     int refused;
+    /* collision queries answered on the next tick's stream */
+    struct
+    {
+        int level, x0, z0, w, h;
+    } queries[8];
+    int query_count;
     FILE* record;
     FILE* replay;
     /* The replay's next line, read ahead: its tick says when it is due. */
@@ -286,6 +299,19 @@ botrun_command(
         put2(payload + 4, -1);
         ToriRSServer_WorldHandle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON, payload, 6);
     }
+    else if( strcmp(verb, "collision") == 0 && n >= 6 )
+    {
+        run->commands--;
+        if( run->query_count < 8 )
+        {
+            run->queries[run->query_count].level = player->level;
+            run->queries[run->query_count].x0 = atoi(fields[2]);
+            run->queries[run->query_count].z0 = atoi(fields[3]);
+            run->queries[run->query_count].w = atoi(fields[4]);
+            run->queries[run->query_count].h = atoi(fields[5]);
+            run->query_count++;
+        }
+    }
     else if( strcmp(verb, "close") == 0 )
     {
         ToriRSServer_WorldHandle(player, PKTOUT_NAME_CLOSE_MODAL, NULL, 0);
@@ -388,6 +414,26 @@ botrun_send_tick(struct BotRun* run)
                 fprintf(out, "npcsize\t%d\t%d\n", rows[i].a, run->srv->npcs[rows[i].a].size);
         }
     } while( got == BOTRUN_ROWS );
+    for( int q = 0; q < run->query_count; q++ )
+    {
+        int w = run->queries[q].w;
+        int h = run->queries[q].h;
+
+        if( w < 1 || h < 1 || w > 128 || h > 128 )
+            continue;
+        fprintf(out, "coll\t%d\t%d\t%d\t%d\t", run->queries[q].x0, run->queries[q].z0, w, h);
+        for( int dz = 0; dz < h; dz++ )
+        {
+            for( int dx = 0; dx < w; dx++ )
+                fputc(ToriRSServer_SceneWalkBlocked(run->queries[q].level, run->queries[q].x0 + dx,
+                                                    run->queries[q].z0 + dz)
+                          ? '1'
+                          : '0',
+                      out);
+        }
+        fputc('\n', out);
+    }
+    run->query_count = 0;
     for( int i = 0; i < run->side_count; i++ )
         botrun_put_row(out, &run->side[i]);
     run->side_count = 0;

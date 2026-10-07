@@ -147,6 +147,18 @@ function World:row(kind, sa, sb, sc, sd, se, sf, label, sg)
     end
 end
 
+-- A collision answer: w*h of 0/1, z-major, 1 walk-blocked.
+function World:collision(x0, z0, w, h, bits)
+    x0, z0, w, h = tonumber(x0), tonumber(z0), tonumber(w), tonumber(h)
+    self.blocked = self.blocked or {}
+    for dz = 0, h - 1 do
+        for dx = 0, w - 1 do
+            local i = dz * w + dx + 1
+            self.blocked[(x0 + dx) * 100000 + (z0 + dz)] = bits:sub(i, i) == "1"
+        end
+    end
+end
+
 -- A game message to a bot.  Content's death line is the death signal: the
 -- raider row need not read 0 (the slam of t164 left 1, the death came at 171).
 function World:message(pid, text)

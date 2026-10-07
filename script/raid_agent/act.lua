@@ -37,6 +37,10 @@ function Act.lines(pid, intent)
     assert(intent, "Act.lines: intent")
     local out = {}
     if intent.close then out[#out + 1] = pid .. "\tclose" end
+    if intent.query then
+        local q = intent.query
+        out[#out + 1] = pid .. "\tcollision\t" .. q.x0 .. "\t" .. q.z0 .. "\t" .. q.w .. "\t" .. q.h
+    end
     for _, c in ipairs(intent.cheat or {}) do out[#out + 1] = pid .. "\tcheat\t" .. c end
     for _, o in ipairs(intent.op or {}) do out[#out + 1] = pid .. "\topheld\t" .. o[1] .. "\t" .. o[2] .. "\t" .. o[3] end
     for _, name in ipairs(intent.pray or {}) do out[#out + 1] = pid .. "\tbutton\t" .. Act.prayer_uid(name) end

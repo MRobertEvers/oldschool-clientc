@@ -36,10 +36,17 @@ end
 
 local function cheb(ax, az, bx, bz) return math.max(math.abs(ax - bx), math.abs(az - bz)) end
 
--- Is (x, z) on the floor and outside every live npc's footprint?
+-- Is (x, z) on the floor and outside every live npc's footprint?  The floor is
+-- the server's collision once asked for (Verzik's pools land as far out as
+-- x 44, past the old plan's P.floor), the old plan's box until then.
 local function walkable(world, O, x, z)
     local rx, rz = x - O.x, z - O.z
-    if rx < 22 or rx > 41 or rz < 15 or rz > 34 then return false end
+    if world.blocked ~= nil then
+        local b = world.blocked[x * 100000 + z]
+        if b == nil or b then return false end
+    elseif rx < 22 or rx > 41 or rz < 15 or rz > 34 then
+        return false
+    end
     for _, n in pairs(world.npcs) do
         if n.alive and n.x ~= nil and (PILLAR[n.name] or COLLAPSING[n.name] or VERZIK[n.name]) then
             local s = n.size or 1
@@ -405,6 +412,217 @@ local function consume(world, me, m, vz, intent, eat_below)
     end
 end
 
+-- P3 (Normal trio, halberds).  Her melee is only ever thrown at a raider in
+-- melee range and cannot be prayed (tob_verzik.rs2 tob_verzik_p3_regular), so
+-- everyone hits from two out and she has nobody to melee.  Her ranged (1593)
+-- and magic (1594) autos are halved by the matching overhead read when they
+-- LAND ([queue,tob_verzik_p3_auto_land]): the overhead follows what is flying
+-- at me.  The tile: a tornado's reach (raid_move.tornado_reaches: its touch
+-- heals her three times the damage -- vzb4 636 healed), a web or a landing web
+-- or bomb, a dying nylocas's 3, her melee range -- hard; reach and my side
+-- soft.  The green ball (owner rulings): orb order -- the holder stands, the
+-- next in seat order joins its 3x3 for the landing, everyone else keeps out of
+-- it; once passed, a raider is free.  The yellows: one pool a seat, by order.
+local P3_RANGED_PROJ, P3_MAGIC_PROJ, BALL_PROJ, WEB_PROJ, POOL_GFX = 1593, 1594, 1598, 1601, 1595
+local TORNADO = { tob_verzik_creeper = true }
+local WEBS = { verzik_web_npc = true }
+
+local function p3_ball(world, me, m, seats, mems)
+    local t = world.tick
+    local proj = nil
+    for _, pr in ipairs(world.projectiles) do
+        if pr.spotanim == BALL_PROJ and pr.land >= t then proj = pr end
+    end
+    local b = m.ball
+    if proj == nil then
+        if b ~= nil and t > (b.last or t) + 6 then m.ball = nil end
+        return m.ball
+    end
+    local key = proj.launch .. ":" .. tostring(proj.target)
+    if b == nil then
+        b = { visited = {}, key = key }
+        m.ball = b
+    elseif b.key ~= key then
+        if b.holder ~= nil then b.visited[b.holder] = true end
+        b.key = key
+    end
+    b.holder, b.land, b.last = proj.target_pid, proj.land, t
+    -- the next in seat order after the holder that has not had it
+    local hseat = b.holder and mems[b.holder] and mems[b.holder].seat
+    b.next = nil
+    if hseat ~= nil then
+        for k = 1, #seats - 1 do
+            local s = ((hseat - 1 + k) % #seats) + 1
+            for _, pid in ipairs(seats) do
+                if mems[pid].seat == s and not b.visited[pid] and mems[pid].died == nil and b.next == nil then b.next = pid end
+            end
+        end
+    end
+    return b
+end
+
+-- THE TANK.  She picks one raider at random and keeps them for the phase,
+-- re-picking only after ten seconds out of melee distance ([proc,
+-- tob_verzik_pick_tank]); she walks at whoever that is.  So the raiders who are
+-- not her tank kiting her at two out walks the party into a corner (vzb4
+-- t834-856: all three stacked on (22, 15), and the ball exploded on the
+-- stack).  Her autos are aimed at the tank, so the target of the last one is
+-- the tank, read alike by everyone; the tank holds her in melee range and
+-- drags her toward the middle of the floor, the rest hold two out around her.
+local P3_CENTRE = { 31, 25 }
+
+local function p3_tank(world, m)
+    for _, pr in ipairs(world.projectiles) do
+        if pr.launch == world.tick and (pr.spotanim == P3_RANGED_PROJ or pr.spotanim == P3_MAGIC_PROJ) and pr.target_pid ~= nil then
+            m.tank = pr.target_pid
+        end
+    end
+    return m.tank
+end
+
+local function p3(world, me, m, mems, seats, vz, O, intent)
+    local t = world.tick
+    local tank = p3_tank(world, m)
+    local i_tank = tank == me.pid
+    local cx, cz = O.x + P3_CENTRE[1], O.z + P3_CENTRE[2]
+    -- the overhead: what is flying at me, else Protect from Magic
+    local want = "protectfrommagic"
+    local soonest = nil
+    for _, pr in ipairs(world.projectiles) do
+        if pr.target_pid == me.pid and pr.land >= t + 1 and (pr.spotanim == P3_RANGED_PROJ or pr.spotanim == P3_MAGIC_PROJ) then
+            if soonest == nil or pr.land < soonest.land then soonest = pr end
+        end
+    end
+    if soonest ~= nil and soonest.spotanim == P3_RANGED_PROJ then want = "protectfrommissiles" end
+    if m.overhead ~= want and (m.overhead_at or -9) < t then
+        intent.pray = intent.pray or {}
+        intent.pray[#intent.pray + 1] = want
+        m.overhead, m.overhead_at = want, t
+    end
+    -- the hazards
+    local tors = {}
+    for _, n in pairs(world.npcs) do
+        if n.alive and TORNADO[n.name] then tors[#tors + 1] = { x = n.x, z = n.z } end
+    end
+    local landing = {}
+    for _, pr in ipairs(world.projectiles) do
+        if (pr.spotanim == WEB_PROJ or pr.spotanim == BOMB) and pr.land >= t then landing[pr.dx * 100000 + pr.dz] = true end
+    end
+    for _, n in pairs(world.npcs) do
+        if n.alive and WEBS[n.name] and n.x ~= nil then landing[n.x * 100000 + n.z] = true end
+    end
+    local dying = {}
+    for _, n in pairs(world.npcs) do
+        if n.alive and n.dying and NYLO[n.name] then dying[#dying + 1] = n end
+    end
+    local hard = {
+        { name = "under", pen = 1000, bad = function(x, z) return foot_dist(vz, x, z) < 1 end },
+        { name = "melee", pen = i_tank and 0 or 150, bad = function(x, z) return foot_dist(vz, x, z) <= 1 end },
+        { name = "tor", pen = 450, bad = function(x, z) return Move.tornado_reaches(tors, me, me, x, z) end },
+        { name = "web", pen = 300, bad = function(x, z)
+            if landing[x * 100000 + z] then return true end
+            if cheb(me.x, me.z, x, z) < 2 then return false end
+            local mx, mz = Move.toward(me.x, me.z, x, z, 1)
+            return landing[mx * 100000 + mz] == true
+        end },
+        { name = "pop", pen = 700, bad = function(x, z)
+            for _, n in ipairs(dying) do if foot_dist(n, x, z) <= 3 then return true end end
+            return false
+        end },
+    }
+    local soft = {
+        { name = "reach", w = 10, cost = function(x, z) return math.max(0, foot_dist(vz, x, z) - (i_tank and 1 or 2)) end },
+        -- away from the walls: a corner has no tile left to step to
+        { name = "middle", w = 2, cost = function(x, z) return math.max(0, cheb(x, z, cx, cz) - 6) end },
+    }
+    -- a tornado walks one tile a tick and I run two: stepping just off its
+    -- reach lets it catch up at once (vzb4 t1300-1306: every tick a move, no
+    -- swing for 200 ticks at 67 left), so the step goes FAR from it, and the
+    -- gap that buys is the swing
+    if #tors > 0 then
+        soft[#soft + 1] = { name = "gap", w = 8, cost = function(x, z)
+            local near = 99
+            for _, e in ipairs(tors) do near = math.min(near, cheb(e.x, e.z, x, z)) end
+            return math.max(0, 5 - near)
+        end }
+    end
+    if i_tank then
+        -- drag her toward the middle: the side of her nearer the centre
+        soft[#soft + 1] = { name = "drag", w = 4, cost = function(x, z) return cheb(x, z, cx, cz) end }
+    end
+    local stay_w = 2
+    -- never stacked: a stack is a crowd for the ball and the blood alike
+    soft[#soft + 1] = { name = "spread", w = 6, cost = function(x, z)
+        local n = 0
+        for _, pid in ipairs(seats) do
+            local o = world.players[pid]
+            if pid ~= me.pid and mems[pid].died == nil and o.x ~= nil and cheb(o.x, o.z, x, z) <= 1 then n = n + 1 end
+        end
+        return n
+    end }
+    -- the ball
+    local b = p3_ball(world, me, m, seats, mems)
+    if b ~= nil and b.holder ~= nil then
+        local H = world.players[b.holder]
+        local left = (b.land or t) - t
+        -- content (tob_verzik.rs2 [queue,tob_verzik_ball_land]): at each
+        -- landing exactly ONE raider who has not had it may stand in the 3x3
+        -- round the target -- it hops to them and hurts nobody; two such
+        -- explode on everyone near, none hits the target (and a previous
+        -- holder beside it).  The third landing with three alive dissipates.
+        -- So the holder stands (the meeting point: one mover), the next in
+        -- seat order joins, and everyone else stays out of it.
+        if b.holder == me.pid then
+            stay_w = 30
+        elseif b.next == me.pid and H ~= nil then
+            soft[#soft + 1] = { name = "join", w = 40, cost = function(x, z) return math.max(0, cheb(x, z, H.x, H.z) - 1) end }
+            if left <= 1 then
+                hard[#hard + 1] = { name = "pair", pen = 1000, bad = function(x, z) return cheb(x, z, H.x, H.z) > 1 end }
+            end
+        elseif H ~= nil then
+            hard[#hard + 1] = { name = "crowd", pen = (left <= 2) and 1000 or 300, bad = function(x, z) return cheb(x, z, H.x, H.z) <= 2 end }
+            -- a flat penalty has no way out from the holder's own tile (vz08
+            -- t936-944: a run of two cannot leave a radius of two, so every
+            -- tile cost the same and the third stood on the holder): the
+            -- gradient walks it out over the ticks the flight gives
+            soft[#soft + 1] = { name = "out", w = 25, cost = function(x, z) return math.max(0, 3 - cheb(x, z, H.x, H.z)) end }
+        end
+    end
+    -- the yellows: seat k stands on the k-th pool
+    -- one row per pool per player who saw it: by tile, once each (vz11 t783:
+    -- nine rows for three pools sorted all three seats onto one)
+    local pools, seen_pool = {}, {}
+    for _, s in ipairs(world.spotanims) do
+        local k = s.x * 100000 + s.z
+        if s.spotanim == POOL_GFX and t - s.tick <= 14 and not seen_pool[k] then
+            pools[#pools + 1] = s
+            seen_pool[k] = true
+        end
+    end
+    if #pools > 0 then
+        table.sort(pools, function(p1, p2) return p1.x < p2.x or (p1.x == p2.x and p1.z < p2.z) end)
+        local mine = pools[((m.seat - 1) % #pools) + 1]
+        soft[#soft + 1] = { name = "pool", w = 60, cost = function(x, z) return cheb(x, z, mine.x, mine.z) end }
+        stay_w = 1
+    end
+    local q = { me = me, step = 2, hard = hard, soft = soft, stay_w = stay_w,
+        ok = function(x, z) return walkable(world, O, x, z) end }
+    local r = Move.solve(q)
+    local here, here_broke = Move.cost_at(q, me.x, me.z)
+    local fd = foot_dist(vz, me.x, me.z)
+    local in_reach = fd == 2 or (i_tank and fd == 1)
+    if r.moved and (here_broke ~= nil or here > r.cost + 4 or not in_reach) then
+        intent.walk = { x = r.x, z = r.z }
+        intent.why = intent.why .. "p3 move " .. (r.x - O.x) .. "," .. (r.z - O.z) .. (here_broke and ("!" .. here_broke) or "") .. " "
+        return intent
+    end
+    if in_reach and #pools == 0 and me.target ~= vz.slot then
+        intent.attack = vz.slot
+        intent.why = intent.why .. "p3 hit "
+    end
+    return intent
+end
+
 local function kit(seat)
     local k = { "clearinv", "tobkit" }
     local worn = {
@@ -486,6 +704,10 @@ function V.step(world, me, m, seats, mems)
     consume(world, me, m, vz, intent, eat_below)
     if vz == nil then return intent end
     local O = room(world, m)
+    if O ~= nil and m.seat == 1 and not m.asked_floor then
+        intent.query = { x0 = O.x + 10, z0 = O.z + 5, w = 45, h = 40 }
+        m.asked_floor = true
+    end
 
     -- P1: hide behind a pillar for every shot, attack between them
     if vz.name == "verzik_phase1" and O ~= nil then
@@ -544,6 +766,10 @@ function V.step(world, me, m, seats, mems)
 
     if vz.name == "verzik_phase2" and O ~= nil then
         return p2(world, me, m, mems, seats, vz, O, intent)
+    end
+
+    if vz.name == "verzik_phase3" and O ~= nil then
+        return p3(world, me, m, mems, seats, vz, O, intent)
     end
 
     -- attack whatever form is attackable
