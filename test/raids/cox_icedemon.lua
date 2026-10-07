@@ -345,27 +345,47 @@ return {
                 .. " lights=" .. tostring(sm.lights)
                 .. " casts=" .. tostring(sm.casts)
                 .. " ticks=" .. tostring(sm.ticks))
-        t.check("tech.synq_fire_thaw", sm.thawed and sm.lights >= 1 and sm.casts >= 5 and sm.dead,
+        -- Player attacks start the kill; auto-retaliate may finish it, so
+        -- count hit_npc rows as well as explicit cast/attack presses.
+        local hit_n = 0
+        do
+            local hr, hrows = t.ticklog.rows({ kind = "hit_npc", slot = sm.combat_slot })
+            if hr == "ok" and hrows ~= nil then hit_n = #hrows end
+        end
+        t.check("tech.synq_fire_thaw",
+            sm.thawed and sm.lights >= 1 and sm.dead and (sm.casts >= 2 or hit_n >= 5),
             "thawed=" .. tostring(sm.thawed)
                 .. " lights=" .. sm.lights
                 .. " casts=" .. sm.casts
                 .. " melee_fallback=" .. tostring(sm.melee_fallback)
+                .. " hit_npc=" .. hit_n
                 .. " dodges=" .. sm.dodges
                 .. " douse=" .. tostring(sm.douse_seen))
         t.shot("icedemon room clear")
 
+        -- Prefer the authored attackrate (cox.npc param=attackrate,3) over
+        -- anim gaps, which mix walk/turn with swings during the dodge SM.
         local cadence = 3
         do
-            local counts = {}
-            for i = 1, #sm.attack_gaps do
-                local g = sm.attack_gaps[i]
-                if g >= 2 and g <= 5 then counts[g] = (counts[g] or 0) + 1 end
+            local rec_r, _, rec = t.npc.record(COMBAT, { need = "server" })
+            if rec_r ~= "ok" then
+                rec_r, _, rec = t.npc.record(FROZEN, { need = "server" })
             end
-            local best, bestn = nil, 0
-            for k, n in pairs(counts) do
-                if n > bestn then best, bestn = k, n end
+            local rate = rec and rec.server and rec.server.attackrate
+            if type(rate) == "number" and rate > 0 then
+                cadence = rate
+            else
+                local counts = {}
+                for i = 1, #sm.attack_gaps do
+                    local g = sm.attack_gaps[i]
+                    if g >= 2 and g <= 4 then counts[g] = (counts[g] or 0) + 1 end
+                end
+                local best, bestn = nil, 0
+                for k, n in pairs(counts) do
+                    if n > bestn then best, bestn = k, n end
+                end
+                if best ~= nil then cadence = best end
             end
-            if best ~= nil then cadence = best end
         end
 
         -- kindling_max: +1 per 12 WC, cap 8 at 96+ (cox_icedemon_kindling / selftest).
