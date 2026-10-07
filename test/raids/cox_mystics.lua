@@ -129,13 +129,15 @@ local function drink_restore(t)
 end
 
 local function top_up(t)
-    for _ = 1, 5 do
-        if hp(t) >= 80 then break end
+    for _ = 1, 6 do
+        if hp(t) >= 85 then break end
         if not drink_brew(t) then break end
         t.ticks(1)
     end
-    if hp(t) < 70 then
+    if hp(t) < 60 then
         t.player.eat("shark")
+    end
+    if hp(t) < 40 then
         t.player.eat("tbwt_cooked_karambwan")
     end
     if prayer_points(t) < 50 then
@@ -188,9 +190,9 @@ return {
         "::give dragon_arrow 2000",
         "::wield dragon_arrow",
         "::give br_4dose2restore 1",
-        "::give br_4dosepotionofsaradomin 3",
-        "::give shark 20",
-        "::give tbwt_cooked_karambwan 4",
+        "::give br_4dosepotionofsaradomin 2",
+        "::give shark 22",
+        "::give tbwt_cooked_karambwan 3",
     },
 
     run = function(t)
@@ -347,14 +349,13 @@ return {
                 top_up(t)
                 arm_prayers(false)
 
-                -- below=50 + combo: tbow stays at range so melee max-hits do
-                -- not appear; brew top_up before each await covers the rest.
+                -- below=40, no combo: run20 burned all 24 foods by mystic 2
+                -- (combo at below=50). Karambwan is reserved for top_up <40.
                 local eat_opts = {
                     eat = {
                         item = "shark",
-                        below = 50,
+                        below = 40,
                         quick = true,
-                        combo = "tbwt_cooked_karambwan",
                     },
                 }
                 local cslot = target.client_slot
