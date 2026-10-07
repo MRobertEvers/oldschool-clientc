@@ -119,9 +119,9 @@ if mrole == 2 then
         "::give eye_of_ayak_uncharged", "::give demon_tear 2000",
         "::give water_rune 2000", "::give blood_rune 1000", "::give death_rune 1000",
         "::give necklace_of_rupture", "::give lotr_crystalshard_necklace_upgrade",
+        "::give elder_maul", "::give dragon_warhammer",
         "::give saturated_heart", "::give 4doserangerspotion", "::give 4dosedivinerange",
-        "::give 4dosedivinecombat", "::give 4dose2combat",
-        "::give 4dosestamina" }) do KIT[#KIT + 1] = c end
+        "::give 4dosedivinecombat", "::give 4dose2combat" }) do KIT[#KIT + 1] = c end
 else
     for _, c in ipairs({ "::tobkit", "::blowpipe dragon_dart 2000 2000",
         "::give twisted_bow", "::wield twisted_bow",
@@ -131,9 +131,12 @@ else
         "::give pest_void_knight_gloves", "::give necklace_of_rupture",
         "::give lotr_crystalshard_necklace_upgrade",
         "::give dinhs_bulwark", "::give dragon_claws",
+        "::give elder_maul", "::give dragon_warhammer",
+        -- (owner_verzik's slow snippet: seats 2 and 3 are the noxious halberd
+        -- seats at her P3 -- the Blert team that reaches her ball)
+        "::give noxious_halberd",
         "::give 4dose2combat", "::give 4dosedivinecombat",
-        "::give 4doserangerspotion", "::give 4dosedivinerange",
-        "::give 4dosestamina" }) do KIT[#KIT + 1] = c end
+        "::give 4doserangerspotion", "::give 4dosedivinerange" }) do KIT[#KIT + 1] = c end
     if role == 2 then KIT[#KIT + 1] = "::give chinchompa_black 300" end
     if role == 3 then
         KIT[#KIT + 1] = "::give abyssal_whip"
@@ -146,12 +149,23 @@ local SUPPLIES = nil
 -- (the freezer's fifth fish is the salve amulet's slot: its pack is full,
 -- and the salve is what makes Bloat green in its room harness --
 -- owner_rooms4's relay snippet DIFFERENCES 1; the freezer ate 4 at Maiden)
+-- (owner_rooms4's Sotetseg and Xarpus snippets, coordinator 2026-10-07:
+-- every seat also carries the elder maul -- Sotetseg's specials, each seat
+-- owns two -- and the dragon warhammer -- Xarpus' specials, W:839 -- and
+-- seats 2 and 3 owner_verzik's noxious halberd.  The slots: the stamina
+-- (relay11's tick log: run energy never under 78 percent through
+-- Sotetseg; the chest sells it), Dizana's quiver NOT carried (a convenience:
+-- one bow volley's ranged bonus at Sotetseg's opener), and fish, the food
+-- the chest after Bloat sells -- the brews kept, 64 Hitpoints a slot to a
+-- fish's 22 (relay12 cut a brew and two fish a seat as well: every seat
+-- reached Bloat with 0-1 fish and died there).  Food still comes first,
+-- the brew after it (library 112c9eb06).)
 if mrole == 2 then
-    SUPPLIES = { "::give br_4dosepotionofsaradomin 1", "::give br_4dose2restore 2", "::give anglerfish 4" }
+    SUPPLIES = { "::give br_4dosepotionofsaradomin 1", "::give br_4dose2restore 2", "::give anglerfish 3" }
 elseif role == 2 then
-    SUPPLIES = { "::give br_4dosepotionofsaradomin 2", "::give br_4dose2restore 2", "::give anglerfish 7" }
+    SUPPLIES = { "::give br_4dosepotionofsaradomin 2", "::give br_4dose2restore 2", "::give anglerfish 5" }
 else
-    SUPPLIES = { "::give br_4dosepotionofsaradomin 2", "::give br_4dose2restore 2", "::give anglerfish 6" }
+    SUPPLIES = { "::give br_4dosepotionofsaradomin 2", "::give br_4dose2restore 2", "::give anglerfish 4" }
 end
 
 -- What each seat leaves on the floor once no later room uses it (the Entry
@@ -546,7 +560,9 @@ local STAMINA = { "1dosestamina", "2dosestamina", "3dosestamina", "4dosestamina"
 local function stamina(t, name)
     local dose = first_held(t, STAMINA)
     if dose == nil then
-        t.check(name .. ".stamina", false, P .. "no stamina dose left")
+        -- (none carried: the whole-raid pack's slot went to the room tools;
+        -- the plans' run keep still presses the orb when run reads off)
+        t.check(name .. ".stamina", true, P .. "no stamina dose carried")
         return
     end
     -- pressed again while the pack still reads the same dose (a press inside
@@ -657,7 +673,9 @@ local function restock(t, name)
         if points >= CHEST_COST[kind] and free_slots(t) > 0 then buy(kind) end
     end
     local guard = 0
-    while guard < 20 and free_slots(t) > 0 and points >= CHEST_COST.shark do
+    -- (one slot kept free: the Dawnbringer at Xarpus' skeleton, W:875 --
+    -- the Entry relay lost it to a full pack)
+    while guard < 20 and free_slots(t) > 1 and points >= CHEST_COST.shark do
         guard = guard + 1
         if not buy("shark") then break end
     end
@@ -720,6 +738,17 @@ local function nylocas_rows(t, rec)
 end
 
 -- ------------------------------------------------- each room's pre-fight
+-- The serial of the newest mark row on tick `tick0` (a room's own mark), so
+-- a room's rows are read from it on; 0 (the whole log) when none is found.
+local function mark_serial(t, tick0)
+    local _, rows = t.ticklog.rows({ kind = "mark" })
+    local serial = 0
+    for i = 1, #(rows or {}) do
+        if rows[i].tick == tick0 then serial = rows[i].serial end
+    end
+    return serial
+end
+
 -- THE MAIDEN ROWS: test/raids/_play_maiden.lua's freezer and leader reads at
 -- 5b61b41c7 (the room GREEN on the owner's ruling of 2026-10-07), lifted
 -- whole and prefixed "maiden.", from the relay's own mark ("maiden start").
@@ -959,13 +988,15 @@ end
 local function bloat_rows(t, rec, result, detail, ox, oz)
     local mode, boss = "normal", "tob_bloat"
     local tick0 = R.bloat.mark or (rec and rec.start_tick) or 0
+    -- (read from the mark's own serial on: the log is the whole raid's, and
+    -- a whole-log read and filter ran the leader out of its instruction
+    -- budget after Sotetseg, relay13)
+    local since = mark_serial(t, tick0)
     local function rows_of(query)
-        local rr, rows = t.ticklog.rows(query)
-        local kept = {}
-        for i = 1, #(rows or {}) do
-            if rows[i].tick >= tick0 then kept[#kept + 1] = rows[i] end
-        end
-        return rr, kept
+        local q = {}
+        for k, v in pairs(query) do q[k] = v end
+        q.since = since
+        return t.ticklog.rows(q)
     end
     -- THE TICK LOG (leader): the same reads tob_bloat.lua's ANALYSIS makes
     t.ticks(1)
@@ -1300,6 +1331,446 @@ local function bloat_rows(t, rec, result, detail, ox, oz)
         tostring(death_tick and mark_tick and (death_tick - mark_tick)), tostring(mark_tick), tostring(death_tick), taken, #rec.eats, #rec.drinks, #rec.swings, hist[1], hist[2], hist[3], hist[4]))
 end
 
+-- THE SOTETSEG ROWS (owner_rooms4's relay snippet ROWS): the leader's reads
+-- of test/raids/_play_sotetseg.lua at c58005d4d, lifted whole and prefixed
+-- "sotetseg.", from the relay's own mark ("sotetseg start"), every row read
+-- cut to the ticks from that mark on.  Every death ball: all three within a
+-- tile at the landing and struck with the same share
+-- (sotetseg.technique.trio.death_ball_shared, a row per ball).
+local function sotetseg_rows(t, rec, result, detail)
+    local mode, BOSS = "normal", "tob_sotetseg_combat"
+    local MELEE, BALL = 8138, 8139
+    local DEATH_BALL, RED, GREY = 1604, 1606, 1607
+    local S = rec.sote or { mazes = {}, follows = {} }
+    local tick0 = R.sotetseg.mark or rec.start_tick or 0
+    -- (read from the mark's own serial on: the log is the whole raid's, and
+    -- a whole-log read and filter ran the leader out of its instruction
+    -- budget after Sotetseg, relay13)
+    local since = mark_serial(t, tick0)
+    local function rows_of(query)
+        local q = {}
+        for k, v in pairs(query) do q[k] = v end
+        q.since = since
+        return t.ticklog.rows(q)
+    end
+    -- THE TICK LOG (leader): what the room did, per raider (pids as the log counts them)
+    t.ticks(1)
+    local mark_tick = R.sotetseg.mark or rec.start_tick
+    local wslot = rec.boss_slot
+    local death_tick = rec.death_tick
+    t.expect("sotetseg.fight.over", (death_tick ~= nil) and "ok" or "fail", "boss npc_death at tick " .. tostring(death_tick)
+        .. " (room ticks " .. tostring(death_tick and (death_tick - mark_tick)) .. "), slot " .. tostring(wslot) .. "; " .. tostring(detail))
+    local end_tick = death_tick or rec.end_tick or mark_tick
+    local _, hits = rows_of({ kind = "hit_player" })
+    t.ticks(1)
+    local _, projs = rows_of({ kind = "projectile" })
+    local _, rts = rows_of({ kind = "npc_retype", slot = wslot })
+    t.ticks(1)
+    local _, ptl = rows_of({ kind = "player_tile" })
+    local _, anims = rows_of({ kind = "npc_anim", slot = wslot })
+    -- damage per raider, and what dealt it
+    local taken, melee_n, pids = {}, 0, {}
+    for _, h in ipairs(hits) do
+        if h.tick > mark_tick and h.tick <= end_tick then
+            taken[h.pid] = (taken[h.pid] or 0) + h.damage
+            pids[h.pid] = true
+        end
+    end
+    for _, a in ipairs(anims) do
+        if a.seq == MELEE and a.tick > mark_tick then melee_n = melee_n + 1 end
+    end
+    -- the mazes: his two retypes per maze (proc, re-activation); the raider in
+    -- the realm (level 3) is the one the room chose
+    local mazes = {}
+    for i = 1, #rts, 2 do
+        mazes[#mazes + 1] = { proc = rts[i].tick, react = rts[i + 1] and rts[i + 1].tick or nil, runners = {}, arena_grid = {}, blasts = 0 }
+    end
+    for _, r in ipairs(ptl) do
+        for _, mz in ipairs(mazes) do
+            if r.tick > mz.proc and r.tick <= (mz.react or end_tick) then
+                if r.level == 3 then mz.runners[r.pid] = (mz.runners[r.pid] or 0) + 1 end
+                local ox, oz = math.floor(r.x / 64) * 64, math.floor(r.z / 64) * 64
+                local lx, lz = r.x - ox - 9, r.z - oz - 22
+                if r.level == 0 and lx >= 0 and lx < 14 and lz >= 0 and lz < 15 then
+                    mz.arena_grid[r.pid] = (mz.arena_grid[r.pid] or 0) + 1
+                end
+            end
+        end
+    end
+    for _, h in ipairs(hits) do
+        for _, mz in ipairs(mazes) do
+            if h.tick > mz.proc + 3 and h.tick <= (mz.react or end_tick) and h.damage > 3 then mz.blasts = mz.blasts + 1 end
+        end
+    end
+    local maze_lines, one_runner, no_blast, walked = {}, #mazes >= 1, true, true
+    for k, mz in ipairs(mazes) do
+        local rs, gs = {}, {}
+        local nr = 0
+        for pid, c in pairs(mz.runners) do nr = nr + 1 rs[#rs + 1] = "p" .. pid .. " " .. c end
+        for pid, c in pairs(mz.arena_grid) do gs[#gs + 1] = "p" .. pid .. " " .. c end
+        table.sort(rs) table.sort(gs)
+        if nr ~= 1 then one_runner = false end
+        if mz.blasts > 0 then no_blast = false end
+        if #gs < 1 then walked = false end
+        maze_lines[#maze_lines + 1] = "maze " .. k .. ": t" .. mz.proc .. "-t" .. tostring(mz.react) .. " (" .. tostring(mz.react and (mz.react - mz.proc))
+            .. " ticks), runner " .. table.concat(rs, ",") .. ", arena grid ticks " .. table.concat(gs, ",") .. ", hits >3 in it " .. mz.blasts
+    end
+    t.expect("sotetseg.technique.trio.maze_runner_one", one_runner and "ok" or "fail", #mazes .. " mazes; " .. table.concat(maze_lines, "; "))
+    t.expect("sotetseg.technique.trio.maze_no_blast", (#mazes >= 1 and no_blast) and "ok" or "fail",
+        "no hit over 3 (a wrong tile's blast, 15 + 6.67% hp; the tornado's 35-45) on anyone while a maze was on: " .. table.concat(maze_lines, "; "))
+    t.check("sotetseg.technique.trio.maze_followed", #mazes >= 1 and walked, "the raiders thrown to the far end walked the arena's grid behind the glow: " .. table.concat(maze_lines, "; "))
+    -- the death balls: each landing's splats, by raider (W:794 split; all three on
+    -- the front tile, yt_4i4lv-srJkw.md:95)
+    local balls, shared_all, ball_lines = 0, true, {}
+    for _, r in ipairs(projs) do
+        if r.spotanim == DEATH_BALL and r.tick > mark_tick and r.tick <= end_tick then
+            balls = balls + 1
+            local land = r.tick + math.floor((r.end_cycle or 0) / 30)
+            -- the share is one splat of one size on each raider within a tile
+            -- of the target, on one tick (S tob_sote_ball_impact: total /
+            -- sharing to each): the largest group of equal splats from him
+            -- from the landing to two after (a raider earlier in the tick's
+            -- order shows its splat a tick later: _play_sotetseg t206/t207)
+            local got, n = {}, 0
+            local by = {}
+            for _, h in ipairs(hits) do
+                if h.tick >= land and h.tick <= land + 2 and h.npc_slot == wslot and h.damage > 0 then
+                    by[h.damage] = by[h.damage] or {}
+                    by[h.damage][h.pid] = h.damage
+                end
+            end
+            for _, group in pairs(by) do
+                local c = 0
+                for _ in pairs(group) do c = c + 1 end
+                if c > n then got, n = group, c end
+            end
+            local parts = {}
+            for pid, d in pairs(got) do parts[#parts + 1] = "p" .. pid .. " " .. d end
+            table.sort(parts)
+            -- "incoming attacks made by Sotetseg, including the big red ball,
+            -- will not deal damage" while a maze is on (W:799; S
+            -- tob_sote_maze_nulls_hit): a ball landing inside one is not judged
+            local nulled = false
+            for _, mz in ipairs(mazes) do
+                if land >= mz.proc and land <= (mz.react or end_tick) then nulled = true end
+            end
+            if nulled then
+                balls = balls - 1
+                parts[#parts + 1] = "nulled by the maze"
+            elseif land <= end_tick then
+                -- the technique: every raider within a tile of one raider's
+                -- tile at the landing (S tob_sote_ball_impact hunts radius 1
+                -- around the target) -- the splats themselves can be 0 for all
+                -- but one (1 + random(121) split three ways, through a prayer)
+                local at = {}
+                for _, pt in ipairs(ptl) do
+                    if pt.tick == land - 1 and pt.level == 0 then at[#at + 1] = pt end
+                end
+                local stacked = false
+                for _, c in ipairs(at) do
+                    local all = true
+                    for _, o in ipairs(at) do
+                        if math.abs(o.x - c.x) > 1 or math.abs(o.z - c.z) > 1 then all = false end
+                    end
+                    if all then stacked = true end
+                end
+                stacked = stacked and #at == size
+                parts[#parts + 1] = (stacked and "all " .. #at .. " within a tile at t" .. (land - 1)) or ("NOT stacked at t" .. (land - 1))
+                if not stacked then shared_all = false end
+                -- OWNER 2026-10-07: "the raiders should share the red ball" -- and
+                -- the content splits it among every raider within a tile of the
+                -- target (tob_sotetseg.rs2 [queue,tob_sote_ball_impact], radius 1,
+                -- the wiki's 3x3): every raider struck by THIS ball, the same
+                -- share each, or it was not shared (owner_rooms4)
+                if n > 0 and n ~= size then   -- (a roll under 3 shares 0 each: no splat to count)
+                    shared_all = false
+                    parts[#parts + 1] = "struck " .. n .. " of " .. size
+                end
+            end
+            if not nulled and land > end_tick then parts[#parts + 1] = "landed after his death" end
+            ball_lines[#ball_lines + 1] = "t" .. r.tick .. " land t" .. land .. ": " .. n .. " raiders (" .. table.concat(parts, ",") .. ")"
+        end
+    end
+    -- raid seam50: a room whose only death ball landed inside a maze (nulled,
+    -- W:799) has nothing to judge: the row is absent on that seed, never a
+    -- FAIL on nothing (seam49 s2 _play_sotetseg: t190 land t205, nulled) nor
+    -- a PASS on nothing; play.measure carries the line
+    if balls >= 1 then
+        t.expect("sotetseg.technique.trio.death_ball_shared", shared_all and "ok" or "fail",
+            balls .. " death balls, the party stacked within a tile at every landing (the splats: the largest equal group, landing to +2): " .. table.concat(ball_lines, "; "))
+    end
+    -- the balls: blocked splats (hitsplat 26, 0) against ones that hurt
+    local blocked, hurt = 0, 0
+    for _, h in ipairs(hits) do
+        if h.tick > mark_tick and h.tick <= end_tick then
+            if h.hitsplat == 26 and h.damage == 0 and h.npc_slot == -1 then blocked = blocked + 1 end
+        end
+    end
+    -- the room's end: the real chat line (tob_sotetseg.lua :1578-1590's read)
+    if death_tick ~= nil then
+        t.ticks(10)
+        local _, wl = t.msg.last(30)
+        local wave_raw = nil
+        for _, m in ipairs(wl or {}) do
+            if string.find(m.text, "complete!", 1, true) and string.find(m.text, "Wave", 1, true) then wave_raw = m.text end
+        end
+        local wave_txt = wave_raw and string.gsub(string.gsub(wave_raw, "<br>", " "), "<[^>]*>", "") or "none"
+        t.check("sotetseg.room.wave_line", wave_raw ~= nil and string.find(wave_txt, "(Normal Mode) complete!", 1, true) ~= nil,
+            "chat line after his death: " .. wave_txt)
+    end
+    local per = {}
+    for pid, _ in pairs(pids) do per[#per + 1] = "p" .. pid .. " " .. (taken[pid] or 0) end
+    table.sort(per)
+    local hist = { 0, 0, 0, 0 }
+    for _, n in pairs(rec.inputs) do
+        if n > 0 then hist[math.min(n, 4)] = hist[math.min(n, 4)] + 1 end
+    end
+    -- raid seam50 play_tob_sotetseg_whole: THE REFERENCE ROWS.  The room
+    -- against the 20 recorded death-free Normal trio rooms on Blert
+    -- (docs/minigames/theater_of_blood/sources/blert_api/reference/
+    -- sotetseg_normal_3.json): outcome.room_ticks 212.5 [164-262];
+    -- outcome.hp_lost per raider melee1 92.5 [27-155], melee2 108 [3-225],
+    -- melee3 105 [83-135] (the roles are the recorder's labels, so a raider
+    -- is held to their union [3-225]); outcome.deaths 0 [0-0]; the maze, proc
+    -- to his combat form back, 28 [14-47] over 26 mazes (blert_api/
+    -- sote_maze.csv reactivate_tick - proc_tick).
+    -- OWNER RULING 2026-10-07 (owner_rooms4, via the coordinator): "If sotetseg
+    -- is completing but just a bit slower, count it as good, don't worry about
+    -- meeting blert times."  So for SOTETSEG ONLY the room's green is that it
+    -- completes (his death row, no raider dead: the deaths row below); the
+    -- reference's [164-262] is printed beside it, not asserted.  The other rooms'
+    -- time bounds stand.
+    local room_ticks = death_tick and (death_tick - mark_tick) or nil
+    t.check("sotetseg.blert.room_ticks", room_ticks ~= nil,
+        "room " .. tostring(room_ticks) .. " ticks from the mark to his death (completion is the bound, owner 2026-10-07); the reference's 20 rooms: 212.5 [164-262]"
+        .. ((room_ticks ~= nil and room_ticks > 262) and " -- slower than every recorded room" or ""))
+    -- OWNER RULING 2026-10-07 (owner_rooms4, via the coordinator): "Missing by 2
+    -- hitpoints is fine. Maybe loosen the requirements."  The bound was the
+    -- reference's largest seat, 225 (also the largest of the 37 seats with
+    -- hitpoints in build/blert/sotetseg's scale-3 PLAYER updates); _play lost
+    -- 227 on one seat (two melees on a ball's landing tick).  It is 250 now,
+    -- the coordinator's cap for the loosened bound; the reference is printed.
+    local HP_LOST_BOUND = 250
+    local hp_ok = #per >= 1
+    for pid, _ in pairs(pids) do
+        if (taken[pid] or 0) > HP_LOST_BOUND then hp_ok = false end
+    end
+    t.check("sotetseg.blert.hp_lost", hp_ok, "hitpoints lost a raider " .. table.concat(per, ", ") .. " (bound " .. HP_LOST_BOUND .. ", owner 2026-10-07); the reference: melee1 92.5 [27-155], melee2 108 [3-225], melee3 105 [83-135]")
+    local maze_ok, maze_d = #mazes >= 1, {}
+    for _, mz in ipairs(mazes) do
+        local d = mz.react and (mz.react - mz.proc) or nil
+        maze_d[#maze_d + 1] = tostring(d)
+        if d == nil or d < 14 or d > 47 then maze_ok = false end
+    end
+    t.check("sotetseg.blert.maze_ticks", maze_ok, "mazes proc to back " .. table.concat(maze_d, ", ") .. " ticks; the reference's 26 mazes: 28 [14-47]")
+    t.check("sotetseg.play.measure", true, string.format("room %s ticks (mark %s, death %s); damage taken %s; his melee swings %d; "
+        .. "balls blocked %d; death balls %d; mazes %d; leader eats %d, drinks %d, swings %d; inputs 1/2/3/4+ %d/%d/%d/%d",
+        tostring(death_tick and (death_tick - mark_tick)), tostring(mark_tick), tostring(death_tick), table.concat(per, ", "),
+        melee_n, blocked, balls, #mazes, #rec.eats, #rec.drinks, #rec.swings, hist[1], hist[2], hist[3], hist[4]))
+end
+
+-- THE XARPUS ROWS (owner_rooms4's relay snippet ROWS): the leader's reads of
+-- test/raids/_play_xarpus.lua at 02a87d0d8, lifted whole and prefixed
+-- "xarpus.", from the relay's own mark ("xarpus start"); his slot is the
+-- plan's (rec.boss_slot: the static form retypes in place), the fight's
+-- first tick the mark.  The exit rows are the relay's own POST.xarpus.
+local function xarpus_rows(t, rec, result, detail)
+    local mode = "normal"
+    local XA = rec.xa or { covers = {}, turns = {}, phase = 0, stops = 0, moves3 = 0, waits3 = 0 }
+    local bslot = rec.boss_slot
+    local ft0 = R.xarpus.mark
+    local tick0 = R.xarpus.mark or rec.start_tick or 0
+    -- (read from the mark's own serial on: the log is the whole raid's, and
+    -- a whole-log read and filter ran the leader out of its instruction
+    -- budget after Sotetseg, relay13)
+    local since = mark_serial(t, tick0)
+    local function rows_of(query)
+        local q = {}
+        for k, v in pairs(query) do q[k] = v end
+        q.since = since
+        return t.ticklog.rows(q)
+    end
+    -- THE TICK LOG (leader): every raider's evidence
+    local mark_tick = R.xarpus.mark
+    ft0 = ft0 or mark_tick or 0
+    local _, drr = rows_of({ kind = "npc_death", slot = bslot })
+    local kill = nil
+    for i = 1, #drr do if kill == nil and drr[i].tick >= ft0 then kill = drr[i] end end
+    local kill_tick = kill and kill.tick or 1000000
+    local _, rtu = rows_of({ kind = "npc_retype", slot = bslot })
+    local U, seen = nil, 0
+    for i = 1, #rtu do
+        if rtu[i].tick >= ft0 then
+            seen = seen + 1
+            if seen == 2 then U = rtu[i].tick end
+        end
+    end
+    U = U or ft0
+    local _, ptr = rows_of({ kind = "player_tile" })
+    local tile_at, pids, pid_list = {}, {}, {}
+    local died = {}
+    local last_tile = {}
+    for i = 1, #ptr do
+        local r = ptr[i]
+        if pids[r.pid] == nil then pids[r.pid] = true; pid_list[#pid_list + 1] = r.pid; tile_at[r.pid] = {} end
+        tile_at[r.pid][r.tick] = { x = r.x, z = r.z }
+        local lt = last_tile[r.pid]
+        if lt ~= nil and r.tick > ft0 and r.tick <= kill_tick and math.abs(r.x - lt.x) + math.abs(r.z - lt.z) > 20 then died[r.pid] = r.tick end
+        last_tile[r.pid] = { x = r.x, z = r.z }
+    end
+    table.sort(pid_list)
+    local function anyone_on(tick, x, z)
+        for _, pid in ipairs(pid_list) do
+            local tt = tile_at[pid][tick]
+            if tt ~= nil and tt.x == x and tt.z == z then return pid end
+        end
+        return nil
+    end
+    -- the exhumed: risen, stood on (any raider on its tile before it closed), heal orbs
+    local _, lsr = rows_of({ kind = "loc_set" })
+    local rises, ring_pools, pools = {}, 0, 0
+    local ring_list = ""
+    local function fdist(x, z)
+        return math.max(6432 - x, x - 6436, 97 - z, z - 101, 0)
+    end
+    for i = 1, #lsr do
+        local r = lsr[i]
+        if r.tick >= ft0 and r.tick <= kill_tick then
+            if r.loc == 32743 then
+                rises[#rises + 1] = { tick = r.tick, x = r.x, z = r.z }
+            elseif r.loc == 32744 and r.tick >= U then
+                pools = pools + 1
+                if fdist(r.x, r.z) == 1 then
+                    ring_pools = ring_pools + 1
+                    if ring_pools <= 8 then ring_list = ring_list .. string.format(" t%d %d,%d", r.tick, r.x, r.z) end
+                end
+            end
+        end
+    end
+    local stood, stood_by, late = 0, "", 0
+    for _, e in ipairs(rises) do
+        local who, when = nil, nil
+        for tk = e.tick, e.tick + 11 do
+            if who == nil then
+                who = anyone_on(tk, e.x, e.z)
+                if who ~= nil then when = tk end
+            end
+        end
+        if who ~= nil then
+            stood = stood + 1
+            stood_by = stood_by .. string.format(" %d,%d:p%d+%d", e.x, e.z, who, when - e.tick)
+        else
+            stood_by = stood_by .. string.format(" %d,%d:MISSED", e.x, e.z)
+        end
+    end
+    local _, pjr = rows_of({ kind = "projectile" })
+    local orbs, orbs_covered = 0, 0
+    for i = 1, #pjr do
+        if pjr[i].tick >= ft0 and pjr[i].spotanim == 1550 then
+            orbs = orbs + 1
+            if anyone_on(pjr[i].tick - 1, pjr[i].src_x, pjr[i].src_z) ~= nil then orbs_covered = orbs_covered + 1 end
+        end
+    end
+    local _, nhr = rows_of({ kind = "npc_heal" })
+    local healed = 0
+    for i = 1, #nhr do
+        if nhr[i].tick >= ft0 and nhr[i].tick <= kill_tick then healed = healed + (nhr[i].amount or 0) end
+    end
+
+    -- damage taken per raider: phase 2 (the spit, his stomp) and phase 3 (a
+    -- retaliation is 50 and up on Normal, X xarpus.p3.retaliate_base)
+    local p3 = XA.p3_tick or kill_tick
+    local _, hur = rows_of({ kind = "hit_player" })
+    local taken, retal = {}, {}
+    local retal_n = 0
+    for _, pid in ipairs(pid_list) do taken[pid] = { dmg = 0, n = 0 } end
+    for i = 1, #hur do
+        local h = hur[i]
+        if h.tick >= ft0 and h.tick <= kill_tick and (h.damage or 0) > 0 and taken[h.pid] ~= nil then
+            taken[h.pid].dmg = taken[h.pid].dmg + h.damage
+            taken[h.pid].n = taken[h.pid].n + 1
+            if h.tick > p3 and h.damage >= 30 then
+                retal_n = retal_n + 1
+                retal[#retal + 1] = string.format("t%d p%d %d", h.tick, h.pid, h.damage)
+            end
+        end
+    end
+    local _, par = rows_of({ kind = "player_anim" })
+    local swings = {}
+    for _, pid in ipairs(pid_list) do swings[pid] = 0 end
+    for i = 1, #par do
+        if par[i].tick >= ft0 and par[i].tick <= kill_tick and par[i].seq == 8056 and swings[par[i].pid] ~= nil then
+            swings[par[i].pid] = swings[par[i].pid] + 1
+        end
+    end
+    local _, hnr = rows_of({ kind = "hit_npc", slot = bslot })
+    local dealt, dealt_n, zeros = 0, 0, 0
+    for i = 1, #hnr do
+        if hnr[i].tick >= ft0 and hnr[i].tick <= kill_tick then
+            dealt = dealt + (hnr[i].damage or 0)
+            dealt_n = dealt_n + 1
+            if (hnr[i].damage or 0) == 0 then zeros = zeros + 1 end
+        end
+    end
+    local per = {}
+    local dead_list = {}
+    for _, pid in ipairs(pid_list) do
+        per[#per + 1] = string.format("pid%d took %d in %d, %d swings", pid, taken[pid].dmg, taken[pid].n, swings[pid])
+        if died[pid] ~= nil then dead_list[#dead_list + 1] = "pid" .. pid .. " t" .. died[pid] end
+    end
+    local hist = { 0, 0, 0, 0 }
+    for _, n in pairs(rec.inputs or {}) do
+        local k = math.min(n, 4)
+        if k >= 1 then hist[k] = hist[k] + 1 end
+    end
+    local tr = XA.trio or { outs = 0, ins = 0, no_out = 0, home_walks = 0 }
+
+    -- the spread (phase 2, raid seam42): real Normal trios hold their own
+    -- sides -- each raider's nearest other raider is a median 5 tiles away
+    -- over the phase, 3 to 6 across 13 death-free Blert rooms
+    -- (docs/minigames/theater_of_blood/sources/blert_api/reference/
+    -- xarpus_normal_3.json, role.melee1/2/3.phase.phase1.dist_raider), and
+    -- 0 of the phase's ticks in 20 rooms had all three on one tile
+    local spread_ok, spread_list = true, {}
+    for _, pid in ipairs(pid_list) do
+        local ds = {}
+        for tk = U + 8, p3 - 1 do
+            local me = tile_at[pid][tk]
+            if me ~= nil then
+                local near = nil
+                for _, o in ipairs(pid_list) do
+                    local ot = (o ~= pid) and tile_at[o][tk] or nil
+                    if ot ~= nil then
+                        local dd = math.max(math.abs(ot.x - me.x), math.abs(ot.z - me.z))
+                        if near == nil or dd < near then near = dd end
+                    end
+                end
+                if near ~= nil then ds[#ds + 1] = near end
+            end
+        end
+        table.sort(ds)
+        local med = ds[math.floor((#ds + 1) / 2)]
+        spread_list[#spread_list + 1] = "pid" .. pid .. " " .. tostring(med)
+        if med == nil or med < 3 or med > 6 then spread_ok = false end
+    end
+
+    -- THE ROWS
+    t.expect("xarpus.fight.done", (kill ~= nil) and "ok" or "bad", "boss npc_death row " .. tostring(kill and kill.tick) .. ", mark " .. tostring(mark_tick) .. ", stand-up U " .. tostring(U) .. ", screech seen " .. tostring(XA.p3_tick))
+    t.check("xarpus.trio.no_death", #pid_list == size and #dead_list == 0, #pid_list .. " raiders in the tick log; deaths: " .. (#dead_list > 0 and table.concat(dead_list, ", ") or "none"))
+    t.check("xarpus.trio.exhumed_cover", #rises >= 12 and stood == #rises, "stood on " .. stood .. " of " .. #rises .. " exhumed (X exhumed_count.normal 12 at party 3); heal orbs " .. orbs .. " (" .. orbs_covered .. " from a covered tile), healed " .. healed .. ";" .. stood_by)
+    -- raid seam42: the bound is the real rooms', not zero: 13 death-free
+    -- Blert Normal trio rooms leave 2 to 7 (median 4) phase 2 splats on
+    -- distinct melee tiles (reference/xarpus_normal_3.json
+    -- extra_seam42.ring_splat_tiles); the spread leaves 0-3
+    t.check("xarpus.trio.ring_clean", ring_pools <= 7, ring_pools .. " of " .. pools .. " phase 2 puddles on a melee tile (one from his footprint; Blert death-free Normal trios leave 2-7, median 4, on distinct melee tiles: xarpus_blert/ring_splats, reference/xarpus_normal_3.json extra_seam42.ring_splat_tiles)" .. ring_list .. "; steps back " .. tr.outs .. ", steps in " .. tr.ins .. ", no clean tile " .. tr.no_out)
+    t.check("xarpus.trio.spread", spread_ok, "phase 2 (U+8 to the screech): each raider's median distance to the nearest other raider " .. table.concat(spread_list, ", ") .. " (Blert Normal trios 5 [3-6], reference/xarpus_normal_3.json)")
+    t.check("xarpus.play.gaze_kept", XA.phase == 3 and retal_n == 0, retal_n .. " retaliation hitsplat(s) after the screech" .. (#retal > 0 and (": " .. table.concat(retal, ", ")) or "") .. "; " .. #(XA.turns or {}) .. " turns seen by p1")
+    t.check("xarpus.play.measure_trio", true, string.format("p1 specials%s (energy before each); p1 steps back %s; kill %s ticks from the mark (%s to %s), U %s (p1 saw %s), screech %s; dealt %d in %d hits (%d zeros); %s; p1 food %d drinks %d; p1 inputs per tick 1:%d 2:%d 3:%d 4+:%d; %s",
+        tostring(tr.spec_log), table.concat(tr.out_list or {}, " "),
+        tostring(kill and mark_tick and (kill.tick - mark_tick)), tostring(mark_tick), tostring(kill and kill.tick), tostring(U), tostring(XA.u_tick), tostring(XA.p3_tick),
+        dealt, dealt_n, zeros, table.concat(per, "; "), #rec.eats, #rec.drinks, hist[1], hist[2], hist[3], hist[4], string.sub(tostring(detail), 1, 400)))
+end
+
 local PRE = {}
 
 -- _play_maiden.lua party_run: the bow on rapid (raid seam33), the loaded
@@ -1417,17 +1888,48 @@ end
 -- _play_sotetseg.lua trio_run: the super combat, Protect from Magic ("to
 -- start the room pray magic and piety", yt_KF9y2GYTJ-A.md:151), the leader
 -- from two tiles south of the fight tile.
+-- owner_rooms4's relay snippet (build/seam_state/owner_rooms4/
+-- relay_sotetseg_snippet.lua; the room green in _play_sotetseg.lua --party 3
+-- at c58005d4d): the scythe on and "Reap" BEFORE the bow (the style is per
+-- weapon kind), the dragon arrows, the bow opener's ranged set worn one a
+-- tick (seven in one block put on only some; the snippet's Dizana's quiver
+-- is not carried, see SUPPLIES), the bow, the divine super combat at the door (Blert's seats hold Attack and
+-- Strength 118 five ticks into every phase; no brews at Sotetseg).  The
+-- plan puts the melee set back itself; the seat owning the coming special
+-- puts the elder maul on.
+local DIVINE_COMBAT = { "1dosedivinecombat", "2dosedivinecombat", "3dosedivinecombat", "4dosedivinecombat" }
 PRE.sotetseg = function(t, ox, oz)
     wear(t, "sotetseg.equip.scythe", "scythe_of_vitur")
-    boost(t, "sotetseg")
-    stamina(t, "sotetseg")
+    set_style(t, "sotetseg.style", "Reap")
+    wear(t, "sotetseg.equip.arrows", "dragon_arrow")
+    for _, it in ipairs({ "game_pest_archer_helm", "elite_void_knight_top", "elite_void_knight_robes",
+        "pest_void_knight_gloves", "necklace_of_rupture" }) do
+        wear(t, "sotetseg.equip." .. it, it)
+    end
+    wear(t, "sotetseg.equip.bow", "twisted_bow")
+    -- a super restore first when a brew left Attack or Strength under base
+    -- (boost()'s rule), then the divine dose (a plain one when none is left)
+    local divine = first_held(t, DIVINE_COMBAT)
+    if divine ~= nil then
+        local _, s0 = t.skill.read("strength")
+        if s0.level < s0.base_level then
+            local dose = first_held(t, RESTORE_DOSES)
+            if dose ~= nil then t.player.inv_op(dose, 1, { quick = true }) t.ticks(3) end
+        end
+        t.player.inv_op(divine, 1, { quick = true })
+        t.ticks(3)
+        local _, s1 = t.skill.read("strength")
+        t.check("sotetseg.potion", s1.level > s1.base_level, P .. divine .. " at the door: strength " .. s1.level .. "/" .. s1.base_level)
+    else
+        boost(t, "sotetseg")
+    end
     t.exec("sotetseg.prayer", t.prayer.set, "protectfrommagic", true)
     start_room(t, "sotetseg", function()
         local fr, fight, ftext = t.raid.start_tile()
         t.check("sotetseg.start_tile", fr == "ok", tostring(ftext))
         t.player.walk_to(fight.x, fight.z - 2, 20)
     end, nil)
-    return { weapon = "scythe_of_vitur", max_ticks = 2400 }
+    return { mode = "normal", weapon = "scythe_of_vitur", max_ticks = 2400 }
 end
 
 -- _play_xarpus.lua trio_run: the super combat; the fight tile's local 34,28
@@ -1455,6 +1957,24 @@ PRE.verzik = function(t, ox, oz)
     wear(t, "verzik.equip.arrows", "dragon_arrow")
     wear(t, "verzik.equip.scythe", "scythe_of_vitur")
     stamina(t, "verzik")
+    -- owner_verzik's slow snippet (build/seam_state/owner_verzik/
+    -- relay_verzik_snippet.lua; green in _play_verzik_slow --party 3 at
+    -- 1717b0427 + 5f2717f23): the slow pace -- every P3 mechanic, crabs, webs,
+    -- yellows, the shared green ball (owner: "The relay should use the slow
+    -- verzik script") -- and seats 2 and 3 carry no super combat (the room
+    -- was measured without their boosts; the brew recovery would drink one)
+    t.raid.verzik_pace = "slow"
+    if role >= 2 then
+        local left = {}
+        for _, dose in ipairs(COMBAT_DOSES) do
+            local cr, n = t.inv.count(dose)
+            if cr == "ok" and (tonumber(n) or 0) > 0 then
+                for _ = 1, tonumber(n) do t.player.drop(dose) end
+                left[#left + 1] = dose .. " x" .. n
+            end
+        end
+        t.check("verzik.no_combat", true, P .. "super combat doses left on the floor: " .. (#left > 0 and table.concat(left, " ") or "none held"))
+    end
     t.exec("verzik.prayer", t.prayer.set, "protectfrommagic", true)
     t.expect("verzik.barrier.ready", t.party.barrier("verzik_ready", 600))
     if role == 1 then
@@ -1545,9 +2065,16 @@ POST.nylocas = function(t, ox, oz)
 end
 
 POST.sotetseg = function(t, ox, oz)
-    local br, bd = t.player.click_loc("tob_arena_barrier", 1)
-    t.check("sotetseg.exit_gate", br == "ok", tostring(bd))
-    t.ticks(3)
+    -- (the chest step already took every seat out through the barrier, to
+    -- the chest by the exit: pressing the barrier again walked the leader
+    -- back into the arena, where the passage is not framed -- relay14)
+    if R.sotetseg.restocked then
+        t.check("sotetseg.exit_gate", true, "out through the barrier already, at the supply chest")
+    else
+        local br, bd = t.player.click_loc("tob_arena_barrier", 1)
+        t.check("sotetseg.exit_gate", br == "ok", tostring(bd))
+        t.ticks(3)
+    end
     return leave_room(t, "sotetseg", "xarpus", ox, oz)
 end
 
@@ -1712,6 +2239,17 @@ return {
             if name == "nylocas" and role == 1 and result == "ok" then nylocas_rows(t, rec) end
             if name == "maiden" and role == 1 and rec ~= nil then maiden_rows(t, rec) end
             if name == "bloat" and role == 1 and rec ~= nil then bloat_rows(t, rec, result, detail, ox, oz) end
+            if name == "sotetseg" and role == 1 and rec ~= nil then sotetseg_rows(t, rec, result, detail) end
+            -- (only on a kill: its reads run tick by tick to the kill, which a
+            -- failed fight reads as tick 1000000 -- relay15 ran the leader out
+            -- of its instruction budget there)
+            if name == "xarpus" and role == 1 and rec ~= nil and result == "ok" then xarpus_rows(t, rec, result, detail) end
+            if name == "verzik" and role == 1 and rec ~= nil then
+                -- owner_verzik's slow snippet: crabs, webs, yellows, the shared
+                -- green ball, the rotation (raid_play_tob_verzik.lua
+                -- QD.raid.verzik_p3_rows)
+                t.raid.verzik_p3_rows(t, { pace = "slow", cycle = true }, rec, R.verzik.mark)
+            end
             if result == "ok" then prayers_off(t, name) end
             if AFTER[name] ~= nil then AFTER[name](t) end
             R[name].after = supplies(t)
@@ -1734,6 +2272,7 @@ return {
                     t.ticks(3)
                 end
                 restock(t, name)
+                R[name].restocked = true
                 t.expect(name .. ".barrier.chest", t.party.barrier(name .. "_chest", 3000))
             end
             if role == 1 then
