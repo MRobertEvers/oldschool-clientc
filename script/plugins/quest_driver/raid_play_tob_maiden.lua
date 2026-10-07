@@ -803,7 +803,10 @@ end
 function QD.raid.mz_dodge(st, v, ev)
     if not ev.mine then return nil end
     local m = st.m
-    if QD.raid.mz_cast_due(st, v) then return nil end
+    -- (only a throw still in the air: a pool already under the freezer hits
+    -- every tick it stands -- sm50 _play_maiden, 32 a tick for four ticks
+    -- while a cast was due, and the freezer died)
+    if ev.name == "blood_thrown" and QD.raid.mz_cast_due(st, v) then return nil end
     local x, z = QD.raid._play_maiden_off_tile(st, v, ev.x, ev.z)
     if x == nil then return nil end
     if m.state ~= "DODGE" then m.resume = { state = m.state, idx = m.idx } end
@@ -1143,7 +1146,18 @@ function QD.raid._play_maiden_trio(st, v)
     end
     local m = st.m
     QD.raid._play_maiden_see(st, v)
+    m.ground = {}
+    for k, on in pairs(v.marks) do m.ground[k] = on end
     for _, p in ipairs(v.incoming) do v.marks[p.x * 100000 + p.z] = true end
+    -- a blood spawn's 3x3: its next step lays a trail there, 10 + 2c a tick
+    -- (sm51 _play_maiden: the scythe seats took 38s from trails on their own
+    -- tiles (5,6) (6,5) in the 30 wave and died; every walk, dodge and reach
+    -- now steps round them)
+    for _, sl in ipairs(v.slugs or {}) do
+        for ax = -1, 1 do
+            for az = -1, 1 do v.marks[(sl.x + ax) * 100000 + sl.z + az] = true end
+        end
+    end
     v.shadows = v.marks
     local intent = { want = { protectfrommagic = true } }
     local b = v.boss
@@ -1155,6 +1169,13 @@ function QD.raid._play_maiden_trio(st, v)
         QD.raid.mz_go(st, v, (st.role == 2) and "DRAIN" or "OPEN", 0)
     end
     m.slugs_last = v.slugs
+    m.hits = m.hits or {}
+    for _, e in ipairs(v.events or {}) do
+        if e.name == "hit_taken" and e.amount ~= nil and e.amount > 0 then
+            m.hits[#m.hits + 1] = { t = v.tick, n = e.amount }
+            if #m.hits > 30 then table.remove(m.hits, 1) end
+        end
+    end
     for _, e in ipairs(v.events or {}) do
         -- a crab gone beside her with hp left on its bar is a leak (her 2x2
         -- crab is taken with its SW tile up to two off her south/west edge:
@@ -1176,7 +1197,16 @@ function QD.raid._play_maiden_trio(st, v)
         if math.max(math.abs(sl.x - v.me.x), math.abs(sl.z - v.me.z)) <= 1 then slug_near = true end
     end
     if m.state ~= "DODGE" and (v.marks[v.me.x * 100000 + v.me.z] or slug_near) then
-        local it = QD.raid.mz_dodge(st, v, { mine = true, x = v.me.x, z = v.me.z, ticks = 1 })
+        -- (blood only in the air over my tile reads as a throw: the freezer's
+        -- due cast stays; a pool, trail or spawn under me is a dodge -- sm52
+        -- _play_maiden: the 70 wave's casts went at +3/+8/+13 behind dodges)
+        local air = false
+        for _, p in ipairs(v.incoming or {}) do
+            if p.x == v.me.x and p.z == v.me.z then air = true end
+        end
+        local ground = slug_near
+        for k, on in pairs(m.ground or {}) do if on and k == v.me.x * 100000 + v.me.z then ground = true end end
+        local it = QD.raid.mz_dodge(st, v, { mine = true, x = v.me.x, z = v.me.z, ticks = 1, name = (air and not ground) and "blood_thrown" or "pool_landed" })
         if it ~= nil then intent.walk = it.walk end
     end
     if m.state == "DODGE" then m.dodges = m.dodges + 1 intent.no_fill = true end
@@ -1226,7 +1256,14 @@ function QD.raid._play_maiden_trio(st, v)
         -- two eats inside the food's 3 ticks (sm42 sva: the leader ate 13 times
         -- in the 30 wave at a fixed 45)
         local storm = (36.5 + 3.5 * (m.leaks or 0)) / 2
-        local eat_at = math.max(25, math.ceil(storm)) + 2
+        -- (and the biggest hit actually taken in the last 40 ticks: sm49
+        -- _play_maiden's leader stood at 37 under a computed 29 and took a 37
+        -- -- the leaks seen from the client undercount the server's)
+        local big = 0
+        for _, h in ipairs(m.hits or {}) do
+            if v.tick - h.t <= 40 and h.n > big then big = h.n end
+        end
+        local eat_at = math.max(25, math.ceil(storm), big) + 2
         if (v.hp > eat_at and not v.marks[here]) or v.tick - (st.last_eat or -100) < 3 then
             intent.eat = nil
             if intent.drink ~= nil and is_brew(intent.drink) then intent.drink = nil end
