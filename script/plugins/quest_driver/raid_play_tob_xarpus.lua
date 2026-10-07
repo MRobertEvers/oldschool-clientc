@@ -43,7 +43,7 @@
 --   xarpus_room     feeding -> standup -> spit -> gaze -> dead   (his phases)
 --   xarpus_exhumed  waiting / hunting / covering                 (phase 1 seat)
 --   xarpus_spit_solo    melee / clearing / dodging               (phase 2 seat, solo)
---   xarpus_spit_trio    in_melee / stepping_out / holding_out / pressing_in
+--   xarpus_spit_trio    in_melee / stepping_out / holding_out / pressing_in / leaving_acid
 --   xarpus_gaze     swinging / relocating / stalking / stopping / holding
 --
 -- THE PER-TICK CONTRACT is the owner's, unchanged: Events + State -> Intents,
@@ -369,11 +369,21 @@ function QD.raid._xarpus_trio_tools(st, v, g)
     -- walk to the nearest one that is instead and swing from there: a
     -- raider who has to move along the row while the next step back is
     -- due is a tick late for it, and the chain lands on the melee tile.
+    --
+    -- `want`: false -- any clean melee tile; true -- this raider's side, with
+    -- a clean step-back tile of its side in reach; "loose" -- any side, with
+    -- any clean step-back tile in reach.
     t.nearest_edge_to = function(fx, fz, want)
         local bt, bd, bk = nil, nil, nil
         for x = g.BX0 - 1, g.BX1 + 1 do
             for z = g.BZ0 - 1, g.BZ1 + 1 do
-                if g.edge(x, z) and not t.bad(x, z) and (not want or (t.mine(x, z) and t.out_from(x, z) ~= nil)) then
+                local ok = g.edge(x, z) and not t.bad(x, z)
+                if ok and want == "loose" then
+                    ok = t.out_from(x, z, true) ~= nil
+                elseif ok and want then
+                    ok = t.mine(x, z) and t.out_from(x, z) ~= nil
+                end
+                if ok then
                     local dd = math.max(math.abs(x - fx), math.abs(z - fz))
                     local k = x * 100000 + z
                     if bd == nil or dd < bd or (dd == bd and k < bk) then bt, bd, bk = { x = x, z = z }, dd, k end
@@ -381,6 +391,78 @@ function QD.raid._xarpus_trio_tools(st, v, g)
             end
         end
         return bt
+    end
+    -- THE TILE A LONG PHASE 2 STILL LEAVES.  "This poison then occupies that
+    -- tile for the rest of the fight and deals 4-8 base damage each tick a
+    -- player stands on or crosses over it, which is further scaled up" by
+    -- the exhumed he absorbed (wiki_Xarpus.wikitext:257; X
+    -- xarpus.p2.max_hit.normal 11).  A phase 2 of 140 ticks (the Normal
+    -- relay, svbplaynorma: seats arriving with brew-drained Strength) lays
+    -- 62 puddles where the lane's 100 lays 44, and the sides run out of
+    -- clean step-back tiles: the seat then stood on its puddle and swung
+    -- until it died (pid 2 t1987-2001, 150 of its 200 damage on a puddle).
+    --
+    -- melee_refuge: a melee tile to swing from -- its own side's with a
+    -- step back, else any side's with a step back, else any clean one.
+    t.melee_refuge = function(fx, fz)
+        return t.nearest_edge_to(fx, fz, true) or t.nearest_edge_to(fx, fz, "loose")
+            or t.nearest_edge_to(fx, fz, false)
+    end
+    -- step_back: the tile to step back to from (fx, fz) -- its own side's
+    -- step-back tile, else (the spread) any side's, else the nearest clean
+    -- floor within one run tick that is not the tile it leaves: two from it
+    -- before one (a landing aimed at the tile it left splashes its 3x3,
+    -- "These deal damage in a 3x3 area", E:207), off the melee ring before
+    -- on it (a puddle on a melee tile costs a swing tile for the rest of the
+    -- phase), and never through a puddle or his footprint on the way
+    t.step_back = function(fx, fz)
+        local best = t.out_from(fx, fz)
+        if best == nil and P.trio.spread then best = t.out_from(fx, fz, true) end
+        if best ~= nil then return best end
+        local bs, bk = nil, nil
+        for dx = -2, 2 do
+            for dz = -2, 2 do
+                local x, z = fx + dx, fz + dz
+                local reach = math.max(math.abs(dx), math.abs(dz))
+                if reach > 0 and not t.bad(x, z) then
+                    local s = ((reach == 1) and 40 or 0) + ((fdist(x, z) == 1) and 20 or 0) + reach
+                    if reach == 2 then
+                        local mx = fx + ((dx > 0) and 1 or ((dx < 0) and -1 or 0))
+                        local mz = fz + ((dz > 0) and 1 or ((dz < 0) and -1 or 0))
+                        if v.pools[mx * 100000 + mz] or g.in_foot(mx, mz) then s = nil end
+                    end
+                    local k = x * 100000 + z
+                    if s ~= nil and (bs == nil or s < bs or (s == bs and k < bk)) then bs, best, bk = s, { x = x, z = z }, k end
+                end
+            end
+        end
+        return best
+    end
+    -- press_lands_clean: the attack press is the server's run, which ends on
+    -- the melee tile nearest the raider (svbplaynorma t2004: from 6437,159
+    -- it ended on 6436,160, a puddle since t1995, and the seat swung there
+    -- until it died at t2017).  True when every melee tile at that nearest
+    -- distance is clean, so the press cannot end on a puddle.
+    t.press_lands_clean = function(fx, fz)
+        local nd, clean = nil, true
+        for x = g.BX0 - 1, g.BX1 + 1 do
+            for z = g.BZ0 - 1, g.BZ1 + 1 do
+                if g.edge(x, z) then
+                    local dd = math.max(math.abs(x - fx), math.abs(z - fz))
+                    local dirty = v.pools[x * 100000 + z] and true or false
+                    if nd == nil or dd < nd then
+                        nd, clean = dd, not dirty
+                    elseif dd == nd and dirty then
+                        clean = false
+                    end
+                end
+            end
+        end
+        return clean
+    end
+    -- the tile under the raider holds a puddle
+    t.in_acid = function()
+        return v.pools[v.me.x * 100000 + v.me.z] and true or false
     end
     return t
 end
@@ -637,15 +719,21 @@ function QD.raid._xarpus_events(st, v, c)
             api_drive.report(string.format("xtrio r%d t%d N%d d%d %s me %d,%d hp %d eng %s",
                 st.role, v.tick, S, d, mode, v.me.x, v.me.z, v.hp, tostring(st.engaged)))
         end
+        local cycle
         if mode == "press" then
-            raise("press_in", { N = S })
+            cycle = "press_in"
         elseif mode == "in" then
-            raise("back_in", { N = S })
+            cycle = "back_in"
         elseif d == 3 then
-            raise("step_out", { N = S })
+            cycle = "step_out"
         else
-            raise("hold_out", { N = S })
+            cycle = "hold_out"
         end
+        -- the tick's place in the ring, kept on the context too: a state the
+        -- premise sends the raider into mid-list (leaving_acid) acts on
+        -- `tick`, after the ring's own event was handled by the state it left
+        c.cycle = { name = cycle, N = S }
+        raise(cycle, { N = S })
     elseif in_spit then
         -- solo: the dodge is sent on S-1 (the two steps resolve on S and
         -- S+1), and between dodges a tile that is acid or out of melee is
@@ -1044,6 +1132,9 @@ QD.raid.sm_declare("xarpus_spit_solo", {
 --   stepping_out  3 ticks to the slot: out to the step-back tile
 --   holding_out   2 ticks to it: hold that tile
 --   pressing_in   1 tick to it: run back in and swing
+--   leaving_acid  a puddle under me (in melee, a landing's 3x3 too): off it
+--                 this tick, by the premise of the three states that hold a
+--                 tile -- the tick's place in the ring says to which kind
 --
 -- THE SPREAD (raid seam42 play_tob_xarpus_follows_blert).  Real Normal trios
 -- do not stack in phase 2: each raider holds its own side (the nearest other
@@ -1089,6 +1180,62 @@ local function xarpus_cycle_on(tick_handler)
     return on
 end
 
+-- THE ACID UNDERFOOT.  "This poison then occupies that tile for the rest of
+-- the fight and deals 4-8 base damage each tick a player stands on or crosses
+-- over it" (wiki_Xarpus.wikitext:257); "never stand in one" (E:207).  Where
+-- it is a fact about every state of the ring (no state of it may end a tick
+-- on a puddle), it is a PREMISE of the ring states that hold a tile, not a
+-- branch of one of them: before this (relay, 2026-10-07) only in_melee had
+-- a step off, and only to its own side's melee tile with a step back -- with
+-- none left (a 140-tick phase 2, the sides used up) it stayed and swung on
+-- the puddle until it died (svbplaynorma pid 2 t1987-2001, pid 0
+-- t2005-2017; 247 of their 364 damage taken on a puddle).
+--   in_melee      may stand on neither a puddle nor a landing's 3x3
+--   holding_out,  may not stand on a puddle (the chain aimed at the hold
+--   pressing_in   tile is the design: it lands after the press leaves)
+local function xarpus_dry(c, ev) return not c.t.in_acid() end
+local function xarpus_clear(c, ev)
+    local v = c.v
+    return not c.t.in_acid() and not v.splash[v.me.x * 100000 + v.me.z]
+end
+local function xarpus_wet(c, ev) return not xarpus_clear(c, ev) end
+
+-- S-1: run back in and swing (the special rides this press).  The press is
+-- the server's run to the melee tile nearest the raider; when that one is
+-- not this raider's to use, or is a puddle (svbplaynorma t2004), it walks to
+-- a clean one instead and swings from there next tick.
+local function xarpus_press_in(c)
+    local st, v, X, P, t = c.st, c.v, c.X, c.P, c.t
+    local T = X.trio
+    local go = nil
+    if P.trio.spread then
+        local m = t.nearest_edge_to(v.me.x, v.me.z, false)
+        if m ~= nil and (not t.mine(m.x, m.z) or t.out_from(m.x, m.z) == nil) then
+            go = t.nearest_edge_to(v.me.x, v.me.z, true)
+        end
+    end
+    if go == nil and not t.press_lands_clean(v.me.x, v.me.z) then
+        go = t.melee_refuge(v.me.x, v.me.z)
+        if go ~= nil then T.dry_press = (T.dry_press or 0) + 1 end
+    end
+    T.ins = T.ins + 1
+    st.engaged = false
+    if go ~= nil then
+        T.repath = (T.repath or 0) + 1
+        c.intent.walk = go
+        c.intent.attack = false
+        return
+    end
+    if T.dwh_cycle == X.next_spit then
+        local _, energy = QD.var.varp("varp300_sa_energy")
+        c.intent.spec = true
+        T.dwh_on = true
+        T.specs = (T.specs or 0) + 1
+        T.spec_log = (T.spec_log or "") .. string.format(" t%d e%s", v.tick, tostring(energy))
+    end
+    c.intent.attack = QD.raid._play_attack(st, v, true)
+end
+
 QD.raid.sm_declare("xarpus_spit_trio", {
     start = "in_melee",
     states = {
@@ -1097,11 +1244,11 @@ QD.raid.sm_declare("xarpus_spit_trio", {
             on = xarpus_cycle_on(function(c, ev)
                 local st, v, X, P, g, t = c.st, c.v, c.X, c.P, c.g, c.t
                 local T = X.trio
-                local best = t.out_from(v.me.x, v.me.z)
-                -- its own side used up: any clean step-back tile in reach (a
-                -- puddle on the floor two out is the lesser harm than one on
-                -- a melee tile)
-                if best == nil and P.trio.spread then best = t.out_from(v.me.x, v.me.z, true) end
+                -- its own side's step-back tile; its side used up, any
+                -- side's (a puddle on the floor two out is the lesser harm
+                -- than one on a melee tile); none of those, the nearest clean
+                -- tile two from this one (t.step_back)
+                local best = t.step_back(v.me.x, v.me.z)
                 -- the Defence drain: "All players should have their
                 -- defence-draining weapon equipped ... The team should have at
                 -- least two successful hammer/maul specials" (W:831, W:839;
@@ -1139,6 +1286,7 @@ QD.raid.sm_declare("xarpus_spit_trio", {
         },
         holding_out = {
             note = "S-2: hold it (the chain is aimed here, the next spit at the next one)",
+            premise = xarpus_dry, broken = "leaving_acid",
             on = xarpus_cycle_on(function(c, ev)
                 local st, v, X, t = c.st, c.v, c.X, c.t
                 local T = X.trio
@@ -1155,44 +1303,20 @@ QD.raid.sm_declare("xarpus_spit_trio", {
         },
         pressing_in = {
             note = "S-1: run back in and swing (the special rides this press)",
+            premise = xarpus_dry, broken = "leaving_acid",
             on = xarpus_cycle_on(function(c, ev)
-                local st, v, X, P, t = c.st, c.v, c.X, c.P, c.t
-                local T = X.trio
-                if P.trio.spread then
-                    local m = t.nearest_edge_to(v.me.x, v.me.z, false)
-                    if m ~= nil and (not t.mine(m.x, m.z) or t.out_from(m.x, m.z) == nil) then
-                        local bt = t.nearest_edge_to(v.me.x, v.me.z, true)
-                        if bt ~= nil then
-                            T.ins = T.ins + 1
-                            T.repath = (T.repath or 0) + 1
-                            st.engaged = false
-                            c.intent.walk = bt
-                            c.intent.attack = false
-                            return nil
-                        end
-                    end
-                end
-                T.ins = T.ins + 1
-                st.engaged = false
-                if T.dwh_cycle == X.next_spit then
-                    local _, energy = QD.var.varp("varp300_sa_energy")
-                    c.intent.spec = true
-                    T.dwh_on = true
-                    T.specs = (T.specs or 0) + 1
-                    T.spec_log = (T.spec_log or "") .. string.format(" t%d e%s", v.tick, tostring(energy))
-                end
-                c.intent.attack = QD.raid._play_attack(st, v, true)
+                xarpus_press_in(c)
                 return nil
             end),
         },
         in_melee = {
             note = "swinging from its own side's melee tile",
+            premise = xarpus_clear, broken = "leaving_acid",
             on = xarpus_cycle_on(function(c, ev)
                 local st, v, X, P, g, t = c.st, c.v, c.X, c.P, c.g, c.t
                 local T = X.trio
                 local home = (P.trio.spread and P.trio.waits[st.role]) or P.trio.home
                 local hx, hz = c.O.x + home[1], c.O.z + home[2]
-                local here = v.me.x * 100000 + v.me.z
                 local move = nil
                 if X.spits[1] == nil and (v.me.x ~= hx or v.me.z ~= hz) then
                     -- before the first spit each raider forms on its own wait
@@ -1207,23 +1331,13 @@ QD.raid.sm_declare("xarpus_spit_trio", {
                     T.repress = (T.repress or 0) + 1
                     c.intent.attack = QD.raid._play_attack(st, v, true)
                     return nil
-                elseif v.pools[here] or v.splash[here] or not g.edge(v.me.x, v.me.z)
+                elseif not g.edge(v.me.x, v.me.z)
                        or (P.trio.spread and (not t.mine(v.me.x, v.me.z) or t.out_from(v.me.x, v.me.z) == nil)) then
                     -- raid seam42: in the spread a raider alone on a melee
                     -- tile with no clean step-back tile left in reach would
                     -- take the next spit or chain on the melee tile itself: it
                     -- moves on to one that has one
-                    local need_out = P.trio.spread == true
-                    local bt, bd, bk = nil, nil, nil
-                    for x = g.BX0 - 1, g.BX1 + 1 do
-                        for z = g.BZ0 - 1, g.BZ1 + 1 do
-                            if g.edge(x, z) and not t.bad(x, z) and (not need_out or (t.mine(x, z) and t.out_from(x, z) ~= nil)) then
-                                local dd = math.max(math.abs(x - v.me.x), math.abs(z - v.me.z))
-                                local k = x * 100000 + z
-                                if bd == nil or dd < bd or (dd == bd and k < bk) then bt, bd, bk = { x = x, z = z }, dd, k end
-                            end
-                        end
-                    end
+                    local bt = t.nearest_edge_to(v.me.x, v.me.z, P.trio.spread == true)
                     if bt ~= nil and (bt.x ~= v.me.x or bt.z ~= v.me.z) then
                         move = bt
                         T.off_acid = T.off_acid + 1
@@ -1239,6 +1353,58 @@ QD.raid.sm_declare("xarpus_spit_trio", {
                 c.intent.attack = QD.raid._play_attack(st, v, true)
                 return nil
             end),
+        },
+        leaving_acid = {
+            note = "a puddle (or, in melee, a landing's 3x3) under me: off it this tick",
+            -- left by its own premise, for in_melee, on the first event of
+            -- the first tick it stands clear; in_melee's ring handlers then
+            -- take the cycle event to wherever the ring is
+            premise = xarpus_wet, broken = "in_melee",
+            on = {
+                -- the step back leaves the tile by itself (stepping_out has
+                -- no premise: its own tick walks off whatever it stands on)
+                step_out = xarpus_cycle_to_out,
+                -- the other three cycle events are not named: the work is
+                -- done on `tick`, for whichever event the ring raised, because
+                -- a premise can send the raider here after the state it left
+                -- already took that event (holding_out entered on hold_out,
+                -- then broken on `tick`)
+                tick = function(c, ev)
+                    local st, v, X, t = c.st, c.v, c.X, c.t
+                    local T = X.trio
+                    local cyc = c.cycle
+                    assert(cyc, "xarpus_spit_trio leaving_acid: no ring position this tick (the trio derivation sets c.cycle)")
+                    T.off_acid = T.off_acid + 1
+                    if cyc.name == "press_in" then
+                        xarpus_press_in(c)
+                        return nil
+                    end
+                    if cyc.name == "back_in" then
+                        local bt = t.melee_refuge(v.me.x, v.me.z)
+                        if bt == nil then
+                            -- no clean melee tile anywhere round him: the
+                            -- swing is all this tick can still be worth
+                            c.intent.attack = QD.raid._play_attack(st, v, true)
+                            return nil
+                        end
+                        xarpus_walk_to(c, bt.x, bt.z, true)
+                    else
+                        -- a step back is owed (hold_out, or step_out when a
+                        -- regrid arrives here): to another step-back tile,
+                        -- which the hold then holds
+                        local best = t.step_back(v.me.x, v.me.z)
+                        if best ~= nil then
+                            c.intent.walk = best
+                            T.cur = { N = cyc.N, x = best.x, z = best.z }
+                            T.prev = { x = best.x, z = best.z }
+                            st.walk_target = nil
+                        end
+                    end
+                    c.intent.eat, c.intent.drink, c.intent.need = QD.raid._play_supplies(st, v, c.g.threat)
+                    c.intent.attack = false
+                    return nil
+                end,
+            },
         },
     },
 })
