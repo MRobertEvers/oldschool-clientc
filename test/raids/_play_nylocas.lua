@@ -493,6 +493,13 @@ return {
         -- THE FIGHT: the library and the room's plan, nothing else
         local result, detail, rec = t.raid.play("tob_nylocas", { mode = mode, max_ticks = size > 1 and 3000 or 2000 })
         local ny = rec.ny or {}
+        -- owner_nylocas PRESS TRACE (the plan's comment at press_now): a note row
+        -- per press, only when the test asked for it
+        if t.raid.nylocas_press_trace then
+            for _, line in ipairs(ny.press_trace or {}) do
+                t.check("note.press", true, "p" .. role .. " " .. line)
+            end
+        end
         -- raid seam55: the plan's styles at her, by name (P.boss_styles)
         if size > 1 then
             t.check("note.run", true, "p" .. role .. " run: varp173 first read 0 at " .. tostring(ny.run_off_first) .. " ticks into the play, "

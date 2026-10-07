@@ -2957,6 +2957,22 @@ function QD.raid._play_nylocas_decide(st, v)
         end
         ny.results[tostring(r)] = (ny.results[tostring(r)] or 0) + 1
         ny.last_press = tostring(r) .. ":" .. string.sub(tostring(d), 1, 160)
+        -- owner_nylocas PRESS TRACE, off unless the test sets
+        -- t.raid.nylocas_press_trace (t is QD; a table write, no frame, no input: the
+        -- green numbers do not move).  One line per press: the tick, the op
+        -- (a spell, or op2 = Attack), the copy's slot, the style, the
+        -- library's answer and its whole account -- what the client did with
+        -- the press (sent, or why not: `covered` = the right press found no
+        -- row for this copy, `timeout`, ...).  The server's side is the tick
+        -- log's input / raider rows on the same and following ticks.
+        if QD.raid.nylocas_press_trace then
+            ny.press_trace = ny.press_trace or {}
+            if #ny.press_trace < 600 then
+                ny.press_trace[#ny.press_trace + 1] = string.format("t%d %s s%s %s %s: %s", v.tick,
+                    tostring(pick.spell or (pick.style == "magic" and not (ny.loadout.magic or {}).powered and "cast" or "op2")),
+                    tostring(pick.slot), tostring(pick.style), tostring(r), string.sub(tostring(d), 1, 900))
+            end
+        end
         if r ~= "ok" and r ~= "timeout" and #st.lines < 6 then
             st.lines[#st.lines + 1] = "t" .. v.tick .. " press " .. pick.style .. " " .. tostring(r) .. ": " .. string.sub(tostring(d), 1, 140)
         end
