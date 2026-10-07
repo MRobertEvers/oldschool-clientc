@@ -44,7 +44,7 @@
 --   xarpus_exhumed  waiting / hunting / covering                 (phase 1 seat)
 --   xarpus_spit_solo    melee / clearing / dodging               (phase 2 seat, solo)
 --   xarpus_spit_trio    in_melee / stepping_out / holding_out / pressing_in
---   xarpus_gaze     swinging / relocating / stopping / holding    (phase 3 seat)
+--   xarpus_gaze     swinging / relocating / stalking / stopping / holding
 --
 -- THE PER-TICK CONTRACT is the owner's, unchanged: Events + State -> Intents,
 -- and raid_play.lua's executor reconciles the intents per channel.  The
@@ -1321,10 +1321,10 @@ QD.raid.sm_declare("xarpus_gaze", {
             note = "he looks away: one swing, from a clean melee tile",
             on = {
                 gaze_hits_me = function(c, ev) return nil, "relocating" end,
-                swing_late = function(c, ev)
-                    if c.st.engaged then return nil, "stopping" end
-                    return nil, "holding"
-                end,
+                -- the window has shut: "players should be moving to where he
+                -- last looked if possible" (W:853), which also drops the
+                -- aggro the stop click used to drop
+                swing_late = function(c, ev) return nil, "stalking" end,
                 tick = function(c, ev)
                     local g = c.g
                     local function allowed(q) return ev.face_q == nil or q ~= ev.face_q end
@@ -1357,6 +1357,23 @@ QD.raid.sm_declare("xarpus_gaze", {
                     -- no clean melee tile is reachable around him this tick:
                     -- never swing from here; drop the aggro one tile out
                     return nil, xarpus_p3_stop_or_wait(c, ev)
+                end,
+            },
+        },
+        stalking = {
+            note = "the window is shut: to the corner he looked at last (W:853)",
+            on = {
+                gaze_hits_me = function(c, ev) return nil, "relocating" end,
+                swing_ok = function(c, ev) return nil, "swinging" end,
+                tick = function(c, ev)
+                    local X, g = c.X, c.g
+                    local function allowed(q) return ev.face_q == nil or q ~= ev.face_q end
+                    local target = (#X.turns >= 2) and g.nearest_edge(allowed, X.turns[#X.turns - 1].q) or nil
+                    -- nowhere of his to walk to: drop the aggro as before
+                    if target == nil then return nil, xarpus_p3_stop_or_wait(c, ev) end
+                    X.stalks = (X.stalks or 0) + 1
+                    xarpus_p3_finish(c, target, false)
+                    return nil
                 end,
             },
         },
