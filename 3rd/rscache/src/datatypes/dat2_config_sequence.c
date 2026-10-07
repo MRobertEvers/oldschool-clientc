@@ -8,9 +8,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-static void
-free_sequence(struct RSCache_Dat2ConfigSequence* def);
-
 // package net.runelite.cache.definitions.loaders;
 
 // import lombok.Data;
@@ -1530,106 +1527,6 @@ RSCache_Dat2ConfigSequenceNewDecodeProfile(
     memset(def, 0, sizeof(struct RSCache_Dat2ConfigSequence));
     RSCache_Dat2ConfigSequenceDecodeProfile(def, cache, data, data_size);
     return def;
-}
-
-static void
-print_sequence(struct RSCache_Dat2ConfigSequence* def)
-{
-    printf("Sequence %d:\n", def->id);
-    printf("Frame count: %d\n", def->frame_count);
-    printf("Frame step: %d\n", def->frame_step);
-    printf("Stretches: %s\n", def->stretches ? "true" : "false");
-    printf("Forced priority: %d\n", def->forced_priority);
-    printf("Left hand item: %d\n", def->left_hand_item);
-    printf("Right hand item: %d\n", def->right_hand_item);
-    printf("Max loops: %d\n", def->max_loops);
-    printf("Precedence animating: %d\n", def->precedence_animating);
-    printf("Priority: %d\n", def->priority);
-    printf("Reply mode: %d\n", def->reply_mode);
-    printf("Anim maya ID: %d\n", def->anim_maya_id);
-    printf("Anim maya start: %d\n", def->anim_maya_start);
-    printf("Anim maya end: %d\n", def->anim_maya_end);
-
-    if( def->interleave_leave )
-    {
-        printf("Interleave leave: ");
-        for( int i = 0; def->interleave_leave[i] != 9999999; i++ )
-        {
-            printf("%d ", def->interleave_leave[i]);
-        }
-        printf("\n");
-    }
-
-    if( def->chat_frame_ids )
-    {
-        printf("Chat frame IDs: ");
-        for( int i = 0; i < def->frame_count; i++ )
-        {
-            printf("%d ", def->chat_frame_ids[i]);
-        }
-        printf("\n");
-    }
-
-    if( def->anim_maya_masks )
-    {
-        printf("Anim maya masks: ");
-        for( int i = 0; i < 256; i++ )
-        {
-            if( def->anim_maya_masks[i] )
-            {
-                printf("%d ", i);
-            }
-        }
-        printf("\n");
-    }
-
-    if( def->debug_name )
-    {
-        printf("Debug name: %s\n", def->debug_name);
-    }
-
-    printf("\nFrames:\n");
-    for( int i = 0; i < def->frame_count; i++ )
-    {
-        printf("Frame %d: ID=%d, Length=%d\n", i, def->frame_ids[i], def->frame_lengths[i]);
-    }
-}
-
-static void
-free_sequence(struct RSCache_Dat2ConfigSequence* def)
-{
-    if( def->frame_ids )
-    {
-        free(def->frame_ids);
-    }
-    if( def->frame_lengths )
-    {
-        free(def->frame_lengths);
-    }
-    if( def->interleave_leave )
-    {
-        free(def->interleave_leave);
-    }
-    if( def->chat_frame_ids )
-    {
-        free(def->chat_frame_ids);
-    }
-    if( def->anim_maya_masks )
-    {
-        free(def->anim_maya_masks);
-    }
-    if( def->debug_name )
-    {
-        free(def->debug_name);
-    }
-    if( def->frame_sounds.frames )
-    {
-        free(def->frame_sounds.frames);
-    }
-    if( def->frame_sounds.sounds )
-    {
-        free(def->frame_sounds.sounds);
-    }
 }
 
 // if (code === 1) {

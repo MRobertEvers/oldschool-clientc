@@ -1315,7 +1315,8 @@ def check_underground_pass() -> None:
         )
     for actor in ("upass_doomion_safe", "upass_holthion_safe", "upass_othainian_safe"):
         block = npc.split(f"[{actor}]", 1)[1].split("\n[", 1)[0]
-        require("op2=" not in block and "huntmode=" not in block,
+        # The config text states every key; "default" is the unset spelling.
+        require(not re.search(r"^(op2|huntmode)=(?!default$)", block, re.M),
                 f"Underground Pass: {actor} regained aggression/Attack option")
         require_text(block, ("hitpoints=87", "param=magicdefence,-10",
                              "param=death_drop,null"),
