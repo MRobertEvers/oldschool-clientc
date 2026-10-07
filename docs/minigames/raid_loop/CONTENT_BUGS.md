@@ -2335,3 +2335,39 @@ like it's back. You need to fix that." (seen live on _play_verzik_slow). The ear
   - _play_verzik_slow and _play_verzik: each 0 of 5. Their guard rows PASS (4 of 4 each; the fifth name in each never
     reached the fight). The reds are deaths in P3: the plan's P2 percentage still reads the old stacked bar
     (raid_play_tob_verzik.lua:1058, sent to the Verzik owner). They are not a bar mismatch.
+
+## 2026-10-07 anim audit: every ToB animation, graphic and projectile against Blert (build/seam_state/anim_audit/AUDIT.tsv)
+
+Fixed (OSRS-Content 7a70ed5169, 8491f556a5, 55d34897e9, 964c87af49):
+- ToB, Verzik P2 bounce (and the P1 pillar stun, same proc): `[proc,tob_verzik_stun]` drew spotanim 80 `stunned`;
+  blert names the bounce by spotanim 245 `stunned_thieving` on the bounced player (`P2_BOUNCE_GRAPHIC = 245`,
+  `player.hasSpotAnim(P2_BOUNCE_GRAPHIC)`, blert_plugin/VerzikDataTracker.java:56,569). Same model 3070, other seq,
+  so it looked right and was the wrong id on the wire. Now 245. Fixed 7a70ed5169.
+- ToB, Verzik P3 webs: `verzik_web_npc` 8376 (no readyanim, no rig, the support's model 21832) fell through to
+  `[default]` and played human_unarmedblock 424 on every hit and human_death 836 on its death (2 + 2 npc_anim rows in
+  a _play_verzik_slow ticklog) -- a human rig's animation on a web. blert knows the web only by npc id
+  (VerzikDataTracker.java:78); tob.npc now nulls defend_anim / death_anim, as the Nylocas support record does.
+  Fixed 8491f556a5.
+- ToB, Nylocas Vasilias / Prinkipas: the late first attack was one 1-in-3 for the opening (+4) and every colour change
+  (+3), from 18 rooms. Every blert room in the tree (build/blert/nylocas + spec_state blert_nylo_raw, 46 deduped):
+  opening +4 in 9 of 41 Regular rooms (22 %), a change's +3 in 23 of 94 into melee (24 %) and 119 of 246 into ranged
+  or magic (48 %). No wiki, guide or plugin states a rule. `^tob_vasilias_open_late_pct` / `_turn_late_pct_melee` /
+  `_turn_late_pct_other`. Fixed 55d34897e9.
+- ToB, Verzik's exploding nylocas: `~tob_verzik_crab_blast` drew 1565 (melee detonate) for every crab; the cache files
+  one per style (1565 / 1566 / 1567) and the Nylocas room maps them by style (`~tob_nylo_detonate_gfx`). Fixed
+  964c87af49.
+
+Open:
+- Engine, every room (parent 1e90c684a): the npc_anim op now ships seq < 0 as a cancel, and ~40 player-attack scripts
+  play the defender's block as `npc_anim(npc_param(defend_anim), d)` (skill_combat/scripts/player/player_ranged.rs2:165,
+  292, gear/powered_staff.rs2:544, specs/pvm_*.rs2). For an npc whose defend_anim is null (Xarpus, Maiden, Sotetseg,
+  Vasilias, wave nylocas, Bloat, Verzik P3, her reds) each hit now sends a cancel that erases the boss's own attack
+  seq: Xarpus' 8059 spit cancelled on the same tick 6 of 6 times in one trio run, Sotetseg 2 of 9, Vasilias 7 of 40.
+  The owners' 07:xx baselines carried zero cancel rows. Reported to the throne agent (ad08ea6affe35bec2), who owns the
+  commit; not changed here.
+- ToB, Vasilias style switch: the retype to another rig (1800 / 1801 / 1799) can land on the 2nd tick of her 2-tick
+  attack seq. blert shows OSRS doing the same (opening +4, +8 then switch +9 in 3 of 27 rooms), so the content
+  matches the wire; noted only.
+- ToB, Verzik P3 crab special poses `verzik_phase3_attack_summon` 14406 (her rig, cache-named). blert says the crabs
+  ride a regular attack (VerzikDataTracker.java:747-751) and does not read P3 poses; OpenOSRS's counter keys
+  8123-8125 only, but predates seq 14406. Kept.
