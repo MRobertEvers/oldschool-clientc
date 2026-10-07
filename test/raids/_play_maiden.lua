@@ -122,12 +122,7 @@ else
         -- and three fish fewer for its five slots
         "::give masori_mask", "::give masori_body", "::give masori_chaps",
         "::give necklace_of_anguish", "::give zaryte_vambraces",
-        "::give br_4dosepotionofsaradomin 5", "::give br_4dose2restore 4", "::give anglerfish 5",
-        -- owner_tob_normal sm89: Dinh's bulwark for the special on the frozen
-        -- stack (the streams' DINHS_SPEC on crabs 14 attacks in 24 rooms, 4
-        -- kills; wiki_Dinhs_bulwark.wikitext:72 "hits up to 10 enemies ... in
-        -- a 11x11 area around the player"), a fish fewer for its slot
-        "::give dinhs_bulwark",
+        "::give br_4dosepotionofsaradomin 5", "::give br_4dose2restore 4", "::give anglerfish 6",
         "::give 4dose2combat 3",
         -- owner_tob_normal M41: the claws for her last form's special (W:646
         -- "utilise any remaining special attacks"; Blert CLAW dps|30 8 / 6 of 24)
