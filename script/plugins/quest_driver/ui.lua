@@ -82,6 +82,25 @@ function QD.ui.widget(sym, sub)
     return result, component_id
 end
 
+-- ui.shown(sym, sub) -> result, shown
+-- Whether a widget is on screen now: mounted, and neither it nor any parent
+-- hidden (api_drive.widget_presented, the read chat.text's own presented
+-- test uses). Results: ok (with true/false), no_row (unknown symbol),
+-- not_visible (not mounted -- its interface is not open). A puzzle whose
+-- pieces are layers the server shows and hides (if_sethide) is read with this:
+-- Elemental Workshop II's junction box draws each pipe as one hidden layer.
+function QD.ui.shown(sym, sub)
+    local result, component_id = api_drive.component(sym, sub or -1)
+    if result ~= "ok" then
+        return result, false
+    end
+    local presented_result, presented = api_drive.widget_presented(component_id)
+    if presented_result ~= "ok" then
+        return presented_result, false
+    end
+    return "ok", presented == true
+end
+
 -- ui.model_pose(sym, sub) -> result, detail, pose
 -- The pose a MODEL component (type 6) is drawn with now: pose.xan, .yan,
 -- .zan, .zoom, .x_speed, .y_speed, .model, .component -- what the cache's
@@ -127,6 +146,145 @@ end
 
 function QD.ui.invoke(widget, op)
     return api_drive.if_click(widget, op)
+end
+
+-- ui.drag(sym, sub, to) -> ok | no_row | not_visible | refused, detail
+--
+-- Drag ONE widget with the real mouse, the way a player does: press inside
+-- it, move with the button held, release.  The client's own drag machine
+-- (uitree_interact.c interact_drag) moves it, runs its cc_setondrag script
+-- every held frame and its cc_setondragcomplete script on the release -- so
+-- whatever that script reports to the server (the jigsaw's
+-- IF_SCRIPT_TRIGGER, torirs_jigsaw_piece_drop.cs2) is the client's word, not
+-- the driver's.  No cheat, no packet forged here.
+--
+-- `sym`/`sub` name the widget (`sub` a cc_create child's sub-id, -1/nil a
+-- static component).  `to = { sym = <component>, x = n, y = n }` is where
+-- the widget's TOP-LEFT should land, in that component's own coordinates --
+-- the space a clientscript's cc_setposition uses.  The press is at a point
+-- where the client's own hit stack (api_drive.widget_at) has THIS widget on
+-- top -- its centre when nothing covers it -- and the release keeps the same
+-- grab offset, so the drop lands the corner exactly there.  A widget covered
+-- everywhere is `refused`, naming what lies on top.
+--
+-- The answer names where the widget is after the release, read back from the
+-- client: still in `sym` at some x,y (the drop the content did not take, or
+-- took and left in place), or GONE from `sym` -- a script that answered the
+-- drop by moving the widget elsewhere (the jigsaw locks a placed piece onto
+-- `jigsaw:pieces_locked`).  That is `ok` with the fact spelled out; the
+-- caller asserts the content's own state.
+QD.ui.DRAG_STEPS = 6
+
+-- `count` rendered frames.  A pushed mouse event drains on the NEXT frame
+-- (DrivePointer_MouseMove), so every press and move is followed by one.
+function QD.ui._frames(count, note)
+    local seen = 0
+    return await({
+        level = function()
+            seen = seen + 1
+            return seen > count
+        end,
+        note = note or "ui.frames",
+    }, count + 2)
+end
+
+function QD.ui._bounds_of(sym, sub)
+    local result, component_id = api_drive.component(sym, sub or -1)
+    if result ~= "ok" then
+        return result, nil, component_id
+    end
+    local bounds_result, bounds = api_drive.widget_bounds(component_id)
+    if bounds_result ~= "ok" then
+        return "not_visible", nil, component_id
+    end
+    return "ok", bounds, component_id
+end
+
+function QD.ui.drag(sym, sub, to)
+    local where = string.format("%s sub %s", tostring(sym), tostring(sub))
+    if type(to) ~= "table" or type(to.sym) ~= "string" or type(to.x) ~= "number"
+        or type(to.y) ~= "number" then
+        return "refused", "ui.drag " .. where
+            .. ": `to` must be { sym = <component>, x = n, y = n }, got " .. tostring(to)
+    end
+    local from_result, from, source_id = QD.ui._bounds_of(sym, sub)
+    if from_result ~= "ok" then
+        return from_result, "ui.drag " .. where .. ": the widget -> " .. tostring(from_result)
+    end
+    local presented_result, presented = api_drive.widget_presented(source_id)
+    if presented_result ~= "ok" or not presented then
+        return "not_visible", "ui.drag " .. where .. ": the widget is not displayed"
+    end
+    local origin_result, origin = QD.ui._bounds_of(to.sym, -1)
+    if origin_result ~= "ok" then
+        return origin_result, "ui.drag " .. where .. ": the target " .. to.sym .. " -> "
+            .. tostring(origin_result)
+    end
+    if from.width <= 0 or from.height <= 0 then
+        return "not_visible", string.format("ui.drag %s: drawn %dx%d, nothing to press",
+            where, from.width, from.height)
+    end
+
+    -- Press where the client's hit stack puts THIS widget on top: widgets
+    -- overlap (the jigsaw's loose pile) and a press at the centre of a
+    -- covered one picks up whichever was created after it.  The centre
+    -- first, then a 5x5 grid inside the bounds.
+    local grab_x, grab_y = nil, nil
+    local top_seen = {}
+    local function try_grab(x, y)
+        if grab_x ~= nil then
+            return
+        end
+        local at_result, top = api_drive.widget_at(x, y)
+        if at_result == "ok" and top == source_id then
+            grab_x, grab_y = x, y
+        elseif #top_seen < 4 then
+            top_seen[#top_seen + 1] = string.format("%d,%d->%s", x, y, tostring(top))
+        end
+    end
+    try_grab(from.x + math.floor(from.width / 2), from.y + math.floor(from.height / 2))
+    for row = 1, 5 do
+        for column = 1, 5 do
+            try_grab(from.x + math.floor(from.width * column / 6),
+                from.y + math.floor(from.height * row / 6))
+        end
+    end
+    if grab_x == nil then
+        return "refused", string.format("ui.drag %s: covered -- no point of its %dx%d at %d,%d"
+            .. " has it on top of the client's hit stack (%s)", where, from.width, from.height,
+            from.x, from.y, table.concat(top_seen, " "))
+    end
+    local end_x = origin.x + to.x + (grab_x - from.x)
+    local end_y = origin.y + to.y + (grab_y - from.y)
+
+    api_drive.mouse_move(grab_x, grab_y)
+    QD.ui._frames(1, "ui.drag hover " .. where)
+    api_drive.mouse_button("left", 1, grab_x, grab_y)
+    QD.ui._frames(1, "ui.drag press " .. where)
+    local steps = QD.ui.DRAG_STEPS
+    for i = 1, steps do
+        local x = grab_x + math.floor((end_x - grab_x) * i / steps)
+        local y = grab_y + math.floor((end_y - grab_y) * i / steps)
+        api_drive.mouse_move(x, y)
+        QD.ui._frames(1, "ui.drag move " .. where)
+    end
+    -- One more held frame at the end point: the drop script reads the
+    -- position the last held frame's on_drag reported.
+    QD.ui._frames(1, "ui.drag hold " .. where)
+    api_drive.mouse_button("left", 0, end_x, end_y)
+    QD.ui._frames(2, "ui.drag release " .. where)
+
+    local wanted = string.format("%s %d,%d", to.sym, to.x, to.y)
+    local after_result, after = QD.ui._bounds_of(sym, sub)
+    if after_result ~= "ok" then
+        return "ok", string.format("ui.drag %s: pressed %d,%d, released %d,%d for %s;"
+            .. " the widget is no longer in %s (%s)", where, grab_x, grab_y, end_x, end_y,
+            wanted, tostring(sym), tostring(after_result))
+    end
+    local landed_x = after.x - origin.x
+    local landed_y = after.y - origin.y
+    return "ok", string.format("ui.drag %s: pressed %d,%d, released %d,%d for %s; it sits at"
+        .. " %d,%d", where, grab_x, grab_y, end_x, end_y, wanted, landed_x, landed_y)
 end
 
 -- "the numbering the ini already documents" (plan 5.8): no name -> tab

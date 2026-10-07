@@ -13532,6 +13532,30 @@ ToriRSServer_ScriptCommand(
     case SS_OP_LAST_SUBOP:
         SSVM_PushInt(state, player->last_subop);
         return 1;
+
+    /*
+     * One typed value of the IF_SCRIPT_TRIGGER that entered this trigger
+     * (gen_opcode_meta.py LAST_TRIGGER_INT). handle_if_script_trigger fills
+     * the values for the duration of the dispatch and clears them after, so an
+     * index the trigger did not carry -- or a read from a script no trigger
+     * entered -- is the content's bug and stops here, not a 0 or -1 that reads
+     * like a placement at the origin.
+     */
+    case SS_OP_LAST_TRIGGER_INT:
+    {
+        int32_t index;
+
+        if( !SSVM_PopInt(state, &index) )
+            return 1;
+        if( index < 0 || index >= player->last_trigger_int_count )
+        {
+            SSVM_Abort(state, "last_trigger_int: index %d, the trigger carried %d value(s)",
+                       index, player->last_trigger_int_count);
+            return 1;
+        }
+        SSVM_PushInt(state, player->last_trigger_ints[index]);
+        return 1;
+    }
     case SS_OP_LAST_TARGETSLOT:
         SSVM_PushInt(state, player->last_targetslot);
         return 1;

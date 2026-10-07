@@ -686,6 +686,30 @@ enum DriveResult DriveRead_WidgetPresented(
 enum DriveResult DriveRead_WidgetOwnHidden(
     struct App* app, int component_id, int* out_own_hidden);
 
+/*
+ * Where a live component is drawn: canvas pixels, the space
+ * api_drive.mouse_move / mouse_button take, with scroll and an in-flight drag
+ * folded in (UITree_NodeDrawnBounds, the read PLUGIN_WIDGET_BOUNDS answers
+ * for the general plugin API). Layout is brought up to date first. A widget
+ * drag (ui.lua QD.ui.drag) presses inside these bounds and releases where
+ * the widget's top-left should land. DRIVE_NOT_FOUND when component_id does
+ * not resolve to a live node.
+ */
+enum DriveResult DriveRead_WidgetBounds(
+    struct App* app, int component_id, int* out_x, int* out_y, int* out_width,
+    int* out_height);
+
+/*
+ * The component a press at canvas pixel (x, y) would land on: the TOP-MOST
+ * menu-relevant node there (UITree_CollectNodesAt, the stack the client's own
+ * press and minimenu read, with its visibility, clip, scroll and
+ * no-click-through rules). -1 when nothing there takes a press. A drag of
+ * overlapping widgets (the jigsaw's loose pile) needs this to press the piece
+ * it means rather than whichever was created after it.
+ */
+enum DriveResult DriveRead_WidgetAt(
+    struct App* app, int x, int y, int* out_component_id);
+
 /* ------------------------------------------------------------ verbs-pointer */
 
 /* verbs-pointer, src/plugin/torirs_plugin_drive_pointer.c */

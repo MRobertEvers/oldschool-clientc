@@ -983,6 +983,24 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # Spin a model component continuously; 0,0 stops it.
     "IF_SETROTATESPEED": (11115, 3, 0, 0, 0),
 
+    # ---- interface script triggers (11116) --------------------------------
+    # last_trigger_int(int $index)(int)
+    #
+    # The typed values of the IF_SCRIPT_TRIGGER that started this
+    # `[if_button1,...]` script, 0-based in the order the clientscript pushed
+    # them. A rev-239 interface whose state lives client-side reports it with
+    # `if_script_trigger(crc, component, child, values..., signature)` rather
+    # than an op: the jigsaw (interface 922, torirs_jigsaw_piece_drop.cs2 /
+    # torirs_jigsaw_piece_rot.cs2) sends piece, x, y and rotation on
+    # `jigsaw:pieces`. torirs_server_world.c handle_if_script_trigger decodes
+    # the routes it knows the signature of (the crc names it; the wire does
+    # not carry it) and enters IF_BUTTON1 on the component with the child in
+    # `last_slot`; this is the read side for everything after the child.
+    # LostCity speaks the 2004 protocol and has no such packet, so there is no
+    # reference name. An index past what the trigger carried aborts the
+    # script: it is the content's bug, never a value to default.
+    "LAST_TRIGGER_INT": (11116, 1, 0, 1, 0),
+
     # npc_findowned2()(boolean)
     # Resolve the active player's familiar into the secondary NPC context. A
     # targeted trigger can retain its primary target while `.npc_*` addresses

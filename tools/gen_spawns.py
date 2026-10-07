@@ -141,6 +141,19 @@ NPC_NAME_ALIASES = {
     # Chief Farmer -> Dale, id 6957: "Chief Farmer" redirects to "Dale" (oldid
     # 14864551, id 6957, Hosidius, map 1751,3536 r=4; the dump row is 1749,3534).
     ("hosidius_chief_farmer", normalise("Chief Farmer")): {normalise("Dale")},
+    # The Fremennik Isles' frenzied ice trolls, ids 5823-5826: each wiki page
+    # ("Frenzied ice troll runt/male/female/grunt", Infobox id 5823/5824/5825/
+    # 5826) records the 5 July 2023 Forestry rename from "Ice troll <kind>" to
+    # "Frenzied ice troll <kind>", and its LocLine tiles are exactly the dump's
+    # 18 rows on the western side of the Ice Troll Caves (2376..2401,
+    # 10268..10286,1, plus one female at 2420,10274). They are the quest's ten
+    # kills (wiki The_Fremennik_Isles: "kill 10 frenzied ice trolls (of any
+    # kind) ... before you can cross the bridge to the south"); dropped as
+    # drift, Bork's camp held no troll at all and the step could not be played.
+    ("fris_baby_troll_lowxp", normalise("Ice troll runt")): {normalise("Frenzied ice troll runt")},
+    ("fris_trollm_lowxp", normalise("Ice troll male")): {normalise("Frenzied ice troll male")},
+    ("fris_trollf_lowxp", normalise("Ice troll female")): {normalise("Frenzied ice troll female")},
+    ("fris_troll_bodyguard_lowxp", normalise("Ice troll grunt")): {normalise("Frenzied ice troll grunt")},
 }
 
 # These three records are scenery/cage occupants in the external map dump, not

@@ -2113,7 +2113,7 @@ def check_elemental_workshops() -> None:
     require_text(
         ELEM2_PRIMING.read_text(),
         (
-            "[opnpcu,elem2_cart_npc_empty]", "[oploc1,elem2_lever_3way]",
+            "[opnpcu,elem2_cart_npc]", "[oploc1,elem2_lever_3way]",
             "[oploc1,elem2_earth_lever_1]", "[oploc1,elem2_water_lever]",
             "[oploc1,elem2_corkscrew]", "[oploc1,elem2_valve_1]",
             "[oploc1,elem2_valve_2]", "[oploc1,elem2_air_lever]",
@@ -3064,8 +3064,7 @@ def check_fremennik_trials() -> None:
         constants,
         ("^viking_koschei_phase_timeout = 1000", "^viking_draugen_spot_count = 4",
          "^viking_draugen_spot_radius = 20",
-         "^viking_draugen_move_delay = 80", "^viking_draugen_lifetime = 1000",
-         "^viking_draugen_reveal_range = 3"),
+         "^viking_draugen_move_delay = 80", "^viking_draugen_lifetime = 1000"),
         "The Fremennik Trials encounter constants",
     )
     require_text(
@@ -3079,7 +3078,9 @@ def check_fremennik_trials() -> None:
     require_text(
         sigli,
         ("[opheld1,viking_draugen_talisman_uncharged]",
-         "distance(coord, $target) <= ^viking_draugen_reveal_range",
+         # OSRS wiki The_Fremennik_Trials?oldid=15360756: "Use the talisman on
+         # the exact tile the Draugen is on to fight him" -- no reveal range.
+         "if (coord = $target) {",
          "npc_add(map_findsquare(coord, 1, 2, ^map_findsquare_lineofwalk), viking_draugen, ^viking_draugen_lifetime);",
          "map_findsquare($anchor, 0, ^viking_draugen_spot_radius, ^map_findsquare_lineofwalk)",
          "npc_setowner;", "settimer(viking_draugen_move, ^viking_draugen_move_delay);",

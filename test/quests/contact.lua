@@ -1,6 +1,14 @@
 -- Contact! driven from the guide ladder (contact.notes.md, b53 parity scratch).
 -- Prerequisites by ::complete; light source + tinderbox + gear are brought-along kit.
 -- Maze note: the Sophanem maze is walked on foot with the trap presses (no goto past it).
+-- Travel (door rule, b72): the desert is entered by the Shantay Pass doorway on every trip (a pass
+-- bought from Shantay, shantay_pass.rs2; out from the south is free), Sophanem's north gate
+-- (sophanem_gate_right 3284,2809) is passed on foot both ways, Jex's temple is entered and left
+-- through its arch (icthalarins_door_arch 3308,2799-2800: blockwalk=0, op1 Open with no [oploc]
+-- handler, so the crossing is graded on the tiles, as spiritsoftheelid.lua does), and every trip
+-- out of the dungeon climbs back the real way: chasm ladder (contact_boss_ug_ladder), the maze
+-- walked up, contact_ug_entrance_ladder (maplink_2_33_68_54_57_up) into the bank vault, and
+-- contact_bank_fixed_ladder (maplink_0_43_80_47_40_up) up into the temple at 3315,2796.
 -- b56 sampler fixes: every arrival row compares the tile it reads against where the step must
 -- end; the Scarab approach walks to a tile it can reach (6436,96 was the scarab mage's spawn
 -- tile, contact_scarab.rs2:24, and the server routed every walk to it to 6439,92); the fight is
@@ -38,9 +46,14 @@ return {
         -- Antipoison: Contact.java getItemRecommended (:139, :288); the Scarab poisons
         -- (contact_scarab.rs2:79-85, severity 41) and the b55 run ticked 50 -> 13 after it.
         "::give 4doseantipoison 1",
-        -- 24 sharks: tinderbox + lantern + antipoison + 24 = 27, and Kaleef's parchment
-        -- takes the 28th slot.
-        "::give shark 24",
+        -- Two Shantay passes at 5 coins (shantay.rs2:170-175, inv_add before inv_del, so each
+        -- buy needs a free slot); the 10 coins are gone after the second buy.
+        "::give coins 10",
+        -- 23 sharks: tinderbox + lantern + antipoison + coins + 23 = 27; the 28th slot takes
+        -- the first pass, then Kaleef's parchment (dropped once read, so the second pass fits).
+        -- No waterskin: Sophanem (z 2752-2815) is outside desert_heat_zones.dbrow's desert_zones
+        -- (z 2944-3135), and every desert crossing is one overland hop.
+        "::give shark 23",
     },
     run = function(t)
         t.quest.bind({
@@ -67,7 +80,124 @@ return {
             return hr == "ok" and hs and (hs.current or hs.level) or nil
         end
 
-        t.exec("goto-highpriest", t.player.goto_tile, 3281, 2774, 0)
+        local function count(sym) local r, n = t.inv.count(sym) return r == "ok" and n or 0 end
+        local function reading()
+            local r, tt = t.world.tile()
+            if r == "ok" and type(tt) == "table" then return tt.x .. "," .. tt.z .. "," .. tostring(tt.level) end
+            return tostring(r)
+        end
+
+        -- The Shantay Pass from the north (shantay.rs2 buy, shantay_pass.rs2 [oploc1,
+        -- shantay_pass_henge_doorway]: poster pages and a disclaimer only the first time, the
+        -- pass handed over, [queue,shantay_pass_enter] lands 3304,3115).
+        local function shantay_in(pfx, first)
+            t.exec("goto-" .. pfx .. ".shantay", t.player.goto_tile, 3304, 3123, 0)
+            local coins0, pass0 = count("coins"), count("shantay_pass")
+            t.exec(pfx .. ".buyPass", t.player.talk_to, "shantay", 1)
+            local lines = first and { "npc:Hello effendi, I am Shantay.", "npc:I see you're new." } or { "npc:Hello again friend." }
+            for _, l in ipairs({ "choose:I want to buy a shantay pass for 5 gold coins.", "player:I want to buy a shantay pass for",
+                "mesbox:You purchase a Shantay Pass." }) do lines[#lines + 1] = l end
+            t.exec(pfx .. ".buyPass-dialog", t.chat.play, lines)
+            t.inv.await("shantay_pass", 1, 5)
+            t.check(pfx .. ".buyPass-paid", count("shantay_pass") == pass0 + 1 and count("coins") == coins0 - 5,
+                "shantay_pass " .. pass0 .. " -> " .. count("shantay_pass") .. ", coins " .. coins0 .. " -> " .. count("coins") .. " (5 coins, shantay.rs2)")
+            local chat = {}
+            -- shantay_pass.rs2: the poster pages, like the disclaimer, come whenever none is held.
+            if count("thshantaydisc") == 0 then
+                chat = { "mesbox:There is a large poster on the wall", "mesbox:The Desert is a VERY Dangerous place",
+                    "mesbox:That seems pretty scary!", "choose:Yeah, that poster doesn't scare me!" }
+            end
+            for _, l in ipairs({ "npc:Can I see your Shantay Desert Pass", "mesbox:You hand over a Shantay Pass.", "player:Sure, here you go!" }) do
+                chat[#chat + 1] = l
+            end
+            -- shantay_pass.rs2:111-114: a disclaimer whenever none is held.
+            if count("thshantaydisc") == 0 then chat[#chat + 1] = "npc:Here, have a disclaimer" end
+            t.exec(pfx .. ".shantayDoorway", t.player.cross_gate, { loc = "shantay_pass_henge_doorway", at = { 3302, 3116, 0 },
+                near = { 3304, 3118 }, far_ok = function(tile) return tile.z <= 3115 end,
+                far_desc = "south of the Shantay Pass doorway, z <= 3115", chat = chat })
+            t.check(pfx .. ".passHandedOver", count("shantay_pass") == pass0, "shantay_pass " .. count("shantay_pass") .. " (want " .. pass0 .. ": handed over)")
+        end
+        -- Out of the desert from the south: free (shantay_pass.rs2 p_telejump 3 north).
+        local function shantay_out(pfx)
+            t.exec("goto-" .. pfx .. ".shantayOut", t.player.goto_tile, 3304, 3113, 0)
+            t.exec(pfx .. ".shantayDoorwayOut", t.player.cross_gate, { loc = "shantay_pass_henge_doorway", at = { 3302, 3116, 0 },
+                near = { 3304, 3114 }, far_ok = function(tile) return tile.z > 3116 end, far_desc = "north of the Shantay Pass doorway" })
+        end
+        -- Sophanem's north gate (sophanem_gate_right 3284,2809, a selfstage door).
+        local function sophanem_in(pfx)
+            t.exec("goto-" .. pfx .. ".sophanemGate", t.player.goto_tile, 3284, 2812, 0)
+            t.exec(pfx .. ".sophanemGateIn", t.player.pass_door, { closed = "sophanem_gate_right", open = "sophanem_gate_right",
+                at = { 3284, 2809, 0 }, near = { 3284, 2810 }, far = { 3284, 2808 } })
+        end
+        local function sophanem_out(pfx)
+            t.exec("goto-" .. pfx .. ".sophanemGateInside", t.player.goto_tile, 3284, 2806, 0)
+            t.exec(pfx .. ".sophanemGateOut", t.player.pass_door, { closed = "sophanem_gate_right", open = "sophanem_gate_right",
+                at = { 3284, 2809, 0 }, near = { 3284, 2808 }, far = { 3284, 2810 } })
+        end
+        -- Jex's temple arch (icthalarins_door_arch 3308,2799-2800; blockwalk=0, no [oploc]
+        -- handler): walked through, graded on the tiles either side. Inside is x > 3308.
+        local ARCH_X = 3308
+        local function through_arch(name, going_in)
+            local x, z = going_in and 3310 or 3306, 2799
+            local br, bt = t.world.tile()
+            local lr, arch = t.world.loc_near("icthalarins_door_arch", 8, { at = { ARCH_X, 2799, 0 } })
+            local wr, wd = t.player.walk_to(x, z, 30)
+            local rr, rt = t.world.tile()
+            local before_ok, after_ok
+            if going_in then
+                before_ok = br == "ok" and bt.x < ARCH_X
+                after_ok = rr == "ok" and rt.x > ARCH_X
+            else
+                before_ok = br == "ok" and bt.x > ARCH_X
+                after_ok = rr == "ok" and rt.x < ARCH_X
+            end
+            t.check(name, lr == "ok" and before_ok and after_ok and rt.x == x and rt.z == z,
+                (going_in and "into" or "out of") .. " Jex's temple through icthalarins_door_arch ("
+                    .. tostring(lr) .. " at " .. tostring(arch and arch.tile_x) .. "," .. tostring(arch and arch.tile_z)
+                    .. "): before " .. tostring(bt and (bt.x .. "," .. bt.z .. "," .. bt.level)) .. ", walk_to " .. x .. "," .. z
+                    .. " -> " .. tostring(wr) .. " (" .. tostring(wd) .. "), after " .. reading())
+        end
+        -- Walk from inside Sophanem's gate to the arch's west side, then in.
+        local function into_temple(pfx)
+            local rw, dw = t.player.walk_to(3306, 2799, 60)
+            t.expect(pfx .. ".toArch", rw, dw or "walked to 3306,2799")
+            through_arch(pfx .. ".archIn", true)
+        end
+
+        local mazeUp  -- the maze walked back up; the table is filled in below with mazeDown
+        local function maze_walk(pfx, steps)
+            for i, st in ipairs(steps) do
+                if st[1] == "w" then
+                    local rw, dw = t.player.walk_to(st[2], st[3], 80)
+                    t.expect(pfx .. ".hop" .. i, rw, dw or ("walked to " .. st[2] .. "," .. st[3]))
+                elseif st[1] == "t" then
+                    t.exec(pfx .. ".evade" .. i, t.player.click_loc, "contact_spiketrap_floor", 1, { at = { st[2], st[3], 2 } })
+                else
+                    t.exec(pfx .. ".ladder" .. i, t.player.click_loc, st[4], 1, { at = { st[2], st[3], st[5] } })
+                    t.ticks(3)
+                end
+            end
+        end
+        -- Leaving the dungeon the real way, from the boss ladder's top in the maze (2116,4364,2):
+        -- the maze walked back up, the entrance ladder into the bank vault, the vault ladder up
+        -- into the temple, out through the arch.
+        local function leave_dungeon(pfx)
+            maze_walk(pfx .. ".mazeUp", mazeUp)
+            t.exec(pfx .. ".entranceLadder", t.player.climb, { loc = "contact_ug_entrance_ladder", op = 1, op_name = "Climb-up",
+                at = { 2166, 4410, 2 }, src = { 2166, 4409 }, dest = { 2800, 5160, 0 } })
+            t.exec(pfx .. ".vaultLadder", t.player.climb, { loc = "contact_bank_fixed_ladder", op = 1, op_name = "Climb-up",
+                at = { 2799, 5159, 0 }, src = { 2799, 5160 }, dest = { 3315, 2796, 0 },
+                same_level = "maplink.dbrow maplink_0_43_80_47_40_up" })
+            through_arch(pfx .. ".archOut", false)
+        end
+
+        shantay_in("talkToHighPriest", true)
+        -- The first entry hands over a disclaimer (shantay_pass.rs2:112 inv_add thshantaydisc);
+        -- it is only paper, and the slot is the one Kaleef's parchment needs
+        -- (contact_dungeon.rs2 inv_freespace check before the parchment).
+        t.exec("dropDisclaimer", t.player.drop, "thshantaydisc")
+        sophanem_in("talkToHighPriest")
+        t.exec("goto-highpriest", t.player.goto_tile, 3283, 2772, 0)
         t.exec("talkToHighPriest", t.player.talk_to, "ics_little_hipriest_vis", 1)
         t.exec("talkToHighPriest-dialog", t.chat.play, {
             "npc:Adventurer, welcome",
@@ -81,7 +211,7 @@ return {
         t.ticks(2)
         t.expect("quest.stage.told_jex", t.quest.expect_stage("told_jex"))
 
-        t.exec("goto-jex", t.player.goto_tile, 3312, 2797, 0)
+        into_temple("talkToJex")
         t.exec("talkToJex", t.player.talk_to, "contact_jex", 1)
         t.exec("talkToJex-dialog", t.chat.play, {
             "player:The High Priest sent me",
@@ -168,7 +298,7 @@ return {
                 {"w",2123,4364},
                 {"w",2116,4364},
             }
-    local mazeUp = {
+        mazeUp = {
                 {"w",2116,4364},
                 {"w",2124,4364},
                 {"w",2124,4362},
@@ -251,7 +381,8 @@ return {
         t.ticks(8)
         arrived("chasm.arrived", 2296, 4298, 0, 2, "the chasm's ladder foot; came from 2116,4364,2")
 
-        for i, st in ipairs({ {2296,4298},{2295,4298},{2295,4296},{2287,4296},{2287,4295},{2285,4295},{2285,4294},{2281,4294},{2281,4300},{2282,4300},{2282,4301},{2284,4301},{2284,4302},{2286,4302},{2286,4303},{2287,4303},{2287,4304},{2292,4304},{2292,4307},{2293,4307},{2293,4315},{2294,4315},{2294,4316},{2297,4316},{2297,4319},{2289,4319},{2289,4318},{2287,4318},{2287,4317},{2286,4317},{2286,4314},{2284,4314} }) do
+        local chasmPath = { {2296,4298},{2295,4298},{2295,4296},{2287,4296},{2287,4295},{2285,4295},{2285,4294},{2281,4294},{2281,4300},{2282,4300},{2282,4301},{2284,4301},{2284,4302},{2286,4302},{2286,4303},{2287,4303},{2287,4304},{2292,4304},{2292,4307},{2293,4307},{2293,4315},{2294,4315},{2294,4316},{2297,4316},{2297,4319},{2289,4319},{2289,4318},{2287,4318},{2287,4317},{2286,4317},{2286,4314},{2284,4314} }
+        for i, st in ipairs(chasmPath) do
             local rw, dw = t.player.walk_to(st[1], st[2], 80)
             t.expect("chasm1.hop" .. i, rw, dw or ("walked to " .. st[1] .. "," .. st[2]))
         end
@@ -294,6 +425,24 @@ return {
         -- talked from the EAST lip (x 2263-2265); Maisa stands at 2258,4317 across the chasm
         arrived("maisa.across", 2264, 4317, 0, 1, "Maisa 2258,4317 across the chasm")
 
+        -- The parchment is spent (wiki Parchment oldid 15185408: it may be destroyed once read);
+        -- dropping it frees the slot the second Shantay pass needs (shantay.rs2 inv_add first).
+        t.exec("dropParchment", t.player.drop, "contact_kaleef_scroll")
+
+        -- Out of the chasm the way it was entered: back along the lip to the ladder foot, up the
+        -- chasm ladder (contact_dungeon.rs2 [oploc1,contact_boss_ug_ladder] ->
+        -- ^contact_dungeon_exit_coord 2116,4364,2), the maze up, the vault, the temple, the gate,
+        -- the Shantay Pass north.
+        for i = #chasmPath, 1, -1 do
+            local st = chasmPath[i]
+            local rw, dw = t.player.walk_to(st[1], st[2], 80)
+            t.expect("chasmOut.hop" .. (#chasmPath - i + 1), rw, dw or ("walked to " .. st[1] .. "," .. st[2]))
+        end
+        t.exec("talkToOsman.chasmLadder", t.player.climb, { loc = "contact_boss_ug_ladder", op = 1, op_name = "Climb-up",
+            at = { 2297, 4297, 0 }, dest = { 2116, 4364, 2 }, slack = 1 })
+        leave_dungeon("talkToOsman")
+        sophanem_out("talkToOsman")
+        shantay_out("talkToOsman")
         t.exec("goto-osman", t.player.goto_tile, 3288, 3180, 0)
         t.exec("talkToOsman", t.player.talk_to, "contact_osman_multi", 1)
         t.exec("talkToOsman-dialog", t.chat.play, {
@@ -306,7 +455,10 @@ return {
         t.ticks(2)
         t.expect("quest.stage.told_osman", t.quest.expect_stage("told_osman"))
 
-        t.exec("goto-osman-outside", t.player.goto_tile, 3285, 2814, 0)
+        shantay_in("talkToOsmanOutsideSoph", false)
+        -- 3286,2816: open sand beside Osman (m51_44.spawn 3289,2818); 3285,2814 is under the
+        -- rolled-out carpet (carpet_rolledout_multi 3285,2813) and solid.
+        t.exec("goto-osman-outside", t.player.goto_tile, 3286, 2816, 0)
         t.exec("talkToOsmanOutsideSoph", t.player.talk_to, "contact_osman_desert_multi", 1)
         t.exec("talkToOsmanOutsideSoph-dialog", t.chat.play, {
             "npc:how do you propose I get into Menaphos",
@@ -318,7 +470,8 @@ return {
         t.ticks(2)
         t.expect("quest.stage.osman_outside", t.quest.expect_stage("osman_outside"))
 
-        t.exec("goto-jex-again", t.player.goto_tile, 3313, 2797, 0)
+        sophanem_in("goDownToBankAgain")
+        into_temple("goDownToBankAgain")
         t.exec("goDownToBankAgain", t.player.click_loc, "contact_temple_trapdoor_open", 1)
         t.exec("goDownToBankAgain.continue", t.chat.continue_, true)
         t.ticks(6)
@@ -382,8 +535,17 @@ return {
         -- timed out there (b55 committed run; probe build/quest_gate/fixb56_contact_probe),
         -- with no loc with an op beside the stop. 6439,92 is the reachable tile on that line.
         do
-            local rw, dw = t.player.walk_to(6439, 92, 60)
-            local tr, th = t.world.tile()
+            -- The Scarab's summons wander across this line; a walk they block stalls short
+            -- (b72 run 2: stalled at 6446,90), so a stalled walk is pressed again (3 tries).
+            local rw, dw, tr, th
+            local tries = 0
+            for _ = 1, 3 do
+                tries = tries + 1
+                rw, dw = t.player.walk_to(6439, 92, 60)
+                tr, th = t.world.tile()
+                if tr == "ok" and th.x == 6439 and th.z == 92 then break end
+            end
+            dw = tostring(dw) .. " (walk " .. tries .. " of up to 3)"
             t.check("chasm2.hop1", rw == "ok" and tr == "ok" and th.x == 6439 and th.z == 92,
                 "walk_to 6439,92 -> " .. tostring(rw) .. " " .. tostring(dw) .. "; at "
                     .. tostring(th and th.x) .. "," .. tostring(th and th.z) .. " (from the ladder foot 6456,74)")
@@ -460,7 +622,8 @@ return {
         t.ticks(6)
         arrived("chasm.left", 2116, 4364, 2, 2, "the boss ladder's top in the maze; came from the instance copy")
 
-        t.exec("goto-highpriest-again", t.player.goto_tile, 3281, 2774, 0)
+        leave_dungeon("returnToHighPriest")
+        t.exec("goto-highpriest-again", t.player.goto_tile, 3283, 2772, 0)
         local _, snap = t.skill.snapshot()
         t.exec("returnToHighPriest", t.player.talk_to, "ics_little_hipriest_vis", 1)
         t.exec("returnToHighPriest-dialog", t.chat.play, {

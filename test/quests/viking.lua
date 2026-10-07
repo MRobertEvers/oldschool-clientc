@@ -109,7 +109,6 @@ return {
                 viking_draugen_draw_range = 24,
                 viking_draugen_lifetime = 1000,
                 viking_draugen_move_delay = 80,
-                viking_draugen_reveal_range = 3,
                 viking_draugen_spot_count = 4,
                 viking_draugen_spot_radius = 20,
                 viking_firecracker_placed = 0,
@@ -433,9 +432,11 @@ return {
             -- The Draugen hides within 20 tiles of one of four forest anchors (LostCity
             -- [proc,spawn_draugen_butterfly]; viking_sigli.rs2 ~viking_draugen_target): the varp holds the
             -- anchor (1..4) until the hunter is within 24 of it, then the drawn spot's coord -- an open tile
-            -- with a straight walk back to the anchor. The talisman reveals within 3 of the spot
-            -- (^viking_draugen_reveal_range) and adds the Draugen beside the hunter. So: walk to the anchor,
-            -- track (draws the spot), walk to the spot, track again. A move during the walk is a retry.
+            -- with a straight walk back to the anchor. The talisman reveals only on the spot's exact tile
+            -- (OSRS wiki The_Fremennik_Trials?oldid=15360756: "Use the talisman on the exact tile the Draugen
+            -- is on to fight him") and adds the Draugen beside the hunter. So: walk to the anchor, track (draws
+            -- the spot; reveals only when the draw answered the anchor itself), walk onto the spot's tile,
+            -- track again. A move during the walk is a retry.
             local anchors = {{2688,3572},{2720,3616},{2656,3616},{2720,3680}}
             local rn = "not_tried"
             local tries = {}

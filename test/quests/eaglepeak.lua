@@ -14,6 +14,13 @@ return {
         { name = "charlie_to_asyff", run = function(t)
         t.ticks(3)
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
+        -- Door rule: the only walk from Lumbridge to Ardougne opens the members' gate membergater 2933,3320
+        -- (reach.py 3206,3233 -> 2933,3318 REACH 388; 2933,3322 -> 2607,3264 REACH 826). Land south of it,
+        -- cross it by its verb, then travel overland to the zoo.
+        t.exec("goto-speakToCharlie.memberGate", t.player.goto_tile, 2933, 3318, 0)
+        t.exec("speakToCharlie.memberGate", t.player.cross_gate, { loc = "membergater", at = { 2933, 3320, 0 },
+            near = { 2933, 3318 }, far_ok = function(tile) return tile.z >= 3320 and math.abs(tile.x - 2933) <= 2 end,
+            far_desc = "north of the members' gate, z >= 3320", far = { 2933, 3322 } })
         t.exec("goto-speakToCharlie", t.player.goto_tile, 2607, 3264, 0)
         t.exec("speakToCharlie", t.player.talk_to, "eaglepeak_zookeeper_charlie", 1)
         t.exec("speakToCharlie-dialog", t.chat.play, {
@@ -33,14 +40,17 @@ return {
         })
         t.ticks(2)
         t.expect("quest.stage.find_book", t.quest.expect_stage("find_book"))
-        t.exec("goto-inspectBooks", t.player.goto_tile, 2319, 3506, 0)
+        -- the books (2319,3506) are a solid loc; stand on the free camp tile south of them
+        t.exec("goto-inspectBooks", t.player.goto_tile, 2319, 3505, 0)
         t.exec("inspectBooks", t.player.click_loc, "eaglepeak_books_multi", 1)
         t.exec("inspectBooks.book", t.inv.await, "hunting_book_of_birds", 1, 8)
         t.exec("clickBook", t.player.inv_op, "hunting_book_of_birds", 1)
         t.exec("clickBook-dialog", t.chat.play, { "mesbox:The book describes eagles" })
         t.exec("clickBook.feather", t.inv.await, "eaglepeak_metal_feather", 1, 8)
         t.expect("quest.stage.use_feather", t.quest.expect_stage("use_feather"))
-        t.exec("goto-useFeatherOnDoor", t.player.goto_tile, 2329, 3495, 0)
+        -- the outcrop is a 2x2 loc (2328-2329,3494-3495); 2328,3496 is the free tile north of it, the end of
+        -- the mountain path (^eaglepeak_outcrop, reach.py 2328,3496 <-> camp 2319,3505 one walking component)
+        t.exec("goto-useFeatherOnDoor", t.player.goto_tile, 2328, 3496, 0)
         local door = t.player.by_symbol("loc", "eaglepeak_entrance_cave_multi")
         t.exec("useFeatherOnDoor", t.player.use_on, "eaglepeak_metal_feather", door)
         t.ticks(2)
@@ -75,8 +85,27 @@ return {
             t.exec("pickupFeathers-" .. i, t.player.click_loc, "eaglepeak_feather_pile", 1)
             t.exec("pickupFeathers-" .. i .. ".count", t.inv.await, "hunting_eagle_feather", i, 8)
         end
-        -- Asyff
-        t.exec("goto-goToFancyStore", t.player.goto_tile, 3281, 3398, 0)
+        -- Asyff. Door rule: leave the cavern by its Exit (eaglepeak_human_exitmid 1993,4983, an east-edge wall
+        -- pressed from 1994,4983; eaglepeak.rs2 [oploc1,eaglepeak_human_exitmid] -> ^eaglepeak_outcrop 2328,3496),
+        -- then overland: every walk east to Varrock opens the members' gate membergater 2935,3450 and Varrock's
+        -- east gate guidorgatelclosed 3264,3405 (reach.py 3281,3397 <- 2935,3448: NEEDS-DOOR via both). Asyff's
+        -- store opens on that quarter's yard through a doorway the map leaves open (3278,3397).
+        local exit_walk = t.player.walk_to(1994, 4983, 40)
+        local _, exit_tile = t.world.tile()
+        t.check("walk-goToFancyStore.exit", exit_walk == "ok", "walk to the cavern exit: " .. tostring(exit_walk) .. " at " .. (type(exit_tile) == "table" and (exit_tile.x .. "," .. exit_tile.z) or "?"))
+        t.exec("goToFancyStore.exitCavern", t.player.click_loc, "eaglepeak_human_exitmid", 1)
+        t.ticks(3)
+        local _, out1 = t.world.tile()
+        local _, out1_level = t.world.level()
+        t.check("goToFancyStore.exitCavern.outside", type(out1) == "table" and out1.z < 4000 and out1_level == 0, "left the cavern to " .. (type(out1) == "table" and (out1.x .. "," .. out1.z) or tostring(out1)) .. " level " .. tostring(out1_level))
+        t.exec("goto-goToFancyStore.memberGate", t.player.goto_tile, 2932, 3450, 0)
+        t.exec("goToFancyStore.memberGate", t.player.cross_gate, { loc = "membergater", at = { 2935, 3450, 0 }, near = { 2934, 3450 },
+            far_ok = function(tile) return tile.x >= 2936 end, far_desc = "east of the members' gate, x >= 2936", far = { 2937, 3450 } })
+        t.exec("goto-goToFancyStore.eastGate", t.player.goto_tile, 3262, 3405, 0)
+        t.exec("goToFancyStore.eastGate", t.player.cross_gate, { loc = "guidorgatelclosed", at = { 3264, 3405, 0 },
+            near = { 3263, 3405 }, far_ok = function(tile) return tile.x >= 3264 end,
+            far_desc = "inside Varrock's south-east quarter, x >= 3264" })
+        t.exec("goto-goToFancyStore", t.player.goto_tile, 3272, 3397, 0)
         t.exec("goToFancyStore", t.player.talk_to, "tailorp", 1)
         t.exec("goToFancyStore-dialog", t.chat.play, {
             "npc:Now you look like someone",
@@ -112,7 +141,18 @@ return {
         { name = "bronze_room", run = function(t)
         -- LEG 2 BEGIN: returnToEaglesPeak
         t.ticks(2)
-        t.exec("goto-returnToEaglesPeak", t.player.goto_tile, 2329, 3496, 0)
+        -- Door rule, the way back: out of the store's open doorway on foot, Varrock's east gate, the members'
+        -- gate 2935,3450 westward, then overland to the outcrop's free tile 2328,3496 (^eaglepeak_outcrop).
+        local yard_walk = t.player.walk_to(3265, 3405, 30)
+        local _, yard_tile = t.world.tile()
+        t.check("walk-returnToEaglesPeak.yard", yard_walk == "ok", "walk out of the store to the east gate: " .. tostring(yard_walk) .. " at " .. (type(yard_tile) == "table" and (yard_tile.x .. "," .. yard_tile.z) or "?"))
+        t.exec("returnToEaglesPeak.eastGate", t.player.cross_gate, { loc = "guidorgatelclosed", at = { 3264, 3405, 0 },
+            near = { 3264, 3405 }, far_ok = function(tile) return tile.x <= 3263 end,
+            far_desc = "back in Varrock, x <= 3263" })
+        t.exec("goto-returnToEaglesPeak.memberGate", t.player.goto_tile, 2937, 3450, 0)
+        t.exec("returnToEaglesPeak.memberGate", t.player.cross_gate, { loc = "membergater", at = { 2935, 3450, 0 }, near = { 2936, 3450 },
+            far_ok = function(tile) return tile.x <= 2935 end, far_desc = "west of the members' gate, x <= 2935" })
+        t.exec("goto-returnToEaglesPeak", t.player.goto_tile, 2328, 3496, 0)
         t.exec("returnToEaglesPeak", t.player.click_loc, "eaglepeak_entrance_cave_multi", 1)
         t.ticks(4)
         local _, cavern_level = t.world.level()
@@ -128,23 +168,25 @@ return {
         t.exec("attemptToTakeBronzeFeather", t.player.click_loc, "eaglepeak_net_trap_inactive", 1)
         t.ticks(2)
         t.expect("bronze.net", t.var.expect("varb3105_eaglepeak_puzzle3_nettrap", 1))
-        t.exec("goto-winch1", t.player.goto_tile, 1970, 4919, 2)
+        -- each winch is a solid loc in the room's wall; stand on the free tile in front of it
+        t.exec("goto-winch1", t.player.goto_tile, 1970, 4918, 2)
         t.exec("winch1", t.player.click_loc, "eaglepeak_winch1", 1)
         t.ticks(2)
-        t.exec("goto-winch2", t.player.goto_tile, 1978, 4919, 2)
+        t.exec("goto-winch2", t.player.goto_tile, 1978, 4918, 2)
         t.exec("winch2", t.player.click_loc, "eaglepeak_winch2", 1)
         t.ticks(2)
-        t.exec("goto-winch3", t.player.goto_tile, 1970, 4910, 2)
+        t.exec("goto-winch3", t.player.goto_tile, 1970, 4911, 2)
         t.exec("winch3", t.player.click_loc, "eaglepeak_winch3", 1)
         t.ticks(2)
-        t.exec("goto-winch4", t.player.goto_tile, 1978, 4910, 2)
+        t.exec("goto-winch4", t.player.goto_tile, 1978, 4911, 2)
         t.exec("winch4", t.player.click_loc, "eaglepeak_winch4", 1)
         t.ticks(3)
         t.expect("bronze.net_up", t.var.expect("varb3105_eaglepeak_puzzle3_nettrap", 0))
         t.exec("goto-grabBronzeFeather", t.player.goto_tile, 1974, 4912, 2)
         t.exec("grabBronzeFeather", t.player.click_loc, "eaglepeak_dungeon_pedestal_puzzle3", 1)
         t.exec("grabBronzeFeather.item", t.inv.await, "eaglepeak_crystal_feather3", 1, 8)
-        t.exec("goto-enterMainCavernFromBronze", t.player.goto_tile, 1974, 4907, 2)
+        -- the Tunnel (eaglepeak_puzzle3_exitmid 1974,4907) is a north-edge wall of 1974,4907: pressed from the room tile 1974,4908
+        t.exec("goto-enterMainCavernFromBronze", t.player.goto_tile, 1974, 4908, 2)
         t.exec("enterMainCavernFromBronze", t.player.click_loc, "eaglepeak_puzzle3_exitmid", 1)
         t.ticks(3)
         local _, tile = t.world.tile()
@@ -207,7 +249,7 @@ return {
         -- GUIDE-GAP: fillFeeder7 (feeder1a) is the guide's recovery step for a blocked lever 1 (gold_room.rs2:173); the main path never blocks lever 1, and pressing it early moves mechanical bird 1 out of order
         -- GUIDE-GAP: fillFeeder3 shown only after the wrong bird (bird 2) was moved; the guide's own route never shows it, gold_room.rs2:186 maps feeder3a to bird 2 and gold_room.rs2:63 refuses it before the wing gate is down
         t.ticks(2)
-        -- the silver mouth tile is boxed in for the walker (leg 3 note): step off it by teleport, then walk the cavern floor
+        -- a short REACH hop off the silver mouth tile (the client walker stalls on it; reach.py walks it), then walk the cavern floor
         t.exec("goto-enterGoldRoom-off-mouth", t.player.goto_tile, 1988, 4973, 3)
         local walk_result = t.player.walk_to(2022, 4982, 60)
         local _, walk_tile = t.world.tile()
@@ -216,7 +258,8 @@ return {
         t.ticks(3)
         local _, gold_level = t.world.level()
         t.check("enterGoldRoom.level", gold_level == 2, "level " .. tostring(gold_level))
-        t.exec("goto-collectFeed", t.player.goto_tile, 1958, 4905, 2)
+        -- the room lands on the birdseed holder's own solid tile 1958,4906 (content: landing_audit SOLID ^eaglepeak_gold_room); step to the free tile west of it
+        t.exec("goto-collectFeed", t.player.goto_tile, 1957, 4906, 2)
         for i = 1, 6 do
             t.exec("collectFeed-" .. i, t.player.click_loc, "eaglepeak_birdseed_dispenser", 1)
             t.exec("collectFeed-" .. i .. ".count", t.inv.await, "eaglepeak_bird_seed", i, 8)
@@ -286,13 +329,13 @@ return {
         t.exec("goto-grabGoldFeather", t.player.goto_tile, 1928, 4906, 2)
         t.exec("grabGoldFeather", t.player.click_loc, "eaglepeak_dungeon_pedestal_puzzle1", 1)
         t.exec("grabGoldFeather.count", t.inv.await, "eaglepeak_crystal_feather1", 1, 8)
-        t.exec("goto-enterMainCavernFromGold", t.player.goto_tile, 1956, 4909, 2)
-        -- GUIDE-GAP: enterMainCavernFromGold the exit loc eaglepeak_puzzle1_exitmid (gold_room.rs2:343) is a walkable centre square with no approach tile beside it (the walk ends 1956,4909), so the press is made standing on its own square
-        t.exec("enterMainCavernFromGold", t.player.click_loc, "eaglepeak_puzzle1_exitmid", 1, { stand_on_square = true })
+        -- the Tunnel (eaglepeak_puzzle1_exitmid 1957,4909) is a south-edge wall of 1957,4909: pressed from the room tile 1957,4908
+        t.exec("goto-enterMainCavernFromGold", t.player.goto_tile, 1957, 4908, 2)
+        t.exec("enterMainCavernFromGold", t.player.click_loc, "eaglepeak_puzzle1_exitmid", 1)
         t.ticks(3)
         local _, main_level = t.world.level()
         t.check("enterMainCavernFromGold.level", main_level == 3, "level " .. tostring(main_level))
-        -- the gold mouth tile is boxed in for the walker like the silver one (leg 3/4 notes): step off by teleport, then walk the floor
+        -- a short REACH hop off the gold mouth tile, as for the silver one (the client walker stalls on it; reach.py walks it), then walk the floor
         t.exec("goto-off-gold-mouth", t.player.goto_tile, 2021, 4982, 3)
         local door_walk = t.player.walk_to(2002, 4948, 60)
         local _, door_tile = t.world.tile()
@@ -350,9 +393,18 @@ return {
         t.ticks(4)
         local _, out_tile = t.world.tile()
         t.check("leavePeak.guard.out", type(out_tile) == "table" and out_tile.z < 4956, "back on the cavern floor at " .. tostring(type(out_tile) == "table" and (out_tile.x .. "," .. out_tile.z) or out_tile))
-        t.exec("goto-leavePeak", t.player.goto_tile, 1993, 4980, 3)
-        -- GUIDE-GAP: leavePeak the exit loc eaglepeak_human_exitmid (eaglepeak.rs2:178) is a walkable centre square with no approach tile beside it, so the press is made standing on its own square, as enterMainCavernFromGold
-        t.exec("leavePeak", t.player.click_loc, "eaglepeak_human_exitmid", 1, { stand_on_square = true })
+        -- the guard drops the player in the passage east of the stone door (^eaglepeak_nest_out 2007,4952; reach.py
+        -- to the exit: NEEDS-DOOR via eaglepeak_gate_mirror 2003,4948): press the door, which from the east opens
+        -- back onto the cavern floor (feather_door.rs2 [label,eaglepeak_door_open] -> ^eaglepeak_door_south 2002,4948)
+        t.exec("leavePeak.stoneDoor", t.player.click_loc, "eaglepeak_gate_mirror", 1)
+        t.ticks(2)
+        local _, floor_tile = t.world.tile()
+        t.check("leavePeak.stoneDoor.floor", type(floor_tile) == "table" and floor_tile.x <= 2002, "back through the stone door to " .. (type(floor_tile) == "table" and (floor_tile.x .. "," .. floor_tile.z) or tostring(floor_tile)))
+        -- the Exit (eaglepeak_human_exitmid 1993,4983) is an east-edge wall: walk the cavern floor to 1994,4983 and press it
+        local leave_walk = t.player.walk_to(1994, 4983, 60)
+        local _, leave_tile = t.world.tile()
+        t.check("walk-leavePeak", leave_walk == "ok", "walk to the cavern exit: " .. tostring(leave_walk) .. " at " .. (type(leave_tile) == "table" and (leave_tile.x .. "," .. leave_tile.z) or "?"))
+        t.exec("leavePeak", t.player.click_loc, "eaglepeak_human_exitmid", 1)
         t.ticks(3)
         local _, camp_tile = t.world.tile()
         t.check("leavePeak.outside", type(camp_tile) == "table" and camp_tile.z < 4000, "left the cavern to " .. tostring(type(camp_tile) == "table" and (camp_tile.x .. "," .. camp_tile.z) or camp_tile))

@@ -542,10 +542,11 @@
 #define SS_OP_VESSEL_PROJECT 11113
 #define SS_OP_IF_SETANGLE 11114
 #define SS_OP_IF_SETROTATESPEED 11115
+#define SS_OP_LAST_TRIGGER_INT 11116
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
-#define SS_OPCODE_MAX 11116
+#define SS_OPCODE_MAX 11117
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 520
+#define SS_OPCODE_COUNT 521
 
 #endif

@@ -68,7 +68,10 @@ book's title and left page).
 
 `t.ui.widget(sym, sub)` -> `(ok, component_id)`; `t.ui.invoke(widget, op)` -> `ok`/error;
 `t.ui.tab(name)` -> `ok` `no_row` (a number passes straight through); `t.ui.is_modal()` ->
-`(ok, bool)`; `t.ui.model_pose(sym, sub)` ->
+`(ok, bool)`; `t.ui.shown(sym, sub)` -> `(ok, bool)` `no_row` `not_visible` -- whether the widget is
+on screen now (mounted, and neither it nor a parent hidden): the read for a puzzle whose pieces are
+layers the server shows with `if_sethide` (Elemental Workshop II's junction box pipes, b72);
+`t.ui.model_pose(sym, sub)` ->
 `(ok, detail, pose{xan,yan,zan,zoom,x_speed,y_speed,model,component})` `no_row` `not_visible`
 `refused` (not a type-6 model component) -- what the cache baked and the server's
 `if_setangle`/`if_setrotatespeed` last applied;

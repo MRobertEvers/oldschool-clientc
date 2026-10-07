@@ -114,6 +114,12 @@ mock239_if_script_trigger_decode(
 
 #define MOCK239_SKILL_GUIDE_TRIGGER_CRC INT32_C(1707091816)
 
+/** The jigsaw's piece report (interface 922, torirs_jigsaw_piece_drop.cs2 and
+ * torirs_jigsaw_piece_rot.cs2): `if_script_trigger(-1829057600, jigsaw:pieces,
+ * piece, piece, x, y, rotation, "iiii")` -- the child is the piece and the
+ * four typed ints are piece, x, y, rotation. */
+#define MOCK239_JIGSAW_TRIGGER_CRC INT32_C(-1829057600)
+
 /** Current typed consumer: script9189 declares signature `i`; its child of -1
  * means the typed quest id becomes IF_BUTTON1's sub. */
 int

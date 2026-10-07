@@ -1,5 +1,23 @@
 # Defender of Varrock modernization audit
 
+> **Update 2026-10-07 (b72 content fix): completable.** `%varb9655_dov` now
+> carries the real game's values (Quest Helper `steps.put` keys, matching the
+> cache's multiloc windows: the trail's Inspect at 4..12, the trapdoor's Open at
+> 10 / Enter from 12, the red mist's Collect at 18..24). Every transition is
+> driven by the guide's action: "Ready when you are." (4), the six clues in order
+> with the grubby key (6/8/10), the trapdoor (12/14), Elias in the base (16), the
+> first balcony (18), three bottles, three zombies and their red mist per gate
+> (gates absorb the mist and are walked through: 22, Arrav 24, 26), the second
+> balcony (28), the exit ladder, Elias taking you up to Rovin (30/32), Ramarno
+> (34), rubble awakened as chaos golems, the Dream Theatre (36), Rovin's shield
+> (40), Reldo (42), the scrolls (stood up in the overworld library), the list's
+> Read (44), the census (46, rolls the adopted descendant), the five candidates
+> plus Roald (48), Dimintheis and the invasion cutscene (50/52), and Rovin and
+> Elias' finish (56). Dialogue is from Transcript:Defender_of_Varrock oldid
+> 15341906. Still simplified: no Elias follower, no instances (base, invaded
+> Varrock), barronite deposits and the chaos core are guaranteed on the step,
+> no Museum reward. Test: `test/quests/defenderofvarrock.lua`.
+
 Status: `audit-pending` — the native dbrow, primary state carrier, rich cache
 asset set, dynamic journal registration, shared completion call, XP values, and
 most headline story checkpoints exist. The playable implementation is not a

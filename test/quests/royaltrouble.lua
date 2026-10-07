@@ -1,13 +1,165 @@
 -- Royal Trouble (Quest Helper helpers/quests/royaltrouble/RoyalTrouble.java), authored as an
 -- 8-leg relay (docs/quest_authoring/relay.md). Notes for the legs: docs/quests/ladders/royaltrouble.notes.md
+--
+-- RE-DRIVE (matthew-mbp-m4-b72, door rule): no goto into or out of a closed space, and no goto with
+-- no on-foot route. The setup's ::royaltrouble (royal_debug.rs2:35) stages the quest's state and
+-- teleports to the island, so the setup's last cheat stands the player back on the fixture's
+-- Lumbridge tile; the voyage is the guide's travelToMisc: Camelot Teleport from Lumbridge (the
+-- Taverley members' gate is the only way north on foot), overland Camelot -> Rellekka's docks, and
+-- the Rellekka sailor's longship (quest_viking/scripts/viking_sailor.rs2 [opnpc1,viking_sailor],
+-- which needs The Fremennik Trials; Throne of Miscellania, this quest's requirement, needs it too).
+-- Every room is walked into and out of on every visit, each door pressed by tile and level (the
+-- routes are misc.lua's, b59, proven there):
+--  * Miscellania castle (maps/m39_60.jl2): east door castledoor 2510,3860, hall door 2505,3860,
+--    south stair room castledoor 2506,3851 (levels 0 and 1), spiralstairs_wooden 2505,3848
+--    (maplink 0_39_60_9_10 up -> 2504,3849,1; down 1_39_60_8_9 -> 2505,3850,0), the throne room's
+--    walk-through misc_ulby_throneroomdoor 2506,3857,1; north stair room castledoor 2506,3869
+--    (levels 0 and 1), spiralstairs_wooden 2505,3871 (up -> 2507,3871,1; down 1_39_60_11_31 ->
+--    2506,3870,0), Princess Astrid's castledoor 2504,3867,1.
+--  * Etceteria castle (maps/m40_60.jl2): front door castledoor 2608,3875, stair room castledoor
+--    2611,3866, spiralstairs 2613,3867 (up -> 2615,3867,1), spiralstairstop 2614,3867,1 (down ->
+--    2614,3866,0), Queen Sigrid's castledoor 2615,3870,1.
+--  * Matilda's house (m40_60.spawn:26, 2603,3871): misc_viking_abode_door_low 2603,3874 (the door
+--    tile is on the street side; the house is x 2601-2605 z 3870-3873).
+--  * Donal's pub in the dungeon village: royal_village_door 2525,10256 (outside tile; pub x 2526-2530).
+-- Miscellania and Etceteria are one walkable landmass on level 0 (reach.py closed-doors), so the
+-- hops between the castles' front doors, the dock, the gardener and the dungeon ladder are overland.
+-- No dialogue on the route branches on combat level or Magic (grep of quest_royaltrouble,
+-- quest_misc, area_miscellania): the only stat reads are hitpoints in royal_cave.rs2:75/92/98 (a death
+-- guard and hazard damage), and nothing branches on a staged stat.
+
+local CD, CDO = "castledoor", "opencastledoor"
+
+local function inside(tt, level, x0, x1, z0, z1)
+    return type(tt) == "table" and tt.level == level and tt.x >= x0 and tt.x <= x1 and tt.z >= z0 and tt.z <= z1
+end
+
+-- The routes, one graded row per crossing (t.player.pass_door / climb / cross_gate).
+local function route(t)
+    local r = {}
+    -- A swinging door, closed behind the player unless keep_open (pass_door close = true).
+    function r.door(name, closed, open, x, z, level, nx, nz, fx, fz, keep_open)
+        t.exec(name, t.player.pass_door, {
+            closed = closed, open = open, at = { x, z, level },
+            near = { nx, nz }, far = { fx, fz }, close = not keep_open, ticks = 30,
+        })
+    end
+    function r.climb(name, loc, op, ax, az, al, sx, sz, dx, dz, dl)
+        t.exec(name, t.player.climb, {
+            loc = loc, op = op, at = { ax, az, al }, src = { sx, sz }, dest = { dx, dz, dl },
+        })
+        t.ticks(2)
+    end
+    -- Miscellania castle, level 0: outside the east door <-> the main hall.
+    function r.castle_in(p)
+        r.door(p .. ".eastDoor", CD, CDO, 2510, 3860, 0, 2511, 3860, 2509, 3860)
+        r.door(p .. ".hallDoor", CD, CDO, 2505, 3860, 0, 2506, 3860, 2504, 3860)
+    end
+    function r.castle_out(p)
+        r.door(p .. ".hallDoorOut", CD, CDO, 2505, 3860, 0, 2504, 3860, 2506, 3860)
+        r.door(p .. ".eastDoorOut", CD, CDO, 2510, 3860, 0, 2510, 3860, 2512, 3860)
+    end
+    -- Main hall <-> the south stair room (level 0).
+    function r.south_room_in(p)
+        r.door(p .. ".stairRoomDoor", CD, CDO, 2506, 3851, 0, 2506, 3852, 2506, 3850)
+    end
+    function r.south_room_out(p)
+        r.door(p .. ".stairRoomDoorOut", CD, CDO, 2506, 3851, 0, 2506, 3851, 2506, 3853)
+    end
+    -- The south staircase, the guide's spiralstairs_wooden 2506,3849 (op1 up, op3 down).
+    function r.south_up(name)
+        r.climb(name, "spiralstairs_wooden", 1, 2505, 3848, 0, 2505, 3850, 2504, 3849, 1)
+    end
+    function r.south_down(name)
+        r.climb(name, "spiralstairsmiddle_wooden", 3, 2505, 3848, 1, 2504, 3849, 2505, 3850, 0)
+    end
+    -- South stair landing (level 1) <-> the south corridor, then the throne room's walk-through door.
+    function r.landing_in(p)
+        r.door(p .. ".landingDoor", CD, CDO, 2506, 3851, 1, 2506, 3851, 2506, 3853)
+    end
+    function r.landing_out(p)
+        r.door(p .. ".landingDoorOut", CD, CDO, 2506, 3851, 1, 2506, 3852, 2506, 3850)
+    end
+    function r.throne_in(p)
+        t.exec(p .. ".throneDoorIn", t.player.cross_gate, {
+            loc = "misc_ulby_throneroomdoor", at = { 2506, 3857, 1 }, near = { 2506, 3856 },
+            far_ok = function(tt) return inside(tt, 1, 2498, 2510, 3857, 3863) end,
+            far_desc = "the throne room, z 3857-3863 level 1",
+        })
+    end
+    function r.throne_out(p)
+        t.exec(p .. ".throneDoorOut", t.player.cross_gate, {
+            loc = "misc_ulby_throneroomdoor", at = { 2506, 3857, 1 }, near = { 2505, 3857 },
+            far_ok = function(tt) return inside(tt, 1, 2505, 2507, 3852, 3856) end,
+            far_desc = "the south corridor, z 3852-3856 level 1",
+        })
+    end
+    -- Main hall -> throne room by the south stairs (the guide's goUpTo* step is the climb), and back.
+    function r.to_throne_from_hall(p, climb_name)
+        r.south_room_in(p)
+        r.south_up(climb_name)
+        r.landing_in(p)
+        r.throne_in(p)
+    end
+    function r.throne_to_hall(p, climb_name)
+        r.throne_out(p)
+        r.landing_out(p)
+        r.south_down(climb_name)
+        r.south_room_out(p)
+    end
+    -- Etceteria castle: outside its front door <-> the stair room (level 0).
+    function r.etc_in(p)
+        r.door(p .. ".etcFrontDoor", CD, CDO, 2608, 3875, 0, 2607, 3875, 2609, 3874)
+        r.door(p .. ".etcStairRoomDoor", CD, CDO, 2611, 3866, 0, 2611, 3866, 2613, 3866)
+    end
+    function r.etc_out(p)
+        r.door(p .. ".etcStairRoomDoorOut", CD, CDO, 2611, 3866, 0, 2612, 3866, 2610, 3866)
+        r.door(p .. ".etcFrontDoorOut", CD, CDO, 2608, 3875, 0, 2608, 3875, 2606, 3875)
+    end
+    function r.etc_up(name)
+        r.climb(name, "spiralstairs", 1, 2613, 3867, 0, 2615, 3868, 2615, 3867, 1)
+    end
+    function r.etc_down(name)
+        r.climb(name, "spiralstairstop", 1, 2614, 3867, 1, 2615, 3867, 2614, 3866, 0)
+    end
+    function r.sigrid_in(p)
+        r.door(p .. ".sigridDoor", CD, CDO, 2615, 3870, 1, 2615, 3870, 2615, 3872)
+    end
+    function r.sigrid_out(p)
+        r.door(p .. ".sigridDoorOut", CD, CDO, 2615, 3870, 1, 2615, 3871, 2615, 3869)
+    end
+    -- Overland hops between open level-0 tiles of the island.
+    function r.to_castle(name)
+        t.exec(name, t.player.goto_tile, 2512, 3860, 0)
+    end
+    function r.to_etceteria(name)
+        t.exec(name, t.player.goto_tile, 2606, 3875, 0)
+    end
+    function r.level_is(name, want)
+        local lv = select(2, t.world.level())
+        t.check(name, lv == want, "level " .. tostring(lv) .. " (want " .. tostring(want) .. ")")
+    end
+    function r.stage_is(name, var, want)
+        local v = select(2, t.var.server(var))
+        t.check(name, v == want, var .. " = " .. tostring(v) .. " (want " .. tostring(want) .. ")")
+    end
+    function r.tile_str()
+        local _, tl = t.world.tile()
+        return tostring(tl and (tl.x .. "," .. tl.z)) .. " level " .. tostring(select(2, t.world.level()))
+    end
+    return r
+end
+
 return {
     id = "royaltrouble",
     fixture = "fresh_lumbridge.ini",
+    max_frames = 240000, -- every castle visit is walked, door by door, both castles
     setup = {
         "::clearinv",
         "::setlevel agility 40", -- guide requirement: 40 Agility (royal_royals.rs2:79 ~royaltrouble_meets_requirements)
         "::setlevel slayer 40",  -- guide requirement: 40 Slayer (same check; the snake needs it to attack)
         "::complete quest_heroes", -- guide requirement chain (Throne of Miscellania needs Heroes' Quest): misc_door_guard.rs2:10 gates the throne-room door on %varp188_heroquest = ^hero_complete
+        "::complete quest_fremenniktrials", -- guide requirement chain (Throne of Miscellania needs The Fremennik Trials): the Rellekka longship's gate (viking_sailor.rs2 %varp347_viking = ^viking_complete)
         "::give coal 5",         -- guide requirement: Coal x5 brought along (RoyalTrouble.java coal ItemRequirement; fuels the lift engine, leg 5)
         "::setlevel hitpoints 85", -- guide: the Giant Sea Snake fight (RoyalTrouble.java killBoss; wiki 100 hp, def 160, poison) is fought for real with a combat-capable character, brought along for leg 8
         "::setlevel attack 99",   -- same: attack to wield the rune scimitar
@@ -16,7 +168,11 @@ return {
         "::give rune_scimitar 1", -- guide: a melee weapon brought along for the Giant Sea Snake (leg 8, killBoss)
         "::give lobster 16",      -- guide: food brought along for the Giant Sea Snake (leg 8, killBoss)
         "::give 3doseantipoison 2", -- guide: antipoison brought along, the snake poisons (leg 8, killBoss)
-        "::royaltrouble",        -- royal_debug.rs2:35 stages Throne of Miscellania done + resets every Royal Trouble var, stands the player at the castle
+        "::setlevel magic 45",    -- travel: one Camelot Teleport (magic_spells.dbrow [magic_spell_teleport_camelot]: level 45, 5 air + 1 law), Lumbridge -> Camelot on the way to Rellekka
+        "::give airrune 5",
+        "::give lawrune 1",
+        "::royaltrouble",        -- royal_debug.rs2:35 stages Throne of Miscellania done + resets every Royal Trouble var (it also teleports to the island ...)
+        "::goto 3206 3233 0",    -- ... so the player is stood back on the fixture's Lumbridge tile: the voyage is driven (leg 1)
     },
     bind = {
         varp = "varb2140_royal_quest",
@@ -30,36 +186,42 @@ return {
         {
             name = "castle",
             run = function(t)
+                local r = route(t)
                 t.ticks(3)
                 t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
 
                 -- LEG 1 BEGIN: travelToMisc
-                -- GUIDE-GAP: travelToMisc -- the pack has no boat or fairy ring from Rellekka to Miscellania (viking_sailor.rs2:1)
-                -- (quest_viking/scripts/viking_sailor.rs2:1 only chats; the CIP ring is a house ring, poh_fairy_ring.rs2:72), so the
-                -- sailor is talked to for real and the crossing is plain travel.
-                t.exec("goto-travelToMisc", t.player.goto_tile, 2629, 3693, 0)
+                -- The voyage: Camelot Teleport cast from Lumbridge (past the Taverley members' gate),
+                -- overland Camelot -> Rellekka's docks, then the guide's travelToMisc, the sailor's longship.
+                t.player.teleport_cast("camelot_teleport", { 2757, 3478, 0 }, { name = "camelotTeleport",
+                    runes = { { "airrune", 5 }, { "lawrune", 1 } }, where = "Camelot" })
+                t.exec("goto-rellekkaDocks", t.player.goto_tile, 2629, 3691, 0)
+                -- The ride if_closes, waits two ticks, telejumps, then opens its arrival mesbox
+                -- (seam-facts b59-seam1 (i)), so the dialogue is played in two lists around the landing.
                 t.exec("travelToMisc", t.player.talk_to, "viking_sailor", 1)
                 t.exec("travelToMisc-dialog", t.chat.play, {
-                    "player:Hiya.",
-                    "npc:Don't talk to me outerlander",
-                    "end",
+                    "player:Hello. Can I get a ride on your ship?",
+                    "npc:If you're ready to jump aboard",
+                    "choose:Let's go!",
+                    "player:Let's go!",
                 })
-                t.exec("goto-misc-dock", t.player.goto_tile, 2506, 3853, 0)
-                t.exec("castle-door-ground", t.player.click_loc, "castledoor", 1, { at = { 2506, 3851 } })
-                t.ticks(3)
+                t.exec("travelToMisc.sail", t.await, {
+                    level = function()
+                        local wr, tt = t.world.tile()
+                        return wr == "ok" and tt.x == 2581 and tt.z == 3845 and tt.level == 0
+                    end,
+                    note = "the longship lands on the Miscellania dock 2581,3845,0",
+                }, 15)
+                t.exec("travelToMisc.arrive", t.chat.play, { "mesbox:The ship arrives at Miscellania.", "end" })
+                local _, dock = t.world.tile()
+                t.check("travelToMisc.landed", dock ~= nil and dock.x == 2581 and dock.z == 3845 and dock.level == 0,
+                    "after the ride: " .. r.tile_str() .. " (want the Miscellania dock 2581,3845,0)")
 
                 -- goUpToGhrim / talkToGhrim
-                t.exec("goUpToGhrim", t.player.click_loc, "spiralstairs_wooden", 1)
-                t.ticks(3)
-                t.check("goUpToGhrim-level", select(2, t.world.level()) == 1, "level " .. tostring(select(2, t.world.level())))
-                t.exec("castle-door-upper", t.player.click_loc, "castledoor", 1, { at = { 2506, 3851 } })
-                t.ticks(3)
-                local door_r, door_d = t.player.click_loc("misc_ulby_throneroomdoor", 1, { at = { 2506, 3857, 1 } })
-                t.ticks(8)
-                local _, door_tile = t.world.tile()
-                t.check("throneroom-door", door_tile ~= nil and door_tile.z >= 3857,
-                    "click_loc -> " .. tostring(door_r) .. " (" .. tostring(door_d):sub(1, 80) .. "); tile after " .. tostring(door_tile and (door_tile.x .. "," .. door_tile.z)))
-                t.ticks(3)
+                r.to_castle("goto-misc-castle")
+                r.castle_in("ghrim1")
+                r.to_throne_from_hall("ghrim1", "goUpToGhrim")
+                r.level_is("goUpToGhrim-level", 1)
                 t.exec("talkToGhrim", t.player.talk_to, "misc_advisor_ghrim", 1)
                 t.exec("talkToGhrim-dialog", t.chat.play, {
                     "npc:Greetings, Your Royal Highness",
@@ -82,27 +244,14 @@ return {
                 t.ticks(2)
                 t.expect("quest.stage.chose_partner", t.quest.expect_stage("chose_partner"))
 
-                -- goUpToPartner / talkToPartner: the guide sends the player up the north stairs to the Princess
-                local back_r, back_d = t.player.click_loc("misc_ulby_throneroomdoor", 1, { at = { 2506, 3857, 1 } })
-                t.ticks(8)
-                local _, back_tile = t.world.tile()
-                t.check("throneroom-door-out", back_tile ~= nil and back_tile.z <= 3857,
-                    "click_loc -> " .. tostring(back_r) .. "; tile after " .. tostring(back_tile and (back_tile.x .. "," .. back_tile.z)))
-                t.exec("goDown-afterGhrim", t.player.click_loc, "spiralstairsmiddle_wooden", 3, { at = { 2505, 3848, 1 } })
-                t.ticks(3)
-                t.exec("goto-goUpToPartner", t.player.goto_tile, 2506, 3867, 0)
-                local n_r, n_d = t.player.click_loc("castledoor", 1, { at = { 2506, 3869, 0 } })
-                t.ticks(8)
-                t.check("castle-door-north-ground", true, "click_loc -> " .. tostring(n_r) .. " " .. tostring(n_d):sub(1, 80))
-                t.exec("goUpToPartner", t.player.click_loc, "spiralstairs_wooden", 1, { at = { 2505, 3871, 0 } })
-                t.ticks(3)
-                t.check("goUpToPartner-level", select(2, t.world.level()) == 1, "level " .. tostring(select(2, t.world.level())))
-                local nu_r, nu_d = t.player.click_loc("castledoor", 1, { at = { 2506, 3869, 1 } })
-                t.ticks(6)
-                t.check("castle-door-north-upper", true, "click_loc -> " .. tostring(nu_r) .. " " .. tostring(nu_d):sub(1, 80))
-                local ar_r, ar_d = t.player.click_loc("castledoor", 1, { at = { 2504, 3867, 1 } })
-                t.ticks(6)
-                t.check("astrid-room-door", true, "click_loc -> " .. tostring(ar_r) .. " " .. tostring(ar_d):sub(1, 80))
+                -- goUpToPartner / talkToPartner: the guide sends the player up the NORTH stairs to the Princess
+                r.throne_to_hall("astrid", "goDown-afterGhrim")
+                r.door("astrid.northStairRoomDoor", CD, CDO, 2506, 3869, 0, 2506, 3868, 2506, 3870)
+                r.climb("goUpToPartner", "spiralstairs_wooden", 1, 2505, 3871, 0, 2506, 3870, 2507, 3871, 1)
+                r.door("astrid.northLandingDoor", CD, CDO, 2506, 3869, 1, 2506, 3869, 2506, 3867)
+                -- Astrid's door stays OPEN while the player is inside: she wanders (m39_60.spawn 2502,3868,1)
+                -- and a close can shut her out in the corridor (misc_astrid.lua r3 run 1); it is closed on the way out
+                r.door("astrid.astridDoor", CD, CDO, 2504, 3867, 1, 2505, 3867, 2503, 3868, true)
                 t.exec("talkToPartner", t.player.talk_to, "misc_princess_astrid", 1)
                 t.exec("talkToPartner-dialog", t.chat.play, {
                     "player:Good day, your Highness",
@@ -142,28 +291,12 @@ return {
                 t.ticks(2)
                 t.expect("quest.stage.investigating", t.quest.expect_stage("investigating"))
 
-                -- goUpToVargas / talkToVargas: back down the north stairs, along the corridor, up the south stairs
-                local function door(name, sym, x, z, lvl)
-                    local r, d = t.player.click_loc(sym, 1, { at = { x, z, lvl } })
-                    t.ticks(6)
-                    t.check(name, true, "click_loc -> " .. tostring(r) .. " " .. tostring(d):sub(1, 80))
-                end
-                local function level_is(name, want)
-                    local lv = select(2, t.world.level())
-                    t.check(name, lv == want, "level " .. tostring(lv))
-                end
-                t.exec("goDown-afterAstrid", t.player.click_loc, "spiralstairsmiddle_wooden", 3, { at = { 2505, 3871, 1 } })
-                t.ticks(3)
-                level_is("goDown-afterAstrid-level", 0)
-                t.exec("goto-goUpToVargas", t.player.goto_tile, 2506, 3853, 0)
-                door("castle-door-south-ground", "castledoor", 2506, 3851, 0)
-                t.exec("goUpToVargas", t.player.click_loc, "spiralstairs_wooden", 1, { at = { 2505, 3848, 0 } })
-                t.ticks(3)
-                level_is("goUpToVargas-level", 1)
-                door("castle-door-south-upper", "castledoor", 2506, 3851, 1)
-                local v_r, v_d = t.player.click_loc("misc_ulby_throneroomdoor", 1, { at = { 2506, 3857, 1 } })
-                t.ticks(8)
-                t.check("throneroom-door-vargas", true, "click_loc -> " .. tostring(v_r) .. " " .. tostring(v_d):sub(1, 80))
+                -- goUpToVargas / talkToVargas: back down the north stairs, along the hall, up the south stairs
+                r.door("vargas1.astridDoorOut", CD, CDO, 2504, 3867, 1, 2504, 3867, 2506, 3866)
+                r.door("vargas1.northLandingDoorOut", CD, CDO, 2506, 3869, 1, 2506, 3868, 2506, 3870)
+                r.climb("goDown-afterAstrid", "spiralstairsmiddle_wooden", 3, 2505, 3871, 1, 2507, 3871, 2506, 3870, 0)
+                r.door("vargas1.northStairRoomDoorOut", CD, CDO, 2506, 3869, 0, 2506, 3869, 2506, 3867)
+                r.to_throne_from_hall("vargas1", "goUpToVargas")
                 t.exec("talkToVargas", t.player.talk_to, "misc_king_vargas", 1)
                 t.exec("talkToVargas-dialog", t.chat.play, {
                     "player:Your Majesty.",
@@ -189,38 +322,13 @@ return {
                     "npc:It might also be useful",
                 })
                 t.ticks(2)
-                t.check("quest.stage.misc_set_task", select(2, t.var.server("varb2141_royal_misc")) == 10,
-                    "varb2141_royal_misc = " .. tostring(select(2, t.var.server("varb2141_royal_misc"))))
+                r.stage_is("quest.stage.misc_set_task", "varb2141_royal_misc", 10)
 
-                -- goDownFromVargas / talkToGunnhild
-                local o_r, o_d = t.player.click_loc("misc_ulby_throneroomdoor", 1, { at = { 2506, 3857, 1 } })
-                t.ticks(8)
-                t.check("throneroom-door-out-vargas", true, "click_loc -> " .. tostring(o_r) .. " " .. tostring(o_d):sub(1, 80))
-                t.exec("goDownFromVargas", t.player.click_loc, "spiralstairsmiddle_wooden", 3, { at = { 2505, 3848, 1 } })
-                t.ticks(3)
-                level_is("goDownFromVargas-level", 0)
-                local function tile_is(name)
-                    local _, tl = t.world.tile()
-                    t.check(name, true, "tile " .. tostring(tl and (tl.x .. "," .. tl.z)))
-                end
-                door("castle-door-south-ground-out", "castledoor", 2506, 3851, 0)
-                tile_is("walk-castle-1")
-                t.player.walk_to(2505, 3853, 10)
-                t.ticks(6)
-                door("castle-door-west-hall", "castledoor", 2504, 3853, 0)
-                tile_is("walk-castle-2")
-                t.player.walk_to(2504, 3860, 20)
-                t.ticks(12)
-                tile_is("walk-castle-3")
-                door("castle-door-lobby-west", "castledoor", 2505, 3860, 0)
-                tile_is("walk-castle-4")
-                t.player.walk_to(2509, 3860, 10)
-                t.ticks(8)
-                door("castle-door-east-exit", "castledoor", 2510, 3860, 0)
-                tile_is("walk-castle-5")
-                t.player.walk_to(2525, 3855, 40)
-                t.ticks(30)
-                tile_is("walk-castle-6")
+                -- goDownFromVargas / talkToGunnhild: out of the castle to the gardener
+                r.throne_to_hall("gunnhild", "goDownFromVargas")
+                r.level_is("goDownFromVargas-level", 0)
+                r.castle_out("gunnhild")
+                t.exec("goto-talkToGunnhild", t.player.goto_tile, 2525, 3855, 0)
                 t.exec("talkToGunnhild", t.player.talk_to, "misc_gardener", 1)
                 t.exec("talkToGunnhild-dialog", t.chat.play, {
                     "npc:Good day, Your Royal Highness",
@@ -229,23 +337,21 @@ return {
                     "npc:You're the only person",
                 })
                 t.ticks(2)
-                t.check("quest.stage.misc_aboutthefts", select(2, t.var.server("varb2143_royal_misc_villagers_aboutthefts")) == 1,
-                    "varb2143_royal_misc_villagers_aboutthefts = " .. tostring(select(2, t.var.server("varb2143_royal_misc_villagers_aboutthefts"))))
+                r.stage_is("quest.stage.misc_aboutthefts", "varb2143_royal_misc_villagers_aboutthefts", 1)
 
                 -- goDownFromVargas2: the guide's route to Queen Sigrid starts down the same stairs; go back up and down once
-                t.exec("goto-goDownFromVargas2", t.player.goto_tile, 2506, 3853, 0)
-                door("castle-door-south-ground-2", "castledoor", 2506, 3851, 0)
-                t.exec("goUp-forVargas2", t.player.click_loc, "spiralstairs_wooden", 1, { at = { 2505, 3848, 0 } })
-                t.ticks(3)
-                level_is("goUp-forVargas2-level", 1)
-                door("castle-door-south-upper-2", "castledoor", 2506, 3851, 1)
-                t.exec("goDownFromVargas2", t.player.click_loc, "spiralstairsmiddle_wooden", 3, { at = { 2505, 3848, 1 } })
-                t.ticks(3)
-                level_is("goDownFromVargas2-level", 0)
-                local _, e_tile = t.world.tile()
+                r.to_castle("goto-goDownFromVargas2")
+                r.castle_in("vargas2")
+                r.south_room_in("vargas2")
+                r.south_up("goUp-forVargas2")
+                r.level_is("goUp-forVargas2-level", 1)
+                r.south_down("goDownFromVargas2")
+                r.level_is("goDownFromVargas2-level", 0)
+                r.south_room_out("vargas2")
+                r.castle_out("vargas2")
                 local _, e_stage = t.var.server("varb2140_royal_quest")
                 local _, e_misc = t.var.server("varb2141_royal_misc")
-                t.check("leg.1.state", t.chat.kind() == "none", "tile " .. tostring(e_tile and (e_tile.x .. "," .. e_tile.z)) .. " level 0, varb2140_royal_quest=" .. tostring(e_stage) .. " varb2141_royal_misc=" .. tostring(e_misc) .. ", backpack empty")
+                t.check("leg.1.state", t.chat.kind() == "none", "tile " .. r.tile_str() .. " (outside the castle's east door), varb2140_royal_quest=" .. tostring(e_stage) .. " varb2141_royal_misc=" .. tostring(e_misc))
                 -- LEG 1 END
             end,
         },
@@ -253,26 +359,14 @@ return {
             name = "etceteria",
             run = function(t)
                 -- LEG 2 BEGIN: goUpToSigrid
-                local function door(name, sym, x, z, lvl)
-                    local r, d = t.player.click_loc(sym, 1, { at = { x, z, lvl } })
-                    t.ticks(6)
-                    t.check(name, true, "click_loc -> " .. tostring(r) .. " " .. tostring(d):sub(1, 80))
-                end
-                local function level_is(name, want)
-                    local lv = select(2, t.world.level())
-                    t.check(name, lv == want, "level " .. tostring(lv))
-                end
-                local function stage_is(name, var, want)
-                    local v = select(2, t.var.server(var))
-                    t.check(name, v == want, var .. " = " .. tostring(v) .. " (want " .. tostring(want) .. ")")
-                end
+                local r = route(t)
 
                 -- goUpToSigrid / talkToSigrid
-                t.exec("goto-goUpToSigrid", t.player.goto_tile, 2614, 3865, 0)
-                t.exec("goUpToSigrid", t.player.click_loc, "spiralstairs", 1, { at = { 2613, 3867, 0 } })
-                t.ticks(3)
-                level_is("goUpToSigrid-level", 1)
-                door("castle-door-sigrid", "castledoor", 2615, 3870, 1)
+                r.to_etceteria("goto-goUpToSigrid")
+                r.etc_in("sigrid1")
+                r.etc_up("goUpToSigrid")
+                r.level_is("goUpToSigrid-level", 1)
+                r.sigrid_in("sigrid1")
                 t.exec("talkToSigrid", t.player.talk_to, "misc_queen_sigrid", 1)
                 t.exec("talkToSigrid-dialog", t.chat.play, {
                     "player:Your Majesty, do you have a moment?",
@@ -293,25 +387,14 @@ return {
                     "npc:I would find out for myself",
                 })
                 t.ticks(2)
-                stage_is("quest.stage.etc_sigrid_talked", "varb2142_royal_etc", 10)
+                r.stage_is("quest.stage.etc_sigrid_talked", "varb2142_royal_etc", 10)
 
-                -- goDownFromSigridToMatilda / talkToMatilda
-                t.exec("goDownFromSigridToMatilda", t.player.click_loc, "spiralstairstop", 1)
-                t.ticks(3)
-                level_is("goDownFromSigridToMatilda-level", 0)
-                -- Etceteria's street is walled off from the stair room's south door (2613,3864 only opens onto a
-                -- closed alley); the way to Matilda's hut is west through the hall door 2611,3866, north along the
-                -- hall and out through the double castle doors 2609,3875 / 2608,3875 into the market lane
-                door("castle-door-hall", "castledoor", 2611, 3866, 0)
-                t.player.walk_to(2609, 3874, 20)
-                t.ticks(2)
-                t.check("walk-to-hall-north", select(2, t.world.tile()).x == 2609, "stood at " .. tostring(select(2, t.world.tile()).x) .. "," .. tostring(select(2, t.world.tile()).z))
-                door("castle-door-lane-east", "castledoor", 2609, 3875, 0)
-                door("castle-door-lane-west", "castledoor", 2608, 3875, 0)
-                t.player.walk_to(2603, 3875, 20)
-                t.ticks(2)
-                t.check("walk-to-matilda-street", select(2, t.world.tile()).z == 3875, "stood at " .. tostring(select(2, t.world.tile()).x) .. "," .. tostring(select(2, t.world.tile()).z))
-                door("matilda-house-door", "misc_viking_abode_door_low", 2603, 3874, 0)
+                -- goDownFromSigridToMatilda / talkToMatilda: down, out of the castle, into Matilda's house
+                r.sigrid_out("matilda")
+                r.etc_down("goDownFromSigridToMatilda")
+                r.level_is("goDownFromSigridToMatilda-level", 0)
+                r.etc_out("matilda")
+                r.door("matilda.houseDoor", "misc_viking_abode_door_low", "misc_viking_abode_door_low_open", 2603, 3874, 0, 2603, 3874, 2603, 3872)
                 t.player.walk_near(t.player.by_symbol("npc", "misc_etc_woman_2"), 20)
                 t.ticks(2)
                 t.exec("talkToMatilda", t.player.talk_to, "misc_etc_woman_2", 1)
@@ -328,12 +411,14 @@ return {
                     "player:I'll see what I can do.",
                 })
                 t.ticks(2)
-                stage_is("quest.stage.etc_aboutthefts", "varb2144_royal_etc_villagers_aboutthefts", 1)
+                r.stage_is("quest.stage.etc_aboutthefts", "varb2144_royal_etc_villagers_aboutthefts", 1)
+                r.door("matilda.houseDoorOut", "misc_viking_abode_door_low", "misc_viking_abode_door_low_open", 2603, 3874, 0, 2603, 3873, 2603, 3875)
 
                 -- getCoalOrPickaxe: the guide's bank visit. Etceteria's cache has no dwarf_keldagrim_bankbooth at the
                 -- guide's 2612,3900 (that tile is a house wall); the town's bank is the bank table
-                -- banktable_breakroute_bankable 2619,3894 (bank_booths.rs2:72 oploc2, the same ~openbank). Nothing is
-                -- banked on a fresh account and the pickaxe is picked up in the dungeon (royal_dungeon.rs2:195), so it is opened and closed
+                -- banktable_breakroute_bankable 2619,3894 (bank_booths.rs2:72 oploc2, the same ~openbank), in the open
+                -- street. Nothing is banked on a fresh account and the pickaxe is picked up in the dungeon
+                -- (royal_dungeon.rs2:195), so it is opened and closed
                 t.exec("getCoalOrPickaxe", t.player.click_loc, "banktable_breakroute_bankable", 2, { at = { 2619, 3894, 0 } })
                 t.ticks(4)
                 local _, bank_open = t.ui.is_modal()
@@ -341,25 +426,20 @@ return {
                 t.key("escape")
                 t.ticks(2)
 
-                -- goDownFromSigridToVargas: the guide's second descent of Sigrid's stairs (back up once, then down)
-                t.exec("goto-goDownFromSigridToVargas", t.player.goto_tile, 2614, 3865, 0)
-                t.exec("goUp-forSigrid2", t.player.click_loc, "spiralstairs", 1, { at = { 2613, 3867, 0 } })
-                t.ticks(3)
-                level_is("goUp-forSigrid2-level", 1)
-                t.exec("goDownFromSigridToVargas", t.player.click_loc, "spiralstairstop", 1)
-                t.ticks(3)
-                level_is("goDownFromSigridToVargas-level", 0)
+                -- goDownFromSigridToVargas: the guide's second descent of Sigrid's stairs (back in and up once, then down)
+                r.to_etceteria("goto-goDownFromSigridToVargas")
+                r.etc_in("sigrid2")
+                r.etc_up("goUp-forSigrid2")
+                r.level_is("goUp-forSigrid2-level", 1)
+                r.etc_down("goDownFromSigridToVargas")
+                r.level_is("goDownFromSigridToVargas-level", 0)
+                r.etc_out("sigrid2")
 
                 -- goBackUpToVargasFromSigrid / talkToVargasAfterSigrid
-                t.exec("goto-goBackUpToVargasFromSigrid", t.player.goto_tile, 2506, 3853, 0)
-                door("castle-door-south-ground-3", "castledoor", 2506, 3851, 0)
-                t.exec("goBackUpToVargasFromSigrid", t.player.click_loc, "spiralstairs_wooden", 1, { at = { 2505, 3848, 0 } })
-                t.ticks(3)
-                level_is("goBackUpToVargasFromSigrid-level", 1)
-                door("castle-door-south-upper-3", "castledoor", 2506, 3851, 1)
-                local v_r, v_d = t.player.click_loc("misc_ulby_throneroomdoor", 1, { at = { 2506, 3857, 1 } })
-                t.ticks(8)
-                t.check("throneroom-door-vargas-2", true, "click_loc -> " .. tostring(v_r) .. " " .. tostring(v_d):sub(1, 80))
+                r.to_castle("goto-goBackUpToVargasFromSigrid")
+                r.castle_in("vargas3")
+                r.to_throne_from_hall("vargas3", "goBackUpToVargasFromSigrid")
+                r.level_is("goBackUpToVargasFromSigrid-level", 1)
                 t.exec("talkToVargasAfterSigrid", t.player.talk_to, "misc_king_vargas", 1)
                 t.exec("talkToVargasAfterSigrid-dialog", t.chat.play, {
                     "player:Your Majesty.",
@@ -382,23 +462,17 @@ return {
                     "player:I'll do that, your Majesty.",
                 })
                 t.ticks(2)
-                stage_is("quest.stage.misc_reported", "varb2141_royal_misc", 20)
+                r.stage_is("quest.stage.misc_reported", "varb2141_royal_misc", 20)
 
                 -- goUpToGhrim2 / talkToGhrim2: down the stairs and up again, as the guide routes it
-                local o_r, o_d = t.player.click_loc("misc_ulby_throneroomdoor", 1, { at = { 2506, 3857, 1 } })
-                t.ticks(8)
-                t.check("throneroom-door-out-2", true, "click_loc -> " .. tostring(o_r) .. " " .. tostring(o_d):sub(1, 80))
-                t.exec("goDown-beforeGhrim2", t.player.click_loc, "spiralstairsmiddle_wooden", 3, { at = { 2505, 3848, 1 } })
-                t.ticks(3)
-                level_is("goDown-beforeGhrim2-level", 0)
-                door("castle-door-south-ground-4", "castledoor", 2506, 3851, 0)
-                t.exec("goUpToGhrim2", t.player.click_loc, "spiralstairs_wooden", 1, { at = { 2505, 3848, 0 } })
-                t.ticks(3)
-                level_is("goUpToGhrim2-level", 1)
-                door("castle-door-south-upper-4", "castledoor", 2506, 3851, 1)
-                local g_r, g_d = t.player.click_loc("misc_ulby_throneroomdoor", 1, { at = { 2506, 3857, 1 } })
-                t.ticks(8)
-                t.check("throneroom-door-ghrim-2", true, "click_loc -> " .. tostring(g_r) .. " " .. tostring(g_d):sub(1, 80))
+                r.throne_out("ghrim2")
+                r.landing_out("ghrim2")
+                r.south_down("goDown-beforeGhrim2")
+                r.level_is("goDown-beforeGhrim2-level", 0)
+                r.south_up("goUpToGhrim2")
+                r.level_is("goUpToGhrim2-level", 1)
+                r.landing_in("ghrim2")
+                r.throne_in("ghrim2")
                 t.exec("talkToGhrim2", t.player.talk_to, "misc_advisor_ghrim", 1)
                 t.exec("talkToGhrim2-dialog", t.chat.play, {
                     "npc:Greetings, Your Royal Highness",
@@ -414,11 +488,10 @@ return {
                     "npc:I suggest you ask him",
                 })
                 t.ticks(2)
-                stage_is("quest.stage.misc_ghrim_talked", "varb2141_royal_misc", 30)
-                local _, e_tile = t.world.tile()
+                r.stage_is("quest.stage.misc_ghrim_talked", "varb2141_royal_misc", 30)
                 local _, e_stage = t.var.server("varb2140_royal_quest")
                 local _, e_misc = t.var.server("varb2141_royal_misc")
-                t.check("leg.2.end", t.chat.kind() == "none", "tile " .. tostring(e_tile and (e_tile.x .. "," .. e_tile.z)) .. " level " .. tostring(select(2, t.world.level())) .. ", varb2140_royal_quest=" .. tostring(e_stage) .. " varb2141_royal_misc=" .. tostring(e_misc) .. " (Ghrim sent the player to the sailor), backpack empty")
+                t.check("leg.2.end", t.chat.kind() == "none", "tile " .. r.tile_str() .. ", varb2140_royal_quest=" .. tostring(e_stage) .. " varb2141_royal_misc=" .. tostring(e_misc) .. " (Ghrim sent the player to the sailor)")
                 -- LEG 2 END
             end,
         },
@@ -426,32 +499,15 @@ return {
             name = "dungeon",
             run = function(t)
                 -- LEG 3 BEGIN: goDownToSailor
-                local function door(name, sym, x, z, lvl)
-                    local r, d = t.player.click_loc(sym, 1, { at = { x, z, lvl } })
-                    t.ticks(6)
-                    t.check(name, true, "click_loc -> " .. tostring(r) .. " " .. tostring(d):sub(1, 80))
-                end
-                local function level_is(name, want)
-                    local lv = select(2, t.world.level())
-                    t.check(name, lv == want, "level " .. tostring(lv))
-                end
-                local function stage_is(name, var, want)
-                    local v = select(2, t.var.server(var))
-                    t.check(name, v == want, var .. " = " .. tostring(v) .. " (want " .. tostring(want) .. ")")
-                end
+                local r = route(t)
                 t.ticks(2)
 
-                -- goDownToSailor: out of the throne room, down the south stairs
-                local o_r, o_d = t.player.click_loc("misc_ulby_throneroomdoor", 1, { at = { 2506, 3857, 1 } })
-                t.ticks(8)
-                t.check("throneroom-door-out-3", true, "click_loc -> " .. tostring(o_r) .. " " .. tostring(o_d):sub(1, 80))
-                door("castle-door-south-upper-5", "castledoor", 2506, 3851, 1)
-                t.exec("goDownToSailor", t.player.click_loc, "spiralstairsmiddle_wooden", 3, { at = { 2505, 3848, 1 } })
-                t.ticks(3)
-                level_is("goDownToSailor-level", 0)
+                -- goDownToSailor: out of the throne room, down the south stairs, out of the castle
+                r.throne_to_hall("sailor", "goDownToSailor")
+                r.level_is("goDownToSailor-level", 0)
+                r.castle_out("sailor")
 
                 -- talkToSailor: the docks (the sailor stands at 2581,3847, m40_60.spawn:12)
-                door("castle-door-south-ground-5", "castledoor", 2506, 3851, 0)
                 t.exec("goto-talkToSailor", t.player.goto_tile, 2579, 3847, 0)
                 t.exec("talkToSailor", t.player.talk_to, "misc_sailor", 1)
                 t.exec("talkToSailor-dialog", t.chat.play, {
@@ -476,18 +532,13 @@ return {
                     "player:I'm still an adventurer",
                 })
                 t.ticks(2)
-                stage_is("quest.stage.misc_sailor_talked", "varb2141_royal_misc", 40)
+                r.stage_is("quest.stage.misc_sailor_talked", "varb2141_royal_misc", 40)
 
                 -- goUpToVargasAfterSailor / talkToVargasAfterSailor
-                t.exec("goto-goUpToVargasAfterSailor", t.player.goto_tile, 2506, 3853, 0)
-                door("castle-door-south-ground-6", "castledoor", 2506, 3851, 0)
-                t.exec("goUpToVargasAfterSailor", t.player.click_loc, "spiralstairs_wooden", 1, { at = { 2505, 3848, 0 } })
-                t.ticks(3)
-                level_is("goUpToVargasAfterSailor-level", 1)
-                door("castle-door-south-upper-6", "castledoor", 2506, 3851, 1)
-                local v_r, v_d = t.player.click_loc("misc_ulby_throneroomdoor", 1, { at = { 2506, 3857, 1 } })
-                t.ticks(8)
-                t.check("throneroom-door-vargas-3", true, "click_loc -> " .. tostring(v_r) .. " " .. tostring(v_d):sub(1, 80))
+                r.to_castle("goto-goUpToVargasAfterSailor")
+                r.castle_in("vargas4")
+                r.to_throne_from_hall("vargas4", "goUpToVargasAfterSailor")
+                r.level_is("goUpToVargasAfterSailor-level", 1)
                 t.exec("talkToVargasAfterSailor", t.player.talk_to, "misc_king_vargas", 1)
                 t.exec("talkToVargasAfterSailor-dialog", t.chat.play, {
                     "player:Your Majesty.",
@@ -512,16 +563,13 @@ return {
                 t.ticks(2)
                 t.exec("talkToVargasAfterSailor-mesbox", t.chat.continue_, true)
                 t.ticks(2)
-                stage_is("quest.stage.misc_scroll_given", "varb2141_royal_misc", 50)
+                r.stage_is("quest.stage.misc_scroll_given", "varb2141_royal_misc", 50)
                 t.check("talkToVargasAfterSailor-scroll", select(2, t.inv.count("royal_official_scroll")) == 1, "official scroll in backpack: " .. tostring(select(2, t.inv.count("royal_official_scroll"))))
 
-                -- goDownStairsToDungeon / goDownToDungeonNoScroll / goDownLadderToDungeon
-                door("throneroom-door-out-7", "misc_ulby_throneroomdoor", 2506, 3857, 1)
-                door("castle-door-south-upper-7", "castledoor", 2506, 3851, 1)
-                t.exec("goDownStairsToDungeon", t.player.click_loc, "spiralstairsmiddle_wooden", 3, { at = { 2505, 3848, 1 } })
-                t.ticks(3)
-                level_is("goDownStairsToDungeon-level", 0)
-                door("castle-door-south-ground-7", "castledoor", 2506, 3851, 0)
+                -- goDownStairsToDungeon / goDownToDungeonNoScroll / goDownLadderToDungeon: the ladder is south of the castle
+                r.throne_to_hall("ladder", "goDownStairsToDungeon")
+                r.level_is("goDownStairsToDungeon-level", 0)
+                r.castle_out("ladder")
                 t.exec("goto-goDownLadderToDungeon", t.player.goto_tile, 2509, 3847, 0)
                 t.exec("goDownLadderToDungeon", t.player.click_loc, "royal_ladder_down", 1)
                 t.exec("goDownToDungeonNoScroll", t.chat.play, {
@@ -537,13 +585,13 @@ return {
                     "npc:Try not to be eaten",
                 })
                 t.ticks(4)
-                stage_is("quest.stage.misc_in_dungeon", "varb2141_royal_misc", 60)
+                r.stage_is("quest.stage.misc_in_dungeon", "varb2141_royal_misc", 60)
                 local _, dz = t.world.tile()
                 t.check("goDownLadderToDungeon-arrived", dz ~= nil and dz.z > 10000, "tile " .. tostring(dz and (dz.x .. "," .. dz.z)) .. " (dungeon village)")
 
-                -- talkToDonal: in the pub
-                -- the pub walls Donal in from the village lane: plain travel to the guide's tile beside him
-                t.exec("goto-talkToDonal", t.player.goto_tile, 2527, 10257, 0)
+                -- talkToDonal: in the pub, through its door royal_village_door 2525,10256 (gaps-world: Miscellania and Etceteria)
+                t.exec("goto-talkToDonal", t.player.goto_tile, 2524, 10256, 0)
+                r.door("donal.pubDoor", "royal_village_door", "royal_village_door_open", 2525, 10256, 0, 2525, 10256, 2527, 10257) -- 2527,10256 is the pub table
                 t.exec("talkToDonal", t.player.talk_to, "royal_dwarf_drunk", 1)
                 t.exec("talkToDonal-dialog", t.chat.play, {
                     "npc:What do you want?",
@@ -577,8 +625,9 @@ return {
                 t.ticks(2)
                 t.exec("talkToDonal-mesbox", t.chat.continue_, true)
                 t.ticks(2)
-                stage_is("quest.stage.misc_donal_talked", "varb2141_royal_misc", 80)
+                r.stage_is("quest.stage.misc_donal_talked", "varb2141_royal_misc", 80)
                 t.check("talkToDonal-prop", select(2, t.inv.count("royal_mining_prop")) == 1, "mining prop in backpack: " .. tostring(select(2, t.inv.count("royal_mining_prop"))))
+                r.door("donal.pubDoorOut", "royal_village_door", "royal_village_door_open", 2525, 10256, 0, 2526, 10256, 2524, 10256)
 
                 -- usePropOnCrevice / enterCrevice: the crevice in the north-west corner
                 t.exec("goto-usePropOnCrevice", t.player.goto_tile, 2505, 10279, 0)
@@ -903,11 +952,6 @@ return {
                     end
                     return k
                 end
-                local function door(name, sym, x, z, lvl)
-                    local r, d = t.player.click_loc(sym, 1, { at = { x, z, lvl } })
-                    t.ticks(6)
-                    t.check(name, true, "click_loc " .. sym .. " -> " .. tostring(r) .. " " .. tostring(d):sub(1, 60) .. "; now " .. tile_str())
-                end
                 local function level_is(name, want)
                     local lv = select(2, t.world.level())
                     t.check(name, lv == want, "level " .. tostring(lv) .. " (want " .. tostring(want) .. ") at " .. tile_str())
@@ -956,12 +1000,13 @@ return {
                 local _, st = t.world.tile()
                 t.check("goUpRope", st ~= nil and st.z < 4000, "click_loc royal_light_exit_with_rope -> " .. tostring(ur) .. " " .. tostring(ud):sub(1, 60) .. "; " .. tostring(up) .. " guard pages continued; now " .. tile_str())
 
-                -- goUpToSigridToFinish / talkToSigridToFinish
-                t.exec("goto-goUpToSigridToFinish", t.player.goto_tile, 2614, 3865, 0)
-                t.exec("goUpToSigridToFinish", t.player.click_loc, "spiralstairs", 1, { at = { 2613, 3867, 0 } })
-                t.ticks(3)
+                -- goUpToSigridToFinish / talkToSigridToFinish: overland from the rope's landing to Etceteria's front door
+                local r = route(t)
+                r.to_etceteria("goto-goUpToSigridToFinish")
+                r.etc_in("finish")
+                r.etc_up("goUpToSigridToFinish")
                 level_is("goUpToSigridToFinish-level", 1)
-                door("castle-door-sigrid-finish", "castledoor", 2615, 3870, 1)
+                r.sigrid_in("finish")
                 -- etc is still 10 here (the guide has no step for the report), so the first talk runs royal_sigrid_reported
                 -- (option page royal_royals.rs2:381, answered "I suppose so...") and ends at etc 20; the second talk is the reward (royal_sigrid_reward)
                 local function sigrid_talk(label)
@@ -991,18 +1036,16 @@ return {
                 t.check("sigrid.items", select(2, t.inv.count("royal_letter")) == 1 and select(2, t.inv.count("royal_box_afterquest")) == 1 and select(2, t.inv.count("coins")) >= 20000, "royal_letter x" .. tostring(select(2, t.inv.count("royal_letter"))) .. ", royal_box_afterquest x" .. tostring(select(2, t.inv.count("royal_box_afterquest"))) .. ", coins x" .. tostring(select(2, t.inv.count("coins"))) .. " (Sigrid: 20,000 coins and a letter)")
 
                 -- goDownFromSigridToFinish
-                t.exec("goDownFromSigridToFinish", t.player.click_loc, "spiralstairstop", 1)
-                t.ticks(3)
+                r.sigrid_out("finish")
+                r.etc_down("goDownFromSigridToFinish")
                 level_is("goDownFromSigridToFinish-level", 0)
+                r.etc_out("finish")
 
-                -- goUpToVargasToFinish: Etceteria to Miscellania is plain travel (no boat in the pack, leg 1)
-                t.exec("goto-goUpToVargasToFinish", t.player.goto_tile, 2506, 3853, 0)
-                door("castle-door-south-ground-finish", "castledoor", 2506, 3851, 0)
-                t.exec("goUpToVargasToFinish", t.player.click_loc, "spiralstairs_wooden", 1, { at = { 2505, 3848, 0 } })
-                t.ticks(3)
+                -- goUpToVargasToFinish: Etceteria to Miscellania castle is overland, then the castle's doors
+                r.to_castle("goto-goUpToVargasToFinish")
+                r.castle_in("vargasFinish")
+                r.to_throne_from_hall("vargasFinish", "goUpToVargasToFinish")
                 level_is("goUpToVargasToFinish-level", 1)
-                door("castle-door-south-upper-finish", "castledoor", 2506, 3851, 1)
-                door("throneroom-door-finish", "misc_ulby_throneroomdoor", 2506, 3857, 1)
 
                 -- talkToVargasToFinish: hand the letter in; the rewards are read against a snapshot taken first
                 local _, snap = t.skill.snapshot()
