@@ -1502,6 +1502,21 @@ TORIRSSERVER_SCRIPTS; the shared tree was never edited to prove it).
   Xarpus 100/160; Verzik 10-250 per form; every Nylocas and the Maiden and Blood spawn 0), so
   a heavy split changes no ToB roll; the tree's single `rangedefence` equals the heavy value
   there. Still open tree-wide (an npc whose heavy differs needs the param first).
+  **FIXED 2026-10-07 content_bugs (OSRS-Content 7995b720af + engine torirs_server_content.c whitelist):** npc params
+  `rangedefence_light` / `rangedefence_heavy` (combat.param, -1 = same as `rangedefence`), stated on the 149 npc
+  blocks whose page splits them (the wiki monster corpus: 133 version blocks with dlight/dstandard/dheavy not all
+  equal); `~npc_defence_roll_player` reads the one for the worn weapon's class, `~player_ranged_weight`: thrown ->
+  light, crossbows / ballistas / chinchompas -> heavy, the rest standard ("Light: Thrown weapons such as darts,
+  knives, thrownaxes, Toktz-xil-ul, blowpipes, and the Tonalztics of Ralos / Standard: Arrows, Atlatl darts,
+  Salamanders ... / Heavy: Bolts, javelins, and chinchompas", wiki_Ranged.wikitext:48-50; :340 the split). Every
+  player hit roll and the 21 ranged/generic specials go through it; npc-vs-npc rolls and the boat cannons keep
+  `~npc_defence_roll`. Proof: scratch-pack ::cbdefroll on an Abyssal guardian (0/70/0): dart 2496, bow 5226,
+  crossbow 2496; server selftest 18 = 18 failures, 0 content errors (176 "unknown param" lines before the engine
+  whitelist). tools/gen_npc_stats.py now emits the two params (a re-run reproduces them; NOTE: a re-run on this tree
+  also churns ledgers unrelated to this change -- the committed generated file has drifted from the generator).
+  Not changed: 6 authored blocks whose rangedefence disagrees with the wiki's dstandard (death_troll_thrower1-5 200 vs
+  120, green_dragon 20 vs 50): filed as their own row below. No ToB npc splits (every ToB page: light = standard =
+  heavy), so no raid roll moves; the quest suite's crossbow/dart fights against the 149 do.
 
 ## From seam41 tob_room_clear_restore (matthew-mbp-m4-camera-b1-seam41, 2026-10-06)
 
@@ -2099,3 +2114,11 @@ combat_stats.rs2 ~player_combat_stat summed the set's item stats and nothing els
 (the modifier multiplies the effective level after the +8). Now ~void_set_worn reads helm / top / robe / gloves (every (l), (or)
 variant; not broken ones) and scales the effective levels. Not done: the elite mage helm's +5% magic damage. Found because every
 reference ToB raider bows and pipes in elite ranged void (Blert equipmentDeltas, 24 Maiden rooms).
+
+## 2026-10-07 content_bugs: authored ranged defence disagrees with the wiki
+
+- OPEN, CONTENT (found by the heavy-defence pass; source in hand, not this pass's npcs): areas/area_burthorpe/configs/
+  troll_thrower.npc `death_troll_thrower1..5` param=rangedefence,200 against the Thrower Troll page's dstandard 120;
+  npc/configs/dragon.npc `green_dragon` rangedefence 20 against the Green dragon page's dstandard 50 (wiki/monsters
+  corpus). Each is a hand-authored block; whoever authored them should say why before they move.
+

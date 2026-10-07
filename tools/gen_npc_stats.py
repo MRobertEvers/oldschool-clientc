@@ -99,6 +99,7 @@ PARAM_KEYS = [
     "stabattack", "slashattack", "crushattack",
     "strengthbonus", "magicattack", "rangeattack", "rangebonus",
     "stabdefence", "slashdefence", "crushdefence", "magicdefence", "rangedefence",
+    "rangedefence_light", "rangedefence_heavy",
     "magic_maxhit", "undead", "huntrange",
     "death_drop",
 ]
@@ -249,6 +250,16 @@ def extract_fields(fields: dict[str, str], cache_combat_level: int, cache_size: 
     if rangedef is None:
         rangedef = wi.get_int(fields, "dlight")
     out["rangedefence"] = rangedef
+    # The light / heavy figures, only where they differ from the standard one
+    # (combat.param `rangedefence_light` / `rangedefence_heavy`, default -1 =
+    # "same as rangedefence"; read by combat_stats.rs2 `~npc_defence_roll_player`
+    # against the worn weapon's ammunition class, wiki_Ranged :48-50).
+    light = wi.get_int(fields, "dlight")
+    heavy = wi.get_int(fields, "dheavy")
+    if rangedef is not None and light is not None and light != rangedef:
+        out["rangedefence_light"] = light
+    if rangedef is not None and heavy is not None and heavy != rangedef:
+        out["rangedefence_heavy"] = heavy
 
     max_hit = wi.get_int(fields, "max hit")
     out["wiki_max_hit"] = max_hit

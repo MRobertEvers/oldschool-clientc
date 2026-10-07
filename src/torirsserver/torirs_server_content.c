@@ -1496,7 +1496,11 @@ apply_param(
      * over cache defaults. */
     else if( strcmp(text, "rangebonus") == 0 || strcmp(text, "rangebonus_ammo") == 0 ||
              strcmp(text, "magicdamage") == 0 || strcmp(text, "magic_maxhit") == 0 ||
-             strcmp(text, "poison_severity") == 0 )
+             strcmp(text, "poison_severity") == 0 ||
+             /* Ranged defence against light / heavy ammunition (combat.param;
+              * read by combat_stats.rs2 npc_defence_roll_player). */
+             strcmp(text, "rangedefence_light") == 0 ||
+             strcmp(text, "rangedefence_heavy") == 0 )
         resolved = atoi(value);
     else if( strcmp(text, "damagetype") == 0 )
         resolved = def->damagetype = atoi(value);
