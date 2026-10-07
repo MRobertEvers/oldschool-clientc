@@ -15,7 +15,8 @@ local SERIAL = "varp6899_cox_trace_olm_serial"
 local PHASE = "varp6763_cox_olm_phase"
 local FACING = "varp6772_cox_olm_facing"
 local STYLE = "varp6766_cox_olm_style"
-local SPHERE = "varp6868_cox_olm_sphere_pending"
+-- Symbol is varp7336_* (server-only; read via var.server content fallback).
+local SPHERE = "varp7336_varp6868_cox_olm_sphere_pending"
 
 -- cox.constant chamber locals (m50_89)
 local ZONE_WEST_MAX = 27
@@ -60,16 +61,19 @@ local function npc_ok(t, sym)
 end
 
 local function sustain(t, sm)
-    -- Do not eat every tick: opheld1 eat anim cancels walk/attack. Eat early
-    -- enough that a 20+ Olm auto cannot finish us between sips.
+    -- Do not eat every tick: opheld1 eat anim cancels walk/attack. Prefer
+    -- sharks over brews (brews drain magic/ranged and sink sang DPS). Brew
+    -- only when a double-hit would kill; restore after every brew.
     sm._sustain_cd = (sm._sustain_cd or 0) - 1
     local hr, hp = t.skill.read("hitpoints")
     local level = (hr == "ok" and hp.level) or 99
     if sm._sustain_cd <= 0 then
-        if level < 65 then
+        if level < 40 then
             t.player.drink("br_4dosepotionofsaradomin")
-            sm._sustain_cd = 2
-        elseif level < 85 then
+            t.player.drink("br_4dose2restore")
+            sm._sustain_cd = 3
+            sm._pray_cd = 4
+        elseif level < 78 then
             t.player.eat("shark")
             sm._sustain_cd = 3
         end
@@ -77,7 +81,7 @@ local function sustain(t, sm)
     local pr, pp = t.prayer.points()
     local points = 0
     if pr == "ok" then points = pp.points or pp.level or 0 end
-    if points < 40 and (sm._pray_cd or 0) <= 0 then
+    if points < 55 and (sm._pray_cd or 0) <= 0 then
         t.player.drink("br_4dose2restore")
         sm._pray_cd = 4
     end
@@ -172,11 +176,11 @@ return {
         "::wield occult_necklace",
         "::wield br_tormented_bracelet",
         -- Head phase: twisted bow (ranged weakness on head).
-        "::give twisted_bow",
+                "::give twisted_bow",
         "::give dragon_arrow 2000",
-        "::give shark 12",
-        "::give br_4dose2restore 4",
-        "::give br_4dosepotionofsaradomin 4",
+        "::give shark 16",
+        "::give br_4dose2restore 6",
+        "::give br_4dosepotionofsaradomin 3",
         "::give 4dose2combat 1",
     },
 
@@ -234,19 +238,23 @@ return {
 
         -- Synq [2:04:12]: flick the overhead that matches Olm's current style.
         -- Style 0 = magic, 1 = ranged (cox_olm.rs2 %varp6766).
+        -- Lightning (~prayer_deactivate_all) and a blocked sphere both clear
+        -- the overhead; never trust sm.last_pray alone — re-read and re-light.
         local function prayer_flick()
             local style = var(t, STYLE) or 0
             local name = (style == 1) and "protectfrommissiles" or "protectfrommagic"
-            if sm.last_pray ~= name then
-                t.prayer.set(name, true)
-                if sm.state == STATE.KILL_MAGE or sm.state == STATE.HEAD then
-                    t.prayer.set("augury", true)
-                else
-                    t.prayer.set("piety", true)
-                end
-                sm.last_pray = name
-                sm.pray_flicks = sm.pray_flicks + 1
+            local offr = (sm.state == STATE.KILL_MAGE or sm.state == STATE.HEAD)
+                and "augury" or "piety"
+            local rr, _, set = t.prayer.read()
+            local lit = rr == "ok" and set and set[name] == true
+            local offr_lit = rr == "ok" and set and set[offr] == true
+            if lit and offr_lit and sm.last_pray == name then
+                return
             end
+            t.prayer.set(name, true)
+            t.prayer.set(offr, true)
+            sm.last_pray = name
+            sm.pray_flicks = sm.pray_flicks + 1
         end
 
         local function equip_melee()
@@ -266,11 +274,34 @@ return {
             t.player.equip("br_tormented_bracelet")
         end
 
-        -- Sphere pending varp (+1) → overhead before impact.
+        -- Sphere pending varp (+1) → overhead before impact. Chat line is the
+        -- secondary tell (RuneLite / Synq); cover both so a missed varp read
+        -- still flicks in time for ^cox_olm_sphere_delay.
+        local function sphere_kind_from_chat()
+            local mr, lines = t.msg.last(6)
+            if mr ~= "ok" or type(lines) ~= "table" then return nil end
+            for i = 1, #lines do
+                local text = lines[i].text or ""
+                if string.find(text, "sphere of aggression", 1, true) then
+                    return 0
+                elseif string.find(text, "sphere of accuracy", 1, true) then
+                    return 1
+                elseif string.find(text, "sphere of magical power", 1, true) then
+                    return 2
+                end
+            end
+            return nil
+        end
+
         local function sphere_flick()
             local pending = var(t, SPHERE) or 0
-            if pending <= 0 then return end
-            local kind = pending - 1
+            local kind = nil
+            if pending > 0 then
+                kind = pending - 1
+            else
+                kind = sphere_kind_from_chat()
+            end
+            if kind == nil then return end
             local pray = "protectfrommagic"
             if kind == 0 then pray = "protectfrommelee"
             elseif kind == 1 then pray = "protectfrommissiles"
@@ -425,9 +456,12 @@ return {
                 end
                 if dist > 8 then
                     t.player.walk_to(aisle_x, math.min(me.z + 2, mrow.z - 3), 3)
-                elseif (sm.sub % 6) == 0 then
-                    -- Light acid/crystal step without long waits.
-                    t.player.walk_to(me.x + 1 - 2 * (sm.sub % 2), me.z, 2)
+                else
+                    -- Synq acid/crystal walk: alternate mage safes every tick
+                    -- so a pool underfoot cannot chip for 40+ ticks (prior
+                    -- run glued at 6437,88 until death).
+                    local safe = ((sm.sub % 2) == 0) and sm.tiles.mage_a or sm.tiles.mage_b
+                    t.player.walk_to(safe.x, safe.z, 1)
                 end
                 sm.sub = sm.sub + 1
                 t.ticks(1)
