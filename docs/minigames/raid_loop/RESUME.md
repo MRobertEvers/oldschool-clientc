@@ -445,10 +445,11 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   <room>_normal_3.script.json), with `raid_report.py <run> --waves <script.json>` (the wave-aligned diff).
 - Normal trio: Bloat, Verzik, Xarpus, Sotetseg GREEN (re-verified on the new library). NYLOCAS GREEN
   b59ebc45d (5 of 5, party_repeat AGREE, Entry solo 5 of 5; PLAY_NOTES 'Nylocas, Normal trio -- GREEN').
-  MAIDEN red: 12a039bc3 on 24 names mean 225 (182-270), 0 deaths, 2 of 24 under the cap 204; 70/50-wave
-  kills 4.25 / 3.75 (ref 4.08 / 3.96); heal ~600 a room (ref 126); her hp/tick 12.7 / 13.3 in the 70 / 50
-  phases (ref 16.6 / 15.5): the owner measures her Defence after the opener and damage on her per attack
-  type against the streams (decisions on 24 names: scratchpad rooms24.sh). More content fixed from the
+  MAIDEN red: 2288f8bc9 on 24 names mean 210, 0 deaths, ~9 of 24 under the cap 204; the five gate names
+  217-227. Her Defence is now drained to 0 by +20 (the scythe seats' Tonalztics specials had never fired:
+  144a8c00f; probe ::tobmaidendef, content 5dc63a94c3); clean scythe swing 41.6 (ref 40.1); heal per phase
+  70/50/30 = 75/76/240 (ref 1/76/49). Gap: attacks on her per tick 0.31 vs 0.42 -- the leader's ~15 eats
+  (storm sharing re-test) and the dps crab trips (decisions on 24 names: scratchpad rooms24.sh). More content fixed from the
   wiki on 2026-10-07: Normal blood-spawn trail 5-13 (35366f400e), Dinh's bulwark 11x11 Shield Bash
   (a1eb26c34), Zaryte crossbow Evoke = guaranteed ruby bolt effect 22% capped 110 (ade9c689b0).
 - Owner's rules added this day: model every role as an explicit STATE MACHINE (named states, every event
