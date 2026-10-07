@@ -612,7 +612,13 @@ function QD.raid._verzik_dawn(st, v, intent, hiding, on_cover)
     if dw.state == "done" then
         return false
     end
-    local spent = #dw.specs >= 2 or energy < QD.RAID_PLAY_VERZIK_DAWN_COST
+    -- (owner_verzik 2026-10-07: as many specials as the orb holds, not two:
+    -- Blert's 27 Normal trio rooms spend 9-11 a room, 3-4 a raider (45 and 34
+    -- of 81 raiders), 111.5 a special; the orb's regeneration while the staff
+    -- goes round pays for the third.  With two a raider the shield took 6 and
+    -- P1 ran 123-151 ticks against Blert's median 85, past the near pillars'
+    -- fall, and the trio tanked 4-5 bolts each (Blert: 0-1 in 22 of 27 rooms))
+    local spent = energy < QD.RAID_PLAY_VERZIK_DAWN_COST
     if dw.state == "held" then
         if not spent then
             if vz.held ~= "dawnbringer" then

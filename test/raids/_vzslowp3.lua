@@ -39,9 +39,12 @@ for _, c in ipairs({
     "::setlevel magic 99", "::setlevel agility 99",
     "::give serpentine_helm_charged 1",
     "::give br_4dosepotionofsaradomin 4", "::give br_4dose2restore 4",
-    -- (no super combat potion: the burst this pace leaves out, so her 20%
-    -- comes after the ball -- with them the enrage came at P3+178, the ball
-    -- at +188 thrown among the tornadoes)
+    -- the super combat potions: Blert's slow team boosted (0f9abe1a and
+    -- 85b10c82: the recorder's Attack and Strength 118 through P1, P2 and P3);
+    -- without them the whole room's P2 ran 413-456 ticks (Blert's team 243) and
+    -- spent the packs before P3.  Their ball came in the enrage too (P3+187,
+    -- enrage +136), and the ball is shared there.
+    "::give br_4dose2combat 2",
     -- the enrage's special (W:992 "At this stage, players should dump all
     -- melee special attacks"; Blert 0f9abe1a's slow team: claws on the scythe
     -- seat, burning claws and a crystal halberd on the halberd seats --
@@ -57,7 +60,7 @@ if role >= 2 then kit[#kit + 1] = "::give noxious_halberd 1" end
 -- slot for the Dawnbringer they share).  A team restocks before Verzik at the
 -- Theatre's supply chest (tob_chest.rs2: the Normal chest sells food, brews
 -- and restores).
-kit[#kit + 1] = "::give anglerfish " .. ((role == 1) and 17 or 15)
+kit[#kit + 1] = "::give anglerfish " .. ((role == 1) and 16 or 14)
 return {
     id = "_vzslowp3",
     fixture = "fresh_lumbridge.ini",
