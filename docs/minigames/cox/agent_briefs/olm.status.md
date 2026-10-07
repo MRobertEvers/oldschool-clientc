@@ -24,5 +24,6 @@ Branch: `cursor/cox-olm-solo-4t41-a9fc` (base `cursor/cox-raid-rooms-da39`)
 
 ## Next
 
-- `flock /tmp/cox_raid_gate.lock` → `run.py cox_olm_solo_4t41 --no-publish`
+- Head phase: stand south once (no per-tick walk cancel), TBow settle 3,
+  restock prayer on HEAD entry — re-run flocked gate
 - After green: `gate.py` + `raid_coverage.py` FULL; then duo/trio harnesses

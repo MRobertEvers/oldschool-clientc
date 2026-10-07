@@ -726,20 +726,57 @@ return {
                     set_state(STATE.WAIT_PHASE)
                     return
                 end
-                sustain(t, sm)
+                -- Entering head: restock prayer/food. Prior run drained prayer
+                -- to 0 under lightning and died bare to autos.
+                if sm.sub == 0 then
+                    t.cheat("::give shark 16")
+                    t.cheat("::give br_4dose2restore 8")
+                    t.cheat("::give br_4dosepotionofsaradomin 4")
+                    equip_ranged()
+                    sm.last_pray = nil
+                    sm._head_stood = false
+                end
+                sm.sub = sm.sub + 1
+                -- Prayer first: at 0 points overheads cannot light.
+                local pr, pp = t.prayer.points()
+                local points = 0
+                if pr == "ok" then points = pp.points or pp.level or 0 end
+                if points < 40 then
+                    t.player.drink("br_4dose2restore")
+                end
+                prayer_flick()
+                -- Soft sustain: eat only when critically low so opheld1 does
+                -- not cancel the head interaction every tick.
+                local hr, hp = t.skill.read("hitpoints")
+                local level = (hr == "ok" and hp.level) or 99
+                if level < 55 then
+                    local er = t.player.eat("shark")
+                    if er ~= "ok" and level < 40 then
+                        t.player.drink("br_4dosepotionofsaradomin")
+                    end
+                end
                 local hrow = npc_ok(t, HEAD)
-                -- Prior run equipped TBow but logged zero apnpc2 inputs on the
-                -- head (size=5). Walk onto the aisle and re-click every tick.
+                -- Stand south of the size-5 head once. Prior run walked every
+                -- tick (walk_to cancel) so interaction.tgt flickered 1112 and
+                -- never produced apnpc2/opnpc2 — zero head hit_npc, then death.
                 refresh_geometry()
                 local hx = sm.ox + 32
                 local hz = sm.oz + 28
                 if hrow ~= nil then
-                    hx, hz = hrow.x, hrow.z - 5
+                    -- South of SW corner: clear of the footprint, in TBow range.
+                    hx, hz = hrow.x, hrow.z - 6
                 end
-                t.player.walk_to(hx, hz, 1)
+                local _, me = t.world.tile()
+                local dx = math.abs(me.x - hx)
+                local dz = math.abs(me.z - hz)
+                if not sm._head_stood or dx > 2 or dz > 2 then
+                    t.player.walk_to(hx, hz, 4)
+                    sm._head_stood = true
+                end
                 local opts = { quick = true }
                 if hrow ~= nil then opts.slot = hrow.slot end
-                local ar, ad = t.player.attack(HEAD, 2, 1, opts)
+                -- Settle 3: give approach→opnpc2 time without a following walk.
+                local ar, ad = t.player.attack(HEAD, 2, 3, opts)
                 if ar == "refused" and type(ad) == "string" and string.find(ad, "DIED", 1, true) then
                     set_state(STATE.DONE)
                     return
