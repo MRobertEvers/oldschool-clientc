@@ -2329,3 +2329,9 @@ like it's back. You need to fix that." (seen live on _play_verzik_slow). The ear
 - PLAN READ that mirrors the old bar: raid_play_tob_verzik.lua:1058 computes P2's percent as `(ratio*100/scale - 50)*2`,
   the stacked P2+P3 bar. It must become `ratio*100/scale`. Sent to the Verzik owner, who owns that file. With it
   unchanged, _play_verzik / _play_verzik_slow went red with p2/p3 deaths in P3.
+- SURVEYS on the shared binary and pack (`seed_survey.py <id> --party 3 --names 5`, after the fix landed):
+  - Maiden, Nylocas, Bloat, Sotetseg and Xarpus: each 5 of 5. Each run's ledger carries a PASS
+    `raid.hudbar_matches_overhead` row (25 of 25).
+  - _play_verzik_slow and _play_verzik: each 0 of 5. Their guard rows PASS (4 of 4 each; the fifth name in each never
+    reached the fight). The reds are deaths in P3: the plan's P2 percentage still reads the old stacked bar
+    (raid_play_tob_verzik.lua:1058, sent to the Verzik owner). They are not a bar mismatch.
