@@ -14,22 +14,18 @@ local BEASTS = { BEAST_A, BEAST_B }
 -- Quest harnesses do not see api_drive as a global, so ids are literals here.
 local BONES_ID = 526
 
--- Soft3d in-raid shots default to a floor-stare / void pose. Orbit four
--- cardinal yaws at pitch 383 / zoom 600 (avoids shot-aim's -200 black fall-
--- through). Post-run picker keeps the brightest frame per stage so plants /
--- cave walls land in the walkthrough, not a void.
+-- Soft3d CoX rooms: yaw 512/1024 stare into void; yaw 1536 is uniform olive
+-- sludge that fools a naive mean/dark check. yaw 0 at pitch 383 / zoom 600
+-- matches the lit beast.present auto-shot (cave walls / floor visible).
 -- Trap 21: ticks after plane/raid enter before the first photograph.
+local SHOT_YAW = 0
 local SHOT_PITCH = 383
 local SHOT_ZOOM = 600
-local SHOT_YAWS = { 0, 512, 1024, 1536 }
 
 local function shot_lit(t, label)
-    for i = 1, #SHOT_YAWS do
-        local yaw = SHOT_YAWS[i]
-        t.drive.camera(yaw, SHOT_PITCH, SHOT_ZOOM)
-        t.ticks(2)
-        t.shot(label .. " yaw" .. tostring(yaw))
-    end
+    t.drive.camera(SHOT_YAW, SHOT_PITCH, SHOT_ZOOM)
+    t.ticks(2)
+    t.shot(label)
 end
 
 local STATE = {
