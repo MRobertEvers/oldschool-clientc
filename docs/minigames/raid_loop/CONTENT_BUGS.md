@@ -2286,11 +2286,13 @@ reference ToB raider bows and pipes in elite ranged void (Blert equipmentDeltas,
   Maiden's uid in every later room, and `~tob_wake_boss` (the leader's barrier) never found Xarpus: relay15 (owner_tob_normal,
   pack 255e927837) cleared four rooms and then stood 1400 ticks in front of a `tob_xarpus_static` that never retyped,
   "The fight begins: Xarpus" printed and his bar open. Verzik's stand-up reads the same copy. FIXED in OSRS-Content
-  (owner_tob_normal, this commit): `p_finduid($self)` ends `~tob_carry_party`; the uid is kept on the room register
+  (owner_tob_normal): `p_finduid($self)` ends `~tob_carry_party`; the uid is kept on the room register
   `^tob_var_boss_uid` (88) and written to EVERY raider standing in the instance by `~tob_boss_uid_publish`
   (`.huntnext` / `.%varp`, so the script's own player or npc stays bound) -- null at each build, the boss at
-  `~tob_boss_at`, Vasilias at her landing -- and each raider copies the register into its own varp on arrival
-  (`[queue,tob_room_settle]`). `::tobstate` prints `roomboss=` and `bosslive=`; the relay's per-room guard rows
+  `~tob_boss_at`, Vasilias at her landing -- each raider copies the register into its own varp on arrival
+  (`[queue,tob_room_settle]`), and the room watchdog (`~tob_watch_room`) holds every raider's copy to the register
+  each tick (Vasilias' publish from her own npc turn reached one raider of three in relay18). OSRS-Content
+  f145b799ff + 2628dd28a9. `::tobstate` prints `roomboss=` and `bosslive=`; the relay's per-room guard rows
   (`<room>.guard.boss_uid_start/_after`, every seat, and `<room>.guard.boss_woke`) and `_play_maiden`'s `guard.boss_uid`
   check it. The other per-player ToB varps (sote_under, sote_chip, bloat_burned, xarpus_prev, died_in, maiden_started)
   are each raider's own state by design; the room's started / cleared / phase / HUD are already on the room register.
