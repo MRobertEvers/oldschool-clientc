@@ -69,8 +69,15 @@ local function sustain(t, sm)
     local level = (hr == "ok" and hp.level) or 99
     if sm._sustain_cd <= 0 and level < 80 then
         local er = t.player.eat("shark")
+        if er ~= "ok" then
+            er = t.player.eat("cooked_karambwan")
+        end
         if er == "ok" then
-            sm._sustain_cd = 3
+            sm._sustain_cd = 2
+            -- Combo: karambwan after shark on the same tick when critically low.
+            if level < 50 then
+                t.player.eat("cooked_karambwan")
+            end
         elseif level < 45 then
             t.player.drink("br_4dosepotionofsaradomin")
             t.player.drink("br_4dose2restore")
@@ -183,8 +190,10 @@ return {
         "::give dragon_arrow 2000",
         "::give shark 12",
         "::give br_4dose2restore 4",
-        "::give br_4dosepotionofsaradomin 3",
+        "::give br_4dosepotionofsaradomin 2",
         "::give 4dose2combat 1",
+        -- Cooked karambwan for combo-eat under a late sphere (Synq).
+        "::give cooked_karambwan 4",
     },
 
     run = function(t)
@@ -394,9 +403,15 @@ return {
         local function decide()
             on_event()
             sphere_flick()
-            -- While a sphere is in flight, keep the sphere overhead. As soon as
-            -- pending clears (or the tick budget expires), restore style+offence.
+            -- While a sphere is in flight, keep the sphere overhead. Lightning
+            -- (~prayer_deactivate_all) can wipe it mid-flight — re-press the
+            -- sphere prayer every tick until lit, or the impact lands for 50%.
             if sm._sphere_flight and sm._sphere_pray ~= nil then
+                local rr, _, set = t.prayer.read()
+                if not (rr == "ok" and set and set[sm._sphere_pray]) then
+                    t.prayer.set(sm._sphere_pray, true)
+                    sm.pray_flicks = sm.pray_flicks + 1
+                end
                 sm._sphere_ticks = (sm._sphere_ticks or 8) - 1
                 if sm._sphere_ticks <= 0 then
                     sm._sphere_flight = false
@@ -404,8 +419,7 @@ return {
                     sm.last_pray = nil
                     sm._sphere_chat = nil
                 end
-            end
-            if not sm._sphere_flight then
+            else
                 prayer_flick()
             end
             -- Always sustain under fire; KILL_MAGE also calls sustain at the
@@ -537,10 +551,9 @@ return {
                     t.player.walk_to(thumb.x + (sm.setup_waits % 2), thumb.z, 1)
                 elseif sm.setup_waits < 18 then
                     sphere_flick()
-                    -- Switch to whip for the 4-tick cycle before CYCLE_TANK.
-                    if sm.setup_waits == 13 then
-                        t.player.equip("abyssal_whip")
-                    end
+                    -- Stay on fang until the melee claw dies (whip was splashy
+                    -- vs 175 def after brew drain). 4:1 skips are head-turn
+                    -- geometry, not weapon speed.
                     t.player.walk_to(empty.x + (sm.setup_waits % 2), empty.z, 1)
                 else
                     set_state(STATE.CYCLE_TANK)
