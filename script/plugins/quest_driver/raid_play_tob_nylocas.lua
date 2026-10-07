@@ -2375,7 +2375,11 @@ function QD.raid._play_nylocas_supplies(st, v, threat, interlude)
         -- tick against 12.4 on _play; Blert magic form 13.8); Blert's trio
         -- drinks 0-1 (mage), 1 (meleer), 0-2 (ranger) doses on her, restores
         -- included (reference role.*.phase.boss.drinks).
-        local brew_ok = not (boss_phase and P.boss_no_brew and food ~= nil)
+        -- owner_nylocas 2026-10-07: FOOD BEFORE BREWS in the waves too -- the
+        -- library's owner rule (raid_play.lua 112c9eb06: a brew alone only
+        -- when no food is left); Blert's trio drinks 0.0 brew sips a seat in
+        -- the Nylocas room.  P.boss_no_brew is now the whole room's rule.
+        local brew_ok = food == nil
         if brew_ok and drink_ready and brew ~= nil and brew_alone * 2 >= brew_heal then
             if eat == nil then
                 drink = brew
