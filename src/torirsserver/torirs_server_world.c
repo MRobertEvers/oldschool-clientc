@@ -7892,6 +7892,16 @@ cheat_obj_display_name(int id)
     return info->name;
 }
 
+/* A record a person can actually hold: tradeable, wearable or stackable. A
+ * quest prop or guide dummy that shares a real item's name is none of them. */
+static int
+cheat_obj_preferred(int id)
+{
+    const struct ToriRSServerObjInfo* info = ToriRSServer_ObjInfo(id);
+
+    return info->tradeable || info->wearpos >= 0 || info->stackable;
+}
+
 static const char*
 cheat_npc_display_name(int id)
 {
@@ -7976,6 +7986,7 @@ cheat_id_from_name(
     enum ToriRSServerPackKind kind,
     int record_count,
     const char* (*display_name)(int id),
+    int (*preferred)(int id),
     const char* arg,
     char* suggest,
     size_t suggest_size)
@@ -8005,6 +8016,11 @@ cheat_id_from_name(
     if( match >= 0 )
         return match;
 
+    /* Several records can share a display name, and the lowest id is not
+     * always the one a person means: "Red chinchompa" is 9977 — the Hunter
+     * guide's untradeable, unstackable, unwieldable prop — before the real
+     * 10034. `preferred` (objs only) picks the first match that is a real
+     * item; the lowest match is the answer only when none is. */
     for( int id = 0; id < record_count; id++ )
     {
         const char* name = display_name(id);
@@ -8013,9 +8029,15 @@ cheat_id_from_name(
         if( !name )
             continue;
         obj_name_underscore(have, sizeof(have), name);
-        if( strcmp(have, wanted) == 0 )
+        if( strcmp(have, wanted) != 0 )
+            continue;
+        if( !preferred || preferred(id) )
             return id;
+        if( match < 0 )
+            match = id;
     }
+    if( match >= 0 )
+        return match;
 
     /* Nothing exact. Substring over the gamevals, and the answer is only an
      * answer when exactly one name carries it. */
@@ -8066,7 +8088,8 @@ cheat_obj_from_name(
     size_t suggest_size)
 {
     return cheat_id_from_name(TORIRSSERVER_PACK_OBJ, ToriRSServer_ObjInfoCount(),
-                              cheat_obj_display_name, arg, suggest, suggest_size);
+                              cheat_obj_display_name, cheat_obj_preferred, arg, suggest,
+                              suggest_size);
 }
 
 /** How many npcs one `::spawn` may place. A cheat's argument is typed, so it is
@@ -8082,7 +8105,7 @@ cheat_npc_from_name(
     size_t suggest_size)
 {
     return cheat_id_from_name(TORIRSSERVER_PACK_NPC, ToriRSServer_NpcInfoCount(),
-                              cheat_npc_display_name, arg, suggest, suggest_size);
+                              cheat_npc_display_name, NULL, arg, suggest, suggest_size);
 }
 
 /*
@@ -8186,7 +8209,7 @@ cheat_varp_from_name(
     char* suggest,
     size_t suggest_size)
 {
-    return cheat_id_from_name(TORIRSSERVER_PACK_VARP, 0, NULL, arg, suggest, suggest_size);
+    return cheat_id_from_name(TORIRSSERVER_PACK_VARP, 0, NULL, NULL, arg, suggest, suggest_size);
 }
 
 /** The varbit a `::setvar` argument means, or -1. See cheat_varp_from_name. */
@@ -8196,7 +8219,7 @@ cheat_varbit_from_name(
     char* suggest,
     size_t suggest_size)
 {
-    return cheat_id_from_name(TORIRSSERVER_PACK_VARBIT, 0, NULL, arg, suggest, suggest_size);
+    return cheat_id_from_name(TORIRSSERVER_PACK_VARBIT, 0, NULL, NULL, arg, suggest, suggest_size);
 }
 
 /*
