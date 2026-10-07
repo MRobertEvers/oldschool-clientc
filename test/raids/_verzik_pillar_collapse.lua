@@ -17,6 +17,9 @@
 --   west: pillar 0 (3x3 at local 25..27,18..20, centre 26,19), raider at 24,19
 --         (2 west)  -> must end on 23,19
 --   diag: pillar 1 (centre 26,25), raider at 28,27 (2 east, 2 north) -> 29,28
+--   east: pillar 3 (3x3 at 37..39,18..20, centre 38,19), raider at 40,19
+--         (2 east) -> 41,19.  West and east together catch a heading taken
+--         from ~coord_direction2, which answers south-west for due west.
 -- Rows per case, T = the tick the pillar retyped 8379 -> 8377:
 --   .collapsed  the retype
 --   .flyback    player_anim 1157 on T+2
@@ -31,6 +34,7 @@ local BASE_X, BASE_Z = 6400, 64   -- local (0,0) of the instance in this run (24
 local CASES = {
     { name = "west", pillar = 0, centre = { 26, 19 }, stand = { 24, 19 }, want = { 23, 19 } },
     { name = "diag", pillar = 1, centre = { 26, 25 }, stand = { 28, 27 }, want = { 29, 28 } },
+    { name = "east", pillar = 3, centre = { 38, 19 }, stand = { 40, 19 }, want = { 41, 19 } },
 }
 
 local function serial_of(detail)
@@ -50,7 +54,7 @@ end
 return {
     id = "_verzik_pillar_collapse",
     fixture = "fresh_lumbridge.ini",
-    max_frames = 80000,
+    max_frames = 110000,
     setup = {
         "::clearinv",
         "::setlevel attack 99", "::setlevel strength 99", "::setlevel defence 99",

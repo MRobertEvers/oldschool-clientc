@@ -2369,11 +2369,13 @@ Fixed (OSRS-Content 7a70ed5169, 8491f556a5, 55d34897e9, 964c87af49, f0478f39c7):
   Fixed fc1e60784a. The raider takes the stun (848 + 245), then 1157 and ONE tile directly away from the centre, using the
   sign of each axis, so a diagonal stand goes diagonally. There is no move when that step is blocked. The shove lands on
   T+2 (`[queue,tob_verzik_pillar_shove]`, the P2 slam's stun-then-flyback order); the damage (Near Reality's 32-65)
-  lands on T+3. The range is 3 (was 2), from 280f7cef. test/raids/_verzik_pillar_collapse.lua forces two collapses
-  (`::tobvzpillar`): one west (24,19 -> 23,19) and one diagonal (28,27 -> 29,28). It is 14/14 on fc1e60784a. On
-  a8e1d1e517 (no shove) it fails flyback, shove and damage timing (T+1) in both cases. Crops:
-  build/seam_state/anim_audit/pillar_test2/pillar_{west,diag}_crops.png.
-  Open, for the Verzik owner: the P2 stomp/slam `~tob_verzik_knockback` keeps the `~coord_direction2` heading bug.
+  lands on T+3. The range is 3 (was 2), from 280f7cef. Neither the step nor (48bf6206a1) the facing uses
+  `~coord_direction2`. test/raids/_verzik_pillar_collapse.lua forces three collapses (`::tobvzpillar`): west
+  (24,19 -> 23,19), diagonal (28,27 -> 29,28) and east (40,19 -> 41,19). It is 20/20 on 48bf6206a1. On a8e1d1e517
+  (no shove) it fails flyback, shove and damage timing (T+1) in all three cases (9 rows). Crops:
+  build/seam_state/anim_audit/pillar_test3/pillar_{west,diag,east}_crops.png.
+  `~coord_direction2` itself (and with it the P2 stomp/slam `~tob_verzik_knockback`) was fixed by the Verzik owner,
+  7af6fc2c05.
 
 Open:
 - (fixed, below) Engine, every room (parent 1e90c684a): the npc_anim op now ships seq < 0 as a cancel, and ~40 player-attack scripts
