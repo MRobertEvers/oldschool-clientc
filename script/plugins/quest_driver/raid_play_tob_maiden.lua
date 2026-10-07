@@ -577,9 +577,9 @@ QD.RAID_MAIDEN_REF = {
     lanes = { [0] = "S1", [1] = "N1", [2] = "S2", [3] = "N2", [4] = "S3", [5] = "N3",
         [6] = "S4in", [7] = "S4out", [8] = "N4in", [9] = "N4out" },
     waves = {
-        [1] = { casts = { { 1, "S1" }, { 6, "N2" }, { 16, "AT90" }, { 21, "STACK" } }, ret = 26,
+        [1] = { casts = { { 1, "S1" }, { 6, "N2" }, { 16, "AT90" }, { 21, "STACK" }, { 26, "AGAIN" } }, ret = 31,
             seat = { [1] = { { "N1", 1, 9 }, { "N2", 6, 10 }, { "STACK", 22, 49 } }, [3] = { { "N1", 1, 9 }, { "N2", 6, 11 }, { "STACK", 22, 49 } } } },
-        [2] = { casts = { { 1, "S1" }, { 6, "S2" }, { 16, "AT90" }, { 21, "STACK" } }, ret = 26,
+        [2] = { casts = { { 1, "S1" }, { 6, "S2" }, { 16, "AT90" }, { 21, "STACK" }, { 26, "AGAIN" } }, ret = 31,
             seat = { [1] = { { "N1", 1, 9 }, { "N2", 6, 14 }, { "STACK", 22, 49 } }, [3] = { { "N1", 1, 9 }, { "N2", 6, 16 }, { "STACK", 22, 49 } } } },
         [3] = { casts = { { 1, "S1" }, { 6, "N2" }, { 11, "AT90" }, { 16, "STACK" } }, ret = 21,
             seat = { [1] = { { "N1", 1, 9 }, { "STACK", 17, 49 } }, [3] = { { "N1", 1, 10 }, { "STACK", 17, 49 } } } },
@@ -1086,6 +1086,16 @@ function QD.raid.mz_cast_tick(st, v, intent)
             -- 2.79 within 1 of its target at landing): the walker on or about
             -- to enter (9,0) next tick, the most crabs round it
             t = QD.raid.mz_at_pick(st, v, skip, 9, 0) or QD.raid.mz_bunch_pick(st, v, skip, 4, true)
+        elseif c[2] == "AGAIN" then
+            -- cast 5 (refcasts.py, 24 rooms: the freezer's 5th barrage at +26
+            -- in 9 / 13 of the 70 / 50 waves, 4.17 / 4.92 casts a wave; the
+            -- stack's crabs, frozen at +16 / +21, take it as damage only --
+            -- sm93 svb: the 50 wave's stack leaked at +49 with 4 and 7 hp
+            -- left after cast 4 and one swing each): the stack again, when
+            -- the barrage takes at least two live crabs
+            t = QD.raid.mz_bunch_pick(st, v, skip, 4, true)
+            if t ~= nil and (t.n or 0) < 2 then t = nil end
+            if t == nil then QD.raid.mz_go(st, v, "F_ON_BOSS") return end
         elseif c[2] == "STACK" then
             -- cast 4 on the stack behind it (+16 / +20 / +16, held to the
             -- 5-tick minimum; 3.32 within 1)
