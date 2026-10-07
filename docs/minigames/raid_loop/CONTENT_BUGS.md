@@ -2394,3 +2394,31 @@ Open:
   one. The quest's figures are the wiki's level-3 Giant rat (wiki/monsters "Giant rat" combat1: hitpoints 5, att 2,
   def 2), so lumbridge.npc no longer states them (OSRS-Content 672ddc7d7e). Servpack rebuilt at 08:49 when no runs were
   active: rc 0. A client run now prints no "server band is STALE" and no "in the band but" lines.
+
+- ToB, Verzik P3: she never moved. Nothing walked her in P3: a whole Normal trio room (build/quest_gate/watchverzik)
+  held her on two tiles for 282 ticks (the webs' walk to the centre and back). Sources: "She is now mobile"
+  (wiki_Verzik_Vitur.wikitext:399); "Moving away from Verzik will slightly displace her ... Moving under Verzik will
+  keep her more grounded" (wiki_Theatre_of_Blood_Strategies.wikitext:953); Blert's 27 Normal trio rooms (npc 8374):
+  one tile a tick on 419 of 3,957 P3 ticks, a raider beside her footprint 77% of ticks and under it 17%. FIXED in
+  OSRS-Content af0bd89a4d (owner_verzik): `~tob_verzik_p3_follow`, every tick her clock is not suspended: her tank two
+  or more from her footprint, one step toward it; beside or under her, she stands.
+- ToB, Verzik P3: her tornadoes did not follow. (1) A `blockwalk=npc` walker spawned on her tile was refused by her
+  occupancy (watchverzik: two of three did not move for 56 ticks); Blert: one tile on 2,400 of 2,443 tornado ticks,
+  815-1,279 of 2,531 tornado tiles inside her footprint -- it walks through her. `blockwalk=none` (af0bd89a4d).
+  (2) Its spawn seq 9004 `tob_shadow_projectile_spawn` (framestep=1, default maxloops 99, no pre/post-anim move)
+  held the client's row on the spawn tile ~10 ticks while the server walked it; Blert: first step one tick after
+  appearing, 78 of 79. The spawn seq is dropped (OSRS-Content edf9d35de7). (3) It rose on her tile; Blert: 4-8 tiles
+  from its own raider in 57 of 78 spawns. It now rises on a random floor tile 4-8 from its raider (5907f83654).
+  Source for the follow itself: "a purple magical tornado for each player in the room, which will constantly follow
+  them" (wiki_Verzik_Vitur.wikitext:403).
+- ToB, Verzik P3: every special after the crabs came ten ticks late. After the crabs (and the ball) she threw five
+  autos, the first ten ticks on; Blert, all 27 rooms: crabs on an auto at P3+40, autos +47 +54 +61 +68, webs +75
+  (377236c2's second rotation the same at 5 ticks; the ball, autos +200..+215, crabs +220); "attacking four times
+  before performing the next" (wiki_Theatre_of_Blood_Strategies.wikitext:953). FIXED (af0bd89a4d): four autos, the
+  first at her attack speed.
+- ToB, Verzik P3: her tank was always the leader. `~tob_verzik_pick_tank` took the hunt's first (pid order), its
+  comment said "the nearest". Blert (NPC_ATTACK target of every P3 auto): one tank the whole phase in 24 of 27
+  rooms, one change in 3 (each after that tank died); the first tank nearest her in 8 of 27, party slot 0/1/2 in
+  11/8/8; "Verzik will pick one player in the team and pick them as their primary target for the duration of the
+  phase" (wiki_Theatre_of_Blood_Strategies.wikitext:946). FIXED (0e35991215): a random target; she faces it while
+  it is in her reach (Blert reads the tank as her interacting target, VerzikDataTracker.java:651).
