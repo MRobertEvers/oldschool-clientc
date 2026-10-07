@@ -30,11 +30,12 @@ return {
         -- 4-tick crush for Synq normal 4-tick / monkey run-around.
         "::give adamnt_warhammer",
         "::wield adamnt_warhammer",
-        -- Survive the one intentional unprotected wedge hit (max ~52).
-        "::give rune_platebody",
-        "::wield rune_platebody",
-        "::give rune_platelegs",
-        "::wield rune_platelegs",
+        -- No rune plate: Dragon Slayer gates it. Adamant has no quest gate and
+        -- still softens the one intentional unprotected wedge sample hit.
+        "::give adamant_platebody",
+        "::wield adamant_platebody",
+        "::give adamant_platelegs",
+        "::wield adamant_platelegs",
         "::give leather_vambraces",
         "::wield leather_vambraces",
         "::give kodai_wand",
