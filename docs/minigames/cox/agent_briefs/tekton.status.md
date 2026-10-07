@@ -1,25 +1,18 @@
 # Tekton room status
 
 Branch: `cursor/cox-tekton-runaround-da39`
-OSRS-Content: `cursor/cox-tekton-stand-da39` @ `ddd0f11b8`
+OSRS-Content: `cursor/cox-tekton-stand-da39` @ `5f7165364`
 Agent: replacement for stuck `bc-d8bc5247`
 
 ## Strategy
 
-**Synq run-around cycle** with Protect from Melee from LAND. Adamant opener
-→ anvil → DWH on REENGAGE.
+Synq run-around; Protect from LAND; adamant opener → anvil → DWH REENGAGE.
 
 ## Content
 
-- `cox_tekton.rs2`: re-issue `npc_walk` while `walking_in`; stand at
-  `anvil - spawn_gap` (4x4 clears 6x4 blockwalk); **npc_var** phase state
-  for AI timers (player temp `%varp6749` unbound in `[ai_timer]`); packed
-  anvil pinned at spawn.
-
-## Harness
-
-- SM: `LAND → LURE → CYCLE ⇄ ANVIL_DODGE → REENGAGE → DONE`
+- npc_var phase state (AI timers); set after `npc_changetype`
+- packed anvil pinned at spawn; stand at `anvil - spawn_gap`
 
 ## Gate
 
-- Iterating under `flock` + `QUEST_BINARY=src/torirs_tekton --no-build`
+- Iterating `flock` + `QUEST_BINARY=src/torirs_tekton --no-build`
