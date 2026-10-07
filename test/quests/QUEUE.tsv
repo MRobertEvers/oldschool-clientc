@@ -14,7 +14,7 @@ quest_betweenarock	betweenarock	betweenarock		1	green	matthew-mbp-m4-b67
 quest_biohazard	biohazard	biohazard		1	green	matthew-mbp-m4-b64			
 quest_blackarmgang	blackarmgang	shieldofarrav		1	green	matthew-mbp-m4-b58			
 quest_blackknight	blackknight	blackknightfortress		1	green	matthew-mbp-m4-b57			
-quest_bonevoyage	bonevoyage	bonevoyage		4	todo	matthew-mbp-m4-b71	b71: door-rule re-drive done (fix_b71/bonevoyage.with_req_fix.lua, green on 2 accounts) but blocked on content: Haig's start wrongly requires WC 60 (bonevoyage.rs2:21-23; wiki/QH: Dig Site + 100 Kudos only). The fix is made in scratchpad wt_bvreq but unpushed (a commit --amend was permission-refused); awaiting owner OK		
+quest_bonevoyage	bonevoyage	bonevoyage		4	claimed	matthew-mbp-m4-b72@matthew-mbp-m4	b71: door-rule re-drive done (fix_b71/bonevoyage.with_req_fix.lua, green on 2 accounts) but blocked on content: Haig's start wrongly requires WC 60 (bonevoyage.rs2:21-23; wiki/QH: Dig Site + 100 Kudos only). The fix is made in scratchpad wt_bvreq but unpushed (a commit --amend was permission-refused); awaiting owner OK	2026-10-07T07:50:57Z	todo|matthew-mbp-m4-b71
 quest_cabinfever	cabinfever	cabinfever		4	todo				
 quest_childrenofthesun	childrenofthesun	childrenofthesun		4	green	matthew-mbp-m4-b52			
 quest_chompybird	chompybird	bigchompybirdhunting		3	green	matthew-mbp-m4-b68			
