@@ -402,6 +402,8 @@ QD.raid._play_plan("tob_nylocas", {
     cleanup_bigs_first = true,
     -- after wave 31 the leave-to-owner rule is off (every seat on the leftovers)
     cleanup_help = true,
+    -- from this wave a big of the seat's colour, once pressed, stays its choice until it dies (the wave-30 big blue of svc/svd)
+    big_stick = 29,
     -- owner_nylocas: THE SCORED PLAN'S PICK, the machine's KILL / PRE_STAND choice
     -- (QD.raid._play_nylocas_scored_pick): its terms, unchanged from 738ef1466,
     -- whose seats hold 7-18 alive at waves 21-26 against the list machine's 13-23
@@ -1166,6 +1168,21 @@ function QD.raid._play_nylocas_machine(c)
         end
     end
     ny.last_hp = v.hp
+    -- A BIG OF ITS COLOUR, ONCE PRESSED, UNTIL IT DIES (svc / svd traces on
+    -- cb5: the wave-30 big blue walked in from 45,24, the mage pressed it at
+    -- +12/+13, hit it once and went back to small blues; it died at age 49 and
+    -- its splits were the room's last copies.  The 27 rooms kill a big in 1.51
+    -- hits, mean): while the seat's current copy is a big of its colour on the
+    -- floor, it stays the choice
+    if P.big_stick and ny.waves >= P.big_stick and m.state ~= "BOSS" and c.cur ~= nil and not c.cur.vas then
+        for _, n in ipairs(v.nylos) do
+            if n.slot == c.cur.slot and n.big and n.style == c.R.colour and QD.raid._nym_pressable(c, n) then
+                ny.big_sticks = (ny.big_sticks or 0) + 1
+                QD.raid._nym_note(c)
+                return QD.raid._nym_pick(c, n), nil
+            end
+        end
+    end
     if P.room_copy ~= nil and m.state ~= "BOSS" and ny.waves >= 1 then
         local rp = QD.raid._nym_room_copy(c)
         QD.raid._nym_note(c)
