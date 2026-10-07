@@ -1365,11 +1365,22 @@ local function tor_step(e, tx, tz)
     if tz > nz then nz = nz + 1 elseif tz < nz then nz = nz - 1 end
     return nx, nz
 end
-local function tor_reaches(tor, me, x, z)
-    for _, e in pairs(tor or {}) do
+-- Can a tornado be ON x, z at the end of the tick my click moves me there?
+-- Content (~tob_verzik_tornado_tick): each tick it first hits if it stands on
+-- its raider's tile, else it walks one tile toward the raider's CURRENT tile;
+-- one tile a tick, measured (27 of 27 steps, _vzslowp3).  A click on t moves
+-- me on t + 1, so it has two steps before I land: toward where I am, then
+-- toward wherever its next step finds me.  Any of those ending on x, z is a
+-- touch.  (2026-10-07, dc3f76625: the guard looked one step ahead from the
+-- plan's PREDICTED tornado tiles, and tornado hits of 28-43 kept landing.)
+local function tor_reaches(tornadoes, me, mid, x, z)
+    for _, e in ipairs(tornadoes or {}) do
         local ax, az = tor_step(e, me.x, me.z)
-        local bx, bz = tor_step(e, x, z)
-        if (ax == x and az == z) or (bx == x and bz == z) or (e.x == x and e.z == z) then return true end
+        local a2x, a2z = tor_step({ x = ax, z = az }, mid.x, mid.z)
+        local b2x, b2z = tor_step({ x = ax, z = az }, x, z)
+        if (e.x == x and e.z == z) or (ax == x and az == z) or (a2x == x and a2z == z) or (b2x == x and b2z == z) then
+            return true
+        end
     end
     return false
 end
@@ -1379,18 +1390,26 @@ function QD.raid._verzik_tornado_guard(st, v, intent, ok)
     assert(intent, "_verzik_tornado_guard: intent")
     assert(ok, "_verzik_tornado_guard: ok")
     local vz, me, b = st.vz, v.me, v.boss
-    if next(vz.tor or {}) == nil then return false end
+    -- the tornadoes as the client SEES them this tick, not the plan's model
+    local tornadoes = {}
+    for _, tr in ipairs(v.tornadoes or {}) do tornadoes[#tornadoes + 1] = { x = tr.x, z = tr.z } end
+    if #tornadoes == 0 then return false end
+    -- where my last click has me at the end of this tick
+    local mid = me
+    if st.walk_target ~= nil and math.max(math.abs(st.walk_target.x - me.x), math.abs(st.walk_target.z - me.z)) <= 2 then
+        mid = st.walk_target
+    end
     local want = intent.walk
-    local tx, tz = me.x, me.z
+    local tx, tz = mid.x, mid.z
     if want ~= nil and math.max(math.abs(want.x - me.x), math.abs(want.z - me.z)) <= 2 then tx, tz = want.x, want.z end
-    if not tor_reaches(vz.tor, me, tx, tz) then return false end
+    if not tor_reaches(tornadoes, me, mid, tx, tz) then return false end
     local gx, gz = (want and want.x) or me.x, (want and want.z) or me.z
     local best, bx, bz = nil, nil, nil
     for dx = -2, 2 do
         for dz = -2, 2 do
             local x, z = me.x + dx, me.z + dz
             if ok(x, z) and not v.shadows[x * 100000 + z] and (b == nil or QD.raid._verzik_dist(x, z, b) >= 1)
-                and not tor_reaches(vz.tor, me, x, z) then
+                and not tor_reaches(tornadoes, me, mid, x, z) then
                 local sc = math.max(math.abs(x - gx), math.abs(z - gz)) * 10 + math.max(math.abs(dx), math.abs(dz))
                 if best == nil or sc < best then best, bx, bz = sc, x, z end
             end
