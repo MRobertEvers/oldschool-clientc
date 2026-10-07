@@ -489,6 +489,8 @@ end
 
 function QD.raid._play_sotetseg_trio(st, v)
     local P, N = st.plan, st.numbers
+    -- owner_rooms4: every seat runs (raid_play_tob_bloat.lua QD.raid._play_run_keep)
+    QD.raid._play_run_keep(st, v)
     local intent = { want = {}, walk = nil, attack = false }
     st.sote = st.sote or { mazes = {}, balls = 0, death_balls = 0, press_log = {}, read_magic = {}, pray_sent = nil,
         hold = -1, ranged_hold = -1, death_land = -1, magic_ticks = 0, melee_ticks = 0,

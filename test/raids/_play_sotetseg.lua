@@ -46,6 +46,9 @@ trio_kit = {
     -- OPENER), its dragon arrows (cheat_max_gear.rs2 ::maxrange's quiver)
     -- and the Ranged it is wielded with
     "::setlevel ranged 99", "::give twisted_bow 1", "::give dragon_arrow 100",
+    -- owner_rooms4: a stamina dose (the owner's "are all players running?"; the
+    -- plan's run keep drinks it only if run goes off)
+    "::give 4dosestamina 1",
 }
 
 trio_run = function(t)
@@ -96,6 +99,8 @@ trio_run = function(t)
     -- THE FIGHT: the library and the room's plan, nothing else
     local result, detail, rec = t.raid.play("tob_sotetseg", { mode = mode, weapon = "scythe_of_vitur", max_ticks = 2400 })
     local S = rec.sote or { mazes = {}, follows = {} }
+    t.check("note.run", true, "p" .. role .. " run: varp173 read 0 on " .. tostring(rec.run_offs or 0) .. " ticks, orb presses "
+        .. tostring(rec.run_presses or 0) .. ", stamina doses " .. tostring(rec.staminas or 0))
     local function maze_text()
         local parts = {}
         for k, mz in ipairs(S.mazes or {}) do
@@ -306,9 +311,16 @@ trio_run = function(t)
     -- is held to their union [3-225]); outcome.deaths 0 [0-0]; the maze, proc
     -- to his combat form back, 28 [14-47] over 26 mazes (blert_api/
     -- sote_maze.csv reactivate_tick - proc_tick).
+    -- OWNER RULING 2026-10-07 (owner_rooms4, via the coordinator): "If sotetseg
+    -- is completing but just a bit slower, count it as good, don't worry about
+    -- meeting blert times."  So for SOTETSEG ONLY the room's green is that it
+    -- completes (his death row, no raider dead: the deaths row below); the
+    -- reference's [164-262] is printed beside it, not asserted.  The other rooms'
+    -- time bounds stand.
     local room_ticks = death_tick and (death_tick - mark_tick) or nil
-    t.check("blert.room_ticks", room_ticks ~= nil and room_ticks >= 164 and room_ticks <= 262,
-        "room " .. tostring(room_ticks) .. " ticks from the mark to his death; the reference's 20 rooms: 212.5 [164-262]")
+    t.check("blert.room_ticks", room_ticks ~= nil,
+        "room " .. tostring(room_ticks) .. " ticks from the mark to his death (completion is the bound, owner 2026-10-07); the reference's 20 rooms: 212.5 [164-262]"
+        .. ((room_ticks ~= nil and room_ticks > 262) and " -- slower than every recorded room" or ""))
     local hp_ok = #per >= 1
     for pid, _ in pairs(pids) do
         if (taken[pid] or 0) > 225 then hp_ok = false end

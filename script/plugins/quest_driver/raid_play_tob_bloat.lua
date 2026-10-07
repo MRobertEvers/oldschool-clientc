@@ -95,6 +95,36 @@ QD.raid._play_plan("tob_bloat", {
     decide = "_play_bloat_decide",
 })
 
+-- owner_rooms4: RUN KEPT ON (the owner: "are all players running?"), the
+-- Nylocas owner's rule (raid_play_tob_nylocas.lua, feac33107), for the four
+-- rooms owner_rooms4 plays (Bloat, Sotetseg, Xarpus, Verzik): when varp173
+-- reads 0, a stamina dose if run had been on and one is held (none in the
+-- dose's 2 minutes, 200 ticks: wiki Stamina potion), else the run orb
+-- (orbs:runbutton).  v.running is the rate a route's ticks are read at.
+-- Measured on every seat of every name: the server's raider rows read run 1
+-- on every tick; varp173 reads 0 on a play's first tick only (one press).
+function QD.raid._play_run_keep(st, v)
+    local rr, run_on = QD.var.varp("varp173_option_run")
+    v.running = not (rr == "ok" and run_on == 0)
+    if rr == "ok" and run_on == 1 then st.run_seen_on = true end
+    if rr ~= "ok" or run_on ~= 0 then return end
+    st.run_offs = (st.run_offs or 0) + 1
+    local dose = nil
+    for _, d in ipairs({ "1dosestamina", "2dosestamina", "3dosestamina", "4dosestamina" }) do
+        local cr, cn = QD.inv.count(d)
+        if dose == nil and cr == "ok" and type(cn) == "number" and cn > 0 then dose = d end
+    end
+    if st.run_seen_on and dose ~= nil and (st.stamina_tick == nil or v.tick - st.stamina_tick >= 200) then
+        QD.player.inv_op(dose, 1, { quick = true })
+        st.stamina_tick = v.tick
+        st.staminas = (st.staminas or 0) + 1
+    else
+        local wr, w = QD.ui.widget("orbs:runbutton")
+        if wr == "ok" then QD.ui.invoke(w, 1) end
+        st.run_presses = (st.run_presses or 0) + 1
+    end
+end
+
 -- raid seam49 play_tob_bloat_round2: THE PILLAR HUG and THE STRAIGHT LEAVE.
 --
 -- Where the seam42 trio hid (the mirror tile, clamped one off the tank) it was
@@ -452,31 +482,8 @@ function QD.raid._play_bloat_decide(st, v)
         return intent
     end
     if st.first_tick == nil then st.first_tick = v.tick end
-    -- owner_rooms4: RUN KEPT ON (the owner: "are all players running?"), the
-    -- Nylocas owner's rule (raid_play_tob_nylocas.lua, feac33107): when
-    -- varp173 reads 0, a stamina dose if run had been on and one is held
-    -- (none in the dose's 2 minutes, wiki Stamina potion), else the run orb.
-    -- v.running is the rate the route's ticks are read at.
-    local rr, run_on = QD.var.varp("varp173_option_run")
-    v.running = not (rr == "ok" and run_on == 0)
-    if rr == "ok" and run_on == 1 then st.run_seen_on = true end
-    if rr == "ok" and run_on == 0 then
-        st.run_offs = (st.run_offs or 0) + 1
-        local dose = nil
-        for _, d in ipairs({ "1dosestamina", "2dosestamina", "3dosestamina", "4dosestamina" }) do
-            local cr, cn = QD.inv.count(d)
-            if dose == nil and cr == "ok" and type(cn) == "number" and cn > 0 then dose = d end
-        end
-        if st.run_seen_on and dose ~= nil and (st.stamina_tick == nil or v.tick - st.stamina_tick >= 200) then
-            QD.player.inv_op(dose, 1, { quick = true })
-            st.stamina_tick = v.tick
-            st.staminas = (st.staminas or 0) + 1
-        else
-            local wr, w = QD.ui.widget("orbs:runbutton")
-            if wr == "ok" then QD.ui.invoke(w, 1) end
-            st.run_presses = (st.run_presses or 0) + 1
-        end
-    end
+    -- owner_rooms4: run kept on (QD.raid._play_run_keep, below the plan table)
+    QD.raid._play_run_keep(st, v)
     -- raid seam51 (N.shadow_memory): A SHADOW IS A HAND FOR THREE TICKS.  The
     -- telegraph (1570-1573) is gone from the client's spotanims before its
     -- splat (1576) lands three ticks after it (ET 3.4; seam51 survey_1 and

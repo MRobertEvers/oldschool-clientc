@@ -1294,6 +1294,20 @@ What the real trios do that ours did not:
 Still outside the reference: room 333-354 (> 262); hp lost; the post-maze phases (defence back, fewer specs: the
 energy allows two mauls, the real teams three - a lightbearer or spec restore is the next lever, unsourced here).
 
+#### Sotetseg, Normal trio, on the lockstep engine (owner_rooms4, 2026-10-07) -- 5 of 5, every seat running
+
+OWNER RULING 2026-10-07: "If sotetseg is completing but just a bit slower, count it as good, don't worry about
+meeting blert times." blert.room_ticks in _play_sotetseg asserts completion only (his death, no raider dead);
+the reference's 212.5 [164-262] is printed. Pinned bin 5e555aa62, private pack b86cd99a3f.
+- HEAD plan: rooms 282 / 251 / 286 / 261 / 273, red on [164-262] alone before the ruling.
+- Where the time goes (the first deviation, open): one seat a maze swings nothing for 30-75 ticks after it --
+  the maze's seq 1816 (human_teleport_other_impact: 16 frames of 4 cycles and a 17th of 2000) is DELAYMOVE, so
+  that seat's drawn player stays on the far-end tile while its server tile walks back; the camera follows the
+  frozen model and every npc projects off screen (attack press `not_visible`). Content row filed (content_bugs).
+- Run kept on (QD.raid._play_run_keep, shared with Bloat) + a stamina dose: 5 of 5, rooms 277 / 250 / 307 /
+  260 / 272, hp lost <= 225; the server reads run on every tick of every seat. party_repeat 3 AGREE (sha
+  7c508405fae9, build/seam_state/owner_rooms4/_play_sotetseg_trio.lua).
+
 ### Verzik, Normal trio, against Blert (seam42 play_tob_verzik_follows_blert) -- NOT closed
 
 Reference: `docs/minigames/theater_of_blood/sources/blert_api/reference/verzik_normal_3.json`
