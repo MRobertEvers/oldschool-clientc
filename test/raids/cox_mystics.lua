@@ -5,10 +5,11 @@
 --   "The salve amulet EI is strongly recommended."
 --   "The bofa and blowpipe are also commonly used here. The twisted bow
 --    isn't as strong here ... still an acceptable weapon."
--- Kill path: Protect from Magic; tbow + salve for the three-stack, then
--- blowpipe once the pack thins; focus one mystic at a time.
--- Model: named-state machine; FOCUS attacks + await_dead (low attempts so
--- corpse grace cannot drain the backpack), then trusts npc.pack for the kill.
+-- Kill path: Protect from Magic; tbow + salve; focus one mystic at a time.
+-- Stay on tbow the whole fight -- blowpipe's short range walked into melee
+-- (run19 max hit 21 unprotected) and drained the backpack on mystic 2.
+-- Model: named-state machine; FOCUS attacks + await_dead_engaged (low
+-- attempts so corpse grace cannot drain the backpack), pack confirms kill.
 -- No ::godmode, ::kill, or teleport past a phase.
 
 local FORMS = {
@@ -170,8 +171,8 @@ return {
         "::setlevel magic 99",
         "::setlevel hitpoints 99",
         "::setlevel prayer 99",
-        -- Blowpipe early (README free-slot rule), then tbow as the opener.
-        "::blowpipe dragon_dart 2000 2000",
+        -- Synq [0:31:54]: salve + ranged. Twisted bow keeps 10-tile range so
+        -- Protect Magic covers the stack; blowpipe walks into melee.
         "::give masori_mask",
         "::wield masori_mask",
         "::give masori_body",
@@ -186,16 +187,14 @@ return {
         "::wield twisted_bow",
         "::give dragon_arrow 2000",
         "::wield dragon_arrow",
-        -- Run9/11: 17 sharks on mystic 1 via await attempts=40 corpse grace;
-        -- keep attempts low and pack the backpack with heal.
         "::give br_4dose2restore 1",
-        "::give br_4dosepotionofsaradomin 2",
-        "::give shark 22",
-        "::give tbwt_cooked_karambwan 2",
+        "::give br_4dosepotionofsaradomin 3",
+        "::give shark 20",
+        "::give tbwt_cooked_karambwan 4",
     },
 
     run = function(t)
-        t.check("spec.scope", true, "mode=all party=1; synq Protect Magic; tbow then blowpipe")
+        t.check("spec.scope", true, "mode=all party=1; synq Protect Magic + tbow focus")
         local lr, ld = t.ticklog.start()
         t.check("ticklog.start", lr == "ok", tostring(ld))
 
@@ -204,11 +203,6 @@ return {
         local sr, room = t.raid.state()
         t.check("raid.state", sr == "ok" and room.room == "mystics",
             sr == "ok" and (tostring(room.raid) .. " " .. tostring(room.room)) or tostring(room))
-
-        local br, bp = t.inv.blowpipe()
-        t.check("kit.blowpipe", br == "ok" and type(bp) == "table"
-            and (bp.where == "worn" or bp.where == "inv"),
-            "blowpipe " .. tostring(br) .. " " .. tostring(bp and bp.line or bp))
 
         local landing = mystic_rows(t)
         t.check("mystics.present", #landing >= 1,
@@ -236,7 +230,6 @@ return {
             focus_slot = nil,
             kills = 0,
             mid_shot = false,
-            swapped_pipe = false,
             last_anim_tick = {},
             last_style = {},
             anim_serial = {},
@@ -351,22 +344,15 @@ return {
                 sm.focus_slot = target.slot
                 arm_prayers(false)
 
-                if sm.kills >= 1 and not sm.swapped_pipe then
-                    local wr, wd = t.player.equip("toxic_blowpipe_loaded")
-                    if wr ~= "ok" then
-                        wr, wd = t.player.wield("toxic_blowpipe_loaded")
-                    end
-                    t.check("swap.blowpipe", wr == "ok", tostring(wd))
-                    sm.swapped_pipe = true
-                end
-
                 top_up(t)
                 arm_prayers(false)
 
+                -- below=50 + combo: tbow stays at range so melee max-hits do
+                -- not appear; brew top_up before each await covers the rest.
                 local eat_opts = {
                     eat = {
                         item = "shark",
-                        below = 55,
+                        below = 50,
                         quick = true,
                         combo = "tbwt_cooked_karambwan",
                     },
