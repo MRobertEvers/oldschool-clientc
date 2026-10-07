@@ -183,26 +183,44 @@ end
 
 local function paint_style(t, style, crab)
     local sym = type(crab) == "table" and crab.symbol or crab
-    local row = type(crab) == "table" and crab.row or nil
-    local opts = { quick = true }
-    if row ~= nil then opts.slot = row.slot end
+    local row = type(crab) == "table" and (crab.row or crab) or nil
+    -- Prefer at={x,z} over world slot: cast's quick path with a mismatched
+    -- slot returns no_row and never presses (run16 seat paint: kodai equipped,
+    -- zero spell inputs). Mid-measure painted when the picker chose by tile.
+    local opts = {}
+    if row ~= nil and row.x ~= nil and row.z ~= nil then
+        opts.at = { row.x, row.z }
+    elseif row ~= nil and row.slot ~= nil then
+        opts.slot = row.slot
+    end
     if style == "mage" then
-        -- Autocast attack with a wand often never sets damagetype=magic here;
-        -- cast a wave so player_hit_npc_prepare paints blue.
+        -- Wand Attack is melee here (paints red). Cast a wave so
+        -- player_hit_npc_prepare sees damagetype=magic → blue.
         wield(t, "kodai_wand")
-        local cr = t.player.cast("water_wave", sym, 2, 2, opts)
-        if cr ~= "ok" then
-            t.player.cast("fire_wave", sym, 2, 2, opts)
+        t.ticks(1)
+        -- Non-quick settle: quick press fails when the crab is covered and
+        -- never walk_nears (seat attempts from the safe tile).
+        local cr, cd = t.player.cast("water_wave", sym, 8, 2, opts)
+        -- seam5: timeout with Magic XP paid still painted; only hard-fail retries.
+        if cr ~= "ok" and cr ~= "timeout" then
+            cr, cd = t.player.cast("fire_wave", sym, 8, 2, opts)
         end
+        t.ticks(2)
+        return cr, cd
     elseif style == "range" then
         wield(t, "dragon_arrow")
         wield(t, "twisted_bow")
-        t.player.attack(sym, 2, 3, opts)
+        local ar, ad = t.player.attack(sym, 4, 3, opts)
+        t.ticks(2)
+        return ar, ad
     elseif style == "melee" then
         wield(t, "dragon_warhammer")
-        t.player.attack(sym, 2, 3, opts)
+        local ar, ad = t.player.attack(sym, 4, 3, opts)
+        t.ticks(2)
+        return ar, ad
     end
-    t.ticks(3)
+    t.ticks(2)
+    return "ok", nil
 end
 
 -- Smash is op3 ("Smash"), not Attack. t.player.attack refuses any row that
@@ -407,26 +425,34 @@ return {
                     if not ok then
                         return false, "smash failed: " .. tostring(detail)
                     end
-                    t.player.walk_to(sx, sz, 20)
+                    -- Stay west-adjacent for the paint cast (covered from the
+                    -- safe tile made quick casts no-op). Paint immediately —
+                    -- blue/green overwrite smash-red; no need to wait revert.
+                    t.player.walk_to(lure_x, lure_z, 20)
                     t.ticks(2)
                     if crab_at(t, wx, wz, 0) == nil then
                         return false, "crab left mark after smash"
                     end
-                    t.ticks(10)
                     if style ~= nil and style ~= "melee" then
                         local want = (style == "mage") and "raids_lasercrabs_crab_blue"
                             or "raids_lasercrabs_crab_green"
-                        for _ = 1, 4 do
-                            local live = pack_slot(exact.row.slot)
-                            if live == nil then break end
+                        local last_paint = "none"
+                        for _ = 1, 6 do
+                            local live = crab_at(t, wx, wz, 0)
+                            if live == nil then
+                                return false, "crab left mark during paint"
+                            end
                             if live.symbol == want then break end
-                            paint_style(t, style, { symbol = live.symbol, row = live })
+                            local pr, pd = paint_style(t, style, live)
+                            last_paint = tostring(pr) .. ":" .. tostring(pd)
                             t.ticks(2)
+                            t.player.walk_to(lure_x, lure_z, 8)
                         end
-                        local live = pack_slot(exact.row.slot)
+                        local live = crab_at(t, wx, wz, 0)
                         if live == nil or live.symbol ~= want then
                             return false, "paint failed want=" .. want
                                 .. " got=" .. tostring(live and live.symbol)
+                                .. " last=" .. last_paint
                         end
                     end
                     t.player.walk_to(sx, sz, 20)
@@ -636,7 +662,8 @@ return {
                         break
                     end
                     if style ~= nil and wait > 0 and wait % 5 == 0 then
-                        t.player.walk_to(sx, sz, 10)
+                        -- Re-paint from west of the mark so the cast can press.
+                        t.player.walk_to(wx - 1, wz, 10)
                         if style ~= "melee" then
                             paint_style(t, style, seated)
                         else
