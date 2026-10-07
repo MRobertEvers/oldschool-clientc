@@ -1860,3 +1860,15 @@ off a splat re-casts after the step; nothing changed.
 (sources/wiki_Module_CombatStyles.lua :547-549) has `'Chop', 'Slash', Aggressive` and wiki_Scythe_of_vitur :41 "it does not
 have a Stab combat style". Now `^slash_style`. The Maiden scythe seats swing on Chop (+3 Strength levels at a target drained
 to 0 Defence). Pack compiled.
+
+## 2026-10-06 owner_nylocas: a powered staff's built-in spell took no equipment magic damage -- FIXED
+
+wiki_Tumeken_s_shadow.wikitext:108 "Note that any magic damage bonuses are applied after the base max hit is
+calculated" (the powered staff's own max-hit page), :76 the shadow's passive multiplies "magic damage ... from
+the player's worn equipment" by three, "capped at a total of 100%". The spellbook's casts added
+%varp6222_com_magicdamage (player_magic.rs2); the powered staves' attack (powered_staff.rs2
+[label,player_powered_staff_attack]) never did, so an Eye of Ayak in an occult necklace hit for the bare
+floor(Magic/3) - 6. Fixed: `[proc,powered_staff_magicdamage]` applies the worn bonus (tenths of a percent), x3
+capped at 100% for Tumeken's shadow. Not handled: the shadow's x4 inside the Tombs of Amascut. Also noted, not
+changed: all.obj gives the occult necklace magicdamage 50 (5% by the cache unit combat_stats.rs2 states) where
+the wiki's occult is +10%.
