@@ -72,7 +72,7 @@ local function sustain(t, sm)
     local points = 0
     if pr == "ok" then points = pp.points or pp.level or 0 end
     if points < 60 and (sm._pray_cd or 0) <= 0 then
-        t.player.drink("br_4dose2restore")
+        t.player.drink("4dose2restore")
         sm._pray_cd = 3
     end
     sm._pray_cd = (sm._pray_cd or 0) - 1
@@ -82,8 +82,8 @@ local function sustain(t, sm)
         if er == "ok" then
             sm._sustain_cd = 2
         elseif level < 45 then
-            t.player.drink("br_4dosepotionofsaradomin")
-            t.player.drink("br_4dose2restore")
+            t.player.drink("4dosepotionofsaradomin")
+            t.player.drink("4dose2restore")
             sm._sustain_cd = 3
             sm._pray_cd = 3
         end
@@ -184,8 +184,8 @@ return {
                 "::give twisted_bow",
         "::give dragon_arrow 2000",
         "::give shark 12",
-        "::give br_4dose2restore 6",
-        "::give br_4dosepotionofsaradomin 2",
+        "::give 4dose2restore 6",
+        "::give 4dosepotionofsaradomin 2",
         "::give 4dose2combat 1",
     },
 
@@ -492,7 +492,7 @@ return {
                     sm.mage_kills = sm.mage_kills + 1
                     -- Top up between claws (Synq mid-fight eat).
                     t.cheat("::give shark 8")
-                    t.cheat("::give br_4dose2restore 3")
+                    t.cheat("::give 4dose2restore 3")
                     -- Do NOT gear-swap here: equip blocks decide() and a sphere
                     -- already in flight lands unblockable. SETUP_41 equips one
                     -- item per tick while sphere_flick keeps running.
@@ -677,8 +677,8 @@ return {
                 -- Synq mid-phase: restore supplies between claw pairs.
                 if sm.sub == 1 then
                     t.cheat("::give shark 12")
-                    t.cheat("::give br_4dose2restore 4")
-                    t.cheat("::give br_4dosepotionofsaradomin 2")
+                    t.cheat("::give 4dose2restore 4")
+                    t.cheat("::give 4dosepotionofsaradomin 2")
                 end
                 if ph ~= nil and ph <= 0 and not hand_alive(LEFT) and not hand_alive(RIGHT) then
                     equip_ranged()
@@ -729,12 +729,12 @@ return {
                 -- Entering head: prayer pots FIRST (shark flood was overflowing
                 -- the inv so restores never landed — prayer hit 0, headicons=0).
                 if sm.sub == 0 then
-                    t.cheat("::give br_4dose2restore 8")
-                    t.cheat("::give br_4dosepotionofsaradomin 4")
+                    t.cheat("::give 4dose2restore 8")
+                    t.cheat("::give 4dosepotionofsaradomin 4")
                     t.cheat("::give shark 6")
                     t.cheat("::give dragon_arrow 500")
                     equip_ranged()
-                    t.player.drink("br_4dose2restore")
+                    t.player.drink("4dose2restore")
                     sm.last_pray = nil
                     sm._head_stood = false
                 end
@@ -744,7 +744,7 @@ return {
                 local points = 0
                 if pr == "ok" then points = pp.points or pp.level or 0 end
                 if points < 50 then
-                    t.player.drink("br_4dose2restore")
+                    t.player.drink("4dose2restore")
                 end
                 prayer_flick()
                 -- Soft sustain: eat only when critically low so opheld1 does
@@ -754,7 +754,7 @@ return {
                 if level < 50 then
                     local er = t.player.eat("shark")
                     if er ~= "ok" and level < 35 then
-                        t.player.drink("br_4dosepotionofsaradomin")
+                        t.player.drink("4dosepotionofsaradomin")
                     end
                 end
                 local hrow = npc_ok(t, HEAD)
