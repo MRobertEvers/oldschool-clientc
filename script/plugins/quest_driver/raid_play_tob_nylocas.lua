@@ -296,6 +296,9 @@ QD.raid._play_plan("tob_nylocas", {
     -- owner_nylocas: the blast window in the cleanup (see IN THE CLEANUP THE
     -- LAST GREYS ARE KILLED)
     cleanup_blast = 2,
+    -- owner_nylocas: the natural stall after each wave (nylocas_waves.md
+    -- "Stall", tob_nylo.dbrow): when the next wave is due, for PRE_STAND
+    wave_gap = { 4, 4, 4, 4, 16, 4, 12, 4, 12, 8, 8, 8, 8, 8, 8, 4, 12, 8, 12, 16, 8, 12, 8, 8, 8, 4, 8, 4, 4, 4, 0 },
     -- owner_nylocas: a support's hits call its nearest seat to defend it only
     -- under this bar (Blert's weakest support at her landing: median 0.31,
     -- 34 recorded trio rooms, PLAY_NOTES seam35m)
@@ -876,15 +879,46 @@ function QD.raid._play_nylocas_machine(c)
     -- copy if in reach, else the nearest copy of its colour in reach (the
     -- traced svd meleer: 12 swings in 53 ticks of PILLAR_DEFENCE, standing for
     -- chewers to come within reach; 105 idle ticks a room)
-    if pick == nil and m.state ~= "BOSS" and m.state ~= "AT_STAND" then
+    -- PRE_STAND waits on the next wave's tile only when that wave is due within
+    -- 3 ticks (its natural stall, P.wave_gap; at the alive cap it is held)
+    local waiting = false
+    if m.state == "PRE_STAND" then
+        local due = (ny.last_wave_tick or v.tick) + (P.wave_gap[math.max(1, math.min(m.wave, 31))] or 4)
+        local cap = m.wave >= 20 and 24 or 12
+        waiting = due - v.tick <= 3 and #v.nylos < cap
+    end
+    if pick == nil and m.state ~= "BOSS" and m.state ~= "AT_STAND" and not waiting then
         local list = P.waves[math.max(1, math.min(m.wave, 31))][c.R.name].targets
-        local n = (m.idx <= #list) and QD.raid._nym_find(c, list[m.idx]) or nil
+        local listed = (m.idx <= #list) and QD.raid._nym_find(c, list[m.idx]) or nil
+        local n = listed
         if n ~= nil and not NY_IN_REACH(c, n) then n = nil end
         if n == nil then n = NY_OWN_IN_REACH(c) end
         if n ~= nil then
             pick = QD.raid._nym_pick(c, n)
             c.walk = nil
             ny.fill_ins = (ny.fill_ins or 0) + 1
+        else
+            -- nothing in reach: one step toward the listed copy, else the
+            -- nearest copy of the seat's colour (the reference mage holds its
+            -- modal tile only 11 percent of a wave: it moves to its copies)
+            local goal = listed
+            if goal == nil then
+                local bd = nil
+                for _, o in ipairs(v.nylos) do
+                    if o.style == c.R.colour and QD.raid._nym_pressable(c, o) then
+                        local d = c.dist(c.me.x, c.me.z, o.x, o.z, o.size)
+                        if bd == nil or d < bd then goal, bd = o, d end
+                    end
+                end
+            end
+            if goal ~= nil then
+                local sx = c.me.x + ((goal.x > c.me.x) and 1 or ((goal.x < c.me.x) and -1 or 0))
+                local sz = c.me.z + ((goal.z > c.me.z) and 1 or ((goal.z < c.me.z) and -1 or 0))
+                if (sx ~= c.me.x or sz ~= c.me.z) and c.floor_ok(sx, sz) then
+                    c.walk = { x = sx, z = sz }
+                    ny.fill_steps = (ny.fill_steps or 0) + 1
+                end
+            end
         end
     end
     QD.raid._nym_note(c)
