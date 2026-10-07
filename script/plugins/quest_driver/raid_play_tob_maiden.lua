@@ -1392,6 +1392,14 @@ function QD.raid.mz_lane_tick(st, v, intent)
     if e[1] == "STACK" then
         local stand = QD.raid.mz_crab_stand(st, v, t.a)
         if stand == nil then m.stack_done[t.slot] = true return QD.raid.mz_s_on_boss_tick(st, v, intent) end
+        -- (a trip of more than one running tick is not made: sm107 sva's
+        -- leader ran (5,6) -> (6,3) -> (5,6) at +23..+28 of the 70 wave and
+        -- swung at nothing -- the barrages had the stack -- nine ticks with
+        -- no swing on her; a pipe reaches 5 without the walk)
+        if math.max(math.abs(stand.x - v.me.x), math.abs(stand.z - v.me.z)) > 2 and (m.stack_slot ~= t.slot) then
+            m.stack_done[t.slot] = true
+            return QD.raid.mz_s_on_boss_tick(st, v, intent)
+        end
         if stand.x ~= v.me.x or stand.z ~= v.me.z then
             local adj = false
             local here = v.me.x * 100000 + v.me.z
