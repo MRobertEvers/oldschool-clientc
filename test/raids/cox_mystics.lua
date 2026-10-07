@@ -389,13 +389,19 @@ return {
                 end
 
                 local h = hp(t)
-                -- Sustain before any attack settle so low-HP engages brew first.
+                -- Sustain before any attack settle. Run27 died at 15 hp with
+                -- anglers left: empty-brew still set last_brew_tick and
+                -- returned before emergency_food.
                 if h > 0 and h < 55 and (sm.ticks - sm.last_brew_tick) >= 3 then
-                    sip_brew_restore(t)
-                    sm.last_brew_tick = sm.ticks
-                    return
+                    if sip_brew_restore(t) then
+                        sm.last_brew_tick = sm.ticks
+                        if hp(t) < 30 then
+                            emergency_food(t)
+                        end
+                        return
+                    end
                 end
-                if h > 0 and h < 30 then
+                if h > 0 and h < 35 then
                     emergency_food(t)
                     return
                 end
