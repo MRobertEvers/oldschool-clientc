@@ -341,21 +341,33 @@ function QD.raid._play_maiden_off_tile(st, v, lx, lz)
     end
     local ox, oz = m.ox or 0, m.oz or 0
     local best, bx, bz = nil, nil, nil
-    for r = 1, 2 do
+    for r = 1, 3 do
         for dx = -r, r do
             for dz = -r, r do
                 if math.max(math.abs(dx), math.abs(dz)) == r then
                     local x, z = v.me.x + dx, v.me.z + dz
-                    local on_floor = x >= P.floor[1] + ox and x <= P.floor[3] + ox and z >= P.floor[2] + oz and z <= P.floor[4] + oz
+                    -- (the room runs 12 tiles west of the plan's floor box south and
+                    -- north of her, as the trio's walks and reach already allow:
+                    -- sm86 sva, the freezer on (6,-4) at the box's west edge had no
+                    -- clean tile in reach when a spawn rose under it, 28 a tick, dead)
+                    local on_floor = x >= P.floor[1] + ox - (((st.party or 1) > 1) and 12 or 0) and x <= P.floor[3] + ox and z >= P.floor[2] + oz and z <= P.floor[4] + oz
                     local under = b ~= nil and x >= b.x and x <= b.x + (b.size or 1) - 1 and z >= b.z and z <= b.z + (b.size or 1) - 1
                     -- (two out: the tile between must be clean too -- a walk
                     -- ends a tick on it; sm81 sve: the dodge (5,6) -> (7,4)
                     -- stopped on the trail at (6,5), 33, dead)
                     local mid_ok = true
-                    if r == 2 then
+                    if r >= 2 then
+                        -- every tile a run ends a tick on (2 a tick) must be clean
                         local sx = v.me.x + ((dx > 0) and 1 or ((dx < 0) and -1 or 0))
                         local sz = v.me.z + ((dz > 0) and 1 or ((dz < 0) and -1 or 0))
                         mid_ok = not marked[sx * 100000 + sz]
+                        if r == 3 then
+                            local tx = v.me.x + ((dx > 0) and 2 or ((dx < 0) and -2 or 0))
+                            local tz = v.me.z + ((dz > 0) and 2 or ((dz < 0) and -2 or 0))
+                            if math.abs(dx) < 2 then tx = v.me.x + dx end
+                            if math.abs(dz) < 2 then tz = v.me.z + dz end
+                            mid_ok = mid_ok and not marked[tx * 100000 + tz]
+                        end
                     end
                     if mid_ok and on_floor and not under and not marked[x * 100000 + z] and (x ~= lx or z ~= lz) then
                         local score = r * 10
@@ -566,11 +578,11 @@ QD.RAID_MAIDEN_REF = {
         [6] = "S4in", [7] = "S4out", [8] = "N4in", [9] = "N4out" },
     waves = {
         [1] = { casts = { { 1, "S1" }, { 6, "N2" }, { 16, "AT90" }, { 21, "STACK" } }, ret = 26,
-            seat = { [1] = { { "N1", 1, 9 }, { "N2", 6, 10 }, { "STACK", 10, 49 } }, [3] = { { "N1", 1, 9 }, { "N2", 6, 11 }, { "STACK", 10, 49 } } } },
+            seat = { [1] = { { "N1", 1, 9 }, { "N2", 6, 10 }, { "STACK", 22, 49 } }, [3] = { { "N1", 1, 9 }, { "N2", 6, 11 }, { "STACK", 22, 49 } } } },
         [2] = { casts = { { 1, "S1" }, { 6, "S2" }, { 16, "AT90" }, { 21, "STACK" } }, ret = 26,
-            seat = { [1] = { { "N1", 1, 9 }, { "N2", 6, 14 }, { "STACK", 10, 49 } }, [3] = { { "N1", 1, 9 }, { "N2", 6, 16 }, { "STACK", 10, 49 } } } },
+            seat = { [1] = { { "N1", 1, 9 }, { "N2", 6, 14 }, { "STACK", 22, 49 } }, [3] = { { "N1", 1, 9 }, { "N2", 6, 16 }, { "STACK", 22, 49 } } } },
         [3] = { casts = { { 1, "S1" }, { 6, "N2" }, { 11, "AT90" }, { 16, "STACK" } }, ret = 21,
-            seat = { [1] = { { "N1", 1, 9 }, { "STACK", 10, 49 } }, [3] = { { "N1", 1, 10 }, { "STACK", 10, 49 } } } },
+            seat = { [1] = { { "N1", 1, 9 }, { "STACK", 17, 49 } }, [3] = { { "N1", 1, 10 }, { "STACK", 17, 49 } } } },
     },
     -- each seat's tile per form (0 = her 100 form .. 3 = 30), the script's
     -- modal "tile" (the median where the mode's share is under 0.15):
@@ -1185,7 +1197,11 @@ function QD.raid.mz_lane_tick(st, v, intent)
     -- 50 2.0 / 3.0, 30 1.0 -- N1/N2 included): one stack swing a wave, then
     -- her (sm41 budget: sva dps1 walked (8,4) (7,2) (6,0) over four crabs
     -- for 20 ticks of the 70 wave, two swings)
-    -- (the cap per seat per wave is the streams' MEAN crab attacks from +10,
+    -- (the trips start after cast 4 -- +22 / +22 / +17 -- so a crab has taken
+-- both barrages first: casts 3 and 4 land on the SAME crabs every wave
+-- (measured); the streams' dps hit crabs at a median 32 hp, ours at 45-62
+-- swinging from +20, a tick before cast 4)
+-- (the cap per seat per wave is the streams' MEAN crab attacks from +10,
     -- non-freezer seats, 24 rooms: 70 wave 2.00, 50 wave 1.44, 30 wave 0.21
     -- -- 2 / 1 / 0; coordinator 00:45 "set the cap to that, not one")
     local cap = ({ 2, 1, 0 })[math.max(QD.raid.mz_form(st), 1)] or 0
