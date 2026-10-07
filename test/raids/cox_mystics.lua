@@ -129,19 +129,23 @@ local function drink_restore(t)
 end
 
 local function top_up(t)
-    for _ = 1, 6 do
-        if hp(t) >= 85 then break end
+    local brewed = false
+    for _ = 1, 4 do
+        if hp(t) >= 80 then break end
         if not drink_brew(t) then break end
+        brewed = true
         t.ticks(1)
     end
-    if hp(t) < 60 then
+    -- Brew drains ranged; without a restore, mystic 2 DPS collapses
+    -- (run21: 162 dmg on mystic 1, then 23 in 10 hits on mystic 2).
+    if brewed or prayer_points(t) < 50 then
+        drink_restore(t)
+    end
+    if hp(t) < 55 then
         t.player.eat("shark")
     end
-    if hp(t) < 40 then
+    if hp(t) < 35 then
         t.player.eat("tbwt_cooked_karambwan")
-    end
-    if prayer_points(t) < 50 then
-        drink_restore(t)
     end
 end
 
