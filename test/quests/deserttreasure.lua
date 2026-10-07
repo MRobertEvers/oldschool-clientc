@@ -1463,7 +1463,7 @@ return {
         t.check("placeBlood-stage", select(2, t.var.server("varb358_deserttreasure")) == 13, "deserttreasure = " .. tostring(select(2, t.var.server("varb358_deserttreasure"))) .. " once the fourth diamond is absorbed (13 = pyramid)")
 
         -- The pyramid: the exterior ladder (desert_laddertop, maplink src 3233,2896/2898 -> 2913,4954,3) and three
-        -- ladders down; a trap can throw the player back outside (3233,2890), so the way in retries.
+        -- ladders down; a trap can throw the player back outside (3233,2886, ^dt_pyramid_outside), so the way in retries.
         -- The way up is the staircase on the north face (x 3232-3233, z 2901-2910 open on the map) to the pyramid
         -- entrance four_diamonds_door_1 (3233,2899, [label,dt_pyramid_door]: sealed until all four diamonds are in,
         -- then it carries the player through), then the ladder top (maplink src 3233,2898 -> 2913,4954,3).
