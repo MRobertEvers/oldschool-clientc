@@ -384,22 +384,39 @@ return {
                     return
                 end
                 local _, me = t.world.tile()
+                -- Centre aisle (lx=32) is walkable from entry lz=12; claw-adjacent
+                -- tiles under the 5x5 head/hand locs timed out with zero movement.
+                local aisle_x = sm.ox + 32
+                local approach = {
+                    { x = aisle_x, z = sm.oz + 18 },
+                    { x = aisle_x, z = sm.oz + 24 },
+                    { x = aisle_x, z = sm.oz + 28 },
+                    { x = mrow.x, z = mrow.z - 3 },
+                }
                 local dist = math.max(math.abs(me.x - mrow.x), math.abs(me.z - mrow.z))
-                if dist > 6 then
-                    t.player.walk_to(mrow.x, mrow.z - 2, 16)
+                if dist > 5 then
+                    local dest = approach[1]
+                    for i = 1, #approach do
+                        if me.z < approach[i].z - 1 then
+                            dest = approach[i]
+                            break
+                        end
+                        dest = approach[i]
+                    end
+                    local wr, wd = t.player.walk_to(dest.x, dest.z, 10)
+                    if wr ~= "ok" then
+                        -- Nudge north on the aisle if the chosen tile is blocked.
+                        t.player.walk_to(aisle_x, me.z + 4, 6)
+                    end
                     sustain(t, sm)
                     sm.sub = sm.sub + 1
                     return
                 end
-                local a = { x = mrow.x - 1, z = mrow.z - 2 }
-                local b = { x = mrow.x - 3, z = mrow.z }
-                if not sm.side_west then
-                    a = { x = mrow.x + 1, z = mrow.z - 2 }
-                    b = { x = mrow.x + 3, z = mrow.z }
-                end
+                local a = { x = aisle_x - 2, z = mrow.z - 3 }
+                local b = { x = aisle_x + 2, z = mrow.z - 3 }
                 local dest = ((sm.sub % 8) < 4) and a or b
-                t.player.attack(mage, 2, 4, { quick = true, slot = mrow.slot })
-                t.player.walk_to(dest.x, dest.z, 4)
+                t.player.attack(mage, 2, 6, { quick = true, slot = mrow.slot })
+                t.player.walk_to(dest.x, dest.z, 6)
                 sustain(t, sm)
                 sm.sub = sm.sub + 1
                 t.ticks(1)
@@ -418,11 +435,14 @@ return {
                 end
                 sm.setup_waits = sm.setup_waits + 1
                 local empty = sm.tiles.empty_east
+                local mrow = npc_ok(t, melee)
                 if sm.setup_waits < 8 then
-                    t.player.attack(melee, 2, 1)
-                    t.player.walk_to(sm.tiles.thumb.x, sm.tiles.thumb.z, 2)
+                    if mrow ~= nil then
+                        t.player.attack(melee, 2, 4, { quick = true, slot = mrow.slot })
+                    end
+                    t.player.walk_to(sm.tiles.thumb.x, sm.tiles.thumb.z, 6)
                 elseif sm.setup_waits < 16 then
-                    t.player.walk_to(empty.x, empty.z, 4)
+                    t.player.walk_to(empty.x, empty.z, 8)
                 else
                     set_state(STATE.CYCLE_TANK)
                     return
@@ -445,8 +465,11 @@ return {
                 -- clear acid pools / crystal bomb centres (Synq acid walk).
                 local thumb = sm.tiles.thumb
                 local tx = thumb.x + (sm.sub % 2)
-                t.player.attack(melee, 2, 1)
-                t.player.walk_to(tx, thumb.z, 2)
+                local mrow = npc_ok(t, melee)
+                if mrow ~= nil then
+                    t.player.attack(melee, 2, 4, { quick = true, slot = mrow.slot })
+                end
+                t.player.walk_to(tx, thumb.z, 4)
                 sustain(t, sm)
                 sm.sub = sm.sub + 1
                 if sm.sub >= 4 then
@@ -465,8 +488,11 @@ return {
                 end
                 -- Empty event: free hit window (Synq [2:48:37]).
                 local thumb = sm.tiles.thumb
-                t.player.attack(melee, 2, 1)
-                t.player.walk_to(thumb.x + 1 - (sm.sub % 2), thumb.z, 2)
+                local mrow = npc_ok(t, melee)
+                if mrow ~= nil then
+                    t.player.attack(melee, 2, 4, { quick = true, slot = mrow.slot })
+                end
+                t.player.walk_to(thumb.x + 1 - (sm.sub % 2), thumb.z, 4)
                 sustain(t, sm)
                 sm.sub = sm.sub + 1
                 if sm.sub >= 4 then
@@ -493,10 +519,11 @@ return {
                 -- Turn head / sit empty to skip special; final hit on ring tile.
                 local melee = sm.tiles.hand
                 if hand_alive(melee) then
-                    if sm.sub >= 2 then
-                        t.player.attack(melee, 2, 1)
+                    local mrow = npc_ok(t, melee)
+                    if sm.sub >= 2 and mrow ~= nil then
+                        t.player.attack(melee, 2, 4, { quick = true, slot = mrow.slot })
                     end
-                    t.player.walk_to(sm.tiles.ring.x, sm.tiles.ring.z, 3)
+                    t.player.walk_to(sm.tiles.ring.x, sm.tiles.ring.z, 6)
                 else
                     sm.melee_kills = sm.melee_kills + 1
                     set_state(STATE.WAIT_PHASE)
@@ -554,8 +581,9 @@ return {
                     set_state(STATE.DONE)
                     return
                 end
-                if npc_ok(t, HEAD) ~= nil then
-                    t.player.attack(HEAD, 2, 1)
+                local hrow = npc_ok(t, HEAD)
+                if hrow ~= nil then
+                    t.player.attack(HEAD, 2, 6, { quick = true, slot = hrow.slot })
                 end
                 if hand_alive(LEFT) or hand_alive(RIGHT) then
                     set_state(STATE.WAIT_PHASE)
