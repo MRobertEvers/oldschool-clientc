@@ -25,6 +25,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #define WALL_DECOR_YAW_ADJUST 256
 #define WORLD_TILE_SIZE 128
@@ -2173,6 +2174,29 @@ scenery_add_normal(
         if( el && ToriDraw_ModelKindIsFull(el->model.kind) && el->model.u.model.model )
             ToriDraw_ModelSetPostOrient(el->model.u.model.model, orientation & 3);
     }
+    // #region agent log
+    if( (config_loc->id >= 29880 && config_loc->id <= 29890) || config_loc->id == 30035 ||
+        (config_loc->name[0] && strstr(config_loc->name, "Large rock")) )
+    {
+        int post_o = -1;
+        struct ToriDraw_SceneElement* _el = ToriDraw_SceneElementGet(builder->scene, element_id);
+        if( _el && ToriDraw_ModelKindIsFull(_el->model.kind) && _el->model.u.model.model )
+            post_o = _el->model.u.model.model->post_orient;
+        FILE* _df = fopen("/opt/cursor/logs/debug.log", "a");
+        if( _df )
+        {
+            fprintf(_df,
+                    "{\"hypothesisId\":\"B\",\"location\":\"world_scenery.u.c:scenery_add_normal\","
+                    "\"message\":\"olm scenery_add_normal\",\"data\":{\"loc_id\":%d,\"name\":\"%s\","
+                    "\"scene_x\":%d,\"scene_z\":%d,\"orient\":%d,\"animated\":%d,\"size_x\":%d,"
+                    "\"size_z\":%d,\"post_orient\":%d,\"yaw\":%d,\"level\":%d},\"timestamp\":%lld}\n",
+                    config_loc->id, config_loc->name, scene_x, scene_z, orientation,
+                    animated ? 1 : 0, size_x, size_z, post_o, yaw, map_loc->chunk_pos_level,
+                    (long long)time(NULL) * 1000LL);
+            fclose(_df);
+        }
+    }
+    // #endregion
     scenery_element_position_init(
         builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, size_x, size_z, yaw);
     scenery_load_animation(builder, element_id, config_loc->seq_id);
