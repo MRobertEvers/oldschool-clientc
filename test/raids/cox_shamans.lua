@@ -53,7 +53,13 @@ end
 
 -- Wall-hug tile: stand just outside the 3x3 so the jump cannot land
 -- (Synq [0:35:45]–[0:36:17]).
-local function hug_tile(me, shaman)
+        local function hug_tile(me, shaman)
+    if me == nil or shaman == nil or shaman.x == nil or shaman.z == nil then
+        return nil, nil
+    end
+    if me.x == nil or me.z == nil then
+        return nil, nil
+    end
     local size = shaman.size or 3
     local sx = shaman.x
     local sz = shaman.z
@@ -139,7 +145,9 @@ return {
             state = STATE.LAND,
             ticks = 0,
             target_sym = fsym,
+            -- world slot for ticklog filters; client slot for t.npc.state
             target_slot = wslot,
+            target_client = frow.slot,
             hits = 0,
             eats = 0,
             antipoisons = 0,
@@ -237,6 +245,7 @@ return {
             local r, row, sym = find_any(t, 48)
             if r ~= "ok" then return false end
             sm.target_sym = sym
+            sm.target_client = row.slot
             local sw, slot = t.ticklog.slot(row)
             if sw == "ok" then
                 if slot ~= sm.target_slot then
@@ -286,11 +295,11 @@ return {
                     set_state(STATE.KILL)
                     return
                 end
-                local _, me = t.world.tile()
-                local _, brow = t.npc.state({ slot = sm.target_slot })
-                if brow ~= nil then
+                local mr, me = t.world.tile()
+                local br, brow = t.npc.state({ slot = sm.target_client })
+                if mr == "ok" and br == "ok" then
                     local hx, hz = hug_tile(me, brow)
-                    if chebyshev(me.x, me.z, hx, hz) > 1 then
+                    if hx ~= nil and chebyshev(me.x, me.z, hx, hz) > 1 then
                         t.player.walk_to(hx, hz, 3)
                     end
                 end
@@ -303,12 +312,12 @@ return {
                     set_state(STATE.DONE)
                     return
                 end
-                local _, me = t.world.tile()
-                local _, brow = t.npc.state({ slot = sm.target_slot })
-                if brow ~= nil then
+                local mr, me = t.world.tile()
+                local br, brow = t.npc.state({ slot = sm.target_client })
+                if mr == "ok" and br == "ok" then
                     local hx, hz = hug_tile(me, brow)
                     local dist = chebyshev(me.x, me.z, brow.x, brow.z)
-                    if dist <= 2 then
+                    if hx ~= nil and dist <= 2 then
                         t.player.walk_to(hx, hz, 2)
                         return
                     end
