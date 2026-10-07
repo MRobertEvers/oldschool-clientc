@@ -248,8 +248,13 @@ return {
         end
 
         -- Walkthrough photographs must show the Olm chamber floor + boss, not
-        -- the floor-1 approach void / shot-aim's north-void "clear" pose.
-        local function shot_olm_room(name)
+        -- the floor-1 approach or a camera eye buried past the south wall.
+        -- yaw 0 puts the eye SOUTH of the player (pointer.lua _shot_eye); a
+        -- flat pitch/long zoom parks that eye in unrendered void so shot-aim
+        -- sees zero occluders ("clear") and the PNG is black with a crystal
+        -- sliver. Steep pitch 383 + zoom 900 keeps the eye over the aisle.
+        local function shot_olm_room(name, opts)
+            opts = opts or {}
             refresh_geometry()
             local _, me = t.world.tile()
             local lz = me.z - sm.oz
@@ -257,18 +262,26 @@ return {
             -- barrier enter so we stand on ^cox_olm_entry_* of the Olm plane.
             if me.level ~= OLM_LEVEL or lz < 20 or lz > 40 then
                 t.cheat("::coxolm")
-                t.ticks(2)
+                t.ticks(4)
                 refresh_geometry()
                 _, me = t.world.tile()
+                lz = me.z - sm.oz
             end
-            local aisle_x = sm.ox + ENTRY_LX
-            local aisle_z = sm.oz + ENTRY_LZ + 3 -- ~lz 28, south of claws
-            t.player.walk_to(aisle_x, aisle_z, 10)
-            -- Face north toward the head (yaw 0 → eye south of player). Pitch
-            -- 250 / zoom 700 keeps the eye over the arena, not through the
-            -- north wall into unrendered void (shot-aim's 0/383/600).
-            t.drive.camera(0, 250, 700)
-            t.ticks(1)
+            -- Mid-mechanic: never long-walk mid-fight (walk cancels attack and
+            -- Olm full-hits). Idle/clear may step to the south aisle once.
+            if not opts.camera_only then
+                local aisle_x = sm.ox + ENTRY_LX
+                local aisle_z = sm.oz + ENTRY_LZ + 3 -- ~lz 28, south of claws
+                local on_aisle = me.level == OLM_LEVEL
+                    and math.abs(me.x - aisle_x) <= 4
+                    and lz >= 24 and lz <= 34
+                if not on_aisle then
+                    t.player.walk_to(aisle_x, aisle_z, 8)
+                end
+            end
+            -- Steep look-down at the head/hands (same pitch shot-aim uses).
+            t.drive.camera(0, 383, 900)
+            t.ticks(2)
             t.shot(name)
         end
 
@@ -434,7 +447,7 @@ return {
                 if (not sm.mid_shot) and (action == TRACE_BURST or action == TRACE_SPHERE
                     or action == TRACE_LIGHTNING or action == TRACE_TELEPORT
                     or action == TRACE_SKIP) then
-                    shot_olm_room("olm 4:1 mid-mechanic")
+                    shot_olm_room("olm 4:1 mid-mechanic", { camera_only = true })
                     sm.mid_shot = true
                 end
                 return true, action
