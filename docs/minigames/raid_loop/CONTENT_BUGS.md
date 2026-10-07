@@ -2338,7 +2338,7 @@ like it's back. You need to fix that." (seen live on _play_verzik_slow). The ear
 
 ## 2026-10-07 anim audit: every ToB animation, graphic and projectile against Blert (build/seam_state/anim_audit/AUDIT.tsv)
 
-Fixed (OSRS-Content 7a70ed5169, 8491f556a5, 55d34897e9, 964c87af49):
+Fixed (OSRS-Content 7a70ed5169, 8491f556a5, 55d34897e9, 964c87af49, f0478f39c7):
 - ToB, Verzik P2 bounce (and the P1 pillar stun, same proc): `[proc,tob_verzik_stun]` drew spotanim 80 `stunned`;
   blert names the bounce by spotanim 245 `stunned_thieving` on the bounced player (`P2_BOUNCE_GRAPHIC = 245`,
   `player.hasSpotAnim(P2_BOUNCE_GRAPHIC)`, blert_plugin/VerzikDataTracker.java:56,569). Same model 3070, other seq,
@@ -2347,7 +2347,8 @@ Fixed (OSRS-Content 7a70ed5169, 8491f556a5, 55d34897e9, 964c87af49):
   `[default]` and played human_unarmedblock 424 on every hit and human_death 836 on its death (2 + 2 npc_anim rows in
   a _play_verzik_slow ticklog) -- a human rig's animation on a web. blert knows the web only by npc id
   (VerzikDataTracker.java:78); tob.npc now nulls defend_anim / death_anim, as the Nylocas support record does.
-  Fixed 8491f556a5.
+  Fixed 8491f556a5. A hit web also RETALIATED with [default] human_unarmedpunch 422 (t814 of a slow trio);
+  retaliate=no, huntmode=none, attack_anim null. Fixed f0478f39c7.
 - ToB, Nylocas Vasilias / Prinkipas: the late first attack was one 1-in-3 for the opening (+4) and every colour change
   (+3), from 18 rooms. Every blert room in the tree (build/blert/nylocas + spec_state blert_nylo_raw, 46 deduped):
   opening +4 in 9 of 41 Regular rooms (22 %), a change's +3 in 23 of 94 into melee (24 %) and 119 of 246 into ranged
@@ -2358,13 +2359,14 @@ Fixed (OSRS-Content 7a70ed5169, 8491f556a5, 55d34897e9, 964c87af49):
   964c87af49.
 
 Open:
-- Engine, every room (parent 1e90c684a): the npc_anim op now ships seq < 0 as a cancel, and ~40 player-attack scripts
+- (fixed, below) Engine, every room (parent 1e90c684a): the npc_anim op now ships seq < 0 as a cancel, and ~40 player-attack scripts
   play the defender's block as `npc_anim(npc_param(defend_anim), d)` (skill_combat/scripts/player/player_ranged.rs2:165,
   292, gear/powered_staff.rs2:544, specs/pvm_*.rs2). For an npc whose defend_anim is null (Xarpus, Maiden, Sotetseg,
   Vasilias, wave nylocas, Bloat, Verzik P3, her reds) each hit now sends a cancel that erases the boss's own attack
   seq: Xarpus' 8059 spit cancelled on the same tick 6 of 6 times in one trio run, Sotetseg 2 of 9, Vasilias 7 of 40.
-  The owners' 07:xx baselines carried zero cancel rows. Reported to the throne agent (ad08ea6affe35bec2), who owns the
-  commit; not changed here.
+  The owners' 07:xx baselines carried zero cancel rows. FIXED in the engine by the throne agent, parent 346bf3c05: only
+  a literal npc_anim(null) stops. Re-run at 346bf3c05: zero cancel rows in every room except Verzik's one literal stop
+  (8371, the tick after 8112).
 - ToB, Vasilias style switch: the retype to another rig (1800 / 1801 / 1799) can land on the 2nd tick of her 2-tick
   attack seq. blert shows OSRS doing the same (opening +4, +8 then switch +9 in 3 of 27 rooms), so the content
   matches the wire; noted only.
