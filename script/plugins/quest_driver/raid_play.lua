@@ -164,6 +164,9 @@ function QD.raid._play_state(plan, plan_id, mode, numbers, weapon, opts)
     local st = {
         plan = plan, plan_id = plan_id, mode = mode, numbers = numbers, weapon = weapon,
         boss_symbol = plan.boss[mode], role = opts.role or QD.party.role(), party = QD.party.size(),
+        -- a caller's named switches for the plan (a relay's variant of a
+        -- room: opts.variant, read as st.variant; nil in the room harnesses)
+        variant = opts.variant,
         start_tick = now, origin = { x = math.floor(me.x / 64) * 64, z = math.floor(me.z / 64) * 64 },
         -- what happened, per server tick (the room test's rows read these)
         inputs = {}, hp_at = {}, prayer_at = {}, tile_at = {}, swings = {}, eats = {}, drinks = {},
