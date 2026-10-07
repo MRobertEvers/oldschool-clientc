@@ -704,9 +704,23 @@ function V.step(world, me, m, seats, mems)
     consume(world, me, m, vz, intent, eat_below)
     if vz == nil then return intent end
     local O = room(world, m)
-    if O ~= nil and m.seat == 1 and not m.asked_floor then
+    if O ~= nil and m.seat == 1 and world.blocked ~= nil and not m.dumped and os.getenv("RAID_AGENT_DUMP_FLOOR") then
+        m.dumped = true
+        for rz = 40, 10, -1 do
+            local row = {}
+            for rx = 15, 50 do
+                local b = world.blocked[(O.x + rx) * 100000 + (O.z + rz)]
+                row[#row + 1] = (b == nil) and "?" or (b and "#" or ".")
+            end
+            io.stderr:write(string.format("floor %2d ", rz), table.concat(row), "\n")
+        end
+    end
+    -- the floor changes with the phase: the pillars are collision in P1 and
+    -- gone after it, and P3's pools land where they stood (vz05 t855: a pool
+    -- on the east pillar's tile, unreachable on P1's grid -- 71 unshared)
+    if O ~= nil and m.seat == 1 and m.asked_floor ~= vz.name then
         intent.query = { x0 = O.x + 10, z0 = O.z + 5, w = 45, h = 40 }
-        m.asked_floor = true
+        m.asked_floor = vz.name
     end
 
     -- P1: hide behind a pillar for every shot, attack between them
