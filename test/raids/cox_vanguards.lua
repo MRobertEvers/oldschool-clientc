@@ -119,10 +119,9 @@ end
 local function sustain(t)
     local _, hp = t.skill.read("hitpoints")
     local level = hp and hp.level
-    -- Sharks only. t.cheat("::setlevel ...") has no debugproc in the private
-    -- QUEST_BINARY (run10: 600x "debugproc not found") and burns the
-    -- instruction budget so attack never fires (22 eat anims, 0 hit_npc).
-    if level ~= nil and level < 55 then
+    -- Eat outside attack(): in-attack eat (run14) produced 18× anim 829 and
+    -- zero hit_npc — the settle only ate while AoE drained HP.
+    if level ~= nil and level < 65 then
         t.player.inv_op("shark", 1)
     end
     local _, pray = t.skill.read("prayer")
@@ -131,16 +130,10 @@ local function sustain(t)
     end
 end
 
--- Eat threshold low so attack() actually swings; prayer-scaled AoE + isolate
--- keeps HP above this except on splash stacks.
-local ATTACK_OPTS = {
-    eat = { item = "shark", below = 35, quick = true },
-    quick = true,
-}
-
 local function attack_focus(t, sym)
     sustain(t)
-    return t.player.attack(sym, 2, 1, ATTACK_OPTS)
+    -- No eat-in-attack. quick click only.
+    return t.player.attack(sym, 2, 1, { quick = true })
 end
 
 -- Stance (Synq + pads fixed by givechase=no):
@@ -492,6 +485,11 @@ return {
                         authored_hp = crec.server.hitpoints or authored_hp
                         authored_rate = crec.server.attackrate or authored_rate
                     end
+                    -- Arm Protect before the first mage volley (run14: tick 39
+                    -- hit 17 unprotected because WAKE returned without equip).
+                    local mage = row_by_sym(pack, MAGIC) or alive[1]
+                    sm.style = equip_for(t, mage.symbol)
+                    sm.focus = mage.symbol
                     sm.probe_hits = 0
                     sm.combat_started = true
                     set_state(STATE.PROBE_HEAL)
