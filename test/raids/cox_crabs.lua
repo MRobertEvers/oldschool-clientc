@@ -480,8 +480,23 @@ return {
                                 last_detail = "paint failed want=" .. want
                                     .. " last=" .. last_paint
                             else
-                                t.player.walk_to(sx, sz, 20)
-                                return true, exact.symbol
+                                -- White beam needs grey; smash paints red for
+                                -- ^cox_crab_paint_ticks. Wait out the red.
+                                local grey = false
+                                for _ = 1, 12 do
+                                    t.ticks(1)
+                                    local live = crab_at(t, wx, wz, 0)
+                                    if live == nil then break end
+                                    if live.symbol == "raids_lasercrabs_crab_grey" then
+                                        grey = true
+                                        break
+                                    end
+                                end
+                                if grey and crab_at(t, wx, wz, 0) ~= nil then
+                                    t.player.walk_to(sx, sz, 20)
+                                    return true, "raids_lasercrabs_crab_grey"
+                                end
+                                last_detail = "white seat: crab not grey on mark after smash"
                             end
                         end
                     end
