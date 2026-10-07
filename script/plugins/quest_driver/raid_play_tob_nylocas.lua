@@ -341,8 +341,15 @@ QD.raid._play_plan("tob_nylocas", {
     -- raid seam32: the Normal party's anglerfish ("make sure that you eat your
     -- angler", transcripts/yt_KF9y2GYTJ-A.md:114; heals 22 at 99 Hitpoints,
     -- wiki Anglerfish), counted at its plain heal
-    food_waves = { { item = "shark", heal = 20 }, { item = "anglerfish", heal = 22 }, { item = "tob_bandages", heal = 20 } },
-    food_boss = { { item = "tob_bandages", heal = 20 }, { item = "anglerfish", heal = 22 }, { item = "shark", heal = 20 } },
+    -- owner_nylocas: the Bloat chest's manta rays and sea turtles last (the
+    -- relay's seats arrived holding only mantas and never ate: 0 eats, 9-17
+    -- brew doses a seat, relay8-10; the heals are QD.RAID_PLAY_FOOD's,
+    -- 1b789407d).  Appended, so a seat holding the harness's anglerfish eats
+    -- exactly as before.
+    food_waves = { { item = "shark", heal = 20 }, { item = "anglerfish", heal = 22 }, { item = "tob_bandages", heal = 20 },
+        { item = "mantaray", heal = 22 }, { item = "seaturtle", heal = 21 } },
+    food_boss = { { item = "tob_bandages", heal = 20 }, { item = "anglerfish", heal = 22 }, { item = "shark", heal = 20 },
+        { item = "mantaray", heal = 22 }, { item = "seaturtle", heal = 21 } },
     decide = "_play_nylocas_decide",
     -- one client.log line a tick while the plan is iterated from the log
     trace = false,
