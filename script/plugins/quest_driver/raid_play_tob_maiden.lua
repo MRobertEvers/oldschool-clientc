@@ -337,12 +337,18 @@ function QD.raid._play_maiden_off_tile(st, v, lx, lz)
                     if on_floor and not under and not marked[x * 100000 + z] and (x ~= lx or z ~= lz) then
                         local score = r * 10
                         if m.R ~= nil and m.R.melee and b ~= nil and QD.raid._play_gap(b, x, z) ~= 1 then score = score + 5 end
+                        -- a scythe seat in the trio steps to a tile beside her,
+                        -- two out if one out has none, so the next swing needs
+                        -- no walk back (sm39 budget: the 70 wave's scythe seats
+                        -- 12-15 ticks moving, 2-3 attacks on her against the
+                        -- script's 5)
+                        if (st.party or 1) > 1 and st.role ~= 2 and b ~= nil and QD.raid._play_gap(b, x, z) ~= 1 then score = score + 15 end
                         if best == nil or score < best then best, bx, bz = score, x, z end
                     end
                 end
             end
         end
-        if best ~= nil then break end
+        if best ~= nil and ((st.party or 1) <= 1 or st.role == 2 or best < 20) then break end
     end
     return bx, bz
 end
@@ -1059,13 +1065,24 @@ function QD.raid.mz_lane_tick(st, v, intent)
     if since > e[3] then QD.raid.mz_go(st, v, "LANE", m.idx + 1) return end
     -- the stack: one swing per frozen crab (a scythe swing on a size-2 crab is
     -- two hits, ~58 of its 75 after a barrage has touched it), then the next
-    m.stack_done = (m.stack_wave == st.ev.wave) and m.stack_done or {}
+    if m.stack_wave ~= st.ev.wave then m.stack_done, m.stack_swings, m.stack_slot = {}, 0, nil end
     m.stack_wave = st.ev.wave
     if e[1] == "STACK" and m.stack_slot ~= nil and (st.swings[#st.swings] or -1) > m.stack_t then
         m.stack_done[m.stack_slot] = true
         m.stack_slot = nil
+        m.stack_swings = m.stack_swings + 1
     end
-    local t = QD.raid.mz_lane_crab(st, v, e[1], e[4] == true, false, (e[1] == "STACK") and m.stack_done or nil)
+    -- the script's crab attacks a seat makes in a wave (attacks_add: 70 1.0,
+    -- 50 2.0 / 3.0, 30 1.0 -- N1/N2 included): one stack swing a wave, then
+    -- her (sm41 budget: sva dps1 walked (8,4) (7,2) (6,0) over four crabs
+    -- for 20 ticks of the 70 wave, two swings)
+    if e[1] == "STACK" and m.stack_swings >= 1 then QD.raid.mz_go(st, v, "LANE", m.idx + 1) return end
+    local t = nil
+    if e[1] == "STACK" and m.stack_slot ~= nil then
+        local a = st.ev.adds[m.stack_slot]
+        if a ~= nil and not a.gone then t = { slot = m.stack_slot, a = a } else m.stack_slot = nil end
+    end
+    t = t or QD.raid.mz_lane_crab(st, v, e[1], e[4] == true, false, (e[1] == "STACK") and m.stack_done or nil)
     -- (a lane crab absent at its press tick is skipped; the STACK is waited
     -- for, on her, until its window ends -- it forms as the 3s and 4s arrive)
     if t == nil and since >= e[2] and e[1] ~= "STACK" then QD.raid.mz_go(st, v, "LANE", m.idx + 1) return end
