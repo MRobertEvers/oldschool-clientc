@@ -606,9 +606,16 @@ function QD.raid._play_supplies(st, v, threat)
     local need = threat(horizon)
     -- THE COMFORT FLOOR (see the block above): on a free tick the threshold is
     -- at least the reference band's floor, so the bite leaves the kill floor.
-    -- Between swings the survival term alone decides.  The floor never wastes
-    -- a dose: 61 + the largest food (22) is 83 of 99.
-    if free then
+    -- Between swings the survival term alone decides FOR FOOD, whose bite
+    -- costs the attack three ticks.  A brew is a potion and costs the attack
+    -- nothing ("do not incur the standard 3 tick attack or eat delay", wiki
+    -- Potions, quoted above QD.RAID_PLAY_FOOD), so a seat whose heal is a
+    -- brew (no food left) keeps the floor on every tick: svbplaynorma p1 at
+    -- Xarpus, brew-only and between swings at 28 hitpoints, was under no
+    -- threat(2) and drank a prayer restore in the brew's slot, then died two
+    -- ticks later (t2012-2014).  The floor never wastes a dose: 61 + the
+    -- largest food (22) is 83 of 99.
+    if free or food == nil then
         local floor_hp = math.floor(v.hp_base * QD.RAID_PLAY_EAT_FLOOR_HP
             / QD.RAID_PLAY_EAT_FLOOR_LEVEL)
         if need < floor_hp then need = floor_hp end
