@@ -632,6 +632,58 @@ local function restock(t, name)
     t.ticks(1)
 end
 
+-- THE NYLOCAS ROWS (owner_nylocas' relay snippet rev 2, THE FIVE ROWS: the
+-- harness's code, test/raids/_play_nylocas.lua :578-833, on the leader after
+-- the room, from the relay's own room-start mark "nylocas start").  Bounds:
+-- last wave [244, 293], her phase [75, 123], four supports standing at her
+-- landing with the weakest >= 0.10; her start and the room's ticks report
+-- (owner ruling 2026-10-07, "Call nylocas good yeah").
+local function nylocas_rows(t, rec)
+    local ny = rec and rec.ny or {}
+    local ids = ny.ids or { wave = {}, boss = {} }
+    local tick0 = R.nylocas.mark or (rec and rec.start_tick) or 0
+    local _, spawns = t.ticklog.rows({ kind = "npc_spawn" })
+    t.ticks(1)
+    local _, deaths = t.ticklog.rows({ kind = "npc_death" })
+    t.ticks(1)
+    local origin = rec and rec.origin or { x = 0, z = 0 }
+    local waves, seen, boss_spawn, boss_death = {}, {}, nil, nil
+    for index, r in ipairs(spawns) do
+        if index % 60 == 0 then t.ticks(1) end
+        if r.tick >= tick0 then
+            if ids.wave[r.type] ~= nil and r.coord ~= nil then
+                local x, z = math.floor(r.coord / 16384) % 16384, r.coord % 16384
+                local lx, lz = x - origin.x, z - origin.z
+                if (lx <= 18 or lx >= 45 or lz <= 10) and seen[r.tick] == nil then
+                    seen[r.tick] = true
+                    waves[#waves + 1] = r.tick - tick0
+                end
+            end
+            if ids.boss[r.type] ~= nil and boss_spawn == nil then boss_spawn = r.tick end
+        end
+    end
+    for _, r in ipairs(deaths) do
+        if r.tick >= tick0 and ids.boss[r.type] ~= nil and boss_death == nil then boss_death = r.tick end
+    end
+    local last_wave = waves[#waves]
+    local ref_last = last_wave and (last_wave + 1) or nil
+    local ref_start = boss_spawn and (boss_spawn - tick0 + 1) or nil
+    local ref_phase = (boss_spawn and boss_death) and (boss_death - boss_spawn) or nil
+    local ref_death = boss_death and (boss_death - tick0 + 1) or nil
+    t.check("nylocas.tech.waves", #waves == 31, "waves out " .. #waves .. " (spec 31), the last " .. tostring(last_wave) .. " ticks after the mark")
+    t.check("nylocas.tech.pillars_at_boss", (ny.supports_alive_at_landing or 0) == 4 and (ny.supports_min_at_landing or 0) >= 0.10,
+        "supports standing when Vasilias landed: " .. tostring(ny.supports_alive_at_landing) .. " of 4 (need 4, the weakest >= 0.10), bars "
+        .. tostring(ny.supports_at_landing))
+    t.check("nylocas.ref.last_wave", ref_last ~= nil and ref_last >= 244 and ref_last <= 293, "wave 31 out at room tick " .. tostring(ref_last)
+        .. "; reference outcome.phase.wave31.start 260 [244-293]")
+    t.check("nylocas.ref.boss_start", ref_start ~= nil, "Vasilias spawned at room tick " .. tostring(ref_start)
+        .. "; reference 308 [296-357] -- reported (owner ruling 2026-10-07)")
+    t.check("nylocas.ref.boss_ticks", ref_phase ~= nil and ref_phase >= 75 and ref_phase <= 123, "her phase " .. tostring(ref_phase)
+        .. " ticks; reference outcome.phase.boss.ticks 95 [75-123]")
+    t.check("nylocas.ref.room_ticks", ref_death ~= nil, "her death at room tick " .. tostring(ref_death)
+        .. "; reference 410 [371-471] -- reported (owner ruling 2026-10-07)")
+end
+
 -- ------------------------------------------------- each room's pre-fight
 local PRE = {}
 
@@ -1016,7 +1068,11 @@ return {
 
             -- THE FIGHT: the library and the room's plan, nothing else
             local seat_role = ROLE_IN[name] and ROLE_IN[name][role] or role
-            local result, detail, rec = t.raid.play(PLAN[name], { mode = "normal", weapon = spec.weapon, max_ticks = spec.max_ticks, role = seat_role })
+            -- Maiden in the relay splits her storms by the standing tiles
+            -- (raid_play_tob_maiden.lua THE RELAY'S STORM SPLIT; off in the
+            -- room harness, which stays frozen green)
+            local result, detail, rec = t.raid.play(PLAN[name], { mode = "normal", weapon = spec.weapon, max_ticks = spec.max_ticks, role = seat_role,
+                variant = (name == "maiden") and "storm_split" or nil })
             t.check(name .. ".fight", result == "ok", P .. string.sub(tostring(detail), 1, 600))
             R[name].result = result
             if name == "maiden" and rec ~= nil and rec.m ~= nil then
@@ -1026,6 +1082,7 @@ return {
                     .. tostring(m.oz) .. "); dodges " .. tostring(m.dodges) .. ", add presses " .. tostring(m.add_presses) .. ", Ice Barrage casts " .. #(m.casts or {}))
             end
             R[name].death = rec and rec.death_tick or nil
+            if name == "nylocas" and role == 1 and result == "ok" then nylocas_rows(t, rec) end
             if result == "ok" then prayers_off(t, name) end
             if AFTER[name] ~= nil then AFTER[name](t) end
             R[name].after = supplies(t)

@@ -254,6 +254,7 @@ QD.raid._play_plan("tob_maiden", {
     -- M37 svaplaymaide t235-t282; her 30 form took 87 ticks at 9 a tick); its
     -- idle gear there is the bow, as in her other forms
     freezer_melee30_ref = nil,
+    -- (freezer_edge30: the RELAY's storm split, below -- off in the room harness)
     -- a frozen crab's ice is renewed by a barrage this many ticks after it
     -- landed (Ice Barrage holds 32 ticks, player_magic.rs2 freeze_time; the
     -- cast lands two ticks after it is sent)
@@ -871,6 +872,7 @@ end
 function QD.raid.mz_eat_line(st, v)
     local m = st.m
     local pct = ({ [1] = 60, [2] = 36, [3] = 36 })[st.role] or 36
+    if (st.variant == "storm_split") then pct = 36 end
     local storm = (36.5 + 3.5 * (m.leaks or 0)) / 2
     local big = 0
     for _, h in ipairs(m.hits or {}) do
@@ -894,9 +896,23 @@ function QD.raid.mz_wear(intent, items)
     if #list > 0 then intent.gear = list end
     return #list > 0
 end
+-- THE RELAY'S STORM SPLIT (coordinator 2026-10-07: the relay dies of food;
+-- Maiden itself stays frozen green on the owner's ruling, so this is set
+-- only by the relay, t.raid.play(..., { variant = "storm_split" })).
+-- Her storm goes to the raider nearest her centre SW+3,+3, ties to orb
+-- (stormrule.py 293 / 293); the streams split them dps 54 / 22, freezer 24
+-- (57 of 81 in her 30 form).  dps1 swings from her SOUTH edge -- 4 from the
+-- centre -- in her 100 form, so dps2 on her north takes those, and in her 30
+-- form, where the freezer (orb 0) scythes from her east edge (6,2) and takes
+-- them; every seat eats at 36 percent (24 names: shares 54 / 29 / 17, dps1
+-- 112 hp lost a room and 2.8 heals, from ~90% of her storms and 6 heals).
+QD.RAID_MAIDEN_SPLIT_HOME = { [0] = { 5, -1 }, [3] = { 4, -1 } }
 function QD.raid.mz_home(st, v)
     local b = v.boss
     local h = QD.RAID_MAIDEN_REF.home[QD.raid.mz_form(st)][st.role]
+    if (st.variant == "storm_split") and st.role == 1 and QD.RAID_MAIDEN_SPLIT_HOME[QD.raid.mz_form(st)] then
+        h = QD.RAID_MAIDEN_SPLIT_HOME[QD.raid.mz_form(st)]
+    end
     return b.x + h[1], b.z + h[2]
 end
 -- walk home when more than a tile off it and no walk is under way
@@ -1107,6 +1123,26 @@ function QD.raid.mz_f_on_boss_tick(st, v, intent)
             else
                 return
             end
+        end
+    end
+    -- THE FREEZER ON HER EAST EDGE IN HER 30 FORM (stormtiles.py: the
+    -- streams' freezer stands on (6,0)-(6,4) with the scythe there and takes
+    -- 57 of the phase's 81 storms; her storm goes to the nearest raider to
+    -- her centre SW+3,+3, ties to orb, so with the leader on her south edge
+    -- (4 from it) the freezer at 3 takes them): the scythe on her from (6,2)
+    if QD.raid.mz_form(st) == 3 and (st.variant == "storm_split") then
+        local sr, sn = QD.inv.count("scythe_of_vitur")
+        local fm = st.m
+        if fm.f_scythe or (sr == "ok" and (tonumber(sn) or 0) > 0) then
+            fm.f_scythe = true
+            if QD.raid.mz_wear(intent, { "scythe_of_vitur" }) then return end
+            local hx, hz = b.x + 6, b.z + 2
+            if (v.me.x ~= hx or v.me.z ~= hz) and QD.raid._play_gap(b, v.me.x, v.me.z) > 1 and not v.marks[hx * 100000 + hz] then
+                QD.raid.mz_walk_to(st, v, intent, hx, hz)
+                return
+            end
+            intent.attack = true
+            return
         end
     end
     if QD.raid.mz_wear(intent, st.plan.ranged_set) then return end
@@ -1620,7 +1656,8 @@ function QD.raid._play_maiden_trio(st, v)
     -- pray Rigour on 239 of 315 bow shots and 32 of 55 specials; ours prayed
     -- Piety through them and half the run-in shots missed -- sm104, 6 of 12)
     if st.role == 2 then
-        if m.state == "F_ON_BOSS" then intent.want.rigour = true end
+        if m.state == "F_ON_BOSS" and m.f_scythe and QD.raid.mz_form(st) == 3 then intent.want.piety = true
+        elseif m.state == "F_ON_BOSS" then intent.want.rigour = true end
     elseif m.state == "OPEN" or m.state == "DRAIN" then
         intent.want.rigour = true
     else
