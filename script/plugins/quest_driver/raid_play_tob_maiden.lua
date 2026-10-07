@@ -1199,7 +1199,10 @@ function QD.raid.mz_cast_tick(st, v, intent)
     end
     local t = nil
     if m.idx == 1 then
-        t = QD.raid.mz_lane_crab(st, v, c[2], false, true, skip) or QD.raid.mz_nearest_walker(st, v, skip)
+        -- (S1, else S2 -- the streams' cast 1 is S1 51 / S2 17 of 72 waves,
+        -- never a far lane; sm117 svf's fallback froze S4in eighteen out at
+        -- +0, where it thawed and walked in at +49)
+        t = QD.raid.mz_lane_crab(st, v, "S1|S2", false, true, skip)
     else
         -- sm36: the script's lane again, else the next walker to arrive (the
         -- streams' frozen tiles (10,-7) S1 at +1, (7,0) (8,0) (8,1) the S3
