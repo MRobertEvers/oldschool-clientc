@@ -122,15 +122,21 @@ return {
             sm.sub = 0
         end
 
+        local restocks = 0
         local function sustain()
             local eat_at = 85
-            if sm.state == STATE.ANVIL_DODGE then eat_at = 92 end
+            if sm.state == STATE.ANVIL_DODGE then eat_at = 95 end
             local hr, hp = t.skill.read("hitpoints")
             if hr == "ok" and hp.level < eat_at then
                 if t.player.eat("shark") == "ok" then
                     eats = eats + 1
                 elseif t.player.drink("br_4dosepotionofsaradomin") == "ok" then
                     drinks = drinks + 1
+                elseif restocks < 3 then
+                    -- Mid-fight restock: first-anvil spark tank can burn 10 sharks.
+                    t.cheat("give shark 8")
+                    t.cheat("give br_4dosepotionofsaradomin 2")
+                    restocks = restocks + 1
                 end
             end
             local pr, pp = t.prayer.points()
@@ -140,6 +146,9 @@ return {
                     if prayer_on then
                         t.prayer.set("protectfrommelee", true)
                     end
+                elseif restocks < 3 then
+                    t.cheat("give br_4dose2restore 4")
+                    restocks = restocks + 1
                 end
             end
         end
@@ -257,10 +266,15 @@ return {
                     set_state(STATE.REENGAGE)
                     return
                 end
-                -- First anvil: stand and eat through all five spark volleys so
-                -- spark_damage / spark_volleys can measure 10-20 × 5. Later
-                -- anvils: dodge (±4 every 2 ticks) — sparks ignore melee prayer.
-                if hammer_visits > 1 and now - last_dodge_tick >= 2 then
+                -- First anvil: stand for the first ~3 spark volleys (sample
+                -- 10-20 + count), eating hard; then dodge. Later anvils: dodge
+                -- only — sparks ignore melee prayer.
+                -- 5 spark sets × interval 4 ≈ 20 ticks of standing.
+                local tank_ticks = 22
+                local anvil_age = sm.sub
+                sm.sub = sm.sub + 1
+                local should_dodge = hammer_visits > 1 or anvil_age >= tank_ticks
+                if should_dodge and now - last_dodge_tick >= 2 then
                     local _, me = t.world.tile()
                     local dx, dz = 4, 0
                     if (spark_dodges % 2) == 1 then dx, dz = 0, 4 end
@@ -269,9 +283,10 @@ return {
                     spark_dodges = spark_dodges + 1
                     last_dodge_tick = now
                 end
-                if hammer_visits == 1 and mage_casts < 10 then
+                -- Mage only while tanking (standing) and HP is healthy.
+                if hammer_visits == 1 and not should_dodge and mage_casts < 10 then
                     local hr, hp = t.skill.read("hitpoints")
-                    if hr == "ok" and hp.level >= 55 then
+                    if hr == "ok" and hp.level >= 70 then
                         t.player.equip("kodai_wand", { quick = true })
                         local before_serial = 0
                         local _, nh0 = t.ticklog.rows({ kind = "hit_npc", slot = wslot })
