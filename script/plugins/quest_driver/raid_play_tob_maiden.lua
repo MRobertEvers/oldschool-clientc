@@ -1136,6 +1136,19 @@ function QD.raid.mz_lane_tick(st, v, intent)
     if t == nil and since >= e[2] and e[1] ~= "STACK" then QD.raid.mz_go(st, v, "LANE", m.idx + 1) return end
     if t == nil or since < e[2] then return QD.raid.mz_s_on_boss_tick(st, v, intent) end
     if QD.raid.mz_wear(intent, st.plan.melee_set) then return end
+    -- THE PIPE ON A CRAB (the streams: dps seats BLOWPIPE 1.31 / 0.94 / 0.46
+    -- crabs a seat a wave against SCYTHE 1.17 / 1.69 / 0.79): a crab not
+    -- beside me and inside the pipe's 5 is piped from where I stand, the
+    -- scythe goes back on with ON_BOSS's melee set
+    local dist = math.max(math.abs(t.a.x - v.me.x), math.abs(t.a.z - v.me.z))
+    local pr, pn = QD.inv.count("toxic_blowpipe_loaded")
+    if dist > 2 and dist <= 5 and pr == "ok" and (tonumber(pn) or 0) > 0 then
+        QD.raid.mz_wear(intent, { "toxic_blowpipe_loaded" })
+        intent.press = { symbol = st.plan.crab[st.mode], slot = t.slot, op = 2, why = "pipe " .. e[1] }
+        m.add_presses = (m.add_presses or 0) + 1
+        if e[1] == "STACK" and m.stack_slot ~= t.slot then m.stack_slot, m.stack_t = t.slot, v.tick end
+        return
+    end
     if e[1] == "STACK" then
         local stand = QD.raid.mz_crab_stand(st, v, t.a)
         if stand == nil then m.stack_done[t.slot] = true return QD.raid.mz_s_on_boss_tick(st, v, intent) end

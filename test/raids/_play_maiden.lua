@@ -103,7 +103,11 @@ else
     -- raid seam52), not ::maxmelee's torva body and legs.  They take her
     -- storms in it on Protect from Magic (prayerSet bit 16 on 68 / 60 percent
     -- of their ticks, Piety 26 / 20).
-    local more = { "::tobkit", "::give twisted_bow", "::wield twisted_bow",
+    -- owner_tob_normal sm73: a loaded blowpipe first (it needs three free
+    -- slots; README "A loaded toxic blowpipe is one kit line"): the streams'
+    -- dps seats pipe crabs 1.31 / 0.94 / 0.46 and her 1.23 / 1.67 / 1.10 times
+    -- a seat a wave (70 / 50 / 30), a fish fewer for its slot
+    local more = { "::tobkit", "::blowpipe dragon_dart 2000 2000", "::give twisted_bow", "::wield twisted_bow",
         "::give dragon_arrow 1000", "::wield dragon_arrow",
         -- owner_tob_normal M6: the Tonalztics in the hammer's place (Blert
         -- TONALZTICS dps1|100 16 of 24 rooms, dps2 15; HAMMER 4), charged in
@@ -118,7 +122,7 @@ else
         -- and three fish fewer for its five slots
         "::give masori_mask", "::give masori_body", "::give masori_chaps",
         "::give necklace_of_anguish", "::give zaryte_vambraces",
-        "::give br_4dosepotionofsaradomin 5", "::give br_4dose2restore 4", "::give anglerfish 7",
+        "::give br_4dosepotionofsaradomin 5", "::give br_4dose2restore 4", "::give anglerfish 6",
         "::give 4dose2combat 3",
         -- owner_tob_normal M41: the claws for her last form's special (W:646
         -- "utilise any remaining special attacks"; Blert CLAW dps|30 8 / 6 of 24)
