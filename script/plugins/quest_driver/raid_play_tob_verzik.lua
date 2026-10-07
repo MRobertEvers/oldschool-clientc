@@ -1253,11 +1253,20 @@ end
 --
 -- An overlay over every P3 state (the ring, the ball, the pools, the avoid
 -- loop) for the tank only, on the ticks it needs and no others:
---   CLEAR  her next attack is not due: the tank plays its state.
---   UNDER  due: a click on t moves on t + 1, so the tank clicks under her body
---          at her attack - 2 and is under at attack - 1, where her check reads
---          it.  Nothing pressed (a melee swing cannot be taken from under her).
---   BACK   the tick after her attack: back beside her, in reach, to swing.
+--   CLEAR  her next attack is not due: the tank plays its state AND ATTACKS --
+--          its swings, its sorties, the ring's swing (owner 2026-10-07: "The
+--          tank should be attacking as well.").
+--   UNDER  attack - 2, ONE click: under her body.  A click on t moves on t + 1,
+--          so the tank is under at the end of attack - 1, where her check reads
+--          it.
+--   BACK   attack - 1: the attack is PRESSED, not a step.  It takes effect on
+--          the attack tick itself -- after her check has read the tank under
+--          her -- and the server walks it out to a melee tile and swings as
+--          soon as the weapon is ready.
+-- One tick under her per attack.  The first version held the tank under from
+-- attack - 2 through the attack and stepped back the tick after, four ticks
+-- with no press; in enrage she attacks every five and the tank swung 29 times
+-- in ~600 ticks of _vzslowp3's P3 (dc3f76625).
 -- The old hold stepped the tank OUT to range 2, and only on a tick no other
 -- branch had taken; once the ball, the pools and the avoid loop came ahead of
 -- it in the chain the tank could stand beside her through her attack.
@@ -1286,9 +1295,9 @@ function QD.raid._verzik_tank_run(f)
     local A = f.next_attack
     local ev = "tank_clear"
     if b ~= nil and A ~= nil then
-        if v.tick >= A - TK.lead and v.tick <= A then
+        if v.tick == A - TK.lead then
             ev = "tank_under"
-        elseif v.tick == A + 1 then
+        elseif v.tick == A - TK.lead + 1 then
             ev = "tank_back"
         end
     end
@@ -1325,23 +1334,12 @@ function QD.raid._verzik_tank_run(f)
         intent.spec = nil
         return true
     end
-    -- BACK: the adjacent tile nearest me, then the plan presses from it
-    if db == 0 or db > (f.reach or 1) then
-        local best, bx, bz = nil, nil, nil
-        for x = b.x - 1, b.x + n do
-            for z = b.z - 1, b.z + n do
-                local dd = QD.raid._verzik_dist(x, z, b)
-                if dd == 1 and f.ok(x, z) and not v.shadows[x * 100000 + z] then
-                    local d = math.max(math.abs(x - me.x), math.abs(z - me.z))
-                    if best == nil or d < best then best, bx, bz = d, x, z end
-                end
-            end
-        end
-        if bx ~= nil then intent.walk = { x = bx, z = bz } end
-        intent.attack = false
-        return true
-    end
-    return false
+    -- BACK: press her.  The press lands on the attack tick, after her check
+    -- read me under her; the server paths me to a melee tile and swings.
+    intent.walk = nil
+    intent.attack = true
+    vz.tank_backs = (vz.tank_backs or 0) + 1
+    return true
 end
 
 -- THE TORNADO GUARD, over every state (owner 2026-10-07: "And they are avoiding
