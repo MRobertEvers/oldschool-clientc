@@ -1885,3 +1885,14 @@ out, torirs_server_world.c) is above zero; a respawn clears both. Not handled: G
 Checked, no divergence: the freeze CHANCE (wiki_Nylocas_Matomenos.wikitext:168, scales with magic attack, 100%
 at +140) is the content's accuracy roll -- `~pvm_freeze_effect` runs only on a successful
 `~player_npc_hit_roll(^magic_style)`.
+
+## 2026-10-06 (orchestrator, owner's rule): only the party leader starts a room; the barrier started it once per click
+
+`tob_party.rs2 [oploc1,tob_arena_barrier]` asked every clicker "Yes, begin the fight." and started the room on
+each answer; the question suspends the script, so three seats answering on one tick (the lockstep door,
+raid_play.lua 41f763640) built the Nylocas room three times (twelve supports at room tick 3). Owner, 2026-10-06:
+"Only the party leader can start a room. The non leaders can only pass the gate once the room is started."
+Fixed: a member (orb slot != 0) clicking an unstarted barrier is told to wait and does not move; the leader's
+answer re-reads `^tob_var_started` and a started room is only stepped through; a started room is a gate for
+everyone (unchanged). The library's cross_together must now have the leader answer and the members press the
+barrier only after the room has started.
