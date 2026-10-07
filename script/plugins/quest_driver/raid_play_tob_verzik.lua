@@ -1010,7 +1010,10 @@ function QD.raid._verzik_p2_melee(st, v, intent, ok, go, nearest)
     -- first summon, P2's 35 %, at 63-66 and her last at 50 -- so P2 runs the
     -- bar from 100 to 50)
     local pct = nil
-    if b.health_ratio ~= nil and b.health_scale ~= nil and b.health_scale > 0 then pct = math.max(0, (b.health_ratio * 100 / b.health_scale - 50) * 2) end
+    -- (owner_verzik 2026-10-07: the overhead bar is P2's OWN since content
+    -- 33187928c9 -- npc_setheadbarreserve leaves P3's pool out -- so it is
+    -- read as it stands)
+    if b.health_ratio ~= nil and b.health_scale ~= nil and b.health_scale > 0 then pct = b.health_ratio * 100 / b.health_scale end
     if vz.summon ~= nil and vz.red_policy_for ~= vz.summon and pct ~= nil then
         vz.red_policy_for = vz.summon
         vz.red_last = vz.red_prev_pct ~= nil and (pct <= P.p2_reds_last_pct or pct <= (vz.red_prev_pct - pct) * P.p2_reds_last_frac)
