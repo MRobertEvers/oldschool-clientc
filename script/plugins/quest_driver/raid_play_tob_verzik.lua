@@ -2497,6 +2497,21 @@ function QD.raid.verzik_trio_run(t, cfg)
         return
     end
 
+    QD.raid.verzik_p3_rows(t, cfg, rec, M)
+    t.expect("party.barrier.done", t.party.barrier("done", 9000))
+    t.finish(0)
+end
+
+-- The leader's P3 rows after the fight, read off its tick log: the room
+-- cleared, no deaths (the read-only ::tobjail), and one row per special of her
+-- rotation (QD.raid._verzik_cycle_read).  The trio harness calls it; the relay
+-- (test/raids/_play_normal.lua) can call it after its Verzik play the same way
+-- (build/seam_state/owner_verzik/relay_verzik_snippet.lua).  cfg.cycle: the
+-- rotation rows are checked (the slow pace) or reported (the fast pace, which
+-- checks p3.fast_before_ball instead).  `rec` is t.raid.play's record, `M` the
+-- room-start mark's tick (reported only).
+function QD.raid.verzik_p3_rows(t, cfg, rec, M)
+    local size = t.party.size()
     -- THE LEADER'S TICK LOG
     t.ticks(1)
     local death_tick = rec.death_tick
@@ -2524,8 +2539,6 @@ function QD.raid.verzik_trio_run(t, cfg)
     t.check("verzik.deathless", deathless, "party: " .. jail_line)
     t.check("verzik.p3_cleared", p3s ~= nil and p3_dead ~= nil, "P3 from t" .. tostring(p3s) .. ", her P3 form died t" .. tostring(p3_dead) .. " (" .. tostring(p3s and p3_dead and (p3_dead - p3s)) .. " ticks)")
     if p3s == nil then
-        t.expect("party.barrier.done", t.party.barrier("done", 9000))
-        t.finish(0)
         return
     end
     local C = QD.raid._verzik_cycle_read(t, p3s, p3_dead)
@@ -2592,6 +2605,4 @@ function QD.raid.verzik_trio_run(t, cfg)
         t.check("p3.fast_before_ball", #C.ball == 0, #C.ball == 0 and ("no ball before her death " .. rel(p3_dead or p3s)) or ("ball thrown " .. table.concat(bl_txt, "; ")))
     end
     t.check("play.measure", true, string.format("P3 t%s..t%s (%s ticks), mark %s, death %s", tostring(p3s), tostring(p3_dead), tostring(p3_dead and (p3_dead - p3s)), tostring(M), tostring(death_tick)))
-    t.expect("party.barrier.done", t.party.barrier("done", 9000))
-    t.finish(0)
 end
