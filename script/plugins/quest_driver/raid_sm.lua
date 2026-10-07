@@ -49,6 +49,16 @@
 --     forward names its target and the state it came from names the way back;
 --     there is no fallthrough, no priority table, and no implicit return to a
 --     start state.
+--   * A STATE MAY DECLARE A PREMISE: `premise = function(ctx, ev) -> boolean`
+--     with `broken = "<state>"`.  The premise is re-tested before the state is
+--     offered ANY event, and when it fails the machine leaves for `broken`
+--     at once (exit and enter hooks run, the trace records it as
+--     `premise_broken`) and that event is then offered to the new state.  It
+--     exists for the class of bug where a state's whole reason to exist has
+--     been invalidated by something it does not listen for -- "I am holding
+--     X" when X has been destroyed.  `broken` is the one transition target
+--     this layer can check at DECLARE time, because the state names it
+--     instead of a handler returning it.
 --   * ONE DECLARATION, MANY INSTANCES.  sm_run/sm_force/sm_at/sm_summary take
 --     an optional trailing `inst` (a string or a number): the same declared
 --     states running once per crab position, per pillar, per add.  Omitted,
@@ -93,7 +103,8 @@
 QD.raid.sm_decls = QD.raid.sm_decls or {}
 
 -- the keys a state declaration may hold; anything else is a typo
-local SM_STATE_KEYS = { enter = true, exit = true, on = true, note = true }
+local SM_STATE_KEYS = { enter = true, exit = true, on = true, note = true,
+    premise = true, broken = true }
 
 -- DECLARE: the machine, by name, with its states.  Checked here, at
 -- declaration time, so a malformed machine fails when the part loads and not
@@ -119,6 +130,18 @@ function QD.raid.sm_declare(id, decl)
         if s.exit ~= nil then
             assert(type(s.exit) == "function", "sm_declare " .. id .. ": state " .. name .. " exit must be a function")
         end
+        if s.premise ~= nil then
+            assert(type(s.premise) == "function",
+                "sm_declare " .. id .. ": state " .. name .. " premise must be a function")
+            assert(type(s.broken) == "string",
+                "sm_declare " .. id .. ": state " .. name .. " has a premise but no `broken` state to leave for")
+        end
+        if s.broken ~= nil then
+            assert(type(s.broken) == "string",
+                "sm_declare " .. id .. ": state " .. name .. " broken must be a state name")
+            assert(s.premise ~= nil,
+                "sm_declare " .. id .. ": state " .. name .. " has `broken` but no premise to break")
+        end
         if s.on ~= nil then
             assert(type(s.on) == "table", "sm_declare " .. id .. ": state " .. name .. " on must be a table")
             for ev, h in pairs(s.on) do
@@ -128,6 +151,12 @@ function QD.raid.sm_declare(id, decl)
             end
         end
         n = n + 1
+    end
+    for name, s in pairs(decl.states) do
+        if s.broken ~= nil then
+            assert(decl.states[s.broken] ~= nil, "sm_declare " .. id .. ": state " .. name ..
+                " breaks to undeclared state '" .. s.broken .. "'")
+        end
     end
     decl.id, decl.state_count = id, n
     decl.trace_max = decl.trace_max or 64
@@ -253,6 +282,16 @@ function QD.raid.sm_run(st, v, id, ctx, events, inst)
     local intents = nil
     for _, ev in ipairs(events) do
         local s = decl.states[m.state]
+        -- THE PREMISE, re-tested on every event before the state acts on it.
+        -- A state whose premise is "I am holding X" has to see the event that
+        -- takes X away, and before this there was no way for it to ask: the
+        -- Dawnbringer's `held` listened on the orb only, her shield breaking
+        -- destroyed the sword in its hand, and it went on arming a special
+        -- with an empty hand for 700 ticks (owner_verzik, 2026-10-07).
+        if s.premise ~= nil and not s.premise(ctx, ev) then
+            sm_go(st, v, m, decl, s.broken, ctx, { name = "premise_broken", was = ev.name })
+            s = decl.states[m.state]
+        end
         local h = s.on ~= nil and s.on[ev.name] or nil
         if h ~= nil then
             local intent, go = h(ctx, ev)
