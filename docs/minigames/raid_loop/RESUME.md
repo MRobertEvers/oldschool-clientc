@@ -453,8 +453,12 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   OPEN PLAYER GAP found 2026-10-07 03:00 (owner: "Are all players running?"): a seat whose run energy hits 0
   has run turned OFF by the server (torirs_server_world.c run_energy_tick sets varp173_option_run 0) and
   nothing turns it back on; the room harnesses carry no stamina (the relay gives one dose). Many one-tile
-  moves in both rooms' logs. The Maiden owner measures energy/run-off per seat in Maiden and Nylocas, copies
-  the reference's staminas and re-toggles run. Owner's rule: ALL THREE seats attack the crabs at every
+  moves in both rooms' logs. CONFIRMED (Nylocas owner, 03:25): every seat STARTS the room with run OFF
+  (varp173 0 on the play's first tick; no harness presses the run orb; running came only from the library's
+  movement clicks as a side effect) and the meleer runs dry at +169..+310 with no Agility and no stamina.
+  With run on from the start + Agility 99 + a stamina dose the Nylocas room drops to 3-4 of 5 (the mage meets
+  the copies sooner, hp lost > 120): the room is being re-made green WITH every seat running, as the reference
+  runs; Maiden gets the same (run orb at the start, staminas, re-press when varp173 reads 0). Owner's rule: ALL THREE seats attack the crabs at every
   wave's spawn (verify per role per wave from the streams, copy). STORM TARGET RULE unsettled (owner 03:15):
   Strategies:589 "closest -> north/east side -> orb order" vs content tob_maiden.rs2:619 "closest by
   Chebyshev to her centre, tie -> orb order" ([mc], north/east dropped): the Maiden owner tests both rules
