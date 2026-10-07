@@ -26,8 +26,26 @@ Not ground-then-portal face-tank.
 | Seed-1 `::coxgoto` room centre | walk stalls on every neighbour (combat_a plane 2; guardians same, crabs/puzzle_a OK) |
 | Attack from centre | `I can't reach that!` (barrier LoS) |
 | `::coxvespula` → hit tile 6479,109 (thru) | portal Attack lands; redemption SM clears |
-| `run.py cox_vespula --no-publish` + `gate.py` | **green** |
-| `raid_coverage.py cox_vespula` | **FULL** (12/12) |
+| Re-prove 2026-10-07 (this VM) | see below |
+
+### Re-prove (flocked `--no-build`, private `torirs_cox_vespula`)
+
+```
+flock -x /tmp/cox_raid_gate.lock env QUEST_BINARY=/workspace/src/torirs_cox_vespula \
+  python3 tools/raid_gate/run.py cox_vespula --no-build --no-publish
+→ RUN_EXIT=0  SUMMARY 29 PASS / 0 FAIL  ledger yes
+python3 tools/raid_gate/gate.py cox_vespula
+→ cox_vespula green   GATE_EXIT=0
+python3 tools/raid_gate/raid_coverage.py cox_vespula
+→ cox_vespula: FULL (12 in-scope spec rows measured within tolerance)  COVERAGE_EXIT=0
+```
+
+Lit walkthrough PNGs (viewport mean ~70, non-black):
+
+- `/opt/cursor/artifacts/cox_vespula_idle.png`
+- `/opt/cursor/artifacts/cox_vespula_first_hit.png`
+- `/opt/cursor/artifacts/cox_vespula_mid.png`
+- `/opt/cursor/artifacts/cox_vespula_clear.png`
 
 ## Note (layout, not owned)
 
