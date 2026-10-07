@@ -28,7 +28,14 @@
 --        on the west edge of 3165,3433; the staircase
 --        fai_varrock_stairs_taller (3156-3158,3435-3436, level 0) climbed
 --        up with its own Climb-up op (the guide's goUpToJuliet/
---        goUpToJuliet2) and fai_varrock_stairs_top (3156,3435, level 1)
+--        goUpToJuliet2) from 3159,3435 to the stair top's WEST foot
+--        3155,3435,1 in the stair room (maplink.dbrow
+--        maplink_0_49_53_23_43_up, transports.tsv:921; the 2004 game agrees:
+--        LostCity_Content2 scripts/ladders+stairs/scripts/stairs.rs2
+--        [oploc1,loc_1722] "Julia house" telejumps 0_49_53_20_43 ->
+--        1_49_53_19_43, and fai_varrock_stairs_top's forceapproach faces
+--        west -- the tiles east of the top, 3158,3435-3436,1, are a sealed
+--        two-tile pocket), and fai_varrock_stairs_top (3156,3435, level 1)
 --        climbed down from 3155,3435 (maplink.dbrow
 --        maplink_1_49_53_19_43_down -> 3159,3435,0; the guide's
 --        goDownstairsTo* steps); upstairs the hall door 3157,3430 and the
@@ -167,16 +174,19 @@ return {
                 "after the " .. sym .. " climb: " .. tostring(lr) .. " " .. tostring(ld) .. "; tile " .. tile_text(tr, tt) .. " (want " .. want_desc .. ")")
         end
 
-        -- Juliet's house, street door to balcony (note 2). Lands on the
-        -- balcony beside Juliet, level 1.
+        -- Juliet's house, street door, stairs, hall door, balcony door
+        -- (note 2). Lands on the balcony beside Juliet, level 1.
         local function up_to_juliet(pfx, guide_up)
             pass_door(pfx .. ".houseDoorIn", "fai_varrock_castle_door", "fai_varrock_castle_door_open", 3165, 3433, 3165, 3433, 3163, 3433,
                 function(tt) return tt.level == 0 and tt.x >= 3156 and tt.x <= 3164 and tt.z >= 3432 and tt.z <= 3436 end,
                 "the stair hall inside, x 3156-3164 z 3432-3436, level 0")
             t.player.walk_to(3159, 3435, 20)
             climb(guide_up, "fai_varrock_stairs_taller", 1,
-                function(tt) return tt.x >= 3159 and tt.x <= 3164 and tt.z >= 3431 and tt.z <= 3439 end,
-                "level 1, the east room x 3159-3164 z 3431-3439 that opens south onto the landing")
+                function(tt) return tt.x == 3155 and (tt.z == 3435 or tt.z == 3436) end,
+                "level 1, 3155,3435|3436 -- maplink_0_49_53_23_43/44_up's dest, the stair room x 3151-3158 z 3431-3439")
+            pass_door(pfx .. ".hallDoorIn", "fai_varrock_castle_door", "fai_varrock_castle_door_open", 3157, 3430, 3157, 3431, 3158, 3428,
+                function(tt) return tt.level == 1 and tt.z >= 3427 and tt.z <= 3430 end,
+                "the landing north of the balcony, z 3427-3430, level 1")
             pass_door(pfx .. ".balconyDoorIn", "fai_varrock_castle_door", "fai_varrock_castle_door_open", 3158, 3426, 3158, 3427, 3159, 3426,
                 function(tt) return tt.level == 1 and tt.x >= 3155 and tt.x <= 3161 and tt.z >= 3425 and tt.z <= 3426 end,
                 "the balcony, x 3155-3161 z 3425-3426, level 1")

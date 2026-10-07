@@ -1,5 +1,42 @@
 -- The Fremennik Trials ("viking"), written as a relay of legs (docs/quest_authoring/relay.md).
 -- Guide: Quest Helper TheFremennikTrials.java; read it through tools/quest_gate/ladder.py viking.
+
+-- The Rellekka doors the trials walk through (reach.Area over m41_57, doors shut): every visit
+-- presses its door on the way in AND out (door rule).
+--   Ysra's clothes shop: 20 tiles behind the fur curtain viking_fur_door 2627,3675 (outside 2627,3675,
+--     inside 2626,3675); viking_door.rs2 loc_changes it to viking_fur_door_open in place.
+--   Swensen's hut: 40 tiles behind viking_abode_door 2645,3663 (doors.loc pair viking_abode_door_open;
+--     outside 2645,3663, inside 2645,3662).
+local DOORS = {
+    ysra = { closed = "viking_fur_door", open = "viking_fur_door_open", at = { 2627, 3675, 0 },
+        outside = { 2627, 3675 }, inside = { 2626, 3675 } },
+    swensen = { closed = "viking_abode_door", open = "viking_abode_door_open", at = { 2645, 3663, 0 },
+        outside = { 2645, 3663 }, inside = { 2645, 3662 } },
+}
+local function door_in(t, name, d)
+    t.exec(name, t.player.pass_door, { closed = d.closed, open = d.open, at = d.at, near = d.outside, far = d.inside })
+end
+local function door_out(t, name, d)
+    t.exec(name, t.player.pass_door, { closed = d.closed, open = d.open, at = d.at, near = d.inside, far = d.outside })
+end
+-- Margin row for one fight (docs/quest_authoring/gaps-combat.md "Put the margin in the margin row"):
+-- the lowest hp any await_dead_engaged detail read, against a quarter of max, and lobsters left.
+local function fight_margin(t, name, details, food_before, what)
+    local lowest = nil
+    for _, d in ipairs(details) do
+        for text in tostring(d):gmatch("lowest hp (%d+)/") do
+            local v = tonumber(text)
+            if lowest == nil or v < lowest then lowest = v end
+        end
+    end
+    local _, hitpoints = t.skill.read("hitpoints")
+    local max_hp = type(hitpoints) == "table" and hitpoints.base_level or nil
+    local food_result, food_left = t.inv.count("lobster")
+    t.check(name, lowest ~= nil and max_hp ~= nil and food_result == "ok" and lowest * 4 >= max_hp and (food_left or 0) >= 1,
+        what .. ": lowest hp " .. tostring(lowest) .. "/" .. tostring(max_hp) .. ", lobsters " .. tostring(food_before)
+        .. " -> " .. tostring(food_left) .. " (margin: lowest hp >= a quarter of max AND at least one lobster left)")
+end
+
 return {
     id = "viking",
     fixture = "fresh_lumbridge.ini",
@@ -18,7 +55,7 @@ return {
         "::setlevel strength 80",    -- guide: huntDraugen; killKoschei bare-handed
         "::setlevel hitpoints 80",   -- guide: huntDraugen
         "::give rune_scimitar 1",    -- guide: huntDraugen, the weapon the fight is made with
-        "::give lobster 5",          -- guide: huntDraugen, the food eaten during the fight
+        "::give lobster 16",         -- guide: huntDraugen and goDownLadderToKoschei ("Nothing except for food"), the food for the Draugen and Koschei's forms 1-3 (b69 run 2: form 3 ate 5 and fell to 24/80, and to 1/80 on a second account); 16 keeps the backpack under 28 at its fullest (leg 3)
         "::setlevel defence 60",     -- guide: killKoschei bare-handed; the fourth form drains prayer
         "::give coins 5000",         -- guide: talkToAskeladdenForSigmund items Coins, Askeladden sells the promissory note for 5000 (viking_askelapen.rs2:109)
     },
@@ -69,10 +106,12 @@ return {
                 thorvald_started = 1,
                 viking_cabbage_stew = 27,
                 viking_complete = 10,
+                viking_draugen_draw_range = 24,
                 viking_draugen_lifetime = 1000,
                 viking_draugen_move_delay = 80,
                 viking_draugen_reveal_range = 3,
-                viking_draugen_spot_count = 12,
+                viking_draugen_spot_count = 4,
+                viking_draugen_spot_radius = 20,
                 viking_firecracker_placed = 0,
                 viking_keg_lowalc = 2,
                 viking_koschei_phase_timeout = 1000,
@@ -119,6 +158,15 @@ return {
             t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
 
             -- talkToBrundt (viking_brundt.rs2:21 opnpc1 -> brundt_quests -> brundt_very_interested)
+            -- First placement (door rule): from the Lumbridge fixture every walk to Rellekka opens the members'
+            -- gate membergater 2933,3320 (goto_table: NEEDS-DOOR len=1226). So: overland to its south side
+            -- (reach.py 3206,3233 -> 2933,3318: REACH closed-doors len=388), the gate pressed by its verb, then
+            -- overland from its north side to the longhall, whose south front is an open doorway
+            -- (reach.py 2933,3322 -> 2658,3669: REACH closed-doors len=834).
+            t.exec("goto-memberGate", t.player.goto_tile, 2933, 3318, 0)
+            t.exec("talkToBrundt.memberGate", t.player.cross_gate, { loc = "membergater", at = { 2933, 3320, 0 },
+                near = { 2933, 3318 }, far_ok = function(tile) return tile.z >= 3320 and math.abs(tile.x - 2933) <= 2 end,
+                far_desc = "north of the members' gate, z >= 3320", far = { 2933, 3322 } })
             t.exec("goto-talkToBrundt", t.player.goto_tile, 2658, 3669, 0)
             t.exec("talkToBrundt", t.player.talk_to, "viking_brundt_child", 1)
             t.exec("talkToBrundt-dialog", t.chat.play, {
@@ -178,7 +226,15 @@ return {
             t.check("talkToAskeladdenForRock.rock", rocks == 1, "pet rock in backpack: " .. tostring(rocks))
 
             -- the vegetables grow south east of Rellekka's longhall (m41_57.jl2: potato 2674,3653; cabbage 2674,3651; onion 2674,3655)
-            t.exec("goto-vegetables", t.player.goto_tile, 2672, 3653, 0)
+            -- in a yard the map walls in (73 tiles, x 2671-2681 z 3650-3656) whose only way in is the fur trader's
+            -- hut west of it: its curtain viking_fur_door 2664,3652, then the yard curtain viking_fur_door 2671,3652.
+            local HUT_WEST = { closed = "viking_fur_door", open = "viking_fur_door_open", at = { 2664, 3652, 0 } }
+            local HUT_EAST = { closed = "viking_fur_door", open = "viking_fur_door_open", at = { 2671, 3652, 0 } }
+            t.exec("goto-vegetables", t.player.goto_tile, 2664, 3652, 0)
+            t.exec("vegetables.hutDoorIn", t.player.pass_door, { closed = HUT_WEST.closed, open = HUT_WEST.open,
+                at = HUT_WEST.at, near = { 2664, 3652 }, far = { 2665, 3652 } })
+            t.exec("vegetables.yardDoorIn", t.player.pass_door, { closed = HUT_EAST.closed, open = HUT_EAST.open,
+                at = HUT_EAST.at, near = { 2670, 3652 }, far = { 2672, 3652 } })
             t.exec("pick-potato", t.player.click_loc, "potato", 2)
             t.exec("pick-potato.got", t.inv.await, "potato", 1, 10)
             t.exec("pick-cabbage", t.player.click_loc, "cabbage", 2)
@@ -186,6 +242,11 @@ return {
             t.exec("pick-onion", t.player.click_loc, "onion", 2)
             t.exec("pick-onion.got", t.inv.await, "onion", 1, 10)
 
+            -- out of the yard the way in: both curtains again, then overland to Lalli
+            t.exec("vegetables.yardDoorOut", t.player.pass_door, { closed = HUT_EAST.closed, open = HUT_EAST.open,
+                at = HUT_EAST.at, near = { 2671, 3652 }, far = { 2670, 3652 } })
+            t.exec("vegetables.hutDoorOut", t.player.pass_door, { closed = HUT_WEST.closed, open = HUT_WEST.open,
+                at = HUT_WEST.at, near = { 2665, 3652 }, far = { 2664, 3652 } })
             -- back to Lalli: the cunning plan (viking_troll.rs2:56), then the stew (viking_troll.rs2:105 oplocu)
             t.exec("goto-useRock", t.player.goto_tile, 2771, 3621, 0)
             t.exec("talkToLalli-plan", t.player.talk_to, "viking_lalli_troll", 1)
@@ -212,7 +273,8 @@ return {
             t.check("talkToLaliAfterStew.fleece", fleece == 1, "golden fleece in backpack: " .. tostring(fleece))
 
             -- chopSwayingTree (viking_olaf.rs2:186 oploc1)
-            t.exec("goto-chopSwayingTree", t.player.goto_tile, 2740, 3638, 0)
+            -- the tree stands on 2738-2740,3638-3640: the open tile south of it
+            t.exec("goto-chopSwayingTree", t.player.goto_tile, 2739, 3637, 0)
             t.exec("chopSwayingTree", t.player.click_loc, "viking_musical_tree", 1)
             t.exec("chopSwayingTree.got", t.inv.await, "viking_musical_tree_branch", 1, 15)
 
@@ -246,7 +308,8 @@ return {
             t.exec("makeLyre.got", t.inv.await, "viking_strung_lyre", 1, 10)
 
             -- enchantLyre (viking_olaf.rs2:225 oplocu)
-            t.exec("goto-enchantLyre", t.player.goto_tile, 2627, 3600, 0)
+            -- the altar (2626,3598) is reached from the pier north of it; 2627,3600 is the boat hull
+            t.exec("goto-enchantLyre", t.player.goto_tile, 2626, 3600, 0)
             local altar = t.player.by_symbol("loc", "viking_lake_shrine_altar")
             t.exec("enchantLyre", t.player.use_on, "raw_shark", altar)
             t.exec("enchantLyre.got", t.inv.await, "viking_enchanted_strung_lyre", 1, 10)
@@ -267,8 +330,14 @@ return {
             local _, vstage = t.quest.stage()
             t.check("performMusic.stage", vstage == 2, "varp347_viking=" .. tostring(vstage))
 
-            -- talkToManni
-            t.exec("goto-talkToManni", t.player.goto_tile, 2658, 3672, 0)
+            -- off the stage: it is walled off from the hall (42 tiles), the backstage door is its only way out;
+            -- from inside the door passes the player at once (viking_olaf.rs2:528, $entering false)
+            t.exec("performMusic.stageDoorOut", t.player.pass_door, { closed = "viking_bard_backstage_door",
+                at = { 2667, 3683, 0 }, near = { 2666, 3683 }, far = { 2668, 3683 },
+                far_ok = function(tile) return tile.x >= 2667 and tile.level == 0 end, far_desc = "east of the backstage door, x >= 2667" })
+
+            -- talkToManni (the hall floor beside the fire; 2658,3672 is the fire itself)
+            t.exec("goto-talkToManni", t.player.goto_tile, 2660, 3671, 0)
             t.exec("talkToManni", t.player.talk_to, "viking_reveller_3")
             t.exec("talkToManni.options", t.chat.drain, { stop_at = "options" })
             t.exec("talkToManni.yes", t.chat.choose, "Yes")
@@ -322,7 +391,8 @@ return {
             t.check("useStrangeObjectOnPipe.gone", lit == 0, "lit firecrackers left=" .. tostring(lit))
 
             -- getKegOfBeer (viking_reveller.rs2 opobj3 viking_beerkeg at 2660,3676)
-            t.exec("goto-getKegOfBeer", t.player.goto_tile, 2661, 3675, 0)
+            -- 2661,3675 is the keg loc itself: the open tile west of it
+            t.exec("goto-getKegOfBeer", t.player.goto_tile, 2660, 3675, 0)
             t.exec("getKegOfBeer", t.player.click_obj, "viking_beerkeg", 3)
             t.exec("getKegOfBeer.got", t.inv.await, "viking_beerkeg", 1, 8)
 
@@ -333,7 +403,7 @@ return {
             t.check("useAlcoholFreeOnKeg.swapped", spiked == 0, "low alcohol kegs left=" .. tostring(spiked) .. " (the swap consumes it)")
 
             -- cheatInBeerDrinking (viking_reveller.rs2:37 opnpc1, drinkcontest)
-            t.exec("goto-cheatInBeerDrinking", t.player.goto_tile, 2658, 3672, 0)
+            t.exec("goto-cheatInBeerDrinking", t.player.goto_tile, 2660, 3671, 0)
             t.exec("cheatInBeerDrinking", t.player.talk_to, "viking_reveller_3")
             t.exec("cheatInBeerDrinking.options", t.chat.drain, { stop_at = "options" })
             t.exec("cheatInBeerDrinking.yes", t.chat.choose, "Yes")
@@ -360,17 +430,49 @@ return {
 
             -- huntDraugen: the talisman's spot is a hidden varp; the hunt walks to it (viking_sigli.rs2 talisman op1)
             t.exec("huntDraugen.wield", t.player.equip, "rune_scimitar")
-            local spots = {{2653,3592},{2626,3598},{2665,3590},{2720,3610},{2740,3630},{2700,3660},{2685,3625},{2615,3635},{2635,3665},{2715,3575},{2670,3570},{2760,3600}}
-            local _, spot = t.var.server("varp6757_viking_draugen_spot")
-            t.check("huntDraugen.spot", spot ~= nil and spot >= 1 and spot <= 12, "draugen spot=" .. tostring(spot))
-            local sp = spots[spot]
-            t.exec("goto-huntDraugen", t.player.goto_tile, sp[1], sp[2], 0)
-            t.exec("huntDraugen", t.player.inv_op, "viking_draugen_talisman_uncharged", 1)
-            t.ticks(2)
-            local rn = t.npc.nearest("viking_draugen", 10)
-            t.check("huntDraugen.appeared", rn == "ok", "draugen nearest=" .. tostring(rn))
+            -- The Draugen hides within 20 tiles of one of four forest anchors (LostCity
+            -- [proc,spawn_draugen_butterfly]; viking_sigli.rs2 ~viking_draugen_target): the varp holds the
+            -- anchor (1..4) until the hunter is within 24 of it, then the drawn spot's coord -- an open tile
+            -- with a straight walk back to the anchor. The talisman reveals within 3 of the spot
+            -- (^viking_draugen_reveal_range) and adds the Draugen beside the hunter. So: walk to the anchor,
+            -- track (draws the spot), walk to the spot, track again. A move during the walk is a retry.
+            local anchors = {{2688,3572},{2720,3616},{2656,3616},{2720,3680}}
+            local rn = "not_tried"
+            local tries = {}
+            local function spot_now()
+                local _, v = t.var.server("varp6757_viking_draugen_spot")
+                return math.tointeger(tonumber(v) or 0) or 0
+            end
+            for attempt = 1, 4 do
+                local suffix = attempt == 1 and "" or (".retry" .. attempt)
+                local spot = spot_now()
+                local an = anchors[spot]
+                if an then
+                    t.exec("goto-huntDraugen.anchor" .. suffix, t.player.goto_tile, an[1], an[2], 0)
+                    t.exec("huntDraugen.track" .. suffix, t.player.inv_op, "viking_draugen_talisman_uncharged", 1)
+                    t.ticks(2)
+                    rn = t.npc.nearest("viking_draugen", 10)
+                    tries[#tries + 1] = "anchor " .. spot .. " -> " .. tostring(rn)
+                    if rn == "ok" then break end
+                    spot = spot_now()
+                end
+                local x, z = (spot >> 14) & 0x3fff, spot & 0x3fff
+                t.check("huntDraugen.spot" .. suffix, spot > #anchors, "draugen spot=" .. tostring(spot)
+                    .. (spot > #anchors and (" = " .. x .. "," .. z) or ""))
+                if spot > #anchors then
+                    t.exec("goto-huntDraugen" .. suffix, t.player.goto_tile, x, z, 0)
+                    t.exec("huntDraugen" .. suffix, t.player.inv_op, "viking_draugen_talisman_uncharged", 1)
+                    t.ticks(2)
+                    rn = t.npc.nearest("viking_draugen", 10)
+                    tries[#tries + 1] = "spot " .. x .. "," .. z .. " -> " .. tostring(rn)
+                    if rn == "ok" then break end
+                end
+            end
+            t.check("huntDraugen.appeared", rn == "ok", "draugen nearest=" .. tostring(rn) .. " (" .. table.concat(tries, "; ") .. ")")
             t.exec("huntDraugen.attack", t.player.attack, "viking_draugen", 2, 40)
-            t.exec("huntDraugen.dead", t.npc.await_dead_engaged, 300, 3, { eat = { item = "lobster", below = 30 } })
+            local _, draugen_food = t.inv.count("lobster")
+            local _, draugen_detail = t.exec("huntDraugen.dead", t.npc.await_dead_engaged, 300, 3, { eat = { item = "lobster", below = 30 } })
+            fight_margin(t, "huntDraugen.margin", { draugen_detail }, draugen_food, "the Draugen (viking_draugen)")
             t.ticks(3)
             local _, charged = t.inv.count("viking_draugen_talisman")
             t.check("huntDraugen.charged", charged == 1, "charged talismans=" .. tostring(charged))
@@ -418,8 +520,14 @@ return {
         { name = "sigmund_merchants", run = function(t)
             -- each merchant-task npc offers "Ask about the Merchant's trial" first once sigmund progress > 0;
             -- "Yes" rows are the follow-up confirmations some pages ask (build/parity_state/parity3g/viking_drv/sigmund.lua)
-            local function ask(step, sym, x, z, want)
-                t.exec("goto-" .. step, t.player.goto_tile, x, z, 0)
+            local function ask(step, sym, x, z, want, door)
+                if door then
+                    -- a walled-in room: overland to its door, the door pressed in; out again after the talk
+                    t.exec("goto-" .. step, t.player.goto_tile, door.outside[1], door.outside[2], 0)
+                    door_in(t, step .. ".doorIn", door)
+                else
+                    t.exec("goto-" .. step, t.player.goto_tile, x, z, 0)
+                end
                 t.exec(step, t.player.talk_to, sym)
                 local _, kind = t.chat.drain({ stop_at = "options" })
                 if kind == "options" then
@@ -437,13 +545,16 @@ return {
                 local _, bits = t.var.server("varp6199_viking_bits")
                 local progress = ((bits or 0) >> 23) & 15
                 t.check(step .. ".progress", progress == want, "sigmund progress=" .. tostring(progress) .. " want=" .. tostring(want))
+                if door then
+                    door_out(t, step .. ".doorOut", door)
+                end
             end
-            ask("talkToYsra", "viking_clothing_shopkeeper", 2625, 3673, 4)
+            ask("talkToYsra", "viking_clothing_shopkeeper", 2625, 3673, 4, DOORS.ysra)
             ask("talkToBrundtForSigmund", "viking_brundt_child", 2659, 3667, 5)
             ask("talkToSigliForSigmund", "viking_sigli", 2660, 3651, 6)
             ask("talkToSkulgrimenForSigmund", "viking_weapons_salesman", 2663, 3692, 7)
             ask("talkToFishermanForSigmund", "viking_fisherman1", 2641, 3697, 8)
-            ask("talkToSwenesenForSigmund", "viking_hallifred", 2646, 3658, 9)
+            ask("talkToSwenesenForSigmund", "viking_hallifred", 2646, 3658, 9, DOORS.swensen)
             ask("talkToPeerForSigmund", "viking_peer", 2634, 3671, 10)
             ask("talkToThorvaldForSigmund", "viking_thorvald", 2666, 3691, 11)
             ask("talkToManniForSigmund", "viking_reveller_3", 2660, 3671, 12)
@@ -464,8 +575,14 @@ return {
                 local _, bits = t.var.server("varp6199_viking_bits")
                 return ((bits or 0) >> 23) & 15
             end
-            local function ask(step, sym, x, z)
-                t.exec("goto-" .. step, t.player.goto_tile, x, z, 0)
+            local function ask(step, sym, x, z, door)
+                if door then
+                    -- a walled-in room: overland to its door, the door pressed in; out again after the talk
+                    t.exec("goto-" .. step, t.player.goto_tile, door.outside[1], door.outside[2], 0)
+                    door_in(t, step .. ".doorIn", door)
+                else
+                    t.exec("goto-" .. step, t.player.goto_tile, x, z, 0)
+                end
                 t.exec(step, t.player.talk_to, sym)
                 local _, kind = t.chat.drain({ stop_at = "options" })
                 if kind == "options" then
@@ -480,6 +597,9 @@ return {
                     end
                 end
                 t.ticks(3)
+                if door then
+                    door_out(t, step .. ".doorOut", door)
+                end
             end
             local function gained(step, item, why)
                 local _, n = t.inv.count(item)
@@ -501,7 +621,7 @@ return {
             gained("bringChampionsTokenToThorvald", "viking_promissary_note3", "Thorvald's note")
             ask("bringWarriorsContractToPeer", "viking_peer", 2634, 3671)
             gained("bringWarriorsContractToPeer", "viking_weather_forecast", "Peer's forecast")
-            ask("bringWeatherForecastToSwensen", "viking_hallifred", 2646, 3658)
+            ask("bringWeatherForecastToSwensen", "viking_hallifred", 2646, 3658, DOORS.swensen)
             gained("bringWeatherForecastToSwensen", "viking_another_map", "Swensen's map")
             ask("bringSeaFishingMapToFisherman", "viking_fisherman1", 2641, 3697)
             gained("bringSeaFishingMapToFisherman", "viking_unique_fish", "Fisherman's fish")
@@ -523,8 +643,14 @@ return {
                 local _, bits = t.var.server("varp6199_viking_bits")
                 return ((bits or 0) >> 23) & 15
             end
-            local function ask(step, sym, x, z)
-                t.exec("goto-" .. step, t.player.goto_tile, x, z, 0)
+            local function ask(step, sym, x, z, door)
+                if door then
+                    -- a walled-in room: overland to its door, the door pressed in; out again after the talk
+                    t.exec("goto-" .. step, t.player.goto_tile, door.outside[1], door.outside[2], 0)
+                    door_in(t, step .. ".doorIn", door)
+                else
+                    t.exec("goto-" .. step, t.player.goto_tile, x, z, 0)
+                end
                 t.exec(step, t.player.talk_to, sym)
                 local _, kind = t.chat.drain({ stop_at = "options" })
                 if kind == "options" then
@@ -539,6 +665,9 @@ return {
                     end
                 end
                 t.ticks(3)
+                if door then
+                    door_out(t, step .. ".doorOut", door)
+                end
             end
             local function gained(step, item, why)
                 local _, n = t.inv.count(item)
@@ -547,7 +676,7 @@ return {
             -- the last of the return chain: each npc takes the previous item and hands over the next
             ask("bringTrackingMapToBrundt", "viking_brundt", 2659, 3667)
             gained("bringTrackingMapToBrundt", "viking_promissary_note", "Brundt's note")
-            ask("bringFiscalStatementToYsra", "viking_clothing_shopkeeper", 2625, 3673)
+            ask("bringFiscalStatementToYsra", "viking_clothing_shopkeeper", 2625, 3673, DOORS.ysra)
             gained("bringFiscalStatementToYsra", "viking_new_boots", "Ysra's boots")
             ask("bringSturdyBootsToOlaf", "viking_olaf", 2673, 3681)
             gained("bringSturdyBootsToOlaf", "viking_song", "Olaf's ballad")
@@ -577,6 +706,15 @@ return {
             -- Koschei: no weapon, armour, ring or amulet may go down (viking_thorvald.rs2:161, :405), and
             -- Peer's spell banks EVERYTHING carried (viking_peer.rs2:177). The guide's own instruction.
             t.exec("goto-bankEquipmentWithPeer", t.player.goto_tile, 2634, 3671, 0)
+            -- The guide's kit for the trial is "Nothing except for food": the spell would bank the lobsters too,
+            -- so they are set down on the open street first and picked up again after it.
+            local _, food_carried = t.inv.count("lobster")
+            for i = 1, food_carried or 0 do
+                t.exec("bankEquipmentWithPeer.dropFood" .. i, t.player.drop, "lobster")
+                t.ticks(1)
+            end
+            local _, food_kept = t.inv.count("lobster")
+            t.check("bankEquipmentWithPeer.foodDown", food_kept == 0, "lobsters set down " .. tostring(food_carried) .. " -> carried " .. tostring(food_kept))
             t.exec("bankEquipmentWithPeer", t.player.talk_to, "viking_peer")
             local _, pkind = t.chat.drain({ stop_at = "options" })
             t.exec("bankEquipmentWithPeer.deposit", t.chat.choose, "Ask about depositing your equipment")
@@ -586,9 +724,11 @@ return {
             t.ticks(3)
             local _, carried = t.inv.count("rune_scimitar")
             t.check("bankEquipmentWithPeer.empty", carried == 0, "rune_scimitar carried x" .. tostring(carried) .. " after the bank spell")
-            -- guide: "Nothing except for food, potions, and rings of recoil" -- the food is brought along again
-            t.cheat("::give lobster 27")
-            t.inv.await("lobster", 27, 5)
+            -- guide: "Nothing except for food, potions, and rings of recoil" -- the food set down is picked up again
+            for i = 1, food_carried or 0 do
+                t.exec("bankEquipmentWithPeer.pickUpFood" .. i, t.player.click_obj, "lobster", 3)
+                t.exec("bankEquipmentWithPeer.pickUpFood" .. i .. ".got", t.inv.await, "lobster", i, 8)
+            end
 
             -- go down the ladder (viking_thorvald.rs2:146 oploc2)
             t.exec("goto-goDownLadderToKoschei", t.player.goto_tile, 2666, 3692, 0)
@@ -601,31 +741,42 @@ return {
 
             -- three kills, each a real fight; unarmed, with food eaten
             t.exec("killKoschei2", t.player.attack, "viking_enemy1", 2, 80)
-            t.exec("killKoschei2.dead", t.npc.await_dead_engaged, 300, 4, { eat = { item = "lobster", below = 40 } })
+            local _, k1_food = t.inv.count("lobster")
+            local _, k1_detail = t.exec("killKoschei2.dead", t.npc.await_dead_engaged, 300, 4, { eat = { item = "lobster", below = 40 } })
+            fight_margin(t, "killKoschei2.margin", { k1_detail }, k1_food, "Koschei's first form (viking_enemy1)")
             t.ticks(2)
             t.exec("killKoschei2-again", t.player.attack, "viking_enemy2", 2, 80)
-            t.exec("killKoschei2-again.dead", t.npc.await_dead_engaged, 300, 4, { eat = { item = "lobster", below = 40 } })
+            local _, k2_food = t.inv.count("lobster")
+            local _, k2_detail = t.exec("killKoschei2-again.dead", t.npc.await_dead_engaged, 300, 4, { eat = { item = "lobster", below = 40 } })
+            fight_margin(t, "killKoschei2-again.margin", { k2_detail }, k2_food, "Koschei's second form (viking_enemy2)")
             t.ticks(2)
             t.exec("killKoschei3", t.player.attack, "viking_enemy3", 2, 80)
             -- The third form's death spawns the fourth at once (viking_thorvald.rs2:229), and await_dead_engaged
             -- matches by npc TYPE, so it would carry on into the fourth fight (leg 7). Wait on the phase varp instead.
             local phase3 = 0
             local trace = {}
+            local k3_details = {}
+            local _, k3_food = t.inv.count("lobster")
             for i = 1, 20 do
-                local res = t.npc.await_dead_engaged(40, 4, { eat = { item = "lobster", below = 40 } })
+                local res, res_detail = t.npc.await_dead_engaged(40, 4, { eat = { item = "lobster", below = 40 } })
+                k3_details[#k3_details + 1] = res_detail
                 phase3 = select(2, t.var.server("varp6759_viking_koschei_phase")) or 0
                 trace[#trace + 1] = tostring(res) .. "/" .. tostring(phase3)
                 if phase3 == 4 or phase3 == 0 then break end
             end
             t.check("killKoschei3.dead", phase3 == 4, "third form beaten: koschei phase=" .. tostring(phase3) .. " trace " .. table.concat(trace, " "))
+            fight_margin(t, "killKoschei3.margin", k3_details, k3_food, "Koschei's third form (viking_enemy3)")
 
-            -- The fourth form cannot be left alone: it attacks at once, and a checkpoint is refused in combat. Its
-            -- death is the SAFE death the guide names (killKoschei4, this is leg 7's first step, done here so leg 6
-            -- ends outside the arena): fight until the monitor sends the player up (viking_thorvald.rs2:330, :314).
+            -- The fourth form cannot be left alone: it attacks at once, and a checkpoint is refused in combat.
+            -- Guide killKoschei4: "You must now either die (SAFE DEATH), or defeat Koschei once more." The player's
+            -- death here is the SAFE one (viking_thorvald.rs2 viking_koschei_monitor: hp <= 1 in phase 4 ->
+            -- viking_koschei_finish(false), hp healed to 1, sent upstairs with the vote; player/death.rs2:36 routes a
+            -- real death the same way), so no food is eaten in this fight and it has no margin row: fight until
+            -- the monitor sends the player up (this is leg 7's first step, done here so leg 6 ends outside the arena).
             t.exec("killKoschei4", t.player.attack, "viking_enemy4", 2, 80)
             local phase4 = 4
             for i = 1, 40 do
-                t.npc.await_dead_engaged(30, 2, { eat = { item = "lobster", below = 15 } })
+                t.npc.await_dead_engaged(30, 2)
                 phase4 = select(2, t.var.server("varp6759_viking_koschei_phase")) or 0
                 if phase4 == 0 then break end
             end
@@ -650,7 +801,10 @@ return {
             t.step("killKoschei1", (stage0 == 6) and "PASS" or "FAIL", string.format("forms 1-3 (killKoschei2, killKoschei2-again, killKoschei3) and the safe death of form 4 done in leg 6; varp347_viking=%s", tostring(stage0)))
 
             -- Swensen (viking_hallifred.rs2:1 opnpc1); the maze offer needs swensen progress 0, then "Yes" (:44)
-            t.exec("goto-talkToSwensen", t.player.goto_tile, 2646, 3658, 0)
+            -- his hut is walled in (40 tiles): overland to its door, pressed in; the maze below is left by its
+            -- exit ladder, which lands back inside the hut (leg 8 walks out through the door)
+            t.exec("goto-talkToSwensen", t.player.goto_tile, DOORS.swensen.outside[1], DOORS.swensen.outside[2], 0)
+            door_in(t, "talkToSwensen.doorIn", DOORS.swensen)
             t.exec("talkToSwensen", t.player.talk_to, "viking_hallifred")
             t.exec("talkToSwensen.pages", t.chat.drain, { stop_at = "options" })
             t.exec("talkToSwensen.yes", t.chat.choose, "Yes")
@@ -709,7 +863,8 @@ return {
             local _, stage7 = t.quest.stage()
             t.check("swensenUpLadder.done", tout.z < 9000 and stage7 == 7, string.format("tile %s,%s level %s back above ground; varp347_viking=%s (Swensen's vote, viking_hallifred.rs2:154)", tostring(tout.x), tostring(tout.z), tostring(tout.level), tostring(stage7)))
 
-            -- Peer (viking_peer.rs2:1): from the north tile
+            -- Peer (viking_peer.rs2:1): out of Swensen's hut by its door (the maze ladder lands inside it), then the north tile
+            door_out(t, "swensenUpLadder.doorOut", DOORS.swensen)
             t.exec("goto-talkToPeer", t.player.goto_tile, 2634, 3671, 0)
             t.exec("talkToPeer", t.player.talk_to, "viking_peer")
             t.exec("talkToPeer.pages", t.chat.drain, { stop_at = "options" })
@@ -946,8 +1101,17 @@ return {
             t.exec("finishQuest.drain", t.chat.drain, { max_pages = 8 })
             t.ticks(3)
             for _, skill in ipairs({ "attack", "defence", "strength", "hitpoints", "woodcutting", "fletching", "fishing", "crafting", "agility", "thieving" }) do
-                -- quest_viking.rs2:134 stat_advance(<skill>, 28124) = 2812.4 xp
-                t.expect("reward." .. skill, t.skill.expect_gain(skill, 2812, xp_before))
+                -- quest_viking.rs2:134 stat_advance(<skill>, 28124) = 2812.4 xp. The client's whole-xp reading floors
+                -- the server's tenths, so the delta is 2812 or 2813 by the fraction the skill already held (b69 run 3:
+                -- hitpoints read +2813 on both accounts after the unarmed Koschei fights; every other skill +2812).
+                local before = xp_before[skill]
+                local after_result, after = t.skill.read(skill)
+                local delta = (after_result == "ok" and type(after) == "table" and type(before) == "table")
+                    and (after.experience - before.experience) or nil
+                t.check("reward." .. skill, delta == 2812 or delta == 2813 or delta == 28124,
+                    skill .. ": before=" .. tostring(type(before) == "table" and before.experience or before) .. " after="
+                    .. tostring(type(after) == "table" and after.experience or after) .. " delta=" .. tostring(delta)
+                    .. " (want 2812.4 xp: 2812 or 2813 whole, or 28124 tenths)")
             end
             t.quest.expect_complete()
             -- the Fremennik name speech (quest_viking.rs2:150) closes the leg at a quiet point

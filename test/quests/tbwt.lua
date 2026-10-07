@@ -19,6 +19,184 @@
 --     are not standing near the target -- fix the goto, not the verb.
 -- (c) never add a fixture or a helper file -- this quest file is the only
 --     file you edit.
+--
+-- Travel (door rule, b69): every goto departs from and lands on an open tile
+-- of one on-foot region (reach.py), and everything closed is crossed by its
+-- own click:
+--   * Karamja is an island: seaman_lorris's paid crossing at Port Sarim and
+--     the gangplank ashore at Musa Point (junglepotion.lua's worked route).
+--   * The members' gate membergatel 2816,3182 (gates.rs2 walk-through)
+--     splits Musa Point / Luthas' plantation (east) from Brimhaven, Tai Bwo
+--     Wannai and the Holy Lake (west): cross_gate on every crossing.
+--   * Timfraku's hut is up a ladder (2782,3087): climb up and down.
+--   * Tiadeche's shore, the jogres and the Karambwan spot lie east of the
+--     river south of Tai Bwo Wannai: the only walk crosses zq_logbalance
+--     2907,3049 / 2909,3049 (raw level 1; reach.py NEEDS-OP at margin 600,
+--     no other route even with the logs removed). One Cross carries the
+--     player 2906 <-> 2910 via 2908 (skill_agility/scripts/
+--     shortcuts_karamja_river.rs2 [oploc1,zq_logbalance]); a slip
+--     (stat_random(agility,90,250)) washes the player out on the FAR bank
+--     (2909,3059 going east, 2903,3057 going west), so cross_log() walks
+--     on to the log's end. A clean crossing ends in p_delay(2): cross_log()
+--     waits it out, or the next item use is dropped while delayed.
+--   * Cairn Isle (Tinsay): zqclimbingrocks 2794/2792,2979
+--     (quest_zombiequeen.rs2:539, Agility 15 westbound) and the log bridge
+--     2776-2781,2979 whose zone timer can drop you in the river
+--     (quest_zombiequeen.rs2:581-626): walked, retried from the south bank.
+--   * The brothers' village houses: tbwt_bamboo_door (quest_tbwt.rs2:131,
+--     selfstage, open only once the quest is complete) in and out.
+
+local function cross_karamja_gate(t, name, westbound)
+    if westbound then
+        t.exec("goto-" .. name, t.player.goto_tile, 2818, 3182, 0)
+        t.exec(name, t.player.cross_gate, { loc = "membergatel", at = { 2816, 3182, 0 },
+            near = { 2817, 3182 }, far_ok = function(tile) return tile.x <= 2815 end,
+            far_desc = "west of the gate on the Brimhaven side, x <= 2815" })
+    else
+        t.exec("goto-" .. name, t.player.goto_tile, 2814, 3182, 0)
+        t.exec(name, t.player.cross_gate, { loc = "membergatel", at = { 2816, 3182, 0 },
+            near = { 2815, 3182 }, far_ok = function(tile) return tile.x >= 2816 end,
+            far_desc = "east of the members' wall, the Musa Point side, x >= 2816" })
+    end
+end
+
+-- Timfraku's hut: ladder 2782,3087 (level 0) / laddertop (level 1), +-1 plane on the approach tile.
+local function ladder_up(t, name)
+    t.exec(name, t.player.climb, { loc = "ladder", op = 1, op_name = "Climb-up",
+        at = { 2782, 3087, 0 }, dest = { 2782, 3088, 1 }, slack = 2 })
+    t.ticks(2)
+end
+local function ladder_down(t, name)
+    t.exec(name, t.player.climb, { loc = "laddertop", op = 1, op_name = "Climb-down",
+        at = { 2782, 3087, 1 }, dest = { 2782, 3088, 0 }, slack = 2 })
+    t.ticks(2)
+end
+
+-- The river log south-east of Tai Bwo Wannai: zq_logbalance at 2907,3049 and 2909,3049 (raw level 1,
+-- the player on plane 0), open bank 2906,3049 west / 2910,3049 east. Pressed on EVERY crossing. The
+-- press is read here (not through t.exec) so the content gap ends the run as a content_bug row.
+-- Cairn Isle's climbing rocks (quest_zombiequeen.rs2:539-577): westbound from the east foot 2795,2979 on
+-- the 2794 copy (Agility 15, two force-moves of -2 -> 2791,2979), eastbound from 2791,2979 on the 2792 copy
+-- (+4 -> 2795,2979); a failed roll leaves the player where he stood, hurt -- cross_trap presses again.
+local function cairn_rocks(t, name, westbound)
+    if westbound then
+        t.exec(name, t.player.cross_trap, { loc = "zqclimbingrocks", op_name = "Climb", at = { 2794, 2979, 0 },
+            src = { 2795, 2979 }, dest = { 2791, 2979 }, attempts = 6, vitals = { eat = "shark", below = 40 } })
+    else
+        t.exec(name, t.player.cross_trap, { loc = "zqclimbingrocks", op_name = "Climb", at = { 2792, 2979, 0 },
+            src = { 2791, 2979 }, dest = { 2795, 2979 }, attempts = 6, vitals = { eat = "shark", below = 40 } })
+    end
+end
+
+local function eat_below(t, below)
+    local hr, hp = t.skill.read("hitpoints")
+    if hr == "ok" and type(hp) == "table" and (hp.level or 99) < below then
+        t.player.inv_op("shark", 1)
+        t.ticks(3)
+    end
+end
+
+-- The Cairn Isle log bridge 2776-2781,2979: its zone timer rolls stat_random(agility, 75, 250) and a miss
+-- drops the player in the river and drags him onto the mainland's south bank (quest_zombiequeen.rs2:584-626,
+-- 3 x hp/11 damage). Walked; after a westbound fall, walk back to the rocks' foot (reach.py 2782,2971 ->
+-- 2796,2979: REACH closed-doors 26), climb again and walk again. Answers "crossed", "bank" (an eastbound
+-- fall: already on the mainland) or false (never crossed: a FAIL row).
+local function cairn_bridge(t, name, westbound)
+    local to = westbound and { 2764, 2977 } or { 2791, 2979 }
+    for i = 1, 6 do
+        local wr, wd = t.player.walk_to(to[1], to[2], 60)
+        t.ticks(2)
+        local _, tt = t.world.tile()
+        if tt.x == to[1] and tt.z == to[2] and tt.level == 0 then
+            t.check(name, true, "walked the bridge to " .. to[1] .. "," .. to[2] .. " on attempt " .. i .. ": " .. tostring(wd))
+            return "crossed"
+        end
+        local on_bank = tt.z <= 2976 and tt.x >= 2777 and tt.x <= 2790
+        t.check(name .. ".fall" .. i, on_bank, "fell off the bridge (walk_to " .. tostring(wr) .. " " .. tostring(wd)
+            .. "), dragged ashore at " .. tostring(tt.x) .. "," .. tostring(tt.z) .. "," .. tostring(tt.level)
+            .. " (the river's south bank, z <= 2976)")
+        if not on_bank then return false end
+        eat_below(t, 40)
+        if not westbound then return "bank" end
+        t.exec(name .. ".backToRocks" .. i, t.player.walk_to, 2795, 2979, 60)
+        cairn_rocks(t, name .. ".rocksWest" .. i, true)
+    end
+    t.check(name, false, "the bridge was not crossed in 6 attempts")
+    return false
+end
+
+-- The brothers' houses (quest_tbwt.rs2:131-139 tbwt_bamboo_door, a selfstage door on each house's east wall).
+local HOUSE_TINSAY = { at = { 2792, 3054, 0 }, out = { 2793, 3054 }, inside = { 2791, 3055 }, away = { 2794, 3054 } }
+local HOUSE_TIADECHE = { at = { 2782, 3057, 0 }, out = { 2783, 3057 }, inside = { 2781, 3056 }, away = { 2783, 3059 } }
+local HOUSE_TAMAYU = { at = { 2802, 3058, 0 }, out = { 2803, 3058 }, inside = { 2801, 3058 }, away = { 2804, 3058 } }
+local function bamboo_door(t, name, house, entering)
+    t.exec(name, t.player.pass_door, { closed = "tbwt_bamboo_door", open = "tbwt_bamboo_door", at = house.at,
+        near = entering and house.out or house.at, far = entering and house.inside or house.away })
+end
+
+-- The small-net karambwanji spot also lands raw shrimp (tbwt.rs2 attempt_fish_karambwanji :57-65); a full
+-- pack stops the net ("You can't carry any more fish."), so the bycatch is dropped between rounds and after.
+local function drop_shrimp(t)
+    for _ = 1, 28 do
+        local _, bycatch = t.inv.count("raw_shrimp")
+        if bycatch < 1 then break end
+        t.player.drop("raw_shrimp")
+        t.ticks(1)
+    end
+end
+-- The first press is the step's row; a re-press after the drop (the drop can end the net's loop) is read
+-- directly and folded into the .caught row, which grades the backpack count.
+local function net_karambwanji(t, name, want)
+    local fr, fd
+    local rounds = {}
+    for round = 1, 6 do
+        local _, before = t.inv.count("tbwt_raw_karambwanji")
+        if round == 1 then
+            t.exec(name, t.player.press, "0_43_47_karambwanji", 1, 200)
+        else
+            local pr, pd = t.player.press("0_43_47_karambwanji", 1, 30)
+            rounds[#rounds + 1] = "re-press " .. round .. ": " .. tostring(pr) .. " " .. string.sub(tostring(pd), 1, 80)
+        end
+        fr, fd = t.inv.await("tbwt_raw_karambwanji", want, 150)
+        local _, after = t.inv.count("tbwt_raw_karambwanji")
+        rounds[#rounds + 1] = "round " .. round .. ": " .. tostring(before) .. " -> " .. tostring(after)
+        drop_shrimp(t)
+        if fr == "ok" then break end
+    end
+    t.check(name .. ".caught", fr == "ok", "raw karambwanji in the backpack: " .. tostring(fd)
+        .. " (bycatch shrimp dropped between rounds; " .. table.concat(rounds, "; ") .. ")")
+end
+
+local LOG_W, LOG_E = { 2906, 3049 }, { 2910, 3049 }
+local function cross_log(t, name, eastbound)
+    local src = eastbound and LOG_W or LOG_E
+    local dest = eastbound and LOG_E or LOG_W
+    local at = eastbound and { 2907, 3049, 0 } or { 2909, 3049, 0 }
+    t.exec("goto-" .. name, t.player.goto_tile, src[1], src[2], 0)
+    local r, d = t.player.cross_trap({ loc = "zq_logbalance", op_name = "Cross", at = at, loc_level = 1,
+        src = src, dest = dest, vitals = { eat = "shark", below = 40 } })
+    if r ~= "ok" and string.find(tostring(d), "fall into the water", 1, true) then
+        -- a slip washes the player out on the FAR bank (2909,3059 east-bound / 2903,3057 west-bound,
+        -- shortcuts_karamja_river.rs2 fail_end_coord): wait out the swim's delays, walk to the log's end
+        t.ticks(4)
+        t.player.walk_to(dest[1], dest[2], 20)
+        local _, tt = t.world.tile()
+        if tt ~= nil and tt.x == dest[1] and tt.z == dest[2] then
+            t.check(name, true, "fell, washed out on the far bank, walked to the log's end: " .. string.sub(tostring(d), 1, 200))
+            return true
+        end
+    end
+    if r ~= "ok" then
+        t.check(name, false, "zq_logbalance at " .. at[1] .. "," .. at[2] .. ",1 did not carry the player to "
+            .. dest[1] .. "," .. dest[2] .. ": " .. tostring(r) .. " " .. string.sub(tostring(d), 1, 300))
+        return false
+    end
+    -- a clean crossing ends in p_delay(2) + update_bas; an item use pressed inside that delay is dropped
+    -- (getPoisonKarambwan-load1 answered "nothing in 10 ticks" one tick after the landing)
+    t.ticks(3)
+    t.check(name, true, tostring(d))
+    return true
+end
 
 return {
     id = "tbwt",
@@ -36,7 +214,7 @@ return {
         "::give tinderbox 1", -- guide item: Tinderbox (burnBones, leg 2)
         "::setlevel attack 60", "::setlevel strength 60", "::setlevel defence 40", "::setlevel hitpoints 70", -- jogres (getJogreBones, leg 2) are a real fight: hp 60, attack 43
         "::give rune_scimitar 1", -- weapon for the jogre fight, worn in leg 2
-        "::give shark 8", -- food for the jogre fight (opts.eat)
+        "::give shark 8", -- food for the jogre fight (opts.eat) and the Cairn Isle falls (vitals)
         "::setlevel magic 10", -- guide (getMonkeyCorpse, leg 4): Ranged or Magic equipment to kill a level 3 monkey; wind strike needs 1
         "::give air_rune 60", "::give mind_rune 60", -- guide (getMonkeyCorpse, leg 4): runes for wind strike
     },
@@ -60,11 +238,42 @@ return {
             t.ticks(3) -- a setup cheat's effect is not client-side yet
             t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
 
+            -- To Karamja: seaman_lorris's paid crossing (sailors.rs2 karamja_sailor_pay: 30 coins,
+            -- p_telejump to the deck at Musa Point 2956,3143,1), the gangplank ashore, the members' gate
+            -- (reach.py Musa Point -> Tai Bwo Wannai: NEEDS-DOOR via membergatel 2816,3182 only), then
+            -- open ground to the hut's ladder (reach.py 2815,3182 -> 2781,3089: REACH closed-doors 173).
+            t.exec("goto-seaman", t.player.goto_tile, 3028, 3221, 0)
+            local coins0_r, coins0 = t.inv.count("coins")
+            t.exec("talkToSeaman", t.player.talk_to, "seaman_lorris", 1)
+            t.exec("talkToSeaman-dialog", t.chat.play, {
+                "npc:Do you want to go on a trip to Karamja?",
+                "npc:The trip will cost you 30 coins.",
+                "options",
+                "choose:Yes please.",
+                "player:Yes please.",
+            })
+            t.expect("seaman.paidMessage", t.msg.expect("pay the 30 coins and board the ship"))
+            local sail_r, sail_d = t.await({
+                level = function() return t.chat.kind() == "mesbox" end,
+                note = "seaman: the arrival mesbox after p_delay(2) + telejump",
+            }, 15)
+            t.step("seaman.sail", sail_r == "ok" and "PASS" or "FAIL",
+                "await(chat.kind() == mesbox) -> " .. tostring(sail_r) .. " " .. tostring(sail_d))
+            t.exec("seaman.arrive", t.chat.play, { "mesbox:The ship arrives at Karamja." })
+            local deck_r, deck = t.world.tile()
+            local coins1_r, coins1 = t.inv.count("coins")
+            t.check("seaman.onDeckAtMusaPoint", deck_r == "ok" and deck.level == 1
+                    and math.abs(deck.x - 2956) <= 2 and math.abs(deck.z - 3143) <= 2
+                    and coins0_r == "ok" and coins1_r == "ok" and coins0 - coins1 == 30,
+                "tile " .. tostring(deck_r == "ok" and deck.x) .. "," .. tostring(deck_r == "ok" and deck.z) .. ","
+                    .. tostring(deck_r == "ok" and deck.level) .. " (want the deck 2956,3143,1), coins "
+                    .. tostring(coins0) .. " -> " .. tostring(coins1) .. " (want -30)")
+            t.exec("musaPoint.disembark", t.player.climb, { loc = "sarimshipplank_off", op_name = "Cross",
+                at = { 2956, 3144, 1 }, src = { 2956, 3143 }, dest = { 2956, 3146, 0 }, slack = 1 })
+            cross_karamja_gate(t, "goToTimfrakuLadder.karamjaGate", true)
+
             t.exec("goto-goToTimfrakuLadder", t.player.goto_tile, 2781, 3089, 0)
-            t.exec("goToTimfrakuLadder", t.player.click_loc, "ladder", 1)
-            t.ticks(4)
-            local _, up_level = t.world.level()
-            t.check("goToTimfrakuLadder.level", up_level == 1, "after the ladder the player is on level " .. tostring(up_level))
+            ladder_up(t, "goToTimfrakuLadder")
 
             t.exec("talkToTimfrakuStart", t.player.talk_to, "tbwt_timfraku", 1)
             t.exec("talkToTimfrakuStart-dialog", t.chat.play, {
@@ -103,10 +312,11 @@ return {
             t.check("syncStep", jr == "ok", "quest journal opened: " .. tostring(jd))
             t.ui.journal_close()
 
-            t.exec("goto-fishKarambwaji", t.player.goto_tile, 2791, 3019, 0)
-            t.exec("fishKarambwaji", t.player.press, "0_43_47_karambwanji", 1, 200)
-            local fr, fd = t.inv.await("tbwt_raw_karambwanji", 23, 400)
-            t.check("fishKarambwaji.caught", fr == "ok", "raw karambwanji in the backpack: " .. tostring(fd))
+            -- the spot 2791,3019 is in the lake: stand on the open bank tile north of it
+            -- (reach.py 2781,3089 -> 2791,3020: REACH closed-doors 105)
+            ladder_down(t, "fishKarambwaji.ladderDown")
+            t.exec("goto-fishKarambwaji", t.player.goto_tile, 2791, 3020, 0)
+            net_karambwanji(t, "fishKarambwaji", 23)
 
             -- goToLubufu: tbwt_lubufu.rs2 -- first talk is the whippersnapper brush-off (var 0 -> intro),
             -- then the ask-twice-what-he-does chain (-> offered_to_help -> fetch_karambwanji).
@@ -249,7 +459,9 @@ return {
             t.ticks(2)
             t.exec("fillVessel.loaded", t.inv.expect_has, "tbwt_karambwan_vessel_loaded_with_karambwanji", 1)
 
-            -- getRum: Zembo, Musa Point
+            -- getRum: Zembo, Musa Point, east of the members' gate (reach.py Brimhaven -> Musa Point:
+            -- NEEDS-DOOR via membergatel 2816,3182): the gate pressed, then open ground (REACH 155)
+            cross_karamja_gate(t, "getRum.karamjaGate", false)
             t.exec("goto-getRum", t.player.goto_tile, 2925, 3143, 0)
             local zr = t.npc.nearest("zembo", 15)
             t.check("getRum.zembo", zr == "ok", "zembo within 15 tiles of Musa Point 2925,3143: " .. tostring(zr))
@@ -270,19 +482,26 @@ return {
         { name = "banana_to_burnt_bones", run = function(t)
             -- LEG 2 BEGIN: sliceBanana
             t.ticks(3)
-            -- pick a banana in Luthas' plantation (the guide: "from one of the trees in the plantation")
-            t.exec("goto-pickBanana", t.player.goto_tile, 2935, 3156, 0)
+            -- pick a banana in Luthas' plantation (the guide: "from one of the trees in the plantation"):
+            -- the open row 2915,3160 south of the tree 2915,3161 (reach.py from Zembo: REACH closed-doors 35); the
+            -- old 2935,3156 was a crate inside Luthas' house
+            t.exec("goto-pickBanana", t.player.goto_tile, 2915, 3160, 0)
             local bok, brow = t.world.loc_near("bananatreefull", 12)
             t.check("pickBanana.tree", bok == "ok", "banana tree near the plantation: " .. tostring(bok) .. " " .. tostring(brow))
-            t.exec("pickBanana", t.player.click_loc, "bananatreefull", 1)
-            t.exec("pickBanana.has", t.inv.await, "banana", 1, 10)
+            t.exec("pickBanana", t.player.click_loc, "bananatreefull", 1, { at = { 2915, 3161, 0 } })
+            t.exec("pickBanana.has", t.inv.await, "banana", 1, 20)
             t.exec("sliceBanana", t.player.use_item_on_item, "knife", "banana")
             t.exec("sliceBanana.has", t.inv.await, "tbwt_sliced_banana", 1, 10)
             -- makeBananaRum: quest_tbwt.rs2:188 [opheldu,karamja_rum] with the sliced banana
             t.exec("makeBananaRum", t.player.use_item_on_item, "tbwt_sliced_banana", "karamja_rum")
             t.exec("makeBananaRum.has", t.inv.await, "tbwt_sliced_banana_in_karamja_rum", 1, 10)
 
-            -- talkToTiadeche1: tbwt_tiadeche.rs2:8 [opnpc1,tbwt_tiadeche] (unknown -> intro -> return_when_caught_karambwan)
+            -- talkToTiadeche1: tbwt_tiadeche.rs2:8 [opnpc1,tbwt_tiadeche] (unknown -> intro -> return_when_caught_karambwan).
+            -- reach.py Musa Point -> Tiadeche: NEEDS-OP via membergatel 2816,3182 and zq_logbalance 2907/2909,3049:
+            -- back through the gate, open ground to the log's west bank (REACH 338), the log, then open ground
+            -- north to the shore (2910,3049 -> 2912,3116: REACH 77).
+            cross_karamja_gate(t, "talkToTiadeche1.karamjaGate", true)
+            if not cross_log(t, "talkToTiadeche1.logEast", true) then return end
             t.exec("goto-talkToTiadeche1", t.player.goto_tile, 2912, 3116, 0)
             t.exec("talkToTiadeche1", t.player.talk_to, "tbwt_tiadeche", 1)
             t.exec("talkToTiadeche1-dialog", t.chat.play, {
@@ -346,10 +565,24 @@ return {
             t.exec("pickupSeaweed.has", t.inv.await, "seaweed", 1, 10)
 
             -- getJogreBones: kill a jogre south of Tiadeche (m45_47.spawn:26 at 2924,3060); the drop is tbwt_jogre_bones
-            t.exec("goto-getJogreBones", t.player.goto_tile, 2924, 3066, 0)
+            -- open ground beside the spawn (2924,3066 was a bamboo_tree_base)
+            t.exec("goto-getJogreBones", t.player.goto_tile, 2924, 3062, 0)
             t.exec("getJogreBones-wield", t.player.equip, "rune_scimitar")
+            local _, sharks_before = t.inv.count("shark")
             t.exec("getJogreBones", t.player.attack, "jogre", 2)
-            t.exec("getJogreBones.dead", t.npc.await_dead_engaged, 300, 30, { eat = { item = "shark", below = 40 } })
+            local jr, jd = t.npc.await_dead_engaged(300, 30, { eat = { item = "shark", below = 40 } })
+            t.check("getJogreBones.dead", jr == "ok", tostring(jr) .. " " .. tostring(jd))
+            do
+                local lowest = tonumber(tostring(jd):match("lowest hp (%d+)/"))
+                local _, hitpoints = t.skill.read("hitpoints")
+                local max_hp = type(hitpoints) == "table" and hitpoints.base_level or nil
+                local fr, food_left = t.inv.count("shark")
+                t.check("getJogreBones.margin", lowest ~= nil and max_hp ~= nil and fr == "ok"
+                    and lowest * 4 >= max_hp and food_left >= 1,
+                    "lowest hp " .. tostring(lowest) .. "/" .. tostring(max_hp) .. ", sharks "
+                    .. tostring(sharks_before) .. " -> " .. tostring(food_left)
+                    .. " (margin: lowest hp >= a quarter of max AND at least one shark left)")
+            end
             t.ticks(3)
             t.exec("pickupBones", t.player.click_obj, "tbwt_jogre_bones", 3)
             t.exec("pickupBones.has", t.inv.await, "tbwt_jogre_bones", 1, 10)
@@ -388,11 +621,15 @@ return {
             t.exec("leg3.gives", t.inv.await_all, { pestle_and_mortar = 1, iron_spear = 1, ["4dose1agility"] = 1 }, 10)
 
             -- raw karambwanji: three are needed (paste, vessel load, spare)
-            t.exec("goto-fishKarambwaji3", t.player.goto_tile, 2791, 3021, 0)
+            -- the Holy Lake is west of the river: the log, then open ground to the bank tile north of
+            -- the spot (2791,3021 is a jungle tree; 2791,3020 is open, as in leg 1). One visit nets the
+            -- whole supply: a vessel load takes ONE karambwanji (quest_tbwt.rs2:102-111 inv_del 1), and
+            -- a karambwan try spends that load either way (tbwt.rs2 attempt_fish_karambwan :118-131).
+            if not cross_log(t, "fishKarambwaji3.logWest", false) then return end
+            t.exec("goto-fishKarambwaji3", t.player.goto_tile, 2791, 3020, 0)
             local sr, sa, sb = t.npc.tiles("0_43_47_karambwanji", 15)
             t.check("fishKarambwaji3.spot", sr == "ok", "spot copies: " .. tostring(sr) .. " " .. tostring(sa) .. " " .. tostring(sb))
-            t.exec("fishKarambwaji3", t.player.press, "0_43_47_karambwanji", 1, 200)
-            t.exec("fishKarambwaji3.caught", t.inv.await, "tbwt_raw_karambwanji", 2, 300)
+            net_karambwanji(t, "fishKarambwaji3", 12)
             t.exec("goto-leave-spot3", t.player.goto_tile, 2791, 3030, 0)
 
             t.exec("makeKarambwanjiPaste", t.player.use_item_on_item, "pestle_and_mortar", "tbwt_raw_karambwanji")
@@ -400,13 +637,14 @@ return {
             t.exec("usePasteOnBones", t.player.use_item_on_item, "tbwt_burnt_jogre_bones", "tbwt_raw_karambwanji_paste")
             t.exec("usePasteOnBones.has", t.inv.await, "tbwt_burnt_jogre_bones_in_raw_karambwanji_paste", 1, 20)
 
-            -- getPoisonKarambwan: loading the vessel takes the whole karambwanji stack, so each try nets one more
+            -- getPoisonKarambwan: back over the log to Tiadeche's spot; each try loads one karambwanji
+            if not cross_log(t, "getPoisonKarambwan.logEast", true) then return end
+            t.exec("goto-getPoisonKarambwan", t.player.goto_tile, 2912, 3115, 0)
             for i = 1, 10 do
-                t.exec("goto-getPoisonKarambwan-net" .. i, t.player.goto_tile, 2791, 3021, 0)
-                t.exec("getPoisonKarambwan-net" .. i, t.player.press, "0_43_47_karambwanji", 1, 200)
-                t.exec("getPoisonKarambwan-net" .. i .. ".caught", t.inv.await, "tbwt_raw_karambwanji", 1, 300)
-                t.exec("goto-getPoisonKarambwan" .. i, t.player.goto_tile, 2912, 3115, 0)
+                local _, bait = t.inv.count("tbwt_raw_karambwanji")
+                if bait < 1 then break end
                 t.exec("getPoisonKarambwan-load" .. i, t.player.use_item_on_item, "tbwt_raw_karambwanji", "tbwt_karambwan_vessel")
+                t.exec("getPoisonKarambwan-load" .. i .. ".loaded", t.inv.await, "tbwt_karambwan_vessel_loaded_with_karambwanji", 1, 5)
                 t.exec("getPoisonKarambwan-fish" .. i, t.player.press, "general_karambwan", 1, 20)
                 t.ticks(10)
                 local _, rk = t.inv.count("tbwt_raw_karambwan")
@@ -417,6 +655,7 @@ return {
             t.check("getPoisonKarambwan", rk2 >= 1, "raw karambwan in the pack: " .. tostring(rk2))
 
             -- cookBones / cookKarambwan on the fire south of Tai Bwo Wannai (2790,3048)
+            if not cross_log(t, "cookBones.logWest", false) then return end
             t.exec("goto-cookBones", t.player.goto_tile, 2790, 3051, 0)
             t.exec("cookBones", t.player.use_on, "tbwt_burnt_jogre_bones_in_raw_karambwanji_paste", t.player.by_symbol("loc", "fire"))
             t.exec("cookBones.has", t.inv.await, "tbwt_burnt_jogre_bones_marinated_in_karambwanji", 1, 20)
@@ -540,7 +779,11 @@ return {
             t.check("makeSeaweedSandwich.has", sw == 1, "seaweed in monkey skin sandwiches: " .. tostring(sw))
 
             -- talkToTinsay: Cairn Isle (2764,2975), plain travel (the guide names fairy ring CKR only as the way there)
-            t.exec("goto-talkToTinsay", t.player.goto_tile, 2764, 2977, 0)
+            -- Cairn Isle: open ground to the climbing rocks' east foot (reach.py 2846,3039 -> 2796,2979:
+            -- REACH closed-doors 110), the rocks (Agility 15 westbound), then the log bridge on foot
+            t.exec("goto-talkToTinsay", t.player.goto_tile, 2796, 2979, 0)
+            cairn_rocks(t, "talkToTinsay.rocksWest", true)
+            if not cairn_bridge(t, "talkToTinsay.bridgeWest", true) then return end
             t.exec("talkToTinsay", t.player.talk_to, "tbwt_tinsay", 1)
             t.exec("talkToTinsay-dialog", t.chat.play, {
                 "npc:Braaar! Tinsay's the name",
@@ -686,6 +929,12 @@ return {
             local _, manual = t.inv.count("tbwt_crafting_manual")
             t.check("useVesselOnTinsay.has", manual == 1, "crafting manuals in the backpack: " .. tostring(manual))
 
+            -- off Cairn Isle: the bridge east (a fall lands on the mainland's south bank: no rocks then)
+            if cairn_bridge(t, "leaveCairn.bridgeEast", false) == "crossed" then
+                cairn_rocks(t, "leaveCairn.rocksEast", false)
+            end
+            if not cross_log(t, "goToTiadecheFinal.logEast", true) then return end
+
             -- goToTiadecheFinal: Tiadeche north of fairy ring DKP (2912,3116); use the manual on him (tbwt_tiadeche.rs2:89-93, :183-187)
             t.exec("goto-goToTiadecheFinal", t.player.goto_tile, 2912, 3114, 0)
             t.exec("goToTiadecheFinal", t.player.use_on, "tbwt_crafting_manual", t.player.by_symbol("npc", "tbwt_tiadeche"))
@@ -704,11 +953,9 @@ return {
             t.check("goToTiadecheFinal.var", mainstage == 4, "varp321_tbwt_tiadeche = " .. tostring(tia) .. ", varp320_tbwt_main = " .. tostring(mainstage) .. " (completed_all_brothers)")
 
             -- goToTimfrakuLadderEnd: back up the ladder into Timfraku's hut (as in leg 1)
+            if not cross_log(t, "goToTimfrakuLadderEnd.logWest", false) then return end
             t.exec("goto-goToTimfrakuLadderEnd", t.player.goto_tile, 2781, 3089, 0)
-            t.exec("goToTimfrakuLadderEnd", t.player.click_loc, "ladder", 1)
-            t.ticks(4)
-            local _, end_level = t.world.level()
-            t.check("goToTimfrakuLadderEnd.level", end_level == 1, "after the ladder the player is on level " .. tostring(end_level))
+            ladder_up(t, "goToTimfrakuLadderEnd")
             -- LEG 4 END of the pre-hand-in rows; the hand-in follows
             -- (XP snapshots are taken before each claim below)
             local _, qp_before = t.var.varp("varp101_qp")
@@ -763,7 +1010,11 @@ return {
             -- The XP rewards are claimed from the three brothers in the village after completion
             -- (wiki Tai Bwo Wannai Trio oldid 15265886 Rewards; Quest Helper talkToTimfrakuEnd NOTE;
             -- tbwt_tinsay_final / tbwt_tiadeche_final / tbwt_tamayu_final .rs2 claim_reward).
-            t.exec("goto-claimTinsay", t.player.goto_tile, 2790, 3052, 0)
+            -- down the ladder, then each brother's house through its tbwt_bamboo_door (open now the quest
+            -- is complete, quest_tbwt.rs2:131-136), in and out
+            ladder_down(t, "claimTinsay.ladderDown")
+            t.exec("goto-claimTinsay", t.player.goto_tile, 2794, 3054, 0)
+            bamboo_door(t, "claimTinsay.doorIn", HOUSE_TINSAY, true)
             local _, s1 = t.skill.snapshot()
             t.exec("claimTinsay", t.player.talk_to, "tbwt_tinsay_multinpc_house", 1)
             t.exec("claimTinsay-dialog", t.chat.play, {
@@ -781,7 +1032,8 @@ return {
             t.ticks(2)
             t.exec("claimTinsay.xp", t.skill.expect_gain, "cooking", 5000, s1)
 
-            t.exec("goto-claimTiadeche", t.player.goto_tile, 2781, 3055, 0)
+            bamboo_door(t, "claimTinsay.doorOut", HOUSE_TINSAY, false)
+            bamboo_door(t, "claimTiadeche.doorIn", HOUSE_TIADECHE, true)
             local _, s2 = t.skill.snapshot()
             t.exec("claimTiadeche", t.player.talk_to, "tbwt_tiadeche_multinpc_house", 1)
             t.exec("claimTiadeche-dialog", t.chat.play, {
@@ -796,7 +1048,8 @@ return {
             t.ticks(2)
             t.exec("claimTiadeche.xp", t.skill.expect_gain, "fishing", 5000, s2)
 
-            t.exec("goto-claimTamayu", t.player.goto_tile, 2800, 3055, 0)
+            bamboo_door(t, "claimTiadeche.doorOut", HOUSE_TIADECHE, false)
+            bamboo_door(t, "claimTamayu.doorIn", HOUSE_TAMAYU, true)
             local _, s3 = t.skill.snapshot()
             t.exec("claimTamayu", t.player.talk_to, "tbwt_tamayu_multinpc_house", 1)
             t.exec("claimTamayu-dialog", t.chat.play, {

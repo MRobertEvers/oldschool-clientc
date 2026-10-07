@@ -631,10 +631,12 @@ return {
         t.exec("goUpToLathas.castleDoorIn", t.player.pass_door, { closed = "w_ardougnedoubledoorl",
             open = "w_ardougnedoubledoorlopen", at = { 2576, 3298, 0 }, near = { 2577, 3298 }, far = { 2573, 3298 },
             far_ok = function(tt) return tt.level == 0 and tt.x <= 2575 end, far_desc = "in the castle hall, x <= 2575" })
-        -- No up maplink row: ladders.rs2 [proc,climb] moves the player one
-        -- plane on the tile it stands on.
+        -- maplink [maplink_0_40_51_11_34_up]: 2571,3298,0 -> 2571,3294,1
+        -- (shortest-path transports.tsv, stairs placed 3 tiles from the tsv's
+        -- origin; tools/maplink_import.py resolve_on_tile, 2026-10-06). The
+        -- landing is in the same upstairs component as the old +1-plane one.
         t.exec("goUpToLathas", t.player.climb, { loc = "stairs", op = 1, op_name = "Climb-up",
-            at = { 2571, 3295, 0 }, src = { 2571, 3298 }, dest = { 2571, 3298, 1 } })
+            at = { 2571, 3295, 0 }, src = { 2571, 3298 }, dest = { 2571, 3294, 1 } })
         t.exec("talkToLathas.kingsDoorIn", t.player.pass_door, { closed = "elfdoor", open = "elfdooropen",
             at = { 2575, 3293, 1 }, near = { 2574, 3293 }, far = { 2577, 3293 }, far_ok = in_kings_room,
             far_desc = "in King Lathas's room, x 2575-2579 z 3292-3294 level 1" })

@@ -41,10 +41,26 @@ return {
         t.ticks(3)
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
 
+        -- Door rule (docs/QUEST_ORCHESTRATOR.md; b69 re-drive): every goto leaves from and lands on open ground,
+        -- and every closed space is entered and left by its own door, gate, stile, rock ridge, cave mouth or
+        -- stair on every visit (static collision read with reach.py / comp.py, maps m44_55..m45_57, m44_157,
+        -- m45_156). The route out of the prison at the end is the secret door (troll_stronghold_exit) and the
+        -- secret path south over both rock pairs and Death Plateau's climbing rocks into Burthorpe.
+        local function in_tenzing_house(tile) return tile.x >= 2819 and tile.x <= 2822 and tile.z >= 3554 and tile.z <= 3557 end
+        local VITALS = { eat = "shark", below = 60 }
+
         ------------------------------------------------------------------
         -- talkToDenulth
         ------------------------------------------------------------------
-        t.exec("goto-talkToDenulth", t.player.goto_tile, 2895, 3529, 0)
+        -- Lumbridge -> Burthorpe on foot: overland to the open ground east of Taverley's members' gate
+        -- (reach.py 3206,3233 -> 2938,3450 REACH closed-doors len 515), the walk-through gate pressed
+        -- (gates.rs2 [label,member_fencegate_try]; Taverley is x <= 2935), then overland to Denulth's
+        -- open-air camp (reach.py 2934,3449 -> 2895,3529 REACH len 131; death.lua talks to him from 2896,3531).
+        t.exec("goto-talkToDenulth.memberGate", t.player.goto_tile, 2938, 3450, 0)
+        t.exec("talkToDenulth.memberGate", t.player.cross_gate, { loc = "membergater", at = { 2935, 3450, 0 },
+            near = { 2936, 3450 }, far_ok = function(tile) return tile.x <= 2935 end,
+            far_desc = "inside Taverley, x <= 2935" })
+        t.exec("goto-talkToDenulth", t.player.goto_tile, 2896, 3531, 0)
         t.exec("talkToDenulth", t.player.talk_to, "death_ig_commander", 1)
         t.exec("talkToDenulth-dialog", t.chat.play, {
             "player:Hello",
@@ -68,7 +84,15 @@ return {
         ------------------------------------------------------------------
         -- travelToTenzing / buyClimbingBoots (12 coins)
         ------------------------------------------------------------------
-        t.exec("goto-travelToTenzing", t.player.goto_tile, 2820, 3556, 0)
+        -- Tenzing's fenced yard (death_fencegate_l 2824,3555, east edge) and his house (death_sherpa_door
+        -- 2822,3555; walk-through, no knock: ::complete quest_deathplateau sets %death_map = scouted_area,
+        -- quest_cheat.rs2:305, death_doors_mechanism.rs2:31-36). The goto stops on the lane outside the gate.
+        t.exec("goto-travelToTenzing", t.player.goto_tile, 2826, 3555, 0)
+        t.exec("travelToTenzing.gateIn", t.player.pass_door, { closed = "death_fencegate_l", open = "death_openfencegate_l",
+            at = { 2824, 3555, 0 }, near = { 2825, 3555 }, far = { 2823, 3555 } })
+        t.exec("travelToTenzing.doorIn", t.player.cross_gate, { loc = "death_sherpa_door", at = { 2822, 3555, 0 },
+            near = { 2823, 3555 }, far_ok = in_tenzing_house, far_desc = "inside Tenzing's house, x 2819-2822 z 3554-3557" })
+        t.ticks(2)
         t.exec("buyClimbingBoots", t.player.talk_to, "death_sherpa", 1)
         t.exec("buyClimbingBoots-dialog", t.chat.play, {
             "player:Hello Tenzing",
@@ -93,32 +117,43 @@ return {
         ------------------------------------------------------------------
         -- climbOverStile, climbOverRocks
         ------------------------------------------------------------------
-        t.exec("goto-climbOverStile", t.player.goto_tile, 2817, 3562, 0)
+        -- Out through the back door (death_sherpa_backdoor 2820,3557, walk-through past ^death_got_map) into the
+        -- backyard, whose only other way out is the stile death_fullstyle 2817,3562-3563 (death.lua header).
+        t.exec("climbOverStile.backDoor", t.player.cross_gate, { loc = "death_sherpa_backdoor", at = { 2820, 3557, 0 },
+            near = { 2820, 3557 }, far_ok = function(tile) return tile.z >= 3558 end, far_desc = "in the backyard, z >= 3558" })
+        -- The stile is stiles.rs2 [oploc1,_stile]: two bare p_teleports round a silent exactmove, too short a hop
+        -- for click_loc's teleport settle (start-and-travel "A short hop (stiles)"), so the row is the tiles.
+        t.exec("walk-climbOverStile", t.player.walk_to, 2817, 3561, 20)
         local stile_before_result, stile_before = t.world.tile()
-        local stile_click, stile_detail = t.player.click_loc("death_fullstyle", 1)
+        local stile_click, stile_detail = t.player.click_loc("death_fullstyle", 1, { at = { 2817, 3562, 0 } })
         t.ticks(5)
         local stile_after_result, stile_after = t.world.tile()
-        t.check("climbOverStile", (stile_click == "ok" or stile_click == "timeout") and stile_after_result == "ok" and stile_after ~= nil
-                and stile_before ~= nil and (stile_after.x ~= stile_before.x or stile_after.z ~= stile_before.z),
-            "click_loc -> " .. tostring(stile_click) .. " " .. tostring(stile_detail)
+        t.check("climbOverStile", stile_before_result == "ok" and stile_before ~= nil and stile_before.z <= 3561
+                and stile_after_result == "ok" and stile_after ~= nil and stile_after.level == 0 and stile_after.z >= 3564,
+            "click_loc(death_fullstyle) -> " .. tostring(stile_click) .. " " .. tostring(stile_detail)
             .. "; tile " .. tostring(stile_before and (stile_before.x .. "," .. stile_before.z))
-            .. " -> " .. tostring(stile_after and (stile_after.x .. "," .. stile_after.z)))
+            .. " -> " .. tostring(stile_after and (stile_after.x .. "," .. stile_after.z)) .. " (want z >= 3564: north of the stile)")
+        -- North of the stile to the first rocks is open ground (reach.py 2817,3564 -> 2856,3611 REACH len 86).
+        -- troll_climbingrocks 2856,3612 is @rockslide_obstacle (upass_obstacles.rs2:31-58): from the south it ends
+        -- one tile north of the loc, and the south approach needs the boots worn (quest_troll.rs2:16).
         t.exec("goto-climbOverRocks", t.player.goto_tile, 2856, 3611, 0)
-        local rocks_before_result, rocks_before = t.world.tile()
-        local rocks_click, rocks_detail = t.player.click_loc("troll_climbingrocks", 1)
-        t.ticks(6)
-        local rocks_after_result, rocks_after = t.world.tile()
-        t.check("climbOverRocks", rocks_click == "ok" and rocks_after_result == "ok" and rocks_after ~= nil
-                and rocks_before ~= nil and (rocks_after.x ~= rocks_before.x or rocks_after.z ~= rocks_before.z),
-            "click_loc -> " .. tostring(rocks_click) .. " " .. tostring(rocks_detail)
-            .. "; tile " .. tostring(rocks_before and (rocks_before.x .. "," .. rocks_before.z))
-            .. " -> " .. tostring(rocks_after and (rocks_after.x .. "," .. rocks_after.z)))
+        t.exec("climbOverRocks", t.player.cross_trap, { loc = "troll_climbingrocks", op_name = "Climb",
+            at = { 2856, 3612, 0 }, src = { 2856, 3611 }, dest = { 2856, 3613 }, vitals = VITALS })
 
         ------------------------------------------------------------------
         -- enterArena (Dad's warning page)
         ------------------------------------------------------------------
-        t.exec("goto-enterArena", t.player.goto_tile, 2896, 3619, 0)
-        local arena_click, arena_detail = t.player.click_loc("troll_stronghold_arena_entrance_right", 1)
+        -- The path east to the arena crosses two rock ridges by their own ops (reach.py 2856,3613 -> 2896,3619:
+        -- NEEDS-OP via troll_climbingrocks_top 2859,3626 and troll_climbingrocks_bottom 2878,3622). From the west,
+        -- _top moves the player 3 east (quest_troll.rs2:22-48) and _bottom 2+1 east (quest_troll.rs2:50-77).
+        t.exec("walk-enterArena.westRocks", t.player.walk_to, 2858, 3626, 40)
+        t.exec("enterArena.westRocks", t.player.cross_trap, { loc = "troll_climbingrocks_top", op_name = "Climb",
+            at = { 2859, 3626, 0 }, src = { 2858, 3626 }, dest = { 2861, 3626 }, vitals = VITALS })
+        t.exec("walk-enterArena.eastRocks", t.player.walk_to, 2877, 3622, 40)
+        t.exec("enterArena.eastRocks", t.player.cross_trap, { loc = "troll_climbingrocks_bottom", op_name = "Climb",
+            at = { 2878, 3622, 0 }, src = { 2877, 3622 }, dest = { 2880, 3622 }, vitals = VITALS })
+        t.exec("walk-enterArena", t.player.walk_to, 2896, 3619, 40)
+        local arena_click, arena_detail = t.player.click_loc("troll_stronghold_arena_entrance_right", 1, { at = { 2897, 3619, 0 } })
         t.ticks(2)
         local warn_kind = t.chat.kind()
         local _, warn_text = t.chat.text()
@@ -151,12 +186,16 @@ return {
         local surrendered = false
         local rounds = 0
         local ate = 0
+        local dad_lowest = nil -- margin row below: the lowest Hitpoints read between attacks
         local seen = {}
         local last_attack_result = nil
         local last_attack_detail = nil
         while (not surrendered) and rounds < 160 do
             rounds = rounds + 1
             local hp_r, hp = t.skill.read("hitpoints")
+            if hp_r == "ok" and type(hp) == "table" and hp.level ~= nil and (dad_lowest == nil or hp.level < dad_lowest) then
+                dad_lowest = hp.level
+            end
             if hp_r == "ok" and type(hp) == "table" and hp.level ~= nil and hp.level < 60 then
                 t.player.inv_op("shark", 1)
                 ate = ate + 1
@@ -191,47 +230,34 @@ return {
         t.chat.close()
         t.ticks(3)
         t.expect("quest.stage.defeated_dad", t.quest.expect_stage("defeated_dad"))
+        local _, sharks_after_dad = t.inv.count("shark")
+        t.check("fightDad-margin", dad_lowest ~= nil and dad_lowest * 4 >= 99 and (sharks_after_dad or 0) >= 1,
+            "lowest hp read in the fight " .. tostring(dad_lowest) .. "/99, sharks eaten " .. ate .. ", left "
+            .. tostring(sharks_after_dad) .. " (margin: lowest hp >= a quarter of 99 AND food left)")
 
         ------------------------------------------------------------------
         -- leaveArena, enterArenaCavern, leaveArenaCavern, enterStronghold
         ------------------------------------------------------------------
-        t.exec("goto-leaveArena", t.player.goto_tile, 2915, 3628, 0)
-        local exit_click, exit_detail = t.player.click_loc("troll_stronghold_arena_exit_left", 1)
-        t.ticks(2)
-        local exit_tile_result, exit_tile = t.world.tile()
-        t.check("leaveArena", exit_click == "ok" and exit_tile_result == "ok" and exit_tile ~= nil,
-            "click_loc -> " .. tostring(exit_click) .. " " .. tostring(exit_detail)
-            .. "; tile " .. tostring(exit_tile and (exit_tile.x .. "," .. exit_tile.z)))
-        t.exec("goto-enterArenaCavern", t.player.goto_tile, 2904, 3644, 0)
-        local cave_before_result, cave_before = t.world.tile()
-        local cave_click, cave_detail = t.player.click_loc("troll_pass_entrance", 1)
+        -- The arena's north gate (troll_stronghold_arena_exit_left 2916,3629, south edge; door_selfstage_open once
+        -- %troll_quest >= defeated_dad, quest_troll.rs2:100-112) opens into a 100-tile walled pocket whose only other
+        -- way out is the cave mouth troll_pass_entrance 2903,3644 (comp.py 2916,3631: doors on edge = the two gate
+        -- leaves only). The cave's west-angle copies teleport 2907,10019 in and 2908,3654 out (quest_troll.rs2:127-133).
+        t.exec("walk-leaveArena", t.player.walk_to, 2916, 3628, 40)
+        t.exec("leaveArena", t.player.pass_door, { closed = "troll_stronghold_arena_exit_left",
+            open = "troll_stronghold_arena_exit_left", at = { 2916, 3629, 0 }, near = { 2916, 3628 }, far = { 2916, 3631 } })
+        t.exec("walk-enterArenaCavern", t.player.walk_to, 2903, 3643, 30)
+        t.exec("enterArenaCavern", t.player.climb, { loc = "troll_pass_entrance", op = 1, op_name = "Enter",
+            at = { 2903, 3644, 0 }, src = { 2903, 3643 }, dest = { 2907, 10019, 0 } })
         t.ticks(3)
-        local cave_after_result, cave_after = t.world.tile()
-        t.check("enterArenaCavern", cave_click == "ok" and cave_after_result == "ok" and cave_after ~= nil
-                and cave_before ~= nil and (cave_after.z ~= cave_before.z or cave_after.x ~= cave_before.x),
-            "click_loc -> " .. tostring(cave_click) .. " " .. tostring(cave_detail)
-            .. "; tile " .. tostring(cave_before and (cave_before.x .. "," .. cave_before.z))
-            .. " -> " .. tostring(cave_after and (cave_after.x .. "," .. cave_after.z)))
-        t.exec("goto-leaveArenaCavern", t.player.goto_tile, 2907, 10036, 0)
-        local pass_before_result, pass_before = t.world.tile()
-        local pass_click, pass_detail = t.player.click_loc("troll_pass_exit", 1)
+        t.exec("walk-leaveArenaCavern", t.player.walk_to, 2906, 10035, 40)
+        t.exec("leaveArenaCavern", t.player.climb, { loc = "troll_pass_exit", op = 1, op_name = "Exit",
+            at = { 2906, 10036, 0 }, src = { 2906, 10035 }, dest = { 2908, 3654, 0 } })
         t.ticks(3)
-        local pass_after_result, pass_after = t.world.tile()
-        t.check("leaveArenaCavern", pass_click == "ok" and pass_after_result == "ok" and pass_after ~= nil
-                and pass_before ~= nil and (pass_after.z ~= pass_before.z or pass_after.x ~= pass_before.x),
-            "click_loc -> " .. tostring(pass_click) .. " " .. tostring(pass_detail)
-            .. "; tile " .. tostring(pass_before and (pass_before.x .. "," .. pass_before.z))
-            .. " -> " .. tostring(pass_after and (pass_after.x .. "," .. pass_after.z)))
-        t.exec("goto-enterStronghold", t.player.goto_tile, 2839, 3689, 0)
-        local door_before_result, door_before = t.world.tile()
-        local door_click, door_detail = t.player.click_loc("troll_stronghold_door", 1)
-        t.ticks(3)
-        local door_after_result, door_after = t.world.tile()
-        t.check("enterStronghold", door_click == "ok" and door_after_result == "ok" and door_after ~= nil
-                and door_before ~= nil and (door_after.z ~= door_before.z or door_after.x ~= door_before.x),
-            "click_loc -> " .. tostring(door_click) .. " " .. tostring(door_detail)
-            .. "; tile " .. tostring(door_before and (door_before.x .. "," .. door_before.z))
-            .. " -> " .. tostring(door_after and (door_after.x .. "," .. door_after.z)))
+        -- The cave's north mouth and the stronghold's front door share Trollheim's summit component (reach.py
+        -- 2908,3654 -> 2840,3690 REACH closed-doors len 208): an overland hop to the open tile beside the door.
+        t.exec("goto-enterStronghold", t.player.goto_tile, 2840, 3690, 0)
+        t.exec("enterStronghold", t.player.climb, { loc = "troll_stronghold_door", op = 1, op_name = "Enter",
+            at = { 2839, 3689, 0 }, dest = { 2837, 10090, 2 } })
 
         ------------------------------------------------------------------
         -- killGeneral: the prison key is a ground drop
@@ -284,12 +310,12 @@ return {
             .. " general(s): " .. table.concat(general_notes, "; "))
         local _, sharks_after_general = t.inv.count("shark")
         local _, hp_after_general = t.skill.read("hitpoints")
-        t.check("killGeneral-margin", (sharks_after_general or 0) >= 2 or (general_lowest or 0) > 25,
+        t.check("killGeneral-margin", general_lowest ~= nil and general_lowest * 4 >= 99 and (sharks_after_general or 0) >= 1,
             "sharks staged 26, at the generals " .. tostring(sharks_at_general) .. ", eaten in the fight "
             .. tostring((sharks_at_general or 0) - (sharks_after_general or 0)) .. ", left " .. tostring(sharks_after_general)
             .. ", lowest hp in the fight " .. tostring(general_lowest) .. "/99, hp after "
             .. tostring(type(hp_after_general) == "table" and (hp_after_general.current or hp_after_general.level) or hp_after_general)
-            .. ", " .. general_ticks .. " tick(s) of general fighting (margin: sharks left >= 2 or lowest hp > 25)")
+            .. ", " .. general_ticks .. " tick(s) of general fighting (margin: lowest hp >= a quarter of 99 AND food left)")
 
         ------------------------------------------------------------------
         -- goDownInStronghold, goThroughPrisonDoor, goDownToPrison
@@ -306,6 +332,14 @@ return {
         ------------------------------------------------------------------
         -- getBerryKey, freeEadgar (pickpocket, else kill the awake guard)
         ------------------------------------------------------------------
+        -- A pickpocket that fails wakes the guard (troll_stronghold_camp_guard.rs2); the awake guard is then fought.
+        -- Every such fight lands in the guards' margin row after freeGodric.
+        local guard_fights, guard_lowest = 0, nil
+        local function guard_fight(detail)
+            guard_fights = guard_fights + 1
+            local lowest_here = tonumber(tostring(detail):match("lowest hp (%d+)/"))
+            if lowest_here and (guard_lowest == nil or lowest_here < guard_lowest) then guard_lowest = lowest_here end
+        end
         t.exec("goto-getBerryKey", t.player.goto_tile, 2834, 10084, 0)
         local berry_got = false
         local berry_tries = 0
@@ -319,7 +353,8 @@ return {
             if (not berry_got) and berry_tries >= 3 and t.npc.nearest("troll_prison_guard2_awake", 6) ~= nil then
                 local ar = t.player.attack("troll_prison_guard2_awake", 2, 8)
                 if ar == "ok" or ar == "timeout" then
-                    t.npc.await_dead_engaged(200, 40, { eat = { item = "shark", below = 90 } })
+                    local _, guard_detail = t.npc.await_dead_engaged(200, 40, { eat = { item = "shark", below = 90 } })
+                    guard_fight(guard_detail)
                     t.ticks(4)
                     t.player.click_obj("troll_key_eadgar", 3)
                     t.ticks(3)
@@ -351,7 +386,8 @@ return {
             if (not twig_got) and twig_tries >= 3 and t.npc.nearest("troll_prison_guard1_awake", 6) ~= nil then
                 local ar = t.player.attack("troll_prison_guard1_awake", 2, 8)
                 if ar == "ok" or ar == "timeout" then
-                    t.npc.await_dead_engaged(200, 40, { eat = { item = "shark", below = 90 } })
+                    local _, guard_detail = t.npc.await_dead_engaged(200, 40, { eat = { item = "shark", below = 90 } })
+                    guard_fight(guard_detail)
                     t.ticks(4)
                     t.player.click_obj("troll_key_godric", 3)
                     t.ticks(3)
@@ -367,11 +403,46 @@ return {
         t.chat.close()
         t.ticks(2)
         t.expect("quest.stage.freed_godric", t.quest.expect_stage("freed_godric"))
+        if guard_fights > 0 then
+            local _, sharks_after_guards = t.inv.count("shark")
+            t.check("prisonGuards-margin", guard_lowest ~= nil and guard_lowest * 4 >= 99 and (sharks_after_guards or 0) >= 1,
+                guard_fights .. " awake guard fight(s), lowest hp " .. tostring(guard_lowest) .. "/99, sharks left "
+                .. tostring(sharks_after_guards) .. " (margin: lowest hp >= a quarter of 99 AND food left)")
+        end
 
         ------------------------------------------------------------------
         -- goToDunstan
         ------------------------------------------------------------------
-        t.exec("goto-goToDunstan", t.player.goto_tile, 2919, 3575, 0)
+        -- Out of the prison on foot (the guide names no way back; a goto out of the dungeon is a cheat): the secret
+        -- door troll_stronghold_exit (2823-2825,10048-10049, op Open; quest_troll.rs2:122-125 p_teleport 2827,3646,
+        -- no gate) from the corridor tile north of it (reach.py 2834,10078 -> 2823,10050 REACH len 41); down the
+        -- ledge to the second rock pair (troll_climbingrocks 2834,3628, @rockslide_obstacle: from the north it ends
+        -- one tile south), round to the first pair from the north (2856,3612 -> 2856,3611), along the secret path to
+        -- Death Plateau's climbing rocks (death_climbingrocks_top 2880,3595: worn climbing boots, exactmove 3 south;
+        -- death_locs.rs2:40-48), then Burthorpe is one walking component (reach.py 2880,3592 -> 2921,3569 REACH
+        -- len 184) to the street south of Dunstan's house; his door poordoor 2921,3571 (death.lua dunstan_in).
+        t.exec("walk-goToDunstan.secretDoor", t.player.walk_to, 2823, 10050, 60)
+        t.exec("goToDunstan.secretDoor", t.player.climb, { loc = "troll_stronghold_exit", op = 1, op_name = "Open",
+            at = { 2823, 10048, 0 }, src = { 2823, 10050 }, dest = { 2827, 3646, 0 } })
+        t.ticks(3)
+        t.exec("walk-goToDunstan.northRocks", t.player.walk_to, 2834, 3629, 40)
+        t.exec("goToDunstan.northRocks", t.player.cross_trap, { loc = "troll_climbingrocks", op_name = "Climb",
+            at = { 2834, 3628, 0 }, src = { 2834, 3629 }, dest = { 2834, 3627 }, vitals = VITALS })
+        t.exec("walk-goToDunstan.southRocks", t.player.walk_to, 2856, 3613, 60)
+        t.exec("goToDunstan.southRocks", t.player.cross_trap, { loc = "troll_climbingrocks", op_name = "Climb",
+            at = { 2856, 3612, 0 }, src = { 2856, 3613 }, dest = { 2856, 3611 }, vitals = VITALS })
+        -- In hops: the scene built round the secret door's landing ends at x 2879, and drive.move_to only routes to a
+        -- tile the client has loaded (run 1: walk_to 2880,3596 from 2856,3611 refused move_to). reach.py 2856,3611 ->
+        -- 2863,3609 -> 2876,3604 -> 2880,3596 REACH closed-doors len 9 / 18 / 12.
+        t.exec("walk-goToDunstan.plateauPath", t.player.walk_to, 2863, 3609, 30)
+        t.exec("walk-goToDunstan.plateauPath2", t.player.walk_to, 2876, 3604, 40)
+        t.ticks(2)
+        t.exec("walk-goToDunstan.plateauRocks", t.player.walk_to, 2880, 3596, 40)
+        t.exec("goToDunstan.plateauRocks", t.player.cross_trap, { loc = "death_climbingrocks_top", op_name = "Climb",
+            at = { 2880, 3595, 0 }, src = { 2880, 3596 }, dest = { 2880, 3593 }, vitals = VITALS })
+        t.exec("goto-goToDunstan", t.player.goto_tile, 2921, 3569, 0)
+        t.exec("goToDunstan.doorIn", t.player.pass_door, { closed = "poordoor", open = "poordooropen",
+            at = { 2921, 3571, 0 }, near = { 2921, 3571 }, far = { 2921, 3572 } })
         t.exec("goToDunstan", t.player.talk_to, "death_smithy", 1)
         t.exec("goToDunstan-dialog", t.chat.play, {
             "player:Has Godric returned home?",

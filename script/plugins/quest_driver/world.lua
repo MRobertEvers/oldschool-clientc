@@ -611,6 +611,65 @@ QD.player._teleport_cast_radius = 2
 QD.player._teleport_cast_land_ticks = 10
 QD.player._antipoison_doses = { "1doseantipoison", "2doseantipoison", "3doseantipoison", "4doseantipoison" }
 
+-- SEAM crossing_returns_inside_its_p_delay (b69) -- A LANDING IS NOT A FREE
+-- PLAYER.
+--
+-- cross_trap and climb grade the tile, and the tile lands BEFORE the content
+-- is done with the player: a clean zq_logbalance crossing is `p_teleport` onto
+-- the far end, then `p_delay(2)` and `~update_bas`
+-- (skill_agility/scripts/shortcuts_karamja_river.rs2 [oploc1,zq_logbalance]).
+-- While that delay runs the server REFUSES the held-item and inventory-button
+-- packets outright (torirs_server_world.c player_delayed_blocks_packet,
+-- LostCity's OpHeld*Handler), so the use or eat a test pressed on the very
+-- next row was dropped without a word: tbwt getPoisonKarambwan-load1
+-- "nothing in 10 ticks" (build/orchestrator/fix_b69/tbwt.progress.md, probe 7
+-- reproduces it, probe 8 with a 3-tick wait passes).  A crossing's own
+-- `vitals` eat after the landing fell into the same hole.
+--
+-- So a crossing or a climb that LANDED waits, bounded, until the server says
+-- the player is no longer delayed (api_drive.player_delayed --
+-- ToriRSServer_PlayerDelayed, the very predicate the refusal reads).  Already
+-- free = no wait.  The verdict stays the tile: a player still held when the
+-- budget runs out is said in the detail ("still delayed ..."), not failed --
+-- a long content p_delay after a landing is a fact about that obstacle.  A
+-- socket run (no embedded server) answers `unsupported`, and the detail says
+-- the hold could not be read.
+--
+-- (free, text): `text` is "" when the player was free on the first read.
+QD.player._free_ticks = 8
+
+function QD.player._await_free(what)
+    assert(type(what) == "string", "_await_free names what landed")
+    local function delayed_now()
+        local result, row = api_drive.player_delayed()
+        if result ~= "ok" then
+            return nil, result
+        end
+        assert(type(row) == "table", "api_drive.player_delayed answered ok without a row")
+        return row.delayed == true, row
+    end
+    local held, first = delayed_now()
+    if held == nil then
+        return false, "; the server's hold could not be read (player_delayed -> " .. tostring(first) .. ")"
+    end
+    if not held then
+        return true, ""
+    end
+    local started = api_drive.tick()
+    local result = QD.await({
+        level = function()
+            return delayed_now() == false
+        end,
+        note = what .. ": the server's p_delay after the landing",
+    }, QD.player._free_ticks)
+    local waited = api_drive.tick() - started
+    if result ~= "ok" then
+        return false, "; still delayed " .. waited .. " tick(s) after the landing (p_delay "
+            .. tostring(first.delay_ticks) .. " tick(s) left when it landed) -- the next item use may be dropped"
+    end
+    return true, "; held " .. waited .. " tick(s) after the landing by the server's p_delay, waited it out"
+end
+
 -- A spec's {x, z[, level]} as three values (level nil when not stated).
 function QD.player._spec_tile(value, what)
     assert(type(value) == "table", what .. " must be {x, z[, level]}")
@@ -1141,6 +1200,14 @@ function QD.player.cross_trap(spec)
             .. " at " .. where .. ", " .. op_text .. ") -> " .. tostring(press_result) .. " "
             .. tostring(press_detail) .. "; landed " .. tile_text(after) .. (said ~= "" and ("; " .. said) or "")
     end
+    -- Landed: the server may still hold the player (the seam above
+    -- QD.player._await_free); the vitals' eat and the caller's next item
+    -- use are only taken once it lets go.
+    local free_text = ""
+    if landed then
+        local _
+        _, free_text = QD.player._await_free("cross_trap " .. loc)
+    end
     local vitals_text = QD.player._run_vitals(spec.vitals)
     if vitals_text ~= "" then
         trail[#trail + 1] = vitals_text
@@ -1158,7 +1225,7 @@ function QD.player.cross_trap(spec)
         return word, text .. " -- did not land on " .. dest_x .. "," .. dest_z .. "," .. level
             .. " in " .. attempts .. " press(es) of at most " .. attempts_max
     end
-    return "ok", text .. " -- landed on press " .. attempts .. " of at most " .. attempts_max
+    return "ok", text .. " -- landed on press " .. attempts .. " of at most " .. attempts_max .. free_text
 end
 
 -- t.player.climb(spec) -> (ok, detail) `refused` `covered` `not_visible`
@@ -1450,8 +1517,11 @@ function QD.player.climb(spec)
         end
         return word, text .. reason .. page_hint
     end
+    -- Landed: wait out a p_delay the stair's script runs after its
+    -- telejump (QD.player._await_free) so the caller's next item use lands.
+    local _, free_text = QD.player._await_free("climb " .. loc)
     return "ok", text .. " -- landed on level " .. dest_level .. " at " .. tile_text(after)
-        .. " on press " .. presses .. (same_text ~= nil and (" (" .. same_text .. ")") or "")
+        .. " on press " .. presses .. (same_text ~= nil and (" (" .. same_text .. ")") or "") .. free_text
 end
 
 -- t.player.walk_route(points, opts) -> (ok, detail) `refused` `timeout`

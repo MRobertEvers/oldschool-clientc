@@ -183,6 +183,12 @@ return {
             t.exec(prefix .. ".leg4", t.sail.sail_to, 3037, 3105, 3, 400)
             t.exec(prefix .. ".leg5", t.sail.sail_to, 3043, 3158, 3, 400)
             t.exec(prefix .. ".leg6", t.sail.sail_to, 3044, 3181, 3, 300)
+            -- East first, then up to the berth: the straight line 3044,3181
+            -- -> 3057,3189 passes 1.4 tiles from the pier post at
+            -- 3048..3049,3186..3187 (OSRS-Content maps m47_49 jl2), which
+            -- the old sail_to only cleared because it could not press a
+            -- heading near the bow and so held north (b69 driver fix).
+            t.exec(prefix .. ".leg7a", t.sail.sail_to, 3052, 3181, 2, 200)
             t.exec(prefix .. ".leg7", t.sail.sail_to, 3057, 3189, 2, 300)
             t.exec(prefix .. ".furl", t.sail.sails, false)
             hull_row(prefix .. ".at_sarim", 3057, 3189, 4)
@@ -405,7 +411,12 @@ return {
         t.exec("sailToCrate.leg2", t.sail.sail_to, 3082, 3012, 2, 300)
         t.exec("sailToCrate.leg3", t.sail.sail_to, 3040, 3012, 2, 300)
         t.exec("sailToCrate.leg4", t.sail.sail_to, 3013, 3008, 2, 300)
-        t.exec("sailToCrate", t.sail.sail_to, 3013, 3005, 1, 200)
+        -- One tile further south than 3013,3005 r1: the sea crate stands at
+        -- 3013,2998 (pryingtimes.constant ^pry_sea_crate_coord), and the
+        -- deck hunt below finds its Pry-open row only from within ~7 tiles;
+        -- r1 of 3013,3005 stopped the hull at 3014,3006, eight off, once
+        -- sail_to kept to its leg's line (b69 driver fix).
+        t.exec("sailToCrate", t.sail.sail_to, 3013, 3004, 1, 200)
         t.exec("sailToCrate.furl", t.sail.sails, false)
         hull_row("sailToCrate.hull", 3013, 3005, 3)
         t.exec("offHelm", t.sail._press_deck_row, "Navigate", "Helm")

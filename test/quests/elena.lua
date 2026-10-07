@@ -59,6 +59,13 @@ return {
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
 
         -- talkToEdmond
+        -- First placement obeys the door rule: the only walk from Lumbridge to Ardougne opens the members' gate
+        -- membergater 2933,3320 (goto_table: NEEDS-DOOR). Land on the open ground south of it, cross it by its
+        -- verb graded on the tiles, then travel overland to Edmond's garden.
+        t.exec("goto-memberGate", t.player.goto_tile, 2933, 3318, 0)
+        t.exec("talkToEdmond.memberGate", t.player.cross_gate, { loc = "membergater", at = { 2933, 3320, 0 },
+            near = { 2933, 3318 }, far_ok = function(tile) return tile.z >= 3320 and math.abs(tile.x - 2933) <= 2 end,
+            far_desc = "north of the members' gate, z >= 3320", far = { 2933, 3322 } })
         t.exec("goto-talkToEdmond", t.player.goto_tile, 2568, 3332, 0)
         t.exec("talkToEdmond", t.player.talk_to, "edmond", 1)
         t.exec("talkToEdmond-dialog", t.chat.play, {

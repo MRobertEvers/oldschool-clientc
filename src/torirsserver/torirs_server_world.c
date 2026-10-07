@@ -576,6 +576,14 @@ player_delayed(
     return player->active_script && player->active_script->execution == SSVM_SUSPENDED;
 }
 
+int
+ToriRSServer_PlayerDelayed(
+    struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player)
+{
+    return player_delayed(srv, player);
+}
+
 /*
  * An interface click that would START a content script, arriving while the
  * player is delayed: refuse it, and say so in the verbose log.
