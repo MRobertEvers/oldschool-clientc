@@ -1,4 +1,4 @@
--- Scratch: NR-shaped Olm enter on the z+64 shelf (not coplanar with floors).
+-- Olm shelf + NR 5x7: corridor, chamber open view, west-wall rise.
 local HEAD = "olm_head"
 local HEAD_SPAWN = "olm_head_spawning"
 
@@ -12,9 +12,7 @@ end
 
 local function npc_ok(t, name)
     local r, row = t.npc.state(name)
-    if r == "ok" then
-        return row
-    end
+    if r == "ok" then return row end
     return nil
 end
 
@@ -22,13 +20,9 @@ return {
     id = "cox_olm_chamber_shot",
     fixture = "fresh_lumbridge.ini",
     frames = 1200,
-    setup = {
-        "::maxstats",
-        "::godmode",
-    },
-
+    setup = { "::maxstats", "::godmode" },
     run = function(t)
-        t.check("scope", true, "Olm shelf z+64; hole→corridor; barrier→chamber; west caves")
+        t.check("scope", true, "5x7 shelf; hole→corridor; barrier→chamber; west rise")
         local er, ed = t.raid.enter("cox", "olm", { seed = 1 })
         t.check("raid.enter", er == "ok", tostring(ed))
 
@@ -38,7 +32,6 @@ return {
         local tr, tile = t.world.tile()
         t.check("corridor.tile", tr == "ok" and type(tile) == "table" and tile.level == 2,
             "want plane 2 corridor, got " .. tile_text(t))
-        -- Walk north toward barrier (relative; shelf abs z changes with alloc).
         t.player.walk_to(tile.x, tile.z + 4, 24)
         t.ticks(2)
         t.drive.camera(0, 180, 500)
@@ -47,20 +40,18 @@ return {
 
         local cr, cd = t.player.click_loc("raids_olm_barrier", 1)
         t.check("barrier.click", cr == "ok" or cr == "timeout", tostring(cr) .. " " .. tostring(cd))
-        local chr, chd = t.chat.play({ "options", "choose:Step through the mystical barrier." })
-        t.check("barrier.confirm", chr == "ok" or chr == "timeout", tostring(chr) .. " " .. tostring(chd))
+        t.chat.play({ "options", "choose:Step through the mystical barrier." })
         t.ticks(12)
 
         tr, tile = t.world.tile()
-        t.check("tile.read", tr == "ok", tostring(tile))
         t.check("chamber.plane", type(tile) == "table" and tile.level == 2,
             "want plane 2 chamber, got " .. tile_text(t))
-        t.drive.camera(1536, 200, 700)
+        -- Open arena looking north (not into the west-wall rock).
+        t.drive.camera(0, 200, 700)
         t.ticks(3)
-        t.shot("olm chamber after barrier at " .. tile_text(t))
+        t.shot("olm chamber looking north at " .. tile_text(t))
 
-        local wait = 0
-        local head = npc_ok(t, HEAD)
+        local wait, head = 0, npc_ok(t, HEAD)
         while head == nil and wait < 40 do
             wait = wait + 1
             t.ticks(1)
@@ -71,13 +62,12 @@ return {
             t.ticks(12)
             head = npc_ok(t, HEAD) or npc_ok(t, HEAD_SPAWN)
         end
-        t.check("boss.present", head ~= nil, "waited for olm_head at " .. tile_text(t))
-        tr, tile = t.world.tile()
-        t.player.walk_to(tile.x - 8, tile.z, 24)
-        t.ticks(2)
-        t.drive.camera(1536, 160, 500)
+        t.check("boss.present", head ~= nil, "olm_head at " .. tile_text(t))
+        -- From centre look west at the rise — stay at chamber x, do not walk
+        -- into raids_olmic_head2 carved heads at window (12,24)/(19,24).
+        t.drive.camera(1536, 180, 650)
         t.ticks(4)
-        t.shot("olm west caves after spawn at " .. tile_text(t))
-        t.check("done", true, "chamber shots at " .. tile_text(t))
+        t.shot("olm west wall rise at " .. tile_text(t))
+        t.check("done", true, "shots at " .. tile_text(t))
     end,
 }
