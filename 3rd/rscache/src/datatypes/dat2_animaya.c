@@ -31,10 +31,6 @@ extrapolate_curve(
 static void
 method3282(float v[2]);
 static float
-method8290(
-    struct RSCache_Dat2Curve* c,
-    int t);
-static float
 method6869(
     const float* values,
     int last_index,
@@ -993,13 +989,11 @@ RSCache_Dat2AnimMayaNewFromCache(
 {
     struct RSCache_Dat2AnimMaya* maya = NULL;
     struct RSCache_Dat2DiskArchive* archive = NULL;
-    struct RSCache_FileList* filelist = NULL;
 
     if( !cache )
         return NULL;
 
     int archive_id = anim_maya_id >> 16;
-    int file_id = anim_maya_id & 0xFFFF;
 
     /* Maya skeletal animation is an OldSchool table. A 643 cache puts varbits at that
      * id, so there is nothing here to read rather than something that fails to decode. */

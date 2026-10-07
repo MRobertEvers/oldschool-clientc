@@ -100,77 +100,77 @@ npc_applies_rev237_ops(const struct CP_Ctx* ctx)
 
 /* In the order they are written; the comment names the RSCACHE_NPC_FIELD_*. */
 const struct CP_KeySpec cp_npc_keys[] = {
-    { "name", 0, NULL },                                  /* NAME */
-    { "desc", 0, NULL },                                  /* DESC */
-    { "model", CP_KEY_INDEXED, NULL },                    /* MODELS */
-    { "head", CP_KEY_INDEXED, NULL },                     /* CHATHEADS */
-    { "size", 0, NULL },                                  /* SIZE */
-    { "readyanim", 0, npc_applies_not_b669 },             /* READY_ANIM */
-    { "walkanim", 0, npc_applies_not_b669 },              /* WALK_ANIM */
-    { "walkanim_b", 0, npc_applies_not_b669 },            /* WALK_TURN_ANIMS */
-    { "walkanim_l", 0, npc_applies_not_b669 },
-    { "walkanim_r", 0, npc_applies_not_b669 },
-    { "idleleftanim", 0, npc_applies_not_b669 },          /* IDLE_LEFT_ANIM */
-    { "idlerightanim", 0, npc_applies_not_b669 },         /* IDLE_RIGHT_ANIM */
-    { "runanim", 0, npc_applies_oldschool_ops },          /* RUN_ANIM */
-    { "runanim_b", 0, npc_applies_oldschool_ops },        /* RUN_TURN_ANIMS */
-    { "runanim_l", 0, npc_applies_oldschool_ops },
-    { "runanim_r", 0, npc_applies_oldschool_ops },
-    { "crawlanim", 0, npc_applies_not_b669 },             /* CRAWL_ANIM */
-    { "crawlanim_b", 0, npc_applies_not_b669 },           /* CRAWL_TURN_ANIMS */
-    { "crawlanim_l", 0, npc_applies_not_b669 },
-    { "crawlanim_r", 0, npc_applies_not_b669 },
-    { "op1", 0, NULL },                                   /* OP1..OP5 */
-    { "op2", 0, NULL },
-    { "op3", 0, NULL },
-    { "op4", 0, NULL },
-    { "op5", 0, NULL },
-    { "subop", CP_KEY_LIST, npc_applies_rev237_ops },     /* SUB_OPS */
-    { "condop", CP_KEY_LIST, npc_applies_rev237_ops },    /* COND_OPS */
-    { "condsubop", CP_KEY_LIST, npc_applies_rev237_ops }, /* COND_SUB_OPS */
-    { "recol", CP_KEY_INDEXED, NULL },                    /* RECOLOR */
-    { "retex", CP_KEY_INDEXED, NULL },                    /* RETEXTURE */
-    { "minimap", 0, NULL },                               /* MINIMAP_HIDDEN */
-    { "vislevel", 0, NULL },                              /* COMBAT_LEVEL */
-    { "resizeh", 0, NULL },                               /* WIDTH_SCALE */
-    { "resizev", 0, NULL },                               /* HEIGHT_SCALE */
-    { "alwaysontop", 0, NULL },                           /* RENDER_PRIORITY */
-    { "renderpriority", 0, npc_applies_rev233 },          /* RENDER_PRIORITY_HIGH */
-    { "follower", 0, npc_applies_follower },              /* FOLLOWER */
-    { "ambient", 0, NULL },                               /* AMBIENT */
-    { "contrast", 0, NULL },                              /* CONTRAST */
-    { "headicon", CP_KEY_INDEXED, NULL },                 /* HEAD_ICONS */
-    { "turnspeed", 0, NULL },                             /* ROTATION_SPEED */
-    { "multivarbit", 0, NULL },                           /* MULTI */
-    { "multivarp", 0, NULL },
-    { "multinpc", CP_KEY_INDEXED, NULL },
-    { "interactable", 0, NULL },                          /* NOT_INTERACTABLE */
-    { "rotationflag", 0, NULL },                          /* NO_ROTATION_FLAG */
-    { "pet", 0, npc_applies_oldschool_ops },              /* PET */
-    { "lowpriorityops", 0, npc_applies_oldschool_ops },   /* LOW_PRIORITY_OPS */
-    { "height", 0, NULL },                                /* HEIGHT */
-    { "category", 0, npc_applies_not_b669 },              /* CATEGORY */
-    { "soundidle", 0, NULL },                             /* MOVEMENT_SOUNDS */
-    { "soundcrawl", 0, NULL },
-    { "soundwalk", 0, NULL },
-    { "soundrun", 0, NULL },
-    { "soundradius", 0, NULL },
-    { "soundvolume", 0, npc_applies_not_b669 },           /* SOUND_VOLUME */
-    { "stat1", 0, npc_applies_not_b669 },                 /* STAT1..STAT6 */
-    { "stat2", 0, npc_applies_not_b669 },
-    { "stat3", 0, npc_applies_not_b669 },
-    { "stat4", 0, npc_applies_not_b669 },
-    { "stat5", 0, npc_applies_not_b669 },
-    { "stat6", 0, npc_applies_not_b669 },
-    { "bastype", 0, NULL },                               /* BAS_TYPE */
-    { "footprintsize", 0, npc_applies_rev231 },           /* FOOTPRINT_SIZE */
-    { "opcode129", 0, npc_applies_rev234 },               /* UNKNOWN129 */
-    { "hideforoverlap", 0, npc_applies_rev235 },          /* HIDE_FOR_OVERLAP */
-    { "overlaptint", 0, npc_applies_rev235 },             /* OVERLAP_TINT */
-    { "idleanimrestart", 0, npc_applies_rev236 },         /* IDLE_ANIM_RESTART */
-    { "zbuf", 0, npc_applies_rev236 },                    /* ZBUF_OFF */
-    { "param", CP_KEY_LIST, NULL },                       /* PARAMS */
-    { NULL, 0, NULL },
+    { "name", 0, NULL, NULL },                                  /* NAME */
+    { "desc", 0, NULL, NULL },                                  /* DESC */
+    { "model", CP_KEY_INDEXED, NULL, NULL },                    /* MODELS */
+    { "head", CP_KEY_INDEXED, NULL, NULL },                     /* CHATHEADS */
+    { "size", 0, NULL, NULL },                                  /* SIZE */
+    { "readyanim", 0, npc_applies_not_b669, NULL },             /* READY_ANIM */
+    { "walkanim", 0, npc_applies_not_b669, NULL },              /* WALK_ANIM */
+    { "walkanim_b", 0, npc_applies_not_b669, NULL },            /* WALK_TURN_ANIMS */
+    { "walkanim_l", 0, npc_applies_not_b669, NULL },
+    { "walkanim_r", 0, npc_applies_not_b669, NULL },
+    { "idleleftanim", 0, npc_applies_not_b669, NULL },          /* IDLE_LEFT_ANIM */
+    { "idlerightanim", 0, npc_applies_not_b669, NULL },         /* IDLE_RIGHT_ANIM */
+    { "runanim", 0, npc_applies_oldschool_ops, NULL },          /* RUN_ANIM */
+    { "runanim_b", 0, npc_applies_oldschool_ops, NULL },        /* RUN_TURN_ANIMS */
+    { "runanim_l", 0, npc_applies_oldschool_ops, NULL },
+    { "runanim_r", 0, npc_applies_oldschool_ops, NULL },
+    { "crawlanim", 0, npc_applies_not_b669, NULL },             /* CRAWL_ANIM */
+    { "crawlanim_b", 0, npc_applies_not_b669, NULL },           /* CRAWL_TURN_ANIMS */
+    { "crawlanim_l", 0, npc_applies_not_b669, NULL },
+    { "crawlanim_r", 0, npc_applies_not_b669, NULL },
+    { "op1", 0, NULL, NULL },                                   /* OP1..OP5 */
+    { "op2", 0, NULL, NULL },
+    { "op3", 0, NULL, NULL },
+    { "op4", 0, NULL, NULL },
+    { "op5", 0, NULL, NULL },
+    { "subop", CP_KEY_LIST, npc_applies_rev237_ops, NULL },     /* SUB_OPS */
+    { "condop", CP_KEY_LIST, npc_applies_rev237_ops, NULL },    /* COND_OPS */
+    { "condsubop", CP_KEY_LIST, npc_applies_rev237_ops, NULL }, /* COND_SUB_OPS */
+    { "recol", CP_KEY_INDEXED, NULL, NULL },                    /* RECOLOR */
+    { "retex", CP_KEY_INDEXED, NULL, NULL },                    /* RETEXTURE */
+    { "minimap", 0, NULL, NULL },                               /* MINIMAP_HIDDEN */
+    { "vislevel", 0, NULL, NULL },                              /* COMBAT_LEVEL */
+    { "resizeh", 0, NULL, NULL },                               /* WIDTH_SCALE */
+    { "resizev", 0, NULL, NULL },                               /* HEIGHT_SCALE */
+    { "alwaysontop", 0, NULL, NULL },                           /* RENDER_PRIORITY */
+    { "renderpriority", 0, npc_applies_rev233, NULL },          /* RENDER_PRIORITY_HIGH */
+    { "follower", 0, npc_applies_follower, NULL },              /* FOLLOWER */
+    { "ambient", 0, NULL, NULL },                               /* AMBIENT */
+    { "contrast", 0, NULL, NULL },                              /* CONTRAST */
+    { "headicon", CP_KEY_INDEXED, NULL, NULL },                 /* HEAD_ICONS */
+    { "turnspeed", 0, NULL, NULL },                             /* ROTATION_SPEED */
+    { "multivarbit", 0, NULL, NULL },                           /* MULTI */
+    { "multivarp", 0, NULL, NULL },
+    { "multinpc", CP_KEY_INDEXED, NULL, NULL },
+    { "interactable", 0, NULL, NULL },                          /* NOT_INTERACTABLE */
+    { "rotationflag", 0, NULL, NULL },                          /* NO_ROTATION_FLAG */
+    { "pet", 0, npc_applies_oldschool_ops, NULL },              /* PET */
+    { "lowpriorityops", 0, npc_applies_oldschool_ops, NULL },   /* LOW_PRIORITY_OPS */
+    { "height", 0, NULL, NULL },                                /* HEIGHT */
+    { "category", 0, npc_applies_not_b669, NULL },              /* CATEGORY */
+    { "soundidle", 0, NULL, NULL },                             /* MOVEMENT_SOUNDS */
+    { "soundcrawl", 0, NULL, NULL },
+    { "soundwalk", 0, NULL, NULL },
+    { "soundrun", 0, NULL, NULL },
+    { "soundradius", 0, NULL, NULL },
+    { "soundvolume", 0, npc_applies_not_b669, NULL },           /* SOUND_VOLUME */
+    { "stat1", 0, npc_applies_not_b669, NULL },                 /* STAT1..STAT6 */
+    { "stat2", 0, npc_applies_not_b669, NULL },
+    { "stat3", 0, npc_applies_not_b669, NULL },
+    { "stat4", 0, npc_applies_not_b669, NULL },
+    { "stat5", 0, npc_applies_not_b669, NULL },
+    { "stat6", 0, npc_applies_not_b669, NULL },
+    { "bastype", 0, NULL, NULL },                               /* BAS_TYPE */
+    { "footprintsize", 0, npc_applies_rev231, NULL },           /* FOOTPRINT_SIZE */
+    { "opcode129", 0, npc_applies_rev234, NULL },               /* UNKNOWN129 */
+    { "hideforoverlap", 0, npc_applies_rev235, NULL },          /* HIDE_FOR_OVERLAP */
+    { "overlaptint", 0, npc_applies_rev235, NULL },             /* OVERLAP_TINT */
+    { "idleanimrestart", 0, npc_applies_rev236, NULL },         /* IDLE_ANIM_RESTART */
+    { "zbuf", 0, npc_applies_rev236, NULL },                    /* ZBUF_OFF */
+    { "param", CP_KEY_LIST, NULL, NULL },                       /* PARAMS */
+    { NULL, 0, NULL, NULL },
 };
 
 /* ---- unpack -------------------------------------------------------------- */

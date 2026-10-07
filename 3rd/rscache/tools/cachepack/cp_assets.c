@@ -1932,7 +1932,6 @@ cp_assets_import(
     if( archive_list_path && !cp_archive_filter_load(&filter, archive_list_path) )
         return 0;
     const struct CP_ArchiveFilter* active_filter = archive_list_path ? &filter : NULL;
-    const int filtered = active_filter != NULL;
     if( active_filter &&
         !cp_archive_filter_validate(ctx, active_filter, mask, all, archive_list_path) )
     {

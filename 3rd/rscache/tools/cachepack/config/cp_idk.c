@@ -45,22 +45,22 @@ idk_free_inplace(struct RSCache_Dat2ConfigIdk* idk)
 /* In the order they are written. `model`, `recol` and `retex` are one opcode with
  * a count each (INDEXED); the ten if-model slots are ten opcodes, so ten keys. */
 const struct CP_KeySpec cp_idk_keys[] = {
-    { "bodypart", 0, NULL },
-    { "model", CP_KEY_INDEXED, NULL },
-    { "ifmodel1", 0, NULL },
-    { "ifmodel2", 0, NULL },
-    { "ifmodel3", 0, NULL },
-    { "ifmodel4", 0, NULL },
-    { "ifmodel5", 0, NULL },
-    { "ifmodel6", 0, NULL },
-    { "ifmodel7", 0, NULL },
-    { "ifmodel8", 0, NULL },
-    { "ifmodel9", 0, NULL },
-    { "ifmodel10", 0, NULL },
-    { "recol", CP_KEY_INDEXED, NULL },
-    { "retex", CP_KEY_INDEXED, NULL },
-    { "notselectable", 0, NULL },
-    { NULL, 0, NULL },
+    { "bodypart", 0, NULL, NULL },
+    { "model", CP_KEY_INDEXED, NULL, NULL },
+    { "ifmodel1", 0, NULL, NULL },
+    { "ifmodel2", 0, NULL, NULL },
+    { "ifmodel3", 0, NULL, NULL },
+    { "ifmodel4", 0, NULL, NULL },
+    { "ifmodel5", 0, NULL, NULL },
+    { "ifmodel6", 0, NULL, NULL },
+    { "ifmodel7", 0, NULL, NULL },
+    { "ifmodel8", 0, NULL, NULL },
+    { "ifmodel9", 0, NULL, NULL },
+    { "ifmodel10", 0, NULL, NULL },
+    { "recol", CP_KEY_INDEXED, NULL, NULL },
+    { "retex", CP_KEY_INDEXED, NULL, NULL },
+    { "notselectable", 0, NULL, NULL },
+    { NULL, 0, NULL, NULL },
 };
 
 /** A stated recolour/retexture list: its pairs, or `stem=empty`. */
@@ -308,11 +308,11 @@ done:
  * a second spelling.
  */
 const struct CP_KeySpec cp_enum_keys[] = {
-    { "inputtype", 0, NULL },
-    { "outputtype", 0, NULL },
-    { "val", CP_KEY_LIST, NULL },
-    { "default", 0, NULL },
-    { NULL, 0, NULL },
+    { "inputtype", 0, NULL, NULL },
+    { "outputtype", 0, NULL, NULL },
+    { "val", CP_KEY_LIST, NULL, NULL },
+    { "default", 0, NULL, NULL },
+    { NULL, 0, NULL, NULL },
 };
 
 /* A key's type: the input type, or a plain int when it is none (absent, or a

@@ -260,11 +260,21 @@ endif
 # tools/toolchain/README.md), then a 64-bit cross-compiler on PATH, then
 # whatever the lane uses â so this degrades to the old behaviour rather than
 # failing on a machine with neither.
+#
+# Only on a Windows HOST. On macOS or Linux the mingw cross-compiler on PATH
+# (Homebrew's) is a target compiler: picking it built cachepack's objects as
+# Windows COFF into the shared 3rd/rscache/tools/build, and every later macOS
+# link of cachepack failed with "unknown file type". A Unix host builds its
+# tools with the host `cc`.
 TOOLCHAIN_MINGW64_CC := $(REPO_ROOT)/toolchains/mingw64/bin/gcc.exe
+ifeq ($(OS),Windows_NT)
 HOST_CC ?= $(strip \
     $(if $(wildcard $(TOOLCHAIN_MINGW64_CC)),$(TOOLCHAIN_MINGW64_CC), \
     $(if $(shell command -v x86_64-w64-mingw32-gcc 2>/dev/null),x86_64-w64-mingw32-gcc, \
     $(CC))))
+else
+HOST_CC ?= cc
+endif
 
 # Sub-make into a vendored tool tree. Those makefiles default to `CC ?= cc`,
 # which exists on macOS and Linux but not in a MinGW toolchain (gcc only), so

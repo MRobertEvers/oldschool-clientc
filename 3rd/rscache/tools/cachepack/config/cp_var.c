@@ -33,11 +33,11 @@ parse_flag(const char* value)
 
 /* In the order they are written. basevar/startbit/endbit are RSCACHE_VARBIT_FIELD_BITS. */
 const struct CP_KeySpec cp_varbit_keys[] = {
-    { "basevar", 0, NULL },
-    { "startbit", 0, NULL },
-    { "endbit", 0, NULL },
-    { "debugname", 0, NULL },
-    { NULL, 0, NULL },
+    { "basevar", 0, NULL, NULL },
+    { "startbit", 0, NULL, NULL },
+    { "endbit", 0, NULL, NULL },
+    { "debugname", 0, NULL, NULL },
+    { NULL, 0, NULL, NULL },
 };
 
 int
@@ -157,8 +157,8 @@ done:
 /* ---- varplayer ---------------------------------------------------------- */
 
 const struct CP_KeySpec cp_varp_keys[] = {
-    { "clientcode", 0, NULL },
-    { NULL, 0, NULL },
+    { "clientcode", 0, NULL, NULL },
+    { NULL, 0, NULL, NULL },
 };
 
 int
@@ -233,10 +233,10 @@ cp_pack_varp(
  * because the cache cannot say otherwise, and the default is int.
  */
 const struct CP_KeySpec cp_varc_keys[] = {
-    { "persist", 0, NULL },
-    { "opcode3", 0, NULL },
-    { "type", 0, NULL },
-    { NULL, 0, NULL },
+    { "persist", 0, NULL, NULL },
+    { "opcode3", 0, NULL, NULL },
+    { "type", 0, NULL, NULL },
+    { NULL, 0, NULL, NULL },
 };
 
 int

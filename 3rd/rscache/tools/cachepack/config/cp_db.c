@@ -79,15 +79,15 @@
  */
 
 const struct CP_KeySpec cp_dbrow_keys[] = {
-    { "table", 0, NULL },
-    { "data", CP_KEY_LIST, NULL },
-    { NULL, 0, NULL },
+    { "table", 0, NULL, NULL },
+    { "data", CP_KEY_LIST, NULL, NULL },
+    { NULL, 0, NULL, NULL },
 };
 
 const struct CP_KeySpec cp_dbtable_keys[] = {
-    { "column", CP_KEY_LIST, NULL },
+    { "column", CP_KEY_LIST, NULL, NULL },
     { "default", CP_KEY_LIST, NULL, "column" },
-    { NULL, 0, NULL },
+    { NULL, 0, NULL, NULL },
 };
 
 /** The property marking a hole in a table's column numbering. */

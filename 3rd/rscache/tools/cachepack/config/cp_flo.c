@@ -28,8 +28,8 @@
 /* ---- underlay ----------------------------------------------------------- */
 
 const struct CP_KeySpec cp_underlay_keys[] = {
-    { "colour", 0, NULL },
-    { NULL, 0, NULL },
+    { "colour", 0, NULL, NULL },
+    { NULL, 0, NULL, NULL },
 };
 
 int
@@ -100,13 +100,13 @@ cp_pack_underlay(
 /* ---- overlay ------------------------------------------------------------ */
 
 const struct CP_KeySpec cp_overlay_keys[] = {
-    { "colour", 0, NULL },
-    { "texture", 0, NULL },
-    { "hideunderlay", 0, NULL },
-    { "flotype", 0, NULL },
-    { "flotypename", 0, NULL },
-    { "blendcolour", 0, NULL },
-    { NULL, 0, NULL },
+    { "colour", 0, NULL, NULL },
+    { "texture", 0, NULL, NULL },
+    { "hideunderlay", 0, NULL, NULL },
+    { "flotype", 0, NULL, NULL },
+    { "flotypename", 0, NULL, NULL },
+    { "blendcolour", 0, NULL, NULL },
+    { NULL, 0, NULL, NULL },
 };
 
 int
