@@ -53,12 +53,25 @@ return {
             t.check("wydin-close-" .. i, wr == "ok", tostring(wr) .. ": " .. tostring(wd))
             if i < 3 then t.ticks(110) end
         end
-        t.exec("goto-onions", t.player.goto_tile, 3187, 3265, 0)
+        -- the onion patch is the fenced yard south of Fred's house (x 3186-3191 z 3265-3269,
+        -- maps/m49_51.jl2): in and out by its west gate qip_sheep_shearer_fencegate_l 3186,3268
+        -- (a west-edge leaf; reach.py 3015,3206 -> 3185,3268 REACH closed-doors)
+        t.exec("goto-onions", t.player.goto_tile, 3185, 3268, 0)
+        t.exec("onions.gateIn", t.player.pass_door, { closed = "qip_sheep_shearer_fencegate_l",
+            open = "qip_sheep_shearer_openfencegate_l", at = { 3186, 3268, 0 }, near = { 3185, 3268 }, far = { 3187, 3268 },
+            far_ok = function(tile) return tile.x >= 3186 end, far_desc = "in the onion yard, x >= 3186" })
         for i = 1, 2 do
             t.exec("pickOnion-" .. i, t.player.click_loc, "onion", 2)
             t.exec("pickOnion-" .. i .. ".count", t.inv.await, "onion", i, 10)
         end
-        t.exec("goto-aggie", t.player.goto_tile, 3086, 3257, 0)
+        t.exec("onions.gateOut", t.player.pass_door, { closed = "qip_sheep_shearer_fencegate_l",
+            open = "qip_sheep_shearer_openfencegate_l", at = { 3186, 3268, 0 }, near = { 3186, 3268 }, far = { 3184, 3268 },
+            far_ok = function(tile) return tile.x <= 3185 end, far_desc = "west of the onion yard, x <= 3185" })
+        -- Aggie's house (poordoor 3088,3258, an east-wall leaf: x <= 3088 is inside; prince.lua)
+        t.exec("goto-aggie", t.player.goto_tile, 3089, 3258, 0)
+        t.exec("aggie.doorIn", t.player.pass_door, { closed = "poordoor", open = "poordooropen",
+            at = { 3088, 3258, 0 }, near = { 3089, 3258 }, far = { 3087, 3258 },
+            far_ok = function(tile) return tile.x <= 3088 end, far_desc = "in Aggie's house, x <= 3088" })
         local aggie = t.player.by_symbol("npc", "aggie")
         t.exec("makeRedDye", t.player.use_on, "redberries", aggie)
         t.exec("makeRedDye-dialog", t.chat.play, { "player:Okay, make me some red dye please.", "mesbox:You hand the berries" })
@@ -66,7 +79,15 @@ return {
         t.exec("makeYellowDye", t.player.use_on, "onion", aggie)
         t.exec("makeYellowDye-dialog", t.chat.play, { "*" })
         t.exec("yellowdye.has", t.inv.await, "yellowdye", 1, 5)
-        t.exec("goto-potatoes", t.player.goto_tile, 3141, 3276, 0)
+        t.exec("aggie.doorOut", t.player.pass_door, { closed = "poordoor", open = "poordooropen",
+            at = { 3088, 3258, 0 }, near = { 3088, 3258 }, far = { 3090, 3258 },
+            far_ok = function(tile) return tile.x >= 3089 end, far_desc = "outside Aggie's house, x >= 3089" })
+        -- the potato field is fenced; its one gate is fencegate_l 3145,3291 on its north edge
+        -- (maps/m49_51.jl2; reach.py 3089,3258 -> 3145,3292 REACH closed-doors)
+        t.exec("goto-potatoes", t.player.goto_tile, 3145, 3292, 0)
+        t.exec("potatoes.gateIn", t.player.pass_door, { closed = "fencegate_l", open = "openfencegate_l",
+            at = { 3145, 3291, 0 }, near = { 3145, 3292 }, far = { 3145, 3290 },
+            far_ok = function(tile) return tile.z <= 3291 end, far_desc = "in the potato field, z <= 3291" })
         for i = 1, 10 do
             t.exec("pickPotato-" .. i, t.player.click_loc, "potato", 2)
             t.exec("pickPotato-" .. i .. ".count", t.inv.await, "potato", i, 10)
@@ -75,6 +96,9 @@ return {
         t.ticks(1)
         t.check("fillPotatoSack", select(2, t.inv.count("sack_potato_10")) == 1,
             "Fill on sack_empty -> " .. tostring(fr) .. " " .. tostring(fd) .. "; sack_potato_10 " .. tostring(select(2, t.inv.count("sack_potato_10"))))
+        t.exec("potatoes.gateOut", t.player.pass_door, { closed = "fencegate_l", open = "openfencegate_l",
+            at = { 3145, 3291, 0 }, near = { 3145, 3291 }, far = { 3145, 3293 },
+            far_ok = function(tile) return tile.z >= 3292 end, far_desc = "north of the potato field, z >= 3292" })
         t.exec("goto-silk", t.player.goto_tile, 3298, 3206, 0)
         for i = 1, 10 do
             t.exec("buySilk-" .. i, t.player.talk_to, "silk_trader", 1)
@@ -162,7 +186,8 @@ return {
         t.expect("quest.stage.gathering", t.quest.expect_stage("gathering"))
 
         -- fillSacks: use an empty sack on the sandpit, eight times
-        t.exec("goto-fillSacks", t.player.goto_tile, 2817, 3342, 0)
+        -- the sand pit (2816,3341) covers 2816-2817,3341-3342: stand east of it
+        t.exec("goto-fillSacks", t.player.goto_tile, 2818, 3341, 0)
         local pit = t.player.by_symbol("loc", "sandpit")
         for i = 1, 8 do
             local r, d = t.player.use_on("sack_empty", pit)
@@ -172,13 +197,20 @@ return {
         end
 
         -- giving Auguste the materials; the bowl is in his house, up the ladder
-        t.exec("goto-bowl", t.player.goto_tile, 2817, 3352, 0)
-        t.exec("climbLadder", t.player.click_loc, "ladder", 1)
-        t.exec("climbLadder.level", t.await, { level = function() return select(2, t.world.level()) == 1 end, note = "upstairs" }, 10)
+        -- Auguste's house (x 2816-2822 z 3351-3356, maps/m44_52.jl2): in and out by its east
+        -- poshdoor 2822,3354 (an east-wall leaf: x <= 2822 is inside)
+        t.exec("goto-bowl", t.player.goto_tile, 2823, 3354, 0)
+        t.exec("bowl.doorIn", t.player.pass_door, { closed = "poshdoor", open = "poshdooropen",
+            at = { 2822, 3354, 0 }, near = { 2823, 3354 }, far = { 2821, 3354 },
+            far_ok = function(tile) return tile.x <= 2822 end, far_desc = "in Auguste's house, x <= 2822" })
+        t.exec("climbLadder", t.player.climb, { loc = "ladder", at = { 2816, 3352, 0 }, src = { 2817, 3352 },
+            dest = { 2817, 3352, 1 }, slack = 1 })
         t.exec("takeBowl", t.player.click_obj, "bowl_empty", 3)
         t.exec("bowl.has", t.inv.await, "bowl_empty", 1, 10)
-        t.exec("climbDown", t.player.click_loc, "laddertop", 1)
-        t.exec("climbDown.level", t.await, { level = function() return select(2, t.world.level()) == 0 end, note = "downstairs" }, 10)
+        t.exec("climbDown", t.player.climb, { loc = "laddertop", at = { 2816, 3352, 1 }, dest = { 2817, 3352, 0 }, slack = 1 })
+        t.exec("bowl.doorOut", t.player.pass_door, { closed = "poshdoor", open = "poshdooropen",
+            at = { 2822, 3354, 0 }, near = { 2822, 3354 }, far = { 2824, 3354 },
+            far_ok = function(tile) return tile.x >= 2823 end, far_desc = "outside Auguste's house, x >= 2823" })
         t.exec("goto-giveAuguste", t.player.goto_tile, 2808, 3355, 0)
         t.exec("giveDye", t.player.talk_to, "zep_piccard", 1)
         t.exec("giveDye-dialog", t.chat.play, {

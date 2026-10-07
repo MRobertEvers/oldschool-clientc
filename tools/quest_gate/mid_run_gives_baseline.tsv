@@ -25,7 +25,6 @@ mm	1	::give 4doseprayerrestore 3	1258
 mm	1	::give banana 5	1080
 mm	1	::give lobster 6	1689
 mm	1	::give lobster 8	1259
-ragandboneman	1	::give logs 1	137
 routequest	1	::give lobster 12	320
 routequest	1	::give rune_scimitar 1	319
 thefremennikisles	1	::give hammer 1	642
@@ -45,4 +44,3 @@ upass	1	::give spade 1	546
 waterfall	1	::give airrune 6	162
 waterfall	1	::give earthrune 6	163
 waterfall	1	::give waterrune 6	164
-xmarksthespot	1	::give spade 1	57
