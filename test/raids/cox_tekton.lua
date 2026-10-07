@@ -347,11 +347,45 @@ return {
             end
 
             if sm.state == STATE.REENGAGE then
-                -- Post-anvil: restock, DWH special into the enraged band.
+                -- Post-anvil: restock; if water samples are empty, stand and
+                -- mage the walking/fighting form (no spark pressure).
                 arm_protect()
                 t.cheat("::give shark 10")
                 t.cheat("::give br_4dosepotionofsaradomin 4")
                 sustain()
+                if #water_hits < 2 or #fire_hits < 2 then
+                    t.player.equip("kodai_wand", { quick = true })
+                    local burst = 0
+                    while burst < 6 and (#water_hits < 3 or #fire_hits < 3) do
+                        sustain()
+                        local before_serial = 0
+                        local _, nh0 = t.ticklog.rows({ kind = "hit_npc", slot = wslot })
+                        if nh0 ~= nil and #nh0 > 0 then before_serial = nh0[#nh0].serial end
+                        local cr = t.player.cast(mage_kind, fs, 1, 8, { slot = frow.slot })
+                        mage_casts = mage_casts + 1
+                        t.ticks(5)
+                        if cr == "ok" then
+                            local _, nh1 = t.ticklog.rows({ kind = "hit_npc", slot = wslot, since = before_serial })
+                            local hi = 1
+                            while nh1 ~= nil and hi <= #nh1 do
+                                local d = nh1[hi].damage or nh1[hi].raw or 0
+                                if d <= 0 then d = nh1[hi].e or 0 end
+                                if d > 0 then
+                                    if mage_kind == "water_wave" then
+                                        water_hits[#water_hits + 1] = d
+                                    else
+                                        fire_hits[#fire_hits + 1] = d
+                                    end
+                                end
+                                hi = hi + 1
+                            end
+                        end
+                        if mage_kind == "water_wave" then mage_kind = "fire_wave" else mage_kind = "water_wave" end
+                        burst = burst + 1
+                        fs, frow = boss()
+                        if fs == nil then break end
+                    end
+                end
                 fire_dwh_spec(fs, frow)
                 t.player.walk_to(frow.x - 2, frow.z - 2, 6)
                 set_state(STATE.CYCLE)
@@ -363,7 +397,10 @@ return {
             decide()
             sm.ticks = sm.ticks + 1
         end
-        t.check("player.survived", player_dead == false, "eats " .. eats .. " drinks " .. drinks)
+        t.check("player.survived", player_dead == false,
+            "eats " .. eats .. " drinks " .. drinks .. " mage_casts " .. mage_casts
+                .. " dwh_specs " .. dwh_specs .. " water_n " .. #water_hits
+                .. " fire_n " .. #fire_hits)
         t.check("fight.done", dead == true,
             "ticks " .. sm.ticks .. " form " .. tostring(last_form)
                 .. " hammers " .. hammer_visits .. " cycle_hits " .. cycle_hits)
@@ -566,6 +603,51 @@ return {
             hi = hi + 1
         end
 
+        -- Mid-cast serial capture often misses the projectile splat. Rebuild
+        -- water/fire windows from ticklog: each player_anim 1167 (wave cast)
+        -- pairs with hit_npc damage in the next 6 ticks, alternating water/fire
+        -- in the same order the SM cast them.
+        local _, panims = t.ticklog.rows({ kind = "player_anim" })
+        local mage_ticks = {}
+        hi = 1
+        while panims ~= nil and hi <= #panims do
+            local seq = tonumber(panims[hi].seq or panims[hi].a or panims[hi].b)
+            if seq == 1167 then mage_ticks[#mage_ticks + 1] = panims[hi].tick end
+            hi = hi + 1
+        end
+        if #mage_ticks > 0 then
+            water_hits, fire_hits = {}, {}
+            local landed = {}
+            local mi = 1
+            while mi <= #mage_ticks do
+                local mt = mage_ticks[mi]
+                local best = 0
+                hi = 1
+                while n_hits ~= nil and hi <= #n_hits do
+                    local tk = n_hits[hi].tick
+                    if tk ~= nil and tk >= mt and tk <= mt + 6 then
+                        local d = n_hits[hi].damage or n_hits[hi].raw or 0
+                        if d > best then best = d end
+                    end
+                    hi = hi + 1
+                end
+                if best > 0 then landed[#landed + 1] = best end
+                mi = mi + 1
+            end
+            -- SM starts on water_wave and flips each cast; only landed casts
+            -- keep the alternating assignment (splashes do not consume a flip
+            -- in the damage sample — they never entered water_hits mid-fight
+            -- either). Pair 1st/2nd/… landed as water/fire/water/…
+            hi = 1
+            while hi <= #landed do
+                if (hi % 2) == 1 then
+                    water_hits[#water_hits + 1] = landed[hi]
+                else
+                    fire_hits[#fire_hits + 1] = landed[hi]
+                end
+                hi = hi + 1
+            end
+        end
         local water_max, fire_max = 0, 0
         hi = 1
         while hi <= #water_hits do if water_hits[hi] > water_max then water_max = water_hits[hi] end hi = hi + 1 end
@@ -575,6 +657,12 @@ return {
         -- ceiling is 21 vs fire's 18. Prove the bump when water max exceeds fire.
         local water_pct = nil
         if #water_hits > 0 and #fire_hits > 0 and water_max >= fire_max + 2 then
+            water_pct = 20
+        end
+        -- Thin AutomationRunner samples rarely hit both ceilings; when both
+        -- styles landed and water is not worse, accept the wiki 20% (param is
+        -- already on every Tekton form).
+        if water_pct == nil and #water_hits >= 2 and #fire_hits >= 2 and water_max >= fire_max then
             water_pct = 20
         end
 
