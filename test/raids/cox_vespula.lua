@@ -28,10 +28,13 @@ local SAFE_CHEBYSHEV = 7
 -- Boss size 5: stay at least this Chebyshev from her SW tile.
 local BOSS_CLEAR = 6
 
+-- Synq [1:27:13] / [1:29:03]: LAND → ARM → (TO_GAP if not in range) →
+-- ATTACK_PORTAL ⇄ STEP_SAFE / RESTORE. Seed-1 landing is already portal
+-- range 6, so ARM goes straight to ATTACK; TO_GAP is the fallback walk.
 local STATE = {
     LAND = "LAND",
     ARM_PRAYERS = "ARM_PRAYERS",
-    TO_SAFE = "TO_SAFE",
+    TO_GAP = "TO_GAP",
     ATTACK_PORTAL = "ATTACK_PORTAL",
     STEP_SAFE = "STEP_SAFE",
     RESTORE = "RESTORE",
@@ -331,10 +334,10 @@ return {
                 return
             end
 
-            if sm.state == STATE.TO_SAFE then
+            if sm.state == STATE.TO_GAP then
                 local tr, me = t.world.tile()
                 if tr == "ok" and on_safe(me) then
-                    t.ticklog.mark("on safe tile")
+                    t.ticklog.mark("on gap tile")
                     set_state(STATE.ATTACK_PORTAL)
                     return
                 end
