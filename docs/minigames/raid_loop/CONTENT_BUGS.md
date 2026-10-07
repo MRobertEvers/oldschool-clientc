@@ -2466,3 +2466,11 @@ Open:
   directly adjacent to the pillars will get damaged and stunned" (wiki_Supporting_Pillar.wikitext:61, :63). The reach
   (two from the middle = on it or beside it) already matched. FIXED in OSRS-Content da8ac1ef36 (owner_verzik): 32-65
   Normal/Hard (^tob_verzik_pillar_collapse_min/_max); Entry keeps 1-50 (no source for its floor).
+
+- General (ToB Verzik knockback, GWD, ToA): `~coord_direction2` answered the wrong bearing. Its body tested
+  `abs(dx) >= abs(dz)/2` as the DIAGONAL case and had no north or south branch: due west answered south-west, due
+  east south-east, due north west, due south south-west. Verzik's P2 stomp and slam threw a raider due west of her
+  south-west (found by the anim audit, 2026-10-07). Source: the proc's own contract ("returns ^exact_north, ...,
+  ^exact_northwest"; "if north/south are at least half of east, then return northeast/southeast"). FIXED in
+  OSRS-Content 7af6fc2c05 (owner_verzik): a straight axis when the other is under half of it, else the diagonal. Callers:
+  tob_verzik.rs2 ~tob_verzik_knockback, godwars_chamber/entrance/nex, toa_raid.
