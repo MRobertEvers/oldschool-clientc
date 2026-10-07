@@ -582,31 +582,36 @@ return {
                     end
                     return
                 end
-                -- Wait through a full beam life; keep paint fresh (8-tick window)
-                -- and re-smash if the crab drifts off the mark.
+                -- Wait for a beam cycle. Stay off the bounce tile.
+                -- White (style=nil): do NOT re-smash — that paints red and
+                -- the black crystal needs an unchanged white beam off grey.
+                -- Coloured: refresh paint every few ticks (8-tick window).
                 local wait = 0
-                while wait < 100 do
+                while wait < 80 do
                     sustain(t)
+                    t.player.walk_to(sx, sz, 10)
                     if t.player.alive() ~= "ok" then
                         t.check("alive", false, "died waiting crystal " .. sm.crystal_i
                             .. " attempt " .. sm.attempt)
                         set_state(STATE.DONE)
                         return
                     end
-                    if wait > 0 and wait % 7 == 0 then
-                        local seated = crab_at(t, wx, wz, 0)
-                        if seated ~= nil then
-                            t.player.walk_to(sx, sz, 15)
-                            if style ~= nil and style ~= "melee" then
-                                paint_style(t, style, seated.symbol)
-                            else
-                                smash(t, seated)
-                                if style == nil then
-                                    t.ticks(10)
-                                end
-                            end
-                            t.player.walk_to(sx, sz, 15)
+                    local seated = crab_at(t, wx, wz, 0)
+                    if seated == nil then
+                        -- Lost the mark; stop waiting and re-seat.
+                        break
+                    end
+                    if style ~= nil and wait > 0 and wait % 6 == 0 then
+                        if style ~= "melee" then
+                            paint_style(t, style, seated.symbol)
+                        else
+                            -- Melee/cyan wants red; smash refreshes stun+red.
+                            smash(t, seated)
                         end
+                        t.player.walk_to(sx, sz, 10)
+                    elseif style == nil and seated.symbol ~= "raids_lasercrabs_crab_grey" then
+                        -- Wait out smash paint; never re-smash white.
+                        t.ticks(1)
                     end
                     t.ticks(1)
                     wait = wait + 1
