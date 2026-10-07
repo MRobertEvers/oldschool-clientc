@@ -167,7 +167,7 @@ topic file with one line added here.
 - a row detail reads `model aim: face centroid X,Y ... held on probe N`, or a `covered` ends `model aim: none of N face centroid(s) probed holds element E` / `model aim: not_visible for element E` -> verbs-pointer: After the hunt: the model aim (b66-seam1)
 - a widget that is DRAGGED, not clicked (a jigsaw piece, Scrambled!'s egg; any `cc_setdraggable` component) -> verbs-pointer: `t.ui.drag(sym, sub, to)`
 - `ui.drag ...: covered -- no point of its WxH ... has it on top` (a widget buried under its siblings) -> verbs-pointer: `t.ui.drag(sym, sub, to)`
-- `ui.await_close` times out on an interface the server closed in the same tick it sent a RUNCLIENTSCRIPT for it -> verbs-pointer: A RUNCLIENTSCRIPT sent with a close reopens the group
+- `ui.await_close` times out on an interface the server closed in the same tick it sent a RUNCLIENTSCRIPT for it -> verbs-pointer: A RUNCLIENTSCRIPT sent with a close reopened the group (b72, fixed in the engine)
 
 ## Dialogue and chat
 

@@ -2801,6 +2801,21 @@ struct App
      * the script immediately rather than dropping it — degrading to the old
      * ordering is a cosmetic bug, losing a script is not.
      *
+     * The hold must never reorder a script against an interface MOUNT change.
+     * The reference runs a RUNCLIENTSCRIPT inline, in wire order (rev-184
+     * deob: the packet handler builds the ScriptEvent and calls runScript
+     * before it reads the next packet), so a script the server sent before an
+     * IF_CLOSESUB runs while its interface is still up. Held past the close
+     * here, its first `cc_find` on the closed group auto-loaded that group
+     * back (rs_cs2_yield_if_group_missing) and the interface the server closed
+     * stayed in the tree -- `t.ui.await_close` timed out on Scrambled!'s last
+     * jigsaw piece (b72). So `app_pump_net_packets` releases the held scripts
+     * onto the packet pipeline AHEAD of any packet
+     * `gameproto_packet_changes_interface_mounts` names: they run before the
+     * mount change, against every packet of the tick before them. Property
+     * writes (IF_SETTEXT, inventories, varps) do not release them -- that is
+     * the price checker case above, which the hold exists for.
+     *
      * The queue itself is game/rs_clientscript_queue.h, including the backstop
      * cycle a fence that never arrives is measured against.
      */
@@ -3583,20 +3598,27 @@ App_MoveSubInterface(
     int source_uid,
     int dest_uid);
 
-/** RUNCLIENTSCRIPT: run a server-named clientscript with its arguments. Enqueued
- *  on the same serial pipeline as everything else, so a script that seeds state
- *  for an interface (the world map's `worldmap_transmitdata`) settles before the
- *  IF_OPENSUB behind it. */
+/** RUNCLIENTSCRIPT: run a server-named clientscript with its arguments. Held
+ *  until the tick fence (`pending_clientscripts`), but never past an interface
+ *  open or close behind it: the packet pump releases the held scripts onto the
+ *  serial packet pipeline ahead of any packet that mounts or unmounts an
+ *  interface, so a script that seeds state for an interface (the world map's
+ *  `worldmap_transmitdata`) settles before the IF_OPENSUB behind it, and one
+ *  sent before an IF_CLOSESUB runs while its interface is still mounted. */
 void
 App_RunClientScript(
     struct App* app,
     struct PktRunClientScript const* request);
 
-/** Dispatch every RUNCLIENTSCRIPT held since the last fence, in arrival order.
- *  Called at SERVER_TICK_END and whenever the packet pipeline runs dry — see
- *  `pending_clientscripts` for why they are held at all. */
+/** Dispatch every RUNCLIENTSCRIPT held since the last fence, in arrival order,
+ *  as tasks on `runner`. Called at SERVER_TICK_END and whenever the packet
+ *  pipeline runs dry with the CS2 runner (`app->runner`), and by the packet
+ *  pump with the packet pipeline (`app->exec_runner`) ahead of an interface
+ *  mount change -- see `pending_clientscripts` for why they are held at all. */
 void
-App_FlushPendingClientScripts(struct App* app);
+App_FlushPendingClientScripts(
+    struct App* app,
+    struct TaskRunner* runner);
 
 /**
  * IDK_SAVEDESIGN: send the accepted character design (reference

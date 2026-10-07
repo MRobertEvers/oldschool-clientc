@@ -45,6 +45,18 @@ int
 gameproto_packet_may_mutate_ui(enum GameProtoPktName packet_type);
 
 /**
+ * Does this packet's exec mount, unmount or move an interface?
+ *
+ * The packet pump releases the RUNCLIENTSCRIPTs it is holding for the tick
+ * fence ahead of every such packet, so a script keeps its wire order against
+ * the interface it targets: one sent before an IF_CLOSESUB runs while its
+ * group is still mounted, one sent before an IF_OPENSUB seeds state the
+ * opened interface's onload reads. See `pending_clientscripts` in app.h.
+ */
+int
+gameproto_packet_changes_interface_mounts(enum GameProtoPktName packet_type);
+
+/**
  * Decode a REBUILD_WORLDENTITY raw grid against the target view's zone counts
  * (view size in tiles / 8 per axis — spawn-time state the wire omits, which
  * is why this cannot run in the parse arm). Fills out_zones with
