@@ -35,6 +35,120 @@ which is why the summary is the right emitter.
 3. **A genuine gap** — nothing entered it and something could have. **(b)** or
    **(c)**.
 
+## THE BIGGER BLIND SPOT: "is every state reachable" is not "is the behaviour declared"
+
+The owner, 2026-10-07, looking at the Dawnbringer machine: *"You should be
+using state machines or hierarchical state machines. Why did you go back to
+boolean soup?"*
+
+They were right, and **this document certified that machine as fully live.**
+`verzik_dawnbringer` declared three states — `absent`, `held`, `done` — and
+carried the entire behaviour (wield, arm, fire, five-tick spacing, hide, spend,
+drop, the round-robin turn) inside two handler bodies as `if` guards. All three
+states were entered on every run, so every reading in this document was green.
+**A shallow machine passes state coverage perfectly while keeping every bug it
+had.**
+
+The concrete cost in that machine: in `held`, "the special was suppressed
+because the holder is hiding" and "this raider's turn is over" are *the same
+observable* — both are the absence of a `spec` intent. So a seat walking off
+its turn with 300 unspent energy is invisible to states, to edges, to `COLD`
+and to this report. The owner found it by watching the game, which is the one
+place it does show.
+
+### The reading: branches reached against transitions named
+
+`tools/raid_gate/sm_declaration_depth.py` measures the other axis — `if` /
+`elseif` inside every handler, `enter` and `exit` body a declaration reaches
+(following names to plan functions, file locals and factories, but **not** into
+the shared library's `_play_*` helpers), against the distinct transition
+targets those bodies name. Higher ratio = more behaviour the declaration does
+not express.
+
+| room | machine | states | branches | edges | ratio |
+|---|---|---|---|---|---|
+| verzik | `verzik_phase` | 6 | 116 | 1 | **116.0** |
+| nylocas | seat machines | 7 | 235 | 12 | **19.6** |
+| verzik | `verzik_enrage` | 5 | 12 | 1 | **12.0** |
+| maiden | `maiden_freezer` | 4 | 43 | 4 | **10.8** |
+| maiden | `maiden_scythe` | 6 | 62 | 6 | **10.3** |
+| sotetseg | `sotetseg_seat_N` | 5 | 25 | 5 | 5.0 |
+| sotetseg | `sotetseg_weapon` | 5 | 16 | 4 | 4.0 |
+| bloat | `bloat_down_spec` | 4 | 12 | 4 | 3.0 |
+| verzik | `verzik_specdump` | 4 | 5 | 2 | 2.5 |
+| bloat | `bloat_runby` | 6 | 9 | 5 | 1.8 |
+| verzik | `verzik_sword` | 9 | 15 | 10 | 1.5 |
+| xarpus | `xarpus_gaze` / `_exhumed` / `_spit_solo` | 3–5 | 3–5 | 3–5 | 1.0 |
+| nylocas | `nylocas_room` | 7 | 3 | 7 | 0.4 |
+| xarpus | `xarpus_room` | 5 | 2 | 5 | 0.4 |
+| sotetseg | `sotetseg_room` | 6 | 1 | 5 | 0.2 |
+| bloat | `bloat_raider` | 9 | 1 | 8 | **0.1** |
+| — | `bloat_cycle`, `maiden_crab`, `verzik_rotation`, `xarpus_spit_trio`, … | | 0 | | 0.0 |
+
+**INDICTED: `verzik_phase` (116.0), the Nylocas seat machines (19.6),
+`verzik_enrage` (12.0), `maiden_freezer` (10.8), `maiden_scythe` (10.3).**
+
+`verzik_phase` is the purest case and it is **mine**: six state names, each a
+shell forwarding to a phase function, with `_verzik_phase_p3` alone at 1,002
+lines. It declares one transition — `return nil, ev.to` — and reaches 116
+branches.
+
+### The metric validated against the machine the owner complained about
+
+Measured on the committed history, which is the decisive test:
+
+| machine | states | branches | edges | ratio |
+|---|---|---|---|---|
+| `verzik_dawnbringer` (my port, `9216bb205`) | 3 | 10 | 2 | **5.0** |
+| `verzik_sword` (the owner's rebuild) | 9 | 15 | 10 | **1.5** |
+
+The rebuild took the declared edges from 2 to 10 and cut the ratio by 70%
+**while adding branches** (10 → 15, because the machine does more now). That is
+what declaring the behaviour looks like, and the reading tracks it. It indicts
+the machine the owner objected to and credits the one that replaced it.
+
+### Two of the coordinator's guesses, one confirmed and one refuted
+
+Maiden's cast tick was the right guess: `maiden_freezer` 10.8 and
+`maiden_scythe` 10.3. **Bloat's duty handlers were not** — `bloat_raider` reads
+**0.1**, nine states against eight declared edges and a single branch, and
+`bloat_cycle` reads 0.0. Bloat decomposed its duties genuinely, under the same
+mandate as everyone else. That matters for the next section.
+
+### Did the port mandate cause this? Yes, shaped — but it did not force it
+
+Asked for my judgement plainly, so: **largely yes.** "No behaviour change,
+proved by identical readings" made translating a top-level `if/elseif` into
+state names provably safe, and made decomposing any inner guard provably risky
+— every inner split is a chance to move a tick. So the safe half was the half
+that got done, in four of six rooms, and `verzik_phase` at 116.0 is that
+mandate's shape in one number. **Six rooms got the headline without the
+benefit**, and the next person to port something should know the proof
+obligation shaped the result rather than only that the ports passed.
+
+But "caused" is too strong, and `bloat_raider` is the counter-example: 0.1,
+under the same mandate, by an agent that chose to decompose and then proved it
+with byte-identical ledgers anyway. So the mandate **permitted** depth and made
+it the more expensive choice; most of us took the cheap one. The honest
+statement is that the obligation selected for shallow ports, not that it
+required them.
+
+The confirmation is the before/after on one machine across the boundary: 5.0
+under the mandate, 1.5 once the owner lifted it and allowed behaviour to
+change. A "no behaviour change" port cannot reach 1.5 from 5.0, because the
+10 declared edges did not exist to be found — they had to be *decided*.
+
+### What this reading cannot do
+
+It is a text scan, not a Lua parser. It cannot see a branch behind an
+`and`/`or` chain, a table dispatch, or a handler it cannot resolve, and it
+counts a guard round a log line the same as one that chooses behaviour. Where a
+machine's transitions are dynamic (`return nil, ev.go`) the distinct targets
+collapse to one, so its ratio is **inflated** — `verzik_enrage` at 12.0 is
+really five states reached through one dynamic return, and its five names are
+declared honestly. So: **a floor on undeclared behaviour, never a ceiling.
+Read it to indict, not to acquit.**
+
 ### THE LIMIT OF THIS WHOLE DOCUMENT — read before trusting "every state fired"
 
 **A coverage table keyed on STATES cannot see a state that is entered but
