@@ -483,16 +483,17 @@ return {
                 end
                 local exact = crab_at(t, wx, wz, 0)
                 if exact ~= nil then
-                    -- Stop Attack before smash: crab often walks off the mark
-                    -- during the smash approach (run19), and wand-melee later
-                    -- paints red over blue.
+                    -- Smash from WEST lure only — click_minimenu onto a crab
+                    -- already on the mark walks the player onto the beam
+                    -- (run34/35: hundreds of player_tile rows on the mark).
                     t.player.walk_to(lure_x, lure_z, 8)
                     t.ticks(1)
-                    exact = crab_at(t, wx, wz, 0)
-                    if exact == nil then
+                    local from_lure = crab_at(t, lure_x, lure_z, 1)
+                        or crab_at(t, wx, wz, 0)
+                    if from_lure == nil then
                         last_detail = "crab slipped mark before smash"
                     else
-                        local ok, detail = smash(t, exact)
+                        local ok, detail = smash(t, from_lure)
                         if not ok then
                             last_detail = "smash failed: " .. tostring(detail)
                         else
