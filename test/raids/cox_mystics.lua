@@ -5,10 +5,10 @@
 --   "The salve amulet EI is strongly recommended."
 --   "The bofa and blowpipe are also commonly used here. The twisted bow
 --    isn't as strong here ... still an acceptable weapon."
--- Kill path: Protect from Magic; tbow + salve; focus one mystic at a time.
--- Model: named-state machine; one intent per FOCUS tick (sustain or attack);
--- pack rows (not await_dead) decide when a mystic is dead so corpse grace
--- cannot drain the backpack while the other two keep hitting.
+-- Kill path: Protect from Magic; tbow + salve for the three-stack, then
+-- blowpipe once the pack thins; focus one mystic at a time.
+-- Model: named-state machine; FOCUS attacks + await_dead (low attempts so
+-- corpse grace cannot drain the backpack), then trusts npc.pack for the kill.
 -- No ::godmode, ::kill, or teleport past a phase.
 
 local FORMS = {
@@ -46,15 +46,6 @@ local function mystic_rows(t)
     return out
 end
 
-local function find_slot(rows, slot)
-    for i = 1, #rows do
-        if rows[i].slot == slot then
-            return rows[i]
-        end
-    end
-    return nil
-end
-
 local function remember_slots(sm, rows)
     for i = 1, #rows do
         sm.slots[rows[i].slot] = true
@@ -77,7 +68,6 @@ end
 local function nearest_mystic(t)
     local rows = mystic_rows(t)
     if #rows == 0 then return nil, nil end
-    -- Prefer the lowest world slot so focus stays sticky across ticks.
     local best = rows[1]
     for i = 2, #rows do
         if rows[i].slot < best.slot then
@@ -85,6 +75,16 @@ local function nearest_mystic(t)
         end
     end
     return best, best.symbol
+end
+
+local function pack_has_sym(t, sym)
+    local rows = mystic_rows(t)
+    for i = 1, #rows do
+        if rows[i].symbol == sym then
+            return true
+        end
+    end
+    return false
 end
 
 local function hp(t)
@@ -127,24 +127,17 @@ local function drink_restore(t)
     return false
 end
 
--- Brew first (shares a tick with food), then shark, then karambwan.
--- Thresholds stay low so the tbow's 5-tick cycle is not permanently delayed.
-local function sustain(t)
-    local h = hp(t)
-    if h > 0 and h < 45 then
-        drink_brew(t)
-        h = hp(t)
+local function top_up(t)
+    for _ = 1, 5 do
+        if hp(t) >= 80 then break end
+        if not drink_brew(t) then break end
+        t.ticks(1)
     end
-    if h > 0 and h < 38 then
-        if t.player.eat("shark") ~= "ok" then
-            t.player.eat("tbwt_cooked_karambwan")
-        end
-        h = hp(t)
-    end
-    if h > 0 and h < 28 then
+    if hp(t) < 70 then
+        t.player.eat("shark")
         t.player.eat("tbwt_cooked_karambwan")
     end
-    if prayer_points(t) < 35 then
+    if prayer_points(t) < 50 then
         drink_restore(t)
     end
 end
@@ -177,8 +170,8 @@ return {
         "::setlevel magic 99",
         "::setlevel hitpoints 99",
         "::setlevel prayer 99",
-        -- Synq [0:31:54]: salve + ranged. Twisted bow is acceptable learner
-        -- kit; its 5-tick cycle survives eat delay better than blowpipe.
+        -- Blowpipe early (README free-slot rule), then tbow as the opener.
+        "::blowpipe dragon_dart 2000 2000",
         "::give masori_mask",
         "::wield masori_mask",
         "::give masori_body",
@@ -193,16 +186,16 @@ return {
         "::wield twisted_bow",
         "::give dragon_arrow 2000",
         "::wield dragon_arrow",
-        -- Max backpack heal: await_dead corpse stalls burned 17 sharks on
-        -- mystic 1; pack-death FOCUS needs the surplus for mystic 2/3.
+        -- Run9/11: 17 sharks on mystic 1 via await attempts=40 corpse grace;
+        -- keep attempts low and pack the backpack with heal.
         "::give br_4dose2restore 1",
-        "::give br_4dosepotionofsaradomin 3",
+        "::give br_4dosepotionofsaradomin 2",
         "::give shark 20",
         "::give tbwt_cooked_karambwan 4",
     },
 
     run = function(t)
-        t.check("spec.scope", true, "mode=all party=1; synq Protect Magic + tbow focus")
+        t.check("spec.scope", true, "mode=all party=1; synq Protect Magic; tbow then blowpipe")
         local lr, ld = t.ticklog.start()
         t.check("ticklog.start", lr == "ok", tostring(ld))
 
@@ -211,6 +204,11 @@ return {
         local sr, room = t.raid.state()
         t.check("raid.state", sr == "ok" and room.room == "mystics",
             sr == "ok" and (tostring(room.raid) .. " " .. tostring(room.room)) or tostring(room))
+
+        local br, bp = t.inv.blowpipe()
+        t.check("kit.blowpipe", br == "ok" and type(bp) == "table"
+            and (bp.where == "worn" or bp.where == "inv"),
+            "blowpipe " .. tostring(br) .. " " .. tostring(bp and bp.line or bp))
 
         local landing = mystic_rows(t)
         t.check("mystics.present", #landing >= 1,
@@ -238,6 +236,7 @@ return {
             focus_slot = nil,
             kills = 0,
             mid_shot = false,
+            swapped_pipe = false,
             last_anim_tick = {},
             last_style = {},
             anim_serial = {},
@@ -250,8 +249,6 @@ return {
             prayer_on = false,
             slots = {},
             types = {},
-            last_attack_tick = -99,
-            last_sustain_tick = -99,
         }
         remember_slots(sm, landing)
 
@@ -345,60 +342,72 @@ return {
             end
 
             if sm.state == STATE.FOCUS then
-                -- Critical sustain takes the tick (inv_op settles 3); otherwise
-                -- attack. Thresholds stay low so tbow keeps cycling.
-                local h = hp(t)
-                local need_food = h > 0 and h < 38
-                local need_pray = prayer_points(t) < 35
-                if (need_food or need_pray)
-                    and (sm.ticks - sm.last_sustain_tick) >= 3 then
-                    sustain(t)
-                    arm_prayers(false)
-                    sm.last_sustain_tick = sm.ticks
+                local target, sym = nearest_mystic(t)
+                if target == nil or sym == nil then
+                    set_state(STATE.DONE)
                     return
                 end
+                sm.focus_sym = sym
+                sm.focus_slot = target.slot
                 arm_prayers(false)
 
-                local target = nil
-                local sym = nil
-                if sm.focus_slot ~= nil then
-                    target = find_slot(alive, sm.focus_slot)
-                    if target ~= nil then
-                        sym = target.symbol
-                    else
-                        -- Pack dropped the focus: count the kill and re-pick.
-                        sm.kills = sm.kills + 1
-                        sm.focus_slot = nil
-                        sm.focus_sym = nil
+                if sm.kills >= 1 and not sm.swapped_pipe then
+                    local wr, wd = t.player.equip("toxic_blowpipe_loaded")
+                    if wr ~= "ok" then
+                        wr, wd = t.player.wield("toxic_blowpipe_loaded")
                     end
-                end
-                if target == nil then
-                    target, sym = nearest_mystic(t)
-                    if target == nil or sym == nil then
-                        set_state(STATE.DONE)
-                        return
-                    end
-                    sm.focus_sym = sym
-                    sm.focus_slot = target.slot
+                    t.check("swap.blowpipe", wr == "ok", tostring(wd))
+                    sm.swapped_pipe = true
                 end
 
+                top_up(t)
+                arm_prayers(false)
+
+                local eat_opts = {
+                    eat = {
+                        item = "shark",
+                        below = 55,
+                        quick = true,
+                        combo = "tbwt_cooked_karambwan",
+                    },
+                }
+                local cslot = target.client_slot
+                local atk_opts = {
+                    eat = eat_opts.eat,
+                    quick = true,
+                }
+                if type(cslot) == "number" then
+                    atk_opts.slot = cslot
+                end
+                t.player.attack(sym, 2, 1, atk_opts)
                 if not sm.mid_shot then
                     t.shot("mystics mid-mechanic focus kill")
                     sm.mid_shot = true
                 end
-
-                -- Re-press at most every 4 ticks; tbow is 5-tick.
-                -- Attack opts.slot is the CLIENT slot (run16 passed world
-                -- slot 1099 and dealt 0 damage for 6000 ticks).
-                if sm.ticks - sm.last_attack_tick >= 4 then
-                    local cslot = target.client_slot
-                    if type(cslot) == "number" then
-                        t.player.attack(sym, 2, 1, { quick = true, slot = cslot })
-                    else
-                        t.player.attack(sym, 2, 1)
-                    end
-                    sm.last_attack_tick = sm.ticks
+                -- attempts=8 (not 40): run11 burned 17 sharks on corpse re-engages.
+                local ar, ad = t.npc.await_dead(sym, 600, 40, 8, eat_opts)
+                sample_hits()
+                sample_anims()
+                if ar ~= "ok" and pack_has_sym(t, sym) then
+                    -- One more short push before failing the kill.
+                    top_up(t)
+                    arm_prayers(false)
+                    t.player.attack(sym, 2, 1, atk_opts)
+                    ar, ad = t.npc.await_dead(sym, 300, 40, 6, eat_opts)
+                    sample_hits()
+                    sample_anims()
                 end
+                if pack_has_sym(t, sym) then
+                    t.check("mystic.kill", false,
+                        "await_dead " .. tostring(sym) .. " -> " .. tostring(ar)
+                            .. " " .. tostring(ad)
+                            .. " pack still has focus; kills=" .. tostring(sm.kills))
+                    set_state(STATE.DONE)
+                    return
+                end
+                sm.kills = sm.kills + 1
+                top_up(t)
+                arm_prayers(false)
                 return
             end
         end
