@@ -721,33 +721,15 @@ return {
                     end
                     return
                 end
-                -- Wait for a beam cycle west of the focus column. White:
-                -- do NOT re-smash (paints red). Coloured: refresh paint
-                -- before ^cox_crab_paint_ticks expires so the long CCW
-                -- transit still sees colour (run27: green seat, stage=2).
-                local want_sym = nil
-                if style == "mage" then want_sym = "raids_lasercrabs_crab_blue"
-                elseif style == "range" then want_sym = "raids_lasercrabs_crab_green"
-                elseif style == "melee" then want_sym = "raids_lasercrabs_crab_red"
-                end
+                -- Bare wait: var reads + ticks only. Mid-wait paint refresh
+                -- (walk_to/cast) blew the 400k resume budget (run29) before
+                -- crystal 2 could clear. paint_ticks=28 covers one CCW transit.
                 local wait = 0
-                while wait < 48 do
-                    t.ticks(4)
-                    wait = wait + 4
+                while wait < 40 do
+                    t.ticks(5)
+                    wait = wait + 5
                     if (var_num(t, info.flag) or 0) == 1 then break end
                     if (var_num(t, "varp7044_cox_crab_big_stage") or 0) >= 4 then break end
-                    -- Re-extend paint_until even while colour is still right
-                    -- (deadline is absolute; colour alone does not refresh it).
-                    if want_sym ~= nil and wait > 0 and wait % 16 == 0 then
-                        local live = crab_at(t, wx, wz, 0)
-                        if live ~= nil then
-                            t.player.walk_to(wx - 1, wz, 8)
-                            t.ticks(1)
-                            paint_style(t, style, live)
-                            t.player.walk_to(sx, sz, 12)
-                        end
-                    end
-                    if wait % 20 == 0 then sustain(t) end
                 end
                 if (var_num(t, info.flag) or 0) == 1 then
                     sm.crystal_i = sm.crystal_i + 1
