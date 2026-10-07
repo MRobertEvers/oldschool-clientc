@@ -600,9 +600,10 @@ local function p3(world, me, m, mems, seats, vz, O, intent)
     for _, n in pairs(world.npcs) do
         if n.alive and WEBS[n.name] and n.x ~= nil then landing[n.x * 100000 + n.z] = true end
     end
-    local dying = {}
+    local dying, crabs = {}, {}
     for _, n in pairs(world.npcs) do
         if n.alive and n.dying and NYLO[n.name] then dying[#dying + 1] = n end
+        if n.alive and NYLO[n.name] and n.x ~= nil then crabs[#crabs + 1] = n end
     end
     local hard = {
         { name = "under", pen = 1000, bad = function(x, z) return foot_dist(vz, x, z) < 1 end },
@@ -618,9 +619,21 @@ local function p3(world, me, m, mems, seats, vz, O, intent)
             for _, n in ipairs(dying) do if foot_dist(n, x, z) <= 3 then return true end end
             return false
         end },
+        -- a P3 crab walks at its raider and goes off ON ARRIVAL, no death row
+        -- first (tob.constant ^tob_verzik_p2_nylo_*: 63 within 1 of its 2x2,
+        -- 26 at 2, 8 at 3; vy08 t684-688: two arrived, two raiders dead)
+        { name = "crab", pen = 500, bad = function(x, z)
+            for _, n in ipairs(crabs) do if foot_dist(n, x, z) <= 2 then return true end end
+            return false
+        end },
     }
     local soft = {
         { name = "reach", w = 10, cost = function(x, z) return math.max(0, foot_dist(vz, x, z) - (i_tank and 1 or 2)) end },
+        { name = "crab3", w = 15, cost = function(x, z)
+            local c = 0
+            for _, n in ipairs(crabs) do if foot_dist(n, x, z) <= 3 then c = c + 1 end end
+            return c
+        end },
         -- away from the walls: a corner has no tile left to step to
         { name = "middle", w = 2, cost = function(x, z) return math.max(0, cheb(x, z, cx, cz) - 6) end },
     }
