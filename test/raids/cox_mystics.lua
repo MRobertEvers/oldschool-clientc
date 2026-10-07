@@ -139,7 +139,7 @@ local function top_up(t)
         drink_restore(t)
     end
     if hp(t) < 50 then
-        t.player.eat("shark")
+        t.player.eat("anglerfish")
     end
     if hp(t) < 30 then
         t.player.eat("tbwt_cooked_karambwan")
@@ -190,10 +190,10 @@ return {
         "::wield twisted_bow",
         "::give dragon_arrow 2000",
         "::wield dragon_arrow",
-        "::give br_4dose2restore 3",
+        "::give br_4dose2restore 2",
         "::give br_4dosepotionofsaradomin 2",
-        "::give shark 20",
-        "::give tbwt_cooked_karambwan 3",
+        "::give shark 22",
+        "::give tbwt_cooked_karambwan 2",
     },
 
     run = function(t)
