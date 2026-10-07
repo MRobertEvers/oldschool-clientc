@@ -60,13 +60,17 @@ end
 
 local function sustain(t)
     local hr, hp = t.skill.read("hitpoints")
-    if hr == "ok" and hp.level < 50 then
+    local level = (hr == "ok" and hp.level) or 99
+    if level < 70 then
         t.player.eat("shark")
+    end
+    if level < 45 then
+        t.player.drink("br_4dosepotionofsaradomin")
     end
     local pr, pp = t.prayer.points()
     local points = 0
     if pr == "ok" then points = pp.points or pp.level or 0 end
-    if points < 25 then
+    if points < 40 then
         t.player.drink("br_4dose2restore")
     end
 end
@@ -81,24 +85,27 @@ end
 
 -- Melee-hand ring/thumb tiles in chamber-local space (Synq 4:1 / 3:1 vocabulary).
 -- West Olm: melee hand is LEFT at (23,30). East Olm mirrors about centre.
+-- Mage-hand tiles: Synq ring-finger safes on the mage claw ([2:19:07]).
 local function melee_tiles(ox, oz, side_west)
     if side_west then
         return {
             thumb = { x = ox + LEFT_LX + 2, z = oz + LEFT_LZ - 1 },
             ring = { x = ox + LEFT_LX - 1, z = oz + LEFT_LZ - 2 },
-            head_safe = { x = ox + 28, z = oz + 28 },
+            mage_a = { x = ox + RIGHT_LX - 1, z = oz + RIGHT_LZ - 3 },
+            mage_b = { x = ox + RIGHT_LX - 3, z = oz + RIGHT_LZ - 1 },
             empty_east = { x = ox + ZONE_EAST_MIN + 1, z = oz + 28 },
             hand = LEFT,
-            hand_lx = LEFT_LX,
+            mage = RIGHT,
         }
     end
     return {
         thumb = { x = ox + RIGHT_LX - 2, z = oz + RIGHT_LZ - 1 },
         ring = { x = ox + RIGHT_LX + 1, z = oz + RIGHT_LZ - 2 },
-        head_safe = { x = ox + 35, z = oz + 28 },
+        mage_a = { x = ox + LEFT_LX + 1, z = oz + LEFT_LZ - 3 },
+        mage_b = { x = ox + LEFT_LX + 3, z = oz + LEFT_LZ - 1 },
         empty_east = { x = ox + ZONE_WEST_MAX - 1, z = oz + 28 },
         hand = RIGHT,
-        hand_lx = RIGHT_LX,
+        mage = LEFT,
     }
 end
 
@@ -209,13 +216,17 @@ return {
         end
 
         -- Synq [2:04:12]: flick the overhead that matches Olm's current style.
-        -- Style 0 = magic, 1 = ranged (cox_olm.rs2 %varp6766). Keep piety on.
+        -- Style 0 = magic, 1 = ranged (cox_olm.rs2 %varp6766).
         local function prayer_flick()
             local style = var(t, STYLE) or 0
             local name = (style == 1) and "protectfrommissiles" or "protectfrommagic"
             if sm.last_pray ~= name then
                 t.prayer.set(name, true)
-                t.prayer.set("piety", true)
+                if sm.state == STATE.KILL_MAGE or sm.state == STATE.HEAD then
+                    t.prayer.set("augury", true)
+                else
+                    t.prayer.set("piety", true)
+                end
                 sm.last_pray = name
                 sm.pray_flicks = sm.pray_flicks + 1
             end
@@ -242,10 +253,6 @@ return {
         local function equip_ranged()
             t.player.equip("twisted_bow")
             t.player.equip("dragon_arrow")
-            t.player.equip("masori_mask")
-            t.player.equip("masori_body")
-            t.player.equip("masori_chaps")
-            t.player.equip("avas_assembler")
         end
 
         local function hand_alive(sym)
@@ -310,6 +317,12 @@ return {
             end
 
             if sm.state == STATE.ENTER then
+                -- Pre-charge sang + mage gear before the barrier so the first
+                -- ticks inside are attacks, not inventory ops under fire.
+                equip_magic()
+                t.prayer.set("protectfrommagic", true)
+                t.prayer.set("augury", true)
+                sm.last_pray = "protectfrommagic"
                 t.shot("olm corridor before the barrier")
                 local cr, cd = t.player.click_loc("raids_bossentrance", 1)
                 t.check("barrier.click", cr == "ok" or cr == "timeout", tostring(cr) .. " " .. tostring(cd))
@@ -326,7 +339,6 @@ return {
                     sample_vislevels()
                     t.shot("olm idle after barrier")
                     -- Synq: kill mage hand before setting 4:1 on melee.
-                    equip_magic()
                     set_state(STATE.KILL_MAGE)
                     return
                 end
@@ -335,22 +347,27 @@ return {
             end
 
             if sm.state == STATE.KILL_MAGE then
+                -- Synq 4-tick mage running [2:19:07]: attack on the head-turn
+                -- tick while moving between ring-finger safes so the zone goes
+                -- empty and skips stack (also dodges acid/crystal footprints).
                 refresh_geometry()
                 sample_vislevels()
-                local mage = sm.side_west and RIGHT or LEFT
+                local mage = sm.tiles.mage
                 if not hand_alive(mage) then
                     sm.mage_kills = sm.mage_kills + 1
                     equip_melee()
+                    t.prayer.set("piety", true)
                     t.player.inv_op("4dose2combat", 1)
                     set_state(STATE.SETUP_41)
                     return
                 end
-                local safe = sm.tiles.head_safe
-                local _, me = t.world.tile()
-                if math.max(math.abs(me.x - safe.x), math.abs(me.z - safe.z)) > 2 then
-                    t.player.walk_to(safe.x, safe.z, 4)
+                local a, b = sm.tiles.mage_a, sm.tiles.mage_b
+                local dest = ((sm.sub % 8) < 4) and a or b
+                t.player.walk_to(dest.x, dest.z, 3)
+                if (sm.sub % 4) == 0 then
+                    t.player.attack(mage, 2, 1)
                 end
-                t.player.attack(mage, 2, 1)
+                sm.sub = sm.sub + 1
                 t.ticks(1)
                 return
             end
@@ -390,7 +407,11 @@ return {
                     set_state(STATE.WAIT_PHASE)
                     return
                 end
-                t.player.walk_to(sm.tiles.thumb.x, sm.tiles.thumb.z, 2)
+                -- Thumb tile for the tanked basic; step one tile on odd ticks to
+                -- clear acid pools / crystal bomb centres (Synq acid walk).
+                local thumb = sm.tiles.thumb
+                local tx = thumb.x + (sm.sub % 2)
+                t.player.walk_to(tx, thumb.z, 2)
                 t.player.attack(melee, 2, 1)
                 sm.sub = sm.sub + 1
                 if sm.sub >= 4 then
@@ -408,6 +429,8 @@ return {
                     return
                 end
                 -- Empty event: free hit window (Synq [2:48:37]).
+                local thumb = sm.tiles.thumb
+                t.player.walk_to(thumb.x + 1 - (sm.sub % 2), thumb.z, 2)
                 t.player.attack(melee, 2, 1)
                 sm.sub = sm.sub + 1
                 if sm.sub >= 4 then
