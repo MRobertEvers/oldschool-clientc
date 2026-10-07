@@ -348,6 +348,12 @@ def main():
     if code != 0:
         print("conformance: the script pack did not build", file=sys.stderr)
         return code
+    # The server config pack too, under the same lock (built into a staging
+    # directory and swapped in whole; pack_fingerprint.ensure_server_pack).
+    code = pack_fingerprint.ensure_server_pack(run, label="conformance")
+    if code != 0:
+        print("conformance: the server pack did not build", file=sys.stderr)
+        return code
 
     root = arguments.session or os.path.join(REPO_ROOT, "build", "quest_gate", "_conformance")
     if os.path.isdir(root) and not arguments.keep:
@@ -375,12 +381,21 @@ def main():
         script = harness_with_skips(skips, os.path.join(directory, "_conformance.lua"))
         log_path = os.path.join(directory, "log.txt")
         exit_code = client(binary, manifest_path, directory, saves, log_path, script)
-        if not stale_retried and pack_fingerprint.stale_pack_refused(log_path):
+        scripts_refused = pack_fingerprint.stale_pack_refused(log_path)
+        servpack_refused = pack_fingerprint.server_pack_refused(log_path)
+        if not stale_retried and (scripts_refused or servpack_refused):
             # The fingerprint said current and the server disagreed: its
             # refusal wins -- rebuild once and run this attempt again.
             stale_retried = True
-            if pack_fingerprint.rebuild_after_refusal(run, label="conformance") != 0:
+            if scripts_refused and \
+                    pack_fingerprint.rebuild_after_refusal(run, label="conformance") != 0:
                 print("conformance: the script pack did not rebuild after the STALE refusal",
+                      file=sys.stderr)
+                return 1
+            if servpack_refused and \
+                    pack_fingerprint.rebuild_server_pack_after_refusal(run,
+                                                                       label="conformance") != 0:
+                print("conformance: the server pack did not rebuild after the server refused it",
                       file=sys.stderr)
                 return 1
             directory = os.path.join(root, "attempt-%02d-after-rebuild" % attempt)

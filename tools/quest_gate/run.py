@@ -12,9 +12,12 @@ test/quests/README.md: `{ id, fixture, setup = {cheats}, run = function(t)
   * builds ONE shared binary into its own objdir (OPT=1 EMBED_SERVER=1,
     PLATFORM_OBJ_BASE=build_questtest, PLATFORM_TARGET=torirs_questtest --
     never another build's objdir, several sessions build from this checkout
-    at once) and rebuilds the server script pack -- which the embedded server
-    refuses to boot on when stale -- when its inputs changed (a stat
-    fingerprint over the script tree, pack_fingerprint.py);
+    at once) and rebuilds the server script pack and the server config pack
+    (<content>/server/pack) -- the embedded server refuses to boot on either
+    when stale -- when their inputs changed (stat fingerprints,
+    pack_fingerprint.py), under one lock every runner shares; each client
+    then boots holding that lock shared until its first heartbeat, so no
+    pack is rebuilt under a booting server;
   * rewrites manifests/manifest_osrs239.ini to transport=embed against this
     checkout's cache.osrs239, into manifests/.questtest.ini (the manifest's
     OWN directory is load-bearing -- run from a session dir instead and
@@ -51,7 +54,9 @@ Usage:
       forces the rebuild (and so the contract checks),
       TORIRS_QUEST_ALWAYS_BUILD=1 rebuilds on every run as before; a server
       that still refuses the pack as STALE gets one forced rebuild and a
-      relaunch -- tools/quest_gate/pack_fingerprint.py)
+      relaunch -- tools/quest_gate/pack_fingerprint.py; the server pack is
+      kept current the same way, and a refusal of it -- "has no stamp",
+      "is STALE" -- also gets one rebuild and a relaunch)
   tools/quest_gate/run.py <quest> --from-leg K | --only-leg K
       (a legs file only: resume from checkpoint K-1 under build/quest_gate/<quest>.leg<K>/;
       exit 2 when it is missing or stale; never published, never graded --
@@ -238,19 +243,36 @@ def ensure_scripts(force=False):
     return pack_fingerprint.ensure_pack(run, label="scripts", force=force)
 
 
+def ensure_server_pack():
+    """The server config pack (<content>/server/pack) under the same lock as
+    the script pack: rebuilt into a staging directory and swapped in whole
+    when its inputs changed (pack_fingerprint.ensure_server_pack). It used to
+    be nobody's job here, and a run booting while another session's
+    `make torirsserver-servpack` rewrote it died "has no stamp"."""
+    return pack_fingerprint.ensure_server_pack(run, label="servpack")
+
+
 def launch_with_stale_retry(prepare_and_launch):
     """Run `prepare_and_launch()` (-> the launch_and_report dict) and, if the
-    embedded server refused the pack as STALE -- a fingerprint that said
-    "current" and was wrong -- forget the fingerprint, rebuild, and run it
-    once more. The server's refusal stays the last word; this only keeps a
-    false "current" from stranding the run."""
+    embedded server refused the script pack as STALE -- a fingerprint that
+    said "current" and was wrong -- or refused its server pack (no stamp,
+    STALE: a content edit landed after the boot hold's check), rebuild what
+    it refused under the pack lock and run it once more. The server's
+    refusal stays the last word; this only keeps a false "current" or a
+    concurrent edit from stranding the run."""
     result = prepare_and_launch()
-    if not pack_fingerprint.stale_pack_refused(os.path.join(result["directory"], "client.log")):
+    log_path = os.path.join(result["directory"], "client.log")
+    scripts_refused = pack_fingerprint.stale_pack_refused(log_path)
+    servpack_refused = pack_fingerprint.server_pack_refused(log_path)
+    if not scripts_refused and not servpack_refused:
         return result
-    code = pack_fingerprint.rebuild_after_refusal(run)
-    if code != 0:
+    if scripts_refused and pack_fingerprint.rebuild_after_refusal(run) != 0:
         print("run.py: the script pack did not rebuild after the STALE refusal", file=sys.stderr,
               flush=True)
+        return result
+    if servpack_refused and pack_fingerprint.rebuild_server_pack_after_refusal(run) != 0:
+        print("run.py: the server pack did not rebuild after the server refused it",
+              file=sys.stderr, flush=True)
         return result
     return prepare_and_launch()
 
@@ -1192,6 +1214,24 @@ def launch_client(binary, manifest_path, user, directory, saves, script, log_pat
     # this client's first beat.
     if os.path.exists(heartbeat_path):
         os.unlink(heartbeat_path)
+    # The embedded server reads script.dat and server/pack at boot and never
+    # again: hold the pack lock shared (both packs current) from here to the
+    # first heartbeat, so no rebuild rewrites either under this boot.
+    hold = pack_fingerprint.boot_hold(run, label=user)
+    hold_cap = boot_grace if boot_grace > 0 else STALL_BOOT_GRACE_DEFAULT
+    try:
+        return _launch_client_held(command, environment, log_path, timeout, watch,
+                                   heartbeat_path, stall_seconds, boot_grace, stall_out,
+                                   hold, hold_cap)
+    finally:
+        hold.release()
+
+
+def _launch_client_held(command, environment, log_path, timeout, watch, heartbeat_path,
+                        stall_seconds, boot_grace, stall_out, hold, hold_cap):
+    """launch_client's process loop; `hold` (pack_fingerprint.BootHold) is
+    released at the first heartbeat, or after `hold_cap` seconds for a
+    client that never beats."""
     with open(log_path, "wb") as log:
         # cwd is the repo root, ALWAYS: TORIRS_PLUGIN_MANIFEST resolves under
         # script/ relative to the working directory, not to the binary.
@@ -1209,6 +1249,9 @@ def launch_client(binary, manifest_path, user, directory, saves, script, log_pat
                 return code, False
             except subprocess.TimeoutExpired:
                 pass
+            if hold.held and (os.path.exists(heartbeat_path)
+                              or time.monotonic() - started > hold_cap):
+                hold.release()
             if not watch:
                 continue
             mtime, tick = read_heartbeat(heartbeat_path)
@@ -2598,6 +2641,10 @@ def main():
     code = ensure_scripts(force=arguments.rebuild_scripts)
     if code != 0:
         print("run.py: the script pack did not build", file=sys.stderr)
+        return code
+    code = ensure_server_pack()
+    if code != 0:
+        print("run.py: the server pack did not build", file=sys.stderr)
         return code
 
     manifest_path = write_manifest()
