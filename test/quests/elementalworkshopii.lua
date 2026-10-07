@@ -506,10 +506,35 @@ return {
         press("turnCorkscrew", "elem2_corkscrew", 1955, 5160, DOOR, 2)
         press("turnCorkscrewAgain", "elem2_corkscrew", 1955, 5160, DOOR, 4)
         press("pullLeverToCloseTankDoor", "elem2_water_lever", 1953, 5160, DOOR, 3)
-        press("turnWestValve", "elem2_valve_1", 1949, 5160, "varb2651_elemental_quest_2_water_valve_1", 1)
-        press("turnEastValve", "elem2_valve_2", 1957, 5160, JIG_STATE, 4)
-        -- GUIDE-GAP: turnEastValveAgain the guide's branch for an outlet found shut after the cooling; here the north-east valve only ever opens (the cooling turn) and the outlet stays open for the door: OSRS-Content/osrs239-content/server/scripts/quests/quest_elementalworkshopii/scripts/elem2_priming.rs2:197
-        press("turnWestValveAgain", "elem2_valve_1", 1949, 5160, "varb2651_elemental_quest_2_water_valve_1", 0)
+        -- The tank's valves (elem2_priming.rs2 [proc,elem2_tank_settle]): north-west inlet, north-east
+        -- outlet, plain toggles over a real water level; each turn is a mesbox. Wiki "The water tank":
+        -- "Make sure the eastern valve is closed ... If it does not [cool], the eastern valve is open."
+        -- Quest Helper's turnEastValve row (hot bar in, inlet open) is that recovery branch, so the run
+        -- takes it on purpose: the outlet is opened first, the inlet then runs straight through (the bar
+        -- stays hot, the tank stays empty), and shutting the outlet fills the tank and quenches the bar.
+        -- turnEastValveAgain (cool bar in, door shut, outlet shut) then drains it, turnWestValveAgain
+        -- shuts the inlet, and only an empty tank with the inlet shut lets the door open again.
+        local VALVE_IN = "varb2651_elemental_quest_2_water_valve_1"
+        local VALVE_OUT = "varb2652_elemental_quest_2_water_valve_2"
+        local WATER = "varb2654_elemental_quest_2_water_level"
+        local function turn_valve(name, loc, wx, wz, var, value)
+            t.exec("walk-" .. name, t.player.walk_to, wx, wz, 60)
+            t.exec(name, t.player.click_loc, loc, 1)
+            t.exec(name .. ".dismiss", t.chat.drain, {})
+            t.exec(name .. ".var", t.var.await_server, var, value, 10)
+        end
+        turn_valve("outletLeftOpen", "elem2_valve_2", 1957, 5160, VALVE_OUT, 1)
+        turn_valve("turnWestValve", "elem2_valve_1", 1949, 5160, VALVE_IN, 1)
+        t.exec("turnWestValve.throughOutlet", t.var.await_server, WATER, 0, 5)
+        t.exec("turnWestValve.barStillHot", t.var.await_server, DOOR, 3, 5)
+        turn_valve("turnEastValve", "elem2_valve_2", 1957, 5160, VALVE_OUT, 0)
+        t.exec("turnEastValve.tankFull", t.var.await_server, WATER, 1, 5)
+        t.exec("turnEastValve.barCooled", t.var.await_server, JIG_STATE, 4, 5)
+        t.exec("turnEastValve.door", t.var.await_server, DOOR, 6, 5)
+        turn_valve("turnEastValveAgain", "elem2_valve_2", 1957, 5160, VALVE_OUT, 1)
+        t.exec("turnEastValveAgain.drained", t.var.await_server, WATER, 0, 5)
+        turn_valve("turnWestValveAgain", "elem2_valve_1", 1949, 5160, VALVE_IN, 0)
+        t.exec("turnWestValveAgain.tankEmpty", t.var.await_server, WATER, 0, 5)
         press("pullLeverToOpenTankDoorAgain", "elem2_water_lever", 1953, 5160, DOOR, 7)
         press("turnCorkscrewToRetrieve", "elem2_corkscrew", 1955, 5160, DOOR, 8)
         press("turnCorkscrewToRetrieveAgain", "elem2_corkscrew", 1955, 5160, DOOR, 1)
