@@ -839,7 +839,17 @@ function QD.raid._play_send(st, v, intent)
         st.blocks[r] = (st.blocks[r] or 0) + 1
         if r ~= "ok" and r ~= "split" then
             st.refusals = st.refusals + 1
-            if #st.lines < 6 then st.lines[#st.lines + 1] = "t" .. v.tick .. " " .. tostring(r) .. ": " .. string.sub(tostring(d), 1, 160) end
+            -- owner_praypress: the server's protection block is named rather
+            -- than cut off.  It is not a press the driver lost: content put
+            -- the protections out and refuses every one of them for its
+            -- window (QD.prayer.BLOCKED_MESSAGE), so a plan that sees this is
+            -- reading a mechanic, not a fault.
+            if QD.prayer.blocked(d) then
+                st.pray_blocked = st.pray_blocked or {}
+                if #st.pray_blocked < 24 then st.pray_blocked[#st.pray_blocked + 1] = v.tick end
+            elseif #st.lines < 6 then
+                st.lines[#st.lines + 1] = "t" .. v.tick .. " " .. tostring(r) .. ": " .. string.sub(tostring(d), 1, 160)
+            end
         end
         if eat ~= nil then
             st.last_eat = v.tick
@@ -1681,6 +1691,10 @@ function QD.raid._play_summary_seam31(st)
     if st.stop ~= nil then parts[#parts + 1] = "stop: " .. st.stop end
     if (st.pray_skips or 0) > 0 then
         parts[#parts + 1] = "prayer offs kept back (the server put them out) " .. st.pray_skips
+    end
+    if st.pray_blocked ~= nil and #st.pray_blocked > 0 then
+        parts[#parts + 1] = string.format("the server BLOCKED a protection press on %d tick(s) (t%s) -- '%s'",
+            #st.pray_blocked, table.concat(st.pray_blocked, ",t"), QD.prayer.BLOCKED_MESSAGE)
     end
     if (st.gone_without_death or 0) > 0 then
         parts[#parts + 1] = "boss gone with no death row " .. st.gone_without_death .. " time(s)"

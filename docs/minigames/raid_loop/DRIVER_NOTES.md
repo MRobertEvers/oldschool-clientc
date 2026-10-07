@@ -7699,3 +7699,23 @@ So, for any harness with a large kit:
   food. A charge that consumes an item (the Ayak's demon tears, the
   tonalztics' splinters) frees its slot too, which is why the supplies are
   handed over after the charges.
+
+## A prayer the plan "loses" on consecutive ticks is the content's protection block (owner_praypress, 2026-10-07)
+
+Reported as a press-path defect: "when the plan switches protections on CONSECUTIVE ticks the press path loses the
+prayer" (svdplaysotet seat 2: missiles t62, melee t63, magic t64, then nothing lit t64-t73, 77 hitpoints and the
+raider's life). THE PRESS PATH DOES NOT LOSE IT. Measured straight through the path a plan uses -- one `t.together`
+a tick with `prayer.set` inside it -- all three switch on three genuinely consecutive ticks and each varbit reads 1
+after its own press (`seam.prayer_consecutive_ticks`, three conformance runs; and a standalone probe, 9 of 9).
+What loses it is CONTENT: an unprayed Sotetseg ball calls `~prayer_block_protection`
+(tob_sotetseg.rs2:394), which puts all three protections out and then makes `[proc,prayer_can_use]` REFUSE every
+protection press while `%varp6891_prayer_protect_blocked > map_clock` (skill_prayer/scripts/prayer.rs2:108,137-141),
+saying "You can't use protection prayers at the moment." Reproduced: the seat's protections vanish on the tick of
+the impact and its presses are refused from that same tick (p2 t64, t66, t67). Piety stays lit and the points are
+untouched, which is why the block is easy to mistake for a lost press -- it only ever takes the three protections.
+The reason was invisible because `_play_send` cut a refusal at 160 characters exactly where it sat ("the server said
+'You "). It is now named instead: the play summary ends `the server BLOCKED a protection press on N tick(s) (tA,tB)
+-- 'You can't use protection prayers at the moment.'`, and `QD.prayer.blocked(text)` / `QD.prayer.BLOCKED_MESSAGE`
+are the predicate and the words. So a plan that ends a ball's colour hold a tick early does not lose a press: it
+takes the ball unprayed, and the room then refuses it protection for the window -- the cost of the wrong colour, not
+of the press path.

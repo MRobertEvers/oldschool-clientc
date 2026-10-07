@@ -162,7 +162,7 @@
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 232
-local SEAM_COUNT = 224
+local SEAM_COUNT = 225
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -3681,6 +3681,91 @@ return {
                 return "hollow", text
             end
             return "ok", text
+        end)
+
+        -- seam owner_praypress (2026-10-07): A PROTECTION SWITCHED ON
+        -- CONSECUTIVE TICKS ENDS LIT, AND A REFUSED ONE NAMES ITS REASON.
+        --
+        -- Reported as "the press path loses the prayer when the plan switches
+        -- protections on consecutive ticks" (svdplaysotet p2: missiles t62,
+        -- melee t63, magic t64, then ten ticks with nothing lit, 77 hitpoints
+        -- and the raider's life).  The press path does NOT lose it -- the
+        -- first half below switches all three on consecutive ticks through the
+        -- very path a plan uses (one t.together a tick, prayer.set inside it)
+        -- and every press lands.  What loses it is the CONTENT's protection
+        -- block: an unprayed ball calls `~prayer_block_protection`
+        -- (tob_sotetseg.rs2), which puts all three out and makes
+        -- `[proc,prayer_can_use]` refuse every protection press while
+        -- `%varp6891_prayer_protect_blocked > map_clock` (prayer.rs2:108,
+        -- 137-141).  The plan's presses were refused by the server, and the
+        -- reason was being cut off at 160 characters exactly where it sat
+        -- ("the server said 'You ").  So the second half pins the refusal: a
+        -- press under the block answers `refused`, leaves the varbit at 0 and
+        -- says what the server said.  SEAM_COUNT +1, no new verb.
+        seam("seam.prayer_consecutive_ticks", function()
+            local set = verb("prayer", "set")
+            local tog = verb("together")
+            local server = verb("var", "server")
+            local tick_fn = verb("tick")
+            if not set then return missing("prayer", "set") end
+            if not tog then return missing("together") end
+            if not server then return missing("var", "server") end
+            if not tick_fn then return missing("tick") end
+            local VARBIT = {
+                protectfrommissiles = "varb4117_prayer_protectfrommissiles",
+                protectfrommelee = "varb4118_prayer_protectfrommelee",
+                protectfrommagic = "varb4116_prayer_protectfrommagic",
+            }
+            local ORDER = { "protectfrommissiles", "protectfrommelee", "protectfrommagic" }
+            local steps, lit_now = {}, nil
+            for _, name in ipairs(ORDER) do
+                local _, before = tick_fn()
+                local r = tog(function() set(name, true) end)
+                local _, value = server(VARBIT[name])
+                local _, after = tick_fn()
+                steps[#steps + 1] = string.format("%s t%s->%s %s varbit %s",
+                    string.sub(name, 12), describe(before), describe(after), describe(r), describe(value))
+                if r ~= "ok" or value ~= 1 then
+                    return "hollow", "switching on consecutive ticks lost " .. name .. ": "
+                        .. table.concat(steps, " | ")
+                end
+                lit_now = name
+                -- the next press is the NEXT tick's, as a plan's is
+                local want = (after or 0) + 1
+                t.await({ level = function() return (select(2, tick_fn()) or 0) >= want end,
+                    note = "seam: next tick" }, 5)
+            end
+            -- and exactly one is lit: each press put the one before it out
+            local others = {}
+            for _, name in ipairs(ORDER) do
+                local _, value = server(VARBIT[name])
+                if value == 1 and name ~= lit_now then others[#others + 1] = name end
+            end
+            if #others > 0 then
+                return "hollow", "after the run " .. lit_now .. " and also " .. table.concat(others, ",")
+                    .. " are lit: " .. table.concat(steps, " | ")
+            end
+            -- THE NEGATIVE CONTROL: the content's protection block.
+            local cheat = verb("cheat")
+            if not cheat then return missing("cheat") end
+            local cr = cheat("::setvar varp6891_prayer_protect_blocked 999999999", true)
+            if cr ~= "ok" then
+                return "no_subject", "the protection block could not be set: " .. describe(cr)
+            end
+            local blocked_result, blocked_detail = tog(function() set("protectfrommelee", true) end)
+            local _, blocked_value = server(VARBIT.protectfrommelee)
+            cheat("::setvar varp6891_prayer_protect_blocked 0", true)
+            if blocked_result ~= "refused" or blocked_value == 1
+                or not string.find(tostring(blocked_detail), "protection prayers", 1, true) then
+                return "hollow", string.format("under the protection block a press answered %s (varbit %s)"
+                    .. " without naming the reason: %s", describe(blocked_result), describe(blocked_value),
+                    describe(blocked_detail))
+            end
+            -- put the melee protection back for the rows below
+            tog(function() set("protectfrommelee", true) end)
+            return "ok", "consecutive ticks: " .. table.concat(steps, " | ")
+                .. "; under the content's protection block a press answers refused, the varbit stays "
+                .. describe(blocked_value) .. ", and the detail names it"
         end)
 
         -- put the prayer out and the inventory tab back for the rows below
