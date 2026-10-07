@@ -32,7 +32,7 @@ return {
         "::give adamnt_warhammer",
         "::wield adamnt_warhammer",
         "::give dragon_warhammer",
-        "::give scythe_of_vitur",
+        "::give abyssal_bludgeon",
         -- No rune plate: Dragon Slayer gates it. Adamant has no quest gate and
         -- still softens the one intentional unprotected wedge sample hit.
         "::give adamant_platebody",
@@ -261,9 +261,9 @@ return {
                 local tx = frow.x + c[1]
                 local tz = frow.z + c[2]
                 t.player.walk_to(tx, tz, 3)
-                -- Scythe for kill DPS after DWH has drained defence.
+                -- Bludgeon for kill DPS after DWH has drained defence.
                 if dwh_specs >= 1 then
-                    t.player.equip("scythe_of_vitur", { quick = true })
+                    t.player.equip("abyssal_bludgeon", { quick = true })
                 else
                     t.player.equip("dragon_warhammer", { quick = true })
                 end
@@ -317,7 +317,7 @@ return {
                     local before_serial = 0
                     local _, nh0 = t.ticklog.rows({ kind = "hit_npc", slot = wslot })
                     if nh0 ~= nil and #nh0 > 0 then before_serial = nh0[#nh0].serial end
-                    local cr = t.player.cast(mage_kind, "raids_tekton_hammering", 2, 5,
+                    local cr = t.player.cast(mage_kind, "raids_tekton_hammering", 1, 8,
                         { slot = frow.slot })
                     mage_casts = mage_casts + 1
                     t.ticks(2)
