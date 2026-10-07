@@ -134,8 +134,8 @@ return {
                     drinks = drinks + 1
                 elseif restocks < 3 then
                     -- Mid-fight restock: first-anvil spark tank can burn 10 sharks.
-                    t.cheat("give shark 8")
-                    t.cheat("give br_4dosepotionofsaradomin 2")
+                    t.cheat("::give shark 8")
+                    t.cheat("::give br_4dosepotionofsaradomin 2")
                     restocks = restocks + 1
                 end
             end
@@ -147,7 +147,7 @@ return {
                         t.prayer.set("protectfrommelee", true)
                     end
                 elseif restocks < 3 then
-                    t.cheat("give br_4dose2restore 4")
+                    t.cheat("::give br_4dose2restore 4")
                     restocks = restocks + 1
                 end
             end
