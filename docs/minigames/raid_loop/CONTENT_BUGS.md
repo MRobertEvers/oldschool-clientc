@@ -2256,3 +2256,16 @@ reference ToB raider bows and pipes in elite ranged void (Blert equipmentDeltas,
   green ball at a random player" (wiki_Theatre_of_Blood_Strategies.wikitext:980); "verzik will send this at a player
   chosen at random" (transcripts/yt_KF9y2GYTJ-A.md); Blert's five Normal trio balls went to five raiders of four
   teams. FIXED in OSRS-Content 440dac8170 (owner_verzik): the targets are counted, then `random(n)` picks one.
+
+- ToB, Verzik P3: the green ball could not be shared. The last raider of a bounce chain always ate it (a team that
+  bounced it through all three still lost 74), and "the same player twice" was judged against the one sender only.
+  Source: "She can also launch a green projectile which must be bounced between every player of the team or the
+  player who is targeted will take up to 74% of their Hitpoints level as damage. This cannot be bounced to the same
+  player twice, otherwise both players (the sender and the intended recipient) will take up to 74% ..."
+  (wiki_Verzik_Vitur.wikitext:402); "continuing to do so to a different player until it safely dissipates"
+  (wiki_Theatre_of_Blood_Strategies.wikitext:980); Entry "must be bounced three times to allow it to dissipate
+  safely" (wiki_Theatre_of_Blood_Entry_Mode.wikitext:252). FIXED in OSRS-Content 1a28484637 (owner_verzik): the
+  visited raiders ride the chain; a hop goes to an unvisited neighbour; only visited neighbours = target and that
+  one both hit; none = the target eats it; once it has landed on every raider in the room (2+) it dissipates (Entry
+  also after three hops). Hard keeps its 89/74/49 ladder and three-hop cap. Measured: `_play_verzik_slow_p3 --party 3
+  --names 5`, every ball p0 -> p2 -> p1, 0 damage.
