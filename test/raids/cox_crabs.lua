@@ -219,7 +219,6 @@ return {
         "::give hammer",
         "::give shark 20",
         "::give br_4dose2restore 4",
-        "::give br_4dosepotionofsaradomin 2",
     },
 
     run = function(t)
