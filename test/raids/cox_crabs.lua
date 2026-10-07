@@ -404,6 +404,23 @@ return {
             return wx + 3, wz + 2
         end
 
+        local function clear_column_below(wx, wz)
+            -- Pull any crab off the focus column south of this mark so the
+            -- beam is not intercepted before the bounce (run33: blue seated
+            -- on 13,23 but crystal 1 never lit — leftover on 13,13).
+            for dz = 2, 10, 2 do
+                local c = crab_at(t, wx, wz - dz, 0)
+                if c ~= nil then
+                    t.player.walk_to(wx - 4, wz - dz, 14)
+                    t.ticks(1)
+                    t.player.attack(c.symbol, 3, 2, {
+                        quick = true, slot = c.row.slot,
+                    })
+                    t.ticks(4)
+                end
+            end
+        end
+
         local function seat_crab(tile, style, flag)
             local wx, wz = world(tile.lx, tile.lz)
             local sx, sz = safe_tile(wx, wz)
@@ -418,22 +435,27 @@ return {
             elseif style == "melee" then want_sym = "raids_lasercrabs_crab_red"
             elseif style == nil then want_sym = "raids_lasercrabs_crab_grey"
             end
+            if tile.lz > 13 then
+                clear_column_below(wx, wz)
+            end
             local seated = crab_at(t, wx, wz, 0)
             if seated ~= nil and want_sym ~= nil and seated.symbol == want_sym then
                 t.player.walk_to(sx, sz, 20)
                 return true, "already seated " .. want_sym
             end
-            -- Cross the focus column OFF the bounce z, then step to lure.
-            -- Direct east→west on bounce z left the player stuck on the
-            -- column (run32: 291 ticks at 6413,81) and never reached lure.
-            local bypass_z = wz + 3
-            t.player.walk_to(sx, bypass_z, 24)
-            t.ticks(1)
-            t.player.walk_to(lure_x - 1, bypass_z, 24)
-            t.ticks(1)
-            t.player.walk_to(lure_x - 1, lure_z, 16)
-            t.ticks(1)
-            t.player.walk_to(lure_x, lure_z, 12)
+            -- Crystal 3's old mark sat on clipped floor; approach that band
+            -- via a bypass z. Other crystals use a short west lure (run33's
+            -- long bypass burned crystal-1 seats).
+            if tile.lz >= 16 and tile.lz <= 18 then
+                local bypass_z = wz + 4
+                t.player.walk_to(sx, bypass_z, 20)
+                t.ticks(1)
+                t.player.walk_to(lure_x - 1, bypass_z, 20)
+                t.ticks(1)
+                t.player.walk_to(lure_x, lure_z, 16)
+            else
+                t.player.walk_to(lure_x, lure_z, 40)
+            end
             t.ticks(2)
             sustain(t, 80)
             local crab = nearest_crab(t)
