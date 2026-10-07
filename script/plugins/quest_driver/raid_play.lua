@@ -1611,6 +1611,26 @@ function QD.raid.cross_together(name, opts)
             if c.z == row.tile_z and math.abs(c.x - row.tile_x) == 1 then along_x = true end
             if c.x == row.tile_x and math.abs(c.z - row.tile_z) == 1 then along_x = false end
         end
+        -- one copy per seat where the run has them: seat r takes the r-th
+        -- copy along the run from the nearest, so no two seats share a door
+        -- tile (mzprobenylocas: p3 on the leader's 6432,96 pressed a tick
+        -- after p2 on 6431,96 -- the click found the leader standing there)
+        local run = {}
+        for _, c in ipairs(copies) do
+            local same_line = (along_x == true and c.z == row.tile_z) or (along_x == false and c.x == row.tile_x)
+            if same_line and math.abs(c.x - row.tile_x) + math.abs(c.z - row.tile_z) <= 3 then run[#run + 1] = c end
+        end
+        table.sort(run, function(a, b)
+            local da = math.abs(a.x - row.tile_x) + math.abs(a.z - row.tile_z)
+            local db = math.abs(b.x - row.tile_x) + math.abs(b.z - row.tile_z)
+            if da ~= db then return da < db end
+            return (a.x * 100000 + a.z) < (b.x * 100000 + b.z)
+        end)
+        if #run >= 2 then
+            local pick = run[((role - 1) % #run) + 1]
+            row = { tile_x = pick.x, tile_z = pick.z }
+            dx, dz = here.x - row.tile_x, here.z - row.tile_z
+        end
     end
     local sx, sz
     if along_x == false or (along_x == nil and math.abs(dx) >= math.abs(dz)) then
@@ -1650,11 +1670,19 @@ function QD.raid.cross_together(name, opts)
         end
         local ar = QD.party.barrier(name .. "_asked", timeout)
         if ar ~= "ok" then return "timeout", "cross_together " .. name .. ": the asked barrier " .. tostring(ar) end
-        if opts.at_answer ~= nil then opts.at_answer() end
+        -- (the go mark a tick AHEAD of the answer: a member reads the barrier
+        -- file on its next frame, which can be the next tick's -- with the
+        -- mark written on the answer's tick the members pressed a tick late,
+        -- and their DATA reached the world a tick after that)
         local _, now = QD.tick()
-        go_tick = now
-        -- (the go mark before the answer: the members read it the same tick)
+        go_tick = now + 2
         api_drive.barrier_mark(string.format("barrier.%s_go%d.p%d", name, go_tick, role))
+        while true do
+            local _, t = QD.tick()
+            if t >= go_tick then break end
+            QD.ticks(1)
+        end
+        if opts.at_answer ~= nil then opts.at_answer() end
         local pr, pd = QD.chat.play({ "options", "choose:" .. answer })
         if pr ~= "ok" then return "refused", "cross_together " .. name .. ": " .. tostring(pd) end
         detail = "answered " .. tostring(pr) .. " after " .. presses .. " press(es)"
