@@ -192,7 +192,9 @@ return {
         "::wield dragon_arrow",
         "::give br_4dose2restore 2",
         "::give br_4dosepotionofsaradomin 2",
-        "::give shark 22",
+        -- Anglerfish heal 22 (shark 20); run23 died with mystic 2 at ~27 hp
+        -- left after 22 sharks ran out.
+        "::give anglerfish 22",
         "::give tbwt_cooked_karambwan 2",
     },
 
@@ -350,20 +352,19 @@ return {
                 top_up(t)
                 arm_prayers(false)
 
-                -- below=40, no combo: run20 burned all 24 foods by mystic 2
-                -- (combo at below=50). Karambwan is reserved for top_up <40.
+                -- Emergency-only eat (below=25): run24's below=40 delayed tbow
+                -- to a 12-tick cadence and exhausted 22 anglers with mystic 2
+                -- at ~27 hp. Full-speed tbow finishes before the backpack dies.
                 local eat_opts = {
                     eat = {
-                        item = "shark",
-                        below = 40,
+                        item = "anglerfish",
+                        below = 25,
                         quick = true,
+                        combo = "tbwt_cooked_karambwan",
                     },
                 }
                 local cslot = target.client_slot
-                local atk_opts = {
-                    eat = eat_opts.eat,
-                    quick = true,
-                }
+                local atk_opts = { quick = true }
                 if type(cslot) == "number" then
                     atk_opts.slot = cslot
                 end
@@ -372,10 +373,7 @@ return {
                     t.shot("mystics mid-mechanic focus kill")
                     sm.mid_shot = true
                 end
-                -- Watch the engaged CLIENT slot (not nearest-by-symbol): form
-                -- rolls can duplicate, and run18 killed slot 63 ok then failed
-                -- pack_has_sym because another mystic shared the symbol.
-                -- attempts=8 (not 40): run11 burned 17 sharks on corpse re-engages.
+                -- attempts=8; pack confirms kill (duplicate forms share symbols).
                 local ar, ad = t.npc.await_dead_engaged(600, 8, eat_opts)
                 sample_hits()
                 sample_anims()
@@ -387,7 +385,6 @@ return {
                     sample_hits()
                     sample_anims()
                 end
-                -- Corpse may linger one tick in pack; give it a moment.
                 if pack_has_slot(t, sm.focus_slot) then
                     t.ticks(2)
                 end
@@ -400,7 +397,6 @@ return {
                     set_state(STATE.DONE)
                     return
                 end
-                -- await ok or pack dropped the world slot: count the kill.
                 sm.kills = sm.kills + 1
                 sm.focus_slot = nil
                 sm.focus_sym = nil
