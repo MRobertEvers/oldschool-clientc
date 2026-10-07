@@ -1506,7 +1506,22 @@ function QD.raid._nym_publish_role(st)
     ny.role_published = true
     api_drive.barrier_mark(string.format("barrier.nyrole_r%d.p%d", st.role, QD.party.role()))
 end
-local NY_SIM_KEEP = { "wait_for", "stand", "cleanup", "cleanup_passes", "clear_time", "chin_best", "chin_have",
+-- THE KEYS THE OTHER-SEATS SIMULATION MUST PUT BACK.  "clear_tick" belongs
+-- here with "clear_time": they are ONE cache, written together by the scored
+-- pick's cleanup-order arm (`ny.clear_tick, ny.clear_time = v.tick, need /
+-- P.cleanup_order.rate`), and restoring only the value left the STAMP saying
+-- "computed this tick" over a nil value.  The next read on the same tick then
+-- skips the recompute (`if ny.clear_tick ~= v.tick`) and compares against
+-- nil: "quest-driver: attempt to compare number with nil", which in Lua kills
+-- the raider, not just the pick.  Reached on svaplaynyloc p2 (the meleer) at
+-- tick 391, with the party lockstep breaking at boundary 393 and the leader
+-- running on alone to the frame budget -- a seat only has to be in CLEANUP
+-- (ny.in_cleanup) on a tick the simulation also runs, which needs
+-- ny.waves < 31 (`if ny.waves < 31 then QD.raid._nym_claims(c)`).  The kept
+-- plan does not reach it today only because its two defence states are
+-- terminal (raid seam53, the port's note); it would bite the next change to
+-- the wave count or the resume path.
+local NY_SIM_KEEP = { "wait_for", "stand", "cleanup", "cleanup_passes", "clear_tick", "clear_time", "chin_best", "chin_have",
     "barrage_have", "inbound_skips", "owner_left", "owners_seen", "stack_cands", "why", "loadout", "reach", "worn" }
 local function nym_role_loadout(P, role)
     local R = P.roles[role]
