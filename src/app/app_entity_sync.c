@@ -272,6 +272,14 @@ app_entity_spotanim_drop(
         app_entity_spotanim_detach(app, entry, false);
 }
 
+/* The scale (128 == 1.0) that a later resize by `resize` takes back to 128. */
+static int
+app_entity_spotanim_unscale(int resize)
+{
+    assert(resize > 0);
+    return (128 * 128 + resize / 2) / resize;
+}
+
 static void
 app_world_sync_one_entity_spotanim(
     struct App* app,
@@ -387,9 +395,16 @@ app_world_sync_one_entity_spotanim(
         struct ToriDraw_Model* merged;
         if( !posed )
             return;
-        /* Hole frames (missing archive) hold the rest pose, like the renderer. */
+        /* Pose from the bind pose. The cached spot base is already in render
+         * scale, and ToriDraw_ModelAnimateFrame applies the spot's resize
+         * again after posing: animating it in place drew a resized graphic
+         * (tzhaar_heal, 200) at 200*200/128. Hole frames (missing archive)
+         * hold the rest pose, like the renderer. */
+        ToriDraw_ModelAnimateReset(posed);
         if( anim->frames[frame].length > 0 )
             ToriDraw_ModelAnimateFrame(posed, anim->base, &anim->frames[frame]);
+        else
+            ToriDraw_ModelApplyPostTransforms(posed);
         /* Reference nulls the spot copy's labels before Model.combine. */
         ToriDraw_BonesFree(posed->vertex_bones);
         posed->vertex_bones = NULL;
@@ -399,6 +414,23 @@ app_world_sync_one_entity_spotanim(
         if( spot->height != 0 )
             ToriDraw_ModelTranslate(posed, 0, -spot->height, 0);
 
+        /* The body is at its authored size and the renderer re-poses it every
+         * frame, resizing after the pose (NpcType.getModel's order), so the
+         * merge must carry the body's resize or a resized npc draws at 128 for
+         * as long as the graphic is on it (JalTok-Jad, 110, grew by 128/110
+         * under every Yt-HurKot heal). That resize then lands on the spot part
+         * too, which the reference combines at its own scale: undo it here. */
+        assert(entry->body->post_orient == 0);
+        assert(entry->body->post_offset_x == 0);
+        assert(entry->body->post_offset_y == 0);
+        assert(entry->body->post_offset_z == 0);
+        if( entry->body->post_resize )
+            ToriDraw_ModelScale(
+                posed,
+                app_entity_spotanim_unscale(entry->body->post_resize_x),
+                app_entity_spotanim_unscale(entry->body->post_resize_z),
+                app_entity_spotanim_unscale(entry->body->post_resize_height));
+
         parts[0] = entry->body;
         parts[1] = posed;
         merged = ToriDraw_ModelMerge(parts, 2);
@@ -406,6 +438,15 @@ app_world_sync_one_entity_spotanim(
         if( !merged )
             return;
         ToriDraw_ModelCaptureOriginalVertices(merged);
+        if( entry->body->post_resize )
+            ToriDraw_ModelSetPostResize(
+                merged,
+                entry->body->post_resize_x,
+                entry->body->post_resize_z,
+                entry->body->post_resize_height);
+        /* Render scale for a frame the renderer does not pose, as
+         * app_world_build_model leaves a fresh body. */
+        ToriDraw_ModelApplyPostTransforms(merged);
         {
             struct ToriDraw_ModelHandle hnd;
             memset(&hnd, 0, sizeof(hnd));
