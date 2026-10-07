@@ -537,13 +537,29 @@ function QD.raid._verzik_cover(st, v, ok)
             -- now, ^tob_verzik_pillar_collapse_range 3 after Blert 280f7cef, the
             -- anim audit's content change: a tile four out is never caught)
             if (fall >= 4 or not may_fall) and ok(x, z) then
-                local d = QD.raid._verzik_dist(x, z, b) + (may_fall and 1 or 0)
+                -- owner_verzik 2026-10-07: A PILLAR THAT CANNOT FALL BEATS A
+                -- NEARER ONE THAT MAY, outright rather than by a tile.  The
+                -- near row is two pillars and three safe bolts each, and
+                -- "several players behind one pillar cost the pillar only one
+                -- hit" (tob_verzik.rs2 ~tob_verzik_p1_shot, the $pillars
+                -- bitmask), so a trio that stacks has six covered attacks --
+                -- Blert's P1 median is 85 ticks, which is six.  _vzslow spent
+                -- its six absorptions over FOUR attacks (1, 1, 2, 2: the trio
+                -- split across two pillars), 6425,94 fell on its third at
+                -- t131, and the last six launches of that P1 were tanked by
+                -- all three: 505 of P1's 556 damage, 168 a seat against
+                -- Blert's 20.  A +1 on the distance was not enough to move
+                -- them: a spent pillar two tiles nearer still won.
+                local d = QD.raid._verzik_dist(x, z, b)
+                -- the choice ranks on this; `d` stays the true distance, which
+                -- the caller's "a far shadow is no cover" test reads
+                local rank = d + (may_fall and 100 or 0)
                 -- ties: the west pillar first (W:885 "the pillar directly
                 -- south-west of Verzik"), then the tile nearer her centre line,
                 -- so all three raiders read the same tile from anywhere
                 local side = math.abs(x - cx) + (west and 0 or 100)
-                if best == nil or d < best.d or (d == best.d and side < best.side) then
-                    best = { x = x, z = z, d = d, side = side, pillar = p, hp = hp, may_fall = may_fall }
+                if best == nil or rank < best.rank or (rank == best.rank and side < best.side) then
+                    best = { x = x, z = z, d = d, rank = rank, side = side, pillar = p, hp = hp, may_fall = may_fall }
                 end
             end
         end
@@ -601,6 +617,20 @@ QD.raid.sm_declare("verzik_dawnbringer", {
     },
 })
 
+-- The main weapon back in my hand -- the scythe, or the slow pace's halberd
+-- (the plan header's table).  One place, because it is reached from two: the
+-- orb going flat, and her shield breaking with the sword still in my hand.
+function QD.raid._verzik_main_weapon_back(st, vz, intent)
+    assert(st, "_verzik_main_weapon_back: st")
+    assert(vz, "_verzik_main_weapon_back: vz")
+    assert(intent, "_verzik_main_weapon_back: intent")
+    local main = vz.main or "scythe"
+    intent.gear = { QD.RAID_PLAY_VERZIK_WEAPONS[main].item }
+    vz.held = main
+    st.weapon = QD.RAID_PLAY_VERZIK_WEAPONS[main]
+    st.engaged = false
+end
+
 -- ABSENT: taken whenever it lies there on my turn (past the near row there is
 -- no hiding, s34v vzn7: p3 never took it once the trio tanked)
 function QD.raid._verzik_dawn_absent(c, ev)
@@ -627,6 +657,23 @@ function QD.raid._verzik_dawn_held(c, ev)
     assert(c, "_verzik_dawn_held: c")
     assert(ev, "_verzik_dawn_held: ev")
     local st, v, vz, dw, intent = c.st, c.v, c.vz, c.dw, c.intent
+    -- owner_verzik 2026-10-07: HER SHIELD BREAKING DESTROYS THE SWORD IN MY
+    -- HAND (tob_verzik.rs2 ~tob_verzik_shield_broken), and the orb can still
+    -- hold the 350 -- so `held` went on arming a special with an EMPTY HAND
+    -- and the main weapon never came back: _vzslow's seat 1 took the sword at
+    -- t208, P1 ended at t214, and it fought t211..t954 -- all of P2 and most
+    -- of P3 -- at `weapon -1`.  A third of the trio's damage: that P2 ran 488
+    -- ticks at 7.2 damage a tick where the fast team's ran 247 at 11.6.
+    --
+    -- The phase is the reading rather than "is the sword in my inventory",
+    -- because a WIELDED sword is not in the inventory and that test unwields
+    -- it on the tick it goes on.
+    local dphase = v.phase or vz.phase
+    if dphase ~= nil and dphase ~= "pre" and dphase ~= "p1" then
+        dw.destroyed = v.tick
+        QD.raid._verzik_main_weapon_back(st, vz, intent)
+        return nil, "done"
+    end
     local spent = ev.energy < QD.RAID_PLAY_VERZIK_DAWN_COST
     if not spent then
         if vz.held ~= "dawnbringer" then
@@ -652,11 +699,7 @@ function QD.raid._verzik_dawn_held(c, ev)
     -- spent: the main weapon back on (the scythe, or the slow pace's halberd),
     -- then the drop on the cover tile
     if vz.held == "dawnbringer" then
-        local main = vz.main or "scythe"
-        intent.gear = { QD.RAID_PLAY_VERZIK_WEAPONS[main].item }
-        vz.held = main
-        st.weapon = QD.RAID_PLAY_VERZIK_WEAPONS[main]
-        st.engaged = false
+        QD.raid._verzik_main_weapon_back(st, vz, intent)
         dw.unwield = v.tick
         return
     end
@@ -3735,9 +3778,12 @@ function QD.raid.verzik_p3_rows(t, cfg, rec, M)
     t.ticks(1)
     local death_tick = rec.death_tick
     local p3s = nil
+    local p1s, p1e = nil, nil
     local _, rt = t.ticklog.rows({ kind = "npc_retype" })
     for _, rw in ipairs(rt or {}) do
         if rw.to_type == 8374 and p3s == nil then p3s = rw.tick end
+        if rw.to_type == 8370 and p1s == nil then p1s = rw.tick end
+        if rw.to_type == 8371 and p1e == nil then p1e = rw.tick end
     end
     local _, nd = t.ticklog.rows({ kind = "npc_death" })
     local p3_dead = nil
@@ -3882,6 +3928,31 @@ function QD.raid.verzik_p3_rows(t, cfg, rec, M)
         if h.npc_type == 8377 and (h.damage or 0) > 0 then col = col + 1 end
     end
     t.check("p1.no_collapse_damage", col == 0, col .. " hits from a collapsing pillar (npc 8377)")
+    -- owner_verzik 2026-10-07: DID THE COVER HOLD?  Her P1 bolt lands through
+    -- the target's own queue (tob_verzik.rs2 [queue,tob_verzik_p1_land]), so it
+    -- reads as npc_type -1 with the victim as its own dealer.  She shoots EVERY
+    -- raider who is not behind a standing pillar, one bolt every 14 ticks
+    -- (^tob_verzik_p1_attack_ticks), up to 137 and halved to 68 by Protect from
+    -- Magic -- and Blert's 27 Normal trio rooms lose 20 a seat over the whole
+    -- of P1, which is less than one bolt each.  _vzslow took 17 bolts for 505
+    -- (168 a seat): its cover pillar fell on its third bolt at t131 and the
+    -- last six launches were tanked by all three.  Reported, not checked, while
+    -- the trio's own damage decides how many launches P1 lasts.
+    if p1s ~= nil and p1e ~= nil then
+        local bolts, bdmg, seats = 0, 0, {}
+        for _, h in ipairs(hp or {}) do
+            if h.npc_type == -1 and (h.damage or 0) > 0 and h.tick >= p1s and h.tick < p1e then
+                bolts = bolts + 1
+                bdmg = bdmg + h.damage
+                seats[h.pid] = (seats[h.pid] or 0) + h.damage
+            end
+        end
+        local n = 0
+        for _ in pairs(seats) do n = n + 1 end
+        t.check("p1.cover_held", true, string.format(
+            "%d tanked bolt(s) for %d over P1's %d ticks, %d a seat (Blert: 20 a seat, under one bolt each)",
+            bolts, bdmg, p1e - p1s, n > 0 and math.floor(bdmg / n) or 0))
+    end
     t.check("p3.verzik_moved", her_moves >= 1, string.format("her P3 steps outside the webs: %d, over %d tiles", her_moves, nt_tiles))
     -- each tornado's life: npc_spawn to npc_free (or her death)
     local _, sp = t.ticklog.rows({ kind = "npc_spawn" })
