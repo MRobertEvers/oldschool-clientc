@@ -171,7 +171,7 @@ All 18 Xarpus states are entered across the two shapes.
 | nylocas | seat **CLEANUP**, all three seats, 0 of 9 | **(a)**, my (b) guess REFUTED | Unreachable under the kept flags. A seat is nearly always inside PILLAR_DEFENCE or SELF_DEFENCE when the last wave goes out; those states only REMEMBER `waves_over`, and the memory is read by `defence_clear`/`aggro_clear`, which cannot fire while `P.room_copy` takes the tick. Every seat goes from a defence state straight to BOSS. **The consequence is larger than the state**: `ny.in_cleanup` never reads true for a trio, so the cleanup blast window, the cleanup order and the cleanup's weapon rule are all dead with it. |
 | nylocas | `nylocas_melee` **PRE_STAND**, 3 of 9 | **(b)** | Reachable; the meleer's wave list is shortest so it rarely runs out of named targets before the next wave. A genuine seed-narrowness finding. |
 | nylocas | `PILLAR_DEFENCE` / `SELF_DEFENCE` **leave edge** | **(c), but correctly preserved** | NOT a dead state — both states are hot. Their *leave* is unreachable under the kept plan because an override returns above the state tick. A state-keyed table cannot see this; see the limit section. The port correctly kept it dead, because the rule as written was never the behaviour as measured. Waking it is the owner's call. |
-| sotetseg | `sotetseg_seat_1` **gather** | **(b)** | **Referred to the Sotetseg agent** — a seat state that never fires on any of five names would be worth knowing about. |
+| sotetseg | `sotetseg_seat_N` **gather** | **RESOLVED — not a zero at all.** My reading was from a transient build | It is entered **twice per seat per room on all five names**, evidenced independently of coverage by the harness's own `gathers 2 (8 ticks)` counter, which is incremented INSIDE the gather state. My zero came from a tree that also contained `maze_done 3/1`, a state that existed for about twenty minutes as a demonstration change and has been reverted. **Re-read on the committed file: `maze_done` is gone and `gather` fires 1/1** in a single run. The only legitimate zero would be a run whose death ball lands inside a maze and is nulled by the room (W:799) — the room's own variation, not dead code. |
 | verzik | `verzik_rotation` **ball**, `verzik_enrage` **SHARE** | **(a)** for this run | She died before her green ball, which is expected for the fast pace. `_vzslowp3` exists precisely to reach the ball; these two are covered there, not here. |
 | verzik | `verzik_enrage` **EAT** | **(b)** | My demonstration state. Did not fire on this seed, but fires on others — its change moved the tick logs on 5 of 19 survey runs. |
 
@@ -276,6 +276,24 @@ cleanly across `34281e774`. The rule generalises: a measurement taken from the
 tick log is unaffected by the hook; only a measurement taken from the summary
 string is.
 
+### EVERY ZERO IS NOW RESOLVED
+
+With Sotetseg's two answered, **no unexplained zero remains in any of the six
+rooms.** The only `NEVER` entries left anywhere are the terminal states, which
+are (a) unreachable by construction on every exit path but the members'
+three-tick absence. There is **no (c) wiring bug in any ported room** — the two
+things that looked like one were Maiden's `PREAIM`/`RETURN`, which were
+correctly kept dead because the measured behaviour never had them, and my own
+two misreadings below.
+
+**Two of my own readings were wrong and both are corrected here rather than
+quietly dropped.** Both came from reading a working tree while its agent had a
+patch applied or reverted mid-measurement — the Xarpus "header mismatch" and
+the Sotetseg `gather` zero. The lesson is the same both times and it is worth
+stating as a rule: **read coverage from the committed file, or from a run whose
+file state you recorded.** I added the file shas to my own batch header for
+exactly this reason and then failed to apply it to other people's rooms.
+
 ### A systematic finding across all six rooms
 
 **Every room's terminal state is NEVER entered by the seat whose play ends
@@ -318,6 +336,33 @@ remove it, and so the other five rooms know the field exists — a plan that
 never sets it (bloat, maiden, nylocas) is judged exactly as before, so this is
 Sotetseg's hazard alone today and any room that later adds a teleport
 inherits it.
+
+## An open defect in the shared library, which is mine
+
+Found by the Sotetseg agent while measuring damage per cause, and recorded here
+because `raid_play.lua` is mine rather than any room's. **I have not fixed it**
+— it is a behaviour change to a library six rooms depend on and it needs its
+own investigation and its own before/after.
+
+**The symptom.** `_play_send`'s together-block appears unable to make two
+protection switches on consecutive ticks: the second press loses the prayer
+entirely. Measured on `svdplaysotet` p2 — pressed missiles at t62, melee at
+t63, magic at t64, and then had **no protection at all from t64 to t73**. Ten
+ticks, 77 hitpoints, and the raider's life. Piety stayed lit throughout and
+prayer points were 93, so it is neither a drain nor the five-tick block.
+
+**Why it has stayed hidden, and this is the part that matters.** Sotetseg's
+proved port only avoids it *by accident*, because its protection hold happens
+to be one tick long. The agent tried to shorten the hold two different ways —
+both correct by design, both making the room RED — and the redness is this
+library bug, not the change. So a latent library defect is currently being
+held off by a one-tick coincidence in one room's plan, and any room that ever
+wants two switches in two ticks will hit it.
+
+**Reproduction, committed:** `tools/raid_gate/sote_damage_by_cause.py`; the
+attempted fix is `build/seam_state/sm_sotetseg/tried_remembered_flight_hold.diff`.
+The prize if it is fixed: 550 hitpoints over 24 hits of his melee at 22.9 each,
+where Protect from Melee makes it 13.5.
 
 ## How much of `COLD` is signal — two views, and why it stays as it is
 
