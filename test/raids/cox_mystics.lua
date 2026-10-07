@@ -3,9 +3,11 @@
 -- Source: docs/minigames/cox/synq_transcript.md [0:31:54]
 --   "Make sure you're protecting from magic while doing this room."
 --   "The salve amulet EI is strongly recommended."
---   Kill path: focus one mystic at a time with ranged until the room clears.
--- Corner safespotting is optional learner technique; this harness clears by
--- Protect from Magic + ranged DPS (Synq learner baseline).
+--   "The bofa and blowpipe are also commonly used here. The twisted bow
+--    isn't as strong here because their magic level isn't as high..."
+-- Kill path: focus one mystic at a time with ranged until the room clears.
+-- When a mystic is walk-adjacent it rerolls melee; flick Protect from Melee
+-- so stacked melee does not bypass Protect from Magic.
 -- Model: named-state machine, one intent per tick.
 -- No ::godmode, ::kill, or teleport past a phase.
 
@@ -17,6 +19,8 @@ local FORMS = {
 
 local ANIM_MELEE = 5485
 local ANIM_MAGIC = 5523
+-- ^cox_mystic_melee_reach_range = 2 (size-2 mystic Chebyshev hunt).
+local MELEE_REACH = 2
 
 local STATE = {
     LAND = "LAND",
@@ -27,6 +31,15 @@ local STATE = {
 
 local function is_mystic_sym(sym)
     return sym == FORMS[1] or sym == FORMS[2] or sym == FORMS[3]
+end
+
+local function chebyshev(ax, az, bx, bz)
+    local dx = ax - bx
+    local dz = az - bz
+    if dx < 0 then dx = -dx end
+    if dz < 0 then dz = -dz end
+    if dx > dz then return dx end
+    return dz
 end
 
 local function mystic_rows(t)
@@ -63,7 +76,20 @@ local function is_mystic_hit(sm, row)
     return false
 end
 
-local function nearest_mystic(t)
+local function row_by_slot(rows, slot)
+    if slot == nil then return nil end
+    for i = 1, #rows do
+        if rows[i].slot == slot then return rows[i] end
+    end
+    return nil
+end
+
+local function pick_focus(t, sm)
+    local rows = mystic_rows(t)
+    local pinned = row_by_slot(rows, sm.focus_slot)
+    if pinned ~= nil then
+        return pinned, pinned.symbol
+    end
     -- Prefer client-visible nearest for attack(); fall back to pack world row.
     for i = 1, #FORMS do
         local r, row = t.npc.nearest(FORMS[i], 40)
@@ -71,9 +97,22 @@ local function nearest_mystic(t)
             return row, FORMS[i]
         end
     end
-    local rows = mystic_rows(t)
     if #rows == 0 then return nil, nil end
     return rows[1], rows[1].symbol
+end
+
+local function any_melee_reach(t, rows)
+    local tr, me = t.world.tile()
+    if tr ~= "ok" or type(me) ~= "table" then return false end
+    for i = 1, #rows do
+        local row = rows[i]
+        if row.x ~= nil and row.z ~= nil then
+            if chebyshev(me.x, me.z, row.x, row.z) <= MELEE_REACH then
+                return true
+            end
+        end
+    end
+    return false
 end
 
 local function hp(t)
@@ -90,15 +129,36 @@ local function prayer_points(t)
     return 0
 end
 
+local function drink_brew(t)
+    local doses = {
+        "br_4dosepotionofsaradomin",
+        "br_3dosepotionofsaradomin",
+        "br_2dosepotionofsaradomin",
+        "br_1dosepotionofsaradomin",
+    }
+    for i = 1, #doses do
+        if t.player.inv_op(doses[i], 1) == "ok" then return true end
+    end
+    return false
+end
+
 local function sustain(t)
     local h = hp(t)
-    if h > 0 and h < 70 then
+    -- Brew first when critically low: +16ish without the 3t food delay stack
+    -- that burns sharks while three mystics swing.
+    if h > 0 and h < 50 then
+        drink_brew(t)
+        h = hp(t)
+    end
+    if h > 0 and h < 72 then
         if t.player.eat("shark") ~= "ok" then
-            t.player.inv_op("shark", 1)
+            if t.player.eat("tbwt_cooked_karambwan") ~= "ok" then
+                t.player.inv_op("shark", 1)
+            end
         end
     end
     if h > 0 and h < 45 then
-        t.player.inv_op("br_4dosepotionofsaradomin", 1)
+        drink_brew(t)
     end
     if prayer_points(t) < 40 then
         t.player.inv_op("br_4dose2restore", 1)
@@ -133,7 +193,7 @@ return {
         "::setlevel magic 99",
         "::setlevel hitpoints 99",
         "::setlevel prayer 99",
-        -- Synq [0:31:54]: ranged + salve; twisted bow acceptable learner weapon.
+        -- Synq [0:31:54]: salve + blowpipe (tbow is weaker on mystic magic level).
         "::give masori_mask",
         "::wield masori_mask",
         "::give masori_body",
@@ -144,17 +204,16 @@ return {
         "::wield avas_assembler",
         "::give nzone_salve_amulet_e",
         "::wield nzone_salve_amulet_e",
-        "::give twisted_bow",
-        "::wield twisted_bow",
-        "::give dragon_arrow 2000",
-        "::wield dragon_arrow",
-        "::give br_4dose2restore 4",
-        "::give br_4dosepotionofsaradomin 2",
-        "::give shark 18",
+        "::blowpipe dragon_dart 2000 2000",
+        "::wield toxic_blowpipe_loaded",
+        "::give br_4dose2restore 3",
+        "::give br_4dosepotionofsaradomin 4",
+        "::give shark 16",
+        "::give tbwt_cooked_karambwan 5",
     },
 
     run = function(t)
-        t.check("spec.scope", true, "mode=all party=1; synq learner Protect Magic + ranged")
+        t.check("spec.scope", true, "mode=all party=1; synq learner Protect Magic + blowpipe")
         local lr, ld = t.ticklog.start()
         t.check("ticklog.start", lr == "ok", tostring(ld))
 
@@ -201,6 +260,7 @@ return {
             unprot_hits = 0,
             prot_hits = 0,
             prayer_on = false,
+            pray_style = "magic",
             slots = {},
             types = {},
         }
@@ -218,11 +278,13 @@ return {
                 sm.hit_serial = row.serial
                 if is_mystic_hit(sm, row) then
                     local d = row.raw or row.damage or 0
-                    -- BAIT window is unprotected; after ARM_PRAYER hits are protected.
-                    if sm.prayer_on then
+                    -- Prayer-reduction row is Protect from Magic only; ignore
+                    -- melee-flick windows so a full melee splat does not fail
+                    -- the 50% magic prayer measurement.
+                    if sm.pray_style == "magic" and sm.prayer_on then
                         if d > sm.prot_max then sm.prot_max = d end
                         sm.prot_hits = sm.prot_hits + 1
-                    else
+                    elseif not sm.prayer_on then
                         if d > sm.unprot_max then sm.unprot_max = d end
                         sm.unprot_hits = sm.unprot_hits + 1
                     end
@@ -255,6 +317,21 @@ return {
             end
         end
 
+        local function arm_overhead(alive)
+            -- Synq baseline is Protect from Magic; flick Melee when a mystic
+            -- is inside walk-reach so the 50/50 melee reroll is also halved.
+            local melee = any_melee_reach(t, alive)
+            if melee then
+                t.prayer.set("protectfrommelee", true)
+                sm.pray_style = "melee"
+            else
+                t.prayer.set("protectfrommagic", true)
+                sm.pray_style = "magic"
+            end
+            t.prayer.set("eagleeye", true)
+            sm.prayer_on = true
+        end
+
         local function decide()
             sample_hits()
             sample_anims()
@@ -269,57 +346,46 @@ return {
             if sm.state == STATE.LAND then
                 lr, ld = t.ticklog.mark("mystics room start")
                 t.check("room.mark", lr == "ok", tostring(ld))
-                -- Arm Protect from Magic immediately: three mystics stack too
-                -- hard for an unprotected bait window (synq learner baseline).
                 set_state(STATE.ARM_PRAYER)
                 return
             end
 
             if sm.state == STATE.ARM_PRAYER then
-                -- Synq [0:31:54]: Protect from Magic for the room.
-                t.prayer.set("protectfrommagic", true)
-                t.prayer.set("eagleeye", true)
-                sm.prayer_on = true
+                arm_overhead(alive)
                 set_state(STATE.FOCUS)
                 return
             end
 
             if sm.state == STATE.FOCUS then
-                local target, sym = nearest_mystic(t)
+                local target, sym = pick_focus(t, sm)
                 if target == nil or sym == nil then
                     set_state(STATE.DONE)
                     return
                 end
+                local prev_slot = sm.focus_slot
                 sm.focus_sym = sym
                 sm.focus_slot = target.slot
-                t.prayer.set("protectfrommagic", true)
-                t.prayer.set("eagleeye", true)
-                -- Engage, then await_dead with a quick eater so sharks land
-                -- during the settle (stacked mystic DPS outruns tick-loop eats).
-                local eat_opts = {
-                    eat = { item = "shark", below = 70, quick = true },
-                }
-                t.player.attack(sym, 2, 1, eat_opts)
+                if prev_slot ~= nil and prev_slot ~= sm.focus_slot then
+                    sm.kills = sm.kills + 1
+                end
+                arm_overhead(alive)
                 if not sm.mid_shot then
                     t.shot("mystics mid-mechanic focus kill")
                     sm.mid_shot = true
                 end
-                local ar, ad = t.npc.await_dead(sym, 900, 40, 40, eat_opts)
-                if ar ~= "ok" then
-                    t.check("mystic.kill", false,
-                        "await_dead " .. tostring(sym) .. " -> " .. tostring(ar)
-                            .. " " .. tostring(ad))
-                    set_state(STATE.DONE)
-                    return
-                end
-                sm.kills = sm.kills + 1
-                -- Restore prayer between kills if needed.
-                if prayer_points(t) < 40 then
-                    t.player.inv_op("br_4dose2restore", 1)
-                    t.ticks(2)
-                    t.prayer.set("protectfrommagic", true)
-                    t.prayer.set("eagleeye", true)
-                end
+                -- One intent per tick: quick attack on the pinned world slot.
+                -- Shark + karambwan combo on the same press tick when low.
+                local eat_opts = {
+                    slot = target.slot,
+                    quick = true,
+                    eat = {
+                        item = "shark",
+                        below = 70,
+                        quick = true,
+                        combo = "tbwt_cooked_karambwan",
+                    },
+                }
+                t.player.attack(sym, 2, 1, eat_opts)
                 return
             end
         end
