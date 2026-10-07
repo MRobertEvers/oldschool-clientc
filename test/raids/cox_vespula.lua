@@ -382,27 +382,49 @@ return {
                     return
                 end
                 t.ticklog.mark("armed redemption")
-                -- Landing has no route to the portal (barrier). Walk the gap
-                -- tile first (Synq safe), then Attack so the bow can path in.
-                set_state(STATE.TO_GAP)
+                -- Synq [1:27:13]: attack immediately. Reach refusals go TO_GAP.
+                set_state(STATE.ATTACK_PORTAL)
                 return
             end
 
             if sm.state == STATE.TO_GAP then
                 local tr, me = t.world.tile()
-                if tr == "ok" and on_gap(me) then
+                if tr ~= "ok" or me == nil then
+                    return
+                end
+                if on_gap(me) or on_safe(me) then
                     t.ticklog.mark("on gap tile " .. me.x .. "," .. me.z)
                     set_state(STATE.ATTACK_PORTAL)
                     return
                 end
-                -- Near-side gap is only a few tiles from seed-1 landing; use a
-                -- real walk_to (auto deadline) before falling back to steps.
-                local wr, wd = t.player.walk_to(sm.safe_x, sm.safe_z)
-                if wr ~= "ok" then
-                    t.note("gap walk " .. tostring(wr) .. " " .. tostring(wd))
-                    step_toward(sm.safe_x, sm.safe_z)
+                -- walk_to auto-deadline hung under soft3d frame-skip. One
+                -- adjacent step_tick only (returns in a few server ticks).
+                local dx = sm.safe_x - me.x
+                local dz = sm.safe_z - me.z
+                local adx, adz = dx, dz
+                if adx < 0 then adx = -adx end
+                if adz < 0 then adz = -adz end
+                local nx, nz = me.x, me.z
+                if adx >= adz and adx > 0 then
+                    if dx > 0 then nx = me.x + 1 else nx = me.x - 1 end
+                elseif adz > 0 then
+                    if dz > 0 then nz = me.z + 1 else nz = me.z - 1 end
                 end
-                if sm.stuck >= 8 then
+                local sr, sd = t.player.step_tick(nx, nz, 3)
+                if sr ~= "ok" then
+                    t.note("gap step " .. tostring(sr) .. " " .. tostring(sd))
+                    nx, nz = me.x, me.z
+                    if adz >= adx and adz > 0 then
+                        if dx > 0 then nx = me.x + 1 elseif dx < 0 then nx = me.x - 1 end
+                    elseif adx > 0 then
+                        if dz > 0 then nz = me.z + 1 elseif dz < 0 then nz = me.z - 1 end
+                    end
+                    if nx ~= me.x or nz ~= me.z then
+                        sr, sd = t.player.step_tick(nx, nz, 3)
+                        t.note("gap step2 " .. tostring(sr) .. " " .. tostring(sd))
+                    end
+                end
+                if sm.stuck >= 6 then
                     rotate_gap()
                 end
                 return
@@ -427,15 +449,10 @@ return {
                     set_state(STATE.RESTORE)
                     return
                 end
-                local tr, me = t.world.tile()
-                -- Not yet at the gap: do not spam Attack into "I can't reach".
-                if tr == "ok" and not on_gap(me) and not on_safe(me) then
-                    set_state(STATE.TO_GAP)
-                    return
-                end
                 arm_redemption()
-                -- Longer settle so the ranged path from the gap tile can land.
-                local ar, ad = t.player.attack(PORTAL, 2, 8)
+                -- Short settle: a long await under soft3d frame-skip can burn
+                -- the whole TORIRS_MAX_FRAMES budget without returning.
+                local ar, ad = t.player.attack(PORTAL, 2, 3)
                 if ar == "ok" then
                     sm.portal_hits = sm.portal_hits + 1
                     if sm.portal_hits == 1 then
@@ -448,11 +465,10 @@ return {
                 end
                 t.note("portal attack " .. tostring(ar) .. " " .. tostring(ad))
                 if string.find(tostring(ad), "reach", 1, true) then
-                    rotate_gap()
                     set_state(STATE.TO_GAP)
                     return
                 end
-                if sm.portal_hits == 0 and sm.ticks > 400 then
+                if sm.portal_hits == 0 and sm.ticks > 200 then
                     t.check("portal.attack", false, tostring(ar) .. " " .. tostring(ad))
                     set_state(STATE.DONE)
                     return
@@ -471,9 +487,22 @@ return {
                     end
                     return
                 end
-                step_safe_once()
-                -- Keep DPS up: after a short step window, attack again.
-                if sm.stuck >= 4 then
+                local tr2, me2 = t.world.tile()
+                if tr2 == "ok" and me2 ~= nil then
+                    local portal = portal_row()
+                    if portal ~= nil then
+                        local rdx = me2.x - portal.x
+                        local rdz = me2.z - portal.z
+                        local sx, sz = 0, 0
+                        if (rdx < 0 and -rdx or rdx) >= (rdz < 0 and -rdz or rdz) then
+                            sx = (rdx >= 0) and 1 or -1
+                        else
+                            sz = (rdz >= 0) and 1 or -1
+                        end
+                        t.player.step_tick(me2.x + sx, me2.z + sz, 3)
+                    end
+                end
+                if sm.stuck >= 3 then
                     set_state(STATE.ATTACK_PORTAL)
                 end
                 return
