@@ -32,6 +32,29 @@ return {
         t.ticks(3)
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
 
+        -- Travel to Varlamore the real way (no on-foot route from Lumbridge): Regulus Cento outside
+        -- Varrock's east gate (3281,3413) flies to Civitas illa Fortis (1697,3140); then on foot.
+        -- OSRS Wiki Varlamore Transportation; twilightspromise.rs2:147 [opnpc1,vmq2_quetzal_keeper_varrock].
+        t.exec("goto-talkToRegulus", t.player.goto_tile, 3281, 3413, 0)
+        t.exec("talkToRegulus", t.player.talk_to, "vmq2_quetzal_keeper_varrock", 1)
+        t.exec("talkToRegulus-dialog", t.chat.play, {
+            "npc:Nilsal, adventurer. Do you wis",
+            "choose:Let's do it!",
+            "player:Let's do it!",
+            "npc:Then hold on tight. Varlamore ",
+        })
+        t.await({
+            level = function()
+                local _, here = t.world.tile()
+                return here ~= nil and here.x < 2000
+            end,
+            note = "landed in Civitas illa Fortis",
+        }, 10)
+        local _, arrive = t.world.tile()
+        t.check("talkToRegulus-arrived", arrive ~= nil and arrive.x == 1697 and arrive.z == 3140,
+            "flew to Civitas (1697,3140), tile " .. tostring(arrive and (arrive.x .. "," .. arrive.z)))
+        t.ticks(3)
+
         t.exec("goto-preQuestFrogs", t.player.goto_tile, 1694, 2993, 0)
         for _, e in ipairs({ { "frog_quest_gary", "Frog", 12937 }, { "frog_quest_sue", "Frog", 12945 },
             { "frog_quest_dave", "Frog", 12941 }, { "frog_quest_jane", "Frog", 12949 } }) do
@@ -189,14 +212,14 @@ return {
         t.exec("goto-pickUpAxe", t.player.goto_tile, 1684, 2976, 0)
         t.exec("pickUpAxe", t.player.click_loc, "log_withaxe", 1)
         t.exec("pickUpAxe.held", t.inv.await, "bronze_axe", 1, 10)
-        t.exec("goto-chopOrangeTree", t.player.goto_tile, 1695, 2981, 0)
+        t.exec("goto-chopOrangeTree", t.player.goto_tile, 1695, 2982, 0)
         t.exec("chopOrangeTree", t.player.click_loc, "frog_quest_tree_op", 1)
         t.exec("chopOrangeTree.stage", t.var.await_server, "varb9844_frog_quest", 12, 20)
         t.expect("quest.stage.sabotage", t.quest.expect_stage("sabotage"))
         t.exec("talkToYellowFrogs.oranges", t.player.talk_to, "frog_quest_dave")
         t.exec("talkToYellowFrogs.oranges.chat", t.chat.play, { "npc:Can't stop to talk!" })
 
-        t.exec("goto-sabotageLilyPad", t.player.goto_tile, 1692, 2984, 0)
+        t.exec("goto-sabotageLilyPad", t.player.goto_tile, 1693, 2985, 0)
         t.exec("sabotageLilyPad", t.player.click_loc, "frog_quest_lily_pad_destroyable_op", 1)
         t.exec("sabotageLilyPad.stage", t.var.await_server, "varb9844_frog_quest", 14, 20)
         t.expect("quest.stage.hopoff", t.quest.expect_stage("hopoff"))
@@ -245,7 +268,7 @@ return {
         t.exec("enterCode.plushy", t.inv.await, "frog_quest_plushy", 1, 10)
         t.expect("quest.stage.plant", t.quest.expect_stage("plant"))
 
-        t.exec("goto-plantPlushy", t.player.goto_tile, 1694, 2977, 0)
+        t.exec("goto-plantPlushy", t.player.goto_tile, 1695, 2976, 0)
         t.exec("plantPlushy", t.player.click_loc, "frog_quest_poo_plant_op", 1)
         t.exec("plantPlushy.stage", t.var.await_server, "varb9844_frog_quest", 26, 20)
         t.expect("quest.stage.cuthbert", t.quest.expect_stage("cuthbert"))

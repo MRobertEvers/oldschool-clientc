@@ -6,6 +6,262 @@
 -- the Family Crest / Shilo Village / Underground Pass varps and qp; quest_cheat.rs2 has no ::complete
 -- arm for those three, so they are staged with ::setvar on the varps the guard reads (prerequisite
 -- quests only, never legendsquest).
+--
+-- Travel (door rule, owner 2026-10-03/b70; every closed space and island crossing by its own click):
+--   * Lumbridge -> the guild: the Taverley members' gate membergater 2933,3320 is the only walk west
+--     (reach.py 3206,3233 -> 2933,3318 REACH 388; 2933,3322 -> 2728,3345 REACH 610), pressed by cross_gate.
+--   * The guild grounds sit behind the mithril gates legendsguildgatel 2728,3349 (legends_gate.rs2
+--     open_legends_gate -> legends_double_door_use, a walk-through that carries the player): cross_gate
+--     out and in; Radimus's hut door poshdoor 2726,3368 is pass_door in and out.
+--   * Karamja is an island: captain_barnaby at Ardougne 2678,3275 (30 coins, deck 2775,3234,1 at
+--     Brimhaven, totem.lua), the gangplank ardougneshipplank_off ashore, then overland to the jungle's
+--     north edge 2795,2943 (reach.py 2772,3229 -> 2795,2943 REACH 357, no door) and the dense band cut
+--     through (jungle_tree.rs2, legends_cut_jungle below).
+--   * Out of a cave or the Viyeldi caves and home from Karamja: Camelot Teleport (Magic 56 staged for
+--     the quest's own trials), landing 2757,3478; Seers -> Ardougne's pier REACH 282, Seers -> the guild
+--     gate REACH 172 (both doors shut).
+--   * The bowl is forged at Tai Bwo Wannai's anvil 2790,3101 (reach.py 2772,3234 -> 2790,3100 REACH 180,
+--     2790,3100 -> 2795,2943 REACH 214), any anvil serving (smithing.rs2:274 -> quest_legends.rs2:1287).
+-- Setup's 120 coins pay four fares (legs 1, 4, 7, 9); 20 air and 4 of the 6 law runes pay four
+-- Camelot Teleports (legs 4, 7, 9, 10), the other 2 law runes are the marked wall's S-M-E-L-L.
+
+-- A paid sailing Ardougne -> Brimhaven (ardougne_east_thin.rs2 captain_barnaby, as totem.lua), then the
+-- gangplank ashore. No state is kept: every leg passes its own t.
+local function legends_barnaby_to_brimhaven(t, name)
+    t.exec("goto-" .. name .. ".barnaby", t.player.goto_tile, 2678, 3275, 0)
+    local _, coins_before = t.inv.count("coins")
+    t.exec(name .. ".barnaby", t.player.talk_to, "captain_barnaby", 1)
+    t.exec(name .. ".barnaby-dialog", t.chat.play, {
+        "npc:Do you want to go on a trip to Brimhaven?",
+        "npc:The trip will cost you 30 coins.",
+        "options",
+        "choose:Yes please.",
+        "player:Yes please.",
+    })
+    t.expect(name .. ".barnaby.paid", t.msg.expect("pay the 30 coins and board the ship"))
+    local r, d = t.await({
+        level = function() return t.chat.kind() == "mesbox" end,
+        note = name .. ": the arrival mesbox after p_delay(2) + telejump",
+    }, 15)
+    t.step(name .. ".barnaby.sail", r == "ok" and "PASS" or "FAIL",
+        "await(chat.kind() == mesbox) -> " .. tostring(r) .. " " .. tostring(d))
+    t.exec(name .. ".barnaby.arrive", t.chat.play, { "mesbox:The ship arrives at Brimhaven." })
+    local dr, deck = t.world.tile()
+    local _, coins_after = t.inv.count("coins")
+    t.check(name .. ".barnaby.onDeck", dr == "ok" and deck.level == 1 and math.abs(deck.x - 2775) <= 2
+            and math.abs(deck.z - 3234) <= 2 and (coins_before or 0) - (coins_after or 0) == 30,
+        "tile " .. tostring(deck and deck.x) .. "," .. tostring(deck and deck.z) .. "," .. tostring(deck and deck.level)
+            .. " (want the deck 2775,3234,1), coins " .. tostring(coins_before) .. " -> " .. tostring(coins_after) .. " (want -30)")
+    t.exec(name .. ".disembark", t.player.climb, { loc = "ardougneshipplank_off", op_name = "Cross",
+        at = { 2774, 3234, 1 }, dest = { 2772, 3234, 0 }, slack = 2 })
+end
+
+-- Camelot Teleport (magic_spells.dbrow: 5 air, 1 law), landing 2757,3478 (teleport.rs2 map_findsquare).
+local function legends_camelot_teleport(t, name)
+    t.player.teleport_cast("camelot_teleport", { 2757, 3478, 0 }, { name = name,
+        runes = { { "airrune", 5 }, { "lawrune", 1 } }, where = "Camelot, tele_coord 0_43_54_5_22" })
+end
+
+-- kharazi_dense_jungle (legends_zones.dbrow): chop the jungle loc straight ahead (jungle_tree.rs2 moves
+-- the player two tiles through it); a free tile ahead is walked. South: until z < 2934; north: z > 2942.
+local function legends_cut_jungle(t, name, want_south, limit)
+    local symbols = { "kharazi_jungle_plant1", "kharazi_jungle_plant2", "kharazi_jungle_tree1",
+                      "kharazi_jungle_tree2", "kharazi_jungle_tree_logs" }
+    local dz = want_south and -1 or 1
+    local stuck = 0
+    for i = 1, limit do
+        local _, tile = t.world.tile()
+        if want_south and tile.z < 2934 then return true end
+        if (not want_south) and tile.z > 2942 then return true end
+        local pressed = false
+        for _, symbol in ipairs(symbols) do
+            if t.world.loc_near(symbol, 1) == "ok" then
+                local result, detail = t.player.click_loc(symbol, 1, { at = { tile.x, tile.z + dz } })
+                if result == "ok" then
+                    t.step(name .. "-chop-" .. i, result == "ok" and "PASS" or "FAIL", symbol .. " at " .. tile.x .. "," .. (tile.z + dz) .. ": " .. tostring(detail))
+                    pressed = true
+                    break
+                end
+            end
+        end
+        if not pressed then
+            local walked = t.player.walk_to(tile.x, tile.z + dz, 10)
+            t.step(name .. "-walk-" .. i, walked == "ok" and "PASS" or "FAIL",
+                "walk to " .. tile.x .. "," .. (tile.z + dz) .. ": " .. tostring(walked))
+        end
+        local moved = t.await({ level = function()
+            local _, now = t.world.tile()
+            return now.x ~= tile.x or now.z ~= tile.z
+        end, note = "moved" }, 40)
+        if moved ~= "ok" then
+            -- a cut whose woodcutting roll missed leaves the player standing: the next pass cuts again.
+            -- jungle_tree.rs2: "This way is blocked off" when the tile two ahead is blocked; after a
+            -- second miss in a row side-step one column (whichever side is open) and cut there instead
+            stuck = stuck + 1
+            if stuck % 2 == 0 then
+                local tried = {}
+                local stepped = false
+                for _, side in ipairs({ 1, -1 }) do
+                    local sidestep = t.player.walk_to(tile.x + side, tile.z, 10)
+                    tried[#tried + 1] = (tile.x + side) .. "," .. tile.z .. " " .. tostring(sidestep)
+                    if sidestep == "ok" then stepped = true break end
+                end
+                t.step(name .. "-sidestep-" .. i, stepped and "PASS" or "FAIL",
+                    "stuck twice at " .. tile.x .. "," .. tile.z .. ", side-step: " .. table.concat(tried, "; "))
+            end
+        else
+            stuck = 0
+        end
+    end
+    local _, last = t.world.tile()
+    if want_south then return last.z < 2934 end
+    return last.z > 2942
+end
+
+-- jungle_tree.rs2 hands out a log per cut that rolls one: drop them, a full backpack swallows a quest
+-- item later (b70: the forester's bullroarer, jungle_forester.rs2, and Ungadulu's Holy Force,
+-- ungadulu.rs2:536-539, were both added to a pack the logs had filled)
+local function legends_drop_logs(t, name)
+    local _, logs_before = t.inv.count("logs")
+    for _ = 1, 12 do
+        local _, n = t.inv.count("logs")
+        if (n or 0) == 0 then break end
+        t.player.drop("logs")
+        t.ticks(1)
+    end
+    local _, logs_after = t.inv.count("logs")
+    t.check(name .. ".logsDropped", (logs_after or 0) == 0, "logs from the jungle cuts " .. tostring(logs_before)
+        .. " -> " .. tostring(logs_after))
+end
+
+-- The newest n chat lines as text (t.msg.last answers a list of {text=...} rows, newest first).
+local function legends_last_lines(t, n)
+    local _, rows = t.msg.last(n)
+    local out = {}
+    for _, row in ipairs(type(rows) == "table" and rows or {}) do
+        out[#out + 1] = type(row) == "table" and tostring(row.text) or tostring(row)
+    end
+    return table.concat(out, " | ")
+end
+
+-- The Viyeldi caves from the winch landing to the furnace side: three rocky ledges and three climbing
+-- rocks (quest_legends.rs2:1459-1665), each asking before the crossing. Each obstacle is graded on the
+-- far side the first trip reached (rocky_ledge -> z 4717-4718, ledge1 -> 2378,4728, ledge2 -> x >= 2381,
+-- climbrock1 -> 2388,4728, climbrock2 -> 2390,4723, climbrock3 -> 2390,4717); a slip
+-- (quest_legends.rs2:1564 "You slip and fall!") throws the player off the path, so the source tile is
+-- walked to again before the next press. A rock crossed from its far side climbs without a question.
+local function legends_viycaves_forward(t, prefix, settle_chat)
+    local crossings = {
+        { ob = "rocky_ledge", src = { 2377, 4712 }, past = function(tt) return tt.z >= 4716 and tt.z < 4726 end },
+        { ob = "rocky_ledge1", src = { 2377, 4717 }, past = function(tt) return tt.z >= 4727 end },
+        { ob = "rocky_ledge2", src = { 2378, 4728 }, past = function(tt) return tt.x >= 2381 end },
+        { ob = "viycaves_climbrock1", src = { 2382, 4728 }, past = function(tt) return tt.x >= 2388 and tt.z >= 4726 end },
+        { ob = "viycaves_climbrock2", src = { 2388, 4728 }, past = function(tt) return tt.x >= 2389 and tt.z <= 4723 and tt.z >= 4719 end },
+        { ob = "viycaves_climbrock3", src = { 2390, 4723 }, past = function(tt) return tt.z <= 4717 end },
+    }
+    -- A slip off climbrock1 or climbrock2 drops the player into the gully below the path (seen at
+    -- 2386,4724 and 2385,4721), which runs on to climbrock3's far side (reach.py 2386,4724 ->
+    -- 2390,4717 REACH 23, doors shut; 2390,4717 -> the barrier 2421,4693 REACH 75): from there the
+    -- fall itself carried the player past the rocks still ahead, and the gully is walked out.
+    local function in_gully(tt)
+        return tt.x >= 2383 and tt.x <= 2388 and tt.z >= 4719 and tt.z <= 4726
+    end
+    for _, c in ipairs(crossings) do
+        local _, from = t.world.tile()
+        local presses = 0
+        if in_gully(from) and string.find(c.ob, "climbrock", 1, true) then
+            local walked = t.player.walk_to(2390, 4717, 30)
+            local _, out = t.world.tile()
+            t.check(prefix .. c.ob, out.x == 2390 and out.z == 4717, "fell from the previous rock into the gully at "
+                .. from.x .. "," .. from.z .. ", walked out past " .. c.ob .. " to " .. out.x .. "," .. out.z
+                .. " (" .. tostring(walked) .. ")")
+            goto continue
+        end
+        for attempt = 1, 8 do
+            local _, here = t.world.tile()
+            if c.past(here) or (in_gully(here) and string.find(c.ob, "climbrock", 1, true)) then break end
+            if math.abs(here.x - c.src[1]) > 1 or math.abs(here.z - c.src[2]) > 1 then
+                t.player.walk_to(c.src[1], c.src[2], 30)
+            end
+            t.player.click_loc(c.ob, 1)
+            presses = presses + 1
+            if t.await({ level = function() return t.chat.kind() ~= "none" end, note = "crossing page" }, 5) == "ok" then
+                local _, kind = t.chat.drain({ stop_at = "options", max_pages = 10 })
+                if kind == "options" then
+                    t.chat.choose("/Yes/")
+                    t.ticks(1)
+                end
+                settle_chat(prefix .. c.ob .. "-settle-" .. attempt)
+            end
+            t.ticks(4)
+        end
+        do
+            local _, to = t.world.tile()
+            if in_gully(to) and string.find(c.ob, "climbrock", 1, true) then
+                -- this rock's press slipped: the gully carries on past it (see above)
+                local walked = t.player.walk_to(2390, 4717, 30)
+                local _, out = t.world.tile()
+                t.check(prefix .. c.ob, out.x == 2390 and out.z == 4717, from.x .. "," .. from.z .. " -> slipped into the gully at "
+                    .. to.x .. "," .. to.z .. " after " .. presses .. " press(es), walked out to " .. out.x .. "," .. out.z
+                    .. " (" .. tostring(walked) .. "); last messages: " .. legends_last_lines(t, 2))
+            else
+                t.check(prefix .. c.ob, c.past(to), from.x .. "," .. from.z .. " -> " .. to.x .. "," .. to.z
+                    .. " (the far side) after " .. presses .. " press(es); last messages: " .. legends_last_lines(t, 2))
+            end
+        end
+        ::continue::
+    end
+end
+
+-- Attack and see a hit land: a press whose first hits all miss reads "no hit landed inside N ticks"
+-- although the fight is on (b70 legends_b70v killSan), so it is pressed again, at most three times;
+-- the row fails only when no press lands a hit while the npc still stands.
+local function legends_attack(t, name, symbol, ticks)
+    local tried = {}
+    local landed = false
+    for try = 1, 3 do
+        local r, d = t.player.attack(symbol, 2, ticks)
+        tried[#tried + 1] = "press " .. try .. ": " .. tostring(r) .. " " .. tostring(d)
+        if r == "ok" then landed = true break end
+        if t.npc.nearest(symbol, 16) ~= "ok" then break end
+    end
+    t.check(name, landed, table.concat(tried, " || "))
+    return landed
+end
+
+-- Eat sharks until hitpoints reach `want` (at most four), so a fight never opens on a low bar (b70
+-- second account: Ranalph's fight ended at 7/99 and leg 7 walked into the deathwings at 7).
+local function legends_eat_up(t, name, want)
+    local _, before = t.skill.read("hitpoints")
+    local start = type(before) == "table" and before.level or 0
+    local ate = 0
+    for _ = 1, 4 do
+        local _, hp = t.skill.read("hitpoints")
+        local now = type(hp) == "table" and hp.level or 0
+        if now >= want then break end
+        local _, sharks = t.inv.count("shark")
+        if (sharks or 0) == 0 then break end
+        t.player.inv_op("shark", 1)
+        t.ticks(3)
+        ate = ate + 1
+    end
+    local _, after = t.skill.read("hitpoints")
+    local now = type(after) == "table" and after.level or 0
+    local _, left = t.inv.count("shark")
+    t.check(name .. ".eatUp", now >= want or (left or 0) == 0, "hitpoints " .. start .. " -> " .. now
+        .. " (want >= " .. want .. "), ate " .. ate .. " shark(s), " .. tostring(left) .. " left")
+end
+
+-- Brimhaven's pier -> the jungle's north edge (x=2795: the cut that worked) -> south through the band.
+local function legends_into_jungle(t, name)
+    t.exec("goto-" .. name .. ".jungleEdge", t.player.goto_tile, 2795, 2943, 0)
+    t.player.walk_to(2795, 2943, 10)
+    local crossed = legends_cut_jungle(t, name .. ".band", true, 16)
+    local _, at = t.world.tile()
+    t.check(name .. ".band", crossed, "cut south through the dense band with the axe and machete: now at "
+        .. at.x .. "," .. at.z)
+    legends_drop_logs(t, name)
+end
 
 return {
     id = "legends",
@@ -24,13 +280,33 @@ return {
         "::setvar varp101_qp 107",
         -- Quest Helper skill requirements: Crafting 50, Herblore 45, Magic 56, Mining 52, Prayer 42,
         -- Smithing 50, Strength 50, Thieving 50, Woodcutting 50, Agility 50
-        "::setlevel crafting 50", "::setlevel woodcutting 50", "::setlevel agility 50",
-        "::setlevel herblore 45", "::setlevel magic 56", "::setlevel mining 55", "::setlevel prayer 60",
-        "::setlevel smithing 50", "::setlevel thieving 50", "::setlevel strength 80",
+        -- Crafting 70, not 50: each sketch is stat_random(crafting, 100, 250) (radimus_notes.rs2:82), about
+        -- two in three at 50; legends_b70x missed the east section five times running and the whole
+        -- relay fell through. Crafting is no combat stat; the scripts only gate it at 50.
+        "::setlevel crafting 70", "::setlevel woodcutting 50", "::setlevel agility 50",
+        -- Mining 70, not 52: every missed swing at a trial boulder drains a Mining level (quest_legends.rs2
+        -- legends_boulder_mine: stat_sub(mining, 1, 0), as the OSRS wiki says: "If you fail, your Mining
+        -- level will decrease by 1") and below 52 the next boulder refuses, so a few misses at 55 strand
+        -- the player between boulders (b70 run 2: stuck at boulder 3 on 51); Mining feeds no combat level
+        -- and no dialogue branches on it (only the 52 gate and the journal)
+        -- Herblore 80, not 45: the Yommi seed's roll (legends_yommi.rs2, stat_random(herblore, 40, 243))
+        -- is about one in two at 45, so the three germinated seeds all died on the second account at 45
+        -- and at 60 (b70 content-fix runs); at 65 a two-in-three roll still loses all three seeds about
+        -- one run in thirty, at 80 (four in five) about one in a hundred. Herblore is no combat stat and
+        -- no dialogue reads it.
+        "::setlevel herblore 80", "::setlevel magic 56", "::setlevel mining 70", "::setlevel prayer 60",
+        -- Smithing 75, not 50: the bowl is stat_random(smithing, 31, 256) (quest_legends.rs2:1289), a bit over
+        -- one in two at 50, and a miss burns one or two of the six bars (about one run in sixteen ends
+        -- with no bowl); at 75 about four in five. The scripts only gate Smithing at 50.
+        "::setlevel smithing 75", "::setlevel thieving 50", "::setlevel strength 90",
         -- The Kharazi jungle animals attack a character with a fresh 10 hitpoints while the
         -- bullroarer is swung (spinBull died at tick 247); Quest Helper lists combat gear for the
         -- fights of later legs (Nezikchened, the heart-crystal trio), so the character is armed once
-        "::setlevel hitpoints 99", "::setlevel attack 80", "::setlevel defence 80",
+        -- Attack/Strength/Defence 90: at 80 a fresh account (legends_b70v) left the source fight at 12/99;
+        -- at 75 both accounts ran out of sharks on Ranalph (leg 6 margin), at 70 also on Nezikchened, and
+        -- at 60 the character died to him (b70 content-fix runs); no quest_legends script reads the combat level
+        -- (grep combat_level / ~player_combat_level: none), so the staging changes no dialogue branch
+        "::setlevel hitpoints 99", "::setlevel attack 90", "::setlevel defence 90",
         "::give rune_full_helm 1", "::wield rune_full_helm", "::give rune_chainbody 1", "::wield rune_chainbody",
         "::give rune_platelegs 1", "::wield rune_platelegs", "::give rune_kiteshield 1", "::wield rune_kiteshield",
         "::give rune_scimitar 1", "::wield rune_scimitar",
@@ -41,8 +317,13 @@ return {
         -- case they break), any pickaxe, Soul/Mind/Earth/Law runes (Law twice: the wall wants
         -- S-M-E-L-L). The seven gems the guide also lists do not fit the 28-slot backpack beside
         -- leg 1's papyrus and charcoal: leg 2 gives them after dropping those (leg.2.pack).
-        "::give lockpick 3", "::give rune_pickaxe 1",
-        "::give soulrune 1", "::give mindrune 1", "::give earthrune 1", "::give lawrune 2",
+        -- One lockpick: the lock never breaks one (quest_legends.rs2:441-443 is commented out).
+        "::give lockpick 1", "::give rune_pickaxe 1",
+        "::give soulrune 1", "::give mindrune 1", "::give earthrune 1",
+        -- law: 2 for the wall, 4 for the Camelot Teleports; air: the teleports (see Travel above)
+        "::give lawrune 6", "::give airrune 20",
+        -- four 30-coin fares, Ardougne -> Brimhaven (see Travel above)
+        "::give coins 120",
     },
     bind = {
         varp = "varp139_legendsquest",
@@ -86,53 +367,19 @@ return {
                 return true
             end
 
-            -- kharazi_dense_jungle (legends_zones.dbrow): chop the jungle loc straight ahead
-            -- (jungle_tree.rs2 moves the player two tiles through it); a free tile ahead is walked.
             local function cross_jungle(name, want_south, limit)
-                local symbols = { "kharazi_jungle_plant1", "kharazi_jungle_plant2", "kharazi_jungle_tree1",
-                                  "kharazi_jungle_tree2", "kharazi_jungle_tree_logs" }
-                local dz = want_south and -1 or 1
-                local stuck = 0
-                for i = 1, limit do
-                    local _, tile = t.world.tile()
-                    if want_south and tile.z < 2934 then return true end
-                    if (not want_south) and tile.z > 2942 then return true end
-                    local pressed = false
-                    for _, symbol in ipairs(symbols) do
-                        if t.world.loc_near(symbol, 1) == "ok" then
-                            local result, detail = t.player.click_loc(symbol, 1, { at = { tile.x, tile.z + dz } })
-                            if result == "ok" then
-                                t.step(name .. "-chop-" .. i, result == "ok" and "PASS" or "FAIL", symbol .. " at " .. tile.x .. "," .. (tile.z + dz) .. ": " .. tostring(detail))
-                                pressed = true
-                                break
-                            end
-                        end
-                    end
-                    if not pressed then
-                        local walked = t.player.walk_to(tile.x, tile.z + dz, 10)
-                        t.step(name .. "-walk-" .. i, walked == "ok" and "PASS" or "FAIL",
-                            "walk to " .. tile.x .. "," .. (tile.z + dz) .. ": " .. tostring(walked))
-                    end
-                    local moved = t.await({ level = function()
-                        local _, now = t.world.tile()
-                        return now.x ~= tile.x or now.z ~= tile.z
-                    end, note = "moved" }, 40)
-                    if moved ~= "ok" then
-                        -- jungle_tree.rs2: "This way is blocked off" when the tile two ahead is
-                        -- blocked; side-step one column and cut there instead
-                        stuck = stuck + 1
-                        local side = (stuck % 2 == 1) and 1 or -1
-                        local sidestep = t.player.walk_to(tile.x + side, tile.z, 10)
-                        t.step(name .. "-sidestep-" .. i, sidestep == "ok" and "PASS" or "FAIL",
-                            "blocked ahead of " .. tile.x .. "," .. tile.z .. ", side-step to "
-                            .. (tile.x + side) .. "," .. tile.z .. ": " .. tostring(sidestep)
-                            .. "; last messages: " .. tostring(select(2, t.msg.last(2))))
-                    end
-                end
-                return false
+                return legends_cut_jungle(t, name, want_south, limit)
             end
 
             ---------------------------------------------------------------- 0: the guild guard
+            -- the first goto: Lumbridge -> the open ground SOUTH of the Taverley members' gate (reach.py
+            -- 3206,3233 -> 2933,3318 REACH 388), the walk-through gate pressed (gates.rs2
+            -- member_fencegate_try, as chompybird.lua), then overland to the guild's road (reach.py
+            -- 2933,3322 -> 2728,3345 REACH 610, no door)
+            t.exec("goto-talkToGuard.memberGate", t.player.goto_tile, 2933, 3318, 0)
+            t.exec("talkToGuard.memberGate", t.player.cross_gate, { loc = "membergater", at = { 2933, 3320, 0 },
+                near = { 2933, 3318 }, far_ok = function(tile) return tile.z >= 3320 and math.abs(tile.x - 2933) <= 2 end,
+                far_desc = "north of the members' gate, z >= 3320", far = { 2933, 3322 } })
             t.exec("goto-talkToGuard", t.player.goto_tile, 2728, 3345, 0)
             t.exec("talkToGuard", t.player.talk_to, "legends_guild_guard1")
             t.exec("talkToGuard-dialog", t.chat.play, {
@@ -159,8 +406,9 @@ return {
             local walked = t.player.walk_to(2727, 3368, 30)
             local _, hut = t.world.tile()
             t.check("goto-talkToRadimus", walked == "ok", "walked to the hut door: now at " .. hut.x .. "," .. hut.z)
-            t.exec("talkToRadimus-door", t.player.click_loc, "poshdoor", 1, { at = { 2726, 3368 } })
-            t.ticks(2)
+            -- the hut's door poshdoor 2726,3368 (east wall; reach.py 2727,3368 -> 2725,3368 NEEDS-DOOR)
+            t.exec("talkToRadimus-door", t.player.pass_door, { closed = "poshdoor", open = "poshdooropen",
+                at = { 2726, 3368, 0 }, near = { 2727, 3368 }, far = { 2725, 3368 } })
             t.exec("talkToRadimus", t.player.talk_to, "radimus_erkle_hut")
             converse("talkToRadimus-dialog", { "Yes actually, what's involved?", "Yes, it sounds great!" })
             t.ticks(2)
@@ -172,17 +420,27 @@ return {
             t.chat.drain({ max_pages = 3 })
 
             ---------------------------------------------------------------- 1: the jungle, the sketch
+            -- out of the hut and the guild grounds by their own door and gate, Ardougne's pier, the boat
+            -- to Brimhaven (Karamja is an island), overland to the jungle's north edge
+            t.exec("enterJungle.hutDoorOut", t.player.pass_door, { closed = "poshdoor", open = "poshdooropen",
+                at = { 2726, 3368, 0 }, near = { 2725, 3368 }, far = { 2727, 3368 } })
+            t.player.walk_to(2728, 3351, 30)
+            t.exec("enterJungle.guildGateOut", t.player.cross_gate, { loc = "legendsguildgatel", at = { 2728, 3349, 0 },
+                near = { 2728, 3350 }, far_ok = function(tile) return tile.z <= 3349 end,
+                far_desc = "outside the guild's mithril gates, z <= 3349" })
+            legends_barnaby_to_brimhaven(t, "enterJungle")
             t.exec("goto-enterJungle", t.player.goto_tile, 2795, 2943, 0)
-            local crossed = cross_jungle("enterJungle", true, 12)
+            local crossed = cross_jungle("enterJungle", true, 16)
             local _, jungle = t.world.tile()
             t.check("enterJungle", crossed, "cut through the dense band with the axe and machete: now at "
                 .. jungle.x .. "," .. jungle.z)
+            legends_drop_logs(t, "enterJungle")
             for _, sketch in ipairs({ { "moveToWest", 2791, 2917 }, { "moveToMiddle", 2852, 2915 }, { "moveToEast", 2910, 2916 } }) do
                 local step, x, z = sketch[1], sketch[2], sketch[3]
                 t.exec("goto-" .. step, t.player.goto_tile, x, z, 0)
                 local _, bits_before = t.var.server("varp6202_legends_bits")
                 local drawn = false
-                for try = 1, 5 do
+                for try = 1, 8 do
                     t.exec(step .. "-map-" .. try, t.player.inv_op, "thkaramjamap", 2)
                     t.chat.drain({ max_pages = 4 })
                     t.ticks(3)
@@ -201,7 +459,7 @@ return {
                     end
                 end
                 if not drawn then
-                    t.check(step, false, "no sketch progress at " .. x .. "," .. z .. " after 5 tries")
+                    t.check(step, false, "no sketch progress at " .. x .. "," .. z .. " after 8 tries")
                 end
             end
             t.ticks(2)
@@ -210,9 +468,10 @@ return {
 
             ---------------------------------------------------------------- 2: the forester copies the notes
             t.exec("goto-useNotes", t.player.goto_tile, 2795, 2930, 0)
-            local left = cross_jungle("leaveJungle", false, 12)
+            local left = cross_jungle("leaveJungle", false, 16)
             local _, north = t.world.tile()
             t.check("useNotes-leave", left, "north of the dense band again: " .. north.x .. "," .. north.z)
+            legends_drop_logs(t, "useNotes")
             local forester = t.player.by_symbol("npc", "jungleforester_m")
             t.exec("useNotes-approach", t.player.walk_near, forester, 30)
             t.exec("useNotes", t.player.use_on, "thkaramjamapcomp", forester)
@@ -225,7 +484,7 @@ return {
             -- ::goto can land one column west (2794), where the tile two ahead is blocked; the cut
             -- that worked runs down x=2795
             t.player.walk_to(2795, 2943, 10)
-            local in_again = cross_jungle("enterJungleWithRoarer", true, 12)
+            local in_again = cross_jungle("enterJungleWithRoarer", true, 16)
             local _, jungle_again = t.world.tile()
             t.check("enterJungleWithRoarer", in_again, "south of the dense band again with the bullroarer: "
                 .. jungle_again.x .. "," .. jungle_again.z)
@@ -340,8 +599,9 @@ return {
                 .. "gave the seven gems the guide lists (diamond x" .. diamonds .. ", emerald x" .. emeralds .. ")")
 
             ---------------------------------------------------------------- enterMossyRock
-            -- plain travel to the rock (2782,2937), north-west of the Kharazi jungle band
-            t.exec("goto-enterMossyRock", t.player.goto_tile, 2782, 2935, 0)
+            -- overland to the open tile south of the rocks (2781,2934, where the cave exit drops the player;
+            -- 2782,2935 is lgshamancaverock3's own solid tile), north-west of the Kharazi jungle band
+            t.exec("goto-enterMossyRock", t.player.goto_tile, 2781, 2934, 0)
             local inside = crawl_in("enterMossyRock")
             local _, cave_at = t.world.tile()
             t.check("enterMossyRock", inside, "crawled through the Mossy Rocks to " .. cave_at.x .. "," .. cave_at.z
@@ -459,7 +719,7 @@ return {
 
             ---------------------------------------------------------------- searchMarkedWall
             -- "Follow the cave around": the passage south of the strength doors winds down to the
-            -- crumbled wall (2789,9295), which is jumped over (quest_legends.rs2:615, Agility 50)
+            -- crumbled wall (2789,9295), which is jumped over (quest_legends.rs2:618, Agility 50)
             t.player.walk_to(2790, 9294, 160)
             do
                 local _, south = t.world.tile()
@@ -524,32 +784,36 @@ return {
             end
 
             ---------------------------------------------------------------- the runes S-M-E-L-L
-            -- quest_legends.rs2:647-745: each rune is slid into the next depression of the marked
+            -- quest_legends.rs2:650-745: each rune is slid into the next depression of the marked
             -- wall (soul was set in leg 2); the second law rune opens the door (a choice)
             local wall_at = { 2779, 9305 }
-            local function slide(step, rune, expect_left)
+            -- the backpack also carries the four law runes of the later Camelot Teleports, so each
+            -- slide is graded on its rune count falling by exactly one
+            local function slide(step, rune)
+                local _, before = t.inv.count(rune)
                 local wall = t.player.by_symbol("loc", "lgancientwalldoor")
                 t.exec(step, t.player.use_on, rune, wall, { at = wall_at })
                 t.chat.drain({ max_pages = 10 })
                 t.ticks(2)
                 local _, left = t.inv.count(rune)
-                t.check(step .. "-merged", left == expect_left, rune .. " left in the backpack: " .. tostring(left)
-                    .. " (wanted " .. expect_left .. ")")
+                t.check(step .. "-merged", left == (before or 0) - 1, rune .. " in the backpack: " .. tostring(before)
+                    .. " -> " .. tostring(left) .. " (wanted one set into the wall)")
             end
-            slide("useMind", "mindrune", 0)
-            slide("useEarth", "earthrune", 0)
-            slide("useLaw", "lawrune", 1)
+            slide("useMind", "mindrune")
+            slide("useEarth", "earthrune")
+            slide("useLaw", "lawrune")
 
-            local wall = t.player.by_symbol("loc", "lgancientwalldoor")
-            t.exec("useLaw2", t.player.use_on, "lawrune", wall, { at = wall_at })
+            local _, laws_before = t.inv.count("lawrune")
+            local lawwall = t.player.by_symbol("loc", "lgancientwalldoor")
+            t.exec("useLaw2", t.player.use_on, "lawrune", lawwall, { at = wall_at })
             converse("useLaw2-door", { "Yes, I'll go through!" })
             t.ticks(3)
             do
                 local _, laws = t.inv.count("lawrune")
                 local _, at = t.world.tile()
-                t.check("useLaw2-through", laws == 0 and at.x < 2779 and at.z < 9305,
-                    "no law rune left (" .. tostring(laws) .. "); walked through the wall into the gem cavern at "
-                    .. at.x .. "," .. at.z)
+                t.check("useLaw2-through", laws == (laws_before or 0) - 1 and at.x < 2779 and at.z < 9305,
+                    "law runes " .. tostring(laws_before) .. " -> " .. tostring(laws) .. " (the second law set; the rest pay "
+                    .. "the teleports); walked through the wall into the gem cavern at " .. at.x .. "," .. at.z)
             end
 
             ---------------------------------------------------------------- the gems (rs2:780)
@@ -669,9 +933,9 @@ return {
                     t.ticks(1)
                 end
             end
-            -- gold bar x2 makes the bowl (quest_legends.rs2:1284); a failed forge burns one or two,
+            -- gold bar x2 makes the bowl (quest_legends.rs2:1287); a failed forge burns one or two,
             -- so six; hammer: the anvil wants one; 4-dose prayer restores: the blessing's failure
-            -- costs 5 Prayer (gujuo.rs2:519) and Gujuo refuses below 42; sharks for the fight
+            -- costs 5 Prayer (gujuo.rs2:518) and Gujuo refuses below 42; sharks for the fight
             t.cheat("::give hammer 1")
             for _ = 1, 6 do t.cheat("::give gold_bar 1") t.ticks(1) end
             for _ = 1, 2 do t.cheat("::give 4doseprayerrestore 1") t.ticks(1) end
@@ -686,14 +950,19 @@ return {
             end
 
             ---------------------------------------------------------------- makeBowl
-            -- Quest Helper: any anvil (the Varrock west smithy, three copies of `anvil`). The gold bar
-            -- on the anvil with legendsquest >= asked_gujuo_holy_water forges the bowl
-            -- (smithing.rs2:274 -> quest_legends.rs2:1284): a "Yes" choice, 4 ticks, stat_random
-            t.exec("goto-makeBowl", t.player.goto_tile, 3187, 3424, 0)
+            -- Quest Helper: "Travel to an anvil". Out of the gem cavern (behind the marked wall, the
+            -- strength doors and the lockpick gate) by Camelot Teleport, Ardougne's boat to Brimhaven, and
+            -- Tai Bwo Wannai's anvil 2790,3101 (the nearest to the jungle; reach.py 2772,3234 -> 2790,3100
+            -- REACH 180, its hut's doorway is open). The gold bar on the anvil with legendsquest >=
+            -- asked_gujuo_holy_water forges the bowl (smithing.rs2:274 -> quest_legends.rs2:1287): a "Yes"
+            -- choice, 4 ticks, stat_random
+            legends_camelot_teleport(t, "makeBowl.camelotTeleport")
+            legends_barnaby_to_brimhaven(t, "makeBowl")
+            t.exec("goto-makeBowl", t.player.goto_tile, 2790, 3100, 0)
             local forged = false
             for i = 1, 6 do
                 local anvil = t.player.by_symbol("loc", "anvil")
-                t.exec("makeBowl-press-" .. i, t.player.use_on, "gold_bar", anvil, { at = { 3188, 3424 } })
+                t.exec("makeBowl-press-" .. i, t.player.use_on, "gold_bar", anvil, { at = { 2790, 3101 } })
                 converse("makeBowl-dialog-" .. i, { "Yes" })
                 t.ticks(6)
                 local _, bowls = t.inv.count("goldbowl_empty")
@@ -710,7 +979,7 @@ return {
                 t.blocked("makeBowl: six gold bars did not forge a bowl (stat_random(smithing,31,256) misses); rerun")
                 return
             end
-            -- The forging roll (quest_legends.rs2:1286-1300: stat_random, random(256) < 135 burns one or
+            -- The forging roll (quest_legends.rs2:1289-1300: stat_random, random(256) < 135 burns one or
             -- two bars) leaves 0-4 of the six bars; any left over fill the backpack before Ungadulu's holy
             -- force (b51-seam1: 'Your inventory is full.' three runs of three). They are spares the
             -- setup staged, not quest items, so drop every one. The drop verb grades on the ground
@@ -728,6 +997,9 @@ return {
             end
 
             ---------------------------------------------------------------- enterJungleWithBowl
+            -- overland from the anvil to the jungle's north edge (reach.py 2790,3100 -> 2795,2943 REACH 214),
+            -- the dense band cut through, then the open jungle to the spot leg 1 swung at
+            legends_into_jungle(t, "enterJungleWithBowl")
             t.exec("goto-enterJungleWithBowl", t.player.goto_tile, 2791, 2917, 0)
             do
                 local _, at = t.world.tile()
@@ -748,9 +1020,9 @@ return {
 
             ---------------------------------------------------------------- talkToGujuoWithBowl
             -- gujuo.rs2:30 gujuo_start -> gujuo_bless_bowl (:490): Prayer >= 42, a chant of p_delays,
-            -- then stat_random(prayer,80,250) TRUE is the FAILURE (-5 Prayer, "try again?"). Below 42
-            -- Gujuo refuses, so the choice depends on the live Prayer level and a prayer restore is
-            -- drunk between attempts.
+            -- then the trance fails 1 time in (Prayer - 40) (OpenRSC failCalculation; never at 62+),
+            -- costing 5 Prayer and asking "try again?". Below 42 Gujuo refuses, so the choice depends
+            -- on the live Prayer level and a prayer restore is drunk between attempts.
             local function prayer_level()
                 local _, reading = t.skill.read("prayer")
                 return type(reading) == "table" and reading.level or 0
@@ -789,7 +1061,10 @@ return {
                 return "options"
             end
             local blessed = false
-            for attempt = 1, 5 do
+            -- At Prayer 60 the trance fails 1 time in 20, then 1 in 15, 10 and 5 as each miss drains 5:
+            -- four tries all miss about 1 time in 15,000; a restore dose whenever Prayer is under 42
+            for attempt = 1, 4 do
+                t.ticks(1)
                 if prayer_level() < 42 then
                     if not drink_restore("talkToGujuoWithBowl-restore-" .. attempt) then break end
                 end
@@ -812,8 +1087,8 @@ return {
                 end
             end
             if not blessed then
-                t.check("talkToGujuoWithBowl-blessed", false, "the bowl was not blessed in five attempts")
-                t.blocked("talkToGujuoWithBowl: five blessing attempts failed (stat_random(prayer,80,250)); rerun")
+                t.check("talkToGujuoWithBowl-blessed", false, "the bowl was not blessed in four attempts")
+                t.blocked("talkToGujuoWithBowl: four blessing attempts failed (gujuo.rs2 trance roll); rerun")
                 return
             end
 
@@ -842,7 +1117,7 @@ return {
             local function await_underground(note)
                 return t.await({ level = underground, note = note }, 16)
             end
-            t.exec("goto-enterMossyRockWithBowl", t.player.goto_tile, 2782, 2935, 0)
+            t.exec("goto-enterMossyRockWithBowl", t.player.goto_tile, 2781, 2934, 0)
             local inside = false
             for i = 1, 12 do
                 t.exec("enterMossyRockWithBowl-press-" .. i, t.player.click_loc, "lgshamancaverock1", 1)
@@ -857,10 +1132,12 @@ return {
 
             ---------------------------------------------------------------- useBowlOnFireWall
             -- rs2:301: pure water on the wall of fire deletes the wall and walks the player through
-            local wall = t.player.by_symbol("loc", "lqfirewall_straight")
-            t.exec("useBowlOnFireWall", t.player.use_on, "goldbowlbless_pure", wall, { at = { 2790, 9333 } })
+            local firewall = t.player.by_symbol("loc", "lqfirewall_straight")
+            t.exec("useBowlOnFireWall", t.player.use_on, "goldbowlbless_pure", firewall, { at = { 2790, 9333 } })
             t.chat.drain({ max_pages = 6 })
             t.ticks(3)
+            -- quest_legends.rs2 legends_use_on_fire_wall: loc_del, then this line, then the walk through
+            t.expect("useBowlOnFireWall.splash", t.msg.expect("You splash some pure water on the flames."))
             do
                 local _, at = t.world.tile()
                 t.check("useBowlOnFireWall-through", at.z < 9333 and at.z > 9322,
@@ -877,7 +1154,8 @@ return {
             t.expect("quest.stage.summoned_nezikchened_fire", t.quest.expect_stage(11))
 
             ---------------------------------------------------------------- fightNezikchenedInFire
-            t.exec("fightNezikchenedInFire", t.player.attack, "nezikchened", 2, 20)
+            legends_eat_up(t, "fightNezikchenedInFire", 90)
+            legends_attack(t, "fightNezikchenedInFire", "nezikchened", 20)
             do
                 local _, sharks_before = t.inv.count("shark")
                 local _, detail = t.exec("fightNezikchenedInFire.dead", t.npc.await_dead_engaged, 500, 60, { eat = { item = "shark", below = 50 } })
@@ -943,7 +1221,7 @@ return {
             end
 
             ---------------------------------------------------------------- useBowlOnSeeds
-            -- quest_legends.rs2:1208 [opheldu,goldbowlbless_pure] with the seeds: the seeds germinate,
+            -- quest_legends.rs2:1211 [opheldu,goldbowlbless_pure] with the seeds: the seeds germinate,
             -- the pure water is used up (the bowl is left empty) and stage 12 -> 13
             t.exec("useBowlOnSeeds", t.player.use_item_on_item, "yommiseeds", "goldbowlbless_pure")
             t.chat.drain({ max_pages = 6 })
@@ -991,7 +1269,7 @@ return {
             t.exec("useMacheteOnReedsAgain-reed", t.inv.await, "reed_hollow", 1, 10)
 
             ---------------------------------------------------------------- useReedOnPoolAgain
-            -- quest_legends.rs2:1033: with the seeds germinated the pool is a dried sludge and stage
+            -- quest_legends.rs2:1036: with the seeds germinated the pool is a dried sludge and stage
             -- 13 -> 14 (the reed is not used up)
             local pool = t.player.by_symbol("loc", "sacred_water")
             t.exec("useReedOnPoolAgain", t.player.use_on, "reed_hollow", pool, { at = { 2837, 2915 } })
@@ -1072,8 +1350,15 @@ return {
                 return at.z > 9000
             end
             local function kill(name, symbol)
-                t.exec(name, t.player.attack, symbol, 2, 30)
-                t.exec(name .. "-dead", t.npc.await_dead_engaged, 300, 6, { eat = { item = "shark", below = 50 } })
+                legends_eat_up(t, name, 75)
+                local _, sharks_before = t.inv.count("shark")
+                legends_attack(t, name, symbol, 30)
+                local _, detail = t.exec(name .. "-dead", t.npc.await_dead_engaged, 300, 6, { eat = { item = "shark", below = 50 } })
+                local lowest = tonumber(tostring(detail):match("lowest hp (%d+)/"))
+                local _, sharks_left = t.inv.count("shark")
+                t.check(name .. "-margin", lowest ~= nil and lowest >= 25 and (sharks_left or 0) >= 1,
+                    "lowest hp " .. tostring(lowest) .. "/99, sharks " .. tostring(sharks_before) .. " -> " .. tostring(sharks_left)
+                    .. " (margin: lowest hp >= 25 AND sharks left >= 1)")
                 settle_chat(name .. "-settle")
             end
 
@@ -1081,8 +1366,14 @@ return {
             -- Quest Helper (enterJungleToGoToSource): a bravery potion (made below from an ardrigal, a
             -- snake weed and a vial of water), Charge Orb runes and an unpowered orb, a rope, lockpicks,
             -- combat gear and food. The backpack is full of leg 4/5's leftovers, so drop the hammer, the
-            -- unused book of binding first.
-            for _, junk in ipairs({ "book_of_binding", "hammer" }) do
+            -- unused book of binding and the spare hollow reed first (leg 9 cuts the reed it uses,
+            -- useMacheteOnReedsEnd; the coins, air and law runes of the travel take three slots).
+            -- The bullroarer is spent too: Gujuo was last called in leg 5, and at the end the replaced totem
+            -- pole brings him itself (quest_legends.rs2:1823); its slot carries two more sharks for the heroes.
+            -- So are leg 4's prayer potions (the blessing is done; leg 10 is given its own two): their two
+            -- slots carry two more sharks.
+            for _, junk in ipairs({ "book_of_binding", "hammer", "reed_hollow", "bullroarer", "4doseprayerrestore",
+                                    "3doseprayerrestore", "2doseprayerrestore", "1doseprayerrestore" }) do
                 for _ = 1, 8 do
                     local _, remaining = t.inv.count(junk)
                     if remaining == 0 then break end
@@ -1092,7 +1383,7 @@ return {
             end
             -- (Druidic Ritual, which unlocks Herblore for the bravery potion, is completed in setup)
             for _, gift in ipairs({ "ardrigal 1", "snake_weed 1", "vial_water 1", "rope 1", "stafforb 2", "cosmicrune 6",
-                                    "waterrune 60", "lockpick 3", "shark 4" }) do
+                                    "waterrune 60", "lockpick 1", "shark 8" }) do
                 t.cheat("::give " .. gift)
                 t.ticks(1)
             end
@@ -1134,7 +1425,7 @@ return {
 
             ---------------------------------------------------------------- enterMossyRockToSource
             -- plain travel to the rock (2782,2937); legends_search_rocks is an agility roll, repeated
-            t.exec("goto-enterMossyRockToSource", t.player.goto_tile, 2782, 2935, 0)
+            t.exec("goto-enterMossyRockToSource", t.player.goto_tile, 2781, 2934, 0)
             local inside = false
             for i = 1, 12 do
                 t.exec("enterMossyRockToSource-press-" .. i, t.player.click_loc, "lgshamancaverock1", 1)
@@ -1216,6 +1507,7 @@ return {
             -- the deathwings (m43_145.spawn) near the crumbled wall are aggressive: fight those that engage
             for i = 1, 4 do
                 if t.npc.nearest("deathwing", 6) ~= "ok" then break end
+                legends_eat_up(t, "src-deathwing-" .. i, 60)
                 t.exec("src-deathwing-" .. i, t.player.attack, "deathwing", 2, 20)
                 t.exec("src-deathwing-dead-" .. i, t.npc.await_dead_engaged, 80, 2, { eat = { item = "shark", below = 50 } })
             end
@@ -1236,7 +1528,7 @@ return {
             t.player.walk_to(2780, 9306, 60)
 
             ---------------------------------------------------------------- searchMarkedWallToSource
-            -- quest_legends.rs2:647; the five runes were set on the first trip, so op2 offers the door
+            -- quest_legends.rs2:650; the five runes were set on the first trip, so op2 offers the door
             t.exec("searchMarkedWallToSource", t.player.click_loc, "lgancientwalldoor", 2, { at = { 2779, 9305 } })
             converse("searchMarkedWallToSource-dialog", { "Investigate the outline of the door.", "Yes, I'll go through!" })
             settle_chat("searchMarkedWallToSource-settle")
@@ -1289,19 +1581,7 @@ return {
 
             ---------------------------------------------------------------- the ledges and climbing rocks
             -- quest_legends.rs2 rocky_ledge/1/2, viycaves_climbrock1-3 (each asks before the crossing)
-            for _, ob in ipairs({ { "rocky_ledge", "Yes, I can think of nothing more exciting!" },
-                                  { "rocky_ledge1", "Yes, I can think of nothing more exciting!" },
-                                  { "rocky_ledge2", "Yes, I can think of nothing more exciting!" },
-                                  { "viycaves_climbrock1", "Yes, I want to climb over the rocks." },
-                                  { "viycaves_climbrock2", "Yes, I want to climb over the rocks." },
-                                  { "viycaves_climbrock3", "Yes, I want to climb over the rocks." } }) do
-                local _, from = t.world.tile()
-                t.exec(ob[1], t.player.click_loc, ob[1], 1)
-                converse(ob[1] .. "-dialog", { ob[2] })
-                settle_chat(ob[1] .. "-settle")
-                local _, to = t.world.tile()
-                t.check(ob[1] .. "-moved", to.x ~= from.x or to.z ~= from.z, from.x .. "," .. from.z .. " -> " .. to.x .. "," .. to.z)
-            end
+            legends_viycaves_forward(t, "", settle_chat)
 
             ---------------------------------------------------------------- the three heroes' crystal pieces
             -- san_tojalon.rs2 / irvig_senay.rs2 / ranalph_devere.rs2 ai_queue3: one piece each
@@ -1420,8 +1700,8 @@ return {
 
             ---------------------------------------------------------------- the pack for the second fight
             -- Quest Helper (pushBoulderWithForce): combat gear, food and potions. Leg 6 left one shark: the
-            -- junk (swamp rocks, the empty vial) is dropped and the food topped up to ten (brought-along food).
-            for _, junk in ipairs({ "swamprocks1", "vial_empty" }) do
+            -- junk (swamp rocks, the empty vial) is dropped and the food topped up to eleven (brought-along food).
+            for _, junk in ipairs({ "swamprocks1", "vial_empty", "logs" }) do
                 for _ = 1, 4 do
                     local _, remaining = t.inv.count(junk)
                     if remaining == 0 then break end
@@ -1431,9 +1711,11 @@ return {
             end
             do
                 local _, have = t.inv.count("shark")
-                if have < 9 then t.cheat("::give shark " .. (9 - have)) end
+                if have < 11 then t.cheat("::give shark " .. (11 - have)) end
             end
             t.ticks(1)
+            -- leg 6's three heroes leave the bar low, and the deathwings come before any food stop
+            legends_eat_up(t, "secondFightPack", 80)
             do
                 local _, sharks = t.inv.count("shark")
                 local _, dagger = t.inv.count("deathdagger")
@@ -1441,7 +1723,7 @@ return {
                 local _, cosmic = t.inv.count("cosmicrune")
                 local _, water = t.inv.count("waterrune")
                 local _, orbs = t.inv.count("stafforb")
-                t.check("leg.7.pack", sharks >= 9 and dagger == 1 and orbs == 1 and cosmic >= 3 and water >= 30,
+                t.check("leg.7.pack", sharks >= 6 and dagger == 1 and orbs == 1 and cosmic >= 3 and water >= 30,
                     "sharks " .. sharks .. ", death dagger " .. dagger .. ", unpowered orb " .. orbs .. ", cosmic runes " .. cosmic
                     .. ", water runes " .. water .. ", lockpicks " .. picks)
             end
@@ -1472,33 +1754,31 @@ return {
                 local _, to = t.world.tile()
                 t.check("back-" .. ob, to.x ~= from.x or to.z ~= from.z, from.x .. "," .. from.z .. " -> " .. to.x .. "," .. to.z)
             end
-            t.exec("goto-pickUpHat", t.world.obj_near, "viyeldihat", 8)
-            local picked = false
-            for _, yaw in ipairs({ 1024, 0, 512, 1536, 256, 768, 1280, 1792 }) do
-                t.drive.camera(yaw, 383, 500)
-                t.ticks(1)
-                local hat_result = t.player.click_obj("viyeldihat", 3)
-                t.ticks(2)
-                if t.chat.kind() ~= "none" then picked = true break end
+            -- the guide's option 2 (Save): "If you wish to keep Viyeldi alive, teleport out now, and you'll be
+            -- guided to get the holy force" -- the hat beside the rope is left where it lies, Viyeldi is not
+            -- summoned, and Camelot Teleport leaves the caves with Echned's dark dagger
+            -- ANY-OF: killViyeldi talkToUngaduluForForce the Save option keeps Viyeldi alive and hands the dark dagger to Ungadulu for the Holy Force instead: OSRS-Content/osrs239-content/server/scripts/quests/quest_legends/scripts/ungadulu.rs2:525
+            do
+                local _, hat = t.world.obj_near("viyeldihat", 8)
+                local _, dagger = t.inv.count("deathdagger")
+                t.check("pickUpHat.beside", type(hat) == "table" and dagger == 1,
+                    "beside the hat at " .. (type(hat) == "table" and (hat.tile_x .. "," .. hat.tile_z) or "?")
+                    .. " with the dark dagger x" .. tostring(dagger) .. ": teleporting out keeps Viyeldi alive")
             end
-            t.check("pickUpHat", picked, "the hat pressed, chat page " .. tostring(t.chat.kind()))
-            -- viyeldi.rs2:1 opobj3: the hat animates Viyeldi (owner-summoned) and opens his dialogue, which ends
-            -- with npc_del; leaving the page before it ends keeps him standing so the dagger can be used
-            t.chat.close()
-            t.ticks(3)
-            t.check("pickUpHat-viyeldi", t.npc.nearest("viyeldi", 8) == "ok", "Viyeldi stands beside the hat, chat " .. tostring(t.chat.kind()))
-
-            ---------------------------------------------------------------- killViyeldi
-            -- viyeldi.rs2:20 opnpcu: the death dagger becomes the glowing dagger and the spirit crumples
-            t.exec("killViyeldi", t.player.use_on, "deathdagger", t.player.by_symbol("npc", "viyeldi"))
-            settle_chat("killViyeldi-settle")
-            t.exec("killViyeldi-glowing", t.inv.await, "deathdaggerdone", 1, 10)
-            t.exec("killViyeldi-gone", t.npc.await_gone, "viyeldi", 8, 30)
+            legends_camelot_teleport(t, "pickUpHat.camelotTeleport")
+            do
+                local _, at = t.world.tile()
+                local _, dagger = t.inv.count("deathdagger")
+                t.check("pickUpHat", at.z < 4000 and at.x > 2700 and dagger == 1 and t.npc.nearest("viyeldi", 30) ~= "ok",
+                    "teleported out of the Viyeldi caves to " .. at.x .. "," .. at.z .. " with the dark dagger x"
+                    .. tostring(dagger) .. ", Viyeldi never summoned")
+            end
 
             ---------------------------------------------------------------- enterMossyRockHolyForce
-            -- guide (pickUpHat): "teleport out now, and you'll be guided to get the holy force" -- the
-            -- teleport is plain travel to the surface; the rocks are then entered by hand
-            t.exec("goto-enterMossyRockHolyForce", t.player.goto_tile, 2782, 2935, 0)
+            -- back to Karamja by Ardougne's boat, the band cut through, then the rocks entered by hand
+            legends_barnaby_to_brimhaven(t, "enterMossyRockHolyForce")
+            legends_into_jungle(t, "enterMossyRockHolyForce")
+            t.exec("goto-enterMossyRockHolyForce", t.player.goto_tile, 2781, 2934, 0)
             local inside = false
             for i = 1, 12 do
                 t.exec("enterMossyRockHolyForce-press-" .. i, t.player.click_loc, "lgshamancaverock1", 1)
@@ -1518,12 +1798,20 @@ return {
                 local _, at = t.world.tile()
                 t.check("talkToUngaduluForForce-inside", at.z < 9333, "inside the octagram at " .. at.x .. "," .. at.z)
             end
-            -- ungadulu.rs2:538: the glowing dagger handed over; "I've killed Viyeldi." earns the Holy Force
-            t.exec("talkToUngaduluForForce", t.player.use_on, "deathdaggerdone", t.player.by_symbol("npc", "ungadulu_good"))
-            converse("talkToUngaduluForForce-dialog", { "/killed Viyeldi/" })
+            -- ungadulu.rs2:525: the dark dagger handed over; the shaman ADDS the Holy Force before he takes
+            -- the dagger (:533-535, "this order is correct"), so a full backpack loses the spell: a free slot first
+            do
+                local free = 0
+                for i = 0, 27 do
+                    local r, sl = t.inv.slot(i)
+                    if r == "ok" and type(sl) == "table" and sl.name == "" then free = free + 1 end
+                end
+                t.check("talkToUngaduluForForce-room", free >= 1, "free backpack slots " .. free)
+            end
+            t.exec("talkToUngaduluForForce", t.player.use_on, "deathdagger", t.player.by_symbol("npc", "ungadulu_good"))
             settle_chat("talkToUngaduluForForce-settle")
             t.exec("talkToUngaduluForForce-holyforce", t.inv.await, "holyforce", 1, 10)
-            t.exec("talkToUngaduluForForce-dagger", t.inv.expect_absent, "deathdaggerdone")
+            t.exec("talkToUngaduluForForce-dagger", t.inv.expect_absent, "deathdagger")
             -- back out through the wall of fire, then the same trials as the first two trips
             t.exec("hf-leaveOctagram", t.player.click_loc, "lqfirewall_straight", 1, { at = { 2790, 9333 } })
             t.ticks(4)
@@ -1594,6 +1882,7 @@ return {
             -- the deathwings (m43_145.spawn) near the crumbled wall are aggressive: fight those that engage
             for i = 1, 4 do
                 if t.npc.nearest("deathwing", 6) ~= "ok" then break end
+                legends_eat_up(t, "hf-deathwing-" .. i, 60)
                 t.exec("hf-deathwing-" .. i, t.player.attack, "deathwing", 2, 20)
                 t.exec("hf-deathwing-dead-" .. i, t.npc.await_dead_engaged, 80, 2, { eat = { item = "shark", below = 50 } })
             end
@@ -1614,7 +1903,7 @@ return {
             t.player.walk_to(2780, 9306, 60)
 
             ---------------------------------------------------------------- hf-searchMarkedWall
-            -- quest_legends.rs2:647; the five runes were set on the first trip, so op2 offers the door
+            -- quest_legends.rs2:650; the five runes were set on the first trip, so op2 offers the door
             t.exec("hf-searchMarkedWall", t.player.click_loc, "lgancientwalldoor", 2, { at = { 2779, 9305 } })
             converse("hf-searchMarkedWall-dialog", { "Investigate the outline of the door.", "Yes, I'll go through!" })
             settle_chat("hf-searchMarkedWall-settle")
@@ -1657,34 +1946,9 @@ return {
                 local _, at = t.world.tile()
                 t.check("climbDownWinchHolyForce", at.x < 2500, "down the winch into the Viyeldi caves at " .. at.x .. "," .. at.z)
             end
-            -- back over the ledges and climbing rocks (quest_legends.rs2:1456-1665), forwards as on the first trip.
-            -- A rock crossed from its far side climbs without a question, and a slip moves the player: click until
-            -- the tile changes, answering a page only when one opens.
-            for _, ob in ipairs({ "rocky_ledge", "rocky_ledge1", "rocky_ledge2",
-                                  "viycaves_climbrock1", "viycaves_climbrock2", "viycaves_climbrock3" }) do
-                local _, from = t.world.tile()
-                local is_rock = string.find(ob, "climbrock", 1, true) ~= nil
-                for attempt = 1, 8 do
-                    t.player.click_loc(ob, 1)
-                    if t.await({ level = function() return t.chat.kind() ~= "none" end, note = "crossing page" }, 5) == "ok" then
-                        local _, kind = t.chat.drain({ stop_at = "options", max_pages = 10 })
-                        if kind == "options" then
-                            t.chat.choose("/Yes/")
-                            t.ticks(1)
-                        end
-                        settle_chat("hf-" .. ob .. "-settle-" .. attempt)
-                    end
-                    t.ticks(4)
-                    local _, to = t.world.tile()
-                    local moved = to.x ~= from.x or to.z ~= from.z
-                    if moved and not is_rock then break end
-                    -- a slip ("You slip and fall!") drops the player beside the rock: cross again
-                    if moved and string.find(tostring(select(2, t.msg.last(3))), "easily", 1, true) then break end
-                end
-                local _, to = t.world.tile()
-                t.check("hf-" .. ob, to.x ~= from.x or to.z ~= from.z, from.x .. "," .. from.z .. " -> " .. to.x .. "," .. to.z .. "; last messages: " .. tostring(select(2, t.msg.last(2))))
-            end
-            -- the barrier lets a player with the heart in the recess (stage >= 18) through (quest_legends.rs2:1813)
+            -- back over the ledges and climbing rocks (quest_legends.rs2:1459-1665), forwards as on the first trip
+            legends_viycaves_forward(t, "hf-", settle_chat)
+            -- the barrier lets a player with the heart in the recess (stage >= 18) through (quest_legends.rs2:1816)
             for _ = 1, 4 do
                 t.player.walk_to(2421, 4693, 80)
                 local _, near = t.world.tile()
@@ -1732,7 +1996,7 @@ return {
 
             ---------------------------------------------------------------- the pack for the fight
             -- Quest Helper (pushBoulderWithForce): combat gear, food and potions; the character wears full
-            -- rune from setup, sharks were topped up to nine in leg 7, two prayer restores are carried
+            -- rune from setup, sharks were topped up to eleven in leg 7 (leg 6 dropped the prayer restores)
             do
                 local _, sharks = t.inv.count("shark")
                 local _, force = t.inv.count("holyforce")
@@ -1772,7 +2036,8 @@ return {
             t.exec("castForce-nezikchened", t.npc.await_present, "nezikchened", 10, 20)
 
             ---------------------------------------------------------------- fightNezikchenedAtSource
-            t.exec("fightNezikchenedAtSource", t.player.attack, "nezikchened", 2, 30)
+            legends_eat_up(t, "fightNezikchenedAtSource", 90)
+            legends_attack(t, "fightNezikchenedAtSource", "nezikchened", 30)
             do
                 local _, sharks_before = t.inv.count("shark")
                 local _, detail = t.exec("fightNezikchenedAtSource-dead", t.npc.await_dead_engaged, 500, 60,
@@ -1827,6 +2092,19 @@ return {
                 local result, row = t.world.loc_near(symbol, 8)
                 return result == "ok" and row.tile_x == 2778 and row.tile_z == 2916
             end
+            -- polled tick by tick, not inside t.await: before 194a1ff0f a loc_near in an await predicate could
+            -- raise "attempt to yield across a C-call boundary" (fixed; polling is kept as the simpler form)
+            local function stands_within(name, symbol, ticks)
+                for i = 0, ticks do
+                    if stands(symbol) then
+                        t.check(name, true, symbol .. " stands on the soil at 2778,2916 after " .. i .. " tick(s)")
+                        return true
+                    end
+                    t.ticks(1)
+                end
+                t.check(name, false, "no " .. symbol .. " on the soil at 2778,2916 after " .. ticks .. " tick(s)")
+                return false
+            end
             local function underground()
                 local _, at = t.world.tile()
                 return at.z > 9000
@@ -1847,80 +2125,87 @@ return {
             end
 
             ---------------------------------------------------------------- returnToSurface
-            -- guide: "Teleporting out will evaporate the water" -- the teleport is plain travel (the
-            -- content has no teleport hook: only cutting jungle with a full bowl, jungle_tree.rs2:58, drains
-            -- it), so the water is poured out by hand, the bowl's own Empty op (quest_legends.rs2:1148),
-            -- which is what the guide's step lists: the bowl is empty when the reeds are used
-            t.exec("returnToSurface", t.player.goto_tile, 2836, 2914, 0)
-            t.check("returnToSurface-surface", not underground(), "back on the surface")
+            -- guide: "Return to the surface. Teleporting out will evaporate the water but the pool above
+            -- ground is restored and can be used." Camelot Teleport out of the source (the content has no
+            -- teleport hook: only cutting jungle with a full bowl drains it, jungle_tree.rs2:58), so the
+            -- water is poured out by hand, the bowl's own Empty op (quest_legends.rs2:1151): the bowl is
+            -- empty when the reeds are used
+            legends_camelot_teleport(t, "returnToSurface.camelotTeleport")
+            do
+                local _, at = t.world.tile()
+                t.check("returnToSurface", not underground() and at.z < 4000,
+                    "out of the Viyeldi caves, back on the surface at " .. at.x .. "," .. at.z)
+            end
             t.exec("returnToSurface-empty", t.player.inv_op, "goldbowlbless_pure", 1)
             t.exec("returnToSurface-bowl", t.inv.await, "goldbowlbless_empty", 1, 10)
 
             ---------------------------------------------------------------- enterJungleToPlant
-            -- travel into the Kharazi jungle beside the pool; the fights the guide warns of are the animals
-            t.exec("enterJungleToPlant", t.player.goto_tile, 2834, 2916, 0)
+            -- Ardougne's boat to Brimhaven, the band cut through, then the open jungle to the pool; the
+            -- fights the guide warns of are the animals
+            legends_barnaby_to_brimhaven(t, "enterJungleToPlant")
+            legends_into_jungle(t, "enterJungleToPlant")
+            t.exec("goto-enterJungleToPlant", t.player.goto_tile, 2834, 2916, 0)
             do
                 local _, at = t.world.tile()
-                t.check("enterJungleToPlant-tile", at.x >= 2830 and at.x <= 2840,
+                t.check("enterJungleToPlant", at.x >= 2830 and at.x <= 2840 and at.z < 2934,
                     "in the Kharazi jungle beside the pool at " .. at.x .. "," .. at.z)
             end
 
             ---------------------------------------------------------------- useMacheteOnReedsEnd
             local reeds = t.player.by_symbol("loc", "tall_reeds")
             t.exec("useMacheteOnReedsEnd", t.player.use_on, "machette", reeds, { at = { 2836, 2916 } })
-            t.exec("useMacheteOnReedsEnd-reed", t.inv.await, "reed_hollow", 2, 10)
+            t.exec("useMacheteOnReedsEnd-reed", t.inv.await, "reed_hollow", 1, 10)
 
             ---------------------------------------------------------------- useReedOnPoolEnd
-            -- quest_legends.rs2:1020: stage 25 is past the dried-up window, the empty blessed bowl is filled
+            -- quest_legends.rs2:1023: stage 25 is past the dried-up window, the empty blessed bowl is filled
             local pool = t.player.by_symbol("loc", "sacred_water")
             t.exec("useReedOnPoolEnd", t.player.use_on, "reed_hollow", pool, { at = { 2837, 2915 } })
             settle_chat("useReedOnPoolEnd-settle")
             t.exec("useReedOnPoolEnd-bowl", t.inv.await, "goldbowlbless_pure", 1, 10)
 
             ---------------------------------------------------------------- plantSeed
-            -- legends_yommi.rs2:5: a germinated seed on the fertile soil; Herblore 45 rolls stat_random(40, 243)
-            -- (about one in two), a failed roll costs the seed, the pack carries three
+            -- legends_yommi.rs2:5: a germinated seed on the fertile soil; staged Herblore 80 rolls stat_random(40, 243)
+            -- (about four in five; one in two at the guide's 45), a failed roll costs the seed, the pack carries three
             t.exec("goto-plantSeed", t.player.goto_tile, 2780, 2916, 0)
             local soil = t.player.by_symbol("loc", "fertilesoil")
             local planted = false
             for i = 1, 3 do
                 t.exec("plantSeed-" .. i, t.player.use_on, "yommiseeds_germ", soil, { at = { 2778, 2916 } })
                 settle_chat("plantSeed-settle-" .. i)
-                if t.await({ level = function()
-                    return stands("yommitree_sapling") or stands("yommitree_baby")
-                end, note = "a yommi tree grows" }, 12) == "ok" then planted = true break end
+                -- legends_yommi.rs2:5: a good roll puts the baby tree down and the sapling 2 ticks later; a bad
+                -- roll ("The plant withers and dies.") costs the seed and leaves the soil
+                for _ = 1, 8 do
+                    if stands("yommitree_sapling") then planted = true break end
+                    t.ticks(1)
+                end
+                if planted then break end
             end
             do
                 local _, seeds = t.inv.count("yommiseeds_germ")
                 t.check("plantSeed", planted, "the yommi seed grew on the fertile soil, germinated seeds left " .. tostring(seeds))
             end
-            t.exec("plantSeed-sapling", t.await, { level = function() return stands("yommitree_sapling") end,
-                note = "the sapling stands" }, 30)
+            stands_within("plantSeed-sapling", "yommitree_sapling", 30)
 
             ---------------------------------------------------------------- useWaterOnTree
             t.exec("useWaterOnTree", t.player.use_on, "goldbowlbless_pure", t.player.by_symbol("loc", "yommitree_sapling"), { at = { 2778, 2916 } })
             settle_chat("useWaterOnTree-settle")
             t.exec("useWaterOnTree-bowl", t.inv.await, "goldbowlbless_empty", 1, 10)
-            t.exec("useWaterOnTree-adult", t.await, { level = function() return stands("yommitree_adult") end,
-                note = "the adult yommi tree stands" }, 20)
+            stands_within("useWaterOnTree-adult", "yommitree_adult", 20)
 
             ---------------------------------------------------------------- useAxe
             t.exec("useAxe", t.player.use_on, "rune_axe", t.player.by_symbol("loc", "yommitree_adult"), { at = { 2778, 2916 } })
             settle_chat("useAxe-settle")
-            t.exec("useAxe-felled", t.await, { level = function() return stands("yommitree_felled") end,
-                note = "the yommi tree lies felled" }, 20)
+            stands_within("useAxe-felled", "yommitree_felled", 20)
 
             ---------------------------------------------------------------- useAxeAgain
             t.exec("useAxeAgain", t.player.use_on, "rune_axe", t.player.by_symbol("loc", "yommitree_felled"), { at = { 2778, 2916 } })
             settle_chat("useAxeAgain-settle")
-            t.exec("useAxeAgain-trimmed", t.await, { level = function() return stands("yommitree_trimmed") end,
-                note = "the yommi trunk is trimmed" }, 20)
+            stands_within("useAxeAgain-trimmed", "yommitree_trimmed", 20)
 
             ---------------------------------------------------------------- craftTree
             t.exec("craftTree", t.player.use_on, "rune_axe", t.player.by_symbol("loc", "yommitree_trimmed"), { at = { 2778, 2916 } })
             settle_chat("craftTree-settle")
-            t.exec("craftTree-totem", t.await, { level = function() return stands("yommitree_totem") end,
-                note = "the totem pole is carved" }, 20)
+            stands_within("craftTree-totem", "yommitree_totem", 20)
 
             ---------------------------------------------------------------- pickUpTotem
             -- legends_yommi.rs2:148: stage 25 -> 30 (collected_totem), the totem pole joins the backpack
@@ -2024,7 +2309,10 @@ return {
             -- The spent lockpicks, swamp rocks and pickaxe of legs 2-7 fill the backpack first: with them
             -- carried the sharks below take the last free slots and the two prayer potions never land
             -- (leg.10.pack read sharks 11 and only leg 4's two potions, 2026-10-03).
-            for _, junk in ipairs({ "lockpick", "swamprocks1", "swamprocks2", "swamprocks3", "rune_pickaxe" }) do
+            -- The spare reed and the two germinated seeds the planting left are dropped too: the air and
+            -- law runes of the last Camelot Teleport ride in two slots until the return to Radimus.
+            for _, junk in ipairs({ "lockpick", "swamprocks1", "swamprocks2", "swamprocks3", "rune_pickaxe",
+                                    "reed_hollow", "yommiseeds_germ", "holyforce" }) do
                 for _ = 1, 4 do
                     local got, remaining = t.inv.count(junk)
                     if got ~= "ok" or remaining == 0 then break end
@@ -2032,9 +2320,11 @@ return {
                     t.ticks(1)
                 end
             end
-            t.cheat("::give shark 12")
-            t.ticks(1)
+            -- the potions first: twelve sharks on top of leftovers fill the backpack and a potion given
+            -- after them never lands (b70 second account: 20 sharks, 0 potions)
             t.cheat("::give 4doseprayerrestore 2")
+            t.ticks(1)
+            t.cheat("::give shark 12")
             t.ticks(1)
             do
                 local _, totem = t.inv.count("thtotempole")
@@ -2044,11 +2334,12 @@ return {
                     "yommi totem pole " .. totem .. ", sharks " .. sharks .. ", 4-dose prayer restores " .. pots
                     .. ", prayer " .. prayer_level())
             end
-            -- the plan below drinks about 8 doses from an empty book (3 to fill, one before Irvig, one
-            -- before Ranalph, 3 after Nezikchened's arrival drain): carry at least 10
+            -- the plan below drinks about 6 doses from an empty book (3 to fill to 55 before Nezikchened,
+            -- about 3 more after his arrival drain); on the Save route no ancient hero rises before him
+            -- (nezikchened.rs2:151), so the two 4-dose potions given above (8 doses) carry it
             do
                 local doses = doses_left()
-                t.check("leg.10.pack-prayer", doses >= 10, "prayer potion doses " .. doses .. " (need >= 10), prayer "
+                t.check("leg.10.pack-prayer", doses >= 8, "prayer potion doses " .. doses .. " (need >= 8), prayer "
                     .. prayer_level() .. " of 60")
             end
 
@@ -2071,8 +2362,8 @@ return {
             end
 
             ---------------------------------------------------------------- useTotemOnTotem
-            -- quest_legends.rs2:1835 oplocu lg_ord_totem_pole: below stage 35 the pole conjures the demon's
-            -- heroes (nezikchened.rs2 summon_nezi_part3): San, Irvig and Ranalph, then Nezikchened himself
+            -- quest_legends.rs2:1838 oplocu lg_ord_totem_pole: below stage 35 the pole conjures the demon
+            -- (nezikchened.rs2 summon_nezi_part3); San, Irvig and Ranalph only when Viyeldi was slain
             t.exec("goto-useTotemOnTotem", t.player.goto_tile, 2850, 2917, 0)
             local pole = t.player.by_symbol("loc", "lg_ord_totem_pole")
             t.exec("useTotemOnTotem", t.player.use_on, "thtotempole", pole, { at = { 2852, 2917 } })
@@ -2089,7 +2380,7 @@ return {
                 t.check(step .. "-prayer", prayer_level() >= need, "prayer " .. prayer_level() .. " (need >= " .. need
                     .. " for the fight), doses left " .. doses_left())
                 local _, sharks_before = t.inv.count("shark")
-                t.exec(step, t.player.attack, symbol, 2, 30)
+                legends_attack(t, step, symbol, 30)
                 local _, detail = t.exec(step .. "-dead", t.npc.await_dead_engaged, 400, 30, { eat = { item = "shark", below = 50 } })
                 local lowest = tonumber(tostring(detail):match("lowest hp (%d+)/"))
                 local _, sharks_left = t.inv.count("shark")
@@ -2098,9 +2389,22 @@ return {
                     .. ", prayer after " .. prayer_level() .. " (margin: lowest hp >= 25 AND sharks left >= 1)")
                 settle_chat(step .. "-settle")
             end
-            hero("killSan", "san_tojalon", 45, 30)
-            hero("killIrvig", "irvig_senay", 45, 30)
-            hero("killRanalph", "ranalph_devere", 45, 35)
+            -- The Save route (leg 7) left Viyeldi alive: summon_nezi_part3 raises San, Irvig and Ranalph only
+            -- when legends_killed_viyeldi is set (nezikchened.rs2:151, "Corrupted are we now Viyeldi was
+            -- slain..."), so the pole brings Nezikchened alone. Quest Helper's kill steps are conditioned on
+            -- each hero standing nearby (placingTheTotem ranalphNearby/irvigNearby/sanNearby).
+            -- ANY-OF: killSan defeatDemon on the Save route Viyeldi lives and no ancient hero rises, Nezikchened is fought alone: OSRS-Content/osrs239-content/server/scripts/quests/quest_legends/scripts/nezikchened.rs2:151
+            -- ANY-OF: killIrvig defeatDemon on the Save route Viyeldi lives and no ancient hero rises, Nezikchened is fought alone: OSRS-Content/osrs239-content/server/scripts/quests/quest_legends/scripts/nezikchened.rs2:151
+            -- ANY-OF: killRanalph defeatDemon on the Save route Viyeldi lives and no ancient hero rises, Nezikchened is fought alone: OSRS-Content/osrs239-content/server/scripts/quests/quest_legends/scripts/nezikchened.rs2:151
+            t.ticks(2)
+            do
+                local risen = {}
+                for _, symbol in ipairs({ "san_tojalon", "irvig_senay", "ranalph_devere" }) do
+                    if t.npc.nearest(symbol, 24) == "ok" then risen[#risen + 1] = symbol end
+                end
+                t.check("useTotemOnTotem-noHeroes", #risen == 0, "ancient heroes within 24 tiles after the pole: "
+                    .. (#risen == 0 and "none (Viyeldi lives)" or table.concat(risen, ", ")))
+            end
             hero("defeatDemon", "nezikchened", 55, 55)
             t.ticks(2)
             t.expect("quest.stage.defeated_nezikchened_final", t.quest.expect_stage(35))
@@ -2119,7 +2423,7 @@ return {
             end
 
             ---------------------------------------------------------------- useTotemOnTotemAgain
-            -- quest_legends.rs2:1817: stage 35 -> 40, the corrupted pole is replaced and Gujuo comes
+            -- quest_legends.rs2:1820: stage 35 -> 40, the corrupted pole is replaced and Gujuo comes
             t.exec("useTotemOnTotemAgain", t.player.use_on, "thtotempole", t.player.by_symbol("loc", "lg_ord_totem_pole"), { at = { 2852, 2917 } })
             do
                 local pages = {}
@@ -2134,26 +2438,29 @@ return {
             end
             t.ticks(2)
             -- the pages above are the whole scene: the pole is replaced (stage 40), Gujuo appears beside
-            -- the player on his own (quest_legends.rs2:1820-1826 npc_add gujuo + opplayer2) and his stage-40
+            -- the player on his own (quest_legends.rs2:1823-1826 npc_add gujuo + opplayer2) and his stage-40
             -- talk (gujuo.rs2:113) hands over the gilded totem pole and moves the stage to 45
             t.exec("useTotemOnTotemAgain-gift", t.inv.await, "thtotempolegift", 1, 10)
             t.expect("quest.stage.got_gilded_totem", t.quest.expect_stage(45))
-            -- ANY-OF: summonGujou useTotemOnTotemAgain the replaced pole itself brings Gujuo, no bullroarer swing is asked for: OSRS-Content/osrs239-content/server/scripts/quests/quest_legends/scripts/quest_legends.rs2:1820
+            -- ANY-OF: summonGujou useTotemOnTotemAgain the replaced pole itself brings Gujuo, no bullroarer swing is asked for: OSRS-Content/osrs239-content/server/scripts/quests/quest_legends/scripts/quest_legends.rs2:1823
             -- ANY-OF: talkToGujouForTotem useTotemOnTotemAgain Gujuo opens his own stage-40 talk and gives the gift, then leaves: OSRS-Content/osrs239-content/server/scripts/quests/quest_legends/scripts/gujuo.rs2:113
 
             ---------------------------------------------------------------- returnToRadimus
-            -- the guild grounds stand behind the mithril gates (legends_gate.rs2): plain travel to the
-            -- road, the gate is clicked open
+            -- Karamja is an island: Camelot Teleport home (the guide's hint is a teleport too), overland to
+            -- the guild's road (reach.py 2757,3478 -> 2728,3345 REACH 172), the mithril gates
+            -- (legends_gate.rs2, a walk-through) and the hut's door by their own clicks
+            legends_camelot_teleport(t, "returnToRadimus.camelotTeleport")
             t.exec("goto-returnToRadimus", t.player.goto_tile, 2728, 3346, 0)
-            t.exec("returnToRadimus-gate", t.player.click_loc, "legendsguildgatel", 1, { at = { 2728, 3349 } })
-            t.ticks(3)
+            t.exec("returnToRadimus-gate", t.player.cross_gate, { loc = "legendsguildgatel", at = { 2728, 3349, 0 },
+                near = { 2728, 3348 }, far_ok = function(tile) return tile.z >= 3350 end,
+                far_desc = "inside the guild's mithril gates, z >= 3350" })
             do
                 local walked = t.player.walk_to(2727, 3368, 40)
                 local _, at = t.world.tile()
                 t.check("returnToRadimus-inside", walked == "ok" and at.z >= 3360, "inside the grounds at " .. at.x .. "," .. at.z)
             end
-            t.exec("returnToRadimus-door", t.player.click_loc, "poshdoor", 1, { at = { 2726, 3368 } })
-            t.ticks(2)
+            t.exec("returnToRadimus-door", t.player.pass_door, { closed = "poshdoor", open = "poshdooropen",
+                at = { 2726, 3368, 0 }, near = { 2727, 3368 }, far = { 2725, 3368 } })
             t.exec("returnToRadimus", t.player.talk_to, "radimus_erkle_hut")
             settle_chat("returnToRadimus-dialog")
             t.ticks(2)
@@ -2162,6 +2469,8 @@ return {
             ---------------------------------------------------------------- talkToRadimusInGuild
             -- legends_door.rs2:1: from stage 50 the guild's main doors open (walk in from the hut, the
             -- doors stand at 2728,3373 / 2729,3373)
+            t.exec("talkToRadimusInGuild.hutDoorOut", t.player.pass_door, { closed = "poshdoor", open = "poshdooropen",
+                at = { 2726, 3368, 0 }, near = { 2725, 3368 }, far = { 2727, 3368 } })
             do
                 local walked = t.player.walk_to(2728, 3371, 30)
                 local _, at = t.world.tile()

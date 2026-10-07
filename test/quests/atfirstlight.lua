@@ -9,7 +9,9 @@ return {
     fixture = "fresh_lumbridge.ini",
     setup = {
         "::clearinv",
-        "::atfirstlight",
+        -- No ::atfirstlight: that debugproc p_teleports into Varlamore (atfirstlight.rs2:548), an
+        -- area with no on-foot route. The fresh fixture's quest state is already 0. Travel is the
+        -- real way below: Regulus Cento outside Varrock's east gate flies to Civitas illa Fortis.
         "::setlevel hunter 46",
         "::setlevel herblore 30",
         "::setlevel construction 27",
@@ -33,6 +35,34 @@ return {
         t.step("quest.bind", bind_result == "ok" and "PASS" or "FAIL", bind_detail)
         t.ticks(3)
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
+
+        -- 0. Travel to Varlamore. OSRS Wiki Varlamore (oldid 15355752, Transportation): every route
+        -- first requires the flight with Regulus Cento near Varrock's east gate after Children of the
+        -- Sun; Regulus Cento (oldid 14961536) stands at 3281,3413 and flies to Civitas illa Fortis.
+        -- Vendored transports.tsv (Primio quetzal Varrock 3280,3412 -> Civitas 1700,3141, Children
+        -- of the Sun). Port: twilightspromise.rs2:147 [opnpc1,vmq2_quetzal_keeper_varrock] ->
+        -- p_telejump(^tp_fortis_arrive = 1697,3140). The Renu quetzal network needs Twilight's
+        -- Promise (quetzals.tsv), so the leg to the Hunter Guild is on foot (reach: closed-doors).
+        t.exec("goto-talkToRegulus", t.player.goto_tile, 3281, 3413, 0)
+        t.exec("talkToRegulus", t.player.talk_to, "vmq2_quetzal_keeper_varrock", 1)
+        t.exec("talkToRegulus-dialog", t.chat.play, {
+            "npc:Nilsal, adventurer. Do you wis",
+            "choose:Let's do it!",
+            "player:Let's do it!",
+            "npc:Then hold on tight. Varlamore ",
+        })
+        local fly_result = t.await({
+            level = function()
+                local _, here = t.world.tile()
+                return here ~= nil and here.x < 2000
+            end,
+            note = "landed in Civitas illa Fortis",
+        }, 10)
+        local _, arrive = t.world.tile()
+        t.check("talkToRegulus-arrived", arrive ~= nil and arrive.x == 1697 and arrive.z == 3140,
+            "flew to Civitas illa Fortis (tp_fortis_arrive 1697,3140), tile "
+            .. tostring(arrive and (arrive.x .. "," .. arrive.z)) .. " await " .. tostring(fly_result))
+        t.ticks(3)
 
         -- 1.1 talkToApatura
         t.exec("goto-talkToApatura", t.player.goto_tile, 1555, 3033, 0)

@@ -1,5 +1,5 @@
 -- Shadows of Custodia, client-driven (from the b54 parity driver).
--- GUIDE-GAP: unreachableState is the Quest Helper "state should not be reachable" placeholder step; shadowsofcustodia.rs2:176 moves stage 2 to 4 on the first citizen asked, so the step never shows.
+-- GUIDE-GAP: unreachableState is the Quest Helper "state should not be reachable" placeholder step; shadowsofcustodia.rs2:167 (proc soc_citizen_asked) moves stage 2 to 4 on the first citizen asked, so the step never shows.
 return {
     id = "shadowsofcustodia",
     fixture = "fresh_lumbridge.ini",
@@ -23,6 +23,26 @@ return {
         })
         t.ticks(3)
         t.exec("wield", t.player.equip, "rune_scimitar")
+        -- ---- travel to Varlamore: Regulus Cento outside Varrock's east gate flies to Civitas (see atfirstlight.lua)
+        t.exec("goto-talkToRegulus", t.player.goto_tile, 3281, 3413, 0)
+        t.exec("talkToRegulus", t.player.talk_to, "vmq2_quetzal_keeper_varrock", 1)
+        t.exec("talkToRegulus-dialog", t.chat.play, {
+            "npc:Nilsal, adventurer. Do you wis",
+            "choose:Let's do it!",
+            "player:Let's do it!",
+            "npc:Then hold on tight. Varlamore ",
+        })
+        t.await({
+            level = function()
+                local _, here = t.world.tile()
+                return here ~= nil and here.x < 2000
+            end,
+            note = "landed in Civitas illa Fortis",
+        }, 10)
+        local _, arrive = t.world.tile()
+        t.check("talkToRegulus-arrived", arrive ~= nil and arrive.x == 1697 and arrive.z == 3140,
+            "tile " .. tostring(arrive and (arrive.x .. "," .. arrive.z)))
+        t.ticks(3)
         -- ---- start
         t.exec("goto-board", t.player.goto_tile, 1395, 3356, 0)
         t.exec("startQuest", t.player.click_loc, "soc_missing_persons", 1)
@@ -41,7 +61,7 @@ return {
         t.ticks(2)
         local r, v = t.var.varbit("varb16635_soc_citizen"); t.check("marcus.var", v == 1, tostring(r) .. " " .. tostring(v))
         t.expect("quest.stage.parents.afterMarcus", t.quest.expect_stage("parents"))
-        t.exec("goto-bar", t.player.goto_tile, 1391, 3353, 0)
+        t.exec("goto-bar", t.player.goto_tile, 1393, 3353, 0)
         t.exec("talkToBartender", t.player.talk_to, "auburn_bartender", 1)
         t.exec("bartender-dialog", t.chat.play, {
             "npc:Welcome to the Auburn Pub",
@@ -91,7 +111,7 @@ return {
         t.exec("goto-rod", t.player.goto_tile, 1346, 3352, 0)
         t.exec("getRod", t.player.click_obj, "fishing_rod", 3)
         t.exec("getRod.await", t.inv.await, "fishing_rod", 1, 10)
-        t.exec("goto-plank", t.player.goto_tile, 1346, 3354, 0)
+        t.exec("goto-plank", t.player.goto_tile, 1347, 3353, 0)
         t.exec("inspectPlank", t.player.click_loc, "soc_log_op", 1)
         t.chat.drain({ max_pages = 5 })
         local plank = t.player.by_symbol("loc", "soc_log_op")

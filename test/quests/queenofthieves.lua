@@ -51,11 +51,29 @@ return {
         -- Making one is a content gap: skill_cooking/configs/cooking_generic.dbrow has no uncooked_stew
         -- row, so a range answers "You can't cook that." (cooking.rs2:254; tried on run 3, 3230,3196).
         -- The Cloak and Stagger (Shayzien) sells stew (the_cloak_and_stagger.inv stock5), so it is bought.
-        t.exec("goto-barman", t.player.goto_tile, 1550, 3560, 0)
+        -- Door rule (b70): the pub is a walled room (x 1548-1553, z 3560-3568). Stand on the open street
+        -- east of it, press its east door (wallkit_shayzien_door01_l 1554,3564) in, and again on the way out.
+        -- Kourend has no on-foot route: travel the real way. Port Sarim -> Veos "Can you take me somewhere?" ->
+        -- "I'd like to travel to Port Piscarilius, please." (veos_ferry.rs2; setup completes X Marks the Spot and
+        -- Client of Kourend, the quest's own requirements) -> Port Piscarilius dock -> overland to the pub's street.
+        t.exec("goto-veosSarim", t.player.goto_tile, 3054, 3246, 0)
+        t.exec("talkToVeos", t.player.talk_to, "veos_sarim", 1)
+        t.exec("talkToVeos-menu", t.chat.drain, { stop_at = "options" })
+        t.exec("talkToVeos-somewhere", t.chat.choose, "Can you take me somewhere?")
+        t.exec("talkToVeos-where", t.chat.drain, { stop_at = "options" })
+        t.exec("talkToVeos-sail", t.chat.choose, "I'd like to travel to Port Piscarilius, please.")
+        t.exec("talkToVeos-done", t.chat.drain, {})
+        t.ticks(4)
+        do local _, da = t.world.tile(); t.check("talkToVeos-landed", da ~= nil and da.x >= 1800 and da.x < 1850, "landed at the Piscarilius dock at " .. tostring(da and (da.x .. "," .. da.z))) end
+        t.exec("goto-barman", t.player.goto_tile, 1555, 3564, 0)
+        t.exec("barman.doorIn", t.player.pass_door, { closed = "wallkit_shayzien_door01_l", open = "wallkit_shayzien_door01_l_open",
+            at = { 1554, 3564, 0 }, near = { 1555, 3564 }, far = { 1553, 3564 } })
         t.exec("buyStew-open", t.shop.open, "shayzien_barman", 3, "shayzien_pub")
         t.exec("buyStew", t.shop.buy, "stew", 1)
         t.exec("buyStew.inv", t.inv.await, "stew", 1, 10)
         t.shop.close()
+        t.exec("barman.doorOut", t.player.pass_door, { closed = "wallkit_shayzien_door01_l", open = "wallkit_shayzien_door01_l_open",
+            at = { 1554, 3564, 0 }, near = { 1553, 3564 }, far = { 1555, 3564 } })
 
         -- ---- talkToLawry ----
         t.exec("goto-talkToLawry", t.player.goto_tile, 1796, 3781, 0)
@@ -117,7 +135,7 @@ return {
         t.expect("quest.stage.conrad", t.quest.expect_stage("conrad"))
 
         -- ---- exitWarrens ----
-        t.exec("goto-exitWarrens", t.player.goto_tile, 1813, 10144, 0)
+        t.exec("goto-exitWarrens", t.player.goto_tile, 1812, 10145, 0)
         t.exec("exitWarrens", t.player.click_loc, "piscquest_manhole_ladder", 1)
         t.ticks(4)
 
@@ -162,21 +180,23 @@ return {
         t.ticks(2)
         local exitTent_result, exitTent_tile = t.world.tile()
         t.check("exitTent.at", exitTent_result == "ok" and exitTent_tile.x == 1765 and exitTent_tile.z == 10149, string.format("player at %s,%s (want 1765,10149)", tostring(exitTent_tile and exitTent_tile.x), tostring(exitTent_tile and exitTent_tile.z)))
-        t.exec("goto-exitWarrens2", t.player.goto_tile, 1813, 10144, 0)
+        t.exec("goto-exitWarrens2", t.player.goto_tile, 1812, 10145, 0)
         t.exec("exitWarrens2", t.player.click_loc, "piscquest_manhole_ladder", 1)
         t.ticks(4)
 
         -- ---- goToKingstown / openChest / leaveKingstown ----
+        -- Hughes' house stairs (ladders_stairs maplink): up 1671|1672,3679,0 -> x,3683,1; down 1671|1672,3683,1 -> x,3679,0.
+        -- The stairwell foot (1672,3679,0) and the chest (1681,3678,1) are reached on foot (reach.py: closed-doors).
         t.exec("goto-goToKingstown", t.player.goto_tile, 1672, 3679, 0)
-        t.exec("goToKingstown", t.player.click_loc, "fai_varrock_stairs", 1)
-        t.ticks(4)
+        t.exec("goToKingstown", t.player.climb, { loc = "fai_varrock_stairs", op = 1, op_name = "Climb-up",
+            at = { 1671, 3680, 0 }, src = { 1672, 3679 }, dest = { 1672, 3683, 1 } })
         t.exec("goto-openChest", t.player.goto_tile, 1681, 3678, 1)
         t.exec("openChest", t.player.click_loc, "piscquest_chest_closed_picklock", 1)
         t.exec("openChest.inv", t.inv.await, "piscquest_documents", 1, 15)
         t.expect("quest.stage.lawry2", t.quest.expect_stage("lawry2"))
         t.exec("goto-leaveKingstown", t.player.goto_tile, 1672, 3683, 1)
-        t.exec("leaveKingstown", t.player.click_loc, "fai_varrock_stairs_top", 1)
-        t.ticks(4)
+        t.exec("leaveKingstown", t.player.climb, { loc = "fai_varrock_stairs_top", op = 1, op_name = "Climb-down",
+            at = { 1671, 3681, 1 }, src = { 1672, 3683 }, dest = { 1672, 3679, 0 } })
 
         -- ---- talkToLawry2 ----
         t.exec("goto-talkToLawry2", t.player.goto_tile, 1796, 3781, 0)

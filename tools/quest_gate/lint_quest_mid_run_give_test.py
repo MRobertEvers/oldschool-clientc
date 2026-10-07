@@ -102,11 +102,18 @@ CASES = [
      {TEST_ID: {"::give egg 1": 1}}, 1),
     ("baseline_never_excuses_bankgive", quest('"::cook"', BIND + '        t.cheat("::bankgive egg 1")'), TEST_ID,
      {TEST_ID: {"::bankgive egg 1": 1}}, 2),
+    ("stat_in_setup", quest('"::setlevel fishing 65"', BIND), TEST_ID, {}, 0),
+    ("stat_mid_run", quest('"::cook"', BIND + '        t.cheat("::setlevel fishing 65")'), TEST_ID, {}, 1),
+    ("stat_mid_run_boost", quest('"::cook"', BIND + '        t.cheat("::boost attack 10")'), TEST_ID, {}, 1),
+    ("stat_mid_run_unbaselinable", quest('"::cook"', BIND + '        t.cheat("::setlevel fishing 65")'), TEST_ID,
+     {TEST_ID: {"::setlevel fishing 65": 1}}, 2),
+    ("stat_comment_quotes", quest('"::cook"', BIND + '        -- did t.cheat("::setlevel fishing 65")'), TEST_ID, {}, 0),
+    ("stat_harness_file", quest('"::cook"', '        t.cheat("::setlevel fishing 65")', "_fixture"), "_fixture", {}, 0),
     ("harness_file", quest('"::cook"', '        t.cheat("::bankgive shark 5")\n'
                                       '        t.cheat("::give egg 1")', "_fixture"), "_fixture", {}, 0),
 ]
 
-RULE_WORDS = ("outside setup", "kit-give", "mid_run_gives_baseline")
+RULE_WORDS = ("outside setup", "kit-give", "mid_run_gives_baseline", "mid-run stat cheat")
 
 
 def rule_findings(text, test_id, baseline):
@@ -118,6 +125,7 @@ def rule_findings(text, test_id, baseline):
 def main():
     if "--rule-off" in sys.argv[1:]:
         lint_quest.check_mid_run_gives = lambda *args, **kwargs: []
+        lint_quest.check_mid_run_stat_cheats = lambda *args, **kwargs: []
     failures = 0
     for name, text, test_id, baseline, want in CASES:
         got = rule_findings(text, test_id, baseline)
