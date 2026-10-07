@@ -77,10 +77,10 @@ local function nearest_mystic(t)
     return best, best.symbol
 end
 
-local function pack_has_sym(t, sym)
+local function pack_has_slot(t, slot)
     local rows = mystic_rows(t)
     for i = 1, #rows do
-        if rows[i].symbol == sym then
+        if rows[i].slot == slot then
             return true
         end
     end
@@ -190,8 +190,8 @@ return {
         -- keep attempts low and pack the backpack with heal.
         "::give br_4dose2restore 1",
         "::give br_4dosepotionofsaradomin 2",
-        "::give shark 20",
-        "::give tbwt_cooked_karambwan 4",
+        "::give shark 22",
+        "::give tbwt_cooked_karambwan 2",
     },
 
     run = function(t)
@@ -384,28 +384,38 @@ return {
                     t.shot("mystics mid-mechanic focus kill")
                     sm.mid_shot = true
                 end
+                -- Watch the engaged CLIENT slot (not nearest-by-symbol): form
+                -- rolls can duplicate, and run18 killed slot 63 ok then failed
+                -- pack_has_sym because another mystic shared the symbol.
                 -- attempts=8 (not 40): run11 burned 17 sharks on corpse re-engages.
-                local ar, ad = t.npc.await_dead(sym, 600, 40, 8, eat_opts)
+                local ar, ad = t.npc.await_dead_engaged(600, 8, eat_opts)
                 sample_hits()
                 sample_anims()
-                if ar ~= "ok" and pack_has_sym(t, sym) then
-                    -- One more short push before failing the kill.
+                if ar ~= "ok" and pack_has_slot(t, sm.focus_slot) then
                     top_up(t)
                     arm_prayers(false)
                     t.player.attack(sym, 2, 1, atk_opts)
-                    ar, ad = t.npc.await_dead(sym, 300, 40, 6, eat_opts)
+                    ar, ad = t.npc.await_dead_engaged(300, 6, eat_opts)
                     sample_hits()
                     sample_anims()
                 end
-                if pack_has_sym(t, sym) then
+                -- Corpse may linger one tick in pack; give it a moment.
+                if pack_has_slot(t, sm.focus_slot) then
+                    t.ticks(2)
+                end
+                if pack_has_slot(t, sm.focus_slot) and ar ~= "ok" then
                     t.check("mystic.kill", false,
-                        "await_dead " .. tostring(sym) .. " -> " .. tostring(ar)
-                            .. " " .. tostring(ad)
+                        "await_dead_engaged " .. tostring(sym)
+                            .. " world_slot=" .. tostring(sm.focus_slot)
+                            .. " -> " .. tostring(ar) .. " " .. tostring(ad)
                             .. " pack still has focus; kills=" .. tostring(sm.kills))
                     set_state(STATE.DONE)
                     return
                 end
+                -- await ok or pack dropped the world slot: count the kill.
                 sm.kills = sm.kills + 1
+                sm.focus_slot = nil
+                sm.focus_sym = nil
                 top_up(t)
                 arm_prayers(false)
                 return
