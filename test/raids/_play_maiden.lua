@@ -75,7 +75,13 @@ if role == 2 then
         -- owner_tob_normal M6: the Tonalztics for the opener's defence drain
         -- in the hammer's slot (Blert TONALZTICS freezer|100 23 of 24 rooms),
         -- charged in party_run by its own Charge op with the splinters
-        "::give tonalztics_of_ralos_uncharged", "::give sunfiresplinter 100",
+        -- owner_tob_normal sm113: the zaryte crossbow and ruby bolts (e) in
+        -- the Tonalztics' two slots: the streams' ZCB_SPEC 2.24 a room (dps
+        -- 0.71 at the 70 wave +9, freezer 0.58 in the 50 phase, 0.87 in the
+        -- 30), Evoke's guaranteed Blood Forfeit 22% of her hitpoints capped
+        -- at 110 (wiki_Zaryte_crossbow.wikitext:54, :108) against the
+        -- Tonalztics' ~24 for its 50% (regression, refwdmg.py)
+        "::give zaryte_xbow", "::give xbows_crossbow_bolts_adamantite_tipped_ruby_enchanted 50",
         "::setvar varb4070_spellbook 1",
         "::give water_rune 2000", "::give blood_rune 1000", "::give death_rune 1000",
         "::give ancestral_hat", "::give ancestral_robe_top", "::give ancestral_robe_bottom",
@@ -112,7 +118,8 @@ else
         -- owner_tob_normal M6: the Tonalztics in the hammer's place (Blert
         -- TONALZTICS dps1|100 16 of 24 rooms, dps2 15; HAMMER 4), charged in
         -- party_run; a brew less for the splinters' slot until the charge
-        "::give tonalztics_of_ralos_uncharged", "::give sunfiresplinter 100",
+        (role == 1) and "::give zaryte_xbow" or "::give tonalztics_of_ralos_uncharged",
+        (role == 1) and "::give xbows_crossbow_bolts_adamantite_tipped_ruby_enchanted 50" or "::give sunfiresplinter 100",
         -- owner_tob_normal M30: a brew less, a super combat more (the
         -- re-boost holds 112 against her blackstorm's drain, W:591; the
         -- scythe seats drink no brew while a fish is left)
@@ -160,10 +167,17 @@ local function party_run(t)
     -- re-press it.  The freezer keeps the bow's "Rapid".
     -- owner_tob_normal M6: the Tonalztics charged by its own Charge op (the
     -- splinters in the backpack, tonalztics_of_ralos.rs2 [opheld4])
-    local tcr, tcd = t.player.inv_op("tonalztics_of_ralos_uncharged", 4)
-    t.ticks(2)
-    local tir, tin = t.inv.count("tonalztics_of_ralos_charged")
-    t.check("kit.tonalztics", tir == "ok" and tin == 1, "p" .. role .. " Charge " .. tostring(tcr) .. " " .. string.sub(tostring(tcd), 1, 80) .. "; charged in the pack " .. tostring(tin))
+    -- (sm113: the freezer and dps1 carry the zaryte crossbow instead)
+    if role == 3 then
+        local tcr, tcd = t.player.inv_op("tonalztics_of_ralos_uncharged", 4)
+        t.ticks(2)
+        local tir, tin = t.inv.count("tonalztics_of_ralos_charged")
+        t.check("kit.tonalztics", tir == "ok" and tin == 1, "p" .. role .. " Charge " .. tostring(tcr) .. " " .. string.sub(tostring(tcd), 1, 80) .. "; charged in the pack " .. tostring(tin))
+    else
+        local zr, zn = t.inv.count("zaryte_xbow")
+        local br, bn = t.inv.count("xbows_crossbow_bolts_adamantite_tipped_ruby_enchanted")
+        t.check("kit.zaryte", zr == "ok" and zn == 1 and br == "ok" and (tonumber(bn) or 0) > 0, "p" .. role .. " zaryte crossbow " .. tostring(zn) .. ", ruby bolts (e) " .. tostring(bn))
+    end
     -- owner_tob_normal M41: Chop, the scythe's aggressive SLASH (+3 Strength
     -- levels: wiki Module:CombatStyles :547-549 "'Chop', 'Slash', Aggressive";
     -- content fixed, combat.dbrow weapon_scythe_table); her Defence is drained

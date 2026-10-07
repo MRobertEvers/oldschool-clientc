@@ -55,14 +55,14 @@ QD.raid._play_plan("tob_maiden", {
     -- the bonus at which every cast froze (K spec freeze_full_bonus, ET 2.3
     -- "hitting 100 % at +140"); back to the ranged set in one block after.
     magic_set = { "kodai_wand", "ancestral_hat", "ancestral_robe_top", "ancestral_robe_bottom", "arcane" },
-    ranged_set = { "twisted_bow", "masori_mask", "masori_body", "masori_chaps" },
+    ranged_set = { "twisted_bow", "dragon_arrow", "masori_mask", "masori_body", "masori_chaps" },
     -- owner_tob_normal sm14: the scythe seats' opener set and their melee set.
     -- The streams' gear on every TONALZTICS_SPEC (gear2.py, 58 specs): void /
     -- masori ranged armour, necklace of rupture 51, Dizana's quiver, void or
     -- zaryte gloves -- the special is thrown in RANGED gear (an isolated one
     -- dropped her 96; ours in the melee set 11 and 20); their first three
     -- attacks: TWISTED_BOW, TONALZTICS_SPEC, SCYTHE (27 of 72 seat-rooms).
-    opener_set = { "twisted_bow", "masori_mask", "masori_body", "masori_chaps", "necklace_of_anguish", "zaryte_vambraces" },
+    opener_set = { "twisted_bow", "dragon_arrow", "masori_mask", "masori_body", "masori_chaps", "necklace_of_anguish", "zaryte_vambraces" },
     melee_set = { "scythe_of_vitur", "torva_helm", "amulet_of_rancour", "radiant_oathplate_chest", "radiant_oathplate_legs", "ferocious_gloves" },
     freeze_spell = "ice_barrage", freeze_level = 94, cast_every = 5,
     flick_weapon = "abyssal_whip",
@@ -177,6 +177,13 @@ QD.raid._play_plan("tob_maiden", {
     -- hp a tick against the reference's 17.9 with one hammer).  A special
     -- that splats 0 drains nothing and is thrown again (tries 2).
     opener = { weapon = "tonalztics_of_ralos_charged", cost = 500, tries = 1, give_up = 14 },
+    -- owner_tob_normal sm113: the opener special per seat -- the zaryte
+    -- crossbow's Evoke with ruby bolts (e) for dps1 and the freezer (110 on
+    -- her, wiki_Zaryte_crossbow.wikitext:54/:108; the streams' ZCB_SPEC 2.24 a
+    -- room), the Tonalztics for dps2; the bow's arrows go back on after it
+    opener_wear = { [1] = { "zaryte_xbow", "xbows_crossbow_bolts_adamantite_tipped_ruby_enchanted" },
+        [2] = { "zaryte_xbow", "xbows_crossbow_bolts_adamantite_tipped_ruby_enchanted" },
+        [3] = { "tonalztics_of_ralos_charged" } },
     spec30 = { weapon = "dragon_claws", cost = 500, tries = 1, give_up = 10 },
     -- the toxic blowpipe: PvM speed 3, rapid 2, reach 5 (wiki_Toxic_blowpipe
     -- .wikitext:41, :78); its swing seq 5061 (raid_play_tob_nylocas.lua)
@@ -906,7 +913,7 @@ end
 function QD.raid.mz_special(st, v, intent, weapon, energy0)
     local _, e = QD.var.varp("varp300_sa_energy")
     if (tonumber(e) or 0) < energy0 - 400 then return true end
-    if QD.raid.mz_wear(intent, { weapon }) then return false end
+    if QD.raid.mz_wear(intent, (type(weapon) == "table") and weapon or { weapon }) then return false end
     local _, armed = QD.var.varp("varp301_sa_attack")
     if tonumber(armed) == 0 then intent.spec = true end
     intent.attack = true
@@ -1023,7 +1030,7 @@ function QD.raid.mz_drain_tick(st, v, intent)
     -- sm42 sva dps1 threw from (10,-3) and walked six ticks to (4,6), first
     -- scythe +23 against the script's +16
     if st.role ~= 2 and v.tick - m.idx <= 6 and QD.raid.mz_walk_home(st, v, intent) then return end
-    local spent = QD.raid.mz_special(st, v, intent, st.plan.opener.weapon, 1000)
+    local spent = QD.raid.mz_special(st, v, intent, (st.plan.opener_wear and st.plan.opener_wear[st.role]) or st.plan.opener.weapon, 1000)
     if spent or v.tick - m.idx > 6 then
         intent.spec, intent.attack = nil, false
         if st.role == 2 then QD.raid.mz_go(st, v, "F_ON_BOSS") else QD.raid.mz_go(st, v, "S_ON_BOSS") end

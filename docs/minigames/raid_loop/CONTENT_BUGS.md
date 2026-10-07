@@ -1911,3 +1911,11 @@ wiki_Blood_spawn.wikitext:48 "In entry mode the damage is 2 to 5, and in normal 
 Now a Normal trail rolls 5..13 uniform (`^tob_maiden_trail_damage_normal_min/_max`, grade D, the Entry row's shape);
 pools are unchanged (10 + 2c); Hard keeps the splat rule (no source; The_Maiden_of_Sugadinti:144 only says Hard
 splatters stay). Eight names after: 0 deaths (from 3), trail hits 5-13.
+
+### owner_tob_normal: the zaryte crossbow's Evoke was a plain doubled-accuracy hit -- FIXED (content ade9c689b0)
+pvm_zaryte_xbow.rs2 said the bolt guarantee was "moot -- no enchanted-bolt system exists", but enchanted_bolts.rs2
+has one. wiki_Zaryte_crossbow.wikitext:108 "guarantees the special effect of any enchanted bolts used, provided that
+the player lands a successful hit"; :54/:86 the passive: Ruby bolts (e) "22% of the opponent's current hitpoints with
+a cap of 110" (20% / 100 without, wiki_Ruby_bolts_e.wikitext:52). Now Evoke calls `~bolt_enchant_on_hit_evoke`:
+ruby always forfeits on a hit, 22% / 110 with the crossbow worn (autos too); other bolts keep their ordinary roll under
+Evoke (not implemented, disclosed). Measured: the freezer's opener Evoke on Maiden hit 110.
