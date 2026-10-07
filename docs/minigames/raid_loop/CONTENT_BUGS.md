@@ -2373,3 +2373,19 @@ Open:
 - ToB, Verzik P3 crab special poses `verzik_phase3_attack_summon` 14406 (her rig, cache-named). blert says the crabs
   ride a regular attack (VerzikDataTracker.java:747-751) and does not read P3 poses; OpenOSRS's counter keys
   8123-8125 only, but predates seq 14406. Kept.
+
+## 2026-10-07 content_bugs: the server pack stopped building (membership gate)
+
+- **FIXED (OSRS-Content d9f053ee42).** `make -C src torirsserver-servpack` failed rc 2 with "Membership: 22 record(s) state a
+  server field pack/<ns>.server does not claim" (docs/PACK_ENTITY_SPLIT_PLAN.md §2 cell (a)), and every client printed
+  "server band is STALE". Listed with `cachepack pack --server-only --warn -1` against a scratch output dir:
+  - 8 locs: the Elid golem and mirror doors (doors.loc), jatoba_tree (jatoba.loc).
+  - 14 npcs: eyeglo_fluffie_evil_1..6, olaf2_ulfric, slice_sigmund_* x5, shayzienquest_puzzle_piece,
+    inferno_safespot_dying.
+
+  All are authored records from the merged quest and waves seams (b55-b68, waves seam7), not today's ToB work. Their
+  server fields are deliberate, so the plan's answer is the membership line (the cb3cf9f768 precedent for arctic_pine).
+- The same gate also counted 2 unresolved names. inferno.npc put comments on the value line
+  (`param=defend_anim,jaltokjad_defend   // [M46] ...`). The engine's loader strips `//`; cachepack does not. So the band
+  packed no defend or death anim for the wave-67 Jad. Eight such lines now carry their comment on the line above; the
+  values are unchanged. Scratch check: rc 0, 10480 records, 0 unresolved.
