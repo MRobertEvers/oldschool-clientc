@@ -1,4 +1,4 @@
--- Scratch: NR-shaped Olm enter — hole → corridor (32,24), barrier → chamber (32,38).
+-- Scratch: NR-shaped Olm enter on the z+64 shelf (not coplanar with floors).
 local HEAD = "olm_head"
 local HEAD_SPAWN = "olm_head_spawning"
 
@@ -28,7 +28,7 @@ return {
     },
 
     run = function(t)
-        t.check("scope", true, "NR hole→corridor (32,24); barrier→chamber (32,38); west caves (20,*)")
+        t.check("scope", true, "Olm shelf z+64; hole→corridor; barrier→chamber; west caves")
         local er, ed = t.raid.enter("cox", "olm", { seed = 1 })
         t.check("raid.enter", er == "ok", tostring(ed))
 
@@ -38,8 +38,8 @@ return {
         local tr, tile = t.world.tile()
         t.check("corridor.tile", tr == "ok" and type(tile) == "table" and tile.level == 2,
             "want plane 2 corridor, got " .. tile_text(t))
-        -- Walk north toward the barrier; look north.
-        t.player.walk_to(6432, 92, 20)
+        -- Walk north toward barrier (relative; shelf abs z changes with alloc).
+        t.player.walk_to(tile.x, tile.z + 4, 24)
         t.ticks(2)
         t.drive.camera(0, 180, 500)
         t.ticks(3)
@@ -55,7 +55,6 @@ return {
         t.check("tile.read", tr == "ok", tostring(tile))
         t.check("chamber.plane", type(tile) == "table" and tile.level == 2,
             "want plane 2 chamber, got " .. tile_text(t))
-        -- Look west at the cave bank.
         t.drive.camera(1536, 200, 700)
         t.ticks(3)
         t.shot("olm chamber after barrier at " .. tile_text(t))
@@ -73,8 +72,8 @@ return {
             head = npc_ok(t, HEAD) or npc_ok(t, HEAD_SPAWN)
         end
         t.check("boss.present", head ~= nil, "waited for olm_head at " .. tile_text(t))
-        -- Closer to west wall, looking west at head cave.
-        t.player.walk_to(6424, 102, 20)
+        tr, tile = t.world.tile()
+        t.player.walk_to(tile.x - 8, tile.z, 24)
         t.ticks(2)
         t.drive.camera(1536, 160, 500)
         t.ticks(4)
