@@ -2,26 +2,22 @@
 
 Branch: `cursor/cox-mystics-solo-da39`
 
-Replacement for stuck agent `bc-d3cf9a9c` (empty transcript, no commits).
+## Gate (reproved 2026-10-07)
 
-## Gate
+- `cox_mystics` **green** + coverage **FULL** (6/6)
+- Durable proof (parent VM):
+  - `/opt/cursor/artifacts/cox_mystics_reprove_green.log` (`GATE_EXIT=0`, `COV_EXIT=0`, `cox_mystics green`, `FULL (6`)
+  - `/opt/cursor/artifacts/cox_mystics_ledger_green.tsv` (SUMMARY pass=21 fail=0; `mystics.cleared` remaining=0)
+  - `/opt/cursor/artifacts/cox_mystics_{idle,mid,clear}.png` (lit: center mean > 90, dark_frac < 0.03)
 
-- `cox_mystics` **green** + coverage **FULL** (6/6 in-scope spec rows)
-- Proved: run30/run31 under `flock /tmp/cox_raid_gate.lock` with
-  `QUEST_BINARY=/workspace/src/torirs_mystics_qt --no-build --no-publish`
+## Strategy
 
-## Strategy (owner 2026-10-07)
+Synq learner solo: Protect from Magic; tbow + salve; brew-primary sustain;
+emergency angler under 22; engage once per focus; dual empty-pack polls
+before DONE; explicit `mystics.cleared` / `mystics.prayer_hits`.
 
-**Synq learner solo** (`synq_transcript.md` [0:31:54]): Protect from Magic,
-ranged + salve, focus one mystic at a time. Twisted bow (not blowpipe — short
-range walks into melee). Brew-primary sustain (potions do not add weapon
-delay); emergency angler only under 22 hp. Engage once per focus, pack
-world-slot drop counts the kill.
+## Scope
 
-## Implemented
-
-- Test SM: `LAND → ARM_PRAYER → FOCUS → DONE` (per-tick FOCUS)
-- Kit: tbow + salve + masori; 5 brew + 5 restore + 14 angler + 2 karambwan
-- Prayer-reduction samples magic-style hits only
-- Spec table: all six kill-path rows grade C
-- Content: existing mystic procs in `cox_minions.rs2` (no shaman edits)
+- Harness: `test/raids/cox_mystics.lua`
+- Spec: `encounters/mystics.tsv` (unchanged, 6 grade C)
+- Content: mystic procs in `cox_minions.rs2` untouched (no shaman edits)
