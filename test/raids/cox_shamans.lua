@@ -99,7 +99,7 @@ return {
         "::wield masori_chaps",
         "::give avas_assembler",
         "::wield avas_assembler",
-        "::give shark 16",
+        "::give shark 24",
         "::give br_4dose2restore 4",
         "::give br_4dosepotionofsaradomin 2",
         "::give 4doseantipoison 2",
@@ -311,10 +311,16 @@ return {
             if sm.state == STATE.TANK_POISON then
                 -- Drop overhead so the green blob can land; do NOT drink
                 -- antipoison until severity-12 is observed (spec.shamans.poison).
+                -- Splash gfx 1294 fires on seed1 but the 1-in-3 severity roll can
+                -- miss a whole short tank; jitter walks burn rng so a later splash
+                -- can apply (wiki poison level 12 / ^cox_shaman_poison_severity).
                 t.prayer.set("protectfrommissiles", false)
                 t.prayer.set("eagleeye", true)
                 if sm.poison_peak >= 12 then
-                    -- Cure once recorded, then wall-hug kill path.
+                    if not sm.mid_shot then
+                        t.shot("shamans poison blob mid-tank")
+                        sm.mid_shot = true
+                    end
                     if t.player.inv_op("4doseantipoison", 1) == "ok"
                         or t.player.inv_op("sanfew_salve_4_dose", 1) == "ok" then
                         sm.antipoisons = sm.antipoisons + 1
@@ -324,16 +330,21 @@ return {
                     return
                 end
                 sm.wait_ticks = sm.wait_ticks + 1
-                if sm.wait_ticks > 240 then
-                    -- Still record what we saw; row will FAIL if peak < 12.
+                if sm.wait_ticks > 600 then
                     arm_prayers()
                     set_state(STATE.KILL)
                     return
                 end
-                -- Stand still in attack range so the 20% poison splash can roll.
+                local mr, me = t.world.tile()
+                if mr == "ok" and (sm.wait_ticks % 7) == 0 then
+                    -- One-tile jitter to desync the style/poison RNG from a pure
+                    -- stand-and-tank path that seed1 can unluck through.
+                    local dx = ((sm.wait_ticks % 14) < 7) and 1 or -1
+                    t.player.walk_to(me.x + dx, me.z, 1)
+                    return
+                end
                 local ar = t.player.attack(sm.target_sym, 2, 1)
                 if ar == "ok" then sm.hits = sm.hits + 1 end
-                -- Eat only; never antipoison in this state (sustain() would).
                 local hr, hp = t.skill.read("hitpoints")
                 if hr == "ok" and hp.level ~= nil and hp.level < 40 then
                     t.player.eat("shark")
