@@ -886,7 +886,11 @@ QD.raid.sm_declare("verzik_web", {
     },
 })
 -- span: spin + 3 + 24 throws + 4 in flight; stay: ticks a tile may be held
-QD.RAID_PLAY_VERZIK_WEB = { span = 31, stay = 2 }
+-- span 36: the special starts two ticks before the spin, its throws run to
+-- spin + 26 and fly 4 -- 31 left the last throws landing on a seat already
+-- back at a standstill (svavzslow seat 2, a web on its tile at t796, bound
+-- through the tornado's touch)
+QD.RAID_PLAY_VERZIK_WEB = { span = 36, stay = 2 }
 
 -- The ring: the tiles one out from her body, clockwise from its north-west corner.
 function QD.raid._verzik_web_ring(b)
@@ -1621,7 +1625,11 @@ function QD.raid._verzik_tornado_guard(st, v, intent, ok)
     local want = intent.walk
     local tx, tz = mid.x, mid.z
     if want ~= nil and math.max(math.abs(want.x - me.x), math.abs(want.z - me.z)) <= 2 then tx, tz = want.x, want.z end
-    if not tor_reaches(tornadoes, me, mid, tx, tz) then return false end
+    -- (my own tile too: `mid` is the walk I last sent, and a walk not taken
+    -- -- bound in a web, or eaten by a press -- left me on a tile the check
+    -- never looked at: svavzslow seat 3, t808 one from its tornado and no
+    -- dodge, touched at t809)
+    if not tor_reaches(tornadoes, me, mid, tx, tz) and not tor_reaches(tornadoes, me, me, me.x, me.z) then return false end
     local gx, gz = (want and want.x) or me.x, (want and want.z) or me.z
     -- a ball holder's dodge goes toward the seat joining it, and a joining
     -- seat's toward its holder (_vzslow t858-865: the holder fled its
@@ -4967,6 +4975,7 @@ function QD.raid._verzik_phase_p3(c)
     end
     -- last, over whatever the state decided: never stand where a tornado steps
     if melee then QD.raid._verzik_tornado_guard(st, v, intent, okp) end
+    local walk_after_guard = intent.walk
     -- POWERED THROUGH, NOT WALKED INTO: an attack press out of reach walks me
     -- back to her by the server's path, and with my tornado within three that
     -- path was its tile -- the guard's dodge, then the press straight back
@@ -5027,6 +5036,24 @@ function QD.raid._verzik_phase_p3(c)
             end
             intent.walk = (bx ~= nil) and { x = bx, z = bz } or nil
             vz.web_detours = (vz.web_detours or 0) + 1
+        end
+    end
+    -- (trace: a tornado within 2 of me in the enrage -- the guard's walk, and
+    -- what survived the web filter)
+    if vz.enraged then
+        local dt = nil
+        for _, tr in ipairs(v.tornadoes or {}) do
+            local d = math.max(math.abs(tr.x - me.x), math.abs(tr.z - me.z))
+            if dt == nil or d < dt then dt = d end
+        end
+        if dt ~= nil and dt <= 2 then
+            st.notes = st.notes or {}
+            if #st.notes < 90 then
+                st.notes[#st.notes + 1] = "T" .. v.tick .. "@" .. me.x .. "," .. me.z .. "d" .. dt
+                    .. (walk_after_guard and (">" .. walk_after_guard.x .. "," .. walk_after_guard.z) or "")
+                    .. ((intent.walk ~= walk_after_guard) and ("|w" .. (intent.walk and (intent.walk.x .. "," .. intent.walk.z) or "nil")) or "")
+                    .. (intent.attack and "a" or "") .. (intent.eat and "e" or "") .. (intent.drink and "d" or "")
+            end
         end
     end
     if QD.raid._verzik_slow_hold(st, v) then
