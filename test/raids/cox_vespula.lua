@@ -28,9 +28,7 @@ local SAFE_CHEBYSHEV = 7
 -- Boss size 5: stay at least this Chebyshev from her SW tile.
 local BOSS_CLEAR = 6
 
--- Synq [1:27:13] / [1:29:03]: LAND → ARM → (TO_GAP if not in range) →
--- ATTACK_PORTAL ⇄ STEP_SAFE / RESTORE. Seed-1 landing is already portal
--- range 6, so ARM goes straight to ATTACK; TO_GAP is the fallback walk.
+-- LAND → ARM → ATTACK ⇄ STEP_SAFE / RESTORE; TO_GAP on reach refusal.
 local STATE = {
     LAND = "LAND",
     ARM_PRAYERS = "ARM_PRAYERS",
@@ -60,35 +58,27 @@ end
 
 -- Candidate safe tiles around the portal (cardinals + diagonals at range 7).
 -- Prefer tiles away from the boss footprint so walk_to is not blocked under her.
--- Seed-1 landing is NORTH of the portal; the south gap is behind the barrier
--- ("I can't reach that!"). Sort by distance to the player so TO_GAP walks the
--- near-side tile first.
-local function safe_candidates(portal, boss, me)
+local function safe_candidates(portal, boss)
+    -- North (+z) first: seed-1 landing is north of the portal; the south gap
+    -- is behind the barrier ("I can't reach that!").
     local c = {
         { portal.x, portal.z + SAFE_CHEBYSHEV },
-        { portal.x, portal.z - SAFE_CHEBYSHEV },
-        { portal.x - SAFE_CHEBYSHEV, portal.z },
-        { portal.x + SAFE_CHEBYSHEV, portal.z },
         { portal.x - SAFE_CHEBYSHEV, portal.z + SAFE_CHEBYSHEV },
         { portal.x + SAFE_CHEBYSHEV, portal.z + SAFE_CHEBYSHEV },
+        { portal.x - SAFE_CHEBYSHEV, portal.z },
+        { portal.x + SAFE_CHEBYSHEV, portal.z },
+        { portal.x, portal.z - SAFE_CHEBYSHEV },
         { portal.x - SAFE_CHEBYSHEV, portal.z - SAFE_CHEBYSHEV },
         { portal.x + SAFE_CHEBYSHEV, portal.z - SAFE_CHEBYSHEV },
     }
-    local out = c
-    if boss ~= nil then
-        out = {}
-        for i = 1, #c do
-            if chebyshev(c[i][1], c[i][2], boss.x, boss.z) >= BOSS_CLEAR then
-                out[#out + 1] = c[i]
-            end
+    if boss == nil then return c end
+    local out = {}
+    for i = 1, #c do
+        if chebyshev(c[i][1], c[i][2], boss.x, boss.z) >= BOSS_CLEAR then
+            out[#out + 1] = c[i]
         end
-        if #out == 0 then out = c end
     end
-    if me ~= nil and me.x ~= nil then
-        table.sort(out, function(a, b)
-            return chebyshev(a[1], a[2], me.x, me.z) < chebyshev(b[1], b[2], me.x, me.z)
-        end)
-    end
+    if #out == 0 then return c end
     return out
 end
 
@@ -150,7 +140,7 @@ return {
         local tr0, me0 = t.world.tile()
         t.check("tile.landing", tr0 == "ok" and me0 ~= nil,
             tr0 == "ok" and (tostring(me0.x) .. "," .. tostring(me0.z)) or tostring(tr0))
-        local cands = safe_candidates(prow, brow, me0)
+        local cands = safe_candidates(prow, brow)
         local sm = {
             state = STATE.LAND,
             ticks = 0,
@@ -195,11 +185,14 @@ return {
             if fr == "ok" and fsym == "raids_vespula_enraged" then
                 sm.enrage_seen = true
             end
-            -- Do not reshuffle sm.safe_* here: sample_world runs every tick and
-            -- re-sorting by player position made TO_GAP chase a moving target.
             if fr == "ok" and frow ~= nil then
-                sm.boss_x = frow.x
-                sm.boss_z = frow.z
+                local pr, portal = t.npc.nearest(PORTAL, 40)
+                if pr == "ok" and portal ~= nil then
+                    cands = safe_candidates(portal, frow)
+                    if sm.cand_i > #cands then sm.cand_i = 1 end
+                    sm.safe_x = cands[sm.cand_i][1]
+                    sm.safe_z = cands[sm.cand_i][2]
+                end
             end
             for i = 1, #GRUBS do
                 local gr = t.npc.nearest(GRUBS[i], 40)
@@ -254,6 +247,8 @@ return {
             if style_r ~= "ok" then
                 return style_r, "ranged style: " .. tostring(style_d)
             end
+            -- Leave the prayer IF so walk/attack scene ops are not fighting it.
+            t.ui.tab("combat")
             return "ok", "redemption+ranged style"
         end
 
@@ -263,13 +258,7 @@ return {
             return portal
         end
 
-        -- Synq safe / gap tile: outside her melee envelope (Chebyshev >= 7),
-        -- adjacent to the barrier gap so a ranged Attack can path to the portal.
-        local function on_gap(me)
-            if me == nil or me.x == nil then return false end
-            return chebyshev(me.x, me.z, sm.safe_x, sm.safe_z) <= 1
-        end
-
+        -- Synq safe: outside her melee envelope / portal-hit gap (Chebyshev).
         local function on_safe(me)
             if me == nil or me.x == nil then return false end
             local portal = portal_row()
@@ -277,45 +266,14 @@ return {
             return chebyshev(me.x, me.z, portal.x, portal.z) >= SAFE_CHEBYSHEV
         end
 
-        -- One-tile step toward (tx,tz). Absolute walk_to across the room was a
-        -- no-op under the gate; single-tile steps path through the barrier gap.
-        local function step_toward(tx, tz)
+        -- Absolute long walks from seed-1 landing were a no-op in gate run3.
+        -- Step one tile away from the portal along the spawn vector instead.
+        local function step_safe_once()
             local tr, me = t.world.tile()
             if tr ~= "ok" or me == nil then return "no_row", "no tile" end
-            local dx = tx - me.x
-            local dz = tz - me.z
-            local adx, adz = dx, dz
-            if adx < 0 then adx = -adx end
-            if adz < 0 then adz = -adz end
-            if adx == 0 and adz == 0 then return "ok", "arrived" end
-            local sx, sz = 0, 0
-            if adx >= adz then
-                if dx > 0 then sx = 1 else sx = -1 end
-            else
-                if dz > 0 then sz = 1 else sz = -1 end
-            end
-            local wr, wd = t.player.walk_to(me.x + sx, me.z + sz, 4)
-            if wr == "ok" then return wr, wd end
-            if sx ~= 0 and adz > 0 then
-                sx, sz = 0, (dz > 0 and 1 or -1)
-            elseif sz ~= 0 and adx > 0 then
-                sx, sz = (dx > 0 and 1 or -1), 0
-            else
-                return wr, wd
-            end
-            return t.player.walk_to(me.x + sx, me.z + sz, 4)
-        end
-
-        local function step_safe_once()
             local portal = portal_row()
             if portal == nil then return "ok", "portal gone" end
-            local tr, me = t.world.tile()
-            if tr ~= "ok" or me == nil then return "no_row", "no tile" end
             if on_safe(me) then return "ok", "already safe" end
-            -- Prefer the authored gap tile; else step away from the portal.
-            if not on_gap(me) then
-                return step_toward(sm.safe_x, sm.safe_z)
-            end
             local rdx = me.x - portal.x
             local rdz = me.z - portal.z
             local adx, adz = rdx, rdz
@@ -327,24 +285,14 @@ return {
             else
                 if rdz >= 0 then sz = 1 else sz = -1 end
             end
-            return t.player.walk_to(me.x + sx, me.z + sz, 4)
-        end
-
-        local function rotate_gap()
-            local tr_me, me_now = t.world.tile()
-            local por, portal = t.npc.nearest(PORTAL, 40)
-            local fr, frow = find_boss(t)
-            if por == "ok" and portal ~= nil then
-                local me_arg = (tr_me == "ok") and me_now or nil
-                local boss_arg = (fr == "ok") and frow or nil
-                cands = safe_candidates(portal, boss_arg, me_arg)
+            local wr, wd = t.player.walk_to(me.x + sx, me.z + sz, 4)
+            if wr == "ok" then return wr, wd end
+            if sx ~= 0 then
+                sx, sz = 0, (rdz >= 0 and 1 or -1)
+            else
+                sx, sz = (rdx >= 0 and 1 or -1), 0
             end
-            sm.cand_i = sm.cand_i + 1
-            if sm.cand_i > #cands then sm.cand_i = 1 end
-            sm.safe_x = cands[sm.cand_i][1]
-            sm.safe_z = cands[sm.cand_i][2]
-            sm.stuck = 0
-            t.ticklog.mark("rotate gap to " .. sm.safe_x .. "," .. sm.safe_z)
+            return t.player.walk_to(me.x + sx, me.z + sz, 4)
         end
 
         local function decide()
@@ -379,50 +327,31 @@ return {
                     set_state(STATE.DONE)
                     return
                 end
-                -- Synq [1:27:13]: attack immediately. Reach refusals go TO_GAP.
+                t.ticklog.mark("armed redemption")
+                -- Seed-1 landing is already portal range 6. Synq [1:27:13]:
+                -- attack immediately to enrage, then click the safe tile.
                 set_state(STATE.ATTACK_PORTAL)
                 return
             end
 
             if sm.state == STATE.TO_GAP then
                 local tr, me = t.world.tile()
-                if tr ~= "ok" or me == nil then
-                    return
-                end
-                if on_gap(me) or on_safe(me) then
-                    t.ticklog.mark("on gap tile " .. me.x .. "," .. me.z)
+                if tr == "ok" and on_safe(me) then
+                    t.ticklog.mark("on gap tile")
                     set_state(STATE.ATTACK_PORTAL)
                     return
                 end
-                -- walk_to auto-deadline hung under soft3d frame-skip. One
-                -- adjacent step_tick only (returns in a few server ticks).
-                local dx = sm.safe_x - me.x
-                local dz = sm.safe_z - me.z
-                local adx, adz = dx, dz
-                if adx < 0 then adx = -adx end
-                if adz < 0 then adz = -adz end
-                local nx, nz = me.x, me.z
-                if adx >= adz and adx > 0 then
-                    if dx > 0 then nx = me.x + 1 else nx = me.x - 1 end
-                elseif adz > 0 then
-                    if dz > 0 then nz = me.z + 1 else nz = me.z - 1 end
+                -- Walk toward the near-side safe tile one step at a time.
+                local wr = t.player.walk_to(sm.safe_x, sm.safe_z, 8)
+                if wr ~= "ok" then
+                    step_safe_once()
                 end
-                local sr, sd = t.player.step_tick(nx, nz, 3)
-                if sr ~= "ok" then
-                    t.note("gap step " .. tostring(sr) .. " " .. tostring(sd))
-                    nx, nz = me.x, me.z
-                    if adz >= adx and adz > 0 then
-                        if dx > 0 then nx = me.x + 1 elseif dx < 0 then nx = me.x - 1 end
-                    elseif adx > 0 then
-                        if dz > 0 then nz = me.z + 1 elseif dz < 0 then nz = me.z - 1 end
-                    end
-                    if nx ~= me.x or nz ~= me.z then
-                        sr, sd = t.player.step_tick(nx, nz, 3)
-                        t.note("gap step2 " .. tostring(sr) .. " " .. tostring(sd))
-                    end
-                end
-                if sm.stuck >= 6 then
-                    rotate_gap()
+                if sm.stuck >= 10 then
+                    sm.cand_i = sm.cand_i + 1
+                    if sm.cand_i > #cands then sm.cand_i = 1 end
+                    sm.safe_x = cands[sm.cand_i][1]
+                    sm.safe_z = cands[sm.cand_i][2]
+                    sm.stuck = 0
                 end
                 return
             end
@@ -446,8 +375,7 @@ return {
                     set_state(STATE.RESTORE)
                     return
                 end
-                -- Do not re-arm prayers every swing: t.ui.tab/prayer.set after the
-                -- shot from prayer.redemption_arm hung the soft3d runner.
+                arm_redemption()
                 local ar, ad = t.player.attack(PORTAL, 2, 2)
                 if ar == "ok" then
                     sm.portal_hits = sm.portal_hits + 1
@@ -464,7 +392,7 @@ return {
                     set_state(STATE.TO_GAP)
                     return
                 end
-                if sm.portal_hits == 0 and sm.ticks > 80 then
+                if sm.portal_hits == 0 and sm.ticks > 120 then
                     t.check("portal.attack", false, tostring(ar) .. " " .. tostring(ad))
                     set_state(STATE.DONE)
                     return
@@ -483,22 +411,9 @@ return {
                     end
                     return
                 end
-                local tr2, me2 = t.world.tile()
-                if tr2 == "ok" and me2 ~= nil then
-                    local portal = portal_row()
-                    if portal ~= nil then
-                        local rdx = me2.x - portal.x
-                        local rdz = me2.z - portal.z
-                        local sx, sz = 0, 0
-                        if (rdx < 0 and -rdx or rdx) >= (rdz < 0 and -rdz or rdz) then
-                            sx = (rdx >= 0) and 1 or -1
-                        else
-                            sz = (rdz >= 0) and 1 or -1
-                        end
-                        t.player.step_tick(me2.x + sx, me2.z + sz, 3)
-                    end
-                end
-                if sm.stuck >= 3 then
+                step_safe_once()
+                -- Keep DPS up: after a short step window, attack again.
+                if sm.stuck >= 4 then
                     set_state(STATE.ATTACK_PORTAL)
                 end
                 return
