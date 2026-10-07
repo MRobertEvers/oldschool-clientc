@@ -181,18 +181,28 @@ local function wield(t, item)
     t.ticks(1)
 end
 
-local function paint_style(t, style, crab_sym)
+local function paint_style(t, style, crab)
+    local sym = type(crab) == "table" and crab.symbol or crab
+    local row = type(crab) == "table" and crab.row or nil
+    local opts = { quick = true }
+    if row ~= nil then opts.slot = row.slot end
     if style == "mage" then
+        -- Autocast attack with a wand often never sets damagetype=magic here;
+        -- cast a wave so player_hit_npc_prepare paints blue.
         wield(t, "kodai_wand")
-        t.player.attack(crab_sym, 2, 2, { quick = true })
+        local cr = t.player.cast("water_wave", sym, 2, 2, opts)
+        if cr ~= "ok" then
+            t.player.cast("fire_wave", sym, 2, 2, opts)
+        end
     elseif style == "range" then
+        wield(t, "dragon_arrow")
         wield(t, "twisted_bow")
-        t.player.attack(crab_sym, 2, 2, { quick = true })
+        t.player.attack(sym, 2, 3, opts)
     elseif style == "melee" then
         wield(t, "dragon_warhammer")
-        t.player.attack(crab_sym, 2, 2, { quick = true })
+        t.player.attack(sym, 2, 3, opts)
     end
-    t.ticks(2)
+    t.ticks(3)
 end
 
 -- Smash is op3 ("Smash"), not Attack. t.player.attack refuses any row that
@@ -257,8 +267,8 @@ return {
         "::give air_rune 400",
         "::give blood_rune 80",
         "::give hammer",
-        "::give shark 20",
         "::give br_4dose2restore 4",
+        "::give shark 18",
     },
 
     run = function(t)
@@ -384,8 +394,13 @@ return {
             t.player.attack(crab.symbol, 2, 1, { quick = true, slot = slot })
             t.ticks(2)
             local guard = 0
-            while guard < 50 do
+            while guard < 35 do
                 sustain(t)
+                -- Prefer safe tile between pulls so the beam column is free.
+                if guard % 4 == 3 then
+                    t.player.walk_to(sx, sz, 10)
+                    t.ticks(2)
+                end
                 local exact = crab_at(t, wx, wz, 0)
                 if exact ~= nil then
                     local ok, detail = smash(t, exact)
@@ -393,21 +408,30 @@ return {
                         return false, "smash failed: " .. tostring(detail)
                     end
                     t.player.walk_to(sx, sz, 20)
-                    -- Confirm freeze held the crab on the mark.
                     t.ticks(2)
                     if crab_at(t, wx, wz, 0) == nil then
                         return false, "crab left mark after smash"
                     end
                     t.ticks(10)
                     if style ~= nil and style ~= "melee" then
+                        local want = (style == "mage") and "raids_lasercrabs_crab_blue"
+                            or "raids_lasercrabs_crab_green"
+                        for _ = 1, 4 do
+                            local live = pack_slot(exact.row.slot)
+                            if live == nil then break end
+                            if live.symbol == want then break end
+                            paint_style(t, style, { symbol = live.symbol, row = live })
+                            t.ticks(2)
+                        end
                         local live = pack_slot(exact.row.slot)
-                        paint_style(t, style, (live and live.symbol) or exact.symbol)
+                        if live == nil or live.symbol ~= want then
+                            return false, "paint failed want=" .. want
+                                .. " got=" .. tostring(live and live.symbol)
+                        end
                     end
                     t.player.walk_to(sx, sz, 20)
                     return true, exact.symbol
                 end
-                -- Pull from the east through the bounce: walk onto the mark
-                -- then back west so a chasing crab steps onto it.
                 local live = pack_slot(slot) or (nearest_crab(t) and nearest_crab(t).row)
                 if live ~= nil then
                     slot = live.slot
@@ -611,17 +635,14 @@ return {
                         -- Lost the mark; stop waiting and re-seat.
                         break
                     end
-                    if style ~= nil and wait > 0 and wait % 6 == 0 then
+                    if style ~= nil and wait > 0 and wait % 5 == 0 then
+                        t.player.walk_to(sx, sz, 10)
                         if style ~= "melee" then
-                            paint_style(t, style, seated.symbol)
+                            paint_style(t, style, seated)
                         else
-                            -- Melee/cyan wants red; smash refreshes stun+red.
                             smash(t, seated)
                         end
                         t.player.walk_to(sx, sz, 10)
-                    elseif style == nil and seated.symbol ~= "raids_lasercrabs_crab_grey" then
-                        -- Wait out smash paint; never re-smash white.
-                        t.ticks(1)
                     end
                     t.ticks(1)
                     wait = wait + 1
