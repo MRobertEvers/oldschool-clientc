@@ -435,6 +435,35 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   ::tobkit, and Maiden again if seam54 leaves it red, width 3, same method; then the Normal relay
   once on the corrected plans, carrying the slayer_boots item; then Hard, ToA, CoX.
 
+---
+## State on 2026-10-07 02:50 (RESUME HERE): Nylocas GREEN, Maiden the last red room, then the relay
+
+- Two end-to-end OWNER agents replaced the seam passes on 2026-10-06 18:35 (owner's direction: one agent
+  owns a room start to finish, no closers, no handoffs): progress files build/seam_state/owner_tob_normal/
+  progress.md (Maiden + relay) and build/seam_state/owner_nylocas/progress.md (Nylocas). Every edit is
+  measured against the Blert reference (sources/blert_api/reference/<room>_normal_3.json and the per-wave
+  <room>_normal_3.script.json), with `raid_report.py <run> --waves <script.json>` (the wave-aligned diff).
+- Normal trio: Bloat, Verzik, Xarpus, Sotetseg GREEN (re-verified on the new library). NYLOCAS GREEN
+  b59ebc45d (5 of 5, party_repeat AGREE, Entry solo 5 of 5; PLAY_NOTES 'Nylocas, Normal trio -- GREEN').
+  MAIDEN red: c7136aa14 eight names 213-266, mean 242, 0 deaths, cap 204; 70-wave kills 3.5 of 6 (ref 4-5),
+  50/30 waves 1.0 / 0.25 (ref 4 / -), leak heal 1038-1582 (ref 223). The owner continues on the 50/30 waves.
+- Owner's rules added this day: model every role as an explicit STATE MACHINE (named states, every event
+  handled in every state, forward and backward transitions, handlers subscribed per state, loop contract =
+  events + state -> intents, executor reconciles per channel); NOBODY IDLES (tech.never_idle row); copy the
+  Blert raiders, never invent a cap (the audit tables in both progress files); only the party leader starts
+  a room (content 0b6dffc89 + library aa9488741); fix player gaps at the source.
+- Content fixed from sources this day (CONTENT_BUGS.md rows): Maiden storm rolled 0..max; crab path to her
+  SE tile + first step; leak heal row; scythe Chop = slash; powered staves take the gear's magic damage;
+  refreeze immunity (engine); attack range from content (engine); Dinh's bulwark 11x11 Shield Bash;
+  Normal blood-spawn trail 5-13; leader-only barrier.
+- Library (raid_play.lua / raid.lua): triggers + watches (st.on/st.watch), never-idle fill-in,
+  cross_together (leader answers, members press after, quick menu click), t.party.publish_target /
+  others_on, TORIRS_SCRIPT_DIR for private script copies.
+- NEXT: Maiden green (the owner_tob_normal agent) -> the relay _play_normal on five names with every room's
+  winning setup (the Nylocas owner's relay snippet at build/seam_state/owner_nylocas/relay_nylocas_snippet.lua)
+  -> party_repeat -> check-quest-verbs + conformance -> PR to v3. The green rooms are NOT to be rewritten
+  (owner, 2026-10-06 20:20 and 23:00); Verzik's P3 ball pass / assertions are a later item.
+
 ## Next, in order
 
 1. Seam22 lands (above); then relaunch the Normal pass with the same args (its rejected rooms get the findings); re-launch for rejected or sent-back rooms until kept. (Seam21 landed.) SEAM21 was on
