@@ -393,9 +393,10 @@ return {
         end
 
         local function safe_tile(wx, wz)
-            -- West of the CCW focus column (beam lane x=wx). East safe tiles
-            -- still take splash when the ray turns and walk into settles.
-            return wx - 3, wz + 1
+            -- East of the bounce tile, off the focus column. West safes
+            -- pulled crabs off the mark (run28: never seated). Stay one
+            -- more tile east than the old +2 to cut post-bounce splash.
+            return wx + 3, wz + 2
         end
 
         local function seat_crab(tile, style, flag)
@@ -504,9 +505,10 @@ return {
                                     .. " last=" .. last_paint
                             else
                                 -- White beam needs grey; smash paints red for
-                                -- ^cox_crab_paint_ticks. Wait out the red.
+                                -- ^cox_crab_paint_ticks (28). Wait out the red
+                                -- (run28: 12-tick wait left crabs red forever).
                                 local grey = false
-                                for _ = 1, 12 do
+                                for _ = 1, 36 do
                                     t.ticks(1)
                                     local live = crab_at(t, wx, wz, 0)
                                     if live == nil then break end
