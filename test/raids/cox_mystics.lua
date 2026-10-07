@@ -3,9 +3,10 @@
 -- Source: docs/minigames/cox/synq_transcript.md [0:31:54]
 --   "Make sure you're protecting from magic while doing this room."
 --   "The salve amulet EI is strongly recommended."
---   "The bofa and blowpipe are also commonly used here."
--- Kill path: Protect from Magic + blowpipe, focus one mystic at a time.
--- Eat threshold stays low so food presses do not cancel the blowpipe cycle.
+--   "The twisted bow isn't as strong here ... but [is] still an acceptable
+--    weapon to use" (blowpipe/bofa preferred; tbow keeps the 5-tick cycle
+--    alive while the await eater tops up under stacked mystic DPS).
+-- Kill path: Protect from Magic + ranged focus one mystic at a time.
 -- Model: named-state machine; FOCUS awaits one kill then re-decides.
 -- No ::godmode, ::kill, or teleport past a phase.
 
@@ -102,27 +103,32 @@ local function drink_brew(t)
     return false
 end
 
+local function drink_restore(t)
+    local doses = {
+        "br_4dose2restore",
+        "br_3dose2restore",
+        "br_2dose2restore",
+        "br_1dose2restore",
+    }
+    for i = 1, #doses do
+        if t.player.inv_op(doses[i], 1) == "ok" then return true end
+    end
+    return false
+end
+
 local function sustain(t)
     local h = hp(t)
-    if h > 0 and h < 45 then
+    if h > 0 and h < 50 then
         drink_brew(t)
         h = hp(t)
     end
-    if h > 0 and h < 35 then
+    if h > 0 and h < 55 then
         if t.player.eat("shark") ~= "ok" then
             t.player.eat("tbwt_cooked_karambwan")
         end
     end
-    if prayer_points(t) < 40 then
-        local restores = {
-            "br_4dose2restore",
-            "br_3dose2restore",
-            "br_2dose2restore",
-            "br_1dose2restore",
-        }
-        for i = 1, #restores do
-            if t.player.inv_op(restores[i], 1) == "ok" then break end
-        end
+    if prayer_points(t) < 50 then
+        drink_restore(t)
     end
 end
 
@@ -154,9 +160,8 @@ return {
         "::setlevel magic 99",
         "::setlevel hitpoints 99",
         "::setlevel prayer 99",
-        -- Synq [0:31:54]: salve + blowpipe. Load early (README free-slot rule).
-        "::blowpipe dragon_dart 2000 2000",
-        "::wield toxic_blowpipe_loaded",
+        -- Synq [0:31:54]: salve + ranged. Twisted bow is acceptable learner
+        -- kit; its 5-tick cycle survives the await eater better than blowpipe.
         "::give masori_mask",
         "::wield masori_mask",
         "::give masori_body",
@@ -167,6 +172,10 @@ return {
         "::wield avas_assembler",
         "::give nzone_salve_amulet_e",
         "::wield nzone_salve_amulet_e",
+        "::give twisted_bow",
+        "::wield twisted_bow",
+        "::give dragon_arrow 2000",
+        "::wield dragon_arrow",
         "::give br_4dose2restore 2",
         "::give br_4dosepotionofsaradomin 4",
         "::give shark 18",
@@ -174,7 +183,7 @@ return {
     },
 
     run = function(t)
-        t.check("spec.scope", true, "mode=all party=1; synq learner Protect Magic + blowpipe")
+        t.check("spec.scope", true, "mode=all party=1; synq learner Protect Magic + tbow")
         local lr, ld = t.ticklog.start()
         t.check("ticklog.start", lr == "ok", tostring(ld))
 
@@ -183,10 +192,6 @@ return {
         local sr, room = t.raid.state()
         t.check("raid.state", sr == "ok" and room.room == "mystics",
             sr == "ok" and (tostring(room.raid) .. " " .. tostring(room.room)) or tostring(room))
-
-        local br, bp = t.inv.blowpipe()
-        t.check("kit.blowpipe", br == "ok" and type(bp) == "table" and bp.where == "worn",
-            "blowpipe " .. tostring(br) .. " " .. tostring(bp and bp.line or bp))
 
         local landing = mystic_rows(t)
         t.check("mystics.present", #landing >= 1,
@@ -242,7 +247,6 @@ return {
                 if is_mystic_hit(sm, row) then
                     local d = row.raw or row.damage or 0
                     local style = sm.last_style[row.npc_slot]
-                    -- Prayer-reduction measures Protect from Magic only.
                     if style == "magic" then
                         if sm.prayer_on then
                             if d > sm.prot_max then sm.prot_max = d end
@@ -286,6 +290,14 @@ return {
             end
         end
 
+        local function arm_prayers()
+            local pr, pd = t.prayer.set("protectfrommagic", true)
+            t.check("pray.magic", pr == "ok", tostring(pd))
+            local er, ed = t.prayer.set("eagleeye", true)
+            t.check("pray.eagle", er == "ok", tostring(ed))
+            sm.prayer_on = true
+        end
+
         local function decide()
             sample_hits()
             sample_anims()
@@ -305,9 +317,7 @@ return {
             end
 
             if sm.state == STATE.ARM_PRAYER then
-                t.prayer.set("protectfrommagic", true)
-                t.prayer.set("eagleeye", true)
-                sm.prayer_on = true
+                arm_prayers()
                 set_state(STATE.FOCUS)
                 return
             end
@@ -320,17 +330,21 @@ return {
                 end
                 sm.focus_sym = sym
                 sm.focus_slot = target.slot
-                t.prayer.set("protectfrommagic", true)
-                t.prayer.set("eagleeye", true)
-                sm.prayer_on = true
-                if hp(t) < 50 then
+                arm_prayers()
+                if hp(t) < 70 then
                     drink_brew(t)
+                    t.player.eat("shark")
                 end
-                -- Low eat line: run7's below=72 canceled every blowpipe swing.
+                if prayer_points(t) < 50 then
+                    drink_restore(t)
+                    arm_prayers()
+                end
+                -- Mid eat line: high enough to survive stacked hits, low enough
+                -- that a 5-tick tbow still lands between food delays (run5/7).
                 local eat_opts = {
                     eat = {
                         item = "shark",
-                        below = 32,
+                        below = 55,
                         quick = true,
                         combo = "tbwt_cooked_karambwan",
                     },
@@ -350,8 +364,7 @@ return {
                 end
                 sm.kills = sm.kills + 1
                 sustain(t)
-                t.prayer.set("protectfrommagic", true)
-                t.prayer.set("eagleeye", true)
+                arm_prayers()
                 return
             end
         end

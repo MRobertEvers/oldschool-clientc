@@ -13,7 +13,8 @@ mystic at a time until the room clears. Corner safespot optional.
 ## Implemented
 
 - Test SM: `LAND → ARM_PRAYER → FOCUS → DONE` (await_dead per focus kill)
-- Kit: loaded toxic blowpipe + salve + masori; shark + karambwan combo eat + brews
+- Kit: loaded toxic blowpipe + salve + masori; shark + karambwan combo; eat below 32
+  (higher thresholds canceled blowpipe DPS)
 - Prayer-reduction samples magic-style hits only (melee under Protect Magic ignored)
 - Spec table: all six kill-path rows grade C
 - Content: existing mystic procs in `cox_minions.rs2` (no shaman edits)
