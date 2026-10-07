@@ -282,6 +282,8 @@ QD.raid._play_plan("tob_nylocas", {
     keep_weight = 20,
     keep_low = 0.4,
     keep_urgent = 25,
+    -- owner_nylocas: A LOW SUPPORT'S CHEWER IS EVERY SEAT'S (see the pick)
+    low_any = true,
     -- raid seam51: A SPLIT DOES NOT FLICKER.  The flicker is a wave spawn's
     -- (NR :17 "FLICKER from wave 16 on: spawn as style a, switch to b five
     -- ticks after spawning"); a big's split is armed with no flicker chain
@@ -306,6 +308,11 @@ QD.raid._play_plan("tob_nylocas", {
     -- the cleanup is read off the screen: this many waves seen and none for
     -- `cleanup_quiet` ticks (a seat sees 29-31 of the 31: it2 p2 saw 29)
     cleanup_waves = 28, cleanup_quiet = 14,
+    -- owner_nylocas: the blast window in the cleanup (see IN THE CLEANUP THE
+    -- LAST GREYS ARE KILLED)
+    cleanup_blast = 2,
+    -- owner_nylocas: THE SCYTHE ON A GREY STACK (see the pick)
+    grey_stack = 12,
     -- raid seam52 play_tob_nylocas_last: THE STANDS.  Where Blert's trios
     -- stand in each wave, per role: the most common tile of the wave's span
     -- (reference/nylocas_normal_3.json positions "<role>|wave<N>", offsets
@@ -358,7 +365,7 @@ QD.raid._play_plan("tob_nylocas", {
     -- (_play_nylocas t319-331: 8344 at 26,21, then 8342 at 28,19, then 8342
     -- at 37,21, each pressed by p0, p1 and p2 within two ticks) while a green
     -- split chewed the south-east support from t308 to t342.
-    cleanup_order = { age = 0.5, expire = 10, pass = 30, side = 15, north_z = 24, north_role = "mage" },
+    cleanup_order = { age = 0.5, expire = 10, pass = 30, side = 15, north_z = 24, north_role = "mage", rate = 0.71 },
     -- raid seam55 play_tob_nylocas_stands_like_blert: THE STYLE AT HER, BY
     -- NAME.  The style is one index (varp43) carried across every swap, and
     -- the harness sets it by name for the waves (Rapid, Lash).  On that index
@@ -382,6 +389,21 @@ QD.raid._play_plan("tob_nylocas", {
     -- { scythe_of_vitur = "Reap", twisted_bow = "Rapid", toxic_blowpipe_loaded = "Rapid" }
     boss_styles = nil,
     boss_style_give_up = 6,
+    -- owner_nylocas: HER FORMS IN THEIR OWN GEAR (the harness's kit; Blert's
+    -- recorders on her, equipmentDeltas, 27 rooms: on her melee form every
+    -- role wears torva / rancour / radiant oathplate / ferocious gloves, on
+    -- her ranged form every role the void range set, on her magic form the
+    -- mage its occult and the others the void range set).  The set of her
+    -- form goes on in the swap's own block, before the weapon and its press;
+    -- an item already worn (none of it in the backpack) is not pressed.
+    boss_gear = {
+        melee = { "torva_helm", "amulet_of_rancour", "radiant_oathplate_chest", "radiant_oathplate_legs", "ferocious_gloves" },
+        ranged = {
+            mage = { "game_pest_archer_helm", "occult_necklace", "elite_void_knight_top", "elite_void_knight_robes", "pest_void_knight_gloves" },
+            ranger = { "game_pest_archer_helm", "necklace_of_rupture", "elite_void_knight_top", "elite_void_knight_robes", "pest_void_knight_gloves" },
+            melee = { "game_pest_archer_helm", "necklace_of_rupture", "elite_void_knight_top", "elite_void_knight_robes", "pest_void_knight_gloves" },
+        },
+    },
 })
 
 -- raid seam55: THE STYLE AT HER (P.boss_styles).  Called once a tick from
@@ -595,7 +617,7 @@ end
 -- press_now, or nil) is sent INSIDE the block right after the equip, and only
 -- when the equip left (`pending`): the weapon click and the copy click land on
 -- one server tick, in that order (see THE PRESS in the decide).
-function QD.raid._play_nylocas_wear(st, v, style, pray, stop, then_press)
+function QD.raid._play_nylocas_wear(st, v, style, pray, stop, then_press, gear)
     local ny = st.ny
     local L = style ~= nil and ny.loadout[style] or nil
     local r, d = QD.together(function()
@@ -603,6 +625,12 @@ function QD.raid._play_nylocas_wear(st, v, style, pray, stop, then_press)
         -- raid seam32: the step that ends the old engagement goes out with
         -- the swap, before it (P.swap_stop; see the caller)
         if stop ~= nil then QD.player.walk_to(stop.x, stop.z, 1) end
+        -- owner_nylocas: her form's gear first (P.boss_gear)
+        for _, item in ipairs(gear or {}) do
+            QD.player.equip(item)
+            ny.gear_equips = (ny.gear_equips or 0) + 1
+            st.inputs[v.tick] = (st.inputs[v.tick] or 0) + 1
+        end
         if L ~= nil then
             local er = QD.player.equip(L.item)
             if then_press ~= nil and er == "pending" then
@@ -826,6 +854,7 @@ function QD.raid._play_nylocas_decide(st, v)
     -- raid seam52: the cleanup, read once a tick (THE CLEANUP'S ORDER and the
     -- own-colour rule below share it)
     ny.cleanup = P.cleanup_free and ny.waves >= P.cleanup_waves and v.tick - (ny.last_wave_tick or v.tick) >= P.cleanup_quiet
+    ny.in_cleanup = ny.cleanup
     local home = { x = O.x + home_tile[1], z = O.z + home_tile[2] }
     local vas = v.vas
 
@@ -1005,10 +1034,20 @@ function QD.raid._play_nylocas_decide(st, v)
     -- THE BLAST.  A copy explodes 51 ticks after it appears (52 a big), within
     -- two tiles of its body (NT lifetime_small/big; E :161).  Danger runs from
     -- six ticks before to one after; a raider inside its reach leaves on sight.
+    -- owner_nylocas: IN THE CLEANUP THE LAST GREYS ARE KILLED.  Six ticks of
+    -- danger before a pop kept every seat off a clump of greys once its
+    -- oldest was six from its pop, and the next aged into the window before
+    -- that one went: the traced svcplaynyloc cleanup ended on three greys
+    -- beside the north-west support popping at 52, every seat's pick none
+    -- with why=blast for the last nine ticks (t441-450), the room 51 ticks
+    -- after wave 31 against Blert's 32.  Blert's trios kill small greys in
+    -- their last six ticks too (30 at ages 45-50 in the 27 rooms).  In the
+    -- cleanup the danger is the last `cleanup_blast` ticks only.
+    local blast_lead = (ny.in_cleanup and P.cleanup_blast ~= nil) and P.cleanup_blast or 6
     local danger = {}
     for _, n in ipairs(v.nylos) do
         local ea = n.big and P.explode_age_big or P.explode_age
-        if n.age >= ea - 6 and n.age <= ea + 1 then danger[#danger + 1] = n end
+        if n.age >= ea - blast_lead and n.age <= ea + 1 then danger[#danger + 1] = n end
     end
     local function in_support(x, z)
         for _, s in ipairs(P.supports) do
@@ -1124,9 +1163,22 @@ function QD.raid._play_nylocas_decide(st, v)
         end
     else
         -- the support each chewer bites, and how much of it is left
+        -- owner_nylocas: FOOTPRINT TO FOOTPRINT.  The second test measured
+        -- from the support's south-west TILE to the copy, so only a copy beside
+        -- that corner read as a chewer: a small at 28,19 or 26,21 beside the
+        -- 3x3 support at 25,18 (its east and north faces) and every big on
+        -- those faces were no support's (the traced svbplaynyloc run: a big
+        -- green and a big grey beside 25,18 at 28,19 from t344, the big green
+        -- popping there at 54 ticks unpressed while the support fell), so the
+        -- keep rules (keep_all, keep_low, keep_urgent) never weighed them.
+        -- A copy chews when its footprint touches the support's 3x3.
         local function support_of(n)
             for _, sp in ipairs(v.supports) do
-                if sp.alive and dist(n.x, n.z, sp.x, sp.z, 3) <= 1 and dist(sp.x, sp.z, n.x, n.z, n.size) <= 1 then return sp end
+                if sp.alive then
+                    local gx = math.max(sp.x - (n.x + n.size - 1), n.x - (sp.x + 2), 0)
+                    local gz = math.max(sp.z - (n.z + n.size - 1), n.z - (sp.z + 2), 0)
+                    if math.max(gx, gz) == 1 then return sp end
+                end
             end
             return nil
         end
@@ -1180,14 +1232,14 @@ function QD.raid._play_nylocas_decide(st, v)
                 elseif not (ny.blocked == nil or (ny.blocked[n.slot] or -1) < v.tick) then why = "block"
                 elseif not n.settled then why = "young"
                 elseif n.style == "melee" and not on_floor then why = "lane"
-                elseif n.style == "melee" and not (n.age < ea - 6 and not unsafe(n.x, n.z, 1)) then why = "blast"
+                elseif n.style == "melee" and not (n.age < ea - blast_lead and not unsafe(n.x, n.z, blast_lead < 6 and 0 or 1)) then why = "blast"
                 elseif n.style ~= "melee" and not (d <= ny.reach[n.style] + 6) then why = "far" end
                 if why ~= nil then ny.why = ny.why or {} ny.why[why] = (ny.why[why] or 0) + 1 end
             end
             if ok and n.style == "melee" then
                 -- "cannot melee them until they reach said platform" (E :160),
                 -- and never into a blast
-                ok = on_floor and n.age < ea - 6 and not unsafe(n.x, n.z, 1)
+                ok = on_floor and n.age < ea - blast_lead and not unsafe(n.x, n.z, blast_lead < 6 and 0 or 1)
             elseif ok then
                 -- raid seam32: a seat goes further for its own colour (the
                 -- trio guide's raiders walk to the lane their colour comes from:
@@ -1217,6 +1269,44 @@ function QD.raid._play_nylocas_decide(st, v)
                 -- (s32ny8 p2: the blowpipe seat cast Ice Rush 16 times in the
                 -- waves, five ticks each, 80 ticks that were 40 blowpipe darts)
                 local key = QD.raid._play_nylocas_key(ny, n.style, n.big, false)
+                -- owner_nylocas: THE SCYTHE ON A GREY STACK.  "Scythe the grey
+                -- doubles" (trio guide :232-239, :415; PLAY_NOTES seam35m's
+                -- next lever): the scythe's swing lands on the target's own
+                -- tile and the two beside it, a copy counted when its tile is
+                -- one of them, at 100 / 50 / 25 percent of its max (content
+                -- scythe_of_vitur.rs2, NR ScytheOfViturCombat :139-159), so a
+                -- stack of small greys on one tile is two or three kills a
+                -- swing (8 hitpoints each in a trio).  The cleanups of the
+                -- blast5 survey ended on two or three greys stacked beside the
+                -- north-west support (28,30), whipped one at a time.  A grey
+                -- with another small grey on its tile and no other colour
+                -- within a tile (the arc would null the raider on it) is
+                -- taken with the scythe, worth `grey_stack` points (a whip
+                -- swing's ticks) for each other grey on the tile.
+                n.stack = nil
+                if R ~= nil and P.grey_stack ~= nil and n.style == "melee" and not n.big then
+                    local scy = nil
+                    if ny.loadout.melee ~= nil and ny.loadout.melee.item == "scythe_of_vitur" then scy = "melee"
+                    elseif ny.loadout.melee_big ~= nil and ny.loadout.melee_big.item == "scythe_of_vitur" then scy = "melee_big" end
+                    if scy ~= nil then
+                        local stack, other = {}, false
+                        for _, o in ipairs(v.nylos) do
+                            if o.slot ~= n.slot and math.max(math.abs(o.x - n.x), math.abs(o.z - n.z)) <= 1 then
+                                if o.style == "melee" and not o.big and o.x == n.x and o.z == n.z then
+                                    if not ny.nulled[o.slot] then stack[#stack + 1] = o end
+                                elseif o.style ~= "melee" then
+                                    other = true
+                                end
+                            end
+                        end
+                        if #stack >= 1 and not other then
+                            key = scy
+                            n.stack = stack
+                            score = score - P.grey_stack * #stack
+                            ny.stack_cands = (ny.stack_cands or 0) + 1
+                        end
+                    end
+                end
                 if R ~= nil then score = score + ny.loadout[key].speed * 3 end
                 if n.fighting then
                     -- aggros first: they "must be killed as fast as possible"
@@ -1242,6 +1332,17 @@ function QD.raid._play_nylocas_decide(st, v)
                 -- t46 (26,21) beside the mage at (27,21) for six ticks).  A
                 -- helper takes a grey in reach with no step, at no colour cost.
                 local helps = P.help_feet and R ~= nil and R.colour ~= "melee" and n.style == "melee" and d <= 1 and not n.fighting
+                -- owner_nylocas: A LOW SUPPORT'S CHEWER IS EVERY SEAT'S.  The
+                -- reference's trios land her with all four supports standing
+                -- in 34 of 34 rooms (weakest 0.10-0.54); ours lost the south-west
+                -- one (25,18) on two of five names in the gear5 survey, chewed
+                -- by splits of the colour whose seat was across the room
+                -- (svbplaynyloc: split greys 43+53+71+44 copy-ticks beside it,
+                -- split blues 40+49+36).  A chewer on a support under keep_low
+                -- is taken by whoever is near, like an aggro: the colour rules
+                -- (own_first, own_colour_bonus, leave_to_owner) do not hold it back.
+                n.lowchew = R ~= nil and P.low_any and not n.fighting and sp ~= nil and P.keep_low ~= nil and sp.frac < P.keep_low
+                if n.lowchew then helps = true end
                 n.helps = helps
                 if not n.fighting and R ~= nil and n.style ~= R.colour and not helps then score = score + P.own_colour_bonus end
                 -- raid seam50: LEAVE IT TO ITS OWNER.  Two or three seats pressed
@@ -1299,13 +1400,40 @@ function QD.raid._play_nylocas_decide(st, v)
                     -- raid seam52: THE CLEANUP'S ORDER (the plan's
                     -- `cleanup_order`): newest first, and one about to pop
                     -- is left to pop
-                    if ny.cleanup and P.cleanup_order ~= nil then
+                    -- owner_nylocas: SMALLS ONLY.  The sources' cleanup order
+                    -- is for smalls ("Kill any wave 29/31 smalls first",
+                    -- ranger cleanup :363; "Continue Ayaking smalls with the
+                    -- highest wave number", mage :175), and a big that blows
+                    -- up still leaves its two splits (tob_nylocas.rs2
+                    -- ~tob_nylo_detonate, blert 15 of 15): the sup5 survey's
+                    -- cleanups ended on the splits of a wave-30 big left to
+                    -- 46-55 ticks (svaplaynyloc +51 pop, +55 its splits).
+                    -- Blert's trios let 0.2-2.5 bigs a room pop (seam47).
+                    if ny.in_cleanup and P.cleanup_order ~= nil and not n.big then
                         score = score + math.min(n.age, 45) * P.cleanup_order.age
                         if P.cleanup_order.side ~= nil and not n.fighting
                             and ((n.z - O.z) >= P.cleanup_order.north_z) ~= (R.name == P.cleanup_order.north_role) then
                             score = score + P.cleanup_order.side
                         end
-                        if not n.fighting and ea - n.age <= P.cleanup_order.expire
+                        -- owner_nylocas: LEFT TO POP ONLY IF IT POPS BEFORE THE
+                        -- ROOM WOULD BE CLEAR.  The room ends on its last copy's
+                        -- death, a pop included, so a copy left to pop past the
+                        -- time the others take to kill holds the room open: the
+                        -- low5 survey's cleanups ended 51-64 ticks after wave 31
+                        -- on the wave-31 copies' own pops (52), where Blert's
+                        -- end 32 after it (outcome.phase.cleanup_end.start 292 -
+                        -- wave31.start 260).  The others' time is their count
+                        -- over the reference trio's kill cadence (0.71 a tick,
+                        -- reference/nylocas_normal_3.json, PLAY_NOTES seam40).
+                        if ny.clear_tick ~= v.tick then
+                            local need = 0
+                            for _, o in ipairs(v.nylos) do
+                                local oea = o.big and P.explode_age_big or P.explode_age
+                                if oea - o.age > P.cleanup_order.expire then need = need + 1 end
+                            end
+                            ny.clear_tick, ny.clear_time = v.tick, need / P.cleanup_order.rate
+                        end
+                        if not n.fighting and ea - n.age <= P.cleanup_order.expire and ea - n.age < ny.clear_time
                             and not (sp ~= nil and P.keep_low ~= nil and sp.frac < P.keep_low) then
                             score = score + P.cleanup_order.pass
                             ny.cleanup_passes = (ny.cleanup_passes or 0) + 1
@@ -1342,7 +1470,7 @@ function QD.raid._play_nylocas_decide(st, v)
                 -- the one already pressed keeps its press unless another is
                 -- clearly worth more (no target flapping, ny30f t328-335)
                 if cur ~= nil and cur.slot == n.slot then score = score - 12 end
-                cands[#cands + 1] = { score = score, n = n, d = d, style = n.style, key = key }
+                cands[#cands + 1] = { score = score, n = n, d = d, style = n.style, key = key, stack = n.stack }
                 if R ~= nil and n.style == R.colour then own_ok = true end
             end
         end
@@ -1483,7 +1611,7 @@ function QD.raid._play_nylocas_decide(st, v)
         if best ~= nil then
             local n = best.n
             pick = { slot = n.slot, style = best.style, symbol = n.symbol, vas = false, d = best.d, x = n.x, z = n.z, big = n.big,
-                spell = best.spell, clump = best.clump, key = best.key or best.style, chin = best.chin }
+                spell = best.spell, clump = best.clump, key = best.key or best.style, chin = best.chin, stack = best.stack }
         end
     end
 
@@ -1693,6 +1821,11 @@ function QD.raid._play_nylocas_decide(st, v)
             -- raid seam51: a chin throw dooms the clump's greens with its
             -- primary, and nulls the ranger on the others under the blast;
             -- their "no effect" lines must not strike off the primary
+            -- owner_nylocas: the scythe's stack is doomed with its primary
+            if pick.stack ~= nil then
+                for _, o in ipairs(pick.stack) do also[#also + 1] = o.slot end
+                ny.stack_swings = (ny.stack_swings or 0) + 1
+            end
             if pick.chin and pick.clump ~= nil then
                 local nulls = 0
                 for _, o in ipairs(pick.clump) do
@@ -1764,7 +1897,20 @@ function QD.raid._play_nylocas_decide(st, v)
         if P.swap_press_together and not (pick.style == "magic" and (not ny.loadout.magic.powered or pick.spell ~= nil)) then
             then_press = press_now
         end
-        QD.raid._play_nylocas_wear(st, v, pick.key, early, stop, then_press)
+        -- owner_nylocas: HER FORMS IN THEIR OWN GEAR (P.boss_gear): the set of
+        -- her form, the pieces of it still in the backpack
+        local gear = nil
+        if pick.vas and R ~= nil and P.boss_gear ~= nil then
+            local set = (pick.style == "melee") and P.boss_gear.melee or P.boss_gear.ranged[R.name]
+            for _, item in ipairs(set or {}) do
+                local cr, cn = QD.inv.count(item)
+                if cr == "ok" and cn > 0 then
+                    gear = gear or {}
+                    gear[#gear + 1] = item
+                end
+            end
+        end
+        QD.raid._play_nylocas_wear(st, v, pick.key, early, stop, then_press, gear)
     elseif early ~= nil then
         QD.raid._play_nylocas_wear(st, v, nil, early)
     end
@@ -1872,7 +2018,7 @@ function QD.raid._play_nylocas_decide(st, v)
             if intent.drink ~= nil then ny.stat_restores = (ny.stat_restores or 0) + 1 end
         end
     end
-    if P.trace or (P.trace_seat ~= nil and st.party ~= nil and st.party > 1 and st.role == P.trace_seat) then
+    if P.trace or (P.trace_seat ~= nil and st.party ~= nil and st.party > 1 and (st.role == P.trace_seat or P.trace_seat == 0)) then
         local nf, w = 0, ""
         if v.tick % 20 == 0 then
             local sp = {}

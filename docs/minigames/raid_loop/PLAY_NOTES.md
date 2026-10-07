@@ -610,6 +610,30 @@ Where the gap is (diagnosis scripts under build/seam_state/matthew-mbp-m4-raid-b
 - One traced run (ny40j, P.trace_seat = 3, restored to nil): the meleer whipped one grey 4 times for 0
   (t170-183) while it chewed pillar 36,29 -- nulled or blocked, unresolved.
 
+### Nylocas, Normal trio, owner pass (owner_nylocas, 2026-10-06) -- 3 of 5, NOT green yet
+
+Reference: `reference/nylocas_normal_3.json` / `.script.json` (27 death-free Normal trio rooms). Progress and
+every survey: build/seam_state/owner_nylocas/progress.md. What the plan and harness now do, each with its line:
+
+| Change | Reference line | Effect (5 names) |
+|---|---|---|
+| THE DOOR TOGETHER: the members wait on the barrier's north side (local 31,33 / 32,33), not where t.raid.enter left them | Blert room tick 0: all three at local 31-32,30-32; w1 spawn_tile mage 1,1 melee 2,1 range -3,2. Ours: two seats 18-22 tiles north at wave 1 (the wave diff's first deviation) | last wave 280-304 -> 272-284, boss start 356-376 -> 340-356 |
+| HER FORMS IN THEIR OWN GEAR (P.boss_gear; kit: mage/ranger carry torva helm, rancour, radiant oathplate, ferocious gloves and wear avernic treads, ultor ring, infernal cape; the meleer carries the void range set + rupture) | recorders' equipmentDeltas per form: melee form every role torva/rancour/oathplate/ferocious (mage 61/68+23/58/89 percent), ranged form every role void range (meleer 62) | boss phase 116-148 -> 95-121 |
+| support_of() FOOTPRINT TO FOOTPRINT (was: only copies beside the support's south-west corner tile read as chewers) | 34/34 rooms land her with four standing, weakest 0.10-0.54 | weakest support 0.00-0.19 -> 0.12-0.33, 5 of 5 standing |
+| a low support's chewer is every seat's (low_any) | as above | (with the fix) |
+| cleanup: blast window 2 ticks, not 6 (cleanup_blast); pop-pass only before the clear time (cleanup_order.rate 0.71); age order for smalls only | Blert kills small greys at ages 45-50 (30 in 27 rooms); cleanup_end - wave31 = 32; a big that blows up still splits (15/15) | cleanups ended on greys passed for blast -> fewer |
+| THE SCYTHE ON A GREY STACK (grey_stack 12) | trio guide :415 "scythe the grey doubles"; the scythe arc (scythe_of_vitur.rs2) | 3 of 5 green |
+| play.heart within one level; tech.prayer party half: leader at most the reference max 120 | a decay tick between press and read; hp_lost.mage [24-120] (the lower end measured exposure) | |
+
+Tried and NOT kept (each one survey; reverted): the per-wave opening (walk to the reference spawn_tile of the next
+wave, hold the mouth, lane ownership from wave_adds_hit; waves 308-324); the mage on Focus/Longrange on the OLD
+binary (its engine read the bare range); seam56's owner table (288-296); colour cleanup with north stands;
+keep_low 0.31; overdue bigs for every seat (a big killed at the cap is two smalls); mage virtus/confliction in the
+waves + bow on big greens; no protection prayer in the waves (0 of 5, tech.prayer red).
+
+State at commit (survey stack5d): _play 280/348/109/457 weakest 0.20; sva 284/344/114/458 0.23; svb 304!/356/115/471
+0.19; svc 296!/360!/109/469 0.15; svd 284/356/115/471 0.19 (last wave / boss start / boss ticks / room ticks).
+
 ## Sotetseg, Entry solo (`tob_sotetseg`, mode `entry`), proved
 
 Plan: `script/plugins/quest_driver/raid_play_tob_sotetseg.lua` (QD.raid._play_sotetseg_decide,

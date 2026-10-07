@@ -143,6 +143,15 @@ if size > 1 then
     if role == 1 or role == 2 then
         swap["::give game_pest_melee_helm 1"] = "::give game_pest_archer_helm 1"
         swap["::wield game_pest_melee_helm"] = "::wield game_pest_archer_helm"
+        -- owner_nylocas: the slots every recorder keeps through all three of
+        -- her forms (Blert equipmentDeltas, the 27 rooms, mage and ranger
+        -- recorders on her: avernic_treads_max 73-92 percent, ultor_ring
+        -- 73-92, infernal_cape on her melee and magic forms) in place of the
+        -- Entry page's dragon boots and berserker ring
+        swap["::give dragon_boots 1"] = "::give avernic_treads_max 1"
+        swap["::wield dragon_boots"] = "::wield avernic_treads_max"
+        swap["::give nzone_berzerker_ring 1"] = "::give ultor_ring 1"
+        swap["::wield nzone_berzerker_ring"] = "::wield infernal_cape"
         local neck = role == 1 and "occult_necklace" or "necklace_of_rupture"
         swap["::give amulet_of_glory 1"] = "::give " .. neck .. " 1"
         swap["::wield amulet_of_glory"] = "::wield " .. neck
@@ -152,6 +161,12 @@ if size > 1 then
     local out = {}
     for i = 1, #kit do
         local c = swap[kit[i]] or kit[i]
+        if (role == 1 or role == 2) and c == "::give ultor_ring 1" then
+            -- (the ring and the cape go on together while the backpack has room)
+            out[#out + 1] = c
+            out[#out + 1] = "::wield ultor_ring"
+            c = "::give infernal_cape 1"
+        end
         local item = string.match(c, "^::give ([%w_]+) 1$") or string.match(c, "^::wield ([%w_]+)$")
         if role == 3 and item ~= nil and melee_set[item] then
             -- raid seam52 melee_damage_per_swing: the recorded meleers wear
@@ -214,8 +229,31 @@ if size > 1 then
         -- nylocas_normal_3.json weapons); one stacked slot, a brew's
         out[#out + 1] = "::give chinchompa_black 300"
     end
+    -- owner_nylocas: HER FORMS IN THEIR OWN GEAR, as Blert's recorders wear
+    -- them (equipmentDeltas of the recording raider on each of her forms, 27
+    -- rooms; build/seam_state/owner_nylocas progress.md): on her MELEE form
+    -- every role is in melee gear -- the mage recorders torva_helm_sanguine
+    -- 61 percent, amulet_of_rancour 68+23, radiant_oathplate_chest 58 / legs
+    -- 59, ferocious_gloves 89; the rangers torva 41+21, rancour 64,
+    -- oathplate 48 / 55, ferocious 64 -- and on her RANGED form every role is
+    -- in the void range set -- the meleers game_pest_archer_helm 62,
+    -- necklace_of_rupture 77, elite_void_knight_top / robes 62,
+    -- pest_void_knight_gloves 62 (her magic form: rupture 71, void top 42 /
+    -- masori 35).  So the mage and the ranger carry the melee set and the
+    -- meleer the void range set; the plan wears them at her turns (P.boss_gear).
+    -- Their slots are Saradomin brews': a seat drank 0-2 doses a room in the
+    -- step-1 surveys (consume rows), of 24-36 carried.
+    if role == 1 or role == 2 then
+        for _, it in ipairs({ "torva_helm", "amulet_of_rancour", "radiant_oathplate_chest", "radiant_oathplate_legs", "ferocious_gloves" }) do
+            out[#out + 1] = "::give " .. it .. " 1"
+        end
+    else
+        for _, it in ipairs({ "game_pest_archer_helm", "necklace_of_rupture", "elite_void_knight_top", "elite_void_knight_robes", "pest_void_knight_gloves" }) do
+            out[#out + 1] = "::give " .. it .. " 1"
+        end
+    end
     for i = 1, #out do
-        if out[i] == "::give br_4dosepotionofsaradomin 10" then out[i] = "::give br_4dosepotionofsaradomin " .. (role == 2 and 6 or 9) end
+        if out[i] == "::give br_4dosepotionofsaradomin 10" then out[i] = "::give br_4dosepotionofsaradomin " .. (role == 2 and 1 or 3) end
     end
     -- the mage's Magic reads 112 (tenth percentile 107; the others 99): a
     -- SATURATED HEART (raid seam46: 99 + 4 + floor(9.9) = 112; content
@@ -347,7 +385,12 @@ return {
                 -- (the heart is not used up, so inv_op's cell watch answers
                 -- `timeout` on a press that landed: s47a "slot still
                 -- saturated_heart", Magic 112; the Magic level is the proof)
-                t.check("play.heart", (hr == "ok" or hr == "timeout") and mr == "ok" and magic.level == magic.base_level + 4 + math.floor(magic.base_level / 10),
+                -- owner_nylocas: within one level of the boost -- the game's
+                -- one-level-a-minute decay can tick between the press and this
+                -- read two ticks later (gear5 survey: 111 on every name once
+                -- the kit grew by seven lines; 112 before)
+                local boosted = magic ~= nil and magic.base_level + 4 + math.floor(magic.base_level / 10) or nil
+                t.check("play.heart", (hr == "ok" or hr == "timeout") and mr == "ok" and magic.level >= boosted - 1 and magic.level <= boosted,
                     "p1 Invigorate on the saturated heart " .. tostring(hr) .. " " .. string.sub(tostring(hd), 1, 80) .. "; magic "
                     .. tostring(magic and magic.level) .. " of base " .. tostring(magic and magic.base_level)
                     .. " (want base + 4 + 10 percent: 112 at 99, Blert's trio mages' level in the waves)")
@@ -357,6 +400,29 @@ return {
             t.check("play.potion", sr == "ok" and rr == "ok" and strength.level > 99 and ranged.level > 99,
                 "p" .. role .. " super combat and ranging before the barrier: strength " .. tostring(strength and strength.level)
                 .. ", ranged " .. tostring(ranged and ranged.level) .. " (" .. tostring(pr1) .. ", " .. tostring(pr2) .. ")")
+        end
+        -- owner_nylocas: THE DOOR TOGETHER.  Blert's trios are all three at
+        -- the barrier on room tick 0 (the 27 reference streams, player rows of
+        -- tick 0: local 31,30 / 31,30 / 32,32 and the like, every room) and
+        -- all three in the middle by wave 1 (script w1 spawn_tile mage 1,1,
+        -- melee 2,1, range -3,2 from 30,23).  The members used to wait where
+        -- t.raid.enter left them (local 31,49) and walk only after "started":
+        -- at wave 1 (t103) they were 22 and 18 tiles north of the middle
+        -- (seam56 it2 wave diff, FIRST DEVIATION w1 melee tile 1,18; the
+        -- leader's tick log: p1/p2 at 6431,113 until t102, at the barrier
+        -- t111).  A member now stands on the barrier's north side, beside the
+        -- leader's tile (fight.x + 1, fight.z = local 32,32), before the
+        -- entrance barrier, and crosses the tick the fight starts.
+        if size > 1 and role ~= 1 then
+            local _, here = t.world.tile()
+            local ox, oz = math.floor(here.x / 64) * 64, math.floor(here.z / 64) * 64
+            local door_x, door_z = ox + 29 + role, oz + 33
+            local door_result, door_detail = t.player.walk_to(door_x, door_z, 30)
+            local _, at = t.world.tile()
+            t.check("door.together", door_result == "ok" and at ~= nil and at.x == door_x and at.z == door_z,
+                "p" .. role .. " to the barrier's north side local " .. (door_x - ox) .. "," .. (door_z - oz) .. ": "
+                .. tostring(door_result) .. " " .. string.sub(tostring(door_detail), 1, 80) .. "; at "
+                .. tostring(at and (at.x - ox)) .. "," .. tostring(at and (at.z - oz)))
         end
         if size > 1 then t.expect("party.barrier.entrance", t.party.barrier("entrance", 300)) end
         if role == 1 then
@@ -399,13 +465,19 @@ return {
             .. " fired " .. tostring(ny.spec and ny.spec.fired) .. " lost " .. tostring(ny.spec and ny.spec.lost) .. " (orb " .. tostring(ny.spec and ny.spec.arm_result)
             .. "), heart re-presses " .. tostring(ny.hearts)
             -- raid seam52: THE STANDS and THE CLEANUP'S ORDER (the plan)
-            .. ", walks home/stand " .. tostring(ny.homes) .. " (last stand wave " .. tostring(ny.stand) .. "), cleanup passes " .. tostring(ny.cleanup_passes or 0))
+            .. ", walks home/stand " .. tostring(ny.homes) .. " (last stand wave " .. tostring(ny.stand) .. "), cleanup passes " .. tostring(ny.cleanup_passes or 0)
+            -- owner_nylocas: her form's gear pieces put on (P.boss_gear)
+            .. ", her gear equips " .. tostring(ny.gear_equips or 0)
+            -- owner_nylocas: scythe presses on a grey stack
+            .. ", grey stack presses " .. tostring(ny.stack_swings or 0))
 
         if role ~= 1 then
             -- raid seam32: a member's own record (its presses are its own; the
             -- leader's tick log carries the room)
             t.check("play.member", ny.presses ~= nil and ny.presses > 0, "p" .. role .. " " .. tostring(ny.role) .. ": presses " .. tostring(ny.presses)
                 .. ", walks home/stand " .. tostring(ny.homes) .. ", cleanup passes " .. tostring(ny.cleanup_passes or 0)
+                .. ", her gear equips " .. tostring(ny.gear_equips or 0)
+                .. ", grey stack presses " .. tostring(ny.stack_swings or 0)
                 .. ", casts " .. tostring(ny.casts) .. ", freezes " .. tostring(ny.freezes) .. ", swaps " .. tostring(ny.swaps) .. ", own colour "
                 .. tostring(ny.own_presses) .. " / other colours " .. tostring(ny.other_presses) .. ", flicker cancels " .. tostring(ny.flicker_cancels)
                 .. ", presses on her " .. #(ny.vas_presses or {}) .. ", turn holds " .. tostring(ny.holds) .. ", turn steps " .. tostring(ny.turn_steps) .. ", XP-read swings " .. tostring(ny.xp_swings) .. ", nulled read " .. tostring(ny.null_reads) .. ", eats " .. #(rec.eats or {}) .. ", drinks " .. #(rec.drinks or {}))
@@ -573,7 +645,12 @@ return {
             if (h.damage or 0) > 0 and rec.my_pid ~= nil and h.pid == rec.my_pid then leader_taken = leader_taken + h.damage end
         end
         local wave_half = wave_block_count >= 20
-        if size > 1 then wave_half = rec.my_pid ~= nil and leader_taken >= 24 and leader_taken <= 120 end
+        -- owner_nylocas: at most the reference's most (120).  The lower end
+        -- (24, the least any of the 14 recorded mages lost) measures how much
+        -- reached the mage, not what its prayer let through: a mage the
+        -- others cover loses less (the big5 survey: 20 on two names, every
+        -- wave swing that reached it blocked, 14 and 22 blocks)
+        if size > 1 then wave_half = rec.my_pid ~= nil and leader_taken <= 120 end
         t.check("tech.prayer", wave_half and melee_block_count > melee_cover_landed, (size > 1 and ("the leader (the mage) lost " .. leader_taken
             .. " hitpoints in the room; reference outcome.hp_lost.mage 67 [24-120]; ") or "") .. "protection prayer switched " .. prayer_switches .. " times to the style of the swinging majority (a big counts two, a melee copy only "
             .. "inside four tiles): " .. wave_block_count .. " hit_player rows from wave nylocas at 0 while the prayer held covered their style (blocks), against " .. wave_unprayed_zero
