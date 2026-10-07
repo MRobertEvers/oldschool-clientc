@@ -151,6 +151,9 @@ return {
         -- 4-tick melee for 4:1 (Synq melee 4-tick section).
         "::give abyssal_whip",
         "::wield abyssal_whip",
+        -- Fang for the melee claw (high accuracy vs 175 def); whip stays for
+        -- 4-tick cadence once the 4:1 cycle is established.
+        "::give osmumtens_fang",
         "::give infernal_cape",
         "::wield infernal_cape",
         "::give ferocious_gloves",
@@ -467,13 +470,15 @@ return {
                 local _, me = t.world.tile()
                 local aisle_x = sm.ox + 32
                 local dist = math.max(math.abs(me.x - mrow.x), math.abs(me.z - mrow.z))
-                -- Short attack deadline so decide() re-enters every tick and
-                -- can see sphere_pending within ^cox_olm_sphere_delay.
-                local ar, ad = t.player.attack(mage, 1, 1, { quick = true, slot = mrow.slot })
+                -- attack(1,1) landed zero hit_npc rows; use 2/3 with sphere_delay
+                -- 8 and transmit=yes pending so decide still sees the flick.
+                local ar, ad = t.player.attack(mage, 2, 3, { quick = true, slot = mrow.slot })
                 if ar == "refused" and type(ad) == "string" and string.find(ad, "DIED", 1, true) then
                     set_state(STATE.DONE)
                     return
                 end
+                -- Re-check sphere between attack settle and walk (delay=8).
+                sphere_flick()
                 if dist > 8 then
                     t.player.walk_to(aisle_x, math.min(me.z + 2, mrow.z - 3), 2)
                 else
@@ -506,7 +511,7 @@ return {
                 -- Ticks 1-4: swap to whip / gloves / piety / combat one-at-a-time
                 -- so sphere_flick still runs each decide() tick.
                 if sm.setup_waits == 1 then
-                    t.player.equip("abyssal_whip")
+                    t.player.equip("osmumtens_fang")
                     t.ticks(1)
                     return
                 elseif sm.setup_waits == 2 then
@@ -525,11 +530,17 @@ return {
                     t.ticks(1)
                     return
                 elseif sm.setup_waits < 12 then
+                    sphere_flick()
                     if mrow ~= nil then
-                        t.player.attack(melee, 1, 2, { quick = true, slot = mrow.slot })
+                        t.player.attack(melee, 2, 3, { quick = true, slot = mrow.slot })
                     end
                     t.player.walk_to(thumb.x + (sm.setup_waits % 2), thumb.z, 1)
                 elseif sm.setup_waits < 18 then
+                    sphere_flick()
+                    -- Switch to whip for the 4-tick cycle before CYCLE_TANK.
+                    if sm.setup_waits == 13 then
+                        t.player.equip("abyssal_whip")
+                    end
                     t.player.walk_to(empty.x + (sm.setup_waits % 2), empty.z, 1)
                 else
                     set_state(STATE.CYCLE_TANK)
