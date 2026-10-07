@@ -168,7 +168,7 @@ QD.raid._play_plan("tob_maiden", {
     -- Defence 200 is about 0.79, against 0 about 0.99 (owner phase 100 15.5
     -- hp a tick against the reference's 17.9 with one hammer).  A special
     -- that splats 0 drains nothing and is thrown again (tries 2).
-    opener = { weapon = "tonalztics_of_ralos_charged", cost = 500, tries = 2, give_up = 14 },
+    opener = { weapon = "tonalztics_of_ralos_charged", cost = 500, tries = 1, give_up = 14 },
     spec30 = { weapon = "dragon_claws", cost = 500, tries = 1, give_up = 10 },
     -- the toxic blowpipe: PvM speed 3, rapid 2, reach 5 (wiki_Toxic_blowpipe
     -- .wikitext:41, :78); its swing seq 5061 (raid_play_tob_nylocas.lua)
@@ -1221,6 +1221,15 @@ function QD.raid._play_maiden_party_wave(st, v, m, R, mg, moving, gap_to_her, ch
         local work = nil
         local ptgt, _, pwait = QD.raid._play_maiden_pick(st, v)
         if ptgt ~= nil or pwait then work = "cast" end
+        -- (and any crab still walking, in reach or not yet: the north row is
+        -- eleven tiles from the freezer at the spawn; owner M41 svaplaymaide
+        -- w30: the freezer went to its bow at +3 while N2 walked into reach
+        -- and in at 75 at +10 -- the reference's freezer casts at +1, +6,
+        -- +11, +16 every wave, freezer lanes "N2:46%+6")
+        for _, c in ipairs(v.crabs) do
+            local a = st.ev.adds[c.slot]
+            if work == nil and a ~= nil and not a.gone and not a.frozen and gap_to_her(c.x, c.z) >= 2 then work = "walker" end
+        end
         for _, c in ipairs(v.crabs) do
             local a = st.ev.adds[c.slot]
             local since = m.crab_frozen[c.slot]
@@ -1751,6 +1760,22 @@ function QD.raid._play_maiden_opener(st, v, m, intent)
     intent.want.piety = true
     intent.want.rigour = nil
     if ob.stage == "equip" then
+        -- owner_tob_normal M43: a scythe seat throws its special from its own
+        -- tile beside her (the Tonalztics reaches seven), so the scythe's first
+        -- swing follows six ticks later with no walk between: Blert's dps
+        -- "TONALZTICS +10, SCYTHE +16" (28 of 30 spec-to-next gaps are 6;
+        -- attack_definitions.json TONALZTICS cooldown 6).  Ours threw from
+        -- seven out and walked in: the scythe at +20.
+        local R0 = m.R
+        if R0 ~= nil and R0.melee and v.boss ~= nil and ob.O == nil then
+            local hx, hz = R0.home[1] + (m.ox or 0), R0.home[2] + (m.oz or 0)
+            if math.max(math.abs(v.me.x - hx), math.abs(v.me.z - hz)) > 1 and v.tick - ob.equip_tick <= 8 then
+                if st.walk_target == nil or st.walk_target.x ~= hx or st.walk_target.z ~= hz then
+                    intent.walk = { x = hx, z = hz }
+                end
+                return true
+            end
+        end
         ob.stage = "swing"
         ob.arm_tick = v.tick
         ob.energy0 = energy
