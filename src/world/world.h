@@ -146,6 +146,8 @@ struct ToriRS_FeatureTable;
  * Getters return sane defaults for unknown/unloaded seq ids:
  *   frame_count 0, frame_duration 1, frame_step 0, max_loops 99,
  *   priority 5, duplicate_behavior -1, preanim_move 0, postanim_move 0.
+ * `resident` says whether those answers are the seq's own or the defaults; a
+ * NULL `resident` means every seq is (a source with no loading).
  */
 struct World_SeqSource
 {
@@ -167,6 +169,10 @@ struct World_SeqSource
      * not yet resident). Lets the world step an entity's attached-graphic frame
      * from the spot's own seq without pulling in cache/config types. */
     int (*spotanim_seq)(void* userdata, int spotanim_id);
+    /* Non-zero once the seq's record is resident, so its priority and replay
+     * mode are the cache's and not the defaults above. The primary-animation
+     * rule is not judged before then (WorldEntityFacet_Animation.pending_*). */
+    int (*resident)(void* userdata, int seq_id);
 };
 
 /*
@@ -1290,6 +1296,17 @@ World_NpcSetPrimaryAnimation(
     int idx,
     int seq_id,
     int delay);
+
+/* Judge a primary request that was parked because its seq was not resident
+ * when it arrived (WorldEntityFacet_Animation.pending_*), once it is. Called
+ * every world cycle, before the entity's tracks are stepped; a no-op while the
+ * seq is still loading or nothing is parked. */
+void
+World_EntityResolvePendingAnimation(
+    struct World* world,
+    struct WorldEntityFacet_Animation* animation,
+    struct WorldEntityFacet_Pathing const* pathing,
+    int readyanim);
 
 /* Reference EXACTMOVE: scene-local tiles, cycle deltas from now. */
 void

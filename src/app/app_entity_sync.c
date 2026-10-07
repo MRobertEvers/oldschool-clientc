@@ -101,6 +101,10 @@ app_world_apply_entity_anim_tracks(
 
     if( primary_active )
         app_request_entity_seq(app, anim->primary.anim_id);
+    /* A parked ANIM (WorldEntityFacet_Animation.pending_anim_id) is judged the
+     * cycle its seq registers; keep asking for it until then. */
+    if( anim->pending_set )
+        app_request_entity_seq(app, anim->pending_anim_id);
     if( secondary_active )
         app_request_entity_seq(app, anim->secondary.anim_id);
 

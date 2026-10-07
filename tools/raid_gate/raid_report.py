@@ -629,7 +629,9 @@ def rows_by_slot_anim(rows):
     if key not in _ANIM_INDEX:
         index = collections.defaultdict(list)
         for row in rows:
-            if row["kind"] == "npc_anim":
+            # seq -1 is a script's npc_anim(null) (a cancel, shipped since
+            # owner_verzik_anim 2026-10-07): not an attack being sent.
+            if row["kind"] == "npc_anim" and row.get("seq") != -1:
                 index[row["slot"]].append(row["tick"])
         _ANIM_INDEX.clear()
         _ANIM_INDEX[key] = index

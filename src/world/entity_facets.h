@@ -44,6 +44,26 @@ struct WorldEntityFacet_Animation
      * entity's tile footprint one tile forward along its yaw so a stretching
      * action does not draw in front of a wall ahead of it. */
     uint8_t needs_forward_draw_padding;
+    /*
+     * An ANIM block that arrived before its seq was resident.
+     *
+     * The priority rule (`>=` against the playing seq's forcedpriority) cannot
+     * be judged without the seq's own record, and the packet pipeline no
+     * longer waits out the load. Judging it anyway with a made-up priority
+     * (the seq source's default of 5) let any loaded priority-6+ seq refuse a
+     * COLD seq of higher priority: Verzik's 8112 (priority 11, rig 1808) was
+     * refused by her dismount 8111 (priority 11, rig 1796, framestep=1 so it
+     * holds its last frame for 99 loops), and 8111 then posed her new
+     * 8371 model -- a corrupt mesh for the whole flight off the throne.
+     *
+     * So the request is parked here and judged, by the full rule, on the
+     * first world cycle its seq is resident
+     * (World_EntityResolvePendingAnimation). A later ANIM supersedes a parked
+     * one; a cancel (-1) clears it.
+     */
+    uint16_t pending_anim_id;
+    uint8_t pending_delay;
+    uint8_t pending_set;
 };
 
 /* Server-forced interpolated move (reference exactMove1/exactMove2).

@@ -2383,6 +2383,17 @@ world_seq_priority(
     return 5;
 }
 
+/* NULL `resident` = a source with no loading: every seq's answers are its own. */
+static int
+world_seq_resident(
+    struct World* world,
+    int seq_id)
+{
+    if( world->seq_source.resident )
+        return world->seq_source.resident(world->seq_source.userdata, seq_id);
+    return 1;
+}
+
 static int
 world_seq_duplicate_behavior(
     struct World* world,
@@ -2465,6 +2476,13 @@ world_apply_primary_animation(
     int seq_id,
     int delay)
 {
+    /* Whatever was parked is superseded by this later request: a cancel
+     * cancels it too, and a newer seq is judged in its place. (The reference
+     * would judge the parked one first and then this one against it; that
+     * reads the same whenever the later seq's priority is >= the earlier's,
+     * which is the case of every scripted sequence of animations.) */
+    animation->pending_set = 0;
+
     if( seq_id < 0 )
     {
         animation->primary.anim_id = (uint16_t)-1;
@@ -2472,6 +2490,22 @@ world_apply_primary_animation(
         animation->primary.cycle = 0;
         animation->primary.delay = 0;
         animation->primary.loop = 0;
+        return;
+    }
+
+    /* Not judged until the seq's own record is in: see
+     * WorldEntityFacet_Animation.pending_anim_id. The load is already queued
+     * (the ANIM handler asks for it, and the track binder asks for a parked
+     * seq every frame). */
+    if( !world_seq_resident(world, seq_id) )
+    {
+        if( getenv("TORIRS_ANIM_DEBUG") )
+            TORIRS_LOG("anim: seq %d not resident -- parked until it is (playing %d)\n",
+                seq_id,
+                (int)animation->primary.anim_id);
+        animation->pending_anim_id = (uint16_t)seq_id;
+        animation->pending_delay = (uint8_t)delay;
+        animation->pending_set = 1;
         return;
     }
 
@@ -2536,6 +2570,28 @@ world_apply_primary_animation(
     animation->primary.loop = 0;
     animation->preanim_route_length = pathing->route_length;
     world_restart_readyanim_under_action(animation, readyanim, delay);
+}
+
+void
+World_EntityResolvePendingAnimation(
+    struct World* world,
+    struct WorldEntityFacet_Animation* animation,
+    struct WorldEntityFacet_Pathing const* pathing,
+    int readyanim)
+{
+    int seq_id;
+
+    assert(world);
+    assert(animation);
+    assert(pathing);
+    if( !animation->pending_set )
+        return;
+    seq_id = animation->pending_anim_id;
+    if( !world_seq_resident(world, seq_id) )
+        return;
+    /* Cleared by the apply itself, before it judges. */
+    world_apply_primary_animation(
+        world, animation, pathing, readyanim, seq_id, animation->pending_delay);
 }
 
 void

@@ -51,6 +51,7 @@ main(void)
     test_exact_move_across_far_teleport();
     test_obj_raise();
     test_action_anim_restarts_the_readyanim();
+    test_cold_seq_is_parked_not_refused();
     test_action_anim_hands_back_to_the_readyanim_loop_point();
     test_npc_retype_keeps_animation();
     test_line_of_sight();

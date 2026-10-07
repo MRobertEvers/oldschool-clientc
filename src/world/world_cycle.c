@@ -1072,6 +1072,7 @@ World_ActorLeftSceneReset(
     animation->primary.cycle = 0;
     animation->primary.delay = 0;
     animation->primary.loop = 0;
+    animation->pending_set = 0;
     spotanim->id = -1;
     exact->move_end = 0;
     exact->move_start = 0;
@@ -1150,6 +1151,11 @@ World_CycleUpdatePlayers(
                 if( face_seq != -1 )
                     World_ApplySecondaryAnim(&player->animation, face_seq);
             }
+            World_EntityResolvePendingAnimation(
+                world,
+                &player->animation,
+                &player->pathing,
+                player->idle_animations.readyanim);
             World_StepEntityAnimation(
                 world,
                 &player->animation,
@@ -1230,6 +1236,8 @@ World_CycleUpdateNpcs(
                 if( face_seq != -1 )
                     World_ApplySecondaryAnim(&npc->animation, face_seq);
             }
+            World_EntityResolvePendingAnimation(
+                world, &npc->animation, &npc->pathing, npc->idle_animations.readyanim);
             World_StepEntityAnimation(
                 world, &npc->animation, &npc->spotanim, &npc->pathing, &npc->draw_position,
                 &npc->idle_animations);

@@ -7600,3 +7600,20 @@ started on the wave-1 spawn tick and the ranger's first shot came at +3 against 
 owner_tob_normal's; a return on the press tick would give the members those ticks.
 
 `api_drive.route(x, z [, {size = n, run = bool}])` (owner_rooms4, 2026-10-07): the walk a click on x,z would take, from the client's own collision map with the server's own flood (collision_map_route_tiles; every seat has it) -- `tiles` in walk order, `ticks` the tile stood on at the end of each tick (two a tick with `run = true`, the caller reads its run orb), `arrive`, `nearest`, `from`; `size` routes to an npc's reach. Probe (_play_bloat, every plan walk): 186 of 192 per-tick tiles equal the server's player_tile rows, 40 of 42 walks routed round the tank's corner; the misses are views whose own tile is a tick old (the route is from where the client shows the player).
+
+## A cold seq is parked, not judged on the default priority (owner_verzik_anim, 2026-10-07)
+
+The owner: "The animation of verzik leaving the throne just corrupts verzik and it shows a corrupted model."
+Client bug, not content. tob_verzik.rs2 plays 8111 (rig 1796, forcedpriority 11, framestep=1) on 8370 and three
+ticks later retypes her to 8371 (rig 1808) and sends 8112 (rig 1808, priority 11). The ANIM block is applied
+without waiting for the seq's load, and an unloaded seq's priority read the seq source's default 5: `anim: seq
+8112 (prio 5) refused by incumbent 8111 (prio 11)` (TORIRS_ANIM_DEBUG). A transmog keeps the action track, so
+8111 posed the 8371 model on the wrong rig, held on its last frame for the whole flight (verts 2075, radius 841).
+Now world.c parks an ANIM whose seq is not resident (WorldEntityFacet_Animation.pending_*, World_SeqSource.resident)
+and judges it by the full rule the cycle it lands (World_EntityResolvePendingAnimation, world_cycle.c); a later
+ANIM or a cancel supersedes it. Same commit, server: `npc_anim(null)` now ships 65535 (SS_OP_NPC_ANIM, the player
+op's rule) -- it had been dropped, so the stop of 8112 one tick later never reached the client and 8112 would have
+held at priority 11 over P2's attacks. Check: `python3 tools/raid_gate/run.py _verzik_throne_rig --no-publish`
+(throne.anim_on_rig: every tick from the dismount to P2, the drawn action seq is on her record's framemap);
+unit: `make -C src test-world` (test_cold_seq_is_parked_not_refused). Crops:
+build/seam_state/owner_verzik_anim/{before,after}_sheet.png, crop_compare.png.
