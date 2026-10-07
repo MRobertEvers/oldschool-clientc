@@ -1052,6 +1052,7 @@ function QD.raid._verzik_swing_window(st, v, reach, tor)
     return true
 end
 
+QD.RAID_PLAY_VERZIK_BALL_RALLY_REACH = 6
 QD.RAID_PLAY_VERZIK_BALL_DIRS = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 }, { 1, 1 }, { -1, 1 }, { 1, -1 }, { -1, -1 } }
 
 -- The seat of a raider row, by name against QD.party.names() (seat order is
@@ -1104,9 +1105,48 @@ function QD.raid._verzik_ball_line(st, v, proj, ok)
     local function clear(x, z)
         return ok(x, z) and not v.shadows[x * 100000 + z] and (b == nil or QD.raid._verzik_dist(x, z, b) >= 1)
     end
+    -- THE RALLY MOVES AWAY FROM THE TORNADOES (2026-10-07, fast P3 7692169f7:
+    -- in enrage the line was built on the ball's destination, beside the
+    -- tornadoes, and the guard pulled every holder off it every tick -- nobody
+    -- stood on the line at all; the second place took 74 on all three names).
+    -- The ball homes on its target wherever it goes, so the line can be put
+    -- anywhere: with tornadoes out, R0 is the floor tile within RALLY_REACH of
+    -- the destination furthest from every tornado (nearer the destination on a
+    -- tie, then the scan order), and the line runs away from them.  Every
+    -- client sees the same rows on the same tick (lockstep), so every client
+    -- names the same tile.  Running two tiles a tick from tornadoes that move one
+    -- builds the gap the hold needs.  With no tornado, R0 is the destination.
+    local tornadoes = {}
+    for _, tr in ipairs(v.tornadoes or {}) do tornadoes[#tornadoes + 1] = { x = tr.x, z = tr.z } end
+    local function tor_gap(x, z)
+        local g = 99
+        for _, e in ipairs(tornadoes) do g = math.min(g, math.max(math.abs(e.x - x), math.abs(e.z - z))) end
+        return g
+    end
     local d = QD.RAID_PLAY_VERZIK_BALL_DIRS[1]
-    for _, dd in ipairs(QD.RAID_PLAY_VERZIK_BALL_DIRS) do
-        if clear(R0.x + dd[1], R0.z + dd[2]) and clear(R0.x + 2 * dd[1], R0.z + 2 * dd[2]) then d = dd break end
+    if #tornadoes > 0 then
+        local RR = QD.RAID_PLAY_VERZIK_BALL_RALLY_REACH
+        local best, bR, bd = nil, nil, nil
+        for dx = -RR, RR do
+            for dz = -RR, RR do
+                local x, z = proj.dst_x + dx, proj.dst_z + dz
+                if clear(x, z) then
+                    for _, dd in ipairs(QD.RAID_PLAY_VERZIK_BALL_DIRS) do
+                        local x1, z1, x2, z2 = x + dd[1], z + dd[2], x + 2 * dd[1], z + 2 * dd[2]
+                        if clear(x1, z1) and clear(x2, z2) then
+                            local g = math.min(tor_gap(x, z), tor_gap(x1, z1), tor_gap(x2, z2))
+                            local sc = g * 10 - math.max(math.abs(dx), math.abs(dz))
+                            if best == nil or sc > best then best, bR, bd = sc, { x = x, z = z }, dd end
+                        end
+                    end
+                end
+            end
+        end
+        if bR ~= nil then R0, d = bR, bd end
+    else
+        for _, dd in ipairs(QD.RAID_PLAY_VERZIK_BALL_DIRS) do
+            if clear(R0.x + dd[1], R0.z + dd[2]) and clear(R0.x + 2 * dd[1], R0.z + 2 * dd[2]) then d = dd break end
+        end
     end
     -- my place: how many seats after the target in orb order, round the ring
     local n = #ring
