@@ -119,22 +119,22 @@ end
 local function sustain(t)
     local _, hp = t.skill.read("hitpoints")
     local level = hp and hp.level
-    if level ~= nil and level < 92 then
+    -- Sharks only. t.cheat("::setlevel ...") has no debugproc in the private
+    -- QUEST_BINARY (run10: 600x "debugproc not found") and burns the
+    -- instruction budget so attack never fires (22 eat anims, 0 hit_npc).
+    if level ~= nil and level < 55 then
         t.player.inv_op("shark", 1)
     end
-    -- Prophylactic top-up every decide below 80: one Protect cannot cover
-    -- three styles, and a single AoE volley can still delete 60+ HP.
-    if level ~= nil and level < 80 then
-        t.cheat("::setlevel hitpoints 99")
-    end
     local _, pray = t.skill.read("prayer")
-    if pray and pray.level ~= nil and pray.level < 50 then
+    if pray and pray.level ~= nil and pray.level < 40 then
         t.player.inv_op("br_4dose2restore", 1)
     end
 end
 
+-- Eat threshold low so attack() actually swings; prayer-scaled AoE + isolate
+-- keeps HP above this except on splash stacks.
 local ATTACK_OPTS = {
-    eat = { item = "shark", below = 70, quick = true },
+    eat = { item = "shark", below = 35, quick = true },
     quick = true,
 }
 
@@ -266,8 +266,9 @@ return {
         "::give air_rune 800",
         "::give blood_rune 200",
         "::give abyssal_whip",
-        "::give shark 20",
-        "::give br_4dose2restore 8",
+        "::give shark 40",
+        "::give br_4dose2restore 12",
+        "::give saradomin_brew4 6",
     },
 
     run = function(t)
