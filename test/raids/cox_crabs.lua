@@ -107,7 +107,10 @@ local function nearest_crab(t)
     return best
 end
 
-local function crab_at(t, x, z)
+-- Exact tile (d==0): the beam only bounces off a crab standing on its next
+-- step. Adjacent (d==1) is useful while luring, not as a seated bounce.
+local function crab_at(t, x, z, max_d)
+    max_d = max_d or 0
     local pr, pd, pack = t.npc.pack(40)
     if pr ~= "ok" or type(pack) ~= "table" then
         return nil
@@ -123,7 +126,7 @@ local function crab_at(t, x, z)
             end
         end
     end
-    if best ~= nil and best_d <= 1 then
+    if best ~= nil and best_d <= max_d then
         return best
     end
     return nil
@@ -179,11 +182,27 @@ local function paint_style(t, style, crab_sym)
     t.ticks(2)
 end
 
-local function smash(t, crab_sym, opts)
+-- Smash is op3 ("Smash"), not Attack. t.player.attack refuses any row that
+-- does not start with "Attack", so op3 must go through click_minimenu.
+local function smash(t, crab)
+    local sym = crab.symbol or crab
+    local row = crab.row
     wield(t, "dragon_warhammer")
-    -- Cache op3=Smash on every jewellled crab form (all.npc).
-    t.player.attack(crab_sym, 3, 3, opts or { quick = true })
+    local target, sr, sn = t.player.by_symbol("npc", sym)
+    if not target then
+        return false, "smash: " .. tostring(sn)
+    end
+    local copy_text = nil
+    if row ~= nil then
+        local cr, cd = t.player._npc_copy(target, { at = { row.x, row.z } })
+        if cr ~= "ok" then
+            return false, "smash: " .. tostring(cd)
+        end
+        copy_text = cd
+    end
+    local pr, pd = t.player._click_npc_copy(target, 3, copy_text)
     t.ticks(3)
+    return pr == "ok", pd
 end
 
 local function parse_coxcrabs(lines)
@@ -339,8 +358,8 @@ return {
         local function seat_crab(tile, style)
             local wx, wz = world(tile.lx, tile.lz)
             local sx, sz = safe_tile(wx, wz)
-            -- Stand ON the bounce tile so the crab's melee walk ends adjacent
-            -- (crab_at d<=1). Step off before smash so the beam can use it.
+            -- Lure: stand on the bounce tile until the crab is adjacent, then
+            -- step off so it walks onto the vacated mark (exact d==0).
             t.player.walk_to(wx, wz, 40)
             t.ticks(1)
             sustain(t)
@@ -351,39 +370,50 @@ return {
             t.player.attack(crab.symbol, 2, 1, { quick = true, slot = slot })
             t.ticks(1)
             local guard = 0
-            while guard < 60 do
+            local vacated = false
+            while guard < 80 do
                 sustain(t)
-                local seated = crab_at(t, wx, wz)
-                if seated ~= nil then
-                    -- Clear the bounce tile before smash/freeze.
+                local exact = crab_at(t, wx, wz, 0)
+                if exact ~= nil then
                     t.player.walk_to(sx, sz, 20)
                     t.ticks(1)
-                    seated = crab_at(t, wx, wz) or seated
-                    smash(t, seated.symbol, { quick = true, slot = seated.row.slot })
+                    exact = crab_at(t, wx, wz, 0) or exact
+                    local ok, detail = smash(t, exact)
+                    if not ok then
+                        return false, "smash failed: " .. tostring(detail)
+                    end
                     -- Smash paints red (~8 ticks); wait grey while frozen.
                     t.ticks(10)
                     if style ~= nil and style ~= "melee" then
-                        local live = pack_slot(seated.row.slot) or seated
-                        paint_style(t, style, live.symbol or seated.symbol)
+                        local live = pack_slot(exact.row.slot)
+                        paint_style(t, style, (live and live.symbol) or exact.symbol)
                     end
                     t.player.walk_to(sx, sz, 20)
-                    return true, seated.symbol
+                    return true, exact.symbol
                 end
-                local live = pack_slot(slot)
-                if live == nil then
-                    local n = nearest_crab(t)
-                    if n ~= nil then
-                        live = n.row
-                        slot = n.row.slot
+                local near = crab_at(t, wx, wz, 1)
+                if near ~= nil and not vacated then
+                    -- Vacate the mark so the crab steps onto it.
+                    t.player.walk_to(sx, sz, 20)
+                    vacated = true
+                    t.ticks(2)
+                elseif near == nil then
+                    vacated = false
+                    t.player.walk_to(wx, wz, 10)
+                    local live = pack_slot(slot)
+                    if live == nil then
+                        local n = nearest_crab(t)
+                        if n ~= nil then
+                            live = n.row
+                            slot = n.row.slot
+                        end
+                    end
+                    if live ~= nil then
+                        t.player.attack(live.symbol, 2, 1, {
+                            quick = true, slot = live.slot,
+                        })
                     end
                 end
-                if live ~= nil then
-                    t.player.attack(live.symbol, 2, 1, {
-                        quick = true, slot = live.slot,
-                    })
-                end
-                -- Stay on the mark so the crab keeps pathing onto / beside it.
-                t.player.walk_to(wx, wz, 10)
                 t.ticks(1)
                 guard = guard + 1
             end
@@ -397,15 +427,17 @@ return {
             local slot = crab.row.slot
             local x0, z0 = crab.row.x, crab.row.z
             t.player.walk_to(x0 + 1, z0, 30)
-            smash(t, crab.symbol, { quick = true, slot = slot })
-            -- Re-read after smash: freeze applies on the opnpc3 tick; capture
-            -- the post-smash tile (pack world slot) before counting.
+            local ok = smash(t, crab)
+            if not ok then return nil end
             local row0 = pack_slot(slot)
             if row0 ~= nil then
                 x0, z0 = row0.x, row0.z
             end
+            -- Step away so the crab walks when the freeze melts (idle after
+            -- thaw was reading as 70 still-ticks).
+            t.player.walk_to(x0 + 3, z0, 20)
             local still = 0
-            for _ = 1, 70 do
+            for _ = 1, 65 do
                 t.ticks(1)
                 local row = pack_slot(slot)
                 if row == nil then break end
@@ -558,16 +590,14 @@ return {
                         return
                     end
                     if ok and wait > 0 and wait % 7 == 0 then
-                        local seated = crab_at(t, wx, wz)
+                        local seated = crab_at(t, wx, wz, 0)
                         if seated ~= nil then
                             t.player.walk_to(sx, sz, 15)
                             if style ~= nil and style ~= "melee" then
                                 paint_style(t, style, seated.symbol)
-                            elseif style == "melee" or style == nil then
-                                -- Refresh stun; melee/white both want red then grey.
-                                smash(t, seated.symbol, {
-                                    quick = true, slot = seated.row.slot,
-                                })
+                            else
+                                -- Refresh stun; white needs grey after paint window.
+                                smash(t, seated)
                                 if style == nil then
                                     t.ticks(10)
                                 end
