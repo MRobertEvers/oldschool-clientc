@@ -224,7 +224,7 @@ local function party_run(t)
         end
         t.check("tech.never_idle", m.idle.longest <= 2 and worst <= 3,
             "p" .. role .. " idle ticks by form " .. table.concat(per, " ") .. ", longest run " .. m.idle.longest
-            .. " (ending t" .. m.idle.longest_at .. "); library fill-ins " .. tostring(rec.fill_ins or 0))
+            .. " (ending t" .. m.idle.longest_at .. "); library fill-ins " .. tostring(rec.fill_ins or 0) .. "; leaks seen " .. tostring(m.leaks or 0))
     end
     if role == 2 then
         -- raid seam40: the thresholds the casts were made in (the reference's

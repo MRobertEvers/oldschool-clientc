@@ -865,6 +865,11 @@ function QD.raid.mz_drain_on_pool(st, v, ev) return QD.raid.mz_dodge(st, v, ev) 
 function QD.raid.mz_drain_tick(st, v, intent)
     local m = st.m
     if m.idx == 0 then m.idx = v.tick end
+    -- (coordinator 23:20) a scythe seat throws the special from the tile it
+    -- will swing from (the script's phase-100 tile), so no walk follows it:
+    -- sm42 sva dps1 threw from (10,-3) and walked six ticks to (4,6), first
+    -- scythe +23 against the script's +16
+    if st.role ~= 2 and v.tick - m.idx <= 12 and QD.raid.mz_walk_home(st, v, intent) then return end
     local spent = QD.raid.mz_special(st, v, intent, st.plan.opener.weapon, 1000)
     if spent or v.tick - m.idx > 14 then
         intent.spec, intent.attack = nil, false
@@ -1150,6 +1155,18 @@ function QD.raid._play_maiden_trio(st, v)
         QD.raid.mz_go(st, v, (st.role == 2) and "DRAIN" or "OPEN", 0)
     end
     m.slugs_last = v.slugs
+    for _, e in ipairs(v.events or {}) do
+        -- a crab gone beside her with hp left on its bar is a leak (her 2x2
+        -- crab is taken with its SW tile up to two off her south/west edge:
+        -- the library's at_her (gap <= 1) misses those)
+        if e.name == "crab_gone" then
+            local a = st.ev.adds[e.slot]
+            -- (the consumed crab's bar reads empty like a kill's -- v.crab_dead
+            -- cannot tell them apart -- so a walker gone beside her counts:
+            -- an over-count only moves the eat line up)
+            if (a == nil or not a.ice) and QD.raid._play_gap(v.ev_boss or v.boss, e.x, e.z) <= 2 then m.leaks = (m.leaks or 0) + 1 end
+        end
+    end
     -- the dodge interrupt from the tick too: blood under me that no event
     -- named (a trail, a pool I walked onto)
     -- (and a blood spawn beside me: it walks her edge laying its trail tile by
@@ -1203,22 +1220,33 @@ function QD.raid._play_maiden_trio(st, v)
         -- a scythe seat eats at 45 or under and drinks no brew while a fish is
         -- left (eat_at_hp_pct 36 [14-75]; a brew takes the Strength it swings
         -- with); the super combat again under 112 (her storm drains, W:591)
-        if v.hp > P.melee_eat_at and not v.marks[here] then
+        -- (coordinator 23:20) the eat line is the most one tick can take:
+        -- her tornado's max now, 36.5 + 3.5 a leak, halved under Protect from
+        -- Magic (tob_maiden.rs2:34, :816-827), or a blood splat's 25; and never
+        -- two eats inside the food's 3 ticks (sm42 sva: the leader ate 13 times
+        -- in the 30 wave at a fixed 45)
+        local storm = (36.5 + 3.5 * (m.leaks or 0)) / 2
+        local eat_at = math.max(25, math.ceil(storm)) + 2
+        if (v.hp > eat_at and not v.marks[here]) or v.tick - (st.last_eat or -100) < 3 then
             intent.eat = nil
             if intent.drink ~= nil and is_brew(intent.drink) then intent.drink = nil end
         end
         local fr, fish = QD.inv.count("anglerfish")
+        -- at the line with a fish left: the fish, whatever the library's own
+        -- line said (sm46 _play_maiden: the leader stood at 37 under a 42
+        -- tornado max and died to it)
+        if v.hp <= eat_at and intent.eat == nil and v.tick - (st.last_eat or -100) >= 3 and fr == "ok" and (tonumber(fish) or 0) > 0 then intent.eat = "anglerfish" end
         if intent.drink ~= nil and is_brew(intent.drink) and fr == "ok" and (tonumber(fish) or 0) > 0 and v.hp > 20 then intent.drink = nil end
         -- at 45 or under with no fish: the brew, never the super combat (sm25
         -- sva: out of fish at 43 the leader drank two combat doses and her
         -- next auto, 43, killed it)
-        if v.hp <= P.melee_eat_at and intent.eat == nil and drink_ready and (fr ~= "ok" or (tonumber(fish) or 0) == 0) then
+        if v.hp <= eat_at and intent.eat == nil and drink_ready and (fr ~= "ok" or (tonumber(fish) or 0) == 0) then
             for _, name in ipairs(QD.RAID_PLAY_BREWS) do
                 local br, bn = QD.inv.count(name)
                 if br == "ok" and (tonumber(bn) or 0) > 0 then intent.drink = name break end
             end
         end
-        if intent.drink == nil and drink_ready and v.hp > P.melee_eat_at then
+        if intent.drink == nil and drink_ready and v.hp > eat_at then
             local _, sg = QD.skill.read("strength")
             if sg ~= nil and sg.level < 112 then
                 local doses = 0
