@@ -359,33 +359,27 @@ return {
         local function seat_crab(tile, style)
             local wx, wz = world(tile.lx, tile.lz)
             local sx, sz = safe_tile(wx, wz)
-            -- Stand EAST of the bounce tile (off the CCW north-running beam
-            -- column). Melee pathing then prefers the bounce tile itself.
-            local lure_x, lure_z = wx + 1, wz
+            -- Stand WEST of the bounce tile (off the CCW beam column). East
+            -- lure stacked crabs on the lure tile and never took the mark.
+            local lure_x, lure_z = wx - 1, wz
             t.player.walk_to(lure_x, lure_z, 40)
-            t.ticks(1)
+            t.ticks(2)
             sustain(t)
             local crab = nearest_crab(t)
             if crab == nil then return false, "no crab" end
             local slot = crab.row.slot
             wield(t, "dragon_warhammer")
             t.player.attack(crab.symbol, 2, 1, { quick = true, slot = slot })
-            t.ticks(1)
+            t.ticks(2)
             local guard = 0
-            while guard < 90 do
+            while guard < 50 do
                 sustain(t)
-                -- Stay on the lure tile (east); never stand on the bounce.
-                local wr, me = t.world.tile()
-                if wr == "ok" and me ~= nil and (me.x ~= lure_x or me.z ~= lure_z) then
-                    t.player.walk_to(lure_x, lure_z, 15)
-                end
                 local exact = crab_at(t, wx, wz, 0)
                 if exact ~= nil then
                     local ok, detail = smash(t, exact)
                     if not ok then
                         return false, "smash failed: " .. tostring(detail)
                     end
-                    -- Clear the beam column before paint wait.
                     t.player.walk_to(sx, sz, 20)
                     t.ticks(10)
                     if style ~= nil and style ~= "melee" then
@@ -395,30 +389,25 @@ return {
                     t.player.walk_to(sx, sz, 20)
                     return true, exact.symbol
                 end
-                local live = pack_slot(slot)
-                if live == nil then
-                    local n = nearest_crab(t)
-                    if n ~= nil then
-                        live = n.row
-                        slot = n.row.slot
-                    end
-                end
+                -- Pull from the east through the bounce: walk onto the mark
+                -- then back west so a chasing crab steps onto it.
+                local live = pack_slot(slot) or (nearest_crab(t) and nearest_crab(t).row)
                 if live ~= nil then
-                    -- If the crab is south/north of the mark, step so its
-                    -- next melee tile is the bounce.
-                    if live.x == wx and live.z == wz - 1 then
-                        t.player.walk_to(wx, wz + 1, 10)
-                    elseif live.x == wx and live.z == wz + 1 then
-                        t.player.walk_to(wx, wz - 1, 10)
-                    elseif live.x == wx - 1 and live.z == wz then
-                        t.player.walk_to(wx + 1, wz, 10)
+                    slot = live.slot
+                    if live.x > wx then
+                        t.player.walk_to(wx, wz, 8)
+                        t.ticks(1)
+                        t.player.walk_to(lure_x, lure_z, 8)
                     else
+                        t.player.walk_to(lure_x, lure_z, 8)
                         t.player.attack(live.symbol, 2, 1, {
                             quick = true, slot = live.slot,
                         })
                     end
+                else
+                    t.player.walk_to(lure_x, lure_z, 8)
                 end
-                t.ticks(1)
+                t.ticks(2)
                 guard = guard + 1
             end
             t.player.walk_to(sx, sz, 20)
@@ -585,9 +574,9 @@ return {
                 t.player.walk_to(sx, sz, 20)
                 if not ok then
                     sm.attempt = sm.attempt + 1
-                    if sm.attempt > 40 then
+                    if sm.attempt > 12 then
                         t.check("solve.stuck", false,
-                            "crystal " .. sm.crystal_i .. " unsatisfied after 40 seat attempts; stage="
+                            "crystal " .. sm.crystal_i .. " unsatisfied after 12 seat attempts; stage="
                                 .. tostring(var_num(t, "varp7044_cox_crab_big_stage")))
                         set_state(STATE.DONE)
                     end
@@ -636,9 +625,9 @@ return {
                     end
                 else
                     sm.attempt = sm.attempt + 1
-                    if sm.attempt > 40 then
+                    if sm.attempt > 12 then
                         t.check("solve.stuck", false,
-                            "crystal " .. sm.crystal_i .. " unsatisfied after 40 seat attempts; stage="
+                            "crystal " .. sm.crystal_i .. " unsatisfied after 12 seat attempts; stage="
                                 .. tostring(var_num(t, "varp7044_cox_crab_big_stage")))
                         set_state(STATE.DONE)
                     end
