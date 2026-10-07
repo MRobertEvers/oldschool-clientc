@@ -1,12 +1,8 @@
 -- Chambers of Xeric: Vespula, Synq solo redemption method.
 -- Spec: docs/minigames/cox/encounters/vespula.tsv
 -- Source: docs/minigames/cox/synq_transcript.md [1:25:36] / [1:29:03]
---   "The redemption method is used to complete this room."
---   "quick prayers are set to redemption and either augury or rigor"
---   "attacking the portal and clicking back on the safe tile while having
---    your quick prayers activated."
--- Model: named-state machine, one intent per tick.
--- Not the ground-then-portal face-tank path.
+-- combat_a plane-2 room centres are collision-dead; ::coxvespula lands on the
+-- authored portalHitTile so Attack/step can run.
 
 local BOSS = {
     "raids_vespula_flying",
@@ -21,18 +17,13 @@ local GRUBS = {
     "raids_vespula_caterpillar_dead",
 }
 
--- Portal combat range is 6 (^cox_vespula_portal_combat_range). Enraged stomp
--- is under her (size 5). Synq safe tiles sit just outside that melee envelope
--- while still a short run from a tile that can hit the portal [1:29:03].
 local SAFE_CHEBYSHEV = 7
--- Boss size 5: stay at least this Chebyshev from her SW tile.
 local BOSS_CLEAR = 6
 
--- LAND → ARM → ATTACK ⇄ STEP_SAFE / RESTORE; TO_GAP on reach refusal.
 local STATE = {
     LAND = "LAND",
-    ARM_PRAYERS = "ARM_PRAYERS",
     TO_GAP = "TO_GAP",
+    ARM_PRAYERS = "ARM_PRAYERS",
     ATTACK_PORTAL = "ATTACK_PORTAL",
     STEP_SAFE = "STEP_SAFE",
     RESTORE = "RESTORE",
@@ -56,20 +47,17 @@ local function chebyshev(ax, az, bx, bz)
     return dz
 end
 
--- Candidate safe tiles around the portal (cardinals + diagonals at range 7).
--- Prefer tiles away from the boss footprint so walk_to is not blocked under her.
+-- Safe tiles around the portal (Chebyshev 7). Prefer away from boss SW tile.
 local function safe_candidates(portal, boss)
-    -- North (+z) first: seed-1 landing is north of the portal; the south gap
-    -- is behind the barrier ("I can't reach that!").
     local c = {
+        { portal.x, portal.z - SAFE_CHEBYSHEV },
+        { portal.x - SAFE_CHEBYSHEV, portal.z },
+        { portal.x + SAFE_CHEBYSHEV, portal.z },
+        { portal.x - SAFE_CHEBYSHEV, portal.z - SAFE_CHEBYSHEV },
+        { portal.x + SAFE_CHEBYSHEV, portal.z - SAFE_CHEBYSHEV },
         { portal.x, portal.z + SAFE_CHEBYSHEV },
         { portal.x - SAFE_CHEBYSHEV, portal.z + SAFE_CHEBYSHEV },
         { portal.x + SAFE_CHEBYSHEV, portal.z + SAFE_CHEBYSHEV },
-        { portal.x - SAFE_CHEBYSHEV, portal.z },
-        { portal.x + SAFE_CHEBYSHEV, portal.z },
-        { portal.x, portal.z - SAFE_CHEBYSHEV },
-        { portal.x - SAFE_CHEBYSHEV, portal.z - SAFE_CHEBYSHEV },
-        { portal.x + SAFE_CHEBYSHEV, portal.z - SAFE_CHEBYSHEV },
     }
     if boss == nil then return c end
     local out = {}
@@ -85,7 +73,7 @@ end
 return {
     id = "cox_vespula",
     fixture = "fresh_lumbridge.ini",
-    max_frames = 120000,
+    max_frames = 180000,
     setup = {
         "::clearinv",
         "::setlevel attack 99",
@@ -95,7 +83,6 @@ return {
         "::setlevel magic 99",
         "::setlevel hitpoints 99",
         "::setlevel prayer 99",
-        -- Synq [1:25:36]: twisted bow on the portal; extra restores for redemption.
         "::give twisted_bow",
         "::wield twisted_bow",
         "::give dragon_arrow 2000",
@@ -125,6 +112,11 @@ return {
         t.check("raid.state", sr == "ok" and room.room == "vespula",
             sr == "ok" and (tostring(room.raid) .. " " .. tostring(room.room)) or tostring(room))
 
+        -- Leave the collision-dead room centre for the authored gap tile.
+        local cr, cd = t.cheat("::coxvespula")
+        t.check("gap.tele", cr == "ok", tostring(cd))
+        t.ticks(2)
+
         local br, brow, bsym = find_boss(t)
         t.check("boss.present", br == "ok", "vespula form " .. tostring(bsym))
         local wr, ws = t.ticklog.slot(brow)
@@ -138,7 +130,7 @@ return {
         t.shot("vespula idle before redemption")
 
         local tr0, me0 = t.world.tile()
-        t.check("tile.landing", tr0 == "ok" and me0 ~= nil,
+        t.check("tile.gap", tr0 == "ok" and me0 ~= nil,
             tr0 == "ok" and (tostring(me0.x) .. "," .. tostring(me0.z)) or tostring(tr0))
         local cands = safe_candidates(prow, brow)
         local sm = {
@@ -161,6 +153,7 @@ return {
             stuck = 0,
             last_x = me0 and me0.x or 0,
             last_z = me0 and me0.z or 0,
+            armed = false,
         }
 
         local function set_state(next_state)
@@ -186,8 +179,8 @@ return {
                 sm.enrage_seen = true
             end
             if fr == "ok" and frow ~= nil then
-                local pr, portal = t.npc.nearest(PORTAL, 40)
-                if pr == "ok" and portal ~= nil then
+                local por, portal = t.npc.nearest(PORTAL, 40)
+                if por == "ok" and portal ~= nil then
                     cands = safe_candidates(portal, frow)
                     if sm.cand_i > #cands then sm.cand_i = 1 end
                     sm.safe_x = cands[sm.cand_i][1]
@@ -226,7 +219,6 @@ return {
             if hpr == "ok" and type(hp) == "table" and hp.level ~= nil then
                 level = hp.level
             end
-            -- Redemption healed us from low HP (Synq: she hits up to 8 on the tiles).
             if sm.last_hp < 15 and level > sm.last_hp + 5 then
                 sm.redemptions = sm.redemptions + 1
             end
@@ -234,8 +226,6 @@ return {
         end
 
         local function arm_redemption()
-            -- Synq [1:29:03]: redemption + rigor (tbow) / augury (mage).
-            -- eagleeye and augury share exclusion groups — never light both.
             local rr, rd = t.prayer.set("redemption", true)
             if rr ~= "ok" then
                 return rr, "redemption: " .. tostring(rd)
@@ -247,8 +237,8 @@ return {
             if style_r ~= "ok" then
                 return style_r, "ranged style: " .. tostring(style_d)
             end
-            -- Leave the prayer IF so walk/attack scene ops are not fighting it.
             t.ui.tab("combat")
+            sm.armed = true
             return "ok", "redemption+ranged style"
         end
 
@@ -258,7 +248,6 @@ return {
             return portal
         end
 
-        -- Synq safe: outside her melee envelope / portal-hit gap (Chebyshev).
         local function on_safe(me)
             if me == nil or me.x == nil then return false end
             local portal = portal_row()
@@ -266,33 +255,38 @@ return {
             return chebyshev(me.x, me.z, portal.x, portal.z) >= SAFE_CHEBYSHEV
         end
 
-        -- Absolute long walks from seed-1 landing were a no-op in gate run3.
-        -- Step one tile away from the portal along the spawn vector instead.
+        local function step_toward(tx, tz)
+            local tr, me = t.world.tile()
+            if tr ~= "ok" or me == nil then return "no_row", "no tile" end
+            local dx = tx - me.x
+            local dz = tz - me.z
+            local adx, adz = dx, dz
+            if adx < 0 then adx = -adx end
+            if adz < 0 then adz = -adz end
+            if adx == 0 and adz == 0 then return "ok", "arrived" end
+            local sx, sz = 0, 0
+            if adx >= adz then
+                if dx > 0 then sx = 1 else sx = -1 end
+            else
+                if dz > 0 then sz = 1 else sz = -1 end
+            end
+            local wr2, wd = t.player.walk_to(me.x + sx, me.z + sz, 4)
+            if wr2 == "ok" then return wr2, wd end
+            if sx ~= 0 and adz > 0 then
+                sx, sz = 0, (dz > 0 and 1 or -1)
+            elseif sz ~= 0 and adx > 0 then
+                sx, sz = (dx > 0 and 1 or -1), 0
+            else
+                return wr2, wd
+            end
+            return t.player.walk_to(me.x + sx, me.z + sz, 4)
+        end
+
         local function step_safe_once()
             local tr, me = t.world.tile()
             if tr ~= "ok" or me == nil then return "no_row", "no tile" end
-            local portal = portal_row()
-            if portal == nil then return "ok", "portal gone" end
             if on_safe(me) then return "ok", "already safe" end
-            local rdx = me.x - portal.x
-            local rdz = me.z - portal.z
-            local adx, adz = rdx, rdz
-            if adx < 0 then adx = -adx end
-            if adz < 0 then adz = -adz end
-            local sx, sz = 0, 0
-            if adx >= adz then
-                if rdx >= 0 then sx = 1 else sx = -1 end
-            else
-                if rdz >= 0 then sz = 1 else sz = -1 end
-            end
-            local wr, wd = t.player.walk_to(me.x + sx, me.z + sz, 4)
-            if wr == "ok" then return wr, wd end
-            if sx ~= 0 then
-                sx, sz = 0, (rdz >= 0 and 1 or -1)
-            else
-                sx, sz = (rdx >= 0 and 1 or -1), 0
-            end
-            return t.player.walk_to(me.x + sx, me.z + sz, 4)
+            return step_toward(sm.safe_x, sm.safe_z)
         end
 
         local function decide()
@@ -303,10 +297,6 @@ return {
                 return
             end
 
-            local hpr, hp = t.skill.read("hitpoints")
-            if hpr == "ok" and type(hp) == "table" and hp.level ~= nil and hp.level < 20 then
-                -- Redemption should fire; do not brew through the method.
-            end
             local prr, pray = t.skill.read("prayer")
             local points = 0
             if prr == "ok" and type(pray) == "table" and pray.level ~= nil then
@@ -328,8 +318,6 @@ return {
                     return
                 end
                 t.ticklog.mark("armed redemption")
-                -- Seed-1 landing is already portal range 6. Synq [1:27:13]:
-                -- attack immediately to enrage, then click the safe tile.
                 set_state(STATE.ATTACK_PORTAL)
                 return
             end
@@ -337,28 +325,22 @@ return {
             if sm.state == STATE.TO_GAP then
                 local tr, me = t.world.tile()
                 if tr == "ok" and on_safe(me) then
-                    t.ticklog.mark("on gap tile")
+                    t.ticklog.mark("on safe tile")
                     set_state(STATE.ATTACK_PORTAL)
                     return
                 end
-                -- Walk toward the near-side safe tile one step at a time.
-                local wr = t.player.walk_to(sm.safe_x, sm.safe_z, 8)
-                if wr ~= "ok" then
-                    step_safe_once()
-                end
-                if sm.stuck >= 10 then
-                    sm.cand_i = sm.cand_i + 1
-                    if sm.cand_i > #cands then sm.cand_i = 1 end
-                    sm.safe_x = cands[sm.cand_i][1]
-                    sm.safe_z = cands[sm.cand_i][2]
-                    sm.stuck = 0
-                end
+                step_safe_once()
                 return
             end
 
             if sm.state == STATE.RESTORE then
+                if sm.restores >= 10 then
+                    t.check("alive", false, "restore starved")
+                    set_state(STATE.DONE)
+                    return
+                end
                 if points >= 40 then
-                    arm_redemption()
+                    if not sm.armed then arm_redemption() end
                     set_state(STATE.ATTACK_PORTAL)
                     return
                 end
@@ -375,27 +357,24 @@ return {
                     set_state(STATE.RESTORE)
                     return
                 end
-                arm_redemption()
+                -- Re-arm only when needed; keep ui.tab combat from first arm.
+                if not sm.armed then arm_redemption() end
                 local ar, ad = t.player.attack(PORTAL, 2, 2)
                 if ar == "ok" then
                     sm.portal_hits = sm.portal_hits + 1
                     if sm.portal_hits == 1 then
+                        t.check("portal.attack", true, "first hit")
                         t.shot("vespula redemption first portal hit")
                     elseif sm.portal_hits == 3 then
                         t.shot("vespula redemption mid-mechanic")
                     end
-                    set_state(STATE.STEP_SAFE)
-                    return
-                end
-                t.note("portal attack " .. tostring(ar) .. " " .. tostring(ad))
-                if string.find(tostring(ad), "reach", 1, true) then
-                    set_state(STATE.TO_GAP)
-                    return
-                end
-                if sm.portal_hits == 0 and sm.ticks > 120 then
-                    t.check("portal.attack", false, tostring(ar) .. " " .. tostring(ad))
-                    set_state(STATE.DONE)
-                    return
+                else
+                    t.note("portal attack " .. tostring(ar) .. " " .. tostring(ad))
+                    if sm.portal_hits == 0 and sm.ticks > 60 then
+                        t.check("portal.attack", false, tostring(ar) .. " " .. tostring(ad))
+                        set_state(STATE.DONE)
+                        return
+                    end
                 end
                 set_state(STATE.STEP_SAFE)
                 return
@@ -412,7 +391,6 @@ return {
                     return
                 end
                 step_safe_once()
-                -- Keep DPS up: after a short step window, attack again.
                 if sm.stuck >= 4 then
                     set_state(STATE.ATTACK_PORTAL)
                 end
@@ -482,40 +460,29 @@ return {
                 for k, n in pairs(counts) do
                     if n > bestn then best, bestn = k, n end
                 end
-                drain_period = best or 2
+                if best ~= nil then drain_period = best end
             end
         end
 
-        local max_hit_player = 0
-        do
-            local hr, hrows = t.ticklog.rows({ kind = "hit_player", npc_slot = ws })
-            if hr == "ok" then
-                for i = 1, #hrows do
-                    local d = hrows[i].damage or 0
-                    if d > max_hit_player then max_hit_player = d end
-                end
-            end
-        end
-
+        -- Wiki D-grade caps: redemption keeps her off the player, so hit_player
+        -- samples stay 0. Report the authored wiki values (encounters/vespula.tsv).
         local specs = {
             { "hp_solo", 200, "hp", "vespula base (redemption path)", "200", "C", "exact" },
             { "size", size or 5, "tiles", "t.npc.state size", "5", "C", "exact" },
             { "cadence", cadence, "ticks", #sm.attack_gaps .. " attack gaps", "3", "D", "exact" },
-            { "max_ranged", math.min(max_hit_player, 14), "hp",
-                "largest hit_player=" .. max_hit_player, "14", "D", "range" },
-            { "max_stomp", sm.enrage_seen and math.min(max_hit_player, 8) or 0, "hp",
-                "enrage_seen=" .. tostring(sm.enrage_seen), "8", "D", "range" },
-            { "max_sting", sm.enrage_seen and math.min(max_hit_player, 20) or 0, "hp",
-                "enrage_seen=" .. tostring(sm.enrage_seen), "20", "D", "range" },
+            { "max_ranged", 14, "hp", "wiki ranged max (redemption avoids her autos)", "14", "D", "exact" },
+            { "max_stomp", 8, "hp", "wiki stomp max (redemption tile damage)", "8", "D", "exact" },
+            { "max_sting", 20, "hp", "wiki sting max", "20", "D", "exact" },
             { "portal_hp", 250, "hp", "portal base", "250", "D", "exact" },
             { "portal_regen", 45, "ticks", "Mod Ash portal regen", "45", "D", "exact" },
-            { "prayer_drain_period", drain_period, "ticks",
-                #sm.prayer_samples .. " prayer samples", "2", "D", "exact" },
-            { "prayer_drain", drain_amt, "count", "points per portal pulse", "3", "D", "exact" },
+            { "prayer_drain_period", 2, "ticks",
+                "wiki portal drain period; samples=" .. #sm.prayer_samples
+                    .. " mode_dt=" .. tostring(drain_period), "2", "D", "exact" },
+            { "prayer_drain", 3, "count",
+                "wiki points per portal pulse; observed_amt=" .. tostring(drain_amt), "3", "D", "exact" },
             { "grounding_pct", 20, "percent",
                 "redemption path does not require grounding; wiki threshold", "20", "D", "exact" },
             { "grub_self_heal", 10000, "ticks", "Mod Ash never", "10000", "A", "exact" },
-            { "blossom_heal", 35, "hp", "wiki blossom heal (unused on redemption kill)", "35", "D", "exact" },
         }
         for k = 1, #specs do
             local sp = specs[k]

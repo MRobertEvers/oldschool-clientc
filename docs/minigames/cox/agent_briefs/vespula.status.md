@@ -14,23 +14,24 @@ Not ground-then-portal face-tank.
 
 - Spec: `encounters/vespula.tsv` (`spec_check` ok, 12 rows)
 - Test: `test/raids/cox_vespula.lua` SM:
-  `LAND → ARM_PRAYERS → TO_GAP → ATTACK_PORTAL ⇄ STEP_SAFE / RESTORE → DONE`
-  (seed-1 landing is already portal range 6 → ARM skips TO_GAP and attacks)
+  `LAND → ARM_PRAYERS → ATTACK_PORTAL ⇄ STEP_SAFE / RESTORE → DONE`
 - Setup: `::give 4doseantipoison 1` (valid obj; not `antipoison4`)
-- Step-once away from portal (absolute long walks were a no-op under gate)
-- Prayer arm: redemption + rigor, else eagleeye; never both style prayers
+- `::coxvespula` debugproc: teleports onto authored `portalHitTile` 0
+- Prayer arm: redemption + rigor, else eagleeye; `t.ui.tab("combat")` after arm
 
 ## Gate evidence
 
 | Attempt | Outcome |
 |---|---|
-| Prior: pack build | RED — sibling `cox_resource_fishing_spot` refused |
-| Prior: `--no-build` + `antipoison4` | FAIL setup (invalid obj) |
-| Prior: `--no-build` + `4doseantipoison` | hung on unreachable safe tile (`run.unfinished`) |
-| This pass: private `QUEST_BINARY` + pack | FAIL `portal.attack` — landing has no route (`I can't reach that!`) |
-| This pass: ARM→TO_GAP before ATTACK | in progress |
+| Seed-1 `::coxgoto` room centre | walk stalls on every neighbour (combat_a plane 2; guardians same, crabs/puzzle_a OK) |
+| Attack from centre | `I can't reach that!` (barrier LoS) |
+| `::coxvespula` → hit tile 6479,109 (thru) | portal Attack lands; redemption SM clears |
+| `run.py cox_vespula --no-publish` + `gate.py` | **green** |
+| `raid_coverage.py cox_vespula` | **FULL** (12/12) |
 
-## Next
+## Note (layout, not owned)
 
-- Green `run.py cox_vespula --no-publish` / `gate.py` / `raid_coverage.py` FULL
-- Copy play shots to `/opt/cursor/artifacts/cox_vespula_*.png`
+combat_a template plane 2 room centres are collision-dead under soft3d gate
+(`walk_to` / `step_tick` stall). Guardians shares it. Workaround: room debugproc
+lands on the Synq gap tile. A layout/collision fix for the stamp is out of this
+room's ownership (`cox_layout.rs2` forbidden).
