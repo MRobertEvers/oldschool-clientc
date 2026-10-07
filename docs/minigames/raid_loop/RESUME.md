@@ -455,7 +455,12 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   nothing turns it back on; the room harnesses carry no stamina (the relay gives one dose). Many one-tile
   moves in both rooms' logs. The Maiden owner measures energy/run-off per seat in Maiden and Nylocas, copies
   the reference's staminas and re-toggles run. Owner's rule: ALL THREE seats attack the crabs at every
-  wave's spawn (verify per role per wave from the streams, copy). More content fixed from the
+  wave's spawn (verify per role per wave from the streams, copy). STORM TARGET RULE unsettled (owner 03:15):
+  Strategies:589 "closest -> north/east side -> orb order" vs content tob_maiden.rs2:619 "closest by
+  Chebyshev to her centre, tie -> orb order" ([mc], north/east dropped): the Maiden owner tests both rules
+  on every storm in the 24 streams, fixes the content to the confirmed rule, and builds the storm sharing
+  on the mechanic (predict her pick; the seat that should take it per the reference's 38/41/20 shares
+  makes itself the pick on T-1). More content fixed from the
   wiki on 2026-10-07: Normal blood-spawn trail 5-13 (35366f400e), Dinh's bulwark 11x11 Shield Bash
   (a1eb26c34), Zaryte crossbow Evoke = guaranteed ruby bolt effect 22% capped 110 (ade9c689b0).
 - Owner's rules added this day: model every role as an explicit STATE MACHINE (named states, every event
