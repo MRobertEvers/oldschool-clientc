@@ -200,26 +200,27 @@ local function paint_style(t, style, crab)
         t.ticks(1)
         -- Non-quick settle: quick press fails when the crab is covered and
         -- never walk_nears (seat attempts from the safe tile).
-        local cr, cd = t.player.cast("water_wave", sym, 8, 2, opts)
-        -- seam5: timeout with Magic XP paid still painted; only hard-fail retries.
+        -- ticks=5: enough flight to paint, cheap enough for the seat loop's
+        -- instruction budget (400k/resume; run22 died mid-crystal-1).
+        local cr, cd = t.player.cast("water_wave", sym, 5, 2, opts)
         if cr ~= "ok" and cr ~= "timeout" then
-            cr, cd = t.player.cast("fire_wave", sym, 8, 2, opts)
+            cr, cd = t.player.cast("fire_wave", sym, 5, 2, opts)
         end
-        t.ticks(2)
+        t.ticks(1)
         return cr, cd
     elseif style == "range" then
         wield(t, "dragon_arrow")
         wield(t, "twisted_bow")
-        local ar, ad = t.player.attack(sym, 4, 3, opts)
-        t.ticks(2)
+        local ar, ad = t.player.attack(sym, 3, 3, opts)
+        t.ticks(1)
         return ar, ad
     elseif style == "melee" then
         wield(t, "dragon_warhammer")
-        local ar, ad = t.player.attack(sym, 4, 3, opts)
-        t.ticks(2)
+        local ar, ad = t.player.attack(sym, 3, 3, opts)
+        t.ticks(1)
         return ar, ad
     end
-    t.ticks(2)
+    t.ticks(1)
     return "ok", nil
 end
 
@@ -396,7 +397,7 @@ return {
             return wx + 2, wz + 1
         end
 
-        local function seat_crab(tile, style)
+        local function seat_crab(tile, style, flag)
             local wx, wz = world(tile.lx, tile.lz)
             local sx, sz = safe_tile(wx, wz)
             -- Stand WEST of the bounce tile (off the CCW beam column). East
@@ -413,8 +414,12 @@ return {
             t.ticks(2)
             local guard = 0
             local last_detail = "crab never seated"
-            while guard < 55 do
-                sustain(t)
+            while guard < 40 do
+                if flag ~= nil and (var_num(t, flag) or 0) == 1 then
+                    t.player.walk_to(sx, sz, 20)
+                    return true, "crystal already lit"
+                end
+                if guard % 3 == 0 then sustain(t) end
                 -- Prefer safe tile between pulls so the beam column is free.
                 if guard % 5 == 4 then
                     t.player.walk_to(sx, sz, 10)
@@ -445,8 +450,7 @@ return {
                                     or "raids_lasercrabs_crab_green"
                                 local last_paint = "none"
                                 local painted = false
-                                for _ = 1, 4 do
-                                    sustain(t)
+                                for _ = 1, 3 do
                                     local live = crab_at(t, wx, wz, 0)
                                     if live == nil then
                                         last_detail = "crab left mark during paint"
@@ -457,9 +461,11 @@ return {
                                         break
                                     end
                                     t.player.walk_to(lure_x, lure_z, 8)
+                                    t.ticks(1)
+                                    live = crab_at(t, wx, wz, 0) or live
                                     local pr, pd = paint_style(t, style, live)
                                     last_paint = tostring(pr) .. ":" .. tostring(pd)
-                                    for _ = 1, 4 do
+                                    for _ = 1, 3 do
                                         t.ticks(1)
                                         live = crab_at(t, wx, wz, 0)
                                         if live ~= nil and live.symbol == want then
@@ -670,7 +676,7 @@ return {
                     style = info.style
                 end
                 local before = var_num(t, info.flag) or 0
-                local ok, detail = seat_crab(tile, style)
+                local ok, detail = seat_crab(tile, style, info.flag)
                 t.check("solve.seat_" .. sm.crystal_i .. "_" .. sm.attempt, true,
                     "tile " .. tile.lx .. "," .. tile.lz .. " style=" .. tostring(style)
                         .. " ok=" .. tostring(ok) .. " " .. tostring(detail)
@@ -700,39 +706,35 @@ return {
                 end
                 local wait = 0
                 local missing = 0
-                while wait < 60 do
-                    sustain(t)
-                    t.player.walk_to(sx, sz, 10)
+                while wait < 45 do
+                    if wait % 4 == 0 then sustain(t) end
+                    if wait % 2 == 0 then t.player.walk_to(sx, sz, 8) end
                     if t.player.alive() ~= "ok" then
                         t.check("alive", false, "died waiting crystal " .. sm.crystal_i
                             .. " attempt " .. sm.attempt)
                         set_state(STATE.DONE)
                         return
                     end
+                    if (var_num(t, info.flag) or 0) == 1 then break end
+                    if (var_num(t, "varp7044_cox_crab_big_stage") or 0) >= 4 then break end
                     local seated = crab_at(t, wx, wz, 0)
                     if seated == nil then
                         missing = missing + 1
-                        if missing > 6 then break end
+                        if missing > 5 then break end
                     else
                         missing = 0
                         if want_sym ~= nil and seated.symbol ~= want_sym and wait % 4 == 0 then
-                            t.player.walk_to(wx - 1, wz, 10)
+                            t.player.walk_to(wx - 1, wz, 8)
                             if style ~= "melee" then
                                 paint_style(t, style, seated)
                             else
                                 smash(t, seated)
                             end
-                            t.player.walk_to(sx, sz, 10)
+                            t.player.walk_to(sx, sz, 8)
                         end
                     end
                     t.ticks(1)
                     wait = wait + 1
-                    if (var_num(t, info.flag) or 0) == 1 and before == 0 then
-                        break
-                    end
-                    if (var_num(t, "varp7044_cox_crab_big_stage") or 0) >= 4 then
-                        break
-                    end
                 end
                 if (var_num(t, info.flag) or 0) == 1 then
                     sm.crystal_i = sm.crystal_i + 1
