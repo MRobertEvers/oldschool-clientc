@@ -143,12 +143,13 @@ end
 
 local function emergency_food(t)
     local h = hp(t)
-    if h > 0 and h < 28 then
+    if h <= 0 then return end
+    if h < 40 then
         if t.player.eat("anglerfish") ~= "ok" then
             t.player.eat("tbwt_cooked_karambwan")
         end
     end
-    if hp(t) > 0 and hp(t) < 20 then
+    if hp(t) > 0 and hp(t) < 25 then
         t.player.eat("tbwt_cooked_karambwan")
     end
 end
@@ -197,10 +198,10 @@ return {
         "::wield twisted_bow",
         "::give dragon_arrow 2000",
         "::wield dragon_arrow",
-        -- Brew-primary sustain (no weapon delay); anglers for emergencies.
-        "::give br_4dose2restore 3",
-        "::give br_4dosepotionofsaradomin 5",
-        "::give anglerfish 16",
+        -- Heal budget must exceed ~800 incoming (run27/28 took 793).
+        "::give br_4dose2restore 2",
+        "::give br_4dosepotionofsaradomin 6",
+        "::give anglerfish 18",
         "::give tbwt_cooked_karambwan 2",
     },
 
@@ -389,21 +390,20 @@ return {
                 end
 
                 local h = hp(t)
-                -- Sustain before any attack settle. Run27 died at 15 hp with
-                -- anglers left: empty-brew still set last_brew_tick and
-                -- returned before emergency_food.
-                if h > 0 and h < 55 and (sm.ticks - sm.last_brew_tick) >= 3 then
+                -- Food first when critical: run28 died at 15 hp after brew
+                -- path starved the emergency eat.
+                if h > 0 and h < 40 then
+                    emergency_food(t)
+                    if hp(t) < 40 then
+                        sip_brew_restore(t)
+                    end
+                    return
+                end
+                if h > 0 and h < 60 and (sm.ticks - sm.last_brew_tick) >= 3 then
                     if sip_brew_restore(t) then
                         sm.last_brew_tick = sm.ticks
-                        if hp(t) < 30 then
-                            emergency_food(t)
-                        end
                         return
                     end
-                end
-                if h > 0 and h < 35 then
-                    emergency_food(t)
-                    return
                 end
                 if prayer_points(t) < 40 then
                     drink_restore(t)
