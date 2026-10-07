@@ -998,6 +998,14 @@ function QD.raid._bloat_leave(c, ev)
     elseif f.hug_x ~= nil then
         x, z = f.hug_x, f.hug_z
     end
+    -- raid seam53 (the state-machine port's demonstration change): FROM THE
+    -- RISE, THE TILE HE CANNOT SEE.  The stomp has landed by T+30 and the
+    -- flies resume on T+33 (ET 3.1, 3.3), so for the last three ticks of a
+    -- down the tile that matters is the hide tile -- the tank's far ring from
+    -- him -- and not a tile outside a stomp that is already over.
+    if f.age >= P.rise_age then
+        x, z = f.hide_x, f.hide_z
+    end
     c.go.x, c.go.z = x, z
 end
 
