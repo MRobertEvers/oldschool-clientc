@@ -99,12 +99,12 @@ return {
         "::wield masori_chaps",
         "::give avas_assembler",
         "::wield avas_assembler",
-        -- Backpack is 28: keep headroom after food + restores + antipoisons.
-        "::give shark 18",
-        "::give br_4dose2restore 4",
+        -- Backpack is 28. Blobs are unprayerable 20-40; 18 sharks emptied mid
+        -- second-shaman kill once poison land actually applied (seed1 death).
+        "::give shark 22",
+        "::give br_4dose2restore 2",
         "::give br_4dosepotionofsaradomin 2",
         "::give 4doseantipoison 2",
-        "::give sanfew_salve_4_dose 2",
     },
 
     run = function(t)
@@ -170,14 +170,43 @@ return {
             sm.wait_ticks = 0
         end
 
+        local function eat_food()
+            if t.player.eat("shark") == "ok" then
+                sm.eats = sm.eats + 1
+                return true
+            end
+            if t.player.inv_op("br_4dosepotionofsaradomin", 1) == "ok"
+                or t.player.inv_op("br_3dosepotionofsaradomin", 1) == "ok"
+                or t.player.inv_op("br_2dosepotionofsaradomin", 1) == "ok"
+                or t.player.inv_op("br_1dosepotionofsaradomin", 1) == "ok" then
+                return true
+            end
+            return false
+        end
+
+        local function drink_antipoison()
+            if t.player.inv_op("4doseantipoison", 1) == "ok"
+                or t.player.inv_op("3doseantipoison", 1) == "ok"
+                or t.player.inv_op("2doseantipoison", 1) == "ok"
+                or t.player.inv_op("1doseantipoison", 1) == "ok" then
+                sm.antipoisons = sm.antipoisons + 1
+                return true
+            end
+            return false
+        end
+
         local function sustain()
             local hr, hp = t.skill.read("hitpoints")
-            if hr == "ok" and hp.level ~= nil and hp.level < 55 then
-                if t.player.eat("shark") == "ok" then sm.eats = sm.eats + 1 end
+            if hr == "ok" and hp.level ~= nil and hp.level < 70 then
+                eat_food()
             end
             local pr, pp = t.prayer.points()
             if pr == "ok" and (pp.points or 0) < 30 then
-                t.player.inv_op("br_4dose2restore", 1)
+                if t.player.inv_op("br_4dose2restore", 1) ~= "ok"
+                    and t.player.inv_op("br_3dose2restore", 1) ~= "ok"
+                    and t.player.inv_op("br_2dose2restore", 1) ~= "ok" then
+                    t.player.inv_op("br_1dose2restore", 1)
+                end
             end
             local vr, poison = t.var.varp("varp102_poison")
             if vr == "ok" then
@@ -185,16 +214,7 @@ return {
                 if p > sm.poison_peak then sm.poison_peak = p end
                 -- Hold antipoison until TANK_POISON has locked severity-12.
                 if p > 0 and sm.poison_peak >= 12 and sm.state ~= STATE.TANK_POISON then
-                    if t.player.inv_op("4doseantipoison", 1) == "ok"
-                        or t.player.inv_op("sanfew_salve_4_dose", 1) == "ok"
-                        or t.player.inv_op("3doseantipoison", 1) == "ok"
-                        or t.player.inv_op("2doseantipoison", 1) == "ok"
-                        or t.player.inv_op("1doseantipoison", 1) == "ok"
-                        or t.player.inv_op("sanfew_salve_3_dose", 1) == "ok"
-                        or t.player.inv_op("sanfew_salve_2_dose", 1) == "ok"
-                        or t.player.inv_op("sanfew_salve_1_dose", 1) == "ok" then
-                        sm.antipoisons = sm.antipoisons + 1
-                    end
+                    drink_antipoison()
                 end
             end
         end
@@ -322,10 +342,7 @@ return {
                         t.shot("shamans poison blob mid-tank")
                         sm.mid_shot = true
                     end
-                    if t.player.inv_op("4doseantipoison", 1) == "ok"
-                        or t.player.inv_op("sanfew_salve_4_dose", 1) == "ok" then
-                        sm.antipoisons = sm.antipoisons + 1
-                    end
+                    drink_antipoison()
                     arm_prayers()
                     set_state(STATE.KILL)
                     return
@@ -347,8 +364,8 @@ return {
                 local ar = t.player.attack(sm.target_sym, 2, 1)
                 if ar == "ok" then sm.hits = sm.hits + 1 end
                 local hr, hp = t.skill.read("hitpoints")
-                if hr == "ok" and hp.level ~= nil and hp.level < 40 then
-                    t.player.eat("shark")
+                if hr == "ok" and hp.level ~= nil and hp.level < 55 then
+                    eat_food()
                 end
                 return
             end

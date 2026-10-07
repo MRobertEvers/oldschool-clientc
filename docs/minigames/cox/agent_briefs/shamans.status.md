@@ -12,10 +12,9 @@ isolate one shaman at a time with a long-range weapon. Not face-tank melee.
 
 - Content: wire shaman `[ai_timer]` to 1-tick + `~cox_regen_counted` +
   `~cox_shaman_try_spawn_special` + `~cox_shaman_check_tendril_trigger`
-  (procs existed; timer never dispatched them)
 - Content: poison land rebinds `npc_uid` before hunt so blob hit/poison run
-  (delayed `queue*` had `active_npc=0`; splash gfx only)
 - Test SM: `LAND → ARM → MEASURE_REGEN → TANK_POISON → KILL → DONE`
+- Harness: 22 sharks + brew (blobs unprayerable; 18 emptied mid second kill)
 - Spec table: `encounters/shamans.tsv` (7 rows, scope all)
 
 ## Next
