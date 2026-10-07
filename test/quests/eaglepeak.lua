@@ -249,7 +249,7 @@ return {
         -- GUIDE-GAP: fillFeeder7 (feeder1a) is the guide's recovery step for a blocked lever 1 (gold_room.rs2:173); the main path never blocks lever 1, and pressing it early moves mechanical bird 1 out of order
         -- GUIDE-GAP: fillFeeder3 shown only after the wrong bird (bird 2) was moved; the guide's own route never shows it, gold_room.rs2:186 maps feeder3a to bird 2 and gold_room.rs2:63 refuses it before the wing gate is down
         t.ticks(2)
-        -- the silver mouth tile is boxed in for the walker (leg 3 note): step off it by teleport, then walk the cavern floor
+        -- a short REACH hop off the silver mouth tile (the client walker stalls on it; reach.py walks it), then walk the cavern floor
         t.exec("goto-enterGoldRoom-off-mouth", t.player.goto_tile, 1988, 4973, 3)
         local walk_result = t.player.walk_to(2022, 4982, 60)
         local _, walk_tile = t.world.tile()
@@ -335,7 +335,7 @@ return {
         t.ticks(3)
         local _, main_level = t.world.level()
         t.check("enterMainCavernFromGold.level", main_level == 3, "level " .. tostring(main_level))
-        -- the gold mouth tile is boxed in for the walker like the silver one (leg 3/4 notes): step off by teleport, then walk the floor
+        -- a short REACH hop off the gold mouth tile, as for the silver one (the client walker stalls on it; reach.py walks it), then walk the floor
         t.exec("goto-off-gold-mouth", t.player.goto_tile, 2021, 4982, 3)
         local door_walk = t.player.walk_to(2002, 4948, 60)
         local _, door_tile = t.world.tile()

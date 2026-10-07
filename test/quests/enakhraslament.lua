@@ -244,7 +244,20 @@ return {
             return false
         end
         -- One conversation: hand over blocks until Lazim has `target` or nothing more fits.
-        -- Returns the kilograms he now carries.
+        -- Returns the kilograms he now carries. Lazim's block menu (~enakh_choose_block) lists
+        -- only the sizes held that still fit, largest first, then "Why won't you take more than
+        -- N kg of stone?"; the block is picked from the rows he offers, never from a count.
+        -- A handed-over block leaves the backpack a tick after its page (trap 25), so each
+        -- handover is awaited before the next Yes/No: a stale count once said "Yes" with the
+        -- last fitting block already gone (enq2), and the menu then offered only the "Why"
+        -- row. That row is a real branch: it is chosen, Lazim explains, and the conversation
+        -- ends; build_block splits and comes back.
+        local BLOCK_ROWS = {
+            ["Here's a large 10 kg block."] = { "enakh_sandstone_large", 10 },
+            ["Here's a medium 5 kg block."] = { "enakh_sandstone_medium", 5 },
+            ["Here's a small 2 kg block."] = { "enakh_sandstone_small", 2 },
+            ["Here's a tiny 1 kg block."] = { "enakh_sandstone_tiny", 1 },
+        }
         local function deliver(name, target, carried)
             t.exec("goto-" .. name, t.player.goto_tile, 3189, 2927, 0)
             t.exec(name, t.player.talk_to, LAZIM, 1)
@@ -255,9 +268,11 @@ return {
                 if kind ~= "options" then break end
                 local _, rows = t.chat.options()
                 rows = rows or {}
-                local has_yes = false
+                local has_yes, block_row, why_row = false, nil, nil
                 for _, row in ipairs(rows) do
                     if row == "Yes, I have more stone." then has_yes = true end
+                    if not block_row and BLOCK_ROWS[row] then block_row = row end
+                    if row:find("^Why won't you take more than") then why_row = row end
                 end
                 local need = target - carried
                 if has_yes then
@@ -267,16 +282,19 @@ return {
                         t.exec(name .. "-enough" .. visit, t.chat.choose, "No, that's all for now.")
                         break
                     end
+                elseif block_row then
+                    local sym, kg = BLOCK_ROWS[block_row][1], BLOCK_ROWS[block_row][2]
+                    local before = count(sym)
+                    t.exec(name .. "-block" .. visit, t.chat.choose, block_row)
+                    t.await({ level = function() return count(sym) < before end,
+                        note = "Lazim took the " .. kg .. " kg block" }, 6)
+                    carried = carried + kg
+                elseif why_row then
+                    t.exec(name .. "-why" .. visit, t.chat.choose, why_row)
+                    break
                 else
-                    local picked = nil
-                    for _, e in ipairs(SAND) do
-                        if e[2] <= need and count(e[1]) > 0 then picked = e break end
-                    end
-                    if not picked then break end
-                    local label = ({ [10] = "Here's a large 10 kg block.", [5] = "Here's a medium 5 kg block.",
-                        [2] = "Here's a small 2 kg block.", [1] = "Here's a tiny 1 kg block." })[picked[2]]
-                    t.exec(name .. "-block" .. visit, t.chat.choose, label)
-                    carried = carried + picked[2]
+                    t.check(name .. "-menu" .. visit, false, "a menu Lazim's handover never shows: " .. table.concat(rows, " | "))
+                    break
                 end
             end
             t.exec(name .. "-end", t.chat.drain, {})

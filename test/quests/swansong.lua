@@ -5,7 +5,7 @@
 -- visit; the Wizards' Guild door (walk-through, cross_gate) and its cellar ladder both ways (climb); the
 -- Lumbridge chicken pen by fencegate_l 3236,3296; the Crafting Guild door (walk-through) in and out.
 -- b72 content fix (swansong_colony.rs2 [oploc1,swan_hole] / [apnpc1,swan_herman]): Herman is talked to across
--- his desk (approach trigger, range 2); the inside swan_hole 2344,3654 is the colony's exit (lands 2344,3650,
+-- his desk (approach trigger: from anywhere on his office floor, or range 2 from outside); the inside swan_hole 2344,3654 is the colony's exit (lands 2344,3650,
 -- the maplink_0_36_57_40_7 landing), so the colony is left on foot and the Camelot runes are gone (16 sharks
 -- again); the log / tinderbox / 5 iron bars are asked for on the FIRST entry only, so the stage-140 re-entry is free.
 -- ROUND 7 (matthew-mbp-m4-b56), sent back by the b56 shot sampler: the two guild-door rows now require the
@@ -239,7 +239,7 @@ return {
         -- Herman stands on 2354,3683 (areas/world/configs/m36_57.spawn:31) behind swan_desk (width 2, 2353-2354,3682);
         -- the office's floor is x 2352-2355, z 3678-3681, so no floor tile is beside him. Before b72 the test
         -- goto'd ONTO the desk (2354,3682, solid_landings CHEAT); now he is talked to across it
-        -- (swansong_colony.rs2 [apnpc1,swan_herman], p_aprange(2)).
+        -- (swansong_colony.rs2 [apnpc1,swan_herman] answers from anywhere on the office floor; p_aprange(2) only for a click from outside).
         t.exec("talkToHermanInBuilding", t.player.talk_to, "swan_herman", 1)
         t.exec("talkToHermanInBuilding-dialog", t.chat.play, {
             "npc:You made it through",

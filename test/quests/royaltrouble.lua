@@ -25,7 +25,8 @@
 -- Miscellania and Etceteria are one walkable landmass on level 0 (reach.py closed-doors), so the
 -- hops between the castles' front doors, the dock, the gardener and the dungeon ladder are overland.
 -- No dialogue on the route branches on combat level or Magic (grep of quest_royaltrouble,
--- quest_misc, area_miscellania: no combat_level / stat reads), so the staged stats show no branch.
+-- quest_misc, area_miscellania): the only stat reads are hitpoints in royal_cave.rs2:75/92/98 (a death
+-- guard and hazard damage), and nothing branches on a staged stat.
 
 local CD, CDO = "castledoor", "opencastledoor"
 
@@ -950,11 +951,6 @@ return {
                         k = k + 1
                     end
                     return k
-                end
-                local function door(name, sym, x, z, lvl)
-                    local r, d = t.player.click_loc(sym, 1, { at = { x, z, lvl } })
-                    t.ticks(6)
-                    t.check(name, true, "click_loc " .. sym .. " -> " .. tostring(r) .. " " .. tostring(d):sub(1, 60) .. "; now " .. tile_str())
                 end
                 local function level_is(name, want)
                     local lv = select(2, t.world.level())

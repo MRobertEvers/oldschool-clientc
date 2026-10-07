@@ -106,7 +106,7 @@ return {
         "::setlevel defence 60",
         "::setlevel hitpoints 70",
         "::give rune_scimitar 1",
-        "::give lobster 12",
+        "::give lobster 6",
         "::goto 3206 3233 0", -- the fixture's own tile (fresh_lumbridge.ini): the run starts in Lumbridge
     },
     bind = {

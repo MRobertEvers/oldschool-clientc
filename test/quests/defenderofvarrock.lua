@@ -196,7 +196,7 @@ return {
             local _, d = t.exec(name, t.npc.await_dead_engaged, 300, 3, { eat = { item = "shark", below = 40 } })
             local low = tonumber(tostring(d):match("lowest hp (%d+)/"))
             local _, sharks = t.inv.count("shark")
-            t.check(name .. ".margin", (low == nil or low >= 19) and (sharks or 0) >= 1,
+            t.check(name .. ".margin", low ~= nil and low >= 19 and (sharks or 0) >= 1,
                 "lowest hp " .. tostring(low) .. "/75 (need >= 19, a quarter); sharks left " .. tostring(sharks)
                     .. " of 12 staged")
         end
@@ -266,7 +266,9 @@ return {
             same_level = "dov_elias.rs2 @dov_enter_base ~climb_ladder_to(^dov_dungeon_arrival_coord)",
             chat = { "npc:A trapdoor!", "player:Only one way to find out", "*", "npc:Right, shall we go in?",
                 "choose:Let's do it.", "player:Let's do it." } })
-        t.exec("inspectTrapdoor.keyUsed", t.inv.await, "dov_base_key", 0, 6)
+        t.ticks(2)
+        local kr, kn = t.inv.count("dov_base_key")
+        t.check("inspectTrapdoor.keyUsed", kr == "ok" and kn == 0, "dov_base_key count " .. tostring(kn) .. " (want 0: the key is used on the trapdoor)")
 
         -- ================= LEG 2: Zemouregal's base =================
         -- listenToElias: "Upon entering Zemouregal's Base" (14 -> 16).

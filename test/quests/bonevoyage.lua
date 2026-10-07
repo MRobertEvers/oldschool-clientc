@@ -14,8 +14,8 @@
 --   * Both sawmill operators stand BEHIND a counter (fai_varrock_lumber_yard_counter): Varrock
 --     3302,3491 north edge, operator 3302,3492 (m51_54.spawn), the room x 3301-3304 z 3492-3495
 --     behind fai_varrock_locked_door; Hosidius 1624,3500 west edge, operator 1623,3500
---     (m25_54.spawn). The player stays on the customer side (3302,3491 / 1624,3500) and talks
---     across the counter.
+--     (m25_54.spawn). This run talks to the Varrock one from the customer side (3302,3491); below
+--     Woodcutting 60 the guild's operator is reached through the gate worker instead (bv_guild_gate).
 --   * Great Kourend has no on-foot route: Veos's ship both ways (X Marks the Spot staged in setup:
 --     xmarksthespot.rs2:32 sends the Sarim Veos to the Client of Kourend gate menu, whose "Can you take
 --     me to Great Kourend?" sails; the Piscarilius Veos's "Can you take me somewhere?" sails back).
@@ -306,8 +306,8 @@ return {
         t.check("voyage-steered", steered > 0, "steered " .. steered .. " times, last bearing " .. tostring(last_bearing))
         t.ticks(5)
         t.expect("quest.stage.complete", t.quest.expect_stage("complete"))
-        local snapshot = t.skill.snapshot()
-        t.exec("note-book-reward", t.inv.has, "fossil_note_book")
+        local nr, nn = t.inv.count("fossil_note_book")
+        t.check("note-book-reward", nr == "ok" and nn >= 1, "fossil_note_book count " .. tostring(nn))
         t.quest.expect_complete()
         t.finish(0)
     end,

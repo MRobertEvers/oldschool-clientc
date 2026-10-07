@@ -335,7 +335,7 @@ return {
         t.expect("talkToCordelia.riddle", t.chat.expect_text("Fire is four and Body is seven."))
         t.exec("talkToCordelia-end", t.chat.drain, {})
         stage("traiborn2")
-        -- The riddles together (wiki walkthrough oldid 15304735): Air 3 < x/3... a thingummywut is 11.
+        -- The riddles together (wiki walkthrough oldid 15304735): 10 < x < 14, 8 < x < 12 and 9 < x < 18, so a thingummywut is 11.
         t.exec("talktoTrailborn2", t.player.talk_to, "traiborn", 1)
         t.exec("talktoTrailborn2-menu", t.chat.drain, { stop_at = "options" })
         t.exec("talktoTrailborn2-ask", t.chat.choose, "I think I know what a thingummywut is!")

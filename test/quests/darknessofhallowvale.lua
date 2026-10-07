@@ -1143,9 +1143,11 @@ return {
                 t.expect("quest.stage.lab_entered", t.quest.expect_stage(290))
                 t.check("goDownToLab.at", tile(t).z > 6400, "tile " .. at(t) .. " (want the laboratory underground) messages: " .. said(t, 2))
                 -- getRunes (doh_lab.rs2:198): the broken rune case, one search
+                local _, law_before = t.inv.count("lawrune")
                 t.exec("getRunes", t.player.click_loc, "myq3_broken_rune_case", 1)
                 t.ticks(4)
-                t.expect("getRunes.law", t.inv.expect_has("lawrune", 1))
+                local _, law_after = t.inv.count("lawrune")
+                t.check("getRunes.law", (law_after or 0) > (law_before or 0), "lawrune " .. tostring(law_before) .. " -> " .. tostring(law_after) .. " (the case must give one)")
                 t.expect("quest.stage.book_taken", t.quest.expect_stage(300))
                 t.exec("getRunes.dismiss", t.chat.drain, { max_pages = 3 })
                 -- telegrabBook: Telekinetic Grab (Magic 33, law + air) on the Haemalchemy volume on its shelf
