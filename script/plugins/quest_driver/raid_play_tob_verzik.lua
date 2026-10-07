@@ -738,10 +738,25 @@ QD.raid.sm_declare("verzik_bolt", {
 })
 
 QD.raid.sm_declare("verzik_sword", {
-    start = "ABSENT",
+    start = "IDLE",
     states = {
-        ABSENT      = { note = "not carrying it", on = {
-            bolt_cycle = function(c, ev) return QD.raid._verzik_sword_absent(c, ev) end } },
+        -- THE HANDOVER IS TWO STAGES WITH THEIR OWN TIMING, not a consequence
+        -- of where anyone happens to stand.  IDLE is "the sword is not on the
+        -- floor in my view" -- somebody else has it, or it has not been
+        -- dropped yet -- and CLAIMING is "it is lying there and I am going for
+        -- it".  Before this both were one ABSENT, so a sword lying unclaimed
+        -- and a sword in another raider's hand were the same stage, and the
+        -- phase's biggest cost was invisible: 93 of P1's ticks with the sword
+        -- on the floor, against Blert's 4-to-7-tick gaps between specials.
+        IDLE        = { note = "the sword is not on the floor in my view", on = {
+            bolt_cycle = function(c, ev) return QD.raid._verzik_sword_idle(c, ev) end } },
+        -- The premise is the loud part: I am only claiming while it is still
+        -- there to claim.  If it goes -- someone else reached it first -- this
+        -- breaks straight back to IDLE instead of pressing at an empty tile.
+        CLAIMING    = { note = "it is lying there and I am going for it",
+            premise = function(c, ev) return c.floor_now == true end,
+            broken = "IDLE",
+            on = { bolt_cycle = function(c, ev) return QD.raid._verzik_sword_claiming(c, ev) end } },
         WIELD       = { note = "putting it on", on = {
             bolt_cycle = function(c, ev) return QD.raid._verzik_sword_wield(c, ev) end } },
         ARMED       = { note = "wielded and ready to fire", on = {
@@ -780,52 +795,62 @@ function QD.raid._verzik_main_weapon_back(st, vz, intent)
     st.engaged = false
 end
 
--- ABSENT: take it on my turn, when it is in view and my orb can pay.
+-- IDLE: nothing to do until the sword is lying there in view.  The moment it
+-- is, decide whether this is my claim -- and if it is, move to CLAIMING, which
+-- owns the walk and the press.
 --
 -- BLERT-SOURCED, THE SWORD GOES ROUND MORE THAN ONCE: 9-11 specials a room
 -- (median 10) at 111.8 damage, about 1118 of the 1500 P1 pool, with 4-7 tick
 -- gaps, so the sword is in somebody's hand for nearly all of P1.  A 1000 orb
 -- at 350 a special buys TWO, and three raiders passing it once is six; the
--- other four come from the orb REGENERATING while it goes round -- 85 ticks is
--- 51 seconds, about 170 energy a raider, which takes the 300 left after two
--- back over 350 and buys a THIRD each.  So the turn is modular: raider r takes
--- it on the (r-1)th appearance, the (r-1+party)th, and so on, and a raider
--- whose orb cannot pay leaves it for whoever can.
-function QD.raid._verzik_sword_absent(c, ev)
-    assert(c, "_verzik_sword_absent: c")
-    assert(ev, "_verzik_sword_absent: ev")
+-- other four come from the orb REGENERATING while it goes round.  So the turn
+-- is modular: raider r claims on the (r-1)th appearance, the (r-1+party)th,
+-- and so on, and a raider whose orb cannot pay leaves it for whoever can.
+--
+-- THE TURN DOES NOT STALL ON A RAIDER WHO CANNOT TAKE IT.  svavzslow is the
+-- proof and the stage counts named it in three lines: p1 a clean turn and a
+-- drop (PASSING 3/1), then p2 ABSENT 17/1 with every other stage 0/0 because
+-- p2 DIED, and p3 ABSENT 219/1 waiting for an appearance that never came.  The
+-- sword lay on the floor for the rest of P1 -- two full 1000 orbs unspent, 14
+-- bolt launches tanked, 239 ticks against the 127-147 the other names ran.  So
+-- the claim is a turn PLUS a timeout, ordered by role so the trio does not all
+-- grab at once, and it recovers the sword from ANY stalled turn rather than
+-- only from a death.
+function QD.raid._verzik_sword_idle(c, ev)
+    assert(c, "_verzik_sword_idle: c")
+    assert(ev, "_verzik_sword_idle: ev")
     local st, v, dw = c.st, c.v, c.dw
-    if not c.floor_now then return end
+    if not c.floor_now then
+        dw.lying_since = nil
+        return
+    end
+    dw.lying_since = dw.lying_since or v.tick
     if ev.energy < QD.RAID_PLAY_VERZIK_DAWN_COST then return end
-    -- THE TURN DOES NOT STALL ON A RAIDER WHO CANNOT TAKE IT.
-    --
-    -- The order is seen rather than told -- raider r takes the sword on the
-    -- (r-1)th appearance, modulo the party -- and that stalls completely if
-    -- the raider whose turn it is never takes it.  svavzslow is the case and
-    -- the stage counts named it in three lines: p1 a clean turn and a drop
-    -- (PASSING 3/1), then p2 ABSENT **17/1** with every other stage 0/0
-    -- because p2 DIED, and p3 ABSENT 219/1 waiting for an appearance that
-    -- never came.  The sword lay on the floor for the rest of P1: two full
-    -- 1000 orbs unspent, 14 bolt launches tanked, P1 239 ticks against the
-    -- 127-147 the other four names ran.
-    --
-    -- So the claim is a turn PLUS a timeout: it is my turn, or the sword has
-    -- lain there unclaimed long enough that whoever's turn it was is not
-    -- coming.  The wait is ordered by role so the trio does not all grab at
-    -- once -- the next raider in order tries first, and the one after that a
-    -- few ticks later.
-    dw.lying_since = c.floor_now and (dw.lying_since or v.tick) or nil
     local turn = dw.appear - (st.role - 1)
     local mine = turn >= 0 and (st.party <= 0 or turn % st.party == 0)
-    local waited = (v.tick - (dw.lying_since or v.tick)) >= QD.RAID_PLAY_VERZIK_TURN_WAIT * st.role
+    local lying = v.tick - dw.lying_since
+    local waited = lying >= QD.RAID_PLAY_VERZIK_TURN_WAIT * st.role
     if not (mine or waited) then return end
     if waited and not mine then dw.took_abandoned = (dw.took_abandoned or 0) + 1 end
+    dw.claim_from = v.tick
+    return nil, "CLAIMING"
+end
+
+-- CLAIMING: the walk and the press, as ONE stage with its own clock, so the
+-- handover can be measured and bounded instead of being whatever the cover
+-- logic happened to leave.  `dw.claim_ticks` is what it cost.
+function QD.raid._verzik_sword_claiming(c, ev)
+    assert(c, "_verzik_sword_claiming: c")
+    assert(ev, "_verzik_sword_claiming: ev")
+    local st, v, dw = c.st, c.v, c.dw
     local tr, td = QD.player.click_obj("verzik_special_weapon", 3)
     st.inputs[v.tick] = (st.inputs[v.tick] or 0) + 1
     local cr, n = QD.inv.count("verzik_special_weapon")
     if cr == "ok" and n > 0 then
         dw.took = v.tick
         dw.e_prev = ev.energy
+        dw.claim_ticks = (dw.claim_ticks or 0) + (v.tick - (dw.claim_from or v.tick))
+        dw.lying_since = nil
         return nil, "WIELD"
     end
     if #dw.refused < 4 then
@@ -970,7 +995,7 @@ function QD.raid._verzik_sword_passing(c, ev)
             dw.rounds = (dw.rounds or 0) + 1
             dw.pass_waited = (dw.pass_waited or 0) + (v.tick - dw.pass_from)
             dw.pass_from = nil
-            return nil, "ABSENT"
+            return nil, "IDLE"
         end
     end
 end
