@@ -1411,15 +1411,22 @@ function QD.raid._play_xarpus_decide(st, v)
     c.g = QD.raid._xarpus_geometry(st, v)
     -- ONE DERIVATION PER DECIDE, and every machine of this decide reads that
     -- one list -- which is the property that matters ("no machine can derive
-    -- its own private view of the tick").  NOT QD.raid.sm_events: its cache
-    -- is keyed on v.tick, and the play loop calls a decide TWICE for one
-    -- server tick whenever the tick advanced inside _play_send (measured
-    -- here: tick 45 of the solo room, two decides, the second handed a
-    -- cached list and an empty context).  The hand-rolled body recomputed
-    -- every one of these reads on every call, so the port does too -- and
-    -- each of them is idempotent within a tick by construction (a spit is
-    -- consumed by X.last_spit_seq, a passed slot by X.next_spit, an exhumed
-    -- by X.ex_seen, a turn by its tick, the spread's stay by T.stay).
+    -- its own private view of the tick").
+    --
+    -- Not QD.raid.sm_events, and on purpose rather than from distrust.  The
+    -- play loop can call a decide TWICE for one server tick (a QD.ticks(1)
+    -- that returns without the tick advancing leaves the next decide on the
+    -- same number; measured here, tick 45 of the solo room: two decides, the
+    -- second one handed sm_events' cached list and an empty context, which
+    -- fired this plan's own cover assert).  raid_sm.lua 8c51e3841 fixed that
+    -- by hanging the cache on the tick's VIEW instead of its number, so
+    -- sm_events would now hand the second decide a fresh derivation and the
+    -- two routes agree.  This one stays direct because it is what makes the
+    -- port exactly the hand-rolled body: that body recomputed every one of
+    -- these reads on every call, and each is idempotent within a tick by
+    -- construction (a spit is consumed by X.last_spit_seq, a passed slot by
+    -- X.next_spit, an exhumed by X.ex_seen, a turn by its tick, the spread's
+    -- stay by T.stay), so a repeated tick re-derives the same list.
     local events = QD.raid._xarpus_events(st, v, c)
 
     -- HIS PHASES first: a form change or the screech moves the room before
