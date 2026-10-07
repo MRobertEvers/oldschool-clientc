@@ -8,11 +8,20 @@ local BEAST_A = "raids_scavenger_beast_a"
 local BEAST_B = "raids_scavenger_beast_b"
 local BEASTS = { BEAST_A, BEAST_B }
 
-local SECONDARIES = {
-    raids_endarkened_juice = true,
-    raids_stinkhorn_mushroom = true,
-    raids_cicely = true,
+-- obj_add rows carry numeric cache ids (ticklog FIELDS.obj), not symbols.
+local SECONDARY_SYMS = {
+    "raids_endarkened_juice",
+    "raids_stinkhorn_mushroom",
+    "raids_cicely",
 }
+
+local function resolve_obj_id(sym)
+    local r, id = api_drive.symbol("obj", sym)
+    if r == "ok" then
+        return id
+    end
+    return nil
+end
 
 local STATE = {
     LAND = "LAND",
@@ -62,24 +71,28 @@ local function sustain(t)
     end
 end
 
--- Infer drop rolls from obj_add rows on the death tick: bones are free;
--- the secondary bundle (juice+stinkhorn+cicely) is one roll; every other
--- pile is one roll. Wiki / ^cox_scav_rolls = 2.
-local function count_rolls(obj_rows)
+-- Infer drop rolls from obj_add rows after death: bones are free; the
+-- secondary bundle (juice+stinkhorn+cicely) is one roll; every other pile
+-- is one roll. Wiki / ^cox_scav_rolls = 2. Drop resolve is a few ticks after
+-- npc_death (measured +3 on seed 1).
+local function count_rolls(obj_rows, bones_id, secondary_ids)
     local piles = {}
     local has_bones = false
     for i = 1, #(obj_rows or {}) do
-        local sym = obj_rows[i].obj or obj_rows[i].symbol
-        if sym == "bones" then
+        local oid = obj_rows[i].obj
+        if type(oid) == "string" then
+            oid = tonumber(oid) or oid
+        end
+        if oid == bones_id or oid == "bones" then
             has_bones = true
         else
-            piles[#piles + 1] = sym
+            piles[#piles + 1] = oid
         end
     end
     local rolls = 0
     local used_secondary = false
     for i = 1, #piles do
-        if SECONDARIES[piles[i]] then
+        if secondary_ids[piles[i]] then
             if not used_secondary then
                 rolls = rolls + 1
                 used_secondary = true
@@ -250,8 +263,16 @@ return {
             end
 
             if sm.state == STATE.LOOT then
-                -- Drop resolve + any delayed obj_add; respawn is 2 ticks later.
-                t.ticks(3)
+                -- Drop resolve lags npc_death by a few ticks; wait past that.
+                t.ticks(5)
+                local bones_id = resolve_obj_id("bones")
+                local secondary_ids = {}
+                for i = 1, #SECONDARY_SYMS do
+                    local sid = resolve_obj_id(SECONDARY_SYMS[i])
+                    if sid ~= nil then
+                        secondary_ids[sid] = true
+                    end
+                end
                 local orows = {}
                 local orr, oall = t.ticklog.rows({ kind = "obj_add" })
                 if orr == "ok" then
@@ -259,18 +280,22 @@ return {
                         local row = oall[i]
                         if sm.death_tick == nil or (row.tick ~= nil
                             and row.tick >= sm.death_tick
-                            and row.tick <= sm.death_tick + 2) then
+                            and row.tick <= sm.death_tick + 6) then
                             orows[#orows + 1] = row
                         end
                     end
                 end
-                local rolls, bones, piles = count_rolls(orows)
+                local rolls, bones, piles = count_rolls(orows, bones_id, secondary_ids)
                 sm.drop_rolls = rolls
                 sm.has_bones = bones
-                t.check("drop.bones", bones, "bones on death piles=" .. tostring(piles))
+                t.check("drop.bones", bones,
+                    "bones on death piles=" .. tostring(piles)
+                        .. " bones_id=" .. tostring(bones_id)
+                        .. " rows=" .. tostring(#orows)
+                        .. " death_tick=" .. tostring(sm.death_tick))
                 spec(t, "scavenger.drop_rolls", tostring(rolls),
                     "inferred rolls from obj_add (bones separate); piles="
-                        .. tostring(piles),
+                        .. tostring(piles) .. " rows=" .. tostring(#orows),
                     "2 count", "A", "exact")
                 -- max hit: ceiling row under range tol (id contains max).
                 -- Require a real unprotected sample; 0 would vacuously pass <=13.
