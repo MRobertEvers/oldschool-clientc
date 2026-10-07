@@ -726,13 +726,15 @@ return {
                     set_state(STATE.WAIT_PHASE)
                     return
                 end
-                -- Entering head: restock prayer/food. Prior run drained prayer
-                -- to 0 under lightning and died bare to autos.
+                -- Entering head: prayer pots FIRST (shark flood was overflowing
+                -- the inv so restores never landed — prayer hit 0, headicons=0).
                 if sm.sub == 0 then
-                    t.cheat("::give shark 16")
                     t.cheat("::give br_4dose2restore 8")
                     t.cheat("::give br_4dosepotionofsaradomin 4")
+                    t.cheat("::give shark 6")
+                    t.cheat("::give dragon_arrow 500")
                     equip_ranged()
+                    t.player.drink("br_4dose2restore")
                     sm.last_pray = nil
                     sm._head_stood = false
                 end
@@ -741,7 +743,7 @@ return {
                 local pr, pp = t.prayer.points()
                 local points = 0
                 if pr == "ok" then points = pp.points or pp.level or 0 end
-                if points < 40 then
+                if points < 50 then
                     t.player.drink("br_4dose2restore")
                 end
                 prayer_flick()
@@ -749,34 +751,36 @@ return {
                 -- not cancel the head interaction every tick.
                 local hr, hp = t.skill.read("hitpoints")
                 local level = (hr == "ok" and hp.level) or 99
-                if level < 55 then
+                if level < 50 then
                     local er = t.player.eat("shark")
-                    if er ~= "ok" and level < 40 then
+                    if er ~= "ok" and level < 35 then
                         t.player.drink("br_4dosepotionofsaradomin")
                     end
                 end
                 local hrow = npc_ok(t, HEAD)
-                -- Stand south of the size-5 head once. Prior run walked every
-                -- tick (walk_to cancel) so interaction.tgt flickered 1112 and
-                -- never produced apnpc2/opnpc2 — zero head hit_npc, then death.
+                -- Stand just south of the size-5 head ONCE. Do not re-walk when
+                -- the attack approach steps north — a stand-tile distance check
+                -- was yanking south every few ticks, clearing interaction before
+                -- CombatAtRangeReady/adjacency could dispatch opnpc2.
                 refresh_geometry()
                 local hx = sm.ox + 32
                 local hz = sm.oz + 28
                 if hrow ~= nil then
-                    -- South of SW corner: clear of the footprint, in TBow range.
-                    hx, hz = hrow.x, hrow.z - 6
+                    hx, hz = hrow.x, hrow.z - 2
                 end
                 local _, me = t.world.tile()
-                local dx = math.abs(me.x - hx)
-                local dz = math.abs(me.z - hz)
-                if not sm._head_stood or dx > 2 or dz > 2 then
-                    t.player.walk_to(hx, hz, 4)
+                if not sm._head_stood then
+                    t.player.walk_to(hx, hz, 6)
                     sm._head_stood = true
+                elseif hrow ~= nil and (math.abs(me.x - hrow.x) > 14
+                    or me.z < hrow.z - 14 or me.z > hrow.z + 8) then
+                    -- Teleport / acid shove: re-seat south of the head.
+                    t.player.walk_to(hx, hz, 4)
                 end
                 local opts = { quick = true }
                 if hrow ~= nil then opts.slot = hrow.slot end
-                -- Settle 3: give approach→opnpc2 time without a following walk.
-                local ar, ad = t.player.attack(HEAD, 2, 3, opts)
+                -- Settle 4: approach → at-range LoS → opnpc2 without a cancel walk.
+                local ar, ad = t.player.attack(HEAD, 2, 4, opts)
                 if ar == "refused" and type(ad) == "string" and string.find(ad, "DIED", 1, true) then
                     set_state(STATE.DONE)
                     return
