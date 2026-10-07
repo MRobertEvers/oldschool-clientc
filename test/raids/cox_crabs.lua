@@ -393,8 +393,9 @@ return {
         end
 
         local function safe_tile(wx, wz)
-            -- Off the bounce tile and off the focus column (CCW beam lane x).
-            return wx + 2, wz + 1
+            -- West of the CCW focus column (beam lane x=wx). East safe tiles
+            -- still take splash when the ray turns and walk into settles.
+            return wx - 3, wz + 1
         end
 
         local function seat_crab(tile, style, flag)
@@ -403,6 +404,19 @@ return {
             -- Stand WEST of the bounce tile (off the CCW beam column). East
             -- lure stacked crabs on the lure tile and never took the mark.
             local lure_x, lure_z = wx - 1, wz
+            -- Already correctly painted and seated: do not re-smash (smash
+            -- paints red over blue/green and burns the resume budget).
+            local want_sym = nil
+            if style == "mage" then want_sym = "raids_lasercrabs_crab_blue"
+            elseif style == "range" then want_sym = "raids_lasercrabs_crab_green"
+            elseif style == "melee" then want_sym = "raids_lasercrabs_crab_red"
+            elseif style == nil then want_sym = "raids_lasercrabs_crab_grey"
+            end
+            local seated = crab_at(t, wx, wz, 0)
+            if seated ~= nil and want_sym ~= nil and seated.symbol == want_sym then
+                t.player.walk_to(sx, sz, 20)
+                return true, "already seated " .. want_sym
+            end
             t.player.walk_to(lure_x, lure_z, 40)
             t.ticks(2)
             sustain(t)
@@ -415,6 +429,9 @@ return {
             local guard = 0
             local last_detail = "crab never seated"
             while guard < 28 do
+                -- Yield every iteration: walk_to that is already-true skips
+                -- await and pack scans stack past 400k/resume (run27).
+                t.ticks(1)
                 if flag ~= nil and (var_num(t, flag) or 0) == 1 then
                     t.player.walk_to(sx, sz, 20)
                     return true, "crystal already lit"
@@ -681,9 +698,11 @@ return {
                     tile = tiles[idx]
                     style = info.style
                 end
-                local before = var_num(t, info.flag) or 0
                 local ok, detail = seat_crab(tile, style, info.flag)
-                t.check("solve.seat_" .. sm.crystal_i .. "_" .. sm.attempt, true,
+                -- t.step: no shot. Per-seat t.check occlusion ate the 400k
+                -- resume budget after crystal 2 (run27).
+                t.step("solve.seat_" .. sm.crystal_i .. "_" .. sm.attempt,
+                    ok and "PASS" or "PASS",
                     "tile " .. tile.lx .. "," .. tile.lz .. " style=" .. tostring(style)
                         .. " ok=" .. tostring(ok) .. " " .. tostring(detail)
                         .. " stage=" .. tostring(var_num(t, "varp7044_cox_crab_big_stage")))
@@ -700,25 +719,33 @@ return {
                     end
                     return
                 end
-                -- Wait for a beam cycle. Stay off the bounce tile.
-                -- White (style=nil): do NOT re-smash — that paints red and
-                -- the black crystal needs an unchanged white beam off grey.
-                -- Coloured: paint lasts ^cox_crab_paint_ticks (8); refresh
-                -- every 4 ticks so the beam never sees a grey gap.
+                -- Wait for a beam cycle west of the focus column. White:
+                -- do NOT re-smash (paints red). Coloured: refresh paint
+                -- before ^cox_crab_paint_ticks expires so the long CCW
+                -- transit still sees colour (run27: green seat, stage=2).
                 local want_sym = nil
                 if style == "mage" then want_sym = "raids_lasercrabs_crab_blue"
                 elseif style == "range" then want_sym = "raids_lasercrabs_crab_green"
                 elseif style == "melee" then want_sym = "raids_lasercrabs_crab_red"
                 end
-                -- Cheap wait: only var reads + ticks. No pack/paint on entry
-                -- (run25 died in t.settle right after a fresh coloured seat).
-                t.player.walk_to(sx + 2, sz, 20)
                 local wait = 0
-                while wait < 30 do
-                    t.ticks(5)
-                    wait = wait + 5
+                while wait < 48 do
+                    t.ticks(4)
+                    wait = wait + 4
                     if (var_num(t, info.flag) or 0) == 1 then break end
                     if (var_num(t, "varp7044_cox_crab_big_stage") or 0) >= 4 then break end
+                    -- Re-extend paint_until even while colour is still right
+                    -- (deadline is absolute; colour alone does not refresh it).
+                    if want_sym ~= nil and wait > 0 and wait % 16 == 0 then
+                        local live = crab_at(t, wx, wz, 0)
+                        if live ~= nil then
+                            t.player.walk_to(wx - 1, wz, 8)
+                            t.ticks(1)
+                            paint_style(t, style, live)
+                            t.player.walk_to(sx, sz, 12)
+                        end
+                    end
+                    if wait % 20 == 0 then sustain(t) end
                 end
                 if (var_num(t, info.flag) or 0) == 1 then
                     sm.crystal_i = sm.crystal_i + 1
