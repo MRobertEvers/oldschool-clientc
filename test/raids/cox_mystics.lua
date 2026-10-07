@@ -118,13 +118,11 @@ end
 
 local function sustain(t)
     local h = hp(t)
-    -- Prefer brew: await_dead never drank these (run5/9 OUT OF shark with
-    -- full brew vials left). Tick-loop FOCUS can sip every decide.
-    if h > 0 and h < 65 then
+    if h > 0 and h < 45 then
         drink_brew(t)
         h = hp(t)
     end
-    if h > 0 and h < 45 then
+    if h > 0 and h < 50 then
         if t.player.eat("shark") ~= "ok" then
             t.player.eat("tbwt_cooked_karambwan")
         end
@@ -178,10 +176,12 @@ return {
         "::wield twisted_bow",
         "::give dragon_arrow 2000",
         "::wield dragon_arrow",
-        "::give br_4dose2restore 2",
-        "::give br_4dosepotionofsaradomin 4",
-        "::give shark 18",
-        "::give tbwt_cooked_karambwan 4",
+        -- Max sharks: run9 cleared mystic 1 on 17 sharks then died OUT OF
+        -- food on mystic 2. Trim brew/restore so the backpack holds 22 fish.
+        "::give br_4dose2restore 1",
+        "::give br_4dosepotionofsaradomin 2",
+        "::give shark 22",
+        "::give tbwt_cooked_karambwan 3",
     },
 
     run = function(t)
@@ -231,8 +231,6 @@ return {
             unprot_hits = 0,
             prot_hits = 0,
             prayer_on = false,
-            next_attack_at = 0,
-            last_alive = count_solo,
             slots = {},
             types = {},
         }
@@ -329,49 +327,48 @@ return {
             end
 
             if sm.state == STATE.FOCUS then
-                arm_prayers(false)
-                -- Tick-loop (not await_dead): brew/restore run every decide.
-                -- await_dead's eater is food-only and burned 17 sharks while
-                -- four brew vials sat unused (run9).
-                if #alive < sm.last_alive then
-                    sm.kills = sm.kills + (sm.last_alive - #alive)
-                end
-                sm.last_alive = #alive
-
                 local target, sym = nearest_mystic(t)
                 if target == nil or sym == nil then
                     set_state(STATE.DONE)
                     return
                 end
-                -- Stick to one form symbol until that form is gone from the pack.
-                if sm.focus_sym ~= nil then
-                    local still = false
-                    for i = 1, #alive do
-                        if alive[i].symbol == sm.focus_sym then
-                            still = true
-                            break
-                        end
-                    end
-                    if still then
-                        sym = sm.focus_sym
-                    else
-                        sm.focus_sym = sym
-                    end
-                else
-                    sm.focus_sym = sym
-                end
+                sm.focus_sym = sym
                 sm.focus_slot = target.slot
-
+                arm_prayers(false)
+                -- Top up with brew before the settle (eater is food-only).
+                for _ = 1, 6 do
+                    if hp(t) >= 85 then break end
+                    if not drink_brew(t) then break end
+                    t.ticks(1)
+                end
+                if prayer_points(t) < 50 then
+                    drink_restore(t)
+                    arm_prayers(false)
+                end
+                local eat_opts = {
+                    eat = {
+                        item = "shark",
+                        below = 50,
+                        quick = true,
+                        combo = "tbwt_cooked_karambwan",
+                    },
+                }
+                t.player.attack(sym, 2, 1, eat_opts)
                 if not sm.mid_shot then
                     t.shot("mystics mid-mechanic focus kill")
                     sm.mid_shot = true
                 end
-
-                -- 5-tick tbow: one quick press, 1-tick settle (tekton pattern).
-                if sm.ticks >= sm.next_attack_at then
-                    t.player.attack(sym, 2, 1, { quick = true })
-                    sm.next_attack_at = sm.ticks + 5
+                local ar, ad = t.npc.await_dead(sym, 1200, 40, 40, eat_opts)
+                if ar ~= "ok" then
+                    t.check("mystic.kill", false,
+                        "await_dead " .. tostring(sym) .. " -> " .. tostring(ar)
+                            .. " " .. tostring(ad))
+                    set_state(STATE.DONE)
+                    return
                 end
+                sm.kills = sm.kills + 1
+                sustain(t)
+                arm_prayers(false)
                 return
             end
         end
