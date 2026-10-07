@@ -120,7 +120,14 @@ if mrole == 2 then
         "::give water_rune 2000", "::give blood_rune 1000", "::give death_rune 1000",
         "::give necklace_of_rupture", "::give lotr_crystalshard_necklace_upgrade",
         "::give elder_maul", "::give dragon_warhammer",
-        "::give saturated_heart", "::give 4doserangerspotion", "::give 4dosedivinerange",
+        -- (seat 1 starts Bloat -- its role 1 must be the leader -- and swings
+        -- the scythe there: owner_rooms4's snippet plays every Bloat seat in
+        -- ::tobkitsalve's melee armour; relay15's seat 1 swung in void, Bloat
+        -- 198-200 ticks against [75-195].  The torva helm and the oathplate
+        -- body ride in the pack, in the slots of the divine ranging potion this
+        -- seat never drinks and the splinters / demon tears the charges leave)
+        "::give torva_helm", "::give radiant_oathplate_chest", "::give radiant_oathplate_legs",
+        "::give saturated_heart", "::give 4doserangerspotion",
         "::give 4dosedivinecombat", "::give 4dose2combat" }) do KIT[#KIT + 1] = c end
 else
     for _, c in ipairs({ "::tobkit", "::blowpipe dragon_dart 2000 2000",
@@ -174,9 +181,12 @@ local DROP_AFTER = {
     -- (Maiden-only pieces; the freezer keeps its barrage runes for the
     -- Nylocas mage)
     maiden = { [1] = { "kodai_wand", "ancestral_hat", "ancestral_robe_top", "ancestral_robe_bottom", "arcane", "tonalztics_of_ralos_charged",
-        "zaryte_xbow", "xbows_crossbow_bolts_adamantite_tipped_ruby_enchanted", "sunfiresplinter", "demon_tear" },
-        [2] = { "tonalztics_of_ralos_charged", "dinhs_bulwark", "sunfiresplinter" },
-        [3] = { "tonalztics_of_ralos_charged", "dinhs_bulwark", "sunfiresplinter" } },
+        "zaryte_xbow", "xbows_crossbow_bolts_adamantite_tipped_ruby_enchanted" },
+        -- (seats 2 and 3: the ranging potion's last doses too -- their Nylocas
+        -- boost is the divine ranging potion -- so the chest after Bloat has
+        -- one more slot for food)
+        [2] = { "tonalztics_of_ralos_charged", "dinhs_bulwark", "3doserangerspotion", "2doserangerspotion", "1doserangerspotion" },
+        [3] = { "tonalztics_of_ralos_charged", "dinhs_bulwark", "3doserangerspotion", "2doserangerspotion", "1doserangerspotion" } },
     bloat = { [1] = { "lotr_crystalshard_necklace_upgrade" }, [2] = { "lotr_crystalshard_necklace_upgrade" },
         [3] = { "lotr_crystalshard_necklace_upgrade" } },
     nylocas = {
@@ -669,15 +679,29 @@ local function restock(t, name)
     -- bandages (raid_play_tob_nylocas.lua food_waves / food_boss), so a
     -- seat with only mantas left drank brews instead, 9-17 doses a seat.
     -- A shark is 1 point and 20 Hitpoints against a manta's 2 and 22.)
-    for _, kind in ipairs({ "restore", "restore" }) do
-        if points >= CHEST_COST[kind] and free_slots(t) > 0 then buy(kind) end
+    -- (restores only up to two potions held -- 8 doses -- the rest food:
+    -- relay16's seat 1 reached Sotetseg with 6 restore doses and 2 fish and
+    -- died there; its pack carries the melee armour now)
+    for _ = 1, 2 do
+        if supplies(t).restore < 8 and points >= CHEST_COST.restore and free_slots(t) > 1 then buy("restore") end
     end
+    -- The food: every free slot filled, as many of them manta rays (22, 2
+    -- points) as the points allow and the rest sharks (20, 1 point) -- relay18
+    -- left 3-6 points unspent with the pack full of sharks, and every seat
+    -- reached Sotetseg with 0-1 fish.  One slot is kept after Sotetseg only:
+    -- the Dawnbringer at Xarpus' skeleton (W:875; the Entry relay lost it to
+    -- a full pack); the Bloat chest's food is all eaten before then.
+    local keep = (name == "sotetseg") and 1 or 0
+    local slots = free_slots(t) - keep
     local guard = 0
-    -- (one slot kept free: the Dawnbringer at Xarpus' skeleton, W:875 --
-    -- the Entry relay lost it to a full pack)
-    while guard < 20 and free_slots(t) > 1 and points >= CHEST_COST.shark do
+    while guard < 30 and slots > 0 and points >= CHEST_COST.shark do
         guard = guard + 1
-        if not buy("shark") then break end
+        -- a manta while the points left still buy a shark for every other slot
+        local kind = (points - CHEST_COST.manta >= (slots - 1) * CHEST_COST.shark) and "manta" or "shark"
+        if not buy(kind) then
+            if kind == "manta" and buy("shark") then else break end
+        end
+        slots = free_slots(t) - keep
     end
     local _, left = t.var.varbit("varb6460_tob_midwaychest_points")
     t.check(name .. ".chest_bought", #bought > 0, P .. "points " .. p0 .. " -> " .. tostring(left) .. "; bought " .. table.concat(bought, " ") .. "; now " .. supplies_text(supplies(t)))
@@ -749,6 +773,67 @@ local function mark_serial(t, tick0)
     return serial
 end
 
+-- THE BOSS-UID GUARD (owner 2026-10-07: "make sure that bug doesn't occur in
+-- any other room").  The content keeps the room's boss uid on the room's
+-- register and copies it into every raider's own %varp6886_tob_boss_uid
+-- (~tob_boss_uid_publish, tob_raid.rs2); the wake, rescale and teardown read
+-- the copy of whichever raider's turn runs them.  In the party relay the
+-- leader's copy stayed Maiden's for the whole raid and Xarpus never woke
+-- (relay15, CONTENT_BUGS 2026-10-07).  Every seat checks its own copy against
+-- the room's register (::tobstate boss_uid / roomboss / bosslive): at the
+-- start, the room's boss alive (the Nylocas: none yet, -1); after the fight,
+-- the same npc (Vasilias in the Nylocas).
+local function boss_guard(t, name, when)
+    -- (each seat its own reading: ::tobstate prints the asking raider's copy;
+    -- t.raid.state is the leader's only)
+    -- (the reply to THIS ask: a line after the serial read before it -- an
+    -- older ::tobstate line in the ring is another room's reading)
+    local since = newest_serial(t)
+    t.cheat("::tobstate")
+    local line = nil
+    for _ = 1, 8 do
+        t.ticks(1)
+        line = line_since(t, since, "roomboss=")
+        if line ~= nil then break end
+    end
+    local mine = line and tonumber(string.match(line, "boss_uid=(%-?%d+)"))
+    local room = line and tonumber(string.match(line, "roomboss=(%-?%d+)"))
+    local live = line and tonumber(string.match(line, "bosslive=(%d+)"))
+    local ok = mine ~= nil and room ~= nil and mine == room
+    if when == "start" then
+        if name == "nylocas" then
+            ok = ok and room == -1
+        else
+            ok = ok and room ~= -1 and live == 1
+        end
+    else
+        ok = ok and room ~= -1
+    end
+    t.check(name .. ".guard.boss_uid_" .. when, ok, P .. "own boss_uid " .. tostring(mine) .. ", the room's " .. tostring(room)
+        .. " (alive " .. tostring(live) .. ")" .. ((name == "nylocas" and when == "start") and "; no boss before Vasilias lands" or "")
+        .. (line == nil and "; no ::tobstate line with roomboss= (a pack before the fix)" or ""))
+end
+
+-- The boss woke: a form change or an animation of the boss's own slot after
+-- the room's mark (the leader's tick log).  Xarpus in relay15 had neither for
+-- 1400 ticks.
+local function boss_woke(t, name, rec)
+    local slot = rec and rec.boss_slot
+    local mark = R[name].mark
+    local first = nil
+    if slot ~= nil and mark ~= nil then
+        for _, kind in ipairs({ "npc_retype", "npc_anim" }) do
+            local _, rows = t.ticklog.rows({ kind = kind, slot = slot, since = mark_serial(t, mark) })
+            for i = 1, #(rows or {}) do
+                if rows[i].tick >= mark and (first == nil or rows[i].tick < first.tick) then first = { tick = rows[i].tick, kind = kind } end
+            end
+            t.ticks(1)
+        end
+    end
+    t.check(name .. ".guard.boss_woke", first ~= nil, "boss slot " .. tostring(slot) .. ": first "
+        .. (first and (first.kind .. " " .. (first.tick - mark) .. " ticks after the mark") or "form change or animation: none") )
+end
+
 -- THE MAIDEN ROWS: test/raids/_play_maiden.lua's freezer and leader reads at
 -- 5b61b41c7 (the room GREEN on the owner's ruling of 2026-10-07), lifted
 -- whole and prefixed "maiden.", from the relay's own mark ("maiden start").
@@ -764,6 +849,7 @@ local function maiden_rows(t, rec)
         if nc <= 40 then casts = casts .. "[w" .. c.wave .. " t" .. c.tick .. " s" .. c.slot .. " " .. tostring(c.why) .. " " .. c.result .. "]" end
     end
     local seen = m.body_seen or {}
+    t.check("maiden.casts", true, string.sub("Ice Barrage casts " .. nc .. " " .. casts .. (m.cast_none and (" no cast: " .. table.concat(m.cast_none, " ")) or ""), 1, 1500))
     if mrole == 2 then
         -- raid seam40: the thresholds the casts were made in (the reference's
         -- freezer attacks adds in every crab phase: role.freezer.phase.70/50/30
@@ -1815,8 +1901,20 @@ end
 -- in the room on the first walk, crossing when Bloat is on the far row
 -- heading west (W:687); p2/p3 enter on the first down, seq 8082 (W:689).
 local BLOAT_STARTER = 1  -- the seat playing Bloat role 1 (ROLE_IN.bloat)
+-- Seat 1 (Maiden's freezer, whose worn set is the void opener) into its melee
+-- armour for a melee room, one piece a tick; the void pieces go to the pack.
+local SEAT1_MELEE = { "torva_helm", "radiant_oathplate_chest", "radiant_oathplate_legs" }
+local function seat1_melee(t, name)
+    if role ~= 1 then return end
+    for _, it in ipairs(SEAT1_MELEE) do wear(t, name .. ".equip." .. it, it) end
+end
+local function seat1_void(t, name)
+    if role ~= 1 then return end
+    for _, it in ipairs({ "game_pest_archer_helm", "elite_void_knight_top", "elite_void_knight_robes" }) do wear(t, name .. ".equip." .. it, it) end
+end
 PRE.bloat = function(t, ox, oz)
     wear(t, "bloat.equip.scythe", "scythe_of_vitur")
+    seat1_melee(t, "bloat")
     -- the salve amulet(ei) (owner_rooms4's snippet: Bloat is undead; the
     -- Blert raiders wear it on 74 of 90 seats; seam54 moved the room from
     -- 202 ticks to 133-148 with it)
@@ -1870,6 +1968,35 @@ PRE.nylocas = function(t, ox, oz)
     end
     wear(t, "nylocas.equip.arrows", "dragon_arrow")
     set_retaliate(t, "nylocas.retaliate_off", true)
+    -- the boosts at the door, as owner_nylocas' snippet and harness drink them
+    -- (the room was measured boosted: Magic and Ranged 112, Attack and
+    -- Strength 118): a divine super combat, a divine ranging potion -- seat 1,
+    -- whose pack holds its melee armour instead, a dose of its Maiden ranging
+    -- potion -- and the mage's saturated heart
+    -- (pressed again while the pack still holds the same dose: a press inside
+    -- the last potion's delay answers nothing -- relay18's seat 2 read ranged
+    -- 88 after its divine ranging press)
+    local function door_dose(list)
+        local dose = first_held(t, list)
+        if dose == nil then return nil end
+        local _, n0 = t.inv.count(dose)
+        for _ = 1, 3 do
+            t.player.inv_op(dose, 1, { quick = true })
+            t.ticks(3)
+            local _, n1 = t.inv.count(dose)
+            if n1 ~= n0 then break end
+        end
+        return dose
+    end
+    local dc = door_dose({ "1dosedivinecombat", "2dosedivinecombat", "3dosedivinecombat", "4dosedivinecombat",
+        "1dose2combat", "2dose2combat", "3dose2combat", "4dose2combat" })
+    local dr = door_dose({ "1dosedivinerange", "2dosedivinerange", "3dosedivinerange", "4dosedivinerange",
+        "1doserangerspotion", "2doserangerspotion", "3doserangerspotion", "4doserangerspotion" })
+    if nrole == 1 then t.player.inv_op("saturated_heart", 1, { quick = true }) t.ticks(2) end
+    local _, rg = t.skill.read("ranged")
+    local _, sg = t.skill.read("strength")
+    t.check("nylocas.boosts", rg.level > rg.base_level, P .. tostring(dc) .. ", " .. tostring(dr) .. " at the door: ranged " .. rg.level
+        .. ", strength " .. sg.level)
     stamina(t, "nylocas")
     -- the leader beside the fight tile BEFORE the crossing, the members to
     -- the barrier's north side (harness door.together)
@@ -1936,6 +2063,7 @@ end
 -- (a member has no ::tob readout), three tiles south of it.
 PRE.xarpus = function(t, ox, oz)
     wear(t, "xarpus.equip.scythe", "scythe_of_vitur")
+    seat1_melee(t, "xarpus")
     boost(t, "xarpus")
     stamina(t, "xarpus")
     start_room(t, "xarpus", function()
@@ -1956,6 +2084,7 @@ end
 PRE.verzik = function(t, ox, oz)
     wear(t, "verzik.equip.arrows", "dragon_arrow")
     wear(t, "verzik.equip.scythe", "scythe_of_vitur")
+    seat1_melee(t, "verzik")
     stamina(t, "verzik")
     -- owner_verzik's slow snippet (build/seam_state/owner_verzik/
     -- relay_verzik_snippet.lua; green in _play_verzik_slow --party 3 at
@@ -2014,6 +2143,9 @@ end
 -- others' rancour), the salve left on the floor
 AFTER.bloat = function(t)
     wear(t, "bloat.after.neck", (ROLE_IN.maiden[role] == 2) and "occult_necklace" or "amulet_of_rancour")
+    -- (seat 1 is the Nylocas mage: its void set back on, the melee set in the
+    -- pack for Sotetseg, Xarpus and Verzik)
+    seat1_void(t, "bloat.after")
     drop_spent(t, "bloat")
 end
 -- out of the Nylocas: the scythe and the dragon arrows back on, style 0 and
@@ -2162,6 +2294,12 @@ return {
             t.check("kit.charge", sr == "ok" and sn == 1, P .. "Charge on eye_of_ayak_uncharged " .. tostring(chr) .. " " .. string.sub(tostring(chd), 1, 80)
                 .. "; eye_of_ayak in the pack " .. tostring(sn))
         end
+        -- (what the charges leave -- splinters, demon tears -- is no use after
+        -- them: on the floor, so the supplies have their slots)
+        for _, left in ipairs({ "sunfiresplinter", "demon_tear" }) do
+            local lr, ln = t.inv.count(left)
+            if lr == "ok" and (tonumber(ln) or 0) > 0 then t.player.drop(left) t.ticks(1) end
+        end
         for _, c in ipairs(SUPPLIES) do t.cheat(c) end
         t.ticks(2)
         local kit0 = supplies(t)
@@ -2217,6 +2355,9 @@ return {
                 tostring(last_square), supplies_text(R[name].before), table.concat(lv, ", ")))
             last_square = square
             top_up(t, name)
+            -- (before the barrier: a read after the cross would start the
+            -- seat's play a tick or two late)
+            boss_guard(t, name, "start")
             local spec = PRE[name](t, ox, oz)
             local since = newest_serial(t)
 
@@ -2236,6 +2377,8 @@ return {
                     .. tostring(m.oz) .. "); dodges " .. tostring(m.dodges) .. ", add presses " .. tostring(m.add_presses) .. ", Ice Barrage casts " .. #(m.casts or {}))
             end
             R[name].death = rec and rec.death_tick or nil
+            boss_guard(t, name, "after")
+            if role == 1 then boss_woke(t, name, rec) end
             if name == "nylocas" and role == 1 and result == "ok" then nylocas_rows(t, rec) end
             if name == "maiden" and role == 1 and rec ~= nil then maiden_rows(t, rec) end
             if name == "bloat" and role == 1 and rec ~= nil then bloat_rows(t, rec, result, detail, ox, oz) end

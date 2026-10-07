@@ -902,10 +902,10 @@ end
 -- Her storm goes to the raider nearest her centre SW+3,+3, ties to orb
 -- (stormrule.py 293 / 293); the streams split them dps 54 / 22, freezer 24
 -- (57 of 81 in her 30 form).  dps1 swings from her SOUTH edge -- 4 from the
--- centre -- in her 100 form, so dps2 on her north takes those, and in her 30
--- form, where the freezer (orb 0) scythes from her east edge (6,2) and takes
--- them; every seat eats at 36 percent (24 names: shares 54 / 29 / 17, dps1
--- 112 hp lost a room and 2.8 heals, from ~90% of her storms and 6 heals).
+-- centre -- in her 100 and 30 forms, so dps2 on her north takes some; every
+-- seat eats at 36 percent.  (The freezer's scythe on her east edge in her 30
+-- form, which took her 30-form storms as the streams' freezer does, is gone:
+-- it cost the crab work -- see the freezer's on-boss.)
 QD.RAID_MAIDEN_SPLIT_HOME = { [0] = { 5, -1 }, [3] = { 4, -1 } }
 function QD.raid.mz_home(st, v)
     local b = v.boss
@@ -1125,26 +1125,11 @@ function QD.raid.mz_f_on_boss_tick(st, v, intent)
             end
         end
     end
-    -- THE FREEZER ON HER EAST EDGE IN HER 30 FORM (stormtiles.py: the
-    -- streams' freezer stands on (6,0)-(6,4) with the scythe there and takes
-    -- 57 of the phase's 81 storms; her storm goes to the nearest raider to
-    -- her centre SW+3,+3, ties to orb, so with the leader on her south edge
-    -- (4 from it) the freezer at 3 takes them): the scythe on her from (6,2)
-    if QD.raid.mz_form(st) == 3 and (st.variant == "storm_split") then
-        local sr, sn = QD.inv.count("scythe_of_vitur")
-        local fm = st.m
-        if fm.f_scythe or (sr == "ok" and (tonumber(sn) or 0) > 0) then
-            fm.f_scythe = true
-            if QD.raid.mz_wear(intent, { "scythe_of_vitur" }) then return end
-            local hx, hz = b.x + 6, b.z + 2
-            if (v.me.x ~= hx or v.me.z ~= hz) and QD.raid._play_gap(b, v.me.x, v.me.z) > 1 and not v.marks[hx * 100000 + hz] then
-                QD.raid.mz_walk_to(st, v, intent, hx, hz)
-                return
-            end
-            intent.attack = true
-            return
-        end
-    end
+    -- (the relay's storm split no longer moves the freezer onto her east edge
+    -- with the scythe in her 30 form: the 5 names played that way leaked a
+    -- mean 430 heal of crabs -- one name 1034 -- against 248 with the freezer
+    -- on its bow and its barrages, and relay15 healed her 990.  The dps1 home
+    -- tiles alone split her storms 61 / 33 / 6, against the streams' 54 / 22 / 24.)
     if QD.raid.mz_wear(intent, st.plan.ranged_set) then return end
     if QD.raid._play_gap(b, v.me.x, v.me.z) > 10 and QD.raid.mz_walk_home(st, v, intent) then return end
     -- (forms 0-2: back to the spawn tile when a dodge left the freezer more

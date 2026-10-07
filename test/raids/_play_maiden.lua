@@ -245,6 +245,28 @@ local function party_run(t)
         local _, hpl = t.skill.read("hitpoints")
         t.check("play.boosts", rg ~= nil and rg.level > 99, "p" .. role .. " at the door: ranged " .. tostring(rg and rg.level) .. " magic " .. tostring(mg and mg.level) .. " hitpoints " .. tostring(hpl and hpl.level) .. " (" .. tostring(rr) .. ")")
     end
+    -- THE BOSS-UID GUARD (owner 2026-10-07: "make sure that bug doesn't occur
+    -- in any other room"): every seat's own %varp6886_tob_boss_uid names the
+    -- room's live boss (the room register, ::tobstate roomboss / bosslive).
+    -- In the party relay the leader's copy stayed Maiden's for the whole raid
+    -- and Xarpus never woke (CONTENT_BUGS 2026-10-07).
+    local _, glast = t.msg.last(1)
+    local gsince = (glast and #glast > 0) and (glast[#glast].serial or 0) or 0
+    t.cheat("::tobstate")
+    local gline = nil
+    for _ = 1, 8 do
+        t.ticks(1)
+        local _, gml = t.msg.last(40)
+        for _, m in ipairs(gml or {}) do
+            if (m.serial or 0) > gsince and tostring(m.text):find("roomboss=", 1, true) then gline = tostring(m.text) end
+        end
+        if gline ~= nil then break end
+    end
+    local gmine = gline and tonumber(string.match(gline, "boss_uid=(%-?%d+)"))
+    local groom = gline and tonumber(string.match(gline, "roomboss=(%-?%d+)"))
+    local glive = gline and tonumber(string.match(gline, "bosslive=(%d+)"))
+    t.check("guard.boss_uid", gmine ~= nil and gmine == groom and groom ~= -1 and glive == 1,
+        "p" .. role .. " own boss_uid " .. tostring(gmine) .. ", the room's " .. tostring(groom) .. " (alive " .. tostring(glive) .. ")")
     t.expect("party.barrier.entrance", t.party.barrier("entrance", 300))
     -- owner_tob_normal: the trio through the barrier on ONE tick (t.raid.
     -- cross_together, raid_play.lua): Blert's trios swing first at +5 on every
