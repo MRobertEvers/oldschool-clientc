@@ -1,3 +1,13 @@
+-- ROUND b72 (door rule): every goto into or out of a closed space is now a walk through its door.
+-- Lumbridge -> the colony and back go through the members' gate membergater 2933,3320 (cross_gate, every
+-- crossing); the Wise Old Man's house by poordoor 3088,3251; the colony gate swan_door_l 2343,3662 and the
+-- three colony buildings (Herman 2351,3679, furnace 2337,3675, stove 2322,3667) by pass_door on every
+-- visit; the Wizards' Guild door (walk-through, cross_gate) and its cellar ladder both ways (climb); the
+-- Lumbridge chicken pen by fencegate_l 3236,3296; the Crafting Guild door (walk-through) in and out.
+-- b72 content fix (swansong_colony.rs2 [oploc1,swan_hole] / [apnpc1,swan_herman]): Herman is talked to across
+-- his desk (approach trigger, range 2); the inside swan_hole 2344,3654 is the colony's exit (lands 2344,3650,
+-- the maplink_0_36_57_40_7 landing), so the colony is left on foot and the Camelot runes are gone (16 sharks
+-- again); the log / tinderbox / 5 iron bars are asked for on the FIRST entry only, so the stage-140 re-entry is free.
 -- ROUND 7 (matthew-mbp-m4-b56), sent back by the b56 shot sampler: the two guild-door rows now require the
 -- player INSIDE (x >= 2585 / z <= 3288; the goto alone already sat within the old +-2), and the black d'hide
 -- body is re-worn after the Crafting Guild (rewear-dhide-body) -- in round 6 Malignius's brown apron took the
@@ -80,8 +90,9 @@ return {
         -- ROUND 6: black d'hide body (magic defence +45; levelrequire.rs2:178 gates only the green one), worn before the food
         "::give black_dragonhide_body 1",
         "::wield black_dragonhide_body",
-        -- 16 sharks: with the hammer dropped after the fifth wall the fishing-leg peak is 4 bones + 2 soft clay +
-        -- net + 5 raw monkfish + 16 sharks = 28 slots (sampler b54 scratch sample_b54_s16: fish-cast-5-raw 4 -> 5)
+        -- 16 sharks: the start pack is 3 quest runes + 5 iron bars + 2 soft clay + log + tinderbox + 16 sharks = 28,
+        -- and the fishing-leg peak 4 bones + 2 soft clay + net + 5 raw monkfish + 16 sharks = 28. The trolls never
+        -- needed food (b71 lowest hp 84/99); the Queen ate 9.
         "::give shark 16",
     },
 
@@ -104,6 +115,51 @@ return {
 
         -- closer b54-seam3: no store hammer; Franklin hands one over at the lit stage
 
+        -- ---- crossings (b72 door rule) ----
+        -- The members' gate south of Taverley (gates.rs2 [label,member_fencegate_try], walk-through):
+        -- reach.py 3206,3233 -> 2345,3649 NEEDS-DOOR via membergater@2933,3320; 2933,3322 -> 2345,3649
+        -- and 2933,3318 -> 3088,3250 are REACH with every door shut. Pressed on every crossing.
+        local function gate_north(prefix)
+            t.exec("goto-" .. prefix .. ".memberGateNorth", t.player.goto_tile, 2933, 3318, 0)
+            t.exec(prefix .. ".memberGateNorth", t.player.cross_gate, { loc = "membergater", at = { 2933, 3320, 0 },
+                near = { 2933, 3318 }, far_ok = function(tile) return tile.z >= 3320 and math.abs(tile.x - 2933) <= 2 end,
+                far_desc = "north of the members' gate, z >= 3320", far = { 2933, 3322 } })
+        end
+        local function gate_south(prefix)
+            t.exec("goto-" .. prefix .. ".memberGateSouth", t.player.goto_tile, 2933, 3322, 0)
+            t.exec(prefix .. ".memberGateSouth", t.player.cross_gate, { loc = "membergater", at = { 2933, 3320, 0 },
+                near = { 2933, 3321 }, far_ok = function(tile) return tile.z <= 3319 and math.abs(tile.x - 2933) <= 2 end,
+                far_desc = "south of the members' gate, z <= 3319", far = { 2933, 3318 } })
+        end
+        -- Herman's office (x 2352-2355, z 3678-3682; swan_building_door on the EAST edge of 2351,3679,
+        -- maps/m36_57.jl2 `r2`): in from 2351,3679, out to 2350,3679 (reach.py REACH to Franklin).
+        local function herman_in(name)
+            t.exec(name, t.player.pass_door, { closed = "swan_building_door", open = "swan_building_door_open",
+                at = { 2351, 3679, 0 }, near = { 2351, 3679 }, far = { 2352, 3679 } })
+        end
+        local function herman_out(name)
+            t.exec(name, t.player.pass_door, { closed = "swan_building_door", open = "swan_building_door_open",
+                at = { 2351, 3679, 0 }, near = { 2352, 3679 }, far = { 2350, 3679 } })
+        end
+        -- The furnace building (x 2338-2346, z 3673-3678; firebox 2343,3675, press 2341,3675): its
+        -- swan_building_door on the EAST edge of 2337,3675.
+        local function furnace_in(name)
+            t.exec(name, t.player.pass_door, { closed = "swan_building_door", open = "swan_building_door_open",
+                at = { 2337, 3675, 0 }, near = { 2337, 3675 }, far = { 2338, 3675 } })
+        end
+        local function furnace_out(name)
+            t.exec(name, t.player.pass_door, { closed = "swan_building_door", open = "swan_building_door_open",
+                at = { 2337, 3675, 0 }, near = { 2338, 3675 }, far = { 2336, 3675 } })
+        end
+        -- The colony gate between the entrance yard (z 3654-3662) and the grounds: swan_door_l on the NORTH
+        -- edge of 2343,3662 (doubledoors.loc swan_door_l <-> swan_opendoor_l).
+        local function colony_gate_in(name)
+            t.exec(name, t.player.pass_door, { closed = "swan_door_l", open = "swan_opendoor_l",
+                at = { 2343, 3662, 0 }, near = { 2343, 3662 }, far = { 2343, 3663 } })
+        end
+
+        -- talkToHerman: Lumbridge -> the members' gate -> outside the colony
+        gate_north("talkToHerman")
         t.exec("goto-talkToHerman", t.player.goto_tile, 2345, 3649, 0)
         t.exec("talkToHerman", t.player.talk_to, "swan_multioutside", 1)
         t.exec("talkToHerman-dialog", t.chat.play, {
@@ -117,7 +173,11 @@ return {
         t.ticks(2)
         t.expect("quest.stage.agreed_to_help", t.quest.expect_stage("agreed_to_help"))
 
-        t.exec("goto-talkToWom", t.player.goto_tile, 3088, 3254, 0)
+        -- talkToWom: back south through the gate, into his house by poordoor 3088,3251 (south edge)
+        gate_south("talkToWom")
+        t.exec("goto-talkToWom", t.player.goto_tile, 3088, 3250, 0)
+        t.exec("talkToWom.doorIn", t.player.pass_door, { closed = "poordoor", open = "poordooropen",
+            at = { 3088, 3251, 0 }, near = { 3088, 3250 }, far = { 3088, 3252 } })
         t.exec("talkToWom", t.player.talk_to, "wom_multi", 1)
         t.exec("talkToWom-dialog", t.chat.play, {
             "npc:I shall bring my adventuring days",
@@ -135,7 +195,11 @@ return {
         t.ticks(2)
         t.expect("quest.stage.runes_given", t.quest.expect_stage("runes_given"))
         t.check("runes-handed-over", t.inv.expect_absent("mistrune"))
+        t.exec("talkToWom.doorOut", t.player.pass_door, { closed = "poordoor", open = "poordooropen",
+            at = { 3088, 3251, 0 }, near = { 3088, 3251 }, far = { 3088, 3249 } })
 
+        -- talkToWomAtColony: north through the gate again
+        gate_north("talkToWomAtColony")
         t.exec("goto-talkToWomAtColony", t.player.goto_tile, 2345, 3649, 0)
         t.exec("talkToWomAtColony", t.player.talk_to, "swan_multioutside", 1)
         t.exec("talkToWomAtColony-dialog", t.chat.play, {
@@ -146,7 +210,7 @@ return {
         t.ticks(2)
         t.expect("quest.stage.ready_to_fight", t.quest.expect_stage("ready_to_fight"))
 
-        t.exec("enterColony", t.player.click_loc, "swan_hole", 1)
+        t.exec("enterColony", t.player.click_loc, "swan_hole", 1, { at = { 2344, 3651 } })
         t.ticks(4)
         do local tr, th = t.world.tile(); t.check("enterColony-tile", tr == "ok" and th.level == 0 and math.abs(th.x - 2343) <= 2 and math.abs(th.z - 3657) <= 2, tr == "ok" and (th.x .. "," .. th.z .. "," .. th.level .. " (want within 2 of 2343,3657,0)") or tostring(th)) end
 
@@ -169,9 +233,13 @@ return {
         t.check("kill79Trolls-count", t.var.expect("varb2107_swansong_trolls", 3))
         t.expect("quest.stage.trolls_beaten", t.quest.expect_stage("trolls_beaten"))
 
-        t.exec("openColonyGate", t.player.click_loc, "swan_door_l", 1)
-        t.ticks(3)
-        t.exec("goto-talkToHermanInBuilding", t.player.goto_tile, 2354, 3682, 0)
+        colony_gate_in("openColonyGate")
+        t.exec("goto-talkToHermanInBuilding", t.player.goto_tile, 2351, 3679, 0)
+        herman_in("talkToHermanInBuilding.doorIn")
+        -- Herman stands on 2354,3683 (areas/world/configs/m36_57.spawn:31) behind swan_desk (width 2, 2353-2354,3682);
+        -- the office's floor is x 2352-2355, z 3678-3681, so no floor tile is beside him. Before b72 the test
+        -- goto'd ONTO the desk (2354,3682, solid_landings CHEAT); now he is talked to across it
+        -- (swansong_colony.rs2 [apnpc1,swan_herman], p_aprange(2)).
         t.exec("talkToHermanInBuilding", t.player.talk_to, "swan_herman", 1)
         t.exec("talkToHermanInBuilding-dialog", t.chat.play, {
             "npc:You made it through",
@@ -179,6 +247,7 @@ return {
         })
         t.ticks(2)
         t.expect("quest.stage.helping", t.quest.expect_stage("helping"))
+        herman_out("talkToFranklin.doorOut")
 
         t.exec("goto-talkToFranklin", t.player.goto_tile, 2341, 3668, 0)
         t.exec("talkToFranklin", t.player.talk_to, "swan_franklin", 1)
@@ -191,7 +260,8 @@ return {
 
         local firebox = t.player.by_symbol("loc", "swan_firebox")
         t.check("firebox.found", firebox ~= nil, "swan_firebox resolved: " .. tostring(firebox and firebox.id))
-        t.exec("goto-useLog", t.player.goto_tile, 2344, 3675, 0)
+        t.exec("goto-useLog", t.player.goto_tile, 2336, 3675, 0)
+        furnace_in("useLog.doorIn")
         t.exec("useLog", t.player.use_on, "logs", firebox)
         t.ticks(2)
         t.check("useLog-var", t.var.expect("varb2099_swansong_franklin", 2))
@@ -210,6 +280,7 @@ return {
             t.exec("flattenBar-" .. i, t.player.use_on, "iron_bar", press)
             t.check("flattenBar-" .. i .. "-sheets", t.inv.await("iron_sheet", i, 20))
         end
+        furnace_out("talkToFranklinHammer.doorOut")
         t.exec("goto-talkToFranklinHammer", t.player.goto_tile, 2341, 3668, 0)
         t.exec("talkToFranklinHammer", t.player.talk_to, "swan_franklin", 1)
         t.exec("talkToFranklinHammer-dialog", t.chat.play, {
@@ -265,14 +336,17 @@ return {
             t.exec("fish-cast-" .. i, t.player.click_loc, "swan_fish", 1)
             t.check("fish-cast-" .. i .. "-raw", t.inv.await("swan_raw_monkfish", i, 20))
         end
-        -- the stove (2316,3668) sits in a walled building the west side cannot reach: stand inside
-        t.exec("goto-stoveDoor", t.player.goto_tile, 2324, 3667, 0)
-        t.exec("openSwanBuildingDoor", t.player.click_loc, "swan_building_door", 1)
-        t.ticks(3)
+        -- the stove (2316,3668) sits in a walled building (x 2316-2321); its swan_building_door is on the
+        -- WEST edge of 2322,3667: in and out by it
+        t.exec("goto-stoveDoor", t.player.goto_tile, 2323, 3667, 0)
+        t.exec("openSwanBuildingDoor", t.player.pass_door, { closed = "swan_building_door", open = "swan_building_door_open",
+            at = { 2322, 3667, 0 }, near = { 2322, 3667 }, far = { 2321, 3667 } })
         for i = 1, 5 do
             t.exec("cook-" .. i, t.player.click_loc, "swan_stove", 1)
             t.check("cook-" .. i .. "-cooked", t.inv.await("swan_monkfish", i, 20))
         end
+        t.exec("talkToArnoldFish.doorOut", t.player.pass_door, { closed = "swan_building_door", open = "swan_building_door_open",
+            at = { 2322, 3667, 0 }, near = { 2321, 3667 }, far = { 2323, 3667 } })
         t.exec("goto-talkToArnoldFish", t.player.goto_tile, 2329, 3687, 0)
         t.exec("talkToArnoldFish", t.player.talk_to, "swan_arnold", 1)
         t.exec("talkToArnoldFish-dialog", t.chat.play, {
@@ -285,7 +359,8 @@ return {
         t.ticks(3)
         t.check("dropNet-slots", t.inv.expect_absent("net"), "fishing net dropped after the five monkfish to keep slots for food")
 
-        t.exec("goto-talkToHermanTasks", t.player.goto_tile, 2354, 3682, 0)
+        t.exec("goto-talkToHermanTasks", t.player.goto_tile, 2351, 3679, 0)
+        herman_in("talkToHermanTasks.doorIn")
         t.exec("talkToHermanTasks", t.player.talk_to, "swan_herman", 1)
         t.exec("talkToHermanTasks-dialog", t.chat.play, {
             "npc:Franklin and Arnold both say",
@@ -298,16 +373,29 @@ return {
             "npc:I know of a wizard",
         })
 
+        -- Out of the colony on foot: Herman's door, the colony gate south (reach.py 2343,3663 -> 2344,3655
+        -- NEEDS-DOOR via the swan_door pair at z 3662), then the inside hole 2344,3654 (swansong_colony.rs2
+        -- [oploc1,swan_hole]: lands 2344,3650, the maplink_0_36_57_40_7 landing). 2344,3650 -> the Wizards' Guild
+        -- door 2583,3088: reach.py REACH closed-doors len=887.
+        herman_out("leaveColony.hermanDoorOut")
+        t.exec("goto-leaveColony.gate", t.player.goto_tile, 2343, 3663, 0)
+        t.exec("leaveColony.colonyGate", t.player.pass_door, { closed = "swan_door_l", open = "swan_opendoor_l",
+            at = { 2343, 3662, 0 }, near = { 2343, 3663 }, far = { 2343, 3661 } })
+        t.exec("goto-leaveColony.hole", t.player.goto_tile, 2344, 3655, 0)
+        t.exec("leaveColony.hole", t.player.click_loc, "swan_hole", 1, { at = { 2344, 3654 } })
+        t.ticks(4)
+        do local lr, lh = t.world.tile(); t.check("leaveColony-tile", lr == "ok" and lh.level == 0 and lh.x == 2344 and lh.z == 3650, lr == "ok" and (lh.x .. "," .. lh.z .. "," .. lh.level .. " (want 2344,3650,0: outside the hole)") or tostring(lh)) end
+
+        -- The guild door (magic_guild.rs2 [label,open_mageguild_door]: walk-through, Magic 66) on the EAST edge
+        -- of 2584,3088: entering lands 2585,3088, leaving lands on the door tile 2584,3088.
         t.exec("goto-wizardsGuildDoor", t.player.goto_tile, 2583, 3088, 0)
-        t.exec("wizardsGuildDoor", t.player.click_loc, "magicguild_door_l", 1)
-        t.ticks(3)
-        -- INSIDE, not near: the goto stands the player at 2583,3088, outside the door, and the
-        -- open door walks him through to 2585,3088 (b54 run, play shot 158). x >= 2585 is the
-        -- guild side; the old +-2 of 2585 also passed at 2583 with the door shut (b56 sampler).
-        do local tr, th = t.world.tile(); t.check("wizardsGuildDoor-tile", tr == "ok" and th.level == 0 and th.x >= 2585 and th.x <= 2587 and math.abs(th.z - 3088) <= 1, tr == "ok" and (th.x .. "," .. th.z .. "," .. th.level .. " (want inside the guild: x 2585-2587, z 3087-3089, level 0; the goto stood at 2583,3088)") or tostring(th)) end
-        t.exec("enterWizardsBasement", t.player.click_loc, "ladder_cellar", 1, { at = { 2594, 3085 } })
-        t.ticks(3)
-        do local tr, th = t.world.tile(); t.check("enterWizardsBasement-tile", tr == "ok" and th.level == 0 and math.abs(th.x - 2594) <= 2 and math.abs(th.z - 9486) <= 2, tr == "ok" and (th.x .. "," .. th.z .. "," .. th.level .. " (want within 2 of 2594,9486,0)") or tostring(th)) end
+        t.exec("wizardsGuildDoor", t.player.cross_gate, { loc = "magicguild_door_l", at = { 2584, 3088, 0 },
+            near = { 2583, 3088 }, far_ok = function(tile) return tile.x >= 2585 and tile.x <= 2587 and math.abs(tile.z - 3088) <= 1 end,
+            far_desc = "inside the guild, x 2585-2587" })
+        -- ladder_cellar 2594,3085: from 2594,3086 the maplink row (keyed on 2594,3085) misses and ladders.rs2's
+        -- default lands z+6400 on the approach tile, 2594,9486 (b71 run: 2594,9486,0)
+        t.exec("enterWizardsBasement", t.player.climb, { loc = "ladder_cellar", op = 1, op_name = "Climb-down",
+            at = { 2594, 3085, 0 }, src = { 2594, 3086 }, dest = { 2594, 9486, 0 }, slack = 1 })
         t.exec("frumscone-present", t.npc.await_present, "wizard_frumscone", 15, 10)
         t.exec("talkToFruscone", t.player.talk_to, "wizard_frumscone", 1)
         t.exec("talkToFruscone-dialog", t.chat.play, {
@@ -316,9 +404,19 @@ return {
         })
         t.ticks(2)
         t.expect("quest.stage.frumscone_done", t.quest.expect_stage("frumscone_done"))
+        -- up: maplink_0_40_148_34_14_up, 2594,9486 -> 2594,3085
+        t.exec("talkToMalignius.cellarLadderUp", t.player.climb, { loc = "ladder_from_cellar", op = 1, op_name = "Climb-up",
+            at = { 2594, 9485, 0 }, src = { 2594, 9486 }, dest = { 2594, 3085, 0 }, slack = 1 })
+        t.exec("talkToMalignius.guildDoorOut", t.player.cross_gate, { loc = "magicguild_door_l", at = { 2584, 3088, 0 },
+            near = { 2585, 3088 }, far_ok = function(tile) return tile.x <= 2584 and math.abs(tile.z - 3088) <= 1 end,
+            far_desc = "outside the guild, x <= 2584", far = { 2583, 3088 } })
 
-        -- Malignius wants 7 bones "from people and small monsters"; the sea trolls leave 4, so chickens give the rest
-        t.exec("goto-chickenPen", t.player.goto_tile, 3228, 3298, 0)
+        -- Malignius wants 7 bones "from people and small monsters"; the sea trolls leave 4, so chickens give the rest.
+        -- Yanille -> Lumbridge goes south through the members' gate; the pen is fenced (fencegate_l 3236,3296).
+        gate_south("chickenPen")
+        t.exec("goto-chickenPen", t.player.goto_tile, 3237, 3296, 0)
+        t.exec("chickenPen.gateIn", t.player.pass_door, { closed = "fencegate_l", open = "openfencegate_l",
+            at = { 3236, 3296, 0 }, near = { 3237, 3296 }, far = { 3234, 3294 } })
         do
             local parts = {}
             for slot = 0, 27 do
@@ -336,6 +434,8 @@ return {
             t.exec("chicken-bones-" .. i, t.player.click_obj, "bones", 3)
         end
         t.check("bones-total", t.inv.expect_has("bones", 7))
+        t.exec("chickenPen.gateOut", t.player.pass_door, { closed = "fencegate_l", open = "openfencegate_l",
+            at = { 3236, 3296, 0 }, near = { 3235, 3296 }, far = { 3238, 3296 } })
         t.exec("goto-talkToMalignius", t.player.goto_tile, 2993, 3270, 0)
         t.exec("talkToMalignius", t.player.talk_to, "elemental_wizard_boss", 1)
         t.exec("talkToMalignius-dialog", t.chat.play, {
@@ -348,12 +448,15 @@ return {
         t.expect("quest.stage.malignius_first", t.quest.expect_stage("malignius_first"))
         t.exec("wear-apron", t.player.equip, "brown_apron")
 
-        t.exec("goto-craftingGuildDoor", t.player.goto_tile, 2932, 3289, 0)
-        t.exec("craftingGuildDoor", t.player.click_loc, "craftingguilddoor", 1)
-        t.ticks(3)
-        -- INSIDE, not near: the goto stands the player at 2932,3289, north of the door; the open
-        -- door walks him to 2933,3288 (b54 run, play shot 187). z <= 3288 is the guild side.
-        do local tr, th = t.world.tile(); t.check("craftingGuildDoor-tile", tr == "ok" and th.level == 0 and th.z <= 3288 and th.z >= 3286 and math.abs(th.x - 2933) <= 1, tr == "ok" and (th.x .. "," .. th.z .. "," .. th.level .. " (want inside the guild: z 3286-3288, x 2932-2934, level 0; the goto stood at 2932,3289)") or tostring(th)) end
+        -- craftingguilddoor (crafting_guild.rs2 [oploc1,craftingguilddoor]: walk-through, brown apron worn) on the
+        -- SOUTH edge of 2933,3289: in from the porch 2933,3290 (the b71 goto stood on paintedbrickwall_1 2932,3289),
+        -- out lands on the door tile 2933,3289. The entry opens the Master Crafter's welcome page.
+        t.exec("goto-craftingGuildDoor", t.player.goto_tile, 2933, 3290, 0)
+        t.exec("craftingGuildDoor", t.player.cross_gate, { loc = "craftingguilddoor", at = { 2933, 3289, 0 },
+            near = { 2933, 3290 }, far_ok = function(tile) return tile.z <= 3288 and tile.z >= 3286 and math.abs(tile.x - 2933) <= 1 end,
+            far_desc = "inside the guild, z 3286-3288",
+            chat = { "npc:Welcome to the Guild of Master Craftsmen" },
+            chat_optional = "crafting_guild.rs2:24-25 opens the welcome page after the walk, so it can land after the landing" })
         t.exec("talkToCrafter", t.player.talk_to, "master_crafter_3", 1)
         t.exec("talkToCrafter-dialog", t.chat.play, {
             "player:Swan Song",
@@ -396,6 +499,10 @@ return {
                 "brown_apron in pack " .. tostring(apron_back) .. ", black_dragonhide_body in pack " .. tostring(body_left) .. " (want 1 and 0: the body is worn)")
         end
 
+        -- out of the guild by its door (leaving needs no apron)
+        t.exec("talkToMaligniusWithPot.guildDoorOut", t.player.cross_gate, { loc = "craftingguilddoor", at = { 2933, 3289, 0 },
+            near = { 2933, 3288 }, far_ok = function(tile) return tile.z >= 3289 and math.abs(tile.x - 2933) <= 1 end,
+            far_desc = "outside the guild, z >= 3289", far = { 2933, 3290 } })
         t.exec("goto-talkToMaligniusWithPot", t.player.goto_tile, 2993, 3270, 0)
         t.exec("talkToMaligniusWithPot", t.player.talk_to, "elemental_wizard_boss", 1)
         t.exec("talkToMaligniusWithPot-dialog", t.chat.play, {
@@ -404,7 +511,20 @@ return {
         })
         t.ticks(2)
         t.expect("quest.stage.army_ready", t.quest.expect_stage("army_ready"))
-        t.exec("goto-talkToHermanWithPot", t.player.goto_tile, 2354, 3682, 0)
+
+        -- Back to the colony: north through the members' gate, then in by the hole (the colony's only way in:
+        -- reach.py 2345,3649 -> 2341,3668 UNREACHABLE at 250); no items asked after the first entry.
+        gate_north("talkToHermanWithPot")
+        t.exec("goto-talkToHermanWithPot.hole", t.player.goto_tile, 2345, 3649, 0)
+        t.exec("reenterColony", t.player.click_loc, "swan_hole", 1, { at = { 2344, 3651 } })
+        t.ticks(4)
+        local rr, rth = t.world.tile()
+        local back_in = rr == "ok" and rth.level == 0 and rth.x >= 2338 and rth.x <= 2349 and rth.z >= 3654 and rth.z <= 3661
+        t.check("reenterColony-tile", back_in, (rr == "ok" and (rth.x .. "," .. rth.z .. "," .. rth.level) or tostring(rth))
+            .. " (want the entrance yard x 2338-2349, z 3654-3661, level 0)")
+        colony_gate_in("talkToHermanWithPot.colonyGate")
+        t.exec("goto-talkToHermanWithPot", t.player.goto_tile, 2351, 3679, 0)
+        herman_in("talkToHermanWithPot.doorIn")
         t.exec("talkToHermanWithPot", t.player.talk_to, "swan_herman", 1)
         t.exec("talkToHermanWithPot-dialog", t.chat.play, {
             "player:I have the bone seeds",
@@ -421,12 +541,13 @@ return {
         })
         t.ticks(2)
         t.expect("quest.stage.queen_fight", t.quest.expect_stage("queen_fight"))
+        herman_out("killQueen.doorOut")
         t.exec("goto-killQueen", t.player.goto_tile, 2347, 3701, 0)
         t.exec("killQueen-present", t.npc.await_present, "swan_seatroll_queen", 15, 10)
         t.cheat("::swansong_queen_hp")
         t.check("killQueen-hp-server", t.msg.expect("Sea Troll Queen hitpoints 200/200"))
         local _, food_at_queen = t.inv.count("shark")
-        t.check("killQueen-food", (food_at_queen or 0) >= 14, "sharks carried to the Queen: " .. tostring(food_at_queen) .. " of 16 staged (want >= 14; the b54 fight ate 12)")
+        t.check("killQueen-food", (food_at_queen or 0) >= 12, "sharks carried to the Queen: " .. tostring(food_at_queen) .. " of 16 staged (want >= 12; the b71 fight ate 9)")
         local eaten_before = 0
         local lowest_hp = 99
         for _ = 1, 6 do
@@ -444,7 +565,10 @@ return {
         local _, food_after_topup = t.inv.count("shark")
         t.check("killQueen-eat-to-full", hp_full ~= nil and hp_full >= 80, "hp before the first Attack: " .. tostring(hp_full) .. "/99 after eating " .. eaten_before .. " shark(s); sharks left " .. tostring(food_after_topup))
         t.exec("killQueen-attack", t.player.attack, "swan_seatroll_queen", 2, 20)
-        local _, queen_detail = t.exec("killQueen-dead", t.npc.await_dead_engaged, 400, 40, { eat = { item = "shark", below = 60 } })
+        -- eat below 80 (b72 content-fix run: below 60 dipped to 10/99 on both accounts with 7 sharks left): her magic
+        -- hits 37 and her melee 16 (configs ^ssq_queen_melee_maxhit; Sea_Troll_Queen oldid 15215925), so a meal
+        -- at 79 keeps one of each above 25
+        local _, queen_detail = t.exec("killQueen-dead", t.npc.await_dead_engaged, 400, 40, { eat = { item = "shark", below = 80 } })
         local lowest_fight = tonumber(tostring(queen_detail):match("lowest hp (%d+)/"))
         local queen_ticks = tostring(queen_detail):match("dead after (%d+) tick")
         local _, sharks_left = t.inv.count("shark")
@@ -461,7 +585,8 @@ return {
 
         local _, xp_before = t.skill.snapshot()
         local _, coins_before = t.inv.count("coins")
-        t.exec("goto-talkToHermanToFinish", t.player.goto_tile, 2354, 3682, 0)
+        t.exec("goto-talkToHermanToFinish", t.player.goto_tile, 2351, 3679, 0)
+        herman_in("talkToHermanToFinish.doorIn")
         t.exec("talkToHermanToFinish", t.player.talk_to, "swan_herman", 1)
         t.exec("talkToHermanToFinish-dialog", t.chat.play, {
             "player:It's done",

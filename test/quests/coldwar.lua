@@ -1,11 +1,78 @@
 -- Cold War (quest_coldwar), a relay: one author per leg (docs/quest_authoring/relay.md).
 -- Leg 1: Larry at the Ardougne Zoo, the bird hide on the iceberg, the penguin watch, the boat to Relleka.
+--
+-- RE-DRIVE b72 (door rule). goto_tile is used only for plain overland travel between open tiles; every
+-- door and gate between the player and a target is pressed by its verb, in and out:
+--   * Lumbridge/Rimmington <-> Ardougne/Relleka: the only walk on foot is the members' gate south of
+--     Taverley (membergater/membergatel 2933-2934,3320, gates.rs2 [label,member_fencegate_try], a
+--     walk-through gate): reach.py 3206,3233 -> 2933,3318 REACH closed-doors len=389; 2933,3321 ->
+--     2599,3268 REACH len=823 at margin 250; 2707,3732 (the Relleka landing) -> 2933,3321 REACH len=943
+--     at 250; 2933,3319 -> 2953,3222 (Rimmington) REACH len=117.
+--   * the zoo's penguin enclosure door (peng_ardougne_enclosure_door 2594,3266, north edge; doors.loc
+--     door_closed) in and out;
+--   * the Lumbridge sheep pen's east gate (qip_sheep_shearer_fencegate_l/_r 3213,3261-3262, west edge:
+--     the pen is x <= 3212), Fred's yard gate (3188-3189,3279) and house door (qip_sheep_shearer_poordoor
+--     3189,3275), the cow field's rustic_fencegate_l (3176,3315, north edge);
+--   * in the outpost (maps/m41_162.jl2): the KGP room's peng_base_door 2654,10382 (west edge: the room
+--     is x <= 2653), the agility room's peng_base_door_agility 2640,10382 (west edge), Ping and Pong's
+--     peng_base_door_bard 2662,10396 (east edge: the room is x >= 2663).
+-- The POH is staged in setup (::coldwarpoh, a prerequisite, not quest work) and entered and left by its
+-- portals; the iceberg/zoo/Lumbridge trips Larry offers are his own teleports.
+
+-- The members' gate south of Taverley, pressed on every crossing (as ikov.lua / biohazard.lua).
+local function gate_north(t, name)
+    t.exec("goto-" .. name, t.player.goto_tile, 2933, 3318, 0) -- open ground south of the gate
+    t.exec(name, t.player.cross_gate, { loc = "membergater", at = { 2933, 3320, 0 },
+        near = { 2933, 3318 }, far_ok = function(tile) return tile.z >= 3320 and math.abs(tile.x - 2933) <= 2 end,
+        far_desc = "north of the members' gate, z >= 3320", far = { 2933, 3322 } })
+end
+local function gate_south(t, name)
+    t.exec("goto-" .. name, t.player.goto_tile, 2934, 3322, 0) -- open ground north of the gate
+    t.exec(name, t.player.cross_gate, { loc = "membergatel", at = { 2934, 3320, 0 },
+        near = { 2934, 3321 }, far_ok = function(tile) return tile.z <= 3319 and math.abs(tile.x - 2934) <= 2 end,
+        far_desc = "south of the members' gate, z <= 3319", far = { 2934, 3318 } })
+end
+-- The Lumbridge sheep pen (Larry and the Thing stand inside it): its east gate.
+local PEN_GATE = { closed = "qip_sheep_shearer_fencegate_l", open = "qip_sheep_shearer_openfencegate_l" }
+local function pen_in(t, name)
+    t.exec("goto-" .. name, t.player.goto_tile, 3215, 3261, 0) -- open ground east of the pen gate
+    t.exec(name, t.player.pass_door, { closed = PEN_GATE.closed, open = PEN_GATE.open,
+        at = { 3213, 3261, 0 }, near = { 3214, 3261 }, far = { 3211, 3261 } })
+end
+local function pen_out(t, name)
+    t.exec(name .. "-walk", t.player.walk_to, 3212, 3261, 20)
+    t.exec(name, t.player.pass_door, { closed = PEN_GATE.closed, open = PEN_GATE.open,
+        at = { 3213, 3261, 0 }, near = { 3212, 3261 }, far = { 3215, 3261 } })
+end
+-- The zoo's penguin enclosure door (the pen is z >= 3267).
+local ZOO_DOOR = { closed = "peng_ardougne_enclosure_door", open = "peng_ardougne_enclosure_door_open" }
+local function zoo_pen_in(t, name)
+    t.exec(name .. "-walk", t.player.walk_to, 2594, 3265, 20)
+    t.exec(name, t.player.pass_door, { closed = ZOO_DOOR.closed, open = ZOO_DOOR.open,
+        at = { 2594, 3266, 0 }, near = { 2594, 3266 }, far = { 2594, 3268 } })
+end
+local function zoo_pen_out(t, name)
+    t.exec(name .. "-walk", t.player.walk_to, 2594, 3267, 20)
+    t.exec(name, t.player.pass_door, { closed = ZOO_DOOR.closed, open = ZOO_DOOR.open,
+        at = { 2594, 3266, 0 }, near = { 2594, 3267 }, far = { 2594, 3264 } })
+end
+-- Zoo -> Lumbridge sheep pen on foot (the suit, if worn, wears off on the way: coldwar_shared.rs2
+-- [timer,coldwar_suit] "The spell wears off as you leave the penguins behind").
+local function zoo_to_lumbridge(t, name)
+    gate_south(t, name .. ".memberGate")
+    pen_in(t, name .. ".penGateIn")
+end
+local function lumbridge_to_zoo(t, name)
+    gate_north(t, name .. ".memberGate")
+    t.exec("goto-" .. name, t.player.goto_tile, 2599, 3268, 0) -- open ground beside zoo Larry
+end
+
 return {
     id = "coldwar",
     fixture = "fresh_lumbridge.ini",
     setup = {
         "::clearinv",
-        "::coldwar", -- the quest's reset debugproc: state 0, player beside Larry at the zoo
+        "::coldwar", -- the quest's reset debugproc: state 0 (it also teleports; the placement is reset below)
         -- Quest Helper leg 1 requirements: 10 oak planks, 10 steel nails, hammer, spade
         "::give plank_oak 10",
         "::give nails 10",
@@ -17,6 +84,10 @@ return {
         "::setlevel crafting 30",
         "::setlevel construction 34",
         "::setlevel thieving 15",
+        -- Additional access (Quest Helper enterPoh: "a POH with a Crafting table 3 or 4"): building the
+        -- table is Construction training, not a Cold War step (coldwar_debug.rs2 [debugproc,coldwarpoh]).
+        -- It teleports to the Rimmington portal; the last setup line puts the player back on the fixture tile.
+        "::coldwarpoh",
         -- Quest Helper leg 2 requirements (enterPoh items): a steel bar, a normal plank, silk
         "::give steel_bar 1",
         "::give woodplank 1",
@@ -36,6 +107,7 @@ return {
         "::setlevel hitpoints 70",
         "::give rune_scimitar 1",
         "::give lobster 12",
+        "::goto 3206 3233 0", -- the fixture's own tile (fresh_lumbridge.ini): the run starts in Lumbridge
     },
     bind = {
         varp = "varb3293_peng_quest",
@@ -57,7 +129,7 @@ return {
             -- LEG 1 BEGIN: talkToLarry
             t.ticks(3)
             t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
-            t.exec("goto-talkToLarry", t.player.goto_tile, 2599, 3268, 0)
+            lumbridge_to_zoo(t, "talkToLarry")
 
             t.exec("talkToLarry", t.player.talk_to, "peng_larry_zoo", 1)
             t.exec("talkToLarry-dialog", t.chat.play, {
@@ -144,8 +216,7 @@ return {
             t.ticks(2)
             t.expect("quest.stage.relleka", t.quest.expect_stage("relleka"))
 
-            -- The row boat takes us back to Relleka.
-            t.exec("goto-returnToRelleka", t.player.goto_tile, 2655, 3986, 1)
+            -- The row boat takes us back to Relleka (click_loc walks to it: its click zone is solid).
             t.exec("returnToRelleka", t.player.click_loc, "peng_row_boat_clickzone", 1)
             t.ticks(8)
             local _, rtile = t.world.tile()
@@ -178,7 +249,7 @@ return {
             -- LEG 1 END
             local _, etile = t.world.tile()
             local _, stage = t.quest.stage()
-            t.check("leg.1.end", true, "player at " .. etile.x .. "," .. etile.z .. " level " .. tostring(select(2, t.world.level()))
+            t.note("leg.1.end: player at " .. etile.x .. "," .. etile.z .. " level " .. tostring(select(2, t.world.level()))
                 .. ", varb3293_peng_quest=" .. tostring(stage) .. ", clockwork book in backpack: "
                 .. tostring(select(2, t.inv.count("peng_book"))))
         end },
@@ -202,16 +273,17 @@ return {
             end
 
             t.ticks(2)
-            t.check("leg.2.start", true, "stage " .. tostring(select(2, t.quest.stage())) .. " pack steel_bar="
+            t.note("leg.2.start: stage " .. tostring(select(2, t.quest.stage())) .. " pack steel_bar="
                 .. tostring(select(2, t.inv.count("steel_bar"))) .. " woodplank=" .. tostring(select(2, t.inv.count("woodplank")))
                 .. " silk=" .. tostring(select(2, t.inv.count("silk"))))
-            -- ::coldwarpoh stages the guide's required house (Rimmington, Workshop, Crafting table 3)
-            local cr = t.cheat("::coldwarpoh")
-            t.ticks(4)
-            local _, ptile = t.world.tile()
-            t.check("enterPoh.staged", cr == "ok", "::coldwarpoh -> " .. tostring(cr) .. ", at " .. ptile.x .. "," .. ptile.z)
+            -- enterPoh: the house (staged in setup by ::coldwarpoh: Rimmington, Workshop, Crafting table 3)
+            -- is reached on foot from Relleka: overland to the members' gate, through it, on to the portal.
+            gate_south(t, "enterPoh.memberGate")
+            t.exec("goto-enterPoh", t.player.goto_tile, 2953, 3224, 0) -- open ground beside the Rimmington portal
             t.exec("enterPoh", t.player.click_loc, "poh_rimmington_portal", 2)
             t.ticks(6)
+            local _, ptile = t.world.tile()
+            t.check("enterPoh.inside", ptile.x > 6000, "in the house instance at " .. ptile.x .. "," .. ptile.z)
 
             t.exec("makeClockwork", t.player.click_loc, "poh_clockmaking_3", 1)
             t.exec("makeClockwork-dialog", t.chat.play, { "options", "choose:Clockwork" })
@@ -225,7 +297,14 @@ return {
             t.check("makePenguin.item", select(2, t.inv.count("peng_suit_unwound")) >= 1,
                 "suits " .. tostring(select(2, t.inv.count("peng_suit_unwound"))))
 
-            t.exec("goto-bringSuitToLarry", t.player.goto_tile, 2599, 3268, 0)
+            -- leave the house by its exit portal (poh_enter_leave.rs2 [oploc1,poh_exit_portal] -> ~poh_leave),
+            -- then on foot to the zoo through the members' gate
+            t.exec("bringSuitToLarry.leavePoh", t.player.click_loc, "poh_exit_portal", 1)
+            t.ticks(6)
+            local _, xtile = t.world.tile()
+            t.check("bringSuitToLarry.outside", xtile.x < 6000 and math.abs(xtile.x - 2953) <= 6 and math.abs(xtile.z - 3224) <= 6,
+                "out of the house at " .. xtile.x .. "," .. xtile.z)
+            lumbridge_to_zoo(t, "bringSuitToLarry")
             t.exec("bringSuitToLarry", t.player.talk_to, "peng_larry_zoo", 1)
             t.exec("bringSuitToLarry-dialog", t.chat.play, {
                 "npc:Do you have the suit",
@@ -266,11 +345,7 @@ return {
             t.check("tuxedoTime.suit", select(2, t.var.server("varb3306_peng_transmog")) == 1,
                 "peng_transmog=" .. tostring(select(2, t.var.server("varb3306_peng_transmog"))))
 
-            t.exec("goto-enterPenguinPen", t.player.goto_tile, 2594, 3264, 0)
-            t.exec("enterPenguinPen", t.player.click_loc, "peng_ardougne_enclosure_door", 1)
-            t.ticks(4)
-            local _, pen = t.world.tile()
-            t.check("enterPenguinPen.inside", pen.z >= 3266, "at " .. pen.x .. "," .. pen.z)
+            zoo_pen_in(t, "enterPenguinPen")
 
             t.exec("talkToZooPenguin", t.player.talk_to, "peng_zoo", 1)
             t.exec("talkToZooPenguin-dialog", t.chat.drain, { stop_at = "none", max_pages = 12 })
@@ -282,6 +357,7 @@ return {
             t.check("emoteAtPenguin.report", select(2, t.inv.count("peng_report_1")) >= 1,
                 "peng_report_1 x" .. tostring(select(2, t.inv.count("peng_report_1"))))
 
+            zoo_pen_out(t, "exitSuit.penDoorOut")
             t.exec("exitSuit", t.player.talk_to, "peng_larry_zoo", 1)
             t.exec("exitSuit-dialog", t.chat.drain, { stop_at = "none", max_pages = 6 })
             t.ticks(3)
@@ -300,7 +376,8 @@ return {
             })
             t.ticks(2)
 
-            t.exec("goto-tuxedoTimeLumbridge", t.player.goto_tile, 3211, 3263, 0)
+            zoo_to_lumbridge(t, "tuxedoTimeLumbridge")
+            t.exec("goto-tuxedoTimeLumbridge", t.player.goto_tile, 3211, 3263, 0) -- inside the pen, beside Larry
             t.exec("tuxedoTimeLumbridge", t.player.talk_to, "peng_larry_zoo", 3)
             t.exec("tuxedoTimeLumbridge-dialog", t.chat.drain, { stop_at = "none", max_pages = 6 })
             t.ticks(4)
@@ -318,7 +395,7 @@ return {
             -- LEG 2 END
             local _, etile = t.world.tile()
             local _, stage = t.quest.stage()
-            t.check("leg.2.end", true, "player at " .. etile.x .. "," .. etile.z .. " level " .. tostring(select(2, t.world.level()))
+            t.note("leg.2.end: player at " .. etile.x .. "," .. etile.z .. " level " .. tostring(select(2, t.world.level()))
                 .. ", varb3293_peng_quest=" .. tostring(stage) .. ", peng_report_1 x" .. tostring(select(2, t.inv.count("peng_report_1")))
                 .. ", suit worn (transmog)=" .. tostring(select(2, t.var.server("varb3306_peng_transmog"))))
         end },
@@ -354,7 +431,7 @@ return {
             end
 
             t.ticks(2)
-            t.check("leg.3.start", true, "stage " .. tostring(select(2, t.quest.stage())) .. " suit=" .. tostring(transmog())
+            t.note("leg.3.start: stage " .. tostring(select(2, t.quest.stage())) .. " suit=" .. tostring(transmog())
                 .. " raw_cod=" .. tostring(select(2, t.inv.count("raw_cod"))) .. " swamp_tar=" .. tostring(select(2, t.inv.count("swamp_tar")))
                 .. " feather=" .. tostring(select(2, t.inv.count("feather"))))
             -- Larry stands 16 tiles east of the farm tile the player ends leg 2 on, off the viewport: walk to him (plain travel)
@@ -376,19 +453,7 @@ return {
                 "teleported to " .. ztile.x .. "," .. ztile.z)
 
             suit_up("returnToZooPenguin-tuxedo", "peng_larry_zoo")
-            t.exec("goto-returnToZooPenguin", t.player.goto_tile, 2594, 3264, 0)
-            t.ticks(6)
-            local gres = t.world.loc_near("peng_ardougne_enclosure_door", 6)
-            if gres == "ok" then
-                t.exec("returnToZooPenguin-gate", t.player.click_loc, "peng_ardougne_enclosure_door", 1)
-            else
-                -- the gate leaf is still swung open from leg 2 (a full run keeps the world); walk through it
-                t.player.walk_to(2594, 3267, 12)
-                t.check("returnToZooPenguin-gate", true, "closed gate loc not placed (loc_near " .. tostring(gres) .. "): left open from leg 2, walking in")
-            end
-            t.ticks(4)
-            local _, pen = t.world.tile()
-            t.check("returnToZooPenguin-gate.inside", pen.z >= 3266, "at " .. pen.x .. "," .. pen.z)
+            zoo_pen_in(t, "returnToZooPenguin-penDoorIn")
             t.exec("returnToZooPenguin", t.player.talk_to, "peng_zoo", 1)
             t.exec("returnToZooPenguin-dialog", t.chat.play, {
                 "npc:Yes, comrade?",
@@ -420,14 +485,15 @@ return {
             t.check("returnToZooPenguin.cod", select(2, t.inv.count("raw_cod")) == 0,
                 "raw_cod x" .. tostring(select(2, t.inv.count("raw_cod"))) .. " traded for the phrase")
 
+            -- out of the pen and on foot to Lumbridge; leaving the zoo takes the suit off
+            -- (coldwar_shared.rs2 [timer,coldwar_suit]), so Lumbridge Larry puts it on again
+            zoo_pen_out(t, "returnToThing-penDoorOut")
+            zoo_to_lumbridge(t, "returnToThing")
+            t.check("returnToThing.suitWoreOff", transmog() == 0, "peng_transmog=" .. tostring(transmog())
+                .. " after the walk from the zoo (the spell wears off as you leave the penguins behind)")
+            t.exec("goto-returnToThing-larry", t.player.goto_tile, 3211, 3263, 0)
+            suit_up("returnToThing-tuxedo", "peng_larry_zoo")
             t.exec("goto-returnToThing", t.player.goto_tile, 3201, 3268, 0)
-            local _, lt = t.world.tile()
-            if transmog() == 0 then
-                -- leaving the zoo took the suit off (coldwar_suit timer); Lumbridge Larry puts it on again
-                t.exec("goto-returnToThing-larry", t.player.goto_tile, 3211, 3263, 0)
-                suit_up("returnToThing-tuxedo", "peng_larry_zoo")
-                t.exec("goto-returnToThing-again", t.player.goto_tile, 3201, 3268, 0)
-            end
             t.exec("returnToThing", t.player.talk_to, "sheep_shearer_the_thing", 3)
             t.exec("returnToThing-dialog", t.chat.drain, { stop_at = "none", max_pages = 14 })
             t.ticks(3)
@@ -436,7 +502,16 @@ return {
             -- Fred needs the suit OFF (coldwar_lumbridge.rs2:93)
             t.exec("goto-fredTheFarmer-larry", t.player.goto_tile, 3211, 3263, 0)
             suit_off("fredTheFarmer-suitOff", "peng_larry_zoo")
-            t.exec("goto-fredTheFarmer", t.player.goto_tile, 3189, 3273, 0)
+            -- out of the sheep pen, round to Fred's yard gate, in through the yard gate and the house door
+            -- (as sheep.lua / onesmallfavour.lua: reach.py 3214,3262 -> 3189,3281 REACH closed-doors len=46)
+            pen_out(t, "fredTheFarmer.penGateOut")
+            t.exec("goto-fredTheFarmer", t.player.goto_tile, 3188, 3281, 0) -- open ground north of Fred's yard gate
+            t.exec("fredTheFarmer.yardGateIn", t.player.pass_door, {
+                closed = "qip_sheep_shearer_fencegate_l", open = "qip_sheep_shearer_openfencegate_l",
+                at = { 3188, 3279, 0 }, near = { 3188, 3280 }, far = { 3188, 3277 } })
+            t.exec("fredTheFarmer.houseDoorIn", t.player.pass_door, {
+                closed = "qip_sheep_shearer_poordoor", open = "qip_sheep_shearer_poordooropen",
+                at = { 3189, 3275, 0 }, near = { 3189, 3276 }, far = { 3189, 3273 } })
             t.exec("fredTheFarmer", t.player.talk_to, "fred_the_farmer", 1)
             t.exec("fredTheFarmer-dialog", t.chat.play, {
                 "npc:What are you doing on my land",
@@ -456,7 +531,18 @@ return {
             t.ticks(3)
             t.expect("quest.stage.outpost_info", t.quest.expect_stage("outpost_info"))
 
-            t.exec("goto-stealCowbell", t.player.goto_tile, 3172, 3319, 0)
+            -- out of Fred's house and yard, to the cow field north of the farm, in by its gate
+            t.exec("stealCowbell.houseDoorOut", t.player.pass_door, {
+                closed = "qip_sheep_shearer_poordoor", open = "qip_sheep_shearer_poordooropen",
+                at = { 3189, 3275, 0 }, near = { 3189, 3274 }, far = { 3189, 3277 } })
+            t.exec("stealCowbell.yardGateOut", t.player.pass_door, {
+                closed = "qip_sheep_shearer_fencegate_l", open = "qip_sheep_shearer_openfencegate_l",
+                at = { 3188, 3279, 0 }, near = { 3188, 3278 }, far = { 3188, 3281 } })
+            t.exec("goto-stealCowbell", t.player.goto_tile, 3176, 3313, 0) -- open ground south of the cow field gate
+            t.exec("stealCowbell.cowFieldIn", t.player.pass_door, {
+                closed = "rustic_fencegate_l", open = "rustic_openfencegate_l",
+                at = { 3176, 3315, 0 }, near = { 3176, 3314 }, far = { 3175, 3317 } })
+            t.exec("stealCowbell.walk", t.player.walk_to, 3172, 3319, 20)
             local tries = 0
             while select(2, t.inv.count("peng_cowbell")) < 1 and tries < 25 do
                 tries = tries + 1
@@ -466,6 +552,12 @@ return {
             t.check("stealCowbell", select(2, t.inv.count("peng_cowbell")) >= 1,
                 "peng_cowbell x" .. tostring(select(2, t.inv.count("peng_cowbell"))) .. " after " .. tries .. " steal attempt(s)")
 
+            -- out of the cow field, back into the sheep pen by its east gate
+            t.exec("askThingAboutOutpost.cowFieldOut-walk", t.player.walk_to, 3176, 3316, 20)
+            t.exec("askThingAboutOutpost.cowFieldOut", t.player.pass_door, {
+                closed = "rustic_fencegate_l", open = "rustic_openfencegate_l",
+                at = { 3176, 3315, 0 }, near = { 3176, 3316 }, far = { 3176, 3313 } })
+            pen_in(t, "askThingAboutOutpost.penGateIn")
             t.exec("goto-askThingAboutOutpost-larry", t.player.goto_tile, 3211, 3263, 0)
             suit_up("askThingAboutOutpost-tuxedo", "peng_larry_zoo")
             t.exec("goto-askThingAboutOutpost", t.player.goto_tile, 3201, 3268, 0)
@@ -544,7 +636,7 @@ return {
             -- LEG 3 END
             local _, etile = t.world.tile()
             local _, stage = t.quest.stage()
-            t.check("leg.3.end", true, "player at " .. etile.x .. "," .. etile.z .. " level " .. tostring(select(2, t.world.level()))
+            t.note("leg.3.end: player at " .. etile.x .. "," .. etile.z .. " level " .. tostring(select(2, t.world.level()))
                 .. ", varb3293_peng_quest=" .. tostring(stage) .. ", suit worn (transmog)=" .. tostring(transmog())
                 .. ", peng_id x" .. tostring(select(2, t.inv.count("peng_id"))) .. ", peng_report_1 x" .. tostring(select(2, t.inv.count("peng_report_1")))
                 .. ", peng_report_2 x" .. tostring(select(2, t.inv.count("peng_report_2"))) .. ", peng_report_3 x" .. tostring(select(2, t.inv.count("peng_report_3")))
@@ -567,8 +659,11 @@ return {
             local _, atile = t.world.tile()
             t.check("enterAvalanche.inside", atile.z > 10000, "inside the outpost at " .. atile.x .. "," .. atile.z)
 
-            t.exec("goto-kgpAgentInAvalanche", t.player.goto_tile, 2648, 10382, 0)
-            t.ticks(3)
+            -- the first room west of the entrance corridor: in by its door (peng_base_door 2654,10382, west edge)
+            t.exec("kgpAgentInAvalanche.walk", t.player.walk_to, 2655, 10382, 20)
+            t.exec("kgpAgentInAvalanche.doorIn", t.player.pass_door, { closed = "peng_base_door", open = "peng_base_door_open",
+                at = { 2654, 10382, 0 }, near = { 2655, 10382 }, far = { 2651, 10382 } })
+            t.ticks(2)
             t.exec("kgpAgentInAvalanche", t.player.talk_to, "peng_kgp", 1)
             t.exec("kgpAgentInAvalanche-dialog", t.chat.drain, { stop_at = "none", max_pages = 30 })
             t.ticks(3)
@@ -577,8 +672,13 @@ return {
                 and select(2, t.inv.count("peng_report_2")) == 0 and select(2, t.inv.count("peng_report_3")) == 0,
                 "the three mission reports were handed over")
 
-            t.exec("goto-enterAgilityCourse", t.player.goto_tile, 2633, 10403, 0)
-            t.ticks(3)
+            -- west through the agility door (peng_base_door_agility 2640,10382, west edge) and up the hall
+            -- to the course's double door
+            t.exec("enterAgilityCourse.walk", t.player.walk_to, 2641, 10382, 20)
+            t.exec("enterAgilityCourse.doorIn", t.player.pass_door, { closed = "peng_base_door_agility",
+                open = "peng_base_door_agility_open", at = { 2640, 10382, 0 }, near = { 2641, 10382 }, far = { 2637, 10382 } })
+            t.exec("enterAgilityCourse.hall", t.player.walk_to, 2633, 10403, 30)
+            t.ticks(2)
             t.exec("enterAgilityCourse", t.player.click_loc, "peng_base_double_door_mid_agility", 1)
             t.ticks(6)
             t.expect("quest.stage.agility_done", t.quest.expect_stage("agility_done"))
@@ -592,10 +692,10 @@ return {
             -- agilityEnterWater / agilityExitWater: the ledge climbs down into the wading water (seam2)
             t.player.walk_to(2636, 4054, 12)
             t.ticks(3)
-            t.check("agilityEnterWater", true, "walked onto the ledge 2636,4054; now at " .. at() .. " (level 0 = in the water)")
+            t.check("agilityEnterWater", select(2, t.world.level()) == 0, "walked onto the ledge 2636,4054; now at " .. at() .. " (level 0 = in the water)")
             t.player.walk_to(2630, 4055, 20)
             t.ticks(3)
-            t.check("agilityWade", true, "waded past the crushers to " .. at())
+            t.check("agilityWade", select(2, t.world.tile()).x <= 2631 and select(2, t.world.level()) == 0, "waded past the crushers to " .. at())
             t.exec("agilityExitWater", t.player.click_loc, "peng_agility_crushcourse_stepstone01", 1)
             t.ticks(4)
             if select(2, t.world.level()) ~= 1 then
@@ -670,13 +770,15 @@ return {
             t.check("enterAvalanche2.inside", itile.z > 10000, "inside the outpost at " .. at())
 
             -- pingPong1: the room to the east
-            t.exec("goto-pingPong1", t.player.goto_tile, 2664, 10396, 0)
-            t.ticks(3)
+            t.exec("pingPong1.walk", t.player.walk_to, 2661, 10396, 30)
+            t.exec("pingPong1.doorIn", t.player.pass_door, { closed = "peng_base_door_bard", open = "peng_base_door_bard_open",
+                at = { 2662, 10396, 0 }, near = { 2661, 10396 }, far = { 2665, 10396 } })
+            t.ticks(2)
             t.exec("pingPong1", t.player.talk_to, "peng_ping", 1)
             t.exec("pingPong1-dialog", t.chat.drain, { stop_at = "none", max_pages = 40 })
             t.ticks(4)
             local _, stage = t.quest.stage()
-            t.check("leg.4.end", true, "player at " .. at() .. ", varb3293_peng_quest=" .. tostring(stage)
+            t.note("leg.4.end: player at " .. at() .. ", varb3293_peng_quest=" .. tostring(stage)
                 .. ", suit worn (transmog)=" .. tostring(transmog()) .. ", peng_id x" .. tostring(select(2, t.inv.count("peng_id")))
                 .. ", peng_cowbell x" .. tostring(select(2, t.inv.count("peng_cowbell"))) .. "; next: instruments (bongos, cowbell) for Ping and Pong")
             -- LEG 4 END
@@ -711,8 +813,10 @@ return {
             t.check("enterAvalanche3.inside", itile.z > 10000, "inside the outpost at " .. at())
 
             -- pingPong2 / pingPong3: hand over the bongos and the cowbell
-            t.exec("goto-pingPong2", t.player.goto_tile, 2664, 10396, 0)
-            t.ticks(3)
+            t.exec("pingPong2.walk", t.player.walk_to, 2661, 10396, 30)
+            t.exec("pingPong2.doorIn", t.player.pass_door, { closed = "peng_base_door_bard", open = "peng_base_door_bard_open",
+                at = { 2662, 10396, 0 }, near = { 2661, 10396 }, far = { 2665, 10396 } })
+            t.ticks(2)
             t.exec("pingPong2", t.player.talk_to, "peng_ping", 1)
             t.exec("pingPong3", t.chat.play, {
                 "npc:Man, did you bring the instruments",
@@ -728,7 +832,10 @@ return {
                 "bongos x" .. count("peng_bongos") .. ", cowbell x" .. count("peng_cowbell") .. " handed over")
 
             -- openControlDoor: the control panel in the booth, the guard is gone
-            t.exec("goto-openControlDoor", t.player.goto_tile, 2655, 10406, 0)
+            t.exec("openControlDoor.doorOut-walk", t.player.walk_to, 2663, 10396, 20)
+            t.exec("openControlDoor.doorOut", t.player.pass_door, { closed = "peng_base_door_bard", open = "peng_base_door_bard_open",
+                at = { 2662, 10396, 0 }, near = { 2663, 10396 }, far = { 2660, 10396 } })
+            t.exec("openControlDoor.walk", t.player.walk_to, 2655, 10406, 30)
             t.ticks(2)
             t.exec("openControlDoor", t.player.click_loc, "peng_base_booth_front", 1)
             t.ticks(3)
@@ -747,16 +854,31 @@ return {
             t.ticks(2)
             local atk_before = select(2, t.skill.read("attack")).experience
             local kills = 0
+            local lowest_hp = nil
+            local _, food_start = t.inv.count("lobster")
+            -- Single-way combat: an Ice Lord that has claimed the player makes the server refuse a swing at
+            -- any other ("I'm already under attack.", verbs-combat: `refused`, meaning two), and which one
+            -- claims first is the pen's own aggression, so the one fought is the first that accepts.
+            local ICELORDS = { "peng_icelord_warrior01", "peng_icelord_warrior02", "peng_icelord_warrior03", "peng_icelord_warrior04" }
             while stage() == 125 and kills < 6 do
                 kills = kills + 1
-                local r, d = t.player.attack("peng_icelord_warrior01", 2, 20)
-                if r ~= "ok" and r ~= "timeout" then
-                    r, d = t.player.attack("peng_icelord_warrior02", 2, 20)
+                local r, d, refused = nil, nil, {}
+                for _, sym in ipairs(ICELORDS) do
+                    r, d = t.player.attack(sym, 2, 20)
+                    if r == "ok" or r == "timeout" then break end
+                    refused[#refused + 1] = sym .. " -> " .. tostring(r)
                 end
-                t.check("killIcelords.attack" .. kills, r == "ok" or r == "timeout", tostring(r) .. " " .. tostring(d))
-                t.exec("killIcelords.dead" .. kills, t.npc.await_dead_engaged, 200, 20, { eat = { item = "lobster", below = 40 } })
+                t.check("killIcelords.attack" .. kills, r == "ok" or r == "timeout", tostring(r) .. " " .. tostring(d)
+                    .. (#refused > 0 and ("; not engaged first: " .. table.concat(refused, ", ")) or ""))
+                local _, dd = t.exec("killIcelords.dead" .. kills, t.npc.await_dead_engaged, 200, 20, { eat = { item = "lobster", below = 40 } })
+                local low = tonumber(string.match(tostring(dd), "lowest hp (%d+)/") or "")
+                if low ~= nil and (lowest_hp == nil or low < lowest_hp) then lowest_hp = low end
                 t.ticks(8)
             end
+            local food_r, food_left = t.inv.count("lobster")
+            t.check("killIcelords.margin", lowest_hp ~= nil and lowest_hp >= 18 and food_r == "ok" and food_left >= 1,
+                kills .. " fight(s), lowest hp " .. tostring(lowest_hp) .. "/70, lobsters left " .. tostring(food_left)
+                    .. " of " .. tostring(food_start) .. " carried in (margin: lowest hp >= 18, a quarter of 70, AND food left)")
             t.check("killIcelords.opened", stage() == 130, "after " .. kills .. " kill(s) varb3293_peng_quest=" .. tostring(stage()))
             local atk_gain = select(2, t.skill.read("attack")).experience - atk_before
             t.check("killIcelords.xp", atk_gain >= 40 * kills,
@@ -765,7 +887,7 @@ return {
             -- exitIcelordPen: the door west of the pen
             t.exec("exitIcelordPen", t.player.click_loc, "peng_icelord_pen_door", 1)
             t.ticks(4)
-            t.check("exitIcelordPen.out", true, "through the pen door, standing at " .. at())
+            t.check("exitIcelordPen.out", select(2, t.world.tile()).x <= 2638, "through the pen door (peng_icelord_pen_door 2639,10424, west edge), standing at " .. at())
 
             -- useChasm: spat out beside Larry
             t.exec("useChasm", t.player.click_loc, "peng_base_chasm", 1)
