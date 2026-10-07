@@ -46,6 +46,10 @@ local kit = {
 -- have less than 70 agility, I'd strongly advise buying a stamina potion"
 -- (yt_4i4lv-srJkw.md 0:12:09): the guide's raider has the level.
 kit[#kit + 1] = "::setlevel agility 99"
+-- owner_rooms4: and a stamina dose (the owner: "are all players running?"; the
+-- guide's "I'd strongly advise buying a stamina potion", yt_4i4lv-srJkw.md
+-- 0:12:09); the plan drinks it only if run goes off (run_keep in the plan)
+kit[#kit + 1] = "::give 4dosestamina 1"
 -- raid seam49 play_tob_bloat_round2: the Dragon claws for the down's special
 -- (the reference's trios: claws in down 2 in 12 of 19 Normal rooms; the plan's
 -- N.down_spec, raid_play_tob_bloat.lua _play_bloat_down_spec)
@@ -104,6 +108,10 @@ return {
         -- THE FIGHT: the library and the room's plan, nothing else
         local result, detail, rec = t.raid.play("tob_bloat", { mode = mode, max_ticks = 1400 })
         t.check("play.fight", result == "ok", "p" .. role .. " " .. tostring(detail))
+        -- owner_rooms4: every seat runs (the plan's run keep reads varp173 each tick)
+        t.check("note.run", true, "p" .. role .. " run: varp173 read 0 on " .. tostring(rec.run_offs or 0) .. " ticks, orb presses "
+            .. tostring(rec.run_presses or 0) .. ", stamina doses " .. tostring(rec.staminas or 0)
+            .. "; route asks " .. tostring(rec.route_asks or 0) .. ", re-routed " .. tostring(rec.route_dodges or 0) .. ", no clear route " .. tostring(rec.route_unclear or 0))
         if role ~= 1 then
             t.expect("party.barrier.done", t.party.barrier("done", 9000))
             t.finish(0)
@@ -183,6 +191,32 @@ return {
         local splat_ticks = {}
         local _, splat_rows = t.ticklog.rows({ kind = "map_spotanim", spotanim = 1576 })
         for i = 1, #splat_rows do splat_ticks[splat_rows[i].tick] = true end
+        -- owner_rooms4: A HAND HIT IS WHERE A HAND LANDED.  The rows below
+        -- counted any hit of 15 or more on a tick some splat showed, so the
+        -- leader's two unprayed flies at the barrier (19 and 20, _play_bloat
+        -- t61-62 on 6439,94, no splat within 4 tiles) read as hands and made
+        -- tech.step_off_shadow red on a run where no hand touched a raider.
+        -- A hand hits the raider standing on its splat's tile at the end of
+        -- the tick before it (ET 3.4): the hit's pid, its tile then, the
+        -- splat (1576) on that tile on the hit's tick.
+        local splat_at = {}
+        for i = 1, #splat_rows do splat_at[splat_rows[i].tick .. ":" .. splat_rows[i].x .. "," .. splat_rows[i].z] = true end
+        local tile_rows = {}
+        for i = 1, #player_tiles do
+            local row = player_tiles[i]
+            local key = tostring(row.pid)
+            tile_rows[key] = tile_rows[key] or {}
+            tile_rows[key][row.tick] = row
+        end
+        local function hand_landed_on(row)
+            local at = tile_rows[tostring(row.pid)]
+            if at == nil then return false end
+            for tk = row.tick - 1, row.tick - 60, -1 do
+                local tr = at[tk]
+                if tr ~= nil then return splat_at[row.tick .. ":" .. tr.x .. "," .. tr.z] == true end
+            end
+            return false
+        end
         t.ticks(1)
         -- Protect from Missiles as the player READ it lit, per tick (the library's record)
         local shield_filled = {}
@@ -206,7 +240,7 @@ return {
                 for k = 1, #downs do
                     if row.tick > downs[k] and row.tick < downs[k] + 33 then in_down = true end
                 end
-                if splat_ticks[row.tick] and row.damage >= 15 and not in_down then
+                if hand_landed_on(row) and not in_down then
                     hand_hits[#hand_hits + 1] = row.damage
                 elseif in_down and row.damage >= 10 then
                     stomp_hits[#stomp_hits + 1] = { tick = row.tick, damage = row.damage }
@@ -338,7 +372,7 @@ return {
             for k = 1, #downs do
                 if row.tick > downs[k] and row.tick < downs[k] + 33 then in_down = true end
             end
-            if splat_ticks[row.tick] and row.damage >= 15 and not in_down then party_hand_hits = party_hand_hits + 1 end
+            if hand_landed_on(row) and not in_down then party_hand_hits = party_hand_hits + 1 end
         end
         local shadow_ok = every_raider_ok
         if on_my_tile == 0 then shadow_ok = size > 1 and party_hand_hits == 0 end

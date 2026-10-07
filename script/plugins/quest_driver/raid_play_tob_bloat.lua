@@ -307,6 +307,132 @@ function QD.raid._play_bloat_leave_tile(v, P, tank, floor_ok)
     return tx, tz, best
 end
 
+-- owner_rooms4 (2026-10-07): THE SERVER'S ROUTE, NOT A STRAIGHT LINE.  A walk
+-- click is routed by the server's flood and a running raider ends each tick
+-- two tiles along it; api_drive.route (3705bafd2) is that route from the
+-- client's own collision map, every seat's answer.  The library's safe step
+-- judges two straight shapes toward the tile, which go THROUGH the tank: the
+-- trio walked round the tank's corner onto a shadow it had seen (_play_bloat
+-- t226-229: 6430,92 -> 6428,93 was routed 6429,92 -> 6428,92 -> 6428,93, the
+-- diagonal past the corner 6429,93 is closed, the tick ended on 6428,92,
+-- shadowed since t226; svcplaybloat t157-160: the hide walk round the tank's
+-- west side ended its tick on 6429,92).  A hand is judged on the tile the
+-- raider ends the tick before its impact on (ET 3.4), three ticks after its
+-- shadow (QD.RAID_PLAY_BLOAT_SHADOW_TICKS): a tile whose shadow fell on tick
+-- t0 is deadly at the END of tick t0 + 2, and a walk sent on view tick V
+-- moves on server tick V + 1 (the tick log's raider rows carry the input and
+-- the step on one tick).  So a walk is judged on every tile its route ends a
+-- tick on, each against its own tick, and then on its end tile.
+--
+-- A SHADOW IS DATED BY ITS ANIMATION, not by the view that first shows it.
+-- On the current engine the volley of tick T reaches the seats' view on T
+-- for half the volleys and on T + 1 for the rest, on every seat alike
+-- (svcplaybloat: volleys t157, t163, t181, t187, t233, t237 first shown on
+-- the next tick, its falling-flesh animation already a tick in: cycles_left
+-- 139-140 of 168; t169, t175, t193, t199, t241 shown on their tick at 168).
+-- Dated by the view, the t157 shadow read deadly a tick late and the hide
+-- walked onto it (pid0 t159, hit t160).  The animation is what a person sees
+-- age: tob_bloat_falling_flesh is 28 frames of 6 client cycles (all.seq),
+-- QD.RAID_PLAY_CYCLES_PER_TICK a tick.
+QD.RAID_PLAY_BLOAT_SHADOW_CYCLES = 168
+
+function QD.raid._play_bloat_shadow_ages(st, v, P)
+    local ages = {}
+    local sr, spots = QD.world.spotanims(0)
+    if sr ~= "ok" then return ages end
+    for k = 1, #spots do
+        local sp = spots[k]
+        if sp.spotanim_id >= P.shadow_lo and sp.spotanim_id <= P.shadow_hi then
+            local age = (QD.RAID_PLAY_BLOAT_SHADOW_CYCLES - sp.cycles_left + QD.RAID_PLAY_CYCLES_PER_TICK // 2)
+                // QD.RAID_PLAY_CYCLES_PER_TICK
+            local key = sp.x * 100000 + sp.z
+            local t0 = v.tick - math.max(0, age)
+            if ages[key] == nil or t0 > ages[key] then ages[key] = t0 end
+        end
+    end
+    return ages
+end
+
+-- The tile to send the walk to this tick (the library's _play_safe_step's
+-- contract): `want` when no tick of its route ends on a tile deadly on that
+-- tick, else the floor tile nearest `want` (within two ticks' run) whose route
+-- is clear, the shorter move breaking ties.  Sending nothing is not standing
+-- still while a walk is in flight: the server keeps routing it (svcplaybloat
+-- t237-240: the hide tile became the raider's own tile at t238, nothing was
+-- sent, and the walk sent at t237 carried all three onto 6429,99, shadowed
+-- since t237).  So with a walk in flight the no-input candidate is that
+-- walk's route, and the raider's own tile is not a candidate (a click on it
+-- moves nothing, and the together block would wait
+-- QD.TOGETHER_CONFIRM_TICKS for a move).
+function QD.raid._play_bloat_safe_route(st, v, want_x, want_z, floor_ok)
+    local seen = st.shadow_seen
+    if seen == nil or api_drive.route == nil then
+        return QD.raid._play_safe_step(st, v, want_x, want_z, floor_ok)
+    end
+    local run = v.running ~= false
+    local per = run and QD.RAID_PLAY_RUN_TILES or 1
+    local wt = st.walk_target
+    local inflight = wt ~= nil and (wt.x ~= v.me.x or wt.z ~= v.me.z)
+    local function deadly(x, z, tick)
+        local t0 = seen[x * 100000 + z]
+        return t0 ~= nil and t0 + 2 == tick
+    end
+    -- hits along a route to (x, z), and its ticks; nil when there is no route
+    local function hits(x, z)
+        local ticks
+        if x == v.me.x and z == v.me.z then
+            ticks = {}
+        else
+            local rr, route = api_drive.route(x, z, { run = run })
+            if rr ~= "ok" or #route.ticks == 0 then return nil end
+            if route.arrive.x ~= x or route.arrive.z ~= z then return nil end
+            ticks = route.ticks
+        end
+        local count = 0
+        for k = 1, #ticks do
+            if deadly(ticks[k].x, ticks[k].z, v.tick + k) then count = count + 1 end
+        end
+        local t0 = seen[x * 100000 + z]
+        if t0 ~= nil and t0 + 2 >= v.tick + #ticks + 1 then count = count + 1 end
+        return count, #ticks
+    end
+    st.route_asks = (st.route_asks or 0) + 1
+    if floor_ok(want_x, want_z) and not (inflight and want_x == v.me.x and want_z == v.me.z) then
+        if hits(want_x, want_z) == 0 then return want_x, want_z, false end
+    end
+    -- the candidates, best score first; the first whose route is clear wins
+    local list = {}
+    local reach = 2 * per
+    for dx = -reach, reach do
+        for dz = -reach, reach do
+            local x, z = v.me.x + dx, v.me.z + dz
+            if floor_ok(x, z) and not (inflight and dx == 0 and dz == 0) then
+                list[#list + 1] = { x = x, z = z,
+                    score = math.max(math.abs(want_x - x), math.abs(want_z - z)) * 10 + math.max(math.abs(dx), math.abs(dz)) }
+            end
+        end
+    end
+    if inflight and math.max(math.abs(wt.x - v.me.x), math.abs(wt.z - v.me.z)) > reach then
+        list[#list + 1] = { x = wt.x, z = wt.z, score = math.max(math.abs(want_x - wt.x), math.abs(want_z - wt.z)) * 10 }
+    end
+    table.sort(list, function(a, b)
+        if a.score ~= b.score then return a.score < b.score end
+        return a.x * 100000 + a.z < b.x * 100000 + b.z
+    end)
+    local fallback, fallback_hits = nil, nil
+    for _, c in ipairs(list) do
+        local h = hits(c.x, c.z)
+        if h == 0 then
+            st.route_dodges = (st.route_dodges or 0) + 1
+            return c.x, c.z, true
+        end
+        if h ~= nil and (fallback_hits == nil or h < fallback_hits) then fallback, fallback_hits = c, h end
+    end
+    st.route_unclear = (st.route_unclear or 0) + 1
+    if fallback ~= nil then return fallback.x, fallback.z, true end
+    return v.me.x, v.me.z, true
+end
+
 -- THE BLOAT PLAN'S DECIDE (PLAY_NOTES.md "Bloat").  Walk: hide straight
 -- behind the tank from where Bloat will be ("Hug the pillar and hide from
 -- Bloat as it walks around the room", wiki_Theatre_of_Blood_Strategies
@@ -326,6 +452,31 @@ function QD.raid._play_bloat_decide(st, v)
         return intent
     end
     if st.first_tick == nil then st.first_tick = v.tick end
+    -- owner_rooms4: RUN KEPT ON (the owner: "are all players running?"), the
+    -- Nylocas owner's rule (raid_play_tob_nylocas.lua, feac33107): when
+    -- varp173 reads 0, a stamina dose if run had been on and one is held
+    -- (none in the dose's 2 minutes, wiki Stamina potion), else the run orb.
+    -- v.running is the rate the route's ticks are read at.
+    local rr, run_on = QD.var.varp("varp173_option_run")
+    v.running = not (rr == "ok" and run_on == 0)
+    if rr == "ok" and run_on == 1 then st.run_seen_on = true end
+    if rr == "ok" and run_on == 0 then
+        st.run_offs = (st.run_offs or 0) + 1
+        local dose = nil
+        for _, d in ipairs({ "1dosestamina", "2dosestamina", "3dosestamina", "4dosestamina" }) do
+            local cr, cn = QD.inv.count(d)
+            if dose == nil and cr == "ok" and type(cn) == "number" and cn > 0 then dose = d end
+        end
+        if st.run_seen_on and dose ~= nil and (st.stamina_tick == nil or v.tick - st.stamina_tick >= 200) then
+            QD.player.inv_op(dose, 1, { quick = true })
+            st.stamina_tick = v.tick
+            st.staminas = (st.staminas or 0) + 1
+        else
+            local wr, w = QD.ui.widget("orbs:runbutton")
+            if wr == "ok" then QD.ui.invoke(w, 1) end
+            st.run_presses = (st.run_presses or 0) + 1
+        end
+    end
     -- raid seam51 (N.shadow_memory): A SHADOW IS A HAND FOR THREE TICKS.  The
     -- telegraph (1570-1573) is gone from the client's spotanims before its
     -- splat (1576) lands three ticks after it (ET 3.4; seam51 survey_1 and
@@ -336,8 +487,16 @@ function QD.raid._play_bloat_decide(st, v)
     -- for the hide, the hazard step and the safe step until its splat.
     if N.shadow_memory then
         st.shadow_seen = st.shadow_seen or {}
+        -- owner_rooms4: dated by the animation (the block above
+        -- _play_bloat_shadow_ages); a shadow whose splat has landed is off
+        -- the list though its animation still shows (168 cycles, 5.6 ticks)
+        local ages = QD.raid._play_bloat_shadow_ages(st, v, P)
+        for k, t0 in pairs(ages) do
+            if st.shadow_seen[k] == nil or t0 > st.shadow_seen[k] then st.shadow_seen[k] = t0 end
+        end
         for k in pairs(v.shadows) do
-            if st.shadow_seen[k] == nil then st.shadow_seen[k] = v.tick end
+            if ages[k] == nil and st.shadow_seen[k] == nil then st.shadow_seen[k] = v.tick end
+            v.shadows[k] = nil
         end
         for k, t0 in pairs(st.shadow_seen) do
             if v.tick - t0 > QD.RAID_PLAY_BLOAT_SHADOW_TICKS then
@@ -584,7 +743,7 @@ function QD.raid._play_bloat_decide(st, v)
     end
     if target_x ~= nil then
         local sx, sz, moved = QD.raid._play_hazard(st, v, target_x, target_z, floor_ok)
-        sx, sz = QD.raid._play_safe_step(st, v, sx, sz, floor_ok)
+        sx, sz = QD.raid._play_bloat_safe_route(st, v, sx, sz, floor_ok)
         if on_shadow then st.dodges = st.dodges + 1 end
         local same = st.walk_target ~= nil and st.walk_target.x == sx and st.walk_target.z == sz
         local stuck = st.last_me ~= nil and st.last_me.x == v.me.x and st.last_me.z == v.me.z

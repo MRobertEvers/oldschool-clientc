@@ -153,6 +153,36 @@ No deaths, no stomp hit on any raider in any down that reached it. Zeros: the fi
 **Not done.** Swings per raider per down are 3-4, not W:689's five: the first swing comes 5-7
 ticks into the down (the walk around the tank from the hide tile) and the leave is at age 24.
 
+### Bloat, Normal trio, on the lockstep engine (owner_rooms4, 2026-10-07) -- 5 of 5 with every seat running
+
+Red after f2eb93d50 (1 of 5, tech.step_off_shadow). First deviations, read from the tick log with a
+per-tick `::tlnote` (view tick, own tile, walk, target):
+1. **The route, not the timing.** Every seat sees tick T on view T and a walk sent on view V moves on V+1.
+   The server routes a walk round the tank (`collision_flood`: W, E, S, N, then diagonals; a diagonal needs
+   both sides open) and a running raider ends the tick two tiles along it; the library's safe step judged
+   two straight shapes through the tank. `_play_bloat` t227: 6430,92 -> 6428,93 ran 6429,92 -> 6428,92 (the
+   diagonal past the corner 6429,93 is closed), the tick ended on a shadow seen t226, the hand hit all
+   three at t229. Now the dodge asks `api_drive.route` (3705bafd2) and takes the tile nearest the want
+   whose every per-tick tile is clean on ITS tick (deadly = the end of tick t0+2), then its end tile.
+2. **A walk in flight is not standing still.** svcplaybloat t237-240: the hide became the raider's own
+   tile, nothing was sent, the walk of t237 carried the trio onto a shadow. With a walk in flight the
+   no-input option is that walk's route, and the own tile is no candidate.
+3. **A shadow is dated by its animation.** Half the volleys reach the view a tick after they fall, on all
+   seats alike (cycles_left 139 of 168 on first sight: t157, t163, t181, t187, t233, t237 in svc); dated by
+   the view, the shadow read deadly a tick late. tob_bloat_falling_flesh is 28 frames x 6 cycles (all.seq),
+   30 cycles a tick; a landed shadow is off the list though its animation still shows (5.6 ticks).
+4. **The row counted flies as hands.** tech.step_off_shadow took any hit of 15+ on a splat tick as a hand:
+   the leader's two unprayed flies at the barrier (19, 20 at 6439,94) made it red with no hand on anyone.
+   A hand is now a hit whose raider stood on that tick's splat tile at the end of the tick before (ET 3.4).
+Run: varp173 is read every tick (orb, or a stamina dose if run had been on; the kit carries one dose);
+it reads 0 on the play's first tick only, the server's raider rows read run 1 on every tick of every seat.
+
+Pinned: binary 3705bafd2 (build/seam_state/owner_rooms4/bin), pack = content 3bd2334365 (private).
+seed_survey _play_bloat 5 of 5: rooms 190 / 190 / 195 / 140 / 183 (ref 137 [75-195]), downs 3/3/3/2/3,
+d1+d2 1381-1500 of 1500; party_repeat 3 runs AGREE (sha 19c6e0ae66bf, 264 boundaries); Entry solo
+(_play_smoke) 5 of 5. Still outside the reference (raid_report --against): hp lost 262-409 a raider
+(ref ~100), eat at 80-87% (ref 25%), a third down on 4 of 5 names (ref 2 of 19) -- the rooms sit at the cap.
+
 ## Maiden: the full plan (decide function: the re-author pass)
 
 | Mechanic | Sourced answer | Source |
