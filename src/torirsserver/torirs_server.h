@@ -532,8 +532,17 @@ enum
      * away has arrived: four is exactly the point where a second shot in flight
      * kills the swing script. Eight leaves the same headroom for a fight where
      * an npc is being hit by more than one thing.
+     *
+     * Thirty-two since 2026-10-07 (content_bugs): a Normal trio on Bloat -- three
+     * scythes queueing three hits a swing, a Dragon claws special queueing four --
+     * filled eight in one tick and aborted the special ("npc 8359's queue is
+     * full", pvm_dragon_claws.rs2:52/:60, three to four times a room). The
+     * reference has no cap at all: Engine-TS Npc.ts:59 `queue:
+     * LinkList<NpcQueueRequest> = new LinkList()`, :240-243 `enqueueScript` ->
+     * `this.queue.addTail(request)`. 32 is headroom for five raiders' multi-hit
+     * weapons in one tick; overflow still aborts loudly.
      */
-    TORIRSSERVER_NPC_QUEUE_MAX = 8,
+    TORIRSSERVER_NPC_QUEUE_MAX = 32,
     /** Script-owned integer state slots carried by each live npc instance. */
     /* Slots 0..15 are established runtime state; slot 16 is the
      * GiantChinchompa post-special dismissal latch, slot 17 retains the Spirit

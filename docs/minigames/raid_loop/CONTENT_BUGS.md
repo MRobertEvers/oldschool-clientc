@@ -814,6 +814,12 @@ Open:
   `music 0 570` at tick 98 on entry, no music row for the two members who joined at tick 111.
   Found by seam19 tob_party_room_bring_along (tick log read; not fixed: the music pages'
   "upon entering" sentences were not re-read for a party).
+  **FIXED 2026-10-07 content_bugs (OSRS-Content 23b2c94f4d):** "Players are not required to participate in the raid
+  to unlock all of the music, and may spectate one to do so" (wiki_Theatre_of_Blood.wikitext:211; each track
+  "Unlocked in ... arena" / "Unlocked during the fight with ...", :223, :227). The room track now plays for every
+  raider the passage carries and for a joiner, the fight track for every raider of the party
+  (`~tob_music_fight_party`). Measured cb_music2 (Normal trio Bloat): 578 for p0 at t11 and p1/p2 at t15; 571 for
+  all three at the fight start (before, cb_chest3: p0 only).
 
 ## Owner rulings (2026-10-04)
 
@@ -2121,4 +2127,15 @@ reference ToB raider bows and pipes in elite ranged void (Blert equipmentDeltas,
   troll_thrower.npc `death_troll_thrower1..5` param=rangedefence,200 against the Thrower Troll page's dstandard 120;
   npc/configs/dragon.npc `green_dragon` rangedefence 20 against the Green dragon page's dstandard 50 (wiki/monsters
   corpus). Each is a hand-authored block; whoever authored them should say why before they move.
+
+## 2026-10-07 content_bugs: an npc's queue held eight, and a trio's Dragon claws special aborted on Bloat
+
+- **FIXED (engine, torirs_server.h `TORIRSSERVER_NPC_QUEUE_MAX` 8 -> 32).** Found in every Normal trio Bloat probe
+  (cb_chest3, cb_music1/2): "npc 8359's queue is full" at pvm_dragon_claws.rs2:52 / :60, three to four aborts a
+  room: three scythes queue three hits a swing and the claws four, so the special died before its hits queued.
+  Source: the reference has no cap, Engine-TS src/engine/entity/Npc.ts:59 `queue: LinkList<NpcQueueRequest> = new
+  LinkList()`, :240-243 `enqueueScript ... this.queue.addTail(request)`. Measured in a private worktree build
+  (torirs_cb): 0 aborts (was 4), and Bloat fell in 2 downs, 146 ticks, against 3 downs / 186 ticks with the
+  special dropped; server selftest 18 = 18 failures. Overflow still aborts loudly. ROOM EFFECT: _play_bloat now
+  kills a down earlier (Blert's trios: claws in down 2 in 12 of 19 rooms, seam49).
 
