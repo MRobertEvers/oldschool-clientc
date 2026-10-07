@@ -1193,6 +1193,42 @@ function QD.raid._play_press_answer(r, d)
     return tostring(r), string.sub(first, 1, 140)
 end
 
+-- A COVERED PRESS TURNS THE CAMERA TO ITS TARGET.  The quick press's own
+-- ladder changes pitch and zoom (QD.drive._quick_alt_pose) and never the yaw,
+-- so a target the yaw keeps under the side panel stays covered: svbvzslow
+-- seat 2, 38 presses on Verzik answered `covered` ("projected 553,202 is under
+-- ui 161:59"), no swing from t650 to its death at t830.  So the yaw is turned
+-- onto the copy pressed -- through the one camera call (QD.drive.camera_aim: a
+-- snap headless, a turn on a watched client), the pose's pitch and zoom kept --
+-- and the next press finds it on screen.  At most once a QD.RAID_PLAY_FACE_GAP.
+QD.RAID_PLAY_FACE_GAP = 2
+function QD.raid._play_face(st, v, spec)
+    assert(st, "raid._play_face: st")
+    assert(v, "raid._play_face: v")
+    assert(spec, "raid._play_face: spec")
+    if st.face_tick ~= nil and v.tick - st.face_tick < QD.RAID_PLAY_FACE_GAP then return end
+    if v.me == nil then return end
+    local row = nil
+    if spec.slot ~= nil then
+        local rr, sr = QD._combat_row_by_slot(spec.slot)
+        if rr == "ok" then row = sr end
+    end
+    if row == nil then
+        local br, b = QD.npc.state(spec.symbol)
+        if br == "ok" then row = b end
+    end
+    if row == nil or row.x == nil then return end
+    local half = math.floor((row.size or 1) / 2)
+    local yaw = QD.drive._yaw_towards(row.x + half - v.me.x, row.z + half - v.me.z)
+    if yaw == nil then return end
+    local pr, pose = QD.drive._camera_pose()
+    if pr ~= "ok" or type(pose) ~= "table" or pose.pitch == nil or pose.zoom == nil then return end
+    st.face_tick = v.tick
+    st.faces = (st.faces or 0) + 1
+    QD.drive.camera_aim({ yaw = yaw, pitch = pose.pitch, zoom = pose.zoom, purpose = "pose",
+        note = "raid: face the copy a press answered covered" })
+end
+
 function QD.raid._play_press(st, v, spec)
     assert(type(spec) == "table", "raid._play_press: spec must be a table")
     assert(type(spec.symbol) == "string", "raid._play_press: spec.symbol must be an npc symbol")
@@ -1207,6 +1243,7 @@ function QD.raid._play_press(st, v, spec)
         r, d = QD.player.attack(spec.symbol, spec.op or 2, 1, opts)
     end
     local answer, reason = QD.raid._play_press_answer(r, d)
+    if answer == "covered" then QD.raid._play_face(st, v, spec) end
     st.press_answers = st.press_answers or {}
     st.press_reasons = st.press_reasons or {}
     st.press_log = st.press_log or {}

@@ -901,6 +901,13 @@ function QD.raid._verzik_web_ring(b)
     return ring
 end
 
+-- the tornadoes as tiles, for tor_reaches
+function QD.raid._verzik_tor_tiles(v)
+    local out = {}
+    for _, tr in ipairs(v.tornadoes or {}) do out[#out + 1] = { x = tr.x, z = tr.z } end
+    return out
+end
+
 -- `f`: st, v, intent, ok (floor test), reach, tor.  True while the run owns the tick.
 function QD.raid._verzik_web_run(f)
     assert(f, "_verzik_web_run: f")
@@ -927,7 +934,12 @@ function QD.raid._verzik_web_run(f)
         end
         if vz.web_tile ~= me.x * 100000 + me.z then vz.web_tile, vz.web_since = me.x * 100000 + me.z, v.tick end
         local held = v.tick - vz.web_since
-        if idx ~= nil and held < W.stay and QD.raid._verzik_swing_window(st, v, f.reach, f.tor) then
+        -- (no swing with a tornado able to reach my tile: in the enrage the
+        -- webs are where the touches were -- 15 of 21 across three names on
+        -- the power-through tree came 12-30 ticks into the spin, the seat
+        -- held still two or three ticks)
+        local tor_here = QD.raid._verzik_tor_reaches(QD.raid._verzik_tor_tiles(v), me, me, me.x, me.z)
+        if idx ~= nil and held < W.stay and not tor_here and QD.raid._verzik_swing_window(st, v, f.reach, f.tor) then
             ev = "web_swing"
         else
             ev = "web_run"
@@ -940,11 +952,13 @@ function QD.raid._verzik_web_run(f)
         intent.attack = true
         return true
     end
+    local tors = QD.raid._verzik_tor_tiles(v)
     local function free(x, z)
         if not f.ok(x, z) or v.shadows[x * 100000 + z] then return false end
         for _, w in ipairs(v.webs) do
             if w.row.x == x and w.row.z == z then return false end
         end
+        if QD.raid._verzik_tor_reaches(tors, me, me, x, z) then return false end
         return QD.raid._verzik_dist(x, z, b) >= 1
     end
     local go = nil
@@ -959,10 +973,16 @@ function QD.raid._verzik_web_run(f)
         -- on round: two tiles if both are free, else one, else hold
         local n = #ring
         local t1, t2 = ring[(idx % n) + 1], ring[((idx + 1) % n) + 1]
+        -- the other way round when a tornado or a web blocks the way on
+        local r1, r2 = ring[((idx - 2) % n) + 1], ring[((idx - 3) % n) + 1]
         if free(t1[1], t1[2]) and free(t2[1], t2[2]) then
             go = t2
         elseif free(t1[1], t1[2]) then
             go = t1
+        elseif free(r1[1], r1[2]) and free(r2[1], r2[2]) then
+            go = r2
+        elseif free(r1[1], r1[2]) then
+            go = r1
         end
     end
     intent.attack = false
@@ -1191,6 +1211,26 @@ function QD.raid._verzik_seat_of(row)
         if QD.party._fold(nm) == want then return i end
     end
     return nil
+end
+
+-- THE CHAIN ENDS ON ITS OWN CLOCK, every P3 tick, whoever owns the tick: a
+-- ball nobody has seen in flight for `linger` ticks is over.  The run below
+-- only closed it on a tick it was asked, and a seat whose ticks went to an
+-- earlier state never closed it -- so its slow hold, released by the first
+-- resolved ball, held for good (svbvzslow seat 1: no swing from t650 to its
+-- death at t830, three tiles from her).
+function QD.raid._verzik_ball_expire(st, v)
+    assert(st, "_verzik_ball_expire: st")
+    assert(v, "_verzik_ball_expire: v")
+    local vz, bm = st.vz, st.vz.bm
+    if bm == nil or bm.done then return end
+    for _, p in ipairs(v.proj or {}) do
+        if p.spotanim_id == st.plan.ball_proj then return end
+    end
+    if v.tick > bm.last + QD.RAID_PLAY_VERZIK_BALL.linger then
+        bm.done = true
+        vz.ball_resolved = (vz.ball_resolved or 0) + 1
+    end
 end
 
 -- The tick.  `f`: st, v, intent, ok (floor test), tor (vz.tor), reach.
@@ -1562,6 +1602,7 @@ local function tor_reaches(tornadoes, me, mid, x, z)
     end
     return false
 end
+QD.raid._verzik_tor_reaches = tor_reaches
 function QD.raid._verzik_tornado_guard(st, v, intent, ok)
     assert(st, "_verzik_tornado_guard: st")
     assert(v, "_verzik_tornado_guard: v")
@@ -1856,6 +1897,8 @@ QD.RAID_PLAY_VERZIK_BALL_CHAIN_TICKS = 4
 -- the ledger's reading of a ball: hops are 6-8 ticks apart (content
 -- 552c599394), a throw is a rotation apart; three hops land within 30
 QD.RAID_PLAY_VERZIK_BALL_HOP_GAP = 12
+-- the enrage played on her, not circled (see the P3 tick)
+QD.RAID_PLAY_VERZIK_POWER_THROUGH = true
 QD.RAID_PLAY_VERZIK_BALL_CHAIN_SPAN = 30
 QD.RAID_PLAY_VERZIK_DAWN_COST = 350
 
@@ -4075,6 +4118,7 @@ function QD.raid._verzik_phase_p3(c)
     local phase, ok, d_boss, on_me = c.phase, c.ok, c.d_boss, c.on_me
     local go, swap_to, nearest = c.go, c.swap_to, c.nearest
     local threat = c.threat
+    QD.raid._verzik_ball_expire(st, v)
     -- raid seam45: the Normal trio plays P3 MELEE (Blert: the scythe,
     -- 21-24 swings a role); the clock and the step out are
     -- QD.raid._verzik_p3_clock's, the rest of the phase is shared
@@ -4638,7 +4682,19 @@ function QD.raid._verzik_phase_p3(c)
     -- the crowd that explodes on everyone (owner); the chain places each seat,
     -- and the avoid loop still keeps the tornadoes off)
     local chain_on = vz.bm ~= nil and not vz.bm.done
-    if melee and vz.enraged and st.mode == "normal" and vz.m3.bound_tick ~= v.tick and not webbed and not chain_on then
+    -- THE ENRAGE IS POWERED THROUGH, not circled (W:983 "Teams with
+    -- sufficient experience can simply power through into enrage; they can
+    -- either keep their health low so the tornado heals little"; W:981 "keep
+    -- health around 50-60 ... the tornado will only heal around 90").  The ring
+    -- kept every seat circling away from its tornado and swinging about a
+    -- third of the ticks it could: svavzslow (ae7ca6e50) dealt 1839 in P3's
+    -- first 125 ticks, then from the enrage ~4 a tick against ~800 healed, 90-140
+    -- short of her for 250 ticks while the packs emptied.  Her last 20% is ~490:
+    -- about 35 ticks at the opening's pace.  So in the enrage a seat stays on
+    -- her and swings, and steps only when its tornado's next step is onto it
+    -- (the guard, last in the tick).
+    local power_through = QD.RAID_PLAY_VERZIK_POWER_THROUGH and st.mode == "normal"
+    if melee and not power_through and vz.enraged and st.mode == "normal" and vz.m3.bound_tick ~= v.tick and not webbed and not chain_on then
         -- raid seam53: the derived reading (vz.sm_ball), not a third scan
         local ballinfo = vz.sm_ball
         if ballinfo == nil and cyc.share ~= nil and cyc.share.until_tick ~= nil and v.tick <= cyc.share.until_tick then
@@ -4682,8 +4738,10 @@ function QD.raid._verzik_phase_p3(c)
     elseif pool ~= nil and QD.raid._verzik_pool_run({ st = st, v = v, intent = intent, ok = okp,
             pool = pool, tor = vz.tor }) then
         -- the timed pool (verzik_pool): it walked, orbited or held
-    elseif melee and (next(vz.tor or {}) ~= nil or #v.crabs > 0) and QD.raid._verzik_avoid({ st = st, v = v,
-            intent = intent, go = go, ok = okp, reach = (m3_hold and 2 or reach), mates = mates, tor = vz.tor,
+    elseif melee and ((not (power_through and vz.enraged) and next(vz.tor or {}) ~= nil) or #v.crabs > 0)
+        and QD.raid._verzik_avoid({ st = st, v = v,
+            intent = intent, go = go, ok = okp, reach = (m3_hold and 2 or reach), mates = mates,
+            tor = (power_through and vz.enraged) and {} or vz.tor,
             side = { x = hx3, z = hz3 },
             pool = (near_pool ~= nil and pool ~= nil and not on_pool) and { x = near_pool.x, z = near_pool.z,
                 pull = ((vz.pool_pull or 10) >= 60) and 60 or 10 } or nil }) ~= "CLEAR" then
@@ -4909,6 +4967,39 @@ function QD.raid._verzik_phase_p3(c)
     end
     -- last, over whatever the state decided: never stand where a tornado steps
     if melee then QD.raid._verzik_tornado_guard(st, v, intent, okp) end
+    -- POWERED THROUGH, NOT WALKED INTO: an attack press out of reach walks me
+    -- back to her by the server's path, and with my tornado within three that
+    -- path was its tile -- the guard's dodge, then the press straight back
+    -- (_vzslow on ae7ca6e50+: ~1700 healed from P3+250, ~11 touches).  So
+    -- with a tornado near, the press is sent only from a tile already in
+    -- reach (it does not move me); else I walk to the in-reach tile my
+    -- tornado can be on last.
+    if power_through and vz.enraged and melee and intent.attack and b ~= nil then
+        local tors = {}
+        for _, tr in ipairs(v.tornadoes or {}) do
+            if math.max(math.abs(tr.x - me.x), math.abs(tr.z - me.z)) <= 3 then tors[#tors + 1] = { x = tr.x, z = tr.z } end
+        end
+        local dme = QD.raid._verzik_dist(me.x, me.z, b)
+        if #tors > 0 and (dme < 1 or dme > reach) then
+            local best, bx, bz = nil, nil, nil
+            for dx = -2, 2 do
+                for dz = -2, 2 do
+                    local x, z = me.x + dx, me.z + dz
+                    local db = QD.raid._verzik_dist(x, z, b)
+                    if db >= 1 and db <= reach and okp(x, z) and not v.shadows[x * 100000 + z]
+                        and not tor_reaches(tors, me, me, x, z) then
+                        local far = 99
+                        for _, tr in ipairs(tors) do far = math.min(far, math.max(math.abs(tr.x - x), math.abs(tr.z - z))) end
+                        local sc = math.max(math.abs(dx), math.abs(dz)) * 2 - far * 3
+                        if best == nil or sc < best then best, bx, bz = sc, x, z end
+                    end
+                end
+            end
+            intent.attack = false
+            if bx ~= nil then intent.walk = { x = bx, z = bz } end
+            vz.enrage_closes = (vz.enrage_closes or 0) + 1
+        end
+    end
     -- NEVER ONTO OR ACROSS A LIVE WEB, whatever decided the walk: moving off a
     -- web tile binds for 10 ticks (Near Reality VerzikViturRoom.processMovement,
     -- content f4b4d64ea0), mid-run too, and a bound raider is a tornado's
