@@ -1864,6 +1864,23 @@ function QD.raid._verzik_enrage_step(c, ev)
                             sc = sc - math.min(clear(x, z), 6) * 4
                             local wall = math.min(x - (O.x + F[1]), (O.x + F[3]) - x, z - (O.z + F[2]), (O.z + F[4]) - z, 3)
                             sc = sc + (3 - wall) * 15
+                            -- owner_verzik 2026-10-07: SHARE is EXEMPT from
+                            -- the anti-clumping cost and must stay exempt
+                            -- rather than being paid for its opposite.  The
+                            -- +5 is the room's standing rule against clumping
+                            -- (P2's spread: 1023 of Blert's 1056 bounces
+                            -- reached nobody else).  REWARDING mate-adjacency
+                            -- in SHARE at -60 was tried and is WORSE: svavz
+                            -- went from "2 of 3 raiders, 0 damage" to "1 of 3,
+                            -- 74", and svdvz from one red row to a DEATH (562
+                            -- ticks and 1598 taken against 346 and 873).
+                            -- Clustering costs more than it buys here,
+                            -- because a trio standing together cannot tell
+                            -- which tornado is whose -- the same trap the
+                            -- scoring note below records, where a wrong pick
+                            -- walked _play_verzik_p3's role 3 into its own.
+                            -- The ball pull of 60 toward the carrier is the
+                            -- right lever; mutual adjacency is not.
                             for _, m in ipairs(c.mates) do
                                 if math.max(math.abs(m.x - x), math.abs(m.z - z)) <= 1 and state ~= "SHARE" then sc = sc + 5 end
                             end
