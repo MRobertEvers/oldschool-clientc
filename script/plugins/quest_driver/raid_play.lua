@@ -1892,6 +1892,9 @@ function QD.raid._play_summary(st)
         -- measured run enters.  Putting the per-state counts in the summary
         -- makes coverage part of the comparison instead of an assumption.
         .. QD.raid.sm_coverage(st)
+        -- a plan's own per-run readings (st.notes, short tokens), last so
+        -- every line before keeps its bytes
+        .. ((st.notes ~= nil and #st.notes > 0) and ("; notes " .. table.concat(st.notes, " ")) or "")
 end
 
 -- raid seam31 play_library_faults: the stop's reason, the prayer offs the
