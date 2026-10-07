@@ -295,7 +295,7 @@ local function sm_instance(st, v, id, inst)
     local decl = QD.raid.sm_decls[id]
     assert(decl ~= nil, "sm: no machine '" .. tostring(id) .. "' is declared")
     m = { id = id, inst = inst, key = key, state = decl.start, since = v.tick, entered = v.tick,
-        seen = {}, trace = {}, counts = {}, visits = {}, moves = 0 }
+        seen = {}, trace = {}, counts = {}, visits = {}, fired = {}, edges = {}, moves = 0 }
     st.sm[key] = m
     m.seen[1] = decl.start .. "@" .. tostring(v.tick) .. "/hp" .. tostring(v.hp)
     m.trace[1] = { state = decl.start, at = v.tick, hp = v.hp, by = "start" }
@@ -315,6 +315,20 @@ local function sm_go(st, v, m, decl, go, ctx, ev)
     if #t > 0 then t[#t].left = v.tick end
     m.prev, m.state, m.since, m.moves = m.state, go, v.tick, m.moves + 1
     m.visits[go] = (m.visits[go] or 0) + 1
+    -- EDGES TRAVERSED, counted rather than read back from the trace: a long
+    -- room runs 400-600 ticks against decl.trace_max 64, so the trace is lossy
+    -- at exactly the end where a late edge would show (Nylocas port).  O(1)
+    -- per MOVE, not per tick, and bounded by the declaration.
+    --
+    -- KEYED ON THE EVENT, not just from>to, which is the whole point: the
+    -- Nylocas finding is not "PILLAR_DEFENCE never reaches BOSS" -- it is
+    -- "`waves_over` never moved it" while `boss_phase` moved it hundreds of
+    -- times.  Without the event the row reads PILLAR_DEFENCE>BOSS 48 and looks
+    -- healthy, which is the same blindness one level down.  A premise break is
+    -- an edge too, under `premise_broken`, so a state only ever left by its
+    -- premise does not read as having no exit taken.
+    local ek = m.prev .. ">" .. go .. "/" .. tostring(ev and ev.name or "go")
+    m.edges[ek] = (m.edges[ek] or 0) + 1
     m.seen[#m.seen + 1] = go .. "@" .. tostring(v.tick) .. "/hp" .. tostring(v.hp)
     if #t >= decl.trace_max then table.remove(t, 1) end
     t[#t + 1] = { state = go, at = v.tick, hp = v.hp, by = ev and ev.name or "go", from = m.prev }
@@ -347,6 +361,16 @@ function QD.raid.sm_run(st, v, id, ctx, events, inst)
         end
         local h = s.on ~= nil and s.on[ev.name] or nil
         if h ~= nil then
+            -- which BRANCH ran, not just which state was entered: a state can
+            -- be hot while one of its handlers has never once been reached
+            -- (Nylocas's PILLAR_DEFENCE is entered on 8 of 9 names and its
+            -- `defence_clear` leave has never fired, because an override
+            -- returns above the state tick).  A state-keyed count cannot show
+            -- that; this can, and the declared `on` tables give the complete
+            -- set to compare against, so "never invoked" is exact rather than
+            -- inferred.
+            local fk = m.state .. "/" .. ev.name
+            m.fired[fk] = (m.fired[fk] or 0) + 1
             local intent, go = h(ctx, ev)
             if intent ~= nil then
                 assert(type(intent) == "table",
@@ -431,6 +455,33 @@ end
 -- state whose behaviour no run has checked, and it has to be accounted for --
 -- unreachable in the mode we test, missed by these seeds, or wired wrong.
 --
+-- TWO READINGS, and the second is the stronger one.  `NEVER` lists states
+-- that were never entered -- which catches a change hung off a state nothing
+-- reaches (the Xarpus case).  `COLD` lists declared `<state>/<event>` handlers
+-- that were never INVOKED -- which catches a change hung off a branch inside a
+-- state that IS entered, and a state-keyed count cannot see that at all.
+-- Nylocas is the case that forced it: PILLAR_DEFENCE is entered on 8 of 9
+-- names with hundreds of ticks, and its `defence_clear` leave has never once
+-- fired, because an override returns above the state tick.  Reading only the
+-- state counts, that machine looks fully covered.
+--
+-- `edges` is the third reading: every transition TAKEN, as
+-- `FROM>TO/event xN`.  It is a histogram and not a denominator -- the declared
+-- edge set is not statically knowable, because a handler returns its target at
+-- run time -- so an edge at zero shows up as an ABSENT key, to be read against
+-- the declaration rather than announced.  And a zero does not say WHICH of
+-- unreachable-by-construction, missed-by-the-seeds, or wired-wrong it is: in
+-- the Nylocas case the edge was unreachable for a reason entirely outside the
+-- declaration (an override returning above the state tick, so the event that
+-- owns the edge is never raised).  The counter makes that question askable per
+-- edge instead of per state; it does not answer it.
+--
+-- What NONE of the readings reach: a condition inside a handler body, an `if`
+-- that never goes one way.  The layer does not see inside a handler, so that
+-- is ordinary branch coverage and needs a different tool.  So `NEVER` empty
+-- means "every state was entered", `COLD` empty means "every declared handler
+-- ran", and neither means "every line ran".
+--
 -- Counts are `ticks/entries`: ticks is the number of decides spent in the
 -- state, entries the number of times it was entered.  Only `ticks 0 AND
 -- entries 0` means the state never fired; `ticks 0` ALONE does not, and two
@@ -445,6 +496,16 @@ end
 --     records and the other 10 are real entries).
 -- So a reader skimming for "0" will call exercised states dead.  The NEVER
 -- list below is the reading to trust; it requires both counts zero.
+-- the edges traversed, "FROM>TO xN", in a stable order
+local function sm_edges_text(m)
+    local keys = {}
+    for k in pairs(m.edges) do keys[#keys + 1] = k end
+    table.sort(keys)
+    local out = {}
+    for _, k in ipairs(keys) do out[#out + 1] = k .. " " .. m.edges[k] end
+    return table.concat(out, " ")
+end
+
 function QD.raid.sm_coverage(st)
     assert(st, "sm_coverage: st")
     if st.sm == nil then return "" end
@@ -454,16 +515,33 @@ function QD.raid.sm_coverage(st)
     local out = {}
     for _, key in ipairs(keys) do
         local m = st.sm[key]
-        local parts, dead = {}, {}
+        local parts, dead, cold = {}, {}, {}
+        local decl = QD.raid.sm_decls[m.id]
         for _, name in ipairs(QD.raid.sm_states(m.id)) do
             local ticks, entries = m.counts[name] or 0, m.visits[name] or 0
             parts[#parts + 1] = name .. " " .. ticks .. "/" .. entries
-            if ticks == 0 and entries == 0 then dead[#dead + 1] = name end
+            local never = ticks == 0 and entries == 0
+            if never then dead[#dead + 1] = name end
+            -- the declared handlers of this state that were never invoked.
+            -- Only for a state that WAS entered: every handler of a state
+            -- nothing reaches is cold trivially, and listing those buries the
+            -- signal, which is "this state is hot and this branch is dead".
+            local on = (not never) and decl.states[name].on or nil
+            if on ~= nil then
+                local evs = {}
+                for e in pairs(on) do evs[#evs + 1] = e end
+                table.sort(evs)
+                for _, e in ipairs(evs) do
+                    if m.fired[name .. "/" .. e] == nil then cold[#cold + 1] = name .. "/" .. e end
+                end
+            end
         end
         out[#out + 1] = key .. (m.parent ~= nil and ("<" .. m.parent) or "")
             .. " [" .. table.concat(parts, ", ") .. "] moves " .. m.moves
             .. ", ticks " .. tostring(m.ticks or 0)
             .. (#dead > 0 and (", NEVER " .. table.concat(dead, " ")) or ", all states fired")
+            .. (#cold > 0 and (", COLD " .. table.concat(cold, " ")) or ", every handler ran")
+            .. (next(m.edges) ~= nil and (", edges " .. sm_edges_text(m)) or "")
     end
     return "; sm coverage: " .. table.concat(out, " | ")
 end
