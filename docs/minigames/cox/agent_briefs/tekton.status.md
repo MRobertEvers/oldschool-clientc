@@ -1,7 +1,8 @@
 # Tekton room status
 
 Branch: `cursor/cox-tekton-runaround-da39`
-Agent: `bc-6e8e01ee` (replacement for stuck `bc-d8bc5247`)
+OSRS-Content: `cursor/cox-tekton-stand-da39` @ `0a941539a`
+Agent: replacement for stuck `bc-d8bc5247`
 
 ## Strategy
 
@@ -10,16 +11,15 @@ prayer died under wedge hits). Adamant opener → anvil → DWH on REENGAGE.
 
 ## Content
 
-- `cox_tekton.rs2`: re-issue `npc_walk` while `walking_in` (anvil path was
-  cancelled after one walk; never reached hammering). Submodule commit
-  `919ab24e4` on `cursor/cox-tekton-anvil-repath-da39` (OSRS-Content push
-  may still be retrying HTTP 500).
+- `cox_tekton.rs2`: re-issue `npc_walk` while `walking_in`; walk target is
+  `~cox_tekton_anvil_stand_coord` = one step south of anvil SW (anvil is
+  6x4 blockwalk — walk to loc SW never arrives / never hammers).
 
 ## Harness
 
 - SM: `LAND → LURE → CYCLE ⇄ ANVIL_DODGE → REENGAGE → DONE`
-- Shark 8 (unstackable), 6 restores, adamant plate, DWH in pack
+- Shark 8 (unstackable), 6 restores, adamant plate, DWH on REENGAGE
 
 ## Gate
 
-- Iterating under `flock` + `QUEST_BINARY=src/torirs_tekton`
+- Iterating under `flock` + `QUEST_BINARY=src/torirs_tekton --no-build`
