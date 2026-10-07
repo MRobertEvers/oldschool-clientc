@@ -25,16 +25,22 @@
  *     tick <n>
  *     row <serial> <tick> <kind> <a> <b> <c> <d> <e> <f> <label> <g>
  *                                     (ticklog.tsv's columns, every new row)
+ *     npcsize <slot> <size>           (after each npc_spawn / npc_retype row)
  *     msg <pid> <text>                (every game message to a bot)
  *     self <pid> <x> <z> <level> <inv slot:obj:count,...> <worn slot:obj,...>
+ *          <mainmodal group> <chatmodal group>    (0: none)
  *     end
  * agent -> runner, before the next tick:
- *     <pid> walk <x> <z>
+ *     <pid> walk <x> <z> [ctrl]       (ctrl 1: the ctrl-click that turns run on)
  *     <pid> opnpc <op> <world npc slot>
  *     <pid> opheld <op> <obj> <inv slot>
+ *     <pid> opobj <op> <x> <z> <obj>   (a ground item: op 3 is Take)
  *     <pid> button <component uid>
  *     <pid> resume <component uid>
  *     <pid> cheat <text without ::>
+ *     <pid> close                     (the client's CLOSE_MODAL: a modal left open
+ *                                      blocks every normal queue -- the Verzik
+ *                                      P1 bolt lands through one)
  *     done                            (or `quit` to stop the run)
  * A command answered after tick n is handled on tick n + 1, the tick a click
  * made while watching tick n reaches the server.
@@ -221,7 +227,7 @@ botrun_command(
     run->commands++;
     if( strcmp(verb, "walk") == 0 && n >= 4 )
     {
-        payload[0] = 0;
+        payload[0] = (uint8_t)(n >= 5 ? atoi(fields[4]) : 0);
         put2(payload + 1, atoi(fields[2]));
         put2(payload + 3, atoi(fields[3]));
         ToriRSServer_WorldHandle(player, PKTOUT_NAME_MOVE_GAMECLICK, payload, 5);
@@ -254,6 +260,21 @@ botrun_command(
         put4(payload + 4, (149 << 16) | 0);
         ToriRSServer_WorldHandle(player, PKTOUT_NAME_OPHELD1 + (op - 1), payload, 8);
     }
+    else if( strcmp(verb, "opobj") == 0 && n >= 6 )
+    {
+        int op = atoi(fields[2]);
+
+        if( op < 1 || op > 5 )
+        {
+            run->refused++;
+            return 0;
+        }
+        put2(payload, atoi(fields[3]));
+        put2(payload + 2, atoi(fields[4]));
+        put2(payload + 4, atoi(fields[5]));
+        payload[6] = 0;
+        ToriRSServer_WorldHandle(player, PKTOUT_NAME_OPOBJ1 + (op - 1), payload, 7);
+    }
     else if( strcmp(verb, "button") == 0 && n >= 3 )
     {
         put4(payload, (int)strtol(fields[2], NULL, 0));
@@ -264,6 +285,10 @@ botrun_command(
         put4(payload, (int)strtol(fields[2], NULL, 0));
         put2(payload + 4, -1);
         ToriRSServer_WorldHandle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON, payload, 6);
+    }
+    else if( strcmp(verb, "close") == 0 )
+    {
+        ToriRSServer_WorldHandle(player, PKTOUT_NAME_CLOSE_MODAL, NULL, 0);
     }
     else if( strcmp(verb, "cheat") == 0 && n >= 3 )
     {
@@ -355,6 +380,12 @@ botrun_send_tick(struct BotRun* run)
         {
             botrun_put_row(out, &rows[i]);
             run->cursor = rows[i].serial;
+            /* A spawn or a retype says what the npc is, never how big: an
+             * npc that never walks has no NPC_TILE row to carry its size. */
+            if( (rows[i].kind == TORIRSSERVER_TICKLOG_NPC_SPAWN ||
+                 rows[i].kind == TORIRSSERVER_TICKLOG_NPC_RETYPE) &&
+                rows[i].a >= 0 && rows[i].a < TORIRSSERVER_NPC_MAX )
+                fprintf(out, "npcsize\t%d\t%d\n", rows[i].a, run->srv->npcs[rows[i].a].size);
         }
     } while( got == BOTRUN_ROWS );
     for( int i = 0; i < run->side_count; i++ )
@@ -381,7 +412,7 @@ botrun_send_tick(struct BotRun* run)
             if( p->worn[s].obj_id >= 0 && p->worn[s].count > 0 )
                 fprintf(out, "%d:%d,", s, p->worn[s].obj_id);
         }
-        fputc('\n', out);
+        fprintf(out, "\t%d\t%d\n", p->mainmodal_group, p->chatmodal_group);
     }
     fputs("end\n", out);
     fflush(out);

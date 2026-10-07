@@ -7,9 +7,9 @@
 -- wield), prayer presses, the special attack orb, a cheat.  Arbitration
 -- inside a channel is the policy's; this only spells the packets.
 --
---   intent = { walk = {x, z}, attack = npc_slot, op = { {op, obj, slot}, ... },
+--   intent = { walk = {x, z}, attack = npc_slot, take = {x, z, obj}, op = { {op, obj, slot}, ... },
 --              pray = { "piety", ... } (presses, each toggles), spec = true,
---              cheat = { "text", ... }, why = "short note" }
+--              cheat = { "text", ... }, close = true (any open modal), why = "short note" }
 
 local Act = {}
 
@@ -36,12 +36,16 @@ Act.SPEC_ORB_UID = (160 << 16) | 36
 function Act.lines(pid, intent)
     assert(intent, "Act.lines: intent")
     local out = {}
+    if intent.close then out[#out + 1] = pid .. "\tclose" end
     for _, c in ipairs(intent.cheat or {}) do out[#out + 1] = pid .. "\tcheat\t" .. c end
     for _, o in ipairs(intent.op or {}) do out[#out + 1] = pid .. "\topheld\t" .. o[1] .. "\t" .. o[2] .. "\t" .. o[3] end
     for _, name in ipairs(intent.pray or {}) do out[#out + 1] = pid .. "\tbutton\t" .. Act.prayer_uid(name) end
     if intent.spec then out[#out + 1] = pid .. "\tbutton\t" .. Act.SPEC_ORB_UID end
-    if intent.walk ~= nil then
-        out[#out + 1] = pid .. "\twalk\t" .. intent.walk.x .. "\t" .. intent.walk.z
+    if intent.take ~= nil then
+        out[#out + 1] = pid .. "\topobj\t3\t" .. intent.take.x .. "\t" .. intent.take.z .. "\t" .. intent.take.obj
+    elseif intent.walk ~= nil then
+        -- ctrl 1: a ctrl-click turns run on and leaves it on (handle_move)
+        out[#out + 1] = pid .. "\twalk\t" .. intent.walk.x .. "\t" .. intent.walk.z .. "\t1"
     elseif intent.attack ~= nil then
         out[#out + 1] = pid .. "\topnpc\t2\t" .. intent.attack
     end

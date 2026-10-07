@@ -40,11 +40,13 @@ for line in io.lines() do
         world:begin_tick(tonumber(f[2]))
     elseif word == "row" then
         world:row(f[4], f[5], f[6], f[7], f[8], f[9], f[10], f[11], f[12])
+    elseif word == "npcsize" then
+        world:npc(tonumber(f[2])).size = tonumber(f[3])
     elseif word == "msg" then
         world:message(f[2], f[3] or "")
         if trace then log:write("t", world.tick, " msg p", f[2], " ", f[3] or "", "\n") end
     elseif word == "self" then
-        world:self_line(f[2], f[3], f[4], f[5], f[6], f[7])
+        world:self_line(f[2], f[3], f[4], f[5], f[6], f[7], f[8], f[9])
         local pid = tonumber(f[2])
         if mem[pid] == nil then
             seats[#seats + 1] = pid

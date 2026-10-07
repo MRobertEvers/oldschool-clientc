@@ -30,7 +30,9 @@ function World.new(names)
         projectiles = {}, -- live: { spotanim, name, sx, sz, dx, dz, target, launch, land }
         spotanims = {},   -- map spotanims this tick and earlier: { spotanim, name, x, z, tick }
         hits = {},        -- this tick: { pid, npc_slot, damage, npc_type }
+        npc_hits = {},    -- this tick: { slot, type, damage }
         locs = {},        -- coord -> { loc, name, shape, angle, kind, tick }
+        ground = {},      -- dropped objs: { obj, name, x, z, count, tick } (obj_add; gone when held)
         events = {},      -- this tick: npc_anim / npc_spawn / npc_retype / npc_death rows, for the policy
         messages = {},    -- this tick: { pid, text }
     }, World)
@@ -45,6 +47,7 @@ end
 function World:begin_tick(n)
     self.tick = n
     self.hits = {}
+    self.npc_hits = {}
     self.events = {}
     self.messages = {}
     local live = {}
@@ -117,6 +120,8 @@ function World:row(kind, sa, sb, sc, sd, se, sf, label, sg)
         if kind == "npc_free" then n.alive = false end
         n.dying = true
         self.events[#self.events + 1] = { kind = kind, npc = n }
+    elseif kind == "hit_npc" then
+        self.npc_hits[#self.npc_hits + 1] = { slot = a, type = b, damage = c }
     elseif kind == "hudbar" then
         local n = self:npc(a)
         n.hp, n.hpmax = f, g
@@ -134,6 +139,9 @@ function World:row(kind, sa, sb, sc, sd, se, sf, label, sg)
         self.spotanims[#self.spotanims + 1] = { spotanim = b, name = name_of(self, "spotanim", b), x = x, z = z, tick = self.tick }
     elseif kind == "hit_player" then
         self.hits[#self.hits + 1] = { pid = a, npc_slot = b, damage = c, npc_type = f }
+    elseif kind == "obj_add" then
+        local x, z = unpack_coord(a)
+        self.ground[#self.ground + 1] = { obj = b, name = name_of(self, "obj", b), x = x, z = z, count = c, tick = self.tick }
     elseif kind == "loc_set" then
         self.locs[a] = { loc = b, name = name_of(self, "loc", b), shape = c, angle = d, kind = e, tick = self.tick }
     end
@@ -154,9 +162,10 @@ function World:message(pid, text)
 end
 
 -- The runner's `self` line: inventory and gear, which no row carries.
-function World:self_line(pid, x, z, level, inv, worn)
+function World:self_line(pid, x, z, level, inv, worn, mainmodal, chatmodal)
     local p = self:player(tonumber(pid))
     p.x, p.z, p.level = tonumber(x), tonumber(z), tonumber(level)
+    p.mainmodal, p.chatmodal = tonumber(mainmodal) or -1, tonumber(chatmodal) or -1
     p.inv, p.worn = {}, {}
     for s, o, count in (inv or ""):gmatch("(%d+):(%d+):(%d+),") do
         local obj = tonumber(o)
@@ -167,6 +176,27 @@ function World:self_line(pid, x, z, level, inv, worn)
         p.worn[tonumber(s)] = { obj = obj, name = name_of(self, "obj", obj) }
     end
     p.mine = true
+end
+
+-- Is an obj held by anybody (an inventory or a weapon this runner can see)?
+function World:held(obj)
+    for _, p in pairs(self.players) do
+        if p.weapon == obj then return p end
+        for _, it in pairs(p.inv or {}) do if it.obj == obj then return p end end
+    end
+    return nil
+end
+
+-- The ground obj named `name` nobody holds, newest first, or nil.
+function World:on_ground(name)
+    for i = #self.ground, 1, -1 do
+        local g = self.ground[i]
+        if g.name == name then
+            if self:held(g.obj) == nil then return g end
+            table.remove(self.ground, i)
+        end
+    end
+    return nil
 end
 
 -- The live npcs whose name is in `set` (a name -> true table), nearest first to (x, z).
