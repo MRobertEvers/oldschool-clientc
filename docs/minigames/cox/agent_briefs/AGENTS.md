@@ -23,5 +23,5 @@ your ownership row in `ROOM_AGENT.md`. See workspace rule
 | vasa | bc-47112672-81a0-5c55-8de1-ed8cc4958456 |
 | vanguards | bc-a4e27b30-0513-559d-8698-2999674d066f |
 | muttadiles | bc-68d32325-2635-566e-aeea-2eb464a6772b |
-| scavenger_small | bc-231b0847-6e20-5664-9d13-0c06c5af2e6e |
+| scavenger_small | bc-96c722d5-2e31-5f0a-87cc-8fc0811baac7 (replacement; prior bc-231b0847 stuck) |
 | olm | bc-e55662a8-4b46-5913-9273-491f3425fe4b |
