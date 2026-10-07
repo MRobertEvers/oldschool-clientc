@@ -67,10 +67,11 @@
 --     walk two states, which is what the rotation needs (her ball rides an
 --     auto, so `auto` and `ball_air` arrive together).
 --
--- EVENTS ARE DERIVED ONCE A TICK, IN ONE PLACE.  QD.raid.sm_events(st, v, f)
--- calls f once for the tick and caches the list, so every machine on the
--- raider sees the same event set and no machine can derive its own private
--- view of the tick.  The derivation is the plan's (QD.raid._verzik_events);
+-- EVENTS ARE DERIVED ONCE A DECIDE, IN ONE PLACE.  QD.raid.sm_events(st, v, f)
+-- calls f once per tick view and caches the list on that view, so every
+-- machine of one decide sees the same event set and no machine can derive its
+-- own private view of the tick.  (On the view, not on the raider and not on
+-- the tick number: a tick number can repeat, and see sm_events below.)  The derivation is the plan's (QD.raid._verzik_events);
 -- keeping it out of the states is the point -- the states say what to do, the
 -- derivation says what happened.  `tick` is raised every tick by convention
 -- so a state can act without an event of its own.
@@ -145,21 +146,42 @@ function QD.raid.sm_states(id)
     return out
 end
 
--- EVENTS, once a tick.  `derive` is called at most once for a tick and its
--- list is cached on the raider, so every machine sees the same set.
+-- EVENTS, once a DECIDE.  `derive` is called at most once per tick view and
+-- its list is cached ON THAT VIEW, so every machine of one decide sees the
+-- same set.
+--
+-- The cache hangs on `v` and not on the raider, and not on v.tick, because a
+-- tick NUMBER can repeat: raid_play.lua's loop waits a tick only when the
+-- tick has not already advanced inside the send (`if after == v.tick then
+-- QD.ticks(1) end`), and a wait that does not advance leaves the next decide
+-- reading the same number.  Keyed on the number, the second decide of one
+-- tick would be handed the FIRST decide's list and its derivation would never
+-- run -- so a derivation with any per-decide effect would silently see
+-- nothing, and the machines would replay events from an already-advanced
+-- state (reported by the Xarpus port, 2026-10-07, tick 45).  `v` is built
+-- fresh by QD.raid._play_see once per decide, so the view itself is a key the
+-- loop cannot repeat.
+--
+-- A derivation should still be idempotent within a tick: a repeated tick
+-- number re-derives, and it must come to the same answer rather than consume
+-- something twice.
 function QD.raid.sm_events(st, v, derive)
     assert(st, "sm_events: st")
     assert(v, "sm_events: v")
     assert(type(derive) == "function", "sm_events: derive must be a function")
-    local c = st.sm_ev
-    if c ~= nil and c.tick == v.tick then return c.list end
+    local c = v.sm_ev
+    if c ~= nil then
+        assert(c.tick == v.tick, "sm_events: this view's cache is tick " ..
+            tostring(c.tick) .. " but the view now reads tick " .. tostring(v.tick))
+        return c.list
+    end
     local list = derive(st, v)
     assert(type(list) == "table", "sm_events: derive must return a list of events")
     for i, ev in ipairs(list) do
         assert(type(ev) == "table", "sm_events: event " .. i .. " is not a table")
         assert(type(ev.name) == "string", "sm_events: event " .. i .. " has no name")
     end
-    st.sm_ev = { tick = v.tick, list = list }
+    v.sm_ev = { tick = v.tick, list = list }
     return list
 end
 
@@ -176,6 +198,13 @@ end
 
 -- the instance, created on first use.  `seen` is the plans' existing row
 -- style; `counts` is the per-state tick count.
+--
+-- THE START STATE'S `enter` IS NOT CALLED.  Nothing transitioned into it, so
+-- there is no event and no previous state to hand the hook, and calling it
+-- would make the first tick of a machine different from every later entry into
+-- the same state.  A plan that mirrors the machine's state onto a table of its
+-- own through `enter` hooks must therefore seed that mirror with decl.start
+-- itself at init (reported by the Nylocas port, 2026-10-07).
 local function sm_instance(st, v, id, inst)
     st.sm = st.sm or {}
     local key = sm_key(id, inst)
