@@ -1053,6 +1053,46 @@ NY_STATES = {
 -- and claims nothing those seats will choose when the other seat is the
 -- copy's owner, or nearer to it, or as near and earlier in role order.  The
 -- pick's writes to the seat's own memory are put back after each run.
+-- SEAT -> ROOM ROLE (owner_nylocas 2026-10-07, for the relay, which seats the
+-- room as seat 1 ranger, seat 2 meleer, seat 3 mage).  The party's names
+-- (QD.party.names) and the party-link marks are per SEAT; the plan's colours
+-- are per ROLE (P.roles).  Each seat publishes its own room role once on the
+-- party link (barrier.nyrole_r<role>.p<seat>, read from the next lockstep
+-- boundary) and reads the others'; a seat not read yet is taken as its own
+-- number (the room harness's identity).  A caller may also hand the table:
+-- QD.raid.nylocas_seat_roles = { [seat] = "mage" | "ranger" | "melee" }
+-- (t.raid.play's opts do not reach a plan's decide: raid_play.lua keeps only
+-- opts.role), which wins over the link.
+function QD.raid._nym_seat_role(st, seat)
+    local P, ny = st.plan, st.ny
+    if seat == nil then return nil end
+    local given = QD.raid.nylocas_seat_roles
+    if given ~= nil and given[seat] ~= nil then
+        for i, r in ipairs(P.roles) do if r.name == given[seat] then return i end end
+        assert(false, "nylocas_seat_roles: seat " .. seat .. " names no role " .. tostring(given[seat]))
+    end
+    ny.seat_role = ny.seat_role or {}
+    if ny.seat_role[seat] ~= nil then return ny.seat_role[seat] end
+    if st.party ~= nil and st.party > 1 then
+        if seat == QD.party.role() then
+            ny.seat_role[seat] = st.role
+            return st.role
+        end
+        for r = 1, #P.roles do
+            if api_drive.barrier_present(string.format("barrier.nyrole_r%d.p%d", r, seat)) == "ok" then
+                ny.seat_role[seat] = r
+                return r
+            end
+        end
+    end
+    return seat
+end
+function QD.raid._nym_publish_role(st)
+    local ny = st.ny
+    if ny.role_published or st.party == nil or st.party <= 1 then return end
+    ny.role_published = true
+    api_drive.barrier_mark(string.format("barrier.nyrole_r%d.p%d", st.role, QD.party.role()))
+end
 local NY_SIM_KEEP = { "wait_for", "stand", "cleanup", "cleanup_passes", "clear_time", "chin_best", "chin_have",
     "barrage_have", "inbound_skips", "owner_left", "owners_seen", "stack_cands", "why", "loadout", "reach", "worn" }
 local function nym_role_loadout(P, role)
@@ -1077,7 +1117,7 @@ function QD.raid._nym_claims(c)
     local at = {}
     for _, r in ipairs(prow) do
         local seat = (not r.me and r.name ~= nil) and seat_of[string.lower(string.gsub(r.name, "[ _]", ""))] or nil
-        if seat ~= nil then at[seat] = { x = r.x, z = r.z } end
+        if seat ~= nil then at[QD.raid._nym_seat_role(c.st, seat)] = { x = r.x, z = r.z } end
     end
     ny.sim_lo = ny.sim_lo or {}
     local mine_role = c.st.role
@@ -1120,11 +1160,12 @@ function QD.raid._play_nylocas_machine(c)
     end
     c.m = ny.m
     local m = c.m
+    QD.raid._nym_publish_role(c.st)
     if P.sim_others then
         if c.cur ~= nil and not c.cur.vas and c.cur.slot ~= nil then QD.party.publish_target(c.cur.slot) end
         c.pub = {}
         for _, n in ipairs(v.nylos) do
-            for _, role in ipairs(QD.party.others_on(n.slot, 2)) do c.pub[role] = n.slot end
+            for _, seat in ipairs(QD.party.others_on(n.slot, 2)) do c.pub[QD.raid._nym_seat_role(c.st, seat)] = n.slot end
         end
         -- (in the waves; the cleanup's floor is the leftovers, every seat on them)
         if ny.waves < 31 then QD.raid._nym_claims(c) else c.claimed = nil end
@@ -1325,7 +1366,7 @@ function QD.raid._play_nylocas_scored_pick(c)
             if pr == "ok" then
                 for _, r in ipairs(prow) do
                     local seat = (not r.me and r.name ~= nil) and seat_of[string.lower(string.gsub(r.name, "[ _]", ""))] or nil
-                    local role = seat ~= nil and P.roles[seat] or nil
+                    local role = seat ~= nil and P.roles[QD.raid._nym_seat_role(st, seat)] or nil
                     if role ~= nil then owner_at[role.colour] = { x = r.x, z = r.z } end
                 end
             end
