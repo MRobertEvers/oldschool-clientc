@@ -1206,6 +1206,33 @@ function QD.raid.mz_lane_tick(st, v, intent)
     -- -- 2 / 1 / 0; coordinator 00:45 "set the cap to that, not one")
     local cap = ({ 2, 1, 0 })[math.max(QD.raid.mz_form(st), 1)] or 0
     if e[1] == "STACK" and m.stack_swings >= cap then QD.raid.mz_go(st, v, "LANE", m.idx + 1) return end
+    -- THE SHIELD BASH on the frozen stack, once a wave in the 70 and 50 waves
+    -- by the seat that carries the bulwark, after cast 4: every frozen crab
+    -- within 5 of the seat takes a hit (wiki_Dinhs_bulwark.wikitext:72)
+    if e[1] == "STACK" and QD.raid.mz_form(st) <= 2 and m.bash_wave ~= st.ev.wave then
+        local dr, dn = QD.inv.count("dinhs_bulwark")
+        local _, en = QD.var.varp("varp300_sa_energy")
+        local near, first = 0, nil
+        for slot, a in pairs(st.ev.adds) do
+            if not a.gone and a.ice and math.max(math.abs(a.x - v.me.x), math.abs(a.z - v.me.z)) <= 5 then
+                near = near + 1
+                first = first or { slot = slot, a = a }
+            end
+        end
+        if near >= 2 and (tonumber(en) or 0) >= 500 and ((dr == "ok" and (tonumber(dn) or 0) > 0) or m.bash_on) then
+            m.bash_on = true
+            if m.bash_e0 == nil then m.bash_e0 = tonumber(en) end
+            if (tonumber(en) or 0) < m.bash_e0 - 400 then
+                m.bash_wave, m.bash_e0, m.bash_on = st.ev.wave, nil, false
+            else
+                QD.raid.mz_wear(intent, { "dinhs_bulwark" })
+                local _, armed = QD.var.varp("varp301_sa_attack")
+                if tonumber(armed) == 0 then intent.spec = true end
+                intent.press = { symbol = st.plan.crab[st.mode], slot = first.slot, op = 2, why = "shield bash" }
+                return
+            end
+        end
+    end
     local t = nil
     if e[1] == "STACK" and m.stack_slot ~= nil then
         local a = st.ev.adds[m.stack_slot]

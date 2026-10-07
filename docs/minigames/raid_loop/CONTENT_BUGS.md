@@ -1896,3 +1896,10 @@ Fixed: a member (orb slot != 0) clicking an unstarted barrier is told to wait an
 answer re-reads `^tob_var_started` and a started room is only stepped through; a started room is a gate for
 everyone (unchanged). The library's cross_together must now have the leader answer and the members press the
 barrier only after the room has started.
+
+### owner_tob_normal: Dinh's bulwark special hit one target -- FIXED (content d259d21c54)
+pvm_dinhs_bulwark.rs2 hit its primary twice and nothing else. wiki_Dinhs_bulwark.wikitext:72 "Shield Bash, which
+hits up to 10 enemies (in both PvM and PvP) in a 11x11 area around the player (thus up to five tiles away from the
+player) with 20% increased accuracy"; :74 the 5% drain on every monster hit, not on the primary's doubled hit; :135
+"the actual range is 11 x 11". Now: npc_findallany(coord, 5) after the primary's two hits, up to 9 more, each its
+own roll and drain; multiway or an instance only, as the barrage's splash.
