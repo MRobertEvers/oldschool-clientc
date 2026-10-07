@@ -80,89 +80,78 @@ local KIT = {
     "::setlevel prayer 99", "::setlevel agility 99", "::setlevel slayer 37",
     "::setvar varb4070_spellbook 1",
 }
--- raid seam53 play_tob_normal_relay_once: THE WORN SET IS THE ROOM HARNESSES'.
--- Every room plan after seam40 is a melee plan and every trio harness wears
--- ::maxmelee (cheat_max_gear.rs2: torva, rancour, ferocious, ultor, the
--- charged scythe): _play_maiden.lua party_kit's two dps seats ("::maxmelee",
--- then the twisted bow worn at the door for the first shot, Blert
--- TWISTED_BOW in dps1|100 19/24 rooms), _play_bloat.lua, _play_sotetseg.lua,
--- _play_xarpus.lua and _play_verzik.lua (which adds the slayer boots).  The
--- relay wore the old ranged Maiden's masori set into every melee room
--- (survey1: the dps seats fought Maiden, Bloat in masori with the scythe).
--- Seat 2 is Maiden's freezer: its harness keeps the ranged set and the bow
--- (_play_maiden.lua party_kit role 2), so it does here too.
-if role == 2 then
+-- owner_tob_normal 2026-10-07: THE SEATS AND THEIR KIT ARE THE GREEN ROOM
+-- HARNESSES'.  Seat 1 (the party leader, orb 0) is Maiden's FREEZER, as in all
+-- 24 reference rooms and _play_maiden.lua since b02968ded, and the Nylocas
+-- MAGE (the Nylocas owner: the room is green only with the mage leading,
+-- relay_nylocas_snippet.lua DIFFERENCES 1); seat 2 Maiden's dps1 and the
+-- Nylocas ranger; seat 3 Maiden's dps2 and the Nylocas meleer.  The Maiden
+-- kit below is _play_maiden.lua party_kit by Maiden role (6cba215fd /
+-- 5b61b41c7, green on the owner's ruling of 2026-10-07); the later rooms'
+-- items take the slots Maiden's supplies leave (the seat's last fish).
+local MAIDEN_ROLE_OF_SEAT = { [1] = 2, [2] = 1, [3] = 3 }
+local mrole = MAIDEN_ROLE_OF_SEAT[role]
+if mrole == 2 then
     for _, c in ipairs({
         "::give twisted_bow", "::wield twisted_bow",
         "::give dragon_arrow 1000", "::wield dragon_arrow",
-        "::give masori_mask", "::wield masori_mask",
-        "::give masori_body", "::wield masori_body",
-        "::give masori_chaps", "::wield masori_chaps",
+        "::give game_pest_archer_helm", "::wield game_pest_archer_helm",
+        "::give elite_void_knight_top", "::wield elite_void_knight_top",
+        "::give elite_void_knight_robes", "::wield elite_void_knight_robes",
+        "::give pest_void_knight_gloves", "::wield pest_void_knight_gloves",
+        "::give necklace_of_rupture",
         "::give avas_assembler", "::wield avas_assembler",
-        "::give slayer_boots", "::wield slayer_boots",
+        "::give eternal_boots", "::wield eternal_boots",
         "::give magus_ring", "::wield magus_ring",
-        "::give zenyte_amulet_enchanted", "::wield zenyte_amulet_enchanted",
-        "::fullscythe" }) do KIT[#KIT + 1] = c end
+        "::give occult_necklace", "::wield occult_necklace",
+        "::give tonalztics_of_ralos_uncharged", "::give sunfiresplinter 100",
+        "::give zaryte_xbow", "::give xbows_crossbow_bolts_adamantite_tipped_ruby_enchanted 50",
+        "::give water_rune 2000", "::give blood_rune 1000", "::give death_rune 1000",
+        "::give ancestral_hat", "::give ancestral_robe_top", "::give ancestral_robe_bottom",
+        "::give kodai_wand", "::give arcane",
+        "::fullscythe",
+        "::give 4doserangerspotion", "::give saturated_heart",
+        -- the Nylocas mage's own weapon (relay_nylocas_snippet.lua KIT), charged in run()
+        "::give eye_of_ayak_uncharged", "::give demon_tear 2000",
+        "::give 4dosestamina 1" }) do KIT[#KIT + 1] = c end
 else
-    for _, c in ipairs({ "::maxmelee",
+    for _, c in ipairs({ "::tobkit", "::blowpipe dragon_dart 2000 2000",
         "::give twisted_bow", "::wield twisted_bow",
         "::give dragon_arrow 1000", "::wield dragon_arrow",
-        "::give slayer_boots", "::wield slayer_boots" }) do KIT[#KIT + 1] = c end
+        "::give tonalztics_of_ralos_uncharged", "::give sunfiresplinter 100",
+        "::give game_pest_archer_helm", "::give elite_void_knight_top", "::give elite_void_knight_robes",
+        "::give pest_void_knight_gloves", "::give necklace_of_rupture",
+        "::give dinhs_bulwark",
+        "::give 4dose2combat 2",
+        "::give dragon_claws",
+        "::give 4doserangerspotion",
+        "::give 4dosestamina 1" }) do KIT[#KIT + 1] = c end
+    -- the Nylocas meleer's whip (relay_nylocas_snippet.lua KIT, meleer)
+    if role == 3 then KIT[#KIT + 1] = "::give abyssal_whip" end
 end
-for _, c in ipairs({
-    "::blowpipe dragon_dart 2000 2000",
-    "::give dragon_warhammer",
-    "::give serpentine_helm_charged",
-    "::give abyssal_whip",
-    "::give 4dose2combat 1",
-    -- a stamina potion ("A stamina potion is also really helpful for learners.
-    -- Running out of energy during phase three Verzik is a very real way to
-    -- die", 10Boot yt_4i4lv-srJkw.md 0:19:24; "If you're in a melee role ...
-    -- I'd strongly advise buying a stamina potion", 0:12:09), a dose before
-    -- Bloat, Sotetseg, Xarpus and Verzik (stamina()).  Run energy is not
-    -- restored between rooms for a member (~tob_restore is the leader's):
-    -- config C's own name had Bloat at 1343 of 1500 when all three, out of
-    -- run energy, walked one tile a tick beside it and took a fly a tick.
-    "::give 4dosestamina 1",
-}) do KIT[#KIT + 1] = c end
+-- the supplies, handed over after the charges (run()): Maiden's mix by role,
+-- a fish fewer for each later room's item above
 local SUPPLIES = nil
-if role == 1 then
-    for _, c in ipairs({ "::give eye_of_ayak_uncharged", "::give demon_tear 2000" }) do KIT[#KIT + 1] = c end
-    -- raid seam53: the Maiden dps harness's mix (10 fish, 8 brews, 5 restores:
-    -- _play_maiden.lua party_kit) in this seat's 20 slots.  The library eats
-    -- fish first and brews when fish run out (raid_play.lua _play_supplies);
-    -- survey1's seat 1 ran out of fish and then drank 30 brew doses, 20
-    -- restore doses and every combat dose at Maiden.
-    SUPPLIES = { "::give br_4dosepotionofsaradomin 7", "::give br_4dose2restore 4", "::give anglerfish 9" }
+if mrole == 2 then
+    SUPPLIES = { "::give anglerfish 5", "::give br_4dose2restore 4" }
 elseif role == 2 then
-    for _, c in ipairs({ "::give sanguinesti_staff_uncharged", "::give bloodrune 3000",
-        "::give kodai_wand", "::give ancestral_hat", "::give ancestral_robe_top",
-        "::give ancestral_robe_bottom", "::give arcane",
-        "::give water_rune 2000", "::give death_rune 1000",
-        "::give magic_shortbow", "::give rune_arrow 800" }) do KIT[#KIT + 1] = c end
-    -- Ice Barrage's blood runes after the Charge: it takes every blood rune
-    -- in the pack (sanguinesti_staff.constant: 2 a charge, up to 20000)
-    SUPPLIES = { "::give blood_rune 1000",
-        -- raid seam53: the Maiden freezer harness's mix (13 fish, 2 brews, 4
-        -- restores) in this seat's 10 slots; svbplaynorma's freezer died at
-        -- Maiden t542 on the old 3 fish
-        "::give br_4dosepotionofsaradomin 2", "::give br_4dose2restore 2", "::give anglerfish 6" }
+    SUPPLIES = { "::give br_4dosepotionofsaradomin 4", "::give br_4dose2restore 4", "::give anglerfish 4" }
 else
-    for _, c in ipairs({ "::give eye_of_ayak_uncharged", "::give demon_tear 2000",
-        "::give magic_shortbow", "::give rune_arrow 800",
-        "::give water_rune 2000", "::give chaos_rune 1000", "::give death_rune 1000" }) do KIT[#KIT + 1] = c end
-    -- raid seam53: the Maiden dps harness's mix in this seat's 15 slots
-    SUPPLIES = { "::give br_4dosepotionofsaradomin 5", "::give br_4dose2restore 3", "::give anglerfish 7" }
+    SUPPLIES = { "::give br_4dosepotionofsaradomin 4", "::give br_4dose2restore 4", "::give anglerfish 3" }
 end
 
 -- What each seat leaves on the floor once no later room uses it (the Entry
 -- relay's drop rule: the pack keeps room for the Dawnbringer, W:875).
 local DROP_AFTER = {
-    maiden = { [2] = { "kodai_wand", "ancestral_hat", "ancestral_robe_top", "ancestral_robe_bottom", "arcane", "bloodrune", "waterrune", "deathrune" } },
+    -- (Maiden-only pieces; the freezer keeps its barrage runes for the
+    -- Nylocas mage)
+    maiden = { [1] = { "kodai_wand", "ancestral_hat", "ancestral_robe_top", "ancestral_robe_bottom", "arcane", "tonalztics_of_ralos_charged", "zaryte_xbow" },
+        [2] = { "tonalztics_of_ralos_charged", "dinhs_bulwark" },
+        [3] = { "tonalztics_of_ralos_charged", "dinhs_bulwark" } },
     nylocas = {
-        [1] = { "eye_of_ayak", "abyssal_whip", "toxic_blowpipe_loaded" },
-        [2] = { "sanguinesti_staff", "magic_shortbow", "rune_arrow", "abyssal_whip", "toxic_blowpipe_loaded" },
-        [3] = { "magic_shortbow", "rune_arrow", "eye_of_ayak", "abyssal_whip", "toxic_blowpipe_loaded", "waterrune", "chaosrune", "deathrune" },
+        [1] = { "eye_of_ayak", "waterrune", "bloodrune", "deathrune" },
+        [2] = { "toxic_blowpipe_loaded" },
+        [3] = { "abyssal_whip", "toxic_blowpipe_loaded" },
     },
 }
 
@@ -215,8 +204,12 @@ local P = "p" .. role .. " "
 -- (seam51 _play_bloat: role 1 10 eats 9 drinks, role 2 7 and 8, role 3 8 and
 -- 6); survey1's leader died at Bloat as role 3 on 2 brew doses, so seat 1
 -- keeps role 3 and seat 3 takes role 2.
-local ROLE_IN = { maiden = { [1] = 1, [2] = 2, [3] = 3 }, nylocas = { [1] = 2, [2] = 3, [3] = 1 },
-    bloat = { [1] = 3, [2] = 1, [3] = 2 } }
+-- owner_tob_normal 2026-10-07: Maiden by the green harness (seat 1 freezer),
+-- the Nylocas by the green harness (seat 1 mage, 2 ranger, 3 meleer --
+-- relay_nylocas_snippet.lua), Bloat role 1 (the heaviest) to the seat Maiden
+-- leaves the most: the freezer, now seat 1.
+local ROLE_IN = { maiden = { [1] = 2, [2] = 1, [3] = 3 }, nylocas = { [1] = 1, [2] = 2, [3] = 3 },
+    bloat = { [1] = 1, [2] = 3, [3] = 2 } }
 
 local function origin_of(t)
     local _, here = t.world.tile()
@@ -571,27 +564,45 @@ local PRE = {}
 -- _play_maiden.lua party_run: the bow on rapid (raid seam33), the loaded
 -- pipe read back on its rangers, the leader's barrier, the members across.
 PRE.maiden = function(t, ox, oz)
-    -- the freezer's bow on Rapid; the scythe seats on Reap (the scythe is worn at the door)
-    set_style(t, "maiden.style", ROLE_IN.maiden[role] == 2 and "Rapid" or "Reap")
-    -- raid seam53: the dps seats' super combat at the door, as _play_maiden.lua
-    -- party_run (raid seam40: "a scythe seat's super combat at the door")
-    if ROLE_IN.maiden[role] ~= 2 then boost(t, "maiden") end
-    if ROLE_IN.maiden[role] ~= 2 then
-        -- (the freezer has no pipe role at Maiden)
+    -- owner_tob_normal 2026-10-07: _play_maiden.lua party_run (green on the
+    -- owner's ruling): the freezer's bow on Rapid; a scythe seat puts the
+    -- scythe on to press Chop, then the bow back for the run-in shot
+    local mr = ROLE_IN.maiden[role]
+    if mr ~= 2 then wear(t, "maiden.equip.scythe", "scythe_of_vitur") end
+    set_style(t, "maiden.style", mr == 2 and "Rapid" or "Chop")
+    if mr ~= 2 then wear(t, "maiden.equip.bow", "twisted_bow") end
+    -- the boosts at the door: a scythe seat's super combat, every seat's
+    -- ranging potion, the freezer's saturated heart, a fish eaten at full
+    -- (the 24 streams' rows: 118 / 112 / 112 / 120-121)
+    if mr ~= 2 then
+        t.player.inv_op("4dose2combat", 1, { quick = true })
+        t.ticks(1)
+    end
+    t.ticks(3)
+    t.player.inv_op("4doserangerspotion", 1, { quick = true })
+    t.ticks(2)
+    if mr == 2 then
+        t.player.inv_op("saturated_heart", 1, { quick = true })
+        t.ticks(2)
+    end
+    t.player.inv_op("anglerfish", 1, { quick = true })
+    t.ticks(3)
+    local _, rg = t.skill.read("ranged")
+    local _, mg = t.skill.read("magic")
+    t.check("maiden.boosts", rg ~= nil and rg.level > 99, P .. "at the door: ranged " .. tostring(rg and rg.level) .. " magic " .. tostring(mg and mg.level))
+    if mr ~= 2 then
         local bpr, bp = t.inv.blowpipe()
         t.check("maiden.blowpipe", bpr == "ok" and type(bp) == "table" and bp.darts > 0 and bp.scales > 0,
             P .. tostring(bpr) .. " " .. tostring(type(bp) == "table" and bp.line or bp))
     end
     start_room(t, "maiden", nil, nil)
-    -- raid seam53: the dps seats swing the scythe (_play_maiden.lua party_run:
-    -- `weapon = (role == 2) and "twisted_bow" or "scythe_of_vitur"`)
-    return { weapon = (ROLE_IN.maiden[role] == 2) and "twisted_bow" or "scythe_of_vitur", max_ticks = 1400 }
+    return { weapon = (mr == 2) and "twisted_bow" or "scythe_of_vitur", max_ticks = 1400 }
 end
 
 -- _play_bloat.lua: the super combat; the scythe (the plan's weapon); p1 is
 -- in the room on the first walk, crossing when Bloat is on the far row
 -- heading west (W:687); p2/p3 enter on the first down, seq 8082 (W:689).
-local BLOAT_STARTER = 2  -- the seat playing Bloat role 1 (ROLE_IN.bloat)
+local BLOAT_STARTER = 1  -- the seat playing Bloat role 1 (ROLE_IN.bloat)
 PRE.bloat = function(t, ox, oz)
     wear(t, "bloat.equip.scythe", "scythe_of_vitur")
     set_style(t, "bloat.style", "Reap")
@@ -623,21 +634,35 @@ end
 -- the shortbow, rapid, auto retaliate off; the leader from beside the fight
 -- tile.
 PRE.nylocas = function(t, ox, oz)
+    -- owner_nylocas' relay snippet (build/seam_state/owner_nylocas/
+    -- relay_nylocas_snippet.lua, the room green in its harness at feac33107):
+    -- the mage's style set on the pipe, then the Ayak (a powered staff's tab
+    -- reads Accurate / Accurate / Longrange on this content now: no Pound)
     local nrole = ROLE_IN.nylocas[role]
-    if nrole ~= 2 then wear(t, "nylocas.equip.arrows", "rune_arrow") end
-    local own = (nrole == 1 and "eye_of_ayak") or (nrole == 2 and "toxic_blowpipe_loaded") or "abyssal_whip"
-    wear(t, "nylocas.equip.own", own)
-    -- the same slot the old press chose, by the worn weapon's name for it (seam55
-    -- probe: the Eye of Ayak shows Bash/Pound/-/Focus on this content, the pipe
-    -- Accurate/Rapid/-/Longrange, the whip Flick/Lash/-/Deflect; the press needs
-    -- the combat tab shown, which ui.style opens)
-    set_style(t, "nylocas.style", (nrole == 1 and "Pound") or (nrole == 2 and "Rapid") or "Lash")
+    if nrole == 1 then
+        wear(t, "nylocas.equip.pipe", "toxic_blowpipe_loaded")
+        set_style(t, "nylocas.style", "Rapid")
+        wear(t, "nylocas.equip.own", "eye_of_ayak")
+    elseif nrole == 2 then
+        wear(t, "nylocas.equip.own", "toxic_blowpipe_loaded")
+        set_style(t, "nylocas.style", "Rapid")
+    else
+        wear(t, "nylocas.equip.own", "abyssal_whip")
+        set_style(t, "nylocas.style", "Lash")
+    end
+    wear(t, "nylocas.equip.arrows", "dragon_arrow")
     set_retaliate(t, "nylocas.retaliate_off", true)
-    start_room(t, "nylocas", function()
+    stamina(t, "nylocas")
+    -- the leader beside the fight tile BEFORE the crossing, the members to
+    -- the barrier's north side (harness door.together)
+    if role == 1 then
         local fr, fight, ftext = t.raid.start_tile()
         t.check("nylocas.start_tile", fr == "ok", tostring(ftext))
         t.player.walk_to(fight.x + 1, fight.z, 20)
-    end, nil)
+    else
+        t.player.walk_to(ox + 29 + role, oz + 33, 30)
+    end
+    start_room(t, "nylocas", nil, nil)
     t.drive.camera(0, 512, 1100)
     return { max_ticks = 3000 }
 end
@@ -711,7 +736,7 @@ local AFTER = {}
 -- the magic set left on the floor
 AFTER.maiden = function(t)
     if ROLE_IN.maiden[role] == 2 then
-        for _, item in ipairs({ "twisted_bow", "masori_mask", "masori_body", "masori_chaps" }) do
+        for _, item in ipairs({ "twisted_bow", "dragon_arrow", "game_pest_archer_helm", "elite_void_knight_top", "elite_void_knight_robes", "pest_void_knight_gloves" }) do
             local cr, n = t.inv.count(item)
             if cr == "ok" and n > 0 then t.player.equip(item) end
         end
@@ -844,16 +869,23 @@ return {
         end
         -- the powered staves charged by their own Charge op (_play_nylocas.lua),
         -- then the supplies into the slots the charges freed
-        local staff = (role == 2) and "sanguinesti_staff" or "eye_of_ayak"
-        local chr, chd = t.player.inv_op(staff .. "_uncharged", 3)
+        -- the Tonalztics charged by its own Charge op (_play_maiden.lua), and
+        -- the freezer seat's Eye of Ayak (_play_nylocas.lua)
+        local tcr, tcd = t.player.inv_op("tonalztics_of_ralos_uncharged", 4)
         t.ticks(2)
-        local sr, sn = t.inv.count(staff)
-        t.check("kit.charge", sr == "ok" and sn == 1, P .. "Charge on " .. staff .. "_uncharged " .. tostring(chr) .. " " .. string.sub(tostring(chd), 1, 80)
-            .. "; " .. staff .. " in the pack " .. tostring(sn))
+        local tir, tin = t.inv.count("tonalztics_of_ralos_charged")
+        t.check("kit.tonalztics", tir == "ok" and tin == 1, P .. "Charge " .. tostring(tcr) .. " " .. string.sub(tostring(tcd), 1, 80) .. "; charged " .. tostring(tin))
+        if role == 1 then
+            local chr, chd = t.player.inv_op("eye_of_ayak_uncharged", 3)
+            t.ticks(2)
+            local sr, sn = t.inv.count("eye_of_ayak")
+            t.check("kit.charge", sr == "ok" and sn == 1, P .. "Charge on eye_of_ayak_uncharged " .. tostring(chr) .. " " .. string.sub(tostring(chd), 1, 80)
+                .. "; eye_of_ayak in the pack " .. tostring(sn))
+        end
         for _, c in ipairs(SUPPLIES) do t.cheat(c) end
         t.ticks(2)
         local kit0 = supplies(t)
-        t.check("kit.supplies", kit0.brew > 0 and kit0.restore > 0 and kit0.angler > 0, P .. "one raid's supplies at the start: " .. supplies_text(kit0))
+        t.check("kit.supplies", kit0.restore > 0 and kit0.angler > 0, P .. "one raid's supplies at the start: " .. supplies_text(kit0))
 
         -- THE LOBBY (_party_smoke.lua phases A and B): the board, the party, the door
         t.exec("lobby.goto", t.player.goto_tile, LOBBY_X - 1 + role, LOBBY_Z, 0)
