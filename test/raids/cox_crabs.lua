@@ -217,8 +217,8 @@ return {
         "::give air_rune 400",
         "::give blood_rune 80",
         "::give hammer",
-        "::give shark 24",
-        "::give br_4dose2restore 6",
+        "::give shark 20",
+        "::give br_4dose2restore 4",
         "::give br_4dosepotionofsaradomin 2",
     },
 
