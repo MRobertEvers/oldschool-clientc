@@ -1931,3 +1931,13 @@ uniform pick (a running count of the tied, each replacing the choice with odds 1
 the owner 2026-10-07. Note: the content is right that her hits pass a matching protection prayer up to 17
 (wiki_Theatre_of_Blood_Strategies.wikitext, Nylocas Vasilias: "up to 70 off-prayer, and 17 if prayed against
 (except melee, which is fully protected)").
+
+## 2026-10-07 (owner's rule, every room): only the party leader starts a room -- the doors and Verzik too
+
+Owner, 2026-10-07: "Only the leader CAN start the room. That should be every room." The arena barrier had the
+rule (0b6dffc89); the other two start paths did not: `tob_party.rs2 ~tob_door_enter` (the Xarpus arena door,
+the Verzik entrance door, the Nylocas walkway landings, the spectator barrier) and `tob_verzik.rs2`
+`~tob_verzik_talk` / `~tob_verzik_quickstart` (talking to Verzik). Fixed: a shared `~tob_is_party_leader`
+(orb slot 0); a member is told "You must wait for the party leader to start the fight." and nothing starts;
+the leader's answer re-reads `^tob_var_started` after the suspending question/dialogue, so a room never starts
+twice. The debug `::tobgo` is unchanged (a command, not a player path).
