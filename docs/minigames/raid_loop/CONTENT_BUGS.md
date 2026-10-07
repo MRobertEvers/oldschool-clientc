@@ -1853,3 +1853,10 @@ probes/_probe_cast.lua, Ice Barrage on Maiden pressed from 13 tiles off her edge
 later from 9 tiles off. A walk the player clicks afterwards replaces the interaction here as any click does
 (the engine's OPNPC/OPLOC/MOVE handlers clear the target first, torirs_server_combat.c), so a plan that steps
 off a splat re-casts after the step; nothing changed.
+
+## 2026-10-06 owner_tob_normal: FIXED the seam52 OPEN row -- the scythe's "Chop" was stab
+
+`skill_combat/configs/combat.dbrow` `weapon_scythe_table` slot 1 was `^stab_style`; the wiki's Module:CombatStyles
+(sources/wiki_Module_CombatStyles.lua :547-549) has `'Chop', 'Slash', Aggressive` and wiki_Scythe_of_vitur :41 "it does not
+have a Stab combat style". Now `^slash_style`. The Maiden scythe seats swing on Chop (+3 Strength levels at a target drained
+to 0 Defence). Pack compiled.

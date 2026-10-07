@@ -300,6 +300,27 @@ Open (first cause of each red name, from its log):
 - Preferring to leave NORTH crabs (10Boot 0:08:48, the rangers camp north) was tried (sv5) and was
   worse; reverted.
 
+### Maiden, Normal trio, the owner's plan (owner_tob_normal, 2026-10-06; NOT green yet)
+
+Rules, each with its reference line (raid_play_tob_maiden.lua, the trigger plan seam55 built):
+- DOOR: the trio through the barrier on one tick (t.raid.cross_together); Blert's first swings are at +5 on every seat.
+- OPENER: Tonalztics special on every seat after one bow shot (W:249 "reduce Maiden to 0 defence in only 2 specs after a single
+  Dragon warhammer"; TONALZTICS freezer|100 23/24 rooms, dps 16/15; her Magic 350 -> 43 Defence a hit). Her Defence reaches 0
+  (scythe zeros 2-6 per 60 splats). Scythe on Chop (aggressive slash: Module:CombatStyles :547-549; content row fixed).
+- FREEZER: the casts are a PLAN: a four-cast search over every walker's predicted path (a tile a tick to her south-east tile,
+  absorbed inside her 6x6 grown 2 W/S and 1 N/E: tob.constant arrive 24..32 / 26..34), the first cast may wait up to three
+  ticks for a stack (W:520 3s/4s clump +11/+16), worth = the walker's bar (a leak heals twice its hitpoints, W:593). A cast at
+  client tick T freezes the crab on its T+1 tile (probe M22). Then clump barrages (W:639 "barrage the clump until it is dead"),
+  never in the last five ticks before her next threshold (W:643 cast ready on the spawn). No brew (role.freezer drinks 0; a
+  dose costs Ice Barrage's 94 Magic), a restore under 94. Idle: the bow on her (return_to_boss +21 [6-41]).
+- SCYTHE SEATS: on her north-east corner (dps tiles (5,6)/(6,5)); both take N1/N2 in their windows (dps lanes "N1:58%+4
+  N2:58%+9"); a walker arriving within two tiles; a frozen crab in its last six ticks of ice beside them; the lone frozen
+  crab (no clump) in its last fourteen ticks: north seat above her middle, east seat below (dps2 "S1:33%+39 S2:33%+31").
+  Eat at 45 or under, no brew while a fish is left (eat_at_hp_pct 36 [14-75]); super combat re-boost under 112 (her storm
+  drains melee stats, W:591). Claws special once in her 30 form (W:646 "utilise any remaining special attacks"; CLAW dps|30).
+- Numbers (three names, owner binary): rooms 217-252 against 132-204; 70 wave 32-66 (ref 30 [20-55]) with 0-2 leaks; the
+  heal left is the 50 and 30 waves' thaws (crabs frozen +1..+16 thaw +33..+48).
+
 ### Maiden, Normal trio, following the Blert reference (raid seam40)
 
 Reference: `docs/minigames/theater_of_blood/sources/blert_api/reference/maiden_normal_3.json`

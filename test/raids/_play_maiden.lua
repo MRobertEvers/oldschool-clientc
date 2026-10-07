@@ -113,7 +113,10 @@ else
         -- re-boost holds 112 against her blackstorm's drain, W:591; the
         -- scythe seats drink no brew while a fish is left)
         "::give br_4dosepotionofsaradomin 6", "::give br_4dose2restore 5", "::give anglerfish 10",
-        "::give 4dose2combat 3" }
+        "::give 4dose2combat 3",
+        -- owner_tob_normal M41: the claws for her last form's special (W:646
+        -- "utilise any remaining special attacks"; Blert CLAW dps|30 8 / 6 of 24)
+        "::give dragon_claws" }
     for _, c in ipairs(more) do party_kit[#party_kit + 1] = c end
 end
 -- THE TRIO'S RUN (raid seam32): every seat enters Normal, the leader starts
@@ -146,7 +149,11 @@ local function party_run(t)
     t.ticks(2)
     local tir, tin = t.inv.count("tonalztics_of_ralos_charged")
     t.check("kit.tonalztics", tir == "ok" and tin == 1, "p" .. role .. " Charge " .. tostring(tcr) .. " " .. string.sub(tostring(tcd), 1, 80) .. "; charged in the pack " .. tostring(tin))
-    local style_name = (role == 2) and "Rapid" or "Reap"
+    -- owner_tob_normal M41: Chop, the scythe's aggressive SLASH (+3 Strength
+    -- levels: wiki Module:CombatStyles :547-549 "'Chop', 'Slash', Aggressive";
+    -- content fixed, combat.dbrow weapon_scythe_table); her Defence is drained
+    -- to 0 by the opener, so the accurate style's +3 Attack buys nothing
+    local style_name = (role == 2) and "Rapid" or "Chop"
     if role ~= 2 then
         t.player.equip("scythe_of_vitur")
         t.ticks(2)
@@ -157,7 +164,7 @@ local function party_run(t)
         t.ticks(2)
     end
     local _, style_read = t.var.varp("varp43_com_mode")
-    t.check(role == 2 and "setup.rapid" or "setup.reap", style_result == "ok",
+    t.check(role == 2 and "setup.rapid" or "setup.chop", style_result == "ok",
         "p" .. role .. " " .. tostring(style_detail) .. "; varp43_com_mode after the bow is back " .. tostring(style_read))
     local er, ed = t.raid.enter("tob", "maiden", { mode = mode })
     t.check("play.enter", er == "ok", "p" .. role .. " " .. tostring(ed))

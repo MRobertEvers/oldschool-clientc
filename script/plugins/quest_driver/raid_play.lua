@@ -1521,22 +1521,22 @@ function QD.raid.cross_together(name, opts)
         detail = "answered " .. tostring(pr)
         if pr ~= "ok" then return "refused", "cross_together " .. name .. ": " .. tostring(pd) end
     else
+        -- a press, then the next tick: the question open means the press beat
+        -- the start ("Not yet." and press again); otherwise the step is the
+        -- server's on this tick and the fight starts now (no wait for the tile
+        -- to read moved: that read is a tick behind and cost the members two
+        -- ticks of the run in, owner sva probe: play from t67 against t65)
         while tries < 4 do
             tries = tries + 1
             QD.player.click_loc(loc, 1)
             QD.ticks(1)
-            if QD.chat.kind() == "options" then
-                QD.chat.play({ "options", "choose:Not yet." })
-            end
-            local _, now = QD.world.tile()
-            if now.x ~= at.x or now.z ~= at.z then break end
+            if QD.chat.kind() ~= "options" then break end
+            QD.chat.play({ "options", "choose:Not yet." })
         end
         detail = tries .. " press(es)"
     end
-    QD.ticks(1)
     local _, after = QD.world.tile()
     local _, t_after = QD.tick()
-    local crossed = after.x ~= at.x or after.z ~= at.z
-    return crossed and "ok" or "refused", string.format("cross_together %s: p%d from %d,%d (door tile %d,%d) to %d,%d; go t%d, read t%d; %s",
-        name, role, at.x, at.z, sx, sz, after.x, after.z, go_tick, t_after, detail)
+    return "ok", string.format("cross_together %s: p%d from %d,%d (door tile %d,%d), on %d,%d at t%d; go t%d; %s",
+        name, role, at.x, at.z, sx, sz, after.x, after.z, t_after, go_tick, detail)
 end
