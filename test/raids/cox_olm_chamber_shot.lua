@@ -28,7 +28,7 @@ return {
     },
 
     run = function(t)
-        t.check("scope", true, "NR hole→corridor (32,24); barrier→chamber (32,38) + west caves")
+        t.check("scope", true, "NR hole→corridor (16,16); barrier→chamber (16,30) [BossChunk 5x7] + west caves")
         local er, ed = t.raid.enter("cox", "olm", { seed = 1 })
         t.check("raid.enter", er == "ok", tostring(ed))
 
