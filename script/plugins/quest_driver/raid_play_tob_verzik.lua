@@ -318,8 +318,19 @@ function QD.raid._verzik_see(st, v)
     -- first one seen; a graphic the client still lists after that is not a
     -- pool (s31 vz31a: the plan stood on 6424,90 from the yellows at t488 to
     -- its death at t539 and never ran from either tornado)
-    if #v.pools > 0 and not vz.pools_prev then vz.pool_first = v.tick end
+    if #v.pools > 0 and not vz.pools_prev then vz.pool_first = v.tick vz.pool_tiles = {} end
     vz.pools_prev = #v.pools > 0
+    -- THE POOLS ARE HELD UNTIL THE BLAST, not until their graphic stops: the
+    -- graphic can finish a tick early, the list emptied at blast - 1 and both
+    -- seats on their pools walked off it (svavzslow t844, the blast t845 took
+    -- 68 and 60).  Every tile seen since the first is a pool until the blast.
+    if vz.pool_first ~= nil and v.tick <= vz.pool_first + P.pool_life then
+        vz.pool_tiles = vz.pool_tiles or {}
+        for _, pl in ipairs(v.pools) do vz.pool_tiles[pl.x * 100000 + pl.z] = { x = pl.x, z = pl.z } end
+        v.pools = {}
+        for _, pl in pairs(vz.pool_tiles) do v.pools[#v.pools + 1] = pl end
+        table.sort(v.pools, function(a, c) return a.x < c.x or (a.x == c.x and a.z < c.z) end)
+    end
     if vz.pool_first ~= nil and v.tick > vz.pool_first + P.pool_life then v.pools = {} end
     -- a web is a hard tile, and so is her body in P2 and P3 (W:957 "she turns
     -- into a hard NPC"; her 3x3 in P2, K 6431..6433 x 89..91)
@@ -1095,6 +1106,11 @@ function QD.raid._verzik_pool_run(f)
     if m.state == "NONE" or m.state == "AFTER" then return false end
     intent.attack = false
     vz.target_slot = nil
+    -- the blast (up to 80) outranks a tornado's two-step warning: on or
+    -- going for my pool, only a tornado stepping onto me next is dodged
+    -- (svavzslow t831-845 on 0c5edb444: two seats were two from their pools
+    -- at the blast and took 68 and 60)
+    if m.state == "HOLD" or m.state == "ARRIVE" then vz.guard_tight_tick = v.tick end
     if m.state == "HOLD" then
         intent.walk = nil
         return true
@@ -1371,6 +1387,11 @@ function QD.raid._verzik_ball_run_once(f)
     -- but the one joining it; the rest keep out of the target's 3x3.  (The
     -- joining seat's dodge is free: it chases the target anyway.)
     vz.guard_goal_tick, vz.guard_goal = nil, nil
+    -- the ball's pair dodge only a tornado stepping onto them next (read on
+    -- the server's own tile, DriveNpcRow.server_x): on the two-step warning
+    -- the holder and its joiner each fled their own tornado and never closed
+    -- -- the ball's final 74 (svavzslow t881, svbvzslow t787 on 0c5edb444)
+    vz.guard_tight_tick = (m.state == "HOLDING" or m.state == "JOINING") and v.tick or nil
     if m.state == "HOLDING" and nxt ~= nil then
         vz.guard_goal_tick, vz.guard_goal = v.tick, { x = nxt.x, z = nxt.z }
     elseif m.state == "JOINING" and H ~= nil then
@@ -1646,7 +1667,16 @@ function QD.raid._verzik_tornado_guard(st, v, intent, ok)
     -- -- bound in a web, or eaten by a press -- left me on a tile the check
     -- never looked at: svavzslow seat 3, t808 one from its tornado and no
     -- dodge, touched at t809)
-    if not tor_reaches(tornadoes, me, mid, tx, tz) and not tor_reaches(tornadoes, me, me, me.x, me.z) then return false end
+    if vz.guard_tight_tick == v.tick then
+        local onto = false
+        for _, e in ipairs(tornadoes) do
+            local ax, az = tor_step(e, me.x, me.z)
+            if (e.x == me.x and e.z == me.z) or (ax == me.x and az == me.z) then onto = true end
+        end
+        if not onto then return false end
+    elseif not tor_reaches(tornadoes, me, mid, tx, tz) and not tor_reaches(tornadoes, me, me, me.x, me.z) then
+        return false
+    end
     local gx, gz = (want and want.x) or me.x, (want and want.z) or me.z
     -- a ball holder's dodge goes toward the seat joining it, and a joining
     -- seat's toward its holder (_vzslow t858-865: the holder fled its
