@@ -906,9 +906,22 @@ function QD.raid._verzik_web_ring(b)
 end
 
 -- the tornadoes as tiles, for tor_reaches
+-- ONE STEP AHEAD of what the client shows: the client's npc row is a tick
+-- behind the server's tornado (svavzslow on e71545148: the seat read 1 where
+-- the server had the tornado on its tile, t775; 2 against 1, t818), so every
+-- dodge was a tile late.  Each is stepped once toward ME -- the cautious way
+-- for a tornado chasing someone else too.
 function QD.raid._verzik_tor_tiles(v)
     local out = {}
-    for _, tr in ipairs(v.tornadoes or {}) do out[#out + 1] = { x = tr.x, z = tr.z } end
+    local me = v.me
+    for _, tr in ipairs(v.tornadoes or {}) do
+        local x, z = tr.x, tr.z
+        if me ~= nil then
+            if me.x > x then x = x + 1 elseif me.x < x then x = x - 1 end
+            if me.z > z then z = z + 1 elseif me.z < z then z = z - 1 end
+        end
+        out[#out + 1] = { x = x, z = z }
+    end
     return out
 end
 
@@ -1613,9 +1626,9 @@ function QD.raid._verzik_tornado_guard(st, v, intent, ok)
     assert(intent, "_verzik_tornado_guard: intent")
     assert(ok, "_verzik_tornado_guard: ok")
     local vz, me, b = st.vz, v.me, v.boss
-    -- the tornadoes as the client SEES them this tick, not the plan's model
-    local tornadoes = {}
-    for _, tr in ipairs(v.tornadoes or {}) do tornadoes[#tornadoes + 1] = { x = tr.x, z = tr.z } end
+    -- the tornadoes as the client sees them, one step on (the row is a tick
+    -- behind the server: QD.raid._verzik_tor_tiles)
+    local tornadoes = QD.raid._verzik_tor_tiles(v)
     if #tornadoes == 0 then return false end
     -- where my last click has me at the end of this tick
     local mid = me
