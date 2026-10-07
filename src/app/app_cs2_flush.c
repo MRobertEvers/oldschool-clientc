@@ -13,12 +13,14 @@
 static void
 app_dispatch_clientscript(
     struct App* app,
+    struct TaskRunner* runner,
     struct PktRunClientScript const* request);
 
-/** Hand one held payload to the CS2 dispatch. */
+/** Hand one held payload to the CS2 dispatch, as a task on `runner`. */
 static void
 app_dispatch_clientscript(
     struct App* app,
+    struct TaskRunner* runner,
     struct PktRunClientScript const* request)
 {
     char const* strp[PKT_RUNCLIENTSCRIPT_ARG_MAX];
@@ -32,7 +34,7 @@ app_dispatch_clientscript(
 
     RS_CS2_RunScript(
         &app->host,
-        &app->runner,
+        runner,
         request->script_id,
         request->intv,
         request->argc,
@@ -42,11 +44,14 @@ app_dispatch_clientscript(
 }
 
 void
-App_FlushPendingClientScripts(struct App* app)
+App_FlushPendingClientScripts(
+    struct App* app,
+    struct TaskRunner* runner)
 {
     int count;
 
     assert(app);
+    assert(runner);
     /*
      * A SNAPSHOT of the count, popped from the front.
      *
@@ -63,7 +68,7 @@ App_FlushPendingClientScripts(struct App* app)
 
         if( !RS_ClientScriptQueue_Pop(&app->pending_clientscripts, &request) )
             break;
-        app_dispatch_clientscript(app, &request);
+        app_dispatch_clientscript(app, runner, &request);
     }
 }
 
@@ -87,7 +92,7 @@ App_RunClientScript(
      * not. */
     if( !RS_ClientScriptQueue_Hold(
             &app->pending_clientscripts, request, (uint32_t)app->logic_cycle) )
-        app_dispatch_clientscript(app, request);
+        app_dispatch_clientscript(app, &app->runner, request);
 }
 
 /* Input-driven host effects are drained at the frame's CS2 fixed point.

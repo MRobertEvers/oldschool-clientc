@@ -748,17 +748,21 @@ drags it to the spot EggSolver's `addEggPair(model, x, y)` names: `t.ui.drag("ji
 `IF_SCRIPT_TRIGGER_ROUTES`). Never pick a piece's spot or turn from `%varp4749_scrambled_puzzle`:
 that varp is what the content writes, not what the player sees.
 
-#### A RUNCLIENTSCRIPT sent with a close reopens the group (b72)
+#### A RUNCLIENTSCRIPT sent with a close reopened the group (b72, fixed)
 
 This client holds a RUNCLIENTSCRIPT until the tick's `SERVER_TICK_END` (`pending_clientscripts`,
-`app.h`), while IF_CLOSESUB unmounts as it arrives. A script the server sends in the SAME tick as
-the close therefore runs after it, and its first `cc_find` / `cc_create` on the closed interface
-auto-loads that group back into the tree (`rs_cs2_yield_if_group_missing`), so `group_present` --
-what `t.ui.await_open` / `await_close` read -- stays true: `ui.await_close` times out on an
-interface the server did close. Scrambled!'s jigsaw met it on the last piece (the place script
-`torirs_jigsaw_piece_place.cs2` and the completion `if_close` in one tick). Content that completes
-on a drop closes WITHOUT the cosmetic script for that last move (`scrambled.rs2`
-`[if_button1,jigsaw:pieces]`); the engine ordering is not changed by this seam.
+`app.h`), while IF_CLOSESUB unmounts as it arrives. Before the fix a script the server sent in the
+SAME tick as the close ran after it, and its first `cc_find` / `cc_create` on the closed interface
+auto-loaded that group back into the tree (`rs_cs2_yield_if_group_missing`), so `group_present` --
+what `t.ui.await_open` / `await_close` read -- stayed true and `ui.await_close` timed out on an
+interface the server did close (Scrambled!'s last jigsaw piece: the place script
+`torirs_jigsaw_piece_place.cs2` and the completion `if_close` in one tick).
+
+The packet pump now releases the held scripts onto the packet pipeline ahead of every packet that
+opens, closes or moves an interface (`gameproto_packet_changes_interface_mounts`), which is the
+reference's wire order. Content may send a script and the close behind it in one tick;
+`scrambled.rs2` `[if_button1,jigsaw:pieces]` sends the place script on the last piece too. If
+`ui.await_close` times out on an interface the server closed, this is no longer the cause.
 
 ### `t.player.click_obj(obj, op=3)`
 

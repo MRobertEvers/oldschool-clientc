@@ -822,6 +822,30 @@ gameproto_packet_may_mutate_ui(enum GameProtoPktName packet_type)
     }
 }
 
+int
+gameproto_packet_changes_interface_mounts(enum GameProtoPktName packet_type)
+{
+    switch( packet_type )
+    {
+    case PKT_NAME_IF_OPENCHAT:
+    case PKT_NAME_IF_OPENMAIN_SIDE:
+    case PKT_NAME_IF_CLOSE:
+    case PKT_NAME_IF_SETTAB:
+    case PKT_NAME_IF_OPENMAIN:
+    case PKT_NAME_IF_OPENSIDE:
+    case PKT_NAME_IF_OPENOVERLAY:
+    case PKT_NAME_IF_OPENTOP:
+    case PKT_NAME_IF_OPENSUB:
+    case PKT_NAME_IF_CLOSESUB:
+    case PKT_NAME_IF_MOVESUB:
+    case PKT_NAME_IF_RESYNC_V2:
+    case PKT_NAME_TUT_OPEN:
+        return 1;
+    default:
+        return 0;
+    }
+}
+
 void
 gameproto_free(struct RevPacket* p)
 {

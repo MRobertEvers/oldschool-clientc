@@ -644,6 +644,25 @@ app_pump_net_packets(struct App* app)
                 app->net_first_packet_marked = 1;
                 ToriRS_BootTelemetry_Markf("net:first_packet:%d", (int)packet.packet_type);
             }
+            /*
+             * A held RUNCLIENTSCRIPT goes ahead of an interface mount change.
+             *
+             * The hold to SERVER_TICK_END is for packets that change what a
+             * script READS (the price checker's UPDATE_INV_PARTIAL); it must
+             * not carry a script past a packet that changes what is MOUNTED.
+             * The reference runs the script inline, in wire order, so one the
+             * server sent before an IF_CLOSESUB ran against the open
+             * interface. Held past the close here, it found the group gone and
+             * auto-loaded it back, and the closed interface stayed in the tree
+             * (Scrambled!'s last jigsaw piece, b72). Released onto THIS
+             * pipeline, ahead of the packet's own exec task: the pipeline is
+             * serial, so the scripts settle before the mount task the packet
+             * enqueues behind itself -- the CS2 runner would only reach them
+             * after the close had already landed.
+             */
+            if( gameproto_packet_changes_interface_mounts(packet.packet_type) &&
+                RS_ClientScriptQueue_Count(&app->pending_clientscripts) > 0 )
+                App_FlushPendingClientScripts(app, &app->exec_runner);
             TaskRunner_AddRenderBlockingSerialTask(&app->exec_runner, CreateTask_GameProtoExec(app, &packet));
             redraw = 1;
         }
@@ -665,7 +684,7 @@ app_pump_net_packets(struct App* app)
              (uint32_t)app->logic_cycle,
              APP_CLIENTSCRIPT_FENCE_MAX_CYCLES)) )
     {
-        App_FlushPendingClientScripts(app);
+        App_FlushPendingClientScripts(app, &app->runner);
         /* Same recovery fence for a connection whose tick was cut short:
          * once we intentionally fall back to the held scripts, allow the
          * resulting fully-settled state to publish too. */
