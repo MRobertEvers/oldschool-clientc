@@ -7,9 +7,9 @@ return {
         "::setlevel attack 99",
         "::setlevel strength 99",
         "::setlevel defence 99",
-        -- Equip needs HP 75+ for torva/zenyte; solo special is (HP-5) so drop
-        -- to 40 after gear is on (see run()) — leaves 5 HP, survivable with food.
-        "::setlevel hitpoints 99",
+        -- Solo teleport special deals (current HP - 5); start low so it cannot kill.
+        -- Skip zenyte amulet (needs HP 75) — lint forbids mid-run ::setlevel.
+        "::setlevel hitpoints 40",
         "::setlevel prayer 99",
         "::setlevel ranged 99",
         -- Stab for the glowing crystal (wiki: ranged-immune, magic 1/3, crush/slash resist).
@@ -21,7 +21,7 @@ return {
         "::give primordial_boots",
         "::give infernal_cape",
         "::give berzerker_ring",
-        "::give zenyte_amulet_enchanted",
+        "::give amulet_of_fury",
         -- Dragon warhammer for a defence drain so vasa.stat_regen is observable.
         "::give dragon_warhammer",
         -- Food through the teleport special (solo takes current HP - 5) and boulders.
@@ -45,9 +45,7 @@ return {
         t.exec("equip.boots", t.player.equip, "primordial_boots")
         t.exec("equip.cape", t.player.equip, "infernal_cape")
         t.exec("equip.ring", t.player.equip, "berzerker_ring")
-        t.exec("equip.amulet", t.player.equip, "zenyte_amulet_enchanted")
-        -- Solo special = currentHP-5. At 99 that is fatal; drop after gear on.
-        t.cheat("::setlevel hitpoints 40")
+        t.exec("equip.amulet", t.player.equip, "amulet_of_fury")
 
         local er, ed = t.raid.enter("cox", "vasa", { seed = 1 })
         t.check("raid.enter", er == "ok", tostring(ed))
