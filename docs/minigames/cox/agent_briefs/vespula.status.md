@@ -27,8 +27,8 @@ Not ground-then-portal face-tank.
 | Prior: pack build | RED — sibling `cox_resource_fishing_spot` refused |
 | Prior: `--no-build` + `antipoison4` | FAIL setup (invalid obj) |
 | Prior: `--no-build` + `4doseantipoison` | hung on unreachable safe tile (`run.unfinished`) |
-| Prior: harden SM (attack from landing + step-once) | pushed; gate not re-run |
-| This pass | in progress under `flock /tmp/cox_raid_gate.lock` |
+| This pass: private `QUEST_BINARY` + pack | FAIL `portal.attack` — landing has no route (`I can't reach that!`) |
+| This pass: ARM→TO_GAP before ATTACK | in progress |
 
 ## Next
 

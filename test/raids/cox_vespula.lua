@@ -258,7 +258,13 @@ return {
             return portal
         end
 
-        -- Synq safe: outside her melee envelope / portal-hit gap (Chebyshev).
+        -- Synq safe / gap tile: outside her melee envelope (Chebyshev >= 7),
+        -- adjacent to the barrier gap so a ranged Attack can path to the portal.
+        local function on_gap(me)
+            if me == nil or me.x == nil then return false end
+            return chebyshev(me.x, me.z, sm.safe_x, sm.safe_z) <= 1
+        end
+
         local function on_safe(me)
             if me == nil or me.x == nil then return false end
             local portal = portal_row()
@@ -266,14 +272,45 @@ return {
             return chebyshev(me.x, me.z, portal.x, portal.z) >= SAFE_CHEBYSHEV
         end
 
-        -- Absolute long walks from seed-1 landing were a no-op in gate run3.
-        -- Step one tile away from the portal along the spawn vector instead.
-        local function step_safe_once()
+        -- One-tile step toward (tx,tz). Absolute walk_to across the room was a
+        -- no-op under the gate; single-tile steps path through the barrier gap.
+        local function step_toward(tx, tz)
             local tr, me = t.world.tile()
             if tr ~= "ok" or me == nil then return "no_row", "no tile" end
+            local dx = tx - me.x
+            local dz = tz - me.z
+            local adx, adz = dx, dz
+            if adx < 0 then adx = -adx end
+            if adz < 0 then adz = -adz end
+            if adx == 0 and adz == 0 then return "ok", "arrived" end
+            local sx, sz = 0, 0
+            if adx >= adz then
+                if dx > 0 then sx = 1 else sx = -1 end
+            else
+                if dz > 0 then sz = 1 else sz = -1 end
+            end
+            local wr, wd = t.player.walk_to(me.x + sx, me.z + sz, 4)
+            if wr == "ok" then return wr, wd end
+            if sx ~= 0 and adz > 0 then
+                sx, sz = 0, (dz > 0 and 1 or -1)
+            elseif sz ~= 0 and adx > 0 then
+                sx, sz = (dx > 0 and 1 or -1), 0
+            else
+                return wr, wd
+            end
+            return t.player.walk_to(me.x + sx, me.z + sz, 4)
+        end
+
+        local function step_safe_once()
             local portal = portal_row()
             if portal == nil then return "ok", "portal gone" end
+            local tr, me = t.world.tile()
+            if tr ~= "ok" or me == nil then return "no_row", "no tile" end
             if on_safe(me) then return "ok", "already safe" end
+            -- Prefer the authored gap tile; else step away from the portal.
+            if not on_gap(me) then
+                return step_toward(sm.safe_x, sm.safe_z)
+            end
             local rdx = me.x - portal.x
             local rdz = me.z - portal.z
             local adx, adz = rdx, rdz
@@ -285,14 +322,16 @@ return {
             else
                 if rdz >= 0 then sz = 1 else sz = -1 end
             end
-            local wr, wd = t.player.walk_to(me.x + sx, me.z + sz, 4)
-            if wr == "ok" then return wr, wd end
-            if sx ~= 0 then
-                sx, sz = 0, (rdz >= 0 and 1 or -1)
-            else
-                sx, sz = (rdx >= 0 and 1 or -1), 0
-            end
             return t.player.walk_to(me.x + sx, me.z + sz, 4)
+        end
+
+        local function rotate_gap()
+            sm.cand_i = sm.cand_i + 1
+            if sm.cand_i > #cands then sm.cand_i = 1 end
+            sm.safe_x = cands[sm.cand_i][1]
+            sm.safe_z = cands[sm.cand_i][2]
+            sm.stuck = 0
+            t.ticklog.mark("rotate gap to " .. sm.safe_x .. "," .. sm.safe_z)
         end
 
         local function decide()
@@ -328,20 +367,23 @@ return {
                     return
                 end
                 t.ticklog.mark("armed redemption")
-                -- Seed-1 landing is already portal range 6. Synq [1:27:13]:
-                -- attack immediately to enrage, then click the safe tile.
-                set_state(STATE.ATTACK_PORTAL)
+                -- Landing has no route to the portal (barrier). Walk the gap
+                -- tile first (Synq safe), then Attack so the bow can path in.
+                set_state(STATE.TO_GAP)
                 return
             end
 
             if sm.state == STATE.TO_GAP then
                 local tr, me = t.world.tile()
-                if tr == "ok" and on_safe(me) then
-                    t.ticklog.mark("on gap tile")
+                if tr == "ok" and on_gap(me) then
+                    t.ticklog.mark("on gap tile " .. me.x .. "," .. me.z)
                     set_state(STATE.ATTACK_PORTAL)
                     return
                 end
-                step_safe_once()
+                step_toward(sm.safe_x, sm.safe_z)
+                if sm.stuck >= 12 then
+                    rotate_gap()
+                end
                 return
             end
 
@@ -364,8 +406,15 @@ return {
                     set_state(STATE.RESTORE)
                     return
                 end
+                local tr, me = t.world.tile()
+                -- Not yet at the gap: do not spam Attack into "I can't reach".
+                if tr == "ok" and not on_gap(me) and not on_safe(me) then
+                    set_state(STATE.TO_GAP)
+                    return
+                end
                 arm_redemption()
-                local ar, ad = t.player.attack(PORTAL, 2, 2)
+                -- Longer settle so the ranged path from the gap tile can land.
+                local ar, ad = t.player.attack(PORTAL, 2, 8)
                 if ar == "ok" then
                     sm.portal_hits = sm.portal_hits + 1
                     if sm.portal_hits == 1 then
@@ -373,13 +422,19 @@ return {
                     elseif sm.portal_hits == 3 then
                         t.shot("vespula redemption mid-mechanic")
                     end
-                else
-                    t.note("portal attack " .. tostring(ar) .. " " .. tostring(ad))
-                    if sm.portal_hits == 0 and sm.ticks > 40 then
-                        t.check("portal.attack", false, tostring(ar) .. " " .. tostring(ad))
-                        set_state(STATE.DONE)
-                        return
-                    end
+                    set_state(STATE.STEP_SAFE)
+                    return
+                end
+                t.note("portal attack " .. tostring(ar) .. " " .. tostring(ad))
+                if string.find(tostring(ad), "reach", 1, true) then
+                    rotate_gap()
+                    set_state(STATE.TO_GAP)
+                    return
+                end
+                if sm.portal_hits == 0 and sm.ticks > 400 then
+                    t.check("portal.attack", false, tostring(ar) .. " " .. tostring(ad))
+                    set_state(STATE.DONE)
+                    return
                 end
                 set_state(STATE.STEP_SAFE)
                 return
