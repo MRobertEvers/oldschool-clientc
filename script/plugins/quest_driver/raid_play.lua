@@ -181,43 +181,16 @@ end
 -- the presses that SENT something (answer ok / pressed), each `t<decide
 -- tick><s|a>` (s a cast, a an attack), and this seat's players() pid.  The
 -- verdict is tools/quest_gate/gate.py press_latency_check (the party ledger's
--- raid.press_latency row), from the leader's ticklog.tsv: each press RECEIVED
--- by the server at most QD.RAID_PLAY_PRESS_LATENCY_MAX tick after its decide
--- tick (the seat's raider rows' `input 1`; the raider and input rows are
--- FILE-ONLY, QD.ticklog.FILE_ONLY, so a run cannot read them itself).
--- Receipt, not the action: an action waits on rules a client cannot hurry --
--- a barrage pressed again inside its own 5-tick timer animated 4 ticks later
--- with its packet on time (plmaiden3 t192), a boss not yet attackable ran
--- every seat's first [apnpc] 4 ticks late at Maiden's start.  For the leader
--- the row adds its casts' own animation ticks, as information.
-QD.RAID_PLAY_PRESS_LATENCY_MAX = 1
-
-function QD.raid._play_log_pid(st)
-    local tr, rows = QD.ticklog.rows({ kind = "player_tile" })
-    if tr ~= "ok" or type(rows) ~= "table" then
-        return nil
-    end
-    local hits = {}
-    for _, row in ipairs(rows) do
-        local mine = st.tile_at[row.tick]
-        if mine ~= nil and mine.x == row.x and mine.z == row.z then
-            hits[row.pid] = (hits[row.pid] or 0) + 1
-        end
-    end
-    local best, best_n, tie = nil, 0, false
-    for pid, n in pairs(hits) do
-        if n > best_n then
-            best, best_n, tie = pid, n, false
-        elseif n == best_n then
-            tie = true
-        end
-    end
-    if tie then
-        return nil
-    end
-    return best
-end
-
+-- raid.press_latency row), from the leader's ticklog.tsv after the run: each
+-- press RECEIVED by the server at most one tick after its decide tick (the
+-- seat's raider rows' `input 1`; the raider rows are FILE-ONLY,
+-- QD.ticklog.FILE_ONLY).  Receipt, not the action: an action waits on rules a
+-- client cannot hurry -- a barrage pressed again inside its own 5-tick timer
+-- animated 4 ticks later with its packet on time (plmaiden3 t192), a boss not
+-- yet attackable ran every seat's first [apnpc] 4 ticks late at Maiden's
+-- start.  The row reads NO tick log: a whole-run read at the end of a long
+-- room (3000 player_tile rows) spent the script's instruction budget
+-- (owner_verzik, _vzslow / svdvzslow).
 function QD.raid._play_press_latency_row(st)
     local sent = st.press_sent or {}
     if #sent == 0 then
@@ -227,37 +200,9 @@ function QD.raid._play_press_latency_row(st)
     for _, p in ipairs(sent) do
         list[#list + 1] = "t" .. p.tick .. (p.spell ~= nil and "s" or "a")
     end
-    local info = "a member (no tick log)"
-    if st.log then
-        local pid = QD.raid._play_log_pid(st)
-        local casts = {}
-        if pid ~= nil then
-            local _, anims = QD.ticklog.rows({ kind = "player_anim" })
-            local acts = {}
-            for _, row in ipairs(anims or {}) do
-                if row.pid == pid and row.seq ~= nil and row.seq >= 0 and row.seq ~= 829 then
-                    acts[#acts + 1] = row.tick
-                end
-            end
-            for _, p in ipairs(sent) do
-                if p.spell ~= nil then
-                    local at = nil
-                    for _, k in ipairs(acts) do
-                        if k >= p.tick then
-                            at = k
-                            break
-                        end
-                    end
-                    casts[#casts + 1] = at and string.format("+%d", at - p.tick) or "none"
-                end
-            end
-        end
-        info = string.format("the leader, log pid %s; casts animated at %s", tostring(pid),
-            #casts > 0 and table.concat(casts, " ") or "(no casts)")
-    end
     QD.check(tostring(st.plan_id) .. ".press_latency", true, string.format(
-        "%s; judged by gate.py raid.press_latency; players pid %s; sent %s", info,
-        tostring(st.my_pid_players), table.concat(list, ",")))
+        "%s; judged by gate.py raid.press_latency; players pid %s; sent %s",
+        st.log and "the leader" or "a member", tostring(st.my_pid_players), table.concat(list, ",")))
 end
 
 function QD.raid._play_state(plan, plan_id, mode, numbers, weapon, opts)
