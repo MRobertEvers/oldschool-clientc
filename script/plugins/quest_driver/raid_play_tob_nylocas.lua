@@ -830,7 +830,11 @@ function QD.raid._play_nylocas_machine(c)
     c.m = ny.m
     local m = c.m
     -- the events
-    c.waves_over = ny.waves >= 31 or (ny.waves >= P.cleanup_waves and v.tick - (ny.last_wave_tick or v.tick) >= P.cleanup_quiet)
+    -- (a quiet spell after wave 28 is the cleanup only below the alive cap: at the
+    -- cap it is a stall, and the waves are not over -- the traced svd ranger went
+    -- to CLEANUP in wave 29's 28-tick stall)
+    c.waves_over = ny.waves >= 31 or (ny.waves >= P.cleanup_waves and v.tick - (ny.last_wave_tick or v.tick) >= P.cleanup_quiet
+        and #v.nylos < (ny.waves >= 20 and 24 or 12))
     if v.vas ~= nil and m.state ~= "BOSS" then QD.raid._nym_fire(c, "boss_phase") end
     if m.state ~= "BOSS" then
         if ny.waves > m.wave and ny.waves <= 31 then QD.raid._nym_fire(c, "wave_spawn", ny.waves) end
