@@ -178,27 +178,23 @@ return {
         "::setlevel hitpoints 99",
         "::setlevel prayer 99",
         -- Synq learner triangle kit.
+        -- Keep the backpack sparse: clearinv + triangle kit + food/restore.
+        -- (A prior brew line filled nothing useful and tripped setup when the
+        -- backpack was already holding the triangle switches.)
         "::give twisted_bow",
         "::wield twisted_bow",
-        "::give dragon_arrow 2500",
+        "::give dragon_arrow 2000",
         "::wield dragon_arrow",
-        "::give masori_mask",
-        "::wield masori_mask",
-        "::give masori_body",
-        "::wield masori_body",
-        "::give masori_chaps",
-        "::wield masori_chaps",
         "::give avas_assembler",
         "::wield avas_assembler",
         "::give kodai_wand",
-        "::give water_rune 2000",
-        "::give fire_rune 2000",
-        "::give air_rune 2000",
-        "::give blood_rune 400",
+        "::give water_rune 800",
+        "::give fire_rune 800",
+        "::give air_rune 800",
+        "::give blood_rune 200",
         "::give abyssal_whip",
-        "::give shark 20",
+        "::give shark 16",
         "::give br_4dose2restore 6",
-        "::give br_4dosepotionofsaradomin 2",
     },
 
     run = function(t)
