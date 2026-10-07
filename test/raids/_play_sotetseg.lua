@@ -343,11 +343,18 @@ trio_run = function(t)
     t.check("blert.room_ticks", room_ticks ~= nil,
         "room " .. tostring(room_ticks) .. " ticks from the mark to his death (completion is the bound, owner 2026-10-07); the reference's 20 rooms: 212.5 [164-262]"
         .. ((room_ticks ~= nil and room_ticks > 262) and " -- slower than every recorded room" or ""))
+    -- OWNER RULING 2026-10-07 (owner_rooms4, via the coordinator): "Missing by 2
+    -- hitpoints is fine. Maybe loosen the requirements."  The bound was the
+    -- reference's largest seat, 225 (also the largest of the 37 seats with
+    -- hitpoints in build/blert/sotetseg's scale-3 PLAYER updates); _play lost
+    -- 227 on one seat (two melees on a ball's landing tick).  It is 250 now,
+    -- the coordinator's cap for the loosened bound; the reference is printed.
+    local HP_LOST_BOUND = 250
     local hp_ok = #per >= 1
     for pid, _ in pairs(pids) do
-        if (taken[pid] or 0) > 225 then hp_ok = false end
+        if (taken[pid] or 0) > HP_LOST_BOUND then hp_ok = false end
     end
-    t.check("blert.hp_lost", hp_ok, "hitpoints lost a raider " .. table.concat(per, ", ") .. "; the reference: melee1 92.5 [27-155], melee2 108 [3-225], melee3 105 [83-135]")
+    t.check("blert.hp_lost", hp_ok, "hitpoints lost a raider " .. table.concat(per, ", ") .. " (bound " .. HP_LOST_BOUND .. ", owner 2026-10-07); the reference: melee1 92.5 [27-155], melee2 108 [3-225], melee3 105 [83-135]")
     local maze_ok, maze_d = #mazes >= 1, {}
     for _, mz in ipairs(mazes) do
         local d = mz.react and (mz.react - mz.proc) or nil
