@@ -2389,3 +2389,8 @@ Open:
   (`param=defend_anim,jaltokjad_defend   // [M46] ...`). The engine's loader strips `//`; cachepack does not. So the band
   packed no defend or death anim for the wave-67 Jad. Eight such lines now carry their comment on the line above; the
   values are unchanged. Scratch check: rc 0, 10480 records, 0 unresolved.
+- The band was still STALE after that (3 mismatched archives). `dragonslayer_giantrat_1_key` was stated twice: in
+  lumbridge.npc as 8/3/3 and in quest_dragon.npc as 5/2/2. The engine took the quest file's, cachepack the lumbridge
+  one. The quest's figures are the wiki's level-3 Giant rat (wiki/monsters "Giant rat" combat1: hitpoints 5, att 2,
+  def 2), so lumbridge.npc no longer states them (OSRS-Content 672ddc7d7e). Servpack rebuilt at 08:49 when no runs were
+  active: rc 0. A client run now prints no "server band is STALE" and no "in the band but" lines.
