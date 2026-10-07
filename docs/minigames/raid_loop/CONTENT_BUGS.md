@@ -2239,3 +2239,14 @@ reference ToB raider bows and pipes in elite ranged void (Blert equipmentDeltas,
   231 / 227). Red: svaplaysotet `blert.hp_lost`, p0 lost 307 against the bound 250; the first mistakes are p0 at t64 and
   t65, his melee 39 and 34 with no protection prayer lit. That is a plan question (the stand and prayer timing beside his
   new south face) for the four-rooms agent.
+
+- ToB, Verzik P3: the power blast (yellows) judged only the FIRST raider its hunt found. `~tob_verzik_protected`
+  counted a pool's occupants with its own `huntall($at, 0, 0)` inside the blast's raider hunt (and the struck branch
+  ran a second one): a `huntall` replaces the hunt in progress, so the outer `huntnext` went on with the spent one-tile
+  hunt and the loop ended. Every Normal trio log had one 1596 and one 1597 per blast, both pid 0
+  (build/quest_gate/svaplayverzi t659; _play_verzik_slow_p3 t233, the members on their own pools). Source: "If the
+  player is not on a pool before the shot hits, they will take up to 80 damage ... If several players stand on the
+  same pool, they will all take damage" (wiki_Theatre_of_Blood_Strategies.wikitext:977). FIXED in OSRS-Content
+  fd3183311f (owner_verzik): `~tob_verzik_pools_alone` counts each pool's occupants BEFORE the raider hunt (a bit per
+  pool held by exactly one player), and `~tob_verzik_protected($at, $alone)` no longer hunts. Measured on the private
+  pack: `_play_verzik_slow_p3 --party 3 --names 5`, every blast "3 of 3 raiders protected, own pools".
