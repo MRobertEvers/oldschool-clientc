@@ -11,10 +11,6 @@ alwaysApply: true
 
 ## Forbidden
 
-- **Any branch switch**: `git checkout`, `git switch`, `git checkout -b`
-  (except the one-time create of your own `cursor/cox-<room>-*-da39` at
-  start), detached HEAD, or hopping to `v3` / `cursor/cox-raid-rooms-da39`
-  / a sibling room branch mid-work
 - `git checkout -f`, `git reset --hard`, or `git clean` on the shared parent
   or on `OSRS-Content/` (wipes sibling WIP)
 - `git stash` / `stash drop` of files you do not own
@@ -30,21 +26,11 @@ alwaysApply: true
   sibling room changes you did not author
 - Running `prepare_scripts.py` / pack rebuilds that you then "fix" by
   restoring a private copy of **another** room's harness
-- Background watchers that rewrite sibling files on a timer
-- `cp` of `/opt/cursor/artifacts/*.owned` (or any pin) over the live tree
-- `run.py … --rebuild-scripts` while siblings may be mid-gate on the same
-  checkout (use `--no-build` + private `QUEST_BINARY` only)
-- Starting a gate while another room already holds `/tmp/cox_raid_gate.lock`
-  or `/tmp/raid_gate.lock` — wait; do not race with a second flock name
 
 ## Required
 
-- **One branch for life of the lane.** Create `cursor/cox-<room>-*-da39`
-  once from the parent base, push it, and **never leave it**. All commits,
-  gates, and PRs stay on that branch.
-- Edit only the ownership table row in `docs/minigames/cox/ROOM_AGENT.md`
-- If `docs/minigames/cox/agent_briefs/AGENTS.md` says **HARD STOP**: idle
-  with zero edits until parent unfreezes your room by name
+- Stay on **your** room branch; edit only the ownership table row in
+  `docs/minigames/cox/ROOM_AGENT.md`
 - Shared file edits: take the named flock (`/tmp/cox_config.lock`,
   `/tmp/cox_puzzles.lock`, `/tmp/cox_minions.lock`, …), touch only your
   symbols, release
