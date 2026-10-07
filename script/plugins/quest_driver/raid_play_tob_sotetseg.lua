@@ -188,6 +188,20 @@ function QD.raid._play_sotetseg_decide(st, v)
             end
         end
     end
+    -- owner_rooms4 (2026-10-07): HIS BALL THROW IS SEEN BEFORE ITS BALL.  The
+    -- runner now leaves the realm beside him (content 2b405c1f85, Blert's
+    -- tile), and his first attack after a maze came as a ball at a raider in
+    -- his melee range: the projectile was not yet listed on the next view
+    -- (o4sotsolo t105: thrown t105, nothing in the air at view 106), the plan
+    -- prayed melee for 107, the ball landed unprayed and every ball of the
+    -- next 20 ticks found the protections disabled.  His throw (seq 8139) on
+    -- the boss row holds Protect from Magic for the tick after it is seen:
+    -- the soonest a thrown ball can land (a one-tile flight is 36 + 8 cycles
+    -- past its delay, S tob_sote_cast).
+    if b.seq_id == P.seq_ball and b.seq_tick ~= nil and S.throw_seen ~= b.seq_tick then
+        S.throw_seen = b.seq_tick
+        if v.tick + 1 > S.hold then S.hold = v.tick + 1 end
+    end
     local range = QD.raid._play_sotetseg_range(b, v.me.x, v.me.z)
     local adjacent = range <= 1
     -- THE PROTECTION for the NEXT tick (a press is in force for the next npc
