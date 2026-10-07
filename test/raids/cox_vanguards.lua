@@ -121,7 +121,9 @@ local function sustain(t)
     local level = hp and hp.level
     -- Eat outside attack(): in-attack eat (run14) produced 18× anim 829 and
     -- zero hit_npc — the settle only ate while AoE drained HP.
-    if level ~= nil and level < 75 then
+    if level ~= nil and level < 60 then
+        t.player.inv_op("br_4dosepotionofsaradomin", 1)
+    elseif level ~= nil and level < 80 then
         t.player.inv_op("shark", 1)
     end
     local _, pray = t.skill.read("prayer")
@@ -139,8 +141,9 @@ end
 -- Far-side of focus (past the other two) so attackrange-10 misses, once per
 -- focus change. Re-walking every tick cancelled attacks (run7–15); standing
 -- ON the pad took unprotected ranged/melee (run16 max hit 21).
--- Pads ~8 apart, attackrange 10: need past >= 3 for chebyshev >10, use 8
--- so a near miss still clears (run17 died at dz=8 from magic while on melee).
+-- Pads ~8 apart, attackrange 10. Pick the cardinal tile past the focus that
+-- maximises min distance to the other two (room walls blocked the single
+-- "away from centroid" axis in run18 — player stuck mid-pack and died).
 local ISOLATE_PAST = 8
 
 local function chebyshev(ax, az, bx, bz)
@@ -150,47 +153,43 @@ local function chebyshev(ax, az, bx, bz)
     return dz
 end
 
+local function min_dist_to_others(pack, focus, x, z)
+    local best = 999
+    for i = 1, #COMBAT do
+        local row = row_by_sym(pack, COMBAT[i])
+        if row ~= nil and row.symbol ~= focus.symbol then
+            local d = chebyshev(x, z, row.x, row.z)
+            if d < best then best = d end
+        end
+    end
+    return best
+end
+
 local function isolate_tile(pack, focus)
     if focus == nil then return nil end
     if focus.symbol == RANGED then
         return focus.x, focus.z
     end
-    local ox, oz, n = 0, 0, 0
-    for i = 1, #COMBAT do
-        local row = row_by_sym(pack, COMBAT[i])
-        if row ~= nil and row.symbol ~= focus.symbol then
-            ox = ox + row.x
-            oz = oz + row.z
-            n = n + 1
+    local dirs = {
+        { ISOLATE_PAST, 0 }, { -ISOLATE_PAST, 0 },
+        { 0, ISOLATE_PAST }, { 0, -ISOLATE_PAST },
+    }
+    local best_x, best_z, best_d = focus.x, focus.z, -1
+    for i = 1, #dirs do
+        local x = focus.x + dirs[i][1]
+        local z = focus.z + dirs[i][2]
+        local d = min_dist_to_others(pack, focus, x, z)
+        -- Prefer tiles still within ~8 of the focus (tbow/kodai reach).
+        local to_focus = chebyshev(x, z, focus.x, focus.z)
+        if d > best_d and to_focus <= ISOLATE_PAST then
+            best_d, best_x, best_z = d, x, z
         end
     end
-    if n == 0 then return focus.x, focus.z end
-    ox = math.floor(ox / n)
-    oz = math.floor(oz / n)
-    local dx = focus.x - ox
-    local dz = focus.z - oz
-    if dx == 0 and dz == 0 then
-        return focus.x + ISOLATE_PAST, focus.z
-    end
-    local sx, sz = 0, 0
-    if math.abs(dx) >= math.abs(dz) then
-        sx = (dx > 0) and 1 or -1
-    else
-        sz = (dz > 0) and 1 or -1
-    end
-    return focus.x + sx * ISOLATE_PAST, focus.z + sz * ISOLATE_PAST
+    return best_x, best_z
 end
 
 local function others_out_of_range(pack, focus, me)
-    for i = 1, #COMBAT do
-        local row = row_by_sym(pack, COMBAT[i])
-        if row ~= nil and row.symbol ~= focus.symbol then
-            if chebyshev(me.x, me.z, row.x, row.z) <= 10 then
-                return false
-            end
-        end
-    end
-    return true
+    return min_dist_to_others(pack, focus, me.x, me.z) > 10
 end
 
 local function go_stance(t, pack, focus, sm)
@@ -211,19 +210,17 @@ local function go_stance(t, pack, focus, sm)
     local safe = focus.symbol == RANGED or others_out_of_range(pack, focus, me)
     if (dx > need or dz > need) and not safe then
         sm.stance_walks = (sm.stance_walks or 0) + 1
-        if sm.stance_walks > 25 then
-            -- Last resort: stand under ranged (givechase=no safespot).
-            local ranged = row_by_sym(pack, RANGED)
-            if ranged ~= nil then
-                t.player.walk_to(ranged.x, ranged.z, 3)
-            end
-            sm.stance_sym = focus.symbol
-            sm.stance_ok = true
-            return true
-        end
+        sustain(t)
+        t.prayer.set(PROTECT[focus.symbol], true)
         t.player.walk_to(x, z, 3)
         sm.stance_sym = focus.symbol
         sm.stance_ok = false
+        -- Never "give up" into the pack; keep pathing. Attack only when safe
+        -- (or after a long walk if somehow already >10 from others).
+        if sm.stance_walks > 40 and safe then
+            sm.stance_ok = true
+            return false
+        end
         return true
     end
     sm.stance_sym = focus.symbol
@@ -300,8 +297,9 @@ return {
         -- Potions before food: unstackable doses need free slots; shark is
         -- one stack. Mid-setup inv pressure after the scripts rebuild was
         -- failing restore with 0 landed (run12/13).
-        "::give br_4dose2restore 8",
-        "::give shark 20",
+        "::give br_4dose2restore 6",
+        "::give br_4dosepotionofsaradomin 4",
+        "::give shark 16",
     },
 
     run = function(t)
