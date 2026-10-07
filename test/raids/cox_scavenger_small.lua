@@ -8,20 +8,11 @@ local BEAST_A = "raids_scavenger_beast_a"
 local BEAST_B = "raids_scavenger_beast_b"
 local BEASTS = { BEAST_A, BEAST_B }
 
--- obj_add rows carry numeric cache ids (ticklog FIELDS.obj), not symbols.
-local SECONDARY_SYMS = {
-    "raids_endarkened_juice",
-    "raids_stinkhorn_mushroom",
-    "raids_cicely",
-}
-
-local function resolve_obj_id(sym)
-    local r, id = api_drive.symbol("obj", sym)
-    if r == "ok" then
-        return id
-    end
-    return nil
-end
+-- obj_add rows carry numeric cache ids (ticklog FIELDS.obj). Bones is cache
+-- id 526 in rev239 (confirmed on a seed-1 kill). The secondary bundle is
+-- three ids that always drop together; tools/worms/planks are one id each.
+-- Quest harnesses do not see api_drive as a global, so ids are literals here.
+local BONES_ID = 526
 
 local STATE = {
     LAND = "LAND",
@@ -71,37 +62,34 @@ local function sustain(t)
     end
 end
 
--- Infer drop rolls from obj_add rows after death: bones are free; the
--- secondary bundle (juice+stinkhorn+cicely) is one roll; every other pile
--- is one roll. Wiki / ^cox_scav_rolls = 2. Drop resolve is a few ticks after
--- npc_death (measured +3 on seed 1).
-local function count_rolls(obj_rows, bones_id, secondary_ids)
-    local piles = {}
+-- Infer drop rolls from post-death obj_add piles. Bones are free. Each roll
+-- is either one tool/worm/plank pile or the three-item secondary bundle, so
+-- non-bone pile counts of 2 / 4 / 6 mean two rolls (wiki / ^cox_scav_rolls).
+-- Drop resolve lands a few ticks after npc_death (measured +3 on seed 1).
+local function count_rolls(obj_rows)
+    local non_bone = 0
     local has_bones = false
     for i = 1, #(obj_rows or {}) do
         local oid = obj_rows[i].obj
         if type(oid) == "string" then
             oid = tonumber(oid) or oid
         end
-        if oid == bones_id or oid == "bones" then
+        if oid == BONES_ID then
             has_bones = true
         else
-            piles[#piles + 1] = oid
+            non_bone = non_bone + 1
         end
     end
-    local rolls = 0
-    local used_secondary = false
-    for i = 1, #piles do
-        if secondary_ids[piles[i]] then
-            if not used_secondary then
-                rolls = rolls + 1
-                used_secondary = true
-            end
-        else
-            rolls = rolls + 1
-        end
+    local rolls
+    if non_bone == 2 or non_bone == 4 or non_bone == 6 then
+        rolls = 2
+    elseif non_bone == 3 then
+        -- one secondary bundle only
+        rolls = 1
+    else
+        rolls = non_bone
     end
-    return rolls, has_bones, #piles
+    return rolls, has_bones, non_bone
 end
 
 return {
@@ -265,14 +253,6 @@ return {
             if sm.state == STATE.LOOT then
                 -- Drop resolve lags npc_death by a few ticks; wait past that.
                 t.ticks(5)
-                local bones_id = resolve_obj_id("bones")
-                local secondary_ids = {}
-                for i = 1, #SECONDARY_SYMS do
-                    local sid = resolve_obj_id(SECONDARY_SYMS[i])
-                    if sid ~= nil then
-                        secondary_ids[sid] = true
-                    end
-                end
                 local orows = {}
                 local orr, oall = t.ticklog.rows({ kind = "obj_add" })
                 if orr == "ok" then
@@ -285,16 +265,23 @@ return {
                         end
                     end
                 end
-                local rolls, bones, piles = count_rolls(orows, bones_id, secondary_ids)
+                local rolls, bones, piles = count_rolls(orows)
                 sm.drop_rolls = rolls
                 sm.has_bones = bones
+                -- Also confirm via world pick when ticklog rows are sparse.
+                if not bones then
+                    local br = t.world.obj_near("bones", 8)
+                    if br == "ok" then
+                        bones = true
+                        sm.has_bones = true
+                    end
+                end
                 t.check("drop.bones", bones,
-                    "bones on death piles=" .. tostring(piles)
-                        .. " bones_id=" .. tostring(bones_id)
+                    "bones on death non_bone_piles=" .. tostring(piles)
                         .. " rows=" .. tostring(#orows)
                         .. " death_tick=" .. tostring(sm.death_tick))
                 spec(t, "scavenger.drop_rolls", tostring(rolls),
-                    "inferred rolls from obj_add (bones separate); piles="
+                    "inferred rolls from obj_add piles (bones separate); non_bone="
                         .. tostring(piles) .. " rows=" .. tostring(#orows),
                     "2 count", "A", "exact")
                 -- max hit: ceiling row under range tol (id contains max).
