@@ -230,6 +230,21 @@ ticklog_push_row(
  * kept room's ledger with it. Its serial column repeats the last real row's,
  * which keeps the file in order. t.ticklog.rows() does not see these.
  */
+/* The bot runner's reader of the file-only rows (ToriRSServer_TicklogSideSink):
+ * an agent needs the raider row's hitpoints and prayer as much as a ledger
+ * reader does, and the row array must not hold them. */
+static ToriRSServerTicklogSideFn g_side_fn;
+static void* g_side_ctx;
+
+void
+ToriRSServer_TicklogSideSink(
+    ToriRSServerTicklogSideFn fn,
+    void* ctx)
+{
+    g_side_fn = fn;
+    g_side_ctx = ctx;
+}
+
 static void
 ticklog_write_side(
     int kind,
@@ -246,7 +261,7 @@ ticklog_write_side(
 
     assert(g_ticklog.srv);
     assert(label);
-    if( !g_ticklog.out )
+    if( !g_ticklog.out && !g_side_fn )
         return;
     memset(&row, 0, sizeof(row));
     row.serial = (uint32_t)g_ticklog.count;
@@ -265,7 +280,10 @@ ticklog_write_side(
         if( row.label[i] == '\t' || row.label[i] == '\n' || row.label[i] == '\r' )
             row.label[i] = ' ';
     }
-    ticklog_write_row(&row);
+    if( g_side_fn )
+        g_side_fn(&row, g_side_ctx);
+    if( g_ticklog.out )
+        ticklog_write_row(&row);
 }
 
 static uint32_t

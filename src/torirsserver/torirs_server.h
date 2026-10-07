@@ -5461,6 +5461,29 @@ ToriRSServer_TicklogStartTick(void);
 char const*
 ToriRSServer_TicklogPath(void);
 
+/**
+ * Hand every FILE-ONLY row (raider, input, consume) to `fn` as it is written,
+ * whether or not the log has a file; NULL stops it. They never enter the row
+ * array, so ToriRSServer_TicklogRead cannot return them (the bot runner,
+ * torirs_server_botrun.c, streams them to its agent through this).
+ */
+/**
+ * Hand every game message (ToriRSServer_SendMessage) to `fn` before it is
+ * encoded; NULL stops it. The bot runner streams them to its agent.
+ */
+typedef void (*ToriRSServerMessageFn)(const struct ToriRSServerPlayer* player, const char* text,
+                                      void* ctx);
+void
+ToriRSServer_MessageSink(
+    ToriRSServerMessageFn fn,
+    void* ctx);
+
+typedef void (*ToriRSServerTicklogSideFn)(const struct ToriRSServerTicklogRow* row, void* ctx);
+void
+ToriRSServer_TicklogSideSink(
+    ToriRSServerTicklogSideFn fn,
+    void* ctx);
+
 /** Rows recorded so far (the last serial). */
 uint32_t
 ToriRSServer_TicklogCount(void);

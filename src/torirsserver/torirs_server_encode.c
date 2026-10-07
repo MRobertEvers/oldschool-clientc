@@ -2923,12 +2923,28 @@ ToriRSServer_SendRunWeight(
     flush(player, &buf, OP_UPDATE_RUNWEIGHT, 0);
 }
 
+/* The bot runner's reader of game messages (ToriRSServer_MessageSink): a bot
+ * has no chat box, and "Oh dear, you are dead!" is how content says it. */
+static ToriRSServerMessageFn g_message_fn;
+static void* g_message_ctx;
+
+void
+ToriRSServer_MessageSink(
+    ToriRSServerMessageFn fn,
+    void* ctx)
+{
+    g_message_fn = fn;
+    g_message_ctx = ctx;
+}
+
 void
 ToriRSServer_SendMessage(
     struct ToriRSServerPlayer* player,
     const char* text)
 {
     struct RSAreaBuf buf;
+    if( g_message_fn )
+        g_message_fn(player, text ? text : "", g_message_ctx);
     /* TORIRSSERVER_ECHO_MES=1: mirror every game message to stderr. The chat box is
      * the only place a `mes` lands, which makes a content self-test that
      * reports through it unreadable from a headless run. */

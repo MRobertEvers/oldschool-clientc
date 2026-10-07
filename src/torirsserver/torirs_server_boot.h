@@ -72,4 +72,14 @@ ToriRSServer_BootZone(int home_tile)
     return home_tile >> 3;
 }
 
+/* torirs_server_botrun.c: a party of sessionless bots driven by an agent
+ * process (`torirsserver --botrun ...`). Returns the process status. */
+struct ToriRSServer;
+int
+ToriRSServer_BotRun(
+    struct ToriRSServer* srv,
+    const struct ToriRSServerBootConfig* config,
+    int argc,
+    char** argv);
+
 #endif
