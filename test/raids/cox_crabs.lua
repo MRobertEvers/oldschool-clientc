@@ -414,14 +414,14 @@ return {
             t.ticks(2)
             local guard = 0
             local last_detail = "crab never seated"
-            while guard < 40 do
+            while guard < 28 do
                 if flag ~= nil and (var_num(t, flag) or 0) == 1 then
                     t.player.walk_to(sx, sz, 20)
                     return true, "crystal already lit"
                 end
-                if guard % 3 == 0 then sustain(t) end
+                if guard % 5 == 0 then sustain(t) end
                 -- Prefer safe tile between pulls so the beam column is free.
-                if guard % 5 == 4 then
+                if guard % 7 == 6 then
                     t.player.walk_to(sx, sz, 10)
                     t.ticks(2)
                 end
@@ -548,18 +548,22 @@ return {
             -- Step away so the crab walks when the freeze melts (idle after
             -- thaw was reading as 70 still-ticks).
             t.player.walk_to(x0 + 3, z0, 20)
+            -- Pack every 3rd tick — a 65× pack_slot loop left the solve phase
+            -- under the 400k/resume budget (run26).
             local still = 0
-            for _ = 1, 65 do
+            for i = 1, 60 do
                 t.ticks(1)
-                local row = pack_slot(slot)
-                if row == nil then break end
-                if row.x == x0 and row.z == z0 then
-                    still = still + 1
-                else
-                    break
+                if i % 3 == 0 then
+                    local row = pack_slot(slot)
+                    if row == nil then break end
+                    if row.x == x0 and row.z == z0 then
+                        still = i
+                    else
+                        break
+                    end
                 end
             end
-            return still
+            return still > 0 and still or nil
         end
 
         local function measure_aggro()
@@ -592,7 +596,6 @@ return {
                 t.check("pack.landing", pkr == "ok", tostring(pkd))
                 sm.landing_crabs = count_crabs(pack)
                 sm.variant = detect_variant(pack)
-                t.shot("crabs idle on landing")
                 set_state(STATE.MEASURE)
                 return
             end
@@ -664,7 +667,10 @@ return {
                 local tile, style
                 if sm.variant == "ccw" and CCW_SOLVE[sm.crystal_i] ~= nil then
                     local pref = CCW_SOLVE[sm.crystal_i]
-                    if sm.attempt % 2 == 1 and CCW_SOLVE_ALT[sm.crystal_i] ~= nil then
+                    -- Alt marks only after primary fails repeatedly (alts
+                    -- rarely seat and burn the instruction budget).
+                    if sm.attempt >= 5 and CCW_SOLVE_ALT[sm.crystal_i] ~= nil
+                        and sm.attempt % 2 == 1 then
                         pref = CCW_SOLVE_ALT[sm.crystal_i]
                     end
                     tile = { lx = pref.lx, lz = pref.lz }
@@ -686,9 +692,9 @@ return {
                 t.player.walk_to(sx, sz, 20)
                 if not ok then
                     sm.attempt = sm.attempt + 1
-                    if sm.attempt > 12 then
+                    if sm.attempt > 8 then
                         t.check("solve.stuck", false,
-                            "crystal " .. sm.crystal_i .. " unsatisfied after 12 seat attempts; stage="
+                            "crystal " .. sm.crystal_i .. " unsatisfied after 8 seat attempts; stage="
                                 .. tostring(var_num(t, "varp7044_cox_crab_big_stage")))
                         set_state(STATE.DONE)
                     end
@@ -719,9 +725,9 @@ return {
                     sm.attempt = 0
                 else
                     sm.attempt = sm.attempt + 1
-                    if sm.attempt > 12 then
+                    if sm.attempt > 8 then
                         t.check("solve.stuck", false,
-                            "crystal " .. sm.crystal_i .. " unsatisfied after 12 seat attempts; stage="
+                            "crystal " .. sm.crystal_i .. " unsatisfied after 8 seat attempts; stage="
                                 .. tostring(var_num(t, "varp7044_cox_crab_big_stage")))
                         set_state(STATE.DONE)
                     end
