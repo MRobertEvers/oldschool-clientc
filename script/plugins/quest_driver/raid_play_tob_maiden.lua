@@ -191,6 +191,11 @@ QD.raid._play_plan("tob_maiden", {
     -- her spawn tile (south-west of her 6x6 footprint): the origin the homes,
     -- the floor and the reach are written against
     body = { 6426, 92 },
+    -- her footprint (all.npc [tob_maiden_100] .. [tob_maiden_30] size=6): the
+    -- npc pool rows carry none, and every crab gap was read from her
+    -- south-west tile alone (sm28: a crab frozen against her east edge on
+    -- (6,0) read gap 6)
+    boss_size = 6,
     -- a Matomenos that stands two ticks on one tile outside her reach gap is
     -- frozen (they walk one tile every tick: maiden.crab_walk, grade B), and
     -- a cast's freeze is waited out this many ticks before it is cast again
@@ -378,6 +383,7 @@ function QD.raid._play_maiden_see(st, v)
                     st.boss_symbol = bsym
                     m.forms[#m.forms + 1] = { tick = v.tick, symbol = bsym }
                 end
+                if row.size == nil then row.size = P.boss_size end
                 v.boss = row
             elseif (m.ids.crab[row.npc_id] or m.ids.crab[row.base_npc_id]) and alive then
                 v.crabs[#v.crabs + 1] = row
@@ -524,13 +530,16 @@ end
 -- Homes are the script's modal tiles from her south-west tile.
 -- ==========================================================================
 QD.RAID_MAIDEN_REF = {
+    -- the owner's rule (22:00): a crab let in heals her 2 x its hp, a swing on
+    -- her is ~40 (the streams' scythe swing on Maiden, 40.1, n=73)
+    swing_on_her = 40,
     lanes = { [0] = "S1", [1] = "N1", [2] = "S2", [3] = "N2", [4] = "S3", [5] = "N3",
         [6] = "S4in", [7] = "S4out", [8] = "N4in", [9] = "N4out" },
     waves = {
         [1] = { casts = { { 1, "S1" }, { 6, "N2" }, { 11, "S3" }, { 16, "S4out" } }, ret = 21,
-            seat = { [1] = { { "N1", 1, 9 }, { "N2", 6, 10 } }, [3] = { { "N1", 1, 9 }, { "N2", 6, 11 }, { "STACK", 12, 44 } } } },
+            seat = { [1] = { { "N1", 1, 9 }, { "N2", 6, 10 }, { "STACK", 10, 49 } }, [3] = { { "N1", 1, 9 }, { "N2", 6, 11 }, { "STACK", 10, 49 } } } },
         [2] = { casts = { { 1, "S1" }, { 6, "S2" }, { 11, "S3" }, { 16, "N4out" } }, ret = 26,
-            seat = { [1] = { { "N1", 1, 9 }, { "N2", 6, 14 } }, [3] = { { "N1", 1, 9 }, { "N2", 6, 16 }, { "STACK", 12, 44 } } } },
+            seat = { [1] = { { "N1", 1, 9 }, { "N2", 6, 14 }, { "STACK", 10, 49 } }, [3] = { { "N1", 1, 9 }, { "N2", 6, 16 }, { "STACK", 10, 49 } } } },
         [3] = { casts = { { 1, "S1" }, { 6, "N2" }, { 11, "S3" }, { 16, "N4out" } }, ret = 21,
             seat = { [1] = { { "N1", 1, 9 } }, [3] = { { "N1", 1, 10 } } } },
     },
@@ -598,13 +607,19 @@ function QD.raid.mz_lane_crab(st, v, lane, frozen_only, walking_only, skip)
     skip = skip or {}
     if lane == "STACK" then
         local b = v.ev_boss or v.boss
+        -- (sm26: the three named tiles fired 0-4 swings a room; ours freeze on
+        -- (6,3) (7,0) (8,0) (10,0) ... -- any frozen crab within 3 of her, the
+        -- one nearest me, worth a swing by the owner's rule: 2 x hp > 40)
+        local best, bd = nil, nil
         for slot, a in pairs(st.ev.adds) do
-            local dx, dz = a.x - b.x, a.z - b.z
-            if not a.gone and a.ice and not skip[slot] and ((dx == 7 and dz == 0) or (dx == 8 and dz == 0) or (dx == 8 and dz == 1)) then
-                return { slot = slot, a = a }
+            local g = QD.raid._play_gap(b, a.x, a.z)
+            if not a.gone and a.ice and not skip[slot] and g >= 1 and g <= 4
+                and 2 * QD.raid.mz_crab_hp(a) > QD.RAID_MAIDEN_REF.swing_on_her then
+                local d = math.max(math.abs(a.x - v.me.x), math.abs(a.z - v.me.z))
+                if bd == nil or d < bd then best, bd = { slot = slot, a = a }, d end
             end
         end
-        return nil
+        return best
     end
     if lane:find("|", 1, true) then
         for one in lane:gmatch("[^|]+") do
@@ -642,21 +657,33 @@ function QD.raid.mz_nearest_walker(st, v, skip)
     end
     return best
 end
-function QD.raid.mz_bunch_pick(st, v, skip)
+function QD.raid.mz_bunch_pick(st, v, skip, within)
     local b = v.ev_boss or v.boss
     if b == nil then return nil end
     local best, bn, bg = nil, -1, nil
     for slot, a in pairs(st.ev.adds) do
         local g = QD.raid._play_gap(b, a.x, a.z)
-        if not a.gone and not skip[slot] and g >= 2 and math.max(math.abs(a.x - v.me.x), math.abs(a.z - v.me.z)) <= 10 then
-            local n = 0
+        if not a.gone and not skip[slot] and g >= 2 and g <= (within or 99) and math.max(math.abs(a.x - v.me.x), math.abs(a.z - v.me.z)) <= 10 then
+            -- walkers first (a frozen crab cannot be frozen again: wiki_Freeze
+            -- :7/:9; it counts for the damage only)
+            local n, w = 0, 0
             for _, q in pairs(st.ev.adds) do
-                if not q.gone and math.max(math.abs(q.x - a.x), math.abs(q.z - a.z)) <= 1 then n = n + 1 end
+                if not q.gone and math.max(math.abs(q.x - a.x), math.abs(q.z - a.z)) <= 1 then
+                    n = n + 1
+                    if not q.ice then w = w + 1 end
+                end
             end
-            if n > bn or (n == bn and g < bg) then best, bn, bg = { slot = slot, a = a, n = n }, n, g end
+            local score = w * 10 + n
+            if w > 0 and (score > bn or (score == bn and g < bg)) then best, bn, bg = { slot = slot, a = a, n = n }, score, g end
         end
     end
     return best
+end
+-- a crab's hp from its health bar (what the screen shows); no bar drawn yet
+-- = full (the Normal trio's 75: tob.constant ^tob_maiden_crab_hp_3)
+function QD.raid.mz_crab_hp(a)
+    if a.hr == nil or a.hs == nil or a.hs <= 0 or a.hr < 0 then return 75 end
+    return 75 * a.hr / a.hs
 end
 -- put on the items of a set still in the pack (one block; nothing when worn)
 function QD.raid.mz_wear(intent, items)
@@ -853,7 +880,21 @@ function QD.raid.mz_cast_tick(st, v, intent)
     if m.idx == 1 then
         t = QD.raid.mz_lane_crab(st, v, c[2], false, true, skip) or QD.raid.mz_nearest_walker(st, v, skip)
     else
-        t = QD.raid.mz_bunch_pick(st, v, skip)
+        -- (only a bunch within 4 of her: sm27 cast 3 at +11 froze the 3s and
+        -- 4s together on (12,0), seven out, where no seat reaches them; the
+        -- streams' frozen crabs sit on (7,0) (8,0) (8,1) -- the bunch reaches
+        -- there at +16, cast 4.  Further out: the next walker to arrive)
+        -- (no walker within 4 of her yet: the cast waits, to the streams'
+        -- latest offset c[3] -- sm29 svb cast 3 at +11 froze the three 4s
+        -- together seven out, the only walkers left, where no seat reached
+        -- them; the streams' casts 3/4 range [9-16] / [16-24])
+        local b = v.ev_boss or v.boss
+        local near = false
+        for _, a in pairs(st.ev.adds) do
+            if not a.gone and not a.ice and QD.raid._play_gap(b, a.x, a.z) <= 4 then near = true end
+        end
+        if not near and v.tick < st.ev.wave_tick + (c[3] or c[1]) - 1 then return end
+        t = QD.raid.mz_bunch_pick(st, v, skip, 4) or QD.raid.mz_nearest_walker(st, v, skip)
     end
     if t == nil then
         local seen = {}
@@ -945,7 +986,15 @@ function QD.raid.mz_lane_tick(st, v, intent)
     if e == nil then QD.raid.mz_go(st, v, "S_ON_BOSS") return end
     local since = v.tick - st.ev.wave_tick
     if since > e[3] then QD.raid.mz_go(st, v, "LANE", m.idx + 1) return end
-    local t = QD.raid.mz_lane_crab(st, v, e[1], e[4] == true, false)
+    -- the stack: one swing per frozen crab (a scythe swing on a size-2 crab is
+    -- two hits, ~58 of its 75 after a barrage has touched it), then the next
+    m.stack_done = (m.stack_wave == st.ev.wave) and m.stack_done or {}
+    m.stack_wave = st.ev.wave
+    if e[1] == "STACK" and m.stack_slot ~= nil and (st.swings[#st.swings] or -1) > m.stack_t then
+        m.stack_done[m.stack_slot] = true
+        m.stack_slot = nil
+    end
+    local t = QD.raid.mz_lane_crab(st, v, e[1], e[4] == true, false, (e[1] == "STACK") and m.stack_done or nil)
     -- (a lane crab absent at its press tick is skipped; the STACK is waited
     -- for, on her, until its window ends -- it forms as the 3s and 4s arrive)
     if t == nil and since >= e[2] and e[1] ~= "STACK" then QD.raid.mz_go(st, v, "LANE", m.idx + 1) return end
@@ -953,6 +1002,7 @@ function QD.raid.mz_lane_tick(st, v, intent)
     if QD.raid.mz_wear(intent, st.plan.melee_set) then return end
     intent.press = { symbol = st.plan.crab[st.mode], slot = t.slot, op = 2, why = "lane " .. e[1] }
     m.add_presses = (m.add_presses or 0) + 1
+    if e[1] == "STACK" and m.stack_slot ~= t.slot then m.stack_slot, m.stack_t = t.slot, v.tick end
 end
 
 function QD.raid.mz_claws_on_blood(st, v, ev) return QD.raid.mz_dodge(st, v, ev) end

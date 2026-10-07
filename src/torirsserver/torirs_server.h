@@ -935,6 +935,11 @@ enum
  */
 #define TORIRSSERVER_XP_MAX_TENTHS 2000000000
 
+/* The immunity after a freeze ends, in ticks: wiki_Freeze.wikitext:9 "The
+ * immunity window for most freezes (with the exception of Grasp spells) is 5
+ * ticks". */
+#define TORIRSSERVER_FREEZE_IMMUNITY_TICKS 5
+
 /*
  * The ceiling a script may raise an npc stat to.
  *
@@ -2611,6 +2616,15 @@ struct ToriRSServerNpc
      * is it". Decremented once per npc phase, next to the delay it sits beside.
      */
     int frozen_ticks;
+
+    /**
+     * Ticks left of the immunity that follows a freeze: wiki_Freeze.wikitext:7
+     * "followed by a short immunity to the Status after which the target can
+     * be frozen again", :9 "The immunity window for most freezes (with the
+     * exception of Grasp spells) is 5 ticks". Set when `frozen_ticks` runs
+     * out; while either is above zero `npc_freeze` lands nothing.
+     */
+    int freeze_immune_ticks;
 
     /**
      * What this npc is *doing*, from `npc_setmode` — LostCity's `npcmode`

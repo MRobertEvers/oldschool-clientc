@@ -10528,13 +10528,16 @@ ToriRSServer_ScriptCommand(
             return 1;
         }
         /*
-         * The longer freeze wins rather than the newer one. Re-freezing a
-         * target that is already frozen for longer must not shorten it, which
-         * is what a plain assignment would do — and the case is not exotic: it
-         * is a Barrage landing on an npc a Blitz already froze.
+         * A frozen npc is not frozen again, and not for the immunity after its
+         * freeze either (wiki_Freeze.wikitext:7, :9 -- 5 ticks for every freeze
+         * but the Grasp spells' 2, which share this one window here). Before,
+         * the longer freeze won, so a barrage on a frozen Matomenos renewed it
+         * to the full 32 (owner_tob_normal: a crab hit again at +11 stood 50
+         * ticks).
          */
-        if( ticks > npc->frozen_ticks )
-            npc->frozen_ticks = (int)ticks;
+        if( npc->frozen_ticks > 0 || npc->freeze_immune_ticks > 0 )
+            return 1;
+        npc->frozen_ticks = (int)ticks;
         return 1;
     }
 

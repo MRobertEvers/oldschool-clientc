@@ -1086,6 +1086,9 @@ function QD.raid._play_events(st, v)
             if ev.form_ids[row.npc_id] or ev.form_ids[row.base_npc_id] then b = row end
         end
     end
+    -- (owner_tob_normal: a pool row carries no size; a plan that names its
+    -- boss's footprint gives it, so the add gaps measure from her edge)
+    if b ~= nil and b.size == nil and st.plan.boss_size ~= nil then b.size = st.plan.boss_size end
     v.ev_boss = b
     -- own hitpoints
     if ev.hp ~= nil and v.hp < ev.hp then

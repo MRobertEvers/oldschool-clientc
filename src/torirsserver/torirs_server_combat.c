@@ -3729,6 +3729,7 @@ ToriRSServer_CombatRespawnTick(struct ToriRSServer* srv)
          * hits went missing too. */
         npc->delayed_until = 0;
         npc->frozen_ticks = 0;
+        npc->freeze_immune_ticks = 0;
         /* A pending `npc_changetype` reversion describes the life that ended.
          * Left running it would fire on whatever form the new life is standing
          * in and change it out from under a fresh `[ai_spawn]`. */

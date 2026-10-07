@@ -5445,7 +5445,13 @@ advance_npcs(struct ToriRSServer* srv)
          * so a frozen npc keeps running its queues and keeps fighting.
          */
         if( npc->active && npc->frozen_ticks > 0 )
+        {
             npc->frozen_ticks--;
+            if( npc->frozen_ticks == 0 )
+                npc->freeze_immune_ticks = TORIRSSERVER_FREEZE_IMMUNITY_TICKS;
+        }
+        else if( npc->active && npc->freeze_immune_ticks > 0 )
+            npc->freeze_immune_ticks--;
         /*
          * The queue drain is gated on the npc not being delayed — the reference
          * only decrements while `!this.delayed` — and the comparison is against

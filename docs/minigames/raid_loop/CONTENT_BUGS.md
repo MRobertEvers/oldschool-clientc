@@ -1872,3 +1872,16 @@ floor(Magic/3) - 6. Fixed: `[proc,powered_staff_magicdamage]` applies the worn b
 capped at 100% for Tumeken's shadow. Not handled: the shadow's x4 inside the Tombs of Amascut. Also noted, not
 changed: all.obj gives the occult necklace magicdamage 50 (5% by the cache unit combat_stats.rs2 states) where
 the wiki's occult is +10%.
+
+### owner_tob_normal: a frozen npc was frozen again (engine npc_freeze), no immunity -- FIXED (C)
+`npc_freeze` kept the longer of the two freezes, so a barrage on a Matomenos already frozen renewed it to the
+full 32 ticks (svaplaymaide 724b841a9: crab 1080 hit at +1 and again at +11 stood still 50 ticks), and a crab
+could be frozen again the tick it thawed. wiki_Freeze.wikitext:7 "followed by a short immunity to the Status
+after which the target can be frozen again"; :9 "The immunity window for most freezes (with the exception of
+Grasp spells) is 5 ticks". Fixed in torirs_server_scripts.c SS_OP_NPC_FREEZE: nothing lands while
+`frozen_ticks` or the new `freeze_immune_ticks` (TORIRSSERVER_FREEZE_IMMUNITY_TICKS 5, set when the freeze runs
+out, torirs_server_world.c) is above zero; a respawn clears both. Not handled: Grasp spells' 2-tick immunity
+(they share the 5). The barrage's damage still lands on a frozen crab (player_magic.rs2 is unchanged).
+Checked, no divergence: the freeze CHANCE (wiki_Nylocas_Matomenos.wikitext:168, scales with magic attack, 100%
+at +140) is the content's accuracy roll -- `~pvm_freeze_effect` runs only on a successful
+`~player_npc_hit_roll(^magic_style)`.
