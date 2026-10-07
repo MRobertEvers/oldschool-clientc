@@ -328,6 +328,9 @@ return {
             attacks_per_action = nil,
             combat_started = false,
             empty_pack_streak = 0,
+            hit_serial = 0,
+            heal_serial = 0,
+            proj_serial = 0,
         }
 
         local function set_state(next_state)
@@ -346,6 +349,8 @@ return {
         end
 
         local function sample_combat(t)
+            -- Always filter with `since` — full-log rescans exhaust the
+            -- instruction budget (run9 died at tick ~244 on 400k ops).
             for sym, slot in pairs(sm.slots) do
                 local ar, arows = t.ticklog.rows({
                     kind = "npc_anim", slot = slot, since = sm.serial_mark,
@@ -364,43 +369,56 @@ return {
                         sm.last_anim_tick = arows[a].tick
                     end
                 end
-                local hr, hrows = t.ticklog.rows({ kind = "hit_player", slot = slot })
+                local hr, hrows = t.ticklog.rows({
+                    kind = "hit_player", slot = slot, since = sm.hit_serial,
+                })
                 if hr == "ok" then
                     for h = 1, #hrows do
+                        if hrows[h].serial and hrows[h].serial > sm.hit_serial then
+                            sm.hit_serial = hrows[h].serial
+                        end
                         local dmg = hrows[h].damage or hrows[h].raw or 0
                         if dmg > sm.max_hit then sm.max_hit = dmg end
                     end
                 end
-                -- Force-heal writes npc_heal on the combat-form slot. Ignore
-                -- the raid-wide npc_heal flood at login (other room npcs).
-                if sm.combat_started then
+                if sm.combat_started and not sm.heal_seen then
                     local heal_r, heal_rows = t.ticklog.rows({
-                        kind = "npc_heal", slot = slot,
+                        kind = "npc_heal", slot = slot, since = sm.heal_serial,
                     })
-                    if heal_r == "ok" and #heal_rows > 0 then
-                        sm.heal_seen = true
-                        if sm.heal_spread_pct == nil then
-                            sm.heal_spread_pct = 40
+                    if heal_r == "ok" then
+                        for h = 1, #heal_rows do
+                            if heal_rows[h].serial and heal_rows[h].serial > sm.heal_serial then
+                                sm.heal_serial = heal_rows[h].serial
+                            end
+                            sm.heal_seen = true
+                            if sm.heal_spread_pct == nil then
+                                sm.heal_spread_pct = 40
+                            end
                         end
                     end
                 end
             end
-            -- AoE×3 projectiles do not carry the npc slot in ticklog column a
-            -- (run7: packed coords). Filter by spotanim 1331/1332 instead.
-            local pr, prows = t.ticklog.rows({ kind = "projectile" })
-            if pr == "ok" then
-                local by_tick = {}
-                for p = 1, #prows do
-                    local sid = tonumber(prows[p].spotanim)
-                    if sid == 1331 or sid == 1332 then
-                        local tick = prows[p].tick
-                        by_tick[tick] = (by_tick[tick] or 0) + 1
+            if (sm.attacks_per_action or 0) < 3 then
+                local pr, prows = t.ticklog.rows({
+                    kind = "projectile", since = sm.proj_serial,
+                })
+                if pr == "ok" then
+                    local by_tick = {}
+                    for p = 1, #prows do
+                        if prows[p].serial and prows[p].serial > sm.proj_serial then
+                            sm.proj_serial = prows[p].serial
+                        end
+                        local sid = tonumber(prows[p].spotanim)
+                        if sid == 1331 or sid == 1332 then
+                            local tick = prows[p].tick
+                            by_tick[tick] = (by_tick[tick] or 0) + 1
+                        end
                     end
-                end
-                for _, n in pairs(by_tick) do
-                    if n >= 3 then sm.attacks_per_action = 3 end
-                    if n > (sm.attacks_per_action or 0) then
-                        sm.attacks_per_action = n
+                    for _, n in pairs(by_tick) do
+                        if n >= 3 then sm.attacks_per_action = 3 end
+                        if n > (sm.attacks_per_action or 0) then
+                            sm.attacks_per_action = n
+                        end
                     end
                 end
             end
