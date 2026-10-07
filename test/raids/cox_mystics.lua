@@ -285,48 +285,40 @@ return {
             end
 
             if sm.state == STATE.FOCUS then
-                t.prayer.set("protectfrommagic", true)
-                t.prayer.set("eagleeye", true)
-                -- Kite if a mystic closes to melee adjacency (size 2 + reach).
-                local _, me = t.world.tile()
-                local pack = mystic_rows(t)
-                for i = 1, #pack do
-                    local m = pack[i]
-                    local dx = (me.x or 0) - (m.x or 0)
-                    local dz = (me.z or 0) - (m.z or 0)
-                    if dx < 0 then dx = -dx end
-                    if dz < 0 then dz = -dz end
-                    local gap = dx
-                    if dz > gap then gap = dz end
-                    if gap <= 2 then
-                        local kx, kz = me.x, me.z
-                        if (me.x or 0) <= (m.x or 0) then kx = (m.x or 0) - 6 else kx = (m.x or 0) + 6 end
-                        if (me.z or 0) <= (m.z or 0) then kz = (m.z or 0) - 6 else kz = (m.z or 0) + 6 end
-                        t.player.walk_to(kx, kz, 4)
-                        t.ticks(1)
-                        return
-                    end
-                end
                 local target, sym = nearest_mystic(t)
                 if target == nil or sym == nil then
                     set_state(STATE.DONE)
                     return
                 end
-                if sm.focus_sym ~= sym then
-                    sm.focus_sym = sym
-                    sm.focus_slot = target.slot
+                sm.focus_sym = sym
+                sm.focus_slot = target.slot
+                t.prayer.set("protectfrommagic", true)
+                t.prayer.set("eagleeye", true)
+                -- Engage, then await_dead with a quick eater so sharks land
+                -- during the settle (stacked mystic DPS outruns tick-loop eats).
+                local eat_opts = {
+                    eat = { item = "shark", below = 70, quick = true },
+                }
+                t.player.attack(sym, 2, 1, eat_opts)
+                if not sm.mid_shot then
+                    t.shot("mystics mid-mechanic focus kill")
+                    sm.mid_shot = true
                 end
-                local ar = t.player.attack(sym, 2, 1)
-                if ar == "ok" and not sm.mid_shot then
-                    local lowest = 160
-                    for i = 1, #pack do
-                        local h = pack[i].hitpoints or 160
-                        if h < lowest then lowest = h end
-                    end
-                    if lowest < 120 then
-                        t.shot("mystics mid-mechanic focus kill")
-                        sm.mid_shot = true
-                    end
+                local ar, ad = t.npc.await_dead(sym, 900, 40, 40, eat_opts)
+                if ar ~= "ok" then
+                    t.check("mystic.kill", false,
+                        "await_dead " .. tostring(sym) .. " -> " .. tostring(ar)
+                            .. " " .. tostring(ad))
+                    set_state(STATE.DONE)
+                    return
+                end
+                sm.kills = sm.kills + 1
+                -- Restore prayer between kills if needed.
+                if prayer_points(t) < 40 then
+                    t.player.inv_op("br_4dose2restore", 1)
+                    t.ticks(2)
+                    t.prayer.set("protectfrommagic", true)
+                    t.prayer.set("eagleeye", true)
                 end
                 return
             end
