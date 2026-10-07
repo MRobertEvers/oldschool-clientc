@@ -2447,3 +2447,19 @@ Open:
   The seam11 note had guessed range 1 ("No source says whether contact is the shared tile or the one beside it")
   because the walker could not enter a player's tile. FIXED in OSRS-Content fdf77aae1c (owner_verzik): `moverestrict=passthru`
   on the three tornado records and contact at range 0. Measured: P3-only touches fast 18-21 -> 4, slow 23-30 -> 8.
+
+- ToB, Verzik P3: the webs special neither made her invulnerable nor knocked aside the raiders where she lands
+  ([M35] had withdrawn both as unsourced). Source: "Upon initiating this attack, Verzik will move towards to the centre
+  of the room, becoming invulnerable in the process, until she begins launching webs. Any players in the area will be
+  knocked away as she turns into a hard NPC (unable to be walked through) for the duration of this attack"
+  (wiki_Theatre_of_Blood_Strategies.wikitext:960). FIXED in OSRS-Content 587206763e (owner_verzik): invulnerable
+  (^tob_var_vz_invuln, tob_damage.rs2 ~tob_prepare_player_hit) until she stands on the centre; every raider on or beside
+  her centre footprint is thrown with the P2 slam's flyback and distance. NOT DONE: the "hard NPC" half -- an npc's
+  occupancy is its record's blockwalk and the engine has no switch for it while she lives (engine work).
+- ToB, Verzik P3: she took damage through the yellows' charge. "Verzik is invulnerable while charging this attack"
+  (wiki_Theatre_of_Blood_Strategies.wikitext:977; :975). FIXED in 587206763e: invulnerable from the charge to the blast.
+- ToB, Verzik P1: a falling pillar hit 1-70 (the 70 tagged [wiki], no pinned page states it). Near Reality's
+  SupportingPillar.kt: 32-65 within 2 tiles of the pillar's middle, no animation, no knockback; "all players standing
+  directly adjacent to the pillars will get damaged and stunned" (wiki_Supporting_Pillar.wikitext:61, :63). The reach
+  (two from the middle = on it or beside it) already matched. FIXED in OSRS-Content da8ac1ef36 (owner_verzik): 32-65
+  Normal/Hard (^tob_verzik_pillar_collapse_min/_max); Entry keeps 1-50 (no source for its floor).
