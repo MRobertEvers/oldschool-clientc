@@ -390,6 +390,15 @@ return {
                 end
                 if action == TRACE_PHASE then
                     sm.phases_seen = sm.phases_seen + 1
+                    -- Both claws died this phase; count the melee claw even if
+                    -- the respawn race hid the npc_free from hand_alive().
+                    if sm.mage_kills > sm.melee_kills then
+                        sm.melee_kills = sm.mage_kills
+                    end
+                    if sm.state ~= STATE.WAIT_PHASE and sm.state ~= STATE.HEAD
+                        and sm.state ~= STATE.DONE then
+                        set_state(STATE.WAIT_PHASE)
+                    end
                 end
                 if (not sm.mid_shot) and (action == TRACE_BURST or action == TRACE_SPHERE
                     or action == TRACE_LIGHTNING or action == TRACE_TELEPORT
