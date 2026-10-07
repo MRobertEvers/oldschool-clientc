@@ -445,8 +445,12 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   <room>_normal_3.script.json), with `raid_report.py <run> --waves <script.json>` (the wave-aligned diff).
 - Normal trio: Bloat, Verzik, Xarpus, Sotetseg GREEN (re-verified on the new library). NYLOCAS GREEN
   b59ebc45d (5 of 5, party_repeat AGREE, Entry solo 5 of 5; PLAY_NOTES 'Nylocas, Normal trio -- GREEN').
-  MAIDEN red: c7136aa14 eight names 213-266, mean 242, 0 deaths, cap 204; 70-wave kills 3.5 of 6 (ref 4-5),
-  50/30 waves 1.0 / 0.25 (ref 4 / -), leak heal 1038-1582 (ref 223). The owner continues on the 50/30 waves.
+  MAIDEN red: 12a039bc3 on 24 names mean 225 (182-270), 0 deaths, 2 of 24 under the cap 204; 70/50-wave
+  kills 4.25 / 3.75 (ref 4.08 / 3.96); heal ~600 a room (ref 126); her hp/tick 12.7 / 13.3 in the 70 / 50
+  phases (ref 16.6 / 15.5): the owner measures her Defence after the opener and damage on her per attack
+  type against the streams (decisions on 24 names: scratchpad rooms24.sh). More content fixed from the
+  wiki on 2026-10-07: Normal blood-spawn trail 5-13 (35366f400e), Dinh's bulwark 11x11 Shield Bash
+  (a1eb26c34), Zaryte crossbow Evoke = guaranteed ruby bolt effect 22% capped 110 (ade9c689b0).
 - Owner's rules added this day: model every role as an explicit STATE MACHINE (named states, every event
   handled in every state, forward and backward transitions, handlers subscribed per state, loop contract =
   events + state -> intents, executor reconciles per channel); NOBODY IDLES (tech.never_idle row); copy the
