@@ -6,4 +6,6 @@
 - Content: `cox_crabs.rs2` (+ `::coxcrabs`, splash/aggro constants, explicit beam start dirs)
 - Spec: `encounters/crabs.tsv`
 - Test: `test/raids/cox_crabs.lua` — SM `LAND → MEASURE → SOLVE → DONE`
-- Gate: pending `flock /tmp/cox_raid_gate.lock` run of `cox_crabs`
+  - Fix: use pack WORLD slots (not client nearest slots) for smash/stun tracking
+  - Fix: stand on bounce tile to seat, step off before smash
+- Gate: re-running after harness seat/slot fix
