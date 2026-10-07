@@ -939,6 +939,16 @@ function QD.raid.mz_dodge(st, v, ev)
     -- every tick it stands -- sm50 _play_maiden, 32 a tick for four ticks
     -- while a cast was due, and the freezer died)
     if ev.name == "blood_thrown" and QD.raid.mz_cast_due(st, v) then return nil end
+    -- (a NEXT barrage ready this tick on a crab at gap 3-4 goes out before
+    -- the step, a pool under me or not -- the step comes the tick after:
+    -- sm127 svh, a pool at +16 sent the freezer off its tile on the tick the
+    -- four S4 / N4 crabs crossed gap 3, and they walked in with 75 each)
+    if QD.raid.mz_cast_due(st, v) then
+        local W = QD.RAID_MAIDEN_REF.waves[math.max(QD.raid.mz_form(st), 1)]
+        local c = W.casts[m.idx]
+        local lastc = m.cast_send_wave == st.ev.wave_tick and m.cast_send or nil
+        if c ~= nil and c[2] == "NEXT" and (lastc == nil or v.tick - lastc >= 5) and QD.raid.mz_next_pick(st, v, {}) ~= nil then return nil end
+    end
     local x, z = QD.raid._play_maiden_off_tile(st, v, ev.x, ev.z)
     if x == nil then return nil end
     if m.state ~= "DODGE" then m.resume = { state = m.state, idx = m.idx } end
