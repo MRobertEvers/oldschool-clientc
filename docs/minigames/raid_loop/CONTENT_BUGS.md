@@ -1968,3 +1968,14 @@ the Verzik entrance door, the Nylocas walkway landings, the spectator barrier) a
 (orb slot 0); a member is told "You must wait for the party leader to start the fight." and nothing starts;
 the leader's answer re-reads `^tob_var_started` after the suspending question/dialogue, so a room never starts
 twice. The debug `::tobgo` is unchanged (a command, not a player path).
+
+## 2026-10-07 (owner): nothing but the red barrier and talking to Verzik starts an encounter
+
+Owner, 2026-10-07: "When I say start the room, I mean the red barrier and talking to Verzik to start the
+encounter" and "Nothing else should start the encounter." `tob_party.rs2 ~tob_door_enter` (the Xarpus arena
+door, the Verzik entrance door, the Nylocas walkway landings, the spectator barrier) asked "Yes, begin the
+fight." and called `~tob_start_room` -- a divergence (doors are doors). Fixed: those doors never start an
+encounter; the leader gate added there in afd14f6018 is reverted with it. The encounter starts only at the red
+barrier ([oploc1,tob_arena_barrier], the party leader) and at Verzik (~tob_verzik_talk / ~tob_verzik_quickstart,
+the party leader). No harness or relay step used those doors to start a room (checked: they use the barrier,
+Verzik, and the exit passages).
