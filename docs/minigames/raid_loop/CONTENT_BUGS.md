@@ -2209,3 +2209,23 @@ reference ToB raider bows and pipes in elite ranged void (Blert equipmentDeltas,
   in T+3..T+12), but those are server tiles, not the drawn model. Near Reality plays no animation. The wiki says
   nothing. Needed: a recording of an arena raider walking right after the maze proc (does the model slide at once, or
   hold the pose?), or a server source for the reset.
+
+## 2026-10-07 content_bugs: the shadow-realm runner came back at the room's south end (filed by owner_rooms4)
+
+- **FIXED (OSRS-Content 2b405c1f85).** `~tob_sote_leave_realm` teleported the runner to `~tob_room_fight_tile` (15,20),
+  the south end, 20 tiles from Sotetseg. Source: Blert build/blert/sotetseg, 29 rooms at scale 3. Every one of the 29
+  returns on the recorder (the other 29 of the 58 mazes had another raider as the runner, out of the recorder's sight)
+  lands on (3275,4327), against his south-west tile (3277,4326): (-2, +1), 29 of 29. Near Reality Sotetseg.kt:338
+  `player.setLocation(room.getLocation(3275, 4327, 0))` gives the same tile. The wiki says only "enter the portal at
+  the end to return to the arena" (wiki_Sotetseg.wikitext:97); no transcript names the tile. Now his south-west tile +
+  `^tob_sote_realm_return_dx/dz` (-2, +1) (tob.constant). Measured (`_play_sotetseg --party 3 --names 5`, private binary
+  = HEAD src 374e383d3, pack 06:23): 5 of 5 green. Every return lands on local (11,41). The runner's first action after
+  maze 1 is +3 (an elder maul special); after maze 2, +4 (eat) and a scythe at +5. Before the fix: +11..+13; Blert
+  median +2. Room 249 / 236 / 270 / 231 / 227 ticks (before: 272 / 237 / 268 / 245 / 272; reference 212.5 [164-262]).
+- OPEN, CONTENT (found here, not changed: it moves the room the owner is fitting): OUR SOTETSEG STANDS TWO TILES NORTH
+  OF THE RECORDED ONE. tob.constant `^tob_sote_boss_lx/lz = 13,40` (its comment: "Sotetseg (3277,4328)", from an
+  external dump) against Blert's npc tile (3277,4326) in every one of 6158 rows over the 29 rooms. Near Reality spawns
+  him at `room.getLocation(3277, 4326)` (Sotetseg.kt:47). The frames agree everywhere else: the maze rows z 22..36
+  (`^tob_sote_maze_lz = 22`; Near Reality mazeBottomRight 4310) and the thrown raiders' tile (3274,4307). The fix is
+  `^tob_sote_boss_lz = 38`. It moves his melee tiles, the gap to the maze's top row (3 rows to 1), and every plan tile
+  measured from him, so it waits for the coordinator's call. The realm return above is relative to him, so it follows.
