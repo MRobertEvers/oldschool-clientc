@@ -18,8 +18,10 @@ two drop rolls. Not a shortcut room (large only).
 - Test SM: `LAND → MEASURE → ENGAGE → FIGHT → LOOT → DONE`
   (`test/raids/cox_scavenger_small.lua`)
 
-## Next
+## Gate
 
-- Gate under `flock /tmp/cox_raid_gate.lock`:
-  `python3 tools/raid_gate/run.py cox_scavenger_small --no-publish`
-  then `gate.py` + `raid_coverage.py` FULL
+- `python3 tools/raid_gate/gate.py cox_scavenger_small` → **green**
+- `python3 tools/raid_gate/raid_coverage.py cox_scavenger_small` → **FULL**
+  (4/4 in-scope rows)
+- Published: `selftest/minigames/cox/scavenger_small/play/`
+- Artifacts: `/opt/cursor/artifacts/cox_scavenger_small_{idle,mid,clear}.png`
