@@ -674,6 +674,7 @@ every name. Aggros-first in every state (sm14) was worse. Powered staves now tak
 wave 4 on; the stall is now at wave 29-30 (36-44 ticks): at w29's spawn Blert itself carries 23 alive. Still red; the first deviation is still the
 wave-1 ranger at +3 (the members' cross_together returns three ticks after the crossing).
 Scored choice inside the machine (sm28, 2026-10-06): _play 285/353/99/452 green, sva 293/361!/125!/486!, svb 313!/385!/115/500!, svc 297!/365!/109/474!, svd 277/349/95/444 green; pillars 4/4 on all five (weakest 0.15-0.31); 2 of 5. Entry solo 5 of 5. Waves 21-26 alive before spawn now at or under the scored plan's row on svb (4/12/10/9/10/14 vs 10/17/13/8/8/13). Still slow vs Blert: stalls 33-69 ticks a room (Blert median 16), and last wave to boss 64-72 (Blert medians 260 -> 308 = 48).
+Barrage runes in the kit + the scored burst candidate casts Ice Barrage (br1, c6f1d9f36): 2 of 5. Leave-to-owner as a rule, not +60 points (lo1): an off-colour copy whose owner stands within its reach+2 and nearer is not a candidate -- the attack classes put 22 of ~57 wasted swings a room on shots in flight at a copy another seat killed first; 289/357/104/461, 289/357/109/466, 277/349/132!/481!, 301!/357/127!/484!, 281/349/95/444: 3 of 5, pillars 4/4 on five.
 
 ## Sotetseg, Entry solo (`tob_sotetseg`, mode `entry`), proved
 

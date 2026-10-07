@@ -337,6 +337,7 @@ QD.raid._play_plan("tob_nylocas", {
     help_feet = true,
     pop_skip = 4,
     leave_to_owner = 60,
+    leave_to_owner_rule = true,
     big_first = 8,
     keep_all = true,
     keep_weight = 20,
@@ -1168,12 +1169,13 @@ function QD.raid._play_nylocas_scored_pick(c)
                 -- seat's copy within its owner's reach, and nearer its owner than
                 -- this raider, is its owner's; an aggro too, unless it is hitting
                 -- this raider through the prayer.
+                local owned = false
                 if R ~= nil and n.style ~= R.colour and owner_at[n.style] ~= nil then
                     local ow = owner_at[n.style]
                     local od = dist(ow.x, ow.z, n.x, n.z, n.size)
                     local oreach = n.style == "melee" and 1 or (n.style == "ranged" and 5 or 6)
                     local mine_now = n.fighting and ((n.style == "melee" and d <= 1) or (n.style ~= "melee" and d <= 8)) and n.style ~= pray_style
-                    if not mine_now and od <= oreach + 2 and od <= d then score = score + P.leave_to_owner end
+                    if not mine_now and od <= oreach + 2 and od <= d then score = score + P.leave_to_owner owned = true end
                 end
                 if not n.fighting and sp ~= nil then
                     -- a chewer: "keep the pillars alive" (E :155); but "it's best to
@@ -1283,7 +1285,19 @@ function QD.raid._play_nylocas_scored_pick(c)
                 -- the one already pressed keeps its press unless another is
                 -- clearly worth more (no target flapping, ny30f t328-335)
                 if cur ~= nil and cur.slot == n.slot then score = score - 12 end
-                cands[#cands + 1] = { score = score, n = n, d = d, style = n.style, key = key, stack = n.stack }
+                -- owner_nylocas: LEFT TO ITS OWNER, as a rule (P.leave_to_owner_rule).
+                -- The attack classes (classify.py, sm28 + barrage, 5 names): 22 of
+                -- ~57 wasted swings a room were shots in flight at a copy another
+                -- seat killed first, nearly all off-colour (ranger's Ayak on blues
+                -- 5.0, meleer's pipe/Ayak 8.0, mage's 5.2); Blert's trio wastes
+                -- about 5 a seat.  Off-colour presses against Blert's per weapon:
+                -- ranger Ayak 19 vs 8.0, meleer pipe 13.6 vs 2.1, mage pipe 12.2
+                -- vs 5.1.  A copy its owner stands in reach of is not a candidate.
+                if P.leave_to_owner_rule and owned then
+                    ny.owner_left = (ny.owner_left or 0) + 1
+                else
+                    cands[#cands + 1] = { score = score, n = n, d = d, style = n.style, key = key, stack = n.stack }
+                end
                 if R ~= nil and n.style == R.colour then own_ok = true end
             end
         end
