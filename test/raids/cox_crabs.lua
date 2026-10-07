@@ -568,23 +568,44 @@ return {
                         end
                     end
                 else
-                    -- Not on mark: lure from the west side only (never stand
-                    -- on wx,wz — that is the beam tile).
-                    local live = pack_slot(slot)
-                    if live == nil and guard % 2 == 0 then
-                        local n = nearest_crab(t)
-                        live = n and n.row or nil
+                    -- Lure from west only. Prefer adjacent (d==1) west of mark
+                    -- then smash — content snaps the crab onto the column.
+                    -- Never attack() onto wx,wz (run34: 274 ticks on mark).
+                    local adj = crab_at(t, lure_x, lure_z, 0)
+                    if adj == nil then
+                        adj = crab_at(t, wx - 2, wz, 0)
                     end
-                    if live ~= nil then
-                        slot = live.slot
+                    if adj ~= nil then
                         t.player.walk_to(lure_x, lure_z, 8)
-                        if live.x ~= wx or live.z ~= wz then
-                            t.player.attack(live.symbol, 2, 1, {
-                                quick = true, slot = live.slot,
-                            })
+                        t.ticks(1)
+                        local ok, detail = smash(t, adj)
+                        if ok then
+                            t.ticks(2)
+                            local exact2 = crab_at(t, wx, wz, 0)
+                            if exact2 ~= nil and style == "melee" then
+                                t.player.walk_to(sx, sz, 20)
+                                return true, "raids_lasercrabs_crab_red"
+                            end
+                            -- White/mage/range: next even iter sees exact on mark.
+                        else
+                            last_detail = "adj smash: " .. tostring(detail)
                         end
                     else
+                        local live = pack_slot(slot)
+                        if live == nil and guard % 3 == 0 then
+                            local n = nearest_crab(t)
+                            live = n and n.row or nil
+                        end
                         t.player.walk_to(lure_x, lure_z, 8)
+                        if live ~= nil and (live.x ~= wx or live.z ~= wz) then
+                            slot = live.slot
+                            -- Attack only when crab is west of column.
+                            if live.x < wx then
+                                t.player.attack(live.symbol, 2, 1, {
+                                    quick = true, slot = live.slot,
+                                })
+                            end
+                        end
                     end
                     t.ticks(2)
                 end
