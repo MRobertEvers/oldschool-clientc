@@ -27,9 +27,10 @@ return {
         "::setlevel prayer 99",
         "::setlevel magic 99",
         "::setlevel agility 99",
-        -- 4-tick crush for Synq normal 4-tick / monkey run-around.
-        "::give adamnt_warhammer",
-        "::wield adamnt_warhammer",
+        -- Crush for Synq 4-tick / monkey run-around. DWH out-DPSes adamant —
+        -- seed-1 runs with adamant died prayer-dry after ~197 damage dealt.
+        "::give dragon_warhammer",
+        "::wield dragon_warhammer",
         -- No rune plate: Dragon Slayer gates it. Adamant has no quest gate and
         -- still softens the one intentional unprotected wedge sample hit.
         "::give adamant_platebody",
@@ -43,11 +44,9 @@ return {
         "::give fire_rune 400",
         "::give air_rune 400",
         "::give blood_rune 80",
-        -- Shark is unstackable: 22 + runes + restores fills all 28 slots and
-        -- the brew (and half the restores) then get "No room". Cap food so the
-        -- Synq kit leaves free slots for anvil mage swaps.
-        "::give shark 10",
-        "::give br_4dose2restore 4",
+        -- Shark is unstackable: cap food so restores/brew/mage swap fit.
+        "::give shark 8",
+        "::give br_4dose2restore 6",
         "::give br_4dosepotionofsaradomin 2",
     },
 
@@ -128,13 +127,20 @@ return {
                 if t.player.eat("shark") == "ok" then eats = eats + 1 end
             end
             local pr, pp = t.prayer.points()
-            if pr == "ok" and (pp.points or 0) < 30 then
-                if t.player.drink("br_4dose2restore") == "ok" then drinks = drinks + 1 end
+            -- Keep Protect from Melee fuelled: a dry prayer at ~tick 1178 was
+            -- the killing blow on the adamant-warhammer pass.
+            if pr == "ok" and (pp.points or 0) < 50 then
+                if t.player.drink("br_4dose2restore") == "ok" then
+                    drinks = drinks + 1
+                    -- Refill can land after Protect has extinguished at 0.
+                    if prayer_on then
+                        t.prayer.set("protectfrommelee", true)
+                    end
+                end
             end
         end
 
         local function arm_protect()
-            if prayer_on then return end
             t.prayer.set("protectfrommelee", true)
             prayer_on = true
         end
@@ -283,7 +289,8 @@ return {
             end
 
             if sm.state == STATE.REENGAGE then
-                t.player.equip("adamnt_warhammer", { quick = true })
+                t.player.equip("dragon_warhammer", { quick = true })
+                arm_protect()
                 -- Lure again as far as possible before the next cycle.
                 t.player.walk_to(frow.x - 2, frow.z - 2, 6)
                 t.player.attack(fs, 2, 2, { quick = true, slot = frow.slot })
@@ -292,7 +299,7 @@ return {
             end
         end
 
-        while sm.state ~= STATE.DONE and sm.ticks < 2200 do
+        while sm.state ~= STATE.DONE and sm.ticks < 2800 do
             decide()
             sm.ticks = sm.ticks + 1
         end
