@@ -32,6 +32,7 @@ return {
         "::give adamnt_warhammer",
         "::wield adamnt_warhammer",
         "::give dragon_warhammer",
+        "::give scythe_of_vitur",
         -- No rune plate: Dragon Slayer gates it. Adamant has no quest gate and
         -- still softens the one intentional unprotected wedge sample hit.
         "::give adamant_platebody",
@@ -45,10 +46,9 @@ return {
         "::give fire_rune 400",
         "::give air_rune 400",
         "::give blood_rune 80",
-        -- Shark is unstackable: cap food so restores/brew/mage swap fit.
-        -- Shark is unstackable: leave room for DWH/kodai/runes/restores/brews.
-        "::give shark 10",
-        "::give br_4dose2restore 6",
+        -- Shark is unstackable: leave room for scythe/DWH/kodai/runes/brews.
+        "::give shark 8",
+        "::give br_4dose2restore 4",
         "::give br_4dosepotionofsaradomin 4",
         "::give 4dose2combat 2",
     },
@@ -261,7 +261,12 @@ return {
                 local tx = frow.x + c[1]
                 local tz = frow.z + c[2]
                 t.player.walk_to(tx, tz, 3)
-                t.player.equip("dragon_warhammer", { quick = true })
+                -- Scythe for kill DPS after DWH has drained defence.
+                if dwh_specs >= 1 then
+                    t.player.equip("scythe_of_vitur", { quick = true })
+                else
+                    t.player.equip("dragon_warhammer", { quick = true })
+                end
                 t.player.attack(fs, 2, 1, { quick = true, slot = frow.slot })
                 cycle_hits = cycle_hits + 1
                 sm.sub = sm.sub + 1
@@ -297,13 +302,13 @@ return {
                     spark_dodges = spark_dodges + 1
                     last_dodge_tick = now
                 end
-                -- Prefer eating through spark volleys; mage only when HP is high
-                -- enough that a 20-splat cannot kill mid-cast.
+                -- Mage for water-weakness + anvil DPS. Eat first; cast if HP>45.
+                sustain()
                 local hr, hp = t.skill.read("hitpoints")
-                local hp_ok = hr == "ok" and hp.level >= 75
-                local want_mage = hp_ok and mage_casts < 12 and (
-                    (hammer_visits == 1 and not should_dodge and anvil_age >= 4)
-                    or (hammer_visits > 1 and should_dodge and mage_casts < 8)
+                local hp_ok = hr == "ok" and hp.level >= 45
+                local want_mage = hp_ok and mage_casts < 14 and (
+                    (hammer_visits == 1 and anvil_age >= 2)
+                    or (hammer_visits > 1 and mage_casts < 10)
                 )
                 if want_mage then
                     t.player.equip("kodai_wand", { quick = true })
@@ -315,9 +320,9 @@ return {
                     local cr = t.player.cast(mage_kind, "raids_tekton_hammering", 2, 5,
                         { slot = frow.slot })
                     mage_casts = mage_casts + 1
-                    t.ticks(3)
-                    sustain()
                     t.ticks(2)
+                    sustain()
+                    t.ticks(3)
                     if cr == "ok" then
                         local _, nh1 = t.ticklog.rows({ kind = "hit_npc", slot = wslot, since = before_serial })
                         local hi = 1

@@ -1,20 +1,18 @@
 # Tekton room status
 
 Branch: `cursor/cox-tekton-runaround-da39`
-OSRS-Content: `cursor/cox-tekton-anvil-stand-da39` @ `63b4cdd9c` (spark finduid; remote push HTTP 500)
+OSRS-Content: `cursor/cox-tekton-heal-da39` @ `4e2e6192f`
 
 ## Content
 
-- closest-of-three anvil stand; `ai_queue4` arrival; `npc_var` state across changetype
-- flat sparks 10–20; `npc_finduid` before `damage()` so ticklog dealer/type tag hammering
+- closest-of-three anvil stand; `ai_queue4`; `npc_var` state; flat sparks + finduid dealer
+- anvil heal only on spark volley ticks (not every timer tick)
 
 ## Harness
 
-- Synq SM + early DWH special; first anvil tank-for-sample + mage; later anvils dodge
-- spark attribution accepts hammer type or typeless (-1) in first anvil window
+- Synq SM; DWH orb specs; scythe after drain; anvil mage for water/DPS; restock
 
 ## Gate
 
 - Private binary: `QUEST_BINARY=/workspace/src/torirs_tekton`
-- run19: survived anvil dodges; FAIL kill/water/spark (type -1) / hp_solo / cadence outliers
-- Next: sscompile finduid + DWH/tank harness → flock run20
+- run25: survived long; min Tekton HP 251; no mage anims; iterating scythe+mage
