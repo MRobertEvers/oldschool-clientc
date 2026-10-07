@@ -33,7 +33,28 @@ QD.RAID_PLAY_VERZIK_WEAPONS = {
     -- "weapons that hit several times are recommended"), speed 5 and swing
     -- seq 8056 as raid_play.lua's QD.RAID_PLAY_WEAPONS row
     scythe = { item = "scythe_of_vitur", speed = 5, seqs = { [8056] = true } },
+    -- owner_verzik (the SLOW pace): the noxious halberd, speed 5 and reach 2
+    -- (all.obj [noxious_halberd] attackrate 5, weapon_attackrange 2), swing
+    -- seqs 428 human_spear_spike / 440 human_scythe_sweep (attack_anims_modern.obj;
+    -- Blert attack_definitions.json NOXIOUS_HALBERD animationIds 428, 440)
+    halberd = { item = "noxious_halberd", speed = 5, seqs = { [428] = true, [440] = true } },
 }
+
+-- owner_verzik 2026-10-07: THE PACE.  t.raid.verzik_pace = "slow" before
+-- t.raid.play plays the team that reaches her green ball.  Of the 27 Blert
+-- Normal trio rooms (build/blert/verzik) five reach the ball (P3 197-291
+-- ticks, the ball at P3+180..193); 0f9abe1a (no deaths, ball at P3+187) and
+-- 85b10c82 are one team: the leader on the scythe and the other two on the
+-- NOXIOUS HALBERD in every phase (P3: scythe 30/27 swings, halberds 30/21 and
+-- 28/24, 23 and 13 of the halberds' 52 swings from distance 2).  Every other
+-- room is three scythes and ends before the ball (P3 122-194).  So the slow
+-- pace is that team's weapons, nothing held back: roles 2 and 3 fight P3
+-- with the halberd (P1 and P2 with the scythe: the halberd seats' P2 in the
+-- whole-room survey of 2026-10-07 starved -- 47 walk blocks unconfirmed beside
+-- her 3x3, every fish gone, both dead at t441 on five names -- and P3 is the
+-- phase the pace is for).  "fast" (nil) is the three-scythe team.
+QD.raid.verzik_pace = QD.raid.verzik_pace
+QD.RAID_PLAY_VERZIK_HALBERD_ROLES = { [2] = true, [3] = true }
 
 QD.raid._play_plan("tob_verzik", {
     room = "verzik",
@@ -578,11 +599,13 @@ function QD.raid._verzik_dawn(st, v, intent, hiding, on_cover)
             -- ~tob_verzik_p1_cap: the weapon, not the swing)
             return false
         end
-        -- spent: the scythe back on, then the drop on the cover tile
+        -- spent: the main weapon back on (the scythe, or the slow pace's
+        -- halberd), then the drop on the cover tile
         if vz.held == "dawnbringer" then
-            intent.gear = { "scythe_of_vitur" }
-            vz.held = "scythe"
-            st.weapon = QD.RAID_PLAY_VERZIK_WEAPONS.scythe
+            local main = vz.main or "scythe"
+            intent.gear = { QD.RAID_PLAY_VERZIK_WEAPONS[main].item }
+            vz.held = main
+            st.weapon = QD.RAID_PLAY_VERZIK_WEAPONS[main]
             st.engaged = false
             dw.unwield = v.tick
             return false
@@ -1118,6 +1141,46 @@ function QD.raid._verzik_p3_clock(st, v, ball)
     return N, hold
 end
 
+-- owner_verzik 2026-10-07: HER P3 SPECIAL ROTATION, a state machine.  She
+-- attacks four times between specials and throws them in a fixed order:
+-- nylocas, webs, yellows, the green ball, then round again (W:953-957; the
+-- Strategies Entry section W:254 "the cycle will repeat once completed";
+-- tob_verzik.rs2 ~tob_verzik_special_at, tob.constant ^tob_verzik_special_*).
+-- STATES: opening (before her first special), crabs, webs, yellows, ball (in
+-- the air), autos (between specials).  EVENTS: her seq on the attack tick
+-- (14406 crabs, 8127 webs, 8126 yellows, 8123-8125 an auto) and the ball's
+-- projectile 1598 in the air (it rides a ranged pose: tob_verzik.rs2
+-- ~tob_verzik_special, "THE BALL RIDES A REGULAR ATTACK").  `next` is the
+-- special the rotation owes, which the decide reads (the heal-up before the
+-- ball).  Every entry is logged with its tick and my hitpoints.
+function QD.raid._verzik_p3_cycle(st, v, ball)
+    local P, vz = st.plan, st.vz
+    local c = vz.cyc
+    if c == nil then
+        c = { state = "opening", next = "crabs", seen = {} }
+        vz.cyc = c
+    end
+    local function enter(state, nxt)
+        c.state, c.next = state, nxt
+        c.seen[#c.seen + 1] = state .. "@" .. v.tick .. "/hp" .. tostring(v.hp)
+    end
+    local a = v.attack
+    if a ~= nil then
+        if a.seq == P.p3_crabs then enter("crabs", "webs")
+        elseif a.seq == P.p3_webs then enter("webs", "yellows")
+        elseif a.seq == P.p3_yellows then enter("yellows", "ball")
+        elseif (a.seq == P.p3_ranged or a.seq == P.p3_magic or a.seq == P.p3_melee) and c.state ~= "ball" then
+            c.state = "autos"
+        end
+    end
+    if ball and c.state ~= "ball" then
+        enter("ball", "crabs")
+    elseif not ball and c.state == "ball" then
+        c.state = "autos"
+    end
+    return c
+end
+
 -- ==========================================================================
 -- THE VERZIK PLAN'S DECIDE (PLAY_NOTES.md "Verzik").
 -- ==========================================================================
@@ -1132,9 +1195,14 @@ function QD.raid._play_verzik_decide(st, v)
         st.weapon = QD.RAID_PLAY_VERZIK_WEAPONS.fists
         -- raid seam34v: the Normal trio starts with the scythe on (the harness wields it)
         if st.mode == "normal" then
-            st.vz.held = "scythe"
+            -- owner_verzik: the main melee weapon by pace and role (the header's table)
+            st.vz.pace = QD.raid.verzik_pace or "fast"
+            st.vz.main = "scythe"
+            st.vz.p3_main = (st.vz.pace == "slow" and QD.RAID_PLAY_VERZIK_HALBERD_ROLES[st.role]) and "halberd" or nil
+            st.vz.held = st.vz.main
             st.vz.n.scythe = 0
-            st.weapon = QD.RAID_PLAY_VERZIK_WEAPONS.scythe
+            st.vz.n.halberd = 0
+            st.weapon = QD.RAID_PLAY_VERZIK_WEAPONS[st.vz.main]
         end
     end
     local vz = st.vz
@@ -1485,6 +1553,9 @@ function QD.raid._play_verzik_decide(st, v)
         -- QD.raid._verzik_p3_clock's, the rest of the phase is shared
         local melee = st.mode == "normal"
         if not melee and vz.held ~= "bow_rapid" then swap_to("bow_rapid") end
+        -- owner_verzik: the slow pace's P3 weapon (the header's table) goes on
+        -- at P3; P1 and P2 are played with the scythe as the fast team does
+        if melee and vz.p3_main ~= nil and vz.held ~= vz.p3_main and vz.held ~= "dawnbringer" then swap_to(vz.p3_main) end
         -- her style shows on the attack tick and the protection is read when
         -- it lands (the owner's ruling; V p3_prayer_read: "8125 stomp + 1593,
         -- 8124 crackle + 1594 and the flight is 2-3 ticks"): switch on sight
@@ -1529,6 +1600,14 @@ function QD.raid._play_verzik_decide(st, v)
         -- beside her through a special were two members on ONE pool, since
         -- fixed: the r-th pool.)  The pool, the crabs and the webs still win.
         if not tank and st.mode == "normal" then m3_hold = false end
+        -- owner_verzik: the slow pace's halberd swings from two out (its
+        -- reach, the header), outside her melee, which hits only those
+        -- beside her (W:946 "every player next to her")
+        local halb = melee and vz.held == "halberd"
+        local reach = halb and 2 or 1
+        -- owner_verzik: her special rotation as a state machine (events: her
+        -- seq and the ball's projectile; QD.raid._verzik_p3_cycle)
+        local cyc = QD.raid._verzik_p3_cycle(st, v, ball)
         vz.m3 = vz.m3 or { outs = 0, late = 0, holds = 0, dodges = 0, log = {} }
         -- (late: the tank beside her at the end of T-1, raid seam51)
         if melee and tank and m3_next ~= nil and v.tick == m3_next - 1 and d_boss == 1 and vz.m3_sure then vz.m3.late = vz.m3.late + 1 end
@@ -1557,29 +1636,43 @@ function QD.raid._play_verzik_decide(st, v)
                 uniq[#uniq + 1] = p
             end
         end
+        -- owner_verzik: ONE POOL A RAIDER BY WHERE THEY STAND.  The content
+        -- draws each raider's pool beside that raider (tob_verzik.rs2
+        -- ~tob_verzik_place_pool / ~tob_verzik_pool_near: within two of them),
+        -- and a shared pool protects nobody (W:975 "Each pool can only hold one
+        -- player"; W:977).  The r-th pool in x, z order sent two raiders of
+        -- the whole-room survey to one pool (_play_verzik_slow P3+163: p0 and
+        -- p2 on 6438,94, both struck, once the blast judged every raider).
+        -- Now: the raiders in pid order each take the nearest pool nobody has
+        -- taken (every raider computes the same table from the same tiles),
+        -- chosen once the full set is in view and kept for the charge.
+        local function pool_pick(list)
+            local raiders = { { pid = st.my_pid or 99, x = me.x, z = me.z, me = true } }
+            for _, m in ipairs(QD.raid._verzik_mates(st)) do raiders[#raiders + 1] = { pid = m.pid or 99, x = m.x, z = m.z } end
+            table.sort(raiders, function(r1, r2) return r1.pid < r2.pid end)
+            local taken, mine = {}, nil
+            for _, r in ipairs(raiders) do
+                local best, bd = nil, 999
+                for i, p in ipairs(list) do
+                    local d = math.max(math.abs(p.x - r.x), math.abs(p.z - r.z))
+                    if not taken[i] and (d < bd or (d == bd and best ~= nil and (p.x < list[best].x or (p.x == list[best].x and p.z < list[best].z)))) then best, bd = i, d end
+                end
+                if best ~= nil then
+                    taken[best] = true
+                    if r.me then mine = list[best] end
+                end
+            end
+            return mine
+        end
         if st.party > 1 and #uniq >= st.party then
-            local sorted = {}
-            for _, p in ipairs(uniq) do sorted[#sorted + 1] = p end
-            table.sort(sorted, function(a, c) if a.x ~= c.x then return a.x < c.x end return a.z < c.z end)
-            local p = sorted[st.role] or sorted[1]
-            -- kept for the whole charge once chosen from the full set (s34v
-            -- vzn5: the leader's pick flipped between 6426,79 and 6426,81 as
-            -- the client's list changed, it walked between them for 14 ticks
-            -- and the blast took its last 53)
             if vz.my_pool == nil or vz.my_pool.first ~= vz.pool_first then
-                vz.my_pool = { x = p.x, z = p.z, first = vz.pool_first }
+                local p = pool_pick(uniq)
+                if p ~= nil then vz.my_pool = { x = p.x, z = p.z, first = vz.pool_first } end
             end
         end
-        -- raid seam49: fewer pools in view than raiders: the r-th of those in
-        -- view, never the nearest (s49 final svc/svd: the two members, both
-        -- beside her east edge now that only the tank steps out, took the
-        -- same nearest pool and the blast killed one, t514 / t555)
         if st.party > 1 and #uniq > 0 and #uniq < st.party and (vz.my_pool == nil or vz.my_pool.first ~= vz.pool_first) then
-            local sorted = {}
-            for _, p in ipairs(uniq) do sorted[#sorted + 1] = p end
-            table.sort(sorted, function(a, c) if a.x ~= c.x then return a.x < c.x end return a.z < c.z end)
-            local p = sorted[((st.role - 1) % #sorted) + 1]
-            pool = { x = p.x, z = p.z, d = math.max(math.abs(p.x - me.x), math.abs(p.z - me.z)) }
+            local p = pool_pick(uniq)
+            if p ~= nil then pool = { x = p.x, z = p.z, d = math.max(math.abs(p.x - me.x), math.abs(p.z - me.z)) } end
         end
         if st.party > 1 and #uniq > 0 and vz.my_pool ~= nil and vz.my_pool.first == vz.pool_first then
             pool = { x = vz.my_pool.x, z = vz.my_pool.z, d = math.max(math.abs(vz.my_pool.x - me.x), math.abs(vz.my_pool.z - me.z)) }
@@ -1648,7 +1741,7 @@ function QD.raid._play_verzik_decide(st, v)
         -- raid seam45: my tile on her east edge (the side the tornadoes
         -- cannot reach, below)
         local n3 = b.size or 1
-        local hx3, hz3 = b.x + n3, b.z + n3 - 1 - 2 * ((st.role - 1) % 3)
+        local hx3, hz3 = b.x + n3 + (reach - 1), b.z + n3 - 1 - 2 * ((st.role - 1) % 3)
         if melee and vz.enraged and #vz.m3.log < 20 then
             local rows = {}
             for _, tr in ipairs(v.tornadoes) do rows[#rows + 1] = tr.x .. "," .. tr.z end
@@ -1676,7 +1769,6 @@ function QD.raid._play_verzik_decide(st, v)
         end
         threat = function(h)
             local t = N.auto * math.ceil(h / cadence)
-            if ball then t = t + N.ball end
             if pool ~= nil and not on_pool then t = t + N.blast end
             if cd <= 3 then t = t + N.crab end
             if tor ~= nil and td <= 2 then t = t + math.floor(v.hp * N.tornado_pct / 100) end
@@ -1693,6 +1785,26 @@ function QD.raid._play_verzik_decide(st, v)
             -- (raid seam49: the tank's alone -- her melee needs the tank beside
             -- her, and the tank steps out of it)
             if st.mode == "normal" and d_boss <= 2 and tank and not (melee and vz.enraged and not ball) then t = math.max(t, N.melee) end
+            -- owner_verzik (the sva deaths t676, both members beside her at
+            -- 51 and 40 when her melee came: 51 + 40, the tank in reach on
+            -- T-1): everyone beside her keeps more than her melee, in the
+            -- enrage too -- "deals up to 63 damage on every player next to
+            -- her ... players should keep their health above 80 to avoid
+            -- being killed by this attack" (W:946-949).  A raider cannot
+            -- tell whether the tank will be late.
+            if st.mode == "normal" and d_boss <= 1 then t = math.max(t, N.melee) end
+            -- owner_verzik: the green ball is the special after the yellows,
+            -- 75% of the Hitpoints level (W:982 "make sure to heal up before
+            -- attempting to tank the ball"; W:977 "Verzik is invulnerable while
+            -- charging this attack, so use this time to restore health";
+            -- yt_3lQjrLeuvHo 1:51 "heal up to full hp in preparation for the
+            -- green ball"): on the pool, healed to the ball and an auto over
+            -- it; between the yellows and the ball, above the ball
+            -- (owner_verzik: no heal-up for the ball itself any more -- it is
+            -- shared, below, and a shared ball hits nobody; on the pool the
+            -- invulnerable charge restores to above her melee: W:977 "use
+            -- this time to restore health and stats as needed")
+            if st.mode == "normal" and cyc.state == "yellows" then t = math.max(t, N.melee) end
             -- raid seam34v: a nylocas's blast is outside the enrage band
             -- (s34v _play_verzik t652: a magic nylocas took a leader's last 47
             -- of a 55 with the band capping the bite at 45): 63 within 3 of
@@ -1775,7 +1887,80 @@ function QD.raid._play_verzik_decide(st, v)
                 near_pool = pool
             end
         end
-        if pool ~= nil and not pool_late then
+        -- owner_verzik: THE GREEN BALL IS SHARED (the owner, 2026-10-07: "use
+        -- the real mechanic and not use a cheese mechanic to beat the ball,
+        -- they should share the ball as the mechanic intended").  "She can
+        -- also launch a green projectile which must be bounced between every
+        -- player of the team or the player who is targeted will take up to
+        -- 74% of their Hitpoints level ... This cannot be bounced to the same
+        -- player twice" (wiki_Verzik_Vitur.wikitext:402); "Players can bounce
+        -- the ball by being next to another player before impact, continuing
+        -- to do so to a different player until it safely dissipates" (W:980);
+        -- "the targeted player should follow another nearby player to ensure
+        -- that it will bounce" (W:982).  The reference: Blert 0f9abe1a P3+187,
+        -- target and mate adjacent +3..+5, apart at +6.  A hop is one tick
+        -- (tob_verzik.rs2 [queue,tob_verzik_ball_land]), so for a trio's chain
+        -- target -> mate -> mate every one must be next to the next: the
+        -- three gather on a 2x2 corner at the target's tile (each tile within
+        -- one of the other two), the corner away from her body, and hold it
+        -- until the chain has run its hops (team - 1 ticks after the impact),
+        -- then step apart.  The ball's dst is its target's live tile (a
+        -- homing projectile, world.lua QD.world.projectiles).
+        local share = nil
+        if st.mode == "normal" and st.party > 1 then
+            local tx, tz = nil, nil
+            for _, p in ipairs(v.proj) do
+                if p.spotanim_id == P.ball_proj then tx, tz = p.dst_x, p.dst_z end
+            end
+            if tx ~= nil then
+                local me_target = (tx == me.x and tz == me.z)
+                if me_target then cyc.target_me = v.tick end
+                local cx, cz = b.x + (b.size or 1) / 2, b.z + (b.size or 1) / 2
+                local sx = (tx >= cx) and 1 or -1
+                local sz = (tz >= cz) and 1 or -1
+                local function free(x, z) return okp(x, z) and QD.raid._verzik_dist(x, z, b) >= 1 end
+                if not (free(tx + sx, tz) and free(tx + sx, tz + sz)) then sx = -sx end
+                if not (free(tx, tz + sz) and free(tx + sx, tz + sz)) then sz = -sz end
+                -- the others, by pid, take the two tiles beside the target
+                -- (then the corner): each within one of the target and of
+                -- each other
+                local others = {}
+                if not me_target then others[#others + 1] = { pid = st.my_pid or 99, me = true } end
+                for _, m in ipairs(mates) do
+                    if not (m.x == tx and m.z == tz) then others[#others + 1] = { pid = m.pid or 99 } end
+                end
+                table.sort(others, function(p1, p2) return p1.pid < p2.pid end)
+                local spots = { { tx + sx, tz }, { tx, tz + sz }, { tx + sx, tz + sz } }
+                local mine = nil
+                for i, o in ipairs(others) do if o.me then mine = spots[i] end end
+                if me_target then mine = { tx, tz } end
+                if mine ~= nil then
+                    share = { x = mine[1], z = mine[2], target = me_target }
+                    cyc.share = { x = mine[1], z = mine[2], until_tick = nil }
+                end
+            elseif cyc.share ~= nil then
+                -- landed: the chain hops once a tick to every raider, so the
+                -- corner holds for the hops (team - 1) and one tick of input
+                -- lag, then breaks up
+                if cyc.share.until_tick == nil then cyc.share.until_tick = v.tick + st.party end
+                if v.tick <= cyc.share.until_tick then
+                    share = { x = cyc.share.x, z = cyc.share.z, hold = true }
+                else
+                    cyc.share = nil
+                    cyc.split_until = v.tick + 2
+                end
+            end
+        end
+        if share ~= nil then
+            cyc.sharing = (cyc.sharing or 0) + 1
+            if me.x ~= share.x or me.z ~= share.z then
+                intent.walk = { x = share.x, z = share.z }
+                vz.steps = vz.steps + 1
+            end
+            st.engaged = false
+            vz.target_slot = nil
+            intent.attack = false
+        elseif pool ~= nil and not pool_late then
             if not on_pool then
                 intent.walk = { x = pool.x, z = pool.z }
                 vz.steps = vz.steps + 1
@@ -1816,7 +2001,7 @@ function QD.raid._play_verzik_decide(st, v)
                         -- along her edge on T-1 took her 60 and the tornado's 60)
                         local dd = QD.raid._verzik_dist(x, z, b)
                         if d >= 2 and (not m3_hold or dd >= 2) then
-                            local edge = (dd == 1) and 0 or 1
+                            local edge = (dd == reach) and 0 or 1
                             local sc = edge * 100 - math.min(d, 4) * 10 + math.max(math.abs(dx), math.abs(dz))
                             if best == nil or sc < best then best, bx, bz = sc, x, z end
                         end
@@ -1891,7 +2076,7 @@ function QD.raid._play_verzik_decide(st, v)
             -- arrive together (s45 e14 svb t792-793: 14 + 63 + 18 on the
             -- leader at 60 beside her east edge)
             vz.m3.kites = (vz.m3.kites or 0) + 1
-        elseif melee and not on_me and (me.x < b.x or me.z < b.z or d_boss > 2) and okp(hx3, hz3) then
+        elseif melee and not on_me and (me.x < b.x or me.z < b.z or d_boss > 2 or (halb and d_boss < 2)) and okp(hx3, hz3) then
             -- raid seam45: the melee trio's side of her is the NORTH-EAST:
             -- the tornadoes rise on her south-west tile (tob_verzik.rs2
             -- ~tob_verzik_spawn_tornadoes: npc_add at her npc_coord) and
@@ -1961,7 +2146,7 @@ function QD.raid._play_verzik_decide(st, v)
                 vz.target_slot = nil
                 vz.m3.apart = (vz.m3.apart or 0) + 1
             end
-        elseif st.party > 1 and crowd(me.x, me.z) > 0 and (not melee or ball) then
+        elseif st.party > 1 and crowd(me.x, me.z) > 0 and ((not melee) or (cyc.split_until ~= nil and v.tick <= cyc.split_until)) then
             -- raid seam34v: a raider beside another steps apart (the ball
             -- bounces to a neighbour, W:975; s34v vzn3: the two members ran
             -- one tile apart and took the ball and both tornadoes together);
@@ -1987,13 +2172,17 @@ function QD.raid._play_verzik_decide(st, v)
             intent.walk = nil
             vz.m3.bound_walks = (vz.m3.bound_walks or 0) + 1
         end
-        if intent.walk == nil and pool == nil then crab = QD.raid._verzik_crabs(st, v, ok, go) end
+        if intent.walk == nil and pool == nil and share == nil then crab = QD.raid._verzik_crabs(st, v, ok, go) end
         -- raid seam45: melee never swings at a nylocas (its death blasts
         -- everyone within 3, ~tob_verzik_crab_blast); it is only run from
         if melee then crab = nil end
         -- raid seam45: the step out of her reach on the plan's T-1 (ET 1.1; V
         -- p3_melee_predicate), and no press on a held tick
-        if melee and m3_hold and intent.walk == nil then
+        -- (owner_verzik: and never off a pool -- the yellows suspend her
+        -- clock, tob_verzik.rs2 ^tob_var_vz_suspend, so no attack comes while
+        -- they charge; _play_verzik_slow_p3 P3+163: the tank stepped off its
+        -- pool beside her body the tick before the blast)
+        if melee and m3_hold and intent.walk == nil and share == nil and pool == nil then
             vz.m3.holds = vz.m3.holds + 1
             if d_boss == 1 then
                 local sx, sz = QD.raid._verzik_step_out(st, v, okp, mates)
@@ -2020,7 +2209,10 @@ function QD.raid._play_verzik_decide(st, v)
         -- relay's own name, P3, 44 taken at 44 hitpoints).  Standing still on
         -- it for the window keeps him on it; outside the window nothing changes.
         local blast_close = pool ~= nil and on_pool and vz.pool_first ~= nil and v.tick >= vz.pool_first + P.pool_life - 4
-        if intent.walk == nil and blast_close then
+        if share ~= nil then
+            -- (the shared ball: no press, it paths off the corner)
+            intent.attack = false
+        elseif intent.walk == nil and blast_close then
             intent.attack = false
         elseif intent.walk == nil then
             if webbed then
@@ -2086,4 +2278,320 @@ function QD.raid._play_verzik_decide(st, v)
     end
     intent.attack = QD.raid._play_attack(st, v, intent.attack and intent.walk == nil)
     return intent
+end
+
+-- ==========================================================================
+-- owner_verzik 2026-10-07: THE TRIO HARNESS'S SHARED HALF.  The Normal trio
+-- room as test/raids/_play_verzik_slow*.lua and _play_verzik_p3.lua play it
+-- (one copy here, not one per harness file: the run.py wrapper embeds each
+-- test file whole and gives it no include).  cfg:
+--   pace   "slow" | "fast"   (QD.raid.verzik_pace, the plan header's table)
+--   start  "room" | "p3"     (p3: the leader spends P1 and P2 with
+--                             ::tobvzskip -- tob_selftest.rs2 [debugproc,
+--                             tobvzskip], npc_damage of the phase's hitpoints
+--                             left -- so her own transitions run and P3 starts
+--                             as it does after a P2: her form, her hitpoints,
+--                             the raiders' kit as worn; nobody fights before)
+--   cycle  true: the four specials of one rotation are CHECKED rows (the
+--          slow pace); false: reported, and the fast pace checks instead
+--          that she died before her green ball
+-- ==========================================================================
+
+-- The rotation read off the leader's tick log after the fight: every special
+-- she threw from `p3s` on and what the raiders did about it.  Returns rows.
+function QD.raid._verzik_cycle_read(t, p3s, death_tick)
+    local K = {}
+    for _, kind in ipairs({ "npc_anim", "npc_spawn", "npc_free", "npc_death", "projectile", "hit_player", "player_spotanim" }) do
+        local _, rows = t.ticklog.rows({ kind = kind })
+        K[kind] = rows or {}
+        t.ticks(1)
+    end
+    local tile = {}
+    local _, ptiles = t.ticklog.rows({ kind = "player_tile" })
+    for i, r in ipairs(ptiles or {}) do
+        if r.tick >= p3s then
+            tile[r.tick] = tile[r.tick] or {}
+            tile[r.tick][r.pid] = r
+        end
+        if i % 1500 == 0 then t.ticks(1) end
+    end
+    local function at(pid, tick)
+        for k = tick, tick - 3, -1 do
+            if tile[k] ~= nil and tile[k][pid] ~= nil then return tile[k][pid] end
+        end
+        return nil
+    end
+    local C = { crabs = {}, webs = {}, yellows = {}, ball = {}, order = {} }
+    local end_tick = death_tick or 1e9
+    for _, r in ipairs(K.npc_anim) do
+        if r.type == 8374 and r.tick >= p3s and r.tick <= end_tick then
+            if r.seq == 14406 then C.crabs[#C.crabs + 1] = { tick = r.tick } C.order[#C.order + 1] = { "crabs", r.tick } end
+            if r.seq == 8127 then C.webs[#C.webs + 1] = { tick = r.tick } C.order[#C.order + 1] = { "webs", r.tick } end
+            if r.seq == 8126 then C.yellows[#C.yellows + 1] = { tick = r.tick } C.order[#C.order + 1] = { "yellows", r.tick } end
+        end
+    end
+    for _, p in ipairs(K.projectile) do
+        if p.spotanim == 1598 and p.tick >= p3s and p.tick <= end_tick then
+            C.ball[#C.ball + 1] = { tick = p.tick }
+            C.order[#C.order + 1] = { "ball", p.tick }
+        end
+    end
+    table.sort(C.order, function(a, b) return a[2] < b[2] end)
+    -- the nylocas of each crabs special: spawned with it, gone when (free),
+    -- and their blasts on raiders (tob_verzik.rs2 ~tob_verzik_crab_blast)
+    for _, c in ipairs(C.crabs) do
+        local slots, n, gone, blast = {}, 0, 0, 0
+        for _, s in ipairs(K.npc_spawn) do
+            if s.type >= 8381 and s.type <= 8383 and s.tick >= c.tick and s.tick <= c.tick + 3 then slots[s.slot] = true n = n + 1 end
+        end
+        local last = c.tick
+        for _, f in ipairs(K.npc_free) do
+            if slots[f.slot] and f.tick >= c.tick then gone = gone + 1 slots[f.slot] = false last = math.max(last, f.tick) end
+        end
+        for _, h in ipairs(K.hit_player) do
+            if h.npc_type ~= nil and h.npc_type >= 8381 and h.npc_type <= 8383 and h.tick >= c.tick and h.tick <= c.tick + 60 then blast = blast + (h.damage or 0) end
+        end
+        c.n, c.gone, c.last, c.blast = n, gone, last, blast
+    end
+    -- the webs: thrown (1601), landed (npc 8376 on a tile), on a raider's tile
+    -- when it landed (bound: tob_verzik.rs2 [queue,tob_verzik_web_land]), and
+    -- the snaps of an unbroken web (hit_player from 8376, [ai_timer,verzik_web_npc])
+    for _, w in ipairs(C.webs) do
+        local thrown, landed, bound, snaps, snap_dmg = 0, 0, 0, 0, 0
+        for _, p in ipairs(K.projectile) do
+            if p.spotanim == 1601 and p.tick >= w.tick and p.tick <= w.tick + 35 then thrown = thrown + 1 end
+        end
+        for _, s in ipairs(K.npc_spawn) do
+            if s.type == 8376 and s.tick >= w.tick and s.tick <= w.tick + 40 then
+                landed = landed + 1
+                local x, z = QD.ticklog._unpack(s.coord)
+                for pid = 0, 7 do
+                    local r = at(pid, s.tick - 1)
+                    if r ~= nil and r.x == x and r.z == z then bound = bound + 1 end
+                end
+            end
+        end
+        for _, h in ipairs(K.hit_player) do
+            if h.npc_type == 8376 and h.tick >= w.tick and h.tick <= w.tick + 70 then snaps = snaps + 1 snap_dmg = snap_dmg + (h.damage or 0) end
+        end
+        w.thrown, w.landed, w.bound, w.snaps, w.snap_dmg = thrown, landed, bound, snaps, snap_dmg
+    end
+    -- the yellows: the blast tick (1596 on each raider), who it found
+    -- protected (1597, tob_verzik.rs2 ~tob_verzik_powerblast), and the tiles
+    -- they stood on (one raider a pool, W:975)
+    for _, y in ipairs(C.yellows) do
+        local blast = nil
+        for _, s in ipairs(K.player_spotanim) do
+            if s.spotanim == 1596 and s.tick > y.tick and blast == nil then blast = s.tick end
+        end
+        local hit, safe, tiles, distinct = {}, {}, {}, true
+        if blast ~= nil then
+            for _, s in ipairs(K.player_spotanim) do
+                if s.tick == blast and s.spotanim == 1596 then hit[#hit + 1] = s.pid end
+                if s.tick == blast and s.spotanim == 1597 then safe[s.pid] = true end
+            end
+            local seen = {}
+            for _, pid in ipairs(hit) do
+                local r = at(pid, blast - 1)
+                if r ~= nil then
+                    local key = r.x * 100000 + r.z
+                    if seen[key] then distinct = false end
+                    seen[key] = true
+                    tiles[#tiles + 1] = "p" .. pid .. "@" .. r.x .. "," .. r.z .. (safe[pid] and "" or "!")
+                end
+            end
+        end
+        local nsafe = 0
+        for _, pid in ipairs(hit) do if safe[pid] then nsafe = nsafe + 1 end end
+        y.blast, y.raiders, y.safe, y.distinct, y.tiles = blast, #hit, nsafe, distinct, table.concat(tiles, " ")
+    end
+    -- the green ball: every impact (1600 on a raider, one per hop:
+    -- [queue,tob_verzik_ball_land]) and the hit each impact carried
+    for _, bl in ipairs(C.ball) do
+        local hops = {}
+        for _, s in ipairs(K.player_spotanim) do
+            if s.spotanim == 1600 and s.tick >= bl.tick and s.tick <= bl.tick + 14 then
+                local dmg = 0
+                for _, h in ipairs(K.hit_player) do
+                    if h.pid == s.pid and h.tick >= s.tick and h.tick <= s.tick + 1 and h.npc_type == 8374 and (h.damage or 0) > dmg then dmg = h.damage end
+                end
+                hops[#hops + 1] = { pid = s.pid, tick = s.tick, dmg = dmg }
+            end
+        end
+        bl.hops = hops
+    end
+    return C
+end
+
+function QD.raid.verzik_trio_run(t, cfg)
+    local role, size = t.party.role(), t.party.size()
+    local mode = "normal"
+    t.raid.verzik_pace = cfg.pace
+    if role == 1 then
+        local tl_ok, tl_detail = t.ticklog.start()
+        t.check("verzik.ticklog", tl_ok == "ok", tostring(tl_detail))
+    end
+    -- the reference team's raiders that wore no ring (cfg.unworn: the harness's kit note)
+    for _, item in ipairs((cfg.unworn or {})[role] or {}) do
+        local ur, ud = t.player.unequip(item)
+        t.check("verzik.unworn", ur == "ok", "p" .. role .. " " .. item .. ": " .. tostring(ud))
+    end
+    local r, d = t.raid.enter("tob", "verzik", { mode = mode })
+    t.check("verzik.enter", r == "ok", "p" .. role .. " " .. tostring(d))
+    -- W:871 "All players must have Protect from Magic on before starting the fight."
+    t.exec("p1.prayer", t.prayer.set, "protectfrommagic", true)
+    t.check("verzik.pace", true, "p" .. role .. " pace " .. tostring(cfg.pace) .. " start " .. tostring(cfg.start))
+    if size > 1 then t.expect("party.barrier.ready", t.party.barrier("ready", 300)) end
+    local M, boss_slot = nil, nil
+    if role == 1 then
+        -- only the leader starts the encounter, by talking to her
+        local _, brow = t.npc.nearest("verzik_initial", 30)
+        local tr, td = t.player.talk_to("verzik_initial", 1)
+        t.check("verzik.talk", tr == "ok", tostring(td))
+        local cr, cd = t.chat.play({ "npc:So, you wish to entertain me", "options", "choose:Yes, begin the fight." })
+        t.check("verzik.begin", cr == "ok", tostring(cd))
+        t.ticklog.mark("room start")
+        local slot_res, bs = t.ticklog.slot(brow)
+        boss_slot = bs
+        t.check("verzik.slot", slot_res == "ok", "server slot " .. tostring(bs))
+        local _, mk = t.ticklog.rows({ kind = "mark" })
+        M = mk[#mk].tick
+    end
+    if size > 1 then t.expect("party.barrier.started", t.party.barrier("started", 900)) end
+    if cfg.start == "p3" then
+        if role == 1 then
+            local function wait_form(symbol, ticks)
+                for _ = 1, ticks do
+                    local fr = t.npc.nearest(symbol, 40)
+                    if fr == "ok" then return true end
+                    t.ticks(1)
+                end
+                return false
+            end
+            local notes, ok = {}, true
+            for _, step in ipairs({ { "verzik_phase1", "verzik_phase2" }, { "verzik_phase2", "verzik_phase3" } }) do
+                local seen = wait_form(step[1], 120)
+                local _, reply = t.cheat("::tobvzskip", true)
+                local next_seen = wait_form(step[2], 300)
+                local _, now = t.tick()
+                notes[#notes + 1] = step[1] .. " seen " .. tostring(seen) .. " skip '" .. tostring(reply) .. "' -> " .. step[2] .. " " .. tostring(next_seen) .. " at t" .. tostring(now)
+                ok = ok and seen and next_seen
+            end
+            t.check("verzik.p3_start", ok, table.concat(notes, "; "))
+            t.ticklog.mark("p3 start")
+        end
+        if size > 1 then t.expect("party.barrier.p3", t.party.barrier("p3", 900)) end
+    end
+
+    -- THE FIGHT: the library and the room's plan, nothing else
+    local result, detail, rec = t.raid.play("tob_verzik", { mode = mode, max_ticks = 2400 })
+    t.check("play.fight", result == "ok", "p" .. role .. " " .. tostring(detail))
+    local vz = rec.vz or {}
+    local cyc = vz.cyc or { seen = {} }
+    t.check("play.measure_raider", true, string.format("p%d %s held %s: %s; eats %d, drinks %d, swings %d; cycle as seen %s; ball at me first seen t%s; ticks on a shared-ball corner %s",
+        role, tostring(vz.pace), tostring(vz.main), tostring(detail), #rec.eats, #rec.drinks, #rec.swings,
+        table.concat(cyc.seen or {}, " "), tostring(cyc.target_me), tostring(cyc.sharing or 0)))
+    if role ~= 1 then
+        t.expect("party.barrier.done", t.party.barrier("done", 9000))
+        t.finish(0)
+        return
+    end
+
+    -- THE LEADER'S TICK LOG
+    t.ticks(1)
+    local death_tick = rec.death_tick
+    local p3s = nil
+    local _, rt = t.ticklog.rows({ kind = "npc_retype" })
+    for _, rw in ipairs(rt or {}) do
+        if rw.to_type == 8374 and p3s == nil then p3s = rw.tick end
+    end
+    local _, nd = t.ticklog.rows({ kind = "npc_death" })
+    local p3_dead = nil
+    for _, rw in ipairs(nd or {}) do
+        if rw.type == 8374 and p3_dead == nil then p3_dead = rw.tick end
+    end
+    t.ticks(1)
+    local jail_line = ""
+    t.ticks(10)
+    t.cheat("::tobjail")
+    t.ticks(2)
+    local _, jl = t.msg.last(40)
+    for _, m in ipairs(jl) do
+        local jt = tostring(m.text)
+        if jail_line == "" and jt:find("tobjail jailed=", 1, true) then jail_line = jt end
+    end
+    local deathless = jail_line:find("jailed=0 died_in=0 deaths=0", 1, true) ~= nil
+    t.check("verzik.deathless", deathless, "party: " .. jail_line)
+    t.check("verzik.p3_cleared", p3s ~= nil and p3_dead ~= nil, "P3 from t" .. tostring(p3s) .. ", her P3 form died t" .. tostring(p3_dead) .. " (" .. tostring(p3s and p3_dead and (p3_dead - p3s)) .. " ticks)")
+    if p3s == nil then
+        t.expect("party.barrier.done", t.party.barrier("done", 9000))
+        t.finish(0)
+        return
+    end
+    local C = QD.raid._verzik_cycle_read(t, p3s, p3_dead)
+    local function rel(tk) return "P3+" .. tostring(tk - p3s) end
+    -- each special of the rotation: seen, and answered
+    local cr_txt, cr_ok = {}, false
+    for _, c in ipairs(C.crabs) do
+        cr_txt[#cr_txt + 1] = string.format("%s: %d nylocas, %d gone by %s, %d blast damage on raiders", rel(c.tick), c.n, c.gone, rel(c.last), c.blast)
+        if c.n >= 1 and c.gone == c.n then cr_ok = true end
+    end
+    local wb_txt, wb_ok = {}, false
+    for _, w in ipairs(C.webs) do
+        wb_txt[#wb_txt + 1] = string.format("%s: %d thrown, %d landed, %d on a raider's tile (dodged %d), %d snaps for %d", rel(w.tick), w.thrown, w.landed, w.bound, w.landed - w.bound, w.snaps, w.snap_dmg)
+        if w.landed >= 1 and w.snaps == 0 then wb_ok = true end
+    end
+    local yl_txt, yl_ok = {}, false
+    for _, y in ipairs(C.yellows) do
+        yl_txt[#yl_txt + 1] = string.format("%s: blast %s, %d of %d raiders protected, own pools %s [%s]", rel(y.tick), y.blast and rel(y.blast) or "none", y.safe, y.raiders, tostring(y.distinct), y.tiles)
+        if y.blast ~= nil and y.raiders >= 1 and y.safe == y.raiders and y.distinct then yl_ok = true end
+    end
+    -- the green ball: SHARED on every ball that landed while she lived (the
+    -- owner: "they should share the ball as the mechanic intended"; wiki
+    -- Verzik_Vitur:402 "must be bounced between every player of the team"):
+    -- its target, the raiders it hopped to, the damage each took, no tank
+    local bl_txt, bl_ok, landed_n = {}, true, 0
+    for _, bl in ipairs(C.ball) do
+        local hops, pids, n, dmg = {}, {}, 0, 0
+        for _, h in ipairs(bl.hops) do
+            hops[#hops + 1] = "p" .. h.pid .. " " .. rel(h.tick) .. " took " .. h.dmg
+            if not pids[h.pid] then pids[h.pid] = true n = n + 1 end
+            dmg = dmg + h.dmg
+        end
+        local alive = #bl.hops >= 1 and (p3_dead == nil or bl.hops[1].tick < p3_dead)
+        local verdict
+        if not alive then
+            verdict = "not a landing (she died first)"
+        else
+            landed_n = landed_n + 1
+            local shared = n >= size and dmg == 0
+            verdict = shared and ("SHARED: target p" .. bl.hops[1].pid .. ", hopped through all " .. n .. " raiders, 0 damage, no tank")
+                or ("NOT SHARED: " .. n .. " of " .. size .. " raiders, " .. dmg .. " damage")
+            if not shared then bl_ok = false end
+        end
+        bl_txt[#bl_txt + 1] = string.format("%s thrown: %s -- %s", rel(bl.tick), #hops > 0 and table.concat(hops, ", ") or "no impact", verdict)
+    end
+    if landed_n == 0 then bl_ok = false end
+    -- the full rotation: crabs, webs, yellows, ball in that order
+    local want, k = { "crabs", "webs", "yellows", "ball" }, 1
+    local order = {}
+    for _, o in ipairs(C.order) do
+        order[#order + 1] = o[1] .. "@" .. rel(o[2])
+        if k <= 4 and o[1] == want[k] then k = k + 1 end
+    end
+    local full = k > 4
+    local check = cfg.cycle and t.check or function(name, _, text) t.check(name, true, "(reported) " .. text) end
+    check("p3.cycle.crabs", cr_ok, #cr_txt > 0 and table.concat(cr_txt, "; ") or "no crabs special")
+    check("p3.cycle.webs", wb_ok, #wb_txt > 0 and table.concat(wb_txt, "; ") or "no webs special")
+    check("p3.cycle.yellows", yl_ok, #yl_txt > 0 and table.concat(yl_txt, "; ") or "no yellows special")
+    check("p3.cycle.ball", bl_ok, #bl_txt > 0 and table.concat(bl_txt, "; ") or "no green ball")
+    check("p3.cycle.full", full, "rotation " .. table.concat(order, " "))
+    if not cfg.cycle then
+        -- the fast pace kills her before her green ball (the owner: "the fast
+        -- Verzik script that kills it before the green orb")
+        t.check("p3.fast_before_ball", #C.ball == 0, #C.ball == 0 and ("no ball before her death " .. rel(p3_dead or p3s)) or ("ball thrown " .. table.concat(bl_txt, "; ")))
+    end
+    t.check("play.measure", true, string.format("P3 t%s..t%s (%s ticks), mark %s, death %s", tostring(p3s), tostring(p3_dead), tostring(p3_dead and (p3_dead - p3s)), tostring(M), tostring(death_tick)))
+    t.expect("party.barrier.done", t.party.barrier("done", 9000))
+    t.finish(0)
 end

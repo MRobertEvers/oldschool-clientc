@@ -2269,3 +2269,12 @@ reference ToB raider bows and pipes in elite ranged void (Blert equipmentDeltas,
   one both hit; none = the target eats it; once it has landed on every raider in the room (2+) it dissipates (Entry
   also after three hops). Hard keeps its 89/74/49 ladder and three-hop cap. Measured: `_play_verzik_slow_p3 --party 3
   --names 5`, every ball p0 -> p2 -> p1, 0 damage.
+
+- ToB, Verzik P3: two yellow pools could share a tile. Each raider's pool is drawn within two of that raider
+  (`~tob_verzik_pool_near`), so two raiders a tile or two apart could draw the same tile and a trio got two pools
+  (`_play_verzik_slow` P3+149: pools 6438,94 and 6440,92 for three raiders, two struck; svc the same). Source:
+  "Yellow pools (one for each player) will appear around the arena" (wiki_Theatre_of_Blood_Entry_Mode.wikitext:251);
+  "Each pool can only hold one player" (wiki_Theatre_of_Blood_Strategies.wikitext:975); Blert's VerzikYellowsEvent
+  lists three distinct tiles per Normal trio set. FIXED in OSRS-Content 255e927837 (owner_verzik): a drawn tile that
+  an earlier pool of the charge holds is passed over like a blocked one (`~tob_verzik_pool_taken`). Measured:
+  `_play_verzik_slow --party 3 --names 5`, five of five, three pools and three raiders protected on every name.
