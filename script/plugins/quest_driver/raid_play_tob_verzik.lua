@@ -2470,8 +2470,11 @@ function QD.raid._verzik_cycle_read(t, p3s, death_tick)
         for _, s in ipairs(K.player_spotanim) do
             if s.spotanim == 1600 and s.tick >= bl.tick and s.tick <= bl.tick + 14 then
                 local dmg = 0
+                -- (the ball's own hit only: 75% of the Hitpoints level, 74 at
+                -- 99 -- tob.constant ^tob_verzik_p3_ball_pct; her auto landing
+                -- on the same tick is not the ball's: svcplayverzi P3+208, 15)
                 for _, h in ipairs(K.hit_player) do
-                    if h.pid == s.pid and h.tick >= s.tick and h.tick <= s.tick + 1 and h.npc_type == 8374 and (h.damage or 0) > dmg then dmg = h.damage end
+                    if h.pid == s.pid and h.tick >= s.tick and h.tick <= s.tick + 1 and h.npc_type == 8374 and (h.damage or 0) >= 70 and (h.damage or 0) > dmg then dmg = h.damage end
                 end
                 hops[#hops + 1] = { pid = s.pid, tick = s.tick, dmg = dmg }
             end
