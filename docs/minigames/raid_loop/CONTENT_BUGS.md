@@ -1275,6 +1275,11 @@ TORIRSSERVER_SCRIPTS; the shared tree was never edited to prove it).
   spec sotetseg.melee_max_prayed_entry (E, [M165]); the plan's open table needs its M165 row.
   raid_report.py counting a hit through the right prayer as a "prayer" MISTAKE is the tool's
   rule, not the play's error, for this boss.
+  Re-checked 2026-10-07 content_bugs: STILL the disclosed approximation, blocked on a source. The Entry page
+  gives only "an inaccurate but high-hitting melee attack" and the advice to pray Protect from Melee
+  (wiki_Theatre_of_Blood_Entry_Mode.wikitext:191); the Entry infobox only the unprayed 20 (wiki_Sotetseg
+  .wikitext:23); Blert's one Entry raid has no melee on the recorder. Missing: any Entry recording of a melee
+  hit through Protect from Melee (a Blert Entry stream with Sotetseg melee on the recorder, or a video).
 - FIXED (content): the `br_` Saradomin brew drained Defence. `br_` is the cache's Last Man
   Standing supply family ("battle royale": all.obj also holds br_bloody_key, br_token); the
   ToB chest (tob.rs2 :855) and the ToA bundles hand it out. br_potion.rs2 now
@@ -1517,6 +1522,15 @@ TORIRSSERVER_SCRIPTS; the shared tree was never edited to prove it).
   POST.bloat + take_chest whole in a Normal party and reads `::tobstores points=` per raider
   (expected: each 6-13, not a sum). The "below average" band is now unreached (one raider's
   own deaths are 0, 1 or 2 = the onion); what "below average" measures is unpublished (M22).
+  **CLOSED 2026-10-07 content_bugs: driven in a party, each balance is the raider's own.** Probe
+  build/seam_state/content_bugs/probes/cb_chest_party.lua (the HEAD _play_bloat fight, then every seat opens
+  the chest and reads `::tobstores`), run build/quest_gate/cb_chest3 (Normal trio, Bloat killed tick 273):
+  p1 13, p2 12, p3 10 points, each inside the wiki's 6..13 ("the amount of points a player is given can range
+  from 6 to 13", wiki_Chest__Theatre_of_Blood_.wikitext:20), none a sum. Found on the way (cb_chest1/2, p2/p3
+  read 0): the chest (local 5,33) stands one tile from Bloat's exit (5,31)-(5,32), and `~tob_exit_walked`
+  (tob_raid.rs2, `^tob_exit_reach = 1`) moves the WHOLE party on when any raider steps within a tile of it; a
+  raider who walks to the chest's south-east side leaves the room for the two who have not opened it yet. Filed
+  below as its own OPEN row (needs a source for who the passage moves).
 - CHECKED, no change: where the Normal chest stands. "It is accessible twice per raid - once
   after killing the Pestilent Bloat, and once after killing Sotetseg" (Chest page :20; the
   main page :61 "After Bloat and Sotetseg, players have an opportunity to buy supplies ...
@@ -1552,6 +1566,13 @@ TORIRSSERVER_SCRIPTS; the shared tree was never edited to prove it).
   `remote_view_end` still act on `srv->active_player`
   (torirs_server_ops_player.c, `SS_OP_REMOTE_VIEW_START`/`_END`); a remote view started from
   a script bound to another player would open on the wrong one.
+  **FIXED 2026-10-07 content_bugs (engine, torirs_server_ops_player.c):** both now act on
+  `SSVM_Active(state, SSVM_ENT_PLAYER)` (asserted; the opcodes require the protected active player,
+  ss_meta_test.c:296-298), the source being the same Engine-TS rule as p_oploc above
+  (ScriptState.ts:214 `activePlayer` is the bound one). The view is player-scoped
+  (`ToriRSServer_WorldRemoteViewStart(player, ...)` touches only that player), so no world bind. Every
+  content caller (poh_portal_nexus.rs2, poh_portal_chamber_functions.rs2) runs in the viewer's own script,
+  where the two pointers are one player: behaviour-identical there; no stand-in proof run.
 - FIXED, KEPT TEST ROW: tob_bloat.lua `tech.protect_from_missiles` (and the
   `spec.bloat.fly_prayer` reading built on the same window) counted a walking tick as
   shielded when prayer POINTS were above 0, so flies before the first press counted as
@@ -1579,6 +1600,15 @@ TORIRSSERVER_SCRIPTS; the shared tree was never edited to prove it).
   (s41verziknew2, tick 461), against Blert's 35. Since seam36 the 35 percent test runs on the
   attack slot only (tob_verzik.rs2 `[proc,tob_verzik_reds_due]`); a summon above 35 percent
   is not explained by that, so either the `::tobboss` phase_hp read or the trigger is wrong.
+  **CLOSED 2026-10-07 content_bugs, the trigger is the source's (no content change).** The summon is
+  `~tob_verzik_reds_due` on an attack slot: the first slot where `hp * 100 <= pool * 35` of P2's own
+  pool (tob_verzik.rs2 `[proc,tob_verzik_left_at_or_below]`, `^tob_verzik_p2_reds_pct = 35` [wiki]),
+  "the first set on the slot after she crosses 35% (4 ticks after the attack before it in 62 of 62
+  recorded rooms)" (Blert, the code's own citation). A read under 35 is a big hit between slots; the
+  kept test now reads both sides of the last hit: build/quest_gate/cb_vz1 (tob_verzik, HEAD test, own
+  run) PASS "41.2 percent just before it ... 28.5 percent" at the summon on tick 387 (one 51 hit
+  crossed 35). The 43.2 percent of s41verziknew2 is not reproduced and is above the line the code
+  tests on every slot; it was read before the test subtracted the absorb window's heals (seam41).
 ## From seam40 play_tob_maiden_follows_blert (matthew-mbp-m4-raid-b1-seam40, 2026-10-06)
 
 ### Maiden blackstorm: the tie-break hands one raider every storm (Blert says the dps share them)
@@ -1588,6 +1618,8 @@ Content: `tob_maiden.rs2 [proc,tob_maiden_blackstorm]` targets "the closest play
 Blert (`docs/minigames/theater_of_blood/sources/blert_api/reference/maiden_normal_3.json`, 24 Normal trio rooms) measures who she targets within each room. role.dps1.boss_targeted_pct is 38 [5.6-58.8] and role.dps2 is 41.45 [18.8-64.3]: the two dps share the storms in every room. If ties were broken by a fixed orb order, most rooms would read near 0 / 100. role.freezer is 19.95 [6.2-50], with the freezer at dist_boss 10 in phases 100/70.
 
 Open: what breaks the tie in the real game? Candidates are random, last-attacker, and a different centre. No source has been found. The plan works around it: seat 1 steps one tile off on every other attack ("THE SHARED TANK"). Grade: the [mc] sentence is D; Blert's split contradicts a deterministic orb tie-break (B).
+
+**CLOSED 2026-10-07 (settled by owner_tob_normal, progress.md "STORM TILES, streams", 20:15): no content bug.** Over all 293 recorded storms (24 rooms, stormtiles.py) the target is the raider nearest her centre (SW +3,+3) by Chebyshev distance with the orb-order tie: 293 of 293; a north/east tie-break also 100 % (it never decides one), centre SW+2.5 97.3 %. The share split above is where the raiders STAND (in all 24 rooms the freezer is orb 0, the leader, and takes the ties from her east edge in her 30 form), not a random tie. `~tob_maiden_blackstorm` already does exactly this (`~tob_maiden_centre` = SW + size/2, `distance`, orb tie).
 
 ### Maiden Normal trio: our room runs about 1.7x the real length, and specials are not the whole gap
 
@@ -1626,6 +1658,7 @@ nylocas' defence/accuracy against the wiki stat block and whether a copy attacki
 
 ### Bloat stomp reach is anchored on the SOUTH-WEST tile (tob_bloat.rs2:823 huntall(npc_coord, ^tob_bloat_stomp_range = 6))
 Status: OPEN (seam42 closer). Not applied: the plan's in_stomp (raid_play_tob_bloat.lua) reads the same south-west anchor, so the content and the plan must change together, with a run; the radius is still the closer's guess from Blert data.
+**CLOSED 2026-10-07 content_bugs: FIXED by seam48** (row "Bloat stomp reach: centre-based (landed, seam48)" below). HEAD tob_bloat.rs2:831 `huntall(movecoord(npc_coord, 2, 0, 2), ^tob_bloat_stomp_range, 0)` with `^tob_bloat_stomp_range = 5` (tob.constant:973): footprint + 3 on every side, the Blert data (footprint+2 23/27, +3 4/10, >=4 0/10); raid_play_tob_bloat.lua:434 `in_stomp` reads the same centre (`P.stomp_centre`). No wiki or cache number exists (wiki_Pestilent_Bloat.wikitext:92 "it will stomp the surrounding area"; Strategies:675 none), so Blert stays the source. Nothing changed here.
 Source: Blert, 27 recorded Normal trio downs (build/blert/bloat, seam42 reader bloat/blert_bloat_reference.py):
 a raider at Chebyshev distance <=2 from Bloat's 5x5 footprint at T+28 took the stomp 23 of 27 times, at 3 4 of 10,
 at >=4 0 of 10, on every side.  Ours reaches footprint distance 6 on the south and west faces and only 2 on the
@@ -1648,6 +1681,19 @@ with the margin; X xarpus.p3.screech_pct 22.5 for Entry, W:851 "~25%"). Not fixe
 says which (his Normal hit points at the screech, or the scythe's three hits on a 5x5 in phase 3);
 measure the screech hit points from the npc row against Blert's npc hitpoints (event 8 at the
 xarpusPhase 2 tick) before changing anything.
+**CLOSED 2026-10-07 content_bugs as content (measured, no change).** (1) The screech point: Blert
+reference/xarpus_normal_3.json (13 rooms) output.phase.phase2.boss_pct_per_tick 0.517 x ticks 51 = 26.4 %
+of his pool dealt from the screech to his death (19.71 hp a tick x 51 = 1005 of 3750, with a median 94 hp
+healed inside it), against "Xarpus screeches once at 25% of his health" (wiki_Xarpus.wikitext:258) and
+"Upon reaching ~25% of his health" (Strategies:851); ours screeches at the first slot under 25 %: the same
+point within the heal. (2) His P3 stats are the wiki infobox's: tob.npc `[tob_xarpus_combat]` defence 250,
+ranged 100, magic 220, hitpoints 5000 scaled (wiki_Xarpus.wikitext:122-145, id 8340, dstab/dslash/dcrush 0);
+the melee formula and the scythe's three hits on a 5x5 were settled in seam52. (3) What is left is the
+PLAY: ours ~23 hp a tick (937 in 36-44 ticks) against Blert's 19.7, because the real teams lose swings to
+the quadrant dance ("He will rotate every 8 ticks ... 1/2 from a 5-tick weapon", Strategies:853; "will
+immediately look at the direction from which he was attacked", wiki_Xarpus.wikitext:265) and ours took 0
+retaliations. STILL OPEN on a source: what heals him a median 94 (25-139) inside Blert's P3 window; no
+page names a P3 heal (an exhumed still absorbing at the screech is the likely reading; unmeasured).
 ## From seam46 nylocas_waves_and_vasilias_rows (matthew-mbp-m4-raid-b1-seam46, 2026-10-06)
 
 Settles the four seam40 Nylocas rows above against their sources. None is a content defect in
@@ -1700,6 +1746,13 @@ cap_pre20_hard / cap_increase_gate already carry it (grade B/C).
   so wrong-style reflects at the turn are not the gap. With def 50 and no bonuses a 118-attack scythe should
   almost never miss: the gap is on the player side (boosts -- see the heart row -- prayer, the scythe's three
   hits on a size-4, or accuracy), not in her content. OPEN with that evidence; no source settles it here.
+- **CLOSED 2026-10-07 content_bugs (player side checked, matches).** Her block: wiki_Nylocas_Vasilias.wikitext:18
+  `size = 4`, :41 `def = 50`, defence bonuses 0; all.npc nylocas_boss_melee/_magic/_ranged size=4 stat2=50. The
+  scythe on a 3x3-or-larger target takes three independently rolled hits at 100/50/25 % (wiki_Scythe_of_vitur
+  :81-85; gear/scythe_of_vitur.rs2 header, size 3+ three hits, unchanged since seam38). The player formula is the
+  wiki's to the term (seam52 "Settled: the melee formula is not short"; its 'NOT THE FORMULA' line puts her melee-form
+  expectation at 41-42 a swing). The 21-25 a swing is the room (swings into the wrong form, reflected, across a form
+  change): a DRIVER/plan question, not a content row.
 
 ### Mage level 112 in Blert -- the heart EXISTS in content (correction of the seam40 row)
 
@@ -1979,3 +2032,16 @@ encounter; the leader gate added there in afd14f6018 is reverted with it. The en
 barrier ([oploc1,tob_arena_barrier], the party leader) and at Verzik (~tob_verzik_talk / ~tob_verzik_quickstart,
 the party leader). No harness or relay step used those doors to start a room (checked: they use the barrier,
 Verzik, and the exit passages).
+
+## 2026-10-07 content_bugs: walking near a cleared room's exit moves the whole party
+
+- OPEN, CONTENT (found by the cb_chest party probe; no source in hand). `~tob_exit_walked` (tob_raid.rs2,
+  asked from the per-player room watchdog while the room is cleared) calls `~tob_advance_room` when ANY raider
+  stands within `^tob_exit_reach` (1) of the room's exit, and the advance moves every raider (the "KNOWN GAP,
+  PARTY" note in `~tob_advance_room`). After Bloat the supply chest (local 5,33, the wiki map pin) is one tile
+  from the exit (5,31)-(5,32): cb_chest2, p2 stepped to local 6,32 beside the chest on tick 313 and on tick 314
+  all three were in the Nylocas room, p2 and p3 with 0 points and the chest never opened. Needed: a source for
+  what the passage does to the raiders who have not walked through (OSRS: each raider walks it on their own, as
+  far as any page shows; none here says so in a line). The instance holds one room at a time, so a per-raider
+  passage is an architecture change, not a constant.
+

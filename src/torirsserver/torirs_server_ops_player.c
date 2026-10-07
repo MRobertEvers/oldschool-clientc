@@ -307,11 +307,21 @@ ToriRSServer_OpsPlayer(
      * The coord and lifetime are content policy; the world layer owns the
      * protocol barrier, input lock and restoration of the real scene.
      */
+    /*
+     * Both act on the script's BOUND player (`SSVM_Active`, the protected
+     * active player the opcode requires), not `srv->active_player` (whoever the
+     * phase last selected): the same rebind as `p_oploc` below and seam38's
+     * `p_stopaction` (Engine-TS ScriptState.ts:214 `activePlayer` is the bound
+     * one). The view is player-scoped, so no world bind is needed.
+     */
     case SS_OP_REMOTE_VIEW_START:
     {
+        struct ToriRSServerPlayer* player =
+            (struct ToriRSServerPlayer*)SSVM_Active(state, SSVM_ENT_PLAYER);
         int32_t coord;
         int32_t ticks;
 
+        assert(player);
         if( !SSVM_PopInt(state, &ticks) || !SSVM_PopInt(state, &coord) )
             return 1;
         if( ticks < 1 || ticks > 200 )
@@ -320,15 +330,21 @@ ToriRSServer_OpsPlayer(
                        (int)ticks);
             return 1;
         }
-        ToriRSServer_WorldRemoteViewStart(srv->active_player, ToriRSServer_CoordX(coord),
+        ToriRSServer_WorldRemoteViewStart(player, ToriRSServer_CoordX(coord),
                                         ToriRSServer_CoordZ(coord), ToriRSServer_CoordLevel(coord),
                                         (int)ticks);
         return 1;
     }
 
     case SS_OP_REMOTE_VIEW_END:
-        ToriRSServer_WorldRemoteViewEnd(srv->active_player);
+    {
+        struct ToriRSServerPlayer* player =
+            (struct ToriRSServerPlayer*)SSVM_Active(state, SSVM_ENT_PLAYER);
+
+        assert(player);
+        ToriRSServer_WorldRemoteViewEnd(player);
         return 1;
+    }
 
     /*
      * `[command,p_oploc](int $op)` — engine.rs2:179, `PlayerOps.ts:389`.
