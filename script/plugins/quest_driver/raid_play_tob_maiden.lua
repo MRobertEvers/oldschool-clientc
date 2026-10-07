@@ -772,8 +772,30 @@ end
 --   maiden_crab     ONE INSTANCE PER SPAWN POSITION (inst "S1" .. "N4out"),
 --                   WALKING -> FROZEN -> THAWED -> GONE, and GONE -> WALKING
 --                   when the next wave fills that position again.
---   maiden_freezer  the freezer seat: DRAIN F_ON_BOSS PREAIM CAST RETURN DODGE
+--   maiden_freezer  the freezer seat: DRAIN F_ON_BOSS CAST DODGE
 --   maiden_scythe   a scythe seat:    OPEN DRAIN S_ON_BOSS LANE CLAWS DODGE
+--
+-- TWO STATES THE DECLARATION KILLED (2026-10-07).  The port declared PREAIM
+-- and RETURN with a note saying nothing entered them, because a port changes
+-- no behaviour; the nine-name survey then confirmed it -- 0 entries each
+-- against DRAIN 27, F_ON_BOSS 300, CAST 186, DODGE 303 -- and they are now
+-- deleted.  Which of the three kinds of dead each was:
+--
+--   PREAIM was dead BY DESIGN, superseded.  The hold it existed for -- W:643,
+--   the freezer hovering the S1 spawn as she nears a threshold -- was moved
+--   into F_ON_BOSS's tick on purpose ("no PREAIM standing still", with the
+--   measurement that said so), and nothing ever named PREAIM again.  The old
+--   table still carried a comment claiming "bar near a threshold -> PREAIM",
+--   which was simply stale.
+--
+--   RETURN was WIRED WRONG, stranded behind dead code.  The only transition
+--   that could reach it was in mz_cast_tick's `c == nil` arm, and that arm is
+--   itself unreachable: the wave's schedule ends at { 21, "NEXT" }, and every
+--   path through the NEXT branch returns without advancing m.idx, so the
+--   index never reaches 6 and `c` is never nil.  Pointing that arm at RETURN
+--   as an experiment changed nothing at all on nine names, which is how the
+--   dead arm was found.  QD.RAID_MAIDEN_REF.waves[*].ret is measured
+--   reference data and stays, now read by nothing.
 --
 -- THE PER-TICK CONTRACT IS THE LIBRARY'S, UNCHANGED.  raid_play.lua derives
 -- this tick's events once (QD.raid._play_events) and fires them BEFORE the
@@ -1295,6 +1317,59 @@ end
 -- a wave lands mid-dodge: the dodge resumes into the wave's first state, the
 -- one the saved state's crab_spawn handler would have entered (owner sm3: the
 -- 30 wave spawned on a dodge tick and the freezer stood in PREAIM to the end)
+-- THE GROUND UNDER ME JUST HURT ME, so I leave it -- from any state, mid-dodge
+-- included.  hit_taken WAS NAMED BY NO STATE: all eleven rows of the old
+-- table wrote "mz_stay" for it, so the library derived, subscribed and
+-- delivered the event every room and every state threw it away, while the
+-- only ground check in the plan ran just when the seat was NOT already
+-- dodging.  A seat that dodged ONTO a hurting tile therefore had no mechanism
+-- to leave it: sm60 svb, the freezer's dodge tile (6,-6) took 34, 34 and 28
+-- with nothing marked on it, and it stood there.
+--
+-- Measured over the nine names (hit_player rows, the leader's log, all three
+-- pids): 77.5 hp a seat a room against Blert's 70.  51.9 of ours is HER
+-- blackstorm, which no rule can dodge; 21.7 is the first hit on a tile, which
+-- is the step onto it; and 4.0 is a repeat hit on a tile the seat was already
+-- standing on, which is what this answers.
+--
+-- ONLY DODGE NAMES IT, AND THAT IS A MEASUREMENT, NOT A GUESS.  Declared on
+-- every standing state as well -- the freezer's DRAIN, F_ON_BOSS and CAST and
+-- a scythe seat's OPEN, DRAIN, S_ON_BOSS, LANE and CLAWS -- the rule made the
+-- room WORSE on all nine names: 125.8 hp a seat against the baseline's 77.5,
+-- because the extra steps keep seats off her, the room runs longer (295 ->
+-- 340 ticks on svf), and she throws more blackstorms, which is the damage no
+-- rule can dodge.  Her storm went 51.9 -> 87.6 a seat on its own, and svc and
+-- svf began failing tech.freeze as the freezer stepped off its casts.  In a
+-- standing state the dispatcher's own inline ground check already leaves a
+-- marked tile; the hole this closes is DODGE, where that check is skipped
+-- (`if m.state ~= "DODGE"`), so a seat that dodged ONTO a hurting tile had no
+-- mechanism at all to leave it.
+--
+-- HER BLACKSTORM IS NOT THE GROUND, and this is the whole care of the rule:
+-- it lands wherever the seat stands (W:590, halved by Protect from Magic)
+-- `storm_impact` ticks after her aim, so a rule that stepped off a tile for
+-- it would walk every seat off her every ten ticks, and the one thing this
+-- room cannot afford is seats off her.  So a hit that falls on a storm impact
+-- says nothing about the tile and is ignored; anything else is the tile.
+function QD.raid.mz_on_hit(c, ev)
+    local st, v = c.st, c.v
+    local m = st.m
+    if (ev.amount or 0) <= 0 then return nil end
+    for i = #m.attacks, math.max(1, #m.attacks - 3), -1 do
+        local a = m.attacks[i]
+        if not a.blood and math.abs(v.tick - (a.tick + st.plan.storm_impact)) <= 1 then return nil end
+    end
+    -- the tile hurt me, whatever the client shows on it (the dispatcher's own
+    -- tracker says the same thing but needs two hits on CONSECUTIVE ticks,
+    -- which a trail or a splat does not give it)
+    local here = v.me.x * 100000 + v.me.z
+    m.hurt_tiles = m.hurt_tiles or {}
+    m.hurt_tiles[here] = v.tick + 10
+    -- (mz_dodge keeps a due barrage: the freezer does not give up cast 1 to 4
+    -- for a step while its hitpoints hold -- sm38 svb)
+    return QD.raid.mz_out(c, QD.raid.mz_dodge(c,
+        { mine = true, x = v.me.x, z = v.me.z, ticks = 1, name = "pool_landed" }))
+end
 function QD.raid.mz_dodge_on_spawn(c, ev)
     local st, v = c.st, c.v
     local m = st.m
@@ -1490,22 +1565,6 @@ function QD.raid.mz_f_on_boss_tick(c, ev)
     intent.attack = true
 end
 
-function QD.raid.mz_preaim_tick(c, ev)
-    local st, v, intent = c.st, c.v, c.intent
-    -- no threshold ahead (her 30 form): nothing to pre-aim for
-    if QD.RAID_MAIDEN_REF.thresholds[QD.raid.mz_form(st) + 1] == nil then
-        st.m.idx = 0
-        return nil, "F_ON_BOSS"
-    end
-    if QD.raid.mz_wear(intent, st.plan.magic_set) then return end
-    if QD.raid.mz_walk_home(st, v, intent) then return end
-    -- a swap does not end the bow's attack on her (raid seam33 THE HALT): a
-    -- step off the tile ends it, so the first cast is the spawn's
-    if st.engaged then
-        intent.walk = { x = v.me.x, z = v.me.z + 1 }
-        st.engaged = false
-    end
-end
 
 function QD.raid.mz_cast_on_spawn(c, ev)
     local st = c.st
@@ -1547,13 +1606,13 @@ function QD.raid.mz_cast_tick(c, ev)
         if r.result == "covered" and v.tick - r.tick <= 3 and moves_on then skip[r.slot] = true end
     end
     local c = W.casts[m.idx]
-    -- (the last cast's answer is read the tick after it is sent: RETURN waits
-    -- for it, so a covered last cast is cast again -- sm9 sva t161)
+    -- (the last cast's answer is read the tick after it is sent, so a covered
+    -- last cast is cast again -- sm9 sva t161)
     if c == nil then
         if last ~= nil and last.tick >= v.tick then return end
-        -- (no RETURN wait: the bow's press goes out now, the server holds it
-        -- behind the barrage's cooldown -- the owner's invariant.  This is why
-        -- RETURN is declared and unreachable.)
+        -- (no wait: the bow's press goes out now and the server holds it
+        -- behind the barrage's cooldown -- the owner's never-idle invariant.
+        -- This arm is itself unreachable; see the header.)
         m.idx = 0
         return nil, "F_ON_BOSS"
     end
@@ -1684,17 +1743,6 @@ function QD.raid.mz_cast_tick(c, ev)
     return nil, "CAST"
 end
 
-function QD.raid.mz_return_tick(c, ev)
-    local st, v, intent = c.st, c.v, c.intent
-    local W = QD.RAID_MAIDEN_REF.waves[math.max(QD.raid.mz_form(st), 1)]
-    -- (the script's boss attack lands at +ret: sent the tick before)
-    if v.tick >= st.ev.wave_tick + W.ret - 1 then
-        st.m.idx = 0
-        return nil, "F_ON_BOSS"
-    end
-    if QD.raid.mz_wear(intent, st.plan.ranged_set) then return end
-    QD.raid.mz_walk_home(st, v, intent)
-end
 
 -- ----- THE SCYTHE SEATS -----
 function QD.raid.mz_s_on_boss_on_spawn(c, ev)
@@ -2076,35 +2124,11 @@ QD.raid.sm_declare("maiden_freezer", {
                 blood_thrown = QD.raid.mz_on_blood,
                 pool_landed = QD.raid.mz_on_pool,
             } },
-        -- NOTHING ENTERS THIS STATE.  The preaim hold (W:643, the freezer
-        -- hovering the S1 spawn as she nears a threshold) is written inline in
-        -- F_ON_BOSS's tick instead, and no transition names PREAIM.  It is
-        -- declared because mz_preaim_tick is still here and this is where a
-        -- reader should find out that it is unreachable -- the old table said
-        -- "bar near a threshold -> PREAIM" in a comment that was not true.
-        PREAIM = { note = "UNREACHABLE: the hold is inline in F_ON_BOSS's tick and nothing transitions here",
-            enter = QD.raid.mz_entered,
-            on = {
-                tick = QD.raid.mz_preaim_tick,
-                crab_spawn = QD.raid.mz_to_cast1,
-                blood_thrown = QD.raid.mz_on_blood,
-                pool_landed = QD.raid.mz_on_pool,
-            } },
         CAST = { note = "cast m.idx of the wave's schedule; the index advances in CAST itself and the list's end -> F_ON_BOSS",
             enter = QD.raid.mz_entered,
             on = {
                 tick = QD.raid.mz_cast_tick,
                 crab_spawn = QD.raid.mz_cast_on_spawn,
-                blood_thrown = QD.raid.mz_on_blood,
-                pool_landed = QD.raid.mz_on_pool,
-            } },
-        -- (RETURN is reached by nothing either: the casts' end goes straight
-        -- to F_ON_BOSS, "no RETURN wait: the bow's press goes out now".)
-        RETURN = { note = "UNREACHABLE: the ranged set and home until the wave's ret tick; CAST's end goes straight to F_ON_BOSS instead",
-            enter = QD.raid.mz_entered,
-            on = {
-                tick = QD.raid.mz_return_tick,
-                crab_spawn = QD.raid.mz_to_cast1,
                 blood_thrown = QD.raid.mz_on_blood,
                 pool_landed = QD.raid.mz_on_pool,
             } },
@@ -2116,6 +2140,7 @@ QD.raid.sm_declare("maiden_freezer", {
                 blood_thrown = QD.raid.mz_on_blood,
                 pool_landed = QD.raid.mz_on_pool,
                 boss_phase = QD.raid.mz_dodge_on_phase,
+                hit_taken = QD.raid.mz_on_hit,
             } },
     },
 })
@@ -2176,6 +2201,7 @@ QD.raid.sm_declare("maiden_scythe", {
                 blood_thrown = QD.raid.mz_on_blood,
                 pool_landed = QD.raid.mz_on_pool,
                 boss_phase = QD.raid.mz_dodge_on_phase,
+                hit_taken = QD.raid.mz_on_hit,
             } },
     },
 })
@@ -2326,6 +2352,12 @@ function QD.raid._play_maiden_trio(st, v)
     local here = v.me.x * 100000 + v.me.z
     intent.eat, intent.drink, intent.need = QD.raid._play_supplies(st, v, function(h)
         local storm = N.storm + 2
+        -- THE FREEZER'S OWN LINE.  The seat's rules below are in the `else`
+        -- of a `if st.role == 2`, so mz_eat_line was reached on a scythe seat
+        -- only and the freezer ate on the library's threat alone -- N.storm +
+        -- 2 = 27 -- where its own line is about 40.  A freezer died from 35
+        -- hitpoints to two blood splats of 18 and 17 in one tick (mrlyc).
+        if st.role == 2 then storm = math.max(storm, QD.raid.mz_eat_line(st, v)) end
         if v.marks[here] then return storm + 2 * N.pool end
         return storm
     end)
