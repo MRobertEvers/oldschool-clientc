@@ -305,6 +305,17 @@ function QD.raid._play_maiden_off_tile(st, v, lx, lz)
     local b = v.ev_boss
     local marked = {}
     for k, on in pairs(v.shadows or {}) do if on then marked[k] = true end end
+    -- (and everything the trio marked: the spawns' remembered trails, the
+    -- tiles that hurt -- sm79 sve: the leader's dodge off a spawn chose
+    -- (6,5), the trail that spawn laid three ticks before, 33, dead)
+    for k, on in pairs(v.marks or {}) do if on then marked[k] = true end end
+    -- (the event handlers run before the trio's see builds v.marks: read the
+    -- remembered trails and hurt tiles themselves)
+    for k, until_t in pairs((m and m.trail) or {}) do if v.tick <= until_t then marked[k] = true end end
+    for k, until_t in pairs((m and m.hurt_tiles) or {}) do if v.tick <= until_t then marked[k] = true end end
+    for _, sl in ipairs((m and m.slugs_last) or {}) do
+        for ax = -1, 1 do for az = -1, 1 do marked[(sl.x + ax) * 100000 + sl.z + az] = true end end
+    end
     for _, e in ipairs(v.events or {}) do
         if e.name == "blood_thrown" or e.name == "pool_landed" then marked[e.x * 100000 + e.z] = true end
     end
@@ -337,7 +348,16 @@ function QD.raid._play_maiden_off_tile(st, v, lx, lz)
                     local x, z = v.me.x + dx, v.me.z + dz
                     local on_floor = x >= P.floor[1] + ox and x <= P.floor[3] + ox and z >= P.floor[2] + oz and z <= P.floor[4] + oz
                     local under = b ~= nil and x >= b.x and x <= b.x + (b.size or 1) - 1 and z >= b.z and z <= b.z + (b.size or 1) - 1
-                    if on_floor and not under and not marked[x * 100000 + z] and (x ~= lx or z ~= lz) then
+                    -- (two out: the tile between must be clean too -- a walk
+                    -- ends a tick on it; sm81 sve: the dodge (5,6) -> (7,4)
+                    -- stopped on the trail at (6,5), 33, dead)
+                    local mid_ok = true
+                    if r == 2 then
+                        local sx = v.me.x + ((dx > 0) and 1 or ((dx < 0) and -1 or 0))
+                        local sz = v.me.z + ((dz > 0) and 1 or ((dz < 0) and -1 or 0))
+                        mid_ok = not marked[sx * 100000 + sz]
+                    end
+                    if mid_ok and on_floor and not under and not marked[x * 100000 + z] and (x ~= lx or z ~= lz) then
                         local score = r * 10
                         if m.R ~= nil and m.R.melee and b ~= nil and QD.raid._play_gap(b, x, z) ~= 1 then score = score + 5 end
                         -- a scythe seat in the trio steps to a tile beside her,
