@@ -1273,6 +1273,7 @@ function QD.raid._verzik_ball_run_once(f)
             bm.hops = bm.hops + 1
         end
         bm.last = v.tick
+        bm.land = v.tick + math.ceil((proj.cycles_left or 0) / QD.RAID_PLAY_CYCLES_PER_TICK)
     end
     local ev = "ball_none"
     local H, nxt = nil, nil
@@ -1308,9 +1309,25 @@ function QD.raid._verzik_ball_run_once(f)
     -- tile, and the ball landed on a crowd.  The target keeps off every seat
     -- but the one joining it; the rest keep out of the target's 3x3.  (The
     -- joining seat's dodge is free: it chases the target anyway.)
+    vz.guard_goal_tick, vz.guard_goal = nil, nil
+    if m.state == "HOLDING" and nxt ~= nil then
+        vz.guard_goal_tick, vz.guard_goal = v.tick, { x = nxt.x, z = nxt.z }
+    elseif m.state == "JOINING" and H ~= nil then
+        vz.guard_goal_tick, vz.guard_goal = v.tick, { x = H.x, z = H.z }
+    end
+    -- THE LANDING READS THE 3x3 AS IT STANDS (_vzslow t865-866: joined on
+    -- one tile, then the holder and the joiner each dodged a tornado the
+    -- other way, two apart on the landing, and the ball's final 74 hit the
+    -- holder): in the last two ticks the pair dodge only inside each other's
+    -- 3x3.  (The guard still dodges anywhere if nothing is left.)
+    local landing = bm ~= nil and bm.land ~= nil and bm.land - v.tick <= 1
     if H ~= nil then
         vz.ball_forbid_tick = v.tick
-        if m.state == "HOLDING" then
+        if m.state == "HOLDING" and landing and nxt ~= nil and cheb(me.x, me.z, nxt.x, nxt.z) <= BL.range then
+            vz.ball_forbid = function(x, z) return cheb(x, z, nxt.x, nxt.z) > BL.range end
+        elseif m.state == "JOINING" and landing and cheb(me.x, me.z, H.x, H.z) <= BL.range then
+            vz.ball_forbid = function(x, z) return cheb(x, z, H.x, H.z) > BL.range end
+        elseif m.state == "HOLDING" then
             vz.ball_forbid = function(x, z)
                 for _, r in ipairs(ring) do
                     if not r.me and (nxt == nil or r.seat ~= nxt.seat) and cheb(r.x, r.z, x, z) <= BL.range + 1 then return true end
@@ -1565,17 +1582,29 @@ function QD.raid._verzik_tornado_guard(st, v, intent, ok)
     if want ~= nil and math.max(math.abs(want.x - me.x), math.abs(want.z - me.z)) <= 2 then tx, tz = want.x, want.z end
     if not tor_reaches(tornadoes, me, mid, tx, tz) then return false end
     local gx, gz = (want and want.x) or me.x, (want and want.z) or me.z
+    -- a ball holder's dodge goes toward the seat joining it, and a joining
+    -- seat's toward its holder (_vzslow t858-865: the holder fled its
+    -- tornado away from the chain, the hop came late and the last link never
+    -- reached the new holder -- the ball's final 74)
+    if vz.guard_goal_tick == v.tick and vz.guard_goal ~= nil then gx, gz = vz.guard_goal.x, vz.guard_goal.z end
+    -- the ball's forbidden tiles first; with none left, the tornado wins: a
+    -- touch is half my hitpoints AND heals her (svbvzslow t823-830: two seats
+    -- held 6436,92 under a ball with every dodge forbidden, and were caught)
     local best, bx, bz = nil, nil, nil
-    for dx = -2, 2 do
-        for dz = -2, 2 do
-            local x, z = me.x + dx, me.z + dz
-            if ok(x, z) and not v.shadows[x * 100000 + z] and (b == nil or QD.raid._verzik_dist(x, z, b) >= 1)
-                and not tor_reaches(tornadoes, me, mid, x, z)
-                and not (vz.ball_forbid_tick == v.tick and vz.ball_forbid(x, z)) then
-                local sc = math.max(math.abs(x - gx), math.abs(z - gz)) * 10 + math.max(math.abs(dx), math.abs(dz))
-                if best == nil or sc < best then best, bx, bz = sc, x, z end
+    for pass = 1, 2 do
+        local honour = pass == 1 and vz.ball_forbid_tick == v.tick
+        for dx = -2, 2 do
+            for dz = -2, 2 do
+                local x, z = me.x + dx, me.z + dz
+                if ok(x, z) and not v.shadows[x * 100000 + z] and (b == nil or QD.raid._verzik_dist(x, z, b) >= 1)
+                    and not tor_reaches(tornadoes, me, mid, x, z)
+                    and not (honour and vz.ball_forbid(x, z)) then
+                    local sc = math.max(math.abs(x - gx), math.abs(z - gz)) * 10 + math.max(math.abs(dx), math.abs(dz))
+                    if best == nil or sc < best then best, bx, bz = sc, x, z end
+                end
             end
         end
+        if bx ~= nil or vz.ball_forbid_tick ~= v.tick then break end
     end
     if bx == nil then return false end
     intent.walk = { x = bx, z = bz }
@@ -1824,6 +1853,10 @@ end
 -- at t268), so a trio needs two; four leaves room for a hop that waits a tick
 -- and still ends the hold well before her next special.
 QD.RAID_PLAY_VERZIK_BALL_CHAIN_TICKS = 4
+-- the ledger's reading of a ball: hops are 6-8 ticks apart (content
+-- 552c599394), a throw is a rotation apart; three hops land within 30
+QD.RAID_PLAY_VERZIK_BALL_HOP_GAP = 12
+QD.RAID_PLAY_VERZIK_BALL_CHAIN_SPAN = 30
 QD.RAID_PLAY_VERZIK_DAWN_COST = 350
 
 -- ported to raid_sm 2026-10-07: THE DAWNBRINGER, three states.
@@ -4077,14 +4110,6 @@ function QD.raid._verzik_phase_p3(c)
     intent.want.rigour = true
     if melee then intent.want.rigour = nil intent.want.piety = true end
     -- (a ratio of 0 is no bar yet, not an enrage: see _verzik_slow_hold)
-    vz.bar_note = vz.bar_note or v.tick
-    if v.tick >= vz.bar_note then
-        vz.bar_note = v.tick + 25
-        st.notes = st.notes or {}
-        if #st.notes < 24 then
-            st.notes[#st.notes + 1] = "bar" .. v.tick .. "=" .. tostring(b.health_ratio) .. "/" .. tostring(b.health_scale)
-        end
-    end
     if b.health_ratio ~= nil and b.health_ratio > 0 and b.health_scale ~= nil and b.health_scale > 0 and b.health_ratio * 5 <= b.health_scale then vz.enraged = true end
     local cadence = vz.enraged and P.p3_enraged_cadence or P.p3_cadence
     -- the floor: two out of her (W:953 "the primary tank should either
@@ -4884,6 +4909,35 @@ function QD.raid._verzik_phase_p3(c)
     end
     -- last, over whatever the state decided: never stand where a tornado steps
     if melee then QD.raid._verzik_tornado_guard(st, v, intent, okp) end
+    -- NEVER ONTO OR ACROSS A LIVE WEB, whatever decided the walk: moving off a
+    -- web tile binds for 10 ticks (Near Reality VerzikViturRoom.processMovement,
+    -- content f4b4d64ea0), mid-run too, and a bound raider is a tornado's
+    -- (svbvzslow t752-762: a web spawned on 6437,90, two seats walked onto
+    -- it, stood bound and were touched -- heal 3x the hit).  A run of two
+    -- tiles passes its first-step tile (diagonal first), so that one counts.
+    if intent.walk ~= nil and #v.webs > 0 then
+        local web = {}
+        for _, w in ipairs(v.webs) do web[w.row.x * 100000 + w.row.z] = true end
+        local wx, wz = intent.walk.x, intent.walk.z
+        local function sgn(a) return a > 0 and 1 or (a < 0 and -1 or 0) end
+        local mx, mz = me.x + sgn(wx - me.x), me.z + sgn(wz - me.z)
+        local far = math.max(math.abs(wx - me.x), math.abs(wz - me.z)) > 1
+        if web[wx * 100000 + wz] or (far and web[mx * 100000 + mz]) then
+            local best, bx, bz = nil, nil, nil
+            for dx = -1, 1 do
+                for dz = -1, 1 do
+                    local x, z = me.x + dx, me.z + dz
+                    if (dx ~= 0 or dz ~= 0) and not web[x * 100000 + z] and okp(x, z)
+                        and (b == nil or QD.raid._verzik_dist(x, z, b) >= 1) then
+                        local sc = math.max(math.abs(x - wx), math.abs(z - wz))
+                        if best == nil or sc < best then best, bx, bz = sc, x, z end
+                    end
+                end
+            end
+            intent.walk = (bx ~= nil) and { x = bx, z = bz } or nil
+            vz.web_detours = (vz.web_detours or 0) + 1
+        end
+    end
     if QD.raid._verzik_slow_hold(st, v) then
         -- an engaged raider swings on by itself: ask the executor to stop it
         -- (raider_engage: a step onto my own tile, sent only while ENGAGED)
@@ -5154,10 +5208,18 @@ function QD.raid._verzik_cycle_read(t, p3s, death_tick)
             if r.seq == 8126 then C.yellows[#C.yellows + 1] = { tick = r.tick } C.order[#C.order + 1] = { "yellows", r.tick } end
         end
     end
+    -- a THROW, not a hop: since content 552c599394 every bounce is its own
+    -- 1598 from the raider it landed on, 6-8 ticks after the last, so a 1598
+    -- within QD.RAID_PLAY_VERZIK_BALL_HOP_GAP of the one before is the same
+    -- ball (her next throw is a whole rotation later)
+    local last_ball = nil
     for _, p in ipairs(K.projectile) do
         if p.spotanim == 1598 and p.tick >= p3s and p.tick <= end_tick then
-            C.ball[#C.ball + 1] = { tick = p.tick }
-            C.order[#C.order + 1] = { "ball", p.tick }
+            if last_ball == nil or p.tick - last_ball > QD.RAID_PLAY_VERZIK_BALL_HOP_GAP then
+                C.ball[#C.ball + 1] = { tick = p.tick }
+                C.order[#C.order + 1] = { "ball", p.tick }
+            end
+            last_ball = p.tick
         end
     end
     table.sort(C.order, function(a, b) return a[2] < b[2] end)
@@ -5234,7 +5296,7 @@ function QD.raid._verzik_cycle_read(t, p3s, death_tick)
     for _, bl in ipairs(C.ball) do
         local hops = {}
         for _, s in ipairs(K.player_spotanim) do
-            if s.spotanim == 1600 and s.tick >= bl.tick and s.tick <= bl.tick + 14 then
+            if s.spotanim == 1600 and s.tick >= bl.tick and s.tick <= bl.tick + QD.RAID_PLAY_VERZIK_BALL_CHAIN_SPAN then
                 local dmg = 0
                 -- (the ball's own hit only: 75% of the Hitpoints level, 74 at
                 -- 99 -- tob.constant ^tob_verzik_p3_ball_pct; her auto landing
