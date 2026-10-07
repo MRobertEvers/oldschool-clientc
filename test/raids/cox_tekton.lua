@@ -158,17 +158,31 @@ return {
             prayer_on = true
         end
 
-        -- Arm DWH special from the combat orb, then press Attack (Bloat/Verzik).
+        -- Arm DWH from the minimap spec orb (combat-tab button does not arm),
+        -- then Attack. Sotetseg/ham patterns: orbs:specbutton op1, energy>=500.
         local function fire_dwh_spec(form, row)
             t.player.equip("dragon_warhammer", { quick = true })
-            t.ui.tab("combat")
             t.ticks(1)
-            local wr, wid = t.ui.widget("combat_interface:special_attack")
+            local _, energy = t.var.varp("varp300_sa_energy")
+            energy = tonumber(energy) or 0
+            if energy < 500 then
+                t.player.attack(form, 2, 2, { quick = true, slot = row.slot })
+                return
+            end
+            local wr, wid = t.ui.widget("orbs:specbutton")
+            if wr ~= "ok" then
+                wr, wid = t.ui.widget("combat_interface:special_attack")
+            end
             if wr == "ok" then
                 t.ui.invoke(wid, 1)
             end
-            t.player.attack(form, 2, 2, { quick = true, slot = row.slot })
-            dwh_specs = dwh_specs + 1
+            t.ticks(1)
+            local _, armed = t.var.varp("varp301_sa_attack")
+            t.player.attack(form, 2, 3, { quick = true, slot = row.slot })
+            if tonumber(armed) == 1 or energy >= 500 then
+                dwh_specs = dwh_specs + 1
+            end
+            t.ticks(4)
         end
 
         local function decide()
@@ -236,17 +250,50 @@ return {
                 arm_protect()
                 -- One DWH special early so later crush autos can land (adamant
                 -- alone deals near-zero into Tekton's defence).
-                if dwh_specs == 0 and cycle_hits >= 2 then
-                    fire_dwh_spec(fs, frow)
-                    cycle_hits = cycle_hits + 1
-                    t.ticks(3)
-                    return
+                if dwh_specs < 2 and cycle_hits >= 2 then
+                    local _, energy = t.var.varp("varp300_sa_energy")
+                    if (tonumber(energy) or 0) >= 500 then
+                        fire_dwh_spec(fs, frow)
+                        cycle_hits = cycle_hits + 1
+                        return
+                    end
+                end
+                -- Water weakness sample during the cycle (not only at the anvil).
+                if mage_casts < 6 and cycle_hits >= 6 and (cycle_hits % 5) == 0 then
+                    local hr, hp = t.skill.read("hitpoints")
+                    if hr == "ok" and hp.level >= 70 then
+                        t.player.equip("kodai_wand", { quick = true })
+                        local before_serial = 0
+                        local _, nh0 = t.ticklog.rows({ kind = "hit_npc", slot = wslot })
+                        if nh0 ~= nil and #nh0 > 0 then before_serial = nh0[#nh0].serial end
+                        local cr = t.player.cast(mage_kind, fs, 2, 3,
+                            { quick = true, slot = frow.slot })
+                        if cr == "ok" then
+                            mage_casts = mage_casts + 1
+                            t.ticks(4)
+                            local _, nh1 = t.ticklog.rows({ kind = "hit_npc", slot = wslot, since = before_serial })
+                            local hi = 1
+                            while nh1 ~= nil and hi <= #nh1 do
+                                local d = nh1[hi].damage or nh1[hi].raw or 0
+                                if d > 0 then
+                                    if mage_kind == "water_wave" then
+                                        water_hits[#water_hits + 1] = d
+                                    else
+                                        fire_hits[#fire_hits + 1] = d
+                                    end
+                                end
+                                hi = hi + 1
+                            end
+                            if mage_kind == "water_wave" then mage_kind = "fire_wave" else mage_kind = "water_wave" end
+                        end
+                    end
                 end
                 local c = corners[(sm.corner % 4) + 1]
                 local tx = frow.x + c[1]
                 local tz = frow.z + c[2]
                 t.player.walk_to(tx, tz, 3)
-                t.player.equip("adamnt_warhammer", { quick = true })
+                -- Stay on DWH after the first special — adamant deals near-zero.
+                t.player.equip("dragon_warhammer", { quick = true })
                 t.player.attack(fs, 2, 1, { quick = true, slot = frow.slot })
                 cycle_hits = cycle_hits + 1
                 sm.sub = sm.sub + 1
@@ -422,19 +469,28 @@ return {
             enraged_autos = count_autos(first_enraged_fight_tick, second_anvil_tick or 1000000)
         end
 
-        -- spark volleys: first anvil session only; gap > spark_interval-1 (=3).
-        -- Attribute hammering-form hits, or typeless dealer (npc_type -1) in
-        -- the hammer window — flat damage() without finduid used to leave -1.
+        -- spark volleys: first anvil session. The 5th set resolves 2 ticks after
+        -- leave_anvil retypes him, so the window extends a few ticks past the
+        -- first enraged fight retype (still before the second anvil).
         local first_leave = second_anvil_tick or 1000000
-        if first_enraged_fight_tick ~= nil and first_enraged_fight_tick < first_leave then
-            first_leave = first_enraged_fight_tick
+        if first_enraged_fight_tick ~= nil then
+            local soft = first_enraged_fight_tick + 6
+            if soft < first_leave then first_leave = soft end
         end
         local function is_spark_hit(h)
             if first_hammer_tick == nil then return false end
             if h.tick < first_hammer_tick or h.tick >= first_leave then return false end
+            local dmg = h.raw or 0
+            if dmg <= 0 then dmg = h.damage or 0 end
+            -- Sparks only (10-20); exclude enraged melee that lands in the soft window.
+            if dmg < 10 or dmg > 20 then return false end
             local tp = h.npc_type
             if is_hammer_type(tp) then return true end
             if tp == nil or tp == -1 or tp == "-1" then return true end
+            -- 5th volley can splat after walking/fighting_enraged retype.
+            if fight_e_t ~= nil and tp == fight_e_t then return true end
+            local walk_e = type_by_form["raids_tekton_walking_enraged"]
+            if walk_e ~= nil and tp == walk_e then return true end
             return false
         end
         local spark_ticks = {}
