@@ -618,13 +618,45 @@ function QD.raid._play_supplies(st, v, threat)
     -- brew alone only when the food is gone; with food in the pack a brew
     -- only rides a bite that is short (the combo), never stands in for a
     -- bite the eat delay holds back
+    --
+    -- A HEAL IS TAKEN ONLY WHERE AT LEAST HALF OF IT LANDS under the
+    -- Hitpoints level -- the Nylocas plan's measured guard
+    -- (_play_nylocas_supplies: 89-214 of 760 healing never realised in five
+    -- runs), now for every room.  Without it a threat that clears the level
+    -- asks for a heal at full: the Normal relay's seats drank brews at 89-99
+    -- hitpoints through Bloat (svaplaynorma p3 t675-766: seven brews at 82-99)
+    -- and healed MORE than they lost there (116 lost, 144 healed), and every
+    -- boss kill restores the party to full anyway ("When each boss is killed,
+    -- the hitpoints ... of all team members are restored to full",
+    -- wiki_Theatre_of_Blood_Strategies:545; Blert, 96 of 96 surviving seats
+    -- end each room on their level), so a heal that does not land is gone.
+    -- A brew's overheal is not counted (Nylocas: on this server it does not
+    -- hold).  The combo's brew is judged on what the food leaves under it.
+    local function lands(amount, from)
+        return math.min(amount, v.hp_base - from) * 2 >= amount
+    end
+    local brew_heal = QD.RAID_PLAY_BREW_HEAL
     if v.hp <= need then
-        if eat_ready and food ~= nil then
+        if eat_ready and food ~= nil and lands(heal, v.hp) then
             eat = food
-            if v.hp + heal <= need and drink_ready and brew ~= nil then drink = brew end
-        elseif drink_ready and brew ~= nil and food == nil then
+            if v.hp + heal <= need and drink_ready and brew ~= nil
+                and lands(brew_heal, math.min(v.hp + heal, v.hp_base)) then
+                drink = brew
+            end
+        elseif drink_ready and brew ~= nil and food == nil and lands(brew_heal, v.hp) then
             drink = brew
         end
+    end
+    -- THE BREW RUN IS STILL OPEN while a brew-only seat is within one sip of
+    -- its threshold: _play_brew_recovery reads this so its super combat waits
+    -- for the END of the run, as Blert's raiders drink it (runs of 2 and 3+
+    -- sips exist, and the dose comes after them).  Without it the recovery
+    -- filled the free potion tick between two sips, and the next sip drained
+    -- the dose it had just bought: brew, combat, brew, combat, brew, restore
+    -- (_play_normal p2 Bloat t673-688), two combat doses wasted per run.
+    st.brew_run_open = nil
+    if food == nil and brew ~= nil and v.hp <= need + brew_heal then
+        st.brew_run_open = v.tick
     end
     if drink == nil and drink_ready then
         local missing = v.prayer_base - v.prayer
@@ -883,6 +915,11 @@ function QD.raid._play_brew_recovery(st, v)
         end
     end
     if sips == 0 then return nil end
+    -- the run is still open (_play_supplies saw this brew-only seat within
+    -- one sip of its threshold this tick): the 1-2 sip dose waits for the
+    -- run's end, so the next sip does not drain it; at 3 sips the restore
+    -- goes out as before
+    if sips < 3 and st.brew_run_open == v.tick then return nil end
     if sips >= 3 and not restored then
         local restore = play_first_held(QD.RAID_PLAY_RESTORES)
         if restore ~= nil then return restore end
