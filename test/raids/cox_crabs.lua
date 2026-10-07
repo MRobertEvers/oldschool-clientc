@@ -149,14 +149,15 @@ local function crystals_done(t)
 end
 
 local function sustain(t)
-    if hp(t) > 0 and hp(t) < 70 then
+    -- Beam collision can chunk HP; eat earlier than a normal kill room.
+    if hp(t) > 0 and hp(t) < 85 then
         t.player.inv_op("shark", 1)
         t.ticks(1)
     end
     local pr, pp = t.prayer.points()
     local points = 0
     if pr == "ok" then points = pp.points or pp.level or 0 end
-    if points < 30 then
+    if points < 40 then
         t.player.inv_op("br_4dose2restore", 1)
         t.ticks(1)
     end
@@ -244,8 +245,8 @@ return {
         "::give air_rune 400",
         "::give blood_rune 80",
         "::give hammer",
-        "::give shark 20",
-        "::give br_4dose2restore 4",
+        "::give shark 28",
+        "::give br_4dose2restore 6",
     },
 
     run = function(t)
@@ -358,9 +359,10 @@ return {
         local function seat_crab(tile, style)
             local wx, wz = world(tile.lx, tile.lz)
             local sx, sz = safe_tile(wx, wz)
-            -- Lure: stand on the bounce tile until the crab is adjacent, then
-            -- step off so it walks onto the vacated mark (exact d==0).
-            t.player.walk_to(wx, wz, 40)
+            -- Stand EAST of the bounce tile (off the CCW north-running beam
+            -- column). Melee pathing then prefers the bounce tile itself.
+            local lure_x, lure_z = wx + 1, wz
+            t.player.walk_to(lure_x, lure_z, 40)
             t.ticks(1)
             sustain(t)
             local crab = nearest_crab(t)
@@ -370,19 +372,21 @@ return {
             t.player.attack(crab.symbol, 2, 1, { quick = true, slot = slot })
             t.ticks(1)
             local guard = 0
-            local vacated = false
-            while guard < 80 do
+            while guard < 90 do
                 sustain(t)
+                -- Stay on the lure tile (east); never stand on the bounce.
+                local wr, me = t.world.tile()
+                if wr == "ok" and me ~= nil and (me.x ~= lure_x or me.z ~= lure_z) then
+                    t.player.walk_to(lure_x, lure_z, 15)
+                end
                 local exact = crab_at(t, wx, wz, 0)
                 if exact ~= nil then
-                    t.player.walk_to(sx, sz, 20)
-                    t.ticks(1)
-                    exact = crab_at(t, wx, wz, 0) or exact
                     local ok, detail = smash(t, exact)
                     if not ok then
                         return false, "smash failed: " .. tostring(detail)
                     end
-                    -- Smash paints red (~8 ticks); wait grey while frozen.
+                    -- Clear the beam column before paint wait.
+                    t.player.walk_to(sx, sz, 20)
                     t.ticks(10)
                     if style ~= nil and style ~= "melee" then
                         local live = pack_slot(exact.row.slot)
@@ -391,24 +395,24 @@ return {
                     t.player.walk_to(sx, sz, 20)
                     return true, exact.symbol
                 end
-                local near = crab_at(t, wx, wz, 1)
-                if near ~= nil and not vacated then
-                    -- Vacate the mark so the crab steps onto it.
-                    t.player.walk_to(sx, sz, 20)
-                    vacated = true
-                    t.ticks(2)
-                elseif near == nil then
-                    vacated = false
-                    t.player.walk_to(wx, wz, 10)
-                    local live = pack_slot(slot)
-                    if live == nil then
-                        local n = nearest_crab(t)
-                        if n ~= nil then
-                            live = n.row
-                            slot = n.row.slot
-                        end
+                local live = pack_slot(slot)
+                if live == nil then
+                    local n = nearest_crab(t)
+                    if n ~= nil then
+                        live = n.row
+                        slot = n.row.slot
                     end
-                    if live ~= nil then
+                end
+                if live ~= nil then
+                    -- If the crab is south/north of the mark, step so its
+                    -- next melee tile is the bounce.
+                    if live.x == wx and live.z == wz - 1 then
+                        t.player.walk_to(wx, wz + 1, 10)
+                    elseif live.x == wx and live.z == wz + 1 then
+                        t.player.walk_to(wx, wz - 1, 10)
+                    elseif live.x == wx - 1 and live.z == wz then
+                        t.player.walk_to(wx + 1, wz, 10)
+                    else
                         t.player.attack(live.symbol, 2, 1, {
                             quick = true, slot = live.slot,
                         })
