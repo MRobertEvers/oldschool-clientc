@@ -1525,22 +1525,29 @@ function QD.raid._play_sotetseg_trio_body(st, v)
     st.sote = st.sote or { mazes = {}, balls = 0, death_balls = 0, press_log = {}, read_magic = {}, pray_sent = nil,
         hold = -1, ranged_hold = -1, death_land = -1, magic_ticks = 0, melee_ticks = 0,
         follows = {}, gathers = 0, gather_ticks = 0, seat_ticks = 0, aimed = 0 }
-    -- THE EVENTS ARE DERIVED PER DECIDE, NOT PER TICK.  QD.raid.sm_events
-    -- would cache them on the raider for v.tick, and the library can call a
-    -- plan's decide TWICE with the same v.tick: QD.raid._play_tick reads its
-    -- own `v` at the top of every call and only waits when the tick has not
-    -- moved (raid_play.lua "if after == v.tick then QD.ticks(1) end"), so a
-    -- body whose own await crossed a boundary -- the follower's glow poll --
-    -- leaves the loop free to decide again inside the tick it landed in.  The
-    -- old body re-read the world on every call, and that second read is what
-    -- saw his combat form come back: svcplaysotet t148, the re-activation of
-    -- maze 1.  The first decide of t148 read his idle form and walked the
-    -- glow; the second read his combat form, put Piety back and walked to the
-    -- corner.  Cached, the second decide replayed the first's `maze_on` and
-    -- the two followers stayed in `follow` for a tick: Piety and the
-    -- protection switch a tick late from every maze, and svc's room went 239
-    -- -> 240 ticks with 123 more hitpoints lost on two seats.  So: derive
-    -- here, once per decide, which is once per read of the world.
+    -- THE EVENTS ARE DERIVED PER DECIDE, NOT PER TICK, and the derivation is
+    -- called here rather than through QD.raid.sm_events.  The library can call
+    -- a plan's decide TWICE for one tick: QD.raid._play_tick reads its own `v`
+    -- at the top of every call and only waits when the tick has not moved
+    -- (raid_play.lua "if after == v.tick then QD.ticks(1) end"), so a body
+    -- whose own await crossed a boundary -- the follower's per-frame glow poll
+    -- -- leaves the loop free to decide again inside the tick it landed in.
+    -- The old body re-read the world on every one of those calls, and the
+    -- second read is the one that saw his combat form come back: svcplaysotet
+    -- t148, the re-activation of maze 1.  The first decide of t148 read his
+    -- idle form and walked the glow; the second read his combat form, put
+    -- Piety back on and walked to the corner.  Derived once for the tick
+    -- instead, the second decide replayed the first's `maze_on`, both
+    -- followers stayed in `follow` for a tick, and Piety, the protection
+    -- switch and the first attack press came a tick late out of BOTH mazes:
+    -- svc's room went 239 -> 240 ticks with 123 more hitpoints lost over two
+    -- seats.  sm_events itself is sound now -- the layer keys its cache on the
+    -- tick's VIEW rather than the tick number (raid_sm.lua, 8c51e3841, from
+    -- this measurement) -- and this plan still calls the derivation directly,
+    -- because the derivation carries the side effects the old body had in the
+    -- same place (the projectile scan's counters, his attack clock, the
+    -- read_magic row) and they belong once per READ OF THE WORLD, which is
+    -- once per decide.
     local events = QD.raid._sotetseg_events(st, v)
     local c = { st = st, v = v, S = st.sote, P = st.plan, N = st.numbers, intent = intent, events = events }
     QD.raid.sm_run(st, v, "sotetseg_room", c, events)
