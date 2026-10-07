@@ -396,6 +396,8 @@ QD.raid._play_plan("tob_nylocas", {
     boss_style_give_up = 6,
     -- no Saradomin brew on her while food is held (its drain outlasts the restore)
     boss_no_brew = true,
+    -- every seat computes the other seats' choice this tick and yields it (QD.raid._nym_claims)
+    sim_others = true,
     -- owner_nylocas: THE SCORED PLAN'S PICK, the machine's KILL / PRE_STAND choice
     -- (QD.raid._play_nylocas_scored_pick): its terms, unchanged from 738ef1466,
     -- whose seats hold 7-18 alive at waves 21-26 against the list machine's 13-23
@@ -1006,6 +1008,72 @@ NY_STATES = {
 -- One tick of a seat's machine: the events of this tick in a fixed order, each
 -- to the current state's handler, then the current state's tick.  Returns the
 -- pick (or nil) and a walk (or nil).
+-- THE OTHER SEATS' CHOICE, COMPUTED (coordinator 2026-10-07: same-tick
+-- double choices, 12-13 a room, cannot be seen on the party link, which is a
+-- tick behind).  Every seat runs the same pick on the same view, so this seat
+-- runs it for each other role -- that role's seat, loadout, reach and the tile
+-- its seat stands on (api_drive.players), its current copy from the link --
+-- and claims nothing those seats will choose when the other seat is the
+-- copy's owner, or nearer to it, or as near and earlier in role order.  The
+-- pick's writes to the seat's own memory are put back after each run.
+local NY_SIM_KEEP = { "wait_for", "stand", "cleanup", "cleanup_passes", "clear_time", "chin_best", "chin_have",
+    "barrage_have", "inbound_skips", "owner_left", "owners_seen", "stack_cands", "why", "loadout", "reach", "worn" }
+local function nym_role_loadout(P, role)
+    local R = P.roles[role]
+    local lo, re = {}, {}
+    for style, L in pairs(P.loadout) do lo[style] = L end
+    for style, d in pairs(P.reach) do re[style] = d end
+    for style, L in pairs(R.loadout or {}) do
+        lo[style] = { item = L.item, speed = L.speed, seqs = L.seqs, powered = L.powered }
+        if L.reach ~= nil and P.reach[style] ~= nil then re[style] = L.reach end
+    end
+    return lo, re
+end
+function QD.raid._nym_claims(c)
+    local ny, P, v = c.ny, c.P, c.v
+    c.claimed = nil
+    if c.R == nil or v.vas ~= nil then return end
+    local seat_of = {}
+    for i, nm in ipairs(QD.party.names()) do seat_of[string.lower(string.gsub(nm, "[ _]", ""))] = i end
+    local pr, prow = api_drive.players()
+    if pr ~= "ok" then return end
+    local at = {}
+    for _, r in ipairs(prow) do
+        local seat = (not r.me and r.name ~= nil) and seat_of[string.lower(string.gsub(r.name, "[ _]", ""))] or nil
+        if seat ~= nil then at[seat] = { x = r.x, z = r.z } end
+    end
+    ny.sim_lo = ny.sim_lo or {}
+    local mine_role = c.st.role
+    local claimed = {}
+    for role, R2 in ipairs(P.roles) do
+        if role ~= mine_role and at[role] ~= nil then
+            ny.sim_lo[role] = ny.sim_lo[role] or { nym_role_loadout(P, role) }
+            local saved = {}
+            for _, k in ipairs(NY_SIM_KEEP) do saved[k] = ny[k] end
+            ny.loadout, ny.reach, ny.worn = ny.sim_lo[role][1], ny.sim_lo[role][2], R2.colour
+            local c2 = {}
+            for k, x in pairs(c) do c2[k] = x end
+            c2.R, c2.me, c2.claimed, c2.sim = R2, { x = at[role].x, z = at[role].z, level = c.me.level }, nil, true
+            c2.cur = (c.pub ~= nil and c.pub[role] ~= nil) and { slot = c.pub[role] } or nil
+            local pick = QD.raid._play_nylocas_scored_pick(c2)
+            local ok = true
+            for _, k in ipairs(NY_SIM_KEEP) do ny[k] = saved[k] end
+            if ok and pick ~= nil and not pick.vas and pick.slot ~= nil then
+                for _, n in ipairs(v.nylos) do
+                    if n.slot == pick.slot then
+                        local dmine = c.dist(c.me.x, c.me.z, n.x, n.z, n.size)
+                        local dthem = c.dist(at[role].x, at[role].z, n.x, n.z, n.size)
+                        if (R2.colour == n.style and c.R.colour ~= n.style) or dthem < dmine or (dthem == dmine and role < mine_role) then
+                            claimed[n.slot] = role
+                        end
+                    end
+                end
+            end
+        end
+    end
+    c.claimed = claimed
+    ny.claims = (ny.claims or 0) + 1
+end
 function QD.raid._play_nylocas_machine(c)
     local ny, v, P = c.ny, c.v, c.P
     if ny.m == nil then
@@ -1015,6 +1083,15 @@ function QD.raid._play_nylocas_machine(c)
     end
     c.m = ny.m
     local m = c.m
+    if P.sim_others then
+        if c.cur ~= nil and not c.cur.vas and c.cur.slot ~= nil then QD.party.publish_target(c.cur.slot) end
+        c.pub = {}
+        for _, n in ipairs(v.nylos) do
+            for _, role in ipairs(QD.party.others_on(n.slot, 2)) do c.pub[role] = n.slot end
+        end
+        -- (in the waves; the cleanup's floor is the leftovers, every seat on them)
+        if ny.waves < 31 then QD.raid._nym_claims(c) else c.claimed = nil end
+    end
     -- the events
     -- (a quiet spell after wave 28 is the cleanup only below the alive cap: at the
     -- cap it is a stall, and the waves are not over -- the traced svd ranger went
@@ -1473,6 +1550,10 @@ function QD.raid._play_nylocas_scored_pick(c)
                 -- about 5 a seat.  Off-colour presses against Blert's per weapon:
                 -- ranger Ayak 19 vs 8.0, meleer pipe 13.6 vs 2.1, mage pipe 12.2
                 -- vs 5.1.  A copy its owner stands in reach of is not a candidate.
+                if c.claimed ~= nil and c.claimed[n.slot] ~= nil and not (cur ~= nil and cur.slot == n.slot) then
+                    owned = true
+                    ny.claim_skips = (ny.claim_skips or 0) + 1
+                end
                 if P.leave_to_owner_rule and owned then
                     ny.owner_left = (ny.owner_left or 0) + 1
                 else
