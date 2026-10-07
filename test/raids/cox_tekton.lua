@@ -49,7 +49,8 @@ return {
         -- Shark is unstackable: leave room for DWH/kodai/runes/restores/brews.
         "::give shark 10",
         "::give br_4dose2restore 6",
-        "::give br_4dosepotionofsaradomin 6",
+        "::give br_4dosepotionofsaradomin 4",
+        "::give 4dose2combat 2",
     },
 
     run = function(t)
@@ -236,6 +237,7 @@ return {
             end
 
             if sm.state == STATE.LURE then
+                t.player.drink("4dose2combat")
                 local ar, ad = t.player.attack(fs, 2, 8)
                 t.check("fight.click", ar == "ok" or ar == "timeout", tostring(ar) .. " " .. tostring(ad))
                 t.ticklog.mark("tekton engaged")
@@ -248,33 +250,31 @@ return {
                 -- Synq monkey / 4-tick: attack on the green pre-corner tile while
                 -- running counterclockwise (never clockwise).
                 arm_protect()
-                -- One DWH special early so later crush autos can land (adamant
-                -- alone deals near-zero into Tekton's defence).
-                if dwh_specs < 2 and cycle_hits >= 2 then
-                    local _, energy = t.var.varp("varp300_sa_energy")
-                    if (tonumber(energy) or 0) >= 500 then
-                        fire_dwh_spec(fs, frow)
-                        cycle_hits = cycle_hits + 1
-                        return
-                    end
+                -- Fire DWH special whenever energy allows (defence drain stacks).
+                local _, energy = t.var.varp("varp300_sa_energy")
+                if (tonumber(energy) or 0) >= 500 and cycle_hits >= 2 then
+                    fire_dwh_spec(fs, frow)
+                    cycle_hits = cycle_hits + 1
+                    return
                 end
-                -- Water weakness sample during the cycle (not only at the anvil).
-                if mage_casts < 6 and cycle_hits >= 6 and (cycle_hits % 5) == 0 then
+                -- Water/fire sample after at least one DWH drain, on any form.
+                if dwh_specs >= 1 and mage_casts < 8 and (cycle_hits % 4) == 0 then
                     local hr, hp = t.skill.read("hitpoints")
-                    if hr == "ok" and hp.level >= 70 then
+                    if hr == "ok" and hp.level >= 65 then
                         t.player.equip("kodai_wand", { quick = true })
                         local before_serial = 0
                         local _, nh0 = t.ticklog.rows({ kind = "hit_npc", slot = wslot })
                         if nh0 ~= nil and #nh0 > 0 then before_serial = nh0[#nh0].serial end
-                        local cr = t.player.cast(mage_kind, fs, 2, 3,
+                        local cr = t.player.cast(mage_kind, fs, 2, 4,
                             { quick = true, slot = frow.slot })
                         if cr == "ok" then
                             mage_casts = mage_casts + 1
-                            t.ticks(4)
+                            t.ticks(5)
                             local _, nh1 = t.ticklog.rows({ kind = "hit_npc", slot = wslot, since = before_serial })
                             local hi = 1
                             while nh1 ~= nil and hi <= #nh1 do
                                 local d = nh1[hi].damage or nh1[hi].raw or 0
+                                if d <= 0 then d = nh1[hi].e or 0 end
                                 if d > 0 then
                                     if mage_kind == "water_wave" then
                                         water_hits[#water_hits + 1] = d
@@ -541,11 +541,14 @@ return {
         end
         local hp_net = dealt - healed
 
+        -- Prayer reduction vs normal maxhit 52 (cap 26). Enraged maxhit 59
+        -- halves to 29 — exclude enraged from this sample so the 50% proof
+        -- is against the grade-C normal band.
         local melee_un, melee_pr = {}, {}
         local first_melee_tick = nil
         hi = 1
         while p_hits ~= nil and hi <= #p_hits do
-            if is_fight_type(p_hits[hi].npc_type) then
+            if fight_n_t ~= nil and p_hits[hi].npc_type == fight_n_t then
                 local d = p_hits[hi].raw or p_hits[hi].damage
                 if first_melee_tick == nil then first_melee_tick = p_hits[hi].tick end
                 if p_hits[hi].tick == first_melee_tick then
@@ -563,6 +566,20 @@ return {
         while hi <= #melee_pr do if melee_pr[hi] > pr_max then pr_max = melee_pr[hi] end hi = hi + 1 end
         local prayer_pct = nil
         if #melee_pr > 0 and pr_max <= 26 then prayer_pct = 50 end
+        -- tech.protect_melee still wants any fighting-form protected hits
+        local melee_pr_any = 0
+        local melee_un_any = 0
+        hi = 1
+        while p_hits ~= nil and hi <= #p_hits do
+            if is_fight_type(p_hits[hi].npc_type) then
+                if first_melee_tick ~= nil and p_hits[hi].tick == first_melee_tick then
+                    melee_un_any = melee_un_any + 1
+                else
+                    melee_pr_any = melee_pr_any + 1
+                end
+            end
+            hi = hi + 1
+        end
 
         local water_max, fire_max = 0, 0
         hi = 1
@@ -634,14 +651,14 @@ return {
                 .. "); extra " .. tostring(water_max - fire_max) .. " on water-wave base 18"
                 .. " (spec 20 percent, grade A, tol exact)")
 
-        t.check("tech.protect_melee", prayer_on and #melee_pr > 0,
+        t.check("tech.protect_melee", prayer_on and melee_pr_any > 0,
             "Protect from Melee after the first unprotected wedge hit; protected hits "
-                .. #melee_pr .. " unprotected " .. #melee_un)
+                .. melee_pr_any .. " unprotected " .. melee_un_any)
         t.check("tech.spark_step", spark_dodges > 0 or hammer_visits <= 1,
             "spark dodges after the first anvil: " .. spark_dodges .. " walks of two tiles; hammer visits "
                 .. hammer_visits)
-        t.check("tech.front_wedge", #melee_un + #melee_pr > 0,
-            "stood in melee and ate the front/right wedge: " .. (#melee_un + #melee_pr) .. " fighting-form hits")
+        t.check("tech.front_wedge", melee_un_any + melee_pr_any > 0,
+            "stood in melee and ate the front/right wedge: " .. (melee_un_any + melee_pr_any) .. " fighting-form hits")
         return
     end,
 }
