@@ -17,8 +17,16 @@
 -- harness below unchanged.  `seed_survey.py _play_maiden --party 3`; the
 -- determinism gate reads the party size from the file, so party_repeat.py
 -- runs a copy that declares `party = 3,` (--script).
-local role = (QD_PARTY and QD_PARTY.role) or 1
+local seat = (QD_PARTY and QD_PARTY.role) or 1
 local size = (QD_PARTY and QD_PARTY.size) or 1
+-- owner_tob_normal sm153: THE FREEZER LEADS THE PARTY.  Her storm goes to the
+-- raider nearest her centre tile, ties to the higher orb (stormrule.py, 293
+-- of 293 storms); in all 24 reference rooms the freezer is orb 0 (the party
+-- leader).  Seat 1 (the party's leader, orb 0, who holds the tick log) is the
+-- freezer, seat 2 dps1, seat 3 dps2; the plan's roles (1 dps1, 2 freezer,
+-- 3 dps2) are unchanged.
+local ROLE_OF_SEAT = { [1] = 2, [2] = 1, [3] = 3 }
+local role = (size == 3) and ROLE_OF_SEAT[seat] or seat
 -- THE TRIO'S KIT (raid seam32).  Every raider: the Entry harness's combat
 -- levels and its worn ranged set ("Everyone will be ranging in this room",
 -- 10Boot transcripts/yt_4i4lv-srJkw.md 0:07:06; "the twisted bow is highly
@@ -151,7 +159,7 @@ end
 -- to the library; the leader reads the world's tick log after the kill.
 local function party_run(t)
     local mode = "normal"
-    if role == 1 then t.ticklog.start() end
+    if seat == 1 then t.ticklog.start() end
     -- raid seam33: the bow on rapid, one tick faster ({{CombatStyles|Bow|
     -- speed=6}}, wiki_Twisted_bow.wikitext:51; the blowpipe's 3 becomes 2,
     -- wiki_Toxic_blowpipe.wikitext:108 "When using the rapid attack style");
@@ -218,12 +226,12 @@ local function party_run(t)
     local mr, md = nil, nil
     local xr, xd = t.raid.cross_together("maiden", { at_answer = function() mr, md = t.ticklog.mark("room start") end })
     t.check("play.barrier_cross", xr == "ok", "p" .. role .. " " .. tostring(xd))
-    if role == 1 then t.check("play.mark", mr == "ok", tostring(md)) end
+    if seat == 1 then t.check("play.mark", mr == "ok", tostring(md)) end
 
     -- THE FIGHT: the library and the room's plan, nothing else
     -- raid seam40: the dps seats swing the scythe (the library's cadence row)
     local weapon = (role == 2) and "twisted_bow" or "scythe_of_vitur"
-    local result, detail, rec = t.raid.play("tob_maiden", { mode = mode, weapon = weapon, max_ticks = 1400 })
+    local result, detail, rec = t.raid.play("tob_maiden", { mode = mode, weapon = weapon, max_ticks = 1400, role = role })
     t.check("play.fight", result == "ok", "p" .. role .. " " .. tostring(detail))
     local m = rec.m or {}
     local casts, nc = "", 0
@@ -274,7 +282,7 @@ local function party_run(t)
         table.sort(plans)
         t.check("play.ice_plan", #plans > 0, "the plan's best at each wave's first cast: " .. table.concat(plans, "; "))
     end
-    if role ~= 1 then
+    if seat ~= 1 then
         t.expect("party.barrier.done", t.party.barrier("done", 9000))
         t.finish(0)
         return
@@ -439,12 +447,10 @@ local function party_run(t)
     t.ticks(1)
     local _, ptile_rows = t.ticklog.rows({ kind = "player_tile" })
     t.ticks(1)
-    if rec.my_pid ~= nil then pid_seat[rec.my_pid] = 1 end
-    for _, r in ipairs(cast_rows) do
-        if pid_seat[r.pid] == nil then pid_seat[r.pid] = 2 end
-    end
+    -- (sm153: the pids follow the join order, seat 1 pid 0 .. seat 3 pid 2;
+    -- each is named by the role its seat plays)
     for _, r in ipairs(ptile_rows) do
-        if pid_seat[r.pid] == nil then pid_seat[r.pid] = 3 end
+        if pid_seat[r.pid] == nil then pid_seat[r.pid] = ROLE_OF_SEAT[r.pid + 1] or ("_pid" .. tostring(r.pid)) end
     end
     local storm_by, blood_by, taken_by = {}, {}, {}
     for _, r in ipairs(hitp_rows) do
