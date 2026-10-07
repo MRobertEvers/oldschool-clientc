@@ -7665,3 +7665,37 @@ pid's raider row at most two rows after its decide tick (received within one tic
 barrage re-pressed inside its own timer, or a boss not yet attackable, delays the action with the packet on time.
 mrlya old driver FAIL (t291 cast received t293), fixed PASS; _play_maiden trio 90/90; _vzfastp3 102/102.
 `python3 tools/quest_gate/press_latency_check_test.py` is the fixture test.
+
+## A FULL PACK DROPS THE REST OF THE KIT WITHOUT A WORD (2026-10-07, owner_tob_normal)
+
+A harness that hands a seat its kit with `::give` must count the slots. The
+backpack is 28, and a `::give` into a full one does nothing and says nothing:
+no error, no chat line, no failed row. The relay (`test/raids/_play_normal.lua`)
+gives each seat its worn set, every switch a room needs, then its supplies --
+and every one of the three seats reached the lobby at **0 free slots**, so the
+commands at the END of the list were the ones that vanished. Seat 1 asked for
+one brew and two restores and started the raid with no food AND no combat dose
+at all; seat 2 asked for five anglerfish and held four; seat 3 asked for four
+and held three. Relay runs then died of starvation in Verzik, room by room,
+and the rooms were blamed for an hour.
+
+Nothing in the tick log says so either: there is no "give refused" event, and
+the readout that would have shown it (`kit.supplies`) was written to tolerate
+the one seat that had no food (`kit0.angler > 0 or mrole == 2`), so the
+measurement that could have caught it was the thing hiding it.
+
+So, for any harness with a large kit:
+
+* **Check the pack after the last give, strictly, for every seat** -- the row
+  must name what it expected and what it holds, and FAIL on a shortfall. The
+  relay's `kit.supplies` now asserts food and restores for all three seats and
+  prints `free slots`.
+* **Free slots are the budget.** `free_slots(t)` after the kit is the number to
+  watch; 0 means the next give is already lost, not that the pack is nicely
+  full.
+* **Give a room's switches at the room**, not in the lobby, when no earlier
+  room wears them: the relay hands seat 1 its five melee pieces at the Bloat
+  door (`SEAT1_MELEE` / `seat1_melee`), which is what freed the slots for its
+  food. A charge that consumes an item (the Ayak's demon tears, the
+  tonalztics' splinters) frees its slot too, which is why the supplies are
+  handed over after the charges.
