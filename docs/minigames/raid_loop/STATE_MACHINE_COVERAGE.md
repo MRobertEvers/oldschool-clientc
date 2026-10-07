@@ -223,6 +223,43 @@ that is not there — which is exactly what Maiden's false `PREAIM` comment did.
 `b0fc8aa55` (the premise) needs no re-run anywhere: no declaration uses
 `premise`, so its only runtime branch is never taken. Verified standalone.
 
+### WARNING: `34281e774` INVALIDATED EVERY ROOM'S ARCHIVED BASELINE
+
+Raised by the Xarpus agent, and it is the most practically important line in
+this document. The play library's summary **is the detail column of the
+`play.fight` row**. So every archived "byte-identical ledger" taken before
+`34281e774` now differs from any fresh run by construction, in five rows per
+room, and **none of those differences are behaviour changes**.
+
+Anyone re-verifying a room must **re-baseline**: run the pre-port file and the
+ported file on the SAME library revision, rather than diffing against an
+archive from before the hook. The structural rows are still directly
+comparable across the hook — for Xarpus those are `fight.done`, `trio.*`,
+`play.gaze_kept` and the tick-log damage; each room has its own equivalents.
+It is the `play.fight` detail that moved.
+
+Affected archives: `build/seam_state/sm_xarpus/{before,after,after_layerfix}`
+and the equivalents for the other five rooms.
+
+### And no room's proof covers the hook itself
+
+Also the Xarpus agent's point, and it is fair. Each room proved its port on the
+library as it then stood; `34281e774` changed the shared library afterwards, so
+no room's byte-identical evidence covers it. What can be said without a re-run:
+
+- The hook runs in `_play_summary`, which is called **after** play ends
+  (`QD.raid.play` returns `result, summary, st`), so it cannot affect a play
+  decision. The failure modes available to it are an error inside
+  `sm_coverage` aborting the run, or a longer detail string tripping a limit.
+- Neither occurred: all six rooms ran clean on the hook, and again after
+  nesting (`06f07bd62`) and after the edge counters (`b2fe8cd99`), with
+  identical verdicts each time and with Verzik, Bloat, Nylocas and Xarpus
+  byte-identical in their coverage clauses between sweeps.
+
+That is evidence, not proof. **It is my change, so the re-verification is mine
+to run, not the room agents'** — five surveys at roughly twenty minutes each
+should not be charged to them for a library change they did not make.
+
 **`34281e774` changes ledger detail strings** for the six ported rooms, so the
 next before/after comparison in each must be like-for-like on that commit or
 later. It makes a comparison strictly stronger: the counts are identical on both
