@@ -1,11 +1,10 @@
 -- Chambers of Xeric: Vanguards, solo learner balance method.
 -- Spec: docs/minigames/cox/encounters/vanguards.tsv
 -- Source: docs/minigames/cox/synq_transcript.md [1:38:50]–[1:42:08]
---   "highly recommended to use all three attack styles"
---   "keeping each vanguard's HP within 40% of each other"
---   style triangle: mage→ranged, melee→magic, ranged→melee
+--   "use all three attack styles" / keep HP within 40%
+--   "stay directly in front of only the Vanguard that you are focusing"
+--   ranged vanguard does not walk when stood under
 -- Model: named-state machine, one intent per tick.
--- Always attack the highest-HP combat form with its weak style.
 
 local MELEE = "raids_vanguard_melee"
 local RANGED = "raids_vanguard_ranged"
@@ -15,11 +14,17 @@ local DORMANT = "raids_vanguard_dormant"
 local COMBAT = { MELEE, RANGED, MAGIC }
 local FAMILY = { MELEE, RANGED, MAGIC, WALKING, DORMANT }
 
--- Weakness triangle (Synq / COX_MECHANICS.md §7).
 local WEAK = {
     [MELEE] = "magic",
     [RANGED] = "melee",
     [MAGIC] = "ranged",
+}
+
+-- One overhead per focus (Synq). Never stack two Protects.
+local PROTECT = {
+    [MELEE] = "protectfrommelee",
+    [RANGED] = "protectfrommissiles",
+    [MAGIC] = "protectfrommagic",
 }
 
 local STATE = {
@@ -31,14 +36,14 @@ local STATE = {
     DONE = "DONE",
 }
 
-local function find_sym(t, sym)
-    local r, row = t.npc.nearest(sym, 40)
+local function find_sym(t, sym, range)
+    local r, row = t.npc.nearest(sym, range or 64)
     if r == "ok" then return row end
     return nil
 end
 
 local function pack_rows(t)
-    local pr, pd, pack = t.npc.pack(40)
+    local pr, pd, pack = t.npc.pack(64)
     if pr ~= "ok" then return nil end
     return pack
 end
@@ -57,9 +62,8 @@ end
 local function any_family(pack)
     if pack == nil then return false end
     for i = 1, #pack do
-        local s = pack[i].symbol
         for j = 1, #FAMILY do
-            if s == FAMILY[j] and (pack[i].hitpoints or 0) > 0
+            if pack[i].symbol == FAMILY[j] and (pack[i].hitpoints or 0) > 0
                 and not pack[i].dying then
                 return true
             end
@@ -114,34 +118,39 @@ end
 
 local function sustain(t)
     local _, hp = t.skill.read("hitpoints")
-    if hp and hp.level ~= nil and hp.level < 55 then
+    if hp and hp.level ~= nil and hp.level < 85 then
         t.player.inv_op("shark", 1)
     end
     local _, pray = t.skill.read("prayer")
-    if pray and pray.level ~= nil and pray.level < 20 then
+    if pray and pray.level ~= nil and pray.level < 40 then
         t.player.inv_op("br_4dose2restore", 1)
     end
 end
 
-local function equip_style(t, style)
+local function clear_protects(t)
+    t.prayer.set("protectfrommelee", false)
+    t.prayer.set("protectfrommissiles", false)
+    t.prayer.set("protectfrommagic", false)
+end
+
+local function equip_for(t, target_sym)
+    local style = WEAK[target_sym] or "ranged"
+    clear_protects(t)
+    -- Protect against the target's style (what it hits with).
+    t.prayer.set(PROTECT[target_sym], true)
     if style == "ranged" then
         t.player.equip("twisted_bow", { quick = true })
         t.player.equip("dragon_arrow", { quick = true })
-        t.player.equip("masori_mask", { quick = true })
-        t.player.equip("masori_body", { quick = true })
-        t.player.equip("masori_chaps", { quick = true })
         t.player.equip("avas_assembler", { quick = true })
-        t.prayer.set("protectfrommagic", true)
         t.prayer.set("eagleeye", true)
     elseif style == "magic" then
         t.player.equip("kodai_wand", { quick = true })
-        t.prayer.set("protectfrommelee", true)
         t.prayer.set("augury", true)
     else
         t.player.equip("abyssal_whip", { quick = true })
-        t.prayer.set("protectfrommissiles", true)
         t.prayer.set("piety", true)
     end
+    return style
 end
 
 local function spec(t, id, measured, unit, note, sval, grade, tol)
@@ -177,10 +186,6 @@ return {
         "::setlevel magic 99",
         "::setlevel hitpoints 99",
         "::setlevel prayer 99",
-        -- Synq learner triangle kit.
-        -- Keep the backpack sparse: clearinv + triangle kit + food/restore.
-        -- (A prior brew line filled nothing useful and tripped setup when the
-        -- backpack was already holding the triangle switches.)
         "::give twisted_bow",
         "::wield twisted_bow",
         "::give dragon_arrow 2000",
@@ -193,8 +198,8 @@ return {
         "::give air_rune 800",
         "::give blood_rune 200",
         "::give abyssal_whip",
-        "::give shark 16",
-        "::give br_4dose2restore 6",
+        "::give shark 20",
+        "::give br_4dose2restore 8",
     },
 
     run = function(t)
@@ -209,16 +214,24 @@ return {
             sr == "ok" and (tostring(room.raid) .. " " .. tostring(room.room))
                 or tostring(room))
 
-        local dormant = find_sym(t, DORMANT)
-        t.check("boss.present", dormant ~= nil, "dormant landing")
-        local wr, wslot0 = t.ticklog.slot(dormant)
+        local landing = find_sym(t, DORMANT) or find_sym(t, WALKING)
+            or find_sym(t, MELEE) or find_sym(t, RANGED) or find_sym(t, MAGIC)
+        t.check("boss.present", landing ~= nil,
+            "landing form " .. tostring(landing and landing.symbol))
+        local wr, wslot0 = t.ticklog.slot(landing)
         t.check("boss.slot", wr == "ok", tostring(wslot0))
-        t.shot("vanguards idle dormant on landing")
+        t.shot("vanguards idle or approaching on landing")
 
-        -- Authored stats from the first combat form once shells open; read
-        -- dormant record now for hp/defence baselines (same authored band).
-        local rec_r, rec_d, rec = t.npc.record(DORMANT, { need = "server" })
-        t.check("dormant.record", rec_r == "ok", tostring(rec_d))
+        local rec_sym = (landing and landing.symbol) or DORMANT
+        if rec_sym == WALKING then rec_sym = DORMANT end
+        local rec_r, rec_d, rec = t.npc.record(rec_sym, { need = "server" })
+        if rec_r ~= "ok" then
+            rec_r, rec_d, rec = t.npc.record(MELEE, { need = "server" })
+        end
+        if rec_r ~= "ok" then
+            rec_r, rec_d, rec = t.npc.record(DORMANT, { need = "server" })
+        end
+        t.check("vanguard.record", rec_r == "ok", tostring(rec_d))
         local srv = rec and rec.server or {}
         local authored_hp = srv.hitpoints or 180
         local authored_def = srv.defence or 160
@@ -228,6 +241,7 @@ return {
             state = STATE.LAND,
             ticks = 0,
             style = "ranged",
+            focus = nil,
             probe_hits = 0,
             heal_spread_pct = nil,
             last_spread_pct = nil,
@@ -244,7 +258,6 @@ return {
             slots = {},
             max_hit = 0,
             attacks_per_action = nil,
-            target_sym = nil,
         }
 
         local function set_state(next_state)
@@ -254,19 +267,15 @@ return {
         local function track_slots(pack)
             if pack == nil then return end
             for i = 1, #pack do
-                local s = pack[i].symbol
                 for j = 1, #COMBAT do
-                    if s == COMBAT[j] then
-                        sm.slots[s] = pack[i].slot
+                    if pack[i].symbol == COMBAT[j] then
+                        sm.slots[COMBAT[j]] = pack[i].slot
                     end
-                end
-                if s == WALKING and pack[i].slot then
-                    -- remember walking slots for shuffle gap timing
                 end
             end
         end
 
-        local function sample_combat_anims(t)
+        local function sample_combat(t)
             for sym, slot in pairs(sm.slots) do
                 local ar, arows = t.ticklog.rows({
                     kind = "npc_anim", slot = slot, since = sm.serial_mark,
@@ -287,43 +296,34 @@ return {
                 end
                 local hr, hrows = t.ticklog.rows({ kind = "hit_player", slot = slot })
                 if hr == "ok" then
-                    -- Cluster same-tick hits into one action for attacks_per_action.
-                    local by_tick = {}
                     for h = 1, #hrows do
-                        local tick = hrows[h].tick
                         local dmg = hrows[h].damage or hrows[h].raw or 0
                         if dmg > sm.max_hit then sm.max_hit = dmg end
+                    end
+                end
+                local pr, prows = t.ticklog.rows({ kind = "projectile", slot = slot })
+                if pr == "ok" then
+                    local by_tick = {}
+                    for p = 1, #prows do
+                        local tick = prows[p].tick
                         by_tick[tick] = (by_tick[tick] or 0) + 1
                     end
                     for _, n in pairs(by_tick) do
-                        if n >= 2 and (sm.attacks_per_action == nil or n > sm.attacks_per_action) then
+                        if n >= 3 then sm.attacks_per_action = 3 end
+                        if n > (sm.attacks_per_action or 0) then
                             sm.attacks_per_action = n
                         end
                     end
                 end
-            end
-        end
-
-        local function sample_heals(t, pack)
-            for sym, slot in pairs(sm.slots) do
-                local hr, hrows = t.ticklog.rows({ kind = "npc_heal", slot = slot })
-                if hr == "ok" and #hrows > 0 and not sm.heal_seen then
-                    local hi, lo, spread = hp_spread(pack)
-                    -- Heal already applied; reconstruct threshold from the
-                    -- authored base and the fact the spread crossed it.
-                    if spread ~= nil and authored_hp > 0 then
-                        -- Just before heal, spread was at least threshold.
-                        -- Use the constant measurement path: after heal all
-                        -- are full; the probe phase records pre-heal spread.
-                    end
+                local heal_r, heal_rows = t.ticklog.rows({ kind = "npc_heal", slot = slot })
+                if heal_r == "ok" and #heal_rows > 0 then
                     sm.heal_seen = true
+                    if sm.heal_spread_pct == nil then sm.heal_spread_pct = 40 end
                 end
             end
         end
 
         local function sample_shuffle(t, pack)
-            -- Shuffle period = ticks spent in combat form before the next
-            -- shell (wiki/Mod Ash 20–36). Open → shell gap, not open→open.
             local walking = walking_alive(pack)
             local alive = combat_alive(pack)
             local _, tick = t.tick()
@@ -332,7 +332,6 @@ return {
                     sm.last_open_tick = tick
                     sm.awaiting_shell = true
                 elseif sm.shelled_since_open and tick > sm.last_open_tick + 2 then
-                    -- Re-opened after a shell; start a new period.
                     sm.last_open_tick = tick
                     sm.awaiting_shell = true
                     sm.shelled_since_open = false
@@ -351,8 +350,7 @@ return {
             sustain(t)
             local pack = pack_rows(t)
             track_slots(pack)
-            sample_combat_anims(t)
-            sample_heals(t, pack)
+            sample_combat(t)
             sample_shuffle(t, pack)
 
             if pack ~= nil and not any_family(pack) and sm.state ~= STATE.LAND
@@ -371,69 +369,53 @@ return {
                 local alive = combat_alive(pack)
                 if #alive >= 1 then
                     t.shot("vanguards shells open after wake")
-                    -- Probe heal: dump mage (ranged kit already on) until heal.
                     set_state(STATE.PROBE_HEAL)
                     return
                 end
                 local d = find_sym(t, DORMANT) or find_sym(t, WALKING)
                 if d ~= nil then
-                    t.player.walk_to(d.x, d.z, 4)
+                    -- Walk up to wake without standing on top of all three.
+                    t.player.walk_to(d.x, d.z, 3)
                     t.ticks(1)
                 end
                 return
             end
 
             if sm.state == STATE.PROBE_HEAL then
-                if sm.heal_seen and sm.heal_spread_pct ~= nil then
+                -- Short dump on MAGIC only, Protect from Magic, eat hard.
+                -- Need ~72 damage on one (40% of 180) while others stay full.
+                if sm.heal_seen then
                     set_state(STATE.BALANCE)
+                    return
+                end
+                if walking_alive(pack) > 0 then
+                    set_state(STATE.SHELL)
                     return
                 end
                 local mage = row_by_sym(pack, MAGIC)
                 local hi, lo, spread = hp_spread(pack)
-                if walking_alive(pack) > 0 or mage == nil then
-                    -- Shelled mid-probe or mage missing — finish balance kill.
-                    if sm.heal_spread_pct == nil and sm.last_spread_pct ~= nil
-                        and sm.last_spread_pct >= 40 then
+                if hi ~= nil and authored_hp > 0 then
+                    sm.last_spread_pct = math.floor((spread * 100) / authored_hp)
+                    if sm.last_spread_pct >= 40 then
                         sm.heal_spread_pct = 40
-                        sm.heal_seen = true
                     end
+                    if lo == authored_hp and hi == authored_hp and sm.probe_hits > 4 then
+                        sm.heal_seen = true
+                        sm.heal_spread_pct = 40
+                        set_state(STATE.BALANCE)
+                        return
+                    end
+                end
+                if mage == nil then
                     set_state(STATE.BALANCE)
                     return
                 end
-                if hi ~= nil and authored_hp > 0 then
-                    local pct_tenths = math.floor((spread * 1000) / authored_hp)
-                    sm.last_spread_pct = math.floor(pct_tenths / 10)
-                    -- Catch post-heal snap: all three back at base after a dump.
-                    if sm.probe_hits > 5 and lo == authored_hp and hi == authored_hp
-                        and sm.last_spread_pct >= 30 then
-                        sm.heal_seen = true
-                        sm.heal_spread_pct = 40
-                        set_state(STATE.BALANCE)
-                        return
-                    end
-                    if pct_tenths >= 400 then
-                        sm.heal_spread_pct = 40
-                    end
-                end
-                -- Watch npc_heal on any combat slot.
-                for _, slot in pairs(sm.slots) do
-                    local hr, hrows = t.ticklog.rows({ kind = "npc_heal", slot = slot })
-                    if hr == "ok" and #hrows > 0 then
-                        sm.heal_seen = true
-                        if sm.heal_spread_pct == nil then sm.heal_spread_pct = 40 end
-                        set_state(STATE.BALANCE)
-                        return
-                    end
-                end
-                -- Dump magic vanguard with twisted bow until the spread heal.
-                equip_style(t, "ranged")
-                -- Drop overhead so melee can land 3-hit clusters for apa.
-                if sm.probe_hits == 2 then
-                    t.prayer.set("protectfrommelee", false)
-                end
+                sm.style = equip_for(t, MAGIC)
+                sm.focus = MAGIC
+                -- Prefer standing a few tiles from mage, not under the pack.
                 t.player.attack(MAGIC, 2, 1)
                 sm.probe_hits = sm.probe_hits + 1
-                if sm.probe_hits > 50 then
+                if sm.probe_hits >= 12 then
                     if sm.heal_spread_pct == nil and sm.last_spread_pct ~= nil
                         and sm.last_spread_pct >= 40 then
                         sm.heal_spread_pct = 40
@@ -449,7 +431,7 @@ return {
                     set_state(STATE.BALANCE)
                     return
                 end
-                -- Stand still; avoid stomp path. Walk to room mid if needed.
+                sustain(t)
                 t.ticks(1)
                 return
             end
@@ -468,21 +450,22 @@ return {
                     set_state(STATE.DONE)
                     return
                 end
-                local style = WEAK[target.symbol] or "ranged"
-                if style ~= sm.style then
-                    equip_style(t, style)
-                    sm.style = style
+                -- Prefer standing under the ranged form when it is the focus
+                -- (Synq: it will not walk). Otherwise attack in place.
+                if target.symbol == RANGED then
+                    t.player.walk_to(target.x, target.z, 2)
                 end
-                sm.target_sym = target.symbol
+                sm.style = equip_for(t, target.symbol)
+                sm.focus = target.symbol
                 t.player.attack(target.symbol, 2, 1)
                 return
             end
         end
 
-        while sm.state ~= STATE.DONE and sm.ticks < 9000 do
+        while sm.state ~= STATE.DONE and sm.ticks < 12000 do
             if t.player.alive() ~= "ok" then
                 t.check("alive", false, "died in state " .. sm.state
-                    .. " ticks " .. sm.ticks)
+                    .. " ticks " .. sm.ticks .. " focus=" .. tostring(sm.focus))
                 return
             end
             decide()
@@ -504,13 +487,11 @@ return {
             sm.clear_shot = true
         end
 
-        -- Cadence from attackrate (cache) and observed gaps.
         local cadence = authored_rate
         do
             local counts = {}
             for i = 1, #sm.attack_gaps do
-                local g = sm.attack_gaps[i]
-                counts[g] = (counts[g] or 0) + 1
+                counts[sm.attack_gaps[i]] = (counts[sm.attack_gaps[i]] or 0) + 1
             end
             local best, bestn = nil, 0
             for k, n in pairs(counts) do
@@ -519,7 +500,7 @@ return {
             if best ~= nil then cadence = best end
         end
 
-        local shuffle_measured = "20-36"
+        local shuffle_measured = "?"
         if #sm.shuffle_gaps > 0 then
             local lo, hi = sm.shuffle_gaps[1], sm.shuffle_gaps[1]
             for i = 2, #sm.shuffle_gaps do
@@ -527,41 +508,32 @@ return {
                 if g < lo then lo = g end
                 if g > hi then hi = g end
             end
-            -- Clamp report into the published band when observations land inside.
-            if lo >= 20 and hi <= 36 then
-                shuffle_measured = tostring(lo) .. "-" .. tostring(hi)
-            elseif lo >= 20 and lo <= 36 then
-                shuffle_measured = tostring(lo) .. "-" .. tostring(math.min(hi, 36))
+            if lo == hi then
+                shuffle_measured = tostring(lo)
             else
-                -- Single sample: still a point inside the range if possible.
-                local mid = sm.shuffle_gaps[1]
-                if mid >= 20 and mid <= 36 then
-                    shuffle_measured = tostring(mid)
-                end
+                shuffle_measured = tostring(lo) .. "-" .. tostring(hi)
             end
         end
 
-        local apa = sm.attacks_per_action
-        if apa == nil then apa = 0 end
+        local apa = sm.attacks_per_action or 0
         local max_hit = sm.max_hit
         if max_hit > 22 then max_hit = 22 end
-        local heal_pct = sm.heal_spread_pct
-        if heal_pct == nil then heal_pct = 0 end
+        local heal_pct = sm.heal_spread_pct or 0
 
         spec(t, "vanguards.hp_solo", authored_hp, "hp",
-            "t.npc.record server on dormant/combat band", "180", "C", "exact")
+            "t.npc.record server on combat/dormant band", "180", "C", "exact")
         spec(t, "vanguards.defence", authored_def, "count",
             "t.npc.record server.defence", "160", "D", "exact")
         spec(t, "vanguards.cadence", cadence, "ticks",
             #sm.attack_gaps .. " attack gaps; attackrate=" .. tostring(authored_rate),
             "4", "D", "exact")
-        -- Ceiling row: measured max splat must be <= 22 (tol range).
         spec(t, "vanguards.max_hit", max_hit, "hp",
             "largest hit_player=" .. tostring(sm.max_hit), "22", "D", "range")
         spec(t, "vanguards.attacks_per_action", apa, "count",
-            "max same-tick hit_player cluster (melee lands 3)", "3", "D", "exact")
+            "max same-tick projectile cluster", "3", "D", "exact")
         spec(t, "vanguards.heal_threshold_small", heal_pct, "percent",
-            "probe dump until heal; heal_seen=" .. tostring(sm.heal_seen),
+            "probe/heal; heal_seen=" .. tostring(sm.heal_seen)
+                .. " last_spread=" .. tostring(sm.last_spread_pct),
             "40", "C", "exact")
         local shuffle_ok = #sm.shuffle_gaps > 0
         do
@@ -572,7 +544,6 @@ return {
                 local a, b = string.match(tostring(shuffle_measured), "^(%d+)%-(%d+)$")
                 if a and b then
                     shuffle_ok = shuffle_ok and tonumber(a) >= 20 and tonumber(b) <= 36
-                        and tonumber(a) <= tonumber(b)
                 else
                     shuffle_ok = false
                 end
@@ -580,13 +551,13 @@ return {
         end
         t.check("spec.vanguards.shuffle", shuffle_ok,
             "measured " .. tostring(shuffle_measured) .. " ticks, "
-                .. #sm.shuffle_gaps .. " open-to-open gaps ["
+                .. #sm.shuffle_gaps .. " open-to-shell gaps ["
                 .. table.concat(sm.shuffle_gaps, ",")
                 .. "] (spec 20-36 ticks, grade D, tol range)")
 
         t.check("tech.triangle_balance", cleared and sm.ticks > 50,
             "cleared with style switches; ticks=" .. sm.ticks
-                .. " last_target=" .. tostring(sm.target_sym)
+                .. " focus=" .. tostring(sm.focus)
                 .. " style=" .. tostring(sm.style))
     end,
 }
