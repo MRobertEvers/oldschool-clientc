@@ -181,9 +181,10 @@ QD.raid._play_plan("tob_maiden", {
     -- crossbow's Evoke with ruby bolts (e) for dps1 and the freezer (110 on
     -- her, wiki_Zaryte_crossbow.wikitext:54/:108; the streams' ZCB_SPEC 2.24 a
     -- room), the Tonalztics for dps2; the bow's arrows go back on after it
-    opener_wear = { [1] = { "zaryte_xbow", "xbows_crossbow_bolts_adamantite_tipped_ruby_enchanted" },
-        [2] = { "zaryte_xbow", "xbows_crossbow_bolts_adamantite_tipped_ruby_enchanted" },
-        [3] = { "tonalztics_of_ralos_charged" } },
+    -- (sm136: every seat opens with the Tonalztics again -- her Defence; the
+    -- freezer's Evoke comes later, `evoke`)
+    opener_wear = { [1] = { "tonalztics_of_ralos_charged" }, [2] = { "tonalztics_of_ralos_charged" }, [3] = { "tonalztics_of_ralos_charged" } },
+    evoke = { "zaryte_xbow", "xbows_crossbow_bolts_adamantite_tipped_ruby_enchanted" },
     spec30 = { weapon = "dragon_claws", cost = 500, tries = 1, give_up = 10 },
     -- the toxic blowpipe: PvM speed 3, rapid 2, reach 5 (wiki_Toxic_blowpipe
     -- .wikitext:41, :78); its swing seq 5061 (raid_play_tob_nylocas.lua)
@@ -1083,6 +1084,26 @@ function QD.raid.mz_f_on_boss_tick(st, v, intent)
             st.engaged = false
         end
         return
+    end
+    -- THE FREEZER'S EVOKE (the streams' ZCB_SPEC by the freezer 0.58 in the
+    -- 50 phase, 0.25 in the 30): once the energy is back to the special's
+    -- 75%, the crossbow's Evoke on her from where it stands (ruby bolts (e):
+    -- 22% of her hitpoints, 110 at most), then the bow again
+    if st.plan.evoke ~= nil then
+        local m = st.m
+        local zr, zn = QD.inv.count("zaryte_xbow")
+        local _, en = QD.var.varp("varp300_sa_energy")
+        if m.evoke_e0 == nil and (m.evoke_tries or 0) < 3 and (tonumber(en) or 0) >= 750 and zr == "ok" and (tonumber(zn) or 0) > 0 then
+            m.evoke_e0, m.evoke_t, m.evoke_tries = tonumber(en), v.tick, (m.evoke_tries or 0) + 1
+        end
+        if m.evoke_e0 ~= nil then
+            if QD.raid.mz_special(st, v, intent, st.plan.evoke, m.evoke_e0) or v.tick - m.evoke_t > 8 then
+                m.evoke_e0 = nil
+                intent.spec, intent.attack = nil, false
+            else
+                return
+            end
+        end
     end
     if QD.raid.mz_wear(intent, st.plan.ranged_set) then return end
     if QD.raid._play_gap(b, v.me.x, v.me.z) > 10 and QD.raid.mz_walk_home(st, v, intent) then return end

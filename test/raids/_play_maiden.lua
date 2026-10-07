@@ -81,6 +81,12 @@ if role == 2 then
         -- 30), Evoke's guaranteed Blood Forfeit 22% of her hitpoints capped
         -- at 110 (wiki_Zaryte_crossbow.wikitext:54, :108) against the
         -- Tonalztics' ~24 for its 50% (regression, refwdmg.py)
+        -- owner_tob_normal sm136: BOTH, as the streams -- the Tonalztics
+        -- opener drains her Defence by her Magic / 8 a hit (sm113 without it:
+        -- 20% of every phase's splats on her were zeros), the crossbow's Evoke
+        -- later when the energy is back (freezer ZCB 0.58 in the 50 phase);
+        -- two fish fewer for the two slots
+        "::give tonalztics_of_ralos_uncharged", "::give sunfiresplinter 100",
         "::give zaryte_xbow", "::give xbows_crossbow_bolts_adamantite_tipped_ruby_enchanted 50",
         "::setvar varb4070_spellbook 1",
         "::give water_rune 2000", "::give blood_rune 1000", "::give death_rune 1000",
@@ -90,7 +96,7 @@ if role == 2 then
         -- reference's freezer swings the SCYTHE on her in the 30 percent
         -- phase, freezer|30 19 of 24 rooms; it drinks no brew in the room,
         -- role.freezer.phase.*.drinks 0: a dose costs Ice Barrage's 94 Magic)
-        "::give anglerfish 13", "::give br_4dose2restore 4", "::fullscythe",
+        "::give anglerfish 11", "::give br_4dose2restore 4", "::fullscythe",
     }
     for _, c in ipairs(more) do party_kit[#party_kit + 1] = c end
 else
@@ -118,8 +124,7 @@ else
         -- owner_tob_normal M6: the Tonalztics in the hammer's place (Blert
         -- TONALZTICS dps1|100 16 of 24 rooms, dps2 15; HAMMER 4), charged in
         -- party_run; a brew less for the splinters' slot until the charge
-        (role == 1) and "::give zaryte_xbow" or "::give tonalztics_of_ralos_uncharged",
-        (role == 1) and "::give xbows_crossbow_bolts_adamantite_tipped_ruby_enchanted 50" or "::give sunfiresplinter 100",
+        "::give tonalztics_of_ralos_uncharged", "::give sunfiresplinter 100",
         -- owner_tob_normal M30: a brew less, a super combat more (the
         -- re-boost holds 112 against her blackstorm's drain, W:591; the
         -- scythe seats drink no brew while a fish is left)
@@ -167,13 +172,12 @@ local function party_run(t)
     -- re-press it.  The freezer keeps the bow's "Rapid".
     -- owner_tob_normal M6: the Tonalztics charged by its own Charge op (the
     -- splinters in the backpack, tonalztics_of_ralos.rs2 [opheld4])
-    -- (sm113: the freezer and dps1 carry the zaryte crossbow instead)
-    if role == 3 then
-        local tcr, tcd = t.player.inv_op("tonalztics_of_ralos_uncharged", 4)
-        t.ticks(2)
-        local tir, tin = t.inv.count("tonalztics_of_ralos_charged")
-        t.check("kit.tonalztics", tir == "ok" and tin == 1, "p" .. role .. " Charge " .. tostring(tcr) .. " " .. string.sub(tostring(tcd), 1, 80) .. "; charged in the pack " .. tostring(tin))
-    else
+    local tcr, tcd = t.player.inv_op("tonalztics_of_ralos_uncharged", 4)
+    t.ticks(2)
+    local tir, tin = t.inv.count("tonalztics_of_ralos_charged")
+    t.check("kit.tonalztics", tir == "ok" and tin == 1, "p" .. role .. " Charge " .. tostring(tcr) .. " " .. string.sub(tostring(tcd), 1, 80) .. "; charged in the pack " .. tostring(tin))
+    -- (sm136: the freezer carries the zaryte crossbow as well)
+    if role == 2 then
         local zr, zn = t.inv.count("zaryte_xbow")
         local br, bn = t.inv.count("xbows_crossbow_bolts_adamantite_tipped_ruby_enchanted")
         t.check("kit.zaryte", zr == "ok" and zn == 1 and br == "ok" and (tonumber(bn) or 0) > 0, "p" .. role .. " zaryte crossbow " .. tostring(zn) .. ", ruby bolts (e) " .. tostring(bn))
