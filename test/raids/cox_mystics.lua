@@ -128,20 +128,27 @@ local function drink_restore(t)
     return false
 end
 
-local function top_up(t)
-    -- Keep this short: run22 lost 34 ticks (and ~100 hp) between mystic 1
-    -- death and the next hit while looping brew+ticks under fire.
+-- Brew does NOT add weapon delay (consume_food_taken does; potions do not).
+-- Prefer brew for sustain so the tbow keeps its 5-tick cycle.
+local function sip_brew_restore(t)
     local brewed = false
-    if hp(t) < 75 then
+    if hp(t) < 60 then
         brewed = drink_brew(t)
     end
-    if brewed or prayer_points(t) < 45 then
+    if brewed or prayer_points(t) < 40 then
         drink_restore(t)
     end
-    if hp(t) < 50 then
-        t.player.eat("anglerfish")
+    return brewed
+end
+
+local function emergency_food(t)
+    local h = hp(t)
+    if h > 0 and h < 28 then
+        if t.player.eat("anglerfish") ~= "ok" then
+            t.player.eat("tbwt_cooked_karambwan")
+        end
     end
-    if hp(t) < 30 then
+    if hp(t) > 0 and hp(t) < 20 then
         t.player.eat("tbwt_cooked_karambwan")
     end
 end
@@ -190,11 +197,10 @@ return {
         "::wield twisted_bow",
         "::give dragon_arrow 2000",
         "::wield dragon_arrow",
-        "::give br_4dose2restore 2",
-        "::give br_4dosepotionofsaradomin 2",
-        -- Anglerfish heal 22 (shark 20); run23 died with mystic 2 at ~27 hp
-        -- left after 22 sharks ran out.
-        "::give anglerfish 22",
+        -- Brew-primary sustain (no weapon delay); anglers for emergencies.
+        "::give br_4dose2restore 3",
+        "::give br_4dosepotionofsaradomin 5",
+        "::give anglerfish 16",
         "::give tbwt_cooked_karambwan 2",
     },
 
@@ -247,6 +253,8 @@ return {
             prayer_on = false,
             slots = {},
             types = {},
+            last_attack_tick = -99,
+            last_brew_tick = -99,
         }
         remember_slots(sm, landing)
 
@@ -340,68 +348,65 @@ return {
             end
 
             if sm.state == STATE.FOCUS then
-                local target, sym = nearest_mystic(t)
-                if target == nil or sym == nil then
-                    set_state(STATE.DONE)
-                    return
-                end
-                sm.focus_sym = sym
-                sm.focus_slot = target.slot
+                -- Per-tick SM: brew sustain (no weapon delay) + tbow attack.
+                -- await_dead eat delayed the bow to 12 ticks and starved the
+                -- backpack; potions do not call consume_attack_delay.
                 arm_prayers(false)
 
-                top_up(t)
-                arm_prayers(false)
-
-                -- Emergency-only eat (below=25): run24's below=40 delayed tbow
-                -- to a 12-tick cadence and exhausted 22 anglers with mystic 2
-                -- at ~27 hp. Full-speed tbow finishes before the backpack dies.
-                local eat_opts = {
-                    eat = {
-                        item = "anglerfish",
-                        below = 25,
-                        quick = true,
-                        combo = "tbwt_cooked_karambwan",
-                    },
-                }
-                local cslot = target.client_slot
-                local atk_opts = { quick = true }
-                if type(cslot) == "number" then
-                    atk_opts.slot = cslot
+                local h = hp(t)
+                if h > 0 and h < 55 and (sm.ticks - sm.last_brew_tick) >= 3 then
+                    sip_brew_restore(t)
+                    sm.last_brew_tick = sm.ticks
+                    -- Fall through to attack on the same decide when possible;
+                    -- inv_op may settle, which is still better than food delay.
                 end
-                t.player.attack(sym, 2, 1, atk_opts)
+                if h > 0 and h < 28 then
+                    emergency_food(t)
+                end
+
+                local target = nil
+                local sym = nil
+                if sm.focus_slot ~= nil then
+                    target = nil
+                    for i = 1, #alive do
+                        if alive[i].slot == sm.focus_slot then
+                            target = alive[i]
+                            sym = alive[i].symbol
+                            break
+                        end
+                    end
+                    if target == nil then
+                        sm.kills = sm.kills + 1
+                        sm.focus_slot = nil
+                        sm.focus_sym = nil
+                        sip_brew_restore(t)
+                        return
+                    end
+                end
+                if target == nil then
+                    target, sym = nearest_mystic(t)
+                    if target == nil or sym == nil then
+                        set_state(STATE.DONE)
+                        return
+                    end
+                    sm.focus_sym = sym
+                    sm.focus_slot = target.slot
+                end
+
                 if not sm.mid_shot then
                     t.shot("mystics mid-mechanic focus kill")
                     sm.mid_shot = true
                 end
-                -- attempts=8; pack confirms kill (duplicate forms share symbols).
-                local ar, ad = t.npc.await_dead_engaged(600, 8, eat_opts)
-                sample_hits()
-                sample_anims()
-                if ar ~= "ok" and pack_has_slot(t, sm.focus_slot) then
-                    top_up(t)
-                    arm_prayers(false)
-                    t.player.attack(sym, 2, 1, atk_opts)
-                    ar, ad = t.npc.await_dead_engaged(300, 6, eat_opts)
-                    sample_hits()
-                    sample_anims()
+
+                if sm.ticks - sm.last_attack_tick >= 4 then
+                    local cslot = target.client_slot
+                    if type(cslot) == "number" then
+                        t.player.attack(sym, 2, 1, { quick = true, slot = cslot })
+                    else
+                        t.player.attack(sym, 2, 1, { quick = true })
+                    end
+                    sm.last_attack_tick = sm.ticks
                 end
-                if pack_has_slot(t, sm.focus_slot) then
-                    t.ticks(2)
-                end
-                if pack_has_slot(t, sm.focus_slot) and ar ~= "ok" then
-                    t.check("mystic.kill", false,
-                        "await_dead_engaged " .. tostring(sym)
-                            .. " world_slot=" .. tostring(sm.focus_slot)
-                            .. " -> " .. tostring(ar) .. " " .. tostring(ad)
-                            .. " pack still has focus; kills=" .. tostring(sm.kills))
-                    set_state(STATE.DONE)
-                    return
-                end
-                sm.kills = sm.kills + 1
-                sm.focus_slot = nil
-                sm.focus_sym = nil
-                top_up(t)
-                arm_prayers(false)
                 return
             end
         end
