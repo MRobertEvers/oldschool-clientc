@@ -704,38 +704,31 @@ return {
                 elseif style == "range" then want_sym = "raids_lasercrabs_crab_green"
                 elseif style == "melee" then want_sym = "raids_lasercrabs_crab_red"
                 end
+                -- Cheap wait: var reads + ticks only. npc.pack every tick was
+                -- blowing the 400k/resume budget after crystal 2 seated (run24).
+                t.player.walk_to(sx + 1, sz + 1, 20)
+                t.ticks(2)
                 local wait = 0
-                local missing = 0
-                t.player.walk_to(sx, sz, 20)
-                while wait < 40 do
-                    if wait % 8 == 0 then sustain(t) end
-                    if t.player.alive() ~= "ok" then
-                        t.check("alive", false, "died waiting crystal " .. sm.crystal_i
-                            .. " attempt " .. sm.attempt)
-                        set_state(STATE.DONE)
-                        return
-                    end
+                while wait < 36 do
                     if (var_num(t, info.flag) or 0) == 1 then break end
                     if (var_num(t, "varp7044_cox_crab_big_stage") or 0) >= 4 then break end
-                    local seated = crab_at(t, wx, wz, 0)
-                    if seated == nil then
-                        missing = missing + 1
-                        if missing > 4 then break end
-                    else
-                        missing = 0
-                        -- paint_ticks=12; refresh only when colour dropped.
-                        if want_sym ~= nil and seated.symbol ~= want_sym then
-                            t.player.walk_to(wx - 1, wz, 8)
-                            if style ~= "melee" then
-                                paint_style(t, style, seated)
-                            else
-                                smash(t, seated)
+                    if wait > 0 and wait % 12 == 0 then
+                        sustain(t)
+                        if want_sym ~= nil then
+                            local seated = crab_at(t, wx, wz, 0)
+                            if seated ~= nil and seated.symbol ~= want_sym then
+                                t.player.walk_to(wx - 1, wz, 8)
+                                if style ~= "melee" then
+                                    paint_style(t, style, seated)
+                                else
+                                    smash(t, seated)
+                                end
+                                t.player.walk_to(sx + 1, sz + 1, 8)
                             end
-                            t.player.walk_to(sx, sz, 8)
                         end
                     end
-                    t.ticks(2)
-                    wait = wait + 2
+                    t.ticks(3)
+                    wait = wait + 3
                 end
                 if (var_num(t, info.flag) or 0) == 1 then
                     sm.crystal_i = sm.crystal_i + 1
