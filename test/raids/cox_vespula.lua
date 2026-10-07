@@ -102,7 +102,7 @@ return {
         "::give shark 12",
         "::give br_4dose2restore 8",
         "::give br_4dosepotionofsaradomin 2",
-        "::give antipoison4 1",
+        "::give 4doseantipoison 1",
     },
 
     run = function(t)
