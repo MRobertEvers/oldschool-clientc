@@ -103,10 +103,10 @@ return {
         "::wield shayzien_gloves_5",
         "::give shayzien_boots_5",
         "::wield shayzien_boots_5",
-        -- Backpack is 28.
-        "::give shark 20",
-        "::give br_4dose2restore 3",
-        "::give br_4dosepotionofsaradomin 2",
+        -- Backpack is 28. Seed1 dies on shaman_b at ~188/190 net once food
+        -- empties; 24 sharks covers the spawn-add chip through both kills.
+        "::give shark 24",
+        "::give br_4dose2restore 2",
         "::give 4doseantipoison 2",
     },
 
@@ -176,12 +176,6 @@ return {
         local function eat_food()
             if t.player.eat("shark") == "ok" then
                 sm.eats = sm.eats + 1
-                return true
-            end
-            if t.player.inv_op("br_4dosepotionofsaradomin", 1) == "ok"
-                or t.player.inv_op("br_3dosepotionofsaradomin", 1) == "ok"
-                or t.player.inv_op("br_2dosepotionofsaradomin", 1) == "ok"
-                or t.player.inv_op("br_1dosepotionofsaradomin", 1) == "ok" then
                 return true
             end
             return false
@@ -375,6 +369,12 @@ return {
 
             if sm.state == STATE.KILL then
                 arm_prayers()
+                -- Prefer food over the next click when critically low; seed1
+                -- died at 19 HP with an empty backpack waiting on attack settle.
+                local hr, hp = t.skill.read("hitpoints")
+                if hr == "ok" and hp.level ~= nil and hp.level < 45 then
+                    if eat_food() then return end
+                end
                 if not retarget() then
                     set_state(STATE.DONE)
                     return
