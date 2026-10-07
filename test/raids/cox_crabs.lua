@@ -37,14 +37,14 @@ local CCW_SOLVE = {
     [0] = { lx = 13, lz = 13, style = nil },
     [1] = { lx = 13, lz = 23, style = "mage" },
     [2] = { lx = 13, lz = 19, style = "range" },
-    -- Crystal 3 at (23,17): bounce (13,18). (13,16) is unstandable clip.
-    [3] = { lx = 13, lz = 18, style = "melee" },
+    -- Crystal 3 at (23,19): bounce (13,20). z=16/18 clip; z=19 is lure-ok.
+    [3] = { lx = 13, lz = 20, style = "melee" },
 }
 local CCW_SOLVE_ALT = {
     [0] = { lx = 13, lz = 14, style = nil },
     [1] = { lx = 13, lz = 22, style = "mage" },
     [2] = { lx = 13, lz = 18, style = "range" },
-    [3] = { lx = 13, lz = 17, style = "melee" },
+    [3] = { lx = 13, lz = 21, style = "melee" },
 }
 
 local STATE = {
@@ -443,19 +443,7 @@ return {
                 t.player.walk_to(sx, sz, 20)
                 return true, "already seated " .. want_sym
             end
-            -- Crystal 3's old mark sat on clipped floor; approach that band
-            -- via a bypass z. Other crystals use a short west lure (run33's
-            -- long bypass burned crystal-1 seats).
-            if tile.lz >= 16 and tile.lz <= 18 then
-                local bypass_z = wz + 4
-                t.player.walk_to(sx, bypass_z, 20)
-                t.ticks(1)
-                t.player.walk_to(lure_x - 1, bypass_z, 20)
-                t.ticks(1)
-                t.player.walk_to(lure_x, lure_z, 16)
-            else
-                t.player.walk_to(lure_x, lure_z, 40)
-            end
+            t.player.walk_to(lure_x, lure_z, 40)
             t.ticks(2)
             sustain(t, 80)
             local crab = nearest_crab(t)
