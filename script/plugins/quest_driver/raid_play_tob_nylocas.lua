@@ -247,6 +247,10 @@ QD.raid._play_plan("tob_nylocas", {
             -- any weapon; 124 of 181 on 8355).
             loadout = { magic = { item = "eye_of_ayak", speed = 3, reach = 6, powered = true, seqs = { [12397] = true } },
                 ranged = { item = "toxic_blowpipe_loaded", speed = 2, reach = 5, seqs = { [5061] = true } },
+                -- owner_nylocas: the cleanup's small greys with the SULPHUR BLADES
+                -- (the reference meleer: 4.1 of its 6.3 cleanup grey attacks a room;
+                -- two independent half-max hits a swing, content 0b5ef3da0d)
+                melee_cleanup = { item = "sulphur_blades", speed = 4, seqs = { [2068] = true } },
                 melee_big = { item = "scythe_of_vitur", speed = 5, seqs = { [8056] = true } },
                 melee_boss = { item = "scythe_of_vitur", speed = 5, seqs = { [8056] = true } },
                 -- her ranged form: the TWISTED BOW (8357: 88 of 184, the pipe 68)
@@ -406,6 +410,10 @@ QD.raid._play_plan("tob_nylocas", {
     big_stick = 31,
     -- run kept on: a stamina dose (its 2 minutes, wiki Stamina potion) or the run orb when varp173 reads 0
     run_keep = { stamina_ticks = 200 },
+    -- a copy this seat hit is spoken for until flight + this (every seat now sees the hit a tick after it lands, f2eb93d50)
+    doom_margin = 1,
+    -- at the room's cap less one, smalls before bigs (a big's kill adds a copy)
+    cap_smalls = true,
     -- the idle walk to the next entry's tile starts when, running, it ends on that entry's due tick
     walk_on_time = false,
     -- owner_nylocas: THE SCORED PLAN'S PICK, the machine's KILL / PRE_STAND choice
@@ -1701,6 +1709,19 @@ function QD.raid._play_nylocas_scored_pick(c)
                 -- swing at other colours there, ctrace: our meleer stood through
                 -- the svc cleanup with three targets in 50 ticks)
                 if ny.waves >= 31 and P.cleanup_help then owned = false end
+                -- owner_nylocas: AT THE CAP, SMALLS (tob_nylocas.rs2: a wave is held
+                -- while the room's count is at the cap -- 12, 24 once wave 21 is due
+                -- -- and a big killed splits into two, so its kill adds a copy):
+                -- with the room at the cap less one, a big is no candidate while
+                -- a small can be pressed
+                if P.cap_smalls and n.big and not n.fighting and ny.waves < 31 then
+                    local cap = (ny.waves >= 20) and 24 or 12
+                    if #v.nylos >= cap - 1 then
+                        local small = false
+                        for _, o in ipairs(v.nylos) do if not o.big and QD.raid._nym_pressable(c, o) then small = true end end
+                        if small then owned = true ny.cap_skips = (ny.cap_skips or 0) + 1 end
+                    end
+                end
                 if P.leave_to_owner_rule and owned then
                     ny.owner_left = (ny.owner_left or 0) + 1
                 else
@@ -2201,6 +2222,9 @@ end
 function QD.raid._play_nylocas_key(ny, style, big, boss)
     if boss and ny.loadout[style .. "_boss"] ~= nil then return style .. "_boss" end
     if big and ny.loadout[style .. "_big"] ~= nil then return style .. "_big" end
+    -- owner_nylocas: after wave 31 a small grey with the cleanup's weapon when
+    -- the seat carries one (the meleer's sulphur blades)
+    if not big and ny.waves ~= nil and ny.waves >= 31 and ny.loadout[style .. "_cleanup"] ~= nil then return style .. "_cleanup" end
     return style
 end
 
@@ -2524,8 +2548,8 @@ function QD.raid._play_nylocas_decide(st, v)
             t.swung = tk
             ny.swung_slot = t.slot
             if not t.vas then
-                ny.doomed[t.slot] = tk + flight(t.style, t.d or 1) + 2
-                for _, s in ipairs(t.also or {}) do ny.doomed[s] = tk + flight(t.style, t.d or 1) + 2 end
+                ny.doomed[t.slot] = tk + flight(t.style, t.d or 1) + P.doom_margin
+                for _, s in ipairs(t.also or {}) do ny.doomed[s] = tk + flight(t.style, t.d or 1) + P.doom_margin end
             end
         end
     end

@@ -176,7 +176,12 @@ if size > 1 then
             -- `::tobkit` is `::maxmelee` with those two pieces (cheat_max_gear.rs2)
             if c == "::give game_pest_melee_helm 1" then out[#out + 1] = "::tobkit" end
         elseif c == "::give abyssal_whip 1" then
-            if role == 3 then out[#out + 1] = c else out[#out + 1] = "::fullscythe" end
+            if role == 3 then
+                out[#out + 1] = c
+                -- owner_nylocas: the cleanup's grey weapon, the reference meleer's
+                -- SULPHUR BLADES (two hits a swing since content 0b5ef3da0d)
+                if size > 1 then out[#out + 1] = "::give sulphur_blades 1" end
+            else out[#out + 1] = "::fullscythe" end
         elseif c == "::give magic_shortbow 1" and role ~= 2 then
             out[#out + 1] = "::blowpipe dragon_dart 2000 2000"
             -- raid seam40: the mage and the meleer shoot her ranged form with
@@ -257,7 +262,8 @@ if size > 1 then
         end
     end
     for i = 1, #out do
-        if out[i] == "::give br_4dosepotionofsaradomin 10" then out[i] = "::give br_4dosepotionofsaradomin " .. (role == 2 and 1 or 3) end
+        -- (the meleer's third brew is the blades' slot: owner_nylocas)
+        if out[i] == "::give br_4dosepotionofsaradomin 10" then out[i] = "::give br_4dosepotionofsaradomin " .. (role == 2 and 1 or (role == 3 and size > 1 and 2 or 3)) end
     end
     -- the mage's Magic reads 112 (tenth percentile 107; the others 99): a
     -- SATURATED HEART (raid seam46: 99 + 4 + floor(9.9) = 112; content
@@ -813,12 +819,20 @@ return {
             local ref_death = boss.death and (boss.death - tick0 + 1) or nil
             t.check("ref.last_wave", ref_last ~= nil and ref_last >= 244 and ref_last <= 293, "wave 31 out at room tick " .. tostring(ref_last)
                 .. "; reference/nylocas_normal_3.json outcome.phase.wave31.start 260 [244-293]")
-            t.check("ref.boss_start", ref_start ~= nil and ref_start >= 296 and ref_start <= 357, "Vasilias spawned at room tick " .. tostring(ref_start)
-                .. "; reference outcome.phase.boss.start 308 [296-357]")
+            -- OWNER RULING 2026-10-07 ("Call nylocas good yeah", relayed by the
+            -- coordinator; the Sotetseg rule): a Nylocas room that completes with
+            -- no deaths is green even when it is slower than Blert, so the
+            -- boss-start and room-tick rows only REPORT the range now -- they
+            -- still need her spawn / her death to exist.  ref.last_wave and
+            -- ref.boss_ticks keep their bounds.
+            t.check("ref.boss_start", ref_start ~= nil, "Vasilias spawned at room tick " .. tostring(ref_start)
+                .. "; reference outcome.phase.boss.start 308 [296-357] -- reported, not a bound (owner ruling 2026-10-07)"
+                .. ((ref_start ~= nil and (ref_start < 296 or ref_start > 357)) and " -- OUTSIDE the range" or ""))
             t.check("ref.boss_ticks", ref_phase ~= nil and ref_phase >= 75 and ref_phase <= 123, "her phase " .. tostring(ref_phase)
                 .. " ticks (spawn " .. tostring(boss_spawn) .. " to death " .. tostring(boss.death) .. "); reference outcome.phase.boss.ticks 95 [75-123]")
-            t.check("ref.room_ticks", ref_death ~= nil and ref_death >= 371 and ref_death <= 471, "her death at room tick " .. tostring(ref_death)
-                .. "; reference outcome.boss_death_tick 410 [371-471]")
+            t.check("ref.room_ticks", ref_death ~= nil, "her death at room tick " .. tostring(ref_death)
+                .. "; reference outcome.boss_death_tick 410 [371-471] -- reported, not a bound (owner ruling 2026-10-07)"
+                .. ((ref_death ~= nil and (ref_death < 371 or ref_death > 471)) and " -- OUTSIDE the range" or ""))
             -- the member's own-swing read (XP paid) against the log's
             -- player_anim swings, on the leader where both exist
             local probe, logged = {}, {}
