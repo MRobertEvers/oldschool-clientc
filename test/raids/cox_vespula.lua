@@ -244,23 +244,52 @@ return {
             if style_r ~= "ok" then
                 return style_r, "ranged style: " .. tostring(style_d)
             end
+            -- Leave the prayer IF so walk/attack scene ops are not fighting it.
+            t.ui.tab("combat")
             return "ok", "redemption+ranged style"
         end
 
-        local function on_safe(me)
-            if me == nil or me.x == nil then return false end
-            return chebyshev(me.x, me.z, sm.safe_x, sm.safe_z) <= 1
+        local function portal_row()
+            local por, portal = t.npc.nearest(PORTAL, 40)
+            if por ~= "ok" then return nil end
+            return portal
         end
 
-        local function walk_safe()
-            local wr, wd = t.player.walk_to(sm.safe_x, sm.safe_z, 8)
+        -- Synq safe: outside her melee envelope / portal-hit gap (Chebyshev).
+        local function on_safe(me)
+            if me == nil or me.x == nil then return false end
+            local portal = portal_row()
+            if portal == nil then return true end
+            return chebyshev(me.x, me.z, portal.x, portal.z) >= SAFE_CHEBYSHEV
+        end
+
+        -- Absolute long walks from seed-1 landing were a no-op in gate run3.
+        -- Step one tile away from the portal along the spawn vector instead.
+        local function step_safe_once()
+            local tr, me = t.world.tile()
+            if tr ~= "ok" or me == nil then return "no_row", "no tile" end
+            local portal = portal_row()
+            if portal == nil then return "ok", "portal gone" end
+            if on_safe(me) then return "ok", "already safe" end
+            local rdx = me.x - portal.x
+            local rdz = me.z - portal.z
+            local adx, adz = rdx, rdz
+            if adx < 0 then adx = -adx end
+            if adz < 0 then adz = -adz end
+            local sx, sz = 0, 0
+            if adx >= adz then
+                if rdx >= 0 then sx = 1 else sx = -1 end
+            else
+                if rdz >= 0 then sz = 1 else sz = -1 end
+            end
+            local wr, wd = t.player.walk_to(me.x + sx, me.z + sz, 4)
             if wr == "ok" then return wr, wd end
-            -- Blocked / unreachable: rotate candidate (Synq has 3 layout markers).
-            sm.cand_i = sm.cand_i + 1
-            if sm.cand_i > #cands then sm.cand_i = 1 end
-            sm.safe_x = cands[sm.cand_i][1]
-            sm.safe_z = cands[sm.cand_i][2]
-            return t.player.walk_to(sm.safe_x, sm.safe_z, 8)
+            if sx ~= 0 then
+                sx, sz = 0, (rdz >= 0 and 1 or -1)
+            else
+                sx, sz = (rdx >= 0 and 1 or -1), 0
+            end
+            return t.player.walk_to(me.x + sx, me.z + sz, 4)
         end
 
         local function decide()
@@ -295,8 +324,10 @@ return {
                     set_state(STATE.DONE)
                     return
                 end
-                t.ticklog.mark("armed redemption safe=" .. sm.safe_x .. "," .. sm.safe_z)
-                set_state(STATE.TO_SAFE)
+                t.ticklog.mark("armed redemption")
+                -- Seed-1 landing is already portal range 6. Synq [1:27:13]:
+                -- attack immediately to enrage, then click the safe tile.
+                set_state(STATE.ATTACK_PORTAL)
                 return
             end
 
@@ -307,7 +338,7 @@ return {
                     set_state(STATE.ATTACK_PORTAL)
                     return
                 end
-                walk_safe()
+                step_safe_once()
                 return
             end
 
@@ -330,16 +361,22 @@ return {
                     set_state(STATE.RESTORE)
                     return
                 end
-                -- Synq [1:27:13]: immediately attack the portal → enrage.
                 arm_redemption()
-                local ar, ad = t.player.attack(PORTAL, 2, 1)
+                local ar, ad = t.player.attack(PORTAL, 2, 2)
                 if ar == "ok" then
                     sm.portal_hits = sm.portal_hits + 1
-                    if sm.portal_hits == 3 then
+                    if sm.portal_hits == 1 then
+                        t.shot("vespula redemption first portal hit")
+                    elseif sm.portal_hits == 3 then
                         t.shot("vespula redemption mid-mechanic")
                     end
                 else
                     t.note("portal attack " .. tostring(ar) .. " " .. tostring(ad))
+                    if sm.portal_hits == 0 and sm.ticks > 40 then
+                        t.check("portal.attack", false, tostring(ar) .. " " .. tostring(ad))
+                        set_state(STATE.DONE)
+                        return
+                    end
                 end
                 set_state(STATE.STEP_SAFE)
                 return
@@ -355,7 +392,11 @@ return {
                     end
                     return
                 end
-                walk_safe()
+                step_safe_once()
+                -- Keep DPS up: after a short step window, attack again.
+                if sm.stuck >= 4 then
+                    set_state(STATE.ATTACK_PORTAL)
+                end
                 return
             end
         end
@@ -374,13 +415,6 @@ return {
                     sm.last_x = me.x
                     sm.last_z = me.z
                 end
-            end
-            if sm.stuck > 80 and sm.state ~= STATE.ATTACK_PORTAL and sm.portal_hits == 0 then
-                t.check("sm.stuck", false,
-                    "no movement for " .. sm.stuck .. " ticks in " .. sm.state
-                        .. " safe=" .. sm.safe_x .. "," .. sm.safe_z
-                        .. " at " .. tostring(sm.last_x) .. "," .. tostring(sm.last_z))
-                return
             end
             decide()
             sm.ticks = sm.ticks + 1
