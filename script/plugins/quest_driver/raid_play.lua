@@ -145,6 +145,7 @@ function QD.raid.play(plan_id, opts)
     local weapon = QD.RAID_PLAY_WEAPONS[weapon_name]
     assert(weapon, "raid.play: no weapon row for " .. tostring(weapon_name))
     local st = QD.raid._play_state(plan, plan_id, mode, numbers, weapon, opts)
+    st.weapon_name = weapon_name
     local max_ticks = opts.max_ticks or 1500
     local result = "timeout"
     while true do
@@ -736,7 +737,12 @@ function QD.raid._play_brew_recovery(st, v)
         local restore = play_first_held(QD.RAID_PLAY_RESTORES)
         if restore ~= nil then return restore end
     end
-    local combat = play_first_held(QD.RAID_PLAY_COMBAT_DOSES)
+    -- (a super combat only for a melee seat: a seat fighting with a bow or a
+    -- staff has no use for Attack and Strength, and the relay's Maiden freezer
+    -- drank two of its divine doses here and reached Sotetseg without one;
+    -- the bow / staff seat's brew drain is a super restore's)
+    local melee = string.find(tostring(st.weapon_name), "scythe", 1, true) ~= nil
+    local combat = melee and play_first_held(QD.RAID_PLAY_COMBAT_DOSES) or nil
     if combat ~= nil then return combat end
     if not restored then
         local restore = play_first_held(QD.RAID_PLAY_RESTORES)
