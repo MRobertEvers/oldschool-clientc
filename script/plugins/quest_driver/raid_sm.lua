@@ -59,6 +59,49 @@
 --     X" when X has been destroyed.  `broken` is the one transition target
 --     this layer can check at DECLARE time, because the state names it
 --     instead of a handler returning it.
+--   * A STATE MAY DECLARE CHILD MACHINES: `children = { "a", "b" }`.  They
+--     are live only while that state is current, stepped BY THE LAYER after
+--     the parent has handled each event, in the order listed -- not by a call
+--     someone has to remember at a branch.  So "which machines are running
+--     now" is a property of the declaration, readable in one place.  A child
+--     RESUMES rather than resets when its parent state is re-entered: a
+--     parent can be left and re-entered within one logical phase (Verzik is
+--     still `verzik_phase1` for the first three ticks of her transition, and
+--     `v.phase or vz.phase` keeps the last phase on a tick with no boss row),
+--     and a reset would throw away the child's history for nothing.  A child
+--     is the SAME instance it would be at top level, so an existing machine
+--     can be nested with no change to its state.  Activation work goes in the
+--     PARENT's `enter` / `exit` hooks; a child has no activation hook of its
+--     own, deliberately.
+--
+--     WHICH CHILD WINS A TICK: the `children` list is read top to bottom, and
+--     a child that has taken the tick calls QD.raid.sm_claim(st) to stop its
+--     later siblings for the rest of that event, rather than relying on
+--     running last.  Declaration order being the answer is the point; it is
+--     written down instead of being an accident of where the call sites sat.
+--
+--     WHERE AN INVARIANT BELONGS -- the trap nesting creates, and the reason
+--     this paragraph is long.  A check written as a child of one phase CANNOT
+--     FIRE while another phase is current, because the child is dormant.  So
+--     a guard whose subject outlives the phase must not be a child of it.
+--     Verzik's is the worked example: her shield breaking DESTROYS the
+--     Dawnbringer in the holder's hand, and `verzik_dawnbringer` nested under
+--     `p1` would make the premise `c.v.phase == "p1"` unfireable.  Choose:
+--       - a fact about the BOUNDARY ("the sword is spent when P1 ends") is the
+--         parent's `exit` hook, which runs AT the boundary rather than on the
+--         first tick past it;
+--       - a fact about the PHASE ("while I am in P1, I must still hold it") is
+--         a `premise` on the parent state;
+--       - a fact about the RAIDER ("past P1 I have a weapon I can fight with",
+--         true however the hand emptied -- a destroyed sword, a failed equip, a
+--         dropped swap, a death and a return) belongs to a machine that is NOT
+--         nested, because no phase owns it.
+--     In `_vzslow` the sword was destroyed at t211 and her form did not change
+--     until t214, so for three ticks the holder was empty-handed while still
+--     in p1: an exit hook cannot see that and a premise on the parent can.
+--     If nesting makes it easy to write a check that cannot fire, it has made
+--     things worse -- so prefer the least-nested home for a guard, not the
+--     tidiest-looking one.
 --   * ONE DECLARATION, MANY INSTANCES.  sm_run/sm_force/sm_at/sm_summary take
 --     an optional trailing `inst` (a string or a number): the same declared
 --     states running once per crab position, per pillar, per add.  Omitted,
@@ -104,7 +147,7 @@ QD.raid.sm_decls = QD.raid.sm_decls or {}
 
 -- the keys a state declaration may hold; anything else is a typo
 local SM_STATE_KEYS = { enter = true, exit = true, on = true, note = true,
-    premise = true, broken = true }
+    premise = true, broken = true, children = true }
 
 -- DECLARE: the machine, by name, with its states.  Checked here, at
 -- declaration time, so a malformed machine fails when the part loads and not
@@ -129,6 +172,16 @@ function QD.raid.sm_declare(id, decl)
         end
         if s.exit ~= nil then
             assert(type(s.exit) == "function", "sm_declare " .. id .. ": state " .. name .. " exit must be a function")
+        end
+        if s.children ~= nil then
+            assert(type(s.children) == "table",
+                "sm_declare " .. id .. ": state " .. name .. " children must be a list of machine ids")
+            for ci, child in ipairs(s.children) do
+                assert(type(child) == "string",
+                    "sm_declare " .. id .. ": state " .. name .. " child " .. ci .. " must be a machine id")
+                assert(child ~= id,
+                    "sm_declare " .. id .. ": state " .. name .. " names itself as a child")
+            end
         end
         if s.premise ~= nil then
             assert(type(s.premise) == "function",
@@ -304,11 +357,44 @@ function QD.raid.sm_run(st, v, id, ctx, events, inst)
             end
             if go ~= nil and go ~= m.state then sm_go(st, v, m, decl, go, ctx, ev) end
         end
+        -- THE CHILDREN of whatever state is current AFTER the parent handled
+        -- this event, stepped in declaration order, each over this one event.
+        local cs = decl.states[m.state].children
+        if cs ~= nil then
+            st.sm_claim = nil
+            for _, child in ipairs(cs) do
+                if st.sm_claim ~= nil then break end
+                local cm, cfold = QD.raid.sm_run(st, v, child, ctx, { ev })
+                cm.parent = m.id .. ":" .. m.state
+                if cfold ~= nil then
+                    intents = intents or {}
+                    intents[#intents + 1] = cfold
+                end
+            end
+            st.sm_claim = nil
+        end
     end
     m.counts[m.state] = (m.counts[m.state] or 0) + 1
     m.ticks = (m.ticks or 0) + 1
     if intents == nil then return m, nil end
     return m, QD.raid._play_fold(intents)
+end
+
+-- CLAIM: "I have taken this tick."  A child calls this from a handler to
+-- stop its LATER SIBLINGS being stepped for the rest of this event.  It is
+-- the answer to "which child's intent wins when two write intent.attack on one
+-- tick", and the answer is deliberately not "whichever ran last": the order is
+-- the `children` list as declared, read top to bottom, and a child that has
+-- taken the tick says so instead of relying on being last.  Verzik's enrage
+-- PROTECT needs this against the rotation (owner_verzik, 2026-10-07).
+--
+-- It clears at the end of each event, so a claim never leaks to the next
+-- event or the next tick.  A parent is never stopped by its child's claim --
+-- the parent has already run by then.
+function QD.raid.sm_claim(st, why)
+    assert(st, "sm_claim: st")
+    st.sm_claim = why or true
+    return nil
 end
 
 -- FORCE: a transition nothing in the declaration owns -- the room's own form
@@ -346,9 +432,19 @@ end
 -- unreachable in the mode we test, missed by these seeds, or wired wrong.
 --
 -- Counts are `ticks/entries`: ticks is the number of decides spent in the
--- state, entries the number of times it was entered.  A state with ticks 0
--- and entries 0 never fired at all; one with entries > 0 and ticks 0 cannot
--- happen, since the state is counted on the decide it is entered in.
+-- state, entries the number of times it was entered.  Only `ticks 0 AND
+-- entries 0` means the state never fired; `ticks 0` ALONE does not, and two
+-- different things produce it:
+--   * a ONE-TICK state, which leaves within the tick it is entered, so the
+--     end-of-tick counter never lands on it.  For such a state the entries
+--     are the reading and the ticks are always 0 (`standup 0/1`,
+--     `dodging 0/12`, `pre 0/1`).
+--   * a START state, whose first entry is recorded when the instance is BORN,
+--     before any decide is counted (reported by the Bloat port: bloat_raider
+--     `outside 20/25`, where 15 of the 25 are instance births across 15 seat
+--     records and the other 10 are real entries).
+-- So a reader skimming for "0" will call exercised states dead.  The NEVER
+-- list below is the reading to trust; it requires both counts zero.
 function QD.raid.sm_coverage(st)
     assert(st, "sm_coverage: st")
     if st.sm == nil then return "" end
@@ -364,7 +460,8 @@ function QD.raid.sm_coverage(st)
             parts[#parts + 1] = name .. " " .. ticks .. "/" .. entries
             if ticks == 0 and entries == 0 then dead[#dead + 1] = name end
         end
-        out[#out + 1] = key .. " [" .. table.concat(parts, ", ") .. "] moves " .. m.moves
+        out[#out + 1] = key .. (m.parent ~= nil and ("<" .. m.parent) or "")
+            .. " [" .. table.concat(parts, ", ") .. "] moves " .. m.moves
             .. ", ticks " .. tostring(m.ticks or 0)
             .. (#dead > 0 and (", NEVER " .. table.concat(dead, " ")) or ", all states fired")
     end
