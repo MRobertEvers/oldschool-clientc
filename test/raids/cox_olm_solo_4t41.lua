@@ -167,8 +167,10 @@ return {
         "::give masori_chaps",
         "::give avas_assembler",
         "::give shark 24",
-        "::give br_4dose2restore 8",
-        "::give br_4dosepotionofsaradomin 6",
+        -- Non-br restores (same as cox_olm.lua); br_* answered ok but never
+        -- landed in the backpack on this pack (gate setup FAIL 2026-10-07).
+        "::give 4dose2restore 8",
+        "::give 4dosepotionofsaradomin 6",
         "::give 4dose2combat 2",
     },
 
@@ -243,14 +245,14 @@ return {
             local hp = hp_level(t)
             if hp ~= nil and hp < 55 then
                 if t.player.eat("shark") ~= "ok" then
-                    t.player.inv_op("br_4dosepotionofsaradomin", 1)
+                    t.player.inv_op("4dosepotionofsaradomin", 1)
                 end
             end
             local pr, pp = t.prayer.points()
             local points = 0
             if pr == "ok" then points = pp.points or pp.level or 0 end
             if points < 30 then
-                t.player.drink("br_4dose2restore")
+                t.player.drink("4dose2restore")
             end
         end
 
