@@ -581,7 +581,7 @@ QD.RAID_MAIDEN_REF = {
             seat = { [1] = { { "N1", 1, 9 }, { "N2", 6, 10 }, { "STACK", 22, 49 } }, [3] = { { "N1", 1, 9 }, { "N2", 6, 11 }, { "STACK", 22, 49 } } } },
         [2] = { casts = { { 1, "S1" }, { 6, "S2|N2" }, { 11, "NEXT" } }, again_until = 31, ret = 31,
             seat = { [1] = { { "N1", 1, 9 }, { "N2", 6, 14 }, { "STACK", 22, 49 } }, [3] = { { "N1", 1, 9 }, { "N2", 6, 16 }, { "STACK", 22, 49 } } } },
-        [3] = { casts = { { 1, "S1" }, { 6, "S2|N2" }, { 11, "NEXT" } }, ret = 21,
+        [3] = { casts = { { 1, "S1" }, { 6, "S2|N2" }, { 11, "NEXT" } }, again_until = 41, ret = 21,
             seat = { [1] = { { "N1", 1, 9 }, { "STACK", 17, 49 } }, [3] = { { "N1", 1, 10 }, { "STACK", 17, 49 } } } },
     },
     -- each seat's tile per form (0 = her 100 form .. 3 = 30), the script's
