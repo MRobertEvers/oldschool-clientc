@@ -778,9 +778,21 @@ function QD.raid.mz_special(st, v, intent, weapon, energy0)
 end
 
 -- ----- THE DODGE: an interrupt from any state -----
+-- a freezer cast due this tick or the next is not given up for a dodge
+-- while the hp holds (sm38 svb: a dodge on +1 put cast 1 at +2 and the
+-- 5-tick cooldown chain put cast 4 at +17, after the 4s reached her --
+-- three crabs in untouched, 450 healed, against one blood hit)
+function QD.raid.mz_cast_due(st, v)
+    local m = st.m
+    if st.role ~= 2 or m.state ~= "CAST" or v.hp <= 50 then return false end
+    local W = QD.RAID_MAIDEN_REF.waves[math.max(QD.raid.mz_form(st), 1)]
+    local c = W.casts[m.idx]
+    return c ~= nil and v.tick >= st.ev.wave_tick + c[1] - 2
+end
 function QD.raid.mz_dodge(st, v, ev)
     if not ev.mine then return nil end
     local m = st.m
+    if QD.raid.mz_cast_due(st, v) then return nil end
     local x, z = QD.raid._play_maiden_off_tile(st, v, ev.x, ev.z)
     if x == nil then return nil end
     if m.state ~= "DODGE" then m.resume = { state = m.state, idx = m.idx } end
