@@ -4113,6 +4113,16 @@ check-quest-cutscenes:
 check-landings:
 	python3 $(REPO_ROOT)/tools/quest_gate/landing_audit.py --root $(REPO_ROOT) --quiet --gate
 
+# Every statically known npc spawn whose type has an [opnpcN] handler, classified by whether a player
+# can stand where the op reaches it: an npc behind a counter, bar, booth or cell bars answers "I
+# can't reach that!" unless the op has an [apnpcN] twin with p_aprange (b72: bankers, Hunter Guild,
+# Krystilia, the Mos Le'Harmless shops). Fails on such a hit that
+# tools/quest_gate/npc_reach_audit_baseline.tsv does not list with a reason; the baseline only
+# shrinks. ~30 s, no client boot. Report: build/orchestrator/npc_reach_audit.tsv.
+.PHONY: check-npc-reach
+check-npc-reach:
+	python3 $(REPO_ROOT)/tools/quest_gate/npc_reach_audit.py --root $(REPO_ROOT) --quiet --gate
+
 # The quest gate: static lint first (cheap, no client boot needed to catch a
 # numeric id, a self-completing setup cheat, a pinned "PASS", a duplicate
 # t.do name or an unknown content symbol), then one private-session client

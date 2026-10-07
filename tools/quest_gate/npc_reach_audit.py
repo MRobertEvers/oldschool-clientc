@@ -41,7 +41,8 @@ for has no [apnpcN,<type>] / [apnpcN,_<category>] twin (column uncovered_ops).
 Gate (--gate): exit 1 on a HIT that the baseline (--baseline, default
 tools/quest_gate/npc_reach_audit_baseline.tsv; absent = empty) does not list. A baseline row is keyed by
 the spawn FILE (no line), the npc, the tile and the class, with a reason. A row no hit matches is STALE
-(printed, does not fail). --write-baseline <path> seeds one from the current hits. Not wired into make.
+(printed, does not fail). --write-baseline <path> seeds one from the current hits. `make -C src
+check-npc-reach` runs the gate.
 
 Report: build/orchestrator/npc_reach_audit.tsv. Exit status 0 without --gate.
 """
