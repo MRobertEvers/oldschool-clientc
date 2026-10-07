@@ -619,7 +619,52 @@ end
 -- SEND: the tick's whole intent, together (prayers first, potions and food,
 -- the step last: DRIVER_NOTES "How a fight loop is written now"); the attack
 -- press after the block (a slow verb may not sit inside one).
+-- owner_tob_normal: EXECUTE BY RECONCILING (a plan with `reconcile = true`).
+-- The interaction channel (walk / cast / press / attack) carries one standing
+-- intent; it is sent only when it differs from the last one sent or the last
+-- one has lapsed: the same walk tile while the player moves, the same cast
+-- (a cast is sent once: a re-click would cancel its own interaction), the same
+-- npc pressed while its swings land, the boss attack while engaged
+-- (_play_attack).  Prayers (_play_pray) and gear (a plan lists only what is not
+-- worn) already send only the difference.
+function QD.raid._play_reconcile(st, v, intent)
+    local key = nil
+    if intent.walk ~= nil then key = "walk:" .. intent.walk.x .. "," .. intent.walk.z
+    elseif intent.cast ~= nil then key = "cast:" .. tostring(intent.cast.slot) .. ":" .. tostring(intent.cast.why)
+    elseif intent.press ~= nil then key = "press:" .. tostring(intent.press.slot)
+    elseif intent.attack then key = "attack" end
+    local prev = st.chan
+    if key == nil then
+        st.chan = nil
+        return
+    end
+    local same = prev ~= nil and prev.key == key
+    local drop = false
+    if same then
+        if intent.walk ~= nil then
+            local arrived = v.me.x == intent.walk.x and v.me.z == intent.walk.z
+            local moving = st.last_me ~= nil and (st.last_me.x ~= v.me.x or st.last_me.z ~= v.me.z)
+            drop = arrived or moving
+        elseif intent.cast ~= nil then
+            drop = true
+        elseif intent.press ~= nil then
+            local last = st.swings[#st.swings] or -1000
+            drop = not (v.tick - math.max(prev.tick, last) > st.weapon.speed + 2)
+        else
+            drop = not QD.raid._play_attack(st, v, true)
+        end
+    end
+    if drop then
+        intent.walk, intent.cast, intent.press, intent.attack = nil, nil, nil, false
+        st.chan_held = (st.chan_held or 0) + 1
+    else
+        st.chan = { key = key, tick = v.tick }
+        st.chan_sent = (st.chan_sent or 0) + 1
+    end
+end
+
 function QD.raid._play_send(st, v, intent)
+    if st.plan.reconcile and (st.party or 1) > 1 then QD.raid._play_reconcile(st, v, intent) end
     local all = {}
     for _, name in ipairs(st.plan.walk_prayers) do all[#all + 1] = name end
     for _, name in ipairs(st.plan.down_prayers) do all[#all + 1] = name end
@@ -823,6 +868,9 @@ function QD.raid._play_press(st, v, spec)
     if #st.press_log < 40 then
         st.press_log[#st.press_log + 1] = entry
     end
+    -- (owner_tob_normal: the last press, whatever its answer, so a plan can
+    -- see a click that landed on the wrong npc and press again)
+    st.last_press = entry
     return answer, reason, r, d
 end
 
@@ -965,6 +1013,22 @@ function QD.raid._play_triggers_init(st, opts)
         end
         list[#list + 1] = handler
     end
+    -- owner_tob_normal: a state machine subscribes its state's handlers on
+    -- entering it and takes them off on leaving (the handler itself, by
+    -- reference: the one st.on put on)
+    st.off = function(name, handler)
+        assert(type(name) == "string", "st.off: an event name is a string")
+        assert(handler ~= nil, "st.off: no handler for " .. name)
+        local list = st.handlers[name]
+        assert(list ~= nil, "st.off: nothing subscribed to " .. name)
+        for i = #list, 1, -1 do
+            if list[i] == handler then
+                table.remove(list, i)
+                return
+            end
+        end
+        assert(false, "st.off: the handler was not subscribed to " .. name)
+    end
     st.watch = function(name, reader, on_change)
         QD.raid.watch(st, name, reader, on_change)
     end
@@ -1076,10 +1140,28 @@ function QD.raid._play_events(st, v)
                             if gap < was then
                                 raise(pre .. "_walk", { slot = row.slot, x = row.x, z = row.z, gap = gap, was = was, label = a.label, row = row })
                             end
-                            a.moved, a.frozen = true, false
+                            -- (owner_tob_normal: a frozen add that moves has
+                            -- thawed -- its own event, so a plan can re-freeze it)
+                            -- (the freeze holds from the tile after the one
+                            -- the graphic lands on -- raid seam: "cast at T
+                            -- freezes it at its T+1 tile" -- so the one step
+                            -- after the graphic is not a thaw)
+                            local settling = a.ice_tick ~= nil and v.tick - a.ice_tick <= 1
+                            -- (only a freeze the graphic showed: a crab halted
+                            -- behind another one was never frozen)
+                            if a.ice and not settling then
+                                raise(pre .. "_thaw", { slot = row.slot, x = row.x, z = row.z, gap = gap, label = a.label, row = row })
+                            end
+                            a.moved = true
+                            if not settling then a.frozen, a.ice = false, false end
                         end
                         local graphic = E.freeze_spotanims ~= nil and row.spotanim_sent_id ~= nil
                             and E.freeze_spotanims[row.spotanim_sent_id] and row.spotanim_tick ~= a.spot
+                        -- (owner_tob_normal: `ice` only on the freeze graphic --
+                        -- a crab halted behind a frozen one is not frozen and
+                        -- walks on: owner sm2 svbplaymaide, the 4s stood a tick
+                        -- behind the frozen 3s, read frozen, and walked in at 75)
+                        if graphic then a.ice, a.ice_tick = true, v.tick end
                         if not a.frozen and (graphic or (not moved and a.moved)) then
                             a.frozen = true
                             raise(pre .. "_frozen", { slot = row.slot, x = row.x, z = row.z, label = a.label,

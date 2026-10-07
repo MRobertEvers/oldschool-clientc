@@ -1,0 +1,563 @@
+{{external|rs=Magic Damage}}
+{{otheruses|the Magic Damage equipment stat|other uses|Damage per second/Magic}}
+[[File:Staff of the Dead equipped.png|thumb|250x250px|right|The [[Staff of the Dead|staff of the dead]] gives a 15% boost to magic damage.]]
+'''Magic Damage''' is an equipment statistic that functions as a damage multiplier that increases the [[maximum magic hit]] and therefore the damage dealt by a player to a target. The effects of most equipped items can be seen at the bottom of the [[Equipment stats|stats window]] (labelled Magic damage: +x%). Both players and [[non-player character]]s can utilize magic damage, although when casting [[Monster Examine]] on an attackable NPC, their magic damage is instead labelled as "Magic str bonus".
+
+Temporarily [[Boosting magic|boosting]] Magic increases magical attack accuracy, making it more likely to successfully hit a target. Except for [[Magic Dart]], increasing the Magic level does not increase the damage of [[spellbook]] [[combat spells]]. It does, however, increase damage for Magic Dart, [[salamanders]], [[Powered staff|powered staves]] (such as [[trident of the seas]]/[[trident of the swamp|swamp]], [[Thammaron's sceptre|Thammaron's]]/[[Accursed sceptre]], [[Sanguinesti staff]], and [[Tumeken's Shadow]]), and Magic [[special attacks]].
+
+A detailed list of how all magic damage bonuses are calculated and applied can be found under the [[maximum magic hit]] page.
+
+==Damage boosting==
+Most damage boosting comes from wearing specific gear. Invisible bonuses (not shown in stats) require a special condition, such as the target being part of a [[Slayer task]], a [[Demons|demon]], in the [[Wilderness]], etc. Besides the gear listed in the table below, there are two other bonuses that are independent of gear.
+
+The first is if [[Charge]] has been cast by the player and remains active when casting a [[god spells]] while also wearing their respective [[god cape]], the base max hit is increased from 20 to 30.
+
+Secondly, if [[Mark of Darkness]] has been cast by the player and remains active when casting a [[Demonbane spells|Demonbane spell]] from the [[Arceuus spellbook]], the damage is increased by 25%. This is applied after the hit roll.
+
+===Armour===
+{| class="wikitable sortable align-center-1 align-center-2 align-center-3 align-center-4 align-center-5"
+|+
+! colspan="2" |Equipment
+!Damage boost
+!Levels required
+!Shows in Stats
+!Conditions/Notes
+|-
+|{{plinkp|Elder chaos druid robes|pic=Elder chaos top}}
+|[[Elder chaos druid robes]]
+|3%
+|{{SCP|Magic|40}}
+|{{Yes}}
+|1% per piece ([[Elder chaos hood|hood]], [[Elder chaos top|top]], [[Elder chaos robe|robe]]).<br/>Is the only armour set to provide a Magic damage bonus that does not have a [[Defence]] requirement.
+|-
+|{{plinkp|Infinity robes|pic=Infinity top}}
+|[[Infinity robes]]
+|3%
+|{{SCP|Magic|50}}<br>{{SCP|Defence|25}}
+|{{Yes}}
+|1% per piece ([[Infinity hat|hat]], [[Infinity top|top]], [[Infinity bottoms|bottoms]]).
+|-
+|{{plinkp|3rd Age mage robes|pic=3rd Age robe top}}
+|[[3rd Age mage robes]]
+|3%
+|{{SCP|Magic|65}}<br>{{SCP|Defence|30}}
+|{{Yes}}
+|1% per piece ([[3rd Age mage hat|hat]], [[3rd Age robe top|robe top]], [[3rd Age robe|robe bottom]]).
+|-
+|{{plinkp|Dagon'hai robes|pic=Dagon'hai robe top}}
+|[[Dagon'hai robes]]
+|3%
+|{{SCP|Magic|70}}<br>{{SCP|Defence|40}}
+|{{Yes}}
+|1% per piece ([[Dagon'hai hat|hat]], [[Dagon'hai robe top|robe top]], [[Dagon'hai robe bottom|robe bottom]]).<br/>Provides +6 [[Prayer bonus]], the highest of all magic damage boosting gear (tied with the [[Elite Void Knight equipment]])
+|-
+|{{plinkp|Blue moon armour|pic=Blue Moon chestplate}}
+|[[Blue moon armour]]
+|3%
+|{{SCP|Magic|75}}<br>{{SCP|Defence|50}}
+|{{Yes}}
+|1% per piece ([[Blue Moon helm|helm]], [[Blue Moon chestplate|chestplate]], [[Blue Moon tassets|tassets]]).<br/>Has a set effect when used alongside the [[Blue Moon spear]].
+|-
+|{{plinkp|Bloodbark armour|pic=Bloodbark body}}
+|[[Bloodbark armour]]
+|3%
+|{{SCP|Magic|60}}<br>{{SCP|Defence|60}}
+|{{Yes}}
+|1% per piece ([[Bloodbark helm|helm]], [[Bloodbark body|body]], [[Bloodbark legs|legs]]).<br/>Each piece of armour increases the amount that [[blood spells]] heal by 2% of the damage dealt.
+|-
+|{{plinkp|Ahrim the Blighted's equipment|pic=Ahrim's robetop}}
+|[[Ahrim the Blighted's equipment|Ahrim's equipment]]
+|3%
+|{{SCP|Magic|70}}<br>{{SCP|Defence|70}}
+|{{Yes}}
+|1% per piece ([[Ahrim's hood|hood]], [[Ahrim's robetop|robetop]], [[Ahrim's robeskirt|robeskirt]]).<br/>Has a set effect when used alongside [[Ahrim's staff]]. Amplified when wearing the [[amulet of the damned]].
+|-
+|{{plinkp|Elite Void Knight equipment|pic=Elite void top}}
+|[[Elite Void Knight equipment]]
+|5%
+|{{SCP|Attack|42}}<br>{{SCP|Strength|42}}<br>{{SCP|Defence|42}}<br>{{SCP|Magic|42}}<br>{{SCP|Hitpoints|42}}<br>{{SCP|Ranged|42}}<br>{{SCP|Prayer|22}}
+|{{Yes}}
+|Requires completion of Hard [[Western Provinces Diary]]. <br>The [[Void mage helm]] and [[Void knight gloves]] must also be worn, meaning the [[Tormented bracelet]] (+5%) cannot be used. <br>Also increases magic accuracy by 45% and has a prayer bonus of +6.
+|-
+|{{plinkp|Virtus robes|pic=Virtus robe top}}
+|[[Virtus robes]]
+|6%
+|{{SCP|Magic|78}}<br>{{SCP|Defence|75}}
+|{{Yes}}
+|2% per piece ([[Virtus mask|mask]], [[Virtus robe top|robe top]], [[Virtus robe bottom|robe bottom]]).
+Bonus per piece is increased to 5% when using [[Ancient Magicks]] combat spells, for a total of 15%.
+|-
+|{{plinkp|Ancestral robes|pic=Ancestral robe top}}
+|[[Ancestral robes]]
+|9%
+|{{SCP|Magic|75}}<br>{{SCP|Defence|65}}
+|{{Yes}}
+|3% per piece ([[Ancestral hat|hat]], [[Ancestral robe top|robe top]], [[Ancestral robe bottom|robe bottom]]).
+|-
+|{{plinkp|Black mask (i)}}
+|[[Black mask (i)]]
+|15%<ref group="a" name=":1">This applies after visible magic damage and does not stack with [[Salve amulet]] variants or [[amulet of avarice]].</ref>
+|{{SCP|Combat|40}}<br>{{SCP|Strength|20}}<br>{{SCP|Defence|10}}
+| {{No|rowspan=2}}
+| rowspan="2" |Only works against monsters assigned as a [[Slayer task]]. Does not stack with [[salve amulet(i)]], [[salve amulet(ei)]], or [[amulet of avarice]].
+|-
+|{{plinkp|Slayer helmet (i)}}
+|[[Slayer helmet (i)]]
+|15%<ref group="a" name=":1" />
+|{{SCP|Defence|10}}
+|-
+|{{plinkp|Chaos gauntlets}}
+|[[Chaos gauntlets]]
+| +3<ref group="a">This bonus applies before any other damage bonuses.</ref>
+|{{NA}}
+|{{No}}
+|Requires completion of [[Family Crest]], which requires 59 Magic (boostable). Only affects [[bolt spells]].
+|-
+|{{plinkp|God capes#Imbuing|pic=Imbued Saradomin cape}}
+|[[Imbued god capes]]
+|2%
+|{{SCP|Magic|75}}
+|{{Yes}}
+|Requires completion of [[Mage Arena II]].
+|-
+|{{plinkp|Eternal boots}}
+|[[Eternal boots]]
+|1%
+|{{SCP|Magic|75}}<br/>{{SCP|Defence|75}}
+|{{Yes}}
+|{{NA}}
+|-
+|{{plinkp|Avernic treads}}
+|[[Avernic treads]]
+|1%/2%
+|{{SCP|Strength|80}}<br/>{{SCP|Defence|80}}<br/>{{SCP|Magic|80}}<br/>{{SCP|Ranged|80}}
+|{{Yes}}
+|Any version of the treads that has been upgraded with eternal boots increases the Magic damage bonus to 2%.
+|}
+{{Reflist|group="a"}}
+
+===Weapons===
+{| class="wikitable sortable align-center-1 align-center-2 align-center-3 align-center-4 align-left-5 align-center-6"
+|+
+! colspan="2" |Equipment
+!Damage boost
+!Levels required
+!Shows in Stats
+!Autocasts
+!Conditions/Notes
+|-
+|{{plinkp|Tumeken's shadow}}
+|[[Tumeken's shadow]]
+|0%
+|{{SCP|Magic|85}}
+|{{No}}
+|{{NA}}
+|Does not provide any magic damage boost itself, but all other equipment have their magic damage bonus tripled - or, inside the [[Tombs of Amascut]], quadrupled - to a maximum of 100%. This only applies to visible damage bonuses, excluding [[Elite Void Knight equipment]].
+|-
+|{{plinkp|Staff of the Dead}}
+|[[Staff of the Dead]]
+|15%
+| rowspan="4" |{{SCP|Attack|75}}<br>{{SCP|Magic|75}}
+| {{Yes|rowspan=4}}
+| rowspan="2" |{{plinkp|Standard spellbook}} {{plinkp|Arceuus spellbook}} {{plinkp|Crumble Undead}} {{plinkp|Magic Dart}} {{plinkp|Flames of Zamorak}}
+| rowspan="4" |Has a 12.5% chance of negating runes being used for that spell.<br>The [[Toxic Staff of the Dead]] can inflict [[venom]].<br>The [[Staff of Light]] and [[Staff of Balance]] are largely the same as the [[Staff of the Dead]], but '''cannot''' autocast spells from the [[Arceuus spellbook]] and have the ability to cast [[Saradomin Strike]] and [[Claws of Guthix]] respectively, in place of Flames of Zamorak.
+|-
+|{{plinkp|Toxic Staff of the Dead}}
+|[[Toxic Staff of the Dead]]
+|15%
+|-
+|{{plinkp|Staff of Light}}
+|[[Staff of Light]]
+|15%
+|{{plinkp|Standard spellbook}} {{plinkp|Crumble Undead}} {{plinkp|Magic Dart}} {{plinkp|Saradomin Strike}}
+|-
+|{{plinkp|Staff of Balance}}
+|[[Staff of Balance]]
+|15%
+|{{plinkp|Standard spellbook}} {{plinkp|Crumble Undead}} {{plinkp|Magic Dart}} {{plinkp|Claws of Guthix}}
+|-
+|{{plinkp|Kodai wand}}
+|[[Kodai wand]]
+|15%
+|{{SCP|Magic|80}}
+|{{Yes}}
+|{{plinkp|Standard spellbook}} {{plinkp|Ancient spellbook}} {{plinkp|Arceuus spellbook}}
+|Provides unlimited [[water rune]]s, and also has a 15% chance of negating runes being used for that spell. Can autocast [[Ancient Magicks]].
+|-
+|{{plinkp|Nightmare staff}}
+|[[Nightmare staff]]
+|15%
+|{{SCP|Hitpoints|50}}<br>{{SCP|Magic|72}}
+| {{Yes|rowspan=4}}
+| rowspan="3" |{{plinkp|Standard spellbook}} {{plinkp|Ancient spellbook}}
+|{{NA}}
+|-
+|{{plinkp|Eldritch Nightmare staff}}
+|[[Eldritch Nightmare staff]]
+|15%
+| rowspan="3" |{{SCP|Hitpoints|50}}<br>{{SCP|Magic|82}}
+| rowspan="2" align-left |The volatile and eldritch nightmare staves have special attacks.
+|-
+|{{plinkp|Volatile Nightmare staff}}
+|[[Volatile Nightmare staff]]
+|15%
+|-
+|{{plinkp|Harmonised Nightmare staff}}
+|[[Harmonised Nightmare staff]]
+|15%
+|{{plinkp|Standard spellbook}}
+|The harmonised Nightmare staff can cast standard spells one tick faster.
+|-
+|{{plinkp|Smoke battlestaff}}
+|[[Smoke battlestaff]]
+|0%
+|{{SCP|Attack|30}}<br>{{SCP|Magic|30}}
+|{{No|rowspan=2}}
+| rowspan="2" |{{plinkp|Standard spellbook}}
+| rowspan="2" |Invisible 10% increase in damage and accuracy only when casting spells from the [[standard spellbook]].
+|-
+|{{plinkp|Mystic smoke staff}}
+|[[Mystic smoke staff]]
+|0%
+|{{SCP|Attack|40}}<br>{{SCP|Magic|40}}
+|-
+|{{plinkp|Twinflame staff}}
+|[[Twinflame staff]]
+|0%
+|{{SCP|Magic|60}}
+|{{No}}
+|{{plinkp|Standard spellbook}}
+|Invisible 10% increase in damage and accuracy only when casting spells from the [[standard spellbook]].<br>Priortises casting spells that match an opponent's [[elemental weakness]].
+|-
+|{{plinkp|Ahrim's staff}}
+|[[Ahrim's staff]]
+|5%
+|{{SCP|Attack|70}}<br>{{SCP|Magic|70}}
+|{{Yes}}
+|{{plinkp|Standard spellbook}} {{plinkp|Ancient spellbook}} {{plinkp|Arceuus spellbook}}
+|Autocasting [[Ancients]] requires wearing all four pieces of [[Ahrim the Blighted's equipment]] and the [[amulet of the damned]].
+|-
+|{{plinkp|Ancient sceptre}}
+|[[Ancient sceptre]]
+|10%
+|{{SCP|Magic|70}}<br>{{SCP|Strength|60}}<br>{{SCP|Attack|50}}
+|{{Yes|rowspan=5}}
+| rowspan="5" |{{plinkp|Standard spellbook}} {{plinkp|Ancient spellbook}}
+| rowspan="5" |Increases the effect of [[Ancient Magicks]] spells by 10%. <br>The [[blood ancient sceptre]] can also overheal up to 10% over the player's base [[Hitpoints]]. <br>The [[ice ancient sceptre]] also has an additional 10% accuracy bonus given to [[ice spells]] on targets that can be frozen and are not currently frozen. <br>The [[shadow ancient sceptre]] can also lower the target's Attack, Strength, and Defence levels when casting [[shadow spells]]. <br>The [[smoke ancient sceptre]] also reduces a poisoned target's healing by 20% for 6 seconds after taking damage from [[smoke spells]].
+|-
+|{{plinkp|Blood ancient sceptre}}
+|[[Blood ancient sceptre]]
+|10%
+| rowspan="4" |{{SCP|Magic|75}}<br>{{SCP|Strength|60}}<br>{{SCP|Attack|50}}
+|-
+|{{plinkp|Ice ancient sceptre}}
+|[[Ice ancient sceptre]]
+|10%
+|-
+|{{plinkp|Shadow ancient sceptre}}
+|[[Shadow ancient sceptre]]
+|10%
+|-
+|{{plinkp|Smoke ancient sceptre}}
+|[[Smoke ancient sceptre]]
+|10%
+|-
+|{{plinkp|Thammaron's sceptre}}
+|[[Thammaron's sceptre]]
+|50%<ref group="b" name=":3">This applies after visible magic damage and is added with the [[Black mask (i)]] or [[Slayer helmet (i)]].</ref>
+| rowspan="2" |{{SCP|Magic|60}}
+|{{No|rowspan=4}}
+|{{NA}}
+| rowspan="4" |When charged and used in the [[Wilderness]], it provides an additional 50% magic damage.
+When charged, the [[accursed sceptre]] and [[accursed sceptre (a)]] [[Special attacks|special attack]] will provide an extra 50% magic damage, even outside the Wilderness.
+|-
+|{{plinkp|Thammaron's sceptre (a)}}
+|[[Thammaron's sceptre (a)]]
+|50%<ref group="b" name=":3" />
+|{{plinkp|Standard spellbook}} {{plinkp|Ancient spellbook}} {{plinkp|Flames of Zamorak}}
+|-
+|{{plinkp|Accursed sceptre}}
+|[[Accursed sceptre]]
+|50%<ref group="b" name=":4">This applies after visible magic damage and is added with the [[Black mask (i)]] or [[Slayer helmet (i)]]. The [[Special attacks|special attack]] is applied afterwards.</ref>
+| rowspan="2" |{{SCP|Magic|70}}
+|{{NA}}
+|-
+|{{plinkp|Accursed sceptre (a)}}
+|[[Accursed sceptre (a)]]
+|50%<ref group="b" name=":4" />
+|{{plinkp|Standard spellbook}} {{plinkp|Ancient spellbook}} {{plinkp|Flames of Zamorak}}
+|-
+|{{plinkp|Blue Moon spear}}
+|[[Blue Moon spear]]
+|5%
+|{{SCP|Attack|70}}<br>{{SCP|Magic|75}}
+|{{Yes}}
+|{{plinkp|Standard spellbook}} {{plinkp|Ancient spellbook}} {{plinkp|Arceuus spellbook}}
+|When worn with all of the other pieces of the [[blue moon armour]] set, the player gains the ''Frostweaver'' set effect, where the spell spear has a 10% chance for its next melee attack to be unaffected by action delays (such as eating food).
+|-
+|{{plinkp|Purging staff}}
+|[[Purging staff]]
+|10%
+|{{SCP|Attack|50}}<br>{{SCP|Magic|77}}
+|{{Yes}}
+|{{plinkp|Standard spellbook}} {{plinkp|Arceuus spellbook}}
+|A [[demonbane weapon]] that doubles the bonuses of [[demonbane spells]] and those gained from [[Mark of Darkness]].<br>Additionally, Mark of Darkness lasts 5 times longer if the staff is equipped when it is cast.
+|-
+|{{plinkp|Dragon hunter wand}}
+|[[Dragon hunter wand]]
+|10%
+|{{SCP|Magic|65}}
+|{{Yes}}
+|{{plinkp|Standard spellbook}} {{plinkp|Ancient spellbook}}
+|A [[dragonbane weapon]] that increases accuracy by 75% and damage by 40% when fighting dragons.
+|-
+|{{plinkp|Soulflame horn}}
+|[[Soulflame horn]]
+|1%
+|{{SCP|Magic|80}}
+|{{Yes}}
+|{{NA}}
+|Primarily used for its [[Soulflame horn#Special attack|special attack]] instead of as a dedicated Magic weapon.
+|-
+|{{Plinkp|Master wand}}
+|[[Master wand]]
+|10%
+|{{SCP|Magic|60}}
+|{{Yes}}
+|{{Plinkp|Spellbook}}{{Plinkp|Ancient spellbook}}{{Plinkp|Arceuus spellbook}}
+|{{NA}}
+|}
+{{Reflist|group="b"}}
+
+===Offhands===
+{| class="wikitable sortable align-center-1 align-center-2 align-center-3 align-center-4 align-center-5"
+|+
+! colspan="2" |Equipment
+!Damage boost
+!Levels required
+!Shows in Stats
+!Conditions/Notes
+|-
+|{{plinkp|Mage's book}}
+|[[Mage's book]]
+|2%
+|{{SCP|Magic|60}}
+|{{Yes}}
+|Is the only offhand to provide a Magic damage bonus to all spells that does not have a [[Defence]] requirement.
+|-
+|{{plinkp|Malediction ward}}
+|[[Malediction ward]]
+|2%
+|{{SCP|Defence|60}}
+|{{Yes}}
+|{{NA}}
+|-
+|{{plinkp|Ancient wyvern shield}}
+|[[Ancient wyvern shield]]
+|2%
+|{{SCP|Magic|70}}<br/>{{SCP|Defence|75}}
+|{{Yes}}
+|Protects against [[dragonfire]] and the icy breath of [[wyvern]]s.
+|-
+|{{plinkp|Arcane spirit shield}}
+|[[Arcane spirit shield]]
+|3%
+|{{SCP|Magic|65}}<br/>{{SCP|Defence|75}}<br/>{{SCP|Prayer|70}}
+|{{Yes}}
+|{{NA}}
+|-
+|{{plinkp|Elidinis' ward}}
+|[[Elidinis' ward]]
+|3%
+| rowspan="2" |{{SCP|Magic|80}}<br>{{SCP|Defence|80}}<br>{{SCP|Prayer|80}}
+|{{Yes|rowspan=2}}
+|{{NA|rowspan=2}}
+|-
+|{{plinkp|Elidinis' ward (f)}}
+|[[Elidinis' ward (f)]]
+|5%
+|-
+|{{plinkp|Tome of Water}}
+|[[Tome of Water]]
+|10% (PvM)<ref group="c" name="tome">This applies after the visible magic damage and after the hit roll. Stacks multiplicatively with other Magic damage bonuses.</ref>
+20% (PvP)<ref group="c" name="tome" />
+|{{SCP|Magic|50}}
+|{{No}}
+|Only affects [[water spells]], and also increases the spells' accuracy by 10% (20% against other players).<br>Must be charged with [[soaked page]]s. Also provides unlimited [[water rune]]s. Standard spellbook '''only'''.
+|-
+|{{plinkp|Tome of Fire}}
+|[[Tome of Fire]]
+|10% (PvM)<ref group="c" name= "tome" />
+50% (PvP)<ref group="c" name= "tome" />
+|{{SCP|Magic|50}}
+|{{No}}
+|Only affects [[fire spells]]. Must be charged with [[burnt page]]s or [[searing page]]s. Also provides unlimited [[fire rune]]s. Standard spellbook '''only'''.
+|-
+|{{plinkp|Tome of Earth}}
+|[[Tome of Earth]]
+|10%<ref group="c" name= "tome" />
+|{{SCP|Magic|50}}
+|{{No}}
+|Only affects [[earth spells]]. Must be charged with [[soiled page]]s. Also provides unlimited [[earth rune]]s. Standard spellbook '''only'''.
+|}
+{{Reflist|group="c"}}
+
+===Jewellery===
+{| class="wikitable sortable align-center-1 align-center-2 align-center-3 align-center-4 align-center-5"
+|+
+! colspan="2" |Equipment
+!Damage boost
+!Levels required
+!Shows in Stats
+!Conditions/Notes
+|-
+|{{plinkp|Tormented bracelet}}
+|[[Tormented bracelet]]
+|5%
+|{{SCP|Hitpoints|75}}
+|{{Yes}}
+|{{NA}}
+|-
+|{{plinkp|Confliction gauntlets}}
+|[[Confliction gauntlets]]
+|7%
+|{{SCP|Hitpoints|90}}
+|{{Yes}}
+|Has a passive effect that occurs upon a missed magic attack, which causes the next magic attack of that weapon or spell to roll accuracy twice against the same target.<br>This passive effect is disabled if wielding a [[Two-handed slot table|two-handed weapon]], most notably [[Tumeken's shadow]].
+|-
+|{{plinkp|Castle wars bracelet}}
+|[[Castle wars bracelet]]
+|20%<ref group="d">This is the last item factored into the hit damage. It's applied after the visible magic damage, after the hit roll, and after [[tome of water]], [[tome of fire]], and [[mark of darkness]].</ref>
+|{{NA}}
+|{{No}}
+|Only applies in [[Castle Wars]] against a bearer of a flag. Must be worn before the game starts, not during the game.
+|-
+|{{plinkp|Seers ring}}
+|[[Seers ring]]
+|0.2%
+|{{NA}}
+|{{Yes}}
+|{{NA}}
+|-
+|{{plinkp|Seers ring (i)}}
+|[[Seers ring (i)]]
+|0.5%
+|{{NA}}
+|{{Yes}}
+|{{NA}}
+|-
+|{{plinkp|Magus ring}}
+|[[Magus ring]]
+|2%
+|{{NA}}
+|{{Yes}}
+|Requires completion of [[Desert Treasure II - The Fallen Empire]].
+|-
+|{{plinkp|Cursed amulet of magic}}
+|[[Cursed amulet of magic]]
+|−80%
+|{{NA}}
+|{{Yes}}
+|Notable for allowing players to reduce their max hit to 2 when casting strike spells, which can be useful in certain situations (see article).
+|-
+|{{plinkp|Occult necklace}}
+|[[Occult necklace]]
+|5%
+|{{SCP|Magic|70}}
+|{{Yes}}
+|{{NA}}
+|-
+|{{plinkp|Salve amulet(i)}}
+|[[Salve amulet(i)]]
+|15%
+|{{NA}}
+|{{No}}
+|Requires access to the [[Nightmare Zone]], [[Soul Wars]], or [[Emir's Arena]].<br>Only works against [[undead]].<br>Does not stack with [[slayer helmet (i)]] or [[black mask (i)]].
+|-
+|{{plinkp|Salve amulet(ei)}}
+|[[Salve amulet(ei)]]
+|20%
+|{{NA}}
+|{{No}}
+|Requires completion of [[Lair of Tarn Razorlor]] and access to the [[Nightmare Zone]], [[Soul Wars]], or [[Emir's Arena]].<br>Only works against [[undead]].<br>Does not stack with [[slayer helmet (i)]] or [[black mask (i)]].
+|-
+|{{plinkp|Amulet of avarice}}
+|[[Amulet of avarice]]
+|20%<br>35%<ref group="d">When [[Forinthry Surge]] is active, the damage and accuracy are increased from 20% to 35%.</ref>
+|{{NA}}
+|{{No}}
+|Equipping the amulet will cause the player to become [[skulled]]. <br>Increases accuracy and damage by 20% when fighting [[revenants]]. Activating [[Forinthry Surge]] by killing the [[revenant maledictus]] will provide an additional 15% accuracy and damage for 30 minutes. <br>All drops received from NPCs within the [[Revenant Caves]] and [[Wilderness Slayer Cave]] while this amulet is worn will be in the form of [[bank notes]], except for secondary supply rolls. <br>Does not stack with [[slayer helmet (i)]] or [[black mask (i)]].
+|-
+|{{plinkp|Amulet of the Damned}}
+|[[Amulet of the Damned]]
+| rowspan="2" |30%<ref group="d">This applies after visible magic damage.</ref>
+| rowspan="2" |{{SCP|Attack|70}}<br>{{SCP|Magic|70}}<br>{{SCP|Defence|70}}
+|{{No|rowspan=2}}
+| rowspan="2" |Only has a 25% chance to occur. Both the set and amulet '''must''' be worn to get the damage boost. This does not include the 5% damage bonus from wielding the [[Ahrim's staff]]. Can autocast [[Ancient Magicks]]. Note that a player will see two different max [[Hitsplat|hitsplats]] in-game. The "lower" max hit when this effect doesn't trigger and the "higher" max hit when it does trigger.
+|-
+|{{plinkp|Ahrim's robetop}}
+|[[Ahrim the Blighted's equipment|Ahrim's equipment]]
+|-
+|{{plinkp|Amulet of air}}
+|[[Amulet of air]]
+| rowspan="5" | +2<ref group="d">This bonus applies before any other damage bonuses.</ref>
+| rowspan="5" | {{SCP|Magic|59}}
+| {{No|rowspan=5}}
+| rowspan="5" |Only affects its corresponding elemental spell (i.e. [[Wind spells|wind]], [[Water spells|water]], [[Earth spells|earth]], or [[Fire spells|fire]]).<br>The elemental amulet affects all elemental spells.
+|-
+|{{plinkp|Amulet of water}}
+|[[Amulet of water]]
+|-
+|{{plinkp|Amulet of earth}}
+|[[Amulet of earth]]
+|-
+|{{plinkp|Amulet of fire}}
+|[[Amulet of fire]]
+|-
+|{{plinkp|Elemental amulet}}
+|[[Elemental amulet]]
+|}
+{{Reflist|group="d"}}
+
+===Prayers===
+{| class="wikitable sortable align-center-1 align-center-2 align-center-3 align-center-4 align-center-5"
+! colspan="2" |Prayer
+!Damage boost
+!Levels required
+!Shows in Stats
+!Conditions/Notes
+|-
+|{{plinkp|Mystic Lore}}
+|[[Mystic Lore]]
+|1%
+|{{SCP|Prayer|27}}
+|{{No}}
+|{{NA}}
+|-
+|{{Plinkp|Mystic Might}}
+|[[Mystic Might]]
+|2%
+|{{SCP|Prayer|45}}
+|{{No}}
+|{{NA}}
+|-
+|-
+|{{Plinkp|Mystic Vigour}}
+|[[Mystic Vigour]]
+|3%
+|{{SCP|Prayer|63}}
+|{{No}}
+|Requires reading a [[mystic vigour prayer scroll]].
+|-
+|{{Plinkp|Augury}}
+|[[Augury]]
+|4%
+|{{SCP|Prayer|77}}<br/>{{SCP|Defence|70}}
+|{{No}}
+|Requires reading an [[arcane prayer scroll]].
+|}
+
+[[Category:Magic]]
+[[Category:Mechanics]]
+
+{{Combat Mechanics}}

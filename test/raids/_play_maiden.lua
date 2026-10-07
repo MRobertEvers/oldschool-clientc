@@ -112,7 +112,13 @@ else
         -- owner_tob_normal M30: a brew less, a super combat more (the
         -- re-boost holds 112 against her blackstorm's drain, W:591; the
         -- scythe seats drink no brew while a fish is left)
-        "::give br_4dosepotionofsaradomin 6", "::give br_4dose2restore 5", "::give anglerfish 10",
+        -- owner_tob_normal sm14: the opener set (the streams' gear on every
+        -- Tonalztics special is ranged: masori / void, rupture, zaryte or void
+        -- gloves -- raid_play_tob_maiden.lua opener_set), a brew, a restore
+        -- and three fish fewer for its five slots
+        "::give masori_mask", "::give masori_body", "::give masori_chaps",
+        "::give necklace_of_anguish", "::give zaryte_vambraces",
+        "::give br_4dosepotionofsaradomin 5", "::give br_4dose2restore 4", "::give anglerfish 7",
         "::give 4dose2combat 3",
         -- owner_tob_normal M41: the claws for her last form's special (W:646
         -- "utilise any remaining special attacks"; Blert CLAW dps|30 8 / 6 of 24)
@@ -202,7 +208,7 @@ local function party_run(t)
     t.check("play.role", m.role ~= nil, string.sub("p" .. role .. " role " .. tostring(m.role) .. "; her tile " .. tostring(seen.x) .. "," .. tostring(seen.z)
         .. " (offset " .. tostring(m.ox) .. "," .. tostring(m.oz) .. "); home walks " .. tostring(m.home_walks or 0) .. ", dodges " .. tostring(m.dodges)
         .. "; eats " .. #rec.eats .. ", drinks " .. #rec.drinks .. ", swings " .. #rec.swings .. ", add presses " .. tostring(m.add_presses)
-        .. "; Ice Barrage casts " .. nc .. " " .. casts .. (m.cast_none and (" no cast: " .. table.concat(m.cast_none, " ")) or "") .. (m.samples and (" str/pray: " .. table.concat(m.samples, " ")) or ""), 1, 3000))
+        .. "; Ice Barrage casts " .. nc .. " " .. casts .. (m.cast_none and (" no cast: " .. table.concat(m.cast_none, " ")) or "") .. (m.samples and (" str/pray: " .. table.concat(m.samples, " ")) or "") .. (m.log and (" states: " .. table.concat(m.log, " ")) or ""), 1, 4000))
     if role == 2 then
         -- raid seam40: the thresholds the casts were made in (the reference's
         -- freezer attacks adds in every crab phase: role.freezer.phase.70/50/30
