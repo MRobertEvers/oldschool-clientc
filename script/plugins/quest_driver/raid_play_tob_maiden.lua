@@ -590,7 +590,7 @@ QD.RAID_MAIDEN_REF = {
         [2] = { casts = { { 1, "S1" }, { 6, "S2|N2" }, { 11, "NEXT" } }, again_until = 31, ret = 31,
             seat = { [1] = { { "N1", 1, 9 }, { "N2", 6, 14 }, { "STACK", 22, 49 } }, [3] = { { "N1", 1, 9 }, { "N2", 6, 16 }, { "S1|S2", 16, 30, true }, { "STACK", 22, 49 } } } },
         [3] = { casts = { { 1, "S1" }, { 6, "S2|N2" }, { 11, "NEXT" } }, again_until = 41, ret = 21,
-            seat = { [1] = { { "N1", 1, 9 }, { "STACK", 17, 49 } }, [3] = { { "N1", 1, 10 }, { "STACK", 17, 49 } } } },
+            seat = { [1] = { { "N1", 1, 9 }, { "N2", 6, 30, true }, { "STACK", 17, 49 } }, [3] = { { "N1", 1, 10 }, { "S1|S2", 12, 30, true }, { "STACK", 17, 49 } } } },
     },
     -- each seat's tile per form (0 = her 100 form .. 3 = 30), the script's
     -- modal "tile" (the median where the mode's share is under 0.15):
