@@ -22,9 +22,11 @@ local GRUBS = {
 }
 
 -- Portal combat range is 6 (^cox_vespula_portal_combat_range). Enraged stomp
--- is under her (size 5). Safe tiles sit just outside that melee envelope while
--- still a short run from a tile that can hit the portal — Synq [1:29:03].
+-- is under her (size 5). Synq safe tiles sit just outside that melee envelope
+-- while still a short run from a tile that can hit the portal [1:29:03].
 local SAFE_CHEBYSHEV = 7
+-- Boss size 5: stay at least this Chebyshev from her SW tile.
+local BOSS_CLEAR = 6
 
 local STATE = {
     LAND = "LAND",
@@ -53,30 +55,34 @@ local function chebyshev(ax, az, bx, bz)
     return dz
 end
 
--- Safe tile: from the portal toward the player spawn, at SAFE_CHEBYSHEV.
-local function safe_tile(me, portal)
-    local dx = me.x - portal.x
-    local dz = me.z - portal.z
-    if dx == 0 and dz == 0 then
-        return portal.x, portal.z - SAFE_CHEBYSHEV
+-- Candidate safe tiles around the portal (cardinals + diagonals at range 7).
+-- Prefer tiles away from the boss footprint so walk_to is not blocked under her.
+local function safe_candidates(portal, boss)
+    local c = {
+        { portal.x, portal.z - SAFE_CHEBYSHEV },
+        { portal.x, portal.z + SAFE_CHEBYSHEV },
+        { portal.x - SAFE_CHEBYSHEV, portal.z },
+        { portal.x + SAFE_CHEBYSHEV, portal.z },
+        { portal.x - SAFE_CHEBYSHEV, portal.z - SAFE_CHEBYSHEV },
+        { portal.x + SAFE_CHEBYSHEV, portal.z - SAFE_CHEBYSHEV },
+        { portal.x - SAFE_CHEBYSHEV, portal.z + SAFE_CHEBYSHEV },
+        { portal.x + SAFE_CHEBYSHEV, portal.z + SAFE_CHEBYSHEV },
+    }
+    if boss == nil then return c end
+    local out = {}
+    for i = 1, #c do
+        if chebyshev(c[i][1], c[i][2], boss.x, boss.z) >= BOSS_CLEAR then
+            out[#out + 1] = c[i]
+        end
     end
-    local adx = dx
-    local adz = dz
-    if adx < 0 then adx = -adx end
-    if adz < 0 then adz = -adz end
-    local step_x, step_z = 0, 0
-    if adx >= adz then
-        if dx > 0 then step_x = 1 else step_x = -1 end
-    else
-        if dz > 0 then step_z = 1 else step_z = -1 end
-    end
-    return portal.x + step_x * SAFE_CHEBYSHEV, portal.z + step_z * SAFE_CHEBYSHEV
+    if #out == 0 then return c end
+    return out
 end
 
 return {
     id = "cox_vespula",
     fixture = "fresh_lumbridge.ini",
-    max_frames = 200000,
+    max_frames = 120000,
     setup = {
         "::clearinv",
         "::setlevel attack 99",
@@ -128,13 +134,16 @@ return {
         t.check("boss.size_read", size ~= nil and size > 0, "size " .. tostring(size))
         t.shot("vespula idle before redemption")
 
-        local _, me0 = t.world.tile()
-        local sx, sz = safe_tile(me0, prow)
+        local tr0, me0 = t.world.tile()
+        t.check("tile.landing", tr0 == "ok" and me0 ~= nil,
+            tr0 == "ok" and (tostring(me0.x) .. "," .. tostring(me0.z)) or tostring(tr0))
+        local cands = safe_candidates(prow, brow)
         local sm = {
             state = STATE.LAND,
             ticks = 0,
-            safe_x = sx,
-            safe_z = sz,
+            cand_i = 1,
+            safe_x = cands[1][1],
+            safe_z = cands[1][2],
             portal_dead = false,
             enrage_seen = false,
             redemptions = 0,
@@ -146,9 +155,15 @@ return {
             last_attack_tick = nil,
             serial_mark = 0,
             last_hp = 99,
+            stuck = 0,
+            last_x = me0 and me0.x or 0,
+            last_z = me0 and me0.z or 0,
         }
 
         local function set_state(next_state)
+            if sm.state ~= next_state then
+                sm.stuck = 0
+            end
             sm.state = next_state
         end
 
@@ -167,17 +182,26 @@ return {
             if fr == "ok" and fsym == "raids_vespula_enraged" then
                 sm.enrage_seen = true
             end
+            if fr == "ok" and frow ~= nil then
+                local pr, portal = t.npc.nearest(PORTAL, 40)
+                if pr == "ok" and portal ~= nil then
+                    cands = safe_candidates(portal, frow)
+                    if sm.cand_i > #cands then sm.cand_i = 1 end
+                    sm.safe_x = cands[sm.cand_i][1]
+                    sm.safe_z = cands[sm.cand_i][2]
+                end
+            end
             for i = 1, #GRUBS do
                 local gr = t.npc.nearest(GRUBS[i], 40)
                 if gr == "ok" then
-                    if GRUBS[i]:find("healthy", 1, true) then sm.grub_chain.healthy = true end
-                    if GRUBS[i]:find("sickly", 1, true) then sm.grub_chain.sickly = true end
-                    if GRUBS[i]:find("infected", 1, true) then sm.grub_chain.infected = true end
-                    if GRUBS[i]:find("dead", 1, true) then sm.grub_chain.dead = true end
+                    if string.find(GRUBS[i], "healthy", 1, true) then sm.grub_chain.healthy = true end
+                    if string.find(GRUBS[i], "sickly", 1, true) then sm.grub_chain.sickly = true end
+                    if string.find(GRUBS[i], "infected", 1, true) then sm.grub_chain.infected = true end
+                    if string.find(GRUBS[i], "dead", 1, true) then sm.grub_chain.dead = true end
                 end
             end
             local ar, arows = t.ticklog.rows({ kind = "npc_anim", slot = ws, since = sm.serial_mark })
-            if ar == "ok" then
+            if ar == "ok" and arows ~= nil then
                 for a = 1, #arows do
                     sm.serial_mark = arows[a].serial
                     if sm.last_attack_tick ~= nil then
@@ -186,15 +210,19 @@ return {
                     sm.last_attack_tick = arows[a].tick
                 end
             end
-            local _, pray = t.skill.read("prayer")
-            if pray and pray.level ~= nil then
+            local prr, pray = t.skill.read("prayer")
+            if prr == "ok" and type(pray) == "table" and pray.level ~= nil then
+                local _, tick_now = t.tick()
                 sm.prayer_samples[#sm.prayer_samples + 1] = {
-                    tick = select(2, t.tick()),
+                    tick = tick_now,
                     prayer = pray.level,
                 }
             end
-            local _, hp = t.skill.read("hitpoints")
-            local level = hp and hp.level or 99
+            local hpr, hp = t.skill.read("hitpoints")
+            local level = 99
+            if hpr == "ok" and type(hp) == "table" and hp.level ~= nil then
+                level = hp.level
+            end
             -- Redemption healed us from low HP (Synq: she hits up to 8 on the tiles).
             if sm.last_hp < 15 and level > sm.last_hp + 5 then
                 sm.redemptions = sm.redemptions + 1
@@ -203,14 +231,36 @@ return {
         end
 
         local function arm_redemption()
-            -- Synq [1:29:03]: redemption + rigor/augury. Cache has eagleeye + augury.
-            t.prayer.set("redemption", true)
-            t.prayer.set("eagleeye", true)
-            t.prayer.set("augury", true)
+            -- Synq [1:29:03]: redemption + rigor (tbow) / augury (mage).
+            -- eagleeye and augury share exclusion groups — never light both.
+            local rr, rd = t.prayer.set("redemption", true)
+            if rr ~= "ok" then
+                return rr, "redemption: " .. tostring(rd)
+            end
+            local style_r, style_d = t.prayer.set("rigour", true)
+            if style_r ~= "ok" then
+                style_r, style_d = t.prayer.set("eagleeye", true)
+            end
+            if style_r ~= "ok" then
+                return style_r, "ranged style: " .. tostring(style_d)
+            end
+            return "ok", "redemption+ranged style"
         end
 
         local function on_safe(me)
+            if me == nil or me.x == nil then return false end
             return chebyshev(me.x, me.z, sm.safe_x, sm.safe_z) <= 1
+        end
+
+        local function walk_safe()
+            local wr, wd = t.player.walk_to(sm.safe_x, sm.safe_z, 8)
+            if wr == "ok" then return wr, wd end
+            -- Blocked / unreachable: rotate candidate (Synq has 3 layout markers).
+            sm.cand_i = sm.cand_i + 1
+            if sm.cand_i > #cands then sm.cand_i = 1 end
+            sm.safe_x = cands[sm.cand_i][1]
+            sm.safe_z = cands[sm.cand_i][2]
+            return t.player.walk_to(sm.safe_x, sm.safe_z, 8)
         end
 
         local function decide()
@@ -221,12 +271,15 @@ return {
                 return
             end
 
-            local _, hp = t.skill.read("hitpoints")
-            if hp.level ~= nil and hp.level < 20 then
+            local hpr, hp = t.skill.read("hitpoints")
+            if hpr == "ok" and type(hp) == "table" and hp.level ~= nil and hp.level < 20 then
                 -- Redemption should fire; do not brew through the method.
             end
-            local _, pray = t.skill.read("prayer")
-            local points = pray.level or 0
+            local prr, pray = t.skill.read("prayer")
+            local points = 0
+            if prr == "ok" and type(pray) == "table" and pray.level ~= nil then
+                points = pray.level
+            end
 
             if sm.state == STATE.LAND then
                 lr, ld = t.ticklog.mark("room start")
@@ -236,19 +289,25 @@ return {
             end
 
             if sm.state == STATE.ARM_PRAYERS then
-                arm_redemption()
+                local ar, ad = arm_redemption()
+                t.check("prayer.redemption_arm", ar == "ok", tostring(ad))
+                if ar ~= "ok" then
+                    set_state(STATE.DONE)
+                    return
+                end
+                t.ticklog.mark("armed redemption safe=" .. sm.safe_x .. "," .. sm.safe_z)
                 set_state(STATE.TO_SAFE)
                 return
             end
 
             if sm.state == STATE.TO_SAFE then
-                local _, me = t.world.tile()
-                if on_safe(me) then
+                local tr, me = t.world.tile()
+                if tr == "ok" and on_safe(me) then
+                    t.ticklog.mark("on safe tile")
                     set_state(STATE.ATTACK_PORTAL)
                     return
                 end
-                t.player.walk_to(sm.safe_x, sm.safe_z, 4)
-                t.ticks(1)
+                walk_safe()
                 return
             end
 
@@ -279,14 +338,16 @@ return {
                     if sm.portal_hits == 3 then
                         t.shot("vespula redemption mid-mechanic")
                     end
+                else
+                    t.note("portal attack " .. tostring(ar) .. " " .. tostring(ad))
                 end
                 set_state(STATE.STEP_SAFE)
                 return
             end
 
             if sm.state == STATE.STEP_SAFE then
-                local _, me = t.world.tile()
-                if on_safe(me) then
+                local tr, me = t.world.tile()
+                if tr == "ok" and on_safe(me) then
                     if points < 8 then
                         set_state(STATE.RESTORE)
                     else
@@ -294,15 +355,31 @@ return {
                     end
                     return
                 end
-                t.player.walk_to(sm.safe_x, sm.safe_z, 3)
-                t.ticks(1)
+                walk_safe()
                 return
             end
         end
 
-        while sm.state ~= STATE.DONE and sm.ticks < 6000 do
+        while sm.state ~= STATE.DONE and sm.ticks < 2500 do
             if t.player.alive() ~= "ok" then
                 t.check("alive", false, "died in state " .. sm.state .. " ticks " .. sm.ticks)
+                return
+            end
+            local tr, me = t.world.tile()
+            if tr == "ok" and me ~= nil then
+                if me.x == sm.last_x and me.z == sm.last_z then
+                    sm.stuck = sm.stuck + 1
+                else
+                    sm.stuck = 0
+                    sm.last_x = me.x
+                    sm.last_z = me.z
+                end
+            end
+            if sm.stuck > 80 and sm.state ~= STATE.ATTACK_PORTAL and sm.portal_hits == 0 then
+                t.check("sm.stuck", false,
+                    "no movement for " .. sm.stuck .. " ticks in " .. sm.state
+                        .. " safe=" .. sm.safe_x .. "," .. sm.safe_z
+                        .. " at " .. tostring(sm.last_x) .. "," .. tostring(sm.last_z))
                 return
             end
             decide()
@@ -316,7 +393,8 @@ return {
             "state=" .. tostring(sm.state) .. " portal_dead=" .. tostring(sm.portal_dead)
                 .. " ticks=" .. tostring(sm.ticks)
                 .. " hits=" .. tostring(sm.portal_hits)
-                .. " restores=" .. tostring(sm.restores))
+                .. " restores=" .. tostring(sm.restores)
+                .. " safe=" .. sm.safe_x .. "," .. sm.safe_z)
         t.shot("vespula room clear after redemption")
 
         local cadence = 3
