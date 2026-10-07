@@ -211,7 +211,7 @@ return {
                 if fs == "raids_tekton_hammering" then
                     hammer_visits = hammer_visits + 1
                     if not anvil_shot then
-                        t.shot("tekton at the anvil, sparks")
+                        t.shot("tekton at the anvil sparks")
                         anvil_shot = true
                     end
                     set_state(STATE.ANVIL_DODGE)
