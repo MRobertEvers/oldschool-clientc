@@ -634,7 +634,29 @@ waves + bow on big greens; no protection prayer in the waves (0 of 5, tech.praye
 State at commit (survey stack5d): _play 280/348/109/457 weakest 0.20; sva 284/344/114/458 0.23; svb 304!/356/115/471
 0.19; svc 296!/360!/109/469 0.15; svd 284/356/115/471 0.19 (last wave / boss start / boss ticks / room ticks).
 
-### Nylocas, Normal trio, THE MACHINE (owner_nylocas, owner's direction 2026-10-06 20:00) -- 0 of 5, red
+### Nylocas, Normal trio -- GREEN, 5 of 5 (owner_nylocas, b59ebc45d, 2026-10-07)
+
+Five names (`seed_survey.py _play_nylocas --party 3`, library aa9488741, content 0b6dffc89, binary
+src/torirs_owner_ny at dfdb73264): 269/345/109/454, 285/353/109/462, 289/357/109/466, 293/357/99/456,
+293/357/92/449 (last wave / boss start / boss ticks / room ticks; Blert 244-293 / 296-357 / 75-123 /
+371-471); every support standing at her landing (weakest 0.10-0.24). `party_repeat.py --script
+build/seam_state/owner_nylocas/_play_nylocas_trio.lua --runs 3`: AGREE. Entry solo 5 of 5 KEEP.
+
+What each seat does, every tick, in order (raid_play_tob_nylocas.lua `_play_nylocas_machine`):
+
+| when | the seat's choice | source |
+|---|---|---|
+| every tick, not her | publishes its current copy on the party link (`t.party.publish_target`, raid.lua 5d82f77c9) and reads the others' (one tick behind) | owner's direction: share the chosen copy |
+| from wave 31 | a big of its colour it has pressed stays its choice until it dies | traces: the wave-30 big blue hit once and left lived to age 49-51, its splits closed the room; before wave 31 a big's kill adds a copy at the cap |
+| in the waves | runs the scored pick for each other seat (that seat's loadout, reach, tile, current copy) and yields a copy that seat will take when it owns the colour, is nearer, or is as near and earlier in role order (`_nym_claims`) | same-tick double choices 12.8 -> 8.8 a room |
+| after wave 31 | its colour's chewer on a support under 0.31; else the oldest big of its colour; the leave-to-owner rule off (every seat on the leftovers) | the 27 rooms: weakest support at landing median 0.31; a seat's first hit on its big +1..+3 after wave 31; helpers swing at the leftovers |
+| otherwise | the scored pick (738ef1466's terms: own colour first, leave-to-owner as a rule, inbound shots, keep/low/urgent support terms, chins, Ice Barrage on blue clumps, grey stack) | progress.md steps 5-12 |
+| nothing to press | stands on the tile of the reference room d05eb065's seat's next entry (P.room_copy; the entries are never matched, see the comment in the plan) | one-room copy |
+| her | her form's weapon, gear set and special; no Saradomin brew while food is held | Blert equipmentDeltas per form; role.*.phase.boss.drinks |
+
+Kit: the mage carries Ice Barrage runes (bloodrune / deathrune / waterrune) in place of two brews and three anglerfish.
+
+### Nylocas, Normal trio, THE MACHINE (owner_nylocas, owner's direction 2026-10-06 20:00) -- history
 
 The trio's waves, cleanup and boss are one state machine per seat (`QD.raid._play_nylocas_machine`,
 raid_play_tob_nylocas.lua; the full state x event table is the comment above `NY_STATES`). Its data is
