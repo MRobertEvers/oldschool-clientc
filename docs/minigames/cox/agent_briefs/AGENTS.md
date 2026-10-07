@@ -1,6 +1,12 @@
 # Live per-room orchestrators (this run)
 
-Do not resume unless the parent asks. Agents were told not to git commit.
+Do not resume unless the parent asks. Agents were told not to git commit
+unless the parent says otherwise.
+
+**STOP (2026-10-07):** Do not `git checkout -f`, reset, stash-drop, or
+overwrite sibling `test/raids/cox_*.lua` / `OSRS-Content` trees. Edit only
+your ownership row in `ROOM_AGENT.md`. See workspace rule
+`cox-room-agent-no-clobber` and `ROOM_AGENT.md` § "Do not move or clobber".
 
 | Room | Agent ID |
 |---|---|

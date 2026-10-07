@@ -32,6 +32,24 @@ symbols. Never edit `cox_layout.rs2`, `cox.rs2` (except a new `::coxrun` gate
 block clearly marked for your room), `cox_points.rs2`, or sibling rooms.
 Never rename trees to `*.skip` (workspace rule `no-park-sibling-content`).
 
+### Do not move or clobber the shared tree (2026-10-07)
+
+Parallel room agents have been wiping each other with `git checkout -f`,
+stash/drop, `sed`/`cp` over sibling harnesses, and submodule pointer swings.
+**Stop.**
+
+| Forbidden | Why |
+|---|---|
+| `git checkout -f` / `reset --hard` / `clean` on parent or `OSRS-Content/` | Deletes every other room's uncommitted work |
+| Overwriting `test/raids/cox_<other>.lua` | Harnesses are per-room ownership |
+| Submodule gitlink → a commit that drops sibling rooms | Steals their content from the PR |
+| "Pin restore" / `sed -i` of another room's script before your gate | Race that reverts their SM |
+| Parking or moving `OSRS-Content/.../scripts` trees | Same as `no-park-sibling-content` |
+
+If the shared pack/sscompile is broken by a sibling: **wait or report**.
+Do not fix it by resetting the tree. Use `--no-build` and a private
+`QUEST_BINARY` when the pack lock is busy.
+
 Config roots:
 
 - `OSRS-Content/osrs239-content/server/scripts/minigames/minigame_cox/scripts/`
@@ -122,9 +140,12 @@ Olm party follow-ups are `cox_olm_solo_4t41.lua`, then `cox_olm_duo.lua`,
 ## Standing rules
 
 - Assert contracts in C (`CLAUDE.md`); do not add silent NULL returns.
-- Mutate only in a throwaway worktree when proving a gate can fail.
+- Mutate only in a throwaway worktree when proving a gate can fail —
+  **never** mutate the shared checkout to prove a sibling's failure.
 - Quote the source line in every constant change and every CONTENT_BUGS row.
 - Output discipline: no command dumps >4 KB into a tool result; log to a file
   and `tail` / `grep`.
 - Branch: stay on the assigned room branch; commit often; push with
   `git push -u origin <branch>`. Parent PR base is `v3`.
+- **Stay in your room.** Do not edit Vasa/Tekton/Olm/… files because a gate
+  lock is busy. Queue on `flock` and keep coding **your** harness/content.
