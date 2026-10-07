@@ -1666,6 +1666,13 @@ function QD.raid._verzik_tornado_guard(st, v, intent, ok)
                     and not tor_reaches(tornadoes, me, mid, x, z)
                     and not (honour and vz.ball_forbid(x, z)) then
                     local sc = math.max(math.abs(x - gx), math.abs(z - gz)) * 10 + math.max(math.abs(dx), math.abs(dz))
+                    -- a dodge that keeps her in reach is a swing not lost:
+                    -- the walk back after a dodge was what cancelled them (an
+                    -- enrage of 290-325 ticks at 2-3 a tick, 60d10a2d0)
+                    if b ~= nil and vz.reach_now ~= nil then
+                        local db = QD.raid._verzik_dist(x, z, b)
+                        if db >= 1 and db <= vz.reach_now then sc = sc - 15 end
+                    end
                     if best == nil or sc < best then best, bx, bz = sc, x, z end
                 end
             end
@@ -4212,6 +4219,7 @@ function QD.raid._verzik_phase_p3(c)
     -- beside her (W:946 "every player next to her")
     local halb = melee and vz.held == "halberd"
     local reach = halb and 2 or 1
+    vz.reach_now = reach
     -- owner_verzik: her special rotation as a state machine (events: her
     -- seq and the ball's projectile; QD.raid._verzik_p3_cycle)
     local cyc = QD.raid._verzik_p3_cycle(st, v, events)
@@ -4945,7 +4953,7 @@ function QD.raid._verzik_phase_p3(c)
         -- (the ring set the press; its SWING dumps the claws, W:992)
         if ring_state == "SWING" then
             if vz.target_slot ~= nil then vz.target_slot = nil end
-            if not tor_near then QD.raid._verzik_spec_dump(st, v, intent, events) end
+            if not tor_near or power_through then QD.raid._verzik_spec_dump(st, v, intent, events) end
         end
     elseif share ~= nil or vz.ball_lock == v.tick then
         -- (the shared ball: no press, it paths off the corner; verzik_ball
@@ -4987,7 +4995,12 @@ function QD.raid._verzik_phase_p3(c)
             -- -- Blert's fast trios spend 38 of their 96 P3 specials before
             -- the enrage -- cost this plan raiders twice, s_fastp3c and
             -- s_fastp3g 2026-10-07; open)
-            if melee and vz.enraged and not tor_near then QD.raid._verzik_spec_dump(st, v, intent, events) end
+            -- (with a tornado near too when powered through: held back, the
+            -- orb regenerated past 500, the claws stayed on waiting for a
+            -- special that never fired, and the seat swung claw autos for the
+            -- rest of the enrage -- svavzslow 60d10a2d0+, dragon_claws from
+            -- t740 to the end)
+            if melee and vz.enraged and (not tor_near or power_through) then QD.raid._verzik_spec_dump(st, v, intent, events) end
         end
     end
     -- last, over whatever the state decided: never stand where a tornado steps
@@ -5247,7 +5260,11 @@ function QD.raid._play_verzik_decide(st, v)
         -- (above her melee only: _play_verzik_slow_p3 P3+514, the tank held off
         -- eating at 61 with a tornado close and her melee took the 61)
         if close and v.hp > N.melee + 7 then
-            intent.eat, intent.drink, intent.gear = nil, nil, nil
+            -- (not the gear: a swap dropped here left vz.held saying the main
+            -- weapon was back while the server still held the claws -- every
+            -- enrage seat swung claw autos to the end, svavzslow 60d10a2d0+,
+            -- "C790scythe" in its notes with dragon_claws worn)
+            intent.eat, intent.drink = nil, nil
             vz.tor_held_supplies = (vz.tor_held_supplies or 0) + 1
             -- (and none of the library's own sips: its brew recovery fills a
             -- free potion tick, raid_play.lua _play_send; a sip just "taken"
