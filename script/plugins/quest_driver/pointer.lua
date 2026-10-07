@@ -227,6 +227,16 @@ end
 -- the wrapper is normally the one loc in the family NO map square placed, so
 -- its config is not resident and the read has to wait for one.  An id the
 -- cache has no record of is remembered here so the wait is paid once.
+--
+-- EXCEPT inside an await predicate.  A level()/match() runs under C's own
+-- lua_pcall (torirs_plugin_drive.c drive_await_level_true), so the wait here
+-- -- an api_drive.await that has to suspend -- would yield across that C
+-- frame: `attempt to yield across a C-call boundary`, raised out of a pure
+-- query like t.world.loc_near inside t.await's level (b70; the wait came in
+-- with the multiloc resolve, d2fa9a359).  There the read answers
+-- (nil, "pending") instead, remembers nothing, and the caller answers "not
+-- yet"; the predicate is polled again next frame, and the fetch this read
+-- queued lands in between.
 QD.player._loc_variants_absent = {}
 
 function QD.player._loc_variants(id)
@@ -234,6 +244,9 @@ function QD.player._loc_variants(id)
         return nil
     end
     local result, info = api_drive.loc_variants(id)
+    if result == "timeout" and QD.drive._scan.predicate > 0 then
+        return nil, "pending"
+    end
     if result == "timeout" then
         QD.await({
             level = function()
@@ -438,7 +451,12 @@ function QD.drive._scan_wrap_await(drive)
                 return answer
             end
         end
+        -- The depth the predicates leave behind is restored, not trusted: a
+        -- predicate that RAISES never runs its own decrement, and a depth
+        -- stuck above 0 would stop every later _scan_ensure from yielding.
+        local depth = scan.predicate
         local result, detail = raw(copy, deadline)
+        scan.predicate = depth
         local suspended
         if type(level) == "function" then
             suspended = level_calls > 1
@@ -494,7 +512,12 @@ function QD.player._live_loc_id(id)
     end
     -- multiloc: a placement that is one of this symbol's own slots.
     local epoch = QD.drive._scan_epoch()
-    local info = QD.player._loc_variants(id)
+    local info, pending = QD.player._loc_variants(id)
+    if pending then
+        -- Inside an await predicate with the def still loading (see
+        -- _loc_variants): no rule yet, and a third return saying so.
+        return id, nil, true
+    end
     if info and type(info.slots) == "table" and #info.slots > 0 then
         local wanted = {}
         for j = 1, #info.slots do

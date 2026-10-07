@@ -147,7 +147,16 @@ function QD.world.loc_near(sym, radius, opts)
     if opts ~= nil and filter == nil then
         return filter_result, "loc_near " .. tostring(sym) .. ": the player's tile did not answer"
     end
-    local id, match = QD.player._live_loc_id(symbol_id)
+    local id, match, pending = QD.player._live_loc_id(symbol_id)
+    if pending then
+        -- Asked from an await predicate while the family's def is still
+        -- being fetched (QD.player._loc_variants): no copy of the id itself
+        -- is placed anywhere in the scene, and whether a multiloc slot is
+        -- cannot be told yet.  A predicate must not wait, so this answers
+        -- not-yet and the await polls it again next frame.
+        return "timeout", "loc_near " .. tostring(sym) .. ": loc " .. tostring(symbol_id)
+            .. "'s def is still loading (asked from an await predicate, which cannot wait for it)"
+    end
     -- Charged through pointer.lua's scan meter (seam15): at radius 0 this is
     -- the whole scenery pool, and a symbol absent from it walks every row.
     QD.drive._scan_why = "loc_near " .. tostring(sym)
