@@ -560,7 +560,9 @@ return {
                     return
                 elseif sm.setup_waits < 12 then
                     sphere_flick()
-                    if mrow ~= nil and (sm.setup_waits % 4) == 0 then
+                    -- Fang: re-assert every tick with 1-tick settle so decide
+                    -- still returns for prayer; %4 cadence left the claw at 64/150.
+                    if mrow ~= nil then
                         t.player.attack(melee, 2, 1, { quick = true, slot = mrow.slot })
                     end
                     t.player.walk_to(thumb.x + (sm.setup_waits % 2), thumb.z, 1)
@@ -592,7 +594,7 @@ return {
                 local thumb = sm.tiles.thumb
                 local tx = thumb.x + (sm.sub % 2)
                 local mrow = npc_ok(t, melee)
-                if mrow ~= nil and (sm.sub % 4) == 0 then
+                if mrow ~= nil then
                     t.player.attack(melee, 2, 1, { quick = true, slot = mrow.slot })
                 end
                 t.player.walk_to(tx, thumb.z, 1)
@@ -615,7 +617,7 @@ return {
                 -- Empty event: free hit window (Synq [2:48:37]).
                 local thumb = sm.tiles.thumb
                 local mrow = npc_ok(t, melee)
-                if mrow ~= nil and (sm.sub % 4) == 0 then
+                if mrow ~= nil then
                     t.player.attack(melee, 2, 1, { quick = true, slot = mrow.slot })
                 end
                 t.player.walk_to(thumb.x + 1 - (sm.sub % 2), thumb.z, 1)
