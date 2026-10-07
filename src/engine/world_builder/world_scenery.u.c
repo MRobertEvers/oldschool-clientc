@@ -2130,7 +2130,8 @@ scenery_add_normal(
     int scene_z)
 {
     struct World* world = builder->world;
-    int rotation = config_loc->seq_id != -1 ? 0 : map_loc->orientation;
+    bool const animated = config_loc->seq_id != -1;
+    int rotation = animated ? 0 : map_loc->orientation;
     int orientation = map_loc->orientation;
     int size_x = config_loc->size_x;
     int size_z = config_loc->size_z;
@@ -2147,10 +2148,16 @@ scenery_add_normal(
 
     if( map_loc->shape_select == RSCACHE_LOC_SHAPE_SCENERY_DIAGONAL )
         yaw += WALL_DECOR_YAW_ADJUST;
-    if( config_loc->seq_id != -1 )
-        yaw += 512 * orientation;
-
-    int const deferred_set = config_loc->seq_id != -1 ? orientation : 0;
+    /*
+     * Animated centrepieces: keep the authored (unrotated) bind pose and apply
+     * the map orientation as post_orient after each pose (class393.method8916:
+     * animate -> rotate90 -> resize -> translate). Draw-time yaw (512*angle)
+     * is what walls use, but for multi-tile centrepieces it left Great Olm's
+     * 5x8 claws freestanding in the arena — the long axis stayed in the
+     * authored Z frame on screen. post_orient bakes the same ModelOrient the
+     * static cave rock uses, after the seq has posed.
+     */
+    int const deferred_set = 0;
     builder->scenery_deferred_angle = deferred_set;
     int element_id = scenery_load_model(
         builder,
@@ -2164,6 +2171,12 @@ scenery_add_normal(
         size_z);
     if( element_id < 0 )
         return;
+    if( animated && (orientation & 3) != 0 )
+    {
+        struct ToriDraw_SceneElement* el = ToriDraw_SceneElementGet(builder->scene, element_id);
+        if( el && ToriDraw_ModelKindIsFull(el->model.kind) && el->model.u.model.model )
+            ToriDraw_ModelSetPostOrient(el->model.u.model.model, orientation & 3);
+    }
     scenery_element_position_init(
         builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, size_x, size_z, yaw);
     // #region agent log
@@ -2194,9 +2207,9 @@ scenery_add_normal(
                 "{\"hypothesisId\":\"A,B,C\",\"location\":\"world_scenery.u.c:scenery_add_normal\","
                 "\"message\":\"olm centrepiece place\",\"data\":{\"loc_id\":%d,\"shape\":%d,"
                 "\"orient\":%d,\"rotation\":%d,\"seq\":%d,\"cfg_size\":[%d,%d],\"draw_size\":[%d,%d],"
-                "\"yaw\":%d,\"deferred\":%d,\"runtime\":%d,\"scene\":[%d,%d],\"elem\":%d,"
-                "\"pos\":[%d,%d,%d],\"elem_yaw\":%d,\"aabb_x\":[%d,%d],\"aabb_z\":[%d,%d],\"vc\":%d},"
-                "\"timestamp\":%ld}\n",
+                "\"yaw\":%d,\"deferred\":%d,\"post_orient\":%d,\"runtime\":%d,\"scene\":[%d,%d],"
+                "\"elem\":%d,\"pos\":[%d,%d,%d],\"elem_yaw\":%d,\"aabb_x\":[%d,%d],\"aabb_z\":[%d,%d],"
+                "\"vc\":%d,\"runId\":\"post-fix\"},\"timestamp\":%ld}\n",
                 map_loc->loc_id,
                 map_loc->shape_select,
                 orientation,
@@ -2208,6 +2221,9 @@ scenery_add_normal(
                 size_z,
                 yaw,
                 deferred_set,
+                (el && ToriDraw_ModelKindIsFull(el->model.kind) && el->model.u.model.model)
+                    ? el->model.u.model.model->post_orient
+                    : -1,
                 builder->scenery_runtime_spawn,
                 scene_x,
                 scene_z,
