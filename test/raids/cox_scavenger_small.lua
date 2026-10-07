@@ -14,6 +14,19 @@ local BEASTS = { BEAST_A, BEAST_B }
 -- Quest harnesses do not see api_drive as a global, so ids are literals here.
 local BONES_ID = 526
 
+-- Soft3d in-raid shots default to a floor-stare / void pose; nudge before
+-- every t.shot so cave walls and plants are in frame (same pose ToB / lit
+-- scavenger walkthroughs use: yaw north, pitch flat, zoomed out).
+local SHOT_YAW = 0
+local SHOT_PITCH = 383
+local SHOT_ZOOM = 1100
+
+local function shot_lit(t, label)
+    t.drive.camera(SHOT_YAW, SHOT_PITCH, SHOT_ZOOM)
+    t.ticks(2)
+    t.shot(label)
+end
+
 local STATE = {
     LAND = "LAND",
     MEASURE = "MEASURE",
@@ -195,7 +208,7 @@ return {
                 local wr, wslot = t.ticklog.slot(brow)
                 t.check("beast.slot", wr == "ok", tostring(wslot))
                 sm.wslot = wslot
-                t.shot("scavenger_small idle or approaching on landing")
+                shot_lit(t, "scavenger_small idle or approaching on landing")
                 t.ticklog.mark("room start")
                 set_state(STATE.MEASURE)
                 return
@@ -230,7 +243,7 @@ return {
                 if dr == "ok" and drows ~= nil and #drows > 0 then
                     sm.dead = true
                     sm.death_tick = drows[1].tick
-                    t.shot("scavenger_small mid-kill clear")
+                    shot_lit(t, "scavenger_small mid-kill clear")
                     set_state(STATE.LOOT)
                     return
                 end
@@ -242,7 +255,7 @@ return {
                     return
                 end
                 if not sm.mid_shot and sm.ticks > 20 then
-                    t.shot("scavenger_small mid-mechanic fight")
+                    shot_lit(t, "scavenger_small mid-mechanic fight")
                     sm.mid_shot = true
                 end
                 t.player.attack(sm.symbol, 2, 1, { quick = true })
@@ -296,7 +309,7 @@ return {
                 spec(t, "scavenger.max_hit", tostring(measured_max),
                     "largest unprotected hit_player=" .. tostring(sm.max_hit),
                     "13 hp", "D", "range")
-                t.shot("scavenger_small clear after kill")
+                shot_lit(t, "scavenger_small clear after kill")
                 set_state(STATE.DONE)
                 return
             end
