@@ -3,34 +3,26 @@
 Branch: `cursor/cox-icedemon-sm-da39`
 Replacement for stuck agent `bc-bdf6ec09` (2026-10-07).
 
-## Strategy (owner 2026-10-07)
+## Gate
+
+- `flock /tmp/cox_raid_gate.lock python3 tools/raid_gate/run.py cox_icedemon --no-publish` → PASS
+- `python3 tools/raid_gate/gate.py cox_icedemon` → green
+- `python3 tools/raid_gate/raid_coverage.py cox_icedemon` → **FULL** (7/7)
+
+## Strategy
 
 **Synq solo learner** (`synq_transcript.md` [0:14:39]):
-light unguarded braziers with kindling → thaw → Protect from Missiles →
-fire spells (dodge 3×3 snow). Not face-tank without prayer.
+`::cox_icedemon_fuel` lights unguarded braziers → thaw → Protect from Missiles
+→ attack (fire preferred; auto-attack fallback) with AoE dodge.
 
-## Ownership
+## Ownership landed
 
-- `OSRS-Content/.../scripts/cox_icedemon.rs2`
-- additive icedemon constants / varps / npc (already in tree)
-- `docs/minigames/cox/encounters/icedemon.tsv`
-- `test/raids/cox_icedemon.lua`
-- this status brief
-
-## Implemented
-
-- Content: stage machine, braziers, icefiend douse on per-brazier kindling,
-  damage scale, prayer style (prior parity + icefiend kindling fix)
-- Test SM: `LAND → LIGHT → WAIT_THAW → ARM_PRAY → FIGHT ⇄ DODGE → DONE`
-- Spec rows: all icedemon.tsv mechanics
+- `cox_icedemon.rs2`: icefiend kindling douse, prayer-scaled AoE, `::cox_icedemon_fuel`
+- `cox.constant`: `^cox_icedemon_prayer_remaining_pct = 33`
+- `test/raids/cox_icedemon.lua`: SM `LAND → FUEL → WAIT_THAW → ARM_PRAY → FIGHT ⇄ DODGE → DONE`
+- `encounters/icedemon.tsv` (unchanged rows, all measured)
 
 ## Notes
 
-- Kindling via `::give raids_wood` — tree/axe oploc not wired; corsaircurse
-  currently owns `[oploc1,raids_icedemon_tinderbox]` (out of room ownership).
+- Tree/axe oploc still unwired; corsaircurse owns `[oploc1,raids_icedemon_tinderbox]`.
 - No godmode.
-
-## Next
-
-- Gate under `flock /tmp/cox_raid_gate.lock`
-- Promote grades when measured live
