@@ -355,7 +355,7 @@ QD.raid._play_plan("tob_nylocas", {
     cleanup_order = { age = 0.5, expire = 10, pass = 30, side = 15, north_z = 24, north_role = "mage", rate = 0.71 },
     grey_stack = 12,
     own_wait = false,
-    burst_clump = nil,
+    burst_clump = 2,
     -- owner_nylocas: HER FORMS IN THEIR OWN GEAR (the harness's kit; Blert's
     -- recorders on her, equipmentDeltas, 27 rooms: on her melee form every
     -- role wears torva / rancour / radiant oathplate / ferocious gloves, on
@@ -1359,7 +1359,14 @@ function QD.raid._play_nylocas_scored_pick(c)
         -- it (another colour under the splash is nulled for the mage) is one
         -- Ice Burst (Ancient Magicks, runes in the backpack: no staff needed)
         -- instead of that many Ayak swings.
-        if R ~= nil and P.burst_clump ~= nil and R.colour == "magic" and ny.loadout.magic.powered then
+        -- owner_nylocas: the cast is Ice Barrage (Blert SCEPTRE_BARRAGE 4.7 a
+        -- room, script attack_names), while the backpack holds its runes
+        -- (the obj symbol is "bloodrune")
+        if R ~= nil and P.burst_clump ~= nil and R.colour == "magic" and ny.barrage_have == nil then
+            local br, bc = QD.inv.count("bloodrune")
+            ny.barrage_have = (br == "ok" and type(bc) == "number" and bc >= 2)
+        end
+        if R ~= nil and P.burst_clump ~= nil and R.colour == "magic" and ny.loadout.magic.powered and ny.barrage_have then
             for _, n in ipairs(v.nylos) do
                 local d = dist(me.x, me.z, n.x, n.z, n.size)
                 if n.style == "magic" and d <= P.reach.magic and not ny.nulled[n.slot]
@@ -1373,7 +1380,7 @@ function QD.raid._play_nylocas_scored_pick(c)
                         end
                     end
                     if pure and #clump >= P.burst_clump then
-                        consider({ score = -30 - 6 * #clump, n = n, d = d, style = "magic", spell = "ice_burst", clump = clump, burst = true })
+                        consider({ score = -30 - 6 * #clump, n = n, d = d, style = "magic", spell = "ice_barrage", clump = clump, burst = true })
                     end
                 end
             end

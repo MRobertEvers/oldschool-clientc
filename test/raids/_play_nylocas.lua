@@ -261,6 +261,21 @@ if size > 1 then
     -- stat_boost(magic, 4, 10), a five-minute cooldown), not the magic potion
     -- (103) seam40 carried: invigorated at the door (run below; raid seam47)
     if role == 1 then out[#out + 1] = "::give saturated_heart 1" end
+    -- owner_nylocas: THE MAGE'S BARRAGE.  Blert's trio mages cast Ice Barrage
+    -- on blue clumps (script attack_names SCEPTRE_BARRAGE + UNKNOWN_BARRAGE
+    -- 4.7 a room over the 31 waves; ours cast none: no runes in the kit).
+    -- Ancient Magicks is the kit's spellbook; the runes take two Saradomin
+    -- brews' slots (the mage drank 0-2 doses a room) and three anglerfish'
+    -- (Blert role.mage eats in the waves: median 0).
+    if role == 1 and size > 1 then
+        for i = 1, #out do
+            if out[i] == "::give br_4dosepotionofsaradomin 3" then out[i] = "::give br_4dosepotionofsaradomin 1" end
+            if out[i] == "::give anglerfish 7" then out[i] = "::give anglerfish 4" end
+        end
+        out[#out + 1] = "::give water_rune 2000"
+        out[#out + 1] = "::give blood_rune 1000"
+        out[#out + 1] = "::give death_rune 1000"
+    end
     kit = out
 end
 
@@ -317,6 +332,13 @@ return {
                 t.check("setup.ayak", ar == "ok" and ayaks == 1 and tr == "ok" and tears == 0, "p" .. role .. " Charge on the uncharged Eye of Ayak "
                     .. tostring(cr0) .. " " .. string.sub(tostring(cd0), 1, 80) .. "; eye_of_ayak in the backpack " .. tostring(ayaks)
                     .. ", demon tears left " .. tostring(tears))
+                if role == 1 then
+                    local br, blood = t.inv.count("bloodrune")
+                    local dr2, death = t.inv.count("deathrune")
+                    local wr, water = t.inv.count("waterrune")
+                    t.check("setup.barrage_runes", br == "ok" and blood == 1000 and death == 1000 and water == 2000,
+                        "p1 Ice Barrage runes in the backpack: blood " .. tostring(blood) .. " death " .. tostring(death) .. " water " .. tostring(water))
+                end
             end
             if size <= 1 then t.player.equip("rune_arrow") end
             -- raid seam33: a trio seat starts with its own colour's weapon on
