@@ -3,7 +3,11 @@
 return {
     id = "meatandgreet",
     fixture = "fresh_lumbridge.ini",
-    setup = { "::clearinv", "::complete quest_childrenofthesun", "::meatandgreet",
+    -- No ::meatandgreet: that debugproc p_teleports into Emelio's walled room (meatandgreet.rs2
+    -- [debugproc,meatandgreet] p_teleport(^mg_emelio_coord) = 1753,3074, behind fortis_door_l@1754,3073)
+    -- in Varlamore, which has no on-foot route. The fresh fixture's quest state is already 0; the
+    -- run travels the real way (Regulus Cento outside Varrock's east gate, as atfirstlight.lua).
+    setup = { "::clearinv", "::complete quest_childrenofthesun",
       "::give rune_full_helm 1", "::give rune_chainbody 1", "::give rune_platelegs 1", "::give zamorak_spear 1",
       "::setlevel hitpoints 99", "::setlevel attack 99", "::setlevel strength 99", "::setlevel defence 99", "::setlevel prayer 99",
       "::wield rune_full_helm", "::wield rune_chainbody", "::wield rune_platelegs", "::wield zamorak_spear",
@@ -15,7 +19,53 @@ return {
         local jr, jj = t.ui.journal_open("Meat and Greet")
         t.check("journal.start", jr == "ok", tostring(jj and jj.first_line))
         t.ui.journal_close()
+        -- Doors, pressed (or walked through standing open) on EVERY visit in and out. reach.py:
+        -- Emelio's room (x 1753-1755 z 3073-3076) opens only by fortis_door_l@1754,3073 (outside
+        -- 1754,3072, inside 1754,3074); Alba's farmhouse only by fortis_door_l_reverse@1587,3123
+        -- (outside 1587,3122, inside 1587,3124). Every goto below departs and lands outside them.
+        local function emelio_in(name)
+            t.exec(name, t.player.pass_door, { closed = "fortis_door_l", open = "fortis_door_l_open",
+                at = { 1754, 3073, 0 }, near = { 1754, 3072 }, far = { 1754, 3074 } })
+        end
+        local function emelio_out(name)
+            t.exec(name, t.player.pass_door, { closed = "fortis_door_l", open = "fortis_door_l_open",
+                at = { 1754, 3073, 0 }, near = { 1754, 3074 }, far = { 1754, 3072 } })
+        end
+        local function alba_in(name)
+            t.exec(name, t.player.pass_door, { closed = "fortis_door_l_reverse", open = "fortis_door_l_reverse_open",
+                at = { 1587, 3123, 0 }, near = { 1587, 3122 }, far = { 1587, 3124 } })
+        end
+        local function alba_out(name)
+            t.exec(name, t.player.pass_door, { closed = "fortis_door_l_reverse", open = "fortis_door_l_reverse_open",
+                at = { 1587, 3123, 0 }, near = { 1587, 3124 }, far = { 1587, 3122 } })
+        end
+        -- ---- leg 0: travel to Varlamore ----
+        -- OSRS Wiki Varlamore (Transportation): the first way in is Regulus Cento's flight near
+        -- Varrock's east gate after Children of the Sun. Port: twilightspromise.rs2
+        -- [opnpc1,vmq2_quetzal_keeper_varrock] -> p_telejump(^tp_fortis_arrive = 1697,3140).
+        t.exec("goto-talkToRegulus", t.player.goto_tile, 3281, 3413, 0)
+        t.exec("talkToRegulus", t.player.talk_to, "vmq2_quetzal_keeper_varrock", 1)
+        t.exec("talkToRegulus-dialog", t.chat.play, {
+            "npc:Nilsal, adventurer. Do you wis",
+            "choose:Let's do it!",
+            "player:Let's do it!",
+            "npc:Then hold on tight. Varlamore ",
+        })
+        local fly_result = t.await({
+            level = function()
+                local _, here = t.world.tile()
+                return here ~= nil and here.x < 2000
+            end,
+            note = "landed in Civitas illa Fortis",
+        }, 10)
+        local _, arrive = t.world.tile()
+        t.check("talkToRegulus-arrived", arrive ~= nil and arrive.x == 1697 and arrive.z == 3140,
+            "flew to Civitas illa Fortis (tp_fortis_arrive 1697,3140), tile "
+            .. tostring(arrive and (arrive.x .. "," .. arrive.z)) .. " await " .. tostring(fly_result))
+        t.ticks(3)
         -- ---- leg 1: Emelio's offer ----
+        t.exec("goto-emelio.start", t.player.goto_tile, 1754, 3072, 0)
+        emelio_in("emelioDoor.in.start")
         t.exec("talkToEmelio", t.player.talk_to, "mag_emelio", 1)
         t.exec("talkToEmelio.dialog", t.chat.play, {
             "npc:Hello? Can I help you", "player:I don't know", "npc:Hang on", "player:Well I suppose", "npc:Kuani! I'm Emelio",
@@ -30,8 +80,8 @@ return {
             "player:Okay, I guess I can go see", "npc:Kuani! I look forward",
         })
         -- ---- leg 2: the Spice Merchant's box ----
-
-                t.exec("goto-spice", t.player.goto_tile, 1685, 3100, 0)
+        emelio_out("emelioDoor.out.spice")
+        t.exec("goto-spice", t.player.goto_tile, 1685, 3100, 0)
         t.exec("talkToSpiceMerchant", t.player.talk_to, "fortis_shop_spices", 1)
         t.exec("talkToSpiceMerchant.dialog", t.chat.play, {
             "npc:A little bit of spice",
@@ -76,7 +126,8 @@ return {
         t.ticks(3)
         local r3, v3 = t.var.varbit("varb11183_mag_spice")
         t.check("spice.sent", v3 == 4, "spice=" .. tostring(v3))
-                t.exec("goto-emelio.spice", t.player.goto_tile, 1753, 3074, 0)
+        t.exec("goto-emelio.spice", t.player.goto_tile, 1754, 3072, 0)
+        emelio_in("emelioDoor.in.spice")
         t.exec("talkToEmelio.spice", t.player.talk_to, "mag_emelio", 1)
         t.exec("talkToEmelio.spice.dialog", t.chat.play, {
             "npc:Nilsal, friend. Any luck", "player:Which ingredients was it again", "npc:We're still missing",
@@ -84,12 +135,15 @@ return {
         })
         -- ---- leg 3: Alba, the Wolf Den and the Dire Wolf Alpha ----
 
-                -- den refuses before Alba has asked
-        t.exec("goto-den", t.player.goto_tile, 1499, 3131, 0)
+        -- den refuses before Alba has asked. 1500,3131 is open ground east of the Wolf Den
+        -- (direwolf_cave_entrance@1496,3131 covers 1499,3131).
+        emelio_out("emelioDoor.out.den")
+        t.exec("goto-den", t.player.goto_tile, 1500, 3131, 0)
         t.exec("denLocked", t.player.click_loc, "direwolf_cave_entrance", 1)
         t.ticks(3)
         t.check("denLocked.msg", t.msg.expect("no reason to go into the wolf den"), "refused before Alba")
-        t.exec("goto-alba", t.player.goto_tile, 1587, 3125, 0)
+        t.exec("goto-alba", t.player.goto_tile, 1587, 3122, 0)
+        alba_in("albaDoor.in")
         t.exec("talkToAlba", t.player.talk_to, "mag_alba", 1)
         t.exec("talkToAlba.dialog", t.chat.play, {
             "npc:Nilsal, iknami. What can I do",
@@ -105,7 +159,8 @@ return {
         t.ticks(2)
         local r, v = t.var.varbit("varb11184_mag_meat")
         t.check("meat.talked", v == 2, "meat=" .. tostring(v))
-        t.exec("goto-den2", t.player.goto_tile, 1499, 3131, 0)
+        alba_out("albaDoor.out")
+        t.exec("goto-den2", t.player.goto_tile, 1500, 3131, 0)
         t.exec("enterDen", t.player.click_loc, "direwolf_cave_entrance", 1)
         t.ticks(10)
         local tr, td = t.world.tile()
@@ -141,7 +196,14 @@ return {
         t.ticks(8)
         local lr, ld = t.world.tile()
         t.check("den.left", lr, tostring(ld and ld.x) .. "," .. tostring(ld and ld.z) .. "," .. tostring(ld and ld.level))
-        t.exec("goto-alba2", t.player.goto_tile, 1587, 3125, 0)
+        -- [proc,mg_leave_den] (meatandgreet_fights.rs2:53) p_telejumps to ^mg_cave_coord
+        -- (meatandgreet.constant 0_23_48_28_59 = 1500,3131): the open tile beside the 4x4
+        -- direwolf_cave_entrance (1496,3131 covers 1496-1499 x 3131-3134), joined on foot to the farm.
+        t.check("den.left.landing", ld ~= nil and ld.x == 1500 and ld.z == 3131 and ld.level == 0,
+            "landed " .. tostring(ld and ld.x) .. "," .. tostring(ld and ld.z) .. "," .. tostring(ld and ld.level)
+            .. " (want 1500,3131,0)")
+        t.exec("goto-alba2", t.player.goto_tile, 1587, 3122, 0)
+        alba_in("albaDoor.in2")
         t.exec("returnToAlba", t.player.talk_to, "mag_alba", 1)
         t.exec("returnToAlba.dialog", t.chat.play, {
             "npc:Any luck with that wolf",
@@ -152,14 +214,17 @@ return {
         })
         t.ticks(3)
         t.expect("quest.stage.emelio2", t.quest.expect_stage("emelio2"))
-                -- ---- leg 4: the recipe ----
-
+        -- ---- leg 4: the recipe ----
         t.expect("quest.stage.emelio2.again", t.quest.expect_stage("emelio2"))
         -- connoisseurs before Emelio
+        alba_out("albaDoor.out2")
         t.exec("goto-out", t.player.goto_tile, 1750, 3070, 0)
         t.exec("talkToLucas.early", t.player.talk_to, "mag_lucas", 1)
         t.exec("talkToLucas.early.dialog", t.chat.play, { "npc:I hope this food is worth it" })
-        t.exec("goto-emelio", t.player.goto_tile, 1753, 3074, 0)
+        -- The connoisseurs stand outside Emelio's door (reach.py 1754,3072 -> 1750,3070: len 6,
+        -- closed doors): every leg between them and Emelio is on foot through his door.
+        t.exec("walk-emelioDoor.recipe", t.player.walk_to, 1754, 3072, 12)
+        emelio_in("emelioDoor.in.recipe")
         t.exec("talkToEmelio.recipe", t.player.talk_to, "mag_emelio", 1)
         t.exec("talkToEmelio.recipe.dialog", t.chat.play, {
             "npc:Thanks to your good work", "npc:Outside, I have gathered", "player:Where did these connoisseurs",
@@ -168,13 +233,15 @@ return {
         })
         t.ticks(3)
         t.expect("quest.stage.recipe", t.quest.expect_stage("recipe"))
+        emelio_out("emelioDoor.out.opinions")
         for _, who in ipairs({ "mag_vincens", "mag_renata", "mag_lucas" }) do
-            t.exec("goto-out." .. who, t.player.goto_tile, 1750, 3070, 0)
+            t.exec("walk-out." .. who, t.player.walk_to, 1750, 3070, 12)
             t.exec("opinion." .. who, t.player.talk_to, who, 1)
             t.exec("opinion." .. who .. ".dialog", t.chat.play, { "player:Hello there. I was wondering", "npc:", "player:Okay, thanks" })
         end
         -- wrong recipe first (all ones)
-        t.exec("goto-emelio.2", t.player.goto_tile, 1753, 3074, 0)
+        t.exec("walk-emelioDoor.2", t.player.walk_to, 1754, 3072, 12)
+        emelio_in("emelioDoor.in.2")
         t.exec("talkToEmelio.ratio1", t.player.talk_to, "mag_emelio", 1)
         t.exec("talkToEmelio.ratio1.dialog", t.chat.play, {
             "npc:Have you worked out the ingredient ratios",
@@ -195,13 +262,15 @@ return {
         })
         t.ticks(2)
         t.check("kebab.given", select(2, t.inv.count("mag_test_kebab")) == 1, "test kebab")
-        t.exec("goto-out.bad", t.player.goto_tile, 1750, 3070, 0)
+        emelio_out("emelioDoor.out.bad")
+        t.exec("walk-out.bad", t.player.walk_to, 1750, 3070, 12)
         t.exec("taste.bad", t.player.talk_to, "mag_renata", 1)
         t.exec("taste.bad.dialog", t.chat.play, { "player:What do you make of this", "npc:Eww! This is awful", "player:Oh. I guess we'd better try again" })
         t.ticks(2)
         t.check("taste.bad.kebab_gone", select(2, t.inv.count("mag_test_kebab")) == 0, "eaten")
         t.expect("quest.stage.still_recipe", t.quest.expect_stage("recipe"))
-        t.exec("goto-emelio.3", t.player.goto_tile, 1753, 3074, 0)
+        t.exec("walk-emelioDoor.3", t.player.walk_to, 1754, 3072, 12)
+        emelio_in("emelioDoor.in.3")
         t.exec("talkToEmelio.failed", t.player.talk_to, "mag_emelio", 1)
         t.exec("recipeStepWrapper", t.chat.play, {
             "npc:Have you seen what our connoisseurs reckon",
@@ -238,12 +307,14 @@ return {
             "*",
         })
         t.ticks(2)
-        t.exec("goto-out.good", t.player.goto_tile, 1750, 3070, 0)
+        emelio_out("emelioDoor.out.good")
+        t.exec("walk-out.good", t.player.walk_to, 1750, 3070, 12)
         t.exec("taste.good", t.player.talk_to, "mag_vincens", 1)
         t.exec("taste.good.dialog", t.chat.play, { "player:What do you make of this", "npc:This is brilliant", "player:Fantastic! I'll let Emelio know" })
         t.ticks(3)
         t.expect("quest.stage.success", t.quest.expect_stage("success"))
-        t.exec("goto-emelio.4", t.player.goto_tile, 1753, 3074, 0)
+        t.exec("walk-emelioDoor.4", t.player.walk_to, 1754, 3072, 12)
+        emelio_in("emelioDoor.in.4")
         t.exec("talkToEmelio.success", t.player.talk_to, "mag_emelio", 1)
         t.exec("talkToEmelio.success.dialog", t.chat.play, {
             "npc:Have you seen what our connoisseurs reckon", "player:They loved it!", "npc:Excellent!", "player:So are we all ready",
@@ -253,7 +324,7 @@ return {
         t.ticks(3)
         t.check("kebabs.two", select(2, t.inv.count("mag_colosseum_kebab")) == 2, "two test kebabs")
         t.expect("quest.stage.lelia", t.quest.expect_stage("lelia"))
-                -- lose both kebabs on purpose: Emelio has spares
+        -- lose both kebabs on purpose: Emelio has spares
         t.player.drop("mag_colosseum_kebab")
         t.ticks(2)
         t.player.drop("mag_colosseum_kebab")
@@ -266,8 +337,10 @@ return {
         t.ticks(2)
         t.check("kebabs.regiven", select(2, t.inv.count("mag_colosseum_kebab")) == 2, "two spares")
         -- ---- leg 5: the Colosseum ----
-
-                t.exec("goto-colosseum", t.player.goto_tile, 1797, 3106, 0)
+        -- 1795,3106 is the open tile west of colosseum_entrance_outside@1796,3106 (1797,3106 is a
+        -- statue); the lobby exit lands there too.
+        emelio_out("emelioDoor.out.colosseum")
+        t.exec("goto-colosseum", t.player.goto_tile, 1795, 3106, 0)
         t.exec("enterColosseum", t.player.click_loc, "colosseum_entrance_outside", 1)
         t.ticks(8)
         local r0, d0 = t.world.tile()
@@ -329,13 +402,14 @@ return {
         })
         t.ticks(3)
         t.expect("quest.stage.finish", t.quest.expect_stage("finish"))
-                -- ---- leg 6: wrap up ----
+        -- ---- leg 6: wrap up ----
         -- leaveColosseumToReturnToEmelio: [oploc1,colosseum_exit_lobby] (twilightspromise_colosseum.rs2) p_telejumps to 0_28_48_3_34 = 1795,3106 unconditionally: the open tile west of the entrance loc (1796,3106 is the loc itself, solid).
         t.exec("leaveColosseumToReturnToEmelio", t.player.click_loc, "colosseum_exit_lobby", 1)
         t.ticks(8)
         local xr, xd = t.world.tile()
         t.check("colosseum.exited", xr == "ok" and xd and xd.x == 1795 and xd.z == 3106 and xd.level == 0, "landed " .. tostring(xd and xd.x) .. "," .. tostring(xd and xd.z) .. "," .. tostring(xd and xd.level) .. " (expected 1795,3106,0)")
-        t.exec("goto-emelio.end", t.player.goto_tile, 1753, 3074, 0)
+        t.exec("goto-emelio.end", t.player.goto_tile, 1754, 3072, 0)
+        emelio_in("emelioDoor.in.end")
         local _, sk = t.skill.snapshot()
         local _, qp_before = t.var.varp("varp101_qp")
         t.exec("talkToEmelio.end", t.player.talk_to, "mag_emelio", 1)

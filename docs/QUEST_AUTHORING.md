@@ -229,7 +229,7 @@ banners: the topic file named in each group heading.
 - `t.player.click_obj(obj, op=3)` -> waits for the backpack count to rise; write the count yourself.
 - `t.player.by_symbol(kind, name)` -> `(target, "ok")` -- reversed order; resolves only, never a presence check.
 - `t.world.tile()` / `level()`; `t.world.loc_near(sym, r[, {level=n|"here"[, deck=true]} | {at={x,z,level}, slack=}])` / `obj_near(sym, r)` -> `(ok, {...}) not_found`; with opts it reads ONE floor.
-- `t.player.pass_door{closed=, open=, at={x,z,level}, near={x,z}, far={x,z}[, close=true, loc_level=]}` -> one door crossed on foot, graded on the leaf reads and tiles.
+- `t.player.pass_door{closed=, open=, at={x,z,level}, near={x,z}, far={x,z}[, close=true, loc_level=]}` -> one door crossed on foot, graded on the leaf reads and tiles; a door that stood open and shut itself mid-walk (the 500-tick revert) is re-pressed and crossed (b71).
 - `t.player.cross_gate{loc=, at=, near=, far_ok=fn, far_desc=[, chat=, chat_optional=, loc_level=]}` -> a members' wall gate pressed on EVERY crossing, graded on far_ok before and after; `open=` hands an opening gate to pass_door.
 - `t.player.cross_trap{loc=, at=, src=, dest=[, attempts=4, vitals=, loc_level=]}` -> a trap/obstacle by its own op, ON src before and ON dest after; re-pressed on a slipped roll.
 - `t.player.walk_route({{x,z},...}[, opts])` -> hops of <=10 tiles (a longer one raises), graded on the exact end tile.

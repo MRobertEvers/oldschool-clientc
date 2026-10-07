@@ -2603,6 +2603,16 @@ struct ToriRSServerNpc
     struct SSVM_State* active_script;
     /** Tick at which the npc stops being delayed. */
     int delayed_until;
+    /**
+     * Whether this npc was delayed when its turn began, and the tick that
+     * turn was. Phase 4 takes it once, after the parked script's resume and
+     * before the combat swing -- the reference's single `isValid()` at the
+     * top of `Npc.turn()` -- so a swing that ends in `npc_delay` cannot take
+     * back the timers and queue of the turn it was made in. `advance_npcs`
+     * reads it only when `turn_began_tick` is the current tick.
+     */
+    int turn_began_tick;
+    int turn_began_delayed;
 
     /**
      * The tick this npc last changed tile, **plus one** — LostCity

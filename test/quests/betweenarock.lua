@@ -34,12 +34,10 @@
 -- Seam pass matthew-mbp-m4-b58-seam1 (OSRS-Content 6369379ada) fixed what used
 -- to stop this route: the cave tunnel's landing (now on the ferry bank,
 -- 2838,10124), the outer flames' Jump-through, and Keldagrim's exits.
--- OPEN (content, not driven around): `trollromance_stronghold_exit_tunnel`
--- (betweenarock_travel.rs2:18) still lands on 2781,10160, a rock tile beside
--- the cave; LostCity (quest_troll_love.rs2:44-45) and maplink give 2773,10162.
--- The next click (dwarf_cavewall_tunnel at 2781,10161) answers from there, so
--- the route is not stopped by it; enterDwarfCave* accepts either tile so the
--- row keeps passing when content moves the landing.
+-- `trollromance_stronghold_exit_tunnel` (betweenarock_travel.rs2:18) lands on
+-- 2773,10162 since landing seam b71 (LostCity quest_troll_love.rs2:44-45,
+-- transports.tsv); it was 2781,10160, a rock tile beside the cave.
+-- enterDwarfCave* still accepts either tile.
 --
 -- The four schematic pieces: Dondakan (from firing the golden cannonball),
 -- the lore book's last page (read the book a SECOND time, at stage 80),

@@ -1207,18 +1207,48 @@ LOC_CLIP = {}     # loc symbol -> (blockwalk, width, length, active): all.loc's 
 _BODIES = {}
 
 
+def body_lines(lines, line):
+    """The body of the script whose header is lines[line - 1] (`line` is
+    1-based, as content_index records it). HEADERS STACK: the compiler gives a
+    header with an empty body (nothing but blank or comment lines before the
+    next `[`) the next real body (ssc_compile.c alias_script), so in
+
+        [opnpc1,fortis_academic_01]
+        [opnpc1,fortis_academic_02]
+        @eaa_academic_talk;
+
+    _01's body is `@eaa_academic_talk;`, not nothing. Reading up to the first
+    `[` gave every header but the last of a stack an empty body (b71: EAA's
+    talkToAcademic graded CONTENT_GAP, "[opnpc1,fortis_academic_01] never
+    reads %varb11193_eaa")."""
+    index = line
+    while index < len(lines):
+        text = lines[index].strip()
+        if lines[index].startswith("[") or not text or text.startswith("//"):
+            index += 1
+            continue
+        break
+    # Back up to just below the last header of the stack: what sits between
+    # it and the first statement (a comment, a blank) belongs to the body.
+    start = line
+    for number in range(line, index):
+        if lines[number].startswith("["):
+            start = number + 1
+    body = []
+    for text in lines[start:]:
+        if text.startswith("["):
+            break
+        body.append(text)
+    return body
+
+
 def script_body(rel, line):
     """The lines of the script whose header is at rel:line."""
     key = (rel, line)
     if key not in _BODIES:
         with open(os.path.join(CONTENT_ROOT, rel), "r", encoding="utf-8", errors="replace") as handle:
             lines = handle.read().split("\n")
-        body = []
-        for text in lines[line:]:
-            if text.startswith("["):
-                break
-            body.append(text)
-        _BODIES[key] = "\n".join(body)
+        _BODIES[key] = "\n".join(body_lines(lines, line))
     return _BODIES[key]
 
 
@@ -2494,11 +2524,7 @@ def trigger_is_unconditional(rel, line):
     the same thing for every player, whichever quest's file it lives in."""
     with open(os.path.join(CONTENT_ROOT, rel), "r", encoding="utf-8", errors="replace") as handle:
         lines = handle.read().split("\n")
-    body = []
-    for text in lines[line:]:
-        if text.startswith("["):
-            break
-        body.append(text.split("//")[0])
+    body = [text.split("//")[0] for text in body_lines(lines, line)]
     text = "\n".join(body)
     return bool(text.strip()) and not re.search(r"%\w+", text)
 
@@ -5213,9 +5239,7 @@ class Grader:
                 for rel, line, _ in triggers.get(name, []):
                     with open(os.path.join(CONTENT_ROOT, rel), "r", encoding="utf-8", errors="replace") as handle:
                         lines = handle.read().split("\n")
-                    for body in lines[line:]:
-                        if body.startswith("["):
-                            break
+                    for body in body_lines(lines, line):
                         written = re.findall(r"%(\w+)\s*=[^=]", body)
                         if any(var in self.quest_vars for var in written):
                             return True
@@ -5233,9 +5257,7 @@ class Grader:
                 for rel, line, _ in triggers.get(name, []):
                     with open(os.path.join(CONTENT_ROOT, rel), "r", encoding="utf-8", errors="replace") as handle:
                         lines = handle.read().split("\n")
-                    for body in lines[line:]:
-                        if body.startswith("["):
-                            break
+                    for body in body_lines(lines, line):
                         if any(var in self.quest_vars for var in re.findall(r"%(\w+)", body)):
                             return True
         return False
@@ -5272,11 +5294,7 @@ class Grader:
             # dialogue, unless its own body reads this quest's varp.
             with open(os.path.join(CONTENT_ROOT, rel), "r", encoding="utf-8", errors="replace") as handle:
                 lines = handle.read().split("\n")
-            body = []
-            for line in lines[trigger[1]:]:
-                if line.startswith("["):
-                    break
-                body.append(line)
+            body = body_lines(lines, trigger[1])
             if self.bound_varp and re.search(r"%%%s\b" % re.escape(self.bound_varp), "\n".join(body)):
                 out.append(trigger)
         return out

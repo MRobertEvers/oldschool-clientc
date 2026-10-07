@@ -3422,6 +3422,23 @@ ToriRSServer_CombatNpcTick(
         return;
     }
 
+    /*
+     * A delayed npc does not fight. `Npc.turn()` returns at `!isValid()` --
+     * true while `delayed` -- before it reaches `processMovementInteraction`,
+     * which is where the reference's [ai_opplayer2] swing is made; the AP
+     * handoff below already said so, the clock-driven swing did not.
+     *
+     * Without this an [ai_opplayer2] that ends in `npc_delay(4)` on an npc
+     * whose attackrate is 4 (every adult chromatic dragon, dragon.rs2) was
+     * swung again at tick+4 while still parked until tick+5: the new script
+     * pushed `delayed_until` four ticks further and was then dropped as
+     * "already has a parked script", so the npc stayed delayed for the rest
+     * of the fight and never drained the queue every player hit lands
+     * through. 32 fights on red_dragon, 0 kills (b71).
+     */
+    if( srv->tick < npc->delayed_until || npc->active_script )
+        return;
+
     if( npc->combat_target_npc >= 0 && npc_vs_npc_tick(srv, slot) )
         return;
 

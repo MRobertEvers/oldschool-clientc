@@ -77,6 +77,13 @@ return {
         t.ticks(3)
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
 
+        -- First placement (door rule): from the Lumbridge fixture every walk to Rellekka opens the members'
+        -- gate membergater 2933,3320 (the only way on foot), so: overland to its south side, the gate pressed
+        -- by its verb, then overland from its north side to Olaf (same shape as viking.lua leg 1).
+        t.exec("goto-memberGate", t.player.goto_tile, 2933, 3318, 0)
+        t.exec("talkToOlaf.memberGate", t.player.cross_gate, { loc = "membergater", at = { 2933, 3320, 0 },
+            near = { 2933, 3318 }, far_ok = function(tile) return tile.z >= 3320 and math.abs(tile.x - 2933) <= 2 end,
+            far_desc = "north of the members' gate, z >= 3320", far = { 2933, 3322 } })
         t.exec("goto-talkToOlaf", t.player.goto_tile, 2724, 3727, 0)
         t.exec("talkToOlaf", t.player.talk_to, "olaf", 1)
         t.exec("talkToOlaf-dialog", t.chat.play, {
@@ -184,7 +191,8 @@ return {
         t.exec("pickUpKey-held", t.inv.await, key_sym, 1, 10)
 
         -- searchPainting: the wall opens the lever interface when a key is held
-        t.exec("goto-searchPainting", t.player.goto_tile, 2707, 10146, 0)
+        -- 2707,10146 is the solid fake wall corner; the picture wall is at 2707,10147, so stand on the open tile beside it.
+        t.exec("goto-searchPainting", t.player.goto_tile, 2708, 10147, 0)
         t.exec("searchPainting", t.player.click_loc, "olaf2_skull_puzzle_wall", 1)
         t.exec("searchPainting-open", t.ui.await_open, "olaf2_skull_puzzle", 10)
         for _, lever in ipairs({ "right", "top", "left", "bottom", "confirm" }) do
@@ -195,16 +203,23 @@ return {
         end
         t.ticks(3)
         local wall_result, wall_tile = t.world.tile()
-        t.check("searchPainting-through", wall_tile.z >= 10148 and wall_tile.z <= 10152, "past the picture wall at " .. tostring(wall_tile.x) .. "," .. tostring(wall_tile.z))
+        -- The solved wall passes the player through it (quest_olafsquest.constant ^olafq_secondarea_coord):
+        -- the wall is on the west edge of 2707,10147 (wiki Picture wall map x:2707,y:10147), so one step through
+        -- is 2706,10147, inside Quest Helper's secondArea (x 2691-2706, z 10143-10170, OlafsQuest.java:205).
+        t.check("searchPainting-through", wall_tile.x == 2706 and wall_tile.z == 10147 and wall_tile.level == 0, "past the picture wall at " .. tostring(wall_tile.x) .. "," .. tostring(wall_tile.z) .. "," .. tostring(wall_tile.level) .. " (expected 2706,10147,0)")
 
         -- pickUpItems: 2 rotten barrels and 6 ropes from around the room
-        t.exec("goto-pickUpItems-barrels", t.player.goto_tile, 2710, 10158, 0)
+        -- The picture wall's teleport leaves the player inside the walled second area (its only door is the rusty
+        -- gate puzzle, 2725,10168), so every move in it is a walk, never a goto.
+        -- 2706,10147 -> 2706,10151 is REACH len 22 (west round the wall corner), so the budget covers a walk.
+        t.exec("walk-offLanding", t.player.walk_to, 2706, 10151, 30)
+        t.exec("walk-pickUpItems-barrels", t.player.walk_to, 2710, 10158, 30)
         t.exec("pickUpItems-barrel1", t.player.click_obj, "olaf2_walkway_repair_barrel", 3)
         t.exec("pickUpItems-barrel2", t.player.click_obj, "olaf2_walkway_repair_barrel", 3)
         local _, barrels = t.inv.count("olaf2_walkway_repair_barrel")
         t.check("pickUpItems-barrels", barrels == 2, "rotten barrels in the pack: " .. tostring(barrels))
-        for n, spot in ipairs({ { 2703, 10154 }, { 2700, 10162 }, { 2717, 10162 } }) do
-            t.exec("goto-pickUpItems2-" .. n, t.player.goto_tile, spot[1], spot[2], 0)
+        for n, spot in ipairs({ { 2703, 10154 }, { 2701, 10162 }, { 2717, 10162 } }) do
+            t.exec("walk-pickUpItems2-" .. n, t.player.walk_to, spot[1], spot[2], 30)
             t.exec("pickUpItems2-rope" .. n .. "a", t.player.click_obj, "rope", 3)
             t.exec("pickUpItems2-rope" .. n .. "b", t.player.click_obj, "olaf2_walkway_repair_rope", 3)
         end
@@ -214,13 +229,13 @@ return {
         t.check("pickUpItems2-ropes", ropes == 6, "ropes in the pack: " .. tostring(ropes))
 
         -- useBarrel / useBarrel2: each repair rolls the walkway once; a fall drops
-        -- the player back in the room (olaf_dungeon.rs2:170), so retry until set.
+        -- the player back in the room (olaf_dungeon.rs2:183-192), so retry until set.
         local barrel1 = t.player.by_symbol("loc", "olaf2_invis_hotspot_barrel1")
         local barrel2 = t.player.by_symbol("loc", "olaf2_invis_hotspot_barrel2")
         for attempt = 1, 12 do
             local vr, vv = t.var.varbit("varb3547_olaf2_walkway_1")
             if vv == 1 then break end
-            t.player.goto_tile(2717, 10162, 0)
+            t.player.walk_to(2717, 10162, 40)
             t.player.use_on("olaf2_walkway_repair_barrel", barrel1)
             t.ticks(4)
         end
@@ -229,7 +244,7 @@ return {
         for attempt = 1, 12 do
             local vr, vv = t.var.varbit("varb3548_olaf2_walkway_2")
             if vv == 1 then break end
-            t.player.goto_tile(2717, 10162, 0)
+            t.player.walk_to(2717, 10162, 40)
             t.player.use_on("olaf2_walkway_repair_barrel", barrel1)
             t.player.use_on("olaf2_walkway_repair_barrel", barrel2)
             t.ticks(4)
@@ -248,7 +263,7 @@ return {
         for attempt = 1, 12 do
             local vr, vv = t.var.varbit("varb3545_olaf2_gate_completed")
             if vv == 1 then break end
-            t.player.goto_tile(2717, 10162, 0)
+            t.player.walk_to(2717, 10162, 40)
             t.player.click_loc("olaf2_rusty_gate_puzzle", 1)
             t.ticks(3)
             if t.chat.kind() == "none" then

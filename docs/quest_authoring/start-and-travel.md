@@ -87,10 +87,21 @@ pointed elsewhere.
 An npc that stands behind a counter, a bar or a wall corner is reached only from a tile that
 shares its row or column across the gap. A goto to a tile diagonal to it lands, and then
 `talk_to` walks around or answers "I can't reach that!", because the diagonal crosses a wall
-corner. Put the goto on the open side, straight across from the npc. Tiles that work: Bone
-Voyage's Varrock sawmill operator from 3303,3493, the Woodcutting Guild operator from
-1623,3501, and Shadows of Custodia's bartender from 1391,3353. A press that moves a walled npc
-is a different case (verbs-pointer: Four outcomes, "WALLED DIRECTION").
+corner. Put the goto on the open side, straight across from the npc. Tiles that work:
+Shadows of Custodia's bartender from 1391,3353. A press that moves a walled npc is a different
+case (verbs-pointer: Four outcomes, "WALLED DIRECTION").
+
+A counter that is a WALL EDGE between the player's tile and the npc's (a shape-0 loc on the
+player's tile, `blockrange=0`) blocks the op talk even straight across: the npc is adjacent but
+reachedEntity will not cross the wall, so `[opnpc1,...]` answers "I can't reach that!". That needs
+the `[apnpc1,...]` twin below, and the goto stays on the PLAYER'S side of the counter -- a goto to
+the npc's side of the counter is a walk through a wall, which the grader charges as CHEAT. Bone
+Voyage's sawmill operator is this case (FIXED matthew-mbp-m4-b71, bonevoyage.rs2
+`[apnpc1,poh_sawmill_opp]`): goto the Varrock lumber yard counter at 3302,3491 (operator 3302,3492
+behind `fai_varrock_lumber_yard_counter` on that tile's north edge; the room behind is shut by
+`fai_varrock_locked_door` 3302,3496) and the Woodcutting Guild counter at 1624,3500 (operator
+1623,3500 behind the counter on that tile's west edge), then `talk_to` across it. The old tiles
+3303,3493 and 1623,3501 are behind the counter.
 
 ### An npc TWO tiles behind a counter: the talk needs an `[apnpcN]` twin (At First Light's Verity, FIXED matthew-mbp-m4-b56-seam2)
 

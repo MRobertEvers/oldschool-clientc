@@ -4104,6 +4104,15 @@ check-drive-abi:
 check-quest-cutscenes:
 	python3 $(REPO_ROOT)/tools/quest_gate/cutscene_sweep.py --repo $(REPO_ROOT) --only-open --fail-on-dropped
 
+# Every statically known landing (p_teleport / p_telejump / a maplink row's dest) classified
+# against the map: a landing on a solid tile with nowhere to step, or in a sealed pocket, strands
+# the player (b70/b71: a dozen quests and minigames did). Fails on such a landing that
+# tools/quest_gate/landing_audit_baseline.tsv does not list with a reason; the baseline only
+# shrinks. ~15 s, no client boot. Report: build/orchestrator/landing_audit.tsv.
+.PHONY: check-landings
+check-landings:
+	python3 $(REPO_ROOT)/tools/quest_gate/landing_audit.py --root $(REPO_ROOT) --quiet --gate
+
 # The quest gate: static lint first (cheap, no client boot needed to catch a
 # numeric id, a self-completing setup cheat, a pinned "PASS", a duplicate
 # t.do name or an unknown content symbol), then one private-session client

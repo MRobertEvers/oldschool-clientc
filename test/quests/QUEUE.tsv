@@ -1,24 +1,24 @@
 quest_dir	test_id	helper_dir	helper_file	tier	status	owner	last_failure	claimed_at	claim_prev
-quest_animalmagnetism	animalmagnetism	animalmagnetism		4	claimed	matthew-mbp-m4-b71@matthew-mbp-m4	PR #130 (matthew-mbp-m4-b71 -> v3) -- RE-AUTHOR after 7de9a81bd: helper_coverage enclosure_entries (v3 e0d2cdfcc) grades a goto INTO a walled room past its closed door as CHEAT; the committed run is fail=0 but the gate is RED on: talkToOldCrone (row 33 goto-talkToOldCrone -> 3461,3557,0, door ahoy_harbour_door 3461,3555,0); talkToWitch (row 53 goto-talkToWitch -> 3099,3368,0, door draynor_panelled_door 3099,3366,0). Rewrite each row: goto to a tile outside, t.player.click_loc(<door>, 1), then walk_to inside (docs/quest_authoring/start-and-travel.md 'The grader now catches the goto inside')	2026-10-07T04:57:20Z	todo|matthew-mbp-m4-b50
+quest_animalmagnetism	animalmagnetism	animalmagnetism		4	green	matthew-mbp-m4-b71			
 quest_anothersliceofham	anothersliceofham	anothersliceofham		4	green	matthew-mbp-m4-b62			
 quest_arena	arena	fightarena		3	green	matthew-mbp-m4-b61			
 quest_arthur	arthur	merlinscrystal		3	green	matthew-mbp-m4-b61			
-quest_ascentofarceuus	ascentofarceuus	theascentofarceuus		4	claimed	matthew-mbp-m4-b71@matthew-mbp-m4	PR #130 (matthew-mbp-m4-b71 -> v3) -- RETRY after eb0a63816: helper_coverage FULL -> TEST_GAP on a fresh run under seam matthew-mbp-m4-b63-seam1's grader (gate_crossings / solid_landings / use-effect / pocket press; enclosure rules now judge the stamped first goto): row 80 'goto-rock1' lands on a solid tile (a tile the map's floor flags block: maps/m26_60.jl2) (solid_landings); row 82 'goto-rock2' lands on a solid tile (archeus_crystal_large_dark at 1708,3888,0: maps/m26_60.jl2) (solid_landings) (and 84 'goto-rock3'); row 8 'goto-stairs-andrews' lands on a solid tile (fai_varrock_stairs_taller_new_fix at 1615,3680,0: maps/m25_57.jl2) (solid_landings); row 66 'goto-t5' lands on a solid tile (tree at 1288,3736,0: maps/m20_58.jl2) (solid_landings). Rewrite those rows: cross a members'/yard/fence gate with t.player.cross_gate or pass_door on every crossing (or teleport_cast), stand beside a loc instead of on it, open a door before going in; [first goto] alone is the owner's open first-goto question.	2026-10-07T04:57:20Z	todo|matthew-mbp-m4-b55
+quest_ascentofarceuus	ascentofarceuus	theascentofarceuus		4	green	matthew-mbp-m4-b71			
 quest_atailoftwocats	atailoftwocats	atailoftwocats		1	green	matthew-mbp-m4-b64			
 quest_atfirstlight	atfirstlight	atfirstlight		4	green	matthew-mbp-m4-b70			
 quest_ball	ball	witchshouse		2	green	matthew-mbp-m4-b67			
 quest_bearyoursoul	bearyoursoul	bearyoursoul		4	green	matthew-mbp-m4-b70			
-quest_belowicemountain	belowicemountain	belowicemountain		4	claimed	matthew-mbp-m4-b71@matthew-mbp-m4	PR #130 (matthew-mbp-m4-b71 -> v3) -- RE-AUTHOR after 7de9a81bd: helper_coverage enclosure_entries (v3 e0d2cdfcc) grades a goto INTO a walled room past its closed door as CHEAT; the committed run is fail=0 but the gate is RED on: talkToAtlas (row 13 goto-talkToAtlas -> 3076,3438,0, door fai_barbarian_large_doubledoor_l 3078,3435,0). Rewrite each row: goto to a tile outside, t.player.click_loc(<door>, 1), then walk_to inside (docs/quest_authoring/start-and-travel.md 'The grader now catches the goto inside')	2026-10-07T04:57:20Z	todo|matthew-mbp-m4-b52
+quest_belowicemountain	belowicemountain	belowicemountain		4	green	matthew-mbp-m4-b71			
 quest_beneathcursedsands	beneathcursedsands	beneathcursedsands		6	todo				
 quest_betweenarock	betweenarock	betweenarock		1	green	matthew-mbp-m4-b67			
 quest_biohazard	biohazard	biohazard		1	green	matthew-mbp-m4-b64			
 quest_blackarmgang	blackarmgang	shieldofarrav		1	green	matthew-mbp-m4-b58			
 quest_blackknight	blackknight	blackknightfortress		1	green	matthew-mbp-m4-b57			
-quest_bonevoyage	bonevoyage	bonevoyage		4	todo	matthew-mbp-m4-b54	released by matthew-mbp-m4-b71: b71: door-rule re-drive done (green on 2 accounts with the content fix) but blocked on content: Haig's start wrongly requires WC 60 (bonevoyage.rs2:21-23; wiki/QH: Dig Site + 100 Kudos only). Fix awaits owner OK; do not take until it lands. -- RE-AUTHOR after 7de9a81bd: helper_coverage enclosure_entries (v3 e0d2cdfcc) grades a goto INTO a walled room past its closed door as CHEAT; the committed run is fail=0 but the gate is RED on: talkToSawmillOperator (row 10 goto-talkToSawmillOperator -> 3303,3493,0, door fai_varrock_locked_door 3302,3496,0); returnWithAgreement (row 22 goto-returnWithAgreement -> 3303,3493,0, door fai_varrock_locked_door 3302,3496,0). Rewrite each row: goto to a tile outside, t.player.click_loc(<door>, 1), then walk_to inside (docs/quest_authoring/start-and-travel.md 'The grader now catches the goto inside')		
+quest_bonevoyage	bonevoyage	bonevoyage		4	todo	matthew-mbp-m4-b71	b71: door-rule re-drive done (fix_b71/bonevoyage.with_req_fix.lua, green on 2 accounts) but blocked on content: Haig's start wrongly requires WC 60 (bonevoyage.rs2:21-23; wiki/QH: Dig Site + 100 Kudos only). The fix is made in scratchpad wt_bvreq but unpushed (a commit --amend was permission-refused); awaiting owner OK		
 quest_cabinfever	cabinfever	cabinfever		4	todo				
 quest_childrenofthesun	childrenofthesun	childrenofthesun		4	green	matthew-mbp-m4-b52			
 quest_chompybird	chompybird	bigchompybirdhunting		3	green	matthew-mbp-m4-b68			
-quest_clientofkourend	clientofkourend	clientofkourend		4	claimed	matthew-mbp-m4-b71@matthew-mbp-m4	PR #130 (matthew-mbp-m4-b71 -> v3) -- RE-AUTHOR after 7de9a81bd: helper_coverage enclosure_entries (v3 e0d2cdfcc) grades a goto INTO a walled room past its closed door as CHEAT; the committed run is fail=0 but the gate is RED on: talkToJennifer (row 44 goto-talkToJennifer -> 1519,3589,0, door wallkit_shayzien_door01_l 1519,3587,0). Rewrite each row: goto to a tile outside, t.player.click_loc(<door>, 1), then walk_to inside (docs/quest_authoring/start-and-travel.md 'The grader now catches the goto inside')	2026-10-07T04:57:20Z	todo|matthew-mbp-m4-b50
+quest_clientofkourend	clientofkourend	clientofkourend		4	green	matthew-mbp-m4-b71			
 quest_cog	cog	clocktower		1	green	matthew-mbp-m4-b66			
 quest_coldwar	coldwar	coldwar		4	todo	vm-b1	RE-AUTHOR after 7de9a81bd: helper_coverage enclosure_entries (v3 e0d2cdfcc) grades a goto INTO a walled room past its closed door as CHEAT; the committed run is fail=0 but the gate is RED on: fredTheFarmer (row 110 goto-fredTheFarmer -> 3189,3273,0, door qip_sheep_shearer_poordoor 3188,3272,0); kgpAgentInAvalanche (row 159 goto-kgpAgentInAvalanche -> 2648,10382,0, door peng_base_door 2654,10382,0); enterAgilityCourse (row 164 goto-enterAgilityCourse -> 2633,10403,0, door peng_base_door_agility 2640,10382,0); +3 more. Rewrite each row: goto to a tile outside, t.player.click_loc(<door>, 1), then walk_to inside (docs/quest_authoring/start-and-travel.md 'The grader now catches the goto inside')		
 quest_contact	contact	contact		4	todo	matthew-mbp-m4-b53	RETRY after 7de9a81bd: Contact!'s completion scroll now reads 'You have completed Contact!' (one '!', OSRS-Content 83c8fa8b73, wiki revid 14120361); rerun the committed test WITH publish so quest_contact/play/*quest.scroll.png no longer shows 'Contact!!' (closer run 243/0, row 232 got=You have completed Contact!)		
@@ -51,19 +51,19 @@ quest_elemental_workshop	elemental_workshop	elementalworkshopi		1	green	matthew-
 quest_elementalworkshopii	elementalworkshopii	elementalworkshopii		4	todo				
 quest_elena	elena	plaguecity		3	green	matthew-mbp-m4-b69			
 quest_enakhraslament	enakhraslament	enakhraslament		4	todo				
-quest_enlightenedjourney	enlightenedjourney	enlightenedjourney		4	claimed	matthew-mbp-m4-b71@matthew-mbp-m4	PR #130 (matthew-mbp-m4-b71 -> v3) -- RE-AUTHOR after 840711dad: helper_coverage (v3 840711dad: a goto onto a loc inside a walled room, out of a room past its closed door, into a sealed pocket, or one no guide step names) grades these gotos CHEAT; the committed run is fail=0 but the gate is RED on: (goto past poordoor) (row 21 goto-aggie -> 3086,3257,0 from 3188,3267,0; poordoor at 3088,3258,0; enclosure_entries); (goto past poshdoor) (row 118 goto-bowl -> 2817,3352,0 from 2817,3342,0; poshdoor at 2820,3356,0; enclosure_entries); (goto past qip_sheep_shearer_fencegate_l) (row 16 goto-onions -> 3187,3265,0 from 3015,3206,0; qip_sheep_shearer_fencegate_l at 3186,3268,0; enclosure_entries); (goto out past poshdoor) (row 125 goto-giveAuguste -> 2808,3355,0 from 2817,3352,0; poshdoor at 2820,3356,0; enclosure_exits). The committed test/quests/enlightenedjourney.lua is the start: for each, goto an open tile OUTSIDE, click the door / obstacle (op 1), walk_to inside, and walk out through it too (owner 2026-10-03: any closed space, plain doors included; docs/quest_authoring/coverage-and-gate.md 'A goto onto a table, a stair or a bar's back reads FULL'). Then check every other goto against the walls with test/quests/orchestrator/matthew-mbp-m4/reports/sample_tools/reach.py: plain climbs and rooms over 400 tiles are not graded.	2026-10-07T04:57:20Z	todo|matthew-mbp-m4-b50
+quest_enlightenedjourney	enlightenedjourney	enlightenedjourney		4	green	matthew-mbp-m4-b71			
 quest_entertheabyss	entertheabyss	entertheabyss		1	green	matthew-mbp-m4-b64			
-quest_ethicallyacquiredantiquities	ethicallyacquiredantiquities	ethicallyacquiredantiquities		4	claimed	matthew-mbp-m4-b71@matthew-mbp-m4	PR #130 (matthew-mbp-m4-b71 -> v3) -- RE-AUTHOR after 7de9a81bd: helper_coverage enclosure_entries (v3 e0d2cdfcc) grades a goto INTO a walled room past its closed door as CHEAT; the committed run is fail=0 but the gate is RED on: talkToArtima (row 51 goto-artima -> 1766,3102,0, door fortis_door_l_reverse 1766,3103,0). Rewrite each row: goto to a tile outside, t.player.click_loc(<door>, 1), then walk_to inside (docs/quest_authoring/start-and-travel.md 'The grader now catches the goto inside')	2026-10-07T04:57:20Z	todo|matthew-mbp-m4-b54
+quest_ethicallyacquiredantiquities	ethicallyacquiredantiquities	ethicallyacquiredantiquities		4	green	matthew-mbp-m4-b71			
 quest_fenkenstrain	fenkenstrain	creatureoffenkenstrain		2	green	matthew-mbp-m4-b67			
 quest_finaldawn	finaldawn	thefinaldawn		4	todo				
 quest_fishingcompo	fishingcompo	fishingcontest		1	green	matthew-mbp-m4-b65			
 quest_fluffs	fluffs	gertrudescat		1	green	matthew-mbp-m4-b57			
 quest_forgettabletale	forgettabletale	forgettabletale		3	green	matthew-mbp-m4-b62			
-quest_forsakentower	forsakentower	theforsakentower		4	claimed	matthew-mbp-m4-b71@matthew-mbp-m4	PR #130 (matthew-mbp-m4-b71 -> v3) -- RE-AUTHOR after 7de9a81bd: helper_coverage enclosure_entries (v3 e0d2cdfcc) grades a goto INTO a walled room past its closed door as CHEAT; the committed run is fail=0 but the gate is RED on: returnToVulcana (row 128 goto-returnToVulcana -> 1483,3745,0, door lova_wall_door_lower 1484,3743,0). Rewrite each row: goto to a tile outside, t.player.click_loc(<door>, 1), then walk_to inside (docs/quest_authoring/start-and-travel.md 'The grader now catches the goto inside')	2026-10-07T04:57:20Z	todo|matthew-mbp-m4-b53
+quest_forsakentower	forsakentower	theforsakentower		4	green	matthew-mbp-m4-b71			
 quest_fremennikexiles	fremennikexiles	thefremennikexiles		4	todo				
 quest_gardenofdeath	gardenofdeath	thegardenofdeath		4	green	matthew-mbp-m4-b70			
 quest_gardenoftranquility	gardenoftranquility	gardenoftranquility		3	green	matthew-mbp-m4-b62			
-quest_gettingahead	gettingahead	gettingahead		4	claimed	matthew-mbp-m4-b71@matthew-mbp-m4	PR #130 (matthew-mbp-m4-b71 -> v3) -- RE-AUTHOR after 7de9a81bd: helper_coverage enclosure_entries (v3 e0d2cdfcc) grades a goto INTO a walled room past its closed door as CHEAT; the committed run is fail=0 but the gate is RED on: takeNails (row 116 goto-saw -> 1239,3697,0, door farming_fencegate_l 1246,3697,0). Rewrite each row: goto to a tile outside, t.player.click_loc(<door>, 1), then walk_to inside (docs/quest_authoring/start-and-travel.md 'The grader now catches the goto inside')	2026-10-07T04:57:20Z	todo|matthew-mbp-m4-b50
+quest_gettingahead	gettingahead	gettingahead		4	green	matthew-mbp-m4-b71			
 quest_ghostsahoy	ghostsahoy	ghostsahoy		2	green	matthew-mbp-m4-b61			
 quest_giantdwarf	giantdwarf	thegiantdwarf		3	green	matthew-mbp-m4-b62			
 quest_gobdip	gobdip	goblindiplomacy		3	green	matthew-mbp-m4-b68			
@@ -71,7 +71,7 @@ quest_golem	golem	thegolem		1	green	matthew-mbp-m4-b66
 quest_grail	grail	holygrail		2	green	matthew-mbp-m4-b62			
 quest_grandtree	grandtree	thegrandtree		3	green	matthew-mbp-m4-b62			
 quest_grimtales	grimtales	grimtales		4	todo				
-quest_handinthesand	handinthesand	thehandinthesand		4	claimed	matthew-mbp-m4-b71@matthew-mbp-m4	PR #130 (matthew-mbp-m4-b71 -> v3) -- RE-AUTHOR after 7de9a81bd: helper_coverage enclosure_entries (v3 e0d2cdfcc) grades a goto INTO a walled room past its closed door as CHEAT; the committed run is fail=0 but the gate is RED on: talkToBert (row 1 goto-bert -> 2551,3099,0, door poordoor 2551,3098,0); giveCaptainABeer (row 21 goto-guard -> 2551,3078,0, door poshdoor 2551,3082,0); talkToBertAboutRota (row 32 goto-bert2 -> 2551,3099,0, door poordoor 2551,3098,0); +1 more. Rewrite each row: goto to a tile outside, t.player.click_loc(<door>, 1), then walk_to inside (docs/quest_authoring/start-and-travel.md 'The grader now catches the goto inside')	2026-10-07T04:57:20Z	todo|matthew-mbp-m4-b55
+quest_handinthesand	handinthesand	thehandinthesand		4	green	matthew-mbp-m4-b71			
 quest_haunted	haunted	ernestthechicken		1	green	matthew-mbp-m4-b58			
 quest_hauntedmine	hauntedmine	hauntedmine		3	green	matthew-mbp-m4-b63			
 quest_hazeelcult	hazeelcult	hazeelcult		3	green	matthew-mbp-m4-b69			
@@ -85,7 +85,7 @@ quest_idesofmilk	idesofmilk	theidesofmilk		2	green	matthew-mbp-m4-b60
 quest_ikov	ikov	templeofikov		3	green	matthew-mbp-m4-b68			
 quest_imp	imp	impcatcher		3	green	matthew-mbp-m4-b68			
 quest_inaidofthemyreque	inaidofthemyreque	inaidofthemyreque		4	todo				
-quest_insearchofknowledge	insearchofknowledge	insearchofknowledge		4	claimed	matthew-mbp-m4-b71@matthew-mbp-m4	PR #130 (matthew-mbp-m4-b71 -> v3) -- RETRY after eb0a63816: helper_coverage FULL -> TEST_GAP on a fresh run under seam matthew-mbp-m4-b63-seam1's grader (gate_crossings / solid_landings / use-effect / pocket press; enclosure rules now judge the stamped first goto): row 86 'goto-logosia' skips the only-way gate archeuus_door_double_right_green at 1642,3805,0 (gate_crossings); row 86 'goto-logosia' lands on a solid tile (archeuus_library_table_large_02 at 1630,3805,0: maps/m25_59.jl2) (solid_landings); row 35 'goto-temple' lands on a solid tile (hosdun_torch at 1796,9934,0: maps/m28_155.jl2) (solid_landings) [first goto] (and 38 'goto-sun'). Rewrite those rows: cross a members'/yard/fence gate with t.player.cross_gate or pass_door on every crossing (or teleport_cast), stand beside a loc instead of on it, open a door before going in; [first goto] alone is the owner's open first-goto question.	2026-10-07T04:57:20Z	todo|matthew-mbp-m4-b52
+quest_insearchofknowledge	insearchofknowledge	insearchofknowledge		4	green	matthew-mbp-m4-b71			
 quest_itexam	itexam	thedigsite		3	green	matthew-mbp-m4-b63			
 quest_itgronigen	itgronigen	observatoryquest		3	green	matthew-mbp-m4-b63			
 quest_itwatchtower	itwatchtower	watchtower		2	green	matthew-mbp-m4-b64			
@@ -99,7 +99,7 @@ quest_lunardiplomacy	lunardiplomacy	lunardiplomacy		4	todo
 quest_makingfriendswithmyarm	makingfriendswithmyarm	makingfriendswithmyarm		4	todo				
 quest_makinghistory	makinghistory	makinghistory		1	green	matthew-mbp-m4-b65			
 quest_mcannon	mcannon	dwarfcannon		3	green	matthew-mbp-m4-b63			
-quest_meatandgreet	meatandgreet	meatandgreet		4	claimed	matthew-mbp-m4-b71@matthew-mbp-m4	PR #130 (matthew-mbp-m4-b71 -> v3) -- RE-AUTHOR after 7de9a81bd: helper_coverage enclosure_entries (v3 e0d2cdfcc) grades a goto INTO a walled room past its closed door as CHEAT; the committed run is fail=0 but the gate is RED on: talkToAlba (row 31 goto-alba -> 1587,3125,0, door fortis_door_l 1580,3131,0); returnToAlba (row 47 goto-alba2 -> 1587,3125,0, door fortis_door_l 1580,3131,0). Rewrite each row: goto to a tile outside, t.player.click_loc(<door>, 1), then walk_to inside (docs/quest_authoring/start-and-travel.md 'The grader now catches the goto inside')	2026-10-07T04:57:20Z	todo|matthew-mbp-m4-b55
+quest_meatandgreet	meatandgreet	meatandgreet		4	green	matthew-mbp-m4-b71			
 quest_misc	misc	throneofmiscellania		1	green	matthew-mbp-m4-b59			
 quest_misc	misc_astrid	throneofmiscellania		1	green	matthew-mbp-m4-b59			
 quest_misthalinmystery	misthalinmystery	misthalinmystery		4	todo				
@@ -112,7 +112,7 @@ quest_mourningsendpartii	mourningsendpartii	mourningsendpartii		1	green	matthew-
 quest_murder	murder	murdermystery		1	green	matthew-mbp-m4-b65			
 quest_myarmsbigadventure	myarmsbigadventure	myarmsbigadventure		4	todo				
 quest_nightatthetheatre	nightatthetheatre	anightatthetheatre		4	todo				
-quest_olafsquest	olafsquest	olafsquest		4	claimed	matthew-mbp-m4-b71@matthew-mbp-m4	PR #130 (matthew-mbp-m4-b71 -> v3) -- RE-AUTHOR after 7de9a81bd: helper_coverage enclosure_entries (v3 e0d2cdfcc) grades a goto INTO a walled room past its closed door as CHEAT; the committed run is fail=0 but the gate is RED on: pickUpItems (row 52 goto-pickUpItems-barrels -> 2710,10158,0, door olaf2_rusty_gate_puzzle 2725,10168,0). Rewrite each row: goto to a tile outside, t.player.click_loc(<door>, 1), then walk_to inside (docs/quest_authoring/start-and-travel.md 'The grader now catches the goto inside')	2026-10-07T04:57:20Z	todo|matthew-mbp-m4-b53
+quest_olafsquest	olafsquest	olafsquest		4	green	matthew-mbp-m4-b71			
 quest_onesmallfavour	onesmallfavour	onesmallfavour		2	green	matthew-mbp-m4-b60			
 quest_pandemonium	pandemonium	pandemonium		4	todo				
 quest_pathofglouphrie	pathofglouphrie	thepathofglouphrie		4	todo				
@@ -123,7 +123,7 @@ quest_priestperil	priestperil	priestinperil		3	green	matthew-mbp-m4-b63
 quest_prince	prince	princealirescue		1	green	matthew-mbp-m4-b65			
 quest_pryingtimes	pryingtimes	pryingtimes		1	green	matthew-mbp-m4-b65			
 quest_queenofthieves	queenofthieves	thequeenofthieves		4	green	matthew-mbp-m4-b70			
-quest_ragandboneman	ragandboneman	ragandboneman		4	claimed	matthew-mbp-m4-b71@matthew-mbp-m4	PR #130 (matthew-mbp-m4-b71 -> v3) -- RETRY after eb0a63816: helper_coverage FULL -> TEST_GAP on a fresh run under seam matthew-mbp-m4-b63-seam1's grader (gate_crossings / solid_landings / use-effect / pocket press; enclosure rules now judge the stamped first goto): row 2 'goto-oddOldMan' skips the only-way gate fai_varrock_member_gatel at 3319,3468,0 (gate_crossings) [first goto]; row 60 'goto-killUnicorn' skips the only-way gate fai_varrock_gate_r at 3255,3347,0 (gate_crossings); row 54 'goto-killRam' skips the only-way gate fai_varrock_gate_l at 3254,3347,0 (gate_crossings); row 10 'goto-fortunato' skips the only-way gate fai_varrock_member_gatel at 3319,3468,0 (gate_crossings). Rewrite those rows: cross a members'/yard/fence gate with t.player.cross_gate or pass_door on every crossing (or teleport_cast), stand beside a loc instead of on it, open a door before going in; [first goto] alone is the owner's open first-goto question.	2026-10-07T04:57:20Z	todo|matthew-mbp-m4-b54
+quest_ragandboneman	ragandboneman	ragandboneman		4	green	matthew-mbp-m4-b71			
 quest_ratcatchers	ratcatchers	ratcatchers		3	green	matthew-mbp-m4-b64			
 quest_recipefordisaster	rfd_intro	recipefordisaster	RFDStart.java	5	todo				
 quest_recipefordisaster_amikvarze	rfd_amikvarze	recipefordisaster	RFDSirAmikVarze.java	5	todo				
@@ -182,9 +182,9 @@ quest_vampire	vampire	vampyreslayer		2	green	matthew-mbp-m4-b60
 quest_viking	viking	thefremenniktrials		3	green	matthew-mbp-m4-b69			
 quest_wanted	wanted	wanted		2	green	matthew-mbp-m4-b67			
 quest_waterfall	waterfall	waterfallquest		3	green	matthew-mbp-m4-b69			
-quest_whatliesbelow	whatliesbelow	whatliesbelow		4	claimed	matthew-mbp-m4-b71@matthew-mbp-m4	PR #130 (matthew-mbp-m4-b71 -> v3) -- RE-AUTHOR after 7de9a81bd: helper_coverage enclosure_entries (v3 e0d2cdfcc) grades a goto INTO a walled room past its closed door as CHEAT; the committed run is fail=0 but the gate is RED on: talkToZaff (row 67 goto-talkToZaff -> 3202,3435,0, door fai_varrock_door 3205,3432,0). Rewrite each row: goto to a tile outside, t.player.click_loc(<door>, 1), then walk_to inside (docs/quest_authoring/start-and-travel.md 'The grader now catches the goto inside')	2026-10-07T04:57:20Z	todo|matthew-mbp-m4-b53
+quest_whatliesbelow	whatliesbelow	whatliesbelow		4	green	matthew-mbp-m4-b71			
 quest_whileguthixsleeps	whileguthixsleeps	whileguthixsleeps		6	todo				
-quest_xmarksthespot	xmarksthespot	xmarksthespot		4	claimed	matthew-mbp-m4-b71@matthew-mbp-m4	PR #130 (matthew-mbp-m4-b71 -> v3) -- RE-AUTHOR after 7de9a81bd: helper_coverage enclosure_entries (v3 e0d2cdfcc) grades a goto INTO a walled room past its closed door as CHEAT; the committed run is fail=0 but the gate is RED on: startQuest (row 1 goto-startQuest -> 3229,3242,0, door poordoor 3225,3240,0). Rewrite each row: goto to a tile outside, t.player.click_loc(<door>, 1), then walk_to inside (docs/quest_authoring/start-and-travel.md 'The grader now catches the goto inside')	2026-10-07T04:57:20Z	todo|matthew-mbp-m4-b52
+quest_xmarksthespot	xmarksthespot	xmarksthespot		4	green	matthew-mbp-m4-b71			
 quest_zanaris	zanaris	lostcity		3	green	matthew-mbp-m4-b68			
 quest_zogreflesheaters	zogreflesheaters	zogreflesheaters		2	green	matthew-mbp-m4-b62			
 quest_zombiequeen	zombiequeen	shilovillage		3	green	matthew-mbp-m4-b69			
