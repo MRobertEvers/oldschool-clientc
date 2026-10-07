@@ -85,6 +85,10 @@ QD.RAID_PLAY_BREW_HEAL = 16
 QD.RAID_PLAY_RESTORES = { "br_1dose2restore", "br_2dose2restore", "br_3dose2restore", "br_4dose2restore",
     "1dose2restore", "2dose2restore", "3dose2restore", "4dose2restore" }
 QD.RAID_PLAY_RESTORE_AMOUNT = 32
+-- The super combat, plain then divine (the brew recovery below).
+QD.RAID_PLAY_COMBAT_DOSES = { "1dose2combat", "2dose2combat", "3dose2combat", "4dose2combat",
+    "br_1dose2combat", "br_2dose2combat", "br_3dose2combat", "br_4dose2combat",
+    "1dosedivinecombat", "2dosedivinecombat", "3dosedivinecombat", "4dosedivinecombat" }
 -- Food "adds a 3 tick penalty to when a player may eat again"; a potion
 -- "delay[s] your next potion consumption by 3 ticks" (consume_shared.rs2:31-48).
 QD.RAID_PLAY_EAT_DELAY = 3
@@ -464,11 +468,16 @@ function QD.raid._play_supplies(st, v, threat)
         horizon = (st.engaged and st.weapon.speed or QD.RAID_PLAY_EAT_DELAY) + QD.TOGETHER_CONFIRM_TICKS + 1
     end
     local need = threat(horizon)
+    -- FOOD BEFORE BREWS (owner 2026-10-07, Blert Normal trios: brew sips a
+    -- seat 2.21 at Verzik and 0.0 in the other five rooms -- they eat): a
+    -- brew alone only when the food is gone; with food in the pack a brew
+    -- only rides a bite that is short (the combo), never stands in for a
+    -- bite the eat delay holds back
     if v.hp <= need then
         if eat_ready and food ~= nil then
             eat = food
             if v.hp + heal <= need and drink_ready and brew ~= nil then drink = brew end
-        elseif drink_ready and brew ~= nil then
+        elseif drink_ready and brew ~= nil and food == nil then
             drink = brew
         end
     end
@@ -673,8 +682,80 @@ function QD.raid._play_reconcile(st, v, intent)
     end
 end
 
+-- THE BREW RECOVERY (owner 2026-10-07: "they should be super restore or
+-- super combat after brewing. Check the data and implement that").  Blert,
+-- Normal trios, all six rooms, what follows a run of brew sips: after 1 sip
+-- a super combat 51 times (a restore 1); after 2, super combat 18, restore 2;
+-- after 3 or more a super restore 20 times (super combat 1), and a super
+-- combat within 10 ticks of that restore in 10 of 20.  The super combat
+-- comes a median 4 ticks after the run's first brew (quartiles 3-9) -- the
+-- next free potion tick, the brew's own delay being 3 -- the restore a
+-- median 18.  So: 1-2 sips, a super combat (plain, else divine; a super
+-- restore when neither is held); 3 or more, a super restore, then a super
+-- combat.  Read off st.drinks, so a brew any part of a plan drank counts;
+-- the plan's own drink always goes first (this only fills a free potion
+-- tick), and a restore the plan drinks for prayer after 3 sips is the run's
+-- restore.  Returns the dose to drink, or nil.
+local function play_in(list, item)
+    for _, name in ipairs(list) do if name == item then return true end end
+    return false
+end
+local function play_first_held(list)
+    for _, name in ipairs(list) do
+        local cr, n = QD.inv.count(name)
+        if cr == "ok" and (tonumber(n) or 0) > 0 then return name end
+    end
+    return nil
+end
+function QD.raid._play_brew_recovery(st, v)
+    local from = st.brew_recover_from or 1
+    local sips, restored = 0, false
+    for i = from, #st.drinks do
+        local item = st.drinks[i].item
+        if play_in(QD.RAID_PLAY_BREWS, item) then
+            sips = sips + 1
+            restored = false
+        elseif sips > 0 and play_in(QD.RAID_PLAY_COMBAT_DOSES, item) then
+            sips, restored = 0, false
+            st.brew_recover_from = i + 1
+        elseif sips > 0 and play_in(QD.RAID_PLAY_RESTORES, item) then
+            if sips >= 3 then
+                restored = true
+            else
+                -- (1-2 sips with no super combat held: the restore was the
+                -- recovery)
+                if play_first_held(QD.RAID_PLAY_COMBAT_DOSES) == nil then
+                    sips = 0
+                    st.brew_recover_from = i + 1
+                end
+            end
+        end
+    end
+    if sips == 0 then return nil end
+    if sips >= 3 and not restored then
+        local restore = play_first_held(QD.RAID_PLAY_RESTORES)
+        if restore ~= nil then return restore end
+    end
+    local combat = play_first_held(QD.RAID_PLAY_COMBAT_DOSES)
+    if combat ~= nil then return combat end
+    if not restored then
+        local restore = play_first_held(QD.RAID_PLAY_RESTORES)
+        if restore ~= nil then return restore end
+    end
+    -- nothing left to recover with: the run is closed
+    st.brew_recover_from = #st.drinks + 1
+    return nil
+end
+
 function QD.raid._play_send(st, v, intent)
     if st.plan.reconcile and (st.party or 1) > 1 then QD.raid._play_reconcile(st, v, intent) end
+    if intent.drink == nil and v.tick - st.last_drink >= QD.RAID_PLAY_DRINK_DELAY then
+        local dose = QD.raid._play_brew_recovery(st, v)
+        if dose ~= nil then
+            intent.drink = dose
+            st.brew_recoveries = (st.brew_recoveries or 0) + 1
+        end
+    end
     local all = {}
     for _, name in ipairs(st.plan.walk_prayers) do all[#all + 1] = name end
     for _, name in ipairs(st.plan.down_prayers) do all[#all + 1] = name end
