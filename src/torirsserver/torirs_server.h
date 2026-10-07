@@ -5383,7 +5383,7 @@ ToriRSServer_TicklogKindFromName(char const* name);
  * npc said) and on an NPC_HEAL row (the healing script's name); empty on every
  * other kind. 80 is `ToriRSServerNpc.say`'s size, so
  * an NPC_SAY row carries the whole line the client was sent. */
-#define TORIRSSERVER_TICKLOG_LABEL_MAX 80
+#define TORIRSSERVER_TICKLOG_LABEL_MAX 112
 struct ToriRSServerTicklogRow
 {
     uint32_t serial;
