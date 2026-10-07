@@ -198,10 +198,11 @@ return {
         "::wield twisted_bow",
         "::give dragon_arrow 2000",
         "::wield dragon_arrow",
-        -- Heal budget must exceed ~800 incoming (run27/28 took 793).
-        "::give br_4dose2restore 2",
-        "::give br_4dosepotionofsaradomin 6",
-        "::give anglerfish 18",
+        -- Match restore doses to brew doses so ranged stays up (run29: 18
+        -- food bites delayed the bow and mystic 2 DPS collapsed to 105).
+        "::give br_4dose2restore 5",
+        "::give br_4dosepotionofsaradomin 5",
+        "::give anglerfish 14",
         "::give tbwt_cooked_karambwan 2",
     },
 
