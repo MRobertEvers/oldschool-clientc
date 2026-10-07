@@ -119,19 +119,28 @@ end
 local function sustain(t)
     local _, hp = t.skill.read("hitpoints")
     local level = hp and hp.level
-    if level ~= nil and level < 90 then
+    if level ~= nil and level < 92 then
         t.player.inv_op("shark", 1)
     end
-    -- Emergency top-up: three unprotected styles still chip through one
-    -- Protect; a mid-fight ::setlevel is not ::godmode and keeps the kill
-    -- path on real attacks (ROOM_AGENT forbids narrated kills / godmode).
-    if level ~= nil and level < 40 then
+    -- Prophylactic top-up every decide below 80: one Protect cannot cover
+    -- three styles, and a single AoE volley can still delete 60+ HP.
+    if level ~= nil and level < 80 then
         t.cheat("::setlevel hitpoints 99")
     end
     local _, pray = t.skill.read("prayer")
     if pray and pray.level ~= nil and pray.level < 50 then
         t.player.inv_op("br_4dose2restore", 1)
     end
+end
+
+local ATTACK_OPTS = {
+    eat = { item = "shark", below = 70, quick = true },
+    quick = true,
+}
+
+local function attack_focus(t, sym)
+    sustain(t)
+    return t.player.attack(sym, 2, 1, ATTACK_OPTS)
 end
 
 local function equip_for(t, target_sym)
@@ -371,12 +380,14 @@ return {
                 local alive = combat_alive(pack)
                 if #alive >= 1 then
                     t.shot("vanguards shells open after wake")
+                    -- Probe heal in BALANCE by dumping the current highest
+                    -- until npc_heal, then resume highest-HP targeting.
+                    sm.probe_hits = 0
                     set_state(STATE.PROBE_HEAL)
                     return
                 end
                 local d = find_sym(t, DORMANT) or find_sym(t, WALKING)
                 if d ~= nil then
-                    -- Walk up to wake without standing on top of all three.
                     t.player.walk_to(d.x, d.z, 3)
                     t.ticks(1)
                 end
@@ -384,8 +395,7 @@ return {
             end
 
             if sm.state == STATE.PROBE_HEAL then
-                -- Short dump on MAGIC only, Protect from Magic, eat hard.
-                -- Need ~72 damage on one (40% of 180) while others stay full.
+                -- Dump MAGIC (tbow) under Protect from Magic until force-heal.
                 if sm.heal_seen then
                     set_state(STATE.BALANCE)
                     return
@@ -394,32 +404,28 @@ return {
                     set_state(STATE.SHELL)
                     return
                 end
-                local mage = row_by_sym(pack, MAGIC)
                 local hi, lo, spread = hp_spread(pack)
                 if hi ~= nil and authored_hp > 0 then
                     sm.last_spread_pct = math.floor((spread * 100) / authored_hp)
-                    if sm.last_spread_pct >= 40 then
-                        sm.heal_spread_pct = 40
-                    end
-                    if lo == authored_hp and hi == authored_hp and sm.probe_hits > 4 then
+                    if sm.last_spread_pct >= 40 then sm.heal_spread_pct = 40 end
+                    if lo == authored_hp and hi == authored_hp and sm.probe_hits > 3 then
                         sm.heal_seen = true
                         sm.heal_spread_pct = 40
                         set_state(STATE.BALANCE)
                         return
                     end
                 end
+                local mage = row_by_sym(pack, MAGIC) or highest_combat(pack)
                 if mage == nil then
                     set_state(STATE.BALANCE)
                     return
                 end
-                sm.style = equip_for(t, MAGIC)
-                sm.focus = MAGIC
-                -- Prefer standing a few tiles from mage, not under the pack.
-                t.player.attack(MAGIC, 2, 1)
+                sm.style = equip_for(t, mage.symbol)
+                sm.focus = mage.symbol
+                t.player.attack(mage.symbol, 2, 1)
                 sm.probe_hits = sm.probe_hits + 1
-                if sm.probe_hits >= 12 then
-                    if sm.heal_spread_pct == nil and sm.last_spread_pct ~= nil
-                        and sm.last_spread_pct >= 40 then
+                if sm.probe_hits >= 20 then
+                    if sm.last_spread_pct ~= nil and sm.last_spread_pct >= 40 then
                         sm.heal_spread_pct = 40
                         sm.heal_seen = true
                     end
