@@ -796,9 +796,30 @@ function QD.raid._verzik_sword_absent(c, ev)
     assert(ev, "_verzik_sword_absent: ev")
     local st, v, dw = c.st, c.v, c.dw
     if not c.floor_now then return end
-    local turn = dw.appear - (st.role - 1)
-    if turn < 0 or (st.party > 0 and turn % st.party ~= 0) then return end
     if ev.energy < QD.RAID_PLAY_VERZIK_DAWN_COST then return end
+    -- THE TURN DOES NOT STALL ON A RAIDER WHO CANNOT TAKE IT.
+    --
+    -- The order is seen rather than told -- raider r takes the sword on the
+    -- (r-1)th appearance, modulo the party -- and that stalls completely if
+    -- the raider whose turn it is never takes it.  svavzslow is the case and
+    -- the stage counts named it in three lines: p1 a clean turn and a drop
+    -- (PASSING 3/1), then p2 ABSENT **17/1** with every other stage 0/0
+    -- because p2 DIED, and p3 ABSENT 219/1 waiting for an appearance that
+    -- never came.  The sword lay on the floor for the rest of P1: two full
+    -- 1000 orbs unspent, 14 bolt launches tanked, P1 239 ticks against the
+    -- 127-147 the other four names ran.
+    --
+    -- So the claim is a turn PLUS a timeout: it is my turn, or the sword has
+    -- lain there unclaimed long enough that whoever's turn it was is not
+    -- coming.  The wait is ordered by role so the trio does not all grab at
+    -- once -- the next raider in order tries first, and the one after that a
+    -- few ticks later.
+    dw.lying_since = c.floor_now and (dw.lying_since or v.tick) or nil
+    local turn = dw.appear - (st.role - 1)
+    local mine = turn >= 0 and (st.party <= 0 or turn % st.party == 0)
+    local waited = (v.tick - (dw.lying_since or v.tick)) >= QD.RAID_PLAY_VERZIK_TURN_WAIT * st.role
+    if not (mine or waited) then return end
+    if waited and not mine then dw.took_abandoned = (dw.took_abandoned or 0) + 1 end
     local tr, td = QD.player.click_obj("verzik_special_weapon", 3)
     st.inputs[v.tick] = (st.inputs[v.tick] or 0) + 1
     local cr, n = QD.inv.count("verzik_special_weapon")
@@ -897,6 +918,11 @@ end
 -- the next raider in orb order finds it.  Back to ABSENT, not DONE: the sword
 -- comes round again and this raider's orb regenerates past the cost by then.
 -- DONE is for the raider with nobody left to pass to.
+-- How long the sword lies unclaimed before a raider whose turn it is not takes
+-- it anyway, multiplied by role so the trio does not all grab at once.  A
+-- raider who has died never takes its turn, and before this the whole rotation
+-- stalled behind it (svavzslow: the sword on the floor for the rest of P1).
+QD.RAID_PLAY_VERZIK_TURN_WAIT = 5
 QD.RAID_PLAY_VERZIK_PASS_WAIT = 4
 
 function QD.raid._verzik_sword_passing(c, ev)
