@@ -568,6 +568,9 @@ QD.RAID_MAIDEN_REF = {
 }
 
 -- THE STATES: per state, the event -> handler table and the tick (filled in below)
+-- a blood spawn's trail lives 30 ticks (tob.constant:223
+-- ^tob_maiden_blood_trail_ticks = 30, Normal)
+QD.RAID_MAIDEN_TRAIL_TICKS = 30
 QD.RAID_MAIDEN_EVENTS = { "crab_spawn", "crab_frozen", "crab_thaw", "crab_gone", "blood_thrown", "pool_landed", "boss_phase", "hit_taken" }
 QD.RAID_MAIDEN_STATES = {
     OPEN    = { tick = "mz_open_tick",    on = { crab_spawn = "mz_stay", crab_frozen = "mz_stay", crab_thaw = "mz_stay", crab_gone = "mz_stay", blood_thrown = "mz_open_on_blood", pool_landed = "mz_open_on_pool", boss_phase = "mz_stay", hit_taken = "mz_stay" } },
@@ -1195,13 +1198,24 @@ function QD.raid._play_maiden_trio(st, v)
     m.ground = {}
     for k, on in pairs(v.marks) do m.ground[k] = on end
     for _, p in ipairs(v.incoming) do v.marks[p.x * 100000 + p.z] = true end
+    -- every tile a blood spawn has stood on is a trail for the trail's life
+    -- (tob_maiden.rs2:1712 loc_add ... ~tob_maiden_trail_ticks): the client's
+    -- loc read sees a new trail a tick or two late (sm67 _play_maiden: the
+    -- leader dodged onto the trail laid on (6,5) two ticks before, 42, dead)
+    m.trail = m.trail or {}
+    for _, sl in ipairs(v.slugs or {}) do m.trail[sl.x * 100000 + sl.z] = v.tick + QD.RAID_MAIDEN_TRAIL_TICKS end
+    for k, until_t in pairs(m.trail) do
+        if v.tick <= until_t then v.marks[k] = true else m.trail[k] = nil end
+    end
     -- a blood spawn's 3x3: its next step lays a trail there, 10 + 2c a tick
     -- (sm51 _play_maiden: the scythe seats took 38s from trails on their own
     -- tiles (5,6) (6,5) in the 30 wave and died; every walk, dodge and reach
     -- now steps round them)
+    -- (radius 2: the client sees a spawn a tick late, so the tile it shows
+    -- next to me is the one it stands on now -- sm68 _play_maiden t270-271)
     for _, sl in ipairs(v.slugs or {}) do
-        for ax = -1, 1 do
-            for az = -1, 1 do v.marks[(sl.x + ax) * 100000 + sl.z + az] = true end
+        for ax = -2, 2 do
+            for az = -2, 2 do v.marks[(sl.x + ax) * 100000 + sl.z + az] = true end
         end
     end
     v.shadows = v.marks
@@ -1240,7 +1254,7 @@ function QD.raid._play_maiden_trio(st, v)
     -- tile, sm17 _play_maiden (6,2) (6,3) (6,4) under the leader, 239 hp)
     local slug_near = false
     for _, sl in ipairs(v.slugs or {}) do
-        if math.max(math.abs(sl.x - v.me.x), math.abs(sl.z - v.me.z)) <= 1 then slug_near = true end
+        if math.max(math.abs(sl.x - v.me.x), math.abs(sl.z - v.me.z)) <= 2 then slug_near = true end
     end
     if m.state ~= "DODGE" and (v.marks[v.me.x * 100000 + v.me.z] or slug_near) then
         -- (blood only in the air over my tile reads as a throw: the freezer's
