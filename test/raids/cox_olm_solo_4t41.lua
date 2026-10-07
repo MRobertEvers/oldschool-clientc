@@ -758,10 +758,7 @@ return {
                     end
                 end
                 local hrow = npc_ok(t, HEAD)
-                -- Stand just south of the size-5 head ONCE. Do not re-walk when
-                -- the attack approach steps north — a stand-tile distance check
-                -- was yanking south every few ticks, clearing interaction before
-                -- CombatAtRangeReady/adjacency could dispatch opnpc2.
+                -- Stand just south of the head ONCE.
                 refresh_geometry()
                 local hx = sm.ox + 32
                 local hz = sm.oz + 28
@@ -774,20 +771,27 @@ return {
                     sm._head_stood = true
                 elseif hrow ~= nil and (math.abs(me.x - hrow.x) > 14
                     or me.z < hrow.z - 14 or me.z > hrow.z + 8) then
-                    -- Teleport / acid shove: re-seat south of the head.
                     t.player.walk_to(hx, hz, 4)
                 end
-                -- First engages: full press (cover recovery + walk_near). After
-                -- a landed hit, quick re-clicks are enough.
-                local opts = { quick = (sm.sub > 8) }
-                if hrow ~= nil then opts.slot = hrow.slot end
-                local settle = (sm.sub > 8) and 3 or 8
-                local ar, ad = t.player.attack(HEAD, 2, settle, opts)
+                -- The head combat npc has no hittable pixels (placeholder claw
+                -- mesh inside the north wall; Attack aim only offers Examine on
+                -- Crystal/Large-rock). Same seam as eadgar secret door /
+                -- Treus Dayth: t.drive.op sends OPNPC2 with no pixel.
+                local target = t.player.by_symbol("npc", HEAD)
+                if target == nil then
+                    t.ticks(1)
+                    return
+                end
+                if hrow ~= nil then
+                    target.reach_element = hrow.element_id
+                end
+                local ar, ad = t.drive.op(target, 2)
                 if ar == "refused" and type(ad) == "string" and string.find(ad, "DIED", 1, true) then
                     set_state(STATE.DONE)
                     return
                 end
-                t.ticks(1)
+                -- Give the approach→opnpc2 a few ticks; re-issue each decide.
+                t.ticks(3)
                 return
             end
         end
