@@ -475,6 +475,11 @@ end
 -- that may fall is hidden behind only from outside its reach, and scores a
 -- tile worse, so the trio moves to a whole pillar first (W:885 "then move
 -- east once the right one collapses").
+-- How far from her a pillar's shadow is still worth walking to: past the near
+-- row her bolts are tanked under Protect from Magic instead (W:887 "even tank
+-- her attacks entirely, to avoid losing out on ticks").  Read inside the choice
+-- AND by the caller, which is the whole point -- see the note in _verzik_cover.
+QD.RAID_PLAY_VERZIK_COVER_REACH = 7
 QD.RAID_PLAY_VERZIK_PILLAR_HP = 185
 QD.RAID_PLAY_VERZIK_PILLAR_HIT_MAX = 60
 QD.RAID_PLAY_VERZIK_PILLAR_HIT_TOP = 60   -- a bolt takes 40-60 (tob.constant ^tob_verzik_pillar_hit_max)
@@ -536,7 +541,30 @@ function QD.raid._verzik_cover(st, v, ok)
             -- (owner_verzik 2026-10-07: the fall reaches THREE from the centre
             -- now, ^tob_verzik_pillar_collapse_range 3 after Blert 280f7cef, the
             -- anim audit's content change: a tile four out is never caught)
-            if (fall >= 4 or not may_fall) and ok(x, z) then
+            -- owner_verzik 2026-10-07: A WORN PILLAR IS STILL COVER.  Only a
+            -- WEST pillar's far corner is both behind it and outside the
+            -- 3-tile fall (an east pillar's whole shadow is inside it), so
+            -- "never stand where a pillar may fall" left the trio with NO
+            -- cover at all once the near row had taken its bolts -- and the
+            -- near row wears out because our P1 runs 119-163 ticks (8-11
+            -- launches) against Blert's 85.  _play_verzik: 10 bolts went into
+            -- pillars, and from L132 the plan stopped hiding with all six
+            -- pillars still standing (hides L64..L118, then none), so the last
+            -- two launches were tanked by all three -- 9 bolts for 329, 109 a
+            -- seat against Blert's 20.  A worn pillar is now cover, ranked
+            -- after a whole one, and the launch tick is still the way out:
+            -- the fall lands with the bolt, 3 ticks after it leaves her hand
+            -- (~tob_verzik_flight_ticks), by which time the hide is over and
+            -- the walk back to her is under way.  p1.no_collapse_damage is
+            -- the row that says whether that margin holds.
+            -- owner_verzik 2026-10-07: THE REACH BOUND IS PART OF THE CHOICE,
+            -- not a test on its answer.  The caller discards a cover tile
+            -- further than this ("a far shadow is no cover"), so a choice that
+            -- ranked the far row's WHOLE pillars above the near row's worn
+            -- ones handed back a tile the caller then threw away, and the trio
+            -- tanked with cover four tiles from it.  That is why _vzslow's P1
+            -- did not move one hitpoint when worn pillars became cover again.
+            if ok(x, z) and QD.raid._verzik_dist(x, z, b) <= QD.RAID_PLAY_VERZIK_COVER_REACH then
                 -- owner_verzik 2026-10-07: A PILLAR THAT CANNOT FALL BEATS A
                 -- NEARER ONE THAT MAY, outright rather than by a tile.  The
                 -- near row is two pillars and three safe bolts each, and
@@ -553,7 +581,7 @@ function QD.raid._verzik_cover(st, v, ok)
                 local d = QD.raid._verzik_dist(x, z, b)
                 -- the choice ranks on this; `d` stays the true distance, which
                 -- the caller's "a far shadow is no cover" test reads
-                local rank = d + (may_fall and 100 or 0)
+                local rank = d + (may_fall and 100 or 0) + ((may_fall and fall < 4) and 100 or 0)
                 -- ties: the west pillar first (W:885 "the pillar directly
                 -- south-west of Verzik"), then the tile nearer her centre line,
                 -- so all three raiders read the same tile from anywhere
@@ -807,7 +835,7 @@ function QD.raid._verzik_p1_normal(st, v, intent, ok, go, events)
     -- 6424,83 and 6427,93 for 58 ticks and never reached her) the bolts are
     -- TANKED under Protect from Magic (W:887 "even tank her attacks
     -- entirely, to avoid losing out on ticks")
-    if cover ~= nil and cover.d > 7 then
+    if cover ~= nil and cover.d > QD.RAID_PLAY_VERZIK_COVER_REACH then
         if vz.tank_from == nil then vz.tank_from = v.tick end
         cover = nil
     end
@@ -3285,6 +3313,25 @@ function QD.raid._play_verzik_decide(st, v)
     vz.phase = phase
     if b == nil then
         return intent
+    end
+    -- owner_verzik 2026-10-07: A WEAPON IN MY HAND, PAST P1.  Her shield
+    -- breaking destroys the Dawnbringer in the holder's hand (tob_verzik.rs2
+    -- ~tob_verzik_shield_broken) while the orb may still hold the 350, so the
+    -- holder's `held` state kept arming a special with an EMPTY HAND: _vzslow
+    -- seat 1 took the sword at t208, it was destroyed at t211, and the seat
+    -- fought t211..t954 -- all of P2 and most of P3 -- at `weapon -1`.  A
+    -- third of the trio's damage: that P2 ran 488 ticks at 7.2 damage a tick
+    -- where the fast team's ran 247 at 11.6.  It also froze the P3 swap, whose
+    -- guard declines to swap while `vz.held` says "dawnbringer".
+    --
+    -- THE GUARD BELONGS HERE, not in the state: `verzik_dawnbringer` is
+    -- stepped from inside the P1 branch only (the `_verzik_dawn` call in
+    -- QD.raid._verzik_p1), so a premise of its own would never be tested on
+    -- the tick that breaks it.  P1 is the only phase the sword is held in, so
+    -- past P1 the belief is simply wrong, whatever put it there.
+    if vz.held == "dawnbringer" and phase ~= "pre" and phase ~= "p1" then
+        vz.sword_gone = vz.sword_gone or v.tick
+        QD.raid._verzik_main_weapon_back(st, vz, intent)
     end
     -- raid seam53: THIS TICK'S EVENTS, derived once (QD.raid._verzik_events)
     -- and handed to every machine the plan runs, so they all read one tick
