@@ -2437,3 +2437,10 @@ Open:
   (`pct = health_ratio*100/health_scale`). The two 0-of-5 Verzik surveys above read owner_verzik's uncommitted WIP plan,
   which was in the shared tree at the time. On engine 346bf3c05 or later with content f0478f39c7, the committed plans
   measure Verzik fast 5 of 5 and slow 4 of 5. The health-bar fix is not implicated.
+
+- ToB, Verzik P3: a tornado touched from the tile beside its raider. Blert's 27 Normal trio rooms (npc 8386 and every
+  raider, every tick): each of the 16 touches (verzikHeal) came the tick after the tornado stood ON its raider's tile
+  (distance 0 at t-1, 16 of 16); 53 tornado lives came within one tile and never touched; distance 1 on 208 ticks.
+  The seam11 note had guessed range 1 ("No source says whether contact is the shared tile or the one beside it")
+  because the walker could not enter a player's tile. FIXED in OSRS-Content fdf77aae1c (owner_verzik): `moverestrict=passthru`
+  on the three tornado records and contact at range 0. Measured: P3-only touches fast 18-21 -> 4, slow 23-30 -> 8.
