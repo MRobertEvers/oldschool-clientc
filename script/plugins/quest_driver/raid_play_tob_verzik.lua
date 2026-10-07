@@ -1639,6 +1639,7 @@ QD.RAID_PLAY_VERZIK_ENRAGE_ON = {
     pool_stand = function(c, ev) return QD.raid._verzik_enrage_stand(c, ev) end,
     pool_walk  = function(c, ev) return QD.raid._verzik_enrage_step(c, ev) end,
     ball_share = function(c, ev) return QD.raid._verzik_enrage_step(c, ev) end,
+    eat_now    = function(c, ev) return QD.raid._verzik_enrage_eat(c, ev) end,
     swing_now  = function(c, ev) return QD.raid._verzik_enrage_swing(c, ev) end,
     step       = function(c, ev) return QD.raid._verzik_enrage_step(c, ev) end,
 }
@@ -1649,7 +1650,7 @@ QD.raid.sm_declare("verzik_enrage", {
         SWING   = { note = "stand still and press her", on = QD.RAID_PLAY_VERZIK_ENRAGE_ON },
         SHARE   = { note = "beside the ball's target, off my tornado's next step", on = QD.RAID_PLAY_VERZIK_ENRAGE_ON },
         PROTECT = { note = "my yellow pool, walked to and then stood on", on = QD.RAID_PLAY_VERZIK_ENRAGE_ON },
-        EAT     = { note = "nothing enters it today: see the header", on = QD.RAID_PLAY_VERZIK_ENRAGE_ON },
+        EAT     = { note = "stand still for the bite, my tornado five or more away", on = QD.RAID_PLAY_VERZIK_ENRAGE_ON },
     },
 })
 
@@ -1684,6 +1685,9 @@ function QD.raid._verzik_ring_events(st, v, c)
         end
         return { { name = "ball_share", go = "SHARE" } }
     end
+    if v.hp <= P.enrage_hp_floor and c.clear(me.x, me.z) >= 5 then
+        return { { name = "eat_now", go = "EAT" } }
+    end
     if c.ready and c.db >= 1 and c.db <= c.reach and c.clear(me.x, me.z) >= 2 and not (c.hold and c.db == 1) then
         return { { name = "swing_now", go = "SWING" } }
     end
@@ -1694,6 +1698,17 @@ end
 function QD.raid._verzik_enrage_stand(c, ev)
     assert(c, "_verzik_enrage_stand: c")
     assert(ev, "_verzik_enrage_stand: ev")
+    c.intent.walk, c.intent.attack = nil, false
+    return nil, ev.go
+end
+
+-- EAT: stand still for the bite.  No walk and no press, so the together
+-- block's confirmation is not racing a step on the tick the food goes down --
+-- a block holds the next decide, and a decide missed is a tile the tornado
+-- gains, which is why the bite waits for five tiles of room.
+function QD.raid._verzik_enrage_eat(c, ev)
+    assert(c, "_verzik_enrage_eat: c")
+    assert(ev, "_verzik_enrage_eat: ev")
     c.intent.walk, c.intent.attack = nil, false
     return nil, ev.go
 end
