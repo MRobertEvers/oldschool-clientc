@@ -14,7 +14,7 @@
 -- no Scrambled! script reads Agility.
 --
 -- Travel is the real way: Regulus Cento outside Varrock's east gate flies to Civitas illa Fortis
--- (twilightspromise.rs2:147, p_telejump 1697,3140), then on foot west to Tal Teok Temple
+-- (twilightspromise.rs2:161 and :178, p_telejump ^tp_fortis_arrive = 1697,3140), then on foot west to Tal Teok Temple
 -- (reach.py: REACH closed-doors len=787). The Renu quetzal to Tal Teklan needs Twilight's Promise
 -- (tools/data/shortest_path/transports/quetzals.tsv), which this quest does not require.
 --
@@ -83,7 +83,7 @@ return {
         local EAT = { eat = { item = "shark", below = 40 } }
 
         -- 0. Travel to Varlamore: Regulus Cento (3281,3413) flies to Civitas illa Fortis
-        -- (twilightspromise.rs2:147 -> p_telejump 1697,3140), as atfirstlight.lua does.
+        -- (twilightspromise.rs2:161 and :178 -> p_telejump 1697,3140), as atfirstlight.lua does.
         t.exec("goto-talkToRegulus", t.player.goto_tile, 3281, 3413, 0)
         t.exec("talkToRegulus", t.player.talk_to, "vmq2_quetzal_keeper_varrock", 1)
         t.exec("talkToRegulus-dialog", t.chat.play, {
