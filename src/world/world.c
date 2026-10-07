@@ -2472,6 +2472,7 @@ world_apply_primary_animation(
         animation->primary.cycle = 0;
         animation->primary.delay = 0;
         animation->primary.loop = 0;
+        animation->pending_set = 0;
         return;
     }
 
@@ -2508,6 +2509,23 @@ world_apply_primary_animation(
         }
     }
 
+    /*
+     * The packet is applied before its seq has loaded (task_exec_entity_info:
+     * the pipeline no longer waits out the load), and a seq's priority is only
+     * readable once it has. Judging an unloaded seq by a default 5 refused
+     * TzKal-Zuk's zuk_attack (forcedpriority 10) under his zuk_defend (6) on
+     * the first swing of the fight. The decision waits for the load instead.
+     */
+    if( animation->primary.anim_id != (uint16_t)-1 && animation->primary.anim_id != 0 &&
+        (world_seq_priority(world, seq_id) < 0 ||
+         world_seq_priority(world, animation->primary.anim_id) < 0) )
+    {
+        animation->pending_set = 1;
+        animation->pending_anim_id = (uint16_t)seq_id;
+        animation->pending_delay = (uint8_t)delay;
+        animation->pending_cycle = world->cycle;
+        return;
+    }
     if( animation->primary.anim_id != (uint16_t)-1 && animation->primary.anim_id != 0 &&
         world_seq_priority(world, seq_id) <
             world_seq_priority(world, animation->primary.anim_id) )
@@ -2535,7 +2553,36 @@ world_apply_primary_animation(
     animation->primary.delay = (uint8_t)delay;
     animation->primary.loop = 0;
     animation->preanim_route_length = pathing->route_length;
+    animation->pending_set = 0;
     world_restart_readyanim_under_action(animation, readyanim, delay);
+}
+
+void
+World_ResolvePendingPrimaryAnimation(
+    struct World* world,
+    struct WorldEntityFacet_Animation* animation,
+    struct WorldEntityFacet_Pathing const* pathing,
+    int readyanim)
+{
+    int seq_id;
+    int delay;
+
+    assert(world);
+    assert(animation);
+    if( !animation->pending_set )
+        return;
+    assert(pathing);
+    seq_id = animation->pending_anim_id;
+    if( world_seq_priority(world, seq_id) < 0 )
+        return;
+    if( animation->primary.anim_id != (uint16_t)-1 && animation->primary.anim_id != 0 &&
+        world_seq_priority(world, animation->primary.anim_id) < 0 )
+        return;
+    /* The start delay counts from the packet, not from the load. */
+    delay = animation->pending_delay - (world->cycle - animation->pending_cycle);
+    animation->pending_set = 0;
+    world_apply_primary_animation(
+        world, animation, pathing, readyanim, seq_id, delay > 0 ? delay : 0);
 }
 
 void

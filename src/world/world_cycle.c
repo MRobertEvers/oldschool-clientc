@@ -771,6 +771,8 @@ World_StepEntityAnimation(
      * un-delayed primary seq below re-asserts it from the seq's stretches flag. */
     anim->needs_forward_draw_padding = 0;
 
+    World_ResolvePendingPrimaryAnimation(world, anim, pathing, idle ? idle->readyanim : -1);
+
     /*
      * Secondary (idle/walk). The reference steps it first and resets it on the
      * same terms as any other track (`Statics` ~40056):

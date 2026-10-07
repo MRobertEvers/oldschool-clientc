@@ -44,6 +44,14 @@ struct WorldEntityFacet_Animation
      * entity's tile footprint one tile forward along its yaw so a stretching
      * action does not draw in front of a wall ahead of it. */
     uint8_t needs_forward_draw_padding;
+    /* An action seq that arrived while another was playing and whose priority
+     * could not be read yet: the seq loads after its packet is applied, so the
+     * gate waits for it (World_ResolvePendingPrimaryAnimation) rather than
+     * judging an unloaded seq by a guessed priority. */
+    uint8_t pending_set;
+    uint8_t pending_delay;
+    uint16_t pending_anim_id;
+    int pending_cycle; /* world cycle it arrived on */
 };
 
 /* Server-forced interpolated move (reference exactMove1/exactMove2).

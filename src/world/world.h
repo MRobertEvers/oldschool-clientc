@@ -1291,6 +1291,19 @@ World_NpcSetPrimaryAnimation(
     int seq_id,
     int delay);
 
+struct WorldEntityFacet_Animation;
+struct WorldEntityFacet_Pathing;
+
+/* Run the priority gate for an action seq that arrived before its priority
+ * could be read (WorldEntityFacet_Animation.pending_*), once it can. Called
+ * every cycle from World_StepEntityAnimation. */
+void
+World_ResolvePendingPrimaryAnimation(
+    struct World* world,
+    struct WorldEntityFacet_Animation* animation,
+    struct WorldEntityFacet_Pathing const* pathing,
+    int readyanim);
+
 /* Reference EXACTMOVE: scene-local tiles, cycle deltas from now. */
 void
 World_PlayerSetExactMove(

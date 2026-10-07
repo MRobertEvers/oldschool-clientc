@@ -109,7 +109,8 @@ world_seq_source_toridraw_priority(
     int seq_id)
 {
     struct ToriDraw_Animation* anim = world_seq_source_toridraw_anim(userdata, seq_id);
-    return anim ? anim->priority : 5;
+    /* -1 = not loaded yet: the gate waits for it (World_ResolvePendingPrimaryAnimation). */
+    return anim ? anim->priority : -1;
 }
 
 static int
