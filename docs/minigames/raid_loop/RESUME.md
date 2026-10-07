@@ -488,6 +488,16 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   -> party_repeat -> check-quest-verbs + conformance -> PR to v3. The green rooms are NOT to be rewritten
   (owner, 2026-10-06 20:20 and 23:00); Verzik's P3 ball pass / assertions are a later item.
 
+- ENGINE BUG (owner, 2026-10-07 03:45): the embedded leader's client sees each tick's world update a tick
+  BEFORE the members' clients (EmbedPump pumps the leader mid-interval; members' updates and inputs cross the
+  link at the boundary). All clients must see spawns and their own tiles on the same tick. The Maiden owner
+  fixes it in C first (probe: per-seat first view tick of each spawn equal; the Nylocas door all on one tick;
+  party_repeat still AGREE), then removes the plans' compensating offsets. Waiting on the OWNER: (a) a pack
+  rebuild to undo an untested Vasilias edit left in script.dat (the rebuild was refused to an agent), (b)
+  approval of the Vasilias tie-break content edit (uniform among the equally near; the 27 rooms split her
+  attacks ~1/3 each; our content always takes the first found = the leader-mage), saved at
+  build/seam_state/owner_nylocas/tob_nylocas_boss.ties.rs2.
+
 ## Next, in order
 
 1. Seam22 lands (above); then relaunch the Normal pass with the same args (its rejected rooms get the findings); re-launch for rejected or sent-back rooms until kept. (Seam21 landed.) SEAM21 was on
