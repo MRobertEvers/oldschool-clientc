@@ -65,12 +65,12 @@ local function sustain(t, sm)
     local hr, hp = t.skill.read("hitpoints")
     local level = (hr == "ok" and hp.level) or 99
     if sm._sustain_cd <= 0 then
-        if level < 55 then
+        if level < 65 then
             t.player.drink("br_4dosepotionofsaradomin")
-            sm._sustain_cd = 3
-        elseif level < 75 then
+            sm._sustain_cd = 2
+        elseif level < 85 then
             t.player.eat("shark")
-            sm._sustain_cd = 4
+            sm._sustain_cd = 3
         end
     end
     local pr, pp = t.prayer.points()
@@ -157,7 +157,9 @@ return {
         -- Mage hand wants magic (66% mitigation on non-magic). Synq sang/shadow.
         -- Keep the kit ≤28 inv slots (worn melee already fills equipment).
         -- Wear mage switch in setup so inv holds food, not robes.
-        "::give tumekens_shadow",
+        -- tumekens_shadow is not give-able here (cheat debugproc miss); sang works.
+        "::give sanguinesti_staff_uncharged",
+        "::give bloodrune 4000",
         "::give ancestral_hat",
         "::give ancestral_robe_top",
         "::give ancestral_robe_bottom",
@@ -168,11 +170,9 @@ return {
         "::wield ancestral_robe_bottom",
         "::wield occult_necklace",
         "::wield br_tormented_bracelet",
-        "::wield tumekens_shadow",
         -- Head phase: twisted bow (ranged weakness on head).
         "::give twisted_bow",
         "::give dragon_arrow 2000",
-        -- Melee 4:1 after mage hand (whip already given above).
         "::give shark 12",
         "::give br_4dose2restore 4",
         "::give br_4dosepotionofsaradomin 4",
@@ -256,12 +256,13 @@ return {
         end
 
         local function equip_magic()
-            t.player.equip("tumekens_shadow")
+            t.player.inv_op("sanguinesti_staff_uncharged", 3)
+            t.player.equip("sanguinesti_staff")
             t.player.equip("ancestral_hat")
             t.player.equip("ancestral_robe_top")
             t.player.equip("ancestral_robe_bottom")
             t.player.equip("occult_necklace")
-            t.player.equip("tormented_bracelet")
+            t.player.equip("br_tormented_bracelet")
         end
 
         -- Sphere mes → overhead before impact (^cox_olm_sphere_delay = 4).
