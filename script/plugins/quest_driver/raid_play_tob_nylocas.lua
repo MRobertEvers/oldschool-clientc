@@ -94,6 +94,71 @@ QD.raid._play_plan("tob_nylocas", {
     },
     cleanup = { mage = { tile = { 2, 4 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "split-magic", "W-melee", "split-magic", "split-magic", "split-magic" } }, ranger = { tile = { 2, 4 }, first = 2, weapon = "BLOWPIPE", targets = { "W-ranged-big", "W-ranged", "S-melee", "E-ranged", "split-ranged", "split-ranged", "split-ranged" } }, melee = { tile = { 1, 4 }, first = 2, weapon = "SULPHUR_BLADES", targets = { "split-melee", "split-melee", "split-melee", "split-melee", "split-magic" } } },
     -- END GENERATED P.waves
+    -- BEGIN GENERATED P.room_copy (build/seam_state/owner_nylocas/ny_room.py d05eb065-98fc-422a-855e-1a24dced70aa; do not hand-edit)
+    room_copy_uuid = "d05eb065-98fc-422a-855e-1a24dced70aa",
+    room_copy = {
+        mage = {
+            { w = 1, o = 3, k = "S-magic", ow = 1, wp = "ayak", x = 2, z = -3 }, { w = 3, o = 1, k = "E-magic", ow = 3, wp = "ayak", x = 7, z = 2 }, { w = 4, o = 1, k = "S-magic-big", ow = 4, wp = "ayak", x = 1, z = -4 }, { w = 5, o = 0, k = "W-magic", ow = 2, wp = "ayak", x = 5, z = 0 },
+            { w = 5, o = 3, k = "E-magic", ow = 5, wp = "ayak", x = 7, z = 2 }, { w = 5, o = 7, k = "split-magic", ow = 5, wp = "ayak", x = 1, z = -2 }, { w = 5, o = 11, k = "S-melee", ow = 5, wp = "scythe", x = 3, z = -3 }, { w = 6, o = 1, k = "W-magic", ow = 6, wp = "ayak", x = -4, z = 2 },
+            { w = 7, o = 2, k = "S-magic", ow = 7, wp = "ayak", x = 2, z = -4 }, { w = 8, o = 1, k = "W-magic-big", ow = 8, wp = "ayak", x = -4, z = 1 }, { w = 9, o = 1, k = "W-ranged-big", ow = 9, wp = "bow", x = -4, z = 1 }, { w = 9, o = 6, k = "split-magic", ow = 7, wp = "ayak", x = 4, z = 1 },
+            { w = 9, o = 9, k = "E-magic", ow = 9, wp = "ayak", x = 6, z = 2 }, { w = 10, o = 1, k = "E-ranged-big", ow = 10, wp = "bow", x = 7, z = 1 }, { w = 10, o = 6, k = "E-ranged", ow = 10, wp = "pipe", x = 7, z = 1 }, { w = 11, o = 2, k = "E-magic", ow = 11, wp = "barrage", x = 7, z = 1 },
+            { w = 11, o = 7, k = "S-magic", ow = 11, wp = "barrage", x = 3, z = 1 }, { w = 12, o = 4, k = "S-magic", ow = 11, wp = "barrage", x = 0, z = 2 }, { w = 13, o = 1, k = "E-magic", ow = 9, wp = "ayak", x = 0, z = 0 }, { w = 13, o = 4, k = "W-magic", ow = 13, wp = "ayak", x = -2, z = 2 },
+            { w = 14, o = 2, k = "S-magic", ow = 14, wp = "ayak", x = 2, z = -4 }, { w = 14, o = 5, k = "W-magic", ow = 14, wp = "ayak", x = 0, z = 0 }, { w = 15, o = 0, k = "E-melee-big", ow = 13, wp = "scythe", x = 3, z = 2 }, { w = 15, o = 5, k = "E-magic", ow = 15, wp = "ayak", x = 7, z = 2 },
+            { w = 16, o = 3, k = "E-magic", ow = 16, wp = "ayak", x = 6, z = 2 }, { w = 17, o = 3, k = "split-magic", ow = 15, wp = "ayak", x = 6, z = 2 }, { w = 17, o = 6, k = "split-magic", ow = 15, wp = "ayak", x = 3, z = 1 }, { w = 19, o = 1, k = "E-magic-big", ow = 19, wp = "ayak", x = 7, z = 1 },
+            { w = 19, o = 5, k = "split-magic", ow = 19, wp = "ayak", x = 4, z = 1 }, { w = 19, o = 11, k = "split-magic", ow = 19, wp = "ayak", x = 1, z = 2 }, { w = 19, o = 14, k = "split-magic", ow = 19, wp = "ayak", x = 2, z = -2 }, { w = 20, o = 1, k = "split-magic", ow = 19, wp = "ayak", x = 1, z = -4 },
+            { w = 20, o = 4, k = "S-magic-big", ow = 20, wp = "ayak", x = 1, z = -4 }, { w = 20, o = 7, k = "split-magic", ow = 19, wp = "ayak", x = 1, z = 0 }, { w = 20, o = 10, k = "split-magic", ow = 20, wp = "ayak", x = 1, z = 0 }, { w = 20, o = 13, k = "split-magic", ow = 20, wp = "ayak", x = -1, z = 2 },
+            { w = 21, o = 1, k = "W-magic", ow = 21, wp = "barrage", x = -4, z = 1 }, { w = 21, o = 6, k = "split-magic", ow = 21, wp = "ayak", x = -2, z = 1 }, { w = 22, o = 2, k = "E-magic-big", ow = 22, wp = "ayak", x = 5, z = 1 }, { w = 22, o = 5, k = "split-magic", ow = 20, wp = "ayak", x = 5, z = 1 },
+            { w = 22, o = 8, k = "E-magic-big", ow = 22, wp = "scythe", x = 6, z = 1 }, { w = 23, o = 1, k = "E-magic-big", ow = 23, wp = "ayak", x = 7, z = 2 }, { w = 24, o = 1, k = "S-magic-big", ow = 24, wp = "ayak", x = 2, z = -4 }, { w = 24, o = 4, k = "split-magic", ow = 23, wp = "ayak", x = 2, z = 0 },
+            { w = 24, o = 7, k = "split-magic", ow = 21, wp = "ayak", x = 0, z = 1 }, { w = 25, o = 1, k = "E-magic-big", ow = 25, wp = "ayak", x = 7, z = 2 }, { w = 27, o = 0, k = "W-magic-big", ow = 26, wp = "ayak", x = -4, z = 1 }, { w = 27, o = 3, k = "W-magic-big", ow = 27, wp = "ayak", x = -2, z = 2 },
+            { w = 27, o = 6, k = "split-magic", ow = 27, wp = "ayak", x = 1, z = 2 }, { w = 29, o = 0, k = "split-magic", ow = 25, wp = "barrage", x = 2, z = 2 }, { w = 29, o = 5, k = "W-ranged", ow = 28, wp = "ayak", x = 4, z = 2 }, { w = 30, o = 0, k = "E-ranged", ow = 29, wp = "ayak", x = 5, z = 2 },
+            { w = 30, o = 3, k = "E-magic-big", ow = 30, wp = "ayak", x = 5, z = 2 }, { w = 30, o = 7, k = "split-magic", ow = 29, wp = "barrage", x = 1, z = 1 }, { w = 32, o = 0, k = "E-magic", ow = 31, wp = "ayak", x = 7, z = 2 }, { w = 32, o = 3, k = "split-magic", ow = 31, wp = "ayak", x = 3, z = 2 },
+            { w = 32, o = 6, k = "split-magic", ow = 31, wp = "ayak", x = 1, z = 2 }, { w = 32, o = 9, k = "split-magic", ow = 27, wp = "ayak", x = 3, z = 2 }, { w = 32, o = 13, k = "split-ranged", ow = 32, wp = "pipe", x = 1, z = 6 }, { w = 32, o = 17, k = "split-ranged", ow = 32, wp = "pipe", x = -1, z = 0 },
+            { w = 32, o = 19, k = "S-magic", ow = 30, wp = "ayak", x = -1, z = 0 }, { w = 32, o = 22, k = "split-ranged", ow = 29, wp = "pipe", x = 1, z = 1 }, { w = 32, o = 25, k = "split-ranged", ow = 32, wp = "pipe", x = 2, z = 1 }, { w = 32, o = 29, k = "split-melee", ow = 29, wp = "scythe", x = -2, z = 6 },
+        },
+        melee = {
+            { w = 1, o = 3, k = "S-magic", ow = 1, wp = "ayak", x = 1, z = -3 }, { w = 3, o = 0, k = "E-melee", ow = 1, wp = "melee", x = 7, z = 2 }, { w = 4, o = 2, k = "S-magic-big", ow = 4, wp = "ayak", x = 1, z = -4 }, { w = 5, o = 2, k = "W-ranged-big", ow = 5, wp = "bow", x = -4, z = 2 },
+            { w = 5, o = 7, k = "S-melee", ow = 2, wp = "melee", x = 1, z = 0 }, { w = 5, o = 11, k = "S-melee", ow = 5, wp = "melee", x = 2, z = -4 }, { w = 6, o = 1, k = "split-melee", ow = 5, wp = "melee", x = -1, z = 3 }, { w = 7, o = 3, k = "E-melee-big", ow = 6, wp = "scythe", x = 7, z = 2 },
+            { w = 7, o = 9, k = "E-melee", ow = 7, wp = "melee", x = 6, z = 2 }, { w = 8, o = 1, k = "split-melee", ow = 7, wp = "melee", x = 6, z = 2 }, { w = 9, o = 1, k = "split-melee", ow = 8, wp = "melee", x = 3, z = -4 }, { w = 9, o = 5, k = "split-magic", ow = 7, wp = "ayak", x = 6, z = -2 },
+            { w = 9, o = 8, k = "S-melee", ow = 8, wp = "melee", x = 0, z = -2 }, { w = 10, o = 0, k = "W-melee", ow = 9, wp = "melee", x = -1, z = 3 }, { w = 10, o = 4, k = "split-melee", ow = 9, wp = "melee", x = -2, z = 0 }, { w = 11, o = 0, k = "split-magic", ow = 9, wp = "ayak", x = 2, z = 3 },
+            { w = 11, o = 3, k = "split-magic", ow = 9, wp = "ayak", x = -2, z = 3 }, { w = 11, o = 6, k = "split-magic", ow = 9, wp = "ayak", x = 2, z = 3 }, { w = 12, o = 1, k = "split-melee", ow = 10, wp = "melee", x = 7, z = -1 }, { w = 12, o = 5, k = "W-melee", ow = 9, wp = "melee", x = 5, z = 6 },
+            { w = 13, o = 1, k = "E-melee", ow = 12, wp = "scythe", x = 6, z = 2 }, { w = 13, o = 6, k = "E-melee", ow = 12, wp = "melee", x = 7, z = 4 }, { w = 14, o = 3, k = "W-melee", ow = 12, wp = "melee", x = 0, z = 0 }, { w = 15, o = 0, k = "E-melee-big", ow = 13, wp = "melee", x = 0, z = 1 },
+            { w = 15, o = 5, k = "W-melee", ow = 14, wp = "melee", x = -3, z = 2 }, { w = 16, o = 1, k = "W-melee", ow = 15, wp = "melee", x = -3, z = 2 }, { w = 17, o = 1, k = "split-magic", ow = 15, wp = "ayak", x = -1, z = 3 }, { w = 17, o = 4, k = "split-magic", ow = 15, wp = "ayak", x = -3, z = 3 },
+            { w = 17, o = 7, k = "split-magic", ow = 15, wp = "ayak", x = 1, z = 3 }, { w = 17, o = 10, k = "W-magic-big", ow = 17, wp = "ayak", x = 3, z = 1 }, { w = 18, o = 1, k = "split-melee", ow = 17, wp = "melee", x = -2, z = 5 }, { w = 18, o = 5, k = "split-melee", ow = 17, wp = "melee", x = 4, z = 7 },
+            { w = 19, o = 1, k = "S-magic-big", ow = 17, wp = "ayak", x = 0, z = 3 }, { w = 19, o = 4, k = "split-magic", ow = 19, wp = "ayak", x = 3, z = 2 }, { w = 19, o = 10, k = "S-magic-big", ow = 19, wp = "ayak", x = 7, z = 1 }, { w = 19, o = 13, k = "split-magic", ow = 19, wp = "ayak", x = 4, z = 0 },
+            { w = 20, o = 0, k = "split-magic", ow = 19, wp = "ayak", x = 5, z = 1 }, { w = 20, o = 3, k = "split-magic", ow = 19, wp = "ayak", x = 3, z = 1 }, { w = 20, o = 6, k = "S-magic-big", ow = 19, wp = "ayak", x = 5, z = 1 }, { w = 20, o = 9, k = "E-melee-big", ow = 20, wp = "melee", x = 6, z = 1 },
+            { w = 20, o = 13, k = "split-melee", ow = 20, wp = "melee", x = 4, z = -3 }, { w = 21, o = 1, k = "split-melee", ow = 19, wp = "scythe", x = -1, z = -3 }, { w = 21, o = 6, k = "split-magic", ow = 21, wp = "ayak", x = 1, z = -4 }, { w = 22, o = 1, k = "S-melee", ow = 21, wp = "scythe", x = 1, z = -4 },
+            { w = 22, o = 6, k = "S-magic", ow = 22, wp = "pipe", x = 1, z = -4 }, { w = 22, o = 8, k = "S-melee", ow = 21, wp = "melee", x = 2, z = -2 }, { w = 23, o = 2, k = "E-magic-big", ow = 23, wp = "ayak", x = 5, z = 1 }, { w = 23, o = 6, k = "split-melee", ow = 23, wp = "melee", x = 4, z = -1 },
+            { w = 24, o = 3, k = "S-magic-big", ow = 24, wp = "ayak", x = 2, z = -3 }, { w = 24, o = 7, k = "E-melee-big", ow = 24, wp = "scythe", x = 7, z = 2 }, { w = 25, o = 0, k = "split-melee", ow = 24, wp = "melee", x = 1, z = -3 }, { w = 25, o = 4, k = "split-melee", ow = 24, wp = "melee", x = -4, z = 3 },
+            { w = 26, o = 0, k = "W-melee-big", ow = 25, wp = "melee", x = -3, z = 1 }, { w = 27, o = 2, k = "split-melee", ow = 25, wp = "melee", x = 4, z = -3 }, { w = 27, o = 7, k = "S-melee-big", ow = 26, wp = "melee", x = 2, z = -3 }, { w = 28, o = 3, k = "split-melee", ow = 24, wp = "melee", x = 4, z = -4 },
+            { w = 29, o = 3, k = "E-magic-big", ow = 27, wp = "ayak", x = 4, z = 0 }, { w = 29, o = 6, k = "split-melee", ow = 28, wp = "melee", x = 4, z = -3 }, { w = 30, o = 2, k = "S-melee-big", ow = 29, wp = "scythe", x = 3, z = -4 }, { w = 30, o = 7, k = "E-magic", ow = 29, wp = "melee", x = 7, z = 3 },
+            { w = 31, o = 3, k = "split-melee", ow = 30, wp = "melee", x = 7, z = 4 }, { w = 32, o = 3, k = "split-melee", ow = 30, wp = "melee", x = 7, z = 0 }, { w = 32, o = 7, k = "split-melee", ow = 27, wp = "melee", x = 6, z = -1 }, { w = 32, o = 11, k = "E-magic-big", ow = 27, wp = "melee", x = 4, z = -1 },
+            { w = 32, o = 19, k = "split-melee", ow = 29, wp = "melee", x = 5, z = -3 }, { w = 32, o = 23, k = "split-melee", ow = 29, wp = "melee", x = -1, z = -4 }, { w = 32, o = 30, k = "split-melee", ow = 32, wp = "melee", x = 7, z = 4 },
+        },
+        ranger = {
+            { w = 1, o = 1, k = "W-ranged", ow = 1, wp = "bow", x = -2, z = 1 }, { w = 2, o = 2, k = "E-ranged", ow = 2, wp = "bow", x = 6, z = 1 }, { w = 3, o = 3, k = "S-ranged", ow = 3, wp = "bow", x = 1, z = -4 }, { w = 5, o = 0, k = "W-ranged", ow = 4, wp = "pipe", x = -4, z = 2 },
+            { w = 5, o = 2, k = "W-ranged-big", ow = 5, wp = "bow", x = -4, z = 2 }, { w = 5, o = 9, k = "split-magic", ow = 5, wp = "ayak", x = 2, z = -4 }, { w = 5, o = 15, k = "split-ranged", ow = 5, wp = "pipe", x = 0, z = -1 }, { w = 7, o = 0, k = "S-ranged", ow = 6, wp = "chin", x = 1, z = -4 },
+            { w = 7, o = 3, k = "S-ranged-big", ow = 7, wp = "bow", x = 1, z = -4 }, { w = 8, o = 1, k = "W-magic-big", ow = 8, wp = "ayak", x = -3, z = 2 }, { w = 9, o = 1, k = "W-ranged-big", ow = 9, wp = "chin", x = -3, z = 2 }, { w = 9, o = 4, k = "split-ranged", ow = 8, wp = "pipe", x = -3, z = 0 },
+            { w = 9, o = 9, k = "E-ranged", ow = 8, wp = "pipe", x = 3, z = 0 }, { w = 9, o = 11, k = "split-magic", ow = 9, wp = "ayak", x = 3, z = 0 }, { w = 10, o = 5, k = "W-ranged", ow = 10, wp = "chin", x = -4, z = 1 }, { w = 10, o = 8, k = "S-ranged", ow = 10, wp = "chin", x = -2, z = 1 },
+            { w = 10, o = 11, k = "W-ranged", ow = 10, wp = "pipe", x = 1, z = 0 }, { w = 11, o = 1, k = "S-ranged", ow = 10, wp = "pipe", x = 1, z = 0 }, { w = 11, o = 4, k = "W-magic-big", ow = 11, wp = "ayak", x = -1, z = 1 }, { w = 12, o = 2, k = "split-magic", ow = 10, wp = "ayak", x = -1, z = 1 },
+            { w = 13, o = 2, k = "split-melee", ow = 13, wp = "scythe", x = -3, z = 1 }, { w = 14, o = 0, k = "split-ranged", ow = 13, wp = "pipe", x = -1, z = -1 }, { w = 14, o = 4, k = "W-ranged", ow = 13, wp = "pipe", x = 0, z = 1 }, { w = 14, o = 6, k = "S-ranged", ow = 13, wp = "pipe", x = 0, z = 1 },
+            { w = 15, o = 0, k = "S-ranged", ow = 14, wp = "pipe", x = 0, z = -1 }, { w = 15, o = 2, k = "W-ranged", ow = 13, wp = "pipe", x = 0, z = 1 }, { w = 15, o = 5, k = "E-ranged", ow = 15, wp = "pipe", x = 6, z = 1 }, { w = 16, o = 1, k = "E-ranged-big", ow = 14, wp = "pipe", x = 4, z = 1 },
+            { w = 16, o = 3, k = "W-ranged", ow = 15, wp = "pipe", x = 2, z = 1 }, { w = 17, o = 1, k = "split-ranged", ow = 16, wp = "pipe", x = 2, z = 1 }, { w = 17, o = 3, k = "split-ranged", ow = 16, wp = "pipe", x = 2, z = -1 }, { w = 17, o = 5, k = "W-ranged", ow = 16, wp = "pipe", x = 0, z = 1 },
+            { w = 17, o = 7, k = "S-melee", ow = 16, wp = "pipe", x = 0, z = 1 }, { w = 19, o = 3, k = "W-magic-big", ow = 19, wp = "ayak", x = -3, z = 1 }, { w = 19, o = 6, k = "W-ranged-big", ow = 18, wp = "pipe", x = 0, z = 1 }, { w = 19, o = 8, k = "S-ranged-big", ow = 18, wp = "pipe", x = 0, z = 1 },
+            { w = 19, o = 12, k = "E-ranged-big", ow = 18, wp = "pipe", x = 0, z = 1 }, { w = 20, o = 0, k = "W-magic-big", ow = 19, wp = "ayak", x = 0, z = 1 }, { w = 20, o = 3, k = "split-magic", ow = 19, wp = "ayak", x = 0, z = 1 }, { w = 20, o = 6, k = "W-melee-big", ow = 20, wp = "bow", x = -1, z = 1 },
+            { w = 20, o = 11, k = "split-ranged", ow = 20, wp = "pipe", x = 0, z = 1 }, { w = 20, o = 13, k = "split-ranged", ow = 20, wp = "pipe", x = 0, z = 1 }, { w = 20, o = 15, k = "split-ranged", ow = 20, wp = "pipe", x = 0, z = 1 }, { w = 21, o = 2, k = "E-ranged", ow = 21, wp = "chin", x = 6, z = 1 },
+            { w = 21, o = 6, k = "split-ranged", ow = 21, wp = "pipe", x = 1, z = 0 }, { w = 22, o = 0, k = "split-ranged", ow = 20, wp = "pipe", x = 1, z = 0 }, { w = 22, o = 2, k = "split-ranged", ow = 20, wp = "pipe", x = 1, z = 0 }, { w = 22, o = 4, k = "split-ranged", ow = 20, wp = "pipe", x = 1, z = 0 },
+            { w = 22, o = 6, k = "W-melee-big", ow = 22, wp = "bow", x = 1, z = 0 }, { w = 23, o = 1, k = "S-ranged-big", ow = 23, wp = "bow", x = 1, z = -4 }, { w = 23, o = 6, k = "W-magic", ow = 23, wp = "pipe", x = -4, z = 2 }, { w = 24, o = 0, k = "W-ranged", ow = 23, wp = "pipe", x = -4, z = 2 },
+            { w = 24, o = 2, k = "W-ranged-big", ow = 24, wp = "bow", x = -4, z = 2 }, { w = 24, o = 7, k = "split-ranged", ow = 24, wp = "pipe", x = 2, z = -2 }, { w = 25, o = 1, k = "split-ranged", ow = 24, wp = "pipe", x = 2, z = -2 }, { w = 25, o = 3, k = "S-ranged-big", ow = 25, wp = "bow", x = 2, z = -2 },
+            { w = 26, o = 0, k = "split-ranged", ow = 23, wp = "pipe", x = 2, z = -2 }, { w = 26, o = 2, k = "W-magic", ow = 23, wp = "pipe", x = 0, z = 2 }, { w = 27, o = 0, k = "split-ranged", ow = 21, wp = "pipe", x = 2, z = 2 }, { w = 27, o = 4, k = "split-ranged", ow = 27, wp = "pipe", x = 2, z = 2 },
+            { w = 27, o = 6, k = "split-ranged", ow = 27, wp = "pipe", x = 0, z = 0 }, { w = 28, o = 0, k = "S-melee-big", ow = 27, wp = "pipe", x = 0, z = 0 }, { w = 29, o = 0, k = "split-ranged", ow = 27, wp = "pipe", x = 0, z = 0 }, { w = 29, o = 2, k = "S-melee", ow = 28, wp = "pipe", x = 2, z = -4 },
+            { w = 29, o = 4, k = "S-magic", ow = 28, wp = "pipe", x = 2, z = -2 }, { w = 29, o = 6, k = "W-melee", ow = 29, wp = "pipe", x = -2, z = 0 }, { w = 30, o = 0, k = "W-ranged", ow = 29, wp = "pipe", x = -2, z = 0 }, { w = 30, o = 6, k = "S-melee", ow = 30, wp = "chin", x = -1, z = 1 },
+            { w = 31, o = 1, k = "W-ranged-big", ow = 30, wp = "pipe", x = -1, z = 1 }, { w = 31, o = 3, k = "split-ranged", ow = 29, wp = "pipe", x = -1, z = 1 }, { w = 32, o = 2, k = "W-melee", ow = 31, wp = "pipe", x = -3, z = 1 }, { w = 32, o = 4, k = "W-ranged", ow = 31, wp = "pipe", x = -1, z = 1 },
+            { w = 32, o = 6, k = "S-melee", ow = 31, wp = "chin", x = -1, z = 1 }, { w = 32, o = 9, k = "split-ranged", ow = 32, wp = "pipe", x = 3, z = -2 }, { w = 32, o = 11, k = "W-ranged", ow = 31, wp = "pipe", x = 1, z = -2 }, { w = 32, o = 13, k = "S-melee", ow = 31, wp = "pipe", x = 1, z = -2 },
+            { w = 32, o = 15, k = "E-ranged", ow = 31, wp = "pipe", x = 1, z = -2 }, { w = 32, o = 17, k = "split-ranged", ow = 29, wp = "chin", x = 1, z = -2 }, { w = 32, o = 21, k = "split-ranged", ow = 29, wp = "pipe", x = 1, z = 2 }, { w = 32, o = 23, k = "split-ranged", ow = 32, wp = "pipe", x = 1, z = 0 },
+            { w = 32, o = 25, k = "split-ranged", ow = 32, wp = "pipe", x = 3, z = 0 },
+        },
+    },
+    -- END GENERATED P.room_copy
     -- raid seam32: THE TRIO'S ROLES.  "Each player should be assigned a
     -- style of Nylocas to kill prior to starting the room ... Trio: x1 mager,
     -- x1 melee, x1 ranger" (W :706-711); the trio guide's three sections are
@@ -725,6 +790,106 @@ local function nym_own_in_reach(c)
 end
 local function nym_tile(c, t) return c.O.x + c.P.stand_anchor[1] + t[1], c.O.z + c.P.stand_anchor[2] + t[2] end
 NY_IN_REACH, NY_OWN_IN_REACH = nym_in_reach, nym_own_in_reach
+-- ONE REFERENCE ROOM, COPIED (coordinator 2026-10-07; P.room_copy from
+-- ny_room.py: the room d05eb065, last wave 256, boss start 308, death-free).
+-- Each seat walks its role's list of that room's attacks in order: an entry
+-- is due once its segment has started and its offset from that start has
+-- passed; a due entry whose copy (key + its own wave) is gone from our floor
+-- is passed; the first due entry whose copy is here is pressed with that
+-- entry's weapon; when the next entry falls due the seat moves on (that room's
+-- seat did).  Nothing due and present: copies that room never had (our
+-- leftovers it had killed) go to the scored choice; else the seat stands
+-- where that room's seat stood for its next entry.
+local RC_KEYS = {
+    mage = { ayak = "magic", barrage = "magic", pipe = "ranged", bow = "ranged_boss", chin = "ranged", scythe = "melee", melee = "melee" },
+    ranger = { ayak = "magic", barrage = "magic", pipe = "ranged", bow = "ranged_boss", chin = "ranged_chin", scythe = "melee", melee = "melee" },
+    melee = { ayak = "magic", barrage = "magic", pipe = "ranged", bow = "ranged_boss", chin = "ranged", scythe = "melee_big", melee = "melee" },
+}
+local function rc_segment(c)
+    local ny = c.ny
+    if ny.waves >= 31 and c.v.tick - (ny.last_wave_tick or c.v.tick) >= 4 then return 32, (ny.last_wave_tick or c.v.tick) + 4 end
+    local w = math.max(1, math.min(ny.waves, 31))
+    return w, (ny.wave_at and ny.wave_at[w]) or ny.last_wave_tick or c.v.tick
+end
+local function rc_find(c, e)
+    local ow = e.ow >= 32 and 31 or e.ow
+    for _, n in ipairs(c.v.nylos) do
+        local s = c.ny.seen[n.slot]
+        if s ~= nil then
+            local k = s.key or ("split-" .. s.style)
+            if k == e.k and (s.wave or 0) == ow then return n end
+        end
+    end
+    return nil
+end
+local function rc_due(c, e, cw, cstart)
+    if e.w < cw then return true end
+    return e.w == cw and c.v.tick - cstart >= e.o
+end
+function QD.raid._nym_room_copy(c)
+    local ny, P, R = c.ny, c.P, c.R
+    local list = P.room_copy[R.name]
+    if list == nil then return nil end
+    ny.rc = ny.rc or 1
+    local cw, cstart = rc_segment(c)
+    -- move on: the next entry is due (that room's seat had moved on)
+    while ny.rc < #list and rc_due(c, list[ny.rc + 1], cw, cstart) do ny.rc = ny.rc + 1 end
+    -- the current entry, else the due ones before it whose copy is still here
+    local i = ny.rc
+    local e = list[i]
+    if e ~= nil and rc_due(c, e, cw, cstart) then
+        local n = rc_find(c, e)
+        if n ~= nil and QD.raid._nym_pressable(c, n) then
+            local pick = QD.raid._nym_pick(c, n)
+            pick.key = RC_KEYS[R.name][e.wp] or pick.key
+            if ny.loadout[pick.key] == nil then pick.key = QD.raid._play_nylocas_key(ny, n.style, n.big, false) end
+            pick.chin, pick.stack, pick.spell = nil, nil, nil
+            if e.wp == "chin" and pick.key == "ranged_chin" then
+                local clump = {}
+                for _, o in ipairs(c.v.nylos) do
+                    if o.slot ~= n.slot and o.x <= n.x + 1 and o.x + o.size - 1 >= n.x - 1 and o.z <= n.z + 1 and o.z + o.size - 1 >= n.z - 1 then clump[#clump + 1] = o end
+                end
+                pick.chin, pick.clump = true, clump
+            elseif e.wp == "barrage" and R.name == "mage" then
+                if ny.barrage_have == nil then
+                    local br, bc = QD.inv.count("bloodrune")
+                    ny.barrage_have = (br == "ok" and type(bc) == "number" and bc >= 2)
+                end
+                if ny.barrage_have then
+                    local clump = { n }
+                    for _, o in ipairs(c.v.nylos) do
+                        if o.slot ~= n.slot and o.style == "magic" and o.x <= n.x + 1 and o.x + o.size - 1 >= n.x - 1 and o.z <= n.z + 1 and o.z + o.size - 1 >= n.z - 1 then clump[#clump + 1] = o end
+                    end
+                    pick.spell, pick.clump = "ice_barrage", clump
+                end
+            end
+            ny.rc_presses = (ny.rc_presses or 0) + 1
+            return pick
+        end
+    end
+    -- nothing of that room's to press: our leftovers it never had
+    local named = {}
+    for _, role in pairs(P.room_copy) do
+        for j = 1, #role do local x = role[j] if x.w >= cw - 1 then named[x.k .. "/" .. (x.ow >= 32 and 31 or x.ow)] = true end end
+    end
+    local extra = false
+    for _, n in ipairs(c.v.nylos) do
+        local s = ny.seen[n.slot]
+        local k = s and ((s.key or ("split-" .. s.style)) .. "/" .. (s.wave or 0)) or nil
+        if k ~= nil and not named[k] and QD.raid._nym_pressable(c, n) then extra = true end
+    end
+    if extra then
+        local pick = QD.raid._play_nylocas_scored_pick(c)
+        if pick ~= nil then ny.rc_scored = (ny.rc_scored or 0) + 1 return pick end
+    end
+    -- stand where that room's seat stood for its next entry
+    local nx = list[math.min(#list, (e ~= nil and rc_due(c, e, cw, cstart)) and i + 1 or i)]
+    if nx ~= nil then
+        local x, z = c.O.x + P.stand_anchor[1] + nx.x, c.O.z + P.stand_anchor[2] + nx.z
+        if math.max(math.abs(c.me.x - x), math.abs(c.me.z - z)) > 1 and c.floor_ok(x, z) then c.walk = { x = x, z = z } end
+    end
+    return nil
+end
 -- AT_STAND
 local function at_stand_tick(c)
     -- before wave 1 only: to the first wave's tile
@@ -881,6 +1046,11 @@ function QD.raid._play_nylocas_machine(c)
         end
     end
     ny.last_hp = v.hp
+    if P.room_copy ~= nil and m.state ~= "BOSS" and ny.waves >= 1 then
+        local rp = QD.raid._nym_room_copy(c)
+        QD.raid._nym_note(c)
+        return rp, c.walk
+    end
     local pick = NY_STATES[m.state].tick(c)
     -- A SEAT NEVER IDLES: a state whose own action has no copy this tick does
     -- the KILL action for the tick and stays where it is -- the wave's listed
@@ -1732,6 +1902,8 @@ function QD.raid._play_nylocas_see(st, v)
                     ny.wave_ticks[v.tick] = true
                     ny.waves = ny.waves + 1
                     ny.last_wave_tick = v.tick
+                    ny.wave_at = ny.wave_at or {}
+                    ny.wave_at[ny.waves] = v.tick
                 end
                 -- owner_nylocas: the spawn's key in the script (P.waves targets):
                 -- its tunnel, its colour as it came out, its size; a split has none
