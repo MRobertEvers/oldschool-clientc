@@ -99,7 +99,8 @@ return {
         "::wield masori_chaps",
         "::give avas_assembler",
         "::wield avas_assembler",
-        "::give shark 24",
+        -- Backpack is 28: keep headroom after food + restores + antipoisons.
+        "::give shark 18",
         "::give br_4dose2restore 4",
         "::give br_4dosepotionofsaradomin 2",
         "::give 4doseantipoison 2",
