@@ -719,15 +719,31 @@ return {
                     set_state(STATE.DONE)
                     return
                 end
-                local hrow = npc_ok(t, HEAD)
-                if hrow ~= nil then
-                    t.player.attack(HEAD, 2, 6, { quick = true, slot = hrow.slot })
-                end
-                if hand_alive(LEFT) or hand_alive(RIGHT) then
+                -- Do not bounce back to WAIT_PHASE on stale claw reads: head
+                -- phase (phase<=0) never re-raises hands.
+                local ph = var(t, PHASE)
+                if (ph == nil or ph > 0) and (hand_alive(LEFT) or hand_alive(RIGHT)) then
                     set_state(STATE.WAIT_PHASE)
                     return
                 end
                 sustain(t, sm)
+                local hrow = npc_ok(t, HEAD)
+                -- Prior run equipped TBow but logged zero apnpc2 inputs on the
+                -- head (size=5). Walk onto the aisle and re-click every tick.
+                refresh_geometry()
+                local hx = sm.ox + 32
+                local hz = sm.oz + 28
+                if hrow ~= nil then
+                    hx, hz = hrow.x, hrow.z - 5
+                end
+                t.player.walk_to(hx, hz, 1)
+                local opts = { quick = true }
+                if hrow ~= nil then opts.slot = hrow.slot end
+                local ar, ad = t.player.attack(HEAD, 2, 1, opts)
+                if ar == "refused" and type(ad) == "string" and string.find(ad, "DIED", 1, true) then
+                    set_state(STATE.DONE)
+                    return
+                end
                 t.ticks(1)
                 return
             end
