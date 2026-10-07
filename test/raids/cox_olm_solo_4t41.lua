@@ -157,20 +157,22 @@ return {
         -- Mage hand wants magic (66% mitigation on non-magic). Synq sang/shadow.
         -- Keep the kit ≤28 inv slots (worn melee already fills equipment).
         -- Wear mage switch in setup so inv holds food, not robes.
-        "::give sanguinesti_staff_uncharged",
-        "::give bloodrune 4000",
+        "::give tumekens_shadow",
         "::give ancestral_hat",
         "::give ancestral_robe_top",
         "::give ancestral_robe_bottom",
         "::give occult_necklace",
+        "::give tormented_bracelet",
         "::wield ancestral_hat",
         "::wield ancestral_robe_top",
         "::wield ancestral_robe_bottom",
         "::wield occult_necklace",
+        "::wield tormented_bracelet",
+        "::wield tumekens_shadow",
         -- Head phase: twisted bow (ranged weakness on head).
         "::give twisted_bow",
         "::give dragon_arrow 2000",
-        -- 12 shark + 4 restore + 4 sara + sang + blood + tbow + arrows + combat = 25.
+        -- Melee 4:1 after mage hand (whip already given above).
         "::give shark 12",
         "::give br_4dose2restore 4",
         "::give br_4dosepotionofsaradomin 4",
@@ -248,20 +250,43 @@ return {
 
         local function equip_melee()
             t.player.equip("abyssal_whip")
-        end
-
-        local function charge_sang()
-            -- opheld3 on uncharged staff consumes blood runes → sanguinesti_staff.
-            t.player.inv_op("sanguinesti_staff_uncharged", 3)
+            t.player.equip("ferocious_gloves")
+            t.player.equip("infernal_cape")
+            t.player.equip("ultor_ring")
         end
 
         local function equip_magic()
-            charge_sang()
-            t.player.equip("sanguinesti_staff")
+            t.player.equip("tumekens_shadow")
             t.player.equip("ancestral_hat")
             t.player.equip("ancestral_robe_top")
             t.player.equip("ancestral_robe_bottom")
             t.player.equip("occult_necklace")
+            t.player.equip("tormented_bracelet")
+        end
+
+        -- Sphere mes → overhead before impact (^cox_olm_sphere_delay = 4).
+        local function sphere_flick()
+            local mr, rows = t.msg.last(8)
+            if mr ~= "ok" or type(rows) ~= "table" then return end
+            for i = 1, #rows do
+                local text = tostring(rows[i].text or "")
+                local pray = nil
+                if string.find(text, "sphere of aggression", 1, true) then
+                    pray = "protectfrommelee"
+                elseif string.find(text, "sphere of accuracy", 1, true) then
+                    pray = "protectfrommissiles"
+                elseif string.find(text, "sphere of magical", 1, true) then
+                    pray = "protectfrommagic"
+                end
+                if pray ~= nil and sm._sphere_pray ~= pray then
+                    t.prayer.set(pray, true)
+                    sm._sphere_pray = pray
+                    sm._sphere_ticks = 5
+                    sm.last_pray = pray
+                    sm.pray_flicks = sm.pray_flicks + 1
+                    return
+                end
+            end
         end
 
         local function equip_ranged()
@@ -323,7 +348,18 @@ return {
 
         local function decide()
             on_event()
-            prayer_flick()
+            sphere_flick()
+            -- After a sphere lands, restore style prayer.
+            if sm._sphere_pray ~= nil then
+                sm._sphere_ticks = (sm._sphere_ticks or 5) - 1
+                if sm._sphere_ticks <= 0 then
+                    sm._sphere_pray = nil
+                    sm.last_pray = nil -- force prayer_flick to re-apply style
+                end
+            end
+            if sm._sphere_pray == nil then
+                prayer_flick()
+            end
             -- Always sustain under fire; KILL_MAGE also calls sustain at the
             -- top of its branch before any walk/attack wait.
             sustain(t, sm)
