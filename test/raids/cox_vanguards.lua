@@ -143,11 +143,19 @@ local function attack_focus(t, sym)
     return t.player.attack(sym, 2, 1, ATTACK_OPTS)
 end
 
--- Stand on the FAR side of `focus` relative to the other two, so their
--- attackrange-10 no longer reaches (spawns are ~8 apart; standing on the
--- near side still eats all three). Synq perimeter rule.
+-- Stance (Synq + pads fixed by givechase=no):
+--   ranged focus → stand UNDER it (does not walk; whip range)
+--   melee/magic focus → stand a few tiles past it on the far side so the
+--   other two's attackrange-10 miss, while tbow/kodai still reach.
+-- Do NOT re-walk every tick (run7: continuous walk cancelled all attacks
+-- and kited forms off-pad before givechase=no).
+local ISOLATE_PAST = 5
+
 local function isolate_tile(pack, focus)
     if focus == nil then return nil end
+    if focus.symbol == RANGED then
+        return focus.x, focus.z
+    end
     local ox, oz, n = 0, 0, 0
     for i = 1, #COMBAT do
         local row = row_by_sym(pack, COMBAT[i])
@@ -163,7 +171,7 @@ local function isolate_tile(pack, focus)
     local dx = focus.x - ox
     local dz = focus.z - oz
     if dx == 0 and dz == 0 then
-        return focus.x + 7, focus.z
+        return focus.x + ISOLATE_PAST, focus.z
     end
     local adx = math.abs(dx)
     local adz = math.abs(dz)
@@ -173,20 +181,23 @@ local function isolate_tile(pack, focus)
     else
         if dz > 0 then sz = 1 else sz = -1 end
     end
-    -- 7 tiles past the focus: still inside tbow/kodai range of the focus,
-    -- hopefully outside the other two's range-10.
-    return focus.x + sx * 7, focus.z + sz * 7
+    return focus.x + sx * ISOLATE_PAST, focus.z + sz * ISOLATE_PAST
 end
 
+-- Returns true when a walk was issued (caller should not attack this tick).
 local function go_isolate(t, pack, focus)
     local x, z = isolate_tile(pack, focus)
-    if x == nil then return end
+    if x == nil then return false end
     local _, me = t.world.tile()
     local dx = math.abs(me.x - x)
     local dz = math.abs(me.z - z)
-    if dx > 1 or dz > 1 then
+    local need = 1
+    if focus.symbol == RANGED then need = 0 end
+    if dx > need or dz > need then
         t.player.walk_to(x, z, 3)
+        return true
     end
+    return false
 end
 
 local function equip_for(t, target_sym)
@@ -315,6 +326,8 @@ return {
             slots = {},
             max_hit = 0,
             attacks_per_action = nil,
+            combat_started = false,
+            empty_pack_streak = 0,
         }
 
         local function set_state(next_state)
@@ -358,24 +371,37 @@ return {
                         if dmg > sm.max_hit then sm.max_hit = dmg end
                     end
                 end
-                local pr, prows = t.ticklog.rows({ kind = "projectile", slot = slot })
-                if pr == "ok" then
-                    local by_tick = {}
-                    for p = 1, #prows do
-                        local tick = prows[p].tick
-                        by_tick[tick] = (by_tick[tick] or 0) + 1
-                    end
-                    for _, n in pairs(by_tick) do
-                        if n >= 3 then sm.attacks_per_action = 3 end
-                        if n > (sm.attacks_per_action or 0) then
-                            sm.attacks_per_action = n
+                -- Force-heal writes npc_heal on the combat-form slot. Ignore
+                -- the raid-wide npc_heal flood at login (other room npcs).
+                if sm.combat_started then
+                    local heal_r, heal_rows = t.ticklog.rows({
+                        kind = "npc_heal", slot = slot,
+                    })
+                    if heal_r == "ok" and #heal_rows > 0 then
+                        sm.heal_seen = true
+                        if sm.heal_spread_pct == nil then
+                            sm.heal_spread_pct = 40
                         end
                     end
                 end
-                local heal_r, heal_rows = t.ticklog.rows({ kind = "npc_heal", slot = slot })
-                if heal_r == "ok" and #heal_rows > 0 then
-                    sm.heal_seen = true
-                    if sm.heal_spread_pct == nil then sm.heal_spread_pct = 40 end
+            end
+            -- AoE×3 projectiles do not carry the npc slot in ticklog column a
+            -- (run7: packed coords). Filter by spotanim 1331/1332 instead.
+            local pr, prows = t.ticklog.rows({ kind = "projectile" })
+            if pr == "ok" then
+                local by_tick = {}
+                for p = 1, #prows do
+                    local sid = tonumber(prows[p].spotanim)
+                    if sid == 1331 or sid == 1332 then
+                        local tick = prows[p].tick
+                        by_tick[tick] = (by_tick[tick] or 0) + 1
+                    end
+                end
+                for _, n in pairs(by_tick) do
+                    if n >= 3 then sm.attacks_per_action = 3 end
+                    if n > (sm.attacks_per_action or 0) then
+                        sm.attacks_per_action = n
+                    end
                 end
             end
         end
@@ -410,10 +436,19 @@ return {
             sample_combat(t)
             sample_shuffle(t, pack)
 
-            if pack ~= nil and not any_family(pack) and sm.state ~= STATE.LAND
-                and sm.state ~= STATE.WAKE then
-                set_state(STATE.DONE)
-                return
+            -- Empty pack is often a transient miss while walking; require a
+            -- sustained miss before DONE (run7: one empty pack → DONE while
+            -- forms still alive → cleared=false).
+            if sm.state ~= STATE.LAND and sm.state ~= STATE.WAKE then
+                if pack ~= nil and not any_family(pack) then
+                    sm.empty_pack_streak = sm.empty_pack_streak + 1
+                    if sm.empty_pack_streak >= 8 then
+                        set_state(STATE.DONE)
+                        return
+                    end
+                else
+                    sm.empty_pack_streak = 0
+                end
             end
 
             if sm.state == STATE.LAND then
@@ -426,9 +461,18 @@ return {
                 local alive = combat_alive(pack)
                 if #alive >= 1 then
                     t.shot("vanguards shells open after wake")
-                    -- Probe heal in BALANCE by dumping the current highest
-                    -- until npc_heal, then resume highest-HP targeting.
+                    -- Combat-form defence (dormant is def 1).
+                    local crec_r, crec_d, crec = t.npc.record(MELEE, { need = "server" })
+                    if crec_r ~= "ok" then
+                        crec_r, crec_d, crec = t.npc.record(RANGED, { need = "server" })
+                    end
+                    if crec_r == "ok" and crec and crec.server then
+                        authored_def = crec.server.defence or authored_def
+                        authored_hp = crec.server.hitpoints or authored_hp
+                        authored_rate = crec.server.attackrate or authored_rate
+                    end
                     sm.probe_hits = 0
+                    sm.combat_started = true
                     set_state(STATE.PROBE_HEAL)
                     return
                 end
@@ -453,17 +497,14 @@ return {
                 local hi, lo, spread = hp_spread(pack)
                 if hi ~= nil and authored_hp > 0 then
                     sm.last_spread_pct = math.floor((spread * 100) / authored_hp)
-                    if sm.last_spread_pct >= 40 then sm.heal_spread_pct = 40 end
-                    if lo == authored_hp and hi == authored_hp and sm.probe_hits > 3 then
-                        sm.heal_seen = true
+                    if sm.last_spread_pct >= 40 then
                         sm.heal_spread_pct = 40
-                        set_state(STATE.BALANCE)
-                        return
                     end
                 end
                 local mage = row_by_sym(pack, MAGIC) or highest_combat(pack)
                 if mage == nil then
-                    set_state(STATE.BALANCE)
+                    -- No combat forms visible; wait (do not fake heal_seen).
+                    t.ticks(1)
                     return
                 end
                 if sm.focus ~= mage.symbol then
@@ -472,9 +513,14 @@ return {
                 else
                     t.prayer.set(PROTECT[mage.symbol], true)
                 end
+                if go_isolate(t, pack, mage) then
+                    return
+                end
                 attack_focus(t, mage.symbol)
                 sm.probe_hits = sm.probe_hits + 1
-                if sm.probe_hits >= 20 then
+                -- Cap probe; only claim heal if spread actually crossed 40%
+                -- or ticklog recorded npc_heal on a combat slot.
+                if sm.probe_hits >= 40 then
                     if sm.last_spread_pct ~= nil and sm.last_spread_pct >= 40 then
                         sm.heal_spread_pct = 40
                         sm.heal_seen = true
@@ -487,6 +533,12 @@ return {
             if sm.state == STATE.SHELL then
                 if walking_alive(pack) == 0 and #combat_alive(pack) > 0 then
                     set_state(STATE.BALANCE)
+                    return
+                end
+                -- All gone during shell → clear.
+                if walking_alive(pack) == 0 and #combat_alive(pack) == 0
+                    and pack ~= nil and not any_family(pack) then
+                    set_state(STATE.DONE)
                     return
                 end
                 sustain(t)
@@ -505,20 +557,23 @@ return {
                 end
                 local target = highest_combat(pack)
                 if target == nil then
-                    set_state(STATE.DONE)
+                    if pack ~= nil and not any_family(pack) then
+                        set_state(STATE.DONE)
+                    else
+                        -- Combat empty but dormant/walking still around, or
+                        -- pack miss — wait out the streak logic.
+                        t.ticks(1)
+                    end
                     return
-                end
-                -- Prefer standing under the ranged form (Synq: it will not
-                -- walk when stood under). Re-equip only on focus change.
-                local ranged = row_by_sym(pack, RANGED)
-                if ranged ~= nil then
-                    t.player.walk_to(ranged.x, ranged.z, 1)
                 end
                 if sm.focus ~= target.symbol then
                     sm.style = equip_for(t, target.symbol)
                     sm.focus = target.symbol
                 else
                     t.prayer.set(PROTECT[target.symbol], true)
+                end
+                if go_isolate(t, pack, target) then
+                    return
                 end
                 attack_focus(t, target.symbol)
                 return
