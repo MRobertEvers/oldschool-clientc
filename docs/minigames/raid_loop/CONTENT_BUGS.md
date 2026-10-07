@@ -2229,3 +2229,13 @@ reference ToB raider bows and pipes in elite ranged void (Blert equipmentDeltas,
   (`^tob_sote_maze_lz = 22`; Near Reality mazeBottomRight 4310) and the thrown raiders' tile (3274,4307). The fix is
   `^tob_sote_boss_lz = 38`. It moves his melee tiles, the gap to the maze's top row (3 rows to 1), and every plan tile
   measured from him, so it waits for the coordinator's call. The realm return above is relative to him, so it follows.
+  **FIXED 2026-10-07 content_bugs (OSRS-Content f049148cf9, on the coordinator's word under the owner's rule):**
+  `^tob_sote_boss_lz = 38`, citing Blert (6,158 of 6,158 rows at (3277,4326)) and Near Reality Sotetseg.kt:47. Checked
+  for tiles that assumed z 40: none. tob_sotetseg.rs2 reads every Sotetseg tile (melee range, ball source, facing) off
+  `npc_coord`. The maze, fight, gate, entry and exit constants are room tiles, not his. The realm return is relative to
+  this anchor (now local (11,39), Blert's own (3275,4327)). raid_play_tob_sotetseg.lua measures from his live tile
+  (`b.z`), with no hard-coded 40. Measured: npc_spawn on local (13,38). `_play_sotetseg --party 3 --names 5` (private
+  binary = HEAD src 427b1f4ac, pack 06:30): 4 of 5. Rooms 220 / 255 / 260 / 238 / 233 ticks (before: 249 / 236 / 270 /
+  231 / 227). Red: svaplaysotet `blert.hp_lost`, p0 lost 307 against the bound 250; the first mistakes are p0 at t64 and
+  t65, his melee 39 and 34 with no protection prayer lit. That is a plan question (the stand and prayer timing beside his
+  new south face) for the four-rooms agent.
