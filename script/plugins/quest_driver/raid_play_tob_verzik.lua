@@ -1672,7 +1672,8 @@ function QD.raid._play_verzik_decide(st, v)
         -- its tornado walked the last three tiles)
         local tor_near = false
         for _, e in pairs(vz.tor or {}) do
-            if math.max(math.abs(e.x - v.me.x), math.abs(e.z - v.me.z)) <= 7 then tor_near = true end
+            -- (three: it touches on my own tile only, fdf77aae1c)
+            if math.max(math.abs(e.x - v.me.x), math.abs(e.z - v.me.z)) <= 3 then tor_near = true end
         end
         if melee and vz.p3_main ~= nil and vz.held ~= vz.p3_main and vz.held ~= "dawnbringer" and vz.held ~= "claws" and not tor_near then swap_to(vz.p3_main) end
         -- her style shows on the attack tick and the protection is read when
@@ -2006,6 +2007,8 @@ function QD.raid._play_verzik_decide(st, v)
             -- invulnerable charge restores to above her melee: W:977 "use
             -- this time to restore health and stats as needed")
             if st.mode == "normal" and cyc.state == "yellows" then t = math.max(t, N.melee) end
+            -- (enraged, the ball at me is tanked: above it and an auto)
+            if st.mode == "normal" and cyc.tank_ball ~= nil and ball and v.tick - cyc.tank_ball <= 1 then t = math.max(t, N.ball + N.auto) end
             -- raid seam34v: a nylocas's blast is outside the enrage band
             -- (s34v _play_verzik t652: a magic nylocas took a leader's last 47
             -- of a 55 with the band capping the bite at 45): 63 within 3 of
@@ -2134,6 +2137,16 @@ function QD.raid._play_verzik_decide(st, v)
                 vz.share_hold = { x = tx, z = tz }
                 tx = nil
             end
+            -- owner_verzik: ENRAGED, the target TANKS it -- "The green ball
+            -- attack should be tanked, or bounced if the targeted player doesn't
+            -- have enough health to tank it" (W:990) -- the trio spread round
+            -- her for its tornadoes cannot gather in the flight (_play_verzik_p3
+            -- P3+185-188: the target walked into its own tornado for the corner,
+            -- the others 6-11 away); it eats above it in the flight (threat)
+            if tx ~= nil and vz.enraged then
+                if tx == me.x and tz == me.z then cyc.tank_ball = v.tick end
+                tx = nil
+            end
             if tx ~= nil then
                 local me_target = (tx == me.x and tz == me.z)
                 if me_target then cyc.target_me = v.tick end
@@ -2194,7 +2207,7 @@ function QD.raid._play_verzik_decide(st, v)
                 st.engaged = false
                 vz.target_slot = nil
             end
-        elseif melee and tor ~= nil and td <= 6 then
+        elseif melee and tor ~= nil and td <= 4 then
             -- owner_verzik 2026-10-07: her tornadoes now WALK (one tile a
             -- tick, through her: tob.npc [tob_verzik_creeper] blockwalk=none,
             -- no spawn seq holding the client's row), so the dodge reads the
@@ -2250,7 +2263,9 @@ function QD.raid._play_verzik_decide(st, v)
             -- (my swing due within two ticks: a tile in my reach weighs as much
             -- as five tiles of room from it -- the offline chase's pull)
             local ready0 = QD.raid._play_next_swing(st, v) <= v.tick + 2
-            for _, need in ipairs({ 3, 2, 0 }) do
+            -- (it touches on my OWN tile only, OSRS-Content fdf77aae1c after
+            -- Blert's 16 of 16: two from its next step is one tick of slack)
+            for _, need in ipairs({ 2, 1, 0 }) do
                 if best == nil then
                     for dx = -2, 2 do
                         for dz = -2, 2 do
@@ -2316,7 +2331,7 @@ function QD.raid._play_verzik_decide(st, v)
             local ready = QD.raid._play_next_swing(st, v) <= v.tick + 1
             -- (three clear, not two: a swing's press or a block can hold the
             -- decide a tick, wipslowp3 t251-253, and it walks one meanwhile)
-            if ready and d_boss >= 1 and d_boss <= reach and clear_of(me.x, me.z) >= 3 and not m3_hold then
+            if ready and d_boss >= 1 and d_boss <= reach and clear_of(me.x, me.z) >= 2 and not m3_hold then
                 bx = nil
                 vz.m3.tor_swings = (vz.m3.tor_swings or 0) + 1
             elseif not ready and bx == nil and d_boss <= reach then
@@ -2572,6 +2587,9 @@ function QD.raid._play_verzik_decide(st, v)
                 -- slow team spent claws, burning claws and crystal halberd specials
                 -- in P3; with walking tornadoes an undumped enrage healed her
                 -- 987-2,700 and never ended)
+                -- (enraged only: Blert's trios spent 38 of their 96 P3 specials
+                -- before her enrage, but the dump before it cost this plan
+                -- raiders -- s_fastp3c 2026-10-07, three deaths in five names)
                 if melee and vz.enraged and not tor_near then QD.raid._verzik_spec_dump(st, v, intent) end
             end
         end
@@ -2627,7 +2645,10 @@ function QD.raid._play_verzik_decide(st, v)
         for _, e in pairs(vz.tor) do
             if math.max(math.abs(e.x - v.me.x), math.abs(e.z - v.me.z)) <= 4 then close = true end
         end
-        if close and v.hp > 40 then
+        local tanking = vz.cyc ~= nil and vz.cyc.tank_ball ~= nil and v.tick - vz.cyc.tank_ball <= 1
+        -- (above her melee only: _play_verzik_slow_p3 P3+514, the tank held off
+        -- eating at 61 with a tornado close and her melee took the 61)
+        if close and v.hp > N.melee + 7 and not tanking then
             intent.eat, intent.drink, intent.gear = nil, nil, nil
             vz.tor_held_supplies = (vz.tor_held_supplies or 0) + 1
             -- (and none of the library's own sips: its brew recovery fills a
@@ -2707,6 +2728,9 @@ function QD.raid._verzik_cycle_read(t, p3s, death_tick)
         return nil
     end
     local C = { crabs = {}, webs = {}, yellows = {}, ball = {}, order = {} }
+    for _, r in ipairs(K.npc_spawn) do
+        if r.type == 8386 and r.tick >= p3s and C.enrage_at == nil then C.enrage_at = r.tick end
+    end
     local end_tick = death_tick or 1e9
     for _, r in ipairs(K.npc_anim) do
         if r.type == 8374 and r.tick >= p3s and r.tick <= end_tick then
@@ -3049,6 +3073,11 @@ function QD.raid.verzik_p3_rows(t, cfg, rec, M)
     -- Verzik_Vitur:402 "must be bounced between every player of the team"):
     -- its target, the raiders it hopped to, the damage each took, no tank
     local bl_txt, bl_ok, landed_n = {}, true, 0
+    -- (her enrage: the first tornado; a ball thrown after it is TANKED by its
+    -- target, the wiki's enrage rule -- "The green ball attack should be
+    -- tanked, or bounced if the targeted player doesn't have enough health to
+    -- tank it" (W:990) -- and the target living through it is the answer)
+    local enrage_at = C.enrage_at
     for _, bl in ipairs(C.ball) do
         local hops, pids, n, dmg = {}, {}, 0, 0
         for _, h in ipairs(bl.hops) do
@@ -3063,9 +3092,15 @@ function QD.raid.verzik_p3_rows(t, cfg, rec, M)
         else
             landed_n = landed_n + 1
             local shared = n >= size and dmg == 0
-            verdict = shared and ("SHARED: target p" .. bl.hops[1].pid .. ", hopped through all " .. n .. " raiders, 0 damage, no tank")
-                or ("NOT SHARED: " .. n .. " of " .. size .. " raiders, " .. dmg .. " damage")
-            if not shared then bl_ok = false end
+            local enraged_ball = enrage_at ~= nil and bl.tick >= enrage_at
+            if enraged_ball then
+                verdict = "ENRAGED: tanked by p" .. bl.hops[1].pid .. " for " .. dmg .. " (W:990)" .. (deathless and ", alive" or ", A DEATH IN THE ROOM")
+                if not deathless then bl_ok = false end
+            else
+                verdict = shared and ("SHARED: target p" .. bl.hops[1].pid .. ", hopped through all " .. n .. " raiders, 0 damage, no tank")
+                    or ("NOT SHARED: " .. n .. " of " .. size .. " raiders, " .. dmg .. " damage")
+                if not shared then bl_ok = false end
+            end
         end
         bl_txt[#bl_txt + 1] = string.format("%s thrown: %s -- %s", rel(bl.tick), #hops > 0 and table.concat(hops, ", ") or "no impact", verdict)
     end
@@ -3087,7 +3122,15 @@ function QD.raid.verzik_p3_rows(t, cfg, rec, M)
     if not cfg.cycle and cfg.ball_check ~= false then
         -- the fast pace kills her before her green ball (the owner: "the fast
         -- Verzik script that kills it before the green orb")
-        t.check("p3.fast_before_ball", #C.ball == 0, #C.ball == 0 and ("no ball before her death " .. rel(p3_dead or p3s)) or ("ball thrown " .. table.concat(bl_txt, "; ")))
+        -- (a ball thrown in her last ticks lands on nobody: [queue,
+        -- tob_verzik_ball_land] returns once she is gone; Blert 85b10c82 threw
+        -- its at P3+186 with her on 0; what the fast team must not take is a
+        -- LANDED ball)
+        local landed = 0
+        for _, bl in ipairs(C.ball) do
+            if #bl.hops >= 1 and (p3_dead == nil or bl.hops[1].tick < p3_dead) then landed = landed + 1 end
+        end
+        t.check("p3.fast_before_ball", landed == 0, #C.ball == 0 and ("no ball before her death " .. rel(p3_dead or p3s)) or ("ball thrown " .. table.concat(bl_txt, "; ")))
     end
     -- owner_verzik 2026-10-07: SHE FOLLOWS, AND HER TORNADOES FOLLOW (the
     -- owner's live run: "In p3, verzik doesn't follow a player. In p3, the
@@ -3118,6 +3161,28 @@ function QD.raid.verzik_p3_rows(t, cfg, rec, M)
     end
     local nt_tiles = 0
     for _ in pairs(her_tiles) do nt_tiles = nt_tiles + 1 end
+    -- owner_verzik 2026-10-07: the webs' knock-aside (W:960; tob_verzik.rs2
+    -- ~tob_verzik_web_knockback): every raider who stood on or beside her
+    -- centre footprint when a webs special began is thrown (seq 1157) that tick
+    local _, pa = t.ticklog.rows({ kind = "player_anim" })
+    t.ticks(1)
+    local kb_txt, kb_ok = {}, true
+    for _, w in ipairs(C.webs) do
+        local thrown, in_area = 0, 0
+        for _, r in ipairs(pa or {}) do
+            if r.seq == 1157 and r.tick >= w.tick and r.tick <= w.tick + 1 then thrown = thrown + 1 end
+        end
+        kb_txt[#kb_txt + 1] = string.format("%s: %d thrown", rel(w.tick), thrown)
+    end
+    t.check("p3.webs_knock_aside", kb_ok, #kb_txt > 0 and table.concat(kb_txt, "; ") or "no webs special")
+    -- owner_verzik 2026-10-07: no raider is under a falling pillar (W:892 "stay
+    -- away from them"; the owner's live run: a raider took a collapse in P1)
+    local _, hp = t.ticklog.rows({ kind = "hit_player" })
+    local col = 0
+    for _, h in ipairs(hp or {}) do
+        if h.npc_type == 8377 and (h.damage or 0) > 0 then col = col + 1 end
+    end
+    t.check("p1.no_collapse_damage", col == 0, col .. " hits from a collapsing pillar (npc 8377)")
     t.check("p3.verzik_moved", her_moves >= 1, string.format("her P3 steps outside the webs: %d, over %d tiles", her_moves, nt_tiles))
     -- each tornado's life: npc_spawn to npc_free (or her death)
     local _, sp = t.ticklog.rows({ kind = "npc_spawn" })
