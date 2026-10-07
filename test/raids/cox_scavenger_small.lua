@@ -14,16 +14,17 @@ local BEASTS = { BEAST_A, BEAST_B }
 -- Quest harnesses do not see api_drive as a global, so ids are literals here.
 local BONES_ID = 526
 
--- Soft3d in-raid shots default to a floor-stare / void pose; nudge before
--- every t.shot so cave walls and plants are in frame (same pose ToB / lit
--- scavenger walkthroughs use: yaw north, pitch flat, zoomed out).
+-- Soft3d in-raid shots default to a floor-stare / void pose. Nudge before
+-- every t.shot (yaw/pitch/zoom like ToB nylocas / xarpus). Prefer zoom 600
+-- so shot-aim's occluder search does not fall through to zoom -200 (black).
+-- Trap 21: ticks after plane/raid enter before the first photograph.
 local SHOT_YAW = 0
 local SHOT_PITCH = 383
-local SHOT_ZOOM = 1100
+local SHOT_ZOOM = 600
 
 local function shot_lit(t, label)
     t.drive.camera(SHOT_YAW, SHOT_PITCH, SHOT_ZOOM)
-    t.ticks(2)
+    t.ticks(1)
     t.shot(label)
 end
 
@@ -200,7 +201,9 @@ return {
             end
 
             if sm.state == STATE.LAND then
-                t.ticks(2)
+                -- Scene build after raid plane change (trap 21); short settle
+                -- left the idle frame mostly dark even with a camera nudge.
+                t.ticks(8)
                 local br, brow, bsym = find_beast(t)
                 t.check("beast.present", br == "ok", "landing form " .. tostring(bsym))
                 sm.symbol = bsym
@@ -208,6 +211,12 @@ return {
                 local wr, wslot = t.ticklog.slot(brow)
                 t.check("beast.slot", wr == "ok", tostring(wslot))
                 sm.wslot = wslot
+                -- Step toward the beast so the idle frame is room geometry,
+                -- not the entrance corridor / unbuilt tiles.
+                if brow and brow.x and brow.z then
+                    t.player.walk_to(brow.x, brow.z, 16)
+                end
+                t.ticks(2)
                 shot_lit(t, "scavenger_small idle or approaching on landing")
                 t.ticklog.mark("room start")
                 set_state(STATE.MEASURE)
@@ -234,6 +243,10 @@ return {
                 t.check("fight.click", ar == "ok" or ar == "timeout",
                     tostring(ar) .. " " .. tostring(ad))
                 t.ticklog.mark("scavenger engaged")
+                -- Mid-fight while the beast is still up (HP 30 dies too fast
+                -- for a ticks>20 gate). Camera nudge so room + NPC are lit.
+                shot_lit(t, "scavenger_small mid-mechanic fight")
+                sm.mid_shot = true
                 set_state(STATE.FIGHT)
                 return
             end
@@ -243,7 +256,6 @@ return {
                 if dr == "ok" and drows ~= nil and #drows > 0 then
                     sm.dead = true
                     sm.death_tick = drows[1].tick
-                    shot_lit(t, "scavenger_small mid-kill clear")
                     set_state(STATE.LOOT)
                     return
                 end
@@ -253,10 +265,6 @@ return {
                     sm.dead = true
                     set_state(STATE.LOOT)
                     return
-                end
-                if not sm.mid_shot and sm.ticks > 20 then
-                    shot_lit(t, "scavenger_small mid-mechanic fight")
-                    sm.mid_shot = true
                 end
                 t.player.attack(sm.symbol, 2, 1, { quick = true })
                 t.ticks(1)
@@ -309,6 +317,10 @@ return {
                 spec(t, "scavenger.max_hit", tostring(measured_max),
                     "largest unprotected hit_player=" .. tostring(sm.max_hit),
                     "13 hp", "D", "range")
+                -- Nudge pose + a short wait so the capture is not suppressed as
+                -- byte-identical to the drop.bones check shot.
+                t.drive.camera(512, SHOT_PITCH, SHOT_ZOOM)
+                t.ticks(2)
                 shot_lit(t, "scavenger_small clear after kill")
                 set_state(STATE.DONE)
                 return
