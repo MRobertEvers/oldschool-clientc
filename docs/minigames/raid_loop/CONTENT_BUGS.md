@@ -2190,3 +2190,22 @@ reference ToB raider bows and pipes in elite ranged void (Blert equipmentDeltas,
   one lands it and the fight runs another way). The cap is the reference's (Engine-TS Npc.ts:59, no cap) and stays;
   the room is the Verzik plan's to re-fit.
 
+
+## 2026-10-07 content_bugs: Sotetseg's maze froze the arena raiders' drawn models (filed by owner_rooms4)
+
+- **FIXED (the code's own reading; OSRS-Content 4dfdd180c4).** `~tob_sote_send_party` plays seq 1816
+  `human_teleport_other_impact` on every raider at the proc, with the comment "17 frames of 4 cycles, so it has played
+  out before the move on the third tick". all.seq has 16 frames of 4 cycles and a 17th of 2000 (the teleother target's
+  hold pose: 2064 cycles, ~69 ticks). That is the cache record, not a decoding error. Default postanim_move is
+  DELAYMOVE (no walkmerge; Client-TS SeqType.ts:155-160, ClientEntity.ts:69-72 aborts only for ABORTANIM). So the
+  client held each raider's model on the old tile while the server walked them (o4sotetseg1 pid2 t221-252: every
+  attack press `not_visible`). `[queue,tob_sote_portal]` now sends `anim(null, 0)` first. Measured
+  (`seed_survey.py _play_sotetseg --party 3 --names 5`, private binary = HEAD src, pack 05:50): 5 of 5 green; 6 seq-1816
+  rows and 6 clear rows a room; 0 `not_visible`; room 272 / 237 / 268 / 245 / 272 ticks (before: 282 / 251 / 286 / - /
+  273). The reference is 212.5 [164-262], so 3 of 5 are still slower than every recorded room. Own name, swings per seat
+  30/31/38 -> 28/35/35.
+- OPEN, SOURCE: what ends seq 1816 for the arena raiders in the real game. Blert's plugin keys the proc on 1816
+  (SotetsegDataTracker.java:50, :232). Blert's 58 maze procs show the raiders' tiles moving from T+3 (5-9 distinct tiles
+  in T+3..T+12), but those are server tiles, not the drawn model. Near Reality plays no animation. The wiki says
+  nothing. Needed: a recording of an arena raider walking right after the maze proc (does the model slide at once, or
+  hold the pose?), or a server source for the reset.
