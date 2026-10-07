@@ -45,6 +45,10 @@ local party_kit = {
     "::give serpentine_helm_charged 1",
     "::give br_4dosepotionofsaradomin 4", "::give br_4dose2restore 4", "::give br_4dose2combat 2",
     "::give anglerfish 14",
+    -- owner_verzik: the fast pace's enrage special (W:992 "dump all melee
+    -- special attacks"; Blert's fast trios: dragon claws, CLAW_SPEC 1-2 a
+    -- raider in P3), the pack's last free slot
+    "::give dragon_claws 1",
 }
 if role == 1 then party_kit[#party_kit + 1] = "::give verzik_special_weapon 1" end
 
@@ -180,19 +184,11 @@ local function party_run(t)
     table.sort(bomb_txt)
     t.check("play.p2_bombs_dodged", bombs >= 1,
         bombs .. " urnbombs thrown; on a raider's held tile the tick before landing: " .. (#bomb_txt > 0 and table.concat(bomb_txt, ", ") or "none"))
-    -- THE ROOM COMPLETE: the raid's death counter (read-only ::tobjail)
-    if death_tick ~= nil then
-        t.ticks(10)
-        t.cheat("::tobjail")
-        t.ticks(2)
-        local _, jl = t.msg.last(40)
-        local jail_line = ""
-        for _, m in ipairs(jl) do
-            local jt = tostring(m.text)
-            if jail_line == "" and jt:find("tobjail jailed=", 1, true) then jail_line = jt end
-        end
-        t.check("verzik.deathless", jail_line:find("jailed=0 died_in=0 deaths=0", 1, true) ~= nil, "party: " .. jail_line)
-    end
+    -- THE ROOM COMPLETE (owner_verzik 2026-10-07): the death counter, her P3
+    -- form's death, the P3 rotation reported and p3.fast_before_ball checked
+    -- (raid_play_tob_verzik.lua QD.raid.verzik_p3_rows; the read-only ::tobjail
+    -- row verzik.deathless was here)
+    t.raid.verzik_p3_rows(t, { pace = "fast", cycle = false }, rec, M)
     local forms = {}
     for _, f in ipairs(vz.forms or {}) do forms[#forms + 1] = f.symbol .. "@" .. f.tick end
     t.check("play.measure", true, string.format("room %s ticks (mark %s; P1 t%s, P2 t%s, P3 t%s, death t%s); P1 %s ticks, P2 %s, P3 %s; taken %s; bolts at raiders %d, at pillars %d; balls %d; forms %s; summons %s",

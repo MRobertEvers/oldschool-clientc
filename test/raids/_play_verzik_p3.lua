@@ -14,6 +14,10 @@ local kit = {
     "::give serpentine_helm_charged 1",
     "::give br_4dosepotionofsaradomin 4", "::give br_4dose2restore 4", "::give br_4dose2combat 2",
     "::give anglerfish 14",
+    -- owner_verzik: the fast pace's enrage special (W:992 "dump all melee
+    -- special attacks"; Blert's fast trios: dragon claws, CLAW_SPEC 1-2 a
+    -- raider in P3), the pack's last free slot
+    "::give dragon_claws 1",
 }
 if role == 1 then kit[#kit + 1] = "::give verzik_special_weapon 1" end
 return {

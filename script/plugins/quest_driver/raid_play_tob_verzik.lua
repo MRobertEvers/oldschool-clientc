@@ -38,6 +38,10 @@ QD.RAID_PLAY_VERZIK_WEAPONS = {
     -- seqs 428 human_spear_spike / 440 human_scythe_sweep (attack_anims_modern.obj;
     -- Blert attack_definitions.json NOXIOUS_HALBERD animationIds 428, 440)
     halberd = { item = "noxious_halberd", speed = 5, seqs = { [428] = true, [440] = true } },
+    -- owner_verzik (the FAST pace's enrage dump): dragon claws, speed 4, the
+    -- scratch 393/1067 and the special 7514 (Blert attack_definitions.json
+    -- CLAW_SCRATCH / CLAW_SPEC; special_attack.obj [dragon_claws] sa_energy 500)
+    claws = { item = "dragon_claws", speed = 4, seqs = { [393] = true, [1067] = true, [7514] = true } },
 }
 
 -- owner_verzik 2026-10-07: THE PACE.  t.raid.verzik_pace = "slow" before
@@ -1181,6 +1185,55 @@ function QD.raid._verzik_p3_cycle(st, v, ball)
     return c
 end
 
+-- owner_verzik 2026-10-07: THE FAST PACE'S SPECIAL DUMP.  "At this stage
+-- [the enrage], players should dump all melee special attacks to end the phase
+-- as fast as possible" (W:992); the fast Blert trios do (build/blert/verzik,
+-- the 22 rooms that end before her ball: CLAW_SPEC 1-2 a raider in P3 in most,
+-- CHALLY_SPEC in the rest).  The claws, special while the orb holds its 50%,
+-- then the scythe back on.  Only where a swing goes anyway (the decide calls it
+-- in its "attack her" branch, never on a held tick, a pool or a shared ball).
+-- STATES: carried -> wielded -> (special armed on the press) -> spent -> scythe.
+-- The slow pace never calls it ("drop the spec dumping", the owner).
+function QD.raid._verzik_spec_dump(st, v, intent)
+    local vz = st.vz
+    local d = vz.dump
+    if d == nil then
+        local cr, n = QD.inv.count("dragon_claws")
+        d = { state = (cr == "ok" and n > 0) and "carried" or "none", specs = 0, arms = 0, e_prev = nil }
+        vz.dump = d
+    end
+    if d.state == "none" or d.state == "done" then return end
+    local _, energy = QD.var.varp("varp300_sa_energy")
+    energy = tonumber(energy) or 0
+    if d.e_prev ~= nil and energy <= d.e_prev - 450 then d.specs = d.specs + 1 end
+    d.e_prev = energy
+    if energy >= 500 then
+        if vz.held ~= "claws" then
+            intent.gear = { "dragon_claws" }
+            vz.held = "claws"
+            st.weapon = QD.RAID_PLAY_VERZIK_WEAPONS.claws
+            st.engaged = false
+            d.state = "wielded"
+            return
+        end
+        if v.tick >= (d.arm_tick or -1000) + 4 then
+            d.arm_tick = v.tick
+            d.arms = d.arms + 1
+            intent.spec = true
+            intent.attack = true
+            st.engaged = false
+        end
+        return
+    end
+    if vz.held == "claws" then
+        intent.gear = { "scythe_of_vitur" }
+        vz.held = "scythe"
+        st.weapon = QD.RAID_PLAY_VERZIK_WEAPONS.scythe
+        st.engaged = false
+        d.state = "done"
+    end
+end
+
 -- ==========================================================================
 -- THE VERZIK PLAN'S DECIDE (PLAY_NOTES.md "Verzik").
 -- ==========================================================================
@@ -1202,6 +1255,7 @@ function QD.raid._play_verzik_decide(st, v)
             st.vz.held = st.vz.main
             st.vz.n.scythe = 0
             st.vz.n.halberd = 0
+            st.vz.n.claws = 0
             st.weapon = QD.RAID_PLAY_VERZIK_WEAPONS[st.vz.main]
         end
     end
@@ -2232,6 +2286,7 @@ function QD.raid._play_verzik_decide(st, v)
             else
                 if vz.target_slot ~= nil then st.engaged = false vz.target_slot = nil end
                 intent.attack = true
+                if vz.pace == "fast" and melee and vz.enraged then QD.raid._verzik_spec_dump(st, v, intent) end
             end
         end
     end
