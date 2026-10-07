@@ -4988,7 +4988,6 @@ function QD.raid._verzik_phase_p3(c)
     end
     -- last, over whatever the state decided: never stand where a tornado steps
     if melee then QD.raid._verzik_tornado_guard(st, v, intent, okp) end
-    local walk_after_guard = intent.walk
     -- POWERED THROUGH, NOT WALKED INTO: an attack press out of reach walks me
     -- back to her by the server's path, and with my tornado within three that
     -- path was its tile -- the guard's dodge, then the press straight back
@@ -5049,24 +5048,6 @@ function QD.raid._verzik_phase_p3(c)
             end
             intent.walk = (bx ~= nil) and { x = bx, z = bz } or nil
             vz.web_detours = (vz.web_detours or 0) + 1
-        end
-    end
-    -- (trace: a tornado within 2 of me in the enrage -- the guard's walk, and
-    -- what survived the web filter)
-    if vz.enraged then
-        local dt = nil
-        for _, tr in ipairs(v.tornadoes or {}) do
-            local d = math.max(math.abs(tr.x - me.x), math.abs(tr.z - me.z))
-            if dt == nil or d < dt then dt = d end
-        end
-        if dt ~= nil and dt <= 2 then
-            st.notes = st.notes or {}
-            if #st.notes < 90 then
-                st.notes[#st.notes + 1] = "T" .. v.tick .. "@" .. me.x .. "," .. me.z .. "d" .. dt
-                    .. (walk_after_guard and (">" .. walk_after_guard.x .. "," .. walk_after_guard.z) or "")
-                    .. ((intent.walk ~= walk_after_guard) and ("|w" .. (intent.walk and (intent.walk.x .. "," .. intent.walk.z) or "nil")) or "")
-                    .. (intent.attack and "a" or "") .. (intent.eat and "e" or "") .. (intent.drink and "d" or "")
-            end
         end
     end
     if QD.raid._verzik_slow_hold(st, v) then
