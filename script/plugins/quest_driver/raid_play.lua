@@ -417,12 +417,67 @@ end
 -- used to count a phantom swing every `speed` ticks of engagement, so the
 -- re-press below never fired for it after the server stopped its swings).
 -- Returns true when this tick should carry an attack press.
+-- THE RAIDER'S ENGAGEMENT, as a machine (owner 2026-10-07: "st.engaged seems
+-- like boolean soup? Why isn't that behavior encoded into the state machine or
+-- hierarchical state machine.").  "Am I in combat, my weapon swinging by
+-- itself?" is a fact about the RAIDER, and it was a flag that 58 places across
+-- the six plans wrote -- 31 of them in Verzik's -- each guessing it from what
+-- it had just asked for.  The executor is the one place that knows what was
+-- actually sent and seen, so for a plan that opts in (st.engage_owned) it is
+-- the only writer, through these events:
+--   engaged {target}  an attack press on `target` ("boss" | "slot:N") answered
+--   stepped           a step went out: a step clears the attack
+--   stalled           no swing seen for a weapon cycle and two ticks
+--   rearmed           a weapon went on (the plans re-press after a swap)
+-- and st.engaged is a READ-ONLY view of the state.  A plan asks for `attack`
+-- (on the boss) or `press` (on a row) or `stop` (end the swings here); the
+-- executor re-presses when engaged on a different target or when a special
+-- is being armed.  The plans that have not opted in keep the flag as before.
+local function engage_declare()
+    if QD.raid.sm_decls ~= nil and QD.raid.sm_decls["raider_engage"] ~= nil then return end
+    local function idle() return nil, "IDLE" end
+    QD.raid.sm_declare("raider_engage", {
+        start = "IDLE",
+        states = {
+            IDLE    = { note = "not in combat: a press starts the swings", on = {
+                engaged = function() return nil, "ENGAGED" end } },
+            ENGAGED = { note = "in combat with one target: the weapon swings by itself in reach",
+                enter = function(c) c.st.engaged_tick = c.v.tick end,
+                on = {
+                    engaged = function(c, ev)
+                        if ev.target ~= c.st.engage_target then c.st.engaged_tick = c.v.tick end
+                        return nil, "ENGAGED"
+                    end,
+                    stepped = idle, stalled = idle, rearmed = idle,
+                } },
+        },
+    })
+end
+function QD.raid._engage_event(st, v, name, target)
+    assert(st, "_engage_event: st")
+    assert(v, "_engage_event: v")
+    assert(st.engage_owned, "_engage_event: the plan has not opted in (st.engage_owned)")
+    engage_declare()
+    local m = QD.raid.sm_run(st, v, "raider_engage", { st = st, v = v }, { { name = name, target = target } })
+    if m.state == "ENGAGED" then
+        if name == "engaged" then st.engage_target = target end
+    else
+        st.engage_target = nil
+    end
+    st.engaged = m.state == "ENGAGED"
+    return m.state
+end
+
 function QD.raid._play_attack(st, v, want)
     if not want then
         return false
     end
     local speed = st.weapon.speed
     if not st.engaged then
+        return true
+    end
+    -- engaged on something else (a crab, an add): the boss needs its own press
+    if st.engage_owned and st.engage_target ~= "boss" then
         return true
     end
     local seen = st.seen_swings[#st.seen_swings] or -1000
@@ -765,7 +820,8 @@ function QD.raid._play_reconcile(st, v, intent)
             -- again before it can land would restart the route
             drop = v.tick - prev.tick < QD.RAID_PLAY_TAKE_RESEND
         else
-            drop = not QD.raid._play_attack(st, v, true)
+            -- a special is armed on the attack that carries it: always pressed
+            drop = not QD.raid._play_attack(st, v, true) and not intent.spec
         end
     end
     if drop then
@@ -886,6 +942,17 @@ function QD.raid._play_send(st, v, intent)
     for _, name in ipairs(st.plan.walk_prayers) do all[#all + 1] = name end
     for _, name in ipairs(st.plan.down_prayers) do all[#all + 1] = name end
     local switches = QD.raid._play_pray(st, v, intent.want, all)
+    if st.engage_owned and st.engaged then
+        local seen = st.seen_swings[#st.seen_swings] or -1000
+        if v.tick - math.max(st.last_swing, seen, st.engaged_tick or -1000) > st.weapon.speed + 2 then
+            QD.raid._engage_event(st, v, "stalled")
+        end
+    end
+    -- `stop`: end the swings here -- a step onto my own tile clears the attack,
+    -- and is only sent while the machine says I am engaged
+    if intent.stop and st.engage_owned and st.engaged and intent.walk == nil then
+        intent.walk = { x = v.me.x, z = v.me.z }
+    end
     local eat, drink, walk = intent.eat, intent.drink, intent.walk
     -- raid seam32 play_tob_bloat_normal: THE LOADOUT.  `intent.gear` is a list
     -- of worn items to put on in this tick's block (held items, after the
@@ -932,7 +999,7 @@ function QD.raid._play_send(st, v, intent)
             st.drinks[#st.drinks + 1] = { tick = v.tick, item = drink, hp = v.hp, prayer = v.prayer }
         end
         if walk ~= nil then
-            st.engaged = false
+            if st.engage_owned then QD.raid._engage_event(st, v, "stepped") else st.engaged = false end
             st.walk_target = walk
         end
     end
@@ -958,8 +1025,12 @@ function QD.raid._play_send(st, v, intent)
         n = n + 1
         st.attack_presses = (st.attack_presses or 0) + 1
         if ar == "ok" or ar == "pressed" then
-            st.engaged = true
-            st.engaged_tick = v.tick
+            if st.engage_owned then
+                QD.raid._engage_event(st, v, "engaged", "boss")
+            else
+                st.engaged = true
+                st.engaged_tick = v.tick
+            end
             st.walk_target = nil
         elseif #st.lines < 6 then
             st.lines[#st.lines + 1] = "t" .. v.tick .. " attack " .. tostring(ar) .. ": " .. tostring(why)
@@ -996,7 +1067,13 @@ function QD.raid._play_send(st, v, intent)
                 st.trig_presses[#st.trig_presses + 1] = { tick = v.tick, field = f, slot = p.slot, spell = p.spell, answer = tostring(ar), why = p.why }
             end
             if ar == "ok" or ar == "pressed" then
-                if f == "press" then st.engaged, st.engaged_tick = true, v.tick end
+                if f == "press" then
+                    if st.engage_owned then
+                        QD.raid._engage_event(st, v, "engaged", "slot:" .. tostring(p.slot))
+                    else
+                        st.engaged, st.engaged_tick = true, v.tick
+                    end
+                end
                 st.walk_target = nil
             elseif #st.lines < 6 then
                 st.lines[#st.lines + 1] = "t" .. v.tick .. " " .. f .. " " .. tostring(ar) .. ": " .. string.sub(tostring(why), 1, 120)
@@ -1248,7 +1325,7 @@ end
 -- trigger's intent won ("trig <event>:<field>"), when opts.trigger_marks.
 -- ==========================================================================
 QD.RAID_PLAY_HOLD_TICKS = 2
-QD.RAID_PLAY_INTENT_FIELDS = { "walk", "attack", "press", "cast", "take", "eat", "drink", "gear", "spec" }
+QD.RAID_PLAY_INTENT_FIELDS = { "walk", "attack", "press", "cast", "take", "stop", "eat", "drink", "gear", "spec" }
 
 function QD.raid._play_triggers_init(st, opts)
     st.handlers, st.watches, st.trig_log, st.trig_counts, st.trig_wins = {}, {}, {}, {}, {}

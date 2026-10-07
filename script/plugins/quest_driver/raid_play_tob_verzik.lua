@@ -368,14 +368,29 @@ end
 
 -- An attack press on an add (the library's press goes to her only): the same
 -- bookkeeping as raid_play.lua's SEND.
+-- The engagement events this plan raises itself (presses and moves it sends
+-- outside the executor, and weapon swaps).  The Normal plan has opted in to the
+-- executor's raider_engage machine (st.engage_owned); the Entry plan has not, and
+-- keeps the flag exactly as it was.
+function QD.raid._verzik_engage(st, v, name, target)
+    assert(st, "_verzik_engage: st")
+    assert(v, "_verzik_engage: v")
+    if st.engage_owned then return QD.raid._engage_event(st, v, name, target) end
+    if name == "engaged" then
+        st.engaged, st.engaged_tick = true, v.tick
+    else
+        st.engaged = false
+    end
+end
+
 function QD.raid._verzik_press_add(st, v, add)
     local ar = QD.player.attack(add.symbol, 2, 1, { quick = true, slot = add.row.slot })
     st.inputs[v.tick] = (st.inputs[v.tick] or 0) + 1
     st.attack_presses = (st.attack_presses or 0) + 1
     st.vz.add_presses = st.vz.add_presses + 1
     if ar == "ok" then
-        st.engaged = true
-        st.engaged_tick = v.tick
+        -- a press sent outside the executor: the engagement machine hears it here
+        QD.raid._verzik_engage(st, v, "engaged", "slot:" .. tostring(add.row.slot))
         st.walk_target = nil
         st.vz.target_slot = add.row.slot
     elseif #st.lines < 6 then
@@ -396,8 +411,7 @@ function QD.raid._verzik_special(st, v)
     st.attack_presses = (st.attack_presses or 0) + 1
     st.vz.specs[#st.vz.specs + 1] = { tick = v.tick, bar = tostring(ir), press = tostring(ar) }
     if ar == "ok" then
-        st.engaged = true
-        st.engaged_tick = v.tick
+        QD.raid._verzik_engage(st, v, "engaged", "boss")
         st.walk_target = nil
         st.vz.target_slot = nil
     end
@@ -690,7 +704,6 @@ function QD.raid._verzik_sortie(f)
     end
     intent.walk = (bx ~= me.x or bz ~= me.z) and { x = bx, z = bz } or nil
     intent.attack = false
-    st.engaged = false
     vz.target_slot = nil
     return true
 end
@@ -823,7 +836,6 @@ function QD.raid._verzik_avoid(f)
     end
     if bx ~= me.x or bz ~= me.z then
         f.go(bx, bz)
-        st.engaged = false
         vz.target_slot = nil
     end
     return m.state
@@ -906,7 +918,6 @@ function QD.raid._verzik_pool_run(f)
     local m = QD.raid.sm_run(st, v, "verzik_pool", { vz = vz }, { { name = ev } })
     if m.state == "NONE" or m.state == "AFTER" then return false end
     intent.attack = false
-    st.engaged = false
     vz.target_slot = nil
     if m.state == "HOLD" then
         intent.walk = nil
@@ -1059,7 +1070,6 @@ function QD.raid._verzik_ball_run(f)
     if m.state == "STACK" then
         if dR > 0 then
             intent.walk = { x = R.x, z = R.z }
-            st.engaged = false
         else
             intent.walk = nil
         end
@@ -1081,7 +1091,6 @@ function QD.raid._verzik_ball_run(f)
     end
     vz.ball_lock = v.tick
     intent.attack = false
-    st.engaged = false
     local hunted = false
     for _, e in pairs(f.tor or {}) do
         if math.max(math.abs(e.x - me.x), math.abs(e.z - me.z)) <= BL.tor_near then hunted = true end
@@ -1431,7 +1440,7 @@ function QD.raid._verzik_main_weapon_back(st, vz, intent)
     intent.gear = { QD.RAID_PLAY_VERZIK_WEAPONS[main].item }
     vz.held = main
     st.weapon = QD.RAID_PLAY_VERZIK_WEAPONS[main]
-    st.engaged = false
+    QD.raid._verzik_engage(st, v, "rearmed")
 end
 
 -- IDLE: nothing to do until the sword is lying there in view.  The moment it
@@ -1507,7 +1516,7 @@ function QD.raid._verzik_sword_wield(c, ev)
         intent.gear = { "verzik_special_weapon" }
         vz.held = "dawnbringer"
         st.weapon = QD.RAID_PLAY_VERZIK_WEAPONS.dawnbringer
-        st.engaged = false
+        QD.raid._verzik_engage(st, v, "rearmed")
         c.busy = true
         return
     end
@@ -1526,7 +1535,6 @@ function QD.raid._verzik_sword_fire(c, ev, go)
     dw.arm_tick = v.tick
     intent.spec = true
     intent.attack = true
-    st.engaged = false
     c.busy = true
     return nil, go
 end
@@ -2030,7 +2038,6 @@ function QD.raid._verzik_p2_melee(st, v, intent, ok, go, nearest)
             mates = QD.raid._verzik_mates(st) }) ~= "CLEAR" then
         if intent.walk ~= nil then
             M.kites = M.kites + 1
-            st.engaged = false
             vz.target_slot = nil
             return threat
         end
@@ -2043,7 +2050,6 @@ function QD.raid._verzik_p2_melee(st, v, intent, ok, go, nearest)
             intent.walk = { x = sx, z = sz }
             vz.steps = vz.steps + 1
             M.outs = M.outs + 1
-            st.engaged = false
             vz.target_slot = nil
             return threat
         end
@@ -2061,7 +2067,6 @@ function QD.raid._verzik_p2_melee(st, v, intent, ok, go, nearest)
                 intent.walk = { x = sx, z = sz }
                 vz.steps = vz.steps + 1
                 M.outs = M.outs + 1
-                st.engaged = false
                 vz.target_slot = nil
             end
         elseif nxt == nil then
@@ -2074,7 +2079,6 @@ function QD.raid._verzik_p2_melee(st, v, intent, ok, go, nearest)
             -- the swing in on T-1, beside her for the scan: a click on my own
             -- tile clears it (as P3's hold)
             intent.walk = { x = me.x, z = me.z }
-            st.engaged = false
         end
         return threat
     end
@@ -2167,11 +2171,10 @@ function QD.raid._verzik_p2_melee(st, v, intent, ok, go, nearest)
             if sx ~= nil then
                 intent.walk = { x = sx, z = sz }
                 vz.steps = vz.steps + 1
-                st.engaged = false
             end
         end
     else
-        if vz.target_slot ~= nil then st.engaged = false vz.target_slot = nil end
+        if vz.target_slot ~= nil then vz.target_slot = nil end
         intent.attack = true
     end
     return threat
@@ -2548,7 +2551,7 @@ function QD.raid._verzik_dump_orb(c, ev)
             intent.gear = { "dragon_claws" }
             vz.held = "claws"
             st.weapon = QD.RAID_PLAY_VERZIK_WEAPONS.claws
-            st.engaged = false
+            QD.raid._verzik_engage(st, v, "rearmed")
             return nil, "wielded"
         end
         if v.tick >= (d.arm_tick or -1000) + 4 then
@@ -2556,7 +2559,6 @@ function QD.raid._verzik_dump_orb(c, ev)
             d.arms = d.arms + 1
             intent.spec = true
             intent.attack = true
-            st.engaged = false
         end
         return
     end
@@ -2565,7 +2567,7 @@ function QD.raid._verzik_dump_orb(c, ev)
         intent.gear = { QD.RAID_PLAY_VERZIK_WEAPONS[back].item }
         vz.held = back
         st.weapon = QD.RAID_PLAY_VERZIK_WEAPONS[back]
-        st.engaged = false
+        QD.raid._verzik_engage(st, v, "rearmed")
         return nil, "done"
     end
 end
@@ -2807,7 +2809,6 @@ function QD.raid._verzik_enrage_step(c, ev)
     end
     if bx ~= nil and (bx ~= me.x or bz ~= me.z) then
         intent.walk = { x = bx, z = bz }
-        st.engaged = false
         vz.target_slot = nil
     else
         intent.walk = nil
@@ -3248,7 +3249,6 @@ function QD.raid._verzik_phase_p2(c)
                 intent.walk = { x = sx, z = sz }
                 vz.steps = vz.steps + 1
                 vz.holds = (vz.holds or 0) + 1
-                st.engaged = false
             end
         end
         if vz.next_summon ~= nil and v.tick > vz.next_summon + P.p2_absorb then vz.next_summon = nil end
@@ -3275,7 +3275,7 @@ function QD.raid._verzik_phase_p2(c)
                 local idle = v.tick - math.max(st.last_swing, st.engaged_tick) > st.weapon.speed + 2
                 if vz.target_slot ~= add.row.slot or not st.engaged or idle then QD.raid._verzik_press_add(st, v, add) end
             elseif not absorb then
-                if vz.target_slot ~= nil then st.engaged = false vz.target_slot = nil end
+                if vz.target_slot ~= nil then vz.target_slot = nil end
                 intent.attack = true
             end
         end
@@ -3985,7 +3985,6 @@ function QD.raid._verzik_phase_p3(c)
         if st.walk_target == nil or st.walk_target.x ~= wx or st.walk_target.z ~= wz or (st.last_me ~= nil and st.last_me.x == me.x and st.last_me.z == me.z) then
             intent.walk = { x = wx, z = wz }
             vz.steps = vz.steps + 1
-            st.engaged = false
             vz.target_slot = nil
         end
     elseif on_me or (not melee and d_boss < 2) or (st.mode == "normal" and not (melee and okp or ok)(me.x, me.z)) then
@@ -4020,7 +4019,6 @@ function QD.raid._verzik_phase_p3(c)
         if best ~= nil and best < 1000 then
             intent.walk = { x = bx, z = bz }
             vz.steps = vz.steps + 1
-            st.engaged = false
             vz.target_slot = nil
             vz.m3.apart = (vz.m3.apart or 0) + 1
         end
@@ -4068,14 +4066,12 @@ function QD.raid._verzik_phase_p3(c)
                 intent.walk = { x = sx, z = sz }
                 vz.steps = vz.steps + 1
                 vz.m3.outs = vz.m3.outs + 1
-                st.engaged = false
                 vz.target_slot = nil
             end
         elseif st.engaged then
             -- engaged from two out, the server would path the swing in:
             -- a click on my own tile clears it
             intent.walk = { x = me.x, z = me.z }
-            st.engaged = false
             vz.target_slot = nil
         end
     end
@@ -4090,7 +4086,7 @@ function QD.raid._verzik_phase_p3(c)
     if ring_state ~= nil then
         -- (the ring set the press; its SWING dumps the claws, W:992)
         if ring_state == "SWING" then
-            if vz.target_slot ~= nil then st.engaged = false vz.target_slot = nil end
+            if vz.target_slot ~= nil then vz.target_slot = nil end
             if not tor_near then QD.raid._verzik_spec_dump(st, v, intent, events) end
         end
     elseif share ~= nil or vz.ball_lock == v.tick then
@@ -4117,7 +4113,7 @@ function QD.raid._verzik_phase_p3(c)
         elseif melee and vz.m3.tor_hold == v.tick then
             intent.attack = false
         else
-            if vz.target_slot ~= nil then st.engaged = false vz.target_slot = nil end
+            if vz.target_slot ~= nil then vz.target_slot = nil end
             intent.attack = true
             -- (owner_verzik: the slow pace too, once she is enraged -- its
             -- rotation is done by then, the ball before the enrage -- "At
@@ -4137,12 +4133,11 @@ function QD.raid._verzik_phase_p3(c)
         end
     end
     if QD.raid._verzik_slow_hold(st, v) then
-        -- an engaged raider swings on by itself until something interrupts it:
-        -- a step onto its own tile does (the P2 plan's own stop)
-        if st.engaged and intent.walk == nil then intent.walk = { x = me.x, z = me.z } end
+        -- an engaged raider swings on by itself: ask the executor to stop it
+        -- (raider_engage: a step onto my own tile, sent only while ENGAGED)
+        intent.stop = true
         intent.attack = false
         intent.spec = nil
-        st.engaged = false
         vz.slow_holds = (vz.slow_holds or 0) + 1
     end
     c.threat = threat
@@ -4164,6 +4159,9 @@ function QD.raid._play_verzik_decide(st, v)
         if st.mode == "normal" then
             -- owner_verzik: the main melee weapon by pace and role (the header's table)
             st.vz.pace = QD.raid.verzik_pace or "fast"
+            -- the engagement is the executor's machine here (raider_engage):
+            -- this plan no longer writes st.engaged
+            st.engage_owned = true
             st.vz.main = "scythe"
             st.vz.p3_main = (st.vz.pace == "slow" and QD.RAID_PLAY_VERZIK_HALBERD_ROLES[st.role]) and "halberd" or nil
             st.vz.held = st.vz.main
@@ -4230,7 +4228,7 @@ function QD.raid._play_verzik_decide(st, v)
         QD.raid._verzik_block(st, v, "wield " .. key, items, drinks or {})
         vz.held = key
         st.weapon = w
-        st.engaged = false
+        QD.raid._verzik_engage(st, v, "rearmed")
         vz.target_slot = nil
     end
     local threat = function(h) return 0 end
@@ -4332,7 +4330,7 @@ function QD.raid._play_verzik_decide(st, v)
             st.inputs[v.tick] = (st.inputs[v.tick] or 0) + 1
             vz.bare_steps = (vz.bare_steps or 0) + 1
             if mr == "ok" then
-                st.engaged = false
+                QD.raid._verzik_engage(st, v, "stepped")
                 st.walk_target = intent.walk
                 intent.walk = nil
             end
