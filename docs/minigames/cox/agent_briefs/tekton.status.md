@@ -11,12 +11,12 @@ on anvil, re-engage. Not stand-and-tank.
 
 ## Implemented
 
-- Test SM: `LAND → LURE → CYCLE ⇄ ANVIL_DODGE → REENGAGE → DONE`
+- Test SM: `LAND → LURE → BAIT → CYCLE ⇄ ANVIL_DODGE → REENGAGE → DONE`
 - Spec assertions retained (`test/raids/cox_tekton.lua`)
 - Content: `cox_tekton.rs2` (submodule `dda1f15`)
-- Setup fix: shark count 22→10 (unstackable; 22 filled the backpack so brew/
-  restores got "No room")
+- Setup: shark 10 (unstackable), rune plate for unprotected sample hit
+- BAIT state: one unprotected wedge hit → Protect from Melee → cycle
 
-## Next
+## Gate
 
-- Gate under `flock /tmp/cox_raid_gate.lock` with `QUEST_BINARY=src/torirs_tekton`
+- In progress under `flock` + `QUEST_BINARY=src/torirs_tekton --no-build --no-publish`

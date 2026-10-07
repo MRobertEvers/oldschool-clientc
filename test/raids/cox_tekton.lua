@@ -7,6 +7,7 @@
 local STATE = {
     LAND = "LAND",
     LURE = "LURE",
+    BAIT = "BAIT", -- one unprotected wedge hit, then Protect from Melee
     CYCLE = "CYCLE",
     ANVIL_DODGE = "ANVIL_DODGE",
     REENGAGE = "REENGAGE",
@@ -29,6 +30,11 @@ return {
         -- 4-tick crush for Synq normal 4-tick / monkey run-around.
         "::give adamnt_warhammer",
         "::wield adamnt_warhammer",
+        -- Survive the one intentional unprotected wedge hit (max ~52).
+        "::give rune_platebody",
+        "::wield rune_platebody",
+        "::give rune_platelegs",
+        "::wield rune_platelegs",
         "::give leather_vambraces",
         "::wield leather_vambraces",
         "::give kodai_wand",
@@ -116,13 +122,20 @@ return {
 
         local function sustain()
             local hr, hp = t.skill.read("hitpoints")
-            if hr == "ok" and hp.level < 55 then
+            -- Eat early: unprotected Tekton max is ~52; two hits without food kills.
+            if hr == "ok" and hp.level < 70 then
                 if t.player.eat("shark") == "ok" then eats = eats + 1 end
             end
             local pr, pp = t.prayer.points()
             if pr == "ok" and (pp.points or 0) < 30 then
                 if t.player.drink("br_4dose2restore") == "ok" then drinks = drinks + 1 end
             end
+        end
+
+        local function arm_protect()
+            if prayer_on then return end
+            t.prayer.set("protectfrommelee", true)
+            prayer_on = true
         end
 
         local function decide()
@@ -163,19 +176,22 @@ return {
                 last_form = fs
             end
             local _, now = t.tick()
-            if (not prayer_on) and unprotected_seen > 0 then
-                t.prayer.set("protectfrommelee", true)
-                prayer_on = true
-            end
             if not prayer_on and unprotected_seen == 0 then
                 local _, hits = t.ticklog.rows({ kind = "hit_player", slot = wslot })
                 if hits ~= nil and #hits > 0 then unprotected_seen = 1 end
             end
+            -- Arm Protect the instant the first unprotected hit is observed —
+            -- before any further walk/attack that would eat a second auto.
+            if (not prayer_on) and unprotected_seen > 0 then
+                arm_protect()
+                sustain()
+            end
 
             if sm.state == STATE.LAND then
-                -- Synq [1:12:18]: lure far from the anvil (fourth tile wakes him).
-                t.player.walk_to(frow.x, frow.z - 4, 12)
-                t.ticks(2)
+                -- Synq [1:12:18]: lure far from the anvil. Stay south of his
+                -- footprint so the wake-walk does not put us in the wedge yet.
+                t.player.walk_to(frow.x + 2, frow.z - 6, 8)
+                t.ticks(1)
                 set_state(STATE.LURE)
                 return
             end
@@ -185,13 +201,28 @@ return {
                 t.check("fight.click", ar == "ok" or ar == "timeout", tostring(ar) .. " " .. tostring(ad))
                 t.ticklog.mark("tekton engaged")
                 t.shot("tekton lure / approach click")
-                set_state(STATE.CYCLE)
+                set_state(STATE.BAIT)
+                return
+            end
+
+            if sm.state == STATE.BAIT then
+                -- Hold for one unprotected hit (prayer-reduction sample), then
+                -- Protect from Melee and start the run-around. Cap wait so a
+                -- missed first swing cannot leave us prayerless in the wedge.
+                sm.sub = sm.sub + 1
+                if unprotected_seen > 0 or sm.sub >= 8 then
+                    arm_protect()
+                    sustain()
+                    set_state(STATE.CYCLE)
+                end
+                t.ticks(1)
                 return
             end
 
             if sm.state == STATE.CYCLE then
                 -- Synq monkey / 4-tick: attack on the green pre-corner tile while
                 -- running counterclockwise (never clockwise).
+                if not prayer_on then arm_protect() end
                 local c = corners[(sm.corner % 4) + 1]
                 local tx = frow.x + c[1]
                 local tz = frow.z + c[2]
