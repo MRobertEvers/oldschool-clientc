@@ -60,25 +60,35 @@ end
 
 -- Candidate safe tiles around the portal (cardinals + diagonals at range 7).
 -- Prefer tiles away from the boss footprint so walk_to is not blocked under her.
-local function safe_candidates(portal, boss)
+-- Seed-1 landing is NORTH of the portal; the south gap is behind the barrier
+-- ("I can't reach that!"). Sort by distance to the player so TO_GAP walks the
+-- near-side tile first.
+local function safe_candidates(portal, boss, me)
     local c = {
-        { portal.x, portal.z - SAFE_CHEBYSHEV },
         { portal.x, portal.z + SAFE_CHEBYSHEV },
+        { portal.x, portal.z - SAFE_CHEBYSHEV },
         { portal.x - SAFE_CHEBYSHEV, portal.z },
         { portal.x + SAFE_CHEBYSHEV, portal.z },
-        { portal.x - SAFE_CHEBYSHEV, portal.z - SAFE_CHEBYSHEV },
-        { portal.x + SAFE_CHEBYSHEV, portal.z - SAFE_CHEBYSHEV },
         { portal.x - SAFE_CHEBYSHEV, portal.z + SAFE_CHEBYSHEV },
         { portal.x + SAFE_CHEBYSHEV, portal.z + SAFE_CHEBYSHEV },
+        { portal.x - SAFE_CHEBYSHEV, portal.z - SAFE_CHEBYSHEV },
+        { portal.x + SAFE_CHEBYSHEV, portal.z - SAFE_CHEBYSHEV },
     }
-    if boss == nil then return c end
-    local out = {}
-    for i = 1, #c do
-        if chebyshev(c[i][1], c[i][2], boss.x, boss.z) >= BOSS_CLEAR then
-            out[#out + 1] = c[i]
+    local out = c
+    if boss ~= nil then
+        out = {}
+        for i = 1, #c do
+            if chebyshev(c[i][1], c[i][2], boss.x, boss.z) >= BOSS_CLEAR then
+                out[#out + 1] = c[i]
+            end
         end
+        if #out == 0 then out = c end
     end
-    if #out == 0 then return c end
+    if me ~= nil and me.x ~= nil then
+        table.sort(out, function(a, b)
+            return chebyshev(a[1], a[2], me.x, me.z) < chebyshev(b[1], b[2], me.x, me.z)
+        end)
+    end
     return out
 end
 
@@ -140,7 +150,7 @@ return {
         local tr0, me0 = t.world.tile()
         t.check("tile.landing", tr0 == "ok" and me0 ~= nil,
             tr0 == "ok" and (tostring(me0.x) .. "," .. tostring(me0.z)) or tostring(tr0))
-        local cands = safe_candidates(prow, brow)
+        local cands = safe_candidates(prow, brow, me0)
         local sm = {
             state = STATE.LAND,
             ticks = 0,
@@ -185,14 +195,11 @@ return {
             if fr == "ok" and fsym == "raids_vespula_enraged" then
                 sm.enrage_seen = true
             end
+            -- Do not reshuffle sm.safe_* here: sample_world runs every tick and
+            -- re-sorting by player position made TO_GAP chase a moving target.
             if fr == "ok" and frow ~= nil then
-                local pr, portal = t.npc.nearest(PORTAL, 40)
-                if pr == "ok" and portal ~= nil then
-                    cands = safe_candidates(portal, frow)
-                    if sm.cand_i > #cands then sm.cand_i = 1 end
-                    sm.safe_x = cands[sm.cand_i][1]
-                    sm.safe_z = cands[sm.cand_i][2]
-                end
+                sm.boss_x = frow.x
+                sm.boss_z = frow.z
             end
             for i = 1, #GRUBS do
                 local gr = t.npc.nearest(GRUBS[i], 40)
@@ -326,6 +333,14 @@ return {
         end
 
         local function rotate_gap()
+            local tr_me, me_now = t.world.tile()
+            local por, portal = t.npc.nearest(PORTAL, 40)
+            local fr, frow = find_boss(t)
+            if por == "ok" and portal ~= nil then
+                local me_arg = (tr_me == "ok") and me_now or nil
+                local boss_arg = (fr == "ok") and frow or nil
+                cands = safe_candidates(portal, boss_arg, me_arg)
+            end
             sm.cand_i = sm.cand_i + 1
             if sm.cand_i > #cands then sm.cand_i = 1 end
             sm.safe_x = cands[sm.cand_i][1]
@@ -380,8 +395,14 @@ return {
                     set_state(STATE.ATTACK_PORTAL)
                     return
                 end
-                step_toward(sm.safe_x, sm.safe_z)
-                if sm.stuck >= 12 then
+                -- Near-side gap is only a few tiles from seed-1 landing; use a
+                -- real walk_to (auto deadline) before falling back to steps.
+                local wr, wd = t.player.walk_to(sm.safe_x, sm.safe_z)
+                if wr ~= "ok" then
+                    t.note("gap walk " .. tostring(wr) .. " " .. tostring(wd))
+                    step_toward(sm.safe_x, sm.safe_z)
+                end
+                if sm.stuck >= 8 then
                     rotate_gap()
                 end
                 return
