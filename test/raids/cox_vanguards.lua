@@ -136,60 +136,29 @@ local function attack_focus(t, sym)
     return t.player.attack(sym, 2, 1, { quick = true })
 end
 
--- Stance (Synq + pads fixed by givechase=no):
---   ranged focus → stand UNDER it (does not walk; whip range)
---   melee/magic focus → stand a few tiles past it on the far side so the
---   other two's attackrange-10 miss, while tbow/kodai still reach.
--- Do NOT re-walk every tick (run7: continuous walk cancelled all attacks
--- and kited forms off-pad before givechase=no).
-local ISOLATE_PAST = 5
-
-local function isolate_tile(pack, focus)
-    if focus == nil then return nil end
-    if focus.symbol == RANGED then
-        return focus.x, focus.z
+-- Stance after Protect-scaled AoE (content fix): stand ON the focus pad.
+-- Far-side isolation (run7–15) walked every decide and cancelled every
+-- attack (0 hit_npc). Synq "in front of the one you focus" + givechase=no
+-- pads: walk onto the focus tile once per focus change, then only attack.
+local function go_stance(t, focus, sm)
+    if focus == nil then return false end
+    if sm.stance_sym == focus.symbol and sm.stance_ok then
+        return false
     end
-    local ox, oz, n = 0, 0, 0
-    for i = 1, #COMBAT do
-        local row = row_by_sym(pack, COMBAT[i])
-        if row ~= nil and row.symbol ~= focus.symbol then
-            ox = ox + row.x
-            oz = oz + row.z
-            n = n + 1
-        end
-    end
-    if n == 0 then return focus.x, focus.z end
-    ox = math.floor(ox / n)
-    oz = math.floor(oz / n)
-    local dx = focus.x - ox
-    local dz = focus.z - oz
-    if dx == 0 and dz == 0 then
-        return focus.x + ISOLATE_PAST, focus.z
-    end
-    local adx = math.abs(dx)
-    local adz = math.abs(dz)
-    local sx, sz = 0, 0
-    if adx >= adz then
-        if dx > 0 then sx = 1 else sx = -1 end
-    else
-        if dz > 0 then sz = 1 else sz = -1 end
-    end
-    return focus.x + sx * ISOLATE_PAST, focus.z + sz * ISOLATE_PAST
-end
-
--- Returns true when a walk was issued (caller should not attack this tick).
-local function go_isolate(t, pack, focus)
-    local x, z = isolate_tile(pack, focus)
-    if x == nil then return false end
     local _, me = t.world.tile()
-    local dx = math.abs(me.x - x)
-    local dz = math.abs(me.z - z)
-    local need = 1
+    local dx = math.abs(me.x - focus.x)
+    local dz = math.abs(me.z - focus.z)
+    -- Tbow/kodai: within 4 of the pad is enough. Whip (ranged form): on tile.
+    local need = 4
     if focus.symbol == RANGED then need = 0 end
     if dx > need or dz > need then
-        t.player.walk_to(x, z, 3)
+        t.player.walk_to(focus.x, focus.z, 3)
+        sm.stance_sym = focus.symbol
+        sm.stance_ok = false
         return true
     end
+    sm.stance_sym = focus.symbol
+    sm.stance_ok = true
     return false
 end
 
@@ -327,6 +296,8 @@ return {
             hit_serial = 0,
             heal_serial = 0,
             proj_serial = 0,
+            stance_sym = nil,
+            stance_ok = false,
         }
 
         local function set_state(next_state)
@@ -529,10 +500,11 @@ return {
                 if sm.focus ~= mage.symbol then
                     sm.style = equip_for(t, mage.symbol)
                     sm.focus = mage.symbol
+                    sm.stance_ok = false
                 else
                     t.prayer.set(PROTECT[mage.symbol], true)
                 end
-                if go_isolate(t, pack, mage) then
+                if go_stance(t, mage, sm) then
                     return
                 end
                 attack_focus(t, mage.symbol)
@@ -588,10 +560,11 @@ return {
                 if sm.focus ~= target.symbol then
                     sm.style = equip_for(t, target.symbol)
                     sm.focus = target.symbol
+                    sm.stance_ok = false
                 else
                     t.prayer.set(PROTECT[target.symbol], true)
                 end
-                if go_isolate(t, pack, target) then
+                if go_stance(t, target, sm) then
                     return
                 end
                 attack_focus(t, target.symbol)
