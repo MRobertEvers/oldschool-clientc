@@ -2366,8 +2366,11 @@ Fixed (OSRS-Content 7a70ed5169, 8491f556a5, 55d34897e9, 964c87af49, f0478f39c7):
   player animation for either; the only 1157 any source names is the P2 bounce (tobmistaketracker
   VerzikP2MistakeDetector.java:38; wiki :393 "body-slammed away which stuns"), which keeps its knockback. The pillar now
   deals damage and stuns (human_stunned + spotanim 245) only; `^tob_verzik_pillar_knockback` is unused. Fixed 8b927584d8.
-  The harness never stands a raider under a falling pillar (0 collapse hits in 10 Verzik trio runs), so this path is
-  read, compiled and committed, not exercised.
+  Exercised by test/raids/_verzik_pillar_collapse.lua (solo, fight unbegun; ::tobwarp beside pillar 0, then
+  ::tobvzpillar 0, OSRS-Content a8e1d1e517, runs the fight's own collapse proc): 9/9 PASS on a8e1d1e517 (58 damage,
+  848 + 245, no 1157, never left its tile, alive at 41); on a throwaway worktree with 8b927584d8 reverted it FAILS
+  pillar.no_flyback (1157 x1) and pillar.in_place (thrown 2 tiles SW). Frame crops before/after:
+  build/seam_state/anim_audit/pillar_test/pillar_collapse_crops.png.
 
 Open:
 - (fixed, below) Engine, every room (parent 1e90c684a): the npc_anim op now ships seq < 0 as a cancel, and ~40 player-attack scripts
