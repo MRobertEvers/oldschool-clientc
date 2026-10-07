@@ -4987,6 +4987,21 @@ function QD.raid._verzik_phase_p3(c)
         end
     end
     -- last, over whatever the state decided: never stand where a tornado steps
+    -- THE CLAWS GO BACK whatever owned the tick: the dump only ran on a tick
+    -- with no tornado near, which in the enrage is almost never, so a seat
+    -- that had dumped its specs swung claws for the rest of the fight (_vzslow
+    -- 8374a3f60: 6-10 claw autos a seat in a 242-tick enrage, one scythe).
+    if melee and vz.held == "claws" and (intent.gear == nil or #intent.gear == 0) then
+        local _, en = QD.var.varp("varp300_sa_energy")
+        if (tonumber(en) or 0) < QD.RAID_PLAY_VERZIK_CLAW_COST then
+            local back = vz.p3_main or vz.main or "scythe"
+            intent.gear = { QD.RAID_PLAY_VERZIK_WEAPONS[back].item }
+            vz.held = back
+            st.weapon = QD.RAID_PLAY_VERZIK_WEAPONS[back]
+            QD.raid._verzik_engage(st, v, "rearmed")
+            vz.claws_back = (vz.claws_back or 0) + 1
+        end
+    end
     if melee then QD.raid._verzik_tornado_guard(st, v, intent, okp) end
     -- POWERED THROUGH, NOT WALKED INTO: an attack press out of reach walks me
     -- back to her by the server's path, and with my tornado within three that
