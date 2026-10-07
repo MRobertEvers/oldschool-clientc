@@ -234,6 +234,7 @@ return {
         local defence = srv.defence
         local attackrate = srv.attackrate
         local attackrange = srv.attackrange
+        t.drive.camera(768, 350, 600)
         t.shot("mystics idle on landing")
 
         local sm = {
@@ -257,6 +258,7 @@ return {
             types = {},
             engaged_slot = nil,
             last_brew_tick = -99,
+            empty_streak = 0,
         }
         remember_slots(sm, landing)
 
@@ -331,10 +333,16 @@ return {
             sample_anims()
             local alive = mystic_rows(t)
             remember_slots(sm, alive)
+            -- Require two consecutive empty pack polls before DONE so a
+            -- single pack miss cannot clear the room with mystics still up.
             if #alive == 0 then
-                set_state(STATE.DONE)
+                sm.empty_streak = sm.empty_streak + 1
+                if sm.empty_streak >= 2 then
+                    set_state(STATE.DONE)
+                end
                 return
             end
+            sm.empty_streak = 0
 
             if sm.state == STATE.LAND then
                 lr, ld = t.ticklog.mark("mystics room start")
@@ -366,21 +374,30 @@ return {
                         end
                     end
                     if target == nil then
-                        sm.kills = sm.kills + 1
-                        sm.focus_slot = nil
-                        sm.focus_sym = nil
-                        sm.engaged_slot = nil
-                        sip_brew_restore(t)
-                        emergency_food(t)
+                        -- Confirm the focus is gone for one more pack read
+                        -- before counting the kill (avoids false clears).
+                        t.ticks(1)
+                        if not pack_has_slot(t, sm.focus_slot) then
+                            sm.kills = sm.kills + 1
+                            sm.focus_slot = nil
+                            sm.focus_sym = nil
+                            sm.engaged_slot = nil
+                            sip_brew_restore(t)
+                            emergency_food(t)
+                        end
                         return
                     end
                 end
                 if target == nil then
                     target, sym = nearest_mystic(t)
                     if target == nil or sym == nil then
-                        set_state(STATE.DONE)
+                        sm.empty_streak = sm.empty_streak + 1
+                        if sm.empty_streak >= 2 then
+                            set_state(STATE.DONE)
+                        end
                         return
                     end
+                    sm.empty_streak = 0
                     sm.focus_sym = sym
                     sm.focus_slot = target.slot
                 end
@@ -455,6 +472,11 @@ return {
             end
         end
 
+        -- Settle a few ticks and re-read pack: parent reject saw remaining=3
+        -- claimed clear. Refuse green unless pack is empty.
+        for _ = 1, 3 do
+            t.ticks(1)
+        end
         local remaining = mystic_rows(t)
         t.drive.camera(0, 383, 600)
         t.check("sm.done", sm.state == STATE.DONE and #remaining == 0,
@@ -462,6 +484,16 @@ return {
                 .. " remaining=" .. tostring(#remaining)
                 .. " ticks=" .. tostring(sm.ticks)
                 .. " start_count=" .. tostring(start_count)
+                .. " kills=" .. tostring(sm.kills))
+        local rem_syms = {}
+        for i = 1, #remaining do
+            rem_syms[#rem_syms + 1] = tostring(remaining[i].symbol)
+                .. "@" .. tostring(remaining[i].slot)
+        end
+        t.check("mystics.cleared", #remaining == 0,
+            "remaining mystics " .. tostring(#remaining)
+                .. ( #rem_syms > 0 and (" [" .. table.concat(rem_syms, ",") .. "]") or "" )
+                .. " after FOCUS; start_count=" .. tostring(start_count)
                 .. " kills=" .. tostring(sm.kills))
         t.drive.camera(1024, 383, 500)
         t.shot("mystics room clear")
@@ -511,10 +543,15 @@ return {
             "measured " .. tostring(count_solo) .. " count, npc.pack landing mystics "
                 .. "(spec 3 count, grade C, tol exact)")
 
+        t.check("mystics.prayer_hits", sm.prayer_on and sm.prot_hits >= 3,
+            "Protect from Magic armed; protected magic hits sampled "
+                .. tostring(sm.prot_hits) .. " unprotected " .. tostring(sm.unprot_hits)
+                .. " prot_max=" .. tostring(sm.prot_max))
         t.check("tech.protect_magic", sm.prayer_on and sm.prot_hits >= 0,
             "Protect from Magic armed; protected hits sampled " .. tostring(sm.prot_hits)
                 .. " unprotected " .. tostring(sm.unprot_hits))
-        t.check("tech.focus_kill", sm.kills == 3,
-            "cleared " .. tostring(sm.kills) .. " of 3 skeletal mystics with ranged focus")
+        t.check("tech.focus_kill", sm.kills == 3 and #remaining == 0,
+            "cleared " .. tostring(sm.kills) .. " of 3 skeletal mystics with ranged focus"
+                .. " remaining=" .. tostring(#remaining))
     end,
 }
