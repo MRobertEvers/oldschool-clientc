@@ -31,6 +31,11 @@ alwaysApply: true
 - Running `prepare_scripts.py` / pack rebuilds that you then "fix" by
   restoring a private copy of **another** room's harness
 - Background watchers that rewrite sibling files on a timer
+- `cp` of `/opt/cursor/artifacts/*.owned` (or any pin) over the live tree
+- `run.py … --rebuild-scripts` while siblings may be mid-gate on the same
+  checkout (use `--no-build` + private `QUEST_BINARY` only)
+- Starting a gate while another room already holds `/tmp/cox_raid_gate.lock`
+  or `/tmp/raid_gate.lock` — wait; do not race with a second flock name
 
 ## Required
 
@@ -38,6 +43,8 @@ alwaysApply: true
   once from the parent base, push it, and **never leave it**. All commits,
   gates, and PRs stay on that branch.
 - Edit only the ownership table row in `docs/minigames/cox/ROOM_AGENT.md`
+- If `docs/minigames/cox/agent_briefs/AGENTS.md` says **HARD STOP**: idle
+  with zero edits until parent unfreezes your room by name
 - Shared file edits: take the named flock (`/tmp/cox_config.lock`,
   `/tmp/cox_puzzles.lock`, `/tmp/cox_minions.lock`, …), touch only your
   symbols, release
