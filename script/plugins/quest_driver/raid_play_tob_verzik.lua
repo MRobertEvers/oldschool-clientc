@@ -2095,7 +2095,9 @@ function QD.raid._play_verzik_decide(st, v)
             -- pull to it grows as the charge runs out)
             pool_late = true
             near_pool = pool
-            vz.pool_pull = (left > math.ceil(pool.d / 2) + 2) and 10 or 60
+            -- (four ticks to spare, not two: s_room_slow svb P3+322, the tank
+            -- reached its pool on the blast's own tick)
+            vz.pool_pull = (left > math.ceil(pool.d / 2) + 4) and 10 or 60
         end
         -- owner_verzik: THE GREEN BALL IS SHARED (the owner, 2026-10-07: "use
         -- the real mechanic and not use a cheese mechanic to beat the ball,
@@ -2317,6 +2319,14 @@ function QD.raid._play_verzik_decide(st, v)
                         end
                     end
                 end
+            end
+            -- (the charge running out: the pool itself, tornado or not -- a touch
+            -- is half my hitpoints, the blast up to 80 on everyone off a pool:
+            -- s_room_slow svb P3+322, all three off their pools in the enrage's
+            -- yellows, all three killed)
+            if near_pool ~= nil and pool ~= nil and not on_pool and (vz.pool_pull or 10) >= 60 then
+                bx, bz = near_pool.x, near_pool.z
+                vz.pool_forced = (vz.pool_forced or 0) + 1
             end
             -- standing is a choice too: no walk when my own tile is the best
             if bx == me.x and bz == me.z then bx = nil end
