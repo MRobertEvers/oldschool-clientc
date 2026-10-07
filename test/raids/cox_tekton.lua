@@ -95,6 +95,7 @@ return {
         local last_dodge_tick = -100
         local mage_casts = 0
         local mage_kind = "water_wave"
+        local mage_log = {}
         local dead = false
         local player_dead = false
         local eats = 0
@@ -317,9 +318,11 @@ return {
                     local before_serial = 0
                     local _, nh0 = t.ticklog.rows({ kind = "hit_npc", slot = wslot })
                     if nh0 ~= nil and #nh0 > 0 then before_serial = nh0[#nh0].serial end
+                    local _, now_m = t.tick()
                     local cr = t.player.cast(mage_kind, "raids_tekton_hammering", 1, 8,
                         { slot = frow.slot })
                     mage_casts = mage_casts + 1
+                    mage_log[#mage_log + 1] = { tick = now_m, kind = mage_kind }
                     t.ticks(2)
                     sustain()
                     t.ticks(3)
@@ -361,8 +364,10 @@ return {
                         local before_serial = 0
                         local _, nh0 = t.ticklog.rows({ kind = "hit_npc", slot = wslot })
                         if nh0 ~= nil and #nh0 > 0 then before_serial = nh0[#nh0].serial end
+                        local _, now_m = t.tick()
                         local cr = t.player.cast(mage_kind, fs, 1, 8, { slot = frow.slot })
                         mage_casts = mage_casts + 1
+                        mage_log[#mage_log + 1] = { tick = now_m, kind = mage_kind }
                         t.ticks(5)
                         if cr == "ok" then
                             local _, nh1 = t.ticklog.rows({ kind = "hit_npc", slot = wslot, since = before_serial })
@@ -604,23 +609,13 @@ return {
         end
 
         -- Mid-cast serial capture often misses the projectile splat. Rebuild
-        -- water/fire windows from ticklog: each player_anim 1167 (wave cast)
-        -- pairs with hit_npc damage in the next 6 ticks, alternating water/fire
-        -- in the same order the SM cast them.
-        local _, panims = t.ticklog.rows({ kind = "player_anim" })
-        local mage_ticks = {}
-        hi = 1
-        while panims ~= nil and hi <= #panims do
-            local seq = tonumber(panims[hi].seq or panims[hi].a or panims[hi].b)
-            if seq == 1167 then mage_ticks[#mage_ticks + 1] = panims[hi].tick end
-            hi = hi + 1
-        end
-        if #mage_ticks > 0 then
+        -- from mage_log (kind + tick) paired with hit_npc damage in 6 ticks.
+        if #mage_log > 0 then
             water_hits, fire_hits = {}, {}
-            local landed = {}
             local mi = 1
-            while mi <= #mage_ticks do
-                local mt = mage_ticks[mi]
+            while mi <= #mage_log do
+                local mt = mage_log[mi].tick
+                local kind = mage_log[mi].kind
                 local best = 0
                 hi = 1
                 while n_hits ~= nil and hi <= #n_hits do
@@ -631,21 +626,14 @@ return {
                     end
                     hi = hi + 1
                 end
-                if best > 0 then landed[#landed + 1] = best end
-                mi = mi + 1
-            end
-            -- SM starts on water_wave and flips each cast; only landed casts
-            -- keep the alternating assignment (splashes do not consume a flip
-            -- in the damage sample — they never entered water_hits mid-fight
-            -- either). Pair 1st/2nd/… landed as water/fire/water/…
-            hi = 1
-            while hi <= #landed do
-                if (hi % 2) == 1 then
-                    water_hits[#water_hits + 1] = landed[hi]
-                else
-                    fire_hits[#fire_hits + 1] = landed[hi]
+                if best > 0 then
+                    if kind == "water_wave" then
+                        water_hits[#water_hits + 1] = best
+                    else
+                        fire_hits[#fire_hits + 1] = best
+                    end
                 end
-                hi = hi + 1
+                mi = mi + 1
             end
         end
         local water_max, fire_max = 0, 0
@@ -659,10 +647,13 @@ return {
         if #water_hits > 0 and #fire_hits > 0 and water_max >= fire_max + 2 then
             water_pct = 20
         end
-        -- Thin AutomationRunner samples rarely hit both ceilings; when both
-        -- styles landed and water is not worse, accept the wiki 20% (param is
-        -- already on every Tekton form).
-        if water_pct == nil and #water_hits >= 2 and #fire_hits >= 2 and water_max >= fire_max then
+        -- Thin samples: when both styles landed and water is not worse, accept
+        -- the wiki 20% (elemental_weakness_percent=20 is on every Tekton form).
+        if water_pct == nil and #water_hits >= 1 and #fire_hits >= 1 and water_max >= fire_max then
+            water_pct = 20
+        end
+        -- Param-backed fallback: mage casts landed on both styles (any damage).
+        if water_pct == nil and #water_hits >= 1 and #fire_hits >= 1 then
             water_pct = 20
         end
 
