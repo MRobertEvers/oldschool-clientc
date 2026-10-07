@@ -5,6 +5,10 @@
 -- workshop climbs, the crane claw on the placed crane, the jig cart's spawn). The junction box is
 -- the cache's own pipe screen (interface 262), wired end by end and read off the screen, and the
 -- cogs and pipe sit in crates drawn per player when the book is taken (b72 junction-box pass).
+-- b73: the water tank is driven by the wiki's main path (outlet shut, the inlet quenches the bar
+-- on its own turn), the north lever's "tank needs to be empty first" refusal is pressed for real
+-- on a full tank twice, and Quest Helper's turnEastValve is a disclosed recovery detour taken
+-- before the bar goes in (elem2_repair.rs2 has the crate layouts' sources).
 --
 -- Stage var: varb2639_elemental_quest_2_main, constants from elementalworkshopii.constant.
 --
@@ -473,7 +477,8 @@ return {
         t.expect("quest.stage.workshop_repaired", t.quest.expect_stage("workshop_repaired"))
 
         -- Priming a bar (elem2_priming.rs2): every lever, valve and corkscrew pressed in Quest
-        -- Helper's priming order, each graded on the varbit it moves.
+        -- Helper's priming order, each graded on the varbit it moves; at the water tank the wiki's
+        -- order, after one disclosed recovery detour (see the tank below).
         local function press(name, loc, wx, wz, var, value)
             t.exec("walk-" .. name, t.player.walk_to, wx, wz, 60)
             t.exec(name, t.player.click_loc, loc, 1)
@@ -502,39 +507,68 @@ return {
         press("pullLeverToMoveToPress", "elem2_lever_3way", 1953, 5150, JIG_POS, 1)
         press("lowerPress", "elem2_earth_lever_1", 1950, 5154, JIG_STATE, 3)
         press("pullLeverToMoveToTank", "elem2_lever_3way", 1953, 5150, JIG_POS, 2)
-        press("pullLeverToOpenTankDoor", "elem2_water_lever", 1953, 5160, DOOR, 1)
-        press("turnCorkscrew", "elem2_corkscrew", 1955, 5160, DOOR, 2)
-        press("turnCorkscrewAgain", "elem2_corkscrew", 1955, 5160, DOOR, 4)
-        press("pullLeverToCloseTankDoor", "elem2_water_lever", 1953, 5160, DOOR, 3)
         -- The tank's valves (elem2_priming.rs2 [proc,elem2_tank_settle]): north-west inlet, north-east
-        -- outlet, plain toggles over a real water level; each turn is a mesbox. Wiki "The water tank":
-        -- "Make sure the eastern valve is closed ... If it does not [cool], the eastern valve is open."
-        -- Quest Helper's turnEastValve row (hot bar in, inlet open) is that recovery branch, so the run
-        -- takes it on purpose: the outlet is opened first, the inlet then runs straight through (the bar
-        -- stays hot, the tank stays empty), and shutting the outlet fills the tank and quenches the bar.
-        -- turnEastValveAgain (cool bar in, door shut, outlet shut) then drains it, turnWestValveAgain
-        -- shuts the inlet, and only an empty tank with the inlet shut lets the door open again.
+        -- outlet, plain toggles over a real water level; each turn is a mesbox. The north lever will
+        -- not open the door on water: "You pull the lever but nothing happens. Maybe the tank needs to
+        -- be empty first." (Transcript:Elemental_Workshop_II oldid 15340241, "Pulling the lever while
+        -- the tank is full"), a one-page mesbox.
         local VALVE_IN = "varb2651_elemental_quest_2_water_valve_1"
         local VALVE_OUT = "varb2652_elemental_quest_2_water_valve_2"
         local WATER = "varb2654_elemental_quest_2_water_level"
+        local TANK_FULL_LINE = "mesbox:You pull the lever but nothing happens. Maybe the tank needs to be empty first."
         local function turn_valve(name, loc, wx, wz, var, value)
             t.exec("walk-" .. name, t.player.walk_to, wx, wz, 60)
             t.exec(name, t.player.click_loc, loc, 1)
             t.exec(name .. ".dismiss", t.chat.drain, {})
             t.exec(name .. ".var", t.var.await_server, var, value, 10)
         end
-        turn_valve("outletLeftOpen", "elem2_valve_2", 1957, 5160, VALVE_OUT, 1)
+        -- Recovery branch, taken on purpose and BEFORE the main path (disclosed): Quest Helper's
+        -- turnEastValve row "flatHotBarOnJig, barOutsideTank, waterInTank, waterOutClosed ->
+        -- turnEastValve" (ElementalWorkshopII.java primingInWorkshop) -- the tank was filled before the
+        -- bar went in. The west valve is opened and shut with the door still closed (outlet shut, so
+        -- the water stays), the lever is pulled for real on the full tank and refuses, and the east
+        -- valve lets the water out and is shut again. The bar is never touched by this water: it is
+        -- still on the jig outside the door (jig_state 3, flattened hot).
+        turn_valve("inletOpenedEarly", "elem2_valve_1", 1949, 5160, VALVE_IN, 1)
+        t.exec("inletOpenedEarly.tankFull", t.var.await_server, WATER, 1, 5)
+        turn_valve("inletClosedEarly", "elem2_valve_1", 1949, 5160, VALVE_IN, 0)
+        t.exec("inletClosedEarly.stillFull", t.var.await_server, WATER, 1, 5)
+        t.exec("walk-leverRefusedBarOutside", t.player.walk_to, 1953, 5160, 60)
+        t.exec("leverRefusedBarOutside", t.player.click_loc, "elem2_water_lever", 1)
+        t.exec("leverRefusedBarOutside.message", t.chat.play, { TANK_FULL_LINE })
+        t.exec("leverRefusedBarOutside.doorShut", t.var.await_server, DOOR, 0, 5)
+        t.exec("leverRefusedBarOutside.barOutside", t.var.await_server, JIG_STATE, 3, 5)
+        turn_valve("turnEastValve", "elem2_valve_2", 1957, 5160, VALVE_OUT, 1)
+        t.exec("turnEastValve.drained", t.var.await_server, WATER, 0, 5)
+        turn_valve("outletClosedEarly", "elem2_valve_2", 1957, 5160, VALVE_OUT, 0)
+        t.exec("outletClosedEarly.tankEmpty", t.var.await_server, WATER, 0, 5)
+        -- The main path (wiki Elemental_Workshop_II oldid 15271178 "The water tank"): "Pull the old
+        -- lever to open the door, then turn the corkscrew lever twice to pull the cart into the tank.
+        -- Close the door again with the old lever. Make sure the eastern valve is closed, then open up
+        -- the western valve ... The bar should turn blue once it gets cooled by the water. ... Close
+        -- the western valve again, then open the eastern one to let the water out and close it down
+        -- again." The bar is quenched on the very turn that opens the inlet.
+        press("pullLeverToOpenTankDoor", "elem2_water_lever", 1953, 5160, DOOR, 1)
+        press("turnCorkscrew", "elem2_corkscrew", 1955, 5160, DOOR, 2)
+        press("turnCorkscrewAgain", "elem2_corkscrew", 1955, 5160, DOOR, 4)
+        press("pullLeverToCloseTankDoor", "elem2_water_lever", 1953, 5160, DOOR, 3)
+        t.exec("pullLeverToCloseTankDoor.outletShut", t.var.await_server, VALVE_OUT, 0, 5)
         turn_valve("turnWestValve", "elem2_valve_1", 1949, 5160, VALVE_IN, 1)
-        t.exec("turnWestValve.throughOutlet", t.var.await_server, WATER, 0, 5)
-        t.exec("turnWestValve.barStillHot", t.var.await_server, DOOR, 3, 5)
-        turn_valve("turnEastValve", "elem2_valve_2", 1957, 5160, VALVE_OUT, 0)
-        t.exec("turnEastValve.tankFull", t.var.await_server, WATER, 1, 5)
-        t.exec("turnEastValve.barCooled", t.var.await_server, JIG_STATE, 4, 5)
-        t.exec("turnEastValve.door", t.var.await_server, DOOR, 6, 5)
+        t.exec("turnWestValve.tankFull", t.var.await_server, WATER, 1, 5)
+        t.exec("turnWestValve.barCooled", t.var.await_server, JIG_STATE, 4, 5)
+        t.exec("turnWestValve.door", t.var.await_server, DOOR, 6, 5)
+        turn_valve("turnWestValveAgain", "elem2_valve_1", 1949, 5160, VALVE_IN, 0)
+        t.exec("turnWestValveAgain.stillFull", t.var.await_server, WATER, 1, 5)
+        -- The wiki's own moment for the refusal: the cooled bar is sealed in, the inlet is shut, and
+        -- the tank is still full -- the door stays shut until the outlet has run it dry.
+        t.exec("walk-leverRefusedTankFull", t.player.walk_to, 1953, 5160, 60)
+        t.exec("leverRefusedTankFull", t.player.click_loc, "elem2_water_lever", 1)
+        t.exec("leverRefusedTankFull.message", t.chat.play, { TANK_FULL_LINE })
+        t.exec("leverRefusedTankFull.doorShut", t.var.await_server, DOOR, 6, 5)
         turn_valve("turnEastValveAgain", "elem2_valve_2", 1957, 5160, VALVE_OUT, 1)
         t.exec("turnEastValveAgain.drained", t.var.await_server, WATER, 0, 5)
-        turn_valve("turnWestValveAgain", "elem2_valve_1", 1949, 5160, VALVE_IN, 0)
-        t.exec("turnWestValveAgain.tankEmpty", t.var.await_server, WATER, 0, 5)
+        turn_valve("outletClosed", "elem2_valve_2", 1957, 5160, VALVE_OUT, 0)
+        t.exec("outletClosed.tankEmpty", t.var.await_server, WATER, 0, 5)
         press("pullLeverToOpenTankDoorAgain", "elem2_water_lever", 1953, 5160, DOOR, 7)
         press("turnCorkscrewToRetrieve", "elem2_corkscrew", 1955, 5160, DOOR, 8)
         press("turnCorkscrewToRetrieveAgain", "elem2_corkscrew", 1955, 5160, DOOR, 1)
