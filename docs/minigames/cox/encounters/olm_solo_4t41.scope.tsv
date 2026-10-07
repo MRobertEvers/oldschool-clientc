@@ -1,0 +1,9 @@
+mechanic_id	scope	note
+olm.action_clock	all	solo 4:1 measures the 4-tick action clock
+olm.rotation_steps	all	solo 4:1 walks the 12-step rotation
+olm.spec_every	all	solo 4:1 skips specials via head turns
+olm.head_vislevel	all	cache vislevel on live head
+olm.left_vislevel	all	cache vislevel on live left claw
+olm.right_vislevel	all	cache vislevel on live right claw
+olm.phases_solo	all	solo hand phases + head
+olm.4t41_cycle	all	Synq melee 4-tick 4:1 cycle count (floor)
