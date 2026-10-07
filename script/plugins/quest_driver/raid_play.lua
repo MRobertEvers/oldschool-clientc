@@ -1662,6 +1662,15 @@ function QD.raid._play_summary(st)
         .. string.format("; own screen saw %d weapon starts", #st.seen_swings)
         .. QD.raid._play_summary_seam31(st)
         .. QD.raid._play_summary_triggers(st)
+        -- raid seam53: THE STATE MACHINES' COVERAGE, when the plan declared
+        -- any (QD.raid.sm_coverage; the empty string for a plan with no
+        -- machine, so a room that declares none is unaffected).  A port's
+        -- proof is "identical readings", and that is worth only as much as the
+        -- states the runs entered: the Xarpus port surveyed 5 of 5 green with
+        -- byte-identical ledgers for a change hung off a state that no
+        -- measured run enters.  Putting the per-state counts in the summary
+        -- makes coverage part of the comparison instead of an assumption.
+        .. QD.raid.sm_coverage(st)
 end
 
 -- raid seam31 play_library_faults: the stop's reason, the prayer offs the
