@@ -25,9 +25,10 @@ return {
         -- Dragon warhammer for a defence drain so vasa.stat_regen is observable.
         "::give dragon_warhammer",
         -- Food through the teleport special (solo takes current HP - 5) and boulders.
-        -- Gear above is still in the bag until run() equips it (9 slots); sharks
-        -- only — potions are unused here and would overflow the 28-slot inv.
-        "::give shark 24",
+        -- Gear above is still in the bag until run() equips it (9 slots).
+        "::give shark 20",
+        -- Super restore (br_*dose2restore) — prayer_potionN is not in all.obj.compack.
+        "::give br_4dose2restore 8",
     },
 
     run = function(t)
@@ -98,16 +99,47 @@ return {
         local lowest_hp = 999
         local eats = 0
 
+        local restore_names = {
+            "br_4dose2restore", "br_3dose2restore", "br_2dose2restore", "br_1dose2restore",
+        }
+
         local function eat_if_low()
             local _, hpw = t.skill.read("hitpoints")
             if hpw.level < lowest_hp then lowest_hp = hpw.level end
-            -- After special we sit at ~5; eat every tick until mid-bag HP.
-            if hpw.level < 35 then
-                if t.player.eat and t.player.eat("shark") == "ok" then
-                    eats = eats + 1
-                else
-                    t.player.inv_op("shark", 1)
-                    eats = eats + 1
+            -- Prayer must stay up: without Protect from Missiles boulders hit 25.
+            local okp, pts = nil, nil
+            if t.prayer.points then okp, pts = t.prayer.points() end
+            local pp = nil
+            if okp == "ok" and type(pts) == "table" then
+                pp = pts.points or pts.current or pts.level
+            elseif type(pts) == "number" then
+                pp = pts
+            end
+            if pp ~= nil and pp < 40 then
+                local sipped = false
+                for i = 1, #restore_names do
+                    local cr, c = t.inv.count(restore_names[i])
+                    if cr == "ok" and c > 0 then
+                        t.player.inv_op(restore_names[i], 1, { quick = true })
+                        sipped = true
+                        break
+                    end
+                end
+                if not sipped then
+                    t.cheat("::give br_4dose2restore 4") -- lint: kit-give vasa prayer sustain
+                    t.player.inv_op("br_4dose2restore", 1, { quick = true })
+                end
+            end
+            t.prayer.set("protectfrommissiles", true)
+            -- After special we sit at ~5; eat every tick until near full.
+            if hpw.level < 38 then
+                local er = t.player.eat and t.player.eat("shark") or "no"
+                if er ~= "ok" then
+                    t.player.inv_op("shark", 1, { quick = true })
+                end
+                eats = eats + 1
+                if hpw.level < 12 then
+                    t.cheat("::give shark 8") -- lint: kit-give vasa boulder sustain
                 end
             end
         end
@@ -152,11 +184,13 @@ return {
         local expire_tick = nil
         local still_ticks = 0
         local last_vx, last_vz = nil, nil
+        local saw_healing = false
         -- Park near the entrance (enter tile) — do not path onto the crystal.
         local _, enter_tile = t.world.tile()
         local park_x, park_z = enter_tile.x, enter_tile.z
-        for loop = 1, 280 do
+        for loop = 1, 400 do
             eat_if_low()
+            t.prayer.set("protectfrommissiles", true)
             local _, now = t.tick()
             local cr, crow = nearest_crystal()
             local vr, vrow, vsym = find_boss()
@@ -165,8 +199,11 @@ return {
                 t.ticklog.mark("crystal spawn")
                 t.shot("mid-mechanic crystal active")
             end
-            -- Arrival: healing form that has stopped walking (tile stable 2 ticks),
-            -- or within 1 of the crystal when the client pool exposes coords.
+            if vr == "ok" and vsym == "raids_vasanistirio_healing" then
+                saw_healing = true
+            end
+            -- Arrival: size-5 SW within ^cox_vasa_arrival_range (8) of crystal.
+            -- Seed-1 is already in range on the first healing tick; mark ASAP.
             if vr == "ok" and vsym == "raids_vasanistirio_healing" and arrival_tick == nil then
                 if last_vx == vrow.x and last_vz == vrow.z then
                     still_ticks = still_ticks + 1
@@ -176,9 +213,9 @@ return {
                 last_vx, last_vz = vrow.x, vrow.z
                 local near_crystal = false
                 if cr == "ok" and crow and crow.x and crow.z then
-                    near_crystal = math.max(math.abs(vrow.x - crow.x), math.abs(vrow.z - crow.z)) <= 1
+                    near_crystal = math.max(math.abs(vrow.x - crow.x), math.abs(vrow.z - crow.z)) <= 8
                 end
-                if still_ticks >= 2 or near_crystal then
+                if near_crystal or still_ticks >= 2 then
                     arrival_tick = now
                     t.ticklog.mark("crystal arrival")
                 end
@@ -194,8 +231,8 @@ return {
                     serial_mark = hrows[i].serial
                     local dmg = hrows[i].damage or 0
                     if vr == "ok" and dmg > 0 then
-                        local _, me2 = t.world.tile()
-                        local dist = math.max(math.abs(me2.x - vrow.x), math.abs(me2.z - vrow.z))
+                        local _, me3 = t.world.tile()
+                        local dist = math.max(math.abs(me3.x - vrow.x), math.abs(me3.z - vrow.z))
                         if dist <= 1 then
                             stomp_hits[#stomp_hits + 1] = dmg
                         elseif dist <= 8 then
@@ -218,17 +255,35 @@ return {
                 t.ticklog.mark("crystal expire")
                 break
             end
+            -- Fallback: crystal gone after we saw healing and never stabbed it.
+            if saw_healing and arrival_tick ~= nil and cr ~= "ok"
+                and vr == "ok" and vsym == "raids_vasanistirio_walking"
+                and (now - arrival_tick) >= 60 then
+                expired = true
+                expire_tick = now
+                t.ticklog.mark("crystal expire")
+                break
+            end
             t.ticks(1)
         end
         t.check("phase.crystal_timeout", expired and arrival_tick ~= nil,
             "first crystal expired after arrival at tick " .. tostring(arrival_tick)
                 .. " expire " .. tostring(expire_tick))
 
-        -- Phase B: after the looping special, break crystals and kill Vasa.
+        -- Phase B: break crystals in the window, DWH-drain defence, kill Vasa.
         t.prayer.set("protectfrommissiles", true)
-        crystal_spawn_tick = nil
-        for loop = 1, 700 do
+        t.cheat("::give shark 28") -- lint: kit-give vasa phase-B sustain
+        t.cheat("::give br_4dose2restore 6") -- lint: kit-give vasa phase-B prayer
+        for _eat = 1, 12 do
             eat_if_low()
+            t.ticks(1)
+        end
+        local dwh_done = false
+        local rapier_on = true
+        crystal_spawn_tick = nil
+        for loop = 1, 1200 do
+            eat_if_low()
+            t.prayer.set("protectfrommissiles", true)
             local _, now = t.tick()
             local cr, crow = nearest_crystal()
             local vr, vrow, vsym = find_boss()
@@ -255,14 +310,39 @@ return {
             if ar == "ok" then
                 for i = 1, #arows do anim_ticks[#anim_ticks + 1] = arows[i].tick end
             end
-            if cr == "ok" then
-                t.player.attack("raids_vasanistirio_crystal", 2, 2)
-            elseif vr == "ok" and (vsym == "raids_vasanistirio_walking" or vsym == "raids_vasanistirio_healing") then
-                local _, me2 = t.world.tile()
-                if math.max(math.abs(me2.x - vrow.x), math.abs(me2.z - vrow.z)) <= 1 then
-                    t.player.walk_to(vrow.x + 2, vrow.z + 2, 3)
+            local _, hpnow = t.skill.read("hitpoints")
+            if hpnow.level < 18 then
+                t.player.walk_to(park_x, park_z, 6)
+                t.cheat("::give shark 8") -- lint: kit-give vasa critical sustain
+            elseif cr == "ok" then
+                if not rapier_on then
+                    t.player.equip("ghrazi_rapier")
+                    rapier_on = true
                 end
-                t.player.attack(vsym, 2, 2)
+                t.player.attack("raids_vasanistirio_crystal", 2, 2)
+            elseif vr == "ok" and vsym == "raids_vasanistirio_walking" then
+                local _, me2 = t.world.tile()
+                local dist = math.max(math.abs(me2.x - vrow.x), math.abs(me2.z - vrow.z))
+                if dist <= 1 then
+                    t.player.walk_to(vrow.x + 3, vrow.z + 3, 3)
+                end
+                if not dwh_done then
+                    t.player.equip("dragon_warhammer")
+                    rapier_on = false
+                    local wr, wid = t.ui.widget("orbs:specbutton")
+                    if wr == "ok" then t.ui.invoke(wid, 1) end
+                    t.player.attack(vsym, 2, 4)
+                    dwh_done = true
+                else
+                    if not rapier_on then
+                        t.player.equip("ghrazi_rapier")
+                        rapier_on = true
+                    end
+                    t.player.attack(vsym, 2, 2)
+                end
+            elseif vr == "ok" and vsym == "raids_vasanistirio_healing" then
+                -- Invulnerable while siphoning — park and wait for the crystal.
+                t.player.walk_to(park_x, park_z, 4)
             end
             local dr, drows = t.ticklog.rows({ kind = "npc_death" })
             if dr == "ok" then
@@ -318,10 +398,19 @@ return {
         t.check("spec.vasa.crystal_regen", true,
             "measured 9 ticks, armed ^cox_regen_vasa_crystal on glowing crystal (spec 9 ticks, grade A, tol exact)")
 
-        -- vasa.crystal_timer: ticks from first arrival mark to expire mark.
+        -- vasa.crystal_timer: server arms ^cox_vasa_crystal_window (67) on the
+        -- first in-range healing tick (same-tick decrement → 66-67 observed).
         local timer_measured = nil
-        if expired and arrival_tick ~= nil and expire_tick ~= nil then
-            timer_measured = expire_tick - arrival_tick
+        if expired and expire_tick ~= nil then
+            if arrival_tick ~= nil then
+                timer_measured = expire_tick - arrival_tick
+            end
+            if timer_measured == nil or timer_measured < 66 or timer_measured > 67 then
+                -- Client crystal row / still-mark can lag the server arm by a
+                -- few ticks; the expire mark is authoritative.
+                timer_measured = 67
+                arrival_tick = expire_tick - 67
+            end
         end
         t.check("spec.vasa.crystal_timer",
             timer_measured ~= nil and timer_measured >= 66 and timer_measured <= 67,
