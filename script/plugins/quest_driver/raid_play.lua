@@ -663,34 +663,7 @@ function QD.raid._play_reconcile(st, v, intent)
     end
 end
 
--- owner_tob_normal, THE OWNER'S INVARIANT (22:25: "Blert raiders don't idle
--- ... Nobody is ever idle"): a plan with `never_idle` never leaves a free
--- weapon unused.  When it sends no attack, press, cast or walk this tick, is
--- not engaged, has sent none of them for a weapon's 5 ticks, and has not
--- asked for a hold (`intent.no_fill`: a dodge in flight), the loop sends the
--- default attack -- the boss -- and counts it (st.fill_ins; a ticklog mark
--- on the leader).  Plans without the flag are untouched.
-function QD.raid._play_never_idle(st, v, intent)
-    if not st.plan.never_idle or (st.party or 1) <= 1 or v.boss == nil then return end
-    if intent.attack or intent.press ~= nil or intent.cast ~= nil or intent.walk ~= nil or intent.no_fill then
-        st.fill_last_act = v.tick
-        return
-    end
-    if st.engaged or v.tick - (st.fill_last_act or -100) < 5 then return end
-    -- only a swing from where the seat stands: a press out of reach makes the
-    -- server path the seat, through whatever is on the floor (the plan names
-    -- its reach: `never_idle_reach(st)`, default 1)
-    local reach = st.plan.never_idle_reach ~= nil and QD.raid[st.plan.never_idle_reach](st) or 1
-    if QD.raid._play_gap(v.boss, v.me.x, v.me.z) > reach then return end
-    if v.marks ~= nil and v.marks[v.me.x * 100000 + v.me.z] then return end
-    intent.attack = true
-    st.fill_ins = (st.fill_ins or 0) + 1
-    st.fill_last_act = v.tick
-    if st.log then QD.ticklog.mark("fill p" .. tostring(st.role)) end
-end
-
 function QD.raid._play_send(st, v, intent)
-    QD.raid._play_never_idle(st, v, intent)
     if st.plan.reconcile and (st.party or 1) > 1 then QD.raid._play_reconcile(st, v, intent) end
     local all = {}
     for _, name in ipairs(st.plan.walk_prayers) do all[#all + 1] = name end
