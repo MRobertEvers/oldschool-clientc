@@ -511,7 +511,49 @@ function QD.raid._verzik_cover(st, v, ok)
             end
         end
     end
-    for _, p in ipairs(v.pillars) do
+    -- owner_verzik 2026-10-07: THE SIX PILLARS ARE KNOWN, NOT DISCOVERED, so
+    -- that all three raiders choose the SAME shadow.
+    --
+    -- `v.pillars` is the npc rows in MY view, and a raider standing at the near
+    -- row cannot see the far one -- so each raider was ranking a different
+    -- candidate list and they picked different pillars.  Measured: six bolt
+    -- absorptions spread over FOUR attacks (1, 1, 2, 2), which is the trio
+    -- split across two pillars, and 6425,94 fell on its third bolt at t131
+    -- leaving the last six launches tanked by all three.
+    --
+    -- The positions are fixed (tob.constant ^tob_verzik_pillar_0..5_l[xz]: local
+    -- x 25 west and 37 east, local z 18, 24, 30), so they are read from the
+    -- room origin instead.  A pillar not in view is ASSUMED STANDING until it
+    -- is seen to fall, which is the safe direction: the worst case is walking
+    -- to a shadow that is not there, where the opposite error is tanking a
+    -- bolt with cover available.
+    --
+    -- WHY ONE SHADOW FOR ALL THREE, sourced: the content charges a pillar ONE
+    -- hit however many raiders hide behind it (~tob_verzik_p1_shot's $pillars
+    -- bitmask -- "several players behind one pillar cost the pillar only one
+    -- hit ... by construction"), and the wiki has the team hide behind one
+    -- pillar together (W:885).  Blert's P1 positions agree: raiders beside her
+    -- 51% and at the near pillar row 27%, never further out.  So a stacked
+    -- trio gets SIX covered attacks out of the near row's two pillars, which
+    -- is Blert's whole P1, and a split trio gets two.
+    local seen = {}
+    for _, pr in ipairs(v.pillars) do seen[pr.x * 100000 + pr.z] = pr end
+    local known = {}
+    for _, lz in ipairs({ 18, 24, 30 }) do
+        for _, lx in ipairs({ 25, 37 }) do
+            local px, pz = O.x + lx, O.z + lz
+            local row = seen[px * 100000 + pz]
+            -- a pillar whose npc row is in view but RETYPED away is rubble;
+            -- v.pillars only carries the standing form, so a tile in view with
+            -- no row and a raider close enough to see it is a fallen one
+            if row ~= nil then
+                known[#known + 1] = row
+            elseif math.max(math.abs(px - me.x), math.abs(pz - me.z)) > 12 then
+                known[#known + 1] = { x = px, z = pz, slot = -(lx * 100 + lz), assumed = true }
+            end
+        end
+    end
+    for _, p in ipairs(known) do
         -- the lowest bar seen on it: the bar shows only for a while after a
         -- hit (s34v svb/sva: a bar gone read as a whole pillar, the raiders
         -- hid at both near pillars' loose tiles and both fell on them at t119)
@@ -644,13 +686,83 @@ QD.RAID_PLAY_VERZIK_DAWN_COST = 350
 -- the plan was undone.  Splitting it into sub-states either delays the
 -- unwield by a tick or drops the re-check.  Neither is worth a prettier
 -- declaration, so the compound stays whole and this comment says why.
-QD.raid.sm_declare("verzik_dawnbringer", {
-    start = "absent",
+-- ==========================================================================
+-- raid seam53 hierarchy, owner 2026-10-07 ("you should be using state machines
+-- or hierarchical state machines; why did you go back to boolean soup?").
+--
+-- THE SWORD'S TURN, AS TWO MACHINES, because two clocks cross here.
+--
+-- Her bolt cadence is 14 ticks, exact in all 105 of Blert's P1 gaps, and it
+-- cuts across every stage of the sword's turn: a holder on a cover tile cannot
+-- arm a special, whatever stage its turn is at.  So the BOLT CYCLE is the
+-- parent and the TURN is its child, live only while exposed:
+--
+--   verzik_bolt   EXPOSED   her next bolt is far enough off to use the sword
+--                 HIDING    behind a pillar for the launch; the child is
+--                           DORMANT, which is the layer's resume semantics --
+--                           suspended, not cancelled, so the turn picks up at
+--                           the stage it reached (raid_sm.lua:52-101)
+--
+--   verzik_sword  ABSENT      not carrying it; take it on my turn
+--                 WIELD       carrying it, putting it on
+--                 ARMED       wielded, ready to fire
+--                 FIRED_ONCE  one special spent
+--                 BETWEEN     inside the five-tick spacing
+--                 FIRED_TWICE two spent
+--                 SPENT       the orb cannot pay for another
+--                 PASSING     main weapon back on, dropping it for the next
+--                 DONE        dropped, or nobody left to pass to
+--
+-- WHY THE STAGES ARE WORTH THE LINES.  Before this, "the special was
+-- suppressed because I am hiding" and "my turn is over" were the SAME THING:
+-- both were the absence of a spec intent from inside one `held` body.  A seat
+-- could walk off its turn holding 300 unspent energy and nothing could point
+-- at it.  Measured per seat, that is exactly what happened -- 2, 2, 0 specials
+-- on the two 163-tick P1s, the third seat ending with a FULL 1000 orb -- and a
+-- room total of six hid it, because six is also what two each looks like.
+--
+-- Now the fault is ASSERTABLE: PASSING carries a premise that it has nothing
+-- left to fire.  If a turn reaches PASSING while the orb still holds the 350,
+-- the premise breaks and the machine goes back to ARMED and fires it, instead
+-- of carrying the special away unspent.  The premise is both the check and the
+-- fix, which is why it is a premise rather than a counter.
+QD.raid.sm_declare("verzik_bolt", {
+    start = "EXPOSED",
     states = {
-        absent = { on = { orb = function(c, ev) return QD.raid._verzik_dawn_absent(c, ev) end } },
-        held   = { on = { orb = function(c, ev) return QD.raid._verzik_dawn_held(c, ev) end } },
-        -- nothing to do and nowhere to go
-        done   = {},
+        EXPOSED = { note = "her bolt is far enough off to use the sword",
+            children = { "verzik_sword" },
+            on = { bolt_cycle = function(c, ev) return (ev.hiding and nil or nil), (ev.hiding and "HIDING" or nil) end } },
+        HIDING  = { note = "behind a pillar for the launch; the turn is suspended",
+            on = { bolt_cycle = function(c, ev) return nil, (ev.hiding and nil or "EXPOSED") end } },
+    },
+})
+
+QD.raid.sm_declare("verzik_sword", {
+    start = "ABSENT",
+    states = {
+        ABSENT      = { note = "not carrying it", on = {
+            bolt_cycle = function(c, ev) return QD.raid._verzik_sword_absent(c, ev) end } },
+        WIELD       = { note = "putting it on", on = {
+            bolt_cycle = function(c, ev) return QD.raid._verzik_sword_wield(c, ev) end } },
+        ARMED       = { note = "wielded and ready to fire", on = {
+            bolt_cycle = function(c, ev) return QD.raid._verzik_sword_fire(c, ev, "FIRED_ONCE") end } },
+        FIRED_ONCE  = { note = "one special spent", on = {
+            bolt_cycle = function(c, ev) return QD.raid._verzik_sword_after(c, ev) end } },
+        BETWEEN     = { note = "inside the five-tick spacing", on = {
+            bolt_cycle = function(c, ev) return QD.raid._verzik_sword_between(c, ev) end } },
+        FIRED_TWICE = { note = "two specials spent", on = {
+            bolt_cycle = function(c, ev) return QD.raid._verzik_sword_after(c, ev) end } },
+        SPENT       = { note = "the orb cannot pay for another", on = {
+            bolt_cycle = function(c, ev) return QD.raid._verzik_sword_spent(c, ev) end } },
+        -- THE PREMISE IS THE MEASUREMENT: a turn only passes the sword on when
+        -- it has nothing left to fire.  Reaching here with the 350 still in
+        -- the orb is the dropped special the owner asked about, and it goes
+        -- back to ARMED to spend it rather than carrying it away.
+        PASSING     = { note = "main weapon back on, dropping it for the next raider",
+            premise = function(c, ev) return QD.raid._verzik_sword_may_pass(c, ev) end,
+            broken = "ARMED",
+            on = { bolt_cycle = function(c, ev) return QD.raid._verzik_sword_passing(c, ev) end } },
+        DONE        = { note = "dropped, or nobody left to pass to" },
     },
 })
 
@@ -668,33 +780,21 @@ function QD.raid._verzik_main_weapon_back(st, vz, intent)
     st.engaged = false
 end
 
--- ABSENT: taken whenever it lies there on my turn (past the near row there is
--- no hiding, s34v vzn7: p3 never took it once the trio tanked)
-function QD.raid._verzik_dawn_absent(c, ev)
-    assert(c, "_verzik_dawn_absent: c")
-    assert(ev, "_verzik_dawn_absent: ev")
+-- ABSENT: take it on my turn, when it is in view and my orb can pay.
+--
+-- BLERT-SOURCED, THE SWORD GOES ROUND MORE THAN ONCE: 9-11 specials a room
+-- (median 10) at 111.8 damage, about 1118 of the 1500 P1 pool, with 4-7 tick
+-- gaps, so the sword is in somebody's hand for nearly all of P1.  A 1000 orb
+-- at 350 a special buys TWO, and three raiders passing it once is six; the
+-- other four come from the orb REGENERATING while it goes round -- 85 ticks is
+-- 51 seconds, about 170 energy a raider, which takes the 300 left after two
+-- back over 350 and buys a THIRD each.  So the turn is modular: raider r takes
+-- it on the (r-1)th appearance, the (r-1+party)th, and so on, and a raider
+-- whose orb cannot pay leaves it for whoever can.
+function QD.raid._verzik_sword_absent(c, ev)
+    assert(c, "_verzik_sword_absent: c")
+    assert(ev, "_verzik_sword_absent: ev")
     local st, v, dw = c.st, c.v, c.dw
-    -- owner_verzik 2026-10-07, BLERT-SOURCED: THE SWORD GOES ROUND TWICE.
-    --
-    -- Blert's 27 Normal trio rooms spend 9-11 Dawnbringer specials a room
-    -- (median 10) at 111.8 damage each -- about 1118 of the 1500 P1 pool,
-    -- three quarters of the phase -- with gaps of 4 to 7 ticks between them,
-    -- so the sword is in somebody's hand for nearly all of P1.  We spent SIX,
-    -- and the arithmetic says why: the special costs 350 of a 1000 orb, so a
-    -- full orb buys TWO, and three raiders passing it once is six.  The other
-    -- four come from the orb REGENERATING while it goes round -- 85 ticks is
-    -- 51 seconds, about 170 energy a raider, which takes the 300 left after
-    -- two specials back over the 350 and buys a THIRD each.
-    --
-    -- That is P1's whole story: 450 damage of the pool we had to find with
-    -- melee instead, which is why our P1 ran 163 ticks and ELEVEN bolt
-    -- launches against Blert's 85 and six -- and the near row's safe pillar
-    -- absorptions only cover six, so the trio tanked the rest.
-    --
-    -- So the turn is modular rather than once: raider r takes it on the
-    -- (r-1)th appearance, the (r-1+party)th, and so on.  A raider whose orb
-    -- cannot pay for a special leaves it for whoever can, which is what keeps
-    -- the rounds in step without anyone being told.
     if not c.floor_now then return end
     local turn = dw.appear - (st.role - 1)
     if turn < 0 or (st.party > 0 and turn % st.party ~= 0) then return end
@@ -705,66 +805,136 @@ function QD.raid._verzik_dawn_absent(c, ev)
     if cr == "ok" and n > 0 then
         dw.took = v.tick
         dw.e_prev = ev.energy
-        return nil, "held"
+        return nil, "WIELD"
     end
     if #dw.refused < 4 then
         dw.refused[#dw.refused + 1] = "t" .. v.tick .. " take " .. tostring(tr) .. ": " .. string.sub(tostring(td), 1, 100)
     end
 end
 
--- HELD: the orb holds -> wield and special; the orb flat -> the main weapon
--- back, then the drop on the cover tile
-function QD.raid._verzik_dawn_held(c, ev)
-    assert(c, "_verzik_dawn_held: c")
-    assert(ev, "_verzik_dawn_held: ev")
-    local st, v, vz, dw, intent = c.st, c.v, c.vz, c.dw, c.intent
-    -- owner_verzik 2026-10-07: HER SHIELD BREAKING DESTROYS THE SWORD IN MY
-    -- HAND (tob_verzik.rs2 ~tob_verzik_shield_broken), and the orb can still
-    -- hold the 350 -- so `held` went on arming a special with an EMPTY HAND
-    -- and the main weapon never came back: _vzslow's seat 1 took the sword at
-    -- t208, P1 ended at t214, and it fought t211..t954 -- all of P2 and most
-    -- of P3 -- at `weapon -1`.  A third of the trio's damage: that P2 ran 488
-    -- ticks at 7.2 damage a tick where the fast team's ran 247 at 11.6.
-    --
-    -- The phase is the reading rather than "is the sword in my inventory",
-    -- because a WIELDED sword is not in the inventory and that test unwields
-    -- it on the tick it goes on.
-    local dphase = v.phase or vz.phase
-    if dphase ~= nil and dphase ~= "pre" and dphase ~= "p1" then
-        dw.destroyed = v.tick
-        QD.raid._verzik_main_weapon_back(st, vz, intent)
-        return nil, "done"
-    end
-    local spent = ev.energy < QD.RAID_PLAY_VERZIK_DAWN_COST
-    if not spent then
-        if vz.held ~= "dawnbringer" then
-            intent.gear = { "verzik_special_weapon" }
-            vz.held = "dawnbringer"
-            st.weapon = QD.RAID_PLAY_VERZIK_WEAPONS.dawnbringer
-            st.engaged = false
-            c.busy = true
-            return
-        end
-        if not c.hiding and v.tick >= dw.arm_tick + 5 then
-            dw.arm_tick = v.tick
-            intent.spec = true
-            intent.attack = true
-            st.engaged = false
-            c.busy = true
-            return
-        end
-        -- between specials: its autos ignore the cap too (tob_damage.rs2
-        -- ~tob_verzik_p1_cap: the weapon, not the swing)
+-- WIELD: the sword goes on.  Its own tick, because the equip IS the tick's
+-- work -- the old body did this and the first special in one `held` pass and
+-- the ordering was a comparison rather than a transition.
+function QD.raid._verzik_sword_wield(c, ev)
+    assert(c, "_verzik_sword_wield: c")
+    assert(ev, "_verzik_sword_wield: ev")
+    local st, vz, intent = c.st, c.vz, c.intent
+    if vz.held ~= "dawnbringer" then
+        intent.gear = { "verzik_special_weapon" }
+        vz.held = "dawnbringer"
+        st.weapon = QD.RAID_PLAY_VERZIK_WEAPONS.dawnbringer
+        st.engaged = false
+        c.busy = true
         return
     end
-    -- spent: the main weapon back on (the scythe, or the slow pace's halberd),
-    -- then the drop on the cover tile
+    return nil, "ARMED"
+end
+
+-- ARMED / BETWEEN -> fire.  The five-tick spacing is a TRANSITION now: a
+-- special arms here and the next one waits in BETWEEN until the gap is served.
+-- (Its autos ignore her P1 cap too -- tob_damage.rs2 ~tob_verzik_p1_cap is the
+-- weapon, not the swing.)
+function QD.raid._verzik_sword_fire(c, ev, go)
+    assert(c, "_verzik_sword_fire: c")
+    assert(ev, "_verzik_sword_fire: ev")
+    local st, v, dw, intent = c.st, c.v, c.dw, c.intent
+    if ev.energy < QD.RAID_PLAY_VERZIK_DAWN_COST then return nil, "SPENT" end
+    dw.arm_tick = v.tick
+    intent.spec = true
+    intent.attack = true
+    st.engaged = false
+    c.busy = true
+    return nil, go
+end
+
+-- FIRED_ONCE / FIRED_TWICE: one tick to see the energy go, then either the
+-- spacing or the end of the turn.
+function QD.raid._verzik_sword_after(c, ev)
+    assert(c, "_verzik_sword_after: c")
+    assert(ev, "_verzik_sword_after: ev")
+    if ev.energy < QD.RAID_PLAY_VERZIK_DAWN_COST then return nil, "SPENT" end
+    return nil, "BETWEEN"
+end
+
+function QD.raid._verzik_sword_between(c, ev)
+    assert(c, "_verzik_sword_between: c")
+    assert(ev, "_verzik_sword_between: ev")
+    if ev.energy < QD.RAID_PLAY_VERZIK_DAWN_COST then return nil, "SPENT" end
+    if c.v.tick < (c.dw.arm_tick or -1000) + 5 then return end
+    return QD.raid._verzik_sword_fire(c, ev, "FIRED_TWICE")
+end
+
+-- SPENT: the main weapon goes back on, then the turn is passed.
+function QD.raid._verzik_sword_spent(c, ev)
+    assert(c, "_verzik_sword_spent: c")
+    assert(ev, "_verzik_sword_spent: ev")
+    local st, v, vz, dw, intent = c.st, c.v, c.vz, c.dw, c.intent
     if vz.held == "dawnbringer" then
         QD.raid._verzik_main_weapon_back(st, vz, intent)
         dw.unwield = v.tick
         return
     end
-    if c.on_cover and st.role < st.party then
+    return nil, "PASSING"
+end
+
+-- THE PREMISE ON PASSING: a turn only passes the sword on when it has nothing
+-- left to fire.  If the orb has recovered past the cost while the turn was
+-- ending -- or if the turn ever reaches here with it unspent, which is the
+-- defect the owner asked about -- this breaks and the machine goes back to
+-- ARMED to spend it.  `dw.premise_breaks` counts it so the row can say so.
+function QD.raid._verzik_sword_may_pass(c, ev)
+    assert(c, "_verzik_sword_may_pass: c")
+    assert(ev, "_verzik_sword_may_pass: ev")
+    if ev.energy >= QD.RAID_PLAY_VERZIK_DAWN_COST then
+        c.dw.premise_breaks = (c.dw.premise_breaks or 0) + 1
+        c.dw.premise_at = c.dw.premise_at or c.v.tick
+        return false
+    end
+    return true
+end
+
+-- PASSING: dropped where the others hide (W:887 "'416' or 'pillar drop'"), so
+-- the next raider in orb order finds it.  Back to ABSENT, not DONE: the sword
+-- comes round again and this raider's orb regenerates past the cost by then.
+-- DONE is for the raider with nobody left to pass to.
+QD.RAID_PLAY_VERZIK_PASS_WAIT = 4
+
+function QD.raid._verzik_sword_passing(c, ev)
+    assert(c, "_verzik_sword_passing: c")
+    assert(ev, "_verzik_sword_passing: ev")
+    local st, v, dw = c.st, c.v, c.dw
+    -- owner_verzik 2026-10-07: THE DROP DOES NOT WAIT FOR COVER FOREVER, and
+    -- the staged machine is what made this visible.  The cover tile is where
+    -- the sword SHOULD land (W:887 "'416' or 'pillar drop'", so the next
+    -- raider finds it where the team is hiding), but it was a REQUIREMENT:
+    -- `c.on_cover and ...`, with no other way out of the stage.  A holder that
+    -- could not reach cover held the sword indefinitely.
+    --
+    -- Measured, per seat, from the stage counts this rebuild gave:
+    --   p1  ABSENT 120/2  WIELD 1/1  ARMED 1/1  FIRED_ONCE 1/1  BETWEEN 5/2
+    --       FIRED_TWICE 1/1  SPENT 2/1  PASSING 4/1      -- a clean turn
+    --   p2  ABSENT 20/1   WIELD 2/1  ARMED 1/2  ...       PASSING **30/1**
+    --   p3  ABSENT **137/1** and every other stage 0/0    -- NEVER A TURN
+    -- p2 sat in PASSING for THIRTY TICKS waiting to be on its cover tile, so
+    -- the sword never appeared on the floor a second time, so p3's turn --
+    -- which is the (role-1)th appearance -- never came at all.  That is the
+    -- full 1000 orb and the two unspent specials the owner asked about, and it
+    -- was invisible while suppression and completion were the same absence.
+    --
+    -- So: cover if I can get there, the tile I stand on if I have waited.  The
+    -- next raider's take needs the sword IN VIEW, not on a particular tile.
+    --
+    -- AND THE LAST RAIDER PASSES IT ON TOO.  It used to keep the sword ("nobody
+    -- is left to take it, and her shield breaking destroys it anyway"), which
+    -- ends the circulation after ONE round and caps the room at six specials --
+    -- two each.  Blert spends 9-11, which is three to four each, so the sword
+    -- has to go round more than once: with the modular turn, raider 1 takes it
+    -- again on the third appearance, by which time its orb has regenerated
+    -- past the cost.  PASSING's premise already guarantees nobody passes a
+    -- sword they could still fire, so circulating is safe by construction.
+    dw.pass_from = dw.pass_from or v.tick
+    local waited = v.tick - dw.pass_from >= QD.RAID_PLAY_VERZIK_PASS_WAIT
+    if (c.on_cover or waited) and st.role < st.party then
         local dr, dd = QD.player.drop("verzik_special_weapon")
         st.inputs[v.tick] = (st.inputs[v.tick] or 0) + 1
         dw.drop_result = tostring(dr) .. ": " .. string.sub(tostring(dd), 1, 120)
@@ -772,13 +942,10 @@ function QD.raid._verzik_dawn_held(c, ev)
         if cr == "ok" and n == 0 then
             dw.dropped = v.tick
             dw.rounds = (dw.rounds or 0) + 1
-            -- back to ABSENT, not done: the sword comes round again and this
-            -- raider's orb will have regenerated past the 350 by then.  `done`
-            -- is for the raider that has nobody left to pass to.
-            return nil, "absent"
+            dw.pass_waited = (dw.pass_waited or 0) + (v.tick - dw.pass_from)
+            dw.pass_from = nil
+            return nil, "ABSENT"
         end
-    elseif st.role >= st.party then
-        return nil, "done"
     end
 end
 
@@ -800,9 +967,10 @@ function QD.raid._verzik_dawn(st, v, intent, hiding, on_cover, events)
         dw = { specs = {}, appear = 0, on_floor = false, e_prev = energy,
             arm_tick = -1000, obj = oid, took = nil, dropped = nil, refused = {} }
         vz.dawn = dw
-        -- "am I carrying it?" is the caller's question, answered once, here
+        -- "am I carrying it?" is the caller's question, answered once, here.
+        -- WIELD rather than ARMED: the sword still has to go on.
         if cr == "ok" and n > 0 then
-            QD.raid.sm_force(st, v, "verzik_dawnbringer", "held",
+            QD.raid.sm_force(st, v, "verzik_sword", "WIELD",
                 { st = st, v = v, vz = vz, dw = dw, intent = intent }, "carries_sword")
         end
     end
@@ -823,8 +991,20 @@ function QD.raid._verzik_dawn(st, v, intent, hiding, on_cover, events)
     dw.on_floor = floor_now
     local c = { st = st, v = v, vz = vz, dw = dw, intent = intent,
         hiding = hiding, on_cover = on_cover, floor_now = floor_now, busy = false }
-    local m = QD.raid.sm_run(st, v, "verzik_dawnbringer", c, events)
+    -- raid seam53 hierarchy: ONE event for both machines, carrying the tick's
+    -- two readings -- whether a bolt has me on a cover tile, and what the orb
+    -- holds.  The parent (verzik_bolt) switches on `hiding` and the layer
+    -- steps the child (verzik_sword) only while EXPOSED, so hiding SUSPENDS
+    -- the turn at whatever stage it reached instead of looking like its end.
+    --
+    -- Her shield destroying the sword in my hand is NOT handled here any more:
+    -- that is p1's `exit` hook (the boundary) and verzik_weapon (the raider),
+    -- which is where the layer's header says those two belong.
+    local m = QD.raid.sm_run(st, v, "verzik_bolt", c,
+        { { name = "bolt_cycle", hiding = hiding and true or false, energy = energy } })
     dw.state = m.state
+    local sw = QD.raid.sm_at(st, "verzik_sword")
+    dw.turn = sw and sw.state or nil
     return c.busy
 end
 
@@ -2058,26 +2238,19 @@ QD.raid.sm_declare("verzik_phase", {
         -- is a fact about the BOUNDARY, so it runs here rather than on the
         -- first tick past it, which is where the hand-rolled guard ran.
         --
-        -- `children = { "verzik_dawnbringer" }` IS DECLINED HERE, and this is
-        -- the reasoned decline the layer's header asks for rather than
-        -- silence.  A child is stepped by the LAYER after the parent has
-        -- handled the event, with the PARENT's context, and
-        -- `verzik_dawnbringer` cannot be driven that way yet for two reasons:
-        -- its step needs a context p1 does not have (`hiding`, `on_cover` --
-        -- whether I am behind a pillar this tick, which decides whether a
-        -- special may be armed at all), and it RETURNS `busy`, which p1 acts
-        -- on in the SAME tick to decide whether to press an attack.  Nesting
-        -- it as it stands would step it twice a tick -- once by the layer and
-        -- once by `_verzik_dawn`'s own sm_run -- and the parent would still
-        -- have decided the attack before the child ran.
+        -- The sword's own hierarchy is `verzik_bolt` -> `verzik_sword`, built
+        -- where the sword is used rather than nested here: its parent is HER
+        -- BOLT CADENCE, not the phase, because that is the clock that
+        -- suspends a turn.  p1 is not declared as its parent because p1 is
+        -- not what interrupts it.
         --
-        -- Fixing that is the control-flow inversion the P1/P2/P3 rebuild
-        -- needs: the parent's handler goes thin (cover and movement only) and
-        -- the press becomes a child that CLAIMS the tick (QD.raid.sm_claim)
-        -- when the sword is busy.  That is the next piece of the rebuild, not
-        -- a thing to half-do here, because a child stepped twice or stepped
-        -- after the decision is worse than a call site that is at least
-        -- honest about its order.
+        -- p1 does NOT take `children` for it, and the reason is worth keeping:
+        -- a child is stepped by the layer after the parent has handled the
+        -- event and with the parent's context, while this one needs `hiding`
+        -- and `on_cover` (which p1 computes late, from the launch it predicts)
+        -- and RETURNS `busy`, which p1 reads in the SAME tick to decide
+        -- whether to press an attack.  Inverting that -- a thin parent and a
+        -- child that claims the tick -- is the next piece of the rebuild.
         p1  = { exit = function(c) return QD.raid._verzik_p1_exit(c) end,
             on = { form_change = function(c, ev) return nil, ev.to end,
             tick = function(c) return QD.raid._verzik_phase_p1(c) end } },
