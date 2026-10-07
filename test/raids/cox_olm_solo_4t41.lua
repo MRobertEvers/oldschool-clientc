@@ -777,10 +777,12 @@ return {
                     -- Teleport / acid shove: re-seat south of the head.
                     t.player.walk_to(hx, hz, 4)
                 end
-                local opts = { quick = true }
+                -- First engages: full press (cover recovery + walk_near). After
+                -- a landed hit, quick re-clicks are enough.
+                local opts = { quick = (sm.sub > 8) }
                 if hrow ~= nil then opts.slot = hrow.slot end
-                -- Settle 4: approach → at-range LoS → opnpc2 without a cancel walk.
-                local ar, ad = t.player.attack(HEAD, 2, 4, opts)
+                local settle = (sm.sub > 8) and 3 or 8
+                local ar, ad = t.player.attack(HEAD, 2, settle, opts)
                 if ar == "refused" and type(ad) == "string" and string.find(ad, "DIED", 1, true) then
                     set_state(STATE.DONE)
                     return
