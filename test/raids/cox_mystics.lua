@@ -6,10 +6,10 @@
 --   "The bofa and blowpipe are also commonly used here. The twisted bow
 --    isn't as strong here ... still an acceptable weapon."
 -- Kill path: Protect from Magic; tbow + salve; focus one mystic at a time.
--- Stay on tbow the whole fight -- blowpipe's short range walked into melee
--- (run19 max hit 21 unprotected) and drained the backpack on mystic 2.
--- Model: named-state machine; FOCUS attacks + await_dead_engaged (low
--- attempts so corpse grace cannot drain the backpack), pack confirms kill.
+-- Stay on tbow (blowpipe walks into melee). Brew-primary sustain: potions
+-- do not add weapon delay, so the 5-tick bow keeps firing; anglers only
+-- under 28 hp. Pack world-slot drop counts each kill.
+-- Model: named-state machine; one intent per FOCUS tick.
 -- No ::godmode, ::kill, or teleport past a phase.
 
 local FORMS = {
@@ -253,7 +253,7 @@ return {
             prayer_on = false,
             slots = {},
             types = {},
-            last_attack_tick = -99,
+            engaged_slot = nil,
             last_brew_tick = -99,
         }
         remember_slots(sm, landing)
@@ -348,26 +348,14 @@ return {
             end
 
             if sm.state == STATE.FOCUS then
-                -- Per-tick SM: brew sustain (no weapon delay) + tbow attack.
-                -- await_dead eat delayed the bow to 12 ticks and starved the
-                -- backpack; potions do not call consume_attack_delay.
+                -- Per-tick SM: engage once, then brew. Re-pressing Attack every
+                -- 4 ticks (run26) settled under fire and skipped brew ticks.
+                -- Auto-retaliate keeps the tbow firing after the first press.
                 arm_prayers(false)
-
-                local h = hp(t)
-                if h > 0 and h < 55 and (sm.ticks - sm.last_brew_tick) >= 3 then
-                    sip_brew_restore(t)
-                    sm.last_brew_tick = sm.ticks
-                    -- Fall through to attack on the same decide when possible;
-                    -- inv_op may settle, which is still better than food delay.
-                end
-                if h > 0 and h < 28 then
-                    emergency_food(t)
-                end
 
                 local target = nil
                 local sym = nil
                 if sm.focus_slot ~= nil then
-                    target = nil
                     for i = 1, #alive do
                         if alive[i].slot == sm.focus_slot then
                             target = alive[i]
@@ -379,7 +367,9 @@ return {
                         sm.kills = sm.kills + 1
                         sm.focus_slot = nil
                         sm.focus_sym = nil
+                        sm.engaged_slot = nil
                         sip_brew_restore(t)
+                        emergency_food(t)
                         return
                     end
                 end
@@ -398,14 +388,41 @@ return {
                     sm.mid_shot = true
                 end
 
-                if sm.ticks - sm.last_attack_tick >= 4 then
+                local h = hp(t)
+                -- Sustain before any attack settle so low-HP engages brew first.
+                if h > 0 and h < 55 and (sm.ticks - sm.last_brew_tick) >= 3 then
+                    sip_brew_restore(t)
+                    sm.last_brew_tick = sm.ticks
+                    return
+                end
+                if h > 0 and h < 30 then
+                    emergency_food(t)
+                    return
+                end
+                if prayer_points(t) < 40 then
+                    drink_restore(t)
+                    arm_prayers(false)
+                    return
+                end
+
+                if sm.engaged_slot ~= sm.focus_slot then
                     local cslot = target.client_slot
                     if type(cslot) == "number" then
                         t.player.attack(sym, 2, 1, { quick = true, slot = cslot })
                     else
                         t.player.attack(sym, 2, 1, { quick = true })
                     end
-                    sm.last_attack_tick = sm.ticks
+                    sm.engaged_slot = sm.focus_slot
+                    return
+                end
+                -- Re-nudge Attack every 25 ticks in case auto-retaliate dropped.
+                if sm.ticks % 25 == 0 then
+                    local cslot = target.client_slot
+                    if type(cslot) == "number" then
+                        t.player.attack(sym, 2, 1, { quick = true, slot = cslot })
+                    else
+                        t.player.attack(sym, 2, 1, { quick = true })
+                    end
                 end
                 return
             end
