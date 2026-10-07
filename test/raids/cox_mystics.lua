@@ -333,21 +333,24 @@ return {
         end
 
         local function sustain()
-            if sm.ticks < sm.next_consume_at then
+            local h = hp(t)
+            -- Emergency eats ignore the cooldown (run13 died at 26 ticks
+            -- with a cooldown that refused food under stacked mystic hits).
+            local urgent = h > 0 and h < 28
+            if not urgent and sm.ticks < sm.next_consume_at then
                 if prayer_points(t) < 30 then
                     drink_restore(t)
                     arm_prayers(false)
                 end
                 return
             end
-            local h = hp(t)
-            if h > 0 and h < 35 then
+            if h > 0 and h < 45 then
                 if drink_brew(t) then
                     sm.next_consume_at = sm.ticks + CONSUME_COOLDOWN
                     return
                 end
             end
-            if h > 0 and h < 40 then
+            if h > 0 and h < 50 then
                 if t.player.eat("shark") == "ok"
                     or t.player.eat("tbwt_cooked_karambwan") == "ok" then
                     sm.next_consume_at = sm.ticks + CONSUME_COOLDOWN
