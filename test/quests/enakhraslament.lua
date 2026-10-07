@@ -675,9 +675,15 @@ return {
         -- Prayer off again for the building.
         t.ui.tab("prayer")
         t.ticks(1)
-        local off_result, off_widget = t.ui.widget("prayerbook:prayer15")
-        if off_result == "ok" then t.ui.invoke(off_widget, 1) end
+        -- Only toggle while it is still on: the dialogue may have drained the points, and a press then turns it back ON.
+        if var("varb4118_prayer_protectfrommelee") == 1 then
+            local off_result, off_widget = t.ui.widget("prayerbook:prayer15")
+            t.check("prayerOff-widget", off_result == "ok", "prayerbook:prayer15 -> " .. tostring(off_result))
+            t.ui.invoke(off_widget, 1)
+        end
         t.ticks(2)
+        t.check("prayerOff", var("varb4118_prayer_protectfrommelee") == 0,
+            "varb4118_prayer_protectfrommelee " .. var("varb4118_prayer_protectfrommelee"))
         t.ui.tab("inventory")
 
         -- ------------------------------------------------ the wall
