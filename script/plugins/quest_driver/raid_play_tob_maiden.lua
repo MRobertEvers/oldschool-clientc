@@ -645,36 +645,71 @@ QD.RAID_MAIDEN_POS = {
 -- a frozen crab's ice lasts 32 ticks here (thaw +38 on a +6 freeze, the
 -- relay's S2s); a scythe seat goes to finish it from this many ticks frozen
 QD.RAID_MAIDEN_THAW_SOON = 20
--- every crab event moves its position's state; the wave's pattern is kept
+-- EVERY CRAB EVENT MOVES ITS POSITION'S MACHINE (maiden_crab, one instance
+-- per position).  m.pos[slot] is the record the picks read: the declaration
+-- owns its `state` (the enter hooks) and its clocks (the handlers), and
+-- nothing else writes either.
+-- (m.pattern -- a per-wave count of which positions spawned -- was built here
+-- and never read by anything, so it is gone: the wave's pattern IS the set of
+-- maiden_crab instances that are not GONE, which the picks ask directly.)
+QD.RAID_MAIDEN_VANISHED_EVENT = { name = "crab_vanished" }
+QD.RAID_MAIDEN_WALKS_AGAIN_EVENT = { name = "crab_walks_again" }
 function QD.raid.mz_pos_update(st, v)
+    assert(st, "mz_pos_update: st")
+    assert(v, "mz_pos_update: v")
     local m = st.m
     m.pos = m.pos or {}
-    m.pattern = m.pattern or {}
     for _, e in ipairs(v.events or {}) do
         local a = e.slot ~= nil and st.ev.adds[e.slot] or nil
         local lane = a ~= nil and QD.RAID_MAIDEN_REF.lanes[a.label] or nil
         if e.name == "crab_spawn" then
-            m.pos[e.slot] = { lane = lane, state = "WALKING", since = v.tick, wave = st.ev.wave, frozen_at = nil, thaws = 0 }
-            local pat = m.pattern[st.ev.wave] or {}
-            if lane ~= nil then pat[lane] = (pat[lane] or 0) + 1 end
-            m.pattern[st.ev.wave] = pat
-        elseif m.pos[e.slot or -1] ~= nil then
             local ps = m.pos[e.slot]
-            if e.name == "crab_frozen" and ps.state ~= "FROZEN" then
-                ps.state, ps.since, ps.frozen_at = "FROZEN", v.tick, v.tick
-            elseif e.name == "crab_thaw" then
-                ps.state, ps.since, ps.thaws = "THAWED", v.tick, ps.thaws + 1
-            elseif e.name == "crab_gone" then
-                ps.state, ps.since = "GONE", v.tick
+            if ps == nil then
+                -- a position with no crab on it is GONE, the machine's start
+                ps = { lane = lane, state = "GONE", since = v.tick, frozen_at = nil }
+                m.pos[e.slot] = ps
             end
+            ps.lane = lane
+            QD.raid.mz_pos_run(st, v, e.slot, ps, e)
+        elseif m.pos[e.slot or -1] ~= nil then
+            QD.raid.mz_pos_run(st, v, e.slot, m.pos[e.slot], e)
         end
     end
-    -- (a crab that walks again after its ice without the thaw event)
+    -- (a crab whose npc row went away with no crab_gone, and one that walks
+    -- again after its ice without the thaw event -- crab_thaw does not always
+    -- arrive, and the THAW lane and the F_ON_BOSS re-freeze both need it)
     for slot, ps in pairs(m.pos) do
         local a = st.ev.adds[slot]
-        if ps.state ~= "GONE" and (a == nil or a.gone) then ps.state = "GONE" end
-        if ps.state == "FROZEN" and a ~= nil and not a.ice and a.moved and v.tick - ps.since > 2 then ps.state, ps.since = "THAWED", v.tick end
+        if ps.state ~= "GONE" and (a == nil or a.gone) then
+            QD.raid.mz_pos_run(st, v, slot, ps, QD.RAID_MAIDEN_VANISHED_EVENT)
+        end
+        if ps.state == "FROZEN" and a ~= nil and not a.ice and a.moved and v.tick - ps.since > 2 then
+            QD.raid.mz_pos_run(st, v, slot, ps, QD.RAID_MAIDEN_WALKS_AGAIN_EVENT)
+        end
     end
+end
+-- ONE EVENT THROUGH ONE POSITION'S MACHINE.  A position holds one crab a
+-- wave, so the instance IS the position (inst "S1" .. "N4out") and its trace
+-- reads as that position's history across the whole room.  Two live crabs on
+-- one position -- a leftover from the last wave -- would share the instance,
+-- so the run is synced to THIS crab's own record first: m.pos[slot] stays the
+-- authority every pick reads.
+function QD.raid.mz_pos_run(st, v, slot, ps, ev)
+    assert(st, "mz_pos_run: st")
+    assert(ps, "mz_pos_run: ps")
+    assert(ev, "mz_pos_run: ev")
+    local inst = ps.lane or ("slot" .. tostring(slot))
+    local c = st.m.pos_ctx
+    if c == nil then
+        c = {}
+        st.m.pos_ctx = c
+    end
+    c.st, c.v, c.slot, c.ps, c.inst = st, v, slot, ps, inst
+    local mm = QD.raid.sm_at(st, "maiden_crab", inst)
+    if mm ~= nil and mm.state ~= ps.state then
+        QD.raid.sm_force(st, v, "maiden_crab", ps.state, c, "resync", inst)
+    end
+    QD.raid.sm_run(st, v, "maiden_crab", c, { ev }, inst)
 end
 -- the freezer's pick for a position group: a walking (or thawed) crab of
 -- the group in the barrage's ten tiles, the one with most crabs round it
@@ -708,52 +743,206 @@ function QD.raid.mz_pos_pick(st, v, groups, skip, states)
     return nil
 end
 
--- THE STATES: per state, the event -> handler table and the tick (filled in below)
+-- ==========================================================================
+-- MAIDEN'S MACHINES, ON THE DECLARATIVE LAYER (raid_sm.lua, raid seam53).
+--
+-- The owner, 2026-10-07: "all the rooms should be explicit state machines",
+-- and for this room: "Maiden is thrashing as well.  That should also be a
+-- clearly defined state machine that is able to handle all the state
+-- transitions from waves to 70, 50, 30.  It must handle all the different
+-- spawns correctly in the correct state and transition correctly.  I want a
+-- CLEAR state machine."
+--
+-- Before this the room had ONE machine, the seat's, written as a table of
+-- handler NAMES with a `mz_stay` in every slot a state ignored, and its
+-- transitions scattered through the handler bodies as mz_go calls.  Her
+-- phases were not a machine at all -- mz_form re-read her npc symbol on
+-- every call -- and a crab's position state was a hand-rolled loop.  There
+-- was no one place that said what the states were or how they connected.
+--
+-- FOUR MACHINES ARE DECLARED NOW, at the end of this section once their
+-- handlers exist (search "THE DECLARED MACHINES"):
+--
+--   maiden_phase    her four forms and her death, one state each, moved by
+--                   the npc_retype event off her npc row (8360 -> 8361 at
+--                   70% -> 8362 at 50% -> 8363 at 30%).  Every form names
+--                   every retype, so a form is reachable from any other --
+--                   forward as she takes damage, backward if a later read of
+--                   her row disagrees.
+--   maiden_crab     ONE INSTANCE PER SPAWN POSITION (inst "S1" .. "N4out"),
+--                   WALKING -> FROZEN -> THAWED -> GONE, and GONE -> WALKING
+--                   when the next wave fills that position again.
+--   maiden_freezer  the freezer seat: DRAIN F_ON_BOSS PREAIM CAST RETURN DODGE
+--   maiden_scythe   a scythe seat:    OPEN DRAIN S_ON_BOSS LANE CLAWS DODGE
+--
+-- THE PER-TICK CONTRACT IS THE LIBRARY'S, UNCHANGED.  raid_play.lua derives
+-- this tick's events once (QD.raid._play_events) and fires them BEFORE the
+-- plan's decide, folding what the handlers answer; decide then returns the
+-- tick's intent.  So the events reach the machines through ONE subscribed
+-- shim (QD.raid.mz_event) and the tick reaches them as the `tick` event
+-- decide raises.  Nothing about WHEN a handler runs, or how its intent is
+-- folded, moved in this port -- which is what makes the before/after pair
+-- comparable.
+-- ==========================================================================
+
 -- a blood spawn's trail lives 30 ticks (tob.constant:223
 -- ^tob_maiden_blood_trail_ticks = 30, Normal)
 QD.RAID_MAIDEN_TRAIL_TICKS = 30
+-- the library's events the seat's machine is driven by; `tick` is decide's own
 QD.RAID_MAIDEN_EVENTS = { "crab_spawn", "crab_frozen", "crab_thaw", "crab_gone", "blood_thrown", "pool_landed", "boss_phase", "hit_taken" }
-QD.RAID_MAIDEN_STATES = {
-    OPEN    = { tick = "mz_open_tick",    on = { crab_spawn = "mz_stay", crab_frozen = "mz_stay", crab_thaw = "mz_stay", crab_gone = "mz_stay", blood_thrown = "mz_open_on_blood", pool_landed = "mz_open_on_pool", boss_phase = "mz_stay", hit_taken = "mz_stay" } },
-    DRAIN   = { tick = "mz_drain_tick",   on = { crab_spawn = "mz_stay", crab_frozen = "mz_stay", crab_thaw = "mz_stay", crab_gone = "mz_stay", blood_thrown = "mz_drain_on_blood", pool_landed = "mz_drain_on_pool", boss_phase = "mz_stay", hit_taken = "mz_stay" } },
-    DODGE   = { tick = "mz_dodge_tick",   on = { crab_spawn = "mz_dodge_on_spawn", crab_frozen = "mz_stay", crab_thaw = "mz_stay", crab_gone = "mz_stay", blood_thrown = "mz_dodge_on_blood", pool_landed = "mz_dodge_on_pool", boss_phase = "mz_dodge_on_phase", hit_taken = "mz_stay" } },
-    F_ON_BOSS = { tick = "mz_f_on_boss_tick", on = { crab_spawn = "mz_f_on_boss_on_spawn", crab_frozen = "mz_stay", crab_thaw = "mz_stay", crab_gone = "mz_stay", blood_thrown = "mz_f_on_boss_on_blood", pool_landed = "mz_f_on_boss_on_pool", boss_phase = "mz_stay", hit_taken = "mz_stay" } },
-    PREAIM  = { tick = "mz_preaim_tick",  on = { crab_spawn = "mz_preaim_on_spawn", crab_frozen = "mz_stay", crab_thaw = "mz_stay", crab_gone = "mz_stay", blood_thrown = "mz_preaim_on_blood", pool_landed = "mz_preaim_on_pool", boss_phase = "mz_stay", hit_taken = "mz_stay" } },
-    CAST    = { tick = "mz_cast_tick",    on = { crab_spawn = "mz_cast_on_spawn", crab_frozen = "mz_stay", crab_thaw = "mz_stay", crab_gone = "mz_stay", blood_thrown = "mz_cast_on_blood", pool_landed = "mz_cast_on_pool", boss_phase = "mz_stay", hit_taken = "mz_stay" } },
-    RETURN  = { tick = "mz_return_tick",  on = { crab_spawn = "mz_return_on_spawn", crab_frozen = "mz_stay", crab_thaw = "mz_stay", crab_gone = "mz_stay", blood_thrown = "mz_return_on_blood", pool_landed = "mz_return_on_pool", boss_phase = "mz_stay", hit_taken = "mz_stay" } },
-    S_ON_BOSS = { tick = "mz_s_on_boss_tick", on = { crab_spawn = "mz_s_on_boss_on_spawn", crab_frozen = "mz_stay", crab_thaw = "mz_stay", crab_gone = "mz_stay", blood_thrown = "mz_s_on_boss_on_blood", pool_landed = "mz_s_on_boss_on_pool", boss_phase = "mz_s_on_boss_on_phase", hit_taken = "mz_stay" } },
-    LANE    = { tick = "mz_lane_tick",    on = { crab_spawn = "mz_lane_on_spawn", crab_frozen = "mz_stay", crab_thaw = "mz_stay", crab_gone = "mz_lane_on_gone", blood_thrown = "mz_lane_on_blood", pool_landed = "mz_lane_on_pool", boss_phase = "mz_stay", hit_taken = "mz_stay" } },
-    CLAWS   = { tick = "mz_claws_tick",   on = { crab_spawn = "mz_stay", crab_frozen = "mz_stay", crab_thaw = "mz_stay", crab_gone = "mz_stay", blood_thrown = "mz_claws_on_blood", pool_landed = "mz_claws_on_pool", boss_phase = "mz_stay", hit_taken = "mz_stay" } },
-}
+QD.RAID_MAIDEN_TICK_EVENT = { { name = "tick" } }
+QD.RAID_MAIDEN_DEAD_EVENT = { { name = "boss_dead" } }
 -- the parallel rule, every state: the blackstorm's prayer (W:590 "halved by
 -- activating Protect from Magic")
 QD.RAID_MAIDEN_ALWAYS = { storm_sent = "mz_always_on_storm" }
 
--- THE MACHINE: leave (unsubscribe), enter (subscribe), log the transition
-function QD.raid.mz_go(st, v, name, idx)
-    local m = st.m
-    local S = QD.RAID_MAIDEN_STATES
-    assert(S[name] ~= nil, "maiden trio: no state " .. tostring(name))
-    if m.state ~= nil then
-        for ev, h in pairs(S[m.state].on) do st.off(ev, h) end
+-- THE SEAT'S MACHINE: the freezer's or a scythe seat's (W:603 "in solo to
+-- trio there is one freezer")
+function QD.raid.mz_seat_machine(st)
+    assert(st, "mz_seat_machine: st")
+    assert(st.role, "mz_seat_machine: st.role")
+    return (st.role == 2) and "maiden_freezer" or "maiden_scythe"
+end
+
+-- THE CTX every handler is handed.  raid_sm.lua passes it through untouched
+-- and reads nothing in it, so it is this plan's own: `intent` is the tick's
+-- intent table on a tick handler and nil on an event handler, and `out`
+-- carries an event handler's intent back out to the library.
+function QD.raid.mz_ctx(st, v, intent)
+    assert(st, "mz_ctx: st")
+    assert(st.m, "mz_ctx: st.m")
+    local c = st.m.ctx
+    if c == nil then
+        c = {}
+        st.m.ctx = c
     end
-    m.state, m.idx = name, idx or 0
-    for ev, h in pairs(S[name].on) do st.on(ev, h) end
+    c.st, c.v, c.intent, c.out = st, v, intent, nil
+    return c
+end
+
+-- OUT: an event handler's intent leaves UNFOLDED.  The library folds every
+-- handler's intent for the tick itself, and a fold of one intent keeps only
+-- the intent FIELDS -- it drops `pri`, so the dodge's pri 8 would come back
+-- out as the default 1 and lose to a lower-priority walk.  So a handler hands
+-- its intent to the shim through ctx and returns only its transition;
+-- sm_run's own fold is deliberately unused on this path.
+function QD.raid.mz_out(c, it, go)
+    assert(c, "mz_out: c")
+    c.out = it
+    return nil, go
+end
+
+-- THE ENTER HOOK every seat state shares: the mirror the plan reads
+-- (m.state), the transition log and the tick-log mark.  It is the old mz_go's
+-- bookkeeping less the subscribe/unsubscribe -- the declaration says which
+-- events a state answers, so the subscription is constant now.
+-- (A state that transitions TO ITSELF does not re-enter, so CAST advancing
+-- its cast index no longer writes a log row; the index is in m.casts, which
+-- is what the rows read.)
+function QD.raid.mz_entered(c, ev, prev)
+    local st, v = c.st, c.v
+    local m = st.m
+    local name = QD.raid.sm_at(st, QD.raid.mz_seat_machine(st)).state
+    m.state = name
     m.log = m.log or {}
     if #m.log < 120 then m.log[#m.log + 1] = v.tick .. ":" .. name .. "/" .. m.idx end
     if st.log then QD.ticklog.mark("state p" .. st.role .. " " .. name .. "/" .. m.idx) end
 end
 
-function QD.raid.mz_stay(st, v, ev) return nil end
+-- THE EVENT SHIM, subscribed once per event name at the room's start: the
+-- library's event, straight into the seat's machine.  A state that does not
+-- name the event ignores it, which is what the old table's `mz_stay` said.
+function QD.raid.mz_event(st, v, ev)
+    assert(st, "mz_event: st")
+    assert(ev, "mz_event: ev")
+    -- (before the first decide the seat has no machine and no role, exactly
+    -- as no handler was subscribed before the first mz_go)
+    if st.m == nil or st.m.role == nil then return nil end
+    QD.raid.mz_phase(st, v)
+    local c = QD.raid.mz_ctx(st, v, nil)
+    QD.raid.sm_run(st, v, QD.raid.mz_seat_machine(st), c, { ev })
+    return c.out
+end
+
+-- THE TICK: decide's own event.  `tick` is raised every tick by convention
+-- (raid_sm.lua) so a state can act without an event of its own.  The handler
+-- mutates the tick's intent table through ctx and returns only its
+-- transition, so the intent stays the plan's one table.
+function QD.raid.mz_tick(st, v, intent)
+    assert(st, "mz_tick: st")
+    assert(intent, "mz_tick: intent")
+    QD.raid.sm_run(st, v, QD.raid.mz_seat_machine(st),
+        QD.raid.mz_ctx(st, v, intent), QD.RAID_MAIDEN_TICK_EVENT)
+end
+
+-- BOOT: the seat's machine on its first tick -- the instance at its declared
+-- start (the freezer's DRAIN, a scythe seat's OPEN) and the mirror and rows
+-- the old mz_go wrote on entering it.
+function QD.raid.mz_boot(st, v)
+    assert(st, "mz_boot: st")
+    st.m.idx = 0
+    local c = QD.raid.mz_ctx(st, v, nil)
+    QD.raid.sm_run(st, v, QD.raid.mz_seat_machine(st), c, {})
+    QD.raid.mz_entered(c, nil, nil)
+end
+
+-- FORCE: the one seat transition no declaration owns -- the ground under my
+-- feet.  A pool, a trail or a blood spawn I am STANDING on is not an event
+-- (nothing landed this tick; I walked onto it), so the dispatcher reads it
+-- off the tile and forces the dodge (raid_sm.lua sm_force, "a transition
+-- nothing in the declaration owns").  `idx` nil keeps the index the caller
+-- has already set.
+function QD.raid.mz_go(st, v, name, idx)
+    assert(st, "mz_go: st")
+    assert(type(name) == "string", "mz_go: a state name")
+    if idx ~= nil then st.m.idx = idx end
+    QD.raid.sm_force(st, v, QD.raid.mz_seat_machine(st), name,
+        QD.raid.mz_ctx(st, v, nil), "ground")
+end
 
 -- ----- what every state reads -----
--- her form: 0 = 100, 1 = 70, 2 = 50, 3 = 30 (the wave index of the crabs out)
-function QD.raid.mz_form(st)
+-- HER PHASES, as the states of maiden_phase.  Her form is 0 = 100, 1 = 70,
+-- 2 = 50, 3 = 30 -- the wave index of the crabs out -- and it is the npc row
+-- that carries it (K boss_symbols: the row changes type at each threshold).
+QD.RAID_MAIDEN_PHASE_STATES = { [0] = "P100", [1] = "P70", [2] = "P50", [3] = "P30" }
+QD.RAID_MAIDEN_PHASE_FORM = { P100 = 0, P70 = 1, P50 = 2, P30 = 3 }
+
+-- THE RETYPE, read off her npc row and raised as the event the phase machine
+-- declares.  Called at the top of every way into the plan -- the event shim
+-- and decide -- so every mz_form read in a tick sees what the row showed when
+-- that way in was taken, which is exactly when the old mz_form read it.
+function QD.raid.mz_phase(st, v)
+    assert(st, "mz_phase: st")
+    assert(v, "mz_phase: v")
+    local c = st.mz_phase_ctx
+    if c == nil then
+        c = {}
+        st.mz_phase_ctx = c
+    end
+    c.st, c.v = st, v
+    local m = QD.raid.sm_at(st, "maiden_phase")
+    -- her death: nothing of hers is on the screen any anymore.  DEAD keeps the
+    -- form she died in (mz_form reads it off the state before), so a tick
+    -- where her row is simply not in view cannot move a decision that reads
+    -- the form.
+    if v.boss == nil and v.ev_boss == nil then
+        if m ~= nil then QD.raid.sm_run(st, v, "maiden_phase", c, QD.RAID_MAIDEN_DEAD_EVENT) end
+        return
+    end
     local s = st.boss_symbol or ""
-    if s:find("_30", 1, true) then return 3 end
-    if s:find("_50", 1, true) then return 2 end
-    if s:find("_70", 1, true) then return 1 end
-    return 0
+    local form = 0
+    if s:find("_30", 1, true) then form = 3
+    elseif s:find("_50", 1, true) then form = 2
+    elseif s:find("_70", 1, true) then form = 1 end
+    if m ~= nil and m.state == QD.RAID_MAIDEN_PHASE_STATES[form] then return end
+    QD.raid.sm_run(st, v, "maiden_phase", c, { { name = "npc_retype", form = form, symbol = s } })
+end
+function QD.raid.mz_form(st)
+    assert(st, "mz_form: st")
+    local m = QD.raid.sm_at(st, "maiden_phase")
+    if m == nil then return 0 end
+    if m.state == "DEAD" then return QD.RAID_MAIDEN_PHASE_FORM[m.prev or "P30"] or 3 end
+    return QD.RAID_MAIDEN_PHASE_FORM[m.state]
 end
 -- the live crab on a lane (the newest one: the wave's), walking or frozen as asked
 function QD.raid.mz_lane_crab(st, v, lane, frozen_only, walking_only, skip)
@@ -1065,7 +1254,8 @@ function QD.raid.mz_cast_due(st, v)
     local c = W.casts[m.idx]
     return c ~= nil and v.tick >= st.ev.wave_tick + c[1] - 2
 end
-function QD.raid.mz_dodge(st, v, ev)
+function QD.raid.mz_dodge(c, ev)
+    local st, v = c.st, c.v
     if not ev.mine then return nil end
     local m = st.m
     -- (only a throw still in the air: a pool already under the freezer hits
@@ -1086,15 +1276,27 @@ function QD.raid.mz_dodge(st, v, ev)
     if x == nil then return nil end
     if m.state ~= "DODGE" then m.resume = { state = m.state, idx = m.idx } end
     m.resume.x, m.resume.z = x, z
-    QD.raid.mz_go(st, v, "DODGE", v.tick + math.max(ev.ticks or 1, 1))
-    return { pri = 8, walk = { x = x, z = z }, why = "dodge" }
+    -- (the deadline the dodge waits for is the state's index, as it was when
+    -- mz_go carried it: m.resume captured the old index just above)
+    m.idx = v.tick + math.max(ev.ticks or 1, 1)
+    return { pri = 8, walk = { x = x, z = z }, why = "dodge" }, "DODGE"
 end
-function QD.raid.mz_dodge_on_blood(st, v, ev) return QD.raid.mz_dodge(st, v, ev) end
-function QD.raid.mz_dodge_on_pool(st, v, ev) return QD.raid.mz_dodge(st, v, ev) end
+-- THE THREE EVENT HANDLERS EVERY STATE SHARES.  Twenty one-line wrappers
+-- (mz_cast_on_blood, mz_lane_on_pool, ...) all said one of these three.
+function QD.raid.mz_on_blood(c, ev) return QD.raid.mz_out(c, QD.raid.mz_dodge(c, ev)) end
+function QD.raid.mz_on_pool(c, ev) return QD.raid.mz_out(c, QD.raid.mz_dodge(c, ev)) end
+function QD.raid.mz_on_blood_home(c, ev) return QD.raid.mz_out(c, QD.raid.mz_walking_home_dodge(c, ev)) end
+-- the freezer's "a wave is out": cast 1 of the schedule, from any state that
+-- is not already casting this wave's list
+function QD.raid.mz_to_cast1(c, ev)
+    c.st.m.idx = 1
+    return nil, "CAST"
+end
 -- a wave lands mid-dodge: the dodge resumes into the wave's first state, the
 -- one the saved state's crab_spawn handler would have entered (owner sm3: the
 -- 30 wave spawned on a dodge tick and the freezer stood in PREAIM to the end)
-function QD.raid.mz_dodge_on_spawn(st, v, ev)
+function QD.raid.mz_dodge_on_spawn(c, ev)
+    local st, v = c.st, c.v
     local m = st.m
     if st.role == 2 then
         if m.resume == nil or m.resume.state ~= "CAST" or m.cast_wave ~= st.ev.wave then m.resume = { state = "CAST", idx = 1 } end
@@ -1104,7 +1306,8 @@ function QD.raid.mz_dodge_on_spawn(st, v, ev)
     end
     return nil
 end
-function QD.raid.mz_dodge_on_phase(st, v, ev)
+function QD.raid.mz_dodge_on_phase(c, ev)
+    local st, v = c.st, c.v
     local m = st.m
     if st.role == 2 or m.resume == nil or m.resume.state ~= "S_ON_BOSS" then return nil end
     local _, e = QD.var.varp("varp300_sa_energy")
@@ -1112,7 +1315,8 @@ function QD.raid.mz_dodge_on_phase(st, v, ev)
     if QD.raid.mz_form(st) == 3 and (tonumber(e) or 0) >= 500 and hr == "ok" and has then m.resume = { state = "CLAWS", idx = 0 } end
     return nil
 end
-function QD.raid.mz_dodge_tick(st, v, intent)
+function QD.raid.mz_dodge_tick(c, ev)
+    local st, v = c.st, c.v
     local m = st.m
     -- landed on the safe tile: the saved state again at once, its attack
     -- from here (owner sm4: the freezer stood 7 ticks waiting for the blood
@@ -1121,7 +1325,8 @@ function QD.raid.mz_dodge_tick(st, v, intent)
     if v.tick >= m.idx or safe then
         local r = m.resume or { state = (st.role == 2) and "F_ON_BOSS" or "S_ON_BOSS", idx = 0 }
         m.resume = nil
-        QD.raid.mz_go(st, v, r.state, r.idx)
+        m.idx = r.idx
+        return nil, r.state
     end
 end
 
@@ -1131,20 +1336,23 @@ end
 -- walked home and threw the special at +23, the first scythe +30 against the
 -- script's +10 / +16): a scythe seat still to walk home walks home under the
 -- throw -- the walk leaves the tile -- unless the throw lands on home itself
-function QD.raid.mz_walking_home_dodge(st, v, ev)
+function QD.raid.mz_walking_home_dodge(c, ev)
+    local st, v = c.st, c.v
     if st.role ~= 2 and ev.mine and ev.x ~= nil then
         local hx, hz = QD.raid.mz_home(st, v)
         local far = math.max(math.abs(v.me.x - hx), math.abs(v.me.z - hz)) > 1
         if far and math.max(math.abs(ev.x - hx), math.abs(ev.z - hz)) > 1 then
-            if st.m.state == "OPEN" then QD.raid.mz_go(st, v, "DRAIN", 0) end
+            if st.m.state == "OPEN" then
+                st.m.idx = 0
+                return nil, "DRAIN"
+            end
             return nil
         end
     end
-    return QD.raid.mz_dodge(st, v, ev)
+    return QD.raid.mz_dodge(c, ev)
 end
-function QD.raid.mz_open_on_blood(st, v, ev) return QD.raid.mz_walking_home_dodge(st, v, ev) end
-function QD.raid.mz_open_on_pool(st, v, ev) return QD.raid.mz_dodge(st, v, ev) end
-function QD.raid.mz_open_tick(st, v, intent)
+function QD.raid.mz_open_tick(c, ev)
+    local st, v, intent = c.st, c.v, c.intent
     local m = st.m
     if m.idx == 0 then m.idx = v.tick end
     local last = st.swings[#st.swings] or -1000
@@ -1157,15 +1365,17 @@ function QD.raid.mz_open_tick(st, v, intent)
             if QD.RAID_PLAY_WEAPONS.twisted_bow.seqs[h.seq] and h.tick >= m.idx then last = math.max(last, h.tick) end
         end
     end
-    if last >= m.idx or v.tick - m.idx > 10 then QD.raid.mz_go(st, v, "DRAIN", 0) return end
+    if last >= m.idx or v.tick - m.idx > 10 then
+        m.idx = 0
+        return nil, "DRAIN"
+    end
     if QD.raid.mz_wear(intent, st.plan.opener_set) then return end
     intent.attack = true
 end
 
 -- ----- DRAIN: the Tonalztics special (W:249; TONALZTICS 23/16/15 of 24) -----
-function QD.raid.mz_drain_on_blood(st, v, ev) return QD.raid.mz_walking_home_dodge(st, v, ev) end
-function QD.raid.mz_drain_on_pool(st, v, ev) return QD.raid.mz_dodge(st, v, ev) end
-function QD.raid.mz_drain_tick(st, v, intent)
+function QD.raid.mz_drain_tick(c, ev)
+    local st, v, intent = c.st, c.v, c.intent
     local m = st.m
     if m.idx == 0 then m.idx = v.tick end
     -- (coordinator 23:20) a scythe seat throws the special from the tile it
@@ -1181,15 +1391,15 @@ function QD.raid.mz_drain_tick(st, v, intent)
     local spent = QD.raid.mz_special(st, v, intent, (st.plan.opener_wear and st.plan.opener_wear[st.role]) or st.plan.opener.weapon, 1000)
     if spent or v.tick - m.drain_t0 > 6 then
         intent.spec, intent.attack = nil, false
-        if st.role == 2 then QD.raid.mz_go(st, v, "F_ON_BOSS") else QD.raid.mz_go(st, v, "S_ON_BOSS") end
+        m.idx = 0
+        if st.role == 2 then return nil, "F_ON_BOSS" end
+        return nil, "S_ON_BOSS"
     end
 end
 
 -- ----- THE FREEZER -----
-function QD.raid.mz_f_on_boss_on_spawn(st, v, ev) QD.raid.mz_go(st, v, "CAST", 1) return nil end
-function QD.raid.mz_f_on_boss_on_blood(st, v, ev) return QD.raid.mz_dodge(st, v, ev) end
-function QD.raid.mz_f_on_boss_on_pool(st, v, ev) return QD.raid.mz_dodge(st, v, ev) end
-function QD.raid.mz_f_on_boss_tick(st, v, intent)
+function QD.raid.mz_f_on_boss_tick(c, ev)
+    local st, v, intent = c.st, c.v, c.intent
     local R = QD.RAID_MAIDEN_REF
     local b = v.boss
     -- THE SPAWN POSITIONS, the freezer's late casts: a THAWED crab of the
@@ -1280,12 +1490,13 @@ function QD.raid.mz_f_on_boss_tick(st, v, intent)
     intent.attack = true
 end
 
-function QD.raid.mz_preaim_on_spawn(st, v, ev) QD.raid.mz_go(st, v, "CAST", 1) return nil end
-function QD.raid.mz_preaim_on_blood(st, v, ev) return QD.raid.mz_dodge(st, v, ev) end
-function QD.raid.mz_preaim_on_pool(st, v, ev) return QD.raid.mz_dodge(st, v, ev) end
-function QD.raid.mz_preaim_tick(st, v, intent)
+function QD.raid.mz_preaim_tick(c, ev)
+    local st, v, intent = c.st, c.v, c.intent
     -- no threshold ahead (her 30 form): nothing to pre-aim for
-    if QD.RAID_MAIDEN_REF.thresholds[QD.raid.mz_form(st) + 1] == nil then QD.raid.mz_go(st, v, "F_ON_BOSS") return end
+    if QD.RAID_MAIDEN_REF.thresholds[QD.raid.mz_form(st) + 1] == nil then
+        st.m.idx = 0
+        return nil, "F_ON_BOSS"
+    end
     if QD.raid.mz_wear(intent, st.plan.magic_set) then return end
     if QD.raid.mz_walk_home(st, v, intent) then return end
     -- a swap does not end the bow's attack on her (raid seam33 THE HALT): a
@@ -1296,14 +1507,17 @@ function QD.raid.mz_preaim_tick(st, v, intent)
     end
 end
 
-function QD.raid.mz_cast_on_spawn(st, v, ev)
+function QD.raid.mz_cast_on_spawn(c, ev)
+    local st = c.st
     -- (a burst lands on one tick: only the first crab of a new wave restarts)
-    if st.m.idx > 1 or st.m.cast_wave ~= st.ev.wave then QD.raid.mz_go(st, v, "CAST", 1) end
+    if st.m.idx > 1 or st.m.cast_wave ~= st.ev.wave then
+        st.m.idx = 1
+        return nil, "CAST"
+    end
     return nil
 end
-function QD.raid.mz_cast_on_blood(st, v, ev) return QD.raid.mz_dodge(st, v, ev) end
-function QD.raid.mz_cast_on_pool(st, v, ev) return QD.raid.mz_dodge(st, v, ev) end
-function QD.raid.mz_cast_tick(st, v, intent)
+function QD.raid.mz_cast_tick(c, ev)
+    local st, v, intent = c.st, c.v, c.intent
     local m = st.m
     m.cast_wave = st.ev.wave
     local W = QD.RAID_MAIDEN_REF.waves[math.max(QD.raid.mz_form(st), 1)]
@@ -1338,9 +1552,10 @@ function QD.raid.mz_cast_tick(st, v, intent)
     if c == nil then
         if last ~= nil and last.tick >= v.tick then return end
         -- (no RETURN wait: the bow's press goes out now, the server holds it
-        -- behind the barrage's cooldown -- the owner's invariant)
-        QD.raid.mz_go(st, v, "F_ON_BOSS")
-        return
+        -- behind the barrage's cooldown -- the owner's invariant.  This is why
+        -- RETURN is declared and unreachable.)
+        m.idx = 0
+        return nil, "F_ON_BOSS"
     end
     -- (sent the tick before: the cast the client sends at +k animates at the
     -- server's +k+1 -- owner sm4 svaplaymaide, casts sent +1/+6/+11/+16 drew
@@ -1385,8 +1600,8 @@ function QD.raid.mz_cast_tick(st, v, intent)
             -- +40, the streams' last 70 / 50 cast), the bow on her
             local stack = W.again_until ~= nil and since <= W.again_until and QD.raid.mz_bunch_pick(st, v, skip, 4, true)
             if since > 40 or (not QD.raid.mz_walkers_left(st) and (not stack or (stack.n or 0) < 2)) then
-                QD.raid.mz_go(st, v, "F_ON_BOSS")
-                return
+                m.idx = 0
+                return nil, "F_ON_BOSS"
             end
             intent.no_fill = true
             return
@@ -1435,7 +1650,10 @@ function QD.raid.mz_cast_tick(st, v, intent)
             -- the barrage takes at least two live crabs
             t = QD.raid.mz_bunch_pick(st, v, skip, 4, true)
             if t ~= nil and (t.n or 0) < 2 then t = nil end
-            if t == nil then QD.raid.mz_go(st, v, "F_ON_BOSS") return end
+            if t == nil then
+                m.idx = 0
+                return nil, "F_ON_BOSS"
+            end
         elseif c[2] == "STACK" then
             -- cast 4 on the stack behind it (+16 / +20 / +16, held to the
             -- 5-tick minimum; 3.32 within 1)
@@ -1460,40 +1678,49 @@ function QD.raid.mz_cast_tick(st, v, intent)
         m.casts[#m.casts + 1] = { tick = v.tick, slot = t.slot, result = "cast", wave = QD.raid.mz_form(st), form = #m.forms,
             why = c[2] .. (QD.RAID_MAIDEN_REF.lanes[t.a.label] == c[2] and "" or (">" .. tostring(QD.RAID_MAIDEN_REF.lanes[t.a.label]))) .. (t.n and ("x" .. t.n) or "") .. "g" .. QD.raid._play_gap(v.ev_boss or v.boss, t.a.x, t.a.z) .. "@" .. (v.tick - st.ev.wave_tick) }
     end
-    QD.raid.mz_go(st, v, "CAST", m.idx + 1)
+    -- CAST advances its own index and stays in CAST: the cast number is the
+    -- state's data, not a state of its own
+    m.idx = m.idx + 1
+    return nil, "CAST"
 end
 
-function QD.raid.mz_return_on_spawn(st, v, ev) QD.raid.mz_go(st, v, "CAST", 1) return nil end
-function QD.raid.mz_return_on_blood(st, v, ev) return QD.raid.mz_dodge(st, v, ev) end
-function QD.raid.mz_return_on_pool(st, v, ev) return QD.raid.mz_dodge(st, v, ev) end
-function QD.raid.mz_return_tick(st, v, intent)
+function QD.raid.mz_return_tick(c, ev)
+    local st, v, intent = c.st, c.v, c.intent
     local W = QD.RAID_MAIDEN_REF.waves[math.max(QD.raid.mz_form(st), 1)]
     -- (the script's boss attack lands at +ret: sent the tick before)
-    if v.tick >= st.ev.wave_tick + W.ret - 1 then QD.raid.mz_go(st, v, "F_ON_BOSS") return end
+    if v.tick >= st.ev.wave_tick + W.ret - 1 then
+        st.m.idx = 0
+        return nil, "F_ON_BOSS"
+    end
     if QD.raid.mz_wear(intent, st.plan.ranged_set) then return end
     QD.raid.mz_walk_home(st, v, intent)
 end
 
 -- ----- THE SCYTHE SEATS -----
-function QD.raid.mz_s_on_boss_on_spawn(st, v, ev)
+function QD.raid.mz_s_on_boss_on_spawn(c, ev)
+    local st, v = c.st, c.v
     local W = QD.RAID_MAIDEN_REF.waves[math.max(QD.raid.mz_form(st), 1)]
     if W.seat[st.role] ~= nil then
-        QD.raid.mz_go(st, v, "LANE", 1)
+        st.m.idx = 1
         st.m.lane_wave = st.ev.wave
+        return nil, "LANE"
     end
     return nil
 end
-function QD.raid.mz_s_on_boss_on_phase(st, v, ev)
+function QD.raid.mz_s_on_boss_on_phase(c, ev)
+    local st, v = c.st, c.v
     -- her 30 form: the claws special (W:646 "utilise any remaining special
     -- attacks"; CLAW dps1|30 8, dps2|30 6 of 24 rooms)
     local _, e = QD.var.varp("varp300_sa_energy")
     local hr, has = QD.inv.has("dragon_claws")
-    if QD.raid.mz_form(st) == 3 and (tonumber(e) or 0) >= 500 and hr == "ok" and has then QD.raid.mz_go(st, v, "CLAWS") end
+    if QD.raid.mz_form(st) == 3 and (tonumber(e) or 0) >= 500 and hr == "ok" and has then
+        st.m.idx = 0
+        return nil, "CLAWS"
+    end
     return nil
 end
-function QD.raid.mz_s_on_boss_on_blood(st, v, ev) return QD.raid.mz_dodge(st, v, ev) end
-function QD.raid.mz_s_on_boss_on_pool(st, v, ev) return QD.raid.mz_dodge(st, v, ev) end
-function QD.raid.mz_s_on_boss_tick(st, v, intent)
+function QD.raid.mz_s_on_boss_tick(c, ev)
+    local st, v, intent = c.st, c.v, c.intent
     -- her 30 form's claws (sm111: CLAWS never ran -- the phase event lands on
     -- the 30 wave's spawn tick, which sends the seat to LANE, and LANE stays
     -- on boss_phase): once, on her, the first time the seat is back on her
@@ -1508,7 +1735,10 @@ function QD.raid.mz_s_on_boss_tick(st, v, intent)
         m.claws_done = true
         local _, e = QD.var.varp("varp300_sa_energy")
         local hr, has = QD.inv.has("dragon_claws")
-        if (tonumber(e) or 0) >= 500 and hr == "ok" and has then QD.raid.mz_go(st, v, "CLAWS", 0) return end
+        if (tonumber(e) or 0) >= 500 and hr == "ok" and has then
+            m.idx = 0
+            return nil, "CLAWS"
+        end
     end
     if QD.raid.mz_wear(intent, st.plan.melee_set) then return end
     -- her edge without blood (library _play_reach: a pool or a trail on the
@@ -1532,28 +1762,41 @@ function QD.raid.mz_s_on_boss_tick(st, v, intent)
     intent.attack = true
 end
 
-function QD.raid.mz_lane_on_spawn(st, v, ev)
-    if st.m.lane_wave ~= st.ev.wave then QD.raid.mz_go(st, v, "LANE", 1) end
+function QD.raid.mz_lane_on_spawn(c, ev)
+    local st = c.st
+    if st.m.lane_wave ~= st.ev.wave then
+        st.m.idx = 1
+        return nil, "LANE"
+    end
     return nil
 end
-function QD.raid.mz_lane_on_gone(st, v, ev)
+function QD.raid.mz_lane_on_gone(c, ev)
+    local st = c.st
     local W = QD.RAID_MAIDEN_REF.waves[math.max(QD.raid.mz_form(st), 1)]
     local list = W.seat[st.role] or {}
     local e = list[st.m.idx]
-    if e ~= nil and QD.RAID_MAIDEN_REF.lanes[ev.label] == e[1] then QD.raid.mz_go(st, v, "LANE", st.m.idx + 1) end
+    if e ~= nil and QD.RAID_MAIDEN_REF.lanes[ev.label] == e[1] then
+        st.m.idx = st.m.idx + 1
+        return nil, "LANE"
+    end
     return nil
 end
-function QD.raid.mz_lane_on_blood(st, v, ev) return QD.raid.mz_dodge(st, v, ev) end
-function QD.raid.mz_lane_on_pool(st, v, ev) return QD.raid.mz_dodge(st, v, ev) end
-function QD.raid.mz_lane_tick(st, v, intent)
+function QD.raid.mz_lane_tick(c, ev)
+    local st, v, intent = c.st, c.v, c.intent
     local m = st.m
     m.lane_wave = st.ev.wave
     local W = QD.RAID_MAIDEN_REF.waves[math.max(QD.raid.mz_form(st), 1)]
     local list = W.seat[st.role] or {}
     local e = list[m.idx]
-    if e == nil then QD.raid.mz_go(st, v, "S_ON_BOSS") return end
+    if e == nil then
+        m.idx = 0
+        return nil, "S_ON_BOSS"
+    end
     local since = v.tick - st.ev.wave_tick
-    if since > e[3] then QD.raid.mz_go(st, v, "LANE", m.idx + 1) return end
+    if since > e[3] then
+        m.idx = m.idx + 1
+        return nil, "LANE"
+    end
     -- the stack: one swing per frozen crab (a scythe swing on a size-2 crab is
     -- two hits, ~58 of its 75 after a barrage has touched it), then the next
     if m.stack_wave ~= st.ev.wave then m.stack_done, m.stack_swings, m.stack_slot = {}, 0, nil end
@@ -1575,7 +1818,10 @@ function QD.raid.mz_lane_tick(st, v, intent)
     -- non-freezer seats, 24 rooms: 70 wave 2.00, 50 wave 1.44, 30 wave 0.21
     -- -- 2 / 1 / 0; coordinator 00:45 "set the cap to that, not one")
     local cap = ({ 2, 1, 0 })[math.max(QD.raid.mz_form(st), 1)] or 0
-    if e[1] == "STACK" and m.stack_swings >= cap then QD.raid.mz_go(st, v, "LANE", m.idx + 1) return end
+    if e[1] == "STACK" and m.stack_swings >= cap then
+        m.idx = m.idx + 1
+        return nil, "LANE"
+    end
     -- THE SHIELD BASH on the frozen stack, once a wave in the 70 and 50 waves
     -- by the seat that carries the bulwark, after cast 4: every frozen crab
     -- within 5 of the seat takes a hit (wiki_Dinhs_bulwark.wikitext:72)
@@ -1611,8 +1857,13 @@ function QD.raid.mz_lane_tick(st, v, intent)
     t = t or QD.raid.mz_lane_crab(st, v, e[1], e[4] == true, false, (e[1] == "STACK") and m.stack_done or nil)
     -- (a lane crab absent at its press tick is skipped; the STACK is waited
     -- for, on her, until its window ends -- it forms as the 3s and 4s arrive)
-    if t == nil and since >= e[2] and e[1] ~= "STACK" and e[1] ~= "THAW" then QD.raid.mz_go(st, v, "LANE", m.idx + 1) return end
-    if t == nil or since < e[2] then return QD.raid.mz_s_on_boss_tick(st, v, intent) end
+    if t == nil and since >= e[2] and e[1] ~= "STACK" and e[1] ~= "THAW" then
+        m.idx = m.idx + 1
+        return nil, "LANE"
+    end
+    -- (LANE's idle ticks ARE S_ON_BOSS's tick, so a LANE tick can also answer
+    -- its transitions -- the 30 form's claws among them)
+    if t == nil or since < e[2] then return QD.raid.mz_s_on_boss_tick(c, ev) end
     if QD.raid.mz_wear(intent, st.plan.melee_set) then return end
     -- THE PIPE ON A CRAB (the streams: dps seats BLOWPIPE 1.31 / 0.94 / 0.46
     -- crabs a seat a wave against SCYTHE 1.17 / 1.69 / 0.79): a crab not
@@ -1640,14 +1891,17 @@ function QD.raid.mz_lane_tick(st, v, intent)
     end
     if e[1] == "STACK" then
         local stand = QD.raid.mz_crab_stand(st, v, t.a)
-        if stand == nil then m.stack_done[t.slot] = true return QD.raid.mz_s_on_boss_tick(st, v, intent) end
+        if stand == nil then
+            m.stack_done[t.slot] = true
+            return QD.raid.mz_s_on_boss_tick(c, ev)
+        end
         -- (a trip of more than one running tick is not made: sm107 sva's
         -- leader ran (5,6) -> (6,3) -> (5,6) at +23..+28 of the 70 wave and
         -- swung at nothing -- the barrages had the stack -- nine ticks with
         -- no swing on her; a pipe reaches 5 without the walk)
         if math.max(math.abs(stand.x - v.me.x), math.abs(stand.z - v.me.z)) > 2 and (m.stack_slot ~= t.slot) then
             m.stack_done[t.slot] = true
-            return QD.raid.mz_s_on_boss_tick(st, v, intent)
+            return QD.raid.mz_s_on_boss_tick(c, ev)
         end
         if stand.x ~= v.me.x or stand.z ~= v.me.z then
             local adj = false
@@ -1662,9 +1916,8 @@ function QD.raid.mz_lane_tick(st, v, intent)
     if e[1] == "STACK" and m.stack_slot ~= t.slot then m.stack_slot, m.stack_t = t.slot, v.tick end
 end
 
-function QD.raid.mz_claws_on_blood(st, v, ev) return QD.raid.mz_dodge(st, v, ev) end
-function QD.raid.mz_claws_on_pool(st, v, ev) return QD.raid.mz_dodge(st, v, ev) end
-function QD.raid.mz_claws_tick(st, v, intent)
+function QD.raid.mz_claws_tick(c, ev)
+    local st, v, intent = c.st, c.v, c.intent
     local m = st.m
     if m.idx == 0 then
         local _, e = QD.var.varp("varp300_sa_energy")
@@ -1673,9 +1926,259 @@ function QD.raid.mz_claws_tick(st, v, intent)
     local start, e0 = m.idx // 10000, m.idx % 10000
     if QD.raid.mz_special(st, v, intent, "dragon_claws", e0) or v.tick - start > 10 then
         intent.spec, intent.attack = nil, false
-        QD.raid.mz_go(st, v, "S_ON_BOSS")
+        m.idx = 0
+        return nil, "S_ON_BOSS"
     end
 end
+
+-- ==========================================================================
+-- THE DECLARED MACHINES.  Everything above is a handler; THIS is the whole of
+-- what Maiden's states are and how they connect, in one place.  A state names
+-- the events it answers and an event it does not name it has decided to
+-- ignore (the old table wrote "mz_stay" in those slots, so what a state
+-- ignored was invisible among what it did).  Every transition names its
+-- target; there is no fallthrough and no implicit return to a start state.
+-- ==========================================================================
+
+-- ----- HER PHASES: "all the state transitions from waves to 70, 50, 30" ----
+-- Her npc row retypes at each threshold -- 8360 (100) -> 8361 (70) -> 8362
+-- (50) -> 8363 (30), the plan's `forms` list, W:592 "her appearance visibly
+-- changes" -- and that retype is the event.  EVERY form names it and goes to
+-- the form it names, so the graph is complete in both directions: forward as
+-- she takes damage, backward if a later read of her row disagrees.
+function QD.raid.mz_retype(c, ev)
+    local go = QD.RAID_MAIDEN_PHASE_STATES[ev.form]
+    assert(go, "mz_retype: no state for form " .. tostring(ev.form))
+    return nil, go
+end
+function QD.raid.mz_died(c, ev) return nil, "DEAD" end
+QD.raid.sm_declare("maiden_phase", {
+    start = "P100",
+    states = {
+        P100 = { note = "npc 8360, no crabs out: the opening phase, the seats' opener and the Tonalztics drain",
+            on = { npc_retype = QD.raid.mz_retype, boss_dead = QD.raid.mz_died } },
+        P70 = { note = "npc 8361, wave 1: casts +1 S1, +6 the 2s, +11 the 3s, +16 the 4s; both seats N1 from +4 and N2 from +9",
+            on = { npc_retype = QD.raid.mz_retype, boss_dead = QD.raid.mz_died } },
+        P50 = { note = "npc 8362, wave 2: the same cast slots; the seats' lane windows run longer (N2 to +14 / +16.5)",
+            on = { npc_retype = QD.raid.mz_retype, boss_dead = QD.raid.mz_died } },
+        P30 = { note = "npc 8363, wave 3: the scythe seats leave everything but N1 (and N2 from +9); the claws go in here",
+            on = { npc_retype = QD.raid.mz_retype, boss_dead = QD.raid.mz_died } },
+        DEAD = { note = "her row is off the screen; mz_form keeps the form she died in, so nothing reading the form moves",
+            on = { npc_retype = QD.raid.mz_retype } },
+    },
+})
+
+-- ----- A SPAWN POSITION: one instance, inst "S1" .. "N4out" -----
+-- The owner: "The maiden state machines should handle the inputs and group
+-- the behavior by spawn location ... the spawn pattern matters."  WHICH of
+-- the ten positions spawned is the wave's input (QD.RAID_MAIDEN_POS groups
+-- them: 1s, N1, 2s, 3s, 4s, which is how the freezer's P1..P4 casts ask), and
+-- this machine is each position's own handling.  Its row in
+-- build/seam_state/owner_tob_normal/BLERT_MAIDEN_SPAWN_TABLE.txt (24 Normal
+-- trio rooms) and the corrected freeze % in BLERT_MAIDEN_FREEZE_CORRECTED.txt
+-- are the measurements behind QD.RAID_MAIDEN_POS; they are not re-derived.
+--
+-- GONE is both where a position starts (no crab on it) and where it rests
+-- between waves, so the next wave's crab there is a declared GONE -> WALKING.
+-- The enter hooks own m.pos[slot].state -- the value mz_pos_pick and
+-- mz_lane_crab read -- and the handlers own its clocks.
+function QD.raid.mz_crab_spawned(c, ev)
+    -- a fresh crab on this position: its record is reset, not amended
+    c.ps.since, c.ps.frozen_at = c.v.tick, nil
+    return nil, "WALKING"
+end
+function QD.raid.mz_crab_frozen(c, ev)
+    c.ps.since, c.ps.frozen_at = c.v.tick, c.v.tick
+    return nil, "FROZEN"
+end
+function QD.raid.mz_crab_thawed(c, ev)
+    c.ps.since = c.v.tick
+    return nil, "THAWED"
+end
+function QD.raid.mz_crab_gone(c, ev)
+    c.ps.since = c.v.tick
+    return nil, "GONE"
+end
+function QD.raid.mz_crab_vanished(c, ev)
+    -- its npc row went away with no crab_gone: the state changes and the
+    -- clock does NOT (the old correction wrote ps.state alone), so the
+    -- THAW lane's only clock, frozen_at, and `since` both stand
+    return nil, "GONE"
+end
+QD.raid.sm_declare("maiden_crab", {
+    start = "GONE",
+    states = {
+        WALKING = { note = "walking at her; a 1s or 2s is barraged at +1 / +6, N1 is the scythe seats' stray and leaks at 24-33 hp",
+            enter = function(c) c.ps.state = "WALKING" end,
+            on = {
+                crab_frozen = QD.raid.mz_crab_frozen,
+                crab_thaw = QD.raid.mz_crab_thawed,
+                crab_gone = QD.raid.mz_crab_gone,
+                crab_vanished = QD.raid.mz_crab_vanished,
+                crab_spawn = QD.raid.mz_crab_spawned,
+            } },
+        FROZEN = { note = "iced; the ice holds 32 ticks here, and a scythe seat comes to finish it from QD.RAID_MAIDEN_THAW_SOON ticks frozen",
+            enter = function(c) c.ps.state = "FROZEN" end,
+            on = {
+                -- (crab_frozen is NOT named: a second barrage on a crab
+                -- already iced does not restart its clock, which is what the
+                -- old `ps.state ~= "FROZEN"` guard said)
+                crab_thaw = QD.raid.mz_crab_thawed,
+                crab_walks_again = QD.raid.mz_crab_thawed,
+                crab_gone = QD.raid.mz_crab_gone,
+                crab_vanished = QD.raid.mz_crab_vanished,
+                crab_spawn = QD.raid.mz_crab_spawned,
+            } },
+        THAWED = { note = "walking again; the freezer's late casts re-barrage a THAWED crab of its own positions (any but N1) from 2 or more out",
+            enter = function(c) c.ps.state = "THAWED" end,
+            on = {
+                crab_frozen = QD.raid.mz_crab_frozen,
+                crab_thaw = QD.raid.mz_crab_thawed,
+                crab_gone = QD.raid.mz_crab_gone,
+                crab_vanished = QD.raid.mz_crab_vanished,
+                crab_spawn = QD.raid.mz_crab_spawned,
+            } },
+        GONE = { note = "no crab on this position: killed, or let in and consumed (a leak). The position waits here for the next wave",
+            enter = function(c) c.ps.state = "GONE" end,
+            on = {
+                crab_spawn = QD.raid.mz_crab_spawned,
+                -- (crab_frozen, crab_thaw and crab_gone are named here
+                -- because the old code's only guard was `ps.state ~=
+                -- "FROZEN"`: an event for a slot it still had a record for
+                -- moved that record whatever state it was in)
+                crab_frozen = QD.raid.mz_crab_frozen,
+                crab_thaw = QD.raid.mz_crab_thawed,
+                crab_gone = QD.raid.mz_crab_gone,
+            } },
+    },
+})
+
+-- ----- THE FREEZER SEAT -----
+-- W:594 "Ice Barrage is essentially mandatory"; 10Boot 0:06:33 "Everyone will
+-- be ranging in this room, but the freezer has a special role".  Its cast
+-- schedule is the measured one: +1 S1 (else a 2), +6 the 2s (S2 unless absent
+-- or already frozen, then N2), +11 the 3s, +16 the 4s, then NEXT re-casts.
+QD.raid.sm_declare("maiden_freezer", {
+    start = "DRAIN",
+    states = {
+        DRAIN = { note = "the Tonalztics special on her from the tile it will bow from -> F_ON_BOSS when spent or after 6 ticks",
+            enter = QD.raid.mz_entered,
+            on = {
+                tick = QD.raid.mz_drain_tick,
+                blood_thrown = QD.raid.mz_on_blood_home,
+                pool_landed = QD.raid.mz_on_pool,
+            } },
+        F_ON_BOSS = { note = "the bow on her every tick it is free, the late re-freeze of a THAWED crab, and the preaim hold near a threshold -> CAST/1 on a spawn",
+            enter = QD.raid.mz_entered,
+            on = {
+                tick = QD.raid.mz_f_on_boss_tick,
+                crab_spawn = QD.raid.mz_to_cast1,
+                blood_thrown = QD.raid.mz_on_blood,
+                pool_landed = QD.raid.mz_on_pool,
+            } },
+        -- NOTHING ENTERS THIS STATE.  The preaim hold (W:643, the freezer
+        -- hovering the S1 spawn as she nears a threshold) is written inline in
+        -- F_ON_BOSS's tick instead, and no transition names PREAIM.  It is
+        -- declared because mz_preaim_tick is still here and this is where a
+        -- reader should find out that it is unreachable -- the old table said
+        -- "bar near a threshold -> PREAIM" in a comment that was not true.
+        PREAIM = { note = "UNREACHABLE: the hold is inline in F_ON_BOSS's tick and nothing transitions here",
+            enter = QD.raid.mz_entered,
+            on = {
+                tick = QD.raid.mz_preaim_tick,
+                crab_spawn = QD.raid.mz_to_cast1,
+                blood_thrown = QD.raid.mz_on_blood,
+                pool_landed = QD.raid.mz_on_pool,
+            } },
+        CAST = { note = "cast m.idx of the wave's schedule; the index advances in CAST itself and the list's end -> F_ON_BOSS",
+            enter = QD.raid.mz_entered,
+            on = {
+                tick = QD.raid.mz_cast_tick,
+                crab_spawn = QD.raid.mz_cast_on_spawn,
+                blood_thrown = QD.raid.mz_on_blood,
+                pool_landed = QD.raid.mz_on_pool,
+            } },
+        -- (RETURN is reached by nothing either: the casts' end goes straight
+        -- to F_ON_BOSS, "no RETURN wait: the bow's press goes out now".)
+        RETURN = { note = "UNREACHABLE: the ranged set and home until the wave's ret tick; CAST's end goes straight to F_ON_BOSS instead",
+            enter = QD.raid.mz_entered,
+            on = {
+                tick = QD.raid.mz_return_tick,
+                crab_spawn = QD.raid.mz_to_cast1,
+                blood_thrown = QD.raid.mz_on_blood,
+                pool_landed = QD.raid.mz_on_pool,
+            } },
+        DODGE = { note = "step to the safe tile -> the saved state (m.resume) once landed or the throw has flown",
+            enter = QD.raid.mz_entered,
+            on = {
+                tick = QD.raid.mz_dodge_tick,
+                crab_spawn = QD.raid.mz_dodge_on_spawn,
+                blood_thrown = QD.raid.mz_on_blood,
+                pool_landed = QD.raid.mz_on_pool,
+                boss_phase = QD.raid.mz_dodge_on_phase,
+            } },
+    },
+})
+
+-- ----- A SCYTHE (DPS) SEAT -----
+-- 10Boot 0:06:33 "Everyone else should machine gun down the crabs that aren't
+-- in the clump", and "if a crab spawns at the closest north side tile, this
+-- crab should not get frozen.  Everyone else in the raid should just try and
+-- kill it" -- N1, which both seats attack from +4.  In her 30 form the seats
+-- leave everything but N1.
+QD.raid.sm_declare("maiden_scythe", {
+    start = "OPEN",
+    states = {
+        OPEN = { note = "the run-in bow in the opener set -> DRAIN once it has loosed, or after 10 ticks",
+            enter = QD.raid.mz_entered,
+            on = {
+                tick = QD.raid.mz_open_tick,
+                blood_thrown = QD.raid.mz_on_blood_home,
+                pool_landed = QD.raid.mz_on_pool,
+            } },
+        DRAIN = { note = "the Tonalztics special on her from the tile it will swing from -> S_ON_BOSS when spent or after 6 ticks",
+            enter = QD.raid.mz_entered,
+            on = {
+                tick = QD.raid.mz_drain_tick,
+                blood_thrown = QD.raid.mz_on_blood_home,
+                pool_landed = QD.raid.mz_on_pool,
+            } },
+        S_ON_BOSS = { note = "the scythe on her from her edge -> LANE/1 on a spawn the wave gives this seat, -> CLAWS once in her 30 form",
+            enter = QD.raid.mz_entered,
+            on = {
+                tick = QD.raid.mz_s_on_boss_tick,
+                crab_spawn = QD.raid.mz_s_on_boss_on_spawn,
+                boss_phase = QD.raid.mz_s_on_boss_on_phase,
+                blood_thrown = QD.raid.mz_on_blood,
+                pool_landed = QD.raid.mz_on_pool,
+            } },
+        LANE = { note = "the seat's m.idx-th lane crab inside its window -> LANE/idx+1 when that crab is gone or the window ends, -> S_ON_BOSS at the list's end; its idle ticks run S_ON_BOSS's tick, which can also -> CLAWS",
+            enter = QD.raid.mz_entered,
+            on = {
+                tick = QD.raid.mz_lane_tick,
+                crab_spawn = QD.raid.mz_lane_on_spawn,
+                crab_gone = QD.raid.mz_lane_on_gone,
+                blood_thrown = QD.raid.mz_on_blood,
+                pool_landed = QD.raid.mz_on_pool,
+            } },
+        CLAWS = { note = "the dragon claws special on her, once, in her 30 form -> S_ON_BOSS when spent or after 10 ticks",
+            enter = QD.raid.mz_entered,
+            on = {
+                tick = QD.raid.mz_claws_tick,
+                blood_thrown = QD.raid.mz_on_blood,
+                pool_landed = QD.raid.mz_on_pool,
+            } },
+        DODGE = { note = "step to the safe tile -> the saved state (m.resume); a spawn or her retype rewrites what it resumes into",
+            enter = QD.raid.mz_entered,
+            on = {
+                tick = QD.raid.mz_dodge_tick,
+                crab_spawn = QD.raid.mz_dodge_on_spawn,
+                blood_thrown = QD.raid.mz_on_blood,
+                pool_landed = QD.raid.mz_on_pool,
+                boss_phase = QD.raid.mz_dodge_on_phase,
+            } },
+    },
+})
 
 -- ----- the parallel rule -----
 function QD.raid.mz_always_on_storm(st, v, ev)
@@ -1732,13 +2235,21 @@ function QD.raid._play_maiden_trio(st, v)
     v.shadows = v.marks
     local intent = { want = { protectfrommagic = true } }
     local b = v.boss
-    if b == nil then return intent end
+    if b == nil then
+        -- her death: maiden_phase goes to DEAD, and DEAD keeps the form she
+        -- died in, so nothing that reads mz_form moves
+        if m.role ~= nil then QD.raid.mz_phase(st, v) end
+        return intent
+    end
     if m.role == nil then
         m.role = MZ_ROLE_NAMES[st.role] or "dps1"
         m.ox, m.oz = b.x - P.body[1], b.z - P.body[2]
         m.body_seen = { x = b.x, z = b.z, tick = v.tick }
-        QD.raid.mz_go(st, v, (st.role == 2) and "DRAIN" or "OPEN", 0)
+        QD.raid.mz_boot(st, v)
     end
+    -- her form, read off her npc row and raised as maiden_phase's retype
+    -- event, before anything in the tick asks mz_form for it
+    QD.raid.mz_phase(st, v)
     m.slugs_last = v.slugs
     -- the spawn positions' own states, from every crab event (THE SPAWN POSITIONS)
     QD.raid.mz_pos_update(st, v)
@@ -1779,19 +2290,23 @@ function QD.raid._play_maiden_trio(st, v)
         end
         local ground = slug_near
         for k, on in pairs(m.ground or {}) do if on and k == v.me.x * 100000 + v.me.z then ground = true end end
-        local it = QD.raid.mz_dodge(st, v, { mine = true, x = v.me.x, z = v.me.z, ticks = 1, name = (air and not ground) and "blood_thrown" or "pool_landed" })
+        -- (the one transition no declaration owns: nothing landed this tick,
+        -- I walked onto it -- raid_sm.lua sm_force)
+        local it, go = QD.raid.mz_dodge(QD.raid.mz_ctx(st, v, intent),
+            { mine = true, x = v.me.x, z = v.me.z, ticks = 1, name = (air and not ground) and "blood_thrown" or "pool_landed" })
+        if go ~= nil then QD.raid.mz_go(st, v, go) end
         if it ~= nil then intent.walk = it.walk end
     end
     if m.state == "DODGE" then m.dodges = m.dodges + 1 intent.no_fill = true end
     local s0 = m.state
-    QD.raid[QD.RAID_MAIDEN_STATES[m.state].tick](st, v, intent)
+    QD.raid.mz_tick(st, v, intent)
     -- a state that changed on its tick runs the new state's tick on the same
     -- tick (one hop): its standing intent replaces the old one's
     if m.state ~= s0 and m.state ~= "DODGE" then
         local keep = intent.want
         for k in pairs(intent) do intent[k] = nil end
         intent.want = keep
-        QD.raid[QD.RAID_MAIDEN_STATES[m.state].tick](st, v, intent)
+        QD.raid.mz_tick(st, v, intent)
     end
     -- PRAYERS: Protect from Magic always (the storm is magic, W:590); Piety on
     -- a scythe seat, Rigour on the freezer's bow (10Boot 0:02:45)
@@ -1886,6 +2401,11 @@ end
 function QD.raid._play_maiden_on_start(st)
     if st.party <= 1 then return end
     for ev, h in pairs(QD.RAID_MAIDEN_ALWAYS) do st.on(ev, h) end
+    -- ONE shim per event name, for the whole room.  Each state used to
+    -- subscribe its own handlers on entering and take them off on leaving;
+    -- the declaration says which events a state answers, so the subscription
+    -- is constant and the machine does the choosing.
+    for _, name in ipairs(QD.RAID_MAIDEN_EVENTS) do st.on(name, "mz_event") end
 end
 
 -- raid seam33: the blackstorm a person expects, from the Matomenos seen to
