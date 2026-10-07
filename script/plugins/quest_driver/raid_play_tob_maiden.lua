@@ -657,13 +657,24 @@ function QD.raid.mz_nearest_walker(st, v, skip)
     end
     return best
 end
-function QD.raid.mz_bunch_pick(st, v, skip, within)
+-- the lanes a scythe seat takes at the spawn (N1, N2): not the freezer's
+function QD.raid.mz_seat_lanes(st)
+    local W = QD.RAID_MAIDEN_REF.waves[math.max(QD.raid.mz_form(st), 1)]
+    local theirs = {}
+    for _, list in pairs(W.seat) do
+        for _, e in ipairs(list) do if e[2] <= 5 then theirs[e[1]] = true end end
+    end
+    return theirs
+end
+function QD.raid.mz_bunch_pick(st, v, skip, within, allow_ice)
     local b = v.ev_boss or v.boss
     if b == nil then return nil end
+    local theirs = QD.raid.mz_seat_lanes(st)
     local best, bn, bg = nil, -1, nil
     for slot, a in pairs(st.ev.adds) do
         local g = QD.raid._play_gap(b, a.x, a.z)
-        if not a.gone and not skip[slot] and g >= 2 and g <= (within or 99) and math.max(math.abs(a.x - v.me.x), math.abs(a.z - v.me.z)) <= 10 then
+        if not a.gone and not skip[slot] and g >= 2 and g <= (within or 99) and math.max(math.abs(a.x - v.me.x), math.abs(a.z - v.me.z)) <= 10
+            and (a.ice or not theirs[QD.RAID_MAIDEN_REF.lanes[a.label] or ""]) then
             -- walkers first (a frozen crab cannot be frozen again: wiki_Freeze
             -- :7/:9; it counts for the damage only)
             local n, w = 0, 0
@@ -673,11 +684,38 @@ function QD.raid.mz_bunch_pick(st, v, skip, within)
                     if not q.ice then w = w + 1 end
                 end
             end
-            local score = w * 10 + n
-            if w > 0 and (score > bn or (score == bn and g < bg)) then best, bn, bg = { slot = slot, a = a, n = n }, score, g end
+            -- (the target is a walker; the score is every crab the barrage
+            -- touches -- the frozen ones' damage is the kill (coordinator
+            -- 21:50): sm31 svb fell back to lone walkers beside frozen bunches)
+            local score = n * 10 + w
+            if (allow_ice or not a.ice) and (score > bn or (score == bn and g < bg)) then best, bn, bg = { slot = slot, a = a, n = n }, score, g end
         end
     end
     return best
+end
+-- a walk through marked tiles is judged step by step (library
+-- _play_safe_step, against the pools, the trails and the blood in flight:
+-- sm31 svaplaymaide, the leader stepped (6431,98) <-> (6432,97) across
+-- pools, 9 hits for 149, and died)
+function QD.raid.mz_safe(st, v, fn, ...)
+    local sh = v.shadows
+    v.shadows = v.marks
+    local a, b, c = fn(...)
+    v.shadows = sh
+    return a, b, c
+end
+function QD.raid.mz_floor_ok(st, v)
+    local P, m = st.plan, st.m
+    local b = v.boss
+    return function(x, z)
+        local under = b ~= nil and x >= b.x and x <= b.x + (b.size or 1) - 1 and z >= b.z and z <= b.z + (b.size or 1) - 1
+        return not under and x >= P.floor[1] + (m.ox or 0) - 12 and x <= P.floor[3] + (m.ox or 0) and z >= P.floor[2] + (m.oz or 0) and z <= P.floor[4] + (m.oz or 0)
+    end
+end
+function QD.raid.mz_walk_to(st, v, intent, x, z)
+    local wx, wz = QD.raid.mz_safe(st, v, QD.raid._play_safe_step, st, v, x, z, QD.raid.mz_floor_ok(st, v))
+    if wx == v.me.x and wz == v.me.z then return end
+    if st.walk_target == nil or st.walk_target.x ~= wx or st.walk_target.z ~= wz then intent.walk = { x = wx, z = wz } end
 end
 -- a crab's hp from its health bar (what the screen shows); no bar drawn yet
 -- = full (the Normal trio's 75: tob.constant ^tob_maiden_crab_hp_3)
@@ -704,7 +742,7 @@ end
 function QD.raid.mz_walk_home(st, v, intent)
     local hx, hz = QD.raid.mz_home(st, v)
     if math.max(math.abs(v.me.x - hx), math.abs(v.me.z - hz)) > 1 and not v.marks[hx * 100000 + hz] then
-        if st.walk_target == nil or st.walk_target.x ~= hx or st.walk_target.z ~= hz then intent.walk = { x = hx, z = hz } end
+        QD.raid.mz_walk_to(st, v, intent, hx, hz)
         return true
     end
     return false
@@ -893,8 +931,8 @@ function QD.raid.mz_cast_tick(st, v, intent)
         for _, a in pairs(st.ev.adds) do
             if not a.gone and not a.ice and QD.raid._play_gap(b, a.x, a.z) <= 4 then near = true end
         end
-        if not near and v.tick < st.ev.wave_tick + (c[3] or c[1]) - 1 then return end
-        t = QD.raid.mz_bunch_pick(st, v, skip, 4) or QD.raid.mz_nearest_walker(st, v, skip)
+        if not near and v.tick < st.ev.wave_tick + c[1] - 1 then return end
+        t = QD.raid.mz_bunch_pick(st, v, skip, 4) or QD.raid.mz_bunch_pick(st, v, skip, 99) or QD.raid.mz_nearest_walker(st, v, skip)
     end
     if t == nil then
         local seen = {}
@@ -906,7 +944,7 @@ function QD.raid.mz_cast_tick(st, v, intent)
     if t ~= nil then
         intent.cast = { spell = st.plan.freeze_spell, symbol = st.plan.crab[st.mode], slot = t.slot, why = "cast " .. m.idx .. " " .. c[2] }
         m.casts[#m.casts + 1] = { tick = v.tick, slot = t.slot, result = "cast", wave = QD.raid.mz_form(st), form = #m.forms,
-            why = c[2] .. (QD.RAID_MAIDEN_REF.lanes[t.a.label] == c[2] and "" or (">" .. tostring(QD.RAID_MAIDEN_REF.lanes[t.a.label]))) .. (t.n and ("x" .. t.n) or "") }
+            why = c[2] .. (QD.RAID_MAIDEN_REF.lanes[t.a.label] == c[2] and "" or (">" .. tostring(QD.RAID_MAIDEN_REF.lanes[t.a.label]))) .. (t.n and ("x" .. t.n) or "") .. "g" .. QD.raid._play_gap(v.ev_boss or v.boss, t.a.x, t.a.z) .. "@" .. (v.tick - st.ev.wave_tick) }
     end
     QD.raid.mz_go(st, v, "CAST", m.idx + 1)
 end
@@ -952,10 +990,10 @@ function QD.raid.mz_s_on_boss_tick(st, v, intent)
     end
     local hx, hz = QD.raid.mz_home(st, v)
     if QD.raid._play_gap(b, hx, hz) == 1 and not v.marks[hx * 100000 + hz] and (v.me.x ~= hx or v.me.z ~= hz) then
-        if st.walk_target == nil or st.walk_target.x ~= hx or st.walk_target.z ~= hz then intent.walk = { x = hx, z = hz } end
+        QD.raid.mz_walk_to(st, v, intent, hx, hz)
         return
     end
-    local rx, rz, hold = QD.raid._play_reach(st, v, ok)
+    local rx, rz, hold = QD.raid.mz_safe(st, v, QD.raid._play_reach, st, v, ok)
     if rx ~= nil then
         intent.walk = { x = rx, z = rz }
         return
