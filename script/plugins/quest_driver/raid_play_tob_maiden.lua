@@ -54,15 +54,19 @@ QD.raid._play_plan("tob_maiden", {
     -- mandatory", W:594), in the magic set K measured at +140 magic attack,
     -- the bonus at which every cast froze (K spec freeze_full_bonus, ET 2.3
     -- "hitting 100 % at +140"); back to the ranged set in one block after.
-    magic_set = { "kodai_wand", "ancestral_hat", "ancestral_robe_top", "ancestral_robe_bottom", "arcane" },
-    ranged_set = { "twisted_bow", "dragon_arrow", "masori_mask", "masori_body", "masori_chaps" },
+    magic_set = { "kodai_wand", "ancestral_hat", "ancestral_robe_top", "ancestral_robe_bottom", "arcane", "occult_necklace" },
+    -- (sm164: ELITE RANGED VOID and the necklace of rupture -- the streams'
+    -- gear on every bow, pipe and Division shot, all three seats: void ranger
+    -- helm, elite void top / robe, void gloves, rupture; the set's +10 / +12.5
+    -- percent now in the content, combat_stats.rs2 ~void_set_worn)
+    ranged_set = { "twisted_bow", "dragon_arrow", "game_pest_archer_helm", "elite_void_knight_top", "elite_void_knight_robes", "pest_void_knight_gloves", "necklace_of_rupture" },
     -- owner_tob_normal sm14: the scythe seats' opener set and their melee set.
     -- The streams' gear on every TONALZTICS_SPEC (gear2.py, 58 specs): void /
     -- masori ranged armour, necklace of rupture 51, Dizana's quiver, void or
     -- zaryte gloves -- the special is thrown in RANGED gear (an isolated one
     -- dropped her 96; ours in the melee set 11 and 20); their first three
     -- attacks: TWISTED_BOW, TONALZTICS_SPEC, SCYTHE (27 of 72 seat-rooms).
-    opener_set = { "twisted_bow", "dragon_arrow", "masori_mask", "masori_body", "masori_chaps", "necklace_of_anguish", "zaryte_vambraces" },
+    opener_set = { "twisted_bow", "dragon_arrow", "game_pest_archer_helm", "elite_void_knight_top", "elite_void_knight_robes", "pest_void_knight_gloves", "necklace_of_rupture" },
     melee_set = { "scythe_of_vitur", "torva_helm", "amulet_of_rancour", "radiant_oathplate_chest", "radiant_oathplate_legs", "ferocious_gloves" },
     freeze_spell = "ice_barrage", freeze_level = 94, cast_every = 5,
     flick_weapon = "abyssal_whip",

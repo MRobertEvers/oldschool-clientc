@@ -70,9 +70,12 @@ if role == 2 then
     local more = {
         "::give twisted_bow", "::wield twisted_bow",
         "::give dragon_arrow 1000", "::wield dragon_arrow",
-        "::give masori_mask", "::wield masori_mask",
-        "::give masori_body", "::wield masori_body",
-        "::give masori_chaps", "::wield masori_chaps",
+        -- (sm164: elite ranged void, as every reference raider bows in)
+        "::give game_pest_archer_helm", "::wield game_pest_archer_helm",
+        "::give elite_void_knight_top", "::wield elite_void_knight_top",
+        "::give elite_void_knight_robes", "::wield elite_void_knight_robes",
+        "::give pest_void_knight_gloves", "::wield pest_void_knight_gloves",
+        "::give necklace_of_rupture",
         "::give avas_assembler", "::wield avas_assembler",
         "::give eternal_boots", "::wield eternal_boots",
         "::give magus_ring", "::wield magus_ring",
@@ -104,7 +107,7 @@ if role == 2 then
         -- reference's freezer swings the SCYTHE on her in the 30 percent
         -- phase, freezer|30 19 of 24 rooms; it drinks no brew in the room,
         -- role.freezer.phase.*.drinks 0: a dose costs Ice Barrage's 94 Magic)
-        "::give anglerfish 9", "::give br_4dose2restore 4", "::fullscythe",
+        "::give anglerfish 8", "::give br_4dose2restore 4", "::fullscythe",
         "::give 4doserangerspotion", "::give saturated_heart",
     }
     for _, c in ipairs(more) do party_kit[#party_kit + 1] = c end
@@ -141,8 +144,8 @@ else
         -- Tonalztics special is ranged: masori / void, rupture, zaryte or void
         -- gloves -- raid_play_tob_maiden.lua opener_set), a brew, a restore
         -- and three fish fewer for its five slots
-        "::give masori_mask", "::give masori_body", "::give masori_chaps",
-        "::give necklace_of_anguish", "::give zaryte_vambraces",
+        "::give game_pest_archer_helm", "::give elite_void_knight_top", "::give elite_void_knight_robes",
+        "::give pest_void_knight_gloves", "::give necklace_of_rupture",
         "::give br_4dosepotionofsaradomin 4", "::give br_4dose2restore 4", "::give anglerfish 5",
         "::give 4doserangerspotion",
         -- owner_tob_normal sm89: Dinh's bulwark for the special on the frozen

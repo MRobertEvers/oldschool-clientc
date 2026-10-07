@@ -2092,3 +2092,10 @@ swing; the first hit rolls against half the max (rounded down), the second again
 same per-target funnel and XP; same tick for the three, a tick later and only after a landed first hit for the
 macuahuitl. Not modelled: the Blood moon set's early-attack effect; Torag's hammers (not in this cache's obj
 symbols under that name; same rule when added).
+
+### owner_tob_normal: the Void Knight set had no set effect -- FIXED (content bc52eba22f)
+combat_stats.rs2 ~player_combat_stat summed the set's item stats and nothing else. wiki_Void_Knight_equipment.wikitext:19-30
+(melee +10% accuracy and damage; ranged +10%, elite +12.5% damage; mage +45% accuracy) and wiki_Maximum_ranged_hit.wikitext:19/:23
+(the modifier multiplies the effective level after the +8). Now ~void_set_worn reads helm / top / robe / gloves (every (l), (or)
+variant; not broken ones) and scales the effective levels. Not done: the elite mage helm's +5% magic damage. Found because every
+reference ToB raider bows and pipes in elite ranged void (Blert equipmentDeltas, 24 Maiden rooms).
