@@ -95,6 +95,7 @@ static char const* const k_kind_names[TORIRSSERVER_TICKLOG_KIND_COUNT] = {
     [TORIRSSERVER_TICKLOG_RAIDER] = "raider",
     [TORIRSSERVER_TICKLOG_INPUT] = "input",
     [TORIRSSERVER_TICKLOG_CONSUME] = "consume",
+    [TORIRSSERVER_TICKLOG_HUDBAR] = "hudbar",
 };
 
 /* A SOUND row's label: where the send came from (the npc source adds the
@@ -1038,3 +1039,33 @@ ToriRSServer_TicklogSetDealerNpc(int slot)
 {
     g_ticklog.dealer_npc = slot;
 }
+
+/*
+ * The room HUD against the overhead bar, one row per boss HUD push. FILE-ONLY
+ * (no serial moves; see ticklog_write_side). The raid gate reads these rows
+ * and fails a room whose two bars ever disagree (tools/quest_gate/gate.py).
+ */
+void
+ToriRSServer_TicklogHudbar(
+    const struct ToriRSServerNpc* npc,
+    int hud_fill,
+    int head_fill,
+    int width,
+    int hud_cur,
+    int hud_max)
+{
+    char label[64];
+    int slot;
+
+    if( !g_ticklog.srv )
+        return;
+    assert(npc);
+    slot = ticklog_npc_slot(npc);
+    if( slot < 0 )
+        return;
+    snprintf(label, sizeof(label), "hud %d/%d reserve %d", hud_cur, hud_max,
+             npc->headbar_reserve);
+    ticklog_write_side(TORIRSSERVER_TICKLOG_HUDBAR, slot, npc->type, hud_fill, head_fill, width,
+                       npc->hitpoints, npc->max_hitpoints, label);
+}
+

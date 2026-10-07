@@ -333,6 +333,82 @@ def party_seats(directory):
 PARTY_TRACE_RE = re.compile(r"(?m)^net: party: boundary (\d+) -> tick (-?\d+) digest ([0-9a-f]{8})\s*$")
 PARTY_LOCKSTEP_STEP = "party.lockstep"
 
+# The raid HUD against the overhead bar (owner, 2026-10-07: "overhead health bars
+# do not match the HUD health bars"). Every boss HUD push asks the engine for the
+# overhead fill it draws (`npc_hudbar_check`, tob_hud.rs2 `~tob_hud_push_boss`)
+# and leaves a FILE-ONLY `hudbar` row in ticklog.tsv: c = the HUD's fill, d = the
+# overhead bar's, e = the bar's width, in the bar's own units. A run with such rows
+# gets this ledger row: FAIL when any push disagrees by more than one unit.
+HUDBAR_STEP = "raid.hudbar_matches_overhead"
+
+
+def hudbar_check(ticklog_path):
+    """("PASS"|"FAIL", detail) over a ticklog's `hudbar` rows, or (None, None)
+    when it has none (not a raid boss fight)."""
+    if not os.path.isfile(ticklog_path):
+        return None, None
+    per_type = {}
+    first_bad = None
+    total = 0
+    bad = 0
+    with open(ticklog_path, "r", encoding="utf-8", errors="replace") as handle:
+        for line in handle:
+            cols = line.rstrip("\n").split("\t")
+            # serial tick kind a b c d e f label g (the ticklog-v1 header)
+            if len(cols) < 11 or cols[2] != "hudbar":
+                continue
+            try:
+                tick, npc_type = int(cols[1]), int(cols[4])
+                hud, head, width = int(cols[5]), int(cols[6]), int(cols[7])
+            except ValueError:
+                continue
+            total += 1
+            entry = per_type.setdefault(npc_type, [0, 0])
+            entry[0] += 1
+            if abs(hud - head) > 1:
+                bad += 1
+                entry[1] += 1
+                if first_bad is None:
+                    first_bad = "tick %d npc %d HUD %d/%d overhead %d/%d (%s)" % (
+                        tick, npc_type, hud, width, head, width, cols[9])
+    if total == 0:
+        return None, None
+    kinds = ", ".join("npc %d %d of %d" % (t, n - b, n) for t, (n, b) in sorted(per_type.items()))
+    if bad:
+        return "FAIL", "%d of %d boss HUD pushes disagree with the overhead bar by more than one " \
+            "unit; first: %s; agree per npc: %s" % (bad, total, first_bad, kinds)
+    return "PASS", "%d of %d boss HUD pushes match the overhead bar within one unit (%s)" % (
+        total, total, kinds)
+
+
+def append_ledger_row(ledger_path, step, verdict, detail):
+    """Insert one row before a ledger's SUMMARY and recount it."""
+    assert step
+    if not os.path.isfile(ledger_path):
+        return
+    with open(ledger_path, "r", encoding="utf-8", errors="replace") as handle:
+        lines = handle.read().splitlines()
+    summary_at = next((i for i, l in enumerate(lines) if l.startswith("SUMMARY\t")), None)
+    if summary_at is None:
+        return
+    rows = [l for l in lines[2:summary_at] if l]
+    index = len(rows) + 1
+    row = "%d\t%s\t%s\t0\t\t%s" % (index, step, verdict, detail.replace("\t", " "))
+    summary = lines[summary_at].split("\t")
+    passed, failed, blocked = parse_summary_counts(summary)
+    if passed is None:
+        return
+    if verdict == "PASS":
+        passed += 1
+    else:
+        failed += 1
+    summary[1] = str(index)
+    summary[2] = "PASS" if failed == 0 else "FAIL"
+    summary[5] = "pass=%d fail=%d" % (passed, failed) + (" blocked=%d" % blocked if blocked else "")
+    lines = lines[:summary_at] + [row, "\t".join(summary)] + lines[summary_at + 1:]
+    with open(ledger_path, "w", encoding="utf-8") as handle:
+        handle.write("\n".join(lines) + "\n")
+
 
 def party_trace(session):
     """[(boundary, tick, digest)] from <session>/client.log, in log order, or
@@ -463,6 +539,12 @@ def party_union(directory):
     counts[lock_verdict] += 1
     lines.append("%d\t%s\t%s\t0\t\t%s" % (index, PARTY_LOCKSTEP_STEP, lock_verdict,
                                           lock_detail.replace("\t", " ")))
+    hud_verdict, hud_detail = hudbar_check(os.path.join(seats[0][2], "ticklog.tsv"))
+    if hud_verdict is not None:
+        index += 1
+        counts[hud_verdict] += 1
+        lines.append("%d\t%s\t%s\t0\t\t%s" % (index, HUDBAR_STEP, hud_verdict,
+                                              hud_detail.replace("\t", " ")))
     verdict = "PASS" if counts["FAIL"] == 0 else "FAIL"
     summary = "SUMMARY\t%d\t%s\t%s\t%s\tpass=%d fail=%d" % (
         index, verdict, leader_ticks, leader_exit, counts["PASS"], counts["FAIL"])

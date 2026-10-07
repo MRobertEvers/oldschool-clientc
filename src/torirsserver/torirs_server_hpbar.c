@@ -108,8 +108,14 @@ ToriRSServer_HpBarTick(
     {
         struct ToriRSServerNpc const* npc = &srv->npcs[slot];
         want_type = npc->type;
-        want_hp = npc->hitpoints;
-        want_max = npc->max_hitpoints > 0 ? npc->max_hitpoints : npc->hitpoints;
+        /* The phase's own pool, as the overhead bar draws it (`headbar_reserve`). */
+        want_hp = npc->hitpoints - npc->headbar_reserve;
+        if( want_hp < 0 )
+            want_hp = 0;
+        want_max = (npc->max_hitpoints > 0 ? npc->max_hitpoints : npc->hitpoints) -
+                   npc->headbar_reserve;
+        if( want_max < 1 )
+            want_max = 1;
         player->hpbar_linger = TORIRSSERVER_HPBAR_LINGER_TICKS;
         player->hpbar_last_type = want_type;
         player->hpbar_last_hp = want_hp;

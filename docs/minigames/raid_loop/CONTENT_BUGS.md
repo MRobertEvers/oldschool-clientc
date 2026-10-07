@@ -2278,3 +2278,52 @@ reference ToB raider bows and pipes in elite ranged void (Blert equipmentDeltas,
   lists three distinct tiles per Normal trio set. FIXED in OSRS-Content 255e927837 (owner_verzik): a drawn tile that
   an earlier pool of the charge holds is passed over like a blocked one (`~tob_verzik_pool_taken`). Measured:
   `_play_verzik_slow --party 3 --names 5`, five of five, three pools and three raiders protected on every name.
+- ToB, every room after Maiden, party only: the boss uid every wake / rescale / teardown reads (%varp6886_tob_boss_uid,
+  per player) named the room's boss on ONE raider. `~tob_carry_party` walks the party with the non-dot `huntnext`,
+  which binds the PRIMARY player (engine HUNTNEXT, PlayerOps.ts), and `~tob_build_room` carried on after it in what it
+  took to be the caller's context: `~tob_boss_at` set the uid (and the title card and the room's track went) on the
+  last raider the loop moved. The caller -- the raider who walks the passage, the party leader in every relay -- kept
+  Maiden's uid in every later room, and `~tob_wake_boss` (the leader's barrier) never found Xarpus: relay15 (owner_tob_normal,
+  pack 255e927837) cleared four rooms and then stood 1400 ticks in front of a `tob_xarpus_static` that never retyped,
+  "The fight begins: Xarpus" printed and his bar open. Verzik's stand-up reads the same copy. FIXED in OSRS-Content
+  (owner_tob_normal, this commit): `p_finduid($self)` ends `~tob_carry_party`; the uid is kept on the room register
+  `^tob_var_boss_uid` (88) and written to EVERY raider standing in the instance by `~tob_boss_uid_publish`
+  (`.huntnext` / `.%varp`, so the script's own player or npc stays bound) -- null at each build, the boss at
+  `~tob_boss_at`, Vasilias at her landing -- and each raider copies the register into its own varp on arrival
+  (`[queue,tob_room_settle]`). `::tobstate` prints `roomboss=` and `bosslive=`; the relay's per-room guard rows
+  (`<room>.guard.boss_uid_start/_after`, every seat, and `<room>.guard.boss_woke`) and `_play_maiden`'s `guard.boss_uid`
+  check it. The other per-player ToB varps (sote_under, sote_chip, bloat_burned, xarpus_prev, died_in, maiden_started)
+  are each raider's own state by design; the room's started / cleared / phase / HUD are already on the room register.
+  The other non-dot `huntnext` loops in tob_*.rs2 are npc turns that rebind with `npc_finduid($me)`, or player turns
+  that end the script (`~tob_wipe_raid`, `~tob_vault_roll_party` followed only by handle-keyed work).
+
+## 2026-10-07 content_bugs: the overhead health bars did not match the HUD health bars (owner)
+
+Owner: "I'm noticing that overhead health bars do not match the HUD health bars. This has been an issue before and looks
+like it's back. You need to fix that." (seen live on _play_verzik_slow). The earlier fix was OSRS-Content 57147f786d.
+- MEASURED with a new engine check. Every boss HUD push now calls `npc_hudbar_check(cur, max)` (tob_hud.rs2
+  `~tob_hud_push_boss`). That writes a file-only `hudbar` tick-log row with the HUD's fill and the overhead bar's fill, in
+  the bar's own units. Before the fix (Normal trio, one name a room, check-only pack):
+  - Verzik: 312 of 489 pushes disagreed. P1 agreed in 6 of 121 (HUD 74/80, overhead 78/80 at tick 49), P2 in 27 of 224,
+    P3 in 143 of 143. Her three pools sit end to end on one npc (`~tob_verzik_pool_for`), and the overhead bar divided by
+    the stacked total. In the game each phase is its own npc with its own bar.
+  - Bloat: no HUD push at all. `~tob_start_room` opened the bar full and nothing moved it.
+  - Vasilias: 99/99 "agree", but both bars read 75% at full. Her hitpoints were a cut from the five-man record (2500),
+    not her pool (`~tob_nylo_set_hp`), and each `npc_changetype` re-based her on 2500.
+  - Maiden 205/205, Sotetseg 247/247, Xarpus 249/249: they agreed, so 57147f786d holds.
+  - The engine change since August: `npc_changetype_rehydrate` re-bases max_hitpoints on the record; the bosses that
+    setmaxhp after it are fine.
+- FIXED (OSRS-Content 33187928c9 + engine):
+  - New engine field `headbar_reserve` and op `npc_setheadbarreserve`. The NPC_INFO HEADBAR encoder and the enemy
+    health overlay (`ToriRSServer_NpcHeadbarFill`, torirs_server_hpbar.c) now draw (hp - reserve) / (max - reserve).
+    Verzik sets the reserve to the pools after the current phase, in `~tob_verzik_hud` and `~tob_verzik_fresh_pool`.
+  - Bloat pushes the HUD every fight tick.
+  - Vasilias: `npc_setmaxhp(pool)` at landing, and `~tob_vasilias_retype` across each form change.
+- REGRESSION GUARD: `tools/quest_gate/gate.py hudbar_check` adds a ledger row `raid.hudbar_matches_overhead` to every
+  run whose tick log has `hudbar` rows: party runs through `party_union`, solo runs through run.py. The row is FAIL when
+  any push differs by more than one bar unit. The engine also prints `HUDBAR MISMATCH` on stderr.
+- AFTER (private binary + pack): Maiden 205/205, Nylocas 91/91, Bloat 143/143, Sotetseg 251/251, Xarpus 260/260,
+  Verzik 751/751, Verzik slow 1018/1018.
+- PLAN READ that mirrors the old bar: raid_play_tob_verzik.lua:1058 computes P2's percent as `(ratio*100/scale - 50)*2`,
+  the stacked P2+P3 bar. It must become `ratio*100/scale`. Sent to the Verzik owner, who owns that file. With it
+  unchanged, _play_verzik / _play_verzik_slow went red with p2/p3 deaths in P3.

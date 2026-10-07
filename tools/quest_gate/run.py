@@ -1668,6 +1668,12 @@ def launch_and_report(name, binary, manifest_path, directory, saves, script, tim
                                           scaled_timeout(timeout, max_frames), max_frames,
                                           stall=stall)
     ledger_path = os.path.join(directory, "ledger.tsv")
+    # The raid HUD against the overhead bar, on every run whose tick log has boss
+    # HUD pushes (gate.hudbar_check; a party run gets it from gate.party_union).
+    import gate
+    hud_verdict, hud_detail = gate.hudbar_check(os.path.join(directory, "ticklog.tsv"))
+    if hud_verdict is not None:
+        gate.append_ledger_row(ledger_path, gate.HUDBAR_STEP, hud_verdict, hud_detail)
     has_ledger = os.path.isfile(ledger_path)
     ok = (not timed_out) and (not stall) and code == 0 and has_ledger and unfinished is None
     return {

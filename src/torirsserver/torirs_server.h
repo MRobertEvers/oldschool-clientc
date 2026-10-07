@@ -2523,6 +2523,15 @@ struct ToriRSServerNpc
     int damage_type;
     int hitpoints;
     int max_hitpoints;
+    /**
+     * Hitpoints held for LATER PHASES, which the overhead bar (NPC_INFO HEADBAR)
+     * and the enemy health overlay leave out: they draw
+     * (hitpoints - headbar_reserve) / (max_hitpoints - headbar_reserve). Set by
+     * `npc_setheadbarreserve`; 0 (the spawn's memset) is "none". Verzik's three
+     * phase pools sit end to end on one npc (tob_verzik.rs2), where the game has
+     * one npc and one full bar per phase. `npc_changetype` leaves it alone.
+     */
+    int headbar_reserve;
 
     /**
      * How much a script has drained each stat below the level the content block
@@ -5344,6 +5353,12 @@ enum ToriRSServerTicklogKind
                                          * g=prayer after; label=the trigger (an
                                          * `[opheld*]` script that took the obj
                                          * out of the backpack: eat, drink) */
+    TORIRSSERVER_TICKLOG_HUDBAR,        /* FILE-ONLY. a=slot b=npc type c=the HUD's
+                                         * fill d=the overhead bar's fill e=the bar's
+                                         * width (both fills in its units, -1 for d
+                                         * when the npc draws no bar) f=hitpoints
+                                         * g=max hitpoints; label "hud C/M reserve R"
+                                         * (`npc_hudbar_check`, every boss HUD push) */
     TORIRSSERVER_TICKLOG_KIND_COUNT
 };
 
@@ -5524,6 +5539,9 @@ void ToriRSServer_TicklogLocAnim(const struct ToriRSServer* srv, int coord, int 
 void ToriRSServer_TicklogNpcSay(const struct ToriRSServerNpc* npc, char const* text);
 void ToriRSServer_TicklogNpcHeal(const struct ToriRSServerNpc* npc, int gained, int after,
                                  int base, char const* source);
+/** File-only HUDBAR row: the HUD's fill against the overhead bar's, see the kind. */
+void ToriRSServer_TicklogHudbar(const struct ToriRSServerNpc* npc, int hud_fill, int head_fill,
+                                int width, int hud_cur, int hud_max);
 /** Once per tick, after phase_players: a PLAYER_TILE row for every logged-in
  *  player and an NPC_TILE row for every npc within 32 tiles of a player whose
  *  tile changed since the last row it got. */
@@ -5765,6 +5783,16 @@ ToriRSServer_HealthbarInfoCount(void);
  *  so it is always safe to divide by. */
 int
 ToriRSServer_HealthbarWidth(int id);
+
+/**
+ * The overhead bar's fill for this npc, in its bar's width units, and that
+ * width through `width_out`: (hitpoints - headbar_reserve) * width /
+ * (max_hitpoints - headbar_reserve), clamped to 0..width. -1 when the npc
+ * draws no overhead bar (`healthbar=null`, or no maximum). The NPC_INFO
+ * HEADBAR encoder sends exactly this number.
+ */
+int
+ToriRSServer_NpcHeadbarFill(const struct ToriRSServerNpc* npc, int* width_out);
 
 /** class381 var10: the fill denominator when a record states no opcode 14. */
 #define TORIRSSERVER_HEALTHBAR_DEFAULT_WIDTH 30

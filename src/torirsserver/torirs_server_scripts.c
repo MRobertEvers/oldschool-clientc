@@ -6995,6 +6995,63 @@ ToriRSServer_ScriptCommand(
         return 1;
     }
 
+    case SS_OP_NPC_SETHEADBARRESERVE:
+    {
+        int32_t reserve;
+        struct ToriRSServerNpc* npc = active_npc(state);
+
+        if( !SSVM_PopInt(state, &reserve) )
+            return 1;
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_setheadbarreserve with no active npc");
+            return 1;
+        }
+        if( reserve < 0 || reserve >= npc->max_hitpoints )
+        {
+            SSVM_Abort(state, "npc_setheadbarreserve %d is outside 0..%d", reserve,
+                       npc->max_hitpoints - 1);
+            return 1;
+        }
+        npc->headbar_reserve = reserve;
+        return 1;
+    }
+
+    case SS_OP_NPC_HUDBAR_CHECK:
+    {
+        int32_t cur;
+        int32_t max;
+        struct ToriRSServerNpc* npc = active_npc(state);
+        int width = 0;
+        int head;
+        int hud;
+
+        if( !SSVM_PopInt(state, &max) || !SSVM_PopInt(state, &cur) )
+            return 1;
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_hudbar_check with no active npc");
+            return 1;
+        }
+        if( max <= 0 )
+        {
+            SSVM_Abort(state, "npc_hudbar_check max %d is not a pool", max);
+            return 1;
+        }
+        head = ToriRSServer_NpcHeadbarFill(npc, &width);
+        if( head < 0 )
+            return 1; /* no overhead bar to disagree with */
+        hud = cur <= 0 ? 0 : (cur >= max ? width : (int)(((int64_t)cur * width) / max));
+        ToriRSServer_TicklogHudbar(npc, hud, head, width, cur, max);
+        if( hud - head > 1 || head - hud > 1 )
+            fprintf(stderr,
+                    "torirsserver: HUDBAR MISMATCH npc type=%d: HUD %d/%d = %d of %d, overhead "
+                    "%d of %d (hp %d/%d reserve %d)\n",
+                    npc->type, cur, max, hud, width, head, width, npc->hitpoints,
+                    npc->max_hitpoints, npc->headbar_reserve);
+        return 1;
+    }
+
     case SS_OP_NPC_SETMAXHP:
     {
         int32_t max;

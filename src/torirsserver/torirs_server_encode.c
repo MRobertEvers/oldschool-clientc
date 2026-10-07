@@ -5509,6 +5509,33 @@ npc_headbar_id(const struct ToriRSServerNpc* npc)
     return id == TORIRSSERVER_NPC_HEALTHBAR_UNSET ? healthbar_for_size(npc->size) : id;
 }
 
+int
+ToriRSServer_NpcHeadbarFill(const struct ToriRSServerNpc* npc, int* width_out)
+{
+    int headbar;
+    int width;
+    int span;
+    int left;
+    int fill;
+
+    assert(npc);
+    assert(width_out);
+    *width_out = 0;
+    headbar = npc_headbar_id(npc);
+    if( headbar < 0 || npc->max_hitpoints <= 0 )
+        return -1;
+    width = ToriRSServer_HealthbarWidth(headbar);
+    *width_out = width;
+    span = npc->max_hitpoints - npc->headbar_reserve;
+    if( span <= 0 )
+        span = 1;
+    left = npc->hitpoints - npc->headbar_reserve;
+    if( left < 0 )
+        left = 0;
+    fill = (left * width) / span;
+    return fill > width ? width : fill;
+}
+
 /*
  * Whether this npc's hits carry a splat, the other half of the pair above.
  *
@@ -5681,8 +5708,8 @@ put_npc_extended_v5(
         /* The CHOSEN bar's width, not the standard one's: the client scales
          * the fill by the type's own opcode 14, so an 80-wide bar fed a
          * fraction of 30 would stop at 37% with the npc at full health. */
-        int width = ToriRSServer_HealthbarWidth(headbar);
-        int fill = (npc->hitpoints * width) / npc->max_hitpoints;
+        int width = 0;
+        int fill = ToriRSServer_NpcHeadbarFill(npc, &width);
 
         /* Which bar an npc got, and why. The three inputs (type, footprint,
          * chosen record) and the two outputs (width, fill) on one line, because
