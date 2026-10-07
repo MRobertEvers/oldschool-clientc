@@ -37,13 +37,14 @@ local CCW_SOLVE = {
     [0] = { lx = 13, lz = 13, style = nil },
     [1] = { lx = 13, lz = 23, style = "mage" },
     [2] = { lx = 13, lz = 19, style = "range" },
-    [3] = { lx = 13, lz = 16, style = "melee" },
+    -- Crystal 3 at (23,17): bounce (13,18). (13,16) is unstandable clip.
+    [3] = { lx = 13, lz = 18, style = "melee" },
 }
 local CCW_SOLVE_ALT = {
     [0] = { lx = 13, lz = 14, style = nil },
     [1] = { lx = 13, lz = 22, style = "mage" },
     [2] = { lx = 13, lz = 18, style = "range" },
-    [3] = { lx = 13, lz = 15, style = "melee" },
+    [3] = { lx = 13, lz = 17, style = "melee" },
 }
 
 local STATE = {
@@ -422,13 +423,19 @@ return {
                 t.player.walk_to(sx, sz, 20)
                 return true, "already seated " .. want_sym
             end
-            -- Align z east of the column, then step west — never walk onto
-            -- the bounce tile (beam splash / run31 death on crystal 3).
-            t.player.walk_to(sx, lure_z, 24)
+            -- Cross the focus column OFF the bounce z, then step to lure.
+            -- Direct east→west on bounce z left the player stuck on the
+            -- column (run32: 291 ticks at 6413,81) and never reached lure.
+            local bypass_z = wz + 3
+            t.player.walk_to(sx, bypass_z, 24)
             t.ticks(1)
-            t.player.walk_to(lure_x, lure_z, 24)
+            t.player.walk_to(lure_x - 1, bypass_z, 24)
+            t.ticks(1)
+            t.player.walk_to(lure_x - 1, lure_z, 16)
+            t.ticks(1)
+            t.player.walk_to(lure_x, lure_z, 12)
             t.ticks(2)
-            sustain(t, 75)
+            sustain(t, 80)
             local crab = nearest_crab(t)
             if crab == nil then return false, "no crab" end
             local slot = crab.row.slot
