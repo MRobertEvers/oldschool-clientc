@@ -842,9 +842,7 @@ end
 function QD.raid._verzik_sword_claiming(c, ev)
     assert(c, "_verzik_sword_claiming: c")
     assert(ev, "_verzik_sword_claiming: ev")
-    local st, v, dw = c.st, c.v, c.dw
-    local tr, td = QD.player.click_obj("verzik_special_weapon", 3)
-    st.inputs[v.tick] = (st.inputs[v.tick] or 0) + 1
+    local st, v, dw, intent = c.st, c.v, c.dw, c.intent
     local cr, n = QD.inv.count("verzik_special_weapon")
     if cr == "ok" and n > 0 then
         dw.took = v.tick
@@ -853,9 +851,10 @@ function QD.raid._verzik_sword_claiming(c, ev)
         dw.lying_since = nil
         return nil, "WIELD"
     end
-    if #dw.refused < 4 then
-        dw.refused[#dw.refused + 1] = "t" .. v.tick .. " take " .. tostring(tr) .. ": " .. string.sub(tostring(td), 1, 100)
-    end
+    -- not in the pack yet: ask for it as this tick's intent, so the bolt
+    -- parent can still pull this raider into cover between presses
+    intent.take = { obj = "verzik_special_weapon", op = 3 }
+    c.busy = true
 end
 
 -- WIELD: the sword goes on.  Its own tick, because the equip IS the tick's

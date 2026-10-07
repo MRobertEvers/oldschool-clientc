@@ -109,6 +109,9 @@ QD.RAID_PLAY_EAT_FLOOR_LEVEL = 99
 -- Food "adds a 3 tick penalty to when a player may eat again"; a potion
 -- "delay[s] your next potion consumption by 3 ticks" (consume_shared.rs2:31-48).
 QD.RAID_PLAY_EAT_DELAY = 3
+-- A ground-stack Take is re-pressed no sooner than this many ticks after the
+-- last one (it routes onto the square; a re-press restarts the route).
+QD.RAID_PLAY_TAKE_RESEND = 3
 QD.RAID_PLAY_DRINK_DELAY = 3
 -- Running moves two tiles a tick (wiki Energy: run); used to time a leave.
 QD.RAID_PLAY_RUN_TILES = 2
@@ -738,6 +741,7 @@ function QD.raid._play_reconcile(st, v, intent)
     if intent.walk ~= nil then key = "walk:" .. intent.walk.x .. "," .. intent.walk.z
     elseif intent.cast ~= nil then key = "cast:" .. tostring(intent.cast.slot) .. ":" .. tostring(intent.cast.why)
     elseif intent.press ~= nil then key = "press:" .. tostring(intent.press.slot)
+    elseif intent.take ~= nil then key = "take:" .. tostring(intent.take.obj)
     elseif intent.attack then key = "attack" end
     local prev = st.chan
     if key == nil then
@@ -756,12 +760,16 @@ function QD.raid._play_reconcile(st, v, intent)
         elseif intent.press ~= nil then
             local last = st.swings[#st.swings] or -1000
             drop = not (v.tick - math.max(prev.tick, last) > st.weapon.speed + 2)
+        elseif intent.take ~= nil then
+            -- a Take routes the player onto the square by itself; pressing it
+            -- again before it can land would restart the route
+            drop = v.tick - prev.tick < QD.RAID_PLAY_TAKE_RESEND
         else
             drop = not QD.raid._play_attack(st, v, true)
         end
     end
     if drop then
-        intent.walk, intent.cast, intent.press, intent.attack = nil, nil, nil, false
+        intent.walk, intent.cast, intent.press, intent.take, intent.attack = nil, nil, nil, nil, false
         st.chan_held = (st.chan_held or 0) + 1
     else
         st.chan = { key = key, tick = v.tick }
@@ -955,6 +963,24 @@ function QD.raid._play_send(st, v, intent)
             st.walk_target = nil
         elseif #st.lines < 6 then
             st.lines[#st.lines + 1] = "t" .. v.tick .. " attack " .. tostring(ar) .. ": " .. tostring(why)
+        end
+    end
+    -- THE TAKE: one press on a ground stack, NOT QD.player.click_obj -- that
+    -- verb awaits the backpack count for up to 15 ticks, and a plan blocked
+    -- inside it stops ticking: _vzslow seat 2 sent its Dawnbringer take at
+    -- t75 and t88 and nothing between, so its bolt cover never ran and it
+    -- died to the t89 bolt in the open.  The plan reads the backpack next
+    -- tick like any other effect.
+    -- a step and a take cannot both land in one tick: the step goes
+    if intent.take ~= nil and walk == nil then
+        local target, tr, tname = QD.player.by_symbol("obj", intent.take.obj)
+        local ar, why = tr, tname
+        if target then ar, why = QD.drive.click_minimenu(target, intent.take.op or 3) end
+        n = n + 1
+        st.takes = st.takes or {}
+        if #st.takes < 24 then st.takes[#st.takes + 1] = { tick = v.tick, obj = intent.take.obj, answer = tostring(ar) } end
+        if ar ~= "ok" and #st.lines < 6 then
+            st.lines[#st.lines + 1] = "t" .. v.tick .. " take " .. tostring(ar) .. ": " .. QD.raid._play_reason(why, 120)
         end
     end
     -- raid seam55: a trigger's press on a named row, or a cast on one (the
@@ -1222,7 +1248,7 @@ end
 -- trigger's intent won ("trig <event>:<field>"), when opts.trigger_marks.
 -- ==========================================================================
 QD.RAID_PLAY_HOLD_TICKS = 2
-QD.RAID_PLAY_INTENT_FIELDS = { "walk", "attack", "press", "cast", "eat", "drink", "gear", "spec" }
+QD.RAID_PLAY_INTENT_FIELDS = { "walk", "attack", "press", "cast", "take", "eat", "drink", "gear", "spec" }
 
 function QD.raid._play_triggers_init(st, opts)
     st.handlers, st.watches, st.trig_log, st.trig_counts, st.trig_wins = {}, {}, {}, {}, {}
