@@ -245,8 +245,8 @@ return {
         "::give air_rune 400",
         "::give blood_rune 80",
         "::give hammer",
-        "::give shark 28",
-        "::give br_4dose2restore 6",
+        "::give shark 24",
+        "::give br_4dose2restore 4",
     },
 
     run = function(t)
@@ -580,11 +580,22 @@ return {
                     "tile " .. tile.lx .. "," .. tile.lz .. " style=" .. tostring(style)
                         .. " ok=" .. tostring(ok) .. " " .. tostring(detail)
                         .. " stage=" .. tostring(var_num(t, "varp7044_cox_crab_big_stage")))
+                local wx, wz = world(tile.lx, tile.lz)
+                local sx, sz = safe_tile(wx, wz)
+                t.player.walk_to(sx, sz, 20)
+                if not ok then
+                    sm.attempt = sm.attempt + 1
+                    if sm.attempt > 40 then
+                        t.check("solve.stuck", false,
+                            "crystal " .. sm.crystal_i .. " unsatisfied after 40 seat attempts; stage="
+                                .. tostring(var_num(t, "varp7044_cox_crab_big_stage")))
+                        set_state(STATE.DONE)
+                    end
+                    return
+                end
                 -- Wait through a full beam life; keep paint fresh (8-tick window)
                 -- and re-smash if the crab drifts off the mark.
                 local wait = 0
-                local wx, wz = world(tile.lx, tile.lz)
-                local sx, sz = safe_tile(wx, wz)
                 while wait < 100 do
                     sustain(t)
                     if t.player.alive() ~= "ok" then
@@ -593,19 +604,19 @@ return {
                         set_state(STATE.DONE)
                         return
                     end
-                    if ok and wait > 0 and wait % 7 == 0 then
+                    if wait > 0 and wait % 7 == 0 then
                         local seated = crab_at(t, wx, wz, 0)
                         if seated ~= nil then
                             t.player.walk_to(sx, sz, 15)
                             if style ~= nil and style ~= "melee" then
                                 paint_style(t, style, seated.symbol)
                             else
-                                -- Refresh stun; white needs grey after paint window.
                                 smash(t, seated)
                                 if style == nil then
                                     t.ticks(10)
                                 end
                             end
+                            t.player.walk_to(sx, sz, 15)
                         end
                     end
                     t.ticks(1)
