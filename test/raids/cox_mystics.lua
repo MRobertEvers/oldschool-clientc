@@ -3,12 +3,10 @@
 -- Source: docs/minigames/cox/synq_transcript.md [0:31:54]
 --   "Make sure you're protecting from magic while doing this room."
 --   "The salve amulet EI is strongly recommended."
---   "The bofa and blowpipe are also commonly used here. The twisted bow
---    isn't as strong here because their magic level isn't as high..."
--- Kill path: focus one mystic at a time with ranged until the room clears.
--- Corner safespotting is optional; this harness clears by Protect from Magic
--- + blowpipe DPS (Synq learner baseline).
--- Model: named-state machine, one intent per tick (FOCUS awaits one kill).
+--   "The bofa and blowpipe are also commonly used here."
+-- Kill path: Protect from Magic + blowpipe, focus one mystic at a time.
+-- Eat threshold stays low so food presses do not cancel the blowpipe cycle.
+-- Model: named-state machine; FOCUS awaits one kill then re-decides.
 -- No ::godmode, ::kill, or teleport past a phase.
 
 local FORMS = {
@@ -106,19 +104,16 @@ end
 
 local function sustain(t)
     local h = hp(t)
-    if h > 0 and h < 55 then
+    if h > 0 and h < 45 then
         drink_brew(t)
         h = hp(t)
     end
-    if h > 0 and h < 75 then
+    if h > 0 and h < 35 then
         if t.player.eat("shark") ~= "ok" then
             t.player.eat("tbwt_cooked_karambwan")
         end
     end
-    if h > 0 and h < 45 then
-        drink_brew(t)
-    end
-    if prayer_points(t) < 45 then
+    if prayer_points(t) < 40 then
         local restores = {
             "br_4dose2restore",
             "br_3dose2restore",
@@ -159,8 +154,7 @@ return {
         "::setlevel magic 99",
         "::setlevel hitpoints 99",
         "::setlevel prayer 99",
-        -- Synq [0:31:54]: salve + blowpipe (tbow weaker on mystic magic level).
-        -- ::blowpipe early so the load has free backpack slots (README).
+        -- Synq [0:31:54]: salve + blowpipe. Load early (README free-slot rule).
         "::blowpipe dragon_dart 2000 2000",
         "::wield toxic_blowpipe_loaded",
         "::give masori_mask",
@@ -173,10 +167,10 @@ return {
         "::wield avas_assembler",
         "::give nzone_salve_amulet_e",
         "::wield nzone_salve_amulet_e",
-        "::give br_4dose2restore 3",
+        "::give br_4dose2restore 2",
         "::give br_4dosepotionofsaradomin 4",
-        "::give shark 16",
-        "::give tbwt_cooked_karambwan 5",
+        "::give shark 18",
+        "::give tbwt_cooked_karambwan 4",
     },
 
     run = function(t)
@@ -199,8 +193,6 @@ return {
             "landing pack count " .. tostring(#landing))
         local count_solo = #landing
         local first = landing[1]
-        -- npc.pack.slot is the WORLD slot (tick log key). ticklog.slot() wants
-        -- a client-row slot from t.npc.state/nearest, so use pack.slot directly.
         local wslot = first.slot
         t.check("mystic.slot", type(wslot) == "number" and wslot >= 0,
             "world slot " .. tostring(wslot)
@@ -250,8 +242,7 @@ return {
                 if is_mystic_hit(sm, row) then
                     local d = row.raw or row.damage or 0
                     local style = sm.last_style[row.npc_slot]
-                    -- Prayer-reduction row measures Protect from Magic only.
-                    -- Melee splats (full damage under Protect Magic) are ignored.
+                    -- Prayer-reduction measures Protect from Magic only.
                     if style == "magic" then
                         if sm.prayer_on then
                             if d > sm.prot_max then sm.prot_max = d end
@@ -309,8 +300,6 @@ return {
             if sm.state == STATE.LAND then
                 lr, ld = t.ticklog.mark("mystics room start")
                 t.check("room.mark", lr == "ok", tostring(ld))
-                -- Arm Protect from Magic immediately: three mystics stack too
-                -- hard for an unprotected bait window (synq learner baseline).
                 set_state(STATE.ARM_PRAYER)
                 return
             end
@@ -334,16 +323,14 @@ return {
                 t.prayer.set("protectfrommagic", true)
                 t.prayer.set("eagleeye", true)
                 sm.prayer_on = true
-                -- Top up before the settle so stacked mystic DPS does not race
-                -- an empty stomach into the first await_dead window.
-                if hp(t) < 80 then
+                if hp(t) < 50 then
                     drink_brew(t)
-                    t.player.eat("shark")
                 end
+                -- Low eat line: run7's below=72 canceled every blowpipe swing.
                 local eat_opts = {
                     eat = {
                         item = "shark",
-                        below = 72,
+                        below = 32,
                         quick = true,
                         combo = "tbwt_cooked_karambwan",
                     },
@@ -353,7 +340,7 @@ return {
                     t.shot("mystics mid-mechanic focus kill")
                     sm.mid_shot = true
                 end
-                local ar, ad = t.npc.await_dead(sym, 900, 40, 40, eat_opts)
+                local ar, ad = t.npc.await_dead(sym, 1200, 40, 40, eat_opts)
                 if ar ~= "ok" then
                     t.check("mystic.kill", false,
                         "await_dead " .. tostring(sym) .. " -> " .. tostring(ar)
@@ -398,8 +385,6 @@ return {
             cad_n = 0
         end
 
-        -- Solo fire maxhit is 25 (^cox_mystic_maxhit_base); Protect from Magic
-        -- leaves 50% so protected raw max must sit at floor(25/2)=12 (+-1).
         local prayer_pct = nil
         if sm.prot_hits >= 3 and sm.prot_max <= 13 then
             prayer_pct = 50
