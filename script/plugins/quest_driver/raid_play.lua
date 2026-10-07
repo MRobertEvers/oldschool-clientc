@@ -1623,59 +1623,77 @@ function QD.raid.cross_together(name, opts)
     local br = QD.party.barrier(name .. "_door", timeout)
     if br ~= "ok" then return "timeout", "cross_together " .. name .. ": the door barrier " .. tostring(br) end
     if role == starter and opts.before ~= nil then opts.before() end
-    -- EVERY seat opens the barrier's question (tob_party.rs2 [oploc1,
-    -- tob_arena_barrier]: the same p_choice2 for every raider while the room
-    -- is not started) and all three answer it on ONE go tick: the answer is
-    -- a dialog resume, the same pipeline on every seat, so the three steps
-    -- land on the same server tick (coordinator 23:15; before, a member's
-    -- loc press after the starter's answer reached the server 1-2 ticks
-    -- late and differently per seat).  ~tob_start_room run twice on one tick
-    -- writes the same values (map_clock is the tick's).
-    local presses, opened = 0, false
-    while presses < 3 and not opened do
-        presses = presses + 1
-        QD.player.click_loc(loc, 1)
-        QD.await({ level = function() return QD.chat.kind() == "options" end, note = name .. ": the barrier's question" }, 6)
-        opened = QD.chat.kind() == "options"
-    end
-    if not opened then
-        QD.party.barrier(name .. "_asked", timeout)
-        return "refused", "cross_together " .. name .. ": p" .. role .. " no question after " .. presses .. " press(es)"
-    end
-    local ar = QD.party.barrier(name .. "_asked", timeout)
-    if ar ~= "ok" then return "timeout", "cross_together " .. name .. ": the asked barrier " .. tostring(ar) end
-    -- the go tick: named by the starter three ahead in a barrier file
-    -- (`<name>_go<tick>`); the lockstep link gives every seat the same tick
-    local _, now = QD.tick()
+    -- THE OWNER'S RULE (content 0b6dffc89, tob_party.rs2): "Only the party
+    -- leader can start a room. The non leaders can only pass the gate once
+    -- the room is started."  The leader presses and answers; a member waits
+    -- for the leader's answer (the `<name>_go` barrier file names its tick),
+    -- presses the gate on the tick after it, and presses again next tick while
+    -- the gate still holds it ("You must wait for the party leader to start
+    -- the fight."); no member ever answers the question.
+    -- (every press is on the copy in front of this seat's door tile: the
+    -- nearest-copy click sent mzprobemaiden's members from 6450,94 to the
+    -- copy before 6450,93, a tick's walk before the step)
+    local detail = ""
     local go_tick = nil
+    local door = nil
     if role == starter then
-        go_tick = now + 3
+        local presses, opened = 0, false
+        while presses < 3 and not opened do
+            presses = presses + 1
+            QD.player.click_loc(loc, 1, { at = { row.tile_x, row.tile_z } })
+            QD.await({ level = function() return QD.chat.kind() == "options" end, note = name .. ": the barrier's question" }, 6)
+            opened = QD.chat.kind() == "options"
+        end
+        if not opened then
+            QD.party.barrier(name .. "_asked", timeout)
+            return "refused", "cross_together " .. name .. ": no question after " .. presses .. " press(es)"
+        end
+        local ar = QD.party.barrier(name .. "_asked", timeout)
+        if ar ~= "ok" then return "timeout", "cross_together " .. name .. ": the asked barrier " .. tostring(ar) end
+        if opts.at_answer ~= nil then opts.at_answer() end
+        local _, now = QD.tick()
+        go_tick = now
+        -- (the go mark before the answer: the members read it the same tick)
         api_drive.barrier_mark(string.format("barrier.%s_go%d.p%d", name, go_tick, role))
+        local pr, pd = QD.chat.play({ "options", "choose:" .. answer })
+        if pr ~= "ok" then return "refused", "cross_together " .. name .. ": " .. tostring(pd) end
+        detail = "answered " .. tostring(pr) .. " after " .. presses .. " press(es)"
     else
-        for _ = 1, 20 do
+        local ar = QD.party.barrier(name .. "_asked", timeout)
+        if ar ~= "ok" then return "timeout", "cross_together " .. name .. ": the asked barrier " .. tostring(ar) end
+        for _ = 1, 40 do
             local _, t = QD.tick()
-            for k = t - 6, t + 8 do
+            for k = t - 8, t + 2 do
                 if api_drive.barrier_present(string.format("barrier.%s_go%d.p%d", name, k, starter)) == "ok" then go_tick = k break end
             end
             if go_tick ~= nil then break end
             QD.ticks(1)
         end
-        go_tick = go_tick or now
+        if go_tick == nil then return "timeout", "cross_together " .. name .. ": no answer from the leader" end
+        -- (pressed ON the answer's tick: a press reaches the server a tick
+        -- after the leader's answer does, so it finds the room started --
+        -- mzprobemaiden with the press a tick later stepped the members two
+        -- ticks after the leader)
+        while true do
+            local _, t = QD.tick()
+            if t >= go_tick then break end
+            QD.ticks(1)
+        end
+        local _
+        _, door = QD.world.tile()
+        local presses, crossed = 0, false
+        while presses < 5 and not crossed do
+            presses = presses + 1
+            QD.player.click_loc(loc, 1, { at = { row.tile_x, row.tile_z } })
+            if QD.chat.kind() == "options" then QD.chat.play({ "options", "choose:Not yet." }) end
+            for _ = 1, 2 do
+                local _, now = QD.world.tile()
+                if now ~= nil and (now.x ~= door.x or now.z ~= door.z) then crossed = true break end
+                QD.ticks(1)
+            end
+        end
+        detail = presses .. " press(es)" .. (crossed and "" or ", not seen past the gate")
     end
-    while true do
-        local _, t = QD.tick()
-        if t >= go_tick then break end
-        QD.ticks(1)
-    end
-    if role == starter and opts.at_answer ~= nil then opts.at_answer() end
-    local _, door = QD.world.tile()
-    local pr, pd = QD.chat.play({ "options", "choose:" .. answer })
-    local detail = "answered " .. tostring(pr) .. " after " .. presses .. " press(es)"
-    if pr ~= "ok" then return "refused", "cross_together " .. name .. ": " .. tostring(pd) end
-    -- back to the caller at once: the step is the server's on the answer's
-    -- tick for every seat (mzprobemaiden: all three on 6448,93 at t67), and
-    -- a member's read of its own tile is a tick behind it (polling it handed
-    -- the members' loops over at t68)
     local _, after = QD.world.tile()
     local _, t_after = QD.tick()
     return "ok", string.format("cross_together %s: p%d from %d,%d (door tile %d,%d), on %d,%d at t%d; go t%d; %s",
