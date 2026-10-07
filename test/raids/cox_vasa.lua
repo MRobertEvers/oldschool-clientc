@@ -24,11 +24,9 @@ return {
         -- Dragon warhammer for a defence drain so vasa.stat_regen is observable.
         "::give dragon_warhammer",
         -- Food through the teleport special (solo takes current HP - 5) and boulders.
-        -- Non-br_ potion symbols are what this pack's ::give lands in the backpack
-        -- (tekton/guardians/olm pattern); br_* resolves in all.obj but not obj.server.
-        "::give shark 20",
-        "::give 4dosepotionofsaradomin 4",
-        "::give 4dose2restore 4",
+        -- Gear above is still in the bag until run() equips it (9 slots); sharks
+        -- only — potions are unused here and would overflow the 28-slot inv.
+        "::give shark 18",
     },
 
     run = function(t)
