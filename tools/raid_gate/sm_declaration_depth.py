@@ -85,11 +85,38 @@ def targets(body):
     out = set()
     for m in re.finditer(r'return\s+[^\n]*?,\s*"([A-Za-z_]\w*)"', body): out.add(m.group(1))
     for m in re.finditer(r'\bbroken\s*=\s*"([A-Za-z_]\w*)"', body): out.add(m.group(1))
+    # A helper that takes its target as an ARGUMENT and returns it -- e.g.
+    # `_verzik_sword_fire(c, ev, "ARMED")` called from two states with two
+    # different literals -- is two edges, not the one dynamic target a naive
+    # read sees.  Credit the literals at the call site (owner_verzik,
+    # 2026-10-07: "if the tool credits that as one edge rather than two, I am
+    # under-credited by one").
+    for m in re.finditer(r'QD\.raid\._\w+\s*\([^()\n]*?"([A-Z][A-Z_0-9]*)"', body):
+        out.add(m.group(1))
     return out
 
 def dyn(body):
     return set(m.group(1) for m in
                re.finditer(r'return\s+[^\n,]*,\s*(ev\.go|ev\.to|go|name|back|state|r\.state)\b', body))
+
+def table_targets(text, body):
+    """A machine that drives its targets off a CONSTANT TABLE --
+    `return nil, QD.RAID_MAIDEN_PHASE_STATES[ev.form]` -- names every value in
+    that table, not one dynamic target.  Resolving it matters because the
+    naive read collapses the table to 1 and then divides the branches by 1, so
+    THE MOST CONNECTED GRAPH SCORES THE FEWEST EDGES and its ratio is inflated
+    by up to the size of the table (reported by the Maiden port, 2026-10-07).
+    That is the opposite of this tool's "under-claim rather than mis-indict"
+    rule, so it is a bug and not a rounding."""
+    out = set()
+    for m in re.finditer(r'return\s+[^\n,]*,\s*([A-Za-z_][\w.]*)\s*\[', body):
+        name = m.group(1)
+        tm = re.search(r'\n(?:local\s+)?' + re.escape(name) + r'\s*=\s*\{', text)
+        if tm is None: continue
+        try: ta, tb = brace_span(text, tm.end() - 1)
+        except ValueError: continue
+        for vm in re.finditer(r'"([A-Za-z_]\w*)"', text[ta:tb]): out.add(vm.group(1))
+    return out
 
 def find_named(text, clean, name):
     """body of a handler reached by NAME: a plan function, a file local, or a
@@ -145,7 +172,7 @@ for path in sorted(glob.glob(os.path.join(ROOT, 'script/plugins/quest_driver/rai
                 e = block_end(clean, off + len('function'))
                 body, cbody = text[off:e], clean[off:e]
                 nbr += branches(body, cbody)
-                edges |= targets(body); dynset |= dyn(body)
+                edges |= targets(body) | table_targets(text, body); dynset |= dyn(body)
                 # an inline handler that merely forwards -- `function(c) return
                 # QD.raid._verzik_phase_p3(c) end` -- carries none of the
                 # behaviour itself, so follow it or a 1,002-line phase body
@@ -168,15 +195,37 @@ for path in sorted(glob.glob(os.path.join(ROOT, 'script/plugins/quest_driver/rai
                     off = ta + hm.end() - len('function')
                     e = block_end(clean, off + len('function'))
                     nbr += branches(text[off:e], clean[off:e])
-                    edges |= targets(text[off:e]); dynset |= dyn(text[off:e])
-        for name in sorted(delegated):
+                    edges |= targets(text[off:e]) | table_targets(text, text[off:e]); dynset |= dyn(text[off:e])
+        # TRANSITIVE.  A handler can be two hops from its branches: the table
+        # entry is a bare file-local (`leave_window = duty_leave`), that local
+        # merely calls QD.raid._bloat_leave(c, ev), and the branches live
+        # there.  Following one hop counts the wrapper as a branch-free body
+        # and stops, which FLATTERS any room that names its handlers through
+        # wrappers -- Bloat read 0.1 where the honest count is 0.6 (reported by
+        # the Bloat port, 2026-10-07, against its own headline).
+        seen, work = set(), list(delegated)
+        while work:
+            name = work.pop()
+            if name in seen: continue
+            seen.add(name)
             body, cbody = find_named(text, clean, name)
             if body is None: continue
             nbr += branches(body, cbody)
-            edges |= targets(body); dynset |= dyn(body)
+            edges |= targets(body) | table_targets(text, body); dynset |= dyn(body)
+            for fm in re.finditer(r'QD\.raid\.(_\w+)\s*\(', body):
+                if not fm.group(1).startswith('_play_') and fm.group(1) not in seen:
+                    work.append(fm.group(1))
+            for fm in re.finditer(r'(?<![\w.])([a-z_]\w*)\s*\(c\s*[,)]', body):
+                if fm.group(1) not in seen: work.append(fm.group(1))
         for mm in re.finditer(r'children\s*=\s*\{([^}]*)\}', sbody):
             for cm in re.finditer(r'"(\w+)"', mm.group(1)): edges.add('child:' + cm.group(1))
-        nedge = len(edges) + (1 if dynset else 0)
+        # An UNRESOLVED dynamic target could be any declared state, so count it
+        # as the state count rather than as 1.  Counting it as 1 inflates the
+        # ratio, which mis-indicts; counting it as the state count under-claims,
+        # which is the bias this tool is supposed to have.
+        nedge = len(edges)
+        if dynset and len(edges) < len(names):
+            nedge = max(nedge, len(names))
         ratio = (nbr / nedge) if nedge else float(nbr)
         rows.append((ratio, room, mid, len(names), nbr, nedge, bool(dynset)))
 

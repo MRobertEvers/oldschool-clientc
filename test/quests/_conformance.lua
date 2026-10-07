@@ -3761,8 +3761,30 @@ return {
                     .. " without naming the reason: %s", describe(blocked_result), describe(blocked_value),
                     describe(blocked_detail))
             end
-            -- put the melee protection back for the rows below
-            tog(function() set("protectfrommelee", true) end)
+            -- LEAVE NO PROTECTION LIT.  A lit protection puts an overhead
+            -- icon above the player, and the rows below measure the drawn
+            -- height of the player's model (seam.transmog_draws_the_npc reads
+            -- the top of what is drawn: with an icon up, the human read dy=18
+            -- instead of 84 and the row failed).  The stage after this one
+            -- presses protectfrommelee OFF, but a press it makes while this
+            -- seam's own press is still in flight reads "already off, no
+            -- press" and the prayer then lights behind it -- so this seam
+            -- puts them out itself and says so.
+            for _, name in ipairs(ORDER) do
+                local _, value = server(VARBIT[name])
+                if value == 1 then
+                    tog(function() set(name, false) end)
+                end
+            end
+            local still = {}
+            for _, name in ipairs(ORDER) do
+                local _, value = server(VARBIT[name])
+                if value == 1 then still[#still + 1] = name end
+            end
+            if #still > 0 then
+                return "hollow", "the seam left " .. table.concat(still, ",")
+                    .. " lit for the rows below: " .. table.concat(steps, " | ")
+            end
             return "ok", "consecutive ticks: " .. table.concat(steps, " | ")
                 .. "; under the content's protection block a press answers refused, the varbit stays "
                 .. describe(blocked_value) .. ", and the detail names it"

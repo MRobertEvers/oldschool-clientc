@@ -7741,3 +7741,48 @@ So, for any line a person will read to decide WHY something failed:
 - A line that cannot carry its reason should say so ("... (detail truncated, see client.log)") rather than end
   mid-quote. An ellipsis is a diagnostic; a clean cut is a lie.
 The same failure mode as a tool that names the wrong cause confidently: the reader stops looking.
+
+## The conformance harness is seed-stable, not flaky: compare A/B under ONE run name (owner_praypress, 2026-10-07)
+
+Reported as "the conformance harness is unstable on this tree: 12 and 16 failures at clean HEAD, a different set of
+seam rows each time, neither reaching t.finish" -- which would have made every measurement taken through it
+worthless, including the one judging the change that reported it. QUANTIFIED AND ATTRIBUTED INSTEAD, and it has ONE
+cause, which is not a bug.
+
+- THREE runs of ONE commit (dd31ef628) under three names (cfser1/2/3), one at a time, no parallelism:
+  13, 15 and 19 failures. A stable core of 10 rows failed in all three (ledger_verdict.word_probe, session.login,
+  run.unfinished, seam.attack_fast_path, seam.eat_delay_clocks, seam.eat_does_not_hold_queued_hit,
+  seam.element_seq_projectile_and_static_loc, seam.if1_button_unnumbered_trigger, seam.inv_op_wield_reads_worn,
+  seam.render_skip_pick_read_catches_up); a tail of 15 more rows failed in one or two of the three. Nearly every
+  row in that tail reads a WANDERING npc or a ground item: attack_exact_copy_on_one_tile, npc_cover_settled_recovery,
+  npc_tele_reslot_followed, npc_facing_read, npc_pose_reads_the_drawn_track, npc.await_face, the drop rows.
+- FOUR runs under ONE name (`cfseed`), same binary, serial: base twice -> 304 rows, 286 pass, 18 fail, 1996 ticks,
+  the SAME failing set both times; the changed tree twice -> 305 rows, 286 pass, 19 fail, 1990 ticks, the same
+  failing set both times. BYTE-STABLE on each side.
+- THE CAUSE: a47a38de7 seeds npc rolls from the run name (npc_random_seed XORs srv->npc_run_seed, FNV-1a of
+  TORIRSSERVER_RUN_SEED). A different name is a different world: the npcs these rows press, face and walk around
+  wander differently, so a row whose subject moved reads a different answer. Nothing is racing; the seed changed.
+- SO: AN A/B THROUGH THIS HARNESS MUST USE THE SAME `--name` ON BOTH SIDES, and `--no-publish` with it. Two runs
+  under different names tell you nothing about a change; they tell you about two worlds. A first pass of mine
+  compared confbase/conffix under different names, concluded "9 ticks of 1970 and my seam passed in every run", and
+  was not entitled to it: under one name the same change cost exactly one row (seam.transmog_draws_the_npc, a lit
+  protection's overhead icon changing the drawn height the row measures), which is a real finding the uncontrolled
+  comparison hid.
+- `run.unfinished` and the stable core of 10 are a separate, pre-existing matter: they fail identically every run
+  and are nobody's flake. They are not this note's subject and have not been investigated here.
+
+### The cost of `seam.prayer_consecutive_ticks`, measured and OPEN (owner_praypress, 2026-10-07)
+
+Under the one-name method above, that seam costs exactly ONE downstream row: `seam.transmog_draws_the_npc` fails
+with it and passes without it, identically in two runs of each side (base 304 rows / 18 fail / 1996 ticks; with the
+seam 305 / 19 / 1990). The seam itself PASSES every run. The row measures the top of the player's drawn model, and
+the failing side reads the human at `dy=18` (the monkey's height) with the player projected at 382,**251** against
+382,**250** on the base side -- the player is drawn one pixel lower, so what the row probes above its head is not
+what it means to probe. A first guess, that the seam left a protection lit and its overhead icon changed the
+height, was TESTED AND IS WRONG: the seam now puts every protection out and checks that none is lit, and the row
+still fails in both runs.
+NOT FIXED, and left stated rather than quietly carried: whoever picks this up should either find what the seam
+moves by a pixel, or move the seam after every row that reads the world (the harness's own banner names that as the
+home for seam rows that cost ticks or state). The standalone probe that proves the same behaviour without touching
+the harness is build/seam_state/owner_praypress/_probe_pray_consec.lua (9 of 9 consecutive-tick switches land,
+server and client varbits agreeing).
