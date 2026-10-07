@@ -1041,8 +1041,13 @@ function QD.raid.mz_drain_tick(st, v, intent)
     -- sm42 sva dps1 threw from (10,-3) and walked six ticks to (4,6), first
     -- scythe +23 against the script's +16
     if st.role ~= 2 and v.tick - m.idx <= 6 and QD.raid.mz_walk_home(st, v, intent) then return end
+    -- (the special's own 6 ticks start when the walk is done: sm141 probe
+    -- ::tobmaidendef, her Defence 200 -> 114 after the freezer's special and
+    -- never lower -- both scythe seats walked home for the 6 ticks DRAIN
+    -- allowed and threw a plain throw (10922), no special, no drain)
+    if m.drain_t0 == nil or m.drain_t0 < m.idx then m.drain_t0 = v.tick end
     local spent = QD.raid.mz_special(st, v, intent, (st.plan.opener_wear and st.plan.opener_wear[st.role]) or st.plan.opener.weapon, 1000)
-    if spent or v.tick - m.idx > 6 then
+    if spent or v.tick - m.drain_t0 > 6 then
         intent.spec, intent.attack = nil, false
         if st.role == 2 then QD.raid.mz_go(st, v, "F_ON_BOSS") else QD.raid.mz_go(st, v, "S_ON_BOSS") end
     end
