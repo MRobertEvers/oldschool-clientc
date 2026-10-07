@@ -7645,3 +7645,23 @@ the harness's 6426,92 never saw).
   standalone server, any launcher other than the quest gate) also runs the old streams.
 - Unit: `TORIRSSERVER_SELFTEST_NPC_SEED_ONLY=1 ./src/build_opt/torirsserver --selftest`
   (`selftest_npc_run_seed`; also in the full selftest). The selftest unsets both variables.
+
+## A fast press aims at the copy it names, and every press is judged by receipt (owner_presslat, 2026-10-07)
+
+The relay's Maiden freezer pressed its +16 barrage on the 4s at t291; the server received it at t293, the tick
+they walked in and healed her, and cast nothing (mrlya/b/c, engine aa98a5360; the room harness 0-1). Traced tick by
+tick (client send trace, server receive trace): transport is NOT it -- every client's packet, the leader's held
+bytes and the members' alike, reaches the server at the next boundary. The two ticks were QD.drive._quick_aim's.
+`api_drive.screen_position("npc", type)` answers the type's copy nearest the viewport's centre, which on a room of
+crabs is another crab; the aim then turned the YAW onto the named copy (the relay's camera drift, cross 512 / exit
+1687), guessed its pixel from a scale, hunted 14 pixels to the tick cap, pressed `covered`, waited a tick for the
+copy's step to draw and pressed again. Now `api_drive.screen_position("npc", type, element)` projects ONE copy
+(App_NpcElementScreenPosition) and the fast press aims there first ("the named copy's own projection"); an older
+binary ignores the argument and the old path runs. Same names after: every cast animated at +0/+1, Maiden 247 -> 223
+ticks, tech.freeze green. Verzik's enrage swings never had the lag (owner_verzik: 47 of 55 on the decide tick).
+Regression: gate.py `raid.press_latency` (party ledger), from the leader's ticklog.tsv -- each press a seat SENT
+(its `<plan>.press_latency` row, report-only, lists `t<tick>s|a` and its players() pid) must show `input 1` on that
+pid's raider row at most two rows after its decide tick (received within one tick). Receipt, not the action: a
+barrage re-pressed inside its own timer, or a boss not yet attackable, delays the action with the packet on time.
+mrlya old driver FAIL (t291 cast received t293), fixed PASS; _play_maiden trio 90/90; _vzfastp3 102/102.
+`python3 tools/quest_gate/press_latency_check_test.py` is the fixture test.

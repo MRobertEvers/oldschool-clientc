@@ -127,6 +127,68 @@ App_SimulateNpcOp(
     return -1;
 }
 
+/* Inside the world viewport with this much to spare: a body projected on the
+ * viewport's edge is half under the frame, and the frame takes the click. */
+enum
+{
+    APP_NPC_SCREEN_MARGIN = 12
+};
+
+/* Where ONE npc's mid-body is drawn, inside the viewport with the margin to
+ * spare; false when it projects off it. Mid-body rather than the feet: the feet
+ * of an npc standing behind a table project onto the table, and a click there
+ * is the table's. */
+static bool
+app_npc_screen_point(
+    struct App* app,
+    struct WorldEntity_NPC const* npc,
+    int* out_x,
+    int* out_y)
+{
+    struct UITreeEmitDesc const* viewport = &app->world_emit_desc;
+    int x;
+    int y;
+
+    if( !app_world_project_actor(
+            app,
+            &npc->view_placement,
+            npc->grid_position.level,
+            (int)npc->draw_position.x,
+            (int)npc->draw_position.z,
+            60,
+            &x,
+            &y) )
+        return false;
+    if( x < viewport->x + APP_NPC_SCREEN_MARGIN || x >= viewport->x + viewport->w - APP_NPC_SCREEN_MARGIN ||
+        y < viewport->y + APP_NPC_SCREEN_MARGIN || y >= viewport->y + viewport->h - APP_NPC_SCREEN_MARGIN )
+        return false;
+    *out_x = x;
+    *out_y = y;
+    return true;
+}
+
+int
+App_NpcElementScreenPosition(
+    struct App* app,
+    int element_id,
+    int* out_x,
+    int* out_y)
+{
+    struct WorldEntity_NPC* npc;
+
+    assert(app);
+    assert(out_x);
+    assert(out_y);
+    if( !app->world || !app->world_view_valid )
+        return -1;
+    npc = World_NpcGetByElementId(app->world, element_id, NULL);
+    if( !npc || npc->server_slot < 0 )
+        return -2;
+    if( !app_npc_screen_point(app, npc, out_x, out_y) )
+        return -1;
+    return npc->server_slot;
+}
+
 int
 App_NpcScreenPosition(
     struct App* app,
@@ -135,13 +197,6 @@ App_NpcScreenPosition(
     int* out_y,
     int* out_type)
 {
-    /* Inside the world viewport with this much to spare: a body projected on
-     * the viewport's edge is half under the frame, and the frame takes the
-     * click. */
-    enum
-    {
-        MARGIN = 12
-    };
     struct UITreeEmitDesc const* viewport;
 
     assert(app);
@@ -170,20 +225,7 @@ App_NpcScreenPosition(
         /* npc_id < 0 takes any npc that is on screen. */
         if( !npc || npc->server_slot < 0 || (npc_id >= 0 && npc->npc_id != npc_id) )
             continue;
-        /* Mid-body rather than the feet: the feet of an npc standing behind a
-         * table project onto the table, and a click there is the table's. */
-        if( !app_world_project_actor(
-                app,
-                &npc->view_placement,
-                npc->grid_position.level,
-                (int)npc->draw_position.x,
-                (int)npc->draw_position.z,
-                60,
-                &x,
-                &y) )
-            continue;
-        if( x < viewport->x + MARGIN || x >= viewport->x + viewport->w - MARGIN ||
-            y < viewport->y + MARGIN || y >= viewport->y + viewport->h - MARGIN )
+        if( !app_npc_screen_point(app, npc, &x, &y) )
             continue;
         distance = (long)(x - centre_x) * (x - centre_x) + (long)(y - centre_y) * (y - centre_y);
         if( best_slot >= 0 && distance >= best_distance )

@@ -8785,13 +8785,39 @@ function QD.drive._quick_rebase(until_tick, turn_serial)
     return until_tick
 end
 
+-- Where the named npc copy (target.reach_element) is drawn: {x, y,
+-- element_id}, or nil when it is off screen, gone, or the binary predates the
+-- element argument of api_drive.screen_position (it answers the type's copy).
+function QD.drive._named_copy_projection(target)
+    local r, p = api_drive.screen_position("npc", target.id, target.reach_element)
+    if r ~= "ok" or type(p) ~= "table" or p.element_id ~= target.reach_element then
+        return nil
+    end
+    return p
+end
 function QD.drive._quick_aim(target, until_tick, pose_index)
     local how
     local pos_result, pos
     local turn_serial = QD.drive._camera_turn_serial
+    local named = nil
+    if pose_index == nil and target.kind == "npc" and target.reach_element ~= nil then
+        named = QD.drive._named_copy_projection(target)
+    end
     if pose_index ~= nil then
         pos_result, pos = QD.drive._frame(target, pose_index, 1)
         how = "pose " .. tostring(pose_index)
+    elseif named ~= nil then
+        -- THE NAMED COPY'S OWN PIXEL (owner_presslat, 2026-10-07).  The type's
+        -- projection answers the copy nearest the viewport's centre, and on a
+        -- room of one type (Maiden's crabs) that is another crab: the aim then
+        -- turned the yaw onto the named one, guessed its pixel from a scale
+        -- and hunted a line of pixels to the tick cap, pressed `covered`, and
+        -- re-aimed -- two ticks before the press that landed, and the camera
+        -- left turned (the relay's yaw drift).  The freezer's +16 barrage on
+        -- the 4s reached the server at +18, the tick they healed her
+        -- (mrlya/b/c on aa98a5360: t291 -> server 293; harness 0-1).
+        pos_result, pos = "ok", named
+        how = "the named copy's own projection"
     else
         pos_result, pos = api_drive.screen_position(target.kind, target.id)
         if pos_result == "not_found" and target.kind == "npc" then

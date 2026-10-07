@@ -725,6 +725,15 @@ enum DriveResult DrivePointer_ScreenPosition(
     int* out_y,
     int* out_element_id);
 
+/** Project ONE npc copy, named by its scene element, to a canvas point
+ *  (App_NpcElementScreenPosition). DRIVE_NOT_FOUND when no synced npc owns
+ *  the element, DRIVE_NOT_VISIBLE when it projects off screen. */
+enum DriveResult DrivePointer_NpcElementScreenPosition(
+    struct App* app,
+    int element_id,
+    int* out_x,
+    int* out_y);
+
 /** Does this frame's world pickset hold `element_id`?  Meaningless before a
  *  frame has RENDERED at the moved-to point -- the pickset is stamped at the
  *  render-time hover point -- which is why click_minimenu moves, waits a

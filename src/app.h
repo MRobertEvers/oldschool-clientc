@@ -4785,6 +4785,21 @@ App_NpcScreenPosition(
     int* out_type);
 
 /**
+ * Where ONE npc copy -- the scene element `element_id` -- is drawn, in canvas
+ * pixels (App_NpcScreenPosition's mid-body point and margin). Returns its
+ * server slot; -2 when no synced npc owns the element, -1 when it projects off
+ * screen. App_NpcScreenPosition answers for a TYPE and picks the copy nearest
+ * the viewport's centre, which is another copy whenever several share the
+ * type (Maiden's crabs): a press meant for one named copy asks here.
+ */
+int
+App_NpcElementScreenPosition(
+    struct App* app,
+    int element_id,
+    int* out_x,
+    int* out_y);
+
+/**
  * The local player's TRUE tile (the server's whole tile, route[0]), level, and
  * where the current walk ends (the map flag; the true tile when no flag is
  * set). Absolute tiles. False before the local player has spawned.

@@ -606,6 +606,30 @@ DrivePointer_ScreenPosition(
 }
 
 enum DriveResult
+DrivePointer_NpcElementScreenPosition(
+    struct App* app,
+    int element_id,
+    int* out_x,
+    int* out_y)
+{
+    int slot;
+
+    assert(app);
+    assert(out_x);
+    assert(out_y);
+    *out_x = 0;
+    *out_y = 0;
+    if( !app->world )
+        return DRIVE_NOT_VISIBLE;
+    slot = App_NpcElementScreenPosition(app, element_id, out_x, out_y);
+    if( slot == -2 )
+        return DRIVE_NOT_FOUND;
+    if( slot < 0 )
+        return DRIVE_NOT_VISIBLE;
+    return DRIVE_OK;
+}
+
+enum DriveResult
 DrivePointer_PickHolds(struct App* app, int element_id, int* out_held)
 {
     int i;
@@ -2151,7 +2175,18 @@ lua_drive_screen_position(struct lua_State* L)
     assert(app);
     if( kind < 0 )
         return luaL_error(L, "drive.screen_position: unknown kind '%s'", kind_name);
-    result = DrivePointer_ScreenPosition(app, (enum DrivePickKind)kind, id, &x, &y, &element_id);
+    /* An optional third argument names ONE npc copy by its scene element:
+     * without it the type's copy nearest the viewport's centre answers, which
+     * is another copy whenever several share the type. */
+    element_id = PluginDrive_ArgOptInt(L, 3, -1);
+    if( element_id >= 0 )
+    {
+        if( kind != DRIVE_PICK_NPC )
+            return luaL_error(L, "drive.screen_position: an element is named for npcs only");
+        result = DrivePointer_NpcElementScreenPosition(app, element_id, &x, &y);
+    }
+    else
+        result = DrivePointer_ScreenPosition(app, (enum DrivePickKind)kind, id, &x, &y, &element_id);
     lua_pushstring(L, DriveResultName(result));
     if( result != DRIVE_OK )
     {
