@@ -2250,3 +2250,9 @@ reference ToB raider bows and pipes in elite ranged void (Blert equipmentDeltas,
   fd3183311f (owner_verzik): `~tob_verzik_pools_alone` counts each pool's occupants BEFORE the raider hunt (a bit per
   pool held by exactly one player), and `~tob_verzik_protected($at, $alone)` no longer hunts. Measured on the private
   pack: `_play_verzik_slow_p3 --party 3 --names 5`, every blast "3 of 3 raiders protected, own pools".
+
+- ToB, Verzik P3: the green ball always went to pid 0. `~tob_verzik_green_ball` launched at the FIRST target of its
+  hunt, which iterates by pid (every `_play_verzik_slow_p3` name, five of five: p0). Source: "Verzik will launch a
+  green ball at a random player" (wiki_Theatre_of_Blood_Strategies.wikitext:980); "verzik will send this at a player
+  chosen at random" (transcripts/yt_KF9y2GYTJ-A.md); Blert's five Normal trio balls went to five raiders of four
+  teams. FIXED in OSRS-Content 440dac8170 (owner_verzik): the targets are counted, then `random(n)` picks one.
