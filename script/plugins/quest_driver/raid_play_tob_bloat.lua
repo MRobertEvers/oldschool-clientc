@@ -1487,27 +1487,6 @@ function QD.raid._bloat_down_spec(st, v, c, events)
     ds.state = m.state
 end
 
--- THE COVERAGE ROW, until the layer's own call site lands.  From the Xarpus
--- port (2026-10-07): a change to a state NOTHING ENTERS is indistinguishable
--- from no change, and a byte-identical ledger then "proves" a port that never
--- ran the new code.  QD.raid.sm_coverage (raid_sm.lua cde6121fa) formats every
--- declared state's ticks and entries and names the ones that never fired; its
--- natural home is the play library's summary, which cannot change while five
--- rooms are running before/after batches, so until then this room carries it
--- in the one channel a plan owns (st.lines, the summary's refusal slots).
--- DELETE THIS when _play_summary carries the coverage section itself.
-QD.raid.RAID_PLAY_BLOAT_COVERAGE = true
-function QD.raid._bloat_coverage_row(st)
-    assert(st, "_bloat_coverage_row: st")
-    local row = QD.raid.sm_coverage(st)
-    if st.sm_row_at == nil then
-        st.lines[#st.lines + 1] = row
-        st.sm_row_at = #st.lines
-    else
-        st.lines[st.sm_row_at] = row
-    end
-end
-
 -- THE BLOAT PLAN'S DECIDE (PLAY_NOTES.md "Bloat"): the facts, the events,
 -- the machines, and then the executor.  The strategy the states carry out is
 -- unchanged.  Walk: hide straight behind the tank from where Bloat will be
@@ -1533,7 +1512,6 @@ function QD.raid._play_bloat_decide(st, v)
         local events = QD.raid.sm_events(st, v, QD.raid._bloat_events)
         QD.raid.sm_run(st, v, "bloat_cycle", c, events)
         QD.raid.sm_run(st, v, "bloat_raider", c, events)
-        QD.raid._bloat_coverage_row(st)
         return intent
     end
     if st.first_tick == nil then st.first_tick = v.tick end
@@ -1615,7 +1593,6 @@ function QD.raid._play_bloat_decide(st, v)
     if N.down_spec ~= nil then
         QD.raid._bloat_down_spec(st, v, c, events)
     end
-    QD.raid._bloat_coverage_row(st)
     return intent
 end
 
