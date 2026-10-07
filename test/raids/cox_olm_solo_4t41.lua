@@ -59,24 +59,24 @@ local function npc_ok(t, sym)
 end
 
 local function sustain(t, sm)
-    -- Do not eat every tick: opheld1 eat anim cancels walk/attack and the
-    -- prior run died of chip damage while only animating sharks (829).
+    -- Do not eat every tick: opheld1 eat anim cancels walk/attack. Eat early
+    -- enough that a 20+ Olm auto cannot finish us between sips.
     sm._sustain_cd = (sm._sustain_cd or 0) - 1
     local hr, hp = t.skill.read("hitpoints")
     local level = (hr == "ok" and hp.level) or 99
     if sm._sustain_cd <= 0 then
-        if level < 40 then
+        if level < 55 then
             t.player.drink("br_4dosepotionofsaradomin")
-            sm._sustain_cd = 2
-        elseif level < 55 then
-            t.player.eat("shark")
             sm._sustain_cd = 3
+        elseif level < 75 then
+            t.player.eat("shark")
+            sm._sustain_cd = 4
         end
     end
     local pr, pp = t.prayer.points()
     local points = 0
     if pr == "ok" then points = pp.points or pp.level or 0 end
-    if points < 30 and (sm._pray_cd or 0) <= 0 then
+    if points < 40 and (sm._pray_cd or 0) <= 0 then
         t.player.drink("br_4dose2restore")
         sm._pray_cd = 4
     end
@@ -156,18 +156,24 @@ return {
         "::wield ultor_ring",
         -- Mage hand wants magic (66% mitigation on non-magic). Synq sang/shadow.
         -- Keep the kit ≤28 inv slots (worn melee already fills equipment).
+        -- Wear mage switch in setup so inv holds food, not robes.
         "::give sanguinesti_staff_uncharged",
         "::give bloodrune 4000",
         "::give ancestral_hat",
         "::give ancestral_robe_top",
         "::give ancestral_robe_bottom",
         "::give occult_necklace",
+        "::wield ancestral_hat",
+        "::wield ancestral_robe_top",
+        "::wield ancestral_robe_bottom",
+        "::wield occult_necklace",
         -- Head phase: twisted bow (ranged weakness on head).
         "::give twisted_bow",
         "::give dragon_arrow 2000",
+        -- 12 shark + 4 restore + 4 sara + sang + blood + tbow + arrows + combat = 25.
         "::give shark 12",
         "::give br_4dose2restore 4",
-        "::give br_4dosepotionofsaradomin 3",
+        "::give br_4dosepotionofsaradomin 4",
         "::give 4dose2combat 1",
     },
 
@@ -318,18 +324,9 @@ return {
         local function decide()
             on_event()
             prayer_flick()
-            -- Attack-path states sustain after the intent so eat does not
-            -- starve walk/attack of the tick.
-            local fight = sm.state == STATE.KILL_MAGE
-                or sm.state == STATE.SETUP_41
-                or sm.state == STATE.CYCLE_TANK
-                or sm.state == STATE.CYCLE_FREE
-                or sm.state == STATE.CYCLE_RUN
-                or sm.state == STATE.CYCLE_TURN
-                or sm.state == STATE.HEAD
-            if not fight then
-                sustain(t, sm)
-            end
+            -- Always sustain under fire; KILL_MAGE also calls sustain at the
+            -- top of its branch before any walk/attack wait.
+            sustain(t, sm)
             if t.player.alive() ~= "ok" then
                 set_state(STATE.DONE)
                 return
@@ -370,8 +367,11 @@ return {
             if sm.state == STATE.KILL_MAGE then
                 -- Synq 4-tick mage running [2:19:07]. Entry lands at lz=25 on
                 -- the open arena aisle (see ^cox_olm_entry_lz); claws at lz=30.
+                -- Keep walk deadlines short: a blocking walk_to(20) starved
+                -- sustain and the prior run died mid-approach.
                 refresh_geometry()
                 sample_vislevels()
+                sustain(t, sm)
                 local mage = sm.tiles.mage
                 local mrow = npc_ok(t, mage)
                 if mrow == nil then
@@ -385,28 +385,18 @@ return {
                 local _, me = t.world.tile()
                 local aisle_x = sm.ox + 32
                 local dist = math.max(math.abs(me.x - mrow.x), math.abs(me.z - mrow.z))
-                if dist > 5 then
-                    -- Prefer mage-claw safes; fall back to aisle steps north.
-                    local dest = { x = mrow.x, z = mrow.z - 3 }
-                    if me.z < sm.oz + 27 then
-                        dest = { x = aisle_x, z = sm.oz + 28 }
-                    end
-                    local wr = t.player.walk_to(dest.x, dest.z, 20)
-                    if wr ~= "ok" then
-                        t.player.walk_to(aisle_x, math.min(me.z + 3, sm.oz + 28), 8)
-                    end
-                    -- Attack while closing (sang is 10-range).
-                    t.player.attack(mage, 2, 8, { quick = true, slot = mrow.slot })
-                    sustain(t, sm)
-                    sm.sub = sm.sub + 1
-                    return
+                -- Sang attack first (10-range); walk at most a few tiles/tick.
+                t.player.attack(mage, 2, 4, { quick = true, slot = mrow.slot })
+                if dist > 4 then
+                    local dest_z = math.min(me.z + 3, mrow.z - 3)
+                    if dest_z <= me.z then dest_z = mrow.z - 3 end
+                    t.player.walk_to(aisle_x + ((sm.sub % 2) * 2 - 1), dest_z, 4)
+                else
+                    local a = { x = aisle_x - 2, z = mrow.z - 3 }
+                    local b = { x = aisle_x + 2, z = mrow.z - 3 }
+                    local dest = ((sm.sub % 8) < 4) and a or b
+                    t.player.walk_to(dest.x, dest.z, 4)
                 end
-                local a = { x = aisle_x - 2, z = mrow.z - 3 }
-                local b = { x = aisle_x + 2, z = mrow.z - 3 }
-                local dest = ((sm.sub % 8) < 4) and a or b
-                t.player.attack(mage, 2, 8, { quick = true, slot = mrow.slot })
-                t.player.walk_to(dest.x, dest.z, 8)
-                sustain(t, sm)
                 sm.sub = sm.sub + 1
                 t.ticks(1)
                 return
@@ -429,14 +419,13 @@ return {
                     if mrow ~= nil then
                         t.player.attack(melee, 2, 4, { quick = true, slot = mrow.slot })
                     end
-                    t.player.walk_to(sm.tiles.thumb.x, sm.tiles.thumb.z, 6)
+                    t.player.walk_to(sm.tiles.thumb.x, sm.tiles.thumb.z, 4)
                 elseif sm.setup_waits < 16 then
-                    t.player.walk_to(empty.x, empty.z, 8)
+                    t.player.walk_to(empty.x, empty.z, 4)
                 else
                     set_state(STATE.CYCLE_TANK)
                     return
                 end
-                sustain(t, sm)
                 t.ticks(1)
                 return
             end
