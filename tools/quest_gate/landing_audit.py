@@ -12,7 +12,9 @@ Landings collected:
     script block;
   * the call sites of every proc/label that teleports to one of its own coord parameters (transitively:
     ~climb_ladder_to(coord $dest, ...) and anything that forwards into it), with a literal/^constant arg;
-  * every maplink.dbrow / maplink_agility.dbrow `dest`.
+  * every `dest` of a maplink / maplink_agility row, in any *.dbrow under server/scripts (the generated
+    ladders_stairs/configs/maplink.dbrow and skill_agility/configs/maplink_agility.dbrow, and the
+    hand-authored ones beside them and in areas/ and quests/).
 Anything else (movecoord, loc_coord, map_findsquare, instance coords, procs returning a coord, $vars
 assigned a computed value) is listed as UNRESOLVED with its expression.
 
@@ -24,11 +26,21 @@ Classes (the loader is reach.py's Area: jm2 floor flags + jl2 locs, its doors, o
   OK      otherwise (a small region that has a way out is OK; its size and the way out are in the note).
 NPCs, script-spawned locs and inventory teleports are invisible to it: a POCKET whose way out is a
 talk-to or a spawned loc is a false positive the note cannot rule out.
+Locs are read at their EFFECTIVE level, as reach.Area reads them: a loc on level L of a tile whose
+level-1 floor flag carries the bridge bit (2) acts on level L-1 (the Slepe basement's ladder and The
+Burrow's cave exit stand on bridged tiles; read raw, their way out was invisible).
+
+Gate (--gate): exit 1 when a landing is a HIT -- POCKET, or SOLID with "no step-off" -- that
+tools/quest_gate/landing_audit_baseline.tsv does not list. A baseline row is keyed by the source FILE
+(no line number), the symbol, the tile and the class, so an edit elsewhere in the file does not
+unbaseline it; each row carries the reason it is not fixed (a mid-course hop the next obstacle takes,
+a landing another agent owns, ...). A baseline row no hit matches any more is printed as STALE --
+delete it -- but does not fail the gate (the list only shrinks). `make -C src check-landings`.
 
 Report: build/orchestrator/landing_audit.tsv (source, symbol, coord, level, class, pocket_size, kind,
 quests, note). The quests column names the QUEUE.tsv quest dirs a hit touches: the script lives under
 quests/<quest_dir>/ (or the ^constant is defined there), or the quest's test/quests/<test_id>.lua names
-a tile within 2 of the landing. Exit status 0 always (an audit, not yet a gate).
+a tile within 2 of the landing. Exit status 0 without --gate.
 """
 import argparse
 import bisect
@@ -309,38 +321,66 @@ def collect(content, consts):
                 for idx in sorted(lp[tgt]):
                     if idx < len(args):
                         emit(b, n, "call", args[idx], " via %s%s" % tgt)
-    for rel in ("ladders_stairs/configs/maplink.dbrow", "skill_agility/configs/maplink_agility.dbrow"):
-        p = os.path.join(scripts, rel)
-        row, loc = None, None
-        pending = None
+    for r in maplink_rows(scripts):
+        if r["dest_line"] is None:
+            continue
+        out.append(dict(source="%s:%d" % (os.path.relpath(r["path"], REPO), r["dest_line"]),
+                        symbol="%s (%s)" % (r["name"], r["loc"]) if r["loc"] else r["name"],
+                        coord=r["dest"], kind="maplink", const_file=None, block=None))
+    return out
+
+
+MAPLINK_TABLES = ("maplink", "maplink_agility")
+
+
+def maplink_files(scripts):
+    """Every *.dbrow under server/scripts holding a maplink / maplink_agility row, sorted: the two
+    generated tables and every hand-authored file beside them (areas/, quests/, ladders_stairs/)."""
+    out = []
+    want = {"table=%s" % t for t in MAPLINK_TABLES}
+    for root, dirs, files in os.walk(scripts):
+        dirs[:] = sorted(d for d in dirs if d != "build")
+        for f in sorted(files):
+            if not f.endswith(".dbrow"):
+                continue
+            p = os.path.join(root, f)
+            with open(p, errors="replace") as fh:
+                if any(line.strip() in want for line in fh):
+                    out.append(p)
+    return out
+
+
+def maplink_rows(scripts):
+    """[dict(path, name, table, dest, dest_line, src, loc)] for every maplink / maplink_agility row."""
+    out = []
+    for p in maplink_files(scripts):
+        row = None
         for n, line in enumerate(open(p, errors="replace"), 1):
             line = line.strip()
             m = re.match(r"^\[(.+)\]$", line)
             if m:
-                if pending:
-                    out.append(pending)
-                row, loc, pending = m[1], None, None
+                if row and row["table"] in MAPLINK_TABLES:
+                    out.append(row)
+                row = dict(path=p, name=m[1], table=None, dest=None, dest_line=None, src=None, loc="")
                 continue
-            if line.startswith("data=dest,"):
-                c = parse_coord(line.split(",", 1)[1])
-                pending = dict(source="%s:%d" % (os.path.relpath(p, REPO), n), symbol=row,
-                               coord=c, kind="maplink", const_file=None, block=None)
-            elif line.startswith("data=loc,") and pending:
-                pending["symbol"] = "%s (%s)" % (row, line.split(",", 1)[1])
-        if pending:
-            out.append(pending)
+            if row is None:
+                continue
+            if line.startswith("table="):
+                row["table"] = line.split("=", 1)[1]
+            elif line.startswith("data=dest,"):
+                row["dest"] = parse_coord(line.split(",", 1)[1])
+                row["dest_line"] = n
+            elif line.startswith("data=src,"):
+                row["src"] = parse_coord(line.split(",", 1)[1])
+            elif line.startswith("data=loc,"):
+                row["loc"] = line.split(",", 1)[1]
+        if row and row["table"] in MAPLINK_TABLES:
+            out.append(row)
     return out
 
 
 def maplink_sources(content):
-    srcs = set()
-    for rel in ("ladders_stairs/configs/maplink.dbrow", "skill_agility/configs/maplink_agility.dbrow"):
-        for line in open(os.path.join(content, "server/scripts", rel), errors="replace"):
-            if line.startswith("data=src,"):
-                c = parse_coord(line.strip().split(",", 1)[1])
-                if c:
-                    srcs.add(c)
-    return srcs
+    return {r["src"] for r in maplink_rows(os.path.join(content, "server/scripts")) if r["src"]}
 
 
 # ---------------------------------------------------------------- collision
@@ -352,6 +392,7 @@ class Collision:
     def __init__(self):
         self.areas = {}
         self.loc_cache = {}
+        self.bridge_cache = {}
         self.ids, self.info = reach.load_locs()
         self.loads = 0
 
@@ -368,8 +409,26 @@ class Collision:
         self.loads += 1
         return reach.Area(x - m, x + m, z - m, z + m, level)
 
+    def bridged(self, mx, mz):
+        """{(x, z)} of one map square whose level-1 floor flag carries the bridge bit (2): a loc on
+        level L of such a tile acts on level L-1 (reach.Area's eff())."""
+        key = (mx, mz)
+        if key not in self.bridge_cache:
+            out = set()
+            p = "%s/maps/m%d_%d.jm2" % (reach.BASE, mx, mz)
+            if os.path.exists(p):
+                for line in open(p):
+                    m = re.match(r"^1 (\d+) (\d+):.*\bf(\d+)", line)
+                    if m and int(m[3]) & 2:
+                        out.add((mx * 64 + int(m[1]), mz * 64 + int(m[2])))
+            self.bridge_cache[key] = out
+        return self.bridge_cache[key]
+
+    def eff_level(self, L, x, z):
+        return L - 1 if (x, z) in self.bridged(x >> 6, z >> 6) else L
+
     def op_locs(self, mx, mz):
-        """[(level, footprint tiles, label)] for every loc with an op in one map square's jl2."""
+        """[(effective level, footprint tiles, label)] for every loc with an op in one map square's jl2."""
         key = (mx, mz)
         if key in self.loc_cache:
             return self.loc_cache[key]
@@ -391,7 +450,7 @@ class Collision:
                 if rot & 1:
                     w, ln = ln, w
                 foot = [(x + a, z + b) for a in range(w) for b in range(ln)] if 9 <= shape <= 21 else [(x, z)]
-                out.append((L, foot, "%s@%d,%d[%s]" % (nm, x, z, ops[0])))
+                out.append((self.eff_level(L, x, z), foot, "%s@%d,%d[%s]" % (nm, x, z, ops[0])))
         self.loc_cache[key] = out
         return out
 
@@ -473,7 +532,7 @@ class Collision:
                     continue
                 L, lx, lz, lid, shape, rot = (int(m[1]), mx * 64 + int(m[2]), mz * 64 + int(m[3]),
                                               int(m[4]), int(m[5]), int(m[6] or 0))
-                if L != level or not (9 <= shape <= 22):
+                if self.eff_level(L, lx, lz) != level or not (9 <= shape <= 22):
                     continue
                 nm = self.ids.get(lid, str(lid))
                 i = self.info.get(nm, {})
@@ -585,6 +644,66 @@ def print_groups(rows, status, limit):
         print("... %d more groups (--groups 0 prints all)" % (len(order) - limit))
 
 
+# ---------------------------------------------------------------- gate
+
+BASELINE = os.path.join(HERE, "landing_audit_baseline.tsv")
+BASELINE_COLS = ("file", "symbol", "tile", "class", "reason")
+
+
+def is_hit(row):
+    """A landing the gate refuses: sealed (POCKET) or solid with nowhere to step (SOLID, no step-off).
+    A SOLID tile with a step-off is a landing the player walks off; the report still lists it."""
+    return row["cls"] == "POCKET" or (row["cls"] == "SOLID" and "no step-off" in row["note"])
+
+
+def hit_key(row):
+    lv, x, z = row["coord"]
+    return (row["source"].rsplit(":", 1)[0], row["symbol"], "%d,%d,%d" % (x, z, lv), row["cls"])
+
+
+def load_baseline(path):
+    """{(file, symbol, tile, class): reason}. '#' lines and the header are skipped; a row without a
+    reason is refused -- the reason IS the baseline."""
+    out = {}
+    for n, line in enumerate(open(path), 1):
+        if not line.strip() or line.startswith("#"):
+            continue
+        f = line.rstrip("\n").split("\t")
+        if f[:len(BASELINE_COLS)] == list(BASELINE_COLS):
+            continue
+        assert len(f) == len(BASELINE_COLS) and f[4].strip(), \
+            "%s:%d: want %d tab-separated columns %s, the last a reason" % (path, n, len(BASELINE_COLS),
+                                                                          "/".join(BASELINE_COLS))
+        out[tuple(f[:4])] = f[4]
+    return out
+
+
+def gate(rows, path):
+    """0 when every hit is baselined; prints NEW hits (fail) and STALE baseline rows (warn)."""
+    base = load_baseline(path)
+    hits = [r for r in rows if r["coord"] and is_hit(r)]
+    seen, new, ok = set(), [], 0
+    for r in hits:
+        k = hit_key(r)
+        if k in base:
+            seen.add(k)
+            ok += 1
+        else:
+            new.append(r)
+    stale = [k for k in base if k not in seen]
+    print("landing gate: %d hit rows (%d baselined, %d NEW); baseline %d rows, %d stale (%s)" % (
+        len(hits), ok, len(new), len(base), len(stale), os.path.relpath(path, REPO)))
+    for r in new:
+        print("  NEW   %s  %s  %s  %s  -- %s" % ((r["source"],) + hit_key(r)[1:] + (r["note"][:120],)))
+    for k in stale:
+        print("  STALE %s  %s  %s  %s  (no longer a hit: delete the row)" % k)
+    if new:
+        print("A landing that strands the player: fix it (a sourced walkable tile, a maplink row back), or,"
+              " when it is not a strand (a mid-course hop the next obstacle takes, a tile the script moves"
+              " the player off), add its row to %s with the reason." % os.path.relpath(path, REPO))
+    return 1 if new else 0
+
+
 # ---------------------------------------------------------------- main
 
 def main(argv):
@@ -596,6 +715,9 @@ def main(argv):
                     help="worker processes, each owning whole map squares (default min(4, cpus))")
     ap.add_argument("--groups", type=int, default=40,
                     help="SOLID/POCKET groups (quest or area) to print, most hits first; 0 = all")
+    ap.add_argument("--gate", action="store_true",
+                    help="exit 1 on a POCKET or no-step-off SOLID landing the baseline does not list")
+    ap.add_argument("--baseline", default=BASELINE, help="the gate's baseline (default %(default)s)")
     args = ap.parse_args(argv)
     if args.root:
         reach.set_root(args.root)
@@ -654,7 +776,10 @@ def main(argv):
             print("  %-10s %5d rows%s" % (k, counts[k], "  (%d tiles)" % len(uniq[k]) if k in uniq else ""))
         print("time: collect %.1fs classify %.1fs report %.1fs total %.1fs" % (t1 - t0, t2 - t1, t3 - t2, t3 - t0))
         print("report:", os.path.relpath(out, REPO))
-        print_groups(rows, status, args.groups)
+        if not args.gate:
+            print_groups(rows, status, args.groups)
+    if args.gate:
+        return gate(rows, args.baseline)
     return 0
 
 
