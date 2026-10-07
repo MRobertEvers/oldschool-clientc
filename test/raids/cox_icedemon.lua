@@ -56,16 +56,23 @@ local function find_boss(t)
     return "no_row", nil, nil
 end
 
+local function arm_pray(t)
+    -- Synq [0:15:15]: Protect from Missiles forces snow boulders only.
+    t.prayer.set("protectfrommissiles", true)
+    t.prayer.set("augury", true)
+end
+
 local function sustain(t, sm)
-    if hp(t) > 0 and hp(t) < 55 then
+    if hp(t) > 0 and hp(t) < 70 then
         if t.player.eat("shark") == "ok" then sm.eats = sm.eats + 1 end
     end
     local pr, pp = t.prayer.points()
     local points = 0
     if pr == "ok" then points = pp.points or pp.level or 0 end
-    if points < 20 then
+    if points < 30 then
         if t.player.drink("br_4dose2restore") == "ok" then sm.drinks = sm.drinks + 1 end
     end
+    arm_pray(t)
 end
 
 return {
@@ -225,6 +232,10 @@ return {
                 local fr, fd = t.cheat("::cox_icedemon_fuel")
                 t.check("fuel.cheat", fr == "ok", tostring(fd))
                 sm.lights = 3
+                arm_pray(t)
+                -- Stand off the freeze tile so the thaw walk + first auto miss us.
+                local _, me = t.world.tile()
+                t.player.walk_to(me.x - 4, me.z - 2, 4)
                 t.ticks(4)
                 t.shot("icedemon unguarded braziers lit")
                 set_state(STATE.WAIT_THAW)
@@ -232,12 +243,12 @@ return {
             end
 
             if sm.state == STATE.WAIT_THAW then
+                arm_pray(t)
                 if sm.thawed then
                     t.shot("icedemon thawed combat form")
                     set_state(STATE.ARM_PRAY)
                     return
                 end
-                -- Re-fuel if somehow emptied before thaw.
                 if sm.ticks % 80 == 0 then
                     t.cheat("::cox_icedemon_fuel")
                 end
@@ -246,9 +257,7 @@ return {
             end
 
             if sm.state == STATE.ARM_PRAY then
-                -- Synq [0:15:15]: protect from range so it only snowballs.
-                t.prayer.set("protectfrommissiles", true)
-                t.prayer.set("augury", true)
+                arm_pray(t)
                 set_state(STATE.FIGHT)
                 return
             end
@@ -258,7 +267,7 @@ return {
                     set_state(STATE.WAIT_THAW)
                     return
                 end
-                t.prayer.set("protectfrommissiles", true)
+                arm_pray(t)
                 local cast_r = t.player.cast("fire_surge", COMBAT, 1, 2, {
                     quick = true,
                     slot = crow.slot,
@@ -269,25 +278,29 @@ return {
                         slot = crow.slot,
                     })
                 end
-                if cast_r == "ok" then
+                if cast_r ~= "ok" then
+                    -- Fallback: auto-attack if spellbook cast is refused.
+                    t.player.attack(COMBAT, 2, 1, { quick = true, slot = crow.slot })
+                else
                     sm.casts = sm.casts + 1
                     if sm.casts == 4 then
                         t.shot("icedemon mid-fight fire surge")
                     end
                 end
-                -- Synq [0:15:49]: 3x3 ranged AoE — step two tiles away to dodge.
+                -- Synq [0:15:49]: 3x3 AoE — step two tiles after each cast.
                 set_state(STATE.DODGE)
                 return
             end
 
             if sm.state == STATE.DODGE then
+                arm_pray(t)
                 local _, me = t.world.tile()
                 local dist = chebyshev(me.x, me.z, crow.x, crow.z)
-                if dist < 3 then
+                if dist < 4 then
                     local dx = me.x - crow.x
                     local dz = me.z - crow.z
                     if dx == 0 and dz == 0 then
-                        dx = 2
+                        dx = 3
                     end
                     local adx = dx
                     local adz = dz
@@ -295,9 +308,9 @@ return {
                     if adz < 0 then adz = -adz end
                     local step_x, step_z = 0, 0
                     if adx >= adz then
-                        if dx > 0 then step_x = 2 else step_x = -2 end
+                        if dx > 0 then step_x = 3 else step_x = -3 end
                     else
-                        if dz > 0 then step_z = 2 else step_z = -2 end
+                        if dz > 0 then step_z = 3 else step_z = -3 end
                     end
                     t.player.walk_to(me.x + step_x, me.z + step_z, 3)
                     sm.dodges = sm.dodges + 1
