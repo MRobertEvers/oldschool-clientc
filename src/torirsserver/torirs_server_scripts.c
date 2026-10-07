@@ -6086,9 +6086,9 @@ ToriRSServer_ScriptCommand(
          * LostCity's content contains `%option_nodef = %option_nodef;` with the
          * comment "resync varp", which only means anything if a write to an
          * equal value still reaches the client. It is also what makes an
-         * opening state work at all — [login] setting `%com_mode = 0` on a varp
-         * that is already 0 has to *tell* the client 0, because the client has
-         * never been told anything.
+         * opening state work at all — [login]'s `%varp43_com_mode =
+         * %varp43_com_mode;` on a fresh character's 0 has to *tell* the client
+         * 0, because the client has never been told anything.
          *
          * `ToriRSServer_WorldMarkVarp` is idempotent within a tick, so a script
          * writing the same varp repeatedly still produces one packet.

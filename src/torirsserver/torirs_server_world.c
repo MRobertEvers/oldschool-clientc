@@ -14028,9 +14028,10 @@ ToriRSServer_WorldSyncCombatVarbits(struct ToriRSServer* srv)
      * Compared before writing, unlike an ordinary varp write.
      *
      * A varp assignment always transmits — that is the reference's rule and
-     * `[login] %com_mode = 0` depends on it. But this is *derived*: it is
-     * recomputed every tick from the stats, so writing unconditionally would put
-     * a varp on the wire fifty times a minute for a value that has not moved.
+     * [login]'s `%varp43_com_mode = %varp43_com_mode;` resync depends on it.
+     * But this is *derived*: it is recomputed every tick from the stats, so
+     * writing unconditionally would put a varp on the wire fifty times a minute
+     * for a value that has not moved.
      * Derived state compares; authored state does not.
      */
     if( level_varbit >= 0 && ToriRSServer_VarbitGet(player, level_varbit) != level )

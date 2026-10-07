@@ -22417,11 +22417,21 @@ ToriRSServer_WorldSelftest(void)
         {
             int com_mode = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp43_com_mode");
             int sa_energy = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp300_sa_energy");
+            int option_nodef = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp172_option_nodef");
             int player_attack_priority =
                 ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp1107_option_attackpriority");
             int npc_attack_priority =
                 ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp1306_option_attackpriority_npc");
 
+            /* As the save loader leaves it: varps[] written, nothing marked.
+             * OldSchool keeps the attack style and auto retaliate across
+             * logouts, so [login] must not put them back. Aggressive is slot 1,
+             * which every weapon row has, so the per-weapon clamp cannot be
+             * what moves it; option_nodef 1 is auto retaliate OFF. */
+            if( com_mode >= 0 )
+                player->varps[com_mode] = TORIRSSERVER_STYLE_AGGRESSIVE;
+            if( option_nodef >= 0 )
+                player->varps[option_nodef] = 1;
             player->login_pending = 1;
             ToriRSServer_CaptureBegin(srv, &capture);
             selftest_tick(srv);
@@ -22442,9 +22452,29 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(sa_energy >= 0 && player->varps[sa_energy] == 1000,
                            "^sa_max_energy should be 1000, got %d",
                            sa_energy >= 0 ? player->varps[sa_energy] : -1);
-            SELFTEST_CHECK(ToriRSServer_WorldAttackStyle(srv) == TORIRSSERVER_STYLE_ACCURATE,
-                           "the opening attack style should be accurate, got %d",
-                           ToriRSServer_WorldAttackStyle(srv));
+            SELFTEST_CHECK(com_mode >= 0 && player->varps[com_mode] == TORIRSSERVER_STYLE_AGGRESSIVE,
+                           "[login] should keep the saved attack style (aggressive), got %d",
+                           com_mode >= 0 ? player->varps[com_mode] : -1);
+            SELFTEST_CHECK(option_nodef >= 0 && player->varps[option_nodef] == 1,
+                           "[login] should keep auto retaliate off as saved, got %d",
+                           option_nodef >= 0 ? player->varps[option_nodef] : -1);
+
+            /* The spec bar above was full because that was the character's
+             * first login. A returning one keeps what it logged out with. */
+            if( sa_energy >= 0 )
+                player->varps[sa_energy] = 450;
+            player->login_pending = 1;
+            selftest_tick(srv);
+            SELFTEST_CHECK(sa_energy >= 0 && player->varps[sa_energy] == 450,
+                           "[login] should keep a returning character's spec energy (450), got %d",
+                           sa_energy >= 0 ? player->varps[sa_energy] : -1);
+
+            if( com_mode >= 0 )
+                player->varps[com_mode] = TORIRSSERVER_STYLE_ACCURATE;
+            if( option_nodef >= 0 )
+                player->varps[option_nodef] = 0;
+            if( sa_energy >= 0 )
+                player->varps[sa_energy] = 1000;
 
             /*
              * The golden rev-239 client resets both derived AttackOption
