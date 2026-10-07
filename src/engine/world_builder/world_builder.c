@@ -1543,32 +1543,6 @@ WorldBuilder_ApplyLocChange(
              * scenery_decor_ shims answer for their absence, so those calls are
              * safe no-ops here. */
             painter_set_suppress_slot_registration(builder->world->painter, 1);
-            // #region agent log
-            if( loc_id >= 29880 && loc_id <= 29888 )
-            {
-                FILE* df = fopen("/opt/cursor/logs/debug.log", "a");
-                if( df )
-                {
-                    fprintf(
-                        df,
-                        "{\"hypothesisId\":\"A,E\",\"location\":\"world_builder.c:ApplyLocChange\","
-                        "\"message\":\"olm loc_change spawn\",\"data\":{\"loc_id\":%d,\"shape\":%d,"
-                        "\"angle\":%d,\"scene\":[%d,%d,%d],\"cfg_size\":[%d,%d],\"seq\":%d},"
-                        "\"timestamp\":%ld}\n",
-                        loc_id,
-                        shape,
-                        angle,
-                        scene_x,
-                        scene_z,
-                        level,
-                        cfg->size_x,
-                        cfg->size_z,
-                        cfg->seq_id,
-                        (long)time(NULL));
-                    fclose(df);
-                }
-            }
-            // #endregion
             scenery_add(builder, &ml, cfg, scene_x, scene_z);
             painter_set_suppress_slot_registration(builder->world->painter, 0);
             builder->scenery_runtime_spawn = 0;
