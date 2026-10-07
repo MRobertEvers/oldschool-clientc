@@ -254,8 +254,6 @@ return {
             if style_r ~= "ok" then
                 return style_r, "ranged style: " .. tostring(style_d)
             end
-            -- Leave the prayer IF so walk/attack scene ops are not fighting it.
-            t.ui.tab("combat")
             return "ok", "redemption+ranged style"
         end
 
@@ -381,7 +379,6 @@ return {
                     set_state(STATE.DONE)
                     return
                 end
-                t.ticklog.mark("armed redemption")
                 -- Synq [1:27:13]: attack immediately. Reach refusals go TO_GAP.
                 set_state(STATE.ATTACK_PORTAL)
                 return
@@ -449,10 +446,9 @@ return {
                     set_state(STATE.RESTORE)
                     return
                 end
-                arm_redemption()
-                -- Short settle: a long await under soft3d frame-skip can burn
-                -- the whole TORIRS_MAX_FRAMES budget without returning.
-                local ar, ad = t.player.attack(PORTAL, 2, 3)
+                -- Do not re-arm prayers every swing: t.ui.tab/prayer.set after the
+                -- shot from prayer.redemption_arm hung the soft3d runner.
+                local ar, ad = t.player.attack(PORTAL, 2, 2)
                 if ar == "ok" then
                     sm.portal_hits = sm.portal_hits + 1
                     if sm.portal_hits == 1 then
@@ -468,7 +464,7 @@ return {
                     set_state(STATE.TO_GAP)
                     return
                 end
-                if sm.portal_hits == 0 and sm.ticks > 200 then
+                if sm.portal_hits == 0 and sm.ticks > 80 then
                     t.check("portal.attack", false, tostring(ar) .. " " .. tostring(ad))
                     set_state(STATE.DONE)
                     return
