@@ -14,18 +14,49 @@ local BEASTS = { BEAST_A, BEAST_B }
 -- Quest harnesses do not see api_drive as a global, so ids are literals here.
 local BONES_ID = 526
 
--- Soft3d CoX rooms: yaw 512/1024 stare into void; yaw 1536 is uniform olive
--- sludge that fools a naive mean/dark check. yaw 0 at pitch 383 / zoom 600
--- matches the lit beast.present auto-shot (cave walls / floor visible).
+-- Soft3d CoX: idle stays at the entrance sandy-floor pose (yaw0/pitch383/zoom600).
+-- Mid/clear previously stared into the dark corridor (black void + hitsplat/loot
+-- text only). Walk back to the landing tile and try several flatter / zoomed
+-- poses so walls+floor fill the frame like idle / 005-scavenger.overhit.
 -- Trap 21: ticks after plane/raid enter before the first photograph.
-local SHOT_YAW = 0
-local SHOT_PITCH = 383
-local SHOT_ZOOM = 600
+local IDLE_YAW, IDLE_PITCH, IDLE_ZOOM = 0, 383, 600
+-- Candidate poses for mid/clear (yaw, pitch, zoom). Prefer floor/wall framing.
+local MID_CLEAR_POSES = {
+    { 0, 300, 900 },
+    { 128, 450, 800 },
+    { 0, 200, 700 },
+    { 0, 128, 600 },
+    { 0, 383, 600 },
+    { 0, 450, 1000 },
+}
 
-local function shot_lit(t, label)
-    t.drive.camera(SHOT_YAW, SHOT_PITCH, SHOT_ZOOM)
-    t.ticks(2)
+local function shot_idle(t, label)
+    t.drive.camera(IDLE_YAW, IDLE_PITCH, IDLE_ZOOM)
+    t.ticks(3)
     t.shot(label)
+end
+
+-- Orbit mid/clear poses. Post-run picker keeps the least-void frame.
+-- opts.retreat_xz = {x,z} walks back to the sandy entrance before shooting
+-- (clear after kill: combat leaves the camera staring into the void hole).
+local function shot_mid_clear(t, label, opts)
+    opts = opts or {}
+    -- Always plant on the sandy landing before framing — combat / approach
+    -- walks leave the soft3d camera staring into the black corridor hole.
+    local rx, rz = 6512, 112
+    if opts.retreat_xz ~= nil then
+        rx, rz = opts.retreat_xz[1], opts.retreat_xz[2]
+    end
+    t.player.walk_to(rx, rz, 24)
+    t.ticks(4)
+    for i = 1, #MID_CLEAR_POSES do
+        local pose = MID_CLEAR_POSES[i]
+        t.drive.camera(pose[1], pose[2], pose[3])
+        t.ticks(5)
+        t.shot(label .. " y" .. tostring(pose[1])
+            .. "p" .. tostring(pose[2])
+            .. "z" .. tostring(pose[3]))
+    end
 end
 
 local STATE = {
@@ -210,13 +241,9 @@ return {
                 local wr, wslot = t.ticklog.slot(brow)
                 t.check("beast.slot", wr == "ok", tostring(wslot))
                 sm.wslot = wslot
-                -- Step toward the beast so the idle frame is room geometry,
-                -- not the entrance corridor / unbuilt tiles.
-                if brow and brow.x and brow.z then
-                    t.player.walk_to(brow.x, brow.z, 16)
-                end
-                t.ticks(2)
-                shot_lit(t, "scavenger_small idle or approaching on landing")
+                -- Idle on the sandy entrance tile (do NOT walk into the void
+                -- corridor — that pose is what blacked mid/clear before).
+                shot_idle(t, "scavenger_small idle or approaching on landing")
                 t.ticklog.mark("room start")
                 set_state(STATE.MEASURE)
                 return
@@ -238,14 +265,15 @@ return {
             end
 
             if sm.state == STATE.ENGAGE then
+                -- Mid BEFORE the attack click: still on the sandy entrance
+                -- tile with the beast in view (same framing as the good idle).
+                -- Attacking first yawed the camera into the void corridor.
+                shot_mid_clear(t, "scavenger_small mid-mechanic fight")
+                sm.mid_shot = true
                 local ar, ad = t.player.attack(sm.symbol, 2, 8)
                 t.check("fight.click", ar == "ok" or ar == "timeout",
                     tostring(ar) .. " " .. tostring(ad))
                 t.ticklog.mark("scavenger engaged")
-                -- Mid-fight while the beast is still up (HP 30 dies too fast
-                -- for a ticks>20 gate). Camera nudge so room + NPC are lit.
-                shot_lit(t, "scavenger_small mid-mechanic fight")
-                sm.mid_shot = true
                 set_state(STATE.FIGHT)
                 return
             end
@@ -316,7 +344,10 @@ return {
                 spec(t, "scavenger.max_hit", tostring(measured_max),
                     "largest unprotected hit_player=" .. tostring(sm.max_hit),
                     "13 hp", "D", "range")
-                shot_lit(t, "scavenger_small clear after kill")
+                -- Retreat to seed-1 landing sandy tile so clear matches idle
+                -- framing (loot text still readable; void corridor is behind).
+                shot_mid_clear(t, "scavenger_small clear after kill",
+                    { retreat_xz = { 6512, 112 } })
                 set_state(STATE.DONE)
                 return
             end
