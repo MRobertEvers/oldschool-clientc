@@ -291,7 +291,17 @@ trio_run = function(t)
                 stacked = stacked and #at == size
                 parts[#parts + 1] = (stacked and "all " .. #at .. " within a tile at t" .. (land - 1)) or ("NOT stacked at t" .. (land - 1))
                 if not stacked then shared_all = false end
+                -- OWNER 2026-10-07: "the raiders should share the red ball" -- and
+                -- the content splits it among every raider within a tile of the
+                -- target (tob_sotetseg.rs2 [queue,tob_sote_ball_impact], radius 1,
+                -- the wiki's 3x3): every raider struck by THIS ball, the same
+                -- share each, or it was not shared (owner_rooms4)
+                if n > 0 and n ~= size then   -- (a roll under 3 shares 0 each: no splat to count)
+                    shared_all = false
+                    parts[#parts + 1] = "struck " .. n .. " of " .. size
+                end
             end
+            if not nulled and land > end_tick then parts[#parts + 1] = "landed after his death" end
             ball_lines[#ball_lines + 1] = "t" .. r.tick .. " land t" .. land .. ": " .. n .. " raiders (" .. table.concat(parts, ",") .. ")"
         end
     end

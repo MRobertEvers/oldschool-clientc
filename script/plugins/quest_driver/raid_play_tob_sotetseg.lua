@@ -672,6 +672,18 @@ function QD.raid._play_sotetseg_trio_body(st, v)
         for _, p in ipairs(projs) do
             local lo = v.tick + math.floor((p.cycles_left or 0) / 30)
             local primary = from_him(p)
+            -- owner_rooms4 (2026-10-07): HIS BALL STILL IN THE AIR HAS NOT LANDED.
+            -- The client ends a flight up to a tick BEFORE the server's impact,
+            -- never after (the hold below), so a ball of his still listed lands
+            -- on the next tick at the soonest.  Read from cycles_left it can date
+            -- to this tick: svaplaysotet p0's first ball (launched t59, ending at
+            -- cycle 120 of its flight) read "lands 62" at view 62, the plan
+            -- prayed missiles for 63 for a ricochet, and the ball struck at 63
+            -- (its impact sound) unprayed -- 39, then five ticks of protection
+            -- disabled.  94 of his balls in five runs: 89 struck on launch +
+            -- floor(duration / 30), 5 a tick later, every one of them that first
+            -- 100-cycle ball of the walk in.
+            if primary and lo <= v.tick then lo = v.tick + 1 end
             local hi = primary and lo or lo + 1
             local land = lo
             -- a homing shot's dst is the target's tile as the client last drew
