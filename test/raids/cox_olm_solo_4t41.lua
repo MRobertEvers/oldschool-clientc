@@ -58,21 +58,29 @@ local function npc_ok(t, sym)
     return nil
 end
 
-local function sustain(t)
+local function sustain(t, sm)
+    -- Do not eat every tick: opheld1 eat anim cancels walk/attack and the
+    -- prior run died of chip damage while only animating sharks (829).
+    sm._sustain_cd = (sm._sustain_cd or 0) - 1
     local hr, hp = t.skill.read("hitpoints")
     local level = (hr == "ok" and hp.level) or 99
-    if level < 70 then
-        t.player.eat("shark")
-    end
-    if level < 45 then
-        t.player.drink("br_4dosepotionofsaradomin")
+    if sm._sustain_cd <= 0 then
+        if level < 40 then
+            t.player.drink("br_4dosepotionofsaradomin")
+            sm._sustain_cd = 2
+        elseif level < 55 then
+            t.player.eat("shark")
+            sm._sustain_cd = 3
+        end
     end
     local pr, pp = t.prayer.points()
     local points = 0
     if pr == "ok" then points = pp.points or pp.level or 0 end
-    if points < 40 then
+    if points < 30 and (sm._pray_cd or 0) <= 0 then
         t.player.drink("br_4dose2restore")
+        sm._pray_cd = 4
     end
+    sm._pray_cd = (sm._pray_cd or 0) - 1
 end
 
 local function origin_of(me)
@@ -308,9 +316,20 @@ return {
         end
 
         local function decide()
-            sustain(t)
             on_event()
             prayer_flick()
+            -- Attack-path states sustain after the intent so eat does not
+            -- starve walk/attack of the tick.
+            local fight = sm.state == STATE.KILL_MAGE
+                or sm.state == STATE.SETUP_41
+                or sm.state == STATE.CYCLE_TANK
+                or sm.state == STATE.CYCLE_FREE
+                or sm.state == STATE.CYCLE_RUN
+                or sm.state == STATE.CYCLE_TURN
+                or sm.state == STATE.HEAD
+            if not fight then
+                sustain(t, sm)
+            end
             if t.player.alive() ~= "ok" then
                 set_state(STATE.DONE)
                 return
@@ -333,12 +352,14 @@ return {
             end
 
             if sm.state == STATE.WAIT_SPAWN then
-                local head = npc_ok(t, HEAD) or npc_ok(t, HEAD_SPAWN)
-                if head ~= nil then
+                -- Wait for combat-form hands (not *_spawning) before DPS.
+                local head = npc_ok(t, HEAD)
+                local left = npc_ok(t, LEFT)
+                local right = npc_ok(t, RIGHT)
+                if head ~= nil and left ~= nil and right ~= nil then
                     refresh_geometry()
                     sample_vislevels()
                     t.shot("olm idle after barrier")
-                    -- Synq: kill mage hand before setting 4:1 on melee.
                     set_state(STATE.KILL_MAGE)
                     return
                 end
@@ -347,13 +368,13 @@ return {
             end
 
             if sm.state == STATE.KILL_MAGE then
-                -- Synq 4-tick mage running [2:19:07]: attack on the head-turn
-                -- tick while moving between ring-finger safes so the zone goes
-                -- empty and skips stack (also dodges acid/crystal footprints).
+                -- Synq 4-tick mage running [2:19:07]: attack every cycle while
+                -- oscillating between ring-finger safes (skip + acid dodge).
                 refresh_geometry()
                 sample_vislevels()
                 local mage = sm.tiles.mage
-                if not hand_alive(mage) then
+                local mrow = npc_ok(t, mage)
+                if mrow == nil then
                     sm.mage_kills = sm.mage_kills + 1
                     equip_melee()
                     t.prayer.set("piety", true)
@@ -361,12 +382,18 @@ return {
                     set_state(STATE.SETUP_41)
                     return
                 end
-                local a, b = sm.tiles.mage_a, sm.tiles.mage_b
-                local dest = ((sm.sub % 8) < 4) and a or b
-                t.player.walk_to(dest.x, dest.z, 3)
-                if (sm.sub % 4) == 0 then
-                    t.player.attack(mage, 2, 1)
+                -- Prefer tiles next to the live hand so pathing cannot strand
+                -- the player on the south wall (prior run stuck at z=76).
+                local a = { x = mrow.x - 1, z = mrow.z - 2 }
+                local b = { x = mrow.x - 3, z = mrow.z }
+                if not sm.side_west then
+                    a = { x = mrow.x + 1, z = mrow.z - 2 }
+                    b = { x = mrow.x + 3, z = mrow.z }
                 end
+                local dest = ((sm.sub % 8) < 4) and a or b
+                t.player.attack(mage, 2, 1)
+                t.player.walk_to(dest.x, dest.z, 2)
+                sustain(t, sm)
                 sm.sub = sm.sub + 1
                 t.ticks(1)
                 return
@@ -385,15 +412,15 @@ return {
                 sm.setup_waits = sm.setup_waits + 1
                 local empty = sm.tiles.empty_east
                 if sm.setup_waits < 8 then
-                    t.player.walk_to(sm.tiles.thumb.x, sm.tiles.thumb.z, 3)
                     t.player.attack(melee, 2, 1)
+                    t.player.walk_to(sm.tiles.thumb.x, sm.tiles.thumb.z, 2)
                 elseif sm.setup_waits < 16 then
                     t.player.walk_to(empty.x, empty.z, 4)
                 else
-                    -- 4:1 set: attacks one tick after events (Synq [2:48:37]).
                     set_state(STATE.CYCLE_TANK)
                     return
                 end
+                sustain(t, sm)
                 t.ticks(1)
                 return
             end
@@ -411,8 +438,9 @@ return {
                 -- clear acid pools / crystal bomb centres (Synq acid walk).
                 local thumb = sm.tiles.thumb
                 local tx = thumb.x + (sm.sub % 2)
-                t.player.walk_to(tx, thumb.z, 2)
                 t.player.attack(melee, 2, 1)
+                t.player.walk_to(tx, thumb.z, 2)
+                sustain(t, sm)
                 sm.sub = sm.sub + 1
                 if sm.sub >= 4 then
                     set_state(STATE.CYCLE_FREE)
@@ -430,8 +458,9 @@ return {
                 end
                 -- Empty event: free hit window (Synq [2:48:37]).
                 local thumb = sm.tiles.thumb
-                t.player.walk_to(thumb.x + 1 - (sm.sub % 2), thumb.z, 2)
                 t.player.attack(melee, 2, 1)
+                t.player.walk_to(thumb.x + 1 - (sm.sub % 2), thumb.z, 2)
+                sustain(t, sm)
                 sm.sub = sm.sub + 1
                 if sm.sub >= 4 then
                     set_state(STATE.CYCLE_RUN)
@@ -444,6 +473,7 @@ return {
                 -- Run the head to skip basic 2: leave the facing zone empty.
                 local empty = sm.tiles.empty_east
                 t.player.walk_to(empty.x, empty.z, 4)
+                sustain(t, sm)
                 sm.sub = sm.sub + 1
                 if sm.sub >= 4 then
                     set_state(STATE.CYCLE_TURN)
@@ -456,15 +486,16 @@ return {
                 -- Turn head / sit empty to skip special; final hit on ring tile.
                 local melee = sm.tiles.hand
                 if hand_alive(melee) then
-                    t.player.walk_to(sm.tiles.ring.x, sm.tiles.ring.z, 3)
                     if sm.sub >= 2 then
                         t.player.attack(melee, 2, 1)
                     end
+                    t.player.walk_to(sm.tiles.ring.x, sm.tiles.ring.z, 3)
                 else
                     sm.melee_kills = sm.melee_kills + 1
                     set_state(STATE.WAIT_PHASE)
                     return
                 end
+                sustain(t, sm)
                 sm.sub = sm.sub + 1
                 if sm.sub >= 4 then
                     sm.cycle = sm.cycle + 1
@@ -485,11 +516,13 @@ return {
                 end
                 if hand_alive(RIGHT) or hand_alive(LEFT) then
                     refresh_geometry()
-                    if hand_alive(sm.side_west and RIGHT or LEFT) then
+                    if hand_alive(sm.tiles.mage) then
                         equip_magic()
+                        t.prayer.set("augury", true)
                         set_state(STATE.KILL_MAGE)
                     else
                         equip_melee()
+                        t.prayer.set("piety", true)
                         set_state(STATE.SETUP_41)
                     end
                     return
@@ -521,6 +554,7 @@ return {
                     set_state(STATE.WAIT_PHASE)
                     return
                 end
+                sustain(t, sm)
                 t.ticks(1)
                 return
             end
