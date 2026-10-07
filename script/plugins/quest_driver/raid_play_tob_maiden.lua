@@ -1322,7 +1322,13 @@ function QD.raid.mz_s_on_boss_tick(st, v, intent)
     -- the 30 wave's spawn tick, which sends the seat to LANE, and LANE stays
     -- on boss_phase): once, on her, the first time the seat is back on her
     local m = st.m
-    if QD.raid.mz_form(st) == 3 and not m.claws_done then
+    -- (only from ON_BOSS itself: LANE hands its idle ticks to this tick, and
+    -- sm159 svaplaymaide threw the claws at +3 of the 30 wave from LANE/1 --
+    -- N1 walked in with all 75 in 13 of 13 30 waves)
+    -- (the streams' 30-phase claws at +8..+36, after N1's +4: from +9, from
+    -- ON_BOSS or a lane's idle tick)
+    local since3 = st.ev.wave_tick and (v.tick - st.ev.wave_tick) or 99
+    if QD.raid.mz_form(st) == 3 and not m.claws_done and (m.state == "S_ON_BOSS" or (m.state == "LANE" and since3 >= 9)) then
         m.claws_done = true
         local _, e = QD.var.varp("varp300_sa_energy")
         local hr, has = QD.inv.has("dragon_claws")
