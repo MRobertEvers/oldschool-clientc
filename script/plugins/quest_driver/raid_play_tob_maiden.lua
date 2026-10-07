@@ -577,11 +577,11 @@ QD.RAID_MAIDEN_REF = {
     lanes = { [0] = "S1", [1] = "N1", [2] = "S2", [3] = "N2", [4] = "S3", [5] = "N3",
         [6] = "S4in", [7] = "S4out", [8] = "N4in", [9] = "N4out" },
     waves = {
-        [1] = { casts = { { 1, "S1" }, { 6, "N2" }, { 16, "AT90" }, { 21, "STACK" }, { 26, "AGAIN" } }, ret = 31,
+        [1] = { casts = { { 1, "S1" }, { 6, "S2|N2" }, { 11, "NEXT" } }, again_until = 31, ret = 31,
             seat = { [1] = { { "N1", 1, 9 }, { "N2", 6, 10 }, { "STACK", 22, 49 } }, [3] = { { "N1", 1, 9 }, { "N2", 6, 11 }, { "STACK", 22, 49 } } } },
-        [2] = { casts = { { 1, "S1" }, { 6, "S2" }, { 16, "AT90" }, { 21, "STACK" }, { 26, "AGAIN" } }, ret = 31,
+        [2] = { casts = { { 1, "S1" }, { 6, "S2|N2" }, { 11, "NEXT" } }, again_until = 31, ret = 31,
             seat = { [1] = { { "N1", 1, 9 }, { "N2", 6, 14 }, { "STACK", 22, 49 } }, [3] = { { "N1", 1, 9 }, { "N2", 6, 16 }, { "STACK", 22, 49 } } } },
-        [3] = { casts = { { 1, "S1" }, { 6, "N2" }, { 11, "AT90" }, { 16, "STACK" } }, ret = 21,
+        [3] = { casts = { { 1, "S1" }, { 6, "S2|N2" }, { 11, "AT90" }, { 16, "STACK" } }, ret = 21,
             seat = { [1] = { { "N1", 1, 9 }, { "STACK", 17, 49 } }, [3] = { { "N1", 1, 10 }, { "STACK", 17, 49 } } } },
     },
     -- each seat's tile per form (0 = her 100 form .. 3 = 30), the script's
@@ -730,6 +730,46 @@ function QD.raid.mz_at_pick(st, v, skip, dx, dz)
         end
     end
     return best
+end
+-- THE NEXT CAST (refgap.py / refcastlane.py, 24 rooms): after the +1 and +6
+-- lane casts the reference freezer barrages each crab as it ARRIVES, on the
+-- tile before her: S3 at (8,0) 60 of 63, N3 at (8,1) 19 of 19, S4 / N4 at
+-- (7,0) 102 of 118 -- gap 3 / 2 here -- at +11 / +16 / +21 as the lanes come
+-- in, so the barrage lands on the stack the earlier arrivals made.  The walker
+-- at gap 3-4 (not a scythe seat's lane), a gap-3 one first, most crabs in
+-- its 3x3.  (sm95: the fixed +16 cast let N3 -- at (7,0) by +12 -- leak at
+-- +14 with all 75 in 7 of 7 50-wave rooms; a +6 fallback froze S3 seven out.)
+function QD.raid.mz_next_pick(st, v, skip)
+    local b = v.ev_boss or v.boss
+    if b == nil then return nil end
+    local theirs = QD.raid.mz_seat_lanes(st)
+    local best, bs = nil, nil
+    for slot, a in pairs(st.ev.adds) do
+        if not a.gone and not a.ice and not skip[slot] and not theirs[QD.RAID_MAIDEN_REF.lanes[a.label] or ""] then
+            local g = QD.raid._play_gap(b, a.x, a.z)
+            -- (sent at gap 3 the ice lands at gap 2, the streams' (7,0) /
+            -- (8,0); sent at gap 2 it lands beside her and the crab leaks
+            -- frozen -- sm96 svb: four S4/N4 crabs iced at +17, in at +18)
+            if g >= 3 and g <= 4 and math.max(math.abs(a.x - v.me.x), math.abs(a.z - v.me.z)) <= 10 then
+                local n = 0
+                for _, q in pairs(st.ev.adds) do
+                    if not q.gone and math.max(math.abs(q.x - a.x), math.abs(q.z - a.z)) <= 1 then n = n + 1 end
+                end
+                -- (a gap-3 crab is the last tick it can be saved: it goes first)
+                local score = n * 10 + ((g == 3) and 5 or 0)
+                if bs == nil or score > bs then best, bs = { slot = slot, a = a, n = n }, score end
+            end
+        end
+    end
+    return best
+end
+-- a walker still to come (not a scythe seat's lane)
+function QD.raid.mz_walkers_left(st)
+    local theirs = QD.raid.mz_seat_lanes(st)
+    for _, a in pairs(st.ev.adds) do
+        if not a.gone and not a.ice and not theirs[QD.RAID_MAIDEN_REF.lanes[a.label] or ""] then return true end
+    end
+    return false
 end
 -- the lanes a scythe seat takes at the spawn (N1, N2): not the freezer's
 function QD.raid.mz_seat_lanes(st)
@@ -984,6 +1024,11 @@ function QD.raid.mz_f_on_boss_tick(st, v, intent)
         and b.health_ratio / b.health_scale <= nthr + 1 / 30 then
         QD.raid.mz_wear(intent, st.plan.magic_set)
         intent.no_fill, intent.preaim = true, true
+        -- (the streams' freezer stands at x = 15 at every spawn -- (15,-1) /
+        -- (15,0) / (13,0) the modes, 24 rooms -- in the barrage's 10 of every
+        -- southern lane; ours stood where its last dodge left it, (8,-1)
+        -- (5,-1) (1,-8), and the 30 wave's +1 cast found no crab in reach)
+        if QD.raid.mz_walk_home(st, v, intent) then st.engaged = false return end
         -- a swap does not end the attack on her: the server keeps swinging the
         -- new weapon (svb t123: the kodai's bash 423 two ticks after the
         -- magic set, its 4-tick timer holding cast 1 to +3); a walk click on
@@ -996,6 +1041,12 @@ function QD.raid.mz_f_on_boss_tick(st, v, intent)
     end
     if QD.raid.mz_wear(intent, st.plan.ranged_set) then return end
     if QD.raid._play_gap(b, v.me.x, v.me.z) > 10 and QD.raid.mz_walk_home(st, v, intent) then return end
+    -- (forms 0-2: back to the spawn tile when a dodge left the freezer more
+    -- than two off it; the bow reaches her from there)
+    if QD.raid.mz_form(st) <= 2 then
+        local hx, hz = QD.raid.mz_home(st, v)
+        if math.max(math.abs(v.me.x - hx), math.abs(v.me.z - hz)) > 2 and QD.raid.mz_walk_home(st, v, intent) then st.engaged = false return end
+    end
     intent.attack = true
 end
 
@@ -1035,7 +1086,9 @@ function QD.raid.mz_cast_tick(st, v, intent)
     if last ~= nil and last.result == "cast" and last.tick < v.tick and last.tick >= v.tick - 2 and st.last_press ~= nil and st.last_press.tick == last.tick
         and st.last_press.spell ~= nil and st.last_press.answer ~= "pressed" and st.last_press.answer ~= "ok" and m.idx > 1 then
         last.result = "covered"
-        m.idx = m.idx - 1
+        -- (a NEXT cast stays on its entry and picks again with the slot skipped)
+        if not (W.casts[m.idx] ~= nil and W.casts[m.idx][2] == "NEXT") then m.idx = m.idx - 1 end
+        if m.cast_send == last.tick then m.cast_send = nil end
     end
     for i = #m.casts, math.max(1, #m.casts - 3), -1 do
         local r = m.casts[i]
@@ -1072,6 +1125,40 @@ function QD.raid.mz_cast_tick(st, v, intent)
     -- most live crabs RIGHT NOW (ties: nearest her), no prediction, no hold
     -- -- sm16 svb t123: 1083/1084/1085 on one tile and 1081 behind them went
     -- untouched while cast 2 took the lone 1080
+    if c[2] == "NEXT" then
+        local since = v.tick - st.ev.wave_tick
+        local lastc = m.cast_send_wave == st.ev.wave_tick and m.cast_send or nil
+        local ready = lastc == nil or v.tick - lastc >= 5
+        local t, why = nil, nil
+        if ready then
+            t = QD.raid.mz_next_pick(st, v, skip)
+            why = "NEXT"
+            -- no walker left: the stack again while the barrage takes two
+            -- live crabs (the streams' 5th / 6th casts at +26 / +31 in 9-13
+            -- / 5-9 of 24 rooms in the 70 and 50 waves)
+            if t == nil and not QD.raid.mz_walkers_left(st) and W.again_until ~= nil and since <= W.again_until then
+                t = QD.raid.mz_bunch_pick(st, v, skip, 4, true)
+                if t ~= nil and (t.n or 0) < 2 then t = nil end
+                why = "AGAIN"
+            end
+        end
+        if t == nil then
+            -- done: no walker to come and no stack worth a barrage (or past
+            -- +40, the streams' last 70 / 50 cast), the bow on her
+            local stack = W.again_until ~= nil and since <= W.again_until and QD.raid.mz_bunch_pick(st, v, skip, 4, true)
+            if since > 40 or (not QD.raid.mz_walkers_left(st) and (not stack or (stack.n or 0) < 2)) then
+                QD.raid.mz_go(st, v, "F_ON_BOSS")
+                return
+            end
+            intent.no_fill = true
+            return
+        end
+        intent.cast = { spell = st.plan.freeze_spell, symbol = st.plan.crab[st.mode], slot = t.slot, why = "cast " .. why }
+        m.casts[#m.casts + 1] = { tick = v.tick, slot = t.slot, result = "cast", wave = QD.raid.mz_form(st), form = #m.forms,
+            why = why .. ">" .. tostring(QD.RAID_MAIDEN_REF.lanes[t.a.label]) .. "x" .. tostring(t.n) .. "g" .. QD.raid._play_gap(v.ev_boss or v.boss, t.a.x, t.a.z) .. "@" .. since }
+        m.cast_send, m.cast_send_wave = v.tick, st.ev.wave_tick
+        return
+    end
     local t = nil
     if m.idx == 1 then
         t = QD.raid.mz_lane_crab(st, v, c[2], false, true, skip) or QD.raid.mz_nearest_walker(st, v, skip)
@@ -1101,7 +1188,10 @@ function QD.raid.mz_cast_tick(st, v, intent)
             -- 5-tick minimum; 3.32 within 1)
             t = QD.raid.mz_bunch_pick(st, v, skip, 4, true) or QD.raid.mz_nearest_walker(st, v, skip)
         else
-            t = QD.raid.mz_lane_crab(st, v, c[2], false, true, skip) or QD.raid.mz_nearest_walker(st, v, skip)
+            -- (the +6 lane cast only on its lane: its fallback froze the
+            -- next walker seven tiles out, where it thawed and walked in --
+            -- the NEXT casts take every other crab as it arrives)
+            t = QD.raid.mz_lane_crab(st, v, c[2], false, true, skip)
         end
     end
     if t == nil then
@@ -1113,6 +1203,7 @@ function QD.raid.mz_cast_tick(st, v, intent)
     end
     if t ~= nil then
         intent.cast = { spell = st.plan.freeze_spell, symbol = st.plan.crab[st.mode], slot = t.slot, why = "cast " .. m.idx .. " " .. c[2] }
+        m.cast_send, m.cast_send_wave = v.tick, st.ev.wave_tick
         m.casts[#m.casts + 1] = { tick = v.tick, slot = t.slot, result = "cast", wave = QD.raid.mz_form(st), form = #m.forms,
             why = c[2] .. (QD.RAID_MAIDEN_REF.lanes[t.a.label] == c[2] and "" or (">" .. tostring(QD.RAID_MAIDEN_REF.lanes[t.a.label]))) .. (t.n and ("x" .. t.n) or "") .. "g" .. QD.raid._play_gap(v.ev_boss or v.boss, t.a.x, t.a.z) .. "@" .. (v.tick - st.ev.wave_tick) }
     end
