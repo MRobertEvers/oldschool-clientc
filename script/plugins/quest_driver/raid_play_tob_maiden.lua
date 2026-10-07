@@ -586,9 +586,9 @@ QD.RAID_MAIDEN_REF = {
         [6] = "S4in", [7] = "S4out", [8] = "N4in", [9] = "N4out" },
     waves = {
         [1] = { casts = { { 1, "S1" }, { 6, "S2|N2" }, { 11, "NEXT" } }, again_until = 31, ret = 31,
-            seat = { [1] = { { "N1", 1, 9 }, { "N2", 6, 10 }, { "STACK", 22, 49 } }, [3] = { { "N1", 1, 9 }, { "N2", 6, 11 }, { "STACK", 22, 49 } } } },
+            seat = { [1] = { { "N1", 1, 9 }, { "N2", 6, 10 }, { "STACK", 22, 49 } }, [3] = { { "N1", 1, 9 }, { "N2", 6, 11 }, { "S1|S2", 12, 30, true }, { "STACK", 22, 49 } } } },
         [2] = { casts = { { 1, "S1" }, { 6, "S2|N2" }, { 11, "NEXT" } }, again_until = 31, ret = 31,
-            seat = { [1] = { { "N1", 1, 9 }, { "N2", 6, 14 }, { "STACK", 22, 49 } }, [3] = { { "N1", 1, 9 }, { "N2", 6, 16 }, { "STACK", 22, 49 } } } },
+            seat = { [1] = { { "N1", 1, 9 }, { "N2", 6, 14 }, { "STACK", 22, 49 } }, [3] = { { "N1", 1, 9 }, { "N2", 6, 16 }, { "S1|S2", 16, 30, true }, { "STACK", 22, 49 } } } },
         [3] = { casts = { { 1, "S1" }, { 6, "S2|N2" }, { 11, "NEXT" } }, again_until = 41, ret = 21,
             seat = { [1] = { { "N1", 1, 9 }, { "STACK", 17, 49 } }, [3] = { { "N1", 1, 10 }, { "STACK", 17, 49 } } } },
     },
@@ -1438,6 +1438,17 @@ function QD.raid.mz_lane_tick(st, v, intent)
     -- scythe goes back on with ON_BOSS's melee set
     local dist = math.max(math.abs(t.a.x - v.me.x), math.abs(t.a.z - v.me.z))
     local pr, pn = QD.inv.count("toxic_blowpipe_loaded")
+    -- THE LONE SOUTHERN CRAB (the streams' dps attack S1 0.83 / 1.21 times a
+    -- room in the 70 / 50 waves, at +16-28, BLOWPIPE / SCYTHE, from (8,-3)
+    -- (8,-2) (10,-5); ours leaked S1 in 22 of 22 50-wave rooms with ~48 hp,
+    -- S2 9 of 9): a frozen S1 / S2 out of the pipe's 5 is walked to four
+    -- off it, then piped until it dies or the window ends
+    if e[4] == true and e[1] ~= "STACK" and dist > 5 and pr == "ok" and (tonumber(pn) or 0) > 0 then
+        local sx = (v.me.x > t.a.x) and 1 or ((v.me.x < t.a.x) and -1 or 0)
+        local sz = (v.me.z > t.a.z) and 1 or ((v.me.z < t.a.z) and -1 or 0)
+        QD.raid.mz_walk_to(st, v, intent, t.a.x + 4 * sx, t.a.z + 4 * sz)
+        return
+    end
     if dist > 2 and dist <= 5 and pr == "ok" and (tonumber(pn) or 0) > 0 then
         QD.raid.mz_wear(intent, { "toxic_blowpipe_loaded" })
         intent.press = { symbol = st.plan.crab[st.mode], slot = t.slot, op = 2, why = "pipe " .. e[1] }
