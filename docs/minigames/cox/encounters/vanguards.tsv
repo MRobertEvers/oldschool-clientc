@@ -2,7 +2,7 @@ mechanic_id	quantity	spec_value	unit	tags	grade	source_ref	closes	tolerance
 vanguards.hp_solo	hitpoints each, solo	180	hp	[wiki][cache]	C	sources/wiki_Vanguard.wikitext; COX_MECHANICS.md:525	-	exact
 vanguards.defence	defence level	160	count	[wiki]	D	COX_MECHANICS.md:526	-	exact
 vanguards.cadence	attack speed	4	ticks	[wiki]	D	COX_MECHANICS.md:527	-	exact
-vanguards.max_hit	max hit	22	hp	[wiki]	D	COX_MECHANICS.md:528	-	exact
+vanguards.max_hit	max hit	22	hp	[wiki]	D	COX_MECHANICS.md:528	-	range
 vanguards.attacks_per_action	projectiles per ranged/magic action	3	count	[wiki]	D	COX_MECHANICS.md:529	-	exact
 vanguards.heal_threshold_small	hp divergence that force-heals, party <=4	40	percent	[wiki][plugin]	C	COX_MECHANICS.md:530; sources/de0/CoxVanguardsPlugin.java	-	exact
 vanguards.shuffle	independent shuffle period	20-36	ticks	[wiki]	D	COX_MECHANICS.md:531	-	range

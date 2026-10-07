@@ -12,6 +12,12 @@ typedef void(APIENTRYP* PFNGLBUFFERSTORAGEPROC)(
     GLbitfield flags);
 #endif
 #else
+/* Linux glcorearb.h hides prototypes unless this is set before the include.
+ * macOS OpenGL/gl3.h always declares them; without this, clang rejects every
+ * direct gl* call in platform_sdl2_renderer_gl3.c as an implicit declaration. */
+#ifndef GL_GLEXT_PROTOTYPES
+#define GL_GLEXT_PROTOTYPES 1
+#endif
 #include <GL/glcorearb.h>
 #endif
 
