@@ -676,9 +676,16 @@ return {
                 -- Wait for a beam cycle. Stay off the bounce tile.
                 -- White (style=nil): do NOT re-smash — that paints red and
                 -- the black crystal needs an unchanged white beam off grey.
-                -- Coloured: refresh paint every few ticks (8-tick window).
+                -- Coloured: paint lasts ^cox_crab_paint_ticks (8); refresh
+                -- every 4 ticks so the beam never sees a grey gap.
+                local want_sym = nil
+                if style == "mage" then want_sym = "raids_lasercrabs_crab_blue"
+                elseif style == "range" then want_sym = "raids_lasercrabs_crab_green"
+                elseif style == "melee" then want_sym = "raids_lasercrabs_crab_red"
+                end
                 local wait = 0
-                while wait < 80 do
+                local missing = 0
+                while wait < 60 do
                     sustain(t)
                     t.player.walk_to(sx, sz, 10)
                     if t.player.alive() ~= "ok" then
@@ -689,20 +696,17 @@ return {
                     end
                     local seated = crab_at(t, wx, wz, 0)
                     if seated == nil then
-                        -- Lost the mark; stop waiting and re-seat.
-                        break
-                    end
-                    if style ~= nil and wait > 0 and wait % 6 == 0 then
-                        if seated.symbol ~= ((style == "mage") and "raids_lasercrabs_crab_blue"
-                            or (style == "range") and "raids_lasercrabs_crab_green"
-                            or "raids_lasercrabs_crab_red") then
+                        missing = missing + 1
+                        if missing > 6 then break end
+                    else
+                        missing = 0
+                        if want_sym ~= nil and seated.symbol ~= want_sym and wait % 4 == 0 then
                             t.player.walk_to(wx - 1, wz, 10)
                             if style ~= "melee" then
                                 paint_style(t, style, seated)
                             else
                                 smash(t, seated)
                             end
-                            -- Flee before wand-melee recolours the bounce crab.
                             t.player.walk_to(sx, sz, 10)
                         end
                     end
