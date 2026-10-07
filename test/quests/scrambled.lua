@@ -18,7 +18,10 @@
 -- (reach.py: REACH closed-doors len=787). The Renu quetzal to Tal Teklan needs Twilight's Promise
 -- (tools/data/shortest_path/transports/quetzals.tsv), which this quest does not require.
 --
--- GUIDE-GAP: puzzleSolver the put-egg-together jigsaw is deferred: Fix rebuilds Humphrey directly (scrambled.rs2:334 ~sc_leftover_put_egg_together_puzzle); the jigsaw's pieces report through IF_SCRIPT_TRIGGER, which the server routes to no content
+-- The jigsaw (puzzleSolver) is solved through the client's own interface 922: each loose piece is
+-- read off the screen (which model the client draws, its angle, where it sits), turned with its own
+-- Rotate op until its angle is 0 and dragged with the mouse onto the spot Quest Helper's
+-- EggSolver.java names for that model. Nothing is read from a varp to choose a move.
 
 return {
     id = "scrambled",
@@ -529,11 +532,86 @@ return {
         })
         t.expect("quest.stage.fix", t.quest.expect_stage("fix"))
 
-        -- 4.41 putEggBackTogether: Fix Humphrey Dumphrey (1244,3168).
+        -- 4.41 putEggBackTogether: Fix Humphrey Dumphrey (1244,3168); the jigsaw opens
+        -- (Quest Helper isPuzzleOpen = InterfaceID.Jigsaw.BACKGROUND).
         t.exec("putEggBackTogether", t.player.talk_to, "scrambled_egg_fix", 1)
-        t.exec("putEggBackTogether-dialog", t.chat.play, {
-            "mesbox:Leftover (fixed/done): the put-egg-together jigsaw is deferred.",
-        })
+        t.expect("putEggBackTogether-puzzle-open", t.ui.await_open("jigsaw", 10))
+
+        -- 4.42 puzzleSolver (Quest Helper EggSolver.java): "Rotate the piece until you're prompted
+        -- to move it to the correct spot" -- a piece is right at rotation 0 (REQUIRED_ROTATION) with
+        -- its corner on the spot addEggPair names for its model. EGG_SPOT is EggSolver's
+        -- addEggPair(model, x, y) table, verbatim. Each loose piece is identified by the model the
+        -- client draws for it; its angle and place are read back from the client.
+        local EGG_SPOT = {
+            [57106] = { 194, 121 }, [57109] = { 217, 27 }, [57111] = { 260, 22 },
+            [57107] = { 250, 41 }, [57123] = { 175, 58 }, [57125] = { 198, 60 },
+            [57118] = { 288, 71 }, [57104] = { 231, 71 }, [57127] = { 231, 99 },
+            [57115] = { 257, 113 }, [57122] = { 273, 115 }, [57116] = { 306, 119 },
+            [57103] = { 243, 149 }, [57120] = { 309, 160 }, [57114] = { 269, 177 },
+            [57102] = { 297, 217 }, [57124] = { 252, 213 }, [57126] = { 244, 255 },
+            [57112] = { 199, 248 }, [57121] = { 222, 199 }, [57119] = { 187, 210 },
+            [57105] = { 149, 179 }, [57108] = { 209, 160 }, [57101] = { 165, 141 },
+            [57110] = { 157, 103 }, [57117] = { 196, 105 },
+        }
+        local QUARTER = 256 -- the Rotate op's step (torirs_jigsaw_piece_rot.cs2: +256, 2048 wraps to 0)
+        local placed = 0
+        local loose = 0
+        -- The loose pile is jigsaw:pieces' children; the jigsaw holds at most 31
+        -- (torirs_jigsaw_validate.cs2), so its sub-ids are 0..30.
+        for sub = 0, 30 do
+            local pose_result, _, pose = t.ui.model_pose("jigsaw:pieces", sub)
+            if pose_result == "ok" then
+                loose = loose + 1
+                local spot = EGG_SPOT[pose.model]
+                local name = "puzzleSolver-piece-" .. tostring(pose.model)
+                if spot == nil then
+                    t.check(name, false, "the client draws model " .. tostring(pose.model)
+                        .. " for piece " .. sub .. ", which EggSolver does not name")
+                else
+                    local _, widget = t.ui.widget("jigsaw:pieces", sub)
+                    local turns = ((2048 - pose.zan) % 2048) // QUARTER
+                    local angle = pose.zan
+                    for _ = 1, turns do
+                        t.ui.invoke(widget, 1)
+                        angle = (angle + QUARTER) % 2048
+                        t.ui.await_model_pose("jigsaw:pieces", { zan = angle }, 5, sub)
+                    end
+                    local turned_result, turned_detail = t.ui.model_pose("jigsaw:pieces", sub)
+                    t.step(name .. "-turned", turned_result == "ok" and angle == 0 and "PASS" or "FAIL",
+                        string.format("%d Rotate op(s) from %d -> %s", turns, pose.zan,
+                            tostring(turned_detail)))
+                    t.exec(name, t.ui.drag, "jigsaw:pieces", sub,
+                        { sym = "jigsaw:pieces", x = spot[1], y = spot[2] })
+                    -- A right placement is locked onto the board (torirs_jigsaw_piece_place.cs2
+                    -- moves the piece from jigsaw:pieces to jigsaw:pieces_locked); the last one
+                    -- completes the egg and the jigsaw closes instead.
+                    local locked, closed = false, false
+                    for _ = 1, 6 do
+                        if t.ui.widget("jigsaw:pieces_locked", sub) == "ok" then
+                            locked = true
+                            break
+                        end
+                        if t.ui.await_close("jigsaw", 1) == "ok" then
+                            closed = true
+                            break
+                        end
+                    end
+                    if locked or closed then
+                        placed = placed + 1
+                    end
+                    t.check(name .. "-locked", locked or closed, string.format(
+                        "piece %d (model %d) dropped at %d,%d: %s", sub, pose.model, spot[1],
+                        spot[2], locked and "locked onto jigsaw:pieces_locked"
+                            or (closed and "the last piece -- the jigsaw closed on the whole egg"
+                            or "NOT locked, the jigsaw still open")))
+                end
+            end
+        end
+        t.check("puzzleSolver", loose > 0 and placed == loose, string.format(
+            "%d of the %d loose pieces locked in place", placed, loose))
+        local close_result = t.ui.await_close("jigsaw", 10)
+        t.check("puzzleSolver-closed", close_result == "ok",
+            "the jigsaw (interface 922) after the last piece -> " .. tostring(close_result))
         t.expect("quest.stage.finish", t.quest.expect_stage("finish"))
 
         local reward_snapshot_result, reward_before = t.skill.snapshot()
