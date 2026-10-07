@@ -404,6 +404,10 @@ QD.raid._play_plan("tob_nylocas", {
     cleanup_help = true,
     -- from this wave a big of the seat's colour, once pressed, stays its choice until it dies (the wave-30 big blue of svc/svd)
     big_stick = 31,
+    -- run kept on: a stamina dose (its 2 minutes, wiki Stamina potion) or the run orb when varp173 reads 0
+    run_keep = { stamina_ticks = 200 },
+    -- the idle walk to the next entry's tile starts when, running, it ends on that entry's due tick
+    walk_on_time = false,
     -- owner_nylocas: THE SCORED PLAN'S PICK, the machine's KILL / PRE_STAND choice
     -- (QD.raid._play_nylocas_scored_pick): its terms, unchanged from 738ef1466,
     -- whose seats hold 7-18 alive at waves 21-26 against the list machine's 13-23
@@ -930,10 +934,24 @@ function QD.raid._nym_room_copy(c)
         if pick ~= nil then ny.rc_scored = (ny.rc_scored or 0) + 1 return pick end
     end
     -- stand where that room's seat stood for its next entry
+    -- (running: not before it is needed -- the walk starts when, at two tiles a
+    -- tick, it ends on the entry's due tick; the seats ran their stands early
+    -- and met the next wave's copies in the open: the mage lost 140-156 hp in
+    -- svc/svd with run on all room, the reference's mage at most 120)
     local nx = list[math.min(#list, (e ~= nil and rc_due(c, e, cw, cstart)) and i + 1 or i)]
     if nx ~= nil then
         local x, z = c.O.x + P.stand_anchor[1] + nx.x, c.O.z + P.stand_anchor[2] + nx.z
-        if math.max(math.abs(c.me.x - x), math.abs(c.me.z - z)) > 1 and c.floor_ok(x, z) then c.walk = { x = x, z = z } end
+        local d = math.max(math.abs(c.me.x - x), math.abs(c.me.z - z))
+        local due
+        if nx.w >= 32 then due = ((ny.wave_at and ny.wave_at[31]) or (ny.last_wave_tick or c.v.tick)) + 4 + nx.o
+        elseif ny.wave_at ~= nil and ny.wave_at[nx.w] ~= nil then due = ny.wave_at[nx.w] + nx.o
+        else
+            local t, w = ny.last_wave_tick or c.v.tick, math.max(1, ny.waves)
+            while w < nx.w do t = t + (P.wave_gap[w] or 4) w = w + 1 end
+            due = t + nx.o
+        end
+        local late_start = not P.walk_on_time or due - c.v.tick <= math.ceil(d / 2) + 1
+        if d > 1 and c.floor_ok(x, z) and late_start then c.walk = { x = x, z = z } end
     end
     return nil
 end
@@ -1161,6 +1179,38 @@ function QD.raid._play_nylocas_machine(c)
     c.m = ny.m
     local m = c.m
     QD.raid._nym_publish_role(c.st)
+    -- RUN KEPT ON (the owner: "Are all players running?").  The engine turns
+    -- run off for good when run energy reaches 0 (torirs_server_world.c
+    -- run_energy_tick: run_toggle 0, varp173_option_run 0); b59ebc45d's meleer
+    -- took its last two-tile step 169-310 ticks into the room and walked the
+    -- rest.  When varp173 reads 0: a stamina dose if one is held and none was
+    -- drunk in the last P.run_keep.stamina_ticks (the dose's 2 minutes, wiki
+    -- Stamina potion), else the run orb (orbs:runbutton, orbs.rs2) -- every
+    -- tick it reads 0.  ny.run_off_first / ny.run_offs are the readout.
+    if P.run_keep ~= nil then
+        local rr, run = QD.var.varp("varp173_option_run")
+        if rr == "ok" and run == 1 then ny.run_seen_on = true end
+        if rr == "ok" and run == 0 then
+            ny.run_offs = (ny.run_offs or 0) + 1
+            ny.run_off_first = ny.run_off_first or (v.tick - (c.st.start_tick or 0))
+            local dose = nil
+            for _, d in ipairs({ "1dosestamina", "2dosestamina", "3dosestamina", "4dosestamina" }) do
+                local cr, cn = QD.inv.count(d)
+                if dose == nil and cr == "ok" and type(cn) == "number" and cn > 0 then dose = d end
+            end
+            -- (a dose only when run had been on and went off -- the energy ran
+            -- out; at the play's start run reads 0 until the first press)
+            if ny.run_seen_on and dose ~= nil and (ny.stamina_tick == nil or v.tick - ny.stamina_tick >= P.run_keep.stamina_ticks) then
+                QD.player.inv_op(dose, 1, { quick = true })
+                ny.stamina_tick = v.tick
+                ny.staminas = (ny.staminas or 0) + 1
+            else
+                local wr, w = QD.ui.widget("orbs:runbutton")
+                if wr == "ok" then QD.ui.invoke(w, 1) end
+                ny.run_presses = (ny.run_presses or 0) + 1
+            end
+        end
+    end
     if P.sim_others then
         if c.cur ~= nil and not c.cur.vas and c.cur.slot ~= nil then QD.party.publish_target(c.cur.slot) end
         c.pub = {}

@@ -208,6 +208,10 @@ if size > 1 then
     -- (build/s47/s47_decay.lua: 118 -> 116 in 240 ticks); a divine dose holds
     -- (s47_divine.lua: 118 and 112 for 240 ticks).  The plain ranging potion
     -- also reads 111 at 99 here (s47maxhit), the divine one 112.
+    -- owner_nylocas: run energy (the relay's kit: Agility 99 and a stamina
+    -- potion; the room's meleer ran out of energy and walked 35-124 steps a room)
+    out[#out + 1] = "::setlevel agility 99"
+    if role ~= 1 then out[#out + 1] = "::give 4dosestamina 1" end
     out[#out + 1] = "::give 4dosedivinecombat 1"
     out[#out + 1] = "::give 4dosedivinerange 1"
     -- raid seam47: the special on her melee form, as Blert's trios spend it
@@ -269,7 +273,9 @@ if size > 1 then
     -- (Blert role.mage eats in the waves: median 0).
     if role == 1 and size > 1 then
         for i = 1, #out do
-            if out[i] == "::give br_4dosepotionofsaradomin 3" then out[i] = "::give br_4dosepotionofsaradomin 1" end
+            -- (and the last brew for the stamina dose: the reference mage runs the
+            -- room too; it drank 0-1 doses on her and the plan brews only without food)
+            if out[i] == "::give br_4dosepotionofsaradomin 3" then out[i] = "::give 4dosestamina 1" end
             if out[i] == "::give anglerfish 7" then out[i] = "::give anglerfish 4" end
         end
         out[#out + 1] = "::give water_rune 2000"
@@ -397,6 +403,12 @@ return {
             t.ticks(3)
             local pr2 = t.player.inv_op("4dosedivinerange", 1, { quick = true })
             t.ticks(1)
+            -- owner_nylocas: a stamina dose at the door (the relay's: "If you're in
+            -- a melee role ... I'd strongly advise buying a stamina potion",
+            -- 10Boot yt_4i4lv-srJkw.md 0:12:09; _play_normal.lua KIT); the plan
+            -- drinks the rest and re-toggles run when it runs out (P.run_keep)
+            t.player.inv_op("4dosestamina", 1, { quick = true })
+            t.ticks(1)
             if role == 1 then
                 -- raid seam47: the heart's Invigorate (op 1) at the door, as
                 -- Blert's mages carry 112; the plan re-uses it when it is ready
@@ -483,6 +495,8 @@ return {
         local ny = rec.ny or {}
         -- raid seam55: the plan's styles at her, by name (P.boss_styles)
         if size > 1 then
+            t.check("note.run", true, "p" .. role .. " run: varp173 first read 0 at " .. tostring(ny.run_off_first) .. " ticks into the play, "
+                .. tostring(ny.run_offs or 0) .. " ticks off, stamina doses " .. tostring(ny.staminas or 0) .. ", orb presses " .. tostring(ny.run_presses or 0))
             t.check("note.style", true, "p" .. role .. " at her: styles set by name " .. tostring(ny.style_set or 0) .. ", presses "
                 .. tostring(ny.style_presses or 0) .. ", combat tab opened " .. tostring(ny.style_tabs or 0) .. ", gave up "
                 .. tostring(ny.style_gave_up or 0))
