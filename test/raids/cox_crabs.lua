@@ -160,11 +160,11 @@ end
 
 local function sustain(t, floor)
     -- Beam splash scales with current HP but still kills at low HP.
-    -- Default floor 50: eating to 90 every decide + inv_op settle spam
-    -- blew the 400k resume budget on crystal 3 (run30).
-    floor = floor or 50
+    -- Cap eats per call (budget) but keep floor high enough to survive
+    -- a splash (run31 died at floor 45 during crystal-3 seat).
+    floor = floor or 70
     local eats = 0
-    while hp(t) > 0 and hp(t) < floor and eats < 3 do
+    while hp(t) > 0 and hp(t) < floor and eats < 4 do
         local er = t.player.inv_op("shark", 1)
         t.ticks(1)
         eats = eats + 1
@@ -173,7 +173,7 @@ local function sustain(t, floor)
     local pr, pp = t.prayer.points()
     local points = 0
     if pr == "ok" then points = pp.points or pp.level or 0 end
-    if points < 30 then
+    if points < 40 then
         t.player.inv_op("br_4dose2restore", 1)
         t.ticks(1)
     end
@@ -291,7 +291,7 @@ return {
         "::give blood_rune 80",
         "::give hammer",
         "::give br_4dose2restore 6",
-        "::give shark 28",
+        "::give shark 40",
     },
 
     run = function(t)
@@ -422,9 +422,13 @@ return {
                 t.player.walk_to(sx, sz, 20)
                 return true, "already seated " .. want_sym
             end
-            t.player.walk_to(lure_x, lure_z, 40)
+            -- Align z east of the column, then step west — never walk onto
+            -- the bounce tile (beam splash / run31 death on crystal 3).
+            t.player.walk_to(sx, lure_z, 24)
+            t.ticks(1)
+            t.player.walk_to(lure_x, lure_z, 24)
             t.ticks(2)
-            sustain(t)
+            sustain(t, 75)
             local crab = nearest_crab(t)
             if crab == nil then return false, "no crab" end
             local slot = crab.row.slot
@@ -433,7 +437,8 @@ return {
             t.ticks(2)
             local guard = 0
             local last_detail = "crab never seated"
-            while guard < 22 do
+            local guard_max = (style == "melee") and 30 or 22
+            while guard < guard_max do
                 -- Yield every iteration: walk_to that is already-true skips
                 -- await and pack scans stack past 400k/resume (run27).
                 t.ticks(1)
@@ -441,17 +446,13 @@ return {
                     t.player.walk_to(sx, sz, 20)
                     return true, "crystal already lit"
                 end
-                if guard % 8 == 0 then sustain(t, 40) end
+                if guard % 6 == 0 then sustain(t, 70) end
                 -- Prefer safe tile between pulls so the beam column is free.
                 if guard % 9 == 8 then
                     t.player.walk_to(sx, sz, 10)
                     t.ticks(2)
                 end
-                -- Pack every other iter — crab_at/nearest are whole-pool walks.
-                local exact = nil
-                if guard % 2 == 0 then
-                    exact = crab_at(t, wx, wz, 0)
-                end
+                local exact = crab_at(t, wx, wz, 0)
                 if exact ~= nil then
                     -- Stop Attack before smash: crab often walks off the mark
                     -- during the smash approach (run19), and wand-melee later
@@ -471,7 +472,11 @@ return {
                             exact = crab_at(t, wx, wz, 0)
                             if exact == nil then
                                 last_detail = "crab left mark after smash"
-                            elseif style ~= nil and style ~= "melee" then
+                            elseif style == "melee" then
+                                -- Smash already paints red; no second attack.
+                                t.player.walk_to(sx, sz, 20)
+                                return true, "raids_lasercrabs_crab_red"
+                            elseif style ~= nil then
                                 local want = (style == "mage") and "raids_lasercrabs_crab_blue"
                                     or "raids_lasercrabs_crab_green"
                                 local last_paint = "none"
@@ -533,21 +538,18 @@ return {
                             end
                         end
                     end
-                elseif guard % 2 == 0 then
-                    -- Even iter, not on mark: one pack lure step.
+                else
+                    -- Not on mark: lure from the west side only (never stand
+                    -- on wx,wz — that is the beam tile).
                     local live = pack_slot(slot)
-                    if live == nil then
+                    if live == nil and guard % 2 == 0 then
                         local n = nearest_crab(t)
                         live = n and n.row or nil
                     end
                     if live ~= nil then
                         slot = live.slot
-                        if live.x > wx then
-                            t.player.walk_to(wx, wz, 8)
-                            t.ticks(1)
-                            t.player.walk_to(lure_x, lure_z, 8)
-                        else
-                            t.player.walk_to(lure_x, lure_z, 8)
+                        t.player.walk_to(lure_x, lure_z, 8)
+                        if live.x ~= wx or live.z ~= wz then
                             t.player.attack(live.symbol, 2, 1, {
                                 quick = true, slot = live.slot,
                             })
@@ -617,8 +619,8 @@ return {
         local function decide()
             if sm.state ~= STATE.SOLVE then
                 sustain(t, 90)
-            elseif sm.attempt % 2 == 0 then
-                sustain(t, 45)
+            else
+                sustain(t, 75)
             end
             if sm.state == STATE.LAND then
                 local pr, p = t.world.tile()
@@ -726,6 +728,7 @@ return {
                 local wx, wz = world(tile.lx, tile.lz)
                 local sx, sz = safe_tile(wx, wz)
                 t.player.walk_to(sx, sz, 20)
+                sustain(t, 80)
                 if not ok then
                     sm.attempt = sm.attempt + 1
                     if sm.attempt > 8 then
