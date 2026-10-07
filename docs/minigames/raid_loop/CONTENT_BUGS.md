@@ -1195,12 +1195,23 @@ TORIRSSERVER_SCRIPTS; the shared tree was never edited to prove it).
   "applied to the accuracy/defence roll when the attack is cast") and the "heavy" ranged
   defence for the primary's roll are not modelled: `~player_npc_hit_roll`
   (combat_stats.rs2:710) takes no modifier. Not in seam33's files.
+  **CLOSED 2026-10-07 content_bugs (already done, plus this pass):** the fuse table is in
+  `~player_chinchompa_hit_roll` (player_ranged.rs2: short 100/75/50, medium 75/100/75, long 50/75/100 at 0-3/4-6/7+,
+  scaling the attack roll, "applied to the accuracy/defence roll when the attack is cast", wiki_Chinchompa_weapon:21),
+  and the primary's roll now meets the npc's HEAVY ranged defence (`~npc_defence_roll_player`, the ~1467 fix above).
 - Still open, CONTENT: an npc whose record says `forcemulti=yes`, standing outside both
   maps/multiway.csv and a map instance, is treated as single-way by the chinchompa splash:
   the record key is the engine's (`ToriRSServer_CombatMultiway`) and content cannot read it.
+  **FIXED 2026-10-07 content_bugs (OSRS-Content 627ccf65f3 + engine torirs_server_content.c):** the npc loader mirrors
+  `forcemulti` into a script-visible `forcemulti` param (combat.param), and `~npc_combat_multiway(coord)` asks the
+  engine's three legs (forcemulti, any map instance, maps/multiway.csv) for the barrage/burst splash, the chinchompa
+  splash, the scythe arc and Dinh's bulwark special. Probe (scratch ::cbmulti, private binary): dagcave_melee_boss in
+  single-way Lumbridge forcemulti=1 map=0 combat=1; Abyssal guardian 0 / 0. Server selftest 18 = 18.
 - Still open, CONTENT: `~pvm_barrage_spell` (player_magic.rs2:68-71) still hits the 3x3 in
   single-way areas; its comment says multiway "is not modelled", which stopped being true
   when `map_multiway` was hosted. Same wiki line as above (Multicombat area:68).
+  **Already FIXED (seam36, checked 2026-10-07):** player_magic.rs2 sweeps the 3x3 only when multi-combat (now through
+  `~npc_combat_multiway`, row above).
 
 ## From seam33's Normal trio plans (matthew-mbp-m4-raid-b1-seam33, 2026-10-06; filed by the closer)
 
@@ -2138,4 +2149,15 @@ reference ToB raider bows and pipes in elite ranged void (Blert equipmentDeltas,
   (torirs_cb): 0 aborts (was 4), and Bloat fell in 2 downs, 146 ticks, against 3 downs / 186 ticks with the
   special dropped; server selftest 18 = 18 failures. Overflow still aborts loudly. ROOM EFFECT: _play_bloat now
   kills a down earlier (Blert's trios: claws in down 2 in 12 of 19 rooms, seam49).
+
+## 2026-10-07 content_bugs: Entry solo red after the evening's content -- not from the content_bugs commits
+
+- Measured, for the room owners: `seed_survey.py _play_entry --names 5` was 5 of 5 at 04:1x (content b8118fbdfd) and is
+  1 of 5 now (svc PASS; _play_entry/sva/svb/svd red on `xarpus.dawnbringer` "verzik_special_weapon in the pack:
+  timeout" and `verzik.unequip.scythe` "You don't have enough inventory space"; the Sotetseg chest filled the pack:
+  "You take 9 bandages"). svaplayentry is red with the SAME two rows and the same 2459 ticks on (a) the shared binary
+  without the content_bugs engine commits and (b) a scratch pack with content_bugs' later content commits reverted
+  (3bd2334365, 7995b720af, 23b2c94f4d, 627ccf65f3): so it comes from the other commits since (192be95dc0 doors,
+  0b5ef3da0d two-hit weapons, bc52eba22f Void). The harness's take-every-bandage chest rule leaves no slot for the
+  Dawnbringer: a DRIVER question first.
 

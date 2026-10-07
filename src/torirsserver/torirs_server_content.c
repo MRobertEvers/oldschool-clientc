@@ -1782,7 +1782,13 @@ npc_config_key(
      * defaults no and only the positive is. `forcemulti=no` is therefore
      * spellable and means the default. */
     else if( strcmp(key, "forcemulti") == 0 )
+    {
         def->forcemulti = strcmp(value, "no") != 0;
+        /* Mirrored into the script-visible `forcemulti` param (combat.param) so
+         * content's splash tests (`~npc_combat_multiway`) ask the same three legs
+         * as ToriRSServer_CombatMultiway; undeclared, this records nothing. */
+        record_authored_param(def, "forcemulti", def->forcemulti, where);
+    }
     /* A healthbar config name, or `null` for an npc that raises no bar at all.
      * Through the checked lookup because an unresolved name here would
      * otherwise read as -1 — i.e. exactly as `null` — and silently delete the
