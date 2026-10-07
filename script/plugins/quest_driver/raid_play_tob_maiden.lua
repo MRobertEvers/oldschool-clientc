@@ -541,7 +541,7 @@ QD.RAID_MAIDEN_REF = {
         [2] = { casts = { { 1, "S1" }, { 6, "S2" }, { 11, "S3" }, { 16, "N4out" } }, ret = 26,
             seat = { [1] = { { "N1", 1, 9 }, { "N2", 6, 14 }, { "STACK", 10, 49 } }, [3] = { { "N1", 1, 9 }, { "N2", 6, 16 }, { "STACK", 10, 49 } } } },
         [3] = { casts = { { 1, "S1" }, { 6, "N2" }, { 11, "S3" }, { 16, "N4out" } }, ret = 21,
-            seat = { [1] = { { "N1", 1, 9 } }, [3] = { { "N1", 1, 10 } } } },
+            seat = { [1] = { { "N1", 1, 9 }, { "STACK", 10, 49 } }, [3] = { { "N1", 1, 10 }, { "STACK", 10, 49 } } } },
     },
     -- each seat's tile per form (0 = her 100 form .. 3 = 30), the script's
     -- modal "tile" (the median where the mode's share is under 0.15):
@@ -716,6 +716,24 @@ function QD.raid.mz_walk_to(st, v, intent, x, z)
     local wx, wz = QD.raid.mz_safe(st, v, QD.raid._play_safe_step, st, v, x, z, QD.raid.mz_floor_ok(st, v))
     if wx == v.me.x and wz == v.me.z then return end
     if st.walk_target == nil or st.walk_target.x ~= wx or st.walk_target.z ~= wz then intent.walk = { x = wx, z = wz } end
+end
+-- the tile to swing at a crab from: edge-adjacent to its 2x2, unmarked, on
+-- the floor, nearest me (sm37 _play_maiden: dps2's press on a stacked crab
+-- pathed it onto a pool on her east edge, (6,0), three hits of 26 and dead)
+function QD.raid.mz_crab_stand(st, v, a)
+    local ok = QD.raid.mz_floor_ok(st, v)
+    local best, bd = nil, nil
+    for x = a.x - 1, a.x + 2 do
+        for z = a.z - 1, a.z + 2 do
+            local inside = x >= a.x and x <= a.x + 1 and z >= a.z and z <= a.z + 1
+            local corner = (x == a.x - 1 or x == a.x + 2) and (z == a.z - 1 or z == a.z + 2)
+            if not inside and not corner and ok(x, z) and not v.marks[x * 100000 + z] then
+                local d = math.max(math.abs(x - v.me.x), math.abs(z - v.me.z))
+                if bd == nil or d < bd then best, bd = { x = x, z = z }, d end
+            end
+        end
+    end
+    return best
 end
 -- a crab's hp from its health bar (what the screen shows); no bar drawn yet
 -- = full (the Normal trio's 75: tob.constant ^tob_maiden_crab_hp_3)
@@ -931,8 +949,11 @@ function QD.raid.mz_cast_tick(st, v, intent)
         for _, a in pairs(st.ev.adds) do
             if not a.gone and not a.ice and QD.raid._play_gap(b, a.x, a.z) <= 4 then near = true end
         end
-        if not near and v.tick < st.ev.wave_tick + c[1] - 1 then return end
-        t = QD.raid.mz_bunch_pick(st, v, skip, 4) or QD.raid.mz_bunch_pick(st, v, skip, 99) or QD.raid.mz_nearest_walker(st, v, skip)
+        -- sm36: the script's lane again, else the next walker to arrive (the
+        -- streams' frozen tiles (10,-7) S1 at +1, (7,0) (8,0) (8,1) the S3
+        -- and S4 lanes at +11/+16: the stack forms because those lanes share
+        -- her south-east corner, not because a cast picked a bunch)
+        t = QD.raid.mz_lane_crab(st, v, c[2], false, true, skip) or QD.raid.mz_nearest_walker(st, v, skip)
     end
     if t == nil then
         local seen = {}
@@ -1038,6 +1059,17 @@ function QD.raid.mz_lane_tick(st, v, intent)
     if t == nil and since >= e[2] and e[1] ~= "STACK" then QD.raid.mz_go(st, v, "LANE", m.idx + 1) return end
     if t == nil or since < e[2] then return QD.raid.mz_s_on_boss_tick(st, v, intent) end
     if QD.raid.mz_wear(intent, st.plan.melee_set) then return end
+    if e[1] == "STACK" then
+        local stand = QD.raid.mz_crab_stand(st, v, t.a)
+        if stand == nil then m.stack_done[t.slot] = true return QD.raid.mz_s_on_boss_tick(st, v, intent) end
+        if stand.x ~= v.me.x or stand.z ~= v.me.z then
+            local adj = false
+            local here = v.me.x * 100000 + v.me.z
+            -- already beside it on a clean tile: press from here
+            if not v.marks[here] and math.max(math.abs(v.me.x - (t.a.x + 0.5)), math.abs(v.me.z - (t.a.z + 0.5))) <= 1.5 then adj = true end
+            if not adj then QD.raid.mz_walk_to(st, v, intent, stand.x, stand.z) return end
+        end
+    end
     intent.press = { symbol = st.plan.crab[st.mode], slot = t.slot, op = 2, why = "lane " .. e[1] }
     m.add_presses = (m.add_presses or 0) + 1
     if e[1] == "STACK" and m.stack_slot ~= t.slot then m.stack_slot, m.stack_t = t.slot, v.tick end
