@@ -23,5 +23,5 @@ your ownership row in `ROOM_AGENT.md`. See workspace rule
 | vasa | bc-47112672-81a0-5c55-8de1-ed8cc4958456 | resumed (GL_GLEXT private binary) |
 | vanguards | bc-6731c199-2956-52b7-9de9-49829dbad74f | replacement |
 | muttadiles | bc-68d32325-2635-566e-aeea-2eb464a6772b | prior (still updating) |
-| scavenger_small | bc-96c722d5-2e31-5f0a-87cc-8fc0811baac7 | replacement |
+| scavenger_small | bc-96c722d5-2e31-5f0a-87cc-8fc0811baac7 | **green FULL** — `cursor/cox-scavenger-small-da39` PR #139 |
 | olm | bc-4ea82b1b-8fc5-506b-974b-d4894e7aa9fc | replacement; parent owns `cox_olm_solo_4t41.lua` recovery SM |
