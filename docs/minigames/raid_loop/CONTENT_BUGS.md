@@ -2358,19 +2358,22 @@ Fixed (OSRS-Content 7a70ed5169, 8491f556a5, 55d34897e9, 964c87af49, f0478f39c7):
   one per style (1565 / 1566 / 1567) and the Nylocas room maps them by style (`~tob_nylo_detonate_gfx`). Fixed
   964c87af49.
 
-- ToB, Verzik P1 pillar collapse: `[proc,tob_verzik_collapse_pillar]` knocked every raider in range back two tiles
-  with human_troll_flyback 1157 -- flat on the back and up again, which the owner saw live as "a full death animation"
-  and a revive. No source puts a knockback on a pillar: the collapse is damage (wiki Perfect_Verzik:19; guide
-  bCkpMm0ZDHE 7:06 "collapse and cause huge damage") and the Hard Mode debris is "up to 35 damage and temporarily
-  stuns" (wiki Verzik_Vitur:408, under ===Hard Mode===; transcript l57Jlt1wbnA 2:16). Blert and the plugins record no
-  player animation for either; the only 1157 any source names is the P2 bounce (tobmistaketracker
-  VerzikP2MistakeDetector.java:38; wiki :393 "body-slammed away which stuns"), which keeps its knockback. The pillar now
-  deals damage and stuns (human_stunned + spotanim 245) only; `^tob_verzik_pillar_knockback` is unused. Fixed 8b927584d8.
-  Exercised by test/raids/_verzik_pillar_collapse.lua (solo, fight unbegun; ::tobwarp beside pillar 0, then
-  ::tobvzpillar 0, OSRS-Content a8e1d1e517, runs the fight's own collapse proc): 9/9 PASS on a8e1d1e517 (58 damage,
-  848 + 245, no 1157, never left its tile, alive at 41); on a throwaway worktree with 8b927584d8 reverted it FAILS
-  pillar.no_flyback (1157 x1) and pillar.in_place (thrown 2 tiles SW). Frame crops before/after:
-  build/seam_state/anim_audit/pillar_test/pillar_collapse_crops.png.
+- ToB, Verzik P1 pillar collapse (P1 collapses and the P1->P2 collapse of all pillars), corrected twice.
+  (1) The original threw every raider in range TWO tiles, always SOUTH-WEST, with human_troll_flyback 1157:
+  `~tob_verzik_knockback` takes its heading from `~coord_direction2`, which answers south-west for a point due west.
+  (2) 8b927584d8 removed the shove on "no source" (the owner had seen it as a death and revive). That was wrong.
+  OWNER RULING 2026-10-07: "The collapsing pillar DOES knock 1 tile away from the pillar and has the animation." blert
+  agrees (coordinator's harvest, T = the pillar 8379's NPC_DEATH, centre = SW + 1,1): 280f7cef T108 3 east of the
+  centre -> 1 east at T+2, 39 damage at T+1; 45e4e8b6 T108 2 west -> 1 west at T+2, 36 at T+3; 45e4e8b6 T117 (the
+  P1->P2 collapse) 2 east -> 1 east at T+2, 55 at T+3; 6f735fbc T66 2 south -> 1 south at T+2, 46 at T+3.
+  Fixed fc1e60784a. The raider takes the stun (848 + 245), then 1157 and ONE tile directly away from the centre, using the
+  sign of each axis, so a diagonal stand goes diagonally. There is no move when that step is blocked. The shove lands on
+  T+2 (`[queue,tob_verzik_pillar_shove]`, the P2 slam's stun-then-flyback order); the damage (Near Reality's 32-65)
+  lands on T+3. The range is 3 (was 2), from 280f7cef. test/raids/_verzik_pillar_collapse.lua forces two collapses
+  (`::tobvzpillar`): one west (24,19 -> 23,19) and one diagonal (28,27 -> 29,28). It is 14/14 on fc1e60784a. On
+  a8e1d1e517 (no shove) it fails flyback, shove and damage timing (T+1) in both cases. Crops:
+  build/seam_state/anim_audit/pillar_test2/pillar_{west,diag}_crops.png.
+  Open, for the Verzik owner: the P2 stomp/slam `~tob_verzik_knockback` keeps the `~coord_direction2` heading bug.
 
 Open:
 - (fixed, below) Engine, every room (parent 1e90c684a): the npc_anim op now ships seq < 0 as a cancel, and ~40 player-attack scripts
