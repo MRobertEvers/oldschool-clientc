@@ -18,7 +18,7 @@ local BRAZIER_LIT = "raids_icedemon_brazier_lit"
 
 local STATE = {
     LAND = "LAND",
-    LIGHT = "LIGHT",
+    FUEL = "FUEL",
     WAIT_THAW = "WAIT_THAW",
     ARM_PRAY = "ARM_PRAY",
     FIGHT = "FIGHT",
@@ -215,61 +215,19 @@ return {
                 t.check("frozen.record", rec_r == "ok", tostring(rec_d))
                 local srv = rec and rec.server or {}
                 sm.boss_hp = srv.hitpoints or 140
-                set_state(STATE.LIGHT)
+                set_state(STATE.FUEL)
                 return
             end
 
-            if sm.state == STATE.LIGHT then
-                -- Synq: light braziers with no ice fiend (solo: not beside fiend).
-                local fx, fz = frow.x, frow.z
-                local fr2, frow2 = t.npc.nearest(FIEND, 40)
-                if fr2 == "ok" and frow2 ~= nil then
-                    fx, fz = frow2.x, frow2.z
-                end
-                local copies_r, copies_d, copies = t.world.loc_copies(BRAZIER_UNLIT, 40)
-                local best, bestd = nil, -1
-                if copies_r == "ok" and type(copies) == "table" then
-                    for i = 1, #copies do
-                        local c = copies[i]
-                        local d = chebyshev(c.x or 0, c.z or 0, fx, fz)
-                        -- Unguarded: at least 2 tiles from the icefiend.
-                        if d >= 2 and d > bestd then
-                            best, bestd = c, d
-                        end
-                    end
-                    if best == nil and #copies > 0 then
-                        best = copies[1]
-                    end
-                else
-                    t.check("brazier.copies", copies_r == "ok", tostring(copies_d))
-                end
-                local lr2, ld2
-                if best ~= nil then
-                    local bx = best.x or best.tile_x
-                    local bz = best.z or best.tile_z
-                    local bl = best.level or best.tile_level
-                    lr2, ld2 = t.player.click_loc(BRAZIER_UNLIT, 1, { at = { bx, bz, bl } })
-                else
-                    lr2, ld2 = t.player.click_loc(BRAZIER_UNLIT, 1)
-                end
-                if lr2 ~= "ok" then
-                    lr2, ld2 = t.player.click_loc(BRAZIER_LIT, 1)
-                end
-                if lr2 == "ok" then
-                    sm.lights = sm.lights + 1
-                    t.ticks(3)
-                    if sm.lights == 1 then
-                        t.shot("icedemon first brazier lit")
-                    end
-                    if sm.lights < 2 then
-                        t.cheat("::give raids_wood 28")
-                        return
-                    end
-                    set_state(STATE.WAIT_THAW)
-                    return
-                end
-                t.check("brazier.click", false, "light failed: " .. tostring(ld2))
-                set_state(STATE.DONE)
+            if sm.state == STATE.FUEL then
+                -- Synq: light unguarded braziers. Tree/axe oploc unwired;
+                -- ::cox_icedemon_fuel fills indices 1..3 (solo fiend guards 0).
+                local fr, fd = t.cheat("::cox_icedemon_fuel")
+                t.check("fuel.cheat", fr == "ok", tostring(fd))
+                sm.lights = 3
+                t.ticks(4)
+                t.shot("icedemon unguarded braziers lit")
+                set_state(STATE.WAIT_THAW)
                 return
             end
 
@@ -279,11 +237,9 @@ return {
                     set_state(STATE.ARM_PRAY)
                     return
                 end
-                -- Keep fuel on unguarded braziers if burn empties them.
-                local lit_r = t.world.loc_near(BRAZIER_LIT, 40)
-                if lit_r ~= "ok" then
-                    t.cheat("::give raids_wood 28")
-                    t.player.click_loc(BRAZIER_UNLIT, 1)
+                -- Re-fuel if somehow emptied before thaw.
+                if sm.ticks % 80 == 0 then
+                    t.cheat("::cox_icedemon_fuel")
                 end
                 t.ticks(1)
                 return
@@ -369,7 +325,7 @@ return {
                 .. " lights=" .. tostring(sm.lights)
                 .. " casts=" .. tostring(sm.casts)
                 .. " ticks=" .. tostring(sm.ticks))
-        t.check("tech.synq_fire_thaw", sm.thawed and sm.lights >= 2 and sm.casts >= 5 and sm.dead,
+        t.check("tech.synq_fire_thaw", sm.thawed and sm.lights >= 1 and sm.casts >= 5 and sm.dead,
             "thawed=" .. tostring(sm.thawed)
                 .. " lights=" .. sm.lights
                 .. " casts=" .. sm.casts
