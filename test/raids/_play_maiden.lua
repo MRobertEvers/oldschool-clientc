@@ -68,12 +68,23 @@ if role == 2 then
         "::give avas_assembler", "::wield avas_assembler",
         "::give eternal_boots", "::wield eternal_boots",
         "::give magus_ring", "::wield magus_ring",
-        "::give dragon_warhammer",
+        -- owner_tob_normal M9: the occult necklace in the empty neck slot (the
+        -- recorded freezer's neck on all 264 of its barrage casts: occult 173,
+        -- occult (or) 91; Blert equipmentDeltas, build/blert_maiden)
+        "::give occult_necklace", "::wield occult_necklace",
+        -- owner_tob_normal M6: the Tonalztics for the opener's defence drain
+        -- in the hammer's slot (Blert TONALZTICS freezer|100 23 of 24 rooms),
+        -- charged in party_run by its own Charge op with the splinters
+        "::give tonalztics_of_ralos_uncharged", "::give sunfiresplinter 100",
         "::setvar varb4070_spellbook 1",
         "::give water_rune 2000", "::give blood_rune 1000", "::give death_rune 1000",
         "::give ancestral_hat", "::give ancestral_robe_top", "::give ancestral_robe_bottom",
         "::give kodai_wand", "::give arcane",
-        "::give anglerfish 13", "::give br_4dose2restore 4", "::give br_4dosepotionofsaradomin 2",
+        -- owner_tob_normal M2: the scythe in place of the two brews (the
+        -- reference's freezer swings the SCYTHE on her in the 30 percent
+        -- phase, freezer|30 19 of 24 rooms; it drinks no brew in the room,
+        -- role.freezer.phase.*.drinks 0: a dose costs Ice Barrage's 94 Magic)
+        "::give anglerfish 13", "::give br_4dose2restore 4", "::fullscythe",
     }
     for _, c in ipairs(more) do party_kit[#party_kit + 1] = c end
 else
@@ -93,9 +104,16 @@ else
     -- storms in it on Protect from Magic (prayerSet bit 16 on 68 / 60 percent
     -- of their ticks, Piety 26 / 20).
     local more = { "::tobkit", "::give twisted_bow", "::wield twisted_bow",
-        "::give dragon_arrow 1000", "::wield dragon_arrow", "::give dragon_warhammer",
-        "::give br_4dosepotionofsaradomin 8", "::give br_4dose2restore 5", "::give anglerfish 10",
-        "::give 4dose2combat 2" }
+        "::give dragon_arrow 1000", "::wield dragon_arrow",
+        -- owner_tob_normal M6: the Tonalztics in the hammer's place (Blert
+        -- TONALZTICS dps1|100 16 of 24 rooms, dps2 15; HAMMER 4), charged in
+        -- party_run; a brew less for the splinters' slot until the charge
+        "::give tonalztics_of_ralos_uncharged", "::give sunfiresplinter 100",
+        -- owner_tob_normal M30: a brew less, a super combat more (the
+        -- re-boost holds 112 against her blackstorm's drain, W:591; the
+        -- scythe seats drink no brew while a fish is left)
+        "::give br_4dosepotionofsaradomin 6", "::give br_4dose2restore 5", "::give anglerfish 10",
+        "::give 4dose2combat 3" }
     for _, c in ipairs(more) do party_kit[#party_kit + 1] = c end
 end
 -- THE TRIO'S RUN (raid seam32): every seat enters Normal, the leader starts
@@ -122,6 +140,12 @@ local function party_run(t)
     -- across a swap: the seam54 finding, the bow's rapid was the scythe's
     -- Chop), so Reap's slot rides every later swap; the plan never needs to
     -- re-press it.  The freezer keeps the bow's "Rapid".
+    -- owner_tob_normal M6: the Tonalztics charged by its own Charge op (the
+    -- splinters in the backpack, tonalztics_of_ralos.rs2 [opheld4])
+    local tcr, tcd = t.player.inv_op("tonalztics_of_ralos_uncharged", 4)
+    t.ticks(2)
+    local tir, tin = t.inv.count("tonalztics_of_ralos_charged")
+    t.check("kit.tonalztics", tir == "ok" and tin == 1, "p" .. role .. " Charge " .. tostring(tcr) .. " " .. string.sub(tostring(tcd), 1, 80) .. "; charged in the pack " .. tostring(tin))
     local style_name = (role == 2) and "Rapid" or "Reap"
     if role ~= 2 then
         t.player.equip("scythe_of_vitur")
@@ -147,17 +171,14 @@ local function party_run(t)
         t.check("play.potion", ar2 == "ok" and att2.level > 99, "p" .. role .. " super combat before the barrier: strength " .. tostring(att2.level) .. " (" .. tostring(pr) .. ")")
     end
     t.expect("party.barrier.entrance", t.party.barrier("entrance", 300))
-    if role == 1 then
-        t.exec("play.barrier", t.player.click_loc, "tob_arena_barrier", 1)
-        local mr, md = t.ticklog.mark("room start")
-        t.exec("play.begin", t.chat.play, { "options", "choose:Yes, begin the fight." })
-        t.check("play.mark", mr == "ok", tostring(md))
-        t.expect("party.barrier.started", t.party.barrier("started", 900))
-    else
-        t.expect("party.barrier.started", t.party.barrier("started", 900))
-        local xr, xd = t.player.click_loc("tob_arena_barrier", 1)
-        t.check("play.barrier_cross", xr == "ok", "p" .. role .. " " .. tostring(xd))
-    end
+    -- owner_tob_normal: the trio through the barrier on ONE tick (t.raid.
+    -- cross_together, raid_play.lua): Blert's trios swing first at +5 on every
+    -- seat; the members' press after a "started" barrier crossed them 3-4
+    -- ticks behind the leader (phase 100 54-59 ticks against 42 [32-52])
+    local mr, md = nil, nil
+    local xr, xd = t.raid.cross_together("maiden", { at_answer = function() mr, md = t.ticklog.mark("room start") end })
+    t.check("play.barrier_cross", xr == "ok", "p" .. role .. " " .. tostring(xd))
+    if role == 1 then t.check("play.mark", mr == "ok", tostring(md)) end
 
     -- THE FIGHT: the library and the room's plan, nothing else
     -- raid seam40: the dps seats swing the scythe (the library's cadence row)
@@ -174,7 +195,7 @@ local function party_run(t)
     t.check("play.role", m.role ~= nil, string.sub("p" .. role .. " role " .. tostring(m.role) .. "; her tile " .. tostring(seen.x) .. "," .. tostring(seen.z)
         .. " (offset " .. tostring(m.ox) .. "," .. tostring(m.oz) .. "); home walks " .. tostring(m.home_walks or 0) .. ", dodges " .. tostring(m.dodges)
         .. "; eats " .. #rec.eats .. ", drinks " .. #rec.drinks .. ", swings " .. #rec.swings .. ", add presses " .. tostring(m.add_presses)
-        .. "; Ice Barrage casts " .. nc .. " " .. casts, 1, 1800))
+        .. "; Ice Barrage casts " .. nc .. " " .. casts .. (m.cast_none and (" no cast: " .. table.concat(m.cast_none, " ")) or "") .. (m.samples and (" str/pray: " .. table.concat(m.samples, " ")) or ""), 1, 3000))
     if role == 2 then
         -- raid seam40: the thresholds the casts were made in (the reference's
         -- freezer attacks adds in every crab phase: role.freezer.phase.70/50/30

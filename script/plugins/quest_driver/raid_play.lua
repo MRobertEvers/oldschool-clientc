@@ -1088,6 +1088,9 @@ function QD.raid._play_events(st, v)
                         a.x, a.z = row.x, row.z
                     end
                     a.spot = row.spotanim_tick
+                    -- (owner_tob_normal: its health bar, what the screen shows;
+                    -- -1 / nil before the first hit draws one)
+                    a.hr, a.hs = row.health_ratio, row.health_scale
                 end
             end
         end
@@ -1444,4 +1447,96 @@ function QD.raid._play_summary_seam31(st)
         return ""
     end
     return "; " .. table.concat(parts, "; ")
+end
+
+-- ==========================================================================
+-- owner_tob_normal 2026-10-06: THE PARTY THROUGH THE DOOR ON ONE TICK.
+--
+--   t.raid.cross_together(name, opts) -> ok | timeout | refused, detail
+--
+-- The owner, 2026-10-06: "PARTY ENTRY IN LOCKSTEP".  A room harness used to
+-- have the leader walk to the barrier, answer "Yes, begin the fight." and only
+-- then let the members (behind a party barrier) click it from wherever they
+-- stood: they crossed three to four ticks after the leader, eighteen tiles away
+-- at the Nylocas door (owner probe _probe_door: the entry tile 6431,113, the
+-- barrier 6431,95), and Maiden's phase 100 ran 54-59 ticks against Blert's 42
+-- [32-52] with the trio's first swings at +4 / +8 / +8 (Blert: +5 every seat).
+-- Here every seat first walks to the tile beside the barrier on its own side
+-- (the barrier's nearest copy, the long axis read off the gap to it), the
+-- starter opens the question, and on the tick the party barrier releases the
+-- starter answers and every other seat presses the barrier: the server takes
+-- the start and the members' steps in one tick.  A member whose press beat the
+-- start (it sees the question) answers "Not yet." and presses again.
+--   opts.loc      the barrier loc (default tob_arena_barrier)
+--   opts.starter  the seat that begins the fight (default 1)
+--   opts.answer   the option text (default "Yes, begin the fight.")
+--   opts.before   function() the starter runs at the door before the press
+--   opts.at_answer function() the starter runs on the tick it answers (a mark)
+--   opts.timeout  party-barrier ticks (default 900)
+function QD.raid.cross_together(name, opts)
+    assert(type(name) == "string")
+    opts = opts or {}
+    local loc = opts.loc or "tob_arena_barrier"
+    local starter = opts.starter or 1
+    local answer = opts.answer or "Yes, begin the fight."
+    local timeout = opts.timeout or 900
+    local role = QD.party.role()
+    local lr, row = QD.world.loc_near(loc, 40)
+    if lr ~= "ok" or type(row) ~= "table" then
+        return "refused", "cross_together " .. name .. ": no " .. loc .. " within 40 (" .. tostring(lr) .. ")"
+    end
+    local _, here = QD.world.tile()
+    local dx, dz = here.x - row.tile_x, here.z - row.tile_z
+    local sx, sz
+    if math.abs(dx) >= math.abs(dz) then
+        sx, sz = row.tile_x + ((dx >= 0) and 1 or -1), here.z
+    else
+        sx, sz = here.x, row.tile_z + ((dz >= 0) and 1 or -1)
+    end
+    QD.player.walk_to(sx, sz, 40)
+    local _, at = QD.world.tile()
+    local br = QD.party.barrier(name .. "_door", timeout)
+    if br ~= "ok" then return "timeout", "cross_together " .. name .. ": the door barrier " .. tostring(br) end
+    if role == starter and opts.before ~= nil then opts.before() end
+    if role == starter then
+        local presses, opened = 0, false
+        while presses < 3 and not opened do
+            presses = presses + 1
+            QD.player.click_loc(loc, 1)
+            QD.await({ level = function() return QD.chat.kind() == "options" end, note = name .. ": the barrier's question" }, 6)
+            opened = QD.chat.kind() == "options"
+        end
+        if not opened then
+            QD.party.barrier(name .. "_asked", timeout)
+            return "refused", "cross_together " .. name .. ": no question after " .. presses .. " press(es)"
+        end
+    end
+    local ar = QD.party.barrier(name .. "_asked", timeout)
+    if ar ~= "ok" then return "timeout", "cross_together " .. name .. ": the asked barrier " .. tostring(ar) end
+    local _, go_tick = QD.tick()
+    local tries, detail = 0, ""
+    if role == starter then
+        if opts.at_answer ~= nil then opts.at_answer() end
+        local pr, pd = QD.chat.play({ "options", "choose:" .. answer })
+        detail = "answered " .. tostring(pr)
+        if pr ~= "ok" then return "refused", "cross_together " .. name .. ": " .. tostring(pd) end
+    else
+        while tries < 4 do
+            tries = tries + 1
+            QD.player.click_loc(loc, 1)
+            QD.ticks(1)
+            if QD.chat.kind() == "options" then
+                QD.chat.play({ "options", "choose:Not yet." })
+            end
+            local _, now = QD.world.tile()
+            if now.x ~= at.x or now.z ~= at.z then break end
+        end
+        detail = tries .. " press(es)"
+    end
+    QD.ticks(1)
+    local _, after = QD.world.tile()
+    local _, t_after = QD.tick()
+    local crossed = after.x ~= at.x or after.z ~= at.z
+    return crossed and "ok" or "refused", string.format("cross_together %s: p%d from %d,%d (door tile %d,%d) to %d,%d; go t%d, read t%d; %s",
+        name, role, at.x, at.z, sx, sz, after.x, after.z, go_tick, t_after, detail)
 end

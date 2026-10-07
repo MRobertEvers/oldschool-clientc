@@ -554,16 +554,15 @@ end
 local function start_room(t, name, leader_pre, member_cross, starter)
     starter = starter or 1
     t.expect(name .. ".barrier.entrance", t.party.barrier(name .. "_entrance", 600))
-    if role == starter then
-        if leader_pre ~= nil then leader_pre() end
-        begin_fight(t, name)
-        if role == 1 then R[name].mark = mark_tick(t, name .. " start") end
-        t.expect(name .. ".barrier.started", t.party.barrier(name .. "_started", 900))
-    else
-        t.expect(name .. ".barrier.started", t.party.barrier(name .. "_started", 900))
-        if role == 1 then R[name].mark = mark_tick(t, name .. " start (seat " .. starter .. " began it)") end
-        if member_cross ~= nil then member_cross() else cross(t, name) end
-    end
+    -- owner_tob_normal: every seat through the barrier on one tick (t.raid.
+    -- cross_together, raid_play.lua), the starter's own walk first (`leader_pre`);
+    -- the members used to press after a "started" barrier, three to four ticks
+    -- behind (eighteen tiles at the Nylocas door).  `member_cross` (a member's
+    -- walk before its press) is not needed: every seat walks to the door tile.
+    local xr, xd = t.raid.cross_together(name, { starter = starter, before = leader_pre,
+        at_answer = function() if role == 1 then R[name].mark = mark_tick(t, name .. " start") end end })
+    t.check(name .. ".cross", xr == "ok", P .. tostring(xd))
+    if role == 1 and R[name].mark == nil then R[name].mark = mark_tick(t, name .. " start (seat " .. starter .. " began it)") end
 end
 
 -- ------------------------------------------------- each room's pre-fight

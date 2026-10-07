@@ -7563,3 +7563,21 @@ times.  Read the Blert equipmentDeltas at the bow tick before keeping or droppin
 Blert corners (-1,0), (4,-1), (5,4), (0,5) from his SW tile.  The trio plan shifts after
 two not_visible press answers (`st.press_answers.not_visible`).  It never fired in the
 seam55 survey.  Conformance row: `seam.raid_play_sotetseg_corner`.
+
+## The party through a room's door on one tick: t.raid.cross_together (owner_tob_normal)
+
+`t.raid.cross_together(name, { starter, before, at_answer, loc, answer, timeout })` (raid_play.lua): every
+seat walks to the tile beside the barrier on its own side (the barrier's nearest copy, its axis read off the
+gap), a party barrier, the starter (default seat 1) runs `before` and presses until the question opens, a
+second party barrier, then on its release the starter answers (`at_answer` first: the room mark) and every
+other seat presses the barrier; a member that sees the question (its press beat the start) answers "Not
+yet." and presses again. Probe (ownmaidx, Maiden Normal trio): leader on (22,1) at t64, both members at t65
+-- they used to cross 3-4 ticks after the leader (and from the entry tile, eighteen tiles off at the Nylocas
+door: probes/_probe_door.lua reads every room's barrier and entry tile). Used by _play_maiden.lua and the
+relay's start_room for every barrier room.
+
+## Attack reach is content's (owner_tob_normal)
+
+The engine's approach asks `[proc,player_attackrange]` for the reach (torirs_server_combat.c
+player_weapon_attackrange), so a Longrange style or a powered staff on its Longrange button fires from its
+content reach (the Eye of Ayak 6, 8 on Focus). CONTENT_BUGS.md 2026-10-06 owner_tob_normal.

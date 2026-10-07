@@ -1806,3 +1806,50 @@ seat still casts; the LABELS and the Longrange option are wrong, and `t.ui.style
 button on these weapons (the relay picks "Pound" for the Ayak seat for now, test/raids/_play_normal.lua). OPEN:
 add the powered-staff table and map the powered staves to it in combat_stats.rs2, then the harnesses pick
 "Accurate".
+
+## 2026-10-06 owner_tob_normal: the Matomenos walked to the nearest tile of Maiden, not her south-east tile
+
+`tob_maiden.rs2 [proc,tob_maiden_crab_goal]` clamped the crab's tile into her 6x6 (the nearest tile), so a crab
+from the north row walked along her TOP row to her north-east corner (ours: a north 4 at (23,10) on (16,5) at +6,
+then west along z+5 to (6,5)). The recorded rooms walk every crab to her SOUTH-EAST tile: in the 26 Blert
+Regular trio Maiden streams (build/blert_maiden, NPC_UPDATE per tick, tiles from her SW tile) the north 4 at
+(23,10) walks (22,9) (21,8) ... (14,1) (13,0) and then west along her bottom row to (7,0); the north 3 at (19,12)
+reaches (8,1) at +11 beside the south 3 at (8,0) -- "3s and 4s are the nylocas which spawn on the eastern side of
+the arena, and will clump together 11 ticks and 16 ticks after spawning" (wiki_Theatre_of_Blood_Strategies
+.wikitext:520), "frozen on top of each other in front of Maiden" (:637); Mc's "the crabs will walk towards
+Maiden's southeast tile" was the rule the clamp replaced. FIXED: the goal is her south-east tile again (the
+nearest-tile clamp procs stay for `::tobrun`'s law check). Pack compiled.
+
+## 2026-10-06 owner_tob_normal: a Matomenos took its first step on the tick it spawned
+
+Ours stood one tile in on its spawn tick (pos 5 spawned at (19,12) read (18,11) on the spawn tick); every
+recorded crab is still on its spawn tile on its NPC_SPAWN tick and one tile in a tick later (Blert pos 5:
++1 (18,11), +2 (17,10) ... +11 (8,1)), so ours reached every tile -- and her -- a tick early. FIXED:
+`^tob_var_maiden_crab_clock` (tob.constant, slot 9, unused in her room) holds the map_clock of the last
+70/50/30 spawn and `~tob_maiden_crab_tick` takes no step on it. Arrival ticks now match Blert's leaks (pos 0/1
+at +6, 2/3 at +9, 5 at +13, 6-9 at +17). Pack compiled.
+
+## 2026-10-06 owner_tob_normal: the engine walked a ranged/magic weapon to its BARE cache reach, not the content's
+
+`torirs_server_combat.c player_weapon_attackrange` read the obj's `weapon_attackrange` param, while content's
+`[apnpc2,_]` fires from `~player_attackrange` (skill_combat/combat.rs2), which adds two on Longrange ("Attack
+range is increased by +2 tiles up to a maximum of 10 tiles", wiki_Combat_Options.wikitext:37) -- so the
+approach walked a Longrange bow, or the Eye of Ayak on its Longrange slot, two tiles closer than the trigger
+fired from. FIXED in the engine: the reach is `[proc,player_attackrange]`'s answer (the bare param only when
+no content proc answers). And in content, the powered-staff Longrange check read `%varp43_com_mode = 3` (the
+tab's fourth button, Focus) but `~player_combat_stat` clamps the mode to the style row's count on the first
+swing (combat_stats.rs2:382: the melee staff row has three entries, Bash / Pound / Focus), so from the second
+swing it read 2 and the reach fell back to 6. Now `>= 2`. The Eye of Ayak stays at its own reach: 6
+(wiki_Eye_of_Ayak.wikitext:70 "attackrange = 6", :78 "{{CombatStyles|Powered Staff|speed=3|attackrange=6}}"),
+8 on Longrange. PROBE build/seam_state/owner_tob_normal/probes/_probe_range.lua (Ayak on Focus, Attack on
+Maiden from 8 off her edge): the old binary swung once from 8 and walked to 6 (`moved true, now 6437`), the
+owner binary swings from 8 and stays (`moved false, 6439`; verbose "at-range ready? range=8 in_range=1"
+on every ask).
+
+## 2026-10-06 owner_tob_normal: a spell on a target out of reach -- checked, no divergence
+
+A combat spell pressed on an npc beyond its ten tiles walks the caster into reach and casts there: PROBE
+probes/_probe_cast.lua, Ice Barrage on Maiden pressed from 13 tiles off her edge, the barrage seen two ticks
+later from 9 tiles off. A walk the player clicks afterwards replaces the interaction here as any click does
+(the engine's OPNPC/OPLOC/MOVE handlers clear the target first, torirs_server_combat.c), so a plan that steps
+off a splat re-casts after the step; nothing changed.
