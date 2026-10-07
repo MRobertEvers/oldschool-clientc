@@ -533,7 +533,10 @@ function QD.raid._verzik_cover(st, v, ok)
         for _, tl in ipairs(tiles) do
             local x, z = tl[1], tl[2]
             local fall = math.max(math.abs(x - (p.x + 1)), math.abs(z - (p.z + 1)))
-            if (fall >= 3 or not may_fall) and ok(x, z) then
+            -- (owner_verzik 2026-10-07: the fall reaches THREE from the centre
+            -- now, ^tob_verzik_pillar_collapse_range 3 after Blert 280f7cef, the
+            -- anim audit's content change: a tile four out is never caught)
+            if (fall >= 4 or not may_fall) and ok(x, z) then
                 local d = QD.raid._verzik_dist(x, z, b) + (may_fall and 1 or 0)
                 -- ties: the west pillar first (W:885 "the pillar directly
                 -- south-west of Verzik"), then the tile nearer her centre line,
