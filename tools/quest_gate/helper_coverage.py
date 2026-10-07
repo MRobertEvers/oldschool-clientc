@@ -2354,6 +2354,101 @@ class MapWalls:
             return ("none", [], None)
         return ("unreachable", [], self.WIDE_MARGINS[-1] if self.WIDE_MARGINS else widest)
 
+    def _enterable(self, x, z, level):
+        """May a walk with every door open and every crossing loc enterable
+        (door_route "cross") step onto (x, z, level)? Not a blocked tile
+        unless a crossing loc or a diagonal door alone blocks it, never an
+        op tile (a trap, a stepping stone: NEEDS-OP)."""
+        key = (x, z, level)
+        if key not in self.blocked and key not in self.op_tiles:
+            return True
+        if key in self.op_tiles:
+            return False
+        if self.CROSSINGS and self.crossing_locs(x, z, level):
+            return True
+        return bool(self.diagonal_doors(x, z, level))
+
+    def _open_edge(self, cx, cz, nx, nz, level, side, opposite):
+        """Does the step (cx, cz) -> (nx, nz) cross no wall but a door (open
+        here) or a crossing's own op-less wall (door_route "cross")?"""
+        edge = self._edge_doors(cx, cz, nx, nz, level, side, opposite)
+        if edge == []:
+            return self.CROSSINGS and self._crossing_wall(cx, cz, nx, nz, level, side, opposite)
+        return True
+
+    def joined_on_foot(self, start, end, level):
+        """Is there ANY walk on `level` from `start` (x, z) to `end`, with
+        every door open and every crossing loc enterable (door_route
+        "cross"'s steps), however long -- no box, no margin? Two floods, one
+        from each end, each greedy toward the other's seed, the smaller
+        grown first: they meet (True), or one runs out of tiles (False: the
+        ends lie in different walkable components -- an island, a region
+        only a boat, a climb, an op loc or a teleport reaches). The two end
+        tiles are always enterable, as in door_route. A flood that runs out
+        from an ordinary tile (not blocked, no op loc) is a whole component
+        and is remembered, so a later hop into or out of it is a lookup."""
+        components = self.__dict__.setdefault("_components", {})   # (x, z, level) -> component number
+        sizes = self.__dict__.setdefault("_component_count", [0])
+        a, b = tuple(start), tuple(end)
+        if a == b:
+            return True
+        self._ready(a[0], a[1])
+        self._ready(b[0], b[1])
+        ordinary = all(t + (level,) not in self.blocked and t + (level,) not in self.op_tiles for t in (a, b))
+        known_a, known_b = components.get(a + (level,)), components.get(b + (level,))
+        if ordinary and (known_a is not None or known_b is not None):
+            # a remembered component holds every ordinary tile joined to it
+            # (an end on an op tile or a solid tile may touch it without
+            # being in it: flood afresh)
+            return known_a == known_b
+        ends = {a, b}
+        sides = []
+        for seed, goal in ((a, b), (b, a)):
+            self._ready(seed[0], seed[1])
+            sides.append({"seen": {seed}, "heap": [(0, seed)], "goal": goal, "seed": seed})
+        while True:
+            side = min(sides, key=lambda s: len(s["seen"]))
+            other = sides[1] if side is sides[0] else sides[0]
+            if not side["heap"]:
+                seed = side["seed"]
+                if ordinary:
+                    sizes[0] += 1
+                    for cx, cz in side["seen"]:
+                        components[(cx, cz, level)] = sizes[0]
+                return False
+            _, cell = heapq.heappop(side["heap"])
+            gx, gz = side["goal"]
+            for step, (dx, dz, opposite) in self.STEP.items():
+                nx, nz = cell[0] + dx, cell[1] + dz
+                if (nx, nz) in side["seen"]:
+                    continue
+                if not self._ready(nx, nz):
+                    continue
+                if not self._open_edge(cell[0], cell[1], nx, nz, level, step, opposite):
+                    continue
+                if (nx, nz) not in ends and not self._enterable(nx, nz, level):
+                    continue
+                if (nx, nz) in other["seen"]:
+                    return True
+                side["seen"].add((nx, nz))
+                heapq.heappush(side["heap"], (abs(nx - gx) + abs(nz - gz), (nx, nz)))
+
+    def long_hop_route(self, start, end, level):
+        """hop_route for a hop longer than the grader floods in a box
+        (Grader.GATE_MAX_TILES): ("unreachable", [], None) when no walk on
+        foot joins the ends at all (joined_on_foot), else ("none", [],
+        None) -- a walk exists; which gate it opens is not judged at this
+        length. ("none") too when NO_ROUTE is off, an end's map square is
+        not on disk, or an end is a solid tile (solid_landings' business)."""
+        if not self.NO_ROUTE or not self.square_present(start[0], start[1]) or \
+                not self.square_present(end[0], end[1]):
+            return ("none", [], None)
+        if (start[0], start[1], level) in self.blocked or (end[0], end[1], level) in self.blocked:
+            return ("none", [], None)
+        if self.joined_on_foot(start, end, level):
+            return ("none", [], None)
+        return ("unreachable", [], None)
+
     def footprint(self, x, z, level):
         """{(x, z, level)}: the tile, and when it is blocked every blocked
         tile within 4 that carries a loc it carries (the rest of a table's or
@@ -7075,6 +7170,14 @@ class Grader:
     # A loc whose op takes a player across something (TRAVEL_OPS) is no
     # loc a press of keeps the player on one side.
     GATE_MAX_TILES = 1200  # a hop longer than this is not flooded (cost); the longest tier 1 overland hop is ~870
+    # A hop longer than GATE_MAX_TILES is judged for "no on-foot route" by
+    # MapWalls.long_hop_route (an unbounded flood from both ends: are they in
+    # one walkable component?) -- which gate a joined long hop opens is still
+    # not judged. False is the reading before seam matthew-mbp-m4-b70-longgoto
+    # (a long hop was skipped: queenofthieves' goto-barman from Lumbridge to
+    # Great Kourend, 1,656 tiles, a boat ride, read FULL), kept for the
+    # fixtures.
+    LONG_HOPS_JUDGED = True
 
     def _side_kept(self, row):
         """Could this row NOT have taken the player through a closed door or
@@ -7257,8 +7360,11 @@ class Grader:
 
         The departure: the goto's stamp, else the reading before it when
         the rows between kept the player on one side (_known_departure).
-        Not judged: a hop to another level or map frame, a hop longer than
-        GATE_MAX_TILES, a first goto with no stamp whose start is unknown (a
+        Not judged: a hop to another level or map frame, the gate of a hop
+        longer than GATE_MAX_TILES (whether ANY walk joins its ends is:
+        LONG_HOPS_JUDGED, MapWalls.long_hop_route -- no on-foot route at any
+        length is charged like the short hop's UNREACHABLE), a first goto
+        with no stamp whose start is unknown (a
         setup placement with no landing, a row before it that moves the
         player). The run's start is judged since seam
         matthew-mbp-m4-b64-seam1: an unstamped first goto from the
@@ -7288,13 +7394,17 @@ class Grader:
             before, before_position, stamped = known
             if before[2] != point[2] or abs(before[1] - point[1]) > 3200 or abs(before[0] - point[0]) > 3200:
                 continue  # another level or map frame: a climb, a cave, a teleport
-            if before[:2] == point[:2] or \
-                    max(abs(before[0] - point[0]), abs(before[1] - point[1])) > self.GATE_MAX_TILES:
+            if before[:2] == point[:2]:
+                continue
+            long_hop = max(abs(before[0] - point[0]), abs(before[1] - point[1])) > self.GATE_MAX_TILES
+            if long_hop and not (self.LONG_HOPS_JUDGED and self._no_route_judged(walls)):
                 continue
             row = self.rows[position]
             if (row["index"], row["step"]) in charged:
                 continue
-            if self._no_route_judged(walls):
+            if long_hop:
+                kind, gates, margin = walls.long_hop_route(before[:2], point[:2], point[2])
+            elif self._no_route_judged(walls):
                 kind, gates, margin = walls.hop_route(before[:2], point[:2], point[2])
             else:
                 kind, gates, margin = "gates", walls.only_way_gates(before[:2], point[:2], point[2]), None
@@ -7314,17 +7424,25 @@ class Grader:
                 items = self._gate_crossings.setdefault(name, [])
                 if any(key == (row["index"], row["step"]) for key, _ in items):
                     continue
+                if long_hop:
+                    unreachable = ("UNREACHABLE, %d tiles: with every door open and every crossing loc enterable "
+                                   "no walk joins them at any length -- they lie in different walkable "
+                                   "components of level %d (maps/m%d_%d.jl2 -> m%d_%d.jl2)" % (
+                                       max(abs(before[0] - point[0]), abs(before[1] - point[1])), point[2],
+                                       before[0] >> 6, before[1] >> 6, point[0] >> 6, point[1] >> 6))
+                else:
+                    unreachable = ("UNREACHABLE at margin %d): with every door open and every crossing loc "
+                                   "enterable no walk joins them inside their box widened by %s tiles "
+                                   "(maps/m%d_%d.jl2 -> m%d_%d.jl2" % (
+                                       margin, "/".join(str(m) for m in walls.GATE_MARGINS + walls.WIDE_MARGINS),
+                                       before[0] >> 6, before[1] >> 6, point[0] >> 6, point[1] >> 6))
                 items.append(((row["index"], row["step"]),
                     "ledger row %s %r goes from %d,%d,%d (row %s %r) to %d,%d,%d: no on-foot route "
-                    "(UNREACHABLE at margin %d): with every door open and every crossing loc enterable no walk "
-                    "joins them inside their box widened by %s tiles (maps/m%d_%d.jl2 -> m%d_%d.jl2), and no "
-                    "travel row (a teleport or cast, a sail that moves the hull or disembarks, a ferry, cart "
-                    "or carpet, a climb) between: the goto stood in for the boat, teleport, climb or op loc "
-                    "that gets there (gate_crossings)" % (
+                    "(%s), and no travel row (a teleport or cast, a sail that moves the hull or disembarks, a "
+                    "ferry, cart or carpet, a climb) between: the goto stood in for the boat, teleport, climb "
+                    "or op loc that gets there (gate_crossings)" % (
                         row["index"], row["step"], before[0], before[1], before[2], from_row["index"],
-                        from_row["step"], point[0], point[1], point[2], margin,
-                        "/".join(str(m) for m in walls.GATE_MARGINS + walls.WIDE_MARGINS),
-                        before[0] >> 6, before[1] >> 6, point[0] >> 6, point[1] >> 6)))
+                        from_row["step"], point[0], point[1], point[2], unreachable)))
                 continue
             if kind != "gates" or not gates:
                 continue

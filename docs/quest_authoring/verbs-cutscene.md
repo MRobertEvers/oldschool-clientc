@@ -259,6 +259,13 @@ Drive the click that triggers it (`investigateSkeleton`) and the dialogue after 
 ordinary rows. Do not write a `cutscene:` row for a scene that has no camera op. Name it in the
 review as spec-pending. Porting it is work for the cutscene session, not for the author, and once
 the port adds a `cam_*` op the gate rule applies to the quest.
+
+That is what happened to Porcine itself in matthew-mbp-m4-b70: `[proc,poi_pig_thing_cutscene]`
+(`porcineofinterest_locs.rs2`) now plays the Pig Thing, the acid, the blackout and Spria's rescue
+with the canoe recipe and seven camera sites, and wakes the player in Spria's house. From that
+commit on, `porcineofinterest` needs its `pigThing.cutscene` await row (and the old
+`player:Argh! My eyes!` page is an overhead `say`, not a page). The example above still shows the
+rule for every remaining `ported=no` row.
 The same holds for every `ported=no` row in `CUTSCENES.tsv`: Contact! (3 scenes), Ribbiting Tale (1)
 and What Lies Below (2) were spec-pending in matthew-mbp-m4-b53, so they had no `cutscene:` rows.
 In matthew-mbp-m4-b54 the same held for Ethically Acquired Antiquities (2 scenes; the port speaks
