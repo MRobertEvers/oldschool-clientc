@@ -297,49 +297,56 @@ return {
                     spark_dodges = spark_dodges + 1
                     last_dodge_tick = now
                 end
-                local want_mage = mage_casts < 12 and (
-                    (hammer_visits == 1 and not should_dodge)
+                -- Prefer eating through spark volleys; mage only when HP is high
+                -- enough that a 20-splat cannot kill mid-cast.
+                local hr, hp = t.skill.read("hitpoints")
+                local hp_ok = hr == "ok" and hp.level >= 75
+                local want_mage = hp_ok and mage_casts < 12 and (
+                    (hammer_visits == 1 and not should_dodge and anvil_age >= 4)
                     or (hammer_visits > 1 and should_dodge and mage_casts < 8)
                 )
                 if want_mage then
-                    local hr, hp = t.skill.read("hitpoints")
-                    if hr == "ok" and hp.level >= 50 then
-                        t.player.equip("kodai_wand", { quick = true })
-                        t.ticks(1)
-                        local before_serial = 0
-                        local _, nh0 = t.ticklog.rows({ kind = "hit_npc", slot = wslot })
-                        if nh0 ~= nil and #nh0 > 0 then before_serial = nh0[#nh0].serial end
-                        local cr = t.player.cast(mage_kind, "raids_tekton_hammering", 2, 5,
-                            { slot = frow.slot })
-                        mage_casts = mage_casts + 1
-                        t.ticks(5)
-                        if cr == "ok" then
-                            local _, nh1 = t.ticklog.rows({ kind = "hit_npc", slot = wslot, since = before_serial })
-                            local hi = 1
-                            while nh1 ~= nil and hi <= #nh1 do
-                                local d = nh1[hi].damage or nh1[hi].raw or 0
-                                if d <= 0 then d = nh1[hi].e or 0 end
-                                if d > 0 then
-                                    if mage_kind == "water_wave" then
-                                        water_hits[#water_hits + 1] = d
-                                    else
-                                        fire_hits[#fire_hits + 1] = d
-                                    end
+                    t.player.equip("kodai_wand", { quick = true })
+                    t.ticks(1)
+                    sustain()
+                    local before_serial = 0
+                    local _, nh0 = t.ticklog.rows({ kind = "hit_npc", slot = wslot })
+                    if nh0 ~= nil and #nh0 > 0 then before_serial = nh0[#nh0].serial end
+                    local cr = t.player.cast(mage_kind, "raids_tekton_hammering", 2, 5,
+                        { slot = frow.slot })
+                    mage_casts = mage_casts + 1
+                    t.ticks(3)
+                    sustain()
+                    t.ticks(2)
+                    if cr == "ok" then
+                        local _, nh1 = t.ticklog.rows({ kind = "hit_npc", slot = wslot, since = before_serial })
+                        local hi = 1
+                        while nh1 ~= nil and hi <= #nh1 do
+                            local d = nh1[hi].damage or nh1[hi].raw or 0
+                            if d <= 0 then d = nh1[hi].e or 0 end
+                            if d > 0 then
+                                if mage_kind == "water_wave" then
+                                    water_hits[#water_hits + 1] = d
+                                else
+                                    fire_hits[#fire_hits + 1] = d
                                 end
-                                hi = hi + 1
                             end
+                            hi = hi + 1
                         end
-                        if mage_kind == "water_wave" then mage_kind = "fire_wave" else mage_kind = "water_wave" end
-                        return
                     end
+                    if mage_kind == "water_wave" then mage_kind = "fire_wave" else mage_kind = "water_wave" end
+                    return
                 end
                 t.ticks(1)
                 return
             end
 
             if sm.state == STATE.REENGAGE then
-                -- Post-anvil: another DWH special into the enraged band.
+                -- Post-anvil: restock, DWH special into the enraged band.
                 arm_protect()
+                t.cheat("::give shark 10")
+                t.cheat("::give br_4dosepotionofsaradomin 4")
+                sustain()
                 fire_dwh_spec(fs, frow)
                 t.player.walk_to(frow.x - 2, frow.z - 2, 6)
                 set_state(STATE.CYCLE)
