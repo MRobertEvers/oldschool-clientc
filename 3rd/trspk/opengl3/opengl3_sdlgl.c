@@ -90,6 +90,28 @@ PFNGLFENCESYNCPROC trspk_glFenceSync;
 PFNGLDELETESYNCPROC trspk_glDeleteSync;
 PFNGLCLIENTWAITSYNCPROC trspk_glClientWaitSync;
 PFNGLFLUSHPROC trspk_glFlush;
+PFNGLBLENDFUNCSEPARATEPROC trspk_glBlendFuncSeparate;
+PFNGLGETERRORPROC trspk_glGetError;
+PFNGLGETINTEGERVPROC trspk_glGetIntegerv;
+PFNGLGETSTRINGPROC trspk_glGetString;
+PFNGLPIXELSTOREIPROC trspk_glPixelStorei;
+PFNGLTEXSUBIMAGE2DPROC trspk_glTexSubImage2D;
+PFNGLUNIFORM2FPROC trspk_glUniform2f;
+PFNGLUNIFORM4FPROC trspk_glUniform4f;
+PFNGLGENFRAMEBUFFERSPROC trspk_glGenFramebuffers;
+PFNGLDELETEFRAMEBUFFERSPROC trspk_glDeleteFramebuffers;
+PFNGLBINDFRAMEBUFFERPROC trspk_glBindFramebuffer;
+PFNGLFRAMEBUFFERTEXTURE2DPROC trspk_glFramebufferTexture2D;
+PFNGLCHECKFRAMEBUFFERSTATUSPROC trspk_glCheckFramebufferStatus;
+PFNGLBLITFRAMEBUFFERPROC trspk_glBlitFramebuffer;
+PFNGLGENRENDERBUFFERSPROC trspk_glGenRenderbuffers;
+PFNGLDELETERENDERBUFFERSPROC trspk_glDeleteRenderbuffers;
+PFNGLBINDRENDERBUFFERPROC trspk_glBindRenderbuffer;
+PFNGLRENDERBUFFERSTORAGEPROC trspk_glRenderbufferStorage;
+PFNGLFRAMEBUFFERRENDERBUFFERPROC trspk_glFramebufferRenderbuffer;
+PFNGLGETBUFFERSUBDATAPROC trspk_glGetBufferSubData;
+PFNGLREADBUFFERPROC trspk_glReadBuffer;
+PFNGLREADPIXELSPROC trspk_glReadPixels;
 
 bool
 trspk_sdlgl_init(void)
@@ -162,5 +184,27 @@ trspk_sdlgl_init(void)
     O3L(glDeleteSync, PFNGLDELETESYNCPROC, trspk_glDeleteSync);
     O3L(glClientWaitSync, PFNGLCLIENTWAITSYNCPROC, trspk_glClientWaitSync);
     O3L(glFlush, PFNGLFLUSHPROC, trspk_glFlush);
+    O3L(glBlendFuncSeparate, PFNGLBLENDFUNCSEPARATEPROC, trspk_glBlendFuncSeparate);
+    O3L(glGetError, PFNGLGETERRORPROC, trspk_glGetError);
+    O3L(glGetIntegerv, PFNGLGETINTEGERVPROC, trspk_glGetIntegerv);
+    O3L(glGetString, PFNGLGETSTRINGPROC, trspk_glGetString);
+    O3L(glPixelStorei, PFNGLPIXELSTOREIPROC, trspk_glPixelStorei);
+    O3L(glTexSubImage2D, PFNGLTEXSUBIMAGE2DPROC, trspk_glTexSubImage2D);
+    O3L(glUniform2f, PFNGLUNIFORM2FPROC, trspk_glUniform2f);
+    O3L(glUniform4f, PFNGLUNIFORM4FPROC, trspk_glUniform4f);
+    O3L(glGenFramebuffers, PFNGLGENFRAMEBUFFERSPROC, trspk_glGenFramebuffers);
+    O3L(glDeleteFramebuffers, PFNGLDELETEFRAMEBUFFERSPROC, trspk_glDeleteFramebuffers);
+    O3L(glBindFramebuffer, PFNGLBINDFRAMEBUFFERPROC, trspk_glBindFramebuffer);
+    O3L(glFramebufferTexture2D, PFNGLFRAMEBUFFERTEXTURE2DPROC, trspk_glFramebufferTexture2D);
+    O3L(glCheckFramebufferStatus, PFNGLCHECKFRAMEBUFFERSTATUSPROC, trspk_glCheckFramebufferStatus);
+    O3L(glBlitFramebuffer, PFNGLBLITFRAMEBUFFERPROC, trspk_glBlitFramebuffer);
+    O3L(glGenRenderbuffers, PFNGLGENRENDERBUFFERSPROC, trspk_glGenRenderbuffers);
+    O3L(glDeleteRenderbuffers, PFNGLDELETERENDERBUFFERSPROC, trspk_glDeleteRenderbuffers);
+    O3L(glBindRenderbuffer, PFNGLBINDRENDERBUFFERPROC, trspk_glBindRenderbuffer);
+    O3L(glRenderbufferStorage, PFNGLRENDERBUFFERSTORAGEPROC, trspk_glRenderbufferStorage);
+    O3L(glFramebufferRenderbuffer, PFNGLFRAMEBUFFERRENDERBUFFERPROC, trspk_glFramebufferRenderbuffer);
+    O3L(glGetBufferSubData, PFNGLGETBUFFERSUBDATAPROC, trspk_glGetBufferSubData);
+    O3L(glReadBuffer, PFNGLREADBUFFERPROC, trspk_glReadBuffer);
+    O3L(glReadPixels, PFNGLREADPIXELSPROC, trspk_glReadPixels);
     return true;
 }
