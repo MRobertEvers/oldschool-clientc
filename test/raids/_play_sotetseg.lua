@@ -39,8 +39,13 @@ trio_kit = {
     -- ranged set (six pieces, worn from the barrier, so the melee set's six ride
     -- in their slots) and a stamina dose; the reference's raiders lose 92.5-108
     -- hitpoints a room, 225 at most (sotetseg_normal_3.json outcome.hp_lost)
-    "::give anglerfish 10", "::give br_4dose2restore 3", "::give 4dose2combat 1",
-    "::give br_4dosepotionofsaradomin 4",
+    -- owner_rooms4 (coordinator, from build/blert/sotetseg's type 4 stats): the
+    -- recorded seats are at Attack and Strength 118 five ticks into EVERY phase
+    -- (median 118 in fights 1-3, n 33-37) and drink no brew here: a divine super
+    -- combat at the door (no decay for its 5 minutes, wiki Divine super combat
+    -- potion), not a super combat that decays to ~116 by fight 3, and the brews'
+    -- four slots are anglerfish
+    "::give anglerfish 14", "::give br_4dose2restore 3", "::give 4dosedivinecombat 1",
     -- raid seam42: the elder maul the Blert trios spec once a phase
     -- (sotetseg_normal_3.json weapons ELDER_MAUL; the plan's THE ELDER MAUL)
     "::give elder_maul 1",
@@ -86,7 +91,7 @@ trio_run = function(t)
         t.check("start_tile", fr == "ok", tostring(ftext))
         fight = ftile
     end
-    local pr0 = t.player.inv_op("4dose2combat", 1, { quick = true })
+    local pr0 = t.player.inv_op("4dosedivinecombat", 1, { quick = true })
     t.ticks(1)
     local ar2, att2 = t.skill.read("attack")
     t.check("play.potion", ar2 == "ok" and att2.level > 99, "p" .. role .. " super combat before the barrier: attack " .. tostring(att2 and att2.level) .. " (" .. tostring(pr0) .. ")")

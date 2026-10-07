@@ -1011,6 +1011,10 @@ function QD.raid._play_sotetseg_trio_body(st, v)
             em.stage, em.arm, em.energy0, em.in_hand = "swing", v.tick, energy, true
             intent.spec = true
             intent.attack = true
+            -- (no walk to the seat corner: the press paths in to his nearest
+            -- face; svbplaysotet p0 walked from 14,94 to its corner 18,108 and
+            -- specced at +15, Blert's maul is at a median +10)
+            intent.walk = nil
             st.engaged = false
             return intent
         end
@@ -1045,6 +1049,7 @@ function QD.raid._play_sotetseg_trio_body(st, v)
                 S.em.log[#S.em.log + 1] = "phase " .. phase .. (em.fresh and " opener" or "") .. " on t" .. em.at
                     .. (em.fired and (" fired t" .. em.fired) or " gave up t" .. v.tick) .. (em.rearm and (" rearmed " .. em.rearm) or "")
             else
+                if em.in_hand then intent.walk = nil end
                 local _, armed = QD.var.varp("varp301_sa_attack")
                 if tonumber(armed) == 0 and v.tick - em.arm >= 2 and (em.rearm or 0) < 3 then
                     em.rearm = (em.rearm or 0) + 1
