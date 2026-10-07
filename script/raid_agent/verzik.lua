@@ -490,6 +490,32 @@ local P3_RANGED_PROJ, P3_MAGIC_PROJ, BALL_PROJ, WEB_PROJ, POOL_GFX = 1593, 1594,
 local TORNADO = { tob_verzik_creeper = true }
 local WEBS = { verzik_web_npc = true }
 
+-- Walking distance from (sx, sz) over the floor, round her body: a straight
+-- line through a 7x7 is not a path (vz01 t733-741: the joiner went the long
+-- way round her and landed seven tiles from the holder).
+local function bfs(world, O, sx, sz, limit)
+    local d = { [sx * 100000 + sz] = 0 }
+    local q, head = { { sx, sz } }, 1
+    while head <= #q do
+        local x, z = q[head][1], q[head][2]
+        head = head + 1
+        local k = d[x * 100000 + z]
+        if k < limit then
+            for dx = -1, 1 do
+                for dz = -1, 1 do
+                    local nx, nz = x + dx, z + dz
+                    local key = nx * 100000 + nz
+                    if d[key] == nil and walkable(world, O, nx, nz) then
+                        d[key] = k + 1
+                        q[#q + 1] = { nx, nz }
+                    end
+                end
+            end
+        end
+    end
+    return function(x, z) return d[x * 100000 + z] or (limit + cheb(x, z, sx, sz)) end
+end
+
 local function p3_ball(world, me, m, seats, mems)
     local t = world.tick
     local proj = nil
@@ -637,8 +663,16 @@ local function p3(world, me, m, mems, seats, vz, O, intent)
         -- seat order joins, and everyone else stays out of it.
         if b.holder == me.pid then
             stay_w = 30
+            -- forced off by a tornado, the holder steps TOWARD the joiner:
+            -- the bot runner's raiders read one world, so the pair meet
+            local N = b.next and world.players[b.next]
+            if N ~= nil and N.x ~= nil then
+                local toN = bfs(world, O, N.x, N.z, 30)
+                soft[#soft + 1] = { name = "meet", w = 12, cost = function(x, z) return toN(x, z) end }
+            end
         elseif b.next == me.pid and H ~= nil then
-            soft[#soft + 1] = { name = "join", w = 40, cost = function(x, z) return math.max(0, cheb(x, z, H.x, H.z) - 1) end }
+            local toH = bfs(world, O, H.x, H.z, 30)
+            soft[#soft + 1] = { name = "join", w = 40, cost = function(x, z) return math.max(0, toH(x, z) - 1) end }
             if left <= 1 then
                 hard[#hard + 1] = { name = "pair", pen = 1000, bad = function(x, z) return cheb(x, z, H.x, H.z) > 1 end }
             end
