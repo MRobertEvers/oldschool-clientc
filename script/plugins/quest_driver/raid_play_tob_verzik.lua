@@ -1126,15 +1126,33 @@ function QD.raid._verzik_ball_line(st, v, proj, ok)
     local d = QD.RAID_PLAY_VERZIK_BALL_DIRS[1]
     if #tornadoes > 0 then
         local RR = QD.RAID_PLAY_VERZIK_BALL_RALLY_REACH
+        -- each tile's floor test and tornado gap once: the scan reads every
+        -- tile up to 25 times (itself and as a line's second and third tile
+        -- in eight directions), and unmemoised that was ~400k Lua
+        -- instructions in one tick -- the driver's whole budget, which
+        -- aborted the probetake2 run in its enrage ball
+        local clear_m, gap_m = {}, {}
+        local function cl(x, z)
+            local k = x * 100000 + z
+            local c = clear_m[k]
+            if c == nil then c = clear(x, z) clear_m[k] = c end
+            return c
+        end
+        local function gp(x, z)
+            local k = x * 100000 + z
+            local g = gap_m[k]
+            if g == nil then g = tor_gap(x, z) gap_m[k] = g end
+            return g
+        end
         local best, bR, bd = nil, nil, nil
         for dx = -RR, RR do
             for dz = -RR, RR do
                 local x, z = proj.dst_x + dx, proj.dst_z + dz
-                if clear(x, z) then
+                if cl(x, z) then
                     for _, dd in ipairs(QD.RAID_PLAY_VERZIK_BALL_DIRS) do
                         local x1, z1, x2, z2 = x + dd[1], z + dd[2], x + 2 * dd[1], z + 2 * dd[2]
-                        if clear(x1, z1) and clear(x2, z2) then
-                            local g = math.min(tor_gap(x, z), tor_gap(x1, z1), tor_gap(x2, z2))
+                        if cl(x1, z1) and cl(x2, z2) then
+                            local g = math.min(gp(x, z), gp(x1, z1), gp(x2, z2))
                             local sc = g * 10 - math.max(math.abs(dx), math.abs(dz))
                             if best == nil or sc > best then best, bR, bd = sc, { x = x, z = z }, dd end
                         end
@@ -1762,10 +1780,25 @@ QD.raid.sm_declare("verzik_sword", {
         -- The premise is the loud part: I am only claiming while it is still
         -- there to claim.  If it goes -- someone else reached it first -- this
         -- breaks straight back to IDLE instead of pressing at an empty tile.
+        -- "There" is the floor OR MY PACK: my own take empties the floor, and
+        -- the premise is read before the handler, so a floor-only premise
+        -- broke on the take's own success and left the sword unwielded in
+        -- the claimer's pack (probetake on 76f061b63: CLAIMING>IDLE/
+        -- premise_broken on both claimers, the room's specials stopping at 2).
         CLAIMING    = { note = "it is lying there and I am going for it",
-            premise = function(c, ev) return c.floor_now == true end,
+            premise = function(c, ev) return c.floor_now == true or c.in_pack == true end,
             broken = "IDLE",
             on = { bolt_cycle = function(c, ev) return QD.raid._verzik_sword_claiming(c, ev) end } },
+        -- A FULL PACK TAKES NOTHING: pickup.rs2 [label,pickup_obj_floor]
+        -- refuses with ~inv_no_space_message.  Every slow run on 76f061b63
+        -- had the second seat stand on the sword pressing Take (ten times in
+        -- _vzslow) with 28 of 28 slots used, so the sword lay there for the
+        -- rest of P1 and the room got two specials of Blert's nine to eleven.
+        -- ROOM is the claim's own step: one food out of the pack, then back.
+        ROOM        = { note = "pack full: one food out to make the slot",
+            premise = function(c, ev) return c.floor_now == true or c.in_pack == true end,
+            broken = "IDLE",
+            on = { bolt_cycle = function(c, ev) return QD.raid._verzik_sword_room(c, ev) end } },
         WIELD       = { note = "putting it on", on = {
             bolt_cycle = function(c, ev) return QD.raid._verzik_sword_wield(c, ev) end } },
         ARMED       = { note = "wielded and ready to fire", on = {
@@ -1829,6 +1862,15 @@ function QD.raid._verzik_sword_idle(c, ev)
     assert(c, "_verzik_sword_idle: c")
     assert(ev, "_verzik_sword_idle: ev")
     local st, v, dw = c.st, c.v, c.dw
+    -- in my pack and not in my hand: a take that landed after CLAIMING let
+    -- go (or a pick-up nobody planned) is still a sword to fire
+    if c.in_pack and c.vz.held ~= "dawnbringer" then
+        dw.took = v.tick
+        dw.e_prev = ev.energy
+        dw.lying_since = nil
+        dw.took_late = (dw.took_late or 0) + 1
+        return nil, "WIELD"
+    end
     if not c.floor_now then
         dw.lying_since = nil
         return
@@ -1852,19 +1894,71 @@ function QD.raid._verzik_sword_claiming(c, ev)
     assert(c, "_verzik_sword_claiming: c")
     assert(ev, "_verzik_sword_claiming: ev")
     local st, v, dw, intent = c.st, c.v, c.dw, c.intent
-    local cr, n = QD.inv.count("verzik_special_weapon")
-    if cr == "ok" and n > 0 then
+    if c.in_pack then
         dw.took = v.tick
         dw.e_prev = ev.energy
         dw.claim_ticks = (dw.claim_ticks or 0) + (v.tick - (dw.claim_from or v.tick))
         dw.lying_since = nil
         return nil, "WIELD"
     end
+    if QD.raid._verzik_pack_free() == 0 then return nil, "ROOM" end
     -- not in the pack yet: ask for it as this tick's intent, so the bolt
     -- parent can still pull this raider into cover between presses
     intent.take = { obj = "verzik_special_weapon", op = 3 }
     c.busy = true
 end
+
+-- The empty slots in my pack (an empty slot reads obj -1, QD.inv.slot).
+function QD.raid._verzik_pack_free()
+    local free = 0
+    for i = 0, QD.RAID_PLAY_VERZIK_PACK_SLOTS - 1 do
+        local r, slot = QD.inv.slot(i)
+        assert(r == "ok", "_verzik_pack_free: slot " .. i .. ": " .. tostring(slot))
+        if slot.count == 0 then free = free + 1 end
+    end
+    return free
+end
+QD.RAID_PLAY_VERZIK_PACK_SLOTS = 28
+-- the first P1 wind-up, earliest seen after the plan's first P1 tick (15, 16)
+QD.RAID_PLAY_VERZIK_FIRST_WINDUP = 14
+
+-- ROOM: one food out.  Eaten when at least half its heal lands under the
+-- level (the eat policy's own test, raid_play.lua `lands`), else dropped:
+-- a dropped fish costs no eat delay, and the specials the slot buys are
+-- worth more than one fish.  Back to CLAIMING once the slot shows.
+function QD.raid._verzik_sword_room(c, ev)
+    assert(c, "_verzik_sword_room: c")
+    assert(ev, "_verzik_sword_room: ev")
+    local st, v, dw, intent = c.st, c.v, c.dw, c.intent
+    if c.in_pack or QD.raid._verzik_pack_free() > 0 then return nil, "CLAIMING" end
+    if dw.room_tick ~= nil and v.tick - dw.room_tick < QD.RAID_PLAY_VERZIK_ROOM_WAIT then
+        c.busy = true
+        return
+    end
+    local food, heal = nil, 0
+    for _, f in ipairs(QD.RAID_PLAY_FOOD) do
+        local r, n = QD.inv.count(f.item)
+        if r == "ok" and n > 0 then food, heal = f.item, f.heal break end
+    end
+    assert(food, "_verzik_sword_room: a full pack with no food in it")
+    dw.room_tick = v.tick
+    dw.room_n = (dw.room_n or 0) + 1
+    if intent.eat == nil and math.min(heal, v.hp_base - v.hp) * 2 >= heal
+        and v.tick - st.last_eat >= QD.RAID_PLAY_EAT_DELAY then
+        intent.eat = food
+        dw.room_ate = (dw.room_ate or 0) + 1
+    else
+        local dr, dd = QD.player.drop(food)
+        if dr ~= "ok" and #st.lines < 6 then
+            st.lines[#st.lines + 1] = "t" .. v.tick .. " room drop " .. tostring(dr) .. ": "
+                .. string.sub(tostring(dd), 1, 120)
+        end
+        dw.room_dropped = (dw.room_dropped or 0) + 1
+    end
+    c.busy = true
+end
+-- the pack update rides the next tick's inventory packet
+QD.RAID_PLAY_VERZIK_ROOM_WAIT = 2
 
 -- WIELD: the sword goes on.  Its own tick, because the equip IS the tick's
 -- work -- the old body did this and the first special in one `held` pass and
@@ -2047,8 +2141,11 @@ function QD.raid._verzik_dawn(st, v, intent, hiding, on_cover, events)
     end
     if floor_now and not dw.on_floor then dw.appear = dw.appear + 1 end
     dw.on_floor = floor_now
+    local pr, held_n = QD.inv.count("verzik_special_weapon")
+    assert(pr == "ok", "_verzik_dawn: inv count: " .. tostring(held_n))
     local c = { st = st, v = v, vz = vz, dw = dw, intent = intent,
-        hiding = hiding, on_cover = on_cover, floor_now = floor_now, busy = false }
+        hiding = hiding, on_cover = on_cover, floor_now = floor_now, in_pack = held_n > 0,
+        busy = false }
     -- raid seam53 hierarchy: ONE event for both machines, carrying the tick's
     -- two readings -- whether a bolt has me on a cover tile, and what the orb
     -- holds.  The parent (verzik_bolt) switches on `hiding` and the layer
@@ -2100,8 +2197,14 @@ function QD.raid._verzik_p1_normal(st, v, intent, ok, go, events)
         -- our server's first wind-up came 16-17 ticks after the plan's first
         -- P1 tick (s34v: t57 from t41), two before V's 19 from the room
         -- start; the early figure, so the first bolt finds the trio hidden
-        -- (s34v: every raider was hit by the t60 bolt with 19)
-        L = vz.p1_start + 16 + P.p1_launch
+        -- (s34v: every raider was hit by the t60 bolt with 19).  It is
+        -- EARLIEST, not typical: svavzslow on 76f061b63 wound up 15 after the
+        -- first tick (t69 from t54), the 16 here put the launch at t73 against
+        -- the server's t72, and the trio reached cover at the end of t72 --
+        -- the launch reads the tile of the tick before -- so every raider
+        -- took the first bolt.  A tick early only hides one tick sooner; the
+        -- wind-up, once seen, sets the launch exactly.
+        L = vz.p1_start + QD.RAID_PLAY_VERZIK_FIRST_WINDUP + P.p1_launch
         while L < v.tick do L = L + P.p1_cadence end
     end
     local cover = QD.raid._verzik_cover(st, v, ok)
