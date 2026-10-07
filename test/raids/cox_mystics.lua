@@ -2,10 +2,10 @@
 -- Spec: docs/minigames/cox/encounters/mystics.tsv
 -- Source: docs/minigames/cox/synq_transcript.md [0:31:54]
 --   "Make sure you're protecting from magic while doing this room."
---   "The shadow is best in slot for skeletal mystics during your solo raids."
--- Kill path: Protect from Magic + Tumeken's shadow, focus one at a time.
--- Tick-loop FOCUS (not await_dead): eat/brew on a cooldown so consumes do
--- not cancel every 5-tick shadow cast (runs 9-12 burned food mid-swing).
+--   "The bofa and blowpipe are also commonly used here."
+-- Kill path: Protect from Magic + toxic blowpipe, focus one at a time.
+-- Tick-loop FOCUS: 2-tick blowpipe fits between food delays; no kite
+-- (kiting every tick starved all DPS when three mystics stayed adjacent).
 -- Model: named-state machine, one intent per tick.
 -- No ::godmode, ::kill, or teleport past a phase.
 
@@ -17,10 +17,8 @@ local FORMS = {
 
 local ANIM_MELEE = 5485
 local ANIM_MAGIC = 5523
-local MELEE_REACH = 2
-local KITE_CHEBYSHEV = 5
-local CONSUME_COOLDOWN = 5
-local ATTACK_EVERY = 5
+local CONSUME_COOLDOWN = 3
+local ATTACK_EVERY = 2
 
 local STATE = {
     LAND = "LAND",
@@ -31,15 +29,6 @@ local STATE = {
 
 local function is_mystic_sym(sym)
     return sym == FORMS[1] or sym == FORMS[2] or sym == FORMS[3]
-end
-
-local function chebyshev(ax, az, bx, bz)
-    local dx = ax - bx
-    local dz = az - bz
-    if dx < 0 then dx = -dx end
-    if dz < 0 then dz = -dz end
-    if dx > dz then return dx end
-    return dz
 end
 
 local function mystic_rows(t)
@@ -86,50 +75,6 @@ local function nearest_mystic(t)
     local rows = mystic_rows(t)
     if #rows == 0 then return nil, nil end
     return rows[1], rows[1].symbol
-end
-
-local function closest_mystic(me, rows)
-    local best, bestd = nil, 999
-    for i = 1, #rows do
-        local row = rows[i]
-        if row.x ~= nil and row.z ~= nil then
-            local d = chebyshev(me.x, me.z, row.x, row.z)
-            if d < bestd then
-                best, bestd = row, d
-            end
-        end
-    end
-    return best, bestd
-end
-
-local function any_melee_reach(me, rows)
-    for i = 1, #rows do
-        local row = rows[i]
-        if row.x ~= nil and row.z ~= nil then
-            if chebyshev(me.x, me.z, row.x, row.z) <= MELEE_REACH then
-                return true
-            end
-        end
-    end
-    return false
-end
-
-local function kite_tile(me, threat)
-    local dx = me.x - threat.x
-    local dz = me.z - threat.z
-    if dx == 0 and dz == 0 then
-        return me.x, me.z - KITE_CHEBYSHEV
-    end
-    local adx, adz = dx, dz
-    if adx < 0 then adx = -adx end
-    if adz < 0 then adz = -adz end
-    local sx, sz = 0, 0
-    if adx >= adz then
-        if dx >= 0 then sx = 1 else sx = -1 end
-    else
-        if dz >= 0 then sz = 1 else sz = -1 end
-    end
-    return me.x + sx * KITE_CHEBYSHEV, me.z + sz * KITE_CHEBYSHEV
 end
 
 local function hp(t)
@@ -200,8 +145,19 @@ return {
         "::setlevel magic 99",
         "::setlevel hitpoints 99",
         "::setlevel prayer 99",
-        -- Synq [0:31:54]: Tumeken's shadow BiS; ::maxmage charges it.
-        "::maxmage",
+        -- Synq [0:31:54]: blowpipe commonly used; 2-tick rapid fits food delay.
+        "::blowpipe dragon_dart 2000 2000",
+        "::wield toxic_blowpipe_loaded",
+        "::give masori_mask",
+        "::wield masori_mask",
+        "::give masori_body",
+        "::wield masori_body",
+        "::give masori_chaps",
+        "::wield masori_chaps",
+        "::give avas_assembler",
+        "::wield avas_assembler",
+        "::give nzone_salve_amulet_e",
+        "::wield nzone_salve_amulet_e",
         "::give br_4dose2restore 2",
         "::give br_4dosepotionofsaradomin 3",
         "::give shark 20",
@@ -209,7 +165,7 @@ return {
     },
 
     run = function(t)
-        t.check("spec.scope", true, "mode=all party=1; synq shadow + Protect Magic tick-loop")
+        t.check("spec.scope", true, "mode=all party=1; synq blowpipe + Protect Magic")
         local lr, ld = t.ticklog.start()
         t.check("ticklog.start", lr == "ok", tostring(ld))
 
@@ -218,6 +174,10 @@ return {
         local sr, room = t.raid.state()
         t.check("raid.state", sr == "ok" and room.room == "mystics",
             sr == "ok" and (tostring(room.raid) .. " " .. tostring(room.room)) or tostring(room))
+
+        local br, bp = t.inv.blowpipe()
+        t.check("kit.blowpipe", br == "ok" and type(bp) == "table" and bp.where == "worn",
+            "blowpipe " .. tostring(br) .. " " .. tostring(bp and bp.line or bp))
 
         local landing = mystic_rows(t)
         t.check("mystics.present", #landing >= 1,
@@ -321,21 +281,16 @@ return {
 
         local function arm_prayers(check)
             local pr, pd = t.prayer.set("protectfrommagic", true)
-            local er, ed = t.prayer.set("augury", true)
-            if er ~= "ok" then
-                er, ed = t.prayer.set("mysticmight", true)
-            end
+            local er, ed = t.prayer.set("eagleeye", true)
             if check then
                 t.check("pray.magic", pr == "ok", tostring(pd))
-                t.check("pray.mage_boost", er == "ok", tostring(ed))
+                t.check("pray.eagle", er == "ok", tostring(ed))
             end
             sm.prayer_on = (pr == "ok")
         end
 
         local function sustain()
             local h = hp(t)
-            -- Emergency eats ignore the cooldown (run13 died at 26 ticks
-            -- with a cooldown that refused food under stacked mystic hits).
             local urgent = h > 0 and h < 28
             if not urgent and sm.ticks < sm.next_consume_at then
                 if prayer_points(t) < 30 then
@@ -344,13 +299,13 @@ return {
                 end
                 return
             end
-            if h > 0 and h < 45 then
+            if h > 0 and h < 50 then
                 if drink_brew(t) then
                     sm.next_consume_at = sm.ticks + CONSUME_COOLDOWN
                     return
                 end
             end
-            if h > 0 and h < 50 then
+            if h > 0 and h < 55 then
                 if t.player.eat("shark") == "ok"
                     or t.player.eat("tbwt_cooked_karambwan") == "ok" then
                     sm.next_consume_at = sm.ticks + CONSUME_COOLDOWN
@@ -384,6 +339,11 @@ return {
 
             if sm.state == STATE.ARM_PRAYER then
                 arm_prayers(true)
+                for _ = 1, 4 do
+                    if hp(t) >= 90 then break end
+                    if not drink_brew(t) then break end
+                    t.ticks(1)
+                end
                 set_state(STATE.FOCUS)
                 return
             end
@@ -396,16 +356,6 @@ return {
                     sm.kills = sm.kills + (sm.last_alive - #alive)
                 end
                 sm.last_alive = #alive
-
-                local tr, me = t.world.tile()
-                if tr == "ok" and type(me) == "table" and any_melee_reach(me, alive) then
-                    local threat = closest_mystic(me, alive)
-                    if threat ~= nil then
-                        local tx, tz = kite_tile(me, threat)
-                        t.player.walk_to(tx, tz, 3)
-                        return
-                    end
-                end
 
                 local target, sym = nearest_mystic(t)
                 if target == nil or sym == nil then
@@ -507,6 +457,6 @@ return {
             "Protect from Magic armed; protected hits sampled " .. tostring(sm.prot_hits)
                 .. " unprotected " .. tostring(sm.unprot_hits))
         t.check("tech.focus_kill", sm.kills == 3,
-            "cleared " .. tostring(sm.kills) .. " of 3 skeletal mystics with shadow focus")
+            "cleared " .. tostring(sm.kills) .. " of 3 skeletal mystics with blowpipe focus")
     end,
 }
