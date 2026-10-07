@@ -121,7 +121,7 @@ local function sustain(t)
     local level = hp and hp.level
     -- Eat outside attack(): in-attack eat (run14) produced 18× anim 829 and
     -- zero hit_npc — the settle only ate while AoE drained HP.
-    if level ~= nil and level < 65 then
+    if level ~= nil and level < 75 then
         t.player.inv_op("shark", 1)
     end
     local _, pray = t.skill.read("prayer")
@@ -139,7 +139,16 @@ end
 -- Far-side of focus (past the other two) so attackrange-10 misses, once per
 -- focus change. Re-walking every tick cancelled attacks (run7–15); standing
 -- ON the pad took unprotected ranged/melee (run16 max hit 21).
-local ISOLATE_PAST = 5
+-- Pads ~8 apart, attackrange 10: need past >= 3 for chebyshev >10, use 8
+-- so a near miss still clears (run17 died at dz=8 from magic while on melee).
+local ISOLATE_PAST = 8
+
+local function chebyshev(ax, az, bx, bz)
+    local dx = math.abs(ax - bx)
+    local dz = math.abs(az - bz)
+    if dx > dz then return dx end
+    return dz
+end
 
 local function isolate_tile(pack, focus)
     if focus == nil then return nil end
@@ -172,6 +181,18 @@ local function isolate_tile(pack, focus)
     return focus.x + sx * ISOLATE_PAST, focus.z + sz * ISOLATE_PAST
 end
 
+local function others_out_of_range(pack, focus, me)
+    for i = 1, #COMBAT do
+        local row = row_by_sym(pack, COMBAT[i])
+        if row ~= nil and row.symbol ~= focus.symbol then
+            if chebyshev(me.x, me.z, row.x, row.z) <= 10 then
+                return false
+            end
+        end
+    end
+    return true
+end
+
 local function go_stance(t, pack, focus, sm)
     if focus == nil then return false end
     if sm.stance_sym == focus.symbol and sm.stance_ok then
@@ -187,14 +208,18 @@ local function go_stance(t, pack, focus, sm)
     local dz = math.abs(me.z - z)
     local need = 1
     if focus.symbol == RANGED then need = 0 end
-    if dx > need or dz > need then
+    local safe = focus.symbol == RANGED or others_out_of_range(pack, focus, me)
+    if (dx > need or dz > need) and not safe then
         sm.stance_walks = (sm.stance_walks or 0) + 1
-        -- Give up pathing after a few ticks; attack from here rather than
-        -- starve DPS forever on a blocked isolate tile.
-        if sm.stance_walks > 10 then
+        if sm.stance_walks > 25 then
+            -- Last resort: stand under ranged (givechase=no safespot).
+            local ranged = row_by_sym(pack, RANGED)
+            if ranged ~= nil then
+                t.player.walk_to(ranged.x, ranged.z, 3)
+            end
             sm.stance_sym = focus.symbol
             sm.stance_ok = true
-            return false
+            return true
         end
         t.player.walk_to(x, z, 3)
         sm.stance_sym = focus.symbol
