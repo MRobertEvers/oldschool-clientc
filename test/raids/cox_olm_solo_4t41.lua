@@ -61,21 +61,21 @@ local function npc_ok(t, sym)
 end
 
 local function sustain(t, sm)
-    -- Do not eat every tick: opheld1 eat anim cancels walk/attack. Prefer
-    -- sharks over brews (brews drain magic/ranged and sink sang DPS). Brew
-    -- only when a double-hit would kill; restore after every brew.
+    -- Do not eat every tick: opheld1 eat anim cancels walk/attack. Always try
+    -- shark before brew — brews drain melee accuracy and the prior melee claw
+    -- phase splashed for ~9 damage total after three sips.
     sm._sustain_cd = (sm._sustain_cd or 0) - 1
     local hr, hp = t.skill.read("hitpoints")
     local level = (hr == "ok" and hp.level) or 99
-    if sm._sustain_cd <= 0 then
-        if level < 40 then
+    if sm._sustain_cd <= 0 and level < 80 then
+        local er = t.player.eat("shark")
+        if er == "ok" then
+            sm._sustain_cd = 3
+        elseif level < 45 then
             t.player.drink("br_4dosepotionofsaradomin")
             t.player.drink("br_4dose2restore")
             sm._sustain_cd = 3
             sm._pray_cd = 4
-        elseif level < 78 then
-            t.player.eat("shark")
-            sm._sustain_cd = 3
         end
     end
     local pr, pp = t.prayer.points()
@@ -457,32 +457,25 @@ return {
                 local mrow = npc_ok(t, mage)
                 if mrow == nil then
                     sm.mage_kills = sm.mage_kills + 1
-                    -- Stabilize before the melee claw: pray + food first so a
-                    -- late sphere/lightning during the gear swap cannot 50% us
-                    -- on 80 HP with no overhead (prior death at tick 191).
+                    -- Do NOT gear-swap here: equip blocks decide() and a sphere
+                    -- already in flight lands unblockable. SETUP_41 equips one
+                    -- item per tick while sphere_flick keeps running.
                     sm.last_pray = nil
-                    sm._sphere_flight = false
-                    sm._sphere_pray = nil
-                    prayer_flick()
-                    sustain(t, sm)
-                    equip_melee()
-                    t.prayer.set("piety", true)
-                    t.player.inv_op("4dose2combat", 1)
                     set_state(STATE.SETUP_41)
                     return
                 end
                 local _, me = t.world.tile()
                 local aisle_x = sm.ox + 32
                 local dist = math.max(math.abs(me.x - mrow.x), math.abs(me.z - mrow.z))
-                -- Sang is 10-range; from lz=25 we are already in range of
-                -- claws at lz=30. Prefer attack over walk so eat/pray keep up.
-                local ar, ad = t.player.attack(mage, 2, 3, { quick = true, slot = mrow.slot })
+                -- Short attack deadline so decide() re-enters every tick and
+                -- can see sphere_pending within ^cox_olm_sphere_delay.
+                local ar, ad = t.player.attack(mage, 1, 1, { quick = true, slot = mrow.slot })
                 if ar == "refused" and type(ad) == "string" and string.find(ad, "DIED", 1, true) then
                     set_state(STATE.DONE)
                     return
                 end
                 if dist > 8 then
-                    t.player.walk_to(aisle_x, math.min(me.z + 2, mrow.z - 3), 3)
+                    t.player.walk_to(aisle_x, math.min(me.z + 2, mrow.z - 3), 2)
                 else
                     -- Synq acid/crystal walk: alternate mage safes every tick
                     -- so a pool underfoot cannot chip for 40+ ticks (prior
@@ -510,14 +503,34 @@ return {
                 local empty = sm.tiles.empty_east
                 local mrow = npc_ok(t, melee)
                 local thumb = sm.tiles.thumb
-                if sm.setup_waits < 8 then
+                -- Ticks 1-4: swap to whip / gloves / piety / combat one-at-a-time
+                -- so sphere_flick still runs each decide() tick.
+                if sm.setup_waits == 1 then
+                    t.player.equip("abyssal_whip")
+                    t.ticks(1)
+                    return
+                elseif sm.setup_waits == 2 then
+                    t.player.equip("ferocious_gloves")
+                    t.player.equip("infernal_cape")
+                    t.player.equip("ultor_ring")
+                    t.ticks(1)
+                    return
+                elseif sm.setup_waits == 3 then
+                    t.prayer.set("piety", true)
+                    sm.last_pray = nil
+                    t.ticks(1)
+                    return
+                elseif sm.setup_waits == 4 then
+                    t.player.inv_op("4dose2combat", 1)
+                    t.ticks(1)
+                    return
+                elseif sm.setup_waits < 12 then
                     if mrow ~= nil then
-                        t.player.attack(melee, 2, 4, { quick = true, slot = mrow.slot })
+                        t.player.attack(melee, 1, 2, { quick = true, slot = mrow.slot })
                     end
-                    -- Step on odd ticks so crystal/acid cannot pin the thumb.
-                    t.player.walk_to(thumb.x + (sm.setup_waits % 2), thumb.z, 2)
-                elseif sm.setup_waits < 16 then
-                    t.player.walk_to(empty.x + (sm.setup_waits % 2), empty.z, 2)
+                    t.player.walk_to(thumb.x + (sm.setup_waits % 2), thumb.z, 1)
+                elseif sm.setup_waits < 18 then
+                    t.player.walk_to(empty.x + (sm.setup_waits % 2), empty.z, 1)
                 else
                     set_state(STATE.CYCLE_TANK)
                     return
