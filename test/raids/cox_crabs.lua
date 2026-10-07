@@ -285,8 +285,8 @@ return {
         "::give air_rune 400",
         "::give blood_rune 80",
         "::give hammer",
-        "::give br_4dose2restore 4",
-        "::give shark 18",
+        "::give br_4dose2restore 6",
+        "::give shark 28",
     },
 
     run = function(t)
@@ -425,31 +425,52 @@ return {
                     if not ok then
                         return false, "smash failed: " .. tostring(detail)
                     end
-                    -- Stay west-adjacent for the paint cast (covered from the
-                    -- safe tile made quick casts no-op). Paint immediately —
-                    -- blue/green overwrite smash-red; no need to wait revert.
-                    t.player.walk_to(lure_x, lure_z, 20)
-                    t.ticks(2)
                     if crab_at(t, wx, wz, 0) == nil then
                         return false, "crab left mark after smash"
                     end
                     if style ~= nil and style ~= "melee" then
                         local want = (style == "mage") and "raids_lasercrabs_crab_blue"
                             or "raids_lasercrabs_crab_green"
+                        -- Break lure melee first: Attack with a wand paints RED
+                        -- and was overwriting a successful blue cast (run18).
+                        t.player.walk_to(sx, sz, 20)
+                        t.ticks(4)
                         local last_paint = "none"
-                        for _ = 1, 6 do
+                        local painted = false
+                        for _ = 1, 5 do
+                            sustain(t)
                             local live = crab_at(t, wx, wz, 0)
                             if live == nil then
                                 return false, "crab left mark during paint"
                             end
-                            if live.symbol == want then break end
+                            if live.symbol == want then
+                                painted = true
+                                break
+                            end
+                            t.player.walk_to(lure_x, lure_z, 12)
+                            t.ticks(1)
+                            live = crab_at(t, wx, wz, 0)
+                            if live == nil then
+                                return false, "crab left mark during paint"
+                            end
                             local pr, pd = paint_style(t, style, live)
                             last_paint = tostring(pr) .. ":" .. tostring(pd)
+                            -- Colour flips on cast prepare; read it before any
+                            -- leftover Attack swing can melee-paint red again.
+                            for _ = 1, 5 do
+                                t.ticks(1)
+                                live = crab_at(t, wx, wz, 0)
+                                if live ~= nil and live.symbol == want then
+                                    painted = true
+                                    break
+                                end
+                            end
+                            t.player.walk_to(sx, sz, 12)
                             t.ticks(2)
-                            t.player.walk_to(lure_x, lure_z, 8)
+                            if painted then break end
                         end
-                        local live = crab_at(t, wx, wz, 0)
-                        if live == nil or live.symbol ~= want then
+                        if not painted then
+                            local live = crab_at(t, wx, wz, 0)
                             return false, "paint failed want=" .. want
                                 .. " got=" .. tostring(live and live.symbol)
                                 .. " last=" .. last_paint
@@ -661,15 +682,19 @@ return {
                         -- Lost the mark; stop waiting and re-seat.
                         break
                     end
-                    if style ~= nil and wait > 0 and wait % 5 == 0 then
-                        -- Re-paint from west of the mark so the cast can press.
-                        t.player.walk_to(wx - 1, wz, 10)
-                        if style ~= "melee" then
-                            paint_style(t, style, seated)
-                        else
-                            smash(t, seated)
+                    if style ~= nil and wait > 0 and wait % 6 == 0 then
+                        if seated.symbol ~= ((style == "mage") and "raids_lasercrabs_crab_blue"
+                            or (style == "range") and "raids_lasercrabs_crab_green"
+                            or "raids_lasercrabs_crab_red") then
+                            t.player.walk_to(wx - 1, wz, 10)
+                            if style ~= "melee" then
+                                paint_style(t, style, seated)
+                            else
+                                smash(t, seated)
+                            end
+                            -- Flee before wand-melee recolours the bounce crab.
+                            t.player.walk_to(sx, sz, 10)
                         end
-                        t.player.walk_to(sx, sz, 10)
                     end
                     t.ticks(1)
                     wait = wait + 1
