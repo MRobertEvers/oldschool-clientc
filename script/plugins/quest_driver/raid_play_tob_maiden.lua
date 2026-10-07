@@ -745,7 +745,23 @@ function QD.raid.mz_crab_stand(st, v, a)
     return best
 end
 -- the fill-in's reach: the bow's 10 for the freezer, the scythe's 1
-function QD.raid.mz_fill_reach(st) return (st.role == 2) and 9 or 1 end
+function QD.raid.mz_fill_reach(st) return (st.role == 2) and 10 or 1 end
+-- THE EAT LINE (audit 00:55): the script's eat_at_hp_pct for the role
+-- (role.dps1.eat_at_hp_pct 60, role.dps2 36, maiden_normal_3.json; the freezer
+-- has none: dps2's), raised to the most one tick can take -- her tornado's
+-- current max (36.5 + 3.5 a leak, halved under Protect from Magic,
+-- tob_maiden.rs2:34, :816-827) or the biggest hit taken inside a pool's life
+-- (10 ticks: tob_blood_splat 300 cycles, tob_maiden.rs2:1275) -- plus 2
+function QD.raid.mz_eat_line(st, v)
+    local m = st.m
+    local pct = ({ [1] = 60, [2] = 36, [3] = 36 })[st.role] or 36
+    local storm = (36.5 + 3.5 * (m.leaks or 0)) / 2
+    local big = 0
+    for _, h in ipairs(m.hits or {}) do
+        if v.tick - h.t <= 10 and h.n > big then big = h.n end
+    end
+    return math.max(math.floor(pct * (v.hp_base or 99) / 100), math.ceil(storm) + 2, big + 2)
+end
 -- a crab's hp from its health bar (what the screen shows); no bar drawn yet
 -- = full (the Normal trio's 75: tob.constant ^tob_maiden_crab_hp_3)
 function QD.raid.mz_crab_hp(a)
@@ -795,7 +811,7 @@ end
 -- three crabs in untouched, 450 healed, against one blood hit)
 function QD.raid.mz_cast_due(st, v)
     local m = st.m
-    if st.role ~= 2 or m.state ~= "CAST" or v.hp <= 50 then return false end
+    if st.role ~= 2 or m.state ~= "CAST" or v.hp <= QD.raid.mz_eat_line(st, v) then return false end
     local W = QD.RAID_MAIDEN_REF.waves[math.max(QD.raid.mz_form(st), 1)]
     local c = W.casts[m.idx]
     return c ~= nil and v.tick >= st.ev.wave_tick + c[1] - 2
@@ -857,6 +873,7 @@ function QD.raid.mz_open_tick(st, v, intent)
     local m = st.m
     if m.idx == 0 then m.idx = v.tick end
     local last = st.swings[#st.swings] or -1000
+    -- (the script's dps phase-100 attacks: +5 bow, +10 special, +16 scythe)
     if last >= m.idx or v.tick - m.idx > 10 then QD.raid.mz_go(st, v, "DRAIN", 0) return end
     if QD.raid.mz_wear(intent, st.plan.opener_set) then return end
     intent.attack = true
@@ -872,9 +889,9 @@ function QD.raid.mz_drain_tick(st, v, intent)
     -- will swing from (the script's phase-100 tile), so no walk follows it:
     -- sm42 sva dps1 threw from (10,-3) and walked six ticks to (4,6), first
     -- scythe +23 against the script's +16
-    if st.role ~= 2 and v.tick - m.idx <= 12 and QD.raid.mz_walk_home(st, v, intent) then return end
+    if st.role ~= 2 and v.tick - m.idx <= 6 and QD.raid.mz_walk_home(st, v, intent) then return end
     local spent = QD.raid.mz_special(st, v, intent, st.plan.opener.weapon, 1000)
-    if spent or v.tick - m.idx > 14 then
+    if spent or v.tick - m.idx > 6 then
         intent.spec, intent.attack = nil, false
         if st.role == 2 then QD.raid.mz_go(st, v, "F_ON_BOSS") else QD.raid.mz_go(st, v, "S_ON_BOSS") end
     end
@@ -905,7 +922,7 @@ function QD.raid.mz_f_on_boss_tick(st, v, intent)
         return
     end
     if QD.raid.mz_wear(intent, st.plan.ranged_set) then return end
-    if math.max(math.abs(v.me.x - (b.x + 2)), math.abs(v.me.z - (b.z + 2))) > 12 and QD.raid.mz_walk_home(st, v, intent) then return end
+    if QD.raid._play_gap(b, v.me.x, v.me.z) > 10 and QD.raid.mz_walk_home(st, v, intent) then return end
     intent.attack = true
 end
 
@@ -983,19 +1000,6 @@ function QD.raid.mz_cast_tick(st, v, intent)
     if m.idx == 1 then
         t = QD.raid.mz_lane_crab(st, v, c[2], false, true, skip) or QD.raid.mz_nearest_walker(st, v, skip)
     else
-        -- (only a bunch within 4 of her: sm27 cast 3 at +11 froze the 3s and
-        -- 4s together on (12,0), seven out, where no seat reaches them; the
-        -- streams' frozen crabs sit on (7,0) (8,0) (8,1) -- the bunch reaches
-        -- there at +16, cast 4.  Further out: the next walker to arrive)
-        -- (no walker within 4 of her yet: the cast waits, to the streams'
-        -- latest offset c[3] -- sm29 svb cast 3 at +11 froze the three 4s
-        -- together seven out, the only walkers left, where no seat reached
-        -- them; the streams' casts 3/4 range [9-16] / [16-24])
-        local b = v.ev_boss or v.boss
-        local near = false
-        for _, a in pairs(st.ev.adds) do
-            if not a.gone and not a.ice and QD.raid._play_gap(b, a.x, a.z) <= 4 then near = true end
-        end
         -- sm36: the script's lane again, else the next walker to arrive (the
         -- streams' frozen tiles (10,-7) S1 at +1, (7,0) (8,0) (8,1) the S3
         -- and S4 lanes at +11/+16: the stack forms because those lanes share
@@ -1105,7 +1109,11 @@ function QD.raid.mz_lane_tick(st, v, intent)
     -- 50 2.0 / 3.0, 30 1.0 -- N1/N2 included): one stack swing a wave, then
     -- her (sm41 budget: sva dps1 walked (8,4) (7,2) (6,0) over four crabs
     -- for 20 ticks of the 70 wave, two swings)
-    if e[1] == "STACK" and m.stack_swings >= 1 then QD.raid.mz_go(st, v, "LANE", m.idx + 1) return end
+    -- (the cap per seat per wave is the streams' MEAN crab attacks from +10,
+    -- non-freezer seats, 24 rooms: 70 wave 2.00, 50 wave 1.44, 30 wave 0.21
+    -- -- 2 / 1 / 0; coordinator 00:45 "set the cap to that, not one")
+    local cap = ({ 2, 1, 0 })[math.max(QD.raid.mz_form(st), 1)] or 0
+    if e[1] == "STACK" and m.stack_swings >= cap then QD.raid.mz_go(st, v, "LANE", m.idx + 1) return end
     local t = nil
     if e[1] == "STACK" and m.stack_slot ~= nil then
         local a = st.ev.adds[m.stack_slot]
@@ -1162,6 +1170,20 @@ function QD.raid._play_maiden_trio(st, v)
     end
     local m = st.m
     QD.raid._play_maiden_see(st, v)
+    -- a tile that hurt me two ticks running is blood whatever the client
+    -- shows (sm60 svb: the freezer's dodge tile (6,-6) took 34, 34, 28 with
+    -- nothing marked on it, and it stood there): marked for 10 ticks
+    local hurt = false
+    for _, e in ipairs(v.events or {}) do
+        if e.name == "hit_taken" and (e.amount or 0) > 0 then hurt = true end
+    end
+    m.hurt_tiles = m.hurt_tiles or {}
+    local here_k = v.me.x * 100000 + v.me.z
+    if hurt and m.hurt_last == v.tick - 1 and m.hurt_at == here_k then m.hurt_tiles[here_k] = v.tick + 10 end
+    if hurt then m.hurt_last, m.hurt_at = v.tick, here_k end
+    for k, until_t in pairs(m.hurt_tiles) do
+        if v.tick <= until_t then v.marks[k] = true else m.hurt_tiles[k] = nil end
+    end
     m.ground = {}
     for k, on in pairs(v.marks) do m.ground[k] = on end
     for _, p in ipairs(v.incoming) do v.marks[p.x * 100000 + p.z] = true end
@@ -1271,15 +1293,7 @@ function QD.raid._play_maiden_trio(st, v)
         -- Magic (tob_maiden.rs2:34, :816-827), or a blood splat's 25; and never
         -- two eats inside the food's 3 ticks (sm42 sva: the leader ate 13 times
         -- in the 30 wave at a fixed 45)
-        local storm = (36.5 + 3.5 * (m.leaks or 0)) / 2
-        -- (and the biggest hit actually taken in the last 40 ticks: sm49
-        -- _play_maiden's leader stood at 37 under a computed 29 and took a 37
-        -- -- the leaks seen from the client undercount the server's)
-        local big = 0
-        for _, h in ipairs(m.hits or {}) do
-            if v.tick - h.t <= 40 and h.n > big then big = h.n end
-        end
-        local eat_at = math.max(25, math.ceil(storm), big) + 2
+        local eat_at = QD.raid.mz_eat_line(st, v)
         if (v.hp > eat_at and not v.marks[here]) or v.tick - (st.last_eat or -100) < 3 then
             intent.eat = nil
             if intent.drink ~= nil and is_brew(intent.drink) then intent.drink = nil end
