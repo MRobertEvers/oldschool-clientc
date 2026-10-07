@@ -368,8 +368,9 @@ return {
             end
 
             if sm.state == STATE.KILL_MAGE then
-                -- Synq 4-tick mage running [2:19:07]: attack every cycle while
-                -- oscillating between ring-finger safes (skip + acid dodge).
+                -- Synq 4-tick mage running [2:19:07]. Entry is ~18 tiles south
+                -- of the claws (lz=12 vs hand lz=30); short walk/attack
+                -- deadlines left the prior runs stranded on the entry tile.
                 refresh_geometry()
                 sample_vislevels()
                 local mage = sm.tiles.mage
@@ -382,8 +383,14 @@ return {
                     set_state(STATE.SETUP_41)
                     return
                 end
-                -- Prefer tiles next to the live hand so pathing cannot strand
-                -- the player on the south wall (prior run stuck at z=76).
+                local _, me = t.world.tile()
+                local dist = math.max(math.abs(me.x - mrow.x), math.abs(me.z - mrow.z))
+                if dist > 6 then
+                    t.player.walk_to(mrow.x, mrow.z - 2, 16)
+                    sustain(t, sm)
+                    sm.sub = sm.sub + 1
+                    return
+                end
                 local a = { x = mrow.x - 1, z = mrow.z - 2 }
                 local b = { x = mrow.x - 3, z = mrow.z }
                 if not sm.side_west then
@@ -391,8 +398,8 @@ return {
                     b = { x = mrow.x + 3, z = mrow.z }
                 end
                 local dest = ((sm.sub % 8) < 4) and a or b
-                t.player.attack(mage, 2, 1)
-                t.player.walk_to(dest.x, dest.z, 2)
+                t.player.attack(mage, 2, 4, { quick = true, slot = mrow.slot })
+                t.player.walk_to(dest.x, dest.z, 4)
                 sustain(t, sm)
                 sm.sub = sm.sub + 1
                 t.ticks(1)
