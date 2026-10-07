@@ -999,6 +999,14 @@ function QD.raid.mz_open_tick(st, v, intent)
     if m.idx == 0 then m.idx = v.tick end
     local last = st.swings[#st.swings] or -1000
     -- (the script's dps phase-100 attacks: +5 bow, +10 special, +16 scythe)
+    -- (the bow's 426 is not a scythe seat's swing seq: read it off my own
+    -- screen -- sm104 sva bowed at +6 and stood in OPEN to +9)
+    local orr, own = QD.raid.own_anim()
+    if orr == "ok" then
+        for _, h in ipairs(own.history) do
+            if QD.RAID_PLAY_WEAPONS.twisted_bow.seqs[h.seq] and h.tick >= m.idx then last = math.max(last, h.tick) end
+        end
+    end
     if last >= m.idx or v.tick - m.idx > 10 then QD.raid.mz_go(st, v, "DRAIN", 0) return end
     if QD.raid.mz_wear(intent, st.plan.opener_set) then return end
     intent.attack = true
@@ -1528,8 +1536,13 @@ function QD.raid._play_maiden_trio(st, v)
     end
     -- PRAYERS: Protect from Magic always (the storm is magic, W:590); Piety on
     -- a scythe seat, Rigour on the freezer's bow (10Boot 0:02:45)
+    -- (the opener's bow and Tonalztics special are ranged: the streams' dps
+    -- pray Rigour on 239 of 315 bow shots and 32 of 55 specials; ours prayed
+    -- Piety through them and half the run-in shots missed -- sm104, 6 of 12)
     if st.role == 2 then
         if m.state == "F_ON_BOSS" then intent.want.rigour = true end
+    elseif m.state == "OPEN" or m.state == "DRAIN" then
+        intent.want.rigour = true
     else
         intent.want.piety = true
     end
@@ -1685,7 +1698,8 @@ function QD.raid._play_maiden_decide(st, v)
     if st.party > 1 and (m.opener == nil or m.opener.stage == "done" or m.opener.stage == "gave_up") and m.fz ~= "magic" then
         -- raid seam40: Piety for a scythe seat (the reference's dps are
         -- melee; Blert prayerSet bit 26 piety, sources/blert_api/README.md)
-        if (m.R ~= nil and m.R.melee) or m.fz == "melee" then intent.want.piety = true else intent.want.rigour = true end
+        local ranged_now = m.state == "OPEN" or m.state == "DRAIN"
+        if ((m.R ~= nil and m.R.melee) or m.fz == "melee") and not ranged_now then intent.want.piety = true else intent.want.rigour = true end
     end
     local b = v.boss
     if b == nil then
