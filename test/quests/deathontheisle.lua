@@ -368,16 +368,23 @@ return {
         talk("accuseAdala", "doti_adala_mask_inside", "player:Patzi, Adala. The two of you weren't even invited",
             { "Accuse Adala." })
         t.exec("fightAdala.present", t.npc.await_present, "doti_adala_boss", 10, 8)
-        local _, hp0 = t.skill.read("hitpoints")
-        local hp_max = hp0 and hp0.base_level or 40
+        -- The margin is only as good as its readings: a failed or empty hitpoints read fails the row.
+        local hr0, hp0 = t.skill.read("hitpoints")
+        local reads_ok = hr0 == "ok" and hp0 ~= nil and hp0.base_level ~= nil and hp0.level ~= nil
+        local hp_max = reads_ok and hp0.base_level or nil
         t.exec("fightAdala", t.player.attack, "doti_adala_boss", 2, 10)
-        local hp_low = hp0 and hp0.level or 40
+        local hp_low = reads_ok and hp0.level or nil
+        local bad_reads = reads_ok and 0 or 1
         local fought = 0
         for i = 1, 400 do
             t.ticks(1)
             fought = i
-            local _, hp = t.skill.read("hitpoints")
-            if hp and hp.level and hp.level < hp_low then hp_low = hp.level end
+            local hr, hp = t.skill.read("hitpoints")
+            if hr ~= "ok" or hp == nil or hp.level == nil then
+                bad_reads = bad_reads + 1
+            elseif hp_low ~= nil and hp.level < hp_low then
+                hp_low = hp.level
+            end
             local _, st = t.quest.stage()
             if st ~= nil and st >= 32 then break end
             if i % 25 == 0 then
@@ -390,8 +397,8 @@ return {
         local _, outcome = t.var.varbit("varb11229_doti_adala_fight_outcome")
         t.check("fightAdala.won", outcome == 1,
             "doti_adala_fight_outcome = " .. tostring(outcome) .. " after " .. fought .. " tick(s) (1 = she yielded)")
-        t.check("fightAdala.margin", hp_low * 4 >= hp_max,
-            "lowest hp " .. tostring(hp_low) .. "/" .. tostring(hp_max)
+        t.check("fightAdala.margin", bad_reads == 0 and hp_low ~= nil and hp_max ~= nil and hp_low * 4 >= hp_max,
+            "lowest hp " .. tostring(hp_low) .. "/" .. tostring(hp_max) .. ", failed hitpoints reads " .. bad_reads
             .. " (>= a quarter; equipment-free fight inside the villa, no food can be carried -- the Head Butler holds it)")
         t.expect("quest.stage.adala", t.quest.expect_stage("adala"))
         t.ticks(3)
@@ -503,6 +510,46 @@ return {
             local rr, rd = t.skill.expect_gain(rw[1], rw[2], reward_before)
             t.check("reward." .. rw[1], rr == "ok", rd)
         end
+
+        -- ================================================================
+        -- After the quest: the North Aldarin statue of Ates (quick guide's post-quest checklist;
+        -- wiki Chest key (Fancy chest) oldid 15325521, Fancy chest oldid 14976504, Icon (Aldarin)
+        -- oldid 15319383, Statue (Ates) oldid 15319388; content doti_ates_icon.rs2).
+        -- ================================================================
+        t.exec("goto-pickpocketConstantiniusForKey", t.player.goto_tile, 1448, 2933, 0)
+        pickpocket("pickpocketConstantiniusForKey", "doti_constantinius_pickpocket", "ates_chest_key")
+        t.exec("goto-openFancyChest.cellar", t.player.goto_tile, 1447, 2937, 0)
+        t.exec("openFancyChest.cellar", t.player.climb, { loc = "aldarin_cellar_entrance", op = 1, op_name = "Enter",
+            at = { 1447, 2938, 0 }, dest = { 1446, 9338, 0 } })
+        t.exec("goto-openFancyChest", t.player.goto_tile, 1435, 9312, 0)
+        t.exec("openFancyChest", t.player.click_loc, "ates_chest_closed", 1)
+        t.exec("openFancyChest-dialog", t.chat.play, { "mesbox:You unlock the chest and find a note inside." })
+        t.exec("openFancyChest-noted", t.var.await, "varb11232_ates_piece_hunt", 1, 6)
+        t.exec("goto-openFancyChest.leave", t.player.goto_tile, 1446, 9338, 0)
+        t.exec("openFancyChest.leave", t.player.climb, { loc = "doti_cellar_stair_exit_villa", op = 1,
+            op_name = "Climb-up", at = { 1447, 9338, 0 }, dest = { 1448, 2937, 0 } })
+        t.exec("goto-searchVillaFountain", t.player.goto_tile, 1435, 2920, 0)
+        t.exec("searchVillaFountain", t.player.click_loc, "villa_fountain", 1)
+        t.exec("searchVillaFountain-box", t.chat.drain, { max_pages = 3 })
+        t.exec("searchVillaFountain-icon", t.inv.await, "statue_of_ates_aldarin_repair", 1, 6)
+        -- Out through the guest entrance, open to the player since the quest (doti_barrier).
+        t.exec("goto-leaveVilla", t.player.goto_tile, 1427, 2933, 0)
+        t.exec("leaveVilla", t.player.cross_gate, { loc = "doti_barrier", at = { 1426, 2933, 0 },
+            near = { 1427, 2933 }, far_ok = function(tile) return tile.x <= 1425 end,
+            far_desc = "outside the guest entrance, x <= 1425 (^di_guest_west_out)" })
+        t.exec("goto-useIconOnStatue", t.player.goto_tile, 1426, 2995, 0)
+        local statue = t.player.by_symbol("loc", "ates_statue_aldarin_multi")
+        t.exec("useIconOnStatue", t.player.use_on, "statue_of_ates_aldarin_repair", statue)
+        t.exec("useIconOnStatue-dialog", t.chat.play, {
+            "*",
+            "choose:Yes.",
+            "mesbox:You place the icon on the statue, causing it to activate.",
+            "player:That's it?",
+            "*",
+            "player:*Gulp*",
+        })
+        t.exec("useIconOnStatue-unlocked", t.var.await, "varb11178_pendant_of_ates_aldarin_found", 1, 6)
+        t.exec("useIconOnStatue-iconUsed", t.inv.expect_absent, "statue_of_ates_aldarin_repair")
 
         t.finish(0)
     end,
