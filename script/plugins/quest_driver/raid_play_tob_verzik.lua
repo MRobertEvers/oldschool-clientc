@@ -866,7 +866,12 @@ end
 --           the crabs, nearest the pool.
 --   HOLD    on it for the dangerous ticks.
 --   AFTER   the blast has landed; the plan has the tick back.
-QD.RAID_PLAY_VERZIK_POOL = { hold = 1, tor_near = 4, run = 2 }
+-- `hold` is 2, not 1 (2026-10-07, _vzfastp3 P3+151, two raiders dead): the
+-- blast reads each raider's tile before movement on its tick, and a click on t
+-- moves on t + 1 -- ORBIT stepped both onto their pools ON the blast tick and
+-- the server read their tiles one short (6422,87 and 6424,84).  The same
+-- margin the ball needed (QD.RAID_PLAY_VERZIK_BALL.before).
+QD.RAID_PLAY_VERZIK_POOL = { hold = 2, tor_near = 4, run = 2 }
 local function pool_to(state) return function() return nil, state end end
 local POOL_ON = { pool_none = pool_to("NONE"), pool_arrive = pool_to("ARRIVE"), pool_orbit = pool_to("ORBIT"),
     pool_hold = pool_to("HOLD"), pool_after = pool_to("AFTER") }
@@ -973,21 +978,28 @@ end
 -- within 1 of T0), L+1 lands on T1 (the THIRD must be within 1 of T1), L+2
 -- dissipates.  The old share put both mates "adjacent to the target", which can
 -- leave them two apart: the second hop then found only T0 and hit T1 and T0
--- for 74 each -- the "NOT SHARED: 2 of 3, 74 damage" rows.  So the formation is
--- a CLUSTER, everyone within 1 of everyone, on L and L+1.  And it is a homing
--- projectile (~player_projectile at the target's uid): it lands wherever the
--- target is, so the three can meet anywhere.
+-- for 74 each -- the "NOT SHARED: 2 of 3, 74 damage" rows.  And it is a
+-- homing projectile (~player_projectile at the target's uid): it lands
+-- wherever the target is.
 --
--- The RALLY tile is the projectile's destination when it is first seen -- the
--- server's tile, the same on every client, so nobody has to agree on it.
+-- THE FORMATION IS A LINE, NOT A CLUSTER (owner 2026-10-07: "If you stand next
+-- to multiple valid targets at the same time, the ball won't know who to track
+-- and will explode, hitting everyone in the radius"; content now implements
+-- it).  This first stacked all three on one tile -- the crowding case, which
+-- passed only because content had no crowding rule.  The line T0 - T1 - T2,
+-- the ends two apart: at L the target T0 has exactly one valid neighbour (T1;
+-- T2 is out of its radius), at L+1 T1 has exactly one (T2; T0 beside it was
+-- already visited), at L+2 it dissipates.  Each seat's tile comes from data
+-- every client shares (_verzik_ball_line).
+--
+-- MY tile in the line (bm.R) is fixed at the first sighting.
 -- The landing tick L is the first sighting plus its cycles left.
 --   NONE    no ball.
 --   GATHER  in flight: toward the rally, still taking swings; while a tornado
 --           hunts me, one move a tick through tiles the rally stays reachable
 --           from by L - 1 (the pool's ORBIT rule).
---   STACK   on the rally tile from L - 1 through L + 2 (one tick of margin on
---           each side of the two hops), swinging only if her body is in reach
---           -- an attack out of reach would walk me off it.
+--   STACK   on my tile of the line from L - 2 through L + 2, swinging only if
+--           her body is in reach -- an attack out of reach would walk me off it.
 --   AFTER   the chain is done; the plan has the tick back.
 -- `before` is 2, not 1 (2026-10-07, svavzslowp3 P3+190): the landing runs in
 -- the TARGET's own queue at the start of its turn on L -- before it moves that
@@ -1004,7 +1016,7 @@ QD.raid.sm_declare("verzik_ball", {
         NONE   = { note = "no ball", on = BALL_ON },
         GATHER = { note = "in flight: to the rally tile, swinging on the way", on = BALL_ON,
             enter = function(c) c.vz.ball_gathers = (c.vz.ball_gathers or 0) + 1 end },
-        STACK  = { note = "on the rally tile for the hops: everyone within 1 of everyone", on = BALL_ON },
+        STACK  = { note = "on my tile of the line for the hops: one valid neighbour each", on = BALL_ON },
         AFTER  = { note = "the chain is done", on = BALL_ON },
     },
 })
@@ -1030,6 +1042,48 @@ function QD.raid._verzik_swing_window(st, v, reach, tor)
     return true
 end
 
+-- My tile in the ball's line, from what every client shares: R0 is the
+-- projectile's destination when first seen (where its target stood); the
+-- target holds R0, the lower pid of the other two R1 = R0 + d, the higher R2 =
+-- R0 + 2d, d the first of a fixed order of eight directions whose R1 and R2 are
+-- floor and clear of her body and the webs.  The target is the projectile's
+-- (32768 + its pid); when that is missing, the raider standing nearest R0.
+QD.RAID_PLAY_VERZIK_BALL_DIRS = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 }, { 1, 1 }, { -1, 1 }, { 1, -1 }, { -1, -1 } }
+function QD.raid._verzik_ball_line(st, v, proj, ok)
+    assert(st, "_verzik_ball_line: st")
+    assert(v, "_verzik_ball_line: v")
+    assert(proj, "_verzik_ball_line: proj")
+    assert(ok, "_verzik_ball_line: ok")
+    local me, b = v.me, v.boss
+    local R0 = { x = proj.dst_x, z = proj.dst_z }
+    local raiders = { { pid = st.my_pid or 99, x = me.x, z = me.z, me = true } }
+    for _, m in ipairs(QD.raid._verzik_mates(st)) do raiders[#raiders + 1] = { pid = m.pid or 99, x = m.x, z = m.z } end
+    local target_pid = nil
+    if proj.target ~= nil and proj.target >= 32768 then target_pid = proj.target - 32768 end
+    if target_pid == nil then
+        local bd = nil
+        for _, r in ipairs(raiders) do
+            local d = math.max(math.abs(r.x - R0.x), math.abs(r.z - R0.z))
+            if bd == nil or d < bd or (d == bd and r.pid < (target_pid or math.huge)) then bd, target_pid = d, r.pid end
+        end
+    end
+    local others = {}
+    for _, r in ipairs(raiders) do if r.pid ~= target_pid then others[#others + 1] = r end end
+    table.sort(others, function(r1, r2) return r1.pid < r2.pid end)
+    local function clear(x, z)
+        return ok(x, z) and not v.shadows[x * 100000 + z] and (b == nil or QD.raid._verzik_dist(x, z, b) >= 1)
+    end
+    local d = QD.RAID_PLAY_VERZIK_BALL_DIRS[1]
+    for _, dd in ipairs(QD.RAID_PLAY_VERZIK_BALL_DIRS) do
+        if clear(R0.x + dd[1], R0.z + dd[2]) and clear(R0.x + 2 * dd[1], R0.z + 2 * dd[2]) then d = dd break end
+    end
+    if st.my_pid == target_pid then return R0 end
+    for i, r in ipairs(others) do
+        if r.me then return { x = R0.x + i * d[1], z = R0.z + i * d[2] } end
+    end
+    return R0
+end
+
 -- The tick.  `f`: st, v, intent, ok (floor test), tor (vz.tor), reach.
 -- Returns true while the ball owns the tick (GATHER, STACK).
 function QD.raid._verzik_ball_run(f)
@@ -1045,7 +1099,7 @@ function QD.raid._verzik_ball_run(f)
     end
     if seen ~= nil and (vz.bm == nil or vz.bm.done) then
         local left = math.ceil((seen.cycles_left or 0) / QD.RAID_PLAY_CYCLES_PER_TICK)
-        vz.bm = { first = v.tick, R = { x = seen.dst_x, z = seen.dst_z }, L = v.tick + left }
+        vz.bm = { first = v.tick, R = QD.raid._verzik_ball_line(st, v, seen, f.ok), L = v.tick + left }
         vz.ball_log = vz.ball_log or {}
         if #vz.ball_log < 8 then vz.ball_log[#vz.ball_log + 1] = v.tick .. "R" .. seen.dst_x .. "," .. seen.dst_z .. "L" .. vz.bm.L end
     end
