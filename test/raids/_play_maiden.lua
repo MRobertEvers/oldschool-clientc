@@ -209,6 +209,23 @@ local function party_run(t)
         .. " (offset " .. tostring(m.ox) .. "," .. tostring(m.oz) .. "); home walks " .. tostring(m.home_walks or 0) .. ", dodges " .. tostring(m.dodges)
         .. "; eats " .. #rec.eats .. ", drinks " .. #rec.drinks .. ", swings " .. #rec.swings .. ", add presses " .. tostring(m.add_presses)
         .. "; Ice Barrage casts " .. nc .. " " .. casts .. (m.cast_none and (" no cast: " .. table.concat(m.cast_none, " ")) or "") .. (m.samples and (" str/pray: " .. table.concat(m.samples, " ")) or "") .. (m.log and (" states: " .. table.concat(m.log, " ")) or ""), 1, 4000))
+    -- owner_tob_normal, THE OWNER'S INVARIANT (22:25, "Nobody is ever idle"):
+    -- the plan's own idle ticks (weapon free -- nothing sent in 5 ticks and not
+    -- engaged -- and no attack, press or cast this tick, a dodge excepted),
+    -- before the library's fill-in.  The script's no_action_share is 0.0 for
+    -- every role in every segment (maiden_normal_3.script.json), so: the
+    -- longest run at most 2 and at most 3 such ticks in any of her forms.
+    if m.idle ~= nil then
+        local per, worst = {}, 0
+        for f = 0, 3 do
+            local n = m.idle.by[f] or 0
+            per[#per + 1] = ({ "100", "70", "50", "30" })[f + 1] .. ":" .. n
+            if n > worst then worst = n end
+        end
+        t.check("tech.never_idle", m.idle.longest <= 2 and worst <= 3,
+            "p" .. role .. " idle ticks by form " .. table.concat(per, " ") .. ", longest run " .. m.idle.longest
+            .. " (ending t" .. m.idle.longest_at .. "); library fill-ins " .. tostring(rec.fill_ins or 0))
+    end
     if role == 2 then
         -- raid seam40: the thresholds the casts were made in (the reference's
         -- freezer attacks adds in every crab phase: role.freezer.phase.70/50/30

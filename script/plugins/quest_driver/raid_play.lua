@@ -663,7 +663,34 @@ function QD.raid._play_reconcile(st, v, intent)
     end
 end
 
+-- owner_tob_normal, THE OWNER'S INVARIANT (22:25: "Blert raiders don't idle
+-- ... Nobody is ever idle"): a plan with `never_idle` never leaves a free
+-- weapon unused.  When it sends no attack, press, cast or walk this tick, is
+-- not engaged, has sent none of them for a weapon's 5 ticks, and has not
+-- asked for a hold (`intent.no_fill`: a dodge in flight), the loop sends the
+-- default attack -- the boss -- and counts it (st.fill_ins; a ticklog mark
+-- on the leader).  Plans without the flag are untouched.
+function QD.raid._play_never_idle(st, v, intent)
+    if not st.plan.never_idle or (st.party or 1) <= 1 or v.boss == nil then return end
+    if intent.attack or intent.press ~= nil or intent.cast ~= nil or intent.walk ~= nil or intent.no_fill then
+        st.fill_last_act = v.tick
+        return
+    end
+    if st.engaged or v.tick - (st.fill_last_act or -100) < 5 then return end
+    -- only a swing from where the seat stands: a press out of reach makes the
+    -- server path the seat, through whatever is on the floor (the plan names
+    -- its reach: `never_idle_reach(st)`, default 1)
+    local reach = st.plan.never_idle_reach ~= nil and QD.raid[st.plan.never_idle_reach](st) or 1
+    if QD.raid._play_gap(v.boss, v.me.x, v.me.z) > reach then return end
+    if v.marks ~= nil and v.marks[v.me.x * 100000 + v.me.z] then return end
+    intent.attack = true
+    st.fill_ins = (st.fill_ins or 0) + 1
+    st.fill_last_act = v.tick
+    if st.log then QD.ticklog.mark("fill p" .. tostring(st.role)) end
+end
+
 function QD.raid._play_send(st, v, intent)
+    QD.raid._play_never_idle(st, v, intent)
     if st.plan.reconcile and (st.party or 1) > 1 then QD.raid._play_reconcile(st, v, intent) end
     local all = {}
     for _, name in ipairs(st.plan.walk_prayers) do all[#all + 1] = name end
@@ -1611,14 +1638,26 @@ function QD.raid.cross_together(name, opts)
         -- server's on this tick and the fight starts now (no wait for the tile
         -- to read moved: that read is a tick behind and cost the members two
         -- ticks of the run in, owner sva probe: play from t67 against t65)
-        while tries < 4 do
+        -- owner_tob_normal (coordinator 23:05): return on the tick the own
+        -- tile has left the door tile, polled every tick after the press --
+        -- the old fixed tick plus the reads after it handed the loop over 3
+        -- ticks after the step (mzprobenyl: p1 stepped t111, returned t114),
+        -- and the members' first attack in Nylocas' wave 1 landed at +3
+        -- against the script's +1
+        local _, door = QD.world.tile()
+        local crossed = false
+        while tries < 4 and not crossed do
             tries = tries + 1
             QD.player.click_loc(loc, 1)
-            QD.ticks(1)
-            if QD.chat.kind() ~= "options" then break end
-            QD.chat.play({ "options", "choose:Not yet." })
+            for _ = 1, 4 do
+                local _, now = QD.world.tile()
+                if now ~= nil and door ~= nil and (now.x ~= door.x or now.z ~= door.z) then crossed = true break end
+                if QD.chat.kind() == "options" then break end
+                QD.ticks(1)
+            end
+            if not crossed and QD.chat.kind() == "options" then QD.chat.play({ "options", "choose:Not yet." }) end
         end
-        detail = tries .. " press(es)"
+        detail = tries .. " press(es)" .. (crossed and "" or ", tile not seen to move")
     end
     local _, after = QD.world.tile()
     local _, t_after = QD.tick()

@@ -277,6 +277,9 @@ QD.raid._play_plan("tob_maiden", {
     -- owner_tob_normal: the trio's standing intents are reconciled, not re-clicked
     -- (raid_play.lua _play_reconcile); the Entry solo's decide never sets it
     reconcile = true,
+    -- the owner's invariant (22:25): the library fills a free weapon with the
+    -- boss attack when the plan sent nothing (raid_play.lua _play_never_idle)
+    never_idle = true, never_idle_reach = "mz_fill_reach",
 })
 
 -- Position label (0-9) of a crab tile from her SW tile, by the spawn grid
@@ -741,6 +744,8 @@ function QD.raid.mz_crab_stand(st, v, a)
     end
     return best
 end
+-- the fill-in's reach: the bow's 10 for the freezer, the scythe's 1
+function QD.raid.mz_fill_reach(st) return (st.role == 2) and 9 or 1 end
 -- a crab's hp from its health bar (what the screen shows); no bar drawn yet
 -- = full (the Normal trio's 75: tob.constant ^tob_maiden_crab_hp_3)
 function QD.raid.mz_crab_hp(a)
@@ -874,14 +879,12 @@ function QD.raid.mz_f_on_boss_on_pool(st, v, ev) return QD.raid.mz_dodge(st, v, 
 function QD.raid.mz_f_on_boss_tick(st, v, intent)
     local R = QD.RAID_MAIDEN_REF
     local b = v.boss
-    local nthr = R.thresholds[QD.raid.mz_form(st) + 1]
-    if nthr ~= nil and b.health_ratio ~= nil and b.health_scale ~= nil and b.health_scale > 0 and b.health_ratio >= 0
-        and b.health_ratio / b.health_scale <= nthr + R.prime then
-        QD.raid.mz_go(st, v, "PREAIM")
-        return
-    end
+    -- THE OWNER'S INVARIANT (22:25, "Nobody is ever idle"): the bow on her
+    -- every tick it is free, from wherever the freezer stands; no PREAIM
+    -- standing still (the magic set goes on at the spawn, CAST/1), no walk
+    -- home while she is in the bow's reach
     if QD.raid.mz_wear(intent, st.plan.ranged_set) then return end
-    if QD.raid.mz_walk_home(st, v, intent) then return end
+    if math.max(math.abs(v.me.x - (b.x + 2)), math.abs(v.me.z - (b.z + 2))) > 12 and QD.raid.mz_walk_home(st, v, intent) then return end
     intent.attack = true
 end
 
@@ -932,7 +935,9 @@ function QD.raid.mz_cast_tick(st, v, intent)
     -- for it, so a covered last cast is cast again -- sm9 sva t161)
     if c == nil then
         if last ~= nil and last.tick >= v.tick then return end
-        QD.raid.mz_go(st, v, "RETURN")
+        -- (no RETURN wait: the bow's press goes out now, the server holds it
+        -- behind the barrage's cooldown -- the owner's invariant)
+        QD.raid.mz_go(st, v, "F_ON_BOSS")
         return
     end
     -- (sent the tick before: the cast the client sends at +k animates at the
@@ -1157,7 +1162,7 @@ function QD.raid._play_maiden_trio(st, v)
         local it = QD.raid.mz_dodge(st, v, { mine = true, x = v.me.x, z = v.me.z, ticks = 1 })
         if it ~= nil then intent.walk = it.walk end
     end
-    if m.state == "DODGE" then m.dodges = m.dodges + 1 end
+    if m.state == "DODGE" then m.dodges = m.dodges + 1 intent.no_fill = true end
     local s0 = m.state
     QD.raid[QD.RAID_MAIDEN_STATES[m.state].tick](st, v, intent)
     -- a state that changed on its tick runs the new state's tick on the same
@@ -1232,6 +1237,22 @@ function QD.raid._play_maiden_trio(st, v)
     if intent.drink == nil and drink_ready then
         local missing = v.prayer_base - v.prayer
         if missing >= QD.RAID_PLAY_RESTORE_AMOUNT then intent.drink = QD.raid._play_maiden_restore() end
+    end
+    -- THE INVARIANT'S MEASURE: a tick is idle when the weapon is free (no
+    -- attack, press or cast sent in the last 5 ticks and not engaged on a
+    -- target) and none goes out this tick; per form and the longest run
+    -- (harness row tech.never_idle)
+    local acting = intent.attack or intent.press ~= nil or intent.cast ~= nil
+    if acting then m.last_act = v.tick end
+    local free = not st.engaged and v.tick - (m.last_act or -100) >= 5
+    m.idle = m.idle or { by = {}, run = 0, longest = 0, longest_at = -1 }
+    if free and not acting and not intent.no_fill and v.boss ~= nil then
+        local f = QD.raid.mz_form(st)
+        m.idle.by[f] = (m.idle.by[f] or 0) + 1
+        m.idle.run = m.idle.run + 1
+        if m.idle.run > m.idle.longest then m.idle.longest, m.idle.longest_at = m.idle.run, v.tick end
+    else
+        m.idle.run = 0
     end
     -- the record: a scythe seat's Strength and Prayer every ten ticks
     if st.role ~= 2 and v.tick % 10 == 0 then
