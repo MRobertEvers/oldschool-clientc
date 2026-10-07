@@ -109,6 +109,7 @@ QD.raid._play_plan("tob_verzik", {
     -- form dies, and every pillar falls on whoever is within 2 (V
     -- verzik.pillar_collapse_range; W:879 "players should stay away from them").
     p1_windup = 8109, p1_cadence = 14, p1_launch = 3, p1_flight = 3, p1_death = 8111,
+    p1_bolt_proj = 1580,                   -- the bolt (V p1; cache_spotanim.txt)
     p1_safe_swings = 4,                    -- W:885 "safely attack four times with a 4-tick weapon"
     p1_fist_swings = 10,                   -- the cap row's sample (K tech.p1_cap_melee_ranged; triage: "lands enough to see it")
     p1_bow_swings = 2,                     -- the ranged half of the same row (the cap is 3: W:873)
@@ -476,10 +477,35 @@ end
 -- east once the right one collapses").
 QD.RAID_PLAY_VERZIK_PILLAR_HP = 185
 QD.RAID_PLAY_VERZIK_PILLAR_HIT_MAX = 60
+QD.RAID_PLAY_VERZIK_PILLAR_HIT_TOP = 60   -- a bolt takes 40-60 (tob.constant ^tob_verzik_pillar_hit_max)
 function QD.raid._verzik_cover(st, v, ok)
     local b, O = v.boss, st.origin
     local cx = b.x + math.floor((b.size or 1) / 2)
     local best = nil
+    -- owner_verzik 2026-10-07: THE BOLTS EACH PILLAR HAS TAKEN, seen as they
+    -- fly (the bolt 1580 is aimed at the pillar's centre tile).  A pillar's bar
+    -- is not always in view (the note below), and the probe run of watchverzik
+    -- lost a raider 47 of 83 to a fall it read as a whole pillar: 6425,94 took
+    -- bolts t81, t95, t109, t123 and fell on the fourth (t126) on p3 hiding on
+    -- its loose tile.  185 hitpoints and 40-60 a bolt (V verzik.pillar_hp,
+    -- pillar_hit; tob.constant ^tob_verzik_pillar_hit_min/_max) can leave it
+    -- 60 or less after three: from the third bolt it MAY fall.
+    local vzz = st.vz
+    vzz.pillar_bolts = vzz.pillar_bolts or {}
+    vzz.bolt_seen = vzz.bolt_seen or {}
+    for _, pr in ipairs(v.proj or {}) do
+        if pr.spotanim_id == st.plan.p1_bolt_proj then
+            local key = tostring(pr.element_id) .. ":" .. tostring(pr.launched) .. ":" .. pr.dst_x .. "," .. pr.dst_z
+            if not vzz.bolt_seen[key] then
+                vzz.bolt_seen[key] = true
+                for _, p in ipairs(v.pillars) do
+                    if pr.dst_x >= p.x and pr.dst_x <= p.x + 2 and pr.dst_z >= p.z and pr.dst_z <= p.z + 2 then
+                        vzz.pillar_bolts[p.slot] = (vzz.pillar_bolts[p.slot] or 0) + 1
+                    end
+                end
+            end
+        end
+    end
     for _, p in ipairs(v.pillars) do
         -- the lowest bar seen on it: the bar shows only for a while after a
         -- hit (s34v svb/sva: a bar gone read as a whole pillar, the raiders
@@ -491,6 +517,7 @@ function QD.raid._verzik_cover(st, v, ok)
         end
         st.vz.pillar_hp[p.slot] = hp
         local may_fall = hp <= QD.RAID_PLAY_VERZIK_PILLAR_HIT_MAX
+            or (vzz.pillar_bolts[p.slot] or 0) * QD.RAID_PLAY_VERZIK_PILLAR_HIT_TOP >= QD.RAID_PLAY_VERZIK_PILLAR_HP - QD.RAID_PLAY_VERZIK_PILLAR_HIT_MAX
         local west = (p.x - O.x) == 25
         local x0, x1, z0, z1 = p.x + 2, p.x + 4, p.z - 2, p.z
         local loose = { { p.x + 1, p.z - 1 }, { p.x + 3, p.z + 1 } }
@@ -834,9 +861,18 @@ function QD.raid._verzik_is_tank(st, v)
     if pr ~= "ok" then return true end
     local b, low = v.boss, nil
     for _, r in ipairs(prow) do
-        if r.pid ~= nil and math.max(math.abs(r.x - b.x), math.abs(r.z - b.z)) <= 20 and (low == nil or r.pid < low) then low = r.pid end
+        if r.pid ~= nil and QD.raid._verzik_on_floor(st, r) and (low == nil or r.pid < low) then low = r.pid end
     end
     return low == nil or low == st.my_pid
+end
+
+-- owner_verzik: a raider on the room's floor.  A raider who died stands in
+-- the spectator cage, off the floor (tob_spectate.rs2: Verzik's cage tiles
+-- (21..41, 37), the floor is 22..41 x 15..34) and is nobody's mate: no pool,
+-- no ball, no tank.
+function QD.raid._verzik_on_floor(st, r)
+    local O, F = st.origin, st.plan.floor
+    return r.x >= O.x + F[1] and r.x <= O.x + F[3] and r.z >= O.z + F[2] and r.z <= O.z + F[4]
 end
 
 -- The other raiders' tiles (api_drive.players), for the step's tie-break.
@@ -846,7 +882,7 @@ function QD.raid._verzik_mates(st)
         local pr, prow = api_drive.players()
         if pr == "ok" then
             for _, r in ipairs(prow) do
-                if not r.me then mates[#mates + 1] = r end
+                if not r.me and QD.raid._verzik_on_floor(st, r) then mates[#mates + 1] = r end
             end
         end
     end
@@ -1813,7 +1849,7 @@ function QD.raid._play_verzik_decide(st, v)
             local pr, prow = api_drive.players()
             if pr == "ok" then
                 for _, r in ipairs(prow) do
-                    if not r.me then mates[#mates + 1] = r end
+                    if not r.me and QD.raid._verzik_on_floor(st, r) then mates[#mates + 1] = r end
                 end
             end
         end
@@ -2519,6 +2555,76 @@ function QD.raid.verzik_trio_run(t, cfg)
         M = mk[#mk].tick
     end
     if size > 1 then t.expect("party.barrier.started", t.party.barrier("started", 900)) end
+    -- owner_verzik 2026-10-07: THE FORCED DEATH (cfg.kill_role).  The owner:
+    -- "Check what happens when a player dies in the raid, and ensure they are
+    -- put in the observation until the end of the raid."  "Players who die
+    -- during the raid will be placed in purgatory. If the room is successfully
+    -- cleared by the remaining players, those who have died will be reunited
+    -- with the rest of their team" (wiki_Theatre_of_Blood_Strategies.wikitext:3).
+    -- That seat dies in P1 by ::die (player/death.rs2: the whole death sequence
+    -- through the engine's trigger), then reads its own ::tobjail line every
+    -- few ticks through P1, P2 and P3 to the room's end, with her form; it never
+    -- plays.  Its rows: caged at every reading while the room is not won, the
+    -- raid's death counter, out once the room is won.
+    if cfg.kill_role ~= nil and role == cfg.kill_role then
+        t.party.allow_death("owner_verzik forced death: the cage holds to the room's end")
+        t.ticks(4)
+        local _, dr = t.cheat("::die", true)
+        t.check("death.cheat", true, "p" .. role .. " ::die " .. tostring(dr))
+        t.ticks(12)
+        if size > 1 then t.expect("party.barrier.dead", t.party.barrier("dead", 300)) end
+        local readings, forms, bad, released, counted = {}, {}, {}, false, nil
+        local function form_now()
+            for _, f in ipairs({ "verzik_phase1", "verzik_phase1_to2_transition", "verzik_phase2", "verzik_phase2_to3_transition", "verzik_phase3" }) do
+                if t.npc.nearest(f, 64) == "ok" then return f end
+            end
+            return "none"
+        end
+        local function read()
+            t.cheat("::tobjail", true)
+            t.ticks(1)
+            local _, ml = t.msg.last(10)
+            local line = ""
+            for _, m in ipairs(ml or {}) do
+                local tx = tostring(m.text)
+                if tx:find("tobjail jailed=", 1, true) then line = tx end
+            end
+            return line
+        end
+        local p3_seen = cfg.start ~= "p3"
+        for _ = 1, 400 do
+            local f = form_now()
+            local line = read()
+            local _, now = t.tick()
+            local jailed = line:find("jailed=1", 1, true) ~= nil
+            local cleared = line:find("cleared=1", 1, true) ~= nil
+            forms[f] = true
+            if counted == nil then counted = line:match("deaths=(%d+)") end
+            if #readings < 40 then readings[#readings + 1] = "t" .. tostring(now) .. " " .. f .. " j" .. (jailed and 1 or 0) .. " c" .. (cleared and 1 or 0) end
+            if not cleared and not jailed then bad[#bad + 1] = "t" .. tostring(now) .. " " .. f .. " NOT CAGED" end
+            if cleared then
+                t.ticks(3)
+                released = read():find("jailed=0", 1, true) ~= nil
+                break
+            end
+            if not p3_seen and f == "verzik_phase3" then
+                p3_seen = true
+                if size > 1 then t.expect("party.barrier.p3", t.party.barrier("p3", 900)) end
+            end
+            t.ticks(3)
+        end
+        local fl = {}
+        for f, _ in pairs(forms) do fl[#fl + 1] = f end
+        table.sort(fl)
+        t.check("death.caged_to_room_end", #bad == 0 and forms["verzik_phase3"] ~= nil and (forms["verzik_phase2"] ~= nil or forms["verzik_phase2_to3_transition"] ~= nil),
+            "p" .. role .. " forms seen " .. table.concat(fl, ",") .. "; " .. (#bad > 0 and table.concat(bad, " ") or "caged at every reading") .. " | " .. table.concat(readings, " "))
+        t.check("death.counted", counted == "1", "p" .. role .. " the raid's death counter deaths=" .. tostring(counted))
+        t.check("death.released_after", released, "p" .. role .. " out of the cage once the room was won: " .. tostring(released))
+        if size > 1 then t.expect("party.barrier.done", t.party.barrier("done", 9000)) end
+        t.finish(0)
+        return
+    end
+    if cfg.kill_role ~= nil and size > 1 then t.expect("party.barrier.dead", t.party.barrier("dead", 300)) end
     if cfg.start == "p3" then
         if role == 1 then
             local function wait_form(symbol, ticks)
@@ -2559,6 +2665,16 @@ function QD.raid.verzik_trio_run(t, cfg)
     end
 
     QD.raid.verzik_p3_rows(t, cfg, rec, M)
+    if cfg.kill_role ~= nil then
+        -- the death animation on the dead seat (pid = role - 1 in these
+        -- harnesses: seat = role), and no hp on it again until the room is won
+        local _, pa = t.ticklog.rows({ kind = "player_anim" })
+        local anim_at = nil
+        for _, r in ipairs(pa or {}) do
+            if r.pid == cfg.kill_role - 1 and r.seq == 836 and anim_at == nil then anim_at = r.tick end
+        end
+        t.check("death.anim", anim_at ~= nil, "pid " .. (cfg.kill_role - 1) .. " human_death 836 at t" .. tostring(anim_at))
+    end
     t.expect("party.barrier.done", t.party.barrier("done", 9000))
     t.finish(0)
 end
@@ -2660,7 +2776,7 @@ function QD.raid.verzik_p3_rows(t, cfg, rec, M)
     check("p3.cycle.yellows", yl_ok, #yl_txt > 0 and table.concat(yl_txt, "; ") or "no yellows special")
     check("p3.cycle.ball", bl_ok, #bl_txt > 0 and table.concat(bl_txt, "; ") or "no green ball")
     check("p3.cycle.full", full, "rotation " .. table.concat(order, " "))
-    if not cfg.cycle then
+    if not cfg.cycle and cfg.ball_check ~= false then
         -- the fast pace kills her before her green ball (the owner: "the fast
         -- Verzik script that kills it before the green orb")
         t.check("p3.fast_before_ball", #C.ball == 0, #C.ball == 0 and ("no ball before her death " .. rel(p3_dead or p3s)) or ("ball thrown " .. table.concat(bl_txt, "; ")))
