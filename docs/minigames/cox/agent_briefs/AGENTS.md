@@ -13,7 +13,7 @@ your ownership row in `ROOM_AGENT.md`. See workspace rule
 | tekton | bc-6e8e01ee-2dfa-5089-8328-6b72a1d1b15a | replacement (old bc-d8bc5247 stuck) |
 | guardians | bc-36e57d6c-c0a4-54ad-9976-d2699a5311c3 | prior (still updating) |
 | vespula | bc-52439575-cf77-5bc3-b753-7c5151722e31 | replacement (old bc-fb0ab973 stuck) |
-| icedemon | bc-28036115-f582-5175-aaf5-64487f2d13ab | replacement |
+| icedemon | bc-28036115-f582-5175-aaf5-64487f2d13ab | **green FULL** — `cursor/cox-icedemon-sm-da39` PR #138 |
 | tightrope | bc-0e60f709-4b14-5912-b2ee-beb76784676d | **green FULL** — `cursor/cox-tightrope-traversal-da39` PR #137 |
 | crabs | bc-51ffcdb3-8125-50a6-9573-1c025b79eb35 | replacement |
 | thieving | bc-311e5e87-f634-5584-8481-aa63d95c7978 | resumed (was IDLE / green) |
