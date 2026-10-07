@@ -1742,6 +1742,58 @@ function QD.drive._under_ui(at)
     return nil
 end
 
+-- AN ARMED SELECTION ON A PLAIN PRESS (raid owner_nylocas, svbplaynyloc).
+-- While a spell or a "Use" is armed the client builds the world menu from
+-- that selection alone -- "Cast <spell> -> <npc>" rows, no Walk here, no
+-- Attack (Client.ts addWorldOptions; rs_minimenu_world.c) -- so a press for
+-- any other op opens a menu with no row for it, answers `covered`, and the
+-- next press finds the same menu: the selection is still armed.  The mage's
+-- Ice Barrage was armed at t428 by a cast whose own target press missed, and
+-- 157 of her 259 presses answered `covered` from there to the end of the boss,
+-- every one of those menus `<Cancel> <Cast Ice Barrage -> ...>`.  A player
+-- picks Cancel, whose doAction tail drops the selection (Client.ts:9503;
+-- app_minimenu_use_option's app_selection_clear); this does the same and says
+-- so -- the quick cast press (spell.lua _cast_press's press_quick) returns
+-- its miss with the spell still armed, where the slow one calls
+-- QD.player.cancel_selection.  Only a
+-- press that is NOT itself a cast (`action` nil is the Cast row's own press)
+-- and only when the open menu really carries an armed row.
+function QD.drive._disarm_from_menu(action)
+    if action == nil then
+        return ""
+    end
+    local rows_result, rows = api_drive.menu_rows()
+    if rows_result ~= "ok" or type(rows) ~= "table" then
+        return ""
+    end
+    local armed, cancel = nil, nil
+    for i = 1, #rows do
+        local text = tostring(rows[i].text)
+        if armed == nil and string.find(text, " -> ", 1, true)
+            and (string.find(text, "Cast ", 1, true) == 1 or string.find(text, "Use ", 1, true) == 1) then
+            armed = text
+        end
+        if text == "Cancel" then
+            cancel = rows[i]
+        end
+    end
+    if armed == nil or cancel == nil then
+        return ""
+    end
+    QD.drive._armed_disarms = (QD.drive._armed_disarms or 0) + 1
+    api_drive.mouse_button("left", 1, cancel.centre_x, cancel.centre_y)
+    api_drive.mouse_button("left", 0, cancel.centre_x, cancel.centre_y)
+    local closed = QD.await({
+        level = function()
+            local r, visible = api_drive.menu_visible()
+            return r == "ok" and not visible
+        end,
+        note = "click_minimenu.disarm_from_menu",
+    }, 1)
+    return "a selection was armed ('" .. armed .. "'): Cancel pressed to disarm it ("
+        .. tostring(closed) .. ") -- "
+end
+
 -- One press at `pos`: move, let a frame render, right-press, find the row by
 -- (action, pick kind, pick identity) -- never by row text -- and left-press
 -- it.  `covered` means the menu opened and had no row for this target, which
@@ -1847,10 +1899,12 @@ function QD.drive._press_row(target, pos, action, deadline, pick_polls)
 
     local row_result, row = api_drive.menu_row_find(action, target.kind, pos.element_id)
     if row_result ~= "ok" then
-        return "covered", "element " .. tostring(pos.element_id) .. " at " .. tostring(pos.x)
+        local detail = "element " .. tostring(pos.element_id) .. " at " .. tostring(pos.x)
             .. "," .. tostring(pos.y) .. ": pickset held=" .. tostring(held_result == "ok")
             .. ", menu has no row for it" .. QD.drive._menu_other_copies(action, pos.element_id)
             .. " -- " .. QD.drive._menu_summary()
+        -- the disarm's word goes FIRST: callers cut a long account short
+        return "covered", QD.drive._disarm_from_menu(action) .. detail
     end
 
     local left_result = api_drive.mouse_button("left", 1, row.centre_x, row.centre_y)
