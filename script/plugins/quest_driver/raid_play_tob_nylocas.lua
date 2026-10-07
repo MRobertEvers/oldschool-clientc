@@ -403,7 +403,7 @@ QD.raid._play_plan("tob_nylocas", {
     -- after wave 31 the leave-to-owner rule is off (every seat on the leftovers)
     cleanup_help = true,
     -- from this wave a big of the seat's colour, once pressed, stays its choice until it dies (the wave-30 big blue of svc/svd)
-    big_stick = 29,
+    big_stick = 31,
     -- owner_nylocas: THE SCORED PLAN'S PICK, the machine's KILL / PRE_STAND choice
     -- (QD.raid._play_nylocas_scored_pick): its terms, unchanged from 738ef1466,
     -- whose seats hold 7-18 alive at waves 21-26 against the list machine's 13-23
