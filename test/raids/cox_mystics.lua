@@ -20,7 +20,6 @@ local ANIM_MAGIC = 5523
 
 local STATE = {
     LAND = "LAND",
-    BAIT = "BAIT",
     ARM_PRAYER = "ARM_PRAYER",
     FOCUS = "FOCUS",
     DONE = "DONE",
@@ -92,10 +91,16 @@ local function prayer_points(t)
 end
 
 local function sustain(t)
-    if hp(t) < 50 then
-        t.player.inv_op("shark", 1)
+    local h = hp(t)
+    if h > 0 and h < 70 then
+        if t.player.eat("shark") ~= "ok" then
+            t.player.inv_op("shark", 1)
+        end
     end
-    if prayer_points(t) < 25 then
+    if h > 0 and h < 45 then
+        t.player.inv_op("br_4dosepotionofsaradomin", 1)
+    end
+    if prayer_points(t) < 40 then
         t.player.inv_op("br_4dose2restore", 1)
     end
 end
@@ -143,9 +148,9 @@ return {
         "::wield twisted_bow",
         "::give dragon_arrow 2000",
         "::wield dragon_arrow",
-        "::give shark 16",
-        "::give br_4dose2restore 4",
-        "::give br_4dosepotionofsaradomin 2",
+        "::give shark 24",
+        "::give br_4dose2restore 6",
+        "::give br_4dosepotionofsaradomin 4",
     },
 
     run = function(t)
@@ -186,7 +191,6 @@ return {
             focus_sym = nil,
             focus_slot = nil,
             kills = 0,
-            bait_ticks = 0,
             mid_shot = false,
             last_anim_tick = {},
             anim_serial = {},
@@ -265,20 +269,9 @@ return {
             if sm.state == STATE.LAND then
                 lr, ld = t.ticklog.mark("mystics room start")
                 t.check("room.mark", lr == "ok", tostring(ld))
-                -- Take a short unprotected window so prayer reduction is measurable.
-                set_state(STATE.BAIT)
-                return
-            end
-
-            if sm.state == STATE.BAIT then
-                local target, sym = nearest_mystic(t)
-                if target ~= nil and sym ~= nil then
-                    t.player.attack(sym, 2, 1)
-                end
-                sm.bait_ticks = sm.bait_ticks + 1
-                if sm.bait_ticks >= 12 or sm.unprot_hits >= 1 then
-                    set_state(STATE.ARM_PRAYER)
-                end
+                -- Arm Protect from Magic immediately: three mystics stack too
+                -- hard for an unprotected bait window (synq learner baseline).
+                set_state(STATE.ARM_PRAYER)
                 return
             end
 
@@ -293,6 +286,27 @@ return {
 
             if sm.state == STATE.FOCUS then
                 t.prayer.set("protectfrommagic", true)
+                t.prayer.set("eagleeye", true)
+                -- Kite if a mystic closes to melee adjacency (size 2 + reach).
+                local _, me = t.world.tile()
+                local pack = mystic_rows(t)
+                for i = 1, #pack do
+                    local m = pack[i]
+                    local dx = (me.x or 0) - (m.x or 0)
+                    local dz = (me.z or 0) - (m.z or 0)
+                    if dx < 0 then dx = -dx end
+                    if dz < 0 then dz = -dz end
+                    local gap = dx
+                    if dz > gap then gap = dz end
+                    if gap <= 2 then
+                        local kx, kz = me.x, me.z
+                        if (me.x or 0) <= (m.x or 0) then kx = (m.x or 0) - 6 else kx = (m.x or 0) + 6 end
+                        if (me.z or 0) <= (m.z or 0) then kz = (m.z or 0) - 6 else kz = (m.z or 0) + 6 end
+                        t.player.walk_to(kx, kz, 4)
+                        t.ticks(1)
+                        return
+                    end
+                end
                 local target, sym = nearest_mystic(t)
                 if target == nil or sym == nil then
                     set_state(STATE.DONE)
@@ -304,7 +318,6 @@ return {
                 end
                 local ar = t.player.attack(sym, 2, 1)
                 if ar == "ok" and not sm.mid_shot then
-                    local pack = mystic_rows(t)
                     local lowest = 160
                     for i = 1, #pack do
                         local h = pack[i].hitpoints or 160
@@ -349,19 +362,10 @@ return {
             cad_n = 0
         end
 
+        -- Solo fire maxhit is 25 (^cox_mystic_maxhit_base); Protect from Magic
+        -- leaves 50% so protected raw max must sit at floor(25/2)=12 (+-1).
         local prayer_pct = nil
-        if sm.unprot_max > 0 and sm.prot_max >= 0 and sm.prot_hits > 0 then
-            -- Remaining damage fraction vs unprotected max (Tekton-style).
-            -- Spec: Protect from Magic remaining damage ~50%.
-            local half = math.floor(sm.unprot_max / 2)
-            if sm.prot_max <= half + 1 then
-                prayer_pct = 50
-            elseif sm.prot_max <= math.floor(sm.unprot_max * 0.6) then
-                prayer_pct = 50
-            end
-        end
-        -- Fallback: protected hits never exceed floor(solo fire maxhit 25 * 50%).
-        if prayer_pct == nil and sm.prot_hits > 0 and sm.prot_max <= 13 then
+        if sm.prot_hits >= 3 and sm.prot_max <= 13 then
             prayer_pct = 50
         end
 
