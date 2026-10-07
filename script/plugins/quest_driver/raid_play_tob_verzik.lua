@@ -613,6 +613,11 @@ end
 -- drop', is to simply drop the Dawnbringer behind the pillar"), where the
 -- others hide.  The order is seen, not told: p(r) takes the sword the
 -- (r-1)th time it appears on the floor.
+-- How long the bounce chain is held together after the ball's projectile has
+-- gone. The hops are one a tick (_vzslowp3: landed on p1 at t267, hopped to p2
+-- at t268), so a trio needs two; four leaves room for a hop that waits a tick
+-- and still ends the hold well before her next special.
+QD.RAID_PLAY_VERZIK_BALL_CHAIN_TICKS = 4
 QD.RAID_PLAY_VERZIK_DAWN_COST = 350
 
 -- ported to raid_sm 2026-10-07: THE DAWNBRINGER, three states.
@@ -1414,9 +1419,35 @@ function QD.raid._verzik_events(st, v)
     local ball = nil
     for _, p in ipairs(v.proj or {}) do
         if p.spotanim_id == P.ball_proj then
-            ball = { x = p.dst_x, z = p.dst_z,
+            ball = { x = p.dst_x, z = p.dst_z, target = p.target,
                 left = math.ceil((p.cycles_left or 0) / QD.RAID_PLAY_CYCLES_PER_TICK) }
         end
+    end
+    -- owner_verzik 2026-10-07: THE BALL LIVES PAST ITS PROJECTILE.  The share
+    -- is not the flight, it is the BOUNCE CHAIN that follows it: the ball
+    -- reaches its target, then hops to a raider within one tile
+    -- (^tob_verzik_p3_ball_bounce_range 1), and so on until every raider has
+    -- been visited, after which it dissipates harmlessly; a hop back to
+    -- someone already visited hits BOTH.  The projectile is GONE for all of
+    -- that, so a share that lives only while it flies cannot hold the trio
+    -- together through the hops.
+    --
+    -- _vzslowp3 is the proof and it is not what either I or the coordinator
+    -- first said: at the throw tick t260 all three raiders stood on ONE TILE,
+    -- 6434,92, ring-running together. They split during the eight ticks of
+    -- flight -- t261 p0 to 6435,94 while p1 and p2 went to 6432,94, three
+    -- tiles apart -- so when the ball landed on p1 at t267 for 0 and hopped to
+    -- p2 at t268, p0 was not adjacent, the chain died on p2 and p2 took the
+    -- 74. There were no yellow pools in that room at all, so the pool
+    -- priority had nothing to do with it.
+    --
+    -- So the reading holds for CHAIN_TICKS after the projectile goes, on the
+    -- last tile it was homing to (a homing projectile's dst is its target's
+    -- live tile, QD.world.projectiles, so that tile IS the carrier).
+    if ball ~= nil then
+        vz.ball_last, vz.ball_last_tick = ball, v.tick
+    elseif vz.ball_last ~= nil and v.tick <= (vz.ball_last_tick or 0) + QD.RAID_PLAY_VERZIK_BALL_CHAIN_TICKS then
+        ball = { x = vz.ball_last.x, z = vz.ball_last.z, target = vz.ball_last.target, left = 0, chain = true }
     end
     vz.sm_ball = ball
     if ball ~= nil then raise("ball_air", { x = ball.x, z = ball.z, left = ball.left }) else raise("ball_gone", {}) end
@@ -1752,11 +1783,16 @@ function QD.raid._verzik_ring_events(st, v, c)
     if c.ball ~= nil then
         local t = c.ball
         if t.x == me.x and t.z == me.z then
+            -- I am the carrier: stand still and let it hop off me
             c.target, c.pull = nil, 0
-        elseif t.left <= 4 then
-            c.target, c.pull = { x = t.x, z = t.z, adj = true }, 60
         else
-            c.target, c.pull = { x = t.x, z = t.z, adj = true }, 6
+            -- owner_verzik 2026-10-07: pull 60 for the BALL'S WHOLE LIFE, not
+            -- only its last four ticks. The old 6 let the ring's own two-step
+            -- win while the ball flew, and the trio drifted three tiles apart
+            -- in exactly the ticks the chain needed them adjacent (t261,
+            -- _vzslowp3); by the time the pull rose they could not get back,
+            -- two tiles a tick against three tiles of gap.
+            c.target, c.pull = { x = t.x, z = t.z, adj = true }, 60
         end
         return { { name = "ball_share", go = "SHARE" } }
     end
