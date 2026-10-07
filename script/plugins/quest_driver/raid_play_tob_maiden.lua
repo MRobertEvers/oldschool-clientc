@@ -1325,7 +1325,12 @@ function QD.raid.mz_cast_tick(st, v, intent)
     end
     for i = #m.casts, math.max(1, #m.casts - 3), -1 do
         local r = m.casts[i]
-        if r.result == "covered" and v.tick - r.tick <= 3 then skip[r.slot] = true end
+        -- (only a NEXT / AGAIN pick moves on to another crab; a position
+        -- cast is cast again on the same crab -- gate9 pos4 sva w2, the +6
+        -- cast on N2 covered, the skip left P2 nothing and N2 went unfrozen,
+        -- where Blert's +6 freezes N2 in 3 of 4 S1+N2 waves of the 50s)
+        local moves_on = r.why ~= nil and (r.why:sub(1, 4) == "NEXT" or r.why:sub(1, 5) == "AGAIN")
+        if r.result == "covered" and v.tick - r.tick <= 3 and moves_on then skip[r.slot] = true end
     end
     local c = W.casts[m.idx]
     -- (the last cast's answer is read the tick after it is sent: RETURN waits
