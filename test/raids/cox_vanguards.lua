@@ -143,6 +143,52 @@ local function attack_focus(t, sym)
     return t.player.attack(sym, 2, 1, ATTACK_OPTS)
 end
 
+-- Stand on the FAR side of `focus` relative to the other two, so their
+-- attackrange-10 no longer reaches (spawns are ~8 apart; standing on the
+-- near side still eats all three). Synq perimeter rule.
+local function isolate_tile(pack, focus)
+    if focus == nil then return nil end
+    local ox, oz, n = 0, 0, 0
+    for i = 1, #COMBAT do
+        local row = row_by_sym(pack, COMBAT[i])
+        if row ~= nil and row.symbol ~= focus.symbol then
+            ox = ox + row.x
+            oz = oz + row.z
+            n = n + 1
+        end
+    end
+    if n == 0 then return focus.x, focus.z end
+    ox = math.floor(ox / n)
+    oz = math.floor(oz / n)
+    local dx = focus.x - ox
+    local dz = focus.z - oz
+    if dx == 0 and dz == 0 then
+        return focus.x + 7, focus.z
+    end
+    local adx = math.abs(dx)
+    local adz = math.abs(dz)
+    local sx, sz = 0, 0
+    if adx >= adz then
+        if dx > 0 then sx = 1 else sx = -1 end
+    else
+        if dz > 0 then sz = 1 else sz = -1 end
+    end
+    -- 7 tiles past the focus: still inside tbow/kodai range of the focus,
+    -- hopefully outside the other two's range-10.
+    return focus.x + sx * 7, focus.z + sz * 7
+end
+
+local function go_isolate(t, pack, focus)
+    local x, z = isolate_tile(pack, focus)
+    if x == nil then return end
+    local _, me = t.world.tile()
+    local dx = math.abs(me.x - x)
+    local dz = math.abs(me.z - z)
+    if dx > 1 or dz > 1 then
+        t.player.walk_to(x, z, 3)
+    end
+end
+
 local function equip_for(t, target_sym)
     local style = WEAK[target_sym] or "ranged"
     -- Set the new overhead first (server excludes the others). Do not
@@ -420,9 +466,13 @@ return {
                     set_state(STATE.BALANCE)
                     return
                 end
-                sm.style = equip_for(t, mage.symbol)
-                sm.focus = mage.symbol
-                t.player.attack(mage.symbol, 2, 1)
+                if sm.focus ~= mage.symbol then
+                    sm.style = equip_for(t, mage.symbol)
+                    sm.focus = mage.symbol
+                else
+                    t.prayer.set(PROTECT[mage.symbol], true)
+                end
+                attack_focus(t, mage.symbol)
                 sm.probe_hits = sm.probe_hits + 1
                 if sm.probe_hits >= 20 then
                     if sm.last_spread_pct ~= nil and sm.last_spread_pct >= 40 then
@@ -458,14 +508,19 @@ return {
                     set_state(STATE.DONE)
                     return
                 end
-                -- Prefer standing under the ranged form when it is the focus
-                -- (Synq: it will not walk). Otherwise attack in place.
-                if target.symbol == RANGED then
-                    t.player.walk_to(target.x, target.z, 2)
+                -- Prefer standing under the ranged form (Synq: it will not
+                -- walk when stood under). Re-equip only on focus change.
+                local ranged = row_by_sym(pack, RANGED)
+                if ranged ~= nil then
+                    t.player.walk_to(ranged.x, ranged.z, 1)
                 end
-                sm.style = equip_for(t, target.symbol)
-                sm.focus = target.symbol
-                t.player.attack(target.symbol, 2, 1)
+                if sm.focus ~= target.symbol then
+                    sm.style = equip_for(t, target.symbol)
+                    sm.focus = target.symbol
+                else
+                    t.prayer.set(PROTECT[target.symbol], true)
+                end
+                attack_focus(t, target.symbol)
                 return
             end
         end
