@@ -77,14 +77,15 @@ return {
         t.ticks(4)
         local _, k = t.world.tile()
         t.check("talkToKazgar.landed", k.x >= 3300, string.format("at %d,%d,%d", k.x, k.z, k.level))
-        -- guide 1.2: the city door (lotg_intro.rs2 [oploc1,cave_goblin_city_doorr] p_teleport(0_42_83_16_53)),
-        -- mines frame 1 -> Dorgesh-Kaan frame 0; it lands inside Oldak's lab
+        -- guide 1.2: the city door (lotg_intro.rs2 [oploc1,cave_goblin_city_doorr]
+        -- p_teleport(^lotg_dorgesh_north_entry_coord)), mines frame 1 -> Dorgesh-Kaan frame 0; it lets out
+        -- at the city's north entrance, inside the bone door (dorgesh_bonedoor_entrance 2747,5375)
         t.exec("enterCity", t.player.climb, { loc = "cave_goblin_city_doorr", op = 1, op_name = "Open",
-            at = { 3317, 9601, 0 }, dest = { 2704, 5365, 0 } })
-        -- guide 1.5: out of the lab by its door, then the stairs
-        t.exec("labDoorOut", t.player.pass_door, { closed = "dorgesh_inner_door_closed", open = "dorgesh_inner_door_open",
-            at = { 2709, 5362, 0 }, near = { 2708, 5362 }, far = { 2710, 5362 },
-            far_ok = function(tile) return tile.x >= 2709 end, far_desc = "out of Oldak's lab, x >= 2709" })
+            at = { 3317, 9601, 0 }, dest = { 2747, 5374, 0 } })
+        -- guide 1.5: south-west through the city's ground floor to the stairs (reach.py 2747,5374 ->
+        -- 2720,5358 REACH closed-doors; hops are the BFS path's corners)
+        t.exec("walk-climbToF1City", t.player.walk_route, { { 2738, 5373 }, { 2731, 5373 }, { 2731, 5367 },
+            { 2733, 5367 }, { 2733, 5364 }, { 2729, 5364 }, { 2729, 5358 }, { 2720, 5358 } }, { level = 0 })
         t.exec("climbToF1City", t.player.climb, { loc = "dorgesh_1stairs_posh", op = 1, op_name = "Climb-up",
             at = { 2720, 5359, 0 }, dest = { 2720, 5361, 1 } })
         -- Ur-tag's room: its one entrance is the posh door at 2733,5363 (maps/m42_83.jl2)

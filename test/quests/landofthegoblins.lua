@@ -10,14 +10,18 @@
 --   * the Goblin Cave, the Goblin Temple, the crypt, the Hemenster competition area, Aggie's house and
 --     the Makeover Mage's house are entered and left by their own locs on every visit;
 --   * the walks inside the cave are walk_route hops (Zanik follows; a goto would leave her behind).
--- Known content shortcut kept (reported): Dorgesh-Kaan's mines door lands inside Oldak's lab
--- (lotg_intro.rs2 [oploc1,cave_goblin_city_doorr]), as Another Slice of H.A.M.'s green test needs.
+-- Dorgesh-Kaan: the mines door lets out at the city's north entrance inside the bone door (lotg_intro.rs2
+-- [oploc1,cave_goblin_city_doorr]); the lab is walked to and entered by its own door every visit.
 --
 -- Stats: the four requirements (Land_of_the_Goblins oldid 15363325: Agility 38, Fishing 40,
--- Thieving 45, Herblore 48). Combat staged as a margin for the five crypt priests (Quest Helper
--- recommends combat 65; Strongbones is level 184): no LOTG script reads a combat stat or the combat
+-- Thieving 45, Herblore 48). Combat staged for the five crypt priests (Quest Helper recommends combat
+-- 65; Strongbones is level 184): Attack 70 (the abyssal whip's own requirement), 60 Strength/Defence/
+-- Hitpoints with rune armour, and Prayer 60 for the protection prayers the article advises (Protect
+-- from Magic against Strongbones; the priest's own style for each of the others) -- at 45 the points
+-- ran out in the second fight (b73 round 2 run 1: protection drains ~1 point per 4-5 ticks). No LOTG script reads a combat stat or the combat
 -- level (grep quest_landofthegoblins/scripts: stat_base agility/fishing/thieving/herblore,
--- stat(thieving) 45 and stat(fishing) 40 only).
+-- stat(thieving) 45 and stat(fishing) 40 only). The rolls are real: whitefish on the cave eel's fishing
+-- row, the priests' pockets on the guard's thieving row (lotg_keys.rs2), so both are retried.
 
 local function at(t)
     local r, h = t.world.tile()
@@ -102,24 +106,96 @@ local function to_mines(t, p)
     t.check(p .. "talkToKazgar.landed", type(k) == "table" and k.x >= 3300, "at " .. at(t) .. " (want the Dorgeshuun Mines, x >= 3300)")
 end
 
-local function prayer_melee(t, name, want)
+-- Dorgesh-Kaan's ground floor from the bone door to Oldak's lab door (reach.py 2747,5374 -> 2710,5362
+-- REACH closed-doors; hops are the BFS path's corners), then in by the lab door.
+local TO_LAB = { { 2738, 5373 }, { 2731, 5373 }, { 2731, 5367 }, { 2733, 5367 }, { 2733, 5364 }, { 2729, 5364 },
+    { 2729, 5358 }, { 2720, 5358 }, { 2711, 5358 }, { 2710, 5358 }, { 2710, 5361 } }
+local function into_lab(t, p)
+    t.exec("walk-" .. p .. "labDoorIn", t.player.walk_route, TO_LAB, { level = 0 })
+    t.exec(p .. "labDoorIn", t.player.pass_door, { closed = "dorgesh_inner_door_closed", open = "dorgesh_inner_door_open",
+        at = { 2709, 5362, 0 }, near = { 2710, 5362 }, far = { 2708, 5362 },
+        far_ok = function(tile) return tile.x <= 2708 end, far_desc = "in Oldak's lab, x <= 2708" })
+end
+
+-- The three protection prayers (prayerbook prayer13/14/15). `which` = "magic", "missiles", "melee",
+-- or nil for all off.
+local PRAYERS = {
+    magic = { "prayerbook:prayer13", "varb4116_prayer_protectfrommagic" },
+    missiles = { "prayerbook:prayer14", "varb4117_prayer_protectfrommissiles" },
+    melee = { "prayerbook:prayer15", "varb4118_prayer_protectfrommelee" },
+}
+local function prayer_set(t, name, which)
     t.ui.tab("prayer")
     t.ticks(2)
-    local _, on0 = t.var.varbit("varb4118_prayer_protectfrommelee")
-    if (on0 == 1) ~= want then
-        local _, w = t.ui.widget("prayerbook:prayer15")
-        t.ui.invoke(w, 1)
-        t.ticks(2)
+    for key, pr in pairs(PRAYERS) do
+        local _, on0 = t.var.varbit(pr[2])
+        if (on0 == 1) ~= (key == which) then
+            local _, w = t.ui.widget(pr[1])
+            t.ui.invoke(w, 1)
+            t.ticks(2)
+        end
     end
-    local _, on = t.var.varbit("varb4118_prayer_protectfrommelee")
-    local _, pr = t.skill.read("prayer")
-    t.check(name, (on == 1) == want, "varb4118_prayer_protectfrommelee " .. tostring(on) .. " (want " .. tostring(want) .. "); prayer "
-        .. tostring(type(pr) == "table" and (tostring(pr.level) .. "/" .. tostring(pr.base_level)) or pr))
+    local detail, ok = {}, true
+    for key, pr in pairs(PRAYERS) do
+        local _, on = t.var.varbit(pr[2])
+        ok = ok and ((on == 1) == (key == which))
+        detail[#detail + 1] = pr[2] .. " " .. tostring(on)
+    end
+    local _, pts = t.skill.read("prayer")
+    table.sort(detail)
+    t.check(name, ok, table.concat(detail, ", ") .. " (want " .. tostring(which or "none") .. " on); prayer "
+        .. tostring(type(pts) == "table" and (tostring(pts.level) .. "/" .. tostring(pts.base_level)) or pts))
     t.ui.tab("inventory")
 end
 
+-- Prayer restores only when the points are actually low before a fight: a dose while under three
+-- quarters, at most three doses (a dose at Prayer 60 gives 7 + 25% = 22 points).
+local function prayer_topup(t, name)
+    local _, pts = t.skill.read("prayer")
+    if type(pts) ~= "table" or pts.level * 4 >= pts.base_level * 3 then
+        return
+    end
+    local before = pts.level
+    for i = 1, 3 do
+        local _, n = t.inv.count("4doseprayerrestore")
+        local _, n3 = t.inv.count("3doseprayerrestore")
+        local _, n2 = t.inv.count("2doseprayerrestore")
+        local _, n1 = t.inv.count("1doseprayerrestore")
+        local item = ((n1 or 0) > 0 and "1doseprayerrestore") or ((n2 or 0) > 0 and "2doseprayerrestore")
+            or ((n3 or 0) > 0 and "3doseprayerrestore") or ((n or 0) > 0 and "4doseprayerrestore") or nil
+        if item == nil then
+            break
+        end
+        t.exec(name .. (i == 1 and "" or ("." .. i)), t.player.inv_op, item, 1)
+        t.ticks(3)
+        _, pts = t.skill.read("prayer")
+        if type(pts) ~= "table" or pts.level * 4 >= pts.base_level * 3 then
+            break
+        end
+    end
+    t.check(name .. ".restored", type(pts) == "table" and pts.level > before,
+        "prayer " .. tostring(before) .. " -> " .. tostring(type(pts) == "table" and pts.level) .. "/" .. tostring(type(pts) == "table" and pts.base_level))
+end
+
+-- A priest's pocket (lotg_keys.rs2 ~lotg_pickpocket_priest: the guard's 50/240 roll, an 8-tick stun on a
+-- failure): pick, and on a failure pick again -- the press waits out the stun -- at most eight times.
+local function pickpocket(t, name, priest_sym, key)
+    local got = false
+    for i = 1, 8 do
+        t.exec(name .. (i == 1 and "" or (".retry" .. i)), t.player.talk_to, priest_sym, 3)
+        if t.inv.await(key, 1, 14) == "ok" then
+            got = true
+            break
+        end
+    end
+    local _, n = t.inv.count(key)
+    t.check(name .. ".key", got and n == 1, key .. " " .. tostring(n) .. " after picking (failures retried, at most 8 tries)")
+end
+
 -- One crypt priest: say his name at his grave, fight him, then ask the defeated priest.
-local function priest(t, n, grave, name, sym, ask, stage_after)
+local function priest(t, n, grave, name, sym, ask, stage_after, pray)
+    prayer_topup(t, "defeat" .. name .. ".prayerRestore")
+    prayer_set(t, "defeat" .. name .. ".protect", pray)
     t.exec("sayName" .. name, t.player.click_loc, grave, 1)
     if n > 1 then
         t.exec("sayName" .. name .. "-choose", t.chat.choose, name .. ".")
@@ -129,7 +205,7 @@ local function priest(t, n, grave, name, sym, ask, stage_after)
     local _, food0 = t.inv.count("shark")
     local _, hp0 = t.skill.read("hitpoints")
     t.exec("defeat" .. name, t.player.attack, sym, 2, 30)
-    local _, d = t.exec("defeat" .. name .. ".dead", t.npc.await_dead_engaged, 600, 40, { eat = { item = "shark", below = 45 } })
+    local _, d = t.exec("defeat" .. name .. ".dead", t.npc.await_dead_engaged, 600, 40, { eat = { item = "shark", below = 30 } })
     local lowest = tonumber(tostring(d):match("lowest hp (%d+)/"))
     local _, food1 = t.inv.count("shark")
     local max = (type(hp0) == "table" and hp0.base_level) or 0
@@ -137,6 +213,7 @@ local function priest(t, n, grave, name, sym, ask, stage_after)
         "lowest hp " .. tostring(lowest) .. "/" .. tostring(max) .. ", sharks " .. tostring(food0) .. " -> " .. tostring(food1)
         .. " (margin: lowest >= a quarter of max AND food left)")
     t.ticks(3)
+    prayer_set(t, "defeat" .. name .. ".prayerOff", nil)
     local husk = sym .. "_defeated"
     t.exec("learn" .. name, t.player.talk_to, husk, 1)
     menu(t, "learn" .. name, { ask, "Goodbye." })
@@ -154,11 +231,11 @@ return {
         "::setlevel fishing 40",
         "::setlevel thieving 45",
         "::setlevel herblore 48",
-        "::setlevel attack 75",
-        "::setlevel strength 75",
-        "::setlevel defence 75",
-        "::setlevel hitpoints 80",
-        "::setlevel prayer 70",
+        "::setlevel attack 70",
+        "::setlevel strength 60",
+        "::setlevel defence 60",
+        "::setlevel hitpoints 60",
+        "::setlevel prayer 60",
         "::complete quest_losttribe",
         "::complete quest_deathtothedorgeshuun",
         "::complete quest_giantdwarf",
@@ -213,10 +290,13 @@ return {
             t.ticks(2)
             t.expect("quest.stage.recruited", t.quest.expect_stage("recruited"))
             t.exec("talkToGrubfoot.follows", t.npc.await_present, "lotg_grubfoot_follower", 6, 6)
-            -- enterDorgeshKaan: lotg_intro.rs2 [oploc1,cave_goblin_city_doorr] (mines frame 1 -> city frame 0)
+            -- enterDorgeshKaan: lotg_intro.rs2 [oploc1,cave_goblin_city_doorr] (mines frame 1 -> city frame 0, the
+            -- north entrance inside the bone door), then on foot to Oldak's lab and in by its door
             t.exec("enterDorgeshKaan", t.player.climb, { loc = "cave_goblin_city_doorr", op = 1, op_name = "Open",
-                at = { 3317, 9601, 0 }, dest = { 2704, 5365, 0 } })
+                at = { 3317, 9601, 0 }, dest = { 2747, 5374, 0 } })
             t.exec("enterDorgeshKaan.grubfoot", t.npc.await_present, "lotg_grubfoot_follower", 6, 6)
+            into_lab(t, "enterDorgeshKaan.")
+            t.exec("enterDorgeshKaan.grubfootInLab", t.npc.await_present, "lotg_grubfoot_follower", 6, 10)
             -- talkToZanik: the lab scene, the dream, Oldak's sphere (lotg_intro.rs2 @lotg_lab_scene)
             t.exec("talkToZanik", t.player.talk_to, "lotg_zanik_in_lab", 1)
             menu(t, "talkToZanik", { "So why have you come to talk to Zanik?", "What was this new dream?",
@@ -341,8 +421,7 @@ return {
             t.exec("enterNorthEastRoomForKey-dialog", t.chat.drain, { max_pages = 4 })
             t.ticks(2)
             near(t, "enterNorthEastRoomForKey.inside", 3754, 4329, 0, 0, "inside the Huzamogaarb enclave")
-            t.exec("pickpocketPriest", t.player.talk_to, "lotg_goblin_priest_black", 3)
-            t.exec("pickpocketPriest.key", t.inv.await, "lotg_key_black", 1, 6)
+            pickpocket(t, "pickpocketPriest", "lotg_goblin_priest_black", "lotg_key_black")
             t.exec("pickpocketPriest.out", t.player.unequip, "goblin_armour_black")
             t.ticks(3)
             near(t, "pickpocketPriest.hall", 3752, 4328, 0, 0, "thrown out into the temple hall")
@@ -378,8 +457,22 @@ return {
                 chat = { "npc:Competition pass please.", "options", "choose:I need to catch a Hemenster Whitefish.",
                     "player:I need to catch a Hemenster Whitefish.", "npc:Whitefish, eh?" } })
             local _, f0 = t.skill.read("fishing")
-            t.exec("catchWhitefish", t.player.talk_to, "0_41_53_sinisterfishspot", 1)
-            t.exec("catchWhitefish.got", t.inv.await, "lotg_whitefish", 1, 10)
+            -- catchWhitefish: one press keeps casting (a roll every 5 ticks on the cave eel's 20/140 row, the
+            -- slimy eel spent only by the catch); an interrupted line is cast again, at most four times
+            do
+                local got = false
+                for i = 1, 4 do
+                    t.exec("catchWhitefish" .. (i == 1 and "" or (".recast" .. i)), t.player.talk_to, "0_41_53_sinisterfishspot", 1)
+                    if t.inv.await("lotg_whitefish", 1, 100) == "ok" then
+                        got = true
+                        break
+                    end
+                end
+                local _, fish = t.inv.count("lotg_whitefish")
+                local _, eel = t.inv.count("mort_slimey_eel")
+                t.check("catchWhitefish.got", got and fish == 1 and eel == 0, "whitefish " .. tostring(fish) .. ", slimy eel "
+                    .. tostring(eel) .. " (want 1 and 0: the bait spent by the catch)")
+            end
             local _, f1 = t.skill.read("fishing")
             t.check("catchWhitefish.xp", type(f0) == "table" and type(f1) == "table" and f1.experience - f0.experience == 70,
                 "fishing xp " .. tostring(type(f0) == "table" and f0.experience) .. " -> " .. tostring(type(f1) == "table" and f1.experience) .. " (Whitefish oldid 15290034: 70)")
@@ -443,8 +536,7 @@ return {
                 t.exec("pass" .. colour .. "Guard-dialog", t.chat.drain, { max_pages = 4 })
                 t.ticks(2)
                 near(t, "pass" .. colour .. "Guard.inside", inside[1], inside[2], 0, 0, "inside the " .. colour .. " enclave")
-                t.exec("pickpocket" .. colour .. "Priest", t.player.talk_to, priest_sym, 3)
-                t.exec("pickpocket" .. colour .. "Priest.key", t.inv.await, key, 1, 6)
+                pickpocket(t, "pickpocket" .. colour .. "Priest", priest_sym, key)
                 -- out: the mail off inside throws the player out to the hall (Quest Helper dyeGoblinMail*)
                 t.exec("pickpocket" .. colour .. "Priest.out", t.player.unequip, worn)
                 t.ticks(3)
@@ -475,14 +567,14 @@ return {
             end
             t.ticks(3)
             t.expect("enterCrypt.human", t.var.expect("varb13612_lotg_player_is_a_goblin", 0))
-            priest(t, 1, "lotg_crypt_priest_grave1", "Snothead", "lotg_goblin_skeleton_high_priest1", "What was your predecessor's name?", "snailfeet")
-            priest(t, 2, "lotg_crypt_priest_grave2", "Snailfeet", "lotg_goblin_skeleton_high_priest2", "What was your predecessor's name?", "mosschin")
-            priest(t, 3, "lotg_crypt_priest_grave3", "Mosschin", "lotg_goblin_skeleton_high_priest3", "What was your predecessor's name?", "redeyes")
-            prayer_melee(t, "defeatRedeyes.protectMelee", true)
-            priest(t, 4, "lotg_crypt_priest_grave4", "Redeyes", "lotg_goblin_skeleton_high_priest4", "What was your predecessor's name?", "strongbones")
-            t.exec("defeatStrongbones.prayerPotion", t.player.inv_op, "4doseprayerrestore", 1)
-            priest(t, 5, "lotg_crypt_priest_grave5", "Strongbones", "lotg_goblin_skeleton_high_priest5", "Where is Yu'biusk?", "back_to_oldak")
-            prayer_melee(t, "learnYubiusk.prayerOff", false)
+            -- each priest under the prayer for his own style (the article's table: Snothead melee, Snailfeet
+            -- melee and ranged, Mosschin and Redeyes melee and magic); Strongbones under Protect from Magic,
+            -- the article's advice, with the rune armour for his melee, his ranged and the Skoblins
+            priest(t, 1, "lotg_crypt_priest_grave1", "Snothead", "lotg_goblin_skeleton_high_priest1", "What was your predecessor's name?", "snailfeet", "melee")
+            priest(t, 2, "lotg_crypt_priest_grave2", "Snailfeet", "lotg_goblin_skeleton_high_priest2", "What was your predecessor's name?", "mosschin", "missiles")
+            priest(t, 3, "lotg_crypt_priest_grave3", "Mosschin", "lotg_goblin_skeleton_high_priest3", "What was your predecessor's name?", "redeyes", "magic")
+            priest(t, 4, "lotg_crypt_priest_grave4", "Redeyes", "lotg_goblin_skeleton_high_priest4", "What was your predecessor's name?", "strongbones", "magic")
+            priest(t, 5, "lotg_crypt_priest_grave5", "Strongbones", "lotg_goblin_skeleton_high_priest5", "Where is Yu'biusk?", "back_to_oldak", "magic")
             -- out by the crypt gate; a human in the temple is put out of it at its stairs
             t.exec("leaveCrypt", t.player.click_loc, "lotg_crypt_exit", 1)
             t.ticks(4)
@@ -497,7 +589,8 @@ return {
             t.exec("goto-goReturnToDorg", t.player.goto_tile, 3206, 3233, 0)
             to_mines(t, "goReturnToDorg.")
             t.exec("goReturnToDorg", t.player.climb, { loc = "cave_goblin_city_doorr", op = 1, op_name = "Open",
-                at = { 3317, 9601, 0 }, dest = { 2704, 5365, 0 } })
+                at = { 3317, 9601, 0 }, dest = { 2747, 5374, 0 } })
+            into_lab(t, "goReturnToDorg.")
             -- talkToOldak: "Returning to Dorgesh-Kaan" (lotg_yubiusk.rs2 @lotg_back_from_crypt)
             t.exec("talkToOldak.present", t.npc.await_present, "dorgesh_oldak_there", 8, 10)
             t.exec("talkToOldak", t.player.talk_to, "dorgesh_oldak_there", 1)
@@ -549,7 +642,16 @@ return {
             t.exec("watchYubiuskCutscene", t.chat.drain, { max_pages = 20 })
             t.ticks(2)
             t.expect("quest.stage.yubiusk", t.quest.expect_stage("yubiusk"))
-            near(t, "watchYubiuskCutscene.landed", 3571, 4370, 0, 2, "Yu'biusk, beside the portal")
+            -- the player's own copy of Yu'biusk (lotg_yubiusk.rs2 ~lotg_yubiusk_land: map square 55_68 copied
+            -- into the instance pool, x >= 6400), on the portal tile's local 51,18
+            do
+                local r, h = t.world.tile()
+                local ok = r == "ok" and type(h) == "table" and h.level == 0 and h.x >= 6400
+                    and math.abs(h.x % 64 - 51) <= 2 and math.abs(h.z % 64 - 18) <= 2
+                t.check("watchYubiuskCutscene.landed", ok, "at " .. at(t) .. " (want an instance tile, x >= 6400, local 51,18 +-2: Yu'biusk beside the portal)")
+                t.exec("watchYubiuskCutscene.oldak", t.npc.await_present, "lotg_oldak_yubiusk", 4, 6)
+                t.exec("watchYubiuskCutscene.zanik", t.npc.await_present, "lotg_zanik_yubiusk", 4, 6)
+            end
             local reward_snapshot_result, reward_before = t.skill.snapshot()
             t.step("reward.snapshot", reward_snapshot_result == "ok" and "PASS" or "FAIL", "skill.snapshot before the strange box -> " .. tostring(reward_snapshot_result))
             -- openBox: the strange box (lotg_yubiusk.rs2 [oploc1,lotg_bandos_sarcophagus])
