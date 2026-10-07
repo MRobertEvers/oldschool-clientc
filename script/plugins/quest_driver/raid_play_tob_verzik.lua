@@ -1292,6 +1292,22 @@ function QD.raid._verzik_tank_run(f)
             ev = "tank_back"
         end
     end
+    -- a crab's threat outranks the step under (2026-10-07, svavzslowp3 P3+52:
+    -- the tank stood under her while its own crab arrived, 52): the overlay
+    -- yields, and the avoid loop takes the tank away from the crab -- which is
+    -- out of her melee range too, the wiki's other answer ("walk under OR away")
+    if ev == "tank_under" then
+        local NY = QD.RAID_PLAY_VERZIK_NYLO
+        for _, c in ipairs(v.crabs or {}) do
+            local g = QD.raid._verzik_nylo_gap(me.x, me.z, c.row)
+            local rec = (vz.nylo or {})[c.row.slot]
+            local mine = rec ~= nil and rec.owner == st.my_pid and not c.dead
+            if (mine and g <= NY.contact + 2) or (not mine and g <= NY.reach) then
+                ev = "tank_clear"
+                vz.tank_yields = (vz.tank_yields or 0) + 1
+            end
+        end
+    end
     local m = QD.raid.sm_run(st, v, "verzik_tank", { vz = vz }, { { name = ev } })
     if m.state == "CLEAR" then return false end
     local n = b.size or 1
@@ -1326,6 +1342,65 @@ function QD.raid._verzik_tank_run(f)
         return true
     end
     return false
+end
+
+-- THE TORNADO GUARD, over every state (owner 2026-10-07: "And they are avoiding
+-- tornados at all times.").  The avoid loop, the ring, the sortie and the
+-- orbiting phases of the pool and the ball all score the tornadoes -- but a
+-- state that HOLDS a tile (the pool's HOLD, the ball's WAIT and HOLDING, the
+-- tank UNDER her) does not, and a tornado touches only by stepping onto its
+-- raider's tile (fdf77aae1c), so a raider holding still is exactly the one it
+-- catches: half the current hitpoints (wiki Strategies:988).
+--
+-- So, last thing in the tick, whatever the state decided: the tile I will be
+-- on next tick (my walk's, else mine) is checked against every tornado's next
+-- step -- toward where I am now and toward where I am going, whichever order
+-- the server takes us in.  A tile it can step onto is not stood on: the nearest
+-- tile within a run step that none can reach, nearest what the state wanted,
+-- and clear of her body, the webs and the falling tiles.  The state is not
+-- told; next tick it plans again from wherever I stand.
+local function tor_step(e, tx, tz)
+    local nx, nz = e.x, e.z
+    if tx > nx then nx = nx + 1 elseif tx < nx then nx = nx - 1 end
+    if tz > nz then nz = nz + 1 elseif tz < nz then nz = nz - 1 end
+    return nx, nz
+end
+local function tor_reaches(tor, me, x, z)
+    for _, e in pairs(tor or {}) do
+        local ax, az = tor_step(e, me.x, me.z)
+        local bx, bz = tor_step(e, x, z)
+        if (ax == x and az == z) or (bx == x and bz == z) or (e.x == x and e.z == z) then return true end
+    end
+    return false
+end
+function QD.raid._verzik_tornado_guard(st, v, intent, ok)
+    assert(st, "_verzik_tornado_guard: st")
+    assert(v, "_verzik_tornado_guard: v")
+    assert(intent, "_verzik_tornado_guard: intent")
+    assert(ok, "_verzik_tornado_guard: ok")
+    local vz, me, b = st.vz, v.me, v.boss
+    if next(vz.tor or {}) == nil then return false end
+    local want = intent.walk
+    local tx, tz = me.x, me.z
+    if want ~= nil and math.max(math.abs(want.x - me.x), math.abs(want.z - me.z)) <= 2 then tx, tz = want.x, want.z end
+    if not tor_reaches(vz.tor, me, tx, tz) then return false end
+    local gx, gz = (want and want.x) or me.x, (want and want.z) or me.z
+    local best, bx, bz = nil, nil, nil
+    for dx = -2, 2 do
+        for dz = -2, 2 do
+            local x, z = me.x + dx, me.z + dz
+            if ok(x, z) and not v.shadows[x * 100000 + z] and (b == nil or QD.raid._verzik_dist(x, z, b) >= 1)
+                and not tor_reaches(vz.tor, me, x, z) then
+                local sc = math.max(math.abs(x - gx), math.abs(z - gz)) * 10 + math.max(math.abs(dx), math.abs(dz))
+                if best == nil or sc < best then best, bx, bz = sc, x, z end
+            end
+        end
+    end
+    if bx == nil then return false end
+    intent.walk = { x = bx, z = bz }
+    intent.attack = false
+    vz.tor_guards = (vz.tor_guards or 0) + 1
+    return true
 end
 
 QD.RAID_PLAY_VERZIK_COVER_REACH = 7
@@ -4326,6 +4401,8 @@ function QD.raid._verzik_phase_p3(c)
             if melee and vz.enraged and not tor_near then QD.raid._verzik_spec_dump(st, v, intent, events) end
         end
     end
+    -- last, over whatever the state decided: never stand where a tornado steps
+    if melee then QD.raid._verzik_tornado_guard(st, v, intent, okp) end
     if QD.raid._verzik_slow_hold(st, v) then
         -- an engaged raider swings on by itself: ask the executor to stop it
         -- (raider_engage: a step onto my own tile, sent only while ENGAGED)
