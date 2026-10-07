@@ -67,32 +67,27 @@ local function sustain(t, sm)
     sm._sustain_cd = (sm._sustain_cd or 0) - 1
     local hr, hp = t.skill.read("hitpoints")
     local level = (hr == "ok" and hp.level) or 99
+    -- Prayer points first: at 0, overheads cannot light and Olm full-hits.
+    local pr, pp = t.prayer.points()
+    local points = 0
+    if pr == "ok" then points = pp.points or pp.level or 0 end
+    if points < 60 and (sm._pray_cd or 0) <= 0 then
+        t.player.drink("br_4dose2restore")
+        sm._pray_cd = 3
+    end
+    sm._pray_cd = (sm._pray_cd or 0) - 1
+
     if sm._sustain_cd <= 0 and level < 80 then
         local er = t.player.eat("shark")
-        if er ~= "ok" then
-            er = t.player.eat("cooked_karambwan")
-        end
         if er == "ok" then
             sm._sustain_cd = 2
-            -- Combo: karambwan after shark on the same tick when critically low.
-            if level < 50 then
-                t.player.eat("cooked_karambwan")
-            end
         elseif level < 45 then
             t.player.drink("br_4dosepotionofsaradomin")
             t.player.drink("br_4dose2restore")
             sm._sustain_cd = 3
-            sm._pray_cd = 4
+            sm._pray_cd = 3
         end
     end
-    local pr, pp = t.prayer.points()
-    local points = 0
-    if pr == "ok" then points = pp.points or pp.level or 0 end
-    if points < 55 and (sm._pray_cd or 0) <= 0 then
-        t.player.drink("br_4dose2restore")
-        sm._pray_cd = 4
-    end
-    sm._pray_cd = (sm._pray_cd or 0) - 1
 end
 
 local function origin_of(me)
@@ -189,11 +184,9 @@ return {
                 "::give twisted_bow",
         "::give dragon_arrow 2000",
         "::give shark 12",
-        "::give br_4dose2restore 4",
+        "::give br_4dose2restore 6",
         "::give br_4dosepotionofsaradomin 2",
         "::give 4dose2combat 1",
-        -- Cooked karambwan for combo-eat under a late sphere (Synq).
-        "::give cooked_karambwan 4",
     },
 
     run = function(t)
@@ -270,7 +263,7 @@ return {
         end
 
         local function equip_melee()
-            t.player.equip("abyssal_whip")
+            t.player.equip("osmumtens_fang")
             t.player.equip("ferocious_gloves")
             t.player.equip("infernal_cape")
             t.player.equip("ultor_ring")
