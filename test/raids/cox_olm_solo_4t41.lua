@@ -414,12 +414,14 @@ return {
         local function decide()
             on_event()
             sphere_flick()
-            -- While a sphere is in flight, keep the sphere overhead. Lightning
-            -- (~prayer_deactivate_all) can wipe it mid-flight — re-press the
-            -- sphere prayer every tick until lit, or the impact lands for 50%.
+            -- Lightning (~prayer_deactivate_all) can wipe every overhead. If
+            -- nothing protect-* is lit, always re-press — even mid sphere
+            -- flight — so a sap/lightning cannot leave us bare for 4 ticks.
+            local rr, _, set = t.prayer.read()
+            local has_protect = rr == "ok" and set and (
+                set.protectfrommagic or set.protectfrommissiles or set.protectfrommelee)
             if sm._sphere_flight and sm._sphere_pray ~= nil then
-                local rr, _, set = t.prayer.read()
-                if not (rr == "ok" and set and set[sm._sphere_pray]) then
+                if not has_protect or not (set and set[sm._sphere_pray]) then
                     t.prayer.set(sm._sphere_pray, true)
                     sm.pray_flicks = sm.pray_flicks + 1
                 end
@@ -431,6 +433,9 @@ return {
                     sm._sphere_chat = nil
                 end
             else
+                if not has_protect then
+                    sm.last_pray = nil
+                end
                 prayer_flick()
             end
             -- Always sustain under fire; KILL_MAGE also calls sustain at the
