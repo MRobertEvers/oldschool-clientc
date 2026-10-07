@@ -198,11 +198,35 @@ with the machine no longer being stepped. The next room opens a fresh
 `t.raid.play` with a fresh `st` and fresh instances. So a relay run will show
 the same zeros.
 
-**Why members DO enter it**, which is the detail that proves the mechanism: a
-member's loop does not see the death row on the same tick — it reads the gap a
-tick or two later, and in those ticks the derivation raises the boss-gone event
-and the machine transitions. Hence Xarpus's `xarpus_room dead` reading of
-**NEVER for p1 and 2/1 for p2 and p3**, and the same shape in all six rooms.
+**Why members DO enter it.** My first explanation was a one-tick race and it
+was wrong — or rather imprecise, which here is worse, because a race sounds
+timing-dependent and this is not. The relay agent gave the exact mechanism and
+it is **two different exit paths**, which I then confirmed in the source:
+
+    if st.log and st.boss_slot ~= nil then
+        -- the boss's npc_death ROW -> st.stop, return "ok"
+    end
+    ...
+    if st.boss_gone >= 3 then ... end
+
+- A seat **with** a tick log and a resolved boss slot — the leader — exits on
+  the boss's `npc_death` **row**, which it sees on the tick she dies. Its
+  machine never gets a tick in which the boss is gone.
+- A seat **without** one — the members — never takes that exit at all and falls
+  through to the three-ticks-absent path. **Those three ticks are stepped**,
+  the derivation raises the boss-gone event in them, and the machine
+  transitions. Two of the three fall inside the terminal state, which is
+  exactly the `2/1` observed.
+
+So the `NEVER` for p1 and `2/1` for p2 and p3 across all six rooms is
+**structural, not timing-dependent**, and no run of any shape can flip it. The
+leader would enter a terminal state only if `st.log` were false or
+`boss_slot` unresolved on it, which the relay does not change.
+
+**One case neither of us can predict from the loop**, raised by the relay
+agent and worth recording as genuinely open: **a seat that DIES in a room.**
+Its play ends by some other path, so its coverage may differ, and relay runs
+have had deaths. That row is to be read specifically when the relay runs.
 
 So the classification is **(a), definitively** — unreachable for one seat by
 construction, reachable for the other two — and the states should stay
@@ -210,9 +234,20 @@ declared, because two of three seats do enter them. Nothing to fix, nothing to
 build.
 
 **What would overturn this:** a leader terminal-state entry in any run. The
-relay should still have its coverage captured when it next runs, since that
-costs nothing and would confirm or refute the reading; the prediction on record
-is that the leader's terminal states remain zero and the members' do not.
+relay agent is capturing `sm coverage:` from every room's `play.fight` row when
+the relay next runs — it costs nothing — and will report at once if any leader
+terminal state has an entry, so the prediction has a stated falsifier rather
+than being an assumption. The prediction on record: the leader's terminal
+states remain zero and the members' do not.
+
+**Why the baseline warning does not bite the relay agent**, and the reasoning
+is reusable: everything it measures from a relay run comes from
+`p<n>/ticklog.tsv` (the raider rows' hp and prayer columns, the room-start
+marks) and from `client.log` readouts — **never** from the `play.fight` detail
+column. So its per-room damage table, prayer drain and supply budget compare
+cleanly across `34281e774`. The rule generalises: a measurement taken from the
+tick log is unaffected by the hook; only a measurement taken from the summary
+string is.
 
 ### A systematic finding across all six rooms
 
