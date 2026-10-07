@@ -740,8 +740,15 @@ function QD.raid._play_brew_recovery(st, v)
     -- (a super combat only for a melee seat: a seat fighting with a bow or a
     -- staff has no use for Attack and Strength, and the relay's Maiden freezer
     -- drank two of its divine doses here and reached Sotetseg without one;
-    -- the bow / staff seat's brew drain is a super restore's)
+    -- the bow / staff seat's drain after 3 or more sips is a super restore's)
     local melee = string.find(tostring(st.weapon_name), "scythe", 1, true) ~= nil
+    if not melee and sips < 3 then
+        -- (and 1-2 sips get nothing on such a seat: a restore after every
+        -- short run drank the relay freezer's eight restore doses at Maiden,
+        -- relay36, and it reached Sotetseg with no prayer)
+        st.brew_recover_from = #st.drinks + 1
+        return nil
+    end
     local combat = melee and play_first_held(QD.RAID_PLAY_COMBAT_DOSES) or nil
     if combat ~= nil then return combat end
     if not restored then
