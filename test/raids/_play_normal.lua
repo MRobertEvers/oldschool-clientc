@@ -672,6 +672,12 @@ end
 -- restore and a brew first, then the most food its points and free slots
 -- buy.  Stock and costs are enum_1952 / enum_1953: slot 2 brew 3 points,
 -- slot 3 super restore 3, slot 7 manta ray 2, slot 5 shark 1.
+-- prayer drained a seat a room (room_hp.py on the room surveys, 2026-10-07:
+-- the falls in the raider rows' prayer column, median over 5-9 runs a room)
+-- and the rooms each chest has to carry a seat through.
+local PRAYER_DRAIN = { maiden = 112, bloat = 32, nylocas = 210, sotetseg = 108,
+    xarpus = 46, verzik = 412 }
+local CHEST_SEGMENT = { bloat = { "nylocas", "sotetseg" }, sotetseg = { "xarpus", "verzik" } }
 local CHEST_SLOT = { brew = 2, restore = 3, manta = 7, shark = 5 }
 local CHEST_COST = { brew = 3, restore = 3, manta = 2, shark = 1 }
 local function free_slots(t)
@@ -747,19 +753,30 @@ local function restock(t, name)
     -- (one potion's worth only: the chest is POINTS-bound, not slot-bound --
     -- relay27's seat 1 spent 6 of its 11 points on two restores, left the
     -- chest with 5 slots free and 5 sharks, and reached Sotetseg with 1 fish)
-    -- (the prayer budget, measured 2026-10-07 on the room surveys: prayer
-    -- drained a seat a room is 112 Maiden, 32 Bloat, 210 Nylocas, 108
-    -- Sotetseg, 46 Xarpus, 412 the slow Verzik -- 920 points a raid against
-    -- the 99 a seat starts with and the 256 its two potions hold.  A chest
-    -- point buys 42.7 points of prayer as a four-dose restore against 20
-    -- Hitpoints as a shark, and the rooms after each chest need more prayer
-    -- than the pack holds: Nylocas alone drains 210.  So the restores are
-    -- topped back up to EIGHT doses, two potions, not four doses.)
+    -- (the prayer budget, measured 2026-10-07 by room_hp.py on the room
+    -- surveys -- prayer drained a seat a room: PRAYER_DRAIN below, 920 points
+    -- a raid against the 99 a seat starts with and the 256 its two potions
+    -- hold.  A chest point buys 42.7 points of prayer as a four-dose restore
+    -- against 20 Hitpoints as a shark, so prayer is the better value a point
+    -- as well as the tighter constraint.
+    -- The restores are bought to the MEASURED DRAIN OF THE SEGMENT AHEAD, not
+    -- to a dose count: a fixed eight doses carry 256 points, and the segment
+    -- after the second chest -- Xarpus 46 and the slow Verzik 412 -- drains
+    -- about 458, so a seat ran dry inside Verzik however well it played.
+    -- Owner, 2026-10-07: "They don't have super restores to restore prayer?
+    -- They should." They do; the amount was the bug.)
+    local ahead = 0
+    for _, room in ipairs(CHEST_SEGMENT[name] or {}) do ahead = ahead + (PRAYER_DRAIN[room] or 0) end
+    local _, prnow = t.skill.read("prayer")
+    local held = (prnow ~= nil and tonumber(prnow.level) or 0) + 32 * supplies(t).restore
     local guard_r = 0
-    while guard_r < 2 and supplies(t).restore < 8 and points >= CHEST_COST.restore and free_slots(t) > 1 do
+    while guard_r < 6 and ahead > held and points >= CHEST_COST.restore and free_slots(t) > 1 do
         guard_r = guard_r + 1
         if not buy("restore") then break end
+        held = held + 4 * 32
     end
+    t.check(name .. ".chest_prayer", true, P .. "the segment ahead drains " .. ahead
+        .. " prayer points; this seat holds " .. held .. " after " .. guard_r .. " restore(s)")
     -- The food: every free slot filled, as many of them manta rays (22, 2
     -- points) as the points allow and the rest sharks (20, 1 point) -- relay18
     -- left 3-6 points unspent with the pack full of sharks, and every seat
