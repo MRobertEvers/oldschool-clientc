@@ -15,6 +15,7 @@ local SERIAL = "varp6899_cox_trace_olm_serial"
 local PHASE = "varp6763_cox_olm_phase"
 local FACING = "varp6772_cox_olm_facing"
 local STYLE = "varp6766_cox_olm_style"
+local SPHERE = "varp6868_cox_olm_sphere_pending"
 
 -- cox.constant chamber locals (m50_89)
 local ZONE_WEST_MAX = 27
@@ -265,28 +266,21 @@ return {
             t.player.equip("br_tormented_bracelet")
         end
 
-        -- Sphere mes → overhead before impact (^cox_olm_sphere_delay = 4).
+        -- Sphere pending varp (+1) → overhead before impact.
         local function sphere_flick()
-            local mr, rows = t.msg.last(8)
-            if mr ~= "ok" or type(rows) ~= "table" then return end
-            for i = 1, #rows do
-                local text = tostring(rows[i].text or "")
-                local pray = nil
-                if string.find(text, "sphere of aggression", 1, true) then
-                    pray = "protectfrommelee"
-                elseif string.find(text, "sphere of accuracy", 1, true) then
-                    pray = "protectfrommissiles"
-                elseif string.find(text, "sphere of magical", 1, true) then
-                    pray = "protectfrommagic"
-                end
-                if pray ~= nil and sm._sphere_pray ~= pray then
-                    t.prayer.set(pray, true)
-                    sm._sphere_pray = pray
-                    sm._sphere_ticks = 5
-                    sm.last_pray = pray
-                    sm.pray_flicks = sm.pray_flicks + 1
-                    return
-                end
+            local pending = var(t, SPHERE) or 0
+            if pending <= 0 then return end
+            local kind = pending - 1
+            local pray = "protectfrommagic"
+            if kind == 0 then pray = "protectfrommelee"
+            elseif kind == 1 then pray = "protectfrommissiles"
+            end
+            if sm._sphere_pray ~= pray then
+                t.prayer.set(pray, true)
+                sm._sphere_pray = pray
+                sm._sphere_ticks = 6
+                sm.last_pray = pray
+                sm.pray_flicks = sm.pray_flicks + 1
             end
         end
 
@@ -422,17 +416,18 @@ return {
                 local _, me = t.world.tile()
                 local aisle_x = sm.ox + 32
                 local dist = math.max(math.abs(me.x - mrow.x), math.abs(me.z - mrow.z))
-                -- Sang attack first (10-range); walk at most a few tiles/tick.
-                t.player.attack(mage, 2, 4, { quick = true, slot = mrow.slot })
-                if dist > 4 then
-                    local dest_z = math.min(me.z + 3, mrow.z - 3)
-                    if dest_z <= me.z then dest_z = mrow.z - 3 end
-                    t.player.walk_to(aisle_x + ((sm.sub % 2) * 2 - 1), dest_z, 4)
-                else
-                    local a = { x = aisle_x - 2, z = mrow.z - 3 }
-                    local b = { x = aisle_x + 2, z = mrow.z - 3 }
-                    local dest = ((sm.sub % 8) < 4) and a or b
-                    t.player.walk_to(dest.x, dest.z, 4)
+                -- Sang is 10-range; from lz=25 we are already in range of
+                -- claws at lz=30. Prefer attack over walk so eat/pray keep up.
+                local ar, ad = t.player.attack(mage, 2, 3, { quick = true, slot = mrow.slot })
+                if ar == "refused" and type(ad) == "string" and string.find(ad, "DIED", 1, true) then
+                    set_state(STATE.DONE)
+                    return
+                end
+                if dist > 8 then
+                    t.player.walk_to(aisle_x, math.min(me.z + 2, mrow.z - 3), 3)
+                elseif (sm.sub % 6) == 0 then
+                    -- Light acid/crystal step without long waits.
+                    t.player.walk_to(me.x + 1 - 2 * (sm.sub % 2), me.z, 2)
                 end
                 sm.sub = sm.sub + 1
                 t.ticks(1)
