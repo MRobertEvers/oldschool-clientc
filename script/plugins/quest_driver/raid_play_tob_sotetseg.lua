@@ -487,7 +487,99 @@ function QD.raid._play_sotetseg_seat(st, b)
     return b.x + ox, b.z + oz
 end
 
+-- owner_rooms4 (the owner, 2026-10-07: "Make the fixes"): THE PHASE'S FIRST
+-- 30 TICKS.  From 30 ticks into a phase our damage per tick matched Blert's;
+-- the loss was the first 30 (median damage per 15-tick window from phase
+-- start, Blert / ours: fight 1 126/0, 325/209; fight 2 296/178, 323/178;
+-- fight 3 282/155, 271/252 -- the coordinator's decode of build/blert/sotetseg,
+-- 29 Normal trio rooms, 81 seats).  Three copies of what the recorded seats do:
+-- the bow opener in the ranged set (THE BOW OPENER below), the maul already in
+-- hand when a phase opens after a maze (QD.raid._play_sotetseg_maul_ready), and
+-- the maze runner back on him.
+-- The maul's phase ownership (raid seam51, unchanged): role 1 start + maze 1,
+-- role 2 start + maze 2, role 3 maze 1 + maze 2.
+QD.raid.SOTETSEG_MAUL_OWN = { [1] = { [0] = true, [1] = true }, [2] = { [0] = true, [2] = true }, [3] = { [1] = true, [2] = true } }
+QD.raid.SOTETSEG_RANGED_SET = { "twisted_bow", "game_pest_archer_helm", "elite_void_knight_top", "elite_void_knight_robes",
+    "pest_void_knight_gloves", "necklace_of_rupture", "dizanas_quiver_infinite" }
+QD.raid.SOTETSEG_MELEE_SET = { "torva_helm", "radiant_oathplate_chest", "radiant_oathplate_legs",
+    "ferocious_gloves", "amulet_of_rancour", "infernal_cape" }
+
+function QD.raid._play_sotetseg_held(name)
+    local cr, cn = QD.inv.count(name)
+    return cr == "ok" and (tonumber(cn) or 0) > 0
+end
+
+function QD.raid._play_sotetseg_worn(name)
+    local r1, oid = api_drive.symbol("obj", name)
+    local r2, wid = api_drive.symbol("inv", "worn")
+    if r1 ~= "ok" or r2 ~= "ok" then return false end
+    local r3, n = api_drive.inv_count(wid, oid)
+    return r3 == "ok" and (tonumber(n) or 0) > 0
+end
+
+-- the pieces of `list` still in the pack (what a switch puts on)
+function QD.raid._play_sotetseg_to_wear(list)
+    local out = {}
+    for _, name in ipairs(list) do
+        if QD.raid._play_sotetseg_held(name) then out[#out + 1] = name end
+    end
+    return out
+end
+
+-- FIX 2, THE MAUL IN HAND WHEN THE PHASE OPENS.  Blert's maul specials come
+-- at a median of +2 and +1 after the mazes (quartiles 1-6), the commonest
+-- first three attacks after a maze MAUL>S>S (43 and 35 seat-phases): the seat
+-- ends the maze holding the maul.  Ours equipped and armed it inside the phase
+-- (the next seat's special at +13).  So while a maze is on, the seat that owns
+-- the coming phase's special puts the maul on, once; the phase's opener then
+-- arms it on his first attackable tick (THE ELDER MAUL below).
+function QD.raid._play_sotetseg_maul_ready(st, v, intent)
+    local S = st.sote
+    if (st.party or 1) <= 1 then return end
+    local nxt = (S.phase or 0) + 1
+    if nxt > 2 then return end
+    S.maul_ready = S.maul_ready or {}
+    if S.maul_ready[nxt] ~= nil then return end
+    local own = QD.raid.SOTETSEG_MAUL_OWN[st.role or 1] or QD.raid.SOTETSEG_MAUL_OWN[1]
+    if not own[nxt] then return end
+    local _, energy = QD.var.varp("varp300_sa_energy")
+    if (tonumber(energy) or 0) < 500 then return end
+    if not QD.raid._play_sotetseg_held("elder_maul") then return end
+    if intent.gear ~= nil then return end
+    intent.gear = { "elder_maul" }
+    S.maul_ready[nxt] = v.tick
+end
+
+-- owner_rooms4: THE MELEE SET BACK, A FEW PIECES A TICK, until worn.  Seven
+-- pieces in one block put on only the last one for two seats of three
+-- (svbplaysotet t58/t60: p0 and p1 equipped the maul alone and fought the room
+-- in the void set; p2's block, with no prayer switch in it, took all seven):
+-- the queue holds what is still to go on and hands the send at most
+-- SOTETSEG_GEAR_PER_TICK of them a tick, re-reading the worn container.
+QD.raid.SOTETSEG_GEAR_PER_TICK = 3
 function QD.raid._play_sotetseg_trio(st, v)
+    local intent = QD.raid._play_sotetseg_trio_body(st, v)
+    local S = st.sote
+    if S ~= nil and S.wear_queue ~= nil and #S.wear_queue > 0 then
+        local rest = {}
+        for _, it in ipairs(S.wear_queue) do
+            if QD.raid._play_sotetseg_held(it) and not QD.raid._play_sotetseg_worn(it) then rest[#rest + 1] = it end
+        end
+        S.wear_queue = rest
+        intent.gear = intent.gear or {}
+        local sent = {}
+        for _, it in ipairs(intent.gear) do sent[it] = true end
+        for _, it in ipairs(rest) do
+            if #intent.gear >= QD.raid.SOTETSEG_GEAR_PER_TICK then break end
+            if not sent[it] then intent.gear[#intent.gear + 1] = it end
+        end
+        if #intent.gear == 0 then intent.gear = nil end
+        S.wear_ticks = (S.wear_ticks or 0) + 1
+    end
+    return intent
+end
+
+function QD.raid._play_sotetseg_trio_body(st, v)
     local P, N = st.plan, st.numbers
     -- owner_rooms4: every seat runs (raid_play_tob_bloat.lua QD.raid._play_run_keep)
     QD.raid._play_run_keep(st, v)
@@ -500,7 +592,9 @@ function QD.raid._play_sotetseg_trio(st, v)
         -- the runner (the room chose this raider)
         S.in_maze = true
         if S.mz == nil then S.runs = (S.runs or 0) + 1 end
-        return QD.raid._play_sotetseg_maze(st, v, intent)
+        local mi = QD.raid._play_sotetseg_maze(st, v, intent)
+        QD.raid._play_sotetseg_maul_ready(st, v, mi)
+        return mi
     end
     if S.mz ~= nil and S.mz.back == nil then
         S.mz.back = v.tick
@@ -522,7 +616,9 @@ function QD.raid._play_sotetseg_trio(st, v)
         end
         if ir == "ok" then
             S.in_maze = true
-            return QD.raid._play_sotetseg_follow(st, v, intent)
+            local fi = QD.raid._play_sotetseg_follow(st, v, intent)
+            QD.raid._play_sotetseg_maul_ready(st, v, fi)
+            return fi
         end
         return intent
     end
@@ -821,9 +917,16 @@ function QD.raid._play_sotetseg_trio(st, v)
     -- (t.raid.own_anim), and the next tick the walk to the corner goes on
     -- with the scythe (or the maul below) back in hand.  A kit without the
     -- bow plays as before.
+    -- owner_rooms4 FIX 1, THE BOW OPENER IN THE RANGED SET: 46-49 of the 81
+    -- recorded seats walk in wearing elite void top, robes and gloves, the void
+    -- ranger helm, Dizana's quiver and a necklace of anguish or rupture and
+    -- loose the bow on the walk in (first attack +5); ours loosed it in the
+    -- melee set and all 9 hits of the room's first 15 ticks dealt 0.  The
+    -- harness wears the set from the barrier; what of it is still in the pack
+    -- goes on with the bow, and the melee set goes back on with the maul or
+    -- the scythe (fight 1's seat sequences BOW>MAUL>S in 27 seats, BOW>S>S 21).
     if (S.phase or 0) == 0 and S.bow == nil and not gathering and st.party > 1 then
-        local cr, cn = QD.inv.count("twisted_bow")
-        if cr == "ok" and (tonumber(cn) or 0) > 0 and S.bow_checked == nil then
+        if (QD.raid._play_sotetseg_held("twisted_bow") or QD.raid._play_sotetseg_worn("twisted_bow")) and S.bow_checked == nil then
             S.bow = { stage = "equip", at = v.tick }
         end
         S.bow_checked = true
@@ -832,7 +935,7 @@ function QD.raid._play_sotetseg_trio(st, v)
         local bw = S.bow
         if bw.stage == "equip" then
             bw.stage, bw.press = "shoot", v.tick
-            intent.gear = { "twisted_bow" }
+            intent.gear = QD.raid._play_sotetseg_to_wear(QD.raid.SOTETSEG_RANGED_SET)
             intent.walk = nil
             intent.attack = true
             st.engaged = false
@@ -853,7 +956,15 @@ function QD.raid._play_sotetseg_trio(st, v)
         end
         bw.stage, bw.done = "done", v.tick
         S.bow_log = (bw.fired and ("fired t" .. bw.fired) or "gave up") .. " (pressed t" .. bw.press .. ", done t" .. v.tick .. ")"
-        intent.gear = { "scythe_of_vitur" }
+        -- the melee set back on, with the maul when this seat opens the
+        -- phase with it (the maul block below), else with the scythe
+        local own0 = QD.raid.SOTETSEG_MAUL_OWN[st.role or 1] or QD.raid.SOTETSEG_MAUL_OWN[1]
+        local _, e0 = QD.var.varp("varp300_sa_energy")
+        local maul_next = own0[0] and (tonumber(e0) or 0) >= 500 and QD.raid._play_sotetseg_held("elder_maul")
+        -- the weapon now, the pieces through the wear queue (the wrapper above)
+        S.wear_queue = QD.raid._play_sotetseg_to_wear(QD.raid.SOTETSEG_MELEE_SET)
+        intent.gear = { maul_next and "elder_maul" or "scythe_of_vitur" }
+        S.bow_log = S.bow_log .. ", melee set back " .. #S.wear_queue .. " pieces queued" .. (maul_next and ", the maul in hand" or "")
         st.engaged = false
     end
     local phase = S.phase or 0
@@ -883,8 +994,7 @@ function QD.raid._play_sotetseg_trio(st, v)
     -- owns two of the three phases (role 1: start and maze 1, role 2: start and
     -- maze 2, role 3: maze 1 and maze 2), and specs in another only with the
     -- energy for its own still to come.
-    local own = { [1] = { [0] = true, [1] = true }, [2] = { [0] = true, [2] = true }, [3] = { [1] = true, [2] = true } }
-    local mine_phases = own[st.role or 1] or own[1]
+    local mine_phases = QD.raid.SOTETSEG_MAUL_OWN[st.role or 1] or QD.raid.SOTETSEG_MAUL_OWN[1]
     local still = 0
     for later = phase + 1, 2 do
         if mine_phases[later] then still = still + 1 end
@@ -894,9 +1004,24 @@ function QD.raid._play_sotetseg_trio(st, v)
         and (fresh or (at_seat and just_swung)) then
         em = { stage = "equip", at = v.tick, fresh = fresh }
         S.em.phases[phase] = em
+        -- owner_rooms4 FIX 2: already in hand (put on in the maze, or with the
+        -- melee set after the bow): armed on this first attackable tick, the
+        -- attack press paths the seat in -- Blert's +1/+2
+        if QD.raid._play_sotetseg_worn("elder_maul") then
+            em.stage, em.arm, em.energy0, em.in_hand = "swing", v.tick, energy, true
+            intent.spec = true
+            intent.attack = true
+            st.engaged = false
+            return intent
+        end
         intent.gear = { "elder_maul" }
         intent.attack = false
         return intent
+    end
+    -- owner_rooms4: a maul put on for a phase whose special did not come
+    -- (energy, a gather) is not swung plain: the scythe goes back on
+    if em == nil and not spec_ok and QD.raid._play_sotetseg_worn("elder_maul") and QD.raid._play_sotetseg_held("scythe_of_vitur") then
+        intent.gear = { "scythe_of_vitur" }
     end
     if em ~= nil and em.stage ~= "done" then
         if em.stage == "equip" then

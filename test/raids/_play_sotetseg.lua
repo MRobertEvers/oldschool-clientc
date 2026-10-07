@@ -35,7 +35,11 @@ local trio_kit, trio_run = nil, nil
 -- PLAY_NOTES "Bloat, Normal trio").
 trio_kit = {
     "::clearinv", "::tobkit", "::setlevel prayer 99", "::setlevel agility 99",
-    "::give anglerfish 16", "::give br_4dose2restore 3", "::give 4dose2combat 1",
+    -- owner_rooms4: 10 anglerfish, not 16 -- the pack carries the bow opener's
+    -- ranged set (six pieces, worn from the barrier, so the melee set's six ride
+    -- in their slots) and a stamina dose; the reference's raiders lose 92.5-108
+    -- hitpoints a room, 225 at most (sotetseg_normal_3.json outcome.hp_lost)
+    "::give anglerfish 10", "::give br_4dose2restore 3", "::give 4dose2combat 1",
     "::give br_4dosepotionofsaradomin 4",
     -- raid seam42: the elder maul the Blert trios spec once a phase
     -- (sotetseg_normal_3.json weapons ELDER_MAUL; the plan's THE ELDER MAUL)
@@ -49,6 +53,19 @@ trio_kit = {
     -- owner_rooms4: a stamina dose (the owner's "are all players running?"; the
     -- plan's run keep drinks it only if run goes off)
     "::give 4dosestamina 1",
+    -- owner_rooms4 FIX 1 (the owner, 2026-10-07: "Make the fixes"): the bow
+    -- opener's ranged set, as 46-49 of the 81 recorded seats walk in wearing it
+    -- (build/blert/sotetseg equipmentDeltas: elite void top and robes and void
+    -- gloves, the void ranger helm, Dizana's quiver, anguish or rupture)
+    -- (worn here, as the Maiden harness wears its freezer's: a click on the
+    -- six in one block pressed four while the backpack tab was not drawn; the
+    -- bow goes on in run(), after the scythe's style is set by name)
+    "::give game_pest_archer_helm 1", "::give elite_void_knight_top 1", "::give elite_void_knight_robes 1",
+    "::give pest_void_knight_gloves 1", "::give necklace_of_rupture 1", "::give dizanas_quiver_infinite 1",
+    -- (the void pieces ask Magic 42 among their levels: the recorded raiders' are 99)
+    "::setlevel magic 99",
+    "::wield game_pest_archer_helm", "::wield elite_void_knight_top", "::wield elite_void_knight_robes",
+    "::wield pest_void_knight_gloves", "::wield necklace_of_rupture", "::wield dizanas_quiver_infinite",
 }
 
 trio_run = function(t)
@@ -79,6 +96,11 @@ trio_run = function(t)
     t.check("kit.arrows", qr == "ok", "p" .. role .. " " .. tostring(qd))
     local yr, yd = t.ui.style("Reap")
     t.check("kit.style", yr == "ok", "p" .. role .. " " .. tostring(yd))
+    -- owner_rooms4 FIX 1: the room is started holding the bow in the ranged
+    -- set (the kit's comment); the plan looses it on the walk in and puts the
+    -- melee set back on with the maul or the scythe
+    local gr, gd = t.player.equip("twisted_bow")
+    t.check("kit.ranged_opener", gr == "ok", "p" .. role .. " the bow on, in the ranged set the kit wore: " .. tostring(gd))
     -- "to start the room pray magic and piety" (yt_KF9y2GYTJ-A.md:151)
     t.exec("prayer.magic", t.prayer.set, "protectfrommagic", true)
     if role == 1 then t.player.walk_to(fight.x, fight.z - 2, 20) end
