@@ -593,72 +593,99 @@ function QD.raid._play_sotetseg_trio(st, v)
     return intent
 end
 
-function QD.raid._play_sotetseg_trio_body(st, v)
-    local P, N = st.plan, st.numbers
-    -- owner_rooms4: every seat runs (raid_play_tob_bloat.lua QD.raid._play_run_keep)
-    QD.raid._play_run_keep(st, v)
-    local intent = { want = {}, walk = nil, attack = false }
-    st.sote = st.sote or { mazes = {}, balls = 0, death_balls = 0, press_log = {}, read_magic = {}, pray_sent = nil,
-        hold = -1, ranged_hold = -1, death_land = -1, magic_ticks = 0, melee_ticks = 0,
-        follows = {}, gathers = 0, gather_ticks = 0, seat_ticks = 0, aimed = 0 }
-    local S = st.sote
+-- ==========================================================================
+-- THE TRIO AS DECLARED STATE MACHINES (raid seam53 play_state_machines; the
+-- owner, 2026-10-07: "all the rooms should be explicit state machines").
+-- The behaviour below is the measured one, UNCHANGED (5 of 5 names green,
+-- rooms 219-254 against Blert's 212.5 [164-262]); what changed is where it is
+-- written down.  Before this the room's phases, the maze seats, the death
+-- ball's stack and the weapon swaps were branches inside one 500-line decide:
+-- the phase was `S.phase = (S.phase or 0) + 1` buried under an `if S.in_maze`,
+-- the maze seats were two early returns off a level test, the death ball was a
+-- local called `gathering` read in four places, and the bow and the maul were
+-- two blocks of stages at the bottom that each `return`ed to mean "I own this
+-- tick".  Nothing said what the states were or how they connected.
+--
+-- Four declarations now do (raid_sm.lua; QD.raid.sm_states(id) lists any of
+-- them, QD.raid.sm_summary(st, id) prints where a raider is):
+--
+--   sotetseg_room       fight_start maze_1 fight_mid maze_2 fight_last dead
+--   sotetseg_seat_1..3  fight gather shadow_realm follow boss_gone (per seat)
+--   sotetseg_weapon     opening bow_shoot scythe maul_equip maul_swing
+--   sotetseg_prayer     melee magic missiles
+--
+-- THE CONTRACT is the owner's, unchanged: Events + State -> Intents, with the
+-- events derived ONCE a tick in one place (QD.raid._sotetseg_events, cached by
+-- QD.raid.sm_events so every machine on the raider sees one view of the tick)
+-- and raid_play.lua's executor reconciling the intents per channel.  The
+-- handlers here mutate the tick's intent table rather than returning intents
+-- (raid_sm.lua's ported-body case) because the bodies they call are the
+-- measured ones -- QD.raid._play_sotetseg_maze, _play_sotetseg_follow,
+-- _play_supplies, _play_attack -- and the fold must not re-decide what they
+-- already decided.  `c.weapon_took` is the one channel hand-off: it is the old
+-- body's `return intent`, which meant "the weapon blocks have decided the
+-- attack channel this tick, do not ask _play_attack".
+-- ==========================================================================
+
+-- THE TICK'S READINGS AND ITS EVENTS.  Nothing here decides anything: it is
+-- the projectile scan, his attack clock, this raider's distance and the
+-- refusal count that the old decide read at the top of its body, in the order
+-- it read them, and then the events the states subscribe to.  `S.now` is the
+-- tick's reading the handlers read back (range, adjacent, due, disabled).
+--
+-- THE EVENT ORDER IS PART OF THE DECLARATION, because a transition that lands
+-- mid-list is seen by the rest of the list:
+--   * where the raider and the room are comes FIRST (realm_in / realm_out,
+--     then his form), so the state that acts on `tick` is the right one;
+--   * the prayer's events are raised in RISING PRIORITY -- away/near, then a
+--     ball held, then a ball aimed at this raider -- so the LAST one to fire
+--     decides.  That is the old chain (`if soonest ... elseif hold ...
+--     elseif range <= 3`) read from the bottom up;
+--   * `tick` is where a state ACTS, so every event that can move a machine is
+--     raised before it;
+--   * `settle` is last: it is the fall-through the old body had after its
+--     weapon blocks, where the bow's final tick dropped into the maul's
+--     trigger in the same tick.  Only the states that open with a weapon
+--     subscribe to it.
+function QD.raid._sotetseg_events(st, v)
+    assert(st, "_sotetseg_events: st")
+    assert(v, "_sotetseg_events: v")
+    local P, S = st.plan, st.sote
+    assert(S, "_sotetseg_events: st.sote (the trio body makes it before deriving)")
+    local out = {}
+    local function raise(name, row)
+        row = row or {}
+        row.name = name
+        out[#out + 1] = row
+    end
+    -- THE SHADOW REALM: the raider is on the underworld's level.  His form is
+    -- not read here -- the old runner path returned before that read, and a
+    -- maze is certainly on when this raider is standing in its grid.
     if v.me.level == P.under_level then
-        -- the runner (the room chose this raider)
-        S.in_maze = true
-        if S.mz == nil then S.runs = (S.runs or 0) + 1 end
-        local mi = QD.raid._play_sotetseg_maze(st, v, intent)
-        QD.raid._play_sotetseg_maul_ready(st, v, mi)
-        return mi
+        raise("realm_in", { level = v.me.level })
+        raise("maze_on", { from = "realm" })
+        raise("tick")
+        raise("settle")
+        return out
     end
-    if S.mz ~= nil and S.mz.back == nil then
-        S.mz.back = v.tick
-        st.teleport_until = v.tick + 2
-        S.mz = nil
-    end
+    -- back in the arena (the re-activation teleport, K maze.returned)
+    if S.mz ~= nil and S.mz.back == nil then raise("realm_out", { ran = S.mz.n }) end
+    -- what the raider read lit, before the plan's own press guard (the
+    -- harness's technique.ball_prayer_raised_in_flight reads it)
     S.read_magic[v.tick] = v.lit.protectfrommagic == true
     local b = v.boss
     if b == nil then
-        -- his combat form is gone: a maze (his idle form stands there) or his
-        -- death.  The maze is not his death; the leader reads his death from
-        -- the tick log's npc_death row, a member from the idle form being gone
-        -- as well (three ticks: the library's own rule)
+        -- his combat form is gone: a maze (his idle form stands there, S
+        -- tob_sote_start_maze retypes him to the mode's noncombat record) or
+        -- his death.  The maze is not his death; the retype into and out of
+        -- that form is what bounds every maze.
         local ir = QD.npc.state(P.idle[st.mode])
-        if ir == "ok" or st.log then
-            st.boss_gone = 0
-            -- the throw to the far end three ticks after the proc (W:799)
-            st.teleport_until = v.tick + 6
-        end
-        if ir == "ok" then
-            S.in_maze = true
-            local fi = QD.raid._play_sotetseg_follow(st, v, intent)
-            QD.raid._play_sotetseg_maul_ready(st, v, fi)
-            return fi
-        end
-        return intent
+        if ir == "ok" then raise("maze_on", { from = "retype" }) else raise("boss_absent") end
+        raise("tick")
+        raise("settle")
+        return out
     end
-    if S.fw ~= nil then
-        S.fw.done = S.fw.done or v.tick
-        S.fw = nil
-    end
-    -- raid seam42: the fight's phase (0 before the first maze, +1 each time
-    -- his combat form is back after one), the elder maul's key
-    if S.in_maze then
-        S.in_maze = nil
-        S.phase = (S.phase or 0) + 1
-        -- raid seam51: the tick the phase began (the maul's opener key)
-        S.phase_start = v.tick
-    end
-    local function protect_press(protect)
-        P.walk_prayers[1] = protect
-        intent.want[protect] = true
-        if S.pray_sent ~= nil and S.pray_sent.name == protect and v.tick - S.pray_sent.tick <= 2 then
-            v.lit[protect] = true
-        end
-        if v.lit[protect] ~= true and v.prayer > 0 then
-            S.pray_sent = { name = protect, tick = v.tick }
-            S.press_log[#S.press_log + 1] = { tick = v.tick, name = protect }
-        end
-    end
+    raise("boss_combat", { x = b.x, z = b.z, hp = b.health_ratio })
     -- WHAT FLIES AT THIS RAIDER (a homing projectile's dst is its target's
     -- live tile: world.lua banner), and the death ball at anyone
     local magic_in_air, ranged_in_air, death_land = false, false, nil
@@ -753,7 +780,8 @@ function QD.raid._play_sotetseg_trio_body(st, v)
     -- the seen tick equalled the tick log's in every sample, the row's age
     -- was a tick early).  His melee is decided and its prayer read on the
     -- tick it is SENT (the owner's ruling), so Protect from Melee must be lit
-    -- ON his next attack tick N, pressed on N-1.
+    -- ON his next attack tick N, pressed on N-1 -- which is `due` below, read
+    -- by the prayer machine's `melee` state.
     if (b.seq_id == P.seq_melee or b.seq_id == P.seq_ball) and b.seq_tick ~= nil and b.seq_tick ~= S.atk_seq_tick then
         S.atk_seq_tick = b.seq_tick
         S.last_attack = v.tick
@@ -764,46 +792,398 @@ function QD.raid._play_sotetseg_trio_body(st, v)
         S.next_attack = S.last_attack + 10
     end
     local due = S.next_attack ~= nil and v.tick + 1 >= S.next_attack
-    -- THE PRAYER FOR NEXT TICK (a press on tick t is in force on t+1).
-    -- A ball or a ricochet at this raider wins: unprayed it "takes the
-    -- victim's protection prayers away for five ticks" (S tob_sotetseg.rs2:15,
-    -- ~prayer_block_protection at the impact), and every attack in those five
-    -- ticks lands unprayed (seam51 s1: a melee-first rule on his due tick
-    -- dropped the ricochet's colour on its impact, sva p0/p1 t105, and the
-    -- refused presses held both raiders at no protection for 20 ticks).
-    -- The ricochets are launched at A+2 and land at A+4 or A+5, his next
-    -- attack's tick (seam51 s2, three names: launch + floor(duration/30) when
-    -- this raider's pid is above the pid it bounced off, 45 of 45; a tick later
-    -- when below, 31 of 35: its impact queue runs in the next tick's player
-    -- phase.  A schedule built on that rule, seam51 s3b, lost the colour on
-    -- the client's pid and was withdrawn: DRIVER_NOTES), so the melee
-    -- on that tick is the one-in-three roll a raider takes on the wrong
-    -- prayer (S tob_sote_attack: a random target, melee a licence at range 1).
     -- The colour is held while the ball is listed and one tick after it
     -- vanishes (the client ends a flight up to a tick before the server's
-    -- impact).  Otherwise Protect from Melee near him, Magic away from him.
+    -- impact).
     if magic_in_air then S.hold = math.max(S.hold, v.tick + 1) end
     if ranged_in_air then S.ranged_hold = math.max(S.ranged_hold, v.tick + 1) end
-    local protect = "protectfrommagic"
-    if soonest_style ~= nil then
-        protect = soonest_style
-        S.aimed = S.aimed + 1
-    elseif v.tick <= S.hold and v.tick <= S.ranged_hold then
-        protect = (S.hold >= S.ranged_hold) and "protectfrommagic" or "protectfrommissiles"
-        S.aimed = S.aimed + 1
-    elseif v.tick <= S.hold then
-        protect = "protectfrommagic"
-        S.aimed = S.aimed + 1
-    elseif v.tick <= S.ranged_hold then
-        protect = "protectfrommissiles"
-        S.aimed = S.aimed + 1
-    elseif range <= 3 then
-        protect = "protectfrommelee"
-        if due then S.melee_due = (S.melee_due or 0) + 1 end
+    -- THE PROTECTIONS OUT: an unprayed ball "takes the victim's protection
+    -- prayers away for five ticks" (S tob_sotetseg.rs2:15), which the client
+    -- learns from the press the server refuses
+    if st.refusals > (S.refusals_seen or 0) then
+        S.refusals_seen = st.refusals
+        S.disabled_until = v.tick + 6
     end
-    if protect == "protectfrommagic" then S.magic_ticks = S.magic_ticks + 1 end
-    if protect == "protectfrommelee" then S.melee_ticks = S.melee_ticks + 1 end
-    protect_press(protect)
+    S.now = { range = range, adjacent = adjacent, due = due,
+        disabled = S.disabled_until ~= nil and v.tick <= S.disabled_until }
+    -- THE DEATH BALL (the big red one): the stack starts `gather_lead` ticks
+    -- before it lands and holds until it has landed (W:794 "This damage can be
+    -- split among other players"; the owner, 2026-10-07: "the raiders should
+    -- share the red ball").  This is the old `gathering` local, raised as the
+    -- event that owns the `gather` state.
+    if S.death_land >= v.tick - 1 and S.death_land - v.tick <= P.gather_lead then
+        raise("death_ball_due", { land = S.death_land })
+    else
+        raise("death_ball_over", { land = S.death_land })
+    end
+    -- THE PRAYER'S EVENTS, in rising priority (the last one decides).
+    -- Out of his range he only throws balls (S: melee needs npc_range <= 1),
+    -- so Protect from Magic is up there; near him Protect from Melee, which
+    -- cannot be reacted to (S: its prayer is read in the swing tick's own
+    -- player phase).
+    if range <= 3 then raise("near", { range = range }) else raise("away", { range = range }) end
+    local held = nil
+    if v.tick <= S.hold and v.tick <= S.ranged_hold then
+        held = (S.hold >= S.ranged_hold) and "protectfrommagic" or "protectfrommissiles"
+    elseif v.tick <= S.hold then
+        held = "protectfrommagic"
+    elseif v.tick <= S.ranged_hold then
+        held = "protectfrommissiles"
+    end
+    if held ~= nil then raise("ball_held", { style = held }) end
+    if soonest_style ~= nil then raise("ball_aimed", { style = soonest_style }) end
+    -- the ticks a ball of either colour was in the air at this raider (the
+    -- harness's "ticks a ball flew at me"): the old chain's four aimed/held
+    -- branches, which are exactly these two events
+    if held ~= nil or soonest_style ~= nil then S.aimed = S.aimed + 1 end
+    raise("tick")
+    raise("settle")
+    return out
+end
+
+-- ==========================================================================
+-- THE PROTECTION PRAYER, which follows the colour of his ball (E:191 "The red
+-- one can be completely blocked with Protect from Magic, while the grey one
+-- ... with Protect from Missiles").  Three states, one per protection, and
+-- each of them handles EVERY one of the four events, forward and backward:
+-- there is no priority table here, the priority is the order the derivation
+-- raises them in.  A ball or a ricochet at this raider wins because
+-- `ball_aimed` is raised last; unprayed it takes the protections away for
+-- five ticks (S tob_sotetseg.rs2:15, ~prayer_block_protection at the impact)
+-- and every attack in those five ticks lands unprayed.
+-- The press is in the state's `tick`, so exactly one press is sent a tick: the
+-- colour the machine is in when the events have all been seen.
+QD.raid.SOTETSEG_PRAYER_STATE = {
+    protectfrommelee = "melee", protectfrommagic = "magic", protectfrommissiles = "missiles",
+}
+
+local function sotetseg_pray_to(c, ev)
+    local go = QD.raid.SOTETSEG_PRAYER_STATE[ev.style]
+    assert(go, "sotetseg_prayer: no state for style " .. tostring(ev.style))
+    return nil, go
+end
+
+QD.raid.sm_declare("sotetseg_prayer", {
+    start = "magic",
+    note = "the protection up now; the derivation raises away/near, then ball_held, then ball_aimed",
+    states = {
+        -- near him Protect from Melee (his melee cannot be reacted to: its
+        -- prayer is read in the swing tick's own player phase)
+        melee = { on = {
+            near = function() return nil, "melee" end,
+            away = function() return nil, "magic" end,
+            ball_held = sotetseg_pray_to,
+            ball_aimed = sotetseg_pray_to,
+            tick = function(c)
+                local S = c.S
+                S.melee_ticks = S.melee_ticks + 1
+                if S.now.due then S.melee_due = (S.melee_due or 0) + 1 end
+                QD.raid._sotetseg_pray(c, "protectfrommelee")
+            end,
+        } },
+        -- out of his range he only throws balls, so magic is the default
+        magic = { on = {
+            near = function() return nil, "melee" end,
+            away = function() return nil, "magic" end,
+            ball_held = sotetseg_pray_to,
+            ball_aimed = sotetseg_pray_to,
+            tick = function(c)
+                c.S.magic_ticks = c.S.magic_ticks + 1
+                QD.raid._sotetseg_pray(c, "protectfrommagic")
+            end,
+        } },
+        -- the grey ball's colour, held while one is in the air at this raider
+        missiles = { on = {
+            near = function() return nil, "melee" end,
+            away = function() return nil, "magic" end,
+            ball_held = sotetseg_pray_to,
+            ball_aimed = sotetseg_pray_to,
+            tick = function(c) QD.raid._sotetseg_pray(c, "protectfrommissiles") end,
+        } },
+    },
+})
+
+-- the press, the old decide's `protect_press` closure unchanged.  The
+-- library's SEND lights `walk_prayers` from the intent's `want`; the
+-- protections exclude each other and a press is a toggle (nylocas fixer,
+-- seam30: an "off" for the old one after the new one's "on" lights the old one
+-- again), so the plan keeps ONE protection in walk_prayers -- the one this
+-- tick wants -- and the server puts the other out.
+function QD.raid._sotetseg_pray(c, protect)
+    assert(c, "_sotetseg_pray: c")
+    assert(type(protect) == "string", "_sotetseg_pray: protect must be a prayer name")
+    local v, S, P = c.v, c.S, c.P
+    P.walk_prayers[1] = protect
+    c.intent.want[protect] = true
+    if S.pray_sent ~= nil and S.pray_sent.name == protect and v.tick - S.pray_sent.tick <= 2 then
+        v.lit[protect] = true
+    end
+    if v.lit[protect] ~= true and v.prayer > 0 then
+        S.pray_sent = { name = protect, tick = v.tick }
+        S.press_log[#S.press_log + 1] = { tick = v.tick, name = protect }
+    end
+    c.protect = protect
+end
+
+-- ==========================================================================
+-- THE WEAPON, which is the attack cycle: the twisted bow opener on the walk
+-- in (worn in the void ranged set), the elder maul's special when a phase
+-- opens -- already in hand if the seat that owns the phase put it on during
+-- the maze -- and the scythe otherwise.  The old body's two blocks of stages
+-- are these five states; each stage's `return intent` is `c.weapon_took`.
+--
+-- `opening` and `scythe` are the two that can open with a weapon, so they are
+-- the two that subscribe to `settle`; the bow and the maul advance on `tick`.
+-- A state that returns to `scythe` without taking the tick is the old
+-- fall-through to _play_attack, and `settle` after it is the old body's
+-- fall-through from the bow's last tick into the maul's trigger.
+QD.raid.sm_declare("sotetseg_weapon", {
+    start = "opening",
+    note = "the room's first weapon decision is the bow; after it the scythe, and the maul once a phase",
+    states = {
+        -- the first tick of the fight: the bow if this kit has one, else
+        -- straight to the scythe and its maul rule in the same tick
+        opening = { on = { tick = function(c) return QD.raid._sotetseg_bow_open(c) end } },
+        -- the arrow loosed on the walk in, proved by this raider's own seq 426
+        bow_shoot = { on = { tick = function(c) return QD.raid._sotetseg_bow_shoot(c) end } },
+        -- the scythe in hand: the state the fight is in between specials.  It
+        -- takes no tick of its own (the library's _play_attack owns the swing)
+        -- and decides, on `settle`, whether this phase's maul opens here.
+        scythe = { on = { settle = function(c) return QD.raid._sotetseg_maul_settle(c) end } },
+        -- the maul on, walking to the seat; the special is armed from the orb
+        maul_equip = { on = { tick = function(c) return QD.raid._sotetseg_maul_equip(c) end } },
+        -- armed: held until its 500 is spent (or 12 ticks), then the scythe
+        maul_swing = { on = { tick = function(c) return QD.raid._sotetseg_maul_swing(c) end } },
+    },
+})
+
+-- raid seam55 play_tob_sotetseg_room_ticks: THE BOW OPENER.  The Blert Normal
+-- trios open the room with ONE twisted bow arrow each on the walk in
+-- (sotetseg_normal_3.json weapons, start: TWISTED_BOW in 14, 12 and 13 of 19
+-- rooms for melee1/2/3, count 1), then the maul and the scythe.  Ours walked
+-- the 20 tiles from the barrier with nothing out (first swing mark+13 to +19:
+-- seam52 survey).  The bow goes on in the first block of the room with the
+-- attack press (the server stops the walk in the bow's reach and looses) and
+-- the next tick the walk to the corner goes on with the scythe (or the maul)
+-- back in hand.  A kit without the bow plays as before.
+-- owner_rooms4 FIX 1, THE BOW OPENER IN THE RANGED SET: 46-49 of the 81
+-- recorded seats walk in wearing elite void top, robes and gloves, the void
+-- ranger helm, Dizana's quiver and a necklace of anguish or rupture and loose
+-- the bow on the walk in (first attack +5); ours loosed it in the melee set
+-- and all 9 hits of the room's first 15 ticks dealt 0.  The harness wears the
+-- set from the barrier; what of it is still in the pack goes on with the bow,
+-- and the melee set goes back on with the maul or the scythe (fight 1's seat
+-- sequences BOW>MAUL>S in 27 seats, BOW>S>S 21).
+function QD.raid._sotetseg_bow_open(c)
+    assert(c, "_sotetseg_bow_open: c")
+    local st, v, S = c.st, c.v, c.S
+    if (S.phase or 0) == 0 and S.bow == nil and not c.stack and st.party > 1 then
+        if (QD.raid._play_sotetseg_held("twisted_bow") or QD.raid._play_sotetseg_worn("twisted_bow")) and S.bow_checked == nil then
+            S.bow = { stage = "equip", at = v.tick }
+        end
+        S.bow_checked = true
+    end
+    -- (the stack cannot be on at the room's first fight tick -- his first
+    -- death ball is far into the fight -- so this state is reached once, with
+    -- the bow either started or ruled out for the room)
+    -- (the stack cannot be on at the room's first fight tick -- his first
+    -- death ball is far into the fight -- so this state is reached once, with
+    -- the bow either started or ruled out for the room)
+    if S.bow == nil then return nil, "scythe" end
+    local bw = S.bow
+    bw.stage, bw.press = "shoot", v.tick
+    c.intent.gear = QD.raid._play_sotetseg_to_wear(QD.raid.SOTETSEG_RANGED_SET)
+    c.intent.walk = nil
+    c.intent.attack = true
+    st.engaged = false
+    c.weapon_took = true
+    return nil, "bow_shoot"
+end
+
+function QD.raid._sotetseg_bow_shoot(c)
+    assert(c, "_sotetseg_bow_shoot: c")
+    local st, v, S = c.st, c.v, c.S
+    local bw = S.bow
+    assert(bw, "_sotetseg_bow_shoot: S.bow (the state is only entered with one)")
+    local orr, own = QD.raid.own_anim()
+    if orr == "ok" then
+        for _, h in ipairs(own.history or {}) do
+            if h.seq == 426 and h.tick >= bw.press then bw.fired = bw.fired or h.tick end
+        end
+    end
+    if bw.fired == nil and v.tick - bw.press <= 8 then
+        -- the server walks the raider into the bow's reach; re-press if the
+        -- press did not take (engaged false after a refusal)
+        c.intent.walk = nil
+        c.intent.attack = not st.engaged
+        c.weapon_took = true
+        return
+    end
+    bw.stage, bw.done = "done", v.tick
+    S.bow_log = (bw.fired and ("fired t" .. bw.fired) or "gave up") .. " (pressed t" .. bw.press .. ", done t" .. v.tick .. ")"
+    -- the melee set back on, with the maul when this seat opens the phase with
+    -- it (the maul rule below), else with the scythe
+    local own0 = QD.raid.SOTETSEG_MAUL_OWN[st.role or 1] or QD.raid.SOTETSEG_MAUL_OWN[1]
+    local _, e0 = QD.var.varp("varp300_sa_energy")
+    local maul_next = own0[0] and (tonumber(e0) or 0) >= 500 and QD.raid._play_sotetseg_held("elder_maul")
+    -- the weapon now, the pieces through the wear queue (the trio wrapper)
+    S.wear_queue = QD.raid._play_sotetseg_to_wear(QD.raid.SOTETSEG_MELEE_SET)
+    c.intent.gear = { maul_next and "elder_maul" or "scythe_of_vitur" }
+    S.bow_log = S.bow_log .. ", melee set back " .. #S.wear_queue .. " pieces queued" .. (maul_next and ", the maul in hand" or "")
+    st.engaged = false
+    -- (the tick is NOT taken: the old body fell through from here into the
+    -- maul's trigger and then into _play_attack, which is what `scythe` and
+    -- the `settle` after this transition do)
+    return nil, "scythe"
+end
+
+-- this phase's elder maul record (S.em.phases[phase]), nil when the phase
+-- opened since the maul went on -- which is how a maze ends a maul that never
+-- fired, exactly as the old block's per-tick read of the phase's own em did
+function QD.raid._sotetseg_em(c)
+    assert(c, "_sotetseg_em: c")
+    local S = c.S
+    S.em = S.em or { phases = {}, log = {} }
+    return S.em.phases[S.phase or 0]
+end
+
+-- raid seam42 play_tob_sotetseg_follows_blert: THE ELDER MAUL, once a phase.
+-- The Normal trios on Blert swing ELDER_MAUL once in a phase per raider
+-- (sotetseg_normal_3.json weapons: melee1 start 15 of 19 rooms, maze1 13,
+-- maze2 12), and their scythes then deal ~30 a swing where ours dealt 22 into
+-- his full Defence 200.  The special "reduces the target's Defence by 35% of
+-- its current level" on a hit (pvm_elder_maul.rs2:4-41) and costs 500 energy.
+-- raid seam51: THE MAUL IN TWO STEPS, Maiden's opener shape: the maul goes on
+-- in one block, the special is armed from the orb with the attack press on the
+-- next tick, the scythe goes back once its 500 is spent.  It OPENS the phase
+-- (the first attack after the room's start or a maze, so every scythe swing
+-- after it meets the lowered Defence) or, when the phase's first swing went
+-- by, it goes on the tick after a scythe swing.
+-- raid seam51: TWO SPECIALS A PHASE, SHARED OUT.  Each raider owns two of the
+-- three phases (role 1: start and maze 1, role 2: start and maze 2, role 3:
+-- maze 1 and maze 2 -- QD.raid.SOTETSEG_MAUL_OWN) and specs in another only
+-- with the energy for its own still to come.
+-- owner_rooms4 FIX 2: a maul ALREADY IN HAND when the phase opens (put on in
+-- the maze by QD.raid._play_sotetseg_maul_ready, or with the melee set after
+-- the bow) is armed on this first attackable tick -- Blert's +1/+2.
+function QD.raid._sotetseg_maul_settle(c)
+    assert(c, "_sotetseg_maul_settle: c")
+    local st, v, S = c.st, c.v, c.S
+    local phase = S.phase or 0
+    local em = QD.raid._sotetseg_em(c)
+    local _, energy = QD.var.varp("varp300_sa_energy")
+    energy = tonumber(energy) or 0
+    local just_swung = st.engaged and st.last_swing ~= nil and v.tick - st.last_swing <= 1
+    local fresh = st.last_swing == nil or st.last_swing < (S.phase_start or 0)
+    local mine_phases = QD.raid.SOTETSEG_MAUL_OWN[st.role or 1] or QD.raid.SOTETSEG_MAUL_OWN[1]
+    local still = 0
+    for later = phase + 1, 2 do
+        if mine_phases[later] then still = still + 1 end
+    end
+    local spec_ok = (mine_phases[phase] == true and energy >= 500) or energy >= 500 * (1 + still)
+    if em == nil and not c.stack and c.intent.eat == nil and spec_ok and st.party > 1
+        and (fresh or (c.at_seat and just_swung)) then
+        em = { stage = "equip", at = v.tick, fresh = fresh }
+        S.em.phases[phase] = em
+        if QD.raid._play_sotetseg_worn("elder_maul") then
+            em.stage, em.arm, em.energy0, em.in_hand = "swing", v.tick, energy, true
+            c.intent.spec = true
+            c.intent.attack = true
+            -- (no walk to the seat corner: the press paths in to his nearest
+            -- face; svbplaysotet p0 walked from 14,94 to its corner 18,108 and
+            -- specced at +15, Blert's maul is at a median +10)
+            c.intent.walk = nil
+            st.engaged = false
+            c.weapon_took = true
+            return nil, "maul_swing"
+        end
+        c.intent.gear = { "elder_maul" }
+        c.intent.attack = false
+        c.weapon_took = true
+        return nil, "maul_equip"
+    end
+    -- owner_rooms4: a maul put on for a phase whose special did not come
+    -- (energy, a gather) is not swung plain: the scythe goes back on
+    if em == nil and not spec_ok and QD.raid._play_sotetseg_worn("elder_maul")
+        and QD.raid._play_sotetseg_held("scythe_of_vitur") then
+        c.intent.gear = { "scythe_of_vitur" }
+    end
+end
+
+function QD.raid._sotetseg_maul_equip(c)
+    assert(c, "_sotetseg_maul_equip: c")
+    local st, v = c.st, c.v
+    local em = QD.raid._sotetseg_em(c)
+    if em == nil then return nil, "scythe" end
+    -- armed from the seat (walking in, the walk goes on: no attack press, so
+    -- nothing swings the maul plain on the way)
+    if not (c.at_seat or c.given_up) then
+        c.intent.attack = false
+        c.weapon_took = true
+        return
+    end
+    local _, energy = QD.var.varp("varp300_sa_energy")
+    em.stage, em.arm, em.energy0 = "swing", v.tick, tonumber(energy) or 0
+    c.intent.spec = true
+    c.intent.attack = true
+    st.engaged = false
+    c.weapon_took = true
+    return nil, "maul_swing"
+end
+
+function QD.raid._sotetseg_maul_swing(c)
+    assert(c, "_sotetseg_maul_swing: c")
+    local st, v, S = c.st, c.v, c.S
+    local em = QD.raid._sotetseg_em(c)
+    if em == nil then return nil, "scythe" end
+    local _, energy = QD.var.varp("varp300_sa_energy")
+    energy = tonumber(energy) or 0
+    if energy <= em.energy0 - 500 or v.tick - em.arm > 12 then
+        em.fired = (energy <= em.energy0 - 500) and v.tick or nil
+        em.stage = "done"
+        c.intent.gear = { "scythe_of_vitur" }
+        st.engaged = false
+        S.em.log[#S.em.log + 1] = "phase " .. (S.phase or 0) .. (em.fresh and " opener" or "") .. " on t" .. em.at
+            .. (em.fired and (" fired t" .. em.fired) or " gave up t" .. v.tick) .. (em.rearm and (" rearmed " .. em.rearm) or "")
+        -- (the tick is not taken: _play_attack swings the scythe this tick, as
+        -- the old block's fall-through did)
+        return nil, "scythe"
+    end
+    if em.in_hand then c.intent.walk = nil end
+    local _, armed = QD.var.varp("varp301_sa_attack")
+    if tonumber(armed) == 0 and v.tick - em.arm >= 2 and (em.rearm or 0) < 3 then
+        em.rearm = (em.rearm or 0) + 1
+        c.intent.spec = true
+    end
+    c.intent.attack = true
+    c.weapon_took = true
+end
+
+-- ==========================================================================
+-- THE FIGHT, the body the `fight` and `gather` states share.  `stack` is the
+-- one thing that differs between them: where the raider stands.  Everything
+-- else -- the prayer machine, Piety, the seat corner, the supplies, the boost
+-- and the weapon machine -- is the same in both, which is why they are two
+-- states over one body and not two bodies.
+--   W:791 "In a trio encounter, players will stand to the east, west and
+--         north-west respectively" (spread "to increase the projectile's
+--         travel time so they can be reacted to in time")
+--   W:794 the death ball "121+ damage ... This damage can be split among
+--         other players"; yt_4i4lv-srJkw.md:95 "learners should all gather
+--         together on the tile directly in front of Sotoseg. This splits the
+--         damage evenly between you"
+function QD.raid._sotetseg_fight(c, stack)
+    assert(c, "_sotetseg_fight: c")
+    local st, v, S, N = c.st, c.v, c.S, c.N
+    local intent = c.intent
+    local R = S.now
+    assert(R, "_sotetseg_fight: S.now (the derivation reads the tick before the states act)")
+    c.stack = stack
+    -- THE PROTECTION for the NEXT tick (a press is in force for the next npc
+    -- phase): the colour of his ball, by its own machine
+    QD.raid.sm_run(st, v, "sotetseg_prayer", c, c.events)
+    -- E:191 "it is best to attack Sotetseg with Melee": the melee boost while
+    -- the scythe swings
     intent.want.piety = true
     if v.lit.piety ~= true then
         if S.piety_sent ~= nil and v.tick - S.piety_sent <= 2 then
@@ -812,11 +1192,12 @@ function QD.raid._play_sotetseg_trio_body(st, v)
             S.piety_sent = v.tick
         end
     end
-    -- WHERE TO STAND: the seat, or the front tile while the death ball is due
+    -- WHERE TO STAND: this seat's corner, or the tile in front of him while
+    -- the death ball is due (the `gather` state)
+    local b = v.boss
     local n = b.size or 5
     local sx, sz = QD.raid._play_sotetseg_seat(st, b)
-    local gathering = S.death_land >= v.tick - 1 and S.death_land - v.tick <= P.gather_lead
-    if gathering then
+    if stack then
         sx, sz = b.x + math.floor(n / 2), b.z - 1
         if S.gather_for ~= S.death_land then
             S.gather_for = S.death_land
@@ -824,13 +1205,13 @@ function QD.raid._play_sotetseg_trio_body(st, v)
         end
         S.gather_ticks = S.gather_ticks + 1
     end
-    -- raid seam55: an attack press that framed nothing twice running from
-    -- the corner moves the seat to the next corner (THE NEXT CORNER above)
+    -- raid seam55: an attack press that framed nothing twice running from the
+    -- corner moves the seat to the next corner (THE NEXT CORNER above)
     local nv = (st.press_answers and st.press_answers.not_visible) or 0
     if nv > (S.nv_seen or 0) then
         S.nv_streak = (S.nv_streak or 0) + (nv - (S.nv_seen or 0))
         S.nv_seen = nv
-        if S.nv_streak >= 2 and not gathering then
+        if S.nv_streak >= 2 and not stack then
             S.seat_shift = (S.seat_shift or 0) + 1
             S.seat_shifts = (S.seat_shifts or 0) + 1
             S.nv_streak = 0
@@ -866,16 +1247,13 @@ function QD.raid._play_sotetseg_trio_body(st, v)
             if same then S.seat_misses = S.seat_misses + 1 end
         end
     end
+    -- the weapon machine's maul reads both (the special is armed from the seat)
+    c.at_seat, c.given_up = at_seat, given_up
     -- THE SUPPLIES (the Entry rule with Normal's numbers): a melee per attack
     -- in his range, prayed or not by the prayer this tick asks for; a ball
     -- and a melee unprayed while the protections are disabled; the death
     -- ball's share when it lands inside the horizon (all three on the front
     -- tile: W:794 split, yt_4i4lv-srJkw.md:95)
-    if st.refusals > (S.refusals_seen or 0) then
-        S.refusals_seen = st.refusals
-        S.disabled_until = v.tick + 6
-    end
-    local disabled = S.disabled_until ~= nil and v.tick <= S.disabled_until
     local function threat(h)
         -- raid seam42 play_tob_sotetseg_follows_blert: ONE attack of his, not
         -- one per five ticks of the horizon.  He swings at one raider a
@@ -888,12 +1266,12 @@ function QD.raid._play_sotetseg_trio_body(st, v)
         -- role.melee1/2.eat_at_hp_pct) and lose 92-108 in the whole room.
         local attacks = 1
         local per = 0
-        if adjacent then per = (protect == "protectfrommelee") and N.melee_prayed or N.melee end
+        if R.adjacent then per = (c.protect == "protectfrommelee") and N.melee_prayed or N.melee end
         -- raid seam50: ONE attack while the prayers are out as well (his
         -- ball or his melee, never both in one cycle): the sum had every
         -- raider eat at 82-95 of 99 (seam49 s2: p2 ate 14 times in maze2's
         -- phase) where the Blert trios eat at 29% and 41.5%
-        if disabled then per = math.max(N.ball, adjacent and N.melee or 0) end
+        if R.disabled then per = math.max(N.ball, R.adjacent and N.melee or 0) end
         local total = attacks * per
         if S.death_land >= v.tick and S.death_land - v.tick <= h then
             total = total + math.floor(N.death / st.party) + 1
@@ -907,188 +1285,269 @@ function QD.raid._play_sotetseg_trio_body(st, v)
     -- 118 at 99).  A brew's drain (wiki Saradomin brew: -10% -2 each dose)
     -- put right by a restore leaves the scythe at 99 for the rest of the
     -- room: seam50 s1's splats were 0 on 26% of hits before the first maze
-    -- and 42-44% after, where the reference's trios deal ~33 a swing
-    -- (output.phase.*.boss_hp_per_tick over role.*.phase.*.attacks_boss).
+    -- and 42-44% after, where the reference's trios deal ~33 a swing.
     if intent.drink == nil and v.tick - (st.last_drink or -1000) >= QD.RAID_PLAY_DRINK_DELAY then
         local _, at = QD.skill.read("attack")
         local _, sg = QD.skill.read("strength")
         local combat = nil
         for _, dose in ipairs({ "1dose2combat", "2dose2combat", "3dose2combat", "4dose2combat" }) do
-            local cr, n = QD.inv.count(dose)
-            if combat == nil and cr == "ok" and (tonumber(n) or 0) > 0 then combat = dose end
+            local cr, cn = QD.inv.count(dose)
+            if combat == nil and cr == "ok" and (tonumber(cn) or 0) > 0 then combat = dose end
         end
         if combat ~= nil and at ~= nil and sg ~= nil and ((at.level or 999) < 108 or (sg.level or 999) < 108) then
             intent.drink = combat
             S.reboosts = (S.reboosts or 0) + 1
         end
     end
-    -- raid seam42 play_tob_sotetseg_follows_blert: THE ELDER MAUL, once a
-    -- phase.  The Normal trios on Blert swing ELDER_MAUL once in a phase per
-    -- raider (sotetseg_normal_3.json weapons: melee1 start 15 of 19 rooms,
-    -- maze1 13, maze2 12), and their scythes then deal ~30 a swing (1000
-    -- hitpoints a phase from role.*.phase.start.attacks_boss 10 each) where
-    -- ours dealt 22 into his full Defence 200.  The special "reduces the
-    -- target's Defence by 35% of its current level" on a hit
-    -- (pvm_elder_maul.rs2:4-41) and costs 500 energy; it is armed from the
-    -- orb like Maiden's hammer (raid_play_tob_maiden.lua opener), proved by
-    -- the energy it spends, and the scythe goes back on the tick after.
-    -- raid seam55 play_tob_sotetseg_room_ticks: THE BOW OPENER.  The Blert
-    -- Normal trios open the room with ONE twisted bow arrow each on the walk
-    -- in (sotetseg_normal_3.json weapons, start: TWISTED_BOW in 14, 12 and 13
-    -- of 19 rooms for melee1/2/3, count 1), then the maul and the scythe.
-    -- Ours walked the 20 tiles from the barrier with nothing out (first swing
-    -- mark+13 to +19: seam52 survey).  The bow goes on in the first block of
-    -- the room with the attack press (the server stops the walk in the bow's
-    -- reach and looses), the shot is proved by this raider's own seq 426
-    -- (t.raid.own_anim), and the next tick the walk to the corner goes on
-    -- with the scythe (or the maul below) back in hand.  A kit without the
-    -- bow plays as before.
-    -- owner_rooms4 FIX 1, THE BOW OPENER IN THE RANGED SET: 46-49 of the 81
-    -- recorded seats walk in wearing elite void top, robes and gloves, the void
-    -- ranger helm, Dizana's quiver and a necklace of anguish or rupture and
-    -- loose the bow on the walk in (first attack +5); ours loosed it in the
-    -- melee set and all 9 hits of the room's first 15 ticks dealt 0.  The
-    -- harness wears the set from the barrier; what of it is still in the pack
-    -- goes on with the bow, and the melee set goes back on with the maul or
-    -- the scythe (fight 1's seat sequences BOW>MAUL>S in 27 seats, BOW>S>S 21).
-    if (S.phase or 0) == 0 and S.bow == nil and not gathering and st.party > 1 then
-        if (QD.raid._play_sotetseg_held("twisted_bow") or QD.raid._play_sotetseg_worn("twisted_bow")) and S.bow_checked == nil then
-            S.bow = { stage = "equip", at = v.tick }
-        end
-        S.bow_checked = true
+    -- THE WEAPON: the bow opener, this phase's maul special, the scythe.  It
+    -- owns the attack channel on the ticks it takes (`c.weapon_took`), which
+    -- is where the old body returned early.
+    c.weapon_took = false
+    QD.raid.sm_run(st, v, "sotetseg_weapon", c, c.events)
+    if not c.weapon_took then
+        intent.attack = QD.raid._play_attack(st, v, intent.attack)
     end
-    if S.bow ~= nil and S.bow.stage ~= "done" then
-        local bw = S.bow
-        if bw.stage == "equip" then
-            bw.stage, bw.press = "shoot", v.tick
-            intent.gear = QD.raid._play_sotetseg_to_wear(QD.raid.SOTETSEG_RANGED_SET)
-            intent.walk = nil
-            intent.attack = true
-            st.engaged = false
-            return intent
-        end
-        local orr, own = QD.raid.own_anim()
-        if orr == "ok" then
-            for _, h in ipairs(own.history or {}) do
-                if h.seq == 426 and h.tick >= bw.press then bw.fired = bw.fired or h.tick end
-            end
-        end
-        if bw.fired == nil and v.tick - bw.press <= 8 then
-            -- the server walks the raider into the bow's reach; re-press if
-            -- the press did not take (engaged false after a refusal)
-            intent.walk = nil
-            intent.attack = not st.engaged
-            return intent
-        end
-        bw.stage, bw.done = "done", v.tick
-        S.bow_log = (bw.fired and ("fired t" .. bw.fired) or "gave up") .. " (pressed t" .. bw.press .. ", done t" .. v.tick .. ")"
-        -- the melee set back on, with the maul when this seat opens the
-        -- phase with it (the maul block below), else with the scythe
-        local own0 = QD.raid.SOTETSEG_MAUL_OWN[st.role or 1] or QD.raid.SOTETSEG_MAUL_OWN[1]
-        local _, e0 = QD.var.varp("varp300_sa_energy")
-        local maul_next = own0[0] and (tonumber(e0) or 0) >= 500 and QD.raid._play_sotetseg_held("elder_maul")
-        -- the weapon now, the pieces through the wear queue (the wrapper above)
-        S.wear_queue = QD.raid._play_sotetseg_to_wear(QD.raid.SOTETSEG_MELEE_SET)
-        intent.gear = { maul_next and "elder_maul" or "scythe_of_vitur" }
-        S.bow_log = S.bow_log .. ", melee set back " .. #S.wear_queue .. " pieces queued" .. (maul_next and ", the maul in hand" or "")
-        st.engaged = false
-    end
-    local phase = S.phase or 0
-    S.em = S.em or { phases = {}, log = {} }
-    local em = S.em.phases[phase]
-    local _, energy = QD.var.varp("varp300_sa_energy")
-    energy = tonumber(energy) or 0
-    -- raid seam51 play_tob_sotetseg_whole: THE MAUL IN TWO STEPS, Maiden's
-    -- opener shape (raid_play_tob_maiden.lua THE OPENER, proved there): the
-    -- maul goes on in one block, the special is armed from the orb with the
-    -- attack press on the next tick, the scythe goes back once its 500 is
-    -- spent.  The one-block arm missed: seam50 s1 p1 put the maul on at t110,
-    -- swung it plain (seq 7516) at t113 and specced at t119, three attacks
-    -- where a scythe would have swung four.  It OPENS the phase (the first
-    -- attack after the room's start or a maze, so every scythe swing after
-    -- it meets the lowered Defence; the reference's trios swap 6-20 ticks into
-    -- a phase, react.phase.maze1.*.swap) or, when the phase's first swing went
-    -- by, it goes on the tick after a scythe swing, four before the next.
-    local just_swung = st.engaged and st.last_swing ~= nil and v.tick - st.last_swing <= 1
-    local fresh = st.last_swing == nil or st.last_swing < (S.phase_start or 0)
-    -- raid seam51: TWO SPECIALS A PHASE, shared out.  His Defence is back at
-    -- its level after every maze (seam51 s1 svb: zero splats 17% in the start
-    -- phase after three specials, 25% after maze 1's three, 48% after maze 2
-    -- with none: the energy, 1000 a raider and 10% a 50 ticks back, was spent
-    -- by then; the reference's trios swing the maul in 12-15 of 19 rooms in
-    -- EVERY phase, sotetseg_normal_3.json weapons ELDER_MAUL).  Each raider
-    -- owns two of the three phases (role 1: start and maze 1, role 2: start and
-    -- maze 2, role 3: maze 1 and maze 2), and specs in another only with the
-    -- energy for its own still to come.
-    local mine_phases = QD.raid.SOTETSEG_MAUL_OWN[st.role or 1] or QD.raid.SOTETSEG_MAUL_OWN[1]
-    local still = 0
-    for later = phase + 1, 2 do
-        if mine_phases[later] then still = still + 1 end
-    end
-    local spec_ok = (mine_phases[phase] == true and energy >= 500) or energy >= 500 * (1 + still)
-    if em == nil and not gathering and intent.eat == nil and spec_ok and st.party > 1
-        and (fresh or (at_seat and just_swung)) then
-        em = { stage = "equip", at = v.tick, fresh = fresh }
-        S.em.phases[phase] = em
-        -- owner_rooms4 FIX 2: already in hand (put on in the maze, or with the
-        -- melee set after the bow): armed on this first attackable tick, the
-        -- attack press paths the seat in -- Blert's +1/+2
-        if QD.raid._play_sotetseg_worn("elder_maul") then
-            em.stage, em.arm, em.energy0, em.in_hand = "swing", v.tick, energy, true
-            intent.spec = true
-            intent.attack = true
-            -- (no walk to the seat corner: the press paths in to his nearest
-            -- face; svbplaysotet p0 walked from 14,94 to its corner 18,108 and
-            -- specced at +15, Blert's maul is at a median +10)
-            intent.walk = nil
-            st.engaged = false
-            return intent
-        end
-        intent.gear = { "elder_maul" }
-        intent.attack = false
-        return intent
-    end
-    -- owner_rooms4: a maul put on for a phase whose special did not come
-    -- (energy, a gather) is not swung plain: the scythe goes back on
-    if em == nil and not spec_ok and QD.raid._play_sotetseg_worn("elder_maul") and QD.raid._play_sotetseg_held("scythe_of_vitur") then
-        intent.gear = { "scythe_of_vitur" }
-    end
-    if em ~= nil and em.stage ~= "done" then
-        if em.stage == "equip" then
-            -- armed from the seat (walking in, the walk goes on: no attack
-            -- press, so nothing swings the maul plain on the way)
-            if not (at_seat or given_up) then
-                intent.attack = false
-                return intent
-            end
-            em.stage, em.arm, em.energy0 = "swing", v.tick, energy
-            intent.spec = true
-            intent.attack = true
-            st.engaged = false
-            return intent
-        elseif em.stage == "swing" then
-            if energy <= em.energy0 - 500 or v.tick - em.arm > 12 then
-                em.fired = (energy <= em.energy0 - 500) and v.tick or nil
-                em.stage = "done"
-                intent.gear = { "scythe_of_vitur" }
-                st.engaged = false
-                S.em.log[#S.em.log + 1] = "phase " .. phase .. (em.fresh and " opener" or "") .. " on t" .. em.at
-                    .. (em.fired and (" fired t" .. em.fired) or " gave up t" .. v.tick) .. (em.rearm and (" rearmed " .. em.rearm) or "")
-            else
-                if em.in_hand then intent.walk = nil end
-                local _, armed = QD.var.varp("varp301_sa_attack")
-                if tonumber(armed) == 0 and v.tick - em.arm >= 2 and (em.rearm or 0) < 3 then
-                    em.rearm = (em.rearm or 0) + 1
-                    intent.spec = true
-                end
-                intent.attack = true
-                return intent
-            end
-        end
-    end
-    intent.attack = QD.raid._play_attack(st, v, intent.attack)
-    return intent
 end
+
+-- the maze is over for a raider who read the glow: his combat form is back
+function QD.raid._sotetseg_maze_over(c)
+    assert(c, "_sotetseg_maze_over: c")
+    local S = c.S
+    if S.fw ~= nil then
+        S.fw.done = S.fw.done or c.v.tick
+        S.fw = nil
+    end
+end
+
+-- the maze is over for the runner: it is back in the arena beside him (his
+-- south-west tile plus (-2,+1), where the room puts it down), and must be
+-- attacking again within about two ticks -- which is why the teleport window
+-- is short and the `fight` state takes the very next tick
+function QD.raid._sotetseg_realm_over(c)
+    assert(c, "_sotetseg_realm_over: c")
+    local st, v, S = c.st, c.v, c.S
+    if S.mz ~= nil and S.mz.back == nil then
+        S.mz.back = v.tick
+        st.teleport_until = v.tick + 2
+        S.mz = nil
+    end
+end
+
+-- ==========================================================================
+-- THE SEATS, one machine per role (QD.raid.sm_states("sotetseg_seat_2") is
+-- role 2's answer, and its trace and tick counts are that seat's).  The five
+-- states are the same for every seat because what differs between the seats is
+-- DATA, declared once: the corner it fights from (QD.raid.SOTETSEG_CORNERS
+-- through _play_sotetseg_seat: role 1 the east face's north end (5,4), role 2
+-- the west face's south end (-1,0), role 3 the south face's east end (4,-1))
+-- and the phases whose maul special it owns (QD.raid.SOTETSEG_MAUL_OWN: role 1
+-- the start and maze 1, role 2 the start and maze 2, role 3 the two mazes).
+--
+-- WHICH SEAT RUNS WHICH MAZE is not the plan's choice: the room picks the
+-- runner (S tob_sote_send_party takes the first raider its hunt finds), so
+-- every seat declares both parts and the machine records which it was given --
+-- `shadow_realm` for the runner (one raider walks the lit path in the shadow
+-- realm) and `follow` for the other two (thrown to the far end, reading the
+-- glow and walking the arena's copy of the grid, fighting on nothing).  The
+-- machine's trace is the evidence: "shadow_realm@t88/hp99" on the seat that
+-- ran it, "follow@t88/hp99" on the two that did not.
+QD.raid.SOTETSEG_SEAT_NOTE = {
+    [1] = "corner (5,4) the east face's north end; maul in the start phase and maze 1",
+    [2] = "corner (-1,0) the west face's south end; maul in the start phase and maze 2",
+    [3] = "corner (4,-1) the south face's east end; maul in maze 1 and maze 2",
+}
+
+-- the states of one seat.  Every state names the events that move it, forward
+-- and backward; the ones it does not name it ignores on purpose, and they are
+-- named in its comment.
+local function sotetseg_seat_states()
+    return {
+        -- FIGHTING from this seat's corner.  Ignores `boss_combat` (it is
+        -- already there), `death_ball_over` (nothing to leave) and the
+        -- prayer's events (the prayer machine's).
+        fight = { on = {
+            realm_in = function() return nil, "shadow_realm" end,
+            maze_on = function() return nil, "follow" end,
+            boss_absent = function() return nil, "boss_gone" end,
+            death_ball_due = function() return nil, "gather" end,
+            tick = function(c) QD.raid._sotetseg_fight(c, false) end,
+        } },
+        -- STACKED for the death ball, on the tile in front of him, so its
+        -- damage splits between the three of us (the owner's ruling).  The
+        -- fight goes on from there: same body, one different tile.
+        gather = { on = {
+            realm_in = function() return nil, "shadow_realm" end,
+            maze_on = function() return nil, "follow" end,
+            boss_absent = function() return nil, "boss_gone" end,
+            death_ball_over = function() return nil, "fight" end,
+            tick = function(c) QD.raid._sotetseg_fight(c, true) end,
+        } },
+        -- THE RUNNER, sent to the shadow realm and walking the lit path (the
+        -- maze's own plan, QD.raid._play_sotetseg_maze).  It leaves on
+        -- `realm_out`, the tick it is back in the arena; his form that tick
+        -- then refines the landing (`maze_on` while the idle form still
+        -- stands, `boss_combat` once he is back).  Ignores `maze_on` (it is in
+        -- the maze) and the death ball (nothing of his lands in a maze: W:799).
+        shadow_realm = { on = {
+            realm_out = function(c)
+                QD.raid._sotetseg_realm_over(c)
+                return nil, "fight"
+            end,
+            tick = function(c)
+                local st, v, S = c.st, c.v, c.S
+                S.in_maze = true
+                if S.mz == nil then S.runs = (S.runs or 0) + 1 end
+                QD.raid._play_sotetseg_maze(st, v, c.intent)
+                QD.raid._play_sotetseg_maul_ready(st, v, c.intent)
+            end,
+        } },
+        -- THE TWO WHO READ THE GLOW, thrown to the far end of the arena and
+        -- walking the lit route behind the runner.  The seat that owns the
+        -- coming phase's special puts the maul on here, once, so the phase
+        -- opens with it in hand (owner_rooms4 FIX 2).
+        follow = { on = {
+            realm_in = function() return nil, "shadow_realm" end,
+            boss_combat = function(c)
+                QD.raid._sotetseg_maze_over(c)
+                return nil, "fight"
+            end,
+            boss_absent = function() return nil, "boss_gone" end,
+            tick = function(c)
+                local st, v = c.st, c.v
+                -- the throw to the far end three ticks after the proc (W:799)
+                st.teleport_until = v.tick + 6
+                QD.raid._play_sotetseg_follow(st, v, c.intent)
+                QD.raid._play_sotetseg_maul_ready(st, v, c.intent)
+            end,
+        } },
+        -- NEITHER FORM IN VIEW: his death, or the blink between two retypes.
+        -- The plan sends nothing on such a tick.  The leader keeps the
+        -- library's gone-count at zero because it reads his death from the
+        -- tick log's npc_death row; a member lets it run (three ticks).
+        boss_gone = { on = {
+            realm_in = function() return nil, "shadow_realm" end,
+            maze_on = function() return nil, "follow" end,
+            boss_combat = function() return nil, "fight" end,
+            tick = function(c)
+                local st, v = c.st, c.v
+                if st.log then
+                    st.boss_gone = 0
+                    st.teleport_until = v.tick + 6
+                end
+            end,
+        } },
+    }
+end
+
+for role = 1, 3 do
+    QD.raid.sm_declare("sotetseg_seat_" .. role, {
+        start = "fight",
+        note = QD.raid.SOTETSEG_SEAT_NOTE[role],
+        states = sotetseg_seat_states(),
+    })
+end
+
+-- ==========================================================================
+-- THE ROOM'S PHASES.  His npc_retype into and out of the mode's noncombat
+-- record bounds every maze (S tob_sote_start_maze retypes him on the proc,
+-- tob_sote_end_maze back on the re-activation), and the two mazes come at two
+-- thirds and one third of his bar: so the room is the fight to the first maze,
+-- the first maze, the fight between them, the second maze, the fight after it,
+-- and his death.  Each fight state carries its phase number, which is what the
+-- elder maul's ownership and its `fresh` opener are keyed on; `dead` names the
+-- way back through the same table, so a blink between his two forms cannot
+-- lose the phase (QD.raid._sotetseg_phase_open is idempotent).
+QD.raid.SOTETSEG_PHASE_FIGHT = { [0] = "fight_start", [1] = "fight_mid", [2] = "fight_last" }
+
+QD.raid.sm_declare("sotetseg_room", {
+    start = "fight_start",
+    note = "the room's phases; his retype out of combat is the maze, back in is the next phase",
+    states = {
+        -- from the barrier to the first maze: phase 0, the bow opener's phase
+        fight_start = { on = {
+            maze_on = function() return nil, "maze_1" end,
+            boss_absent = function() return nil, "dead" end,
+        } },
+        -- the first maze.  Ignores `boss_absent`: he cannot die in one, and
+        -- the retype that starts it is what put us here.
+        maze_1 = { on = {
+            boss_combat = function() return nil, "fight_mid" end,
+        } },
+        fight_mid = {
+            enter = function(c) QD.raid._sotetseg_phase_open(c, 1) end,
+            on = {
+                maze_on = function() return nil, "maze_2" end,
+                boss_absent = function() return nil, "dead" end,
+            },
+        },
+        maze_2 = { on = {
+            boss_combat = function() return nil, "fight_last" end,
+        } },
+        -- the fight after the second maze, to his death.  There is no third
+        -- maze (the room starts exactly two), so no `maze_on` target here.
+        fight_last = {
+            enter = function(c) QD.raid._sotetseg_phase_open(c, 2) end,
+            on = {
+                boss_absent = function() return nil, "dead" end,
+            },
+        },
+        -- his death, or a blink: back to the fight of the phase we are in
+        dead = { on = {
+            boss_combat = function(c) return nil, QD.raid.SOTETSEG_PHASE_FIGHT[c.S.phase or 0] end,
+        } },
+    },
+})
+
+-- the phase a fight state opens with.  Idempotent: re-entering the same phase
+-- (a blink through `dead`) must not move `phase_start`, which is what the
+-- maul's `fresh` opener is measured from.  Phase 0 has no phase_start: the
+-- room's start is not a phase that opened after a maze, and the old body read
+-- `S.phase_start or 0` there.
+function QD.raid._sotetseg_phase_open(c, n)
+    assert(c, "_sotetseg_phase_open: c")
+    assert(type(n) == "number", "_sotetseg_phase_open: n must be a phase number")
+    local S = c.S
+    S.in_maze = nil
+    if (S.phase or 0) == n then return end
+    S.phase = n
+    S.phase_start = c.v.tick
+end
+
+-- ==========================================================================
+-- THE TICK: the events, then the room's machine, then this seat's.  That is
+-- the whole decide now; the states hold what used to be its branches.
+function QD.raid._play_sotetseg_trio_body(st, v)
+    assert(st, "_play_sotetseg_trio_body: st")
+    assert(v, "_play_sotetseg_trio_body: v")
+    -- owner_rooms4: every seat runs (raid_play_tob_bloat.lua QD.raid._play_run_keep)
+    QD.raid._play_run_keep(st, v)
+    local intent = { want = {}, walk = nil, attack = false }
+    st.sote = st.sote or { mazes = {}, balls = 0, death_balls = 0, press_log = {}, read_magic = {}, pray_sent = nil,
+        hold = -1, ranged_hold = -1, death_land = -1, magic_ticks = 0, melee_ticks = 0,
+        follows = {}, gathers = 0, gather_ticks = 0, seat_ticks = 0, aimed = 0 }
+    -- THE EVENTS ARE DERIVED PER DECIDE, NOT PER TICK.  QD.raid.sm_events
+    -- would cache them on the raider for v.tick, and the library can call a
+    -- plan's decide TWICE with the same v.tick: QD.raid._play_tick reads its
+    -- own `v` at the top of every call and only waits when the tick has not
+    -- moved (raid_play.lua "if after == v.tick then QD.ticks(1) end"), so a
+    -- body whose own await crossed a boundary -- the follower's glow poll --
+    -- leaves the loop free to decide again inside the tick it landed in.  The
+    -- old body re-read the world on every call, and that second read is what
+    -- saw his combat form come back: svcplaysotet t148, the re-activation of
+    -- maze 1.  The first decide of t148 read his idle form and walked the
+    -- glow; the second read his combat form, put Piety back and walked to the
+    -- corner.  Cached, the second decide replayed the first's `maze_on` and
+    -- the two followers stayed in `follow` for a tick: Piety and the
+    -- protection switch a tick late from every maze, and svc's room went 239
+    -- -> 240 ticks with 123 more hitpoints lost on two seats.  So: derive
+    -- here, once per decide, which is once per read of the world.
+    local events = QD.raid._sotetseg_events(st, v)
+    local c = { st = st, v = v, S = st.sote, P = st.plan, N = st.numbers, intent = intent, events = events }
+    QD.raid.sm_run(st, v, "sotetseg_room", c, events)
+    QD.raid.sm_run(st, v, "sotetseg_seat_" .. (st.role or 1), c, events)
+    return c.intent
+end
+
 
 -- THE RAIDERS WHO READ THE GLOW (the trio's two who are not chosen).  "The
 -- remaining players will be forcibly teleported to the other end of the
