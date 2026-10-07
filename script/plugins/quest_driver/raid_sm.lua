@@ -332,6 +332,45 @@ function QD.raid.sm_at(st, id, inst)
     return st.sm[sm_key(id, inst)]
 end
 
+-- COVERAGE: every machine instance this raider ran, with each DECLARED
+-- state's tick count and entry count, and the declared states that never
+-- fired.  One line per instance, appended to the play library's summary.
+--
+-- This exists because a port's proof is "identical readings", and that proof
+-- is worth only as much as the states the runs actually entered.  A change
+-- hung off a state nothing enters is indistinguishable from no change: the
+-- Xarpus port surveyed 5 of 5 green with byte-identical ledgers for a
+-- demonstration change on a state (`holding`) that is never entered in any
+-- measured run (reported 2026-10-07).  A state printed here with `0` is a
+-- state whose behaviour no run has checked, and it has to be accounted for --
+-- unreachable in the mode we test, missed by these seeds, or wired wrong.
+--
+-- Counts are `ticks/entries`: ticks is the number of decides spent in the
+-- state, entries the number of times it was entered.  A state with ticks 0
+-- and entries 0 never fired at all; one with entries > 0 and ticks 0 cannot
+-- happen, since the state is counted on the decide it is entered in.
+function QD.raid.sm_coverage(st)
+    assert(st, "sm_coverage: st")
+    if st.sm == nil then return "" end
+    local keys = {}
+    for key in pairs(st.sm) do keys[#keys + 1] = key end
+    table.sort(keys)
+    local out = {}
+    for _, key in ipairs(keys) do
+        local m = st.sm[key]
+        local parts, dead = {}, {}
+        for _, name in ipairs(QD.raid.sm_states(m.id)) do
+            local ticks, entries = m.counts[name] or 0, m.visits[name] or 0
+            parts[#parts + 1] = name .. " " .. ticks .. "/" .. entries
+            if ticks == 0 and entries == 0 then dead[#dead + 1] = name end
+        end
+        out[#out + 1] = key .. " [" .. table.concat(parts, ", ") .. "] moves " .. m.moves
+            .. ", ticks " .. tostring(m.ticks or 0)
+            .. (#dead > 0 and (", NEVER " .. table.concat(dead, " ")) or ", all states fired")
+    end
+    return "; sm coverage: " .. table.concat(out, " | ")
+end
+
 -- a one-line summary for a harness row or a log: the state now, the moves,
 -- and the per-state tick counts in the order the machine declares them.
 function QD.raid.sm_summary(st, id, inst)
