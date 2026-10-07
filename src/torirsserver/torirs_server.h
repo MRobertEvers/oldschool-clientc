@@ -3395,6 +3395,12 @@ struct ToriRSServerPlayer
      * and that must be a time rather than an opt-out.
      */
     int32_t last_input_tick;
+    /** A raid plan's own state for the tick log's raider row (`::tlnote
+     *  <text>`, owner_nylocas): the row is the server's, the plan is the
+     *  client's, and a member holds no tick log of its own -- so the plan
+     *  says its state to the server and the leader's log carries it as
+     *  ` state=<text>`. Empty: no note. */
+    char ticklog_note[32];
     /** The overhead-icon bits for the appearance block. Content's, through
      *  HEADICONS_GET/SET — the engine neither knows nor asks which prayer put a
      *  bit here, which is exactly the reference's arrangement

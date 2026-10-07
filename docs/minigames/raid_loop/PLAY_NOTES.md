@@ -634,6 +634,34 @@ waves + bow on big greens; no protection prayer in the waves (0 of 5, tech.praye
 State at commit (survey stack5d): _play 280/348/109/457 weakest 0.20; sva 284/344/114/458 0.23; svb 304!/356/115/471
 0.19; svc 296!/360!/109/469 0.15; svd 284/356/115/471 0.19 (last wave / boss start / boss ticks / room ticks).
 
+### Nylocas, Normal trio, THE MACHINE (owner_nylocas, owner's direction 2026-10-06 20:00) -- 0 of 5, red
+
+The trio's waves, cleanup and boss are one state machine per seat (`QD.raid._play_nylocas_machine`,
+raid_play_tob_nylocas.lua; the full state x event table is the comment above `NY_STATES`). Its data is
+generated (`P.waves` / `P.cleanup` from reference/nylocas_normal_3.script.json by
+build/seam_state/owner_nylocas/ny_waves.py: per wave and role the tile, first_action, modal weapon and the
+ordered targets). Memory: m.state, m.wave, m.idx, m.resume; a state subscribes its own handlers on entry
+and drops them on exit. The Entry solo plan keeps its own pick (`_play_nylocas_solo_pick`), 5 of 5.
+
+| state | does each tick | leaves on |
+|---|---|---|
+| AT_STAND | the next named target alive (newest copy of the key), else an unnamed copy of its colour or any copy older than 15 (Blert's median small death age), else walk to the wave's tile | target found -> KILL; support_hit -> PILLAR_DEFENCE; hit_taken (aggro) -> SELF_DEFENCE; waves_over -> CLEANUP; boss_phase -> BOSS |
+| KILL | presses targets[idx] with the wave's weapon for its colour (the bow on greens where the role's modal weapon is TWISTED_BOW, chins on a green pair, the scythe on a grey stack) | wave_spawn -> AT_STAND(w); target_dead -> next idx / AT_STAND / CLEANUP; target_reached_pillar, support_hit -> PILLAR_DEFENCE (resume KILL, same idx); hit_taken -> SELF_DEFENCE; boss_phase -> BOSS |
+| PILLAR_DEFENCE | the nearest support's chewers of the seat's colour, least hitpoints first | none left -> resume; boss_phase -> BOSS; hit_taken -> SELF_DEFENCE |
+| SELF_DEFENCE | the aggro swinging at the seat | none -> resume; boss_phase -> BOSS |
+| CLEANUP | the script's cleanup order, then its colour, then any copy | support_hit -> PILLAR_DEFENCE; hit_taken -> SELF_DEFENCE; boss_phase -> BOSS |
+| BOSS | her form's weapon, gear set and special (unchanged from the 3 of 5 plan) | -- |
+
+The raider tick-log row carries `state=<state>/<wave>/<idx>` (`::tlnote`, torirs_server_ticklog.c; needs a
+binary with the C of this commit, src/torirs_owner_ny) and `raid_report --waves` prints it at the first deviation.
+
+Surveys (5 names, src/torirs_owner_ny): first cut 0/5 waves 332-352, PILLAR_DEFENCE 187-267 ticks a seat;
+defence by colour and under 0.31, cached reads (the per-tick instruction budget ran out): waves 312-400;
+idle seats take overdue copies: 300-328, cleanup 36-52 (the scored plan's 51-60); lane keys restored and
+the newest copy per key (sm9): _play 336/396/109/505, sva 300/372/98/470, svb 316/384/104/488,
+svc 300/360/108/468, svd 304/364/103/467 (last wave / boss start / boss ticks / room); pillars red on 4. FIRST DEVIATION on every name: w1 range late +3 (script +1, the bow from the door).
+The scored plan it replaced (738ef1466) was 3 of 5.
+
 ## Sotetseg, Entry solo (`tob_sotetseg`, mode `entry`), proved
 
 Plan: `script/plugins/quest_driver/raid_play_tob_sotetseg.lua` (QD.raid._play_sotetseg_decide,

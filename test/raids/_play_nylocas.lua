@@ -469,7 +469,14 @@ return {
             -- owner_nylocas: her form's gear pieces put on (P.boss_gear)
             .. ", her gear equips " .. tostring(ny.gear_equips or 0)
             -- owner_nylocas: scythe presses on a grey stack
-            .. ", grey stack presses " .. tostring(ny.stack_swings or 0))
+            .. ", grey stack presses " .. tostring(ny.stack_swings or 0)
+            -- owner_nylocas: the machine (QD.raid._play_nylocas_machine)
+            .. ", machine transitions " .. tostring(ny.transitions or 0) .. " ticks " .. (function()
+                local p = {}
+                for k, n in pairs(ny.state_ticks or {}) do p[#p + 1] = k .. "=" .. n end
+                table.sort(p)
+                return table.concat(p, " ")
+            end)())
 
         if role ~= 1 then
             -- raid seam32: a member's own record (its presses are its own; the
@@ -478,6 +485,12 @@ return {
                 .. ", walks home/stand " .. tostring(ny.homes) .. ", cleanup passes " .. tostring(ny.cleanup_passes or 0)
                 .. ", her gear equips " .. tostring(ny.gear_equips or 0)
                 .. ", grey stack presses " .. tostring(ny.stack_swings or 0)
+                .. ", machine transitions " .. tostring(ny.transitions or 0) .. " ticks " .. (function()
+                    local p = {}
+                    for k, n in pairs(ny.state_ticks or {}) do p[#p + 1] = k .. "=" .. n end
+                    table.sort(p)
+                    return table.concat(p, " ")
+                end)()
                 .. ", casts " .. tostring(ny.casts) .. ", freezes " .. tostring(ny.freezes) .. ", swaps " .. tostring(ny.swaps) .. ", own colour "
                 .. tostring(ny.own_presses) .. " / other colours " .. tostring(ny.other_presses) .. ", flicker cancels " .. tostring(ny.flicker_cancels)
                 .. ", presses on her " .. #(ny.vas_presses or {}) .. ", turn holds " .. tostring(ny.holds) .. ", turn steps " .. tostring(ny.turn_steps) .. ", XP-read swings " .. tostring(ny.xp_swings) .. ", nulled read " .. tostring(ny.null_reads) .. ", eats " .. #(rec.eats or {}) .. ", drinks " .. #(rec.drinks or {}))

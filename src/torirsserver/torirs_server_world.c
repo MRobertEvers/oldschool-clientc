@@ -9228,6 +9228,24 @@ ToriRSServer_RunCheatLadder(
      * mistyped argument. Nothing below claims either word.
      */
 
+    if( strncmp(text, "tlnote", 6) == 0 && (text[6] == ' ' || text[6] == '\0') )
+    {
+        /*
+         * `::tlnote <text>` -- a raid plan's state machine names its state
+         * (`KILL/12/3`) for the tick log's raider row, which appends it as
+         * ` state=<text>` (torirs_server_ticklog.c ticklog_raider_row;
+         * owner_nylocas, tools/raid_gate/raid_waves.py names it at a first
+         * deviation). No reply: the plan says it on every change and a chat
+         * line a change would bury the room's own lines.
+         */
+        const char* note = text + 6;
+
+        while( *note == ' ' )
+            note++;
+        snprintf(player->ticklog_note, sizeof(player->ticklog_note), "%s", note);
+        return TORIRSSERVER_TRIGGER_RAN;
+    }
+
     if( strncmp(text, "checkpoint", 10) == 0 )
     {
         /*

@@ -48,6 +48,51 @@ QD.raid._play_plan("tob_nylocas", {
                 ranged = "nylocas_boss_ranged", spawning = "nylocas_boss_spawning" },
             suffix = "", support = "tob_nylocas_support", first_window = 9, window = 10 },
     },
+    -- owner_nylocas: THE TRIO'S SCRIPT, the machine's data (QD.raid._play_nylocas_machine
+    -- below).  Per wave 1..31 and role: `tile` the role's most common tile over the
+    -- wave (offset from Vasilias' SW tile, P.stand_anchor), `first` the ticks from the
+    -- spawn to its first attack, `weapon` its most common weapon in the wave (a
+    -- copy of that weapon's colour is pressed with it: the ranger's bow on the
+    -- west green at +1 in wave 1, 17 of 27 rooms), `targets` the copies it attacks in order (the i-th
+    -- distinct target of the most rooms, by tunnel, colour and size, or a big's
+    -- split by colour); `cleanup` the same for the segment after wave 31.  From
+    -- reference/nylocas_normal_3.script.json (27 death-free Normal trio rooms).
+    -- BEGIN GENERATED P.waves (build/seam_state/owner_nylocas/ny_waves.py; do not hand-edit)
+    waves = {
+        [1] = { mage = { tile = { 1, -3 }, first = 3, weapon = "EYE_OF_AYAK", targets = { "S-magic" } }, ranger = { tile = { -3, 2 }, first = 1, weapon = "TWISTED_BOW", targets = { "W-ranged" } }, melee = { tile = { 2, -3 }, first = 3, weapon = "EYE_OF_AYAK", targets = { "S-magic" } } },
+        [2] = { mage = { tile = { 7, 1 }, first = 0, weapon = "EYE_OF_AYAK", targets = { "S-magic", "W-magic" } }, ranger = { tile = { -4, 1 }, first = 2, weapon = "TWISTED_BOW", targets = { "E-ranged" } }, melee = { tile = { 7, 2 }, first = 1, weapon = "SULPHUR_BLADES", targets = { "W-magic" } } },
+        [3] = { mage = { tile = { 7, 2 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "E-magic" } }, ranger = { tile = { 2, -3 }, first = 3, weapon = "TWISTED_BOW", targets = { "S-ranged" } }, melee = { tile = { 7, 2 }, first = 0, weapon = "SULPHUR_BLADES", targets = { "E-melee" } } },
+        [4] = { mage = { tile = { 2, -4 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "S-magic-big" } }, ranger = { tile = { -4, 2 }, first = 2, weapon = "BLOWPIPE", targets = { "S-ranged", "S-ranged" } }, melee = { tile = { 1, -4 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "S-magic-big" } } },
+        [5] = { mage = { tile = { 7, 1 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "E-magic", "E-magic", "split-magic", "split-magic", "split-magic" } }, ranger = { tile = { 1, -4 }, first = 1, weapon = "BLOWPIPE", targets = { "W-ranged", "W-ranged-big", "split-ranged", "split-ranged" } }, melee = { tile = { -4, 1 }, first = 1, weapon = "SULPHUR_BLADES", targets = { "W-ranged-big", "S-melee", "split-melee", "S-melee" } } },
+        [6] = { mage = { tile = { -4, 2 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "W-magic", "W-magic" } }, ranger = { tile = { 1, -4 }, first = 1, weapon = "BLOWPIPE", targets = { "S-ranged", "S-ranged" } }, melee = { tile = { 0, 0 }, first = 2, weapon = "SULPHUR_BLADES", targets = { "split-melee", "split-ranged" } } },
+        [7] = { mage = { tile = { 1, -4 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "S-ranged-big", "S-magic", "split-magic", "E-magic" } }, ranger = { tile = { 1, -4 }, first = 1, weapon = "BLOWPIPE", targets = { "S-ranged-big", "S-ranged-big", "S-ranged-big", "split-ranged" } }, melee = { tile = { 7, 1 }, first = 3, weapon = "SCYTHE", targets = { "E-melee-big", "E-melee", "E-melee", "E-melee" } } },
+        [8] = { mage = { tile = { -4, 2 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "W-magic-big", "W-magic-big" } }, ranger = { tile = { -3, 2 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "W-magic-big" } }, melee = { tile = { 4, 4 }, first = 1, weapon = "SULPHUR_BLADES", targets = { "split-melee" } } },
+        [9] = { mage = { tile = { 7, 2 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "W-ranged-big", "E-magic", "split-magic" } }, ranger = { tile = { -3, 2 }, first = 1, weapon = "BLOWPIPE", targets = { "W-ranged-big", "split-ranged", "split-ranged", "split-magic", "split-ranged" } }, melee = { tile = { 1, -4 }, first = 1, weapon = "SULPHUR_BLADES", targets = { "split-melee", "S-melee", "S-melee", "W-melee" } } },
+        [10] = { mage = { tile = { 7, 1 }, first = 1, weapon = "TWISTED_BOW", targets = { "E-ranged-big", "E-ranged", "E-ranged" } }, ranger = { tile = { 2, 2 }, first = 1, weapon = "CHIN_BLACK", targets = { "W-ranged", "S-ranged", "S-ranged", "W-ranged", "E-ranged" } }, melee = { tile = { -4, 2 }, first = 3, weapon = "SULPHUR_BLADES", targets = { "split-melee", "split-melee", "split-magic", "split-melee" } } },
+        [11] = { mage = { tile = { 2, -4 }, first = 1, weapon = "SCEPTRE", targets = { "E-magic", "S-magic", "E-magic" } }, ranger = { tile = { 0, 1 }, first = 1, weapon = "BLOWPIPE", targets = { "S-ranged", "W-magic-big", "E-ranged-big", "E-ranged-big", "E-ranged", "E-ranged-big", "split-ranged" } }, melee = { tile = { -4, 2 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "W-magic-big", "split-magic", "split-magic" } } },
+        [12] = { mage = { tile = { 2, -2 }, first = 3, weapon = "EYE_OF_AYAK", targets = { "S-magic", "S-magic" } }, ranger = { tile = { -4, 1 }, first = 1, weapon = "BLOWPIPE", targets = { "split-ranged", "split-ranged", "split-magic" } }, melee = { tile = { 7, 2 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "split-magic", "split-melee" } } },
+        [13] = { mage = { tile = { 3, 2 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "S-melee-big", "W-magic", "split-magic", "split-magic" } }, ranger = { tile = { -4, 2 }, first = 0, weapon = "BLOWPIPE", targets = { "W-melee", "W-ranged", "S-ranged", "S-ranged", "split-ranged" } }, melee = { tile = { 6, 2 }, first = 0, weapon = "SCYTHE", targets = { "E-melee", "split-melee", "split-melee" } } },
+        [14] = { mage = { tile = { -4, 2 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "W-magic", "split-magic", "W-magic", "split-magic", "S-magic" } }, ranger = { tile = { 2, -4 }, first = 1, weapon = "BLOWPIPE", targets = { "S-ranged", "split-ranged", "S-ranged", "S-ranged" } }, melee = { tile = { 3, 1 }, first = 1, weapon = "SULPHUR_BLADES", targets = { "E-melee-big", "split-melee", "split-melee", "W-melee" } } },
+        [15] = { mage = { tile = { 7, 2 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "E-magic", "E-magic", "E-magic", "E-magic" } }, ranger = { tile = { 7, 2 }, first = 1, weapon = "BLOWPIPE", targets = { "E-ranged-big", "E-ranged", "E-ranged", "E-ranged", "W-ranged", "W-ranged", "S-ranged" } }, melee = { tile = { -3, 1 }, first = 1, weapon = "SULPHUR_BLADES", targets = { "W-melee", "W-melee", "S-melee", "W-melee" } } },
+        [16] = { mage = { tile = { 7, 1 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "E-magic", "E-magic", "E-magic" } }, ranger = { tile = { 2, 1 }, first = 1, weapon = "BLOWPIPE", targets = { "W-ranged", "W-ranged", "W-ranged", "split-ranged" } }, melee = { tile = { -4, 2 }, first = 1, weapon = "SULPHUR_BLADES", targets = { "W-melee", "split-magic" } } },
+        [17] = { mage = { tile = { 7, 2 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "E-magic-big", "split-magic", "S-magic-big", "split-ranged" } }, ranger = { tile = { -1, 1 }, first = 1, weapon = "BLOWPIPE", targets = { "W-ranged", "split-ranged", "S-melee", "split-ranged", "W-ranged", "W-ranged" } }, melee = { tile = { -4, 4 }, first = 2, weapon = "SULPHUR_BLADES", targets = { "W-melee", "split-melee", "S-melee", "S-magic-big" } } },
+        [18] = { mage = { tile = { 2, 2 }, first = 2, weapon = "EYE_OF_AYAK", targets = { "split-ranged", "split-magic", "S-magic-big" } }, ranger = { tile = { -1, 1 }, first = 1, weapon = "BLOWPIPE", targets = { "W-ranged-big", "split-ranged", "split-ranged", "S-magic-big" } }, melee = { tile = { -1, -1 }, first = 2, weapon = "SULPHUR_BLADES", targets = { "split-melee", "split-melee", "split-ranged" } } },
+        [19] = { mage = { tile = { 5, 1 }, first = 2, weapon = "EYE_OF_AYAK", targets = { "E-magic-big", "E-magic-big", "split-magic", "E-magic-big", "split-magic", "S-magic-big", "split-magic" } }, ranger = { tile = { 1, 1 }, first = 1, weapon = "BLOWPIPE", targets = { "W-magic-big", "S-ranged-big", "E-ranged-big", "split-ranged", "W-magic-big", "split-ranged" } }, melee = { tile = { 1, 1 }, first = 2, weapon = "EYE_OF_AYAK", targets = { "split-melee", "W-magic-big", "W-magic-big", "split-magic", "split-ranged", "split-melee" } } },
+        [20] = { mage = { tile = { 1, 2 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "S-magic-big", "split-magic", "split-magic", "split-magic", "split-magic" } }, ranger = { tile = { -1, 1 }, first = 1, weapon = "BLOWPIPE", targets = { "split-ranged", "W-melee-big", "split-ranged", "split-ranged", "split-ranged" } }, melee = { tile = { 5, 3 }, first = 2, weapon = "EYE_OF_AYAK", targets = { "split-melee", "E-melee-big", "split-melee", "split-melee" } } },
+        [21] = { mage = { tile = { -4, 1 }, first = 2, weapon = "SCEPTRE", targets = { "W-magic", "split-magic" } }, ranger = { tile = { 4, 1 }, first = 1, weapon = "CHIN_BLACK", targets = { "E-ranged", "split-ranged", "split-ranged" } }, melee = { tile = { -2, 4 }, first = 2, weapon = "SULPHUR_BLADES", targets = { "split-melee", "split-magic", "S-melee" } } },
+        [22] = { mage = { tile = { 4, 2 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "E-magic-big", "split-magic", "split-magic", "split-magic" } }, ranger = { tile = { 1, 1 }, first = 0, weapon = "BLOWPIPE", targets = { "E-ranged", "split-ranged", "W-melee-big", "split-ranged", "W-melee-big", "split-ranged" } }, melee = { tile = { 1, -4 }, first = 1, weapon = "SCYTHE", targets = { "S-melee", "S-magic", "S-ranged" } } },
+        [23] = { mage = { tile = { 7, 1 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "E-magic-big", "S-ranged-big" } }, ranger = { tile = { -4, 1 }, first = 1, weapon = "TWISTED_BOW", targets = { "S-ranged-big", "W-magic", "W-magic" } }, melee = { tile = { 5, -2 }, first = 2, weapon = "SULPHUR_BLADES", targets = { "E-magic-big", "split-melee" } } },
+        [24] = { mage = { tile = { 1, -4 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "S-magic-big", "split-magic", "split-ranged" } }, ranger = { tile = { -4, 1 }, first = 0, weapon = "BLOWPIPE", targets = { "W-ranged", "W-ranged-big", "split-ranged", "split-ranged" } }, melee = { tile = { 7, 2 }, first = 2, weapon = "SULPHUR_BLADES", targets = { "split-melee", "E-melee-big" } } },
+        [25] = { mage = { tile = { 3, 1 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "E-magic-big", "split-magic", "split-magic" } }, ranger = { tile = { 1, 1 }, first = 1, weapon = "BLOWPIPE", targets = { "S-ranged-big", "split-ranged", "split-ranged", "split-magic" } }, melee = { tile = { 4, 2 }, first = 2, weapon = "SCYTHE", targets = { "E-melee-big", "E-melee-big" } } },
+        [26] = { mage = { tile = { -3, 1 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "W-magic-big", "W-magic-big", "split-magic" } }, ranger = { tile = { 2, 0 }, first = 1, weapon = "BLOWPIPE", targets = { "split-ranged", "split-magic", "W-magic", "split-ranged" } }, melee = { tile = { 1, 2 }, first = 1, weapon = "SCYTHE", targets = { "W-melee-big", "W-melee-big", "split-melee" } } },
+        [27] = { mage = { tile = { -3, 1 }, first = 0, weapon = "EYE_OF_AYAK", targets = { "W-magic-big", "split-magic", "W-magic-big", "split-magic" } }, ranger = { tile = { 2, 2 }, first = 1, weapon = "BLOWPIPE", targets = { "split-ranged", "split-ranged", "split-ranged", "split-ranged", "split-melee", "split-ranged" } }, melee = { tile = { -2, 1 }, first = 2, weapon = "SULPHUR_BLADES", targets = { "split-melee", "S-melee-big", "split-melee" } } },
+        [28] = { mage = { tile = { 2, 2 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "E-magic-big", "split-magic", "W-ranged", "E-magic", "split-magic", "split-melee", "split-magic" } }, ranger = { tile = { 1, 1 }, first = 1, weapon = "BLOWPIPE", targets = { "S-melee-big", "split-ranged", "S-magic", "split-ranged", "S-magic", "split-ranged", "split-magic", "split-ranged" } }, melee = { tile = { 0, -2 }, first = 1, weapon = "SULPHUR_BLADES", targets = { "S-melee-big", "split-melee", "split-melee", "split-melee", "split-melee", "E-magic-big" } } },
+        [29] = { mage = { tile = { 1, 2 }, first = 2, weapon = "EYE_OF_AYAK", targets = { "split-magic", "split-magic", "E-ranged", "W-melee", "split-magic" } }, ranger = { tile = { -4, 1 }, first = 1, weapon = "BLOWPIPE", targets = { "split-ranged", "S-magic", "W-melee", "W-ranged", "split-ranged", "split-magic", "split-ranged" } }, melee = { tile = { 2, -1 }, first = 3, weapon = "SULPHUR_BLADES", targets = { "split-melee", "S-melee-big", "E-magic", "split-melee" } } },
+        [30] = { mage = { tile = { 7, 1 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "E-magic-big", "E-magic-big", "E-ranged", "E-magic-big" } }, ranger = { tile = { -4, 1 }, first = 1, weapon = "BLOWPIPE", targets = { "W-ranged", "W-ranged-big", "W-ranged-big", "split-ranged" } }, melee = { tile = { 6, 4 }, first = 1, weapon = "SULPHUR_BLADES", targets = { "split-melee", "E-magic", "S-melee" } } },
+        [31] = { mage = { tile = { 2, 1 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "E-magic-big", "E-magic" } }, ranger = { tile = { -1, 1 }, first = 0, weapon = "BLOWPIPE", targets = { "W-ranged-big", "S-melee" } }, melee = { tile = { 2, 4 }, first = 1, weapon = "SULPHUR_BLADES", targets = { "split-melee", "S-melee-big" } } },
+    },
+    cleanup = { mage = { tile = { 2, 4 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "split-magic", "W-melee", "split-magic", "split-magic", "split-magic", "split-magic", "split-magic", "S-magic" } }, ranger = { tile = { 2, 4 }, first = 2, weapon = "BLOWPIPE", targets = { "W-ranged-big", "W-ranged", "S-melee", "E-ranged", "split-ranged", "split-ranged", "split-ranged", "split-ranged" } }, melee = { tile = { 1, 4 }, first = 2, weapon = "SULPHUR_BLADES", targets = { "split-melee", "split-melee", "split-melee", "split-melee", "split-magic", "split-melee", "split-magic", "S-melee" } } },
+    -- END GENERATED P.waves
     -- raid seam32: THE TRIO'S ROLES.  "Each player should be assigned a
     -- style of Nylocas to kill prior to starting the room ... Trio: x1 mager,
     -- x1 melee, x1 ranger" (W :706-711); the trio guide's three sections are
@@ -141,23 +186,6 @@ QD.raid._play_plan("tob_nylocas", {
                 -- her ranged form: the TWISTED BOW (8357: 88 of 184, the pipe 68)
                 ranged_boss = { item = "twisted_bow", speed = 5, seqs = { [426] = true } } } },
     },
-    -- how much an own-colour copy is preferred over a colour another seat
-    -- owns (score points; a tile of running is 3): another seat's copy is
-    -- taken only when none of the raider's own is worth pressing, or when it
-    -- is an aggro hitting this raider (it costs the raider, whoever owns it)
-    -- (30 at first: the meleer walked the platform for greys, 58 swings in
-    -- 340 wave ticks with 9-17 tick gaps, svaplaynyloc survey4)
-    own_colour_bonus = 12,
-    -- raid seam33: own colour first as a rule (see the target pick)
-    own_first = true,
-    -- raid seam50 play_tob_nylocas_whole: a helper melees a grey in reach (see
-    -- A GREY AT A HELPER'S FEET) and a chewer stays a target until its last
-    -- pop_skip ticks (see AN OLD CHEWER IS STILL A COPY)
-    help_feet = true,
-    pop_skip = 4,
-    -- raid seam50: another seat's copy near its owner is left to it (see LEAVE
-    -- IT TO ITS OWNER); score points (a tile of running is 3)
-    leave_to_owner = 60,
     -- raid seam49: the mage stands two off her on her magic and ranged forms
     -- (see NOT HER NEAREST)
     mage_back = true,
@@ -171,11 +199,6 @@ QD.raid._play_plan("tob_nylocas", {
     -- skill_slayer/configs/imbued_heart.constant ^saturated_heart_cooldown
     -- 500; the wiki's five minutes)
     heart_cooldown = 500,
-    -- raid seam47: where Blert's trios stand on her (offsets from her SW tile,
-    -- reference/nylocas_normal_3.json positions mage|boss, range|boss,
-    -- melee|boss, the most common first): see OUT FROM UNDER HER
-    -- raid seam47: a party seat's preference for a big (see BIGS ARE NOT LEFT)
-    big_first = 8,
     boss_stands = { { 2, 4 }, { 1, 4 }, { 3, 4 }, { -1, 2 }, { 2, -1 }, { 4, 3 }, { 4, 1 }, { 1, -1 } },
     -- raid seam47: THE SPECIAL ON HER MELEE FORM.  Blert's trios spend their
     -- special energy on Vasilias (ny_blert.out "on Vasilias by role|form id",
@@ -189,13 +212,6 @@ QD.raid._play_plan("tob_nylocas", {
     -- swap's own block right before the attack press (the library's intent.spec
     -- pattern, raid_play.lua), proved by the energy it spends.
     spec = { item = "dragon_claws", cost = 500, speed = 4, seqs = { [7514] = true, [1067] = true }, room = 4, give_up = 4 },
-    -- raid seam33: the meleer waits for (and walks to meet) its own greys in
-    -- the tunnels before taking another seat's colour (measured: no gain on
-    -- two seeds, s33nyseedoneD identical to B; off)
-    own_wait = false,
-    -- raid seam33: the Ayak mage bursts a pure-blue clump of this many (nil:
-    -- off; measured at 3: one cast a room on two seeds, no gain, s33nyseedoneE)
-    burst_clump = nil,
     -- the three protection prayers are the only prayers this plan lights:
     -- "always switch protection prayers ... When its form changes, the player
     -- should again switch prayers" (W :752)
@@ -265,25 +281,6 @@ QD.raid._play_plan("tob_nylocas", {
     trace_seat = nil,
     -- raid seam32: the swap's engagement-ending step (see the press); off
     swap_stop = false,
-    -- raid seam35m play_tob_nylocas_normal_supports: in a party, never let a
-    -- low support go (the Entry guide's "let one that's low die", E :171, is
-    -- a solo's rule: 34 of 34 recorded Regular trios land her with all four
-    -- standing), and weigh a chewer by its support's missing bar this much.
-    -- Measured OFF: survey1 (seed_survey --party 3) stood 3,2,1,2,2 of 4 at
-    -- her landing against 2,2,2,2,2 without it; the supports do not fall for
-    -- being let go, they fall for the copies the trio does not kill in time
-    -- raid seam51 play_tob_nylocas_whole: ON again, and stronger.  The
-    -- seam50 surveys (it2: weakest 0.05, 0.00 (fallen), 0.10 at her landing)
-    -- are the "let the lowest go" rule (+25 under 0.15) doing what it says;
-    -- the reference trios stand all four in 34 of 34 rooms, weakest 0.10 or
-    -- more.  A chewer on a support under `keep_low` is worth `keep_urgent`
-    -- more points on top of the missing-bar weight.
-    keep_all = true,
-    keep_weight = 20,
-    keep_low = 0.4,
-    keep_urgent = 25,
-    -- owner_nylocas: A LOW SUPPORT'S CHEWER IS EVERY SEAT'S (see the pick)
-    low_any = true,
     -- raid seam51: A SPLIT DOES NOT FLICKER.  The flicker is a wave spawn's
     -- (NR :17 "FLICKER from wave 16 on: spawn as style a, switch to b five
     -- ticks after spawning"); a big's split is armed with no flicker chain
@@ -292,80 +289,23 @@ QD.raid._play_plan("tob_nylocas", {
     -- the cleanup's tail is splits (it2 _play_nylocas: 9 of the last 12
     -- copies to die spawned after wave 31, every one a split).
     split_settled = true,
-    -- raid seam51: THE CHINS (the ranger's `ranged_chin`, see its loadout):
-    -- thrown at a green whose 3x3 holds `clump` or more pressable greens (a
-    -- big counts half: 16 hitpoints against one blast roll), from `reach`
-    -- tiles or nearer without a step; a copy of another colour under the
-    -- blast is nulled for the ranger (DMG :272), each costs `other` points
-    chin = { clump = 2, reach = 9, other = 4 },
-    -- raid seam51: ANOTHER SEAT'S SHOT IN THE AIR (see the target pick):
-    -- score points on a copy another raider's projectile is flying at
-    inbound = 35,
-    -- raid seam51: once the 31st wave is out, the colour rule no longer
-    -- holds a seat back (the reference's cleanup is 32 ticks from wave 31,
-    -- outcome.phase.cleanup_end.start 292 - wave31.start 260; ours 47-51)
-    cleanup_free = true,
     -- the cleanup is read off the screen: this many waves seen and none for
     -- `cleanup_quiet` ticks (a seat sees 29-31 of the 31: it2 p2 saw 29)
     cleanup_waves = 28, cleanup_quiet = 14,
     -- owner_nylocas: the blast window in the cleanup (see IN THE CLEANUP THE
     -- LAST GREYS ARE KILLED)
     cleanup_blast = 2,
-    -- owner_nylocas: THE SCYTHE ON A GREY STACK (see the pick)
-    grey_stack = 12,
-    -- raid seam52 play_tob_nylocas_last: THE STANDS.  Where Blert's trios
-    -- stand in each wave, per role: the most common tile of the wave's span
-    -- (reference/nylocas_normal_3.json positions "<role>|wave<N>", offsets
-    -- from Vasilias' south-west tile, local 30,23), kept when it holds 10
-    -- percent or more of the role's ticks in that wave; elsewhere the seat's
-    -- own home.  The tiles are the lane mouths (content tob_nylocas.rs2: a
-    -- copy leaves its lane at "west x=26, east x=37, south z=19 room-local"):
-    -- west -4,2 = 26,25; south 2,-4 / 1,-4 = 32,19 / 31,19; east 7,1 = 37,24.
-    -- The plan sent every idle seat to the centre, and the south-west support
-    -- (25,18), the one the west and south lanes both reach, was the weakest on
-    -- every red seam51 name (0.01, 0.01, fallen; the others 0.15-0.39).  An
-    -- idle seat walks to its role's stand for the wave it last saw.
+    -- owner_nylocas: a support's hits call its nearest seat to defend it only
+    -- under this bar (Blert's weakest support at her landing: median 0.31,
+    -- 34 recorded trio rooms, PLAY_NOTES seam35m)
+    defend_below = 0.31,
+    -- owner_nylocas: Blert's median small death age (PLAY_NOTES seam40,
+    -- reference/nylocas_normal_3.json "small death age median 15"): a copy
+    -- another role's script names that has lived longer is the colour's role's
+    overdue_age = 15,
+    -- the anchor every P.waves tile is an offset from: Vasilias' south-west
+    -- tile, region-local 30,23 (the script's `anchor`)
     stand_anchor = { 30, 23 },
-    -- The stand is also where a seat fights FROM: a ranged or magic copy
-    -- further from the seat's stand (its home) than the weapon reaches costs
-    -- `stand_leash` points a tile, as the walk back would.  An idle walk alone
-    -- did nothing (seam52 it1: 1-5 walks a seat a room; every seat is busy):
-    -- the seats drifted with their last kill (svaplaynyloc t330-380: the mage
-    -- at 32,22 and the ranger at 35,20-36,21 swinging the east lane while a
-    -- green big and a green small chewed the south-west support for 45 ticks
-    -- unpressed).  "it's best to stay near the centre of the arena as much as
-    -- possible, unless you are cleaning up greys" (E :162): greys are exempt.
-    stand_leash = 4,
-    stands = {
-        mage = { [1] = { 1, -3 }, [2] = { 7, 1 }, [3] = { 7, 2 }, [4] = { 2, -4 }, [6] = { -4, 2 }, [7] = { 1, -4 }, [8] = { -4, 2 }, [10] = { 7, 1 }, [14] = { 0, 2 }, [15] = { 6, 2 }, [16] = { 7, 1 }, [18] = { 4, 1 }, [19] = { 2, 1 }, [21] = { -4, 1 }, [22] = { 7, 2 }, [23] = { 7, 1 }, [25] = { 3, 1 }, [26] = { -3, 1 }, [27] = { -3, 1 }, [28] = { 1, 2 }, [29] = { 1, 2 }, [30] = { 7, 1 }, [31] = { 3, 2 } },
-        ranger = { [1] = { -4, 1 }, [2] = { 4, 1 }, [3] = { 2, -4 }, [4] = { -4, 2 }, [5] = { 1, -4 }, [6] = { 1, -4 }, [7] = { 1, -4 }, [8] = { -3, 2 }, [9] = { -1, 1 }, [10] = { 2, 2 }, [11] = { 0, 1 }, [12] = { -4, 1 }, [13] = { -4, 2 }, [16] = { 1, 1 }, [17] = { -1, 1 }, [18] = { 0, 1 }, [19] = { 1, 1 }, [21] = { 4, 1 }, [23] = { -4, 1 }, [24] = { -4, 1 }, [25] = { 1, 1 }, [27] = { 2, 0 }, [28] = { 1, 1 }, [29] = { 2, 1 }, [30] = { -4, 1 } },
-        melee = { [1] = { 2, -3 }, [2] = { 7, 2 }, [3] = { 7, 2 }, [4] = { 1, -4 }, [7] = { 7, 1 }, [9] = { 1, -4 }, [10] = { -4, 2 }, [12] = { 7, 2 }, [13] = { 6, 2 }, [22] = { 1, -4 } },
-    },
-    -- raid seam52: THE CLEANUP'S ORDER.  "Kill any wave 29/31 smalls first as
-    -- these will change color if you don't kill them quickly enough. Don't get
-    -- baited into chinning a clump with 28s in it as 28s will expire" (trio
-    -- guide, ranger cleanup :363-364); "Continue Ayaking smalls with the
-    -- highest wave number" (mage waves 28-29 :175); "If a dimmed and undimmed
-    -- Nylo are stacked ... target the bottom one ... as it is the newest"
-    -- (mage cleanup :187).  Once the cleanup is on (cleanup_waves above), a
-    -- copy's age weighs `age` more points a tick (newest first), and a copy
-    -- with `expire` ticks or fewer to its pop is passed over (`pass` points)
-    -- unless it is an aggro or chews a support under keep_low: it ends by
-    -- itself.  The reference's cleanup is 32 ticks from wave 31 to the last
-    -- death (outcome.phase.cleanup_end.start 292 - wave31.start 260); the
-    -- seam51 trio's 55-63, the tail splits of bigs killed late.
-    -- THE CLEANUP'S SIDES: "Prioritize cleaning up the north side of the room
-    -- after the 31s are dead" (mage cleanup :185); "After killing any 29+
-    -- rangers, look to kill other colors (mage > melee), working from the
-    -- south to the north side" (ranger cleanup :365-366); "kill all relevant
-    -- melees starting from the south" (melee cleanup :496).  The mage takes
-    -- the north half (local z >= `north_z`), the ranger and the meleer the
-    -- south; a copy on the other half costs `side` points.  seam52 it1: the
-    -- cleanup was a dogpile, all three seats pressing one copy at a time
-    -- (_play_nylocas t319-331: 8344 at 26,21, then 8342 at 28,19, then 8342
-    -- at 37,21, each pressed by p0, p1 and p2 within two ticks) while a green
-    -- split chewed the south-east support from t308 to t342.
-    cleanup_order = { age = 0.5, expire = 10, pass = 30, side = 15, north_z = 24, north_role = "mage", rate = 0.71 },
     -- raid seam55 play_tob_nylocas_stands_like_blert: THE STYLE AT HER, BY
     -- NAME.  The style is one index (varp43) carried across every swap, and
     -- the harness sets it by name for the waves (Rapid, Lash).  On that index
@@ -405,6 +345,600 @@ QD.raid._play_plan("tob_nylocas", {
         },
     },
 })
+
+-- =====================================================================
+-- THE TRIO'S MACHINE (owner_nylocas, 2026-10-06).  A party seat's waves,
+-- cleanup and boss are one state machine per seat.  Its whole memory is
+-- m = { state, wave, idx, resume } (and m.subs, the current state's own
+-- subscriptions); the plan's data above (P.waves, P.cleanup) says what each
+-- state does.  On entering a state its `on` handlers are subscribed, on
+-- leaving they are unsubscribed; an event reaches only the current state's
+-- handler.  Every state names a handler for every event; `stay` handlers
+-- return nil and change nothing.
+--
+--  state           event                  -> next state (and what it does)
+--  AT_STAND        tick                   a live copy of the role's targets[idx..] (the newest the
+--                                         key names), else an unnamed copy of its colour (or any
+--                                         copy older than P.overdue_age) -> KILL; else walk to
+--                                         P.waves[wave][role].tile
+--                  wave_spawn(w)          stay, wave = w, idx = 1
+--                  target_dead            stay
+--                  target_reached_pillar  stay
+--                  support_hit            resume = AT_STAND -> PILLAR_DEFENCE
+--                  waves_over             -> CLEANUP (idx = 1)
+--                  boss_phase             -> BOSS
+--                  hit_taken              an aggro swinging at the seat: resume = AT_STAND -> SELF_DEFENCE
+--  KILL            tick                   press the copy targets[idx] names (idx > #targets: the
+--                                         unnamed / overdue copy), with the wave's weapon for its colour
+--                  wave_spawn(w)          wave = w, idx = 1 -> AT_STAND
+--                  target_dead            idx = the next named target alive; none -> AT_STAND
+--                                         (waves over: -> CLEANUP)
+--                  target_reached_pillar  resume = KILL -> PILLAR_DEFENCE
+--                  support_hit            resume = KILL -> PILLAR_DEFENCE
+--                  waves_over             stay (the wave's own targets are finished first)
+--                  boss_phase             -> BOSS
+--                  hit_taken              an aggro swinging at the seat: resume = KILL -> SELF_DEFENCE
+--  PILLAR_DEFENCE  tick                   the nearest support with a chewer of the seat's colour:
+--                                         those chewers, the least hitpoints first; none -> resume
+--                                         (KILL at the same idx, AT_STAND, CLEANUP)
+--                  wave_spawn(w)          stay, wave = w, idx = 1, resume = AT_STAND
+--                  target_dead            stay
+--                  target_reached_pillar  stay
+--                  support_hit            stay
+--                  waves_over             stay, resume = CLEANUP, idx = 1
+--                  boss_phase             -> BOSS
+--                  hit_taken              an aggro swinging at the seat -> SELF_DEFENCE (resume kept)
+--  SELF_DEFENCE    tick                   the aggro swinging at the seat (through the prayer first);
+--                                         none -> resume
+--                  wave_spawn(w)          stay, wave = w, idx = 1 (resume KILL -> AT_STAND)
+--                  waves_over             stay (resume AT_STAND -> CLEANUP)
+--                  boss_phase             -> BOSS
+--                  target_dead, target_reached_pillar, support_hit, hit_taken: stay
+--  CLEANUP         tick                   P.cleanup[role].targets[idx..], then the role's colour,
+--                                         then any copy; walk to the cleanup tile when none
+--                  wave_spawn             stay
+--                  target_dead            stay, idx + 1
+--                  target_reached_pillar  stay
+--                  support_hit            resume = CLEANUP -> PILLAR_DEFENCE
+--                  waves_over             stay
+--                  boss_phase             -> BOSS
+--                  hit_taken              an aggro swinging at the seat: resume = CLEANUP -> SELF_DEFENCE
+--  BOSS            tick                   her form: the boss pick (weapon, the form's gear set, special)
+--                  every event            stay
+--  Events, in this order each tick: boss_phase (she is in the room), wave_spawn (a new
+--  wave seen in the tunnels), waves_over (31 waves, or 28 and 14 quiet ticks),
+--  support_hit (the support nearest the seat lost bar, under P.defend_below, with a
+--  chewer of its colour), hit_taken (hitpoints fell), target_dead / target_reached_pillar
+--  (KILL's copy gone / chewing; CLEANUP's named copy gone).  The tick log's raider row
+--  carries state=<state>/<wave>/<idx> (::tlnote).
+-- =====================================================================
+local NY_STATES
+
+-- copies and their keys ("S-magic", "W-ranged-big", "split-melee")
+function QD.raid._nym_key(n)
+    if n.seen ~= nil and n.seen.key ~= nil then return n.seen.key end
+    return "split-" .. n.style
+end
+
+-- the copies a seat can press this tick (perception, not choice): alive, not
+-- nulled on this raider, not covered, its colour settled, a grey on the floor
+-- and not in a blast's last ticks; a small with this raider's hit in flight
+-- is spoken for
+function QD.raid._nym_pressable(c, n)
+    if n.m_tick == c.v.tick then return n.m_press end
+    n.m_tick = c.v.tick
+    n.m_press = QD.raid._nym_pressable_now(c, n)
+    return n.m_press
+end
+function QD.raid._nym_pressable_now(c, n)
+    local ny, P, v = c.ny, c.P, c.v
+    if ny.nulled[n.slot] or not n.settled then return false end
+    if ny.blocked ~= nil and (ny.blocked[n.slot] or -1) >= v.tick then return false end
+    if not n.big and ny.doomed[n.slot] ~= nil and ny.doomed[n.slot] >= v.tick then return false end
+    if n.style == "melee" then
+        local ea = n.big and P.explode_age_big or P.explode_age
+        local lx, lz = n.x - c.O.x, n.z - c.O.z
+        local on_floor = lx >= P.floor[1] and lx <= P.floor[3] and lz >= P.floor[2] and lz <= P.floor[4]
+        return on_floor and n.age < ea - c.blast_lead and not c.unsafe(n.x, n.z, c.blast_lead < 6 and 0 or 1)
+    end
+    return true
+end
+
+-- the support a copy chews (footprints touch), or nil
+function QD.raid._nym_support_of(c, n)
+    if n.m_sp_tick == c.v.tick then return n.m_sp end
+    n.m_sp_tick = c.v.tick
+    n.m_sp = QD.raid._nym_support_now(c, n)
+    return n.m_sp
+end
+function QD.raid._nym_support_now(c, n)
+    if n.fighting then return nil end
+    for _, sp in ipairs(c.v.supports) do
+        if sp.alive then
+            local gx = math.max(sp.x - (n.x + n.size - 1), n.x - (sp.x + 2), 0)
+            local gz = math.max(sp.z - (n.z + n.size - 1), n.z - (sp.z + 2), 0)
+            if math.max(gx, gz) == 1 then return sp end
+        end
+    end
+    return nil
+end
+
+-- the copy a key names
+function QD.raid._nym_find(c, key)
+    c.found = c.found or {}
+    if c.found[key] ~= nil then return c.found[key] or nil end
+    local n = QD.raid._nym_find_now(c, key)
+    c.found[key] = n or false
+    return n
+end
+function QD.raid._nym_find_now(c, key)
+    -- the script's targets of a wave are that wave's spawns: of the copies the
+    -- key names, the newest (the one this raider is on first), then the nearest
+    local best, ba, bd = nil, nil, nil
+    for _, n in ipairs(c.v.nylos) do
+        if QD.raid._nym_key(n) == key and QD.raid._nym_pressable(c, n) then
+            if c.cur ~= nil and c.cur.slot == n.slot then return n end
+            local d = c.dist(c.me.x, c.me.z, n.x, n.z, n.size)
+            if ba == nil or n.age < ba or (n.age == ba and d < bd) then best, ba, bd = n, n.age, d end
+        end
+    end
+    return best
+end
+
+-- a copy nobody's script names this wave is the role whose colour it is
+-- (Blert's same-colour role kills the splits: melee 500/523, ranged 645/736,
+-- magic 439/616); the nearest such copy of this seat's colour
+function QD.raid._nym_unnamed(c)
+    if c.unnamed_done then return c.unnamed end
+    c.unnamed_done = true
+    c.unnamed = QD.raid._nym_unnamed_now(c)
+    return c.unnamed
+end
+function QD.raid._nym_unnamed_now(c)
+    local row = c.P.waves[math.max(1, math.min(c.m.wave, 31))]
+    local named = {}
+    for role, r in pairs(row) do
+        if role ~= c.R.name then for _, k in ipairs(r.targets) do named[k] = true end end
+    end
+    local best, bd = nil, nil
+    for _, n in ipairs(c.v.nylos) do
+        -- a copy another role's script names is still that role's until it
+        -- outlives Blert's median small death age (P.overdue_age)
+        if n.style == c.R.colour and (not named[QD.raid._nym_key(n)] or n.age >= c.P.overdue_age) and QD.raid._nym_pressable(c, n) then
+            local d = c.dist(c.me.x, c.me.z, n.x, n.z, n.size)
+            if c.cur ~= nil and c.cur.slot == n.slot then return n end
+            if bd == nil or d < bd then best, bd = n, d end
+        end
+    end
+    if best ~= nil then return best end
+    -- nothing of its colour: an overdue copy of any colour, with that colour's weapon
+    for _, n in ipairs(c.v.nylos) do
+        if n.age >= c.P.overdue_age and QD.raid._nym_pressable(c, n) then
+            local d = c.dist(c.me.x, c.me.z, n.x, n.z, n.size)
+            if c.cur ~= nil and c.cur.slot == n.slot then return n end
+            if bd == nil or d < bd then best, bd = n, d end
+        end
+    end
+    return best
+end
+
+-- the wave's named target from idx on: the copy and its index, or nil
+function QD.raid._nym_named_from(c, idx)
+    local list = c.P.waves[math.max(1, math.min(c.m.wave, 31))][c.R.name].targets
+    for i = idx, #list do
+        local n = QD.raid._nym_find(c, list[i])
+        if n ~= nil then return n, i end
+    end
+    return nil, #list + 1
+end
+
+-- the pick for a copy: the weapon of its colour and size; the ranger's chins
+-- on a green with another green in the 3x3 and nothing else under the blast
+-- (Blert range CHIN_BLACK, reference weapons range|waveN); a scythe on a
+-- stack of small greys with no other colour beside it (trio guide :415)
+function QD.raid._nym_pick(c, n)
+    local ny, P = c.ny, c.P
+    local pick = { slot = n.slot, style = n.style, symbol = n.symbol, vas = false, x = n.x, z = n.z, big = n.big,
+        d = c.dist(c.me.x, c.me.z, n.x, n.z, n.size), key = QD.raid._play_nylocas_key(ny, n.style, n.big, false) }
+    local greens, greys, others, clump, stack = 0, 0, 0, {}, {}
+    for _, o in ipairs(c.v.nylos) do
+        if o.slot ~= n.slot and o.x <= n.x + 1 and o.x + o.size - 1 >= n.x - 1 and o.z <= n.z + 1 and o.z + o.size - 1 >= n.z - 1
+            and not ny.nulled[o.slot] then
+            clump[#clump + 1] = o
+            if o.style == "ranged" then greens = greens + 1
+            elseif o.style == "melee" and not o.big and o.x == n.x and o.z == n.z then greys = greys + 1 stack[#stack + 1] = o
+            else others = others + 1 end
+        end
+    end
+    -- the role's weapon of the wave, on a copy of that weapon's colour
+    local w = c.m.state ~= "CLEANUP" and P.waves[math.max(1, math.min(c.m.wave, 31))][c.R.name].weapon or ""
+    if n.style == "ranged" and w == "TWISTED_BOW" and ny.loadout.ranged_boss ~= nil then pick.key = "ranged_boss" end
+    if n.style == "melee" and w == "SCYTHE" and ny.loadout.melee ~= nil and ny.loadout.melee.item ~= "scythe_of_vitur"
+        and ny.loadout.melee_big ~= nil then pick.key = "melee_big" end
+    if n.style == "ranged" and w == "CHIN_BLACK" and ny.loadout.ranged_chin ~= nil and others == 0 and greys == 0 then pick.key, pick.chin, pick.clump = "ranged_chin", true, clump end
+    if pick.chin then return pick end
+    if n.style == "ranged" and ny.loadout.ranged_chin ~= nil and greens >= 1 and others == 0 and greys == 0 then
+        pick.key, pick.chin, pick.clump = "ranged_chin", true, clump
+    elseif n.style == "melee" and not n.big and #stack >= 1 and others == 0 and greens == 0 then
+        if ny.loadout.melee ~= nil and ny.loadout.melee.item == "scythe_of_vitur" then pick.key, pick.stack = "melee", stack
+        elseif ny.loadout.melee_big ~= nil and ny.loadout.melee_big.item == "scythe_of_vitur" then pick.key, pick.stack = "melee_big", stack end
+    end
+    return pick
+end
+
+-- the support nearest this seat with a chewer of the seat's colour (a
+-- support's chewers are split by colour among the seats, as the reference's
+-- same-colour role kills them), and that chewer, the least hitpoints first
+function QD.raid._nym_defence(c)
+    if c.defence_tick == c.v.tick then return c.defence end
+    c.defence_tick = c.v.tick
+    local best, bd, bh = nil, nil, nil
+    for _, n in ipairs(c.v.nylos) do
+        local sp = (n.style == c.R.colour) and QD.raid._nym_support_of(c, n) or nil
+        if sp ~= nil and QD.raid._nym_pressable(c, n) then
+            local d = c.dist(c.me.x, c.me.z, sp.x, sp.z, 3)
+            local h = (n.row.health_ratio or 30) / math.max(1, n.row.health_scale or 30)
+            if c.cur ~= nil and c.cur.slot == n.slot then h = h - 0.001 end
+            if bd == nil or d < bd or (d == bd and h < bh) then best, bd, bh = n, d, h end
+        end
+    end
+    c.defence = best
+    return best
+end
+
+-- the aggro swinging at this seat (a fighting copy in its reach of the seat:
+-- a grey beside it, the others within 8), the one through the prayer first
+function QD.raid._nym_aggro(c)
+    local best, bs = nil, nil
+    for _, n in ipairs(c.v.nylos) do
+        if n.fighting and QD.raid._nym_pressable(c, n) then
+            local d = c.dist(c.me.x, c.me.z, n.x, n.z, n.size)
+            if (n.style == "melee" and d <= 1) or (n.style ~= "melee" and d <= 8) then
+                local s = d + ((n.style == c.pray_style) and 20 or 0)
+                if c.cur ~= nil and c.cur.slot == n.slot then s = s - 0.5 end
+                if bs == nil or s < bs then best, bs = n, s end
+            end
+        end
+    end
+    return best
+end
+
+-- the cleanup's copy: the role's cleanup targets in order, then its colour, then any
+function QD.raid._nym_cleanup_target(c)
+    local list = c.P.cleanup[c.R.name].targets
+    for i = c.m.idx, #list do
+        local n = QD.raid._nym_find(c, list[i])
+        if n ~= nil then return n end
+    end
+    local best, bd, bo = nil, nil, nil
+    for _, n in ipairs(c.v.nylos) do
+        if QD.raid._nym_pressable(c, n) then
+            local own = (n.style == c.R.colour) and 0 or 1
+            local d = c.dist(c.me.x, c.me.z, n.x, n.z, n.size)
+            if c.cur ~= nil and c.cur.slot == n.slot then d = -1 end
+            if bo == nil or own < bo or (own == bo and d < bd) then best, bd, bo = n, d, own end
+        end
+    end
+    return best
+end
+
+-- transitions: leave (unsubscribe), enter (subscribe), note the state in the tick log
+function QD.raid._nym_go(c, name)
+    local m = c.m
+    if m.state ~= nil then
+        for event, handler in pairs(NY_STATES[m.state].on) do
+            if m.subs[event] == handler then m.subs[event] = nil end
+        end
+    end
+    m.state = name
+    for event, handler in pairs(NY_STATES[name].on) do m.subs[event] = handler end
+    c.ny.transitions = (c.ny.transitions or 0) + 1
+end
+function QD.raid._nym_fire(c, event, arg)
+    local handler = c.m.subs[event]
+    if handler ~= nil then handler(c, arg) end
+end
+function QD.raid._nym_note(c)
+    local m = c.m
+    local text = m.state .. "/" .. m.wave .. "/" .. m.idx
+    if c.ny.noted ~= text then
+        c.ny.noted = text
+        if api_drive.cheat ~= nil then api_drive.cheat("::tlnote " .. text) end
+    end
+end
+
+local function stay() return nil end
+-- AT_STAND
+local function at_stand_tick(c)
+    local n, i = QD.raid._nym_named_from(c, c.m.idx)
+    if n == nil then n = QD.raid._nym_unnamed(c) end
+    if n ~= nil then
+        c.m.idx = i
+        QD.raid._nym_go(c, "KILL")
+        return QD.raid._nym_pick(c, n)
+    end
+    local t = c.P.waves[math.max(1, math.min(c.m.wave, 31))][c.R.name].tile
+    local x, z = c.O.x + c.P.stand_anchor[1] + t[1], c.O.z + c.P.stand_anchor[2] + t[2]
+    if math.max(math.abs(c.me.x - x), math.abs(c.me.z - z)) > 1 and c.floor_ok(x, z) then c.walk = { x = x, z = z } end
+    return nil
+end
+local function at_stand_on_wave_spawn(c, w) c.m.wave, c.m.idx = w, 1 end
+local function at_stand_on_support_hit(c) c.m.resume = "AT_STAND" QD.raid._nym_go(c, "PILLAR_DEFENCE") end
+local function at_stand_on_waves_over(c) c.m.idx = 1 QD.raid._nym_go(c, "CLEANUP") end
+local function at_stand_on_boss_phase(c) QD.raid._nym_go(c, "BOSS") end
+-- KILL
+local function kill_tick(c)
+    local n = c.target
+    if n == nil then
+        local list = c.P.waves[math.max(1, math.min(c.m.wave, 31))][c.R.name].targets
+        if c.m.idx <= #list then n = QD.raid._nym_find(c, list[c.m.idx]) else n = QD.raid._nym_unnamed(c) end
+    end
+    if n == nil then return nil end
+    return QD.raid._nym_pick(c, n)
+end
+local function kill_on_wave_spawn(c, w) c.m.wave, c.m.idx = w, 1 QD.raid._nym_go(c, "AT_STAND") end
+local function kill_on_target_dead(c)
+    local n, i = QD.raid._nym_named_from(c, c.m.idx + 1)
+    c.m.idx = i
+    if n == nil then n = QD.raid._nym_unnamed(c) end
+    c.target = n
+    if n == nil then
+        if c.waves_over then c.m.idx = 1 QD.raid._nym_go(c, "CLEANUP") else QD.raid._nym_go(c, "AT_STAND") end
+    end
+end
+local function kill_on_target_reached_pillar(c) c.m.resume = "KILL" QD.raid._nym_go(c, "PILLAR_DEFENCE") end
+local function kill_on_support_hit(c) c.m.resume = "KILL" QD.raid._nym_go(c, "PILLAR_DEFENCE") end
+local function kill_on_boss_phase(c) QD.raid._nym_go(c, "BOSS") end
+-- PILLAR_DEFENCE
+local function pillar_defence_tick(c)
+    local n = QD.raid._nym_defence(c)
+    if n ~= nil then return QD.raid._nym_pick(c, n) end
+    local back = c.m.resume
+    if back == nil or back == "PILLAR_DEFENCE" or back == "SELF_DEFENCE" then back = "AT_STAND" end
+    QD.raid._nym_go(c, back)
+    return NY_STATES[c.m.state].tick(c)
+end
+local function pillar_defence_on_wave_spawn(c, w) c.m.wave, c.m.idx, c.m.resume = w, 1, "AT_STAND" end
+local function pillar_defence_on_waves_over(c) if c.m.resume ~= "CLEANUP" then c.m.resume, c.m.idx = "CLEANUP", 1 end end
+local function pillar_defence_on_boss_phase(c) QD.raid._nym_go(c, "BOSS") end
+-- CLEANUP
+local function cleanup_tick(c)
+    local n = QD.raid._nym_cleanup_target(c)
+    if n ~= nil then return QD.raid._nym_pick(c, n) end
+    local t = c.P.cleanup[c.R.name].tile
+    local x, z = c.O.x + c.P.stand_anchor[1] + t[1], c.O.z + c.P.stand_anchor[2] + t[2]
+    if math.max(math.abs(c.me.x - x), math.abs(c.me.z - z)) > 1 and c.floor_ok(x, z) then c.walk = { x = x, z = z } end
+    return nil
+end
+local function cleanup_on_target_dead(c) c.m.idx = c.m.idx + 1 end
+local function cleanup_on_support_hit(c) c.m.resume = "CLEANUP" QD.raid._nym_go(c, "PILLAR_DEFENCE") end
+local function cleanup_on_boss_phase(c) QD.raid._nym_go(c, "BOSS") end
+-- SELF_DEFENCE
+local function self_defence_tick(c)
+    local n = QD.raid._nym_aggro(c)
+    if n ~= nil then return QD.raid._nym_pick(c, n) end
+    local back = c.m.resume
+    if back == nil or back == "SELF_DEFENCE" then back = "AT_STAND" end
+    QD.raid._nym_go(c, back)
+    return NY_STATES[c.m.state].tick(c)
+end
+local function self_defence_on_wave_spawn(c, w) c.m.wave, c.m.idx = w, 1 if c.m.resume == "KILL" then c.m.resume = "AT_STAND" end end
+local function self_defence_on_waves_over(c) if c.m.resume == "AT_STAND" then c.m.resume, c.m.idx = "CLEANUP", 1 end end
+local function self_defence_on_boss_phase(c) QD.raid._nym_go(c, "BOSS") end
+local function at_stand_on_hit_taken(c) if QD.raid._nym_aggro(c) ~= nil then c.m.resume = "AT_STAND" QD.raid._nym_go(c, "SELF_DEFENCE") end end
+local function kill_on_hit_taken(c) if QD.raid._nym_aggro(c) ~= nil then c.m.resume = "KILL" QD.raid._nym_go(c, "SELF_DEFENCE") end end
+local function pillar_defence_on_hit_taken(c) if QD.raid._nym_aggro(c) ~= nil then QD.raid._nym_go(c, "SELF_DEFENCE") end end
+local function cleanup_on_hit_taken(c) if QD.raid._nym_aggro(c) ~= nil then c.m.resume = "CLEANUP" QD.raid._nym_go(c, "SELF_DEFENCE") end end
+-- BOSS
+local function boss_tick(c) return QD.raid._play_nylocas_boss_pick(c) end
+
+NY_STATES = {
+    AT_STAND = { tick = at_stand_tick, on = { wave_spawn = at_stand_on_wave_spawn, target_dead = stay, target_reached_pillar = stay,
+        support_hit = at_stand_on_support_hit, waves_over = at_stand_on_waves_over, boss_phase = at_stand_on_boss_phase, hit_taken = at_stand_on_hit_taken } },
+    KILL = { tick = kill_tick, on = { wave_spawn = kill_on_wave_spawn, target_dead = kill_on_target_dead, target_reached_pillar = kill_on_target_reached_pillar,
+        support_hit = kill_on_support_hit, waves_over = stay, boss_phase = kill_on_boss_phase, hit_taken = kill_on_hit_taken } },
+    PILLAR_DEFENCE = { tick = pillar_defence_tick, on = { wave_spawn = pillar_defence_on_wave_spawn, target_dead = stay, target_reached_pillar = stay,
+        support_hit = stay, waves_over = pillar_defence_on_waves_over, boss_phase = pillar_defence_on_boss_phase, hit_taken = pillar_defence_on_hit_taken } },
+    CLEANUP = { tick = cleanup_tick, on = { wave_spawn = stay, target_dead = cleanup_on_target_dead, target_reached_pillar = stay,
+        support_hit = cleanup_on_support_hit, waves_over = stay, boss_phase = cleanup_on_boss_phase, hit_taken = cleanup_on_hit_taken } },
+    SELF_DEFENCE = { tick = self_defence_tick, on = { wave_spawn = self_defence_on_wave_spawn, target_dead = stay, target_reached_pillar = stay,
+        support_hit = stay, waves_over = self_defence_on_waves_over, boss_phase = self_defence_on_boss_phase, hit_taken = stay } },
+    BOSS = { tick = boss_tick, on = { wave_spawn = stay, target_dead = stay, target_reached_pillar = stay,
+        support_hit = stay, waves_over = stay, boss_phase = stay, hit_taken = stay } },
+}
+
+-- One tick of a seat's machine: the events of this tick in a fixed order, each
+-- to the current state's handler, then the current state's tick.  Returns the
+-- pick (or nil) and a walk (or nil).
+function QD.raid._play_nylocas_machine(c)
+    local ny, v, P = c.ny, c.v, c.P
+    if ny.m == nil then
+        ny.m = { state = nil, wave = 0, idx = 1, resume = nil, subs = {} }
+        c.m = ny.m
+        QD.raid._nym_go(c, "AT_STAND")
+    end
+    c.m = ny.m
+    local m = c.m
+    -- the events
+    c.waves_over = ny.waves >= 31 or (ny.waves >= P.cleanup_waves and v.tick - (ny.last_wave_tick or v.tick) >= P.cleanup_quiet)
+    if v.vas ~= nil and m.state ~= "BOSS" then QD.raid._nym_fire(c, "boss_phase") end
+    if m.state ~= "BOSS" then
+        if ny.waves > m.wave and ny.waves <= 31 then QD.raid._nym_fire(c, "wave_spawn", ny.waves) end
+        if c.waves_over then QD.raid._nym_fire(c, "waves_over") end
+        -- a support taking hits: the support nearest this seat lost bar since the last tick
+        local near, nd = nil, nil
+        for _, sp in ipairs(v.supports) do
+            if sp.alive then
+                local d = c.dist(c.me.x, c.me.z, sp.x, sp.z, 3)
+                if nd == nil or d < nd then near, nd = sp, d end
+            end
+        end
+        ny.bars = ny.bars or {}
+        local hit = nil
+        for _, sp in ipairs(v.supports) do
+            local k = sp.x .. "," .. sp.z
+            if ny.bars[k] ~= nil and sp.frac < ny.bars[k] and sp == near and sp.frac < P.defend_below then hit = sp end
+            ny.bars[k] = sp.frac
+        end
+        if hit ~= nil and QD.raid._nym_defence(c) ~= nil then QD.raid._nym_fire(c, "support_hit", hit) end
+        if ny.last_hp ~= nil and v.hp < ny.last_hp then QD.raid._nym_fire(c, "hit_taken") end
+        -- the current target's events (KILL: the named copy or the unnamed one)
+        if m.state == "KILL" then
+            local list = P.waves[math.max(1, math.min(m.wave, 31))][c.R.name].targets
+            if m.idx <= #list then c.target = QD.raid._nym_find(c, list[m.idx]) else c.target = QD.raid._nym_unnamed(c) end
+            if c.target == nil then QD.raid._nym_fire(c, "target_dead")
+            elseif QD.raid._nym_support_of(c, c.target) ~= nil then QD.raid._nym_fire(c, "target_reached_pillar", c.target) end
+        elseif m.state == "CLEANUP" then
+            local list = P.cleanup[c.R.name].targets
+            if m.idx <= #list and QD.raid._nym_find(c, list[m.idx]) == nil then QD.raid._nym_fire(c, "target_dead") end
+        end
+    end
+    ny.last_hp = v.hp
+    local pick = NY_STATES[m.state].tick(c)
+    QD.raid._nym_note(c)
+    ny.state_ticks = ny.state_ticks or {}
+    ny.state_ticks[m.state] = (ny.state_ticks[m.state] or 0) + 1
+    return pick, c.walk
+end
+
+-- HER PICK: her current form with its weapon (the plan's `<form>_boss` key),
+-- the claws' special on her melee form for a party seat (P.spec).  A trio
+-- seat's BOSS state and the Entry plan alone both pick her with it.
+function QD.raid._play_nylocas_boss_pick(c)
+    local v, P, ny, R, me, dist = c.v, c.P, c.ny, c.R, c.me, c.dist
+    local vas = v.vas
+    local pick = nil
+    if vas == nil then return nil end
+    if vas.form ~= "spawning" then
+        local d = dist(me.x, me.z, vas.x, vas.z, vas.size)
+        pick = { slot = vas.slot, style = vas.form, symbol = vas.symbol, vas = true, d = d, x = vas.x, z = vas.z,
+            key = QD.raid._play_nylocas_key(ny, vas.form, false, true) }
+        -- raid seam47: THE SPECIAL (P.spec): the claws on her melee form
+        -- while the orb holds the cost and her window has room for it
+        if vas.form == "melee" and R ~= nil and P.spec ~= nil and ny.loadout.melee_spec ~= nil then
+            local sp = ny.spec or { fired = 0, arms = 0 }
+            ny.spec = sp
+            local _, energy = QD.var.varp("varp300_sa_energy")
+            energy = tonumber(energy) or 0
+            if sp.armed ~= nil and energy <= sp.energy0 - P.spec.cost then
+                sp.fired = sp.fired + 1
+                sp.last_fired = v.tick
+                sp.armed = nil
+            elseif sp.armed ~= nil and v.tick - sp.armed > P.spec.give_up then
+                sp.lost = (sp.lost or 0) + 1
+                sp.armed = nil
+            end
+            local cr, n = QD.inv.count(P.spec.item)
+            local have = (cr == "ok" and n > 0) or ny.worn == "melee_spec"
+            local left = ny.next_turn ~= nil and (ny.next_turn - v.tick) or 99
+            if sp.armed ~= nil then
+                pick.key = "melee_spec"
+            elseif have and energy >= P.spec.cost and left >= P.spec.room and sp.arms < 4 then
+                pick.key = "melee_spec"
+                pick.spec = true
+                pick.energy = energy
+            end
+        end
+    end
+    return pick
+end
+
+-- THE ENTRY PLAN'S PICK (a party of one; raid seam30-32 PLAY_NOTES "Nylocas,
+-- Entry solo"): every colour is the raider's; aggros first, the one hitting
+-- through the prayer before all; a chewer by its support's missing bar (the
+-- low one let go, E :171); greens first (E :162); older first; the freeze on a
+-- clump of three on an eaten support (E :164).
+function QD.raid._play_nylocas_solo_pick(c)
+    local v, P, ny, me, O, dist = c.v, c.P, c.ny, c.me, c.O, c.dist
+    local cur, pray_style, unsafe, blast_lead = c.cur, c.pray_style, c.unsafe, c.blast_lead
+    local function support_of(n)
+        for _, sp in ipairs(v.supports) do
+            if sp.alive then
+                local gx = math.max(sp.x - (n.x + n.size - 1), n.x - (sp.x + 2), 0)
+                local gz = math.max(sp.z - (n.z + n.size - 1), n.z - (sp.z + 2), 0)
+                if math.max(gx, gz) == 1 then return sp end
+            end
+        end
+        return nil
+    end
+    local alive_supports, lowest = 0, nil
+    for _, sp in ipairs(v.supports) do
+        if sp.alive then
+            alive_supports = alive_supports + 1
+            if lowest == nil or sp.frac < lowest.frac then lowest = sp end
+        end
+    end
+    local best = nil
+    local function consider(cand)
+        if best == nil or cand.score < best.score then best = cand end
+    end
+    for _, n in ipairs(v.nylos) do
+        local ea = n.big and P.explode_age_big or P.explode_age
+        local d = dist(me.x, me.z, n.x, n.z, n.size)
+        local lx, lz = n.x - O.x, n.z - O.z
+        local on_floor = lx >= P.floor[1] and lx <= P.floor[3] and lz >= P.floor[2] and lz <= P.floor[4]
+        local ok = (ny.doomed[n.slot] == nil or ny.doomed[n.slot] < v.tick) and not ny.nulled[n.slot]
+            and (ny.blocked == nil or (ny.blocked[n.slot] or -1) < v.tick)
+            and n.settled
+        if ok and n.style == "melee" then
+            -- "cannot melee them until they reach said platform" (E :160), never into a blast
+            ok = on_floor and n.age < ea - blast_lead and not unsafe(n.x, n.z, blast_lead < 6 and 0 or 1)
+        elseif ok then
+            ok = d <= ny.reach[n.style] + 6
+        end
+        local sp = (not n.fighting) and support_of(n) or nil
+        n.support = sp
+        if ok then
+            local score = math.max(0, d - ny.reach[n.style]) / 2 * 6
+            local key = QD.raid._play_nylocas_key(ny, n.style, n.big, false)
+            if n.fighting then
+                -- aggros "must be killed as fast as possible" (E :160)
+                local hitting = (n.style == "melee" and d <= 1) or (n.style ~= "melee" and d <= 8)
+                local covered = n.style == pray_style
+                if hitting and not covered then score = score - 45
+                elseif hitting then score = score - 30
+                else score = score - 20 end
+            end
+            if not n.fighting and sp ~= nil then
+                -- "keep the pillars alive" (E :155); "let one that's low die" (E :171)
+                if sp == lowest and sp.frac < 0.15 and alive_supports > 1 then score = score + 25
+                else score = score - 12 - (1 - sp.frac) * 12 end
+            end
+            if n.style == "ranged" then score = score - 4 end
+            score = score - math.min(n.age, 45) * 0.2
+            if n.big then score = score + 2 end
+            if key ~= ny.worn then score = score + 5 end
+            if cur ~= nil and cur.slot == n.slot then score = score - 12 end
+            consider({ score = score, n = n, d = d, style = n.style, key = key })
+        end
+    end
+    -- THE FREEZE: "Ice barrage/burst any clumps of Nylocas you will not be
+    -- dealing with ... all colours can be frozen" (E :164): a clump of three on
+    -- an eaten support, centred on a blue when one is in it
+    for _, n in ipairs(v.nylos) do
+        local sp = n.support
+        local d = dist(me.x, me.z, n.x, n.z, n.size)
+        if sp ~= nil and sp.frac < 0.7 and not (sp == lowest and sp.frac < 0.15 and alive_supports > 1)
+            and d <= ny.reach.magic and (ny.frozen[n.slot] or -1) < v.tick and n.settled then
+            local clump, blues = {}, 0
+            for _, o in ipairs(v.nylos) do
+                if (ny.frozen[o.slot] or -1) < v.tick and (ny.doomed[o.slot] == nil or ny.doomed[o.slot] < v.tick)
+                    and o.x <= n.x + 1 and o.x + o.size - 1 >= n.x - 1 and o.z <= n.z + 1 and o.z + o.size - 1 >= n.z - 1 then
+                    clump[#clump + 1] = o
+                    if o.style == "magic" then blues = blues + 1 end
+                end
+            end
+            if #clump >= 3 and (n.style == "magic" or blues == 0) then
+                consider({ score = -18 - 3 * #clump - (1 - sp.frac) * 10 + (n.style ~= "magic" and 2 or 0), n = n, d = d,
+                    style = "magic", spell = "ice_burst", clump = clump })
+            end
+        end
+    end
+    if best == nil then return nil end
+    local n = best.n
+    return { slot = n.slot, style = best.style, symbol = n.symbol, vas = false, d = best.d, x = n.x, z = n.z, big = n.big,
+        spell = best.spell, clump = best.clump, key = best.key or best.style }
+end
 
 -- raid seam55: THE STYLE AT HER (P.boss_styles).  Called once a tick from
 -- the decide step while she is in the room; presses at most one style button
@@ -546,6 +1080,11 @@ function QD.raid._play_nylocas_see(st, v)
                     ny.wave_ticks[v.tick] = true
                     ny.waves = ny.waves + 1
                     ny.last_wave_tick = v.tick
+                end
+                -- owner_nylocas: the spawn's key in the script (P.waves targets):
+                -- its tunnel, its colour as it came out, its size; a split has none
+                if lane then
+                    s.key = ((lx <= 18 and "W") or (lx >= 45 and "E") or "S") .. "-" .. w.style .. (w.big and "-big" or "")
                 end
             end
             s.last = v.tick
@@ -840,21 +1379,13 @@ function QD.raid._play_nylocas_decide(st, v)
     local R = (st.party ~= nil and st.party > 1) and P.roles[st.role] or nil
     local home_tile = R ~= nil and R.home or P.home
     ny.role = R ~= nil and R.name or "solo"
-    -- raid seam52: THE STANDS (see the plan's `stands`): through the waves a
-    -- party seat's home is its role's reference stand for the wave it last saw
-    ny.stand = nil
-    if R ~= nil and P.stands ~= nil and v.vas == nil and ny.waves >= 1 then
-        local row = P.stands[R.name]
-        local s = row ~= nil and row[math.min(ny.waves, 31)] or nil
-        if s ~= nil then
-            home_tile = { P.stand_anchor[1] + s[1], P.stand_anchor[2] + s[2] }
-            ny.stand = math.min(ny.waves, 31)
-        end
+    -- the cleanup: a trio seat's is its machine's CLEANUP state; alone, read
+    -- off the screen (this many waves seen and none for cleanup_quiet ticks)
+    if R ~= nil then
+        ny.in_cleanup = ny.m ~= nil and ny.m.state == "CLEANUP"
+    else
+        ny.in_cleanup = ny.waves >= P.cleanup_waves and v.tick - (ny.last_wave_tick or v.tick) >= P.cleanup_quiet
     end
-    -- raid seam52: the cleanup, read once a tick (THE CLEANUP'S ORDER and the
-    -- own-colour rule below share it)
-    ny.cleanup = P.cleanup_free and ny.waves >= P.cleanup_waves and v.tick - (ny.last_wave_tick or v.tick) >= P.cleanup_quiet
-    ny.in_cleanup = ny.cleanup
     local home = { x = O.x + home_tile[1], z = O.z + home_tile[2] }
     local vas = v.vas
 
@@ -1088,27 +1619,6 @@ function QD.raid._play_nylocas_decide(st, v)
         end
     end
 
-    -- raid seam51 play_tob_nylocas_whole: ANOTHER SEAT'S SHOT IN THE AIR.
-    -- What a person sees of the others' attacks: the dart or the orb flying
-    -- from them to a copy (api_drive.projectiles: its target slot and the
-    -- tile it left).  Seam50's dup.py: 81 of 199 copies pressed by two or
-    -- three seats, the mage sharing 87 of 145 engagements, and a small has
-    -- 8 hitpoints in a trio (W :731) -- the second shot lands on a corpse.
-    -- A small with another raider's shot on it, or a big with two, is worth
-    -- P.inbound points less to this raider while the shot flies.
-    local inbound = {}
-    if st.party ~= nil and st.party > 1 and P.inbound ~= nil and api_drive.projectiles ~= nil then
-        local pr, prow = api_drive.projectiles(24)
-        if pr == "ok" and type(prow) == "table" then
-            for _, p in ipairs(prow) do
-                local slot = p.target_npc_slot
-                if type(slot) == "number" and slot >= 0 and p.src_x ~= nil and p.src_z ~= nil
-                    and math.max(math.abs(p.src_x - me.x), math.abs(p.src_z - me.z)) > 1 then
-                    inbound[slot] = (inbound[slot] or 0) + 1
-                end
-            end
-        end
-    end
     -- THE TARGET.
     local cur = ny.target
     local cur_row = nil
@@ -1129,490 +1639,22 @@ function QD.raid._play_nylocas_decide(st, v)
         if cur_row == nil then ny.target = nil cur = nil end
     end
     local pick = nil
-    if vas ~= nil then
-        if vas.form ~= "spawning" then
-            local d = dist(me.x, me.z, vas.x, vas.z, vas.size)
-            pick = { slot = vas.slot, style = vas.form, symbol = vas.symbol, vas = true, d = d, x = vas.x, z = vas.z,
-                key = QD.raid._play_nylocas_key(ny, vas.form, false, true) }
-            -- raid seam47: THE SPECIAL (P.spec): the claws on her melee form
-            -- while the orb holds the cost and her window has room for it
-            if vas.form == "melee" and R ~= nil and P.spec ~= nil and ny.loadout.melee_spec ~= nil then
-                local sp = ny.spec or { fired = 0, arms = 0 }
-                ny.spec = sp
-                local _, energy = QD.var.varp("varp300_sa_energy")
-                energy = tonumber(energy) or 0
-                if sp.armed ~= nil and energy <= sp.energy0 - P.spec.cost then
-                    sp.fired = sp.fired + 1
-                    sp.last_fired = v.tick
-                    sp.armed = nil
-                elseif sp.armed ~= nil and v.tick - sp.armed > P.spec.give_up then
-                    sp.lost = (sp.lost or 0) + 1
-                    sp.armed = nil
-                end
-                local cr, n = QD.inv.count(P.spec.item)
-                local have = (cr == "ok" and n > 0) or ny.worn == "melee_spec"
-                local left = ny.next_turn ~= nil and (ny.next_turn - v.tick) or 99
-                if sp.armed ~= nil then
-                    pick.key = "melee_spec"
-                elseif have and energy >= P.spec.cost and left >= P.spec.room and sp.arms < 4 then
-                    pick.key = "melee_spec"
-                    pick.spec = true
-                    pick.energy = energy
-                end
-            end
+    -- owner_nylocas: a trio seat plays THE MACHINE (QD.raid._play_nylocas_machine,
+    -- under the plan's data); alone, her pick or the Entry plan's pick
+    local c = { st = st, v = v, P = P, N = N, ny = ny, R = R, me = me, O = O, dist = dist, pray_style = pray_style,
+        blast_lead = blast_lead, unsafe = unsafe, floor_ok = floor_ok, cur = cur }
+    if R ~= nil then
+        local walk
+        pick, walk = QD.raid._play_nylocas_machine(c)
+        if pick == nil and walk ~= nil and intent.walk == nil
+            and (st.walk_target == nil or st.walk_target.x ~= walk.x or st.walk_target.z ~= walk.z) then
+            intent.walk = walk
+            ny.machine_walks = (ny.machine_walks or 0) + 1
         end
+    elseif vas ~= nil then
+        pick = QD.raid._play_nylocas_boss_pick(c)
     else
-        -- the support each chewer bites, and how much of it is left
-        -- owner_nylocas: FOOTPRINT TO FOOTPRINT.  The second test measured
-        -- from the support's south-west TILE to the copy, so only a copy beside
-        -- that corner read as a chewer: a small at 28,19 or 26,21 beside the
-        -- 3x3 support at 25,18 (its east and north faces) and every big on
-        -- those faces were no support's (the traced svbplaynyloc run: a big
-        -- green and a big grey beside 25,18 at 28,19 from t344, the big green
-        -- popping there at 54 ticks unpressed while the support fell), so the
-        -- keep rules (keep_all, keep_low, keep_urgent) never weighed them.
-        -- A copy chews when its footprint touches the support's 3x3.
-        local function support_of(n)
-            for _, sp in ipairs(v.supports) do
-                if sp.alive then
-                    local gx = math.max(sp.x - (n.x + n.size - 1), n.x - (sp.x + 2), 0)
-                    local gz = math.max(sp.z - (n.z + n.size - 1), n.z - (sp.z + 2), 0)
-                    if math.max(gx, gz) == 1 then return sp end
-                end
-            end
-            return nil
-        end
-        local alive_supports, lowest = 0, nil
-        for _, sp in ipairs(v.supports) do
-            if sp.alive then
-                alive_supports = alive_supports + 1
-                if lowest == nil or sp.frac < lowest.frac then lowest = sp end
-            end
-        end
-        local best, cands, own_ok = nil, {}, false
-        -- raid seam50 play_tob_nylocas_whole: THE COLOUR'S OWNER, ON SCREEN.
-        -- What a person sees of the other two: their tiles (api_drive.players)
-        -- and their names, which say their seats (QD.party.names(), seat i =
-        -- role i).  owner_at[style] = the tile of the seat that owns it.
-        local owner_at = {}
-        if R ~= nil and P.leave_to_owner ~= nil then
-            local seat_of = {}
-            for i, nm in ipairs(QD.party.names()) do seat_of[string.lower(string.gsub(nm, "[ _]", ""))] = i end
-            local pr, prow = api_drive.players()
-            if pr == "ok" then
-                for _, r in ipairs(prow) do
-                    local seat = (not r.me and r.name ~= nil) and seat_of[string.lower(string.gsub(r.name, "[ _]", ""))] or nil
-                    local role = seat ~= nil and P.roles[seat] or nil
-                    if role ~= nil then owner_at[role.colour] = { x = r.x, z = r.z } end
-                end
-            end
-            local seen = 0
-            for _ in pairs(owner_at) do seen = seen + 1 end
-            if (ny.owners_seen or -1) ~= seen then
-                ny.owners_seen = seen
-                api_drive.report("nyplay owners seen " .. seen .. " (seat " .. tostring(st.role) .. ")")
-            end
-        end
-        local function consider(cand)
-            if best == nil or cand.score < best.score then best = cand end
-        end
-        for _, n in ipairs(v.nylos) do
-            local ea = n.big and P.explode_age_big or P.explode_age
-            local d = dist(me.x, me.z, n.x, n.z, n.size)
-            local lx, lz = n.x - O.x, n.z - O.z
-            local on_floor = lx >= P.floor[1] and lx <= P.floor[3] and lz >= P.floor[2] and lz <= P.floor[4]
-            local ok = (ny.doomed[n.slot] == nil or ny.doomed[n.slot] < v.tick) and not ny.nulled[n.slot]
-                and (ny.blocked == nil or (ny.blocked[n.slot] or -1) < v.tick)
-                -- from wave 16 a copy's colour may still turn (NT flicker_*)
-                and n.settled
-            if P.trace_seat ~= nil then
-                local why = nil
-                if not (ny.doomed[n.slot] == nil or ny.doomed[n.slot] < v.tick) then why = "doom"
-                elseif ny.nulled[n.slot] then why = "null"
-                elseif not (ny.blocked == nil or (ny.blocked[n.slot] or -1) < v.tick) then why = "block"
-                elseif not n.settled then why = "young"
-                elseif n.style == "melee" and not on_floor then why = "lane"
-                elseif n.style == "melee" and not (n.age < ea - blast_lead and not unsafe(n.x, n.z, blast_lead < 6 and 0 or 1)) then why = "blast"
-                elseif n.style ~= "melee" and not (d <= ny.reach[n.style] + 6) then why = "far" end
-                if why ~= nil then ny.why = ny.why or {} ny.why[why] = (ny.why[why] or 0) + 1 end
-            end
-            if ok and n.style == "melee" then
-                -- "cannot melee them until they reach said platform" (E :160),
-                -- and never into a blast
-                ok = on_floor and n.age < ea - blast_lead and not unsafe(n.x, n.z, blast_lead < 6 and 0 or 1)
-            elseif ok then
-                -- raid seam32: a seat goes further for its own colour (the
-                -- trio guide's raiders walk to the lane their colour comes from:
-                -- "Path west and stand 1 tile away from the west barrier",
-                -- ranger waves 8-10)
-                ok = d <= ny.reach[n.style] + ((R ~= nil and n.style == R.colour) and 14 or 6)
-                -- raid seam32: in a party the blues are the mage's ("Trio: x1
-                -- mager", W :711); another seat casts only at a blue aggro
-                -- swinging at it.  A helper's Ice Rush is five ticks against its
-                -- own weapon's two or four, and its press failed half the time
-                -- (s32ny10 p3 t150-200: 13 casts pressed, 3 covered, 4 refused,
-                -- seven swings in fifty ticks)
-                -- (raid seam33: a seat with a powered staff takes blues like
-                -- any other colour, under the own-colour-first rule)
-                if ok and R ~= nil and n.style == "magic" and R.colour ~= "magic" and not ny.loadout.magic.powered
-                    and not (n.fighting and d <= 8) then ok = false end
-            end
-            local sp = (not n.fighting) and support_of(n) or nil
-            n.support = sp
-            if ok then
-                -- the cost of the kill in ticks: the run to reach (two tiles a
-                -- tick, wiki Energy: run) and a swap, weighed against what the
-                -- copy costs while it lives
-                local walk = math.max(0, d - ny.reach[n.style]) / 2
-                local score = walk * 6
-                -- raid seam32: the kill's own time, the weapon's ticks a swing
-                -- (s32ny8 p2: the blowpipe seat cast Ice Rush 16 times in the
-                -- waves, five ticks each, 80 ticks that were 40 blowpipe darts)
-                local key = QD.raid._play_nylocas_key(ny, n.style, n.big, false)
-                -- owner_nylocas: THE SCYTHE ON A GREY STACK.  "Scythe the grey
-                -- doubles" (trio guide :232-239, :415; PLAY_NOTES seam35m's
-                -- next lever): the scythe's swing lands on the target's own
-                -- tile and the two beside it, a copy counted when its tile is
-                -- one of them, at 100 / 50 / 25 percent of its max (content
-                -- scythe_of_vitur.rs2, NR ScytheOfViturCombat :139-159), so a
-                -- stack of small greys on one tile is two or three kills a
-                -- swing (8 hitpoints each in a trio).  The cleanups of the
-                -- blast5 survey ended on two or three greys stacked beside the
-                -- north-west support (28,30), whipped one at a time.  A grey
-                -- with another small grey on its tile and no other colour
-                -- within a tile (the arc would null the raider on it) is
-                -- taken with the scythe, worth `grey_stack` points (a whip
-                -- swing's ticks) for each other grey on the tile.
-                n.stack = nil
-                if R ~= nil and P.grey_stack ~= nil and n.style == "melee" and not n.big then
-                    local scy = nil
-                    if ny.loadout.melee ~= nil and ny.loadout.melee.item == "scythe_of_vitur" then scy = "melee"
-                    elseif ny.loadout.melee_big ~= nil and ny.loadout.melee_big.item == "scythe_of_vitur" then scy = "melee_big" end
-                    if scy ~= nil then
-                        local stack, other = {}, false
-                        for _, o in ipairs(v.nylos) do
-                            if o.slot ~= n.slot and math.max(math.abs(o.x - n.x), math.abs(o.z - n.z)) <= 1 then
-                                if o.style == "melee" and not o.big and o.x == n.x and o.z == n.z then
-                                    if not ny.nulled[o.slot] then stack[#stack + 1] = o end
-                                elseif o.style ~= "melee" then
-                                    other = true
-                                end
-                            end
-                        end
-                        if #stack >= 1 and not other then
-                            key = scy
-                            n.stack = stack
-                            score = score - P.grey_stack * #stack
-                            ny.stack_cands = (ny.stack_cands or 0) + 1
-                        end
-                    end
-                end
-                if R ~= nil then score = score + ny.loadout[key].speed * 3 end
-                if n.fighting then
-                    -- aggros first: they "must be killed as fast as possible"
-                    -- (E :160); the one hitting through the prayer before all
-                    local hitting = (n.style == "melee" and d <= 1) or (n.style ~= "melee" and d <= 8)
-                    local covered = n.style == pray_style
-                    if hitting and not covered then score = score - 45
-                    elseif hitting then score = score - 30
-                    else score = score - 20 end
-                    -- raid seam32: an aggro is EVERY seat's ("These aggro's
-                    -- should be prioritised first", W :733): no colour penalty,
-                    -- only its weapon's time below.  (A first cut kept another
-                    -- seat's covered aggro for its owner: s32ny5 t389 the ranger
-                    -- stood among 12 live aggros, f=12, and died to them.)
-                end
-                -- raid seam50 play_tob_nylocas_whole: A GREY AT A HELPER'S FEET.
-                -- Blert's trio mage and ranger melee 9.5 and 8.1 percent of their
-                -- swings (reference/nylocas_normal_3.json role.mage.melee_pct,
-                -- role.range.melee_pct; the meleer 62.7).  Ours never did: the
-                -- own-first rule left the split greys of a big a helper had just
-                -- scythed chewing beside it (seam50 base, _play_nylocas: 13 of 29
-                -- copies that popped were greys, 12 of them splits on a support;
-                -- t46 (26,21) beside the mage at (27,21) for six ticks).  A
-                -- helper takes a grey in reach with no step, at no colour cost.
-                local helps = P.help_feet and R ~= nil and R.colour ~= "melee" and n.style == "melee" and d <= 1 and not n.fighting
-                -- owner_nylocas: A LOW SUPPORT'S CHEWER IS EVERY SEAT'S.  The
-                -- reference's trios land her with all four supports standing
-                -- in 34 of 34 rooms (weakest 0.10-0.54); ours lost the south-west
-                -- one (25,18) on two of five names in the gear5 survey, chewed
-                -- by splits of the colour whose seat was across the room
-                -- (svbplaynyloc: split greys 43+53+71+44 copy-ticks beside it,
-                -- split blues 40+49+36).  A chewer on a support under keep_low
-                -- is taken by whoever is near, like an aggro: the colour rules
-                -- (own_first, own_colour_bonus, leave_to_owner) do not hold it back.
-                n.lowchew = R ~= nil and P.low_any and not n.fighting and sp ~= nil and P.keep_low ~= nil and sp.frac < P.keep_low
-                if n.lowchew then helps = true end
-                n.helps = helps
-                if not n.fighting and R ~= nil and n.style ~= R.colour and not helps then score = score + P.own_colour_bonus end
-                -- raid seam50: LEAVE IT TO ITS OWNER.  Two or three seats pressed
-                -- the same copy on 85 of the 199 targets of the base leader (its
-                -- input rows: the mage shared 93 of 136 engagements -- blues and
-                -- greens with the ranger 29, aggros by all three 21), and a
-                -- small (8 hitpoints) takes one landed hit: the second swing is
-                -- thrown at a corpse.  Blert's trios swing about one attack a
-                -- kill (role.*.phase.waveN.attacks_add: 233 a room).  Another
-                -- seat's copy within its owner's reach, and nearer its owner than
-                -- this raider, is its owner's; an aggro too, unless it is hitting
-                -- this raider through the prayer.
-                if R ~= nil and n.style ~= R.colour and owner_at[n.style] ~= nil then
-                    local ow = owner_at[n.style]
-                    local od = dist(ow.x, ow.z, n.x, n.z, n.size)
-                    local oreach = n.style == "melee" and 1 or (n.style == "ranged" and 5 or 6)
-                    local mine_now = n.fighting and ((n.style == "melee" and d <= 1) or (n.style ~= "melee" and d <= 8)) and n.style ~= pray_style
-                    if not mine_now and od <= oreach + 2 and od <= d then score = score + P.leave_to_owner end
-                end
-                if not n.fighting and sp ~= nil then
-                    -- a chewer: "keep the pillars alive" (E :155); but "it's best to
-                    -- let one that's low die and focus on the other three" (E :171)
-                    -- raid seam35m: a trio keeps all four ("all four standing"
-                    -- in 34 of 34 recorded Regular trios, weakest 0.10..0.54 at
-                    -- her landing): the low one is defended, not let go
-                    if sp == lowest and sp.frac < 0.15 and alive_supports > 1 and not (R ~= nil and P.keep_all) then score = score + 25
-                    else
-                        score = score - 12 - (1 - sp.frac) * (R ~= nil and P.keep_all and P.keep_weight or 12)
-                        -- raid seam51: a low support's chewer before anything
-                        -- but an aggro hitting through the prayer
-                        if R ~= nil and P.keep_all and P.keep_low ~= nil and sp.frac < P.keep_low then score = score - P.keep_urgent end
-                    end
-                end
-                -- "Focus the green (Ranged) Nylocas first" (E :162)
-                if n.style == "ranged" then score = score - 4 end
-                -- raid seam32: NEWER first, as the source says: "always kill
-                -- newly spawned nylocas after dealing with aggro's, prioritising
-                -- the smaller ones first" (W :746), and "Allow all the existing
-                -- Nylos in the room to auto-pop" (trio guide :24).  A copy's
-                -- worth is the chewing it has left: a new one bites for ~40
-                -- ticks, one near its pop for a few.  (The seam30 line read the
-                -- same quote as "older first"; Entry's pillars forgave it,
-                -- Normal's do not: s32ny5 killed at an average age of 23.6
-                -- ticks, half a life spent chewing.)
-                if R ~= nil then
-                    score = score + math.min(n.age, 45) * ((P.pop_skip ~= nil and sp ~= nil) and 0.1 or 0.3)
-                    -- raid seam50: AN OLD CHEWER IS STILL A COPY.  The +20 from ten
-                    -- ticks before its pop let every chewer that outlived its first
-                    -- forty ticks pop on its support (base: 29 pops a room, 42 copies
-                    -- living 35+ ticks, the alive cap held into a stall from wave 11;
-                    -- Blert's trios pop 0.2-2.5).  A chewer is passed over only in
-                    -- its last P.pop_skip ticks, when the kill saves no bite.
-                    local skip = (P.pop_skip ~= nil and sp ~= nil) and P.pop_skip or 10
-                    if not n.fighting and n.age >= ea - skip and not (n.big and P.big_first ~= nil) then score = score + 20 end
-                    -- raid seam52: THE CLEANUP'S ORDER (the plan's
-                    -- `cleanup_order`): newest first, and one about to pop
-                    -- is left to pop
-                    -- owner_nylocas: SMALLS ONLY.  The sources' cleanup order
-                    -- is for smalls ("Kill any wave 29/31 smalls first",
-                    -- ranger cleanup :363; "Continue Ayaking smalls with the
-                    -- highest wave number", mage :175), and a big that blows
-                    -- up still leaves its two splits (tob_nylocas.rs2
-                    -- ~tob_nylo_detonate, blert 15 of 15): the sup5 survey's
-                    -- cleanups ended on the splits of a wave-30 big left to
-                    -- 46-55 ticks (svaplaynyloc +51 pop, +55 its splits).
-                    -- Blert's trios let 0.2-2.5 bigs a room pop (seam47).
-                    if ny.in_cleanup and P.cleanup_order ~= nil and not n.big then
-                        score = score + math.min(n.age, 45) * P.cleanup_order.age
-                        if P.cleanup_order.side ~= nil and not n.fighting
-                            and ((n.z - O.z) >= P.cleanup_order.north_z) ~= (R.name == P.cleanup_order.north_role) then
-                            score = score + P.cleanup_order.side
-                        end
-                        -- owner_nylocas: LEFT TO POP ONLY IF IT POPS BEFORE THE
-                        -- ROOM WOULD BE CLEAR.  The room ends on its last copy's
-                        -- death, a pop included, so a copy left to pop past the
-                        -- time the others take to kill holds the room open: the
-                        -- low5 survey's cleanups ended 51-64 ticks after wave 31
-                        -- on the wave-31 copies' own pops (52), where Blert's
-                        -- end 32 after it (outcome.phase.cleanup_end.start 292 -
-                        -- wave31.start 260).  The others' time is their count
-                        -- over the reference trio's kill cadence (0.71 a tick,
-                        -- reference/nylocas_normal_3.json, PLAY_NOTES seam40).
-                        if ny.clear_tick ~= v.tick then
-                            local need = 0
-                            for _, o in ipairs(v.nylos) do
-                                local oea = o.big and P.explode_age_big or P.explode_age
-                                if oea - o.age > P.cleanup_order.expire then need = need + 1 end
-                            end
-                            ny.clear_tick, ny.clear_time = v.tick, need / P.cleanup_order.rate
-                        end
-                        if not n.fighting and ea - n.age <= P.cleanup_order.expire and ea - n.age < ny.clear_time
-                            and not (sp ~= nil and P.keep_low ~= nil and sp.frac < P.keep_low) then
-                            score = score + P.cleanup_order.pass
-                            ny.cleanup_passes = (ny.cleanup_passes or 0) + 1
-                        end
-                    end
-                else
-                    score = score - math.min(n.age, 45) * 0.2
-                end
-                -- raid seam47: BIGS ARE NOT LEFT.  Blert's trios kill a big at
-                -- a median age of 16-19 (p75 22-27) and let 0.2-2.5 a room pop;
-                -- this plan's bigs lived to p75 44 (blue) and 55 (grey) with
-                -- 4.3 a room popping each (seam40 ny40/ny_age.py over the s47
-                -- surveys, build/seam_state/...seam47/age_before_bigfirst.log):
-                -- a big chews its pillar and holds the alive cap for its whole
-                -- life.  In a party a big is preferred by P.big_first points and
-                -- is never left to pop.
-                if n.big then
-                    if R ~= nil and P.big_first ~= nil then score = score - P.big_first else score = score + 2 end
-                end
-                -- raid seam52: THE STAND'S LEASH (the plan's `stand_leash`)
-                if R ~= nil and P.stand_leash ~= nil and vas == nil and not n.fighting and n.style ~= "melee" then
-                    local hd = dist(home.x, home.z, n.x, n.z, n.size)
-                    if hd > ny.reach[n.style] then score = score + (hd - ny.reach[n.style]) * P.stand_leash end
-                end
-                if key ~= ny.worn then score = score + ((R ~= nil) and 10 or 5) end
-                -- raid seam51: ANOTHER SEAT'S SHOT IN THE AIR (above); never
-                -- on the copy this raider is on (its own shot is its own)
-                local inb = inbound[n.slot] or 0
-                if R ~= nil and P.inbound ~= nil and inb > 0 and not (cur ~= nil and cur.slot == n.slot)
-                    and (not n.big or inb >= 2) and not (sp ~= nil and P.keep_low ~= nil and sp.frac < P.keep_low) then
-                    score = score + P.inbound
-                    ny.inbound_skips = (ny.inbound_skips or 0) + 1
-                end
-                -- the one already pressed keeps its press unless another is
-                -- clearly worth more (no target flapping, ny30f t328-335)
-                if cur ~= nil and cur.slot == n.slot then score = score - 12 end
-                cands[#cands + 1] = { score = score, n = n, d = d, style = n.style, key = key, stack = n.stack }
-                if R ~= nil and n.style == R.colour then own_ok = true end
-            end
-        end
-        -- raid seam33 play_tob_nylocas_normal_green: OWN COLOUR FIRST, as a
-        -- rule, not a weight.  "Each player should be assigned a style of
-        -- Nylocas to kill" (W :706) and "if your assigned nylocas are not
-        -- currently near or in the room, switch weapons ... until the assigned
-        -- nylocas return" (W :746): another seat's colour is taken only while
-        -- none of the raider's own can be pressed, except an aggro ("These
-        -- aggro's should be prioritised first", W :733).  The seam32 weight
-        -- (12 points, four tiles of running) left the meleer bowing greens 44
-        -- times and whipping greys 34 (s33ny1 pid 2), and 38 of 70 greys and
-        -- 31 of 72 blues chewed until they popped.
-        -- raid seam33: "NOT CURRENTLY NEAR OR IN THE ROOM" (W :746).  The
-        -- meleer's greys cannot be hit in their tunnel ("cannot melee them
-        -- until they reach said platform", E :160) but they are near: the
-        -- meleer does not take another seat's colour while one of its own
-        -- walks in, it goes to meet it where it leaves the tunnel ("Claw the
-        -- wave 6 east big as soon as it enters the room", trio guide, melee
-        -- waves 6-9).  ny.wait_for is the nearest such grey (HOME below).
-        ny.wait_for = nil
-        if R ~= nil and P.own_wait and R.colour == "melee" and not own_ok then
-            local bd = nil
-            for _, n in ipairs(v.nylos) do
-                if n.style == "melee" and not ny.nulled[n.slot] and (ny.doomed[n.slot] == nil or ny.doomed[n.slot] < v.tick) then
-                    local lx, lz = n.x - O.x, n.z - O.z
-                    local ea = n.big and P.explode_age_big or P.explode_age
-                    if (lx < P.floor[1] or lx > P.floor[3] or lz < P.floor[2]) and n.age < ea - 12 then
-                        local d = dist(me.x, me.z, n.x, n.z, n.size)
-                        if bd == nil or d < bd then bd, ny.wait_for = d, n end
-                    end
-                end
-            end
-        end
-        for _, c in ipairs(cands) do
-            local cleanup = ny.cleanup
-            if R ~= nil and (own_ok or ny.wait_for ~= nil) and P.own_first and not cleanup and c.style ~= R.colour and not c.n.fighting and not c.n.helps then c.score = c.score + 100 end
-            consider(c)
-        end
-        -- (an only-other-colour pick while waiting is no pick: wait)
-        if best ~= nil and ny.wait_for ~= nil and best.score >= 50 then best = nil end
-        -- THE FREEZE: "Ice barrage/burst any clumps of Nylocas you will not be
-        -- dealing with. Frozen nylocas cannot attack the pillars until
-        -- unfrozen ... all colours can be frozen" (E :164).  A clump of three
-        -- or more on a support that is being eaten, centred on a blue when one
-        -- is in it (the blues die to it; the others are nulled for the raider:
-        -- "they will only be removed from the arena when they explode", E :164).
-        for _, n in ipairs(v.nylos) do
-            local sp = n.support
-            local d = dist(me.x, me.z, n.x, n.z, n.size)
-            if (R == nil or R.freeze) and sp ~= nil and sp.frac < 0.7 and not (sp == lowest and sp.frac < 0.15 and alive_supports > 1)
-                and d <= ny.reach.magic and (ny.frozen[n.slot] or -1) < v.tick
-                and n.settled then
-                local clump, blues = {}, 0
-                for _, o in ipairs(v.nylos) do
-                    if (ny.frozen[o.slot] or -1) < v.tick and (ny.doomed[o.slot] == nil or ny.doomed[o.slot] < v.tick)
-                        and o.x <= n.x + 1 and o.x + o.size - 1 >= n.x - 1 and o.z <= n.z + 1 and o.z + o.size - 1 >= n.z - 1 then
-                        clump[#clump + 1] = o
-                        if o.style == "magic" then blues = blues + 1 end
-                    end
-                end
-                if #clump >= 3 and (n.style == "magic" or blues == 0) then
-                    consider({ score = -18 - 3 * #clump - (1 - sp.frac) * 10 + (n.style ~= "magic" and 2 or 0), n = n, d = d,
-                        style = "magic", spell = "ice_burst", clump = clump })
-                end
-            end
-        end
-        -- raid seam33: THE MAGE'S BURST.  "Magers and rangers should
-        -- prioritise killing clumps of nylocas with barrage" (W :729) and the
-        -- trio mage's "Barrage the 11 east doubles ... a value clump" (trio
-        -- guide, mage waves 10-12 and 21-23): with the Ayak worn, a clump of
-        -- P.burst_clump or more pressable blues in one 3x3 and nothing else in
-        -- it (another colour under the splash is nulled for the mage) is one
-        -- Ice Burst (Ancient Magicks, runes in the backpack: no staff needed)
-        -- instead of that many Ayak swings.
-        if R ~= nil and P.burst_clump ~= nil and R.colour == "magic" and ny.loadout.magic.powered then
-            for _, n in ipairs(v.nylos) do
-                local d = dist(me.x, me.z, n.x, n.z, n.size)
-                if n.style == "magic" and d <= P.reach.magic and not ny.nulled[n.slot]
-                    and (ny.doomed[n.slot] == nil or ny.doomed[n.slot] < v.tick)
-                    and n.settled then
-                    local clump, pure = {}, true
-                    for _, o in ipairs(v.nylos) do
-                        if o.x <= n.x + 1 and o.x + o.size - 1 >= n.x - 1 and o.z <= n.z + 1 and o.z + o.size - 1 >= n.z - 1 then
-                            if o.style ~= "magic" then pure = false
-                            elseif not ny.nulled[o.slot] and (ny.doomed[o.slot] == nil or ny.doomed[o.slot] < v.tick) then clump[#clump + 1] = o end
-                        end
-                    end
-                    if pure and #clump >= P.burst_clump then
-                        consider({ score = -30 - 6 * #clump, n = n, d = d, style = "magic", spell = "ice_burst", clump = clump, burst = true })
-                    end
-                end
-            end
-        end
-        -- raid seam51 play_tob_nylocas_whole: THE RANGER'S CHINS.  Blert's
-        -- trio rangers throw black chinchompas at the waves that stall a room
-        -- (range|wave10 CHIN_BLACK 23 of 27 rooms, 2 a room; wave 21 21 of 27;
-        -- wave 31 18 of 27), and the kills per attack say why: the reference's
-        -- ~0.85-1 against this plan's 0.6 (seam50 dup.py).  One throw at a
-        -- green lands on every copy in the 3x3 round it (player_ranged.rs2
-        -- ~player_chinchompa_splash, radius 1, one accuracy roll); only the
-        -- greens take it, the rest null the ranger (DMG :272).  The clumps are
-        -- the chewers on a support and a lane's wave walking in together.
-        if R ~= nil and P.chin ~= nil and ny.loadout.ranged_chin ~= nil then
-            if ny.chin_have == nil then
-                local cr, cn = QD.inv.count(ny.loadout.ranged_chin.item)
-                ny.chin_have = (cr == "ok") and cn or tostring(cr)
-            end
-            for _, n in ipairs(v.nylos) do
-                local d = dist(me.x, me.z, n.x, n.z, n.size)
-                if n.style == "ranged" and d <= P.chin.reach and not ny.nulled[n.slot]
-                    and (ny.doomed[n.slot] == nil or ny.doomed[n.slot] < v.tick)
-                    and (ny.blocked == nil or (ny.blocked[n.slot] or -1) < v.tick)
-                    and n.settled then
-                    local clump, worth, others = {}, 0, 0
-                    for _, o in ipairs(v.nylos) do
-                        if o.x <= n.x + 1 and o.x + o.size - 1 >= n.x - 1 and o.z <= n.z + 1 and o.z + o.size - 1 >= n.z - 1
-                            and not ny.nulled[o.slot] then
-                            if o.style == "ranged" and o.settled then
-                                if ny.doomed[o.slot] == nil or ny.doomed[o.slot] < v.tick then
-                                    clump[#clump + 1] = o
-                                    worth = worth + (o.big and 0.5 or 1)
-                                end
-                            else
-                                others = others + 1
-                                clump[#clump + 1] = o
-                            end
-                        end
-                    end
-                    if ny.chin_best == nil or worth > ny.chin_best then ny.chin_best = worth end
-                    if worth >= P.chin.clump then
-                        consider({ score = -30 - 8 * worth + P.chin.other * others + ((ny.worn ~= "ranged_chin") and 10 or 0),
-                            n = n, d = d, style = "ranged", key = "ranged_chin", clump = clump, chin = true })
-                    end
-                end
-            end
-        end
-        if best ~= nil then
-            local n = best.n
-            pick = { slot = n.slot, style = best.style, symbol = n.symbol, vas = false, d = best.d, x = n.x, z = n.z, big = n.big,
-                spell = best.spell, clump = best.clump, key = best.key or best.style, chin = best.chin, stack = best.stack }
-        end
+        pick = QD.raid._play_nylocas_solo_pick(c)
     end
 
     -- raid seam47 play_tob_nylocas_no_nulling: OUT FROM UNDER HER.  She drops
@@ -1939,22 +1981,10 @@ function QD.raid._play_nylocas_decide(st, v)
         press_now()
     end
 
-    -- raid seam33: the meleer meets its walking grey at the tunnel's mouth
-    -- (the floor tile nearest it; see "NOT CURRENTLY NEAR OR IN THE ROOM")
-    if pick == nil and intent.walk == nil and vas == nil and ny.wait_for ~= nil then
-        local n = ny.wait_for
-        local x = math.max(O.x + P.floor[1], math.min(O.x + P.floor[3], n.x))
-        local z = math.max(O.z + P.floor[2], math.min(O.z + P.floor[4], n.z))
-        if floor_ok(x, z) and not unsafe(x, z, 0) and (x ~= me.x or z ~= me.z)
-            and (st.walk_target == nil or st.walk_target.x ~= x or st.walk_target.z ~= z) then
-            intent.walk = { x = x, z = z }
-            ny.meets = (ny.meets or 0) + 1
-        end
-    end
     -- HOME: nothing to hit and off the centre -> back to it (E :162)
-    if pick == nil and intent.walk == nil and vas == nil and ny.wait_for == nil then
+    if R == nil and pick == nil and intent.walk == nil and vas == nil then
         local far = math.max(math.abs(me.x - home.x), math.abs(me.z - home.z))
-        if far > (ny.stand ~= nil and 1 or 2) and not unsafe(home.x, home.z, 0)
+        if far > 2 and not unsafe(home.x, home.z, 0)
             and (st.walk_target == nil or st.walk_target.x ~= home.x or st.walk_target.z ~= home.z) then
             intent.walk = { x = home.x, z = home.z }
             ny.homes = ny.homes + 1

@@ -105,6 +105,12 @@ def read_ticklog(run_directory):
             if kind == "raider":
                 # "hpmax H prmax P head I input N tgt S"
                 words = row["label"].split()
+                # owner_nylocas: a plan's machine state rides as `state=NAME/WAVE/IDX`
+                # (the server's ::tlnote, torirs_server_ticklog.c)
+                for word in words:
+                    if word.startswith("state="):
+                        row["state"] = word[len("state="):]
+                words = [w for w in words if not w.startswith("state=")]
                 for key, value in zip(words[0::2], words[1::2]):
                     try:
                         row[key] = int(value)

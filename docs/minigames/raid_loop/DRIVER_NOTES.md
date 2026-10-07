@@ -7581,3 +7581,13 @@ relay's start_room for every barrier room.
 The engine's approach asks `[proc,player_attackrange]` for the reach (torirs_server_combat.c
 player_weapon_attackrange), so a Longrange style or a powered staff on its Longrange button fires from its
 content reach (the Eye of Ayak 6, 8 on Focus). CONTENT_BUGS.md 2026-10-06 owner_tob_normal.
+
+
+## A plan's state in the tick log (owner_nylocas, 2026-10-06)
+
+`::tlnote <text>` (torirs_server_world.c ToriRSServer_RunCheatLadder) sets the raider's note; the tick log's
+RAIDER row then ends ` state=<text>` (torirs_server_ticklog.c ticklog_raider_row). A member holds no tick log,
+so its plan says its state to the server and the leader's log carries every seat's. The Nylocas trio machine
+sends `STATE/WAVE/IDX` on every change (api_drive.cheat, no reply wait). raid_report.read_ticklog parses it
+into row["state"]; raid_waves' FIRST DEVIATION line ends `[state ...]`. A binary without the C answers
+"debugproc not found" and the row carries nothing.

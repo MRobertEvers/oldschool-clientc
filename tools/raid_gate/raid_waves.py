@@ -328,7 +328,13 @@ def wave_lines(run_directory, script, report, only_wave=None, overrides=None):
                 firsts.append((found[0][0], name, role, found[0][1], found[0][2]))
     if firsts:
         t, name, role, kind, text = min(firsts)
-        lines.insert(1, "FIRST DEVIATION t%d wave %s %s %s: %s" % (t, name, role, kind, text))
+        # owner_nylocas: the role's machine state on that tick, when the plan names it
+        state = ""
+        pid = by_role.get(role)
+        for row in rows:
+            if row["kind"] == "raider" and row["tick"] == t and "state" in row and pid is not None and "p%d" % row.get("pid", -1) == pid:
+                state = " [state %s]" % row["state"]
+        lines.insert(1, "FIRST DEVIATION t%d wave %s %s %s: %s%s" % (t, name, role, kind, text, state))
     return lines
 
 

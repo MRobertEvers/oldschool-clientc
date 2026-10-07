@@ -922,10 +922,11 @@ ticklog_raider_row(
         target = player->interaction.npc_slot;
     input = player->last_input_tick != g_ticklog.input_seen[player->pid];
     g_ticklog.input_seen[player->pid] = player->last_input_tick;
-    snprintf(label, sizeof(label), "hpmax %d prmax %d head %d input %d tgt %d",
+    snprintf(label, sizeof(label), "hpmax %d prmax %d head %d input %d tgt %d%s%s",
              player->stat_level[TORIRSSERVER_STAT_HITPOINTS],
              player->stat_level[TORIRSSERVER_STAT_PRAYER], player->headicons,
-             input, target);
+             input, target, player->ticklog_note[0] ? " state=" : "",
+             player->ticklog_note);
     ticklog_write_side(TORIRSSERVER_TICKLOG_RAIDER, player->pid,
                        player->stat_boosted[TORIRSSERVER_STAT_HITPOINTS],
                        player->stat_boosted[TORIRSSERVER_STAT_PRAYER],
