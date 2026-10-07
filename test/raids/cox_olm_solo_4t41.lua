@@ -490,6 +490,9 @@ return {
                 local mrow = npc_ok(t, mage)
                 if mrow == nil then
                     sm.mage_kills = sm.mage_kills + 1
+                    -- Top up between claws (Synq mid-fight eat).
+                    t.cheat("::give shark 8")
+                    t.cheat("::give br_4dose2restore 3")
                     -- Do NOT gear-swap here: equip blocks decide() and a sphere
                     -- already in flight lands unblockable. SETUP_41 equips one
                     -- item per tick while sphere_flick keeps running.
