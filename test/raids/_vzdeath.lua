@@ -1,8 +1,12 @@
--- _play_verzik_p3: Verzik Vitur, Normal trio, the FAST pace, P3 only (the
--- leader spends P1 and P2 with ::tobvzskip).  owner_verzik 2026-10-07: the
--- three-scythe team (_play_verzik.lua's kit) that kills her before her green
--- ball; the rotation rows report, p3.fast_before_ball is checked.  The
--- shared half is QD.raid.verzik_trio_run in raid_play_tob_verzik.lua.
+-- _vzdeath: Verzik Vitur, Normal trio, a raider DIES in P1 and the
+-- other two finish the room.  owner_verzik 2026-10-07, the owner: "Check what
+-- happens when a player dies in the raid, and ensure they are put in the
+-- observation until the end of the raid."  Role 3 dies by ::die in P1 (the
+-- whole death sequence, player/death.rs2), the leader spends P1 and P2 with
+-- ::tobvzskip, the fast pair kills P3.  Checked: the death animation, caged
+-- at every reading through P1, P2 and P3 until the room is won, the raid's
+-- death counter, out of the cage after the win, P3 cleared by the two.
+-- QD.raid.verzik_trio_run (cfg.kill_role) in raid_play_tob_verzik.lua.
 local role = (QD_PARTY and QD_PARTY.role) or 1
 -- The kit: _play_verzik.lua's party kit (::tobkit, oathplate, rancour, the
 -- supplies; raid seam45/seam52 from Blert equipmentDeltas)
@@ -21,12 +25,12 @@ local kit = {
 }
 if role == 1 then kit[#kit + 1] = "::give verzik_special_weapon 1" end
 return {
-    id = "_play_verzik_p3",
+    id = "_vzdeath",
     fixture = "fresh_lumbridge.ini",
     party = 3,
     max_frames = 400000,
     setup = kit,
     run = function(t)
-        return t.raid.verzik_trio_run(t, { pace = "fast", start = "p3", cycle = false })
+        return t.raid.verzik_trio_run(t, { pace = "fast", start = "p3", cycle = false, ball_check = false, kill_role = 3 })
     end,
 }

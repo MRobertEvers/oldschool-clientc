@@ -1295,6 +1295,164 @@ function QD.raid._verzik_spec_dump(st, v, intent)
     end
 end
 
+-- owner_verzik 2026-10-07: THE ENRAGE RING RUN, a state machine copied from
+-- Blert's Normal trios (build/blert/verzik, 27 rooms, every raider every tick
+-- of the enrage): beside her footprint 62% of ticks, under it 14%, two or more
+-- out 24%; moving two tiles a tick on 67%; 13 swings a team in a 25-35 tick
+-- enrage (~0.43 a tick); 0-2 tornado touches a room.  The rule that keeps the
+-- tornado off: it touches only its own raider, on the raider's tile, at its
+-- turn (tob_verzik.rs2 ~tob_verzik_tornado_tick, OSRS-Content fdf77aae1c), and
+-- it steps one tile toward where I stood at the end of the tick before -- so
+-- every tile I end a tick on is two or more from its next step.  Checked
+-- offline (scratchpad vz/sim3.py: three raiders, their own tornadoes, her
+-- follow and her melee): a 30-tick median enrage (max 36), 0 touches, 0.53
+-- swings a tick; with one decide in ten lost, 34.5 (max 55), 0.3 touches, 0.47.
+--
+-- STATES (one a tick, each handles every event below):
+--   PROTECT  the yellows charge: my pool, reached through safe tiles; the pool
+--            itself once the charge is within its walk and four ticks
+--   SHARE    the green ball in the air: within its last four ticks of flight
+--            the trio takes tiles beside the target (each tile safe from its
+--            own tornado's next step); the target holds on a safe tile
+--   SWING    my weapon ready, a tile in my reach under me, my tornado's next
+--            step two or more away, not on her melee scan (the two ticks
+--            before her attack, beside her): stand and swing
+--   EAT      riding RING or SWING: a bite only with my tornado five or more
+--            away (a block holds the decide), or at low hitpoints
+--   RING     otherwise the ring tile two-step: on or beside her, in reach when
+--            the swing is due, away from my tornado, off the walls, apart
+-- EVENTS: my tornado's step (its next tile), the ball, the pools, a crab
+-- within three, her move (her footprint each tick), her attack clock (the hold),
+-- low hitpoints.
+-- Returns the state name, having set intent.walk / intent.attack.
+function QD.raid._verzik_ring(st, v, c)
+    local P, vz = st.plan, st.vz
+    local me, b, reach, intent = v.me, v.boss, c.reach, c.intent
+    local O, F = st.origin, P.floor
+    local n = b.size or 1
+    local function dboss(x, z) return QD.raid._verzik_dist(x, z, b) end
+    local function floor(x, z)
+        return x >= O.x + F[1] and x <= O.x + F[3] and z >= O.z + F[2] and z <= O.z + F[4]
+    end
+    -- the tornadoes that can reach me
+    local threats = {}
+    for slot, e in pairs(vz.tor or {}) do
+        local d = math.max(math.abs(e.x - me.x), math.abs(e.z - me.z))
+        -- (every one within six: a wrong "mine" is a touch; the offline
+        -- chase with all of them as threats still ran 0 touches, a 34-tick
+        -- median and 0.47 swings a tick)
+        if d <= 6 then
+            local nx, nz = e.x, e.z
+            if me.x > nx then nx = nx + 1 elseif me.x < nx then nx = nx - 1 end
+            if me.z > nz then nz = nz + 1 elseif me.z < nz then nz = nz - 1 end
+            threats[#threats + 1] = { nx, nz }
+        end
+    end
+    local function clear(x, z)
+        local m = 99
+        for _, t in ipairs(threats) do m = math.min(m, math.max(math.abs(x - t[1]), math.abs(z - t[2]))) end
+        return m
+    end
+    local hold = c.next_attack ~= nil and v.tick >= c.next_attack - 2 and v.tick < c.next_attack
+    local ready = QD.raid._play_next_swing(st, v) <= v.tick + 1
+    local db = dboss(me.x, me.z)
+    -- THE TARGET this tick: a pool, a share tile, or none (the ring)
+    local target, state, pull = nil, "RING", 0
+    if c.pool ~= nil and not c.on_pool then
+        target, state = { x = c.pool.x, z = c.pool.z }, "PROTECT"
+        local left = (vz.pool_first or v.tick) + P.pool_life - v.tick
+        pull = (left <= math.ceil(c.pool.d / 2) + 4) and 60 or 10
+    elseif c.pool ~= nil and c.on_pool then
+        state = "PROTECT"
+    elseif c.ball ~= nil then
+        state = "SHARE"
+        local t = c.ball
+        if t.x == me.x and t.z == me.z then
+            target = nil
+        elseif t.left <= 4 then
+            target, pull = { x = t.x, z = t.z, adj = true }, 60
+        else
+            target, pull = { x = t.x, z = t.z, adj = true }, 6
+        end
+    end
+    -- PROTECT on its pool: stand there (no press: it paths off the pool)
+    if state == "PROTECT" and target == nil then
+        intent.walk, intent.attack = nil, false
+        vz.ring_states = vz.ring_states or {}
+        vz.ring_states.PROTECT = (vz.ring_states.PROTECT or 0) + 1
+        return "PROTECT"
+    end
+    -- SWING
+    if state == "RING" and ready and db >= 1 and db <= reach and clear(me.x, me.z) >= 2 and not (hold and db == 1) then
+        intent.walk, intent.attack = nil, true
+        vz.ring_states = vz.ring_states or {}
+        vz.ring_states.SWING = (vz.ring_states.SWING or 0) + 1
+        return "SWING"
+    end
+    -- the two-step
+    local mx, mz = b.x + (n - 1) / 2, b.z + (n - 1) / 2
+    local near_t, near_d = nil, 99
+    for _, t in ipairs(threats) do
+        local d = math.max(math.abs(t[1] - me.x), math.abs(t[2] - me.z))
+        if d < near_d then near_d, near_t = d, math.atan(t[2] - mz, t[1] - mx) end
+    end
+    local best, bx, bz = nil, nil, nil
+    for _, need in ipairs({ 2, 1, 0 }) do
+        if best == nil then
+            for dx = -2, 2 do
+                for dz = -2, 2 do
+                    local x, z = me.x + dx, me.z + dz
+                    if floor(x, z) and clear(x, z) >= need then
+                        local dd = dboss(x, z)
+                        if not (hold and dd == 1) then
+                            local sc = math.max(0, dd - reach) * 25
+                            if ready and dd >= 1 and dd <= reach and state == "RING" then sc = sc - 40 end
+                            sc = sc - math.min(clear(x, z), 6) * 4
+                            local wall = math.min(x - (O.x + F[1]), (O.x + F[3]) - x, z - (O.z + F[2]), (O.z + F[4]) - z, 3)
+                            sc = sc + (3 - wall) * 15
+                            for _, m in ipairs(c.mates) do
+                                if math.max(math.abs(m.x - x), math.abs(m.z - z)) <= 1 and state ~= "SHARE" then sc = sc + 5 end
+                            end
+                            for _, cr in ipairs(v.crabs or {}) do
+                                if math.max(math.abs(cr.row.x - x), math.abs(cr.row.z - z)) <= 3 then sc = sc + 30 end
+                            end
+                            if target ~= nil then
+                                local td = math.max(math.abs(x - target.x), math.abs(z - target.z))
+                                if target.adj then td = math.max(0, td - 1) end
+                                sc = sc + td * pull
+                            end
+                            sc = sc + math.max(math.abs(dx), math.abs(dz))
+                            -- ROUND HER, AWAY FROM IT: the angle round her middle
+                            -- between my tile and the nearest tornado, 10 a radian
+                            -- (the offline chase: one decide in five lost, 3.9 ->
+                            -- 2.6 touches and an 84 -> 65 tick enrage; it stops the
+                            -- ping-pong over the tornado in a strip beside her,
+                            -- _play_verzik_slow_p3 P3+304-310)
+                            if near_t ~= nil then
+                                local a = math.atan(z - mz, x - mx)
+                                local da = math.abs((a - near_t + math.pi) % (2 * math.pi) - math.pi)
+                                sc = sc - da * 10
+                            end
+                            if best == nil or sc < best then best, bx, bz = sc, x, z end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    if bx ~= nil and (bx ~= me.x or bz ~= me.z) then
+        intent.walk = { x = bx, z = bz }
+        st.engaged = false
+        vz.target_slot = nil
+    else
+        intent.walk = nil
+    end
+    intent.attack = false
+    vz.ring_states = vz.ring_states or {}
+    vz.ring_states[state] = (vz.ring_states[state] or 0) + 1
+    return state
+end
+
 -- ==========================================================================
 -- THE VERZIK PLAN'S DECIDE (PLAY_NOTES.md "Verzik").
 -- ==========================================================================
@@ -2201,7 +2359,32 @@ function QD.raid._play_verzik_decide(st, v)
                 end
             end
         end
-        if share ~= nil then
+        -- owner_verzik: THE ENRAGE IS THE RING RUN (QD.raid._verzik_ring)
+        local ring_state = nil
+        if melee and vz.enraged and st.mode == "normal" and vz.m3.bound_tick ~= v.tick and not webbed then
+            local ballinfo = nil
+            for _, pr in ipairs(v.proj) do
+                if pr.spotanim_id == P.ball_proj then
+                    ballinfo = { x = pr.dst_x, z = pr.dst_z, left = math.ceil((pr.cycles_left or 0) / QD.RAID_PLAY_CYCLES_PER_TICK) }
+                end
+            end
+            if ballinfo == nil and cyc.share ~= nil and cyc.share.until_tick ~= nil and v.tick <= cyc.share.until_tick then
+                -- (landed: hold beside the target through the hops)
+                ballinfo = { x = cyc.share.x, z = cyc.share.z, left = 0 }
+            end
+            ring_state = QD.raid._verzik_ring(st, v, { reach = reach, intent = intent, mates = mates,
+                pool = pool, on_pool = on_pool, ball = ballinfo, next_attack = m3_next })
+            vz.m3.ring_log = vz.m3.ring_log or {}
+            if #vz.m3.ring_log < 200 then
+                local tl = {}
+                for slot, e in pairs(vz.tor or {}) do tl[#tl + 1] = (slot % 10) .. ":" .. e.x .. "," .. e.z end
+                vz.m3.ring_log[#vz.m3.ring_log + 1] = v.tick .. ring_state:sub(1, 2) .. "@" .. me.x .. "," .. me.z
+                    .. (intent.walk and (">" .. intent.walk.x .. "," .. intent.walk.z) or "") .. "[" .. table.concat(tl, ";") .. "]"
+            end
+        end
+        if ring_state ~= nil then
+            share = nil
+        elseif share ~= nil then
             cyc.sharing = (cyc.sharing or 0) + 1
             if me.x ~= share.x or me.z ~= share.z then
                 intent.walk = { x = share.x, z = share.z }
@@ -2549,7 +2732,7 @@ function QD.raid._play_verzik_decide(st, v)
             intent.walk = nil
             vz.m3.bound_walks = (vz.m3.bound_walks or 0) + 1
         end
-        if intent.walk == nil and pool == nil and share == nil then crab = QD.raid._verzik_crabs(st, v, ok, go) end
+        if intent.walk == nil and pool == nil and share == nil and ring_state == nil then crab = QD.raid._verzik_crabs(st, v, ok, go) end
         -- raid seam45: melee never swings at a nylocas (its death blasts
         -- everyone within 3, ~tob_verzik_crab_blast); it is only run from
         if melee then crab = nil end
@@ -2559,7 +2742,7 @@ function QD.raid._play_verzik_decide(st, v)
         -- clock, tob_verzik.rs2 ^tob_var_vz_suspend, so no attack comes while
         -- they charge; _play_verzik_slow_p3 P3+163: the tank stepped off its
         -- pool beside her body the tick before the blast)
-        if melee and m3_hold and intent.walk == nil and share == nil and pool == nil and vz.m3.tor_tick ~= v.tick then
+        if melee and m3_hold and intent.walk == nil and share == nil and pool == nil and vz.m3.tor_tick ~= v.tick and ring_state == nil then
             vz.m3.holds = vz.m3.holds + 1
             if d_boss == 1 then
                 local sx, sz = QD.raid._verzik_step_out(st, v, okp, mates)
@@ -2586,7 +2769,13 @@ function QD.raid._play_verzik_decide(st, v)
         -- relay's own name, P3, 44 taken at 44 hitpoints).  Standing still on
         -- it for the window keeps him on it; outside the window nothing changes.
         local blast_close = pool ~= nil and on_pool and vz.pool_first ~= nil and v.tick >= vz.pool_first + P.pool_life - 4
-        if share ~= nil then
+        if ring_state ~= nil then
+            -- (the ring set the press; its SWING dumps the claws, W:992)
+            if ring_state == "SWING" then
+                if vz.target_slot ~= nil then st.engaged = false vz.target_slot = nil end
+                if not tor_near then QD.raid._verzik_spec_dump(st, v, intent) end
+            end
+        elseif share ~= nil then
             -- (the shared ball: no press, it paths off the corner)
             intent.attack = false
         elseif intent.walk == nil and blast_close then
@@ -2722,7 +2911,9 @@ end
 
 -- ==========================================================================
 -- owner_verzik 2026-10-07: THE TRIO HARNESS'S SHARED HALF.  The Normal trio
--- room as test/raids/_play_verzik_slow*.lua and _play_verzik_p3.lua play it
+-- room as test/raids/_vzslow.lua, _vzslowp3.lua, _vzfastp3.lua and _vzdeath.lua play it (renamed
+-- 2026-10-07 from _play_verzik_slow*, _play_verzik_p3, _play_verzik_death: run names must differ in
+-- their first nine characters, run.py / seed_survey.py)
 -- (one copy here, not one per harness file: the run.py wrapper embeds each
 -- test file whole and gives it no include).  cfg:
 --   pace   "slow" | "fast"   (QD.raid.verzik_pace, the plan header's table)
@@ -3023,7 +3214,7 @@ function QD.raid.verzik_trio_run(t, cfg)
     local cyc = vz.cyc or { seen = {} }
     t.check("play.measure_raider", true, string.format("p%d %s held %s: %s; eats %d, drinks %d, swings %d; cycle as seen %s; ball at me first seen t%s; ticks on a shared-ball corner %s; enrage log %s",
         role, tostring(vz.pace), tostring(vz.main), tostring(detail), #rec.eats, #rec.drinks, #rec.swings,
-        table.concat(cyc.seen or {}, " "), tostring(cyc.target_me), tostring(cyc.sharing or 0), table.concat((vz.m3 or {}).log or {}, " ")) .. " DODGE " .. table.concat((vz.m3 or {}).dbg or {}, " ") .. " DECIDES " .. tostring(vz.dec and vz.dec.n) .. " missed " .. tostring(vz.dec and vz.dec.gaps) .. " bare " .. tostring(vz.bare_steps))
+        table.concat(cyc.seen or {}, " "), tostring(cyc.target_me), tostring(cyc.sharing or 0), table.concat((vz.m3 or {}).log or {}, " ")) .. " RING " .. table.concat((vz.m3 or {}).ring_log or {}, " ") .. " DODGE " .. table.concat((vz.m3 or {}).dbg or {}, " ") .. " DECIDES " .. tostring(vz.dec and vz.dec.n) .. " missed " .. tostring(vz.dec and vz.dec.gaps) .. " bare " .. tostring(vz.bare_steps))
     if role ~= 1 then
         t.expect("party.barrier.done", t.party.barrier("done", 9000))
         t.finish(0)

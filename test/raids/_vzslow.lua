@@ -1,4 +1,4 @@
--- _play_verzik_slow_p3: Verzik Vitur, Normal trio, the SLOW pace (P3 only: the leader spends P1 and P2 with ::tobvzskip).
+-- _vzslow: Verzik Vitur, Normal trio, the SLOW pace (the whole room).
 -- owner_verzik 2026-10-07.  The owner: "Add a slow Verzik script that kills
 -- p3 slow enough so that the green orb appears. We are testing content to
 -- ensure it's accurate so our raid scripts have to exercise that too."  The
@@ -59,12 +59,12 @@ if role >= 2 then kit[#kit + 1] = "::give noxious_halberd 1" end
 -- and restores).
 kit[#kit + 1] = "::give anglerfish " .. ((role == 1) and 17 or 15)
 return {
-    id = "_play_verzik_slow_p3",
+    id = "_vzslow",
     fixture = "fresh_lumbridge.ini",
     party = 3,
     max_frames = 400000,
     setup = kit,
     run = function(t)
-        return t.raid.verzik_trio_run(t, { pace = "slow", start = "p3", cycle = true, unworn = { [2] = { "ultor_ring" }, [3] = { "ultor_ring" } } })
+        return t.raid.verzik_trio_run(t, { pace = "slow", start = "room", cycle = true, unworn = { [2] = { "ultor_ring" }, [3] = { "ultor_ring" } } })
     end,
 }
