@@ -1,27 +1,38 @@
 # Live per-room orchestrators (this run)
 
-Do not resume unless the parent asks. Agents were told not to git commit
-unless the parent says otherwise.
+## HARD STOP — 2026-10-07 (parent)
 
-**STOP (2026-10-07):** Do not `git checkout -f`, reset, stash-drop, or
-overwrite sibling `test/raids/cox_*.lua` / `OSRS-Content` trees. Edit only
-your ownership row in `ROOM_AGENT.md`. See workspace rule
-`cox-room-agent-no-clobber` and `ROOM_AGENT.md` § "Do not move or clobber".
+**All room agents: STOP WORK. Idle. Do not edit the tree.**
 
-| Room | Agent ID |
-|---|---|
-| tekton | bc-d8bc5247-9020-537a-bc01-953856a6e200 |
-| guardians | bc-36e57d6c-c0a4-54ad-9976-d2699a5311c3 |
-| vespula | bc-fb0ab973-c75c-5858-904b-d383618c8cbb |
-| icedemon | bc-bdf6ec09-4078-5353-97fa-f67250200e2a |
-| tightrope | bc-48602814-f889-5a4b-b59f-b531d9c6b763 |
-| crabs | bc-e2a3208d-64e0-5db3-8e8c-8ab7a122b8a7 |
-| thieving | bc-311e5e87-f634-5584-8481-aa63d95c7978 |
-| resource | bc-cb753ee5-02cd-5e19-bdeb-2ffb116453db |
-| shamans | bc-78e89317-b21a-5369-ba0d-6ac060166133 |
-| mystics | bc-d3cf9a9c-ce66-5444-b82f-12898c7c9e53 |
-| vasa | bc-47112672-81a0-5c55-8de1-ed8cc4958456 |
-| vanguards | bc-a4e27b30-0513-559d-8698-2999674d066f |
-| muttadiles | bc-68d32325-2635-566e-aeea-2eb464a6772b |
-| scavenger_small | bc-231b0847-6e20-5664-9d13-0c06c5af2e6e |
-| olm | bc-e55662a8-4b46-5913-9273-491f3425fe4b |
+Cause: parallel agents share one checkout and are still racing it
+(`cp` of `.owned` pins, `--rebuild-scripts`, branch hops, pin-restore
+watchers). Rules were not enough; work is frozen until parent unfreezes
+**your room by name**.
+
+### Forbidden until unfreeze (every agent)
+
+- Any edit under `OSRS-Content/`, `test/raids/`, `docs/minigames/cox/`
+- `git checkout` / `switch` / `checkout -f` / `reset` / `clean` / `stash`
+- `cp` / `sed` of harnesses or `.owned` pin restores
+- `run.py` / `gate.py` / pack rebuild / `--rebuild-scripts`
+- Background watchers / gate shell scripts
+- Touching sibling rooms or `AGENTS.md` on another branch
+
+### Allowed
+
+- Reply “idle” to parent. Nothing else.
+
+### Green lanes (already done — stay idle)
+
+| Room | Agent | Branch / PR |
+|---|---|---|
+| tightrope | bc-0e60f709-4b14-5912-b2ee-beb76784676d | `cursor/cox-tightrope-traversal-da39` #137 |
+| icedemon | bc-28036115-f582-5175-aaf5-64487f2d13ab | `cursor/cox-icedemon-sm-da39` #138 |
+| scavenger_small | bc-96c722d5-2e31-5f0a-87cc-8fc0811baac7 | `cursor/cox-scavenger-small-da39` #139 |
+| thieving | bc-311e5e87-f634-5584-8481-aa63d95c7978 | `cursor/cox-thieving-status-7978` #140 |
+
+### Still RUNNING (will be stopped on next idle)
+
+Do not start new work. When your turn ends, stay idle.
+
+See `cox-room-agent-no-clobber` and `ROOM_AGENT.md`.

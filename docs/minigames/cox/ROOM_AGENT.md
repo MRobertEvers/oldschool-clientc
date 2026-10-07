@@ -40,11 +40,13 @@ stash/drop, `sed`/`cp` over sibling harnesses, and submodule pointer swings.
 
 | Forbidden | Why |
 |---|---|
+| **Leaving your room branch** (`git checkout` / `switch` to parent, `v3`, sibling) | Cross-contaminates every shared path; parent also stays put |
 | `git checkout -f` / `reset --hard` / `clean` on parent or `OSRS-Content/` | Deletes every other room's uncommitted work |
 | Overwriting `test/raids/cox_<other>.lua` | Harnesses are per-room ownership |
 | Submodule gitlink → a commit that drops sibling rooms | Steals their content from the PR |
 | "Pin restore" / `sed -i` of another room's script before your gate | Race that reverts their SM |
 | Parking or moving `OSRS-Content/.../scripts` trees | Same as `no-park-sibling-content` |
+| Timer watchers that rewrite sibling files | Silent clobber while others gate |
 
 If the shared pack/sscompile is broken by a sibling: **wait or report**.
 Do not fix it by resetting the tree. Use `--no-build` and a private

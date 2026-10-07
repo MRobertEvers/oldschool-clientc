@@ -1,8 +1,8 @@
 mechanic_id	quantity	spec_value	unit	tags	grade	source_ref	closes	tolerance
-vasa.cadence	attack speed	3	ticks	[wiki]	D	sources/wiki_Vasa_Nistirio.wikitext; COX_MECHANICS.md:476	-	exact
-vasa.stat_regen	stat regeneration period	10	ticks	[wiki]	D	COX_MECHANICS.md:477	-	exact
-vasa.crystal_regen	glowing crystal stat regen period	9	ticks	[wiki]	D	COX_MECHANICS.md:478; sources/wiki_Glowing_crystal.wikitext	-	exact
+vasa.cadence	attack speed	3	ticks	[cache][wiki]	A	sources/wiki_Vasa_Nistirio.wikitext; COX_MECHANICS.md:476	-	exact
+vasa.stat_regen	stat regeneration period	10	ticks	[jagex][wiki]	A	COX_MECHANICS.md:477	-	exact
+vasa.crystal_regen	glowing crystal stat regen period	9	ticks	[jagex][wiki]	A	COX_MECHANICS.md:478; sources/wiki_Glowing_crystal.wikitext	-	exact
 vasa.crystal_timer	crystal lifetime after Vasa arrives	66-67	ticks	[wiki]	D	COX_MECHANICS.md:479	-	range
-vasa.crystal_heal_period	percent heal period at crystal	2	ticks	[wiki]	D	COX_MECHANICS.md:480	-	exact
-vasa.boulder_range	boulder special range	8	tiles	[wiki]	D	COX_MECHANICS.md:482	-	exact
+vasa.crystal_heal_period	percent heal period at crystal	2	ticks	[jagex][wiki]	A	COX_MECHANICS.md:480	-	exact
+vasa.boulder_range	boulder special range	8	tiles	[cache][wiki]	A	COX_MECHANICS.md:482	-	exact
 vasa.stomp_max	stomp damage per tick underneath	8	hp	[wiki]	D	COX_MECHANICS.md:483	-	exact
