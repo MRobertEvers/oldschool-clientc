@@ -5,6 +5,7 @@
 -- cheats; the fight is Measure (world.lua) -> Decide (here) -> Act (act.lua).
 
 local World = require("world")
+local Move = require("raid_move")
 local V = {}
 
 local VERZIK = {
@@ -238,6 +239,172 @@ local function p1_left(vz)
     return vz.hp - (vz.hpmax - P1_HP)
 end
 
+-- P2 (Normal trio, halberds).  Her 5x5 attacks every 4 ticks; anyone UNDER
+-- her draws the stomp and anyone NEXT to her the body slam (tob_verzik.rs2
+-- [proc,tob_verzik_body_slam]), so every raider holds a home two out -- the
+-- halberd's reach -- one west, one east, one south (the old plan's
+-- QD.raid._verzik_p2_home; W:904).  Urn bombs land on a tile 2-3 ticks after
+-- the cast: never stand on one when it lands.  The adds: the Athanatos heals
+-- her until a poisoned hit removes it (owner ruling), so the seat nearest it
+-- at its spawn wears the serpentine helm and hits it; the Matomenos (reds) are
+-- killed on sight; a dying nylocas blasts everything within 3 (W:925), and
+-- that is the only time to run from one (owner: "only run away when they are
+-- in the pop zone").  No swing on her for 5 ticks after a summon: it heals her
+-- (Entry_Mode.wikitext:231).
+local P2_SUMMON, P2_ABSORB = 8117, 5
+local BOMB = 1583
+local ATHANATOS = { tob_verzik_phase2_armourednylocas = true }
+local REDS = { tob_verzik_phase2_bloodnylocas = true }
+local NYLO = { verzik_nylocas_melee = true, verzik_nylocas_ranged = true, verzik_nylocas_magic = true }
+local HALBERD, SERP = "noxious_halberd", "serpentine_helm_charged"
+
+local function foot_dist(n, x, z)
+    local s = n.size or 1
+    local dx = math.max(n.x - x, 0, x - (n.x + s - 1))
+    local dz = math.max(n.z - z, 0, z - (n.z + s - 1))
+    return math.max(dx, dz)
+end
+
+local function p2_home(vz, seat)
+    local n, mid = vz.size or 5, 2
+    if seat == 2 then return vz.x + n + 1, vz.z + mid end
+    if seat == 3 then return vz.x + mid, vz.z - 2 end
+    return vz.x - 2, vz.z + mid
+end
+
+local function p2(world, me, m, mems, seats, vz, O, intent)
+    local t = world.tick
+    -- gear for the phase: the halberd in hand, the serpentine helm on
+    intent.op = intent.op or {}
+    local hs, h = World.inv_slot(me, HALBERD)
+    if hs ~= nil then intent.op[#intent.op + 1] = { 2, h.obj, hs } end
+    local ss, s = World.inv_slot(me, SERP)
+    if ss ~= nil then intent.op[#intent.op + 1] = { 2, s.obj, ss } end
+    for _, ev in ipairs(world.events) do
+        if ev.kind == "npc_anim" and ev.npc.slot == vz.slot and ev.anim == P2_SUMMON then m.summon = t end
+        if ev.kind == "npc_spawn" and ATHANATOS[ev.npc.name] then
+            -- the poisoner: the living seat nearest it now, ties to the lower seat
+            local best, bd = nil, nil
+            for _, pid in ipairs(seats) do
+                local o = world.players[pid]
+                if mems[pid].died == nil and o.x ~= nil then
+                    local d = cheb(o.x, o.z, ev.npc.x, ev.npc.z)
+                    if bd == nil or d < bd or (d == bd and mems[pid].seat < mems[best].seat) then best, bd = pid, d end
+                end
+            end
+            m.poisoner = best
+        end
+    end
+    -- the target
+    local target = nil
+    local ath = world:find(ATHANATOS, me.x, me.z)[1]
+    if ath ~= nil and m.poisoner == me.pid then target = ath end
+    if target == nil then target = world:find(REDS, me.x, me.z)[1] end
+    local absorbing = m.summon ~= nil and t - m.summon <= P2_ABSORB
+    if target == nil and not absorbing then target = vz end
+    -- the tile: hazards hard, home soft
+    local hx, hz = p2_home(vz, m.seat)
+    local bombs = {}
+    for _, pr in ipairs(world.projectiles) do
+        if pr.spotanim == BOMB and pr.land >= t then bombs[#bombs + 1] = pr end
+    end
+    local dying = {}
+    for _, n in pairs(world.npcs) do
+        if n.alive and n.dying and NYLO[n.name] then dying[#dying + 1] = n end
+    end
+    local q = {
+        me = me, step = 2, stay_w = 2,
+        ok = function(x, z) return walkable(world, O, x, z) end,
+        hard = {
+            { name = "slam", pen = 600, bad = function(x, z) return foot_dist(vz, x, z) <= 1 end },
+            { name = "bomb", pen = 500, bad = function(x, z)
+                for _, b in ipairs(bombs) do if b.dx == x and b.dz == z and b.land <= t + 3 then return true end end
+                return false
+            end },
+            { name = "pop", pen = 700, bad = function(x, z)
+                for _, n in ipairs(dying) do if foot_dist(n, x, z) <= 3 then return true end end
+                return false
+            end },
+        },
+        soft = {},
+    }
+    -- the target is hit only from a tile already in the halberd's reach: an
+    -- attack click leaves the path to the server, and the server's path to a
+    -- red beside her runs under her (vzb4 t629: seat 2 stomped for 53 chasing
+    -- a red); so the walk is mine, to a tile the hazards allow
+    if target == vz or target == nil then
+        q.soft[#q.soft + 1] = { name = "home", w = 6, cost = function(x, z) return cheb(x, z, hx, hz) end }
+    end
+    if target ~= nil then
+        q.soft[#q.soft + 1] = { name = "reach", w = 10, cost = function(x, z) return math.max(0, foot_dist(target, x, z) - 2) end }
+    end
+    local r = Move.solve(q)
+    local here, here_broke = Move.cost_at(q, me.x, me.z)
+    local in_reach = target ~= nil and foot_dist(target, me.x, me.z) <= 2 and foot_dist(target, me.x, me.z) >= 1
+    if r.moved and (here_broke ~= nil or here > r.cost + 4 or (target ~= nil and not in_reach)) then
+        intent.walk = { x = r.x, z = r.z }
+        intent.why = intent.why .. "p2 move " .. (r.x - O.x) .. "," .. (r.z - O.z) .. (here_broke and ("!" .. here_broke) or "") .. " "
+        return intent
+    end
+    if target ~= nil and not in_reach then
+        return intent
+    end
+    if target ~= nil and (me.target ~= target.slot) then
+        intent.attack = target.slot
+        intent.why = intent.why .. "p2 hit " .. target.name .. " "
+    elseif target == nil and me.target ~= nil and me.target >= 0 then
+        intent.walk = { x = me.x, z = me.z }
+        intent.why = intent.why .. "p2 hold (absorb) "
+    end
+    return intent
+end
+
+-- CONSUMABLES.  A potion is "br_<doses>dose<name>"; the fewest doses first, so
+-- a slot empties before another is opened.  Prayer is restored under 25 (vzb4
+-- t205: "You have run out of Prayer points" -- no Protect from Magic, no Piety
+-- for the rest of P2), the super combat is drunk as each fighting phase opens,
+-- food first and the brew once the food is gone.
+local function potion(me, name)
+    for doses = 1, 4 do
+        local slot, it = World.inv_slot(me, "br_" .. doses .. "dose" .. name)
+        if slot ~= nil then return slot, it end
+    end
+    return nil
+end
+
+local function consume(world, me, m, vz, intent, eat_below)
+    local t = world.tick
+    intent.op = intent.op or {}
+    if (m.drank or -9) + 2 > t then return end
+    if me.prayer ~= nil and me.prayer < 25 then
+        local slot, it = potion(me, "2restore")
+        if slot ~= nil then
+            intent.op[#intent.op + 1] = { 1, it.obj, slot }
+            m.drank = t
+            intent.why = intent.why .. "restore "
+            return
+        end
+    end
+    if vz ~= nil and m.boosted_for ~= vz.name and (vz.name == "verzik_phase1" or vz.name == "verzik_phase2" or vz.name == "verzik_phase3") then
+        local slot, it = potion(me, "2combat")
+        if slot ~= nil then
+            intent.op[#intent.op + 1] = { 1, it.obj, slot }
+            m.drank, m.boosted_for = t, vz.name
+            intent.why = intent.why .. "combat "
+            return
+        end
+    end
+    if me.hp ~= nil and me.hp < eat_below and (m.ate or -9) + 3 <= t then
+        local slot, it = World.inv_slot(me, "anglerfish")
+        if slot == nil then slot, it = potion(me, "potionofsaradomin") end
+        if slot ~= nil then
+            intent.op[#intent.op + 1] = { 1, it.obj, slot }
+            m.ate = t
+            intent.why = intent.why .. "eat "
+        end
+    end
+end
+
 local function kit(seat)
     local k = { "clearinv", "tobkit" }
     local worn = {
@@ -256,7 +423,7 @@ local function kit(seat)
         "give dragon_claws 1",
     }) do k[#k + 1] = c end
     if seat == 1 then k[#k + 1] = "give verzik_special_weapon 1" end
-    if seat >= 2 then k[#k + 1] = "give noxious_halberd 1" end
+    k[#k + 1] = "give noxious_halberd 1"
     k[#k + 1] = "give anglerfish " .. ((seat == 1) and 16 or 14)
     return k
 end
@@ -309,19 +476,14 @@ function V.step(world, me, m, seats, mems)
         m.prayed = true
     end
     -- eat under half
+    -- from P2 on a single hit reaches 82 (the stomp): eat under 65
     local eat_below = (me.hpmax or 99) / 2
+    if vz ~= nil and (vz.name == "verzik_phase2" or vz.name == "verzik_phase3") then eat_below = 65 end
     if vz ~= nil and vz.name == "verzik_phase1" then
         local left = p1_left(vz)
         if left ~= nil and left <= P1_ENDGAME then eat_below = 80 end
     end
-    if me.hp ~= nil and me.hpmax ~= nil and me.hp < eat_below and (m.ate or -9) + 3 <= t then
-        local slot, it = World.inv_slot(me, "anglerfish")
-        if slot ~= nil then
-            intent.op = { { 1, it.obj, slot } }
-            m.ate = t
-            intent.why = intent.why .. "eat "
-        end
-    end
+    consume(world, me, m, vz, intent, eat_below)
     if vz == nil then return intent end
     local O = room(world, m)
 
@@ -378,6 +540,10 @@ function V.step(world, me, m, seats, mems)
         if me.x ~= O.x + s[1] or me.z ~= O.z + s[2] then intent.walk = { x = O.x + s[1], z = O.z + s[2] } end
         intent.why = intent.why .. "stage"
         return intent
+    end
+
+    if vz.name == "verzik_phase2" and O ~= nil then
+        return p2(world, me, m, mems, seats, vz, O, intent)
     end
 
     -- attack whatever form is attackable
