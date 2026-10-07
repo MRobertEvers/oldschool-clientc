@@ -14,18 +14,22 @@ local BEASTS = { BEAST_A, BEAST_B }
 -- Quest harnesses do not see api_drive as a global, so ids are literals here.
 local BONES_ID = 526
 
--- Soft3d in-raid shots default to a floor-stare / void pose. Nudge before
--- every t.shot (yaw/pitch/zoom like ToB nylocas / xarpus). Prefer zoom 600
--- so shot-aim's occluder search does not fall through to zoom -200 (black).
+-- Soft3d in-raid shots default to a floor-stare / void pose. Orbit four
+-- cardinal yaws at pitch 383 / zoom 600 (avoids shot-aim's -200 black fall-
+-- through). Post-run picker keeps the brightest frame per stage so plants /
+-- cave walls land in the walkthrough, not a void.
 -- Trap 21: ticks after plane/raid enter before the first photograph.
-local SHOT_YAW = 0
 local SHOT_PITCH = 383
 local SHOT_ZOOM = 600
+local SHOT_YAWS = { 0, 512, 1024, 1536 }
 
 local function shot_lit(t, label)
-    t.drive.camera(SHOT_YAW, SHOT_PITCH, SHOT_ZOOM)
-    t.ticks(1)
-    t.shot(label)
+    for i = 1, #SHOT_YAWS do
+        local yaw = SHOT_YAWS[i]
+        t.drive.camera(yaw, SHOT_PITCH, SHOT_ZOOM)
+        t.ticks(2)
+        t.shot(label .. " yaw" .. tostring(yaw))
+    end
 end
 
 local STATE = {
@@ -201,9 +205,8 @@ return {
             end
 
             if sm.state == STATE.LAND then
-                -- Scene build after raid plane change (trap 21); short settle
-                -- left the idle frame mostly dark even with a camera nudge.
-                t.ticks(8)
+                -- Scene build after raid plane change (trap 21).
+                t.ticks(12)
                 local br, brow, bsym = find_beast(t)
                 t.check("beast.present", br == "ok", "landing form " .. tostring(bsym))
                 sm.symbol = bsym
@@ -317,10 +320,6 @@ return {
                 spec(t, "scavenger.max_hit", tostring(measured_max),
                     "largest unprotected hit_player=" .. tostring(sm.max_hit),
                     "13 hp", "D", "range")
-                -- Nudge pose + a short wait so the capture is not suppressed as
-                -- byte-identical to the drop.bones check shot.
-                t.drive.camera(512, SHOT_PITCH, SHOT_ZOOM)
-                t.ticks(2)
                 shot_lit(t, "scavenger_small clear after kill")
                 set_state(STATE.DONE)
                 return
