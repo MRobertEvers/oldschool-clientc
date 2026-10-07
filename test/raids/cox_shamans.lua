@@ -15,6 +15,7 @@ local STATE = {
     LAND = "LAND",
     ARM = "ARM",
     MEASURE_REGEN = "MEASURE_REGEN",
+    TANK_POISON = "TANK_POISON",
     KILL = "KILL",
     DONE = "DONE",
 }
@@ -53,7 +54,7 @@ end
 
 -- Wall-hug tile: stand just outside the 3x3 so the jump cannot land
 -- (Synq [0:35:45]–[0:36:17]).
-        local function hug_tile(me, shaman)
+local function hug_tile(me, shaman)
     if me == nil or shaman == nil or shaman.x == nil or shaman.z == nil then
         return nil, nil
     end
@@ -181,7 +182,8 @@ return {
             if vr == "ok" then
                 local p = tonumber(poison) or 0
                 if p > sm.poison_peak then sm.poison_peak = p end
-                if p > 0 then
+                -- Hold antipoison until TANK_POISON has locked severity-12.
+                if p > 0 and sm.poison_peak >= 12 and sm.state ~= STATE.TANK_POISON then
                     if t.player.inv_op("4doseantipoison", 1) == "ok"
                         or t.player.inv_op("sanfew_salve_4_dose", 1) == "ok"
                         or t.player.inv_op("3doseantipoison", 1) == "ok"
@@ -292,7 +294,7 @@ return {
                 end
                 sm.wait_ticks = sm.wait_ticks + 1
                 if #sm.regen_gaps >= 1 or sm.wait_ticks > 60 then
-                    set_state(STATE.KILL)
+                    set_state(STATE.TANK_POISON)
                     return
                 end
                 local mr, me = t.world.tile()
@@ -302,6 +304,39 @@ return {
                     if hx ~= nil and chebyshev(me.x, me.z, hx, hz) > 1 then
                         t.player.walk_to(hx, hz, 3)
                     end
+                end
+                return
+            end
+
+            if sm.state == STATE.TANK_POISON then
+                -- Drop overhead so the green blob can land; do NOT drink
+                -- antipoison until severity-12 is observed (spec.shamans.poison).
+                t.prayer.set("protectfrommissiles", false)
+                t.prayer.set("eagleeye", true)
+                if sm.poison_peak >= 12 then
+                    -- Cure once recorded, then wall-hug kill path.
+                    if t.player.inv_op("4doseantipoison", 1) == "ok"
+                        or t.player.inv_op("sanfew_salve_4_dose", 1) == "ok" then
+                        sm.antipoisons = sm.antipoisons + 1
+                    end
+                    arm_prayers()
+                    set_state(STATE.KILL)
+                    return
+                end
+                sm.wait_ticks = sm.wait_ticks + 1
+                if sm.wait_ticks > 240 then
+                    -- Still record what we saw; row will FAIL if peak < 12.
+                    arm_prayers()
+                    set_state(STATE.KILL)
+                    return
+                end
+                -- Stand still in attack range so the 20% poison splash can roll.
+                local ar = t.player.attack(sm.target_sym, 2, 1)
+                if ar == "ok" then sm.hits = sm.hits + 1 end
+                -- Eat only; never antipoison in this state (sustain() would).
+                local hr, hp = t.skill.read("hitpoints")
+                if hr == "ok" and hp.level ~= nil and hp.level < 40 then
+                    t.player.eat("shark")
                 end
                 return
             end
