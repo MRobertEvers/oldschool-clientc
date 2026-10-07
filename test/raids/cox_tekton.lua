@@ -36,7 +36,10 @@ return {
         "::give fire_rune 400",
         "::give air_rune 400",
         "::give blood_rune 80",
-        "::give shark 22",
+        -- Shark is unstackable: 22 + runes + restores fills all 28 slots and
+        -- the brew (and half the restores) then get "No room". Cap food so the
+        -- Synq kit leaves free slots for anvil mage swaps.
+        "::give shark 10",
         "::give br_4dose2restore 4",
         "::give br_4dosepotionofsaradomin 2",
     },

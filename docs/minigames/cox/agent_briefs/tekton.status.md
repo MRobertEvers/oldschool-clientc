@@ -12,12 +12,11 @@ on anvil, re-engage. Not stand-and-tank.
 ## Implemented
 
 - Test SM: `LAND → LURE → CYCLE ⇄ ANVIL_DODGE → REENGAGE → DONE`
-- Spec assertions retained from prior harness (`test/raids/cox_tekton.lua`)
-- Content: `cox_tekton.rs2` (prior parity pass; submodule `dda1f15`)
-- Private binary: `src/torirs_tekton` (`QUEST_BINARY`, `GL_GLEXT_PROTOTYPES`)
+- Spec assertions retained (`test/raids/cox_tekton.lua`)
+- Content: `cox_tekton.rs2` (submodule `dda1f15`)
+- Setup fix: shark count 22→10 (unstackable; 22 filled the backpack so brew/
+  restores got "No room")
 
 ## Next
 
-- Gate under `flock /tmp/cox_raid_gate.lock`
-  `QUEST_BINARY=src/torirs_tekton python3 tools/raid_gate/run.py cox_tekton --no-build --no-publish`
-  then `gate.py` + coverage FULL + play screenshots
+- Gate under `flock /tmp/cox_raid_gate.lock` with `QUEST_BINARY=src/torirs_tekton`
