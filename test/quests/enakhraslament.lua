@@ -275,6 +275,10 @@ return {
                     if row:find("^Why won't you take more than") then why_row = row end
                 end
                 local need = target - carried
+                t.note(name .. " menu " .. visit .. ": need " .. need .. " kg, held 10/5/2/1 = "
+                    .. count("enakh_sandstone_large") .. "/" .. count("enakh_sandstone_medium") .. "/"
+                    .. count("enakh_sandstone_small") .. "/" .. count("enakh_sandstone_tiny")
+                    .. "; rows: " .. table.concat(rows, " | "))
                 if has_yes then
                     if fits(need) then
                         t.exec(name .. "-more" .. visit, t.chat.choose, "Yes, I have more stone.")
