@@ -323,6 +323,8 @@ function QD.raid._play_maiden_off_tile(st, v, lx, lz)
     -- remembered trails and hurt tiles themselves)
     for k, until_t in pairs((m and m.trail) or {}) do if v.tick <= until_t then marked[k] = true end end
     for k, until_t in pairs((m and m.hurt_tiles) or {}) do if v.tick <= until_t then marked[k] = true end end
+    for k, until_t in pairs((m and m.pools) or {}) do if v.tick <= until_t then marked[k] = true end end
+    for k, until_t in pairs((m and m.aimed) or {}) do if v.tick <= until_t then marked[k] = true end end
     for _, sl in ipairs((m and m.slugs_last) or {}) do
         for ax = -1, 1 do for az = -1, 1 do marked[(sl.x + ax) * 100000 + sl.z + az] = true end end
     end
@@ -472,7 +474,26 @@ function QD.raid._play_maiden_see(st, v)
     if b ~= nil and (b.seq_id == P.seq_blood or b.seq_id == P.seq_storm) and b.seq_tick ~= m.last_attack then
         m.last_attack = b.seq_tick
         local blood = b.seq_id == P.seq_blood
-        m.attacks[#m.attacks + 1] = { tick = b.seq_tick, blood = blood, seen = v.tick }
+        -- HER CLOCK, `at`: the server tick she animated.  The row's seq_tick
+        -- runs two or three behind it (svamzsplit, every attack: seq_tick 102
+        -- / 111 / 121 for her t104 / t114 / t124), and the tick a seat first
+        -- reads the seq is it, or late when that seat's last tick was spent in
+        -- a press (S seen at t136 for her t134).  She is a 10-tick monster
+        -- (tob_maiden.rs2 header; attack_every), so the earliest sighting
+        -- fixes the phase and every later one snaps to it.
+        local at = v.tick
+        if m.clock ~= nil then
+            local k = (v.tick - m.clock + P.attack_every // 2) // P.attack_every
+            at = m.clock + k * P.attack_every
+            if v.tick < at then
+                m.clock = m.clock - (at - v.tick)
+                at = v.tick
+            end
+        else
+            m.clock = v.tick
+        end
+        m.attacks[#m.attacks + 1] = { tick = b.seq_tick, blood = blood, seen = v.tick, at = at }
+        if st.party > 1 and m.log ~= nil and #m.log < 120 then m.log[#m.log + 1] = v.tick .. ":" .. (blood and "B" or "S") .. "@" .. at end
         if blood then
             m.autos_since = 0
             -- a throw on the tick after a step: the step the technique row reads
@@ -849,8 +870,10 @@ end
 -- a blood spawn's trail lives 30 ticks (tob.constant:223
 -- ^tob_maiden_blood_trail_ticks = 30, Normal)
 QD.RAID_MAIDEN_TRAIL_TICKS = 30
+-- a thrown pool's life, landing to expiry (tob_maiden.rs2 ^tob_maiden_blood_splat_ticks)
+QD.RAID_MAIDEN_POOL_TICKS = 11
 -- the library's events the seat's machine is driven by; `tick` is decide's own
-QD.RAID_MAIDEN_EVENTS = { "crab_spawn", "crab_frozen", "crab_thaw", "crab_gone", "blood_thrown", "pool_landed", "boss_phase", "hit_taken" }
+QD.RAID_MAIDEN_EVENTS = { "crab_spawn", "crab_frozen", "crab_thaw", "crab_gone", "blood_thrown", "blood_sent", "pool_landed", "boss_phase", "hit_taken" }
 QD.RAID_MAIDEN_TICK_EVENT = { { name = "tick" } }
 QD.RAID_MAIDEN_DEAD_EVENT = { { name = "boss_dead" } }
 -- the parallel rule, every state: the blackstorm's prayer (W:590 "halved by
@@ -1230,6 +1253,36 @@ function QD.raid.mz_crab_stand(st, v, a)
     end
     return best
 end
+-- THE CRAB PRESS'S OWN PATH.  A press on a crab out of reach makes the SERVER
+-- walk the seat to it, and that route reads no marker: the library's
+-- _play_reach answers this for HER (raid seam29), nothing did for a crab.
+-- svamzsplit (the current plan, storm_split): the leader dodged (7,7) -> (8,7)
+-- at t255, LANE pressed crab 1080 and the route went straight back onto (7,7)
+-- as its pool landed, 26 at t257; the relay's _play_normal t279-280 the same
+-- over the live pool on (7,6), and sva's t277-279 over (5,-1).  So: beside it
+-- on a clean tile, or no marker in the box between me and the tile I would
+-- stand on (the server's route on open floor stays inside it, both route
+-- shapes: _play_safe_step), and the press goes (nil); otherwise the walk to
+-- that tile through the safe step (x, z) and the press waits for it; no clean
+-- tile beside it at all, false.
+function QD.raid.mz_crab_route(st, v, a)
+    assert(a, "mz_crab_route: a crab row")
+    local function beside(x, z)
+        local inside = x >= a.x and x <= a.x + 1 and z >= a.z and z <= a.z + 1
+        local corner = (x == a.x - 1 or x == a.x + 2) and (z == a.z - 1 or z == a.z + 2)
+        return not inside and not corner and x >= a.x - 1 and x <= a.x + 2 and z >= a.z - 1 and z <= a.z + 2
+    end
+    if beside(v.me.x, v.me.z) and not v.marks[v.me.x * 100000 + v.me.z] then return nil end
+    local stand = QD.raid.mz_crab_stand(st, v, a)
+    if stand == nil then return false end
+    for x = math.min(v.me.x, stand.x), math.max(v.me.x, stand.x) do
+        for z = math.min(v.me.z, stand.z), math.max(v.me.z, stand.z) do
+            -- (my own tile is the one the route leaves)
+            if v.marks[x * 100000 + z] and (x ~= v.me.x or z ~= v.me.z) then return stand.x, stand.z end
+        end
+    end
+    return nil
+end
 -- THE EAT LINE (audit 00:55): the script's eat_at_hp_pct for the role
 -- (role.dps1.eat_at_hp_pct 60, role.dps2 36, maiden_normal_3.json; the freezer
 -- has none: dps2's), raised to the most one tick can take -- her tornado's
@@ -1246,6 +1299,28 @@ function QD.raid.mz_eat_line(st, v)
         if v.tick - h.t <= 10 and h.n > big then big = h.n end
     end
     return math.max(math.floor(pct * (v.hp_base or 99) / 100), math.ceil(storm) + 2, big + 2)
+end
+-- THE THREAT, what can really land before the next chance to eat (the
+-- library's supplies ask for it): her blackstorm's maximum NOW -- 36.5 + 3.5
+-- a leak, halved under Protect from Magic (W:598, tob_maiden.rs2:34) -- plus
+-- 2, and on a marked tile ONE tick of its blood, 10 + 2 a leak (W:605,
+-- tob_maiden.rs2:44).  One tick, because the seat is leaving the tile: the
+-- dodge is the pri-8 walk of this same tick, and a second tick on it is the
+-- dodge failing, which no bite pays for.  The old threat was the mode's
+-- fixed table, N.storm 25 + 2 + 2 x N.pool 20 = 67 on a marked tile at any
+-- leak count: 30 is the true figure with none, 60 with eight.  Not Normal:
+-- the table stays the floor (no source gives Hard's or Entry's leak rule).
+function QD.raid.mz_threat(st, v)
+    local m, N = st.m, st.numbers
+    local c = m.leaks or 0
+    local storm = math.ceil((36.5 + 3.5 * c) / 2)
+    local pool = 10 + 2 * c
+    if st.mode ~= "normal" then
+        storm = math.max(storm, N.storm)
+        pool = math.max(pool, N.pool)
+    end
+    if v.marks[v.me.x * 100000 + v.me.z] then return storm + 2 + pool end
+    return storm + 2
 end
 -- a crab's hp from its health bar (what the screen shows); no bar drawn yet
 -- = full (the Normal trio's 75: tob.constant ^tob_maiden_crab_hp_3)
@@ -1273,14 +1348,82 @@ end
 -- seat eats at 36 percent.  (The freezer's scythe on her east edge in her 30
 -- form, which took her 30-form storms as the streams' freezer does, is gone:
 -- it cost the crab work -- see the freezer's on-boss.)
-QD.RAID_MAIDEN_SPLIT_HOME = { [0] = { 5, -1 }, [3] = { 4, -1 } }
+--
+-- THE STORM TURN.  That split was a fixed one -- dps1 4 out in her 100 and 30
+-- forms, 3 out in her 70 and 50 -- and so it was no split: whoever was 3 out
+-- took every storm of the form.  The relay's three names (this plan as at
+-- a08fbb7d2; the leader's hit_player rows by her form): dps1 took 2+5 of the
+-- 70/50 storms on _play_normal, 6+4 on sva, 4+6 on svb, dps2 0-3, and dps2
+-- the 100-form storms and 2 / 6 / 4 of the 30's; dps1 lost 110-262 a room, dps2
+-- 71-196, where the reference's dps lose 60 [24-106] and 102 [92-133]
+-- (reference/maiden_normal_3.json outcome.hp_lost) and are targeted 38 and
+-- 41 percent.  Her pick is the nearest to her centre with ties to the orb
+-- (tob_maiden.rs2 ~tob_maiden_blackstorm), dps1's orb beats dps2's, and her
+-- north and east edges are 3 from the centre, her south and west edges 4; so
+-- dps1 ALONE decides who takes the next one, from its own hitpoints: a storm
+-- that landed on me (a hit on its impact, aim + storm_impact) sends me 4 out
+-- for her next aim, one that did not keeps me 3 out.  Her 100 and 30 forms
+-- keep dps1 on her south-east corner, where 3 and 4 out are one diagonal step
+-- and both beside her: (6,0) east edge and (5,-1) south edge.  In her 70 and
+-- 50 forms dps1 holds her north edge for the N1 / N2 lanes, where no tile
+-- beside her is 4 out, so it steps one tile north (5,7) on the tick before
+-- her aim and back on the aim (she reads the end of the last tick, the
+-- scan: tob_maiden.rs2 header) -- two ticks off her edge every other storm.
+QD.RAID_MAIDEN_STORM_TURN = {
+    [0] = { take = { 6, 0 }, pass = { 5, -1 } },
+    [1] = { take = { 5, 6 }, pass = { 5, 7 } },
+    [2] = { take = { 5, 6 }, pass = { 5, 7 } },
+    [3] = { take = { 6, 0 }, pass = { 5, -1 } },
+}
+-- "take" or "pass": who took her last storm whose impact the client has
+-- read.  Sticky while the newest storm is still in the air, so a storm in
+-- flight never walks the seat to a tile and back.
+function QD.raid.mz_storm_turn(st, v)
+    local m = st.m
+    local last = nil
+    for i = #m.attacks, 1, -1 do
+        if not m.attacks[i].blood then
+            last = m.attacks[i]
+            break
+        end
+    end
+    if last ~= nil and v.tick > last.at + st.plan.storm_impact + 2 then
+        local choice = last.mine and "pass" or "take"
+        if choice ~= m.storm_choice and m.log ~= nil and #m.log < 120 then m.log[#m.log + 1] = v.tick .. ":" .. choice end
+        m.storm_choice = choice
+    end
+    return m.storm_choice or "take"
+end
+function QD.raid.mz_storm_turn_on(st)
+    return st.variant == "storm_split" and st.role == 1 and (st.party or 1) > 1
+end
 function QD.raid.mz_home(st, v)
     local b = v.boss
     local h = QD.RAID_MAIDEN_REF.home[QD.raid.mz_form(st)][st.role]
-    if (st.variant == "storm_split") and st.role == 1 and QD.RAID_MAIDEN_SPLIT_HOME[QD.raid.mz_form(st)] then
-        h = QD.RAID_MAIDEN_SPLIT_HOME[QD.raid.mz_form(st)]
+    if QD.raid.mz_storm_turn_on(st) then
+        local T = QD.RAID_MAIDEN_STORM_TURN[QD.raid.mz_form(st)]
+        h = T.take
+        -- (a pass tile beside her is where the seat stands for the whole
+        -- turn; one off her edge is only stepped to for the aim -- mz_s_on_boss_tick)
+        if QD.raid.mz_storm_turn(st, v) == "pass" and QD.raid._play_gap(b, b.x + T.pass[1], b.z + T.pass[2]) == 1 then h = T.pass end
     end
     return b.x + h[1], b.z + h[2]
+end
+-- the tile off her edge for her next aim, or nil: the client tick two before
+-- it (the step lands at the end of the tick before, which is what she reads),
+-- on my pass turn, from beside the take tile, with the pass tile clean
+function QD.raid.mz_storm_step(st, v)
+    if not QD.raid.mz_storm_turn_on(st) then return nil end
+    local m, b = st.m, v.boss
+    local last = m.attacks[#m.attacks]
+    if b == nil or last == nil then return nil end
+    if v.tick ~= last.at + st.plan.attack_every - 2 then return nil end
+    if QD.raid.mz_storm_turn(st, v) ~= "pass" then return nil end
+    local T = QD.RAID_MAIDEN_STORM_TURN[QD.raid.mz_form(st)]
+    local px, pz = b.x + T.pass[1], b.z + T.pass[2]
+    if QD.raid._play_gap(b, px, pz) == 1 or v.marks[px * 100000 + pz] then return nil end
+    if math.max(math.abs(v.me.x - (b.x + T.take[1])), math.abs(v.me.z - (b.z + T.take[2]))) > 1 then return nil end
+    return px, pz
 end
 -- walk home when more than a tile off it and no walk is under way
 function QD.raid.mz_walk_home(st, v, intent)
@@ -1347,6 +1490,37 @@ end
 function QD.raid.mz_on_blood(c, ev) return QD.raid.mz_out(c, QD.raid.mz_dodge(c, ev)) end
 function QD.raid.mz_on_pool(c, ev) return QD.raid.mz_out(c, QD.raid.mz_dodge(c, ev)) end
 function QD.raid.mz_on_blood_home(c, ev) return QD.raid.mz_out(c, QD.raid.mz_walking_home_dodge(c, ev)) end
+-- HER BLOOD ANIMATION, NOT ITS PROJECTILE, for a seat in melee distance:
+-- "Those standing away can react to it, but players in melee distance will
+-- need to move before she attacks in order to avoid it" (W:603).  A splat
+-- thrown at her edge lands two ticks after her seq 8091 (svamzsplit, the
+-- current plan: seq 8091 at t114, the pools on (5,-1) and (5,6) at t116), and
+-- the sweep that hurts runs before that tick's step (tob_maiden.rs2
+-- ~tob_maiden_blood_sweep, the room's per-player watch), so the step has to
+-- go out on the tick she animates.  The projectile row the dodge waited for
+-- is read a tick later: both scythe seats entered DODGE at t115, stepped at
+-- t116 and took 10 each.  She throws one splat at every raider's tile (W:603)
+-- -- the tile she read at the end of the last tick, which is mine if I have
+-- not moved since; a seat already moving has left it.  The freezer stands
+-- ten tiles out and its splat flies six or seven ticks: it reads the throw.
+QD.RAID_MAIDEN_BLOOD_SENT_TICKS = 2
+function QD.raid.mz_blood_sent_event(c)
+    local st, v = c.st, c.v
+    if st.role == 2 then return nil end
+    local last = st.last_me
+    if last ~= nil and (last.x ~= v.me.x or last.z ~= v.me.z) then return nil end
+    return { mine = true, x = v.me.x, z = v.me.z, ticks = QD.RAID_MAIDEN_BLOOD_SENT_TICKS, name = "blood_sent" }
+end
+function QD.raid.mz_on_blood_sent(c, ev)
+    local e = QD.raid.mz_blood_sent_event(c)
+    if e == nil then return nil end
+    return QD.raid.mz_out(c, QD.raid.mz_dodge(c, e))
+end
+function QD.raid.mz_on_blood_sent_home(c, ev)
+    local e = QD.raid.mz_blood_sent_event(c)
+    if e == nil then return nil end
+    return QD.raid.mz_out(c, QD.raid.mz_walking_home_dodge(c, e))
+end
 -- the freezer's "a wave is out": cast 1 of the schedule, from any state that
 -- is not already casting this wave's list
 function QD.raid.mz_to_cast1(c, ev)
@@ -1396,7 +1570,11 @@ function QD.raid.mz_on_hit(c, ev)
     if (ev.amount or 0) <= 0 then return nil end
     for i = #m.attacks, math.max(1, #m.attacks - 3), -1 do
         local a = m.attacks[i]
-        if not a.blood and math.abs(v.tick - (a.tick + st.plan.storm_impact)) <= 1 then return nil end
+        -- (on her clock, `at`: the row's seq_tick runs two or three behind
+        -- it, so the impact this read was a storm landing two ticks early and
+        -- every real storm in a dodge read as the tile -- _play_maiden_see)
+        local d = v.tick - (a.at + st.plan.storm_impact)
+        if not a.blood and d >= -1 and d <= 2 then return nil end
     end
     -- the tile hurt me, whatever the client shows on it (the dispatcher's own
     -- tracker says the same thing but needs two hits on CONSECUTIVE ticks,
@@ -1856,6 +2034,13 @@ function QD.raid.mz_s_on_boss_tick(c, ev)
     local function ok(x, z)
         return x >= st.plan.floor[1] + m.ox - 12 and x <= st.plan.floor[3] + m.ox and z >= st.plan.floor[2] + m.oz and z <= st.plan.floor[4] + m.oz
     end
+    -- THE STORM TURN's step off her edge for her aim (the relay's dps1)
+    local sx, sz = QD.raid.mz_storm_step(st, v)
+    if sx ~= nil then
+        m.storm_steps = (m.storm_steps or 0) + 1
+        QD.raid.mz_walk_to(st, v, intent, sx, sz)
+        return
+    end
     local hx, hz = QD.raid.mz_home(st, v)
     if QD.raid._play_gap(b, hx, hz) == 1 and not v.marks[hx * 100000 + hz] and (v.me.x ~= hx or v.me.z ~= hz) then
         QD.raid.mz_walk_to(st, v, intent, hx, hz)
@@ -1973,6 +2158,12 @@ function QD.raid.mz_lane_tick(c, ev)
                 QD.raid.mz_wear(intent, { "dinhs_bulwark" })
                 local _, armed = QD.var.varp("varp301_sa_attack")
                 if tonumber(armed) == 0 then intent.spec = true end
+                -- (the bash is a melee swing: its route to the crab too)
+                local wx, wz = QD.raid.mz_crab_route(st, v, first.a)
+                if wx ~= nil and wx ~= false then
+                    QD.raid.mz_walk_to(st, v, intent, wx, wz)
+                    return
+                end
                 intent.press = { symbol = st.plan.crab[st.mode], slot = first.slot, op = 2, why = "shield bash" }
                 return
             end
@@ -2039,6 +2230,12 @@ function QD.raid.mz_lane_tick(c, ev)
             if not v.marks[here] and math.max(math.abs(v.me.x - (t.a.x + 0.5)), math.abs(v.me.z - (t.a.z + 0.5))) <= 1.5 then adj = true end
             if not adj then QD.raid.mz_walk_to(st, v, intent, stand.x, stand.z) return end
         end
+    end
+    local wx, wz = QD.raid.mz_crab_route(st, v, t.a)
+    if wx == false then return QD.raid.mz_s_on_boss_tick(c, ev) end
+    if wx ~= nil then
+        QD.raid.mz_walk_to(st, v, intent, wx, wz)
+        return
     end
     intent.press = { symbol = st.plan.crab[st.mode], slot = t.slot, op = 2, why = "lane " .. e[1] }
     m.add_presses = (m.add_presses or 0) + 1
@@ -2240,6 +2437,7 @@ QD.raid.sm_declare("maiden_scythe", {
             on = {
                 tick = QD.raid.mz_open_tick,
                 blood_thrown = QD.raid.mz_on_blood_home,
+                blood_sent = QD.raid.mz_on_blood_sent_home,
                 pool_landed = QD.raid.mz_on_pool,
             } },
         DRAIN = { note = "the Tonalztics special on her from the tile it will swing from -> S_ON_BOSS when spent or after 6 ticks",
@@ -2247,6 +2445,7 @@ QD.raid.sm_declare("maiden_scythe", {
             on = {
                 tick = QD.raid.mz_drain_tick,
                 blood_thrown = QD.raid.mz_on_blood_home,
+                blood_sent = QD.raid.mz_on_blood_sent_home,
                 pool_landed = QD.raid.mz_on_pool,
             } },
         S_ON_BOSS = { note = "the scythe on her from her edge -> LANE/1 on a spawn the wave gives this seat, -> CLAWS once in her 30 form",
@@ -2256,6 +2455,7 @@ QD.raid.sm_declare("maiden_scythe", {
                 crab_spawn = QD.raid.mz_s_on_boss_on_spawn,
                 boss_phase = QD.raid.mz_s_on_boss_on_phase,
                 blood_thrown = QD.raid.mz_on_blood,
+                blood_sent = QD.raid.mz_on_blood_sent,
                 pool_landed = QD.raid.mz_on_pool,
             } },
         LANE = { note = "the seat's m.idx-th lane crab inside its window -> LANE/idx+1 when that crab is gone or the window ends, -> S_ON_BOSS at the list's end; its idle ticks run S_ON_BOSS's tick, which can also -> CLAWS",
@@ -2265,6 +2465,7 @@ QD.raid.sm_declare("maiden_scythe", {
                 crab_spawn = QD.raid.mz_lane_on_spawn,
                 crab_gone = QD.raid.mz_lane_on_gone,
                 blood_thrown = QD.raid.mz_on_blood,
+                blood_sent = QD.raid.mz_on_blood_sent,
                 pool_landed = QD.raid.mz_on_pool,
             } },
         CLAWS = { note = "the dragon claws special on her, once, in her 30 form -> S_ON_BOSS when spent or after 10 ticks",
@@ -2272,6 +2473,7 @@ QD.raid.sm_declare("maiden_scythe", {
             on = {
                 tick = QD.raid.mz_claws_tick,
                 blood_thrown = QD.raid.mz_on_blood,
+                blood_sent = QD.raid.mz_on_blood_sent,
                 pool_landed = QD.raid.mz_on_pool,
             } },
         DODGE = { note = "step to the safe tile -> the saved state (m.resume); a spawn or her retype rewrites what it resumes into",
@@ -2280,6 +2482,7 @@ QD.raid.sm_declare("maiden_scythe", {
                 tick = QD.raid.mz_dodge_tick,
                 crab_spawn = QD.raid.mz_dodge_on_spawn,
                 blood_thrown = QD.raid.mz_on_blood,
+                blood_sent = QD.raid.mz_on_blood_sent,
                 pool_landed = QD.raid.mz_on_pool,
                 boss_phase = QD.raid.mz_dodge_on_phase,
                 hit_taken = QD.raid.mz_on_hit,
@@ -2315,9 +2518,46 @@ function QD.raid._play_maiden_trio(st, v)
     for k, until_t in pairs(m.hurt_tiles) do
         if v.tick <= until_t then v.marks[k] = true else m.hurt_tiles[k] = nil end
     end
+    -- A POOL IS BLOOD FOR ITS WHOLE LIFE, not for as long as the client lists
+    -- its graphic: the pool hurts 11 ticks from its landing (tob_maiden.rs2
+    -- ~tob_maiden_pool_index, ^tob_maiden_blood_splat_ticks 11, [tmt]
+    -- MAIDEN_BLOOD_GAME_TICK_LENGTH) and its graphic plays ten (tob_blood_splat,
+    -- 300 cycles), so a tile is remembered from the tick its pool is first
+    -- seen.  (svamzsplit t254-257: the leader stepped off (7,7), the crab
+    -- press pathed it back over the pool, 26.)
+    -- And a tile she has AIMED at is blood from the aim: the throw's own
+    -- destination (blood_thrown: landing + the pool's life), and on her blood
+    -- animation the tile she read for me (blood_sent: the end of the last
+    -- tick, two ticks of flight at her edge).  The pool's graphic is read a
+    -- tick after it lands (svamzsplit: the leader dodged on her seq at t114,
+    -- went back to its home tile at t115 with nothing yet drawn there, the
+    -- pool landed under it at t116 and it took 10 at t118; the same at t274
+    -- -t278 for both scythe seats, 22 each).  Not the freezer's blood_sent:
+    -- it is ten out, its splat flies six ticks, and its due barrage is kept
+    -- through a throw still in the air (mz_dodge).
+    m.aimed = m.aimed or {}
+    for _, e in ipairs(v.events or {}) do
+        local k, u = nil, nil
+        if e.name == "blood_thrown" and e.x ~= nil then
+            k, u = e.x * 100000 + e.z, v.tick + math.max(e.ticks or 1, 1) + QD.RAID_MAIDEN_POOL_TICKS - 1
+        elseif e.name == "blood_sent" and st.role ~= 2 and st.last_me ~= nil then
+            k, u = st.last_me.x * 100000 + st.last_me.z, v.tick + QD.RAID_MAIDEN_BLOOD_SENT_TICKS + QD.RAID_MAIDEN_POOL_TICKS - 1
+        end
+        if k ~= nil and (m.aimed[k] or -1) < u then m.aimed[k] = u end
+    end
+    m.pools = m.pools or {}
+    for k, on in pairs(v.shadows or {}) do
+        if on and m.pools[k] == nil then m.pools[k] = v.tick + QD.RAID_MAIDEN_POOL_TICKS - 1 end
+    end
+    for k, until_t in pairs(m.pools) do
+        if v.tick <= until_t then v.marks[k] = true else m.pools[k] = nil end
+    end
     m.ground = {}
     for k, on in pairs(v.marks) do m.ground[k] = on end
     for _, p in ipairs(v.incoming) do v.marks[p.x * 100000 + p.z] = true end
+    for k, until_t in pairs(m.aimed) do
+        if v.tick <= until_t then v.marks[k] = true else m.aimed[k] = nil end
+    end
     -- every tile a blood spawn has stood on is a trail for the trail's life
     -- (tob_maiden.rs2:1712 loc_add ... ~tob_maiden_trail_ticks): the client's
     -- loc read sees a new trail a tick or two late (sm67 _play_maiden: the
@@ -2365,6 +2605,16 @@ function QD.raid._play_maiden_trio(st, v)
         if e.name == "hit_taken" and e.amount ~= nil and e.amount > 0 then
             m.hits[#m.hits + 1] = { t = v.tick, n = e.amount }
             if #m.hits > 30 then table.remove(m.hits, 1) end
+            -- a hit on a storm's impact is that storm on me (THE STORM TURN;
+            -- the client reads the impact a tick either side, as mz_on_hit)
+            for i = #m.attacks, math.max(1, #m.attacks - 2), -1 do
+                local a = m.attacks[i]
+                local d = v.tick - (a.at + P.storm_impact)
+                if not a.blood and not a.mine and d >= -1 and d <= 2 then
+                    a.mine = true
+                    if m.log ~= nil and #m.log < 120 then m.log[#m.log + 1] = v.tick .. ":mine@" .. a.at .. "/" .. e.amount end
+                end
+            end
         end
     end
     for _, e in ipairs(v.events or {}) do
@@ -2431,16 +2681,15 @@ function QD.raid._play_maiden_trio(st, v)
     -- SUPPLIES: the library's bite by the largest hit due (her storm, a pool
     -- under the seat), then the seat's own rules
     local here = v.me.x * 100000 + v.me.z
+    local threat = QD.raid.mz_threat(st, v)
     intent.eat, intent.drink, intent.need = QD.raid._play_supplies(st, v, function(h)
-        local storm = N.storm + 2
         -- THE FREEZER'S OWN LINE.  The seat's rules below are in the `else`
         -- of a `if st.role == 2`, so mz_eat_line was reached on a scythe seat
         -- only and the freezer ate on the library's threat alone -- N.storm +
         -- 2 = 27 -- where its own line is about 40.  A freezer died from 35
         -- hitpoints to two blood splats of 18 and 17 in one tick (mrlyc).
-        if st.role == 2 then storm = math.max(storm, QD.raid.mz_eat_line(st, v)) end
-        if v.marks[here] then return storm + 2 * N.pool end
-        return storm
+        if st.role == 2 then return math.max(threat, QD.raid.mz_eat_line(st, v)) end
+        return threat
     end)
     local function is_brew(item)
         for _, name in ipairs(QD.RAID_PLAY_BREWS) do if item == name then return true end end
@@ -2462,8 +2711,17 @@ function QD.raid._play_maiden_trio(st, v)
         -- Magic (tob_maiden.rs2:34, :816-827), or a blood splat's 25; and never
         -- two eats inside the food's 3 ticks (sm42 sva: the leader ate 13 times
         -- in the 30 wave at a fixed 45)
+        -- (THE MARKED TILE: the line rises to the threat -- the storm and ONE
+        -- tick of the blood under me, mz_threat -- and no further.  It used to
+        -- hand a marked tile to the library's line, N.storm + 2 + 2 x N.pool
+        -- = 67 under the comfort floor, so every throw at a scythe seat's
+        -- feet was a fish at 65-67: the relay's _play_normal dps2 (log pid 2)
+        -- ate at 65, 55, 54, 67 and brewed at 67 and 65 in Maiden, five fish
+        -- gone in one room, while the dodge was already taking it off the
+        -- tile.)
         local eat_at = QD.raid.mz_eat_line(st, v)
-        if (v.hp > eat_at and not v.marks[here]) or v.tick - (st.last_eat or -100) < 3 then
+        if v.marks[here] then eat_at = math.max(eat_at, threat) end
+        if v.hp > eat_at or v.tick - (st.last_eat or -100) < 3 then
             intent.eat = nil
             if intent.drink ~= nil and is_brew(intent.drink) then intent.drink = nil end
         end
