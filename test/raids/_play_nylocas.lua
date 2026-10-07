@@ -727,8 +727,37 @@ return {
         -- others cover loses less (the big5 survey: 20 on two names, every
         -- wave swing that reached it blocked, 14 and 22 blocks)
         if size > 1 then wave_half = rec.my_pid ~= nil and leader_taken <= 120 end
-        t.check("tech.prayer", wave_half and melee_block_count > melee_cover_landed, (size > 1 and ("the leader (the mage) lost " .. leader_taken
-            .. " hitpoints in the room; reference outcome.hp_lost.mage 67 [24-120]; ") or "") .. "protection prayer switched " .. prayer_switches .. " times to the style of the swinging majority (a big counts two, a melee copy only "
+        -- owner_nylocas 2026-10-07 (npc rolls seeded by the run name, engine
+        -- a47a38de7): HER HALF FOLLOWS EVERY FORM CHANGE, IN WHATEVER ORDER.
+        -- The old half asked for a block on her MELEE form (melee blocks >
+        -- landings) -- an order and a target the seed now decides: on 8 of 9
+        -- names she never swung at the leader in melee form (0 against 0).  Now:
+        -- on every change of her form (npc_retype on her slot, any order), the
+        -- leader's lit protection prayer is her new style's within 2 ticks.
+        -- Blert's seats (vasp.py, 27 rooms): median 1-2 ticks after a turn, her
+        -- first swing in the new form 2-3 ticks after it.
+        local turns_seen, turns_late, turn_lags = 0, 0, {}
+        if boss.slot ~= nil then
+            local _, retypes = t.ticklog.rows({ kind = "npc_retype", slot = boss.slot })
+            local prot = { melee = "protectfrommelee", ranged = "protectfrommissiles", magic = "protectfrommagic" }
+            for _, r in ipairs(retypes or {}) do
+                local f = form_of(r.to_type)
+                if f ~= nil and prot[f] ~= nil then
+                    turns_seen = turns_seen + 1
+                    local lag = nil
+                    for d = -3, 6 do
+                        local lit = rec.prayer_at[r.tick + d]
+                        if lag == nil and lit ~= nil and lit[prot[f]] == true then lag = d end
+                    end
+                    if lag == nil or lag > 2 then turns_late = turns_late + 1 end
+                    if #turn_lags < 16 then turn_lags[#turn_lags + 1] = string.sub(f, 1, 3) .. ":" .. tostring(lag or "none") end
+                end
+            end
+        end
+        local her_half = turns_seen > 0 and turns_late == 0
+        t.check("tech.prayer", wave_half and her_half, (size > 1 and ("the leader (the mage) lost " .. leader_taken
+            .. " hitpoints in the room; reference outcome.hp_lost.mage 67 [24-120]; ") or "") .. "her forms: " .. turns_seen
+            .. " changes, the leader's prayer on the new style within 2 ticks on all but " .. turns_late .. " [" .. table.concat(turn_lags, " ") .. "]; protection prayer switched " .. prayer_switches .. " times to the style of the swinging majority (a big counts two, a melee copy only "
             .. "inside four tiles): " .. wave_block_count .. " hit_player rows from wave nylocas at 0 while the prayer held covered their style (blocks), against " .. wave_unprayed_zero
             .. " zeros with no prayer on their style (misses, not counted) and " .. wave_unprayed_landed .. " that landed with none on (the other two styles, and explosions); "
             .. "her melee form: " .. melee_block_count .. " blocked against " .. melee_cover_landed .. " landed on the switch ticks before the prayer followed")

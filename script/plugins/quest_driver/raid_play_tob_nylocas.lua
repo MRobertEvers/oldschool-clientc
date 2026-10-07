@@ -2638,6 +2638,29 @@ function QD.raid._play_nylocas_decide(st, v)
     else
         local weight = { melee = 0, ranged = 0, magic = 0 }
         local bigs_in = {}
+        -- owner_nylocas 2026-10-07 (pin4, npc rolls seeded by the run name):
+        -- A COPY THAT HAS JUST SWUNG, WITH THIS RAIDER THE NEAREST, WEIGHS MORE.
+        -- svd's leader lost 178 (wave bigs 115 of it, every one with another
+        -- colour's prayer up on the big's attack tick) against the
+        -- reference's 120: the weights counted every aggro in reach.  A nylocas
+        -- swings every few ticks at the player it chose, and the one standing
+        -- nearest is the likely one; its newest attack sequence (api_drive.npcs
+        -- seq_tick, the client's tick clock = v.api_now) within the last 4 ticks
+        -- marks it as swinging now -- the next swing comes from it again.
+        if ny.mates_tick ~= v.tick then
+            ny.mates_tick, ny.mates = v.tick, {}
+            local pr, prow = api_drive.players()
+            if pr == "ok" and type(prow) == "table" then
+                for _, r in ipairs(prow) do if not r.me then ny.mates[#ny.mates + 1] = { x = r.x, z = r.z } end end
+            end
+        end
+        local function nearest_me(n)
+            local mine = dist(me.x, me.z, n.x, n.z, n.size)
+            for _, o in ipairs(ny.mates) do
+                if dist(o.x, o.z, n.x, n.z, n.size) < mine then return false end
+            end
+            return true
+        end
         for _, n in ipairs(v.nylos) do
             if n.fighting then
                 local d = dist(me.x, me.z, n.x, n.z, n.size)
@@ -2645,6 +2668,11 @@ function QD.raid._play_nylocas_decide(st, v)
                 if d <= reach then
                     weight[n.style] = weight[n.style] + (n.big and 2 or 1)
                     if n.big then bigs_in[n.style] = true end
+                    local sq = n.row ~= nil and n.row.seq_tick or nil
+                    if type(sq) == "number" and sq >= 0 and v.api_now ~= nil and v.api_now - sq <= 4 and nearest_me(n) then
+                        weight[n.style] = weight[n.style] + 3
+                        ny.swing_weights = (ny.swing_weights or 0) + 1
+                    end
                 end
             end
         end
