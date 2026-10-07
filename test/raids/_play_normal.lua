@@ -123,7 +123,6 @@ if mrole == 2 then
         "::give eye_of_ayak_uncharged", "::give demon_tear 2000",
         "::give water_rune 2000", "::give blood_rune 1000", "::give death_rune 1000",
         "::give necklace_of_rupture", "::give lotr_crystalshard_necklace_upgrade",
-        "::give elder_maul", "::give dragon_warhammer",
         -- (seat 1 starts Bloat -- its role 1 must be the leader -- and swings
         -- the scythe there: owner_rooms4's snippet plays every Bloat seat in
         -- ::tobkitsalve's melee armour; relay15's seat 1 swung in void, Bloat
@@ -153,10 +152,6 @@ else
         "::give pest_void_knight_gloves", "::give necklace_of_rupture",
         "::give lotr_crystalshard_necklace_upgrade",
         "::give dinhs_bulwark", "::give dragon_claws",
-        "::give elder_maul", "::give dragon_warhammer",
-        -- (owner_verzik's slow snippet: seats 2 and 3 are the noxious halberd
-        -- seats at her P3 -- the Blert team that reaches her ball)
-        "::give noxious_halberd",
         -- (the Nylocas plan's magic weapon for EVERY role: owner_nylocas,
         -- relay19 -- seats 2 and 3 held the bow through all 60 ticks of
         -- Vasilias' magic form with no target, her phase 139 ticks against the
@@ -187,17 +182,21 @@ local SUPPLIES = nil
 -- fish's 22 (relay12 cut a brew and two fish a seat as well: every seat
 -- reached Bloat with 0-1 fish and died there).  Food still comes first,
 -- the brew after it (library 112c9eb06).)
-if mrole == 2 then
-    -- (the Maiden freezer, with its Bloat armour now delivered at Bloat: the
-    -- same two brews and two restores as the others and four anglerfish --
-    -- eight slots, where the armour took five.  It lost 122 Hitpoints a room
-    -- at Maiden and 105 at Bloat, 227 against the 60 its single brew held)
-    SUPPLIES = { "::give br_4dosepotionofsaradomin 2", "::give br_4dose2restore 2", "::give anglerfish 4" }
-elseif role == 2 then
-    SUPPLIES = { "::give br_4dosepotionofsaradomin 2", "::give br_4dose2restore 2", "::give anglerfish 5" }
-else
-    SUPPLIES = { "::give br_4dosepotionofsaradomin 2", "::give br_4dose2restore 2", "::give anglerfish 4" }
-end
+-- EVERY SEAT CARRIES THE SAME SUPPLIES, the Maiden freezer included: it used
+-- to carry one brew and no food at all, and it lost 122 Hitpoints a room at
+-- Maiden and 105 at Bloat against the 60 that brew held.
+SUPPLIES = { "::give br_4dosepotionofsaradomin 3", "::give br_4dose2restore 2", "::give anglerfish 5" }
+-- (the supply budget, 2026-10-07: THREE brews and FIVE anglerfish for every
+-- seat, 290 Hitpoints of healing against the 208 two brews and four fish held
+-- -- and seat 1 held 60, because a pack at 0 free slots dropped the gives at
+-- the end of its kit in silence.  The slots come from the late rooms' own
+-- tools, which are now delivered at their doors (ROOM_TOOLS: the elder maul at
+-- Sotetseg, the dragon warhammer at Xarpus, the noxious halberd at her P3) and
+-- from seat 1's melee armour at Bloat (SEAT1_MELEE): five slots a seat that no
+-- earlier room touches.  A slot holds a four-dose brew, 60 Hitpoints, against
+-- an anglerfish's 22, so the brew goes first and the fish after -- but the
+-- library still EATS first and drinks the brew second, which is what a hit
+-- bigger than a fish needs.)
 
 -- What each seat leaves on the floor once no later room uses it (the Entry
 -- relay's drop rule: the pack keeps room for the Dawnbringer, W:875).
@@ -2012,6 +2011,41 @@ end
 local BLOAT_STARTER = 1  -- the seat playing Bloat role 1 (ROLE_IN.bloat)
 -- Seat 1 (Maiden's freezer, whose worn set is the void opener) into its melee
 -- armour for a melee room, one piece a tick; the void pieces go to the pack.
+-- THE LATE ROOMS' OWN TOOLS, delivered at the door of the room that uses them
+-- (the supply budget, 2026-10-07).  Nothing before these rooms wears or
+-- presses them -- the relay never names them at all, the room PLANS look them
+-- up for their specials -- and a pack at 0 free slots turns every spare slot
+-- into supplies: a slot holds a four-dose brew, 60 Hitpoints, against an
+-- anglerfish's 22.  Sotetseg's specials are the elder maul (each seat owns
+-- two), Xarpus' the dragon warhammer (W:839), and her P3's the noxious
+-- halberd on seats 2 and 3 (owner_verzik's slow snippet).
+local ROOM_TOOLS = {
+    sotetseg = { "elder_maul" },
+    xarpus = { "dragon_warhammer" },
+    verzik = { "noxious_halberd" },
+}
+local TOOLS_GIVEN = {}
+local function room_tools(t, name)
+    if TOOLS_GIVEN[name] then return end
+    TOOLS_GIVEN[name] = true
+    local given = {}
+    for _, it in ipairs(ROOM_TOOLS[name] or {}) do
+        -- (the halberd is seats 2 and 3 only; seat 1 plays her P3 on the bow)
+        if not (it == "noxious_halberd" and role == 1) then
+            t.cheat("::give " .. it)
+            given[#given + 1] = it
+        end
+    end
+    if #given > 0 then
+        t.ticks(2)
+        for _, it in ipairs(given) do
+            local cr, n = t.inv.count(it)
+            t.check(name .. ".tool." .. it, cr == "ok" and (tonumber(n) or 0) > 0,
+                P .. it .. " delivered at the " .. name .. " door: count " .. tostring(n)
+                .. " (free slots " .. free_slots(t) .. ")")
+        end
+    end
+end
 local SEAT1_MELEE_GIVEN = false
 local SEAT1_MELEE = { "torva_helm", "radiant_oathplate_chest", "radiant_oathplate_legs", "amulet_of_rancour", "ferocious_gloves" }
 local function seat1_melee(t, name)
@@ -2178,6 +2212,7 @@ end
 -- puts the elder maul on.
 local DIVINE_COMBAT = { "1dosedivinecombat", "2dosedivinecombat", "3dosedivinecombat", "4dosedivinecombat" }
 PRE.sotetseg = function(t, ox, oz)
+    room_tools(t, "sotetseg")
     wear(t, "sotetseg.equip.scythe", "scythe_of_vitur")
     set_style(t, "sotetseg.style", "Reap")
     wear(t, "sotetseg.equip.arrows", "dragon_arrow")
@@ -2227,6 +2262,7 @@ end
 -- _play_xarpus.lua trio_run: the super combat; the fight tile's local 34,28
 -- (a member has no ::tob readout), three tiles south of it.
 PRE.xarpus = function(t, ox, oz)
+    room_tools(t, "xarpus")
     wear(t, "xarpus.equip.scythe", "scythe_of_vitur")
     seat1_melee(t, "xarpus")
     boost(t, "xarpus")
@@ -2247,6 +2283,7 @@ end
 -- Protect from Magic on before starting the fight"); the leader talks (re-
 -- talked from up the carpet when no dialogue opened: _play_entry.lua).
 PRE.verzik = function(t, ox, oz)
+    room_tools(t, "verzik")
     wear(t, "verzik.equip.arrows", "dragon_arrow")
     wear(t, "verzik.equip.scythe", "scythe_of_vitur")
     seat1_melee(t, "verzik")
