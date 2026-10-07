@@ -1,8 +1,7 @@
 # Tekton room status
 
 Branch: `cursor/cox-tekton-runaround-da39`
-OSRS-Content: `cursor/cox-tekton-stand-da39` @ `08550b617` (pushed; local
-compile tip `c7c6614de` on dda1 lineage when main-based tree lacks sibling fixes)
+OSRS-Content: `cursor/cox-tekton-stand-da39` @ `ddd0f11b8`
 Agent: replacement for stuck `bc-d8bc5247`
 
 ## Strategy
@@ -13,13 +12,13 @@ Agent: replacement for stuck `bc-d8bc5247`
 ## Content
 
 - `cox_tekton.rs2`: re-issue `npc_walk` while `walking_in`; stand at
-  `anvil - ^cox_tekton_spawn_gap` so the 4x4 footprint clears the 6x4
-  blockwalk anvil (anvil SW and anvil-1z never arrive).
+  `anvil - spawn_gap` (4x4 clears 6x4 blockwalk); **npc_var** phase state
+  for AI timers (player temp `%varp6749` unbound in `[ai_timer]`); packed
+  anvil pinned at spawn.
 
 ## Harness
 
 - SM: `LAND → LURE → CYCLE ⇄ ANVIL_DODGE → REENGAGE → DONE`
-- Shark 8, 6 restores, adamant plate, DWH on REENGAGE
 
 ## Gate
 
