@@ -1211,11 +1211,12 @@ function QD.raid._play_maiden_trio(st, v)
     -- (sm51 _play_maiden: the scythe seats took 38s from trails on their own
     -- tiles (5,6) (6,5) in the 30 wave and died; every walk, dodge and reach
     -- now steps round them)
-    -- (radius 2: the client sees a spawn a tick late, so the tile it shows
-    -- next to me is the one it stands on now -- sm68 _play_maiden t270-271)
+    -- (radius 1, the reference's: it walks off a spawn by the dodge step,
+    -- react.boss.maiden_blood.*.step 1-2; radius 2 (sm69) made the seats step
+    -- off so often the room took 28 ticks longer)
     for _, sl in ipairs(v.slugs or {}) do
-        for ax = -2, 2 do
-            for az = -2, 2 do v.marks[(sl.x + ax) * 100000 + sl.z + az] = true end
+        for ax = -1, 1 do
+            for az = -1, 1 do v.marks[(sl.x + ax) * 100000 + sl.z + az] = true end
         end
     end
     v.shadows = v.marks
@@ -1254,7 +1255,7 @@ function QD.raid._play_maiden_trio(st, v)
     -- tile, sm17 _play_maiden (6,2) (6,3) (6,4) under the leader, 239 hp)
     local slug_near = false
     for _, sl in ipairs(v.slugs or {}) do
-        if math.max(math.abs(sl.x - v.me.x), math.abs(sl.z - v.me.z)) <= 2 then slug_near = true end
+        if math.max(math.abs(sl.x - v.me.x), math.abs(sl.z - v.me.z)) <= 1 then slug_near = true end
     end
     if m.state ~= "DODGE" and (v.marks[v.me.x * 100000 + v.me.z] or slug_near) then
         -- (blood only in the air over my tile reads as a throw: the freezer's
