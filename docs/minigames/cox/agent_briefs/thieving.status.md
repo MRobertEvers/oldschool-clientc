@@ -20,7 +20,7 @@
 - Hunger delay 100 ticks after last feed; trough feed → beast sleeps
 - Readout: `::coxthieving` prints counts / hunger_delay / pts_per_grub / stack_cap
 
-## Gate proof (re-verify)
+## Gate proof (re-verify GREEN)
 
 Private binary: `src/torirs_questtest_thieving`  
 (`PLATFORM_OBJ_BASE=build_questtest_thieving`, `GL_GLEXT_PROTOTYPES`, `--no-build`)
@@ -31,16 +31,24 @@ python3 tools/raid_gate/gate.py cox_thieving
 python3 tools/raid_gate/raid_coverage.py cox_thieving
 ```
 
+Fresh flock reverify `2026-10-07T13:50:23Z` → `13:51:12Z`:
+
+| Check | Result |
+|---|---|
+| `run.py` | `RUN_EXIT=0` — 28 PASS / 0 FAIL / 212 ticks |
+| `gate.py` | `GATE_EXIT=0` — **green** |
+| `raid_coverage.py` | `COV_EXIT=0` — **FULL** (7 in-scope rows) |
+| `spec_check.py` | ok — 7 rows |
+
 | Artifact | Path |
 |---|---|
 | Reverify log | `/opt/cursor/artifacts/cox_thieving_reverify.log` |
+| Reverify (copy) | `/opt/cursor/artifacts/cox_thieving_reverify_green.log` |
 | Ledger | `build/quest_gate/cox_thieving/ledger.tsv` |
+| Ledger (copy) | `/opt/cursor/artifacts/cox_thieving_ledger.tsv` |
 | Ticklog | `build/quest_gate/cox_thieving/ticklog.tsv` |
 | Client log | `build/quest_gate/cox_thieving/client.log` |
-| Gate grade (prior ledger) | `/opt/cursor/artifacts/cox_thieving_gate_prior.log` |
-| Coverage (prior ledger) | `/opt/cursor/artifacts/cox_thieving_cov_prior.log` |
-
-**Status:** PRIOR ledger green / FULL (28 PASS @ `2026-10-07T12:17`); fresh flock reverify in queue — update RUN/GATE/COV exits from reverify log when complete.
+| Shots | `build/quest_gate/cox_thieving/shots/` (20 PNG) |
 
 ## Spec
 
