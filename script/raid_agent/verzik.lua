@@ -702,6 +702,21 @@ local function p3(world, me, m, mems, seats, vz, O, intent)
         soft[#soft + 1] = { name = "pool", w = 60, cost = function(x, z) return cheb(x, z, mine.x, mine.z) end }
         stay_w = 1
     end
+    -- in a flight the pair's meeting outranks fleeing a tornado for a gap and
+    -- standing in reach (vz01 t733-741: the holder ran from its tornado, the
+    -- joiner came round her, two apart at the landing); the tornado's touch
+    -- itself stays hard, and the landing's pair rule outranks it
+    if b ~= nil and b.holder ~= nil and (b.holder == me.pid or b.next == me.pid) then
+        local kept = {}
+        for _, s in ipairs(soft) do
+            if s.name ~= "gap" then
+                if s.name == "reach" then s.w = 2 end
+                if s.name == "meet" then s.w = 30 end
+                kept[#kept + 1] = s
+            end
+        end
+        soft = kept
+    end
     local q = { me = me, step = 2, hard = hard, soft = soft, stay_w = stay_w,
         ok = function(x, z) return walkable(world, O, x, z) end }
     local r = Move.solve(q)
