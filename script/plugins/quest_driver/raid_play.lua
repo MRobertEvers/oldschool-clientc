@@ -1599,66 +1599,83 @@ function QD.raid.cross_together(name, opts)
     end
     local _, here = QD.world.tile()
     local dx, dz = here.x - row.tile_x, here.z - row.tile_z
+    -- the barrier's run: another copy beside it on x means it runs along x
+    -- and is crossed along z (and the other way round); a tie in the
+    -- player's offset used to pick the x side, a tile DIAGONAL to a 1x1
+    -- Nylocas barrier, and that seat's press walked a tick first (mzprobenyl:
+    -- p3 on 6432,96 pressed t115, p2 on 6431,96 t113)
+    local along_x = nil
+    local cr, _, copies = QD.world.loc_copies(loc, 40)
+    if cr == "ok" and type(copies) == "table" then
+        for _, c in ipairs(copies) do
+            if c.z == row.tile_z and math.abs(c.x - row.tile_x) == 1 then along_x = true end
+            if c.x == row.tile_x and math.abs(c.z - row.tile_z) == 1 then along_x = false end
+        end
+    end
     local sx, sz
-    if math.abs(dx) >= math.abs(dz) then
-        sx, sz = row.tile_x + ((dx >= 0) and 1 or -1), here.z
+    if along_x == false or (along_x == nil and math.abs(dx) >= math.abs(dz)) then
+        sx, sz = row.tile_x + ((dx >= 0) and 1 or -1), row.tile_z
     else
-        sx, sz = here.x, row.tile_z + ((dz >= 0) and 1 or -1)
+        sx, sz = row.tile_x, row.tile_z + ((dz >= 0) and 1 or -1)
     end
     QD.player.walk_to(sx, sz, 40)
     local _, at = QD.world.tile()
     local br = QD.party.barrier(name .. "_door", timeout)
     if br ~= "ok" then return "timeout", "cross_together " .. name .. ": the door barrier " .. tostring(br) end
     if role == starter and opts.before ~= nil then opts.before() end
-    if role == starter then
-        local presses, opened = 0, false
-        while presses < 3 and not opened do
-            presses = presses + 1
-            QD.player.click_loc(loc, 1)
-            QD.await({ level = function() return QD.chat.kind() == "options" end, note = name .. ": the barrier's question" }, 6)
-            opened = QD.chat.kind() == "options"
-        end
-        if not opened then
-            QD.party.barrier(name .. "_asked", timeout)
-            return "refused", "cross_together " .. name .. ": no question after " .. presses .. " press(es)"
-        end
+    -- EVERY seat opens the barrier's question (tob_party.rs2 [oploc1,
+    -- tob_arena_barrier]: the same p_choice2 for every raider while the room
+    -- is not started) and all three answer it on ONE go tick: the answer is
+    -- a dialog resume, the same pipeline on every seat, so the three steps
+    -- land on the same server tick (coordinator 23:15; before, a member's
+    -- loc press after the starter's answer reached the server 1-2 ticks
+    -- late and differently per seat).  ~tob_start_room run twice on one tick
+    -- writes the same values (map_clock is the tick's).
+    local presses, opened = 0, false
+    while presses < 3 and not opened do
+        presses = presses + 1
+        QD.player.click_loc(loc, 1)
+        QD.await({ level = function() return QD.chat.kind() == "options" end, note = name .. ": the barrier's question" }, 6)
+        opened = QD.chat.kind() == "options"
+    end
+    if not opened then
+        QD.party.barrier(name .. "_asked", timeout)
+        return "refused", "cross_together " .. name .. ": p" .. role .. " no question after " .. presses .. " press(es)"
     end
     local ar = QD.party.barrier(name .. "_asked", timeout)
     if ar ~= "ok" then return "timeout", "cross_together " .. name .. ": the asked barrier " .. tostring(ar) end
-    local _, go_tick = QD.tick()
-    local tries, detail = 0, ""
+    -- the go tick: named by the starter three ahead in a barrier file
+    -- (`<name>_go<tick>`); the lockstep link gives every seat the same tick
+    local _, now = QD.tick()
+    local go_tick = nil
     if role == starter then
-        if opts.at_answer ~= nil then opts.at_answer() end
-        local pr, pd = QD.chat.play({ "options", "choose:" .. answer })
-        detail = "answered " .. tostring(pr)
-        if pr ~= "ok" then return "refused", "cross_together " .. name .. ": " .. tostring(pd) end
+        go_tick = now + 3
+        api_drive.barrier_mark(string.format("barrier.%s_go%d.p%d", name, go_tick, role))
     else
-        -- a press, then the next tick: the question open means the press beat
-        -- the start ("Not yet." and press again); otherwise the step is the
-        -- server's on this tick and the fight starts now (no wait for the tile
-        -- to read moved: that read is a tick behind and cost the members two
-        -- ticks of the run in, owner sva probe: play from t67 against t65)
-        -- owner_tob_normal (coordinator 23:05): return on the tick the own
-        -- tile has left the door tile, polled every tick after the press --
-        -- the old fixed tick plus the reads after it handed the loop over 3
-        -- ticks after the step (mzprobenyl: p1 stepped t111, returned t114),
-        -- and the members' first attack in Nylocas' wave 1 landed at +3
-        -- against the script's +1
-        local _, door = QD.world.tile()
-        local crossed = false
-        while tries < 4 and not crossed do
-            tries = tries + 1
-            QD.player.click_loc(loc, 1)
-            for _ = 1, 4 do
-                local _, now = QD.world.tile()
-                if now ~= nil and door ~= nil and (now.x ~= door.x or now.z ~= door.z) then crossed = true break end
-                if QD.chat.kind() == "options" then break end
-                QD.ticks(1)
+        for _ = 1, 20 do
+            local _, t = QD.tick()
+            for k = t - 6, t + 8 do
+                if api_drive.barrier_present(string.format("barrier.%s_go%d.p%d", name, k, starter)) == "ok" then go_tick = k break end
             end
-            if not crossed and QD.chat.kind() == "options" then QD.chat.play({ "options", "choose:Not yet." }) end
+            if go_tick ~= nil then break end
+            QD.ticks(1)
         end
-        detail = tries .. " press(es)" .. (crossed and "" or ", tile not seen to move")
+        go_tick = go_tick or now
     end
+    while true do
+        local _, t = QD.tick()
+        if t >= go_tick then break end
+        QD.ticks(1)
+    end
+    if role == starter and opts.at_answer ~= nil then opts.at_answer() end
+    local _, door = QD.world.tile()
+    local pr, pd = QD.chat.play({ "options", "choose:" .. answer })
+    local detail = "answered " .. tostring(pr) .. " after " .. presses .. " press(es)"
+    if pr ~= "ok" then return "refused", "cross_together " .. name .. ": " .. tostring(pd) end
+    -- back to the caller at once: the step is the server's on the answer's
+    -- tick for every seat (mzprobemaiden: all three on 6448,93 at t67), and
+    -- a member's read of its own tile is a tick behind it (polling it handed
+    -- the members' loops over at t68)
     local _, after = QD.world.tile()
     local _, t_after = QD.tick()
     return "ok", string.format("cross_together %s: p%d from %d,%d (door tile %d,%d), on %d,%d at t%d; go t%d; %s",
