@@ -645,8 +645,9 @@ and drops them on exit. The Entry solo plan keeps its own pick (`_play_nylocas_s
 
 | state | does each tick | leaves on |
 |---|---|---|
-| AT_STAND | the next named target alive (newest copy of the key), else an unnamed copy of its colour or any copy older than 15 (Blert's median small death age), else walk to the wave's tile | target found -> KILL; support_hit -> PILLAR_DEFENCE; hit_taken (aggro) -> SELF_DEFENCE; waves_over -> CLEANUP; boss_phase -> BOSS |
-| KILL | presses targets[idx] with the wave's weapon for its colour (the bow on greens where the role's modal weapon is TWISTED_BOW, chins on a green pair, the scythe on a grey stack) | wave_spawn -> AT_STAND(w); target_dead -> next idx / AT_STAND / CLEANUP; target_reached_pillar, support_hit -> PILLAR_DEFENCE (resume KILL, same idx); hit_taken -> SELF_DEFENCE; boss_phase -> BOSS |
+| AT_STAND | before wave 1 only: walk to wave 1's tile | wave_spawn -> KILL; support_hit -> PILLAR_DEFENCE; hit_taken (aggro) -> SELF_DEFENCE; waves_over -> CLEANUP; boss_phase -> BOSS |
+| PRE_STAND | the wave's list is done: walk to the NEXT wave's script tile, then a copy of its colour in reach | wave_spawn -> KILL (first target pressed on the spawn tick); support_hit / hit_taken / waves_over / boss_phase as AT_STAND |
+| KILL | presses targets[idx] when in its weapon's reach +1 (else the nearest copy of its colour in reach, else one step toward the copy's tunnel mouth) with the wave's weapon for its colour (the bow on greens where the role's modal weapon is TWISTED_BOW, chins on a green pair, the scythe on a grey stack) | wave_spawn -> AT_STAND(w); target_dead -> next idx / AT_STAND / CLEANUP; target_reached_pillar, support_hit -> PILLAR_DEFENCE (resume KILL, same idx); hit_taken -> SELF_DEFENCE; boss_phase -> BOSS |
 | PILLAR_DEFENCE | the nearest support's chewers of the seat's colour, least hitpoints first | none left -> resume; boss_phase -> BOSS; hit_taken -> SELF_DEFENCE |
 | SELF_DEFENCE | the aggro swinging at the seat | none -> resume; boss_phase -> BOSS |
 | CLEANUP | the script's cleanup order, then its colour, then any copy | support_hit -> PILLAR_DEFENCE; hit_taken -> SELF_DEFENCE; boss_phase -> BOSS |
@@ -667,7 +668,10 @@ fallback is the oldest copy OF THE SEAT'S COLOUR no other seat's list names; AT_
 script's tile unless its copy is already in reach; a small with another seat's shot in the air is
 spoken for; a role's targets[i] kept only while half the rooms have an i-th target. sm13: 317/377/108/485,
 309/373/109/482, 313/377/115/492, 321/397/109/506, 317/381/109/490; the weakest support under 0.10 on
-every name. Aggros-first in every state (sm14) was worse. Still red; the first deviation is still the
+every name. Aggros-first in every state (sm14) was worse. Powered staves now take the worn magic damage
+(OSRS-Content 5b87903eb7). PRE_STAND (sm17): 313/373/103/476, 309/381/104/485, 309/373/115/488,
+309/373/123/496, 317/385/109/494; wave 9 attacks 4/6/2 and 4/4/2 (Blert 3/4/3), first attack +0..3 from
+wave 4 on; the stall is now at wave 29-30 (36-44 ticks): at w29's spawn Blert itself carries 23 alive. Still red; the first deviation is still the
 wave-1 ranger at +3 (the members' cross_together returns three ticks after the crossing).
 
 ## Sotetseg, Entry solo (`tob_sotetseg`, mode `entry`), proved

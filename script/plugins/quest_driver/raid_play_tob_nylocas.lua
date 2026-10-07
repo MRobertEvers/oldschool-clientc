@@ -354,33 +354,37 @@ QD.raid._play_plan("tob_nylocas", {
 -- return nil and change nothing.
 --
 --  state           event                  -> next state (and what it does)
---  AT_STAND        tick                   off the wave's tile: walk there, unless the copy below is
---                                         already in the weapon's reach; then a live copy of the
---                                         role's targets[idx..] (the newest the key names), else the
---                                         oldest copy of its colour no other seat's list names -> KILL; else walk to
---                                         P.waves[wave][role].tile
---                  wave_spawn(w)          stay, wave = w, idx = 1
---                  target_dead            stay
---                  target_reached_pillar  stay
+--  AT_STAND        tick                   (before wave 1 only) walk to wave 1's tile
+--                  wave_spawn(w)          wave = w, idx = 1 -> KILL
 --                  support_hit            resume = AT_STAND -> PILLAR_DEFENCE
---                  waves_over             -> CLEANUP (idx = 1)
---                  boss_phase             -> BOSS
---                  hit_taken              an aggro swinging at the seat: resume = AT_STAND -> SELF_DEFENCE
---  KILL            tick                   press the copy targets[idx] names (idx > #targets: the
---                                         oldest copy nobody else's list names), with the wave's
---                                         weapon for its colour
---                  wave_spawn(w)          wave = w, idx = 1 -> AT_STAND
---                  target_dead            idx = the next named target alive; none -> AT_STAND
---                                         (waves over: -> CLEANUP)
+--                  waves_over             -> CLEANUP;  boss_phase -> BOSS
+--                  hit_taken              an aggro swinging at the seat: resume -> SELF_DEFENCE
+--                  target_dead, target_reached_pillar: stay
+--  KILL            tick                   targets[idx] (the newest copy the key names; past the list
+--                                         the oldest copy of the seat's colour no other seat's list
+--                                         names): in reach (+1 tile; a grey always) -> pressed with the
+--                                         wave's weapon for its colour; out of reach -> the nearest
+--                                         copy of the seat's colour in reach meanwhile, else one step
+--                                         toward the copy's tunnel mouth
+--                  wave_spawn(w)          stay, wave = w, idx = 1
+--                  target_dead            idx = the next named target alive, else an unnamed copy of
+--                                         its colour in reach; none -> PRE_STAND (waves over: CLEANUP)
 --                  target_reached_pillar  resume = KILL -> PILLAR_DEFENCE
 --                  support_hit            resume = KILL -> PILLAR_DEFENCE
 --                  waves_over             stay (the wave's own targets are finished first)
 --                  boss_phase             -> BOSS
 --                  hit_taken              an aggro swinging at the seat: resume = KILL -> SELF_DEFENCE
+--  PRE_STAND       tick                   walk to P.waves[wave + 1][role].tile; on it, a copy of the
+--                                         seat's colour in reach
+--                  wave_spawn(w)          wave = w, idx = 1 -> KILL (its first target pressed this tick)
+--                  support_hit            resume = PRE_STAND -> PILLAR_DEFENCE
+--                  waves_over             -> CLEANUP;  boss_phase -> BOSS
+--                  hit_taken              an aggro swinging at the seat: resume -> SELF_DEFENCE
+--                  target_dead, target_reached_pillar: stay
 --  PILLAR_DEFENCE  tick                   the nearest support with a chewer of the seat's colour:
 --                                         those chewers, the least hitpoints first; none -> resume
---                                         (KILL at the same idx, AT_STAND, CLEANUP)
---                  wave_spawn(w)          stay, wave = w, idx = 1, resume = AT_STAND
+--                                         (KILL at the same idx, PRE_STAND, CLEANUP)
+--                  wave_spawn(w)          stay, wave = w, idx = 1, resume = KILL
 --                  target_dead            stay
 --                  target_reached_pillar  stay
 --                  support_hit            stay
@@ -389,8 +393,8 @@ QD.raid._play_plan("tob_nylocas", {
 --                  hit_taken              an aggro swinging at the seat -> SELF_DEFENCE (resume kept)
 --  SELF_DEFENCE    tick                   the aggro swinging at the seat (through the prayer first);
 --                                         none -> resume
---                  wave_spawn(w)          stay, wave = w, idx = 1 (resume KILL -> AT_STAND)
---                  waves_over             stay (resume AT_STAND -> CLEANUP)
+--                  wave_spawn(w)          stay, wave = w, idx = 1 (resume PRE_STAND -> KILL)
+--                  waves_over             stay (resume PRE_STAND -> CLEANUP)
 --                  boss_phase             -> BOSS
 --                  target_dead, target_reached_pillar, support_hit, hit_taken: stay
 --  CLEANUP         tick                   P.cleanup[role].targets[idx..], then the role's colour,
@@ -662,30 +666,38 @@ function QD.raid._nym_note(c)
 end
 
 local function stay() return nil end
+-- the tunnels' mouths, offsets from P.stand_anchor (the script's lanes end
+-- there: content tob_nylocas.rs2 "west x=26, east x=37, south z=19")
+local NY_MOUTH = { W = { -4, 1 }, S = { 2, -4 }, E = { 7, 2 } }
+-- in reach: a melee copy always (the server walks to it), a ranged or magic
+-- copy within its weapon's reach and one tile
+local function nym_in_reach(c, n)
+    if n.style == "melee" then return true end
+    return c.dist(c.me.x, c.me.z, n.x, n.z, n.size) <= (c.ny.reach[n.style] or 1) + 1
+end
+-- the nearest copy of the seat's colour in its weapon's reach, or nil
+local function nym_own_in_reach(c)
+    local best, bd = nil, nil
+    for _, n in ipairs(c.v.nylos) do
+        if n.style == c.R.colour and QD.raid._nym_pressable(c, n) then
+            local d = c.dist(c.me.x, c.me.z, n.x, n.z, n.size)
+            if d <= (c.ny.reach[n.style] or 1) or (n.style == "melee" and d <= 2) then
+                if c.cur ~= nil and c.cur.slot == n.slot then return n end
+                if bd == nil or d < bd then best, bd = n, d end
+            end
+        end
+    end
+    return best
+end
+local function nym_tile(c, t) return c.O.x + c.P.stand_anchor[1] + t[1], c.O.z + c.P.stand_anchor[2] + t[2] end
 -- AT_STAND
 local function at_stand_tick(c)
-    local n, i = QD.raid._nym_named_from(c, c.m.idx)
-    if n == nil then n = QD.raid._nym_unnamed(c) end
-    -- STAND WHERE THE SCRIPT SAYS: off the wave's tile the seat walks there
-    -- first, unless its copy is already in its weapon's reach from here
-    local t0 = c.P.waves[math.max(1, math.min(c.m.wave, 31))][c.R.name].tile
-    local sx, sz = c.O.x + c.P.stand_anchor[1] + t0[1], c.O.z + c.P.stand_anchor[2] + t0[2]
-    if math.max(math.abs(c.me.x - sx), math.abs(c.me.z - sz)) > 1 and c.floor_ok(sx, sz)
-        and (n == nil or c.dist(c.me.x, c.me.z, n.x, n.z, n.size) > (c.ny.reach[n.style] or 1)) then
-        c.walk = { x = sx, z = sz }
-        return nil
-    end
-    if n ~= nil then
-        c.m.idx = i
-        QD.raid._nym_go(c, "KILL")
-        return QD.raid._nym_pick(c, n)
-    end
-    local t = c.P.waves[math.max(1, math.min(c.m.wave, 31))][c.R.name].tile
-    local x, z = c.O.x + c.P.stand_anchor[1] + t[1], c.O.z + c.P.stand_anchor[2] + t[2]
+    -- before wave 1 only: to the first wave's tile
+    local x, z = nym_tile(c, c.P.waves[1][c.R.name].tile)
     if math.max(math.abs(c.me.x - x), math.abs(c.me.z - z)) > 1 and c.floor_ok(x, z) then c.walk = { x = x, z = z } end
     return nil
 end
-local function at_stand_on_wave_spawn(c, w) c.m.wave, c.m.idx = w, 1 end
+local function at_stand_on_wave_spawn(c, w) c.m.wave, c.m.idx = w, 1 c.target = nil QD.raid._nym_go(c, "KILL") end
 local function at_stand_on_support_hit(c) c.m.resume = "AT_STAND" QD.raid._nym_go(c, "PILLAR_DEFENCE") end
 local function at_stand_on_waves_over(c) c.m.idx = 1 QD.raid._nym_go(c, "CLEANUP") end
 local function at_stand_on_boss_phase(c) QD.raid._nym_go(c, "BOSS") end
@@ -697,31 +709,64 @@ local function kill_tick(c)
         if c.m.idx <= #list then n = QD.raid._nym_find(c, list[c.m.idx]) else n = QD.raid._nym_unnamed(c) end
     end
     if n == nil then return nil end
-    return QD.raid._nym_pick(c, n)
+    if nym_in_reach(c, n) then return QD.raid._nym_pick(c, n) end
+    -- the script's copy is out of reach: the nearest copy of the seat's colour
+    -- in reach meanwhile (the script's copy stays the next), else one step
+    -- toward its tunnel's mouth (not after the copy into the tunnel)
+    local o = nym_own_in_reach(c)
+    if o ~= nil then return QD.raid._nym_pick(c, o) end
+    local key = QD.raid._nym_key(n)
+    local mouth = NY_MOUTH[string.sub(key, 1, 1)]
+    local tx, tz = n.x, n.z
+    if mouth ~= nil then tx, tz = nym_tile(c, mouth) end
+    local sx = c.me.x + ((tx > c.me.x) and 1 or ((tx < c.me.x) and -1 or 0))
+    local sz = c.me.z + ((tz > c.me.z) and 1 or ((tz < c.me.z) and -1 or 0))
+    if (sx ~= c.me.x or sz ~= c.me.z) and c.floor_ok(sx, sz) then c.walk = { x = sx, z = sz } end
+    return nil
 end
-local function kill_on_wave_spawn(c, w) c.m.wave, c.m.idx = w, 1 QD.raid._nym_go(c, "AT_STAND") end
+local function kill_on_wave_spawn(c, w) c.m.wave, c.m.idx = w, 1 c.target = nil end
 local function kill_on_target_dead(c)
     local n, i = QD.raid._nym_named_from(c, c.m.idx + 1)
     c.m.idx = i
-    if n == nil then n = QD.raid._nym_unnamed(c) end
+    if n == nil then
+        n = QD.raid._nym_unnamed(c)
+        if n ~= nil and not nym_in_reach(c, n) then n = nil end
+    end
     c.target = n
     if n == nil then
-        if c.waves_over then c.m.idx = 1 QD.raid._nym_go(c, "CLEANUP") else QD.raid._nym_go(c, "AT_STAND") end
+        if c.waves_over then c.m.idx = 1 QD.raid._nym_go(c, "CLEANUP") else QD.raid._nym_go(c, "PRE_STAND") end
     end
 end
 local function kill_on_target_reached_pillar(c) c.m.resume = "KILL" QD.raid._nym_go(c, "PILLAR_DEFENCE") end
 local function kill_on_support_hit(c) c.m.resume = "KILL" QD.raid._nym_go(c, "PILLAR_DEFENCE") end
 local function kill_on_boss_phase(c) QD.raid._nym_go(c, "BOSS") end
+-- PRE_STAND: the wave's list is done; on the next wave's tile before it spawns
+local function pre_stand_tick(c)
+    local nxt = math.min(c.m.wave + 1, 31)
+    local x, z = nym_tile(c, c.P.waves[nxt][c.R.name].tile)
+    if math.max(math.abs(c.me.x - x), math.abs(c.me.z - z)) > 1 and c.floor_ok(x, z) then
+        c.walk = { x = x, z = z }
+        return nil
+    end
+    local o = nym_own_in_reach(c)
+    if o ~= nil then return QD.raid._nym_pick(c, o) end
+    return nil
+end
+local function pre_stand_on_wave_spawn(c, w) c.m.wave, c.m.idx = w, 1 c.target = nil QD.raid._nym_go(c, "KILL") end
+local function pre_stand_on_support_hit(c) c.m.resume = "PRE_STAND" QD.raid._nym_go(c, "PILLAR_DEFENCE") end
+local function pre_stand_on_waves_over(c) c.m.idx = 1 QD.raid._nym_go(c, "CLEANUP") end
+local function pre_stand_on_boss_phase(c) QD.raid._nym_go(c, "BOSS") end
+local function pre_stand_on_hit_taken(c) if QD.raid._nym_aggro(c) ~= nil then c.m.resume = "PRE_STAND" QD.raid._nym_go(c, "SELF_DEFENCE") end end
 -- PILLAR_DEFENCE
 local function pillar_defence_tick(c)
     local n = QD.raid._nym_defence(c)
     if n ~= nil then return QD.raid._nym_pick(c, n) end
     local back = c.m.resume
-    if back == nil or back == "PILLAR_DEFENCE" or back == "SELF_DEFENCE" then back = "AT_STAND" end
+    if back == nil or back == "PILLAR_DEFENCE" or back == "SELF_DEFENCE" or back == "AT_STAND" then back = "PRE_STAND" end
     QD.raid._nym_go(c, back)
     return NY_STATES[c.m.state].tick(c)
 end
-local function pillar_defence_on_wave_spawn(c, w) c.m.wave, c.m.idx, c.m.resume = w, 1, "AT_STAND" end
+local function pillar_defence_on_wave_spawn(c, w) c.m.wave, c.m.idx, c.m.resume = w, 1, "KILL" end
 local function pillar_defence_on_waves_over(c) if c.m.resume ~= "CLEANUP" then c.m.resume, c.m.idx = "CLEANUP", 1 end end
 local function pillar_defence_on_boss_phase(c) QD.raid._nym_go(c, "BOSS") end
 -- CLEANUP
@@ -741,12 +786,12 @@ local function self_defence_tick(c)
     local n = QD.raid._nym_aggro(c)
     if n ~= nil then return QD.raid._nym_pick(c, n) end
     local back = c.m.resume
-    if back == nil or back == "SELF_DEFENCE" then back = "AT_STAND" end
+    if back == nil or back == "SELF_DEFENCE" or back == "AT_STAND" then back = "PRE_STAND" end
     QD.raid._nym_go(c, back)
     return NY_STATES[c.m.state].tick(c)
 end
-local function self_defence_on_wave_spawn(c, w) c.m.wave, c.m.idx = w, 1 if c.m.resume == "KILL" then c.m.resume = "AT_STAND" end end
-local function self_defence_on_waves_over(c) if c.m.resume == "AT_STAND" then c.m.resume, c.m.idx = "CLEANUP", 1 end end
+local function self_defence_on_wave_spawn(c, w) c.m.wave, c.m.idx = w, 1 if c.m.resume == "PRE_STAND" or c.m.resume == "AT_STAND" then c.m.resume = "KILL" end end
+local function self_defence_on_waves_over(c) if c.m.resume == "AT_STAND" or c.m.resume == "PRE_STAND" then c.m.resume, c.m.idx = "CLEANUP", 1 end end
 local function self_defence_on_boss_phase(c) QD.raid._nym_go(c, "BOSS") end
 local function at_stand_on_hit_taken(c) if QD.raid._nym_aggro(c) ~= nil then c.m.resume = "AT_STAND" QD.raid._nym_go(c, "SELF_DEFENCE") end end
 local function kill_on_hit_taken(c) if QD.raid._nym_aggro(c) ~= nil then c.m.resume = "KILL" QD.raid._nym_go(c, "SELF_DEFENCE") end end
@@ -760,6 +805,8 @@ NY_STATES = {
         support_hit = at_stand_on_support_hit, waves_over = at_stand_on_waves_over, boss_phase = at_stand_on_boss_phase, hit_taken = at_stand_on_hit_taken } },
     KILL = { tick = kill_tick, on = { wave_spawn = kill_on_wave_spawn, target_dead = kill_on_target_dead, target_reached_pillar = kill_on_target_reached_pillar,
         support_hit = kill_on_support_hit, waves_over = stay, boss_phase = kill_on_boss_phase, hit_taken = kill_on_hit_taken } },
+    PRE_STAND = { tick = pre_stand_tick, on = { wave_spawn = pre_stand_on_wave_spawn, target_dead = stay, target_reached_pillar = stay,
+        support_hit = pre_stand_on_support_hit, waves_over = pre_stand_on_waves_over, boss_phase = pre_stand_on_boss_phase, hit_taken = pre_stand_on_hit_taken } },
     PILLAR_DEFENCE = { tick = pillar_defence_tick, on = { wave_spawn = pillar_defence_on_wave_spawn, target_dead = stay, target_reached_pillar = stay,
         support_hit = stay, waves_over = pillar_defence_on_waves_over, boss_phase = pillar_defence_on_boss_phase, hit_taken = pillar_defence_on_hit_taken } },
     CLEANUP = { tick = cleanup_tick, on = { wave_spawn = stay, target_dead = cleanup_on_target_dead, target_reached_pillar = stay,
