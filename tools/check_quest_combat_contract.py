@@ -2112,7 +2112,7 @@ def check_elemental_workshops() -> None:
     require_text(
         ELEM2_PRIMING.read_text(),
         (
-            "[opnpcu,elem2_cart_npc_empty]", "[oploc1,elem2_lever_3way]",
+            "[opnpcu,elem2_cart_npc]", "[oploc1,elem2_lever_3way]",
             "[oploc1,elem2_earth_lever_1]", "[oploc1,elem2_water_lever]",
             "[oploc1,elem2_corkscrew]", "[oploc1,elem2_valve_1]",
             "[oploc1,elem2_valve_2]", "[oploc1,elem2_air_lever]",
