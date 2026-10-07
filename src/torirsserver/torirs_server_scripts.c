@@ -9473,7 +9473,7 @@ ToriRSServer_ScriptCommand(
         if( !SSVM_PopStr(state, &argv[1]) || !SSVM_PopStr(state, &argv[0]) ||
             !SSVM_PopInt(state, &script_id) )
             return 1;
-        ToriRSServer_SendRunClientscriptMixed(srv->active_player, (int)script_id, "ss", NULL, argv, 2);
+        ToriRSServer_SendRunClientscriptMixed(player, (int)script_id, "ss", NULL, argv, 2);
         return 1;
     }
 
@@ -9535,8 +9535,16 @@ ToriRSServer_ScriptCommand(
         }
         if( !SSVM_PopInt(state, &script_id) )
             return 1;
-        ToriRSServer_SendRunClientscriptMixed(srv->active_player, (int)script_id, types, intv,
-                                            strv, argc);
+        /*
+         * To the script's ACTIVE player (`player`, which follows `p_finduid`),
+         * not `srv->active_player` -- the player whose turn is being
+         * processed. A script that walks a party with `p_finduid` and runs a
+         * clientscript for each raider (tob_hud.rs2 `~tob_hud_names`) sent
+         * every copy to whoever triggered it: the Theatre's orb letters
+         * reached the joiner three times and the raiders already inside never,
+         * so their orbs drew "-" for the raider who joined after them.
+         */
+        ToriRSServer_SendRunClientscriptMixed(player, (int)script_id, types, intv, strv, argc);
         return 1;
     }
 
