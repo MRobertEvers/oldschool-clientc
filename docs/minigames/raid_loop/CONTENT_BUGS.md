@@ -2045,3 +2045,18 @@ Verzik, and the exit passages).
   far as any page shows; none here says so in a line). The instance holds one room at a time, so a per-raider
   passage is an architecture change, not a constant.
 
+
+## 2026-10-07 (owner-approved): two-hit melee weapons rolled one hit
+
+The melee swing (`skill_combat/combat_stats.rs2`) rolled ONE hit for every weapon but the scythe, so sulphur
+blades, glacial temotli, earthbound tecpatl and the dual macuahuitl were weaker one-hit weapons. The recorded
+Normal trio meleers clear the Nylocas greys mostly with the blades (Blert: 771 attacks in 27 rooms;
+owner_nylocas progress Step 18). Sources: wiki_Multi-hit_weapons.wikitext:25/32/39 "two independently rolled
+hits per attack, hitting twice on the same game tick ... the combined max hit ... dividing it by two"; :54-55
+and wiki_Dual_macuahuitl.wikitext:25 the macuahuitl "spaced one game tick apart ... The first hit takes half,
+rounded down, and the second hit takes the remainder ... the second check will only proceed if the first
+succeeds". Fixed: `gear/multihit_melee.rs2` (~melee_multihit_kind / _first_max / _second) wired into the melee
+swing; the first hit rolls against half the max (rounded down), the second against the remainder, through the
+same per-target funnel and XP; same tick for the three, a tick later and only after a landed first hit for the
+macuahuitl. Not modelled: the Blood moon set's early-attack effect; Torag's hammers (not in this cache's obj
+symbols under that name; same rule when added).

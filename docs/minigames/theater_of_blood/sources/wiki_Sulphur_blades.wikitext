@@ -1,0 +1,64 @@
+{{Infobox Item
+|name = Sulphur blades
+|image = [[File:Sulphur blades.png]]
+|release = [[20 March]] [[2024]]
+|update = Varlamore: Part One
+|members = Yes
+|quest = No
+|tradeable = Yes
+|bankable = Yes
+|equipable = Yes
+|stackable = No
+|noteable = Yes
+|options = Wield, Drop
+|examine = Are these explosive?
+|value = 30000
+|weight = 1.814
+|exchange = Yes
+|id = 29084
+|leagueRegion = Varlamore
+}}
+[[File:Sulphur blades detail.png|130px|left]]
+'''Sulphur blades''' are a two-handed weapon that requires level 55 [[Attack]] to wield, obtained as a rare drop from [[sulphur nagua]] in [[Neypotzli]]. Like their crush and stab equivalents, the [[glacial temotli]] and [[earthbound tecpatl]], it performs [[Multi-hit weapons|two independently rolled hits per attack]]. The maximum damage of each hit is determined by calculating the combined max hit as normal and dividing it by two. If the combined max hit is odd, one max hit is rounded up while the other is rounded down (e.g., 45 → 22 + 23).
+
+Their stats are nearly identical to the [[dragon scimitar]], trading 2 strength bonus for 5 more slash accuracy, although the scimitar paired with a [[defender]] is considerably stronger.
+
+As sulphur blades deal damage in two hitsplats, they are very good for training combat on [[Sulphur Nagua|sulphur nagua]] due to them taking an additional 4 minimum damage for each hitsplat. Additionally, [[Moonlight potion|moonlight potions]] are easy to make nearby and can be used to provide prayer points and melee stat boosts.
+
+==Combat stats==
+{{Infobox Bonuses
+|astab = +11
+|aslash = +72
+|acrush = 0
+|amagic = 0
+|arange = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|drange = 0
+|str = +64
+|rstr = 0
+|mdmg = 0
+|prayer = 0
+|slot = 2h
+|speed = 4
+|attackrange = 1
+|combatstyle = Slash Sword
+|image = [[File:Sulphur blades equipped male.png|180px]]
+|altimage = [[File:Sulphur blades equipped female.png|180px]]
+}}
+
+{{CombatStyles|Slash Sword|speed=4|attackrange=1}}
+
+==Item sources==
+{{Drop sources|Sulphur blades}}
+
+==Used in recommended equipment==
+{{Used in recommended equipment|Sulphur blades}}
+
+{{Neypotzli}}
+{{Slash weapons}}
+{{Multi-hit weapons}}
+
+[[Category:Collection log items]]

@@ -1,0 +1,139 @@
+{{Redirect|Dual|the Treasure Trails reward|Dual sai|dual hitsplat weapons|Multi-hit weapons}}
+{{Infobox Item
+|name = Dual macuahuitl
+|image = [[File:Dual macuahuitl.png]]
+|release = [[20 March]] [[2024]]
+|update = Varlamore: Part One
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = Yes
+|stackable = No
+|noteable = Yes
+|options = Wield, Drop
+|examine = A brutal pair.
+|value = 290010
+|weight = 3.628
+|exchange = Yes
+|id = 28997
+|leagueRegion = Varlamore
+}}
+[[File:Dual macuahuitl detail.png|150px|left]]
+<!--yes, in Nahuatl, the final phoneme cluster is /tɬ/ rather than /tl/; however /l/ is the only lateral consonant in English and is as close as a monolingual English speaker is going to get-->
+The '''dual macuahuitl''' (in English pronounced roughly {{Respell|mah|KWAH|weetl}}) is a [[non-degradable]] two-handed [[spiked]] weapon that requires level 70 [[Attack]] and 75 [[Strength]] to equip, which is obtained as a possible reward from the [[Lunar Chest]] in [[Neypotzli]].
+
+The weapon [[Multi-hit weapons|hits twice per attack]], spaced 1 game tick apart when attacking monsters, with its [[Maximum melee hit|maximum hit]] split out over both [[hitsplats]]. The first hit takes half, rounded down, and the second hit takes the remainder, meaning a maximum hit of 41 will be split into two maximum hits of 20 and 21.{{CiteDiscord|author=Mod Ash|url=https://discord.com/channels/324132423636090880/434286997360738305/1551904659164110869|date=2026-09-22|quote=As always, these answers are "_provided I'm reading my colleagues' code correctly_"!
+
+> Your max hit is split across both splats. The first splat takes 50% (rounded down), and the second splat the rest the remainder
+Yes.
+
+> If you fail accuracy on the first splat, the second splat is guaranteed to fail accuracy
+Yes.
+
+> Passing accuracy on a splat has a 1/3 chance to activate the set effect.
+Yes.
+
+> Where passing accuracy on both splats has a 1 - 2/3 x 2/3 = 5/9 chance to activate the set effect
+Not quite. If you passed on both splats:
+It rolls a value 0-99 inclusive.
+It rolls a second value 0-99 inclusive, and takes whichever of these two values was lower.
+If the resulting value is 32 or below, the effect triggers.|archiveurl=|archivedate=|ctxquote=|notes=|name=Ash Regular attack}}
+
+Each hitsplat has its own accuracy check. However, unlike other two-hit weapons like [[Torag's hammers]] or [[sulphur blades]], where both checks are independent (either can hit or miss without affecting the other, equivalent to two separate hits with a single-hit weapon), for the Dual macuahuitl the second accuracy check is guaranteed to fail if the first one failed. As a result, the second hitsplat effectively requires two consecutive successful accuracy checks, lowering its expected damage output compared to the first.<ref name="Ash Regular attack"/>
+
+This is an intentional design{{CiteVideo|name=maracas|site=youtube|title=Fortis Colosseum & Perilous Moons Q&A Livestream!|timestamp=2253s|author=Old School RuneScape|url=https://www.youtube.com/watch?v=n9py_1vGiMQ&t=2253s|date=27 October 2023}} to push the weapon into a niche against targets with lower [[Defence]] levels and mirrors the attacks of the [[Moons of Peril]], which check accuracy in the same way.
+
+As a slight counterbalance to this drawback, the dual macuahuitl has relatively high attack bonuses for its attack speed and level requirements. Its [[Crush]] bonus substantially exceeds that of the [[abyssal bludgeon]] and rivals the combined crush bonus of an [[inquisitor's mace]] and [[avernic defender]].
+
+==Combat stats==
+{{Infobox Bonuses
+|astab = +115
+|aslash = -4
+|acrush = +121
+|amagic = -4
+|arange = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|drange = 0
+|str = +81
+|rstr = 0
+|mdmg = 0
+|prayer = 0
+|slot = 2h
+|speed = 4
+|attackrange = 1
+|combatstyle = Spiked
+|image = [[File:Dual macuahuitl equipped male.png|170px]]
+|altimage = [[File:Dual macuahuitl equipped female.png|160px]]
+}}
+
+{{CombatStyles|Spiked|speed=4|attackrange=1}}
+
+==Special attack==
+[[File:Blood Infusion.gif|thumb|220px|A player performing the dual macuahuitl's special attack, ''Blood Infusion''.]]
+The dual macuahuitl has a [[Special attacks|special attack]], ''Blood Infusion'', which costs 25% special attack energy, requires the full [[blood moon armour]] set to use, and takes 25% of the player's current [[Hitpoints]] (rounded down, meaning no damage is taken below 4 [[Hitpoints]]), regardless of whether you hit or miss.
+
+In exchange, the special attack removes the sequential accuracy check, so both hitsplats roll accuracy independently for that attack, meaning a miss on the first one no longer guarantees a miss on the second. Each hitsplat's accuracy is also increased by 25%, and the player's maximum hit is increased by 25%, calculated before the total is split across the two hitsplats. Additionally, the [[Blood moon armour#Set effect|''Bloodrager'']] set effect is guaranteed to trigger if either hitsplat hits.{{CiteDiscord|author=Mod Ash|url=https://discord.com/channels/324132423636090880/434286997360738305/1551904700293713971|date=2026-09-22|quote=> Costs 25% of your current HP to use, rounded down
+Yes.
+
+> Gives +25% accuracy on each splat, Gives +25% maximum hit
+Yes.
+
+> This seems to be calculated before the max hit is split across the two splats.
+It is.
+To avoid rounding down due to the split...
+If the max hit had been 38, that becomes floor(38 x 1.25) = 47, which is split into 23 + 24, rather than floor(47 / 2) for both.
+
+> The minimum hit mentioned in the blog did not make it into the game
+I think that's correct. Although the weapon has a parameter on it calling for a min hit of "25%", that percentage appears to be applied to a starting value of zero.
+Which really begs the question of whether I'm reading this correctly.
+
+> The two splats rolls accuracy independently, missing the first splat doesn't guarantee a 0 on the second splat anymore
+Yes.
+
+> Passing accuracy on either splat guarantees the set effect
+Yes.|archiveurl=|archivedate=|ctxquote=|notes=|name=}}
+
+Within the [[Nightmare Zone]], the special attack will remove [[absorption]] charges if above 4 HP, dealing 0 damage to the player.
+
+==Set effect==
+When worn with all of the other pieces of the [[blood moon armour]] set, the player gains the ''Bloodrager'' set effect where the dual macuahuitl has a 33% chance upon a [[successful hit]] to attack one [[tick]] earlier than usual, allowing the player to attack again after 3 ticks. More precisely, a value 0-99 inclusive is rolled, and the set effect triggers if the result is 32 or below. If both hits are successful, it rolls twice and takes the lower of the two values, giving a 55.11%<ref><math>1-(1-33/100)^2</math></ref> chance to trigger the set effect.<ref name="Ash Regular attack"/>
+
+It is possible for the set effect to activate even if one or more of the armour pieces are broken.
+
+==Item sources==
+{{Drop sources|Dual macuahuitl}}
+
+==Used in recommended equipment==
+{{Used in recommended equipment|Dual macuahuitl}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 3 April 2024
+|update = Varlamore Tweaks & Drop Rates
+|change = 
+* The dual macuahuitl's [[Weapons/Categories|weapon category]] has been changed from blunt to spiked, giving it a stab attack style as a result.
+* The ''Blood Infusion'' special attack now increases damage as originally intended.
+}}
+{{Subject changes footer}}
+
+==Bugs==
+* During the Clones special attack phase of the Eclipse Moon fight, only a single hitsplat is dealt, rather than the two the weapon should deal; other multi-hit weapons, such as the [[scythe of Vitur]] and the [[sulphur blades]], also suffer from this bug, resulting in only one hitsplat.
+
+== Trivia ==
+* A {{WP|macuahuitl}} is a wooden sword with obsidian blades embedded in its shaft. It was prominently used amongst the Aztecs and other Mesoamerican civilizations for over 2,400 years. In the Nahuatl (Aztec) language, macuahuitl means "hand-wood" and is pronounced /maːk.kʷa.witɬ/.
+** Some [[Guard (Varlamore)|Varlamorian guards]] and [[undead one]]s in [[Shilo Village (location)|Shilo Village]] carry a more basic one-handed macuahuitl that is unobtainable by players.
+* In Nahuatl, the '-tl' in macuahuitl is pronounced as a {{WP|voiceless alveolar lateral affricate}}. This is achieved by first placing the tongue as if to make a 't' sound, then pushing out the air like in the 'l' sound (lowering the sides of the tongue). When done correctly, it resembles a harder 'th' or softer 'ch'.
+
+==References==
+{{Reflist}}
+
+{{Neypotzli}}
+{{Crush weapons}}
+{{Multi-hit weapons}}
+
+[[Category:Collection log items]]
+[[Category:Weapons with Special attacks]]
