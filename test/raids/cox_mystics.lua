@@ -148,9 +148,9 @@ return {
         "::wield twisted_bow",
         "::give dragon_arrow 2000",
         "::wield dragon_arrow",
-        "::give shark 24",
-        "::give br_4dose2restore 6",
-        "::give br_4dosepotionofsaradomin 4",
+        "::give br_4dose2restore 4",
+        "::give br_4dosepotionofsaradomin 2",
+        "::give shark 18",
     },
 
     run = function(t)
