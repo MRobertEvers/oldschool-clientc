@@ -1074,6 +1074,12 @@ TORIRSSERVER_SCRIPTS; the shared tree was never edited to prove it).
   rows of 1606, 6 of 1604, 0 of 1607. Open: which projectile a solo raider's main ball is (no recorder
   row for solo Entry here); the play prays Missiles for a 1607 already, so a fix changes
   no play.
+  **CLOSED 2026-10-07 content_bugs (content matches the boss page):** "It launches small red projectiles which can be
+  blocked with Protect from Magic. Upon striking a player, these projectiles will split into two other similar
+  projectiles, both of which will ricochet towards other players as one grey and one red projectiles"
+  (wiki_Sotetseg.wikitext:92). The grey ball is a ricochet "towards other players", so a party of one never sees one;
+  the Entry page's "red or grey" (Entry Mode :191) describes the room for a party. Ours: main 1606 red, splits 1606 /
+  1607 to `uid ! $victim` -- the same.
 - ToB, Sotetseg Entry: the melee through Protect from Melee hits 1..10
   (`^tob_sote_melee_prayed_max_entry = 10`, tob_sotetseg.constant:26, "[derived] 20
   halved, the 45 -> 22 rule; no Entry source"). Not a disagreement, an UNSOURCED number
@@ -2168,4 +2174,19 @@ reference ToB raider bows and pipes in elite ranged void (Blert equipmentDeltas,
   (3bd2334365, 7995b720af, 23b2c94f4d, 627ccf65f3): so it comes from the other commits since (192be95dc0 doors,
   0b5ef3da0d two-hit weapons, bc52eba22f Void). The harness's take-every-bandage chest rule leaves no slot for the
   Dawnbringer: a DRIVER question first.
+
+## 2026-10-07 content_bugs: the rooms re-run after the content_bugs batch (private binary = HEAD src, HEAD pack)
+
+- `seed_survey.py <id> --party 3 --names 5 --jobs 3`: _play_bloat 5 of 5 KEEP (was 1 of 5 before the batch: the claws
+  special now lands); _play_xarpus 5 of 5 KEEP; _play_verzik 4 of 5 (svaplayverzi: p2 and p3 die on world tick 676 in
+  P3, `p2:player.died`, `p3:play.fight`); _play_sotetseg 2 of 5 (`blert.room_ticks` 282 / 286 / 273 against the
+  reference's 212.5 [164-262]). Entry solo (`_play_entry --names 5`) 1 of 5 (row above). Maiden and Nylocas trios not
+  re-run here: their owners are on them (Nylocas: a powered staff's tab now reads Accurate, so "Pound" must become
+  "Accurate" in its harness -- told).
+- Attribution, one name each, A/B: Sotetseg 282 ticks on the shared (pre-batch) binary, on a pack with every
+  content_bugs content commit reverted, and on both together -- the same 282: NOT content_bugs. Verzik sva PASS on the
+  old binary with either pack and RED on the content_bugs binary with the pre-batch pack: the ENGINE change, the npc
+  queue cap (the old binary aborted one player melee swing, "npc ... queue is full" at combat_stats.rs2:931; the new
+  one lands it and the fight runs another way). The cap is the reference's (Engine-TS Npc.ts:59, no cap) and stays;
+  the room is the Verzik plan's to re-fit.
 
