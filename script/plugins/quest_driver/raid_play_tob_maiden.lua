@@ -1272,6 +1272,16 @@ end
 function QD.raid.mz_s_on_boss_on_blood(st, v, ev) return QD.raid.mz_dodge(st, v, ev) end
 function QD.raid.mz_s_on_boss_on_pool(st, v, ev) return QD.raid.mz_dodge(st, v, ev) end
 function QD.raid.mz_s_on_boss_tick(st, v, intent)
+    -- her 30 form's claws (sm111: CLAWS never ran -- the phase event lands on
+    -- the 30 wave's spawn tick, which sends the seat to LANE, and LANE stays
+    -- on boss_phase): once, on her, the first time the seat is back on her
+    local m = st.m
+    if QD.raid.mz_form(st) == 3 and not m.claws_done then
+        m.claws_done = true
+        local _, e = QD.var.varp("varp300_sa_energy")
+        local hr, has = QD.inv.has("dragon_claws")
+        if (tonumber(e) or 0) >= 500 and hr == "ok" and has then QD.raid.mz_go(st, v, "CLAWS", 0) return end
+    end
     if QD.raid.mz_wear(intent, st.plan.melee_set) then return end
     -- her edge without blood (library _play_reach: a pool or a trail on the
     -- edge tile the press would path to is walked around, not stood on)
