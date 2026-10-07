@@ -129,22 +129,19 @@ local function drink_restore(t)
 end
 
 local function top_up(t)
+    -- Keep this short: run22 lost 34 ticks (and ~100 hp) between mystic 1
+    -- death and the next hit while looping brew+ticks under fire.
     local brewed = false
-    for _ = 1, 4 do
-        if hp(t) >= 80 then break end
-        if not drink_brew(t) then break end
-        brewed = true
-        t.ticks(1)
+    if hp(t) < 75 then
+        brewed = drink_brew(t)
     end
-    -- Brew drains ranged; without a restore, mystic 2 DPS collapses
-    -- (run21: 162 dmg on mystic 1, then 23 in 10 hits on mystic 2).
-    if brewed or prayer_points(t) < 50 then
+    if brewed or prayer_points(t) < 45 then
         drink_restore(t)
     end
-    if hp(t) < 55 then
+    if hp(t) < 50 then
         t.player.eat("shark")
     end
-    if hp(t) < 35 then
+    if hp(t) < 30 then
         t.player.eat("tbwt_cooked_karambwan")
     end
 end
@@ -193,9 +190,9 @@ return {
         "::wield twisted_bow",
         "::give dragon_arrow 2000",
         "::wield dragon_arrow",
-        "::give br_4dose2restore 1",
+        "::give br_4dose2restore 3",
         "::give br_4dosepotionofsaradomin 2",
-        "::give shark 22",
+        "::give shark 20",
         "::give tbwt_cooked_karambwan 3",
     },
 
