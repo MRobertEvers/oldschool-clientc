@@ -479,6 +479,23 @@ return {
         t.exec("talkToCromperty", t.player.talk_to, "ardounge_wizard", 1)
         dialog("talkToCromperty-dialog", {})
         stage("have_scroll")
+        -- Talking to him again: the quest's questions with his usual chat
+        -- still on the menu ("Two jobs?" / "So what have you invented?").
+        t.exec("talkToCromperty.again", t.player.talk_to, "ardounge_wizard", 1)
+        local cd_r = t.chat.drain({ stop_at = "options", max_pages = 12 })
+        local co_r, co_rows = t.chat.options()
+        local rows_txt = tostring(co_rows)
+        if type(co_rows) == "table" then
+            local parts = {}
+            for _, row in ipairs(co_rows) do
+                parts[#parts + 1] = type(row) == "table" and tostring(row.text or row[1]) or tostring(row)
+            end
+            rows_txt = table.concat(parts, " | ")
+        end
+        t.check("talkToCromperty.againMenu", co_r == "ok" and rows_txt:find("How do I get into the Black Knights' Fortress?", 1, true) ~= nil
+            and rows_txt:find("Two jobs? That's got to be tough.", 1, true) ~= nil and rows_txt:find("So what have you invented?", 1, true) ~= nil,
+            "drain -> " .. tostring(cd_r) .. "; options: " .. rows_txt)
+        dialog("talkToCromperty.again-dialog", { "Two jobs? That's got to be tough.", "Well, I shall leave you to your inventing." })
         door("talkToCromperty.houseOut", "castledoubledoorl", "opencastledoubledoorl", 2678, 3325, 0,
             2679, 3325, 2676, 3325, outside_cromperty, "outside Cromperty's house")
 
@@ -553,6 +570,23 @@ return {
         local lamp_after_result, lamp_after = t.inv.count("kr_reward_lamp")
         t.check("reward.kr_reward_lamp", lamp_before_result == "ok" and lamp_after_result == "ok" and lamp_after == lamp_before + 1,
             string.format("kr_reward_lamp %s -> %s (want +1)", tostring(lamp_before), tostring(lamp_after)))
+
+        -- The antique lamp (wiki Antique_lamp_(King's_Ransom) oldid 15352498:
+        -- 5,000 XP in a chosen skill of level 50 or more): Rub opens the skill
+        -- picker; Defence (65 base) is chosen and confirmed.
+        local lamp_snap_r, lamp_snap = t.skill.snapshot()
+        t.step("rubLamp.snapshot", lamp_snap_r == "ok" and "PASS" or "FAIL", "skill.snapshot before the Rub -> " .. tostring(lamp_snap_r))
+        t.exec("rubLamp", t.player.inv_op, "kr_reward_lamp", 1)
+        t.exec("rubLamp.picker", t.ui.await_open, "xpreward", 10)
+        t.check("rubLamp.chooseDefence", press("xpreward:defence"), "xpreward:defence pressed")
+        t.ticks(1)
+        t.exec("rubLamp.selected", t.ui.expect_text, "xpreward:title", "Defence selected", 5)
+        t.check("rubLamp.confirm", press("xpreward:confirm"), "xpreward:confirm pressed")
+        dialog("rubLamp-dialog", {})
+        local rub_r, rub_d = t.skill.expect_gain("defence", 5000, lamp_snap)
+        t.check("rubLamp.defenceXp", rub_r == "ok", rub_d)
+        local lamp_gone_r, lamp_gone = t.inv.count("kr_reward_lamp")
+        t.check("rubLamp.lampUsed", lamp_gone_r == "ok" and lamp_gone == 0, "kr_reward_lamp after the Rub: " .. tostring(lamp_gone) .. " (want 0)")
 
         t.finish(0)
     end,

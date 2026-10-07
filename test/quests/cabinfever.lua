@@ -134,12 +134,27 @@ return {
             return tile.x .. "," .. tile.z .. "," .. tile.level
         end
         -- The swing lands on the other ship's mast top: 1823,4835,2 (enemy)
-        -- or 1817,4830,2 (The Adventurous) -- cabinfever_transport.rs2.
-        local function swing_landed(name, x, z)
-            t.await({ level = function() return (tile_is(x, z, 2)) end, note = name .. ": swung across" }, 8)
-            local ok = tile_is(x, z, 2)
-            t.check(name .. ".landed", ok, "after the swing the player is at " .. tile_text()
-                .. " (want the mast top " .. x .. "," .. z .. ",2)")
+        -- or 1817,4830,2 (The Adventurous). It can fail (Transcript "Falling on
+        -- a rope swing"; the roll is the Barbarian rope swing's,
+        -- cabinfever_transport.rs2): the swimmer climbs aboard the far ship's
+        -- main deck at the foot of its net, 1823,4835,1 / 1817,4831,1. Either
+        -- way the player has crossed; a fall skips the climb down the net.
+        -- Returns true when the swing fell.
+        local function swing_landed(name, x, z, dx, dz)
+            local function landed()
+                return (tile_is(x, z, 2)) or (tile_is(dx, dz, 1))
+            end
+            t.await({ level = landed, note = name .. ": swung across" }, 10)
+            if tile_is(dx, dz, 1) then
+                t.exec(name .. ".fell", t.chat.play, { "mesbox:You fall in the water with a splash!",
+                    "mesbox:You have to swim across; which puts a considerable drain on your energy." })
+                t.check(name .. ".landed", (tile_is(dx, dz, 1)), "the swing fell: the player swam across to "
+                    .. tile_text() .. " (want the far deck " .. dx .. "," .. dz .. ",1)")
+                return true
+            end
+            t.check(name .. ".landed", (tile_is(x, z, 2)), "after the swing the player is at " .. tile_text()
+                .. " (want the mast top " .. x .. "," .. z .. ",2, or the far deck " .. dx .. "," .. dz .. ",1 after a fall)")
+            return false
         end
         -- Locker: open it if it stands closed, then the open leaf's Search.
         local function locker_open(name, closed, open, x, z)
@@ -361,10 +376,12 @@ return {
             at = { 1816, 4831, 1 }, src = { 1817, 4831 }, dest = { 1817, 4830, 2 } })
         local ropes0 = count("rope")
         t.exec("useRopeOnSailForSabo", t.player.use_on, "rope", t.player.by_symbol("loc", "fever_sail1_hoistedl_climb"))
-        swing_landed("useRopeOnSailForSabo", 1823, 4835)
+        local fell1 = swing_landed("useRopeOnSailForSabo", 1823, 4835, 1823, 4835)
         t.check("useRopeOnSailForSabo.ropeSpent", count("rope") == ropes0 - 1, "ropes " .. ropes0 .. " -> " .. count("rope") .. " (want one spent)")
-        t.exec("leaveEnemySail", t.player.climb, { loc = "fever_climb_down_location", op = 1, op_name = "Climb-down",
-            at = { 1823, 4834, 2 }, src = { 1823, 4835 }, dest = { 1823, 4835, 1 } })
+        if not fell1 then
+            t.exec("leaveEnemySail", t.player.climb, { loc = "fever_climb_down_location", op = 1, op_name = "Climb-down",
+                at = { 1823, 4834, 2 }, src = { 1823, 4835 }, dest = { 1823, 4835, 1 } })
+        end
         hp_watch("leaveEnemySail")
         -- pickUpRope: the spare on the enemy deck's south-west corner.
         local ropes1 = count("rope")
@@ -375,18 +392,37 @@ return {
         t.exec("useFuseOnEnemyBarrel-page", t.chat.play, { "mesbox:You attach the fuse to the barrel." })
         t.exec("useFuseOnEnemyBarrel.fused", t.var.await_server, "varb1756_fever_gunpowder_barrel", 2, 4)
         hp_watch("useFuseOnEnemyBarrel")
-        t.exec("lightEnemyFuse", t.player.use_on, "tinderbox", t.player.by_symbol("loc", "fever_multi_fuse_2"))
-        t.exec("lightEnemyFuse-page", t.chat.play, { "mesbox:You light the fuse...", "mesbox:...and destroy the barrel and the cannon." })
+        -- The light can fail ("The fuse refuses to light. Try again."; Quick
+        -- guide "this can fail"; a Firemaking 64/512 roll at Firemaking 1,
+        -- cabinfever_sabotage.rs2): press again, at most 30 times.
+        local lights = 0
+        local lit = false
+        while not lit and lights < 30 do
+            lights = lights + 1
+            t.exec("lightEnemyFuse", t.player.use_on, "tinderbox", t.player.by_symbol("loc", "fever_multi_fuse_2"))
+            t.await({ level = function() return t.chat.kind() == "mesbox" end, note = "lightEnemyFuse: the fuse's answer" }, 6)
+            local _, text = t.chat.text()
+            if type(text) == "string" and text:find("refuses to light", 1, true) then
+                t.exec("lightEnemyFuse-refused", t.chat.play, { "mesbox:The fuse refuses to light. Try again." })
+            else
+                lit = true
+                t.exec("lightEnemyFuse-page", t.chat.play, { "mesbox:You light the fuse...", "mesbox:...and destroy the barrel and the cannon." })
+            end
+            hp_watch("lightEnemyFuse")
+        end
+        t.check("lightEnemyFuse.tries", lit, "the fuse lit on press " .. lights .. " of at most 30")
         t.exec("quest.stage.sabotaged", t.quest.expect_stage, "sabotaged")
         t.exec("lightEnemyFuse.enemyCannon", t.var.await_server, "varb1749_fever_enemy_cannon", 1, 4)
         hp_watch("lightEnemyFuse")
         t.exec("climbEnemyNetAfterSabo", t.player.climb, { loc = "fever_climbing_net", op = 1, op_name = "Climb",
             at = { 1823, 4834, 1 }, src = { 1823, 4835 }, dest = { 1823, 4835, 2 } })
         t.exec("useRopeOnEnemySailAfterSabo", t.player.use_on, "rope", t.player.by_symbol("loc", "fever_sail1_hoistedl_climb"))
-        swing_landed("useRopeOnEnemySailAfterSabo", 1817, 4830)
+        local fell2 = swing_landed("useRopeOnEnemySailAfterSabo", 1817, 4830, 1817, 4831)
         margin_row("sabotage.margin")
-        t.exec("leaveSail", t.player.climb, { loc = "fever_climb_down_location", op = 1, op_name = "Climb-down",
-            at = { 1816, 4831, 2 }, src = { 1817, 4830 }, dest = { 1817, 4831, 1 } })
+        if not fell2 then
+            t.exec("leaveSail", t.player.climb, { loc = "fever_climb_down_location", op = 1, op_name = "Climb-down",
+                at = { 1816, 4831, 2 }, src = { 1817, 4830 }, dest = { 1817, 4831, 1 } })
+        end
         t.exec("talkToBillAfterSabo", t.player.talk_to, "fever_quest_ship_teach", 1)
         t.exec("talkToBillAfterSabo-dialog", t.chat.play, {
             "player:Arr! I've blown their cannon to smithereens",
@@ -467,9 +503,10 @@ return {
         t.exec("goUpToSailToLoot", t.player.climb, { loc = "fever_climbing_net", op = 1, op_name = "Climb",
             at = { 1816, 4831, 1 }, src = { 1817, 4831 }, dest = { 1817, 4830, 2 } })
         t.exec("useRopeOnSailToLoot", t.player.use_on, "rope", t.player.by_symbol("loc", "fever_sail1_hoistedl_climb"))
-        swing_landed("useRopeOnSailToLoot", 1823, 4835)
-        t.exec("leaveEnemySail.toLoot", t.player.climb, { loc = "fever_climb_down_location", op = 1, op_name = "Climb-down",
-            at = { 1823, 4834, 2 }, src = { 1823, 4835 }, dest = { 1823, 4835, 1 } })
+        if not swing_landed("useRopeOnSailToLoot", 1823, 4835, 1823, 4835) then
+            t.exec("leaveEnemySail.toLoot", t.player.climb, { loc = "fever_climb_down_location", op = 1, op_name = "Climb-down",
+                at = { 1823, 4834, 2 }, src = { 1823, 4835 }, dest = { 1823, 4835, 1 } })
+        end
         hp_watch("leaveEnemySail.toLoot")
         t.exec("enterEnemyHullForLoot", t.player.climb, { loc = "fever_ship_laddertop", op = 1, op_name = "Climb-down",
             at = { 1824, 4829, 1 }, src = { 1824, 4828 }, dest = { 1824, 4828, 0 } })
@@ -523,10 +560,12 @@ return {
         t.exec("climbNetWithLoot", t.player.climb, { loc = "fever_climbing_net", op = 1, op_name = "Climb",
             at = { 1823, 4834, 1 }, src = { 1823, 4835 }, dest = { 1823, 4835, 2 } })
         t.exec("useRopeOnSailWithLoot", t.player.use_on, "rope", t.player.by_symbol("loc", "fever_sail1_hoistedl_climb"))
-        swing_landed("useRopeOnSailWithLoot", 1817, 4830)
+        local fell4 = swing_landed("useRopeOnSailWithLoot", 1817, 4830, 1817, 4831)
         margin_row("plunder.margin")
-        t.exec("leaveSail.withLoot", t.player.climb, { loc = "fever_climb_down_location", op = 1, op_name = "Climb-down",
-            at = { 1816, 4831, 2 }, src = { 1817, 4830 }, dest = { 1817, 4831, 1 } })
+        if not fell4 then
+            t.exec("leaveSail.withLoot", t.player.climb, { loc = "fever_climb_down_location", op = 1, op_name = "Climb-down",
+                at = { 1816, 4831, 2 }, src = { 1817, 4830 }, dest = { 1817, 4831, 1 } })
+        end
         t.exec("enterHullWithLoot", t.player.climb, { loc = "fever_ship_laddertop", op = 1, op_name = "Climb-down",
             at = { 1815, 4836, 1 }, src = { 1815, 4837 }, dest = { 1815, 4837, 0 } })
         t.exec("useLootOnChest", t.player.use_on, "fever_plunder", t.player.by_symbol("loc", "fever_plunder_deposit"))
@@ -664,19 +703,26 @@ return {
             -- "Make sure pirates line up with your cannon before firing."
             t.await({ level = function() return (pirate_lined_up()) end, note = "fireCannon: a pirate in the field of fire" }, 30)
             local lined, who = pirate_lined_up()
-            local before = stage()
+            local _, kills0 = t.var.server("varp7336_fever_canister_kills")
             t.exec("fireCannon", t.player.click_loc, "fever_multi_cannon", 1)
-            t.exec("fireCannon-page", t.chat.play, { "mesbox:You fire the cannon at the crew!", "mesbox:*" })
+            t.exec("fireCannon-page", t.chat.play, { "mesbox:You fire the cannon at the crew!" })
+            local _, verdict = t.chat.text()
+            local hit = type(verdict) == "string" and verdict:find("You hit them!", 1, true) ~= nil
             t.chat.drain({})
-            t.check("fireCannon.shot" .. shots, stage() >= before, "shot " .. shots .. ": " .. tostring(who)
-                .. (lined and "" or " (fired anyway)") .. "; stage " .. before .. " -> " .. stage())
+            local _, kills1 = t.var.server("varp7336_fever_canister_kills")
+            -- A hit is one more kill, a miss none: the page and the count must agree.
+            t.check("fireCannon.shot" .. shots, kills0 ~= nil and kills1 ~= nil
+                and ((hit and kills1 == kills0 + 1) or (not hit and kills1 == kills0)),
+                "shot " .. shots .. ": " .. tostring(who) .. (lined and "" or " (fired anyway)") .. "; page '"
+                    .. tostring(verdict) .. "'; kills " .. tostring(kills0) .. " -> " .. tostring(kills1)
+                    .. "; stage " .. stage())
             t.exec("useRamrodToClean", t.player.use_on, "fever_cannon_prod", cannon)
             t.exec("useRamrodToClean-page", t.chat.play, { "mesbox:You clean out the cannon." })
             t.exec("useRamrodToClean.clean", t.var.await_server, "varb1746_fever_cannon_clean", 0, 4)
             hp_watch("canisters")
         end
         -- repeatCanisterSteps: "Repeat this 3-4 times until indicated to stop."
-        t.check("repeatCanisterSteps", stage() == 120, "the load/fire/clean cycle ran " .. shots
+        t.check("repeatCanisterSteps", stage() == 120 and select(2, t.var.server("varp7336_fever_canister_kills")) == 3, "the load/fire/clean cycle ran " .. shots
             .. " time(s) until three pirates were down (stage " .. stage() .. ", want 120; at most 30 shots)")
         t.exec("quest.stage.canisters_done", t.quest.expect_stage, "canisters_done")
         t.exec("talkToBillAfterCanisterCannon", t.player.talk_to, "fever_quest_ship_teach", 1)
@@ -755,10 +801,16 @@ return {
             t.exec("useFuseForBalls.armed", t.var.await_server, "varb1741_fever_cannon", 3, 4)
             local _, holes0 = t.var.varbit("varb1750_fever_holes_in_the_hull")
             t.exec("fireCannonForBalls", t.player.click_loc, "fever_multi_cannon", 1)
-            t.exec("fireCannonForBalls-page", t.chat.play, { "mesbox:You shoot the cannon ball at the enemy ship!", "mesbox:*" })
+            t.exec("fireCannonForBalls-page", t.chat.play, { "mesbox:You shoot the cannon ball at the enemy ship!" })
+            local _, verdict = t.chat.text()
+            local holed = type(verdict) == "string" and verdict:find("hole in the hull", 1, true) ~= nil
+            t.exec("fireCannonForBalls-verdict", t.chat.play, { "mesbox:*" })
             local _, holes1 = t.var.varbit("varb1750_fever_holes_in_the_hull")
-            t.check("fireCannonForBalls.shot" .. ball_shots, holes1 ~= nil and holes0 ~= nil and holes1 >= holes0,
-                "ball " .. ball_shots .. ": holes " .. tostring(holes0) .. " -> " .. tostring(holes1))
+            -- "You put (another) hole in the hull!" is one more hole, "You fail
+            -- to damage the hull." none: the page and the varbit must agree.
+            t.check("fireCannonForBalls.shot" .. ball_shots, holes1 ~= nil and holes0 ~= nil
+                and ((holed and holes1 == holes0 + 1) or (not holed and holes1 == holes0)),
+                "ball " .. ball_shots .. ": page '" .. tostring(verdict) .. "'; holes " .. tostring(holes0) .. " -> " .. tostring(holes1))
             if (holes1 or 0) >= 3 then
                 break
             end
