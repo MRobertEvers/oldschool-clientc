@@ -104,7 +104,8 @@ if role == 2 then
         -- reference's freezer swings the SCYTHE on her in the 30 percent
         -- phase, freezer|30 19 of 24 rooms; it drinks no brew in the room,
         -- role.freezer.phase.*.drinks 0: a dose costs Ice Barrage's 94 Magic)
-        "::give anglerfish 11", "::give br_4dose2restore 4", "::fullscythe",
+        "::give anglerfish 9", "::give br_4dose2restore 4", "::fullscythe",
+        "::give 4doserangerspotion", "::give saturated_heart",
     }
     for _, c in ipairs(more) do party_kit[#party_kit + 1] = c end
 else
@@ -142,7 +143,8 @@ else
         -- and three fish fewer for its five slots
         "::give masori_mask", "::give masori_body", "::give masori_chaps",
         "::give necklace_of_anguish", "::give zaryte_vambraces",
-        "::give br_4dosepotionofsaradomin 5", "::give br_4dose2restore 4", "::give anglerfish 5",
+        "::give br_4dosepotionofsaradomin 4", "::give br_4dose2restore 4", "::give anglerfish 5",
+        "::give 4doserangerspotion",
         -- owner_tob_normal sm89: Dinh's bulwark for the special on the frozen
         -- stack (the streams' DINHS_SPEC on crabs 14 attacks in 24 rooms, 4
         -- kills; wiki_Dinhs_bulwark.wikitext:72 "hits up to 10 enemies ... in
@@ -217,6 +219,28 @@ local function party_run(t)
         t.ticks(1)
         local ar2, att2 = t.skill.read("strength")
         t.check("play.potion", ar2 == "ok" and att2.level > 99, "p" .. role .. " super combat before the barrier: strength " .. tostring(att2.level) .. " (" .. tostring(pr) .. ")")
+    end
+    -- owner_tob_normal sm159: THE REFERENCE'S BOOSTS AT THE DOOR (the 24
+    -- streams' PLAYER rows on the room's first ticks, every seat: Attack /
+    -- Strength / Defence 118, Ranged 112, Magic 112, Hitpoints 120-121).
+    -- Ranged 112 is a ranging potion (99 + 4 + 10%), Magic 112 the saturated
+    -- heart's Invigorate (+4 + 10%, the freezer's), Hitpoints 121 an anglerfish
+    -- eaten at full (99 + 22, its overheal).  Ours went in at 99 / 99 / 99.
+    do
+        -- (a potion waits out the last one's delay: the super combat above)
+        t.ticks(3)
+        local rr = t.player.inv_op("4doserangerspotion", 1, { quick = true })
+        t.ticks(2)
+        if role == 2 then
+            t.player.inv_op("saturated_heart", 1, { quick = true })
+            t.ticks(2)
+        end
+        t.player.inv_op("anglerfish", 1, { quick = true })
+        t.ticks(3)
+        local _, rg = t.skill.read("ranged")
+        local _, mg = t.skill.read("magic")
+        local _, hpl = t.skill.read("hitpoints")
+        t.check("play.boosts", rg ~= nil and rg.level > 99, "p" .. role .. " at the door: ranged " .. tostring(rg and rg.level) .. " magic " .. tostring(mg and mg.level) .. " hitpoints " .. tostring(hpl and hpl.level) .. " (" .. tostring(rr) .. ")")
     end
     t.expect("party.barrier.entrance", t.party.barrier("entrance", 300))
     -- owner_tob_normal: the trio through the barrier on ONE tick (t.raid.
