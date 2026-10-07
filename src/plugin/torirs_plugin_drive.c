@@ -145,6 +145,11 @@ static char const* const DRIVE_SCRIPT_PARTS[] = {
      * (docs/minigames/raid_loop/PLAY_NOTES.md). After raid.lua: the loop
      * reads QD.party (raid.lua) and QD.ticklog.rows as raid.lua wrapped it. */
     "plugins/quest_driver/raid_play.lua",
+    /* raid seam53 play_state_machines: the state machine layer the room
+     * plans declare their roles on (QD.raid.sm_declare).  After
+     * raid_play.lua, whose QD.raid._play_fold it folds a state's intents
+     * with, and before every room plan, which declare at load time. */
+    "plugins/quest_driver/raid_sm.lua",
     "plugins/quest_driver/raid_play_tob_maiden.lua",
     "plugins/quest_driver/raid_play_tob_bloat.lua",
     "plugins/quest_driver/raid_play_tob_nylocas.lua",
