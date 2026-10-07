@@ -223,10 +223,37 @@ So the `NEVER` for p1 and `2/1` for p2 and p3 across all six rooms is
 leader would enter a terminal state only if `st.log` were false or
 `boss_slot` unresolved on it, which the relay does not change.
 
-**One case neither of us can predict from the loop**, raised by the relay
-agent and worth recording as genuinely open: **a seat that DIES in a room.**
-Its play ends by some other path, so its coverage may differ, and relay runs
-have had deaths. That row is to be read specifically when the relay runs.
+**The third exit path — a seat that DIES — is also closed**, from the source,
+by the relay agent, and I confirmed it. `_play_tick` returns `"died"` *before*
+both the boss-gone block and the decide call:
+
+    local v = QD.raid._play_see(st)
+    ... flinch bookkeeping, the jump test ...
+    if v.hp <= 0 or jumped then
+        st.end_tick = v.tick
+        return "died"
+    end
+    if v.boss ~= nil then st.boss_seen = true ... end   -- the boss-gone derivation
+    ...
+    local intent = QD.raid[st.plan.decide](st, v)       -- the machine's step
+
+So on the tick a seat's hp reads 0 — or it jumps more than 20 tiles without
+`st.teleport_until` set, which is a respawn — the machine is **never stepped on
+that tick**. Its coverage is exactly what it had up to the tick before death:
+no terminal state, and no partial transition either. And unlike the leader's
+path, nothing sets `st.stop`, so **the signature of this path in a ledger is
+outcome `died` with an empty stop reason.**
+
+**So the conclusion generalises instead of needing a caveat: the terminal
+states are unreachable by construction on every exit path except the members'
+three-tick absence.** The leader's death row and a dead seat's hp-0 return both
+leave the loop before the derivation runs. The `2/1` on the members is the only
+way in.
+
+What source-reading still cannot rule out, and the relay will check: a seat
+whose hp reads 0 on a tick where the machine had already been stepped earlier
+in the same tick by some other route. A dead seat with a terminal entry, or a
+`died` outcome carrying a stop reason, would falsify it.
 
 So the classification is **(a), definitively** — unreachable for one seat by
 construction, reachable for the other two — and the states should stay
@@ -263,6 +290,34 @@ is recorded here so that six separate agents do not each rediscover it, and so
 nobody reads a terminal state's zero as a port bug. It also means **no room's
 terminal state has ever been exercised on the leader**, which is worth the
 owner knowing.
+
+## A load-bearing field a behaviour-neutral port can silently drop
+
+Found by the relay agent while reading the loop for the above, and recorded
+because it is the shape of bug a port is most likely to introduce: the jump
+test treats **any move over 20 tiles as a death** unless the plan has set
+`st.teleport_until` and the tick is inside it, and the library's comment names
+Sotetseg's portal as the reason the exemption exists.
+
+    local jumped = st.last_me ~= nil and
+        math.abs(v.me.x - st.last_me.x) + math.abs(v.me.z - st.last_me.z) > 20
+    if jumped and st.teleport_until ~= nil and v.tick <= st.teleport_until then
+        jumped = false
+    end
+
+So a Sotetseg machine that moves a seat to the shadow realm **must keep setting
+that field**, or the loop reads the crossing as a death and ends the play with
+the machine unstepped. **Nothing fails loudly** — the room just ends early with
+outcome `died` — which is exactly the class of thing a port drops while every
+survey still looks explicable.
+
+The ported file retains it: `raid_play_tob_sotetseg.lua` sets
+`st.teleport_until` in seven places, and `shadow_realm` fires 59/2, so the
+crossing works. Recorded so that the next edit to those states does not quietly
+remove it, and so the other five rooms know the field exists — a plan that
+never sets it (bloat, maiden, nylocas) is judged exactly as before, so this is
+Sotetseg's hazard alone today and any room that later adds a teleport
+inherits it.
 
 ## How much of `COLD` is signal — two views, and why it stays as it is
 
