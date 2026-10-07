@@ -3964,6 +3964,13 @@ npc_spawn(
             generation = 1;
         memset(npc, 0, sizeof(*npc));
         npc->generation = generation;
+        /* A new life: its death has not been shown yet (`death_seq_tick < 0`
+         * is "the phase-cleanup stamp has not run", which the memset's 0 is
+         * not). The respawn reset in torirs_server_combat.c says the same; a
+         * first life from here never got it, so `ToriRSServer_WorldNpcFree`'s
+         * hold for the death animation read 0 and never held, and the stamp
+         * never ran for any script-spawned npc. */
+        npc->death_seq_tick = -1;
         npc->active = 1;
         npc->type = type;
         /* The form every timed `npc_changetype` unwinds to. Set here and

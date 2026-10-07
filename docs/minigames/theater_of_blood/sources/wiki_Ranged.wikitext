@@ -1,0 +1,352 @@
+{{External|rs|rsc|dw}}
+{{redirect|Archery|the archery competition [[Minigames|minigame]]|Ranging Guild}}
+{{Skill table links}}
+{{Has skill guide|members=Pay-to-play Ranged training|free=Free-to-play Ranged training|iron=Ironman Guide/Ranged|UIM=Ultimate Ironman Guide/Ranged}}
+{{Infobox Skill
+|name = Ranged
+|image = [[File:Ranged icon.png]]
+|release = [[4 January]] [[2001]]
+|update = Runescape beta is now online!
+|aka = Archery
+|members = No
+|type = Combat
+}}
+[[File:Ranged icon (detail).png|left]]
+'''Ranged''' is one of the three [[combat classes]] in ''[[Old School RuneScape]]''. It involves using [[bow]]s, [[Crossbow (weapon)|crossbows]], [[blowpipe]]s, and thrown [[weapons]] to damage opponents from a distance, and [[Ranged armour]] can mostly be made from animal hides. Players who specialise in this [[skill]] are known as rangers or archers.
+
+The [[combat triangle]] dictates that rangers are strong against mages but weak against melee fighters.
+
+The ability to attack from a distance means that a player can [[safespot]] a melee [[monster]] while fighting from safety. Keep in mind that some melee monsters have high Ranged Defence, so a high Ranged level may be needed. [[Crossbow (weapon)|Crossbows]] are useful against monsters with high Defence, as they are very accurate.
+
+Players can toggle whether they want ammunition on the ground to automatically be equipped or remain in the inventory when picked up by talking to the [[Ranged combat tutor]].
+
+{{Listen
+|align = right
+|title = [[Ranged Level Up!]]
+|filename = Ranged Level Up!.ogg
+|desc = The music that plays when levelling up.}}
+
+{{Listen
+|align = right
+|title = [[Ranged Level Up! (Unlocks)]]
+|filename = Ranged Level Up! (Unlocks).ogg
+|desc = The music that plays when levelling up and unlocking new content.}}
+__TOC__
+
+==Equipment==
+===Stats===
+There are three ranged equipment stats, two for attack (Ranged Attack and [[Ranged Strength]]) and one for defence ([[Ranged Defence]]).
+
+[[Ranged weapons]] (and frequently [[Ranged armour]]) provide + Ranged Attack for accuracy, + Ranged Strength for max hit, and armour provides + Ranged Defence.
+
+'''Note: In the case of crossbows and bows, the bows provide the Ranged Attack and the ammo provides Ranged Strength''', while with [[dart]]s, [[throwing knife|knives]], and [[thrownaxe]]s (where the ammo is the weapon), both stats are provided by the weapon. In that case, ammo has no benefit (though [[Blessings|blessing]]s still provide a [[Prayer items|prayer bonus]]).
+
+===Weapons===
+Ranged weapons have three [[Combat Options|combat styles]]: accurate, rapid, and longrange. The accurate style provides an invisible +3 bonus to the player's Ranged level, increasing their accuracy and possibly increasing their max hit. The rapid style increases the player's [[attack speed]] by 1, resulting in the highest damage per second of all the styles in almost all situations. The longrange style increases [[attack range]] by 2, provides an invisible +3 bonus to the player's [[Defence]] level, and splits earned exp between Ranged and Defence.
+
+Furthermore, ammunitions have specific damage types similar to the melee's styles of Stab, Slash, and Crush, though it only applies to monsters. For example, some monsters have less defence against heavy ammunition than light and standard ones, and would be preferred in such encounters. A list of some monsters with weakened defence against a particular ammunition type can be found on this [[Update:Project Rebalance: Combat Changes#Ranged Defence Types|news post]].
+* [[File:Steel_dart.png]] Light:  Thrown weapons such as [[darts]], [[Throwing knife|knives]], [[thrownaxes]], [[Toktz-xil-ul]], [[blowpipe]]s, and the [[Tonalztics of Ralos]]
+* [[File:Steel_arrow_5.png]] Standard: [[Arrows]], [[Atlatl darts]], [[Salamanders]], and magical arrows from the [[Crystal bow]] and [[Bow of Faerdhinen]]
+* [[File:Steel_bolts_5.png]] Heavy: [[Bolts]], [[javelins]], and [[Chinchompa|chinchompas]]
+
+====Light====
+{| class="wikitable align-center-1"
+! colspan=2 |Weapon
+!Information
+|-
+|{{plinkp|Darts|pic=Dragon dart}}{{plinkp|Throwing knives|pic=Dragon knife}}{{plinkp|Thrownaxes|pic=Dragon thrownaxe}}
+| style="white-space:nowrap;" |[[Dart]]s
+[[Throwing knives]]<br />[[Thrownaxes]]
+|Darts and throwing knives have the highest [[attack speed]] in the game, but low Ranged attack, Ranged strength and attack range stats. Thrownaxes have superior damage and accuracy, but a slower attack speed.
+|-
+|{{plinkt|Toktz-xil-ul}}
+|[[Toktz-xil-ul]], also known as throwing rings, are as powerful as a [[magic shortbow]] with [[rune arrow]]s.
+|-
+|{{plinkp|Camphor blowpipe}}{{plinkp|Ironwood blowpipe}}{{plinkp|Rosewood blowpipe}}{{plinkp|Toxic blowpipe}}
+|[[Blowpipe]]s
+|Blowpipes are fast-attacking ranged [[weapon]]s that use [[dart]]s for [[ammunition]]. Against [[monsters]], they have the same speed as darts/knives, but against players, they have the same [[attack speed]] as shortbows. Additionally, the toxic blowpipe needs to be charged with [[Zulrah's scales]] and can inflict targets with [[venom]], which deals increasing damage over time.
+|-
+|{{plinkt|Tonalztics of Ralos}}
+|A throwing weapon which provides unlimited "ammo". Hits an opponent twice when charged with [[sunfire splinter]]s, and has a special attack that lowers the target's [[Defence]] level.
+|}
+
+====Standard====
+{| class="wikitable align-center-1"
+! colspan=2 |Weapon
+!Information
+|-
+|{{plinkp|Shortbow (weapon)|pic=Magic shortbow}}{{plinkp|Longbow (weapon)|pic=Magic longbow}}
+|[[Shortbow (weapon)|Shortbows]]<br />[[Longbow (weapon)|Longbows]]
+|These [[bow]]s both shoot the same [[arrows]], differing in speed and range, but not in damage or accuracy. Longbows could be used for additional range, but are slower than shortbows on rapid. The [[magic shortbow]] has a [[special attack]] which hits twice, and the [[magic longbow]] has a special attack which boosts accuracy.
+|-
+|{{plinkt|Composite bow|pic=Magic comp bow}}s
+|These bows are similar to longbows, but have a faster attack speed and slightly higher accuracy. These bows can only be obtained from completing [[Treasure Trails]] or by trading with another player. The [[magic comp bow]] has the same [[special attack]] as the [[magic longbow]].
+|-
+|{{plinkp|Ogre bow}}{{plinkp|Comp ogre bow}}
+|[[Ogre bow]]<br/>[[Comp ogre bow|Comp&nbsp;ogre&nbsp;bow]]
+|The ogre bow uses ogre arrows. It is extremely slow; its only real use is for hunting [[chompy bird]]s. The composite ogre bow has the same speed as a crossbow, and can use [[brutal arrows]] as well as ogre arrows. [[Rune brutal]]s have the same Ranged Strength bonus as [[dragon arrow]]s.
+|-
+|{{plinkt|Dark bow}}
+|The [[dark bow]] is the slowest [[weapon]] in the game, but it shoots two [[arrows]] at once. It can shoot [[dragon arrow]]s, and it has a devastating [[special attack]] which boosts damage by 30% if using arrows that are not dragon, or by 50% if using dragon arrows, with a minimum damage of 5 per non-dragon arrow and 8 per dragon arrow.
+|-
+|{{plinkt|Twisted bow}}
+|The [[twisted bow]] is one of the most powerful ranged weapons in the game, being able to hit extremely high on certain monsters. It has a passive ability that increases its accuracy and damage based on the target's [[Magic]] level.
+|-
+|{{plinkt|Crystal bow}}
+|A relatively strong composite bow. Its damage and accuracy can be increased by wearing pieces of the [[Crystal armour]]. Generates its own [[ammo]], but degrades.
+|-
+|{{plinkt|Craw's bow}}
+|This powerful shortbow has 50% increased damage against monsters in the [[Wilderness]]. Generates its own [[ammo]], but needs to be charged with [[Revenant ether]].
+|-
+|{{plinkt|Bow of Faerdhinen}}
+|A very powerful composite bow. Its damage and accuracy can be increased by wearing pieces of the [[Crystal armour]]. Generates its own [[ammo]]. When corrupted, it does not degrade.
+|-
+|{{plinkt|Eclipse atlatl}}
+|A throwing weapon that uses [[atlatl dart]]s. Uniquely, its damage is determined by the player's [[Strength]] level and melee strength bonus.
+|}
+
+====Heavy====
+{| class="wikitable align-center-1"
+! colspan=2 |Weapon
+!Information
+|-
+|{{plinkt|Chinchompa (weapon)|pic=Black chinchompa|txt=Chinchompas}}
+|[[Chinchompas]] deal very little damage, but they hit multiple targets, making them excellent for training. Because of this, they are extremely expensive.
+|-
+|{{plinkt|Crossbow (weapon)|pic=Dragon crossbow|txt=Crossbows}}
+|[[Crossbow (weapon)|Crossbows]] are very accurate, and [[Bolts|crossbow bolts]] deal significantly more damage than [[arrows]], making crossbows effective for training Ranged. Crossbows are slower than standard bows, but are also one-handed, so a [[shield]] or [[god book]] can be used for protection.
+|-
+|{{plinkt|Dorgeshuun crossbow}}
+|This is the only crossbow which can shoot the cheap [[bone bolts]]. It is also faster than normal crossbows, and has a [[special attack]] which lowers the target's [[Defence]] level.
+|-
+|{{plinkt|Karil's crossbow}}
+|Despite being a crossbow, it is more like a shortbow, requiring two hands and having a fast [[attack speed]], along with longer range. [[Karil's crossbow]] will only work with [[bolt rack]]s, which break when shot, making it expensive to use. This weapon should only be used against the [[TzTok-Jad]] and players, as everything else can be done more cheaply.
+|-
+|{{plinkt|Dwarf multicannon|pic=Cannon barrels}}
+|The [[dwarf multicannon]] is a supplementary weapon that is set up by the player and attacks enemies on its own. There is no Ranged level requirement to use it. It is fast and powerful (with a max hit of 30), yet expensive to use, and there are a limited number of areas where it can be set up for usage. For example, it cannot be used against bosses except the [[Corporeal Beast]]. Nonetheless, it's useful and great to have on board, especially on certain [[Slayer task]]s (e.g. [[dagannoth]]).
+|-
+|{{plinkt|Ballista|pic=Heavy ballista}}
+|The [[light ballista]] and [[heavy ballista]] are two-handed ranged weapons which use [[javelin]]s as ammunition. They are slow, but capable of dealing high hits.
+|}
+
+===Armour===
+{{Main|Armour/Ranged armour}}
+
+==Enchanted crossbow bolts==
+{{Main|Enchant Crossbow Bolt}}
+
+[[Bolts]] that are tipped with [[gems]] can be enchanted for a wide variety of passive effects, each of which has a small chance of activating when an enemy is damaged by the bolt.
+{| class="wikitable align-left-2 align-left-6 align-left-7" style="text-align:center;"
+! colspan=2 |Bolt type
+!{{SCP|Fletching}} Level
+!{{SCP|Magic}} Level
+!Runes required
+! colspan=2 |Effect
+|-
+|{{plinkt|Opal bolts (e)}}
+|11
+|4
+|{{RuneReq|Cosmic=1|Air=2}}
+|'''Lucky Lightning'''||Extra damage.
+|-
+|{{plinkt|Sapphire bolts (e)}}
+|56
+|7
+|{{RuneReq|Cosmic=1|Mind=1|Water=1}}
+|'''Clear Mind'''||[[Prayer]] siphon.
+|-
+|{{plinkt|Jade bolts (e)}}
+|26
+|14
+|{{RuneReq|Cosmic=1|Earth=2}}
+|'''Earth's Fury'''||Opponent knockdown.
+|-
+|{{plinkt|Pearl bolts (e)}}
+|41
+|24
+|{{RuneReq|Cosmic=1|Water=2}}
+|'''Sea Curse'''||Extra (water-based) damage - effective against monsters assigned the [[Fiery (attribute)|fiery attribute]] and players with a [[fire cape]] or [[Elemental staves|fire elemental stave]] equipped.
+|-
+|{{plinkt|Emerald bolts (e)}}
+|58
+|27
+|{{RuneReq|Nature=1|Cosmic=1|Air=3}}
+|'''Magical Poison'''||Greater chance of [[poison]].
+|-
+|{{plinkt|Topaz bolts (e)}}
+|48
+|29
+|{{RuneReq|Cosmic=1|Fire=2}}
+|'''Down to Earth'''||Lowers target's [[Magic]] (other players only).
+|-
+|{{plinkt|Ruby bolts (e)}}
+|63
+|49
+|{{RuneReq|Blood=1|Cosmic=1|Fire=5}}
+|'''Blood Forfeit'''||-10% [[Hitpoints]] from self, -20% Hitpoints from target.
+|-
+|{{plinkt|Diamond bolts (e)}}
+|65
+|57
+|{{RuneReq|Law=2|Cosmic=1|Earth=10}}
+|'''Armour Piercing'''||Ignore much of target's Ranged [[Defence]].
+|-
+|{{plinkt|Dragonstone bolts (e)}}
+|71
+|68
+|{{RuneReq|Soul=1|Cosmic=1|Earth=15}}
+|'''Dragon's Breath'''||[[Dragonfire]] damage - Magical attack, effective against opponents with low [[Magic]] [[Defence]]. [[Antifire potion]]s will decrease the hit.
+|-
+|{{plinkt|Onyx bolts (e)}}
+|73
+|87
+|{{RuneReq|Death=1|Cosmic=1|Fire=20}}
+|'''Life Leech'''||Extra damage, [[Hitpoints]] siphon by 1/4 of hit, but not versus [[undead]].
+|}
+
+==Temporary boosts==
+{{main|Temporary skill boost}}
+{{:Temporary skill boost/Ranged}}
+
+==Quests==
+{{Sync}}
+
+===Quests requiring Ranged===
+{| class="wikitable sortable qc-active lighttable mw-collapsible" style="text-align:center;"
+!Quest
+!data-sort-type="number"|Ranged<br/>requirement
+!Other skill requirements
+|-
+|[[Underground Pass]]||{{SCP|Ranged|25}}||-
+|-
+|[[Animal Magnetism]]||{{SCP|Ranged|30}}|| {{SCP|Slayer|18}}, {{SCP|Woodcutting|35}}
+|-
+|[[Big Chompy Bird Hunting]]||{{SCP|Ranged|30}}||{{SCP|Fletching|5}}, {{SCP|Cooking|30}}
+|-
+|[[Zogre Flesh Eaters]]||{{SCP|Ranged|30}}||{{SCP|Smithing|4}}, {{SCP|Herblore|8}}
+|-
+|[[Spirits of the Elid]]||{{SCP|Ranged|37}}||{{SCP|Thieving|37}}, {{SCP|Magic|33}}, {{SCP|Mining|37}}
+|-
+|[[Temple of Ikov]]||{{SCP|Ranged|40}}||{{SCP|Thieving|42}}
+|-
+|[[Cabin Fever]]||{{SCP|Ranged|40}}||{{SCP|Smithing|50}}, {{SCP|Agility|42}}, {{SCP|Crafting|45}}
+|-
+|[[The Path of Glouphrie]]||{{SCP|Ranged|47}}||{{SCP|Strength|60}}, {{SCP|Slayer|56}}, {{SCP|Thieving|56}}, {{SCP|Agility|45}}
+|-
+|[[Mourning's End Part I]]||{{SCP|Ranged|60}}||{{SCP|Thieving|50}}
+|-
+|[[The Curse of Arrav]]||{{SCP|Ranged|62}}||{{SCP|Mining|64}}, {{SCP|Thieving|62}}, {{SCP|Agility|61}}, {{SCP|Strength|58}}, {{SCP|Slayer|37}}
+|-
+|}
+
+===Quests rewarding Ranged experience===
+{{Main|Quest experience rewards#Ranged}}
+
+{| class="wikitable sortable qc-active lighttable mw-collapsible" style="text-align:center;"
+!Quest
+!Experience<br/>reward
+!data-sort-type="number"|Ranged<br/>requirement
+!Other requirements
+|-
+|[[Big Chompy Bird Hunting]]||{{+=|Ranged|735|echo=2}}||{{SCP|Ranged|30|sort=y}}||{{SCP|Fletching|5}}, {{SCP|Cooking|30}}
+|-
+|[[Recipe for Disaster/Freeing Skrach Uglogwee]]||{{+=|Ranged|1,500|echo=2}}||{{SCP|Ranged|30|sort=y}}||{{SCP|Cooking|41}}, {{SCP|Firemaking|20}}
+|-
+|[[Death to the Dorgeshuun]]||{{+=|Ranged|2,000|echo=2}}||-||{{SCP|Thieving|23}}, {{SCP|Agility|23}}
+|-
+|[[Zogre Flesh Eaters]]||{{+=|Ranged|2,000|echo=2}}||{{SCP|Ranged|30|sort=y}}||{{SCP|Smithing|4}}, {{SCP|Herblore|8}}
+|-
+|[[Heroes' Quest]]||{{+=|Ranged|2,075|echo=2}}||-||{{SCP|Quest|55}}, {{SCP|Cooking|53}}, {{SCP|Fishing|53}}, {{SCP|Herblore|25}}, {{SCP|Mining|50}}
+|-
+|[[Horror from the Deep]]||{{+=|Ranged|4,662.5|echo=2}}||-||{{SCP|Agility|35}}
+|-
+|[[Temple of Ikov]]||{{+=|Ranged|10,500|echo=2}}||{{SCP|Ranged|40|sort=y}}||{{SCP|Thieving|42}}
+|-
+!Total
+!{{formatnum:{{#var:Ranged}}}}
+! colspan="2" |
+|}
+
+===Diaries requiring Ranged===
+{{main|Achievement_Diary#Ranged}}
+{| class="wikitable sortable lighttable mw-collapsible" style="text-align:center;"
+!Diary
+!Ranged<br/>requirement
+!Other requirements for<br/> tasks requiring ranged
+|-
+|[[Ardougne_Diary#Medium|Ardougne Medium Diary]]
+|{{SCP|Ranged|21}}
+|{{SCP|Strength|38}}, {{SCP|Agility|39}}
+|-
+|[[Falador_Diary#Medium|Falador Medium Diary]]
+|{{SCP|Ranged|19}}
+|{{SCP|Strength|37}}, {{SCP|Agility|11}}
+|-
+|[[Fremennik_Diary#Elite|Fremennik Elite Diary]]
+|{{SCP|Ranged|70}}
+|{{SCP|Agility|70}}, {{SCP|Hitpoints|70}}, {{SCP|Strength|70}}
+|-
+|[[Kandarin_Diary#Medium|Kandarin Medium Diary]]
+|{{SCP|Ranged|40}}
+|{{SCP|Agility|36}}, {{SCP|Strength|22}}
+|-
+|[[Karamja_Diary#Hard|Karamja Hard Diary]]
+|{{SCP|Ranged|42}}
+|{{SCP|Agility|53}}, {{SCP|Strength|21}}
+|-
+|[[Lumbridge_%26_Draynor_Diary#Medium|Lumbridge & Draynor Medium Diary]]
+|{{SCP|Ranged|50}}
+|{{SCP|Agility|8}}, {{SCP|Strength|19}}
+|-
+|[[Lumbridge_%26_Draynor_Diary#Elite|Lumbridge & Draynor Elite Diary]]
+|{{SCP|Ranged|70}}
+|{{SCP|Agility|70}}, {{SCP|Strength|70}}
+|-
+|[[Morytania_Diary#Elite|Morytania Elite Diary]]
+|{{SCP|Ranged|70}}{{efn|May be required, depends on a [[Barrows equipment|Barrows set]] used for the task|name=barrows}}
+|{{SCP|Defence|70}}<br/>{{SCP|Strength|70}}, {{SCP|Magic|70}}, {{SCP|Attack|70}}{{efn|name=barrows}}
+|-
+|[[Western_Provinces_Diary#Easy|Western Provinces Easy Diary]]
+|{{SCP|Ranged|30}}
+|{{SCP|Fletching|5}}
+|-
+|[[Western_Provinces_Diary#Medium|Western Provinces Medium Diary]]
+|{{SCP|Ranged|30}}
+|{{SCP|Fletching|5}}
+|-
+|[[Western_Provinces_Diary#Hard|Western Provinces Hard Diary]]
+|{{SCP|Ranged|70}}
+|{{SCP|Agility|56}}{{SCP|Fletching|5}}
+|-
+|[[Western_Provinces_Diary#Elite|Western Provinces Elite Diary]]
+|{{SCP|Ranged|42}}
+|{{SCP|Combat|40}}, {{SCP|Attack|42}}, {{SCP|Defence|42}}, {{SCP|Strength|42}},<br/> {{SCP|Magic|42}}, {{SCP|Hitpoints|42}}, {{SCP|Prayer|22}}, {{SCP|Fletching|5}}
+|}
+{{notelist}}
+
+
+===Skill choice===
+Upon completing any of the following quests, players may choose to allocate experience to Ranged. These rewards usually come in the form of items, such as lamps or books, and are independent of any experience rewards directly received for completing the quest.
+{{SkillChoice|Ranged}}
+
+==Level up messages==
+{{hastranscript|skill}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 29 May 2024
+|update = Project Rebalance: Combat Changes
+|change = All monsters had their Ranged defence split into three different categories: Light, Standard, and Heavy.
+}}
+{{Subject changes footer}}
+
+==See also==
+* [[Ranged/Experience table]], a list of all Ranged experience sources
+* [[Ranged/Level up table]], a list of all requirements and unlockables within the Ranged skill
+
+{{Skills}}
+{{Ranged weapons}}
+{{Ranged armour}}
+[[Category:Combat]]
+[[Category:Free-to-play skills]]

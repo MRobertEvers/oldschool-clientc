@@ -424,6 +424,14 @@ Fixed in OSRS-Content 26ba1bd604 and the seam8 parent commit 0397a0b29: the rows
 
 - Canifis, canafis_citizen.rs2:29-35: a Canifis citizen (canafis_man1) never turns into a werewolf when hit. No npc_retype row and npc_id 2613 unchanged after three melee hits or several landed wind strikes, although `[ai_queue2,_canafis_citizen]` calls `npc_changetype(~canafis_werewolf_type, 500)` (seam9 scratches s9retype1, s9retype2). Not a raid row; quest-loop content.
 - ENGINE, torirs_server_world.c `npc_spawn`: the record is memset and `death_seq_tick` is never set to -1 (only the respawn reset in torirs_server_combat.c does). The phase-cleanup stamp (`death_seq_tick < 0`) therefore never runs for an npc in its first life from `npc_spawn` (every script-spawned npc, all of ToB), and `ToriRSServer_WorldNpcFree`'s "death animation seen in full" hold reads 0 and never holds. Found by the seam9 selftest stanza, which checks `death_seq_sent` instead. Not fixed.
+  **FIXED 2026-10-07 content_bugs (engine):** `npc_spawn` sets `npc->death_seq_tick = -1` after its memset, the
+  respawn reset's own value (torirs_server_combat.c "A new life: its death has not been shown yet"). Built and
+  measured in a private worktree (scratchpad/eng, binaries torirs_cb / torirsserver_fix vs _base): server selftest
+  18 failures before and after, the same lines; the svcplayentry Entry raid's 773 npc_free and every npc_death row
+  are identical on both binaries (md5 of the tick/kind/type rows equal), and a Deviant-spectre probe with
+  TORIRSSERVER_ANIM_LOST=1 prints no hold on either. So no ToB timing moves; the stamp and the hold are now armed for
+  a first life as the code intends.
+
 - ToB, Xarpus: since seam9 a spit or orb still in flight when Xarpus dies is dropped (the engine's death step clears the npc queue). The original comment said no splat can land after him; no source states either way.
 - ToB, Xarpus: since seam9 orbs land on throw + floor(end/30) (they mostly landed a tick later on the old player queue). No Xarpus-specific source states the orb impact tick; ENCOUNTER_TIMING.md 1.2/1.4 is the rule used.
 - ToB, room tests: `tob_maiden.lua` (committed) names `tob_maiden_100` where Entry spawns `tob_maiden_100_story`, and `tob_verzik.lua` (committed) names `verzik_initial` where Entry is `_story`; both predate seam5. The WIP files are the authors'.
