@@ -98,6 +98,12 @@ local function local_x(ox, x)
     return x - ox
 end
 
+-- Olm plane (^cox_level_olm = 2). Floor-1 approach at 6416,112 is OUTSIDE the
+-- chamber map; photographing from there (or with shot-aim's clear 0/383/600
+-- void pose) yields a black viewport and a minimap dot off the green floor.
+local OLM_LEVEL = 2
+local ENTRY_LX, ENTRY_LZ = 32, 25
+
 -- Melee-hand ring/thumb tiles in chamber-local space (Synq 4:1 / 3:1 vocabulary).
 -- West Olm: melee hand is LEFT at (23,30). East Olm mirrors about centre.
 -- Mage-hand tiles: Synq ring-finger safes on the mage claw ([2:19:07]).
@@ -239,6 +245,31 @@ return {
                 sm.side_west = lx < 32
             end
             sm.tiles = melee_tiles(sm.ox, sm.oz, sm.side_west)
+        end
+
+        -- Walkthrough photographs must show the Olm chamber floor + boss, not
+        -- the floor-1 approach void / shot-aim's north-void "clear" pose.
+        local function shot_olm_room(name)
+            refresh_geometry()
+            local _, me = t.world.tile()
+            local lz = me.z - sm.oz
+            -- Still on the floor-1 approach (or off the arena aisle): force the
+            -- barrier enter so we stand on ^cox_olm_entry_* of the Olm plane.
+            if me.level ~= OLM_LEVEL or lz < 20 or lz > 40 then
+                t.cheat("::coxolm")
+                t.ticks(2)
+                refresh_geometry()
+                _, me = t.world.tile()
+            end
+            local aisle_x = sm.ox + ENTRY_LX
+            local aisle_z = sm.oz + ENTRY_LZ + 3 -- ~lz 28, south of claws
+            t.player.walk_to(aisle_x, aisle_z, 10)
+            -- Face north toward the head (yaw 0 → eye south of player). Pitch
+            -- 250 / zoom 700 keeps the eye over the arena, not through the
+            -- north wall into unrendered void (shot-aim's 0/383/600).
+            t.drive.camera(0, 250, 700)
+            t.ticks(1)
+            t.shot(name)
         end
 
         -- Synq [2:04:12]: flick the overhead that matches Olm's current style.
@@ -403,7 +434,7 @@ return {
                 if (not sm.mid_shot) and (action == TRACE_BURST or action == TRACE_SPHERE
                     or action == TRACE_LIGHTNING or action == TRACE_TELEPORT
                     or action == TRACE_SKIP) then
-                    t.shot("olm 4:1 mid-mechanic")
+                    shot_olm_room("olm 4:1 mid-mechanic")
                     sm.mid_shot = true
                 end
                 return true, action
@@ -470,7 +501,7 @@ return {
                 if head ~= nil and left ~= nil and right ~= nil then
                     refresh_geometry()
                     sample_vislevels()
-                    t.shot("olm idle after barrier")
+                    shot_olm_room("olm idle after barrier")
                     set_state(STATE.KILL_MAGE)
                     return
                 end
@@ -822,7 +853,7 @@ return {
         t.check("tech.hand_order", sm.mage_kills >= 1 and sm.melee_kills >= 1,
             "mage_kills=" .. sm.mage_kills .. " melee_kills=" .. sm.melee_kills
                 .. " (Synq: mage hand before melee)")
-        t.shot("olm 4:1 room clear")
+        shot_olm_room("olm 4:1 room clear")
 
         -- Mode of action gaps (should be 4).
         local clock = 4
