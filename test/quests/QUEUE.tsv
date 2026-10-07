@@ -30,7 +30,7 @@ quest_curseofarrav	curseofarrav	thecurseofarrav		4	todo
 quest_darknessofhallowvale	darknessofhallowvale	darknessofhallowvale		4	green	matthew-mbp-m4-b72			
 quest_death	death	deathplateau		3	green	matthew-mbp-m4-b68			
 quest_deathontheisle	deathontheisle	deathontheisle		4	claimed	matthew-mbp-m4-b73@matthew-mbp-m4		2026-10-07T14:06:04Z	todo|
-quest_deathtothedorgeshuun	deathtothedorgeshuun	deathtothedorgeshuun		4	todo				
+quest_deathtothedorgeshuun	deathtothedorgeshuun	deathtothedorgeshuun		4	claimed	matthew-mbp-m4-b74@matthew-mbp-m4		2026-10-07T16:30:10Z	todo|
 quest_defenderofvarrock	defenderofvarrock	defenderofvarrock		4	green	matthew-mbp-m4-b72			
 quest_demon	demon	demonslayer		3	green	matthew-mbp-m4-b62			
 quest_depthsofdespair	depthsofdespair	thedepthsofdespair		4	green	matthew-mbp-m4-b70			
@@ -84,7 +84,7 @@ quest_icthlarin	icthlarin	icthlarinslittlehelper		3	green	matthew-mbp-m4-b69
 quest_idesofmilk	idesofmilk	theidesofmilk		2	green	matthew-mbp-m4-b60			
 quest_ikov	ikov	templeofikov		3	green	matthew-mbp-m4-b68			
 quest_imp	imp	impcatcher		3	green	matthew-mbp-m4-b68			
-quest_inaidofthemyreque	inaidofthemyreque	inaidofthemyreque		4	todo				
+quest_inaidofthemyreque	inaidofthemyreque	inaidofthemyreque		4	claimed	matthew-mbp-m4-b74@matthew-mbp-m4		2026-10-07T16:30:10Z	todo|
 quest_insearchofknowledge	insearchofknowledge	insearchofknowledge		4	green	matthew-mbp-m4-b71			
 quest_itexam	itexam	thedigsite		3	green	matthew-mbp-m4-b63			
 quest_itgronigen	itgronigen	observatoryquest		3	green	matthew-mbp-m4-b63			
@@ -95,7 +95,7 @@ quest_kingsransom	kingsransom	kingsransom		4	claimed	matthew-mbp-m4-b73@matthew-
 quest_landofthegoblins	landofthegoblins	landofthegoblins		4	claimed	matthew-mbp-m4-b73@matthew-mbp-m4		2026-10-07T14:06:04Z	todo|
 quest_legends	legends	legendsquest		3	green	matthew-mbp-m4-b70			
 quest_losttribe	losttribe	thelosttribe		3	green	matthew-mbp-m4-b63			
-quest_lunardiplomacy	lunardiplomacy	lunardiplomacy		4	todo				
+quest_lunardiplomacy	lunardiplomacy	lunardiplomacy		4	claimed	matthew-mbp-m4-b74@matthew-mbp-m4		2026-10-07T16:30:10Z	todo|
 quest_makingfriendswithmyarm	makingfriendswithmyarm	makingfriendswithmyarm		4	claimed	matthew-mbp-m4-b73@matthew-mbp-m4		2026-10-07T14:06:04Z	todo|
 quest_makinghistory	makinghistory	makinghistory		1	green	matthew-mbp-m4-b65			
 quest_mcannon	mcannon	dwarfcannon		3	green	matthew-mbp-m4-b63			
@@ -110,11 +110,11 @@ quest_mountaindaughter	mountaindaughter	mountaindaughter		2	green	matthew-mbp-m4
 quest_mourningsendparti	mourningsendparti	mourningsendparti		1	green	matthew-mbp-m4-b59			
 quest_mourningsendpartii	mourningsendpartii	mourningsendpartii		1	green	matthew-mbp-m4-b66			
 quest_murder	murder	murdermystery		1	green	matthew-mbp-m4-b65			
-quest_myarmsbigadventure	myarmsbigadventure	myarmsbigadventure		4	todo				
+quest_myarmsbigadventure	myarmsbigadventure	myarmsbigadventure		4	claimed	matthew-mbp-m4-b74@matthew-mbp-m4		2026-10-07T16:30:10Z	todo|
 quest_nightatthetheatre	nightatthetheatre	anightatthetheatre		4	todo				
 quest_olafsquest	olafsquest	olafsquest		4	green	matthew-mbp-m4-b71			
 quest_onesmallfavour	onesmallfavour	onesmallfavour		2	green	matthew-mbp-m4-b60			
-quest_pandemonium	pandemonium	pandemonium		4	todo				
+quest_pandemonium	pandemonium	pandemonium		4	claimed	matthew-mbp-m4-b74@matthew-mbp-m4		2026-10-07T16:30:10Z	todo|
 quest_pathofglouphrie	pathofglouphrie	thepathofglouphrie		4	todo				
 quest_perilousmoons	perilousmoons	perilousmoon		6	todo				
 quest_porcineofinterest	porcineofinterest	aporcineofinterest		4	green	matthew-mbp-m4-b70			
@@ -168,7 +168,7 @@ quest_templeoftheeye	templeoftheeye	templeoftheeye		4	green	matthew-mbp-m4-b72
 quest_theeyesofglouphrie	theeyesofglouphrie	theeyesofglouphrie		4	green	matthew-mbp-m4-b70			
 quest_thefeud	thefeud	thefeud		2	green	matthew-mbp-m4-b67			
 quest_thefremennikisles	thefremennikisles	thefremennikisles		4	green	matthew-mbp-m4-b72			
-quest_thegreatbrainrobbery	thegreatbrainrobbery	thegreatbrainrobbery		4	todo				
+quest_thegreatbrainrobbery	thegreatbrainrobbery	thegreatbrainrobbery		4	claimed	matthew-mbp-m4-b74@matthew-mbp-m4		2026-10-07T16:30:10Z	todo|
 quest_theslugmenace	theslugmenace	theslugmenace		3	green	matthew-mbp-m4-b69			
 quest_totem	totem	tribaltotem		3	green	matthew-mbp-m4-b69			
 quest_toweroflife	toweroflife	toweroflife		4	green	matthew-mbp-m4-b72			
