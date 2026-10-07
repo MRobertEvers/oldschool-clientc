@@ -23,7 +23,7 @@ return {
     fixture = "fresh_lumbridge.ini",
     frames = 500,
     setup = {
-        "::max",
+        "::maxstats",
         "::godmode",
     },
 
