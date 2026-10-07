@@ -247,19 +247,20 @@ return {
             sm.tiles = melee_tiles(sm.ox, sm.oz, sm.side_west)
         end
 
-        -- Walkthrough photographs must show the Olm chamber floor + boss, not
-        -- the floor-1 approach or a camera eye buried past the south wall.
-        -- yaw 0 puts the eye SOUTH of the player (pointer.lua _shot_eye); a
-        -- flat pitch/long zoom parks that eye in unrendered void so shot-aim
-        -- sees zero occluders ("clear") and the PNG is black with a crystal
-        -- sliver. Steep pitch 383 + zoom 900 keeps the eye over the aisle.
+        -- Walkthrough photographs must show the Olm chamber floor + boss.
+        -- yaw 0 puts the eye SOUTH of the player (_shot_eye). Entry lz=25 sits
+        -- just north of the pit/wall ring (lz 14–21); pitch/zoom that backs the
+        -- eye ≥4 tiles south parks it in that unrendered pit, shot-aim sees
+        -- zero occluders ("clear"), and the PNG is black with a crystal sliver
+        -- — while ticklog still shows a valid L2 tile. Stand on the green
+        -- aisle under the head (lz≈32) with a short steep zoom so the eye
+        -- stays on arena floor.
+        local PHOTO_LX, PHOTO_LZ = ENTRY_LX, 32
         local function shot_olm_room(name, opts)
             opts = opts or {}
             refresh_geometry()
             local _, me = t.world.tile()
             local lz = me.z - sm.oz
-            -- Still on the floor-1 approach (or off the arena aisle): force the
-            -- barrier enter so we stand on ^cox_olm_entry_* of the Olm plane.
             if me.level ~= OLM_LEVEL or lz < 20 or lz > 40 then
                 t.cheat("::coxolm")
                 t.ticks(4)
@@ -267,20 +268,25 @@ return {
                 _, me = t.world.tile()
                 lz = me.z - sm.oz
             end
-            -- Mid-mechanic: never long-walk mid-fight (walk cancels attack and
-            -- Olm full-hits). Idle/clear may step to the south aisle once.
-            if not opts.camera_only then
-                local aisle_x = sm.ox + ENTRY_LX
-                local aisle_z = sm.oz + ENTRY_LZ + 3 -- ~lz 28, south of claws
-                local on_aisle = me.level == OLM_LEVEL
-                    and math.abs(me.x - aisle_x) <= 4
-                    and lz >= 24 and lz <= 34
-                if not on_aisle then
-                    t.player.walk_to(aisle_x, aisle_z, 8)
+            local photo_x = sm.ox + PHOTO_LX
+            local photo_z = sm.oz + PHOTO_LZ
+            if opts.camera_only then
+                -- Mid-fight: do not steal the attack tick with a long walk.
+                -- Nudge one tile north if we are still on the south lip so the
+                -- eye clears the pit ring; otherwise camera-only.
+                if lz < 30 then
+                    t.player.walk_to(me.x, math.min(me.z + 2, photo_z), 2)
+                end
+            else
+                local on_photo = me.level == OLM_LEVEL
+                    and math.abs(me.x - photo_x) <= 3
+                    and math.abs(me.z - photo_z) <= 3
+                if not on_photo then
+                    t.player.walk_to(photo_x, photo_z, 10)
                 end
             end
-            -- Steep look-down at the head/hands (same pitch shot-aim uses).
-            t.drive.camera(0, 383, 900)
+            -- Steep + short zoom: eye ~3 tiles south, still on the aisle.
+            t.drive.camera(0, 383, 200)
             t.ticks(2)
             t.shot(name)
         end
