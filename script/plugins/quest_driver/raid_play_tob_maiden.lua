@@ -642,6 +642,45 @@ QD.RAID_MAIDEN_POS = {
     S4in = { group = "4s", cast = 16 }, S4out = { group = "4s", cast = 16 },
     N4in = { group = "4s", cast = 16 }, N4out = { group = "4s", cast = 16 },
 }
+-- THE CHIP (owner 2026-10-07, from the seat-centric Blert model in
+-- build/seam_state/sm_maiden/progress.md).  The reference puts about 21
+-- attacks over about 18 crabs a room, roughly 1.2 each, so a crab that gets
+-- through arrives with about 16 hp; ours put 59 presses on N1, N2 and the
+-- stack and never touch the rest, so ours arrive with about 46 and heal her
+-- 804 against the reference's 244.  The same NINE crabs reach her either way
+-- -- the count is not the problem, the arrival health is.
+--
+-- So each dps seat chips any crab that comes within its blowpipe's 5 tiles,
+-- FROM WHERE IT STANDS: no walk, no trip, only ticks that were already going
+-- to be spent standing on her.  "The spread is the point, not the
+-- subtraction" -- deleting the lane trips instead was measured at 5 of 9 and
+-- barely shorter waves, because the crabs then arrive untouched.
+--
+-- The budget per seat per wave follows the reference's own fall-off (its dps
+-- seats attack crabs 3.0 / 1.6 / 0.71 times in the 70s / 50s / 30s), and the
+-- freezer's follows its 5.0 / 4.6 / 2.6 with a margin left for her, since the
+-- reference freezer attacks crabs MORE often than it attacks her (2.4 / 2.4 /
+-- 4.6) and ours bows her every free tick.
+QD.RAID_MAIDEN_CHIP = { 3, 2, 1 }
+QD.RAID_MAIDEN_FCHIP = { 4, 4, 2 }
+-- THE CHIP'S PICK: a live crab within `within` of ME, the one with the MOST
+-- hitpoints left (the spread goes to the untouched crab, which is the 75-hp
+-- N2 our own spawn table shows walking in), ties to the nearest.
+function QD.raid.mz_chip_pick(st, v, within, skip)
+    assert(st, "mz_chip_pick: st")
+    assert(v, "mz_chip_pick: v")
+    local best, score = nil, nil
+    for slot, a in pairs(st.ev.adds) do
+        if not a.gone and not (skip or {})[slot] then
+            local d = math.max(math.abs(a.x - v.me.x), math.abs(a.z - v.me.z))
+            if d <= within then
+                local s = QD.raid.mz_crab_hp(a) * 100 - d
+                if score == nil or s > score then best, score = { slot = slot, a = a, d = d }, s end
+            end
+        end
+    end
+    return best
+end
 -- a frozen crab's ice lasts 32 ticks here (thaw +38 on a +6 freeze, the
 -- relay's S2s); a scythe seat goes to finish it from this many ticks frozen
 QD.RAID_MAIDEN_THAW_SOON = 20
@@ -1562,6 +1601,27 @@ function QD.raid.mz_f_on_boss_tick(c, ev)
         local hx, hz = QD.raid.mz_home(st, v)
         if math.max(math.abs(v.me.x - hx), math.abs(v.me.z - hz)) > 2 and QD.raid.mz_walk_home(st, v, intent) then st.engaged = false return end
     end
+    -- THE FREEZER'S BETWEEN-CAST ATTACKS GO ON CRABS, not on her.  The
+    -- reference's freezer attacks crabs 5.0 / 4.6 / 2.6 times a wave and her
+    -- only 2.4 / 2.4 / 4.6; ours put the bow on her every free tick.  Those
+    -- ticks are already spent, so this is chip for nothing -- and the bow
+    -- reaches 10, further than a dps seat's pipe, so it takes the crabs no
+    -- seat can see.  Budget per wave, then back to her.
+    do
+        local m2 = st.m
+        local wave = math.max(QD.raid.mz_form(st), 1)
+        if m2.fchip_wave ~= st.ev.wave then m2.fchip_wave, m2.fchip_done, m2.fchip_n = st.ev.wave, {}, 0 end
+        if (m2.fchip_n or 0) < (QD.RAID_MAIDEN_FCHIP[wave] or 0) then
+            local t = QD.raid.mz_chip_pick(st, v, 10, m2.fchip_done)
+            if t ~= nil then
+                intent.press = { symbol = st.plan.crab[st.mode], slot = t.slot, op = 2,
+                    why = "fchip " .. tostring(m2.pos and m2.pos[t.slot] and m2.pos[t.slot].lane) }
+                m2.fchip_done[t.slot] = true
+                m2.fchip_n = m2.fchip_n + 1
+                return
+            end
+        end
+    end
     intent.attack = true
 end
 
@@ -1807,6 +1867,27 @@ function QD.raid.mz_s_on_boss_tick(c, ev)
         return
     end
     if hold then return end
+    -- THE CHIP: any crab inside the blowpipe's 5 of where I already stand,
+    -- the most untouched one first, one attack each, to the wave's budget.
+    -- No walk and no trip: these are ticks the seat was going to spend
+    -- swinging her, and when nothing is in range it still swings her.
+    if st.role ~= 2 then
+        local wave = math.max(QD.raid.mz_form(st), 1)
+        if m.chip_wave ~= st.ev.wave then m.chip_wave, m.chip_done, m.chip_n = st.ev.wave, {}, 0 end
+        if (m.chip_n or 0) < (QD.RAID_MAIDEN_CHIP[wave] or 0) then
+            local t = QD.raid.mz_chip_pick(st, v, 5, m.chip_done)
+            local pr, pn = QD.inv.count("toxic_blowpipe_loaded")
+            if t ~= nil and pr == "ok" and (tonumber(pn) or 0) > 0 then
+                QD.raid.mz_wear(intent, { "toxic_blowpipe_loaded" })
+                intent.press = { symbol = st.plan.crab[st.mode], slot = t.slot, op = 2,
+                    why = "chip " .. tostring(m.pos and m.pos[t.slot] and m.pos[t.slot].lane) }
+                m.chip_done[t.slot] = true
+                m.chip_n = (m.chip_n or 0) + 1
+                m.add_presses = (m.add_presses or 0) + 1
+                return
+            end
+        end
+    end
     intent.attack = true
 end
 
