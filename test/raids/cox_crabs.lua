@@ -536,10 +536,12 @@ return {
                                     .. " last=" .. last_paint
                             else
                                 -- White beam needs grey; smash paints red for
-                                -- ^cox_crab_paint_ticks (28). Wait out the red
-                                -- (run28: 12-tick wait left crabs red forever).
+                                -- ^cox_crab_paint_ticks (28). Stand off the
+                                -- mark while waiting so we do not re-smash and
+                                -- refresh paint (run37: 623 ticks still red).
+                                t.player.walk_to(sx, sz, 16)
                                 local grey = false
-                                for _ = 1, 36 do
+                                for _ = 1, 40 do
                                     t.ticks(1)
                                     local live = crab_at(t, wx, wz, 0)
                                     if live == nil then break end
@@ -549,10 +551,11 @@ return {
                                     end
                                 end
                                 if grey and crab_at(t, wx, wz, 0) ~= nil then
-                                    t.player.walk_to(sx, sz, 20)
                                     return true, "raids_lasercrabs_crab_grey"
                                 end
                                 last_detail = "white seat: crab not grey on mark after smash"
+                                -- Cool down before another smash can refresh paint.
+                                t.ticks(20)
                             end
                         end
                     end
