@@ -1162,8 +1162,13 @@ function QD.raid._verzik_ball_run(f)
     local bm = vz.bm
     local ev = "ball_none"
     if bm ~= nil and not bm.done then
+        -- one tick of slack at the end (2026-10-07, 7a728056b): the hop to the
+        -- next place landed 1 tick after the last on two names and 2 on the
+        -- third (P3+191 -> +193) -- the queued landing runs in its target's turn,
+        -- and the turn order moves it -- and the place that had already left its
+        -- tile was read off the line and took 74
         local from = bm.L - 3 + math.max(0, bm.place - 1)
-        local to = bm.L - 2 + bm.place
+        local to = bm.L - 1 + bm.place
         if v.tick > bm.L + bm.n - 1 + BL.after then
             bm.done = true
             vz.ball_resolved = (vz.ball_resolved or 0) + 1
