@@ -1,6 +1,342 @@
 -- Regicide (quest_regicide), written as a relay of legs (docs/quest_authoring/relay.md).
 -- Prerequisites per Quest Helper: Underground Pass complete (and Biohazard, which gates its cave
--- entrance); Agility 56 and Crafting 10 are required levels (Crafting is a later leg's).
+-- entrance); Agility 56 and Crafting 10 are required levels. No leg uses Crafting: its one check is the loom's
+-- strip of cloth (regicide_bombcraft.rs2:112), and the strip (a guide item requirement, Regicide.java:244) is banked
+-- at setup instead, so Crafting is not staged.
+--
+-- Door rule (b70): every closed space is entered and left by its own door, gate, stair or op, and
+-- every Isafdar trap between the player and the target is pressed (regicide_traps.rs2; since
+-- OSRS-Content 4b4cc88be6 a WALK over the woodspring's sprung tiles springs it, 8 hp a time).
+--   * Lumbridge -> Ardougne on foot crosses the members' gate south of Taverley (reach.py 3206,3233 ->
+--     2577,3298 NEEDS-DOOR via membergater@2933,3320): goto its south side, cross_gate, overland on
+--     (2934,3322 -> 2577,3298 REACH len=813). The castle: double door w_ardougnedoubledoorl 2576,3298,
+--     stairs 2571,3295, King Lathas's room behind elfdoor 2575,3293,1 (route as upass.lua).
+--   * The cave mouth is past the West Ardougne city doors (2577,3298 -> 2437,3314 UNREACHABLE; from
+--     2556,3300 REACH len=135): cross_gate ardougnedoor_r.
+--   * Isafdar (reach.py/comp.py): the ring of leaves 2267,3204 and the cave share one walking pocket;
+--     the woodspring 2235,3181 is its only way west, to the tracker (2234,3181 -> 2257,3150 REACH
+--     len=56), the ring 2209,3202 and Iorwerth's camp (the log 2201,3237). Nothing from the camp side
+--     needs the spring.
+--   * Out of Tirannwn for the bomb's eastern half (furnace, Chemist, still) and at the end for Arianwyn:
+--     Lumbridge Teleport (magic_spells.dbrow [magic_spell_teleport_lumbridge], tele_coord 0_50_50_21_18),
+--     then overland (3221,3218 -> 3227,3254 the furnace REACH len=58; -> 2932,3216 Rimmington REACH len=421).
+--     Any furnace burns the limestone (regicide_bombcraft.rs2 [label,regicide_make_quicklime], reached from
+--     every smithing furnace). The Chemist's house: poshdoor 2932,3214 (biohazard.lua's crossing); the still
+--     stands outside it (2932,3216 -> 2927,3212 REACH).
+
+local function in_kings_room(tile)
+    return tile.level == 1 and tile.x >= 2575 and tile.x <= 2579 and tile.z >= 3292 and tile.z <= 3294
+end
+local function MEMBER_GATE_NORTH()
+    return { loc = "membergatel", at = { 2934, 3320, 0 }, near = { 2934, 3318 },
+        far_ok = function(tile) return tile.z >= 3320 and math.abs(tile.x - 2934) <= 2 end,
+        far_desc = "north of the members' gate, z >= 3320", far = { 2934, 3322 } }
+end
+local function CASTLE_DOOR_IN()
+    return { closed = "w_ardougnedoubledoorl", open = "w_ardougnedoubledoorlopen", at = { 2576, 3298, 0 },
+        near = { 2577, 3298 }, far = { 2573, 3298 },
+        far_ok = function(tile) return tile.level == 0 and tile.x <= 2575 end, far_desc = "in the castle hall, x <= 2575" }
+end
+local function CASTLE_DOOR_OUT()
+    return { closed = "w_ardougnedoubledoorl", open = "w_ardougnedoubledoorlopen", at = { 2576, 3298, 0 },
+        near = { 2574, 3298 }, far = { 2577, 3298 },
+        far_ok = function(tile) return tile.level == 0 and tile.x >= 2576 end, far_desc = "on the street, x >= 2576" }
+end
+local function CASTLE_STAIRS_UP() -- the up row lands on the down stand tile 2571,3294,1
+    return { loc = "stairs", op = 1, op_name = "Climb-up", at = { 2571, 3295, 0 }, src = { 2571, 3298 }, dest = { 2571, 3294, 1 } }
+end
+local function CASTLE_STAIRS_DOWN() -- maplink_1_40_51_11_30_down is keyed on the stand tile 2571,3294,1
+    return { loc = "stairstop", op = 1, op_name = "Climb-down", at = { 2571, 3295, 1 }, src = { 2571, 3294 }, dest = { 2571, 3298, 0 } }
+end
+local function KINGS_DOOR_IN()
+    return { closed = "elfdoor", open = "elfdooropen", at = { 2575, 3293, 1 }, near = { 2574, 3293 }, far = { 2577, 3293 },
+        far_ok = in_kings_room, far_desc = "in King Lathas's room, x 2575-2579 z 3292-3294 level 1" }
+end
+local function KINGS_DOOR_OUT()
+    return { closed = "elfdoor", open = "elfdooropen", at = { 2575, 3293, 1 }, near = { 2576, 3293 }, far = { 2573, 3293 },
+        far_ok = function(tile) return tile.level == 1 and tile.x <= 2574 end, far_desc = "out of the king's room, x <= 2574 level 1" }
+end
+-- ardougnedoor_r copy 2558,3300 from the east forcemoves to 2556,3300 (area_ardougne_west/scripts/doors.rs2:35-58)
+local function CITY_DOOR_WEST()
+    return { loc = "ardougnedoor_r", at = { 2558, 3300, 0 }, near = { 2559, 3300 },
+        far_ok = function(tile) return tile.x <= 2556 end, far_desc = "in West Ardougne, x <= 2556" }
+end
+-- Ardougne's castle street -> the cave mouth: the West Ardougne city doors, then overland.
+local function street_to_cave_mouth(t, prefix)
+    t.exec("goto-" .. prefix .. ".cityDoor", t.player.goto_tile, 2559, 3300, 0)
+    t.exec(prefix .. ".cityDoor", t.player.cross_gate, CITY_DOOR_WEST())
+    t.ticks(2)
+    t.exec("goto-" .. prefix, t.player.goto_tile, 2437, 3314, 0) -- beside the cave mouth (2434,3314 is under upass_caveentrance2)
+end
+-- The members' gate south of Taverley, from its south side.
+local function members_gate_north(t, prefix)
+    t.exec("goto-" .. prefix .. ".memberGate", t.player.goto_tile, 2934, 3318, 0)
+    t.exec(prefix .. ".memberGate", t.player.cross_gate, MEMBER_GATE_NORTH())
+end
+-- The castle street, the castle's double door and stairs, King Lathas's door.
+local function up_to_lathas(t, prefix)
+    t.exec("goto-" .. prefix .. ".castleStreet", t.player.goto_tile, 2577, 3298, 0)
+    t.exec(prefix .. ".castleDoorIn", t.player.pass_door, CASTLE_DOOR_IN())
+    t.exec(prefix, t.player.climb, CASTLE_STAIRS_UP()) -- ladders.rs2 [proc,climb]
+    t.ticks(3)
+    t.exec(prefix .. ".kingsDoorIn", t.player.pass_door, KINGS_DOOR_IN())
+end
+local function lumbridge_teleport(t, name, where)
+    t.player.teleport_cast("lumbridge_teleport", { 3221, 3218, 0 }, { name = name,
+        runes = { { "earthrune", 1 }, { "airrune", 3 }, { "lawrune", 1 } }, where = where })
+    t.ticks(3)
+end
+
+-- An Isafdar trap pressed from its stand tile and graded on the FAR tile, never on a chat line: a ring of leaves'
+-- "You manage to cross safely." from the previous crossing is still in the last lines when the next one slips
+-- (regicide_b70b leg 4). A pitfall slip drops the player in its pit (regicide_traps.rs2 [label,regicide_enter_pit]);
+-- the hand holds put him on the ring's SOUTH tile ([oploc1,regicide_trap_hand_holds]), which is the far side of a
+-- southward crossing. A woodspring slip throws him back to the stand side ([label,regicide_fail_trap_woodspring]).
+local ISAFDAR_FAR = { -- stand tile -> far tile (the landings of the rows in skill_agility/configs/maplink_agility.dbrow)
+    ["2267,3205"] = { 2267, 3201 }, -- ring of leaves by the cave, southward
+    ["2238,3181"] = { 2234, 3181 }, -- woodspring, westward
+    ["2209,3201"] = { 2209, 3205 }, -- ring of leaves south of the camp, northward
+    ["2209,3205"] = { 2209, 3201 }, -- the same ring, southward
+    ["2220,3152"] = { 2220, 3155 }, -- tripwire, northward
+    ["2220,3155"] = { 2220, 3152 }, -- tripwire, southward
+}
+local function isafdar_cross(t, h, name, sym, stand_x, stand_z, at_x, at_z, via)
+    local far = ISAFDAR_FAR[stand_x .. "," .. stand_z]
+    assert(far, "isafdar_cross: no far tile for stand " .. stand_x .. "," .. stand_z)
+    local function on_far()
+        local _, w = t.world.tile()
+        return w.level == 0 and math.abs(w.x - far[1]) <= 1 and math.abs(w.z - far[2]) <= 1, w
+    end
+    local crossed, note = false, ""
+    for attempt = 1, 10 do
+        -- a slip costs up to 15 (a pitfall) and hitpoints come out of the pass low: top up first (regicide_b70b died
+        -- on a ring press at under 15 hp)
+        for _ = 1, 3 do h.eat() end
+        if attempt == 1 then
+            h.travel("walk-" .. name, stand_x, stand_z, via)
+            t.exec(name, t.player.click_loc, sym, 1, { at = { at_x, at_z } })
+        else
+            t.player.walk_to(stand_x, stand_z, 20)
+            t.ticks(2)
+            t.player.click_loc(sym, 1, { at = { at_x, at_z } })
+        end
+        t.ticks(6)
+        local ok, w = on_far()
+        if ok then crossed = true break end
+        if w.z > 6400 then
+            t.player.click_loc("regicide_trap_hand_holds", 1) -- out of the pit
+            t.ticks(6)
+            ok, w = on_far()
+            note = note .. " [attempt " .. attempt .. ": slipped into the pit, hand holds -> " .. w.x .. "," .. w.z .. "]"
+            if ok then crossed = true break end
+        else
+            note = note .. " [attempt " .. attempt .. ": slipped, at " .. w.x .. "," .. w.z .. "]"
+        end
+        h.eat()
+    end
+    local _, here = t.world.tile()
+    t.check(name .. "-crossed", crossed, "from " .. stand_x .. "," .. stand_z .. " to " .. here.x .. "," .. here.z .. " (far side "
+        .. far[1] .. "," .. far[2] .. ")" .. note .. " :: " .. h.last(3))
+end
+-- A log balance (regicide_traps.rs2 [label,regicide_logbalance]: three forcemoves), graded on the far end.
+local function cross_log(t, name, at_x, land_x)
+    local r, d = t.player.click_loc("regicide_logbalance1_start", 1, { at = { at_x, 3237 } })
+    t.ticks(10)
+    local _, w = t.world.tile()
+    t.check(name, w.level == 0 and math.abs(w.x - land_x) <= 1 and w.z == 3237, "log at " .. at_x .. ",3237 pressed ("
+        .. tostring(r) .. " " .. tostring(d) .. "), landed " .. w.x .. "," .. w.z .. " (far end x " .. land_x .. ")")
+end
+-- Poison from a snagged tripwire (regicide_traps.rs2 queue(poison_player, 0, 10)): the brought-along antipoison.
+local function cure_poison(t, name)
+    local _, poison = t.var.server("varp102_poison")
+    if (poison or 0) <= 0 then return end
+    for _, dose in ipairs({ "1doseantipoison", "2doseantipoison", "3doseantipoison", "4doseantipoison" }) do
+        local _, n = t.inv.count(dose)
+        if (n or 0) > 0 then
+            t.player.inv_op(dose, 1)
+            t.ticks(3)
+            local _, after = t.var.server("varp102_poison")
+            t.check(name, (after or 1) <= 0, "varp102_poison " .. tostring(poison) .. " -> " .. tostring(after) .. " (drank " .. dose .. ")")
+            return
+        end
+    end
+end
+
+-- The Underground Pass maze (navigateMaze): five rock bridges over pits, each crossed east by its own Cross
+-- (walkway_upass_narrow_mid_top, upass_obstacles.rs2 [oploc1,walkway_upass_narrow_mid_top]). A failed agility roll
+-- drops the player off the bridge for 5 damage, and the walkways cannot be climbed back onto from below: the way on is
+-- the maze again from a bridge the player can stand at. The landings (reach.py/comp.py): under 2380, 2387 and 2392 the
+-- floor joins the maze's start (2392,9625 -> 2373,9634 REACH len=28); under 2399 a pocket whose one way out is bridge
+-- 2392 crossed WEST (reach.py 2399,9634 -> 2373,9634 NEEDS-OP via walkway_upass_narrow_mid_top@2392,9627); under 2406 the
+-- spiked pit, left by the z 9632 walkway's bridge 2406,9632 crossed west. Seen in regicide_b70b (b70): a fall off 2392
+-- landed on 2392,9625 (z-2: the fall's p_exactmove then p_teleport both apply $dz, upass_obstacles.rs2:380-382; this is
+-- LostCity's own behaviour, and the z-1 tiles are solid, so z-2 is the intended floor).
+local MAZE_BRIDGES = {
+    { 2380, 9634, { { 2373, 9634 } } },
+    { 2387, 9631, { { 2384, 9634 }, { 2384, 9631 } } },
+    { 2392, 9627, { { 2389, 9631 }, { 2389, 9627 } } },
+    { 2399, 9632, { { 2395, 9627 }, { 2395, 9632 } } },
+    { 2406, 9637, { { 2403, 9632 }, { 2403, 9637 } } },
+}
+local function maze_cross(t, prefix, eat)
+    local function here() local _, w = t.world.tile() return w end
+    local function press(x, z)
+        local r = t.player.click_loc("walkway_upass_narrow_mid_top", 1, { at = { x, z } })
+        t.ticks(10)
+        return r
+    end
+    local i, falls, note = 1, 0, ""
+    while i <= #MAZE_BRIDGES do
+        local bx, bz, hops = MAZE_BRIDGES[i][1], MAZE_BRIDGES[i][2], MAZE_BRIDGES[i][3]
+        local w = here()
+        if w.x >= 2406 and w.z >= 9632 and w.z <= 9635 then
+            -- the spiked pit under 2406: out by the z 9632 bridge westward
+            t.player.walk_to(2407, 9632, 30)
+            press(2406, 9632)
+            w = here()
+            note = note .. "<pit out -> " .. w.x .. "," .. w.z .. "> "
+        elseif w.x >= 2393 and w.x <= 2400 and w.z >= 9633 and w.z <= 9637 then
+            -- the pocket under 2399: out by bridge 2392 westward, onto its near tile
+            press(2392, 9627)
+            w = here()
+            note = note .. "<pocket out -> " .. w.x .. "," .. w.z .. "> "
+            if w.x == 2391 and w.z == 9627 then i = 3 end
+        end
+        bx, bz, hops = MAZE_BRIDGES[i][1], MAZE_BRIDGES[i][2], MAZE_BRIDGES[i][3]
+        for _, hop in ipairs(hops) do t.player.walk_to(hop[1], hop[2], 60) end
+        t.player.walk_to(bx - 1, bz, 60)
+        w = here()
+        if not (w.x == bx - 1 and w.z == bz) then
+            -- on the floor below the walkways: back to the maze's start
+            note = note .. "{off the walkway at " .. w.x .. "," .. w.z .. ", back to the start} "
+            i = 1
+            t.player.walk_to(2373, 9634, 60)
+            falls = falls + 1
+        else
+            local r = press(bx, bz)
+            local after = here()
+            note = note .. "[" .. bx .. " " .. tostring(r) .. " -> " .. after.x .. "," .. after.z .. "] "
+            if after.x == bx + 1 and after.z == bz then
+                t.check(prefix .. bx .. (falls > 0 and ("-after-fall" .. falls) or ""), true, "now " .. after.x .. "," .. after.z .. " :: " .. note)
+                note = ""
+                i = i + 1
+            else
+                falls = falls + 1
+                eat()
+            end
+        end
+        if falls > 8 then
+            local _, last = t.world.tile()
+            t.check(prefix .. bx, false, "eight falls in the maze; at " .. last.x .. "," .. last.z .. " :: " .. note)
+            return
+        end
+    end
+end
+
+-- Iban's four collapsed bridges between Iban's door and the temple (legs 2 and 6; Quest Helper's enterTemple line points,
+-- Regicide.java:530-551). Each Cross is an agility roll, stat_random(agility,160,300) (upass_obstacles.rs2:431): at the
+-- guide's Agility 56 that is ~238/256, so a bridge fails ~7% and four bridges about 1 walk in 4. A fall
+-- (upass_obstacles.rs2:432-439) teleports the player to the dwarf cavern below, 2335,9821 or 2333,9866 level 0, for
+-- 25% of current hitpoints + 4; while %varb9135_upass_koftik_chat is 0 (::complete quest_undergroundpass does not write
+-- it) the fall also adds Koftik, who talks (:441-444, koftik.rs2:172 [label,koftik_isthatyou]).
+-- The way back up is a cavewalltunnel_upass_up (upass_tunnels.rs2:21-25), and from either of its landings the one walk
+-- back without another op is to bridge A's near end -- reach.py: 2113,4729 / 2150,4546 -> 2172,4686 REACH closed-doors
+-- (len 108 / 170), while every later bridge's near end is NEEDS-OP via bridgecollapsed2@2164,4686 (or 2121,4686). So a
+-- fall off any bridge walks back to A and crosses the four again.
+--   landing 2335,9821 -> tunnel 2336,9793 (stand 2336,9794, REACH len=28) -> 1_33_71_38_2 = 2150,4546 level 1
+--   landing 2333,9866 -> tunnel 2304,9915 (stand 2305,9915, REACH len=77) -> 1_33_73_1_57 = 2113,4729 level 1
+-- Each walk-back hop is a reach.py REACH closed-doors leg (2172,4630 is solid: the south column goes 4618 -> 4642).
+local IBAN_BRIDGES = {
+    -- row, approach hops, loc, loc tile, far tile (upass_obstacles.rs2 [label,upass_cross_bridge] $end)
+    { "crossBridgeA", { {2172,4723}, {2172,4686} }, "bridgecollapsed2", 2164, 4686, 2163, 4686 },
+    { "crossBridgeB", { {2161,4686}, {2161,4699}, {2157,4699}, {2154,4697} }, "bridgecollapsed1", 2154, 4690, 2154, 4689 },
+    { "crossBridgeC", { {2154,4686}, {2152,4685}, {2153,4682}, {2153,4678}, {2154,4676}, {2160,4676}, {2160,4670}, {2165,4670}, {2165,4667}, {2162,4667} }, "bridgecollapsed1", 2162, 4663, 2162, 4662 },
+    { "crossBridgeD", { {2161,4659} }, "bridgecollapsed2", 2161, 4654, 2161, 4653 },
+}
+local IBAN_FALL_WAY_UP = {
+    -- fall landing z, tunnel stand, tunnel loc, tunnel landing, walk back to bridge A's near end
+    { 9821, { 2336, 9794 }, { 2336, 9793 }, { 2150, 4546 },
+        { {2162,4546}, {2173,4559}, {2173,4583}, {2172,4606}, {2172,4618}, {2172,4642}, {2172,4654}, {2172,4678}, {2172,4686} } },
+    { 9866, { 2305, 9915 }, { 2304, 9915 }, { 2113, 4729 },
+        { {2124,4730}, {2135,4731}, {2146,4732}, {2158,4732}, {2170,4732}, {2172,4723}, {2172,4686} } },
+}
+local IBAN_MAX_FALLS = 6 -- at ~7% a press, a seventh fall in one walk means something else is wrong
+-- Crosses the four bridges; suffix names the walk ("" in leg 2, "-again" in leg 6). Returns true on the far side of D;
+-- otherwise writes a FAIL row, ends the run and returns false (the caller returns).
+local function iban_bridges(t, suffix, eat)
+    local function here() local _, w = t.world.tile() return w end
+    local function walk_hops(hops)
+        for _, hop in ipairs(hops) do
+            for _ = 1, 3 do
+                t.player.walk_to(hop[1], hop[2], 60)
+                local w = here()
+                if w.x == hop[1] and w.z == hop[2] then break end
+            end
+        end
+    end
+    local function give_up()
+        t.finish(1)
+        return false
+    end
+    local idx, falls, stuck = 1, 0, 0
+    while idx <= #IBAN_BRIDGES do
+        local st = IBAN_BRIDGES[idx]
+        local label = st[1] .. suffix .. (falls > 0 and ("-after-fall" .. falls) or "") .. (stuck > 0 and ("-retry" .. stuck) or "")
+        walk_hops(st[2])
+        eat() -- a fall costs 25% of current hitpoints + 4
+        t.exec(label, t.player.click_loc, st[3], 1, { at = { st[4], st[5] } })
+        t.ticks(6)
+        local w = here()
+        if w.level == 1 and w.x == st[6] and w.z == st[7] then
+            t.check(label .. "-landed", true, "crossed on the roll, now at " .. w.x .. "," .. w.z .. " level 1 (far side " .. st[6] .. "," .. st[7] .. ")")
+            idx, stuck = idx + 1, 0
+        elseif w.level == 1 then
+            -- still up on the cavern floor but not across: the press did not take; walk the approach and press again
+            stuck = stuck + 1
+            if stuck > 2 then
+                t.check(label .. "-landed", false, "three presses of " .. st[3] .. "@" .. st[4] .. "," .. st[5] .. " left the player at "
+                    .. w.x .. "," .. w.z .. " level 1, not on the far side " .. st[6] .. "," .. st[7])
+                return give_up()
+            end
+        else
+            falls = falls + 1
+            local way
+            for _, cand in ipairs(IBAN_FALL_WAY_UP) do
+                if w.level == 0 and math.abs(w.z - cand[1]) <= 3 then way = cand end
+            end
+            local fell_detail = "slipped off " .. st[3] .. "@" .. st[4] .. "," .. st[5] .. " to " .. w.x .. "," .. w.z .. " level " .. w.level
+                .. " (dwarf cavern; upass_obstacles.rs2:432-436 lands 2335,9821 or 2333,9866)"
+            if falls > IBAN_MAX_FALLS then
+                t.check(label .. "-fell", false, "fall " .. falls .. " in one walk (the bound is " .. IBAN_MAX_FALLS .. "): " .. fell_detail)
+                return give_up()
+            end
+            if not t.check(label .. "-fell", way ~= nil, fell_detail) then return give_up() end
+            -- Koftik's first meeting opens on the landing: play it out before walking
+            t.ticks(2)
+            if t.chat.kind() ~= "none" then
+                t.exec("goBackUpToIbansCavern" .. suffix .. "-" .. falls .. "-koftik", t.chat.drain, { max_pages = 20 })
+            end
+            eat()
+            t.player.walk_to(way[2][1], way[2][2], 90)
+            local up_label = "goBackUpToIbansCavern" .. suffix .. "-" .. falls
+            t.exec(up_label, t.player.click_loc, "cavewalltunnel_upass_up", 1, { at = way[3] })
+            t.ticks(4)
+            local up = here()
+            if not t.check(up_label .. "-tile", up.level == 1 and up.x == way[4][1] and up.z == way[4][2], "tunnel " .. way[3][1] .. "," .. way[3][2]
+                    .. " up landed at " .. up.x .. "," .. up.z .. " level " .. up.level .. " (upass_tunnels.rs2:21-25: " .. way[4][1] .. "," .. way[4][2] .. ")") then
+                return give_up()
+            end
+            walk_hops(way[5])
+            local back = here()
+            if not t.check(up_label .. "-walkback", back.level == 1 and back.x == 2172 and back.z == 4686,
+                    "walked back to " .. back.x .. "," .. back.z .. " level " .. back.level .. ", bridge A's near end 2172,4686") then
+                return give_up()
+            end
+            idx, stuck = 1, 0
+        end
+    end
+    return true
+end
 
 return {
     id = "regicide",
@@ -9,7 +345,6 @@ return {
     setup = {
         "::clearinv", -- the fixture's fourteen tutorial slots
         "::complete quest_biohazard", -- Quest Helper prerequisite chain: Underground Pass needs it
-        -- for it, so its prerequisite state is written: complete, and Lathas met (upass_entrance.rs2:15).
         "::complete quest_undergroundpass", -- Quest Helper prerequisite; the arm leaves the finished pass's state (Lathas met, orbs, badges, unicorn, a rolled grid pattern: quest_cheat.rs2 quest_undergroundpass)
         -- Underground Pass prerequisite state for the second walk through the pass (leg 2): the area-1 well
         -- needs all four orbs (upass_well.rs2:12) and Iban's door the three badges and the horn
@@ -17,11 +352,8 @@ return {
         "::setlevel agility 56", -- Quest Helper: Agility 56 (rockslides, upass_obstacles.rs2:38)
         "::setlevel hitpoints 40", -- a questing account's fighting levels for the pass's spiders
         "::setlevel defence 30",
-        "::give shortbow 1", -- enterTheDungeon items: Bow (not crossbow)
         "::give bronze_arrow 20", -- Arrows (metal, unpoisoned)
         "::give rope 2", -- Rope: the pit swing eats one each crossing (upass_obstacles.rs2:110), walked here and again by a later leg
-        -- the grid pattern the Underground Pass start rolls (king_lathas.rs2:129); a completed pass leaves it unset, which
-        -- makes the grid harmless, so the safe bands are written for the grid to be crossed for real
         "::give spade 1", -- Spade
         "::give tinderbox 1", -- lights the cloth-wrapped arrow (the guide's fire)
         "::give lobster 6", -- food for the pass's traps
@@ -31,21 +363,40 @@ return {
         "::setlevel ranged 70",
         "::setlevel hitpoints 70",
         "::setlevel defence 40",
-        "::give magic_shortbow 1",
+        "::give magic_shortbow 1", -- also enterTheDungeon's Bow (not crossbow): upass_bridge.rs2 [aploc1,oldbridge_guiderope] takes any weapon_bow
         "::give rune_arrow 150",
         -- Since the eat-delay port (raid branch, OSRS-Content 7936c59bf9) an eat no longer holds the Tyras guard's hits: the
         -- 12 sharks ran out (lowest 20/70) and the tripwire's poison finished the character. The guard is pure melee
         -- (regicide_tyras_guard.rs2 [ai_applayer2,regicide_old_camp_guard] ~npc_meleeattack), so leg 4 prays Protect from
         -- Melee (needs Prayer 43; 70 points last ~350 ticks at 1 point / 5 ticks, wiki Prayer; the fight took 268).
         "::setlevel prayer 70",
-        -- 2 sharks, not 12: prayed, the guard fight eats none, and the pack has no room for more. The run used to end
-        -- leg 4 with 0 sharks; leg 6 adds 10 slots (cloth, rabbit, 8 coal) to a pack of 15 + this antipoison, and leg 5
-        -- eats 2 at its start, so 4 staged reached leg 6 as 2 and filled it to 28 of 28 (harden_regicide_v3). Leg 1's
-        -- cloth wrap also needs a free slot: setup must stay <= 26 slots (27 broke lightArrow, hp_regicide_1).
-        "::give shark 2",
+        -- Food: prayed, the guard fight eats little. These 4 sharks and the 6 lobsters are legs 1-5's food; leg 5 deposits
+        -- what is left at Draynor bank (the bomb chapter's items need the slots) and leg 6 draws the 8 banked sharks there
+        -- (::bankgive shark 8 below) for the second pass and Isafdar. Leg 1's cloth wrap also needs a free slot: setup
+        -- must stay <= 26 slots (27 broke lightArrow, hp_regicide_1).
+        "::give shark 4", -- b70: legs 3-4 had no food left after the pass's spear traps (run regicide 19:44, lobster x0 at leg 3's end)
         -- Quest Helper Regicide.java:260 recommends antidotes/antipoisons (ItemCollections.ANTIPOISONS) for the
         -- tripwire's poison (regicide_traps.rs2:23 queue(poison_player, 0, 10)).
         "::give 4doseantipoison 1",
+        -- Two Lumbridge Teleports out of Tirannwn (header): Magic 31 and 1 earth, 3 air, 1 law each (magic_spells.dbrow
+        -- [magic_spell_teleport_lumbridge]). Magic 31 does not move the combat level: Ranged 70 already sets it.
+        "::setlevel magic 31",
+        "::give earthrune 2",
+        "::give airrune 6",
+        "::give lawrune 2",
+        -- The bomb chapter's brought-along items (Quest Helper Regicide.java item requirements: limestone, gloves, pestle and
+        -- mortar, pot, coal for the still, strip of cloth, cooked rabbit; rope for the second pit swing) wait in the bank:
+        -- the 28 slots cannot carry them through legs 1-4. Leg 5 draws them at Draynor bank on the way to the furnace and
+        -- leg 6 again on the way back to the pass (gaps-combat.md "Bank the fight food").
+        "::bankgive limestone 1",
+        "::bankgive leather_gloves 1",
+        "::bankgive pestle_and_mortar 1",
+        "::bankgive pot_empty 1",
+        "::bankgive coal 9",
+        "::bankgive regicide_cloth 1",
+        "::bankgive cooked_rabbit 1",
+        "::bankgive rope 1",
+        "::bankgive shark 8", -- leg 6's food (the second pass, the tripwires, the Isafdar traps), drawn at Draynor in leg 6
     },
     bind = {
         varp = "varp328_regicide_quest",
@@ -71,13 +422,12 @@ return {
             end
             t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
 
-            t.exec("goto-goToArdougneCastleFloor2", t.player.goto_tile, 2572, 3295, 0)
-            t.exec("goToArdougneCastleFloor2", t.player.click_loc, "stairs", 1) -- ladders.rs2:175
-            t.ticks(4)
+            -- the members' gate, the castle door, the stairs and the king's door (header)
+            members_gate_north(t, "goToArdougneCastleFloor2")
+            up_to_lathas(t, "goToArdougneCastleFloor2")
             local _, at = t.world.tile()
-            t.check("goToArdougneCastleFloor2-level", at.level == 1, "standing at " .. at.x .. "," .. at.z .. " level " .. at.level)
+            t.check("goToArdougneCastleFloor2-level", in_kings_room(at), "standing at " .. at.x .. "," .. at.z .. " level " .. at.level)
 
-            t.exec("goto-talkToKingLathas", t.player.goto_tile, 2578, 3293, 1)
             t.exec("talkToKingLathas", t.player.talk_to, "kinglathas", 1) -- king_lathas.rs2:79
             t.exec("talkToKingLathas-dialog", t.chat.play, {
                 "player:I received your message",
@@ -101,8 +451,13 @@ return {
             t.ticks(2)
             t.expect("quest.stage.spoken_lathas", t.quest.expect_stage("spoken_lathas"))
 
-            -- enterTheDungeon: the cave mouth west of Ardougne (upass_entrance.rs2:9)
-            t.exec("goto-enterTheDungeon", t.player.goto_tile, 2434, 3314, 0)
+            -- goDownCastleStairs: out the way in -- the king's door, the stairs, the castle door
+            t.exec("goDownCastleStairs.kingsDoorOut", t.player.pass_door, KINGS_DOOR_OUT())
+            t.exec("goDownCastleStairs", t.player.climb, CASTLE_STAIRS_DOWN()) -- maplink_1_40_51_11_30_down
+            t.ticks(3)
+            t.exec("goDownCastleStairs.castleDoorOut", t.player.pass_door, CASTLE_DOOR_OUT())
+            -- enterWestArdougne, then enterTheDungeon: the cave mouth west of Ardougne (upass_entrance.rs2:9)
+            street_to_cave_mouth(t, "enterWestArdougne")
             t.exec("enterTheDungeon", t.player.click_loc, "upass_caveentrance2", 1)
             t.ticks(6)
             _, at = t.world.tile()
@@ -141,7 +496,7 @@ return {
             climb("climbOverRockslide3", 2458, 9712)
 
             -- searchBagForCloth, useClothOnArrow, lightArrow, then the shot
-            t.exec("goto-searchBagForCloth", t.player.goto_tile, 2452, 9715, 0)
+            t.exec("goto-searchBagForCloth", t.player.goto_tile, 2453, 9716, 0) -- beside the bag (2452,9715 is under upass_gear)
             t.exec("searchBagForCloth", t.player.click_loc, "upass_gear", 1) -- koftik.rs2:143
             t.ticks(4)
             local crossed = false
@@ -156,10 +511,10 @@ return {
                 t.ticks(2)
                 t.exec("lightArrow" .. sfx, t.player.use_item_on_item, "tinderbox", "unlitarrow") -- firemaking.rs2:25
                 t.ticks(2)
-                if attempt == 1 then t.exec("wieldBow", t.player.equip, "shortbow") end
+                if attempt == 1 then t.exec("wieldBow", t.player.equip, "magic_shortbow") end
                 t.exec("wieldLitArrow" .. sfx, t.player.equip, "litarrow")
                 t.ticks(2)
-                t.exec("walkNorthEastOfBridge" .. sfx, t.player.goto_tile, 2450, 9722, 0)
+                t.exec("goto-walkNorthEastOfBridge" .. sfx, t.player.goto_tile, 2450, 9722, 0)
                 t.exec("shootBridgeRope" .. sfx, t.player.click_loc, "oldbridge_guiderope", 1) -- upass_bridge.rs2:64
                 for _poll = 1, 12 do -- forcewalks then a teleport
                     t.ticks(4)
@@ -242,13 +597,13 @@ return {
             pass_trap("passTrap4-outbound", 2432, 9675)
             pass_trap("passTrap5-outbound", 2430, 9675)
 
-            -- goBackUpToIbansCavern: the way back up after a bridge FALL lands in the dwarf cavern (upass_obstacles.rs2:431-436 -> 2335,9821 / 2333,9866; tunnel cavewalltunnel_upass_up 2336,9793, upass_tunnels.rs2:21). Not a content gap: drive it when a crossing fails.
+            -- goBackUpToIbansCavern: the way back up after a fall off Iban's bridges (iban_bridges, legs 2 and 6). Not a content gap: driven when a crossing fails.
             -- The first half ends here, at the last spear trap; leg 2 starts its walk to the plank room and the well from this tile.
 
             local _, stage = t.quest.stage()
             local _, lobsters = t.inv.count("lobster")
             _, at = t.world.tile()
-            t.check("leg.1.end", true, "player at " .. at.x .. "," .. at.z .. " level " .. at.level .. "; regicide_quest=" .. tostring(stage) .. " read from the server; shortbow worn, spade/rope/tinderbox carried, lobster x" .. tostring(lobsters))
+            t.check("leg.1.end", true, "player at " .. at.x .. "," .. at.z .. " level " .. at.level .. "; regicide_quest=" .. tostring(stage) .. " read from the server; magic shortbow worn, spade/rope/tinderbox carried, lobster x" .. tostring(lobsters))
             -- LEG 1 END
         end },
         { name = "well_and_pass_west", run = function(t)
@@ -436,8 +791,10 @@ return {
             t.player.walk_to(2410, 9656, 60)
             t.player.walk_to(2393, 9655, 60)
             where("walkToCell-tile", 2393, 9655, 0)
-            local picked = false
+            -- each pick is stat_random(thieving,128,400) (upass_unicorn.rs2:13), ~50% at Thieving 1: sixteen presses, then a FAIL
+            local picked, picks = false, 0
             for attempt = 1, 16 do -- two railings stand on x 2393 (z 9656 then z 9655); each pick can fail
+                picks = attempt
                 local _, before = t.world.tile()
                 t.player.click_loc("cave_railings2", 1, { at = { 2393, before.z >= 9657 and 9656 or 9655 } }) -- upass_unicorn.rs2:11
                 t.ticks(8)
@@ -445,7 +802,11 @@ return {
                 if after.z <= 9654 then picked = true end
                 if picked then break end
             end
-            where("pickCellLock", nil)
+            do
+                local _, cell = t.world.tile()
+                t.check("pickCellLock", picked and cell.level == 0 and cell.x == 2393 and cell.z <= 9654, "through the cell lock after " .. picks
+                    .. " press(es): standing at " .. cell.x .. "," .. cell.z .. " level " .. cell.level .. " (south of the railings, z <= 9654) :: " .. last_lines(3))
+            end
 
             -- digMud: spade on the loose mud (upass_unicorn_tunnels.rs2:9) -> 2392,9646
             t.ticks(1)
@@ -465,47 +826,7 @@ return {
             -- game), so each is clicked from its west side. A failed agility roll drops you under it (z-1, or z+1 at
             -- 2399,9632 and 2406,9632) for 5 damage; walk back round to the near side and click again.
             local function mz_here() local _, w = t.world.tile() return w end
-            local function cross_rock_bridge(name, bx, bz, hops)
-                local note = ""
-                for attempt = 1, 6 do
-                    if bx == 2406 then
-                        -- a fall off this bridge lands in the spiked pit (2406-2410, 9633-9635), shut in except for the east end of the
-                        -- z 9632 walkway: climb out by crossing the bridge at 2406,9632 westward (a failed roll drops back into the pit)
-                        for _ = 1, 8 do
-                            local pit = mz_here()
-                            if not (pit.x >= 2406 and pit.z >= 9633 and pit.z <= 9635) and not (pit.x >= 2407 and pit.z == 9632) then break end
-                            t.player.walk_to(2407, 9632, 30)
-                            local out_r = t.player.click_loc("walkway_upass_narrow_mid_top", 1, { at = { 2406, 9632 } })
-                            t.ticks(10)
-                            local after_out = mz_here()
-                            note = note .. "<out " .. tostring(out_r) .. " -> " .. after_out.x .. "," .. after_out.z .. "> "
-                            local _, hp_out = t.skill.read("hitpoints")
-                            if type(hp_out) == "table" and hp_out.level and hp_out.level < 15 then t.player.inv_op("lobster", 1) t.ticks(2) end
-                        end
-                    end
-                    for _, hop in ipairs(hops) do
-                        local hr, hd = t.player.walk_to(hop[1], hop[2], 60)
-                        if attempt > 1 then note = note .. "{hop " .. hop[1] .. "," .. hop[2] .. " " .. tostring(hr) .. " " .. tostring(hd):sub(1, 90) .. "} " end
-                    end
-                    local br, bd = t.player.walk_to(bx - 1, bz, 60)
-                    if attempt > 1 then note = note .. "{near " .. tostring(br) .. " " .. tostring(bd):sub(1, 90) .. "} " end
-                    local before = mz_here()
-                    local click_result = t.player.click_loc("walkway_upass_narrow_mid_top", 1, { at = { bx, bz } })
-                    t.ticks(10)
-                    local after = mz_here()
-                    note = note .. "[" .. attempt .. " " .. tostring(click_result) .. " " .. before.x .. "," .. before.z .. "->" .. after.x .. "," .. after.z .. "] "
-                    if after.x == bx + 1 and after.z == bz then break end
-                    local _, hp = t.skill.read("hitpoints")
-                    if type(hp) == "table" and hp.level and hp.level < 15 then t.player.inv_op("lobster", 1) t.ticks(2) end
-                end
-                local w = mz_here()
-                t.check(name, w.x == bx + 1 and w.z == bz, "now " .. w.x .. "," .. w.z .. " :: " .. note)
-            end
-            cross_rock_bridge("navigateMaze-bridge2380", 2380, 9634, { { 2373, 9634 } })
-            cross_rock_bridge("navigateMaze-bridge2387", 2387, 9631, { { 2384, 9634 }, { 2384, 9631 } })
-            cross_rock_bridge("navigateMaze-bridge2392", 2392, 9627, { { 2389, 9631 }, { 2389, 9627 } })
-            cross_rock_bridge("navigateMaze-bridge2399", 2399, 9632, { { 2395, 9627 }, { 2395, 9632 } })
-            cross_rock_bridge("navigateMaze-bridge2406", 2406, 9637, { { 2403, 9632 }, { 2403, 9637 } })
+            maze_cross(t, "navigateMaze-bridge", eat_if_low)
             for _, hop in ipairs({ { 2421, 9637 }, { 2422, 9634 }, { 2422, 9610 }, { 2421, 9606 }, { 2419, 9605 } }) do
                 t.player.walk_to(hop[1], hop[2], 40)
             end
@@ -549,52 +870,13 @@ return {
             where("walkToIbansDoor", 2369, 9718, 0)
             t.exec("openIbansDoor", t.player.click_loc, "cavetempledoor2r", 1)
             t.ticks(6)
-            where("openIbansDoor-tile")
+            where("openIbansDoor-tile", 2173, 4725, 1) -- the door's landing on Iban's side, level 1 (runs regicide, regicide_b70b)
 
             -- enterWell
             -- enterTemple (seam1): Quest Helper's line points (Regicide.java:530-551) from Iban's door landing, crossing the
-            -- four collapsed bridges on the line (upass_obstacles.rs2:425; an agility roll, a fall drops to level 0), then
+            -- four collapsed bridges on the line (iban_bridges above: an agility roll each, a fall walked back up and round), then
             -- Iban's temple doors send a Regicide player to the ruined temple (upass_tomb.rs2 open_iban_door)
-            local function tpath(pts) for _, wp in ipairs(pts) do t.player.walk_to(wp[1], wp[2]) end end
-            local function tbridge(name, sym, x, z) t.exec(name, t.player.click_loc, sym, 1, { at = { x, z } }); t.ticks(6) end
-            -- the four bridge rolls are random (stat_random(agility,160,300), upass_obstacles.rs2:425-436): at the guide's Agility 56
-            -- each fails ~7% and a fall tumbles to the dwarf cavern (2335,9821 / 2333,9866, level 0). goBackUpToIbansCavern is the
-            -- recovery: click cavewalltunnel_upass_up (upass_tunnels.rs2:21) and walk back to the bridge, then cross again.
-            local stages = {
-                { "crossBridgeA", { {2172,4723}, {2172,4686} }, "bridgecollapsed2", 2164, 4686 },
-                { "crossBridgeB", { {2161,4686}, {2161,4699}, {2157,4699}, {2154,4697} }, "bridgecollapsed1", 2154, 4690 },
-                { "crossBridgeC", { {2154,4686}, {2152,4685}, {2153,4682}, {2153,4678}, {2154,4676}, {2160,4676}, {2160,4670}, {2165,4670}, {2165,4667}, {2162,4667} }, "bridgecollapsed1", 2162, 4663 },
-                { "crossBridgeD", { {2161,4659} }, "bridgecollapsed2", 2161, 4654 },
-            }
-            -- the two pockets the tunnel up lands in (upass_tunnels.rs2:21-25): 2113,4729 (west) or 2150,4546 (south); the walk
-            -- from either to the first bridge's approach (2172,4686) is the terrain route of maps m33_71..m33_73
-            local west_hops = { {2124,4730}, {2135,4731}, {2146,4732}, {2158,4732}, {2170,4732}, {2172,4723}, {2172,4686} }
-            local south_hops = { {2162,4546}, {2173,4559}, {2173,4583}, {2172,4606}, {2172,4630}, {2172,4654}, {2172,4678}, {2172,4686} }
-            local idx, falls = 1, 0
-            while idx <= #stages do
-                local st = stages[idx]
-                local label = st[1] .. (falls > 0 and ("-after-fall" .. falls) or "")
-                tpath(st[2])
-                tbridge(label, st[3], st[4], st[5])
-                local _, w = t.world.tile()
-                if w.level == 1 then
-                    t.check(label .. "-landed", true, "crossed on the roll, now at " .. w.x .. "," .. w.z .. " level " .. w.level)
-                    idx = idx + 1
-                else
-                    falls = falls + 1
-                    if falls > 5 then t.blocked("five falls off Iban's bridges in one run; at " .. w.x .. "," .. w.z .. " level " .. w.level) return end
-                    t.check(label .. "-fell", true, "slipped off the bridge to " .. w.x .. "," .. w.z .. " level " .. w.level .. " (dwarf cavern, upass_obstacles.rs2:431-436)")
-                    t.exec("goBackUpToIbansCavern-" .. falls, t.player.click_loc, "cavewalltunnel_upass_up", 1)
-                    t.ticks(4)
-                    local _, up = t.world.tile()
-                    local hops = up.x < 2130 and west_hops or south_hops
-                    t.check("goBackUpToIbansCavern-" .. falls .. "-tile", up.level == 1, "tunnel up landed at " .. up.x .. "," .. up.z .. " level " .. up.level)
-                    for _, hop in ipairs(hops) do t.player.walk_to(hop[1], hop[2], 60) end
-                    local _, back = t.world.tile()
-                    t.check("goBackUpToIbansCavern-" .. falls .. "-walkback", back.x == 2172 and back.z == 4686, "walked back to " .. back.x .. "," .. back.z .. " level " .. back.level .. ", the first bridge's approach")
-                    idx = 1
-                end
-            end
+            if not iban_bridges(t, "", eat_if_low) then return end
             t.player.walk_to(2147, 4648, 20)
             where("walkToTemple", 2147, 4648, 1)
             t.exec("enterTemple", t.player.click_loc, "upass_templedoor_closed_right", 1, { at = { 2143, 4648 } })
@@ -645,14 +927,18 @@ return {
                 if want_x then ok = math.abs(w.x - want_x) <= 6 and math.abs(w.z - want_z) <= 6 and w.level == want_level end
                 t.check(label, ok, "standing at " .. w.x .. "," .. w.z .. " level " .. w.level .. " :: " .. last_lines(3))
             end
+            -- Brought-along food only (setup: lobsters and sharks), eaten when the hazards have taken hitpoints below 40.
             local function eat_if_low()
-                local _, food = t.inv.count("lobster")
-                if food == 0 then
-                    t.cheat("::give lobster 6") -- brought-along food (setup gives six); the traps used it up
-                    t.ticks(2)
+                local hp_result, hp_row = t.skill.read("hitpoints")
+                if hp_result ~= "ok" or (hp_row.current or hp_row.level) > 40 then return end
+                for _, food in ipairs({ "lobster", "shark" }) do
+                    local _, n = t.inv.count(food)
+                    if (n or 0) > 0 then
+                        t.player.inv_op(food, 1)
+                        t.ticks(3)
+                        return
+                    end
                 end
-                t.player.inv_op("lobster", 1)
-                t.ticks(3)
             end
             -- Walking is real travel; a hazard in the way is crossed with its own click. The walk verb stops short
             -- on a long route, so ask again until it stands near the target.
@@ -672,51 +958,39 @@ return {
             -- Every crossing fires ~maplink_agility, which only answers on the exact source tile of its row
             -- (skill_agility/configs/maplink_agility.dbrow): the stand tiles are those rows' src tiles. A failed
             -- pitfall drops the player in a pit; the hand holds put them back on the src tile.
-            local function cross(name, sym, stand_x, stand_z, at_x, at_z, success_text)
-                local crossed = false
-                local from_x, from_z
-                for attempt = 1, 10 do
-                    if attempt == 1 then
-                        travel("walk-" .. name, stand_x, stand_z)
-                        from_x, from_z = stand_x, stand_z
-                        t.exec(name, t.player.click_loc, sym, 1, { at = { at_x, at_z } })
-                    else
-                        t.player.click_loc(sym, 1, { at = { at_x, at_z } })
-                    end
-                    t.ticks(6)
-                    if string.find(last_lines(5), success_text, 1, true) then crossed = true break end
-                    t.player.click_loc("regicide_trap_hand_holds", 1) -- out of the pit, if it was a pitfall
-                    t.ticks(6)
-                    eat_if_low()
-                    t.player.walk_to(stand_x, stand_z, 20)
-                    t.ticks(2)
-                end
-                local _, here = t.world.tile()
-                t.check(name .. "-crossed", crossed, "from " .. tostring(from_x) .. "," .. tostring(from_z) .. " to " .. here.x .. "," .. here.z .. " :: " .. last_lines(3))
+            local function cross(name, sym, stand_x, stand_z, at_x, at_z, _success_text, via)
+                isafdar_cross(t, { travel = travel, eat = eat_if_low, last = last_lines }, name, sym, stand_x, stand_z, at_x, at_z, via)
             end
 
             where("leg.3.start", 2312, 3216, 0)
-            -- goFromCaveToLeaves: the ring of leaves at 2267,3205 (maplink src 2267,3205)
+            -- goFromCaveToLeaves: the ring of leaves at 2267,3205 (maplink src 2267,3205), on Quest Helper's line; the hops
+            -- keep off the woodspring at 2295,3214 (reach.py 2312,3216 -> 2267,3205 REACH len=66 by 2298,3209 / 2287,3207)
+            travel("walk-goFromCaveToLeaves", 2267, 3205, { { 2302, 3212 }, { 2298, 3209 }, { 2287, 3207 }, { 2271, 3211 }, { 2269, 3207 } })
             cross("goFromCaveToLeaves", "regicide_pitfall_side", 2267, 3205, 2267, 3204, "cross safely")
             where("goFromCaveToLeaves-tile", 2267, 3201, 0)
-            -- climbThroughForest: the dense forest west of the tracker, reached on foot from the ring. The gate
+            -- goFromLeavesToStickTrap: the spring trap, crossed west from its east side (Quest Helper's line 2267,3201 ->
+            -- 2258,3182 -> 2238,3181). The ring's pocket has no other way west (comp.py: its one edge op is the spring), and a
+            -- walk over the sprung tiles 2236-2237,3181 springs it (regicide_traps.rs2 [timer,regicide_woodspring_walk]):
+            -- the hops keep north of z 3181 until the stand tile (reach.py 2267,3201 -> 2238,3181 REACH len=49).
+            travel("walk-goFromLeavesToStickTrap", 2238, 3181, { { 2262, 3193 }, { 2259, 3186 }, { 2239, 3186 } })
+            cross("goFromLeavesToStickTrap", "regicide_trap_woodspring", 2238, 3181, 2235, 3181, "skillfully pass")
+            where("goFromLeavesToStickTrap-tile", 2234, 3181, 0)
+            -- climbThroughForest: the dense forest west of the tracker, on foot from the spring's west side (reach.py
+            -- 2234,3181 -> 2240,3149 REACH len=40; the tripwire at 2251,3168 stays east of the hops). The gate
             -- regicide_route.rs2:72-75 refuses it below spoken_tracker2 ("You can see no way to get past this."), so at
             -- stage 3 the press is the refusal; the real crossing is driven at that stage in leg 4.
-            travel("walk-climbThroughForest", 2240, 3149, { { 2239, 3181 }, { 2250, 3170 } })
+            travel("walk-climbThroughForest", 2240, 3149, { { 2233, 3173 }, { 2239, 3168 } })
             t.exec("climbThroughForest", t.player.click_loc, "regicide_cross_over3", 1, { at = { 2238, 3148 } })
             t.ticks(4)
             t.check("climbThroughForest-refused", string.find(last_lines(4), "no way to get past", 1, true) ~= nil, "stage 3 refusal :: " .. last_lines(3))
-            -- goFromLeavesToStickTrap: the spring trap, crossed west from its east side (maplink src 2238,3181)
-            travel("walk-backToSpring", 2238, 3181, { { 2250, 3170 } })
-            cross("goFromLeavesToStickTrap", "regicide_trap_woodspring", 2238, 3181, 2235, 3181, "skillfully pass")
-            where("goFromLeavesToStickTrap-tile", 2234, 3181, 0)
-            -- goUpToLeafTowardsLog: the ring of leaves south of the camp (maplink src 2209,3201), walked to from the spring
+            -- goUpToLeafTowardsLog: the ring of leaves south of the camp (maplink src 2209,3201), on foot back past the spring's
+            -- west side (Quest Helper's line 2234,3181 -> 2224,3180 -> 2209,3201; reach.py 2233,3181 -> 2209,3201 REACH len=44)
+            travel("walk-goUpToLeafTowardsLog", 2209, 3201, { { 2239, 3168 }, { 2233, 3173 }, { 2224, 3180 }, { 2219, 3188 }, { 2212, 3194 } })
             cross("goUpToLeafTowardsLog", "regicide_pitfall_side", 2209, 3201, 2209, 3202, "cross safely")
             where("goUpToLeafTowardsLog-tile", 2209, 3205, 0)
             -- goCrossLogToCamp: the log north to Iorwerth's camp (regicide_traps.rs2:73)
             travel("walk-goCrossLogToCamp", 2201, 3236, { { 2205, 3215 }, { 2203, 3225 }, { 2201, 3232 } })
-            t.exec("goCrossLogToCamp", t.player.click_loc, "regicide_logbalance1_start", 1, { at = { 2201, 3237 } })
-            t.ticks(10)
+            cross_log(t, "goCrossLogToCamp", 2201, 2196)
             where("goCrossLogToCamp-tile", 2196, 3237, 0)
             -- talkToIorwerth: Lord Iorwerth at the camp, stage spoken_scouts (lord_iorwerth.rs2:12)
             travel("walk-talkToIorwerth", 2203, 3253)
@@ -731,7 +1005,7 @@ return {
             local _, w = t.world.tile()
             local _, stage = t.quest.stage()
             local _, lobsters = t.inv.count("lobster")
-            t.check("leg.3.end", true, "tile " .. w.x .. "," .. w.z .. " level " .. w.level .. ", regicide_quest=" .. tostring(stage) .. ", lobster x" .. tostring(lobsters) .. ", shortbow worn, tinderbox, spade, bronze arrows, woodplank (rope spent on the pit)")
+            t.check("leg.3.end", true, "tile " .. w.x .. "," .. w.z .. " level " .. w.level .. ", regicide_quest=" .. tostring(stage) .. ", lobster x" .. tostring(lobsters) .. ", magic shortbow worn, tinderbox, spade, bronze arrows, woodplank (rope spent on the pit)")
             -- LEG 3 END
         end },
         { name = "tracker_and_camp_guard", run = function(t)
@@ -748,40 +1022,19 @@ return {
                 if want_x then ok = math.abs(w.x - want_x) <= 6 and math.abs(w.z - want_z) <= 6 and w.level == want_level end
                 t.check(label, ok, "standing at " .. w.x .. "," .. w.z .. " level " .. w.level .. " :: " .. last_lines(3))
             end
+            -- Brought-along food only (setup: lobsters and sharks), eaten when the hazards have taken hitpoints below 40.
             local function eat_if_low()
-                local _, food = t.inv.count("lobster")
-                if food == 0 then
-                    t.cheat("::give lobster 6") -- brought-along food (setup gives six); the traps used it up
-                    t.ticks(2)
-                end
-                t.player.inv_op("lobster", 1)
-                t.ticks(3)
-            end
-            local function cross(name, sym, stand_x, stand_z, at_x, at_z, success_text)
-                local crossed = false
-                local from_x, from_z
-                for attempt = 1, 10 do
-                    if attempt == 1 then
-                        t.exec("goto-" .. name, t.player.goto_tile, stand_x, stand_z, 0)
-                        from_x, from_z = stand_x, stand_z
-                        t.exec(name, t.player.click_loc, sym, 1, { at = { at_x, at_z } })
-                    else
-                        t.player.goto_tile(stand_x, stand_z, 0)
-                        t.player.click_loc(sym, 1, { at = { at_x, at_z } })
+                local hp_result, hp_row = t.skill.read("hitpoints")
+                if hp_result ~= "ok" or (hp_row.current or hp_row.level) > 40 then return end
+                for _, food in ipairs({ "lobster", "shark" }) do
+                    local _, n = t.inv.count(food)
+                    if (n or 0) > 0 then
+                        t.player.inv_op(food, 1)
+                        t.ticks(3)
+                        return
                     end
-                    t.ticks(6)
-                    local _, hp_row = t.skill.read("hitpoints")
-                    local hp_now = type(hp_row) == "table" and (hp_row.current or hp_row.level) or 70
-                    if hp_now < 30 then eat_if_low() end
-                    if string.find(last_lines(5), success_text, 1, true) then crossed = true break end
-                    t.player.click_loc("regicide_trap_hand_holds", 1) -- out of the pit, if it was a pitfall
-                    t.ticks(6)
-                    eat_if_low()
                 end
-                local _, here = t.world.tile()
-                t.check(name .. "-crossed", crossed, "from " .. tostring(from_x) .. "," .. tostring(from_z) .. " to " .. here.x .. "," .. here.z .. " :: " .. last_lines(3))
             end
-
             -- Walking is real travel; a hazard in the way is crossed with its own click. The walk verb stops short on
             -- a long route ("stalled at"), so ask again until it stands near the target.
             local function travel(label, x, z, via)
@@ -791,29 +1044,32 @@ return {
                 end
                 for _ = 1, 4 do
                     local _, w = t.world.tile()
-                    if math.abs(w.x - x) <= 2 and math.abs(w.z - z) <= 2 then break end
+                    if math.abs(w.x - x) <= 1 and math.abs(w.z - z) <= 1 then break end
                     t.player.walk_to(x, z, 40)
                     t.ticks(1)
                 end
                 where(label, x, z, 0)
             end
-            local function food_up()
-                local _, hp = t.skill.read("hitpoints")
-                local _, sharks = t.inv.count("shark")
-                if sharks == 0 then
-                    local _, lobsters = t.inv.count("lobster")
-                    if lobsters == 0 then t.cheat("::give lobster 6") t.ticks(2) end
-                end
+            -- A ring of leaves pressed from its stand tile, walked to (never a goto: the far side is another pocket). A slip
+            -- drops the player in the pit; the hand holds put him on the ring's SOUTH tile (regicide_traps.rs2
+            -- [oploc1,regicide_trap_hand_holds]), so a southward crossing that slipped has still crossed (far_z).
+            local function cross(name, sym, stand_x, stand_z, at_x, at_z, _success_text, via)
+                isafdar_cross(t, { travel = travel, eat = eat_if_low, last = last_lines }, name, sym, stand_x, stand_z, at_x, at_z, via)
             end
-            -- Camp to tracker: the log, the ring of leaves, the spring (east), then on foot. Back again the other way.
+            -- Isafdar hop lists (reach.py REACH closed-doors between every pair; the header's pockets)
+            local RING_TO_TRACKER = { { 2212, 3194 }, { 2219, 3188 }, { 2225, 3183 }, { 2233, 3178 }, { 2236, 3171 }, { 2239, 3168 },
+                { 2242, 3161 }, { 2247, 3157 }, { 2253, 3152 } }
+            local TRACKER_TO_RING = { { 2240, 3155 }, { 2239, 3165 }, { 2235, 3168 }, { 2232, 3171 }, { 2232, 3177 }, { 2225, 3180 },
+                { 2221, 3184 }, { 2219, 3188 }, { 2212, 3194 } }
+            local LOG_TO_RING = { { 2205, 3236 }, { 2205, 3224 }, { 2207, 3217 }, { 2209, 3213 } }
+            local RING_TO_LOG = { { 2209, 3208 }, { 2205, 3212 }, { 2203, 3220 }, { 2203, 3235 } }
+            -- Camp to tracker: the log, the ring of leaves south, then on foot past the spring's west side (the tracker and the
+            -- ring share one pocket: reach.py 2209,3201 -> 2257,3150 REACH len=99; the spring leads only east, to the cave).
             local function camp_to_tracker(tag)
-                t.exec("crossLogFromCamp" .. tag, t.player.click_loc, "regicide_logbalance1_start", 1, { at = { 2197, 3237 } })
-                t.ticks(10)
+                cross_log(t, "crossLogFromCamp" .. tag, 2197, 2201)
                 where("crossLogFromCamp" .. tag .. "-tile", 2201, 3237, 0)
-                cross("goFromCampToLeavesSouth" .. tag, "regicide_pitfall_side", 2209, 3205, 2209, 3204, "cross safely")
-                travel("walk-toSpring" .. tag, 2233, 3181, { { 2211, 3191 }, { 2221, 3181 } })
-                cross("goFromLeavesToStickTrap" .. tag, "regicide_trap_woodspring", 2234, 3181, 2235, 3181, "skillfully pass")
-                travel("walk-toTracker" .. tag, 2257, 3150, { { 2250, 3170 } })
+                cross("goFromCampToLeavesSouth" .. tag, "regicide_pitfall_side", 2209, 3205, 2209, 3204, "cross safely", LOG_TO_RING)
+                travel("walk-toTracker" .. tag, 2257, 3150, RING_TO_TRACKER)
             end
 
             camp_to_tracker("")
@@ -828,15 +1084,11 @@ return {
             t.expect("quest.stage.spoken_tracker", t.quest.expect_stage(5))
 
             -- goReturnToIorwerth: back the way we came (spring on foot, the ring north, the log, the camp)
-            travel("walk-backToSpring", 2239, 3181, { { 2250, 3170 } })
-            travel("walk-backToRing", 2221, 3181, { { 2239, 3181 } })
-            travel("walk-backToRing2", 2209, 3201, { { 2211, 3191 } })
-            cross("goReturnToIorwerth", "regicide_pitfall_side", 2209, 3201, 2209, 3202, "cross safely")
-            t.exec("goto-goReturnToIorwerth-log", t.player.goto_tile, 2201, 3236, 0)
-            t.exec("goReturnToIorwerth-log", t.player.click_loc, "regicide_logbalance1_start", 1, { at = { 2201, 3237 } })
-            t.ticks(10)
+            cross("goReturnToIorwerth", "regicide_pitfall_side", 2209, 3201, 2209, 3202, "cross safely", TRACKER_TO_RING)
+            travel("walk-goReturnToIorwerth-log", 2201, 3236, RING_TO_LOG)
+            cross_log(t, "goReturnToIorwerth-log", 2201, 2196)
             where("goReturnToIorwerth-log-tile", 2196, 3237, 0)
-            t.exec("goto-goReturnToIorwerth-camp", t.player.goto_tile, 2203, 3253, 0)
+            travel("walk-goReturnToIorwerth-camp", 2203, 3253)
             t.exec("goReturnToIorwerth-talk", t.player.talk_to, "lord_iorwerth_vis")
             t.exec("goReturnToIorwerth-dialog", t.chat.play, {
                 "npc:Good day", "player:Your scout refused", "npc:Bless his loyalty", "mesbox:Lord Iorwerth gives you a crystal pendant",
@@ -857,7 +1109,7 @@ return {
             t.expect("quest.stage.shown_pendant", t.quest.expect_stage(6))
 
             -- clickTracks: Follow the footprints west of the camp (regicide_camp_tracker.rs2:31)
-            t.exec("goto-clickTracks", t.player.goto_tile, 2243, 3150, 0)
+            travel("walk-clickTracks", 2243, 3150)
             t.exec("clickTracks", t.player.click_loc, "regicide_old_camp_footprints_vis_op", 1)
             t.ticks(3)
             t.expect("quest.stage.found_footprints", t.quest.expect_stage(7))
@@ -870,7 +1122,6 @@ return {
             })
             t.ticks(2)
             t.expect("quest.stage.spoken_tracker2", t.quest.expect_stage(8))
-            t.exec("wield-magic-shortbow", t.player.equip, "magic_shortbow")
             t.exec("wield-rune-arrows", t.player.equip, "rune_arrow")
             t.ticks(1)
 
@@ -912,7 +1163,7 @@ return {
             local guard_lowest = tonumber(tostring(guard_detail):match("lowest hp (%d+)/"))
             local _, sharks_after_guard = t.inv.count("shark")
             t.check("killGuard-margin", (sharks_after_guard or 0) >= 2 or (guard_lowest or 0) > 25,
-                "sharks staged 2, at the guard " .. tostring(sharks_at_guard) .. ", eaten in the fight "
+                "sharks staged 4, at the guard " .. tostring(sharks_at_guard) .. ", eaten in the fight "
                 .. tostring((sharks_at_guard or 0) - (sharks_after_guard or 0)) .. ", left " .. tostring(sharks_after_guard)
                 .. ", lowest hp in the fight " .. tostring(guard_lowest) .. "/70, guard dead after "
                 .. tostring(tostring(guard_detail):match("dead after (%d+) tick")) .. " ticks (margin: sharks left >= 2 or lowest hp > 25)")
@@ -966,38 +1217,25 @@ return {
                 local _, w = t.world.tile()
                 t.check(label, w.x == want_x and w.z == want_z, "at " .. w.x .. "," .. w.z .. "," .. w.level .. " want " .. want_x .. "," .. want_z .. " :: " .. last_lines(3))
             end
+            -- Brought-along food only (setup: lobsters and sharks), eaten when the hazards have taken hitpoints below 40.
             local function eat_if_low()
-                local _, food = t.inv.count("lobster")
-                if food == 0 then
-                    t.cheat("::give lobster 6") -- brought-along food (setup gives six); the hazards used it up
-                    t.ticks(2)
-                end
-                t.player.inv_op("lobster", 1)
-                t.ticks(3)
-            end
-            local function cross(name, sym, stand_x, stand_z, at_x, at_z, success_text)
-                local crossed = false
-                local from_x, from_z
-                for attempt = 1, 10 do
-                    if attempt == 1 then
-                        t.exec("goto-" .. name, t.player.goto_tile, stand_x, stand_z, 0)
-                        from_x, from_z = stand_x, stand_z
-                        t.exec(name, t.player.click_loc, sym, 1, { at = { at_x, at_z } })
-                    else
-                        t.player.goto_tile(stand_x, stand_z, 0)
-                        t.player.click_loc(sym, 1, { at = { at_x, at_z } })
+                local hp_result, hp_row = t.skill.read("hitpoints")
+                if hp_result ~= "ok" or (hp_row.current or hp_row.level) > 40 then return end
+                for _, food in ipairs({ "lobster", "shark" }) do
+                    local _, n = t.inv.count(food)
+                    if (n or 0) > 0 then
+                        t.player.inv_op(food, 1)
+                        t.ticks(3)
+                        return
                     end
-                    t.ticks(6)
-                    if string.find(last_lines(5), success_text, 1, true) then crossed = true break end
-                    t.player.click_loc("regicide_trap_hand_holds", 1) -- out of the pit, if it was a pitfall
-                    t.ticks(6)
-                    eat_if_low()
                 end
-                local _, here = t.world.tile()
-                t.check(name .. "-crossed", crossed, "from " .. tostring(from_x) .. "," .. tostring(from_z) .. " to " .. here.x .. "," .. here.z .. " :: " .. last_lines(3))
+            end
+            local travel -- below; a crossing walks to its stand tile (never a goto across a trap)
+            local function cross(name, sym, stand_x, stand_z, at_x, at_z, _success_text, via)
+                isafdar_cross(t, { travel = travel, eat = eat_if_low, last = last_lines }, name, sym, stand_x, stand_z, at_x, at_z, via)
             end
             -- Walking is real travel; ask again until it stands near the target.
-            local function travel(label, x, z, via)
+            travel = function(label, x, z, via)
                 for _, pt in ipairs(via or {}) do
                     t.player.walk_to(pt[1], pt[2], 40)
                     t.ticks(1)
@@ -1011,15 +1249,7 @@ return {
                 where(label, x, z, 0)
             end
 
-            -- Brought along for this leg (guide item requirements of the bomb chapter): limestone for the furnace, gloves
-            -- that cover the hands, a pestle and mortar with a pot for the grinding, and coal for the Chemist step. They
-            -- are given here, not in setup: the 28 slots are full of leg 4's food and ammunition at the start of the run.
-            t.cheat("::give limestone 1")
-            t.cheat("::give leather_gloves 1")
-            t.cheat("::give pestle_and_mortar 1")
-            t.cheat("::give pot_empty 1")
-            t.cheat("::give coal 1")
-            t.exec("leg5.pack", t.inv.await_all, { limestone = 1, leather_gloves = 1, pestle_and_mortar = 1, pot_empty = 1, coal = 1 }, 10)
+            -- The bomb chapter's items wait in the bank (setup ::bankgive); they are drawn at Draynor below.
 
             -- Leg 4 ends poisoned and hurt, just north of the tripwire: eat before the next hazards.
             t.player.inv_op("shark", 1)
@@ -1093,6 +1323,7 @@ return {
             t.ticks(6)
             local _, tw = t.world.tile()
             t.check("getSulphur-back-tripwire-tile", tw.z <= 3153, "player " .. tw.x .. "," .. tw.z .. " :: " .. last_lines(3))
+            cure_poison(t, "getSulphur-back-tripwire-antipoison")
             eat_if_low()
             travel("getSulphur-back-toForests", 2231, 3149, { { 2223, 3151 }, { 2228, 3150 } })
             local east_steps = {
@@ -1110,23 +1341,21 @@ return {
             t.exec("getSulphur-held", t.inv.await, "regicide_sulphar", 1, 10)
 
             -- fill2Barrels: fill both empty barrels from the tar collection (regicide_bombcraft.rs2:53)
-            t.exec("goto-fill2Barrels", t.player.goto_tile, 2263, 3129, 0)
+            travel("walk-fill2Barrels", 2263, 3129)
             t.exec("fill2Barrels-1", t.player.click_loc, "regicide_tar_collection", 1, { at = { 2263, 3127 } })
             t.exec("fill2Barrels-1-held", t.inv.await, "regicide_barrel_tar", 1, 10)
             t.exec("fill2Barrels-2", t.player.click_loc, "regicide_tar_collection", 1, { at = { 2263, 3127 } })
             t.exec("fill2Barrels-2-held", t.inv.await, "regicide_barrel_tar", 2, 10)
 
             -- goToIorwerthAfterCamp: back the way leg 4 came (tracker, the spring on foot, the ring north, the log, the camp)
+            -- the tracker's pocket reaches the ring without the spring (header; reach.py 2257,3150 -> 2209,3201 REACH len=99)
             travel("goToIorwerthAfterCamp-walk-toTracker", 2257, 3150, { { 2262, 3140 } })
-            travel("goToIorwerthAfterCamp-walk-toSpring", 2239, 3181, { { 2250, 3170 } })
-            travel("goToIorwerthAfterCamp-walk-toRing", 2221, 3181, { { 2239, 3181 } })
-            travel("goToIorwerthAfterCamp-walk-toRing2", 2209, 3201, { { 2211, 3191 } })
-            cross("goToIorwerthAfterCamp-ring", "regicide_pitfall_side", 2209, 3201, 2209, 3202, "cross safely")
-            t.exec("goto-goToIorwerthAfterCamp-log", t.player.goto_tile, 2201, 3236, 0)
-            t.exec("goToIorwerthAfterCamp-log", t.player.click_loc, "regicide_logbalance1_start", 1, { at = { 2201, 3237 } })
-            t.ticks(10)
+            cross("goToIorwerthAfterCamp-ring", "regicide_pitfall_side", 2209, 3201, 2209, 3202, "cross safely",
+                { { 2240, 3155 }, { 2239, 3165 }, { 2235, 3168 }, { 2232, 3171 }, { 2232, 3177 }, { 2225, 3180 }, { 2221, 3184 }, { 2219, 3188 }, { 2212, 3194 } })
+            travel("walk-goToIorwerthAfterCamp-log", 2201, 3236, { { 2209, 3208 }, { 2205, 3212 }, { 2203, 3220 }, { 2203, 3235 } })
+            cross_log(t, "goToIorwerthAfterCamp-log", 2201, 2196)
             where("goToIorwerthAfterCamp-log-tile", 2196, 3237, 0)
-            t.exec("goto-goToIorwerthAfterCamp-camp", t.player.goto_tile, 2203, 3253, 0)
+            travel("walk-goToIorwerthAfterCamp-camp", 2203, 3253)
             t.exec("goToIorwerthAfterCamp-talk", t.player.talk_to, "lord_iorwerth_vis")
             t.exec("goToIorwerthAfterCamp-dialog", t.chat.play, {
                 "npc:how goes your search", "player:I've finally tracked", "npc:Good job", "npc:I have this book",
@@ -1183,12 +1412,41 @@ return {
             t.check("askAboutFuse-flag", fuse_chat == 1, "varb8455_regicide_fuse_chat=" .. tostring(fuse_chat))
 
             -- useLimestoneOnFurnace: ANY furnace burns limestone (smelting.rs2:81-84 -> regicide_bombcraft.rs2:91, stage 11),
-            -- gloved so the quicklime does not burn the hands. Keldagrim's furnace is the one other quests already drive.
+            -- gloved so the quicklime does not burn the hands. The furnace driven is Lumbridge's (reached below).
+            -- Out of Tirannwn by Lumbridge Teleport from Iorwerth's camp (header).
+            lumbridge_teleport(t, "useLimestoneOnFurnace.lumbridgeTeleport", "Lumbridge, out of Iorwerth's camp in Tirannwn")
+            -- Draynor bank (open doorway, bankdoor_*_inactive; demon.lua's route: reach.py 3221,3218 -> 3097,3246 REACH
+            -- len=180): the left-over food goes in (no hazard before leg 6, which draws its own), the bomb chapter's items
+            -- come out. The book stays: the Chemist answers "Your quest." only while it is held (chemist.rs2
+            -- [opnpc1,chemist] inv_total(inv, regicide_alchemy) > 0). The gloves are drawn and worn first so the nine
+            -- coal fit (28 slots).
+            local function bank_open(name)
+                t.exec(name, t.bank.open, "bankbooth", 2, { at = { 3091, 3243 } })
+            end
+            t.exec("goto-useLimestoneOnFurnace.draynorBank", t.player.goto_tile, 3097, 3246, 0)
+            bank_open("useLimestoneOnFurnace.bankOpen")
+            for _, food in ipairs({ "lobster", "shark" }) do
+                local _, held = t.inv.count(food)
+                if (held or 0) > 0 then t.exec("useLimestoneOnFurnace.deposit." .. food, t.bank.deposit, food, "all") end
+            end
+            t.exec("useLimestoneOnFurnace.withdraw.gloves", t.bank.withdraw, "leather_gloves", 1)
+            t.check("useLimestoneOnFurnace.bankClose", t.bank.close())
             t.exec("wear-gloves", t.player.equip, "leather_gloves")
             t.ticks(1)
-            t.exec("goto-useLimestoneOnFurnace", t.player.goto_tile, 2869, 10202, 0)
-            local furnace_result, furnace_target = t.world.loc_near("dwarf_keldagrim_furnace", 60)
-            t.check("useLimestoneOnFurnace-locate", furnace_result == "ok", "world.loc_near(dwarf_keldagrim_furnace,60) -> " .. tostring(furnace_result))
+            bank_open("useLimestoneOnFurnace.bankOpen2")
+            t.exec("useLimestoneOnFurnace.withdraw.limestone", t.bank.withdraw, "limestone", 1)
+            t.exec("useLimestoneOnFurnace.withdraw.pestle", t.bank.withdraw, "pestle_and_mortar", 1)
+            t.exec("useLimestoneOnFurnace.withdraw.pot", t.bank.withdraw, "pot_empty", 1)
+            t.exec("useLimestoneOnFurnace.withdraw.cloth", t.bank.withdraw, "regicide_cloth", 1)
+            t.exec("useLimestoneOnFurnace.withdraw.coal", t.bank.withdraw, "coal", 9)
+            t.check("useLimestoneOnFurnace.bankClose2", t.bank.close())
+            t.exec("useLimestoneOnFurnace.walkOut", t.player.walk_route, { { 3094, 3246 }, { 3097, 3246 } })
+            t.exec("leg5.pack", t.inv.await_all, { limestone = 1, pestle_and_mortar = 1, pot_empty = 1, regicide_cloth = 1, coal = 9 }, 10)
+            -- overland to the street south of the Lumbridge smithy (reach.py 3097,3246 -> 3226,3250 REACH len=165); its
+            -- doorway is open and the use walks in
+            t.exec("goto-useLimestoneOnFurnace", t.player.goto_tile, 3226, 3250, 0)
+            local furnace_result, furnace_target = t.world.loc_near("fai_falador_furnace", 12)
+            t.check("useLimestoneOnFurnace-locate", furnace_result == "ok", "world.loc_near(fai_falador_furnace,12) -> " .. tostring(furnace_result))
             t.exec("useLimestoneOnFurnace", t.player.use_on, "limestone", furnace_target)
             t.exec("useLimestoneOnFurnace-held", t.inv.await, "regicide_quicklime", 1, 10)
 
@@ -1199,7 +1457,10 @@ return {
             t.exec("usePestleOnSulphur-held", t.inv.await, "regicide_sulphar_dust", 1, 10)
 
             -- talkToChemist: Rimmington, "Your quest." (chemist.rs2, biohazard_complete arm, stage 11 with the book)
-            t.exec("goto-talkToChemist", t.player.goto_tile, 2934, 3210, 0)
+            -- Rimmington overland (reach.py 3226,3250 -> 2932,3216 REACH), the Chemist's door in (biohazard.lua's crossing)
+            t.exec("goto-talkToChemist", t.player.goto_tile, 2932, 3216, 0)
+            t.exec("talkToChemist.doorIn", t.player.pass_door, { closed = "poshdoor", open = "poshdooropen",
+                at = { 2932, 3214, 0 }, near = { 2932, 3215 }, far = { 2932, 3212 } })
             t.exec("talkToChemist", t.player.talk_to, "chemist")
             t.exec("talkToChemist-dialog", t.chat.play, {
                 "options", "choose:Your quest.", "player:Good day. I was hoping", "npc:Ah, you'll be wanting",
@@ -1209,6 +1470,9 @@ return {
             t.ticks(2)
             local _, chemist_chat = t.var.varbit("varb8449_regicide_chemist_chat")
             t.check("talkToChemist-flag", chemist_chat == 1, "varb8449_regicide_chemist_chat=" .. tostring(chemist_chat))
+            -- out the way in: the still stands outside the house (Quest Helper "the still outside the Chemist's house")
+            t.exec("talkToChemist.doorOut", t.player.pass_door, { closed = "poshdoor", open = "poshdooropen",
+                at = { 2932, 3214, 0 }, near = { 2932, 3213 }, far = { 2932, 3216 } })
 
             local _, w = t.world.tile()
             local _, stage = t.quest.stage()
@@ -1221,16 +1485,13 @@ return {
         end },
         { name = "bomb_catapult_and_report", run = function(t)
             -- LEG 6 BEGIN: useTarOnFractionalisingStill
-            -- Brought along (Quest Helper's item lists for these steps): coal for the still's heat, the strip of cloth
-            -- for the fuse and the cooked rabbit for the catapult guard. The pack is bulky, so they are given here.
-            t.cheat("::give regicide_cloth 1") -- useClothOnBarrelBomb: Strip of cloth
-            t.cheat("::give cooked_rabbit 1") -- useRabbitOnGuard: Cooked rabbit
-            t.cheat("::give coal 8") -- coal20OrNaphtha: the still burns coal to hold its heat (28 slots: coal is not stackable)
-            t.exec("leg6.pack", t.inv.await_all, { regicide_cloth = 1, cooked_rabbit = 1, coal = 9 }, 10)
+            -- Drawn at Draynor in leg 5: coal for the still's heat and the strip of cloth for the fuse.
+            t.exec("leg6.pack", t.inv.await_all, { regicide_cloth = 1, coal = 9 }, 10)
             local _, coal_n = t.inv.count("coal")
 
             t.drive.camera(0, 383, 600)
-            t.exec("goto-useTarOnFractionalisingStill", t.player.goto_tile, 2927, 3212, 0)
+            -- leg 5 left the player on the Chemist's doorstep (2932,3216); the still is outside the house and the use walks
+            -- to it (reach.py 2932,3216 -> 2927,3212 REACH len=9)
             t.ui.tab("inventory")
             t.ticks(2)
             local still_target = t.player.by_symbol("loc", "regicide_fractionalizing_still")
@@ -1306,37 +1567,22 @@ return {
                 local _, w = t.world.tile()
                 t.check(label, w.x == want_x and w.z == want_z, "at " .. w.x .. "," .. w.z .. "," .. w.level .. " want " .. want_x .. "," .. want_z .. " :: " .. last_lines(3))
             end
+            -- Brought-along food only (setup: lobsters and sharks), eaten when the hazards have taken hitpoints below 40.
             local function eat_if_low()
-                local _, food = t.inv.count("lobster")
-                if food == 0 then
-                    t.cheat("::give lobster 6") -- brought-along food (setup gives six); the hazards used it up
-                    t.ticks(2)
+                local hp_result, hp_row = t.skill.read("hitpoints")
+                if hp_result ~= "ok" or (hp_row.current or hp_row.level) > 40 then return end
+                for _, food in ipairs({ "lobster", "shark" }) do
+                    local _, n = t.inv.count(food)
+                    if (n or 0) > 0 then
+                        t.player.inv_op(food, 1)
+                        t.ticks(3)
+                        return
+                    end
                 end
-                t.player.inv_op("lobster", 1)
-                t.ticks(3)
             end
             local travel -- defined below; crossings walk to their stand tile
-            local function cross(name, sym, stand_x, stand_z, at_x, at_z, success_text, via)
-                local crossed = false
-                local from_x, from_z
-                for attempt = 1, 10 do
-                    if attempt == 1 then
-                        travel("walk-" .. name, stand_x, stand_z, via)
-                        from_x, from_z = stand_x, stand_z
-                        t.exec(name, t.player.click_loc, sym, 1, { at = { at_x, at_z } })
-                    else
-                        t.player.walk_to(stand_x, stand_z, 20)
-                        t.ticks(2)
-                        t.player.click_loc(sym, 1, { at = { at_x, at_z } })
-                    end
-                    t.ticks(6)
-                    if string.find(last_lines(5), success_text, 1, true) then crossed = true break end
-                    t.player.click_loc("regicide_trap_hand_holds", 1) -- out of the pit, if it was a pitfall
-                    t.ticks(6)
-                    eat_if_low()
-                end
-                local _, here = t.world.tile()
-                t.check(name .. "-crossed", crossed, "from " .. tostring(from_x) .. "," .. tostring(from_z) .. " to " .. here.x .. "," .. here.z .. " :: " .. last_lines(3))
+            local function cross(name, sym, stand_x, stand_z, at_x, at_z, _success_text, via)
+                isafdar_cross(t, { travel = travel, eat = eat_if_low, last = last_lines }, name, sym, stand_x, stand_z, at_x, at_z, via)
             end
             travel = function(label, x, z, via)
                 for _, pt in ipairs(via or {}) do
@@ -1357,11 +1603,21 @@ return {
             t.player.drop("regicide_barrel_empty")
             t.ticks(1)
             t.exec("leg6.pack-lean", t.inv.count, "coal")
-            t.cheat("::give rope 1") -- enterTheDungeon items: Rope (the pit's swing; the first walk's rope was spent)
-            t.exec("leg6.rope", t.inv.await, "rope", 1, 10)
+            -- Draynor bank again on the way north (reach.py 2932,3216 -> 3097,3246 REACH len=257): the catapult guard's cooked
+            -- rabbit and the rope for the pit's second swing (the first walk's two ropes were spent)
+            t.exec("goto-enterTheDungeon-again.draynorBank", t.player.goto_tile, 3097, 3246, 0)
+            t.exec("enterTheDungeon-again.bankOpen", t.bank.open, "bankbooth", 2, { at = { 3091, 3243 } })
+            t.exec("enterTheDungeon-again.withdraw.rabbit", t.bank.withdraw, "cooked_rabbit", 1)
+            t.exec("enterTheDungeon-again.withdraw.rope", t.bank.withdraw, "rope", 1)
+            t.exec("enterTheDungeon-again.withdraw.food", t.bank.withdraw, "shark", 8)
+            t.check("enterTheDungeon-again.bankClose", t.bank.close())
+            t.exec("enterTheDungeon-again.walkOut", t.player.walk_route, { { 3094, 3246 }, { 3097, 3246 } })
+            t.exec("leg6.rope", t.inv.await_all, { rope = 1, cooked_rabbit = 1, shark = 8 }, 10)
 
-            -- enterTheDungeon (again): upass_entrance.rs2:9
-            t.exec("goto-enterTheDungeon-again", t.player.goto_tile, 2434, 3314, 0)
+            -- enterTheDungeon (again): Draynor -> the members' gate (reach.py 3097,3246 -> 2934,3318 REACH len=237), the
+            -- castle street, the West Ardougne city doors and the cave mouth (header), then upass_entrance.rs2:9
+            members_gate_north(t, "enterWestArdougne-again")
+            street_to_cave_mouth(t, "enterWestArdougne-again")
             t.exec("enterTheDungeon-again", t.player.click_loc, "upass_caveentrance2", 1)
             t.ticks(6)
             local _, at = t.world.tile()
@@ -1398,7 +1654,7 @@ return {
             climb("climbOverRockslide3-again", 2458, 9712)
 
             -- searchBagForCloth, useClothOnArrow, lightArrow, shootBridgeRope (again)
-            t.exec("goto-searchBagForCloth-again", t.player.goto_tile, 2452, 9715, 0)
+            t.exec("goto-searchBagForCloth-again", t.player.goto_tile, 2453, 9716, 0) -- beside the bag (2452,9715 is under upass_gear)
             t.exec("searchBagForCloth-again", t.player.click_loc, "upass_gear", 1)
             t.ticks(4)
             local crossed = false
@@ -1413,10 +1669,9 @@ return {
                 t.ticks(2)
                 t.exec("lightArrow" .. sfx, t.player.use_item_on_item, "tinderbox", "unlitarrow")
                 t.ticks(2)
-                if attempt == 1 then t.exec("wieldBow-again", t.player.equip, "shortbow") end
                 t.exec("wieldLitArrow" .. sfx, t.player.equip, "litarrow")
                 t.ticks(2)
-                t.exec("walkNorthEastOfBridge" .. sfx, t.player.goto_tile, 2450, 9722, 0)
+                t.exec("goto-walkNorthEastOfBridge" .. sfx, t.player.goto_tile, 2450, 9722, 0)
                 t.exec("shootBridgeRope" .. sfx, t.player.click_loc, "oldbridge_guiderope", 1)
                 for _poll = 1, 12 do
                     t.ticks(4)
@@ -1428,20 +1683,14 @@ return {
             end
             t.check("shootBridgeRope-again-crossed", crossed, "after the shot at " .. at.x .. "," .. at.z .. " level " .. at.level .. " :: " .. last_lines(4))
 
-            -- crossThePit (again): rope on the rock (upass_obstacles.rs2:110)
-            local swung = false
-            for attempt = 1, 8 do
-                local sfx = attempt == 1 and "-again" or ("-again-retry" .. attempt)
-                t.exec("goto-crossThePit" .. sfx, t.player.goto_tile, 2461, 9699, 0)
-                local rock = t.player.by_symbol("loc", "obstical_rockswing_norope")
-                t.exec("crossThePit" .. sfx, t.player.use_on, "rope", rock)
-                t.ticks(10)
-                local _, here = t.world.tile()
-                if here.x >= 2464 then swung = true break end
-                t.cheat("::give rope 1")
-                t.ticks(2)
-            end
-            t.check("crossThePit-again-crossed", swung, "after the swing :: " .. last_lines(4))
+            -- crossThePit (again): rope on the rock (upass_obstacles.rs2:110). The swing's roll is stat_random(agility, 100,
+            -- 410): at Agility 56 that is 100 + 310*55/98 = 274 of 256, never a fall, so one rope and one press.
+            t.exec("goto-crossThePit-again", t.player.goto_tile, 2461, 9699, 0)
+            local rock = t.player.by_symbol("loc", "obstical_rockswing_norope")
+            t.exec("crossThePit-again", t.player.use_on, "rope", rock)
+            t.ticks(10)
+            local _, swing_at = t.world.tile()
+            t.check("crossThePit-again-crossed", swing_at.x >= 2464, "after the swing at " .. swing_at.x .. "," .. swing_at.z .. " :: " .. last_lines(4))
             climb("climbOverRockslide4-again", 2491, 9691)
             climb("climbOverRockslide5-again", 2482, 9679)
             -- crossTheGrid (again): the safe bands come from %varp6010_upass_grid_pattern (upass_grid.rs2:72-96)
@@ -1474,7 +1723,10 @@ return {
             end
             t.exec("pullLeverAfterGrid-again", t.player.click_loc, "portcullis_lever_up", 1)
             t.ticks(8)
-            where("pullLeverAfterGrid-again-tile")
+            do
+                local _, lv = t.world.tile()
+                t.check("pullLeverAfterGrid-again-tile", lv.level == 0 and lv.x < 2465, "after the lever at " .. lv.x .. "," .. lv.z .. " level " .. lv.level .. " (through the portcullis: west of x 2465) :: " .. last_lines(4))
+            end
 
             local traps = {
                 -- name, stand x, z, trap loc x (the player must end west of it: upass_speartrap sits on the corridor)
@@ -1487,12 +1739,13 @@ return {
                 local passed = false
                 for attempt = 1, 12 do
                     if attempt == 1 then
-                        t.exec("goto-" .. name, t.player.goto_tile, sx, sz, 0)
+                        -- on foot down the corridor first (a walk_to the stand tile stops beside the trap, which is close enough),
+                        -- so the press has the trap on screen; the walk is travel, the press is the row
+                        t.player.walk_to(sx, sz, 30)
                         t.exec(name, t.player.click_loc, "upass_speartrap", 1, { at = { trap_x, sz } })
                         t.ticks(2)
                         t.exec(name .. "-dialog", t.chat.play, { "mesbox:The markings appear", "choose:/give it a go/" })
                     else
-                        t.player.goto_tile(sx, sz, 0)
                         t.player.click_loc("upass_speartrap", 1, { at = { trap_x, sz } })
                         t.ticks(2)
                         t.chat.play({ "mesbox:The markings appear", "choose:/give it a go/" })
@@ -1502,8 +1755,7 @@ return {
                     if here.x < trap_x then passed = true break end
                     failures = failures + 1
                     if failures % 3 == 0 then
-                        t.player.inv_op("lobster", 1)
-                        t.ticks(2)
+                        eat_if_low()
                     end
                 end
                 local _, here = t.world.tile()
@@ -1526,8 +1778,10 @@ return {
             t.player.walk_to(2410, 9656, 60)
             t.player.walk_to(2393, 9655, 60)
             where("walkToCell-again-tile", 2393, 9655, 0)
-            local picked = false
+            -- each pick is stat_random(thieving,128,400) (upass_unicorn.rs2:13), ~50% at Thieving 1: sixteen presses, then a FAIL
+            local picked, picks = false, 0
             for attempt = 1, 16 do -- two railings stand on x 2393 (z 9656 then z 9655); each pick can fail
+                picks = attempt
                 local _, before = t.world.tile()
                 t.player.click_loc("cave_railings2", 1, { at = { 2393, before.z >= 9657 and 9656 or 9655 } }) -- upass_unicorn.rs2:11
                 t.ticks(8)
@@ -1535,7 +1789,11 @@ return {
                 if after.z <= 9654 then picked = true end
                 if picked then break end
             end
-            where("pickCellLock-again", nil)
+            do
+                local _, cell = t.world.tile()
+                t.check("pickCellLock-again", picked and cell.level == 0 and cell.x == 2393 and cell.z <= 9654, "through the cell lock after " .. picks
+                    .. " press(es): standing at " .. cell.x .. "," .. cell.z .. " level " .. cell.level .. " (south of the railings, z <= 9654) :: " .. last_lines(3))
+            end
             t.ticks(1)
             local mud = t.player.by_symbol("loc", "upass_mud")
             t.exec("digMud-again", t.player.use_on, "spade", mud)
@@ -1544,42 +1802,10 @@ return {
             t.player.walk_to(2376, 9644, 40)
             t.exec("crossLedge-again", t.player.click_loc, "upass_ledge", 1)
             t.ticks(8)
-            where("crossLedge-again-tile")
+            where("crossLedge-again-tile", 2374, 9638, 0)
             do
             local function mz_here() local _, w = t.world.tile() return w end
-            local function cross_rock_bridge(name, bx, bz, hops)
-                local note = ""
-                for attempt = 1, 6 do
-                    if attempt == 2 and bx == 2406 then
-                        for _, pr in ipairs({ { 2410, 9634 }, { 2410, 9633 }, { 2409, 9632 }, { 2407, 9632 }, { 2404, 9632 }, { 2403, 9632 }, { 2403, 9637 } }) do
-                            local pr_r = t.player.walk_to(pr[1], pr[2], 30)
-                            local pw = mz_here()
-                            note = note .. "<probe " .. pr[1] .. "," .. pr[2] .. " " .. tostring(pr_r) .. " at " .. pw.x .. "," .. pw.z .. "> "
-                        end
-                    end
-                    for _, hop in ipairs(hops) do
-                        local hr, hd = t.player.walk_to(hop[1], hop[2], 60)
-                        if attempt > 1 then note = note .. "{hop " .. hop[1] .. "," .. hop[2] .. " " .. tostring(hr) .. " " .. tostring(hd):sub(1, 90) .. "} " end
-                    end
-                    local br, bd = t.player.walk_to(bx - 1, bz, 60)
-                    if attempt > 1 then note = note .. "{near " .. tostring(br) .. " " .. tostring(bd):sub(1, 90) .. "} " end
-                    local before = mz_here()
-                    local click_result = t.player.click_loc("walkway_upass_narrow_mid_top", 1, { at = { bx, bz } })
-                    t.ticks(10)
-                    local after = mz_here()
-                    note = note .. "[" .. attempt .. " " .. tostring(click_result) .. " " .. before.x .. "," .. before.z .. "->" .. after.x .. "," .. after.z .. "] "
-                    if after.x == bx + 1 and after.z == bz then break end
-                    local _, hp = t.skill.read("hitpoints")
-                    if type(hp) == "table" and hp.level and hp.level < 15 then t.player.inv_op("lobster", 1) t.ticks(2) end
-                end
-                local w = mz_here()
-                t.check(name, w.x == bx + 1 and w.z == bz, "now " .. w.x .. "," .. w.z .. " :: " .. note)
-            end
-            cross_rock_bridge("navigateMaze-again-bridge2380", 2380, 9634, { { 2373, 9634 } })
-            cross_rock_bridge("navigateMaze-again-bridge2387", 2387, 9631, { { 2384, 9634 }, { 2384, 9631 } })
-            cross_rock_bridge("navigateMaze-again-bridge2392", 2392, 9627, { { 2389, 9631 }, { 2389, 9627 } })
-            cross_rock_bridge("navigateMaze-again-bridge2399", 2399, 9632, { { 2395, 9627 }, { 2395, 9632 } })
-            cross_rock_bridge("navigateMaze-again-bridge2406", 2406, 9637, { { 2403, 9632 }, { 2403, 9637 } })
+            maze_cross(t, "navigateMaze-again-bridge", eat_if_low)
             for _, hop in ipairs({ { 2421, 9637 }, { 2422, 9634 }, { 2422, 9610 }, { 2421, 9606 }, { 2419, 9605 } }) do
                 t.player.walk_to(hop[1], hop[2], 40)
             end
@@ -1614,17 +1840,9 @@ return {
             where("walkToIbansDoor-again", 2369, 9718, 0)
             t.exec("openIbansDoor-again", t.player.click_loc, "cavetempledoor2r", 1)
             t.ticks(6)
-            where("openIbansDoor-again-tile")
-            local function tpath(pts) for _, wp in ipairs(pts) do t.player.walk_to(wp[1], wp[2]) end end
-            local function tbridge(name, sym, x, z) t.exec(name, t.player.click_loc, sym, 1, { at = { x, z } }); t.ticks(6) end
-            tpath({ {2172,4723}, {2172,4686} })
-            tbridge("crossBridgeA-again", "bridgecollapsed2", 2164, 4686)
-            tpath({ {2161,4686}, {2161,4699}, {2157,4699}, {2154,4697} })
-            tbridge("crossBridgeB-again", "bridgecollapsed1", 2154, 4690)
-            tpath({ {2154,4686}, {2152,4685}, {2153,4682}, {2153,4678}, {2154,4676}, {2160,4676}, {2160,4670}, {2165,4670}, {2165,4667}, {2162,4667} })
-            tbridge("crossBridgeC-again", "bridgecollapsed1", 2162, 4663)
-            tpath({ {2161,4659} })
-            tbridge("crossBridgeD-again", "bridgecollapsed2", 2161, 4654)
+            where("openIbansDoor-again-tile", 2173, 4725, 1)
+            -- Iban's four bridges again, each fall walked back up and round (iban_bridges)
+            if not iban_bridges(t, "-again", eat_if_low) then return end
             t.player.walk_to(2147, 4648, 20)
             where("walkToTemple-again", 2147, 4648, 1)
             t.exec("enterTemple-again", t.player.click_loc, "upass_templedoor_closed_right", 1, { at = { 2143, 4648 } })
@@ -1644,8 +1862,13 @@ return {
 
             -- Tirannwn again, all on foot: the ring of leaves, then the tracker's dense forests west (stage 11), the tripwire
             -- north, the three middle forests north and the camp road (regicide_traps.rs2, regicide_route.rs2).
-            cross("goFromCaveToLeaves-again", "regicide_pitfall_side", 2267, 3205, 2267, 3204, "cross safely")
-            travel("walk-climbThroughForest-again", 2240, 3149, { { 2239, 3181 }, { 2250, 3170 } })
+            cross("goFromCaveToLeaves-again", "regicide_pitfall_side", 2267, 3205, 2267, 3204, "cross safely",
+                { { 2302, 3212 }, { 2298, 3209 }, { 2287, 3207 }, { 2271, 3211 }, { 2269, 3207 } })
+            -- the spring west (the ring's pocket has no other way to the tracker's forests: header), then on foot
+            cross("goFromLeavesToStickTrap-again", "regicide_trap_woodspring", 2238, 3181, 2235, 3181, "skillfully pass",
+                { { 2262, 3193 }, { 2259, 3186 }, { 2239, 3186 } })
+            where("goFromLeavesToStickTrap-again-tile", 2234, 3181, 0)
+            travel("walk-climbThroughForest-again", 2240, 3149, { { 2233, 3173 }, { 2239, 3168 } })
             local west_steps = {
                 { "climbThroughForest-again-o3", "regicide_cross_over3", 2238, 3148, 2237, 3149 },
                 { "climbThroughForest-again-o2", "regicide_cross_over2", 2235, 3148, 2234, 3149 },
@@ -1660,6 +1883,7 @@ return {
             cross("goFromTyrasToTrap-again", "regicide_trap_tripwire", 2220, 3152, 2220, 3153, "step over", { { 2228, 3150 }, { 2223, 3151 } })
             local _, pocket = t.world.tile()
             t.check("goFromTyrasToTrap-again-tile", pocket.z >= 3155, "north of the tripwire at " .. pocket.x .. "," .. pocket.z .. " :: " .. last_lines(3))
+            cure_poison(t, "goFromTyrasToTrap-again-antipoison")
             eat_if_low()
             -- goGiveRabbitToGuard: the three dense forests north of the tripwire, o3 2216,3161 / o2 2216,3164 / o3 2216,3167
             -- (a cross_over3 landing in this mapsquare forgets the rabbit, regicide_route.rs2:172, so they come first)
@@ -1709,6 +1933,7 @@ return {
             cross("leaveFromCatapult", "regicide_trap_tripwire", 2220, 3155, 2220, 3153, "step over")
             local _, tw = t.world.tile()
             t.check("leaveFromCatapult-tile", tw.z <= 3153, "south of the tripwire at " .. tw.x .. "," .. tw.z .. " :: " .. last_lines(3))
+            cure_poison(t, "leaveFromCatapult-antipoison")
             eat_if_low()
             -- the road to Iorwerth: east through the three forests west of the tracker, the spring flats, the ring, the log
             travel("goTalkToIorwerthAfterRegicide-walk-toForests", 2231, 3149, { { 2223, 3151 }, { 2228, 3150 } })
@@ -1722,15 +1947,14 @@ return {
                 t.ticks(6)
                 at_exact(es[1] .. "-tile", es[5], es[6])
             end
-            travel("goTalkToIorwerthAfterRegicide-walk-toSpring", 2239, 3181, { { 2250, 3170 } })
-            travel("goTalkToIorwerthAfterRegicide-walk-toRing", 2221, 3181, { { 2239, 3181 } })
-            travel("goTalkToIorwerthAfterRegicide-walk-toRing2", 2209, 3201, { { 2211, 3191 } })
+            -- the forest's east side to the ring without the spring (header; reach.py 2240,3149 -> 2209,3201 REACH len=83)
+            travel("goTalkToIorwerthAfterRegicide-walk-toRing", 2209, 3201, { { 2240, 3155 }, { 2239, 3165 }, { 2235, 3168 },
+                { 2232, 3171 }, { 2232, 3177 }, { 2225, 3180 }, { 2221, 3184 }, { 2219, 3188 }, { 2212, 3194 } })
 
             -- goTalkToIorwerthAfterRegicide: the ring of leaves, the log, the camp
             cross("goTalkToIorwerthAfterRegicide-ring", "regicide_pitfall_side", 2209, 3201, 2209, 3202, "cross safely")
-            travel("goTalkToIorwerthAfterRegicide-walk-toLog", 2201, 3236, { { 2211, 3205 }, { 2205, 3215 }, { 2203, 3225 }, { 2201, 3232 } })
-            t.exec("goTalkToIorwerthAfterRegicide-log", t.player.click_loc, "regicide_logbalance1_start", 1, { at = { 2201, 3237 } })
-            t.ticks(10)
+            travel("goTalkToIorwerthAfterRegicide-walk-toLog", 2201, 3236, { { 2209, 3208 }, { 2205, 3212 }, { 2203, 3220 }, { 2203, 3235 } })
+            cross_log(t, "goTalkToIorwerthAfterRegicide-log", 2201, 2196)
             where("goTalkToIorwerthAfterRegicide-log-tile", 2196, 3237, 0)
             travel("walk-talkToIorwerthAfterRegicide", 2203, 3253)
             t.exec("talkToIorwerthAfterRegicide", t.player.talk_to, "lord_iorwerth_vis")
@@ -1742,8 +1966,11 @@ return {
             t.expect("quest.stage.reported_iorwerth", t.quest.expect_stage(13))
             t.expect("message.held", t.inv.expect_has("regicide_iorwerth_message", 1))
 
-            -- talkToArianwyn: outside Ardougne Castle, the scene fires on walking into his zone with the message
-            -- (regicide_route.rs2:176). The way home is plain travel: the guide names no step for it.
+            -- talkToArianwyn: outside Ardougne Castle, the scene fires on walking into his zone (x 2584-2591 z 3296-3303)
+            -- with the message (regicide_route.rs2 [zone,0_40_51_24_32]). The way there: Lumbridge Teleport out of
+            -- Iorwerth's camp, the members' gate, overland to the castle street (header).
+            lumbridge_teleport(t, "talkToArianwyn.lumbridgeTeleport", "Lumbridge, out of Iorwerth's camp in Tirannwn")
+            members_gate_north(t, "talkToArianwyn")
             t.exec("goto-talkToArianwyn", t.player.goto_tile, 2579, 3298, 0)
             t.player.walk_to(2586, 3298, 20)
             for _poll = 1, 12 do
@@ -1761,11 +1988,10 @@ return {
             t.ticks(2)
             t.expect("quest.stage.spoken_arianwyn", t.quest.expect_stage(14))
 
-            -- goTalkToLathasToFinish: the castle stairs, then King Lathas on the second floor
-            t.exec("goto-goToArdougneCastleFloor2-finish", t.player.goto_tile, 2572, 3295, 0)
-            t.exec("goToArdougneCastleFloor2-finish", t.player.click_loc, "stairs", 1)
-            t.ticks(6)
-            t.exec("goto-goTalkToLathasToFinish", t.player.goto_tile, 2578, 3293, 1)
+            -- goTalkToLathasToFinish: the castle door, the stairs and the king's door (header), then King Lathas
+            up_to_lathas(t, "goToArdougneCastleFloor2-finish")
+            local _, in_room = t.world.tile()
+            t.check("goToArdougneCastleFloor2-finish-room", in_kings_room(in_room), "standing at " .. in_room.x .. "," .. in_room.z .. " level " .. in_room.level)
             t.exec("goTalkToLathasToFinish", t.player.talk_to, "kinglathas", 1)
             local _, coins_before = t.inv.count("coins")
             local _, xp_snapshot = t.skill.snapshot()

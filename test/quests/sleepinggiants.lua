@@ -28,7 +28,9 @@ return {
             t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
 
             -- LEG 1 BEGIN: takeHammer
-            t.exec("goto-takeHammer", t.player.goto_tile, 3350, 3160, 0)
+            -- The hammer lies on 3350,3160 (a solid tile, maps/m52_49.jl2): stand on the open tile beside it
+            -- (reach.py: REACH closed-doors from Lumbridge, no door between).
+            t.exec("goto-takeHammer", t.player.goto_tile, 3350, 3161, 0)
             t.exec("takeHammer", t.player.click_obj, "hammer", 3)
             t.inv.expect_has("hammer", 1)
             t.check("takeHammer.have", select(2, t.inv.count("hammer")) == 1, "hammer in pack: " .. tostring(select(2, t.inv.count("hammer"))))

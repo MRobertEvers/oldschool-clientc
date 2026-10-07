@@ -17,8 +17,8 @@ return {
         "::give granite_legs 1", "::wield granite_legs",
         "::give amulet_of_glory 1", "::wield amulet_of_glory",
         "::give shark 8",
-        -- the boat Pandemonium hands over
-        "::setvar varb19258_sailing_boat_1_owned 1", "::setvar varb19259_sailing_boat_1_type 1", "::setvar varb19260_sailing_boat_1_port 17",
+        -- the boat Pandemonium hands over, berthed at Port Sarim (port 0, as redreef.lua)
+        "::setvar varb19258_sailing_boat_1_owned 1", "::setvar varb19259_sailing_boat_1_type 1", "::setvar varb19260_sailing_boat_1_port 0",
         "::setvar varb18554_sailing_last_personal_boat_boarded 1", "::setvar varb19279_sailing_boat_1_hotspot_6 1",
     },
     run = function(t)
@@ -34,6 +34,35 @@ return {
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
         local _, kit = t.inv.count("shark")
         t.check("setup.kit", kit == 8, "sharks=" .. tostring(kit) .. "; rune axe, helm, granite body+legs, glory worn")
+
+        -- To the Remote Island (an island: no on-foot route, b70 door rule): on foot to
+        -- Port Sarim's dock, then the boat out -- redreef.lua's measured Sarim legs and
+        -- rays as far as 2904,2620 (west of the island), then this test's own Remote
+        -- Island approach from 2937,2528 (due north, so the hull moors nose-in at 1024).
+        t.exec("goto-portSarimDock", t.player.goto_tile, 3050, 3192, 0)
+        t.exec("sailToRemoteIsland.board", t.sail.board, "sailing_gangplank_port_sarim")
+        t.exec("sailToRemoteIsland.helm", t.sail.helm, "Helm")
+        t.exec("sailToRemoteIsland.sails", t.sail.sails, true)
+        local sarim = { {3058,3170,3}, {3046,3160,1}, {3037,3105,3}, {3043,3051,3}, {3082,3012,3}, {3090,2950,3} }
+        for i, p in ipairs(sarim) do
+            local rr, d = t.sail.sail_to(p[1], p[2], p[3], 400)
+            t.check("sailToRemoteIsland.sarim" .. i, rr == "ok", tostring(rr) .. " " .. tostring(d))
+        end
+        local out = { {3089,2928,3}, {3055,2894,3}, {3078,2839,3}, {3046,2761,3}, {2936,2651,3}, {2904,2620,3},
+            {2937,2528,6}, {2975,2545,6}, {2975,2575,5}, {2973,2588,2}, {2973,2598,1} }
+        for i, p in ipairs(out) do
+            local rr = t.sail.sail_to(p[1], p[2], p[3], 1500)
+            local _, s2 = t.sail.state()
+            t.check("sailToRemoteIsland.leg" .. i, true, tostring(rr) .. " hull=" .. tostring(s2 and s2.hull_x) .. "," .. tostring(s2 and s2.hull_z))
+        end
+        t.exec("sailToRemoteIsland.furl", t.sail.sails, false)
+        local mt = t.player.by_symbol("loc", "sailing_mooring_remote_island")
+        local mp = t.sail._frame_beside("loc", mt.id, 2972, 2602, "mooring")
+        local mr, md = t.sail._press_row_at(mp, "Disembark", "Mooring point")
+        t.check("sailToRemoteIsland", mr == "ok", tostring(mr) .. " " .. tostring(md))
+        t.ticks(10)
+        local _, ab0 = t.sail.state()
+        t.check("sailToRemoteIsland.ashore", ab0 and ab0.aboard == false, "aboard=" .. tostring(ab0 and ab0.aboard) .. " at " .. tostring(t.world.tile()))
 
         -- 1.1 startQuest
         t.exec("goto-startQuest", t.player.goto_tile, 2961, 2606, 0)
@@ -63,32 +92,7 @@ return {
         t.exec("giveBandage.rest", t.chat.drain, {})
         t.expect("quest.stage.sail", t.quest.expect_stage("sail"))
 
-        -- 1.6 talkToInjuredTortuganAfterBandaging: the Remote Island leg, sail out and board with Floopa
-        t.exec("goto-board", t.player.goto_tile, 3175, 2367, 0)
-        t.ticks(2)
-        t.exec("board", t.sail.board, "sailing_gangplank_the_summer_shore")
-        t.exec("helm", t.sail.helm, "Helm")
-        t.exec("sails", t.sail.sails, true)
-        -- The last leg runs due north (2973,2588 -> 2973,2598), so the hull
-        -- moors nose-in at angle 1024 and the reverse out (sailToGreatConch)
-        -- backs straight off.  The line 2975,2588 -> 2972,2598 bears NNW:
-        -- sail_to (b69: it keeps to the leg's line) moored at angle 896, the
-        -- reverse left the hull at 2973,2598, and the first leg back was
-        -- parked at once (post at 2975..2976,2596..2597).
-        local out = { {3176,2332,4}, {3000,2335,6}, {2947,2392,6}, {2937,2528,6}, {2975,2545,6}, {2975,2575,5}, {2973,2588,2}, {2973,2598,1} }
-        for i, p in ipairs(out) do
-            local rr = t.sail.sail_to(p[1], p[2], p[3], 1500)
-            local _, s2 = t.sail.state()
-            t.check("sailOut.leg" .. i, true, tostring(rr) .. " hull=" .. tostring(s2 and s2.hull_x) .. "," .. tostring(s2 and s2.hull_z))
-        end
-        t.exec("sailOut.furl", t.sail.sails, false)
-        local mt = t.player.by_symbol("loc", "sailing_mooring_remote_island")
-        local mp = t.sail._frame_beside("loc", mt.id, 2972, 2602, "mooring")
-        local mr, md = t.sail._press_row_at(mp, "Disembark", "Mooring point")
-        t.check("disembarkRemoteIsland", mr == "ok", tostring(mr) .. " " .. tostring(md))
-        t.ticks(10)
-        t.expect("quest.stage.sail_still", t.quest.expect_stage("sail"))
-        t.exec("goto-talkToInjuredTortuganAfterBandaging", t.player.goto_tile, 2961, 2606, 0)
+        -- 1.6 talkToInjuredTortuganAfterBandaging: the hull is still at the Remote Island mooring
         t.exec("talkToInjuredTortuganAfterBandaging", t.player.talk_to, "tt_floopa_island")
         t.exec("talkToInjuredTortuganAfterBandaging.rest", t.chat.drain, {})
         -- 1.7 boardBoat
@@ -119,7 +123,7 @@ return {
         t.expect("quest.stage.korel", t.quest.expect_stage("korel"))
 
         -- 1.9 talkToElderKorelAtDocks
-        t.exec("goto-talkToElderKorelAtDocks", t.player.goto_tile, 3185, 2373, 0)
+        t.exec("goto-talkToElderKorelAtDocks", t.player.goto_tile, 3185, 2372, 0) -- on the pier, straight north of Korel (3185,2371)
         t.exec("talkToElderKorelAtDocks", t.player.talk_to, "tt_korel_conch_docks")
         t.exec("talkToElderKorelAtDocks.rest", t.chat.drain, {})
         t.expect("quest.stage.raley", t.quest.expect_stage("raley"))
@@ -226,7 +230,10 @@ return {
         t.check("fightGryphon.dead", fr == "ok", tostring(fr) .. " " .. tostring(fd) .. " (staged sharks " .. tostring(sharks0) .. ")")
         t.ticks(6)
         local _, sharks1 = t.inv.count("shark")
-        t.check("fightGryphon.margin", sharks1 >= 2, "sharks left " .. tostring(sharks1) .. " of " .. tostring(sharks0) .. ", eaten " .. tostring(sharks0 - sharks1))
+        local glo, gmax = tostring(fd):match("lowest hp (%d+)/(%d+)")
+        glo, gmax = tonumber(glo), tonumber(gmax)
+        t.check("fightGryphon.margin", glo ~= nil and gmax ~= nil and glo * 4 >= gmax and sharks1 >= 1,
+            "lowest hp " .. tostring(glo) .. "/" .. tostring(gmax) .. " (>= a quarter of max), sharks left " .. tostring(sharks1) .. " of " .. tostring(sharks0) .. ", eaten " .. tostring(sharks0 - sharks1))
         t.expect("quest.stage.elder3", t.quest.expect_stage("elder3"))
 
         -- 1.20 exitGryphonCave, 1.21 returnToElder
@@ -288,7 +295,10 @@ return {
         t.check("fightShellbane.dead", sr == "ok", tostring(sr) .. " " .. tostring(sd))
         t.ticks(6)
         local _, sharks3 = t.inv.count("shark")
-        t.check("fightShellbane.margin", sharks3 >= 2, "sharks left " .. tostring(sharks3) .. " of " .. tostring(sharks2) .. " staged-at-start 8; eaten " .. tostring(sharks2 - sharks3))
+        local slo, smax = tostring(sd):match("lowest hp (%d+)/(%d+)")
+        slo, smax = tonumber(slo), tonumber(smax)
+        t.check("fightShellbane.margin", slo ~= nil and smax ~= nil and slo * 4 >= smax and sharks3 >= 1,
+            "lowest hp " .. tostring(slo) .. "/" .. tostring(smax) .. " (>= a quarter of max), sharks left " .. tostring(sharks3) .. " of " .. tostring(sharks2) .. " staged-at-start 8; eaten " .. tostring(sharks2 - sharks3))
         t.expect("quest.stage.korel2", t.quest.expect_stage("korel2"))
 
         -- 1.26 talkToElderKorelAfterBeatingShellbaneGryphon

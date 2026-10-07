@@ -924,6 +924,40 @@ def check_mid_run_gives(text, test_id=None, baseline=None):
     return findings
 
 
+# A stat-setting cheat issued after setup. There is no baseline and no marker:
+# no mid-run stat change has been accepted, stats belong in `setup = {...}`.
+STAT_CHEAT_RE = re.compile(r'^\s*::(setlevel|setstat|boost|xp|setxp|addxp)(?:\s+[\w%]+){0,3}\s*$')
+
+
+def mid_run_stat_cheats(text):
+    """Every stat-setting cheat string literal (::setlevel, ::setstat, ::boost,
+    ::xp, ::setxp, ::addxp) OUTSIDE the `setup = { ... }` table, as [{line,
+    cheat}]. Same reading as mid_run_gives: comment-blanked code."""
+    code = _blank_comments(text)
+    span = _setup_span(code)
+    found = []
+    for literal in STRING_LITERAL_RE.finditer(code):
+        if not STAT_CHEAT_RE.match(literal.group(1)):
+            continue
+        if span and span[0] <= literal.start() < span[1]:
+            continue
+        found.append({"line": _line_of(code, literal.start()), "cheat": literal.group(1).strip()})
+    return found
+
+
+def check_mid_run_stat_cheats(text, test_id=None):
+    """No stat cheat after setup: a `::setlevel` in run() raises a stat in the
+    middle of the quest, hiding a training step the guide has the player do.
+    State the stat in `setup = {...}`. No baseline, no exemption marker.
+    `_`-prefixed harness files are not quests and are skipped."""
+    if (test_id or "").startswith("_"):
+        return []
+    return [(item["line"],
+             "\"%s\" mid-run stat cheat: stats belong in `setup = {...}` (no ::setlevel / ::setstat / "
+             "::boost / ::xp after setup; there is no baseline and no marker)" % item["cheat"])
+            for item in mid_run_stat_cheats(text)]
+
+
 def check_step_pass_literal(text):
     findings = []
     for match in T_STEP_OPEN_RE.finditer(text):
@@ -1276,6 +1310,7 @@ def lint_text(text, allow_check=False, packs=None, test_id=None):
     findings.extend(check_var_names(code, packs.get(PACK_VAR_BARE) if packs else None, test_id))
     findings.extend(check_legs(text))
     findings.extend(check_mid_run_gives(text, test_id))
+    findings.extend(check_mid_run_stat_cheats(text, test_id))
     if not allow_check:
         findings.extend(check_marker(text))
     findings.extend(check_guide_gap_markers(text, test_id))

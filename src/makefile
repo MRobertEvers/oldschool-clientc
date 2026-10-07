@@ -5294,7 +5294,22 @@ SERVPACK_OUT ?=
 torirsserver-servpack-summoning:
 	@$(MAKE) --no-print-directory torirsserver-servpack SERVPACK_LANES=scape2009_summoning \
 		SERVPACK_OUT=$(SUMMONING_CACHE_DIR).serverpack
+#
+# The default tree's pack (no SERVPACK_LANES/SERVPACK_OUT, not Windows) goes
+# through tools/quest_gate/pack_fingerprint.py: it takes the quest runners'
+# pack lock, so no run boots while it is rebuilt, and builds into a staging
+# directory that is swapped in whole -- this target used to clear the stamp and
+# rewrite <content>/server/pack in place for ~150 s, and every run booting
+# meanwhile died "has no stamp". `torirsserver-servpack-direct` is the bare
+# cachepack call (what the helper runs, with SERVPACK_OUT=<staging>).
 torirsserver-servpack:
+ifeq ($(OS)$(SERVPACK_LANES)$(SERVPACK_OUT)$(TORIRSSERVER_CONTENT_DIR),$(REPO_ROOT)/OSRS-Content/osrs239-content)
+	cd $(REPO_ROOT) && python3 tools/quest_gate/pack_fingerprint.py servpack
+else
+	@$(MAKE) --no-print-directory torirsserver-servpack-direct
+endif
+.PHONY: torirsserver-servpack-direct
+torirsserver-servpack-direct:
 	$(SUBMAKE) -C $(RSCACHE_DIR)/tools cachepack
 	cd $(REPO_ROOT) && $(CACHEPACK_BIN) pack \
 		--src $(TORIRSSERVER_CONTENT_DIR) --server-only \

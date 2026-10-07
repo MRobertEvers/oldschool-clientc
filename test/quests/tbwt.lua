@@ -206,8 +206,11 @@ return {
         "::setlevel firemaking 30",
         "::setlevel agility 15",
         "::setlevel cooking 30",
-        "::setlevel fishing 5", -- fishing_spots/tbwt.rs2:fish_karambwanji needs 5 to net karambwanji
+        "::setlevel fishing 65", -- guide: Karambwan fishing needs Fishing 65 (getPoisonKarambwan); also >= 5 for fishing_spots/tbwt.rs2:fish_karambwanji
         "::complete quest_junglepotion", -- guide requirement: Jungle Potion complete (tbwt_timfraku.rs2 gate)
+        "::complete quest_druidicritual", -- prerequisite of Jungle Potion: Herblore unlocked for the pestle and mortar (makeKarambwanjiPaste)
+        "::give iron_spear 1", -- guide item: Iron spear or better (givePotion/giveSpear); no shop sells it
+        "::give 4dose1agility 1", -- guide item: Agility Potion (4); no shop sells it
         "::give net 1", -- guide item: small fishing net (fishKarambwaji)
         "::give coins 500", -- guide item: coins for Zembo's Karamjan rum (getRum)
         "::give knife 1", -- guide item: Knife (sliceBanana, leg 2)
@@ -271,6 +274,17 @@ return {
             t.exec("musaPoint.disembark", t.player.climb, { loc = "sarimshipplank_off", op_name = "Cross",
                 at = { 2956, 3144, 1 }, src = { 2956, 3143 }, dest = { 2956, 3146, 0 }, slack = 1 })
             cross_karamja_gate(t, "goToTimfrakuLadder.karamjaGate", true)
+
+            -- getPestleAndMortar (leg 3's guide item): Jiminua's Jungle Store, on the way to Timfraku's
+            -- ladder; its Trade option (op 3) opens jiminuas_jungle_store__1 (stock15: pestle and mortar)
+            t.exec("goto-getPestleAndMortar", t.player.goto_tile, 2767, 3122, 0)
+            local jr = t.npc.nearest("jiminua", 15)
+            t.check("getPestleAndMortar.jiminua", jr == "ok", "jiminua within 15 tiles of 2767,3122: " .. tostring(jr))
+            t.exec("getPestleAndMortar-trade", t.player.talk_to, "jiminua", 3)
+            t.exec("getPestleAndMortar-shop", t.shop.attach, "junglestore")
+            t.exec("getPestleAndMortar", t.shop.buy, "pestle_and_mortar", 1)
+            do local r, d = t.shop.close(); t.check("getPestleAndMortar-shop-close", r == "ok", tostring(r) .. ": " .. tostring(d)) end
+            t.exec("getPestleAndMortar.has", t.inv.expect_has, "pestle_and_mortar", 1)
 
             t.exec("goto-goToTimfrakuLadder", t.player.goto_tile, 2781, 3089, 0)
             ladder_up(t, "goToTimfrakuLadder")
@@ -611,14 +625,9 @@ return {
             for i = 1, 6 do t.player.drop("raw_shrimp") t.ticks(1) end
             local _, shrimp = t.inv.count("raw_shrimp")
             t.check("leg3.pack-drop", shrimp == 0, "dropped the bycatch raw shrimp, left: " .. tostring(shrimp))
-            -- guide items for leg 3, brought along: pestle and mortar, an iron or better spear, an agility potion (4)
-            t.cheat("::give pestle_and_mortar 1")
-            t.cheat("::give iron_spear 1") -- guide: Iron spear or better (givePotion/giveSpear)
-            t.cheat("::give 4dose1agility 1") -- guide: Agility Potion (4)
-            t.cheat("::complete quest_druidicritual") -- prerequisite of Jungle Potion: the pestle and mortar needs Herblore unlocked (makeKarambwanjiPaste)
-            t.cheat("::setlevel fishing 65") -- guide: Karambwan fishing needs Fishing 65 (getPoisonKarambwan), or buy from the GE
-            t.ticks(3)
-            t.exec("leg3.gives", t.inv.await_all, { pestle_and_mortar = 1, iron_spear = 1, ["4dose1agility"] = 1 }, 10)
+            -- leg 3 guide items: the pestle and mortar was bought at Jiminua's in leg 1; the iron spear
+            -- and agility potion (4) are in setup
+            t.exec("leg3.items", t.inv.await_all, { pestle_and_mortar = 1, iron_spear = 1, ["4dose1agility"] = 1 }, 10)
 
             -- raw karambwanji: three are needed (paste, vessel load, spare)
             -- the Holy Lake is west of the river: the log, then open ground to the bank tile north of
@@ -640,6 +649,7 @@ return {
             -- getPoisonKarambwan: back over the log to Tiadeche's spot; each try loads one karambwanji
             if not cross_log(t, "getPoisonKarambwan.logEast", true) then return end
             t.exec("goto-getPoisonKarambwan", t.player.goto_tile, 2912, 3115, 0)
+            local _, rk_before = t.inv.count("tbwt_raw_karambwan")
             for i = 1, 10 do
                 local _, bait = t.inv.count("tbwt_raw_karambwanji")
                 if bait < 1 then break end
@@ -652,7 +662,7 @@ return {
                 if rk >= 3 then break end
             end
             local _, rk2 = t.inv.count("tbwt_raw_karambwan")
-            t.check("getPoisonKarambwan", rk2 >= 1, "raw karambwan in the pack: " .. tostring(rk2))
+            t.check("getPoisonKarambwan", rk2 > rk_before, "raw karambwan in the pack: " .. tostring(rk2) .. ", before the fishing loop: " .. tostring(rk_before) .. " (one must be fished, not Tiadeche's gift)")
 
             -- cookBones / cookKarambwan on the fire south of Tai Bwo Wannai (2790,3048)
             if not cross_log(t, "cookBones.logWest", false) then return end

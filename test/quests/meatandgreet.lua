@@ -330,11 +330,11 @@ return {
         t.ticks(3)
         t.expect("quest.stage.finish", t.quest.expect_stage("finish"))
                 -- ---- leg 6: wrap up ----
-        -- leaveColosseumToReturnToEmelio: [oploc1,colosseum_exit_lobby] (twilightspromise.rs2:367) p_teleports to 0_28_48_4_34 = 1796,3106 unconditionally.
+        -- leaveColosseumToReturnToEmelio: [oploc1,colosseum_exit_lobby] (twilightspromise_colosseum.rs2) p_telejumps to 0_28_48_3_34 = 1795,3106 unconditionally: the open tile west of the entrance loc (1796,3106 is the loc itself, solid).
         t.exec("leaveColosseumToReturnToEmelio", t.player.click_loc, "colosseum_exit_lobby", 1)
         t.ticks(8)
         local xr, xd = t.world.tile()
-        t.check("colosseum.exited", xr == "ok" and xd and xd.x == 1796 and xd.z == 3106 and xd.level == 0, "landed " .. tostring(xd and xd.x) .. "," .. tostring(xd and xd.z) .. "," .. tostring(xd and xd.level) .. " (expected 1796,3106,0)")
+        t.check("colosseum.exited", xr == "ok" and xd and xd.x == 1795 and xd.z == 3106 and xd.level == 0, "landed " .. tostring(xd and xd.x) .. "," .. tostring(xd and xd.z) .. "," .. tostring(xd and xd.level) .. " (expected 1795,3106,0)")
         t.exec("goto-emelio.end", t.player.goto_tile, 1753, 3074, 0)
         local _, sk = t.skill.snapshot()
         local _, qp_before = t.var.varp("varp101_qp")

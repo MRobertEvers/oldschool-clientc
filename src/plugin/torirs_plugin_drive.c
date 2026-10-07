@@ -915,9 +915,12 @@ drive_push_event(struct lua_State* L, struct App_DriveEvent const* ev)
 }
 
 /* Both predicates run on g_thread directly -- legal even while it sits
- * suspended in a yield, as long as nothing below tries to yield itself, which
- * neither a level() nor a match() predicate has any means to do (the sandbox
- * has no `coroutine`). A predicate error is the test author's bug, not a
+ * suspended in a yield, as long as nothing below tries to yield itself. The
+ * sandbox has no `coroutine`, so the one way a predicate can try is a nested
+ * api.drive.await that has to suspend, and lua_drive_await refuses that with
+ * an error before it touches g_await (the driver's own verbs answer "not
+ * yet" there instead: quest_driver/pointer.lua QD.player._loc_variants).
+ * A predicate error is the test author's bug, not a
  * scheduler fault; it is reported and treated as "not satisfied yet", which
  * surfaces as an ordinary timeout rather than a second, confusing crash path. */
 static int
@@ -1217,6 +1220,25 @@ lua_drive_await(struct lua_State* L)
         if( level_ref != LUA_NOREF ) luaL_unref(L, LUA_REGISTRYINDEX, level_ref);
         if( match_ref != LUA_NOREF ) luaL_unref(L, LUA_REGISTRYINDEX, match_ref);
         return PluginDrive_PushResult(L, DRIVE_TIMEOUT, note[0] ? note : NULL);
+    }
+
+    /* This await has to suspend, and from inside an await predicate it
+     * cannot: drive_await_level_true/match_true run the predicate under
+     * lua_pcall, a C frame no yield may cross. lua_yield would raise
+     * "attempt to yield across a C-call boundary" -- but only after the lines
+     * below had overwritten g_await with THIS descriptor, leaking the outer
+     * await's refs and leaving the outer t.await polling the nested level
+     * and settling on it (b70: t.world.loc_near in a t.await level, via the
+     * multiloc resolve's def wait). Refuse here, with g_await untouched; the
+     * outer poll reports the error and reads the predicate as not yet true. */
+    if( !lua_isyieldable(L) )
+    {
+        if( level_ref != LUA_NOREF ) luaL_unref(L, LUA_REGISTRYINDEX, level_ref);
+        if( match_ref != LUA_NOREF ) luaL_unref(L, LUA_REGISTRYINDEX, match_ref);
+        return luaL_error(L,
+            "drive.await '%s' would suspend inside an await predicate: a predicate cannot wait, "
+            "answer not-yet and let the outer await poll again",
+            note);
     }
 
     cycle_now = g_app && g_app->world ? (int)g_app->world->cycle : 0;

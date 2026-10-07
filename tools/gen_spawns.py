@@ -501,8 +501,12 @@ NPC_SPAWN_ADDITIONS = (
     # multi-npc wrappers keyed on each player's eyeglo_killed_eye_N varbit
     # (0 cute, 1 evil and attackable, 2 gone), so the machine's reveal spawns
     # nothing. The dump has none of them; the tiles are Quest Helper's NpcStep
-    # WorldPoints for killCreature1..6 (TheEyesOfGlouphrie.java, setupSteps).
-    ("eyeglo_fluffie_1", 2408, 9819, 0),
+    # WorldPoints for killCreature1..6 (TheEyesOfGlouphrie.java, setupSteps),
+    # except creature 1: Quest Helper's 2408,9819 is inside eyeglo_roundtable's 2x2
+    # blockwalk footprint (2408,9818) with eyeglo_chair on its other two sides, so
+    # no melee could reach it from an open tile. 2409,9820 is the nearest open tile
+    # (diagonal to it, north of the table), joined to Brimstail's room.
+    ("eyeglo_fluffie_1", 2409, 9820, 0),
     ("eyeglo_fluffie_2", 2465, 3494, 0),
     ("eyeglo_fluffie_3", 2466, 3496, 3),
     ("eyeglo_fluffie_4", 2422, 3526, 0),

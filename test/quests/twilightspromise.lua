@@ -10,9 +10,6 @@ return {
         "::clearinv", -- the fixture's fourteen tutorial slots
         "::twilightspromise", -- debugproc: reset quest state, stand beside Regulus outside Varrock
         "::complete quest_childrenofthesun", -- guide requirement: Children of the Sun
-        -- Children of the Sun's own side effect (childrenofthesun.rs2:109): Varrock Regulus is a multinpc
-        -- shell hidden at first_travel 0 (all.npc vmq2_quetzal_keeper_varrock). Not this quest's var.
-        "::setvar varb9652_vmq2_first_travel 1",
         -- LEG 2 brought-along kit: Quest Helper lists "Two combat styles" for the Colosseum knight (guide enterColosseum)
         "::setlevel hitpoints 80",
         "::setlevel attack 60", -- melee style
@@ -123,6 +120,8 @@ return {
                 t.ticks(2)
                 t.exec("openCryptGate", t.player.click_loc, "vmq2_temple_gate", 1)
                 t.ticks(2)
+                -- the opened gate (1698,9496) is crossed on foot, then the open crypt is walked
+                t.exec("walkThroughCryptGate", t.player.walk_route, { { 1698, 9499 } })
                 t.exec("goto-talkToPrince", t.player.goto_tile, 1685, 9512, 0)
                 t.exec("talkToPrince", t.player.talk_to, "vmq2_itzla_fortis", 1)
                 t.exec("talkToPrince-dialog", t.chat.play, {
@@ -170,6 +169,7 @@ return {
                 local closed_r = t.world.loc_near("vmq2_temple_gate", 12)
                 t.check("cryptGate.stillOpen", closed_r == "not_found",
                     "closed vmq2_temple_gate lookup near 1698,9499: " .. tostring(closed_r) .. " (open form in place)")
+                t.exec("walkBackThroughCryptGate", t.player.walk_route, { { 1698, 9493 } })
                 t.exec("goto-leaveCrypt", t.player.goto_tile, 1694, 9493, 0)
                 t.exec("leaveCrypt", t.player.click_loc, "vmq2_temple_stairs_bottom", 1, { at = { x = 1691, z = 9492 } })
                 t.ticks(3)
@@ -549,8 +549,11 @@ return {
                 t.expect("quest.stage.feed", t.quest.expect_stage(36))
                 t.expect("regulus.feed", t.inv.expect_has("vmq2_quetzal_feed", 1))
 
-                -- Renu stands in a pen: reach her from the south (notes).
-                t.exec("goto-feedRenu", t.player.goto_tile, 1703, 3141, 0)
+                -- Renu (quetzal_fortis, size 3) stands on the WEST Fortis landing pad (spawn SW 1696,3141,
+                -- twilightspromise.spawn; wiki Quetzal_Transport_System oldid 15308283: Renu's and Primio's
+                -- pads swapped 3 April 2024). The pad is walled west/north/east; she is talked to from the
+                -- row south of it, 1697,3140.
+                t.exec("goto-feedRenu", t.player.goto_tile, 1697, 3140, 0)
                 t.exec("feedRenu", t.player.talk_to, "quetzal_fortis", 1)
                 t.chat.continue_()
                 t.ticks(2)
@@ -625,7 +628,7 @@ return {
                 t.check("reward.quetzal", ft == 3, "Quetzal Transport System unlocked (varb9652_vmq2_first_travel " .. tostring(ft) .. " == 3, twilightspromise.rs2:86)")
                 t.ticks(2)
                 local _, vmq2 = t.var.server("varb9649_vmq2")
-                t.check("reward.teleport.unlocked", vmq2 >= 1, "varb9649_vmq2 " .. tostring(vmq2) .. " (tp_complete gate, teleport.rs2:37)")
+                t.check("reward.teleport.unlocked", vmq2 == 50, "varb9649_vmq2 " .. tostring(vmq2) .. " == 50 (tp_complete gate, teleport.rs2:37)")
                 t.exec("reward.teleport", t.player.cast, "fortis_teleport")
                 t.ticks(8)
                 local _, at = t.world.tile()
