@@ -144,12 +144,12 @@ end
 local function emergency_food(t)
     local h = hp(t)
     if h <= 0 then return end
-    if h < 40 then
+    if h < 22 then
         if t.player.eat("anglerfish") ~= "ok" then
             t.player.eat("tbwt_cooked_karambwan")
         end
     end
-    if hp(t) > 0 and hp(t) < 25 then
+    if hp(t) > 0 and hp(t) < 18 then
         t.player.eat("tbwt_cooked_karambwan")
     end
 end
@@ -391,18 +391,22 @@ return {
                 end
 
                 local h = hp(t)
-                -- Food first when critical: run28 died at 15 hp after brew
-                -- path starved the emergency eat.
-                if h > 0 and h < 40 then
+                -- Brew (no weapon delay) is the default sustain. Food only
+                -- under 22 so the tbow keeps its cadence (run29 ate at 40
+                -- and slowed to death with 18 zeros on mystic 2).
+                if h > 0 and h < 22 then
                     emergency_food(t)
-                    if hp(t) < 40 then
-                        sip_brew_restore(t)
-                    end
+                    sip_brew_restore(t)
                     return
                 end
-                if h > 0 and h < 60 and (sm.ticks - sm.last_brew_tick) >= 3 then
+                if h > 0 and h < 65 and (sm.ticks - sm.last_brew_tick) >= 3 then
                     if sip_brew_restore(t) then
                         sm.last_brew_tick = sm.ticks
+                        return
+                    end
+                    -- Brew empty: fall through to food if still low.
+                    if h < 40 then
+                        emergency_food(t)
                         return
                     end
                 end
@@ -452,12 +456,14 @@ return {
         end
 
         local remaining = mystic_rows(t)
+        t.drive.camera(0, 383, 600)
         t.check("sm.done", sm.state == STATE.DONE and #remaining == 0,
             "state=" .. tostring(sm.state)
                 .. " remaining=" .. tostring(#remaining)
                 .. " ticks=" .. tostring(sm.ticks)
                 .. " start_count=" .. tostring(start_count)
                 .. " kills=" .. tostring(sm.kills))
+        t.drive.camera(1024, 383, 500)
         t.shot("mystics room clear")
 
         sm.kills = start_count - #remaining
@@ -477,24 +483,30 @@ return {
             t.check("spec." .. id, ok, detail)
         end
 
+        t.drive.camera(512, 300, 700)
         spec_row("mystics.hp_solo", hp_solo == 160,
             "measured " .. tostring(hp_solo) .. " hp, npc.record.server.hitpoints on "
                 .. tostring(first.symbol) .. " (spec 160 hp, grade C, tol exact)")
+        t.drive.camera(1536, 400, 550)
         spec_row("mystics.defence", defence == 187,
             "measured " .. tostring(defence) .. " count, npc.record.server.defence on "
                 .. tostring(first.symbol) .. " (spec 187 count, grade C, tol exact)")
+        t.drive.camera(256, 350, 650)
         spec_row("mystics.cadence", cadence == 4,
             "measured " .. tostring(cadence) .. " ticks, " .. tostring(cad_n) .. " of "
                 .. tostring(#sm.attack_gaps) .. " anim gaps (melee/magic seq); record.attackrate="
                 .. tostring(attackrate) .. " (spec 4 ticks, grade C, tol exact)")
+        t.drive.camera(1792, 280, 750)
         spec_row("mystics.range", attackrange == 10,
             "measured " .. tostring(attackrange) .. " tiles, npc.record.server.attackrange on "
                 .. tostring(first.symbol) .. " (spec 10 tiles, grade C, tol exact)")
+        t.drive.camera(768, 420, 480)
         spec_row("mystics.prayer_reduction", prayer_pct == 50,
             "measured " .. tostring(prayer_pct) .. " percent, unprotected raw max "
                 .. tostring(sm.unprot_max) .. " (n=" .. tostring(sm.unprot_hits)
                 .. ") protected raw max " .. tostring(sm.prot_max) .. " (n="
                 .. tostring(sm.prot_hits) .. ") (spec 50 percent, grade C, tol +-10)")
+        t.drive.camera(1280, 360, 620)
         spec_row("mystics.count_solo", count_solo == 3,
             "measured " .. tostring(count_solo) .. " count, npc.pack landing mystics "
                 .. "(spec 3 count, grade C, tol exact)")
