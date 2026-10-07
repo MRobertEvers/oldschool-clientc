@@ -358,10 +358,15 @@ end
 --     tile on this level -- `not_found` naming both reads when neither leaf
 --     is there (a door the client lost, or the wrong tile);
 --  3. walk to `far` and grade it: exactly that tile on the door's level, or
---     `far_ok(tile)` when given;
+--     `far_ok(tile)` when given.  A door that stood open can shut itself
+--     during that walk (its 500-tick revert): a walk that stops short with
+--     the closed leaf back on the door tile walks back to `near`, presses it
+--     as in 2 and walks again, at most _pass_door_reshut_presses times (b71);
 --  4. with `close = true`, press the open leaf (op 1) on this level, grade
 --     the closed leaf back on the door tile, walk back to `far` (the press
---     walked to the leaf's approach tile) and grade the player still past it.
+--     walked to the leaf's approach tile) and grade the player still past it
+--     -- or, when the door already shut itself, press nothing and grade the
+--     closed leaf back and the player still past it.
 --
 -- `level` defaults to the player's level on the near tile (a door does not
 -- change level).  The press answer (`ok` or click_loc's `timeout` for a door
@@ -369,6 +374,7 @@ end
 -- tiles, never that word.  A malformed spec is the caller's bug and raises.
 QD.player._pass_door_radius = 12
 QD.player._pass_door_scene_ticks = 6
+QD.player._pass_door_reshut_presses = 2
 
 function QD.player._pass_door_tile_text(tile)
     if type(tile) ~= "table" then
@@ -466,9 +472,14 @@ function QD.player.pass_door(spec)
         text = text .. "; waited " .. waited .. " tick(s) for a leaf on " .. where .. " ("
             .. tostring(scene_result) .. ")"
     end
-    local leaf_result, leaf = QD.world.loc_near(closed, radius, { at = door_at })
     local crossed = false
-    if leaf_result == "ok" then
+    -- The press: the closed leaf pressed on the door tile and level, graded on
+    -- that leaf leaving (and the open leaf arriving when `open` is named) or
+    -- on the press itself carrying the player to the far side.  Answers nil
+    -- when the door is open (or crossed: `crossed` set), else the
+    -- (word, detail) the row ends on.  Step 2 presses through it, and so does
+    -- step 3 when the door shut itself during the walk.
+    local function press_door()
         local press_result, press_detail = QD.player.click_loc(closed, op, { at = door_at })
         local gone_result = QD.await({
             level = function()
@@ -486,45 +497,57 @@ function QD.player.pass_door(spec)
         if after_result == "ok" and is_far(after) then
             crossed = true
             text = text .. "; the press carried the player to " .. tile_text(after)
-        elseif gone_result ~= "ok" then
+            return nil
+        end
+        if gone_result ~= "ok" then
             return press_result ~= "ok" and press_result or "refused", text
                 .. "; the closed leaf is still at " .. where .. " (player " .. tile_text(after) .. ")"
-        elseif open ~= nil then
-            -- The open leaf is AWAITED, not read once (matthew-mbp-m4-b65-seam1
-            -- pass_door_polls_for_the_open_leaf): a double door's script
-            -- (doubledoors.rs2 open_double_door_left) does loc_del then
-            -- loc_add in one server tick, yet the client pool can hold the
-            -- delete a frame before the add -- prince's Al Kharid palace door
-            -- (bankdoor_l 3293,3167,0) refused here with "no openbankdoor_l
-            -- within 1" while the next door row read it standing open
-            -- (measured since: the first read misses, the second, the same
-            -- tick, holds it -- build/quest_gate/sd_prince_open row 6).  So
-            -- the wait runs up to _pass_door_scene_ticks; a leaf that never
-            -- comes still refuses, and the ticks waited are in the detail.
-            -- `reads` counts the pool reads: 1 is the old single read's
-            -- answer, more is a leaf the old verb would have refused.
-            local open_row = nil
-            local reads = 0
-            local open_wait_start = api_drive.tick()
-            local open_result = QD.await({
-                level = function()
-                    local read_result, row = QD.world.loc_near(open, radius, { at = door_at, slack = 1 })
-                    reads = reads + 1
-                    open_row = row
-                    return read_result == "ok"
-                end,
-                note = "pass_door: the open leaf " .. open .. " on " .. where,
-            }, QD.player._pass_door_scene_ticks)
-            local open_waited = api_drive.tick() - open_wait_start
-            if open_result ~= "ok" or type(open_row) ~= "table" then
-                return "refused", text .. "; the closed leaf left " .. where .. " but no " .. open
-                    .. " stood within 1 of it on level " .. loc_level .. " after " .. open_waited
-                    .. " tick(s) of waiting (" .. reads .. " read(s)): " .. tostring(open_row)
-            end
-            text = text .. "; open leaf " .. open .. " at " .. open_row.tile_x .. "," .. open_row.tile_z
-                .. "," .. open_row.level .. " (after " .. open_waited .. " tick(s), " .. reads .. " read(s))"
-        else
+        end
+        if open == nil then
             text = text .. "; the closed leaf left " .. where
+            return nil
+        end
+        -- The open leaf is AWAITED, not read once (matthew-mbp-m4-b65-seam1
+        -- pass_door_polls_for_the_open_leaf): a double door's script
+        -- (doubledoors.rs2 open_double_door_left) does loc_del then
+        -- loc_add in one server tick, yet the client pool can hold the
+        -- delete a frame before the add -- prince's Al Kharid palace door
+        -- (bankdoor_l 3293,3167,0) refused here with "no openbankdoor_l
+        -- within 1" while the next door row read it standing open
+        -- (measured since: the first read misses, the second, the same
+        -- tick, holds it -- build/quest_gate/sd_prince_open row 6).  So
+        -- the wait runs up to _pass_door_scene_ticks; a leaf that never
+        -- comes still refuses, and the ticks waited are in the detail.
+        -- `reads` counts the pool reads: 1 is the old single read's
+        -- answer, more is a leaf the old verb would have refused.
+        local open_row = nil
+        local reads = 0
+        local open_wait_start = api_drive.tick()
+        local open_result = QD.await({
+            level = function()
+                local read_result, row = QD.world.loc_near(open, radius, { at = door_at, slack = 1 })
+                reads = reads + 1
+                open_row = row
+                return read_result == "ok"
+            end,
+            note = "pass_door: the open leaf " .. open .. " on " .. where,
+        }, QD.player._pass_door_scene_ticks)
+        local open_waited = api_drive.tick() - open_wait_start
+        if open_result ~= "ok" or type(open_row) ~= "table" then
+            return "refused", text .. "; the closed leaf left " .. where .. " but no " .. open
+                .. " stood within 1 of it on level " .. loc_level .. " after " .. open_waited
+                .. " tick(s) of waiting (" .. reads .. " read(s)): " .. tostring(open_row)
+        end
+        text = text .. "; open leaf " .. open .. " at " .. open_row.tile_x .. "," .. open_row.tile_z
+            .. "," .. open_row.level .. " (after " .. open_waited .. " tick(s), " .. reads .. " read(s))"
+        return nil
+    end
+
+    local leaf_result, leaf = QD.world.loc_near(closed, radius, { at = door_at })
+    if leaf_result == "ok" then
+        local press_word, press_text = press_door()
+        if press_word ~= nil then
+            return press_word, press_text
         end
     elseif leaf_result == "not_found" then
         if open == nil then
@@ -541,15 +564,52 @@ function QD.player.pass_door(spec)
         return leaf_result, text .. "; the loc read answered " .. tostring(leaf_result) .. " " .. tostring(leaf)
     end
 
-    -- 3. Through.
-    if not crossed then
+    -- 3. Through.  A door that stood open can shut ITSELF on the way: an
+    --    opened door reverts 500 ticks after the press that opened it
+    --    (doors.rs2 door_open_active, loc_change(..., 500)), so a leaf read
+    --    "stands open" on tick 499 is a wall by the time the player reaches
+    --    the doorway, and the walk stalls on the near side (b71 whatliesbelow
+    --    wlb2, fai_varrock_castle_door 3215,3477).  So a walk that stops short
+    --    of the far side with the CLOSED leaf back on the door tile walks back
+    --    to `near`, presses it (graded as step 2's press) and walks through
+    --    again -- at most QD.player._pass_door_reshut_presses times; a door
+    --    that keeps shutting, or a walk that stalls with the door open, fails
+    --    as before, naming what it read.
+    local reshut = 0
+    while not crossed do
         local through_result, through_detail = QD.player.walk_to(far_x, far_z, spec.ticks)
         local far_result, far = QD.world.tile()
         text = text .. "; far " .. far_x .. "," .. far_z .. " -> at " .. tile_text(far)
-        if far_result ~= "ok" or not is_far(far) then
+        if far_result == "ok" and is_far(far) then
+            break
+        end
+        local shut = QD.world.loc_near(closed, radius, { at = door_at }) == "ok"
+        if not shut or reshut >= QD.player._pass_door_reshut_presses then
+            local why = ""
+            if shut then
+                why = "; the closed leaf is back on " .. where .. " after " .. reshut
+                    .. " re-press(es) -- the door keeps shutting"
+            end
             return through_result ~= "ok" and through_result or "refused", text
                 .. " (want " .. far_desc .. "; walk_to -> " .. tostring(through_result) .. " "
-                .. tostring(through_detail) .. ")"
+                .. tostring(through_detail) .. ")" .. why
+        end
+        reshut = reshut + 1
+        text = text .. "; the door shut itself during the walk (closed leaf back on " .. where
+            .. ": its 500-tick revert), re-press " .. reshut
+        local back_result, back_detail = QD.player.walk_to(near_x, near_z, spec.ticks)
+        local back_tile_result, back = QD.world.tile()
+        text = text .. "; back to near " .. near_x .. "," .. near_z .. " -> at " .. tile_text(back)
+        if back_tile_result ~= "ok" or type(back) ~= "table" or back.level ~= level
+            or math.abs(back.x - near_x) > 1 or math.abs(back.z - near_z) > 1 or is_far(back) then
+            return back_result ~= "ok" and back_result or "refused", text
+                .. " (want within 1 of " .. near_x .. "," .. near_z .. "," .. level
+                .. " on this side to press the shut door; walk_to -> " .. tostring(back_result) .. " "
+                .. tostring(back_detail) .. ")"
+        end
+        local press_word, press_text = press_door()
+        if press_word ~= nil then
+            return press_word, press_text
         end
     end
 
@@ -557,6 +617,17 @@ function QD.player.pass_door(spec)
     if spec.close then
         local open_result, open_row = QD.world.loc_near(open, radius, { at = door_at, slack = 1 })
         if open_result ~= "ok" then
+            -- The same revert, after the crossing: the door is already shut,
+            -- which is what the close step grades.  Nothing to press.
+            if QD.world.loc_near(closed, radius, { at = door_at }) == "ok" then
+                local still_result, still = QD.world.tile()
+                text = text .. "; close: the door shut itself first (closed leaf back on " .. where
+                    .. ", no " .. open .. "), not pressed; player " .. tile_text(still)
+                if still_result ~= "ok" or not is_far(still) then
+                    return "refused", text .. " (want the player still at " .. far_desc .. ")"
+                end
+                return "ok", text .. "; closed leaf back on " .. where .. " (want " .. far_desc .. ")"
+            end
             return "not_found", text .. "; close: " .. tostring(open_row)
         end
         local open_at = { open_row.tile_x, open_row.tile_z, open_row.level }

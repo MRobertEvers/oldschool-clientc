@@ -57,10 +57,16 @@ t.exec("vargas1.castleGate", t.player.pass_door, { closed = "castledoor", open =
    walk-through door). Absent: the door stands open (`stands open ..., not pressed` -- pressing an
    open leaf shuts it) and the OPEN leaf must stand within 1 of the door tile on that level;
    neither leaf -> `not_found ... neither leaf on level L`;
-3. walks to `far` and grades exactly that tile on the door's level, or `far_ok(tile)`;
+3. walks to `far` and grades exactly that tile on the door's level, or `far_ok(tile)`. A walk that
+   stops short with the CLOSED leaf back on the door tile (the door shut itself on the way -- see
+   below) walks back to `near`, presses it as in step 2 and walks through again, at most twice
+   (`QD.player._pass_door_reshut_presses`); the detail says `the door shut itself during the walk
+   ..., re-press N`;
 4. `close = true`: presses the open leaf on that level, grades the closed leaf back on the door
    tile, walks back to `far` and grades it (a door the client lost after its 500-tick revert while
-   you were away is the reason misc_astrid closes doors behind it).
+   you were away is the reason misc_astrid closes doors behind it). A door that already shut
+   itself after the crossing is not pressed: `close: the door shut itself first ...`, graded on the
+   closed leaf back and the player still past it.
 
 Name `open=` whenever the door's open leaf is a different symbol, even one with no name or op (the
 Water Ravine golem doors open to `elid_underground_inactive_door`): the way back finds that leaf
@@ -86,6 +92,21 @@ within 1 of it on level L after N tick(s) of waiting (M read(s))`. Name `open=` 
 first visit; the b65 workaround of naming no open leaf there (prince.lua `palace_in`) is no longer
 needed. Conformance `seam.pass_door_awaits_a_late_open_leaf` (seam-facts: Seam pass
 matthew-mbp-m4-b65-seam1 (b)).
+
+#### A door that stands open can shut itself mid-walk: re-pressed (b71)
+
+An opened door reverts 500 ticks after the press that opened it (`doors.rs2`
+`~door_open_active`: `loc_change(..., 500)`), so step 2 can read it `stands open` on tick 499 and
+the walk in step 3 then meets the shut leaf and stalls on the near side -- b71 whatliesbelow
+`wlb2`, `talkToRatToFinish.palaceDoorOut1` at `fai_varrock_castle_door` 3215,3477; the same latent
+flake sits under every "stands open, not pressed" exit in the suite. Step 3 now re-reads the door
+when the walk stops short: the closed leaf back on the door tile means the walk goes back to `near`,
+the closed leaf is pressed and graded exactly as in step 2, and the walk to `far` is retried (two
+re-presses at most; a door that keeps shutting fails `... the door keeps shutting`). A stall with
+the door still open fails as before. The row name, the words and the grade (the tiles and the leaf
+reads) are unchanged, so `close = true` is no longer needed only to dodge the revert. An opening
+gate (`cross_gate` with `open=`) is handed to `pass_door` and gets the same; a walk-through gate
+is pressed on every crossing and has no state to revert.
 
 ### The crossing verbs: `cross_gate`, `cross_trap`, `walk_route`, `teleport_cast` (b60-seam0)
 
