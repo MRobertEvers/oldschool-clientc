@@ -1,11 +1,9 @@
 # Crabs room status
 
 - Branch: `cursor/cox-crabs-room-da39` (parent + OSRS-Content)
-- Spec coverage: FULL (stun/regen/splash/aggro/needed)
-- Content: beam rim-only map_blocked + npc_tele; crystal adjacent score;
-  `^cox_crab_paint_ticks=28` (CCW crystal-2 transit)
-- Harness: Smash via click_minimenu; west lure/safe; cast-paint; reseat skip
-  when already coloured; t.step seat rows (no shot); paint refresh in wait;
-  per-iter yield in seat loop
-- Gate run27: RED script-error budget after green seat stage=2 (paint expired)
-- Next: prove crystals 0-3 + despawn green + FULL
+- Gate: **GREEN** (run38) — SUMMARY 23 PASS, fail=0; coverage FULL (5/5)
+- Content: paint_ticks=28; smash snap onto CCW focus column x=11..15;
+  CCW crystal 3 at (23,19) / bounce (13,20) (z=16/18 clip)
+- Harness: Smash via lure; west clear-column; cast-paint; t.step seats;
+  white grey-wait without re-smash
+- Proof: `/opt/cursor/artifacts/cox_crabs_gate_run38.log`
