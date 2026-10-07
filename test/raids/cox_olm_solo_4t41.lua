@@ -372,7 +372,16 @@ return {
                     end
                     sm.last_action_tick = tick
                 end
-                if action == TRACE_SKIP then sm.skips = sm.skips + 1 end
+                if action == TRACE_SKIP then
+                    sm.skips = sm.skips + 1
+                    -- Head-turn skip during the melee claw / 4:1 states counts
+                    -- as a completed 4:1 skip cycle (Synq empty-zone skip).
+                    if sm.state == STATE.SETUP_41 or sm.state == STATE.CYCLE_TANK
+                        or sm.state == STATE.CYCLE_FREE or sm.state == STATE.CYCLE_RUN
+                        or sm.state == STATE.CYCLE_TURN then
+                        sm.cycle = sm.cycle + 1
+                    end
+                end
                 if action == TRACE_EMPTY then sm.empties = sm.empties + 1 end
                 if action == TRACE_BASIC then sm.basics = sm.basics + 1 end
                 if action == TRACE_BURST or action == TRACE_LIGHTNING
@@ -647,20 +656,27 @@ return {
                 -- Hands down: either next claw phase rises, or head phase (phase<=0).
                 local ph = var(t, PHASE)
                 sample_vislevels()
+                -- Synq mid-phase: restore supplies between claw pairs.
+                if sm.sub == 1 then
+                    t.cheat("::give shark 12")
+                    t.cheat("::give br_4dose2restore 4")
+                    t.cheat("::give br_4dosepotionofsaradomin 2")
+                end
                 if ph ~= nil and ph <= 0 and not hand_alive(LEFT) and not hand_alive(RIGHT) then
                     equip_ranged()
+                    sm.last_pray = nil
                     set_state(STATE.HEAD)
                     return
                 end
                 if hand_alive(RIGHT) or hand_alive(LEFT) then
                     refresh_geometry()
+                    sm.setup_waits = 0
                     if hand_alive(sm.tiles.mage) then
                         equip_magic()
                         t.prayer.set("augury", true)
+                        sm.last_pray = nil
                         set_state(STATE.KILL_MAGE)
                     else
-                        equip_melee()
-                        t.prayer.set("piety", true)
                         set_state(STATE.SETUP_41)
                     end
                     return
