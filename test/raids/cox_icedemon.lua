@@ -148,6 +148,7 @@ return {
             eats = 0,
             drinks = 0,
             casts = 0,
+            melee_fallback = 0,
             dodges = 0,
             last_attack_tick = nil,
             attack_gaps = {},
@@ -279,8 +280,14 @@ return {
                     })
                 end
                 if cast_r ~= "ok" then
-                    -- Fallback: auto-attack if spellbook cast is refused.
-                    t.player.attack(COMBAT, 2, 1, { quick = true, slot = crow.slot })
+                    -- Fallback: auto-attack if spellbook cast is refused
+                    -- (setup rune/weapon give can lag; fire weakness still
+                    -- applies only to casts — melee is the 67% path).
+                    local ar = t.player.attack(COMBAT, 2, 1, { quick = true, slot = crow.slot })
+                    if ar == "ok" then
+                        sm.casts = sm.casts + 1
+                        sm.melee_fallback = (sm.melee_fallback or 0) + 1
+                    end
                 else
                     sm.casts = sm.casts + 1
                     if sm.casts == 4 then
@@ -342,6 +349,7 @@ return {
             "thawed=" .. tostring(sm.thawed)
                 .. " lights=" .. sm.lights
                 .. " casts=" .. sm.casts
+                .. " melee_fallback=" .. tostring(sm.melee_fallback)
                 .. " dodges=" .. sm.dodges
                 .. " douse=" .. tostring(sm.douse_seen))
         t.shot("icedemon room clear")
