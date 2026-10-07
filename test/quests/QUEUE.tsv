@@ -15,7 +15,7 @@ quest_biohazard	biohazard	biohazard		1	green	matthew-mbp-m4-b64
 quest_blackarmgang	blackarmgang	shieldofarrav		1	green	matthew-mbp-m4-b58			
 quest_blackknight	blackknight	blackknightfortress		1	green	matthew-mbp-m4-b57			
 quest_bonevoyage	bonevoyage	bonevoyage		4	green	matthew-mbp-m4-b72			
-quest_cabinfever	cabinfever	cabinfever		4	todo				
+quest_cabinfever	cabinfever	cabinfever		4	claimed	matthew-mbp-m4-b73@matthew-mbp-m4		2026-10-07T14:06:04Z	todo|
 quest_childrenofthesun	childrenofthesun	childrenofthesun		4	green	matthew-mbp-m4-b52			
 quest_chompybird	chompybird	bigchompybirdhunting		3	green	matthew-mbp-m4-b68			
 quest_clientofkourend	clientofkourend	clientofkourend		4	green	matthew-mbp-m4-b71			
@@ -29,7 +29,7 @@ quest_currentaffairs	currentaffairs	currentaffairs		1	green	matthew-mbp-m4-b65
 quest_curseofarrav	curseofarrav	thecurseofarrav		4	todo				
 quest_darknessofhallowvale	darknessofhallowvale	darknessofhallowvale		4	green	matthew-mbp-m4-b72			
 quest_death	death	deathplateau		3	green	matthew-mbp-m4-b68			
-quest_deathontheisle	deathontheisle	deathontheisle		4	todo				
+quest_deathontheisle	deathontheisle	deathontheisle		4	claimed	matthew-mbp-m4-b73@matthew-mbp-m4		2026-10-07T14:06:04Z	todo|
 quest_deathtothedorgeshuun	deathtothedorgeshuun	deathtothedorgeshuun		4	todo				
 quest_defenderofvarrock	defenderofvarrock	defenderofvarrock		4	green	matthew-mbp-m4-b72			
 quest_demon	demon	demonslayer		3	green	matthew-mbp-m4-b62			
@@ -70,7 +70,7 @@ quest_gobdip	gobdip	goblindiplomacy		3	green	matthew-mbp-m4-b68
 quest_golem	golem	thegolem		1	green	matthew-mbp-m4-b66			
 quest_grail	grail	holygrail		2	green	matthew-mbp-m4-b62			
 quest_grandtree	grandtree	thegrandtree		3	green	matthew-mbp-m4-b62			
-quest_grimtales	grimtales	grimtales		4	todo				
+quest_grimtales	grimtales	grimtales		4	claimed	matthew-mbp-m4-b73@matthew-mbp-m4		2026-10-07T14:06:04Z	todo|
 quest_handinthesand	handinthesand	thehandinthesand		4	green	matthew-mbp-m4-b71			
 quest_haunted	haunted	ernestthechicken		1	green	matthew-mbp-m4-b58			
 quest_hauntedmine	hauntedmine	hauntedmine		3	green	matthew-mbp-m4-b63			
@@ -91,12 +91,12 @@ quest_itgronigen	itgronigen	observatoryquest		3	green	matthew-mbp-m4-b63
 quest_itwatchtower	itwatchtower	watchtower		2	green	matthew-mbp-m4-b64			
 quest_junglepotion	junglepotion	junglepotion		3	green	matthew-mbp-m4-b68			
 quest_kingdomdivided	kingdomdivided	akingdomdivided		6	todo				
-quest_kingsransom	kingsransom	kingsransom		4	todo				
-quest_landofthegoblins	landofthegoblins	landofthegoblins		4	todo				
+quest_kingsransom	kingsransom	kingsransom		4	claimed	matthew-mbp-m4-b73@matthew-mbp-m4		2026-10-07T14:06:04Z	todo|
+quest_landofthegoblins	landofthegoblins	landofthegoblins		4	claimed	matthew-mbp-m4-b73@matthew-mbp-m4		2026-10-07T14:06:04Z	todo|
 quest_legends	legends	legendsquest		3	green	matthew-mbp-m4-b70			
 quest_losttribe	losttribe	thelosttribe		3	green	matthew-mbp-m4-b63			
 quest_lunardiplomacy	lunardiplomacy	lunardiplomacy		4	todo				
-quest_makingfriendswithmyarm	makingfriendswithmyarm	makingfriendswithmyarm		4	todo				
+quest_makingfriendswithmyarm	makingfriendswithmyarm	makingfriendswithmyarm		4	claimed	matthew-mbp-m4-b73@matthew-mbp-m4		2026-10-07T14:06:04Z	todo|
 quest_makinghistory	makinghistory	makinghistory		1	green	matthew-mbp-m4-b65			
 quest_mcannon	mcannon	dwarfcannon		3	green	matthew-mbp-m4-b63			
 quest_meatandgreet	meatandgreet	meatandgreet		4	green	matthew-mbp-m4-b71			
