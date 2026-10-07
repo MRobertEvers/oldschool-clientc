@@ -43,6 +43,8 @@
 
 #include "app.h"
 #include "plugin/torirs_plugin_lua.h"
+#include "ui/uitree_input.h"
+#include "ui/uitree_layout.h"
 
 #include "lauxlib.h"
 #include "lua.h"
@@ -175,6 +177,56 @@ DriveRead_WidgetOwnHidden(struct App* app, int component_id, int* out_own_hidden
     return DRIVE_OK;
 }
 
+enum DriveResult
+DriveRead_WidgetBounds(
+    struct App* app,
+    int component_id,
+    int* out_x,
+    int* out_y,
+    int* out_width,
+    int* out_height)
+{
+    struct UITree* tree;
+    int32_t idx;
+
+    assert(app);
+    assert(out_x);
+    assert(out_y);
+    assert(out_width);
+    assert(out_height);
+
+    *out_x = 0;
+    *out_y = 0;
+    *out_width = 0;
+    *out_height = 0;
+    tree = app->tree;
+    assert(tree);
+    idx = UITree_FindByComponentId(tree, component_id);
+    if( idx < 0 )
+        return DRIVE_NOT_FOUND;
+    UITree_EnsureLayoutFor(tree, idx);
+    if( !UITree_NodeDrawnBounds(tree, idx, out_x, out_y, out_width, out_height) )
+        return DRIVE_NOT_FOUND;
+    return DRIVE_OK;
+}
+
+enum DriveResult
+DriveRead_WidgetAt(struct App* app, int x, int y, int* out_component_id)
+{
+    int32_t hits[UITREE_INPUT_HIT_STACK_MAX];
+    int count;
+
+    assert(app);
+    assert(out_component_id);
+    assert(app->tree);
+
+    *out_component_id = -1;
+    count = UITree_CollectNodesAt(app->tree, &app->ui_host, x, y, hits, UITREE_INPUT_HIT_STACK_MAX);
+    if( count > 0 )
+        *out_component_id = app->tree->components[hits[0]].component_id;
+    return DRIVE_OK;
+}
+
 static int
 lua_drive_widget_text(struct lua_State* L)
 {
@@ -252,7 +304,58 @@ lua_drive_widget_model(struct lua_State* L)
     return 2;
 }
 
+/* api_drive.widget_bounds(component_id) -> ("ok", {x, y, width, height}) |
+ * "not_found" */
+static int
+lua_drive_widget_bounds(struct lua_State* L)
+{
+    struct App* app = PluginDrive_App();
+    int component_id = PluginDrive_ArgInt(L, 1);
+    int x = 0;
+    int y = 0;
+    int width = 0;
+    int height = 0;
+    enum DriveResult result;
+
+    assert(app);
+    result = DriveRead_WidgetBounds(app, component_id, &x, &y, &width, &height);
+    if( result != DRIVE_OK )
+        return PluginDrive_PushResult(L, result, NULL);
+    lua_pushstring(L, DriveResultName(result));
+    lua_createtable(L, 0, 4);
+    lua_pushinteger(L, x);
+    lua_setfield(L, -2, "x");
+    lua_pushinteger(L, y);
+    lua_setfield(L, -2, "y");
+    lua_pushinteger(L, width);
+    lua_setfield(L, -2, "width");
+    lua_pushinteger(L, height);
+    lua_setfield(L, -2, "height");
+    return 2;
+}
+
+/* api_drive.widget_at(x, y) -> ("ok", component_id | -1) */
+static int
+lua_drive_widget_at(struct lua_State* L)
+{
+    struct App* app = PluginDrive_App();
+    int x = PluginDrive_ArgInt(L, 1);
+    int y = PluginDrive_ArgInt(L, 2);
+    int component_id = -1;
+    enum DriveResult result;
+
+    assert(app);
+    result = DriveRead_WidgetAt(app, x, y, &component_id);
+    if( result != DRIVE_OK )
+        return PluginDrive_PushResult(L, result, NULL);
+    lua_pushstring(L, DriveResultName(result));
+    lua_pushinteger(L, component_id);
+    return 2;
+}
+
 static struct LuaFn const LUA_DRIVE_READ_FNS[] = {
+    {"widget_bounds", lua_drive_widget_bounds},
+    {"widget_at", lua_drive_widget_at},
     {"widget_model", lua_drive_widget_model},
     {"widget_text", lua_drive_widget_text},
     {"widget_presented", lua_drive_widget_presented},

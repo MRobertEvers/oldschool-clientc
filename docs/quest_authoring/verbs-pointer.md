@@ -712,6 +712,54 @@ projected 382,215"); the unblocked Ratcatchers copy caught all six mansion rats.
 outside the mansion's old ledge landing the stale read did not reproduce (a chicken one tile off
 read the same pixel framed and settled, with and without the fix).
 
+### `t.ui.drag(sym, sub, to)` -- drag a widget with the real mouse (b72)
+
+`t.ui.drag(sym, sub, { sym = <component>, x = n, y = n })` -> `ok` `no_row` `not_visible`
+`refused`. A widget the game moves by DRAGGING -- a `cc_setdraggable` component with
+`cc_setondrag` / `cc_setondragcomplete` scripts -- is driven the way a player does it: the mouse is
+moved onto it, the left button pressed, the pointer moved in `QD.ui.DRAG_STEPS` (6) steps with the
+button held, held one more frame at the end and released. The client's own drag machine
+(`uitree_interact.c` `interact_drag`) moves the widget and runs its drag scripts, so whatever those
+scripts report to the server is the client's word; nothing is forged. `sym`/`sub` name the widget
+(`sub` a `cc_create` child's sub-id). `to` is where the widget's TOP-LEFT lands, in `to.sym`'s own
+coordinates -- the space the interface's clientscripts pass to `cc_setposition`.
+
+- The press point is one where the client's own hit stack has THIS widget on top
+  (`api_drive.widget_at(x, y)`, `UITree_CollectNodesAt`): the centre, else a 5x5 grid inside its
+  bounds. Widgets overlap -- the jigsaw's loose pile does -- and a press at the centre of a covered
+  piece picks up whichever was created after it (the first b72 probe dragged piece 12 onto piece
+  6's spot). A widget covered at every probed point answers `refused ... covered`, naming what lies
+  on top. The release keeps the grab offset, so the corner lands exactly on `to`.
+- The `ok` detail reads the widget back after the release: `it sits at X,Y` (still in `sym`), or
+  `the widget is no longer in <sym>` when a script answered the drop by moving it (the jigsaw locks a
+  placed piece onto `jigsaw:pieces_locked`). Assert the content's own state after it.
+- Reads: `api_drive.widget_bounds(component_id)` -> `{x, y, width, height}` in canvas pixels (the
+  space `mouse_move` / `mouse_button` take), `api_drive.widget_at(x, y)` -> the component a press
+  there lands on (or -1); both are in `plugin_api.meta.lua`.
+
+Scrambled!'s jigsaw (interface 922, Quest Helper `puzzleSolver` / `EggSolver.java`) is the first
+user. For each loose piece the test reads what the client shows -- `t.ui.model_pose("jigsaw:pieces",
+sub)` gives the piece's model and its angle (`zan`) -- presses its own Rotate op with
+`t.ui.invoke(widget, 1)` until `zan` is 0 (`+256` per press, `torirs_jigsaw_piece_rot.cs2`), and
+drags it to the spot EggSolver's `addEggPair(model, x, y)` names: `t.ui.drag("jigsaw:pieces", sub,
+{ sym = "jigsaw:pieces", x = x, y = y })`. The drop reaches the server as IF_SCRIPT_TRIGGER
+(`torirs_jigsaw_piece_drop.cs2`), which enters `[if_button1,jigsaw:pieces]` with the piece in
+`last_slot` and piece, x, y, rotation in `last_trigger_int(0..3)` (`torirs_server_world.c`
+`IF_SCRIPT_TRIGGER_ROUTES`). Never pick a piece's spot or turn from `%varp4749_scrambled_puzzle`:
+that varp is what the content writes, not what the player sees.
+
+#### A RUNCLIENTSCRIPT sent with a close reopens the group (b72)
+
+This client holds a RUNCLIENTSCRIPT until the tick's `SERVER_TICK_END` (`pending_clientscripts`,
+`app.h`), while IF_CLOSESUB unmounts as it arrives. A script the server sends in the SAME tick as
+the close therefore runs after it, and its first `cc_find` / `cc_create` on the closed interface
+auto-loads that group back into the tree (`rs_cs2_yield_if_group_missing`), so `group_present` --
+what `t.ui.await_open` / `await_close` read -- stays true: `ui.await_close` times out on an
+interface the server did close. Scrambled!'s jigsaw met it on the last piece (the place script
+`torirs_jigsaw_piece_place.cs2` and the completion `if_close` in one tick). Content that completes
+on a drop closes WITHOUT the cosmetic script for that last move (`scrambled.rs2`
+`[if_button1,jigsaw:pieces]`); the engine ordering is not changed by this seam.
+
 ### `t.player.click_obj(obj, op=3)`
 
 `t.player.click_obj(obj, op=3)` -> same, waits for the backpack count to rise.

@@ -699,6 +699,13 @@ enum
      */
     TORIRSSERVER_RESUME_BUTTON_MAX = 32,
     /*
+     * Typed int values one IF_SCRIPT_TRIGGER can hand a script through
+     * `last_trigger_int(n)`. The wire allows 32 (MOCK239_IF_SCRIPT_VALUE_MAX);
+     * the routes the server decodes carry at most four (the jigsaw's piece, x,
+     * y, rotation), and a route wider than this is refused at the decode.
+     */
+    TORIRSSERVER_TRIGGER_INT_MAX = 8,
+    /*
      * Highest sub-id `if_addresumebutton` arms on the component it registers.
      *
      * A resume button on a *container* is the multi-choice dialogue: its rows
@@ -3992,6 +3999,16 @@ struct ToriRSServerPlayer
     int last_verb;
     int last_subop;
     int32_t last_int;
+    /*
+     * The typed values of the IF_SCRIPT_TRIGGER that entered the current
+     * interface trigger (`last_trigger_int(n)`), in the order the clientscript
+     * pushed them; the count is 0 for every trigger that did not come from one,
+     * so a script reading a value it was not given aborts rather than seeing a
+     * stale one. Ints only: a route whose signature carries a string has not
+     * been needed, and decoding one into this array would be a guess.
+     */
+    int32_t last_trigger_ints[TORIRSSERVER_TRIGGER_INT_MAX];
+    int last_trigger_int_count;
     /*
      * The other half of a use-on: the item the player was *carrying* when they
      * clicked, as opposed to the thing they clicked on.

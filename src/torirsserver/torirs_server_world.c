@@ -12349,11 +12349,92 @@ handle_if_buttonx_packet(
     }
 }
 
+/*
+ * IF_SCRIPT_TRIGGER routes whose typed values reach content as
+ * `last_trigger_int(n)` (gen_opcode_meta.py LAST_TRIGGER_INT).
+ *
+ * The packet does not carry its signature: the crc names the clientscript
+ * call site, and the signature is that call site's literal. So each route is
+ * the component the clientscript names, the crc it sends and the signature it
+ * declares, copied from the script; a trigger matching none of them is left
+ * to the routes below, never decoded by guess.
+ *
+ * The trigger enters `[if_button1,<component>]` with the child in `last_slot`
+ * -- the way the sailing and skill-guide routes reach content -- so a script
+ * is bound to the component like any other button, and if_close / the
+ * delayed-player refusal behave as they do for a click.
+ */
+struct IfScriptTriggerRoute
+{
+    const char* component;
+    int32_t crc;
+    const char* signature;
+};
+
+static const struct IfScriptTriggerRoute IF_SCRIPT_TRIGGER_ROUTES[] = {
+    /* The jigsaw (interface 922): a piece dropped
+     * (torirs_jigsaw_piece_drop.cs2) or turned (torirs_jigsaw_piece_rot.cs2)
+     * reports piece, x, y and rotation, the piece also being the child.
+     * Scrambled!'s Humphrey Dumphrey is the cache's one puzzle (dbrow
+     * jigsaw_scrambled). */
+    { "jigsaw:pieces", MOCK239_JIGSAW_TRIGGER_CRC, "iiii" },
+};
+
+/* Returns 1 when the trigger was one of IF_SCRIPT_TRIGGER_ROUTES (consumed,
+ * dispatched or a malformed tail dropped), 0 when it is not one of them. */
+static int
+if_script_trigger_typed_route(
+    struct ToriRSServer* srv,
+    const uint8_t* payload,
+    int len,
+    const struct Mock239IfScriptTrigger* head)
+{
+    struct ToriRSServerPlayer* player = srv->active_player;
+
+    assert(player);
+    assert(head);
+    for( size_t r = 0; r < sizeof(IF_SCRIPT_TRIGGER_ROUTES) / sizeof(IF_SCRIPT_TRIGGER_ROUTES[0]);
+         r++ )
+    {
+        const struct IfScriptTriggerRoute* route = &IF_SCRIPT_TRIGGER_ROUTES[r];
+        struct Mock239IfScriptTrigger trigger;
+        int component = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, route->component);
+        int count = (int)strlen(route->signature);
+        uint8_t component_op[6];
+        struct RSAreaBuf out;
+
+        assert(count <= TORIRSSERVER_TRIGGER_INT_MAX);
+        if( component < 0 || head->component_id != component || head->crc != route->crc )
+            continue;
+        /* Wire input: a tail that does not decode to the route's signature is
+         * a malformed packet, dropped as every other undecodable packet is. */
+        if( !mock239_if_script_trigger_decode(payload, len, route->signature, &trigger) )
+            return 1;
+        for( int i = 0; i < count; i++ )
+        {
+            assert(trigger.values[i].kind == MOCK239_IF_SCRIPT_INT);
+            player->last_trigger_ints[i] = trigger.values[i].as.integer;
+        }
+        player->last_trigger_int_count = count;
+        player->last_item = -1;
+        player->last_subop = -1;
+        rsab_wrap(&out, component_op, sizeof(component_op));
+        rsab_p4(&out, trigger.component_id);
+        rsab_p2(&out, trigger.child);
+        handle_if_button_op(srv, PKTOUT_NAME_IF_BUTTON1, component_op, (int)rsab_len(&out));
+        /* The values belong to this dispatch only: a script that suspends and
+         * reads them after, or the next unrelated trigger, finds none. */
+        player->last_trigger_int_count = 0;
+        return 1;
+    }
+    return 0;
+}
+
 /* IF_TRIGGEROPLOCAL's signature is selected by crc and is not on the wire.
- * The only server-side consumer currently implemented is clientscript 9189's
- * skill-guide View-journal bridge, whose authoritative source declares `"i"`.
- * Unknown CRCs remain losslessly decoded and logged, but are not guessed into
- * a RuneScript argument list. */
+ * The server-side consumers are clientscript 9189's skill-guide View-journal
+ * bridge (`"i"`), sailing customisation's facility click (`"ii"`) and the
+ * typed routes above. Unknown CRCs remain losslessly decoded and logged, but
+ * are not guessed into a RuneScript argument list. */
 static void
 handle_if_script_trigger(
     struct ToriRSServer* srv,
@@ -12378,6 +12459,9 @@ handle_if_script_trigger(
                 trigger.child,
                 trigger.object_id,
                 trigger.typed_len);
+
+    if( if_script_trigger_typed_route(srv, payload, len, &trigger) )
+        return;
 
     /* Native sailing customisation (CS2 8834): the clicked UI row and the
      * selected facility DBROW are different values. Preserve both. */

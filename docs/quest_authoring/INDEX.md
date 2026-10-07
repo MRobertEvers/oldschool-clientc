@@ -165,6 +165,9 @@ topic file with one line added here.
 - `pass_door` refused "the closed leaf left ... but no <open leaf> stands within 1" on a double door that the next row reads standing open (Al Kharid palace `bankdoor_l`; FIXED b65-seam1: the open leaf is awaited, the detail says `(after N tick(s), M read(s))`) -> verbs-pointer: A double door's open leaf lands a frame late: awaited
 - `covered ... pickset held=false, menu rows: Cancel, Walk here` at EVERY pose and `none of 99 pixels hittested` on a stairwell or ring loc whose middle is a hole (Uzer `golem_insidestairs_top` pressed from 3491,3090) (FIXED b66-seam1: the model aim after the hunt) -> seam-facts: Seam pass matthew-mbp-m4-b66-seam1 (a); was b65-seam1 (c)
 - a row detail reads `model aim: face centroid X,Y ... held on probe N`, or a `covered` ends `model aim: none of N face centroid(s) probed holds element E` / `model aim: not_visible for element E` -> verbs-pointer: After the hunt: the model aim (b66-seam1)
+- a widget that is DRAGGED, not clicked (a jigsaw piece, Scrambled!'s egg; any `cc_setdraggable` component) -> verbs-pointer: `t.ui.drag(sym, sub, to)`
+- `ui.drag ...: covered -- no point of its WxH ... has it on top` (a widget buried under its siblings) -> verbs-pointer: `t.ui.drag(sym, sub, to)`
+- `ui.await_close` times out on an interface the server closed in the same tick it sent a RUNCLIENTSCRIPT for it -> verbs-pointer: A RUNCLIENTSCRIPT sent with a close reopens the group
 
 ## Dialogue and chat
 

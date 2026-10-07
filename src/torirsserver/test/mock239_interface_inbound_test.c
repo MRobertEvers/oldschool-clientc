@@ -295,6 +295,29 @@ check_script_trigger(void)
     CHECK(
         !mock239_if_script_trigger_decode(skill_guide, skill_guide_len, "s", &got),
         "wrong signature cannot silently consume an integer tail");
+
+    {
+        /* torirs_jigsaw_piece_drop.cs2: if_script_trigger(-1829057600,
+         * interface_922:7, 5, 5, 194, 121, 0, "iiii") -- piece 5 dropped at
+         * 194,121 unturned. Child 5 under p2Alt3 is 85 00; no object (ff ff);
+         * 922:7 and the crc little-endian; 5 -> 0a, 194 -> 388 -> 84 03,
+         * 121 -> 242 -> f2 01, 0 -> 00. */
+        static const uint8_t jigsaw[] = {
+            0x85, 0x00, 0xff, 0xff, 0x07, 0x00, 0x9a, 0x03, 0xc0, 0xcb, 0xfa, 0x92,
+            0x0a, 0x84, 0x03, 0xf2, 0x01, 0x00,
+        };
+
+        CHECK(
+            mock239_if_script_trigger_decode(jigsaw, (int)sizeof(jigsaw), "iiii", &got) &&
+                got.crc == MOCK239_JIGSAW_TRIGGER_CRC && got.component_id == (922 << 16 | 7) &&
+                got.child == 5 && got.value_count == 4 && got.values[0].as.integer == 5 &&
+                got.values[1].as.integer == 194 && got.values[2].as.integer == 121 &&
+                got.values[3].as.integer == 0,
+            "jigsaw piece report decodes piece, x, y, rotation under its crc's signature");
+        CHECK(
+            !mock239_if_script_trigger_decode(jigsaw, (int)sizeof(jigsaw), "iii", &got),
+            "jigsaw report under a shorter signature leaves a tail and is rejected");
+    }
 }
 
 static void

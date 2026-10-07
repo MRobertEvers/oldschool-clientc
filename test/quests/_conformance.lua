@@ -63,13 +63,13 @@
 --     ledger's SUMMARY row says exit=0 and the process exited 0.
 --
 -- ---------------------------------------------------------------------------
--- 229 verbs, one row each.  tools/quest_gate/verb_list.py --check reads the
+-- 230 verbs, one row each.  tools/quest_gate/verb_list.py --check reads the
 -- `step("<name>", ...)` lines below and the QD.* definitions in
 -- script/plugins/quest_driver/*.lua and refuses to agree when they differ, so
 -- a verb added to the driver with no row here fails a make gate rather than
 -- being quietly never called.  The count is asserted in the harness too, so
 -- editing this file alone cannot drift either.
--- @verb-count 229
+-- @verb-count 230
 -- ---------------------------------------------------------------------------
 --
 -- SEAM ROWS -- `seam("seam.<name>", ...)`, counted separately.
@@ -161,7 +161,7 @@
 -- @seam-count 221
 -- ---------------------------------------------------------------------------
 
-local VERB_COUNT = 229
+local VERB_COUNT = 230
 local SEAM_COUNT = 221
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
@@ -6369,6 +6369,38 @@ return {
             local close = verb("chat", "close")
             if close then
                 close()                                        -- setup: the box
+            end
+            settle(2)
+        end)
+
+        -- ui.drag (b72): a widget dragged with the real mouse. ::jigsaw opens
+        -- Scrambled!'s jigsaw (interface 922) where the player stands; away from
+        -- the quest's Fix stage the server judges no drop, so a dragged piece
+        -- stays exactly where it was released -- the reading is knowable: the
+        -- piece's corner at the target. A verb that pressed nothing, or pressed
+        -- a piece lying on top of the one it meant, leaves piece 0 elsewhere.
+        stage(function()
+            setup_cheat("::jigsaw")                            -- setup
+            settle(3)
+        end)
+
+        step("ui.drag", function()
+            local fn = verb("ui", "drag")
+            if not fn then return missing("ui", "drag") end
+            local result, detail = fn("jigsaw:pieces", 0, { sym = "jigsaw:pieces", x = 230, y = 150 })
+            if result ~= "ok" then
+                return result, describe(detail)
+            end
+            if not string.find(tostring(detail), "it sits at 230,150", 1, true) then
+                return "hollow", "answered ok but piece 0 is not at 230,150 -- " .. describe(detail)
+            end
+            return "ok", describe(detail)
+        end)
+
+        stage(function()
+            local key = verb("key")
+            if key then
+                key("escape")                                  -- setup: the jigsaw
             end
             settle(2)
         end)
