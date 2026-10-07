@@ -1,0 +1,108 @@
+{{Update|date=28 February 2019|link=http://services.runescape.com/m=news/qol-and-cox-changes?oldschool=1|category=game}}
+[[File:QoL and CoX Changes newspost.png|right]]
+{{clear}}
+
+<center>''This week sees the release of several changes and tweaks from the Skilling, Re-run and Miscellaneous weeks of QoL month. Previously promised Chambers of Xeric changes are also included.''</center>
+
+{{Horizontal Line}}
+
+{{Headline|22|QoL Changes}}
+
+
+The changes listed in this post wrap up everything that was polled in both Skilling week and Re-run week, minus the Special Attack Orb change which has been held back for further testing. We are now looking to make a start on the changes from the final month: Miscellaneous. The first of these (regarding the Expert mining gloves) is included below:
+
+'''Prayer Skill Guide'''
+
+The Prayer skill guide now shows the icon for each prayer rather than a holy symbol.
+
+
+[[File:QoL and CoX Changes (1).png|center]]
+
+
+'''Dragon Defender'''
+
+The Dragon defender has been updated to appear red rather than pink.
+
+[[File:QoL and CoX Changes (2).png|center]]
+
+
+'''Hespori Growth Indicator'''
+
+A plant has been added to indicate when the Hespori is fully grown in the Farming guild. When the plant by the Hespori's cave entrance is sprouted and open, this means the Hespori is ready to be fought or has been killed but not yet looted.
+
+[[File:QoL and CoX Changes (3).png|center]]
+
+
+'''Expert Mining Gloves'''
+
+The Expert mining gloves effect now also works when mining Amethyst - giving a chance for the rock to avoid depleting.
+
+
+{{Horizontal Line}}
+
+{{Headline|22|Chambers of Xeric Changes}}
+
+
+This update brings the last of the changes from the Chambers of Xeric blog we published last month. Although that blog proposed an update to the energy wells in the Chambers, that wasn't so well received, so we're not proceeding with it for now. It can be polled in future if players do turn out to want it. We're also no longer pushing the idea of Xeric's Wards, the items that would earn you the right to avoid an undesirable boss room, at least for now.
+
+However, players did make some additional requests in response to the blog. In particular, we'd like to adjust how the Chambers of Xeric scales its NPCs' combat stats and points to suit each party. The current behaviour is to look at the average combat stats of the party members. This has led to parties being disadvantaged if a pure member drags down their averages. We'd like to change it so that it looks at the highest combat stats of any party member, rather than the average ones. For solo trips this won't make a difference, but mixed parties will no longer be so disadvantaged by including pures. That change hasn't been ready for this week's update, but we hope to launch it in early March.
+
+[[File:QoL and CoX Changes (4).png|center|111px]]
+
+
+'''The Ice Demon'''
+
+The following changes have been made to improve the experience of facing the Ice Demon room within the Chambers of Xeric:
+*Trees found within the Ice Demon room in Chambers of Xeric are now less likely to fall
+*Players will now receive more wood than before when successfully chopping trees within the room based on Woodcutting level
+*As trees in CoX can now give more wood than before, the Woodcutting XP gained per item of kindling has been reduced slightly
+*The Ice Demon’s defences are now lower than before and its magic defence behaviour has also been changed, making it weaker to spells overall including it's additional weakness to fire spells
+
+'''Other'''
+*In Challenge Mode, the 5k bonus points are now added to the team's reward
+
+
+{{Horizontal Line}}
+
+{{Headline|22|Premier Club Gold Ending Soon!}}
+
+
+[[File:QoL and CoX Changes (5).png|center|350px]]
+
+
+Premier Club 2019 Gold membership will be no longer available after Sunday March 3rd, at 23:59 Game Time. Don't miss the chance to get our best value membership offer while you can if you haven't already!
+
+
+{{Horizontal Line}}
+
+{{Headline|22|In Other News}}
+
+
+'''Pures:''' The forum thread for posting your details regarding unwanted XP gained after last week's update has been closed. We are still investigating ways to fix the issue for affected accounts - we will give updates on the situation as it develops.
+
+*Clan Wars and Pest control no longer reset the player’s autocast spell when they leave
+*Items which are “Never protected” on death, such as Bounty Hunter Emblems, will now also be lost on death when noted
+*Players may now toggle fake XP drops in the "Configure XP Drops" interface
+*It is now possible to break rings of forging to reset their charges back to 140 without having to use the ring up fully for it to break. It now works the same way as rings of recoil and the Slayer bracelets work
+*Konar will no longer assign Black, Red, Blue or Green dragons within the Kourend Catacombs if the player has under 100 combat
+*Konar will no longer assign Fire giants in the Waterfall Dungeon to players who haven't yet completed the Waterfall Quest
+*A bit of wall sticking out of one of the Skeletal Mystic's rooms in the Chambers of Xeric has been removed
+*Tweaks to the Vanguard’s reset mechanic have been made to ensure they are reset correctly
+*An issue where mobile users who had connection issues while logging in and were not recognised to have a username has been addressed
+*Fully Grown Oak trees grown in the farming guild now have their foliage
+*Damage is no longer taken from bloated swamp toads placed by other players
+*A stray block tile at Brutal Black Dragons was removed
+*Clarity was added to the Desert Diary task for Dust Devils
+*A typo in Konar’s hints was fixed
+*A typo in the Falador party room was fixed
+*The AOE sound from the Electric Hydra pet was removed
+*The weight of the Wreath has been reduced from 5KG… it’s just a few leaves
+*A message relating to Gricoller’s Watering Can was fixed
+*The message for being protected from a Drake’s breath by an antifire potion was added to the game filter
+*The Rune pouch is now also given first when withdrawing from gravestones, similar to armour. This does not affect UIM
+
+{{Horizontal Line}}
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,551,66086272 official forums], the community-led [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the '''#gameupdate''' channel. For reference on the above content, check out the official [[Wiki]].
+
+'''''Mods Acorn, Archie, Ash, Bruno, Curse, Ed, Gambit, Ghost, Gee, Kieren, Lenny, Lottie, Mat K, Maz, Nasty, Roq, Ry, Sween, Tide, Weath, West & Wolf'''''<br/>''The Old School Team''

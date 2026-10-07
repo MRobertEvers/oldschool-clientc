@@ -1,0 +1,226 @@
+{{Update|date=14 May 2018|link=http://services.runescape.com/m=news/theatre-of-blood-progress-update?oldschool=1|category=website}}
+[[File:Theatre of Blood- Progress Update newspost.png|right]]
+{{clear}}
+
+{{Headline|25|Theatre of Blood: Progress Update}}
+
+
+<center>''It's been two months since we announced the Theatre of Blood and the team have been hard at work to get everything finished ready for its release on the 7th June!''</center>
+
+{{Horizontal Line}}
+
+On September 23rd, 2017, as part of the Old School RuneScape reveals section during RuneFest, we announced the Theatre of Blood - a linear progression raid challenge located in the Sanguinesti region, East of Meiyerditch, that emphasises on the need for teamwork.
+
+[[File:Theatre of Blood- Progress Update (1).png|center|700px]]
+
+Since then the team have been hard at work, ensuring the Theatre is at its absolute best for when it '''releases later this year on the 7th June'''. Just before then, on the '''24th of May''', the accompanying quest ''''A Taste of Hope' will release'''. This blog will detail some of the work individual members of the team have been doing on the project.
+
+{{Horizontal Line}}
+
+{{Headline|22|Development Team}}
+
+'''''Mods Kieren and Ash''''' ''are the main content developers on the Theatre of Blood. Ash talked us through the content development work that he and Kieren have been doing...''
+
+'''What's your overall involvement in the project/what responsibilities do you have?'''
+
+As Content Developers, Mod Kieren & I are doing the programming for the Theatre. Making the doors take you where you ought to go, making the bosses perform their animations and apply their damage, making the menu buttons do their thing, updating the head-up displays, etc.
+
+Kieren is also the project lead. In the earliest stages of the project, Kieren chaired the design meetings (including an awesome one in the pub), taking all the team's ideas and turning them into confirmed designs for what we're going to put in the Theatre. He also worked with our managers to identify who's the target audience of this update, how many of them we can hope to see participating, etc. Since development began, Kieren has coordinated the efforts of everyone who's working on the project in any capacity. It's a pretty big project to coordinate, in fact. We've got him and me as programmers, plus '''Mod Ed''' doing A Taste of Hope on the side, '''Mods Ghost & Ry''' producing GFX with '''Mod West''' joining them next week, '''Mod Curse''' leading the testing and coordinating group playthroughs, '''Mod Ayiza''' preparing the blogs, polls and handling the community feedback, '''Mod Stone''' running the advert campaign - which also requires GFX from Mod Ghost - and '''Mods Ian and Surma''' creating music tracks and sound effects. Kieren has to track what we're all working on, and what we need from each other to do it, and coordinate it so that all our work fits together efficiently.
+
+Within the programming work, Kieren's programmed most of the climactic fight against Lady Verzik, the Maiden whom you've seen on livestreams, and the reward items. Meanwhile I've programmed three of the other bosslets, plus the infrastructure code that forms parties, moves them from room to room, generates the terrain, draws the head-up display, tries to resynchronise people who log out mid-wave, and tracks the elapsed time of each wave 'cos players like data. Mod Ed will join us when he's completed A Taste of Hope to add even more combat content.
+
+[[File:Theatre of Blood- Progress Update (2).png|center|700px]]
+
+'''How is progress coming along?'''
+
+It's been a heavy job, especially as other work occasionally comes along when bugs need fixing in the live game etc. In fact, progress felt incredibly small at first, since I was working on the underlying infrastructure framework for over a month before we could even plug a playable room into it. However, once the infrastructure was there, Kieren & Ed and I became able to work on different rooms concurrently, plugging them into my infrastructure very quickly without tripping over each other. From that point, progress started feeling much faster because we were now producing playable content - it's always more satisfying to see results like that, and to watch colleagues getting killed by it.
+
+Most of the challenge rooms are now playable already, even if one of them still uses placeholder GFX while the artists work on the real artwork, and we're confident there'll be a fittingly epic package to launch on Thursday 7th June.
+
+'''How do you go about producing your work?'''
+
+When we start programming a room, the artists will still be working on the GFX for the creatures and their environment. That's okay, though. We can map ourselves a blank bit of terrain that's the size we want, and use an existing NPC model scaled up as a placeholder for the boss, allowing us to put code together immediately while the artists finish their work.
+
+[[File:Theatre of Blood- Progress Update (3).png|center]]<center>''The above image is an example of how placeholder graphics can be used to allow the developers to put code together immediately while the artists finish their work.''</center>
+
+Programming a room usually starts by making the boss spawn or activate when players cross the threshold, plugging the room's custom code into the Theatre's infrastructure in the "players crossing threshold" section.
+
+Having begun the fight, we'd implement each mechanic that the room can use, plugging things into the Theatre's game tick cycle when appropriate, and calling the Theatre's head-up display scripts whenever the boss changes its health, etc.
+
+Finally, when the room is defeated, we'd call the Theatre's code that does all the work for updating the head-up display, outputting the elapsed fighting time, allowing players out of the arena, respawning anyone who died during the wave and unlocking the passage to the next challenge.
+
+We'd likely do this all with the placeholder graphics, so it'd look a bit lame, but it would let us play through the content and see if it feels fun and challenging. This means that we'd write our code so that it's easy to plug in the real graphics later. For example, if we'd used a human model as the placeholder GFX for a boss, instead of writing its death code to play the [human_death] animation specifically, we'd tell it to play "whatever animation is specified on the NPC's 'death_anim' parameter"; plugging in the real animation would then involve changing the parameter in a data file without having to edit the code at all. Similarly, rather than referring to specific coordinates in the code, we'd refer to static constants so that we can edit those in the data files without having to edit the code again.
+
+[[File:Theatre of Blood- Progress Update (4).png|center|700px]]
+
+Once the GFX arrive, we'd then substitute them in wherever we'd got placeholders before, check that the room still works, and pass it over to Mod Curse to arrange functionality testing and group play-tests.
+
+'''What are you currently working on? What will you be working on next?'''
+
+Kieren is finishing off Lady Verzik's fight, and will then move onto the remaining reward item code. Meanwhile I'm shepherding the challenge rooms I've written through the testing & balancing process, fixing issues and tweaking the combat as requested, and around that I'll be working on giving out rewards and supplies. Ed's doing the final polish work on A Taste of Hope, and will then write some more combat for the Theatre itself.
+
+'''What's the most enjoyable thing in the project you've worked on to date?'''
+
+I've got a personal fondness for menu work, and I'm rather pleased with the menus I've put together for applying to join a party and letting its owner review your combat stats and kill-count before accepting or rejecting you. It'd have been nice to spend more time adding even more elaborate features, but I needed to move on to the Theatre's playable content. Perhaps it'll be possible to add more functionality later on.
+
+[[File:Theatre of Blood- Progress Update (5).png|center]]
+
+Kieren's not here to ask just now, but I think he had a very fun time designing the Verzik fight. She's not nice. He was in the office through some remarkably late nights inventing innovative ways to make her mess you up.
+
+'''What challenges have you faced that you weren't expecting during the project?'''
+
+One day, Kieren found that the minimap in Lady Verzik's room had lots of ladder icons on it, even though the ladder icon was not associated with the scenery in the room.
+
+The two of us spent a while investigating it, liaising with the tools developers to see if our map editor had malfunctioned, and eventually noticed that the Theatre's development branch now had about 32,800 scenery pieces defined, up from about 32,400 in the live game. (A scenery piece is any entity that can appear in an environment, whether it's a bunch of daisies or a door.) Those numbers are suspiciously close to 32,768, which is a power of 2.
+
+We theorised that, just as the game can't handle coin stacks of 2,147,483,648 (2 to the power of 31), it similarly can't handle 32,768 scenery piece definitions (that's 2 to the power of 15). We identified the ID of the floor piece in Verzik's room that was erroneously showing a ladder icon, and found that its ID was precisely 32,768 higher than the ID of a real ladder. That explained the ladder icon - the new scenery pieces were inheriting the behaviour of old scenery pieces that had IDs 32,768 lower.
+
+Having hit this problem, we approached Mod Atlas from the engine team to request his help. He confirmed our diagnosis, and confirmed with management that raising this limit for OSRS was more urgent than the other work he'd been due to do. Over the subsequent week, he was able to rework the engine's handling of scenery to let us define more scenery pieces. That wasn't an insignificant change, and it needed considerable testing from Mod Wolf and Mod Noldor's team of tech QA staff, but it needed doing if OSRS was going to be allowed any more scenery ever again.
+
+While Mod Atlas was working on that, we did need to continue developing the Theatre. As a stop-gap measure, we deleted a lot of old scenery from the Theatre's development stream - specifically a big file defining hundreds of decorative plants - to free up their scenery IDs, then re-introduced the Theatre's new scenery. This made the Theatre's scenery take the scenery IDs of the deleted plants, all of which were well below 32,768 because they were defined years ago. We then re-introduced the plants to the development stream, whereupon they got the high scenery IDs over 32,768 that the Theatre was previously using. By doing that shuffle, all the Theatre's scenery would function correctly with its new low IDs, and the plants would stop working because they had high IDs. We couldn't have launched it like that, since the broken plants could mess up lots of map areas, but it meant we could keep working on the Theatre while the engine work was in development.
+
+''After closing things with Mod Ash, we went to see what the rest of the team were up to...''
+
+{{Horizontal Line}}
+
+'''Mod Ed''' has had two main roles in this project - design and development. The design role is one that has been shared with '''Mod Archie'''. While Archie has focused on the mechanics of the Theatre, Ed has worked on the backstory. In regards to development, Ed's focus has been on the accompanying quest, 'A Taste of Hope', which '''releases on the 24th May''' with the following requirements:
+
+[[File:Theatre of Blood- Progress Update (6).png|center]]
+
+The quest is in the last week of development, meaning it will soon be ready for an internal playtest with the team. Once feedback from that has been implemented, it will be ready for release. When developing the quest, it was broken down into sections which get worked on one at a time. This quite often means that sections don't get worked on in the order they are played. For example, Ed has already finished the final boss fight before working on some of the earlier sections.
+
+[[File:Theatre of Blood- Progress Update (7).png|center|700px]]
+
+When the quest is completed, Ed will be moving on to work on one of the challenge rooms for the Theatre itself.
+
+''Did you know that for this project Mod Ed wrote backstories for each of the rewards? This isn't something we've really done before but anything that involves working on story is what he enjoys the most. Luckily, that's mostly what he's been working on for this project!''
+
+{{Horizontal Line}}
+
+{{Headline|22|Development Team}}
+
+'''Mod Ghost''' is working on creating the boss character models that will be featured throughout the Theatre of Blood. He has already finished the Nylocas, which is also the most enjoyable part of the project he's worked on so far.
+
+<center>[[File:Theatre of Blood- Progress Update (8).gif|233px]][[File:Theatre of Blood- Progress Update (9).gif|233px]][[File:Theatre of Blood- Progress Update (10).gif|233px]]<br/>''Did you know each of the 3 Nylocas, while similar, have their own unique aesthetics, attacks and death animations to reflect their combat style?''
+</center>
+
+His focus for the last 3 weeks has been working on Lady Verzik and is pleased to be coming to the end of what has been a very demanding task. Once finished, his focus will move on to Sotetseg's animations. Lady Verzik is a truly unique boss and Mod Ghost has been pulling out all the stops to make it something that players are going to remember for quite some time. When trying to create something in-game that has never been done before, you're bound to run into problems. With Lady Verzik, Mod Ghost reached the engine's poly limit (4096), polygon label limit (245), animation skeleton joint limit (254) AND NPC height limit. This meant that he's had to frequently innovate to work with the game's technical restrictions.
+
+[[File:Theatre of Blood- Progress Update (11).gif|center|350px]]
+
+When asking Mod Ghost about his approach to designing Lady Verzik, he responded with the following:
+
+"I always consider the design specifications and lore outlined in a character's design brief. From there I then consider what form the character should take on to best articulate this information.
+
+In most cases I will do an image search to find real life references which help inspire me when I create the boss models, but Lady Verzik was an exception. I wrote a concept art brief which I forwarded to RuneScape's Lead Concept Artist, Mod DBarker, who created a series of concepts which I could draw inspiration from instead.
+
+With this I was able to model a basic wireframe of Lady Verzik live on a [https://www.twitch.tv/OldSchoolRS twitch.tv/OldSchoolRS] Design Stream and continued developing the model the following week in between other tasks.
+
+Next, I built a skeleton for Verzik's model in our animation tool and began to experiment with poses to see the range of movement available to me. I created a series of single frame poses to experiment with how Verzik's personality could be expressed through movement. Some of these poses would later be developed into complete animations.
+
+As Verzik sits on a throne, I had to create this as a separate asset and join it to her character model so that she could be animated whilst seated. I also had to create models for Verzik's spells, which were also joined into her model and added to her skeleton.
+
+With Verzik, her throne and spell models all joined as a single graphical asset, the poly count reached the maximum limit of 4096 polys exactly, which is the maximum number of polys one of our NPCs can have.
+
+I then had to create 2D reference images and gifs of Verzik's completed models and write a briefing of her personality and physical attributes for our Creative Services team. The images and information have been used for publishing and marketing purposes.
+
+I then completed all of Verzik's animations and submitted the completed assets to the project's Content Developers to plug into the boss encounter. Beyond this I will need to fix any bugs with the assets that are picked up between now and the end of Quality Assurance and Balancing."
+
+[[File:Theatre of Blood- Progress Update (12).gif|center|350px]]
+
+{{Horizontal Line}}
+
+'''Mod Ry''' has been working on the environment used throughout the Theatre of Blood, and whilst he's helped create a few weapons and items here and there, his priority has been creating an epic backdrop to some really unique and fascinating bosses, as well as expanding Morytania to finally fill in those pesky black map squares.
+
+[[File:Theatre of Blood- Progress Update (13).png|center|700px]]
+
+Progress is coming along nicely, and he's currently working on a bit of a surprise that he refuses to reveal any information on. The new areas of Morytania are looking fantastic (thanks to Mod West for lending a hand in the creation of Slepe!) and the Theatre itself is easily one of his favourite places in game now.
+
+After finishing working on his "super-secret" thing, Mod Ry will move onto the remaining reward models which are the Avernic Defender and the Ghrazi Rapier. If you'd like to suggest any designs or concepts, feel free to throw them his way - he may be able to incorporate them into the final design ([https://twitter.com/JagexRy @JagexRy] on Twitter, ''#shamelessplug ...'')
+
+[[File:Theatre of Blood- Progress Update (14).png|center|700px]]
+
+When asking Mod Ry what the most enjoyable thing he's worked on in the project to date, he replied with:
+
+"There isn't really one stand-out aspect of this project that I've enjoyed the most. With the Theatre of Blood, we've attempted to push hard with the level of innovation and quality that we're able to achieve in Old School and we're almost at a stage now where it feels like we're pretty much nailing it. That alone has made this easily the most enjoyable project I've worked on since I joined the Old School team and I can't wait to put what we've learned over the last few months to use in future content!"
+
+{{Horizontal Line}}
+
+'''Mod West''' started working on the project after a fair amount of work had already been done (lucky him!). That being said, he's helped make a few of the reward items - most namely the Justiciar armour, substantial portions of the new overworld areas such as Slepe, which is introduced alongside 'A Taste of Hope' and any graphics needed for the quest 'A Taste of Hope', ''including a rather ugly NPC''.
+
+[[File:Theatre of Blood- Progress Update (15).png|center|700px]]
+
+The town of Slepe started off as a miscellaneous design for a Morytainian town that Mod West made during TAPP time, from which he started building on one of the many design streams featured on [https://www.twitch.tv/OldSchoolRS twitch.tv/OldSchoolRS]. Since then he's added a fancy stone wall kit and fused it with the Canifis wall kit to create a rather unique looking town which he's very much looking forward to you all exploring its' nooks and crannies.
+
+Whilst it's nearing completion, it still needs a variety of interesting characters and some other lore titbits adding, as we know there are many of you out there who care for that sort of thing. Expect references to incredibly obscure pop culture and a boat load of inspiration from some of Mod West's favourite authors like GRRM and HP Lovecraft.
+
+[[File:Theatre of Blood- Progress Update (16).png|center|700px]]
+
+Once Slepe is done, West will be doing some polishing up of the animations featured during 'A Taste of Hope', after which he'll be entering the Theatre of Blood and crafting an environment to house a rather sleepy monster.
+
+When asking Mod West what the most enjoyable thing he's worked on in the project to date, he replied with:
+
+"Creating the Justiciar armour, while intense, was an interestingly fun thing to do. Making BiS items is always a fun challenge and I'm all for keeping the community involved to assure that the final items are what they want. It has been a rather enjoyable experience watching the community come together - it even got some media attention, so I suspect it was as interesting to those outside as it was to me, which is astounding that even the process in making something for this game can be an entertaining and interactive experience. I could talk about this armour set until the end of days, but the reaction we received when releasing early design concepts was an unexpected one. By that I don't mean the feedback and the back and forth, that's expected in these strange cases, but the number of artists that pitched in was something to behold."
+
+[[File:Theatre of Blood- Progress Update (17).png|center|700px]]
+
+{{Horizontal Line}}
+
+{{Headline|22|Audio Team}}
+
+'''Mods Ian and Surma''' have been busy creating all the music and sound effects featured throughout the Theatre of Blood. Ian has recently finished the boss combat music for The Maiden and Mod Surma has been beavering away at some epic battle music used in 'A Taste of Hope'. The songs are coming thick and fast they're well into the "flow" of writing tracks now.
+
+The next task is to create the theme used for Sotetseg, and then it will be a choice between another boss room or Lady Verzik - whichever they feel more inspired to do first!
+
+When asking Mod Ian and about how he produces his work and what he's enjoyed the most whilst working on the project, he said:
+
+"There are many ways of approaching writing music and we have our own ways of working but achieve similar results. The most important thing when writing music is to get a good feel for the content and be absorbed in it, both in terms of atmosphere and creativity.
+
+There are a lot of cool bosses and environments that makes our job much easier and rewarding. Vampire themed content in particular is always cool to work on because you can get very creative and use some darker, more moody chords and melodies. My personal favourite song so far is the atmospheric piece for the Maiden but I am looking forward to doing the music for Lady Verzik."
+
+The Theatre of Blood and 'A Taste of Hope' have a very large number of music tracks, amongst the largest number written for a single piece of stand-alone content in Old School RuneScape!
+
+{{youtube|wUbu8H5_XUw|height=315|width=560}}
+
+{{Horizontal Line}}
+
+{{Headline|22|QA Team}}
+
+'''Mod Curse''' has been the lead tester on the Theatre of Blood and it's been his job to ensure the content is enjoyable, bug free and balanced. He's also had the ''less exciting job'' of keeping all documentation, test cases and information regarding the project up to date. This allows others to quickly find information on a specific section of the project.
+
+Curse is currently working on testing the death system, the dungeon infrastructure and balancing of the boss encounters. In addition to that, he's planning and executing various multiplayer playtests for internal raiders (also known as staff, but internal raiders sounds much better) to see their reaction and adaptation to the content as the encounters progress. This allows us to get a feel for the raid and helps better understand how players might adjust to certain mechanics, which in turn makes it easier to balance and determine enjoyment, as well as notice any points of frustration.
+
+After finishing the above tests, it'll be time to move on to testing the mechanics of the final boss and the balancing of it, as well as several bugfixes.
+
+[[File:Theatre of Blood- Progress Update (18).png|center|700px]]
+
+When asking Mod Curse what the most enjoyable thing of the project he's worked on to date, he replied with the following:
+
+"It's difficult to pin point any specific one thing that I have worked on as I have to play through and test every single piece of content that gets added, but as always from any perspective, watching placeholder bosses in placeholder environments transition into their new homes with their graphics makes it all enjoyable. It is also enjoyable watching other people interact with the content when keeping the same point in mind."
+
+{{Horizontal Line}}
+
+{{Headline|22|It's Competition Time!}}
+
+Every time we run a log in screen competition, the Old School community blows us away with their creativity and talent. Once again, we want to see what you can conjure up!
+
+We are looking for a log in screen which truly encompasses the Theatre of Blood. If you are looking for inspiration, be sure to check out some of the following:
+
+*Our recent Theatre of Blood design streams ([https://www.youtube.com/watch?v=8idFQzkb11s 1], [https://www.youtube.com/watch?v=o3jG9hbZDv4 2], [https://www.youtube.com/watch?v=BRlIuw9964c 3])
+*Mod Ghost's boss [https://www.youtube.com/watch?v=lNdB-joDSQU design stream]
+*[https://imgur.com/a/nr0LyWV These screenshots] from the Theatre of Blood and its surrounding areas.
+
+The Old School log in screen works by taking [https://i.imgur.com/fFl9tg5.jpg this image] and mirroring it. The submission must be a .jpg, like the linked image. It must also be the same size. The flames and other window boxes will be placed on top of it in the positions they currently adopt in game, they can't be shifted down or sideways. The image is automatically mirrored.
+
+Submissions should be sent to [mailto:oldschoolcommunity@jagex.com oldschoolcommunity@jagex.com] and must:
+*Include "log in screen" in the subject of the email
+*Have your design attached as a JPG
+*Include your RuneScape display name in the body of the email
+
+The deadline for the log in screen competition is '''Thursday 31st May'''. The winner will be selected and will be announced with the game update on Thursday 7th June. In addition to seeing your log in screen in game, the winner of the competition will also receive 12 months of membership on an account of their choice and an exclusive Old School goodie bag!
+
+{{Horizontal Line}}
+
+Excited? Get involved on Twitter using '''#TheatreOfBlood''', discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,484,66012132 official forums], the community-led [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the '''#gameupdate''' channel.
+
+'''''Mods Archie, Ash, Ayiza, Curse, Ed, Ghost, Jed, John C, Kieren, Lottie, Mat K, Maz, Roq, Ry, Stone, Sween, Weath, West & Wolf'''''<br/>''The Old School Team''

@@ -1,0 +1,242 @@
+{{Update|date=10 August 2021|rev=14 October 2021|link=https://secure.runescape.com/m=news/tombs-of-amascut-raid-rewards?oldschool=1|category=community}}
+[[File:Tombs of Amascut- Raid Rewards newspost.png|right]]
+{{Clear|right}}
+
+<center>We've made some changes to the proposed Tombs of Amascut rewards since our first blog.</center>
+
+Whilst the bulk of the detail in this blog is the same as it was with the original, we have made various changes to the proposed rewards based on your feedback. Check out the handy summary below and read on to find out more!
+
+We're delighted to announce that you'll have the opportunity to test all of the new rewards in an upcoming Beta which goes live on October 20th!
+
+{{ToC}}
+{{Clear}}
+{{Collapsed section|18|Click here to see the main changes from the previous blog.}}
+;Masori Chestplate Changes
+* Ranged attack increased from 30 to 33
+* Stab defence increased from 12 to 37
+* Slash defence increased from 8 to 35
+* Crush defence increased from 15 to 38
+* Magic defence increased from 6 to 25
+* Ranged defence increased from 13 to 33
+* Prayer bonus increased from 0 to 1
+* Additional effect added of 3% dodge chance when affected by low life.
+
+;Masori Chainskirt Changes
+* Ranged attack increased from 18 to 20
+* Stab defence increased from 6 to 26
+* Slash defence increased from 4 to 24
+* Crush defence increased from 9 to 29
+* Magic defence increased from 4 to 19
+* Ranged defence increased from 8 to 22
+* Prayer bonus increased from 0 to 1
+* Additional effect added of 3% dodge chance when affected by low life
+
+;Masori Amulet Changes
+* Removed all melee and Magic accuracy
+* Prayer bonus increased from 0 to 1
+* Ranged strength increased from 0 to 3
+* Low life Ranged strength decreased from 7 to 4
+* Removed all non-Ranged lowlife effects.
+
+;Additional Changes
+* Updated the requirements for masori gear to be 80 Ranged, 30 defence, 70 hitpoints, to match its new bonuses.
+* Osumemtens<!--{{sic}}--> Khopesh re-themed to Osumumtens Fang and changed category to a Stab weapon.
+* Created a new weapon category for the Keris Parisan that has a Strength training method via the Aggressive option.
+* Lowered the equip requirement of the base Keris Parisan to 70 Attack.
+* The broken version of the Ward of Elidinis is now equippable, with appropriately weaker stats.
+* Heka of Tumeken Magic requirement increased from 84 to 85.
+* Heka of Tumeken Magic base max hit of the fast attack increased by 1.
+{{Collapsed section end}}
+
+==The Tombs of Amascut==
+Long ago, the citizens of the Kharidian Desert lived prosperous and luxurious lives thanks to the benevolence of the Gods of the Menaphite Pantheon. However, that all changed when Amascut, the Goddess of Rebirth, was corrupted. Warped into the Devourer, she became intent on devouring every soul in existence.
+
+Her brother, Icthlarin, along with her former High Priestesses have since been fighting tirelessly against Amascut, in a bid to negate her destructive efforts.
+
+After years of plotting, Amascut has finally found a way to overcome the efforts of Icthalarin and his allies.
+
+Deep within the desert, an ancient pharaoh called Osmumten lies buried. His tomb has long hidden a great power. It is this great power that Amascut seeks, and if she can lay her hands on it she will become unstoppable.
+
+'''You''' must take the fight to Amascut before it's too late.
+
+[[File:Tombs of Amascut- Raid Rewards (1).png|900px|centre|thumb|''Sketches and references for the Tombs of Amascut. Click to see it in more detail. '''This is concept art and may not be representative of the final appearance of the Tombs!''''']]
+
+==The Raid==
+Let's dig in to what you need to know about the Tombs of Amascut:
+* Groups of up to eight participants.
+* Four initial challenges, followed by two final bosses to be fought in a twin boss encounter.
+
+Invocations will allow for customisable difficulty, which will also impact your loot potential!
+* Invocations will replace standard difficulty systems, like the ones used in other raids.
+* Each Invocation will affect the raid or your group in different ways.
+* Some Invocations can affect the health, defence, or damage modifiers for the enemies within the Raid.
+* Other Invocations might impose group restrictions, like reducing the amount you can heal or prohibiting certain spells.
+* We intend to be quite creative with these modifiers. The above examples are fairly simple and safe, with the intention to provide early insight into their impact for this blog, but we'd like to experiment with different ideas that might drastically change things.
+
+On entering the Tombs of Amascut you will encounter four paths:
+* The upper level of the Tombs will consist of four paths, each ending in a boss.
+* Each path is comprised of its own series of challenges to be overcome.
+* These challenges are more akin to puzzles rather than killing a single entity, like a boss.
+* These can range from things like traps with Sepulchre-like dodging, or defeating new foes in unconventional ways.
+* Once you reach the end of a path, you'll then fight the boss of that path in a more conventional combat encounter.
+* The raid will be altered in some way with the death of each boss, changing the remaining boss encounters.
+* This means that the path order you choose will matter!
+
+Defeat the four bosses to descend to the lower levels:
+* Once you defeat the first four bosses you'll unlock the lower level.
+* You'll enter a chamber containing the two ancient guardians of the Tombs.
+* These guardians need to be fought at the same time.
+* Defeat the guardians to drive Amascut from the tomb and claim your rewards!
+
+We'll discuss the rewards a bit later, but first let's talk about how you might access the Tombs of Amascut.
+
+==Beneath Cursed Sands==
+The Tombs of Amascut will be our most narratively-driven Raid yet, and no narrative is complete without a quest!
+
+''When Sophanem was beset by a series of plagues, the gates to the golden city of Menaphos quickly closed. The city has been locked down ever since, with no one allowed to leave or enter. However, rumours have escaped of strange happenings inside Menaphos and there are stories of citizens mysteriously disappearing.''
+
+''These odd happenings need to be investigated, but few are willing to do so. Maisa, a spy from Al Kharid, has grown tired of inaction. She is determined to solve this mystery herself, but she won't be able to do it alone...''
+
+* Beneath Cursed Sands is a Master-level quest which will advance the desert storyline.
+* In this sequel to Contact! You'll find yourself investigating mysterious disappearances from Menaphos, the city of gold. ''Note: Menaphos will not be opening its gates just yet.''
+* Solving this mystery will grant you access to the Raid itself.
+* We're aiming to release the quest before the Raid to give you ample time to ready yourself!
+
+{{Collapsed section|18|Requirements & Rewards (SPOILER WARNING!) - click to expand}}
+Being a Master-level quest, there are naturally some mid-level requirements to meet:
+* Completion of ''Contact!''
+* 62 Agility
+* 55 Firemaking
+* 55 Smithing
+
+Upon completion you'll be rewarded with:
+* 1 Quest Point
+* Access to the Tombs of Amascut
+* The ability to upgrade the Keris to the Keris Partisan
+* 15,000 Agility XP
+{{Collapsed section end}}
+
+==Tombs of Amascut: Rewards==
+Here's where we'd love to get your feedback. As with any rewards proposals, it should go without saying that nothing here is set in stone. Your feedback is going to be key in shaping what we're offering, and we really want to see what suggestions you have too! To make sure we see what you have to say, we'd invite you to do one of the following:
+* Join the [http://discord.gg/OSRS Official Old School RuneScape Discord server] and head to the #tombs-of-amascut channel in the Summer Summit area.
+* Use the '''#OSRSRaids''' hashtag on Twitter.
+* Reply to the [https://www.reddit.com/r/2007scape/comments/q7xer4/tombs_of_amascut_raid_rewards_updated_october_14th/ Tombs of Amascut Reddit thread] or make your own threads with '(Raids)' in the title.
+
+===Masori Equipment===
+''The Masori were a clan of powerful ranged users active during an ancient war which embroiled much of the Kharidian forces. They focused primarily on defending ordinary people from the violent thieves and murderers who sought to take advantage of the chaos caused by the war. The group has been long since disbanded, but their equipment can still be found amongst the palaces of wealthy Menaphites or among the treasures of long dead Pharaohs.''
+
+Before we discuss the Masori equipment, we'd like to introduce a new status effect, '''Low Life'''. A player is considered to be Low Life when below 40% of their maximum health.
+
+The Masori equipment consists of a helmet, chestpiece, legs, and amulet. Equipping the Masori items requires 80 Ranged, 30 Defence and 70 Hitpoints. The armour set will be the very first pieces of equipment in the game to utilise Low Life. When the player is in a state of Low Life and has the helmet, chestpiece and legs equipped, the equipment set will gain additional stats. This set effect provides additional accuracy and ranged strength for as long as you remain in Low Life (whenever you remain below 40% of your maximum health).
+
+In addition to the stat bonus offered when in a state of Low Life, the Masori helmet, chestplate and chainskirt also provide players with bonus dodge chance. Dodge is a stat that lets the player have a chance to completely avoid all damage from most sources. ''Various attacks like dragonfire or TzKal-Zuks ball attack cannot be dodged, but generally normal mage/Ranged/melee attacks can be.''
+
+The Masori amulet has an additional passive effect. When equipped, and not influenced by Low Life, you'll take damage equivalent to 15% of your current health at a rate of every three game cycles.
+
+Let's take a look at the stats:
+
+[[File:Tombs of Amascut- Raid Rewards (2).png|400px|centre]]
+
+[[File:Tombs of Amascut- Raid Rewards (3).png|400px|centre]]
+
+[[File:Tombs of Amascut- Raid Rewards (4).png|400px|centre]]
+
+[[File:Tombs of Amascut- Raid Rewards (5).png|400px|centre|thumb|''The Masori equipment. A potential reward from the Tombs of Amascut, introducing 'Low Life' and 'Dodge' to Old School.'']]
+
+We think this new equipment could lead to the emergence of innovative and interesting playstyles. The set effect offers a way to balance the introduction of new, powerful equipment without devaluing existing equipment which boasts defensive bonuses. Its Low Life effect will mean that it is extremely useful in some cases, but will fall short in other areas because of the need to maintain specific Hitpoints. Let's use Vorkath as an example. If you're 99 Hitpoints, you'd need to stay below 40 Hitpoints to keep its effect active. Whilst Vorkath's unavoidable damage doesn't hit as high as 40, you'll need to eat fairly often to keep above the highest possible hit to ensure you stay alive, making it both extremely difficult to maintain the Low Life effect.
+
+The addition of dodge chance also provides a new and unique effect by sacrificing static defensive bonuses for a small chance to entirely null most sources of damage. Where do you think this will be the most impactful? Let us know!
+
+===Heka of Tumeken and the Ward of Elidinis===
+''Tumeken was the God of Sun and Elidinis was the Goddess of Fertility. As husband and wife, they led the Menaphite Pantheon. Whilst Tumeken and Elidinis steered the people of the Kharidian Desert spiritually, it was the responsibility of the human Pharoah to rule the Desert. Osmumten was the last Pharoah to rule before the end of the ancient war. Osmumten fought alongside Tumeken against enemy forces. Tumeken sacrificed himself to end the war, and before Elidinis disappeared to mourn the loss of her family she gifted Osmumten with Tumeken's Heka and her own broken Ward.''
+
+The Heka of Tumeken is a wand-like magical weapon. Equipping the Heka will require 85 Magic. It has a built-in spell with charges which will need to be replenished, using one Soul Rune and three Chaos Runes per charge. The Heka has an attack rate of two ticks. Every fourth hit the Heka will fire a stronger attack which deals significantly more damage, albeit with a longer delay after the attack. We know that weapons with fast attack speeds scale harder with additional bonuses, like the Toxic Blowpipe. To offset this and to help make the Heka scale more similarly to other magic weapons, the standard faster attacks will only benefit from 50% of your Magic strength. The slower fourth hit will be much stronger, benefitting from 150% of your Magic strength bonus. Its attack range will be shorter than other staves too, with it being six rather than seven (casting with the long range setting will boost it to eight).
+
+For the min-max savvy players out there who like calculations, the following formulas should help with any theorycrafting you'd like to put together:
+* Standard fast attacks scale based on '''<nowiki/>'(Magic Level / 6) + 2'''' for the base max hit.
+* The slower fourth attack scales based on '''<nowiki/>'(Magic Level - 25) / 2'''' for the base max hit.
+* After this is calculated, any Magic strength from other sources is then applied.
+
+Let's take a look at the stats:
+
+[[File:Tombs of Amascut- Raid Rewards (6).png|400px|centre|thumb|''The Heka of Tumeken, a wand-like magical weapon.'']]
+
+The Ward of Elidinis will be the new best-in-slot magical shield. Players will get the broken Ward as a rare reward from the Tombs of Amascut. With 90 Prayer and 90 Smithing you'll be able to combine the broken ward with an Arcane Sigil and 10,000 Soul Runes to repair the Ward. Players without those stats will be able to pay Abbot Langley 20,000,000 GP to create it for them.
+
+Equipping the Ward will require 80 Magic, 80 Defence, and 80 Prayer. The broken Ward will be tradeable, whilst the fixed Ward will be untradeable. Players can dismantle the Ward to recover the Sigil and the Ward, but the runes will be lost. Dying in PvP will result in the Sigil and the broken Ward being dropped.
+
+Both the broken and fully repaired Wards can be equipped. Let's take a look at their respective stats:
+
+[[File:Tombs of Amascut- Raid Rewards (7).png|200px|centre]]
+
+[[File:Tombs of Amascut- Raid Rewards (8).png|200px|centre|thumb|''The Ward of Elidinis, a new best-in-slot magical shield.'']]
+
+===Lightbearer===
+''Ahmek was a powerful warrior who sought to capitalise on the chaos caused by the end of the ancient war. Ahmek crafted a powerful ring which he imbued with the unstable energy left behind from Tumekin's sacrifice. He hoped to use this ring to emerge as a new power in the region. By forcibly uniting thieves and mercenaries under his command, he planned to overthrow Osmumten. His plans proved fruitless, however, when the ring was stolen and he was murdered in his sleep. The Menaphite Guards claimed the ring from the body of the murderous thief, and dutifully presented it to the Pharoah.''
+
+The Lightbearer is a ring with no Attack, Defence, or Other bonuses. It does, however, have a very unique effect. When equipped, your special attack energy will regenerate 100% faster (approximately 15 seconds per 10%/150 seconds per 100%). Unequipping the ring will cause the timer to reset.
+
+We think that for the most part, you'll want to continue using rings like the Berserker ring. But there'll be some situations where the additional special attack rate will warrants its use. We think this ring will shine in places where kill times are longer, or where you'll want to use a special attack per kill (like Graardor, K'ril, Abyssal Sire etc) - or maybe even use it whilst Woodcutting or Fishing!
+
+===Osmumten's Fang===
+''Known to his people as Osmumten the Hunter, he was renowned for bringing down many of the land's deadliest beasts. During his hunts he wore armour and weapons crafted by the region's finest artisans. One such weapon was his Fang. Fang would eventually be buried with Osmumten.''
+
+Osmumten's Fang is primarily a Stab melee weapon which boasts accuracy comparable to the Elder Maul, and an Attack Speed of five. Equipping the Fang will require 82 Attack. We expect its damage-per-second output to be comparable to Rapier-tier weapons on opponents with low Defence, with much greater damage-per-second output on opponents with higher Defence.
+
+We'd like to introduce a new unique mechanic for the Fang. Other weapons will roll '''<nowiki/>'0 - max hit''''. The Fang will roll '''<nowiki/>'(max hit * 0.15) - (max hit - (max hit * 0.15))''''. This means that if the max hit is 60, its attack would roll between 9-51. This makes it a very consistent weapon which excels against high Defence targets.
+
+The Fang would also have a special attack which increases its max hit to its true max hit for one attack, as well as boosting its accuracy by an additional 50%. This means that if its max hit was 60, it would roll 9-60. This special attack will cost 50% special attack energy to use.
+
+Let's take a look at the stats:
+
+[[File:Tombs of Amascut- Raid Rewards (9).png|400px|centre|thumb|''Osmumten's Fang, a Stab melee weapon which boasts accuracy comparable to the Elder Maul.'']]
+
+===Keris Partisan===
+''Upon helping to '''[redacted]''' during the Beneath Cursed Sands quest, '''[redacted]''' will reluctantly reward you with an enhanced version of Keris, the spear-like Keris Partisan.''
+
+In addition to its Stab attack styles, the Partisan will have a Crush attack style, which should prove useful during the Tombs of Amascut and against other beetle-like enemies, like the Kalphite Queen. As the Keris Partisan is a spear-like weapon, it acts differently from normal spears. The main difference of the Keris is its Aggressive attack style that allows players to focus their combat experience on Strength. Equipping the Partisan will require 70 Attack.
+
+We'd like to try something slightly different with this weapon. The Partisan has a socket in which players can insert special jewels. These jewels are obtained as rare rewards from the Tombs of Amascut, and inserting these jewels into the Partisan will bestow different effects onto the weapon. You'll only be able to use one jewel at a time. These jewels will not be tradeable.
+
+We're still considering how we'd like to reward players with these jewels. They could be unlocked as a random drop, or given upon a certain number of Raid completions, or as a reward for killing bosses using specific methods. We're also considering whether they should be permanent one-time unlocks, or whether they should have charges. Naturally this would effect the rarity of the drop. We'd love to hear your thoughts on how they should be implemented!
+
+Let's take a look at the stats:
+
+[[File:Tombs of Amascut- Raid Rewards (10).png|200px|centre|thumb|''Keris Partisan, a spear-like enhanced version of Keris.'']]
+
+And here's a look at a few jewel buffs we're considering. Note that the effects apply only during the Tombs of Amascut.
+* The '''Eye of the Corrupter''' adds a damage-over-time effect to attacked enemies. You won't be able to stack this effect multiple times onto a single NPC but you will be able to apply it to multiple NPCs at any one time.
+* The '''Jewel of the Sun''' applies a debuff to attacked NPCs which causes them to take higher damage for a sustained period of time.
+
+In addition to effects that only apply within the Tombs, we're also considering how jewels can provide benefits throughout the whole of Gielinor. For example:
+* The '''Breach of the Scarab''' adds a 33% accuracy buff against Kalphites, Scarabs and Beetles.
+
+We think that the Partisan's upgrade system will allow for a strong sense of progression within the Raid itself, making it very useful in that encounter without encroaching on other gear elsewhere.
+
+==Concept Art==
+During the Summer Summit announcement (scroll to the top of this blog to watch it!) our artists discussed their approach to designing this content, and also teased you with sketches and concept art. Here are some of those sketches, helpfully unlabelled to keep you all guessing. And again, please note that '''''this is concept art and may not be representative of the final appearance of the Tombs, anything within, or its rewards!'''''
+
+{{Collapsed section|18|Click here to see the sketches.}}
+[[File:Tombs of Amascut- Raid Rewards (11).png|600px|centre]]
+
+[[File:Tombs of Amascut- Raid Rewards (12).png|600px|centre]]
+
+[[File:Tombs of Amascut- Raid Rewards (13).png|600px|centre]]
+
+[[File:Tombs of Amascut- Raid Rewards (14).png|600px|centre]]
+
+[[File:Tombs of Amascut- Raid Rewards (15).png|600px|centre]]
+
+[[File:Tombs of Amascut- Raid Rewards (16).png|600px|centre|thumb|''Concept art for Tombs of Amascut. These images may not be representative of the final appearance of the Tombs, anything within, or its rewards!'']]
+{{Collapsed section end}}
+
+----
+That's everything for this blog. We'd love to hear your feedback so please do...
+
+* Join the [http://discord.gg/OSRS Official Old School RuneScape Discord server] and head to the #tombs-of-amascut channel in the Summer Summit area.
+* Use the '''#OSRSRaids''' hashtag on Twitter.
+* Reply to the [https://www.reddit.com/r/2007scape/comments/q7xer4/tombs_of_amascut_raid_rewards_updated_october_14th/ Tombs of Amascut Reddit thread] or make your own threads with '(Raids)' in the title.
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Brow, Bruno, Con, Curse, Daizong, Deagle, Dibber, Ditto, Dylan, Ed, Elena, Ellie, Errol, Fed, Flippy, Gecko, Grub, Halo, Havik, Husky, Jndr, John C, Kandosii, Katies, Kieren, Kirby, KT, Kurotou, Lenny, Light, Lottie, Mack, Matheus, Maylea, Markos, Meat, Morty, Nasty, Nin, Nylu, Oasis, Peppers, Regent, Redfield, Roq, Ry, Sarnie, Sigma, Skylark, Sova, Squid, Steve W, Sween, Tide, Veda, Vegard, West, Wolfy & Zuko'''
+
+''The Old School Team''

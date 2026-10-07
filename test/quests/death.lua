@@ -9,6 +9,28 @@
 --
 -- Map sub-progress (%death_map bits 0-3): 1 saba, 2 tenzing, 3 smithy, 4 got_entrancecert,
 -- 5 given_cert, 6 given_supplies, 7 got_map, 8 scouted_area.
+--
+-- Door rule (docs/QUEST_ORCHESTRATOR.md, b62 re-drive): every goto departs from and lands on open
+-- ground outside; every closed space is entered and left by its own door, stair or stile, on every
+-- visit (static collision read with reach.py/comp.py, maps m44_55/m45_55/m44_56):
+--   * Burthorpe castle: the courtyard (x 2893-2904 z 3559-3566, the stone mechanism and the five
+--     balls) is behind castledoubledoorl/r 2898-2899,3558 (north edge of the gatehouse tile
+--     2898,3558); Eohric is upstairs by board_game_stairs_grey_base 2897,3566 (maplink.dbrow
+--     0_45_55_17_45 -> 1_45_55_17_49) and down by board_game_stairs_grey_top 2897,3567,1.
+--   * The Toad and Chicken (x 2905-2915 z 3536-3543): poshdoor 2907,3544 (south edge of the street
+--     tile), stairs 2914,3539 (maplink 0_45_55_34_18 -> 1_45_55_34_22) / stairstop 2914,3540,1,
+--     and Harold's room behind death_harold_door 2906,3543,1 (a walk-through door that knocks:
+--     death_doors_mechanism.rs2 [oploc1,death_harold_door]).
+--   * Tenzing: the fenced yard behind death_fencegate_l 2824,3555 (east edge; outside 2825,3555),
+--     the house behind death_sherpa_door 2822,3555 (walk-through, knocks until spoken_tenzing), the
+--     back door death_sherpa_backdoor 2820,3557 into a 58-tile backyard whose only other way out is
+--     the stile death_fullstyle 2817,3562. North of the stile the secret path joins Burthorpe only
+--     over death_climbingrocks 2880,3594-3595, which need climbing boots WORN (death_locs.rs2:40-58)
+--     and those cannot be worn before completion (death_locs.rs2:24-29): so the way back is the
+--     stile, the back door, the house and the gate again.
+--   * Dunstan's house behind poordoor 2921,3571 (north edge of the street tile 2921,3571).
+--   * The danger sign 2839,3595 is read from 2838,3595 on the main plateau path, in Burthorpe's
+--     walking component (reach.py 2825,3555 -> 2838,3595 REACH), not from the secret path.
 
 return {
     id = "death",
@@ -20,6 +42,16 @@ return {
         "::give iron_bar 1",
         "::give bread 10",
         "::give trout 10",
+        -- The trip out of Lumbridge is a real Falador Teleport (magic_spells.dbrow
+        -- [magic_spell_teleport_falador]: level 37, waterrune 1 + airrune 3 + lawrune 1,
+        -- tele_coord 0_46_52_21_50 = 2965,3378): Burthorpe lies past the members' gate
+        -- membergater 2935,3450, the only walk on foot (reach.py NEEDS-DOOR at 30/80/160).
+        -- Magic 37 makes the player combat 20; no quest_death dialogue branches on combat level
+        -- (grep "combat" over quest_death/scripts finds only death_archer_combat.rs2).
+        "::setlevel magic 37",
+        "::give waterrune 1",
+        "::give airrune 3",
+        "::give lawrune 1",
     },
 
     run = function(t)
@@ -47,7 +79,100 @@ return {
 
         local lr, lv, cr, cd, mr, mv, ur, ud
 
+        ------------------------------------------------------------ crossings (one place each)
+        local function in_courtyard(tile) return tile.x >= 2893 and tile.x <= 2904 and tile.z >= 3559 and tile.z <= 3566 end
+        local function in_harold_room(tile) return tile.x >= 2905 and tile.x <= 2907 and tile.z <= 3542 end
+        local function in_tenzing_house(tile) return tile.x >= 2819 and tile.x <= 2822 and tile.z >= 3554 and tile.z <= 3557 end
+
+        -- Burthorpe castle's front double door, from the street south of the gatehouse.
+        local function castle_in(name)
+            t.exec("goto-" .. name .. ".castleStreet", t.player.goto_tile, 2898, 3555, 0)
+            t.exec(name .. ".castleDoorIn", t.player.pass_door, { closed = "castledoubledoorl", open = "opencastledoubledoorl",
+                at = { 2898, 3558, 0 }, near = { 2898, 3558 }, far = { 2898, 3559 } })
+        end
+        local function castle_out(name)
+            t.exec(name .. ".castleDoorOut", t.player.pass_door, { closed = "castledoubledoorl", open = "opencastledoubledoorl",
+                at = { 2898, 3558, 0 }, near = { 2898, 3559 }, far = { 2898, 3556 } })
+        end
+        local function castle_up(name)
+            t.exec(name, t.player.climb, { loc = "board_game_stairs_grey_base", op = 1, op_name = "Climb-up",
+                at = { 2897, 3566, 0 }, dest = { 2897, 3569, 1 }, slack = 1 })
+        end
+        local function castle_down(name)
+            t.exec(name, t.player.climb, { loc = "board_game_stairs_grey_top", op = 1, op_name = "Climb-down",
+                at = { 2897, 3567, 1 }, dest = { 2897, 3565, 0 }, slack = 1, landed_ok = in_courtyard,
+                landed_desc = "the castle courtyard" })
+        end
+        -- The Toad and Chicken: its street door, its stairs and Harold's door.
+        local function inn_in(name)
+            t.exec("goto-" .. name .. ".innStreet", t.player.goto_tile, 2907, 3546, 0)
+            t.exec(name .. ".innDoorIn", t.player.pass_door, { closed = "poshdoor", open = "poshdooropen",
+                at = { 2907, 3544, 0 }, near = { 2907, 3544 }, far = { 2907, 3543 } })
+        end
+        local function inn_out(name)
+            t.exec(name .. ".innDoorOut", t.player.pass_door, { closed = "poshdoor", open = "poshdooropen",
+                at = { 2907, 3544, 0 }, near = { 2907, 3543 }, far = { 2907, 3545 } })
+        end
+        local function inn_up(name)
+            t.exec(name, t.player.climb, { loc = "stairs", op = 1, op_name = "Climb-up",
+                at = { 2914, 3539, 0 }, dest = { 2914, 3542, 1 }, slack = 2 })
+        end
+        local function inn_down(name)
+            t.exec(name, t.player.climb, { loc = "stairstop", op = 1, op_name = "Climb-down",
+                at = { 2914, 3540, 1 }, dest = { 2914, 3538, 0 }, slack = 2 })
+        end
+        local function harold_in(name)
+            t.exec(name, t.player.cross_gate, { loc = "death_harold_door", at = { 2906, 3543, 1 }, near = { 2906, 3543 },
+                far_ok = in_harold_room, far_desc = "in Harold's room, x 2905-2907 z <= 3542",
+                chat = { "mesbox:You knock on the door.", "npc:Come in!" } })
+        end
+        local function harold_out(name)
+            t.exec(name, t.player.cross_gate, { loc = "death_harold_door", at = { 2906, 3543, 1 }, near = { 2906, 3542 },
+                far_ok = function(tile) return tile.z >= 3543 end, far_desc = "in the inn's upstairs corridor, z >= 3543" })
+        end
+        -- Tenzing: the yard gate and the front door (it knocks until the map reads spoken_tenzing).
+        local function tenzing_in(name, knock)
+            t.exec("goto-" .. name .. ".tenzingLane", t.player.goto_tile, 2826, 3555, 0)
+            t.exec(name .. ".gateIn", t.player.pass_door, { closed = "death_fencegate_l", open = "death_openfencegate_l",
+                at = { 2824, 3555, 0 }, near = { 2825, 3555 }, far = { 2823, 3555 } })
+            local spec = { loc = "death_sherpa_door", at = { 2822, 3555, 0 }, near = { 2823, 3555 },
+                far_ok = in_tenzing_house, far_desc = "inside Tenzing's house, x 2819-2822 z 3554-3557" }
+            if knock then
+                spec.chat = { "mesbox:You knock on the door.", "npc:No milk today!", "player:I'm not the milkman",
+                    "npc:Oh...OK. You'd better come in then." }
+            end
+            t.exec(name .. ".doorIn", t.player.cross_gate, spec)
+        end
+        local function tenzing_out(name)
+            t.exec(name .. ".doorOut", t.player.cross_gate, { loc = "death_sherpa_door", at = { 2822, 3555, 0 }, near = { 2822, 3555 },
+                far_ok = function(tile) return tile.x >= 2823 end, far_desc = "in Tenzing's yard, x >= 2823" })
+            t.exec(name .. ".gateOut", t.player.pass_door, { closed = "death_fencegate_l", open = "death_openfencegate_l",
+                at = { 2824, 3555, 0 }, near = { 2824, 3555 }, far = { 2826, 3555 } })
+        end
+        -- Dunstan's house, from the street south of it.
+        local function dunstan_in(name)
+            t.exec("goto-" .. name .. ".dunstanStreet", t.player.goto_tile, 2921, 3569, 0)
+            t.exec(name .. ".doorIn", t.player.pass_door, { closed = "poordoor", open = "poordooropen",
+                at = { 2921, 3571, 0 }, near = { 2921, 3571 }, far = { 2921, 3572 } })
+        end
+        local function dunstan_out(name)
+            t.exec(name .. ".doorOut", t.player.pass_door, { closed = "poordoor", open = "poordooropen",
+                at = { 2921, 3571, 0 }, near = { 2921, 3572 }, far = { 2921, 3569 } })
+        end
+
         ---------------------------------------------------------------- 0: Denulth
+        -- Lumbridge -> Burthorpe: Falador Teleport, overland to the open ground east of the
+        -- members' east gate (reach.py 2965,3378 -> 2938,3450 REACH closed-doors len 99), the gate
+        -- by its press, then overland inside (reach.py 2934,3450 -> 2896,3531 REACH len 127).
+        t.player.teleport_cast("falador_teleport", { 2965, 3378, 0 }, { name = "talkToDenulth1.faladorTeleport",
+            runes = { { "waterrune", 1 }, { "airrune", 3 }, { "lawrune", 1 } },
+            where = "Falador square, tele_coord 0_46_52_21_50" })
+        t.exec("goto-talkToDenulth1.memberGate", t.player.goto_tile, 2938, 3450, 0)
+        -- membergater 2935,3450 (gates.rs2 [label,member_fencegate_try], a walk-through, rot 2:
+        -- Taverley is x <= 2935).
+        t.exec("talkToDenulth1.memberGate", t.player.cross_gate, { loc = "membergater", at = { 2935, 3450, 0 },
+            near = { 2936, 3450 }, far_ok = function(tile) return tile.x <= 2935 end,
+            far_desc = "inside Taverley, x <= 2935" })
         t.exec("goto-talkToDenulth1", t.player.goto_tile, 2896, 3531, 0)
         t.exec("talkToDenulth1", t.player.talk_to, "death_ig_commander", 1)
         t.exec("talkToDenulth1-dialog", t.chat.play, {
@@ -62,14 +187,8 @@ return {
         t.expect("quest.stage.started", t.quest.expect_stage("started"))
 
         ---------------------------------------------------------------- 10: Eohric
-        t.exec("goto-goToEohric1", t.player.goto_tile, 2898, 3565, 0)
-        cr, cd = t.player.click_loc("board_game_stairs_grey_base", 1, { at = { 2897, 3566, 0 } })
-        t.ticks(3)
-        lr, lv = t.world.level()
-        t.check("goToEohric1", tonumber(lv) == 1, "click_loc(board_game_stairs_grey_base) -> " .. tostring(cr) .. " " .. tostring(cd) .. "; level " .. tostring(lv))
-        if tonumber(lv) ~= 1 then
-            t.exec("goto-talkToEohric1", t.player.goto_tile, 2899, 3565, 1)
-        end
+        castle_in("goToEohric1")
+        castle_up("goToEohric1")
         t.exec("talkToEohric1", t.player.talk_to, "death_headservant", 1)
         t.exec("talkToEohric1-dialog", t.chat.play, {
             "player:Hi!",
@@ -85,21 +204,11 @@ return {
         t.expect("quest.stage.spoken_headservant", t.quest.expect_stage("spoken_headservant"))
 
         ---------------------------------------------------------------- 20: Harold
-        t.exec("goto-goToHaroldStairs1", t.player.goto_tile, 2914, 3540, 0)
-        cr, cd = t.player.click_loc("stairs", 1, { at = { 2914, 3539, 0 } })
-        t.ticks(3)
-        lr, lv = t.world.level()
-        t.check("goToHaroldStairs1", tonumber(lv) == 1, "click_loc(stairs 2915,3540) -> " .. tostring(cr) .. " " .. tostring(cd) .. "; level " .. tostring(lv))
-        if tonumber(lv) ~= 1 then
-            t.exec("goto-goToHaroldDoor1", t.player.goto_tile, 2912, 3541, 1)
-        end
-        t.exec("goto-outsideHaroldDoor", t.player.goto_tile, 2906, 3544, 1)
-        cr, cd = t.player.click_loc("death_harold_door", 1)
-        t.check("goToHaroldDoor1", cr == "ok", "click_loc(death_harold_door) -> " .. tostring(cr) .. " " .. tostring(cd))
-        t.exec("goToHaroldDoor1-knock", t.chat.play, {
-            "mesbox:You knock on the door.",
-            "npc:Come in!",
-        })
+        castle_down("goToHaroldStairs1.castleStairsDown")
+        castle_out("goToHaroldStairs1")
+        inn_in("goToHaroldStairs1")
+        inn_up("goToHaroldStairs1")
+        harold_in("goToHaroldDoor1")
         t.ticks(4)
         t.exec("talkToHarold1", t.player.talk_to, "death_guard_equiproom", 1)
         t.exec("talkToHarold1-dialog", t.chat.play, {
@@ -116,17 +225,11 @@ return {
 
         ---------------------------------------------------------------- 30: Eohric again
         t.ticks(1)
-        cr, cd = t.player.click_loc("death_harold_door", 1)
-        t.check("goToHaroldDoorOut", cr == "ok", "click_loc(death_harold_door) leaving -> " .. tostring(cr) .. " " .. tostring(cd))
-        t.ticks(3)
-        t.exec("goto-goToEohric2", t.player.goto_tile, 2898, 3565, 0)
-        cr, cd = t.player.click_loc("board_game_stairs_grey_base", 1, { at = { 2897, 3566, 0 } })
-        t.ticks(3)
-        lr, lv = t.world.level()
-        t.check("goToEohric2", tonumber(lv) == 1, "click_loc(board_game_stairs_grey_base) -> " .. tostring(cr) .. " " .. tostring(cd) .. "; level " .. tostring(lv))
-        if tonumber(lv) ~= 1 then
-            t.exec("goto-talkToEohric2", t.player.goto_tile, 2899, 3565, 1)
-        end
+        harold_out("goToHaroldDoorOut")
+        inn_down("goToEohric2.innStairsDown")
+        inn_out("goToEohric2")
+        castle_in("goToEohric2")
+        castle_up("goToEohric2")
         t.exec("talkToEohric2", t.player.talk_to, "death_headservant", 1)
         t.exec("talkToEohric2-dialog", t.chat.play, {
             "player:Hi!",
@@ -139,24 +242,13 @@ return {
         t.expect("quest.stage.spoken_headservant2", t.quest.expect_stage("spoken_headservant2"))
 
         ---------------------------------------------------------------- 40: the ale
-        t.exec("goto-takeAsgarnianAle", t.player.goto_tile, 2908, 3538, 0)
+        castle_down("takeAsgarnianAle.castleStairsDown")
+        castle_out("takeAsgarnianAle")
+        inn_in("takeAsgarnianAle")
         cr, cd = t.player.click_obj("asgarnian_ale")
         t.exec("takeAsgarnianAle", t.inv.await, "asgarnian_ale", 1, 12)
-        t.exec("goto-goToHaroldStairs2", t.player.goto_tile, 2914, 3540, 0)
-        cr, cd = t.player.click_loc("stairs", 1, { at = { 2914, 3539, 0 } })
-        t.ticks(3)
-        lr, lv = t.world.level()
-        t.check("goToHaroldStairs2", tonumber(lv) == 1, "click_loc(stairs 2915,3540) -> " .. tostring(cr) .. " " .. tostring(cd) .. "; level " .. tostring(lv))
-        if tonumber(lv) ~= 1 then
-            t.exec("goto-goToHaroldDoor2", t.player.goto_tile, 2912, 3541, 1)
-        end
-        t.exec("goto-outsideHaroldDoor2", t.player.goto_tile, 2906, 3544, 1)
-        cr, cd = t.player.click_loc("death_harold_door", 1)
-        t.check("goToHaroldDoor2", cr == "ok", "click_loc(death_harold_door) -> " .. tostring(cr) .. " " .. tostring(cd))
-        t.exec("goToHaroldDoor2-knock", t.chat.play, {
-            "mesbox:You knock on the door.",
-            "npc:Come in!",
-        })
+        inn_up("goToHaroldStairs2")
+        harold_in("goToHaroldDoor2")
         t.ticks(4)
         t.exec("talkToHarold2", t.player.talk_to, "death_guard_equiproom", 1)
         t.exec("talkToHarold2-dialog", t.chat.play, {
@@ -266,7 +358,15 @@ return {
         -- Red is North of Blue, Yellow is South of Purple, Green is North of Purple,
         -- Blue is West of Yellow, Purple is East of Red  =>
         --   x=2894: red (z 3563) over blue (z 3562);  x=2895: green 3564, purple 3563, yellow 3562.
-        t.exec("goto-placeStones", t.player.goto_tile, 2893, 3563, 0)
+        harold_out("placeStones.haroldDoorOut")
+        inn_down("placeStones.innStairsDown")
+        inn_out("placeStones")
+        castle_in("placeStones")
+        cr, cd = t.player.walk_to(2893, 3563, 30)
+        lr, lv = t.world.tile()
+        t.check("placeStones-atBalls", type(lv) == "table" and tonumber(lv.x) == 2893 and tonumber(lv.z) == 3563 and tonumber(lv.level) == 0,
+            "walk_to(2893,3563) in the courtyard -> " .. tostring(cr) .. " " .. tostring(cd) .. "; tile "
+                .. (type(lv) == "table" and (tostring(lv.x) .. "," .. tostring(lv.z) .. "," .. tostring(lv.level)) or tostring(lv)))
         t.ticks(3)
         local balls = {
             { "death_cannonball_yellow", "death_stone_mechanism_corner", 2895, 3562 },
@@ -294,11 +394,16 @@ return {
         t.expect("quest.stage.unlocked_door", t.quest.expect_stage("unlocked_door"))
 
         ---------------------------------------------------------------- 70: Saba
+        castle_out("enterSabaCave")
+        -- Saba's cave is a separate map area on the same level and frame: the Cave Entrance
+        -- (2857,3578) p_teleports to 2269,4752,0 and the Cave Exit (2268,4750) to 2858,3577,0
+        -- (death_locs.rs2:11-17; maplink.dbrow maplink_0_44_55_41_57 / maplink_0_35_74_29_16).
         t.exec("goto-enterSabaCave", t.player.goto_tile, 2857, 3576, 0)
-        cr, cd = t.player.click_loc("death_hermitcave_entrance", 1)
+        t.exec("enterSabaCave", t.player.climb, { loc = "death_hermitcave_entrance", op = 1, op_name = "Enter",
+            at = { 2857, 3578, 0 }, dest = { 2269, 4752, 0 },
+            same_level = "death_locs.rs2:13 p_teleport(0_35_74_29_16)" })
+        -- climb answers on the landing tick; Saba reaches the client's entity pool a few ticks later.
         t.ticks(4)
-        lr, lv = t.world.tile()
-        t.check("enterSabaCave", type(lv) == "table" and tonumber(lv.x) < 2400, "click_loc(death_hermitcave_entrance) -> " .. tostring(cr) .. " " .. tostring(cd) .. "; tile " .. (type(lv) == "table" and (lv.x .. "," .. lv.z) or tostring(lv)))
         t.exec("talkToSaba", t.player.talk_to, "death_hermit", 1)
         t.exec("talkToSaba-dialog", t.chat.play, {
             "player:Hello!",
@@ -309,21 +414,12 @@ return {
         t.ticks(2)
         mr, mv = t.var.server("varp5767_death_map")
         t.check("talkToSaba-map", tonumber(mv) == 1, "death_map = " .. tostring(mv) .. " (want 1 spoken_saba)")
-        cr, cd = t.player.click_loc("death_hermitcave_exit", 1)
-        t.ticks(4)
-        lr, lv = t.world.tile()
-        t.check("leaveSabaCave", type(lv) == "table" and tonumber(lv.x) > 2800, "click_loc(death_hermitcave_exit) -> " .. tostring(cr) .. " " .. tostring(cd) .. "; tile " .. (type(lv) == "table" and (lv.x .. "," .. lv.z) or tostring(lv)))
+        t.exec("leaveSabaCave", t.player.climb, { loc = "death_hermitcave_exit", op = 1, op_name = "Exit",
+            at = { 2268, 4750, 0 }, dest = { 2858, 3577, 0 },
+            same_level = "death_locs.rs2:17 p_teleport(0_44_55_42_57)" })
 
         ---------------------------------------------------------------- 70: Tenzing
-        t.exec("goto-talkToTenzing1", t.player.goto_tile, 2823, 3555, 0)
-        cr, cd = t.player.click_loc("death_sherpa_door", 1)
-        t.check("talkToTenzing1-door", cr == "ok", "click_loc(death_sherpa_door) -> " .. tostring(cr) .. " " .. tostring(cd))
-        t.exec("talkToTenzing1-knock", t.chat.play, {
-            "mesbox:You knock on the door.",
-            "npc:No milk today!",
-            "player:I'm not the milkman",
-            "npc:Oh...OK. You'd better come in then.",
-        })
+        tenzing_in("talkToTenzing1", true)
         t.ticks(4)
         t.exec("talkToTenzing1", t.player.talk_to, "death_sherpa", 1)
         t.exec("talkToTenzing1-dialog", t.chat.play, {
@@ -338,9 +434,10 @@ return {
         mr, mv = t.var.server("varp5767_death_map")
         t.check("talkToTenzing1-map", tonumber(mv) == 2, "death_map = " .. tostring(mv) .. " (want 2 spoken_tenzing)")
         t.exec("talkToTenzing1-boots", t.inv.expect_has, "death_climbingboots", 1)
+        tenzing_out("talkToTenzing1")
 
         ---------------------------------------------------------------- 70: Dunstan, Denulth, Dunstan
-        t.exec("goto-talkToDunstan1", t.player.goto_tile, 2919, 3572, 0)
+        dunstan_in("talkToDunstan1")
         t.exec("talkToDunstan1", t.player.talk_to, "death_smithy", 1)
         t.exec("talkToDunstan1-dialog", t.chat.play, {
             "npc:Hi! How can I help?",
@@ -350,6 +447,7 @@ return {
         t.ticks(2)
         mr, mv = t.var.server("varp5767_death_map")
         t.check("talkToDunstan1-map", tonumber(mv) == 3, "death_map = " .. tostring(mv) .. " (want 3 spoken_smithy)")
+        dunstan_out("talkToDunstan1")
 
         t.exec("goto-talkToDenulthForDunstan", t.player.goto_tile, 2896, 3531, 0)
         t.exec("talkToDenulthForDunstan", t.player.talk_to, "death_ig_commander", 1)
@@ -364,7 +462,7 @@ return {
         t.check("talkToDenulthForDunstan-map", tonumber(mv) == 4, "death_map = " .. tostring(mv) .. " (want 4 got_entrancecert)")
         t.exec("talkToDenulthForDunstan-certificate", t.inv.expect_has, "death_entrancecert", 1)
 
-        t.exec("goto-talkToDunstan2", t.player.goto_tile, 2919, 3572, 0)
+        dunstan_in("talkToDunstan2")
         t.exec("talkToDunstan2", t.player.talk_to, "death_smithy", 1)
         t.exec("talkToDunstan2-dialog", t.chat.play, {
             "player:Hi!",
@@ -381,11 +479,10 @@ return {
         mr, mv = t.var.server("varp5767_death_map")
         t.check("talkToDunstan2-map", tonumber(mv) == 5, "death_map = " .. tostring(mv) .. " (want 5 given_cert)")
         t.exec("talkToDunstan2-spikedBoots", t.inv.expect_has, "death_spikedboots", 1)
+        dunstan_out("talkToDunstan2")
 
-        t.exec("goto-talkToTenzing2", t.player.goto_tile, 2823, 3555, 0)
-        cr, cd = t.player.click_loc("death_sherpa_door", 1)
-        t.check("talkToTenzing2-door", cr == "ok", "click_loc(death_sherpa_door) -> " .. tostring(cr) .. " " .. tostring(cd))
-        t.ticks(4)
+        tenzing_in("talkToTenzing2", false)
+        t.ticks(2)
         t.exec("talkToTenzing2", t.player.talk_to, "death_sherpa", 1)
         t.exec("talkToTenzing2-dialog", t.chat.play, {
             "player:Hello!",
@@ -407,37 +504,41 @@ return {
 
         ---------------------------------------------------------------- 70: go north
         -- Out of Tenzing's house through the NORTH (back) door, over the stile, north past the
-        -- Death Plateau warning and round to the east until the scouting zone (2864..2871,3608..3615).
-        cr, cd = t.player.click_loc("death_sherpa_backdoor", 1)
-        t.ticks(3)
-        lr, lv = t.world.tile()
-        t.check("goNorth-backdoor", type(lv) == "table" and tonumber(lv.z) >= 3558, "click_loc(death_sherpa_backdoor) -> " .. tostring(cr) .. " " .. tostring(cd) .. "; tile " .. (type(lv) == "table" and (lv.x .. "," .. lv.z) or tostring(lv)))
-        local stile_before_r, stile_before = t.world.tile()
-        cr, cd = t.player.click_loc("death_fullstyle", 1)
-        t.ticks(5)
-        local stile_after_r, stile_after = t.world.tile()
-        t.check("goNorth-stile", type(stile_before) == "table" and type(stile_after) == "table"
-                and (stile_after.x ~= stile_before.x or stile_after.z ~= stile_before.z),
-            "click_loc(death_fullstyle) -> " .. tostring(cr) .. " " .. tostring(cd) .. "; tile "
-                .. (type(stile_before) == "table" and (stile_before.x .. "," .. stile_before.z) or tostring(stile_before)) .. " -> "
-                .. (type(stile_after) == "table" and (stile_after.x .. "," .. stile_after.z) or tostring(stile_after)))
-        local legs = { { 2825, 3578 }, { 2840, 3594 }, { 2852, 3604 }, { 2866, 3609 } }
-        for i = 1, #legs do
-            cr, cd = t.player.walk_to(legs[i][1], legs[i][2], 60)
-            t.ticks(2)
-            lr, lv = t.world.tile()
-            t.check("goNorth-leg" .. i, type(lv) == "table", "walk_to(" .. legs[i][1] .. "," .. legs[i][2] .. ") -> " .. tostring(cr) .. " " .. tostring(cd) .. "; tile " .. (type(lv) == "table" and (lv.x .. "," .. lv.z) or tostring(lv)))
-        end
+        -- Death Plateau warning and round to the east into the scouting zone ([zone,0_44_56_48_24]:
+        -- 2864..2871,3608..3615, death_iou_scout.rs2:29). The waypoints are reach.py's closed-door path.
+        t.exec("goNorth-backdoor", t.player.cross_gate, { loc = "death_sherpa_backdoor", at = { 2820, 3557, 0 }, near = { 2820, 3557 },
+            far_ok = function(tile) return tile.z >= 3558 end, far_desc = "in the backyard, z >= 3558" })
+        t.exec("goNorth-stile", t.player.cross_gate, { loc = "death_fullstyle", at = { 2817, 3562, 0 }, near = { 2817, 3561 },
+            far_ok = function(tile) return tile.z >= 3564 end, far_desc = "north of the stile, z >= 3564" })
+        t.exec("goNorth-walk", t.player.walk_route, {
+            { 2817, 3564 }, { 2817, 3573 }, { 2817, 3582 }, { 2819, 3589 }, { 2825, 3592 }, { 2830, 3596 },
+            { 2834, 3601 }, { 2840, 3604 }, { 2845, 3608 }, { 2853, 3609 }, { 2862, 3609 }, { 2866, 3609 },
+        })
         t.exec("goNorth-scouted", t.var.await_server, "varp5767_death_map", 8, 20)
         t.exec("goNorth-farEnough", t.chat.drain, {})
         t.ticks(2)
 
+        -- Back the way the secret path came: the climbing rocks (2880,3594) that join it to Burthorpe
+        -- need worn climbing boots, and Tenzing's boots are not wearable before completion.
+        t.exec("goBack-walk", t.player.walk_route, {
+            { 2866, 3609 }, { 2857, 3609 }, { 2848, 3609 }, { 2842, 3606 }, { 2836, 3603 }, { 2832, 3598 },
+            { 2828, 3593 }, { 2822, 3590 }, { 2817, 3586 }, { 2817, 3577 }, { 2817, 3568 }, { 2817, 3564 },
+        })
+        t.exec("goBack-stile", t.player.cross_gate, { loc = "death_fullstyle", at = { 2817, 3562, 0 }, near = { 2817, 3564 },
+            far_ok = function(tile) return tile.z <= 3561 end, far_desc = "in Tenzing's backyard, z <= 3561" })
+        t.exec("goBack-backdoor", t.player.cross_gate, { loc = "death_sherpa_backdoor", at = { 2820, 3557, 0 }, near = { 2820, 3558 },
+            far_ok = in_tenzing_house, far_desc = "inside Tenzing's house, x 2819-2822 z 3554-3557" })
+        tenzing_out("goBack")
+
         -- The Death Plateau warning sign (death_dangersign_trolls, m44_56.jl2 0 23 11 = 2839,3595) stands
-        -- on the main plateau path, the far side of the rocks the secret way skirts (from the legs above
+        -- on the main plateau path north of Burthorpe; it is read from 2838,3595 (from the secret path
         -- it answers "I can't reach that!"). Read plays the troll-thrower cutscene (death_locs.rs2:60-81,
         -- LostCity quest_death.rs2:138-159): cam_moveto, cam_lookat the thrower, the rock, cam_reset.
-        t.exec("goto-readDangerSign", t.player.goto_tile, 2840, 3594, 0)
-        t.exec("readDangerSign", t.player.click_loc, "death_dangersign_trolls", 1)
+        -- The press is graded by the cutscene row below: Read only moves the camera (no chat, no
+        -- route from the adjacent tile), so click_loc's own settle answers timeout on a read that
+        -- played. The cutscene await counts camera packets from the goto row's start, so it sees it.
+        t.exec("goto-readDangerSign", t.player.goto_tile, 2838, 3595, 0)
+        cr, cd = t.player.click_loc("death_dangersign_trolls", 1)
         t.exec("readDangerSign.cutscene", t.cutscene.await, "readDangerSign", { expect = {
             { op = "moveto", coord = "0_44_56_29_12", height = 1500 },
             { op = "lookat", coord = "0_44_56_35_14", height = 300 },

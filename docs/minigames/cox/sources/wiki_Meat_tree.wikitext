@@ -1,0 +1,75 @@
+{{Multi Infobox
+|text1 = Scenery
+|item1 = 
+{{Infobox Scenery
+|version1 = Normal
+|version2 = Chopped
+|name1 = Rocks
+|name2 = Meat tree
+|image1 = [[File:Rocks (meat tree).png|170px]]
+|image2 = [[File:Meat tree.png|170px]]
+|release = [[8 December]] [[2016]]
+|update = Load Test, Tournament World & QOL
+|members = Yes
+|quest = No
+|location = [[Chambers of Xeric]]
+|options = 
+|examine1 = A bloodstained pile of rocks.
+|examine2 = All of the meat has been stripped from this tree.
+|map = no
+|id1 = 30012
+|id2 = 30013
+|leagueRegion = Kourend
+}}
+|text2 = NPC
+|item2 = 
+{{Infobox NPC
+|bucketname = NPC
+|name = Meat tree
+|image = [[File:Rocks (meat tree).png|170px]]
+|release = [[8 December]] [[2016]]
+|update = Load Test, Tournament World & QOL
+|members = Yes
+|location = [[Chambers of Xeric]]
+|options = Cut
+|examine = Grotesque.
+|map = No
+|id = 7564
+|leagueRegion = Kourend
+}}
+}}
+'''Meat trees''' are a type of tree found in the [[Chambers of Xeric]]. According to the [[houndmaster's diary]], the meat is "a byproduct of the experiments", referring to the experiments [[Xeric]] performed on the muttadiles to speed up a certain mutation.
+
+They are consumed by the [[muttadile]] to heal themselves, but players can prevent them from doing so by either binding them or chopping the tree down.
+
+==Woodcutting info==
+{{Woodcutting info
+|name = Meat tree
+|level = 1
+|xp = 45
+|tool = [[Axe]]
+|time = N/A
+}}
+
+==Mechanics==
+The meat tree's health is five times the total [[Woodcutting]] level of the party, having a minimum of 100 health.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1050389144260743169|date=11 October 2018|archiveurl=https://reldo.runescape.wiki/i/107554|archivedate=30 May 2020|quote=[Meat tree health is] 5 x the team's total Woodcutting levels, or 100, whichever is greater.}} For example, if a party of three has level 35, 73 and 99 Woodcutting, the tree's health would be 1,035; and in a party of three where each player has 50 woodcutting, the tree's health would be 750. 
+
+The chance of successfully dealing "damage" to the tree scales with the player's Woodcutting level, being 20% at level 1 and 78% at level 99, while the "damage" is based on the player's current Woodcutting level divided by two and between -7/+3 of that result; e.g a player with 80 Woodcutting would deal anywhere from 33-43 damage<ref>{{PlainCiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1789930221224804569|date=13 May 2024}}</ref>. The type of [[axe]] used has no impact.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1072850074408022017|date=12 December 2018|archiveurl=https://reldo.runescape.wiki/i/109126|archivedate=30 May 2020|quote=I see no reference to the axe type in the code other than to make the correct model appear in your hand as you perform the animation.}}
+
+{{Skilling success chart|label=Meat tree cut chance
+|label1=Meat tree|low1=50|high1=200|req1=1|color1=red|image1=Meat tree.png
+}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 29 November 2023
+|update = Chambers of Xeric Changes
+|change = The meat tree damage is now made more consistent; prior to this rework, the damage would be a random number from the player's Woodcutting level; e.g a player with 99 Woodcutting could deal anywhere from 1-99 damage.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1058319933728284672|date=2 November 2018|archiveurl=https://reldo.runescape.wiki/i/105235|archivedate=30 May 2020|quote=Each roll has a "success" chance of 20% at level 1 or 78% at level 99. The "damage" dealt to the meat tree (Dmitri?) is a random number up to your woodcutting level.}}
+}}
+{{Subject changes footer}}
+
+==References==
+{{Reflist}}
+{{Chambers of Xeric}}
+{{Trees}}

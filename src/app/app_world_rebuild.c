@@ -79,6 +79,16 @@ app_plugin_obj_notify(
  * any model id, so a dropped 100 coins draws the heap. Building straight from
  * the base objtype drew a single coin at every stack size.
  *
+ * A bank note states no model at all: its record is `certlink` plus
+ * `certtemplate`, and the reference's ObjType.genCert copies the TEMPLATE's
+ * model and recolours onto it (the paper) before getModel ever runs. Reading
+ * the note's own `inventory_model_id` (0) returned NULL here for every note,
+ * so App_WorldObjStackAdd dropped the OBJ_ADD on the floor: the server put five
+ * noted Rune essence on the tile and the client listed and drew nothing
+ * (seam matthew-mbp-m4-b63-seam1 noted_essence_drop_leaves_no_ground_obj;
+ * priestperil dropNotes). The note keeps its own contrast/ambient, as genCert
+ * copies neither. ObjModelLoad_NeedsWork already waits for the template.
+ *
  * NULL when the variant's objtype or model is not resident yet -- the caller
  * leaves the element alone and the async load lands on a later packet.
  */
@@ -89,19 +99,25 @@ app_obj_stack_build_model(
     int count)
 {
     struct ToriRS_Objtype* obj;
+    struct ToriRS_Objtype* shape;
     int model_ids[1];
 
     assert(app);
     obj = CacheProvider_ObjtypeGet(
         app->provider, ObjModelLoad_RenderObjId(app->provider, obj_id, count));
-    if( !obj || obj->inventory_model_id <= 0 )
+    if( !obj )
         return NULL;
-    model_ids[0] = obj->inventory_model_id;
+    shape = obj;
+    if( obj->inventory_model_id <= 0 && obj->cert_template > 0 )
+        shape = CacheProvider_ObjtypeGet(app->provider, obj->cert_template);
+    if( !shape || shape->inventory_model_id <= 0 )
+        return NULL;
+    model_ids[0] = shape->inventory_model_id;
     {
         struct AppModelRecolorSpec recolors = {
-            .recolors_from = obj->recolors_from,
-            .recolors_to = obj->recolors_to,
-            .recolor_count = obj->recolor_count,
+            .recolors_from = shape->recolors_from,
+            .recolors_to = shape->recolors_to,
+            .recolor_count = shape->recolor_count,
         };
         return app_world_build_model(
             app, model_ids, 1, &recolors, 128, 128, APP_LIGHT_SCENE, obj->contrast, obj->ambient);
@@ -144,8 +160,27 @@ app_obj_stack_refresh_model(
     app_sync_textures(app);
 }
 
-/* Ground item stacks (zone OBJ_* packets). The objtype + its inventory
- * model must already be cached (the packet task awaits the loads). */
+/*
+ * Ground item stacks (zone OBJ_* packets). The objtype + its inventory
+ * model must already be cached (the packet task awaits the loads).
+ *
+ * EVERY call adds one row, even when the tile already holds a row of the same
+ * obj. That is the reference's rule: OBJ_ADD always pushes a new ClientObj
+ * onto the tile's list (Client-TS Client.ts OBJ_ADD, `objStacks[..].push`),
+ * and the server says the same thing from its side -- a non-stackable obj,
+ * or any private drop, gets its own ground slot and its own OBJ_ADD, while a
+ * public stackable landing on its twin is announced as OBJ_COUNT old -> new
+ * (torirs_server_world.c world_obj_add), never as a second OBJ_ADD. So an
+ * OBJ_ADD for an id the tile already shows IS a second item.
+ *
+ * This used to look the id up first and overwrite that row's count. Two logs
+ * dropped on one tile then read as one log on the client while the server
+ * held two; picking one up sent OBJ_DEL, the client removed its only row,
+ * and the second log was invisible and unclickable for as long as it lay
+ * there (seam pass matthew-mbp-m4-b52-seam1 (a); raid seam
+ * client_ground_obj_merge). It also lost a count: a second private coin drop
+ * overwrote the first pile's count instead of standing beside it.
+ */
 int
 App_WorldObjStackAdd(
     struct App* app,
@@ -173,27 +208,11 @@ App_WorldObjStackAdd(
      * through as one with count 0, and that names a stack ALREADY on the tile
      * (the deob's ObjEnabledOps handler, Statics.method3127, finds the first
      * TileItem of the id and only changes its ops). It never adds one. The old
-     * merge below used to answer it by overwriting that stack's count with 0.
+     * merge used to answer it by overwriting that stack's count with 0. Every
+     * other OBJ_ADD is a new row (this function's banner).
      */
     if( count <= 0 )
         return World_ObjStackFind(world, scene_x, scene_z, level, obj_id);
-    /*
-     * Every OBJ_ADD is a NEW stack, even for an obj id the tile already holds:
-     * the tile is a list. LostCity's client (LostCity_JavaClient
-     * Client.java:8206-8213) pushes a fresh ClientObj onto
-     * objStacks[level][x][z] for every OBJ_ADD, and OBJ_DEL (:8222-8228)
-     * unlinks the FIRST one of that id; the rev-239 deob does the same
-     * (Statics.method1385 appends a new TileItem, method6879 unlinks one).
-     * A count that changes in place is OBJ_COUNT's job, not OBJ_ADD's.
-     *
-     * This used to find the tile's stack of the id and overwrite its count, so
-     * two identical non-stackable drops became one row with count 1, and the
-     * first pickup's OBJ_DEL took that row away while the server still held
-     * the second copy: the tile drew nothing and no menu row could take it.
-     * The server never relies on the merge -- a private pile turning public
-     * is sent as OBJ_DEL then OBJ_ADD (ground_tick, torirs_server_world.c),
-     * and a zone's state replay follows a FULL_FOLLOWS that clears the tile.
-     */
 
     /* The BASE objtype carries the name and the ground ops the minimenu reads;
      * the model comes from whichever count variant `count` selects. */
@@ -266,48 +285,8 @@ App_WorldObjStackAdd(
     }
 }
 
-/*
- * A tile can hold several stacks of one obj id (App_WorldObjStackAdd), and the
- * placeholder that lands a model looks its stack up by tile and id, so it only
- * ever reaches the FIRST copy. Two copies of an obj whose model was not
- * resident yet would leave the second without a model or a menu name for good.
- * Whatever just landed one copy can land the others the same way.
- */
-static void
-app_obj_stack_land_copies(
-    struct App* app,
-    struct World* world,
-    int landed_idx)
-{
-    struct World_EntityPool* pool;
-    struct WorldEntity_ObjStack const* landed;
-
-    assert(app);
-    assert(world);
-    pool = &world->entities.obj_stack;
-    landed = World_EntityPoolGet(pool, landed_idx);
-    assert(landed);
-    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
-         i = World_EntityPoolNext(pool, i) )
-    {
-        struct WorldEntity_ObjStack const* copy = World_EntityPoolGet(pool, i);
-
-        if( !copy || i == landed_idx || copy->element_id >= 0 )
-            continue;
-        if( copy->obj_id != landed->obj_id ||
-            copy->grid_position.x != landed->grid_position.x ||
-            copy->grid_position.z != landed->grid_position.z ||
-            copy->grid_position.level != landed->grid_position.level )
-            continue;
-        /* Lands it and, through this, any copy after it; a copy whose count
-         * selects a model that is still loading stays for its own retry. */
-        if( app_obj_stack_land(app, world, i) )
-            return;
-    }
-}
-
-int
-app_obj_stack_land(
+static int
+app_obj_stack_land_one(
     struct App* app,
     struct World* world,
     int idx)
@@ -360,7 +339,54 @@ app_obj_stack_land(
     app_ground_items_mark(
         app, world, stack->grid_position.x, stack->grid_position.z, stack->grid_position.level);
     app->need_redraw = 1;
-    app_obj_stack_land_copies(app, world, idx);
+    return 1;
+}
+
+/*
+ * Land `idx`, then every other row of the same obj on the same tile that is
+ * still waiting for its model.
+ *
+ * Two identical items on one tile are two rows (App_WorldObjStackAdd), and
+ * when both arrive before the objtype is resident each queues a placeholder.
+ * The placeholder finds its stack by (tile, obj id) -- World_ObjStackFind,
+ * the OLDEST row -- so the second placeholder finds the first row, sees it
+ * already landed, and stops: the second row would stay without a scene
+ * element (nothing drawn, nothing to click) until the next world load swept
+ * it. Landing the siblings here, while the first placeholder holds the
+ * resident objtype, closes that for every row whose count selects a resident
+ * model. A sibling whose count variant is still loading is left to the sweep
+ * (app_placeholder_obj_stacks_sweep); see the open issue in the raid seam
+ * notes (app_placeholder.c should look up the first ELEMENT-LESS row).
+ */
+int
+app_obj_stack_land(
+    struct App* app,
+    struct World* world,
+    int idx)
+{
+    struct World_EntityPool* pool;
+    struct WorldEntity_ObjStack const* landed;
+    int scene_x, scene_z, level, obj_id;
+
+    if( !app_obj_stack_land_one(app, world, idx) )
+        return 0;
+    pool = &world->entities.obj_stack;
+    landed = World_EntityPoolGet(pool, idx);
+    assert(landed);
+    scene_x = landed->grid_position.x;
+    scene_z = landed->grid_position.z;
+    level = landed->grid_position.level;
+    obj_id = landed->obj_id;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+         i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_ObjStack const* sibling = World_EntityPoolGet(pool, i);
+        if( i == idx || !sibling || sibling->element_id >= 0 || sibling->obj_id != obj_id ||
+            sibling->grid_position.x != scene_x || sibling->grid_position.z != scene_z ||
+            sibling->grid_position.level != level )
+            continue;
+        app_obj_stack_land_one(app, world, i);
+    }
     return 1;
 }
 
@@ -458,10 +484,14 @@ App_WorldRebuildShift(
      * -= dx<<7). Fine coords move with the scene base. */
     if( base_dx != 0 || base_dz != 0 )
     {
-        app->world_camera_pos.x -= base_dx * 128;
-        app->world_camera_pos.z -= base_dz * 128;
-        app->orbit.anchor_x -= base_dx * 128;
-        app->orbit.anchor_z -= base_dz * 128;
+        /* Every attached view moves with the scene base. */
+        for( int view = 0; view < app->view_split.view_count; view++ )
+        {
+            app->views[view].world_camera_pos.x -= base_dx * 128;
+            app->views[view].world_camera_pos.z -= base_dz * 128;
+            app->views[view].orbit.anchor_x -= base_dx * 128;
+            app->views[view].orbit.anchor_z -= base_dz * 128;
+        }
     }
 
     /* Cutscene camera (deob field706 = false / Client-TS cinemaCam = false). */
@@ -474,7 +504,8 @@ App_WorldRebuildShift(
      * the id is boot-time chrome state nothing re-derives, so a reset here left
      * every later popup measuring against no font and sized by the character
      * estimate in UIMinimenu_PrepareShow (long rows drew past the border). */
-    UIMinimenu_Hide(&app->interact.minimenu);
+    for( int view = 0; view < app->view_split.view_count; view++ )
+        UIMinimenu_Hide(app->views[view].minimenu);
 
     /* Force a minimap rebake (deob field757 = -1 / Client-TS minimapLevel = -1). */
     app->world_map_level = -1;
@@ -533,6 +564,12 @@ App_WorldObjStackDel(
     struct World* world;
     assert(app);
     world = App_ActiveWorldview(app)->world;
+    /* OBJ_DEL names a tile and an id, nothing more, and removes ONE row: the
+     * first match in arrival order (Client-TS OBJ_DEL walks the tile's list
+     * from its head and unlinks the first `obj.id === type`, then breaks).
+     * World_ObjStackFind walks the pool from its head, and the pool appends
+     * at its tail, so its first match is that same oldest row. Two identical
+     * items on one tile and one pickup leave the other row standing. */
     idx = World_ObjStackFind(world, scene_x, scene_z, level, obj_id);
     if( idx >= 0 )
     {
@@ -558,6 +595,14 @@ App_WorldObjStackSetCount(
     struct World* world;
     assert(app);
     world = App_ActiveWorldview(app)->world;
+    /* The first row of this id. The reference matches id AND the packet's old
+     * count (Client-TS OBJ_COUNT: `obj.id === type && obj.count === ocount`),
+     * which picks the right pile when one tile holds two piles of one
+     * stackable (two private drops); this signature carries no old count, so
+     * on such a tile this can retarget the wrong pile. The server sends
+     * OBJ_COUNT only when a public stackable add merges into a pile already
+     * on the tile (torirs_server_world.c world_obj_add), so a twin needs two
+     * private piles of that stackable there first. */
     idx = World_ObjStackFind(world, scene_x, scene_z, level, obj_id);
     if( idx < 0 )
         return;

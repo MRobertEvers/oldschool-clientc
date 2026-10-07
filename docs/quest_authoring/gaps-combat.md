@@ -721,7 +721,7 @@ entry is FIXED in matthew-mbp-m4-b56-seam2 (next section).
 - **Not fixed:** `aggressive_melee` huntmode never aggroes (`torirs_server_content.c:1851` maps
   only `aggressive`), and the Slagilith's and Kendal's attackrate is 6 where the wiki says 4.
 
-## A margin row reads full hp after a real fight: prove the npc swung (Ides of Milk's Brutus, b60 sampler)
+## A margin row reads full hp after a real fight: prove the npc swung (Ides of Milk's Brutus, b60 sampler; Brutus FIXED b62-seam1)
 
 `killBrutus.margin` read `lowest hp 99/99, eaten 0` in all three fixer runs. That looks like a
 fight that never threatened anyone. It was a real fight. Brutus's melee has attack 12
@@ -733,7 +733,9 @@ The sampler's probe run read the chat ring after the kill with `t.msg.last(40)`.
 Most likely the growl lane (`~cowboss_growl_hit`) is measured from `npc_coord`, which is a
 multi-tile npc's south-west tile. A player beside his east side at z+2 is then outside the
 lane's `abs(cz - oz) <= 1`, so a stationary attacker on that side dodges every charge. This is a
-content seam and not a test defect.
+content seam and not a test defect. FIXED matthew-mbp-m4-b62-seam1 (seam-facts: Seam pass
+matthew-mbp-m4-b62-seam1 (d)): both specials are measured from his 3x3 footprint and resolve after
+3 ticks; the re-run's `killBrutus.margin` read 85/99 and 95/99.
 
 When a margin row reads full hp, put the npc's own attack evidence in the detail: its attack or
 special chat lines from `t.msg.last`, or a block hitsplat. A reviewer can then tell "it swung and
@@ -752,3 +754,41 @@ When the guide names no levels, stage the lowest levels the staged gear needs to
 The fight is then a real one, and a full-hp margin row is evidence and not an artefact of
 staging. Spirits of the Elid's golems read 60/60 at Defence 50 for the same reason. A probe at
 Defence 1 showed them landing hits.
+
+## A quest boss with no `hitpoints=` fights on the engine's 10: `hp no bar -> 24/30` after one hit on a "level-150" (matthew-mbp-m4-b67-seam1, b68-seam1)
+
+*Origin: the b67 triage of Rum Deal's Evil spirit and Wanted!'s Solus Dellagar.*
+
+A quest boss with no `hitpoints=` in any `.npc` section fights on the engine default (10 hp, stats
+1). The ledger tell is the first bar reading: `hp no bar -> 24/30` after one ordinary hit on a boss
+the wiki gives 90 hp, and a kill in a handful of ticks. **FIXED for both in b67-seam1:**
+`quest_rumdeal/configs/rumdeal.npc [deal_evil_spirit]` (wiki Evil_spirit oldid 15199641: hp 90,
+170/146/100, crush, speed 4, aggressive, 30% Air weakness) and `wanted.npc [solus]` (wiki
+Solus_Dellagar oldid 15204754: hp 40, 25/25/25, strbns 16, magic def 72, speed 3). The spirit now
+reads `27/30, hitsplat 7` after the first hit and dies in 56 ticks (was 16); Solus in 36 (was 8).
+
+A page max hit above what the sourced stats roll through `~npc_melee_maxhit` (the Evil spirit's 28
+against 16) is a sourced disagreement, not a reason to invent a strength bonus: the fix is the
+boss's own swing rolling a constant (Swan Song's `ssq_queen_melee` pattern). **FIXED for the spirit
+in matthew-mbp-m4-b68-seam1:** `[ai_opplayer2,deal_evil_spirit]` (`deal_combat.rs2`) rolls
+`^deal_evil_spirit_melee_maxhit = 28` (`rumdeal.constant`) with the spirit's own crush accuracy and
+lands through `~playerhit_n_melee`. A scratch fight at Defence 1 read one-tick hp drops of
+`26,26,16,16,24,24,...,27` (largest 27; the default roll could never pass 16). The committed Rum
+Deal fight on 99 Defence then ate all 10 sharks (`killSpirit.margin` lowest 44/99, sharks left 0,
+and `killSpider.margin` has none left): pray Protect from Melee for it (the test stages Prayer 47;
+the page and `docs/quests/rum_deal.md` section 4 say it negates the swing).
+
+**The other 29 test-fought npcs FIXED in matthew-mbp-m4-b68-seam1**, one quest-local block each
+(wiki oldid and `configs/all.npc` line in the block's header; `tools/check_quest_combat_contract.py`
+`check_test_fought_npc_blocks` pins every line and the manifest row pins the oldid): the Elid golems
+(`spiritsoftheelid.npc`), the Feud's Tough Guy and Bandit champion (`thefeud.npc`), both Mourners on
+their multinpc ROOT records (`area_ardougne_west/configs/mourner.npc` `mournerstew2`, `mend1.npc`
+`mourning_overpass_mourner`), Sir Leye, the drink troll, the Ancient Guardian, Cuthbert, the Sand
+Snake, Ulfric, the Sourhog, A Soul's Bane's ten (`soulbane_confu_creeper` is cache id 1067, the page's
+version 2, STAB; the four fakes are version 1, crush), Twig and Berry (merged into the existing
+awake sections of `quest_troll.npc`) and Nazastarool's three forms. Real stats move these fights:
+a green test that goes red on one is fixed in the TEST (wait budget, food, a protection prayer),
+never by weakening the npc. Two page max hits are still not what the stats roll: the Sourhog's
+melee 6 against 4 (its `[ai_opplayer2]` already throws the 20-30 spit), and the hybrid Tolna and
+Hopeless creature swing melee only; both are in the combat manifest's known_gaps (those rows stay
+`audit-pending`: only the stat blocks were audited, not the encounters' triggers and loot).

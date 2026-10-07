@@ -27,6 +27,8 @@ import csv
 import re
 from pathlib import Path
 
+import config_text
+
 try:
     from PIL import Image, ImageDraw
 except ImportError:  # pragma: no cover
@@ -141,7 +143,7 @@ def parse_config_block(path: Path, prefix: str, ids: range) -> dict[int, dict]:
     records: dict[int, dict] = {}
     current: int | None = None
     header = re.compile(rf"^\[{re.escape(prefix)}_(\d+)\]$")
-    for line in path.read_text().splitlines():
+    for line in config_text.read_lines(path):
         line = line.strip()
         m = header.match(line)
         if m:
@@ -164,10 +166,12 @@ def parse_structs(path: Path, ids: range) -> dict[int, dict[str, str]]:
     out: dict[int, dict[str, str]] = {}
     current: int | None = None
     header = re.compile(r"^\[struct_(\d+)\]$")
-    param = re.compile(r"^param=(\w+),(\w+),(.*)$")
+    # `param=<name>,<value>`; these params are all ints or strings, so the
+    # value is the text after the first comma as it stands.
+    param = re.compile(r"^param=(\w+),(.*)$")
     # errors="replace": the struct file carries a few non-UTF8 quote bytes in
     # unrelated clan-chat strings, which must not abort the whole parse.
-    for line in path.read_text(errors="replace").splitlines():
+    for line in config_text.read_lines(path, errors="replace"):
         m = header.match(line.strip())
         if m:
             sid = int(m.group(1))
@@ -179,7 +183,7 @@ def parse_structs(path: Path, ids: range) -> dict[int, dict[str, str]]:
             continue
         p = param.match(line.strip())
         if p and p.group(1) in CURSE_PARAMS:
-            out[current][CURSE_PARAMS[p.group(1)]] = p.group(3)
+            out[current][CURSE_PARAMS[p.group(1)]] = p.group(2)
     return out
 
 

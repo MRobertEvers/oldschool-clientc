@@ -1,0 +1,19 @@
+{{Infobox Combat Achievement
+|name = Expert Tomb Raider
+|image = [[File:Tombs of Amascut - Nexus room.png|300px]]
+|release = [[30 November]] [[2022]]
+|update = The Garden of Death & More
+|members = Yes
+|description = Complete the Tombs of Amascut (Expert mode) 50 times.
+|tier = Grandmaster
+|monster = Tombs of Amascut: Expert Mode
+|type = Kill Count
+|id = 471
+|leagueRegion = Desert
+}}
+'''Expert Tomb Raider''' is a [[Combat Achievements/Grandmaster|grandmaster combat achievement]] which requires the player to complete the [[Tombs of Amascut]] raid 50 times, at level 300 or above.
+
+==Other tasks==
+{{Combat Achievements list|Tombs of Amascut: Expert Mode}}
+
+{{Combat Achievements}}

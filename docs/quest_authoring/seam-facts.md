@@ -1562,9 +1562,10 @@ were already exactly +6400, so the cellar ladders that worked still land on the 
 `enterDungeonForBoots` PASS). Proof: scratch `b54s2_cellar_before2` FAIL "You can't go any
 further." at 2594,3086,0 -> `b54s2_cellar_after` 10/0, tile 2594,9486,0, Wizard Frumscone at
 2588,9489, `quest.stage.frumscone_done` 95. Rows: `test/quests/wip/swansong/relay.md`.
-OPEN: `ladder_from_cellar` (17385) in that basement climbs to 2594,9486 **level 1** by the plane
-default; LostCity `loc_1755` is `movecoord(coord(), 0, 0, -6400)` (`ladders.rs2:87-94`). It has
-about 50 placements, some on level 1, so it needs its own audit; leave a basement by `goto_tile`.
+FIXED by matthew-mbp-m4-b66-seam1 (b) -- was OPEN: `ladder_from_cellar` (17385) in that basement
+climbs to 2594,9486 **level 1** by the plane default; LostCity `loc_1755` is `movecoord(coord(), 0,
+0, -6400)` (`ladders.rs2:87-94`). A rowless copy now leaves by the ladder (-6400); climb it with
+`t.player.climb`, not `goto_tile`.
 
 (b) **`no npc ... in the client's entity pool` on the first `talk_to` after a ladder into a new
 mapsquare.** `click_loc` returns on `map_flag` while the player is still walking to the ladder, so
@@ -2169,3 +2170,597 @@ up healed. Only the titan and `alomone_hazeel_cultist` pass `npc_uid` to a queue
 
 (f) Driver: `cross_gate` takes `chat=` / `chat_optional=` for a guarded walk-through, and the four
 crossing verbs take `loc_level=` for a loc on a bridge deck; see verbs-pointer.
+
+## Seam pass matthew-mbp-m4-b62-seam1 (2026-10-05, batch matthew-mbp-m4-b62)
+
+Content in the OSRS-Content commit tagged `[seam:matthew-mbp-m4-b62-seam1]`; the driver, grader,
+workflow and conformance changes in the parent commit with the same tag. Every run used
+`build/orchestrator/worktrees/b61-engine/src/torirs_b61engine` (no engine change this pass).
+
+(a) **The Karamja glider crash pages abort on `npc_coord with no active npc`** -- FIXED,
+`area_gnome/scripts/gnome_glider.rs2`. After "Take me to Karamja please!" the script
+`p_teleport`s the player to the wreck (2917,3058) and keeps talking as the op's npc, the pilot on
+top of the Grand Tree about 450 tiles away. This engine retires a static spawn beyond
+`TORIRSSERVER_STATIC_SPAWN_OUT` (224) of every player (`torirs_server_world.c`
+`world_static_npcs_sync`), so the first `~chatnpc_anim` aborted (`chat.rs2:273`). LostCity's
+engine keeps every npc live and needs nothing. The port now binds the wreck's pilot with
+`npc_find(coord, pilot_grand_tree, 5, 0)` (m45_47.spawn 2918,3057) and `error()`s if it is absent,
+and the crash-site test is LostCity's box `inzone(0_45_47_35_42, 0_45_47_45_53, npc_coord)`
+(LostCity `gnome_glider.rs2 [opnpc1,gnomepilot]`), not a square round `^gandius`, which matched the
+Karamja glider station's pilot instead. The rule for any port script: one that teleports the player
+more than 224 tiles and goes on talking must rebind the destination's npc first. Proof: scratch
+`seam1_glider_after` 9/9, crash pages "Sorry about that." .. "Take care little man."; grandtree copy
+184/184. OPEN (owner, design): should the engine keep a static spawn that a suspended script holds?
+Not changed.
+
+(b) **The Keldagrim Consortium's wide stairs land in a pocket sealed by crates** -- FIXED,
+`quest_giantdwarf/scripts/gdwarf_consortium.rs2`. Every press of
+`dwarf_keldagrim_wide_stairs_upper` used to `p_teleport` to 2895,10210,0, inside the east stairs'
+own footprint and boxed by crates, so a walk off it timed out; both tests detoured by Varrock
+Teleport and the GE trapdoor. The two name bindings now call `~climb(1)` / `~climb(-1)`, which asks
+`maplink.dbrow` for the copy pressed (the rows the binding used to shadow; docs/MAPLINKS.md), so
+the player lands beside that staircase. Up: 2863,10209 -> 2862,10209,1; 2863,10188 -> 2862,10188,1;
+2894,10209 -> 2896,10209,1; 2894,10188 -> 2896,10188,1; 2930,10180 -> 2930,10179,1. Down lands on the
+far side: 2865,10209 / 2865,10188 / 2893,10209 / 2893,10188 / 2930,10182, level 0. All four
+Consortium landings are one floor with the Blue Opal secretary (2869,10205) and director
+(2867,10203); the west pair is 7 tiles from both. The stage gate, the two `mes` lines and both stage
+writes are unchanged. Proof: probes `kel_wsp_s1a` 35/0 and `kel_wsp_s1b` 12/0; copies with the
+detour removed, forgettabletale 307/0 and giantdwarf 379/0. OPEN: the gate and the market `mes`
+lines also fire on the 2930,10180 pair, a separate building; no source says whether they should.
+
+(c) **A quest's name binding on a shared staircase sent Veldaban's HQ stair into the Laughing
+Miner** -- FIXED, `quest_forgettabletale/scripts/forget_brewing.rs2`. `[oploc1,dwarf_keldagrim_stairs_lower/upper]`
+were unguarded, and a name binding beats the locs' `category=climb_up/climb_down`, so every copy
+(ten lower ones, Veldaban's HQ at 2828,10215 among them) teleported into the pub. Each binding now
+guards on the pub copy's `loc_coord` (2915,10196, levels 0 and 1) and every other copy falls
+through to `~climb(1)` / `~climb(-1)` (the `warriorsguild_doors.rs2 [oploc1,spiralstairs]` and
+`zogre_finish.rs2 [oploc1,ladder]` shape). The rule: a quest file that binds a shared stair or
+ladder by name guards on `loc_coord` and falls through to the category's `~climb`. Proof:
+`lmstair_before` hqStairUp landed 2916,10193,1 with the pub line; `lmstair_after` 10/10, the HQ
+stair lands on its maplink dest 2828,10214,1 and the pub stair still lands 2916,10193,1.
+
+(d) **Brutus's specials: a stationary attacker dodged, and no sidestep could** -- FIXED,
+`quest_idesofmilk/scripts/idesofmilk_locs.rs2`. Both specials were measured from `npc_coord`,
+which for a size-N npc (and the driver's npc row x,z) is its SOUTH-WEST tile, so a player beside
+his east side at z+2 stood outside the charge lane. Both zones are now measured from the 3x3
+footprint (`[proc,cowboss_side]`, `nc_size(npc_type)`), the charge lane is the footprint swept 0..4
+tiles (wiki Brutus Strategy table: "Dash forward 4 Tiles"), and the special resolves after 3 ticks
+instead of 1. Two general facts came with it: measure a big npc's zones with `nc_size`, never from
+`npc_coord` alone; and a telegraphed special queued with `queue*(x, 1)` can never be dodged,
+because the player phase runs queues before movement (`torirs_server_world.c` `phase_player`),
+so use the telegraph sequence's own length (`configs/all.seq` frame cycles / 30; both Brutus
+telegraphs are 90 cycles = 3 ticks). Proof: `brutus_after2_b62` 15/15 stationary specials hit,
+sidesteps dodged 4/4; idesofmilk copy 92/0 with `killBrutus.margin` below full hp.
+
+(e) **The Crandor ropes are not missing** -- comment fix only, `quest_dragon/scripts/crandor.rs2`.
+The header said LostCity's `crandor_rock_opening` / `crandor_climbing_rope` / `elvarg_gate_*`
+were absent and "deferred". They are LostCity NAMES the cache does not carry; the OSRS locs exist:
+`dragon_slayer_qip_ruin_entrance` (the Hole, a maplink), `dragon_slayer_qip_climbing_rope`
+(2833,9657, `category=climb_unqualified` -> `~climb(1)` -> maplink rows -> 2834,3258,0) and
+`dragon_slayer_qip_stalagtite_jump`. The walk out of Elvarg's lair: the secret wall from 2836,9600
+to 2836,9599, then `walk_route` 2834,9593 / 2834,9585 / 2842,9585 / 2847,9582 / 2851,9578 / 2855,9574
+/ 2855,9569, then `climbing_rope2` (volcano.rs2) -> 2856,3166,0 on the volcano rim, "You climb up the
+hanging rope..." / "You appear on the volcano rim.". A rope or hole between a cave (z >= 6400) and
+the surface keeps level 0: grade it with `t.player.climb` (verbs-pointer: A climb that changes no
+level). Before you call a loc missing because a LostCity handler name is absent, look up the OSRS
+loc's `maplink.dbrow` rows and its `ladders.loc`/`maplinks.loc` category. Proof: scratch
+`b62s1_crandor_ropes` 12/0.
+
+(f) **"I can't reach that!" right after a teleport out of a fight is Auto Retaliate** -- not a
+bug (LostCity-faithful). An attacker's hit inside the teleport's `p_delay` queues
+`[queue,playerhit_n_retaliate]` (skill_combat/combat.rs2); it runs after the landing and
+`p_opnpc(2)`s the npc left behind, whose route fails. Seen in crest's
+`returnCrest.varrockTeleport.cast` after a respawned Chronozon (respawnrate 30, aggressive) reached
+the player during a 140-tick kill wait. Repro `crest_reach_repro1`: the line in 6 of 8 attempts,
+exactly the six with a hit between the press and the landing; with `::setvar varp172_option_nodef 1`
+(Auto Retaliate off) 0 of 8. The row still PASSes. A test that must not see it teleports before the
+respawn. OPEN (owner, design): should a landing drop a retaliate queue whose attacker is out of
+reach? No source says so; not changed.
+
+(g) **Zogre Flesh Eaters' tomb doors teleport to the boss floor from either side** -- FIXED,
+`quest_zogreflesheaters/scripts/zogre_finish.rs2` `[proc,zfe_tomb_door]`. Each press used to
+`p_teleport` to 2480,9446,0 on the boss floor, so the stairs were skipped and a player on the boss
+floor had no walk out (the test left by Camelot Teleport). Each press now walks the player through
+the leaf pressed to its far side (the `door_walkthrough_try` shape, `~check_axis_locactive` +
+`~door_open`). The gate is 2009scape's (`ZogreFleshEatersListeners.kt:51-73`, from both sides):
+stage >= 9 passes silently, the Ogre Tomb Key passes with "You use the Ogre Tomb Key to unlock the
+door.", no key gives "The door is locked.". Route (wiki Zogre_Flesh_Eaters oldid 15328252): the
+outer pair 2441-2442,9433,2, the inner pair 2440-2441,9426,2, then `ogre_stairs_down` 2443,9417,2 ->
+2442,9417,0; out the same way. `^zfe_tomb_past_door` is deleted. Proof: `zfe_doors_after` 19/19;
+copy 178/0, helper_coverage FULL.
+
+(h) Driver, grader and tools: `t.player.climb` grades a same-level landing in another map frame
+(verbs-pointer: A climb that changes no level); `t.player.walk_to` answers a detail on success
+(traps-01-12, verbs-pointer); `helper_coverage.py` no longer credits an NpcStep to a row only
+named after the npc (coverage-and-gate); `run.py` takes one quest id per call and honours
+`TORIRS_QUEST_NO_PUBLISH` (running).
+
+## Seam pass matthew-mbp-m4-b62-seam2 (2026-10-05, batch matthew-mbp-m4-b62)
+
+Content in the OSRS-Content commit tagged `[seam:matthew-mbp-m4-b62-seam2]`; the grader change in
+the parent commit with the same tag. Every run used
+`build/orchestrator/worktrees/b61-engine/src/torirs_b61engine` (no engine change this pass).
+
+(a) **The Dorgesh-Kaan station doorway lands on a walled-off train platform; `walk_to` Tegdak
+stalls at 2488,5536** -- FIXED, `quest_anothersliceofham/scripts/slice_zanik.rs2`.
+`slice_goblin_station_entrance` (2695,5277,1) had one maplink row, `[maplink_1_42_82_8_29]`, dest
+2488,5536,0: the FINISHED station's platform, a 296-tile room the static map walls off from the
+dig where Tegdak works (2512,5562), with no quest-state test. A new name binding
+`[oploc1,slice_goblin_station_entrance]` lands at `^slice_railway_dig_landing_coord` 2520,5607,0
+(the tile in front of the dig's own exit doorway, which blocks its own tile) while
+`%varb3550_slice_quest < ^slice_complete`, and falls through to `~maplink_transition` after, so the
+platform landing is unchanged at state 11; `maplink.dbrow` is untouched. Sources: Quest Helper
+`AnotherSliceOfHam.java:197` (the railway zone 2505..2523 x 5527..5630 is the dig) and
+:272/:275 (enterRailway -> talkToTegdak 2512,5564); the wiki quick guide (oldid 14458352,
+Excavation: "Walk south on the tracks and talk to Tegdak"). The pattern: a maplink row whose
+destination is an area's post-quest state needs a quest-state name binding that shadows
+`[oploc1,_maplink_transition]` and falls through to it (gaps-world: A cave or tunnel click answers
+a chat line; `curseofarrav.rs2:223-235`). Proof: `seam2_dorgesh_before` landed 2488,5536 and the
+walk stalled; `seam2_dorgesh_after` 10/10 (lands 2520,5607, walk reaches Tegdak in 23 ticks,
+`::complete` then lands 2488,5536); a copy of the fixer's test with the climb dest changed and the
+platform block deleted, `seam2_dorgesh_slice_copy`, 140/0. OPEN (not changed): the return doorway
+lands on 2695,5277,1, the station doorway's own tile; the reverse maplink row says 2696,5277.
+
+(b) **`helper_coverage` charges a goto OUT of a sealed pocket** (`sealed_exits`,
+coverage-and-gate). Before it, Another Slice of H.A.M.'s `goto-talkToTegdak` off the train
+platform read FULL. Landing it reopened Holy Grail (`goto-talkToFisherman` out of the 320-tile
+pocket east of the Black Knight Titan, where `defeat_titan`'s `p_teleport(movecoord(npc_coord, 1,
+0, 0))` lands the player; from the titan's near side the walk reaches the fisherman in 11 ticks,
+so the landing side may be the content bug -- check LostCity and the wiki first) and Watchtower
+(`goto-leaveGrewIsland` over the water instead of `tree_ropeswing3`). OPEN: the exemption accepts
+any press of a pocket op loc in the 500 ticks before, so a test that swings INTO a pocket and gotos
+out within 500 ticks is not charged (Watchtower's `goto-leaveGrewIsland2`); a tighter rule needs
+to know which op locs leave a passage open.
+
+## Seam pass matthew-mbp-m4-b63-seam1 (2026-10-05, batch matthew-mbp-m4-b63)
+
+(a) **Haunted Mine: the lift lands in the flooded pool and no walk leaves it; use-key-on-valve
+says "Nothing interesting happens."** -- FIXED, `quest_hauntedmine/scripts/hauntedmine_dungeon.rs2`.
+Every descent `p_teleport`ed to 2726,4455,0, inside a water pool whose south row (z 4453) the map
+blocks (`walk_to 2725,4452 ... stalled at 2725,4454`), and the valve had only Turn, which read the
+key from the pack. Now the descent wades out by `p_exactmove` to the south shore
+`^hmq_flooded_shore` 2725,4452 (Abandoned Mine wiki: "they appear in the flooded chamber and wade to
+the south shore"; the tile itself is the map's nearest open shore tile, not sourced); `lift_flooded`
+answers Go-up from the shore at range 4 (`[aploc1]` + `p_aprange`; wiki: "must click the lift");
+`[oplocu,hauntedmine_lift_valve]` with the Zealot's key sets `liftpoweredonce` and opens the flow
+("The key unlocks the valve."); Turn refuses with the transcript's "The valve seems to be locked in
+position. There is a small keyhole in the side." until then (Transcript:Haunted Mine; Quest Helper
+`HauntedMine.java` valveOpened = liftpoweredonce, valveOpen = liftpowerednow). The key is kept;
+`liftpowerednow` gates the lift during the quest, and it stays operable after. The contract pin in
+`tools/check_quest_combat_contract.py` moved with it. Proof: hm_lift_post 24/24; the full-route copy
+`hm_unblocked2` 101/1, quest complete. OPEN: the journal's "I've powered the lift" now reads from the
+unlock (liftpoweredonce's new meaning).
+
+(b) **Ratcatchers: reading the directions moves nobody; the trellis lands on a one-tile ledge; the
+Port Sarim manhole lands on a dead tile; the rat pits' ladder lands in a field** -- FIXED,
+`quest_ratcatchers/scripts/ratcatchers.rs2`. The directions now open the transcript's prompt
+(`mesbox:The scroll contains directions to a manor`, `choose:Follow the directions to the house.`)
+and teleport to 2847,5066,0 (Quest Helper `RatCatchers.java:336`, the first climbTrellis point;
+wiki: "you are teleported there instantly"), with the transcript's refusals (not from Ardougne, no
+cat, already done) and "Directions to... here, actually!" inside the grounds. Both trellises land on
+the cache's trellis top one plane up (2844,5104,1 / 2851,5104,1). The quest-local `vc_manhole_open` /
+`vc_ladder` bindings that `p_telejump`ed +/-6400 are deleted, so the category handlers take the
+cache rows `maplink_0_47_50_10_31_down` (-> 2962,9650) and `maplink_0_46_150_18_50_up` (-> 3018,3233).
+The general fact: a quest-local `p_telejump(movecoord(coord, 0, 0, +/-6400))` on a ladder or manhole
+is wrong whenever the underground sheet is not straight below; grep `maplink.dbrow` for the loc
+first. OPEN: the trellis down-climb still lands inside the ground floor (FIXED matthew-mbp-m4-b64-seam1
+(b): it now leaves the grounds for Ardougne);
+the "from Ardougne" box (map squares 38-42 x 49-52) is not sourced.
+
+(c) **Lost Tribe: the tunnel floor carries two, three, four brooches** -- FIXED,
+`quest_losttribe/scripts/losttribe.rs2` `[proc,lost_tribe_lay_brooch]`. The dig and every squeeze
+through the hole each `obj_add`ed one, and `obj_add(..., 0)` never despawns (SS_OP_OBJ_ADD maps a
+duration <= 0 to -1), so they stacked forever. Now one proc lays it only when neither the player
+(backpack, bank) nor the tile (`obj_find`) has one. The general fact: content that re-lays a quest
+item on entry must `obj_find` the tile first (`slugmenace_witchaven.rs2:180` has the same shape).
+Proof: ltbrooch_before tile count 4 / ltbrooch_after 1; the committed test copy 178/0.
+
+(d) **Watchtower: Gu'Tanoth's gates stood open 500 ticks after an earned opening** -- FIXED,
+`quest_itwatchtower/scripts/ogre_guard.rs2`. `open_gutanoth_gate` called the shared
+`~open_double_door_left/right` (`doors/scripts/doubledoors.rs2`, loc_del/loc_add 500), so once a
+friend of the ogres opened a gate anyone walked through at stage 2 (gutanoth_probe_pre s3). It now
+does LostCity's `~open_and_close_double_door2` (`quest_itwatchtower.rs2:274-281`): the player is
+walked through and both leaves come back in 3 ticks. The claim the pass was opened for (the NW gate
+opening from inside at stage 2) did not reproduce. Consequence for tests: drive these gates with
+`cross_gate` (verbs-pointer: A gate ported from LostCity's `~open_and_close_double_door*` is a
+WALK-THROUGH); the committed itwatchtower's `pass_door` on `leaveSouthPocket.southEastGate` went RED
+and the quest was reopened.
+
+(e) **A dropped bank note lands on the server but the client lists and draws nothing; `t.player.drop`
+of a `cert_*` stack times out with the pack empty** -- FIXED, `src/app/app_world_rebuild.c`. Every
+note, on any floor: `app_obj_stack_build_model` read the note's own `inventory_model_id` (0: a cert
+record is `certlink` + `certtemplate`) and `App_WorldObjStackAdd` dropped the OBJ_ADD. A note now
+takes the template's model and recolours (the reference's `ObjType.genCert`). Server half:
+`inv_dropslot` puts back whatever the floor refused and aborts the script naming obj, count and
+tile, instead of emptying the slot on a failed `ToriRSServer_WorldObjAdd`. Selftest row 5b (five
+`cert_blankrune` dropped at 3441,9898,0 = one pile of 5). Proof: noted_drop_probe2 (before, `client
+ground not_found`) against noted_drop_probe3 12/0; the Priest in Peril copy with the drop graded 180/0.
+
+(f) **The grader charges a goto through the only gate, onto a solid tile, off an island it swung
+onto, and a use that did nothing** -- coverage-and-gate: A goto through the only gate, onto a solid
+tile, or off an island it swung onto; a use that did nothing. The closer's fresh runs of every
+committed test (torirs_b63engine, this pass's content) moved 52 queued-green tests to RED: the
+grader's movers, plus doric, sheep, runemysteries and scorpcatcher, whose FIRST goto is now stamped
+in a fresh ledger and so judged by `enclosure_entries` (HEAD's grader reads the same charges on
+these ledgers), plus itwatchtower ((d) above). Eight move on their first goto alone and wait for the
+owner's first-goto ruling: death, doric, druid, eadgar, murder, sheep, sleepinggiants, soulsbane.
+The rest were reopened with their gotos named.
+
+(g) **Named npc copies one tile away answer `covered ... at 382,102`** -- FIXED in `pointer.lua`
+(verbs-pointer: A named npc copy is pressed at its OWN pose's pixel).
+
+(h) **A fight dies inside a re-attack press while hp falls and nothing eats** -- FIXED in
+`combat.lua`/`spell.lua` (verbs-combat: Eating inside an attack press and a re-engagement).
+
+(i) **`climb` stalls under a guard's page (Watchtower's towerladder)** -- FIXED in `world.lua`
+(verbs-pointer: A GUARDED ladder speaks first: `chat=`, `chat_optional=`).
+
+## Seam pass matthew-mbp-m4-b64-seam1 (2026-10-05, batch matthew-mbp-m4-b64)
+
+(a) **Biohazard: a teleport keeps the plague sample and the three vials; `teleport.rs2` listed the
+plague sample among its "Dropped" post-checks** -- comment only, `skill_magic/scripts/spells/
+teleport.rs2` header. The pack is right: OSRS removed the rule on 25 July 2019 ("Teleporting with
+the plague sample and vials no longer breaks them.", wiki Biohazard oldid 15256425, Changes;
+`docs/quests/biohazard.md:58-64`, `:239`). LostCity (2004) still deletes it in `[proc,
+p_telejump_safe]` (LC `teleport.rs2:72-75`). The header now says the check is absent on purpose; a
+future port pass must not restore it from LostCity. A test may still walk Ardougne -> Rimmington
+with the sample (legal under the door rule), but by choice, not because a teleport would break it.
+Proof: b64s1_biohaz_tele 6/6, a real Varrock Teleport landed 3213,3424,0 with plaguesample=1 and
+the three vials held.
+
+(b) **Ratcatchers: the trellis top's Climb-down lands INSIDE the house (2844,5104,0); the garden
+gates swing open and lead nowhere** -- FIXED, `quest_ratcatchers/scripts/ratcatchers.rs2`
+`[proc,ratcatch_leave_grounds]` and `doors/configs/doors_selfstage.loc`. Both ways out of the grounds
+now `p_telejump` to 2570,3322,0, the open tile outside Jimmy Dazzler's front door (poshdoor
+2569,3322), inside `~ratcatch_in_ardougne` so the directions work again from there. The trellis
+top (`[oploc1,vc_blank_trellis_top_trigger]`): "Climb back down the trellis to return to Ardougne OR
+use any teleport" (OSRS wiki Ratcatchers/Quick_guide; also the Ratcatchers page and the RuneScape
+wiki Rat_Catchers/Quick_guide "climb down it to return directly to Jimmy"). The gates
+(`[oploc1,vc_ornaterailing]`, no longer a `door_selfstage` door): the `Transcript:Ratcatchers`
+"Leaving through the gates" block, `Do you want to leave the grounds?` / `Yes, let's get out of
+here!` (transported back to Ardougne) / `No I've changed my mind.` (nothing). UNSOURCED: the
+Ardougne tile, and that the trellis exits at every stage. A test grades the trellis climb with
+`dest={2570,3322,0}`; an Ardougne Teleport after it is optional. The general fact: a name binding
+`[oploc1,<loc>]` on a `ladders.loc` category member shadows the category's generic `~climb`;
+`ladder_import.py` keeps the record in its category, so `ladders.loc` need not change.
+Proof: b64s1_ratc_leave 16/0 (trellis at stages 30 and 35, gates No then Yes); the committed test's
+copy with that one dest changed 254/0, gate green.
+
+(c) **The grader judges the run's start and the crossings a walk makes by a loc's own op** --
+coverage-and-gate: A goto through the only gate, onto a solid tile, or off an island it swung onto
+(the b64-seam1 paragraphs). An unstamped first goto leaves from the fixture's tile; a setup cheat
+that moves the player is a `(setup placement) <cheat>` CHEAT step; the Wilderness Ditch, the
+Shantay Pass and the Barbarian agility pipe are gates (`crosses (by its own op) ... NEEDS-OP`). The
+closer's fresh runs of all 143 committed tests moved six queued greens: currentaffairs,
+entertheabyss, taleoftherighteous (their setup placement), horror (goto-talkToGunnjorn past the
+agility pipe), ratcatchers ((b): its committed trellis row expects the old landing) and itwatchtower
+(NOT this pass: the same `leaveSouthPocket.southEastGate` pass_door FAIL as b63-seam1 (d), which the
+owner set back to green in d3427b3fe). The first five were reopened.
+
+## Seam pass matthew-mbp-m4-b65-seam1 (2026-10-05, batch matthew-mbp-m4-b65)
+
+(a) **Golem / Shadow of the Storm: the Uzer portal landed in an empty map square (3544,4952,0),
+the throne room's exit portal looped back into it, and the ruin stairs landed on their own
+footprint** -- FIXED in content. `quest_golem/configs/golem.constant`: `^golem_demon_lair` is now
+2720,4884,2 (the throne room floor beside its exit portal) and the new `^golem_ruin_portal` is
+2721,4911,0; the golem arm of `[oploc1,golem_demon_portal]` (`golem_portal.rs2`) says "You step
+into the portal." and lands there. `quest_shadowstorm/scripts/shadowstorm_dye.rs2` no longer binds
+`golem_insidestairs_top` / `golem_insidestairs_base` (and `^sots_stairs` is gone), so the stairs
+fall through to their `ladders.loc` category, `~climb`, then `~maplink_try`: Climb-down from
+3491,3090,0 lands 2721,4886,0 at the stairs' base; Climb-up lands 3491,3090,0, the open arch
+beside the top. `^golem_uzer` / `^sots_uzer` (the `::golem` / `::shadowstorm` stands) moved from
+3493,3090 (inside the stairs' footprint, a one-tile walking component) to 3491,3090. Sources: the
+shortest-path transport data `maplink.dbrow` is imported from,
+`tools/data/shortest_path/transports/transports.tsv:3551-3570` ("# Uzer": Climb-down Staircase
+6373 3491,3090,0 -> 2721,4886,0; Climb-up 6372 -> 3491,3090,0; Enter Door 6310 -> 2720,4884,2) and
+`teleportation_portals.tsv:85-93` (Enter Portal 6282 -> 2721,4911,0); Quest Helper
+`TheGolem.java:185`, `:340`, `:342`. The general fact: **`~maplink_try` is keyed on the PLAYER's
+tile**, so a stair with a maplink row answers only from that row's src tiles; a press from the
+loc's own footprint falls to `~climb`'s default and reads "You can't go any further." Press from
+the maplink src tile, and grade the landing as a same-level climb
+(`same_level="maplink_0_54_48_35_18_down"` / `"maplink_0_42_76_33_22_up"`). Proof:
+`golem_seam_probe` 21/0 (down 2721,4886,0; up 3491,3090,0; portal 2720,4884,2; exit 2721,4911,0)
+and a golem.lua copy 134/0 to `quest.varp_complete` -- its stair press through the logged
+`t.drive.op` bypass, because of (c). Moved: shadowstorm's `goIntoRuin`, `enterRuinAfterBook`,
+`enterRuinAfterRecruiting` (goto 3493,3090 then press: "You can't go any further."). Not changed:
+the Shadow of the Storm arm of the portal still lands at `^sots_throne` 2720,4912,2, and
+`^sots_mushroom` 3495,3088 is on `golem_black_mushrooms`' solid tile (parity notes).
+
+(b) **pass_door refused a double door whose open leaf arrived a frame late** -- FIXED in
+`world.lua`, see verbs-pointer: A double door's open leaf lands a frame late. Conformance
+`seam.pass_door_awaits_a_late_open_leaf`.
+
+(c) **FIXED by matthew-mbp-m4-b66-seam1 (a) below -- was OPEN: the Uzer ruin stairs cannot be pressed from the arch tile 3491,3090.**
+`golem_insidestairs_top` (model 6071, s10 r1 at 3492,3090,0) is a rim round an open stairwell; the
+loc projector aims at the footprint centroid, which projects into the pit where nothing is drawn
+(TORIRS_PICK_DEBUG=all: zero hits there, not even terrain), and the stairs are held only 75-105 px
+away, outside the hunt's +-64 px (fixer sweep: held at 12 pixels x 403..433 against the projected
+508,259). Every pose answers `covered ... pickset held=false, menu rows: Cancel, Walk here` and
+`none of 99 pixels ... holds it`. The fixer's C change (aim at the nearest visible face's screen
+centroid when the origin is on no face, reprojecting `element->model` through
+`drive_pointer_project_point`) pressed the Uzer stairs on press 1 but was REVERTED by the closer:
+its reprojection disagrees with the renderer's own pick, and it broke five committed greens on a
+full-suite run (vampire `goDownstairsMorgan` on `stairstop` 3100,3266,1: the origin 416,241 that the
+renderer holds was moved to 397,263 / 392,115, `covered`; losttribe, misc, misc_astrid,
+mountaindaughter also went RED and all five were green again on the HEAD-C binary). The probe (a
+worktree build printing the element) measured `at.y == ground_y` (-560) and yaw 0, so the
+mismatch is not the element's height or rotation; NOT CONFIRMED where it is (the drawn model or
+position vs `element->model`). A fix must answer "is the origin on the model" with the renderer's
+own test (`ToriDraw_ProjectedModelMouseHitTest` on the drawn command), or try the new point only
+after the existing hunt fails, so nothing that pressed before can move. Until then golem and
+shadowstorm stop at that press.
+
+(d) **The grader charges a hop with no on-foot route, and reads a goto by what the row did** --
+coverage-and-gate: "no on-foot route (UNREACHABLE at margin 600)" ... (matthew-mbp-m4-b65-seam1).
+The closer's fresh runs of all 143 committed tests (HEAD-C binary) moved exactly the ten queued
+greens the fixer's re-grade predicted (chompybird, cog, dreammentor, elena, fenkenstrain, ikov, imp,
+mortton, mourningsendpartii, sheepherder); all ten were reopened. `helper_coverage_two_op_test`'s
+`wt_swung_off_first` now wants `leaveGrewIsland` DRIVEN rather than a FULL verdict (its goto-goUpTrellis
+crosses membergater at margin 400).
+
+(e) **OPEN OWNER QUESTION: a staged level is a stat change** -- verbs-pointer: teleport_cast.
+
+## Seam pass matthew-mbp-m4-b66-seam1 (2026-10-06, batch matthew-mbp-m4-b66)
+
+(a) **A loc whose footprint centroid is a hole is pressed where its faces are drawn -- after the
+hunt, never instead of it** (uzer_stairs_press_aims_where_the_renderer_draws_the_model_not_at_the_
+stairwell_pit; closes b65 (c)). The loc projection is the footprint centroid on the ground; for
+`golem_insidestairs_top` (model 6071, a rim round the open Uzer stairwell) that pixel is the pit and
+every pose answered `covered ... none of 99 pixels hittested around the projected 382,240 holds it`.
+Now, ONLY after the whole pose sweep and pixel hunt said `covered`, and only for a loc,
+`click_minimenu` calls `QD.drive._model_aim` (pointer.lua): `api_drive.model_points(element,
+x, y, max)` (`torirs_plugin_drive_pointer.c` `drive_pointer_model_points`) lists the screen centroids
+of the element's visible, unclipped, non-sliver faces (the scene element's `world_position` and
+model, placed the way `app_overlay_outline_element_mesh_trans` places them), nearest the projection
+first; each is PROBED and pressed only when the renderer's own pickset holds the element there. A
+wrong candidate costs a probe, never a press, and no press that landed before can move -- the b65
+attempt MOVED the aim and broke vampire, losttribe, misc, misc_astrid and mountaindaughter. The row
+detail (the folded note) reads `click_minimenu: model aim: face centroid 394,258 (+12,+18 off the
+projected 382,240) held on probe 1 of 9 candidate(s) from 18 face(s)`; a miss reads `model aim: none
+of N face centroid(s) probed holds element E ...` or `model aim: not_visible for element E (F
+face(s))` inside the `covered` detail. `QD.drive._model_aim_last` holds the last aim found.
+Conformance `seam.stairwell_pressed_on_its_model_from_the_arch` (SEAM_COUNT 125): Climb-down from
+3491,3090 lands 2721,4886,0 through the model aim, and the control (`spiralstairsbottom_3`, shape 10,
+from the side tile 3205,3228) lands on press 1 with no model aim; it FAILS `covered` on the HEAD-C
+binary (conf_base) and passes 311/311 with the fix. Regressions on the rebuilt `torirs_b66engine`:
+vampire 60/0, losttribe 178/0, misc 208/0, misc_astrid 193/0, mountaindaughter 164/0, prince 78/0,
+cooks_assistant 78/0, druid 55/0, coldwar 250/0, entertheabyss 77/0, viking 403/0,
+thefremennikisles 502/0. Two viking rows now land through the model aim instead of the old recovery
+(`goBackUpstairs.down`: before, covered -> pressed again from the trapdoor's other side; now
+`model aim: face centroid 65,269 (-317,+16 ...)` on the first side; `fillVase`: the hunt's remembered
+offset no longer held, the model aim did) -- same outcome, different pixel. Golem copy (both
+`t.blocked` removed, enterRuin `dest={2721,4886,0}`, `same_level="maplink_0_54_48_35_18_down"`,
+leaveRuin `dest={3491,3090,0}`, `same_level="maplink_0_42_76_33_22_up"`) 133/0 to
+`quest.varp_complete`; Shadow of the Storm copy pressing from 3491,3090 (not 3493,3090) 131/0.
+
+(b) **A `ladder_from_cellar` with no maplink row climbs OUT of the dungeon (-6400), not one plane
+up** (ladder_from_cellar_with_no_maplink_row_climbs_one_plane_instead_of_out_of_the_dungeon; closes
+the b54-seam2 OPEN line above). The loc's category (`climb_up_ladder`) reaches `~climb(1)`, whose
+maplink miss is the +1 PLANE default, so a rowless copy stood the player on plane 1 of the same
+dungeon tile: Clock Tower's white-room ladder `2575,9656,0 -> 2575,9656,1`, the Asgarnian Ice
+Dungeon ladder `3009,9550,0 -> 3009,9550,1` (scratch `lfc_pre`, both FAIL). 49 copies are placed,
+all underground (z 9482 and up); 21 have no row from any side. A name binding
+`[oploc1,ladder_from_cellar]` in `ladders_stairs/scripts/ladders.rs2` (beside `ladder_cellar`'s)
+animates, lets a maplink row answer first (`~maplink_try(1)`), and otherwise `p_telejump`s to
+`movecoord(coord, 0, 0, -6400)`. Source: LostCity_Content2
+`scripts/ladders+stairs/scripts/ladders.rs2:87-94` `[oploc1,loc_1755]` (-6400), whose 1755 is placed
+on the same tiles (`m40_150.jm2:7424`, `m47_149.jm2:3712`); every row the harvest wrote for a
+`ladder_from_cellar` is already src -6400 but one (3097,9868, which still answers first). Proof
+(`lfc_post` 6/0): cog's copy lands 2575,3256,0, squire's 3009,3150,0, the rowed druid control
+2884,3398,0 unchanged; copies of cog (climbWhiteLadder up the ladder) 89/0 and squire (out of the
+Ice Dungeon by the ladder, no staged Magic or Lumbridge Teleport) 86/0, both helper_coverage FULL.
+NOT CONFIRMED: the OSRS-only copy 1623,9932 (no LostCity 1755) lands 1623,3532 by the same rule;
+`ladder_from_cellar_directional` (17387, Castle Wars' four rowless copies) keeps its category and
+still climbs +1 plane. The full suite on the new pack moved no committed green.
+
+(c) **Tears of Guthix: the climbing rocks land on their maplink row, both ways at the ledge**
+(tog_climbing_rocks_up_always_step_east_so_the_climb_back_from_junas_side_never_reaches_the_ledge).
+`[oploc1,tog_climbing_rocks_down]` / `[oploc1,tog_climbing_rocks_up]` did `p_teleport(movecoord(coord,
+2, 0, 0))` from every side, so the climb back from Juna's side (3241) landed on 3243, never the
+ledge. Now they answer with `~maplink_try(0)` (the pack's `maplink_2_50_148_*` rows, from
+shortest-path `transports.tsv`'s "# Tears of Guthix" block) and keep "You climb the rocks."; a tile
+with no row refuses with "Nothing interesting happens." (`~displaymessage(^dm_default)`, as
+`~maplink_transition` does). `tog_climbing_rocks_up` (6673, 3240,9524-9525) climbs 3239 <-> 3241;
+`tog_climbing_rocks_down` (6672, 3239,9497-9499) climbs only 3238 -> 3240 and its east side walks
+to Juna. Quest Helper `TearsOfGuthix.java:154-155` ("Go back up the rocks"). Probe
+`tog_rocks_probe2_b66s1` 17/17; tearsofguthix stays green (53/0). No before-fix ledger row: the
+pre-fix landing is read off the old code.
+
+(d) **Scorpion Catcher pays 6,625 Strength XP** (scorpcatcher_quest_complete_pays_no_strength_xp).
+`[queue,scorpcatcher_quest_complete]` paid the quest point alone; it now does `stat_advance(strength,
+66250)` (tenths) and names "6,625 Strength XP" on the scroll with the full cage as its model
+(LostCity `quest_scorpcatcher.rs2:55-60`; OSRS wiki Scorpion Catcher, Rewards). The
+`::scorpcatcherrun` debugproc mirror does the same and fails unless Strength rose by exactly 66250
+tenths. Scratch `b66s1_scorpxp_before` (HEAD pack) 9/2 `expect_gain: refused strength: before=0
+after=0` -> `b66s1_scorpxp_after` 11/0 `strength: +6625 xp (whole units)`. A content BEFORE row is
+made with the scratch pack in running.md ("To show a content seam's behaviour BEFORE the fix"); the
+same `TORIRSSERVER_SCRIPTS` env runs the server selftest against the HEAD pack for a failure-count
+baseline (13 = 13 here).
+
+(e) **The grader no longer credits a step to a same-named npc or another copy of its loc** --
+coverage-and-gate: A step credited to a same-named npc, or to another copy of its loc.
+
+(f) **OPEN OWNER QUESTION, unchanged: a staged level is a stat change** -- verbs-pointer:
+teleport_cast. Squire's staged Magic 31 (for the Lumbridge Teleport out of the Ice Dungeon) goes
+away once its re-author leaves by the ladder ((b) above); druid and pryingtimes still stage.
+
+## Seam pass matthew-mbp-m4-b67-seam1 (2026-10-06, batch matthew-mbp-m4-b67)
+
+(a) **The Khazard stronghold door lets the player out from inside** (khazard_stronghold_door_pressed_
+from_inside_runs_the_entering_half_and_puts_the_player_back_inside). `[oploc1,khazard_stronghold_door]`
+(quest_tree_locs.rs2) ran the entering half for every press from the north, so a player inside at
+2502,3251 was put back on 2502,3251 (`timeout settle_after_click; landed 2502,3251,0`). It now
+computes `$entering = ~check_axis(coord, loc_coord, loc_angle)` and keeps `$dest = loc_coord`
+unless `$entering`, as LostCity `quest_tree.rs2:32-36` passes it to `~open_and_close_door`
+(`doors/scripts/open_and_close_doors.rs2:20-35`; our `door_procs.rs2:112 [proc,check_axis]`). The
+door is a one-way walk-through out: pressed from inside it lands on the door tile 2502,3250,0;
+from the south it still refuses with "The door is locked from the inside." (the mesbox once
+treequest >= finding_trackers). Drive the exit with `t.player.cross_gate{loc="khazard_stronghold_door",
+at={2502,3250,0}, near={2502,3251}, far_ok=<z <= 3250>}` then `walk_to 2502,3249`, never a teleport
+out. Probe `khazard_door_probe_b67b` 7/7; a tree copy so driven 103/0, helper_coverage FULL. The
+loc_1532 swing is still deferred.
+
+(b) **Pirate Pete ferries to Braindeath Island and back** (rumdeal_no_travel_to_or_from_braindeath_
+island; supersedes gaps-world "Rum Deal: Pete says 'take a boat over'"). The accept now ends with
+Pete's lines from wiki Transcript:Rum_Deal oldid 15359833 ("Wonderful! Just pick up your diversion
+and we'll leave!" / "What diversion?"), sets the stage to started and runs `[proc,deal_pete_knockout]`:
+"Ow!", a fade, and a landing at 2144,5108,1 in Captain Braindeath's room, narrated by one mesbox
+("Pirate Pete knocks you out with a bottle..."; no `cam_*`, so no cutscene row is required). Once the
+stage is >= started, `deal_pete` (dock) and `deal_island_pete` (island) both run
+`[proc,deal_pete_standard]`, Pete's "Standard dialogue" verbatim from wiki Transcript:Pirate_Pete
+oldid 15079272: "Want a lift to Braindeath Island?" / "Want a lift to Port Phasmatys?", options
+Okay! / Not now / two questions. Okay! plays one of 5 random distractions, the knockout, and lands
+2162,5114,1 or 3680,3536,0 (boats.tsv:6-8); the far Pete speaks one of 4 random excuses. To drive a
+lift: `chat.play` up to `choose:Okay!`/`player:Okay!`, `chat.drain{max_pages=10}` (it ends at the
+fade: no page shows for about 4 ticks), await the landing tile AND a mounted page, then
+`chat.play{"player:Ooooh... my head", "npc:Are you ok? You, errr"}` and drain. Proof
+`b67s1_rumdeal_lift` 29/0. Still the port's paraphrase: the pre-start talk, whose "take the cash"
+branch starts the quest (the transcript's ends the talk); parity work for docs/quests/rum_deal.md.
+
+(c) **Braindeath Island's staircases have maplink rows** (braindeath_island_staircases_have_no_
+maplink_rows_and_climb_into_sealed_pockets). New `quest_rumdeal/configs/rumdeal_maplink.dbrow`, 28
+rows: `deal_stairs_bottom` 2137/2149/2163,5088 r1 climb up from every approach tile (south side
+x..x+2,5087 and both ends) to x/x+1,5089,1, the top's only open side; `deal_stairs_top` climbs down
+to x/x+1,5087,0. The 2129 pair runs west <-> east (2128,5094-5096 <-> 2130,5095/5096,1). The client
+presses an r1 bottom from its EAST end (x+3,5088, forceapproach). A `t.player.climb` on these stairs
+grades dest x/x+1,5089,1 (up) or x/x+1,5087,0 (down), slack 1. 2151,5109 r3 is unrouted: every tile
+round its bottom is a sealed pocket and the quest never uses it. The stairs are the wiki's
+(Rum Deal oldid 15315444, "Leave the building by the southernmost stairway") and Quest Helper's
+(RumDeal.java goUpFromBottom/goDownstairs 2150,5088, goDownForWater 2138,5088); the landing tiles
+are each stair's open sides read off this map (no transport source has 10136/10137). Probe
+`bdstairs_b67s1` 20/20. Pattern: a stair whose bottom and top footprints differ (3 vs 2), or whose
+floors join on opposite sides, needs one maplink row per approach tile (dir +1/-1), in a
+quest-owned `<quest>_maplink.dbrow` (ladders_stairs `maplink.dbrow` is generated).
+
+(d) **Witch's House: the basement ladder climbs, and the front door is keyed from outside**
+(witch_house_ladders_shadowed_by_grim_tales_and_front_door_checks_the_key_from_the_wrong_side).
+`grim_witch_ladder_down/up` are name bindings that shadow the `climb_*_ladder` categories for every
+player; down answered "Nothing of interest happens." and up p_teleported to a chair tile
+(2904,3470) while Grim Tales was unstarted, though Grim Tales needs Witch's House complete. Now
+both fall through to `~climb_ladder(-1/1)` (maplink 2906,3476 <-> 2906,9876) while
+`%varb2783_grim_quest = 0`; the Grim Tales branch is unchanged (unsourced). `witchhousedoor`
+(2900,3473 s0 r2) sits on the east edge of the OUTSIDE tile, so `~check_axis` is true for the
+outside player: the opposite of LostCity's placement (2901,3473 r0), whose `$leaving` name the
+port had kept, inverting the key check. The value is now `$entering`; the key (or using
+`witches_doorkey` on the door) is needed only to get in, and "It would be rude to break into this
+house." fires only when entering a never-started quest. Source: wiki Witch's House oldid 15168391.
+Probe `witchseam_s2` 24/25 (the miss is the expected non-key refusal); a ball copy past the old
+block 113/0, FULL.
+
+(e) **goldrock2 is ordinary gold; 'perfect' gold is by zone** (goldrock2_pays_perfect_gold_ore_
+everywhere_not_just_in_the_witchaven_room). `[perfect_gold_rock_table]` keyed on goldrock2 paid
+perfect_gold_ore at all 140 goldrock2 placements, 33 of them in Dondakan's mine. goldrock2 is back
+in `[gold_rock_table]` (LostCity mine.dbrow), and `[proc,mining_crest_perfect_gold]` (mining.rs2,
+both output sites) swaps a gold rock's ore for perfect_gold_ore only inside
+`^crest_perfect_mine_lower_bound/upper_bound` (quest_crest.constant, 2728-2747 x 9676-9701: the
+Witchaven room behind famcrest_doori2h1, re-measured on this map; LostCity's 2004 numbers hold none
+of this map's four rocks), as LostCity `mining.rs2 get_ore_normal` does. The Witchaven message is
+now "You manage to mine some gold." (LostCity's single gold row; the OSRS line is NOT CONFIRMED).
+Sources: wiki 'perfect' gold ore oldid 15302221, Dondakan's mine ("Gold ore"), Quest Helper
+FamilyCrest.java:265. crest_selftest checks the row, the four rocks in the zone and the realm
+outside it. crest 165/0 and betweenarock 207/0 stay green.
+
+(f) **Rum Deal's Evil spirit and Wanted!'s Solus fight on their own stats** (quest_bosses_fight_on_
+engine_default_stats_...) -- gaps-combat: A quest boss with no `hitpoints=` fights on the engine's 10.
+New `quest_rumdeal/configs/rumdeal.npc [deal_evil_spirit]` (wiki Evil_spirit oldid 15199641; cache
+all.npc:16097 agrees) and a `[solus]` block in `wanted.npc` (wiki Solus_Dellagar oldid 15204754;
+all.npc:140108). Both are AUDITED_OVERRIDES in `tools/generate_quest_combat_manifest.py` and checked
+by `tools/check_quest_combat_contract.py`. Proof: spirit 16 -> 56 ticks to kill (`hp no bar ->
+27/30, hitsplat 7`); wanted 204/0 green, Solus 8 -> 36 ticks.
+
+(g) **The grader** -- coverage-and-gate: A step below the block graded CHEAT; a setup give charged
+for a shared word; a goto charged on its near side.
+
+(h) **Fenkenstrain's lightning conductor without the Port Phasmatys toll** (fenkenstrain_pays_the_
+port_phasmatys_toll_with_setup_ectotokens_the_guide_never_has_you_obtain; test-side only). Falador's
+furnace (`fai_falador_furnace` 2976,3368) is a plain walk from the Falador Teleport landing
+2965,3378 (reach REACH closed-doors, 18 tiles; stand 2974,3369, `use_on at={2976,3368,0}`), so any
+"any furnace" step can avoid the ecto-token toll. Back by `teletab_fenk`: `t.player.inv_op(item, 1)`
+lands 3550,3530,0. (The tablet's Magic level gate, 48 here, is FIXED in b68-seam1: a tablet needs no
+Magic level, Seam pass matthew-mbp-m4-b68-seam1 (a); stage only what the guide's own spell needs.) The landing
+reads "start tile solid" to reach.py: walk off it, never goto from it. A fenkenstrain copy so driven
+201/0, FULL.
+
+(i) **A scratch A/B against HEAD content** needs both env vars: the server reads `.dbrow`/`.param`
+configs from `TORIRSSERVER_CONTENT/server/scripts` at run time, not only from script.dat. Point
+`TORIRSSERVER_CONTENT` at a scratch copy of the tree (other top-level dirs symlinked) AND
+`TORIRSSERVER_SCRIPTS` at a script.dat compiled from it (`sscompile --src <copy>/server/scripts
+--content-root <copy>`). That never touches the shared tree (running.md, "To show a content seam's
+behaviour BEFORE the fix").
+
+## Seam pass matthew-mbp-m4-b68-seam1 (2026-10-06, batch matthew-mbp-m4-b68)
+
+(a) **A teleport tablet needs no Magic level** (teleport_tablets_refuse_below_the_spells_magic_level).
+`[label,use_teleport_tablet]` (`skill_magic/scripts/spells/teleport_tablet.rs2`) refused a tablet
+below the spell's Magic level ("Your Magic level is not high enough to use this tablet."). The wiki
+says otherwise: "Magic tablet" oldid 15359329 ("Using one has no level requirements.") and
+"Fenkenstrain's castle teleport (tablet)" oldid 15187520 ("The player does not need to have the
+relevant Magic level to use the tablet"). The refusal is gone; the spell row is still read for its
+`tele_coord`, and the wilderness/teleblock gate (`~magic_teleport_gate(20)`) and Biohazard's West
+Ardougne gate stay. Proof: a scratch at Magic 1 breaking `teletab_fenk` from Lumbridge, BEFORE on
+the pre-edit pack `landed 3206,3233,0; teletab_fenk 1 -> 1` (refused), AFTER `landed 3550,3530,0;
+teletab_fenk 1 -> 0`; a fenkenstrain copy staging Magic 37 (the Falador spell's own level) 201/0.
+A test breaking a tablet stages no Magic level for it. Still open: the Fenkenstrain tablet page also
+names Priest in Peril + Drezel's warning; no varp source for the warning was found, so it is not
+gated.
+
+(b) **A before-run on the pre-edit pack without a worktree.** Copy
+`OSRS-Content/osrs239-content/server/scripts/build/script.{dat,idx}` aside BEFORE rebuilding, then
+run with `TORIRSSERVER_SCRIPTS=<copy> TORIRSSERVER_ALLOW_STALE_SCRIPTS=1` (configs read at run time
+still come from the tree: see b67-seam1 (i) for a config A/B).
+
+(c) **Twenty-nine test-fought npcs fought on the engine default, and the Evil spirit rolled 16, not
+its page's 28** (test_fought_npcs_fight_on_engine_default_stats_and_the_evil_spirit_rolls_16_not_its_page_28).
+None of these records had a block with `hitpoints=` in any `.npc` section (`npc_def_seed_from_cache`
+copies only the cache's bonus params and attackrate), so each fought at `npc_default.npc`'s 10 hp
+and 1/1/1. Each now has a quest-local block from its wiki Infobox Monster at a pinned oldid,
+compared with its `configs/all.npc` record (both cited in the block header);
+`tools/check_quest_combat_contract.py` `check_test_fought_npc_blocks` pins every line and the
+combat manifest row pins the oldid. The full list and the spirit's `[ai_opplayer2,deal_evil_spirit]`
+are in gaps-combat "A quest boss with no `hitpoints=`". Real stats move the fights: thefeud,
+biohazard, mourningsendparti, recruitmentdrive and pryingtimes stayed green with longer kills
+(Sir Leye 16 -> 52 ticks, ending at 8/20 hp bare-handed: a thin margin); rumdeal's spirit ate all
+10 sharks on 99 Defence (reopened: pray Protect from Melee, proved 160/160); spiritsoftheelid went
+red (below, (d)). A green test that reddens on a real stat block is fixed in the TEST, never by
+weakening the npc.
+
+(d) **An `npc_add` duration shorter than the fight is a silent despawn, and `await_dead_engaged`
+grades it a kill by ABSENCE.** `elid_dungeon.rs2` npc_adds each Elid golem for 50 ticks (a port
+invention: docs/quests/spirits_of_the_elid.md section 4; the wiki names no timer). At the page's 80
+hitpoints the golem outlived it: `whiteGolem.dead` read `dead after 48 tick(s) ... last hp 29/30
+... corroborated by ABSENCE`, and only the next quest row (`clearChannel.msg`, "disarm the spike
+trap") caught it. A kill wait that answers by ABSENCE with a high last bar is a despawn: read the
+last hp in the detail, and grade the kill by the quest's own outcome row after it. **FIXED
+b68-seam2** (OSRS-Content 99061aaa2e, below): the golems live `^elid_golem_duration` (3000), and
+both kill waits answer `despawned`, never `ok`, for an absence from a bar above a quarter. The test
+still needs stronger offence than bronze at unstaged levels and a longer budget.
+
+(e) **`t.npc.record(symbol, {need='server'})` proves a whole stat table cheaply**: it reads the
+server's content block by symbol with no live copy, so one scratch file with a row per npc
+(hp, levels, aggression, attackrate, damagetype, bonuses) proves every block landed in the pack.
+
+## Seam pass matthew-mbp-m4-b68-seam2 (2026-10-06, batch matthew-mbp-m4-b68)
+
+(a) **Spirits of the Elid's door golems have no timer** (elid_golems_npc_add_for_50_ticks_and_an_80_hp_golem_despawns_mid_fight).
+`elid_dungeon.rs2` :91/:142/:213 npc_add'ed each golem for 50 ticks, a port invention: the wiki
+(Spirits_of_the_Elid oldid 15306897 Walkthrough "The Golems", Transcript oldid 15338971, the
+White/Grey/Black golem pages oldids 15338923/15338925/15338922) and Quest Helper
+(`SpiritsOfTheElid.java` :245-263) all have the golem stand until it is killed. They now pass
+`^elid_golem_duration = 3000` (`quest_spiritsoftheelid.constant`), the walk-away clean-up value
+Swan Song (`^ssq_fight_duration`) and Contact! (`contact_scarab.rs2:17`) use; no put-back proc is
+needed, because each door re-adds its golem while its `%elid_*golem` bit is 0 and `npc_find` sees
+none. OSRS-Content 99061aaa2e. Proof: scratch `b68s2_elid_golem_after` 8/8, the white golem
+present at every 10-tick poll to 120 while fighting. The committed test now times out on the White
+golem at 25/30 after 120 ticks with a bronze dagger: reopened for real offence and a 300+ tick
+budget. The pattern to grep in any quest: an `npc_add(..., <n>)` whose `<n>` is shorter than the
+fight against it; for an npc the sources give no timer, use 3000.
+
+(b) **`await_dead`/`await_dead_engaged` answer `despawned` for an absence from a high bar**
+(await_dead_engaged_grades_a_despawn_as_a_kill_by_absence). The watch keeps the last bar it read
+and, on a vouched absence, credits a kill only from a bar at most a quarter of its width (or with
+no bar ever known); above a quarter it answers `despawned` with `NOT A KILL: ... last bar at 29/30
+..., above a quarter`, runs the death fence and consumes the stamp. The rule and its proof are in
+verbs-combat "An absence from a high bar is `despawned`, not a kill". Conformance
+`seam.absence_after_a_high_bar_is_a_despawn` (seam rows 125 -> 126). Before: the old Elid ledger
+rows 56/66/76 read `ok` at 29/30, 24/30 and 30/30; deserttreasure's Dessous kill (last bar 1/30)
+and tree's warlord (ZERO BAR) stay `ok`.

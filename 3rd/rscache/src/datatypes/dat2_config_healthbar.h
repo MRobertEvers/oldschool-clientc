@@ -2,6 +2,7 @@
 #define RSCACHE_DATATYPES_DAT2_CONFIG_HEALTHBAR_H
 
 #include "../rsbuffer.h"
+#include "../rscache_presence.h"
 
 /**
  * A healthbar type (config group 33): how an entity's overhead health bar is drawn.
@@ -65,8 +66,27 @@
  * | 11 | u16 | 0, 40, 280 |
  * | 14 | u8 | 40 to 160, a multiple of ten |
  */
+/**
+ * The fields a healthbar stream can state, for
+ * `RSCache_Dat2ConfigHealthbar.present`. Keyed by meaning, not opcode number.
+ */
+enum RSCache_Dat2ConfigHealthbarField
+{
+    RSCACHE_HEALTHBAR_FIELD_FRONT_SPRITE = 0, /* 7 */
+    RSCACHE_HEALTHBAR_FIELD_BACK_SPRITE,      /* 8 */
+    RSCACHE_HEALTHBAR_FIELD_DRAW_ORDER,       /* 2 */
+    RSCACHE_HEALTHBAR_FIELD_EVICT_PRIORITY,   /* 3 */
+    RSCACHE_HEALTHBAR_FIELD_PERSIST_CYCLES,   /* 5 */
+    RSCACHE_HEALTHBAR_FIELD_FADE_THRESHOLD,   /* 11 */
+    RSCACHE_HEALTHBAR_FIELD_WIDTH,            /* 14 */
+    RSCACHE_HEALTHBAR_FIELD_COUNT
+};
+
 struct RSCache_Dat2ConfigHealthbar
 {
+    /** Which `RSCache_Dat2ConfigHealthbarField`s the stream stated. The encoder
+     *  writes exactly these. */
+    struct RSCache_Presence present;
     int id;
 
     /** Opcode 7. The filled half of the bar, drawn clipped to the current fill.
@@ -94,9 +114,10 @@ struct RSCache_Dat2ConfigHealthbar
      *  NOT the pixel width; see the header. Defaults to 30 in the client. */
     int width;
 
-    /* Presence is tracked separately from value for every optional field, because 0 is
-     * a value the wire carries explicitly — opcode 5 does — and an encoder keyed on
-     * the value would drop the opcode and change the byte count. */
+    /* Read-only mirrors of `present` for the runtime loader
+     * (src/engine/dat2/task_dat2_healthbar_load.c), which predates it: 0 is a
+     * value the wire carries explicitly, so "was it stated" cannot be read off
+     * the value. The decoder sets both; the encoder reads only `present`. */
     bool has_draw_order;
     bool has_evict_priority;
     bool has_persist_cycles;
@@ -149,7 +170,8 @@ RSCache_Dat2ConfigHealthbarDecodeOp(
     struct RSCache_Buffer* buffer,
     unsigned flags);
 
-/** Byte-exact on every record in the corpus. Returns bytes written, or 0. */
+/** Writes exactly the fields `present` names. Byte-exact on every record in the
+ *  corpus. Returns bytes written, or 0 when `out_capacity` is below the bound. */
 uint32_t
 RSCache_Dat2ConfigHealthbarEncode(
     const struct RSCache_Dat2ConfigHealthbar* entry,

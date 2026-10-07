@@ -67,7 +67,82 @@ return {
         -- Prerequisite: Alfred Grimhand's Barcrawl is on the Quest Helper list but no horror .rs2 reads it
         -- (grep barcrawl quest_horror/scripts -> nothing), and its row has no cheat arm.
 
-        t.exec("goto-talkToLarrissa", t.player.goto_tile, 2507, 3634, 0)
+        -- Route (door rule, b69): Lumbridge -> the lighthouse has no on-foot route but the members'
+        -- gate south of Taverley (reach.py 3206,3233 -> 2520,3571: NEEDS-DOOR via membergater
+        -- @2933,3320), then open ground to the beach north of the Barbarian Outpost, then the basalt
+        -- rocks (basalt_rocks.rs2 [oploc1,horror_jumping_spot1..10], each "Jump-to" a fixed
+        -- start -> final tile; the map stores them on raw level 1, m39_56.jl2:246-255, hence
+        -- loc_level = 1). spot3 (north) and spot8 (south) roll Agility (basalt_rocks.rs2:24,42): a
+        -- slip sweeps the player back to the shore it came from, so those two are retried as a pair
+        -- with the jump before them (jump_pair below).
+        local function jump(spot, at, src, dest)
+            return { loc = spot, op_name = "Jump-to", at = { at[1], at[2], 0 }, loc_level = 1,
+                src = src, dest = dest, attempts = 1, vitals = { eat = "shark", below = 30 } }
+        end
+        local function jump_pair(first, second, shore, tries)
+            local slips = 0
+            for i = 1, tries do
+                local _, here = t.world.tile()
+                if here.x ~= first.src[1] or here.z ~= first.src[2] then
+                    t.player.walk_to(first.src[1], first.src[2], 20)
+                end
+                local r1, d1 = t.player.cross_trap(first)
+                if r1 ~= "ok" then
+                    return r1, "try " .. i .. " (" .. slips .. " slip(s) before): first jump: " .. tostring(d1)
+                end
+                local r2, d2 = t.player.cross_trap(second)
+                if r2 == "ok" then
+                    return "ok", slips .. " slip(s) swept back to " .. shore .. " before this pair; " .. d1 .. " || " .. d2
+                end
+                slips = slips + 1
+                t.ticks(4)
+                local _, after = t.world.tile()
+                if i == tries then
+                    return r2, "slipped " .. slips .. " time(s); last: " .. tostring(d2) .. " at " .. after.x .. "," .. after.z
+                end
+            end
+        end
+        local SPOT1 = jump("horror_jumping_spot1", { 2522, 3595 }, { 2522, 3594 }, { 2522, 3598 })
+        local SPOT3 = jump("horror_jumping_spot3", { 2522, 3600 }, { 2522, 3598 }, { 2522, 3603 })
+        local SPOT5 = jump("horror_jumping_spot5", { 2518, 3611 }, { 2518, 3610 }, { 2515, 3611 })
+        local SPOT7 = jump("horror_jumping_spot7", { 2514, 3613 }, { 2515, 3611 }, { 2514, 3616 })
+        local SPOT9 = jump("horror_jumping_spot9", { 2514, 3617 }, { 2514, 3616 }, { 2514, 3620 })
+        local SPOT10 = jump("horror_jumping_spot10", { 2514, 3619 }, { 2514, 3620 }, { 2514, 3616 })
+        local SPOT8 = jump("horror_jumping_spot8", { 2514, 3615 }, { 2514, 3616 }, { 2514, 3612 })
+        local SPOT6 = jump("horror_jumping_spot6", { 2516, 3611 }, { 2514, 3612 }, { 2518, 3610 })
+        local SPOT4 = jump("horror_jumping_spot4", { 2522, 3602 }, { 2522, 3603 }, { 2522, 3599 })
+        local SPOT2 = jump("horror_jumping_spot2", { 2522, 3597 }, { 2522, 3599 }, { 2522, 3594 })
+        local function rocks_north(step)
+            t.exec(step .. ".walkToRocks", t.player.walk_to, 2522, 3594, 30)
+            t.exec(step .. ".rocks1to3", jump_pair, SPOT1, SPOT3, "the beach", 30)
+            t.exec(step .. ".walkToSpot5", t.player.walk_to, 2518, 3610, 20)
+            t.exec(step .. ".rocks5", t.player.cross_trap, SPOT5)
+            t.exec(step .. ".rocks7", t.player.cross_trap, SPOT7)
+            t.exec(step .. ".rocks9", t.player.cross_trap, SPOT9)
+        end
+        local function rocks_south(step)
+            t.exec(step .. ".walkToRocks", t.player.walk_to, 2514, 3620, 30)
+            t.exec(step .. ".rocks10to8", jump_pair, SPOT10, SPOT8, "the north rocks", 30)
+            t.exec(step .. ".rocks6", t.player.cross_trap, SPOT6)
+            t.exec(step .. ".walkToSpot4", t.player.walk_to, 2522, 3603, 20)
+            t.exec(step .. ".rocks4", t.player.cross_trap, SPOT4)
+            t.exec(step .. ".rocks2", t.player.cross_trap, SPOT2)
+        end
+        -- The outpost's gate (doors_selfstage barbariangatel 2545,3570; scorpcatcher.lua) and the
+        -- agility course's only entrance, the obstacle pipe (maplink_agility.dbrow:500-512,
+        -- 2552,3561 <-> 2552,3558, Agility 35).
+        local PIPE_IN = { loc = "agility_obstical_pipe_barbarian", op_name = "Squeeze-through",
+            at = { 2552, 3559, 0 }, src = { 2552, 3561 }, dest = { 2552, 3558 } }
+        local PIPE_OUT = { loc = "agility_obstical_pipe_barbarian", op_name = "Squeeze-through",
+            at = { 2552, 3559, 0 }, src = { 2552, 3558 }, dest = { 2552, 3561 } }
+
+        t.exec("goto-talkToLarrissa.memberGate", t.player.goto_tile, 2934, 3318, 0)
+        t.exec("talkToLarrissa.memberGate", t.player.cross_gate, { loc = "membergatel", at = { 2934, 3320, 0 },
+            near = { 2934, 3318 }, far_ok = function(tile) return tile.z >= 3320 and math.abs(tile.x - 2934) <= 2 end,
+            far_desc = "north of the members' gate, z >= 3320" })
+        t.exec("goto-talkToLarrissa", t.player.goto_tile, 2522, 3592, 0)
+        rocks_north("talkToLarrissa")
+        t.exec("talkToLarrissa.walk", t.player.walk_to, 2509, 3632, 30)
         t.exec("talkToLarrissa", t.player.talk_to, "horror_girlfriend_prequest", 1)
         t.exec("talkToLarrissa-dialog", t.chat.play, {
             "player:Hello there.",
@@ -94,17 +169,39 @@ return {
         })
         t.expect("quest.stage.started", t.quest.expect_stage("started"))
 
-        t.exec("goto-usePlankOnBridge", t.player.goto_tile, 2596, 3608, 0)
+        t.exec("goto-usePlankOnBridge", t.player.goto_tile, 2595, 3608, 0)
         local left = t.player.by_symbol("loc", "horror_broken_bridge_left_spot")
         t.exec("usePlankOnBridge", t.player.use_on, "woodplank", left)
         t.exec("usePlankOnBridge-dialog", t.chat.drain, {max_pages = 3})
-        t.exec("goto-useSecondPlank", t.player.goto_tile, 2598, 3608, 0)
+        -- Over the half-mended gap by the left spot's own Cross (horror_interactions.rs2:90-133):
+        -- one half repaired is an Agility roll, a jump to 2599 on success, a dive to 2598 (and
+        -- 1-5 damage) on a failure -- either is the far side.
+        local function cross_half_mended(spec)
+            local r, d = t.player.cross_trap(spec)
+            local _, tile = t.world.tile()
+            if r ~= "ok" and tile.x == 2598 and tile.z == 3608 and tile.level == 0 then
+                return "ok", "dived (a failed roll) onto 2598,3608,0, the far side: " .. tostring(d)
+            end
+            return r, d
+        end
+        t.exec("useSecondPlank.crossBridge", cross_half_mended, { loc = "horror_broken_bridge_left_spot", op_name = "Cross",
+            at = { 2596, 3608, 0 }, loc_level = 1, src = { 2595, 3608 }, dest = { 2599, 3608 }, attempts = 1 })
         local right = t.player.by_symbol("loc", "horror_broken_bridge_right_spot")
         t.exec("useSecondPlank", t.player.use_on, "woodplank", right)
         t.exec("useSecondPlank-dialog", t.chat.drain, {max_pages = 3})
         t.check("bridge.planks_used", select(2, t.inv.count("woodplank")) == 0, "planks left " .. tostring(select(2, t.inv.count("woodplank"))))
 
-        t.exec("goto-talkToGunnjorn", t.player.goto_tile, 2547, 3553, 0)
+        -- Back over the mended bridge by the right spot (both halves: three steps west, 2598 ->
+        -- 2595), back down the rocks, through the outpost gate and the pipe to Gunnjorn.
+        t.exec("talkToGunnjorn.crossBridge", t.player.cross_trap, { loc = "horror_broken_bridge_right_spot",
+            op_name = "Cross", at = { 2598, 3608, 0 }, loc_level = 1, src = { 2599, 3608 }, dest = { 2595, 3608 }, attempts = 1 })
+        t.exec("goto-talkToGunnjorn.rocks", t.player.goto_tile, 2514, 3621, 0)
+        rocks_south("talkToGunnjorn")
+        t.exec("goto-talkToGunnjorn.gate", t.player.goto_tile, 2543, 3570, 0)
+        t.exec("talkToGunnjorn.gateIn", t.player.pass_door, { closed = "barbariangatel", open = "barbariangatel",
+            at = { 2545, 3570, 0 }, near = { 2545, 3570 }, far = { 2546, 3570 } })
+        t.exec("talkToGunnjorn.walkToPipe", t.player.walk_to, 2552, 3561, 20)
+        t.exec("talkToGunnjorn.pipeIn", t.player.cross_trap, PIPE_IN)
         t.exec("talkToGunnjorn", t.player.talk_to, "gunnjorn", 1)
         t.exec("talkToGunnjorn-dialog", t.chat.play, {
             "npc:Haha welcome to my obstacle course",
@@ -117,7 +214,14 @@ return {
         })
         t.expect("gunnjorn.key", t.inv.expect_has("horror_key", 1))
 
-        t.exec("goto-openLighthouse", t.player.goto_tile, 2509, 3635, 0)
+        t.exec("openLighthouse.walkToPipe", t.player.walk_to, 2552, 3558, 20)
+        t.exec("openLighthouse.pipeOut", t.player.cross_trap, PIPE_OUT)
+        t.exec("openLighthouse.walkToGate", t.player.walk_to, 2546, 3570, 20)
+        t.exec("openLighthouse.gateOut", t.player.pass_door, { closed = "barbariangatel", open = "barbariangatel",
+            at = { 2545, 3570, 0 }, near = { 2546, 3570 }, far = { 2545, 3570 } })
+        t.exec("goto-openLighthouse.rocks", t.player.goto_tile, 2522, 3592, 0)
+        rocks_north("openLighthouse")
+        t.exec("openLighthouse.walk", t.player.walk_to, 2509, 3635, 30)
         t.exec("openLighthouse", t.player.click_loc, "horror_lighthouse_doorway", 1)
         t.exec("enterLighthouse", t.player.click_loc, "horror_lighthouse_doorway", 1)
         t.ticks(4)
@@ -198,7 +302,16 @@ return {
         t.exec("killDagannoth.settled", t.npc.await_present, "horror_dagannoth_jr4", 30, 20)
         t.cheat("::pray 18")
         t.exec("killDagannoth", t.player.cast, "wind_blast", "horror_dagannoth_jr4", 14)
-        t.exec("killDagannoth.dead", t.npc.await_dead_engaged, 400, 30, { eat = { item = "shark", below = 40 } })
+        local _, sharks_before_jr = t.inv.count("shark")
+        local _, jr_detail = t.exec("killDagannoth.dead", t.npc.await_dead_engaged, 400, 30, { eat = { item = "shark", below = 40 } })
+        -- Margin (brief: lowest hp >= a quarter of max AND food left). No horror .rs2 or gunnjorn.rs2
+        -- branches on the combat level the setup's Magic 60 / Defence 60 / Hitpoints 99 stage
+        -- (grep combat_level quest_horror area_barbarian_outpost/scripts/gunnjorn.rs2 -> nothing).
+        local jr_low = tonumber(string.match(tostring(jr_detail), "lowest hp (%d+)/") or "")
+        local _, sharks_after_jr = t.inv.count("shark")
+        t.check("killDagannoth.margin", jr_low ~= nil and jr_low >= 25 and sharks_after_jr >= 1,
+            "lowest hp " .. tostring(jr_low) .. "/99, sharks " .. tostring(sharks_before_jr) .. " -> " .. tostring(sharks_after_jr)
+                .. " (margin: lowest hp >= 25, a quarter of 99, AND food left)")
         t.ticks(3)
         t.expect("quest.stage.defeated_dagjr", t.quest.expect_stage("defeated_dagjr"))
         t.exec("killDagannoth-dialog", t.chat.play, {
@@ -225,11 +338,13 @@ return {
             {"horror_dagganoth_fire", "fire_blast"},
         }
         local casts, landed, trace, eaten = 0, 0, "", 0
+        local mother_low = nil
         for round = 1, 160 do
             local stage = select(2, t.quest.stage())
             if stage == 10 then break end
             local acted = false
             local _, hp_row = t.skill.read("hitpoints")
+            if mother_low == nil or hp_row.level < mother_low then mother_low = hp_row.level end
             if hp_row.level < 55 then
                 t.player.inv_op("shark", 1)
                 eaten = eaten + 1
@@ -258,6 +373,10 @@ return {
             end
         end
         t.check("killMother.casts", casts >= 1 and landed >= 1, casts .. " casts, " .. landed .. " ok, ate " .. eaten .. "; first: " .. trace)
+        local _, sharks_after_mother = t.inv.count("shark")
+        t.check("killMother.margin", mother_low ~= nil and mother_low >= 25 and sharks_after_mother >= 1,
+            "lowest hp read between casts " .. tostring(mother_low) .. "/99, ate " .. eaten .. ", sharks left "
+                .. tostring(sharks_after_mother) .. " (margin: lowest hp >= 25, a quarter of 99, AND food left)")
         t.ticks(10)
         t.exec("killMother-dialog", t.chat.drain, {max_pages = 8})
         t.expect("quest.stage.complete", t.quest.expect_stage("complete"))

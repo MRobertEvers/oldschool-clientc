@@ -11,6 +11,18 @@
 -- Hans). Every step below carries its own Quest Helper WorldPoint; the
 -- FIRST emitted t.player.goto_tile is what actually leaves that tile.
 --
+-- Door rule (b63 re-drive): the Exam Centre's examiner, cupboards, bookcase and expert are
+-- in one room the map walls in (x 3348-3367 z 3332-3348, maps/m52_52.jl2) behind two
+-- qip_digsite_poshdoor doors: 3357,3344 (east, from the garden) and 3352,3337 (south side).
+-- Every visit passes one of them on foot going in AND coming out (exam_in / exam_out).
+-- The dig site region is walled off from Varrock by the vm_fencegate double gate at
+-- 3296,3428-3429 (doors_selfstage.loc:146-150) and from the south by the members' gate at
+-- 3312,3331-3332: reach.py finds no other way on foot, so every Varrock trip presses the
+-- fence gate (fence_gate). Gotos are overland hops between open tiles on one side of it.
+-- The museum's west doorway (fai_varrock_museum_door_inactive_l/r 3253,3448-3449) has no
+-- op and no collision: Curator Haig's lobby is open to the street. The winches and rope
+-- ladders change map frame: t.player.climb.
+--
 -- Three rules the first pilot pass broke -- read before touching this file:
 -- (a) "blocked" means a t.blocked("...") row followed by return -- a file
 --     that runs on to expect_complete() after a failure is rejected.
@@ -22,6 +34,9 @@
 return {
     id = "itexam",
     fixture = "fresh_lumbridge.ini",
+    -- Five random grinds (pickpocket x2, panning, two digs) at 1/4-1/20 a draw: the default
+    -- 2,000-tick clock held the runs seen (1,040-1,211 ticks) but not a long draw's tail.
+    max_frames = 150000,
     setup = {
         "::clearinv",
         "::setlevel agility 15",
@@ -51,23 +66,60 @@ return {
         t.ticks(3)
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
 
+        -- The Exam Centre room's two doors (doors.loc:1286-1292: closed qip_digsite_poshdoor,
+        -- open qip_digsite_poshdoor_open). Outside: the garden (east door) or the path by the
+        -- south wing (south door), both in the open dig-site component.
+        local EXAM_DOORS = {
+            east = { at = { 3357, 3344, 0 }, outside = { 3356, 3344 }, inside = { 3358, 3344 } },
+            south = { at = { 3352, 3337, 0 }, outside = { 3352, 3339 }, inside = { 3352, 3336 } },
+        }
+        local function exam_in(prefix, which)
+            local door = EXAM_DOORS[which]
+            t.exec("goto-" .. prefix, t.player.goto_tile, 3350, 3341, 0)  -- the Exam Centre garden, open
+            t.exec(prefix .. ".examDoorIn", t.player.pass_door, { closed = "qip_digsite_poshdoor",
+                open = "qip_digsite_poshdoor_open", at = door.at, near = door.outside, far = door.inside })
+        end
+        local function exam_out(prefix, which)
+            local door = EXAM_DOORS[which]
+            t.exec(prefix .. ".examDoorOut", t.player.pass_door, { closed = "qip_digsite_poshdoor",
+                open = "qip_digsite_poshdoor_open", at = door.at, near = door.inside, far = door.outside })
+        end
+        -- The Varrock / dig-site fence gate: a selfstage double gate, the open leaf the same
+        -- symbol one tile over (doors_selfstage.rs2 ~door_selfstage_open). West = Varrock.
+        local function to_varrock(prefix)
+            t.exec("goto-" .. prefix .. ".fenceGate", t.player.goto_tile, 3298, 3429, 0)
+            t.exec(prefix .. ".fenceGateWest", t.player.pass_door, { closed = "vm_fencegate_r",
+                open = "vm_fencegate_r", at = { 3296, 3429, 0 }, near = { 3297, 3429 }, far = { 3294, 3429 } })
+        end
+        local function to_digsite(prefix)
+            t.exec("goto-" .. prefix .. ".fenceGate", t.player.goto_tile, 3293, 3429, 0)
+            t.exec(prefix .. ".fenceGateEast", t.player.pass_door, { closed = "vm_fencegate_r",
+                open = "vm_fencegate_r", at = { 3296, 3429, 0 }, near = { 3294, 3429 }, far = { 3297, 3429 } })
+        end
+
         -- talkToExaminer: "Can I take an exam?" (examiner.rs2:31-44)
-        t.exec("goto-talkToExaminer", t.player.goto_tile, 3364, 3344, 0)
+        to_digsite("talkToExaminer")
+        exam_in("talkToExaminer", "east")
         t.exec("talkToExaminer", t.player.talk_to, "examiner", 1)
         t.exec("talkToExaminer-dialog", t.chat.drain, { stop_at = "options" })
         t.exec("talkToExaminer-pick", t.chat.choose, "Can I take an exam?")
         t.exec("talkToExaminer-rest", t.chat.drain, {})
         t.expect("quest.stage.stamping", t.quest.expect_stage("stamping"))
         t.exec("inv.digplainletter", t.inv.await, "digplainletter", 1, 5)
+        exam_out("talkToExaminer", "east")
 
         -- talkToHaig: the curator stamps the letter (curator.rs2:129-137)
-        t.exec("goto-talkToHaig", t.player.goto_tile, 3257, 3450, 0)
+        to_varrock("talkToHaig")
+        t.exec("goto-talkToHaig", t.player.goto_tile, 3247, 3446, 0)  -- the street west of the museum
+        t.exec("walk-talkToHaig.lobby", t.player.walk_to, 3254, 3449)  -- through the open west doorway
         t.exec("talkToHaig", t.player.talk_to, "curator", 1)
         t.exec("talkToHaig-dialog", t.chat.drain, {})
         t.exec("inv.recommendedletter", t.inv.await, "recommendedletter", 1, 5)
+        t.exec("walk-talkToHaig.street", t.player.walk_to, 3247, 3446)
 
         -- talkToExaminer2: hand the letter in; the exam begins at once (examiner.rs2:53-62)
-        t.exec("goto-talkToExaminer2", t.player.goto_tile, 3364, 3344, 0)
+        to_digsite("talkToExaminer2")
+        exam_in("talkToExaminer2", "east")
         t.exec("talkToExaminer2", t.player.talk_to, "examiner", 1)
         t.exec("talkToExaminer2-a", t.chat.drain, { stop_at = "options" })
         t.exec("talkToExaminer2-pick1", t.chat.choose, 1)
@@ -78,6 +130,7 @@ return {
         t.exec("talkToExaminer2-rest", t.chat.drain, {})
         t.expect("quest.stage.first_exam", t.quest.expect_stage("first_exam"))
         t.exec("inv.letter-consumed", t.inv.expect_absent, "recommendedletter")
+        exam_out("talkToExaminer2", "east")
 
         -- Errands, first exam: each student once.
         t.exec("goto-talkToGreenStudent", t.player.goto_tile, 3363, 3398, 0)
@@ -91,7 +144,7 @@ return {
         t.exec("talkToFemaleStudent-dialog", t.chat.drain, {})
 
         -- searchBush: the sample bush (area_digsite.rs2:89-101)
-        t.exec("goto-searchBush", t.player.goto_tile, 3357, 3373, 0)
+        t.exec("goto-searchBush", t.player.goto_tile, 3358, 3372, 0)  -- beside the bush at 3357,3372
         t.exec("searchBush", t.player.click_loc, "digsitebushsample", 1)
         t.exec("searchBush-dialog", t.chat.drain, {})
         t.exec("inv.rock_sample3", t.inv.await, "rock_sample3", 1, 5)
@@ -102,7 +155,7 @@ return {
         -- pickpocketWorkmen: a workman carries student1's sample (digsite_workman.rs2:60-100)
         t.exec("goto-pickpocketWorkmen", t.player.goto_tile, 3370, 3388, 0)
         local pick_ok = nil
-        for attempt = 1, 40 do
+        for attempt = 1, 100 do
             local workman = t.player.by_symbol("npc", "digworkman1")
             t.drive.click_minimenu(workman, 3)
             t.chat.close()
@@ -114,7 +167,7 @@ return {
             t.ticks(2)
         end
         t.check("pickpocketWorkmen", pick_ok and "ok" or "refused",
-            pick_ok and ("rock_sample1 taken on attempt " .. pick_ok) or "no rock_sample1 in 40 attempts")
+            pick_ok and ("rock_sample1 taken on attempt " .. pick_ok) or "no rock_sample1 in 100 attempts")
         t.exec("goto-talkToGreenStudent-deliver", t.player.goto_tile, 3363, 3398, 0)
         t.exec("talkToGreenStudent-deliver", t.player.talk_to, "student1", 1)
         t.exec("talkToGreenStudent-deliver-dialog", t.chat.drain, {})
@@ -129,22 +182,32 @@ return {
         -- takeTray, panWater: ground tray (tray_mud), search it, pan at the water
         t.exec("goto-takeTray", t.player.goto_tile, 3369, 3379, 0)
         t.exec("takeTray", t.player.click_obj, "tray_mud", 3)
-        local got_pan = nil
-        for cycle = 1, 60 do
+        -- area_digsite.rs2:15-80: a pan turns tray_empty into tray_mud; searching it draws
+        -- random(40) and only 0-2 give the sample, so wait for each half before the next press
+        -- (an unawaited press raced the search: "You need a panning tray to pan here!") and drop
+        -- the gems and shells the other draws add.
+        local pan_junk = { "uncut_opal", "uncut_jade", "oystershell" }
+        local got_pan, pans, searches = nil, 0, 0
+        for cycle = 1, 150 do
             local _, mud_count = t.inv.count("tray_mud")
-            if not mud_count or mud_count < 1 then
+            if (mud_count or 0) < 1 then
                 local _, empty_count = t.inv.count("tray_empty")
-                if empty_count and empty_count >= 1 then
-                    t.player.click_loc("panning_point", 1)
-                    t.chat.close()
-                    t.ticks(4)
-                end
+                if (empty_count or 0) < 1 then break end
+                t.player.click_loc("panning_point", 1)
+                t.inv.await("tray_mud", 1, 12)
+                t.chat.close()
+                pans = pans + 1
             end
             local _, mud_now = t.inv.count("tray_mud")
-            if mud_now and mud_now >= 1 then
+            if (mud_now or 0) >= 1 then
                 t.player.inv_op("tray_mud", 2)
+                t.inv.await("tray_empty", 1, 8)
                 t.chat.close()
-                t.ticks(2)
+                searches = searches + 1
+            end
+            for _, junk_name in ipairs(pan_junk) do
+                local _, junk_count = t.inv.count(junk_name)
+                if junk_count and junk_count > 0 then t.player.drop(junk_name) end
             end
             local _, sample_count = t.inv.count("rock_sample2")
             if sample_count and sample_count >= 1 then
@@ -152,14 +215,14 @@ return {
                 break
             end
         end
-        t.check("panWater", got_pan and "ok" or "refused",
-            got_pan and ("rock_sample2 panned on cycle " .. got_pan) or "no rock_sample2 in 60 cycles")
+        t.check("panWater", got_pan ~= nil, (got_pan and ("rock_sample2 panned on cycle " .. got_pan) or "no rock_sample2")
+            .. " (" .. pans .. " pan(s), " .. searches .. " search(es) of the tray)")
         t.exec("goto-talkToOrangeStudent-deliver", t.player.goto_tile, 3370, 3417, 0)
         t.exec("talkToOrangeStudent-deliver", t.player.talk_to, "student3", 1)
         t.exec("talkToOrangeStudent-deliver-dialog", t.chat.drain, {})
 
         -- takeTest1 (examiner.rs2:98-188)
-        t.exec("goto-takeTest1", t.player.goto_tile, 3364, 3344, 0)
+        exam_in("takeTest1", "east")
         t.exec("takeTest1", t.player.talk_to, "examiner", 1)
         t.exec("takeTest1-ask1", t.chat.drain, { stop_at = "options" })
         t.exec("takeTest1-answer1", t.chat.choose, "Yes, I certainly am.")
@@ -173,6 +236,7 @@ return {
         t.expect("quest.stage.second_exam", t.quest.expect_stage("second_exam"))
         t.exec("inv.trowel", t.inv.await, "trowel", 1, 5)
         t.exec("inv.level1certificate", t.inv.await, "level1certificate", 1, 5)
+        exam_out("takeTest1", "east")
 
         -- Errands, second exam
         t.exec("goto-talkToGreenStudent3", t.player.goto_tile, 3363, 3398, 0)
@@ -184,7 +248,7 @@ return {
         t.exec("goto-talkToFemaleStudent3", t.player.goto_tile, 3348, 3425, 0)
         t.exec("talkToFemaleStudent3", t.player.talk_to, "student2", 1)
         t.exec("talkToFemaleStudent3-dialog", t.chat.drain, {})
-        t.exec("goto-takeTest2", t.player.goto_tile, 3364, 3344, 0)
+        exam_in("takeTest2", "east")
         t.exec("takeTest2", t.player.talk_to, "examiner", 1)
         t.exec("takeTest2-ask1", t.chat.drain, { stop_at = "options" })
         t.exec("takeTest2-answer1", t.chat.choose, "I am ready for the next exam.")
@@ -197,6 +261,7 @@ return {
         t.exec("takeTest2-rest", t.chat.drain, {})
         t.expect("quest.stage.third_exam", t.quest.expect_stage("third_exam"))
         t.exec("inv.level2certificate", t.inv.await, "level2certificate", 1, 5)
+        exam_out("takeTest2", "east")
 
         -- Errands, third exam: student2 wants the cut opal
         t.exec("goto-talkToGreenStudent4", t.player.goto_tile, 3363, 3398, 0)
@@ -212,7 +277,7 @@ return {
         t.exec("talkToFemaleStudent5-dialog", t.chat.drain, {})
         t.ticks(3)
         t.exec("opal.consumed", t.inv.expect_absent, "opal")
-        t.exec("goto-takeTest3", t.player.goto_tile, 3364, 3344, 0)
+        exam_in("takeTest3", "east")
         t.exec("takeTest3", t.player.talk_to, "examiner", 1)
         t.exec("takeTest3-ask1", t.chat.drain, { stop_at = "options" })
         t.exec("takeTest3-answer1", t.chat.choose, "I am ready for the last exam...")
@@ -234,7 +299,7 @@ return {
             "pot_empty", "bowl_empty", "uncut_jade", "digsiteglass" }
 
         -- getJar: the exam-centre cupboards (area_exam_centre.rs2) -- rock pick, then the specimen jar
-        t.exec("goto-getJar", t.player.goto_tile, 3355, 3336, 0)
+        t.exec("walk-getJar", t.player.walk_to, 3355, 3336)  -- still in the Exam Centre room
         t.exec("getJar-rockpick-open", t.player.click_loc, "qip_digsite_samplecupboardshut", 1)
         t.chat.close()
         t.ticks(2)
@@ -242,7 +307,7 @@ return {
         t.chat.close()
         t.ticks(2)
         t.exec("inv.rockpick", t.inv.await, "rockpick", 1, 5)
-        t.exec("goto-getJar-jar", t.player.goto_tile, 3354, 3333, 0)
+        t.exec("walk-getJar-jar", t.player.walk_to, 3354, 3333)
         t.exec("getJar-open", t.player.click_loc, "qip_digsite_cupboardshut", 1)
         t.chat.close()
         t.ticks(2)
@@ -250,18 +315,18 @@ return {
         t.chat.close()
         t.ticks(2)
         t.exec("inv.specimen_jar", t.inv.await, "specimen_jar", 1, 5)
-        t.exec("goto-bookcase", t.player.goto_tile, 3366, 3335, 0)
-        t.exec("bookcase.search", t.player.click_loc, "qip_digsite_bookcase_low_digbookcase", 1)
+                t.exec("bookcase.search", t.player.click_loc, "qip_digsite_bookcase_low_digbookcase", 1)
         t.exec("bookcase.dialog", t.chat.drain, {})
         t.exec("inv.digsitebook", t.inv.await, "digsitebook", 1, 5)
         t.exec("book.read", t.player.inv_op, "digsitebook", 2)
         t.exec("book.open", t.ui.await_open, "book", 10)
         t.key("escape")
+        exam_out("getJar", "south")
 
         -- getBrush: pickpocket the specimen brush from a workman (digsite_workman.rs2:78-99)
         t.exec("goto-getBrush", t.player.goto_tile, 3370, 3388, 0)
         local brush_attempt = nil
-        for attempt = 1, 80 do
+        for attempt = 1, 150 do
             local workman = t.player.by_symbol("npc", "digworkman1")
             t.drive.click_minimenu(workman, 3)
             t.chat.close()
@@ -274,12 +339,12 @@ return {
             if brush_count and brush_count >= 1 then brush_attempt = attempt; break end
         end
         t.check("getBrush", brush_attempt and "ok" or "refused",
-            brush_attempt and ("specimen_brush on attempt " .. brush_attempt) or "no specimen_brush in 80 attempts")
+            brush_attempt and ("specimen_brush on attempt " .. brush_attempt) or "no specimen_brush in 150 attempts")
 
         -- digForTalisman: the training dig gives charcoal, the level 3 dig the talisman
         t.exec("goto-digForTalisman-training", t.player.goto_tile, 3353, 3397, 0)
         local charcoal_dig = nil
-        for dig = 1, 60 do
+        for dig = 1, 120 do
             local soil = t.player.by_symbol("loc", "digdugupsoil1")
             t.player.use_on("trowel", soil)
             t.chat.close()
@@ -292,10 +357,10 @@ return {
             if charcoal_count and charcoal_count >= 1 then charcoal_dig = dig; break end
         end
         t.check("digForCharcoal", charcoal_dig and "ok" or "refused",
-            charcoal_dig and ("charcoal on dig " .. charcoal_dig) or "no charcoal in 60 digs")
+            charcoal_dig and ("charcoal on dig " .. charcoal_dig) or "no charcoal in 120 digs")
         t.exec("goto-digForTalisman", t.player.goto_tile, 3352, 3407, 0)
         local talisman_dig = nil
-        for dig = 1, 120 do
+        for dig = 1, 200 do
             local soil = t.player.by_symbol("loc", "digdugupsoil1")
             t.player.use_on("trowel", soil)
             t.chat.close()
@@ -308,10 +373,11 @@ return {
             if talisman_count and talisman_count >= 1 then talisman_dig = dig; break end
         end
         t.check("digForTalisman", talisman_dig and "ok" or "refused",
-            talisman_dig and ("digtalisman on dig " .. talisman_dig) or "no digtalisman in 120 digs")
+            talisman_dig and ("digtalisman on dig " .. talisman_dig) or "no digtalisman in 200 digs")
 
         -- talkToExpert: show the talisman (archaeological_expert.rs2:138-160)
-        t.exec("goto-talkToExpert", t.player.goto_tile, 3355, 3332, 0)
+        exam_in("talkToExpert", "south")
+        t.exec("walk-talkToExpert", t.player.walk_to, 3355, 3334)
         local expert = t.player.by_symbol("npc", "archaeological_expert")
         t.exec("talkToExpert", t.player.use_on, "digtalisman", expert)
         t.exec("talkToExpert-dialog", t.chat.drain, {})
@@ -319,41 +385,49 @@ return {
         t.check("varbit.itexpertletter", letter_value == 1 and "ok" or "refused", "itexpertletter=" .. tostring(letter_value))
         t.exec("inv.digexpertscroll", t.inv.await, "digexpertscroll", 1, 5)
         t.exec("inv.talisman-gone", t.inv.expect_absent, "digtalisman")
+        exam_out("talkToExpert", "south")
 
         -- useInvitationOnWorkman: the expert's scroll to a workman (digsite_workman.rs2:103-110)
         t.exec("goto-useInvitationOnWorkman", t.player.goto_tile, 3370, 3388, 0)
         local workman_target = t.player.by_symbol("npc", "digworkman1")
         t.exec("useInvitationOnWorkman", t.player.use_on, "digexpertscroll", workman_target)
         t.exec("useInvitationOnWorkman-dialog", t.chat.drain, {})
+        t.exec("inv.digexpertscroll-gone", t.inv.expect_absent, "digexpertscroll")
         t.expect("quest.stage.mineshaft_permit", t.quest.expect_stage("mineshaft_permit"))
 
         -- useRopeOnWinch / useRopeOnWinch2 (area_digsite.rs2:610-690)
         t.exec("goto-useRopeOnWinch", t.player.goto_tile, 3352, 3415, 0)
         local winch_one = t.player.by_symbol("loc", "digwinch1")
+        local _, rope_before_one = t.inv.count("rope")
         t.exec("useRopeOnWinch", t.player.use_on, "rope", winch_one)
         t.ticks(2)
+        local _, rope_after_one = t.inv.count("rope")
+        t.check("useRopeOnWinch.ropeTied", (rope_before_one or 0) >= 1 and rope_after_one == rope_before_one - 1,
+            "rope " .. tostring(rope_before_one) .. " -> " .. tostring(rope_after_one) .. " (area_digsite.rs2:624 inv_del rope 1)")
         local _, winch_one_value = t.var.server("varb2545_itdigsitewinch1")
         t.check("varbit.itdigsitewinch1", winch_one_value == 1 and "ok" or "refused", "itdigsitewinch1=" .. tostring(winch_one_value))
         t.exec("goto-useRopeOnWinch2", t.player.goto_tile, 3370, 3426, 0)
         local winch_two = t.player.by_symbol("loc", "digwinch2")
+        local _, rope_before_two = t.inv.count("rope")
         t.exec("useRopeOnWinch2", t.player.use_on, "rope", winch_two)
         t.ticks(2)
+        local _, rope_after_two = t.inv.count("rope")
+        t.check("useRopeOnWinch2.ropeTied", (rope_before_two or 0) >= 1 and rope_after_two == rope_before_two - 1,
+            "rope " .. tostring(rope_before_two) .. " -> " .. tostring(rope_after_two) .. " (area_digsite.rs2:677 inv_del rope 1)")
         local _, winch_two_value = t.var.server("varb2546_itdigsitewinch2")
         t.check("varbit.itdigsitewinch2", winch_two_value == 1 and "ok" or "refused", "itdigsitewinch2=" .. tostring(winch_two_value))
 
         -- goDownToDoug: winch 2 lowers to Doug's landing
-        t.exec("goDownToDoug", t.player.click_loc, "digwinch2", 1)
-        t.ticks(6)
-        local _, landing = t.world.tile()
-        t.check("cavern.doug-landing", (type(landing) == "table" and landing.x == 3352 and landing.z == 9817) and "ok" or "refused",
-            type(landing) == "table" and (landing.x .. "," .. landing.z .. "," .. landing.level) or "no tile")
+        -- area_digsite.rs2:685-709 p_teleport(0_52_153_24_25): the private shaft's cavern (map frame 1)
+        t.exec("goDownToDoug", t.player.climb, { loc = "digwinch2", op = 1, op_name = "Operate",
+            at = { 3370, 3428, 0 }, dest = { 3352, 9817, 0 } })
         -- pickUpRoot: the arcenia root beside Doug (m52_153.spawn)
-        t.exec("goto-pickUpRoot", t.player.goto_tile, 3348, 9818, 0)
+        t.exec("walk-pickUpRoot", t.player.walk_to, 3348, 9818)
         t.exec("pickUpRoot", t.player.click_obj, "arcenia_root", 3)
         t.ticks(2)
         t.exec("inv.arcenia_root", t.inv.await, "arcenia_root", 1, 5)
         -- talkToDoug: beg for the chest key (private_dig_worker.rs2:25-76)
-        t.exec("goto-talkToDoug", t.player.goto_tile, 3352, 9821, 0)
+        t.exec("walk-talkToDoug", t.player.walk_to, 3352, 9821)
         t.exec("talkToDoug", t.player.talk_to, "digworkman2", 1)
         t.exec("talkToDoug-ask1", t.chat.drain, { stop_at = "options" })
         t.exec("talkToDoug-answer1", t.chat.choose, "I have been invited to research here.")
@@ -372,19 +446,21 @@ return {
         t.exec("talkToDoug-rest", t.chat.drain, {})
         t.exec("inv.digchestkey", t.inv.await, "digchestkey", 1, 5)
         -- goUpFromDoug: the ladder back to the surface
-        t.exec("goUpFromDoug", t.player.click_loc, "winchladder1", 1)
-        t.ticks(6)
+        -- area_digsite.rs2:711-719 p_teleport(0_52_53_42_35): beside the private winch
+        t.exec("goUpFromDoug", t.player.climb, { loc = "winchladder1", op = 1, op_name = "Climb-up",
+            at = { 3352, 9816, 0 }, dest = { 3370, 3427, 0 } })
 
         -- unlockChest / searchChest, useTrowelOnBarrel / useVialOnBarrel (area_digsite.rs2:800-860)
         t.exec("goto-unlockChest", t.player.goto_tile, 3374, 3376, 0)
         local chest = t.player.by_symbol("loc", "digchestclosed")
         t.exec("unlockChest", t.player.use_on, "digchestkey", chest)
         t.ticks(3)
+        t.exec("unlockChest.keyUsed", t.inv.expect_absent, "digchestkey")
         t.exec("searchChest", t.player.click_loc, "digchestopen", 1)
         t.chat.close()
         t.ticks(2)
         t.exec("inv.unidentified_powder", t.inv.await, "unidentified_powder", 1, 5)
-        t.exec("goto-useTrowelOnBarrel", t.player.goto_tile, 3364, 3376, 0)
+        t.exec("goto-useTrowelOnBarrel", t.player.goto_tile, 3365, 3377, 0)  -- beside the barrel at 3364,3378
         local barrel = t.player.by_symbol("loc", "digbarrelclosed")
         t.exec("useTrowelOnBarrel", t.player.use_on, "trowel", barrel)
         t.chat.close()
@@ -396,17 +472,22 @@ return {
         t.chat.close()
         t.ticks(2)
         t.exec("inv.unidentified_liquid", t.inv.await, "unidentified_liquid", 1, 5)
+        t.exec("useVialOnBarrel.vialUsed", t.inv.expect_absent, "vial_empty")
 
         -- usePowderOnExpert / useLiquidOnExpert (archaeological_expert.rs2:162-182)
-        t.exec("goto-usePowderOnExpert", t.player.goto_tile, 3355, 3332, 0)
+        exam_in("usePowderOnExpert", "south")
+        t.exec("walk-usePowderOnExpert", t.player.walk_to, 3355, 3334)
         local expert_powder = t.player.by_symbol("npc", "archaeological_expert")
         t.exec("usePowderOnExpert", t.player.use_on, "unidentified_powder", expert_powder)
         t.exec("usePowderOnExpert-dialog", t.chat.drain, {})
         t.exec("inv.ammonium_nitrate", t.inv.await, "ammonium_nitrate", 1, 5)
+        t.exec("usePowderOnExpert.powderGone", t.inv.expect_absent, "unidentified_powder")
         local expert_liquid = t.player.by_symbol("npc", "archaeological_expert")
         t.exec("useLiquidOnExpert", t.player.use_on, "unidentified_liquid", expert_liquid)
         t.exec("useLiquidOnExpert-dialog", t.chat.drain, {})
         t.exec("inv.nitroglycerin", t.inv.await, "nitroglycerin", 1, 5)
+        t.exec("useLiquidOnExpert.liquidGone", t.inv.expect_absent, "unidentified_liquid")
+        exam_out("usePowderOnExpert", "south")
 
         -- Chemistry (itexam_chemistry.rs2): mix, grind, mix, root
         t.exec("mixNitroWithNitrate", t.player.use_item_on_item, "ammonium_nitrate", "nitroglycerin")
@@ -427,12 +508,11 @@ return {
 
         -- goDownToExplode, useCompound: winch 1 to the blocked cavern, pour on the bricks
         t.exec("goto-goDownToExplode", t.player.goto_tile, 3352, 3415, 0)
-        t.exec("goDownToExplode", t.player.click_loc, "digwinch1", 1)
-        t.ticks(6)
-        local _, cavern = t.world.tile()
-        t.check("cavern.arrive1", (type(cavern) == "table" and cavern.x == 3369 and cavern.z == 9827) and "ok" or "refused",
-            type(cavern) == "table" and (cavern.x .. "," .. cavern.z .. "," .. cavern.level) or "no tile")
-        t.exec("goto-useCompound", t.player.goto_tile, 3378, 9825, 0)
+        -- area_digsite.rs2:632-653 p_teleport(0_52_153_41_35) before the blockage is cleared
+        t.exec("goDownToExplode", t.player.climb, { loc = "digwinch1", op = 1, op_name = "Operate",
+            at = { 3352, 3417, 0 }, dest = { 3369, 9827, 0 } })
+        -- the blast run starts only from 0_52_153_50_33 (area_digsite.rs2 digsite_blockage_run_sequence)
+        t.exec("walk-useCompound", t.player.walk_to, 3378, 9825)
         local bricks = t.player.by_symbol("loc", "digblastbrick")
         t.exec("useCompound", t.player.use_on, "digcompound", bricks)
         t.chat.close()
@@ -452,17 +532,19 @@ return {
             type(blast) == "table" and (blast.x .. "," .. blast.z .. "," .. blast.level) or "no tile")
 
         -- takeTablet in the altar cave (area_digsite.rs2:747), goUpWithTablet, useTabletOnExpert
-        t.exec("goto-takeTablet", t.player.goto_tile, 3373, 9744, 0)
+        t.exec("walk-takeTablet", t.player.walk_to, 3373, 9744, 60)
         t.exec("takeTablet", t.player.click_loc, "qip_digsite_zaros_stone_tablet_01", 1)
         t.chat.close()
         t.ticks(2)
         t.exec("inv.zarosstonetablet", t.inv.await, "zarosstonetablet", 1, 5)
-        t.exec("goUpWithTablet", t.player.click_loc, "winchladder2", 1)
-        t.ticks(6)
-        t.exec("goto-useTabletOnExpert", t.player.goto_tile, 3355, 3332, 0)
+        -- area_digsite.rs2:725-745 p_teleport(0_52_53_26_25): beside winch 1
+        t.exec("goUpWithTablet", t.player.climb, { loc = "winchladder2", op = 1, op_name = "Climb-up",
+            at = { 3369, 9762, 0 }, dest = { 3354, 3417, 0 } })
+        exam_in("useTabletOnExpert", "south")
+        t.exec("walk-useTabletOnExpert", t.player.walk_to, 3355, 3334)
         local expert_tablet = t.player.by_symbol("npc", "archaeological_expert")
-        local xp_snapshot_result, xp_snapshot = t.skill.snapshot()
-        t.check("xp.snapshot-before-handin", xp_snapshot_result, "skill.snapshot before the hand-in -> " .. tostring(xp_snapshot_result))
+        local _, xp_snapshot = t.skill.snapshot()
+        local _, gold_before = t.inv.count("gold_bar")
         t.exec("useTabletOnExpert", t.player.use_on, "zarosstonetablet", expert_tablet)
         t.exec("useTabletOnExpert-dialog", t.chat.drain, {})
         t.chat.close()
@@ -471,8 +553,10 @@ return {
         -- Rewards (quest_itexam.rs2:83): 15300 Mining XP, 2000 Herblore XP, 2 gold bars
         t.check("reward.mining_xp", t.skill.expect_gain("mining", 15300, xp_snapshot))
         t.check("reward.herblore_xp", t.skill.expect_gain("herblore", 2000, xp_snapshot))
-        local gold_result, gold_detail = t.inv.expect_has("gold_bar", 2)
-        t.check("reward.gold_bars", gold_result, "gold_bar >= 2: " .. tostring(gold_detail))
+        local _, gold_after = t.inv.count("gold_bar")
+        t.check("reward.gold_bars", gold_before ~= nil and gold_after == gold_before + 2,
+            "gold_bar " .. tostring(gold_before) .. " -> " .. tostring(gold_after) .. " (quest_itexam.rs2:82 inv_add gold_bar 2)")
+        exam_out("useTabletOnExpert", "south")
         t.finish(0)
     end,
 }

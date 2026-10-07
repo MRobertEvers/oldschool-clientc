@@ -1359,12 +1359,27 @@ npc_apply_op(
             if( op->_face_coord.modern )
                 World_NpcBeginModernFacing(world, idx, op->_face_coord.movement_mode);
             World_NpcFaceCoord(world, idx, op->_face_coord.x, op->_face_coord.z);
+            struct WorldEntity_NPC* npc = World_EntityPoolAt(&world->entities.npc, idx);
             if( op->_face_coord.instant )
-            {
-                struct WorldEntity_NPC* npc =
-                    World_EntityPoolAt(&world->entities.npc, idx);
                 npc->facing.instant = true;
-            }
+            /* What the server SENT, kept past the turn that consumes
+             * facing.square_x/z (WorldEntity_NPC.face_sent_x). */
+            npc->face_sent_x = op->_face_coord.x;
+            npc->face_sent_z = op->_face_coord.z;
+            npc->face_sent_cycle = (int)world->cycle;
+            /* DRIVE_STAMP: npc_face -- a=server slot b=tile x c=tile z d=tick.
+             * On the op's ARRIVAL, like npc_seq: an npc turned to the square
+             * it already faces draws no change, and a test anchors "the boss
+             * turned on tick T" on the op. Tiles are absolute, the wire's
+             * half-tiles halved (the centre tile of a sized square). */
+            if( npc->server_slot >= 0 )
+                App_DriveEvent(
+                    app,
+                    DRIVE_EVENT_NPC_FACE,
+                    npc->server_slot,
+                    op->_face_coord.x >> 1,
+                    op->_face_coord.z >> 1,
+                    (int32_t)(world->cycle / APP_SERVER_TICK_LOGIC_CYCLES));
             entity_debug_log(
                 "entity_sync: npc faces coord %d,%d\n", op->_face_coord.x, op->_face_coord.z);
         }

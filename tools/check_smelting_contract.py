@@ -36,6 +36,8 @@ import os
 import re
 import sys
 
+import config_text
+
 WIKI = "docs/skills/mining/sources/Smithing.wiki"
 ROWS = ("OSRS-Content/osrs239-content/server/scripts/skill_smithing/configs/"
         "smelting.dbrow")
@@ -58,7 +60,7 @@ def wiki_bars(path):
 
 
 def our_bars(path):
-    text = io.open(path, encoding="utf-8", errors="replace").read()
+    text = config_text.read_text(path, encoding="utf-8", errors="replace")
     out, block = {}, None
     for line in text.split("\n"):
         m = re.match(r"^\[([a-z0-9_]+)\]$", line.strip())

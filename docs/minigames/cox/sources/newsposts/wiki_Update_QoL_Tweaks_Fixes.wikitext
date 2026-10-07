@@ -1,0 +1,167 @@
+{{Update|date=07 January 2026|url=https://secure.runescape.com/m=news/a=1/qol-tweaks--fixes?oldschool=1|category=game}}
+[[File:QoL Tweaks & Fixes newspost.jpg|right]]
+{{clear}}
+__TOC__
+
+{| class="wikitable" style="text-align: center;"
+|-
+! Known Issues
+! Status
+|-
+| Players who had boosted to build their sails can no longer trim their sails as part of a recent change.
+| We've deployed a hotfix to allow the captain of a boat to trim their own sails, regardless of their level requirement. This change has been made so that players can use their sails in situations where they have boosted their Sailing level higher to build the sail. We'll consider whether other facilities should also benefit from this change.
+|-
+|Kruk's Dungeon monkeys that are outside of the players render distance remain inactive until the player moves and brings them into distance.
+|To be coldfixed.
+|-
+|Players are no longer able to purchase an untrimmed Runecraft or Ranging Skillcape if their only other 99 is Sailing.
+|Hotfixed.
+|}
+
+----
+
+''We’re kicking off 2026 in Gielinor with our first game update of the year!''
+
+==Changelog - January 7th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+====Sailing Fixes====
+Many thanks to the thousands of you who shared your thoughts in the Sailing Opinion Poll! We're still analysing the results so we won't be sharing them today, however, we'll aim to give you a broad update on what we've learned sometime during the Winter Summit, which is happening on the 25th January.
+
+For now though, we'd like to acknowledge that Ship Combat needs changes. We're aiming for this work to happen as soon as possible, ideally within this month or next. 
+
+Additionally, we fixed the following bugs before the team headed off for the holidays: 
+
+* Previously, some facilities had different requirements on different types of boats. We've corrected these facility requirements to be consistent across the board. For example:
+** Linen trawling nets now all require level 65 Sailing to build and use on any boat.
+** Hemp trawling nets now all require level 76 Sailing and 65 Construction to build and use on any boat.
+* Players now require a Sailing level to trim sails, which is the same level required as to build the sail.
+* Crewmates now operate facilities such as the helm, trawler net and salvaging hook only if the player has the required level for them - not based on crewmate stats.
+* Resolved an issue where weeds would be shown on the Anglers' Retreat island's hardwood tree patch, when the rosewood tree was growing on it.
+* Likewise, resolved an issue where players couldn't summon their boat after opening and exiting the "Replace" menu on the Teleport Focus.
+
+Lastly, here's a hotfix we rolled out before the break that's worth highlighting, in case you missed it:
+
+* If you receive multiple drops from sea creatures and don’t have enough inventory space, any excess items will now be dropped on the floor.
+
+====Slayer Rewards UI Update====
+* To easily differentiate the functional Slayer unlocks and cosmetic Slayer rewards, we’ve updated the Slayer Rewards Interface with an ''additional'' tab. Now, all cosmetic Slayer rewards live in their own dedicated '''Cosmetics''' tab, including Slayer helm recolours. Whereas functional Slayer unlocks will remain Unlocks tab.
+
+====Other Changes====
+* With the festive season now behind us, the Christmas 2025 Event has been removed from the game.
+* The special attack of Burning Claws now applies the burn to Olm's melee hand in Chambers of Xeric.
+* Added Leagues V: Raging Echoes Top 100 rankings to the League Accomplishment Scroll in POH.
+* Watson's notice board now lists the three STASH units added with Sailing.
+* The quest can now proceed if an NPC deals the final blow on Gadderanks during ''In Aid of the Myreque'', instead of the player doing it.
+* Soulreaper Axe special attack and Moth Mixes will no longer heal the player if they are at 0 HP.
+* Fixed a bug where Monster Inspect was marked as a members-only spell in the spellbook interface even though it is available to non-members.
+* The extended Metal Dragons Slayer task now correctly requires 150–200 kills instead of 90–120.
+* Updated the clue helper box to show the missing information for certain clue scrolls:
+** The NPC the player needs to talk to is now displayed for the Mus Kil Reader master clue scroll: Radimus Erkle.
+** The solution is now shown for the EEK ZERO OP medium scroll.
+* Fixed a bunch of graphical issues:
+** The cursed banana animation no longer causes glitching if Ahrim's Robe Top and Mystic Robe Skirt are equipped.
+** Prospector and Golden Prospector outfits have had a tidy-up, so that all pieces line up well together on both body types.
+** Chatheads  with Guild Hunter headwear no longer glitch and display the player character's hair style correctly.
+** Fixed clipping issues for wall signs and portraits in the Quest Hall of the POH, as well as the Mounted Digsite Pendant and the Mounted Amulet of Glory.
+* The formal garden layout in the Hosidius house style has had its unusually shaggy grass trimmed back a bit, making it look about as formal as the versions for other house styles.
+* When another clan member completes a combat task, you can now correctly view the completed task in the chatbox and open the Combat Task interface via right-clicking the notification.
+* Some debug text that sneakily lingered has now been removed from the new menu system.
+
+====PvP Rota====
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>de-activated</u>''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''<u>de-activated</u>''' with this rota.
+
+The PvP Arena is using '<b>Max/Med</b>' loadouts in Ranked Duels and Tournaments this week.
+
+{{Collapsed section end}}
+
+==Sailing Fixes==
+[[File:QoL Tweaks & Fixes (1).png|thumb|450px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-01-07/wereback.png here]!'']]
+
+We’re back with our first game update of the new year! We hope you all had a jolly time over the festive season and enjoyed your Christmas din-dins also IRL. We’ve missed you!
+
+At the end of 2025, you might remember that we ran our first Sailing Opinion Poll. Thousands of you shared your thoughts with us on Sailing and the areas around it that you want to see improved - it was great to see so many responses!
+
+We know you're eager to hear more about what the results of that poll looked like, and most importantly, what we're doing to address your feedback. We're still analysing the results so we won't be sharing them today, however, we'll aim to give you a broad update on what we've learned sometime during the Winter Summit, which is happening on the 25th January.
+
+For now though, we'd like to acknowledge that Ship Combat needs changes. The community has told us that DPS is low, boat movement and cannon placement can make it feel awkward, and the cost of the cannonballs is too high. As a result of this feedback, we've made changes in our schedule to prioritise fixes to Ship Combat before we launch any larger updates for Sailing. As we're still designing what these changes will be, we can't share much on them just yet. However, we will get your thoughts before implementing them. We're aiming for this work to begin within this month or next, so keep an eye out for more on Ship Combat!
+
+Once again, thanks for the responses and your feedback as it will help to steer the work we do much more with better insights and data. You can expect to hear more about our plans for Sailing in our Winter Summit update and beyond. Thanks again for all of your feedback! 
+
+Before the team headed off for the holidays, we've done some improvements and fixed the following bugs:
+
+* Previously, some facilities had different requirements on different types of boats. We've corrected these facility requirements to be consistent across the board. For example:
+** Linen trawling nets now all require level 65 Sailing to build and use on any boat.
+** Hemp trawling nets now all require level 76 Sailing and 65 Construction to build and use on any boat.
+* Players now require a Sailing level to trim sails, which is the same level required as to build the sail.
+* Crewmates now operate facilities such as the helm, trawler net and salvaging hook only if the player has the required level for them - not based on crewmate stats.
+* Resolved an issue where weeds would be shown on the Anglers' Retreat island's hardwood tree patch, when the rosewood tree was growing on it.
+* Likewise, resolved an issue where players couldn't summon their boat after opening and exiting the "Replace" menu on the Teleport Focus.
+
+Lastly, here's a hotfix we rolled out before the break that's worth highlighting, in case you missed it:
+
+* If you receive multiple drops from sea creatures and don’t have enough inventory space, any excess items will now be dropped on the floor.
+
+==Slayer Rewards UI Update==
+From our [https://secure.runescape.com/m=news/interface-uplift---ui-qol-coming-soon?oldschool=1 Interface Uplift blog], we've already rolled out three batches of updates, which you can find [https://secure.runescape.com/m=news/interface-uplift?oldschool=1 here], [https://secure.runescape.com/m=news/interface-uplift-round-2?oldschool=1 here] and [https://secure.runescape.com/m=news/a=13/more-sailing-and-interface-changes?oldschool=1 here]. The Slayer Interface update was safer for us to release once the full team was back from the holidays and available to support it. Now that the Slayer menu is getting adjusted today, let's take a look at what's changed!
+
+[[File:QoL Tweaks & Fixes (2).png|thumb|400px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-01-07/cosmetics.png here]!'']]
+
+Previously, functional Slayer unlocks and cosmetic Slayer rewards were grouped together under the "Unlocks" tab, which could make it unclear what affected gameplay and what was purely cosmetic. To make things clearer at a glance, we’ve updated the Slayer Rewards Interface with an ''additional ''tab. Now, all cosmetic Slayer rewards live in their own dedicated '''Cosmetics''' tab, including Slayer helm recolours. Whereas Unlocks tab will contain only functional Slayer unlocks going forward.
+
+==Other Changes==
+First of all, with the festive season now behind us (even if the denial is real) and you lot had your din-dins, the Christmas 2025 Event has been removed from the game. The snow has melted, the decorations are packed away, and Muffin is no longer in the cage... 
+[[File:QoL Tweaks & Fixes (3).png|thumb|350px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-01-07/weeeee.png here]!'']]
+
+In addition, we've got a bunch of fixes and improvements lined up for you:
+
+* The special attack of Burning Claws now applies the burn to Olm's melee hand in Chambers of Xeric.
+* Added Leagues V: Raging Echoes Top 100 rankings to the League Accomplishment Scroll in POH.
+* Watson's notice board now lists the three STASH units added with Sailing.
+* The quest can now proceed if an NPC deals the final blow on Gadderanks during ''In Aid of the Myreque'', instead of the player doing it.
+* Soulreaper Axe special attack and Moth Mixes will no longer heal the player if they are at 0 HP.
+* Fixed a bug where Monster Inspect was marked as a members-only spell in the spellbook interface even though it is available to non-members.
+* The extended Metal Dragons Slayer task now correctly requires 150–200 kills instead of 90–120.
+* Updated the clue helper box to show the missing information for certain clue scrolls:
+** The NPC the player needs to talk to is now displayed for the Mus Kil Reader master clue scroll: Radimus Erkle.
+** The solution is now shown for the EEK ZERO OP medium scroll.
+* Fixed a bunch of graphical issues:
+** The cursed banana animation no longer causes glitching if Ahrim's Robe Top and Mystic Robe Skirt are equipped.
+** Prospector and Golden Prospector outfits have had a tidy-up, so that all pieces line up well together on both body types.
+** Chatheads  with Guild Hunter headwear no longer glitch and display the player character's hair style correctly.
+** Fixed clipping issues for wall signs and portraits in the Quest Hall of the POH, as well as the Mounted Digsite Pendant and the Mounted Amulet of Glory.
+* The formal garden layout in the Hosidius house style has had its unusually shaggy grass trimmed back a bit, making it look about as formal as the versions for other house styles.
+* When another clan member completes a combat task, you can now correctly view the completed task in the chatbox and open the Combat Task interface via right-clicking the notification.
+* Some debug text that sneakily lingered has now been removed from the new menu system.
+
+==PvP World Rota==
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>de-activated</u>''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''<u>de-activated</u>''' with this rota.
+
+The PvP Arena is using '<b>Max/Med / Zerker / 1 Def Pure</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1q6c9oc/qol_tweaks_fixes/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Acorn, Ape, Arcane, Archie, Argo, Ash, Asherz, Ayiza, BigRig, Blighted, Blossom, Boko, Brooksie, Bruno, Chilly, Criminal, Curse, Daizong, Ed, Elena, Enigma, Entropi, Freddie, Fuzz, Gecko, Gizmo, Goblin, Grace, Grub, Halo, Harold, Hend, Hornet, Husky, Ivory, Jalo, Jamesy, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Mack, Manked, Markos, Maylea, Mobius, Moogle, Morty, Moz, Necro, Nin, Nixon, Nox, Nylu, Ori, Other, Otter, Philomel, Pork, Pumpkin, Puppi, Rach, Redfield, Rice, Romy, Roq, Roy, Ry, Saiyan, Sarnie, Schmidt, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Spyro, Squid, Starry, Stilrush, Suharun, Surma, Sween, Tide, Titania, Titus, TJ, Tomb, Tsourorf, Tyran, Veda, Vegard, West, Wolfy & Yume'''
+
+''The Old School Team.''

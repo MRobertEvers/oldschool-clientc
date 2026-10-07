@@ -1,0 +1,29 @@
+{{Infobox Combat Achievement
+|name = Theatre of Blood: HM Grandmaster
+|image = [[File:Fighting Nylocas hordes.png|300px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Complete the Theatre of Blood: Hard Mode 50 times.
+|tier = Grandmaster
+|monster = Theatre of Blood: Hard Mode
+|type = Kill Count
+|id = 385
+|leagueRegion = Morytania
+}}
+'''Theatre of Blood: HM Grandmaster''' is a [[Combat Achievements/Grandmaster|grandmaster combat achievement]] which requires the player to complete the [[Theatre of Blood: Hard Mode]] 50 times.
+
+==Other tasks==
+{{Combat Achievements list|Theatre of Blood: Hard Mode}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 13 April 2022
+|update = Easter 2022
+|poll = Old School Content Poll 76: Game Improvements
+|change = The amount of raid completions required to complete the "Theatre of Blood: HM Grandmaster" task has been reduced from 100 to 50.
+}}
+{{Subject changes footer}}
+
+{{Combat Achievements}}

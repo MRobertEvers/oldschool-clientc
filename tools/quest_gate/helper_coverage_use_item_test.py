@@ -159,6 +159,322 @@ def guide_only():
     return out
 
 
+# ---- seam matthew-mbp-m4-b66-seam1: a same-named npc, another copy of a loc
+#
+# Scorpion Catcher's three scorpions are questscorpiona (Taverley), questscorpionb
+# (the Barbarian Outpost) and questscorpionc (the monastery): three npcs this
+# cache has, all named "Kharid scorpion". same_thing's display rule read any
+# of them as any other, so the b66 fixer's run (catches a, b, c in that order:
+# fix_b66/scorpcatcher.final.lua lines 234/299/349, run3's ledger rows 35/50/64,
+# whose details are copied below) credited catchMonasteryScorpion to the use on
+# questscorpionb and catchOutpostScorpion to the use on questscorpiona. And
+# Cog's climbWhiteLadder (ladder_from_cellar 2575,9655) read DRIVEN off row 39
+# `enterBasement-black`, which climbed ladder_cellar 2566,3242 and only says it
+# landed "beside ladder_from_cellar 2566,9642" (test/quests/cog.lua at
+# 5e3675055, its published ledger at OSRS-Content 6762eaf875).
+
+SCORP_LUA = """return {
+    id = "scorpcatcher",
+    run = function(t)
+        local scorpion_a, scorpion_a_result = t.player.by_symbol("npc", "questscorpiona")
+        t.exec("catch.scorpiona", t.player.use_on, "scorpioncageempty", scorpion_a)
+        local scorpion_b, scorpion_b_result = t.player.by_symbol("npc", "questscorpionb")
+        t.exec("catch.scorpionb", t.player.use_on, "scorpioncagea", scorpion_b)
+        local scorpion_c, scorpion_c_result = t.player.by_symbol("npc", "questscorpionc")
+        t.exec("catch.scorpionc", t.player.use_on, "scorpioncageab", scorpion_c)
+        t.finish(0)
+    end,
+}
+"""
+SCORP_LINES = {"a": 5, "b": 7, "c": 9}
+SCORP_LEDGER = "\n".join([
+    "quest-ledger-v1",
+    "1\tcatch.scorpiona\tPASS\t2\t001-catch.scorpiona\tchat_message [backpack: gained scorpioncagea 0->1; "
+    "lost scorpioncageempty 1->0]",
+    "2\tcatch.scorpionb\tPASS\t2\t002-catch.scorpionb\tchat_message [backpack: gained scorpioncageab 0->1; "
+    "lost scorpioncagea 1->0]",
+    "3\tcatch.scorpionc\tPASS\t2\t003-catch.scorpionc\tchat_message [backpack: gained scorpioncagefull 0->1; "
+    "lost scorpioncageab 1->0]",
+    ""])
+# The use on the Taverley scorpion written as a row named after the OUTPOST
+# step: the row's name must not stand in for the use's target.
+NAMED_LUA = SCORP_LUA.replace('"catch.scorpiona"', '"catchOutpostScorpion"')
+NAMED_LEDGER = SCORP_LEDGER.replace("\tcatch.scorpiona\t", "\tcatchOutpostScorpion\t")
+COG_LUA_COMMIT = "5e3675055"
+COG_LEDGER_COMMIT = "6762eaf875"
+COG_LEDGER = "osrs239-content/server/scripts/selftest/quests/quest_cog/play/ledger.tsv"
+
+
+def grade_id(test_id, lua, ledger_text):
+    original = helper_coverage.ledger.read
+    helper_coverage.ledger.read = lambda path: parse(ledger_text)
+    try:
+        report = grader(test_id, lua, ledger_text).report()
+    finally:
+        helper_coverage.ledger.read = original
+    return {s["step"]: (s["class"], s["reason"]) for s in report["steps"]}
+
+
+def credits_line(got, step, line):
+    return got[step][0] == "DRIVEN" and got[step][1].startswith("line %d " % line)
+
+
+def b66_cases():
+    """{name: (test_id, lua, ledger, check)}; check(got) -> [wrong steps]."""
+    cog_lua = subprocess.run(["git", "-C", helper_coverage.REPO_ROOT, "show",
+                              COG_LUA_COMMIT + ":test/quests/cog.lua"],
+                             capture_output=True, text=True, check=True).stdout
+    cog_ledger = subprocess.run(["git", "-C", os.path.join(helper_coverage.REPO_ROOT, "OSRS-Content"), "show",
+                                 COG_LEDGER_COMMIT + ":" + COG_LEDGER],
+                                capture_output=True, text=True, check=True).stdout
+    assert "\tenterBasement-black\tPASS\t" in cog_ledger and "beside ladder_from_cellar 2566,9642" in cog_ledger, \
+        "the cog fixture ledger no longer carries row 39's landing"
+
+    def same_name(got):
+        bad = []
+        if not credits_line(got, "catchTaverleyScorpion", SCORP_LINES["a"]):
+            bad.append("catchTaverleyScorpion")
+        if not credits_line(got, "catchMonasteryScorpion", SCORP_LINES["c"]):
+            bad.append("catchMonasteryScorpion")
+        outpost = got["catchOutpostScorpion"]
+        # the use on questscorpionb with cage a (the guide wants cage ac
+        # there): line 7 or UNMATCHED, never another scorpion's line
+        if outpost[0] == "DRIVEN" and not outpost[1].startswith("line %d " % SCORP_LINES["b"]):
+            bad.append("catchOutpostScorpion")
+        return bad
+
+    def named_row(got):
+        return ["catchOutpostScorpion"] if got["catchOutpostScorpion"][0] == "DRIVEN" else []
+
+    def white_ladder(got):
+        return ["climbWhiteLadder"] if "enterBasement-black" in got["climbWhiteLadder"][1] else []
+
+    return {
+        "scorp_same_name": ("scorpcatcher", SCORP_LUA, SCORP_LEDGER, same_name),
+        "scorp_named_row_elsewhere": ("scorpcatcher", NAMED_LUA, NAMED_LEDGER, named_row),
+        "cog_white_ladder_other_copy": ("cog", cog_lua, cog_ledger, white_ladder),
+    }
+
+
+def b66_symbols():
+    """(name, failures): same_thing on two symbols this cache has."""
+    out = []
+    for kind, guide_symbol, test_string, want in (
+            ("npc", "questscorpionc", "questscorpionb", False),     # same display name
+            ("loc", "mourning_temple_pillar_1_1", "mourning_temple_pillar_1_10", False),  # a spelling prefix
+            ("npc", "gertrudescat", "gertrude", False),
+            ("npc", "questscorpionb", "questscorpionb", True)):
+        got = helper_coverage.same_thing(kind, guide_symbol, test_string)
+        out.append(("same_thing:%s~%s" % (guide_symbol, test_string), [] if got == want else [repr(got)]))
+    return out
+
+
+def run_b66(show=True):
+    failures = 0
+    for name, (test_id, lua, ledger_text, check) in b66_cases().items():
+        got = grade_id(test_id, lua, ledger_text)
+        bad = check(got)
+        failures += bool(bad)
+        if show:
+            steps = ("climbWhiteLadder",) if test_id == "cog" else \
+                ("catchTaverleyScorpion", "catchMonasteryScorpion", "catchOutpostScorpion")
+            print("%-4s %-28s %s%s" % ("FAIL" if bad else "ok", name,
+                                        "; ".join("%s=%s %s" % (s, got[s][0], got[s][1][:48]) for s in steps),
+                                        (" -- wrong: " + ",".join(bad)) if bad else ""))
+    for name, bad in b66_symbols():
+        failures += bool(bad)
+        if show:
+            print("%-4s %s%s" % ("FAIL" if bad else "ok", name, (" -- read as " + bad[0]) if bad else ""))
+    return failures, len(b66_cases()) + len(b66_symbols())
+
+
+def rules_off():
+    """Every b66 case must FAIL with the seam's three rules switched off (the
+    reading before it): the fixtures see the bug, without editing a source."""
+    saved = (helper_coverage.DISTINCT_SYMBOLS, helper_coverage.Grader.USE_ON_OWN_TARGET,
+             helper_coverage.Grader.ROW_AT_POINT)
+    helper_coverage.DISTINCT_SYMBOLS = False
+    helper_coverage.Grader.USE_ON_OWN_TARGET = False
+    helper_coverage.Grader.ROW_AT_POINT = False
+    try:
+        failures, total = run_b66(show=False)
+    finally:
+        (helper_coverage.DISTINCT_SYMBOLS, helper_coverage.Grader.USE_ON_OWN_TARGET,
+         helper_coverage.Grader.ROW_AT_POINT) = saved
+    # the self-match row holds either way
+    return failures, total - 1
+
+
+# ---- seam matthew-mbp-m4-b67-seam1: a shared word, a step below the block,
+# a goto that lands past nothing
+#
+# (a) Rum Deal's setup `::give deal_slayer_gloves 1` (an alternate of the
+# guide's slayerGloves bring-along) was graded CHEAT against useBucketOnTap
+# ("Fill a bucket from the output tap", deal_brewvat_tap) because both carry
+# the content's symbol prefix "deal"; the next charge in line was the
+# setup's `::give bucket_empty 1`, the bucket the step FILLS (its input).
+# (b) On a run that stopped at t.blocked, Witch's House's enterGate
+# (shockgater, the basement frame 2902,9873) and useCheeseOnHole (2903,3466,
+# behind two doors) were charged with goto-getKey, 2928,3455,0 ->
+# 2899,3473,0 (the potted plant outside the front door: a walk with every
+# door shut gets there), and Rum Deal's steps whose rows sit below its block
+# were charged or credited from lines that never ran. The fixtures are
+# synthetic files on the real guides, content and map walls, shaped like the
+# 2026-10-06 b67 runs (fix_b67/rumdeal.final.lua :115/:217/:505-506,
+# fix_b67/ball.final.lua :378/:403/:426/:468); the runs' own files, while the
+# seam pass's copies are still on disk, are graded as well (REAL_FIXTURES).
+
+RUMDEAL_LUA = """return {
+    id = "rumdeal",
+    setup = { "::clearinv", "%s", "::give bucket_empty 1" },
+    run = function(t)
+        t.check("rumdeal.reset", true, "the one row before the block")
+%s
+        t.finish(0)
+    end,
+}
+"""
+RUMDEAL_TAP = ('        local tap = t.player.by_symbol("loc", "deal_brewvat_tap")\n'
+               '        t.exec("useBucketOnTap", t.player.use_on, "bucket_empty", tap)')
+RUMDEAL_BLOCK = "content_bug: no transport to Braindeath Island (b67 fixture)"
+RUMDEAL_LEDGER = ("quest-ledger-v1\nindex\tstep\tverdict\tticks\tshots\tdetail\n"
+                  "1\trumdeal.reset\tPASS\t1\t\tthe one row before the block\n%s")
+BALL_LUA = """return {
+    id = "ball",
+    setup = { "::clearinv" },
+    run = function(t)
+        t.exec("goto-getKey", t.player.goto_tile, %d, %d, 0)
+        t.check("ball.stood", true, "the goto landed")
+%s
+        t.finish(0)
+    end,
+}
+"""
+BALL_STEPS = ('        t.exec("enterGate", t.player.click_loc, "shockgater", 1)\n'
+              '        local hole = t.player.by_symbol("loc", "witchmousehole")\n'
+              '        t.exec("useCheeseOnHole", t.player.use_on, "cheese", hole)')
+BALL_BLOCK = "content_bug: the basement ladder does not climb (b67 fixture)"
+BALL_LEDGER = ("quest-ledger-v1\nindex\tstep\tverdict\tticks\tshots\tdetail\n"
+               "1\tgoto-getKey\tPASS\t0\t001-goto-getKey\tat %d,%d,0 from 2928,3455,0\n"
+               "2\tball.stood\tPASS\t0\t\tthe goto landed\n%s")
+REAL_FIXTURES = os.path.join(helper_coverage.REPO_ROOT, "build", "seam_state", "matthew-mbp-m4-b67-seam1",
+                             "fixtures_hc")
+
+
+def blocked_row(index, reason):
+    return "%d\tblocked\tBLOCKED\t0\t%03d-blocked\t%s\n" % (index, index, reason)
+
+
+def b67_cases():
+    """{name: (test_id, lua, ledger, check, flags)}: check(got) -> [wrong
+    steps]; `flags` the Grader switches that, turned off (the reading before
+    the seam), must make the case fail."""
+    def rumdeal(give, body, ledger_tail=""):
+        return RUMDEAL_LUA % (give, body), RUMDEAL_LEDGER % ledger_tail
+
+    def ball(x, z, body, ledger_tail=""):
+        return BALL_LUA % (x, z, body), BALL_LEDGER % (x, z, ledger_tail)
+
+    def not_cheat(*steps):
+        return lambda got: [s for s in steps if got[s][0] == "CHEAT"]
+
+    def cheat(step, text):
+        return lambda got: [] if got[step][0] == "CHEAT" and text in got[step][1] else [step]
+
+    def below(line, *steps):
+        want = "below the block at line %d" % line
+        return lambda got: [s for s in steps if got[s][0] != "UNMATCHED" or not got[s][1].startswith(want)]
+
+    # the steps' rows four lines under the call: a t.blocked call's reason
+    # is read over its next four lines (Test.blocked_text), and a step named
+    # there is the file's own declared gap, not a step below the block
+    blocked_body = '        t.blocked("%s")\n        do return end\n' + '        -- the run stops above\n' * 4 + '%s'
+    out = {}
+    lua, ledger = rumdeal("::give deal_slayer_gloves 1", "")
+    out["rumdeal_shared_prefix"] = ("rumdeal", lua, ledger, not_cheat("useBucketOnTap"), ("CHEAT_BY_OWN_ITEM",))
+    lua, ledger = rumdeal("::give deal_bucket_swill 1", "")
+    out["rumdeal_own_item_still_cheat"] = ("rumdeal", lua, ledger,
+                                           cheat("useBucketOnTap", "deal_bucket_swill"), ())
+    lua, ledger = rumdeal("::give deal_slayer_gloves 1", blocked_body % (RUMDEAL_BLOCK, RUMDEAL_TAP),
+                          blocked_row(2, RUMDEAL_BLOCK))
+    out["rumdeal_below_block"] = ("rumdeal", lua, ledger, below(6, "useBucketOnTap"),
+                                  ("BELOW_BLOCK", "CHEAT_BY_OWN_ITEM"))
+    lua, ledger = ball(2899, 3473, "")
+    out["ball_goto_reaches_shut"] = ("ball", lua, ledger, not_cheat("enterGate", "useCheeseOnHole"),
+                                     ("GOTO_FAR_SIDE",))
+    lua, ledger = ball(2903, 3466, "")
+    out["ball_goto_past_two_doors"] = ("ball", lua, ledger, cheat("useCheeseOnHole", "goto_tile 2903,3466,0"), ())
+    lua, ledger = ball(2899, 3473, blocked_body % (BALL_BLOCK, BALL_STEPS), blocked_row(3, BALL_BLOCK))
+    out["ball_below_block"] = ("ball", lua, ledger, below(7, "enterGate", "useCheeseOnHole"),
+                               ("BELOW_BLOCK", "GOTO_FAR_SIDE"))
+    return out
+
+
+def real_b67_cases():
+    """The b67 runs' own files (the seam pass's copies), when on disk:
+    {name: (test_id, lua path, ledger path, check)}."""
+    def want(table):
+        return lambda got: [s for s, (klass, prefix) in table.items()
+                            if got[s][0] != klass or not got[s][1].startswith(prefix)]
+    out = {}
+    for name, test_id, lua, ledger_file, table in (
+            ("real_rumdeal_blocked", "rumdeal", "rumdeal.final.lua", "rumdeal/ledger.tsv",
+             {"useBucketOnTap": ("UNMATCHED", "below the block at line 217")}),
+            ("real_ball_blocked", "ball", "ball.final.lua", "ball/ledger.tsv",
+             {"enterGate": ("UNMATCHED", "below the block at line 403"),
+              "useCheeseOnHole": ("UNMATCHED", "below the block at line 403")}),
+            ("real_ball_probe_full", "ball", "ball.probe.lua", "ball_probe/ledger.tsv",
+             {"enterGate": ("DRIVEN", ""), "useCheeseOnHole": ("DRIVEN", "")})):
+        lua_path, ledger_path = os.path.join(REAL_FIXTURES, lua), os.path.join(REAL_FIXTURES, ledger_file)
+        if os.path.isfile(lua_path) and os.path.isfile(ledger_path):
+            out[name] = (test_id, lua_path, ledger_path, want(table))
+    return out
+
+
+def grade_flags(test_id, lua, ledger_text, flags_off=()):
+    saved = {flag: getattr(helper_coverage.Grader, flag) for flag in flags_off}
+    for flag in flags_off:
+        setattr(helper_coverage.Grader, flag, False)
+    try:
+        return grade_id(test_id, lua, ledger_text)
+    finally:
+        for flag, value in saved.items():
+            setattr(helper_coverage.Grader, flag, value)
+
+
+def run_b67():
+    failures, total = 0, 0
+    for name, (test_id, lua, ledger_text, check, flags) in b67_cases().items():
+        got = grade_flags(test_id, lua, ledger_text)
+        bad = check(got)
+        total += 1
+        failures += bool(bad)
+        steps = ("useBucketOnTap",) if test_id == "rumdeal" else ("enterGate", "useCheeseOnHole")
+        print("%-4s %-30s %s%s" % ("FAIL" if bad else "ok", name,
+                                    "; ".join("%s=%s %s" % (s, got[s][0], got[s][1][:70]) for s in steps),
+                                    (" -- wrong: " + ",".join(bad)) if bad else ""))
+        if flags:
+            # the reading before the seam must fail the case: it sees the bug
+            off = check(grade_flags(test_id, lua, ledger_text, flags))
+            total += 1
+            failures += not off
+            print("%-4s %-30s with %s off: %s" % ("ok" if off else "FAIL", name + ".rule_off", "/".join(flags),
+                                                   "fails as it should" if off else "still passes"))
+    real = real_b67_cases()
+    for name, (test_id, lua_path, ledger_path, check) in real.items():
+        report = helper_coverage.Grader(test_id, test_path=lua_path, ledger_file=ledger_path).report()
+        got = {s["step"]: (s["class"], s["reason"]) for s in report["steps"]}
+        bad = check(got)
+        total += 1
+        failures += bool(bad)
+        print("%-4s %-30s %s%s" % ("FAIL" if bad else "ok", name, report["verdict"],
+                                    (" -- wrong: " + "; ".join("%s=%s %s" % (s, got[s][0], got[s][1][:80])
+                                                               for s in bad)) if bad else ""))
+    if not real:
+        print("skip real_b67_*  %s is gone: synthetic cases only" % REAL_FIXTURES)
+    return failures, total
+
+
 def main():
     failures = 0
     table = cases()
@@ -174,7 +490,16 @@ def main():
     for name, bad in extra:
         failures += bool(bad)
         print("%-4s %s%s" % ("FAIL" if bad else "ok", name, (" -- read as " + bad[0][:120]) if bad else ""))
-    total = len(table) + len(extra)
+    b66_failures, b66_total = run_b66()
+    failures += b66_failures
+    off_failures, off_want = rules_off()
+    off_bad = off_failures != off_want
+    failures += off_bad
+    print("%-4s rules_off: %d of the %d b66 cases fail with DISTINCT_SYMBOLS/USE_ON_OWN_TARGET/ROW_AT_POINT off" % (
+        "FAIL" if off_bad else "ok", off_failures, off_want))
+    b67_failures, b67_total = run_b67()
+    failures += b67_failures
+    total = len(table) + len(extra) + b66_total + 1 + b67_total
     print("%d/%d" % (total - failures, total))
     return 1 if failures else 0
 

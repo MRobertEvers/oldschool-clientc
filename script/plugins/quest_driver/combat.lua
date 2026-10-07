@@ -194,8 +194,80 @@ end
 -- two consecutive vouched absences is also the most the conformance harness's
 -- `seam.no_row_is_not_a_kill` row can see inside its one-tick wait (the head
 -- read plus one loop poll), so it grades this rule rather than a looser one.
+--
+-- SEAM await_dead_engaged_grades_a_despawn_as_a_kill_by_absence (b68-seam2):
+-- AN ABSENCE IS A KILL ONLY FROM A LOW BAR.  The vouched absence above says
+-- the slot really left the pool; it never said WHY, and three things take a
+-- live npc out of it with its bar high: an `npc_add` whose duration runs out,
+-- an `npc_del`, and a teleport whose re-add the watch did not see (or the
+-- player himself walking off).  Spirits of the Elid's door golems are
+-- npc_add'ed for 50 ticks (elid_dungeon.rs2 :91/:142/:213) and an 80-hp golem
+-- outlives that: `whiteGolem.dead PASS ... dead after 48 tick(s) ... last hp
+-- 29/30 ... corroborated by ABSENCE` (build/quest_gate/spiritsoftheelid row
+-- 56; rows 66, 76 the same at 24/30 and 30/30) -- a kill credited on an npc
+-- that took one point of damage, and the quest's next row then failed for a
+-- channel the golem never let it clear.  Measured with no content in it
+-- (build/quest_gate/s2abs_before row 6): a Hill Giant hit once to 29/30, the
+-- player ::goto'd 70 tiles away, `ok ... dead after 3 tick(s) ... corroborated
+-- by ABSENCE` -- and row 8 found the giant standing there on the way back.
+--
+-- So the watch keeps the LAST BAR it (or the stamp it was opened from) read --
+-- `last_ratio`/`last_scale` -- and the absence arm asks it: a last bar at most
+-- a quarter of its width (ratio x 4 <= scale) is a kill, as before, because a
+-- real death reaches the corpse's zero bar fast and a poll can miss those few
+-- ticks (an attack's settle that ended on the killing splat, a wait that
+-- started after the release); a last bar ABOVE a quarter is answered with the
+-- kind `despawned`, and the verbs return that word, never `ok`.  A watch that
+-- never knew a bar at all (no hit ever sent one) keeps the old rule: the
+-- absence is a kill, because there is nothing to ask.  The kill verbs write
+-- the bar back to the stamp, so a later wait on the same engagement starts
+-- from the newest reading and not the attack's.
 QD.COMBAT_ABSENT_POLLS = 2
 QD.COMBAT_POOL_CAP = 64 -- lua_drive_npcs's DRIVE_UI_POOL_CAP
+
+-- "<ratio>/<scale>" (with or without " (stale)") -> ratio, scale; else nil.
+-- "no bar", "gone", "no reading" and nil all answer nil: no bar is known.
+function QD._combat_bar_parse(text)
+    if type(text) ~= "string" then
+        return nil, nil
+    end
+    local ratio, scale = string.match(text, "^(%d+)/(%d+)")
+    if ratio == nil then
+        return nil, nil
+    end
+    ratio, scale = tonumber(ratio), tonumber(scale)
+    if scale == nil or scale <= 0 then
+        return nil, nil
+    end
+    return ratio, scale
+end
+
+-- Whether a watch's last known bar lets an absence be a kill: true at most a
+-- quarter of the bar's width (or no bar ever known), false above it.
+function QD._combat_bar_allows_kill(watch)
+    if watch.last_ratio == nil or watch.last_scale == nil or watch.last_scale <= 0 then
+        return true
+    end
+    return watch.last_ratio * 4 <= watch.last_scale
+end
+
+-- "29/30 (the attack's own reading)" or "none ever known", for the verdicts.
+function QD._combat_bar_text(watch)
+    if watch.last_ratio == nil or watch.last_scale == nil then
+        return "none ever known"
+    end
+    return tostring(watch.last_ratio) .. "/" .. tostring(watch.last_scale)
+        .. (watch.last_bar_from and (" (" .. watch.last_bar_from .. ")") or "")
+end
+
+-- Writes the watch's last bar back to `stamp` (QD._combat_last), so a later
+-- wait on the same engagement starts from the newest reading.
+function QD._combat_watch_stamp_bar(watch, stamp)
+    if type(stamp) == "table" and watch.last_ratio ~= nil and watch.last_scale ~= nil then
+        stamp.last_ratio = watch.last_ratio
+        stamp.last_scale = watch.last_scale
+    end
+end
 
 -- THE CORPSE GRACE.  A zero bar read inside the caller's deadline is a fight
 -- that may already be won and has not been RELEASED yet: the death sequence
@@ -227,7 +299,11 @@ function QD._combat_grace_text(elapsed, ticks)
         .. "-tick deadline (the corpse grace: a zero bar was read inside it)"
 end
 
-function QD._combat_watch_new(stamp_health)
+-- `stamp` (optional) is the engagement stamp the wait holds
+-- (QD._combat_last): its written-back `last_ratio`/`last_scale` seed the
+-- watch's last bar, else its `health`, else its `health_before` -- the last
+-- bar this driver read on that npc, newest first (b68-seam2).
+function QD._combat_watch_new(stamp_health, stamp)
     local watch = {
         absent = 0,          -- consecutive polls with the slot missing
         zero_tick = nil,     -- tick the bar first read 0 (nil: not at 0 now)
@@ -235,7 +311,28 @@ function QD._combat_watch_new(stamp_health)
         last_tile = nil,     -- {x, z} the slot last stood on
         uncovered = 0,       -- absent polls on which the pool could NOT vouch
         pool_text = "",      -- the latest "the pool held N rows" sentence
+        last_ratio = nil,    -- the last bar known (b68-seam2): its fill ...
+        last_scale = nil,    -- ... and its width; nil: no bar ever known
+        last_bar_from = nil, -- where it was read, for the verdict sentence
     }
+    if type(stamp) == "table" then
+        if type(stamp.last_ratio) == "number" and type(stamp.last_scale) == "number"
+            and stamp.last_scale > 0 then
+            watch.last_ratio, watch.last_scale = stamp.last_ratio, stamp.last_scale
+            watch.last_bar_from = "an earlier wait on this engagement"
+        else
+            local ratio, scale = QD._combat_bar_parse(stamp.health)
+            local from = "the attack's own reading"
+            if ratio == nil then
+                ratio, scale = QD._combat_bar_parse(stamp.health_before)
+                from = "the reading before the attack's press"
+            end
+            if ratio ~= nil then
+                watch.last_ratio, watch.last_scale = ratio, scale
+                watch.last_bar_from = from
+            end
+        end
+    end
     -- The attack's own settle may already have read the zero bar (a
     -- re-press on a dying npc reads "hp 0/30 -> 0/30"): that reading is this
     -- fight's, so it counts.
@@ -278,10 +375,15 @@ function QD._combat_pool_covers(watch, count, rows)
         count, far_distance, reach - 2 * watch.absent, 2 * watch.absent)
 end
 
--- One poll of `slot` through `watch`.  Returns (result, row, verdict):
--- `verdict` is nil while the fight is not over, else the corroboration
--- sentence a kill detail must carry.  `result`/`row` are the pool read's own,
--- so the caller's health/hitsplat/re-engagement logic is unchanged.
+-- One poll of `slot` through `watch`.  Returns (result, row, verdict, reslot,
+-- reslot_text, kind): `verdict` is nil while the fight is not over, else the
+-- sentence the answer's detail must carry, and `kind` says what it is --
+-- "kill" (the zero bar, or a vouched absence from a last bar at most a
+-- quarter, or with no bar ever known) or "despawned" (a vouched absence from
+-- a last bar ABOVE a quarter: the npc left, nothing killed it -- b68-seam2,
+-- the banner over QD.COMBAT_ABSENT_POLLS).  `result`/`row` are the pool
+-- read's own, so the caller's health/hitsplat/re-engagement logic is
+-- unchanged.
 -- SEAM covered_press_and_timed_lift_without_drive_op (seam35) -- A TELEPORT
 -- IS NOT A DEATH.  The server names an npc to each client by a per-observer
 -- slot, and `npc_tele` RELEASES that slot and re-adds the npc under a new one
@@ -341,6 +443,12 @@ function QD._combat_watch_read(watch, slot)
         watch.absent = 0
         watch.uncovered = 0
         watch.last_tile = { x = row.x, z = row.z }
+        if row.health_ratio >= 0 and row.health_scale ~= nil and row.health_scale > 0 then
+            -- The last bar known (b68-seam2): what the absence arm asks.
+            watch.last_ratio = row.health_ratio
+            watch.last_scale = row.health_scale
+            watch.last_bar_from = "read at tick " .. tostring(api_drive.tick())
+        end
         if row.health_ratio == 0 then
             if not watch.zero_tick then
                 watch.zero_tick = api_drive.tick()
@@ -362,7 +470,7 @@ function QD._combat_watch_read(watch, slot)
     if watch.zero_tick then
         return result, nil, "corroborated by the ZERO BAR: slot " .. tostring(slot)
             .. " read " .. tostring(watch.zero_text) .. " at tick " .. tostring(watch.zero_tick)
-            .. " and then left the npc pool (the corpse was released)"
+            .. " and then left the npc pool (the corpse was released)", nil, nil, "kill"
     end
     if watch.absent == 1 then
         local moved = QD._combat_watch_reslot(watch, rows)
@@ -387,9 +495,23 @@ function QD._combat_watch_read(watch, slot)
         return result, nil, nil
     end
     if watch.absent - watch.uncovered >= QD.COMBAT_ABSENT_POLLS then
+        -- b68-seam2: the vouched absence says the slot left; the last bar
+        -- says whether that was a death.
+        if not QD._combat_bar_allows_kill(watch) then
+            return result, nil, "NOT A KILL: slot " .. tostring(slot)
+                .. " left the npc pool for " .. tostring(watch.absent)
+                .. " consecutive poll(s) with its last bar at " .. QD._combat_bar_text(watch)
+                .. ", above a quarter, and no zero bar read -- a death holds the corpse's"
+                .. " zero bar for ticks before the release, so this npc was taken away alive"
+                .. " (an npc_add duration running out, an npc_del, a teleport with no re-add"
+                .. " seen, or the player leaving it) -- " .. sentence, nil, nil, "despawned"
+        end
         return result, nil, "corroborated by ABSENCE: slot " .. tostring(slot)
             .. " missing from the npc pool for " .. tostring(watch.absent)
-            .. " consecutive poll(s) and never back, with no zero bar read -- " .. sentence
+            .. " consecutive poll(s) and never back, with no zero bar read, last bar "
+            .. QD._combat_bar_text(watch)
+            .. (watch.last_ratio ~= nil and ", at most a quarter" or "")
+            .. " -- " .. sentence, nil, nil, "kill"
     end
     return result, nil, nil
 end
@@ -585,6 +707,61 @@ function QD._combat_pick_copy(target, npc_symbol, opts)
     return "no_row", "the copy named " .. tostring(copy_text) .. " left the pool before the press"
 end
 
+-- ------------------------------------------------------------ the fast path
+--
+-- SEAM attack_fast_path (raid seam5): which press a fight takes.  A caller in
+-- a hurry -- `ticks` <= 2, or `opts.quick = true` -- gets QD.drive._press_quick
+-- (pointer.lua, end of file: one aim, one press, and on `covered` exactly one
+-- re-aim and one more press, then an answer naming the copies the menu
+-- offered); every other call keeps the quest press below, unchanged.
+-- `opts.quick = false` keeps the quest press whatever `ticks` says.  Shared by
+-- t.player.attack, t.player.cast (spell.lua) and the re-presses of
+-- npc.await_dead_engaged, so the three verbs decide it one way.
+QD.COMBAT_QUICK_TICKS = 2
+
+function QD._combat_quick(ticks, opts)
+    if type(opts) == "table" and opts.quick ~= nil then
+        assert(type(opts.quick) == "boolean", "opts.quick must be true or false")
+        return opts.quick
+    end
+    return type(ticks) == "number" and ticks <= QD.COMBAT_QUICK_TICKS
+end
+
+-- The copy selector inside `opts`: `{ quick = true }` or `{ eat = {...} }`
+-- (b63-seam1: t.player.attack's eater) alone names no copy (nil, the
+-- nearest); anything else is handed to QD._combat_pick_copy as it was, so a
+-- malformed selector still raises there.
+function QD._combat_selector(opts)
+    if type(opts) == "table" and (opts.quick ~= nil or opts.eat ~= nil)
+        and opts.slot == nil and opts.at == nil then
+        return nil
+    end
+    return opts
+end
+
+-- The fast press on ONE copy, with QD._combat_press_attack's returns plus the
+-- fast path's account: (result, fail_detail, row_text, presses, account).
+function QD._combat_press_quick(target, label, op, element)
+    assert(element ~= nil, "attack press names no npc copy")
+    target.reach_element = element
+    local click_result, click, account, presses = QD.drive._press_quick(target, op)
+    target.reach_element = nil
+    if click_result ~= "ok" then
+        return click_result, "attack " .. label .. " op" .. tostring(op) .. ": "
+            .. tostring(click) .. " (" .. tostring(presses) .. " press(es)) -- "
+            .. tostring(account), nil, presses, account
+    end
+    assert(type(click) ~= "table" or click.element_id == element,
+        "attack press landed on another npc copy")
+    local row_text = type(click) == "table" and click.row_text or ""
+    if string.find(row_text, "Attack", 1, true) ~= 1 then
+        return "refused", "attack " .. label .. " op" .. tostring(op)
+            .. ": pressed '" .. tostring(row_text) .. "', which is not an Attack row -- "
+            .. tostring(account), row_text, presses, account
+    end
+    return "ok", nil, row_text, presses, account
+end
+
 -- ---------------------------------------------------------------------- attack
 
 -- t.player.attack(npc_symbol, op, ticks) -> `ok` / click_minimenu's own
@@ -649,8 +826,43 @@ end
 -- 99-melee character read zero hitsplats over 180 ticks with no refusal
 -- (build/parity_state/parity2c/rumdeal.parity.progress.md, parity_rumdeal4):
 -- whatever the press hit, the watched slot was never it.
+--
+-- THE FAST PATH -- SEAM attack_fast_path (raid seam5).  `ticks` <= 2 or
+-- `opts.quick = true` presses through QD.drive._press_quick instead of the
+-- press loop below: one aim at the copy, one press, and on `covered` exactly
+-- ONE re-aim (the copy's new tile, or a camera nudge) and one more press --
+-- no cover recovery, no walk_near, no pixel hunt past two ticks.  Still
+-- covered, it answers `covered` at once with the ticks spent and the copies
+-- the menus offered by slot ("press one of those instead").  `opts` may then
+-- carry `quick` beside the selector (`{ slot = n, quick = true }`); the stamp
+-- remembers it, so npc.await_dead_engaged re-presses the same way.
+--
+-- EATING -- SEAM no_eating_inside_attack_and_re_engage_presses (b63-seam1).
+-- `opts.eat = { item =, below =, op = 1 }` is the await verbs' eater (same
+-- table, same asserts, QD._combat_eater_new), and it eats at every point this
+-- verb can: before each press attempt and after each cover recovery and walk
+-- inside the press loop (QD._combat_press_attack), and every tick of the
+-- settle.  A press made while the hitpoints still read under `below` after
+-- that eat is the bounded fast press, never the pose-and-probe hunt, because
+-- the hunt (pointer.lua) cannot stop to eat: Haunted Mine runs 12, 15 and 18
+-- died inside it, hp 95 -> 0 while one press probed pixels.  The detail gains
+-- the await verbs' eat tag (`; eat shark below 85: ... lowest hp x/y`).
+-- `opts` may then be `{ eat = ... }` alone (the nearest copy) or carry a
+-- selector beside it.
 function QD.player.attack(npc_symbol, op, ticks, opts)
+    local eater = nil
+    if type(opts) == "table" then
+        eater = QD._combat_eater_new(opts)
+    end
+    return QD.player._attack(npc_symbol, op, ticks, opts, eater)
+end
+
+-- t.player.attack with an eater already made: npc.await_dead's re-engagement
+-- passes its own, so its eats and its lowest hp stay one account.
+function QD.player._attack(npc_symbol, op, ticks, opts, eater)
     op = op or 2
+    local quick = QD._combat_quick(ticks, opts)
+    opts = QD._combat_selector(opts)
     ticks = ticks or 10
 
     -- SEAM combat-hunt-kills-the-character (2026-09-20): a dead player keeps
@@ -674,6 +886,31 @@ function QD.player.attack(npc_symbol, op, ticks, opts)
     end
     local slot = before.slot
     local element = before.element_id
+    -- SEAM attack_exact_copy (raid seam3): THIS ATTACK NAMES ITS COPY, AND THE
+    -- ENGAGEMENT STAMP MAY NAME NO OTHER.  The stamp is written only past a
+    -- landed Attack row (below), so every other exit of this verb -- covered,
+    -- no_row, refused, a press that timed out -- used to leave the PREVIOUS
+    -- fight's stamp standing, and an npc.await_dead_engaged after it held that
+    -- previous copy's slot and re-pressed IT: a hunt that asked for copy B and
+    -- failed to press it went on fighting copy A.  A stamp naming a different
+    -- slot is dropped here, before the press, so a failed attack leaves
+    -- "nothing is engaged" (no_row) -- the truth -- and a landed one writes its
+    -- own.  A stamp naming THIS slot is kept: a re-attack of the copy already
+    -- engaged that does not land is still that fight.  A CONSUMED stamp is
+    -- left alone too: await_dead_engaged answers it `no_row` without touching
+    -- the slot, so it can hold nothing.
+    -- The drop is SAID only on the exits that leave no stamp (`dropped`, below):
+    -- a landed attack replaces the stamp anyway, and a hunt loop that attacks a
+    -- new copy every round would otherwise carry this sentence on every row.
+    local stale = QD._combat_last
+    local dropped = ""
+    if stale ~= nil and not stale.consumed and stale.slot ~= slot then
+        dropped = " -- the engagement stamp on slot " .. tostring(stale.slot) .. " ("
+            .. tostring(stale.symbol) .. ", tick " .. tostring(stale.tick) .. ") was dropped:"
+            .. " this attack named slot " .. tostring(slot) .. ", so npc.await_dead_engaged"
+            .. " now holds nothing rather than the old copy"
+        QD._combat_last = nil
+    end
     local before_health = QD._combat_health_text(before)
     local before_hit = before.hit_cycle
     -- The chat-ring watermark the refusal fence below reads from.  Taken
@@ -708,42 +945,78 @@ function QD.player.attack(npc_symbol, op, ticks, opts)
     -- CURRENT form, which is the same press with a target this verb's symbol
     -- lookup cannot build, and one press loop answering for both keeps the
     -- retry count, the row check and their two sentences in one place.
-    local press_result, press_detail, row_text, presses =
-        QD._combat_press_attack(target, tostring(npc_symbol), op, element)
+    local press_result, press_detail, row_text, presses, quick_account =
+        QD._combat_press_attack(target, tostring(npc_symbol), op, element, quick, eater)
     if press_result ~= "ok" then
-        return press_result, press_detail .. " -- the copy named " .. copy_text
+        return press_result, press_detail .. " -- the copy named " .. copy_text .. dropped
+            .. QD._combat_eat_text(eater)
     end
 
     local refusal = nil
-    local settle_result = QD.await({
-        level = function()
-            -- The refusal ends the settle at once: there is no swing coming,
-            -- and spending the caller's whole deadline waiting for one is how
-            -- a hunt loop spends 82 ticks a round on a fight it never had.
-            refusal = QD._combat_refusal_since(since)
-            if refusal then
-                return true
+    local settled = function()
+        -- The refusal ends the settle at once: there is no swing coming,
+        -- and spending the caller's whole deadline waiting for one is how
+        -- a hunt loop spends 82 ticks a round on a fight it never had.
+        refusal = QD._combat_refusal_since(since)
+        if refusal then
+            return true
+        end
+        local result, row = QD._combat_row_by_slot(slot)
+        if result ~= "ok" or not row then
+            -- `no_row` is a one-shot kill; any other non-ok is a failed
+            -- read, and neither is a hit, so neither ends this settle
+            -- early except the kill.
+            return result == "no_row"
+        end
+        return row.hit_cycle > before_hit or QD._combat_health_text(row) ~= before_health
+    end
+    local settle_result
+    if eater == nil then
+        settle_result = QD.await({
+            level = settled,
+            note = "player.attack " .. tostring(npc_symbol),
+        }, ticks)
+    else
+        -- b63-seam1: with an eater the settle is waited a server tick at a
+        -- time and eats between them (food.rs2: no p_stopaction, the fight
+        -- goes on through an eat).
+        settle_result = "timeout"
+        local deadline = api_drive.tick() + ticks
+        while api_drive.tick() < deadline do
+            local met = false
+            local next_tick = api_drive.tick() + 1
+            QD.await({
+                level = function()
+                    if settled() then
+                        met = true
+                        return true
+                    end
+                    return api_drive.tick() >= next_tick
+                end,
+                note = "player.attack " .. tostring(npc_symbol),
+            }, 3)
+            if met then
+                settle_result = "ok"
+                break
             end
-            local result, row = QD._combat_row_by_slot(slot)
-            if result ~= "ok" or not row then
-                -- `no_row` is a one-shot kill; any other non-ok is a failed
-                -- read, and neither is a hit, so neither ends this settle
-                -- early except the kill.
-                return result == "no_row"
+            if QD.player._death_fence("t.player.attack " .. tostring(npc_symbol)
+                .. ", inside the settle") then
+                return "refused", QD.player._death_text(QD._death)
             end
-            return row.hit_cycle > before_hit or QD._combat_health_text(row) ~= before_health
-        end,
-        note = "player.attack " .. tostring(npc_symbol),
-    }, ticks)
+            QD._combat_eat_tick(eater)
+        end
+    end
 
     local after_result, after = QD._combat_row_by_slot(slot)
     local detail = "attack " .. tostring(npc_symbol) .. " op" .. tostring(op)
         .. " [" .. tostring(row_text) .. "] in " .. tostring(presses) .. " press(es)"
+        .. (quick and (" (" .. tostring(quick_account) .. ")") or "")
         .. ", pressed " .. copy_text .. ", watching slot " .. tostring(slot)
         .. ": hp " .. before_health .. " -> " .. QD._combat_health_text(after)
     if after_result == "ok" and after and after.hit_damage >= 0 and after.hit_cycle > before_hit then
         detail = detail .. ", hitsplat " .. tostring(after.hit_damage)
     end
+    detail = detail .. QD._combat_eat_text(eater)
 
     -- THE SERVER REFUSED THE SWING, and nothing here is a fight.
     --
@@ -762,6 +1035,7 @@ function QD.player.attack(npc_symbol, op, ticks, opts)
                 .. " swing was ever made -- stand where the copy can be reached)"
         end
         return "refused", detail .. " -- the SERVER refused the swing: '" .. refusal .. "'" .. why
+            .. dropped
     end
 
     -- Stamped on the timeout path too: "an Attack row was pressed on this
@@ -792,6 +1066,8 @@ function QD.player.attack(npc_symbol, op, ticks, opts)
         bar_seen = (before_health ~= "no bar" and before_health ~= "gone")
             or (after_result == "ok" and after ~= nil and after.health_ratio >= 0),
         tick = api_drive.tick(),
+        -- seam5: a fast-path attack's re-engagements are fast presses too.
+        quick = quick or nil,
     }
 
     -- The other end of the fence at the head of this verb: a player killed BY
@@ -811,7 +1087,14 @@ end
 -- ------------------------------------------------------------------ await_dead
 
 -- t.npc.await_dead(npc_symbol, ticks, radius, attempts) -> `ok` `timeout`
--- `not_found`.
+-- `not_found` `despawned` `refused`.
+--
+-- `despawned` (b68-seam2): the slot left the pool -- vouched, as a kill is --
+-- with its last bar ABOVE a quarter and no zero bar read, so the npc was taken
+-- away alive (an npc_add duration running out, an npc_del, a teleport with no
+-- re-add seen, the player leaving it).  Never a kill; the detail names the
+-- last bar.  The death fence runs first, and a stamp naming the slot is
+-- consumed.  The banner over QD.COMBAT_ABSENT_POLLS is the rule.
 --
 -- Resolves when the npc we started fighting has LEFT THE POOL with a
 -- corroboration the detail names (QD._combat_watch_read: its bar read 0 first,
@@ -860,6 +1143,23 @@ end
 -- ends the run, loudly, at the line that wrote it) rather than being read as
 -- "no food".
 QD.COMBAT_EAT_DELAY_TICKS = 3
+-- SEAM several_inputs_one_tick (raid seam27): `opts.eat.quick = true` eats
+-- at the SERVER's food delay instead.  The slow default above is counted
+-- from AFTER inv_op's settle (about three ticks), so it bites at most every
+-- six ticks (DRIVER_NOTES); the server takes one every three: food.rs2
+-- binds every plain food to `@eat_food(..., ^eat_delay, ^eat_delay)`,
+-- food.constant:29 `^eat_delay = 2`, and consume_shared.rs2:80/:89 refuse
+-- a bite while `%varp7224_consume_food_delay >= map_clock` after setting it
+-- to `map_clock + 2` -- the next bite lands on the press tick + 3, the
+-- wiki's "3 tick Eat delay" (Food/Fast foods).  The quick eater presses with
+-- t.player.eat (one click, the next read) and counts the delay from the
+-- PRESS tick.  `opts.eat.delay` overrides it for a food with its own
+-- (cakes 2, pies 1: food.rs2:45-48 pass `delay + 1` here).  `opts.eat.combo`
+-- names a combo food (tbwt_cooked_karambwan or halibut: its own timer, consume_shared.rs2:75/:91, :97-101)
+-- eaten in the SAME tick as the food through t.together.  Opt-in so the 36
+-- kept quests that pass opts.eat keep their ledgers (the default flip is a
+-- DRIVER_NOTES row: re-run those 36 first).
+QD.COMBAT_FOOD_DELAY_TICKS = 3
 
 function QD._combat_eater_new(opts)
     if opts == nil then
@@ -874,6 +1174,12 @@ function QD._combat_eater_new(opts)
     assert(type(eat.item) == "string", "opts.eat.item names no food symbol")
     assert(type(eat.below) == "number", "opts.eat.below is not a hitpoints number")
     assert(eat.op == nil or type(eat.op) == "number", "opts.eat.op is not a number")
+    assert(eat.quick == nil or type(eat.quick) == "boolean", "opts.eat.quick must be true or false")
+    assert(eat.delay == nil or math.type(eat.delay) == "integer", "opts.eat.delay is not a tick count")
+    assert(eat.combo == nil or type(eat.combo) == "string", "opts.eat.combo names no food symbol")
+    assert(eat.combo == nil or eat.quick == true, "opts.eat.combo needs opts.eat.quick = true")
+    assert(eat.combo == nil or api_drive.symbol("obj", eat.combo) == "ok",
+        "opts.eat.combo is not an obj symbol: " .. tostring(eat.combo))
     -- A food symbol the compack does not know is a typo in the quest file,
     -- not "out of food".
     local symbol_result = api_drive.symbol("obj", eat.item)
@@ -882,6 +1188,9 @@ function QD._combat_eater_new(opts)
         item = eat.item,
         below = eat.below,
         op = eat.op or 1,
+        quick = eat.quick == true,
+        delay = eat.delay or QD.COMBAT_FOOD_DELAY_TICKS,
+        combo = eat.combo,
         eaten = 0,
         eats = {},
         failed = 0,
@@ -890,15 +1199,20 @@ function QD._combat_eater_new(opts)
         next_tick = 0,
         lowest = nil,
         base = nil,
+        -- b63-seam1: eats made inside an attack press (QD._combat_press_eat)
+        -- and the presses the eat line sent down the fast path.
+        press_eats = 0,
+        press_where = {},
+        press_quick = 0,
     }
 end
 
--- One tick's worth: eat once if hitpoints are under the threshold.
+-- One tick's worth: eat once if hitpoints are under the threshold.  The
+-- reading feeds `lowest` on every call, inside the food delay too, so the
+-- row's "lowest hp" is the lowest this eater ever read (b63-seam1: a press
+-- that ate on its way through still names the low it ate at).
 function QD._combat_eat_tick(eater)
-    if eater == nil or eater.out then
-        return
-    end
-    if api_drive.tick() < eater.next_tick then
+    if eater == nil then
         return
     end
     local hp_result, hp = QD.skill.read("hitpoints")
@@ -908,6 +1222,9 @@ function QD._combat_eat_tick(eater)
     eater.base = hp.base_level
     if eater.lowest == nil or hp.level < eater.lowest then
         eater.lowest = hp.level
+    end
+    if eater.out or api_drive.tick() < eater.next_tick then
+        return
     end
     -- 0 is the death fence's reading, never a meal.
     if hp.level <= 0 or hp.level >= eater.below then
@@ -922,14 +1239,39 @@ function QD._combat_eat_tick(eater)
         eater.out = true
         return
     end
-    local eat_result, eat_detail = QD.player.inv_op(eater.item, eater.op)
-    eater.next_tick = api_drive.tick() + QD.COMBAT_EAT_DELAY_TICKS
+    local eat_result, eat_detail
+    if eater.quick then
+        local pressed_tick = api_drive.tick()
+        local combo_held = false
+        if eater.combo ~= nil then
+            local combo_result, combo_count = QD.inv.count(eater.combo)
+            combo_held = combo_result == "ok" and type(combo_count) == "number" and combo_count > 0
+        end
+        if combo_held then
+            eat_result, eat_detail = QD.together(function()
+                QD.player.eat(eater.item, { op = eater.op })
+                QD.player.eat(eater.combo)
+            end)
+        else
+            eat_result, eat_detail = QD.player.eat(eater.item, { op = eater.op })
+        end
+        eater.next_tick = pressed_tick + eater.delay
+    else
+        eat_result, eat_detail = QD.player.inv_op(eater.item, eater.op)
+        eater.next_tick = api_drive.tick() + QD.COMBAT_EAT_DELAY_TICKS
+    end
     local after_result, after = QD.skill.read("hitpoints")
     local after_text = (after_result == "ok" and type(after) == "table") and tostring(after.level)
         or tostring(after_result)
     if eat_result == "ok" then
         eater.eaten = eater.eaten + 1
-        eater.eats[#eater.eats + 1] = tostring(hp.level) .. "->" .. after_text
+        local entry = tostring(hp.level) .. "->" .. after_text
+        if eater.quick then
+            -- The quick eater names the drive tick of each bite, so a ledger
+            -- shows the spacing it claims (the default text is unchanged).
+            entry = entry .. "@" .. tostring(eater.next_tick - eater.delay)
+        end
+        eater.eats[#eater.eats + 1] = entry
     else
         eater.failed = eater.failed + 1
         eater.last_fail = tostring(eat_result) .. " " .. tostring(eat_detail)
@@ -953,10 +1295,72 @@ function QD._combat_eat_text(eater)
         text = text .. ", " .. tostring(eater.failed) .. " eat press(es) failed (last: "
             .. tostring(eater.last_fail) .. ")"
     end
+    if eater.press_eats > 0 then
+        text = text .. ", " .. tostring(eater.press_eats) .. " of them inside an attack press ("
+            .. table.concat(eater.press_where, ", ") .. ")"
+    end
+    if eater.press_quick > 0 then
+        text = text .. ", " .. tostring(eater.press_quick)
+            .. " press(es) made by the fast path because hp was under " .. tostring(eater.below)
+    end
     if eater.out then
         text = text .. ", OUT OF " .. eater.item
     end
     return text
+end
+
+-- ------------------------------------------------- eating inside a press
+--
+-- SEAM no_eating_inside_attack_and_re_engage_presses (b63-seam1).  The eater
+-- above ran only between the await verbs' wait ticks, and an attack press is
+-- not a wait tick: QD._combat_press_attack's first press, its cover recovery
+-- (settled camera, poses), its walk_near and its two re-presses -- each
+-- click_minimenu a pose-and-probe hunt -- can spend tens of server ticks in
+-- one call with nothing eating.  Haunted Mine's Treus Dayth fight died there
+-- three runs in a row (build/orchestrator/fix_b63/hauntedmine.progress.md
+-- runs 12, 15, 18: "the player stood at 2783,4452 from hp 95 to 0 while the
+-- verb probed"; run 15 "95 -> 33 between two eats inside one leg").
+--
+-- One eat tick at a point the press loop owns -- before a press, after the
+-- cover recovery, after the walk -- named `where` for the row, then the
+-- hitpoints read again: true when they are STILL under the eat line (the
+-- food delay, an empty backpack, a burst bigger than a meal), which is the
+-- caller's cue to take the bounded fast press instead of a hunt that cannot
+-- stop to eat.  No eater, no eat, false.
+-- Would QD._combat_eat_tick eat now?  One hitpoints read, nothing pressed:
+-- a cast press asks before it eats, because an eat pressed while a spell is
+-- armed is a cast on the food (spell.lua QD.player._cast_press).
+function QD._combat_eat_due(eater)
+    if eater == nil or eater.out or api_drive.tick() < eater.next_tick then
+        return false
+    end
+    local hp_result, hp = QD.skill.read("hitpoints")
+    if hp_result ~= "ok" or type(hp) ~= "table" or not hp.stated then
+        return false
+    end
+    return hp.level > 0 and hp.level < eater.below
+end
+
+function QD._combat_press_eat(eater, where)
+    if eater == nil then
+        return false
+    end
+    local eaten = eater.eaten
+    QD._combat_eat_tick(eater)
+    if eater.eaten > eaten then
+        eater.press_eats = eater.press_eats + 1
+        if #eater.press_where < QD.COMBAT_PROGRESS_KEEP then
+            eater.press_where[#eater.press_where + 1] = where .. " " .. eater.eats[#eater.eats]
+        end
+    end
+    local hp_result, hp = QD.skill.read("hitpoints")
+    if hp_result ~= "ok" or type(hp) ~= "table" or not hp.stated then
+        return false
+    end
+    if eater.lowest == nil or hp.level < eater.lowest then
+        eater.lowest = hp.level
+    end
+    return hp.level > 0 and hp.level < eater.below
 end
 
 -- ------------------------------------------------------- kill-wait progress
@@ -1067,11 +1471,25 @@ function QD.npc.await_dead(npc_symbol, ticks, radius, attempts, opts)
     local elapsed = 0
     -- The kill verdict (QD._combat_watch_read): absence with a named
     -- corroboration, never a zero bar on its own.  The start row is this
-    -- watch's first reading.
-    local watch = QD._combat_watch_new(nil)
+    -- watch's first reading.  b68-seam2: the last bar known seeds from the
+    -- engagement stamp when it names this very slot (a t.player.attack just
+    -- before this wait), and the start row's own bar, when it has one, wins.
+    local stamp_of = function(at_slot)
+        local stamp = QD._combat_last
+        if stamp ~= nil and not stamp.consumed and stamp.slot == at_slot then
+            return stamp
+        end
+        return nil
+    end
+    local watch = QD._combat_watch_new(nil, stamp_of(slot))
     local progress = QD._combat_progress_new("await_dead " .. tostring(npc_symbol) .. " slot "
         .. tostring(slot))
     watch.last_tile = { x = start_row.x, z = start_row.z }
+    if start_row.health_ratio >= 0 and start_row.health_scale ~= nil and start_row.health_scale > 0 then
+        watch.last_ratio = start_row.health_ratio
+        watch.last_scale = start_row.health_scale
+        watch.last_bar_from = "read at the head of the wait"
+    end
     if start_row.health_ratio == 0 then
         watch.zero_tick = started
         watch.zero_text = health
@@ -1099,11 +1517,17 @@ function QD.npc.await_dead(npc_symbol, ticks, radius, attempts, opts)
         QD._combat_eat_tick(eater)
         QD._combat_progress_step(progress, elapsed, last, reengaged, eater)
 
-        local result, row, verdict, reslot, reslot_text = QD._combat_watch_read(watch, slot)
+        local result, row, verdict, reslot, reslot_text, kind = QD._combat_watch_read(watch, slot)
+        -- b68-seam2: the newest bar goes back to a stamp that names this slot.
+        QD._combat_watch_stamp_bar(watch, stamp_of(slot))
         if reslot then
             -- seam35: a teleport re-added the npc under a new slot (the
             -- banner over QD._combat_watch_read); the fight goes on there.
+            local stamp = stamp_of(slot)
             slot = reslot
+            if stamp ~= nil then
+                stamp.slot = reslot
+            end
             QD.note("await_dead: " .. tostring(reslot_text))
             -- A re-added npc is a new client entity: its hit cycle and bar
             -- start over, so the readings compared against are its own.
@@ -1120,6 +1544,19 @@ function QD.npc.await_dead(npc_symbol, ticks, radius, attempts, opts)
                     .. ", when slot " .. tostring(slot) .. " left the npc pool "
                     .. tostring(elapsed) .. " tick(s) in") then
                 return "refused", QD.player._death_text(QD._death)
+            end
+            if kind == "despawned" then
+                -- b68-seam2: the npc LEFT with its bar above a quarter -- a
+                -- despawn, never a kill.  A stamp naming it is consumed: the
+                -- engagement is over either way.
+                local stamp = stamp_of(slot)
+                if stamp ~= nil then
+                    stamp.consumed = true
+                end
+                return "despawned", "await_dead " .. tostring(npc_symbol) .. ": slot "
+                    .. tostring(slot) .. " gone after " .. tostring(elapsed) .. " tick(s), "
+                    .. tostring(reengaged) .. " re-engagement(s), last hp " .. last .. " -- "
+                    .. verdict .. QD._combat_eat_text(eater) .. QD._combat_progress_text(progress)
             end
             return "ok", "await_dead " .. tostring(npc_symbol) .. ": slot " .. tostring(slot)
                 .. " dead after " .. tostring(elapsed) .. " tick(s)"
@@ -1162,8 +1599,10 @@ function QD.npc.await_dead(npc_symbol, ticks, radius, attempts, opts)
                     -- By SLOT (seam21): a bare symbol would re-resolve the
                     -- nearest copy, which with two about is not the one this
                     -- wait is holding.
-                    local attack_result, attack_detail = QD.player.attack(npc_symbol, nil, nil,
-                        { slot = slot })
+                    -- b63-seam1: with this wait's eater, so the re-attack
+                    -- eats inside its press and settle.
+                    local attack_result, attack_detail = QD.player._attack(npc_symbol, nil, nil,
+                        { slot = slot }, eater)
                     QD.note("await_dead re-engage " .. tostring(reengaged) .. ": "
                         .. tostring(attack_result) .. " " .. tostring(attack_detail))
                 end
@@ -1224,13 +1663,43 @@ end
 -- a step between aim and press re-aims that copy (QD.drive._npc_reaim) -- and
 -- is taken off again after each, whatever it answered, so the caller's target
 -- is left as it was handed in.
-function QD._combat_press_attack(target, label, op, element)
+--
+-- `eater` (b63-seam1, optional: QD._combat_eater_new's table or nil) eats
+-- before every press attempt, after a failed cover recovery and after the
+-- walk; a press due while the hitpoints still read under its line after that
+-- eat is the fast press (QD._combat_press_quick), which then answers for the
+-- rest of the call -- QD._combat_press_eat's banner, above.
+function QD._combat_press_attack(target, label, op, element, quick, eater)
     assert(element ~= nil, "attack press names no npc copy")
+    -- b63-seam1 (QD._combat_press_eat's banner): eat before the first press,
+    -- and a press made under the eat line after that eat is the fast one.
+    if QD._combat_press_eat(eater, "before the press") and not quick then
+        quick = true
+        eater.press_quick = eater.press_quick + 1
+        QD.note("player.attack: hp under the eat line (" .. tostring(eater.below)
+            .. ") after eating -- the fast press, not the pose-and-probe hunt")
+    end
+    if quick then
+        -- seam5: the fast press (QD._combat_press_quick, above player.attack).
+        return QD._combat_press_quick(target, label, op, element)
+    end
     local click_result, click
     local presses = 0
     local walked = false
     while true do
         presses = presses + 1
+        if presses > 1 and QD._combat_press_eat(eater, "before press " .. tostring(presses)) then
+            -- Still under the eat line after eating between two presses: the
+            -- rest of this press is the bounded fast one (b63-seam1).
+            eater.press_quick = eater.press_quick + 1
+            local quick_result, quick_detail, quick_row, quick_presses, quick_account =
+                QD._combat_press_quick(target, label, op, element)
+            QD.note("player.attack: hp under the eat line (" .. tostring(eater.below)
+                .. ") before press " .. tostring(presses) .. " -- the fast press: "
+                .. tostring(quick_result) .. " " .. tostring(quick_account))
+            return quick_result, quick_detail, quick_row,
+                presses - 1 + (quick_presses or 0), quick_account
+        end
         target.reach_element = element
         if presses == 1 then
             -- seam35 (QD.player._npc_cover_recovery's banner, end of
@@ -1247,6 +1716,9 @@ function QD._combat_press_attack(target, label, op, element)
                 click_result, click, recovery =
                     QD.player._npc_cover_recovery(target, op, click)
                 QD.note("player.attack: " .. tostring(recovery))
+                if click_result ~= "ok" then
+                    QD._combat_press_eat(eater, "after the cover recovery")
+                end
             end
         else
             click_result, click = QD.drive.click_minimenu(target, op)
@@ -1262,6 +1734,7 @@ function QD._combat_press_attack(target, label, op, element)
             local walk_result, walk_detail = QD.player.walk_near(target, nil, 1)
             QD.note("player.attack: the copy's press answered covered; walk_near it -> "
                 .. tostring(walk_result) .. " " .. tostring(walk_detail))
+            QD._combat_press_eat(eater, "after walk_near")
         end
         target.reach_element = nil
         if click_result == "ok" or presses >= 3 then
@@ -1447,7 +1920,16 @@ function QD._combat_form_text(row)
 end
 
 -- t.npc.await_dead_engaged(ticks, attempts) -> `ok` `timeout` `no_row`
--- `refused`.
+-- `refused` `despawned`.
+--
+-- `despawned` (b68-seam2): the held slot left the pool -- vouched, as a kill
+-- is -- with its last bar ABOVE a quarter and no zero bar read: the npc was
+-- taken away alive (an npc_add duration running out, an npc_del, a teleport
+-- with no re-add seen, the player leaving it).  Never a kill; the detail names
+-- the last bar and where it was read.  The death fence runs first and the
+-- stamp is consumed, as on a kill.  Spirits of the Elid's 50-tick golems read
+-- `ok ... last hp 29/30 ... corroborated by ABSENCE` until this; the banner
+-- over QD.COMBAT_ABSENT_POLLS is the rule.
 --
 -- Takes no target at all, and that is the point: it holds the SLOT the last
 -- t.player.attack pressed an Attack row on (QD._combat_last, stamped there),
@@ -1492,7 +1974,9 @@ function QD.npc.await_dead_engaged(ticks, attempts, opts)
     local engaged = QD._combat_last
     if not engaged then
         return "no_row", "await_dead_engaged: nothing is engaged -- no t.player.attack in"
-            .. " this run has pressed an Attack row, so there is no slot to hold"
+            .. " this run has pressed an Attack row on the copy it last named (an attack that"
+            .. " named another copy and did not land drops the old stamp), so there is no slot"
+            .. " to hold"
     end
     -- A stamp a CAST opened (spell.lua's t.player.cast sets engaged.spell) is
     -- re-opened by casting again, never by an Attack press: the message names
@@ -1509,6 +1993,13 @@ function QD.npc.await_dead_engaged(ticks, attempts, opts)
 
     local slot = engaged.slot
     local op = engaged.op or 2
+    -- seam5: re-press the way the opening press was made (the stamp's
+    -- `quick`), unless the caller says otherwise with opts.quick.
+    local quick = engaged.quick == true
+    if type(opts) == "table" and opts.quick ~= nil then
+        assert(type(opts.quick) == "boolean", "opts.quick must be true or false")
+        quick = opts.quick
+    end
     local opened = tostring(engaged.name or engaged.symbol)
         .. " (npc " .. tostring(engaged.npc_id) .. ")"
     local forms = opened
@@ -1524,10 +2015,15 @@ function QD.npc.await_dead_engaged(ticks, attempts, opts)
     -- The kill verdict (QD._combat_watch_read): absence with a named
     -- corroboration.  A zero bar at the head of the wait is NOT the answer
     -- any more -- it is recorded, and the loop waits for the corpse to leave.
-    local watch = QD._combat_watch_new(engaged.health)
+    -- b68-seam2: the stamp seeds the watch's last bar (an earlier wait's
+    -- written-back reading, else the attack's), and every read writes the
+    -- newest one back, so an absence is asked about the bar it left from.
+    local watch = QD._combat_watch_new(engaged.health, engaged)
     local progress = QD._combat_progress_new("await_dead_engaged slot " .. tostring(slot)
         .. " " .. opened)
-    local entry_result, entry_row, entry_verdict = QD._combat_watch_read(watch, slot)
+    local entry_result, entry_row, entry_verdict, _, _, entry_kind =
+        QD._combat_watch_read(watch, slot)
+    QD._combat_watch_stamp_bar(watch, engaged)
     local absent_at_entry = entry_result == "no_row"
     if absent_at_entry then
         -- A SLOT THAT IS SIMPLY NOT IN THE POOL IS NOT A CORPSE, and this is
@@ -1564,6 +2060,11 @@ function QD.npc.await_dead_engaged(ticks, attempts, opts)
                 return "refused", QD.player._death_text(QD._death)
             end
             engaged.consumed = true
+            if entry_kind == "despawned" then
+                return "despawned", "await_dead_engaged: slot " .. tostring(slot) .. " ("
+                    .. opened .. ") was already gone when the wait started -- " .. entry_verdict
+                    .. QD._combat_prior_text(engaged.symbol)
+            end
             return "ok", "await_dead_engaged: slot " .. tostring(slot) .. " (" .. opened
                 .. ") was already dead when the wait started -- " .. entry_verdict
                 .. QD._combat_prior_text(engaged.symbol)
@@ -1594,7 +2095,8 @@ function QD.npc.await_dead_engaged(ticks, attempts, opts)
         QD._combat_eat_tick(eater)
         QD._combat_progress_step(progress, elapsed, last, reengaged, eater)
 
-        local result, row, verdict, reslot, reslot_text = QD._combat_watch_read(watch, slot)
+        local result, row, verdict, reslot, reslot_text, kind = QD._combat_watch_read(watch, slot)
+        QD._combat_watch_stamp_bar(watch, engaged)
         if reslot then
             -- seam35: a teleport re-added the npc under a new slot (the
             -- banner over QD._combat_watch_read); the stamp follows it, so a
@@ -1621,10 +2123,22 @@ function QD.npc.await_dead_engaged(ticks, attempts, opts)
                 return "refused", QD.player._death_text(QD._death)
             end
             engaged.consumed = true
+            if kind == "despawned" then
+                -- b68-seam2: gone from a bar above a quarter -- the npc was
+                -- taken away alive, and the caller is told so, never `ok`.
+                return "despawned", "await_dead_engaged: slot " .. tostring(slot) .. " gone after "
+                    .. tostring(elapsed) .. " tick(s), " .. tostring(reengaged)
+                    .. " re-engagement(s)" .. (quick and " (fast path re-presses)" or "")
+                    .. ", last hp " .. last .. "; held " .. forms
+                    .. (absent_at_entry and "; already absent at the head of the wait" or "")
+                    .. " -- " .. verdict .. QD._combat_eat_text(eater)
+                    .. QD._combat_progress_text(progress)
+            end
             return "ok", "await_dead_engaged: slot " .. tostring(slot) .. " dead after "
                 .. tostring(elapsed) .. " tick(s)" .. QD._combat_grace_text(elapsed, ticks)
                 .. ", " .. tostring(reengaged)
-                .. " re-engagement(s), last hp " .. last .. "; held " .. forms
+                .. " re-engagement(s)" .. (quick and " (fast path re-presses)" or "")
+                .. ", last hp " .. last .. "; held " .. forms
                 .. (absent_at_entry and "; already absent at the head of the wait" or "")
                 .. " -- " .. verdict .. QD._combat_eat_text(eater)
                 .. QD._combat_progress_text(progress)
@@ -1676,19 +2190,504 @@ function QD.npc.await_dead_engaged(ticks, attempts, opts)
                     reengaged = reengaged + 1
                     -- The copy the slot IS, by the element this row reads
                     -- now (seam21) -- never the id's centre-ranked copy.
-                    local press_result, press_detail, press_row = QD._combat_press_attack(
+                    local press_result, press_detail, press_row, _, press_account =
+                        QD._combat_press_attack(
                         { kind = "npc", id = row.npc_id, symbol = row.name }, form, op,
-                        row.element_id)
+                        row.element_id, quick, eater)
                     QD.note("await_dead_engaged re-engage " .. tostring(reengaged) .. " on "
                         .. form .. ": " .. tostring(press_result) .. " "
-                        .. tostring(press_detail or press_row))
+                        .. tostring(press_detail or press_row)
+                        .. ((quick and press_result == "ok" and press_account)
+                            and (" (" .. tostring(press_account) .. ")") or ""))
                 end
             end
         end
     end
 
     return "timeout", "await_dead_engaged: slot " .. tostring(slot) .. " still alive after "
-        .. tostring(elapsed) .. " tick(s), " .. tostring(reengaged) .. " re-engagement(s), hp "
+        .. tostring(elapsed) .. " tick(s), " .. tostring(reengaged) .. " re-engagement(s)"
+        .. (quick and " (fast path re-presses)" or "") .. ", hp "
         .. last .. "; held " .. forms .. QD._combat_watch_text(watch)
         .. QD._combat_eat_text(eater) .. QD._combat_progress_text(progress)
+end
+
+-- ==========================================================================
+-- SEAM supplies_by_dose (waves seam pass 2, 2026-10-03) -- DRINK ONE DOSE,
+-- AND COUNT WHAT IS CARRIED.
+--
+-- WHY.  Every Inferno unit from the bat on outlasts one prayer potion, and
+-- the raid loop's authors ran out of prayer and food before they ran out of
+-- npcs (docs/WAVES_ORCHESTRATOR.md section 10, lessons 7 and 15: "sip a
+-- restore before prayer runs out and count the backpack's slots; re-attack
+-- after every eat").  Before this seam a test could only press one named
+-- item through t.player.inv_op, which picks no dose, reads no stat and lets
+-- the fight lapse: a Drink ends the player's interaction.
+--
+-- THE CONTENT IT DRIVES.  A potion is one obj per dose, `<N>dose<stem>`, and
+-- the vial is `vial_empty`; Drink is op 1 on every family this seam names:
+--   prayer potion   [opheld1,4doseprayerrestore]  player/scripts/consumption/prayer_potion.rs2:7
+--   super restore   [opheld1,4dose2restore]       prayer_potion.rs2:19
+--   saradomin brew  [opheld1,4dosepotionofsaradomin] sara_brew.rs2:9
+--   ranging potion  [opheld1,4doserangerspotion]  ranging_potion.rs2:5
+--   bastion         [opheld1,4dosebastion]        inferno_potions.rs2:45
+-- and each label ends `inv_setslot(inv, last_slot, <next dose>, 1);
+-- ...; p_delay(1); ...; p_stopaction` -- the SAME slot takes the next dose
+-- (the vial after the last), and p_stopaction drops the player's target.
+--
+-- `family` is a friendly name from QD.SUPPLY_FAMILIES or a content stem
+-- itself (`prayerrestore`, `stamina`, `divinebastion` ...): any stem with a
+-- `<N>dose<stem>` obj in the compack is accepted.  A name with none is a
+-- typo in the test, answered `no_row` naming the four symbols looked for.
+QD.SUPPLY_FAMILIES = {
+    prayer_potion = "prayerrestore",
+    super_restore = "2restore",
+    saradomin_brew = "potionofsaradomin",
+    ranging_potion = "rangerspotion",
+    bastion = "bastion",
+}
+
+-- The stats a family is drunk FOR: always named in the detail, changed or not
+-- (a prayer potion at full prayer changes nothing, and the row has to say
+-- that rather than go quiet).  Every other stat that moved is named too.
+QD.SUPPLY_STATS = {
+    prayerrestore = { "prayer" },
+    ["2restore"] = { "prayer" },
+    potionofsaradomin = { "hitpoints" },
+    rangerspotion = { "ranged" },
+    bastion = { "ranged", "defence" },
+}
+
+QD.SUPPLY_MAX_DOSES = 4
+QD.SUPPLY_EMPTY = "vial_empty"
+-- Server ticks the whole drink has to change the backpack, and the ticks one
+-- press is given before it is read as dropped and pressed again.  Measured:
+-- the dose leaves on the server tick after the press (+1, build/quest_gate/
+-- sbd_a row 10), and a press inside the previous drink's delay is dropped.
+QD.SUPPLY_DRINK_TICKS = 6
+QD.SUPPLY_PRESS_TICKS = 2
+-- Server ticks after the landing that opts.then_attack presses its Attack:
+-- the drink's own p_stopaction runs when its p_delay(1) ends and would wipe
+-- an earlier press (the banner inside QD.player.drink).  Measured in
+-- build/quest_gate/sbd_c row 8: 0 ticks after was wiped (sbd_b), 1 tick
+-- after re-engaged with swing gaps 5 and 4, 2 ticks after with 5, 7 and 8.
+QD.SUPPLY_REATTACK_AFTER = 1
+
+-- (items, stem) where items lists every `<N>dose<stem>` symbol the compack
+-- has, fewest doses first; items is nil when there is none.
+function QD._supply_family(family)
+    assert(type(family) == "string", "supply family is not a string: " .. tostring(family))
+    local stem = QD.SUPPLY_FAMILIES[family] or family
+    local items = {}
+    for doses = 1, QD.SUPPLY_MAX_DOSES do
+        local symbol = tostring(doses) .. "dose" .. stem
+        local result = api_drive.symbol("obj", symbol)
+        if result == "ok" then
+            items[#items + 1] = { symbol = symbol, doses = doses, count = 0 }
+        end
+    end
+    if #items == 0 then
+        return nil, stem
+    end
+    return items, stem
+end
+
+-- Fill each item's backpack count; (ok, total doses, "2x3dose.. 1x1dose..")
+-- or a count's own failure.
+function QD._supply_count(items)
+    local total = 0
+    local parts = {}
+    for _, item in ipairs(items) do
+        local result, count = QD.inv.count(item.symbol)
+        if result ~= "ok" then
+            return result, item.symbol .. ": " .. tostring(count)
+        end
+        item.count = count
+        total = total + count * item.doses
+        if count > 0 then
+            parts[#parts + 1] = tostring(count) .. "x" .. item.symbol
+        end
+    end
+    local text = #parts > 0 and table.concat(parts, ", ") or "none carried"
+    return "ok", total, text
+end
+
+-- (ok, free, capacity): backpack cells holding nothing (obj -1; obj 0 is a
+-- real item, see QD.inv.slot).
+function QD._supply_free_slots()
+    local container_result, container_id = QD._inv_container()
+    if container_result ~= "ok" then
+        return container_result, "inv"
+    end
+    local capacity_result, capacity = api_drive.inv_capacity(container_id)
+    if capacity_result ~= "ok" then
+        return capacity_result, "inv_capacity"
+    end
+    local free = 0
+    for index = 0, capacity - 1 do
+        local slot_result, slot = api_drive.inv_slot(container_id, index)
+        if slot_result ~= "ok" then
+            return slot_result, "inv_slot " .. tostring(index)
+        end
+        if slot.obj_id < 0 then
+            free = free + 1
+        end
+    end
+    return "ok", free, capacity
+end
+
+-- t.inv.doses(family) -> ("ok", text, info) | ("no_row", text) | a read's
+-- own failure.  info = { family, stem, doses (total), free (empty backpack
+-- cells), capacity, items = { [symbol] = count } }.  text reads
+-- `prayer_potion (prayerrestore): 7 dose(s) in 2x3doseprayerrestore,
+-- 1x1doseprayerrestore; 24 of 28 backpack slot(s) free`.  Carrying none is
+-- `ok` with 0 doses -- a count, not a failure.
+function QD.inv.doses(family)
+    local items, stem = QD._supply_family(family)
+    if items == nil then
+        return "no_row", "inv.doses " .. tostring(family) .. ": no obj 1dose" .. stem
+            .. " .. " .. tostring(QD.SUPPLY_MAX_DOSES) .. "dose" .. stem .. " in the compack"
+    end
+    local count_result, total, parts = QD._supply_count(items)
+    if count_result ~= "ok" then
+        return count_result, "inv.doses " .. family .. ": " .. tostring(total)
+    end
+    local free_result, free, capacity = QD._supply_free_slots()
+    if free_result ~= "ok" then
+        return free_result, "inv.doses " .. family .. ": " .. tostring(free)
+    end
+    local by_item = {}
+    for _, item in ipairs(items) do
+        by_item[item.symbol] = item.count
+    end
+    local text = family .. (stem ~= family and (" (" .. stem .. ")") or "") .. ": "
+        .. tostring(total) .. " dose(s) in " .. parts .. "; " .. tostring(free) .. " of "
+        .. tostring(capacity) .. " backpack slot(s) free"
+    return "ok", text, {
+        family = family,
+        stem = stem,
+        doses = total,
+        free = free,
+        capacity = capacity,
+        items = by_item,
+    }
+end
+
+function QD._supply_server_tick()
+    local result, tick = QD.tick()
+    if result ~= "ok" then
+        return nil
+    end
+    return tick
+end
+
+-- Every stat level, read once: { name = level } for the stats that answered.
+function QD._supply_levels()
+    local _, snapshot = QD.skill.snapshot()
+    local levels = {}
+    for name, reading in pairs(snapshot) do
+        if type(reading) == "table" and type(reading.level) == "number" then
+            levels[name] = { level = reading.level, base = reading.base_level }
+        end
+    end
+    return levels
+end
+
+-- The family's own stats (always) and every other stat that moved:
+-- (text, { name = {before, after, base} }, changed_count).
+function QD._supply_stat_delta(stem, before, after)
+    local named = {}
+    local order = {}
+    for _, name in ipairs(QD.SUPPLY_STATS[stem] or {}) do
+        named[name] = true
+        order[#order + 1] = name
+    end
+    local others = {}
+    for name, reading in pairs(after) do
+        local prior = before[name]
+        if not named[name] and prior ~= nil and prior.level ~= reading.level then
+            others[#others + 1] = name
+        end
+    end
+    table.sort(others)
+    for _, name in ipairs(others) do
+        order[#order + 1] = name
+    end
+    local parts = {}
+    local stats = {}
+    local changed = 0
+    for _, name in ipairs(order) do
+        local prior = before[name]
+        local now = after[name]
+        if prior ~= nil and now ~= nil then
+            stats[name] = { before = prior.level, after = now.level, base = now.base }
+            if prior.level ~= now.level then
+                changed = changed + 1
+            end
+            parts[#parts + 1] = name .. " " .. tostring(prior.level) .. " -> "
+                .. tostring(now.level) .. " (base " .. tostring(now.base) .. ")"
+        end
+    end
+    local text = #parts > 0 and table.concat(parts, ", ") or "no stat read"
+    return text, stats, changed
+end
+
+-- The npc `opts.then_attack` names: (symbol, attack opts, op) or (nil, why).
+function QD._supply_attack_target(then_attack)
+    if then_attack == true then
+        local stamp = QD._combat_last
+        if stamp == nil or stamp.consumed then
+            return nil, "then_attack = true but no fight is engaged (no player.attack stamp)"
+        end
+        return stamp.symbol, { slot = stamp.slot, quick = true }, stamp.op
+    end
+    if type(then_attack) == "string" then
+        return then_attack, { quick = true }, nil
+    end
+    assert(type(then_attack) == "table",
+        "opts.then_attack is not an npc symbol, a t.npc row or true")
+    assert(then_attack.slot ~= nil, "opts.then_attack row carries no slot")
+    -- A t.npc row's `name` is the DISPLAY name ("Goblin"), which no symbol
+    -- lookup resolves (build/quest_gate/sbd_a row 18: `attack Goblin:
+    -- not_found`); the symbol is the npc id's own.
+    local symbol = then_attack.symbol
+    if symbol == nil then
+        assert(type(then_attack.npc_id) == "number", "opts.then_attack row carries no npc_id")
+        local name_result, name = api_drive.symbol_name("npc", then_attack.npc_id)
+        if name_result ~= "ok" then
+            return nil, "then_attack row npc_id " .. tostring(then_attack.npc_id)
+                .. " names no npc symbol: " .. tostring(name)
+        end
+        symbol = name
+    end
+    return symbol, { slot = then_attack.slot, quick = true }, then_attack.op
+end
+
+-- t.player.drink(family, opts) -> ("ok", detail, info) | not_found | no_row
+-- | refused | timeout | a then_attack failure.
+--
+-- Drinks ONE dose of `family` by the item's own Drink row (op 1, a real
+-- held-op press through QD.player._inv_press -- the same press inv_op makes),
+-- choosing the item with the FEWEST doses left, so a backpack of 4s and a 1
+-- empties the 1 first and frees its slot.  It waits (QD.SUPPLY_DRINK_TICKS,
+-- or opts.ticks) for THAT item's count to fall, pressing again every
+-- QD.SUPPLY_PRESS_TICKS ticks that changed nothing (a press made while the
+-- player is delayed -- the previous drink or eat -- is dropped by the
+-- server), then reads the slot it was in and every stat.
+--
+-- ok detail: `drink prayer_potion (prayerrestore): 1doseprayerrestore slot 2
+-- -> vial_empty (fewest of 1x4doseprayerrestore, 1x1doseprayerrestore);
+-- prayer 10 -> 34 (base 70); doses 5 -> 4; pressed server tick 101, landed
+-- server tick 102 (+1)`, `; N earlier press(es) on server tick(s) ...
+-- changed nothing (dropped: the player was delayed)` when it re-pressed,
+-- and, with opts.then_attack, `; then_attack goblin pressed on server tick
+-- T: <attack's result> <attack's detail>`.  info = { family, stem, item,
+-- doses (of the item drunk), slot, after (what the slot holds now), stats =
+-- { name = {before, after, base} }, doses_before, doses_after, presses,
+-- pressed_tick, landed_tick, attack_tick, attack = {result, detail} }.
+-- Under t.exec only (result, detail) reach the caller: call the verb
+-- directly and write the row with t.check to keep `info`.  The ticks are
+-- the SERVER's (t.tick()); landed is the tick the client first saw the
+-- dose gone.
+--
+-- not_found: the backpack holds none of the family (the detail says so).
+-- no_row: no `<N>dose<stem>` obj exists for the name.  refused / timeout:
+-- the press was declined, or nothing changed in the deadline -- the detail
+-- carries the newest chat line ("You need at least 11 Hitpoints to drink
+-- that.").
+--
+-- opts.then_attack = <npc symbol> | <t.npc row> | true (the copy the last
+-- t.player.attack engaged): RE-ISSUE the Attack after the drink, by the fast
+-- press (t.player.attack with { quick = true }, opts.attack_ticks or
+-- QD.COMBAT_QUICK_TICKS), because the drink's p_stopaction dropped the
+-- target -- pressed QD.SUPPLY_REATTACK_AFTER server tick(s) after the
+-- landing (opts.attack_after), never at once: the banner at the press says
+-- why.  The attack's `ok` or `timeout` (pressed, engaged, no hit yet --
+-- the fast path's word) keeps the verb `ok`; any other attack answer
+-- (covered, refused, not_found, no_row) is the verb's answer, with the
+-- drink that DID happen still in the detail and info.
+-- t.player.drink(what, opts): one verb, two shapes (the v3 merge of the
+-- raid branch, 2026-10-06).  A FAMILY -- a QD.SUPPLY_FAMILIES name or a dose
+-- stem ("prayer_potion", "prayerrestore") -- is the supply drink below
+-- (QD.player._drink_family).  An item symbol ("4dose2combat") or a list of
+-- them is the raid seam14 fast press (pointer.lua QD.player._drink_items):
+-- the first one held is drunk, ok when its cell changed on the next read.
+-- A string that names neither stays the family verb, which answers no_row.
+function QD.player.drink(what, opts)
+    if type(what) == "table" then
+        return QD.player._drink_items(what, opts)
+    end
+    assert(type(what) == "string", "t.player.drink: neither a family, an item symbol nor a list of symbols")
+    if QD._supply_family(what) == nil and api_drive.symbol("obj", what) == "ok" then
+        return QD.player._drink_items(what, opts)
+    end
+    return QD.player._drink_family(what, opts)
+end
+
+function QD.player._drink_family(family, opts)
+    opts = opts or {}
+    assert(type(opts) == "table", "t.player.drink opts is not a table")
+    assert(opts.ticks == nil or type(opts.ticks) == "number", "opts.ticks is not a number")
+    if QD.player._death_fence("t.player.drink " .. tostring(family)) then
+        return "refused", QD.player._death_text(QD._death)
+    end
+    local items, stem = QD._supply_family(family)
+    if items == nil then
+        return "no_row", "drink " .. tostring(family) .. ": no obj 1dose" .. stem .. " .. "
+            .. tostring(QD.SUPPLY_MAX_DOSES) .. "dose" .. stem .. " in the compack"
+    end
+    local label = "drink " .. family .. (stem ~= family and (" (" .. stem .. ")") or "")
+    local count_result, doses_before, carried = QD._supply_count(items)
+    if count_result ~= "ok" then
+        return count_result, label .. ": " .. tostring(doses_before)
+    end
+    local chosen = nil
+    for _, item in ipairs(items) do
+        if item.count > 0 then
+            chosen = item
+            break
+        end
+    end
+    if chosen == nil then
+        return "not_found", label .. ": none in the backpack (" .. carried .. ")"
+    end
+
+    local before = QD._supply_levels()
+    -- A PRESS THE SERVER DROPPED IS PRESSED AGAIN.  A held op that arrives
+    -- while the player is delayed (the last drink's p_delay(1), an eat's
+    -- p_delay(^eat_delay)) is refused outright and never queued -- LostCity's
+    -- OpHeldHandler.ts:16, and here torirs_server_world.c
+    -- player_delayed_blocks_packet -- so a second drink pressed on the tick
+    -- the first one landed changed nothing for five ticks (build/quest_gate/
+    -- sbd_a row 12: `pressed ... on server tick 16 and 4doseprayerrestore is
+    -- still 2 after 5 tick(s)`).  A player clicks again; so does this verb,
+    -- every QD.SUPPLY_PRESS_TICKS ticks that changed nothing, inside the
+    -- deadline.  Because a delayed press is DROPPED, not held, a re-press
+    -- cannot drink twice; the detail still counts the doses that left, and
+    -- says so if that is ever not one.
+    local budget = opts.ticks or QD.SUPPLY_DRINK_TICKS
+    local start = api_drive.tick()
+    local pressed_tick = nil
+    local dropped = {}
+    local landed_tick = nil
+    local cell = nil
+    local where = nil
+    while true do
+        local press_tick = QD._supply_server_tick()
+        local press_result, press_cell, press_where, refusal = QD.player._inv_press(chosen.symbol, 1)
+        if press_cell == nil then
+            return press_result, label .. ": " .. tostring(press_where)
+        end
+        if press_result ~= "ok" then
+            return press_result, label .. ": " .. tostring(press_where) .. " -- " .. tostring(refusal)
+        end
+        cell = press_cell
+        where = press_where
+        pressed_tick = press_tick
+        local await_result = QD.await({
+            level = function()
+                local result, count = QD.inv.count(chosen.symbol)
+                if result == "ok" and count < chosen.count then
+                    landed_tick = QD._supply_server_tick()
+                    return true
+                end
+                return false
+            end,
+            note = label .. " " .. chosen.symbol,
+        }, QD.SUPPLY_PRESS_TICKS)
+        if await_result == "ok" then
+            break
+        end
+        dropped[#dropped + 1] = tostring(press_tick)
+        if api_drive.tick() - start >= budget then
+            return "timeout", label .. ": pressed " .. tostring(where) .. " "
+                .. tostring(#dropped) .. " time(s) (server ticks " .. table.concat(dropped, ", ")
+                .. ") and " .. chosen.symbol .. " is still " .. tostring(chosen.count) .. " after "
+                .. tostring(budget) .. " tick(s); last chat line '" .. QD.player._last_line() .. "'"
+        end
+    end
+
+    -- The stat and the slot are written by the same script on the same tick
+    -- as the dose, and reach the client in the same tick's output: read at
+    -- once (sbd_a row 10 read prayer 30 -> 54 on the landing tick).  No wait
+    -- for a stat that did not move -- a prayer potion at full prayer moves
+    -- nothing, and a tick spent waiting for it is a tick the re-attack lost.
+    local after = QD._supply_levels()
+    local stat_text, stats = QD._supply_stat_delta(stem, before, after)
+    local slot_result, slot_now = QD.inv.slot(cell.slot)
+    local after_name = (slot_result == "ok" and type(slot_now) == "table")
+        and (slot_now.name ~= "" and slot_now.name or "empty") or tostring(slot_result)
+    local count_after_result, doses_after = QD._supply_count(items)
+    if count_after_result ~= "ok" then
+        doses_after = nil
+    end
+
+    local tick_text = "pressed server tick " .. tostring(pressed_tick) .. ", landed server tick "
+        .. tostring(landed_tick)
+    if type(pressed_tick) == "number" and type(landed_tick) == "number" then
+        tick_text = tick_text .. " (+" .. tostring(landed_tick - pressed_tick) .. ")"
+    end
+    if #dropped > 0 then
+        tick_text = tick_text .. "; " .. tostring(#dropped) .. " earlier press(es) on server tick(s) "
+            .. table.concat(dropped, ", ") .. " changed nothing (dropped: the player was delayed)"
+    end
+    if type(doses_after) == "number" and doses_before - doses_after ~= 1 then
+        tick_text = tick_text .. "; WARNING " .. tostring(doses_before - doses_after)
+            .. " dose(s) left the backpack, not one"
+    end
+    local detail = label .. ": " .. chosen.symbol .. " slot " .. tostring(cell.slot) .. " -> "
+        .. after_name .. " (fewest of " .. carried .. "); " .. stat_text .. "; doses "
+        .. tostring(doses_before) .. " -> " .. tostring(doses_after) .. "; " .. tick_text
+    local info = {
+        family = family,
+        stem = stem,
+        item = chosen.symbol,
+        doses = chosen.doses,
+        slot = cell.slot,
+        after = after_name,
+        stats = stats,
+        doses_before = doses_before,
+        doses_after = doses_after,
+        pressed_tick = pressed_tick,
+        landed_tick = landed_tick,
+        presses = #dropped + 1,
+    }
+
+    if opts.then_attack == nil or opts.then_attack == false then
+        return "ok", detail, info
+    end
+    local symbol, attack_opts, op = QD._supply_attack_target(opts.then_attack)
+    if symbol == nil then
+        info.attack = { result = "no_row", detail = attack_opts }
+        return "no_row", detail .. "; then_attack: " .. tostring(attack_opts), info
+    end
+    -- NOT AT ONCE.  Every Drink label ends `p_delay(1); ...; p_stopaction`
+    -- (prayer_potion.rs2:37-39, sara_brew.rs2:35-37, ranging_potion.rs2:27-29,
+    -- inferno_potions.rs2:62-64): the script resumes after its delay and THEN
+    -- clears the interaction, so an Attack pressed while it is parked is
+    -- latched (torirs_server_world.c accepts world ops while delayed) and
+    -- wiped by that p_stopaction.  Measured in build/quest_gate/sbd_b row 8:
+    -- re-attacks pressed on the landing tick left gaps of 5, 8 and 7 ticks
+    -- (the player swung again only when auto-retaliate answered the goblin).
+    -- So the press waits until QD.SUPPLY_REATTACK_AFTER server tick(s) after
+    -- the landing (opts.attack_after overrides it; sbd_c measured 1 and 2).
+    local attack_after = opts.attack_after or QD.SUPPLY_REATTACK_AFTER
+    local attack_tick = nil
+    if type(landed_tick) == "number" then
+        local due = landed_tick + attack_after
+        QD.await({ level = function()
+            local now = QD._supply_server_tick()
+            return now == nil or now >= due
+        end, note = label .. " re-attack at server tick " .. tostring(due) }, attack_after + 3)
+        attack_tick = QD._supply_server_tick()
+    end
+    local attack_result, attack_detail = QD.player.attack(symbol, op or 2,
+        opts.attack_ticks or QD.COMBAT_QUICK_TICKS, attack_opts)
+    info.attack_tick = attack_tick
+    info.attack = { result = attack_result, detail = attack_detail }
+    detail = detail .. "; then_attack " .. symbol .. " pressed on server tick "
+        .. tostring(attack_tick) .. ": " .. tostring(attack_result) .. " " .. tostring(attack_detail)
+    if attack_result == "ok" or attack_result == "timeout" then
+        return "ok", detail, info
+    end
+    return attack_result, detail, info
 end

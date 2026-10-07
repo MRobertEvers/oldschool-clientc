@@ -1,0 +1,341 @@
+{{Update|date=29 April 2022|link=https://secure.runescape.com/m=news/gielinor-gazette---april-2022?oldschool=1|category=community}}
+[[File:Gielinor Gazette - April 2022 newspost.png|right]]
+{{clear}}
+
+April, April, April... what a month. We're officially a third of the way through 2022 and we've still got tons more content to come. Not only did we release the iOS Closed Beta, Beneath Cursed Sands and Easter 2022, but we also gave you the very first details on Giants' Foundry and we got our first look at the minis for the RuneScape Tabletop Game.
+
+We also had our very first Old School Game Jam, which was a massive success! We had ideas from all across the team – some of which we’ll talk about later in this very Gazette.
+
+Unfortunately, Postie Pete has been backed up with requests for his personal appearance at events right now, so there will be no Postbag from the Hedge this month. Rest assured, it will be back and bigger than ever for May's edition of the Gazette!
+
+For now, let's take a look at what we’ve been working on!
+__TOC__
+==Project Status Update==
+===Released Content===
+====Beneath Cursed Sands====
+Beneath Cursed Sands launched a few days ago and it’s been great to see you all enjoying the latest episode in the Desert questline. Of course, the story is far from over, and Amascut’s schemes will continue in our third raid, the Tombs of Amascut. Keep reading to see how that’s coming along!
+
+====New Client Features and iOS Closed Beta====
+The iOS Closed Beta is live and kicking! We appreciate everyone's feedback so far – it’s been incredibly valuable. If you want to add your thoughts, make sure to join us in the Official [http://discord.gg/OSRS OSRS Discord], where we share the latest updates and issues and look at all of your comments! Yes. ''All of them.''
+
+While iOS has taken centre stage this month, work on the official Clue Scroll helper is going well. Even though we don't have anything to show yet, we're also going to be blogging about a fairly major rework of the mobile interface in the next few weeks. So stay tuned!
+
+===Upcoming Content===
+====Tombs of Amascut====
+
+Hello from two paragraphs ago!
+
+Our (definitely not hypnotised) J-Mods are hard at work on Tombs of Amascut, our third raiding dungeon. We’ve previously said it’s set to launch ‘this summer’, but we know you’re after a more precise release window. Raids are one of the most complex content types in Old School, so unfortunately we’re not ready to announce a release date yet – but we can tell you that we’re aiming for an August launch.
+
+This month our team have been turning the challenge prototypes into fully-fledged encounters. This work is nearly at an end, meaning we’re close to having a fully playable raid! Once that milestone has been reached, we’ll start work on the Invocations system. This never-before-seen feature will let you customise Tombs of Amascut to your liking, making it easier or more challenging according to your preference.
+
+We’re also working on the Mini Poll to address your feedback regarding the raid rewards. Keep your eyes peeled!
+
+And we couldn’t finish off a Tombs of Amascut section without a few more teaser images to whet your appetite! Take a look:
+
+[[File:Gielinor Gazette - April 2022 (1).png|centre|600px]]
+[[File:Gielinor Gazette - April 2022 (2).png|centre|600px]]
+[[File:Gielinor Gazette - April 2022 (3).png|centre|600px]]
+[[File:Gielinor Gazette - April 2022 (4).png|centre|600px|thumb|''MONKE'']]
+[[File:Gielinor Gazette - April 2022 (5).png|centre|600px|thumb|''A pixel-tease for Tombs of Amascut'']]
+
+====PvP Arena====
+We recently polled the rewards for the PvP Arena. Given the results, it's clear that there's more work for us to do! We'll be talking about our next steps in a dedicated blog coming soon.
+
+====Giants' Foundry====
+We’ve dived head-first into your feedback about Giants’ Foundry! In case you missed it, we’ll be updating the blog with the experience rates and changes to the rewards soon.
+
+Don’t forget to tune in to the first 30 minutes of Monday’s livestream to catch Mods Light and Oasis answering your burning questions about it!
+
+====Deadman Re-Run====
+The first Deadman Mode Re-Run Open Beta took place today! This was the first step towards making sure we’re in a good place for the Re-Run to happen.
+
+Now the Beta’s cleared, we’ll be inviting participants from the final to take part in a second Closed Beta – so if that’s you, keep an eye on your Player Inbox for more details.
+
+We really appreciate your patience while we make sure that the Re-Run goes ahead without any major hiccups, and work towards the final you deserve.
+
+====Poll 76====
+If you missed this section in the weekly newspost, here’s the lowdown: we know how eager you are to see the changes polled in Poll 76 in the live game, but unfortunately, our update schedule hasn’t given us much room to squeeze them in between the rest of our planned content.
+
+We appreciate that some of the Poll 76 changes might seem small from the outside, but they still need time to plan and test before launch. For now, please trust that we hear your concerns and we’re already working to get these changes to you as quickly as possible.
+
+====Quest Speedrunning====
+We last spoke about Quest Speedrunning all the way back in 2020, when it was but a wee ideation prototype. Today, we’re excited to announce that we’re in the early stages of turning it into a fully-fledged project!
+
+It’s still early days, but since the original ideation pitch was so well-developed (if we do say so ourselves) we’re hopeful that it might not actually take too long to make it to release. In future Gazettes, we’ll talk about what the finished project might look like, but for now, let’s have a recap of the overall concept.
+
+We envision Quest Speedrunning as a new activity that takes place on special Speedrunning Worlds. Much like Leagues, these worlds will have a separate save profile, which should allow you to speedrun eligible quests as many times as you like.
+
+At launch, only a few quests will be available – but we’ll add more over time.
+
+You’ll be able to select a quest from your Quest List, which will bring up a menu with details on unlocks and items provided along with times to aim for. Hitting specific milestones will unlock trophies and give you points. Once you’ve set up the speedrun to your liking, you’ll be teleported to the quest start point with the items and unlocks you selected.
+
+Hey, let’s circle back to those points – they’re not just for clout. As with Leagues, we have the option of transferring these points to your main profile to be spent on snazzy new items!
+
+We hope that’s got you all excited for Quest Speedrunning. We’ll hopefully have more to share soon, but for now, here are a few new images from the prototype:
+
+[[File:Gielinor Gazette - April 2022 (6).png|centre|600px]]
+[[File:Gielinor Gazette - April 2022 (7).png|centre|600px]]
+[[File:Gielinor Gazette - April 2022 (8).png|centre|600px|thumb|''A look at Quest Speedrunning.'']]
+
+==Team Ins and Outs==
+Well, who do we have here? Looks like Community Management is getting another team member in the form of Mod Goblin. Let's find out a little more about our newest J-Mod:
+
+<i>I'm Mod Goblin (or Ben, if you bump into me somewhere on the internet) and I started out in CM on OSRS a little over a month ago, chipping away at a few projects behind the scenes and helping out with the alternate LMS setups and Wilderness Extension Game Jam pitches!
+
+I've played since 2004 but I've been more active around the Old School Community for a couple of years now, and in the past I’ve done a lot of work with content creators, plus some freelance editing here and there. I currently jump between a few limited builds (mostly an 807/combat-only IM and 10hp UIM at the minute!), regular ol' endgame Ironman antics, and a couple of PvP builds (mostly Pures and a teeny bit of Zerker). I'm a huge fan of quests, early/mid-game routing, and watching players push such an old game to its absolute mechanical limits.
+
+The Old School team have been super inviting, I'm so grateful to be in the position that I'm in and very excited to meet all of you!
+
+Have a fantastic day, look after each other and be kind!</i>
+
+==Game Jam Overview==
+It’s time to reveal what we got up to in our very first Game Jam, which took place at the beginning of this month.
+
+Team members from across the Old School Team joined forces to create some killer content pitches, which we’ll be sharing with you all in next week’s stream. To tide you over until then, here’s a quick run through some of the projects we’ll be showcasing.
+
+We want to reclarify that this is a brand-new way for the team to ideate, allowing allotted time for J-Mods to explore interesting new avenues for content.
+
+<center>'''ALL OF THESE PROJECTS ARE JUST CONCEPTS.'''</center>
+
+None of this content is confirmed for the game and no team has been given time to work on any on these projects just yet, so don’t expect them to come to the game soon, if at all!
+
+Anyway – let’s see them Jams!
+
+===Dogs of Gielinor===
+''Mod Grub, Mod Havik, Mod Jerv, Mod Light, Mod Oasis, Mod Skylark, Mod Torrance, Mod Wolfy''
+
+We know you love petting dogs – how about owning them? Dogs of Gielinor is a new pet expansion, accompanied by a suitably dog-friendly quest!
+
+''The monks east of Ice Mountain are strapped for cash and have set up a shelter for the lost and homeless doggies of the world. But they don’t let just anyone adopt! You need to demonstrate that you’re a caring and loving dog owner. Thankfully, you get the chance to prove yourself when the Varrock Stray Dog shows up with a litter of puppies, one of whom will join you on your adventures! Bond with your new furry friend and help the monks with a rescue mission of their own!''
+
+Yes, you read that right – this quest will get you your very own puppy to raise and train into a fully grown dog. You’ll be able to rename your pooch, teach it tricks, and bring it along on all your adventures!
+
+[[File:Gielinor Gazette - April 2022 (9).gif|centre|600px|thumb|''Do ya like dags?'']]
+
+===Last Man Standing Modes===
+''Mod Ash, Mod Goblin''
+
+We decided to spice up Last Man Standing with some potential new modes! In the prototype, players can select one of the following options from the Lobby:
+
+* Pure (1 Defence Build)
+* Zerker (45 Defence Build
+* Main (Classic Build)
+
+[[File:Gielinor Gazette - April 2022 (10).png|centre|496px|thumb|''The interface for LMS customisation.'']]
+
+===Tasakaal Trials===
+''Mod Arcane, Mod Brow, Mod Elena, Mod Grub, Mod Halo, Mod Husky, Mod, Jerv, Mod Ry, Mod West''
+
+The Tasakaal Trials is a new wave-based challenge similar to the Fight Caves and The Inferno – but it takes place on Mount Karuulm, where you’ve been challenged to become the new Champion of the Tasakaal.
+
+It will have fewer waves than its predecessors, with an emphasis on each wave being impactful and uniquely challenging – no more freebies! There are also three bosses to overcome throughout the trial, instead of just one tough guy at the end.
+
+[[File:Gielinor Gazette - April 2022 (11).png|centre|600px|thumb|''Concepts for creatures in the Tasakaal Trials.'']]
+
+After completing a wave you’ll have to choose whether to leave with the loot you’ve accumulated so far, or risk it all and keep fighting. Should you choose to carry on, you’ll need to select a modifier that will increase the difficulty of all future waves. They can range from simple stat changes to additional effects that affect some, or all, enemies in the trial.
+
+The modifiers mean that every Tasakaal Trial is different. Some modifiers synergise, or get in the way of others. Some mean you have to change your strategy. Some even make you reassess whether you should keep going at all.
+
+We should mention that this content was heavily inspired by Path of Exile’s Ultimatum League, which we loved for its risk vs reward playstyle.
+
+[[File:Gielinor Gazette - April 2022 (12).png|centre|512px|thumb|''A concept for the Wave Rewards Interface.'']]
+
+We also wanted to move away from mechanical difficulty and into the realm of strategy. The monsters aren’t just big and tough. They also force you to plan around them by affecting how much space you have to move, which weapon style you use, and how you deal with other monsters in the room. Naturally players with high mechanical skill will have an advantage, but the hope is that this content will be substantially more accessible for the average player.
+
+[[File:Gielinor Gazette - April 2022 (13).png|centre|600px|thumb|''A concept that gives a familiar look for the trials.'']]
+
+Lastly, we want the trials to have a significant best-in-slot reward, which you’ll receive after the first boss and get the chance to upgrade if you make it to the second and third bosses. We want you to revisit this content at multiple stages of your account progression, so you can really feel how much more powerful you’ve become.
+
+We’d also like to include a unique reward as part of the loot table, which gets exponentially more common as the waves progress. This should create a lot of excitement when you see your loot for the next wave!
+
+===Player Owned Farms===
+''Mod Argo, Mod Maylea, Mod Tide''
+
+We have Player Owned Houses – how about a Player Owned Farm? Located somewhere in Gielinor and available at low Farming levels, this content would let you keep – and care for – a variety of different animals!
+
+We initially talked about something close to RuneScape’s Player Owned Farm, where you fill pens with animals found throughout the world, raise and feed them, and eventually sell them for Beans. Those Beans can then be used to purchase a variety of rewards.
+
+We saw a lot of potential there, but since we only had a week to work on our Game Jam projects we decided to focus on some less ambitious Farming features.
+
+Firstly – Ponds! This is a new kind of patch specifically designed for your fishy friends, which can be purchased with Beans. Pop some Roe in the pond, and you’ll get fish – the number is determined by your Farming level. To get Roe, you’d use a Knife on the kind of fish you’re hoping to farm – can’t make an omelette without breaking a few eggs, right? And you were only going to eat it anyway. The upside to farming fish is you can get a lot of them at once without needing bait. The downside is that you don’t gain Fishing XP.
+
+Next up… Bees! BEES! These wonderful little creatures will be right at home next to your flower patches, once you’ve built a Beehive for them to live in. Different tiers of Hive are available – the better the tier, the more Honey you’ll receive! You’ll need to buy more Bees with Beans.
+
+[[File:Gielinor Gazette - April 2022 (14).png|centre|600px|thumb|''This project is BUZZING!'']]
+
+To harvest that sweet sweet Honey, you’ll need Bees in your Hive and a fully-grown flower patch. When you’re ready to harvest, you can either pick the flower before gathering the Honey, or gather the Honey, which automatically removes the flower and gives you a seed in return – your little buddies did a great job of pollinating! In either case, you’ll get XP for both the Honey and the flower. Don’t forget to bring a Smoker with you, or you’ll get stung!
+
+Hives can’t get diseases, but there’s a low chance that your bees might swarm while you’re busy growing your flowers. Mechanically, this means that Honey production will take twice as long for a set duration. If you catch the swarm, however, you can sell it for Beans or put it back in the Hive to return to full production!
+
+Different flowers give you different kinds of Honey, and we have a few ideas about what you could use it for…
+
+* New kinds of tea
+* Potion of Luck ingredient
+* New Energy Potion (somewhere between Stamina and Super Energy)
+* Prayer Renewal Potion
+* Feed for other animals
+* Now that's what we call a sweet update!
+
+===Temporary/Seasonal HiScores===
+''Mod Boko''
+
+Mod Boko has been looking into the idea of bringing Seasonal HiScores to the game! Essentially this service would open the door for time-limited, bespoke HiScores – something that RuneScape already has.
+
+Initially, we’d look at monthly and weekly HiScores for skilling, with specific and ‘time-based’ HiScores like Quickest King Black Dragon Kill to follow.
+
+Here’s where you come in – we want YOU to tell us which kinds of HiScores you’d most like to see, so we can plan accordingly.
+
+===Port Piscarilius Rework===
+''Mod Ed, Mod Errol, Mod Grub, Mod Lenny, Mod Mack, Mod Nin, Mod West''
+
+[[File:Gielinor Gazette - April 2022 (15).gif|centre|500px|thumb|''Just wait for it...'']]
+
+It’s another Kourend refresh! This time, we’re breathing new life into Piscarilius and its surroundings. Like the previous reworks for Hosidius and Shayzien, this would see improvements to both the layout and visual style of the town, as well as improving content in the area.
+
+Here’s something new we’ve added: the Port Piscarilius Shipyard would be a small Crafting training method. The Shipyard is renowned across Gielinor as the number one place to get your boat serviced, so captains from all across the world visit for repairs and replacements. The Shipyard always needs more workers, and they’ll offer a fair wage for your help!
+
+Using Logs, Nails, Planks, and all-new Bearings (made with Smithing), your job is to craft high-quality ship parts and fix them to the boats that come into the yard. Some basic materials have been salvaged from the incoming boats, but you can bring your own higher quality materials and craft better parts for more XP and GP. Mix-and-match materials of different tiers to balance cost and quality, craft the ship parts for Crafting XP, and then take them to the boat for an additional bit of Construction XP. Then talk to the shipyard master for your payment, and get started on the next boat!
+
+[[File:Gielinor Gazette - April 2022 (16).png|centre|600px|thumb|''Concept art for the Port Piscarilius Rework'']]
+
+===The Return of Twisted Tales===
+''Mod Ed, Mod Lenny, Mod Nin, Mod Mack''
+
+Twisted Tales are short, standalone quests set in Kourend and Kebos. The first of these, Getting Ahead, came out in 2020. We chose to skip Twisted Tales in 2021 so we could focus on A Kingdom Divided, but now that it’s live, Twisted Tales are back on the menu! In fact, they were such a popular topic for the Game Jam that we have four ideas to share…
+
+* '''The Garden of Death:''' Set in southern Kourend, this quest sees you delving into some hidden ruins to decipher the ancient language of a forgotten race. This quest is a bit different to the ones we’ve released recently. There are no cutscenes, dialogue or other characters. Instead, we’re taking a more hands-off approach by focusing on exploration and discovery – and a new puzzle mechanic that’ll blow your socks off!
+* '''An Inside Job:''' Even the most noble adventurers will have found themselves engaging in the less-than-reputable Thieving skill at some point. In An Inside Job, you’re given the simple task of robbing a house in Hosidius. Things get interesting when you’re also hired to catch the thief responsible for the robbery…
+* '''Grandma's Kisses:''' Since we were already working on a Port Piscarilius Rework, it made sense to set a Twisted Tale in Piscarilius! This quest embraces Old School’s dark humour when a simple request to find a missing pet suddenly takes a grim turn…
+* '''Making Ends Meat:''' Kourend and Kebos are filled with all sorts of interesting characters and Twisted Tales give us the opportunity to flesh out some of the more unusual individuals you’ll meet in these regions. One such individual is Lan the Butcher. When Land’s End’s water supply suddenly turns pink, it’s up to you to break in to Lan’s basement and discover what secrets he’s hiding…
+
+[[File:Gielinor Gazette - April 2022 (17).png|centre|537px|thumb|''These tales have a lot of Tasol to them!'']]
+
+===Gnomeball Manager===
+''Mod Daizong, Mod Dylan''
+
+In Gnomeball Manager we were exploring the idea of a fantasy-based sports management game. The design includes CCG elements, team management, and match simulation.
+
+Players would earn and find the cards while participating in other activities around the world. These cards would provide things like new athletes, athlete upgrade items, contracts, special plays, and more. Using these cards, the player can build a team which they can then pitch against other players or AI in tournaments, leagues and friendly matches. Play ball!
+
+[[File:Gielinor Gazette - April 2022 (18).png|centre|480px|thumb|''A mockup of the Gnomeball Manager Playing Interface'']]
+
+===Woodcutting: Way of the Forester===
+''Mod Squid''
+
+''As a Forester, players will interact with events in Gielinor’s lush woodlands and deepen their connection to the forests they frequent. From pruning Ents to driving away poachers, and even meeting the more secretive inhabitants of the woods, the life of a Forester is far from lonely. Everything’s better with friends, so get together and get that woodland in order! Who knows, perhaps nature will bestow some kindness in return?''
+
+Forestry is an expansion to core Woodcutting which focuses on making the skill more social, getting Woodcutters back out into the world, and improving interactions with other skills.
+
+After completing a crash course with the Freaky Forester himself, you’ll encounter new, dynamic events while chopping trees in Gielinor. These events are best tackled with other players, so gather your foresting crew and get chopping!
+
+To further support group play, we'd like to introduce 'mighty' tree variants. Any tree outside the Woodcutting Guild would have the chance to spawn as mighty, letting more players chop at once! The tree will despawn on a timer, and give an invisible Woodcutting bonus which scales with each player cutting it. The more players you have, the greater the chance of spawning a Forestry event! We could even take this further, and change all trees to behave this way – although that’s maybe too much of a core change. We’re interested to hear what you think!
+
+Other key features include:
+
+* '''Forestry Items & Rewards:''' As well as cosmetic and utility items, we'd like to introduce consumable, tradeable items crafted by other skills using items gained through Forestry. These add utility and unlock events for Forestry
+* '''Foresters’ Campfire:''' Burn leaves on a fire to create a Foresters’ Campfire. Any player can rest at the fire to gain a short gathering skill bonus. Foresters can also eat a Foresters’ Ration at the fire to restore some run energy.
+* '''Tea Brewing:''' Leaves can be obtained when cutting trees, and can then be burned on fires or used to brew Tea. Each leaf type would have its own properties that can be combined in any way the player sees fit to create a Tea with unique benefits. Ahh – lovely! The following screenshot is just a concept, and doesn't represent the final numbers:
+
+[[File:Gielinor Gazette - April 2022 (19).png|centre|650px|thumb|''Concept for a Tea brewing interface.'']]
+
+===Wilderness Expansion===
+''Mod Soffan, Mod Ayiza, Mod Roq, Mod Goblin''
+
+Our goal was to make the Wilderness feel more like an actual region in the game, introducing new lore and new content for both PvP and PvM. We know – it’s a big ask, and there’s a lot of work still to do!
+
+One of our ideas was to introduce NPC adventurers that will help PvM players become more comfortable with PvP – and invite a lot of funny dialogue as you explain why you murdered them in cold blood.
+
+Remember, this is just our idea of what a potential extension might look like. If it enters development, expect a lot to change as we ensure that everyone is happy with the outcome!
+
+[[File:Gielinor Gazette - April 2022 (20).jpg|centre|600px|thumb|''A detailed look at the newest area of the Wilderness.'']]
+
+===Trading Card Game===
+''Mod Sarnie''
+
+Rumours are flying around the city of Varrock about a mysterious stranger appearing near the Grand Exchange. Teasy Gee beckons you over to learn about his newest creation – a card game featuring awesome items from all over Gielinor! He’ll teach you the game for free, and hand over a starter deck – all you have to do is spread the word…
+
+The OSRS Trading Card Game (TCG) allows you to take part in a fast-paced, PvP-based game which is easy to learn, and difficult to master. Using equipment and item cards, you’ll power up your character and overcome your opponent – but beware! There’s an extra twist in the form of the Event Deck, which can benefit you as much as it can throw you off your game.
+
+[[File:Gielinor Gazette - April 2022 (21).png|centre|600px|thumb|''A few of the cards made for playtesting via Tabletop Simulator.'']]
+
+''Mod Sarnie here, from the FUTURE! In the original pitch, I wanted the game to be restricted to three areas in the world: Teasy Gee's Card Arena, the Burthorpe Games Room and various pubs across Gielinor. After some reflection, though, I had a different idea. I'd want to keep the original areas listed as places you could actively challenge anyone and specifically make Teasy Gee's Card Arena and Burthorpe Games Room the places to go for tournaments and trade... but wouldn't it be awesome if you could randomly match with people and play this anywhere in the game? That way you could have a cheeky game of cards while Fishing, Woodcutting… or any other activity! Let me know what you think…''
+
+Right, we’ve shoved Mod Sarnie back through the time portal – let’s talk deck creation. To master the cards, you’ll need to create new decks and experiment with different play styles.
+
+You'll be able to collect cards by winning games, purchasing them from Teasy Gee’s Shop and best of all, by playing normal content. Yep – you can get new cards and card permits from almost anything you do in the game!
+
+The first set is based around Lumbridge and a bit of Draynor and will mainly focus on those iconic starter items you're all familiar with. Of course, like any good TCG you'll be able to trade these cards with other players to give you even more opportunities to expand your collection.
+
+[[File:Gielinor Gazette - April 2022 (22).png|centre|600px|thumb|''A mockup of the TCG Battle Interface.'']]
+
+We’d also like to give '''YOU''' the opportunity to help in this process by opening up competitions to design artwork for some of the different Event Cards (and maybe Character Cards) in the game. After a year of doing the Gazette, Mod Sarnie’s seen how much creative talent there is in the community and wants to give back by showcasing it in-game!
+
+Alright, we’re moving on to the next segment now – but there were plenty more creative ideas put forward that we’re keeping a little closer to our chest. Don’t forget to tune in to the special Game Jam stream on in a couple weeks time on our Twitch Channel, where you can get more details on the ideas shown above and ask whatever burning questions you have. Keep an eye on our socials for more details about the stream!
+
+==Quest Porting Survey Results==
+<center>''By Mod Ed</center>
+
+Back in February, we invited you to share your thoughts on a proposal to port quests from 2007-2011 back into Old School RuneScape – like we did with Land of the Goblins. Today, we have the results!
+
+[[File:Gielinor Gazette - April 2022 (23).png|centre|600px|thumb|''A very positive response!'']]
+
+Overall, you were highly in favour of porting quests into Old School. If we consider a response of 8 or above to be positive, then 84% of you found the idea appealing.
+
+You also thought all the quests we pitched were appealing options, with some variance from quest to quest. Here they are in order of popularity:
+
+# While Guthix Sleeps
+# Defender of Varrock and The Curse of Arrav
+# The Chosen Commander
+# Nomad's Requiem
+# Forgiveness of a Chaos Dwarf and King of the Dwarves
+# The Path of Glouphrie
+# Rocking Out and A Clockwork Syringe
+
+The survey also came with a call for feedback in free text format. While we can’t possibly share all the responses here, we have picked out some of the recurring themes:
+
+* A desire for balance between ported quests and original ones. A common hope was that ports would increase our overall quest output rather than simply replacing original quests in our release schedule.
+* A caution that we should select quests to be ported very carefully, as many quests are not suitable for Old School. In particular, you wanted Old School to retain its narrative identity and to avoid Sixth Age quests that focus on Gods and Elder Gods.
+* A feeling that ports should be changed where appropriate to fit in with Old School. In many cases, the feeling was that these changes should stretch beyond simple polish where needed. In particular, changes to rewards were heavily encouraged.
+* A hope that if successful, future ports are considered beyond the quests proposed in the survey. Commonly mentioned quests were Ritual of the Mahjarrat, The Temple at Senntisten and Fairytale III: Battle at Orks’ Rift.
+
+So what happens next? To tell the truth, not much at this point. As we mentioned, this proposal is in the very early stages and we wanted to gather your initial feedback before moving further. We also have loads of other stuff in our schedule – including some original quests – so the results of this survey will affect long-term planning rather than anything immediate.
+
+In addition, you should know that the quests we port in might not necessarily arrive in the order listed above. The most popular quest, While Guthix Sleeps, is locked behind The Path of Glouphrie and Defender of Varrock, so we’ll obviously have to port those first.
+
+We can address some common feedback points. Firstly, we want to reiterate that ported quests will NOT replace original ones – but they will help us increase our overall quest output and finish storylines at a faster pace. We also want to make it clear that speed will not come at the cost of quality. We want to ensure that every quest in Old School is of the highest standard, which is why certain quests from the same time period weren’t included in the survey – we’d rather replace them with original, high-quality quests that are quintessentially Old School.
+
+That also means remaining true to Old School’s narrative identity. We do not ever intend to bring Sixth Age quests featuring Gods (or Elder Gods, for that matter) to Old School. That doesn’t mean they aren’t important for the stories we plan to tell – the repercussions of their actions affect almost everything in the game - but you won’t be meeting them in person.
+
+Unfortunately, narrative identity was another reason some of the quests you wanted to see weren’t featured in the survey. Ritual of the Mahjarrat, The Temple at Senntisten and Fairytale III: Battle at Orks’ Rift all conflict with the original storylines we have planned. That doesn’t mean similar quests won’t ever come to Old School – but be aware that they’re unlikely to look and play the way they did in RuneScape. On that note, we want to confirm that we’re open to tweaking ported quests to ensure they fit perfectly into Old School, while retaining their charm.
+
+That’s all for now. We’ll be back to talk about Quest Porting as soon as there’s something more to talk about!
+
+==Player Showcase Gallery==
+We're back with another batch of your biggest and best pieces of creative work! Everyone featured in the Gazette will receive 3 Months of Free Membership as thanks for their superb efforts, so keep an eye on the linked social accounts Inbox for more details on how to grab your reward!
+
+If you want to be featured in the next Gazette then make sure to submit your creations through our [https://osrs.game/Player-Showcase-Gallery-Form Player Showcase Gallery Form] and state which Gazette you’d like it to feature in. We look forward to seeing more of your incredible talents!
+
+{| class="wikitable" style="text-align:center;margin:auto;"
+|[[File:Gielinor Gazette - April 2022 (24).png|195x210px|centre]]
+|[[File:Gielinor Gazette - April 2022 (25).png|195x210px|centre]]
+|[[File:Gielinor Gazette - April 2022 (26).jpg|195x210px|centre]]
+|-
+|[https://www.reddit.com/r/2007scape/comments/ub6d0h/neon_wars_by_me/ u/rengiez]
+|[https://www.reddit.com/r/2007scape/comments/ub51vq/osrs_but_its_tilt_shift_1/ u/uberdigger77]
+|[https://www.reddit.com/r/2007scape/comments/ub443v/i_was_shooting_a_video_for_my_graffiti_friend_she/ u/terrys9]
+|-
+|[[File:Gielinor Gazette - April 2022 (27).png|195x210px|centre]]
+|[[File:Gielinor Gazette - April 2022 (28).png|195x210px|centre]]
+|[[File:Gielinor Gazette - April 2022 (29).jpg|195x210px|centre]]
+|-
+|[https://www.reddit.com/r/2007scape/comments/u9krb2/my_runescape_character_3d_printed_and_painted/ u/Piepieweenie]
+|[https://www.reddit.com/r/2007scape/comments/u9fi5f/i_made_this_drawing_based_off_how_cool_i_imagined/ u/SUPERSADKIDDO]
+|[https://www.reddit.com/r/2007scape/comments/u8b67i/neitiznot_facejug_just_finished_first_firing/ u/Melodic_Heathen]
+|}
+
+That's your lot! We'd love to hear your feedback on the newest edition and, as with everything else, if you’ve got any ideas about the sorts of things you’d like to see in upcoming editions of the Gielinor Gazette, then please do let us know via our [http://services.runescape.com/m=forum/forums?380,381,806,66252049 official forums], on the [https://www.reddit.com/r/2007scape/comments/uenn91/gielinor_gazette_april_2022/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord]. For reference on any of the above content, check out the official Old School Wiki.
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Brow, Bruno, Curse, Daizong, Dibber, Ditto, Dylan, Ed, Elena, Errol, Fed, Gecko, Goblin, Grub, Halo, Havik, Hornet, Husky, Jalo, John C, Kandosii, Katies, Kamon, Kieren, Kirby, Kurotou, Lenny, Light, Lottie, Mack, Matheus, Maylea, Markos, Meat, Morty, Nasty, Nin, Nylu, Oasis, Peppers, Regent, Redfield, Roq, Ry, Sarnie, Sigma, Skylark, Soffan, Sova, Squid, Steve W, Tide, Torrance, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

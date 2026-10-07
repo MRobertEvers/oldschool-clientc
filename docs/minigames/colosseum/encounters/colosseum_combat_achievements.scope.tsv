@@ -1,0 +1,81 @@
+mechanic_id	scope	note
+colosseum_combat_achievements.task.count	all	one solo test: read the task struct/params and the records var
+colosseum_combat_achievements.task.struct_class	all	one solo test: read the task struct/params and the records var
+colosseum_combat_achievements.task.id_param	all	one solo test: read the task struct/params and the records var
+colosseum_combat_achievements.task.tier_codes	all	one solo test: read the task struct/params and the records var
+colosseum_combat_achievements.task.type_codes	all	one solo test: read the task struct/params and the records var
+colosseum_combat_achievements.sportsmanship.id	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.sportsmanship.tier	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.sportsmanship.type	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.grand_champion.id	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.grand_champion.tier	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.grand_champion.type	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.i_brought_mine_too.id	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.i_brought_mine_too.tier	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.i_brought_mine_too.type	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.slow_dancing.id	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.slow_dancing.tier	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.slow_dancing.type	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.furball.id	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.furball.tier	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.furball.type	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.perfect_footwork.id	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.perfect_footwork.tier	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.perfect_footwork.type	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.showboating.id	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.showboating.tier	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.showboating.type	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.denied.id	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.denied.tier	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.denied.type	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.one_off.id	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.one_off.tier	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.one_off.type	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.reinforcements.id	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.reinforcements.tier	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.reinforcements.type	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.i_was_here_first.id	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.i_was_here_first.tier	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.i_was_here_first.type	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.speed_chaser.id	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.speed_chaser.tier	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.speed_chaser.type	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.speed_runner.id	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.speed_runner.tier	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.speed_runner.type	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.sportsmanship.kills_required	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.grand_champion.kills_required	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.records.kill_count_var	all	one solo test: read the task struct/params and the records var
+colosseum_combat_achievements.records.best_time_var	all	one solo test: read the task struct/params and the records var
+colosseum_combat_achievements.speed_chaser.limit_ticks	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.speed_runner.limit_ticks	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.speed.release_post_trialist_ticks	all	one solo test: read the task struct/params and the records var
+colosseum_combat_achievements.speed.rename_history	all	one solo test: read the task struct/params and the records var
+colosseum_combat_achievements.speed.clock_definition	all	one solo test: read the task struct/params and the records var
+colosseum_combat_achievements.furball.wave	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.furball.avoidable_definition	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.denied.wave	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.denied.any_heal_fails	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.denied.heal_radius_tiles	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.denied.heal_event	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.i_was_here_first.target	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.i_was_here_first.weapon_set	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.i_brought_mine_too.weapon_classes	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.i_brought_mine_too.only_scope	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.showboating.directions	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.showboating.hp_threshold_percent	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.showboating.confirm_message	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.showboating.facing_detection	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.showboating.emote_unlock_glory	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.slow_dancing.run_forbidden	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.slow_dancing.run_definition	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.slow_dancing.second_shield_bash_tiles	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.perfect_footwork.attacks	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.perfect_footwork.other_damage_allowed	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.perfect_footwork.attribution	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.one_off.wave	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.one_off.modifiers_any	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.reinforcements.modifiers_all	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.reinforcements.higher_levels_count	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.reinforcements.active_level_read	all	one solo test: earn or fail the task by play and read its completion state
+colosseum_combat_achievements.records.completion_flag	all	one solo test: read the task struct/params and the records var

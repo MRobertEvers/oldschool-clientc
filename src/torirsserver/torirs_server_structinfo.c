@@ -41,6 +41,7 @@
  * file; and being separate it survives a `_StructInfoLoad` in either order.
  */
 
+#include "torirs_server_servpack.h"
 #include "torirs_server.h"
 #include "torirs_server_paramtable.h"
 
@@ -80,13 +81,10 @@ ToriRSServer_StructInfoParamCount(void)
 }
 
 int
-ToriRSServer_StructInfoLoad(const char* cache_dir)
+ToriRSServer_StructInfoLoad(struct RSCache_ServerPack* pack)
 {
     struct RSCache profile = RSCache_ProfileZero();
-    struct RSCache_Dat2Disk* disk;
-    struct RSCache_Dat2DiskArchive* archive;
-    struct RSCache_FileList* files;
-    int table;
+    struct ToriRSServerKindRecords records;
 
     ToriRSServer_StructInfoFree();
 
@@ -94,50 +92,21 @@ ToriRSServer_StructInfoLoad(const char* cache_dir)
     profile.epoch = RSCACHE_EPOCH_DAT2;
     profile.revision = TORIRSSERVER_CACHE_REVISION;
 
-    disk = RSCache_Dat2DiskNewFromDirectory(cache_dir);
-    if( !disk )
-    {
-        /* Run from src/ as well as from the repo root, like objinfo. */
-        char fallback[512];
+    /* The server pack's client records: the merge of the tree, encoded by the
+     * codec this decoder reads. */
+    if( !ToriRSServer_ServPackKindLoad(pack, RSCACHE_DAT2_CONFIG_KIND_STRUCT, &records) )
+        return -1;
 
-        snprintf(fallback, sizeof(fallback), "../%s", cache_dir);
-        disk = RSCache_Dat2DiskNewFromDirectory(fallback);
-    }
-    if( !disk )
-    {
-        fprintf(stderr, "torirsserver: no struct params (cache '%s' not found)\n", cache_dir);
-        return 0;
-    }
-
-    RSCache_Dat2DiskSetProfile(disk, &profile);
-    table = RSCache_Dat2DiskTableId(disk, RSCACHE_DAT2_TABLE_CONFIGS);
-    archive = RSCache_Dat2DiskArchiveNewLoad(disk, table, RSCACHE_DAT2_CONFIG_KIND_STRUCT);
-    if( !archive )
-    {
-        RSCache_Dat2DiskFree(disk);
-        fprintf(stderr, "torirsserver: no struct config archive in '%s'\n", cache_dir);
-        return 0;
-    }
-    RSCache_Dat2DiskArchiveInitMetadata(disk, archive);
-
-    files = RSCache_FileListNewFromDecode(archive->data, archive->data_size, archive->file_count);
-    if( !files )
-    {
-        RSCache_Dat2DiskArchiveFree(archive);
-        RSCache_Dat2DiskFree(disk);
-        return 0;
-    }
-
-    for( int i = 0; i < archive->file_count; i++ )
+    for( int i = 0; i < records.count; i++ )
     {
         struct RSCache_Dat2ConfigStruct record;
 
-        if( files->file_sizes[i] <= 0 )
+        if( (int)records.sizes[i] <= 0 )
             continue;
         memset(&record, 0, sizeof(record));
-        record.id = archive->file_ids[i];
-        RSCache_Dat2ConfigStructDecodeInplace(&record, files->files[i], files->file_sizes[i]);
-        ToriRSServer_ParamTableRead(&g_struct_params, archive->file_ids[i], &record.params);
+        record.id = records.ids[i];
+        RSCache_Dat2ConfigStructDecodeInplace(&record, (char*)records.files[i], (int)records.sizes[i]);
+        ToriRSServer_ParamTableRead(&g_struct_params, records.ids[i], &record.params);
         RSCache_Dat2ConfigStructFreeInplace(&record);
     }
 
@@ -147,14 +116,12 @@ ToriRSServer_StructInfoLoad(const char* cache_dir)
     ToriRSServer_ParamTableSort(&g_struct_params);
 
     /* Read the count before the free, not after: the archive owns it. */
-    g_struct_records = archive->file_count;
+    g_struct_records = records.count;
 
-    RSCache_FileListFree(files);
-    RSCache_Dat2DiskArchiveFree(archive);
-    RSCache_Dat2DiskFree(disk);
+    ToriRSServer_ServPackKindFree(&records);
 
     fprintf(stderr, "torirsserver: struct params loaded (%d records from %s, %d rows in %zu KB)\n",
-            g_struct_records, cache_dir, g_struct_params.count,
+            g_struct_records, pack->dir, g_struct_params.count,
             ToriRSServer_ParamTableBytes(&g_struct_params) / 1024);
     return 1;
 }

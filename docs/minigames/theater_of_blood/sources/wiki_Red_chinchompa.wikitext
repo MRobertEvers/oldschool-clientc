@@ -1,0 +1,124 @@
+{{External|rs}}
+{{otheruses|the explosive Ranged weapon|the Hunter creature|Carnivorous chinchompa}}
+{{Infobox Item
+|name = Red chinchompa
+|image = [[File:Red chinchompa.png]]
+|release = [[21 November]] [[2006]]
+|update = HUNTER SKILL!
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = Yes
+|stackable = Yes
+|noteable = No
+|options = Wield, Drop
+|examine = Even more volatile than its vegetarian counterpart.
+|value = 160
+|weight = 0.000
+|exchange = Yes
+|id = 10034
+}}
+[[File:Red chinchompa detail.png|left|120px]]
+'''Red chinchompas''' are one-handed multi-target stackable [[Ranged weapons]] requiring level 55 [[Ranged]] to wield. Red chinchompas can be obtained by [[box trapping]] [[carnivorous chinchompa]]s, requiring 63 [[Hunter]] and completion of the [[Eagles' Peak]] quest.
+
+To use chinchompas in [[combat]], they must be wielded in the [[weapons]] [[slot]]. Red chinchompas are thrown like [[dart]]s or [[throwing knife|throwing knives]]; however, they explode on impact. In [[PvM]], they can hit up to 11 targets in a 3x3 area. In [[PvP]], the cap is 9 targets. They cannot be picked up again from the ground after being thrown and [[Ava's device]] does not return them. In multiple target attacks, the chinchompa simply rolls at the target's defence values; if it hits, then all other nearby targets are also hit, regardless of their Defence level and ranged defence bonuses. If it misses, then none of the targets take damage. The accuracy roll made on the initial target uses the 'heavy' ranged defence for determining the opponent's defence roll.<ref>{{PlainCiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1817838437292032420|date=29 July 2024|archiveurl=https://archive.is/dS7ny|archivedate=30 July 2024|quote=I believe those are 'heavy'.}}</ref>
+
+Using red chinchompas is widely regarded as the second fastest way to train Ranged and [[Hitpoints]]; however, this method is very costly. Catching red chinchompas is also popular among high-level Hunters as it gives fast experience and is profitable.
+
+Fuses are used to describe the attack speed for throwing chinchompas. It is just another name for the conventional styles of ranged training.
+*Short fuse (accurate): 4 ticks
+*Medium fuse (rapid): 3 ticks
+*Long fuse (longrange): 4 ticks
+
+==Combat stats==
+{{Infobox Bonuses
+|astab = 0
+|aslash = 0
+|acrush = 0
+|amagic = 0
+|arange = +70
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|drange = 0
+|str = 0
+|rstr = +15
+|mdmg = 0
+|prayer = 0
+|slot = weapon
+|speed = 4
+|attackrange = 9
+|combatstyle = Chinchompas
+|image = [[File:Red chinchompa equipped male.png|180px]]
+|altimage = [[File:Red chinchompa equipped female.png|180px]]
+}}
+
+{{CombatStyles|Chinchompas|speed=4|attackrange=9}}
+
+==Chinchompa guide==
+[[File:Red chinchompa.gif|thumb|A player fighting with red chinchompas.]]
+Using red chinchompas is a practical way of training [[Ranged]] and [[Hitpoints]] since combat experience per hour is determined by how much DPS (damage per second) the player can deal.
+
+It is best used against multiple aggressive targets occupying a 3x3 (or smaller) space and piled together, such as the [[Skeleton (Ape Atoll)|Skeletons]] of [[Ape Atoll]] or the [[Maniacal monkey]]s in [[Kruk's Dungeon]], as these monsters are highly [[aggressive]] and easily stack on top of each other, meaning that you will deal plenty of damage against them.
+
+Chinchompas' accuracy is based off of the distance from the target.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/993196171677126661|date=6 May 2018|archiveurl=https://reldo.runescape.wiki/i/100487|archivedate=26 May 2020|quote=Nearly. Medium fuses 0-3 tiles and 7+ tiles are 75%, not 50%. It's applied to the accuracy/defence roll when the attack is cast, like armour bonuses are.}}
+{| class="wikitable"
+!Style
+!0-3 Squares
+!4-6 Squares
+!7+ Squares
+|-
+|Short fuse
+|100%
+|75%
+|50%
+|-
+|Medium fuse
+|75%
+|100%
+|75%
+|-
+|Long fuse
+|50%
+|75%
+|100%
+|}
+
+==Money making==
+{{Mmgsection|Hunting carnivorous chinchompas}}
+
+==Item sources==
+{{Drop sources|Red chinchompa}}
+
+==Used in recommended equipment==
+{{Used in recommended equipment|Red chinchompa}}
+
+==Comparison between other ranged weapons==
+{{Ranged weapons comparison}}
+
+==Treasure Trails==
+*{{SherlockChallenge|Catching a red chinchompa|elite}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 30 April 2025
+|update = Poll 84: Batch II
+|poll = Poll 84 - PvM Improvements, Agility Shortcuts & more!
+|change = 
+* The "Destroy" option was changed to "Drop".
+* Chinchompas are no longer destroyed upon death.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*The name ''chinchompa'' is inspired by {{wp|chinchilla}}s. The explosive property is from the {{wp|Lemming}} which was believed to explode from anger.
+
+==References==
+{{Reflist}}
+
+{{Chinchompas}}
+{{Ranged weapons}}
+{{Hunter}}
+[[Category:Chinchompas]]

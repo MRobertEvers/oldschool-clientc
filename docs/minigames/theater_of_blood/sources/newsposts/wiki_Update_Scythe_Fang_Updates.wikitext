@@ -1,0 +1,151 @@
+{{Update|date=17 January 2024|url=https://secure.runescape.com/m=news/scythe--fang-updates?oldschool=1|category=game}}
+[[File:Scythe & Fang Updates newspost.jpg|right]]
+{{clear}}
+__TOC__
+''Happy Scythe Buff Day!''
+
+This week brings two highlights of Project Rebalance, in the form of changes to the Scythe of Vitur and Osmumten’s Fang.
+
+Meanwhile, the Winter Summit is mere days away! Tune into the Old School RuneScape [https://www.twitch.tv/oldschoolrs Twitch channel] on January 20th at 20:00 GMT/15:00 EST/12:00 PST/7:00 AEDT to see all the exciting updates we have planned for 2024 – and maybe even win yourself a prize!
+
+For more information on the Winter Summit, [https://secure.runescape.com/m=news/winter-summit-2024-january-20th?oldschool=1 click here] to see the summary newspost.
+
+==Changelog: January 17th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Project Rebalance: Scythe and Fang Changes'''
+
+* Osmumten’s Fang now only benefits from its passive effects when using the Stab attack style.
+* Added +15 Slash Accuracy to the Scythe of Vitur.
+* Scythe Charges now cost one Vial of Blood and 200 Blood Runes for 100 Charges.
+* Scythe Charges are now only used when rolling at least one hit above 0.
+
+'''Other Changes'''
+
+* Updated the Global Leagues HiScores on the Player Owned House Scroll with the Leagues IV scores.
+* Sacred and Infernal Eel harvesting loot drops are now tracked in the Loot Tracker.
+* Listening at the Kalphite Lair’s Agility shortcut will now include information about how long the Queen’s chamber has been empty if someone was there recently.
+* Updated some dialogue with Sergeant Tobyn to provide extra clarity on the next steps of the Children of the Sun quest.
+* Additional Lovakite Ores mined via items like the Skill Cape and Varrock Armour will now give 60 XP, matching the XP gained when Mining normally.
+
+'''PvP Rota'''
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''de-activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty hunter has been <u>'''de-activated'''</u> with this rota.
+
+The PvP Arena is using '<b>Max/Med</b>' loadouts in Ranked Duels and Tournaments this week.
+
+{{Collapsed section end}}
+
+==Scythe and Fang Changes==
+We laid out our intentions to rebalance Osmumten's Fang and the Scythe of Vitur [https://secure.runescape.com/m=news/project-rebalance-overview-scythe--fang?oldschool=1 back in December], and today, these changes are going live! Here’s a refresher.
+
+===Osmumten's Fang===
+We know the Old School community ''love ''efficiency, but after Desert Treasure II, this weapon became a little ''too ''efficient – its Slash bonus was comparable to that of much stronger weapons that require serious upkeep!
+
+We’ve decided to solidify the Fang as a Stab weapon by removing its double Accuracy roll effect from the Slash combat style. This means that you’ll ''only ''see the Fang’s benefits while using it to Stab.
+
+This change lets Slash weapons like the Blade of Saeldor and the Scythe of Vitur really shine, making them a worthy investment once more.
+
+Speaking of the Scythe…
+
+===Scythe of Vitur===
+We've buffed the Scythe! 
+
+First up, we’ve added +15 Slash Accuracy, which in current use cases increases the Scythe’s DPS anywhere between 0.2% for low-defence bosses (like the big nylocas) and 7% for higher-defence encounters (like General Graardor).
+
+We’ve also made big changes to how you charge the Scythe. For one thing, charges are now cheaper at one Vial of Blood and 200 Blood Runes for 100 charges. That’s a 100 Blood Rune discount!
+
+Additionally, charges are now only used when the Scythe rolls at least one hit above 0. No more burning through your charges without even hitting the enemy! While the Scythe’s new Accuracy buff means you won’t be rolling 0s as often, this change will help out where you need it most – fighting big, high-defence NPCs!
+
+We’ve pushed these two updates out in advance of the rest of Project Rebalance so that you can reap the benefits of these much-requested changes earlier. Don’t worry – we’re still working on the rest and hope to share more news with you soon.
+
+==Jagex Launcher Update==
+On Thursday January 18th, the Jagex Launcher will be undergoing maintenance for general security improvements. The exact time will be posted via our social channels and shared on the [https://secure.runescape.com/m=news/game-status-information-centre?oldschool=1 Game Status page]. We don't expect there to be any downtime.
+
+As part of this, players will be required to log back into the Launcher with a [https://www.jagex.com/en-GB/accounts Jagex Account.]
+
+If you are already playing via the Launcher, you will be able to continue playing until you either log out or attempt to change world. After this, you will then be required to log back in with your Jagex Account credentials.
+
+Those of you who've been using RuneScape accounts to log into the Launcher will be required to upgrade to a Jagex Account. Upon attempting to log in with a RuneScape account, you will see this message:
+
+[[File:Scythe & Fang Updates (1).png|204px|center]]
+
+Simply click on “upgrade now” and follow the on-screen instructions to upgrade.
+
+If you haven't made the switch yet, but would like to [https://www.jagex.com/en-GB/accounts upgrade to a Jagex Account] ahead of time to avoid any disruption, , click the button below and get the best protection for your accounts today. If you’d like more information about the new account system, then check out the [https://help.jagex.com/hc/en-gb/articles/17160273294097-Jagex-Launcher-FAQ Jagex Account Support Centre.]
+
+==Winter Summit Giveaways==
+There’s no better way to spend a chilly January night then getting cosy around the virtual campfire with your favourite J-Mods. Luckily, such an event is on the horizon – the Winter Summit, where we’ll share everything there is to know about 2024’s biggest updates.
+
+Once again, you can tune into the Winter Summit on the [https://www.twitch.tv/oldschoolrs Old School RuneScape Twitch channel] on January 20th, from 20:00 GMT/15:00 EST/12:00 PST/7:00 AEDT. See you there!
+
+[[File:Scythe & Fang Updates (2).jpeg|600px|center]]
+
+But exciting news isn’t all there is on offer – we also have some amazing prizes to give away! From boardgames to LED lights, you won’t want to miss these.
+
+In the run up to the Summit, we’re also hosting giveaways on [https://twitter.com/OldSchoolRS X (Twitter)], [https://www.instagram.com/oldschool.runescape Instagram], [https://www.reddit.com/r/2007scape/ Reddit], and our [http://discord.gg/OSRS Official Discord Server.]
+
+[https://cdn.runescape.com/assets/img/external/oldschool/2024/newsposts/2024-01-12/TCs.pdf Click here] to see the full terms and conditions – or keep reading to see what you could get your hands on!
+
+[[File:Scythe & Fang Updates (3).png|600px|center]]
+
+Dragons! Don’t worry, you don’t need a Dragonfire Shield to give these adorable dragons a nice warm cuddle. These are the latest range of Old School plushies from our friends at Makeship, and they go on pre-sale right before the Winter Summit at 19:30 GMT. As before, these cuddly critters are limited time only, so grab ‘em while you can!
+
+Visit the [https://www.makeship.com/shop/runescape Makeship store] to register and be the first to hear when these and future plushie campaigns go live! 
+
+Alternatively, keep an eye on socials and the Winter Summit stream to be in with a chance of taming a dragon of your very own!
+
+[[File:Scythe & Fang Updates (4).png|600px|center]]
+
+The RuneScape Kingdoms Boardgame and TTRPG (that’s ‘tabletop RPG’, if you’re wondering) are coming to retailers globally on February 29th and will soon ship to Kickstarter backers and pre-orders!
+
+If you haven’t ordered your copy yet, don’t panic – you can do so direct from Steamforged via [https://steamforged.com/en-gb/pages/runescape-kingdoms their store page].
+
+We’ll be giving away copies of both the boardgame and the TTRPG, so keep your eyes peeled for your chance to win!
+
+[[File:Scythe & Fang Updates (5).png|600px|center]]
+
+Last but by no means least, you could win one of these three classic designs from Creator Crafted!
+
+As a Winter Summit treat, Old School RuneScape players can get a 10% discount on the full range of Creator Crafted’s LED lights and mousepads [https://creatorcrafted.com/discount/SUMMIT via this link] or by using the code SUMMIT at checkout.
+
+We can’t wait to see you all at the Winter Summit – but until then, here are this week’s smaller changes and fixes.
+
+==Other Changes==
+
+* Updated the Global Leagues HiScores on the Player Owned House Scroll with the Leagues IV scores.
+* Sacred and Infernal Eel harvesting loot drops are now tracked in the Loot Tracker.
+* Listening at the Kalphite Lair’s Agility shortcut will now include information about how long the Queen’s chamber has been empty, if someone was there recently.
+* Updated some dialogue with Sergeant Tobyn to provide extra clarity on the next steps of the Children of the Sun quest.
+* Additional Lovakite Ores mined via items like the Skill Cape and Varrock Armour will now give 60 XP, matching the XP gained when Mining them normally.
+
+==PvP World Rota==
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''de-activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty hunter has been <u>'''activated'''</u> with this rota.
+
+The PvP Arena is using '<b>Max/Med</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/198tsz9/scythe_fang_updates/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abyss, Arcane, Archie, Argo, Ash, Ayiza, Blossom, Boko, Bruno, Chilly, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Errol, Gecko, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hooti, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Necro, Nox, Nylu, Other, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Sarnie, Shroom, Sigma, Skane, Skylark, Smithy, Sova, Squid, Starry, Surma, Sween, Tide, Titus, Torrance, Tsourorf, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

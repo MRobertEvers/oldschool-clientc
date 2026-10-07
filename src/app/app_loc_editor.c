@@ -588,8 +588,8 @@ app_loc_editor_tick(
     LocEditorSelection_NoteHover(
         &app->locedit_selection,
         ToriRSChrome_HitTest(&app->dbg_ui, input->curr.mouse_x, input->curr.mouse_y) >= 0,
-        app->world_hover_tile_x,
-        app->world_hover_tile_z);
+        app->frame_view->world_hover_tile_x,
+        app->frame_view->world_hover_tile_z);
 
     /*
      * Overlay input, for ANY visible chrome panel.

@@ -1,5 +1,6 @@
 #include "dat2_config_struct.h"
 
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -11,10 +12,14 @@ RSCache_Dat2ConfigStructDecodeInplace(
 {
     struct RSCache_Buffer buf;
 
-    if( !entry )
-        return;
+    assert(entry);
     memset(&entry->params, 0, sizeof(entry->params));
-    if( !data || data_size <= 0 || (data_size == 1 && ((const uint8_t*)data)[0] == 0) )
+    RSCache_PresenceReset(&entry->present);
+    /* No bytes, or the bare terminator, is the empty record: nothing stated. */
+    if( data_size <= 0 )
+        return;
+    assert(data);
+    if( data_size == 1 && ((const uint8_t*)data)[0] == 0 )
         return;
 
     RSCache_BufferInit(&buf, (uint8_t*)data, (uint32_t)data_size);
@@ -41,6 +46,7 @@ RSCache_Dat2ConfigStructDecodeOp(
     if( opcode == 249 )
     {
         RSCache_BufferReadParams(buffer, &entry->params);
+        RSCache_PresenceSet(&entry->present, RSCACHE_STRUCT_FIELD_PARAMS);
         return true;
     }
     /*
@@ -59,15 +65,16 @@ RSCache_Dat2ConfigStructEncode(
     uint8_t* out,
     uint32_t out_capacity)
 {
-    if( !entry || !out )
-        return 0;
+    assert(entry);
+    assert(out);
 
     struct RSCache_Buffer buf;
     RSCache_BufferInit(&buf, out, out_capacity);
 
-    /* A struct record is nothing but a param map, so an empty one is a bare
-     * terminator — which is also what the decoder treats as "no record". */
-    if( entry->params.count > 0 )
+    /* A struct record is nothing but a param map. One the record did not state is
+     * a bare terminator; one it stated with no entries is written with count 0,
+     * because that is what the record carried. */
+    if( RSCache_PresenceHas(&entry->present, RSCACHE_STRUCT_FIELD_PARAMS) )
     {
         p1(&buf, 249);
         pparams(&buf, &entry->params);
@@ -112,7 +119,6 @@ uint32_t
 RSCache_Dat2ConfigStructEncodeBound(const struct RSCache_Dat2ConfigStruct* entry)
 {
     /* Params opcode (1) + its payload, then the terminator (1). */
-    if( !entry )
-        return 2u;
+    assert(entry);
     return 2u + RSCache_BufferParamsBound(&entry->params);
 }

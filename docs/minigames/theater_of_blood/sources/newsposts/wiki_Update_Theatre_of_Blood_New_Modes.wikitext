@@ -1,0 +1,249 @@
+{{Update|date=3 June 2021|rev=9 June 2021|link=https://secure.runescape.com/m=news/theatre-of-blood-new-modes?oldschool=1|category=game}}
+[[File:Theatre of Blood- New Modes newspost.png|right]]
+{{clear}}
+On Friday, June 4th we edited the release blog to confirm we were going to make changes to A Night At The Theatre based on your feedback. We were considering one of two options: Relegating the quest to be a miniquest, or redesigning the quest to be a proper narrative experience. We’ve opted for the second, and we’ll be undertaking that work immediately.
+
+We expect to update the quest in July. The current quest will remain available until then and we will update you when we have more to share.
+
+==Hotfixes and Changes - June 9th==
+{|class=wikitable style="text-align:center; width:665px;"
+!Stage
+!Changes Made
+|-
+|General
+|The difficulty mode of the Theatre of Blood is now displayed when completing a room.
+Reduced the amount that the story mode bandage boosts your magic level by.
+Verzik's Tornado always deals a minimum of 5 damage (Story, Normal and Hard Mode).
+'''(18:00 BST)''' We've released another hotfix which has reduced the damage done by the Nylocas at Verzik back to it's original state before today's hotfixes. This is across all modes.
+|-
+|Maiden (Hard Mode - Solo)
+|Disabled the Ramp damage from Maiden in raids with only 1 player, as the mechanic cannot be avoided in that scale.
+Removed the South 1 Nylocas spawn in raids with only 1 player.
+|-
+|Maiden (Story Mode)
+|Increased the health of the Blood Nylocas at Maiden in Story mode.
+|-
+|Nylocas (Hard Mode)
+|Reduced the wave delay after Nylocas Prinkipas spawns in the Nylocas room.
+Buffed the stats of the Nylocas Prinkipas as they were incorrectly very inaccurate.
+Fixed an incorrect double nylocas spawn on wave 20.
+Capped the maximum damage the Nylocas Boss Mage split damage deals to 75, the mechanic should be punishing but one mistake can currently wipe the entire team, which was unintentional.
+|-
+|Nylocas (Story Mode)
+|Reduced the forced delay between nylocas waves in story mode.
+Reduced the amount of maximum nylocas that can exist at the same time in story mode.
+(These changes should make it faster for players that are comfortable with the waves, slower for those that are struggling to keep up).
+Reduced maximum recoil damage from hitting the nylocas boss on the wrong style.
+Nylocas Pillar HP increased by 5-10, depending on group size.
+|-
+|Sotetseg (Hard Mode)
+|Another attempted fix at preventing Sotetseg from firing big bombs that are invisible to certain players.
+Reduced the amount of damage the shared bomb at Sotetseg deals when split correctly in lower scales.
+|-
+|Xarpus (Story Mode)
+|Updated Xarpus's attack speed to be the same as regular ToB.
+|-
+|Verzik Vitur (Hard Mode)
+|The lightning attack in Verzik Phase 2 now deals the correct amount of damage when improperly interacted with. The maximum bounce range for the Lightning attack has been increased by 50%.
+When damaged by a tornado during the Verzik encounter within the Theatre of Blood, the number on the healing hitsplat is now displayed correctly.
+The Nylocas should now detonate consistently when a player is close enough.
+Nylocas at Verzik no longer reflect damage from incorrect styles or have immunity from hitting with an incorrect style.
+Added a chatbox message when the Acid Bomb at Verzik bounces to you.
+|-
+|Verzik Vitur (Story Mode)
+|Increased Story Mode Verzik P3 Health by 200.
+Increased the amount of damage the tornado deals in Story Mode.
+Increased the amount of damage the acid bomb does in story mode.
+Slightly increased damage from nylocas at verzik in story mode.
+Increased bounce-stun duration in story mode by 1 cycle to match other modes.
+Slightly reduced the damage that the Lightning attack does in a solo raid.
+Lowered Verzik Phase 2 health by 200.
+Slightly reduced the damage that the range attack in Verzik Phase 2 deals.
+Slightly lowered the defence and strength of Phase 2 Verzik.
+|}
+
+We'd like to thank you for all of the feedback since yesterday's game update. We've collated some of the most notable pieces and detailed our plans in the table below and what we would like to do going forward.
+
+==June 4th 2021 - Player Feedback and Our Changes (click here to read more)==
+{|class=wikitable style="text-align:center; width:665px;"
+!Your Feedback
+!Our Actions
+|-
+|A Night at the Theatre doesn't feel like a quest and doesn't meet the usual standard of Quests.
+|We agree that A Night at the Theatre was polled as a quest and it's clear that it hasn't met your expectations. We want to deliver on what we promised to you. We have seen a lot of suggestions on ways we could make improvements and we're actively reviewing which solution we should implement.
+|-
+|Within Story Mode, players feel some mechanics do a lot of damage while others barely do any.
+|Disparity in damage can be down to a number of reasons. Avoidable attacks are designed to be punishing, however we will be making some tweaks based on your feedback. Although there is no game update next week, we'll be preparing a round of hotfixes for next week. We intend to make unavoidable damage (in solo primarily) scaled down further amongst other small improvements. When the changes go live they will be added to this Newspost, so please let us know what you think of them.
+|-
+|The Nylocas phase in Story Mode feels unnecessarily long for some players.
+|We want to allow players extra time to learn the mechanics, however we agree that this isn't fun gameplay. To remedy this, we'll be removing the forced delay between each wave and reduce the amount of Nylos that can be present at one time in Story Mode. This means the player will be able to dictate the pace, without making the fight easier.
+|-
+|Players have given us feedback that soloing Hard Mode is impossible, as there are a couple of mechanics that don't really work with only one player.
+|We'll be tweaking the Maiden fight in Hard Mode so that it becomes possible to progress to the next room. We're not aiming to make this easier, but we want it to feel at least in reach. We will make improvements based on your feedback thereafter.
+|-
+|Some players felt the mechanics in Story Mode were inconsistent to Normal TOB. There was some concern that this could lead to undesirable habits for newer players.
+|Story mode has a lot of mechanics changed to make solo possible, unfortunately some mechanics don't really work very well in a solo raid so the damage was simply scaled down even further. We've acknowledged some other changes that altered various timings are seen as undesirable and we are looking to revert these, not to increase the difficulty, but to feel more consistent between modes. You should expect to see a batch of these changes next week.
+|-
+|The reward lamps do not award Prayer XP, although Prayer is technically a Combat Skill.
+|We would like to clarify that this is intentional and functions similarly to Quests such as Dragon Slayer II, so this will not be changing. We apologize for giving you any false expectations that you might have been able to use it on Prayer and we'll do better to explain similar proposals in future.
+|}
+
+==Theatre of Blood: Hard Mode Changes (June 4th)==
+{|class=wikitable style="text-align:center; width:665px;"
+!Category
+!Change
+|-
+|'''Nylocas'''
+|'''(13:30 BST)''' The splash damage from the Ranged Nylocas boss ranged attack has been increased in Hard Mode.
+|-
+|'''Sotetseg'''
+|'''(13:15 BST)''' Increased the damage of the ball attacks in Hard Mode when the intended mechanic is not handled correctly.
+'''(June 4th - 12:10 BST)''' Sotetsegs big bomb should no longer happen immediately after the maze mechanic ends.
+|-
+|'''Verzik Vitur'''
+|'''(13:15 BST)''' Increased the damage of the green ball attack in Phase 3.
+'''(13:15 BST)''' You can no longer tick-eat the damage of the yellow ball attack in ToB hard mode.
+|-
+|'''Timings'''
+|'''(18:50 BST)''' Increased the three/four/five player completion required times by two minutes each. There's some additional messaging in-game to accompany this change. Note: We expect to continue refining this over time.
+|}
+
+==Issues and Hotfixes (June 4th)==
+{|class=wikitable style="text-align:center; width:665px;"
+!Issues Raised
+!Current Progress
+|-
+|'''(12:15 BST)''' The scoreboard is not displaying correctly.
+|'''(12:30 BST)''' [FIXED] This issue is now resolved and the scoreboard will now display times correctly.
+|-
+|'''(12:40 BST)''' The maze is not resetting correctly in Story Mode.
+|'''(12:50 BST)''' [FIXED] The maze will now reset correctly.
+|-
+|'''(June 4th - 12:45 BST)''' Verzik's webs are not disappearing.
+|'''(June 4th - 13:00 BST)''' [FIXED] The webs will now delete themselves correctly in both Story and Hard mode.
+|}
+
+''It’s all kicking off at the Theatre of Blood this week – are you tough enough for Hard Mode? We’ve also made some adjustments to Clans, keeping it running smoothly so you can concentrate on knocking seven bells out of one another. Hurrah! Let’s take a look…''
+
+==Theatre of Blood: New Modes==
+[[File:Theatre of Blood- New Modes (1).png|centre|600px]]
+Have you always wanted to tackle the Theatre of Blood but aren't sure if you’re ready for its toughest challenges? Or maybe you have mastered this deadly arena and want to ramp up the challenge to the max? Well, we have good news either way…
+
+Now, you'll be able to select Hard or Story Mode, and experience the Theatre of Blood on your own terms. When you create your party at the notice board, you’ll be able to select a mode of play, and parties will be showcased alongside their modes.
+
+Verzik Vitur has issued a new challenge, and the mysterious stranger has a new request for you to fulfill... time to head to the Theatre!
+
+===Hard Mode===
+This is the most challenging version of the Theatre of Blood, and it's seriously gnarly. We haven't just increased the monsters' stats, like in Chambers of Xeric's Challenge Mode. Most rooms have completely new mechanics, or a tougher twist on the existing ones. You must have completed the normal Theatre of Blood at least once to access this terrifying new mode. It's as hard as the title suggests, but here are the rewards that will make it all worthwhile:
+
+===Weapon Ornament Kits===
+These untradeable ornament Kits allow you to transform the following items into Saradomin-themed versions: Ghrazi Rapier, Sanguinesti Staff and the Scythe of Vitur. The latter item also boasts a second ornament kit, the Sanguine Ornament kit, which will give you a more vampiric look to your weapon. Fangtastic!
+[[File:Theatre of Blood- New Modes (2).png|centre|600px]]
+
+You can simply click on the kit, followed by the corresponding item, but if you wish to change all weapons in one fell swoop, you'll need three Holy Ornament Kits and a Sanguine Ornament Kit. If you change your mind about your new gear, the process can be quickly reversed by right-clicking and selecting 'dismantle'.
+[[File:Theatre of Blood- New Modes (3).png|centre|600px]]
+
+The kit is destroyed on a PvP death, dropping the regular item it was attached to. These kits are now included in the Collection Log for Theatre of Blood.
+
+===Lil Zik - Metamorphosis===
+You'll also have a chance to grab yourself some Sanguine Dust. Sprinkle it over your Lil Zik to turn it into a transmog based on the Theatre's bosses! That includes the Maiden of Sugadinti, Pestilent Bloat, Nylocas Vasilias, Sotetseg and Xarpus. You will only need one Sanguine Dust to have access to all of Lil Zik's transmogs, and you can freely switch between them once the pet is transformed.
+
+[[File:Theatre of Blood- New Modes (4).png|centre|600px]]
+
+Hard Mode also has the following perks:
+
+*Unique/Purple rates are slightly increased.
+*Regular loot quantities are increased.
+*Regular loot quantities are further increased if completed within a specific time limit.
+*The ratio of Avernic to other uniques is slightly lower.
+
+===A Night At The Theatre===
+The Mysterious Stranger lurks outside of the mighty Theatre of Blood, the centrepiece of Ver Sinhaza. This shadowy figure has a new request for you – to humiliate a vampyre noble by the name of Lady Verzik Vitur. Take on the challenges that lie within the Theatre to reach her and bring a blush to her bloodless face!
+
+[[File:Theatre of Blood- New Modes (5).png|centre|600px]]
+
+<div class="mw-collapsible mw-collapsed">
+'''Requirements & Rewards (SPOILER WARNING!) - Click to Expand'''
+<div class="mw-collapsible-content">
+To complete A Night At The Theatre, you'll need to have done the following quests:
+
+Priest In Peril
+You'll also need the following levels:
+
+*90 Combat Level
+Upon completion you'll be rewarded with:
+
+*2 x 20,000 Experience Combat Lamps
+*2 Quest Points
+</div></div>
+This quest can be completed on any mode, but has been designed primarily for Story Mode.
+
+===Story Mode===
+Story Mode will offer the same standard structure as normal, with the actual mechanics mostly unchanged. However, you'll have the benefit of three lives to compete with. Those three lives will be counted as a safe death, and if you lose one, you'll be teleported to the entrance of the last boss you fought (apart from Hardcore Ironmen, who will still lose their status on the first death). If you die after all three lives are used, a normal death will occur and you'll have to claim back your items and retry from the beginning.
+
+[[File:Theatre of Blood- New Modes (6).png|centre|600px]]
+
+Alhough Story Mode yields rewards, they have a heavily reduced rate compared to the existing mode, and you won’t have a chance to grab any of the Theatre's uniques (including the pet). You will, however, get to lose yourself in the thrilling narrative without the usual amount of pressure! Go on, take a bite…
+
+===Other changes===
+On the scoreboards, there are two new options for Story and Hard modes, so you can keep track of your times and completions at different difficulty settings.
+
+Personal Bests have also been split into group size, similar to Chambers of Xeric. Your existing Personal Best has been automatically moved to the five man group size, as it has the fastest potential scaling.
+
+In any mode, each boss will now drop their corresponding book as you defeat them, allowing players to absorb the story as they progress. These informative tomes can still be found on the bookcase within the treasure room too.
+
+When using mid-raid chests, you can select from previous quantities of a particular item you have bought, rather than inputting the number every time
+
+Special attack power will continue to regenerate when you are inside Theatre of Blood and Chambers of Xeric raids. Special attack energy will be restored to full when entering Theatre of Blood, while remembering how much energy you had when you entered the raid. When you exit the raid, your energy will return to where it was when you entered. This is the same system implemented in the Six Jads challenge.
+
+Players can now only buy one stamina potion from mid-level chests. This is to discourage players from obtaining an excessive amount of stamina potions.
+
+==Clans==
+Last week saw the long-awaited release of the Clans system, and we've got to say, we couldn't be happier to see so many communities emerge! Here's a little bit of insight, as of around 11:00 BST on Wednesday June 2nd:
+
+*5,700 Clans formed
+*119,000 Players in a Clan
+*6.2million Clan Chat messages sent
+
+We've also loved hearing your great ideas for how we can continue to improve the Clans system. Some of those ideas vary in scale, ranging from small quality-of-life tweaks to major new ways to customise your Clan. We can't offer those larger changes just yet, but rest assured: we've already been working on some of your feedback changes, which will be coming soon. We'll continue to look at your suggestions for future Clans updates, but in the meantime, here's this week's tweaks:
+
+Worlds '''477''' (US) & '''497''' (UK) are now themed worlds for Clan recruitment.
+
+Players will now automatically rejoin a guest channel if they were in one when they last logged out. This will only work after the update goes live, so you'll still have to rejoin the chat on your first login.
+
+The bank sign in the Clan Hall no longer blocks line-of-sight, so you can cast the telegrab spell through it.
+
+The default guest Clan Chat colour is now distinct from the Clan Chat colour, and can be customised.
+
+We've relaxed the restrictions on what you can do while wielding a vexillum. You can now teleport, enter the Wilderness, fletch, blow glass and perform emotes while your vexillum is equipped.
+
+==PvP World Rota==
+The PvP rota has moved to Period B:
+
+*560 - (UK) - PvP World
+*579 - (US) - High-Risk PvP World
+*561 - (UK) - Free-to-Play PvP World
+*580 - (US) - LMS Competitive
+
+==Smaller Changes==
+You'll now be able to select a custom colour for all of your different chats using RGB and hex code colours!
+
+[[File:Theatre of Blood- New Modes (7).png|centre|600px]]
+
+Purchasing rewards from the Last Man Standing store now requires 48 hours of playtime as a member.
+
+Players can now set how their friend login/logout messages display: On, Timeout and Off.
+
+Iron players are no longer able to enter the shared God Wars boss room instances if another player is already fighting in there.
+
+Inventory space checks are now performed correctly for coffin loot in the Hallowed Sepulchre, so that items only overflow onto the ground if they need to.
+
+A typo has been fixed in Serafina's Diary.
+
+That's everything for this week's game update. We'd love to hear your feedback so please let us know what you think via our [http://services.runescape.com/m=forum/forums?380,381,732,66217706 official forums], on the [https://www.reddit.com/r/2007scape/comments/nr9s7w/theatre_of_blood_new_modes_game_update_030621/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel.
+
+----
+
+'''Mods Acorn, Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Bonsai, Brow, Bruno, Curse, Daizong, Deagle, Dibber, Ditto, Dylan, Ed, Elena, Errol, Fed, Flippy, Gecko, Grub, Halo, Husky, Jndr, John C, Kandosii, Katies, Kieren, Kirby, Lenny, Light, Lottie, Mack, Maylea, MikeD, Morty, Nasty, Nin, Oasis, Roq, Ry, Sarnie, Squid, Steve W, Sween, Tide, Vegard, West, Wolfy & Zuko'''
+
+''The Old School Team''

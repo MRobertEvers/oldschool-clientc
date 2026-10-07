@@ -65,6 +65,10 @@ codec_underlay(struct CP_Ctx* ctx, const uint8_t* data, int size, uint8_t* out, 
 static uint32_t
 codec_overlay(struct CP_Ctx* ctx, const uint8_t* data, int size, uint8_t* out, uint32_t cap)
 {
+    /* The overlay encoder writes the OldSchool shape only (an RS2 texture is a
+     * u16 under opcode 3, past what opcode 2's u8 can carry). */
+    if( RSCache_Dat2ConfigFloFlags(&ctx->profile) & RSCACHE_CONFIG_FLO_DECODE_RS2 )
+        return 0;
     struct RSCache_Dat2ConfigOverlay entry;
     memset(&entry, 0, sizeof(entry));
     RSCache_Dat2ConfigOverlayDecodeInplaceFlags(
@@ -80,7 +84,7 @@ codec_idk(struct CP_Ctx* ctx, const uint8_t* data, int size, uint8_t* out, uint3
     struct RSCache_Dat2ConfigIdk entry;
     memset(&entry, 0, sizeof(entry));
     RSCache_Dat2ConfigIdkDecodeInplace(&entry, (char*)data, size);
-    uint32_t written = RSCache_Dat2ConfigIdkEncode(&entry, out, cap);
+    uint32_t written = RSCache_Dat2ConfigIdkEncodeProfile(&ctx->profile, &entry, out, cap);
     /* No FreeInplace exists for this one; see cp_idk.c. */
     free(entry.model_ids);
     free(entry.recolors_from);

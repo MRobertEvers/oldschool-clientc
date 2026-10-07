@@ -1,0 +1,47 @@
+{{External|rs=Amascut's Vision}}
+{{Infobox Music
+|name = Amascut's Promise
+|number = 716
+|file = [[File:Amascut's Promise.ogg]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|location = [[Tombs of Amascut]]
+|hint = This track unlocks in the Tombs of Amascut.
+|quest = No
+|instruments = Standard Drum Kit, Power Drum Kit, Sitar, FX 5 (brightness), Shamisen, Bright Acoustic Piano, Acoustic Grand Piano, String Ensemble 1, Choir Ohhs, Tubular Bells, Orchestra Hit, FX 3 (crystal), Synth Strings 1, Brass Section, Overdriven Guitar
+|duration = 09:23
+|tempo = 135 BPM
+|signature = 4/4
+|album = ''[[RuneScape-_Tombs Of Amascut|RuneScape: Tombs Of Amascut]]''
+|composer = Julian Surma
+|map = {{Map|3776,5120|3776,5184|3840,5184|3840,5120|mapID=-1|mtype=polygon|bucket=yes|zoom=2}}
+|cacheid = 735
+|sortname = Amascut's Promise
+|unlockdetail = Unlocked during the fight with [[Tumeken's Warden]] and [[Elidinis' Warden]] in the [[Tombs of Amascut]].
+}}
+'''Amascut's Promise''' is a [[music]] track that is unlocked during the fight with [[Tumeken's Warden]] and [[Elidinis' Warden]] in the [[Tombs of Amascut]].
+
+==Versions==
+{{Music changes header}}
+{{Music changes
+|version=5
+|date=24 August 2022
+|file=[[File:Amascut's Promise (8-bit).ogg]]
+}}
+{{Music changes
+|version=5
+|date=9 April 2025
+|change= [[Audio#16-bit_music|16-bit Music Update]]
+|file=[[File:Amascut's Promise.ogg]]
+}}
+{{Music changes footer}}
+==Trivia==
+*The track was remixed into {{RSL|Amascut's Vision}} - which is also composed by Mod Surma - for the conclusion of the Desert Quest series in ''RuneScape 3''.
+*A cover of ''Amascut's Promise'' was made available to play in mobile rhythm game Beatstar as part of a collaboration.{{CiteNews|url=https://secure.runescape.com/m=news/game-jam-charges-qol?oldschool=1|title=Game Jam: Charges QoL|newsdate=5 March 2025}}
+
+==References==
+{{Reflist}}
+
+{{Tombs of Amascut}}
+{{Music}}

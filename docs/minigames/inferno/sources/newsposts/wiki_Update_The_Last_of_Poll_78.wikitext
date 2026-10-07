@@ -1,0 +1,84 @@
+{{Update|date=15 March 2023|url=https://secure.runescape.com/m=news/the-last-of-poll-78?oldschool=1|category=game}}
+[[File:The Last of Poll 78 newspost.png|right]]
+__TOC__{{clear}}
+
+''This week’s update includes the last of the Poll 78 changes, some Group Ironman fixes, and improvements to PvP!''
+
+==Poll 78==
+The last of the improvements you voted for in Poll 78 are live this week!
+
+[[File:The Last of Poll 78 (1).png|centre|600px]]
+
+Firstly, we’ve launched a bunch of improvements to the Motherlode Mine:
+* Adjusted the respawn rate of veins on the upper and lower levels. They should now respawn 33% faster than before.
+* Added more veins to the southern area of the Mine.
+* Added a Level 54 Agility shortcut between the Bank and the southern part of the mine.
+
+While we’re on the subject of Mining, we’ve also renamed Mining nodes throughout the game to indicate which ore they contain. No more hours spent right clicking and identifying! Accordingly, the Tutorial Island dialogue will no longer refer to prospecting.
+
+Poll enthusiasts will be happy to hear that we’re finalising the questions for Poll 79 this week. While you wait, we can tell you that Poll 79 will include a question about reworking Combat Achievements as a points-based system, giving you the freedom to mix and match your Achievements instead of having to complete every tier. It’s exciting stuff, so keep an eye out for the blog!
+
+==Group Ironman Fixes==
+* Group Ironman Storage will now be locked 10 minutes before a game update reboot, minimising the chance that transactions are prematurely cancelled and items lost.
+* The Ironman Tutor will now pay attention if you previously indicated you never wanted to downgrade while informing you about Iron mode. He’s also got more information to share about Unranked Group Ironmen!
+* Group sizes for ranked GIM now correctly reflect the largest group players have been a part of.
+* A few GIM Combat Achievements were erroneously being counted toward the total number in the interface. This was a purely visual bug, but it has now been fixed.
+
+==Wilderness and PvP-related Changes==
+* After considering player feedback, we’ve made environmental changes to the area outside Venenatis’ lair to prevent abuse of the nearby single-way combat zone:
+** The entrance to the lair now faces west instead of south.
+** Added trees immediately behind the entrance to prevent Ranged and Magic attacks from the single-way combat area.
+* Wilderness monsters on the permanent Deadman World now have the chance to drop an Imbue Scroll along with their other loot, providing an alternative means to imbue items on this world. The chance is higher for higher-level monsters.
+* Target worlds no longer have misleading messages about the non-existence of PJ timers.
+
+==12th Annual Golden Gnomes==
+[[File:The Last of Poll 78 (2).png|centre|600px]]
+
+Voting for the 12th Annual Golden Gnomes has now '''closed''' - tune in on '''March 24th''' to find out who will be taking home a coveted Golden Gnome trophy!
+
+We'll be streaming the event live from JagexHQ - another Studio stream! The Event kicks off at '''17:00''' [https://www.twitch.tv/jagex on the Jagex Twitch channel]. We look forward to seeing you there!
+
+==Other Changes==
+* The Birthday Event has now been removed. Thanks to everyone who participated! Time to start planning the 11th Birthday Event…
+* A new option has been added to the Controls section of the Settings menu, which allows you to toggle whether the Trade option is shown on other players.
+* The Poison/Venom timer will now only reset after 54 seconds of being out of combat, up from 18 seconds. This should help Poison Dynamite to function until a more definitive fix is implemented.
+* We’ve learned that the pathfinding changes for Bankers from last week’s update are not behaving as intended in certain circumstances. Consequently, we’ve reverted the changes until we’ve reviewed this feature and ensured it works as planned.
+** The change remains in place for Herman Caranos.
+* The Varrock Armour's smelting boost once again works with Perfect Gold Ore.
+* Loot in an instanced King Black Dragon lair now stays on the ground for longer, as in most other boss instances.
+* Fixed a typo in the Ecumenical Key’s Examine text.
+* Removed extraneous quote marks that appeared on the Prayers' mouseover text.
+* You now get full experience for cutting teaks and mahogany trees on Etceteria.
+* Chat messages from a Player Moderator or Jagex Moderator can now be right-clicked to learn more information about what the crown icons mean, including a link to a webpage which explains in greater detail.
+
+==Crack the Clue Hints==
+Woox is back with another couple of helpful hints. The first hint is for the clue obtained outside Lumbridge Castle. The second hint is the clue obtained inside the Stronghold of Security.
+
+[[File:The Last of Poll 78 (3).png|centre|600px]]
+
+[[File:The Last of Poll 78 (4).png|centre|600px]]
+
+Happy hunting, we'll be back next week with more if it looks like you could use a helping hand!
+
+==PvP Rota==
+The PvP rota has moved to '''Period B''':
+* 560 - (UK) - PvP World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>de-activated</u>''' with this rota. The PvP Arena is using '<b>Max/Med</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+That's about all we've got for this week, but we wanted to take a brief moment to highlight an upcoming event that might interest some of you!
+
+On March 19th at 14:00 GMT, you might want to tune in to [https://www.twitch.tv/hemmiez Hemmiez] on Twitch to check out the TzHaar World Series. Over the course of the past month, talented PvMers have been submitting speedruns for a number of Inferno categories (Standard, Melee, No-pillar) and the Fight Caves to see which JalYt have what it takes to ''really'' impress the TzHaar. If you've already got an Inferno cape of your own and are looking to take your runs to the next level, you can always check out his [https://www.youtube.com/watch?v=V_APzyZjod4 detailed guide] on all things Inferno speedrunning!
+
+There are bound to be some fantastically skilled players on display, so if PvM is your thing and you have a need for speed, tune in this Sunday!
+
+You can discuss this update on our [http://services.runescape.com/m=forum/forums?380,381,855,66268470 official forums], the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led OSRS Discord in the #gameupdate channel. For more info on the above content, check out the official [[osrsw:|Old School Wiki]].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Boko, Bruno, Chilly, Crystal, Curse, Daizong, Dylan, Ed, Elena, Errol, Fed, Gecko, Gizmo, Goblin, Grub, Halo, Hend, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Nin, Nylu, Other, Pumpkin, Redfield, Regent, Roq, Ry, Sarnie, Shroom, Sigma, Skylark, Sova, Squid, Starry, Stevew, Surma, Sween, Tide, Titus, Torrance, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

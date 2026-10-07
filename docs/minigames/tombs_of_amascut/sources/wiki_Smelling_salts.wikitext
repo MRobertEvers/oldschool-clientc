@@ -1,0 +1,68 @@
+{{Infobox Item
+|defver = 2
+|version1 = 1 use
+|version2 = 2 uses
+|bucketname1 = (1)
+|bucketname2 = (2)
+|name1 = Smelling salts (1)
+|name2 = Smelling salts (2)
+|image1 = [[File:Smelling salts (1).png]]
+|image2 = [[File:Smelling salts (2).png]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = No
+|noteable = Yes
+|options = Crush, Drop
+|examine = Repeatedly boosts combat abilities over time and restores run energy.
+|value = 30
+|weight = 0.453
+|id1 = 27345
+|id2 = 27343
+}}
+{{Synced switch
+|version1 = [[File:Smelling salts (1) detail.png|left|150px]]
+|version2 = [[File:Smelling salts (2) detail.png|left|150px]]
+}}
+'''Smelling salts''' is an item that can be obtained from the [[Supplies (Tombs of Amascut)|supplies bag]] within the [[Tombs of Amascut]]. It starts with 2 uses.
+
+Crushing it will repeatedly restore run energy by 25% and boost the player's combat stats every 15 seconds over the course of 8 minutes, akin to an [[Overload]], though without drawbacks.
+
+==Effects==
+[[Attack]], [[Strength]], [[Defence]], [[Ranged]], and [[Magic]] boosts are calculated with: <math>\lfloor BaseLevel \times \frac{16}{100} \rfloor + 11</math>
+
+{| class="wikitable" style="text-align:center;"
+!{{SCP}} Level
+!Boost
+!{{SCP}} Level
+!Boost
+|-
+|'''1-6'''||+11||'''50-56'''||+19
+|-
+|'''7-12'''||+12||'''57-62'''||+20
+|-
+|'''13-18'''||+13||'''63-68'''||+21
+|-
+|'''19-24'''||+14||'''69-74'''||+22
+|-
+|'''25-31'''||+15||'''75-81'''||+23
+|-
+|'''32-37'''||+16||'''82-87'''||+24
+|-
+|'''38-43'''||+17||'''88-93'''||+25
+|-
+|'''44-49'''||+18||'''94-99'''||+26
+|}
+
+==Trivia==
+* In real-life, {{wp|smelling salts}} are used as stimulants to restore consciousness or mental alertness, usually composed of {{wp|ammonium carbonate}}.
+
+{{Tombs of Amascut}}
+[[Category:Attack boosting items]]
+[[Category:Defence boosting items]]
+[[Category:Magic boosting items]]
+[[Category:Ranged boosting items]]
+[[Category:Strength boosting items]]

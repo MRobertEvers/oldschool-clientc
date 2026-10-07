@@ -1,0 +1,92 @@
+{{Update|date=13 January 2021|link=https://secure.runescape.com/m=news/god-wars-instancing-and-soul-wars-improvements?oldschool=1|category=game}}
+[[File:God Wars Instancing and Soul Wars Improvements newspost.png|right]]
+{{clear}}
+''This week sees several improvements to Soul Wars.''
+
+{{ToC}}
+
+==Soul Wars Improvements & Changes==
+We want to ensure that Soul Wars is great fun for everyone, so since its launch last week we’ve worked hard to refine the minigame and make it a better experience.
+
+Last week we made a few hotfixes, which can be found [https://secure.runescape.com/m=news/soul-wars---changes-and-feedback?oldschool=1 here]. We can now confirm that from next week, there will be a single waiting room in the lobby and team selection will be randomised.
+
+In the meantime, here are the Soul Wars changes going live with this week’s update:
+* The inactivity timer will begin to tick down 10 seconds after a game starts instead of immediately.
+* You can now examine the items in the ‘Other’ section of the Reward Shop.
+* The Soul Wars tutorial will now display bearded characters’ chatheads in all their fuzzy glory.
+* A ‘Check’ option has been added to the Spoils of War in the Reward shop to show how many you’ve opened so far.
+* The time before you’re allowed to exit a Graveyard has been reduced from 15 seconds to 10. You’ll also receive immunity when exiting. This will last for a few seconds or until you attack another player.
+* Attempting to attack Avatars from outside the boss room will now cause the minigame to pull you in, instead of telling you to move closer.
+* Bandage healing will now display the name of the player that healed you instead of your own name.
+* Skulled players on Deadman worlds can no longer start the Soul Wars tutorial or enter a waiting area.
+* Bones and soul fragments will now appear above other dropped items while in Soul Wars.
+* It is no longer possible to open Spoils of War on Entrana.
+* Gravestones will no longer appear in Soul Wars waiting areas.
+* Players will no longer be able to bypass the temporary ban for leaving a game early by hopping to another world.
+* Rebalanced the quantities of certain items in the Spoils of War.
+
+===Ectoplasmator===
+To clarify, the Ectoplasmator works on all spectral creatures. You can check a monster’s spectral status using the Monster Examine spell, but for quick reference, here’s a list:
+* Ghosts
+* Ghasts
+* Banshees
+* Shades (including Mort'ton shades)
+* Tortured souls
+* Spiritual creatures
+* Aberrant spectres
+* Death wings
+* Revenants
+* Barrows Brothers
+
+In addition, the following enemies have been marked ‘spectral’:
+* Ankou
+* Deviant spectres
+* Twisted banshees
+* Treus Dayth
+
+Lastly, the experience given by the Ectoplasmator has been increased from 15% of the creature’s health to 20%.
+
+==God Wars Dungeon==
+All four God Wars Dungeon generals now have their own shared Ironman instances. If you’re an Ironman, upon entering one of the boss rooms, you’ll be transported to the shared Ironman instance. Regular players can’t enter this space, although other Iron players can, which means you have much less chance of being inconvenienced during your battle.
+
+
+The ‘Peek’ option at the door of each room will show you how many players are already in the Ironman instance for that boss. You can also check the braziers outside the rooms – if the brazier is lit, that means someone’s in there.
+
+
+Regular players won’t see these braziers or be able to access the Ironman instances.
+
+==Leagues II - Trailblazer==
+We’ve been doing a bit of housekeeping in the League Hall this week, including frantically scribbling the names of the Trailblazer Top 100 on your League Hall scroll.
+
+We’ve also increased the maximum number of rooms in a Player Owned House to 34, to accommodate the League Hall.
+
+There’s a security change, too – you’ll now need a Bank PIN to access the Leagues Reward Shop. You can never be too careful!
+
+==Bounty Hunter Reward Shop Closure==
+When we removed the ability to earn new rewards through Bounty Hunter last August, we warned that we would close the Bounty Hunter Reward Shop at the beginning of December. We decided to leave it open one more month so we could remind you one last time, and now that time has come!
+
+The Bounty Hunter Reward Shop has now closed and all existing Archaic and Antique Emblems have been removed, although you may still encounter the former on Deadman Worlds, where you will still be able to trade them as before.
+
+==Other News==
+* The Bounty Hunter shop is now officially closed. This also removes any leftover Antique and Archaic emblems. The latter will still be obtainable and tradeable during Deadman tournaments.
+* The Castle Wars scoreboard now includes a counter showing how many games you’ve played.
+* The Chambers of Xeric Party Board will now let you unselect the Challenge Mode option correctly.
+* Some unintended safe spots in the Vanstrom Klause boss fight have been removed.
+* The combat levels of Robert the Strong and a certain elven traitor have been increased to better match their combat difficulty ratings.
+* Some remnants of the Christmas event near the Goblin Village have been reverted. Keen sledders will be happy to know that the Sled Racing section will still remain accessible via the cave in Goblin Village.
+* Mithril seeds can once again be planted in Banks and the Grand Exchange on Deadman worlds.
+* The Grubby Chest in the Forthos Dungeon now has a ‘Check’ option which tells you how many times you’ve opened it.
+* When crafting leather items requiring more than one bit of leather, the animation will no longer continue to play after you run out.
+* The message which tells you to bring a lockpick, or that you’ve failed to pick a lock on various doors around Ardougne and the deep Wilderness, will no longer be filtered.
+* If you’ve already had a Clue Scroll from a monkey in your Backpack, you’ll be gently reminded of this fact when you try to bribe them with more bananas.
+* Zuk’s shield no longer vanishes right as he dies.
+* Some text has been corrected in the Thieving Skill Guide.
+* Players with no display name are now barred from Last Man Standing until they set one.
+* We’ve had a word with the Estate Agent and they’ve fixed the issues with inconsistent flooring in the Snowy Themed Player Owned House League Hall.
+* Some crates in the Waterfall Quest have been given a stern talking to and will no longer give messages implying that they are actually chests.
+
+{{Horizontal Line}}
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,684,66197966 official forums], the community-led [https://www.reddit.com/r/2007scape/comments/k9pwbt/christmas_2020/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For reference on the above content, check out the official [http://oldschool.runescape.wiki/ Wiki].
+
+'''Mods Acorn, Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Bonsai, Brow, Bruno, Curse, Daizong, Deagle, Ditto, Ed, Elena, Errol, Fed, Flippy, Gayns, Gecko, Gee, Grub, Halo, Husky, Jndr, John C, Kandosii, Katies, Kieren, Lenny, Light, Lottie, Mack, Maylea, MikeD, Morty, Nasty, Nin, Oasis, Roq, Ry, Sarnie, Squid, Steve W, Sween, Tide, Vegard, West, Wolfy & Zuko'''<br>''The Old School Team''

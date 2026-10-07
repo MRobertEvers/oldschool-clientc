@@ -1,0 +1,300 @@
+{{Update|date=03 November 2023|url=https://secure.runescape.com/m=news/poll-blog-fortis-colosseum-x-perilous-moons?oldschool=1|category=devblog}}
+[[File:Poll Blog- Fortis Colosseum x Perilous Moons newspost.jpg|right]]
+{{clear}}
+__TOC__
+
+Over the course of October, we filled you in on two of the main events for Varlamore's initial release: the Fortis Colosseum and Perilous Moons.
+
+Today's blog doesn't contain any new information (aside from a small update about the Bladed Moon), but combines all the top-level information in one place - plus all of the poll questions you’ll need to consider! So, if you're looking for gameplay specifics, you won't find any here - it's rewards all the way down…
+
+Let's kick things off with Varlamore's most exciting bloodsport, a challenge that's equal parts entertainment and ritual: the Fortis Colosseum.
+
+==Fortis Colosseum==
+The Fortis Colosseum is Old School’s third wave-based minigame, following in the fiery footsteps of the Fight Caves and the Inferno. For more info, click here for the [https://secure.runescape.com/m=news/a=97/fortis-colosseum---first-look--rewards?oldschool=1 dedicated blog].
+
+Like its predecessors, the Colosseum is a highly repeatable PvM encounter with a high skill ceiling and a steep difficulty curve. The later waves feature some of the toughest enemies Gielinor has to offer – although players who are new to combat can still try their hand at the earlier waves.
+
+Since players having the option to duck out in earlier waves, we've aimed for a spread of rewards that span a range of players, meaning those who are just dipping their toes into the Colosseum might be able to make it out with some Sunfire Dust or a piece of Sunfire Fanatic Armour, but players chasing the Glaive of Ralos will want to be consistently going all the way!
+
+Let's kick things off with our big-ticket untradeable reward, a new best-in-slot offering: Dizana's Quiver.
+===Dizana's Quiver===
+Dizana's Quiver is a chargeable (and corruptible) Cape-slot offering, boasting higher offensive bonuses than Ava's Assembler and a particularly ''unique effect'' which allows it to hold at least two types of ammo, automatically selecting whichever applies to your current weapon. We'll still have some further specifics to hash out, to make sure it's easy and intuitive to swap between ammo types when using the quiver, but the principle of saving Inventory space and potentially freeing your ammo slot will remain the same!
+
+When charged, ammo fired from the quiver (meaning bolts and arrows exclusively) will gain an additional +1 Ranged Strength and +10 Ranged accuracy. These 'charged' numbers are indicated in brackets in the stat image below:
+
+[[File:Poll Blog- Fortis Colosseum x Perilous Moons (1).jpg|220px|center]]
+
+Of course, if you're replacing an Ava's device (whether that's an Assembler for most of you, or an Accumulator for all of you Pures) then you'll need some assurances that you won't be leaving all of your ammo on the ground! Luckily for you, you'll be able to apply the exact same ammo-saving effect to Dizana's Quiver, so you can fire away without breaking the bank.
+
+We're aware of the feedback surrounding a Max Cape variant for the quiver, Masori Crafting Kit applications and POH Cape Rack storage, and will be aiming to address these if Dizana's Quiver makes its way into Old School.
+
+{{News Poll|1|Should we add Dizana's Quiver, a new best-in-slot Ranged item, to the Fortis Colosseum as described in the blog?}}
+
+Let's move on to the tradeable rewards! We'll start with the big-ticket unique and then move on to the more attainable offerings!
+
+===Glaive of Ralos===
+The Glaive of Ralos is a charged Ranged weapon with a devastating special attack, which drains your target's Defence by up to 20% of their Magic level.
+
+Without charges, the Glaive hits an enemy for between 0 - 50% of your maximum hit. Boring! When ''charged'' this groovy Glaive really comes into its own, its sharp edges will slice ''and'' dice for two hitsplats. Each splat rolls its own accuracy and damage, where the damage rolls between 0% and 50% of your maximum hit. Not bad - but it's that draining Special attack that makes this thrown weapon worth adding to your arsenal.
+
+For 50% of your special attack Energy, successful hits will drain the target's Defence level by 10% of their Magic level. Since the Glaive hits twice when it's charged, you'll reduce your target's Defence by 0, 10 or 20% of their Magic level, depending on whether zero, one or two hits connect. It's sort of like a thrown Dragon Warhammer, but with a little more oomph against foes with a high Magic level.
+
+One final thing! This special attack cannot reduce your target's Defence beyond 50% of its initial value, meaning a target with 200 Defence could not have it reduced below 100 Defence with the Glaive 0- so you might want to think twice before panic-selling your Bandos Godsword…
+
+[[File:Poll Blog- Fortis Colosseum x Perilous Moons (2).jpg|400px|center]]
+
+{{News Poll|2|Should we add the Glaive of Ralos, a new Defence-draining Ranged weapon, to the Fortis Colosseum as described in the blog?}}
+
+===Sunfire Fanatic Armour===
+Sunfire Fanatic Armour is a Prayer-focused set that we expect will be reasonably easy to obtain even at the lower waves. We've proposed two versions of this set, and opinion still seems divided as to which suits best, so we'd like for you to settle the debate for us.
+
+We're going to share each version of the set, ask you for each of them whether or not you'd be comfortable with their addition to the game - and ''then'' ask you to pick your favourite. That way, even if your preferred option doesn't make its way to the Fortis Colosseum, we can still consider adding it to other content, provided players at large indicated they would be comfortable with it.
+
+With all that said, let's start with our ''initial'' approach: best-in-slot Prayer gear, that directly powercreeps Proselyte.
+
+[[File:Poll Blog- Fortis Colosseum x Perilous Moons (3).png|600px|center]]
+
+This version has defensive stats in line with Rune armour, and offers +2 Prayer bonus per ''piece'' over Proselyte.
+
+{{News Poll|3| Would you be comfortable with the addition of the best-in-slot Prayer version of Sunfire Fanatic armour, as described in the blog? Question #5 will determine which approach is taken.}}
+
+However, some players felt a reward like this would be better placed coming from the Temple Knights questline. While we're not exactly sure when we'll pick this questline up, we put together an alternate approach to keep this space clear (if people want it clear). This alternate approach is a Ranged-Prayer set, with offenses similar to Red Dragonhide and a Prayer bonus that puts even Crystal Armour to shame.
+
+To reflect the different stats on offer for this variant, the requirements (visible at the bottom of the stats image below) have been adjusted for this proposal.
+
+[[File:Poll Blog- Fortis Colosseum x Perilous Moons (4).png|600px|center]]
+
+{{News Poll|4|Would you be comfortable with the addition of the Prayer & Ranged-focused version of Sunfire Fanatic armour, as described in the blog? Question #5 will determine which approach is taken.}}
+
+{{News Poll|5|Which of the two approaches for Sunfire Fanatic armour would you prefer to be added? The most voted option will be added to the game, assuming it passes its own question.}}
+
+===Echo Crystal===
+Echo Crystals are consumable, resonant rocks that give off a nasty shockwave when struck.
+
+Unfortunately, there's no easy 'crystal' slot to pop these into, so you'll have to slot them in o a pair of Guardian Boots to gain their effect. While the crystal doesn't add any additional stats to Guardian Boots, it ''does'' imbue them with a pretty unique property.
+
+When in combat, the Echoing Guardian Boots (placeholder) will inflict recoil damage '''to NPCs''' in a 3x3 square around the wearer. This means that any NPCs in melee range will be hit by recoil damage if you're being chipped down, handy for the occasional Nechryael Slayer task, or ''perhaps'' even handy in the Colosseum itself...
+
+Once all your charged are used up, you'll have to pick up another Echo Crystal, which you can do either by buying them from other players or heading back to the Colosseum and obtaining another as a drop - it shouldn't be too taxing to obtain another one, so don't fret!
+
+{{News Poll|6|Should we add Echo Crystals, a consumable item used to charge Guardian boots and give them an AOE recoil effect vs. NPCs, to the Fortis Colosseum as described in the blog?}}
+
+===Sunfire Dust & Runes===
+Sunfire Dust is our unique consumable offering for the Fortis Colosseum. Those of you perfecting your skills in the pits can expect to earn yourself bulk supplies of this mysterious dust, which you can use for your own benefit or sell on for a profit. The aim of Sunfire Dust is provide a relatively consistent source of profit by introducing an ''in-demand'' consumable that gets used up by Dizana's Quiver, the Glaive of Ralos, Sunfire Runes and perhaps more in the future, without introducing a loot table that's overly reliant on raw GP, skilling supplies, or the value of uniques.
+
+We know charges and upkeep can be a controversial topic at times and it's one we touched on in our updated Fortis Colosseum blog ([https://secure.runescape.com/m=news/a=97/fortis-colosseum---first-look--rewards?oldschool=1 click here for a read]), but we're aiming to make sure that building up enough Dust to use doesn't feel like a chore by both keeping every Colosseum run feeling fresh and fun, as well as rewarding those of you putting the time in to learn the waves with enough dust to swim in!
+
+Sunfire ''Runes'' are a brand new Rune, and an exciting experiment for future reward space. Effectively, Sunfire Runes provide Fire Spells with a 10% minimum hit, assuming that Sunfire Runes were consumed to cast the spell. Additionally, you'll be able to use Sunfire Runes with Burnt Pages to make Searing pages, giving the Tome of Fire a +50% damage boost and 10% minimum hit - hot!
+
+Magic and Runecraft are closely intertwined and we'd like to preserve this relationship with Sunfire Runes by ensuring that their creation feels thematically appropriate. We've not landed on specifics yet, but will aim to ensure that you feel these Runes and their making-of makes sense in Old School, without feeling like a grind to just get a couple of Runes together and dust off your Harmonised Nightmare staff.
+
+{{News Poll|7|Should we add Sunfire runes, a Fire rune upgraded with Sunfire dust that improve the consistency of Fire spells, to the game as described in the blog?}}
+
+Ok, those are your Fortis Colosseum questions. Now onto Perilous Moons!
+
+==Perilous Moons==
+[[File:Poll Blog- Fortis Colosseum x Perilous Moons (5).png|600px|center]]
+
+This new dungeon is accessed via [https://secure.runescape.com/m=news/perilous-moons---first-look--rewards?oldschool=1 Perilous Moons], an experienced-level quest that will see you delving into the depths of Cam Torum and getting your first glimpse at the mysteries within.
+
+The quest will reveal a new chunk of PvM content aimed at mid-level players. The dungeon holds three deadly demi-bosses - defeat them, and you’ll re-emerge with some exciting new loot!
+
+If you can’t tell, this encounter is heavily inspired by the iconic Barrows Brothers – a mid-level combat staple! Unlike Barrows, however, this activity focuses on discovery and exploration. We want you to feel like you’re progressing through the dungeon in a meaningful way, learning more about Varlamore’s ancient history as you go. We’re taking all the best bits of Barrows and the Forthos Dungeon to create a new, well-rounded adventuring experience.
+
+Unlike the Barrows Brothers, these demi-bosses can be fought by multiple players at the same time. Without dropping any spoilers, these powerful entities cannot be killed – your job is to distract them to ensure they remain contained within the temple.
+
+Defence is a keystone of this content. Most gear, especially in the late-game, focuses on offensive bonuses – with the notable exception of Justiciar. Mid-game gear, however, tends towards more defensive bonuses – and that’s what we want to encourage here.
+
+We recommend tackling the dungeon with a combat level of 75 or more. Down in the depths, defence is key – so you’ll want to prepare carefully before heading in.
+
+Now that you know what you’re in for, let’s take a closer look…
+
+Please note:'''All of these sets only trigger set effects, weapon special effects and special attacks when wearing the complete set. Each of these sets also degrade just like their Barrows-inspired brethren!'''
+===Bloodrager Set===
+''This gear sits somewhere between Barrows and God Wars sets and features a hard-hitting weapon that’s especially effective against low-Defence enemies.''
+
+{{Collapsed section|18|Bloodrager Set Stats - CLICK HERE TO SHOW}}
+[[File:Poll Blog- Fortis Colosseum x Perilous Moons (6).png|400px|center]]
+
+
+[[File:Poll Blog- Fortis Colosseum x Perilous Moons (7).png|600px|center]]
+{{Collapsed section end}}
+
+Drawing power from the angriest phase of the moon, the Bloodrager Set evokes memories of ancient bloodthirst in the wearer, causing them to rip and tear through low-defence targets in a devastatingly ferocious assault!
+
+The Dual Macuahuitl have a speedy attack rate of 4 ticks, and get this – they hit twice!
+
+They also come with a Special Attack, allowing you to sacrifice 10% of your current Hitpoints to raise your maximum and minimum hit by 25% for that attack. At just 25% energy cost this might seem like a no-brainer, but watch out – use it too many times in a row, and you’ll find yourself low on HP!
+
+Wearing the full set will also earn you a nifty Set Effect: a 33% chance for the Dual Macuahuitl’s second attack to hit one tick sooner. Using the Special Attack with the full set equipped makes that a guarantee, enabling you to slice and dice with unparalleled speed.
+
+For lower-defence foes this set is a gamechanger, although they become less effective against higher-defence enemies.
+
+{{Collapsed section|18|Dual Macuahuitl DPS Table - CLICK HERE TO SHOW}}
+[[File:Poll Blog- Fortis Colosseum x Perilous Moons (8).jpg|600px|center]]
+{{Collapsed section end}}
+
+{{News Poll|8|Should we add the Bloodrager Set including the Dual Macuahuitl, a Melee set that's especially effective against low-Defence enemies, to the game as described in the blog?}}
+
+===Frostmoon Set===
+''This armour set provides a midgame boost to Magic Damage, capitalising on immobilised targets and complementing both Melee and Magic attacks.''
+
+{{Collapsed section|18|Frostmoon Set Stats - CLICK HERE TO SHOW}}
+[[File:Poll Blog- Fortis Colosseum x Perilous Moons (9).png|400px|center]]
+
+
+[[File:Poll Blog- Fortis Colosseum x Perilous Moons (10).png|600px|center]]
+{{Collapsed section end}}
+
+Feeling blue? Not for long! The Frostmoon Set focuses on both Melee and Magic and immobilises enemies with the sheer cold of the Frostmoon.
+
+Its main benefit is strong Magic accuracy compared to other midgame sets, combined with defensive capabilities against both Magic and Crush styles.
+
+The real star of the set, however, is the Spell Spear, a melee weapon that hits significantly harder than your standard staff while allowing you to auto-cast whatever spells you like. With a 5% increase to Magic strength, you’ll be freezing your enemies in their tracks and doing some serious damage.
+
+The Frostmoon armour’s set effect gives you a 10% chance for your next melee attack to go unaffected by any action delay – although this only affects attacks made with the Spell Spear. Put those Dragon Claws away!
+
+You’ll deal even more damage with the Spell Spear’s Special Attack, which increases your max hit by 1% for every tick remaining on a target inflicted with a binding effect. Once you’ve dealt your deadly blow, the binding effect will be removed – so choose your moment carefully before going in for the kill!
+
+For example: if your target has 10 ticks remaining on their binding effect, hitting them with the Spell Spear's Special Attack will increase your max hit by 10%.
+
+{{News Poll|9|Should we add the Frostmoon Set including the Spell Spear, a Melee/Magic hybrid set, to the game as described in the blog?}}
+
+===Eclipse Set===
+''This gear provides a lower-level alternative to the Blowpipe alongside a new stackable effect.''
+
+{{Collapsed section|18|Eclipse Set Stats - CLICK HERE TO SHOW}}
+[[File:Poll Blog- Fortis Colosseum x Perilous Moons (11).png|400px|center]]
+
+
+[[File:Poll Blog- Fortis Colosseum x Perilous Moons (12).png|600px|center]]
+{{Collapsed section end}}
+
+The next stop on our celestial journey is to the all-consuming maw of the Eclipse. This set combines the sharp sting of the arrow with up-close-and-personal melee carnage as you burn your foes and consume the fire to unleash a devastating flurry of flames!
+
+Like the Frostmoon gear, this is a hybrid set. Eclipse combines great Ranged accuracy and Melee strength to create a deadly offence, at the cost of its defensive capabilities.
+
+The set includes the Eclipse Atlatl, a new Ranged weapon with an attack speed of 4 (3 on Rapid). What makes this weapon unique is that it rolls your damage off your Melee Strength.
+
+The Set Effect gives the wearer a 20% chance to inflict Burn, a new effect that causes the target to suffer 1 point of damage every 4 ticks for 40 ticks – a total of 10 base damage. However, the effect can be stacked up to five times to rack up even more damage over time. Yowch!
+
+{{Collapsed section|18|Burn Effect Breakdown - CLICK HERE TO SHOW}}
+Here’s how that might play out, we've got a text description and a handy little table:
+
+* I'm damaged with Burn, so I'm going to suffer 10 damage over 40 ticks.
+* 16 ticks later I've suffered 4 damage - oh no, I've been burned again!
+* I'm now getting damage from the original Burn in addition to damage from the new one!
+* Once the original Burn is gone, I will have been damaged for a total of 16 HP (10+6), with 4 damage left from the second Burn.
+
+{| class="wikitable" style="text-align: center;"
+|-
+!Tick
+!0
+!4
+!8
+!12
+!16
+!20
+!24
+!28
+!32
+!36
+!40
+!44
+!48
+!52
+!56
+!60
+|-
+|'''Burn #1'''
+|S
+|X
+|X
+|X
+|X
+|X
+|X
+|X
+|X
+|X
+|X
+|E
+|
+|
+|
+|
+|-
+|'''Burn #2'''
+|
+|
+|
+|
+|S
+|X
+|X
+|X
+|X
+|X
+|X
+|X
+|X
+|X
+|X
+|E
+|-
+|'''Damage'''
+|
+|1
+|1
+|1
+|1
+|2
+|2
+|2
+|2
+|2
+|2
+|1
+|1
+|1
+|1
+|
+|-
+|'''Total Damage'''
+|
+|1
+|2
+|3
+|4
+|6
+|8
+|10
+|12
+|14
+|16
+|17
+|18
+|19
+|20
+|
+|}
+{{Collapsed section end}}
+
+The Atlatl’s Special Attack costs 50% Special Attack energy and consumes any remaining Burn damage on the target to increase your max hit by that number, and your minimum hit by half of that number. While this is a massive boost, we have capped it at an additional 50 damage – we don’t want you setting the world on fire!
+
+{{News Poll|10|Should we add the Eclipse Set including the Eclipse Atlatl, a Melee/Ranged hybrid set, to the game as described in the blog?}}
+
+===Bladed Moon===
+One of the most discussed aspects of the update was the Bladed Moon - the untradeable weapon reward. Although the Slash bonus from this weapon was pretty chunky, there were concerns that it would inadvertently buff Osmumten’s Fang. To complicate matters further, there’s already an ongoing conversation about the Fang’s current place in the meta, and what it means for other weapons like the Scythe of Vitur.
+
+We want to assure you that we’ve been listening to your concerns. Because of this - and the response to yesterday's feedback newspost - we won't be polling the Bladed Moon alongside the other rewards in this post. Instead, we'll be polling it at a later date once we've been able to discuss our intentions with the Fang.
+
+We’re hoping to share our overall plans in January. We appreciate this is a slightly different approach, but we know how important it is that you have the necessary information before making a decision.
+
+----
+
+You can also discuss this update on our [http://services.runescape.com/m=forum/forums?380,381 official forums], on the [https://www.reddit.com/r/2007scape/comments/17mtsxz/poll_blog_fortis_colosseum_x_perilous_moons/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abyss, Arcane, Archie, Argo, Ash, Ayiza, Boko, Bruno, Chilly, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Errol, Fed, Gecko, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Necro, Nox, Nylu, Other, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Sarnie, Shroom, Sigma, Skane, Skylark, Sova, Squid, Starry, Stevew, Surma, Sween, Tide, Titus, Torrance, Tsourorf, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

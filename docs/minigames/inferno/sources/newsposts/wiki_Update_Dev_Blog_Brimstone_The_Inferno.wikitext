@@ -1,0 +1,97 @@
+{{Update|date=15 March 2017|link=http://services.runescape.com/m=news/dev-blog-brimstone--the-inferno?oldschool=1|category=website}}
+[[File:Dev Blog- Brimstone & The Inferno newspost.png|right]]
+{{clear}}
+<center><font style="font-family:Trajan,'trajan-pro-3',serif;font-size:25px;font-weight:bold;text-shadow:1px 1px #121212;">Dev Blog: Brimstone & The Inferno</font></center>
+
+
+<center>'''Further west than you've ever ventured, found at the heart of the volcanic village of Brimstone, lies {{Colour|#b22222|The Inferno}}.'''</center>
+
+
+<center>'''Do you have what it takes to defeat TzKal-Zuk?'''</center>
+
+{{Horizontal Line}}
+
+
+In early 2016 we polled The Inferno. Falling just shy of the 75% threshold as a small expansion to the Fight Cave, we saw an influx of requests to make The Inferno a bigger, better, standalone piece of content.
+
+Today's developer blog proposes exactly that. A relocated, expanded and truly standalone solo PvM challenge.
+
+{{Horizontal Line}}
+
+
+<center><font style="font-family:Trajan,'trajan-pro-3',serif;font-size:22px;font-weight:bold;text-shadow:1px 1px #121212;">Brimstone</font></center>
+
+
+Deep within a dormant volcano found on the western side of Zeah, a race once created from the TzHaar has prospered. Born from the core of the inferno, the Kahlith craft their own form as molten rock cools.
+
+[[File:Dev Blog- Brimstone & The Inferno (1).png|thumb|center|550px|<center>'''[http://cdn.runescape.com/assets/img/external/oldschool/2017/blogs/2017-03-15/Inferno_map.png (Click to see Brimstone as a part of the full world map)]'''</center>]]
+
+Within the Kahlith village of Brimstone you'll get a glimpse into the lives of this unnatural race of living rock.
+
+'''Brimstone Thieving'''
+
+You'll find new targets for pickpocketing, requiring '''level 90 Thieving''' and providing exactly what you might expect to find in a rocky settlement: gems and tokkul.
+
+The experience provided by Kahlith pickpocketing will be lower than those of Ardougne knights, but will provide greater profit per hour.
+
+'''Brimstone Fishing'''
+
+The lava which flows within Brimstone is surprisingly full of life. '''Infernal eels''' may be fished from the lava by players with Level 80 Fishing, providing they have an Oily Rod and are using Ice Gloves.
+
+As the Infernal eels are pulled from the lava they are cooled by your ice gloves and harden. They can be cracked open using a hammer to free up inventory space, and they'll provide a slim chance of receiving an onyx bolt tip, lava scale or maybe even some Tokkul.
+
+Fishing Infernal eels in Brimstone would provide '''roughly 35,000 Fishing experience per hour'''.
+
+'''Kahlith Monsters & Armours'''
+
+You'll also find yourself surrounded by attackable Kahlith. Found all throughout the village, the Kahlith are weak to elemental water spells. They can be killed for a chance at some interesting new gear: Kahlith armour.
+
+Kahlith armour is a rare drop from various Kahlith citizens. Each piece requires level 60 Defence to equip and offers some interesting offensive stats and effects.
+
+[[File:Dev Blog- Brimstone & The Inferno (2).png|centre]]
+
+When the full Kahlith armour set is equipped (helmet, platebody, platelegs), Obsidian weaponry is given a +10% boost in melee accuracy and melee strength.
+
+{{Horizontal Line}}
+
+
+<center><font style="font-family:Trajan,'trajan-pro-3',serif;font-size:22px;font-weight:bold;text-shadow:1px 1px #121212;">The Inferno</font></center>
+
+The Inferno is a wave-based PvM challenge found at the core of the volcano village of Brimstone. Only the most skilled adventurers will stand a chance of making it to the final wave, and even fewer will survive their encounter with '''TzKal-Zuk'''.
+
+The Kahlith insist that outsiders must prove their strength before taking on the challenge of The Inferno. You must make a '''one-time sacrifice''' of a Fire Cape in order to convince the Kahlith you're worthy.
+
+The Inferno will put you up against many new Kahlith enemies and will be a brutal test of skill. Mistakes will not be forgiven - so play carefully.
+
+[[File:Dev Blog- Brimstone & The Inferno (3).png|thumb|centre|575px|<center>A Kahlith form of TzTok-Jad.</center>]]
+
+If you succeed within The Inferno, you'll truly earn the respect of the Kahlith and will be rewarded with an '''Infernal Cape'''. This cape offers some fantastic stats, greater than that offered by the Fire Cape.
+
+[[File:Dev Blog- Brimstone & The Inferno (4).png|centre]]
+
+'''Infernal Cape Design'''
+
+In late 2016, Mod Ghost was working with the community to find a design which truly belongs in Old School. If The Inferno makes it past a poll, we'll resume the discussion with the community to ensure that the final design is the right design.
+
+{{Horizontal Line}}
+
+
+<center><font style="font-family:Trajan,'trajan-pro-3',serif;font-size:22px;font-weight:bold;text-shadow:1px 1px #121212;">Poll Questions</font></center>
+
+'''Question''': Should Brimstone and The Inferno be added to Old School RuneScape? The Inferno is an activity similar to the Fight Cave, but much more challenging. Brimstone is the village surrounding it.
+
+'''Question''': Should the Infernal Cape, a new best-in-slot melee cape, be given as a reward for completing The Inferno? [[File:Dev Blog- Brimstone & The Inferno (5).png|[Attached Image]]]
+
+'''Question''': If Brimstone & The Inferno are added to Old School RuneScape, should the Kahlith armour set be dropped by monsters found around Brimstone? [[File:Dev Blog- Brimstone & The Inferno (6).png|[Attached Image]]]
+
+'''Question''': If Brimstone & The Inferno are added to Old School RuneScape, should it be possible to fish lava eels within Brimstone? Fishing lava eels would provide roughly 35,000 Fishing experience per hour, requiring level 80 Fishing, an oily rod and ice gloves.
+
+'''Question''': If Brimstone & The Inferno are added to Old School RuneScape, should it be possible to pickpocket inhabitants of Brimstone if you have a Thieving level of 90? This form of pickpocketing would be less experience than Ardougne Knights, but would provide more profit.
+
+{{Horizontal Line}}
+
+Brimstone & The Inferno will be polled later on in March. We're still very much open to feedback, and we want to hear what you have to say!
+
+Discuss this blog on our [http://services.runescape.com/m=forum/forums.ws?380,381,370,65891449 forums].
+
+'''''Mods Archie, Ash, Ghost, Jed, John C, Kieren, Mat K, Maz, Merchant, Ronan, Roq, TomH, Weath, West & Wolf'''''<br/>''The Old School Team''

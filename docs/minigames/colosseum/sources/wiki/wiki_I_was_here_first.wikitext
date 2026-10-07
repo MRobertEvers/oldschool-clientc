@@ -1,0 +1,22 @@
+{{Infobox Combat Achievement
+|name = I was here first!
+|image = [[File:Jaguar warrior.png|100px]]
+|release = [[17 April]] [[2024]]
+|update = Undead Pirates Tweaks, Varlamore CAs & More
+|members = Yes
+|description = Kill a Jaguar Warrior using a Claw-type weapon special attack.
+|tier = Elite
+|monster = Fortis Colosseum
+|type = Mechanical
+|id = 548
+|leagueRegion = Varlamore
+}}
+'''I was here first!''' is an [[Combat Achievements/Elite|elite combat achievement]] which requires the player to kill a [[jaguar warrior]] using a [[Claws|claw-type]] weapon [[special attack]].
+
+==Strategy==
+Suitable weapons for this include the [[rune claws]], [[burning claws]], and [[dragon claws]], however the latter is much more consistent and harder-hitting. Make sure to have [[Protect from Melee]] enabled to prevent the jaguar warrior from damaging the player.
+
+==Other tasks==
+{{Combat Achievements list|Fortis Colosseum}}
+
+{{Combat Achievements}}

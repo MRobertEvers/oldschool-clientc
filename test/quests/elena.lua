@@ -18,6 +18,10 @@ return {
         "::give bucket_milk 1",
         "::give chocolate_dust 1",
         "::give snape_grass 1",
+        -- Ardougne Teleport's own prerequisites, for the reward check at the end (magic_spells.dbrow)
+        "::setlevel magic 51",
+        "::give lawrune 4",
+        "::give waterrune 4",
     },
 
     run = function(t)
@@ -55,6 +59,13 @@ return {
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
 
         -- talkToEdmond
+        -- First placement obeys the door rule: the only walk from Lumbridge to Ardougne opens the members' gate
+        -- membergater 2933,3320 (goto_table: NEEDS-DOOR). Land on the open ground south of it, cross it by its
+        -- verb graded on the tiles, then travel overland to Edmond's garden.
+        t.exec("goto-memberGate", t.player.goto_tile, 2933, 3318, 0)
+        t.exec("talkToEdmond.memberGate", t.player.cross_gate, { loc = "membergater", at = { 2933, 3320, 0 },
+            near = { 2933, 3318 }, far_ok = function(tile) return tile.z >= 3320 and math.abs(tile.x - 2933) <= 2 end,
+            far_desc = "north of the members' gate, z >= 3320", far = { 2933, 3322 } })
         t.exec("goto-talkToEdmond", t.player.goto_tile, 2568, 3332, 0)
         t.exec("talkToEdmond", t.player.talk_to, "edmond", 1)
         t.exec("talkToEdmond-dialog", t.chat.play, {
@@ -67,8 +78,22 @@ return {
         t.ticks(2)
         t.expect("quest.stage.started", t.quest.expect_stage("started"))
 
+        -- Edmond and Alrena's house (maps/m40_52.jl2) is walled rooms off the garden: the kitchen
+        -- (x 2571-2573, z 3331-3335) behind poordoor 2570,3333 (east edge of the garden tile), and
+        -- the east room (x 2574-2579) behind poordoor 2574,3333 (west edge of its tile). Every visit
+        -- goes through the door, in and out, pressed when it is shut and walked through when it
+        -- still stands open (doors.loc: poordoor <-> poordooropen, reverts after 500 ticks).
+        local function kitchen_in(name)
+            t.exec(name, t.player.pass_door, { closed = "poordoor", open = "poordooropen",
+                at = { 2570, 3333, 0 }, near = { 2570, 3333 }, far = { 2572, 3333 } })
+        end
+        local function kitchen_out(name)
+            t.exec(name, t.player.pass_door, { closed = "poordoor", open = "poordooropen",
+                at = { 2570, 3333, 0 }, near = { 2571, 3333 }, far = { 2569, 3333 } })
+        end
+
         -- talkToAlrena (the dwellberries are brought along)
-        t.exec("goto-talkToAlrena", t.player.goto_tile, 2572, 3333, 0)
+        kitchen_in("talkToAlrena.kitchenDoorIn")
         t.exec("talkToAlrena", t.player.talk_to, "alrena", 1)
         t.exec("talkToAlrena-dialog", t.chat.play, {
             "player:Hello, Edmond has asked me", "npc:Yes he told me", "player:Yes I've got some here", "*",
@@ -81,12 +106,15 @@ return {
         t.exec("berries.gone", t.inv.expect_absent, "dwellberries")
 
         -- grabPictureOfElena
-        t.exec("goto-grabPictureOfElena", t.player.goto_tile, 2575, 3333, 0)
+        t.exec("grabPictureOfElena.eastDoorIn", t.player.pass_door, { closed = "poordoor", open = "poordooropen",
+            at = { 2574, 3333, 0 }, near = { 2573, 3333 }, far = { 2575, 3333 } })
         t.exec("grabPictureOfElena", t.player.click_obj, "elena_picture", 3)
         t.exec("grabPictureOfElena.in-pack", t.inv.await, "elena_picture", 1, 10)
 
-        -- talkToEdmondAgain
-        t.exec("goto-talkToEdmondAgain", t.player.goto_tile, 2568, 3332, 0)
+        -- talkToEdmondAgain: back through both doors to the garden
+        t.exec("talkToEdmondAgain.eastDoorOut", t.player.pass_door, { closed = "poordoor", open = "poordooropen",
+            at = { 2574, 3333, 0 }, near = { 2574, 3333 }, far = { 2573, 3333 } })
+        kitchen_out("talkToEdmondAgain.kitchenDoorOut")
         t.exec("talkToEdmondAgain", t.player.talk_to, "edmond", 1)
         t.exec("talkToEdmondAgain-dialog", t.chat.play, {
             "player:Hi Edmond, I've got the gas mask now", "npc:Good stuff, now for the digging", "npc:The problem is the soil",
@@ -95,7 +123,7 @@ return {
         t.expect("quest.stage.started_mud_patch", t.quest.expect_stage("started_mud_patch"))
 
         -- gather the spade and the empty bucket (both spawn in the garden)
-        t.exec("goto-takeSpade", t.player.goto_tile, 2565, 3331, 0)
+        t.exec("walk-takeSpade", t.player.walk_route, { { 2565, 3331 } }, { max_hop = 20 })
         t.exec("takeSpade", t.player.click_obj, "spade", 3)
         t.exec("takeSpade.in-pack", t.inv.await, "spade", 1, 10)
         t.exec("takeBucket", t.player.click_obj, "bucket_empty", 3)
@@ -104,11 +132,11 @@ return {
         -- useWaterOnMudPatch1..4: fill the one bucket at Edmond's sink, pour it, repeat
         local stage_after = { "mud_patch1", "mud_patch2", "mud_patch3", "mud_patch4" }
         for i = 1, 4 do
-            t.exec("goto-fillBucket" .. i, t.player.goto_tile, 2572, 3333, 0)
+            kitchen_in("fillBucket" .. i .. ".kitchenDoorIn")
             local sink = t.player.by_symbol("loc", "sink2")
             t.exec("fillBucket" .. i, t.player.use_on, "bucket_empty", sink)
             t.exec("fillBucket" .. i .. ".in-pack", t.inv.await, "bucket_water", 1, 10)
-            t.exec("goto-useWaterOnMudPatch" .. i, t.player.goto_tile, 2568, 3331, 0)
+            kitchen_out("useWaterOnMudPatch" .. i .. ".kitchenDoorOut")
             local patch = t.player.by_symbol("loc", "plaguemudpatch1")
             t.exec("useWaterOnMudPatch" .. i, t.player.use_on, "bucket_water", patch)
             t.exec("useWaterOnMudPatch" .. i .. "-dialog", t.chat.play, { "*" })
@@ -144,7 +172,7 @@ return {
         t.exec("attemptToPullGrill-dialog", t.chat.play, { "*" })
 
         -- Edmond followed you down; he says to fetch rope
-        t.exec("goto-edmondSewer", t.player.goto_tile, 2517, 9753, 0)
+        t.exec("walk-edmondSewer", t.player.walk_route, { { 2517, 9753 } }, { max_hop = 20 })
         t.exec("talkToEdmondSewer", t.player.talk_to, "edmond_bottom", 1)
         t.exec("talkToEdmondSewer-dialog", t.chat.play, { "player:", "npc:If you get some rope" })
 
@@ -154,9 +182,10 @@ return {
         t.exec("useRopeOnGrill-dialog", t.chat.play, { "*" })
         t.ticks(1)
         t.expect("quest.stage.tied_rope", t.quest.expect_stage("tied_rope"))
+        t.exec("useRopeOnGrill.rope-gone", t.inv.expect_absent, "rope")
 
         -- talkToEdmondUnderground
-        t.exec("goto-talkToEdmondUnderground", t.player.goto_tile, 2517, 9753, 0)
+        t.exec("walk-talkToEdmondUnderground", t.player.walk_route, { { 2517, 9753 } }, { max_hop = 20 })
         t.exec("talkToEdmondUnderground", t.player.talk_to, "edmond_bottom", 1)
         t.exec("talkToEdmondUnderground-dialog", t.chat.play, {
             "player:I've tied", "*", "npc:That's done the job", "npc:Remember to always wear",
@@ -175,7 +204,7 @@ return {
         t.check("climbThroughPipe.landing", west_tile ~= nil and west_tile.z < 4000, "emerged in West Ardougne at " .. tostring(west_tile and west_tile.x) .. "," .. tostring(west_tile and west_tile.z))
 
         -- talkToJethick
-        t.exec("goto-talkToJethick", t.player.goto_tile, 2540, 3303, 0)
+        t.exec("walk-talkToJethick", t.player.walk_route, { { 2540, 3303 } }, { max_hop = 20 })
         t.exec("talkToJethick", t.player.talk_to, "jethick", 1)
         t.exec("talkToJethick-dialog", t.chat.play, {
             "npc:Hello, I don't recognise you", "options", "choose:I'm looking for a woman from East Ardougne.",
@@ -187,15 +216,20 @@ return {
         t.expect("quest.stage.shown_picture", t.quest.expect_stage("shown_picture"))
         t.exec("talkToJethick.book", t.inv.await, "turnip_book", 1, 10)
 
-        -- enterMarthasHouse
+        -- West Ardougne's houses use walk-through doors (area_ardougne_west/scripts/doors.rs2
+        -- [proc,west_ardy_walk_door]: the press telejumps the player across, no opened leaf stays),
+        -- so each crossing is cross_gate graded on the tiles either side.
+        -- enterMarthasHouse: rehnisondoorshut 2531,3328 (north edge of its tile; the house is z >= 3329).
+        -- Ted speaks first (quest_elena doors.rs2 [label,rehnissons_enter_house]), then lets you in.
         t.exec("goto-enterMarthasHouse", t.player.goto_tile, 2531, 3326, 0)
         t.ticks(2)
-        t.exec("enterMarthasHouse", t.player.click_loc, "rehnisondoorshut", 1)
-        t.ticks(6)
-        t.exec("enterMarthasHouse-dialog", t.chat.play, {
-            "npc:Go away. We don't want any", "player:I'm a friend of Jethick", "npc:Oh... Why didn't you say", "*",
-            "npc:Thanks, I've been missing that",
-        })
+        t.exec("enterMarthasHouse", t.player.cross_gate, { loc = "rehnisondoorshut", at = { 2531, 3328, 0 },
+            near = { 2531, 3328 }, far_ok = function(tile) return tile.z >= 3329 end,
+            far_desc = "inside the Rehnisons' house, z >= 3329",
+            chat = {
+                "npc:Go away. We don't want any", "player:I'm a friend of Jethick", "npc:Oh... Why didn't you say", "*",
+                "npc:Thanks, I've been missing that",
+            } })
         t.ticks(3)
         t.expect("quest.stage.returned_book", t.quest.expect_stage("returned_book"))
         t.exec("enterMarthasHouse.book-gone", t.inv.expect_absent, "turnip_book")
@@ -208,11 +242,9 @@ return {
         t.ticks(2)
         t.expect("quest.stage.spoken_martha_ted", t.quest.expect_stage("spoken_martha_ted"))
 
-        -- goUpstairsInMarthasHouse, talkToMilli
-        t.exec("goUpstairsInMarthasHouse", t.player.click_loc, "rehnisonstairs", 1)
-        t.ticks(3)
-        local _, up_tile = t.world.tile()
-        t.check("goUpstairsInMarthasHouse.level", up_tile ~= nil and up_tile.level == 1, "upstairs at " .. tostring(up_tile and up_tile.x) .. "," .. tostring(up_tile and up_tile.z) .. " level " .. tostring(up_tile and up_tile.level))
+        -- goUpstairsInMarthasHouse, talkToMilli (rehnisons.rs2: rehnisonstairs telejumps to 2527,3331,1)
+        t.exec("goUpstairsInMarthasHouse", t.player.climb, { loc = "rehnisonstairs", op_name = "Walk-up",
+            at = { 2527, 3332, 0 }, dest = { 2527, 3331, 1 } })
         t.exec("talkToMilli", t.player.talk_to, "milli", 1)
         t.exec("talkToMilli-dialog", t.chat.play, {
             "player:Hello", "npc:*sniff*", "npc:I was about to run", "player:Which building?", "npc:It was the mossy windowless",
@@ -220,10 +252,17 @@ return {
         t.ticks(2)
         t.expect("quest.stage.spoke_to_milli", t.quest.expect_stage("spoke_to_milli"))
 
-        -- tryToEnterPlagueHouse
+        -- down the stairs (rehnisonstairstop telejumps to 2527,3331,0) and out of the Rehnisons' door
+        t.exec("tryToEnterPlagueHouse.stairsDown", t.player.climb, { loc = "rehnisonstairstop", op_name = "Walk-down",
+            at = { 2527, 3332, 1 }, dest = { 2527, 3331, 0 } })
+        t.exec("tryToEnterPlagueHouse.rehnisonDoorOut", t.player.cross_gate, { loc = "rehnisondoorshut",
+            at = { 2531, 3328, 0 }, near = { 2531, 3329 }, far_ok = function(tile) return tile.z <= 3328 end,
+            far_desc = "out in the street, z <= 3328" })
+
+        -- tryToEnterPlagueHouse: plagueelenadoorshut 2540,3273 (south edge; the house is z <= 3272)
         t.exec("goto-tryToEnterPlagueHouse", t.player.goto_tile, 2540, 3274, 0)
         t.ticks(2)
-        t.exec("tryToEnterPlagueHouse", t.player.click_loc, "plagueelenadoorshut", 1)
+        t.exec("tryToEnterPlagueHouse", t.player.click_loc, "plagueelenadoorshut", 1, { at = { 2540, 3273, 0 } })
         t.exec("tryToEnterPlagueHouse-dialog", t.chat.play, {
             "*", "npc:I'd stand away from there", "options",
             "choose:But I think a kidnap victim is in here.", "player:But I think", "npc:Sounds unlikely",
@@ -233,9 +272,15 @@ return {
         })
         t.ticks(2)
         t.expect("quest.stage.spoke_to_plague_house", t.quest.expect_stage("spoke_to_plague_house"))
+        local _, refused_tile = t.world.tile()
+        t.check("tryToEnterPlagueHouse.stillOutside", refused_tile ~= nil and refused_tile.z >= 3273,
+            "the black-cross door did not let the player in: at " .. tostring(refused_tile and refused_tile.x) .. "," .. tostring(refused_tile and refused_tile.z))
 
-        -- talkToClerk
-        t.exec("goto-talkToClerk", t.player.goto_tile, 2529, 3317, 0)
+        -- talkToClerk: the Civic Office (maps/m39_51.jl2) is entered by the double door
+        -- w_ardougnedoubledoorl/r 2525-2526,3311 (north edge; the hall is z >= 3312)
+        t.exec("goto-talkToClerk", t.player.goto_tile, 2526, 3309, 0)
+        t.exec("talkToClerk.civicDoorIn", t.player.pass_door, { closed = "w_ardougnedoubledoorr",
+            open = "w_ardougnedoubledoorropen", at = { 2526, 3311, 0 }, near = { 2526, 3311 }, far = { 2526, 3313 } })
         t.exec("talkToClerk", t.player.talk_to, "clerk", 1)
         t.exec("talkToClerk-dialog", t.chat.play, {
             "npc:Hello, welcome to the Civic Office", "options", "choose:I need permission to enter a plague house.",
@@ -245,8 +290,11 @@ return {
         t.ticks(2)
         t.expect("quest.stage.spoke_to_clerk", t.quest.expect_stage("spoke_to_clerk"))
 
-        -- talkToBravek
-        t.exec("goto-talkToBravek", t.player.goto_tile, 2534, 3314, 0)
+        -- talkToBravek: bravekdoorshut 2530,3314 (west edge; his room is x 2530-2539), a walk-through
+        -- door once the clerk has sent you (area_ardougne_west doors.rs2 [oploc1,bravekdoorshut])
+        t.exec("talkToBravek.doorIn", t.player.cross_gate, { loc = "bravekdoorshut", at = { 2530, 3314, 0 },
+            near = { 2529, 3314 }, far_ok = function(tile) return tile.x >= 2530 end,
+            far_desc = "in Bravek's room, x >= 2530" })
         t.exec("talkToBravek", t.player.talk_to, "bravek", 1)
         t.exec("talkToBravek-dialog", t.chat.play, {
             "npc:My head hurts", "options", "choose:This is really important though!", "player:This is really important",
@@ -261,8 +309,11 @@ return {
         -- useDustOnMilk, useSnapeGrassOnChocolateMilk
         t.exec("useDustOnMilk", t.player.use_item_on_item, "chocolate_dust", "bucket_milk")
         t.exec("useDustOnMilk.in-pack", t.inv.await, "chocolaty_milk", 1, 10)
+        t.exec("useDustOnMilk.dust-gone", t.inv.expect_absent, "chocolate_dust")
+        t.exec("useDustOnMilk.milk-gone", t.inv.expect_absent, "bucket_milk")
         t.exec("useSnapeGrassOnChocolateMilk", t.player.use_item_on_item, "snape_grass", "chocolaty_milk")
         t.exec("useSnapeGrassOnChocolateMilk.in-pack", t.inv.await, "hangover_cure", 1, 10)
+        t.exec("useSnapeGrassOnChocolateMilk.grass-gone", t.inv.expect_absent, "snape_grass")
 
         -- giveHangoverCureToBravek
         local bravek = t.player.by_symbol("npc", "bravek")
@@ -277,41 +328,64 @@ return {
         t.exec("giveHangoverCureToBravek.warrant", t.inv.await, "warrant", 1, 10)
         t.exec("giveHangoverCureToBravek.cure-gone", t.inv.expect_absent, "hangover_cure")
 
-        -- tryToEnterPlagueHouseAgain (with the warrant)
-        t.exec("goto-tryToEnterPlagueHouseAgain", t.player.goto_tile, 2540, 3274, 0)
+        -- tryToEnterPlagueHouseAgain (with the warrant): out of Bravek's room and the Civic Office first
+        t.exec("tryToEnterPlagueHouseAgain.bravekDoorOut", t.player.cross_gate, { loc = "bravekdoorshut",
+            at = { 2530, 3314, 0 }, near = { 2530, 3314 }, far_ok = function(tile) return tile.x <= 2529 end,
+            far_desc = "back in the Civic Office hall, x <= 2529" })
+        t.exec("tryToEnterPlagueHouseAgain.civicDoorOut", t.player.pass_door, { closed = "w_ardougnedoubledoorr",
+            open = "w_ardougnedoubledoorropen", at = { 2526, 3311, 0 }, near = { 2526, 3312 }, far = { 2526, 3310 } })
+        t.exec("goto-tryToEnterPlagueHouseAgain", t.player.goto_tile, 2540, 3275, 0)
         t.ticks(2)
-        t.exec("tryToEnterPlagueHouseAgain", t.player.click_loc, "plagueelenadoorshut", 1)
-        t.exec("tryToEnterPlagueHouseAgain-dialog", t.chat.play, {
-            "npc:I'd stand away", "player:I have a warrant", "npc:This is highly irregular", "*",
-        })
-        t.ticks(3)
-        local _, inside_tile = t.world.tile()
-        t.check("tryToEnterPlagueHouseAgain.inside", inside_tile ~= nil and inside_tile.z <= 3272, "inside the plague house at " .. tostring(inside_tile and inside_tile.x) .. "," .. tostring(inside_tile and inside_tile.z))
+        -- the mourner reads the warrant, then ~west_ardy_walk_door carries you in (quest_elena doors.rs2)
+        t.exec("tryToEnterPlagueHouseAgain", t.player.cross_gate, { loc = "plagueelenadoorshut",
+            at = { 2540, 3273, 0 }, near = { 2540, 3274 }, far_ok = function(tile) return tile.z <= 3272 end,
+            far_desc = "inside the plague house, z <= 3272",
+            chat = { "npc:I'd stand away", "player:I have a warrant", "npc:This is highly irregular", "*" } })
+        t.ticks(2)
+
+        -- The plague house's spooky stairs telejump on level 0 between the house and its basement frame
+        -- (plaguehouse.rs2: down -> 2537,9670; up -> 2536,3271): one floor in the map's terms, so a
+        -- cross_trap from the approach tile to the landing tile (climb is for a level change).
+        local function stairs_down(name)
+            t.exec(name .. ".approach", t.player.walk_route, { { 2536, 3271 } }, { max_hop = 20 })
+            t.exec(name, t.player.cross_trap, { loc = "plaguehousestairsdown", op_name = "Walk-down",
+                at = { 2536, 3268, 0 }, src = { 2536, 3271 }, dest = { 2537, 9670 }, attempts = 1 })
+        end
+        local function stairs_up(name)
+            t.exec(name .. ".approach", t.player.walk_route, { { 2537, 9670 } }, { max_hop = 20 })
+            t.exec(name, t.player.cross_trap, { loc = "plaguehousestairsup", op_name = "Walk-up",
+                at = { 2536, 9671, 0 }, src = { 2537, 9670 }, dest = { 2536, 3271 }, attempts = 1 })
+        end
+        -- Elena's cell door elenagateshut 2539,9672 (east edge; the cell is x >= 2540)
+        local function cell_tile_text()
+            local _, tile = t.world.tile()
+            return tile, tostring(tile and tile.x) .. "," .. tostring(tile and tile.z) .. "," .. tostring(tile and tile.level)
+        end
 
         -- goDownstairsInPlagueHouse without the key: Elena's cell is locked
-        t.exec("goDownstairsInPlagueHouse", t.player.click_loc, "plaguehousestairsdown", 1)
-        t.ticks(3)
-        local _, base_tile = t.world.tile()
-        t.check("goDownstairsInPlagueHouse.level", base_tile ~= nil and base_tile.z > 9000, "basement at " .. tostring(base_tile and base_tile.x) .. "," .. tostring(base_tile and base_tile.z))
+        stairs_down("goDownstairsInPlagueHouse")
+        t.exec("walk-tryLockedCell", t.player.walk_route, { { 2539, 9672 } }, { max_hop = 20 })
         t.exec("tryLockedCell", t.player.click_loc, "elenagateshut", 1)
         t.exec("tryLockedCell-dialog", t.chat.play, {
             "*", "npc:Hey get me out of here", "player:I would do but I don't have a key", "npc:I think there may be one",
             "options", "choose:Okay, I'll look for it.", "player:Okay, I'll look for it.",
         })
+        local locked_tile, locked_text = cell_tile_text()
+        t.check("tryLockedCell.stillOutside", locked_tile ~= nil and locked_tile.x <= 2539 and locked_tile.z > 9000,
+            "the locked cell door kept the player outside the cell: at " .. locked_text)
 
         -- goUpstairsInPlagueHouse, searchBarrel
-        t.exec("goUpstairsInPlagueHouse", t.player.click_loc, "plaguehousestairsup", 1)
-        t.ticks(3)
+        stairs_up("goUpstairsInPlagueHouse")
         t.exec("searchBarrel", t.player.click_loc, "plaguekeybarrel", 1)
         t.exec("searchBarrel-dialog", t.chat.play, { "*" })
         t.exec("searchBarrel.key", t.inv.await, "elenakey", 1, 10)
 
         -- goDownstairsInPlagueHouse (with the key), open the cell, talkToElena
-        t.exec("goDownstairsInPlagueHouse.key", t.player.click_loc, "plaguehousestairsdown", 1)
-        t.ticks(3)
-        t.exec("unlockCell", t.player.click_loc, "elenagateshut", 1)
-        t.exec("unlockCell-dialog", t.chat.play, { "*" })
-        t.ticks(3)
+        stairs_down("goDownstairsInPlagueHouse.key")
+        t.exec("unlockCell", t.player.cross_gate, { loc = "elenagateshut", at = { 2539, 9672, 0 },
+            near = { 2539, 9672 }, far_ok = function(tile) return tile.x >= 2540 and tile.z > 9000 end,
+            far_desc = "inside Elena's cell, x >= 2540", chat = { "*" } })
+        t.ticks(2)
         t.exec("talkToElena", t.player.talk_to, "elenap", 1)
         t.exec("talkToElena-dialog", t.chat.play, {
             "player:Hi, you're free to go", "npc:Thank you", "player:Well you can leave", "npc:Go and see my father",
@@ -319,13 +393,14 @@ return {
         t.ticks(2)
         t.expect("quest.stage.freed_elena", t.quest.expect_stage("freed_elena"))
 
-        -- goUpstairsInPlagueHouseToFinish (walk back out of the cell first), out of the door
-        t.exec("leaveCell", t.player.click_loc, "elenagateshut", 1)
-        t.ticks(3)
-        t.exec("goUpstairsInPlagueHouseToFinish", t.player.click_loc, "plaguehousestairsup", 1)
-        t.ticks(3)
-        t.exec("leavePlagueHouse", t.player.click_loc, "plagueelenadoorshut", 1)
-        t.ticks(3)
+        -- goUpstairsInPlagueHouseToFinish: out of the cell, up the stairs, out of the front door
+        t.exec("leaveCell", t.player.cross_gate, { loc = "elenagateshut", at = { 2539, 9672, 0 },
+            near = { 2540, 9672 }, far_ok = function(tile) return tile.x <= 2539 and tile.z > 9000 end,
+            far_desc = "out of the cell, x <= 2539" })
+        stairs_up("goUpstairsInPlagueHouseToFinish")
+        t.exec("leavePlagueHouse", t.player.cross_gate, { loc = "plagueelenadoorshut", at = { 2540, 3273, 0 },
+            near = { 2540, 3272 }, far_ok = function(tile) return tile.z >= 3273 and tile.z < 4000 end,
+            far_desc = "out in the street, z >= 3273" })
         t.exec("goto-goDownManhole2", t.player.goto_tile, 2529, 3305, 0)
         t.ticks(2)
         t.exec("goDownManhole2", t.player.click_loc, "plaguemanholeclosed", 1)
@@ -355,12 +430,8 @@ return {
         t.check("reward.mining", mining_result == "ok", "mining xp gain 2425 -> " .. tostring(mining_result) .. " " .. tostring(mining_detail))
         t.exec("reward.scroll", t.inv.await, "ardougnescroll", 1, 10)
 
-        -- Ardougne Teleport: the spell's own prerequisites (level 51, 2 law + 2 water runes) are setup cheats,
-        -- the gate is the quest's: refused until the scroll is read, then it teleports
-        t.cheat("::setlevel magic 51")
-        t.cheat("::give lawrune 4")
-        t.cheat("::give waterrune 4")
-        t.ticks(3)
+        -- Ardougne Teleport: the spell's own prerequisites (level 51, 2 law + 2 water runes) are staged in
+        -- setup; the gate is the quest's: refused until the scroll is read, then it teleports
         local unlearned_result, unlearned_detail = t.player.cast("ardougne_teleport")
         t.check("castBeforeScroll", unlearned_result == "refused" and string.find(tostring(unlearned_detail), "learnt", 1, true) ~= nil,
             "cast ardougne_teleport before reading the scroll -> " .. tostring(unlearned_result) .. " " .. tostring(unlearned_detail))
@@ -368,10 +439,9 @@ return {
         t.exec("readArdougneScroll-dialog", t.chat.play, { "*", "*" })
         t.ticks(2)
         t.expect("quest.stage.complete_read_scroll", t.quest.expect_stage("complete_read_scroll"))
-        local cast_result, cast_detail = t.player.cast("ardougne_teleport")
-        local _, cast_tile = t.world.tile()
-        t.check("castArdougneTeleport", cast_result == "ok" and string.find(tostring(cast_detail), "TELEPORTED", 1, true) ~= nil,
-            "cast ardougne_teleport after the scroll -> " .. tostring(cast_result) .. " " .. tostring(cast_detail) .. "; tile " .. tostring(cast_tile and cast_tile.x) .. "," .. tostring(cast_tile and cast_tile.z))
+        -- magic_spells.dbrow [magic_spell_teleport_ardougne]: waterrune 2, lawrune 2; tele_coord 0_41_51_37_37
+        t.player.teleport_cast("ardougne_teleport", { 2661, 3301, 0 }, { name = "castArdougneTeleport",
+            runes = { { "waterrune", 2 }, { "lawrune", 2 } }, where = "Ardougne market" })
 
         t.finish(0)
     end,

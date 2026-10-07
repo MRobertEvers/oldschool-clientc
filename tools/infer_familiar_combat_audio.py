@@ -116,6 +116,8 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
+import config_text
+
 REPO = Path(__file__).resolve().parents[1]
 CONTENT = REPO / "OSRS-Content" / "osrs239-content"
 SOUND_PACK = CONTENT / "pack" / "4_soundeffects.pack"
@@ -246,7 +248,7 @@ def load_seq_archives(scratch: Path) -> dict[int, set[int]]:
         )
     out: dict[int, set[int]] = {}
     current = None
-    for line in path.read_text(encoding="utf-8").splitlines():
+    for line in config_text.read_lines(path, encoding="utf-8"):
         header = re.match(r"^\[seq_(\d+)\]", line)
         if header:
             current = int(header.group(1))

@@ -40,6 +40,8 @@ import re
 import sys
 from pathlib import Path
 
+import config_text
+
 ROOT = Path(__file__).resolve().parent.parent
 TOB = ROOT / "OSRS-Content/osrs239-content/server/scripts/minigames/minigame_tob/configs"
 CACHE_DUMP = ROOT / "docs/minigames/theater_of_blood/sources/cache_npc_nylocas.txt"
@@ -76,7 +78,7 @@ def read_constants():
 
 
 def read_npc_hitpoints():
-    text = (TOB / "tob.npc").read_text()
+    text = config_text.read_text(TOB / "tob.npc")
     out = {}
     for _, block, _, _ in MODES:
         m = re.search(r"^\[%s\]\n(.*?)(?=^\[|\Z)" % re.escape(block), text, re.M | re.S)

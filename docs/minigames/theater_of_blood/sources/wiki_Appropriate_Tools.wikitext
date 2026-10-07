@@ -1,0 +1,21 @@
+{{Infobox Combat Achievement
+|name = Appropriate Tools
+|image = [[File:Pestilent Bloat.png|260px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Defeat the Pestilent Bloat in the Theatre of Blood: Entry Mode with everyone having a salve amulet equipped.
+|tier = Elite
+|monster = Theatre of Blood: Entry Mode
+|type = Mechanical
+|id = 387
+|leagueRegion = Morytania
+}}
+'''Appropriate Tools''' is an [[Combat Achievements/Elite|elite combat achievement]] which requires the player to defeat the [[Pestilent Bloat]] in the [[Theatre of Blood/Entry Mode|Theatre of Blood: Entry Mode]] with everyone having a [[salve amulet]] equipped.
+
+This achievement can be completed with any version of the salve amulet.
+
+==Other tasks==
+{{Combat Achievements list|Theatre of Blood: Entry Mode}}
+
+{{Combat Achievements}}

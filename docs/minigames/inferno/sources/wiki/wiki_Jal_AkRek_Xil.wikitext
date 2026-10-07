@@ -1,0 +1,55 @@
+{{Infobox Monster
+|name = Jal-AkRek-Xil
+|image = [[File:Jal-AkRek-Xil.png|250px]]
+|release = [[1 June]] [[2017]]
+|update = The Inferno
+|members = Yes
+|combat = 70
+|size = 1
+|examine = It might be smaller, but I still don't want to be near that thing.
+|xpbonus = 0
+|max hit = 18
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Ranged]]
+|attack speed = 4
+|slayxp = 15
+|cat = TzHaar
+|assignedby = chaeldar,nieve,duradel
+|hitpoints = 15
+|att = 1
+|str = 1
+|def = 95
+|mage = 1
+|range = 120
+|attbns = 0
+|strbns = 0
+|amagic = 0
+|mbns = 0
+|arange = 25
+|rngbns = 25
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|dlight = 25
+|dstandard = 25
+|dheavy = 25
+|elementalweaknesstype = Water
+|elementalweaknesspercent = 40
+|poisonresistance = 0
+|venomresistance = 100
+|id = 7695
+}}
+'''Jal-AkRek-Xil''' is a [[volcanic creature]] encountered in the [[Inferno]]. It appears when a [[Jal-Ak]] has been killed, alongside a [[Jal-AkRek-Mej]] and [[Jal-AkRek-Ket]]. They have an attack distance of 15 tiles.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = Jal-AkRek-Xil now have a 40% [[elemental weakness]] to [[water spells]].
+}}
+{{Subject changes footer}}
+
+{{Inferno}}

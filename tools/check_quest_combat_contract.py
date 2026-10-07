@@ -10,6 +10,8 @@ import re
 import sys
 from pathlib import Path
 
+import config_text
+
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTENT = ROOT / "OSRS-Content/osrs239-content/server/scripts"
@@ -122,6 +124,17 @@ EYEGLO_NPC = CONTENT / "quests/quest_theeyesofglouphrie/configs/eyeglo.npc"
 EYEGLO_QUEST = CONTENT / "quests/quest_theeyesofglouphrie/scripts/eyeglo_quest.rs2"
 SWANSONG_NPC = CONTENT / "quests/quest_swansong/configs/swansong.npc"
 DREAMMENTOR_NPC = CONTENT / "quests/quest_dreammentor/configs/dreammentor.npc"
+SHADOWSTORM_NPC = CONTENT / "quests/quest_shadowstorm/configs/shadowstorm.npc"
+SHADOWSTORM_CONSTANT = CONTENT / "quests/quest_shadowstorm/configs/shadowstorm.constant"
+SHADOWSTORM_RITUAL = CONTENT / "quests/quest_shadowstorm/scripts/shadowstorm_ritual.rs2"
+BETWEENAROCK_NPC = CONTENT / "quests/quest_betweenarock/configs/betweenarock.npc"
+BETWEENAROCK_REALM = CONTENT / "quests/quest_betweenarock/scripts/betweenarock_realm.rs2"
+RUMDEAL_NPC = CONTENT / "quests/quest_rumdeal/configs/rumdeal.npc"
+RUMDEAL_COMBAT = CONTENT / "quests/quest_rumdeal/scripts/deal_combat.rs2"
+RUMDEAL_CONSTANT = CONTENT / "quests/quest_rumdeal/configs/rumdeal.constant"
+WANTED_NPC = CONTENT / "quests/quest_wanted/configs/wanted.npc"
+WANTED_HUNT = CONTENT / "quests/quest_wanted/scripts/wanted_hunt.rs2"
+SCORPION_STATS_NPC = CONTENT / "npc/configs/combat_stats.generated.npc"
 DREAMMENTOR_DREAM = CONTENT / "quests/quest_dreammentor/scripts/dreammentor_dream.rs2"
 ASCENT_NPC = CONTENT / "quests/quest_ascentofarceuus/configs/ascentofarceuus.npc"
 ASCENT_LOCS = CONTENT / "quests/quest_ascentofarceuus/scripts/ascentofarceuus_locs.rs2"
@@ -688,7 +701,7 @@ def check_delrith() -> None:
     require("~p_choice4(" not in script, "Delrith: fixed whole-chant menu restored")
     require("Zaree" not in script, "Delrith: non-incantation word restored")
 
-    npc = DELRITH_NPC.read_text()
+    npc = config_text.read_text(DELRITH_NPC)
     require_text(
         npc,
         ("[delrith]", "hitpoints=7", "param=attackrate,6", "param=damagetype,2", "[delrith_weakened]"),
@@ -696,7 +709,7 @@ def check_delrith() -> None:
     )
     require(npc.count("param=death_drop,null") == 2, "Delrith NPC config: both forms must have null drops")
 
-    varp = DELRITH_VARP.read_text()
+    varp = config_text.read_text(DELRITH_VARP)
     require_text(
         varp,
         (
@@ -828,7 +841,7 @@ def check_witches_experiment() -> None:
     require("npc_add(^ball_experiment_spawn_coord, shapeshifterwolf" not in script,
             "Witch's experiment: wolf must transform, not respawn")
 
-    npc = WITCH_NPC.read_text()
+    npc = config_text.read_text(WITCH_NPC)
     for form, hp, attack, defence, strength, damage_type in (
         ("shapeshifterglob", 21, 18, 19, 10, 2),
         ("shapeshifterspider", 31, 28, 29, 20, 2),
@@ -850,7 +863,7 @@ def check_witches_experiment() -> None:
         )
     require(npc.count("param=death_drop,null") == 4,
             "Witch's experiment: all four forms must suppress ordinary drops")
-    require_text(WITCH_VARP.read_text(), ("[varp6660_ball_shed_unlocked]", "scope=temp"),
+    require_text(config_text.read_text(WITCH_VARP), ("[varp6660_ball_shed_unlocked]", "scope=temp"),
                  "Witch's House shed lock state")
 
 
@@ -923,7 +936,7 @@ def check_fight_arena() -> None:
         "Fight Arena route",
     )
 
-    npc = ARENA_NPC.read_text()
+    npc = config_text.read_text(ARENA_NPC)
     for name, hp, attack, strength, defence, rate, style in (
         ("arena_ogre", 60, 54, 53, 53, 6, 2),
         ("arena_scorpion", 40, 40, 39, 34, 4, 0),
@@ -1025,7 +1038,7 @@ def check_hazeel_cult() -> None:
     require("obj_add(npc_coord, carnillean_armour" not in alomone,
             "Hazeel Cult: pre-2023 Alomone armour drop restored")
 
-    npc = HAZEEL_NPC.read_text()
+    npc = config_text.read_text(HAZEEL_NPC)
     require_text(
         npc,
         (
@@ -1126,7 +1139,7 @@ def check_grand_tree() -> None:
     require("@black_demon_drop_table" not in demon,
             "The Grand Tree: generic Black demon loot restored")
 
-    npc = GRAND_NPC.read_text()
+    npc = config_text.read_text(GRAND_NPC)
     require_text(
         npc,
         (
@@ -1180,7 +1193,7 @@ def check_grand_tree() -> None:
         ),
         "The Grand Tree TUZO gate",
     )
-    require_text(GRAND_VARP.read_text(), ("[varp6674_grandtree_tuzo_mask]", "scope=temp"),
+    require_text(config_text.read_text(GRAND_VARP), ("[varp6674_grandtree_tuzo_mask]", "scope=temp"),
                  "The Grand Tree TUZO state")
 
     require_text(
@@ -1206,7 +1219,7 @@ def check_grand_tree() -> None:
     )
 
     require_text(
-        COMBAT_PARAM.read_text(),
+        config_text.read_text(COMBAT_PARAM),
         ("[elemental_weakness]", "[elemental_weakness_percent]"),
         "elemental weakness params",
     )
@@ -1281,7 +1294,7 @@ def check_underground_pass() -> None:
         require(actor not in static_actors,
                 f"Underground Pass: public static spawn restored for {actor}")
 
-    npc = UPASS_NPC.read_text()
+    npc = config_text.read_text(UPASS_NPC)
     for actor, hp, attack, strength, defence, damage_type, attack_rate in (
         ("upass_paladin1", 57, 54, 54, 54, 1, 5),
         ("upass_paladin2", 57, 54, 54, 54, 1, 5),
@@ -1421,7 +1434,7 @@ def check_underground_pass() -> None:
 
 
 def check_observatory_quest() -> None:
-    npc = OBS_NPC.read_text()
+    npc = config_text.read_text(OBS_NPC)
     require_text(
         npc,
         (
@@ -1590,7 +1603,7 @@ def check_tourist_trap() -> None:
     require("gosub(npc_death)" not in captain,
             "The Tourist Trap: obsolete double NPC-death dispatch restored")
 
-    npc = TOURIST_NPC.read_text()
+    npc = config_text.read_text(TOURIST_NPC)
     require_text(
         npc,
         (
@@ -1605,7 +1618,7 @@ def check_tourist_trap() -> None:
         "The Tourist Trap captain NPC",
     )
     require_text(
-        TOURIST_VARP.read_text(),
+        config_text.read_text(TOURIST_VARP),
         ("[varp6704_desertrescue_captain_duel]", "scope=temp"),
         "The Tourist Trap duel state",
     )
@@ -1638,7 +1651,7 @@ def check_tourist_trap() -> None:
 
 
 def check_watchtower() -> None:
-    npc = WATCH_NPC.read_text()
+    npc = config_text.read_text(WATCH_NPC)
     require_text(
         npc,
         (
@@ -1703,7 +1716,7 @@ def check_watchtower() -> None:
 
 
 def check_legends_quest() -> None:
-    npc = LEGENDS_NPC.read_text()
+    npc = config_text.read_text(LEGENDS_NPC)
     require_text(
         npc,
         (
@@ -1835,7 +1848,7 @@ def check_legends_quest() -> None:
         "Legends' Quest deep sacred-water source",
     )
 
-    vars_text = LEGENDS_VARS.read_text()
+    vars_text = config_text.read_text(LEGENDS_VARS)
     for spot in range(1, 7):
         require_text(vars_text, (f"[yommi_spot{spot}]", "type=player_uid"),
                      f"Legends' Quest Yommi plot {spot}")
@@ -1864,14 +1877,14 @@ def check_legends_quest() -> None:
     )
 
     require_text(
-        LEGENDS_VARP.read_text(),
+        config_text.read_text(LEGENDS_VARP),
         ("[varp6731_legends_nezikchened_dagger_used]", "[varp6732_legends_nezikchened_holy_water]"),
         "Legends' Quest attempt state",
     )
 
 
 def check_big_chompy() -> None:
-    npc = CHOMPY_NPC.read_text()
+    npc = config_text.read_text(CHOMPY_NPC)
     require_text(
         npc,
         (
@@ -1990,13 +2003,13 @@ def check_big_chompy() -> None:
                  ("[oplocu,swampbubbles]", "[oplocu,swampbubbles_swamp]",
                   "inv_add(inv, filled_ogre_bellow3, 1);"),
                  "Big Chompy Bird Hunting swamp gas")
-    require_text(CHOMPY_VARN.read_text(),
+    require_text(config_text.read_text(CHOMPY_VARN),
                  ("[chompy_baiter]", "type=player_uid", "[chompy_target_toad]", "type=npc_uid"),
                  "Big Chompy Bird Hunting actor state")
 
 
 def check_elemental_workshops() -> None:
-    npc = ELEM1_NPC.read_text()
+    npc = config_text.read_text(ELEM1_NPC)
     require_text(
         npc,
         (
@@ -2118,7 +2131,7 @@ def check_elemental_workshops() -> None:
 
 
 def check_nature_spirit() -> None:
-    npc = NATURE_NPC.read_text()
+    npc = config_text.read_text(NATURE_NPC)
     for ghast in ("ghast_invis", "ghast_vis"):
         block = npc.split(f"[{ghast}]", 1)[1]
         if ghast == "ghast_invis":
@@ -2238,7 +2251,7 @@ def check_nature_spirit() -> None:
 
 
 def check_priest_in_peril() -> None:
-    npc = PIP_NPC.read_text()
+    npc = config_text.read_text(PIP_NPC)
     guardian_block = npc.split("[priestperilguarddog]", 1)[1].split(
         "[priestperilevilmonk1]", 1
     )[0]
@@ -2638,7 +2651,7 @@ def check_tai_bwo_wannai_trio() -> None:
                  ("if ($ore1 = tbwt_jogre_bones)", "@tbwt_jogre_bones_superheat;"),
                  "Tai Bwo Wannai Trio Superheat hook")
 
-    grind = TBWT_GRIND.read_text()
+    grind = config_text.read_text(TBWT_GRIND)
     for source, product in (
         ("tbwt_raw_karambwan", "tbwt_raw_karambwan_paste"),
         ("tbwt_poorly_cooked_karambwan", "tbwt_poisonous_karambwan_paste"),
@@ -2664,7 +2677,7 @@ def check_tai_bwo_wannai_trio() -> None:
         "Tai Bwo Wannai Trio Karambwan cooking",
     )
     require_text(
-        TBWT_COOKING_ROWS.read_text(),
+        config_text.read_text(TBWT_COOKING_ROWS),
         ("data=uncooked,tbwt_raw_karambwanji", "data=cooked,tbwt_cooked_karambwanji",
          "data=experience,100", "data=uncooked,tbwt_raw_karambwan", "data=burnt,tbwt_burnt_karambwan"),
         "Tai Bwo Wannai Trio cooking discovery rows",
@@ -2701,15 +2714,15 @@ def check_tai_bwo_wannai_trio() -> None:
                  ('"tamayus_spear_stall__1": []', '"tiadeches_karambwan_stall": []',
                   "QUEST_GATED_OWNER_OVERRIDES.get(shop_key, discovered_owners)"),
                  "Tai Bwo Wannai Trio durable shop generation gate")
-    require_text(TBWT_TAMAYU_STOCK.read_text(),
+    require_text(config_text.read_text(TBWT_TAMAYU_STOCK),
                  ("stock1=tbwt_bronze_spear_kp,10,10", "stock6=tbwt_rune_spear_kp,0,100",
                   "stock7=tbwt_cleaning_cloth,10,5"),
                  "Tai Bwo Wannai Trio Tamayu stock")
-    require_text(TBWT_TIADECHE_STOCK.read_text(),
+    require_text(config_text.read_text(TBWT_TIADECHE_STOCK),
                  ("stock1=tbwt_raw_karambwan,10,10", "stock2=tbwt_raw_karambwanji,50,10",
                   "stock3=tbwt_karambwan_vessel,2,100"),
                  "Tai Bwo Wannai Trio Tiadeche stock")
-    require_text(TBWT_NPC.read_text(),
+    require_text(config_text.read_text(TBWT_NPC),
                  ("[tbwt_tamayu_multinpc_house]", "multinpc7=tbwt_tamayu_final"),
                  "Tai Bwo Wannai Trio returned Tamayu form")
 
@@ -2720,7 +2733,7 @@ def check_tai_bwo_wannai_trio() -> None:
     require_text(PLAYER_HIT_FUNNEL.read_text(),
                  ("npc_type = tbwt_beast & ~tbwt_is_kp_spear", "$prepared = 0;"),
                  "Tai Bwo Wannai Trio Shaikahan direct-damage immunity")
-    require_text(TBWT_COMBAT_NPC.read_text(),
+    require_text(config_text.read_text(TBWT_COMBAT_NPC),
                  ("[tbwt_beast]", "hitpoints=100", "attack=80", "strength=80", "defence=25",
                   "param=attackrate,4", "param=damagetype,1", "param=death_drop,tbwt_beast_bones"),
                  "Tai Bwo Wannai Trio Shaikahan combat row")
@@ -2811,7 +2824,7 @@ def check_troll_stronghold() -> None:
         "Troll Stronghold Twig/Berry key and drop contract",
     )
 
-    overlay = TROLL_NPC.read_text()
+    overlay = config_text.read_text(TROLL_NPC)
     require_text(
         overlay,
         (
@@ -2825,7 +2838,7 @@ def check_troll_stronghold() -> None:
         "Troll Stronghold NPC overlays",
     )
     require_text(
-        TBWT_COMBAT_NPC.read_text(),
+        config_text.read_text(TBWT_COMBAT_NPC),
         (
             "[troll_champion]", "hitpoints=120", "attack=60", "strength=120", "defence=50",
             "param=attackrate,8", "[troll_general]", "hitpoints=140",
@@ -2835,7 +2848,7 @@ def check_troll_stronghold() -> None:
         ),
         "Troll Stronghold generated combat rows",
     )
-    require_text(COMBAT_PARAM.read_text(),
+    require_text(config_text.read_text(COMBAT_PARAM),
                  ("[combat_xp_multiplier]", "default=1000"),
                  "Troll Stronghold combat-XP parameter")
     require_text(COMBAT_XP.read_text(),
@@ -2927,7 +2940,7 @@ def check_shades_of_mortton() -> None:
         ),
         "Shades of Mort'ton pyre, XP and private reward contract",
     )
-    pyre_config = MORTTON_PYRE_CONFIG.read_text()
+    pyre_config = config_text.read_text(MORTTON_PYRE_CONFIG)
     for section, level, fire_xp, doses in (
         ("pyre_logs", 5, 505, 2), ("pyre_oak_logs", 20, 700, 2),
         ("pyre_willow_logs", 35, 1000, 3), ("pyre_teak_logs", 40, 1200, 3),
@@ -2943,7 +2956,7 @@ def check_shades_of_mortton() -> None:
                       f"param=pyre_required_doses,{doses}"),
                      f"Shades of Mort'ton {section} pyre row")
 
-    shade_config = MORTTON_SHADE_CONFIG.read_text()
+    shade_config = config_text.read_text(MORTTON_SHADE_CONFIG)
     for section, low, high, low_key, high_key in (
         ("loar_shades", 200, 300, 0, 790),
         ("phrin_shades", 400, 500, 125, 665),
@@ -2996,7 +3009,7 @@ def check_shades_of_mortton() -> None:
         ),
         "Shades of Mort'ton Dampe and wearable coffin contract",
     )
-    require_text(MORTTON_COFFIN_CONFIG.read_text(),
+    require_text(config_text.read_text(MORTTON_COFFIN_CONFIG),
                  ("[mortton_coffin_storage]", "size=28"),
                  "Shades of Mort'ton private coffin storage")
 
@@ -3015,7 +3028,7 @@ def check_shades_of_mortton() -> None:
 
 
 def check_fremennik_trials() -> None:
-    npc = VIKING_NPC.read_text()
+    npc = config_text.read_text(VIKING_NPC)
     for form, hp, attack, strength, defence, speed in (
         ("viking_enemy1", 30, 20, 20, 20, 4),
         ("viking_enemy2", 50, 40, 40, 40, 4),
@@ -3049,13 +3062,14 @@ def check_fremennik_trials() -> None:
     constants = VIKING_CONSTANT.read_text()
     require_text(
         constants,
-        ("^viking_koschei_phase_timeout = 1000", "^viking_draugen_spot_count = 12",
+        ("^viking_koschei_phase_timeout = 1000", "^viking_draugen_spot_count = 4",
+         "^viking_draugen_spot_radius = 20",
          "^viking_draugen_move_delay = 80", "^viking_draugen_lifetime = 1000",
          "^viking_draugen_reveal_range = 3"),
         "The Fremennik Trials encounter constants",
     )
     require_text(
-        VIKING_VARP.read_text(),
+        config_text.read_text(VIKING_VARP),
         ("[varp6757_viking_draugen_spot]", "[varp6756_viking_draugen_active]",
          "[varp6758_viking_koschei_active]", "[varp6759_viking_koschei_phase]"),
         "The Fremennik Trials private encounter state",
@@ -3066,7 +3080,8 @@ def check_fremennik_trials() -> None:
         sigli,
         ("[opheld1,viking_draugen_talisman_uncharged]",
          "distance(coord, $target) <= ^viking_draugen_reveal_range",
-         "npc_add($target, viking_draugen, ^viking_draugen_lifetime);",
+         "npc_add(map_findsquare(coord, 1, 2, ^map_findsquare_lineofwalk), viking_draugen, ^viking_draugen_lifetime);",
+         "map_findsquare($anchor, 0, ^viking_draugen_spot_radius, ^map_findsquare_lineofwalk)",
          "npc_setowner;", "settimer(viking_draugen_move, ^viking_draugen_move_delay);",
          "[timer,viking_draugen_timeout]", "[ai_queue3,viking_draugen]",
          "if (npc_findhero = ^false)", "inv_del(inv, viking_draugen_talisman_uncharged, 1);",
@@ -3076,8 +3091,11 @@ def check_fremennik_trials() -> None:
          "north-east", "north-west", "south-east", "south-west"),
         "The Fremennik Trials Sigli and Draugen controller",
     )
-    require(sigli.count("case ") == 12,
-            "The Fremennik Trials: Draugen must have twelve moving anchors")
+    # LostCity viking_sigil.rs2 [proc,spawn_draugen_butterfly]: four forest
+    # anchors, each searched within radius 20 for the spot.
+    for anchor in ("0_42_55_0_52", "0_42_56_32_32", "0_41_56_32_32", "0_42_57_32_32"):
+        require(f"return({anchor});" in sigli,
+                f"The Fremennik Trials: Draugen anchor {anchor} (LostCity) missing")
 
     thorvald = VIKING_THORVALD.read_text()
     require_text(
@@ -3144,7 +3162,7 @@ def check_fremennik_trials() -> None:
                   "Crumble Undead has no effect on the Draugen."),
                  "The Fremennik Trials Draugen spell exception")
 
-    generated = VIKING_GENERATED_ANIMS.read_text()
+    generated = config_text.read_text(VIKING_GENERATED_ANIMS)
     for actor in ("viking_enemy1", "viking_enemy2", "viking_enemy3", "viking_enemy4",
                   "viking_draugen", "viking_draugen_safe"):
         require(f"[{actor}]" not in generated,
@@ -3174,7 +3192,7 @@ def check_horror_from_the_deep() -> None:
         "Horror from the Deep route and item consumption",
     )
 
-    npc = HORROR_NPC.read_text()
+    npc = config_text.read_text(HORROR_NPC)
     junior_forms = (
         "horror_dagannoth_jr1", "horror_dagannoth_jr2",
         "horror_dagannoth_jr3", "horror_dagannoth_jr4",
@@ -3224,7 +3242,7 @@ def check_horror_from_the_deep() -> None:
         "Horror from the Deep encounter constants",
     )
     require_text(
-        HORROR_VARP.read_text(),
+        config_text.read_text(HORROR_VARP),
         ("[varp6775_horror_boss_active]", "[varp6776_horror_magic_element]", "[varp6777_horror_reward_book]",
          "scope=temp", "scope=perm"),
         "Horror from the Deep private encounter and reward state",
@@ -3299,7 +3317,7 @@ def check_horror_from_the_deep() -> None:
     require_text(PLAYER_LOGOUT.read_text(), ("~horror_on_logout;",),
                  "Horror from the Deep logout cleanup hook")
 
-    generated = HORROR_GENERATED_ANIMS.read_text()
+    generated = config_text.read_text(HORROR_GENERATED_ANIMS)
     for actor in junior_forms + mother_forms:
         require(f"[{actor}]" not in generated,
                 f"Horror from the Deep: authored {actor} must not be duplicated by generated animation config")
@@ -3327,7 +3345,7 @@ def check_monkey_madness_i() -> None:
         "Monkey Madness I disguise, alliance and sigil induction",
     )
 
-    npc = MM1_NPC.read_text()
+    npc = config_text.read_text(MM1_NPC)
     require_text(
         npc,
         ("[mm_demon]", "hitpoints=170", "attack=170", "strength=170",
@@ -3341,7 +3359,7 @@ def check_monkey_madness_i() -> None:
         "Monkey Madness I Jungle Demon exact combat row",
     )
     require_text(
-        MM1_VARP.read_text(),
+        config_text.read_text(MM1_VARP),
         ("[varp6783_mm_demon_active]", "protect=no", "transmit=no", "scope=temp"),
         "Monkey Madness I private encounter state",
     )
@@ -3401,7 +3419,7 @@ def check_monkey_madness_i() -> None:
                  "Monkey Madness I death cleanup hook")
     require_text(PLAYER_LOGOUT.read_text(), ("~mm_demon_on_logout;",),
                  "Monkey Madness I logout cleanup hook")
-    require("[mm_demon]" not in MM1_GENERATED_ANIMS.read_text(),
+    require("[mm_demon]" not in config_text.read_text(MM1_GENERATED_ANIMS),
             "Monkey Madness I: authored Jungle Demon must not be duplicated by generated animation config")
 
 
@@ -3422,7 +3440,7 @@ def check_haunted_mine() -> None:
          "%varb2396_hauntedmine_endcart_fungus = 0;", "Oh dear, the mine cart seems to have sunk.",
          "How useful, it's come right back to where it started.",
          "[proc,hmq_levers_correct]()(boolean)", "[oploc1,hauntedmine_lift_valve]",
-         "inv_total(inv, hauntedmine_lift_key) < 1", "hauntedmine_cheeky_ghost",
+         "[oplocu,hauntedmine_lift_valve]", "last_useitem ! hauntedmine_lift_key", "hauntedmine_cheeky_ghost",
          "settimer(hmq_lift_ghost, ^hmq_lift_race_ticks);", "[timer,hmq_lift_ghost]",
          "%varb2393_hauntedmine_liftpoweredonce = 1;", "cleartimer(hmq_lift_ghost);"),
         "Haunted Mine fungus, cart and valve/lift route",
@@ -3434,7 +3452,7 @@ def check_haunted_mine() -> None:
          "^hmq_crystalroom_min", "^hmq_crystalroom_max"),
         "Haunted Mine encounter coordinates and calibrated race",
     )
-    npc = HMQ_NPC.read_text()
+    npc = config_text.read_text(HMQ_NPC)
     require_text(
         npc,
         ("[hauntedmine_boss_ghost]", "hitpoints=100", "attack=70", "strength=70",
@@ -3447,7 +3465,7 @@ def check_haunted_mine() -> None:
         "Haunted Mine exact Treus Dayth combat row",
     )
     require_text(
-        HMQ_VARP.read_text(),
+        config_text.read_text(HMQ_VARP),
         ("[varp6792_hmq_dayth_active]", "[varp6793_hmq_dayth_crane_cd]", "protect=no",
          "transmit=no", "scope=temp"),
         "Haunted Mine private encounter state",
@@ -3488,7 +3506,7 @@ def check_haunted_mine() -> None:
                  "Haunted Mine logout cleanup hook")
     require_text(PLAYER_LOGIN.read_text(), ("~hmq_fungus_login;",),
                  "Haunted Mine fungus login monitor")
-    require("[hauntedmine_boss_ghost]" not in HMQ_GENERATED_ANIMS.read_text(),
+    require("[hauntedmine_boss_ghost]" not in config_text.read_text(HMQ_GENERATED_ANIMS),
             "Haunted Mine: authored Treus must not be duplicated by generated animation config")
 
 
@@ -3502,7 +3520,7 @@ def check_troll_romance() -> None:
          "^troll_love_arena_min", "^troll_love_arena_max"),
         "Troll Romance encounter constants",
     )
-    npc = TROLLLOVE_NPC.read_text()
+    npc = config_text.read_text(TROLLLOVE_NPC)
     require_text(
         npc,
         ("[trollromance_arrg_attackable]", "hitpoints=140", "attack=70",
@@ -3517,7 +3535,7 @@ def check_troll_romance() -> None:
         "Troll Romance exact Arrg combat row",
     )
     require_text(
-        TROLLLOVE_VARP.read_text(),
+        config_text.read_text(TROLLLOVE_VARP),
         ("[varp6804_troll_love_arrg_active]", "[varp6805_troll_love_sled_riding]",
          "protect=no", "transmit=no", "scope=temp"),
         "Troll Romance private session state",
@@ -3573,7 +3591,7 @@ def check_troll_romance() -> None:
                  "Troll Romance logout cleanup hook")
     require_text(PLAYER_LOGIN.read_text(), ("~trollromance_on_login;",),
                  "Troll Romance login sled monitor")
-    require("[trollromance_arrg_attackable]" not in TROLLLOVE_GENERATED_ANIMS.read_text(),
+    require("[trollromance_arrg_attackable]" not in config_text.read_text(TROLLLOVE_GENERATED_ANIMS),
             "Troll Romance: authored Arrg must not be duplicated by generated animation config")
 
 
@@ -3587,7 +3605,7 @@ def check_in_search_of_the_myreque() -> None:
         "In Search of the Myreque route constants",
     )
     require_text(
-        ROUTEQUEST_NPC.read_text(),
+        config_text.read_text(ROUTEQUEST_NPC),
         ("[skeleton_hellhound]", "hitpoints=55", "attack=70", "strength=110",
          "defence=100", "magic=1", "ranged=1", "param=attackrate,4",
          "param=damagetype,^crush_style", "param=stabdefence,0",
@@ -3596,10 +3614,10 @@ def check_in_search_of_the_myreque() -> None:
          "param=elemental_weakness_percent,35", "param=death_drop,null"),
         "In Search of the Myreque exact Skeleton Hellhound row",
     )
-    require("param=undead" not in ROUTEQUEST_NPC.read_text(),
+    require("param=undead" not in config_text.read_text(ROUTEQUEST_NPC),
             "In Search of the Myreque: Skeleton Hellhound must not be undead")
     require_text(
-        ROUTEQUEST_VARP.read_text(),
+        config_text.read_text(ROUTEQUEST_VARP),
         ("[varp6816_routequest_hound_active]", "[varp6817_routequest_hound_death]",
          "protect=no", "transmit=no", "scope=temp"),
         "In Search of the Myreque private encounter state",
@@ -3689,7 +3707,7 @@ def check_contact() -> None:
     with no block it fought on npc_default.npc's 10 hp and died in 7 ticks).
     Wiki Giant_Scarab_(Contact!) oldid 15328051; summons Locust_rider oldid
     15281959 / Scarab_Mage oldid 15281960 (the Contact! versions, ids 799-801)."""
-    npc = CONTACT_NPC.read_text()
+    npc = config_text.read_text(CONTACT_NPC)
     boss = _npc_block(npc, "contact_scarab_boss")
     for line in ("hitpoints=130", "attack=169", "strength=190", "defence=169",
                  "ranged=190", "huntmode=aggressive", "param=attackrate,4",
@@ -3750,7 +3768,7 @@ def check_anothersliceofham() -> None:
     block they fought on npc_default.npc's 10 hp). Wiki H.A.M._Mage oldid
     15199436, H.A.M._Archer oldid 15199383, Sigmund oldid 15285834 (Another
     Slice of H.A.M. version, level 64)."""
-    npc = SLICE_NPC.read_text()
+    npc = config_text.read_text(SLICE_NPC)
     for name, needles in (
         ("slice_ham_mage", ("hitpoints=35", "defence=30", "magic=30", "huntmode=aggressive",
                             "param=attackrate,10", "param=damagetype,^magic_style",
@@ -3786,7 +3804,7 @@ def check_ascent_of_arceuus() -> None:
     real fights (with no block they fought on npc_default.npc's 10 hp and died in
     a tick). Wiki Tormented_Soul oldid 15329160 (ids 8512/8513), Trapped_Soul
     oldid 15215953 (id 8514)."""
-    npc = ASCENT_NPC.read_text()
+    npc = config_text.read_text(ASCENT_NPC)
     for name, needles in (
         ("arcquest_ghost1", ("hitpoints=20", "attack=16", "strength=12", "defence=10",
                              "huntmode=aggressive", "param=attackrate,4",
@@ -3822,7 +3840,7 @@ def check_dreammentor() -> None:
     oldid 15199540, The_Untouchable 15199541, The_Illusive 15199542, A_Doubt
     15199544, The_Inadequacy 15292423 (cache stat1..4 = attack/defence/
     strength/hitpoints agree page for page)."""
-    npc = DREAMMENTOR_NPC.read_text()
+    npc = config_text.read_text(DREAMMENTOR_NPC)
     for name, needles in (
         ("dream_everlasting", ("hitpoints=230", "attack=187", "strength=231", "defence=120",
                                "huntmode=aggressive", "param=attackrate,6",
@@ -3871,7 +3889,7 @@ def check_swansong() -> None:
     npc_default.npc's 10 hp and the Queen died to one Fire Blast). Wiki
     Sea_Troll_Queen oldid 15215925, Sea_troll oldid 15329222 (Level 79, id
     4308); Swan_Song oldid 15359363 for the untimed ambush and the fixed Queen."""
-    npc = SWANSONG_NPC.read_text()
+    npc = config_text.read_text(SWANSONG_NPC)
     queen = _npc_block(npc, "swan_seatroll_queen")
     for line in ("hitpoints=200", "attack=100", "strength=70", "defence=100", "magic=150",
                  "ranged=1", "huntmode=aggressive", "wanderrange=0",
@@ -3937,7 +3955,7 @@ def check_troubledtortugans() -> None:
     fight on npc_default.npc's 10 hp). Wiki Gryphon_(Troubled_Tortugans) oldid
     15200682, Shellbane_gryphon_(Troubled_Tortugans) oldid 15267129; the cache
     stat1..6 agree."""
-    npc = TT_NPC.read_text()
+    npc = config_text.read_text(TT_NPC)
     gryphon = _npc_block(npc, "tt_conch_gryphon")
     for line in ("hitpoints=110", "attack=65", "strength=75", "defence=50", "magic=50",
                  "huntmode=aggressive", "param=attackrate,5", "param=damagetype,^crush_style",
@@ -3972,7 +3990,7 @@ def check_twilightspromise() -> None:
     Knight_of_Varlamore_(Twilight's_Promise) oldid 15200510, Cultist oldid 15326762,
     Twilight's_Promise oldid 15356498."""
     base = ROOT / "OSRS-Content/osrs239-content/server/scripts/quests/quest_twilightspromise"
-    npc = (base / "configs/twilightspromise.npc").read_text()
+    npc = config_text.read_text(base / "configs/twilightspromise.npc")
     for name, needles in (
         ("vmq2_knight_6_combat", ("hitpoints=100", "attack=70", "strength=70", "defence=40",
                                   "magic=20", "param=attackrate,5", "param=damagetype,^slash_style",
@@ -4022,7 +4040,7 @@ def check_meatandgreet() -> None:
     tick, as Contact!'s scarab and Swan Song's Queen did). Wiki Dire_Wolf_Alpha
     oldid 15208071, Dire_Wolf oldid 15208070 (Meat and Greet version, id 13813),
     Minotaur_(Meat_and_Greet) oldid 15200556, Meat_and_Greet oldid 15355341."""
-    npc = MAG_NPC.read_text()
+    npc = config_text.read_text(MAG_NPC)
     for name, needles in (
         ("mag_direwolf", ("hitpoints=100", "attack=120", "strength=110", "defence=80",
                           "magic=40", "huntmode=aggressive", "forcemulti=yes",
@@ -4119,7 +4137,7 @@ def check_creature_of_fenkenstrain() -> None:
     require("fenk_mausoleum_key" not in generic_drop and "rag_experiment_bone" not in generic_drop,
             "Creature of Fenkenstrain: level-25 Experiments must not leak quest keys or deferred bones")
     require_text(
-        FENK_GENERATED_COMBAT.read_text(),
+        config_text.read_text(FENK_GENERATED_COMBAT),
         ("[fenk_experiment_1]", "hitpoints=40", "attack=40", "strength=50",
          "defence=50", "magic=1", "ranged=1", "respawnrate=8",
          "param=attackrate,4", "param=damagetype,0", "param=stabattack,0",
@@ -4189,7 +4207,7 @@ def check_roving_elves() -> None:
         ),
         "Roving Elves Glarial tomb and post-Waterfall route",
     )
-    generated = ROVING_GENERATED_COMBAT.read_text()
+    generated = config_text.read_text(ROVING_GENERATED_COMBAT)
     moss_row = generated.split("[roving_mossgiant]", 1)[1].split("\n[", 1)[0]
     require_text(
         moss_row,
@@ -4304,7 +4322,7 @@ def check_ghosts_ahoy() -> None:
         "Ghosts Ahoy exact wreck, lobster and captain constants",
     )
     require_text(
-        AHOY_VARP.read_text(),
+        config_text.read_text(AHOY_VARP),
         (
             "[varp6827_ahoy_lobster_active]", "scope=temp",
             "[varp6828_ahoy_flag_top]", "[varp6829_ahoy_flag_bottom]", "[varp6830_ahoy_flag_skull]",
@@ -4314,7 +4332,7 @@ def check_ghosts_ahoy() -> None:
         "Ghosts Ahoy private persistent puzzle state",
     )
     require_text(
-        AHOY_NPC.read_text(),
+        config_text.read_text(AHOY_NPC),
         (
             "[giant_lobster]", "hitpoints=32", "attack=18", "strength=26",
             "defence=40", "magic=1", "ranged=1", "huntmode=aggressive",
@@ -4461,14 +4479,14 @@ def check_one_small_favour() -> None:
         "One Small Favour exact encounter constants",
     )
     require_text(
-        OSF_VARP.read_text(),
+        config_text.read_text(OSF_VARP),
         ("[varp6868_osf_gang_kills]", "[varp6869_osf_slagilith_active]", "scope=temp"),
         "One Small Favour owner and dwarf state",
     )
-    require(OSF_VARP.read_text().count("scope=temp") == 2,
+    require(config_text.read_text(OSF_VARP).count("scope=temp") == 2,
             "One Small Favour: both encounter latches must reset on logout")
     require_text(
-        OSF_NPC.read_text(),
+        config_text.read_text(OSF_NPC),
         (
             "[slagilith]", "hitpoints=60", "attack=60", "strength=120",
             "defence=75", "magic=1", "ranged=1",
@@ -4526,7 +4544,7 @@ def check_one_small_favour() -> None:
          "favour_gangster_dwarf_3"),
         "One Small Favour cache-authored dwarf gang spawns",
     )
-    generated = OSF_GENERATED_NPC.read_text()
+    generated = config_text.read_text(OSF_GENERATED_NPC)
     for npc, row in (
         ("favour_gangster_dwarf", ("hitpoints=40", "attack=40", "strength=40", "defence=35")),
         ("favour_gangster_dwarf_2", ("hitpoints=25", "attack=80", "strength=30", "defence=25")),
@@ -4891,7 +4909,7 @@ def load_content_varp_defs() -> dict[str, dict]:
                 walk(path)
             elif name.endswith(".varp"):
                 current = None
-                for raw in path.read_text(errors="replace").splitlines():
+                for raw in config_text.read_lines(path, errors="replace"):
                     line = _strip_comment(raw).strip()
                     if not line:
                         continue
@@ -4920,14 +4938,14 @@ def quest_progress_varp_sweep() -> tuple[list[tuple], int]:
     """(misses, vars checked): each quest's progress varp must transmit and persist."""
     basevar: dict[str, str] = {}
     current = None
-    for raw in ALL_VARBIT.read_text(errors="replace").splitlines():
+    for raw in config_text.read_text(ALL_VARBIT, errors="replace").splitlines():
         line = raw.strip()
         header = re.match(r"^\[([^\]]+)\]$", line)
         if header:
             current = header.group(1)
         elif line.startswith("basevar=") and current:
             basevar[current] = line.split("=", 1)[1].strip()
-    known = set(re.findall(r"^\[([^\]]+)\]", ALL_VARP.read_text(errors="replace"), re.M))
+    known = set(re.findall(r"^\[([^\]]+)\]", config_text.read_text(ALL_VARP, errors="replace"), re.M))
     known |= set(re.findall(r"^\d+=([a-z0-9_]+)", VARP_ALLOC.read_text(errors="replace"), re.M))
     defs = load_content_varp_defs()
     misses = []
@@ -4965,7 +4983,7 @@ def check_theeyesofglouphrie() -> None:
     1 is strength=1 + strengthbonus 0 through [proc,npc_melee_maxhit]; a
     `retaliate=no`, or any strength / strengthbonus that rolls above 1, is the
     regression this refuses."""
-    npc = EYEGLO_NPC.read_text()
+    npc = config_text.read_text(EYEGLO_NPC)
     for number in range(1, 7):
         for name in (f"eyeglo_fluffie_{number}", f"eyeglo_fluffie_evil_{number}"):
             block = _npc_block(npc, name)
@@ -4984,7 +5002,7 @@ def check_theeyesofglouphrie() -> None:
             strengths = [line for line in block if line.startswith("strength=")]
             require(strengths == ["strength=1"],
                     f"The Eyes of Glouphrie: [{name}] strength lines {strengths}; max hit must be 1")
-    anims = (CONTENT / "npc/configs/npc_anims.generated.npc").read_text()
+    anims = config_text.read_text(CONTENT / "npc/configs/npc_anims.generated.npc")
     for number in range(1, 7):
         block = _npc_block(anims, f"eyeglo_fluffie_{number}")
         require("param=attack_anim,eyeglo_fluffie_attack" in block,
@@ -5000,6 +5018,297 @@ def check_theeyesofglouphrie() -> None:
     require_text(quest, tuple(needles), "The Eyes of Glouphrie kill chain")
 
 
+def check_shadow_of_the_storm() -> None:
+    """Shadow of the Storm's Agrith-Naar is a real fight (with no block he fought
+    on the engine default's 10 hp and died after 10 damage in 9 ticks, b66
+    shadowstorm run 2). Wiki Agrith_Naar oldid 15350581 (id 911, level 100);
+    cache all.npc stat1..6 = 83/82/90/95/100/100 agrees."""
+    manifest = json.loads(MANIFEST.read_text())
+    rows = [row for row in manifest["encounters"] if row["id"] == "quest-shadow-of-the-storm"]
+    require(len(rows) == 1, "manifest: expected exactly one Shadow of the Storm row")
+    require(rows[0]["implementation_status"] == "implementation-in-progress",
+            "Shadow of the Storm: status drift")
+    for key in ("source_audits", "npc_gamevals", "item_gamevals", "loc_gamevals",
+                "trigger_handlers", "loot_contract", "test_ids", "known_gaps"):
+        require(bool(rows[0][key]), f"Shadow of the Storm: empty evidence field {key}")
+    require(15350581 in {audit["revision"] for audit in rows[0]["source_audits"]},
+            "Shadow of the Storm: pinned Agrith_Naar Wiki audit drifted")
+    block = _npc_block(config_text.read_text(SHADOWSTORM_NPC), "agrith_naar")
+    for line in ("hitpoints=95", "attack=83", "strength=90", "defence=82", "magic=100",
+                 "ranged=100", "huntmode=aggressive", "param=attackrate,4",
+                 "param=damagetype,^crush_style", "param=strengthbonus,0",
+                 "param=crushattack,0", "param=crushdefence,0", "param=magicdefence,0",
+                 "param=elemental_weakness,^element_water",
+                 "param=elemental_weakness_percent,25", "param=death_drop,vile_ashes"):
+        require(line in block, f"Shadow of the Storm: [agrith_naar] lacks `{line}`")
+    require_text(SHADOWSTORM_CONSTANT.read_text(), ("^sots_agrith_fireblast_max = 10",),
+                 "Shadow of the Storm Fire Blast max (wiki 10 Magic)")
+    require_text(
+        SHADOWSTORM_RITUAL.read_text(),
+        ("[opnpc2,agrith_naar]\n@player_combat_start;", "[ai_opplayer2,agrith_naar]",
+         "~npc_meleeattack;", "~sots_agrith_fireblast;", "[ai_queue3,agrith_naar]",
+         "npc_statheal(hitpoints, ^sots_agrith_revive_hp, 0);", "queue(sots_agrith_slain, 0, 0);"),
+        "Shadow of the Storm Agrith-Naar fight",
+    )
+
+
+def check_between_a_rock() -> None:
+    """Between a Rock...'s Arzinian Avatar is a real fight (with no block every
+    variant fought on the engine default's 10 hp and died in one hit, b58/b67
+    betweenarock). Wiki Arzinian_Avatar_of_Strength/Ranging/Magic oldids
+    15200005/15200004/15200003; cache all.npc stat1..6 agrees for all nine."""
+    manifest = json.loads(MANIFEST.read_text())
+    rows = [row for row in manifest["encounters"] if row["id"] == "quest-between-a-rock"]
+    require(len(rows) == 1, "manifest: expected exactly one Between a Rock... row")
+    require(rows[0]["implementation_status"] == "implementation-in-progress",
+            "Between a Rock...: status drift")
+    for key in ("source_audits", "npc_gamevals", "item_gamevals", "loc_gamevals",
+                "trigger_handlers", "loot_contract", "test_ids", "known_gaps"):
+        require(bool(rows[0][key]), f"Between a Rock...: empty evidence field {key}")
+    revisions = {audit["revision"] for audit in rows[0]["source_audits"]}
+    for revision in (15200005, 15200004, 15200003):
+        require(revision in revisions, f"Between a Rock...: pinned Avatar Wiki audit {revision} drifted")
+    text = config_text.read_text(BETWEENAROCK_NPC)
+    # name: (hitpoints, attack, strength, defence, ranged, magic, style, extra lines)
+    avatars = {
+        "dwarf_rock_avatar_warrior": (200, 150, 130, 120, 0, 0, "crush", ()),
+        "dwarf_rock_avatar_warrior_green": (100, 110, 100, 95, 0, 0, "crush", ("param=rangedefence,80",)),
+        "dwarf_rock_avatar_warrior_yellow": (70, 70, 65, 50, 0, 0, "crush", ("param=rangedefence,40",)),
+        "dwarf_rock_avatar_archer": (200, 20, 110, 130, 140, 0, "ranged", ("param=rangebonus_ammo,19",)),
+        "dwarf_rock_avatar_archer_green": (100, 10, 100, 120, 110, 0, "ranged",
+                                           ("param=rangebonus_ammo,10", "param=rangedefence,20")),
+        "dwarf_rock_avatar_archer_yellow": (70, 10, 40, 75, 75, 0, "ranged",
+                                            ("param=rangebonus_ammo,5", "param=rangedefence,15")),
+        "dwarf_rock_avatar_mage": (200, 10, 100, 130, 0, 150, "magic", ("param=magic_maxhit,15",)),
+        "dwarf_rock_avatar_mage_green": (100, 10, 90, 120, 0, 120, "magic",
+                                         ("param=magic_maxhit,13", "param=rangedefence,15")),
+        "dwarf_rock_avatar_mage_yellow": (70, 10, 50, 75, 0, 75, "magic",
+                                          ("param=magic_maxhit,8", "param=rangedefence,10")),
+    }
+    for name, (hp, att, strength, defence, ranged, magic, style, extra) in avatars.items():
+        block = _npc_block(text, name)
+        require(bool(block), f"Between a Rock...: no [{name}] block")
+        hitpoint_lines = [line for line in block if line.startswith("hitpoints=")]
+        require(hitpoint_lines == [f"hitpoints={hp}"],
+                f"Between a Rock...: [{name}] hitpoints {hitpoint_lines} (want {hp})")
+        lines = [f"attack={att}", f"strength={strength}", f"defence={defence}",
+                 f"ranged={ranged}", f"magic={magic}", "huntmode=aggressive",
+                 "param=attackrate,4", f"param=damagetype,^{style}_style",
+                 "param=strengthbonus,0", "param=death_drop,null", *extra]
+        if style != "crush":
+            lines.append("param=attackrange,10")
+        for line in lines:
+            require(line in block, f"Between a Rock...: [{name}] lacks `{line}`")
+    # The Being of Bordanzan is Talk-to only and never fought: no block.
+    require(not _npc_block(text, "dwarf_rock_actual_demon"),
+            "Between a Rock...: the Being of Bordanzan is never fought, it takes no block")
+    scorpion = _npc_block(config_text.read_text(SCORPION_STATS_NPC), "scorpion")
+    require("hitpoints=17" in scorpion, "Between a Rock...: the level-14 scorpion lost its block")
+    realm = BETWEENAROCK_REALM.read_text()
+    needles = ["[proc,dwarfrock_spawn_avatar]", "npc_add(0_37_77_7_25, $dwarfrock_avatar, 1000);",
+               "[label,dwarfrock_avatar_attack]\n~npc_retaliate(0);\n@player_combat_start;",
+               "%varb299_dwarfrock_quest = ^dwarfrock_avatar_defeated;"]
+    for colour in ("", "_green", "_yellow"):
+        needles.append(f"[ai_opplayer2,dwarf_rock_avatar_archer{colour}] ~npc_rangeattack;")
+        needles.append(f"[ai_opplayer2,dwarf_rock_avatar_mage{colour}] ~npc_generic_magicattack;")
+        for kind in ("warrior", "archer", "mage"):
+            needles.append(f"[opnpc2,dwarf_rock_avatar_{kind}{colour}] @dwarfrock_avatar_attack;")
+            needles.append(f"[ai_queue3,dwarf_rock_avatar_{kind}{colour}] ~dwarfrock_avatar_death;")
+    require_text(realm, tuple(needles), "Between a Rock... Avatar fight")
+    require("[ai_opplayer2,dwarf_rock_avatar_warrior" not in realm,
+            "Between a Rock...: the Avatar of Strength is Crush, it stays on the melee default")
+
+
+def _audited_row(row_id: str, scope: str, revisions: tuple[int, ...],
+                 evidence: tuple[str, ...]) -> None:
+    manifest = json.loads(MANIFEST.read_text())
+    rows = [row for row in manifest["encounters"] if row["id"] == row_id]
+    require(len(rows) == 1, f"manifest: expected exactly one {scope} row")
+    require(rows[0]["implementation_status"] == "implementation-in-progress",
+            f"{scope}: status drift")
+    for key in evidence:
+        require(bool(rows[0][key]), f"{scope}: empty evidence field {key}")
+    pinned = {audit["revision"] for audit in rows[0]["source_audits"]}
+    for revision in revisions:
+        require(revision in pinned, f"{scope}: pinned Wiki audit {revision} drifted")
+
+
+def _require_npc_lines(text: str, name: str, hitpoints: int, lines: tuple[str, ...],
+                       scope: str) -> None:
+    block = _npc_block(text, name)
+    require(bool(block), f"{scope}: no [{name}] block")
+    hitpoint_lines = [line for line in block if line.startswith("hitpoints=")]
+    require(hitpoint_lines == [f"hitpoints={hitpoints}"],
+            f"{scope}: [{name}] hitpoints {hitpoint_lines} (want {hitpoints})")
+    for line in lines:
+        require(line in block, f"{scope}: [{name}] lacks `{line}`")
+
+
+def check_rum_deal() -> None:
+    """Rum Deal's Evil spirit is a real fight (with no block it fought on the
+    engine default's 10 hp: the committed ledger's `hp no bar -> 24/30` after
+    one hit, dead in 16 ticks). Wiki Evil_spirit oldid 15199641; cache all.npc
+    stat1..4 170/100/146/90 agrees."""
+    _audited_row("quest-rum-deal", "Rum Deal", (15199641, 15275482),
+                 ("source_audits", "npc_gamevals", "item_gamevals", "loc_gamevals",
+                  "trigger_handlers", "loot_contract", "test_ids", "known_gaps"))
+    _require_npc_lines(config_text.read_text(RUMDEAL_NPC), "deal_evil_spirit", 90,
+                       ("attack=170", "strength=146", "defence=100", "magic=1", "ranged=1",
+                        "huntmode=aggressive", "param=huntrange,5", "param=attackrate,4",
+                        "param=damagetype,^crush_style", "param=crushattack,0",
+                        "param=strengthbonus,0", "param=stabdefence,0", "param=slashdefence,0",
+                        "param=crushdefence,0", "param=magicdefence,0", "param=rangedefence,0",
+                        "param=elemental_weakness,^element_air",
+                        "param=elemental_weakness_percent,30", "param=death_drop,ashes"),
+                       "Rum Deal")
+    spider = _npc_block(config_text.read_text(SCORPION_STATS_NPC), "deal_fever_spiders1")
+    require("hitpoints=40" in spider, "Rum Deal: the level-49 fever spider lost its block")
+    require_text(RUMDEAL_COMBAT.read_text(), (
+        "npc_add(^deal_multicontrol_coord, deal_evil_spirit, 1000);",
+        "[opnpc2,deal_evil_spirit]\n~npc_retaliate(0);\n@player_combat_start;",
+        "[ai_queue3,deal_evil_spirit]\nif (npc_findhero = true) {",
+        "%varp600_deal_quest = ^deal_told_kill_spider;",
+        # b68-seam1: the page's max hit 28, not ~npc_melee_maxhit's 16.
+        "[ai_opplayer2,deal_evil_spirit]",
+        "~playerhit_n_melee(^crush_style, randominc(^deal_evil_spirit_melee_maxhit));",
+    ), "Rum Deal Evil spirit fight")
+    require_text(RUMDEAL_CONSTANT.read_text(), ("^deal_evil_spirit_melee_maxhit = 28",),
+                 "Rum Deal Evil spirit max hit")
+    require(not any("max hit 28 is not what" in gap for gap in
+                    [row for row in json.loads(MANIFEST.read_text())["encounters"]
+                     if row["id"] == "quest-rum-deal"][0]["known_gaps"]),
+            "Rum Deal: the max-hit-28 known gap is closed (deal_combat.rs2 rolls it)")
+
+
+def check_wanted() -> None:
+    """Wanted!'s Solus Dellagar is a real fight (with no block he fought on the
+    engine default's 10 hp: the committed ledger's `hp no bar -> 18/30,
+    hitsplat 4`, dead in 8 ticks). Wiki Solus_Dellagar oldid 15204754; cache
+    all.npc stat1..4 25/25/25/40 and its bonus params agree. The summoned
+    Black Knight's block (wiki oldid 15324646) is pinned beside it."""
+    _audited_row("quest-wanted", "Wanted!", (15204754, 15324646),
+                 ("source_audits", "npc_gamevals", "item_gamevals", "trigger_handlers",
+                  "loot_contract", "test_ids", "known_gaps"))
+    text = config_text.read_text(WANTED_NPC)
+    _require_npc_lines(text, "wanted_solus_attackable", 40,
+                       ("attack=25", "strength=25", "defence=25", "magic=1", "ranged=1",
+                        "huntmode=aggressive", "param=huntrange,5", "param=attackrate,3",
+                        "param=damagetype,^crush_style", "param=strengthbonus,16",
+                        "param=stabdefence,5", "param=slashdefence,5", "param=crushdefence,5",
+                        "param=magicdefence,72", "param=death_drop,null"),
+                       "Wanted!")
+    _require_npc_lines(text, "wanted_summoned_black_knight", 42,
+                       ("attack=25", "strength=25", "defence=25", "param=attackrate,5",
+                        "param=slashattack,18", "param=strengthbonus,16",
+                        "param=death_drop,null"),
+                       "Wanted!")
+    require_text(WANTED_HUNT.read_text(), (
+        "npc_add(^wanted_essence_mine_coord, wanted_solus_attackable, 100);",
+        "[opnpc2,wanted_solus_attackable]\n~npc_retaliate(0);\n@player_combat_start;",
+        "[ai_queue3,wanted_solus_attackable]\nif (npc_findhero = ^true & %varb1051_wanted_main = ^wanted_hunt) {",
+        "%varb1051_wanted_main = ^wanted_final_battle;",
+        "npc_add($knight_spot, wanted_summoned_black_knight, 200);",
+    ), "Wanted! Solus fight")
+
+
+# The test-fought npcs that fought on the engine default (matthew-mbp-m4-b68-seam1):
+# (manifest quest name, .npc file under CONTENT, symbol, wiki oldid, hitpoints,
+#  lines the block must carry; a leading "!" is a line it must NOT carry).
+# Values: each npc's OSRS wiki Infobox Monster at the oldid, compared with its
+# configs/all.npc record (the block's own header cites both).
+TEST_FOUGHT_NPC_BLOCKS: tuple[tuple[str, str, str, int, int, tuple[str, ...]], ...] = (
+    ("Spirits of the Elid", "quests/quest_spiritsoftheelid/configs/spiritsoftheelid.npc", "elid_golem_white", 15338923, 80,
+     ("attack=80", "strength=30", "defence=80", "magic=1", "ranged=1", "param=damagetype,^crush_style", "param=attackrate,4", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,0", "param=strengthbonus,0", "param=rangebonus,0", "param=stabdefence,1", "param=slashdefence,300", "param=crushdefence,300", "param=magicdefence,300", "param=rangedefence,300")),
+    ("Spirits of the Elid", "quests/quest_spiritsoftheelid/configs/spiritsoftheelid.npc", "elid_golem_grey", 15338925, 80,
+     ("attack=80", "strength=30", "defence=80", "magic=1", "ranged=1", "param=damagetype,^crush_style", "param=attackrate,4", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,0", "param=strengthbonus,0", "param=rangebonus,0", "param=stabdefence,300", "param=slashdefence,1", "param=crushdefence,300", "param=magicdefence,300", "param=rangedefence,300")),
+    ("Spirits of the Elid", "quests/quest_spiritsoftheelid/configs/spiritsoftheelid.npc", "elid_golem_black", 15338922, 80,
+     ("attack=80", "strength=30", "defence=80", "magic=1", "ranged=1", "param=damagetype,^crush_style", "param=attackrate,4", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,0", "param=strengthbonus,0", "param=rangebonus,0", "param=stabdefence,300", "param=slashdefence,300", "param=crushdefence,1", "param=magicdefence,300", "param=rangedefence,300")),
+    ("The Feud", "quests/quest_thefeud/configs/thefeud.npc", "feud_menap_toughguy", 15292989, 75,
+     ("attack=85", "strength=50", "defence=50", "magic=80", "ranged=0", "param=damagetype,^crush_style", "param=attackrate,4", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,9", "param=strengthbonus,9", "param=rangebonus,0", "param=stabdefence,9", "param=slashdefence,8", "param=crushdefence,10", "param=magicdefence,0", "param=rangedefence,0")),
+    ("The Feud", "quests/quest_thefeud/configs/thefeud.npc", "feud_bandit_toughguy", 15292988, 50,
+     ("attack=59", "strength=80", "defence=50", "magic=0", "ranged=0", "param=damagetype,^slash_style", "param=attackrate,4", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,9", "param=crushattack,0", "param=strengthbonus,9", "param=rangebonus,0", "param=stabdefence,9", "param=slashdefence,8", "param=crushdefence,10", "param=magicdefence,0", "param=rangedefence,0")),
+    ("Biohazard", "areas/area_ardougne_west/configs/mourner.npc", "mournerstew2", 15238134, 19,
+     ("attack=10", "strength=10", "defence=10", "magic=1", "ranged=1", "param=damagetype,^crush_style", "param=attackrate,4", "!huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,0", "param=strengthbonus,0", "param=rangebonus,0", "param=stabdefence,3", "param=slashdefence,2", "param=crushdefence,4", "param=magicdefence,0", "param=rangedefence,0")),
+    ("Mourning's End Part I", "quests/quest_mourningsendparti/configs/mend1.npc", "mourning_overpass_mourner", 15242506, 19,
+     ("attack=8", "strength=8", "defence=8", "magic=1", "ranged=1", "param=damagetype,^crush_style", "param=attackrate,4", "!huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,6", "param=strengthbonus,2", "param=rangebonus,0", "param=stabdefence,6", "param=slashdefence,6", "param=crushdefence,9", "param=magicdefence,0", "param=rangedefence,0")),
+    ("Recruitment Drive", "quests/quest_recruitmentdrive/configs/recruitmentdrive.npc", "rd_combat_npc_room_3", 15262507, 20,
+     ("attack=18", "strength=18", "defence=15", "magic=1", "ranged=1", "param=damagetype,^crush_style", "param=attackrate,5", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,0", "param=strengthbonus,0", "param=rangebonus,0", "param=stabdefence,0", "param=slashdefence,0", "param=crushdefence,0", "param=magicdefence,0", "param=rangedefence,0")),
+    ("Prying Times", "quests/quest_pryingtimes/configs/pryingtimes.npc", "sailing_charting_drink_crate_prying_times_effect_troll", 15200619, 25,
+     ("attack=9", "strength=9", "defence=9", "magic=1", "ranged=1", "param=damagetype,^crush_style", "param=attackrate,4", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,0", "param=strengthbonus,0", "param=rangebonus,0", "param=stabdefence,0", "param=slashdefence,0", "param=crushdefence,0", "param=magicdefence,0", "param=rangedefence,0")),
+    ("Below Ice Mountain", "quests/quest_belowicemountain/configs/belowicemountain.npc", "bim_golem_boss", 15200249, 40,
+     ("attack=25", "strength=33", "defence=25", "magic=1", "ranged=1", "param=damagetype,^crush_style", "param=attackrate,5", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,20", "param=strengthbonus,50", "param=rangebonus,0", "param=stabdefence,40", "param=slashdefence,40", "param=crushdefence,0", "param=magicdefence,5", "param=rangedefence,30")),
+    ("The Ribbiting Tale of a Lily Pad Labour Dispute", "quests/quest_ribbitingtale/configs/ribbitingtale.npc", "frog_quest_cuthbert_combat", 15207602, 1,
+     ("attack=1", "strength=1", "defence=1", "magic=1", "ranged=1", "param=damagetype,^crush_style", "param=attackrate,4", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,0", "param=strengthbonus,0", "param=rangebonus,0", "param=stabdefence,0", "param=slashdefence,0", "param=crushdefence,0", "param=magicdefence,0", "param=rangedefence,0")),
+    ("The Depths of Despair", "quests/quest_depthsofdespair/configs/depthsofdespair.npc", "hosidiusquest_snake", 15364396, 60,
+     ("attack=30", "strength=20", "defence=20", "magic=1", "ranged=1", "param=damagetype,^crush_style", "param=attackrate,4", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,0", "param=strengthbonus,0", "param=rangebonus,0", "param=stabdefence,0", "param=slashdefence,0", "param=crushdefence,0", "param=magicdefence,0", "param=rangedefence,0")),
+    ("Olaf's Quest", "quests/quest_olafsquest/configs/olafsquest.npc", "olaf2_ulfric", 15351186, 60,
+     ("attack=100", "strength=100", "defence=82", "magic=1", "ranged=1", "param=damagetype,^slash_style", "param=attackrate,4", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,0", "param=strengthbonus,0", "param=rangebonus,0", "param=stabdefence,0", "param=slashdefence,0", "param=crushdefence,0", "param=magicdefence,0", "param=rangedefence,0")),
+    ("A Porcine of Interest", "quests/quest_porcineofinterest/configs/porcineofinterest.npc", "porcine_sourhog_second", 15275486, 40,
+     ("attack=35", "strength=30", "defence=25", "magic=25", "ranged=35", "param=damagetype,^crush_style", "param=attackrate,5", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,0", "param=strengthbonus,0", "param=rangebonus,20", "param=stabdefence,0", "param=slashdefence,30", "param=crushdefence,10", "param=magicdefence,30", "param=rangedefence,0")),
+    ("A Soul's Bane", "quests/quest_soulsbane/configs/soulsbane.npc", "soulbane_anger_unicorn", 15199351, 200,
+     ("attack=37", "strength=38", "defence=38", "magic=1", "ranged=1", "param=damagetype,^stab_style", "param=attackrate,4", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,0", "param=strengthbonus,0", "param=rangebonus,0", "param=stabdefence,0", "param=slashdefence,0", "param=crushdefence,0", "param=magicdefence,0", "param=rangedefence,0")),
+    ("A Soul's Bane", "quests/quest_soulsbane/configs/soulsbane.npc", "soulbane_fear_reaper", 15199746, 25,
+     ("attack=39", "strength=41", "defence=40", "magic=1", "ranged=1", "param=damagetype,^slash_style", "param=attackrate,4", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,0", "param=strengthbonus,0", "param=rangebonus,0", "param=stabdefence,0", "param=slashdefence,0", "param=crushdefence,0", "param=magicdefence,0", "param=rangedefence,0")),
+    ("A Soul's Bane", "quests/quest_soulsbane/configs/soulsbane.npc", "soulbane_confu_creeper", 15199269, 28,
+     ("attack=42", "strength=41", "defence=40", "magic=1", "ranged=1", "param=damagetype,^stab_style", "param=attackrate,4", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,0", "param=strengthbonus,0", "param=rangebonus,0", "param=stabdefence,0", "param=slashdefence,0", "param=crushdefence,0", "param=magicdefence,0", "param=rangedefence,0")),
+    ("A Soul's Bane", "quests/quest_soulsbane/configs/soulsbane.npc", "soulbane_confu_creeper_fake1", 15199269, 28,
+     ("attack=42", "strength=41", "defence=40", "magic=1", "ranged=1", "param=damagetype,^crush_style", "param=attackrate,4", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,0", "param=strengthbonus,0", "param=rangebonus,0", "param=stabdefence,0", "param=slashdefence,0", "param=crushdefence,0", "param=magicdefence,0", "param=rangedefence,0")),
+    ("A Soul's Bane", "quests/quest_soulsbane/configs/soulsbane.npc", "soulbane_hope_monst3", 15362688, 25,
+     ("attack=38", "strength=36", "defence=39", "magic=1", "ranged=1", "param=damagetype,^stab_style", "param=attackrate,4", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,0", "param=strengthbonus,0", "param=rangebonus,0", "param=stabdefence,0", "param=slashdefence,0", "param=crushdefence,0", "param=magicdefence,0", "param=rangedefence,0")),
+    ("A Soul's Bane", "quests/quest_soulsbane/configs/soulsbane.npc", "soulbane_hope_monst2", 15362688, 25,
+     ("attack=38", "strength=36", "defence=39", "magic=1", "ranged=1", "param=damagetype,^stab_style", "param=attackrate,4", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,0", "param=strengthbonus,0", "param=rangebonus,0", "param=stabdefence,0", "param=slashdefence,0", "param=crushdefence,0", "param=magicdefence,0", "param=rangedefence,0")),
+    ("A Soul's Bane", "quests/quest_soulsbane/configs/soulsbane.npc", "soulbane_hope_monst1", 15362688, 25,
+     ("attack=38", "strength=36", "defence=39", "magic=1", "ranged=1", "param=damagetype,^stab_style", "param=attackrate,4", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,0", "param=strengthbonus,0", "param=rangebonus,0", "param=stabdefence,0", "param=slashdefence,0", "param=crushdefence,0", "param=magicdefence,0", "param=rangedefence,0")),
+    ("A Soul's Bane", "quests/quest_soulsbane/configs/soulsbane.npc", "soulbane_final_tolna1", 15199356, 37,
+     ("attack=42", "strength=41", "defence=40", "magic=1", "ranged=1", "param=damagetype,^slash_style", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,0", "param=strengthbonus,0", "param=rangebonus,0", "param=stabdefence,0", "param=slashdefence,0", "param=crushdefence,0", "param=magicdefence,50", "param=rangedefence,50")),
+    ("A Soul's Bane", "quests/quest_soulsbane/configs/soulsbane.npc", "soulbane_final_tolna2", 15199356, 37,
+     ("attack=42", "strength=41", "defence=40", "magic=1", "ranged=1", "param=damagetype,^slash_style", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,0", "param=strengthbonus,0", "param=rangebonus,0", "param=stabdefence,0", "param=slashdefence,0", "param=crushdefence,0", "param=magicdefence,50", "param=rangedefence,50")),
+    ("A Soul's Bane", "quests/quest_soulsbane/configs/soulsbane.npc", "soulbane_final_tolna3", 15199356, 37,
+     ("attack=42", "strength=41", "defence=40", "magic=1", "ranged=1", "param=damagetype,^slash_style", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,0", "param=strengthbonus,0", "param=rangebonus,0", "param=stabdefence,0", "param=slashdefence,0", "param=crushdefence,0", "param=magicdefence,50", "param=rangedefence,50")),
+    ("Troll Stronghold", "quests/quest_troll/configs/quest_troll.npc", "troll_prison_guard1_awake", 15326896, 90,
+     ("attack=40", "strength=90", "defence=25", "magic=0", "ranged=0", "param=damagetype,^crush_style", "param=attackrate,6", "!huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,20", "param=strengthbonus,20", "param=rangebonus,0", "param=stabdefence,0", "param=slashdefence,0", "param=crushdefence,10", "param=magicdefence,200", "param=rangedefence,200")),
+    ("Troll Stronghold", "quests/quest_troll/configs/quest_troll.npc", "troll_prison_guard2_awake", 15326895, 90,
+     ("attack=40", "strength=90", "defence=25", "magic=0", "ranged=0", "param=damagetype,^crush_style", "param=attackrate,6", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,20", "param=strengthbonus,20", "param=rangebonus,0", "param=stabdefence,0", "param=slashdefence,0", "param=crushdefence,10", "param=magicdefence,200", "param=rangedefence,200")),
+    ("Shilo Village", "quests/quest_zombiequeen/configs/zombiequeen.npc", "zq_mainzombie1", 15199510, 70,
+     ("attack=85", "strength=80", "defence=80", "magic=0", "ranged=0", "param=damagetype,^slash_style", "param=attackrate,4", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,0", "param=strengthbonus,0", "param=rangebonus,0", "param=stabdefence,0", "param=slashdefence,0", "param=crushdefence,0", "param=magicdefence,0", "param=rangedefence,0")),
+    ("Shilo Village", "quests/quest_zombiequeen/configs/zombiequeen.npc", "zq_mainzombie2", 15199510, 70,
+     ("attack=58", "strength=54", "defence=58", "magic=0", "ranged=0", "param=damagetype,^slash_style", "param=attackrate,4", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,15", "param=crushattack,0", "param=strengthbonus,15", "param=rangebonus,0", "param=stabdefence,5", "param=slashdefence,5", "param=crushdefence,5", "param=magicdefence,5", "param=rangedefence,5")),
+    ("Shilo Village", "quests/quest_zombiequeen/configs/zombiequeen.npc", "zq_mainzombie3", 15199510, 80,
+     ("attack=85", "strength=80", "defence=80", "magic=0", "ranged=0", "param=damagetype,^slash_style", "param=attackrate,4", "huntmode=aggressive", "param=stabattack,0", "param=slashattack,0", "param=crushattack,0", "param=strengthbonus,0", "param=rangebonus,0", "param=stabdefence,0", "param=slashdefence,0", "param=crushdefence,0", "param=magicdefence,0", "param=rangedefence,0")),
+)
+
+
+def check_test_fought_npc_blocks() -> None:
+    """Every npc a quest test fights carries its sourced stat block (b68-seam1:
+    29 of them had none and fought at the engine default's 10 hp and 1/1/1 --
+    spiritsoftheelid's 80-hp white golem read `hp no bar -> 18/30` after one
+    hit of 4). Each block cites its oldid, and the manifest row pins it."""
+    manifest = {row["name"]: row for row in json.loads(MANIFEST.read_text())["encounters"]}
+    texts: dict[str, str] = {}
+    for quest, path, symbol, oldid, hitpoints, lines in TEST_FOUGHT_NPC_BLOCKS:
+        scope = f"{quest} [{symbol}]"
+        if path not in texts:
+            texts[path] = (CONTENT / path).read_text()
+        text = texts[path]
+        require(f"oldid {oldid}" in text, f"{scope}: {path} does not cite wiki oldid {oldid}")
+        block = _npc_block(text, symbol)
+        require(bool(block), f"{scope}: no [{symbol}] block in {path}")
+        hitpoint_lines = [line for line in block if line.startswith("hitpoints=")]
+        require(hitpoint_lines == [f"hitpoints={hitpoints}"],
+                f"{scope}: hitpoints {hitpoint_lines} (want {hitpoints})")
+        for line in lines:
+            if line.startswith("!"):
+                require(line[1:] not in block, f"{scope}: carries `{line[1:]}` (the page says no)")
+            else:
+                require(line in block, f"{scope}: lacks `{line}`")
+        row = manifest.get(quest)
+        require(row is not None, f"{scope}: no manifest row named {quest!r}")
+        pinned = {audit["revision"] for audit in row["source_audits"]}
+        require(oldid in pinned, f"{scope}: manifest row does not pin oldid {oldid}")
+        require(any(entry.startswith(f"{symbol}:") for entry in row["npc_gamevals"]),
+                f"{scope}: manifest row has no npc_gamevals entry for {symbol}")
+
+
 def check_taleoftherighteous() -> None:
     """Tale of the Righteous' Corrupt Lizardman is a real fight (with no block it
     fought on npc_default.npc's 10 hp). Wiki Corrupt_Lizardman oldid 15200061
@@ -5009,7 +5318,7 @@ def check_taleoftherighteous() -> None:
     the cache record agrees (stat1..5 38/38/38/50/38). It is met in the player's
     own copy of m18_155, and its death writes stage 10 from the npc's own queue."""
     base = CONTENT / "quests/quest_taleoftherighteous"
-    block = _npc_block((base / "configs/taleoftherighteous.npc").read_text(),
+    block = _npc_block(config_text.read_text(base / "configs/taleoftherighteous.npc"),
                        "shayzienquest_lizardman_boss")
     for line in ("hitpoints=50", "attack=38", "strength=38", "defence=38", "magic=1",
                  "ranged=38", "huntmode=aggressive", "param=huntrange,5",
@@ -5130,13 +5439,18 @@ def main() -> int:
         check_theeyesofglouphrie()
         check_dreammentor()
         check_taleoftherighteous()
+        check_shadow_of_the_storm()
+        check_between_a_rock()
+        check_rum_deal()
+        check_wanted()
+        check_test_fought_npc_blocks()
         check_opnpc2_combat_start()
         check_apnpc2_twins()
         check_quest_progress_varps()
     except (OSError, ValueError, KeyError, json.JSONDecodeError) as error:
         print(f"quest combat contract: {error}", file=sys.stderr)
         return 1
-    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment, Fight Arena, Hazeel Cult, The Grand Tree, Underground Pass, Observatory Quest, The Tourist Trap, Watchtower, Legends' Quest, Big Chompy Bird Hunting, Elemental Workshops I/II, Nature Spirit, Priest in Peril, Regicide, Tai Bwo Wannai Trio, Troll Stronghold, Shades of Mort'ton, The Fremennik Trials, Horror from the Deep, Monkey Madness I, Haunted Mine, Troll Romance, In Search of the Myreque, Creature of Fenkenstrain, Roving Elves, Ghosts Ahoy, One Small Favour, Contact!, Swan Song, Troubled Tortugans, The Ascent of Arceuus, Another Slice of H.A.M., Meat and Greet, Twilight's Promise, The Eyes of Glouphrie, Dream Mentor and Tale of the Righteous, plus the repo-wide trap 31 [opnpc2]/[apnpc2] combat-start sweep, the gated-[opnpc2] [apnpc2]-twin sweep and the quest progress-varp transmit/perm sweep (ok)")
+    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment, Fight Arena, Hazeel Cult, The Grand Tree, Underground Pass, Observatory Quest, The Tourist Trap, Watchtower, Legends' Quest, Big Chompy Bird Hunting, Elemental Workshops I/II, Nature Spirit, Priest in Peril, Regicide, Tai Bwo Wannai Trio, Troll Stronghold, Shades of Mort'ton, The Fremennik Trials, Horror from the Deep, Monkey Madness I, Haunted Mine, Troll Romance, In Search of the Myreque, Creature of Fenkenstrain, Roving Elves, Ghosts Ahoy, One Small Favour, Contact!, Swan Song, Troubled Tortugans, The Ascent of Arceuus, Another Slice of H.A.M., Meat and Greet, Twilight's Promise, The Eyes of Glouphrie, Dream Mentor, Tale of the Righteous, Shadow of the Storm, Between a Rock..., Rum Deal and Wanted!, the 29 test-fought npc stat blocks, plus the repo-wide trap 31 [opnpc2]/[apnpc2] combat-start sweep, the gated-[opnpc2] [apnpc2]-twin sweep and the quest progress-varp transmit/perm sweep (ok)")
     return 0
 
 

@@ -1,0 +1,28 @@
+{{Infobox Combat Achievement
+|name = They Won't Expect This
+|image = [[File:Pestilent Bloat.png|260px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = In the Theatre of Blood: Entry Mode, enter the Pestilent Bloat room from the opposite side.
+|tier = Elite
+|monster = Theatre of Blood: Entry Mode
+|type = Mechanical
+|id = 388
+|leagueRegion = Morytania
+}}
+'''They Won't Expect This''' is an [[Combat Achievements/Elite|elite combat achievement]] which requires the player to in the [[Theatre of Blood/Entry Mode|Theatre of Blood: Entry Mode]], enter the [[Pestilent Bloat]] room from the opposite side.
+
+==Strategy==
+This combat task is as easy as it sounds. You just need to enter the arena on the opposite side from where you enter.
+
+You do not need to finish the raid to complete the combat task. Therefore, if you just leave the raid after entering the arena you can greatly simplify your setup and inventory by just using your best range gear to quickly defeat the [[The Maiden of Sugadinti|maiden]], who is always the first boss you will encounter and not bothering to fight the Pestilent Bloat. Useful if you just need 4 combat points to achieve the next combat achievement.
+
+However, it is worth attempting to fight the Pestilent Bloat and try to complete the [[Appropriate Tools]] and [[Chally Time]] combat tasks by bringing some melee gear and a suitable halberd. (See [[Theatre of Blood/Strategies|Theatre of Blood/Strategies]] for suggest setups you can adapt.)
+
+Completing these 3 fairly easy tasks will reward 12 combat task points and help you on to the next combat achievement reward.
+
+==Other tasks==
+{{Combat Achievements list|Theatre of Blood: Entry Mode}}
+
+{{Combat Achievements}}

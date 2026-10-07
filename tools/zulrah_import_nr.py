@@ -19,6 +19,9 @@ import os
 import re
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import config_text  # noqa: E402
+
 DEFAULT_SRC = (
     "/Users/matthewevers/Documents/git_repos/RSPS-NEAR-REALITY/near-reality-server-main"
     "/plugins/excluded/src/main/java/com/zenyte/game/content/boss/zulrah/ZulrahNPC.java"
@@ -189,7 +192,7 @@ def main():
         sys.exit("reference not found: %s\n"
                  "Pass --src <ZulrahNPC.java> from a Near-Reality checkout." % args.src)
     table = parse(open(args.src, encoding="utf-8").read())
-    open(args.out, "w", encoding="utf-8").write(emit(table))
+    config_text.write_config(args.out, emit(table))
     print("rotations: %s phases, %d steps -> %s"
           % ("/".join(str(len(r)) for r in table),
              sum(len(p) for r in table for p in r), args.out))

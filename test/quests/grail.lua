@@ -60,6 +60,16 @@
 --     Camelot Teleport.
 --   * Goblin Village: the sacks' hut door (goblin_outpost_poordoor
 --     2958,3506, east wall).
+--   * The corrupted realm is walked: the whistle lands on the EAST bank,
+--     the titan's side of the bridge (^grail_realm_entry_coord
+--     0_43_73_54_43 = 2806,4715, as LostCity quest_grail.rs2:44; OSRS-Content
+--     690a24bc57); a walk to the bridge's east end 2793,4722 (reach.py
+--     len=20) and the titan is fought from there. The bridge's middle tile
+--     2791,4722 is the titan's own (f1), so it is crossed only by
+--     defeat_titan's p_teleport (black_knight_titan.rs2:52-56), which lands
+--     the player at 2790,4722, the far end. From there the fisherman
+--     (2800,4706) is a walk south along the river (reach.py len=28; wiki
+--     Holy_Grail: "cross the bridge and then head south along the river").
 --   * The corrupted realm's castle is never walked into: the held bell is
 --     rung from the tile the bell was picked up on (the guide's ringBell,
 --     2762,4694), outside the wall, and its own p_teleport lands the player
@@ -509,11 +519,14 @@ return {
             "mesbox:You blow the whistle and the world dissolves",
         })
         t.ticks(2)
+        -- The whistle lands on the EAST bank, the titan's side of the bridge
+        -- (quest_grail.constant ^grail_realm_entry_coord 0_43_73_54_43, as
+        -- LostCity quest_grail.rs2:44).
         local realm1_result, realm1_tile = t.world.tile()
         t.check("blowWhistle1.arrived", realm1_result == "ok" and realm1_tile.level == 0
-                and math.abs(realm1_tile.x - 2764) <= 1 and math.abs(realm1_tile.z - 4722) <= 1,
+                and math.abs(realm1_tile.x - 2806) <= 1 and math.abs(realm1_tile.z - 4715) <= 1,
             "t.world.tile() -> " .. tile_text(realm1_result, realm1_tile)
-                .. " (grail_realm_entry_coord 0_43_73_12_50 = 2764,4722,0)")
+                .. " (grail_realm_entry_coord 0_43_73_54_43 = 2806,4715,0)")
 
         -- ---------------------------------------------------------------
         -- Black Knight Titan (combat_stats.generated.npc: 142 hp, attack 91,
@@ -522,7 +535,9 @@ return {
         -- (black_knight_titan.rs2 defeat_titan; worn since goGetExcalibur).
         -- Margin row: lowest hp >= 25 (a quarter of 99) AND sharks left.
         -- ---------------------------------------------------------------
-        t.exec("goto-attackTitan", t.player.goto_tile, 2789, 4722, 0)
+        -- Walked from the landing to the titan's east end (reach.py
+        -- 2806,4715 -> 2793,4722 REACH closed-doors len=20).
+        walk("attackTitan.toEastEnd", 2793, 4722, 0)
         t.exec("attackTitan-talk", t.player.talk_to, "black_knight_titan", 1)
         t.exec("attackTitan-dialog", t.chat.play, {
             "npc:I am the Black Knight Titan!",
@@ -553,12 +568,23 @@ return {
             "Excalibur-missing branch line: msg.expect -> " .. tostring(puny_r) .. " " .. tostring(puny_d)
                 .. " (want refused: defeat_titan took the worn-Excalibur branch)")
         t.check("attackTitan.withExcalibur", t.quest.expect_stage("spoken_crone"))
+        -- defeat_titan p_teleports the player to the far side of the titan
+        -- (black_knight_titan.rs2:52-56, same as LostCity's): fought from the
+        -- east end of the bridge, that is 2790,4722, the bridge's west end.
+        local landed_r, landed = t.world.tile()
+        t.check("attackTitan.crossedBridge", landed_r == "ok" and landed.level == 0
+                and landed.x == 2790 and landed.z == 4722,
+            "t.world.tile() -> " .. tile_text(landed_r, landed)
+                .. " (want 2790,4722,0: movecoord(npc_coord 2791,4722, -1, 0, 0))")
+
 
         -- ---------------------------------------------------------------
         -- grail_fisherman: choice 2 drops grail_bell at 0_43_73_10_22 =
         -- 2762,4694, outside the castle's north wall (grail_realm_npcs.rs2).
         -- ---------------------------------------------------------------
-        t.exec("goto-talkToFisherman", t.player.goto_tile, 2800, 4706, 0)
+        -- South along the river on foot (reach.py 2790,4722 -> 2800,4706
+        -- REACH closed-doors len=28; wiki: "head south along the river").
+        walk("talkToFisherman.walk", 2800, 4706, 0)
         t.exec("talkToFisherman", t.player.talk_to, "grail_fisherman", 1)
         t.exec("talkToFisherman-dialog", t.chat.play, {
             "npc:Hi! I don't get many visitors ",
@@ -709,11 +735,15 @@ return {
             "mesbox:You blow the whistle and the world dissolves",
         })
         t.ticks(2)
+        -- The restored realm's landing (quest_grail.constant
+        -- ^grail_realm_restored_coord 0_41_73_54_43, as LostCity
+        -- quest_grail.rs2:42); the castle's south door is an open-ground hop
+        -- from there (reach.py 2678,4715 -> 2634,4695 at margin 80).
         local realm2_result, realm2_tile = t.world.tile()
         t.check("blowWhistle2.arrived", realm2_result == "ok" and realm2_tile.level == 0
-                and math.abs(realm2_tile.x - 2636) <= 1 and math.abs(realm2_tile.z - 4722) <= 1,
+                and math.abs(realm2_tile.x - 2678) <= 1 and math.abs(realm2_tile.z - 4715) <= 1,
             "t.world.tile() -> " .. tile_text(realm2_result, realm2_tile)
-                .. " (grail_realm_restored_coord 0_41_73_12_50 = 2636,4722,0)")
+                .. " (grail_realm_restored_coord 0_41_73_54_43 = 2678,4715,0)")
 
         -- ---------------------------------------------------------------
         -- The restored castle (maps/m41_73.jl2): the guide's

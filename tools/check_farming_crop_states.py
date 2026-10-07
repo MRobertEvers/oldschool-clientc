@@ -25,6 +25,8 @@ import os
 import re
 import sys
 
+import config_text
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONTENT = os.path.join(REPO, "OSRS-Content", "osrs239-content")
 ALL_LOC = os.path.join(CONTENT, "configs", "all.loc")
@@ -68,12 +70,10 @@ def rows(text):
 
 
 def main():
-    with open(ALL_LOC) as fh:
-        blocks = parse_blocks(fh.read())
+    blocks = parse_blocks(config_text.read_text(ALL_LOC))
     tables = {t: multilocs(blocks[w]) for t, w in WRAPPER_FOR_TABLE.items()}
 
-    with open(CROPS) as fh:
-        text = fh.read()
+    text = config_text.read_text(CROPS)
 
     problems = []
     checked = 0

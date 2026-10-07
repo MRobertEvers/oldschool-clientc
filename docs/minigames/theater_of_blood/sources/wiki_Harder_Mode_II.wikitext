@@ -1,0 +1,24 @@
+{{Infobox Combat Achievement
+|name = Harder Mode II
+|image = [[File:Xarpus.png|300px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Defeat Xarpus in the Theatre of Blood: Hard Mode after letting the exhumeds heal him to full health and without anyone in the team taking any damage.
+|tier = Grandmaster
+|monster = Theatre of Blood: Hard Mode
+|type = Perfection
+|id = 376
+|leagueRegion = Morytania
+}}
+'''Harder Mode II''' is a [[Combat Achievements/Grandmaster|grandmaster combat achievement]] which requires the player to defeat [[Xarpus]] in [[Theatre of Blood: Hard Mode|hard mode]] after letting the [[exhumed]] heal him to full and without anyone taking any damage from him.
+
+==Strategy==
+Harder Mode II is essentially the same as following [[Perfect Xarpus]] in normal mode, apart from having much less space to move around in general. As with normal mode, landing [[dragon warhammer]] and [[bandos godsword]] hits are essential for this task, which is fortunately easier in hard mode as Xarpus' Defence drops to 200 from 250. 
+
+Once Xarpus starts the screeching phase, the achievement can be easily completed.
+
+==Other tasks==
+{{Combat Achievements list|Theatre of Blood: Hard Mode}}
+
+{{Combat Achievements}}

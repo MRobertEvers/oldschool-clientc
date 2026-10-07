@@ -362,11 +362,11 @@ app_debug_log_position(struct App* app)
         (unsigned)World_TileFlagGet(
             app->world, local->grid_position.x, local->grid_position.z, local->grid_position.level),
         (unsigned)World_TileFlagGet(app->world, local->grid_position.x, local->grid_position.z, 1),
-        app->world_camera_pos.x,
-        app->world_camera_pos.y,
-        app->world_camera_pos.z,
-        app->world_camera.yaw,
-        app->world_camera.pitch);
+        app->frame_view->world_camera_pos.x,
+        app->frame_view->world_camera_pos.y,
+        app->frame_view->world_camera_pos.z,
+        app->frame_view->world_camera.yaw,
+        app->frame_view->world_camera.pitch);
 }
 
 /* TORIRS_HPROF=x0,x1,z0,z1: ground height across a rectangle of scene tiles,
@@ -456,7 +456,7 @@ app_debug_tile_project(struct App* app)
     if( !env || !app->world || !app->world->load_complete || !app->world_view_valid )
         return;
     /* After the camera has settled, not on the load callback: the projection
-     * reads app->world_camera, which the load has not written yet. */
+     * reads app->frame_view->world_camera, which the load has not written yet. */
     if( ++ticks != 120 )
         return;
     if( sscanf(env, "%d,%d,%d,%d", &x0, &x1, &z0, &z1) != 4 )

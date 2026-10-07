@@ -27,6 +27,8 @@ import os
 import re
 import sys
 
+import config_text
+
 SCRIPTS = "OSRS-Content/osrs239-content/server/scripts"
 
 # Tables that legitimately have no rows anywhere, with the reason. A NEW name
@@ -40,7 +42,7 @@ CACHE_INDEX = "OSRS-Content/osrs239-content/configs/all.dbtable.compack"
 def declared_tables():
     out = {}
     for path in glob.glob(SCRIPTS + "/**/*.dbtable", recursive=True):
-        text = io.open(path, encoding="utf-8", errors="replace").read()
+        text = config_text.read_text(path, encoding="utf-8", errors="replace")
         for m in re.finditer(r"^\[([a-z0-9_]+)\]", text, re.M):
             out.setdefault(m.group(1), []).append(path)
     return out
@@ -49,7 +51,7 @@ def declared_tables():
 def tables_with_rows():
     out = {}
     for path in glob.glob(SCRIPTS + "/**/*.dbrow", recursive=True):
-        text = io.open(path, encoding="utf-8", errors="replace").read()
+        text = config_text.read_text(path, encoding="utf-8", errors="replace")
         for m in re.finditer(r"^table=([a-z0-9_]+)", text, re.M):
             out.setdefault(m.group(1), set()).add(path)
     return out

@@ -48,6 +48,8 @@ import bz2
 import os
 import sys
 
+import config_text
+
 SECTOR = 520
 
 
@@ -336,7 +338,10 @@ def read_blocks(path):
     fields = {}
     with open(path, "rb") as f:
         for raw in f:
-            line = raw.decode("latin-1").rstrip("\r\n")
+            line = config_text.filter_line(raw.decode("latin-1"))
+            if line is None:
+                continue
+            line = line.rstrip("\r\n")
             if line.startswith("[") and line.endswith("]"):
                 if symbol is not None:
                     blocks.append((symbol, fields))

@@ -1,0 +1,53 @@
+{{Infobox NPC
+|name = TzHaar-Ket-Keh
+|image = [[File:TzHaar-Ket-Keh.png|250px]]
+|release = [[1 June]] [[2017]]
+|update = The Inferno
+|members = Yes
+|race = [[TzHaar]]
+|location = [[Mor Ul Rek]]
+|options = Talk-to, Exchange
+|examine = Imposing, volcanic and vicious.
+|map = {{Map|zoom=2|mapID=23|p=0|x=2496|y=5115|r=2|mtype=square}}
+|id = 7690,11247,11248
+|leagueRegion = Karamja
+}}
+[[File:TzHaar-Ket-Keh chathead.png|left]]
+'''TzHaar-Ket-Keh''' is a [[TzHaar]] guarding the entrance to the [[Inferno]] minigame. He will require a sacrifice of one [[fire cape]] to allow the player to enter the Inferno challenge.
+
+Players may exchange their [[infernal cape]]s with TzHaar-Ket-Keh for a 1/100 chance of obtaining a pet [[Jal-Nib-Rek]].
+
+Players may use a [[Tzkal slayer helmet (i)]] on him to gain the slayer helm's accuracy and damage bonus in the Inferno and Fight Caves while the helm is equipped, without needing to be on a [[TzKal-Zuk]] or [[TzTok-Jad]] Slayer task. No Slayer XP will be gained from Inferno or Fight Caves enemies killed this way, and the boosted pet chance will not apply.
+
+==Dialogue==
+{{Hastranscript|npc}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = Players can now show a [[tzkal slayer helmet|TzKal Slayer helmet]] to TzHaar-Ket-Keh to benefit from the TzKal Slayer helmet's accuracy and damage bonuses within the Inferno and Fight Caves, even when not on a Jad/Zuk Slayer task.
+}}
+{{Subject changes
+|date = 13 April 2022
+|update = Easter 2022
+|change = The NPC's "Talk to" option has been changed to "Talk-to".
+}}
+{{Subject changes
+|daterange = July 2021 - November 2021{{fact}}<!--Sometime after June 2021 since it doesnt show up in chisel dialogue, likely around release of Elder God Wars Dungeon in RS3 in October 2021-->
+|update = 
+|change = TzHaar-Ket-Keh's dialogue was completely overhauled. Notably, he now states he does not know where TzKal-Zuk came from to keep Zuk's lore consistent with ''{{RSL|TzKal-Zuk|RuneScape}}''.
+}}
+{{Subject changes
+|date = 4 June 2020
+|update = Darkmeyer
+|poll =
+|change = TzHaar-Ket-Keh's dialogue upon completing The Inferno was silently changed to include "''for now...''" after he claims the player defeated TzKal-Zuk.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*It is the only TzHaar-Ket who wields a [[Toktz-mej-tal]]. This suggests it is capable of both magical and melee attacks.
+
+{{Mor Ul Rek}}

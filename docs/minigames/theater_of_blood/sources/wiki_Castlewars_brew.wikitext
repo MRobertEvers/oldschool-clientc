@@ -1,0 +1,164 @@
+{{Infobox Item
+|defver = 4
+|version1 = 1 dose
+|version2 = 2 dose
+|version3 = 3 dose
+|version4 = 4 dose
+|bucketname1 = (1)
+|bucketname2 = (2)
+|bucketname3 = (3)
+|bucketname4 = (4)
+|name1 = Castlewars brew(1)
+|name2 = Castlewars brew(2)
+|name3 = Castlewars brew(3)
+|name4 = Castlewars brew(4)
+|image1 = [[File:Castlewars brew(1).png]]
+|image2 = [[File:Castlewars brew(2).png]]
+|image3 = [[File:Castlewars brew(3).png]]
+|image4 = [[File:Castlewars brew(4).png]]
+|release = [[2 December]] [[2020]]
+|update = Settings Rework and the last of Poll 73
+|members = No
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Drink, Empty, Drop
+|examine = Boosts your skills when drunk.
+|value = 1
+|weight = 0.035
+|id1 = 25162
+|id2 = 25161
+|id3 = 25160
+|id4 = 25159
+}}
+{{Synced switch
+|version1 = [[File:Castlewars brew(1) detail.png|left|130x200px]]
+|version2 = [[File:Castlewars brew(2) detail.png|left|130x200px]]
+|version3 = [[File:Castlewars brew(3) detail.png|left|130x200px]]
+|version4 = [[File:Castlewars brew(4) detail.png|left|130x200px|class=pageimage]]
+}}
+A '''Castlewars brew''' is a [[potion]] exclusive to [[Castle Wars]], where they are found on a table in the respawn room. It provides the boosts from a [[super combat potion]], a [[ranging potion]], [[stamina potion]], [[super restore]], and [[imbued heart]] at once.
+
+==Effects==
+The potion restores 20% of the player's [[Energy|run energy]] per dose, and offers a 70% reduction in run energy depletion for 2 minutes.
+
+===Melee boost===
+Stat boosts to Attack, Strength, and Defence are calculated with: <math>\lfloor SkillLevel \times \frac{15}{100} \rfloor + 5</math>. 
+
+{| class="wikitable" style="text-align:center;"
+!{{plinkp|Melee}} Level
+!Boost
+!{{plinkp|Melee}} Level
+!Boost
+!{{plinkp|Melee}} Level
+!Boost
+|-
+|'''1-6'''||+5||'''34-39'''||+10||'''67-73'''||+15
+|-
+|'''7-13'''||+6||'''40-46'''||+11||'''74-79'''||+16
+|-
+|'''14-19'''||+7||'''47-53'''||+12||'''80-86'''||+17
+|-
+|'''20-26'''||+8||'''54-59'''||+13||'''87-93'''||+18
+|-
+|'''27-33'''||+9||'''60-66'''||+14||'''94-99'''||+19
+|}
+
+===Ranged boost===
+Ranged boost is calculated with: <math>\lfloor RangedLevel \times \frac{1}{10} \rfloor + 4</math>
+
+{| class="wikitable" style="text-align:center;"
+!{{SCP|Ranged}} Level!!Boost!!{{SCP|Ranged}} Level!!Boost
+|-
+|'''1-9'''||+4||'''50-59'''||+9
+|-
+|'''10-19'''||+5||'''60-69'''||+10
+|-
+|'''20-29'''||+6||'''70-79'''||+11
+|-
+|'''30-39'''||+7||'''80-89'''||+12
+|-
+|'''40-49'''||+8||'''90-99'''||+13
+|}
+
+===Magic boost===
+Magic boost is calculated with: <math>\lfloor MagicLevel \times \frac{1}{10} \rfloor + 1</math>
+
+{| class="wikitable" style="text-align:center;"
+!{{SCP|Magic}} Level
+!Boost
+!{{SCP|Magic}} Level
+!Boost
+|-
+|'''1-9'''||+1||'''50-59'''||+6
+|-
+|'''10-19'''||+2||'''60-69'''||+7
+|-
+|'''20-29'''||+3||'''70-79'''||+8
+|-
+|'''30-39'''||+4||'''80-89'''||+9
+|-
+|'''40-49'''||+5||'''90-99'''||+10
+|}
+
+===Prayer restore===
+Stat restore is calculated with: <math display="inline">\lfloor SkillLevel \times \frac{1}{4} \rfloor + 8</math>
+{| class="wikitable" style="text-align:center;"
+!{{SCP|Prayer}} Level!!Boost!!{{SCP|Prayer}} Level!!Boost!!{{SCP|Prayer}} Level!!Boost
+|-
+|'''1-3'''||+8||'''36-39'''||+17||'''72-75'''||+26
+|-
+|'''4-7'''||+9||'''40-43'''||+18||'''76-79'''||+27
+|-
+|'''8-11'''||+10||'''44-47'''||+19||'''80-83'''||+28
+|-
+|'''12-15'''||+11||'''48-51'''||+20||'''84-87'''||+29
+|-
+|'''16-19'''||+12||'''52-55'''||+21||'''88-91'''||+30
+|-
+|'''20-23'''||+13||'''56-59'''||+22||'''92-95'''||+31
+|-
+|'''24-27'''||+14||'''60-63'''||+23||'''96-99'''||+32
+|-
+|'''28-31'''||+15||'''64-67'''||+24
+|-
+|'''32-35'''||+16||'''68-71'''||+25
+|}
+
+If a [[ring of the gods (i)]] or [[Prayer cape]] is equipped, or alternatively if a Prayer cape or [[holy wrench]] is in the player's inventory, the amount of restored Prayer points is calculated with: <math display="inline">\lfloor PrayerLevel \times \frac{27}{100} \rfloor + 8</math>
+{| class="wikitable" style="text-align:center"
+!{{SCP|Prayer}} Level!!Boost!!{{SCP|Prayer}} Level!!Boost!!{{SCP|Prayer}} Level!!Boost
+|-
+|'''1-3'''||+8||'''34-37'''||+17||'''67-70'''||+26
+|-
+|'''4-7'''||+9||'''38-40'''||+18||'''71-74'''||+27
+|-
+|'''8-11'''||+10||'''41-44'''||+19||'''75-77'''||+28
+|-
+|'''12-14'''||+11||'''45-48'''||+20||'''78-81'''||+29
+|-
+|'''15-18'''||+12||'''49-51'''||+21||'''82-85'''||+30
+|-
+|'''19-22'''||+13||'''52-55'''||+22||'''86-88'''||+31
+|-
+|'''23-25'''||+14||'''56-59'''||+23||'''89-92'''||+32
+|-
+|'''26-29'''||+15||'''60-62'''||+24||'''93-96'''||+33
+|-
+|'''30-33'''||+16||'''63-66'''||+25||'''97-99'''||+34
+|}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 2 April 2025
+|update = Poll 83: Castle Wars Update
+|poll = Poll 83 - Castle Wars, New Player Changes & More
+|change = The Castlewars brew now also applies the effects of a [[stamina potion]] and [[super restore]] when consumed. 
+}}
+{{Subject changes footer}}
+
+{{Castle Wars}}
+{{Potions}}

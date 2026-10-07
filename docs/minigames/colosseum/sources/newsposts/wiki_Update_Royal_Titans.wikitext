@@ -1,0 +1,377 @@
+{{Update|date=05 February 2025|url=https://secure.runescape.com/m=news/royal-titans?oldschool=1|category=game}}
+[[File:Royal Titans newspost.jpg|right]]
+{{clear}}
+__TOC__
+''Team up and face the mighty Royal Titans, a brand-new duo boss that will put your combat skills to the test!''
+
+Before we kick things off, a quick note from us: we're aware that the Delve Boss rewards are top of mind right now for many of you. We've been discussing the best direction to take and you can expect an update from us later today. In the meantime, the team have worked hard to bring the Royal Titans to life, so we'd really like conversation to focus on these for now so we can see what you think!
+
+==Blog Update - Wednesday, February 5th, 13:45 GMT==
+Whoops! It's been an especially busy week and it looks like we left out a couple of last minute tweaks that you'll definitely want to hear more on.
+
+Last week, we made a handful of small changes to Forestry that re-ignited conversations about things like event frequency and collection log entries in particular. From those conversations, we've gone ahead and made the following changes, which were included with today's game update:
+
+* Forestry Event spawn chance has been increased by 20% on all trees.
+* Drop rates for the Golden Pheasant Egg, Fox Whistle and Petal Garland have been adjusted to 1 in 30 from their respective events.
+* The Golden Pheasant Egg and Fox Whistle can now be purchased from for Forestry Shop for 75,000 Anima Bark a piece.
+
+Thanks for bearing with us, apologies for missing this one, and we hope you're enjoying the Royal Titans!
+
+==Changelog February 5th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Royal Titans'''
+
+* The Royal Titans have arrived in the Asgarnia Ice Dungeon! Travel to the north-western section of the dungeon and enter the small cave beside the giant throne to challenge them.
+
+<u>Royal Titans Rewards</u>
+
+* Twinflame Staff: A 6-tick magical weapon that automatically detects a target’s elemental weakness and casts the appropriate spell. When using Bolt, Blast, or Wave spells from the Standard Spellbook, the staff triggers an echo hit dealing 40% of the original damage.
+* New Prayer Scrolls: Deadeye (+18% Ranged Attack, +18% Ranged Strength, +5% Defence) and Mystic Vigour (+18% Magic Attack, +3% Magic Damage, +5% Defence).
+* Giantsoul Amulet: An untradable amulet that can teleport users to the Royal Titans’ arena, Obor's lair or Bryophyta's lair.
+* Desiccated pages: An untradeable, uncommon drop that converts into Burnt, Soaked, or Soiled Pages at new plinths (50 Runecraft required).
+* The Royal Titans have a pet! Use the sacrifice option to double your pet drop chance.
+
+<u>Royal Titans Discord Banner</u>
+
+* We have a winner, folks! Check out some of the amazing creative artwork in the blog, and a huge thank you to everyone who submitted their designs!
+
+'''Other Changes'''
+
+* The Leagues Tutor has packed away his gear from the Lumbridge Courtyard but can still be found on the southeast spire of Lumbridge Castle.
+* Fixed issues with the Max Cape teleport display options.
+* Colosseum Totems once again respect the player's attack delay.
+* Ironman accounts (excluding GIM) can now add more specific whitelisted items to their Collection Log Book, including the Swift Blade, Fedora, Partyhat and Specs, Amulet of Rancour and Pharaoh's Sceptre.
+* The Emblem Trader now has a new option to discuss the values of different skulls.
+* Items from Bounty Hunter Supply Crates will now be released into the Inventory in a more varied order: 3 Manta Rays or Anglerfish, 1 Karambwan, 3 Manta Rays or Anglerfish, 1 Karambwan, and finally 2 Manta rays or Anglerfish.
+* The skull icons used in Bounty Hunter to represent risk values will now have golden eyes if a player is skulled.
+* The Bounty Hunter ancient warrior weapon values have been updated to reflect their new charge costs.
+* The sit animation will no longer cause players' heads to stretch when used with the Easter Egg Helm.
+* Fixed typos on Hunter Skill Capes.
+* Fixed an issue where the Strange Old Lockpick degraded erroneously in certain Barrows corridors.
+
+'''Client and Mobile Updates'''
+
+* The HP bar is no longer hidden behind the BH skulls when playing on Mobile and C++.
+* Fixed an issue with the activity adviser not displaying content on some devices.
+
+'''PvP Rota'''
+
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''activated'''</u> with this rota.
+
+The PvP Arena is using '<b>Max/Med</b>' loadouts in Ranked Duels and Tournaments this week.
+
+{{Collapsed section end}}
+
+==Royal Titans==
+The Royal Titans are here! Grab a friend and go toe-to-toe with these gigantic foes, or else their elemental influence could engulf all of Gielinor. Alternatively, if you've got a bit of a hero streak, leave the friend at home and go it alone - but know that Branda and Eldric won't go easy on you!
+
+The Royal Titans is a dual-boss encounter where you'll be tasked with taking on Branda, Queen of Fire and Eldric, King of Frost. Branda is expanding her empire of flame from beneath the Karamjan volcano, but she's on a collision course with Eldric's icy throne. To take them on, you'll want to head to the north-west of the Asgarnia Ice Dungeon and use the small cave next to the giant throne of ice (you can't miss it). Agile players can also use a shortcut just west of the entrance ladder to get there in a pinch.
+
+Get up close to the Royal Titans in this wonderful video, put together by the equally wonderful OnlyTrails!
+
+<center>
+{{Youtube|I_Nk-JT5C6w}}
+''If you can’t see the video above, click ''[https://youtu.be/I_Nk-JT5C6w?si=WA8uE7HcnyfTRERl here]''!''
+</center>
+
+''By the way, we’d love to hear your feedback about this style of video. Since the Royal Titans is designed to be a ‘teaching’ boss encounter, we felt comfortable showing off more of the gameplay than we usually would. Are we striking the right balance, or oversharing? Let us know!''
+
+This encounter should get you more familiar with gear switching. Rapidly switching between combat styles is a component of many endgame encounters and can feel daunting to learn, so we're building on the success of updates like Scurrius and Perilous Moons to introduce players to another important part of your PvM toolkit.
+
+Having said that, this fight is a definite step up from the likes of Scurrius, so we'd 70+ combat and suitable gear for all three styles, such as the Perilous Moons gear, Black Dragonhide, Mystic Robes, and Abyssal Whip, a Rune Crossbow… or whatever else you’re comfortable with!
+
+Here’s how you can use each combat style against the Titans:
+
+* Melee: your bread and butter. Both Branda and Eldric are weak to Melee, so whenever you have the chance to get up close and personal, you should take it.
+* Ranged: your time saver. Occasionally, the Titans will step out of Melee range or be inaccessible. You can of course wait them out, but you'd be better off bringing a Ranged switch (even if it's only a weapon and nothing else) to speed up those kills.
+* Magic: your control. Throughout the fight, you'll be bombarded with walls of flame, pillars of ice, and nasty minions matching the Titans' elements. You'll need Magic to manage the arena and keep on top of minions. Elemental Weaknesses come into play here, so make sure to bring the right runes for the job…
+
+You’ll be switching like a pro in no time, and soon you’ll be able to tackle more challenging content like Zulrah, Nex, the Phantom Muspah, or even Raids!
+
+In the arena, you’ll be able to join a friend’s instance in much the same way as you’d enter their Player-Owned House. Right-click the entrance cave, select ‘Join a fight’ and enter your friend’s character name. Afterwards, you’ll be able to click on the last name you entered, but you’ll be able to do multiple kills in one trip.
+
+Note though that no more than two people can take on the Titans at once.
+
+==Royal Titans Rewards==
+The Royal Titans have more unique rewards than regular loot, and they’re geared towards the player levels we’re targeting. This means they’re unlikely to be significant moneymakers, but the regular loot will certainly stack up as your kill times improve!
+
+Importantly, you can only loot from one of the Titans per trip. If you’re in a duo, you and your friend can loot the same Titan, or different ones.
+
+===Twinflame Staff===
+The Twinflame Staff is a tradeable, one-handed staff. It’s made from a regular battlestaff and two unique components dropped by Eldric and Branda, respectively. Every piece is tradeable.
+
+If your target has an Elemental Weakness, the Twinflame Staff will automatically select the element that they're weak to and let you cast the appropriate spell without navigating your spellbook. The keen-eyed among you may notice that this will be ''especially'' useful when fighting the Royal Titans themselves!
+
+More interestingly, this staff is a slow, heavy hitter, firing off spells every 6 ticks (3.6 seconds) instead of the usual 5 ticks (3 seconds). To compensate, we've given it an echo effect where any Bolt, Blast or Wave spell that you cast instead fires off two projectiles. The first hit rolls from 0 to 100% of your maximum hit, as you'd expect. The second hit lands a tick (0.6 seconds) after the first and deals 40% of the first hit's damage, rounded down. This slower attack speed gives the Twinflame Staff a weighty'' ''feeling, while resulting in less lost DPS if you happen to miss a tick or two.
+
+This weapon shines against foes with Elemental Weaknesses, especially if you don’t have a Harmonised Nightmare Staff. When you’re done with the Titans, you might like to take it to Zulrah… 
+
+===Deadeye Prayer Scroll===
+Up next is the first of two untradeable Prayer scrolls. Looting Eldric will give you a shot at obtaining the Deadeye Prayer Scroll, which can be used to unlock Deadeye, a new Ranged prayer that overrides Eagle Eye and serves as a bridge between Eagle Eye and Rigour. Deadeye requires Level 62 Prayer, and while active will provide +18% Ranged Attack, +18% Ranged Strength and +5% Defence. You can use this alongside Steel Skin if you're in need of extra Defence, and the table below shows how it stacks up against other Ranged Prayers:
+
+{| class="wikitable" style="text-align: center;"
+|-
+! Prayer(s)
+! Ranged Attack %
+! Ranged Strength %
+! Defence %
+! Prayer Requirement
+! Drain rate
+! Account progression unlock timing
+|-
+| Hawk Eye + Rock Skin
+| 10
+| 10
+| 10
+| 26
+| 1 point per 3 seconds
+| Very early game
+|-
+| Eagle Eye
+| 15
+| 15
+| 0
+| 44
+| 1 point per 3 seconds
+| Early game
+|-
+| Eagle Eye + Steel Skin
+| 15
+| 15
+| 0 + 15
+| 44
+| 1 point per 1.5 seconds
+| Early game
+|-
+| Deadeye
+| 18
+| 18
+| 5
+| 62
+| 1 point per 3 seconds
+| Mid game
+|-
+| Deadeye + Steel Skin
+| 18
+| 18
+| 5 + 15
+| 62
+| 1 point per 1.5 seconds
+| Mid game
+|-
+| Rigour
+| 20
+| 23
+| 25
+| 74
+| 1 point per 1.5 seconds
+| Late game
+|}
+
+===Mystic Vigour Prayer Scroll===
+By looting Branda, you'll gain a chance to obtain the untradeable Mystic Vigour Prayer Scroll, which you can use to unlock Mystic Vigour. Mystic Vigour overrides Mystic Might and bridges the gap between Mystic Might and Augury. You'll need Level 63 Prayer to activate Mystic Vigour, and while active you'll gain +18% Magic Attack, +3% Magic Damage and +5% Defence. Just like Deadeye, this can be used alongside Steel Skin. Here's another table to show you how Mystic Vigour stacks up:
+
+{| class="wikitable" style="text-align: center;"
+|-
+! Prayer(s)
+! Magic Attack/Defence %
+! Magic Damage %
+! Defence %
+! Prayer Requirement
+! Drain rate
+! Account progression unlock timing
+|-
+| Mystic Lore + Rock Skin
+| 10
+| 1
+| 10
+| 26
+| 1 point per 3 seconds
+| Very early game
+|-
+| Mystic Might
+| 15
+| 2
+| 0
+| 44
+| 1 point per 3 seconds
+| Early game
+|-
+| Mystic Might + Steel Skin
+| 15
+| 2
+| 15
+| 44
+| 1 point per 1.5 seconds
+| Early game
+|-
+| Mystic Vigour
+| 18
+| 3
+| 5
+| 63
+| 1 point per 3 seconds
+| Mid game
+|-
+| Mystic Vigour + Steel Skin
+| 18
+| 3
+| 5 + 15
+| 63
+| 1 point per 1.5 seconds
+| Mid game
+|-
+| Augury
+| 25
+| 4
+| 25
+| 77
+| 1 point per 1.5 seconds
+| Late game
+|}
+
+===Giantsoul Amulet===
+If you thirst for more giant blood, the Giantsoul Amulet will be a welcome pickup!
+
+This untradeable teleportation amulet can be obtained from both of the Royal Titans. When charged with Big Bones and Law Runes, you can use it to teleport to the Royal Titans’ arena, Obor’s lair, or Bryophyta’s lair. No beanstalk required!
+
+===Desiccated Pages===
+Desiccated Pages are magically imbued pages that have sadly crumbled to dust. Don’t worry though – you can recycle them into Burnt, Soaked, or Soiled Pages instead.
+
+These uncommon, untradeable drops can be obtained from either Titan. If you’re a proper page fan, you can also use the ‘Take Pages’ option to sacrifice any other loot (excluding the pet) and guarantee a bundle of ‘em.
+
+In short, this is a combat-focused way to target-farm Pages. That ''also ''means that you can get a bit Tome-happy during the fight, or whenever you’re using your new Twinflame Staff.
+
+To transform your Desiccated Pages, take them to the new plinths in Arceuus, the Ruins of Unkah, and south of Quetzacalli Gorge. You'll need level 50 Runecraft to convert your pages, and you’ll receive a spot of Runecraft XP in the process.
+
+===Pet===
+The Royal Titans have a pet! We’ll let you discover what it looks like for yourselves.
+
+Just like with Araxxor, you’ll be able to forego ''all'' loot and double your chances to obtain the pet by using the ‘Sacrifice’ option on either one of the Titans once they’ve been subdued.
+
+===Sum Up===
+To summarize:
+
+* Head to the north-western portion of the Asgarnia Ice Dungeon to take on the Royal Titans.
+* Don’t forget to bring a friend!
+* Bring decent gear in all three Combat styles and be prepared to switch between them throughout the fight. Branda and Eldric aren't exactly pushovers, so we'd advise at least 70+ in your Combat stats and gear to match.
+* Take on the Titans.
+* Score sick loot like a brand-new Elemental Weakness-focused staff, untradeable Prayers to aid you ahead of unlocking Rigour and Augury, handy teleportation options, pages for your elemental Tomes ''and ''a cute pet to show off to your pals!
+* Repeat!
+
+In case you want to team up, we've set up some worlds with the Activity 'Royal Titans'!
+
+* USE = 573
+* USW = 324
+* EU = 328
+* UK = 567
+
+We'll see you in Asgarnia. Until then, stay ''frosty!''
+
+===Discord Banner Competition Winner===
+Last week, we called upon the most creative minds in the OSRS community to design a Discord banner fit for the Royal Titans, and boy, did you deliver! The Royal Titans Banner Competition, hosted by the OSRS Discord moderators, saw an incredible range of submissions showcasing amazing artistry and passion for the game.
+
+A massive thank you to everyone who participated. The competition was fierce, but after much deliberation, we’re excited to reveal our winner and runners-up!
+
+===And the winner is... Phantom!===
+[[File:Royal Titans (1).jpg|thumb|550px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-02-05/phantom.jpg here]!'']]
+
+Congratulations! Your incredible artwork has been selected as the official OSRS Discord banner to commemorate the release of the Royal Titans boss encounter. Your design perfectly captures the grandeur and power of these mighty giants, and we’re thrilled to display it on the server for all to see.
+
+===Runners-Up===
+Your artwork stood out as phenomenal entries, and while it just missed out on the top spot, it still deserves recognition. A huge well done! 
+
+'''''Click on each image to enlarge them.'''''
+
+<gallery mode="packed", heights="180", style="text-align:center">
+Royal Titans (2).jpg
+Royal Titans (3).jpg
+Royal Titans (4).jpg
+Royal Titans (5).jpg
+</gallery>
+
+''Please note, this competition was run by the Discord moderators, so while it’s hosted on the official server, it is not directly affiliated with Jagex.''
+
+==12th Birthday Event==
+It’s time to celebrate 12 incredible years of Old School RuneScape! We’ve got a jam-packed lineup of nostalgic fun in the [http://discord.gg/OSRS OSRS Discord], and we want you to get involved.
+
+===OSRS Birthday Cake Competition===
+[[File:Royal Titans (6).jpg|thumb|400px|center|''If you can’t see the image above, click'[https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-02-05/Bdaycake.jpg here]!'']]
+
+Time to equip some baking mitts and make the Lumbridge Cook proud! We're challenging the community to create the most epic OSRS-themed birthday cakes.
+
+* Competition Dates: 09:00 on February 10th to 21:00 on February 17th (GMT)
+* Where to Submit: Post your entries in the '''#birthday-cakes''' channel on Discord or in the pinned Reddit thread under Community Highlights on [https://www.reddit.com/r/2007scape/ r/2007scape.]
+
+Our judge will narrow it down to three finalists, and the Twitch chat will vote live on stream to decide the ultimate winner!
+
+Prizes include:
+
+* A RuneScape Kingdoms board game!
+* A RuneScape Cookbook!
+* A year's worth of membership!
+
+===Nostalgic Voting Countdown===
+We'll also be hosting 12 days of OSRS nostalgic voting, starting Sunday, February 9th! Each day, a new question will be posted in the '''#nostalgic-countdown''' channel, leading up to our Big Birthday Livestream on February 20th. Join in, cast your vote, and relive some of the most memorable moments in OSRS history.
+
+What was the scariest early-game experience? Dying to a dark wizard or getting ambushed by a highwayman? You decide!
+
+===12 Years of Memories===
+While you're at it, take a trip down memory lane with our #[https://discord.com/channels/324132423636090880/1333485487817756786 12years-of-memories] channel. Share your photos, videos, or stories of your most nostalgic RuneScape moments - whether it’s your first 99, an unforgettable PKing battle, or a long-lost adventure with friends.
+
+===OSRS Tattoo Designs===
+Thinking about getting an OSRS-inspired tattoo but need some inspiration? Mods Jerv (Concept Artist) & Skylark (Character Artist) are on the case! We've set up a [https://discord.com/channels/324132423636090880/1333487319218520127 #Tattoo-Suggestions] channel in Discord, where you can drop your ideas. Before the Birthday livestream on February 20th, the Mods will pick some favourites and bring them to life with custom sketches.
+
+Get involved, celebrate with us, and let’s make this birthday one to remember!
+
+==Other Changes==
+
+* The Leagues Tutor has packed away his gear from the Lumbridge Courtyard but can still be found on the southeast spire of Lumbridge Castle.
+* Fixed issues with the Max Cape teleport display options.
+* Colosseum Totems once again respect the player's attack delay.
+* Ironman accounts (excluding GIM) can now add more specific whitelisted items to their Collection Log Book, includng the Swift Blade, Fedora, Partyhat and Specs, Amulet of Rancour and Pharaoh's Sceptre.
+* The Emblem Trader now has a new option to discuss the values of different skulls.
+* Items from Bounty Hunter Supply Crates will now be released into the Inventory in a more varied order: 3 Manta Rays or Anglerfish, 1 Karambwan, 3 Manta Rays or Anglerfish, 1 Karambwan, and finally 2 Manta rays or Anglerfish.
+* The skull icons used in Bounty Hunter to represent risk values will now have golden eyes if a player is skulled.
+* The Bounty Hunter ancient warrior weapon values have been updated to reflect their new charge costs.
+* The sit animation will no longer cause players' heads to stretch when used with the Easter Egg Helm.
+* Fixed typos on Hunter Skill Capes.
+* Fixed an issue where the Strange Old Lockpick degraded erroneously in certain Barrows corridors.
+
+===Client and Mobile Updates===
+
+* Fixed an issue with the activity adviser not displaying content on some devices.
+* The HP bar is no longer hidden behind the BH skulls when playing on Mobile and C++.
+
+==PvP World Rota==
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''activated'''</u> with this rota.
+
+The PvP Arena is using '<b>Max/Med</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1ii7brv/royal_titans_out_today/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Entropi, Errol, Gecko, Gengis, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Mack, Manked, Markos, Maylea, Moogle, Morty, Necro, Nin, Nox, Nylu, Ori, Other, Philomel, Pumpkin, Rach, Redfield, Rice, Roq, Ry, Saiyan, Sarnie, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titus, TJ, Tsourorf, Tyran, Veda, Vegard, West, Wolfy & Yume'''
+
+''The Old School Team.''

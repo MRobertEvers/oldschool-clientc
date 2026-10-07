@@ -14,6 +14,8 @@ import re
 import sys
 from pathlib import Path
 
+import config_text
+
 
 CONTENT = Path("OSRS-Content/osrs239-content")
 SCRIPTS = CONTENT / "server/scripts"
@@ -193,7 +195,7 @@ def check(root: Path) -> list[str]:
         f"{QBD_CONSTANTS}: rs2012_qbd_lp_scale must stay retired",
     )
 
-    npcs = config_blocks((root / QBD_NPCS).read_text(encoding="utf-8"))
+    npcs = config_blocks(config_text.read_text(root / QBD_NPCS, encoding="utf-8"))
     attack_bonus_names = ("stabattack", "slashattack", "crushattack", "magicattack", "rangeattack")
     defence_bonus_names = ("stabdefence", "slashdefence", "crushdefence", "magicdefence", "rangedefence")
     qbd_defences = {

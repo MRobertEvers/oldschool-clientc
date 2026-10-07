@@ -1,0 +1,22 @@
+runs                                                       13
+zuk gap by hp phase (phase relative to first hp<=240 tick) ('after', 7):275 ('before_first_hp<=240', 10):381 ('before_first_hp<=240', 7):8 ('before_first_hp<=240', 8):1 ('before_first_hp<=240', 9):1
+(first tick hp<=240, first 7-gap arrival, first attack) per run [(327, 330, 13), (380, 388, 13), (313, 320, 13), (369, 370, 13), (342, 350, 13), (208, 210, 13), (228, 230, 13), (177, 180, 13), (431, 440, 13), (378, 380, 13), (335, 349, 13), (198, 200, 13), (338, 340, 13)]
+example gap sequence of one run                            [10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 7, 7, 7, 7, 7, 7, 7, 7, 7]
+run lengths (last recorded tick)                           [252, 254, 286, 348, 464, 509, 514, 528, 529, 533, 584, 613, 627]
+expected 2nd set tick = 422 + paused band ticks + 175      [612, 622, 630, 632, 648, 664, 672, 679, 719, 721, 750, 754, 759]
+runs that outlast their expected 2nd set tick              0
+ranger first attack - spawn                                8:12
+ranger attack gap                                          4:63 6:1
+ranger attacks per run                                     [0, 1, 3, 3, 5, 6, 6, 6, 7, 8, 8, 10, 13]
+mager first attack - spawn                                 6:11 8:1
+mager attack gap                                           4:356 5:1 6:1
+mager attacks per run                                      [0, 16, 18, 20, 23, 26, 27, 30, 33, 37, 43, 45, 52]
+jad attack ids (84/85 = the two styles)                    84:82 85:72
+jad style sequences (first 12 per run)                     [[85, 85, 84, 85, 84, 85, 85, 85, 85], [84, 84, 85, 84, 85, 85, 85, 84, 84, 84, 84, 84], [85, 85, 84, 85, 85, 84, 84], [84, 84, 85, 85, 84, 85, 84, 84, 84, 85, 85], [85, 85, 85, 85, 85, 85, 85, 84, 85, 85, 84, 84], [85, 85, 84, 85, 85, 84, 85, 84, 84, 84, 84, 84]]
+yt-hurkot spawn tick - jad spawn tick, per run             [[30], [31], [25], [30], [25], [165], [42], [42], [47], [25], [97], [20]]
+yt-hurkot spawn tiles                                      (2270, 5352):4 (2270, 5353):3 (2270, 5354):3 (2270, 5355):1 (2270, 5356):1 (2271, 5352):2 (2271, 5353):2 (2271, 5354):4 (2271, 5355):2 (2272, 5352):2 (2272, 5353):2 (2272, 5354):3 (2272, 5355):1 (2273, 5352):5 (2273, 5354):1
+jad hp at healers spawn                                    [93, 117, 145, 147, 152, 157, 164, 166, 172, 174]
+yt-hurkot attack gap                                       0:23 1:18 11:3 13:4 14:1 16:1 17:1 2:10 3:11 4:32 5:2 6:6 7:1 8:1 9:1
+zuk death tick                                             [252]
+zuk last hp                                                [124]
+npc deaths on the zuk death tick                           [[(7703, 1), (7704, 1), (7707, 1), (7708, 3)]]

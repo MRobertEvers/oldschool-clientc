@@ -1,0 +1,391 @@
+{{Update|date=30 August 2023|url=https://secure.runescape.com/m=news/poll-80-toa-changes--dmm-tweaks?oldschool=1|category=game}}
+[[File:Poll 80 ToA Changes & DMM Tweaks newspost.png|right]]
+{{clear}}
+__TOC__
+''This week’s game update sees some initial tweaks to Deadman: Apocalypse alongside the long-awaited Tombs of Amascut and Poll 80 updates!''
+
+==Bug fixes==
+{| class="wikitable" style="text-align:center; width:665px;"
+!Date and Time
+!Change
+!Current Status
+|-
+|Wednesday 30th August, 11:45 BST
+|We have deployed a change on the Sigil of the Ninja. The effect for reducing the attack speed from 5 to 4 cycles when using magic now only applies to spells that are autocast. Manually selected spells will not be affected by the sigil of the ninja.
+|HOTFIXED
+|-
+|Wednesday 30th August, 12:10 BST
+|We've been made aware that the explosions within the Path of Apmeken can cause damage to your pets. Please avoid taking pets into this room as we investigate the issue.
+|HOTFIXED - 12:40 BST
+|-
+|Wednesday 30th August, 12:56 BST
+|To resolve an issue in Deadman: Apocalypse where players were using the Ring of Life effect to teleport away from situations they wouldn't otherwise be able to, we've disabled the Ring of Life effect in DMM only.
+|HOTFIXED
+|-
+|Wednesday 30th August, 13:15 BST
+|The Mark of Darkness spell now correctly checks for a player having the correct runes and Magic level.
+|HOTFIXED
+|}
+
+==Changelog August 30th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''Deadman: Apocalypse'''
+* Re-added the Emblem Trader to the north of Edgeville.
+* Reverted the costs for the Emblem Trader’s shop on the Permanent DMM world back to normal.
+* The Scythe of Vitur will now correctly add charges, even when already partly charged.
+* Players will no longer receive Tier 1 Sigils when they shouldn’t.
+* Increased the PJ Timer in single-way combat areas from 12 seconds (20 cycles) to 14.4 seconds (24 cycles).
+
+'''Tombs of Amascut'''
+* Path of Apmeken
+** Increased the minimum and maximum foe counts for most waves, causing them to spawn in faster.
+** Shamans no longer spawn thralls if they have been poisoned or envenomed.
+** Volatile baboons now one-shot other baboons that they hit when they explode.
+* Added a Deposit Urn next to the Helpful Spirit.
+* Players may now deposit and retrieve their Pickaxe in the lobby using the Cavity in the wall.
+* During his orb phase Akkha will now only move location after a fixed number of successful hits.
+* Thralls no longer contribute to Akkha’s teleport count during his enrage phase.
+* Updated Invocation descriptions to improve clarity.
+
+'''Other Poll 80 Improvements'''
+* Adjusted Pharaoh’s Sceptre drop rates to always be better in later rooms.
+* Players will now always roll for the Pharaoh’s Sceptre at the end of Pyramid Plunder, even if they fail the Chests or Sarcophagi.
+* Lesser and greater corruption now both have 50% accuracy.
+* Greater corruption now drains twice as many Prayer Points from the target.
+* Mark of Darkness is no longer a targeted spell, instead it now buffs the caster.
+* Lava dragons can now drop Ensouled Heads in addition to other loot.
+* Webweaver Bow now consumes one charge when using the special attack instead of four.
+* Mage Arena II Capes now break upon death, rather than vanishing, and can be fixed for 96,000 GP.
+* It is now possible to take multiple God Capes at the same time.
+* Enabled Multicannons in PvP worlds wherever Looting Bags cannot be used.
+* Implemented a system for Loot Key broadcasts in Clan Chat, with options in the Clan Settings menu.
+* Increased Wilderness Achievement Diary Rune rewards for all tiers.
+* Disabled random events within the Wilderness Boss lairs.
+* Players will now receive a message 10 ticks before Mark of Darkness expires.
+* A message will now appear in the chat box to indicate that players have been bound. Players will also receive a message when they unfreeze.
+* Removed Dragon Scale Dust from the Nightmare Zone Reward Shop.
+
+'''Other Changes'''
+
+* Players will now receive the intended 15% accuracy bonus from Bounty Hunter’s Ancient Kit when special attacks are performed during the minigame.
+* When treasure is won from a Player-Owned House's Dungeon Treasure Chest, the notification message now says who won it and how much money they received.
+* The Love Crossbow can no longer be fired in PvP areas.
+* Thammaron's Sceptre and the Accursed Sceptre will now correctly show 0 ‘splashes’ if the wielder’s Magic has been drained.
+* Upon trying to enter the Mage Training Area, free-to-play players will now be informed that they require membership.
+* All Slayer Helm variants are now correctly shown as lost in the kept on death interface.
+
+'''PvP Rota'''
+
+The PvP rota has moved to Period A:
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''activated''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''activated''' with this rota.
+
+The PvP Arena is using 'Max/Med' loadouts in Ranked Duels and Tournaments this week.
+
+{{Collapsed section end}}
+
+==Deadman: Apocalypse Tweaks==
+[[File:Poll 80 ToA Changes & DMM Tweaks (1).png|600px|center]]
+
+
+Since Deadman: Apocalypse launched last Friday, thousands of you have hit the breaches and engaged in all-out PvP carnage.
+
+While you’ve been busy murdering each other, we’ve been closely monitoring your feedback. Since there’s a large cash prize attached to this game mode, we’re somewhat constrained in the changes we can make – but we’re committed to addressing critical issues as they appear.
+
+Today's patch brings two notable fixes:
+
+===Edgeville Emblem Trader===
+Those of you wondering where your old friend the Emblem Trader has got to will be pleased to see him back in his usual spot north of Edgeville. His strikingly similar friend can also be found hanging out at the Grand Exchange.
+
+On Deadman Worlds, the Grand Exchange Emblem Trader does not let you acquire a skull. However, the Emblem Trader north of Edgeville and his colleague at the Revenant Caves will.
+
+===Prices in Deadman: Apocalypse and Permanent Deadman Shops===
+Last week, some of you raised that the Emblem Trader Shop had the Point cost for items increased on the Permanent Deadman World. Oops! In this week's game update, we had a word with the Emblem Trader and the prices are back to normal.
+
+{| class="wikitable" style="text-align: center;"
+|-
+!Table
+!Point Cost
+|-
+|Wilderness Teleport Tabs
+  
+* Paddewwa
+* Senntisten
+* Annakarl
+* Carrallanger
+* Dareeyak
+* Ghorrock
+* Kharyrll
+* Lassar
+
+|10,000 each
+|-
+|Whip Mixes
+
+* Volcanic
+* Frozen
+
+|500,000 each
+|-
+|Ward Upgrade Kit
+|350,000
+|-
+|Staff Upgrade Kit
+
+* Steam
+* Lava
+
+|500,000 each
+|-
+|Saradomin's Tear
+|250,000
+|-
+|Rune Pouch
+|1,200,000
+|-
+|Ring of Wealth Scroll
+|50,000
+|-
+|Magic Shortbow Scroll
+|100,000
+|-
+|Looting Bag
+|10,000
+|-
+|Hunter's Honour / Rogue's Revenge
+|2,500,000
+|-
+|Granite Clamp
+|250,000
+|-
+|Dragon Pickaxe Upgrade Kit
+|300,000
+|-
+|Dark Bow Paint (x4) 
+
+* Yellow
+* Green
+* White
+* Blue
+
+|500,000 each
+|-
+|Crystal Weapon Seed
+|540,000
+|-
+|Clue Box
+|100,000
+|-
+|Climbing Boots
+|5,400
+|-
+|Bounty Teleport Scroll
+|8,000,000
+|-
+|Super Attack
+|1,000
+|-
+|Super Strength
+|1,000
+|-
+|Super Defence
+|1,000
+|-
+|Ranging Potion
+|6,000
+|-
+|Magic Potion
+|8,000
+|-
+|Super Combat Potion
+|30,000
+|-
+|Prayer Potion
+|3,000
+|-
+|Super Restore Potion
+|10,000
+|-
+|Saradomin Brew
+|25,000
+|-
+|Zamorak Brew 
+|25,000
+|-
+|Stamina Potion
+|8,000
+|-
+|Extended Antifire Potion
+|5,000
+|-
+|Antidote++ 
+|3,000
+|-
+|Anti-venom
+|35,000
+|-
+|Blighted Bind Sack
+|100
+|-
+|Blighted Snare Sack 
+|500
+|-
+|Blighted Entangle Sack
+|1,000
+|-
+|Blighted Teleblock Sack
+|3,000
+|-
+|Blighted Vengeance Sack
+|3,000
+|-
+|Blighted Ancient Ice Sack
+|2,000
+|-
+|Ring of Wealth Scroll 
+|50,000
+|-
+|Magic Shortbow Scroll
+|100,000
+|-
+|Saradomin Tear
+|1,500,000
+|-
+|Rune Pouch
+|1,200,000
+|-
+|Looting Bag
+|10,000
+|-
+|Clue Box
+|100,000
+|-
+|Ornate Maul Handle
+|1,250,000
+|}
+Note that this doesn’t affect the Bounty Hunter Emblem Trader on regular worlds or the Bounty Hunter world.
+
+===Additional Hotfixes===
+* The Scythe of Vitur will now correctly add charges, even when already partly charged.
+* Players will no longer receive Tier 1 Sigils when they shouldn’t.
+* Increased the PJ Timer in single-way combat areas from 12 seconds (20 cycles) to 14.4 seconds (24 cycles).
+
+As the game mode progresses, we are also removing the following worlds from Deadman: Apocalypse:
+
+3-50 Bracket
+
+* US East - 472, 473, 574
+* US West - 442, 538, 541
+* UK - 508
+* EU - 462, 550, 551
+
+51-70 Bracket
+
+* US East - 404
+* US West - 439
+* EU - 460
+
+==Tombs of Amascut==
+===The Path of Apmeken===
+We received a lot of feedback regarding the Path of Apmeken – particularly, you felt that the monkey business took a bit too long compared to other paths.
+
+In response, we’ve allowed players to clear the waves faster without making the room too difficult for less experienced players.
+
+To achieve this, we’ve increased both the minimum and maximum foe counts for most waves, which ultimately means that players will have to clear fewer enemies before the next wave begins. To prevent less experienced players being overwhelmed by the simian hordes, players can now use volatile baboons to clear out other enemies with a well-timed AoE explosion. In addition, shamans will no longer spawn thralls if they are poisoned or envenomed, giving everyone a bit of a break.
+
+===Lobby Deposit Box===
+[[File:Poll 80 ToA Changes & DMM Tweaks (2).png|292px|center]]
+
+
+We’ve added a Deposit Pot next to the Helpful Spirit which functions as a regular Deposit Box – just shove your unused supplies in there, and they’ll go straight to the Bank.
+
+[[File:Poll 80 ToA Changes & DMM Tweaks (3).png|327px|center]]
+
+
+You may also deposit and retrieve your Pickaxe in the lobby, so you don’t have to enter the Raid to retrieve it. There’s a Cavity in the wall that’s just right for the job.
+
+===Akkha===
+Previously, during Akkha’s enrage phase, he’d teleport to a new location after a fixed number of hits, even if they missed. This resulted in a bit too much teleporting for our liking, so we’ve made it so that Akkha will now only teleport after a certain number of ''successful ''hits. This guarantees that you’ll get in at least a little damage before he teleports away!
+
+Additionally, hits from thralls no longer contribute to Akkha’s teleport counter.
+
+===Accessibility===
+Last but not least, you asked us to improve the clarity of select Invocations. We’ve updated their mouseover information accordingly, and it should now be clearer what effect they’ll have on the Raid.
+
+==Other Poll 80 Changes==
+===Pyramid Plunder===
+[[File:Poll 80 ToA Changes & DMM Tweaks (4).png|600px|center]]
+First up, we have some adjustments to the drop rate of the Pharoah’s Sceptre. Previously the mummy’s maths were a little off, and the drop rate for the Sceptre actually ''decreased ''as you progressed further into the Pyramid. As of today’s update, your chances will now ''improve ''past Room 5 instead.
+
+As part of this change, we’ve also made it so that the Chests and Sarcophagi will roll for the Sceptre '''even if you fail. '''Have fun treasure hunting!
+
+The rates are as follows for both Chests and Sarcophagi:
+* Room 1: 1/4200
+* Room 2: 1/2800
+* Room 3: 1/1600
+* Room 4: 1/950
+* Room 5: 1/800
+* Room 6: 1/750
+* Room 7: 1/650
+* Room 8: 1/650
+
+===Arceuus PvP Spells===
+We have reworked Mark of Darkness; instead of being a debuff you cast on your target, it will now be a buff that you cast on yourself. While you have the buff, certain spells will be empowered, just as they previously were when targeting someone with the Mark of Darkness debuff. In case you've forgotten:
+
+* The bind chance of grasp spells is doubled, though the bind duration remains the same.
+* If your target is a player, corruption will occur twice as often.
+* If your target is a demon, demonbane spells will have an additional 25% damage and 20% accuracy bonus. The damage bonus is applied after any bonus damage from gear.
+
+While Greater Corruption has a Magic requirement that's 20 levels higher than Lesser Corruption, the only functional difference was the chance to apply corruption. We’ve doubled the Prayer Point drain inflicted by Greater Corruption to make it feel, well… greater. In addition both Lesser and Greater Corruption now have 50% accuracy.
+
+===Additional Changes===
+We also have a host of smaller Poll 80 changes coming in this week’s update:
+* Lava dragons can now drop Ensouled Heads in addition to other loot.
+* Webweaver Bow now consumes one charge when using the special attack instead of four.
+* It is now possible to take multiple God Capes at the same time.
+* Enabled Multicannons in PvP worlds wherever Looting Bags cannot be used.
+* Implemented a system for Loot Key broadcasts in Clan Chat, with options in the Clan Settings menu.
+* Increased Wilderness Achievement Diary Rune rewards for all tiers.
+* Disabled random events within the Wilderness Boss lairs.
+* Players will now receive a message 10 ticks before Mark of Darkness expires.
+* A message will now appear in the chat box to indicate that players have been bound. Players will also receive a message when they unfreeze.
+* Removed Dragon Scale Dust from the Nightmare Zone Reward Shop.
+
+==Other Changes==
+* Players will now receive the intended 15% accuracy bonus from Bounty Hunter’s Ancient Kit when special attacks are performed during the minigame.
+* When treasure is won from a Player-Owned House's Dungeon Treasure Chest, the notification message now says who won it and how much money they received.
+* The Love Crossbow can no longer be fired in PvP areas.
+* Thammaron's Sceptre and the Accursed Sceptre will now correctly show 0 ‘splashes’ if the wielder’s Magic has been drained.
+* Upon trying to enter the Mage Training Area, free-to-play players will now be informed that they require membership.
+* All Slayer Helm variants are now correctly shown as lost in the kept on death interface.
+
+===PvP World Rota===
+The PvP rota has moved to Period A:
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter world
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''activated''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''activated''' with this rota.
+
+The PvP Arena is using 'Max/Med' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on our [http://services.runescape.com/m=forum/forums?380,381 official forums], on the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abyss, Arcane, Archie, Argo, Ash, Ayiza, Boko, Bruno, Chilly, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Errol, Fed, Gecko, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Necro, Nox, Nylu, Other, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Sarnie, Shroom, Sigma, Skane, Skylark, Sova, Squid, Starry, Stevew, Surma, Sween, Tide, Titus, Torrance, Tsourorf, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

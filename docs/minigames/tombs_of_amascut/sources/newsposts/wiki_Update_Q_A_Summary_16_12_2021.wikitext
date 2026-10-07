@@ -1,0 +1,224 @@
+{{Update|date=21 December 2021|link=https://secure.runescape.com/m=news/qa-summary-16122021?oldschool=1|category=community}}
+[[File:Q&A Summary 16-12-2021 newspost.png|right]]
+{{Clear|right}}
+
+Last week, our leadership team sat down to answer your questions on our livestream Q&A.
+In this stream, we broadly covered the following topics:
+
+* [[#Question #1|Our Roadmap]]
+* [[#Question #1|Overall consistency of updates]]
+* [[#Question #4|The delay of the Shattered Relics League]]
+* [[#Question #6|Poll 76]]
+* [[#Question #8|Wilderness, PvP and Bounty Hunter]]
+* [[#Question #5|Account Security]]
+* [[#Question #21|LMS Bots]]
+* [[#Question #22|Servers which are located in different regions]]
+
+Mod Ayiza (Senior Community Manager), Markos (Executive Producer) and Kieren (Lead Content Developer) were happy to answer your questions and provide more clarity on these topics.
+
+In case you didn't have time to tune in, we've summarised their answers below, so that you can catch up with what they had to say. Let's get into it!
+{{ToC}}
+==Question #1==
+{{Cquote2|What considerations went into creating this roadmap? When creating the roadmap, did you take into account all of the player feedback from the past year?}}
+
+[https://www.youtube.com/watch?v=WHfde9Je6lk&t=334s Youtube Time Stamp]
+
+* '''Mod Markos:''' We tried to take a balanced approach, and we wanted to learn from some of the things that have happened this year. The first thing we wanted to prioritise was making sure that we had a steady stream of releases this year, so that there were things consistently coming out for players into the main game. We also wanted people to feel that there are regular things coming out that they'd like to play.
+* '''Mod Markos:''' When we look back at 2021, there have been some really good releases but also some dry periods. What's happened is that we had some very large updates like Group Ironman and Clans which involved a lot of people and were extremely complex. We had to put more resource on it, which meant that we ended up with less updates were being actively worked on elsewhere.
+* '''Mod Markos:''' What we're moving towards now is a more meaningful, steady stream of updates which are released on a more regular basis than before. We also want make sure we're tackling different areas of the Community and making sure there's more regular Quests, improvements to Skilling systems, PvM content, etc. is also a particular area of the game that has been underserviced for a period of time so we're doing our best to start building content for that and tackle longer standing issues there.
+* '''Mod Ayiza:''' There's a lot of detail in [https://secure.runescape.com/m=news/gielinor-gazette---december-2021?oldschool=1 the Gazette], so definitely go check it out for more information on the way the teams have been split out.
+
+==Question #2==
+{{Cquote2|Can we expect reasonable consistency on updates next year?}}
+
+[https://www.youtube.com/watch?v=WHfde9Je6lk&t=498s Youtube Time Stamp]
+
+* '''Mod Kieren:''' We've intentionally split our development team into smaller teams so that we can have more smaller and medium sized releases at once. We’re taking steps to ensure that we hit the different parts of the game consistently. This allows us to get some things out more quickly and emphasise on big monthly beats. We're separating out the general quality of life stuff and noteworthy releases and balancing it across different player cohorts. You as players know there are PvMers, Quests, people who love - we can't just give content to one of those categories, it has to be the right balance across all of those players and we have to make sure we're adding content for everybody.
+* '''Mod Kieren:''' An MMO is more than the sum of its parts and it's important to touch on all of these things. So, when we planned the roadmap out we were categorising which sort of players will be happy each month to make sure there was a good balance to it. The Arena and Wilderness Boss Rework is essentially being designed by a team, whose only projects is going to be about PvP.
+* '''Mod Kieren:''' If things come up in the Community as an urgent need, that team is well placed to assess its roadmap and think about what projects they can do to address player feedback. You can imagine this across different types of content, too. Overall, this roadmap is a lot stronger at solving the problems you've pointed out to us this year.
+
+==Question #3==
+{{Cquote2|When can we expect the ToA Rewards Blog?}}
+
+[https://www.youtube.com/watch?v=WHfde9Je6lk&t=690s Youtube Time Stamp]
+
+* '''Mod Ayiza''' A lot of players expected the Tombs of Amascut Rewards Blog to come this month and haven't heard about it for a while - we apologise for this. We'll be talking about Tombs of Amascut Rewards around mid January next year due to timing issues on our end. The reality is there just hasn't been enough time to focus on getting that out with everything else that has happened with the team shifts and rejigging.
+* '''Mod Ayiza''' Before the new year, we're going to be putting out a blog with Poll Questions for the Quest that will accompany Tombs of Amascut, as well as the Raid itself (minus the rewards). Land of the Goblins will also be included within that blog.
+
+==Question #4==
+{{Cquote2|Do you think delaying Leagues 3 was the correct decision and can you explain more about your decision for the delay?}}
+
+[https://www.youtube.com/watch?v=WHfde9Je6lk&t=775s Youtube Time Stamp]
+
+* '''Mod Markos:''' We still believe this was the correct decision. With Group Ironman we saw a massive influx of players coming to the game. We realise it wouldn't be fair to pull them out of the game mode by releasing Leagues so close to it. Forcing players to make that decision (to play one or the other, plus the main game) wasn't really the correct thing to do. It was also a concern that had been brought up by the community in advance, that we were aware of.
+* '''Mod Markos:''' We recognise in particular that the fact that we announced it so close to release wasn't great - we'd like to avoid having to do that again. We know it was really frustrating for a lot of people who were greatly looking forward to Leagues. Nex is different - it's in the main game and not a separate game mode in the sense that Group Ironman is. We expect a lot of players to try it out but it's not as time intensive as Group Ironman. Additionally, with Nex coming out before Leagues 3, it means Nex will come out in the Shattered Relics League so they can try it with different metas and so on.
+
+==Question #5==
+{{Cquote2|What progress have you made on Account Security since you were last on Stream discussing it in the Summer?}}
+
+[https://www.youtube.com/watch?v=WHfde9Je6lk&t=934s Youtube Time Stamp]
+
+* '''Mod Markos:''' We have looked into Steam 2FA, and there's a few different ways we can address it. We’re currently establishing what the best method for that actually is and what a sensible solution is. As for general account security, more work has been done since the Summer. That is going to cover a range of improvements to the account system as a whole.
+* '''Mod Markos:''' We'd like to have a dedicated livestream to tackle the detail involved and discuss it more on a dedicated livestream in the new year, talking all things Account Security.
+
+==Question #6==
+{{Cquote2|There has been a lack of smaller Polls this year. When is Poll 76 and do you have plans to introduce more Polls next year?}}
+
+[https://www.youtube.com/watch?v=WHfde9Je6lk&t=1013s Youtube Time Stamp]
+
+* '''Mod Ayiza:''' Poll 76 is currently being refined. We have a lot of backlogged jobs we'd like to prioritise that have come from player feedback and the streams as well. We have a lot of different areas to go through like player suggestions and ideas. In January, we'll start asking for more suggestions and the poll blog will follow. In the roadmap, there's a whole section of weekly quality of life updates. We intend to imbed QoL Polls into the standard work that our dedicated QoL team will do in the future.
+* '''Mod Kieren:''' It’s very much like the roadmap situation, there is not enough and not often enough. The same applies to the quality of life polls. We should have gotten more out. In 2022, we will have more resources and it will be prioritised properly so we should see the benefits of this such as more Quality of Life polls.
+
+==Question #7==
+{{Cquote2|Is there anything more official you can share about how the GE tax is going? Also, will we ever be able to see item sink/tax statistics ingame?}}
+
+[https://www.youtube.com/watch?v=WHfde9Je6lk&t=1155s Youtube Time Stamp]
+
+* '''Mod Kieren:''' It’s really been fascinating and a hot topic among the team! Generally, we think it's gone pretty well. We have confidence in the system, so much so that we have already added a bunch of new items to the list.
+* '''Mod Kieren:''' We know you’d love to hear some more hard facts so here they are! We've seen 180 billion GP taken in tax after just six days. That is a very big number and shows the potential with taxing (even at 1%) in terms of helping to tackle inflation! Furthermore, 75% of that has been sunk from the game completely. The rest went into buying some of the items out of the game on the item deletion list. So, it's around 7,000 items that were taken out of the game in the first six days. Generally, the cheaper stuff has been deleted a lot more.
+* '''Mod Kieren:''' Down the line, we're up for changing the tax rates in general or on specific items. However, right now we're still paying attention to how it's going. We've just expanded the list and we need to look at how that changes, too. As for if the information will be presented in game, I don't know at this time.
+
+==Question #8==
+{{Cquote2|Why have the Wilderness changes taken so long to implement?}}
+
+[https://www.youtube.com/watch?v=WHfde9Je6lk&t=1350s Youtube Time Stamp]
+
+* '''Mod Kieren:''' Two reasons: The first is a resourcing issue. We didn't prioritise it as much as we should or could have. The Operators team who largely deals with QoL Polls have been trying to do this work alongside that. Both QoL Polls and Wilderness changes have happened pretty slowly. So, it hasn’t been given the attention it deserves, that is why we are trying to fix it next year with a full team dedicated to it.
+* '''Mod Kieren:''' The second point is frankly that it is harder to carry out the Wilderness changes. Adding a new Boss or Skilling update is relatively straight forward. Similarly, adding a new Skilling update is also fairly straight forward. However, PvP involves much more extensive design conversations to come to a solution on different things. Let's look at the stuff we have just done as an example. We've recently added a button to allow you to avoid being skull-tricked, as well as making changes to PJ timers. In terms of code, these changes are complicated but not exactly extensive months of work. However, to get to the point of doing them we've been creating surveys to gather feedback from the community, taking into account community concerns and what they want, as well as looking at where the problems are in PvP.
+* '''Mod Kieren:''' That's not an excuse, but just more clarity on what went into it. There's so much riding on these changes if we get this stuff wrong. That's where PvP is - it's in a place where we need to tackle longer running problems and then expand with new content and things like that. Progress is being made, it's been too slow - next year, a lot more time is going into PvP.
+
+==Question #9==
+{{Cquote2|Why does it feel like the Wilderness updates are making the Wilderness safer? If the goal is to increase activity, why don’t you focus on increasing the profit from Wilderness content?}}
+
+[https://www.youtube.com/watch?v=WHfde9Je6lk&t=1512s Youtube Time Stamp]
+
+* '''Mod Kieren:''' This stems from us trying to understand why more people are not trying to get into PvP.
+* '''Mod Kieren:''' To be very simplistic about it, it can mostly be described as two camps, those who regularly play PvP, and those who just have never tried it. If we want to increase the people playing PvP we need to understand why people are not getting into it. That's why we've been running surveys to understand why people don't fight back or aren't willing to go into the Wilderness. That's where the surveys came from. That gave us insights that people were scared of fighting back, afraid of getting piled on by Clans in singles - which means instead of fighting, they just run away.
+* '''Mod Kieren:''' Predator vs Prey may be a legitimate part of PvP that we want, but the goal of this is that we'd like to get more people to participate and feed/expand that Community. This isn't the solution by itself - it's just a very small part of a much bigger conversation around the features we're going to add, etc. Profit/Incentive in general is clearly something that is also needed. You've got to have a reason for doing it other than merely "I'm going to have fun taking someone's loot!" PvP also extends beyond just the Wilderness, so there's a huge range of things we can try to tackle. Coming back to the points we've already discussed: we're putting resource into it next year and hopefully we can tackle the other sides of PvP as well.
+* '''Mod Kieren:''' Overall, we know that some of these changes may seem negative to some PvP players because it feels like you’re losing a bit of your power. However, the goal is to get more players willing to engage in the content and join the PvP Community.
+* '''Mod Ayiza:''' The reality is that this is experimental. A lot of players believe that just having more profit in the Wilderness will increase the players willing to go in and make money and that would increase the amount of targets for others to kill and then those PK'ers become target themselves and that becomes it’s own ecosystem.
+* '''Mod Ayiza:''' What we’ve seen over recent years is that when players feel forced to engage in PvP content, all that happens is that over time resentment starts to build up. The hostility towards that side of the community just increases because they don't want to engage with them. Players do understand that going into the Wilderness is a choice, most accept this and know the risks. They don’t mind that they are getting killed trying to do the content, it’s the mechanics of how they are getting killed that they have issues with. As Kieren said, we’re trying to solve those first and that should allow us to build a strong foundation that will allow more players to go into PvP and understand the terms in doing so.
+* '''Mod Ayiza:''' Once that's there, when people are more willing to participate, then we can start focusing on bringing in the other updates that bring in extra profit, are balanced and tackle the longer standing community issues.
+
+==Question #10==
+{{Cquote2|You have said that you will only bring Bounty Hunter back if you could make sure it was non-abusable. PvP will always be abused in some way, and it’s up to you to care about the game mode enough to monitor it. Why is the solution not to just add more Anti-Cheating resources?
+
+[https://www.youtube.com/watch?v=WHfde9Je6lk&t=1941s Youtube Time Stamp]
+
+* '''Mod Markos:''' As we know, PvP content is always much more susceptible to abuse. We know that if we bring Bounty Hunter back, we would need to have modifications made and more robust Anti-Cheating resources generally for the game as a whole. As Kieren said earlier, PvP content is always super complex in design because you're always considering fringe issues and ways it can be abused. That's what makes it extremely time consuming to work on. We're fully aware of that and generally wanting to improve Anti-Cheating within the game as a whole.
+* '''Mod Ayiza:''' To add to that, if you aren't aware, there's a section in [https://secure.runescape.com/m=news/gielinor-gazette---december-2021?oldschool=1 the Gazette] that talks about Bounty Hunter potentially coming back. We are hopeful that we will be able to see it return in the second half of 2022, but it could be that it's changed in some way.
+
+==Question #11==
+{{Cquote2|Do you have a longer-term plan for PvP?}}
+
+[https://www.youtube.com/watch?v=WHfde9Je6lk&t=2050s Youtube Time Stamp]
+
+* '''Mod Markos:''' We know there are longer term issues and a lot of underlying things we need to address. There are issues and content we promised that we never got around to doing and we see that as th starting point. From there, we'll work with the Community to generate a strong long term plan for PvP as a whole.
+
+==Question #12==
+{{Cquote2|The past year, nothing significant has failed a Poll. Are you guys happy with the current state of the Polling System?}}
+
+[https://www.youtube.com/watch?v=WHfde9Je6lk&t=2126s Youtube Time Stamp]
+
+* '''Mod Markos:''' We've had some discussions around ways we think we could improve or iterate on the current polling system. Generally, we really believe in polling being an important part of the game and a key part of what Old School is. We know there's improvements we can make on the ability to effectively service smaller sub-sets of the Community (PvP being an example). The other thing to re-iterate is that if lots of things are passing, it's an indication that hopefully we're delivering content that people want and we're aligned with the Community in that respect.
+* '''Mod Ayiza:''' I would definitely say that a lot of things passing doesn’t mean it’s a bad thing, more that we’re hitting the nail on the head.
+* '''Mod Ayiza:''' Let me pitch something here! I love the current system but I want to gauge the reaction of the chat to this idea. In the future, we could bring up a new road map with all the big things hopefully to come that year. Then, the first blog after this road map could ask, "Do you want this new raid to be added to the game?" Under the understanding that more blogs in future will be released to talk about the rewards later down the line. The benefits to this are that the raid can pass the poll and the devs can work on it without the chance of it becoming wasted content.
+* '''Mod Ayiza:''' We can then focus more on what players really want as rewards in the future blogs about rewards. We can then bring up more in depth questions around rewards such as why you may want or not want them in the game such as too powerful or quite underwhelming etc.
+
+==Question #13==
+{{Cquote2|What is being done to solve issues of lag spikes occurring in-game?}}
+
+[https://www.youtube.com/watch?v=WHfde9Je6lk&t=2370s Youtube Time Stamp]
+
+* '''Mod Kieren:''' I know that in much earlier 2021, we added a lot more tracking servers. We need to look at the data more closely. We have suspicions but we need to sit down and figure out what’s going on because it’s been going on for too long. We have some suspicions, but nothing concrete yet - we'd like to get to the bottom of it because it's been happening for quite a while.
+* '''Mod Markos:''' We do have plans to invest in infrastructure around the servers over time. We'll hopefully give you an update reasonably soon.
+
+==Question #14==
+{{Cquote2|Are you planning on bringing back any iteration of Partner Slayer?}}
+
+[https://www.youtube.com/watch?v=WHfde9Je6lk&t=2476s Youtube Time Stamp]
+
+* '''Mod Kieren:''' Group Iron Man has particularly highlighted how valuable social play is in Old School. Playing with other players in areas like Winter Todt, a raid and other content, adds a whole new layer to the game. Partner Slayer was removed from the game due to how abusable it was.
+* '''Mod Kieren:''' Players were able to get a vast amount of experience very easily. The easy fix for this was to take it out of the game. It’s been a while now, and players are always asking if it’s coming back. We want to bring it back but it needs to be changed, it can’t be the best XP as single players will feel forced to find a partner. We haven't had the resources to work on this so it's not currently in the roadmap, but hopefully down the line it’s something we can discuss.
+
+==Question #15==
+{{Cquote2|The roadmap includes “New Player Experience” in it. Can you expand on this? I would like to know what is being done to attract new players to the game?}}
+
+[https://www.youtube.com/watch?v=WHfde9Je6lk&t=2664s Youtube Time Stamp]
+
+* '''Mod Markos:''' This covers a few different things! Fundamentally, we want to reduce the friction for new players starting out as Old School can be daunting with all of its content. It's not necessarily accessible for new players. We want to better improve the very beginning of the game for players. It could be that we get them onto a better starting server with other newer players. This project is just a variety of improvements to the start of the game. We're also looking at a few other bits, such as how you go from the website to the client. How new players first make contact with the game and what people see when they return back to the game.
+
+==Question #16==
+{{Cquote2|There are several streamers who are using cheat clients and nothing happens to their accounts. Why is this?}}
+
+[https://www.youtube.com/watch?v=WHfde9Je6lk&t=2745s Youtube Time Stamp]
+
+* '''Mod Ayiza:''' My answer to this is that there are certain plugins that are available, and with the way the landscape has changed in the Community, we may need to revisit and update our third party guidelines as they are getting on in years. With that being said, if there are any clear cut examples of clients being used in a bad way to full on cheat please do report these instances in-game as the first priority.
+* '''Mod Ayiza:''' You can also email tipoff@jagex.com - these reports do get reviewed, the caveat on this is please provide as much info as possible. Give us video/screenshots and clear descriptions of the actions taken and when. We have and will continue to take action against any players attempting to abuse these third party clients for nefarious means. We hope to be updating the third party guidelines to help provide additional clarity.
+
+==Question #17==
+{{Cquote2|Are there ever going to be plans to add a new Skill in game?}}
+
+[https://www.youtube.com/watch?v=WHfde9Je6lk&t=2934s Youtube Time Stamp]
+
+* '''Mod Markos:''' Yes. We've worked with the Community on some skill ideas in the past but they haven’t passed polling previously. We do still have an ambition to do that in the future. The challenge is finding the right skill - one that the community feels adds something to the game. It's something the team will be looking at in the future. We'll be reaching out to the Community to start conversations around that. Part of the challenge is how we clearly explain the Skill and demonstrate our ideas so that people will clearly understand what we're getting across, to get better feedback.
+* '''Mod Kieren:''' I talked a little bit about skills a few weeks ago and it's certainly something that a lot of people in the team would love to do. It's the one kind of update where we can add newer systems, depth and new layers to the game which you can’t really do with a new boss or quest etc. So, it's a real chance to expand what Old School is and give a different vibe! When you play the game with that new skill, something that's fresh and feels different then anything you have played before.
+* '''Mod Kieren:''' So, there's a huge array of ideas of potential skills. That is obviously a massive question: If we're going to do a Skill, what Skill should we do? Our first port of call will be prototyping and play around with new ideas and see what really works. We also think involving players from the get go is better than what we've done in the past.I think we need to let the players somehow into that process earlier in that chain.
+
+==Question #18==
+{{Cquote2|What about the Deadman Reborn re-run?}}
+
+[https://www.youtube.com/watch?v=WHfde9Je6lk&t=3112s Youtube Time Stamp]
+
+* '''Mod Markos:''' I have got to catch up with some members of the team, and after then I will have an idea on more exact dates on when we can run it. We're still doing some work on the server side of things, so I'll need an update on when that work is likely to be done before I know where we're at in regards to the rerun. I hope to have more information soon. I expect we'll update everyone in January.
+* '''Mod Ayiza:''' I think the last update we had for players was that we were looking for some time in January for the rerun. I imagine the reality for that is that it will either be late January or failing that, later months. It may be more likely to be February than January. It makes sense with people wanting to get stuck into Nex and Leagues. Those that are in the Deadman Reborn would probably want to spend time on that before the finals.
+
+==Question #19==
+{{Cquote2|What are your plans for the revival of the multi scene in the long term? Since rev changes, this Community decreased.}}
+
+[https://www.youtube.com/watch?v=WHfde9Je6lk&t=3210s Youtube Time Stamp]
+
+* '''Mod Ayiza:''' I want to be honest here straight away and say there are no plans. This may change depending on how the Wilderness boss rework ends up but nothing is finalised. I don’t want to say that anything that comes out will or won’t be multi. There have been a lot of suggestions made around Multi content such expanding the Wilderness and maybe including a boss that clans need to fight over and would be rewarded for doing so. We just need to get a handle on what our long term plans are for this area.
+
+==Question #20==
+{{Cquote2|When will we get more info on the mechanics of Leagues 3?}}
+
+[https://www.youtube.com/watch?v=WHfde9Je6lk&t=3318ss Youtube Time Stamp]
+
+* '''Mod Ayiza:''' On release!
+* '''Mod Kieren:''' Well you might well know the answer more then me! Do you have any idea on the timeline of trailers and all of that cool stuff, Ayiza?
+* '''Mod Ayiza:''' I do, but I don’t think I can say when it's coming out! I don’t want to ruin any marketing surprises! I think this time is going to be a little different though. Last League, we did go into a bit of detail before it was released. This year, we are intentionally being less informative. It may well be that you don't find out about the full mechanics until the day of the League releasing.
+* '''Mod Ayiza:''' You know roughly what the League is about in terms of the fragment system, in terms of the unlocking of content, so those are the main things to go off. I'm sure there are people who want to theorycraft on that but at the moment I myself know that from community who would normally be responsible for putting out this information, we don’t have anything planned to come out between now and when the League releases. It may be that we put out a little refresher a week before or something like that. I kind of like the element of surprise but I know a lot of people out there want to theorycraft and be as efficient as possible, so we'll see.
+
+==Question #21==
+{{Cquote2|What is being done to tackle the constant stream of bots at Last Man Standing? They are in every single game right now and it is almost impossible to ignore them.}}
+
+[https://www.youtube.com/watch?v=WHfde9Je6lk&t=3438s Youtube Time Stamp]
+
+* '''Mod Markos:''' We do have some ideas on how to tackle that, and there is an action against me to chase that up in the New Year. That is something I am following up.
+* '''Mod Ayiza:''' I am happy to hear it is on the radar, I know that the Anti-Cheating team themselves they do actively ban the bots in LMS. We have released stats on this in the past, honestly from the information they have given us, essentially what happens is they remove the bots and then they are recreated in the same amounts of numbers and are back at it.
+* '''Mod Ayiza:''' Everyday they are getting banned, but they are easy to recreate as there are only a limited number of entry requirements to LMS. We're constantly looking at ways to improve and hopefully Markos's meeting will help with that, too.
+
+==Question #22==
+{{Cquote2|Will there ever be a world dedicated to Finnish and Swedish Players and such? Are there ever going to be more dedicated Worlds in general?}}
+
+[https://www.youtube.com/watch?v=WHfde9Je6lk&t=3534s Youtube Time Stamp]
+
+* '''Mod Kieren:''' Right now we don’t have a server in Finland, Sweden or Scandinavia. Our servers are in Germany for Europe.
+* '''Mod Kieren:''' In theory you can at least 'flag' a world as Finland/Sweden (even though the Server may not be there so there's no change in ping) to bring the community together. If there's value in doing that, we can do it as it's pretty easy. In terms of adding actual server support in that region or others like South America or Asia, that's a bigger conversation that we will have to go away to investigate and assess the costs in setting up a Server and what value it would generate. E.g How many players are in that server and if it's worth it. Potentially this is easier when we are upgrading our server tech, and so on, but there is no current plans. It's part of a bigger conversation that we'd need to have with Product and Engine teams.
+
+
+----
+
+
+And last but not least, here's the trailer we showcased last week for Nex - releasing Jan 5th!
+
+
+[https://www.youtube.com/watch?v=otB6bbcczuU Nex: The Fifth General - Teaser Trailer | Old School RuneScape]
+
+----
+
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Brow, Bruno, Con, Curse, Daizong, Deagle, Dibber, Ditto, Dylan, Ed, Elena, Ellie, Errol, Fed, Gecko, Grub, Halo, Havik, Hornet, Husky, Jndr, John C, Kandosii, Katies, Kieren, Kirby, KT, Kurotou, Lenny, Light, Lottie, Mack, Matheus, Maylea, Markos, Meat, Morty, Nasty, Nin, Nylu, Oasis, Peppers, Regent, Redfield, Roq, Ry, Sarnie, Sigma, Skylark, Sova, Squid, Steve W, Tide, Veda, Vegard, West, Wolfy & Zuko'''
+
+''The Old School Team''

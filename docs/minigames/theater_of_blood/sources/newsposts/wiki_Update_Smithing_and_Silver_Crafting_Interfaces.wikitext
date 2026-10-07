@@ -1,0 +1,185 @@
+{{Update|date=8 August 2019|link=https://secure.runescape.com/m=news/smithing-and-silver-crafting-interfaces?oldschool=1|category=game}}
+[[File:Smithing and Silver Crafting Interfaces newspost.png|right]]
+{{clear}}
+
+<center>''This week sees updated Smithing and silver crafting interfaces alongside other helpful changes. We're also improving Song of the Elves related content.''</center>
+
+{{Horizontal Line}}
+
+{{Headline|22|Smithing and Silver Crafting}}
+
+
+The silver crafting interface now has quantity buttons like the gold crafting interface does, allowing Make-All and other quantities to be selected via a left-click/tap. Its layout has been adjusted to accommodate this, and to show its requirements information more conveniently. Its borders are also now consistent with other related menus. The silver crafting interface has had some additional usability adjustments to take advantage of its available space, making it easier to see at a glance if a higher level is needed to make a particular item, and naming the unique moulds used by special items. Its borders now use the original Old School style like other related interfaces do (specifically gold crafting, anvils and tablet lecterns).
+
+[[File:Smithing and Silver Crafting Interfaces (1).png|center|500px]]
+
+
+[[File:Smithing and Silver Crafting Interfaces (2).png|center|500px]]
+
+{{Horizontal Line}}
+
+{{Headline|22|The Tithe Farm}}
+
+
+[[File:Smithing and Silver Crafting Interfaces (3).png|center|250px]]
+
+
+'''Left-Click/Tap Watering'''
+
+Plants within the Tithe farm can now be left-clicked or tapped to be watered - providing you have the means to do so.
+
+'''Bologa's Blessing'''
+
+Bologa's blessing is now given in numbers of 10 blessings for 1 point instead of 1 blessing for 2 points in Gricoller's shop.
+
+{{Horizontal Line}}
+
+{{Headline|22|Ecumenical Keys}}
+
+
+[[File:Smithing and Silver Crafting Interfaces (4).png|center|150px]]
+
+
+'''Aviansies'''
+
+Aviansies now drop Ecumenical keys in the Wilderness God Wars dungeon to make them consistent with all other creatures there. They were originally left out due to a unique noted Adamantite bars drop. However, this is no longer unique as Aviansies in the standard God Wars dungeon drop these for players with the Fremennik Hard diaries completed.
+
+'''Drop Rate and Timer'''
+
+The drop rate of Ecumenical keys is now 1/60 regardless of how many you already have. The timer that was in place to stop players getting multiple Ecumenical keys within two minutes of each other has been removed. The total number of keys you may own at a time has not been changed.
+
+{{Horizontal Line}}
+
+{{Headline|22|Song of the Elves Tweaks}}
+
+
+[[File:Smithing and Silver Crafting Interfaces (5).png|center|100px]]
+
+
+Following feedback from the first two weeks after launch, we've made a few changes to Song of the Elves content.
+
+'''Zalcano'''
+*Zalcano's symbols now take slightly longer before dealing damage.
+*The damage taken when standing beneath Zalcano after she's been knocked down has been reduced.
+*The quick-pass option on Zalcano's prison barrier has been removed, as it served no purpose.
+*The falling rocks during the Zalcano encounter now deal damage when hitting the floor rather than the player to be consistent with other similar mechanics.
+*Zalcano is now slightly slower when destroying the glowing rock.
+*Zalcano's death animation has been extended to prevent her from reappearing for a brief moment.
+*The drops from the Golem will now only be given to the player who deals the most damage.
+
+'''The Gauntlet'''
+*When creating items within the Gauntlet, the interface will remain open provided you have the ingredients to create other items.
+*Killing a duplicate tier 3 creature within the Gauntlet will now have a guaranteed chance to drop a different powerful weapon component, provided you don't already have one.
+*The scoreboard in the Gauntlet lobby has been extended to display your deaths and the global deaths for each version of the Gauntlet.
+
+'''Crystal Weapons'''
+
+Crystal weapons and shields with 2500 charges (or brand new ones) will now stack in the bank.
+
+
+{{Horizontal Line}}
+
+{{Headline|22|The Gauntlet Competition}}
+
+
+[[File:Smithing and Silver Crafting Interfaces (6).png|center|300px]]
+
+
+We're thrilled to announce we have our four winners to the Song of the Elves Gauntlet competition! Back in our [https://secure.runescape.com/m=news/song-of-the-elves-progress-blog?oldschool=1 Song of the Elves] progress blog, we challenged you to complete the Gauntlet in the fastest times possible in the two weeks after launch. Since then, the competition was expanded to include the corrupted Gauntlet as well as pre and post balancing changes. This means we have four winners who will each receive a custom '''''Old School GT Omega Pro gaming chair'''''!
+
+Standard Gauntlet (pre-balancing): '''''Playgrounds - 3:45'''''
+
+Corrupted Gauntlet (pre-balancing): '''''Vuleka - 5:35'''''
+
+Standard Gauntlet (post-balancing): '''''Kelvino - 3:12'''''
+
+Corrupted Gauntlet (post-balancing): '''''Woox - 4:45'''''
+
+Congratulations to all our winners! You can expect an inbox message in the coming days detailing arrangements for your prizes.
+
+
+{{Horizontal Line}}
+
+{{Headline|22|Adventure Paths}}
+
+
+In the [https://secure.runescape.com/m=news/dev-blog-new-player-experience?oldschool=1 New Player Experience blog] we posted back in May we spoke of our ambition to better welcome new players into our community, and the challenges we faced in doing so.
+
+In the same blog we suggested a few changes to 'getting around' the map. We mentioned a transport system, and the idea of making Agility available to free players. The transport system proved to be very unpopular, and it isn't something we'll be implementing. Your reaction to Agility was positive, and whilst we haven't fully explored the idea, it could still be implemented at a later date.
+
+In addition to helping new players get around, we spoke about helping them get started. We suggested a task-based system which would introduce early objectives to new players. Unlike achievement diaries, the tasks would be smaller milestone-driven tasks and offer small rewards.
+
+With today's update we'll be introducing a new task system called Adventure Paths for new players. We need to test the content to see whether or not it helps new players find their feet, and so it will only be made available to some new accounts for the duration of the testing period.
+
+We’re still going to keep to the promises laid out in the new player blog: only new players will see the tasks, the rewards are existing items already found in-game, any equipment given to free players won’t be best in slot, Iron players won’t be able to access the tasks (and consequently the rewards), the interface fits with Old School, and we aren’t looking beyond level 20 in any skill. There is one change to the list in the promises section that we’d like to explain.
+
+When we began development the rewards were untradeable. As we progressed it became apparent that it would prove difficult for new players to easily distinguish between the likes of a tradeable Steel med helm and an untradeable Steel med helm. We looked at ways to solve this concern, such as including a tag like (un) or (untradeable) in the item name, but that introduced more problems:
+*Other untradeable items don't have tags like this in the name.
+*Mobile players would lack the ability to hover over items so likely wouldn't notice it.
+*There'd be multiple stacks of items in a players inventory (like a stack of Bronze arrows (un) and ordinary Bronze arrows).
+*If a player wanted to cast Wind strike with Mind runes (un) and Mind runes in their inventory, which rune would be used first?
+
+We want to avoid confusion as much as possible to avoid players leaving the game through frustration. It's important to remember that this update's purpose is to engage new players. We looked at the possibility of creating new items, like tiers of a new Training armour, however the look and feel of armour and weaponry is key to Old School's nostalgia and we feel that adding new equipment at an early stage would take away from that. We also considered the level up messages. A new player reaching level 5 Defence will be told that they could use Steel equipment whilst they had a tier of Training armour. They wouldn't know whether their Training armour was better or worse than Steel without having them to compare against.
+
+These considerations led us to decide to make all of the rewards tradeable. We're remaining extremely mindful of the rewards we give and ensuring that any equipment given is appropriate for their level range (whilst not being best in slot). The value of the rewards must also be kept to a reasonable level. With this in mind, we promise that any reward from completing a single task will always be under the value of 10,000 coins (with very early tasks rewarding significantly less than that), and the reward from completing an entire path of rewards will be kept to a maximum of 15,000 coins.
+
+
+{{Horizontal Line}}
+
+{{Headline|22|RuneFest 2019 Merch}}
+
+
+The Official RuneFest 2019 Tees and Hoodies are now available for pre-order ('''until Sunday August 18th 23:59 UK Time''')! This year’s design is inspired by the majestic volcano that can be found on Fossil Island.
+
+If you’ve already bought your ticket for RuneFest 2019, we’ve sent you an email with further instructions. Check your mailbox! If you haven’t bought your RuneFest ticket yet, just head to Eventbrite and you’ll be able to add your precious loot to your order before checkout.
+
+[[File:Smithing and Silver Crafting Interfaces (7).jpg|center|400px]]
+
+
+Pre-ordering saves you money on non-personalised tees (£2 off event RRP) and hoodies (£5 off event RRP). It's also the only way to get your tee personalised and guarantee a tee or hoodie in your size. XXS, S and XXL and XXXL non-personalised tees are only available to pre-order.
+
+For any questions about your pre-order of the RuneFest merch, check out this [http://services.runescape.com/m=forum/forums.ws?444,445,21,66114595 FAQ].
+
+
+{{Horizontal Line}}
+
+{{Headline|22|Newsletter Competition}}
+
+
+[[File:Smithing and Silver Crafting Interfaces (8).jpg|center|450px]]
+
+
+We're hosting an email-subs-only competition so keep an eye on your inbox! Winners will get their hands on the Crystal Bow pin and Crystal Halberd keyring set.
+
+To enter, make sure you’ve subscribed to our communication updates by '''Sunday, August 11th, 23:59 UK time''', and wait for an email from us on Tuesday 13th.
+
+This is just one of the exclusive perks our newsletter subscribers can enjoy, with many more coming over the next few weeks.
+
+{{Horizontal Line}}
+
+{{Headline|22|In Other News}}
+
+
+The '''PvP World Rota''' is switching over to '''Period B'''. On the east of the Atlantic, host the Standard PvP world ('''W25, UK''') and the F2P PvP world ('''W71, UK'''). On the west of the Atlantic, host the Bounty Hunter world ('''W19, USA''') and the High Risk PvP world ('''W37, USA''').
+
+*The Shilo village shortcut has now been changed to require the medium Karamja achievement diary instead of the elite.
+*The dialogue in the Cook's Assistant quest, text in the quests log, and windmills have been updated to be more informative and to have improved usability.
+*An issue in the Theatre of Blood where the Maiden's blood pools spawned within her area as well as another issue where blood splats would occasionally be invisible have been fixed.
+*Some brown polygons have been removed from the Salve amulet and its variants.
+*The bonds menus no longer let non-members redeem bonds for name changes as they can't use them.
+*Unnecessary menu options have been removed from the spellbook-switching altars in Achievement Galleries.
+*The missing apostrophe has been restored to the name of the Doctor's hat.
+*Pending damage is no longer cleared as a player crosses the stepping stone near Zul-Andra.
+*Some grammar in the Agility skill guide has been made more consistent.
+*Various game messages are now spam-filtered during Alchemical Hydra fights.
+*Some grammar has been corrected when a seed pod is activated to summon a pilot.
+*An outdated graphic in the Thieving skill guide has been updated.
+*Some ship decking has been removed from the ground near Melzar's Maze.
+*Some tiles in Molch now correctly allow items to appear when dropped there.
+*It is no longer possible to use the portal nexus or Theatre of Blood lobby to scry whilst on a Deadman world.
+
+{{Horizontal Line}}
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,591,66115130 official forums], the community-led [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the '''#gameupdate''' channel. For reference on the above content, check out the official [[Wiki]]. If you run into any bugs, please submit an in-game bug report by right clicking the 'report' button found at the bottom of the chat box.
+
+'''''Mods Acorn, Archie, Ash, Bruno, Curse, Ed, Gambit, Gee, Ghost, Husky, John C, Kieren, Lenny, Lottie, Maz, Nasty, Roq, Ry, Sween, Tide, Weath, West & Wolf'''''<br/>''The Old School Team''

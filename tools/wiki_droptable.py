@@ -24,6 +24,7 @@ import sys
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONTENT = os.path.join(REPO, "OSRS-Content", "osrs239-content")
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import config_text  # noqa: E402
 import wiki_infobox as wi  # noqa: E402
 
 NPC_STATS_DIR = os.path.join(CONTENT, "npc_stats")
@@ -69,6 +70,15 @@ def death_drop_index() -> dict[str, str]:
                 m = block_re.match(line)
                 if m:
                     cur = m.group(1)
+                    continue
+                # Full-key text: `param=default` (absent) or `param=empty`
+                # (no entries) states the record's whole param list, so a
+                # rank-1 overlay saying either CLEARS the death_drop it would
+                # otherwise inherit from rank 0.
+                kv = config_text.split_line(line)
+                if (cur and kv and kv[0] == "param"
+                        and config_text.marker(kv[1]) is not None):
+                    index.pop(cur, None)
                     continue
                 m = dd_re.match(line)
                 if m and cur:
@@ -413,7 +423,7 @@ def obj_name_index() -> dict[str, list[str]]:
     block_re = re.compile(r"^\[([A-Za-z0-9_]+)\]$")
     name_re = re.compile(r"^name=(.+)$")
     with open(ALL_OBJ, encoding="utf-8", errors="replace") as f:
-        for line in f:
+        for line in config_text.filter_lines(f):
             line = line.rstrip("\n")
             m = block_re.match(line)
             if m:
@@ -442,7 +452,7 @@ def obj_cert_index() -> dict[str, str]:
     block_re = re.compile(r"^\[([A-Za-z0-9_]+)\]$")
     cert_re = re.compile(r"^certlink=([A-Za-z0-9_]+)$")
     with open(ALL_OBJ, encoding="utf-8", errors="replace") as f:
-        for line in f:
+        for line in config_text.filter_lines(f):
             line = line.rstrip("\n")
             m = block_re.match(line)
             if m:
@@ -477,15 +487,51 @@ def resolve_obj_name(display_name: str, noted: bool = False) -> str | None:
 # CLI
 # ---------------------------------------------------------------------------
 
-_EXISTING_BINDINGS: set[str] | None = None
+_EXISTING_BINDINGS: dict[str, list[str]] | None = None
 # Generated files being regenerated (--regenerate): their own bindings are the
 # ones the run is rewriting, so they must not count as "already bound".
 _REGENERATING: set[str] = set()
 
 
-def existing_bindings() -> set[str]:
+# A MINIGAME THAT OWNS AN NPC'S DEATH QUEUE. `[ai_queue3,<npc>]` is the one
+# death trigger an npc has, so a boss whose death IS content -- a collapse
+# animation, a form change, the room's progression -- cannot also have it bound
+# here: two bindings of one trigger are a compile error, and before that check
+# existed the generated binding simply won and the minigame's death never ran
+# (Theatre of Blood: the Entry Mode Xarpus, whose `wiki_xarpus.rs2` binding
+# skipped `~tob_xarpus_died` and with it the 8063 collapse -- raid seam4,
+# CONTENT_BUGS.md "Xarpus Entry death skips ~tob_xarpus_died").
+#
+# For an npc listed here the generator still writes the drop TABLE, from the
+# wiki exactly as for any other npc, but as a `[proc,wiki_<slug>_drop]` rather
+# than a `[label]`, and without the `[ai_queue3]` binding: the owner file binds
+# the trigger itself and CALLS `~wiki_<slug>_drop;` from its own death before
+# anything else. A proc, not a label, because a death that changes the npc's
+# type (Xarpus's collapse form) must drop while the npc is still the type that
+# died -- `npc_param(death_drop)` is read off the current type, and `@label`
+# cannot come back to run the death after it. Both halves are audited when the
+# file is written -- the owner must bind `[ai_queue3,<npc>]` and must call the
+# generated proc, or nothing would ever drop -- and an owned npc bound
+# anywhere else is refused like any other duplicate. Any unowned npc sharing
+# that table calls the same proc from its generated binding.
+#
+# gameval -> the owner file, relative to server/scripts/.
+MINIGAME_DEATH_QUEUES: dict[str, str] = {
+    "tob_xarpus_combat_story": "minigames/minigame_tob/scripts/tob_xarpus.rs2",
+}
+
+
+def owner_path(gameval: str) -> str | None:
+    rel = MINIGAME_DEATH_QUEUES.get(gameval)
+    if rel is None:
+        return None
+    return os.path.join(CONTENT, "server", "scripts", rel)
+
+
+def existing_bindings() -> dict[str, list[str]]:
     """Every gameval already bound by an [ai_queue3,<gameval>] anywhere in the
-    whole content tree -- NOT just drop_tables/scripts/. Quest, minigame and
+    whole content tree -- NOT just drop_tables/scripts/ -- mapped to the files
+    that bind it. Quest, minigame and
     boss scripts routinely declare their own ai_queue3 death-drop handler
     outside that directory (e.g. quest_legends/scripts/ranalph_devere.rs2),
     and port_droptables_check.py's duplicate-trigger bar scans the whole tree
@@ -497,7 +543,7 @@ def existing_bindings() -> set[str]:
     global _EXISTING_BINDINGS
     if _EXISTING_BINDINGS is not None:
         return _EXISTING_BINDINGS
-    seen = set()
+    seen: dict[str, list[str]] = {}
     binding_re = re.compile(r"^\[ai_queue3,([A-Za-z0-9_]+)\]")
     for path in glob.glob(os.path.join(CONTENT, "server", "scripts", "**", "*.rs2"), recursive=True):
         if os.path.realpath(path) in _REGENERATING:
@@ -506,7 +552,7 @@ def existing_bindings() -> set[str]:
             for line in f:
                 m = binding_re.match(line.strip())
                 if m:
-                    seen.add(m.group(1))
+                    seen.setdefault(m.group(1), []).append(os.path.abspath(path))
     _EXISTING_BINDINGS = seen
     return seen
 
@@ -587,7 +633,14 @@ def validate_quest_tertiary_hooks() -> None:
 
 
 def report_one(gameval: str) -> dict:
-    if gameval in existing_bindings():
+    bound = existing_bindings().get(gameval, [])
+    owner = owner_path(gameval)
+    if owner is not None:
+        # The owner's own binding is the expected one; any other is a duplicate.
+        others = [p for p in bound if p != os.path.abspath(owner)]
+        if others:
+            return {"gameval": gameval, "ok": False, "reason": f"death queue is owned by {MINIGAME_DEATH_QUEUES[gameval]} but also bound in {', '.join(os.path.relpath(p, REPO) for p in others)}"}
+    elif bound:
         return {"gameval": gameval, "ok": False, "reason": "already exact-bound in drop_tables/scripts/ -- ledger is stale, skipping"}
     res = resolved_title(gameval)
     if res is None:
@@ -697,6 +750,21 @@ def partition_by_table(results: list[dict]) -> list[dict]:
     return list(groups.values())
 
 
+def audit_owner(gameval: str, label: str) -> None:
+    """An owned death queue must be bound by its owner AND call the generated
+    proc -- otherwise the table is written and never dropped. Fails the run
+    rather than writing a file that silently drops nothing."""
+    path = owner_path(gameval)
+    assert path is not None
+    with open(path, encoding="utf-8", errors="replace") as f:
+        text = f.read()
+    m = re.search(r"^\[ai_queue3," + re.escape(gameval) + r"\]\s*$(.*?)(?=^\[|\Z)", text, re.M | re.S)
+    if m is None:
+        sys.exit(f"wiki_droptable: {MINIGAME_DEATH_QUEUES[gameval]} owns {gameval}'s death queue but has no [ai_queue3,{gameval}]")
+    if re.search(r"^\s*~" + re.escape(label) + r"\s*;", m.group(1), re.M) is None:
+        sys.exit(f"wiki_droptable: {MINIGAME_DEATH_QUEUES[gameval]}'s [ai_queue3,{gameval}] never calls ~{label}; nothing would drop")
+
+
 def write_group(title: str, results: list[dict], out_dir: str = DROP_TABLES_DIR) -> str | None:
     slug = title_slug(title)
     path = os.path.join(out_dir, f"wiki_{slug}.rs2")
@@ -741,11 +809,23 @@ def write_group(title: str, results: list[dict], out_dir: str = DROP_TABLES_DIR)
         used.add(name)
         g["label"] = name
 
+    # A table any owned npc uses is a proc (see MINIGAME_DEATH_QUEUES); every
+    # other table stays the label it always was, so no other file's text moves.
+    for g in groups:
+        g["proc"] = any(r["gameval"] in MINIGAME_DEATH_QUEUES for r in g["results"])
+
     lines.append("")
     for g in groups:
         for r in g["results"]:
+            owner = MINIGAME_DEATH_QUEUES.get(r["gameval"])
+            if owner is not None:
+                audit_owner(r["gameval"], g["label"])
+                lines.append(f"// [ai_queue3,{r['gameval']}] is owned by {owner}: its death")
+                lines.append(f"// calls ~{g['label']} first (MINIGAME_DEATH_QUEUES, tools/wiki_droptable.py).")
+                lines.append("")
+                continue
             lines.append(f"[ai_queue3,{r['gameval']}]")
-            lines.append(f"@{g['label']};")
+            lines.append(f"~{g['label']};" if g["proc"] else f"@{g['label']};")
             lines.append("")
     for g in groups:
         if len(groups) > 1:
@@ -753,7 +833,7 @@ def write_group(title: str, results: list[dict], out_dir: str = DROP_TABLES_DIR)
             covered = ", ".join(r["gameval"] for r in g["results"])
             lines.append(f"// dropversion: {versions}")
             lines.append(f"// covers: {covered}")
-        lines.append(f"[label,{g['label']}]")
+        lines.append(f"[proc,{g['label']}]" if g["proc"] else f"[label,{g['label']}]")
         lines.append("if (npc_findhero = ^false) {")
         lines.append("    return;")
         lines.append("}")

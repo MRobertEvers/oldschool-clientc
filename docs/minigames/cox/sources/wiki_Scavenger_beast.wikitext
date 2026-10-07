@@ -1,0 +1,107 @@
+{{Infobox Monster
+|version1 = Normal
+|version2 = Challenge Mode
+|name = Scavenger beast
+|image = [[File:Corrupted scavenger.png|150px]]
+|release1 = [[5 January]] [[2017]]
+|release2 = [[17 May]] [[2018]]
+|update1 = Chambers of Xeric
+|update2 = Chambers of Xeric: Challenge Mode Is Here!
+|members = Yes
+|combat = N/A<ref>DISCLAIMER: The stats displayed on this page can vary based on the player with the highest combat level. The stats shown are scaled for a player with maxed combat stats.</ref>
+|size = 2
+|examine = A feral denizen of the caves.
+|attributes = xerician
+|xpbonus = 0
+|max hit1 = 13
+|max hit2 = 27
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Crush]]
+|attack speed = 4
+|hitpoints1 = 30
+|hitpoints2 = 45
+|scaledhp = Yes
+|att1 = 120
+|att2 = 180
+|str1 = 120
+|str2 = 180
+|def1 = 45
+|def2 = 67
+|mage = 1
+|range = 1
+|attbns = 0
+|strbns = 0
+|amagic = 0
+|mbns = 0
+|arange = 0
+|rngbns = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|dlight = 0
+|dstandard = 0
+|dheavy = 0
+|poisonresistance = 0
+|venomresistance = 0
+|id1 = 7548
+|id2 = 7549
+}}
+'''Scavenger beasts''' are a type of [[scavenger]] found in the [[Chambers of Xeric]]. They are found in ruins and drop various items needed for puzzles and materials for skilling. They closely resemble [[Skavid]]s found in the [[Feldip Hills]] region of Kandarin, as they appeared prior to their [[Graphical updates (historical)|graphical update]] on 5 December 2006. They may be a subspecies of Skavid native to [[Mount Quidamortem]].{{CiteText|text=Creature keeper's journal|author=Creature keeper|quote=These scavengers are fascinating. I have read of similar things in the tales of the seafaring folk, who described voyages to distant lands where scuttling creatures called 'skavids' lurked in dark caves, stealing food and shiny objects from nearby settlements. Our scavengers may be a related branch of the species, though there is no sign of any intelligence here. |page=|loc=|notes=|name=}}
+
+==Drops==
+{{DropLogProject|kills=432911}}
+{{Clear|left}}
+''Scavenger beasts drop three items at a time.''
+===100%===
+{{DropsTableHead|leagueRegion=Kourend}}
+{{DropsLine|name=Bones|quantity=1|rarity=Always}}
+{{DropsTableBottom}}
+
+===Tools===
+{{DropsTableHead|leagueRegion=Kourend}}
+{{DropsLine|name=Fishing rod|quantity=1|rarity=1/18|rolls=2}}
+{{DropsLine|name=Iron pickaxe|quantity=1|rarity=1/18|rolls=2}}
+{{DropsLine|name=Iron axe|quantity=1|rarity=1/18|rolls=2}}
+{{DropsLine|name=Butterfly net|quantity=1|rarity=1/18|rolls=2}}
+{{DropsLine|name=Hammer|quantity=1|rarity=1/18|rolls=2}}
+{{DropsLine|name=Tinderbox|quantity=1|rarity=1/18|rolls=2}}
+{{DropsLine|name=Lockpick|quantity=1|rarity=2/18|rolls=2}}
+{{DropsTableBottom}}
+
+===Materials===
+{{DropsTableHead|leagueRegion=Kourend}}
+{{DropsLine|name=Cave worms|quantity=30-50|rarity=2/18|gemw=No|rolls=2}}
+{{DropsLine|name=Endarkened juice|quantity=5-14|rarity=2/18|raritynotes={{refn|group=d|name=secondary|Whenever any secondary ingredient is rolled, cicely, endarkened juice, and stinkhorn mushrooms are dropped together.}}|gemw=No|rolls=2}}
+{{DropsLine|name=Stinkhorn mushroom|quantity=3-11|rarity=2/18|raritynotes={{NamedRef|group=d|secondary}}|gemw=No|rolls=2}}
+{{DropsLine|name=Cicely|quantity=3-6|rarity=2/18|raritynotes={{NamedRef|group=d|secondary}}|gemw=No|rolls=2}}
+{{DropsLine|name=Mallignum root plank|quantity=2|rarity=2/18|gemw=No|rolls=2}}
+{{DropsTableBottom}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 14 February 2024
+|update = Barbarian Training, Forestry Changes & More
+|change = Scavengers now drop additional [[mallignum root plank]]s.
+}}
+{{Subject changes
+|date = 29 November 2023
+|update = Chambers of Xeric Changes
+|poll = Chambers of Xeric Room Improvements
+|change =
+* Whenever any potion secondary would be dropped, scavengers now drop 3-11 [[stinkhorn mushroom]]s, 3-6 [[cicely]] and 5-14 [[endarkened juice]] at once.
+* Scavengers now only roll two drops at a time.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*These beasts ended up replacing the original [[Scavenger runt]].
+*Scavenger beasts use the same sounds as [[goblin]]s.
+
+==References==
+{{Reflist}}
+
+{{Chambers of Xeric}}
+[[Category:Monsters with no combat level]]

@@ -1,0 +1,28 @@
+{{Infobox Combat Achievement
+|name = Slow Dancing in the Sand
+|image = [[File:Sol Heredit.png|150px]]
+|release = [[17 April]] [[2024]]
+|update = Undead Pirates Tweaks, Varlamore CAs & More
+|members = Yes
+|description = Defeat Sol Heredit without running during the fight with him.
+|tier = Grandmaster
+|monster = Fortis Colosseum
+|type = Restriction
+|id = 541
+|leagueRegion = Varlamore
+}}
+'''Slow Dancing in the Sand''' is a [[Combat Achievements/Grandmaster|grandmaster combat achievement]] which requires the player to defeat [[Sol Heredit]] without running during the fight.
+
+==Strategy==
+The player can easily avoid three of Sol's attacks by walking away one tile; the only problem will be his second shield bash, as this requires the player to be at least two tiles away from him to avoid getting hit. 
+
+With some luck and supplies, one may successfully tank the second shield bash throughout the fight. It is also possible to "pre-move" following a first shield bash to cover for the possibility that the next attack will be a second shield bash. The player must walk one tile away from Sol at the same time as he starts the animation for the second attack. This will result in Sol staying in place and the player reaching a position where they can escape a second shield bash in time without running. 
+[[File:Shield 2 Pre-Move (Slow Dancing in the Sand).mp4|thumb|The pre-move technique used to avoid the second shield bash without running.]]
+
+==Other tasks==
+{{Combat Achievements list|Fortis Colosseum}}
+
+==Trivia==
+* The achievement's title is likely a reference to the song "Slow Dancing in the Dark" (stylised in capital letters) by Japanese-Australian artist, songwriter and former YouTube personality [[wikipedia:Joji_(musician)|Joji.]]
+
+{{Combat Achievements}}

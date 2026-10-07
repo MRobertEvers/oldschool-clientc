@@ -51,6 +51,8 @@ import os
 import re
 import sys
 
+import config_text
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONTENT = os.path.join(REPO, "OSRS-Content", "osrs239-content")
 ALL_DBROW = os.path.join(CONTENT, "configs", "all.dbrow")
@@ -261,13 +263,13 @@ def die(msg: str) -> None:
     raise SystemExit(1)
 
 
-def read_zone(suffix: str, raw: str):
-    """The `inzone` tuple as ((sw_x, sw_z), (ne_x, ne_z)), or None if unset."""
-    parts = [p for p in raw.split(",") if p.strip()]
-    if len(parts) != 2:
+def read_zone(suffix: str, packed):
+    """The `inzone` tuple (two packed coords, or None when the row states none)
+    as ((sw_x, sw_z), (ne_x, ne_z)), or None if unset."""
+    if packed is None:
         return None
     corners = []
-    for value in (int(parts[0]), int(parts[1])):
+    for value in packed:
         if value >> 28 != 0:
             die("inzone for %s carries plane nibble %d — the tuple columns were "
                 "assumed unbiased; re-derive before using them"
@@ -282,16 +284,24 @@ def read_zone(suffix: str, raw: str):
 
 
 def read_cache_destinations() -> dict:
-    """suffix -> {id, name, coord:(x,z) or None, related_content}."""
-    with open(ALL_DBROW, "rb") as f:
-        text = f.read().decode("utf-8", "replace")
+    """suffix -> {id, name, coord:(x,z) or None, related_content}.
+
+    Rows of dbtable 206 (`chartering_destinations`), columns read by name;
+    coords as the packed ints the cache stores (config_text.db_int)."""
+    tables, rows = config_text.read_db(os.path.dirname(ALL_DBROW), encoding="utf-8")
+    names = config_text.Names(CONTENT)
     out = {}
-    pattern = r"\[chartering_destination_([a-z_0-9]+)\]\n(.*?)(?=\n\[|\Z)"
-    for suffix, body in re.findall(pattern, text, re.S):
-        values = {}
-        for m in re.finditer(r"^values=(\d+):0:(.*)$", body, re.M):
-            values[int(m.group(1))] = m.group(2).strip()
-        raw = int(values.get(3, "0"))
+    for row_name, row in rows.items():
+        m = re.fullmatch(r"chartering_destination_([a-z_0-9]+)", row_name)
+        if not m:
+            continue
+        suffix = m.group(1)
+
+        def first(column, fallback):
+            tuples = row.typed(column, names)
+            return tuples[0] if tuples else fallback
+
+        raw = first("chartering_destination_port_coord", (0,))[0]
         nibble = raw >> 28
         if raw == 0:
             coord = None
@@ -300,14 +310,14 @@ def read_cache_destinations() -> dict:
         # `inzone` is a two-value column and, unlike the single `port_coord`,
         # carries no plane bias — a tuple is null-or-both and needs no sentinel.
         # Asserted rather than assumed, in read_zone().
-        zone = read_zone(suffix, values.get(6, ""))
+        zone = read_zone(suffix, first("chartering_destination_inzone", None))
         out[suffix] = {
-            "id": int(values.get(0, "-1")),
-            "name": values.get(1, ""),
+            "id": first("chartering_destination_id", (-1,))[0],
+            "name": first("chartering_destination_name", ("",))[0].strip(),
             "coord": coord,
             "nibble": nibble,
             "zone": zone,
-            "related_content": int(values.get(8, "0")),
+            "related_content": first("related_content", (0,))[0],
         }
     if not out:
         die("no chartering_destination_* rows in %s" % ALL_DBROW)
@@ -523,6 +533,7 @@ def main() -> int:
     changed = 0
     for name, body in sorted(outputs.items()):
         path = os.path.join(OUT_DIR, name)
+        body = config_text.completed(path, body)
         old = None
         if os.path.exists(path):
             with open(path, "r", encoding="utf-8") as f:

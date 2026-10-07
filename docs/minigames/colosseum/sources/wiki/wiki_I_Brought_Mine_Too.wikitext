@@ -1,0 +1,35 @@
+{{Infobox Combat Achievement
+|name = I Brought Mine Too
+|image = [[File:Sol Heredit.png|150px]]
+|release = [[17 April]] [[2024]]
+|update = Undead Pirates Tweaks, Varlamore CAs & More
+|members = Yes
+|description = Defeat Sol Heredit using only a Spear, Hasta or Halberd.
+|tier = Master
+|monster = Fortis Colosseum
+|type = Restriction
+|id = 540
+|leagueRegion = Varlamore
+}}
+'''I Brought Mine Too''' is a [[Combat Achievements/Master|master combat achievement]] which requires the player to defeat [[Sol Heredit]] using any [[spear]], [[hasta]], or [[halberd]].
+
+==Strategy==
+The [[noxious halberd]] is the most powerful weapon for this achievement, but its extra reach can prove difficult to use while dodging Sol's attacks if Myopia was not selected in the prior waves. The next best weapon is the [[Zamorakian hasta]] on slash with a defender. The [[dragon halberd]] is the best weapon for account builds who do not wish to gain defence XP and also who do not have 80 Attack. A [[dragon hunter lance]] may be used as well, though it is slightly worse than the Zamorakian hasta.
+
+The only usable weapons that feature [[special attacks]] for this task are the [[crystal halberd]], dragon halberd, and [[dragon hasta]].
+
+==Other tasks==
+{{Combat Achievements list|Fortis Colosseum}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 24 April 2024
+|update = Varlamore Tweaks, GameJam V Commences & More!
+|change = 
+* The achievement is now also possible while using all spears, hastae and halberds.
+* The description has been updated; previously, it was "Defeat Sol Heredit using only Zamorakian hasta or spear."
+}}
+{{Subject changes footer}}
+
+{{Combat Achievements}}

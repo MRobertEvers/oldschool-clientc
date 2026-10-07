@@ -1,0 +1,177 @@
+{{Update|date=16 January 2020|link=https://secure.runescape.com/m=news/twisted-league-reward-shop-and-game-improvements?oldschool=1|category=game}}
+[[File:Twisted League Reward Shop and Game Improvements newspost.png|right]]
+{{clear}}
+
+<center>''This week sees the end of the Twisted League, the opening of the League Reward Shop, and some more game improvements from Poll #69.''</center>
+
+{{Horizontal Line}}
+
+{{Headline|22|Twisted League & Reward Shop}}
+
+<center>[[File:Twisted League Reward Shop and Game Improvements (1).png]]</center>
+
+After two months, the Twisted League has come to an end. It’s been amazing to watch all of you run (no offence, Walker Gang) around Kourend and Kebos, earning League Points and in general, having a great time. We’ve gathered a few Twisted statistics that we’d like to share:
+
+*The average total level of players in the League was '''1033'''
+*A total of '''1,097,825''' Slayer Tasks were completed during the League
+*'''23''' Twisted Bows were dropped
+*7024 pets were obtained - ''the Phoenix was the most common, with 3079 of those flying around, and the rarest was the Olmlet, with just 20 of them making an appearance''
+*The Chambers of Xeric were completed '''24,574''' times
+*A total of '''2,750,304''' Farming Contracts were completed during the League
+*'''3,044,516''' Clue Scrolls were solved and completed - ''consisting of 957,516 Easy, 656,122 Medium, 1,200,141 Hard, 97,097 Elite, and 133,640 Master''
+*The most completed task saw '''105,456''' of you complete the Level 20 Thieving League task
+*The second most completed task saw '''97,549''' of you complete the Level 20 Woodcutting League task
+*The third most completed task saw '''95,363''' of you complete the Level 20 Firemaking League task
+
+<center>[[File:Twisted League Reward Shop and Game Improvements (2).png|300px]]</center>
+
+Oh, is there something we’ve missed? Don’t worry, we haven't forgotten to hand out your Twisted League Trophies!
+
+To claim the untradeable Trophies for your rank, log into the account you played Twisted League on, and speak to the Leagues Tutor on Kourend and Kebos. The final rank thresholds are as follows:
+
+*Dragon - 20,830
+*Rune - 10,820
+*Adamant - 5,270
+*Mithril - 1,770
+*Steel - 510
+*Iron - 80
+*Bronze - 10
+
+Players who have not logged in to Leagues since the update which allowed the automatic claiming of League Points will be teleported to a black void upon logging into the Twisted League world. But don’t panic! This temporary state will only last until the system has recovered your unclaimed League Points and calculated your final point total. You'll be logged out once the points are claimed. If you are a member use the member Twisted League worlds, or if your membership has run out you can use the F2P Twisted League worlds.
+
+Players who do not have any League Points to claim will not be able to log into the Twisted League world and need not fear the black void of calculation.
+
+With the close of the Twisted League, the League Reward Shop has opened for business! You can access the shop by talking to the Leagues Tutor, who is still hanging out in Kourend Castle.
+
+The table below details the rewards available and their cost in League Points:
+
+{| class="wikitable" style="width:500px; margin: auto; text-align: center"
+!Reward	
+!Cost
+|-
+|Twisted League Banner
+|750
+|-
+|Twisted League Home Teleport Scroll
+|750
+|-
+|Twisted League Outfit (Tiers 1, 2 and 3).
+|1,000, 2,500, and 10,000.
+|-
+|Twisted League POH Wall Kit
+|4,000
+|-
+|Twisted League Slayer Helm Recolour
+|6,000
+|}
+
+We’d like to thank everyone who played through Twisted League and gave us their feedback. We’ve taken it on board as we explore ideas for future Leagues. We'll share news of upcoming Leagues as we're able to. 
+
+{{Horizontal Line}}
+
+{{Headline|22|Poll #69: Game Improvements}}
+
+We’ve made some changes to the game based on the results of Old School Poll #69.
+
+'''Portal Nexus and Portal Room'''
+
+<center>[[File:Twisted League Reward Shop and Game Improvements (3).png]]</center>
+
+The following Arceuus and Weiss teleports have now been added to the Portal Nexus and Portal Room in the Player Owned House:
+
+{| class="wikitable" style="width:500px; margin: auto; text-align: center"
+!Teleport
+!Portal Nexus Cost
+!Portal Room Cost
+|-
+|Weiss
+|1000 te salt, 3000 icy basalt, 1000 basalt
+|100 te salt, 300 icy basalt, 100 basalt
+|-
+|Lumbridge Graveyard
+|1000 law runes, 2000 earth runes
+|100 law runes, 200 earth runes
+|-
+|Draynor Manor
+|1000 law runes, 1000 earth runes, 1000 water runes
+|100 law runes, 100 earth runes, 100 water runes
+|-
+|Battlefront
+|1000 law runes, 1000 fire runes, 1000 earth runes
+|100 law runes, 100 fire runes, 100 earth runes
+|-
+|Mind Altar
+|1000 law runes, 1000 mind runes
+|100 law runes, 100 mind runes
+|-
+|Salve Graveyard
+|1000 law runes, 1000 soul runes
+|100 law runes, 100 soul runes
+|-
+|Fenkenstrain's Castle 
+|1000 soul runes, 1000 law runes, 1000 earth runes
+|100 soul runes, 100 law runes, 100 earth runes
+|-
+|West Ardougne
+|2000 soul runes, 2000 law runes
+|200 soul runes, 200 law runes
+|-
+|Harmony Island
+|1000 soul runes, 1000 law runes, 1000 nature runes
+|100 soul runes, 100 law runes, 100 nature runes
+|-
+|Cemetery
+|1000 soul runes, 1000 blood runes, 1000 nature runes
+|100 soul runes, 100 blood runes, 100 nature runes
+|-
+|Barrows
+|2000 soul runes, 1000 blood runes, 2000 law runes
+|200 soul runes, 100 blood runes, 200 law runes
+|-
+|Ape Atoll
+|2000 soul runes, 2000 blood runes, 2000 law runes
+|200 soul runes, 200 blood runes, 200 law runes
+|}
+
+You must have a minimum of 60% Arceuus favour to add these teleports to your Portal Nexus. We have also removed the animation from the model in the Portal Nexus interface to make the text more readable.
+
+'''Glowing Dagger and Blurite Sword'''
+
+<center>[[File:Twisted League Reward Shop and Game Improvements (4).png|100px]]</center>
+
+Players can now get the Glowing Dagger and Blurite Swords after finishing the Legends’ Quest & The Knight’s Sword.
+
+In order to obtain a new Blurite Sword post-quest, players must give Thurgo a blurite ore and two iron bars.
+
+In order to receive a new Glowing Dagger, players can speak to Radimus Erkle.
+
+Additionally, the stepping stones in Legends’ Quest will no longer prompt the player about crossing if they have finished the quest.
+
+'''Bruma Torch'''
+
+<center>[[File:Twisted League Reward Shop and Game Improvements (5).png|100px]]</center>
+
+You can now use a Bruma Torch to light braziers and smoke traps.
+
+{{Horizontal Line}}
+
+{{Headline|22|In Other News}}
+
+*Granite cannonballs are once again the correct shade of grey.
+*The Imbued Heart and Mint Cake can now be used while the Bank is open.
+*Zamorak Brews can now be consumed while the bank is open without the damage prompting your Bank to close.
+*The Bank's default size is now slightly taller for players who've hidden the tabs, so that it can fit the updated Menu and Worn Items screen.
+*Players who log out near the flag spawn point during a Castle Wars game will be moved down to the next floor to discourage repeated re-logging in that spot.
+*The Disk of Returning can now be purchased from Diango in Draynor.
+*Falo now accepts the TzHaar-Ket-Om (t) for his clue.
+*Perdu's screen now shows the updated Fremennik Boots.
+*Some hover text on the Account side-panel has had its spacing and colours corrected.
+*The message on the Brimstone Ring now uses "defence" rather than "defense" in its message, for consistency with the game's usual style.
+*You can now choose to 'shoo' the Varrock stray dogs instead of petting them. You monsters.
+*The music track unlock message has been disabled on Tutorial Island.
+
+{{Horizontal Line}}
+
+Discuss this update on our [https://secure.runescape.com/m=forum/a=13/sl=0/forums?380,381,617,66139007 official forums], the community-led [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the '''#gameupdate''' channel. For reference on the above content, check out the official [[Wiki]].
+
+'''''Mods Acorn, Archie, Ash, Bonsai, Bruno, Curse, Ed, Fed, Flippy, Gambit, Gee, Ghost, Husky, John C, Kieren, Kristy, Lenny, Lottie, Nasty, Oasis, Roq, Ry, Steve W, Sween, Tide, Weath & West'''''<br/>''The Old School Team''

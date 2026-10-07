@@ -1,0 +1,32 @@
+[[file:Sunfire fanatic helm chathead.png|left|130px]]
+[[File:Sunfire fanatic armour equipped male.png|right|130px]]
+'''Sunfire fanatic armour''' is a set of [[prayer armour]] obtained as a possible reward from participating in the [[Fortis Colosseum]], starting at Wave 4. Players will receive one of each piece before receiving duplicates. It currently has the best Prayer bonus for the head, body, and legs equipment slots, with each armour piece having a +2 higher bonus compared to their [[proselyte armour]] equivalents. 
+
+In order to wear the armour, the player must have a [[Prayer]] level of 60 and a [[Defence]] level of 40. The armour shares the same stats with [[rune equipment|rune armour]], barring the lighter weight and higher prayer bonus. Because of the negative ranged and magic bonuses the set provides, it is only ideal for combat that utilises prayer and where accuracy is not essential.
+
+Equipping any piece of sunfire fanatic armour is necessary for an [[Treasure Trails/Guide/Emote clues/Elite|elite clue scroll emote step]]. This set can be stored in the [[armour case space]] of a [[costume room]] in a [[player-owned house]]. [[Ultimate Ironmen]] will be unable to retrieve individual pieces until the full set is stored.
+
+==Components==
+{{CostTableHead}}
+{{CostLine|Sunfire fanatic helm}}
+{{CostLine|Sunfire fanatic cuirass}}
+{{CostLine|Sunfire fanatic chausses}}
+{{CostTableBottom|total=y|compare=Sunfire fanatic armour set}}
+
+==Bonuses==
+{{Infotable Bonuses|Sunfire fanatic helm|Sunfire fanatic cuirass|Sunfire fanatic chausses}}
+
+==Gallery==
+<gallery heights="250" style="text-align:left">
+Sunfire fanatic helm chathead.png|The sunfire fanatic helm chathead.
+Sunfire fanatic armour equipped male.png|Sunfire fanatic armour on body type A.
+Sunfire fanatic armour equipped female.png|Sunfire fanatic armour on body type B.
+</gallery>
+
+===Concept art===
+<gallery mode="packed" heights="200" style="text-align:left">
+Sunfire fanatic armour concept art.png|Concept art of the sunfire fanatic armour, by [[Mod Jerv]].
+</gallery>
+
+{{Fortis Colosseum}}
+{{Prayer items}}

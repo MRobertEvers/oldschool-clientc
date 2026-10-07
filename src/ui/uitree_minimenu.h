@@ -25,6 +25,12 @@
 #define UITREE_MINIMENU_DEFAULT_LINE_BOX 16
 /** Reference OPTIONS_MENU background/title color. */
 #define UITREE_MINIMENU_COLOR_BODY 0x5D5447
+/** The body of a menu that is NOT the presented view's (a script's menu
+ *  drawn in the watcher's frame; owner decision 3 of the runner camera
+ *  split): the client's own chrome FRAME_INSET grey (script_3850's inset,
+ *  torirs_chrome_metrics.h TORIRS_CHROME_C_FRAME_INSET) -- the same palette
+ *  family, a different hue from the brown body, so it reads as "not yours". */
+#define UITREE_MINIMENU_COLOR_OTHER_VIEW 0x474745
 
 /**
  * How the popup is sized for the pointer that opened it.

@@ -2,6 +2,7 @@
 
 #include "../rscache_profile.h"
 
+#include <assert.h>
 #include <string.h>
 
 /** Record the opcode in the order seen, so the encoder can replay it. */
@@ -31,8 +32,8 @@ RSCache_Dat2ConfigHitsplatDecode(
     struct RSCache_Buffer* buffer,
     unsigned flags)
 {
-    if( !entry || !buffer )
-        return;
+    assert(entry);
+    assert(buffer);
 
     RSCache_Dat2ConfigHitsplatInit(entry);
 
@@ -53,8 +54,9 @@ RSCache_Dat2ConfigHitsplatDecode(
 void
 RSCache_Dat2ConfigHitsplatInit(struct RSCache_Dat2ConfigHitsplat* entry)
 {
-    if( !entry )
-        return;
+    assert(entry);
+    /* Nothing stated until an opcode says so. */
+    RSCache_PresenceReset(&entry->present);
     /* Every one of these is the reference constructor's own pre-loop value
      * (`class420(class617)`), not a convenience.
      *
@@ -106,7 +108,6 @@ hitsplat_read_text(
             return false; /* Would truncate, which would not re-encode. */
     }
     entry->text[out] = '\0';
-    entry->has_text = true;
     return true;
 }
 
@@ -146,7 +147,12 @@ hitsplat_read_variants(
         entry->variants[i] = (v == 65535) ? -1 : v;
     }
     entry->variant_count = count + 1;
-    entry->variant_opcode = opcode;
+    RSCache_PresenceSet(&entry->present, RSCACHE_HITSPLAT_FIELD_VARIANTS);
+    /* The later of the two opcodes wins, fallback included. */
+    if( opcode == 18 )
+        RSCache_PresenceSet(&entry->present, RSCACHE_HITSPLAT_FIELD_VARIANT_FALLBACK);
+    else
+        RSCache_PresenceClear(&entry->present, RSCACHE_HITSPLAT_FIELD_VARIANT_FALLBACK);
     return true;
 }
 
@@ -166,62 +172,64 @@ RSCache_Dat2ConfigHitsplatDecodeOp(
     {
     case 1:
         entry->font_id = g2(buffer);
-        entry->has_font = true;
+        RSCache_PresenceSet(&entry->present, RSCACHE_HITSPLAT_FIELD_FONT);
         break;
     case 2:
         /* The one width with no measured sibling — see the header. */
         entry->text_colour = g3(buffer);
-        entry->has_text_colour = true;
+        RSCache_PresenceSet(&entry->present, RSCACHE_HITSPLAT_FIELD_TEXT_COLOUR);
         break;
     case 3:
         entry->icon_sprite_id = g2(buffer);
-        entry->has_icon_sprite = true;
+        RSCache_PresenceSet(&entry->present, RSCACHE_HITSPLAT_FIELD_ICON_SPRITE);
         break;
     case 4:
         entry->left_sprite_id = g2(buffer);
-        entry->has_left_sprite = true;
+        RSCache_PresenceSet(&entry->present, RSCACHE_HITSPLAT_FIELD_LEFT_SPRITE);
         break;
     case 5:
         entry->sprite_id = g2(buffer);
+        RSCache_PresenceSet(&entry->present, RSCACHE_HITSPLAT_FIELD_SPRITE);
         break;
     case 6:
         entry->right_sprite_id = g2(buffer);
-        entry->has_right_sprite = true;
+        RSCache_PresenceSet(&entry->present, RSCACHE_HITSPLAT_FIELD_RIGHT_SPRITE);
         break;
     case 7:
         entry->drift_x = g2(buffer);
-        entry->has_drift_x = true;
+        RSCache_PresenceSet(&entry->present, RSCACHE_HITSPLAT_FIELD_DRIFT_X);
         break;
     case 8:
         if( !hitsplat_read_text(entry, buffer) )
             return false;
+        RSCache_PresenceSet(&entry->present, RSCACHE_HITSPLAT_FIELD_TEXT);
         break;
     case 9:
         entry->duration = g2(buffer);
-        entry->has_duration = true;
+        RSCache_PresenceSet(&entry->present, RSCACHE_HITSPLAT_FIELD_DURATION);
         break;
     case 10:
         entry->drift_up = g2(buffer);
-        entry->has_drift_up = true;
+        RSCache_PresenceSet(&entry->present, RSCACHE_HITSPLAT_FIELD_DRIFT_UP);
         break;
     case 11:
         /* The reference sets the field to 0 here, with no operand. Opcode 14
          * sets the same field with a u16, so the two are distinguished for the
          * encoder rather than collapsed. */
         entry->fade_after = 0;
-        entry->has_fade_flag = true;
+        RSCache_PresenceSet(&entry->present, RSCACHE_HITSPLAT_FIELD_FADE_FLAG);
         break;
     case 12:
         entry->slot_policy = g1(buffer);
-        entry->has_slot_policy = true;
+        RSCache_PresenceSet(&entry->present, RSCACHE_HITSPLAT_FIELD_SLOT_POLICY);
         break;
     case 13:
         entry->text_offset_y = g2(buffer);
-        entry->has_text_offset_y = true;
+        RSCache_PresenceSet(&entry->present, RSCACHE_HITSPLAT_FIELD_TEXT_OFFSET_Y);
         break;
     case 14:
         entry->fade_after = g2(buffer);
-        entry->has_fade_after = true;
+        RSCache_PresenceSet(&entry->present, RSCACHE_HITSPLAT_FIELD_FADE_AFTER);
         break;
     case 17:
     case 18:
@@ -247,13 +255,14 @@ RSCache_Dat2ConfigHitsplatDecodeInplace(
     int data_size,
     unsigned flags)
 {
-    if( !entry )
-        return;
-    if( !data || data_size <= 0 )
+    assert(entry);
+    /* No bytes is the empty record: the defaults, nothing stated. */
+    if( data_size <= 0 )
     {
         RSCache_Dat2ConfigHitsplatInit(entry);
         return;
     }
+    assert(data);
 
     struct RSCache_Buffer buffer;
     RSCache_BufferInit(&buffer, (uint8_t*)data, (uint32_t)data_size);
@@ -272,120 +281,137 @@ RSCache_Dat2ConfigHitsplatEncodeBound(const struct RSCache_Dat2ConfigHitsplat* e
            (8u + (uint32_t)RSCACHE_HITSPLAT_MAX_VARIANTS * 2u) + 1u;
 }
 
-/** Write one opcode and its operand. Returns false if the field is not present. */
-static bool
-hitsplat_write_opcode(
-    struct RSCache_Buffer* buffer,
-    const struct RSCache_Dat2ConfigHitsplat* entry,
-    int opcode)
+/** The field `opcode` states, or -1 for an opcode this type does not have. */
+static int
+hitsplat_field_for_opcode(int opcode)
 {
     switch( opcode )
     {
     case 1:
-        if( !entry->has_font )
-            return false;
+        return RSCACHE_HITSPLAT_FIELD_FONT;
+    case 2:
+        return RSCACHE_HITSPLAT_FIELD_TEXT_COLOUR;
+    case 3:
+        return RSCACHE_HITSPLAT_FIELD_ICON_SPRITE;
+    case 4:
+        return RSCACHE_HITSPLAT_FIELD_LEFT_SPRITE;
+    case 5:
+        return RSCACHE_HITSPLAT_FIELD_SPRITE;
+    case 6:
+        return RSCACHE_HITSPLAT_FIELD_RIGHT_SPRITE;
+    case 7:
+        return RSCACHE_HITSPLAT_FIELD_DRIFT_X;
+    case 8:
+        return RSCACHE_HITSPLAT_FIELD_TEXT;
+    case 9:
+        return RSCACHE_HITSPLAT_FIELD_DURATION;
+    case 10:
+        return RSCACHE_HITSPLAT_FIELD_DRIFT_UP;
+    case 11:
+        return RSCACHE_HITSPLAT_FIELD_FADE_FLAG;
+    case 12:
+        return RSCACHE_HITSPLAT_FIELD_SLOT_POLICY;
+    case 13:
+        return RSCACHE_HITSPLAT_FIELD_TEXT_OFFSET_Y;
+    case 14:
+        return RSCACHE_HITSPLAT_FIELD_FADE_AFTER;
+    case 17:
+    case 18:
+        /* One selector; which opcode carries it is VARIANT_FALLBACK's presence. */
+        return RSCACHE_HITSPLAT_FIELD_VARIANTS;
+    default:
+        return -1;
+    }
+}
+
+/** Write the opcode that states `field`, with its operand. */
+static void
+hitsplat_write_field(
+    struct RSCache_Buffer* buffer,
+    const struct RSCache_Dat2ConfigHitsplat* entry,
+    int field)
+{
+    switch( field )
+    {
+    case RSCACHE_HITSPLAT_FIELD_FONT:
         p1(buffer, 1);
         p2(buffer, entry->font_id);
-        return true;
-    case 2:
-        if( !entry->has_text_colour )
-            return false;
+        break;
+    case RSCACHE_HITSPLAT_FIELD_TEXT_COLOUR:
         p1(buffer, 2);
         p3(buffer, entry->text_colour);
-        return true;
-    case 3:
-        if( !entry->has_icon_sprite )
-            return false;
+        break;
+    case RSCACHE_HITSPLAT_FIELD_ICON_SPRITE:
         p1(buffer, 3);
         p2(buffer, entry->icon_sprite_id);
-        return true;
-    case 4:
-        if( !entry->has_left_sprite )
-            return false;
+        break;
+    case RSCACHE_HITSPLAT_FIELD_LEFT_SPRITE:
         p1(buffer, 4);
         p2(buffer, entry->left_sprite_id);
-        return true;
-    case 5:
-        if( entry->sprite_id < 0 )
-            return false;
+        break;
+    case RSCACHE_HITSPLAT_FIELD_SPRITE:
         p1(buffer, 5);
         p2(buffer, entry->sprite_id);
-        return true;
-    case 6:
-        if( !entry->has_right_sprite )
-            return false;
+        break;
+    case RSCACHE_HITSPLAT_FIELD_RIGHT_SPRITE:
         p1(buffer, 6);
         p2(buffer, entry->right_sprite_id);
-        return true;
-    case 7:
-        if( !entry->has_drift_x )
-            return false;
+        break;
+    case RSCACHE_HITSPLAT_FIELD_DRIFT_X:
         p1(buffer, 7);
         p2(buffer, entry->drift_x);
-        return true;
-    case 8:
-    {
-        if( !entry->has_text )
-            return false;
+        break;
+    case RSCACHE_HITSPLAT_FIELD_TEXT:
         p1(buffer, 8);
         p1(buffer, entry->text_marker);
         for( int i = 0; entry->text[i] != '\0'; i++ )
             p1(buffer, (uint8_t)entry->text[i]);
         p1(buffer, 0);
-        return true;
-    }
-    case 9:
-        if( !entry->has_duration )
-            return false;
+        break;
+    case RSCACHE_HITSPLAT_FIELD_DURATION:
         p1(buffer, 9);
         p2(buffer, entry->duration);
-        return true;
-    case 10:
-        if( !entry->has_drift_up )
-            return false;
+        break;
+    case RSCACHE_HITSPLAT_FIELD_DRIFT_UP:
         p1(buffer, 10);
         p2(buffer, entry->drift_up);
-        return true;
-    case 11:
-        if( !entry->has_fade_flag )
-            return false;
+        break;
+    case RSCACHE_HITSPLAT_FIELD_FADE_FLAG:
         p1(buffer, 11);
-        return true;
-    case 12:
-        if( !entry->has_slot_policy )
-            return false;
+        break;
+    case RSCACHE_HITSPLAT_FIELD_SLOT_POLICY:
         p1(buffer, 12);
         p1(buffer, entry->slot_policy);
-        return true;
-    case 13:
-        if( !entry->has_text_offset_y )
-            return false;
+        break;
+    case RSCACHE_HITSPLAT_FIELD_TEXT_OFFSET_Y:
         p1(buffer, 13);
         p2(buffer, entry->text_offset_y);
-        return true;
-    case 14:
-        if( !entry->has_fade_after )
-            return false;
+        break;
+    case RSCACHE_HITSPLAT_FIELD_FADE_AFTER:
         p1(buffer, 14);
         p2(buffer, entry->fade_after);
-        return true;
-    case 17:
-    case 18:
+        break;
+    case RSCACHE_HITSPLAT_FIELD_VARIANTS:
     {
-        if( entry->variant_opcode != opcode || entry->variant_count <= 0 )
-            return false;
-        p1(buffer, opcode);
+        bool const has_fallback =
+            RSCache_PresenceHas(&entry->present, RSCACHE_HITSPLAT_FIELD_VARIANT_FALLBACK);
+        /* The wire count is one less than the ids it is followed by, so a
+         * selector always carries at least one. */
+        assert(entry->variant_count >= 1);
+        assert(entry->variant_count <= RSCACHE_HITSPLAT_MAX_VARIANTS);
+        p1(buffer, has_fallback ? 18 : 17);
         p2(buffer, entry->variant_varbit < 0 ? 65535 : entry->variant_varbit);
         p2(buffer, entry->variant_varp < 0 ? 65535 : entry->variant_varp);
-        if( opcode == 18 )
+        if( has_fallback )
             p2(buffer, entry->variant_fallback < 0 ? 65535 : entry->variant_fallback);
         p1(buffer, entry->variant_count - 1);
         for( int i = 0; i < entry->variant_count; i++ )
             p2(buffer, entry->variants[i] < 0 ? 65535 : entry->variants[i]);
-        return true;
+        break;
     }
     default:
-        return false;
+        assert(!"hitsplat: no opcode states this field");
+        break;
     }
 }
 
@@ -395,28 +421,41 @@ RSCache_Dat2ConfigHitsplatEncode(
     uint8_t* out,
     uint32_t out_capacity)
 {
-    if( !entry || !out )
-        return 0;
+    assert(entry);
+    assert(out);
+    /* The fallback is opcode 18's third u16: there is no stating it without the
+     * selector it belongs to. */
+    assert(!RSCache_PresenceHas(&entry->present, RSCACHE_HITSPLAT_FIELD_VARIANT_FALLBACK) ||
+           RSCache_PresenceHas(&entry->present, RSCACHE_HITSPLAT_FIELD_VARIANTS));
     if( out_capacity < RSCache_Dat2ConfigHitsplatEncodeBound(entry) )
         return 0;
 
     struct RSCache_Buffer buffer;
     RSCache_BufferInit(&buffer, out, out_capacity);
 
-    if( entry->opcode_count > 0 )
+    /* Replay the recorded order -- hitsplat records do not share one, see the
+     * header -- writing each stated field once. Then any stated field the order
+     * does not name (a hand-built record has no order at all), ascending, so a
+     * field cannot be stated and still go unwritten. */
+    struct RSCache_Presence written;
+    RSCache_PresenceReset(&written);
+    for( int i = 0; i < entry->opcode_count; i++ )
     {
-        /* Replay the recorded order. Hitsplat records do not share one — see the
-         * header — so this is the only way to reproduce the bytes. */
-        for( int i = 0; i < entry->opcode_count; i++ )
-            hitsplat_write_opcode(&buffer, entry, entry->opcodes[i]);
+        int const field = hitsplat_field_for_opcode(entry->opcodes[i]);
+        if( field < 0 || !RSCache_PresenceHas(&entry->present, field) ||
+            RSCache_PresenceHas(&written, field) )
+            continue;
+        hitsplat_write_field(&buffer, entry, field);
+        RSCache_PresenceSet(&written, field);
     }
-    else
+    for( int field = 0; field < RSCACHE_HITSPLAT_FIELD_COUNT; field++ )
     {
-        /* No order recorded (a hand-built record): ascending. Decodes back to an equal
-         * struct, but will not match a source record byte for byte. */
-        static const int ASCENDING[] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 18 };
-        for( size_t i = 0; i < sizeof(ASCENDING) / sizeof(ASCENDING[0]); i++ )
-            hitsplat_write_opcode(&buffer, entry, ASCENDING[i]);
+        if( field == RSCACHE_HITSPLAT_FIELD_VARIANT_FALLBACK )
+            continue; /* written inside VARIANTS */
+        if( !RSCache_PresenceHas(&entry->present, field) || RSCache_PresenceHas(&written, field) )
+            continue;
+        hitsplat_write_field(&buffer, entry, field);
+        RSCache_PresenceSet(&written, field);
     }
 
     p1(&buffer, 0);

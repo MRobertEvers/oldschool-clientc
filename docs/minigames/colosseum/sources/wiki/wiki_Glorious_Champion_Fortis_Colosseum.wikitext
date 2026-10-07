@@ -1,0 +1,39 @@
+{{No official name}}
+{{Infobox Music
+|name = Glorious Champion (Fortis Colosseum)
+|file = [[File:Glorious Champion (Fortis Colosseum).ogg]]
+|release = [[20 March]] [[2024]]
+|update = Varlamore: Part One
+|members = Yes
+|location = [[Fortis Colosseum]]
+|hint = N/A
+|quest = N/A
+|instruments = Standard Drum Kit, String Ensemble 1, Marimba, FX 5 (brightness), Brass Section, Distortion Guitar, Choir Ohhs, Tubular Bells, Pad 1 (new age), Orchestra Hit
+|tempo = 135 BPM
+|duration = 00:13
+|composer = 
+|map = No
+|cacheid = 305
+|sortname = Glorious Champion
+|jingle = Yes
+}}
+'''Glorious Champion (Fortis Colosseum)''' is a [[jingle]] that plays when completing wave 12 of the [[Fortis Colosseum]].
+
+==Versions==
+{{Music changes header}}
+{{Music changes
+|version=1
+|date=20 March 2024
+|file=[[File:Glorious Champion (Fortis Colosseum) (8-bit).ogg]]
+}}
+{{Music changes
+|version=1
+|date=9 April 2025
+|file=[[File:Glorious Champion (Fortis Colosseum).ogg]]
+|change= [[Audio#16-bit_music|16-bit Music Update]]
+}}
+{{Music changes footer}}
+
+{{Music}}
+
+[[Category:Old School-exclusive music]]

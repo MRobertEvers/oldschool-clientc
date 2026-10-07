@@ -1,0 +1,41 @@
+{{External|rs=Auto-retaliate}}
+[[File:Auto Retaliate.png|left]]
+
+'''Auto Retaliate''' is a [[Combat]] toggle that allows the player to choose whether their character fights back when attacked. Players can turn it on or off by going to the [[Combat Options]] tab and clicking the icon that says ''"Auto Retaliate (On)/(Off)"''.
+
+The player will attempt to automatically retaliate to the attacker 1 tick after they are attacked for 20 minutes if no player input is given, after which players stop attacking all together even if they are attacked by [[Monster|monsters]]. When a player is attacked, their attack delay is set to their current weapon's attack speed divided by two, rounded up, regardless of what it was prior. 
+
+Turning this option '''off''' is helpful if the player wants to run through an area with lots of [[monsters]] that have [[aggressiveness]], run away from attacking players, or just not fight back when attacked.
+
+It is also recommended to turn Auto Retaliate '''off''' when players are in an area with traps (such as those found in pyramids and dungeons).
+
+Turning Auto Retaliate '''off''' is essential for the prevention of accumulation of combat experience on a [[Skill pure]] build account. 
+{| class="wikitable"
+|-
+| [[File:Auto Retaliate (On).png]] || When Auto Retaliate is '''ON''', the player's character walks/runs towards the monster (or player) attacking and fights back.
+|-
+| [[File:Auto Retaliate (Off).png]] || When Auto Retaliate is '''OFF''', the player's character just stands where they are and takes the hits from the monster, or another player.
+|}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 10 September 2015
+|update = Slayer Assignment Rework
+|change = Players will now stop retaliating after 20 minutes of idle combat. This change was implemented secretly to reduce the effectiveness of AFK training.
+}}
+{{Subject changes
+|date = 23 January 2014
+|update = Slayer Cave & High Risk Worlds
+|change = Toggling Auto Retaliate no longer disrupts movement.
+}}
+{{Subject changes footer}}
+
+==See also==
+*[[Aggressiveness]]
+*[[Tolerance]]
+*[[Retaliation]]
+
+[[Category:Mechanics]]
+[[Category:Combat]]
+{{Combat Mechanics}}

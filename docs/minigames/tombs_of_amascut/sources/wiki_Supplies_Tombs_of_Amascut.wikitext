@@ -1,0 +1,49 @@
+{{Infobox Item
+|name = Supplies
+|image = [[File:Supplies (Tombs of Amascut).png]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Open, Withdraw 1, Withdraw All, Resupply, Destroy
+|destroy = You will lose any items inside.
+|examine = Some helpful supplies.
+|value = 100
+|alchable = No
+|weight = 4.989
+|id = 27314
+}}
+[[File:Supplies (Tombs of Amascut) detail.png|left|120px]]
+'''Supplies''' is an item obtained from the [[Helpful Spirit]] in the Nexus of the [[Tombs of Amascut]]. It acts as a secondary supply storage for the items chosen by the player when talking to the spirit, including [[nectar]], [[ambrosia]], [[blessed crystal scarab]]s, [[liquid adrenaline]], [[silk dressing]]s, [[smelling salts]], and [[tears of Elidinis]]. The item options allow the player access to its contents: 
+
+[[File:Supplies interface (Tombs of Amascut).png|186px|thumb|left|The interface that appears over the player's inventory.]]
+
+* '''Open''' allows the player to access its inventory directly, similar to the [[Looting bag]] interface except that the player can withdraw and rearrange the contents freely. Similarly, the interface closes if the player performs any action, is hit in combat, or many other situations.
+* '''Withdraw-1''' removes the first item from left-to-right, top-to-bottom. This cannot be done if the player's inventory is already full, unless the item is the only item remaining in the supply storage.
+* '''Withdraw-all''' works similarly to Withdraw-1 except that it continues to remove items until all are withdrawn or the player's inventory fills.
+* '''Resupply''' restores any partially-used items in the player's inventory by using the items contained within. For instance, [[Smelling salts|Smelling salts (1)]] becomes a Smelling salts (2) if another Smelling salts is stored in the supplies. This option only restores items already in the player's inventory; it does not remove any new items.
+
+Using a removed item on the supplies returns it to the inventory into the first empty slot (left-to-right, top-to-bottom). If all items are removed from the supplies, the item is destroyed, and a message will appear in the game chat stating ''"The bag disintegrates."''. A new one may be obtained from the [[Helpful Spirit]] after completing another two paths.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 28 September 2022
+|update = Tombs of Amascut & Group Ironman Changes
+|change = 
+* Items can now be dropped to the ground directly from the Supplies Bag interface.
+* When withdrawing an item, the slot that was actually selected is the one that is withdrawn, instead of the one at the top of the Supplies Bag.
+}}
+{{Subject changes
+|date = 2 September 2022
+|update = Tombs of Amascut: Balance Changes Revisited
+|type = hotfix
+|change = Fixed a bug where the Resupply function was occasionally deleting Ambrosia or Liquid Adrenaline doses.
+}}
+{{Subject changes footer}}
+
+{{Tombs of Amascut}}

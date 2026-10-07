@@ -6,7 +6,9 @@
 -- Every closed space is walked in AND out (owner rule 2026-10-03, b58
 -- re-drive): no goto_tile departs from or lands in a room, a cave or a
 -- floor behind a door or a climb. The gotos left are overland hops between
--- open tiles: Lumbridge, the lane west of Sanfew's house (2890,3428), the
+-- open tiles: Lumbridge to the south side of the members' gate (2934,3318;
+-- the walk-through gate membergatel 2934,3320 is then pressed: it is the only
+-- way on foot from Lumbridge to Taverley), the lane west of Sanfew's house (2890,3428), the
 -- ground east of Tenzing's fence gate (2826,3555), the rocks (2856,3611),
 -- the Camelot teleport landing (2757,3478), Ardougne zoo, Tegid's river
 -- bank, and -- inside the one walkable summit component -- the Trollheim
@@ -87,8 +89,9 @@ return {
         "::setlevel magic 45", -- Camelot Teleport (magic_spells.dbrow [magic_spell_teleport_camelot]: level 45, 5 air +
         -- 1 law, no quest gate in teleport.rs2:13): the summit is a pocket on foot (sampler b58 round 2), so every trip
         -- DOWN from it to the lowlands is this spell, cast by click from the spellbook; every trip back UP is walked
-        "::give airrune 15", -- three casts: Pete, Tegid, Sanfew
-        "::give lawrune 3",
+        "::give airrune 20", -- four casts: off the summit to Pete, from the zoo back towards Trollheim, off the summit
+        -- to Tegid, out of the stronghold to Sanfew (same two stacks, no new slot)
+        "::give lawrune 4",
         "::give shark 3", -- food for the stronghold's aggressive trolls (b58 run 2: hp 99 -> 49 over the trips, no eat);
         -- the guide names no food but warns Trollheim is dangerous (combat 50). Slots: the 23 above + 2 rune stacks
         -- + 3 sharks = 28 (r2 staged 5 lobsters, 60 hp; 3 sharks are the same 60 hp in the two slots the runes
@@ -415,32 +418,30 @@ return {
                 "exitStronghold" .. sfx, true)
         end
 
-        -- Off the summit: Camelot Teleport, pressed in the spellbook
-        -- (t.player.cast presses [if_button,magic_spellbook:camelot_teleport]).
-        -- Graded on the runes the spell took (5 air, 1 law:
-        -- magic_spells.dbrow [magic_spell_teleport_camelot]) and the
-        -- landing: tele_coord 0_43_54_5_22 = 2757,3478,0, map_findsquare
-        -- within 2 (teleport.rs2 [label,magic_teleport]).
+        -- Off the summit: Camelot Teleport, pressed in the spellbook by the
+        -- driver's verb (t.player.teleport_cast writes <name>.cast /
+        -- .runes / .landed): 5 air + 1 law (magic_spells.dbrow
+        -- [magic_spell_teleport_camelot]), landing tele_coord 0_43_54_5_22
+        -- = 2757,3478,0 within 2 (teleport.rs2 [label,magic_teleport]).
         local function teleport_down(name)
-            local br, bt = t.world.tile()
-            local ar0, air0 = t.inv.count("airrune")
-            local lr0, law0 = t.inv.count("lawrune")
-            local cr, cd = t.player.cast("camelot_teleport")
-            t.ticks(1)
-            local wr, wt = t.world.tile()
-            local ar1, air1 = t.inv.count("airrune")
-            local lr1, law1 = t.inv.count("lawrune")
-            local landed = wr == "ok" and wt.level == 0 and math.abs(wt.x - 2757) <= 2 and math.abs(wt.z - 3478) <= 2
-            local paid = ar0 == "ok" and ar1 == "ok" and lr0 == "ok" and lr1 == "ok" and air0 - air1 == 5 and law0 - law1 == 1
-            t.check(name, cr == "ok" and string.find(tostring(cd), "TELEPORTED", 1, true) ~= nil and landed and paid,
-                "from " .. tile_text(br, bt) .. " cast camelot_teleport -> " .. tostring(cr) .. " " .. tostring(cd) .. "; landed "
-                    .. tile_text(wr, wt) .. " (want within 2 of 2757,3478,0); airrune " .. tostring(air0) .. " -> " .. tostring(air1)
-                    .. ", lawrune " .. tostring(law0) .. " -> " .. tostring(law1) .. " (want -5 air, -1 law)")
+            t.player.teleport_cast("camelot_teleport", { 2757, 3478, 0 }, { name = name,
+                runes = { { "airrune", 5 }, { "lawrune", 1 } }, where = "Camelot" })
         end
 
         -- ---------------------------------------------------------------
         -- 1. Sanfew: accept the quest (sanfew.rs2 sanfew_more_work).
         -- ---------------------------------------------------------------
+        -- The run's first goto obeys the door rule (owner ruling 2026-10-05).
+        -- From the Lumbridge fixture the only way on foot to Taverley is the
+        -- members' gate south of it (reach.py 3206,3233 -> 2890,3428:
+        -- NEEDS-DOOR via membergater@2933,3320), so: overland to the gate's
+        -- south side (REACH closed-doors 387), the walk-through gate pressed
+        -- (gates.rs2 [label,member_fencegate_try]), then overland from its
+        -- north side to the lane west of Sanfew's house (REACH 156).
+        t.exec("goto-sanfew-1.memberGate", t.player.goto_tile, 2934, 3318, 0)
+        t.exec("goUpToSanfew.memberGate", t.player.cross_gate, { loc = "membergatel", at = { 2934, 3320, 0 },
+            near = { 2934, 3318 }, far_ok = function(tile) return tile.z >= 3320 and math.abs(tile.x - 2934) <= 2 end,
+            far_desc = "north of the members' gate, z >= 3320" })
         t.exec("goto-sanfew-1", t.player.goto_tile, 2890, 3428, 0)
         sanfew_in("accept", "goUpToSanfew")
         t.exec("talkToSanfew-accept", t.player.talk_to, "sanfew", 1)
@@ -621,6 +622,9 @@ return {
         -- ---------------------------------------------------------------
         -- Back up to Trollheim on foot, the whole way (the guide's
         -- enterEadgarsCaveWithParrot), then the cave.
+        -- The zoo is ~950 tiles' walk from Tenzing's: Camelot Teleport first
+        -- (a player's way back north), then overland to Burthorpe.
+        teleport_down("teleportCamelotFromZoo")
         walk_up("WithParrot")
         enter_cave("goto-enterEadgarCaveWithTrainedParrot", "enterEadgarCaveWithTrainedParrot")
         local eadgar_npc = t.player.by_symbol("npc", "troll_eadgar")

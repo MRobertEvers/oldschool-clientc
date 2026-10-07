@@ -1,0 +1,236 @@
+{{Update|date=20 September 2023|url=https://secure.runescape.com/m=news/poll-80--shooting-stars-changes?oldschool=1|category=game}}
+[[File:Poll 80 & Shooting Stars Changes newspost.png|right]]
+{{clear}}
+
+''Today we’re launching a flotilla of Poll 80 changes! Keep reading to learn more…''
+
+----
+===Bug fixes & Feedback===
+{| class="wikitable" style="text-align:center; width:665px;"
+!Date and Time
+!Change
+!Current Status
+|-
+|Wednesday 20th September, 12:30 BST
+|We've temporarily blocked mining Shooting Stars as we investigate an issue with them not depleting as intended. We are very sorry for the inconvenience (and for ruining your fun!)
+|TEMPORARILY HOTFIXED
+|-
+|Wednesday 20th September, 14:20 BST
+|Shooting Stars have been re-enabled and should no longer deplete faster with other players around. Roughly, the stars deplete as if 2 level 99 players are mining it and a tier 9 star will take roughly up to 90 minutes to deplete all the way to zero before the star disappears.
+|HOTFIXED
+|-
+|Wednesday 20th September, 15:00 BST
+|Leviathan Orb attacks were not visible until halfway to the player. This also affected animations on a number of other bosses.
+|HOTFIXED
+|-
+|Wednesday 20th September, 15:10 BST
+|A poll 80 change was missing from the newspot.
+|This has been corrected. The following text has been added to the newspost as it launched with this week's update: "You can no longer jump the agility shortcuts in the Revenant cave if you are frozen or bound. You will be able to resume jumping within 3 ticks of the bind's end."
+|}
+
+==Poll 80==
+===Wilderness Boss Lairs===
+[[File:Poll 80 & Shooting Stars Changes (1).png|centre|400px]]
+
+Our first stop in the update train is the Wilderness, where we’ve made a few improvements to the Wilderness Boss Lairs:
+
+* Players are now unable to teleport out of the Wilderness Boss Caves for 3 ticks after they enter.
+** This delay can be avoided if you have completed the Wilderness Hard Diary.
+* The 1-tick animation delay for everyone entering the dungeon has now been removed.
+
+===Wilderness Hard Diary Unlocks===
+Just to clarify, here are the new bonuses you’ll receive if you’ve completed the Wilderness Hard Diary:
+
+* The teleport delay in the '''Revenant Caves''' will no longer apply to you.
+* The teleport delay in the '''Wilderness Boss Caves''' will no longer apply to you.
+
+Enjoy those speedy teleports – you’ve earned ‘em!
+
+===Callisto Changes===
+[[File:Poll 80 & Shooting Stars Changes (2).png|centre|400px]]
+
+Next up, we’re visiting the bear in the big scary lair! Here are the improvements we’ve made to Callisto and her little buddy Artio:
+
+* Callisto and Artio should now both take damage from Magic attacks from any source.
+** Additionally, if they are not already frozen and the attacking player has equipment with a total Magic accuracy greater than 0, the first attack that would freeze the boss is guaranteed to hit.
+** Future hits while the boss is frozen are not guaranteed to hit.
+* We've augmented their Magic defence to compensate for this change.
+** Callisto's base Magic level has been raised, visible in the far-left tab of Monster Examine.
+* Callisto's chip damage has been removed.
+* Callisto's Ranged attack will no longer deal damage through the relevant protection Prayer.
+
+===Blighted Magic Sacks===
+You can now cast all your favourite spells with just one item!
+
+* Bind/Snare Sacks have been converted into Entangle Sacks. Entangle Sacks can also cast Bind/Snare if players have the required Magic level.
+** The conversion rate is 1 Entangle for 13 Bind, 1 Entangle for 3 Snares (rounded down).
+* Wave Sacks have been converted into Surge Sacks. Surge Sacks can also cast Wave spells if players have the required Magic level.
+
+Existing Sacks will be converted upon login for all players. Non-UIMs will have Sacks sent to the Bank, and UIMs will have them arrive in their Inventory if they have any to convert.
+
+In other Blighted news:
+
+* Blighted food can now be used anywhere in PvP Worlds. Non-PvP Worlds are unaffected by this change.
+
+===Repair Cost Changes===
+To make PK victory even sweeter, we're bumping up the repair cost for certain PvP items. As you’re all aware, the repair cost is dropped to the PKer below level 20 Wilderness, so this is a sweet deal! Here’s how it works:
+
+* Dragon Defender repair cost has been increased from 80,000 to 240,000 GP
+* Avernic Defender repair cost has been increased from 300,000 to 600,000 GP
+* Ava’s Assembler repair cost has been increased from 75,000 to 240,000 GP
+* Full Void repair cost increased from 300,000 to 640,000 GP
+* Any Helmet – 160,000 GP
+** Void Body – 180,000 GP
+** Void Bottom – 180,000 GP
+** Void Gloves – 120,000 GP
+* Elite Void repair cost has been increased from 400,000 to 780,000 GP
+** Elite Void Body – 250,000 GP
+** Elite Void Bottom – 250,000 GP
+
+During our internal playtests, we also decided on the following additional changes:
+
+* Infernal Cape repair cost has been increased from 75,000 to 225,000 GP
+* Fire Cape and Fighter Torso repair cost has been increased from 50,000 to 150,000 GP
+
+===Avernic Defender and Elidinis Ward Values===
+The Trouver version of the Avernic Defenders will now only protect to the value of the Trouver parchment and 500,000 GP fee, meaning that it won't rank higher than another item such as a Berserker Ring for example. Conversely, we've made a change so that a fortified Elidinis Ward will now protect to the combined values of the Elidinis Ward and the Arcane Sigil, meaning it will rank highly over other items on death.
+
+For now, we've only adjusted the value of these two items. Let us know if you’d like to see this change applied to more stuff!
+
+===Revenant Cave Changes===
+You can no longer jump the agility shortcuts in the Revenant cave if you are frozen or bound. You will be able to resume jumping within 3 ticks of the bind's end.
+
+===Splash Weapons Are Back===
+Certain holiday items now have -100 Combat bonuses, allowing them to behave as splash weaponry. They are, in fact, unable to deal any damage whatsoever! Here they are:
+
+* Cursed Goblin Hammer
+* Easter 2020 Carrot Sword
+* Halloween 2016 Hunting Knife
+* Christmas 2022 Nutcracker Staff
+
+==Other Changes==
+===Emptying Sacks, Pouches, Boxes and Bags on Death===
+
+Back in the summer, we updated the Rune Pouch so that upon PvM death the Runes would stay inside it, rather than mysteriously being shaken out all over your grave.
+
+It seems you really enjoy not having to manually put all your bits and bobs back in the Pouch, because you’ve asked that we expand this system to other, similar containers.
+
+You asked, and we delivered! The following items will now behave similarly:
+
+* Bolt Pouch
+* Seed Box
+* Tackle Box
+* Essence Pouches
+* Herb Sack
+
+If you’re one of the few who really enjoy putting things into bags and sacks one by one (or if you’re an Ultimate Iron Man), you can choose to disable this behaviour in the Settings Menu. Happy packing!
+
+[[File:Poll 80 & Shooting Stars Changes (3).png|centre|300px]]
+
+Note that this setting applies only to deaths where the container item is sent to a grave – if it’s destroyed, the contents will still fall out regardless of the setting. In PvP, the contents will most likely go to your PKer.
+
+As a side-effect of this update, dying in deep Wilderness PvM now means that your Seed Box and Bolt Pouch can be retrieved from your grave, instead of having to be repurchased. Hooray!
+
+===Shooting Stars Buff===
+[[File:Poll 80 & Shooting Stars Changes (4).png|centre|300px]]
+
+You’ve been sharing some truly wild low-intensity Mining methods on socials, so we thought it was time to put you (and the Duke) out of your misery and launch a buff for Shooting Stars:
+
+* Shooting Stars no longer deplete faster when more people are Mining them. No more pesky fellow players interfering with your precious AFK time!
+* In addition, your character will no longer occasionally render behind the Shooting Star you’re Mining.
+
+We know this change won’t fix all the issues players have raised with Mining, but it’s a good step in the right direction. We’ll continue to monitor the conversation on this subject, so please keep voicing your feedback! We really appreciate all the suggestions we’ve seen so far – even the weird ones.
+
+===Bug Fixes===
+* The Warped Sceptre’s projectile height has been adjusted to match the Sceptre.
+* Duke Sucellus’ 5-minute inactivity timer now restarts if you click the Salt again.
+* Implemented a log-in check to ensure that Sigils and other unwanted items do not appear on World 45.
+
+===Path of Glouphrie===
+We hope you’ve enjoyed getting stuck into our latest quest and the fetid poison cave that came with it!
+
+The Warped Sceptre has received glowing feedback from the community, and we’re happy to have filled a small gap in the Ironman grind. In accordance with tradition, we can now confirm that the drop rate for the Warped Sceptre is 1/320.
+
+We also have a single change launching this week, in line with your feedback:
+
+* The Poison Waste Spirit Tree has been moved to the end of the list.
+
+Any future Spirit Trees will also be placed at the end of the list, so you can give your muscle memory a break. In the future, we’d like to make this a fully customisable feature, although that’s not something we’re able to commit development time to just yet. Let us know if it’s something you’d be interested in!
+
+==Upcoming Poll, September 25th==
+Three additional questions will be added to the Hunter Guild poll starting on September 25th:
+
+{{News Poll|qtext=Should we change the Dragonfire Shield's fiery attack to reward only Defence experience in both PvM and PvP?}}
+
+{{News Poll|qtext=Should we add an additional Slayer Task Block Slot, unlocked at 300QP?}}
+
+These ones shouldn’t come as a surprise – after all, we talked about them just the other day! The third question, however, needs a bit of context.
+
+The Shooting Stars changes that go live this week were received well by the community – it’s great to not have to AFK in total isolation to get the most out of your Stars. However, some of you raised that you feel you’ve lost the key incentive to solo scout Shooting Stars. We can see that although this change doesn’t actually take anything away, it has made finding a Star all by yourself less exciting. So, next week’s poll will also contain the following question:
+
+{{News Poll|qtext=Should we once again reward the first player to discover a Shooting Star? This would double the amount of Stardust you mine until you have gained 300 extra Stardust. This bonus will not expire and can be used on any Star you come across. Should you be the first to find another Star, any remaining bonus will recharge back to 300.}}
+
+We’re not comfortable adding an XP boost for solo-scouted Stars until we’ve seen the full effects of the recent changes – but we’ll keep in mind all your feedback about how Mining feels as we move forward!
+
+==Mobile TLI Beta==
+[[File:Poll 80 & Shooting Stars Changes (5).png|centre|600px]]
+
+Today’s update also brings the foundations of the Mobile TLI Beta. From tomorrow, Thursday 21st, you’ll have access to exclusive Beta worlds which use the new mobile UI. In a Beta worlds first, you’ll also have access to a copy of your main game save, so you can try playing exactly how you’re used to while taking the new UI for a test drive.
+
+'''PLEASE NOTE: We've pushed an update that many players will get automatically but please check your App store to make sure you have the latest version - install any update that is available to you to ensure you're all set to continue your adventures!'''
+
+If you’d like to use your main game save on a Beta world, we recommend first logging into a normal world and making your way to the Settings menu. Select Gameplay and scroll down to the bottom to see the new Beta worlds options.
+
+Here, you’ll be able to convert a save for use on the Beta worlds or reset your current Beta worlds save for a fresh experience. Without a converted save, you’ll be shunted back to Tutorial Island with the rest of the n00bs – although since this is a Beta world, you’ll be offered a handy teleport to the mainland if you’d like to start your adventure right away.
+
+You'll be able to access the content in the following worlds:
+
+* World 585 - AUS
+* World 586 - GER
+* World 587 - UK
+* World 588 - US West
+* World 589 - US East
+
+Once you’re done playing around in the Beta, simply switch to a normal world and resume playing however you normally would.
+
+This has been a big project, and we’re excited to hear your feedback. We’ll be keeping a close eye on discussion, so feel free to join the conversation on the Official Old School Discord’s Mobile Beta channels.
+
+To leave your feedback, simply head to the [http://discord.gg/OSRS Official Old School Discord] and find the ‘OSRS Mobile’ category. From there, you'll see plenty of channels to leave your feedback.
+
+Below you’ll also find a [https://osrs.game/Mobile-UI-Beta-Survey Mobile UI Beta Survey] (ooh!) where you can tell us your thoughts. We’ll be paying close attention to all your feedback to make sure the next steps are aligned with the community’s expectations – so be sure to let us know what you think!
+
+==Last Chance to Snag these Plushies!==
+Nieve, Wise Old Man, Bob the Cat and Gnome Child have been having a ball in the Jagex office over the past few weeks – but soon it’ll be time for them to leave!
+
+[[File:Poll 80 & Shooting Stars Changes (6).png|centre|600px]]
+
+Due to high levels of demand, Makeship have announced that they’re extending the pre-sale period for all four plushies for a further two weeks. This is your '''final''' chance to snag one of your favourite NPCs in plush form – so don’t delay!
+
+Orders now close at 23:00 EST on October 4th.
+
+Order one of these limited-edition plushies from the [http://osrs.game/Makeship Makeship store] before they disappear back to Gielinor… forever!
+
+[[File:Poll 80 & Shooting Stars Changes (7).png|centre|600px]]
+
+==PvP Rota==
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>de-activated</u>''' with this rota.
+
+World 569 (AUS) for Bounty hunter has been '''<u>de-activated</u>''' with this rota.
+
+The PvP Arena is using '''Max/Med loadouts''' in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on our [http://services.runescape.com/m=forum/forums?380,381 official forums], on the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [http://oldschool.runescape.wiki/ Old School Wiki].
+
+'''Mods Abyss, Arcane, Archie, Argo, Ash, Ayiza, Boko, Bruno, Chilly, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Errol, Fed, Gecko, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Necro, Nox, Nylu, Other, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Sarnie, Shroom, Sigma, Skane, Skylark, Sova, Squid, Starry, Stevew, Surma, Sween, Tide, Titus, Torrance, Tsourorf, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

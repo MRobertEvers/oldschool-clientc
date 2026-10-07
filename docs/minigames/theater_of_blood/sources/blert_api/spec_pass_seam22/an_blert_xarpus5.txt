@@ -1,0 +1,27 @@
+  scale 1 147ff143: p2 ticks 100..432, spits 82, recorded landings 19, chained 70, chained per spit 0.85, predicted 2-per-spit 163
+  scale 1 66591cbb: p2 ticks 100..444, spits 85, recorded landings 18, chained 66, chained per spit 0.78, predicted 2-per-spit 169
+  scale 1 db36efc7: p2 ticks 100..448, spits 86, recorded landings 20, chained 79, chained per spit 0.92, predicted 2-per-spit 171
+  scale 1 e2fbcc68: p2 ticks 100..436, spits 83, recorded landings 22, chained 77, chained per spit 0.93, predicted 2-per-spit 165
+  scale 1 e69684d8: p2 ticks 100..412, spits 77, recorded landings 17, chained 66, chained per spit 0.86, predicted 2-per-spit 153
+scale 1: spits 413, chained 358, per spit 0.87
+  scale 2 040906a2: p2 ticks 93..269, spits 43, recorded landings 22, chained 14, chained per spit 0.33, predicted 2-per-spit 85
+  scale 2 09091f3e: p2 ticks 92..264, spits 42, recorded landings 26, chained 31, chained per spit 0.74, predicted 2-per-spit 83
+  scale 2 22ac8fe0: p2 ticks 92..260, spits 41, recorded landings 21, chained 22, chained per spit 0.54, predicted 2-per-spit 81
+  scale 2 274d8494: p2 ticks 92..268, spits 43, recorded landings 25, chained 32, chained per spit 0.74, predicted 2-per-spit 85
+  scale 2 7b319d36: p2 ticks 93..273, spits 44, recorded landings 22, chained 23, chained per spit 0.52, predicted 2-per-spit 87
+  scale 2 99e48baa: p2 ticks 92..260, spits 41, recorded landings 25, chained 22, chained per spit 0.54, predicted 2-per-spit 81
+scale 2: spits 254, chained 144, per spit 0.57
+  scale 3 0416dbb3: p2 ticks 116..228, spits 27, recorded landings 18, chained 12, chained per spit 0.44, predicted 2-per-spit 53
+  scale 3 1da85f8e: p2 ticks 116..216, spits 24, recorded landings 19, chained 9, chained per spit 0.38, predicted 2-per-spit 47
+  scale 3 50f39662: p2 ticks 119..267, spits 36, recorded landings 34, chained 9, chained per spit 0.25, predicted 2-per-spit 71
+  scale 3 581a8821: p2 ticks 116..212, spits 23, recorded landings 17, chained 11, chained per spit 0.48, predicted 2-per-spit 45
+  scale 3 629ec3fa: p2 ticks 116..224, spits 26, recorded landings 21, chained 8, chained per spit 0.31, predicted 2-per-spit 51
+  scale 3 7cc337b0: p2 ticks 116..212, spits 23, recorded landings 16, chained 10, chained per spit 0.43, predicted 2-per-spit 45
+  scale 3 92bcd19c: p2 ticks 116..224, spits 26, recorded landings 20, chained 15, chained per spit 0.58, predicted 2-per-spit 51
+  scale 3 9d74e237: p2 ticks 119..219, spits 24, recorded landings 18, chained 7, chained per spit 0.29, predicted 2-per-spit 47
+  scale 3 a56efc08: p2 ticks 116..224, spits 26, recorded landings 19, chained 13, chained per spit 0.50, predicted 2-per-spit 51
+  scale 3 d6898bd3: p2 ticks 116..228, spits 27, recorded landings 20, chained 12, chained per spit 0.44, predicted 2-per-spit 53
+  scale 3 d7f65417: p2 ticks 116..236, spits 29, recorded landings 20, chained 17, chained per spit 0.59, predicted 2-per-spit 57
+  scale 3 d8b0d079: p2 ticks 116..224, spits 26, recorded landings 18, chained 8, chained per spit 0.31, predicted 2-per-spit 51
+  scale 3 e942890c: p2 ticks 116..224, spits 26, recorded landings 20, chained 9, chained per spit 0.35, predicted 2-per-spit 51
+scale 3: spits 343, chained 140, per spit 0.41

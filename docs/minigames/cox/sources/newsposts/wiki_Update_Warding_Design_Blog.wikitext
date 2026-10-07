@@ -1,0 +1,333 @@
+{{Update|date=16 April 2019|link=https://secure.runescape.com/m=news/warding-design-blog?oldschool=1|category=website}}
+[[File:Warding Design Blog newspost.png|right]]
+{{clear}}
+
+{{Horizontal Line}}
+
+{{Headline|25|Warding Design Blog}}
+
+
+<center>''Last year at RuneFest, Mod West revealed his design for Warding. In this blog you can find an extended design plan for Warding including some changes following your feedback.''</center>
+
+
+{{Horizontal Line}}
+
+
+The ground shook across the land as six ominous rocks rose from the earth in a swirl of magic and rubble. The scholars of the Wizards' Tower were quick to act and immediately began studying the monolithic monstrosities. They quickly discovered a method of manipulating the energy within the rocks and with various magical tools used it to create armour with impressive capabilities. Some would say this came far too easily. As if they knew ''exactly'' what they were doing...
+
+Dive into Old School RuneScape's first new skill by discovering the hidden armaments of the Wizards' Tower. There you will learn the intricate art of drawing wards and channeling vis to create a vast array of armour suited for witches and wizards.
+
+[[File:Warding Design Blog (1).png|center|250px]]
+
+
+{{Horizontal Line}}
+
+
+At last year's RuneFest we announced our proposal for the Warding skill. We gave you a brief overview of what our plans for the skill were, but ultimately we wanted the design of the skill to be shaped by you, the players. Your suggestions have been incredibly valuable, and the rest of this blog will highlight just how much warding has changed thanks to your input.
+
+
+'''What You Said'''<br/>Following the announcement, we paid close attention to what you were saying across all channels, and we recently surveyed 5,000 of you to provide in-depth feedback. Here were some of the common themes:
+*The skill as described ''felt like Old School'' and filled a gap in content, but you wanted more useful rewards and milestones than just ‘new armour’.
+*Those of you who wanted the ability to imbue rings moved to Warding wanted it to be fleshed out as staple of the skill. There was a mixed reception to our plans for imbues in general.
+*There was a lot of support for the concept of dissolving, and in particular the positive impact that an item sink could have on the economy.
+*Some of the terminology related to the skill was considered confusing and unnecessarily complicated.
+*Being able to train the skill only at fixed locations was too limiting and made it feel too much like the Runecrafting skill.
+
+
+'''What We Changed'''<br/>We've made substantial changes to the content based on the above feedback and we think you'll be pleased. The rest of the blog contains everything you need to know about the new and improved Warding, but here are some points to look out for:
+*Existing under-used armours will undergo a noticeable rebalancing, and new armours which fill particular niches have been introduced.
+*A detailed breakdown on how to train the skill and what you can expect to gain from it.
+*You can expect to see the Farming and Hunter skills interact with Warding, with expansions for both.
+*Learn more about dissolving and its item-sinking effects.
+*There's more information about the changes to imbues and how it will affect existing items.
+*It will be possible to ward and train the skill anywhere.
+
+It's time to dig deep into Old School RuneScape's first new skill, but before you begin,
+
+<font style="font-family:Cinzel,'Cinzel',serif;font-size:18px;font-weight:bold;color:#000000;text-shadow:1px 1px #C0C0C0;">Click here for a helpful A-Z of Warding.</font>
+
+'''Abraxas''' - An item used to create '''catalytic wardstones'''. It is received as a monster drop.
+
+'''Bane''' - A magic weapon that’s stronger against a specific type of enemy.
+
+'''Battlemage Robes''' - Robes or armour created via '''warding''' that have a specific unique buff. See the rest of the design blog for more information about the specific sets of robes and armours.
+
+'''Battle Ward''' - The one of two categories of '''ward'''. Battle wards are used in combat and provide a variety of magical buffs and effects to an area. There are five types, each requiring different levels: mind, chaos, death, blood, and wrath.
+
+'''Channeling''' - The process of creating magical equipment.
+
+'''Channeling Lamp''' - A tool used in conjunction with a '''ward''' which allows the user to '''channel'''. This is equipped in the off-hand slot.
+
+'''Dissolving''' - The process of breaking down various pieces of equipment to gather more '''vis'''.
+
+'''Elemental Ward''' - One of two categories of '''ward'''. Elemental wards are used for creating magical equipment and dissolving items. There are four types, each requiring different levels: air, water, earth, and fire.
+
+'''Fabrics''' - Material used to create magical armours.
+
+'''Imbued Rings''' - Magical rings imbued via the '''channeling''' of '''vis'''. New rings and imbues will be added with the Warding skill.
+
+'''Magnanery''' - A new Farming patch which allows you to gather different types of silk from '''silkworms'''. 
+
+'''Mystic Cocktails''' - New ranged items that are an alternative to Chinchompas made with the Warding skill.
+
+'''Runestone Monolith''' - A giant chunk of Runestone that aids with '''warding'''. Here you can channel equipment without having to draw your own '''ward'''. Casting magic upon the Runestone Monolith can generate small amounts of vis.
+
+'''Silk''' - Material used to create magical armours. New farmable types of silks will be added with the Warding skill. Silk moth larva are used to farm silks and can be acquired by silk moth catching, which is a new addition to butterfly catching.
+
+'''Silkworm''' - A silk-yielding caterpillar of a silk moth.
+
+'''Steatite''' - A chalk-like mineral that is gathered by mining to produce wardstones.
+
+'''Vis''' - A waxy substance created when physical items are dissolved via a channeling lamp. There are three kinds: elemental, catalytic, and rare.
+
+'''Ward''' - A magic circle depicting a specific rune that is drawn onto the floor using a wardstone. There are two categories: battle and elemental.
+
+'''Warder's kit''' - A satchel used for storing '''wardstones'''.
+
+'''Warding''' - The process of drawing a '''ward'''. Also the name of the skill.
+
+'''Wardstone''' - A chalky mineral mixed with '''vis'''. Used to draw '''wards'''. There are two types: elemental and catalytic.
+
+
+{{Horizontal Line}}
+
+{{Headline|22|What is Warding?}}
+
+
+To understand the role of Warding, let's identify the gap it's designed to fill. In most scenarios, mage equipment is either bought or dropped by monsters and cannot be created by the player, making Magic an exception to the other two sides of the combat triangle. Warding allows players to channel a material called vis into woven materials and transform them into magical robes and armour.
+
+[[File:Warding Design Blog (2).png|center|500px]]
+
+
+{{Horizontal Line}}
+
+{{Headline|22|Training Warding}}
+
+
+Warding XP is gained in a few ways: drawing wards, channeling vis into equipment and dissolving equipment into vis. Drawing a ward and dissolving equipment will give only token XP; the best way to train Warding, therefore, is to channel new equipment. Below is a guide to training Warding.
+
+'''Step 1: Gather Tools and Resources'''<br/>The first tools used for Warding are '''Wardstones''' and '''Channeling Lamps'''.
+
+<center>[[File:Warding Design Blog (3).png|100px]] [[File:Warding Design Blog (4).png|100px]] [[File:Warding Design Blog (5).png|100px]] [[File:Warding Design Blog (6).png|100px]]</center>
+
+*'''Wardstones:''' There are 2 types of wardstones, elemental and catalytic; both types are created by the player via a channeling lamp. Wardstones can be stored within a warder's kit to save bank space.
+**Elemental wardstones are a mixture of elemental vis and steatite and are used to draw elemental wards onto the ground. Steatite can be purchased from rune shops or can be mined with level 15 mining. Once an elemental ward has been drawn it can be used as a surface for warding.
+**Catalytic wardstones are a mixture of catalytic vis and abraxas and are used to draw battle wards onto the ground. Abraxas can be obtained from monster drops or bought at rune shops. Once a battle ward has been drawn it will begin applying various magical buffs to nearby players.
+
+<center>[[File:Warding Design Blog (7).png|100px]] [[File:Warding Design Blog (8).png|100px]] [[File:Warding Design Blog (9).png|100px]] [[File:Warding Design Blog (10).png|100px]]</center>
+
+*'''Channeling Lamps:''' Used for channeling vis through a ward and into raw materials to create magically imbued equipment. The most basic channeling lamp can be purchased from a general store for a few gold pieces. Lamps can be used to store any vis the player has gathered; higher tier lamps are able to store higher tiers of vis. To use a channeling lamp, it must be equipped in the off-hand slot; interacting with a ward isn’t possible without a lamp. Vis is automatically stored in the lamp when gathering, as long as your lamp can store that specific tier.
+
+The basic resources needed for Warding are '''Vis''' and '''Fabric'''.
+
+[[File:Warding Design Blog (11).png|center|200px]]
+
+*'''Vis:''' Formally known as Runic Energy, vis is a waxy substance that is generated by a channeling lamp when runes are consumed or when equipment is dissolved on a ward. Vis is integral to creating equipment via warding however there are some scenarios where vis can be replaced by another material. For instance, elemental vis is not needed when channeling using the same type of ward; using an air ward while channeling armour that normally requires air vis would no longer require that type of vis. This works the same as using elemental staves as a replacement for runes when casting spells.
+
+[[File:Warding Design Blog (12).png|center|300px]]
+
+*'''Fabric:''' This is a material primarily used in Warding to craft magical armours. The skill will utilise existing cloth types (such as Xerician) but will also be introducing a swathe of new fabrics which are earned via two new farming options: planting flax and interacting with the magnanery. Lower level fabrics will also be available from monster drops.
+
+[[File:Warding Design Blog (13).png|center|200px]]
+
+'''Step 2: Locate a Ward'''<br/>Wards can be created within the world by left-clicking on a wardstone while stood outside. Wards function much like fires do – players may use each other's wards as they please. Players can also choose to ward at the nearest Runestone Monolith, as these mysterious structures have permanent elemental wards around them.
+
+[[File:Warding Design Blog (14).png|center|200px]]
+
+'''Step 3: Channel Equipment'''<br/>Interacting with a ward will open an interface asking the player to select which piece of equipment they’d like to channel based on the items in their inventory. Upon channeling, players will receive experience that scales alongside the tiers of equipment.
+
+[[File:Warding Design Blog (15).png|center|300px]]
+
+'''Other Training Methods: Dissolving'''<br/>Channeling is the best method for training Warding, but other actions within the skill will also earn a token amount of XP. One such method is to dissolve items into vis for a small amount of experience, in the same vein as cleaning herbs for Herblore. The process of dissolving is a key aspect of Warding as it is where players will gather most of their vis. Dissolving's core purpose is to help remove an abundance of items from the game whilst also providing a main source for vis.
+
+Dissolving equipment requires a specific Warding level as well as a channeling lamp and an elemental ward – higher level wards reward more vis. Placing the equipment onto the ward begins the dissolving process, from which the player is guaranteed a set amount of vis based on the ward used and their Warding level. There’s also a small chance that while dissolving a base resource will be salvaged. For example, dissolving a steel platebody will always give vis but also has a small chance to salvage a steel bar. This chance is scaled based on the item, ward, and Warding level.
+
+
+{{Horizontal Line}}
+
+{{Headline|22|Rebalancing Existing Content}}
+
+
+Warding gives a great opportunity to polish up some of the lesser used and under-powered mage robes and armours. This covers both free-to-play and pay-to-play.
+
+'''F2P'''<br/>Players on free-to-play worlds have few options when it comes to magic armour as the best set is also the first set – wizard robes. Warding will allow us to add some diversity and rebalance the following magical robes:
+
+<center>[[File:Warding Design Blog (16).png|73px]] [[File:Warding Design Blog (17).png|58px]]</center>
+
+*'''Wizard:''' Currently the skirt is not classified as a wizard's robe skirt but rather a blue or black skirt. With this change, they will be renamed to blue/black wizard skirt and given a +2 magical attack bonus. This will also affect the trimmed and gold variants.
+
+[[File:Warding Design Blog (18).png|center|82px]]
+
+[[File:Warding Design Blog (19).png|center]]
+
+
+*'''Shade:''' Shades are currently found in the bottom of the Stronghold of Security. They were placed there when aggressive random events were removed from the game. The experience from fighting a Shade is drastically reduced; the player will gain 1 experience for 10 damage dealt. This paired with an undesirable drop table and a high combat level makes them unappealing to fight. We propose to increase the magical attack bonuses of the Shade robe top and bottom as well as adding a new Shade hood. Shades will have their experience from fighting them upgraded to be more in line with what you would expect from fighting any other monster. Shade robes will continue to be dropped by Shades.
+
+'''P2P'''<br/>The changes below are structured adjustments that bring the stats far closer to the tier that is required to wear them. Many of these armours sit at the 40 magic and defence level requirement but are worse than robes of a lower tier.
+
+[[File:Warding Design Blog (20).png|center|67px]]
+
+[[File:Warding Design Blog (21).png|center]]
+
+
+*'''Splitbark:''' Although the defensive bonus of splitbark armour is supposed to make up for its pitiful magic attack, it still fails to match up against robes of a lower tier. We propose to buff splitbark to the stats detailed above. We believe this won’t devalue heavily used sets like Mystic or Xerician due to the defence requirement that keeps splitbark a niche armour.
+
+[[File:Warding Design Blog (22).png|center|78px]]
+
+[[File:Warding Design Blog (23).png|center]]
+
+
+*'''Skeletal:''' This set (along with its range & melee counterparts) currently serves very little use – the magic attack is subpar, and the defensive bonuses mean very little. The changes listed above would bring Skeletal armour in line with other robes of the same tier. We propose an additional effect to give Skeletal its own niche: each piece will give a 1% magic damage boost against aquatic enemies such as Dagannoths and Waterfiends.
+
+[[File:Warding Design Blog (24).png|center|84px]]
+
+[[File:Warding Design Blog (25).png|center]]
+
+
+*'''Lunar:''' Lunar armour requires 65 Magic to equip yet has lower magical attack bonuses than Xerician robes, which only require level 20 Magic. The requirements to unlock Lunar are arguably a considerable amount harder to achieve than those required for Xerician.
+**The main issue with adding Lunar armour to Warding is that it is made during the quest ‘Lunar Diplomacy’ in a process that doesn’t involve any kind of Warding. In addition, making Lunar armour tradeable would trivialise an entire section of the quest. A final problem – albeit a small one – would be that should we buff the armour used for the quest, the boss would be slightly easier. To solve these problems, we propose the following:
+***Rename Lunar armour to Ceremonial Armour.
+***Create a new armour set called ‘Lunar Armour’ with the buffed Lunar stats listed in the image above.
+***This new Lunar outfit will also have the same ability as the Skeletal equipment.
+***Change the quest rewards for Lunar Diplomacy:
+****The ability to wear Lunar armour.
+****The ability to Ward the Ceremonial armour, turning it into Lunar armour.
+****The ability to Ward Lunar armour from base resources without the need of smithing or crafting. 
+
+*'''Imbues:''' Often players comment on how the rewards found within the Nightmare Zone (NMZ) store don’t match the content it’s attached to; with this update, the ring imbues on the NMZ store will be moved over into the Warding skill. It is important to us that we don’t upset you by taking away items you’ve previously earned. You also may have a stack of NMZ points that you’d plan to use on various ring imbues. To combat this we propose the following:
+**Convert all NMZ ring (i)’s into the unimbued ring and a new item.
+**Allow the new item to be purchased from NMZ with points for a set amount of weeks.
+**Add the new items onto a new drop table/reward shop.
+**A grace period to get the required level, otherwise their rings will un-make themselves.
+
+
+{{Horizontal Line}}
+
+{{Headline|22|New Rewards}}
+
+
+With any new skill comes new rewards. Warding offers the potential to expand on magical equipment and help fill the gaps between the varieties of magical attire in game.
+
+'''F2P''<br/>The proposed rewards for free-to-play bring viability to the standard magical spellbook by increasing the speed in which spells are casted. This bonus will require the full set of new robes: mask, and a robe top and bottom. These robes will be inspired by the Elemental Wizards found to the South of Falador.
+
+<center>[[File:Warding Design Blog (26).png|69px]] [[File:Warding Design Blog (27).png|69px]] [[File:Warding Design Blog (28).png|71px]] [[File:Warding Design Blog (29).png|70px]]</center>
+
+*'''Elemental Robes:''' These degradable Battlemage Robes will come in Air, Water, Earth, and Fire variants. The set includes a mask, and a robe top and bottom. The mask will require a new unique drop from the elemental giant bosses (eg. Obor and Bryophyta) to make, whilst the robe top and bottom will require a matching elemental talisman.
+
+'''P2P'''
+*'''New Armours and Robes'''
+**The following proposed rewards will be magical robes and armours that offer more options to players for magic based combat thus closing the gap between range and melee.
+
+[[File:Warding Design Blog (30).png|center|636px|thumb|'''Arceuus:''' These robes are a higher level version of shade robes that require 100% Arceuus favour to make and equip.]]
+
+[[File:Warding Design Blog (31).png|center|636px|thumb|'''Bloodbark:''' This is an improved version of Splitbark armour with added effects. The closer you are to your opponent, the more damage you deal. There is also a chance of soaking melee damage by 50%.]]
+
+[[File:Warding Design Blog (32).png|center|636px|thumb|'''Soulbark:''' This is an improved version of Bloodbark armour with increased magical damage that scales with how close you are to your opponent.]]
+
+[[File:Warding Design Blog (33).png|center|636px|thumb|'''Cosmos:''' This degradable armour is an improved version of Lunar armour with further increased damage to aquatic enemies.]]
+
+[[File:Warding Design Blog (34).png|center|636px|thumb|'''Dagon'hai:''' These degradable robes have improved damage against undead enemies such as skeletons, ghosts, and zombies.]]
+
+[[File:Warding Design Blog (35).png|center|636px|thumb|'''Kinhunter:''' This degradable armour has improved damage against dragon enemies in a similar way to the Dragonhunter Crossbow and Lance.]]
+
+[[File:Warding Design Blog (36).png|center|636px|thumb|'''Venomous:''' These degradable robes have improved damage against poisonous enemies such as lizardmen, spiders, and snakes.]]
+
+
+*'''New Weapons'''
+**The following proposed weapons will offer more options to players of a variety of combat styles that utilise the warding skill to create.
+
+[[File:Warding Design Blog (37).png|center|299px]]
+
+
+*'''Mystic Cocktails:''' These new ranged items are an alternative to Chinchompas made with the Warding skill. These weapons have damage bonuses against demons and require completion of the Legends’ quest to create. If used against non-demonic mobs, they have considerably reduced accuracy to avoid stepping on chinchompa viability. They come in the following varieties: Guam, Harra, Kwuarm, and Dwarf.
+*'''Demon Bane Claws:''' There are four types of Bane Claws that are made via channeling specific items with catalytic vis. They will have increased damage and will auto-cast specific spells against demons based on the claws you wield. They come in the following: Fiend, Demonic, Shadow, and Dark Claws.
+*'''Skull Sceptre Imbues:''' An imbued skull sceptre can auto-cast crumble the undead, has magical damage bonuses against the undead and has improved magical attack when compared to the standard sceptre. Alongside these new weapons brings the opportunity to extend the undead bane spells on the standard spellbook with: Smite and Banish Undead. They come in the following: Chaotic, Deadly, Bloody, Wrathful.
+
+*'''New Imbues'''
+**Warding will grant you the ability to imbue skilling and combat rings or amulets to make them even more powerful than the unimbued version. They will require a specific ring or material, vis, and Warding level to create.
+***'''Channeled Skilling Rings:''' These rings will aid you in skilling via replenishing resources as soon as they diminish. For example: When wielding a Ring of Wood, when a tree falls down, there is a chance the tree will come back instantly. There will be four skilling imbued rings: Ring of Earth, Wood, Amber, and Iron.
+***'''Channeled Combat Rings and Amulets:''' There will be nine combat imbued rings: Ring of Wealth, Warrior, Treasonous, Tyrannical, Gods, Berserker, Seers, Archers, and Suffering.
+
+
+{{Horizontal Line}}
+
+{{Headline|22|Other Content}}
+
+
+This blog has covered the core elements of the Warding skill, but much like other skills it has plenty of opportunities to be tied in with other pieces of content such as a quest, minigames or a range of bosses. We'd like to know from you where we should be focusing our time for further Warding content. Your thoughts on the skill's direction and suggestions for content will go a long way into shaping Warding.
+
+'''Battle Wards'''<br/>There are a variety of ways battle wards could function within the game. As these would change current PvM/PvP metas in a substantial way, it makes sense to offer a variety of designs to assure we’re creating the content that you want most. Your feedback is invaluable to us, and as such, we invite you to be vocal about sharing it with us on which of the two designs below you most prefer for Battle Wards.
+
+*'''Area Buffs'''
+**Battle wards, when stood within a one tile radius from a ward, would activate certain buffs to the player but only while the player is dealing magic damage to enemies. A single ward's power is spread over everyone who stands near it to gain the effect. See the image below to view more information.
+
+[[File:Warding Design Blog (38).png|center]]
+
+
+*'''Conjuring'''
+**Alternatively, wards could be used for conjuring. By placing down a specific ward, a magical creature would be conjured to help the player in a variety of ways. To conjure, draw a conjuring ward with a catalytic wardstone. Once your ward is in place, burning bones or ashes on the ward will conjure a specific type of mob such as a demonic being, or an undead nightmare. Conjuring will also reward you with a token amount of prayer experience. See the image below to view more information.
+
+[[File:Warding Design Blog (39).png|center]]
+
+
+'''Warding and Other Skills'''<br/>There are a variety of ways Warding interact with existing in-game skills. Below are some examples of how Warding can contribute to Farming and Hunter.
+
+*'''Farming'''
+**There are two new types of patches to gather fabrics that utilises the Farming skill, flax patch and magnanery. The flax patch functions similarly to an allotment patch, however the amount of flax gathered depends entirely on your Farming and Warding level. The other new patch, the magnanery, functions very differently to a typical patch; fill them with silk moth larva and they’ll begin to produce silk, keep them fed with berries to assure they live longer. Silk gathering is greatly improved with higher Warding. This comes to at least five new flax seeds and over seven types of larva to collect and train farming with. See the table below for the Farming levels required to gather various types of fabric.
+
+[[File:Warding Design Blog (40).png|center]]
+
+
+*'''Hunter'''
+**Silk moth catching is an extension to butterfly catching and rewards you with silk moth larva that can be used with Farming for various types of silk. Wielding a channeling lamp while in an area with silk moths will cause them to follow you. Some moths, like the mystic moth and the life moth, appear only in very special situations in a similar fashion to implings. See the table below for the Hunter levels required to catch various moths.
+
+[[File:Warding Design Blog (41).png|center]]
+
+
+{{Horizontal Line}}
+
+{{Headline|22|Skillguide}}
+
+
+Below you will find a mock-up of the skill guide as you would find it in game.
+
+[[File:Warding Design Blog (42).png|center|700px]]
+
+[[File:Warding Design Blog (43).png|center|700px]]
+
+
+{{Horizontal Line}}
+
+{{Headline|22|Warding Gallery}}
+
+
+Click the image below to view our gallery of work in progress Warding Designs by Mod West.
+
+<gallery captionalign="center" widths="200">
+Warding Design Blog (44).png|Wards example
+Warding Design Blog (45).png|Ward training - mind
+Warding Design Blog (46).png|Ward training - death
+Warding Design Blog (47).png|Ward training - blood
+Warding Design Blog (48).png|Ward training - chaos
+Warding Design Blog (49).png|Farming silk worms - magnanery
+Warding Design Blog (50).png|Holy flax gathering
+Warding Design Blog (51).png|Kinhunter armour
+Warding Design Blog (52).png|Dagon'hai robes
+Warding Design Blog (53).png|Splitbark, bloodbark and soulbark armour
+</gallery>
+
+Once you have clicked or tapped the image above, use the brown arrows in the bottom left and right corners to navigate the gallery.
+
+
+{{Horizontal Line}}
+
+{{Headline|22|Your Feedback}}
+
+
+And that's Warding. Your feedback has proven vital in shaping this redesign of the skill. We don't consider it finished yet, though. You'll notice there isn't a poll question attached to this blog, and that's because there’s still work for us to do together to make Warding even better. We expect to poll the skill in '''May''', which means you've got plenty of time to tell us whether we're on the right track, or whether there are wider changes you want made.
+
+Your comments will help us finalise the Warding design. You can email us at OldSchoolCommunity@Jagex.com or use '''#OSRSWarding''' on [http://twitter.com/oldschoolrs Twitter]. Or comment on our [http://services.runescape.com/m=forum/forums.ws?380,381,567,66095689 official forums], the community-led [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the '''#gameupdate''' channel.
+
+{{Horizontal Line}}
+
+'''''Mods Acorn, Archie, Ash, Bruno, Curse, Ed, Gambit, Gee, Ghost, Husky, John C, Kieren, Lenny, Lottie, Mat K, Maz, Nasty, Roq, Ry, Sween, Tide, Weath, West & Wolf'''''<br/>''The Old School Team''

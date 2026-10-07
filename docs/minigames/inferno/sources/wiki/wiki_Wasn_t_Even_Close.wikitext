@@ -1,0 +1,26 @@
+{{Infobox Combat Achievement
+|name = Wasn't Even Close
+|image = [[File:TzKal-Zuk.png|270px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Kill Tzkal-Zuk without letting your hitpoints fall below 50 during any wave in the Inferno.
+|tier = Grandmaster
+|monster = TzKal-Zuk
+|type = Restriction
+|id = 347
+|leagueRegion = Karamja
+}}
+'''Wasn't Even Close''' is a [[Combat Achievements/Grandmaster|grandmaster combat achievement]] which requires the player to kill [[TzKal-Zuk]] without falling below 50 [[hitpoints]] at any point during the [[Inferno]] run.
+
+==Strategy==
+All waves will need to be dealt with cautiously, as all of the Inferno monsters hit very hard and the later waves will consist of multiple monsters that use different combat styles, which can easily combo the player out if their attacks aren't protected against. The primary threats for this achievement generally involve double [[Jal-Ak]]s, a [[Jal-Zek]] with a [[Jal-Xil]], or any combination of the three monsters. Try to heal to full (and overheal if necessary) before the start of the next wave to minimise the chance of falling below 50 hitpoints. 
+
+Once the first [[Jal-Zek]] appears, players are highly encouraged to have [[Protect from Magic]] on before the start of the next wave, as the mager has a max hit of 70, which will drop the player below the threshold if they aren't fully boosted (120 or 121 hitpoints). The other monsters have lower max hits, with the [[Jal-Xil|ranger]] having a max hit of 46. [[Jal-ImKot]]s have a max hit of 49, but they can only attack in melee distance. In these waves with magers, players can position the monsters and use [[justiciar armour]] and Protect from Magic to maximise ranged defence.
+
+During Zuk's wave, the damage is more predictably avoided. When Zuk summons his [[Jal-MejJak]]s, their blasts will not void the achievement if they drop the player's health below 50, since it isn't a targeted attack. However, if any other monster attacks them off prayer while their health is below 50, they will void the achievement.
+
+==Other tasks==
+{{Combat Achievements list|TzKal-Zuk}}
+
+{{Combat Achievements}}

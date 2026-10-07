@@ -11,10 +11,12 @@
 #include "torirs_server_db.h"
 #include "torirs_server_ids.h"
 #include "torirs_server_scene.h"
+#include "torirs_server_servpack.h"
 #include "features/features.h"
 
 #include "rscache_profile.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -147,6 +149,72 @@ ToriRSServer_BootDefaults(struct ToriRSServerBootConfig* config)
 }
 
 int
+ToriRSServer_BootLoadContent(
+    const char* content_dir,
+    const char* cache_dir)
+{
+    struct RSCache_ServerPack pack;
+
+    assert(content_dir);
+    /*
+     * 1. The server pack: every config record the server holds -- npc, loc, obj,
+     *    seq, healthbar, struct, varbit, param, enum, idk, varp, inv, db -- is the
+     *    pack's client record (the tree merged by cachepack) plus its server band.
+     *    It is REQUIRED: without one, or with an archive that does not validate,
+     *    there is nothing to boot from, and config text is not read in its place.
+     *    The cache directory is still read for world data (map squares, models).
+     */
+    {
+        char pack_dir[1024];
+        int failed = 0;
+
+        ToriRSServer_ServPackDir(content_dir, cache_dir, pack_dir, sizeof(pack_dir));
+        if( !ToriRSServer_ServPackOpen(&pack, pack_dir) )
+            return TORIRSSERVER_BOOT_NO_PACK;
+        if( !ToriRSServer_ServPackFresh(pack_dir, content_dir) )
+        {
+            RSCache_ServerPackClose(&pack);
+            return TORIRSSERVER_BOOT_NO_PACK;
+        }
+        failed |= ToriRSServer_ObjInfoLoad(&pack) < 0;
+        failed |= !ToriRSServer_NpcInfoLoad(&pack);
+        failed |= ToriRSServer_SeqInfoLoad(&pack) < 0;
+        failed |= ToriRSServer_HealthbarInfoLoad(&pack) < 0;
+        failed |= !ToriRSServer_LocInfoLoad(&pack);
+        failed |= ToriRSServer_StructInfoLoad(&pack) < 0;
+        failed |= ToriRSServer_VarbitLoad(&pack) < 0;
+        failed |= ToriRSServer_SceneLocConfigsLoad(&pack) < 0;
+
+        /* 2. The content tree's non-config data (symbols, registers, constants,
+         *    spawns, maps) and the config records still above: param types, enums,
+         *    idk, varps and shops. */
+        if( !failed )
+            ToriRSServer_ContentLoad(content_dir, &pack);
+
+        /* 2b. npc, loc and obj server bands, and the db. */
+        failed |= !failed && ToriRSServer_ContentLoadPack(&pack) != 0;
+
+        /* 3. Every interface, component and varbit the engine addresses is a name
+         *    in that tree; then the bank's container sizes and varbit ranges. */
+        if( !failed )
+        {
+            ToriRSServer_IdsResolve();
+            failed |= ToriRSServer_BankLoad(&pack) < 0;
+        }
+        RSCache_ServerPackClose(&pack);
+        if( failed )
+        {
+            fprintf(stderr, "torirsserver: the server pack at %s was refused — rebuild it with "
+                            "`%s`\n",
+                    pack_dir, TORIRSSERVER_SERVPACK_FIX);
+            return TORIRSSERVER_BOOT_NO_PACK;
+        }
+    }
+
+    return 0;
+}
+
+int
 ToriRSServer_BootLoad(const struct ToriRSServerBootConfig* config)
 {
     /* The server's own copy of the era table, so the env override below has
@@ -229,79 +297,8 @@ ToriRSServer_BootLoad(const struct ToriRSServerBootConfig* config)
             features.under_target_routes_out,
             ToriRS_Features_RunEnergyModelName(features.run_energy_model));
 
-    /* 1. The cache's own tables. The content tree overlays these, so they have
-     *    to exist before it is read. */
-    ToriRSServer_ObjInfoLoad(config->cache_dir);
-    ToriRSServer_NpcInfoLoad(config->cache_dir);
-    ToriRSServer_SeqInfoLoad(config->cache_dir);
-    ToriRSServer_HealthbarInfoLoad(config->cache_dir);
-    /* The other two param tables. Nothing seeds content from these — they exist
-     * for `lc_param` and `struct_param` — but they belong with the rest of the
-     * cache's tables, which is what step 1 means. */
-    ToriRSServer_LocInfoLoad(config->cache_dir);
-    ToriRSServer_StructInfoLoad(config->cache_dir);
-    /* Varbit bit-ranges, from the same cache the client unpacks them with. */
-    ToriRSServer_VarbitLoad(config->cache_dir);
-
-    /* 2. The content tree, whose combat bonuses are seeded from the params
-     *    step 1 decoded. */
-    ToriRSServer_ContentLoad(config->content_dir);
-
-    /*
-     * 2b. The server band `cachepack pack` wrote (PORTING_GUIDE §3.6 item 1).
-     *
-     * The band is the preferred source for the npc/loc server fields; the text
-     * pass step 2 just ran is, during migration, both the fallback and the
-     * proof — nothing from the band is applied until every archive has been
-     * held to what the text loaded. Which of the three outcomes happened is
-     * worth a line each boot, because "which path loaded" is exactly the
-     * question this migration keeps raising.
-     */
-    {
-        struct ToriRSServerBandReport band;
-
-        switch( ToriRSServer_ContentLoadServerBand(config->content_dir, &band) )
-        {
-        case TORIRSSERVER_BAND_LOADED:
-            fprintf(stderr,
-                    "torirsserver: server band loaded: %d archive(s) verified identical to the "
-                    "text parse and applied (%d overlay authored defs, %d field value(s) "
-                    "text-only, %d archive(s) over records the runtime never loads)\n",
-                    band.archives, band.overlaid, band.text_only, band.unseeded);
-            break;
-        case TORIRSSERVER_BAND_MISSING:
-            fprintf(stderr, "torirsserver: no server/pack — text overlays only; run "
-                            "`make -C src torirsserver-servpack` to build the band\n");
-            break;
-        case TORIRSSERVER_BAND_STALE:
-            fprintf(stderr,
-                    "torirsserver: server band is STALE (%d unreadable, %d mismatched archive(s)) "
-                    "— text overlays kept; re-run `make -C src torirsserver-servpack`\n",
-                    band.invalid, band.mismatched);
-            break;
-        }
-    }
-
-    /* 3. The db tables, which resolve their own ids and their `^constants` out
-     *    of what step 2 loaded. Separate from step 2 because a `.dbrow` also
-     *    resolves obj/npc/loc names, so it needs the whole symbol space, not
-     *    just the packs. Three phases, in this order for two different
-     *    reasons: the cache's SCHEMAS first, because an authored `.dbrow` may
-     *    name a cache table (`poh_hotspot`) and cannot resolve one that has not
-     *    arrived; the tree next; the cache's ROW VALUES last, because that half
-     *    merges onto whatever the tree stated, so authored values win. */
-    ToriRSServer_DbFree();
-    ToriRSServer_DbLoadCacheTables(config->cache_dir);
-    ToriRSServer_DbLoad(config->content_dir);
-    ToriRSServer_DbLoadCacheRows(config->cache_dir);
-
-    /* 4. Every interface, component and varbit the engine addresses is a name
-     *    in that tree. */
-    ToriRSServer_IdsResolve();
-
-    /* 4. Container sizes and varbit bit ranges for the bank, which looks its
-     *    container up by an id step 3 resolved. */
-    ToriRSServer_BankLoad(config->cache_dir);
+    if( ToriRSServer_BootLoadContent(config->content_dir, config->cache_dir) != 0 )
+        return TORIRSSERVER_BOOT_NO_PACK;
 
     ToriRSServer_WorldSetHome(config->home_x, config->home_z);
     ToriRSServer_WorldSetTutorialHome(config->tutorial_home_x, config->tutorial_home_z);

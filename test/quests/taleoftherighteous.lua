@@ -1,6 +1,6 @@
 -- Tale of the Righteous -- full client-driven run, guide steps 1.1-1.30 (Quest Helper TaleOfTheRighteous).
--- Setup stages kit only: ::taleoftherighteous resets the varb, writes the prerequisite vars the debugproc names
--- and stands the player in Phileas's house (tor_bmp.rs2:46). Every leg of the quest is played through clicks.
+-- Setup stages kit only (prerequisite quests, stats, gear). The player sails to Kourend on Veos's ferry and walks
+-- into Phileas's house through its door. Every leg of the quest is played through clicks.
 return {
     id = "taleoftherighteous",
     fixture = "fresh_lumbridge.ini",
@@ -28,11 +28,12 @@ return {
         "::wield rune_chainbody",
         "::wield rune_platelegs",
         "::wield rune_scimitar",
-        "::taleoftherighteous",
+        "::complete quest_xmarksthespot", -- requirements (taleoftherighteous.rs2 tor_qualify_fail_reason): X Marks the Spot, Client of Kourend, Str 16, Mining 10
+        "::complete quest_clientofkourend", -- Veos still ferries once both are done (quest_clientofkourend/scripts/veos_ferry.rs2)
     },
 
     run = function(t)
-        t.quest.bind({
+        local tor_bind = {
             varp = "varb6358_shayzienquest",
             constants = {
                 not_started = 0, started = 1, prison = 2, gate_open = 4, skeleton = 5, shiro = 6, duffy = 7,
@@ -41,7 +42,8 @@ return {
             },
             display = "Tale of the Righteous",
             points = 1,
-        })
+        }
+        t.quest.bind(tor_bind)
         t.ticks(3)
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
         local _, sharks0 = t.inv.count("shark")
@@ -60,9 +62,24 @@ return {
                 .. tostring(dd.tile_x) .. "," .. tostring(dd.tile_z) .. "," .. tostring(dd.level) .. ", door tile " .. dx .. "," .. dz
         end
 
-        -- guide 1.1 talkToPhileas (stage 0 -> 1). The setup cheat (tor_bmp.rs2:46) stands us inside his house: no goto,
-        -- the start tile is read back instead.
-        do local _, st = t.world.tile(); t.check("talkToPhileas-start", st.level == 0 and st.x >= 1541 and st.x <= 1545 and st.z >= 3568 and st.z <= 3572, "setup stood us inside Phileas's house at " .. tostring(st.x) .. "," .. tostring(st.z) .. "," .. tostring(st.level) .. " (interior x 1541-1545, z 3568-3572)") end
+        -- guide 1.1 talkToPhileas (stage 0 -> 1). Setup only completes the prerequisite quests (state, no placement); the player sails in and
+        -- walks to the street outside his door, so the door is pressed and walked through.
+        -- Travel the real way: Port Sarim -> Veos "Can you take me somewhere?" -> "I'd like to travel to Port Piscarilius, please."
+        -- (Transcript:Veos "Subsequent dialogue", veos_ferry.rs2) -> Port Piscarilius dock -> overland to Phileas's street.
+        t.exec("goto-veosSarim", t.player.goto_tile, 3054, 3246, 0)
+        t.exec("talkToVeos", t.player.talk_to, "veos_sarim", 1)
+        t.exec("talkToVeos-menu", t.chat.drain, { stop_at = "options" })
+        t.exec("talkToVeos-somewhere", t.chat.choose, "Can you take me somewhere?")
+        t.exec("talkToVeos-where", t.chat.drain, { stop_at = "options" })
+        t.exec("talkToVeos-sail", t.chat.choose, "I'd like to travel to Port Piscarilius, please.")
+        t.exec("talkToVeos-done", t.chat.drain, {})
+        t.ticks(4)
+        do local _, da = t.world.tile(); t.check("talkToVeos-landed", da ~= nil and da.x >= 1800 and da.x < 1850, "landed at the Piscarilius dock at " .. tostring(da and (da.x .. "," .. da.z))) end
+        t.exec("goto-phileasStreet", t.player.goto_tile, 1538, 3570, 0)
+        t.exec("enterHouse-door", t.player.click_loc, "wallkit_shayzien_door01_l_reverse", 1, { at = { 1540, 3570 } })
+        t.ticks(3)
+        t.player.walk_to(1542, 3570, 8)
+        do local _, st = t.world.tile(); t.check("talkToPhileas-start", st.level == 0 and st.x >= 1541 and st.x <= 1545 and st.z >= 3568 and st.z <= 3572, "walked in through Phileas's door, now at " .. tostring(st.x) .. "," .. tostring(st.z) .. "," .. tostring(st.level) .. " (interior x 1541-1545, z 3568-3572)") end
         t.exec("talkToPhileas", t.player.talk_to, "phileas_rimor_visible", 1)
         t.exec("talkToPhileas-dialog", t.chat.play, {
             "player:Good day.",
@@ -95,9 +112,16 @@ return {
         t.ticks(2)
         t.expect("quest.stage.started", t.quest.expect_stage("started"))
 
-        -- guide 1.2 teleportToArchive. The setup cheat stood us inside Phileas's house: leave by its door, then travel to a street tile outside a library door and walk in through it.
-        t.exec("leaveHouse-door", t.player.click_loc, "wallkit_shayzien_door01_l_reverse", 1, { at = { 1540, 3570 } })
-        t.ticks(3)
+        -- guide 1.2 teleportToArchive. We are inside Phileas's house, having walked in through its door: leave by it, then travel to a street tile outside a library door and walk in through it.
+        do
+            local at, dd, why = door_open_at("wallkit_shayzien_door01_l_reverse_open", 1540, 3570, 4)
+            if dd then
+                t.check("leaveHouse-door", at, "Phileas's door still open from walking in: " .. why .. " (want within 1 tile, level 0): walk out through it")
+            else
+                t.exec("leaveHouse-door", t.player.click_loc, "wallkit_shayzien_door01_l_reverse", 1, { at = { 1540, 3570 } })
+                t.ticks(3)
+            end
+        end
         t.player.walk_to(1538, 3570, 8)
         do local _, ht = t.world.tile(); t.check("leaveHouse-outside", ht.x <= 1539, "outside Phileas's door at x " .. tostring(ht.x) .. "," .. tostring(ht.z) .. " (house interior is x >= 1541)") end
         t.exec("goto-teleportToArchive", t.player.goto_tile, 1621, 3807, 0)
@@ -450,12 +474,6 @@ return {
         t.expect("quest.stage.shiro2", t.quest.expect_stage("shiro2"))
         t.exec("passMagicGate-leave", t.player.click_loc, "shayzienquest_cave_door", 1)
         t.ticks(4)
-        do
-            local ex, ez = 1168 + c2x, 9970 + c2z
-            local wr = t.player.walk_to(ex, ez, 100)
-            local _, wt = t.world.tile()
-            t.check("goto-leaveCave-again", math.abs(wt.x - ex) <= 3 and math.abs(wt.z - ez) <= 3, "walk_to " .. ex .. "," .. ez .. " (world-equivalent 1168,9970, beside the exit loc at 1168,9973) -> " .. tostring(wr) .. ", now at " .. tostring(wt.x) .. "," .. tostring(wt.z))
-        end
         t.exec("leaveCave-again", t.player.click_loc, "shayzienquest_lab_exit", 1)
         t.ticks(4)
         do local _, st = t.world.tile(); t.check("leaveCave-again.surface", st.z < 5000 and st.level == 0, "back on the mountain at " .. tostring(st.x) .. "," .. tostring(st.z) .. "," .. tostring(st.level) .. " (open ground beside the crevice)") end

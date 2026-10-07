@@ -1,0 +1,72 @@
+{{External|rs}}
+[[File:Logout mobile.png|left]][[File:Logout.png|left]]
+The '''Logout''' tab is used to end a session of ''[[Old School RuneScape]]'', safely removing the player from the world.
+
+Depending on the configured layout, the tab is accessed via a button on either the bottom-right, top-left, or top-right corner. The button resembles a small door or an X, depending on the layout. Once the logout tab is open, the player must click the red button reading ''"Click here to logout"''.
+
+[[File:Logout button.png|thumb|The Logout interface.]]
+
+Players may click the logout button at any time, although players in [[combat]] cannot log out until 16 game [[Game tick|ticks]], or 9.6 seconds, after they have last received a hit.
+
+Players will be automatically logged out if they do not interact with the game for 5 minutes. Interaction includes left- or right-clicking, typing, moving the camera, or simply moving the cursor within the game window; it does '''not''' include activating the client window, changing client settings, or zooming the camera with the mouse wheel. This timer can be extended to a maximum of 30 minutes by adjusting [[game client]] settings.
+
+The player will also be logged out if they have been playing continuously for 6 hours, regardless of activity. A number of chat messages are displayed after an account has been logged in for a prolonged period of time, with multiple reminders before being automatically logged out after 6 hours in-game.
+* After 4 hours: {{mes|You've been playing for a while, consider taking a break from your screen.|color=purple}}
+* After 5 hours and 30, 50, and 55 minutes: {{mes|You will be logged out in approximately X minutes. Make sure you move to a safe area or log out now.|color=purple}}
+==World Switcher==
+{{main|World switching}}
+Within the logout button interface is the [[World Switcher]]. Players can switch between [[world]]s without the need to log out along with the ability to favourite up to two worlds.
+
+Players cannot switch between worlds when under [[combat]] and must wait 10 seconds after combat to switch. Players will also log out if they have switched worlds multiple times in a short amount of time.
+
+==X-logging==
+'''{{Colour|red|Warning}}:''' The following method could result in [[death]].
+
+'''X-logging''' is a tactic used to log out while in the midst of [[Combat]] that entails clicking the red X on your screen, browser, window, or client to close it. It is mostly used at [[Dagannoth Kings]] and in [[Deep Wilderness]]. This works because of a 60 second timer before the game forcibly logs you out after an unexpected disconnection during combat. To use this effectively, you need to survive 60 seconds of combat while disconnected.
+
+===Multi-combat area X-logging===
+At [[Dagannoth Kings]], since [[Spinolyp]]s constantly attack you, it is practically impossible to manually log out; it is much easier to X-log. As the name suggests, you close the screen, browser, window or client, which forces your account to log out. You must be able to endure and [[tank]] 60 seconds' worth of damage and must be alone in [[multi-combat area]]s, such as the Dagannoth Kings' [[Waterbirth Island Dungeon|lair]], or [[death]] is inevitable.
+
+===Single-area Wilderness and X-logging to evade===
+When used in the [[Wilderness]], X-logging is done to escape a potential [[PvP]] scenario in [[Single-way combat]]; this will not work in [[Singles-plus combat]]. For this to be done correctly, [[Accept Aid]] should be off, and you cannot already be in combat with another player (be mindful of the [[PJ timer]]), or you will almost certainly die. You have to be [[auto-attacking]] a [[monster]] in [[single-way combat]] (not in [[singles-plus]]), and it has to also be attacking you. Additionally, the monster has to take more than 60 seconds to kill, or another player may be able to attack you after the monster you are fighting dies. You will need to prolong the fight by either [[splashing]], reducing your combat stats with [[Saradomin brew|Saradomin Brews]], fighting with a [[fun weapon]], or unequipping your [[weapon]] and fighting [[unarmed]] (also known as [[Free-to-play PvP techniques#Boxing|boxing]]). Ensure you have sufficient prayer points for [[Protect Item]] and to avoid being [[Smite|Smited]]. Afterwards, close the screen '''before''' '''or during''' the kill, but allow the 60-second duration at least after closing it before attempting to log back in. Although you will miss the [[monster drop]], your character will automatically log out after 60 seconds have elapsed, thus giving the [[player killer]] no time to attack you if done correctly.
+
+After successfully X-logging, you will have to re-open or re-load your game client. Be sure to [[world hop]] or bide some time before logging back in to avoid any [[Player killing|player killers]] that may still be in the area.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 17 September 2025
+|update = Poll 85 - Bridges, Boots, Ropes & Roots
+|change = The Official Client’s AFK logout timer can now be set up to 30 minutes.
+}}
+{{Subject changes
+|date = 10 December 2024
+|update = Christmas 2024
+|change = The thumbs-up and down buttons on the logout tab were replaced with 1-5 star rating buttons.
+}}
+{{Subject changes
+|date = 5 October 2022
+|update = Clan Hall Upgrades & More
+|change = You will now be reminded when you are about to be logged out 30 minutes and 10 minutes before the end of a 6-hour session, on top of the existing warnings.
+}}
+{{Subject changes
+|date = 5 March 2018<!--Update post was on March 1, feedback system and buttons went live on March 5-->
+|update = QoL Improvements & Deadman Permadeath Beta
+|change = The logout tab now has thumbs-up and down buttons as part of an in-game feedback system.
+}}
+{{Subject changes
+|date = 13 February 2014
+|update = Valentine's Day
+|change = The log-out timer that kicks players offline after 6 hours will now do it whether or not they are in combat.
+}}
+{{Subject changes
+|date = 22 February 2013
+|update = Patch Notes (22 February 2013)
+|change = The logout timer has been changed from 90 seconds to 5 minutes.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*In ''[[RuneScape Classic]]'', players were automatically logged out if standing in one spot for five minutes, regardless of whether or not they were doing anything.
+{{Interface}}
+[[Category:Mechanics]]

@@ -1,0 +1,70 @@
+{{Infobox Monster
+|name = Minotaur
+|image = [[File:Minotaur (Fortis Colosseum).png|180px]]
+|release = [[20 March]] [[2024]]
+|update = Varlamore: Part One
+|members = Yes
+|combat = 318
+|size = 3
+|examine = The least milkable cow I've ever seen.
+|xpbonus = 10
+|max hit = 74
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Crush]]
+|attack speed = 5
+|cat = 
+|hitpoints = 225
+|att = 300
+|str = 360
+|def = 190
+|mage = 250
+|range = 120
+|attbns = 15
+|strbns = 64
+|amagic = 0
+|mbns = 0
+|arange = 0
+|rngbns = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|dlight = 12
+|dstandard = 12
+|dheavy = 12
+|poisonresistance = 100
+|venomresistance = 100
+|immunecannon = Yes
+|id = 12812,12813
+}}
+'''Minotaur''' is a monster fought in the [[Fortis Colosseum]], using melee attacks that can hit up to 74. They begin to spawn in as reinforcements through waves 7–11, with a [[serpent shaman]] spawning alongside it on waves 10 and 11. Unlike the [[jaguar warrior]], minotaurs will immediately move upon spawning despite not having visually appeared.
+
+If the player is not within melee distance (including diagonally) the minotaur will attempt to heal other wounded monsters to full health within 6 tiles of it. Specifically the minotaur will heal another monster if:{{CiteReddit|author=Mod Arcane|url=https://www.reddit.com/r/2007scape/comments/1e90fkb/have_a_question_about_the_game_or_the_subreddit/lecvxj9/|title=Have a question about the game or the subreddit? Ask away!|quote=The minotaur has a timer on it, if the player is in melee range when the timer runs, it will melee you.
+If you're not, then it will scan for a radius of 10 tiles from it's centre coordinate, respecting line of sight.
+If it finds an NPC in this radius that is:
+- not a minotaur
+- has less than 75% of its total hitpoints
+- its centre coordinate is also in the line of sight to the minotaurs centre coordinate
+- and is 7 or less tiles away
+Then it heals the npc|date=22 July 2024|archiveurl=https://archive.ph/59UEV|archivedate=27 July 2024}}
+* The monster's health is below 75%
+* The monster's centre tile is within line of sight and no more than 7 tiles away from the minotaur's centre tile 
+Like Vardorvis, the minotaur can be tick eaten, as its damage is calculated one tick later than its attack animation despite being a melee attack. If standing next to a minotaur as it spawns to prevent it from healing on waves 10 and 11, the serpent shaman will spawn in the centre of the colosseum instead, allowing them to be off-ticked.
+
+If the [[Fortis_Colosseum#Handicaps|Red Flag]] handicap is active, minotaurs will gain the ability to routefind which allows them to move around obstacles, becoming impossible to safespot. When using RuneLite plugins which make use of NPC IDs, the minotaur comes in two variants: one without Red Flag, and the other with.
+
+These minotaurs do not count for a [[minotaur]] Slayer task.
+
+==Gallery==
+<gallery mode="packed" heights="160" style="text-align:left">
+Fortis Colosseum - minotaur concept art.jpg|Concept art of the minotaur, by [[Mod Grub]].
+</gallery>
+
+==Trivia==
+* The {{wp|minotaur}} is a legendary creature from Greek mythology that had the head of a bull and the body of a man, which dwelled within the Labyrinth of the Cretan King Minos. It was slain by the Greek hero Theseus in order to halt Athenian sacrifices of children as a war indemnity to Crete.
+
+==References==
+{{Reflist}}
+
+{{Fortis Colosseum}}

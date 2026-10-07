@@ -1,0 +1,26 @@
+{{Infobox Combat Achievement
+|name = Royal Affairs
+|image = [[File:Fighting Nylocas hordes.png|300px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = In the Theatre of Blood: Hard Mode, complete the Nylocas room without ever letting the Nylocas Prinkipas change styles.
+|tier = Grandmaster
+|monster = Theatre of Blood: Hard Mode
+|type = Mechanical
+|id = 374
+|leagueRegion = Morytania
+}}
+'''Royal Affairs''' is a [[Combat Achievements/Grandmaster|grandmaster combat achievement]] which requires the player to complete the [[Nylocas]] room without dying in [[Theatre of Blood: Hard Mode|hard mode]] without letting a [[Nylocas Prinkipas]] change styles.
+
+==Strategy==
+Nylocas Prinkipas has 300/350/400 health (in <3, 4 and 5-man sizes) and like [[Nylocas Vasilias]], will always spawn in its melee form. It functions much like Vasilias and will change combat styles after 10 ticks (6 seconds), so the team must focus it as soon as it appears in order to complete the achievement.
+
+The required amount of damage per player on average decreases with team size, so attempting this achievement in a 5-man encounter should increase the chances of killing the Prinkipas before they can change combat styles. This should be done with [[dragon claws]] or a [[crystal halberd]] special as these deal the most amount of damage.
+
+Players on the Arceuus spellbook can use [[Death Charge]] (ideally the upgraded variant) to get a lot of special energy without stalling waves. A [[surge potion]] is also helpful in restoring special attack.
+
+==Other tasks==
+{{Combat Achievements list|Theatre of Blood: Hard Mode}}
+
+{{Combat Achievements}}

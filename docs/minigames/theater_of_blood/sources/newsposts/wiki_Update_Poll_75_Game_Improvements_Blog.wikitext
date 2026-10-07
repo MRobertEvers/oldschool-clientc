@@ -1,0 +1,447 @@
+{{Update|date=22 April 2021|rev=26 April 2021|link=https://secure.runescape.com/m=news/poll-75-game-improvements-blog?oldschool=1|category=community}}
+[[File:Poll 75 Game Improvements Blog newspost.png|right]]
+{{clear}}
+Listen up, PvMers! It's time for Poll 75, and this one is focusing on mid-to-late-game PvM activity. We've had some great suggestions from the community, so a big thank you to everyone who took part in the discussion. Don't worry if your comments aren't addressed here - any suggestions outside of this poll's remit have been noted for future consideration.
+
+With that in mind, and since this is a pretty hefty one, let’s get straight into it!
+
+{{ToC}}
+
+==Player Feedback and Our Changes - April 23rd 2021==
+{|class=wikitable style="text-align:center; width:665px;"
+!Player Feedback
+!What We've Changed
+|-
+|You wanted to see the Blade of Saeldor recolours! || We've added this suggestion into Poll Question #16.
+|-
+|You liked the idea of the Ash Scatterer, but thought the name could be changed to something more punchy. || We really liked the idea of an Urn type item that cleanses Demonic Ashes, so we've changed the name to "Ash Sanctifier" and modified Question #42.
+|-
+|You felt that the Challenge Mode tweaks proposed in Question #26 would make the fight too easy. || We've tweaked the suggestion to better clarify that we want to increase predictability rather than outright reduce the difficulty.
+|-
+|You had concerns regarding Question 14, and you sought clarity about the changes we were planning to make. || We have adjusted the proposal in Question #14 and given more information. This extra information clarifies that players will have to invest time into preparing combo food if they wish to use it.
+|-
+|With regards to Question #45, you liked the idea of Padlock Sprites, but felt that the design could make it more difficult to identify spells. || We have adjusted the design of the Padlock Sprite icons. They will be displayed in the top right, meaning the silhouette of spell icons can be still seen.
+|-
+|We asked you where the Ash Sanctifier should come from in-game. || We've decided based on your feedback and comments that it will be a hard Kourend Diary Reward, for consistency with the Bonecrusher.
+|}
+
+==Slayer Improvements==
+We received a very interesting community suggestion that we'd love to get your take on. What if you could store a Slayer task for later?
+
+We thought this would be a great way to give players more control over their activity, and we'd like to offer players a Slayer Task Storage ability at the cost of 1,000 Slayer Points. Once unlocked, players will be able to store a Slayer task on their account via the Slayer Master interface, at the cost of 50 Slayer Points per task.
+
+Once a task is stored, players can activate it for free by speaking to a Slayer Master. When activated, it then becomes your current Slayer task (so you can't activate a stored task with a current task running). You can store a task at any point and it will save your Slayer count progress.
+
+Players would not be able to store more than one task at a time, or store the same task they have just stored. This avoids creating an endless loop with the Slayer Cape perk of awarding the same task twice!
+
+{{News Poll|1|Should we add the ability for players to store one Slayer task on their account for later? The ability to store a Slayer task will cost players 1,000 Slayer points. It will cost 50 Points per Slayer task stored. This will not work for Wilderness-related tasks.}}
+
+
+Now, to more fashionable matters. Players can cosmetically upgrade their Slayer Helmets by attaching special items they have earned from defeating bosses. However, the cosmetic upgrade currently only recolours the same base design. To flex your accomplishments even harder, we’d like to propose the following changes to Slayer Helmets - [https://www.reddit.com/r/2007scape/comments/ajx9y9/colored_slayer_helm_redesigns_make_them_look_like/ based off this popular Reddit suggestion] and brought to life by the very talented '''Mod West!'''
+
+[[File:Poll 75 Game Improvements Blog (1).png|center|600px]]
+
+
+[[File:Poll 75 Game Improvements Blog (2).gif|center|600px]]
+
+{{News Poll|2|Should we redesign the current Slayer Helmets to the proposed Slayer Helmet Designs as shown above?}}
+
+
+Next up, a bit of basic arithmetic as we face the fearsome Alchemical Hydra. Currently, players rely on counting to determine the Hydra’s next attacks: they come in a very predictable pattern of either three Ranged attacks followed by three Magic attacks, or three Magic attacks followed by three Ranged attacks.
+
+We are not planning to change this, but we’d like to propose a better way to intuit the next attack than simply counting - a unique animation!
+
+{{News Poll|3|Should a unique animation be added for both Hydra’s Ranged and Magic attack styles, adding an alternate way of identifying which style is going to be used next?}}
+
+
+Speaking of visual changes, Killerwatt Plane can be an eyesore for some players due to NPCs jittering in this area. We’re going to do our best to tone down the jittering, and adjust the lighting to make the area generally more pleasant! This will be an unpolled change, in order to support the health of our players. A general epilepsy warning will remain in place until we are confident the area is no longer an issue.
+
+[[File:Poll 75 Game Improvements Blog (3).png|center|150px]]
+
+
+How are you feeling about the Abyssal Sire? Requiring 85 Slayer to kill, this fearsome foe is deemed a little unrewarding for the time it requires. While we don't want to make any drastic changes to drop tables, we could slightly increase how much Slayer experience is gained. We'd do this by granting 50 Slayer XP for each Respirator that you take out during the encounter.
+
+{{News Poll|4|Should each Respirator dealt with during an encounter with the Abyssal Sire grant 50 Slayer XP? This would be capped at a maximum of four Respirators per encounter (200 Slayer XP).}}
+
+
+[[File:Poll 75 Game Improvements Blog (4).png|center|150px]]
+
+
+Next, let's talk spawning. Konar assigns tasks in specific areas, and her Bloodveld tasks are very popular amongst players. You've told us that there aren't enough Bloodveld to fight within the God Wars Dungeon, we'd like to increase the amount of Bloodveld in the dungeon.
+
+{{News Poll|5|Should more Bloodveld spawn in the God Wars Dungeon for Konar’s Tasks?}}
+
+
+[[File:Poll 75 Game Improvements Blog (5).png|center|150px]]
+
+
+Competing for resources is an important part of all MMOs, and Old School RuneScape is no different! Dust Devils are particularly contested, so we'd like to propose adding a new Dungeon containing Dust Devils in the Kharidian Desert, which will extend the Kharidian Desert Smoke Well.
+
+The Dust Devils in this area would only be accessible for players with the Slayer assignments required to fight them. The Dust Devils would also be multi-combat specifically to make them barrageable, which will hopefully add some variation to your gameplay.
+
+{{News Poll|5|Should we add a Dust Devil area under the Kharidian desert, with a Slayer assignment required to fight the Dust Devils?}}
+
+
+Another popular suggestion was to add a [https://www.reddit.com/r/2007scape/comments/lj6ntu/can_we_get_a_skeletal_wyverns_shortcut_locked/ Skeletal Wyverns shortcut] as shown in the image below. We think this is a great idea, and we can make one with a 72 Agility Requirement. This time it’s not behind a Diary! This shortcut will be slightly faster than running, but it won’t be meta-breaking.
+
+[[File:Poll 75 Game Improvements Blog (6).png|thumb|center|500px|''Sourced from a Reddit thread by Jisoh'']]
+
+{{News Poll|7|Should we add a Skeletal Wyverns shortcut as shown in the blog post? The shortcut will take players from just before the entrance to the Ice Warriors and Giants into the west side of the Skeletal Wyvern Cavern. This would require 72 Agility.}}
+
+
+[[File:Poll 75 Game Improvements Blog (7).png|center|250px]]
+
+
+For players who enjoy tinkering with explosives, this one should go with a bang. We’d like to offer you the ability to use a fishing explosive as a fun - albeit cruel - way to wake up your favourite tentacled sea monster, the Kraken! It's not going to be happy...
+
+{{News Poll|8|Should fishing explosives awaken the boss Kraken and all its tentacles simultaneously when thrown into the water?}}
+
+
+[[File:Poll 75 Game Improvements Blog (8).png|center|150px]]
+
+
+For Zulrah enthusiasts, we’d also like to offer a right-click Quick Board option so that you can jump straight on board without having to skip through dialogue.
+
+{{News Poll|9|Should we add a quick right-click option to board the Zulrah boat?}}
+
+
+While we're on the subject, we also want to know whether you'd like to fight more Zulrah while on task. This would bring Zulrah in line with other Bosses.
+
+{{News Poll|10|Should the amount of potential Zulrah assigned to tasks be increased from 15 to 35?}}
+
+==Grotesque Guardians==
+[[File:Poll 75 Game Improvements Blog (9).png|center|300px]]
+
+
+Players have commented that Grotesque Guardians is mechanically unrewarding, with too much downtime. The Orb phases cause unavoidable damage, and certain phases of the fight could be more engaging.
+
+We want to reward players for correctly performing mechanics, and we reckon that tweaking the Orb phase would be a good place to start. We’d like to propose that no damage is taken when correctly absorbing the Orbs.
+
+Additionally, we’d like to make it easier for players to recognise where the stuns in Grotesque Guardians will land. Sometimes it’s not clear, causing players to run further away than intended! Giving a visual cue for this should help to ease frustration around the fight, and reward players for being observant. Always nice to be rewarded for keeping those peepers keen, eh?
+
+{{News Poll|11|Should we remove the damage from the Orbs (energy spheres) in Grotesque Guardians when correctly absorbed?}}
+
+{{News Poll|12|Should a visual cue be added to the Grotesque Guardians to show where the stuns will land?}}
+
+==Corporeal Beast==
+[[File:Poll 75 Game Improvements Blog (10).png|center|250px]]
+
+
+This is a complicated one, so strap in. Currently, the main strategy for solo players taking on Corporeal Beast is to spec it down, leave the instance to recharge the spec via Player Owned Housing, then repeat this process until the Beast becomes vulnerable enough to DPS it down. This leaves the instance open to crashing, because the health of the boss completely resets when a player is no longer present. Since rewards are given based off damage dealt to the boss, solo players who carry out this strategy are not fairly rewarded for the effort they have contributed if they’re crashed by another player. Although solo players can opt to purchase their own instance, it will only remain open if the player is using another account to keep it open.
+
+Due to technical limitations, creating an instance that remains open without a player inside it is not possible. However, we can tweak the boss to no longer reset to full health when players leave the cave. Instead, the Beast will restore through quick health regeneration. This way, the damage dealt by a solo player will be more accurately taken into account even when they leave the area.
+
+Since the boss quickly regenerates its health rather than resetting it, this would not make the fight any quicker. We can ensure that the exact healing regeneration rates will not enable a new meta to kill Corporeal Beast with lower gear requirements.
+
+We believe this approach can help to reduce the number of unintentional crashes – it will be easier to spot when someone has engaged the Corporeal Beast in combat as its health will not fully reset!
+
+{{News Poll|13|Should Corporeal Beast no longer reset to full health if there are no players in the cave? Corporeal Beast would instead quickly regenerate health. Corporeal Beast would still fully reset if it has not been interacted with for three minutes.}}
+
+==The Gauntlet==
+[[File:Poll 75 Game Improvements Blog (11).png|center|300px]]
+
+Players who experience lag or incorrectly click their Prayer may struggle with the Gauntlet, as it’s the only area in the game without a single-click teleport escape. For this reason, we’d like to offer players the ability to create a single-click teleport to get you back to the lobby, should you find that you’re uncomfortably close to a fatality. The teleport can be created with items found inside the Gauntlet and requires 200 Crystal Shards. We expect this would mostly be utilized by Hardcore Iron players, but it’s a little treat that's open to you all!
+
+{{News Poll|14|Should players be allowed to create a crystal inside the Gauntlet from items inside the Gauntlet that allows them to single-click teleport back to the lobby?}}
+
+
+Certain food combinations allow you to heal more in a single tick, which gives you the opportunity to tank more damage before healing back up. These are called 'combo foods', and we hear that you’d like us to explore this within the Gauntlet. We think this could make for more interesting strategies - combo foods can benefit players who want to take risks, but also those who may want to play it safe and heal more.
+
+We propose allowing players to combine 10 Crystal Shards with a Paddlefish, which would create a new type of fish which acts as a Combo food. Players would be able to create this new fish by taking their Paddlefish back to the entrance room to combine it with 10 Crystal Shards (per fish). This ensures that if players want to use this method they'll have to invest time into preparation of their food. The new fish would heal less than the Paddlefish, but will allow players to rustle up a combo meal.If you like this idea, let us know what we should call it!
+
+{{News Poll|15|Should a new type of fish be added to the Gauntlet and its Corrupted version which acts as a combo food? Players would combine 10 Crystal Shards with a Paddlefish in the entrance room which would create a new type of 'combo food' fish.}}
+
+
+After receiving lots of comments about the highly anticipated Blade of Saeldor recolour, we're delighted to announce that we've added it to Poll #75! A player called [https://www.reddit.com/r/2007scape/comments/gygoqs/suggestion_let_us_recolour_the_blade_of_saeldor/ Mojotun] originally gave us the genius idea to introduce a recolour ability for the Blade of Saeldor.
+
+We absolutely love this idea, so we'd like to offer a way for players to recolour its Corrupted version (not the original Blade of Saeldor) by using the Crystals provided by Lliann in her shop.
+
+Since this ability would only apply to the Corrupted Blade of Saeldor, players will be able to enjoy the best of both worlds if they prefer the original version.
+
+Players would be able to use the Crystals on the Blade of Saeldor (c) to recolour it as shown in the image below. Each recolour would correspond with the matching colour of the Crystal used. Once a player has used a Crystal on their Corrupted Blade of Saeldor, the Crystal will be consumed. If you're wondering how to recolour the Corrupted Blade of Saeldor back to normal, the red Crystal will change it back. Take a look at these!
+
+[[File:Poll 75 Game Improvements Blog (12).png|center|600px]]
+
+{{News Poll|16|Should we introduce a way for players to recolour the Corrupted Blade of Saeldor by using Crystals provided by Lliann in her shop? Each Crystal corresponds with its matching recolour option.}}
+
+==Raids==
+===Chambers of Xeric===
+The private chests within the Chambers of Xeric don't always register your clicks. Sorry about that! We’ll be fixing this in Poll 75 as an unpolled change to ensure it’s working as intended.
+
+[[File:Poll 75 Game Improvements Blog (13).png|center|300px]]
+
+
+Players earn points per damage in Chambers of Xeric, which is scaled based on their Combat level. Currently, your points scale to the highest Combat level in the group, maxing out at 115 Combat (which is a default of 5 points per damage). However, if a player is 114 Combat or less, they will earn fewer points, because any points with decimals are rounded down rather than up.
+
+This scaling system can therefore unfairly disadvantage players who are not 115 Combat or above, as they'll achieve fewer points per damage than the raid difficulty presents. As a solution, we’d like to offer players a newer scaling system which would see points rounded more accurately. They will never be perfectly accurate, but we can implement a solution that scales better than at present. To illustrate this change, here's an example:
+
+Let's say a player receives five points at Combat Level 115. A Level 114 Combat player would receive a small percentage less, let's say 4.9 points. The current system always rounds down this number, so their 4.9 points become four, which is a much larger nerf than intended. When rewriting the system, we can round points in a more linear way which more accurately rewards lower Combat level groups. What do you say?
+
+{{News Poll|17|Should we change the current points scaling/rounding system in the Chambers of Xeric to award points to players more accurately?}}
+
+
+For those of you who are feeling tough, we’d also like to offer you the chance to uncap the difficulty of the raid! This will increase the challenge you face, but also the points you can earn. This is an option similar to asking Slayer masters to not take into account your Slayer level.
+
+{{News Poll|18|Should players be allowed to uncap the difficulty of Chambers of Xeric to the highest difficulty (115)?}}
+
+
+Next, we’d like to propose a default chest in the Chambers of Xeric so that you can store stuff the moment the raid starts, rather than hoping for good RNG on the Scavenger to give you planks. This would contain fewer spaces than the level 1-built Storage Chest, and would be upgradeable in the same way via planks as normal.
+
+{{News Poll|19|Should we add a default chest in the Chambers of Xeric which allows players to store 25 items (no shared storage) the moment the raid starts? It can be upgraded with planks as normal.}}
+
+
+Iron friends attempting to solo the Chambers of Xeric currently have a pretty rough time, as they can’t access the Shared Storage Menu. At the time that Chambers of Xeric was released, we felt it was potentially destabilising to attempt giving the Shared Storage feature to solo Iron players. However, upon review of the code we are now confident we can achieve this without compromising Iron accounts. We’ll be adding this as an unpolled change so that single Iron players may use the Shared Storage Menu on solo raids.
+
+Of course, Chambers of Xeric is a great activity to embark on with your friends. It scales in difficulty depending on how many players get involved. But we’ve also noticed that the limit of rare drops obtainable in a single raid is set to three regardless of how many people have participated. We think discourages those who like to play in a larger group, so we can increase the cap to six rare items instead of just three, if you’d like.
+
+{{News Poll|20|Should the current limit of players who get rare drops in Chambers of Xeric raids be increased from three to six?}}
+
+
+We’d also like to propose tweaks to the Herb Patches in the Chambers of Xeric, because we’ve noticed they don’t scale that well in larger groups. We could introduce a new linear scaling system which would extend herb life based on raid size. This means that herbs will not die as quickly, and you won't waste so much time planting herbs when you’re playing with more people.
+
+{{News Poll|21|Should herb patches in the Chambers of Xeric scale linearly with raid size to make them live longer in larger groups?}}
+
+
+Nothing is worse than forgetting to bring your trusty anti-poison to a raid and having to start over! We’d like to offer players a way to create a poison cure within the raid. We think this could be a nice way to test your Herblore skills in a very high-intensity survival situation!
+
+The anti-poison potions would be made using herbs found inside Chambers of Xeric. More specifically, players would use one Noxifier, one Water-filled Gourd Vial and one Cicely. Based on your Herblore level (60 for the lowest level, 75 for medium and 90 for high-level potions), players would be able to make one of three potions of increasing strength during the raid.
+
+The potions would award a few points to make and drink, similar to other potions in the game. You'd also score Herblore XP for making them. The weakest potion would be an antipoison awarding 13.5 Herblore XP, the standard potion would be a super antipoison awarding 20 Herblore XP and the potion+ would be an antidote+ awarding 26.5 Herblore XP.
+
+{{News Poll|22|Should we add a way to cure poison using herbs in the Chambers of Xeric?}}
+
+
+Players have also said that they'd like a pickaxe spawn in the Guardians room; in case they forget to bring theirs. We can spawn an Iron pickaxe near the entrance, if that would help.
+
+{{News Poll|23|Should we add an Iron pickaxe spawn near the entrance of the Guardians Room?}}
+
+
+[[File:Poll 75 Game Improvements Blog (14).png|center|300px]]
+
+
+Olm’s special attack flame wall is made up of deadly fire. We figured it would be nice if Ice spells allowed players to free themselves from it! This would mean you can use your Ice spells for more than just freezing each other to death, and it should feel more immersive.
+
+{{News Poll|24|Should players be able to use any Ice spell to help clear the flame wall in Olm’s special attack?}}
+
+
+[[File:Poll 75 Game Improvements Blog (15).png|center|150px]]
+
+
+In the Vasa Room's Challenge Mode, a healing mechanic is tied to how long the crystals are alive. This can be frustrating for players as it has the potential to create a bit of a brick wall, and becomes more difficult as time goes on. We can remove the additional 50% stat modifier in Challenge Modes to make this less frustrating, meaning that crystals will not get 50% additional stats in health and defence. To clarify, this change will not affect the stats of Vasa, only the Crystals.
+
+{{News Poll|25|In Challenge Mode, should we remove the 50% additional stats in health and defence of the Crystals in the Vasa room of Chambers of Xeric?}}
+
+
+[[File:Poll 75 Game Improvements Blog (16).png|center|200px]]
+
+
+We've also heard some feedback regarding the Large Muttadile in Challenge Mode. Generally, its attacks can feel somewhat unpredictable, which is unfortunate, as it can hit you very hard! To help with this issue, we would like to reduce the variance of its attacks while it is submerged. This will mean that players are less likely to be one-hit without the ability to counter-play. We would not scale down the Large Muttadile's offensive stats, but rather reduce the variance of its attacks. So, whereas before its attack range might be, let's say, 0-100, we would tweak the range to be 20-80 while submerged. This will help it to feel more consistent and predictable.
+
+{{News Poll|26|In Challenge Mode Chambers of Xeric, should we reduce the variance of hits made by the Large Muttadile while submerged?}}
+
+
+[[File:Poll 75 Game Improvements Blog (17).png|center|150px]]
+
+
+We can also allow players to keep damaging the Vanguards as they transition, so you can kill them faster. If this change is implemented, you will trigger a reset while they are transitioning, and the pending damage will reset them.
+
+{{News Poll|27|Should Vanguards take damage as they transition if the player is attacking them?}}
+
+
+[[File:Poll 75 Game Improvements Blog (18).png|center|200px]]
+
+
+Last in this category but certainly not least: we’d like to offer players the chance to '''save their special attack in raids'''. For this, we can propose implementing the system we use in 6 Jads within the Theatre of Blood and Chambers of Xeric. We don't want players to feel forced to regenerate their special attack upon leaving a raid - however, we also don't want players to be able to utilise raids as a quick way to regenerate special attack without participating in gameplay.
+
+Instead, we propose that players be able to save their special attack when entering and exiting the current raids. When entering these areas, players would be given full special attack energy. Upon leaving the area your special attack would reset.
+
+{{News Poll|28|Should players be allowed to save their special attack when entering and exiting Chambers of Xeric?}}
+
+{{News Poll|29|Should players be allowed to save their special attack when entering and exiting Theatre of Blood?}}
+
+===Theatre of Blood/Inferno===
+[[File:Poll 75 Game Improvements Blog (19).png|center|300px]]
+
+
+The Chest within the Theatre of Blood is difficult to spot so we’ll be enhancing it a little, and adding a purple hue to signify if it contains a unique item. This will be an unpolled change to look after those with visual impairments who are currently struggling to see it.
+
+We’ve heard that players currently feel punished by the RNG of the Blood Spawns in the Maiden fight, because they are too random and do not reward playing correctly. We would like to tone down the variance in where the spawns for Maidens can occur. We’d also suggest that if a player successfully dodges the blood, it will spawn a maximum of one Blood Spawn, rather than the current mechanics which are based on RNG.
+
+{{News Poll|30|Should we reduce the variance in locations for the spawns of Maidens in the Theatre of Blood and should we also reward players for successfully dodging the blood by only spawning a maximum of one Blood Spawn?}}
+
+
+Players also told us that the Inferno Bats are frustrating, due to them randomly draining stats, even when prayed against correctly. To reward good gameplay, we can adjust them so they no longer drain stats if the player is correctly praying when fighting them. Remember, though, you're only going to be halfway there if you're livin' on a Prayer - technically they will still be able to drain run energy, so better kill them fast!
+
+[[File:Poll 75 Game Improvements Blog (20).png|center|150px]]
+
+{{News Poll|31|Should Inferno Bats stop draining player stats when prayed against correctly, so that Prayer protection works as intended? They will still be able to drain run energy.}}
+
+
+Being the MvP is great, but being a team player is even more important... right? You've told us that the current mechanics in the Theatre of Blood rely too much on damaging the boss as much as possible, ignoring important aspects of team play. For this reason, we’d like to suggest allowing regular Nylocas damage to count towards MvP participation in the Maiden and Verzik rooms, but this would not be the case for the Nylocas room itself.
+
+{{News Poll|32|Should regular Nylocas damage count towards MvP participation in the Maiden and Verzik rooms, in order to better reward team play? This would not count in the Nylocas room itself.}}
+
+
+[[File:Poll 75 Game Improvements Blog (21).png|center|80px]]
+
+
+It can be incredibly frustrating to watch as a helpless bystander while your friend experiences connection problems during a raid - even more so if they happen to be a Hardcore Ironman! We’d like to do our best to make raids more accessible, while still maintaining a level of risk.
+
+If a player has a teleport in Theatre of Blood but loses connection during a wave, they may want their party to be able to use another teleport to trigger their own teleport item. We can allow this to happen through an opt-in method that performs a save in these circumstances (provided that Verzik has not yet been killed).
+
+We think this option will mostly be utilised by Hardcore Iron players. But, this method would be open to use by anyone who opts in. So how about it?
+
+{{News Poll|33|Should players be able allowed a means to activate another player’s Theatre of Blood teleport remotely? Players would have to opt-in to accept remote teleportation in order to avoid griefing. This would not work once Verzik has been killed.}}
+
+
+Here are some additional tweaks we can make in the Theatre of Blood to smooth out the gameplay and improve your experiences with friends and clanmates:
+
+{{News Poll|34|Should we allow the party leader to re-order their party via the Party Board in the Theatre of Blood lobby?}}
+
+{{News Poll|35|Should we add a filter to the Theatre of Blood Party Board which allows players to find their friends’ or clanmates’ parties more easily?}}
+
+==Other Quality of Life Enhancements==
+[[File:Poll 75 Game Improvements Blog (22).png|center|100px]]
+
+
+A short while back, we made some changes to the Skull Sceptre (i). At the time, we noticed feedback from players asking us to take this to the next level. Well, strap in, 'coz we’re taking it there now! We can offer a buff by allowing it to auto-cast Crumble Undead in both free-to-play and P2P.
+
+{{News Poll|36|Should the Skull Sceptre (i) be able to auto-cast Crumble Undead both in free-to-play and P2P?}}
+
+
+[[File:Poll 75 Game Improvements Blog (23).png|center|300px]]
+
+
+We’d like to offer players the option to disable the initial message box that warns you about entering a Barrows tunnel. As seasoned professionals, we’re sure you’re tired of seeing it pop up when you already know the score!
+
+Currently, here's how it goes:
+
+Message box -> You've found a hidden tunnel (press space to continue) Player choice -> Enter yes/no.
+And we'd like to propose changing it to: Titled player choice -> You've found a hidden tunnel. Would you like to enter, yes/no.
+
+{{News Poll|37|Should we allow players to disable the initial message box warning when entering a Barrows tunnel?}}
+
+
+[[File:Poll 75 Game Improvements Blog (24).png|center|300px]]
+
+
+Sarachnis owners, how do you fancy having your very own orange or blue version of the Sarachnis pet? Since the models already exist in the game, we think that adding these bad boys as obtainable transmogs could give players a new reason to go back to retackle the classic Forthos Dungeon.
+
+We propose the obtain would be via a tertiary roll of the Grubby Chest, with a 1/25 chance to roll either an Orange Egg Sac or a Blue Egg Sac. Players would use the Egg Sac on Sraracha to unlock her blue/orange metamorphs respectively. Once you've obtained one colour, you will not run the risk of obtaining another egg sac of the same colour.
+
+The unlock would be permanent and the Egg Sacs would be added to the Collection Log, in the Miscellanous section. You can obtain the Egg Sacs before owning the pet. Egg Sacs are not tradeable.
+
+{{News Poll|38|Should we add an Orange and Blue transmog to Sarachnis via the method described in the blog post?}}
+
+
+[[File:Poll 75 Game Improvements Blog (25).png|center|100px]]
+
+
+Zealot's Robes currently holds no Prayer bonus, despite the fact that it is a Prayer-boosting outfit and frankly, darn well looks like a Prayer outfit. We would like to propose adding a small Prayer bonus to it so that you can roleplay more convincingly as a monk, should that be your bag. To clarify, per piece the Zealot's Robes would have +1 Prayer Bonus over the Monk's Robes. The small Prayer bonus would also count for the Zealot's Helm and Zealot's Boots (even though there's no Monk's Robe equivalent) meaning they would be given 1 Prayer bonus respectively.
+
+{{News Poll|39|Should Zealot's Robes provide a Prayer Bonus which is slightly higher than Monk’s Robes by +1 on each piece?}}
+
+
+[[File:Poll 75 Game Improvements Blog (26).png|center|100px]]
+
+
+Players who have already achieved 99 Prayer and are currently in possession of a Dragonbone necklace may not want to keep their Dagannoth Bones perk from the Fremmennik Elite Diary, as it can be used to extend their trips instead. We can tweak the perk to be toggled off via the Achievement Diary NPC.
+
+{{News Poll|40|Should players be able to turn off the Dagannoth Bones perk from the Fremmennik Elite Diary via the Achievement Diary NPC? Players can switch it back on by speaking to the NPC again.}}
+
+
+[[File:Poll 75 Game Improvements Blog (27).png|center|170px]]
+
+
+We would also like to take the opportunity to make more use of the Bonecrusher. We can tweak it to work with bones dropped by the following NPCs (it would not work for noted bone drops of any variety):
+* Chaos Ely
+* Insatiable Bloodveld
+* Regular Bloodveld
+* Jogre
+* Jungle Horror
+
+{{News Poll|41|Should the Bonecrusher be able to crush bones dropped by the NPCs mentioned in the blog post?}}
+
+
+Move over, Bonecrusher! We'd also like to offer players a new item that will launch upon the release of A Kingdom Divided. It would be a type of Urn that would allow players to cleanse demonic ashes, aptly named the Ash Sanctifier. When held in the inventory, this item will automatically cleanse/purify any demonic ashes dropped by foes, awarding players Prayer XP. Half of the usual Prayer XP will be given for each ash cleansed, and a charge will be used up. Players will not be able to hold more than one Ash Sanctifier in their inventory. You can recharge this item using Death Runes (each Death Rune will give 100 charges).
+
+The Ash Sanctifier will be a Hard Kourend Diary reward, for consistency with the Bonecrusher.
+
+{{News Poll|42|Should we add a new item called the Ash Sanctifier? This would allow players to cleanse demonic ashes in a similar fashion to the way the Bonecrusher works with bones, awarding half the usual Prayer XP for each Ash sanctified.}}
+
+==Miscellaneous==
+===Tempoross===
+[[File:Poll 75 Game Improvements Blog (28).png|center|150px]]
+
+
+We have seen some feedback about the Tome of Water being less desirable to players in comparison to the Tome of Fire. Though they are not direct competitors, we understand that the Tome of Water could be buffed a bit further. On top of its existing bonuses, we would like to propose tweaking the Tome of Water to increase the Standard Spellbook Curse effects by 50%.
+
+This would mean that Confuse, Weaken, Curse, Vulnerability, Enfeeble and Stun have a 50% increased effect while using a charged Tome of Water. To illustrate the effects this would have on Weaken spells, see as follows:
+* Confuse - Attack reduction 5% -> 7%
+* Weaken - Strength reduction 5% -> 7%
+* Curse - Defence reduction 5% -> 7%
+* Vulnerability - Defence reduction 10% -> 15%
+* Enfeeble - Strength reduction 10% -> 15%
+* Stun - Attack reduction 10% -> 15%
+
+{{News Poll|43|Should the (charged) Tome of Water buff players' weaken spell effectiveness by 50% when equipped? This would mean that Confuse, Weaken, Curse, Vulnerability, Enfeeble and Stun spell effects are increased by 50%.}}
+
+===Shooting Stars===
+[[File:Poll 75 Game Improvements Blog (29).png|center|200px]]
+
+
+When we launched Shooting Stars, we intentionally lowered the XP by about 20% from the original launch in RuneScape. We didn't want it to be an activity players felt forced to do, but a fun extra for those who want to take part. Now it's launched, we want to confirm if players are happy with the current XP rates, or see whether you would be comfortable with a slight increase to the XP.
+
+The overall increase with this change would be around 20%, but with a bias towards giving more XP at larger sizes. Let us know what you think!
+
+{|class=wikitable style="text-align:center;"
+!Size || Current XP || Proposed XP
+|-
+|1 || 11 || 12
+|-
+|2 || 20 || 22
+|-
+|3 || 23 || 26
+|-
+|4 || 26 || 31
+|-
+|5 || 38 || 48
+|-
+|6 || 57 || 74
+|-
+|7 || 91 || 123
+|-
+|8 || 116 || 162
+|-
+|9 || 168 || 244
+|}
+
+{{News Poll|44|Should we increase Shooting Stars XP to the amount shown in the table above (about 20%)?}}
+
+
+We'd also like to offer our Wizards of Gielinor an easy way to find out whether their account meets the non-skill requirements for certain spells. For this reason, we've developed some handy icons called Padlock Sprites! These colourful padlocks would appear over the spells if their non-skill requirement is not met. The icons would vary depending on the kind of requirement, and would vanish once the requirement had been met.
+
+[[File:Poll 75 Game Improvements Blog (30).png|center]]
+
+[[File:Poll 75 Game Improvements Blog (31).png|thumb|center|''This is a work in progress image of the Padlock Sprites and the final design has not been finalized yet.'']]
+
+{{News Poll|45|Should we add Padlock Sprites to the Mobile and Desktop interfaces to show players where a non-skill requirement for a spell has not yet been met?}}
+
+==Art Competition Winner==
+Thank you to everyone who voted in our #OSRSDesignAHat competition. We want to send our congratulations to the winner '''Atlantis_OSRS!''' Their fetching Banana Wizard's Hat received the most votes in our recent poll, and we certainly find it very a-peel-ing.
+
+[[File:Poll 75 Game Improvements Blog (32).png|center|400px]]
+
+
+Once our art team has designed and implemented this snazzy headgear, you'll be able to redeem it by speaking to Diango in Draynor Village. It will be available for free to all players! Hats off!
+
+{{News Poll|46|Should the winning entry from our Design A Hat competition be implemented and redeemable from Diango?}}
+
+
+We'd love to hear your feedback so please let us know what you think via our [http://services.runescape.com/m=forum/forums.ws?380,381,713,66212570 official forums], on the [https://www.reddit.com/r/2007scape/comments/mw1tme/poll_75_game_improvements_blog/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel.
+
+----
+
+'''Mods Acorn, Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Bonsai, Brow, Bruno, Curse, Daizong, Deagle, Dibber, Ditto, Dylan, Ed, Elena, Errol, Fed, Flippy, Gecko, Gee, Grub, Halo, Husky, Jndr, John C, Kandosii, Katies, Kieren, Kirby, Lenny, Light, Lottie, Mack, Maylea, MikeD, Morty, Nasty, Nin, Oasis, Roq, Ry, Sarnie, Squid, Steve W, Sween, Tide, Vegard, West, Wolfy & Zuko'''
+
+''The Old School Team''

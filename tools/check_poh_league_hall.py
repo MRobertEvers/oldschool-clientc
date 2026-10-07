@@ -6,6 +6,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import config_text
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTENT = ROOT / "OSRS-Content" / "osrs239-content"
@@ -34,7 +35,7 @@ def main() -> None:
     script = SCRIPT.read_text(encoding="utf-8")
     build = BUILD.read_text(encoding="utf-8")
     dispatch = DISPATCH.read_text(encoding="utf-8")
-    runtime = RUNTIME.read_text(encoding="utf-8")
+    runtime = config_text.read_text(RUNTIME, encoding="utf-8")
 
     trophy_block = re.search(
         r"\[proc,poh_league_trophy_obj\].*?\nreturn\(null\);",

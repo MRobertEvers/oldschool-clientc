@@ -428,6 +428,10 @@ is fenced; approach `sherpa_door` (2822,3555, east wall) from 2823,3555.
   assert the landing x == 2847. In only while `%dragon_sailed`; out always; "You have already slain
   the dragon." after completion. The completion teleport now lands on 2845,9636 (west of the wall),
   not on the wall tile.
+- The ropes are NOT missing (b62-seam1): `crandor.rs2`'s old "deferred" header named LostCity loc
+  names the cache does not carry. `dragon_slayer_qip_climbing_rope` (2833,9657) climbs to
+  2834,3258,0, and the lair has a walk out to Karamja (secret wall, volcano dungeon,
+  `climbing_rope2` -> 2856,3166,0). Route and proof: seam-facts: Seam pass matthew-mbp-m4-b62-seam1 (e).
 
 ## Dwarf Cannon: the tower's two ladders have different names
 
@@ -964,7 +968,11 @@ to the entrance. Check every `walk_to` result and the tile it reached; a stalled
 the row by itself. If you place a press from `t.world.loc_near`, read `tile_x`/`tile_z` from its
 table. It has no `x`/`z` fields (verbs-pointer).
 
-## Rum Deal: Pete says "take a boat over" and no boat goes to Braindeath Island (matthew-mbp-m4-b51 sample)
+## Rum Deal: Pete says "take a boat over" and no boat goes to Braindeath Island (matthew-mbp-m4-b51 sample; FIXED b67-seam1)
+
+**FIXED in seam pass matthew-mbp-m4-b67-seam1 (seam-facts (b)):** Pete knocks you out at the accept
+and you wake in Captain Braindeath's room (2144,5108,1); after that `deal_pete` and `deal_island_pete`
+offer the lift both ways. The goto from the dock below is now a cheat: drive the talk.
 
 *Origin: the matthew-mbp-m4-b51 round-2 sampler read rumdeal be4d36b9e row 6 `braindeath.goto1`, a
 goto from Port Phasmatys (3680,3536,0) to Captain Braindeath (2144,5109,1).*

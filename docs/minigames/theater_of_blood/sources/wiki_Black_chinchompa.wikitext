@@ -1,0 +1,133 @@
+{{otheruses|the explosive Ranged weapon|the Hunter creature|Black chinchompa (Hunter)}}
+{{external|rs}}
+{{Infobox Item
+|name = Black chinchompa
+|image = [[File:Black chinchompa.png]]
+|release = [[27 March]] [[2014]]
+|update = Wilderness Feedback Update
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = Yes
+|stackable = Yes
+|noteable = No
+|options = Wield, Drop
+|examine = Just plain nasty.
+|value = 240
+|weight = 0.000
+|exchange = Yes
+|id = 11959
+|leagueRegion = Wilderness
+}}
+[[File:Black chinchompa detail.png|left|120px]]
+'''Black chinchompas''' are one-handed multi-target stackable [[Ranged weapons]] requiring level 65 [[Ranged]] to use. Black chinchompas can be obtained by [[box trapping]] [[Black chinchompa (Hunter)|black chinchompas]] in the [[Wilderness Hunter area]]. This requires 73 [[Hunter]], and will give the player 315 Hunter experience per catch. To use chinchompas in [[combat]], they must be wielded in the [[weapon slot]]. Black chinchompas are thrown like [[dart]]s or [[throwing knife|throwing knives]]; however, they explode on impact. 
+
+In [[PvM]], they can hit up to 12 (as opposed to 11 with other chinchompas) targets in a 3x3 area. In [[PvP]], the cap is 10 (as opposed to 9 with other chinchompas). They cannot be picked up again from the ground after being thrown and [[Ava's attractor]] does not return them since they are live animals. Black chinchompas have a [[Ranged Strength]] bonus of +30, as opposed to +15 from [[red chinchompa]]s and +0 from [[grey chinchompa]]s.
+Using black chinchompas is widely regarded as the fastest way to train Ranged and [[Hitpoints]]; however, this method is very costly. Catching black chinchompas is also popular among high-level hunters as it gives fast experience and is profitable.
+
+Fuses are used to describe the attack speed for throwing chinchompas. It is just another name for the conventional styles of ranged training.
+*Short fuse (accurate): 4 ticks
+*Medium fuse (rapid): 3 ticks
+*Long fuse (longrange): 4 ticks
+
+==Combat stats==
+{{Infobox Bonuses
+|astab = 0
+|aslash = 0
+|acrush = 0
+|amagic = 0
+|arange = +80
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|drange = 0
+|str = 0
+|rstr = +30
+|mdmg = 0
+|prayer = 0
+|slot = weapon
+|speed = 4
+|attackrange = 9
+|combatstyle = Chinchompas
+|image = [[File:Black chinchompa equipped male.png|150px]]
+|altimage = [[File:Black chinchompa equipped female.png|150px]]
+}}
+
+{{CombatStyles|Chinchompas|speed=4|attackrange=9}}
+
+==Chinchompa guide==
+Using black chinchompas is a practical way of training [[Ranged]] and [[Hitpoints]] since combat experience per hour is determined by how much DPS (damage per second) the player can deal.
+
+It is best used against multiple aggressive targets occupying a 3x3 (or smaller) space and piled together, such as the [[Skeleton (Ape Atoll)|Skeletons]] of [[Ape Atoll]] or the [[Maniacal monkey]]s in [[Kruk's Dungeon]], as these monsters are highly [[aggressive]] and easily stack on top of each other.
+
+Chinchompas treat accuracy differently to other AoE damage sources: if the primary target is hit, all secondary targets are hit automatically; if the primary target is missed, all secondary targets are missed automatically.
+
+This mechanic can be used when there are two monsters in close proximity with different defence levels, most notably [[Kree'arra]] in the [[God Wars Dungeon]]. The melee minion [[Flight Kilisa]]'s [[Defence]] (both in levels and ranged defence) are much lower than Kree'arra's, meaning that players will hit more often and deal more damage than directly attacking the boss using even the most powerful single target weapons. Lure Kree'arra into melee distance and then attack Kilisa with the chinchompas. 
+
+Chinchompas' accuracy is based off of the distance from the closest tile of the target.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/993196171677126661|date=6 May 2018|archiveurl=https://reldo.runescape.wiki/i/100487|archivedate=26 May 2020|quote=Nearly. Medium fuses 0-3 tiles and 7+ tiles are 75%, not 50%. It's applied to the accuracy/defence roll when the attack is cast, like armour bonuses are.}}{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1433094187797340166|date=1 September 2021|archiveurl=https://reldo.runescape.wiki/i/103313|archivedate=9 April 2022|quote=[Is the chinchompa accuracy nerf based on the south-west tile of the NPC or the tile closest to you] The tile closest to you.}} Furthermore, the accuracy roll made on the initial target uses the 'heavy' ranged defence for determining the opponent's defence roll.<ref>{{PlainCiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1817838437292032420|date=29 July 2024|archiveurl=https://reldo.runescape.wiki/i/27963340|archivedate=7 April 2026|quote=I believe those are 'heavy'.}}</ref>
+
+{| class="wikitable"
+|+
+!Style
+!0-3 Squares
+!4-6 Squares
+!7+ Squares
+|-
+|Short fuse
+|100%
+|75%
+|50%
+|-
+|Medium fuse
+|75%
+|100%
+|75%
+|-
+|Long fuse
+|50%
+|75%
+|100%
+|}
+
+==Money making==
+{{Mmgsection|Hunting black chinchompas}}
+
+==Item sources==
+{{Drop sources|Black chinchompa}}
+
+==Comparison between other ranged weapons==
+{{Ranged weapons comparison}}
+
+==Used in recommended equipment==
+{{Used in recommended equipment|Black chinchompa}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 30 April 2025
+|update = Poll 84: Batch II
+|poll = Poll 84 - PvM Improvements, Agility Shortcuts & more!
+|change = 
+* The "Destroy" option was changed to "Drop".
+* Chinchompas are no longer destroyed upon death.
+}}
+{{Subject changes
+|date = 22 February 2018
+|update = Old School RuneScape's 5th Birthday
+|change = Players may no longer release black chinchompas while in combat. This also applies to Deadman Mode and overrides the existing functionality for Black chincompas where they appear to everyone when dropped. 
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*Chinchompas were inspired by the {{wp|chinchilla}}.
+*Black chinchompas are referenced as the most explosive type of chinchompa in dialogue in the ''RuneScape 3'' quest [[rsw:Azzanadra's Quest|Azzanadra's Quest]], despite not existing in ''RuneScape 3'' at the time of the quest's release.
+*If a Chinchompa begins to enter a [[Box trap]] on the final tick, it will delay the boxes collapse until the trap either succeeds, or fails.
+
+==References==
+{{Reflist}}
+
+{{Chinchompas}}
+{{Ranged weapons}}
+{{Hunter}}
+[[Category:Chinchompas]]

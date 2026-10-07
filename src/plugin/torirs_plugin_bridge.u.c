@@ -1861,33 +1861,33 @@ app_plugin_hover_tile(void* user, int* out_tile_x, int* out_tile_z, int* out_lev
      * STAGING-ABSOLUTE tile (view base + local), which is how deck tiles are
      * addressed everywhere a plugin can hand one back (draw_tile detects the
      * staging band and draws the marker through the boat's transform). */
-    if( app->world_hover_view != 0 &&
-        WorldviewRegistry_IsLive(&app->worldviews, app->world_hover_view) )
+    if( App_PresentedView(app)->world_hover_view != 0 &&
+        WorldviewRegistry_IsLive(&app->worldviews, App_PresentedView(app)->world_hover_view) )
     {
         struct Worldview const* view =
-            WorldviewRegistry_Get(&app->worldviews, app->world_hover_view);
+            WorldviewRegistry_Get(&app->worldviews, App_PresentedView(app)->world_hover_view);
 
-        *out_tile_x = view->base_x + app->world_hover_view_x;
-        *out_tile_z = view->base_z + app->world_hover_view_z;
+        *out_tile_x = view->base_x + App_PresentedView(app)->world_hover_view_x;
+        *out_tile_z = view->base_z + App_PresentedView(app)->world_hover_view_z;
         *out_level = view->world ? World_TerrainWalkLevel(
                                        view->world,
-                                       app->world_hover_view_x,
-                                       app->world_hover_view_z,
-                                       app->world_hover_view_level)
-                                 : app->world_hover_view_level;
+                                       App_PresentedView(app)->world_hover_view_x,
+                                       App_PresentedView(app)->world_hover_view_z,
+                                       App_PresentedView(app)->world_hover_view_level)
+                                 : App_PresentedView(app)->world_hover_view_level;
         return 1;
     }
 
-    if( app->world_hover_tile_x < 0 || app->world_hover_tile_z < 0 )
+    if( App_PresentedView(app)->world_hover_tile_x < 0 || App_PresentedView(app)->world_hover_tile_z < 0 )
         return 0;
 
-    *out_tile_x = app->world->_base_tile_x + app->world_hover_tile_x;
-    *out_tile_z = app->world->_base_tile_z + app->world_hover_tile_z;
+    *out_tile_x = app->world->_base_tile_x + App_PresentedView(app)->world_hover_tile_x;
+    *out_tile_z = app->world->_base_tile_z + App_PresentedView(app)->world_hover_tile_z;
     *out_level = World_TerrainWalkLevel(
         app->world,
-        app->world_hover_tile_x,
-        app->world_hover_tile_z,
-        app->world_hover_tile_level);
+        App_PresentedView(app)->world_hover_tile_x,
+        App_PresentedView(app)->world_hover_tile_z,
+        App_PresentedView(app)->world_hover_tile_level);
     return 1;
 }
 
@@ -1917,9 +1917,9 @@ app_plugin_hover_entity(void* user, struct ToriRS_HoverTarget* out)
     if( !app->world )
         return 0;
 
-    for( int i = 0; i < app->world_pickset.count; i++ )
+    for( int i = 0; i < App_PresentedView(app)->world_pickset.count; i++ )
     {
-        struct World_Picked const* hit = &app->world_pickset.items[i];
+        struct World_Picked const* hit = &App_PresentedView(app)->world_pickset.items[i];
         int kind;
 
         switch( hit->type )
@@ -2744,7 +2744,7 @@ app_plugin_feature_set(void* user, char const* key, int value)
         if( desc->slot == APP_PLUGIN_FEATURE_SLOT_CAMERA &&
             desc->offset == APP_PLUGIN_FEATURE_CAMERA_OFF(wheel) &&
             value == REVCONFIG_CAMERA_WHEEL_PINNED )
-            app->world_cam_zoom = app->revconfig_profile.camera.rest;
+            App_PresentedView(app)->world_cam_zoom = app->revconfig_profile.camera.rest;
     }
 
     /*
@@ -2763,8 +2763,8 @@ app_plugin_feature_set(void* user, char const* key, int value)
         /* The live eye height is a position inside the band, so a band that
          * moved under it has to pull it back in or the next wheel notch
          * starts from outside it. */
-        app->world_cam_zoom = RevConfigProfile_CameraClampZoom(
-            &app->revconfig_profile, app->world_cam_zoom);
+        App_PresentedView(app)->world_cam_zoom = RevConfigProfile_CameraClampZoom(
+            &app->revconfig_profile, App_PresentedView(app)->world_cam_zoom);
     }
 
     /* The write as the engine now holds it, for the capture harness: the
@@ -4092,7 +4092,7 @@ app_plugin_click_node(struct App* app, int32_t node, int op)
         action_index = 0;
 
     UIMinimenu_Reset(&scratch);
-    scratch.font_id = app->interact.minimenu.font_id;
+    scratch.font_id = app->frame_view->minimenu->font_id;
     if( !UIMinimenu_AddOption(&scratch, "", action, action_index, pick) )
         return 0;
 
@@ -4101,10 +4101,10 @@ app_plugin_click_node(struct App* app, int32_t node, int op)
      * reference's doAction does not touch crossMode for one either. A
      * synthesised press has no click point to give, and this is the reason it
      * does not need one. */
-    saved = app->interact.minimenu;
-    app->interact.minimenu = scratch;
+    saved = *app->frame_view->minimenu;
+    *app->frame_view->minimenu = scratch;
     app_minimenu_run_option(app, 0, 0, 0);
-    app->interact.minimenu = saved;
+    *app->frame_view->minimenu = saved;
     return 1;
 }
 
@@ -4203,13 +4203,13 @@ app_plugin_world_op(struct App* app, enum DrivePickKind kind, int element_id, in
         action);
 
     UIMinimenu_Reset(&scratch);
-    scratch.font_id = app->interact.minimenu.font_id;
+    scratch.font_id = app->frame_view->minimenu->font_id;
     if( !UIMinimenu_AddOption(&scratch, "", action, option >= 1 ? slot : 0, pick) )
         return 0;
-    saved = app->interact.minimenu;
-    app->interact.minimenu = scratch;
+    saved = *app->frame_view->minimenu;
+    *app->frame_view->minimenu = scratch;
     app_minimenu_run_option(app, 0, 0, 0);
-    app->interact.minimenu = saved;
+    *app->frame_view->minimenu = saved;
     return 1;
 }
 
@@ -4330,16 +4330,16 @@ app_plugin_inv_op(
         return 0;
 
     UIMinimenu_Reset(&scratch);
-    scratch.font_id = app->interact.minimenu.font_id;
+    scratch.font_id = app->frame_view->minimenu->font_id;
     if( !UIMinimenu_AddOption(&scratch, "", action, action_index, pick) )
     {
         *out_reason = "the scratch minimenu would not take the row";
         return 0;
     }
-    saved = app->interact.minimenu;
-    app->interact.minimenu = scratch;
+    saved = *app->frame_view->minimenu;
+    *app->frame_view->minimenu = scratch;
     app_minimenu_run_option(app, 0, 0, 0);
-    app->interact.minimenu = saved;
+    *app->frame_view->minimenu = saved;
     return 1;
 }
 
@@ -4487,11 +4487,13 @@ app_plugin_mouse_pos(void* user, int* out_x, int* out_y)
     assert(app);
     /* The same point every click path reads, latched once per frame from the
      * input drain (App_RunOnce). Before the first frame it is 0,0, which is a
-     * legal position -- so the answer is the position, not a validity flag. */
+     * legal position -- so the answer is the position, not a validity flag.
+     * A plugin's pointer is the PERSON's: the presented view's (the watcher's
+     * while a script is attached -- the runner camera split). */
     if( out_x )
-        *out_x = app->world_mouse_x;
+        *out_x = App_PresentedView(app)->world_mouse_x;
     if( out_y )
-        *out_y = app->world_mouse_y;
+        *out_y = App_PresentedView(app)->world_mouse_y;
     return 1;
 }
 
@@ -5231,10 +5233,10 @@ app_plugin_widget_request(void* user, uint64_t owner, struct PluginWidgetRequest
          * press is resolved, built and then dropped without a word.
          * @see app_plugin_click_node. */
         menu.options[op].pick.allow_plugin_hidden=1;
-        struct UIMinimenu saved=app->interact.minimenu;
-        app->interact.minimenu=menu;
+        struct UIMinimenu saved = *app->frame_view->minimenu;
+        *app->frame_view->minimenu = menu;
         app_minimenu_run_option(app,op,0,0);
-        app->interact.minimenu=saved;
+        *app->frame_view->minimenu = saved;
         return TORIRS_CONTRACT_OK;
     }
     case PLUGIN_WIDGET_PARENT:

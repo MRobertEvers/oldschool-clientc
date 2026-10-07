@@ -184,12 +184,12 @@ app_map_editor_world_click(
 
     if( !app->editor || !app->editor_panel.visible )
         return;
-    if( app->interact.minimenu.visible || app->interact.swallow_left_click )
+    if( app->frame_view->minimenu->visible || app->interact.swallow_left_click )
     {
         if( getenv("TORIRS_EDIT_DEBUG") && input->curr.mouse_button_up[TORIRSM_LEFT] )
             TORIRS_LOG(
                 "edit: click belongs to the minimenu (visible=%d swallow=%d)\n",
-                app->interact.minimenu.visible,
+                app->frame_view->minimenu->visible,
                 app->interact.swallow_left_click);
         return;
     }
@@ -206,9 +206,9 @@ app_map_editor_world_click(
             "edit: click tool=%d consumed=%d hover=%d,%d\n",
             (int)app->editor_panel.tool,
             app->input_frame_consumed,
-            app->world_hover_tile_x,
-            app->world_hover_tile_z);
-    if( app->world_hover_tile_x < 0 )
+            app->frame_view->world_hover_tile_x,
+            app->frame_view->world_hover_tile_z);
+    if( app->frame_view->world_hover_tile_x < 0 )
         return;
 
     /*
@@ -228,8 +228,8 @@ app_map_editor_world_click(
     if( !app_text_input_focused(app) )
     {
         int const level = Editor_PanelEditLevel(&app->editor_panel, app);
-        int const hx = app->world_hover_tile_x;
-        int const hz = app->world_hover_tile_z;
+        int const hx = app->frame_view->world_hover_tile_x;
+        int const hz = app->frame_view->world_hover_tile_z;
 
         if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_L) )
         {
@@ -261,9 +261,9 @@ app_map_editor_world_click(
         Editor_PanelSelectTerrain(
             &app->editor_panel,
             app,
-            app->world_hover_tile_x,
-            app->world_hover_tile_z,
-            app->world_hover_tile_level);
+            app->frame_view->world_hover_tile_x,
+            app->frame_view->world_hover_tile_z,
+            app->frame_view->world_hover_tile_level);
         app->need_redraw = 1;
         return;
     }
@@ -278,8 +278,8 @@ app_map_editor_world_click(
     Editor_PanelApplyToolAt(
         &app->editor_panel,
         app,
-        app->world_hover_tile_x,
-        app->world_hover_tile_z,
+        app->frame_view->world_hover_tile_x,
+        app->frame_view->world_hover_tile_z,
         Editor_PanelEditLevel(&app->editor_panel, app));
 
     /* A Place or Move click landed on the ghost's tile: the real add just
@@ -373,8 +373,8 @@ app_map_editor_ghost_update(struct App* app)
      * translucent double, which reads as flicker, not preview. */
     {
         struct Editor_Panel const* panel = &app->editor_panel;
-        int const hover_ok = app->world_hover_tile_x >= 0 && !app->interact.minimenu.visible &&
-                             !app->input_frame_consumed;
+        int const hover_ok = app->frame_view->world_hover_tile_x >= 0 &&
+                             !app->frame_view->minimenu->visible && !app->input_frame_consumed;
 
         want = 0;
         if( panel->visible && hover_ok && panel->tool == EDITOR_TOOL_LOC_PLACE &&
@@ -388,8 +388,8 @@ app_map_editor_ghost_update(struct App* app)
         else if(
             panel->visible && hover_ok && panel->tool == EDITOR_TOOL_LOC_MOVE &&
             panel->sel_kind == EDITOR_SELECTION_LOC &&
-            !(app->world_hover_tile_x == panel->sel_scene_x &&
-              app->world_hover_tile_z == panel->sel_scene_z) )
+            !(app->frame_view->world_hover_tile_x == panel->sel_scene_x &&
+              app->frame_view->world_hover_tile_z == panel->sel_scene_z) )
         {
             want = 1;
             id = panel->sel_loc_id;
@@ -404,8 +404,8 @@ app_map_editor_ghost_update(struct App* app)
 
     {
         struct MapEditorGhostSpec const wanted = { .loc_id = id,
-                                                   .scene_x = app->world_hover_tile_x,
-                                                   .scene_z = app->world_hover_tile_z,
+                                                   .scene_x = app->frame_view->world_hover_tile_x,
+                                                   .scene_z = app->frame_view->world_hover_tile_z,
                                                    .level = level,
                                                    .shape = shape,
                                                    .angle = angle };

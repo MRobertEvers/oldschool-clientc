@@ -279,7 +279,13 @@ main(
         listen(listener, 16);
     }
 
-    ToriRSServer_BootLoad(&config);
+    /* No server pack, or a stale one: the message names the command that
+     * builds it, and the world does not start on half a content load. */
+    if( ToriRSServer_BootLoad(&config) == TORIRSSERVER_BOOT_NO_PACK )
+    {
+        ToriRSServer_BootFree();
+        return 1;
+    }
 
     if( selftest )
     {

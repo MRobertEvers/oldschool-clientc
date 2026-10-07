@@ -1,0 +1,152 @@
+{{Update|date=9 January 2020|link=https://secure.runescape.com/m=news/eating-in-the-bank?oldschool=1|category=game}}
+[[File:Eating in the Bank newspost.png|right]]
+{{clear}}
+
+<center>''This week sees the additional functions while the bank interface is open alongside other changes from the last game improvements poll.''</center>
+
+{{Horizontal Line}}
+
+{{Headline|22|Additional Actions in the Bank & Game Improvements}}
+
+Happy New Year, Old School players! Our first update of 2020 rings in the changes from November's [https://secure.runescape.com/m=news/a=135/game-improvements-poll-blog?oldschool=1 Game Improvements Poll].
+
+'''Eating, Drinking and Equipping with the Bank Open'''
+
+You can now eat food, drink potions (or any other liquids you fancy) and equip items from your Inventory while the Bank or Deposit Box interfaces are open. You can toggle this option on and off via the Bank Settings Panel, which will also change the option for Deposit Boxes.
+
+<center>[[File:Eating in the Bank (1).png|415px]] [[File:Eating in the Bank (2).png|235px]]</center>
+
+
+Right-click options on items such as these can now be toggled off via the bank settings panel. The toggle also applies to these options in the bank deposit box screen.
+
+<center>[[File:Eating in the Bank (3).png|250px]] [[File:Eating in the Bank (4).png|400px]]</center>
+
+An additional screen for unequipping items without closing the bank has also been added.
+
+'''The Maiden of Sugadinti'''
+
+[[File:Eating in the Bank (5).png|center|180px]]
+
+
+The chance of being able to stun Nylocas Matomenos will now increase with your Magical Accuracy bonus. For players with a +140 bonus from equipment, Void bonuses and Prayers, the success chance will be 100%. Below are some combinations that will provide a 100% stun rate:
+*Your Equipment Stats tab displays Magic Accuracy as 140 or above
+*Your Equipment Stats tab displays Magic Accuracy as 112 or above, AND you have the Augury Prayer active
+*You have full Elite Void Knight equipped with the Mage Helm, and have a Magic Accuracy bonus of 86
+*You have full Elite Void Knight equipped with the Mage Helm, and have a Magic Accuracy bonus of 55, and have the Augury Prayer active
+
+''The numbers displayed in these examples are not necessarily the minimum requirements to guarantee a stun on the Nylocas - they only give examples of setups that would guarantee it.''
+
+Visible stat boosts (or reductions) will also affect the chance of freezing the Nylocas.
+
+Additionally, all raid team members successfully avoiding the blood splat attack now halves the chance of a blood spawn appearing. The maximum number of blood spawns is now capped at 8.
+
+'''Crystal Tools'''
+
+[[File:Eating in the Bank (6).png|center|80px]]
+
+
+Crystal tools can now be used while they have no charges, and act like their Dragon counterparts. Additionally, the Crystal Axe and Pickaxe no longer consume charges when their effects provide no extra benefits.
+
+{{Collapsed section|18|Click here for the list of affected uses}}
+'''Crystal Pickaxe:'''
+*Entering the Abyss via the appropriate blockage
+*Combat against the Stone Guardians in the Chambers of Xeric
+*Mining through a rockfall obstacle in the Chambers of Xeric
+*Mining through the obstacles in the Legend's Quest
+*Mining salt or basalt underneath Weiss
+*Mining the rubble in Burgh de Rott
+*Mining dense essence in Arceuus
+*Clearing a rockfall that's fallen from the ceiling anywhere in the motherlode mine
+
+'''Crystal axe'''
+*Entering the Abyss via the appropriate blockage
+*Chopping tendrils in the swamp on Fossil Island
+*Chopping jungle and fixing the fence in Tai Bwo Wannai Village
+*Chopping ents beneath the Woodcutting Guild or in the Wilderness
+*Chopping the Meat Tree in a Muttadile room in the Chambers of Xeric
+*Chopping through a roots obstacle in the Chambers of Xeric
+*Chopping kindling in the Chambers of Xeric
+*Pruning the Growthlings in the Bryophyta fight by using the axe on them
+*Splitting arctic pine logs
+
+{{Collapsed section end}}
+In addition, we have fixed an issue where Crystal Axe charges were depleted when it was carried during Tai Bwo Wannai cleanup, even though the axe cannot be used.
+
+'''Graceful Set Effect'''
+
+[[File:Eating in the Bank (7).png|center|80px]]
+
+
+Previously, run energy restored 30% faster while wearing all 6 pieces of the Graceful outfit. Now, the hood, cape, gloves, and boots give an individual 3% boost, and the top and legs give 4% each. This adds up to a 20% run energy bonus with an additional 10% bonus for wearing the whole outfit, which matches the previous 30% boost.
+
+'''Digging Up Herbs'''
+
+[[File:Eating in the Bank (8).png|center|100px]]
+
+
+Although Farming patches don't normally let you dig up healthy crops before they're fully grown, this is now permitted for herb patches.
+
+As we would prefer players didn’t grind for XP by repeatedly planting and digging up cheap herb seeds, the XP that was previously given when a herb seed is planted will instead be given when the patch is harvested, alongside the usual harvesting XP.
+
+'''Fremennik Sea Boots'''
+
+The inventory icons for the Fremennik Sea Boots (from the Fremennik Achievement Diary) have been adjusted to make them look more like boots.
+
+[[File:Eating in the Bank (9).png|center]]
+
+
+'''Music Track Unlocks'''
+
+A red message now appears in the chat box when a new music track is unlocked. If you prefer not to see these messages, you can toggle them off in the Audio menu.
+
+[[File:Eating in the Bank (10).png|center|220px]]
+
+
+'''Duel Arena Hard Clue Step'''
+
+[[File:Eating in the Bank (11).png|center|80px]]
+
+
+The Hard clue step requiring you to enter the Duel Arena has now been moved to outside the arena. This means you will no longer require assistance to complete it.
+
+{{Horizontal Line}}
+
+{{Headline|22|Twisted League Closing}}
+
+
+The Twisted League will close at '''9am UTC on Thursday January 16th''' after a 30-minute countdown. This process may cause the regular game update to arrive later than usual.
+
+The rank thresholds as of 4pm UTC yesterday (January 8th) are:
+#Dragon - 17,840
+#Rune - 10,020
+#Adamant - 5,120
+#Mithril - 1,800
+#Steel - 520
+#Iron - 80
+#Bronze - 10
+
+These will be updated later when more current stats have been pulled.
+
+An issue which resulted in some players receiving duplicate points for completing certain tasks will be resolved in time for the end of the League.
+
+{{Horizontal Line}}
+
+{{Headline|22|In Other News}}
+
+
+The PvP World Rota is switching over to Period B. On the east of the Atlantic, the Standard PvP world host is '''W25, UK''' and the F2P PvP world is '''W71, UK'''. On the west of the Atlantic, the host Bounty Hunter world is '''W19, USA''' and the High Risk PvP world '''W37, USA'''.
+
+As mentioned before Christmas, the rotation will stay on Period B for a few weeks to match the time it stayed on Period A during the holidays.
+
+*The Abyssal Sire will now be re-stunned correctly when autocasting shadow spells
+*Lizardman Shamans, Skeletal Mystics and Stone Guardians in the Chambers of Xeric now tell the party which individual received the seed drops, if applicable
+*Satisfied with the events at the Gingerbread Gnome bakery, Santa has left Varrock and the Christmas 2019 holiday event has been removed
+*The crystal axe now requires 71 Woodcutting to use.
+
+In February, Jagex will be celebrating LGBT+ History month by inviting a group of players to the office. The visit will include a Q&A session with the developers, lunch, and a tour of the office. If you're interested, sign up by filling out [https://jagex.eu.qualtrics.com/jfe/form/SV_234gvtyNjdKehaB this survey].
+
+{{Horizontal Line}}
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,616,66137888 official forums], the community-led [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the '''#gameupdate''' channel. For reference on the above content, check out the official [[Wiki]].
+
+'''''Mods Acorn, Archie, Ash, Bonsai, Bruno, Curse, Ed, Fed, Flippy, Gambit, Gee, Ghost, Husky, John C, Kieren, Kristy, Lenny, Lottie, Nasty, Oasis, Roq, Ry, Sween, Tide, Weath & West'''''<br/>''The Old School Team''

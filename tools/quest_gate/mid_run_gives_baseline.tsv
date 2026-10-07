@@ -10,16 +10,9 @@
 # with a count, not a line number; `lines` is where they sat at the measure.
 # The list only shrinks: a row whose give is gone is a lint finding.
 test_id	count	cheat	lines
-doric	1	::give clay 6	75
-doric	1	::give copper_ore 4	80
-doric	1	::give iron_ore 2	85
-elena	1	::give lawrune 4	361
-elena	1	::give waterrune 4	362
-forgettabletale	1	::give	129
 icthlarin	1	::give ics_little_bookofembalming 1	319
 icthlarin	1	::give tinderbox 1	55
 icthlarin	1	::give water_skin4 1	56
-ikov	1	::give lobster 20	208
 legends	2	::give	331,1088
 legends	1	::give 4doseprayerrestore 1	677
 legends	1	::give 4doseprayerrestore 2	1960
@@ -32,28 +25,8 @@ mm	1	::give 4doseprayerrestore 3	1258
 mm	1	::give banana 5	1080
 mm	1	::give lobster 6	1689
 mm	1	::give lobster 8	1259
-priestperil	1	::give blankrune 10	345
-priestperil	1	::give blankrune 14	364
-priestperil	1	::give blankrune 9	356
-priestperil	1	::give blankrune_high 8	346
-priestperil	1	::give blankrune_high 9	357
-priestperil	1	::give cert_blankrune 5	335
-ragandboneman	1	::give logs 1	137
-regicide	1	::give coal 1	1021
-regicide	1	::give coal 8	1228
-regicide	1	::give cooked_rabbit 1	1227
-regicide	1	::give leather_gloves 1	1018
-regicide	1	::give limestone 1	1017
-regicide	5	::give lobster 6	651,754,805,972,1312
-regicide	1	::give pestle_and_mortar 1	1019
-regicide	1	::give pot_empty 1	1020
-regicide	1	::give regicide_cloth 1	1226
-regicide	2	::give rope 1	1360,1441
 routequest	1	::give lobster 12	320
 routequest	1	::give rune_scimitar 1	319
-tbwt	1	::give 4dose1agility 1	384
-tbwt	1	::give iron_spear 1	383
-tbwt	1	::give pestle_and_mortar 1	382
 thefremennikisles	1	::give hammer 1	642
 thefremennikisles	1	::give lobster 12	690
 thefremennikisles	1	::give nails_bronze 1	643
@@ -61,9 +34,6 @@ thefremennikisles	1	::give needle 1	611
 thefremennikisles	1	::give thread 3	612
 theslugmenace	1	::give rune_scimitar 1	358
 theslugmenace	1	::give shark 10	359
-troll_love	1	::give iron_bar 1	144
-troll_love	1	::give maple_logs 1	145
-troll_love	1	::give rope 1	146
 upass	1	::give adamant_scimitar 1	814
 upass	1	::give bucket_empty 1	1077
 upass	1	::give lobster	1298
@@ -71,9 +41,6 @@ upass	3	::give lobster 10	137,547,815
 upass	1	::give lobster 14	378
 upass	1	::give shark	1189
 upass	1	::give spade 1	546
-upass	1	::give woodplank	393
-viking	1	::give lobster 27	590
 waterfall	1	::give airrune 6	162
 waterfall	1	::give earthrune 6	163
 waterfall	1	::give waterrune 6	164
-xmarksthespot	1	::give spade 1	57

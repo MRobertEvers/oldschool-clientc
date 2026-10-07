@@ -40,8 +40,12 @@
 --                         on the panel's own rows; see QD.sail._press_sidepanel.
 --   sail_to            -- the client's own "Set heading" row (the launch
 --                         model's heading selector; SET_HEADING on the wire),
---                         pressed toward the target whenever the wanted
---                         compass point changes.
+--                         pressed with the camera looking along the wanted
+--                         heading (QD.sail._press_heading), re-aimed only
+--                         when the held heading would miss the target, a
+--                         wide re-aim turned in place with the sails furled,
+--                         and a heading it cannot set or a parked hull
+--                         ending the leg with the reason.
 
 QD.sail = {}
 
@@ -470,77 +474,251 @@ function QD.sail._heading_toward(dx, dz)
     return math.floor((angle + 64) / 128) % 16
 end
 
--- Press the client's own "Set heading" row for `heading`.  At the helm every
--- open-water pick offers "Set heading" whose pick id IS the compass heading
--- the mouse point names relative to the hull (rs_minimenu_world.c,
--- UI_MINIMENU_PICK_HEADING; app_wev.c app_sailing_heading_at), and pressing it
--- sends SET_HEADING (app_sailing_send_heading) -- the launch model's heading
--- selector.  So this right-clicks a ring of points around the player until
--- the row names the wanted heading, and presses that row.
-QD.sail._heading_radius = 110
+-- Press the client's own "Set heading" row for `heading` (0..15).  At the
+-- helm every open-water pick offers "Set heading" whose pick id IS the
+-- compass heading the mouse point names relative to the HULL's centre, where
+-- the pointer ray meets the boat's plane (rs_minimenu_world.c,
+-- UI_MINIMENU_PICK_HEADING; app_wev.c app_sailing_heading_at), and pressing
+-- it sends SET_HEADING (app_sailing_send_heading) -- the launch model's
+-- heading selector.
+--
+-- THE CAMERA FACES THE WANTED HEADING (b69, the Red Reef).  This used to
+-- right-click a 110px ring around the player at whatever yaw the camera
+-- held, and that ring could not name every heading: the player stands at the
+-- helm, astern of the hull's centre, so ring points toward the bow fall
+-- between the helm and the centre and name the OPPOSITE heading, and the
+-- ring's bottom arc runs under the chatbox or off the viewport.  At yaw 1792
+-- with the bow south, headings 15 and 0..5 had no row at all
+-- (build/quest_gate/redreef_b69_probe6 rows 12-27), and sail_to counted the
+-- miss and kept sailing the old heading onto ocean_outcrop_rock09 and the
+-- lightning rod at 3065,2885.  So the camera is now turned to look along the
+-- wanted heading: that heading's wedge opens straight UP the viewport from
+-- the hull, and points near the top of the viewport are many tiles beyond
+-- the hull's centre whatever way the bow points, so the helm's offset
+-- cannot flip the bearing.  The grid is searched top-centre first; every
+-- probe's answer is kept for the detail.
+QD.sail._heading_rows = { 0.06, 0.14, 0.24, 0.34 }
+QD.sail._heading_columns = { 0, -0.08, 0.08, -0.16, 0.16, -0.26, 0.26 }
+
+-- The camera yaw that looks along compass `heading` (0 sails south, 4 west:
+-- QD.sail._heading_toward's convention, 128 angle units per heading).
+function QD.sail._heading_yaw(heading)
+    assert(type(heading) == "number", "heading is not a number: " .. tostring(heading))
+    assert(heading == math.floor(heading), "heading is not a whole compass point: " .. tostring(heading))
+    assert(heading >= 0, "heading below 0: " .. tostring(heading))
+    assert(heading <= 15, "heading above 15: " .. tostring(heading))
+    local angle = heading * 2 * math.pi / 16
+    return QD.drive._yaw_towards(-math.sin(angle), -math.cos(angle))
+end
 
 function QD.sail._press_heading(heading)
-    local aim = QD.sail._take_pose("heading")
+    local aim = QD.sail._take_pose("heading", QD.sail._heading_yaw(heading))
     local pick_result, point = api_drive.pick_point()
     if pick_result ~= "ok" or type(point) ~= "table" or (point.view_w or 0) <= 0 then
-        return "not_visible", "no viewport pick point"
+        return "not_visible", "no viewport pick point (" .. aim .. ")"
     end
     local cx = point.view_x + math.floor(point.view_w / 2)
-    local cy = point.view_y + math.floor(point.view_h / 2)
     local seen = {}
-    -- 32 bearings on the ring, starting from the screen direction the last
-    -- successful press for this heading used, when there is one.
-    local start = (QD.sail._heading_screen or {})[heading] or 0
-    for k = 0, 31 do
-        local step = (start + k) % 32
-        local theta = step * 2 * math.pi / 32
-        local at = {
-            x = cx + math.floor(QD.sail._heading_radius * math.cos(theta) + 0.5),
-            y = cy + math.floor(QD.sail._heading_radius * math.sin(theta) + 0.5),
-        }
-        if at.y > point.view_y + 4 and at.y < point.view_y + point.view_h - 4
-            and not QD.drive._under_ui(at) then
-            api_drive.mouse_move(at.x, at.y)
-            QD.sail._frame()
-            api_drive.mouse_button("right", 1, at.x, at.y)
-            api_drive.mouse_button("right", 0, at.x, at.y)
-            local menu_result = QD.await({
-                level = function()
-                    local r, visible = api_drive.menu_visible()
-                    return r == "ok" and visible
-                end,
-                note = "sail.heading menu",
-            }, 2)
-            if menu_result == "ok" then
-                local rows_result, rows = api_drive.menu_rows()
-                if rows_result == "ok" and type(rows) == "table" then
-                    for r = 1, #rows do
-                        if rows[r].text == "Set heading" then
-                            seen[#seen + 1] = tostring(rows[r].target_id)
-                            if rows[r].target_id == heading then
-                                api_drive.mouse_button("left", 1, rows[r].centre_x, rows[r].centre_y)
-                                api_drive.mouse_button("left", 0, rows[r].centre_x, rows[r].centre_y)
-                                QD.sail._heading_screen = QD.sail._heading_screen or {}
-                                QD.sail._heading_screen[heading] = step
-                                return "ok", "Set heading " .. heading .. " at " .. at.x .. "," .. at.y
+    local probes = 0
+    for row = 1, #QD.sail._heading_rows do
+        for column = 1, #QD.sail._heading_columns do
+            local at = {
+                x = cx + math.floor(QD.sail._heading_columns[column] * point.view_w + 0.5),
+                y = point.view_y + math.floor(QD.sail._heading_rows[row] * point.view_h + 0.5),
+            }
+            if not QD.drive._under_ui(at) then
+                probes = probes + 1
+                api_drive.mouse_move(at.x, at.y)
+                QD.sail._frame()
+                api_drive.mouse_button("right", 1, at.x, at.y)
+                api_drive.mouse_button("right", 0, at.x, at.y)
+                local menu_result = QD.await({
+                    level = function()
+                        local r, visible = api_drive.menu_visible()
+                        return r == "ok" and visible
+                    end,
+                    note = "sail.heading menu",
+                }, 2)
+                local named = "-"
+                if menu_result == "ok" then
+                    local rows_result, rows = api_drive.menu_rows()
+                    if rows_result == "ok" and type(rows) == "table" then
+                        for r = 1, #rows do
+                            if rows[r].text == "Set heading" then
+                                named = tostring(rows[r].target_id)
+                                if rows[r].target_id == heading then
+                                    api_drive.mouse_button("left", 1, rows[r].centre_x, rows[r].centre_y)
+                                    api_drive.mouse_button("left", 0, rows[r].centre_x, rows[r].centre_y)
+                                    return "ok", "Set heading " .. heading .. " at " .. at.x .. "," .. at.y
+                                        .. " (probe " .. probes .. ", " .. aim .. ")"
+                                end
                             end
                         end
                     end
+                    QD.drive._dismiss_menu(at)
                 end
-                QD.drive._dismiss_menu(at)
+                seen[#seen + 1] = named .. "@" .. at.x .. "," .. at.y
             end
         end
     end
-    return "not_found", "no 'Set heading' row for heading " .. heading .. " on the ring (" .. aim
-        .. "); headings seen: " .. table.concat(seen, ",")
+    return "not_found", "no 'Set heading' row for heading " .. heading .. " in " .. probes
+        .. " probe(s) (" .. aim .. "); heading@point seen: " .. table.concat(seen, " ")
 end
 
+-- Press `heading` and wait for the SERVER to hold it (the reading's
+-- `heading` is the hull's commanded heading, torirs_server_vessel.c), so a
+-- press the client took and the server never applied is a miss too.  Two
+-- presses, then the answer names both.
+function QD.sail._set_heading(heading, ticks)
+    local tries = {}
+    for attempt = 1, 2 do
+        local press_result, press_detail = QD.sail._press_heading(heading)
+        if press_result ~= "ok" then
+            tries[#tries + 1] = "press " .. attempt .. ": " .. tostring(press_result) .. " "
+                .. tostring(press_detail)
+        else
+            local held, reading = QD.sail._await(function(r)
+                return r.aboard and r.heading == heading
+            end, ticks or 4, "sail.set_heading")
+            if held == "ok" then
+                return "ok", press_detail
+            end
+            tries[#tries + 1] = "press " .. attempt .. ": " .. tostring(press_detail)
+                .. " but the server still holds " .. QD.sail._describe(reading)
+        end
+    end
+    return "not_found", table.concat(tries, " | ")
+end
+
+-- THE LEG IS A STRAIGHT LINE (b69).  sail_to keeps the hull on the line
+-- from where the leg started to the target -- which is how every leg is
+-- planned (a ray with clear water either side).  It steers at a point
+-- QD.sail._line_lookahead tiles further along the line than the hull, so a
+-- hull off the line (a turn's arc, a leg begun inside the last one's radius)
+-- closes on it rather than sailing parallel to it, and holds one of the two
+-- compass points that bracket the bearing to that point, switching to the
+-- other only when the hull has drifted QD.sail._line_tolerance tiles to the
+-- side the held point pushes it.  The old steering re-aimed at the 16-point
+-- bearing to the target on every change and zig-zagged off the line (and,
+-- while the press could not reach a point near the bow, silently did not
+-- re-aim at all).
+QD.sail._line_tolerance = 1
+QD.sail._line_lookahead = 10
+-- Further off the line than this, or past the target, the line is drawn
+-- again from where the hull is.
+QD.sail._line_slack = 12
+-- The last leg sail_to ARRIVED at ({x, z, radius}), so the next leg's line
+-- starts at that leg's target rather than wherever inside its radius the
+-- hull stopped: a chain of legs follows the polyline its caller planned.
+-- pryingtimes' 3043,3051 r3 -> 3037,3105 began at 3045,3048, and the line
+-- from there ran two tiles from the island its planned line clears by four;
+-- troubledtortugans' 2937,2528 r6 -> 2947,2392 began six tiles east of its
+-- line and, sailing parallel to it, met the rock at 2946..2952,2456..2461.
+QD.sail._last_leg = nil
+
+function QD.sail._leg_line(from_x, from_z, x, z)
+    local dx = x - from_x
+    local dz = z - from_z
+    local length = math.sqrt(dx * dx + dz * dz)
+    assert(length > 0, "sail leg line from the target itself: " .. tostring(x) .. "," .. tostring(z))
+    return {
+        origin_x = from_x,
+        origin_z = from_z,
+        unit_x = dx / length,
+        unit_z = dz / length,
+        length = length,
+        -- compass units (0..16), QD.sail._heading_toward's convention
+        bearing = (math.atan(-dx, -dz) * 16 / (2 * math.pi)) % 16,
+    }
+end
+
+-- How fast compass `heading` carries the hull across `line` (signed, the
+-- same side as QD.sail._line_offset's sign), per tile sailed.
+function QD.sail._line_drift(line, heading)
+    local angle = heading * 2 * math.pi / 16
+    return -math.sin(angle) * line.unit_z - -math.cos(angle) * line.unit_x
+end
+
+function QD.sail._line_offset(line, hull_x, hull_z)
+    local px = hull_x - line.origin_x
+    local pz = hull_z - line.origin_z
+    return px * line.unit_z - pz * line.unit_x, px * line.unit_x + pz * line.unit_z
+end
+
+-- The compass point to hold on `line` from hull_x,hull_z with `held` held
+-- now (nil before the first press), or nil when the line must be drawn again
+-- (too far off it, or past the target).
+function QD.sail._steer(line, hull_x, hull_z, held)
+    local offset, along = QD.sail._line_offset(line, hull_x, hull_z)
+    if math.abs(offset) > QD.sail._line_slack or along > line.length + 1 then
+        return nil
+    end
+    local ahead = math.min(math.max(along, 0) + QD.sail._line_lookahead, line.length)
+    local aim_dx = line.origin_x + line.unit_x * ahead - hull_x
+    local aim_dz = line.origin_z + line.unit_z * ahead - hull_z
+    if math.abs(aim_dx) < 0.01 and math.abs(aim_dz) < 0.01 then
+        return held
+    end
+    local bearing = (math.atan(-aim_dx, -aim_dz) * 16 / (2 * math.pi)) % 16
+    local low = math.floor(bearing) % 16
+    local high = (low + 1) % 16
+    if held ~= low and held ~= high then
+        return math.floor(bearing + 0.5) % 16
+    end
+    if math.abs(offset) >= QD.sail._line_tolerance and QD.sail._line_drift(line, held) * offset > 0 then
+        return held == low and high or low
+    end
+    return held
+end
+
+-- The hull's own turn from its live angle to `heading`, in angle units
+-- (0..1024, either way round).
+function QD.sail._turn_arc(angle, heading)
+    local arc = (heading * 128 - angle) % 2048
+    if arc > 1024 then
+        arc = 2048 - arc
+    end
+    return arc
+end
+
+-- A turn wider than this many angle units (four compass points, a right
+-- angle) is made in place, sails furled, and the sails set again once the
+-- bow points along the new heading: a sailing hull turns on an arc, and a
+-- wide one swept the hull across rocks the straight leg was planned clear of
+-- (the Red Reef's rays, every corner of which its test turned furled by
+-- hand).  A right angle or less stays under way, as every turn was before
+-- b69: the arc is a tile or two (turn rate 128 a tick against half a tile a
+-- tick at tier 1), and harbour legs measured with it lean on that tile --
+-- pryingtimes' 3081,3010 -> 3040,3012 turned in place at z 3010 and sailed
+-- into the rocks at 3069..3071,3010 its under-way arc cleared.
+QD.sail._turn_in_place_arc = 512
+
 -- Sail the HULL to within `radius` tiles (Chebyshev) of x,z: at the helm with
--- the sails set, press "Set heading" toward the target whenever the wanted
--- compass point changes (or the hull parked), one tick at a time.  A straight
+-- the sails set, steer toward the target one tick at a time.  A straight
 -- line: a coast between the hull and the target is the caller's to route
 -- around with more legs, exactly as a player steers around it.
+--
+--   * The hull keeps to the straight line from where the leg began -- the
+--     previous leg's target when the hull stopped inside its radius
+--     (QD.sail._last_leg) -- to x,z (QD.sail._steer): one of the two
+--     compass points bracketing it is held, and the other taken only when
+--     the hull has drifted a tile off the line on the held point's side.
+--   * A re-aim wider than QD.sail._turn_in_place_arc is turned in place with
+--     the sails furled, then the sails are set again.  When the water
+--     refuses the turn in place (the hull's swing meets a pier or a rock
+--     beside it, which parks it), the sails are set and the turn is made
+--     under way, as every turn was before b69.
+--   * A heading it cannot set ENDS the leg (b69): it used to count the miss
+--     and sail on along the old heading -- the Red Reef's hull ran onto rocks
+--     under a row that said only "N miss(es)" at the timeout.  The sails are
+--     furled so the hull stops, and the answer names the heading and why.
+--   * A hull the server PARKS mid-leg (vessel_tick refuses a pose that is not
+--     sailable and stops the hull: state idle, `sailing_boat_blocked`) ends
+--     the leg too, naming where it stopped.  It used to be re-pressed every
+--     tick until the timeout, a row that read like a slow sail.
 function QD.sail.sail_to(x, z, radius, ticks)
+    assert(type(x) == "number", "sail.sail_to x is not a number: " .. tostring(x))
+    assert(type(z) == "number", "sail.sail_to z is not a number: " .. tostring(z))
     radius = radius or 2
     local state_result, start = QD.sail.state()
     if state_result ~= "ok" then
@@ -548,6 +726,13 @@ function QD.sail.sail_to(x, z, radius, ticks)
     end
     if not start.aboard or not start.at_helm then
         return "refused", "sail.sail_to: needs the helm first -- " .. QD.sail._describe(start)
+    end
+    -- Furled, a hull only turns (vessel_tick: speed 0 while sails are down),
+    -- so the leg could only ever time out -- and a leg after one that ended
+    -- by furling (below) used to spend its whole budget learning that.
+    if not start.sails_set then
+        return "refused", "sail.sail_to: the sails are furled, so the hull cannot make way --"
+            .. " set them first (t.sail.sails(true)) -- " .. QD.sail._describe(start)
     end
     if ticks == nil then
         local far = math.max(math.abs(start.hull_x - x), math.abs(start.hull_z - z))
@@ -557,8 +742,27 @@ function QD.sail.sail_to(x, z, radius, ticks)
     local began = api_drive.tick()
     local sent = nil
     local presses = 0
-    local misses = 0
+    local turns = 0
+    local under_way = 0
+    local line = nil
+    local lines = 0
+    local last = QD.sail._last_leg
+    QD.sail._last_leg = nil
+    if last ~= nil and (last.x ~= x or last.z ~= z)
+        and math.max(math.abs(start.hull_x - last.x), math.abs(start.hull_z - last.z)) <= last.radius then
+        line = QD.sail._leg_line(last.x, last.z, x, z)
+        lines = 1
+    end
     local reading = start
+    local function stopped(result, why)
+        local furl_result, furl_detail = QD.sail.sails(false)
+        local _, now = QD.sail.state()
+        return result, string.format(
+            "sail.sail_to %d,%d r%d from %s: %s after %d press(es), %d furled turn(s), %d made under way;"
+                .. " furled to stop the hull: %s %s; now %s; last line: %s",
+            x, z, radius, from, why, presses, turns, under_way, tostring(furl_result), tostring(furl_detail),
+            QD.sail._describe(now or reading), tostring(QD.player._last_line()))
+    end
     while api_drive.tick() - began < ticks do
         local r, now = QD.sail.state()
         if r == "ok" then
@@ -570,23 +774,80 @@ function QD.sail.sail_to(x, z, radius, ticks)
         local dx = x - reading.hull_x
         local dz = z - reading.hull_z
         if math.abs(dx) <= radius and math.abs(dz) <= radius then
-            return "ok", string.format("sail.sail_to %d,%d r%d from %s: %d heading press(es); %s",
-                x, z, radius, from, presses, QD.sail._describe(reading))
+            QD.sail._last_leg = { x = x, z = z, radius = radius }
+            return "ok", string.format(
+                "sail.sail_to %d,%d r%d from %s: %d heading press(es), %d furled turn(s), %d made under way,"
+                    .. " %d line(s); %s",
+                x, z, radius, from, presses, turns, under_way, lines, QD.sail._describe(reading))
         end
-        local want = QD.sail._heading_toward(dx, dz)
-        if want ~= sent or reading.state == "idle" then
-            local press_result = QD.sail._press_heading(want)
-            if press_result == "ok" then
-                sent = want
-                presses = presses + 1
-            else
-                misses = misses + 1
+        if reading.state == "idle" and sent ~= nil then
+            return stopped("refused", "the server parked the hull mid-leg (a pose that is not"
+                .. " sailable: vessel_tick's collision stop) sailing heading " .. sent)
+        end
+        local want = line and QD.sail._steer(line, reading.hull_x, reading.hull_z, sent) or nil
+        if want == nil then
+            line = QD.sail._leg_line(reading.hull_x, reading.hull_z, x, z)
+            lines = lines + 1
+            want = QD.sail._steer(line, reading.hull_x, reading.hull_z, sent)
+        end
+        if want ~= sent then
+            local sails_were_set = reading.sails_set
+            local arc = QD.sail._turn_arc(reading.angle, want)
+            local in_place = sails_were_set and arc > QD.sail._turn_in_place_arc
+            if in_place then
+                local furl_result, furl_detail = QD.sail.sails(false)
+                if furl_result ~= "ok" then
+                    return stopped(furl_result, "could not furl for a " .. arc .. "-unit turn to heading "
+                        .. want .. " (" .. tostring(furl_detail) .. ")")
+                end
+            end
+            local set_result, set_detail = QD.sail._set_heading(want)
+            if set_result ~= "ok" then
+                return stopped(set_result, "could not set heading " .. want .. " -- " .. tostring(set_detail))
+            end
+            sent = want
+            presses = presses + 1
+            if in_place then
+                local turned, after = QD.sail._await(function(t_reading)
+                    return t_reading.angle == want * 128 or t_reading.state == "idle"
+                end, math.floor(arc / 64) + 10, "sail.turn_in_place")
+                if turned ~= "ok" or type(after) ~= "table" then
+                    return stopped("refused", "the furled turn to heading " .. want .. " did not finish ("
+                        .. tostring(turned) .. ": " .. QD.sail._describe(after) .. ")")
+                end
+                local refused_in_place = after.state == "idle"
+                local set_sails, sails_detail = QD.sail.sails(true)
+                if set_sails ~= "ok" then
+                    return stopped(set_sails, "could not set the sails after the turn to heading " .. want
+                        .. " (" .. tostring(sails_detail) .. ")")
+                end
+                if refused_in_place then
+                    -- The water refused the turn IN PLACE: the hull's own
+                    -- swing met something beside it (a berth's pier --
+                    -- pryingtimes' Pandemonium berth, nose-in at 3073,2984 --
+                    -- or a rock off the beam).  Make it under way instead,
+                    -- as before b69: setting the sails on a parked hull
+                    -- re-heads it along its angle (the sails toggle's
+                    -- VesselSetHeading), so the wanted heading is pressed
+                    -- again, and a park after that ends the leg above.
+                    local again_result, again_detail = QD.sail._set_heading(want)
+                    if again_result ~= "ok" then
+                        return stopped(again_result, "the turn in place to heading " .. want .. " was refused at "
+                            .. QD.sail._describe(after) .. ", and heading " .. want
+                            .. " could not be set under way -- " .. tostring(again_detail))
+                    end
+                    presses = presses + 1
+                    under_way = under_way + 1
+                else
+                    turns = turns + 1
+                end
             end
         end
         QD.ticks(1)
     end
-    return "timeout", string.format("sail.sail_to %d,%d r%d from %s: %d heading press(es), %d miss(es); now %s",
-        x, z, radius, from, presses, misses, QD.sail._describe(reading))
+    return "timeout", string.format(
+        "sail.sail_to %d,%d r%d from %s: %d heading press(es), %d furled turn(s), %d made under way; now %s",
+        x, z, radius, from, presses, turns, under_way, QD.sail._describe(reading))
 end
 
 -- Wait for the hull to have queued a BOUND arrival trigger whose subject is

@@ -1,0 +1,79 @@
+{{Infobox Monster
+|version1 = Level 56
+|version2 = Level 68
+|name = Baboon Brawler
+|image1 = [[File:Baboon Brawler (level-56).png|280px]]
+|image2 = [[File:Baboon Brawler (level-68).png|280px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|combat1 = 56
+|combat2 = 68
+|size = 1
+|examine = An undead baboon brawler.
+|xpbonus = 
+|max hit1 = 5
+|max hit2 = 7
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Crush]]
+|attack speed = 4
+|hitpoints1 = 25
+|hitpoints2 = 30
+|scaledhp = Yes
+|att1 = 40
+|att2 = 60
+|str1 = 40
+|str2 = 60
+|def1 = 12
+|def2 = 20
+|mage1 = 40
+|mage2 = 60
+|range = 40
+|attbns1 = 20
+|attbns2 = 25
+|strbns = 0
+|amagic1 = 20
+|amagic2 = 25
+|mbns = 0
+|arange1 = 20
+|arange2 = 25
+|rngbns = 0
+|dstab = 900
+|dslash = 900
+|dcrush = 900
+|dmagic = -60
+|dlight = 900
+|dstandard = 900
+|dheavy = 900
+|poisonresistance = 100
+|venomresistance = 100
+|immunecannon = Yes
+|immunethrall = No
+|id1 = 11709
+|id2 = 11712
+}}
+'''Baboon Brawlers''' are a monster encountered in the Path of Apmeken within the [[Tombs of Amascut]].
+
+When attacking them with magic, they will take damage equal to the player's maximum hit. In addition, unlike most monsters, the Magic defence roll of Baboon Brawlers is calculated using their Defence level rather than their Magic level.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1689566945635438592|date=10 August 2023|archiveurl=https://reldo.runescape.wiki/i/107637|archivedate=10 August 2023|quote=[Are there any other monsters (especially bosses or in raids) which use Defence over Magic when calculating magical defence?] Fragment of Seren, Baboon Brawlers and that weird rabbit beyond Prifddinas, in addition to the ones already listed in this thread.}}
+
+==Gallery==
+<gallery mode="packed" heights="180" style="text-align:left">
+Ba-Ba's baboons concept art.png|Concept art of Ba-Ba's baboons by [[Mod Jerv]].
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 29 May 2024
+|update = Project Rebalance: Combat Changes
+|change = 
+* Baboon Brawlers will now take damage equal to the player's maximum hit if hit with magic attacks.
+* The health of baboons in the Path of Apmeken are now static, rather than scaling based on raid level and group size.
+}}
+{{Subject changes footer}}
+
+==References==
+{{Reflist}}
+
+{{Tombs of Amascut}}

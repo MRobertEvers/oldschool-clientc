@@ -5,22 +5,16 @@ Every `transports.tsv` row that did NOT make it into `maplink.dbrow` or a name-b
 
 ## Climb (stairs, ladders, trapdoors)
 
-5168 climb-verb rows considered, 1708 accepted (jumps + near-miss), 1112 rejected.
+5415 climb-verb rows considered, 1839 accepted (jumps + near-miss), 1033 rejected.
 
-## already-correct-default — 724
+## already-correct-default — 768
 
 Same tile, plane ±1 — `~climb`'s own default already gets this right.
 
-## not-placed-at-origin — 255
+## not-placed-at-origin — 117
 
-No placement of this object id sits within 2 tiles of the row's Origin in this cache's maps/*.jl2 — usually content added to the wiki's source after rev 239.
+No placement of this object id sits within 2 tiles of the row's Origin in this cache's maps/*.jl2, and no loc whose footprint is within 1 tile of it has the row's name and verb either (`resolve_on_tile`) — usually content added to the wiki's source after rev 239.
 
-- spiralstairs at (3205, 3228, 0)
-- spiralstairs at (3206, 3229, 0)
-- spiralstairstop at (3206, 3229, 2)
-- spiralstairs at (3206, 3208, 0)
-- spiralstairs at (3205, 3209, 0)
-- spiralstairstop at (3205, 3209, 2)
 - vampire_trap2 at (3085, 3272, 0)
 - vampire_trap2 at (3084, 3273, 0)
 - vampire_trap2 at (3083, 3272, 0)
@@ -29,47 +23,53 @@ No placement of this object id sits within 2 tiles of the row's Origin in this c
 - vampire_trap2 at (3117, 3244, 0)
 - vampire_trap2 at (3119, 3244, 0)
 - vampire_trap2 at (3118, 3245, 0)
-- fai_falador_outdoorstairs_bottom at (2971, 3347, 0)
-- stairs_yanille_fix at (2538, 3088, 0)
-- stairs_yanille_fix at (2537, 3088, 0)
-- stairs_cellar at (2606, 3079, 0)
-- stairs_cellar at (2606, 3078, 0)
-- yanillestairsup at (2620, 9565, 0)
-- yanillestairsup at (2621, 9565, 0)
-- stairs at (2571, 3298, 0)
-- stairs at (2572, 3298, 0)
-- outdoorstairs_wooden_bottom at (2662, 3294, 0)
-- stairs at (2569, 3271, 0)
-- stairstop at (2568, 3267, 1)
-- stairs at (2568, 3271, 0)
-- stairstop at (2569, 3267, 1)
-- ladder_cellar at (2570, 3268, 0)
 - ladder_from_cellar at (2570, 9668, 0)
-- ladder_cellar at (2571, 3267, 0)
 - ladder_from_cellar at (2571, 9667, 0)
-- outdoorstairs_wooden_bottom at (2530, 3320, 0)
-- woodenstairs at (2527, 3317, 1)
-- woodenstairs at (2528, 3317, 1)
-- woodenstairs at (2523, 3317, 0)
-- woodenstairs at (2524, 3317, 0)
+- mudpile_upass at (2420, 9667, 0)
 - ladder_outside_to_underground at (2561, 3221, 0)
 - ladder_outside_to_underground at (2562, 3222, 0)
 - ladder_outside_to_underground at (2561, 3223, 0)
 - ladder_outside_to_underground at (2560, 3222, 0)
 - trapdoor_open at (3096, 3468, 0)
-- fai_varrock_stairs_taller at (3230, 3386, 0)
-- fai_varrock_stairs_taller at (3231, 3386, 0)
-- fai_varrock_stairs_from_cellar at (3190, 9834, 0)
-- fai_varrock_stairs_from_cellar at (3190, 9833, 0)
-- fai_varrock_stairs_taller at (3159, 3436, 0)
-- fai_varrock_stairs_taller at (3159, 3435, 0)
 - manholeopen at (3236, 3458, 0)
 - elid_ladder_up at (3420, 3185, 0)
-- … 205 more
+- elid_laddertop at (3420, 3185, 1)
+- ship_ladder at (3035, 3214, 0)
+- ship_laddertop at (3035, 3214, 1)
+- ds2_lithkren_dungeon_stairs_active at (3549, 10448, 0)
+- ds2_lithkren_dungeon_stairs_active at (3550, 10448, 0)
+- fossil_slayer_cave_task at (3595, 10291, 0)
+- fossil_slayer_cave_task at (3596, 10291, 0)
+- ship_ladder_no_approach at (2776, 3235, 0)
+- ship_laddertop_no_approach at (2776, 3235, 1)
+- ship_laddertop_no_approach at (2777, 3234, 1)
+- ship_laddertop_no_approach at (2775, 3234, 1)
+- soulbane_rope_up at (3297, 9824, 0)
+- soulbane_rope_up at (3298, 9823, 0)
+- soulbane_rope_up at (3296, 9823, 0)
+- soulbane_rope_up at (3297, 9822, 0)
+- shayzien_stairs_bottom_02 at (1561, 3596, 0)
+- shayzien_stairs_top_02 at (1561, 3592, 1)
+- shayzien_stairs_bottom_02 at (1562, 3596, 0)
+- shayzien_stairs_top_02 at (1562, 3592, 1)
+- shayzien_stairs_bottom_02 at (1579, 3590, 0)
+- shayzien_stairs_top_02 at (1579, 3586, 1)
+- shayzien_stairs_bottom_02 at (1580, 3590, 0)
+- shayzien_stairs_top_02 at (1580, 3586, 1)
+- shayzien_stairs_bottom_02 at (1527, 3563, 0)
+- slp_basement_exit at (3732, 9683, 0)
+- slp_basement_trapdoor_manor_open at (3725, 3356, 0)
+- slp_manor_stairs at (3725, 3352, 0)
+- slp_manor_stairs_top at (3725, 3356, 1)
+- slp_manor_stairs at (3726, 3352, 0)
+- slp_manor_stairs_top at (3726, 3356, 1)
+- ahoy_trapdoor_open at (3654, 3519, 0)
+- ahoy_trapdoor_open at (3653, 3520, 0)
+- … 67 more
 
-## id-or-name-mismatch — 126
+## id-or-name-mismatch — 110
 
-The object id doesn't resolve in this cache, or resolves to a record whose `name=` doesn't match the row's menu target.
+The object id doesn't resolve in this cache, or resolves to a record whose `name=` doesn't match the row's menu target — and no loc on the Origin tile has that name and verb.
 
 - id 5492 'Trapdoor', verb 'Climb-down'
 - id 5492 'Trapdoor', verb 'Climb-down'
@@ -86,14 +86,6 @@ The object id doesn't resolve in this cache, or resolves to a record whose `name
 - id 30938 'Up Ladder', verb 'Climb'
 - id 30938 'Up Ladder', verb 'Climb'
 - id 30938 'Up Ladder', verb 'Climb'
-- id 2884 'Ladder', verb 'Climb-up'
-- id 2884 'Ladder', verb 'Climb-down'
-- id 2884 'Ladder', verb 'Climb-down'
-- id 2884 'Ladder', verb 'Climb-down'
-- id 2884 'Ladder', verb 'Climb-down'
-- id 2884 'Ladder', verb 'Climb-up'
-- id 2884 'Ladder', verb 'Climb-up'
-- id 2884 'Ladder', verb 'Climb-up'
 - id 28800 'Tree', verb 'Climb-down'
 - id 18122 'Floor', verb 'Climb-down'
 - id 18124 'Floor', verb 'Climb-up'
@@ -121,83 +113,76 @@ The object id doesn't resolve in this cache, or resolves to a record whose `name
 - id 23609 'Tunnel entrance', verb 'Climb-down'
 - id 23609 'Tunnel entrance', verb 'Climb-down'
 - id 23609 'Tunnel entrance', verb 'Climb-down'
-- … 76 more
+- id 22355 'Statue', verb 'Climb-down'
+- id 12762 'Trapdoor', verb 'Climb-down'
+- id 11046 'Secret entrance', verb 'Climb-down'
+- id 11046 'Secret entrance', verb 'Climb-down'
+- id 11046 'Secret entrance', verb 'Climb-down'
+- id 11046 'Secret entrance', verb 'Climb-down'
+- id 11047 'Secret entrance', verb 'Climb-down'
+- id 11047 'Secret entrance', verb 'Climb-down'
+- … 60 more
 
-## op-mismatch — 7
+## tile-match-near-miss-deferred — 34
 
-The resolved record's `opN=` fields don't state the row's menu option at all.
+The row's own id is not on its Origin tile, `resolve_on_tile` found the loc that is, and the row lands within 3 tiles / 1 plane of `~climb`'s default — not emitted even with --near-miss (see `harvest`).
 
-- ladder_cellar_directional wants 'Climb-up', cache ops are {1: 'Climb-down'}
-- ladder_cellar_directional wants 'Climb-up', cache ops are {1: 'Climb-down'}
-- ladder_cellar_directional wants 'Climb-up', cache ops are {1: 'Climb-down'}
-- ladder_cellar_directional wants 'Climb-up', cache ops are {1: 'Climb-down'}
-- stairs_from_cellar wants 'Climb-down', cache ops are {1: 'Climb-up'}
+- spiralstairsbottom_3 (row id 16671) Climb-up at (3205, 3228, 0) -> (3206, 3229, 1)
+- spiralstairstop_3 (row id 16673) Climb-down at (3206, 3229, 2) -> (3205, 3228, 1)
+- spiralstairsbottom_3 (row id 16671) Climb-up at (3206, 3208, 0) -> (3205, 3209, 1)
+- spiralstairstop_3 (row id 16673) Climb-down at (3205, 3209, 2) -> (3206, 3208, 1)
+- fai_falador_outdoorstairs_bottom (row id 24067) Climb-up at (2971, 3347, 0) -> (2968, 3348, 1)
+- outdoorstairs_wooden_bottom (row id 16668) Climb-up at (2662, 3294, 0) -> (2661, 3291, 1)
+- outdoorstairs_wooden_bottom (row id 16668) Climb-up at (2530, 3320, 0) -> (2529, 3317, 1)
+- magictraining_stairs_base_mirror (row id 10775) Climb-up at (3360, 3306, 0) -> (3357, 3307, 1)
+- magictraining_stairs_base_mirror (row id 10775) Climb-up at (3360, 3307, 0) -> (3357, 3307, 1)
+- horror_ladder_base2 (row id 4383) Climb at (2515, 10008, 0) -> (2515, 10005, 0)
+- ahoy_cavern_stairs_top (row id 16109) Climb-down at (3686, 9890, 1) -> (3683, 9888, 0)
+- ahoy_cavern_stairs (row id 16108) Climb-up at (3689, 9890, 2) -> (3692, 9887, 3)
+- ahoy_cavern_stairs_top (row id 16109) Climb-down at (3690, 9890, 3) -> (3688, 9888, 2)
+- ahoy_cavern_stairs_top (row id 16109) Climb-down at (3691, 9890, 3) -> (3688, 9888, 2)
+- dorgesh_1stairs_posh (row id 22939) Climb-up at (2722, 5260, 0) -> (2722, 5257, 1)
+- dorgesh_1stairs_posh (row id 22939) Climb-up at (2723, 5260, 0) -> (2722, 5257, 1)
+- feud_outsidestairs_base (row id 6242) Climb-up at (3353, 2961, 0) -> (3354, 2958, 1)
+- paterdomus_spiralstairs (row id 16671) Climb-up at (3417, 3494, 0) -> (3416, 3493, 1)
+- paterdomus_spiralstairs (row id 16671) Climb-up at (3416, 3492, 0) -> (3416, 3493, 1)
+- paterdomus_spiralstairs (row id 16671) Climb-up at (3417, 3491, 0) -> (3416, 3493, 1)
+- paterdomus_spiralstairs (row id 16671) Climb-up at (3418, 3491, 0) -> (3416, 3493, 1)
+- spiralstairstop_m (row id 16673) Climb-down at (3416, 3485, 1) -> (3417, 3486, 0)
+- paterdomus_spiralstairs_m (row id 16671) Climb-up at (3417, 3486, 0) -> (3416, 3485, 1)
+- paterdomus_spiralstairs_m (row id 16671) Climb-up at (3418, 3486, 0) -> (3416, 3485, 1)
+- paterdomus_spiralstairs_m (row id 16671) Climb-up at (3416, 3484, 0) -> (3416, 3485, 1)
+- paterdomus_spiralstairs_m (row id 16671) Climb-up at (3417, 3483, 0) -> (3416, 3485, 1)
+- qip_obs_stairs1 (row id 25431) Climb-up at (2444, 3162, 0) -> (2442, 3159, 1)
+- ds2_guild_stairs_up (row id 31627) Climb-up at (2457, 2839, 0) -> (2458, 2839, 1)
+- ds2_guild_stairs_down (row id 32206) Climb-down at (2455, 2839, 1) -> (2457, 2839, 0)
+- ds2_guild_stairs_down (row id 32206) Climb-down at (2456, 2839, 1) -> (2457, 2839, 0)
+- ds2_guild_stairs_down (row id 32206) Climb-down at (2458, 2839, 1) -> (2457, 2839, 0)
+- ds2_guild_stairs_down (row id 32206) Climb-down at (2459, 2839, 1) -> (2457, 2839, 0)
+- laddertop (row id 16670) Climb-down at (2809, 3161, 1) -> (2808, 3162, 0)
+- wild6_spiralstairs (row id 14736) Climb-up at (3281, 3935, 0) -> (3282, 3936, 1)
+
+## dest-is-origin — 2
+
+Destination is the Origin tile itself — the row answers the click by not moving.
+
+- Climb-down 'Ladder' at (3019, 9741, 0)
+- Climb-up 'Ladder' at (3019, 9741, 0)
+
+## op-mismatch — 2
+
+The resolved record's `opN=` fields don't state the row's menu option at all, and no loc on the Origin tile does.
+
 - qip_obs_stairs1_dungeon wants 'Climb-up', cache ops are {1: 'Climb up'}
 - qip_obs_stairs1_dungeon wants 'Climb-up', cache ops are {1: 'Climb up'}
 
 ## Transitions (portals, levers, cave mouths)
 
-5304 rows considered, 440 accepted, 174 rejected.
+5551 rows considered, 519 accepted, 115 rejected.
 
-## not-placed-at-origin — 98
+## id-or-name-mismatch — 67
 
-No placement of this object id sits within 2 tiles of the row's Origin in this cache's maps/*.jl2 — usually content added to the wiki's source after rev 239.
-
-- tog_cave_down at (3225, 9542, 0)
-- tog_cave_down at (3226, 9542, 0)
-- tog_cave_down at (3227, 9542, 0)
-- skavid_cave1 at (2562, 3025, 0)
-- skavid_cave3 at (2542, 3054, 0)
-- skavid_cave2 at (2525, 3070, 0)
-- skavid_cave1 at (2561, 3026, 0)
-- skavid_cave1 at (2560, 3026, 0)
-- hazeelcultcave at (2587, 3237, 0)
-- hazeelcultcave at (2586, 3237, 0)
-- hazeelcultcave at (2589, 3236, 0)
-- hazeelcultcave at (2588, 3237, 0)
-- hazeelcultcave at (2584, 3236, 0)
-- hazeelcultcave at (2589, 3235, 0)
-- hazeelcultcave at (2589, 3234, 0)
-- hazeelcultcave at (2588, 3232, 0)
-- tzhaar_karamjadungeon_wall_entrance at (2863, 9574, 0)
-- eyeglo_brimstails_cave_entrance at (2403, 3421, 0)
-- death_hermitcave_entrance at (2860, 3578, 0)
-- wild_cave_entrance_low at (3076, 3653, 0)
-- wild_cave_entrance_high at (3126, 3834, 0)
-- fris_mine_wall_nurse_entrance_one at (2393, 10300, 1)
-- fris_mine_wall_nurse_entrance_two at (2394, 10300, 1)
-- fris_mine_wall_nurse_entrance_three at (2395, 10300, 1)
-- my2arm_cliffbottom_caveentrance_clear at (2858, 3968, 0)
-- my2arm_cliffbottom_caveentrance_clear at (2859, 3968, 0)
-- my2arm_cliffbottom_caveentrance_clear at (2860, 3968, 0)
-- slice_underground_wall_exit_dwarf at (2435, 5535, 0)
-- slice_underground_wall_exit_goblin at (2488, 5536, 0)
-- troll_mad_eadgar_entrance at (2895, 3672, 0)
-- mcannoncave at (2625, 3391, 0)
-- brimhavencart at (2777, 3214, 0)
-- brimhavencart at (2778, 3214, 0)
-- shilocart at (2834, 2953, 0)
-- shilocart at (2834, 2952, 0)
-- brimhavencart at (2777, 3214, 0)
-- brimhavencart at (2778, 3214, 0)
-- shilocart at (2834, 2953, 0)
-- shilocart at (2834, 2952, 0)
-- dragon_slayer_qip_ruin_entrance at (2833, 3258, 0)
-- dragon_slayer_qip_ruin_entrance at (2834, 3258, 0)
-- dragon_slayer_qip_ruin_entrance at (2835, 3258, 0)
-- dragon_slayer_qip_ruin_entrance at (2836, 3255, 0)
-- dragon_slayer_qip_ruin_entrance at (2836, 3256, 0)
-- dragon_slayer_qip_ruin_entrance at (2836, 3257, 0)
-- colosseum_exit_lobby at (1799, 9506, 0)
-- colosseum_exit_lobby at (1799, 9507, 0)
-- dungeon_tree_open at (2744, 3152, 0)
-- dungeon_tree_open at (2744, 3152, 0)
-- dungeon_tree_open at (2745, 3152, 0)
-- … 48 more
-
-## id-or-name-mismatch — 70
-
-The object id doesn't resolve in this cache, or resolves to a record whose `name=` doesn't match the row's menu target.
+The object id doesn't resolve in this cache, or resolves to a record whose `name=` doesn't match the row's menu target — and no loc on the Origin tile has that name and verb.
 
 - id 32117 'Broken Grandiose Doors', verb 'Enter' (transports.tsv)
 - id 32132 'Broken Grandiose Doors', verb 'Enter' (transports.tsv)
@@ -249,11 +234,58 @@ The object id doesn't resolve in this cache, or resolves to a record whose `name
 - id 29322 'Door of Dinh', verb 'Enter' (transports.tsv)
 - id 29322 'Door of Dinh', verb 'Enter' (transports.tsv)
 - id 29322 'Door of Dinh', verb 'Enter' (transports.tsv)
-- … 20 more
+- … 17 more
+
+## not-placed-at-origin — 42
+
+No placement of this object id sits within 2 tiles of the row's Origin in this cache's maps/*.jl2, and no loc whose footprint is within 1 tile of it has the row's name and verb either (`resolve_on_tile`) — usually content added to the wiki's source after rev 239.
+
+- fris_mine_wall_nurse_entrance_one at (2393, 10300, 1)
+- fris_mine_wall_nurse_entrance_two at (2394, 10300, 1)
+- fris_mine_wall_nurse_entrance_three at (2395, 10300, 1)
+- my2arm_cliffbottom_caveentrance_clear at (2858, 3968, 0)
+- my2arm_cliffbottom_caveentrance_clear at (2859, 3968, 0)
+- my2arm_cliffbottom_caveentrance_clear at (2860, 3968, 0)
+- slice_underground_wall_exit_dwarf at (2435, 5535, 0)
+- slice_underground_wall_exit_goblin at (2488, 5536, 0)
+- dungeon_tree_open at (2744, 3152, 0)
+- dungeon_tree_open at (2744, 3152, 0)
+- dungeon_tree_open at (2745, 3152, 0)
+- dungeon_tree_open at (2745, 3152, 0)
+- dungeon_tree_open at (2746, 3152, 0)
+- dungeon_tree_open at (2746, 3152, 0)
+- cata_hole at (1469, 3653, 0)
+- cata_hole at (1470, 3652, 0)
+- cata_hole at (1470, 3654, 0)
+- cata_hole at (1471, 3653, 0)
+- cata_hole at (1562, 3791, 0)
+- cata_hole at (1563, 3790, 0)
+- cata_hole at (1563, 3792, 0)
+- cata_hole at (1564, 3791, 0)
+- cata_hole at (1695, 3865, 0)
+- cata_hole at (1696, 3864, 0)
+- cata_hole at (1696, 3866, 0)
+- cata_hole at (1697, 3865, 0)
+- giants_den_catacomb_entrance at (1461, 9879, 0)
+- hg_cave_exit at (1533, 9447, 0)
+- hg_cave_exit at (1533, 9446, 0)
+- hg_cave_exit at (1533, 9445, 0)
+- soul_wars_enclave_portal at (3158, 10028, 0)
+- soul_wars_enclave_portal at (3158, 10027, 0)
+- soul_wars_enclave_portal at (3158, 10026, 0)
+- poh_rimmington_portal at (1858, 7051, 0)
+- poh_taverly_portal at (1858, 7051, 0)
+- poh_pollnivneach_portal at (1858, 7051, 0)
+- poh_rellekka_portal at (1858, 7051, 0)
+- poh_brimhaven_portal at (1858, 7051, 0)
+- poh_kourend_portal at (1743, 3517, 0)
+- poh_kourend_portal at (1858, 7051, 0)
+- poh_prifddinas_portal at (1858, 7051, 0)
+- poh_aldarin_portal at (1858, 7051, 0)
 
 ## op-mismatch — 6
 
-The resolved record's `opN=` fields don't state the row's menu option at all.
+The resolved record's `opN=` fields don't state the row's menu option at all, and no loc on the Origin tile does.
 
 - lawtemple_exit_portal wants 'Enter', cache ops are {1: 'Use'}
 - deathtemple_exit_portal wants 'Enter', cache ops are {1: 'Use'}
@@ -264,11 +296,11 @@ The resolved record's `opN=` fields don't state the row's menu option at all.
 
 ## Agility shortcuts
 
-572 rows considered, 390 accepted, 182 rejected.
+665 rows considered, 406 accepted, 259 rejected.
 
-## not-placed-at-origin — 108
+## not-placed-at-origin — 110
 
-No placement of this object id sits within 2 tiles of the row's Origin in this cache's maps/*.jl2 — usually content added to the wiki's source after rev 239.
+No placement of this object id sits within 2 tiles of the row's Origin in this cache's maps/*.jl2, and no loc whose footprint is within 1 tile of it has the row's name and verb either (`resolve_on_tile`) — usually content added to the wiki's source after rev 239.
 
 - regicide_trap_woodspring at (2238, 3181, 0)
 - regicide_trap_woodspring at (2181, 3212, 0)
@@ -320,11 +352,11 @@ No placement of this object id sits within 2 tiles of the row's Origin in this c
 - tlati_north_river_log_balance_1 at (1283, 3138, 0)
 - av_balance_2 at (1453, 3336, 0)
 - av_balance_2 at (1453, 3329, 0)
-- … 58 more
+- … 60 more
 
-## id-or-name-mismatch — 53
+## id-or-name-mismatch — 110
 
-The object id doesn't resolve in this cache, or resolves to a record whose `name=` doesn't match the row's menu target.
+The object id doesn't resolve in this cache, or resolves to a record whose `name=` doesn't match the row's menu target — and no loc on the Origin tile has that name and verb.
 
 - id 20884 'Log Balance', verb 'Walk-across'
 - id 20882 'Log Balance', verb 'Walk-across'
@@ -344,52 +376,70 @@ The object id doesn't resolve in this cache, or resolves to a record whose `name
 - id 56983 'Rock', verb 'Climb'
 - id 17030 'Crevice', verb 'Use'
 - id 10662 'Stepping stone', verb 'Cross'
+- id 62422 'Broken fence', verb 'Squeeze-through'
+- id 62422 'Broken fence', verb 'Squeeze-through'
+- id 62412 'Stepping stone', verb 'Jump-to'
+- id 62412 'Stepping stone', verb 'Jump-to'
+- id 62418 'Rough wall', verb 'Climb'
+- id 62419 'Rough wall', verb 'Climb'
+- id 28374 'Railing', verb 'Jump-down'
+- id 28373 'Railing', verb 'Jump-down'
+- id 28374 'Railing', verb 'Jump-down'
+- id 28373 'Railing', verb 'Jump-down'
+- id 28373 'Railing', verb 'Jump-down'
+- id 28374 'Railing', verb 'Jump-down'
+- id 28373 'Railing', verb 'Jump-down'
+- id 28374 'Railing', verb 'Jump-down'
+- id 28373 'Railing', verb 'Jump-down'
+- id 28374 'Railing', verb 'Jump-down'
+- id 28373 'Railing', verb 'Jump-down'
+- id 28374 'Railing', verb 'Jump-down'
+- id 28374 'Railing', verb 'Jump-down'
+- id 28373 'Railing', verb 'Jump-down'
+- id 28374 'Railing', verb 'Jump-down'
+- id 28373 'Railing', verb 'Jump-down'
 - id 54776 'Rock', verb 'Climb'
 - id 54776 'Rock', verb 'Climb'
+- id 62403 'Rocks', verb 'Climb'
+- id 62404 'Rocks', verb 'Climb'
 - id 23567 'across Monkeybars', verb 'Swing'
 - id 23567 'across Monkeybars', verb 'Swing'
 - id 23567 'across Monkeybars', verb 'Swing'
 - id 23567 'across Monkeybars', verb 'Swing'
-- id 39542 'Wall', verb 'Climb'
-- id 39542 'Wall', verb 'Climb'
-- id 39541 'Wall', verb 'Climb'
-- id 39541 'Wall', verb 'Climb'
-- id 39541 'Wall', verb 'Climb'
-- id 39541 'Wall', verb 'Climb'
-- id 3483 'Strange floor', verb 'Jump-over'
-- id 3483 'Strange floor', verb 'Jump-over'
-- id 30916 'Up Rope anchor', verb 'Climb'
-- id 30917 'Down Rope anchor', verb 'Climb'
-- id 29044 'Inconspicuous rocks (master)', verb 'Jump-over'
-- id 57717 'Bridge', verb 'Cross'
-- id 57716 'Bridge', verb 'Cross'
-- id 57718 'Bridge', verb 'Cross'
-- id 57715 'Bridge', verb 'Cross'
-- id 31481 'through Hole', verb 'Climb'
-- id 31481 'through Hole', verb 'Climb'
-- id 31481 'through Hole', verb 'Climb'
-- id 31482 'through Hole', verb 'Climb'
-- id 31482 'through Hole', verb 'Climb'
-- id 31482 'through Hole', verb 'Climb'
-- id 31482 'through Hole', verb 'Climb'
-- id 31482 'through Hole', verb 'Climb'
-- id 31482 'through Hole', verb 'Climb'
-- id 56980 'Rock', verb 'Climb'
-- id 56980 'Rock', verb 'Climb'
-- … 3 more
+- id 62409 'Obstacle pipe', verb 'Squeeze-through'
+- id 62409 'Obstacle pipe', verb 'Squeeze-through'
+- … 60 more
 
-## not-agility-only — 15
+## op-mismatch — 24
 
-Skills column names more than Agility (a grapple shortcut — Agility, Ranged and Strength for the crossbow-and-rope) or isn't Agility at all; a different mechanic, not modelled here.
+The resolved record's `opN=` fields don't state the row's menu option at all, and no loc on the Origin tile does.
 
-## op-mismatch — 6
-
-The resolved record's `opN=` fields don't state the row's menu option at all.
-
+- mourning_temple_blade_wall wants 'Dodge', cache ops are {}
+- mourning_temple_blade_wall wants 'Dodge', cache ops are {}
+- mourning_temple_blade_wall wants 'Dodge', cache ops are {}
+- mourning_temple_blade_wall wants 'Dodge', cache ops are {}
+- mourning_temple_blade_wall wants 'Dodge', cache ops are {}
+- mourning_temple_blade_wall wants 'Dodge', cache ops are {}
 - rooftops_draynor_leapdown wants 'Jump-up', cache ops are {1: 'Jump'}
 - ds2_corsair_shortcut_bottom wants 'Climb-down', cache ops are {1: 'Climb-up'}
 - zqrockjump2 wants 'Cross', cache ops are {}
 - zqrockjump2 wants 'Cross', cache ops are {}
+- xbows_raft_tr wants 'Jump-to', cache ops are {}
+- xbows_raft_tl wants 'Jump-to', cache ops are {}
+- wilderness_slayer_cave_crevice wants 'Squeeze-through', cache ops are {1: 'Squeeze-Through'}
+- wilderness_slayer_cave_crevice wants 'Squeeze-through', cache ops are {1: 'Squeeze-Through'}
+- wilderness_slayer_cave_crevice wants 'Squeeze-through', cache ops are {1: 'Squeeze-Through'}
+- wilderness_slayer_cave_crevice wants 'Squeeze-through', cache ops are {1: 'Squeeze-Through'}
+- wilderness_slayer_cave_crevice wants 'Squeeze-through', cache ops are {1: 'Squeeze-Through'}
+- wilderness_slayer_cave_crevice wants 'Squeeze-through', cache ops are {1: 'Squeeze-Through'}
+- wilderness_slayer_cave_crevice wants 'Squeeze-through', cache ops are {1: 'Squeeze-Through'}
+- wilderness_slayer_cave_crevice wants 'Squeeze-through', cache ops are {1: 'Squeeze-Through'}
+- xbows_jungletree_karamja_basic wants 'Swim-to', cache ops are {1: 'Grapple'}
+- xbows_jungletree_karamja_basic wants 'Swim-to', cache ops are {1: 'Grapple'}
 - legends_quest_cave_shortcut wants 'Squeeze-through', cache ops are {1: 'Squeeze-Through'}
 - legends_quest_cave_shortcut wants 'Squeeze-through', cache ops are {1: 'Squeeze-Through'}
+
+## not-agility-only — 15
+
+Skills column names more than Agility (a grapple shortcut — Agility, Ranged and Strength for the crossbow-and-rope) or isn't Agility at all; a different mechanic, not modelled here.
 

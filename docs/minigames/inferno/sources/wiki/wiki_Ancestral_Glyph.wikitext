@@ -1,0 +1,48 @@
+{{Switch infobox
+|text1 = Dormant
+|item1 = 
+{{Infobox Scenery
+|name = Ancestral Glyph
+|image = [[File:Ancestral Glyph.png|250x250px]]
+|release = [[1 June]] [[2017]]
+|update = The Inferno
+|members = Yes
+|quest = No
+|location = [[Inferno]]
+|options = None
+|examine = A strange glyph.
+|map = {{Map|2270,5363|mapID=-1|mtype=pin}}
+|id = 30338
+|leagueRegion = Karamja
+}}
+|text2 = Moving
+|item2 = 
+{{Infobox NPC
+|name = Ancestral Glyph
+|image = [[File:Ancestral Glyph.png|250x250px]]
+|release = [[1 June]] [[2017]]
+|update = The Inferno
+|members = Yes
+|location = [[Inferno]]
+|options = None
+|examine = A strange glyph.
+|map = {{Map|x = 2270|y = 5363|plane=0|r=4|mapID=-1|mtype=square}}
+|id = 7707
+|leagueRegion = Karamja
+}}
+}}
+The '''Ancestral Glyph''' is an object found in the [[Inferno]]. For most of the waves, it is dormant on the northern wall, imprisoning [[TzKal-Zuk]]. On the final wave, he breaks free and the glyph starts floating on the lava between him and the arena the player is on, moving on the east-west axis from one end to the other repeatedly.
+
+Players must utilise the glyph as a shield against TzKal-Zuk's attacks to prevent taking potentially fatal damage. It will block attacks from Zuk if the player is behind a 5x3 area of the shield. This is wider than the Glyph is visually and extends 3 to the first 3 rows along the northern wall. It can sustain TzKal-Zuk's attacks indefinitely, although it has 600 hitpoints against other monsters that spawn periodically during the fight and start attacking the shield, making it imperative for players to attack them to gain their aggression; if the shield takes too much damage, it will fall and leave the player without protection against TzKal-Zuk.
+[[File:Ancestral Glyph safe zone.png|thumb|A visual representation of the size of safe zone behind the Ancestral Glyph using tile markers.|left]]
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 15 March 2018
+|update = QoL, Deadman and the Falador Party Room
+|change = The Ancestral Glyph used to hide from TzKal-Zuk in the Inferno now remembers which way it will begin travelling, and will no longer change direction when logging back in.
+}}
+{{Subject changes footer}}
+
+{{Inferno}}

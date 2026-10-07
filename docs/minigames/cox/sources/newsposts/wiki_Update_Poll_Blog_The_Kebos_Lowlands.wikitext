@@ -1,0 +1,499 @@
+{{Update|date=10 October 2018|rev=12 October 2018|link=http://services.runescape.com/m=news/poll-blog-the-kebos-lowlands?oldschool=1|category=website}}
+[[File:Poll Blog- The Kebos Lowlands newspost.png|right]]
+
+{{clear}}
+{{Headline|28|Poll Blog: The Kebos Lowlands}}
+<center>
+''The purpose of this blog is to detail as much as possible regarding Kebos Lowlands prior to the poll going live in-game to allow for player feedback.''
+
+''For information regarding the other Old School RuneScape reveals announced during RuneFest 2018, you can find more in the [https://services.runescape.com/m=news/osrs-reveals-warding?oldschool=1 Warding blog] and the [https://services.runescape.com/m=news/osrs-reveals-song-of-the-elves?oldschool=1 Song of the Elves blog].''
+</center>
+
+{{Horizontal Line}}
+
+'''Changelog'''
+
+[11/10/18]<br/>
+- Moved the Herb patch from the first Farming Guild tier to the second.<br/>
+- Clarified some details regarding the Bottomless compost buckets.<br/>
+- Detail added regarding the Celastrus patch being harvested.<br/>
+- Lowered the Farming level requirement of Snape grass from 71 to 61.<br/>
+- Detail added regarding the Anima patches dying.<br/>
+- Clarified some details regarding the Large compost bin.<br/>
+- Detail added regarding the other creatures found within the Karuulm Slayer dungeon.<br/>
+- Detail added stating Granite boots can be used within the Karuulm Slayer dungeon.<br/>
+- Clarified detail regarding task only and non-task only areas for Hydras.<br/>
+- Confirmed the Dragon hunter lance is 1-handed.<br/>
+- Added an additional question for the Ferocious gloves to require completion of Dragon Slayer II to equip.<br/>
+- Changed the rate of receiving Molch pearls from 1/150 to 1/100.
+
+[12/10/18]<br/>
+- Detail added regarding the requirements for the Kourend & Kebos Achievement Diary.<br/>
+- Changed various seeds to state monster drops rather than boss drops.<br/>
+- Changed Potato cacti and Snape grass seeds to state they can come from pickpocketing Master Farmers rather than nests.<br/>
+- Changed the requirements for Ferocious gloves from 80 Defence to 80 Attack and Defence.<br/>
+- Combined the questions for the Ferocious gloves & them requiring completion on Dragon Slayer II into one.
+
+{{Horizontal Line}}
+
+Since Xeric's Age of Strife, armies of his Lizardmen have attempted to reclaim Great Kourend in honour of their former ruler. These Lizardmen make their home in the Kebos Lowlands to the west of Kourend. The Lizardmen will defend their home ruthlessly and as such the Kebos Lowlands can be very dangerous to humans. However, those who are willing to enter will find a land of many opportunities.
+
+[[File:Poll Blog- The Kebos Lowlands (1).png|center|500px]]
+<br/>
+{{News Poll|1|Should the Kebos Lowlands, which would include the Farming Guild and a new area called Brimstone, be added to the game?}}
+
+{{Horizontal Line}}
+
+{{Headline|22|Farming Guild}}
+
+The land deep within the Kebos Lowlands is home to soil more fertile than anywhere else on Gielinor. Land this fertile is highly appealing to members of Hosidius house, even with the threat of the Lizardmen. Following an agreement between Lord Hosidius and Lord Shayzien, a detachment of Shayzien soldiers has been assigned to protect the area. This has allowed Hosidius house to build and maintain a guild where farmers can experiment and master their craft.
+
+The Farming Guild is a new guild found in the Kebos Lowlands. The guild is separated into three large greenhouses, where each one acts as a different tier for the guild. The first tier requires 45 Farming to enter, the second requires 65 and the third requires 85. Entering the guild requires 60% Hosidius Favour. ''It is possible to use stat boosts to enter the guild areas''.
+
+{{Horizontal Line}}
+
+{{HeadlineAlt|20|Farming Guild: Tiers Breakdown}}
+
+'''First tier - Requires 45 Farming'''
+*Guildmaster: Provides background on the Guild.
+*Bank: A bank with a poll booth and a deposit box.
+*Equipment Shop: An Equipment Shop. This stocks the same supplies as Vannah's Farm Store with the exception that it also sells empty plant pots alongside the filled ones.
+*Seed Shop: A Seed Shop. It offers the same stock as the Draynor Seed Market.
+*Garden Supplier: A Garden Supplier. It offers the same stock as the Falador Garden Centre.
+*A water source.
+*Large Compost Bin: A large compost bin with double the capacity of a normal one (see 'New Patches' further down for more details).
+*Cactus Patch: This patch is identical to the Al Kharid patch. There is a farmer there who will look after the patch for you.
+*Allotment & Flower Patch: The usual allotment setup with two allotment patches and flower patch. There is a farmer there who will look after the patches for you.
+*Bush Patch: Identical to other bush patches. There is a farmer there who will look after the patch for you.
+*Tool Leprechaun: The patches in the first tier share a single tool leprechaun.
+
+'''Second tier - Requires 65 Farming'''
+*A water source.
+*A Herb patch.
+*Tree Patch: Identical to other tree patches. There is a farmer there who will look after the patch for you.
+*Hespori Patch: When this patch finishes growing, it can be fought as a basic demi-boss fight with various rewards (see 'New Patches' further down for more details).
+*Anima Patch: A new Patch with Worldwide Effects depending on what is grown (see 'New Patches' further down for more details).
+*Tool Leprechaun: The patches in the second tier share a single tool leprechaun.
+
+'''Third tier - Requires 85 Farming'''
+*Bank: A bank with a poll booth and deposit box.
+*A water source.
+*Fruit Tree Patch: Identical to other fruit tree patches. There is a farmer there who will look after the patch for you.
+*Spirit Tree Patch: Identical to other spirit tree patches. There is a farmer there who will look after the patch for you.
+*Redwood Patch: A new patch to grow Redwood trees (see 'New Patches' further down for more details).
+*Celastrus Patch: A new patch to grow Celastrus trees (see 'New Patches' further down for more details).
+*Tool Leprechaun: The patches in the third tier share a single tool leprechaun.
+
+{{News Poll|2|If the Kebos Lowlands are added to the game, should the Farming Guild include the three tiers as described in the dev blog? The first tier would require 45 Farming, the second would require 65 Farming and the third would require 85 Farming.}}
+
+{{News Poll|3|If the Farming Guild is added to the game, should the second tier of the guild include a Herb patch?}}
+
+{{Horizontal Line}}
+
+{{HeadlineAlt|18|Farming Contracts}}
+
+Within the Farming guild you will also find the 'Chief Contractor'. The Chief Contractor can assign players with contracts that require the player to grow certain crops '''within the Farming guild''' in exchange for seed packs.
+
+There are three tiers of contract available; Tier 1, Tier 2 and Tier 3. Each contract offering is restricted based on what you can grow with access to the Tier 1, Tier 2 or Tier 3 Farming guild respectively.
+
+{{News Poll|4|If the Kebos Lowlands are added to the game, should Farming Contracts also be added to the game? Farming Contracts require the player to grow certain crops within the Farming guild in exchange for seed packs.}}
+
+{{Horizontal Line}}
+
+{{HeadlineAlt|18|New Patches}}
+
+It wouldn't be an expansion to Farming if we didn't include some brand-new patches for you to grow various crops in and the Farming guild has a lot to offer!
+
+'''Farming Demiboss: The Hespori Patch - Requires 65 Farming'''<br/>
+The Hespori patch is a new patch unique to the second tier of the Farming guild. The only thing that can be grown here is a Hespori plant. The seeds for this plant are untradeable and can be randomly found while harvesting other plants (this can be toggled by talking to an NPC near the patch) or by '''completing Farming Contracts'''. There is an NPC here who will look after the plant while it grows ''(for a price)''.
+
+Once the patch has fully grown, the Hespori can be fought as a solo demi-boss. Killing the Hespori boss grants Farming experience. It has a loot table of seeds, including the unique White lily seed ''(see "Existing Patch Improvements" below)''. Alongside being the only way for players to gather untradeable Anima seeds, the Hespori also has a chance of dropping the Bottomless compost bucket which can hold up to '''10,000 compost of any kind'''. The Hespori is instanced with an item reclaim service that works identically to other grave systems like Grotesque Guardians/Zulrah/Vorkath, and only one can be utilised at any time. This means that any other graves will be wiped on death. 
+
+'''Bottomless Compost Bucket'''
+*Can be filled with regular, super, or Ultracompost.
+*Can only have 1 type of compost inside it at once.
+*Each compost used gives the bucket two charges of that kind of compost. ''Emptying the bucket will cause all compost stored within to be lost.''
+*When used on a patch, the bucket uses 1 charge of the current filled compost.
+*The bucket can hold a maximum of 10,000 charges.
+*The bucket is tradeable when empty.
+*The bucket can be stored at Tool leprechauns.
+
+{{News Poll|5|If the Kebos Lowlands are added to the game, should the Hespori also be added to the game? The Hespori is a growable demi-boss that requires 65 Farming to grow and has a loot table of various seeds. The seeds for this are untradeable and can be randomly found while harvesting other plants or by completing Farming Contracts.}}
+
+{{News Poll|6|If the Hespori is added to the game, should it have a chance to drop the tradeable Bottomless compost bucket? The bucket can be filled with up to 10,000 charges of any single compost type and each compost used to fill the bucket gives two charges of that kind of compost. Emptying the bucket will cause all compost stored within to be lost.}}
+
+'''Anima Patch - Requires 76 Farming'''<br/>
+The Anima patch is a new patch unique to the second tier of the Farming guild. Planting something here has worldwide effects on all of your other patches. There are three types of seeds that can be planted here, which can only be obtained through fighting the Hespori and are untradeable.
+
+*Attas Seeds: When planted these grow into an Attas Plant. This plant provides increased yield to all other patches in the game.
+*Iasor Seeds: When planted these grow into an Iasor Plant. This plant decreases the disease chance for all other patches in the game.
+*Kronos Seeds: When planted these grow into a Kronos Plant. This plant increases the speed at which other patches grow by providing a chance to skip a growth stage.
+
+These plants are active as soon as they are planted, and rather than grow over time they begin to die through their various growth stages. The plants will last approximately 3.5 days until they die and will require planting again to reap their benefits. An in-game message will state when the plants die, and they can also be checked via Geomancy.
+
+{{News Poll|7|If the Hespori is added to the game, should it have a chance to drop untradeable Attas seeds? When planted, these seeds grow into an Attas Plant. This plant provides increased yield to all other patches within the game. An in-game message will state when the plant dies. It can also be checked via Geomancy.}}
+
+{{News Poll|8|If the Hespori is added to the game, should it have a chance to drop untradeable Iasor seeds? When planted, these seeds grow into an Iasor Plant. This plant decreases the disease chance for all other patches within the game. An in-game message will state when the plant dies. It can also be checked via Geomancy.}}
+
+{{News Poll|9|If the Hespori is added to the game, should it have a chance to drop untradeable Kronos seeds? When planted, these seeds grow into a Kronos Plant. This plant increases the speed at which other patches grow by providing a chance to skip a growth stage. An in-game message will state when the plant dies. It can also be checked via Geomancy.}}
+
+'''Celastrus Patch - Requires 85 Farming'''<br/>
+The Celastrus patch is a new patch unique to the third tier of the Farming guild. The seeds are tradeable and are rarely obtained through nests, monster drops or by completing Farming Contracts. Once a Celastrus patch has fully grown (which is 16 hours, the same length required to grow a fruit tree), it can be harvested for a tradeable resource, Celastrus wood, which can be turned into Battlestaves with level 40 Fletching. When harvested the plant is destroyed.
+
+The amount of Celastrus wood harvested from a fully grown Celastrus patch is random, much like the way harvesting herbs works, with a minimum number of lives to ensure a guaranteed amount each harvest. 
+
+{{News Poll|10|If the third tier of the Farming Guild is added to the game, should the Celastrus patch which requires 85 Farming to plant also be added? The seeds are tradeable and are rarely obtained through nests, monster drops or by completing Farming Contracts. Once a Celastrus patch has fully grown, it can be harvested once for a tradeable resource, Celastrus wood, which can be turned into Battlestaves with level 40 Fletching. When harvested the plant is destroyed.}}
+
+'''Redwood Patch - Requires 90 Farming'''<br/>
+The Redwood patch is a new patch unique to the third tier of the Farming guild. The seeds are tradeable and are rarely obtained through nests, monster drops or by completing Farming Contracts. Once fully grown (which is 85.3 hours, the same length required to grow a Mahogany tree) the Redwood patch turns into a Redwood tree and can be cut down for logs and Woodcutting experience. ''The Redwood patch is relatively close to the bank found within the third tier of the Farming guild.''
+
+{{News Poll|11|If the third tier of the Farming Guild is added to the game, should the Redwood patch which requires 90 Farming to plant also be added? The seeds are tradeable and are rarely obtained through nests, monster drops or by completing Farming Contracts. Once fully grown the Redwood patch turns into a Redwood tree and can be cut down for logs and Woodcutting experience.}}
+
+'''Large Compost Bin - Requires 45 Farming to access the first tier of the Farming guild.'''<br/>
+The Large Compost Bin works the same as any other Compost Bin but has the added benefit of being able to store double the usual amount of compost. It requires 50 Volcanic ash to convert a bin of Supercompost to Ultracompost.
+
+{{News Poll|12|If the first tier of the Farming Guild is added to the game, should the Large Compost Bin which requires 45 Farming to use also be added? The Large Compost Bin works the same as any other Compost Bin but has the added benefit of being able to store double the usual amount of compost. It requires 50 Volcanic ash to convert a bin of Supercompost to Ultracompost.}}
+
+{{Horizontal Line}}
+
+{{HeadlineAlt|18|Existing Patch Improvements}}
+
+Whilst the Farming guild introduces various new patches with new crops, there are certain patches in-game that we'd also like to utilise by adding new crops for you to grow. 
+
+'''Dragonfruit Trees - Requires 81 Farming'''<br/>
+Dragonfruit trees can be grown in Fruit tree patches around Gielinor. The seeds are tradeable and are rarely obtained through nests, monster drops or by completing Farming Contracts. Dragonfruit trees have the same growth time as other fruit trees and give the following Farming experience; 140 XP for planting, 17,335 XP for checking its health and 70 XP for harvesting.
+
+Harvesting a Dragonfruit tree gives you Dragonfruit, a new food item that can either be eaten to heal 10 hitpoints or they can be baked into Dragonfruit pies at 73 cooking. Dragonfruit pies heal 10 hitpoints per serving and provide a temporary Fletching boost of +4.
+
+In addition to being a useful stat-boosting food, 10 Dragonfruit can be squeezed into a vial to make tradeable bottled Dragon Breath. This can be used to '''fully charge the Dragonfire shield and similar shields instantly'''.
+
+{{News Poll|13|Should Dragonfruit tree seeds, which require 81 Farming, be added to the game? Dragonfruit trees can be grown in Fruit tree patches around Gielinor. The seeds are tradeable and are rarely obtained through nests, monster drops or by completing Farming Contracts. Dragonfruit can be eaten to heal 10 hitpoints or baked into Dragonfruit pies at 73 cooking which heal 10 hitpoints per serving and provide a temporary Fletching boost of +4. 10 Dragonfruit can also be squeezed into a vial to make tradeable bottled Dragon Breath which fully charges the Dragonfire shield and similar shields (minus the Wyvern shields).}}
+
+'''White Lily - Requires 58 Farming'''<br/>
+White lily can be grown in flower patches around Gielinor. The seeds are only dropped by the Hespori, but they are tradable. White lily has the same growth time as other flowers and gives the following Farming experience; 42 XP for planting and 250 XP for harvesting.
+
+When fully grown, a flower patch with White lily in it will protect all types of crops in adjacent allotment patches.
+
+{{News Poll|14|If the Hespori is added to the game, should White lily seeds, which require 58 Farming, also be added to the game? White lily can be grown in flower patches around Gielinor. The seeds are only dropped by the Hespori, but they are tradable. When fully grown, a flower patch with White lily in it will protect all types of crops in adjacent allotment patches.}}
+
+'''Potato Catci - Requires 64 Farming'''<br/>
+Potato cacti can be grown in cactus patches around Gielinor. The seeds are tradeable and are rarely obtained through pickpocketing Master Farmers, monster drops or by completing Farming Contracts. Potato cacti take 70 minutes to fully grow and give the following Farming experience; 68 XP for planting and 68 XP for harvesting. ''With the introduction of Potato cacti seeds, Potato cacti would be removed from the Nightmare Zone reward shop.''
+
+{{News Poll|15|Should Potato cacti seeds, which require 64 Farming, be added to the game? Potato cacti can be grown in cactus patches around Gielinor. The seeds are tradeable and are rarely obtained through pickpocketing Master Farmers, monster drops or by completing Farming Contracts. If this question passes, Potato cacti would be removed from the Nightmare Zone reward shop.}}
+
+'''Snape Grass - Required 61 Farming'''<br/>
+Snape grass can be grown in allotment patches around Gielinor. The seeds are tradeable and are rarely obtained through pickpocketing Master Farmers, monster drops or by completing Farming Contracts. Snape grass takes 70 minutes to fully grow and gives the following Farming experience; 82 XP for planting and 82 XP for harvesting. ''With the introduction of Snape grass seeds, Snape grass would be removed from the Nightmare Zone reward shop.''
+
+{{News Poll|16|Should Snape grass seeds, which require 61 Farming, be added to the game? Snape grass can be grown in allotment patches around Gielinor. The seeds are tradeable and are rarely obtained through pickpocketing Master Farmers, monster drops or by completing Farming Contracts. If this question passes, Snape grass would be removed from the Nightmare Zone reward shop.}}
+
+{{Horizontal Line}}
+
+{{Headline|22|Brimstone}}
+
+On the northern edge of the Kebos Lowlands lies the Sulphur Volcano of Mount Karuulm. Here, the Tasakaal, masters of life and death, make their home. Within the shadow of this volcano lies Brimstone, home to the Kahlith. These beings were once human, but they have abandoned their previous lives in the name of the Tasakaal. Together, the Tasakaal and the Kahlith work together to maintain the balance between life and death. Assist them, and you might just be rewarded.
+
+Within Brimstone you'll find Konar, the newest Slayer Master. There is also a bank with a deposit box and poll booth, a furnace, and a weapon shop that sells some low-level weapons.
+
+{{Horizontal Line}}
+
+{{HeadlineAlt|18|New Slayer Master}}
+
+Konar, a member of the Kahlith race, is a new Slayer Master located in Brimstone that is accessible to players with 75 Combat. Konar is a little different when compared to your usual Slayer Master in that the tasks they assign require you to kill monsters in a '''specific area'''.
+
+Going out of your way to complete tasks from Konar has its benefits. Each task completed from Konar rewards the player with '''18 Slayer reward points''' and all kills on task from this master have a chance of hitting a new global loot table. The chance of hitting this loot table is scaled by the combat level of the NPC you're fighting, and the loot is granted in addition to any normal drop you would receive. The loot table is split into two potential rewards:
+
+- Generic loot meant as a slight increase to your profits, including food to sustain you on your task.<br/>
+- A rare chance of getting a '''new unique drop of the tradeable 1-handed Dragon hasta'''. The Dragon hasta is initially damaged when it drops to the floor and is untradeable. This can then be taken to Otto, and after completing the relevant Barbarian Training, he will, for free, fix it for you into a tradeable Dragon hasta.
+
+[[File:Poll Blog- The Kebos Lowlands (2).png|center]]<center>''The Dragon hasta is a new tradeable 1-handed weapon, dropped exclusively through completing tasks assigned by Konar.''</center>
+
+
+Konar ''(alongside all other Slayer Masters)'' also sells Boots of stone for 200gp. These require 44 Slayer to equip and are needed to go inside the Karuulm Slayer Dungeon detailed below.
+
+[[File:Poll Blog- The Kebos Lowlands (3).png|center]]
+<br/>
+{{News Poll|17|If the Kebos Lowlands are added to the game, should Konar, a new Slayer Master located in Brimstone who requires you to kill monsters in a specific area for more Slayer points per task, also be added to the game? To use Konar 75 Combat is required.}}
+
+{{News Poll|18|If Konar is added to the game, should killing monsters whilst on a task from him give you a chance to hit an additional loot table that includes the tradeable 1-handed Dragon hasta?}}
+
+{{News Poll|19|If the Dragon hasta is added to the game, should it have the special attack "Unleash"? Unleash increases the damage and accuracy of your attack based on the amount of Special Attack energy used.}}
+
+{{Horizontal Line}}
+
+{{HeadlineAlt|18|New Slayer Creatures}}
+
+With a new Slayer Master comes new Slayer creatures, and a new area to kill them! Near Brimstone lies the Sulphur Volcano of Mount Karuulm, home to a brand-new Slayer dungeon.
+
+The Mount Karuulm Slayer dungeon is single-way combat throughout and includes a task only area. Cannons are allowed in the entire dungeon, aside from a separate chamber where the Alchemical Hydra can be found (see "Alchemical Hydra" below for more information). In order to stay inside the Karuulm Slayer Dungeon safely you will need to wear Boots of stone, Boots of brimstone or Granite boots, else you'll take consistent damage until you do.
+
+In addition to the monsters listed below, the Karuulm Slayer dungeon also includes Greater Demons, Hellhounds and Fire Giants.
+
+{{News Poll|20|If the Kebos Lowlands are added to the game, should Greater Demons, Hellhounds and Fire Giants be added to the Karuulm Slayer dungeon?}}
+
+'''Sulphur Lizards - Requires 44 Slayer'''<br/>
+Sulphur Lizards, located within the Karuulm Slayer Dungeon, are assigned by Mazchna, Vannaka and Chaeldar. They have no noteworthy mechanics or drops, and attack with melee only. They are intended to add some additional variety to the low-level Slayer bracket. Slayer Masters that assign Desert Lizards would instead assign "Lizards", allowing players to kill either Desert or Sulphur Lizards to complete their task.
+
+{{News Poll|21|If the Kebos Lowlands are added to the game, should Sulphur Lizards which require 44 Slayer also be added? They would be assigned by Mazchna, Vannaka and Chaeldar. If this question passes, these masters would instead assign "Lizards", allowing players to kill either Desert or Sulphur Lizards to complete their task.}}
+
+'''Wyrm - Requires 62 Slayer'''<br/>
+Wyrms, located within the Karuulm Slayer Dungeon, are assigned by Duradel, Nieve, Chaeldar and Konar. Wyrms have a very rare chance to drop the Dragon sword and Dragon harpoon, previously found within the Chambers of Xeric. ''Both the Dragon sword and Dragon harpoon would be removed from the Chambers of Xeric loot table. The drop rates of all remaining Chambers of Xeric items would not be impacted.''
+
+{{News Poll|22|If the Kebos Lowlands are added to the game, should Wyrms which require 62 Slayer also be added? They would be assigned by Duradel, Nieve, Chaeldar and Konar.}}
+
+{{News Poll|23|If Wyrms are added to the game, should they have a very rare chance to drop the Dragon sword and Dragon harpoon, previously found within the Chambers of Xeric? Both the Dragon sword and Dragon harpoon would be removed from the Chambers of Xeric loot table. The drop rates of all remaining Chambers of Xeric items, including the pet, would not be impacted.}}
+
+'''Drake - Requires 84 Slayer'''<br/>
+Drakes, located within the Karuulm Slayer Dungeon, are assigned by Duradel, Nieve and Konar. They use both melee and ranged attacks. Drakes have a chance to drop their claws and teeth, both of which are attachments for boots.
+
+A Drake claw can be combined with Boots of stone to create the tradeable Boots of brimstone. This process cannot be undone. Boots of brimstone require 70 Defence, 70 Magic, 70 Ranged and 44 Slayer to equip.
+
+[[File:Poll Blog- The Kebos Lowlands (4).png|center]]
+
+A Drake tooth can be combined with Holy sandals to create the tradeable Devout boots. This process cannot be undone. Devout boots require 60 Prayer to equip and are considered an item of Saradomin inside the God Wars Dungeon.
+
+[[File:Poll Blog- The Kebos Lowlands (5).png|center]]
+
+{{News Poll|24|If the Kebos Lowlands are added to the game, should Drakes which require 84 Slayer also be added? They would be assigned by Duradel, Nieve and Konar.}}
+
+{{News Poll|25|If Drakes are added to the game, should they have a chance to drop a Drake claw which can be used with Boots of stone to create the tradeable Boots of brimstone? Boots of brimstone require 70 Defence, 70 Magic, 70 Ranged and 44 Slayer to equip.}}
+
+{{News Poll|26|If Drakes are added to the game, should they have a chance to drop a Drake tooth which can be used with Holy sandals to create the tradeable Devout boots? Devout boots require 60 Prayer to equip and are considered an item of Saradomin inside the God Wars Dungeon.}}
+
+'''Hydra - Requires 95 Slayer'''<br/>
+Hydras, located within task only and non-task only areas of the Karuulm Slayer Dungeon, are assigned exclusively by Konar. They use both ranged and magic attacks. Hydras have a chance to drop three untradeable ring pieces (Eye of the hydra, Fang of the hydra and Heart of the hydra) and a Hydra tail which is an attachment for the Dragonbone necklace.
+
+When the Eye of the hydra, Fang of the hydra and Heart of the hydra are combined, these pieces form the tradeable Brimstone ring. The ring has no requirements to equip and has a 1/4 chance with each spell cast to ignore 10% of your opponent's total Magic Defence. The ring cannot be imbued. Each ring piece is dropped in order, meaning you cannot gain multiple pieces until the Brimstone ring has been fully created. 
+
+[[File:Poll Blog- The Kebos Lowlands (6).png|center]]
+
+When a Hydra tail is combined with a Dragonbone necklace and a Bonecrusher, it forms the untradeable Bonecrusher necklace. The necklace requires 80 Prayer to equip and gives the effect of both the Bonecrusher and the Dragonbone necklace ''(the necklace must be equipped for 9 seconds to gain the effect of the Dragonbone necklace)''. The necklace is charged with Ecto-tokens as per the Bonecrusher and maintains the same Prayer restoration rate as the Dragonbone necklace. The effect of the Bonecrusher also applies whilst the Bonecrusher necklace is in your inventory. ''The process of combining these items is reversible''.
+
+[[File:Poll Blog- The Kebos Lowlands (7).png|center]]
+<br/>
+{{News Poll|27|If the Kebos Lowlands and Konar are added to the game, should Hydras which require 95 Slayer also be added? They would be assigned exclusively by Konar. They will be located within task only and non-task only areas of the Karuulm Slayer dungeon.}}
+
+{{News Poll|28|If Hydras are added to the game, should they have a chance to drop Eye of the hydra, Fang of the hydra and Heart of the hydra? When combined, these pieces form the tradeable Brimstone ring. The ring has no requirements to equip and has a 1/4 chance with each spell cast to ignore 10% of your opponent's total Magic Defence. The ring cannot be imbued. Each ring piece is dropped in order, meaning you cannot gain multiple pieces until the Brimstone ring has been fully created.}}
+
+{{News Poll|29|If Hydras are added to the game, should they have a chance to drop a Hydra tail which can be used with a Dragonbone necklace and a Bonecrusher to form the untradeable Bonecrusher necklace? The necklace requires 80 Prayer to equip and gives the effect of both the Bonecrusher and the Dragonbone necklace. The necklace is charged with Ecto-tokens as per the Bonecrusher and maintains the same Prayer restoration rate as the Dragonbone necklace.}}
+
+'''Alchemical Hydra - Requires 95 Slayer'''<br/>
+The Alchemical Hydra, located within the Karuulm Slayer Dungeon, is a new solo Slayer boss assigned exclusively by Konar. It can only be fought as part of a Hydra Slayer task or a Boss task (of which only Konar will be able to assign). The Alchemical Hydra will not be an easy opponent, and as such you will be well rewarded if you manage to defeat it. It has a chance to drop the Ferocious gloves, a Hydra claw which is an attachment for the Zamorak hasta, '''all Hydra unique drops''' and of course... a pet Alchemical Hydra.
+
+Ferocious gloves are a new tradeable pair of gloves with a focus on offensive melee. Upon receiving them as a drop they are broken and must be taken to Erdan within the Myths Guild to be repaired before they can be equipped. Once this is done, they become untradeable. Erdan, ''being the top guy that he is'', will complete and revert this process for you free of charge. In PvP situations, the gloves revert to their tradeable but broken form.
+
+They require 80 Attack and Defence to equip. Whilst they offer better offensive bonuses than Barrows gloves, they offer melee stats only, meaning Barrows gloves remain the best-in-slot glove where multiple attack styles are used.
+
+[[File:Poll Blog- The Kebos Lowlands (8).png|center]]
+
+
+When a Hydra claw is combined with a Zamorakian hasta, it forms the tradeable 1-handed Dragon hunter Lance. This process cannot be undone. The lance requires 70 Attack to equip and has the added effect of 20% increased Accuracy and Damage against Dragon creatures, though it loses its defensive capabilities and some of its offensive capabilities during its creation.
+
+[[File:Poll Blog- The Kebos Lowlands (9).png|center]]
+<br/>
+{{News Poll|30|If Hydras are added to the game, should the Alchemical Hydra also be added? The Alchemical Hydra is a new solo Slayer boss assigned exclusively by Konar. It can only be fought as part of a Hydra Slayer task or a Boss task (of which only Konar will be able to assign).}}
+
+{{News Poll|31|If the Alchemical Hydra is added to the game, should it have a chance to drop Ferocious gloves? The gloves drop in a tradeable but broken form, which can then be taken to Erdan within the Myths Guild to be repaired so they can be equipped. Once this is done, they become untradeable. Erdan will complete and revert this process for you free of charge. In PvP situations, the gloves revert to their tradeable but broken form. Ferocious gloves require 80 Attack and Defence to equip.}}
+
+{{News Poll|32|If the Alchemical Hydra is added to the game, should it have a chance to drop a Hydra claw which can be combined with a Zamorakian hasta to form the tradeable 1-handed Dragon hunter Lance? The lance requires 70 Attack to equip and has the added effect of 20% increased Accuracy and Damage against Dragon creatures, though it loses its defensive capabilities and some of its offensive capabilities during its creation.}}
+
+'''Additional Drops'''<br/>
+Alongside the individual drops mentioned above, you'll have a chance to receive Dragon knives and Dragon thrownaxes from Wyrms, Drakes, Hydras and the Alchemical Hydra. ''Dragon thrownaxe would be removed from the Chambers of Xeric loot table.''
+
+Dragon knives are tradeable, require 60 Ranged to equip and can be poisoned. They have a special attack, Duality, which costs 25% Special Attack energy and causes two knives to be thrown at once, each with their own accuracy and damage rolls.
+
+[[File:Poll Blog- The Kebos Lowlands (10).png|center]]
+
+{{News Poll|33|If Wyrms, Drakes, Hydras and the Alchemical Hydra are added to the game, should they have a chance to drop the Dragon thrownaxe, previously found within the Chambers of Xeric? Dragon thrownaxes would be removed from the Chambers of Xeric loot table. The drop rates of all remaining Chambers of Xeric items, including the pet, would not be impacted.}}
+
+{{News Poll|34|If Wyrms, Drakes, Hydras and the Alchemical Hydra are added to the game, should they have a chance to drop the Dragon knife? Dragon knives are tradeable, require 60 Ranged to equip and can be poisoned. They have a special attack, Duality, which costs 25% Special Attack energy and causes two knives to be thrown at once, each with their own accuracy and damage rolls.}}
+
+'''New Unique Bones'''<br/>
+With the introduction of new creatures we bring new types of bones. Wyrm bones offer 30 Prayer XP, Drake bones offer 60 Prayer XP and Hydra bones offer 90 Prayer XP (both Hydras and the Alchemical Hydra drop these). These bones would work in the usual way with other features like the Gilded altar and Ectofuntus.
+
+{{News Poll|35|If Wyrms are added to the game, should they drop Wyrm bones? Wyrm bones are tradeable and offer 30 Prayer XP when buried. These bones would work in the usual way with other features like the Gilded altar and Ectofuntus.}}
+
+{{News Poll|36|If Drakes are added to the game, should they drop Drake bones? Drake bones are tradeable and offer 60 Prayer XP when buried. These bones would work in the usual way with other features like the Gilded altar and Ectofuntus.}}
+
+{{News Poll|37|If Hydras are added to the game, should they drop Hydra bones? Hydra bones are tradeable and offer 90 Prayer XP when buried. These bones would work in the usual way with other features like the Gilded altar and Ectofuntus. The Alchemical Hydra would also drop Hydra bones.}}
+
+{{News Poll|38|If the Kebos Lowlands are added to the game, should a single off-task Lizardman Shaman area in the Molch which requires 100% Shayzien favour also be added?}}
+
+{{Horizontal Line}}
+
+{{Headline|22|Aerial Fishing}}
+
+In the middle of Lake Molch is a small island home to Nicolas Louchart, a peculiar fishing person with a ''very different'' approach to catching.
+
+Nicolas uses birds, specifically Cormorants to catch and return fish and salamanders that take residence in the nearby waters. Similar to Falconry when training Hunter, the player equips the bird on their arm. When clicking a fishing pool, the bird swoops down and returns to the player with the catch. If the player's inventory is full, the bird swallows the catch and doesn't award any experience to the player. The player must have both hands free to wield the bird.
+
+A catch is guaranteed for each time the bird is sent. The pools of fish move at a somewhat frequent rate, around every 7-12 seconds. Multiple people can catch from the same pool and will see people fishing from all sides of the circular island. If the bird is sent whilst the pool is moving to a new location, it still counts as a successful catch.
+
+King Worms are used as a starting bait which can be gathered on the island. When the player starts to catch fish, they can cut the fish up into stackable 'Fish chunks'. The bird will take 1 chunk every 3-6 catches as a reward for gathering the fish.
+
+There are four types of catch found in Lake Molch:
+
+'''Bluegill'''<br/>
+Bluegill require 43 Fishing and 35 Hunter to catch with Aerial Fishing.
+
+'''Common Tench'''<br/>
+Common tench require 56 Fishing and 51 Hunter to catch with Aerial Fishing.
+
+'''Mottled Eel'''<br/>
+Mottled eel require 73 Fishing and 68 Hunter to catch with Aerial Fishing.
+
+'''Greater Siren'''<br/>
+Greater siren require 91 Fishing and 87 Hunter to catch with Aerial Fishing.
+
+'''Molch Pearls'''<br/>
+Molch pearls can be fished up from Lake Molch when Aerial Fishing. These have a 1/100 chance of being fished up on a successful catch. They are stackable and can be traded with the Angler in his pearl store for various untradeable rewards.
+
+*Equippable Fishing rod - 100 Molch pearls
+*Equippable Fly fishing rod - 120 Molch pearls
+*Equippable Barbarian fishing rod - 150 Molch pearls (can only be purchased if you've got the relevant progress with Otto)
+*Fish sack - 1000 Molch pearls
+
+'''Golden Tench'''<br/>
+In addition to your expected catch, when fishing with your Cormorant, there is a very slim chance that it will return with an extremely rare 'Golden Tench'. This is a fish that can be equipped in the hand and has no stats. It is not tradeable.
+
+[[File:Poll Blog- The Kebos Lowlands (11).png|center|200px]]<center>''A player wearing the Golden tench and Fish sack. The Golden tench is an extremely rare reward from Aerial Fishing. It has no stats, is not tradeable and is purely cosmetic.''</center>
+
+At level 43 Fishing and 35 Hunter, you should expect to earn approximately '''17k Fishing, 25k Hunter and 5k Cooking experience''' per hour from Aerial Fishing. ''Cooking experience is only granted if you are cutting the catch.''
+
+At level 99 Fishing and 99 Hunter, you should expect to earn approximately '''60k Fishing, 80k Hunter and 15k Cooking experience''' per hour from Aerial Fishing. ''Cooking experience is only granted if you are cutting the catch.''
+
+{{News Poll|39|If the Kebos Lowlands are added to the game, should Aerial Fishing, as described in the dev blog, also be added to the game? At level 43 Fishing and 35 Hunter, you should expect to earn approximately 17k Fishing, 25k Hunter and 5k Cooking experience per hour. At level 99 Fishing and 99 Hunter, you should expect to earn approximately 60k Fishing, 80k Hunter and 15k Cooking experience per hour. Cooking experience is only granted if you are cutting the catch.}}
+
+{{News Poll|40|If Aeiral Fishing is added to the game, should the Pearl shop which allows players to purchase an equippable Fishing rod, Fly fishing rod, Barbarian fishing rod and a cosmetic Fish sack cape also be added? These items are untradeable.}}
+
+{{News Poll|41|If Aeiral Fishing is added to the game, should there be a chance to get the extremely rare 'Golden Tench'. This is a fish that can be equipped in the hand and has no stats. It is not tradeable.}}
+
+{{Horizontal Line}}
+
+{{Headline|22|Kourend & Kebos Achievement Diary}}
+
+The Kourend & Kebos Achievement Diary is a new Achievement Diary covering the regions of both Great Kourend and the Kebos Lowlands. It will work in the same way as other Achievement Diaries and full completion of this diary will be required for the Diary Cape.
+
+The Taskmaster for this diary will be found in the courtyard of Kourend Castle (a teleport to him will be added to the Diary Cape).
+
+To fully complete the Kourend & Kebos Achievement Diary you will need to meet the following level requirements:
+*25 Construction
+*30 Crafting
+*40 Fletching
+*42 Mining
+*49 Thieving
+*50 Firemaking
+*77 Runecraft
+*82 Fishing
+*84 Cooking
+*85 Farming
+*90 Magic
+*90 Woodcutting
+*95 Slayer
+
+Completing the Kourend & Kebos Achievement Diary will grant players various rewards including Rada's Blessing, which upgrades with each tier of the diary completed. This is a new blessing that can be equipped in the ammo slot.
+
+'''Easy Kourend & Kebos Achievement Diary'''
+*Rada's blessing 1 - No Stat Bonuses, 3 daily teleports to the Kourend Woodland and a 2% chance to catch two fish at once (no XP is given for the additional catch)
+*2500 XP Lamp
+*Halved access cost for Crabclaw Island
+*Doubled drop rate of Xeric's talisman
+
+'''Medium Kourend & Kebos Achievement Diary'''
+*Rada's blessing 2 - +1 Prayer bonus, 5 daily teleports to the Kourend Woodland and a 4% chance to catch two fish at once (no XP is given for the additional catch)
+*7500 XP Lamp
+*Free access to Crabclaw Island
+*5% chance to mine two dense essence blocks at once
+*20 Free Dynamite a day from Thirus
+*The rewards from previous diary tiers
+
+'''Hard Kourend & Kebos Achievement Diary'''
+*Rada's blessing 3 - +1 Prayer bonus, unlimited daily teleports to the Kourend Woodland, 3 daily teleports to Brimstone and a 6% chance to catch two fish at once (no XP is given for the additional catch)
+*15000 XP Lamp
+*Ability to combine a Slayer Helmet with a Shayzien Helm (5) by talking to Captain Cleive
+*5% increased yield from the Hosidius and Farming Guild Herb Patches
+*40 Free Dynamite a day from Thirus
+*The rewards from previous diary tiers
+
+'''Elite Kourend & Kebos Achievement Diary'''
+*Rada's blessing 4 - +2 Prayer bonus, unlimited daily teleports to the Kourend Woodland, unlimited daily teleports to Brimstone and a 8% chance to catch two fish at once (no XP is given for the additional catch)
+*50000 XP Lamp
+*20 Slayer Points for completing Slayer Tasks from Konar quo Maten (up from 18)
+*10% Reduced burn chance at the City Kitchens (up from 5%)
+*80 Free Dynamite a day from Thirus
+*10% Additional Blood runes from Blood Runecrafting (no additional experience is given for the extra runes received)
+*The rewards from previous diary tiers
+
+In order to gain the benefits of Rada's blessing it must be equipped. It is possible to toggle the chance to catch two fish at once on or off.
+
+{{News Poll|42|If the Kebos Lowlands are added to the game, should the Kourend & Kebos Achievement Diary, as described in the dev blog, also be added? Completing the Kourend & Kebos Achievement Diary will grant players various rewards including Rada's Blessing, which upgrades with each tier of the diary completed.}}
+
+{{Horizontal Line}}
+
+{{Headline|22|The Forsaken Tower}}
+
+For thousands of years, the Wintertodt has remained safely sealed behind the great Doors of Dinh. Alas, despite the best attempts of the Lovakengj smiths and the Arceuus mages, the doors are failing. Only Dinh himself knew the secrets behind the creation of these doors. Without his knowledge, there may be nothing to stop the Wintertodt escaping and bringing ruin upon Kourend. It is up to you to recover this knowledge.
+
+The Forsaken Tower is a brand-new novice quest that further develops on the story of the houses of Kourend. The quest can be started by speaking to Lady Vulcana Lovakengj in Lovakengj House.
+
+<div class="mw-collapsible mw-collapsed">
+''Spoiler warning! Click here to see requirements for The Forsaken Tower:''
+<div class="mw-collapsible-content">
+*Client of Kourend
+*20% Lovakengj Favour
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+''Spoiler warning! Click here to see the rewards for completion of The Forsaken Tower:''
+<div class="mw-collapsible-content">
+*1 Quest Point
+*6,000 Coins
+*500 Mining Experience
+*500 Smithing Experience
+*10% Lovakengj Favour
+*Lovakengj Memoir Page which can be used in Kharedst's memoirs, granting an additional 8 charges and a new teleport near to the Lovakengj House.
+</div></div>
+
+
+{{News Poll|43|If the Kebos Lowlands are added to the game, should The Forsaken Tower, a brand-new novice quest that further develops on the story of the houses of Kourend, also be added?}}
+
+{{Horizontal Line}}
+
+{{Headline|22|The Ascent of Arceuus}}
+
+A long time ago, the citizens of Arceuus house gave up their human bodies and claimed immortality. This event was known as the Ascent of Arceuus and it marked the end of death within Arceuus house. Or so they believed. For the first time in a thousand years, a member of Arceuus house has fallen. You will need to solve the mystery of this death. However, time is of the essence and the fate of Arceuus house lies in your hands.
+
+The Ascent of Arceuus is a brand-new novice quest that further develops on the story of the houses of Kourend. The quest can be started by speaking to Mori in Arceuus House.
+
+<div class="mw-collapsible mw-collapsed">
+''Spoiler warning! Click here to see requirements for The Ascent of Arceuus:''
+<div class="mw-collapsible-content">
+*Client of Kourend
+*12 Hunter
+*20% Arceuus Favour
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+''Spoiler warning! Click here to see the rewards for completion of The Ascent of Arceuus:''
+<div class="mw-collapsible-content">
+*1 Quest Point
+*2,000 Coins
+*1,500 Hunter Experience
+*500 Runecraft Experience
+*10% Arceuus Favour
+*Arceuus Memoir Page which can be used in Kharedst's memoirs, granting an additional 8 charges and a new teleport near to the Arceuus House.
+</div></div>
+
+
+{{News Poll|44|If the Kebos Lowlands are added to the game, should The Ascent of Arceuus, a brand-new novice quest that further develops on the story of the houses of Kourend, also be added?}}
+
+{{Horizontal Line}}
+
+{{Headline|22|Your Feedback}}
+
+We'd like to be able to poll the Kebos Lowlands and all of the detail contained within this section of the blog later this week. Your feedback is invaluable to us, and as such, we invite you to be vocal about sharing it with us. Please comment on our [http://services.runescape.com/m=forum/forums.ws?380,381,521,66052102 official forums], the community-led [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the '''#gameupdate''' channel.
+
+<center>'''''[http://services.runescape.com/m=news/poll-blog-the-kebos-lowlands?oldschool=1#Kebos Click here to return to the top of the page.]'''''</center>
+
+{{Horizontal Line}}
+
+'''''Mods Archie, Ash, Ayiza, Bruno, Curse, Ed, Gambit, Ghost, Kieren, Lenny, Lottie, Mat K, Maz, Munro, Roq, Ry, Stone, Sween, Weath, West & Wolf'''<br/>The Old School Team''

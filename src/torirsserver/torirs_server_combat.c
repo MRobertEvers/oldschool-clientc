@@ -427,6 +427,9 @@ ToriRSServer_AnimPlayNpc(
     npc->anim_id = seq_id;
     npc->anim_delay = delay;
     npc->masks |= TORIRSSERVER_NMASK_ANIM;
+    /* After the priority gate: the tick log records the animation the client
+     * is sent, which is the one a recorder (Blert's NPC_ATTACK) sees. */
+    ToriRSServer_TicklogNpcAnim(npc, seq_id, delay);
     /* Whoever played the death seq, it has now been played this life — see the
      * field. A script that shows a death and the engine's own death step must
      * agree on that, or the client is sent it twice and shows it once. */
@@ -518,6 +521,9 @@ npc_sound_nearby(
          * `~sound_within_distance` passes 0 and would be silent here; every
          * direct `sound_synth` call site in both trees passes 1. */
         ToriRSServer_SendSynthSound(player, sound_id, 1, delay);
+        ToriRSServer_TicklogSound(srv, player, sound_id, 1, delay, TORIRSSERVER_TICKLOG_SOUND_NPC,
+                                  ToriRSServer_CoordPack(npc->level, npc->x, npc->z),
+                                  TORIRSSERVER_NPC_SOUND_TILES, (int)(npc - &srv->npcs[0]));
     }
 }
 
@@ -987,15 +993,32 @@ ToriRSServer_CombatStatMark(
  * hitsplat's health bar reads the DAMAGE mask. Keeping them in one function
  * rather than assigning both at every call site is the only reason they cannot
  * drift.
+ *
+ * Current hitpoints are NOT clamped to the base here. They are the boosted
+ * hitpoints level, and a boost above the base is legal: the Saradomin brew
+ * "can boost the player's Hitpoints and Defence above their base level"
+ * (wiki Saradomin brew :56), and "Boosted hitpoints levels above a player's
+ * maximum Hitpoints level decay at a rate of one per minute, identically to
+ * other temporary boosts" (wiki Hitpoints :95). This used to clamp to the base
+ * on every call, and every hit on the player calls it, so a brew's overheal
+ * lasted until the next splat -- a 0 included (seam36: consume 89 -> 105, the
+ * raider row 105, a 0 lands, 99). The decay is content's, on the stat timer.
+ * The one downward clamp left is a lost hitpoints LEVEL, in the xp path.
+ *
+ * `max_hitpoints` is the health bar's denominator on the wire: the base, or
+ * the current hitpoints while they are above it, so an overhealed bar reads
+ * full instead of overflowing its width. 255 is the byte both travel in.
  */
 void
 ToriRSServer_CombatSyncHitpoints(struct ToriRSServerPlayer* player)
 {
+    if( player->hitpoints > 255 )
+        player->hitpoints = 255;
     player->max_hitpoints = player->stat_level[TORIRSSERVER_STAT_HITPOINTS];
     if( player->max_hitpoints <= 0 )
         player->max_hitpoints = 1;
     if( player->hitpoints > player->max_hitpoints )
-        player->hitpoints = player->max_hitpoints;
+        player->max_hitpoints = player->hitpoints;
     player->stat_boosted[TORIRSSERVER_STAT_HITPOINTS] = player->hitpoints;
     ToriRSServer_CombatStatMark(player, TORIRSSERVER_STAT_HITPOINTS);
 }
@@ -1144,10 +1167,18 @@ ToriRSServer_CombatAddXp(
         /* A hitpoints level-up raises the ceiling but does not heal, which is
          * what OldSchool does and is also the only behaviour that cannot
          * surprise someone mid-fight. A level *loss* does the same work in
-         * reverse, and `sync_hitpoints` clamps current hitpoints to the new
-         * ceiling itself. */
+         * reverse: current hitpoints above the new, lower ceiling come down
+         * to it, the rule the other stats follow below (a boost above a base
+         * the player no longer has is power the experience no longer pays
+         * for). `sync_hitpoints` itself no longer clamps, so an overheal on an
+         * unchanged level survives. */
         if( stat == TORIRSSERVER_STAT_HITPOINTS )
+        {
+            if( player->stat_level[stat] < before &&
+                player->hitpoints > player->stat_level[stat] )
+                player->hitpoints = player->stat_level[stat];
             ToriRSServer_CombatSyncHitpoints(player);
+        }
         /* Only upward: `advancestat` is the level-up trigger, and content hangs
          * the fanfare interface off it. Losing a level is not an advance. */
         if( player->stat_level[stat] > before )
@@ -1155,31 +1186,22 @@ ToriRSServer_CombatAddXp(
     }
     if( stat != TORIRSSERVER_STAT_HITPOINTS && stat != TORIRSSERVER_STAT_SUMMONING )
     {
-        /* The current level follows the base only while no boost or drain is
-         * active, and a level-up replenishes a DRAINED stat by the levels
-         * gained, never back to the base. LostCity Player.ts:1841-1851 (addXp):
-         *
-         *     if (this.levels[stat] === this.baseLevels[stat]) {
-         *         // only update if no buff/debuff is active
-         *         this.levels[stat] = getLevelByExp(this.stats[stat]);
-         *     }
-         *     ...
-         *     if (this.baseLevels[stat] > before) {
-         *         if (this.levels[stat] < before) {
-         *             // replenish stat
-         *             this.levels[stat] += this.baseLevels[stat] - before;
-         *
-         * This used to snap any current level below the base straight up to
-         * the base on every grant, so the first xp drop after a drain (the
-         * Sourhog's spit, a darkness spell, any `stat_sub`) cancelled it.
-         *
-         * A boost above the base is left alone by a grant, and is taken back
-         * down only when the base actually fell beneath it — a boost above a
+        /* LostCity's `Player.addXp` (engine/entity/Player.ts:1821-1851), rule
+         * for rule:
+         *   - a stat with no boost or drain on it (boosted == the old base)
+         *     follows the base, so a level-up is usable at once;
+         *   - a DRAINED stat stays drained: xp alone never touches it, and a
+         *     level-up lifts it by the levels gained and no more
+         *     (`levels += baseLevels - before`);
+         *   - a boosted stat is left where the potion put it.
+         * This used to snap anything below the base up to the base on every
+         * xp drop, so a content drain -- Verzik's, Olm's, a Sourhog's -- was
+         * cancelled by the player's next hit (docs/RAID_ORCHESTRATOR.md
+         * section 4). Back down only when the base actually fell beneath it
+         * (a negative grant, which LostCity refuses outright): a boost above a
          * base the player no longer has is power the experience no longer pays
-         * for, but clamping unconditionally would cancel a potion on every xp
-         * drop. (LostCity never removes xp, so that last direction is ours.)
-         * Hitpoints is exempt because its boosted slot is current hitpoints,
-         * which `sync_hitpoints` owns.
+         * for. Hitpoints is exempt because its boosted slot is current
+         * hitpoints, which `sync_hitpoints` owns.
          *
          * Summoning is exempt for the same reason hitpoints is: its boosted slot
          * is not a boost, it is the *points pool*. Summoning experience is earned
@@ -1191,14 +1213,13 @@ ToriRSServer_CombatAddXp(
          * (the obelisk's op2, `::summoning_points`); a level-up raises the
          * ceiling and leaves the current pool where it stands, which is what
          * the live game does. */
-        int after = player->stat_level[stat];
-
         if( player->stat_boosted[stat] == before )
-            player->stat_boosted[stat] = after;
-        else if( after > before && player->stat_boosted[stat] < before )
-            player->stat_boosted[stat] += after - before;
-        else if( after < before && player->stat_boosted[stat] > after )
-            player->stat_boosted[stat] = after;
+            player->stat_boosted[stat] = player->stat_level[stat];
+        else if( player->stat_level[stat] > before && player->stat_boosted[stat] < before )
+            player->stat_boosted[stat] += player->stat_level[stat] - before;
+        else if( player->stat_level[stat] < before &&
+                 player->stat_boosted[stat] > player->stat_level[stat] )
+            player->stat_boosted[stat] = player->stat_level[stat];
     }
     else if( stat == TORIRSSERVER_STAT_SUMMONING &&
              player->stat_boosted[stat] > player->stat_level[stat] )
@@ -1316,6 +1337,7 @@ ToriRSServer_CombatHitNpc(
 {
     struct ToriRSServerNpc* npc;
     int immutable_target;
+    int requested;
 
     if( slot < 0 || slot >= TORIRSSERVER_NPC_MAX )
         return;
@@ -1366,6 +1388,9 @@ ToriRSServer_CombatHitNpc(
                        ToriRSServer_NpcCategory(npc->type) == 298 ||
                        ToriRSServer_NpcCategory(npc->type) == 610;
 
+    /* The tick log's `raw` (torirs_server.h, RAW DAMAGE): the hit before the
+     * clamp to the hitpoints left, so an overkill reads as the number dealt. */
+    requested = amount;
     if( amount > npc->hitpoints )
         amount = npc->hitpoints;
     if( !immutable_target )
@@ -1392,6 +1417,7 @@ ToriRSServer_CombatHitNpc(
     ToriRSServer_HitmarkAdd(npc->hitmarks, &npc->hitmark_count, amount,
                         amount > 0 ? type : hitsplat_block(),
                         ToriRSServer_HitmarkDealerFromAttackerScript(srv));
+    ToriRSServer_TicklogHitNpc(srv, slot, amount, amount > 0 ? type : hitsplat_block(), requested);
 
     /* Warn every ironman fighting this npc, not just the one who swung: the
      * player who is about to lose the drop is the one who got there FIRST, and
@@ -1520,6 +1546,7 @@ ToriRSServer_CombatHitNpc(
          */
         npc->death_stage = TORIRSSERVER_DEATH_QUEUED;
         npc->death_tick = srv->tick + 1;
+        ToriRSServer_TicklogNpcDeath(srv, slot);
         /*
          * Drop whatever was already armed on the npc's own queue — a healer's
          * `npc_queue(4, heal, ...)` chief among them.
@@ -1763,6 +1790,10 @@ ToriRSServer_CombatHitPlayerFrom(
     int dealer_slot)
 {
     struct ToriRSServerPlayer* player = srv->active_player;
+    /* The tick log's `raw` (torirs_server.h, RAW DAMAGE): the hit as the
+     * caller dealt it, before `::god`, absorption and the hitpoints clamp
+     * below rewrite `amount` into the splat. */
+    int const requested = amount;
 
     /*
      * `::god` absorbs the hit here rather than at any call site, because this
@@ -1799,6 +1830,12 @@ ToriRSServer_CombatHitPlayerFrom(
     ToriRSServer_HitmarkAdd(player->hitmarks, &player->hitmark_count, amount,
                         amount > 0 ? type : (absorbed_fully ? hitsplat_shield() : hitsplat_block()),
                         dealer_slot);
+    /* The splat as shown: after `::god`, absorption and the clamp to the
+     * hitpoints left, which is the number a recorder reads off the client. */
+    ToriRSServer_TicklogHitPlayer(
+        srv, player, amount,
+        amount > 0 ? type : (absorbed_fully ? hitsplat_shield() : hitsplat_block()), dealer_slot,
+        requested);
     player->damage = player->hitmarks[0].damage;
     player->damage_type = player->hitmarks[0].type;
     player->hitpoints = player->hitpoints < 0 ? 0 : player->hitpoints;
@@ -1807,6 +1844,24 @@ ToriRSServer_CombatHitPlayerFrom(
     if( player->hitmark_count >= 2 )
         player->masks |= TORIRSSERVER_PMASK_DAMAGE2;
     ToriRSServer_CombatSyncHitpoints(player);
+
+    /*
+     * The combat logout delay: every hit received, a 0 or a fully absorbed one
+     * included, re-arms it. OSRS Wiki, Logout button: "players in combat cannot
+     * log out until 16 game ticks, or 9.6 seconds, after they have last
+     * received a hit" (docs/minigames/inferno/sources/wiki/
+     * wiki_Logout_button.wikitext:9).
+     *
+     * The rule and its clock are content's (skill_combat/combat.rs2
+     * `[proc,combat_player_hit_received]`, interface_logout/scripts/logout.rs2);
+     * the engine's part is only to say "a hit landed", and to say it here
+     * because this is the one place every hit on a player ends -- an npc's
+     * default swing, a scripted projectile's queue, the `damage` opcode of a
+     * boss or of another player all arrive through it, and no single attack
+     * script sees them all. A tree without the proc (a selftest pack) runs
+     * nothing, which is the "no rule" it states.
+     */
+    ToriRSServer_ScriptsRunProc(srv, "[proc,combat_player_hit_received]", NULL, 0);
 
     /*
      * The block animation is content's — [ai_opplayer2,_] plays
@@ -2957,8 +3012,22 @@ npc_death_step(
          * all. Deliberately not routed through `delayed_until`: that field
          * parks a *script*, and phase 4 offering a resume to an npc that has
          * none would be a second owner of the same clock.
+         *
+         * NOT FOR A DEATH SHORTER THAN THE REFERENCE'S (raid loop seam9). A
+         * record whose `death_delay` is under the reference's two ticks states
+         * a death of its own rather than `[proc,npc_death]`'s, and the arrive
+         * delay is a line of that proc. The ToB small Nylocas (`death_delay=1`)
+         * are the measured case: blert's death table has a walking small "stop
+         * and 'turn' anim occur on the same tick t+1, despawn t+2", where a
+         * walking BIG "stop on t+1, anim starts t+2" -- the big keeps the
+         * default and the wait (blert guide tob_nylocas_mechanics_page.tsx
+         * :440-493). With the wait a small that stepped on or just before its
+         * killing tick animated at +2 / +3 and despawned a tick later than
+         * every recording. The Maiden (`death_delay=0`) never moves. No other
+         * record states less than two (npc_default.npc), so no other npc's
+         * death moves.
          */
-        if( npc->last_movement >= srv->tick - 1 )
+        if( npc_def(npc)->death_delay >= 2 && npc->last_movement >= srv->tick - 1 )
         {
             npc->death_stage = TORIRSSERVER_DEATH_ARRIVE;
             npc->death_tick =
@@ -2999,7 +3068,30 @@ npc_death_step(
                     npc->death_seq);
         npc->death_stage = TORIRSSERVER_DEATH_CORPSE;
         npc->death_tick = srv->tick + npc_def(npc)->death_delay;
-        return;
+        /*
+         * `death_delay=0`: NO CORPSE WAIT, so `[ai_queue3]` runs on the tick of
+         * the death animation rather than a tick later (raid loop seam9).
+         *
+         * The reference runs `[ai_queue3]` on the tick after the blow for every
+         * npc -- `npc_queue(3, 0, 0)` -- and an ordinary npc's script spends its
+         * first ticks inside `gosub(npc_death)` (arrivedelay, anim,
+         * `npc_delay(1)`, `npc_del`) before its drop table, which is the order
+         * this engine reproduces by running the trigger at the CORPSE stage. A
+         * boss whose death IS its script (the Maiden: `npc_changetype` to her
+         * dying form on the death animation's tick, blert 13 of 13 rooms) never
+         * calls `npc_death`, so for her the corpse wait is two ticks the game
+         * does not have. Her records state `death_delay=0` and the trigger runs
+         * here, still after the sound and the animation above.
+         *
+         * Without the fall-through 0 meant "next tick" (the `death_tick` above
+         * returns to `advance_npcs`, which steps it no sooner than tick + 1), so
+         * no value of the field could reach the animation's own tick. No record
+         * in the tree stated 0 before this (npc_default.npc 2, the 18 small
+         * Nylocas 1), so no other npc's death moves.
+         */
+        if( npc_def(npc)->death_delay > 0 )
+            return;
+        /* FALLTHROUGH */
 
     case TORIRSSERVER_DEATH_CORPSE:
         /*
@@ -3329,6 +3421,23 @@ ToriRSServer_CombatNpcTick(
             npc_death_step(srv, slot);
         return;
     }
+
+    /*
+     * A delayed npc does not fight. `Npc.turn()` returns at `!isValid()` --
+     * true while `delayed` -- before it reaches `processMovementInteraction`,
+     * which is where the reference's [ai_opplayer2] swing is made; the AP
+     * handoff below already said so, the clock-driven swing did not.
+     *
+     * Without this an [ai_opplayer2] that ends in `npc_delay(4)` on an npc
+     * whose attackrate is 4 (every adult chromatic dragon, dragon.rs2) was
+     * swung again at tick+4 while still parked until tick+5: the new script
+     * pushed `delayed_until` four ticks further and was then dropped as
+     * "already has a parked script", so the npc stayed delayed for the rest
+     * of the fight and never drained the queue every player hit lands
+     * through. 32 fights on red_dragon, 0 kills (b71).
+     */
+    if( srv->tick < npc->delayed_until || npc->active_script )
+        return;
 
     if( npc->combat_target_npc >= 0 && npc_vs_npc_tick(srv, slot) )
         return;

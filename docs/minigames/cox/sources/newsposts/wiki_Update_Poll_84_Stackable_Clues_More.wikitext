@@ -1,0 +1,365 @@
+{{Update|date=08 April 2025|rev=09 April 2025|url=https://secure.runescape.com/m=news/poll-84-stackable-clues--more?oldschool=1|category=devblog}}
+[[File:Poll 84- Stackable Clues & More newspost.jpg|right]]
+{{clear}}
+__TOC__
+==Update: Stackable Clues==
+Thanks so much for all the passion and feedback you've shown on Poll 84 so far. We’ve been listening closely, and while many of the things we’re looking to poll have been positively received, there’s been significant discussion around Stackable Clues – particularly around Skip Tokens, stacking caps, and the 1-hour clue timer. It’s clear this part of the update would benefit from more time and deeper player involvement before we move forward.
+
+With all that said, here’s what we’re going to be doing next:
+
+To start, we'll be separating all things 'Stackable Clues' from the rest of the proposed updates.This means that everything else in this blog will be featured in a poll opening on Monday, April 14th.While that poll's ongoing, we'll work on an updated proposal for Stackable Clues that addresses as much of your feedback as possible.
+We're doing this because we appreciate that Stackable Clues probably warrant more discussion than the other things on offer here, and it was perhaps a little optimistic of us to expect to knock this one out of the park straight away.
+
+While we don't have an exact date in mind, Stackable Clues and discussions around Skip tokens or despawn timers will be ongoing, meaning you won't be waiting months for an update. For the time being, we think you can expect to hear from us within a couple of weeks at the absolute most, but we'll look to get something in front of you ASAP.
+
+Thanks again for all your input – we really appreciate how much you care about the game and want to help shape its future. We’ll be back with more on clues soon!
+
+''Poll 84 introduces a huge set of improvements covering Clue Scrolls, PvM, Banking, and more!''
+Poll 84 is packed with quality-of-life improvements, PvM tweaks, Clue Scroll upgrades, and more! Whether you're skilling, bossing, or just banking in style, we’ve got something for everyone – dive in and help shape the next round of updates.
+
+==Stackable Clues==
+Stackable Clue Scrolls have been a highly requested feature for years, but they’ve also been one of the more divisive topics in the community. We know there are strong feelings on both sides, and we want to take a moment to explain how we got here, why we want to make this change, and how we’ll ensure it remains balanced for the future.
+===How did we get here?===
+Picture this: It’s March 2024. The birds are singing, the goblins are goblining, and we decided to change Clue Scrolls so they despawn after an hour instead of 3 minutes.
+
+Why? Well, a small but dedicated group of players had figured out a crazy method of juggling Clue Scrolls. It was niche, it was weird, but instead of breaking that little loophole, we thought:
+
+''"Why not just make this official? Surely, this won’t spiral out of control!"''
+
+Spoiler alert: '''It did'''.
+
+The entire clue-hunting community took one look at this and started juggling clues like it was their full-time job. What was meant to be a small quality-of-life fix suddenly became the new sweaty meta, and before we knew it, our inboxes were full of complaints from players who hated clue juggling, but now felt like they had to do it to stay competitive.
+
+Lesson learned: Just because something is less annoying doesn’t mean it’s not still annoying! We knew we had to do something about it; however, simply undoing the change felt like pulling the rug out from under players who had already adapted to it. Thus, instead of relying on inventory tricks and despawn timers, we’re proposing a way for players to legitimately stack a <u>limited</u> number of Clue Scrolls.
+===Introducing... The Scroll Box!===
+Instead of juggling  Clue Scrolls like a circus performer, with Scroll Boxes, you’ll be able to stack your clue scrolls in a limited, controlled way.
+Here’s how it works:
+
+* If you’ve completed the quest X Marks the Spot, you’ll start receiving Scroll Boxes instead of regular Clue Scrolls - if you haven’t completed X Marks the Spot, you’ll still receive standard Clue Scrolls
+* You can hold up to a maximum of 5 Scroll boxes (or 4 and one Clue Scroll)
+* Geodes, bottles, and bird nests? They’ll now give Scroll Boxes instead of loose Clue Scrolls
+
+It's worth noting that this proposed system is actually weaker than the current juggling method, but it’s significantly less annoying. You won’t be able to stack dozens of clues for long grinding sessions, but you’ll have a legitimate way to hold onto multiple clues without resorting to tedious inventory tricks. Sounds great, right? Well, hold on, because you won't be able to just stack clues for free - Watson says you gotta' earn them!
+
+[[File:Poll 84- Stackable Clues & More (1).png|thumb|400px|center|''If you can’t see the image above, click ''[https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-04-08/watson.jpg here]''!'']]
+
+===Unlocking Your Stacking Power===
+We know you’re eager to hoard clues like a dragon sitting on a pile of treasure, but stacking Clue Scrolls is something you’ll have to earn. Why? Because Clue Scrolls are special! That magical moment when you see your first Clue drop - the rush of excitement, the dreams of untold riches, the immediate panic when it’s a coordinate step - shouldn’t be lost in a pile of stacked scrolls. We still want newer gamers to feel that rush of 'it's treasure hunting time!'. However, once you've proven yourself as a seasoned clue chaser, you'll unlock the power to stack Clues like a true treasure-hunting pro.
+===How to Unlock Your Stacks===
+To increase your stacking limit, you’ll need to complete the following challenges:
+
+* Defeating the Mimic: This will increase your Clue Scroll stack cap across all tiers by 1
+* Complete a set number of Clues per tier – This would unlock additional stacking for that specific tier ''(See below!)''
+
+{| class="wikitable" style="text-align: center;"
+|-
+! Clue Tier
+! Completions for first cap increase
+! Completions for second cap increase
+|-
+| Beginner
+| 50
+| 100
+|-
+| Easy
+| 100
+| 200
+|-
+| Medium
+| 100
+| 250
+|-
+| Hard
+| 50
+| 150
+|-
+| Elite
+| 50
+| 150
+|-
+| Master
+| 25
+| 75
+|}
+Think of it as leveling up your clue-hunting skills - the more you engage, the better your stacking ability gets! We've slightly reduced the numbers for rarer Clues, like Masters and Elites, since we know these can be quite the grind, but we're always open to feedback!
+
+Here’s a quick example for you:
+
+* Base Level (No Cap Increases): You can hold up to 2 Clues total - whether that’s two Scroll Boxes, or a Clue Scroll and one Box
+* First Cap Increase: Increases your total Clue capacity to 3 for that tier
+* Second Cap Increase: Increases your total Clue capacity to 4 for that tier
+* Defeat the Mimic: Unlocks an extra slot across all tiers, letting you hold up to 5 Clues total - regardless of whether you've completed the other tier unlocks or not. This bonus is retroactive, so if you've already bested the Mimic before this update goes live, you'll get that +1 immediately!
+===Addressing Concerns===
+One key change we want to be upfront about is the reduction of the Clue Scroll despawn timer back to 3 minutes. This will happen regardless of whether Stackable Clues pass the poll or not. We recognise this will be a controversial change, but after reviewing player behavior and feedback, we believe the one-hour despawn timer led to unintended and frustrating play patterns that weren’t healthy for the game. Our goal is to ensure Clue Scrolls remain an engaging and rewarding activity, rather than something that encourages excessive juggling or forces players into tedious inventory management.
+
+That’s also why Stackable Clues are being proposed - to offer a practical alternative. If this update passes, you’ll be able to store up to five Clues per tier in your inventory, reducing the need for constant back-and-forth interruptions. The intent here is to smooth out the experience, not trivialise it. Whether you’re finishing a Slayer task without needing to leave multiple times, or completing a raid without abandoning your group for an Elite Clue, the five-Clue limit helps strike a balance between convenience and challenge.
+
+This is just the first step in improving Clue Scrolls. We want to refine the system to enhance your gameplay without making it trivial. We’ll continue to monitor how this system plays out and make changes if necessary - but to be absolutely clear, we will not be increasing the stack limit beyond five. This is a firm cap, and we have no plans to expand it further.
+
+{{News Poll|qtext=Should Stackable Clues (via Scroll Boxes) be added to the game?}}
+
+
+===Skip Tokens===
+One of the biggest frustrations with Clue Scrolls is reaching a late step, only to be hit with a task you can’t complete - or just really don’t want to do. Some players resort to juggling clues to avoid these situations, which isn’t exactly an engaging gameplay experience. To address this, we’re introducing Skip Tokens: a new item designed to give players more control over their Clue-solving experience without removing the challenge entirely.
+Each Clue tier will have its own Skip Token, obtained through Clue Scroll reward chests. These tokens will be tradeable and stackable, making them a valuable commodity for players looking to streamline their Clue runs.
+Here’s how they work:
+
+* Skip Tokens allow you to skip a single Clue step within a scroll
+* They cannot be used on the final step of a Clue to preserve the integrity of the reward structure
+* A warning message will appear if skipping would complete the Clue, helping to prevent you from accidentally wasting a Skip Token
+
+By introducing Skip Tokens, we’re offering an alternative to juggling while also adding a new tradeable reward to Clues. Whether you’re an Ironman looking for a smoother Clue experience or a merchant eyeing new profit opportunities, these tokens should bring both convenience and value to Clue Scrolls.
+
+{{News Poll|qtext=Should Skip Tokens be introduced to the game?}}
+
+
+===What This Means for You===
+This update isn’t about making Clue Scrolls easier - it’s about addressing past mistakes and refining the experience. The longer despawn timer led to unintended frustrations, and we’re rolling that back while also introducing Stackable Clues in a way that keeps the gameplay loop engaging and rewarding.
+
+With Stackable Scroll Boxes replacing raw Clue Scrolls, you’ll have much more control over your Clue inventory without relying on workarounds. Imagine you’re deep into a Bandos or Nex trip, and that Clue Scroll drops on KC #1. Instead of interrupting your run, it’ll now stack neatly, ready for when you decide to take it on.
+
+Skip Tokens provide an additional layer of flexibility, acting as a tradeable resource that gives players more agency in Clue solving. These aren’t a free pass, but they do add an extra reward space - something valuable for both Clue hunters and those looking to trade. If you hit a step that doesn’t fit your current plans, you’ll have the option to skip it, keeping the momentum going while preserving the challenge.
+
+At its core, this update is about removing unnecessary frustration while keeping Clue Scrolls just as rewarding and exciting as ever. The challenge remains, but you’ll have more control over how and when you take it on.
+
+==PvM Reworks==
+===Abyssal Sire Rework===
+[[File:Poll 84- Stackable Clues & More (2).png|thumb|600px|center|''If you can’t see the image above, click ''[https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-04-08/sire.jpg here]''!'']]
+
+The Abyssal Sire has always been a unique boss, but we recognise that its mechanics can feel a little outdated compared to more modern encounters. Our goal is to refine the fight while maintaining its core identity, making it more engaging and enjoyable without completely overhauling what makes it special.
+With that in mind, here are some of the changes we’d like to propose:
+
+* Sire is currently untargetable during its transition phases, forcing players to sit and wait. We want to make it targetable during these phases to keep the action going
+* Sire’s sluggish movement feels unnecessarily tedious. We’d like to increase its speed to match a player’s run, reducing downtime between mechanics
+* The lung phase takes too long, dragging out the fight unnecessarily. We’re looking into shortening it while still ensuring it remains a meaningful part of the encounter
+* We're planning on implementing a minimum hit of 50% of your weapon’s max hit, which will allow end-game setups to more reliably one-phase them. Demonbane weapons will also be able to one-shot these vents.
+* To compensate for these changes and ensure the fight doesn’t become too short, we’ll be increasing Sire’s HP and introducing a 50% damage reduction during its transition phases. This should help maintain the challenge without forcing unnecessary downtime.
+
+These adjustments aim to streamline the fight’s flow while maintaining the challenge and rewarding nature of the encounter. We’d love to hear your thoughts on the following:
+
+{{News Poll|qtext=Should we rework the Abyssal Sire to make it targetable during its transition phases?}}
+
+{{News Poll|qtext=Should we increase the Abyssal Sire's speed to match a player's run speed and reduce downtime between mechanics?}}
+
+{{News Poll|qtext=Should we shorten the lung phase on the Abyssal Sire by increasing the minimum hit on vents to 50%, and making Demonbane weapons able to one-shot them?}}
+
+
+===Melee at Zulrah===
+[[File:Poll 84- Stackable Clues & More (3).png|thumb|600px|center|''If you can’t see the image above, click ''[https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-04-08/Zulrah.jpg here]''!'']]
+
+After seeing some interesting results in Leagues: Raging Echoes, we now want to make a potential change for the main game: allowing Halberd attacks to damage Zulrah. Currently, in the main game, Zulrah can't be damaged with melee at all, even with these weapons. We want to change that by introducing a new mechanic that allows players to engage Zulrah with melee directly. So, what would this mean for you?
+
+If this change goes through, you’ll be able to deal damage to Zulrah with Halberds. However, before you start gearing up with your best melee setup, it’s important to understand that this won’t replace your traditional Mage or Range strategies.
+
+Does melee outcompete Mage or Range?
+
+In short, not exactly. We’ve tested the best mainhand halberd available (the Noxious Halberd), paired with high-tier gear like Torva and Oathplate, and while melee offers some benefits, it doesn’t outcompete the current best-in-slot setups for Mage or Range.
+
+There is one exception: during the Crimson (red) phase, melee can outperform some Magic setups. This means that depending on your gear, melee could be a viable alternative in this phase. If you're considering incorporating melee into your strategy, it might be worth checking your setups and running the numbers to see if it fits your playstyle.
+
+But when would melee actually be useful?
+
+Melee could be useful in specific situations, especially if your melee gear is significantly stronger than your Mage or Range setup. The Crystal Halberd’s special attack could also help in finishing off phases, but it’s not a game-changer overall.
+
+What’s the point of this?
+
+Ultimately, it’s about offering players a fun alternative and giving you more ways to approach Zulrah. While it’s not meant to replace the existing strategies, it’s a fresh option for those who want to experiment or switch things up.
+
+We’re always exploring new ideas and testing them out to see what works best. This change would give players the freedom to try a different playstyle without drastically altering the core mechanics of Zulrah fights.
+
+{{News Poll|qtext=Should we allow players to use melee at Zulrah?}}
+
+
+===Not so Challenge Mode Chambers===
+Next up, we’ve got something for all you raiders out there! We’re excited to introduce a new toggle in the raid creation interface that would allow players to generate a Challenge Mode (CM)-style layout for regular Chambers of Xeric (CoX) raids. This means all the rooms would appear in the same predictable order, just like in CM. While the bosses would still scale to the regular CoX difficulty (with no CM-specific rewards or increased HP), this option will offer a consistent layout for those who prefer it.
+
+So, why should you care about this? Well, this change isn’t just for speedrunners - it also offers valuable benefits for those looking to practice CM mechanics in a less stressful environment. By having a fixed layout for all rooms, you can get comfortable with the flow of the raid, perfect your gear choices, and learn when to use certain potions or tactics. This is especially helpful for newer players who want to practice CM procedure and familiarise themselves with the timing, preparation, and strategy without the stakes of a full CM raid.
+
+For speedrunners, this toggle provides a consistent layout, eliminating the need to re-roll for certain rooms and making the whole process a bit smoother. It's a chance to refine strategies with fewer variables in play, without the pressure of CM-specific challenges.
+
+For those who just want to learn every room or want to avoid re-rolling for specific layouts, this option provides a great alternative. You’ll be able to practice each room in the same order and get the most out of your learning experience.
+
+Now, you might be wondering - does this mean a new points meta? The answer is no! This change won’t impact the current metas or strategies in CoX. It’s purely an option for those who prefer a more predictable layout, and while it could make raids slightly more efficient due to fewer prep requirements and no re-rolling, it won’t change the overall dynamics of the raid.
+
+In essence, this change allows players to get a taste of Challenge Mode mechanics in a lower-stakes setting, making it a fantastic option for those looking to improve their raiding experience. Whether you're a seasoned speedrunner, a CM learner, or just someone who prefers a bit more consistency, this toggle is here to enhance your Chambers experience!
+
+{{News Poll|qtext=Should we add Challenge Mode-style layouts for regular Chambers of Xeric level raids? This would provide a consistent room order without the increased difficulty or rewards of Challenge Mode.}}
+
+
+===Demonic Gorillas===
+[[File:Poll 84- Stackable Clues & More (4).png|thumb|600px|center|''If you can’t see the image above, click ''[https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-04-08/DG.jpg here]''!'']]
+
+We’re making some improvements to the Demonic Gorillas that we hope will make your trips a lot smoother and less frustrating!
+
+First up, Demonic Gorillas will become non-aggressive once you've completed the Monkey Madness II quest. No more worrying about being constantly attacked, allowing you to take your time and focus on the fight without the hassle of being pounced on.
+
+We’re also standardising how often they swap prayers. Right now, their behavior is a bit unpredictable - they switch prayers after 50 damage taken or after six successful hits from the player. We’re tightening that up. Moving forward, Demonic Gorillas will only switch their prayers after 70 damage taken, and we’re removing the “six successful attacks” trigger entirely. This should make the fight more consistent and less frustrating, especially for players trying to optimise their kill speed or just enjoy a smoother flow to the encounter.
+
+Ultimately, these changes are all about making the Demonic Gorilla fights feel less like a grind and more like an enjoyable challenge. We can’t wait to hear how they feel, so let us know your thoughts after facing these beasts! We're fairly sure you'll enjoy these changes, so we're planning on leaving this one '''unpolled''', but we'll be monitoring your feedback closely.
+
+===Chiselling for Ether===
+We’ve proposed this change in the past, and ever since, it’s remained one of the most frequently requested follow-ups – so we’re bringing it back for a formal poll!
+Charging a Revenant weapon currently requires a hefty 1,000 Revenant Ether, and we’ve heard from many Iron players that the upkeep cost makes these powerful drops frustratingly difficult to use. It’s time we gave you an additional source.
+We’re proposing a new feature that lets you chisel down Ancient Statuettes into Revenant Ether, offering a solid alternative to simply trading them in for gold coins via the Emblem Trader. This change gives you more flexibility – if you've already secured a Revenant weapon, this will be a new way to help sustain use of it.
+Here’s how the breakdown would look:
+
+* Emblem: 500,000 GP or 1,000 Ether
+* Ancient Totem: 1,000,000 GP or 2,000 Ether
+* Ancient Artefacts: 2,000,000 GP or 4,000 Ether
+* Ancient Medallion: 4,000,000 GP or 8,000 Ether
+* Ancient Effigy: 8,000,000 GP or 16,000 Ether
+* Ancient Relic: 16,000,000 GP or 32,000 Ether
+This isn't a new money-making method – it's a way to turn drops you may not need into fuel for the weapons you're already using. If you're someone who’s deep in the Wilderness grind, this should go a long way in making Revenant weapons more viable long-term.
+
+{{News Poll|qtext=Should we allow players to chisel down Ancient Artefacts into Revenant Ether at a rate of 500gp to 1 ether?}}
+
+
+===New Agility Shortcuts===
+We know how much you love a good Agility shortcut, so we’re looking to add even more ways to bypass those pesky fences, walls, and obstacles slowing you down!
+
+Here are some of the locations we’re proposing:
+
+* Castle Drakan - Scale the wall (one-way) like a true vampire-hunting parkour expert.
+* Varrock Castle Garden – Skip the long walk around the palace with a new shortcut over the fence. Requires 35 Agility and completion of Garden of Tranquillity.
+* Proudspire - A shortcut for both directions to get to the top of the mountain in Varlamore.
+* Fossil Island - A shortcut from the tower down to the small island for when you just don’t feel like taking the long way around.
+* Morytania Slayer Tower - Two new shortcuts to make your Slayer grind smoother:
+** A low-level shortcut (Level 9 or 18 Agility) for quicker access to Banshees.
+** A mid-level shortcut (mid-60s Agility) to climb straight from the ground floor to the top, skipping the endless staircases.
+
+These shortcuts will help you move around Gielinor with ease, whether you're slaying monsters, speedrunning clues, or just avoiding unnecessary detours.
+
+Now, we need your say on these changes!
+
+{{News Poll|qtext=Should we add an Agility shortcut to scale the wall at Castle Drakan (one-way)?}}
+
+{{News Poll|qtext=Should we allow access to the Varrock Castle garden via an Agility shortcut after completing Garden of Tranquillity?}}
+
+{{News Poll|qtext=Should we allow players to travel in both directions in Proudspire using an Agility shortcut?}}
+
+{{News Poll|qtext=Should we add a shortcut from the Fossil Island tower to the small island for quicker travel?}}
+
+{{News Poll|qtext=Should we add two new Agility shortcuts in Morytania Slayer Tower to improve navigation?}}
+
+==Banking & Grand Exchange==
+We all love a good bank rework, and this time around, we’re bringing in some quality-of-life upgrades to make your time in Gielinor that little bit smoother. Whether you're speed-depositing loot, adjusting offers at the Grand Exchange, or just enjoying a more consistent interface experience, these updates aim to reduce friction and save you clicks.
+===Grand Exchange Edits===
+Markets can move fast, and we want to make sure you're not left behind. We're working on a feature that will let you edit your Grand Exchange offer prices directly from the offer status page, without needing to manually cancel and re-enter the whole thing.
+
+To be fully transparent, this will still cancel and re-submit your offer in the background, and your position in the purchase/sale queue will be updated accordingly. But all of this will happen automatically - no more faffing with manual re-entry. It’s the same functionality, made far less clunky and much faster.
+
+{{News Poll|qtext=Should we allow you to edit live Grand Exchange offers on the fly?}}
+
+
+===Empty Bags, Sacks, Boxes and Pouches!===
+Ever wrap up a trip, head to the bank, and realise you’ve got to manually empty a mountain of containers just to get everything stashed away? It’s a small thing, but we know it adds up - so we’re proposing a much more convenient way to handle it.
+
+We’d like to introduce a new "Empty Containers" button to the bank and deposit box interfaces. This would act much like the current "Deposit Looting Bag" button, but with expanded functionality.
+
+With just one click, you'd be able to empty all your relevant containers, including:
+
+* Coal Bag
+* Essence Pouches
+* Herb Sack
+* Seed Box
+* Plank Sack
+* Log Basket
+* Fish Barrel
+* Shade Remains Coffin (and any other suitable containers)
+
+We’re also planning to make this feature customisable - so you can toggle which containers you want this button to affect via the bank or deposit box settings. Whether you want everything emptied at once, or just a few specific items, the control’s in your hands.
+
+{{News Poll|qtext=Should we add an "Empty Containers" button to banks and deposit boxes, allowing you to quickly empty things like Coal Bags, Essence Pouches, Herb Sacks, and more - with custom toggles to control exactly what gets emptied?}}
+
+
+===Rebuy Feature===
+We’re also exploring a "Repeat Last Offer" feature for the Grand Exchange. This would remember the last item you purchased - including its price, and potentially the quantity - and give you the option to re-create that offer in just a few clicks. It’s perfect for regular rebuys or anyone wanting a quicker way back into the market.
+
+These tweaks are designed to keep things clean and convenient - no hidden strings, just smarter systems.
+===Standardised Reward & Deposit Interfaces===
+Ever noticed how some reward chests and deposit menus have their options in a different order every time? One moment, Inventory is first, the next time it’s Bank, and sometimes Discard sneaks in where you least expect it. It’s like trying to grab your usual groceries, only to find the entire store layout has changed overnight - frustrating and unnecessary.
+
+So, we’re fixing it! Moving forward, we’re standardising these interfaces so that options always appear in a consistent order. Whether you’re looting a raid chest, collecting a minigame reward, or interacting with similar menus, you’ll always know exactly where to click - no second-guessing required.
+
+We’re planning to leave these last two changes unpolled, as they just make sense! But do let us know if you have any feedback.
+
+==Other Changes==
+Not every update has to be a grand spectacle - sometimes, it’s the little changes that make the biggest impact on your day-to-day adventures in Gielinor. Whether it’s saving your hard-earned Chinchompas, making bonfires a more viable Firemaking method, or fixing some bizarre mechanics that defy all logic, these tweaks are designed to make your life just that little bit easier. Here’s what we’ve got lined up:
+===Chinchompa Insurance===
+Losing Chinchompas to a disconnect or PvM death feels awful. You worked hard for those squeaky little explosives, and it’s frustrating when they just disappear into the void. We’re changing that! We want to make any unprotected chins go straight to your gravestone or death pile, just like normal items, so you have a chance to recover them.
+
+We’re also removing the "Destroy" option - because who wants to intentionally destroy a cute lil Chinchompa? Not you! With this change, they would have a Drop option instead.
+
+* In PvM? Your chins will stick around like any other loot
+* In PvP? No changes - your opponent still gets your unprotected chins fair and square!
+
+{{News Poll|qtext=Should Chinchompas behave like standard items on PvM death, meaning unprotected Chinchompas are sent to a gravestone or death pile rather than running away?}}
+
+{{News Poll|qtext=Should we change the destroy option to a drop option for Chinchompas? }}
+
+
+===Bonfires: A Fairer XP Rate===
+Bonfires exist as a more relaxed way to train Firemaking, but in reality, they’re barely used. The XP per log is so low that almost no one bothers with them, meaning they serve little practical function in the game. To address this, we’re adjusting bonfires so that they grant the same XP per log as manually lighting fires, while still keeping their overall XP/hour lower than individual log burning.
+
+This change won’t make bonfires the new meta, but it will make them a more viable option for those who prefer a laid-back training method without feeling like they’re missing out.
+
+{{News Poll|qtext=Should bonfire XP be adjusted to match the same XP/log ratio as manually lighting logs, while ensuring it still results in a lower XP/hour rate compared to lighting them individually?}}
+
+
+===The Gout Tuber Mystery===
+Right now, the higher your Woodcutting level, the harder it is to find a gout tuber - which makes absolutely no sense. Instead of punishing players for leveling up, we’re flipping the script so that higher Woodcutting levels actually increase your chances of finding one. This means less time mindlessly chopping jungle, more time doing literally anything else, and maybe - just maybe - less frustration when trying to get your hands on this elusive root.
+
+{{News Poll|qtext=Should the chance of receiving a gout tuber increase with higher Woodcutting levels, rather than the current inverse system?}}
+
+
+===Imcando Hammers on Entrana===
+Entrana has always had some strict rules about what weapons you can and can’t bring, but there’s a bit of a head-scratcher when it comes to the Imcando Hammer.
+
+Despite being considered a weapon, the Imcando Hammer has zero stats and doesn’t even speed up unarmed combat - so why can’t it be brought to Entrana? One clever skiller even reported that their niche methods could benefit from bringing the Imcando Hammer, as it would help save inventory space - because, you know, who doesn’t want to carry less junk around?
+
+Now, we’re whitelisting both the main-hand and off-hand variants of the Imcando Hammer to be used on Entrana. This way, you can finally free up that precious inventory space without losing out on any of the hammer’s utility.
+
+It’s a small change that makes a big difference, especially for those who love efficiency or have mastered skilling with a minimal setup.
+
+{{News Poll|qtext=Should both the main-hand and off-hand Imcando Hammer be allowed to be brought onto Entrana?}}
+
+==Miscellaneous==
+These changes are a few neat QoL updates coming for you, to remove the headache of some of your daily grind. We've left these changes unpolled, as we're confident you'll like them!
+===Auto-Queuing Bird’s Nests===
+With this update, click once on a bird's nest, and now - they’ll auto-queue! You can relax while the nests open themselves in an orderly fashion. No more frantic clicking like a maniac trying to keep up with those sneaky little nests. Nests of the same type will be opened first, so you’re not jumping between different kinds in a disorganised mess. Efficiency at its finest, and no more endless spam-clicking!
+===Keeping the Bird's Nest===
+If you get a beginner clue scroll from a bird's nest in a members' world, you'll be able to keep the nest instead of it disappearing. No more losing valuable nests while you chase those clues!
+===Streamlined Settings for New Players===
+For new players, we’re making the settings menu easier to navigate. We’ll hide some of the options that aren’t immediately relevant, so you’re not overwhelmed by the full range of settings right from the get-go. It’s a simpler, less intimidating experience for newcomers!
+==="Did You Know?" Tip in the Chat===
+Get a helpful "Did you know?" tip when you log in! From useful hints to fun facts, these tips will appear in the chat, and you’ll be able to customise the colours in the settings. Not your thing? No worries, you can toggle it off at any time. It’s a little something to help you along on your journey.
+===Wise Old Man Updates===
+The Wise Old Man is expanding his services! He’ll now accept a wider range of quest-related items when you use his service to remove items from your bank. It’s never been easier to clear out your bank space and prepare for your next adventure.
+===Shades of Mort'ton Update===
+We’re adding an ‘Empty’ option to the Shades of Mort'ton coffin while inside the bank interface. This will allow you to directly deposit shade remains into your bank without any extra steps. It’s a small change, but one we hope you'll find useful!
+===No More Delays at Fishing Spots===
+Say goodbye to annoying delays when a fishing spot moves while you're running toward it! Now, you can click to move right to the new location without any interruptions. We’re making those fishing trips a lot smoother.
+===Toggle for Snow Effects===
+For players who may find the snow effects on Waterbirth Island uncomfortable, we’re adding a setting that allows you to toggle the visibility of falling snow. Accessibility matters, and we hope this update will give you the option to enjoy the game without those extra visual distractions.
+===Giant's Foundry Bonus Action Ticks===
+In the Giant's Foundry, if you nail the bonus action tick perfectly, you’ll recover a portion of any missed quality. This should make your bonus actions even more rewarding, giving you a little extra for your precision.
+===No More Delay with Cat Chasing Rats===
+We’re fixing the pesky delay caused by cats chasing rats. Your character’s actions will no longer be delayed during this animation, making it smoother to get things done without any extra hiccups.
+===Updated Trap Placement===
+We’ve improved the placement of hunting traps at various spots, making it easier to set up and more efficient for players looking to maximise their Hunter training. One of the biggest beneficiaries of this change is net traps for Salamanders, which should now feel much smoother to place. No more awkward setups - just efficient, hassle-free trapping.
+===Stackable Hunter Traps===
+Say goodbye to inventory clutter! All Hunter traps are now stackable in your inventory. This will make it much easier to carry and deploy traps without constantly needing to go back to the bank. Less space, more traps - what’s not to love?
+===Small Meat Pouch Near Banks===
+You’ll be able to use the small meat pouch near banks. It’s a small change, but it’s a big help for streamlining your hunting process. No more extra trips to the bank to load up your pouch!
+===Tower of life===
+You'll no longer have a random chance to find nothing when searching the Tower of life crates during the quest.
+===Wintertodt===
+The warmth overhead bar in Wintertodt will be made narrower to avoid visual clutter, especially during populated fights. Additionally, the player's health bar will no longer appear alongside the warmth bar when you get hit by the cold.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Entropi, Errol, Gecko, Gengis, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Mack, Manked, Markos, Maylea, Moogle, Morty, Necro, Nin, Nox, Nylu, Ori, Other, Philomel, Pumpkin, Rach, Redfield, Rice, Roq, Ry, Saiyan, Sarnie, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titus, TJ, Tsourorf, Tyran, Veda, Vegard, West, & Wolfy'''
+
+''The Old School Team.''

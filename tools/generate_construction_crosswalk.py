@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import os
 """Generate the versioned Construction cache/Wiki implementation crosswalk.
 
 The cache supplies menu objects, materials, requirements, room templates and
@@ -17,11 +18,14 @@ from collections import defaultdict
 from pathlib import Path
 from urllib.parse import quote
 
+import config_text
+
 from check_construction_catalog import (
     CONSTRUCTION_STAT_ID,
     CatalogError,
     read_blocks,
     read_compack,
+    read_db,
     require_ints,
     table_rows,
     validate,
@@ -304,7 +308,7 @@ def generate(
 ) -> dict[str, object]:
     summary = validate(content)
     configs = content / "configs"
-    rows = read_blocks(configs / "all.dbrow")
+    _, rows = read_db(content)
     row_id_to_name, row_name_to_id = read_compack(configs / "all.dbrow.compack")
     obj_id_to_name, obj_name_to_id = read_compack(configs / "all.obj.compack")
     loc_id_to_name, _ = read_compack(configs / "all.loc.compack")
@@ -768,7 +772,8 @@ def main() -> int:
         generated = json.dumps(
             crosswalk, indent=2, ensure_ascii=False, sort_keys=True
         ) + "\n"
-        runtime_generated = render_runtime_rows(crosswalk)
+        runtime_generated = config_text.completed(args.runtime_output,
+                                                  render_runtime_rows(crosswalk))
         if args.check:
             if args.output.read_text(encoding="utf-8") != generated:
                 print(f"construction crosswalk: FAIL: regenerate {args.output}", file=sys.stderr)
@@ -781,9 +786,9 @@ def main() -> int:
                 return 1
         else:
             args.output.parent.mkdir(parents=True, exist_ok=True)
-            args.output.write_text(generated, encoding="utf-8")
+            config_text.write_config(args.output, generated, encoding="utf-8")
             args.runtime_output.parent.mkdir(parents=True, exist_ok=True)
-            args.runtime_output.write_text(runtime_generated, encoding="utf-8")
+            config_text.write_config(args.runtime_output, runtime_generated, encoding="utf-8")
     except (CatalogError, KeyError, OSError, ValueError) as exc:
         print(f"construction crosswalk: FAIL: {exc}", file=sys.stderr)
         return 1

@@ -49,6 +49,11 @@
 --     Elizabeth's room with her barrel; 2745,3578 (W) Frank's room with his
 --     barrel; 2736,3577 (S edge) the south bedroom with David's spiders'
 --     nest (2740,3574,1).
+--   * the first trip: Camelot Teleport from the Lumbridge fixture tile
+--     (every walk from there opens the Taverley members' gate
+--     membergater 2933,3320), then the open road north to 2741,3552.
+--     The later hops between the mansion road and the pub street are
+--     open overland travel (reach.py: REACH closed-doors both ways).
 --   * the Seers' pub: its front double door stands open in the map
 --     (kr_opendoubledoor_l/r 2694-2695,3488): the goto lands on the street,
 --     the open leaf is asserted, and the player walks in and back out.
@@ -155,6 +160,13 @@ return {
     setup = {
         "::clearinv",
         "::give pot_empty 1",
+        -- Camelot Teleport (magic_spells.dbrow: level 45, 5 air + 1 law),
+        -- cast once from Lumbridge: the walk from the fixture's tile to
+        -- the mansion only goes through the Taverley members' gate
+        -- membergater 2933,3320 (reach.py, margin 160).
+        "::setlevel magic 45",
+        "::give airrune 5",
+        "::give lawrune 1",
     },
 
     run = function(t)
@@ -346,6 +358,15 @@ return {
         end
 
         -- --------------------------------------------------- accept
+        -- The first trip is a real teleport (owner ruling 2026-10-05: the
+        -- first goto obeys the door rule): from the Lumbridge fixture tile
+        -- every walk to Seers' opens membergater 2933,3320. Camelot
+        -- Teleport lands on open ground south of the castle (2757,3478);
+        -- from there the road north to the mansion gate is open overland
+        -- travel (reach.py 2757 3478 2741 3552: REACH closed-doors len=96
+        -- at margins 30/80/160).
+        t.player.teleport_cast("camelot_teleport", { 2757, 3478, 0 }, { name = "camelotTeleport",
+            runes = { { "airrune", 5 }, { "lawrune", 1 } }, where = "Camelot, tele_coord 0_43_54_5_22" })
         grounds_in("accept")
         t.exec("talk.guard", t.player.talk_to, "murderguard", 1)
         -- The accept branch falls straight through into murderguard_help's

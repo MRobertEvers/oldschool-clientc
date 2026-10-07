@@ -175,6 +175,10 @@ def coverage_gaps(manifest):
     if manifest.server_scripts and "scripts" not in declared:
         gaps.append(
             ("scripts", "[net:boot] scripts=%s" % manifest.ini.get("net:boot", "scripts")))
+    # Our world server boots from the server pack alone; a world running our
+    # script pack is running our server.
+    if manifest.server_scripts and "serverpack" not in declared:
+        gaps.append(("serverpack", "the world server's config records (server pack)"))
     return gaps
 
 

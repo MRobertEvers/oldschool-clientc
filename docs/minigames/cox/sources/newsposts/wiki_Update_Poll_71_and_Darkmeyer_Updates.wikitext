@@ -1,0 +1,153 @@
+{{Update|date=18 June 2020|link=https://secure.runescape.com/m=news/poll-71-and-darkmeyer-updates?oldschool=1|category=game}}
+[[File:Poll 71 and Darkmeyer Updates newspost.jpg|right]]
+{{clear}}
+
+<center>''This week’s update brings further changes from Poll #71 and updates to Darkmeyer.''</center>
+
+{{Horizontal Line}}
+
+{{Headline|22|Poll #71 Changes}}
+
+
+[[File:Poll 71 and Darkmeyer Updates (1).png|center|75px]]
+
+
+We haven’t let all the excitement of the Darkmeyer release stop us from working on the improvements you voted for in Poll #71. This week’s update includes the last of the Chambers of Xeric updates, new Wilderness spawns, and a little something-something for all the fashionscapers out there. Let’s take a look.
+
+'''Rocky Pet Recolours!'''
+
+[[File:Poll 71 and Darkmeyer Updates (2).png|center|200px]]
+
+
+The only thing Rocky the Thieving skill pet is stealing this week is our hearts, as he gains the ability to transform into two new (but still totally adorable) species!
+
+To transform Rocky into a Red Panda or a Tanuki, you’ll need to feed him redberries or poison ivy berries. To change him back into his chubby-cheeked Raccoon form, you’ll need to feed him white berries.
+
+'''Chambers of Xeric'''
+
+[[File:Poll 71 and Darkmeyer Updates (3).png|center|200px]]
+
+
+A toggleable healthbar interface has been added to the following Chambers of Xeric bosses: Tekton, Vespula's Abyssal Portal, Muttadiles, Vanguards, Vasa Nistirio, and The Great Olm. In the Vanguards’ case, the HUD will show each of their healthbars individually.
+
+In related news, shortly after the update we will reset the solo challenge mode Chambers of Xeric world record that was obtained illegitimately.
+
+'''Wilderness Spawns for Krystilia's Slayer Tasks'''
+
+[[File:Poll 71 and Darkmeyer Updates (4).png|center|75px]]
+
+
+Two Wilderness Slayer mobs will now spawn in greater numbers:
+*The number of black knight spawns north of Venenatis has increased from 2 to 7.
+*The number of bloodveld spawns in the Wilderness Dungeon has increased from 2 to 5.
+
+
+'''Ram Skull and Bonesack'''
+
+[[File:Poll 71 and Darkmeyer Updates (5).png|center|100px]]
+
+
+Fashionscapers rejoice! You can now own both the Ram Skull and Bonesack rewards from the ‘Rag and Bone Man II’ quest at the same time.
+
+To reclaim your reward, speak to the Odd Old Man at his camp near the road to Morytania. If you haven’t yet completed his quests, you can pick those up in the same place.
+
+Bear in mind that you’ll need level 30 Defence to equip the Ram Skull, which provides the same stats as an adamant full helm.
+
+'''Mining Guild Mineral Exchange Shop'''
+
+[[File:Poll 71 and Darkmeyer Updates (6).png|center|100px]]
+
+
+The Mining Guild has finally woken up to the changing times and has started to offer bags of gems and soft clay packs in their Mineral Exchange Shop. Both work exactly the same as the ones from Prospector Percy’s Nugget Shop.
+
+The soft clay packs can be purchased for 10 unidentified minerals.
+
+The bags of gems can be purchased for 20 unidentified minerals. Who knows, perhaps you’ll be as lucky as enneUni, who received the first ever uncut onyx from a bag of gems just this week!
+
+
+That’s all from Poll #71 this time – but rest assured, you’ll be seeing plenty more of it in the coming weeks.
+
+{{Horizontal Line}}
+
+{{Headline|22|Darkmeyer and Hallowed Sepulchre}}
+
+
+[[File:Poll 71 and Darkmeyer Updates (7).png|center|400px]]
+
+
+We've been keeping a close eye on Darkmeyer since release, tweaking and changing the content in response to your feedback. This week, the following changes will go live:
+*Fixed an issue in the Hallowed Sepulchre where bolts that are supposed to fire simultaneously would fire one after the other.
+*The fire trap animations in the Hallowed Sepulchre will now appear at the same time you take damage from them.
+*Some missing level up messages have been added for the treasure encounters within the Hallowed Sepulchre.
+*All treasure encounters in the Hallowed Sepulchre will now award a small amount of Agility experience when completed. This will happen twice per encounter.
+*Stationary sword traps will no longer hit from further away than they should.
+*You can no longer use barbarian training methods to light fires in the Hallowed Sepulchre.
+*The south path on Floor 4 of the Hallowed Sepulchre will now load the entire section, instead of showing a 'Loading, please wait' message at inopportune moments.
+*The fire trap on the north path of Floor 4 has reverted back to it's original rotation on release.
+*If a ghost spawns when looting the grand coffin it will now always be the archpriest of the unicorn instead of the knights.
+*The active node in the daeyalt mine will now move slightly slower.
+*The chance to succeed while pickpocketing vyres has been improved from 40% at 99 Thieving to 50%.
+*The Hallowed grapple now has a 100% chance to grapple successfully.
+*Navigating through the prayer barrier with a Hallowed symbol has been sped up slightly.
+*The Hallowed hammer now has a 100% chance to not bend nails regardless of the plank and nail combination used.
+*The bridge for the Construction encounter is now traversed much faster.
+*The Magic XP from activities in the Hallowed Sepulchre has been increased to 200.
+*The Prayer XP from activities, regardless of the amount of dust used, in the Hallowed Sepulchre has been increased to 200.
+*The portals should now be slightly more helpful by attempting to put you in-range of them instead of saying "You can't reach that from here."
+
+[[File:Poll 71 and Darkmeyer Updates (8).png|center|400px]]
+
+
+'''Hallowed Sepulchre Rebalancing'''
+
+In the weeks since release, we've seen two contrasting opinions about the Hallowed Sepulchre's XP rates. Some of you believe it doesn't reward enough XP; some of you think it rewards too much.
+
+The truth is that both groups of players are using very different playstyles, and seeing discrepancies in their XP rates as a result. If you play through the Sepulchre while taking time to get treasure on every floor, you'll see less XP - but this is balanced by the amount of loot you'll receive. Conversely, if you ignore the treasure completely and focus on completing the floors, it's possible to boost the XP rate exponentially.
+
+Ideally, we want everyone's experience of the Sepulchre to feel rewarding, but balanced. This week, we've added a small amount of Agility XP to the treasure encounters, in an attempt to shift a balance a little bit. We do however realise that this won't completely address your concerns, and in the coming weeks we'll continue to work on rebalancing.
+
+The real question is: what kind of skill level do we balance for? Right now, our goal is to balance the content so that the amount of XP received is just right for an 'above average' player. This hypothetical tomb raider makes a few mistakes, but never runs out of time, and only collects treasure on the most valuable floors. They get a balanced amount of both XP and treasure.
+
+With this assumption in place, a truly skilled player, who's put both time and effort into mastering the Sepulchre, will get better XP rates. We're happy with that, because we believe that taking the time to master a skill should be rewarded.
+
+But where does that leave the vast majority of players, who will play through the Hallowed Sepulchre according to their own playstyle? As you've seen, balancing the minigame for two entirely different playstyles is a difficult task.
+
+Our priority this week has been fixing any bugs we've seen crop up in the Darkmeyer content, but rest assured that we will shift focus to the Hallowed Sepulchre's XP rates as soon as we're able. When we do, we'll include the assumed time benchmarks for the imaginary 'above average' player that we're using as a point of reference.
+
+Stay tuned for more information!
+
+{{Horizontal Line}}
+
+{{Headline|22|National Video Games Day Survey}}
+
+[[File:Poll 71 and Darkmeyer Updates (9).png|center|75px]]
+
+
+National Video Games Day is coming soon, and at Jagex, we're all gamers. So to celebrate, we're asking you to tell us about your favourite elements of your favourite games! Click on the link below to fill out a short survey, and help us to create the ultimate supergame!
+
+[https://jagex.eu.qualtrics.com/jfe/form/SV_0etQzpM4cHSo8Hr Survey Link]!
+
+{{Horizontal Line}}
+
+{{Headline|22|Other Changes}}
+
+The past few days have seen an uptick in the number of fraudulent password reset emails being sent to Old School players. We are currently still investigating the cause of this issue. In the meantime our Player Support team have prepared [https://support.runescape.com/hc/en-gb/articles/360009952618--14-JUN-PASSWORD-RESET-REQUESTS advice] for those affected.
+
+*A "Yes, don't ask again" option has been added to the Soul Bearer.
+*Players can now store the Infernal or crystal axes in the Enchanted Valley S.T.A.S.H. unit.
+*The Shayzien Infiltrator in the Lizardman Temple now tells you how many lizardmen and lizardman shamans you have killed.
+*The death animation of the red and purple nylocas in Theatre of Blood has been reduced.
+*Players can now right click the tool rack in Chambers of Xeric to select the tool they want.
+*Opening seed packs will no longer stop you from running or walking.
+*Using a knife on a calquat will now attempt to slowly cut all the calquats in your inventory, one at a time.
+*The Coal Bag will no longer tell you the amount of coal it’s holding in a chat dialogue box, so checking it won’t stop you from moving any more.
+*Chat messages about catching large animals in pit traps are now filterable.
+*Arno will now warn you that he still has leftover items from your last death before allowing you to fight the Hespori again.
+*Falo the Bard now has an in-game model that matches his chathead.
+*Players will now be able to train Agility, Thieving, Construction and Prayer in the Hallowed Sepulchre on Deadman Worlds. Note that you will still be unable to gain Magic XP there.
+
+{{Horizontal Line}}
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,645,66166420 official forums], the community-led [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the '''#gameupdate''' channel. For reference on the above content, check out the official [[Wiki]].
+
+'''Mods Acorn, Arcane, Archie, Argo, Ash, Banjo, Boko, Bonsai, Bruno, Curse, Deagle, Ed, Errol, Fed, Flippy, Gayns, Gee, Halo, Husky, Impact, Jndr, John C, Kandosii, Kieren, Lenny, Lottie, Lyric, Mack, Maylea, MikeD, Nasty, Oasis, Roq, Ry, Steve W, Sween, Tide, Vegard, Weath & West'''<br/>''The Old School Team''

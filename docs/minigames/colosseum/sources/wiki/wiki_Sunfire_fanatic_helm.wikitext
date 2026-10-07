@@ -1,0 +1,79 @@
+{{Infobox Item
+|name = Sunfire fanatic helm
+|image = [[File:Sunfire fanatic helm.png]]
+|release = [[20 March]] [[2024]]
+|update = Varlamore: Part One
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = Yes
+|stackable = No
+|noteable = Yes
+|options = Wear, Drop
+|examine = A helmet forged from sunfire.
+|value = 375000
+|weight = 2.267
+|exchange = Yes
+|id = 28933
+|leagueRegion = Varlamore
+}}
+[[File:Sunfire fanatic helm detail.png|left|150px]]
+[[File:Sunfire fanatic helm chathead.png|left]]
+The '''sunfire fanatic helm''' is an item that requires level 60 [[Prayer]] and 40 [[Defence]] to equip, obtained as a possible reward from participating in the [[Fortis Colosseum]].
+
+Part of the [[sunfire fanatic armour]] set, it provides the [[best in slot]] prayer bonus for the head slot, and also has identical defence bonuses to the [[rune full helm]].
+
+{{Costume storage|armour case|[[Sunfire fanatic armour]] set|set=true}}
+
+==Combat stats==
+{{Infobox Bonuses
+|astab = 0
+|aslash = 0
+|acrush = 0
+|amagic = -6
+|arange = -3
+|dstab = +30
+|dslash = +32
+|dcrush = +27
+|dmagic = -1
+|drange = +30
+|str = 0
+|rstr = 0
+|mdmg = 0
+|prayer = +6
+|slot = head
+|image = [[File:Sunfire fanatic helm equipped male.png|130px]]
+|altimage = [[File:Sunfire fanatic helm equipped female.png|130px]]
+}}
+
+==Item sources==
+{{Drop sources|Sunfire fanatic helm}}
+The expected drop rate if you complete all twelve waves is approximately 1/24.47
+
+==Treasure Trails==
+{{EmoteClue}}
+
+==Used in recommended equipment==
+{{Used in recommended equipment|Sunfire fanatic helm}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 10 April 2024
+|update = Undead Pirates, Colosseum Changes & more!
+|change = The item's [[value]] has been increased from 15,000 to 375,000.
+}}
+{{Subject changes footer}}
+
+==Gallery==
+<gallery heights="250" style="text-align:left">
+Sunfire fanatic armour equipped male.png|Sunfire fanatic armour on body type A.
+Sunfire fanatic armour equipped female.png|Sunfire fanatic armour on body type B.
+Sunfire fanatic armour concept art.png|Concept art of the sunfire fanatic armour, by [[Mod Jerv]].
+</gallery>
+
+
+{{Fortis Colosseum}}
+{{Prayer items}}
+
+[[Category:Collection log items]]

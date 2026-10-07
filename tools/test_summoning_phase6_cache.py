@@ -9,8 +9,10 @@ import sys
 import tempfile
 from pathlib import Path
 
+import config_text
 
-REPO = Path(__file__).resolve().parents[1]
+
+REPO =Path(__file__).resolve().parents[1]
 DEFAULT_CACHE = REPO / "cache.osrs239.summoning"
 DEFAULT_CACHEPACK = REPO / "3rd/rscache/tools/cachepack/cachepack"
 
@@ -22,6 +24,11 @@ def parse_sections(path: Path) -> dict[str, dict[str, str]]:
     sections: dict[str, dict[str, str]] = {}
     current: str | None = None
     for line_no, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        # The unpacked all.inv states every key; `scope=default` is an absent
+        # scope, not a property, so it is dropped as the missing line it means.
+        raw = config_text.filter_line(raw)
+        if raw is None:
+            continue
         text = raw.strip()
         if not text or text.startswith("//"):
             continue

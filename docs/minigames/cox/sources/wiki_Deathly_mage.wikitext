@@ -1,0 +1,69 @@
+{{Infobox Monster
+|version1 = Normal
+|version2 = Challenge Mode
+|name = Deathly mage
+|image = [[File:Deathly mage.png|150px]]
+|release1 = [[5 January]] [[2017]]
+|release2 = [[17 May]] [[2018]]
+|update1 = Chambers of Xeric
+|update2 = Chambers of Xeric: Challenge Mode Is Here!
+|members = Yes
+|combat = N/A<ref>DISCLAIMER: The stats displayed on this page can vary based on the player with the highest combat level. The stats shown are scaled for a player with maxed combat stats.</ref>
+|size = 1
+|examine = They wouldn't enjoy the circus.
+|attributes = xerician
+|xpbonus = 0
+|max hit1 = 22
+|max hit2 = 
+|aggressive = No
+|poisonous = No
+|attack style = [[Magic]]
+|attack speed = 4
+|hitpoints1 = 120
+|hitpoints2 = 180
+|scaledhp = Yes
+|att = 1
+|str = 1
+|def1 = 155
+|def2 = 232
+|mage1 = 210
+|mage2 = 315
+|range = 1
+|attbns = 0
+|strbns = 0
+|amagic = 120
+|mbns = 0
+|arange = 0
+|rngbns = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|dlight = 0
+|dstandard = 0
+|dheavy = 0
+|poisonresistance = 100
+|venomresistance = 100
+|id = 7560
+|leagueRegion = Kourend
+}}
+'''Deathly mages''' are monsters found in the [[Chambers of Xeric]], in the [[tightrope room]]. In solo and small groups, players will find two deathly mages alongside two [[deathly ranger]]s.
+
+While initially unaggresive, they will attack any player that attempts to cross the tightrope. Their attacks can be partially reduced with [[Protect from Magic]], though they can still hit reasonably high.
+
+Any mages in the room automatically die upon using the [[Keystone crystal|keystone]] on the barrier.
+
+==Drops==
+===100%===
+{{DropsTableHead}}
+{{DropsLine|name=Bones|quantity=1|rarity=Always}}
+{{DropsTableBottom}}
+
+==Dialogue==
+{{Hastranscript|npc}}
+
+==References==
+{{Reflist}}
+
+{{Chambers of Xeric}}
+[[Category:Monsters with no combat level]]

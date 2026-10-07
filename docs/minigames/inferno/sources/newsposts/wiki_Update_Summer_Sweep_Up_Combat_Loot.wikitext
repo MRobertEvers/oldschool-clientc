@@ -1,0 +1,288 @@
+{{Update|date=30 May 2025|url=https://secure.runescape.com/m=news/summer-sweep-up-combat--loot?oldschool=1|category=devblog}}
+[[File:Summer Sweep-Up- Combat & Loot newspost.png|right]]
+__TOC__
+Following in the footsteps of last year's Project Rebalance, we're taking some time to improve some more existing content. In some cases, those improvements are just small tweaks, while others might benefit more from drastic changes - this blog has a healthy helping of both!
+
+If you'd rather have something to listen to or watch along as you make those gains, [https://www.youtube.com/watch?v=oaFJgKyvx-U check out this video made in collaboration with Coxie and Paak] for a top-level overview of everything we're changing!
+
+{{Youtube|oaFJgKyvx-U}}
+
+Projects like this one allow us to take feedback we’ve seen over months, or even years, and use it to improve the very foundations of the game.
+
+On the other hand, we know that big changes can engender big feelings, so we invite all of you to let us know how you feel about what we’re proposing today. Although we’re not polling any of these improvements, in line with our Polling Charter, we remain open to feedback and will make adjustments where necessary, just as we did with Project Rebalance.
+
+Speaking of, this first change might seem familiar…
+
+==Elemental Weaknesses & NPC Defence Changes==
+[[File:Summer Sweep-Up- Combat & Loot (1).png|600px|center]]
+
+Elemental Weaknesses brought back the Old School magic of using the right tool for the job – quite literally! Since this was such a drastic shift, we played it safe at first. After a year of watching you enjoy the first batch of weaknesses, we thought it was time to introduce some more!
+
+We’re especially interested in feedback about whether the elements we’ve chosen make sense as weaknesses for the monsters they’re attached to. We’ve tried to choose thematic weaknesses wherever possible, while maintaining game balance. We want to hear about monsters you feel are misplaced, or monsters you feel we’ve missed.
+
+On that note, the wonderful GentleTractor reached out to us last year with some great feedback which has served as a north star for this set of tweaks. We’ll go through them element by element – although of course, we’ll miss out any monsters who already have an elemental weakness.
+
+You might also notice that some of the adjusted monsters still aren’t 'worth' using Elemental spells on. Keep in mind that we’re not drastically redefining the meta here, we’re just rolling out weaknesses that make sense thematically. This also gives us room to take Elemental spells to the next level in future via new rewards or specific encounter design.
+
+For a full list of all affected NPCs, [https://docs.google.com/spreadsheets/d/e/2PACX-1vRXY3W0EgqsLpxkgQx-wSHd2X1E8VqjHC0psbfiM0IIlDxwMypEaOFVC68qkfTZdB1P82Ch0JvpIrEZ/pubhtml# click here to visit the relevant tab on our spreadsheet.]
+
+===Air Weaknesses===
+Mastery over air gives you an edge versus any enemy who relies on cheap tactics like floating or flying. Strong gusts of wind can throw your opponents off-balance, making them especially susceptible to air spells. 
+
+In plainer terms, we’ve added air weaknesses to things that fly and things that aren’t quite corporeal, including birds, bats, devils of every variety, wyverns, ghasts, banshees, shades and more. The most noteworthy NPCs are Xarpus, the Thermonuclear Smoke Devil, the Phantom Muspah, and a handful of quest enemies.
+
+Aside from the numerous additions to this category, there are also a couple of changes:
+
+* Wyrms are now weak to air instead of earth.
+* Skeletons are now weak to earth instead of air.
+* Zombies are now weak to fire instead of air.
+===Water Weaknesses===
+Perhaps a little more readily apparent than air weaknesses, anything that feels particularly fiery - including demons from the fiery depths of Infernus - will take some serious damage from Water spells. Let's see who's hot and who's not...
+
+Helpfully for the lot of you, there aren't any changes to NPCs with existing weaknesses here, just a slew of new Water weaknesses for you to make use of. Chief among these are all TzHaar creatures (including TzTok-Jad and TzKal-Zuk), Vorkath, the King Black Dragon, the Great Olm, K'ril Tsutsaroth and his generals, Cerberus, Skotizo alongside hordes of quest-related NPCs like Agrith Naar, Nezikchened, Fareed/Flambeed and the ferocious Elvarg!
+
+===Earth Weaknesses===
+Up against an enemy with an exterior that's too tough to crack? Try slamming some Earth magic into it! 
+
+In our first go around, Earth Weaknesses were perhaps the least utilised. We're adding a mountain of new NPCs to this list, focusing on NPCs with hard exteriors or creatures who rely on water - which is readily soaked up by your earthy blasts, making these aquatic creatures highly susceptible.
+
+Drakes and Guardian Drakes have been moved into this category, since their rock solid defence makes them feel more similar to metallic draconids than chromatic ones. For similar reasons, Mountain Trolls and the tough-skinned Giant Mole have had their weaknesses adjusted to Earth. 
+
+There are a lot of additions here encompassing golems, gargoyles, waterfiends, jellies, trolls, crabs and more! The most interesting among these are the Alchemical Hydra, Dawn, Dusk, Giant Mole, Kraken, and a variety of quest NPCs.
+
+===Fire Weaknesses===
+There are arguably the most intuitive of any weaknesses here - icy stuff melts, nature-y stuff (like plants and bugs) burns to a crisp. Simple!
+
+Despite this one being so intuitive, there's a lot more that we could have done with these weaknesses initially. We've not got any changes to NPCs who already have a weakness here, but we've got a lot of additions. Most worth keeping an eye on in this category are: Bryophyta, Hespori, the Kalphite Queen, Sarachnis, Venenatis, Spindel, Scorpia, Nylocas, Verzik Vitur's 'Spider'/Nylocas Form, and Skeletal Wyverns. We mentioned them earlier but as a reminder: Zombies now sit neatly in this category since their rotting flesh burns right off, so feel free to incinerate them with impunity!
+
+That's a wrap on this batch of Elemental Weaknesses! 
+
+Like we said before, we're not looking to rock the boat or drastically change metas. Instead, we're aiming to make sure that this system feels like it works where you'd expect it to, open up more options for you to make interesting decisions while progressing, and leave us room for cool rewards in future that interplay with these weaknesses.
+
+==NPC Defence Changes==
+Beyond Elemental Weaknesses, you'll notice on the spreadsheet linked above ([https://docs.google.com/spreadsheets/d/e/2PACX-1vRXY3W0EgqsLpxkgQx-wSHd2X1E8VqjHC0psbfiM0IIlDxwMypEaOFVC68qkfTZdB1P82Ch0JvpIrEZ/pubhtml# or here if you don't feel like scrolling]) that we're taking a pass at some other NPCs and exaggerating their weaknesses where appropriate. To do this, we're making further use of the Light/Standard/Heavy system for Ranged defences, tweaking the typical Stab/Slash/Crush defences in spots and rolling out the Flat Armour system (first used at Perilous Moons) on a very select few NPCs. 
+
+Flat Armour's the most interesting thing here. If you're not in the know, a Flat Armour value of 2 means an enemy takes 2 less damage than you would have hit (meaning if you hit a 10, they'll only receive 8 damage). Negative Flat Armour values mean enemies take more damage per hit. In practise then, an enemy with positive Flat Armour might encourage slower-hitting weapons or weapons with fewer hitsplats, while enemies with negative Flat Armour encourage fast-hitting weapons or weapons with numerous hitsplats like the Scythe of Vitur or Dual Machuahuitl.
+
+Realistically, we aren't likely to say 'this NPC has 20 Flat Armour, hope you brought your Elder Maul!', but it's a small balancing lever that we can tweak to nudge things one way or the other, similar to the more traditional defensive stats. In cases where we've introduced positive Flat Armour to an NPC, we're bumping HP down slightly so that kill-time isn't likely to change considerably with your existing setup but ''may slightly'' favour a change in setup.
+
+At this stage we've taken a very light-touch approach to any Flat Armour antics and focused more on traditional defensive stats, but we'll be keeping a close eye on how these changes feel in practise, or even thoughts you might have at this preliminary stage!
+
+==Loot Table Changes==
+[[File:Summer Sweep-Up- Combat & Loot (2).png|600px|center]]
+
+If you tuned into any of our RuneFest content, you knew this one was coming! 
+
+Before we get into specifics, let's talk about the why? for this section.
+
+One of the main drivers behind an undertaking like this is an effort to bolster gameplay variety in the present and in the future.  The primary goal behind tweaks to loot tables should be better setting up our delicate economy to provide more 'ebb and flow' interactions, where players seeking profit are encouraged to move between activities as their GP output fluctuates over time.
+
+Another important factor is that some resource drops are oversaturated, entering the game in either too high a quantity or from too many sources, which diminish their value over time. Chaos Runes are a great example here - they're reasonably well-balanced across the activities where they're obtained, but the sheer quantity and number of sources for them mean their value is weakened, so from a GP per hour perspective: none of the loot tables that feature Chaos Runes are really benefitting from having them in the first place.
+
+With the above in mind, we've done some digging into spots where a single activity fulfils too many economic needs and in turn introduces too high a % of a specific resource relative to other activities. 
+
+As an example, consider that Torstol Seeds used to sell for north of 50,000 GP to other players. Following the addition of Phantom Muspah and Tombs of Amascut, the supply of Torstol seeds rose drastically and they now fetch a comparatively meagre ~6,500 GP. The knock-on effect of this is that for a future table to have a 'good' Torstol Seed drop (meaning one that has a similar GP value to 'good' Torstol Seed drops at the time of release for Tombs of Amascut or Phantom Muspah), we'd have to drop almost eight times as many and continue snowballing the plummeting price of Torstol Seeds.
+
+We can't just keep dropping more of something without ruining certain economies, so we're forced to give players drops that may feel weak from in terms of GP value, which leads to dissatisfaction. Torstol seeds are only one drop, but you can see that if this applied to every suitable drop we have in the game, we'd end up having core loot tables that don't feel very rewarding, and likely have to fill in the gaps with alchables, which furthers inflation - also not good!
+
+There may be some Iron players reading this and worrying about feeling starved of resources all of a sudden, but we don't believe that should be the case. From an economic perspective, even a small nerf in the supply of something like Torstol Seeds from a handful of places can have huge benefits on their value, and we reckon we can make economically significant changes without having Irons feeling a squeeze or resource shortage.
+
+Now that we're all on the same page, you should be well-equipped to read through all of the specifics. There are too many to list neatly here (particularly with our blogs having a character limit), so you'll have to [https://docs.google.com/spreadsheets/d/e/2PACX-1vT5aIwPYJGCdUuO5rpNtYQE7FnERytSuj99zXkTBXf3XSIumSzjMQ9T1EXczWpMPZsRyZAcezWaQc6t/pubhtml check out this handy spreadsheet] featuring nerfs, buffs or more complex 'adjustments' to a variety of runes, herbs, seeds, gems and fish.
+
+Two things to note as you're [https://docs.google.com/spreadsheets/d/e/2PACX-1vT5aIwPYJGCdUuO5rpNtYQE7FnERytSuj99zXkTBXf3XSIumSzjMQ9T1EXczWpMPZsRyZAcezWaQc6t/pubhtml checking out the spreadsheet:]
+
+* 'Shark chum' is similar to Diabolic worms being an Anglerfish rate-enhancer, except for Sharks (shocking!) We believe this kind of 'significant rate enhancer' should help add more value into gathering skills like Fishing while still being profitable to sell-on if obtained as a drop.        
+** To be clear, we're not looking to roll out some kind of 'skill enhancer' for every gatherable resource, we'd like to experiment with more of them for high-level resources specifically so that we can tone down on raw drops, but don't ever want to get to a point of players feeling like it's not worth doing X skill without Y skilling enhancer from Z boss - that's not fun for anybody!
+* Notably absent from this list is Soul Wars. In simple terms, we're more-or-less eviscerating the loot here. Minigames like this where players can effectively determine their own rates of output just can not be allowed to be lucrative. We were quick to respond to Castle Wars crates being too strong, and we've taken far too long to make this change. We'll be taking a Castle Wars-esque approach to Spoils of War, with some Blighted supplies on offer and replacing the Castle Wars-specific ammo with Pure Essence, but at a significantly lower GP value per crate.        
+** Pet hunters: you're safe. The pet rate here will remain as-is and the 'time to obtain' will remain the same.
+
+==Tombs of Amascut Changes==
+[[File:Summer Sweep-Up- Combat & Loot (3).png|600px|center]]
+
+Old School's third raid feels like it released only yesterday, when in actual fact it's been almost three years since we set foot into the Tombs of Amascut (ToA). While we announced at RuneFest that Raids 4 is on the books for 2026, we'd like to make some adjustments to ToA and set it up for success down the line.
+
+First we'll detail changes that we'd like to make to the raid itself, with a focus on the puzzle rooms and the bosses. After that, we need you to help point us in the right direction for what we believe are some much-needed loot adjustments.
+
+===ToA Boss Changes===
+====Ba-Ba====
+Currently, the most effective way to kill Ba-Ba for most players is to use the infamous 'red-X' method to avoid Ba-Ba using attacks, you'll give up some DPS to do this, but put yourself in a position of absolute safety so long as your timing's on point. We're always fans of emergent and creative gameplay, but think where Ba-Ba sits right now is pretty dull and we'd like to change the pacing of the fight a little to make the core experience more engaging, which might make red-X a little less 'necessary'.
+
+* Protect from Melee now mitigates all damage at Ba-Ba, unless Invocations which reduce the effectiveness of Protection prayers are activated.
+* Ba-Ba spawns fewer baboons, which will die after one hit from any attack style. If Jungle Japes is turned on (we see you running your Banana 5s) then baboons will drop more bananas on death, to account for the reduced number of baboons.
+* Damage from thrown debris is now fully shifted onto anything you split the damage with - boulders and sarcophagi alike, which should make things a little less frantic.
+We're hoping that these tweaks make the fight feel more fair and make engaging with the mechanics feel more rewarding, which has been a struggle for players at higher Raid Level due to how much unavoidable damage Ba-Ba can dish out.
+
+====Akkha====
+In almost any other content, Akkha's got enough going on that he's more than 'final boss' worthy, perhaps a little too much. We'd like to tone down the intensity of the default fight a tad while maintaining Akkha's identity, so that he's more fun to interact with 'as intended' if you've not sprouted your butterfly wings yet.
+
+* Protection prayers now mitigate more damage from Akkha.
+* The 'Stay Vigilant' invocation is getting a small rework. The changes look as follows:
+** Akkha will swap styles whenever he uses a Special Attack.
+** Akkha will use Special Attacks more often than the base variant. This will mirror the number of Specials he uses at the moment with this Invocation active.
+** Whenever Akkha swaps styles, he'll respect the same predictable order as the base variant's overhead swaps do, rather than swapping randomly.
+* Akkha now only prays against the style that he's attacking with.
+* Akkha's stat-drain effect now only affects Combat skills.
+* Special attacks will occur every 7 attacks rather than every 6 attacks.
+* The number of orbs during Akkha's enrage phase (we're not saying the other thing) has been reduced.
+Ultimately the hope here is that the fight at a baseline feels more approachable rather than 'let my friend butterfly non-stop because the boss is scary, then drink 14 brews and proc Redemption twice during the final phase'. Butterflying will still be extremely effective if you're willing to learn it, but we reckon you'll have a better time versus Akkha if you're looking for that fast-paced gear switching action!
+
+====Kephri====
+We've got far less to say here than on Ba-Ba and Akkha, but think we can address some of the biggest pain points with just a handful of tiny tweaks, here goes:
+
+* Lower the Magic Defence of the Soldier Scarab.
+* Scarabs no longer scale their Defence with Raid Level.
+* Arcane Scarabs are guaranteed to move after a certain number of attacks, regardless of those attacks hitting or missing.
+'''Zebak'''
+
+* Waves no longer push the player back, but deal ~30% more damage.
+'''Wardens'''
+
+* Skull bombs during P2 can no longer land underneath the active Warden or the Obelisk.
+===ToA Puzzle Changes===
+That's the bosses dealt with, now let's talk about puzzle rooms. We've got a handful of tweaks here that should smooth them out a little and have you speeding through puzzles like never before, while also reducing variance a tad in group play:
+
+* Cursed Baboons and Baboon Shamans on the Path of Apmeken will always take maximum damage from Ranged attacks, bypassing accuracy. Their HP will be increased slightly to compensate, but this should feel a lot better.
+* Two waves of monkey assailants will be removed from the Path of Apmeken.
+* The amount of water required for the Path of Crondis no longer scales linearly with the number of players, meaning there's less pressure on your beginner friends to get it right or be stuck watching a cheeky crocodile undoing all of your hard work.
+* The Hitpoints on the Obelisk on the Path of Het are slightly reduced, so that 1-downs don't require boosting above 99 Mining.
+
+===ToA Miscellaneous Changes===
+To address some other common frustrations, here are some tweaks that don't fit neatly into the above categories.
+
+* The big pot in the Nexus will become a fully functional deposit box.
+* Any drained stats will be restored at the end of a boss fight.
+* Smelling Salts will re-apply their boost as they expire.
+
+===ToA Loot Changes===
+Naturally, it's hard to talk about ToA without talking about its uniques and loot. We spoke about adjustments to regular loot in the previous section, but we want to hear from you regarding uniques. Before we start, it's important to say that this is something we've had our eye on for a while. The changes above will make the raid faster, but we believe loot here is already problematic and don't want to hold off on making the raid better because we're apprehensive about making changes to loot.
+
+On release, we received a lot of feedback around higher Raid Levels not feeling particularly 'worthwhile', which we did act upon and likely overcorrected. Add on top of that all of the changes over the years and player skill improvements that make higher Raid Levels easier and easier, and we have one of the best melee weapons in the game sitting below 10,000,000 GP on the market and one of the strongest rings in the game at around 2,000,000 GP.
+
+While it's not quite as drastic, if the Scythe of Vitur were sitting at a price of 20,000,000 GP, we're sure you'd agree that it would be damaging for both the Theatre of Blood and the wider game. Of course the Fang isn't as good as the Scythe but there are still many places where it shines or is a close second, and we believe its value is too far south of where it should be for it to be healthy. It might be the case that we've waited too long to make a meaningful change here, but we believe it's better to try and make changes for the long-term benefit than to hold up our hands and say it's too late.
+
+We've waited far too long to make changes here. It's hard to have these conversations because they're always emotionally charged and can be difficult to feel like we're righting the ship, but at this point we've had more than enough time to reflect and understand the impact that TOA's unique rates and weightings have on the wider economy and on player progression.
+
+All that to say: we're looking to make some changes. Exactly what those changes are isn't something we've landed on yet - we have options, and we're open to suggestions, which is why we're asking you to talk to us about what you think is the best path forwards. We could swap the weightings of the Fang and Lightbearer with Elidinis' Ward, we could reduce some of the loot scaling at the top end, we could blanket reduce purple chance across the board. There's a lot that we could do, so let us know where your heads are at and we'll make sure to detail exactly what we will do ahead of time.
+
+==Other Combat & PvM-focused Changes==
+For the rest of this blog, we'll be covering a lot of different types of content. Where changes to Elemental Weaknesses and NPC Defence are far more broad, every section from here on out is about a specific piece of content in Old School. If you're an expert or consider yourself very knowledgeable about anything mentioned throughout the rest of today's post, then get in touch and share your thoughts with us in all the usual places!
+
+===Phosani's Nightmare===
+It wouldn't be a follow-on from Project Rebalance if we weren't talking about the Nightmare again!
+
+Mechanically, Phosani's Nightmare is one of the most enjoyable solo encounters in the game for many players. She boasts loads of interesting attacks with clear telegraphs, and can be killed in very budget gear with next-to-no damage taken if done properly. That said, the fight can drag a little with its four near-identical phases before the frantic finale.
+
+We reckon the pace of the encounter could be improved, so we'd like to outright remove one of the earlier phases from the fight. This means you'd expect two 'normal' phases, a third phase with the 'Prayer Disable' mechanic, and then the final phase. We'd also be looking to adjust Combat Achievements times to compensate, but don't know exactly what those times might look like at this stage.
+
+We will not be adjusting drop rates alongside this change. Our hope here is that the fight just feels better, meaning you'll feel more inclined to stick it out for those big ticket uniques if you're rolling the dice more times per hour with a less fatiguing encounter.
+
+===Nex===
+Keeping on theme, we've got another endgame encounter that could see some improvements!
+
+One of the foremost complaints about Nex is that taking her down can feel like a bit of a 'brew simulator', due to lots of chip damage, unpredictable aggro swaps, unpredictable attack patterns in certain phases, and few opportunities to heal up without sacrificing DPS - which in turn elongates the fight and needs you to heal up even more! We've got a handful of tweaks to improve the feel of the fight, including some that should let skilled groups reduce their incoming damage so long as they're co-ordinated:
+
+* Allow players to deal reduced damage past Nex's phase transitions (up to a threshold) so that they don't run into the 'feels bad' damage nulling effect.
+** Mass groups will likely hit these thresholds easily but won't see noticeable reductions in kill times since they're already so fast, while small teams will be able to keep on hitting without feeling like they're completely wasting their time.
+* Adjust some of the behaviours during 'downtime' phases to let players heal up without feeling punished. We'll achieve this by letting players heal from damage dealt to Blood Reavers, though we're open to further changes if absolutely necessary.
+* Make her Melee attack a little 'stickier' during all phases. This means that if Nex uses a Melee attack, she'll use two more before swapping, similar to the change we made to Muttadiles in 2023.
+* Additionally, reduce the damage dealt by her Magic attack in the final phase if you turn on Protect from Magic 'late'. Meaning even if you're not praying already, you can still mitigate damage a little with quick reactions!
+We're not looking to drastically adjust Nex as a fight, but think that providing you more avenues to reduce incoming damage might make things feel a little more engaging without trivialising the encounter entirely. Let us know what you think about these, especially if you're a fan of taking on Nex in groups of 2-5 players!
+
+===Hueycoatl===
+Moving away from the endgame for a moment but sticking with a boss that's usually taken down in masses or a small teams, we're heading to Varlamore to take a look at the fearsome Hueycoatl.
+
+To start with, we'd like to improve the tail phase a little with clearer visuals and bringing down the tail's hitpoints so that you can get back to hitting Huey in the face and body again, which is what you're all there for!
+
+What's a little more complicated is figuring out who Huey is for. As far as unique equipment drops go, you can snag yourself a Dragon Hunter Wand and some Hueycoatl Hide to make a nifty set of armour. The problem with the Wand is often outperformed by other setups for mid-level players against dragons, and dragons aren't killed all that often either beyond draconic bosses like the King Black Dragon, Vorkath, Alchemical Hydra or Great Olm, and by the time you're tackling these foes then you're likely sporting better gear to boot. This makes it a niche weapon that's on the weaker side, which is also a hefty grind for Huey's target audience - not good!
+
+We'd like to boost the Wand's power, improve its drop rate, and make some adjustments to Hueycoatl hide too, so that they sits in a better spot for the kinds of players who Huey's aimed at. To achieve this, we'd like to do the following:
+
+* Bonus damage versus dragons increased from 20% to 40%.
+* Bonus accuracy versus dragons increased from 50% to 75%.
+* Ability to autocast ancients. This one's not all that useful against dragons but might have a niche use for some Blood Barrage antics on extended trips, though we expect most players would be making use of Elemental Weaknesses while tackling dragons. In the wider game, it's a pretty nice starting point to get those burst/barrage Slayer tasks kicking!
+* Make the wand three times as common. Meaning you'd see one in every ~69 kills rather than every ~207 if you're soloing, using numbers from the OSRS Wiki - loot tables for group bosses can be confusing at times, this is probably the easiest way of showing off the change.
+* Improve the drop rate of Hueycoatl hide from 1 in 35 to 1 in 30. Upon receiving a Hueycoatl hide drop, you'll always receive 3.
+* Lower the Crafting requirement of Hueycoatl hide armour, meaning it's easier to make than Black Dragonhide but is harder to obtain.
+
+Coupled with the Great Olm being given an Earth Elemental Weakness, we think this should position the Dragon Hunter Wand as a much more impactful unlock (though it'll still get outperformed by higher-tier powered staves later on in your journey), befitting its rarity and its relatively niche use-cases.
+
+Now let's move a short distance west to Nepotzli and the Moons of Peril...
+
+===Perilous Moons & Defensive Rings===
+Most of what we're looking to do here is a QoL pass. We'd like to improve the clickboxes of the Moons themselves, since their movement can sometimes make them a little annoying to click on in the midst of combat, and we'd like to take another pass at the Fishing and Hunter activities within Nepotzli since they can be a little buggy from time to time.
+
+For some more specific changes, the most impactful here is reducing the number of tornadoes during the Blue Moon's special brazier phase. As it stands, there's an awful lot of tornadoes which deal some damage, heal the boss and contribute to you getting chilled, which means that some players opt to not engage with the mechanic at all and take a breather instead, so we think toning it down a little should make the mechanic at least feel worth engaging with.
+
+While not strictly related to the Moons of Peril, we'd also like to explore adding a new reward to aid players getting into it. Offering powerful armour sets and weapons in all three styles, the Moons have become a staple progression point for many players, but even with damage mitigating strategies like step-unders it's still possible to take a real beating here even while wearing your tankiest gear. To that end, we'd like to add a Defence-focused ring somewhere, to aid players in racking up killcount in Nepotzli while giving some use to a boss that doesn't offer much at the moment: the Deranged Archaeologist.
+
+[[File:Summer Sweep-Up- Combat & Loot (4).png|220px|center|thumb|''No imbue needed, with this: what you see is what you get!'']]
+
+This might step on the toes of the Ring of Suffering a little, but the Suffering still has Ranged defence, Magic defence, Prayer bonus and a recoil effect on top. With its value being largely tied to other Zenyte jewellery, we're pretty confident this shouldn't harm the Ring of Suffering's position in the game.
+
+Since we're on the topics of Defence-oriented rings, we think the Granite Ring could stand to be a little stronger when considering its source, so we'd like to bump its numbers up a little:
+<center>
+[[File:Summer Sweep-Up- Combat & Loot (5).png|220px]]
+[[File:Summer Sweep-Up- Combat & Loot (6).png|220px]]
+</center>
+
+===Obor, Bryophyta & Keys===
+This is something we'd wanted to do alongside the Royal Titans but didn't have time to implement as we'd have liked.
+
+It's no secret that the key system used to fight Obor and Bryophyta isn't the most well-liked, particularly if you're gated out of Combat Achievements because you've not done your shift at the Hill or Moss Giants. On the flipside, their uniques are valuable for the tier of players that they're aimed at and would likely plummet in value if they were freely obtainable, plus it's nice to have the occasional 'oh cool!' moment if you're on a Hill or Moss Giant Slayer task.
+
+That means we need to find a way to open the bosses up a little, protect their uniques, and retain some use-case for keys that players might already have or obtain in the future. Here's what we've cooked up:
+
+* Obor and Bryophyta no longer require a key to be fought.
+* Obor and Bryophyta can drop their own respective keys.
+* To compensate, each of them is given a reduced, simple loot table.
+* This loot table is similar to the regular Giants variant, with a chance at 'Giant bones' (members only) for a chunk of Prayer XP when buried (they can't be offered to altars), and an increased chance for each boss' respective key.
+* Inside each of their lairs is a chest, requiring a Giant or Mossy key to open, whose loot table is the same as the existing one. This chest can only be opened after the boss is defeated.
+
+We reckon this solution ticks all of the bases outlined above, so let us know if we've missed any key details!
+
+===Cerberus===
+Who let the dogs out? Fortunately not the Key Master, he's got Cerberus under lock and key ready for your Hellhound Slayer tasks.
+
+Over the years and over the course of many Hellhound Slayer tasks, it's become clear that Cerberus isn't everybody's cup of tea, but we reckon a few small tweaks could drastically improve the feel of the boss. 
+
+* Adjust the lava pool attack so that it's easier to react to or predict. Reduce their radius so that they only deal damage on the tile where they're spawned.
+* Slightly improve the drop rate of Key Master Teleport Scrolls so that it's more feasible to 'break even' if you're doing extended trips.
+* Make Key Master Teleport Scrolls tradeable, in line with other Teleport scrolls.
+* Adjust Ward of Arceuus to provide reduce incoming Prayer drain from demons by 30%, this is targeted at Cerberus' 'Ghost' attack but has uses at other demons too!
+** This one actually stems from a Player Suggestion that we thought was pretty cool and cropped up while writing this post
+** We'd rather give players active solutions to problems than just remove them entirely - Cerberus has been killed hundreds of thousands of times and most Primodrial Crystal-seekers have long-since recovered from their Prayer potion squeeze.
+** This stacks with the Spectral Spirit Shield, if you're lucky enough to own one!
+
+===Duke Sucellus===
+No preamble needed, we couldn't rightfully talk about Duke without talking about the Prep phase.
+
+In the latest League, we effectively allowed players to prep infinitely, which we think made sense given the speed of kills made possible during Raging Echoes. For the main game, we don't think infinite prep is the way to go. Before you raise your pitchforks, hear us out! This isn't a case of us wanting to see you suffer, but Duke as an encounter was designed with both the fight itself and the prep phase in mind. We don't think that the fight alone holds up well enough that it makes sense to do an absolute boatload of prep and repeat a super simple fight over and over, without the variety of a little spot of gathering to break things up.
+
+Having said all of that, we know we could strike a better balance. So we'd like to propose letting you prepare for three kills in advance, meaning you can hold enough raw resources to produce six vials of Arder-musca poison. This means you can do a slightly longer prep phase to set you up for a number of kills, which should at least be a step towards reducing the time spent prepping for players who aren't a fan.
+
+Naturally, this means that kills per hour will increase, so we'll be bumping Duke Sucellus' HP up by 10% to compensate, since we think Duke's time-to-complete is in a reasonable position and doesn't need much speeding up.
+
+We expect this one to generate some chatter, let us know if you reckon the balance here is about right or if you think you've got something better that keeps all of the above factors in mind!
+
+===Other Changes===
+While we've taken the time to give a little more detail on the headlines, we have a handful of other changes that we'd like to make that shouldn't need all that much explaining. Ready yourself for a rapid-fire list!
+
+* Increase the range of the Tonalztics of Ralos by 1. This sounds small, but should open up some new use-cases and improve existing ones for this strong-but-niche spec weapon.
+* Allow halberds to hit 'flying' enemies like Aviansies.
+* Allow Demonbane weaponry to work on the Ice Demon at the Chambers of Xeric. Fire Surge should still remain the most effective way of dispatching this demonic foe, but this is a nice alternative if you're willing to sacrifice an Inventory space.
+* Add some kind of 'indicator' drop for successful rolls on the vestiges dropped by Desert Treasure II bosses. Each vestige requires three invisible 'rolls' going on behind the scenes, we'd like to add some kind of drop (a Gold ring, for example) that lets you know when you've hit a roll on the vestige. If you've already hit one or two out of three rolls, you'll receive an indicator of your progress on your next kill. Effectively this doesn't change anything about how soon you'll obtain your vestige, but you'll know how close you are!
+* Players with the Grandmaster Combat Achievements completed will be able to to show their Zuk helm to the TzHaar and gain on-task damage bonuses without any of the other on-task benefits, for those speedrunners out there.
+* The Grandmaster Combat Achievement reward that increases the duration of summoned Thralls to 2 minutes will be moved down to Master. This is probably the reward that feels the most impactful and the most frustrating of the rewards to lose on a new release, so we'd like to bump it down to alleviate frustrations from GM players and make something that feels impactful just a smidge more attainable.
+* Tidy up Magic attack animations (spells and powered staves) in PvM scenarios so that they don't visually delay the player's movement.
+
+That's a wrap!
+
+There's loads to unpack here, we expect there's going to be a lot of discussion and perhaps updated blogs in the near future - give us everything you've got and let us know how you're feeling about the first part of this year's Summer Sweep-Up!
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Donkey, Dylan, Ed, Elena, Enigma, Entropi, Errol, Freddie, Fuzz, Gecko, Gengis, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hornet, Husky, Ivory, Jalo, Jamesy, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Ludo, Mack, Manked, Markos, Maylea, Mobius, Moogle, Morty, Moz, Necro, Nin, Nox, Nylu, Ori, Other, Philomel, Pork, Pumpkin, Puppi, Rach, Redfield, Rice, Roq, Roy, Ry, Saiyan, Sarnie, Schmidt, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titania, Titus, TJ, Tomb, Tsourorf, Tyran, Veda, Vegard, West, Wolfy & Yume'''
+
+''The Old School Team.''

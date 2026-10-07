@@ -36,6 +36,8 @@ import pathlib
 import re
 import sys
 
+import config_text
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 CONTENT = ROOT / "OSRS-Content/osrs239-content"
 OUT = CONTENT / "server/scripts/minigames/minigame_toa/configs"
@@ -81,15 +83,20 @@ def symbol(name: str) -> str:
 
 
 def read_structs() -> list:
-    text = (CONTENT / "configs/all.struct").read_text(encoding="cp1252",
-                                                      errors="replace")
+    # `param=<name>,<value>`: a value's kind is its param's declared type, and a
+    # reference-typed one (1346, the prerequisite struct) is the record's name.
+    param_types = config_text.param_types(CONTENT / "configs/all.param",
+                                          encoding="cp1252")
+    names = config_text.Names(CONTENT)
+    text = config_text.read_text(CONTENT / "configs/all.struct",
+                                 encoding="cp1252", errors="replace")
     rows = []
     for block in re.split(r"\n(?=\[)", text):
         m = re.match(r"\[struct_(\d+)\]", block)
         if not m:
             continue
-        params = dict(re.findall(r"^param=(param_\d+),(?:int|str),(.*)$",
-                                 block, re.M))
+        params = config_text.param_values(
+            re.findall(r"^param=(param_\d+,.*)$", block, re.M), param_types, names)
         if STRUCT_INDEX not in params or STRUCT_NAME not in params:
             continue
         rows.append({
@@ -178,9 +185,9 @@ def main() -> int:
 
     if args.write:
         OUT.mkdir(parents=True, exist_ok=True)
-        (OUT / "toa_invocation.dbtable").write_text("\n".join(table) + "\n",
+        config_text.write_config(OUT / "toa_invocation.dbtable", "\n".join(table) + "\n",
                                                     encoding="utf-8")
-        (OUT / "toa_invocation.dbrow").write_text("\n".join(body) + "\n",
+        config_text.write_config(OUT / "toa_invocation.dbrow", "\n".join(body) + "\n",
                                                   encoding="utf-8")
         print(f"wrote {len(rows)} invocations to {OUT}")
     else:

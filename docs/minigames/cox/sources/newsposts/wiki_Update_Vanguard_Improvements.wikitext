@@ -1,0 +1,65 @@
+{{Update|date=21 May 2020|link=https://secure.runescape.com/m=news/vanguard-improvements?oldschool=1|category=game}}
+[[File:Vanguard Improvements newspost.png|right]]
+{{clear}}
+
+<center>''This week sees the release of some improvements to the Chambers of Xeric raid following Poll #71.''</center>
+
+{{Horizontal Line}}
+
+{{Headline|22|Vanguard Improvements}}
+
+
+[[File:Vanguard Improvements (1).png|center|199px]]
+
+
+The vanguards room has long been a sore point for raiders, but no longer! Your votes have led to a bunch of changes, with the aim of making this tricky trio more of a challenge and less of a hassle.
+
+Firstly, there's been some adjustments to the vanguards' stats. In general, defence has been lowered and hitpoints increased. This makes the fight reset mechanic less risky for smaller raiding parties.
+
+The high magic defence of the 'melee' vanguard has been swapped with its melee defence, so that it slots neatly into the established combat triangle.
+
+Next, we reduced the vanguards' aggro range and shifted one of the spawn positions to match the room layouts in the rest of the raid.
+
+Lastly, you are now guaranteed to get at least one Overload from the vanguards. Bottoms up!
+
+This isn't the end of the vanguards changes – there are still a few features such as the HUD, which passed the poll, but will take a little longer to implement. In the meantime, let's have a look at what else we're doing to improve the Chambers of Xeric raid...
+
+{{Horizontal Line}}
+
+{{Headline|22|Other Chambers of Xeric Improvements}}
+
+
+[[File:Vanguard Improvements (2).png|center|227px]]
+
+
+You'll notice that upon finishing a raid in Chambers of Xeric, your best times will appear on-screen. This information will also be visible in the Adventure Log in your Player Owned House – assuming you've built one!
+
+While doing this work, we've also corrected a few other issues with the raid.
+
+*We've rebalanced the scavenger beasts' loot table to include a more reasonable amount of cicelies and endarkened juice.
+*We've altered the positions of crystals in one of the crab rooms, to not be as much of a hindrance on raids efficiency.
+*We've also fixed an issue where players would be hit by Vespula's melee attack if the Abyssal Portal died.
+Again, this week is only the start of the changes from Poll #71. In the coming weeks you can look forward to improvements for The Gauntlet, Grotesque Guardians and more - so keep your eyes peeled!
+
+{{Horizontal Line}}
+
+{{Headline|22|In Other News}}
+
+The Bounty Hunter world (w535 AUS) that we trialed a few weeks ago has been removed.
+
+*Made it harder for players to assign kill-credit to a friend by reducing the amount of time a PKer can claim credit for a kill when their target leaves PvP combat and dies in PvM.
+*The Support Tutorial can now be toggled via the Bank Settings menu.
+*Players who have contributed enough to the Zalcano fight will now have a static 1/2,250 chance at the Smolcano pet.
+*Saradomin's Tear can now be obtained from the Last Man Standing shop.
+*The prices of various blighted spell sacks have been increased, with the Ancient ice sack now at 500 points, the Entangle sack at 250 points, and the Vengeance and Teleport spell sacks at 350 points apiece.
+*The elite clue that requires a player to kill a green dragon will now accept a brutal green dragon.
+*In the DMM Tournament, the clue that requires lava dragon bones is no longer given. Players who already had it will find it has changed to another clue.
+
+
+That's all for this week, folks! But if you’d like to sink your teeth into some juicy RuneTunes, you can now find the Theatre of Blood soundtrack on [https://open.spotify.com/user/yykg0h1v7rbytqcuj4w3qyy2j?si=UC-GhmR7TpiRCP1UZ10IaQ Spotify] and all other major streaming platforms.
+
+{{Horizontal Line}}
+
+Discuss this update on our [https://secure.runescape.com/m=forum/sl=0/forums?380,381,641,66161246 official forums], the community-led [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the '''#gameupdate''' channel. For reference on the above content, check out the official [[Wiki]].
+
+'''Mods Acorn, Arcane, Archie, Ash, Banjo, Boko, Bonsai, Bruno, Curse, Deagle, Ed, Errol, Fed, Flippy, Gayns, Gee, Halo, Husky, Impact, Jndr, John C, Kandosii, Kieren, Lenny, Lottie, Lyric, Maylea, MikeD, Nasty, Oasis, Roq, Ry, Steve W, Sween, Tide, Vegard, Weath & West'''<br/>''The Old School Team''

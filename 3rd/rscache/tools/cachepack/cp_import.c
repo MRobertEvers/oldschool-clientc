@@ -865,6 +865,8 @@ static int emit_config(struct CP_Ctx* ctx, enum CP_TypeId type, int id,
     struct CP_Lines lines; cp_lines_init(&lines);
     const struct CP_Type* t = cp_type(type);
     int ok = t->unpack(ctx, id, bytes, size, &lines);
+    /* A ported record is a new record: it states every key, like rank 0. */
+    if( ok ) ok = cp_keys_check_lines(ctx, t, name, &lines);
     if( ok ) cp_lines_write(&lines, name, out);
     cp_lines_free(&lines);
     return ok;
@@ -1156,6 +1158,7 @@ static int npc_copy_head_icons(
         return 0;
     }
     dest->head_icon_count = source->head_icon_count;
+    RSCache_PresenceSet(&dest->present, RSCACHE_NPC_FIELD_HEAD_ICONS);
     int modern =
         (RSCache_Dat2ConfigNpcFlags(to) & RSCACHE_CONFIG_NPC_DECODE_REV210_HEAD_ICONS) != 0;
     for( int i = 0; i < source->head_icon_count; i++ )
@@ -1990,11 +1993,19 @@ static int import_run(struct Import_Manifest* m, int apply)
         printf("  loc %d footprint %dx%d -> %dx%d, offset %d,%d,%d\n",
                m->locs.v[i].source_id, locs[i]->size_x, locs[i]->size_z,
                fp->size_x, fp->size_z, fp->offset_x, fp->offset_y, fp->offset_z);
+        /* The footprint states all five, whatever the source record said: the
+         * encoder writes what the record states, not what differs from a
+         * default. */
         locs[i]->size_x = fp->size_x;
         locs[i]->size_z = fp->size_z;
         locs[i]->offset_x = fp->offset_x;
         locs[i]->offset_y = fp->offset_y;
         locs[i]->offset_z = fp->offset_z;
+        RSCache_PresenceSet(&locs[i]->present, RSCACHE_LOC_FIELD_SIZE_X);
+        RSCache_PresenceSet(&locs[i]->present, RSCACHE_LOC_FIELD_SIZE_Z);
+        RSCache_PresenceSet(&locs[i]->present, RSCACHE_LOC_FIELD_OFFSET_X);
+        RSCache_PresenceSet(&locs[i]->present, RSCACHE_LOC_FIELD_OFFSET_Y);
+        RSCache_PresenceSet(&locs[i]->present, RSCACHE_LOC_FIELD_OFFSET_Z);
     }
 
     for( int i = 0; ok && i < seqs.n; i++ )
@@ -2254,15 +2265,29 @@ static int import_run(struct Import_Manifest* m, int apply)
                 else
                     seq->frame_sounds.sounds[s].id = mapped_sound;
             }
-            /* RS2 stores an empty hand in this unsigned field as 65535.  The
-             * OSRS text codec expects the signed sentinel -1 instead. */
-            if( seq->left_hand_item == 65535 ) seq->left_hand_item = -1;
-            if( seq->right_hand_item == 65535 ) seq->right_hand_item = -1;
+            /* RS2 writes "no override" into this unsigned field as 65535: the
+             * field is not stated, so it is not written either. A stated value
+             * is an APPEARANCE value (0 hides the slot, obj + 512 holds an
+             * item, as Client-TS ClientPlayer reads it), so only the obj range
+             * is remapped, and as the obj it names -- the raw value is not an
+             * obj id. */
+            if( seq->left_hand_item == 65535 )
+            {
+                seq->left_hand_item = -1;
+                RSCache_PresenceClear(&seq->present, RSCACHE_SEQ_FIELD_LEFT_HAND);
+            }
+            if( seq->right_hand_item == 65535 )
+            {
+                seq->right_hand_item = -1;
+                RSCache_PresenceClear(&seq->present, RSCACHE_SEQ_FIELD_RIGHT_HAND);
+            }
             int mapped = -1;
-            if( seq->left_hand_item >= 0 && tool_id_map_lookup(&obj_map, seq->left_hand_item, &mapped) )
-                seq->left_hand_item = mapped;
-            if( seq->right_hand_item >= 0 && tool_id_map_lookup(&obj_map, seq->right_hand_item, &mapped) )
-                seq->right_hand_item = mapped;
+            if( seq->left_hand_item >= 512 &&
+                tool_id_map_lookup(&obj_map, seq->left_hand_item - 512, &mapped) )
+                seq->left_hand_item = mapped + 512;
+            if( seq->right_hand_item >= 512 &&
+                tool_id_map_lookup(&obj_map, seq->right_hand_item - 512, &mapped) )
+                seq->right_hand_item = mapped + 512;
             uint32_t bound = RSCache_Dat2ConfigSequenceEncodeBound(seq);
             uint8_t* bytes = malloc(bound);
             uint32_t n = bytes ? RSCache_Dat2ConfigSequenceEncode(&to, seq, bytes, bound) : 0;
@@ -2317,6 +2342,18 @@ static int import_run(struct Import_Manifest* m, int apply)
                 npc->has_render_priority = source_npcs[i]->has_render_priority;
                 npc->render_priority = source_npcs[i]->render_priority;
                 memcpy(npc->stats, source_npcs[i]->stats, sizeof(npc->stats));
+                /* These carry over as the source stated them; the encoder
+                 * writes only what `present` names (and 111 only where the
+                 * destination reads it as render priority). */
+                static const int carried[] = {
+                    RSCACHE_NPC_FIELD_MOVEMENT_SOUNDS, RSCACHE_NPC_FIELD_SOUND_VOLUME,
+                    RSCACHE_NPC_FIELD_RENDER_PRIORITY, RSCACHE_NPC_FIELD_RENDER_PRIORITY_HIGH,
+                    RSCACHE_NPC_FIELD_STAT1, RSCACHE_NPC_FIELD_STAT2, RSCACHE_NPC_FIELD_STAT3,
+                    RSCACHE_NPC_FIELD_STAT4, RSCACHE_NPC_FIELD_STAT5, RSCACHE_NPC_FIELD_STAT6,
+                };
+                for( size_t f = 0; f < sizeof(carried) / sizeof(carried[0]); f++ )
+                    if( RSCache_PresenceHas(&source_npcs[i]->present, carried[f]) )
+                        RSCache_PresenceSet(&npc->present, carried[f]);
             }
             uint32_t bound = npc ? RSCache_Dat2ConfigNpcEncodeBound(npc) : 0;
             uint8_t* bytes = bound ? malloc(bound) : NULL;

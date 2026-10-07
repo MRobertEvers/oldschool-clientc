@@ -1,0 +1,86 @@
+mechanic_id	scope	note
+fremennik_trio.stats.archer_hp	all	one solo test
+fremennik_trio.stats.seer_hp	all	one solo test
+fremennik_trio.stats.berserker_hp	all	one solo test
+fremennik_trio.stats.combat_level_archer	all	one solo test
+fremennik_trio.stats.combat_level_seer	all	one solo test
+fremennik_trio.stats.combat_level_berserker	all	one solo test
+fremennik_trio.stats.attack_level	all	one solo test
+fremennik_trio.stats.defence_level	all	one solo test
+fremennik_trio.stats.strength_level	all	one solo test
+fremennik_trio.stats.ranged_level	all	one solo test
+fremennik_trio.stats.magic_level	all	one solo test
+fremennik_trio.stats.size	all	one solo test
+fremennik_trio.stats.archer_ranged_attack	all	one solo test
+fremennik_trio.stats.archer_ranged_strength	all	one solo test
+fremennik_trio.stats.seer_magic_attack	all	one solo test
+fremennik_trio.stats.berserker_melee_strength	all	one solo test
+fremennik_trio.stats.archer_defence_bonuses	all	one solo test
+fremennik_trio.stats.seer_defence_bonuses	all	one solo test
+fremennik_trio.stats.berserker_defence_bonuses	all	one solo test
+fremennik_trio.stats.attack_option_slot	all	one solo test
+fremennik_trio.style.archer	all	one solo test
+fremennik_trio.style.seer	all	one solo test
+fremennik_trio.style.berserker	all	one solo test
+fremennik_trio.maxhit.archer	all	one solo test
+fremennik_trio.maxhit.seer	all	one solo test
+fremennik_trio.maxhit.berserker	all	one solo test
+fremennik_trio.projectile.archer	all	one solo test
+fremennik_trio.projectile.seer	all	one solo test
+fremennik_trio.hit_delay.archer	all	one solo test
+fremennik_trio.hit_delay.seer	all	one solo test
+fremennik_trio.hit_delay.berserker	all	one solo test
+fremennik_trio.prayer.protection_result	all	one solo test
+fremennik_trio.accuracy.hit_chance	all	one solo test
+fremennik_trio.weakness.berserker_magic_always_hits_max	all	one solo test
+fremennik_trio.weakness.seer_ranged_always_hits_max	all	one solo test
+fremennik_trio.weakness.archer_melee_always_hits_max	all	one solo test
+fremennik_trio.weakness.ice_barrage_freeze_bonus	all	one solo test
+fremennik_trio.cadence.archer	all	one solo test
+fremennik_trio.cadence.seer	all	one solo test
+fremennik_trio.cadence.berserker	all	one solo test
+fremennik_trio.phase.berserker_tick_mod_6	all	one solo test
+fremennik_trio.phase.seer_tick_mod_6	all	one solo test
+fremennik_trio.phase.archer_tick_mod_6	all	one solo test
+fremennik_trio.phase.seer_after_berserker	all	one solo test
+fremennik_trio.phase.archer_after_seer	all	one solo test
+fremennik_trio.first_attack.berserker	stat	statistical: settled by the recorder tool over many waves
+fremennik_trio.first_attack.seer	stat	statistical: settled by the recorder tool over many waves
+fremennik_trio.first_attack.archer	stat	statistical: settled by the recorder tool over many waves
+fremennik_trio.first_attack.earliest_any	stat	statistical: settled by the recorder tool over many waves
+fremennik_trio.attack.cardinal_melee_range	all	one solo test
+fremennik_trio.attack.tiles_moved_on_attack_tick	all	one solo test
+fremennik_trio.movement.max_tiles_per_tick	all	one solo test
+fremennik_trio.movement.routefinds_to_player	all	one solo test
+fremennik_trio.formation.archer_west_share	stat	statistical: settled by the recorder tool over many waves
+fremennik_trio.formation.rule	all	one solo test
+fremennik_trio.quartet.extra_member_same_tick	all	needs the Quartet modifier chosen; one solo test with it
+fremennik_trio.xp_bonus_percent	all	one solo test
+fremennik_trio.presentation.archer.attack_seq	all	one solo test
+fremennik_trio.presentation.seer.attack_seq	all	one solo test
+fremennik_trio.presentation.berserker.attack_seq	all	one solo test
+fremennik_trio.presentation.archer.attack_length	all	one solo test
+fremennik_trio.presentation.seer.attack_length	all	one solo test
+fremennik_trio.presentation.berserker.attack_length	all	one solo test
+fremennik_trio.presentation.archer.attack_sound	all	one solo test
+fremennik_trio.presentation.seer.attack_sound	all	one solo test
+fremennik_trio.presentation.berserker.attack_sound	all	one solo test
+fremennik_trio.presentation.archer.idle_seq	all	one solo test
+fremennik_trio.presentation.archer.walk_seq	all	one solo test
+fremennik_trio.presentation.seer.idle_seq	all	one solo test
+fremennik_trio.presentation.seer.walk_seq	all	one solo test
+fremennik_trio.presentation.berserker.idle_seq	all	one solo test
+fremennik_trio.presentation.berserker.walk_seq	all	one solo test
+fremennik_trio.presentation.archer.model_ids	all	one solo test
+fremennik_trio.presentation.seer.model_ids	all	one solo test
+fremennik_trio.presentation.berserker.model_ids	all	one solo test
+fremennik_trio.presentation.archer.defend_seq	all	one solo test
+fremennik_trio.presentation.archer.death_seq	all	one solo test
+fremennik_trio.presentation.seer.defend_seq	all	one solo test
+fremennik_trio.presentation.seer.death_seq	all	one solo test
+fremennik_trio.presentation.berserker.defend_seq	all	one solo test
+fremennik_trio.presentation.berserker.death_seq	all	one solo test
+fremennik_trio.presentation.death.final_frame_hold	all	one solo test
+fremennik_trio.presentation.death.sound	all	one solo test
+fremennik_trio.presentation.spawn_sequence	all	one solo test
+fremennik_trio.presentation.death_gib_and_despawn	all	one solo test

@@ -1,0 +1,13 @@
+11_3_121e11d2 p2 62 autos 3 T19M hp 99->81 | T33M hp 81->81 | T47M hp 97->97
+11_3_287a5e70 p2 64 autos 3 T19M hp 99->97 | T33M hp 97->97 | T47M hp 97->57
+11_3_48daf88c p2 66 autos 4 T19M hp 99->99 | T33M hp 99->99 | T47M hp 99->52 | T61M hp 100->76
+11_3_71c56a70 p2 62 autos 3 T19M hp 99->99 | T33M hp 99->96 | T47M hp 96->96
+11_3_757ac614 p2 58 autos 3 T19M hp 99->99 | T33M hp 99->42 | T47M hp 75->75
+11_3_921e8f37 p2 83 autos 5 T20M hp 99->99 | T34M hp 99->99 | T48M hp 115->100 | T62M hp 115->115 | T76M hp 115->114
+11_3_b4322256 p2 78 autos 4 T19M hp 99->99 | T33M hp 99->99 | T47M hp 99->99 | T61M hp 99->99
+11_3_c107b440 p2 75 autos 4 T19M hp 99->99 | T33M hp 99->99 | T47M hp 99->93 | T61M hp 93->41
+11_3_d2d2bcb6 p2 116 autos 7 T21M hp 120->73 | T35M hp 73->73 | T49M hp 74->74 | T63M hp 74->74 | T77M hp 74->74 | T91M hp 74->74 | T105M hp 74->74
+11_3_fe1a8595 p2 89 autos 5 T20M hp 121->121 | T34M hp 121->121 | T48M hp 121->121 | T62M hp 121->121 | T76M hp 121->121
+mode 11 scale 3: P1 lengths [58, 62, 62, 64, 66, 75, 78, 83, 89, 116]
+  recorded raider's lowest hitpoints within 6 ticks of an auto, drop: prayed [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 6, 15, 18, 24, 40, 47, 47, 52, 57]; unprayed []
+  raider tiles on auto ticks (room-local): [((26, 29), 90), ((30, 34), 26), ((27, 29), 4), ((25, 29), 2), ((32, 34), 1)]

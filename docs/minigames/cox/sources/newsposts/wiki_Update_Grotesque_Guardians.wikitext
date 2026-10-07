@@ -1,0 +1,77 @@
+{{Update|date=26 October 2017|link=http://services.runescape.com/m=news/grotesque-guardians?oldschool=1|category=game}}
+[[File:Grotesque Guardians newspost.png|right]]
+{{clear}}
+
+
+<center>''Not all of your foes will be obvious, some hide in the shadows, some come as friends but the most dangerous hide in plain sight such as gargoyles. At one moment they are nothing but decoration, next they stand over your corpse. - Unknown Adventurer''</center>
+
+{{Horizontal Line}}
+
+
+{{Headline|25|Grotesque Guardians}}
+
+
+Atop the Slayer Tower in Morytania a new threat has been reanimated. Two grotesques have awoken after they have heard too many of their brethren die in the tower below.
+
+To get access to the grotesque guardians you will need 75 slayer and obtain a key to the roof by killing gargoyles when on a gargoyle task. Once you have unlocked the roof and your slayer master has given you a task to kill gargoyles you can opt to take on the fearsome grotesques instead. However, if your slayer master feels like giving you a challenge he may assign the grotesque guardians as a task as long as you have the boss tasks unlocked.
+
+[[File:Grotesque Guardians (1).png|center|500px]]
+
+The grotesque guardians have a number of unique drops:
+
+'''Granite Hammer'''<br/>Requiring level 50 Attack and Strength to equip, the granite hammer is an excellent primary weapon for low level players.
+
+It also comes with an offensive special attack, allowing you to increase the damage of your next hit by 5, and increase its accuracy by 50%. When equipped it will auto-smash Gargoyles (akin to the Gargoyle Smasher perk), though it will act as an ordinary rock hammer when in the inventory.
+
+[[File:Grotesque Guardians (2).png|center]]
+
+'''Black Tourmaline Core'''<br/>Black tourmaline cores are rare drops from the Grotesque Guardians. They can be attached to Bandos boots to create Guardian boots.
+
+'''Guardian Boots'''<br/>Requiring 75 Defence to equip, guardian boots provide a strong defensive boost in combat, and offer a noteworthy counterpart to the offensive stats of primordial boots.
+
+[[File:Grotesque Guardians (3).png|center]]
+
+'''Granite Dust and Granite Cannon Balls'''<br/>Granite dust drops from the grotesque guardians and can be applied to cannonballs in order to increase their max hit from 30 to 35. Granite dust is stackable, and so are granite-coated cannonballs. However, granite dust and cannonballs are NOT tradeable. Creating granite-coated cannonballs is done by using granite dust on cannonballs. Combining the two has no requirements and can be done with any quantity. Be aware it is not possible to reverse this process.
+
+'''Granite Ring'''<br/>The granite ring offers low defensive bonuses across the board, with the exception of a modest ranged defence which comes at the expense of magic defence. It requires level 50 Defence and level 50 Strength to equip. The ring can be imbued in the Nightmare Zone for 500,000 points and as a result will see its stats doubled.
+
+[[File:Grotesque Guardians (4).png|center]]
+
+'''Granite Gloves'''<br/>Granite gloves offer appealing stats for a mid-level, tradeable pair of gloves. To equip these you will need level 50 Defence and level 50 Strength.
+
+[[File:Grotesque Guardians (5).png|center]]
+
+{{Horizontal Line}}
+
+
+{{Headline|25|In Other News}}
+
+*The Kudos counter in Varrock museum will now appear regardless of the location of the XP counter.
+*Using an opal on the Female student after already having given one during the Digsite quest will not give her a second one.
+*Fixed an issue where an option was repeated when trying to use charter ships to transport.
+*The reset feature on the kill counter for the Deranged Archaeologist now works as expected.
+*It is now possible to imbue equipment from nightmare zone in Deadman Worlds.
+*Make-X and Make-All have been added to diary churning.
+*Players on Deadman worlds are now able to access the Halloween event.
+*A tinderbox spawn has been added to the Ice demon room within the Chambers of Xeric.
+*Selling Silk to the Trader in Kourend will no longer complete the easy task in the Ardougne easy Achievement Diaries.
+*The Angler hat no longer counts as armour in checks such as those used for Entrana access.
+*Certain doors that require a lockpick will now respond when it is used on them.
+*Fixed a bug where trying to create splitbark gloves or boots created the helm instead.
+
+{{Horizontal Line}}
+
+
+{{Headline|25|Dragon Slayer II}}
+
+Join us at Midday UTC today a design stream for Dragon Slayer II will be on [https://go.twitch.tv/runescape Twitch].
+
+[[File:Grotesque Guardians (6).png|center|500px]]
+
+{{Horizontal Line}}
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,431,65961015 forums].
+
+{{Horizontal Line}}
+
+'''''Mods Archie, Ash, Ayiza, Curse, Ed, Ghost, Jed, John C, Kieren, Mat K, Maz, Roq, Ry, Stone, Sween, TomH, Weath, West & Wolf'''''<br/>''The Old School Team

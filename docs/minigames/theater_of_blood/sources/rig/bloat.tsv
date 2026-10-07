@@ -1,0 +1,42 @@
+npc	npc_id	framemap	kind	id	cache_name	frames	game_ticks	frame_sounds	role	tier	note
+tob_bloat	8359	1823	seq	8080	tob_bloat_ready	16	1.933		ready	bound	npc readyanim; priority=None forcedpriority=1
+tob_bloat	8359	1823	seq	8081	tob_bloat_walk	16	2.000	f7:3931:tob_bloat_footstep_1;f16:3998:tob_bloat_footstep_2	walk	bound	npc walkanim; priority=None forcedpriority=5
+tob_bloat	8359	1823	seq	8082	tob_bloat_sleep	124	33.000	f7:3998:tob_bloat_footstep_2;f26:3976:tob_bloat_snore;f30:3976:tob_bloat_snore;f34:3976:tob_bloat_snore;f38:3976:tob_bloat_snore;f42:3976:tob_bloat_snore;f46:3976:tob_bloat_snore;f50:3976:tob_bloat_snore;f54:3976:tob_bloat_snore;f58:3976:tob_bloat_snore;f62:3976:tob_bloat_snore;f66:3976:tob_bloat_snore;f89:3935:tob_bloat_foot_unstick;f101:3545:tob_bloat_shout;f103:3931:tob_bloat_footstep_1	special	rig+name	Jagex name says sleep; spec shows it is the whole 33-tick down (lie, stomp, rise); played by script npc_anim on the down tick; priority=2 forcedpriority=8
+tob_bloat	8359	1823	seq	8085	tob_bloat_death	25	3.000		death	rig+name	name states death; only death on rig; priority=None forcedpriority=11
+tob_bloat	8359	1823	seq	9031	tob_bloat_walk_pet	16	1.067		walk	rig+name	name states walk; pet variant, no npc record names it (pet bloat walk); priority=None forcedpriority=5
+tob_bloat	8359	1815	seq	8083	tob_bloat_flies_large	16	2.000		other	name	OFF the npc rig (framemap 1815); name only: the seq of a spotanim or loc, not an npc animation
+tob_bloat	8359	1815	seq	8084	tob_bloat_flies_small	16	2.000		other	name	OFF the npc rig (framemap 1815); name only: the seq of a spotanim or loc, not an npc animation
+tob_bloat	8359	1827	seq	8086	tob_bloat_chamber_idle	16	2.133		other	name	OFF the npc rig (framemap 1827); name only: the seq of a spotanim or loc, not an npc animation
+tob_bloat	8359	1826	seq	8087	tob_bloat_swinging_chain	19	5.067		other	name	OFF the npc rig (framemap 1826); name only: the seq of a spotanim or loc, not an npc animation
+tob_bloat	8359	1828	seq	8088	tob_bloat_falling_flesh	28	5.600		other	name	OFF the npc rig (framemap 1828); name only: the seq of a spotanim or loc, not an npc animation
+tob_bloat	8359	905	seq	8089	tob_bloat_stunned_short	23	3.067		other	name	OFF the npc rig (framemap 905); name only: the seq of a spotanim or loc, not an npc animation
+tob_bloat_story	10812	1823	seq	8080	tob_bloat_ready	16	1.933		ready	bound	npc readyanim; priority=None forcedpriority=1
+tob_bloat_story	10812	1823	seq	8081	tob_bloat_walk	16	2.000	f7:3931:tob_bloat_footstep_1;f16:3998:tob_bloat_footstep_2	walk	bound	npc walkanim; priority=None forcedpriority=5
+tob_bloat_story	10812	1823	seq	8082	tob_bloat_sleep	124	33.000	f7:3998:tob_bloat_footstep_2;f26:3976:tob_bloat_snore;f30:3976:tob_bloat_snore;f34:3976:tob_bloat_snore;f38:3976:tob_bloat_snore;f42:3976:tob_bloat_snore;f46:3976:tob_bloat_snore;f50:3976:tob_bloat_snore;f54:3976:tob_bloat_snore;f58:3976:tob_bloat_snore;f62:3976:tob_bloat_snore;f66:3976:tob_bloat_snore;f89:3935:tob_bloat_foot_unstick;f101:3545:tob_bloat_shout;f103:3931:tob_bloat_footstep_1	special	rig+name	Jagex name says sleep; spec shows it is the whole 33-tick down (lie, stomp, rise); played by script npc_anim on the down tick; priority=2 forcedpriority=8
+tob_bloat_story	10812	1823	seq	8085	tob_bloat_death	25	3.000		death	rig+name	name states death; only death on rig; priority=None forcedpriority=11
+tob_bloat_story	10812	1823	seq	9031	tob_bloat_walk_pet	16	1.067		walk	rig+name	name states walk; pet variant, no npc record names it (pet bloat walk); priority=None forcedpriority=5
+tob_bloat_story	10812	1815	seq	8083	tob_bloat_flies_large	16	2.000		other	name	OFF the npc rig (framemap 1815); name only: the seq of a spotanim or loc, not an npc animation
+tob_bloat_story	10812	1815	seq	8084	tob_bloat_flies_small	16	2.000		other	name	OFF the npc rig (framemap 1815); name only: the seq of a spotanim or loc, not an npc animation
+tob_bloat_story	10812	1827	seq	8086	tob_bloat_chamber_idle	16	2.133		other	name	OFF the npc rig (framemap 1827); name only: the seq of a spotanim or loc, not an npc animation
+tob_bloat_story	10812	1826	seq	8087	tob_bloat_swinging_chain	19	5.067		other	name	OFF the npc rig (framemap 1826); name only: the seq of a spotanim or loc, not an npc animation
+tob_bloat_story	10812	1828	seq	8088	tob_bloat_falling_flesh	28	5.600		other	name	OFF the npc rig (framemap 1828); name only: the seq of a spotanim or loc, not an npc animation
+tob_bloat_story	10812	905	seq	8089	tob_bloat_stunned_short	23	3.067		other	name	OFF the npc rig (framemap 905); name only: the seq of a spotanim or loc, not an npc animation
+tob_bloat_hard	10813	1823	seq	8080	tob_bloat_ready	16	1.933		ready	bound	npc readyanim; priority=None forcedpriority=1
+tob_bloat_hard	10813	1823	seq	8081	tob_bloat_walk	16	2.000	f7:3931:tob_bloat_footstep_1;f16:3998:tob_bloat_footstep_2	walk	bound	npc walkanim; priority=None forcedpriority=5
+tob_bloat_hard	10813	1823	seq	8082	tob_bloat_sleep	124	33.000	f7:3998:tob_bloat_footstep_2;f26:3976:tob_bloat_snore;f30:3976:tob_bloat_snore;f34:3976:tob_bloat_snore;f38:3976:tob_bloat_snore;f42:3976:tob_bloat_snore;f46:3976:tob_bloat_snore;f50:3976:tob_bloat_snore;f54:3976:tob_bloat_snore;f58:3976:tob_bloat_snore;f62:3976:tob_bloat_snore;f66:3976:tob_bloat_snore;f89:3935:tob_bloat_foot_unstick;f101:3545:tob_bloat_shout;f103:3931:tob_bloat_footstep_1	special	rig+name	Jagex name says sleep; spec shows it is the whole 33-tick down (lie, stomp, rise); played by script npc_anim on the down tick; priority=2 forcedpriority=8
+tob_bloat_hard	10813	1823	seq	8085	tob_bloat_death	25	3.000		death	rig+name	name states death; only death on rig; priority=None forcedpriority=11
+tob_bloat_hard	10813	1823	seq	9031	tob_bloat_walk_pet	16	1.067		walk	rig+name	name states walk; pet variant, no npc record names it (pet bloat walk); priority=None forcedpriority=5
+tob_bloat_hard	10813	1815	seq	8083	tob_bloat_flies_large	16	2.000		other	name	OFF the npc rig (framemap 1815); name only: the seq of a spotanim or loc, not an npc animation
+tob_bloat_hard	10813	1815	seq	8084	tob_bloat_flies_small	16	2.000		other	name	OFF the npc rig (framemap 1815); name only: the seq of a spotanim or loc, not an npc animation
+tob_bloat_hard	10813	1827	seq	8086	tob_bloat_chamber_idle	16	2.133		other	name	OFF the npc rig (framemap 1827); name only: the seq of a spotanim or loc, not an npc animation
+tob_bloat_hard	10813	1826	seq	8087	tob_bloat_swinging_chain	19	5.067		other	name	OFF the npc rig (framemap 1826); name only: the seq of a spotanim or loc, not an npc animation
+tob_bloat_hard	10813	1828	seq	8088	tob_bloat_falling_flesh	28	5.600		other	name	OFF the npc rig (framemap 1828); name only: the seq of a spotanim or loc, not an npc animation
+tob_bloat_hard	10813	905	seq	8089	tob_bloat_stunned_short	23	3.067		other	name	OFF the npc rig (framemap 905); name only: the seq of a spotanim or loc, not an npc animation
+(all three)	8359,10812,10813	1815	spotanim	1568	tob_bloat_flies_large	16	2.000		attack	name	spotanim anim=tob_bloat_flies_large (seq 8083)
+(all three)	8359,10812,10813	1815	spotanim	1569	tob_bloat_flies_small	16	2.000		attack	name	spotanim anim=tob_bloat_flies_small (seq 8084)
+(all three)	8359,10812,10813	1828	spotanim	1570	tob_bloat_falling_flesh1	28	5.600		other	name	spotanim anim=tob_bloat_falling_flesh (seq 8088)
+(all three)	8359,10812,10813	1828	spotanim	1571	tob_bloat_falling_flesh2	28	5.600		other	name	spotanim anim=tob_bloat_falling_flesh (seq 8088)
+(all three)	8359,10812,10813	1828	spotanim	1572	tob_bloat_falling_flesh3	28	5.600		other	name	spotanim anim=tob_bloat_falling_flesh (seq 8088)
+(all three)	8359,10812,10813	1828	spotanim	1573	tob_bloat_falling_flesh4	28	5.600		other	name	spotanim anim=tob_bloat_falling_flesh (seq 8088)
+(all three)	8359,10812,10813	905	spotanim	1575	tob_bloat_stunned	23	3.067		other	name	spotanim anim=tob_bloat_stunned_short (seq 8089)
+(all three)	8359,10812,10813	863	spotanim	1576	tob_bloat_blood_splat	14	0.633		other	name	spotanim anim=failedspell (seq 653)

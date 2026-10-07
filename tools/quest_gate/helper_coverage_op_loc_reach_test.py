@@ -29,6 +29,21 @@ dafbe3c8e3). Cases:
   mm_grade         Monkey Madness (mm.lua 5e6acb314, ledger 5bc8ef66ca): goto-talkToZooknock grades
                    CHEAT (sealed pocket past mm_double_springtrap_trigger), DRIVEN with OP_LOCS_BLOCK False
 
+Seam matthew-mbp-m4-b64-seam1: a BLOCKING object a walk crosses by its own op (shapes 9-21, a Cross /
+Go-through / Squeeze... op, no climb) read UNREACHABLE in reach.py and was a wall to MapWalls, so a
+goto over the Wilderness Ditch or through the Shantay Pass was never charged:
+
+  crossing_reach   reach.py: 3304,3123 -> 3284,2812 (m80) NEEDS-OP via shantay_pass_henge_doorway@3302,3116;
+                   3106,3520 -> 3106,3558 (m30) NEEDS-OP via ditch_wilderness_cover@3106,3521; each side
+                   of the ditch REACH on its own (3206,3233 -> 3106,3510, 3106,3523 -> 3106,3558)
+  crossing_table   goto_table on atailoftwocats' pre-b64 ledger (OSRS-Content e4d9b4ce78): row 138
+                   goto-sphinx (742 tiles on its longer axis, "far ... not checked" before) reads
+                   NEEDS-OP via the Shantay Pass and the Taverley gate
+  crossing_gates   MapWalls.only_way_gates names the crossing loc (the ditch for 3206,3233 -> 3106,3558,
+                   the pass and a Taverley gate leaf for goto-sphinx) and [] with MapWalls.CROSSINGS False
+  tools_root       reach.py reads the checkout it lives in (a worktree reads its own maps), and --root
+                   names another
+
 Writes only temporary files. Exit 0 when every case holds.
 """
 
@@ -152,9 +167,57 @@ def mm_grade():
     return ok, "%s / %s: %s" % (got[0][0], got[1][0], got[0][1][:90])
 
 
+def crossing_reach():
+    got = [reach.answer(3304, 3123, 3284, 2812, 0, 80), reach.answer(3106, 3520, 3106, 3558, 0, 30),
+           reach.answer(3206, 3233, 3106, 3510, 0, 30), reach.answer(3106, 3523, 3106, 3558, 0, 30)]
+    ok = got[0].startswith("NEEDS-OP") and "shantay_pass_henge_doorway@3302,3116" in got[0] and \
+        got[1].startswith("NEEDS-OP") and "ditch_wilderness_cover@3106,3521" in got[1] and \
+        got[2].startswith("REACH") and got[3].startswith("REACH")
+    return ok, "; ".join(got)
+
+
+def crossing_table():
+    rows = ledger_rows("e4d9b4ce78", "quest_atailoftwocats")
+    got = rows["138"][3]
+    ok = "NEEDS-OP" in got and "shantay_pass_henge_doorway@3302,3116" in got and "membergate" in got
+    return ok, "row 138 " + got
+
+
+def crossing_gates():
+    helper_coverage.content_index()
+    saved = helper_coverage.MapWalls.CROSSINGS
+    got = []
+    try:
+        for flag in (True, False):
+            helper_coverage.MapWalls.CROSSINGS = flag
+            walls = helper_coverage.MapWalls()
+            got.append((walls.only_way_gates((3206, 3233), (3106, 3558), 0),
+                        walls.only_way_gates((2926, 3554), (3284, 2812), 0)))
+    finally:
+        helper_coverage.MapWalls.CROSSINGS = saved
+    (ditch, sphinx), (ditch_off, sphinx_off) = got
+    ok = [s for s, _ in ditch] == ["ditch_wilderness_cover"] and \
+        ("shantay_pass_henge_doorway", (3302, 3116, 0)) in sphinx and any(s.startswith("membergate") for s, _ in sphinx) and \
+        ditch_off == [] and sphinx_off == []
+    return ok, "ditch %s; sphinx %s; off: %s / %s" % (ditch, sphinx, ditch_off, sphinx_off)
+
+
+def tools_root():
+    here = os.path.realpath(reach.REPO) == os.path.realpath(helper_coverage.REPO_ROOT)
+    with tempfile.TemporaryDirectory() as scratch:
+        saved = reach.REPO
+        try:
+            rest = reach.take_root(["1", "2", "--root", scratch, "3"])
+            moved = reach.BASE == os.path.abspath(scratch) + "/OSRS-Content/osrs239-content" and rest == ["1", "2", "3"]
+        finally:
+            reach.set_root(saved)
+    return here and moved, "reach.REPO %s (helper_coverage.REPO_ROOT %s); --root moves BASE: %s" % (
+        reach.REPO, helper_coverage.REPO_ROOT, moved)
+
+
 def main():
     cases = [r1_charged, r1_allow_op_locs, r3_clean, lumbridge_open, wheat_pass, trip_zone_tiles,
-             climbing_rocks, mapwalls_pocket, mm_grade]
+             climbing_rocks, mapwalls_pocket, mm_grade, crossing_reach, crossing_table, crossing_gates, tools_root]
     failures = 0
     for case in cases:
         ok, detail = case()

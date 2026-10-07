@@ -1,0 +1,1782 @@
+{{Update|date=23 March 2026|rev=12 April 2026|url=https://secure.runescape.com/m=news/get-ready-for-leagues-vi-demonic-pacts---april-15th?oldschool=1|category=community}}
+
+[[File:Get Ready For Leagues VI- Demonic Pacts - April 15th newspost.png|right]]
+{{ToC|limit=2}}
+{{clear}}
+
+''It's officially leagues Reveal Season - let's get demonic!''
+
+----
+
+To make the wait a little more bearable before Leagues VI: Demonic Pacts launches on '''April 15th''', we'll be dropping a surprise reveal about the league every day until just before launch and gathering them all here in one handy newspost!
+
+==Overview==
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>Rules</h3></div>
+<div class="mw-collapsible-content">
+Your character starts in Yama's Lair with an exit to Civitas illa Fortis.
+
+Your character begins restricted to the area of Varlamore. As you complete tasks, you can unlock more areas. Karamja will be locked at the start of this league but will be a forced unlocked once you reach your first area unlock. This will be followed by three additional regions you choose yourself. Misthalin is completely inaccessible during this league.
+
+Full information about each of the areas can be found in the Area Selection menu. This can be accessed from the leagues menu in the Journal panel.
+
+All experience gained is heavily increased, and this will further increase as you unlock more relics. Exact multipliers can be viewed in the Relics menu.
+
+Sailing will not be enabled this league and content released during Leagues VI will be reviewed and enabled for the league on a case-by-case basis.
+
+<span style="color:black; background:black;">We're not ready to reveal this just yet, you shouldn't be looking here... naughty, naughty!</span>
+
+Each area has an Echo Boss; these are enhanced bosses that pose a higher challenge and drop new unique rewards. Killing the regular boss may drop an Echo orb that lets you access the Echo variant. More information can be found in the area interfaces.
+
+Leagues VI: Demonic Pacts will run from April 15th until the game update on June 10th (a total of 56 days).
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>Initial Setup</h3></div>
+<div class="mw-collapsible-content">
+Your character is an Ironman, meaning you cannot trade with other players or use the Grand Exchange.
+
+You will start off in a new area this League, Varlamore.
+
+You will auto complete the following quests:
+* Dragon Slayer I
+* Learning the Ropes
+* The Restless Ghost
+* Rune Mysteries
+* Children of the Sun
+* Desert Treasure II - The Fallen Empire
+* Druidic Ritual
+* Eagles' Peak
+* Elemental Workshop I
+* Fairytale I - Growing Pains
+* Fairytale II - Cure a Queen
+* Lost City
+* Nature Spirit
+* Perilous Moons
+* Priest in Peril
+* Twilight's Promise
+
+You will auto complete the following Combat Achievements:
+* Back to Our Roots
+* Demonic Rebound
+
+You will start with the following stat increases:
+* 3 Herblore
+* 5 Runecraft
+
+A Dramen staff will be added to your Inventory along with the usual starter items so that you can access Fairy rings. If lost, you can reclaim it from the leagues tutor in Yama's lair.
+
+You can also claim a free spade, Impling jar and two Strange devices from the leagues Tutor in Yama's Lair.
+
+As you progress through relic tiers, you'll also gain powerful passive effects starting with:
+* All experience is multiplied by 5x.
+* Items from eligible sources will be 2x as common.
+* Farming ticks will occur every minute instead of every five minutes.
+* Minigame points received are boosted by 4x.
+* Run energy is never drained whilst running.
+* All Clue scrolls will drop as stackable scroll boxes, and clue-step progress is saved between clues.
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>Content Changes</h3></div>
+<div class="mw-collapsible-content">
+'''Bosses & Monsters:'''
+* Echo Boss rewards are a guaranteed drop over a certain threshold
+* Chambers of Xeric: Challenge Mode, Theatre of Blood: Hard Mode & Tombs of Amascut: 500+ have significantly buffed drop rates and difficulty, ToA and ToB will now provide uniques to all players in the raid if the raid obtains one
+* Wilderness Bosses can be accessed without the Wilderness Medium Diary
+* Zulrah has no damage cap or melee damage immunity
+* Impling spawn rates have increased and you'll be more likely to see rare implings
+* Dragon Implings drop reduced Dragon bones
+
+'''Items:'''
+* Most shop stock will not deplete.
+* All Soulreaper axe pieces will drop from every Desert Treasure 2 boss
+* Items that drop as components that require multiple regions to create a usable item will drop as the finished item
+* The Twisted bow, Scythe of vitur, and Tumeken's shadow are available from all three raids
+* Scythe of vitur can be charged with just Blood runes
+* Nihil shards drop in increased quantity from Nex
+* The Leagues Tutor in Yama's Lair can sell Max capes once you are eligible
+
+'''Access:'''
+* The Abyss and Zanaris are now counted as general regions, meaning you can access them from anywhere via a fairy ring (This includes the cosmic altar)
+* Slayer Masters will assign you the same tasks, taking into account the areas you have currently unlocked
+* Players '''cannot''' enter the Ancient Guthixian Temple from the Chasm of Tears. Why do you think Yama wanted Misthalin gone?
+* Teleports and transportation methods to locations outside of areas you have unlocked are restricted
+* When purchasing your Player Owned House it will be accessible from Aldarin. Your house can only be moved to areas you have unlocked
+* Unlocking new areas will complete various quests and Achievement Diary tasks but will not award any quest completion XP. However, you may complete some quests on your own to gain their XP before unlocking the area which auto-completes it
+
+'''Misc:'''
+* Rocks, trees, respawnable items, and main-world npcs will respawn faster than the main game. (3x in most cases, and much higher in other cases such as Runite Rocks).
+* Forestry Events are three times as likely to spawn
+* Pets and any pet transmog items that roll over between leagues do not count towards the collection log tasks
+* Pet transmogs will now roll over between leagues
+</div></div>
+
+==Yama's Lair==
+[[File:Get Ready For Leagues VI- Demonic Pacts - April 15th (1).png|thumb|center|650px|If you can't see the asset above, [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-03-23/YamaLair.png click here].]]
+
+The way you begin this league will be unlike anything else you've seen so far as Yama's created a unique version of his domain where you will spawn upon your arrival and as you go through the leagues Tutorial. After that you'll have free reign to explore this new lair which features lots of demons running around making sure everything's in check for the league to commence!
+
+[[File:Get Ready For Leagues VI- Demonic Pacts - April 15th (2).png|thumb|center|650px|If you can't see the asset above, [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-03-23/SteppingStones.png click here].]]
+
+One very nice thing Yama has done for you this league is allowed you to use the stepping stones in the lava pool to train your Agility from level 1. Be careful though as this agility course is slightly different and you're likely to get burnt if you mess up. You'll also be able to come back to the lair at any time if you use your home teleport in the spellbook.
+
+==New Starting Area: Varlamore==
+[[File:Get Ready For Leagues VI- Demonic Pacts - April 15th (3).png|thumb|center|650px|If you can't see the asset above, [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-03-23/VM.png click here].]]
+
+You may have seen some cryptic messages before that hinted towards this and while we still aren't sure how that happened, Yama is finally ready to confirm your very first area will be Varlamore!
+
+While the Master of Pacts had some bane-related issues with Misthalin, he already wanted to mix things up this league to give everyone the same fresh start and what better place than an area we recently released. A land of wonder, nostalgia and exploration that offers you plenty of what you already seek.
+
+We'll admit, this new region doesn't have everything, but that's half the fun of leagues, discovering new ways to progress and challenge yourself to unfamiliar paths.
+
+So, what does Varlamore have?
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>Bosses</h3></div>
+<div class="mw-collapsible-content">
+* Amoxliatl
+* Doom of Mokhaiotl
+* Gemstone Crab
+* Hueycoatl
+* Moons of Peril
+* Sol Heredit (Fortis Colosseum)
+* Vardorvis
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>Notable Monsters</h3></div>
+<div class="mw-collapsible-content">
+* Ancient Zygomites
+* Blue Dragons
+* Brutal Blue Dragons
+* Custodian Stalkers
+* Frost Naguas
+* Earthen Naguas
+* Red Dragons
+* Sulphur Naguas
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>Quests</h3></div>
+<div class="mw-collapsible-content">
+* At First Light
+* Death on the Isle
+* The Final Dawn
+* The Heart of Darkness
+* Meat and Greet
+* Perilous Moons
+* The Ribbiting Tale of a Lily Pad Labour Dispute
+* Scrambled!
+* Shadows of Custodia
+* Twilight's Promise
+* Vale Totems
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>Services & Shops</h3></div>
+<div class="mw-collapsible-content">
+* Anvil
+* Archery Shop
+* Armour Shop
+* Axe Shop
+* Carter Ship
+* Crafting Shop
+* Farming Patches
+* Farming Shop
+* Fishing Shop
+* Furnace
+* Gem Store
+* General Store
+* Helmet Shop
+* Herb Supplies
+* House Portal
+* Hunter Shop
+* Loom
+* Magic Shop
+* Pickaxe Shop
+* Sawmill
+* Shield Shop
+* Spinning Wheel
+* Staff Shop
+* Stalls (Baker, Fur, Gem, Silk, Spice)
+* Stonemason
+* Sword Shop
+* Tanner
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>Skilling Activities</h3></div>
+<div class="mw-collapsible-content">
+* Blessing Bone Shards
+* Colossal Wyrm Agility Course
+* Forestry
+* Hunter Rumours
+* Mastering Mixology
+* Stealing Valuables
+* Sunfire Runecrafting
+* Vale Totems
+</div></div>
+
+
+[[File:Get Ready For Leagues VI- Demonic Pacts - April 15th (4).png|thumb|center|650px|If you can't see the asset above, [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-03-23/Crab.png click here].]]
+
+So yeah, that's quite a lot! While there are things we've missed, we're sure you'll have fun planning the beginning of your route around this new start and we've notified Civitas illa Fortis to be prepared for the flood of new arrivals and they've helped us prepare:
+* Your auto-completed quests will mean instant access to:
+** Fairy Rings & Zanaris
+** Cam Torum & The Moons of Peril
+** Vardorvis
+* You can train Slayer instantly by speaking with Chaeldar in Zanaris. All Slayer Masters will assign you the same tasks, taking into account the areas you have currently unlocked.
+* Agility can be trained from level 1 with the new stones around Yama's Lair and gives similar XP rates to Draynor Village Rooftop Course, so should bridge the gap between 1 and the Wyrm Agility Course. This course works slightly differently to others, so get ready to get hotfooted!
+* Some shops have expanded their wares:
+** The Elemental shield and Anti-dragon shield have been added to all Slayer Equipment shops
+** Bronze, Iron & Steel daggers and Halberds have been added to the Fortis Blacksmith
+** Box traps & Bird snares have been added to the Fortis General Store
+** Bronze, Iron & Steel Knives have been added to Arcuani's Archery Supplies in Tal Teklan
+** Hunting crossbow at the Sunset Coast charter ship just like the previous league
+* For those who are unaware, you can use the Bank in the Hunter's Guild before completing At First Light
+* Some creatures such as cows & Hill Giants will respawn more frequently to help with the influx of players to the region
+
+This list represents the key drops affected in Varlamore:
+* All unique rewards from:
+** Moons of Peril
+** Colosseum
+** Amoxliatl
+** Frost Nagua / Sulphur Nagua / Earthen Nagua
+** Hueycoatl
+** Vardorvis
+** Doom of Mokhaiotl
+** Vale Totems
+* Pendant of Ates
+* Hunters' Guild loot sack rares
+* Tecu Salamander
+* Antler guard from Custodian slayer creatures
+
+==Area Information==
+[[File:Get Ready For Leagues VI- Demonic Pacts - April 15th (5).png|thumb|center|650px|If you can't see the asset above, [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-03-23/Area-Map.png click here].]]
+
+Not sure where to go this Leagues? We're going to give you a nice overview of each area and what's beneficial to you region by region!
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>Asgarnia</h3></div>
+<div class="mw-collapsible-content">
+====Overview====
+The Asgarnia area covers the entire Kingdom of Asgarnia along with the island of Entrana, the Pest Control islands, and Troll Country.
+
+Instances of areas in Asgarnia and underground areas with an entrance in Asgarnia will also be included.
+
+Access to Catherby from White Wolf Mountain will be restricted and prevented through the use of magical barriers.
+
+All transportation and teleportation via Charter Ships, Customs Officers, Gnome Gliders, Fairy Rings, Balloons and all other forms of transport will require you to have unlocked access to the area your destination is in.
+
+The following travel options are restricted unless you have access to the appropriate area:
+* The under-wall shortcut between Port Sarim and Draynor Village
+* The rubble shortcut between Death Plateau and the Fremennik Province
+* The cave between Trollweiss and Keldagrim
+* The rock-climb shortcut between the Troll Stronghold and the Wilderness
+* The rock-climb shortcut between the God Wars Dungeon and the Wilderness
+* The ladder between Taverley Dungeon and the Water Obelisk
+* The underground tunnel between Taverley and Catherby
+* The cave between Entrana and the Wilderness
+
+====Key Details====
+Notable Settlements:
+* Burthorpe
+* Ruins of Camdozaal
+* Ice Mountain
+* Dwarven Mine
+* Entrana
+* Falador
+* Goblin Village
+* God Wars Dungeon
+* Port Sarim
+* Rimmington
+* Taverley
+* Troll Stronghold
+* Void Knights' Outpost
+
+Notable combat-related activities:
+* Asgarnia Ice Dungeon
+* The Whisperer
+* Cerberus
+* Giant Mole
+* God Wars Dungeon (with Nex)
+* Taverley Dungeon
+* Warriors Guild
+* Pest Control
+
+Notable non-combat activities:
+* Crafting Guild
+* Falador Rooftop Agility Course
+* Falador Tree Patch
+* Falador Allotment Patch
+* Water Obelisk (with Kandarin unlocked)
+* Fire Obelisk
+* Heroes' Guild
+* Motherlode Mine
+* Rimmington House Portal
+* Rogue's Den
+* Mahogany Homes
+* Mining Guild
+* Air, Body, Law and Mind Altars
+* Taverley House Portal
+* Taverley Tree Patch
+* Troll Stronghold Herb Patch
+
+====Unlocks====
+The following quests and their pre-reqs are automatically completed but will not reward any completion XP:
+* Merlin's Crystal
+* My Arm's Big Adventure
+* Below Ice Mountain
+* Dwarf Cannon
+* Shield of Arrav
+* Heroes' Quest
+
+The following tasks in the Falador Achievement Diary are automatically completed:
+* '''Easy Tasks:'''
+** Smith some Blurite Limbs on Doric's anvil
+* '''Medium Tasks:'''
+** Visit the Port Sarim Rat Pits
+* '''Hard Tasks:'''
+** Recharge your Prayer in Port Sarim church while wearing full Proselyte
+* '''Elite Tasks:'''
+** Purchase a white 2-handed sword from Sir Vyvin
+
+Additionally, you will be eligible to complete The Frozen Door, if you haven't already. It will not be auto-completed.
+
+The following Combat Achievements are automatically completed:
+* Tentacular
+* The Worst Ranged Weapon
+* The Bane of Demons
+
+====Drops====
+The drops listed below are affected by the drop rate modifier perks granted by passive Relic unlocks. Drop rates affected are always rounded down and are not tied to area unlocks.
+
+This list represents the key drops affected in Asgarnia:
+* All Defenders from Cyclops
+* All unique rewards from:
+* Cerberus
+* Royal Titans
+* Kree'arra
+* General Graardor
+* Commander Zilyana
+* K'ril Tsutsaroth
+* Nex
+* The Whisperer
+* Superior Slayer Creatures
+* Dragon Boots from spiritual mages
+* Smouldering Stone from Hellhounds
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>Desert</h3></div>
+<div class="mw-collapsible-content">
+====Overview====
+The Kharidian Desert area covers the entirety of the Kharidian Desert.
+
+The Emir's Arena minigame will not be available during this League, although the building itself is accessible.
+
+Instances of areas in the Kharidian Desert and underground areas with an entrance in the Kharidian Desert will also be included.
+
+All transportation and teleportation via Charter Ships, Customs Officers, Gnome Gliders, Fairy Rings, Balloons or any other form of transport will require you to have unlocked access to the area your destination is in.
+
+====Key Details====
+Notable Settlements:
+* Bandit Camp
+* Necropolis
+* Ruins of Unkah
+* Bedabin Camp
+* Desert Mining Camp
+* Nardah
+* Pollnivneach
+* Ruins of Uzer
+* Uzer Oasis
+* Giants' Plateau
+* Sophanem
+
+Notable combat-related activities:
+* Bandits
+* Kalphite Queen
+* Pollnivneach
+* Slayer Dungeon
+* Tombs of Amascut
+* The Leviathan
+
+Notable non-combat activities:
+* Agility Pyramid
+* Mage Training Arena
+* Giants Foundry
+* Guardians of the Rift
+* Nardah
+* Elidinis Statuette
+* Pollnivneach blackjacking
+* Pollnivneach House Portal
+* Pollnivneach Rooftop Agility Course
+* Pyramid Plunder
+* Fire Altar
+* Sandstone and Granite Mining
+* Sandstorm Machine
+* Sorceress' Garden
+* Zahur's Herblore Services
+* Tempoross
+
+====Unlocks====
+The following quests and their pre-reqs are automatically completed but will not reward any completion XP:
+* Desert Treasure II
+* Prince Ali Rescue
+* Icthlarin's Little Helper
+* Temple of the Eye
+* The Golem
+
+The following tasks in the Desert Achievement Diary are automatically completed
+* '''Medium Tasks:'''
+** Travel to the Desert via the Eagle transport system
+* '''Hard Tasks:'''
+** Slay a dust devil in the desert cave with a Slayer Helmet equipped
+** Refill your Waterskins in the Desert using Lunar spells
+* '''Elite Tasks:'''
+** Bake a wild pie at the Nardah clay oven
+** Speak to the Kalphite Queen Head in your Player Owned House
+
+The above Kalphite Queen Head diary task will complete when you receive a Kalphite Queen Head or Kalphite Queen Head(tattered) drop instead.
+
+Near the Mage training arena entrance there will be a portal to Guardians of the rift.
+
+The following Combat Achievements are automatically completed:
+* Tomb Explorer
+* Tomb Raider
+* Tomb Looter
+* Novice Tomb Explorer
+* Novice Tomb Raider
+* Novice Tomb Looter
+* Expert Tomb Looter
+* Expert Tomb Raider
+* Insect Deflection
+
+====Drops====
+Tombs of Amascut has 2 new invocations, meaning max raid level can go up to 1000
+
+The drops listed below are affected by the drop rate modifier perks granted by passive Relic unlocks. Drop rates affected are always rounded down and are not tied to area unlocks.
+
+This list represents the key drops affected in The Desert:
+* The Pharaoh's Sceptre from Pyramid Plunder
+* Dragon Chainbodies from all sources
+* Dragon 2-handed Swords from all sources
+* Dust Battlestaves from Dust Devils
+* All unique rewards from        
+** Superior Slayer Creatures
+** Tombs of Amascut
+** The Leviathan
+** Tempoross
+** Guardians of the Rift
+* Dragon pickaxe from all sources
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>Fremennik</h3></div>
+<div class="mw-collapsible-content">
+====Overview====
+The Fremennik Province area covers the entire Fremennik Province (including the Fremennik Isles) along with Lunar Isle and Weiss.
+
+Instances of areas in the Fremennik Province and underground areas with an entrance in the Fremennik Province will also be included.
+
+Access to Kandarin via the bridge south of Rellekka will be blocked by magical barriers.
+
+All transportation and teleportation via Charter Ships, Customs Officers, Gnome Gliders, Fairy Rings, Balloons and all other forms of transport will require you to have unlocked access to the area your destination is in.
+
+The following travel options are restricted unless you have access to the appropriate area:
+* The log shortcut leading to the Fremennik Province north of Sinclair Manor
+* The rubble separating the Fremennik Province and the Death Plateau
+* The Cave entrance in the tunnel leading to Keldagrim that leads to the bottom of Trollweiss mountain
+* The basalt rock Agility shortcut leading from the Lighthouse to the Barbarian Outpost
+
+====Key Details====
+Notable Settlements:
+* Keldagrim
+* Ghorrock Dungeon
+* Lunar Isle
+* Miscellania and Etceteria
+* Neitiznot and Jatizso
+* Rellekka
+* The Island of Stone
+* The Mountain Camp
+* The Pirates' Cove
+* Ungael
+* Waterbirth Island
+* Weiss
+
+Notable combat-related activities:
+* Basilisk Knights
+* Duke Sucellus
+* The Phantom Muspah
+* Dagannoth Kings
+* Rellekka Slayer Cave
+* Waterbirth Island Dungeon
+* Vorkath
+
+Notable non-combat activities:
+* Blast Furnace (operated by dwarves)
+* Kingdom Management
+* Penguin Agility Course
+* Rellekka House Portal
+* Rellekka Rooftop Agility Course
+* Astral Altar
+* Weiss
+* Herb Patch
+
+Ice Gloves will be provided upon unlocking this area and can be reclaimed from the Leagues Tutor in Yama's Lair if lost.
+
+====Unlocks====
+The following quests and their pre-reqs are automatically completed but will not reward any completion XP:
+* Secrets of the North (This does not complete DT1 and its pre-reqs)
+* Horror from the Deep
+* Dragon Slayer II
+* Mountain Daughter
+* Fremennik Trials
+* Fremennik Isles
+* Olaf's Quest
+
+The following tasks in the Fremennik Diary are automatically completed:
+* '''Easy Tasks:'''
+** Enter the Troll Stronghold
+* '''Medium Tasks:'''
+** Mine some gold at the Arzinian Mine
+** Travel to the Snowy Hunter Area via Eagle
+* '''Hard Tasks:'''
+** Teleport to Trollheim
+* '''Elite Tasks:'''
+** Kill the generals of Armadyl, Bandos, Saradomin and Zamorak in the God Wars Dungeon
+** Slay a spiritual mage in the God Wars Dungeon.
+
+You will also automatically unlock the ability to make Super Antifire potions.
+
+The following Combat Achievements are automatically completed:
+* Versatile Drainer
+* More Than Just a Ranged Weapon
+
+====Drops====
+The drops listed below are affected by the drop rate modifier perks granted by passive Relic unlocks. Drop rates affected are always rounded down and are not tied to area unlocks.
+
+This list represents the key drops affected in the Fremennik Province:
+* Skeletal Visages from Vorkath
+* Draconic Visages from all sources
+* Dragonbone Necklaces from Vorkath
+* Seers' Rings from Dagannoth Prime
+* Mud Battlestaves from Dagannoth Prime
+* Archer Rings from Dagannoth Supreme
+* Seercull Bows from Dagannoth Supreme
+* Warrior Rings from Dagannoth Rex
+* Berserker Rings from Dagannoth Rex
+* Dragon Axes from all sources
+* Basilisk Jaws from Basilisk Knights
+* Leaf-bladed Swords from all sources
+* Leaf-bladed Battleaxes from Kurasks
+* Brine Sabre from Brine Rats
+* All unique rewards from:        
+** Duke Sucellus
+** The Phantom Muspah
+** Superior Slayer Creatures
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>Kandarin</h3></div>
+<div class="mw-collapsible-content">
+====Overview====
+The Kandarin area covers the entire Kingdom of Kandarin along with the Feldip Hills, Ape Atoll and Crash Island.
+
+Instances of areas in Kandarin and underground areas with an entrance in Kandarin are also included (with the exception of Taverley Dungeon and the Underground Pass).
+
+Access to the Nightmare Zone is restricted. To obtain Nightmare Zone points speak to Dominic Onion and purchase them for 1 GP each.
+
+Access to White Wolf Mountain and the Fremennik Province bridge will be blocked by magical barriers.
+
+All transportation and teleportation via Charter Ships, Customs Officers, Gnome Gliders, Fairy Rings, Balloons and all other transport systems will require you to have unlocked access to the area your destination is in.
+
+The following travel options are restricted unless you have access to the appropriate area:
+* The Underground Pass between Ardougne and Isafdar
+* The underground tunnel between Catherby and Taverley
+* The grapple shortcut between Catherby and Taverley
+* The log shortcut between Sinclair Mansion and the Fremennik Province
+* The gates between Kandarin and Tirannwn at Arandar
+* The basalt shortcut between the Barbarian Outpost and the Lighthouse
+* The doors between the Mourner Headquarters and the Temple of Light
+
+====Key Details====
+Notable Settlements:
+* Ape Atoll
+* Ardougne
+* Barbarian Outpost
+* Catherby
+* Corsair Cove
+* Gu'Tanoth
+* Myths Guild
+* Piscatoris Fishing Colony
+* Port Khazard
+* Seers' Village
+* Tree Gnome Stronghold
+* Tree Gnome Village
+* Yanille
+
+Notable combat-related activities:
+* Ancient Cavern
+* Ape Atoll Monkeys
+* Barbarian Assault
+* Castle Wars
+* Demonic Gorillas
+* Kraken
+* Stronghold Slayer Cave
+* Smoke Devils
+* Thermonuclear Smoke Devil
+* Waterfall Dungeon
+* Poison Waste Dungeon
+
+Notable non-combat activities:
+* Ardougne Market Thieving
+* Ardougne Rooftop Agility Course
+* Ardougne & Catherby Allotment Patches
+* Catherby, Gnome Stronghold & Tree Gnome Stronghold Fruit Tree Patches
+* Barbarian Fishing
+* Barbarian Agility Training
+* Catherby Fishing
+* Chompy Bird Hunting
+* Feldip Hills
+* Hunter Training
+* Fishing Trawler
+* Gnome Stronghold Agility Training
+* Gnome Stronghold Tree Patch
+* Fishing Guild
+* Myths' Guild
+* Piscatoris Hunter Training Grounds
+* Ourania Altar
+* Wrath Altar
+* Seers' Village Rooftop Agility Course
+* Spirit Tree Access
+* Tower of Life
+* Yanille House Portal
+
+Wrath Talisman has been added to the East Ardougne General Store
+
+====Unlocks====
+The following quests and their pre-reqs are automatically completed but will not reward any completion XP:
+* Monkey Madness II
+* Swan Song
+* King's Ransom
+* Dragon slayer II
+* Hand in the Sand
+* Alfred Grimhand's Barcrawl
+
+The following tasks in the Kandarin Achievement Diary are automatically completed:
+* '''Medium Tasks:'''
+** Use the Grapple Shortcut to get from the Water Obelisk to Catherby beach
+** Create a Mind helmet.
+* '''Hard Tasks:'''
+** Charge a water orb
+** Kill a shadow hound in the Shadow Dungeon
+* '''Elite Tasks:'''
+** Fish and cook 5 sharks in Catherby using the Cooking Gauntlets
+** Teleport to Catherby
+
+The following tasks in the Western Provinces Achievement Diary are automatically completed:
+* '''Easy Tasks:'''
+** Complete a novice game of Pest Control
+** Teleport to Pest Control using the minigame teleports
+* '''Medium Tasks:'''
+** Complete an intermediate game of Pest Control
+* '''Hard Tasks:'''
+** Complete a veteran game of Pest Control
+** Place an Isafdar painting in your Player Owned House Quest Hall
+* '''Elite Tasks:'''
+** Equip any complete Void set
+
+The following tasks in the Ardougne Achievement Diary are automatically completed:
+* '''Easy Tasks:'''
+** Enter the combat training camp north of West Ardougne
+** Use the Ardougne lever to teleport to the Wilderness
+* '''Medium Tasks:'''
+** Travel to Castle Wars by hot air balloon
+** Claim buckets of sand from Bert in Yanille
+** Equip an Iban's Upgraded Staff or upgrade an Iban's Staff
+* '''Hard Tasks:'''
+** Recharge some jewellery at the totem pole in the Legends' Guild
+** Smith a Dragon Square Shield in West Ardougne
+** Craft some Death Runes at the Death Altar
+* '''Elite Tasks:'''
+** Imbue a Salve Amulet at Nightmare Zone or equip a Salve Amulet(i)
+** Cast Ice Barrage on another player within Castle Wars
+
+The following Combat Achievements are automatically completed:
+* Hitting Them Where it Hurts
+
+The following bars will be automatically completed on Alfred Grimhand's Barcrawl: The Rising Sun in Falador The Rusty Anchor in Port Sarim
+
+====Drops====
+The drops listed below are affected by the drop rate modifier perks granted by passive Relic unlocks. Drop rates affected are always rounded down and are not tied to area unlocks.
+
+This list represents the key drops affected in Kandarin:
+* Angler's Outfit from Fishing Trawler
+* Zenyte Shards and Ballista components from Glough's Experiments
+* Monkey Tails from Maniacal Monkey Hunting
+* Trident of the Seas and Kraken Tentacles from all source
+* Occult Necklaces from all sources
+* Smoke Battlestaves from all sources
+* Dragon Chainbodies from all sources
+* Dragon Full Helmets from all sources
+* Warped Sceptre from Warped Creatures
+* All unique rewards from Superior Slayer Creatures
+* Smouldering Stone from Hellhounds
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>Karamja</h3></div>
+<div class="mw-collapsible-content">
+====Overview====
+The Karamja area covers the entire island of Karamja along with the island of Crandor and the Realm of the Fisher King. Instances of areas in Karamja and underground areas with an entrance in Karamja will also be included.
+
+When purchasing a Player Owned House from an Estate Agent your house will be placed in Brimhaven so that Construction can be trained from level 1. All transportation and teleportation through Charter Ships, Customs Officers, Gnome Gliders, Fairy Rings, Balloons and other forms of transport will require you to have unlocked access to the area your destination is in.
+
+====Key Details====
+Notable Settlements:
+* Brimhaven
+* Karamja Shipyard
+* Musa Point
+* Shilo Village
+* Tai Bwo Wannai
+* Mor-Ul-Rek
+
+Notable combat-related activities:
+* Brimhaven Dungeon
+* Tai Bwo Wannai Dungeon
+* The Fight Caves
+* The Fight Pits
+* Tzhaar-Ket-Rak's Challenges
+* The Inferno
+* Tzhaar Creatures
+
+Notable non-combat activities:
+* Brimhaven Agility Arena
+* Brimhaven House Portal
+* Calquat Tree Patch
+* Infernal Eel Fishing
+* Fruit Tree Patch
+* Karambwan Fishing
+* Nature Altar
+* Tai Bwo Wannai Cleanup
+* Teak and Mahogany Woodcutting
+* Tzhaar Pickpocketing
+* Tzhaar Gem Shop Thieving
+
+====Unlocks====
+The following quests and their pre-reqs are automatically completed but will not reward any completion XP:
+* Shilo Village
+
+The following tasks in the Karamja Achievement Diary are automatically completed:
+* '''Easy Tasks:'''
+** Travel to Port Sarim via the dock, east of Musa Point
+** Travel to Ardougne via the port near Brimhaven
+* '''Medium Tasks:'''
+** Use the Gnome Glider to travel to Karamja
+** Charter a ship from the shipyard in the far east of Karamja
+** Charter the Lady of the Waves from south of Cairn Isle to Port Khazard
+* '''Hard Tasks:'''
+** Eat an oomlie wrap
+** Collect 5 palm leaves
+** Kill a deathwing in the Viyeldi Caves under the Kharazi Jungle
+* '''Elite Tasks:'''
+** Create an Anti-venom Potion whilst standing in the Horseshoe Mine
+
+Additionally, Tzhaar-Ket-Rak will let you do all of his challenges immediately.
+
+====Drops====
+The drops listed below are affected by the drop rate modifier perks granted by passive Relic unlocks. Drop rates affected are always rounded down and are not tied to area unlocks.
+
+This list represents the key drops affected in Karamja:
+* All Tzhaar equipment from various Tzhaar
+* Obsidian Helmet, Platelegs and Platebody from TzHaar-Ket
+* Draconic Visage from all sources
+* All unique rewards from Superior Slayer Creatures
+* Gout Tuber
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>Kourend & Kebos</h3></div>
+<div class="mw-collapsible-content">
+====Overview====
+The Kebos and Kourend area covers the entirety of Kebos and Kourend.
+
+Instances of areas in Kebos and Kourend and underground areas with an entrance in Kebos and Kourend will also be included.
+
+All transportation and teleportation via Charter Ships, Customs Officers, Gnome Gliders, Fairy Rings, Balloons and all other forms of transport will require you to have unlocked access to the area your destination is in.
+
+====Key Details====
+Notable Settlements:
+* Hosidius
+* Arceuus
+* Lovakengj
+* Port Piscarilius
+* Shayzien
+* Kingstown
+* Northern Tundras
+* Kourend Woodland
+* Mount Karuulm
+* Kebos Swamp
+* Mount Quidamortem
+
+Notable combat-related activities:
+* Chambers of Xeric
+* Lizardman Shaman
+* Mount Karuulm Slayer Dungeon
+* Sarachnis (Forthos Dungeon)
+* Catacombs of Kourend
+* Giants' Den
+* Yama
+
+Notable non-combat activities:
+* Farming Guild
+* Woodcutting Guild
+* Arceuus Library
+* Hosidius House Portal
+* Tithe Farm
+* Lake Molch
+* Aerial Fishing
+* The Wintertodt
+* Soul and Blood Altar
+* Blast Mine
+* Hosidius Patches
+
+Konar will assign Slayer Tasks based on the areas you have unlocked.
+
+====Unlocks====
+The following quests and their pre-reqs are automatically completed but will not reward any completion XP:
+* A Kingdom Divided
+
+The following tasks in the Kourend and Kebos Achievement Diary are automatically completed:
+* '''Hard Tasks:'''
+** Cast Monster Examine on a mountain troll south of Mount Quidamortem.
+
+The following Combat Achievements are automatically completed:
+* Chambers of Xeric Veteran
+* Chambers of Xeric Master
+* Chambers of Xeric Grandmaster
+* Chambers of Xeric: CM Master
+* Chambers of Xeric: CM GrandMaster
+* Demonbane Weaponry
+* No Pressure
+
+====Drops====
+Chambers of Xeric: Challenge mode has the following changes Damage & Defence increased by 25% 50% increased hitpoints on monsters Unique chance will be further multiplied by 3.
+
+Dexterous and Arcane Prayer Scrolls have a weighting of 5 to drop instead of 20 in CoX: Challenge Mode.
+
+The drops listed below are affected by the drop rate modifier perks granted by passive Relic unlocks. Drop rates affected are always rounded down and are not tied to area unlocks.
+
+This list represents the key drops affected in Kebos and Kourend:
+* All unique rewards from Chambers of Xeric
+* All unique rewards from Wintertodt
+* Dragon Thrownaxe and Dragon Knife from Drakes, Hydras and Wyrms
+* Hydra's Claw, Hydra's Leather, Hydra's Eye, Hydra's Heart, Hydra's Fang and Hydra Tail from Hydras
+* Drake's Tooth and Drake's Claw from Drakes
+* Dragon Sword and Dragon Harpoon from Wyrms
+* Dragon Warhammer from lizardman shamans
+* Draconic Visage from dragons in the Catacombs of Kourend
+* Sarachnis Cudgel from Sarachnis
+* Bottomless Compost Bucket from Hespori
+* Dusk Mystic and Dragon Hasta from the Brimstone Chest
+* All unique rewards from Superior Slayer Creatures
+* Hespori seeds
+* Golden Tench from Aerial Fishing
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>Morytania</h3></div>
+<div class="mw-collapsible-content">
+====Overview====
+The Morytania area covers the entirety of Morytania along with the island of Mos Le'Harmless, Braindeath Island, Dragontooth Island and Harmony Island.
+
+Instances of areas in Morytania and underground areas with an entrance in Morytania will also be included.
+
+All transportation and teleportation via Charter Ships, Customs Officers, Gnome Gliders, Fairy Rings, Balloons and other forms of transport will require you to have unlocked access to the area your destination is in.
+
+The following travel options are restricted unless you have access to the appropriate area:
+* The Agility shortcut through the railing next to the Paterdomus Temple leading to Misthalin
+* The stairs leading from the Paterdomus Temple up to Misthalin
+
+====Key Details====
+Notable Settlements:
+* Burgh de Rott
+* Mos Le'Harmless
+* Canifis
+* Darkmeyer
+* Meiyerditch
+* Mort'ton
+* Port Phasmatys
+* Slepe Ver Sinhaza
+
+Notable combat-related activities:
+* Barrows
+* Cave Horrors
+* Fenkenstrain's Experiments
+* Grotesque Guardians
+* Haunted Mines
+* Morytania Spider Cave
+* Nightmare of Ashihama
+* Lair of Tarn Razorlor
+* Shades of Mort'ton
+* Slayer Tower
+* Theatre of Blood
+* Vyrewatch Sentinels
+
+Notable non-combat activities:
+* Canifis Rooftop Agility Course
+* Daeyalt Essence Mining
+* Ectofuntus Prayer Training
+* The True Blood Altar
+* Hallowed Sepulchre
+* Harmony Island Herb Patch
+* Port Phasmatys Allotment Patch
+* Temple Trekking
+* Vyre Pickpocketing
+* Werewolf Agility Course
+
+The following Morytania shop stocks have been modified:
+* Blood Talisman has been added to the Canifis General Store
+
+====Unlocks====
+The following quests and their pre-reqs are automatically completed but will not reward any completion XP:
+* Taste of Hope
+* The Great Brain Robbery
+* Ghosts Ahoy
+
+The following tasks in the Morytania Achievement Diary are automatically completed:
+* '''Medium Tasks:'''
+** Make a batch of Cannonballs at the Port Phasmatys furnace
+** Travel to Dragontooth Isle
+* '''Hard Tasks:'''
+** Enter the Kharyrll portal in your Player Owned House through a Portal Chamber
+** Pray at the Altar of Nature in the Nature Grotto with Piety activated
+* '''Elite Tasks:'''
+** Catch a shark in Burgh de Rott with your bare hands
+** Fertilize the Morytania herb patch using Lunar spells
+
+The following Combat Achievements are automatically completed:
+* Theatre of Blood Veteran
+* Theatre of Blood Master
+* Theatre of Blood Grandmaster
+* Theatre of Blood: HM Grandmaster
+* Chally Time
+* Nylocas, On the Rocks
+* Faithless Crypt Run
+
+====Drops====
+Theatre of Blood: Hard mode and Phosanis nightmare have the following changes:
+* Damage & Defence increased by 25%
+* 50% increased hitpoints on monsters
+* Unique chance will be further multiplied by 2
+
+The drops listed below are affected by the drop rate modifier perks granted by passive Relic unlocks. Drop rates affected are always rounded down and are not tied to area unlocks.
+
+This list represents the key drops affected in Morytania:
+* Group content like The Nightmare and Theatre of Blood will determine the drop rate modifier for their uniques from the MVP of that particular kill/completion.
+* Black masks from Cave horrors
+* Barrows armour and weapon pieces from The Barrows
+* Granite Gloves from Grotesque Guardians
+* Granite Hammers from Grotesque Guardians
+* Granite Rings from Grotesque Guardians
+* Dark Tourmaline Cores from Grotesque Guardians
+* Rings of Endurance (uncharged) from The Hallowed Sepulchre
+* Blood Shards from Vyres.
+* All unique rewards from        
+** The Theatre of Blood
+** The Nightmare
+** Araxxor and Araxytes
+** Superior Slayer Creatures
+* Zealot Robes from Shades of Morton
+* Runescrolls from Shades of Morton
+* Granite Maul from Gargoyles
+* Brittle Key from Gargoyles
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>Tirannwn</h3></div>
+<div class="mw-collapsible-content">
+====Overview====
+The Tirannwn area covers the entirety of Tirannwn along with the Temple of Light and the Underground Pass.
+
+Instances of areas in Tirannwn and underground areas with an entrance in Tirannwn will also be included.
+
+All transportation and teleportation via Charter Ships, Customs Officers, Gnome Gliders, Fairy Rings, Balloons and other forms of transport will require you to have unlocked access to the area your destination is in.
+
+The following travel options are restricted unless you have access to the appropriate area:
+* The gate in Arandar leading to Kandarin
+* The entrance to the Mourner Headquarters near the Temple of Light
+* The Underground Pass exit leading to West Ardougne
+
+====Key Details====
+Notable Settlements:
+* Gwenith
+* Iorwerth Camp
+* Lletya
+* Prifddinas
+* Tyras Camp
+* Zul-Andra
+
+Notable combat-related activities:
+* A 'Rabbit'
+* Iorwerth Slayer Dungeon
+* The Gauntlet
+* Zulrah
+
+Notable non-combat activities:
+* Enhanced Crystal Chest
+* The Death Altar
+* Lletya Fruit Tree Patch
+* Prifddinas Allotment Patch
+* Prifddinas Agility Course
+* Prifddinas Crystal Implings
+* Prifddinas Hunting Grounds
+* Prifddinas House Portal
+* Prifddinas Hardwood Trees
+* Prifddinas Thieving
+* Sacred Eel Fishing
+* Zalcano
+
+====Unlocks====
+The following quests and their pre-reqs are automatically completed but will not reward any completion XP:
+* Song of the Elves
+
+The following Combat Achievements are automatically completed:
+* Snake Rebound
+
+====Drops====
+The drops listed below are affected by the drop rate modifier perks granted by passive Relic unlocks. Drop rates affected are always rounded down and are not tied to area unlocks.
+
+This list represents the key drops affected in Tirannwn:
+* Group content like Zalcano will determine the drop rate modifier for their uniques from the MVP of that particular kill/completion.
+* Elven Signet from Crystal Implings
+* Crystal Armour Seeds from The Gauntlet
+* Crystal Weapon Seeds from The Gauntlet
+* Enhanced Crystal Weapon Seeds from The Gauntlet
+* Crystal Tool Seeds from Zalcano
+* Zalcano Shards from Zalcano
+* Tanzanite Fangs from Zulrah
+* Magic Fangs from Zulrah
+* Serpentine Visages from Zulrah
+* Onyxes from Zulrah
+* Dark Bows from Dark Beasts
+* Dragonstone Armour from the Enhanced Crystal Chest
+* Enhanced Crystal Teleport Seeds from all sources
+* Mist Battlestaves from Waterfiends
+* Leaf-bladed Battleaxes and Swords from Kurasks
+* All unique rewards from Superior Slayer Creatures
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>Wilderness</h3></div>
+<div class="mw-collapsible-content">
+====Overview====
+The Wilderness area covers the entirety of the Wilderness.
+
+Last Man Standing and Bounty Hunter will not be accessible during this League.
+
+For this League, deaths will behave differently in the Wilderness:
+* PvP deaths will be treated like a PvM death with your lost items moving to a gravestone.
+* The gravestone will then move to your respawn location.
+* PvM deaths will be unaffected.
+* Loot keys are disabled on League Worlds.
+
+Instances of areas in the Wilderness and underground areas with an entrance in the Wilderness will also be included.
+
+All transportation and teleportation via Charter Ships, Customs Officers, Gnome Gliders, Fairy Rings, Balloons and other forms of transport require you to have unlocked access to the area your destination is in.
+
+The following travel options are restricted unless you have access to the appropriate area:
+* Crossing the Wilderness Ditch will require access to whichever area is on the other side of it
+* The lever at the Deserted Keep will work only if you have access to the area it takes you to
+
+====Key Details====
+Notable Settlements:
+* Bandit Camp
+* Dark Warriors' Fortress
+* Ferox Enclave
+* The Mage Arena
+* Rogues' Castle
+* The Pirates' Hideout
+
+Notable combat-related activities:
+* Callisto and Artio
+* Chaos Elemental
+* Chaos Fanatic
+* Corporeal Beast
+* Crazy Archaeologist
+* Forthinry Dungeon
+* King Black Dragon
+* Lava Dragons
+* Mage Arena
+* Mage Arena II
+* Scorpia
+* Venenatis and Spindel
+* Vet'ion and Calvar'ion
+* Wilderness God Wars Dungeon
+* Wilderness Slayer Cave
+
+Notable non-combat activities:
+* Abyss Runecrafting Altar access is restricted to their areas
+* Air Obelisk
+* Black Chinchompas
+* Black Salamanders
+* Dark Crab Fishing
+* Earth Obelisk
+* Fountain of Rune
+* Chaos Altar
+* Wilderness Agility Course
+* Wilderness Resource Area
+* Rogue Chests
+
+Access to the Revenant Caves will be free instead of requiring 100,000 coins to enter.
+
+Access to the Wilderness Agility Course will be free instead of requiring 150,000 coins to enter.
+
+Dying will not reset your lap counter in the Wilderness Agility Course.
+
+Krystillia assigns tasks like any other Slayer Master, not assigning Wilderness-specific tasks.
+
+Slayer targets defeated within the Wilderness will have a chance to drop a Larran's Key.
+
+====Unlocks====
+The following quest is automatically completed but will not award any completion XP:
+* Enter the Abyss
+
+The following tasks in the Wilderness Achievement Diary are automatically completed:
+* '''Easy Tasks:'''
+** Smith a Gold Helmet in the resource area
+** Enter the Wilderness from the Ardougne or Edgeville lever
+** Kill an earth warrior
+* '''Medium Tasks:'''
+** Smith a Gold Helmet in the resource area
+** Talk to the emblem trader
+* '''Hard Tasks:'''
+** Take the Agility shortcut from Trollheim to the Wilderness
+** Fish a raw lava eel in the Wilderness
+** Charge an air orb
+* '''Elite Tasks:'''
+** Teleport to Ghorrock
+
+The following Combat Achievements are automatically completed:
+* Finding the Weak Spot
+
+====Drops====
+The drops listed below are affected by the drop rate modifier perks granted by passive Relic unlocks. Drop rates affected are always rounded down and are not tied to area unlocks.
+
+This list represents the key drops affected in the Wilderness:
+* All unique rewards from Revenants
+* Malediction and Odium shards from all sources
+* Fedoras from the Crazy Archaeologist
+* Dragon Boots from spiritual mages
+* Dragon 2-handed Swords from all sources
+* Dragon Pickaxes from all sources
+* All unique rewards from:        
+** Venenatis
+** Callisto
+** Vet'ion
+** Zombie Pirates and Zombie Pirate Lockers
+** Elder Chaos Druids
+** The Corporeal Beast
+** Superior Slayer Creatures
+* Draconic Visages from all sources
+* Amulets of Eternal Glory from the Fountain of Rune
+* Dagon'hai robes from Larran's Big Chest
+* Smouldering Stone from Hellhounds
+</div></div>
+
+==Relics==
+[[File:Get Ready For Leagues VI- Demonic Pacts - April 15th (6).png|thumb|center|650px|If you can't see the asset above, [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-04-09-XX/777-77-7T7.png click here].]]
+
+[[File:Get Ready For Leagues VI- Demonic Pacts - April 15th (7).png|thumb|center|650px|If you can't see the asset above, [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-03-23/StarterInfo.png click here].]]
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>Endless Harvest</h3></div>
+<div class="mw-collapsible-content" style="padding-bottom:0.3em; padding-top:0.5em;">
+[[File:Get Ready For Leagues VI- Demonic Pacts - April 15th (8).png|650px|center]]
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>Barbarian Gathering</h3></div>
+<div class="mw-collapsible-content" style="padding-bottom:0.3em; padding-top:0.5em;">
+[[File:Get Ready For Leagues VI- Demonic Pacts - April 15th (9).png|650px|center]]
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>Abundance</h3></div>
+<div class="mw-collapsible-content" style="padding-bottom:0.3em; padding-top:0.5em;">
+[[File:Get Ready For Leagues VI- Demonic Pacts - April 15th (10).png|650px|center]]
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>Minion</h3></div>
+<div class="mw-collapsible-content" style="padding-bottom:0.3em; padding-top:0.5em;">
+[[File:Get Ready For Leagues VI- Demonic Pacts - April 15th (11).png|650px|center]]
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>Culling Spree</h3></div>
+<div class="mw-collapsible-content" style="padding-bottom:0.3em; padding-top:0.5em;">
+[[File:Get Ready For Leagues VI- Demonic Pacts - April 15th (12).png|650px|center]]
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>Evil Eye</h3></div>
+<div class="mw-collapsible-content" style="padding-bottom:0.3em; padding-top:0.5em;">
+[[File:Get Ready For Leagues VI- Demonic Pacts - April 15th (13).png|650px|center]]
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>Woodsman</h3></div>
+<div class="mw-collapsible-content" style="padding-bottom:0.3em; padding-top:0.5em;">
+[[File:Get Ready For Leagues VI- Demonic Pacts - April 15th (14).png|650px|center]]
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>Conniving Clues</h3></div>
+<div class="mw-collapsible-content" style="padding-bottom:0.3em; padding-top:0.5em;">
+[[File:Get Ready For Leagues VI- Demonic Pacts - April 15th (15).png|650px|center]]
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>Flask of Fervour</h3></div>
+<div class="mw-collapsible-content" style="padding-bottom:0.3em; padding-top:0.5em;">
+[[File:Get Ready For Leagues VI- Demonic Pacts - April 15th (16).png|650px|center]]
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>Nature's Accord</h3></div>
+<div class="mw-collapsible-content" style="padding-bottom:0.3em; padding-top:0.5em;">
+[[File:Get Ready For Leagues VI- Demonic Pacts - April 15th (17).png|650px|center]]
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>Hotfoot</h3></div>
+<div class="mw-collapsible-content" style="padding-bottom:0.3em; padding-top:0.5em;">
+[[File:Get Ready For Leagues VI- Demonic Pacts - April 15th (18).png|650px|center]]
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>Reloaded</h3></div>
+<div class="mw-collapsible-content" style="padding-bottom:0.3em; padding-top:0.5em;">
+[[File:Get Ready For Leagues VI- Demonic Pacts - April 15th (19).png|650px|center]]
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>Larcenist</h3></div>
+<div class="mw-collapsible-content" style="padding-bottom:0.3em; padding-top:0.5em;">
+[[File:Get Ready For Leagues VI- Demonic Pacts - April 15th (20).png|650px|center]]
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>Friendly Forager</h3></div>
+<div class="mw-collapsible-content" style="padding-bottom:0.3em; padding-top:0.5em;">
+[[File:Get Ready For Leagues VI- Demonic Pacts - April 15th (21).png|650px|center]]
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>Grimoire</h3></div>
+<div class="mw-collapsible-content" style="padding-bottom:0.3em; padding-top:0.5em;">
+[[File:Get Ready For Leagues VI- Demonic Pacts - April 15th (22).png|650px|center]]
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>Map of Alacrity</h3></div>
+<div class="mw-collapsible-content" style="padding-bottom:0.3em; padding-top:0.5em;">
+[[File:Get Ready For Leagues VI- Demonic Pacts - April 15th (28).png|650px|center]]
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>Transmutation</h3></div>
+<div class="mw-collapsible-content" style="padding-bottom:0.3em; padding-top:0.5em;">
+[[File:Get Ready For Leagues VI- Demonic Pacts - April 15th (30).png|650px|center]]
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>Butler's Bell</h3></div>
+<div class="mw-collapsible-content" style="padding-bottom:0.3em; padding-top:0.5em;">
+[[File:Get Ready For Leagues VI- Demonic Pacts - April 15th (31).png|650px|center]]
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>Soul Harvest</h3></div>
+<div class="mw-collapsible-content" style="padding-bottom:0.3em; padding-top:0.5em;">
+[[File:Get Ready For Leagues VI- Demonic Pacts - April 15th (32).png|650px|center]]
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>Bank Heist</h3></div>
+<div class="mw-collapsible-content" style="padding-bottom:0.3em; padding-top:0.5em;">
+[[File:Get Ready For Leagues VI- Demonic Pacts - April 15th (33).png|650px|center]]
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>Flow State</h3></div>
+<div class="mw-collapsible-content" style="padding-bottom:0.3em; padding-top:0.5em;">
+[[File:Get Ready For Leagues VI- Demonic Pacts - April 15th (34).png|650px|center]]
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>Eternal Sustenance</h3></div>
+<div class="mw-collapsible-content" style="padding-bottom:0.3em; padding-top:0.5em;">
+[[File:Get Ready For Leagues VI- Demonic Pacts - April 15th (49).png|650px|center]]
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>Executioner</h3></div>
+<div class="mw-collapsible-content" style="padding-bottom:0.3em; padding-top:0.5em;">
+[[File:Get Ready For Leagues VI- Demonic Pacts - April 15th (50).png|650px|center]]
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>Passive Effects</h3></div>
+<div class="mw-collapsible-content">
+====Tier 1:====
+* All experience is multiplied by 5x
+* Items from eligible sources will be 2x as common
+* Farming ticks will occur every minute instead of every five minutes
+* Minigame points received are boosted by 4x
+* Run energy is never drained whilst running
+* All Clue scrolls will drop as stackable scroll boxes, and clue-step progress is saved between clues
+
+====Tier 2:====
+* XP multiplier increase from 5x to 8x
+
+====Tier 3:====
+* Combat skills (including Hitpoints & Prayer) have 1.5x Multiplier (Multiplicative with other modifiers)
+* The 'Bigger and badder' slayer unlock is unlocked for free
+* Slayer points are 5x from tasks and you aren't required to complete 5 tasks before earning points
+* Slayer Superior rates are increased to a 1/50 chance to appear
+
+====Tier 4:====
+* Items from eligible sources will be 5x as common
+* Minigame points received are boosted by 8x
+
+====Tier 5:====
+* XP multiplier increase from 8x to 12x
+
+====Tier 6:====
+* None
+
+====Tier 7:====
+* XP multiplier increase from 12x to 16x
+
+====Tier 8:====
+* None
+</div></div>
+
+==Demonic Pacts==
+It's time for you to sign over more than just your soul this league as we've taken the previous Combat Masteries system and cranked it up to 666!
+
+Our new system gives you way more flexibility with what combat styles you want to specialise in as the Demonic Pacts form a skill tree, something we're trying for the very first time!
+
+[[File:Get Ready For Leagues VI- Demonic Pacts - April 15th (35).png|thumb|650px|center|If you can't see the asset above, [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-04-08/DP-Tree.png click here].]]
+
+Completing certain combat-related tasks will bag you Pact Points which you can spend at your leisure on any available pacts ''(any pacts connected to pacts previously unlocked)''. You'll have a total of '''40 points''' to use, and we have a handy new filter to show you exactly what tasks will gift you with these points!
+
+'''BE WARNED:''' We've got a [https://secure.runescape.com/m=news/demonic-pacts---overview?oldschool=1#points full newspost] giving you more information about the system and find out what to expect from the brand new Demonic Pacts! As a bonus, our friends over at the OSRS Wiki have made a wonderful [https://tools.runescape.wiki/demonic-pacts Demonic Pacts Calculator], so you can see exactly what you can unlock and give you a chance to properly experiment before April 15th!
+
+==Echo Bosses & Echo Rewards==
+Echo Bosses are back and they want their revenge! Taking out contracts with Yama has infused them in a devilish new look and they are eager to see you take them on. Of course, you'll need to fight the original version of the bosses to acquire their respective Echo Orbs to unlock this demonic variant.
+
+While the bosses this time around are mostly the same as before, we've reworked the rewards to really lean into the Demonic Pacts and work with different elements of the system!
+
+[[File:Get Ready For Leagues VI- Demonic Pacts - April 15th (38).png|thumb|540px|center|If you can't see the asset above, [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-04-10/Item-Select-1.png click here].]]
+
+[[File:Get Ready For Leagues VI- Demonic Pacts - April 15th (48).png|thumb|540px|center|If you can't see the asset above, [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-04-10/Start-Img.png click here].]]
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>Infernal tecpatl</h3></div>
+<div class="mw-collapsible-content" style="padding-bottom:0.3em; padding-top:0.5em;">
+[[File:Get Ready For Leagues VI- Demonic Pacts - April 15th (39).png|650px|center]]
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>Fang of the hound</h3></div>
+<div class="mw-collapsible-content" style="padding-bottom:0.3em; padding-top:0.5em;">
+[[File:Get Ready For Leagues VI- Demonic Pacts - April 15th (40).png|650px|center]]
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>Drygore blowpipe</h3></div>
+<div class="mw-collapsible-content" style="padding-bottom:0.3em; padding-top:0.5em;">
+[[File:Get Ready For Leagues VI- Demonic Pacts - April 15th (41).png|650px|center]]
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>V's helm</h3></div>
+<div class="mw-collapsible-content" style="padding-bottom:0.3em; padding-top:0.5em;">
+[[File:Get Ready For Leagues VI- Demonic Pacts - April 15th (42).png|650px|center]]
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>Shadowflame quadrant + Devil's element</h3></div>
+<div class="mw-collapsible-content" style="padding-bottom:0.3em; padding-top:0.5em;">
+[[File:Get Ready For Leagues VI- Demonic Pacts - April 15th (43).png|650px|center]]
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>Nature's recurve</h3></div>
+<div class="mw-collapsible-content" style="padding-bottom:0.3em; padding-top:0.5em;">
+[[File:Get Ready For Leagues VI- Demonic Pacts - April 15th (44).png|650px|center]]
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>Lithic sceptre</h3></div>
+<div class="mw-collapsible-content" style="padding-bottom:0.3em; padding-top:0.5em;">
+[[File:Get Ready For Leagues VI- Demonic Pacts - April 15th (45).png|650px|center]]
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>Crystal blessing</h3></div>
+<div class="mw-collapsible-content" style="padding-bottom:0.3em; padding-top:0.5em;">
+[[File:Get Ready For Leagues VI- Demonic Pacts - April 15th (46).png|650px|center]]
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>King's barrage</h3></div>
+<div class="mw-collapsible-content" style="padding-bottom:0.3em; padding-top:0.5em;">
+[[File:Get Ready For Leagues VI- Demonic Pacts - April 15th (47).png|650px|center]]
+</div></div>
+
+==Reveals & Teasers==
+If you want to catch up on all the latest reveals and the awesome videos made by LilSmokey & Maximus, check them out below!
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>March 23rd: Tier 1 Relics</h3></div>
+<div class="mw-collapsible-content">
+<center><big>https://twitter.com/OldSchoolRS/status/2036077067620536351</big></center>
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>March 24th: Minion</h3></div>
+<div class="mw-collapsible-content">
+<center><big>https://twitter.com/OldSchoolRS/status/2036473184485015873</big></center>
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>March 25th: Culling Spree</h3></div>
+<div class="mw-collapsible-content">
+<center><big>https://twitter.com/OldSchoolRS/status/2036835600196645082</big></center>
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>March 26th: Evil Eye</h3></div>
+<div class="mw-collapsible-content">
+<center><big>https://twitter.com/OldSchoolRS/status/2037198725383098516</big></center>
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>March 27th: Woodsman & Amoxliatl Echo Boss</h3></div>
+<div class="mw-collapsible-content">
+<center>
+<big>https://twitter.com/OldSchoolRS/status/2037560299595714787
+
+https://twitter.com/OldSchoolRS/status/2037590794576494872</big>
+</center>
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>March 28th: Conniving Clues & Thermy Echo Boss</h3></div>
+<div class="mw-collapsible-content">
+<center>
+<big>https://twitter.com/OldSchoolRS/status/2037922687666749515
+
+https://twitter.com/OldSchoolRS/status/2037953009183826030</big>
+</center>
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>March 29th: Flask of Fervour & Echo Hespori</h3></div>
+<div class="mw-collapsible-content">
+<center><big>https://twitter.com/OldSchoolRS/status/2038270762184818706
+
+https://twitter.com/OldSchoolRS/status/2038300320980140385</big>
+</center>
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>March 30th: Nature's Accord & Echo Dagannoth Kings</h3></div>
+<div class="mw-collapsible-content">
+<center><big>https://twitter.com/OldSchoolRS/status/2038632407994093944
+
+https://twitter.com/OldSchoolRS/status/2038662854140703009</big>
+</center>
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>March 31st: Hotfoot & Echo King Black Dragon</h3></div>
+<div class="mw-collapsible-content">
+<center><big>https://twitter.com/OldSchoolRS/status/2038994756374573232
+
+https://twitter.com/OldSchoolRS/status/2039025196380627124</big>
+</center>
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>April 1st: Reloaded & Echo Cerberus</h3></div>
+<div class="mw-collapsible-content">
+<center><big>https://twitter.com/OldSchoolRS/status/2039357491213951342
+
+https://twitter.com/OldSchoolRS/status/2039387550603768316</big>
+</center>
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>April 2nd: Larcenist</h3></div>
+<div class="mw-collapsible-content">
+<center><big>https://twitter.com/OldSchoolRS/status/2039727882780414073
+
+https://twitter.com/OldSchoolRS/status/2039749905099395427</big>
+</center>
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>April 3rd: Friendly Forager & Echo Kalphite Queen</h3></div>
+<div class="mw-collapsible-content">
+<center><big>https://twitter.com/OldSchoolRS/status/2040082602699169924
+
+https://twitter.com/OldSchoolRS/status/2040142458101625311</big>
+</center>
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>April 4th: Grimoire & Echo Hunleff</h3></div>
+<div class="mw-collapsible-content">
+<center><big>https://twitter.com/OldSchoolRS/status/2040444345468215773
+
+https://twitter.com/OldSchoolRS/status/2040474575671107781</big>
+</center>
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>April 5th: Power Calls & Map of Alacrity</h3></div>
+<div class="mw-collapsible-content">
+<center><big>https://twitter.com/OldSchoolRS/status/2040823237152489823
+
+https://twitter.com/OldSchoolRS/status/2040838034690552168</big>
+
+''hwaugfwyujciayyhioiwa''
+</center>
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>April 6th: Regeneration Pact</h3></div>
+<div class="mw-collapsible-content">
+<center><big>https://twitter.com/OldSchoolRS/status/2041169561622344153</big>
+</center>
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>April 7th: Dev Diary, Transmutation, Butler's Bell, Soul Harvest & ?̵͍̔́͠?̴͍̤͚̓͒?̴̫͉̓?̷͇̝̄̎͑?̴̗͗̚?̵̞̀ͅ</h3></div>
+<div class="mw-collapsible-content">
+<center><big>
+{{Youtube|xsj2D8plBYM}}
+
+[https://secure.runescape.com/m=news/an-invitation?oldschool=1 Ȁ̴̳̥͘n̶̙̾͆͜ ̵̟͊̀I̸̯̮̓n̷̲͕̅v̸̞͝i̴͎̠͐t̸̯͆â̵̬͊t̷̲͋͆i̶̛͈ȯ̷̘̖̏n̶̘͋̓]
+</big></center>
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>April 8th: Demonic Pacts Video & Overview</h3></div>
+<div class="mw-collapsible-content">
+<center><big>
+[https://www.twitch.tv/videos/2743796528 Demonic Pacts Overview Newspost]
+
+https://twitter.com/OldSchoolRS/status/2041893910612459764
+</big></center>
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>April 9th: Bank Heist, Flow State & Leagues VI Livestream w/ Faux, Scritic & DoubleShine</h3></div>
+<div class="mw-collapsible-content">
+<center><big>
+[https://www.twitch.tv/videos/2743796528 Livestream Link]
+[[File:Get Ready For Leagues VI- Demonic Pacts - April 15th (36).png|thumb|650px|center|If you can't see the asset above, [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-04-09-XX/FS-Desc.png click here].]]
+[[File:Get Ready For Leagues VI- Demonic Pacts - April 15th (37).png|thumb|650px|center|If you can't see the asset above, [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-04-09-XX/BH-Desc.png click here].]]
+</big></center>
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>April 10th: Echo Bosses: Overview Video feat. Scritic</h3></div>
+<div class="mw-collapsible-content">
+<center><big>https://twitter.com/OldSchoolRS/status/2042618635806470349</big></center>
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>April 11th: Eternal Sustenance feat. SkillSpecs</h3></div>
+<div class="mw-collapsible-content">
+<center><big>https://twitter.com/OldSchoolRS/status/2042981012989182412</big></center>
+</div></div>
+
+<div class="mw-collapsible mw-collapsed">
+<div class="mw-heading mw-heading3 mw-header" style="padding-top:0; margin-top:0.8em;"><h3>April 12th: Executioner feat. Torvesta</h3></div>
+<div class="mw-collapsible-content">
+<center><big>https://twitter.com/OldSchoolRS/status/2043343160693158112</big></center>
+</div></div>
+
+==Videos==
+<center>
+<big>[https://www.twitch.tv/videos/2743796528 Livestream Link]</big>
+
+{{Youtube|v6BaYBWJiq8}}
+
+''If you can't see the video above, [https://www.youtube.com/watch?v=v6BaYBWJiq8 click here]''
+
+
+{{Youtube|xsj2D8plBYM}}
+
+''If you can't see the video above, [https://youtu.be/xsj2D8plBYM?si=tECOpCiaXYX00qzZ click here]''
+
+
+{{Youtube|2YlM2PIrqxg}}
+
+''If you can't see the video above, [https://youtu.be/2YlM2PIrqxg?si=fVRF0x5q2IMv33Uy click here]''
+
+
+{{Youtube|Eh4w2yHUmJU}}
+
+''If you can't see the video above, [https://youtu.be/Eh4w2yHUmJU?si=F3-JNNksrDtHP00o click here]''
+
+
+{{Youtube|IzRNQ_cXRK4}}
+
+''If you can't see the video above, [https://youtu.be/IzRNQ_cXRK4?si=AjvK0dWJ5dUHsE2Z click here]''
+</center>
+
+==Point Cap Advice==
+To help those aiming to earn the most amount of points this league, we thought we'd shed some light on some key information you should know!
+
+For starters, all regions will give the same amount of points to allow for a bit more flexibilty and let you decide on the content you enjoy most while you blaze through your task list.
+
+Secondly, there are a few caveats you'll want to keep in mind when planning which regions you do choose to get the maximum amount of points:
+
+* You will want at least one raid to get all 3 mega rares
+* You will need to be able to fill 750 Collection Log slots
+* You will need to be able to complete 10 different bosses Combat Achievements
+* You will need to be able to complete 30 CA Speed Tasks
+* You will need to be able to complete 250 CA tasks total
+* You will need to reach the Elite tier of the Combat Achievements
+* Additionally, you'll need to be able to get to 50M XP in each skill
+
+As long as your regions meet the above criteria you should be able to reach the point cap. Any league or diary tasks which an area has which are deemed incompleteable through an oversight will be autocompleted at some point after launch to keep a level of fairness across those competing.
+
+Finally, just to give you a little extra, there's 4 new XP tasks which you might want to keep in mind when choosing your relics:
+
+* Obtain 100 million experience in a skill excluding Attack, Strength, Defence, Magic, Ranged & Hitpoints
+* Obtain 100 million experience in either Attack, Strength, Defence, Magic, Ranged, Hitpoints or Prayer
+* Obtain 200 million experience in any non-combat skill
+* Obtain 200 million experience in either Attack, Strength, Defence, Magic, Ranged, Hitpoints or Prayer
+
+Best of luck to you all!
+
+==FAQ==
+As we begin to reveal more and more information, we'll try to gather the most frequently asked questions and update them here. So keep an eye on this section for frequent updates!
+
+Head on over to the official [https://discord.gg/OSRS OSRS Discord] and add your question into the '''#leagues-vi-faq''' channel or join the community-run [https://discord.gg/fVJA6b4JdZ Leagues Discord] to find plenty of discussion and speculation!
+
+===Varlamore===
+====Will the Hunter's Guild shop be accessible from level 1 Hunter?====
+No, there are Bird snares and Hunter boxes in the Civitas General Store though if you were worried about that!
+
+====How will Runecraft be approached since there is no early game way to train Runecraft?====
+Varlamore does have ways to train Runecraft unconventionally, so we've made no changes to embrace the spirit of the strange starting zone.
+
+Most other area unlocks do provide more convenient and easier ways to train. Luckily with access to the abyss, you can get talismans fairly easily.
+
+===Access & Areas===
+====Will there be access to an essence mine? (without picking Kandarin?)====
+No
+
+====Have Quests, Achievement Diaries, and Clues been looked into with Misthalin presumably blocked?====
+Yes
+
+====With Misthalin burning, how will Wilderness pickers access the Edgeville dungeon in the wild?====
+The Edgeville dungeon will not be accessible in this league
+
+====How many hours into the league is Karamja unlocked? Is it unlocked for everyone at the same time, or when your account hits a certain progression milestone?====
+Should be within the first few hours - tied to tasks completed, like other regions
+
+====Will GOTR and Leviathan be accessible with just Desert?====
+Players will be able to access the Temple of the Eye through a portal near Emir's arena in the desert.
+
+====Will Lithkren be accessible without Fossil Island?====
+No
+
+====Are we able to access all 3 Raids without having that region unlocked?====
+No, to access a raid you'll need to unlock it's region.
+
+====With no Tormented Demons available and Arceuus spellbook locked to a region, will players have access to Demonbane?====
+No spoilers, but it's covered
+
+====Will Pest Control have its XP rewards re-enabled this year as a perk of the region?====
+No
+
+===Bosses===
+====Will we still be able to fight Yama in Kourend?====
+Yes
+
+====Have purples in CoX been looked? Regarding better frequency compared to the other 2 raids.====
+Arcane and Dex scrolls now have significantly less weighting in CM CoX raids.
+
+====Knowing that more bosses were instanced as of last League, can we expect more instances incoming?====
+Nothing is currently planned, but if there are any clear standouts, please let us know!
+
+====Is Sire a globally accessible boss, or are they locked away by Misthalin as well?====
+Zanaris and the Abyss will still be accessible
+
+===Items===
+====Are we getting back gear dropping in their complete form, or will it revert to requiring the regions for assembling items?====
+Gear will drop as it's usable completed form if the original drop is not usable in any form. For example, the Hydra Leather will drop as Ferocious Gloves but the Avernic Treads will '''NOT''' drop as Avernic Treads (max)
+
+====Will Beginner clue scrolls be accessible, as the steps are f2p areas only?====
+Beginner clues will not have tasks this league but will be completable if players unlock regions with beginner steps.
+
+They will still drop, and players with Asgarnia/Desert can complete them
+
+====Could Wildy pickers have access to Ancient Warrior Equipment, also would it be usable outside the Wilderness?====
+No
+
+====Can you give Yama Dairy rewards for Wilderness since Misthalin is gone?====
+See above
+
+====Is the Smouldering stone drop boosted from Hellhounds in the Wildy Slayer Cave this league?====
+This has been fixed
+
+====Will there be a way to get Ava's accumulator if picking Fremennik?====
+Ava's Assembler will be dropped instead of a Vorkath Head
+
+====Will Morytania have 'Equip a Dragon Defender' task allowed to be completed by dismantling an Averneric defender?====
+No, some areas may have tasks that are technically possible but we are intentionally balancing areas around the tasks that are assigned to them.
+
+====Will the Dizana's Quiver default to having any ammo saving, or will you still need to add a Vorkath's Head/Ava's Assembler to it? If so, how will you be able to do so if Ava is inaccessible?====
+Yes, ammo saving will be enabled for the quiver without access to Misthalin
+
+====Is there any improvement to dryness protection especially for items of a set?====
+No
+
+====How will something like the Avernic Treads be handled?====
+Avernic Treads will have no changes in the league. They are incredibly strong as is and very usable. Players who unlock Asgarnia will have the option to start upgrading them depending on their other area unlocks.
+
+===Relics===
+====Do we expect the time-to-all-relics (on average) to be equivalent to Raging Echoes or faster/slower?====
+A similar time.
+
+===Misc===
+====Did you fix the whisperer combat achievements? Its an argarnia task but it required either Kourend or the Grimoire relic to complete last league====
+Yes, it will be auto completed with Asgarnia now.
+
+====Can we see Misthalin on fire from neighboring regions?====
+Sadly not!
+
+====Will league points finally be the exact same for each unlockable region?====
+Currently each region sits at the same total points now.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1s1hawy/get_ready_for_leagues_vi_demonic_pacts 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the official [https://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Acorn, Ape, Arcane, Archie, Argo, Ash, Asherz, Ayiza, BigRig, Blighted, Blossom, Boko, Brooksie, Bruno, Chilly, Criminal, Curse, Daizong, Default, Ed, Elena, Enigma, Entropi, Freddie, Frogs, Fuzz, Gecko, Gizmo, Goblin, Grace, Grub, Halo, Harold, Hend, Hornet, Husky, Ivory, Jalo, Jamesy, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Lotus, Mack, Manked, Markos, Maylea, Mobius, Moogle, Morty, Moz, Necro, Nin, Nixon, Nox, Nylu, Ori, Other, Otter, Philomel, Pork, Pumpkin, Puppi, Rach, Redfield, Rice, Romy, Roy, Ry, Saiyan, Sarnie, Schmidt, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Spyro, Squid, Starry, Stilrush, Suharun, Surma, Sween, Tide, Titania, Titus, TJ, Tomb, Tsourorf, Tyran, Veda, Vegard, West, Wolfy, Yozora & Yume.'''
+
+''The Old School Team.''

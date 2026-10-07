@@ -1,0 +1,19 @@
+{{Infobox Combat Achievement
+|name = Undying Raid Team
+|image = [[File:Fighting Great Olm.png|300px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Complete a Chambers of Xeric raid without anyone dying.
+|tier = Elite
+|monster = Chambers of Xeric
+|type = Perfection
+|id = 312
+|leagueRegion = Kourend
+}}
+'''Undying Raid Team''' is an [[Combat Achievements/Elite|elite combat achievement]] which requires the player to complete a [[Chambers of Xeric]] raid without anyone dying.
+
+==Other tasks==
+{{Combat Achievements list|Chambers of Xeric}}
+
+{{Combat Achievements}}

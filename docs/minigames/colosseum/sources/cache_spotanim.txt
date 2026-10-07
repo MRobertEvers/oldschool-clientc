@@ -1,0 +1,543 @@
+# spotanims (graphics and projectiles) -- 83 records selected from cache.osrs239
+# source: OSRS-Content/osrs239-content/configs/all.spotanim (record header line given per record)
+# why= the selection rule(s) that chose the record (LEDGER_cache.md)
+
+[2666] npc_colossi_colossi_01_land    (configs/all.spotanim:17439)
+  why= name: npc_colossi_colossi_01_land
+  model=51211
+  anim=spotanim_colossi_finalboss_01_land
+  resizeh=300
+  resizev=300
+
+[2667] npc_colossi_colossi_tripleattack_01_telegraph    (configs/all.spotanim:17445)
+  why= name: npc_colossi_colossi_tripleattack_01_telegraph
+  model=51244
+  anim=spotanim_colossi_finalboss_01_triple_attack
+  resizeh=300
+  resizev=300
+
+[2668] npc_colossi_colossi_tripleattack_01_telegraph_shorter    (configs/all.spotanim:17451)
+  why= name: npc_colossi_colossi_tripleattack_01_telegraph_shorter
+  model=51244
+  anim=spotanim_colossi_finalboss_01_triple_attack_shorter
+  resizeh=300
+  resizev=300
+
+[2669] spotanim_colossi_finalboss_01_melee    (configs/all.spotanim:17457)
+  why= name: spotanim_colossi_finalboss_01_melee
+  model=52613
+  anim=vfx_colosseum_explosion01
+
+[2670] spotanim_colossi_finalboss_02_melee    (configs/all.spotanim:17461)
+  why= name: spotanim_colossi_finalboss_02_melee
+  model=52613
+  anim=vfx_colosseum_explosion02
+
+[2671] spotanim_colossi_finalboss_03_melee    (configs/all.spotanim:17465)
+  why= name: spotanim_colossi_finalboss_03_melee
+  model=52613
+  anim=vfx_colosseum_explosion03
+
+[2672] spotanim_colossi_finalboss_04_melee    (configs/all.spotanim:17469)
+  why= name: spotanim_colossi_finalboss_04_melee
+  model=52613
+  anim=vfx_colosseum_explosion04
+
+[2673] npc_colossi_javelin_01_spearhead    (configs/all.spotanim:17473)
+  why= name: npc_colossi_javelin_01_spearhead
+  model=52586
+  anim=npc_colossi_javelin_01_spearhead
+
+[2674] npc_colossi_javelin_01_artillery_slow    (configs/all.spotanim:17477)
+  why= name: npc_colossi_javelin_01_artillery_slow
+  model=52587
+  anim=npc_colossi_javelin_01_spearhead_fire_slow
+
+[2675] npc_colossi_javelin_01_artillery_fast    (configs/all.spotanim:17481)
+  why= name: npc_colossi_javelin_01_artillery_fast
+  model=52587
+  anim=npc_colossi_javelin_01_spearhead_fire_fast
+
+[2676] npc_colossi_javelin_01_artillery_fire    (configs/all.spotanim:17485)
+  why= name: npc_colossi_javelin_01_artillery_fire
+  model=52586
+  anim=npc_colossi_javelin_01_artillery_fire
+
+[2677] npc_colossi_javelin_01_spearhead_fire_slow    (configs/all.spotanim:17489)
+  why= name: npc_colossi_javelin_01_spearhead_fire_slow
+  model=52588
+  anim=npc_colossi_javelin_01_spearhead_fire_slow
+
+[2678] npc_colossi_javelin_01_spearhead_fire_fast    (configs/all.spotanim:17493)
+  why= name: npc_colossi_javelin_01_spearhead_fire_fast
+  model=52588
+  anim=npc_colossi_javelin_01_spearhead_fire_fast
+
+[2679] npc_colossi_shockwave_01_clapattack    (configs/all.spotanim:17497)
+  why= name: npc_colossi_shockwave_01_clapattack; ref: npc_combat/c/colosseum_shockwave_colossus.combat:16
+  model=51210
+  anim=npc_colossi_shockwave_01_clapattack
+
+[2680] npc_colossi_finalboss_01_death    (configs/all.spotanim:17501)
+  why= name: npc_colossi_finalboss_01_death
+  model=46395
+  anim=spotanim_colossi_finalboss_01_death
+  resizeh=300
+  resizev=300
+
+[2681] vfx_manticore_01_projectile_magic_01    (configs/all.spotanim:17507)
+  why= name: vfx_manticore_01_projectile_magic_01
+  model=51215
+  anim=vfx_leviathan_01_projectile_magic_01
+  ambient=30
+  contrast=60
+
+[2682] vfx_manticore_01_projectile_impact_magic_01    (configs/all.spotanim:17513)
+  why= name: vfx_manticore_01_projectile_impact_magic_01
+  model=51215
+  anim=vfx_leviathan_01_projectile_impact_01
+  ambient=30
+  contrast=60
+
+[2683] vfx_manticore_01_projectile_ranged_01    (configs/all.spotanim:17519)
+  why= name: vfx_manticore_01_projectile_ranged_01
+  model=51221
+  anim=vfx_leviathan_01_projectile_ranged_01
+  ambient=30
+  contrast=60
+
+[2684] vfx_manticore_01_projectile_impact_ranged_01    (configs/all.spotanim:17525)
+  why= name: vfx_manticore_01_projectile_impact_ranged_01
+  model=48342
+  anim=vfx_leviathan_01_projectile_impact_01
+  ambient=30
+  contrast=60
+
+[2685] vfx_manticore_01_projectile_melee_01    (configs/all.spotanim:17531)
+  why= name: vfx_manticore_01_projectile_melee_01
+  model=51213
+  anim=vfx_leviathan_01_projectile_melee_01
+  ambient=30
+  contrast=60
+
+[2686] vfx_manticore_01_projectile_impact_melee_01    (configs/all.spotanim:17537)
+  why= name: vfx_manticore_01_projectile_impact_melee_01
+  model=48337
+  anim=vfx_leviathan_01_projectile_impact_01
+  ambient=30
+  contrast=60
+
+[2687] vfx_colosseum_totem_projectile_01    (configs/all.spotanim:17543)
+  why= name: vfx_colosseum_totem_projectile_01
+  model=51249
+  anim=vfx_colosseum_totem_projectile_01
+  ambient=30
+  contrast=60
+
+[2688] vfx_colosseum_totem_impact_01    (configs/all.spotanim:17549)
+  why= name: vfx_colosseum_totem_impact_01
+  model=51249
+  anim=vfx_colosseum_totem_impact_01
+  ambient=30
+  contrast=60
+
+[2689] vfx_colosseum_crystal_charge_01_beam_01    (configs/all.spotanim:17555)
+  why= name: vfx_colosseum_crystal_charge_01_beam_01
+  model=51245
+  anim=vfx_colosseum_crystal_charge_01_beam_01
+  ambient=60
+  contrast=60
+
+[2690] vfx_colosseum_crystal_charge_01_beam_02    (configs/all.spotanim:17561)
+  why= name: vfx_colosseum_crystal_charge_01_beam_02
+  model=51245
+  anim=vfx_colosseum_crystal_charge_01_beam_02
+  ambient=60
+  contrast=60
+
+[2691] vfx_colosseum_crystal_charge_01_beam_03    (configs/all.spotanim:17567)
+  why= name: vfx_colosseum_crystal_charge_01_beam_03
+  model=51245
+  anim=vfx_colosseum_crystal_charge_01_beam_03
+  ambient=60
+  contrast=60
+
+[2692] vfx_colosseum_crystal_charge_01_beam_04    (configs/all.spotanim:17573)
+  why= name: vfx_colosseum_crystal_charge_01_beam_04
+  model=51245
+  anim=vfx_colosseum_crystal_charge_01_beam_04
+  ambient=60
+  contrast=60
+
+[2693] vfx_colosseum_crystal_attack_01_beam_01    (configs/all.spotanim:17579)
+  why= name: vfx_colosseum_crystal_attack_01_beam_01
+  model=51245
+  anim=vfx_colosseum_crystal_attack_01_beam_01
+  ambient=60
+  contrast=60
+
+[2694] vfx_colosseum_crystal_attack_01_beam_02    (configs/all.spotanim:17585)
+  why= name: vfx_colosseum_crystal_attack_01_beam_02
+  model=51245
+  anim=vfx_colosseum_crystal_attack_01_beam_02
+  ambient=60
+  contrast=60
+
+[2695] vfx_colosseum_crystal_attack_01_beam_03    (configs/all.spotanim:17591)
+  why= name: vfx_colosseum_crystal_attack_01_beam_03
+  model=51245
+  anim=vfx_colosseum_crystal_attack_01_beam_03
+  ambient=60
+  contrast=60
+
+[2696] vfx_colosseum_crystal_attack_01_beam_04    (configs/all.spotanim:17597)
+  why= name: vfx_colosseum_crystal_attack_01_beam_04
+  model=51245
+  anim=vfx_colosseum_crystal_attack_01_beam_04
+  ambient=60
+  contrast=60
+
+[2697] vfx_colosseum_crystal_attack_01_impact_01    (configs/all.spotanim:17603)
+  why= name: vfx_colosseum_crystal_attack_01_impact_01
+  model=51245
+  anim=vfx_colosseum_crystal_attack_01_impact_01
+  ambient=60
+  contrast=60
+
+[2698] vfx_colosseum_sunfire_lightning_01_beam_01    (configs/all.spotanim:17609)
+  why= name: vfx_colosseum_sunfire_lightning_01_beam_01
+  model=51243
+  anim=vfx_colosseum_sunfire_lightning_01_beam_01
+  ambient=60
+  contrast=60
+
+[2699] vfx_colossi_stab_dust_01    (configs/all.spotanim:17615)
+  why= name: vfx_colossi_stab_dust_01
+  model=52521
+  anim=spotanim_leviathan_smoke_01
+  ambient=30
+  contrast=30
+
+[2700] vfx_colossi_stab_dust_02    (configs/all.spotanim:17621)
+  why= name: vfx_colossi_stab_dust_02
+  model=52521
+  anim=spotanim_leviathan_smoke_02
+  ambient=30
+  contrast=30
+
+[2701] vfx_colossi_stab_dust_03    (configs/all.spotanim:17627)
+  why= name: vfx_colossi_stab_dust_03
+  model=52521
+  anim=spotanim_leviathan_smoke_03
+  ambient=30
+  contrast=30
+
+[2702] vfx_colossi_stab_dust_04    (configs/all.spotanim:17633)
+  why= name: vfx_colossi_stab_dust_04
+  model=52521
+  anim=spotanim_leviathan_smoke_04
+  ambient=30
+  contrast=30
+
+[2703] vfx_colossi_stab_dust_05    (configs/all.spotanim:17639)
+  why= name: vfx_colossi_stab_dust_05
+  model=52521
+  anim=spotanim_leviathan_smoke_05
+  ambient=30
+  contrast=30
+
+[2704] vfx_colossi_stab_dust_06    (configs/all.spotanim:17645)
+  why= name: vfx_colossi_stab_dust_06
+  model=52521
+  anim=spotanim_leviathan_smoke_06
+  ambient=30
+  contrast=30
+
+[2705] vfx_colossi_stab_dust_07    (configs/all.spotanim:17651)
+  why= name: vfx_colossi_stab_dust_07
+  model=52521
+  anim=spotanim_leviathan_smoke_07
+  ambient=30
+  contrast=30
+
+[2706] vfx_colossi_stab_dust_08    (configs/all.spotanim:17657)
+  why= name: vfx_colossi_stab_dust_08
+  model=52521
+  anim=spotanim_leviathan_smoke_08
+  ambient=30
+  contrast=30
+
+[2707] vfx_colosseum_bee_jar_impact_01    (configs/all.spotanim:17663)
+  why= name: vfx_colosseum_bee_jar_impact_01
+  model=52523
+  anim=vfx_colosseum_bees_jar_impact_01
+  resizeh=64
+  resizev=64
+
+[2708] vfx_colosseum_bee_jar_travel    (configs/all.spotanim:17669)
+  why= name: vfx_colosseum_bee_jar_travel
+  model=46382
+  anim=projectile_zebak_pitcher01
+  resizeh=64
+  resizev=64
+
+[2709] vfx_colosseum_hot_sand_02_projectile_01    (configs/all.spotanim:17675)
+  why= name: vfx_colosseum_hot_sand_02_projectile_01
+  model=51237
+  anim=vfx_colosseum_hot_sand_02_projectile_01
+  ambient=10
+  contrast=60
+
+[2710] vfx_colosseum_hot_sand_02_projectile_02    (configs/all.spotanim:17681)
+  why= name: vfx_colosseum_hot_sand_02_projectile_02
+  model=51234
+  anim=vfx_colosseum_hot_sand_02_projectile_01
+  ambient=10
+  contrast=60
+
+[2711] vfx_doom_scorpion_01_player_death_01    (configs/all.spotanim:17687)
+  why= name: vfx_doom_scorpion_01_player_death_01
+  model=51232
+  anim=vfx_doom_scorpion_01_player_death_01
+
+[2712] vfx_doom_scorpion_attack_impact_01    (configs/all.spotanim:17691)
+  why= name: vfx_doom_scorpion_attack_impact_01
+  model=35394
+  anim=vfx_doom_scorpion_attack_impact_01
+
+[2713] vfx_colosseum_human_explosion_01    (configs/all.spotanim:17695)
+  why= name: vfx_colosseum_human_explosion_01
+  model=46421
+  anim=vfx_scarab_explosion01
+
+[2714] vfx_colosseum_human_explosion_02    (configs/all.spotanim:17699)
+  why= name: vfx_colosseum_human_explosion_02
+  model=46421
+  anim=vfx_scarab_explosion01
+
+[2715] vfx_colosseum_human_explosion_03    (configs/all.spotanim:17703)
+  why= name: vfx_colosseum_human_explosion_03
+  model=46421
+  anim=vfx_scarab_explosion01
+
+[2716] vfx_colosseum_human_explosion_04    (configs/all.spotanim:17707)
+  why= name: vfx_colosseum_human_explosion_04
+  model=46421
+  anim=vfx_scarab_explosion01
+
+[2717] vfx_colosseum_human_explosion_05    (configs/all.spotanim:17711)
+  why= name: vfx_colosseum_human_explosion_05
+  model=46421
+  anim=vfx_scarab_explosion01
+
+[2718] vfx_colosseum_human_explosion_06    (configs/all.spotanim:17715)
+  why= name: vfx_colosseum_human_explosion_06
+  model=46421
+  anim=vfx_scarab_explosion01
+
+[2719] vfx_colosseum_human_explosion_07    (configs/all.spotanim:17719)
+  why= name: vfx_colosseum_human_explosion_07
+  model=46421
+  anim=vfx_scarab_explosion01
+
+[2720] vfx_colosseum_human_explosion_08    (configs/all.spotanim:17723)
+  why= name: vfx_colosseum_human_explosion_08
+  model=46421
+  anim=vfx_scarab_explosion01
+
+[2721] vfx_colosseum_manticore_explosion_01    (configs/all.spotanim:17727)
+  why= name: vfx_colosseum_manticore_explosion_01
+  model=46421
+  anim=vfx_colosseum_manticore_explosion_01
+  resizeh=44
+  resizev=44
+
+[2722] vfx_colosseum_colossi_explosion_01    (configs/all.spotanim:17733)
+  why= name: vfx_colosseum_colossi_explosion_01
+  model=46421
+  anim=vfx_colosseum_colossi_explosion_01
+  resizeh=150
+  resizev=150
+
+[2723] vfx_colosseum_minotaur_explosion_01    (configs/all.spotanim:17739)
+  why= name: vfx_colosseum_minotaur_explosion_01
+  model=46421
+  anim=vfx_scarab_explosion01
+  resizeh=300
+  resizev=300
+
+[2724] vfx_colosseum_finalboss_explosion_01    (configs/all.spotanim:17745)
+  why= name: vfx_colosseum_finalboss_explosion_01
+  model=46421
+  anim=vfx_colosseum_colossi_explosion_01
+  resizeh=300
+  resizev=300
+
+[2725] vfx_glaive_charged_special    (configs/all.spotanim:17751)
+  why= name: vfx_glaive_charged_special
+  model=51229
+  anim=spotanim_glaive_charged_special
+  ambient=35
+  contrast=244
+
+[2726] vfx_glaive_uncharged_special    (configs/all.spotanim:17757)
+  why= name: vfx_glaive_uncharged_special
+  model=51228
+  anim=spotanim_glaive_uncharged_special
+  ambient=35
+  contrast=244
+
+[2727] projanim_glaive_01_special    (configs/all.spotanim:17763)
+  why= name: projanim_glaive_01_special
+  model=51229
+  anim=projanim_glaive_01_special
+  ambient=35
+  contrast=244
+
+[2728] projanim_glaive_02_special    (configs/all.spotanim:17769)
+  why= name: projanim_glaive_02_special
+  model=51228
+  anim=projanim_glaive_02_special
+  ambient=35
+  contrast=244
+
+[2729] projanim_glaive_01_regular    (configs/all.spotanim:17775)
+  why= name: projanim_glaive_01_regular
+  model=51229
+  anim=projanim_glaive_01_regular
+  ambient=35
+  contrast=244
+
+[2730] projanim_glaive_02_regular    (configs/all.spotanim:17781)
+  why= name: projanim_glaive_02_regular
+  model=51228
+  anim=projanim_glaive_02_regular
+  ambient=35
+  contrast=244
+
+[2731] vfx_glaive_01_impact_special_01    (configs/all.spotanim:17787)
+  why= name: vfx_glaive_01_impact_special_01
+  model=51219
+  anim=spotanim_glaive_01_impact_special_01
+  ambient=35
+  contrast=244
+
+[2732] vfx_glaive_01_impact_regular_01    (configs/all.spotanim:17793)
+  why= name: vfx_glaive_01_impact_regular_01
+  model=51219
+  anim=spotanim_glaive_01_impact_regular_01
+  ambient=35
+  contrast=244
+
+[2733] vfx_glaive_02_impact_special_01    (configs/all.spotanim:17799)
+  why= name: vfx_glaive_02_impact_special_01
+  model=51219
+  anim=spotanim_glaive_02_impact_special_01
+  ambient=35
+  contrast=244
+
+[2734] vfx_glaive_charged_regular    (configs/all.spotanim:17805)
+  why= name: vfx_glaive_charged_regular
+  model=51229
+  anim=spotanim_glaive_charged_regular
+  ambient=35
+  contrast=244
+
+[3145] npc_colossi_colossi_tripleattack_01_telegraph_echo    (configs/all.spotanim:20313)
+  why= name: npc_colossi_colossi_tripleattack_01_telegraph_echo
+  model=55663
+  anim=spotanim_colossi_finalboss_01_triple_attack
+  resizeh=300
+  resizev=300
+
+[3146] npc_colossi_colossi_tripleattack_01_telegraph_shorter_echo    (configs/all.spotanim:20319)
+  why= name: npc_colossi_colossi_tripleattack_01_telegraph_shorter_echo
+  model=55663
+  anim=spotanim_colossi_finalboss_01_triple_attack_shorter
+  resizeh=300
+  resizev=300
+
+[3147] vfx_colosseum_crystal_charge_01_beam_01_echo    (configs/all.spotanim:20325)
+  why= name: vfx_colosseum_crystal_charge_01_beam_01_echo
+  model=55662
+  anim=vfx_colosseum_crystal_charge_01_beam_01
+  ambient=60
+  contrast=60
+
+[3148] vfx_colosseum_crystal_charge_01_beam_02_echo    (configs/all.spotanim:20331)
+  why= name: vfx_colosseum_crystal_charge_01_beam_02_echo
+  model=55662
+  anim=vfx_colosseum_crystal_charge_01_beam_02
+  ambient=60
+  contrast=60
+
+[3149] vfx_colosseum_crystal_charge_01_beam_03_echo    (configs/all.spotanim:20337)
+  why= name: vfx_colosseum_crystal_charge_01_beam_03_echo
+  model=55662
+  anim=vfx_colosseum_crystal_charge_01_beam_03
+  ambient=60
+  contrast=60
+
+[3150] vfx_colosseum_crystal_charge_01_beam_04_echo    (configs/all.spotanim:20343)
+  why= name: vfx_colosseum_crystal_charge_01_beam_04_echo
+  model=55662
+  anim=vfx_colosseum_crystal_charge_01_beam_04
+  ambient=60
+  contrast=60
+
+[3151] vfx_colosseum_crystal_attack_01_beam_01_echo    (configs/all.spotanim:20349)
+  why= name: vfx_colosseum_crystal_attack_01_beam_01_echo
+  model=55662
+  anim=vfx_colosseum_crystal_attack_01_beam_01
+  ambient=60
+  contrast=60
+
+[3152] vfx_colosseum_crystal_attack_01_beam_02_echo    (configs/all.spotanim:20355)
+  why= name: vfx_colosseum_crystal_attack_01_beam_02_echo
+  model=55662
+  anim=vfx_colosseum_crystal_attack_01_beam_02
+  ambient=60
+  contrast=60
+
+[3153] vfx_colosseum_crystal_attack_01_beam_03_echo    (configs/all.spotanim:20361)
+  why= name: vfx_colosseum_crystal_attack_01_beam_03_echo
+  model=55662
+  anim=vfx_colosseum_crystal_attack_01_beam_03
+  ambient=60
+  contrast=60
+
+[3154] vfx_colosseum_crystal_attack_01_beam_04_echo    (configs/all.spotanim:20367)
+  why= name: vfx_colosseum_crystal_attack_01_beam_04_echo
+  model=55662
+  anim=vfx_colosseum_crystal_attack_01_beam_04
+  ambient=60
+  contrast=60
+
+[3155] vfx_colosseum_crystal_attack_01_impact_01_echo    (configs/all.spotanim:20373)
+  why= name: vfx_colosseum_crystal_attack_01_impact_01_echo
+  model=55662
+  anim=vfx_colosseum_crystal_attack_01_impact_01
+  ambient=60
+  contrast=60
+
+[3156] vfx_colosseum_sunfire_lightning_01_beam_01_echo    (configs/all.spotanim:20379)
+  why= name: vfx_colosseum_sunfire_lightning_01_beam_01_echo
+  model=55664
+  anim=vfx_colosseum_sunfire_lightning_01_beam_01
+  ambient=60
+  contrast=60
+
+[3157] vfx_colosseum_hot_sand_02_projectile_01_echo    (configs/all.spotanim:20385)
+  why= name: vfx_colosseum_hot_sand_02_projectile_01_echo
+  model=55654
+  anim=vfx_colosseum_hot_sand_02_projectile_01
+  ambient=10
+  contrast=60
+
+[3158] vfx_colosseum_hot_sand_02_projectile_02_echo    (configs/all.spotanim:20391)
+  why= name: vfx_colosseum_hot_sand_02_projectile_02_echo
+  model=55658
+  anim=vfx_colosseum_hot_sand_02_projectile_01
+  ambient=10
+  contrast=60
+

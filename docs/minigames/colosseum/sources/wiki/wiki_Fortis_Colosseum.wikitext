@@ -1,0 +1,414 @@
+{{HasStrategy}}
+{{Dangerous|instance=yes}}
+{{Infobox Activity
+|name = Fortis Colosseum
+|image = [[File:Fortis Colosseum.png|300px]]
+|release = [[20 March]] [[2024]]
+|update = Varlamore: Part One
+|type = Minigame
+|members = Yes
+|location = [[Civitas illa Fortis]]
+|players = 1
+|music = [[Are You Not Entertained?]]
+|map = {{Map|name=Fortis Colosseum|1824,3107|zoom=2}}
+|leagueRegion = Varlamore
+}}
+The '''Fortis Colosseum''' is a large stadium found on the cliffs east of [[Civitas illa Fortis]]. Here, players can take on up to twelve waves of opponents, culminating with the final wave against [[Sol Heredit]]. Enemies will spawn in similarly to the [[TzHaar Fight Cave]]s and [[Inferno]], though additional enemies will also spawn in during the wave.
+
+The Fortis Cliffs were once home to a great temple, where convicts were taken to be sacrificed upon an altar in the name of [[Ralos]]. Sometime after [[King Maximus|King Maximus Tullus]] ascended the throne, he ordered the temple to be destroyed, claiming the kingdom would no longer tolerate human sacrifices.{{CiteText|text=Grand Museum|quote=In the early days of the kingdom, criminals were sacrificed to Ralos in a temple atop the Fortis Cliffs. However, King Maximus ordered the destruction of this temple, insisting there was no place for human sacrifice in Varlamore.}} In its place, he had the Fortis Colosseum built, where warriors gather and battle for glory, with the blood spilled in battle symbolising an offering to Ralos.{{CiteNPC|npc=Ueman, Teoki of Ralos|quote=This is more than just a place of spectacle. You stand in one of the holiest sites in all of Varlamore. Each drop of blood spilt here is a glorious offering to Ralos. It is these offerings that sustain him. Without them, he will not have the strength to light our way.}} As such, the Colosseum is overseen by [[Ueman, Teoki of Ralos|one]] of the seven [[Teoki]] of Ralos. Meanwhile, the fighters are chosen by elite warriors known as the Lanistas.{{CiteNPC|npc=Minimus|quote=I started out competing here as a gladiator when I was a young'n. After that I became one of the lanistas. [Player: Lanistas?] The ones responsible for overseeing the selecting and training of the gladiators.}}
+
+==Transportation==
+As with all of Varlamore, the Fortis Colosseum requires completion of the quest [[Children of the Sun]].
+* Players can use the [[ring of dueling]] teleport to Fortis Colosseum. (requires 12,000 glory)
+* Players can take a [[Quetzal Transport System|Quetzal]] to Fortis Colosseum and walk east.
+* Players can use the [[Civitas illa Fortis Teleport]] requiring 54 Magic and completion of [[Twilight's Promise]] and walk south-east.
+* Players can [[Charter ship|charter]] a ship to [[Civitas illa Fortis]] and walk south-east.
+
+==Lobby area==
+Upon entering the Colosseum, players will arrive at a lobby area under the Colosseum itself, where they can enter the arena and begin the minigame by initially speaking to [[Minimus]], the Colosseum Master. A [[Bank_chest#Fortis_Colosseum|bank chest]] south of the arena's entrance can be accessed by players who have obtained at least 2,000 [[glory]]; [[Gloria]], who is found by the [[Colosseum scoreboard]], will introduce players to the glory system.
+
+The area is also filled with [[Gladiator (Fortis Colosseum)|gladiators]] and [[Guard (Fortis Colosseum)|guards]]. At the eastern side, players can find [[Ueman, Teoki of Ralos]] and [[Seia, Teoki of Ranul]], who manage the religious aspects of the Colosseum.
+
+==Gameplay==
+{{main|Fortis Colosseum/Strategies}}
+===Enemies===
+Like the [[TzHaar Fight Cave]]s and [[Inferno]], players will face various enemies as they progress through the waves and their spawn locations are completely random. If the player does not complete a wave within 40 seconds, additional enemy reinforcements will arrive from either the north or south gates, depending on which one they are closest to. If the wave is cleared just as reinforcements arrive, they will be automatically killed.
+
+As with the Fight Caves and Inferno, new enemies are introduced at specific waves. This occurs whenever there are two javelin colossi present, with such occurrences happening at waves 3, 6, 8 and 10; the first instance introduces a manticore, while the second instance introduces a shockwave colossi instead.
+
+There are 11 waves of regular enemies before facing the final boss.
+
+{|class="wikitable mw-collapsible"
+!Lvl
+!Image
+!Name
+(Colloq.)
+!HP
+!{{plink|Defence|pic=Defence icon}}
+!{{plink|Magic|pic=Magic icon}}
+!Attack(s)
+!Max Hit
+!Notes
+|-
+|103
+|[[File:Fremennik warband berserker.png|center|50px]]
+|[[Fremennik warband berserker]]
+("Melee frem")
+|48
+|80
+|110
+|Melee (Stab)
+|29
+|Part of the Fremennik warband trio, guaranteed to spawn in every wave except for wave 12. Has routefinding and runs to where the player currently is. '''Hitting with magic attacks will always result in a max hit'''.
+|-
+|104
+|[[File:Fremennik warband archer.png|center|50px]]
+|[[Fremennik warband archer]]
+("Range frem")
+|50
+|80
+|110
+|Ranged
+|14
+|Part of the Fremennik warband trio, guaranteed to spawn in every wave except for wave 12. Has routefinding and runs to where the player currently is. '''Hitting with melee attacks will always result in a max hit'''.
+|-
+|104
+|[[File:Fremennik warband seer.png|center|50px]]
+|[[Fremennik warband seer]]
+("Mage frem")
+|50
+|80
+|110
+|Magic
+|12
+|Part of the Fremennik warband trio, guaranteed to spawn in every wave except for wave 12. Has routefinding and runs to where the player currently is. '''Hitting with ranged attacks will always result in a max hit'''.
+|-
+|161
+|[[File:Serpent shaman.png|center|50px]]
+|[[Serpent shaman]]
+("Shaman, Mager")
+|125
+|90
+|220
+|Magic
+|28
+|Can only attack with mage. Spawns primarily in the early waves. One spawns in with reinforcements on waves 4-6 and waves 10 and 11.
+|-
+|234
+|[[File:Jaguar warrior.png|center|50x50px]]
+|[[Jaguar warrior]]
+("Jaguar, Meleer, Furry")
+|125
+|125
+|100
+|Melee (Slash)
+|47 (x3)
+|Only appears with reinforcements on waves 1-6. Always attacks three times on a five tick cycle.
+|-
+|278
+|[[File:Javelin Colossus.png|centre|50x50px]]
+|[[Javelin Colossus]]
+("Ranger")
+|220
+|190
+|225
+|Ranged, Ground-targeted attack
+|48
+|Uses ranged attacks. Every fifth attack is replaced with a javelin launched into the air that will land on whatever spot the player is currently standing, and this attack ignores prayer. If the Reentry modifier is active, the javelin special attack leaves behind a pool of [[molten sand]].
+|-
+|320
+|[[File:Manticore.png|center|50px]]
+|[[Manticore]] 
+("Manti")
+|250
+|250
+|300
+|Melee (Projectile), Ranged, Magic
+|31(Melee)
+36(Ranged)
+
+31(Magic)
+|Lines up a series of three projectile attacks including a melee, range, and mage attack. All three fire in rapid succession. They must charge up the barrage before they can launch it. The final projectile will always be melee, unless the Mantimayhem III modifier is active. They are also capable of inflicting venom if the Mantimayhem II modifier is active.
+|-
+|239
+|[[File:Shockwave Colossus.png|center|50px]]
+|[[Shockwave Colossus]] ("Shocker, 
+Mager")
+|125
+|150
+|350
+|Magic
+|56
+|Can only use a simple mage attack. Has low hp, but hits the hardest of the enemies that can attack from a distance.
+|-
+|318
+|[[File:Minotaur (Fortis Colosseum).png|center|50px]]
+|[[Minotaur (Fortis Colosseum)|Minotaur]] ("Mino")
+|225
+|190
+|250
+|Melee (Crush)
+|74
+|Has the highest single max hit of all the enemies in the Colosseum. If not in melee range of the player, it will attempt to heal other wounded enemies to full. Easily safespotted, unless the Red Flag modifier is active, which will give it routefinding abilities.
+|}
+Confusingly, it is common for players to refer to both the Serpent shaman and Shockwave Colossus as "magers", and sometimes the Jaguar warrior and Minotaur as "meleers". Alternative terms should be used for clarity.
+
+===Modifiers===
+{{Main|Fortis Colosseum/Modifiers}}
+Before progressing to the next wave, players must choose one of three modifiers that will make subsequent waves harder to clear, for example by reducing the player's maximum [[Hitpoint]]s, strengthening their opponents, or adding additional hazards to the arena. The modifiers offered are randomised and will persist for all subsequent waves of that run. Most modifiers have up to three levels that add further difficulty.
+
+The modifiers include:
+*''Bees!'' (3 levels): A [[Bee Swarm]] slowly chases the player, dealing high frequent damage upon contact. It can be killed in one hit, but it will respawn. Higher levels add more swarms.
+*''Blasphemy'' (3 levels): Prayer points are drained upon taking damage. Higher levels drain more.
+*''Doom'' (3 levels): When damage is taken, a stack of Doom is gained, and when too many are accumulated, the player is killed. Stacks are reset between waves. Higher levels decrease the number of stacks allowed.
+*''Dynamic Duo'': Shockwave Colossi spawn in pairs.
+*''Frailty'' (3 levels): Player's base Hitpoints are reduced and overhealing disabled. Higher levels reduce Hitpoints by higher amounts.
+*''Mantimayhem'' (3 levels): Manticores attack twice per orb, dealing effectively double damage without correct protection prayers. Higher levels make the attacks venomous if not protected against, and allow any order of attack sequences.
+*''Myopia'' (3 levels): Player's attack range is reduced. Higher levels reduce attack range further.
+*''Reentry'' (3 levels): Javelins launched by Javelin Colossi leave a pool of [[Molten Sand|molten sand]] where it lands. Higher levels make this permanent across waves and also melt certain tiles next to the target.
+*''Red Flag'': Minotaurs gain the ability to routefind, allowing it to move around obstacles.
+*''Relentless'' (3 levels): Enemy attacks bypass player's Defence more effectively and increase their max hits. Higher levels cause Defence to be further or fully ignored and max hit increased further.
+*''Solarflare'' (3 levels): Pillars are orbited by an orb that damages the player on contact. Higher levels increase its speed and make it deal more damage and potentially disable prayers.
+*''Quartet'': An extra Fremennik Warbander spawns every wave.
+*''Totemic'': When enemies are damaged enough, a [[healing totem]] will appear near them, healing them until destroyed.
+*''Volatility'' (3 levels): Enemies explode upon death, dealing damage if caught in it. Higher levels increase the radius and leave behind a pool of molten sand.
+
+===Loot and death===
+If the player dies in the Colosseum they will respawn in the lobby area along with their [[grave]] rather than their normal [[respawn point]]. Players will have their reclamation fee reduced by 75% (up to {{Coins|125000}}) until they have completed 100 waves, after which the standard [[Death's Office|death cost]] will apply. This also includes runs where the player completed waves but died.
+
+Alternatively, players can choose to end their Colosseum run and collect the loot they've earned to that point, with each wave adding an extra reward and the quality thereof increasing on later waves. This can only be done between waves: dying, logging out, or teleporting out will cause it to be forfeited. Leaving via Minimus will restore the player's stats to full (although any boosts will be removed); if teleporting or logging out during a wave, this will not occur.
+
+==Final boss==
+{{Main|Sol Heredit|Fortis Colosseum/Strategies#Sol Heredit}}
+[[File:Sol Heredit.png|right|200px]]
+On the 12th and final wave, Sol Heredit will leap down from his throne and into the arena to battle the player. At the same time, a group of unarmoured gladiators will close off the centre of the arena, limiting the amount of space to a 16x16 area (with four tiles jutting out from the corners). He is primarily weak to [[slash weapons|slash]], and uses two different types of AoE melee attacks, each of which have two distinct patterns. 
+
+These melee attacks are unaffected by [[Protect from Melee]], but each pattern has a specific set of tiles that can be stood on to avoid taking damage from his attacks. As his health lowers to specific intervals, Sol Heredit will begin limiting the amount of space available to move in with beams of light, while also summoning a yellow crystal that will periodically stop and charge up a beam that deals massive damage if the player makes contact with it.
+
+After falling below 90% of his health, he will begin to utilise special attacks, such as a three-hit melee combo that deals massive damage and disables overhead protection prayers, though it can be blocked on a perfect tick. He will also attempt to grapple the player, targeting a specific equipment slot that deals massive damage and puts it into the player's inventory if not blocked in time.
+
+When Sol Heredit reaches ~150 hitpoints, he will enter an enrage phase, quickly engulfing the arena with beams of light until slain, making it important to kill him before too much of the arena becomes unusable. Once he is slain, the ground hazards subside and the reward chest appears.
+
+==Money making==
+{{Mmgsection|Completing the Fortis Colosseum (Wave 1)|Completing the Fortis Colosseum (Wave 12)}}
+
+==Rewards==
+{{Main|Rewards Chest (Fortis Colosseum)}}
+{{Listen|filename=Glorious Champion (Fortis Colosseum).ogg|title= [[Glorious Champion (Fortis Colosseum)|Glorious Champion]]|desc=Ralos has smiled upon you...Music that plays when defeating Sol Heredit.}}
+Before starting a wave, an interface will appear indicating the loot from the current wave and loot from the upcoming wave. Players may choose to either continue and risk their rewards or end the run and claim all of their hard-won spoils. If the player dies, teleports out during a wave, or logs out, all accumulated loot will be lost. Ending a run or defeating Sol Heredit in wave 12 will result in a [[Rewards Chest (Fortis Colosseum)|rewards chest]] appearing in the centre part of the arena where rewards can be claimed. Minimus can be found beside the chest to allow players to exit the arena.
+
+Unique rewards can be obtained from wave 4 onwards. Every wave after that has a progressively higher chance of awarding unique items. Unique rewards from the chest include:
+* Pieces of the [[Sunfire fanatic armour]]:
+** {{plink|Sunfire fanatic helm}}
+** {{plink|Sunfire fanatic cuirass}}
+** {{plink|Sunfire fanatic chausses}}
+* {{plink|Dizana's quiver}}, guaranteed by beating the Colosseum
+* {{plink|Tonalztics of Ralos}} (only obtainable from wave 7 onwards)
+* {{plink|Echo crystal}}, which can be combined with [[guardian boots]] to create [[echo boots]]
+* {{plink|Smol Heredit}}, the boss pet of [[Sol Heredit]], obtained by beating the Colosseum
+
+{{plink|Sunfire splinters}} are also a common drop obtainable in addition to the above. They can be used to charge Dizana's quiver and the Tonalztics of Ralos. They are also used to create [[sunfire rune]]s, [[searing page]]s, and [[Jug of sunfire wine|sunfire wine]].
+
+Players can choose to exchange the [[Dizana's quiver]] with [[Minimus]] for an additional 1/200 chance to receive the [[Smol Heredit]] pet<ref>{{DropLogProject|kills=6882}}</ref> or for 4,000 sunfire splinters. Players who already have the pet will not be offered the option to gamble quivers for the pet, but can still exchange them for sunfire splinters.
+
+===Glory===
+{{Main|Glory}}
+Every time the player completes a wave, they will earn [[Glory]], in which the amount gained is dependent on the player's performance – damage taken, time spent, errors made, and types of modifiers selected. A player's Glory does not accumulate like a currency, only their personal best matters.
+
+Gaining more Glory also gives various benefits outside the Colosseum, where citizens may reward you based on how much has been earned:
+{| class="wikitable lighttable"
+!Title
+!Glory required
+!Reward <!-- There is only one reward per rank currently. If this changes, rename column and make each Rewards entry a bulleted list. -->
+|-
+|Brawler
+|2,000
+|Ability to use the bank chest inside the Colosseum lobby
+|-
+|Challenger
+|5,000
+|Ability to set Civitas illa Fortis as a [[respawn point]]
+|-
+|Gladiator
+|8,000
+|
+* [[Oriana]] will purchase [[valuables]] for 65 coins each (from 55 coins each)
+* [[Lucia]], [[Oli]], [[Rufus (Civitas illa Fortis)|Rufus]], and [[Ava (Civitas illa Fortis)|Ava]] will freely tell players which house is currently (or about to be) vacant
+|-
+|Hero
+|12,000
+|Ability to teleport to the Colosseum via the [[ring of dueling]]
+|-
+|Champion
+|16,000
+|The [[herb patch]] in [[Outer Fortis]] will always be [[Disease (Farming)|disease]]-free
+|-
+|Grand Champion
+|20,000
+|Ability to perform the [[Fortis Salute]] emote
+|}
+
+==Collection log==
+The {{PAGENAME}} has 9 [[collection log]] items. Although [[sunfire splinters]] are only part of this collection, there are various other ways to obtain them.
+{{Sync}}
+{{Collection log list|category={{PAGENAME}}}}
+
+==Combat Achievements==
+{{Combat Achievements list|{{PAGENAME}}|mobname=the {{PAGENAME}}}}
+
+==Gallery==
+===Areas===
+<gallery mode="packed" heights="160" style="text-align:left">
+Fortis Colosseum - outside.png|View of the arena from the outside
+Fortis Colosseum - entrance concept art.png|Concept art of the entrance, by [[Mod Jerv]].
+Fortis Colosseum - underground concept art.png|Concept art of the underground level, by Mod Jerv.
+Fortis Colosseum - arena concept art.png|Concept art of the arena, by Mod Jerv.
+</gallery>
+
+===NPCs===
+<gallery mode="packed" heights="160" style="text-align:left">
+Fortis Colosseum - Doom Scorpion concept art.png|Concept art of the Doom Scorpion, by Mod Jerv.
+Fortis Colosseum - gladiator concept art.jpg|Concept art of the gladiators, by [[Mod Grub]].
+Fortis Colosseum - Fremennik warbands concept art.jpg|Concept art of the Fremennik warband by Mod Grub. It appears to show a scrapped warband druid, as well as scrapped gendered variants.
+Fortis Colosseum - jaguar and serpent men concept art.jpg|Concept art of the jaguar warrior and serpent shaman, by Mod Grub.
+Fortis Colosseum - colossi concept art.jpg|Concept art of the shockwave and javelin colossi, by Mod Grub.
+Fortis Colosseum - manticore concept art.png|Concept art of the manticore, by Mod Jerv.
+Fortis Colosseum - minotaur concept art.jpg|Concept art of the minotaur, by Mod Grub.
+Sol Heredit concept art.jpg|Concept art of Sol Heredit, by Mod Grub.
+Fortis Colosseum - shield men concept art.jpg|Concept art of a scrapped NPC by Mod Grub, made up of a group of people who can transform into the testudo formation.
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 10 September 2025
+|update = Pet Insurance Rework & More
+|change = A [[clan]] chat broadcast is now sent when valuable loot is claimed from the Fortis Colosseum.
+}}
+{{Subject changes
+|date = 16 April 2025
+|update = Easter Event
+|change = The description of the Mantimayhem II modifier was updated to include a missing word.
+}}
+{{Subject changes
+|date = 5 February 2025
+|update = Royal Titans
+|change = Healing totems once again respect the player's attack delay.
+}}
+{{Subject changes
+|date = 26 June 2024
+|update = Colosseum NPC Clickboxes & More
+|change = All Colosseum NPCs and their shadows have improved clickboxes.
+}}
+{{Subject changes
+|date = 5 June 2024
+|update = Pride 2024
+|change = The [[fremennik warband berserker]]'s hitpoints has been reduced from 50 to 48.
+}}
+{{Subject changes
+|date = 15 May 2024
+|update = Further Project Rebalance (Skilling) & Varlamore Changes
+|change = Certain tiles in the arena will no longer block players from walking on them.
+}}
+{{Subject changes
+|date = 24 April 2024
+|update = Varlamore Tweaks, GameJam V Commences & More!
+|change = 
+* The "Mantimayhem" modifier will no longer be offered as a choice upon choosing modifiers after wave 11, as no manticores spawn during the fight with Sol Heredit.
+* Sol Heredit will no longer damage players with his 'grab' attack after he runs out of hitpoints.
+* Bee Swarms are now more visible.
+}}
+{{Subject changes
+|date = 17 April 2024
+|update = Undead Pirates Tweaks, Varlamore CAs & More
+|change = 
+* [[Combat Achievements]] have been added for the Fortis Colosseum.
+* Molten sand no longer deals damage between waves.
+}}
+{{Subject changes
+|date = 10 April 2024
+|update = Undead Pirates, Colosseum Changes & more!
+|change = A number of changes has been made to the Colosseum's modifiers:
+* Bees!:
+** The time between the [[Bee Swarm]]'s movements has been increased from 7 ticks (4.2s) to 12 ticks (7.2s).
+** The respawn delay has been increased from 18 ticks (10.8s) to 50 ticks (30s).
+* Doom:
+** Doom is now a stackable modifier, now killing the player at 15, 10, or 5 stacks of doom depending on tier.
+** Self-damaging items will no longer apply doom.
+** Doom stacks are now removed at the end of a wave, rather than being permanent for a run.
+* Totemic:
+** The healing totem's respawn timer has been increased from 1 minute to 2 minutes.
+** The totem's healing has been reduced from 40% to 30% of the targeted NPC's health.
+* Self-damaging items will no longer drain prayer points if Blasphemy is active.
+* The [[Doom Scorpion]] has been removed, with a new modifier named Mantimayhem taking its place.
+* Myopia will now affect [[autocast]]ed spells, though manually casting them is unaffected.
+* Relentless now ignores a percentage of the player's Defence level, with tier 3 being unchanged.
+
+In addition:
+* Unique drops are now available starting on the 3rd wave.
+* The following items have had their rates adjusted on the unique drop table:
+** [[Sunfire fanatic armour]] has been adjusted from 3/10 to 9/16.
+** [[Echo crystal]] has been adjusted from 6/10 to 6/16.
+** [[Tonalztics of Ralos]] has been adjusted from 1/10 to 1/16, and is made exclusive from wave 7 onwards.
+* [[Special attack]] energy no longer regenerates between waves in the Colosseum.
+}}
+{{Subject changes
+|date = 3 April 2024
+|update = Varlamore Tweaks & Drop Rates
+|change =
+* The [[Fremennik warband archer]]'s [[ranged]] bonuses has been increased.
+* The [[fremennik warband berserker]]'s [[strength bonus]] has been reduced.
+* The amount of Glory awarded has been corrected for stacked modifiers.
+* NPCs will no longer occasionally appear by the arena seats.
+* All opponents within now have the full attack style information when using the [[Monster Examine]] spell; for example, Melee will now appear as Stab.
+* Reduced the amount of [[Sunfire splinters|Sunfire splinters]] from wave 1, and increased the amount rewarded from waves 9-12.
+}}
+{{Subject changes
+|date = 27 March 2024
+|update = Easter & Varlamore Updates
+|change =
+* The description of the Doom modifier has been updated to state that any damage taken applies the debuff rather than damage taken that wasn't protected with prayer.
+* The description of the Myopia modifier was updated.
+}}
+{{Subject changes footer}}
+
+==Sources==
+{| class="wikitable"
+!Post
+!Date
+|-
+|{{UD|Fortis Colosseum - First Look & Rewards}}
+|[[17 October]] [[2023]]
+|-
+|{{UD|Poll Blog: Fortis Colosseum x Perilous Moons}}
+|[[3 November]] [[2023]]
+|-
+|{{UD|Varlamore: Part One - Reward Changes}}
+|[[10 January]] [[2024]]
+|-
+|{{UD|Varlamore: Part One - Overview}}
+|[[20 January]] [[2024]]
+|}
+
+==Trivia==
+[[File:Death (Doom).webp|thumb|A player dying to the Doom modifier.]]
+* Carrying on the Civitas illa Fortis references to Rome, the Fortis Colosseum is based upon the [[wikipedia:Colosseum|Roman Colosseum]], where gladiators and convicts would fight one another and wild animals during the imperial era.
+* Roughly 36 hours after release, players had reclaimed items from their graves totaling {{Coins|52673267112}}, with Sol Heredit being killed 101 times and 1,178,295 waves completed.{{CiteTwitter|author=Old School Runescape|url=https://twitter.com/OldSchoolRS/status/1771188690557034834|date=22 March 2024|archiveurl=https://reldo.runescape.wiki/i/27963378|archivedate=23 March 2024}}
+** Within a week of release, players had reclaimed items from their graves totaling {{Coins|155591568214}}, with Sol Heredit being killed 5,763 times and 5,067,964 waves completed.
+* The icons for several modifiers resemble Maya logograms (glyphs that represent whole words):
+** The icon for Relentless resembles the glyph ''[[commons:File:Balam_1.svg|b'alam]]'', meaning jaguar.
+** The icon for Reentry resembles the glyph ''[https://mayaglyphs.org/CWLhtml/K%27UK%27logo.html k'uk']'', meaning quetzal.
+** The icon for Dynamic Duo resembles the glyph ''[https://mayaglyphs.org/CWLhtml/%40%7BYUK%7DKAWAK%40logo.html kawak]'', the 19th day of the [[wikipedia:Tzolkʼin|tzolk'in]] calendar.
+** The icon for Quartet resembles the glyph ''[https://mayaglyphs.org/CWLhtml/EK%27logo.html ek']'', meaning star.
+** The icon for Frailty resembles the glyph ''[https://mayaglyphs.org/CWLhtml/TZ%27I%27logo.html tz'i']''/''[https://mayaglyphs.org/CWLhtml/TZ%27I%27logo.html ok]'', meaning dog.
+* Dying to the Doom modifier uses a unique death animation, where the player dissolves into a puddle of acid.
+
+==References==
+{{Reflist}}
+
+{{Fortis Colosseum}}
+{{Varlamore}}
+{{Minigames}}
+
+[[Category:Civitas illa Fortis]]
+[[Category:Arenas]]

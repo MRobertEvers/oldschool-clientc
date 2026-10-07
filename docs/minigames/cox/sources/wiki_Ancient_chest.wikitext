@@ -1,0 +1,181 @@
+{{Otheruses|def=no|the chest in the [[Ancient Vault]]|Chest (Ancient Vault)}}
+{{Infobox Scenery
+|defver = 2
+|version1 = Closed
+|version2 = Opened
+|name1 = Crystal
+|name2 = Ancient chest
+|image1 = [[File:Crystal (ancient chest).png|250px]]
+|image2 = [[File:Ancient chest.png|250px]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|location = [[Great Olm]]'s room, [[Chambers of Xeric]]
+|options1 = None
+|options2 = Search
+|examine1 = There seems to be something locked in the heart of the crystal.
+|examine2 = Someone must have really wanted to protect whatever they kept in here.
+|map = {{Map|x:3233,y:5751|mapID=-1|plane=0|mtype=pin}}
+|id1 = 30027
+|id2 = 30028
+|leagueRegion = kourend
+}}
+The '''ancient chest''' is found in the [[Great Olm]]'s room in the [[Chambers of Xeric]] raid, and can be searched for rewards after defeating the Great Olm. If players leave the Chambers without looting the reward chest, any unclaimed regular loot is placed on the ground upon leaving the raid.
+[[File:Chambers of Xeric - lootbeam alternating purple green.gif|thumb|left|230px|The lootbeam alternating between purple and green, indicating the player received both a unique drop and a twisted kit]]
+Depending on what the player obtains, the light shining down on the chest will vary in colour:
+* A white light indicates the player has not received a unique. This will always consist of two different drops; they cannot be the same.
+* A purple light indicates that the player has received a unique drop.
+* A turquoise light indicates that the player has received the [[metamorphic dust]] drop.
+* A green light indicates that the player has received the [[twisted ancestral colour kit]] drop.
+If multiple rolls on special items are successfully rolled, then the light will alternate between the available colours.
+
+==Loot table==
+Players will always find a [[dark journal]] inside unless it is stored in their bank.
+
+===Unique drop table===
+Upon the [[Great Olm]]'s death, if a unique reward item is given, it will be announced in the game chat. 
+
+'''For every 8,676 total points obtained, a 1% chance to obtain a unique loot is given. If one of these items is received, no common rewards are given.'''
+
+This chance is capped at 65.7% (570,000 points) - any further points will be sent to roll for a second unique loot. For example, a team who possesses 855,000 points in total has a 65.7% chance to receive a unique loot, and then a 32.85% chance to obtain a second unique loot.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1085155707463319552|date=15 January 2019|archiveurl=https://reldo.runescape.wiki/i/105377|archivedate=28 May 2020|quote=Previously, every 570k points got the party a 80% chance of a unique. Now, every 570k points gets the party a 65.7% chance of a unique. Pets changed from 1/65 to 1/53 for a player who got a unique.}} Up to six unique rewards can be obtained per raid, assuming that there are enough points to roll for them.
+
+In groups, the player's points will also determine who is more likely to obtain the unique drop if rolled on, with higher points giving a greater chance at it.
+
+Once the game has chosen which player will receive the unique loot, an item is chosen from the table below. The higher the weighting, the more likely a player will receive that item. 
+====Normal mode====
+{{DropsTableHead}}
+{{DropsLineReward|name=Dexterous prayer scroll|quantity=1|rarity=14/60|raritynotes={{CiteNews|url=https://secure.runescape.com/m=news/summer-sweep-up---agility--chambers-of-xeric-changes?oldschool=1|title=Summer Sweep Up - Agility & Chambers of Xeric Changes|newsdate=12 August 2026|quote=Chambers of Xeric Loot Changes|name=CoxSSU2}}}}
+{{DropsLineReward|name=Arcane prayer scroll|quantity=1|rarity=14/60|raritynotes={{NamedRef|name="CoxSSU2"}}}}
+{{DropsLineReward|name=Twisted buckler|quantity=1|rarity=4/60|raritynotes={{NamedRef|name="CoxSSU2"}}}}
+{{DropsLineReward|name=Dragon hunter crossbow|quantity=1|rarity=4/60|raritynotes={{NamedRef|name="CoxSSU2"}}}}
+{{DropsLineReward|name=Dinh's bulwark|quantity=1|rarity=3/60|raritynotes={{NamedRef|name="CoxSSU2"}}}}
+{{DropsLineReward|name=Ancestral hat|quantity=1|rarity=4/60|raritynotes={{NamedRef|name="CoxSSU2"}}}}
+{{DropsLineReward|name=Ancestral robe top|quantity=1|rarity=4/60|raritynotes={{NamedRef|name="CoxSSU2"}}}}
+{{DropsLineReward|name=Ancestral robe bottom|quantity=1|rarity=4/60|raritynotes={{NamedRef|name="CoxSSU2"}}}}
+{{DropsLineReward|name=Dragon claws|quantity=1|rarity=3/60|raritynotes={{NamedRef|name="CoxSSU2"}}}}
+{{DropsLineReward|name=Elder maul|quantity=1|rarity=2/60|raritynotes={{NamedRef|name="CoxSSU2"}}}}
+{{DropsLineReward|name=Kodai insignia|quantity=1|rarity=2/60|raritynotes={{NamedRef|name="CoxSSU2"}}}}
+{{DropsLineReward|name=Twisted bow|quantity=1|rarity=2/60|raritynotes={{NamedRef|name="CoxSSU2"}}}}
+{{DropsTableBottom}}
+====Challenge mode====
+{{DropsTableHead}}
+{{DropsLineReward|name=Dexterous prayer scroll|quantity=1|rarity=12/56|raritynotes={{NamedRef|name="CoxSSU2"}}}}
+{{DropsLineReward|name=Arcane prayer scroll|quantity=1|rarity=12/56|raritynotes={{NamedRef|name="CoxSSU2"}}}}
+{{DropsLineReward|name=Twisted buckler|quantity=1|rarity=4/56|raritynotes={{NamedRef|name="CoxSSU2"}}}}
+{{DropsLineReward|name=Dragon hunter crossbow|quantity=1|rarity=4/56|raritynotes={{NamedRef|name="CoxSSU2"}}}}
+{{DropsLineReward|name=Dinh's bulwark|quantity=1|rarity=3/56|raritynotes={{NamedRef|name="CoxSSU2"}}}}
+{{DropsLineReward|name=Ancestral hat|quantity=1|rarity=4/56|raritynotes={{NamedRef|name="CoxSSU2"}}}}
+{{DropsLineReward|name=Ancestral robe top|quantity=1|rarity=4/56|raritynotes={{NamedRef|name="CoxSSU2"}}}}
+{{DropsLineReward|name=Ancestral robe bottom|quantity=1|rarity=4/56|raritynotes={{NamedRef|name="CoxSSU2"}}}}
+{{DropsLineReward|name=Dragon claws|quantity=1|rarity=3/56|raritynotes={{NamedRef|name="CoxSSU2"}}}}
+{{DropsLineReward|name=Elder maul|quantity=1|rarity=2/56|raritynotes={{NamedRef|name="CoxSSU2"}}}}
+{{DropsLineReward|name=Kodai insignia|quantity=1|rarity=2/56|raritynotes={{NamedRef|name="CoxSSU2"}}}}
+{{DropsLineReward|name=Twisted bow|quantity=1|rarity=2/56|raritynotes={{NamedRef|name="CoxSSU2"}}}}
+{{DropsTableBottom}}
+
+===Common drop table===
+If no unique drops are rolled or not given to the player, they will make two rolls on the common drop table. Unlike the other two raids, the two rolls cannot end on the same drop.
+
+====Runes and ammunition====
+{{DropsTableHead}}
+{{DropsLineReward|name=Death rune|quantity=1-3640|rarity=1/33|rolls=2}}
+{{DropsLineReward|name=Blood rune|quantity=1-4095|rarity=1/33|rolls=2}}
+{{DropsLineReward|name=Soul rune|quantity=1-6553|rarity=1/33|rolls=2}}
+{{DropsLineReward|name=Rune arrow|quantity=1-9362|rarity=1/33|rolls=2}}
+{{DropsLineReward|name=Dragon arrow|quantity=1-648|rarity=1/33|rolls=2}}
+{{DropsTableBottom}}
+
+====Herbs====
+{{DropsTableHead}}
+{{DropsLineReward|name=Grimy ranarr weed|quantity=1-138 (noted)|rarity=1/33|raritynotes=<ref group="d" name="herbs1">33% of these herbs will drop as seeds instead (at a rate of 7 herbs per seed).</ref>|rolls=2}}
+{{DropsLineReward|name=Grimy toadflax|quantity=1-210 (noted)|rarity=1/33|raritynotes=<ref group="d" name="herbs2">33% of these herbs will drop as seeds instead (at a rate of 8 herbs per seed).</ref>|rolls=2}}
+{{DropsLineReward|name=Grimy irit leaf|quantity=1-675 (noted)|rarity=1/33|raritynotes=<ref group="d" name="herbs2"/>|rolls=2}}
+{{DropsLineReward|name=Grimy avantoe|quantity=1-337 (noted)|rarity=1/33|raritynotes=<ref group="d" name="herbs2"/>|rolls=2}}
+{{DropsLineReward|name=Grimy kwuarm|quantity=1-289 (noted)|rarity=1/33|raritynotes=<ref group="d" name="herbs2"/>|rolls=2}}
+{{DropsLineReward|name=Grimy snapdragon|quantity=1-84 (noted)|rarity=1/33|raritynotes=<ref group="d" name="herbs1"/>|rolls=2}}
+{{DropsLineReward|name=Grimy cadantine|quantity=1-330 (noted)|rarity=1/33|raritynotes=<ref group="d" name="herbs2"/>|rolls=2}}
+{{DropsLineReward|name=Grimy lantadyme|quantity=1-442 (noted)|rarity=1/33|raritynotes=<ref group="d" name="herbs2"/>|rolls=2}}
+{{DropsLineReward|name=Grimy dwarf weed|quantity=1-546 (noted)|rarity=1/33|raritynotes=<ref group="d" name="herbs2"/>|rolls=2}}
+{{DropsLineReward|name=Grimy torstol|quantity=1-134 (noted)|rarity=1/33|raritynotes=<ref group="d" name="herbs1"/>|rolls=2}}
+{{DropsTableBottom}}
+
+====Ores and gems====
+{{DropsTableHead}}
+{{DropsLineReward|name=Silver ore|quantity=1-6553 (noted)|rarity=1/33|rolls=2}}
+{{DropsLineReward|name=Coal|quantity=1-6553 (noted)|rarity=1/33|rolls=2}}
+{{DropsLineReward|name=Gold ore|quantity=1-2978 (noted)|rarity=1/33|rolls=2}}
+{{DropsLineReward|name=Mithril ore|quantity=1-4095 (noted)|rarity=1/33|rolls=2}}
+{{DropsLineReward|name=Adamantite ore|quantity=1-789 (noted)|rarity=1/33|rolls=2}}
+{{DropsLineReward|name=Runite ore|quantity=1-65 (noted)|rarity=1/33|rolls=2}}
+{{DropsLineReward|name=Uncut sapphire|quantity=1-697 (noted)|rarity=1/33|rolls=2}}
+{{DropsLineReward|name=Uncut emerald|quantity=1-923 (noted)|rarity=1/33|rolls=2}}
+{{DropsLineReward|name=Uncut ruby|quantity=1-541 (noted)|rarity=1/33|rolls=2}}
+{{DropsLineReward|name=Uncut diamond|quantity=1-258 (noted)|rarity=1/33|rolls=2}}
+{{DropsTableBottom}}
+
+====Other====
+{{DropsTableHead}}
+{{DropsLineReward|name=Ancient tablet|quantity=1|rarity=1/10|raritynotes=<ref group="d">Only received if players do not own one or have not consumed it already. Replaces one of the loot rolls.</ref>|gemw=No}}
+{{DropsLineReward|name=Lizardman fang|quantity=1-4681|rarity=1/33|rolls=2}}
+{{DropsLineReward|name=Pure essence|quantity=1-65535 (noted)|rarity=1/33|rolls=2}}
+{{DropsLineReward|name=Saltpetre|quantity=1-4681 (noted)|rarity=1/33|rolls=2}}
+{{DropsLineReward|name=Teak plank|quantity=1-1365 (noted)|rarity=1/33|rolls=2}}
+{{DropsLineReward|name=Mahogany plank|quantity=1-550 (noted)|rarity=1/33|rolls=2}}
+{{DropsLineReward|name=Dynamite|quantity=1-2427 (noted)|rarity=1/33|rolls=2}}
+{{DropsLineReward|name=Torn prayer scroll|quantity=1|rarity=1/33|rolls=2}}
+{{DropsLineReward|name=Dark relic|quantity=1|rarity=1/33|gemw=No|rolls=2}}
+{{DropsTableBottom}}
+
+===Tertiary===
+{{DropsTableHead}}
+{{DropsLineReward|name=Dark journal|quantity=1|rarity=Always|raritynotes=<ref group="d">The dark journal is only received if players do not have it stored in their bank.</ref>|gemw=No}}
+{{DropsLineClue|type=elite|rarity=1/12|raritynotes=<ref group="d">The elite clue scroll is only rolled when the player does not get a broadcasted unique reward.</ref>}}
+{{DropsLineReward|name=Olmlet|quantity=1|rarity=1/53|raritynotes=<ref group="d">Olmlet is only rolled when the player gets a broadcasted unique reward; with 26,025 points per raid, the Olmlet rate is ~1/1,765.</ref>|gemw=No}}
+{{DropsLineReward|name=Twisted ancestral colour kit|quantity=1|rarity=1/75|raritynotes=<ref group="d" name="cm" />|gemw=No}}
+{{DropsLineReward|name=Metamorphic dust|quantity=1|rarity=1/400|raritynotes=<ref group="d" name="cm">Only obtainable in [[Chambers of Xeric/Challenge Mode|Challenge Mode]] and if the raid was completed within a certain time.</ref>{{CiteVideo|author=Old School RuneScape|title=Old School Weekly Q&A - 20th June 2018 - Deadman, New JMods and Integrity|url=https://www.youtube.com/watch?v=MV-_dPepIj4?t=200|timestamp=3:20|date=21 June 2018|site=Youtube|name=metadrop}}|gemw=No}}
+{{DropsTableBottom}}
+
+==Rewards calculator==
+{{Calculator:Chambers of Xeric loot}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 12 August 2026
+|update = Summer Sweep Up - Agility & Chambers of Xeric Changes
+|change = Significantly adjusted the weighting of uniques obtained from the raid:
+*Normal Mode: Reduced the total weight value from 69 to 60, and the weighting of both the arcane and dexterous prayer scrolls' weighting reduced from 20 to 14, resulting in scrolls being ~19.5% less common.
+*Challenge Mode: Reduced total weight value from 69 to 56. The weighting of prayer scrolls is reduced from 20 to 12, resulting in scrolls being ~26.1% less common.
+*Both modes: The weighting of ancestral pieces increased from 3 to 4.
+}}
+{{Subject changes
+|date=26 June 2025
+|type=hotfix
+|change = Seeds are no longer guaranteed drops, instead 33% chance of getting seeds instead of herbs, following the same intended ratio of seeds to herbs.
+}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = Seeds replaced herbs as a reward drop. The amount of herbs that could potentially be rewarded were cut by 20% for all except dwarf weed, which was 40%, and half of that amount would be turned into seed drops at a ratio of 1 seed for every 7 herbs.
+}}
+{{Subject changes
+|date = 8 January 2025
+|update = Run Energy Changes
+|change = To prevent megascale boosting abuse at Chambers of Xeric, we've changed how unique rewards are distributed. Now players who leave a raid in progress are eligible to receive unique items, but if they would do so, the reward is discarded instead. This ensures that leaving a CoX raid no longer transfers loot chances onto remaining participants.
+}}
+{{Subject changes footer}}
+
+==Gallery==
+<gallery heights="200">
+Chambers of Xeric - lootbeam.png|Lootbeam for common drops.
+Chambers of Xeric - lootbeam purple.png|Lootbeam for unique drops.
+Chambers of Xeric - lootbeam green.png|Lootbeam for [[twisted ancestral colour kit]].
+Chambers of Xeric - lootbeam turquoise.png|Lootbeam for [[metamorphic dust]].
+</gallery>
+
+==References==
+{{reflist}}
+
+{{Chests}}
+{{Chambers of Xeric}}

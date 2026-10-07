@@ -1,0 +1,71 @@
+{{Otheruses|def=no|the pet version|JalRek-Jad|the [[TzHaar Fight Cave|Fight Caves]] version|TzTok-Jad}}
+{{Infobox Monster
+|name = JalTok-Jad
+|image = [[File:JalTok-Jad.png|280px]]
+|release = [[1 June]] [[2017]]
+|update = The Inferno
+|members = Yes
+|combat = 900
+|size = 5
+|examine = Large, destructive, enthralling.
+|xpbonus = 0
+|max hit = 113
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Ranged]], [[Magic]], [[Stab]]
+|attack speed = 8
+|slayxp = 350
+|cat = TzHaar
+|assignedby = chaeldar,nieve,duradel
+|hitpoints = 350
+|att = 750
+|str = 1020
+|def = 480
+|mage = 510
+|range = 1020
+|attbns = 0
+|strbns = 0
+|amagic = 100
+|mbns = 75
+|arange = 80
+|rngbns = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|dlight = 0
+|dstandard = 0
+|dheavy = 0
+|elementalweaknesstype = Water
+|elementalweaknesspercent = 40
+|poisonresistance = 100
+|venomresistance = 100
+|immuneburn = Immune to normal burns
+|id = 7700,7704,10623<!--10623 in [[TzHaar-Ket-Rak's Challenges]]s in [[Trailblazer Reloaded League]], 1st-6th challenges -->
+}}
+'''JalTok-Jad''' is one of the [[volcanic creatures]] which can be found in the [[Inferno]]. It is a stronger version of [[TzTok-Jad]], and similarly attacks in all three forms of combat where the player must use the appropriate protection prayers before the attack hits. Its attacks have the potential to kill players in a single hit if their health is not boosted via [[saradomin brew]] or [[anglerfish]]. JalTok-Jad can attack with melee every {{ticks|4}}, as opposed to its normal {{ticks|8}} attack speed.
+
+In the Inferno, five JalTok-Jads will appear around the end of the waves:
+
+*A lone Jad on wave 67, which will summon 5 [[Yt-HurKot]] upon reaching half health.
+*Three Jads on wave 68. The first Jad will engage normally, while the other two will have a slight delay before engaging the player so that all three can be flicked at once. Each Jad has a slightly slower attack speed (9 ticks instead of the normal 8), and will summon only 3 Yt-HurKot upon reaching half health.
+*A lone Jad on wave 69. This Jad will appear when [[TzKal-Zuk]] reaches 480 or less hitpoints and will initially attempt to target the [[Ancestral Glyph]] upon spawning. Aggression can be changed by attacking it, and it summons 3 Yt-HurKot upon reaching half health, who always spawn north of it.
+
+JalTok-Jads are fought in [[TzHaar-Ket-Rak's Challenges]], where the player can fight up to six at once, starting from one. The player first fights one JalTok-Jad, then two, up to six. In order to encounter more than two, the player must have completed the Inferno previously. Players who complete the challenge are rewarded with the ability to change a [[pet]] [[TzRek-Jad]] into [[TzRek-Jad#JalRek-Jad|JalRek-Jad]].
+
+[[Unbound JalTok-Jad]], a stronger version of JalTok-Jad, could be fought in a League-only Challenge during [[Trailblazer Reloaded League]] and the [[Raging Echoes League]].
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = JalTok-Jads now have a 40% [[elemental weakness]] to [[water spells]].
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*Rather than having unique healers of their own, the healers for JalTok-Jad are [[Yt-HurKot]]s, who also serve as TzTok-Jad's healers.
+*In [[Unrestricted world|beta worlds]], players could opt to fight six JalTok-Jads by entering the [[Jad-fest portal]] west of the [[Clan Wars]] bank chest, which had not yet been moved to the [[Ferox Enclave]]. During this challenge, their attack speed is increased to 8 and 4–5 healers will spawn for each of them. This challenge has occasionally been available during beta testing of new items, but has been removed from beta worlds at some point. This challenge later turned into the [[TzHaar-Ket-Rak's Challenges]].
+
+{{Inferno}}

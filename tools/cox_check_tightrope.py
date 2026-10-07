@@ -40,7 +40,9 @@ import re
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+import config_text
+
+ROOT =Path(__file__).resolve().parent.parent
 PKG = ROOT / "OSRS-Content/osrs239-content/server/scripts/minigames/minigame_cox"
 PUZZLES = PKG / "scripts/cox_puzzles.rs2"
 NPC_CONFIG = PKG / "configs/cox.npc"
@@ -163,7 +165,7 @@ def check(puzzles_text: str, npc_text: str) -> list:
 
 
 def run(puzzles_path: Path, npc_path: Path) -> int:
-    failures = check(puzzles_path.read_text(encoding="utf-8"), npc_path.read_text(encoding="utf-8"))
+    failures = check(puzzles_path.read_text(encoding="utf-8"), config_text.read_text(npc_path, encoding="utf-8"))
     for f in failures:
         print(f)
     if failures:
@@ -182,7 +184,7 @@ def selftest() -> int:
         puzzles = tmp / PUZZLES.name
         npc = tmp / NPC_CONFIG.name
         base_puzzles = PUZZLES.read_text(encoding="utf-8")
-        base_npc = NPC_CONFIG.read_text(encoding="utf-8")
+        base_npc = config_text.read_text(NPC_CONFIG, encoding="utf-8")
 
         cases = []
 

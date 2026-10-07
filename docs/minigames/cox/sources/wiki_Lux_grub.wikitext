@@ -1,0 +1,30 @@
+{{Infobox NPC
+|name = Lux grub
+|image = [[File:Lux grub.png|250px]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|location = [[Chambers of Xeric]]
+|examine = An indigenous inhabitant of the caves.
+|map = No
+|id = 7534,7535,7536,7537
+|leagueRegion = Kourend
+}}
+
+'''Lux grubs''' are native inhabitants of the [[Chambers of Xeric]]. They are found in the same room as [[Vespula]] and are part of her encounter. 
+
+As part of the fight, Vespula will periodically sting a grub, injecting her eggs into it. They will then have a meter above their heads that slowly depletes, and must be fed [[medivaemia blossom]]s in order to restore the meter. If their meter reaches zero, the grub will explode and release a [[Vespine soldier]], which must be defeated, while also healing Vespula and the [[abyssal portal]]. The grubs and the Vespine soldiers can be ignored if using the Redemption method outlined in [[Chambers_of_Xeric/Strategies#Vespula|the Chambers of Xeric strategy guide]]. Otherwise, it is recommended to have at least one team member solely focusing on feeding the lux grubs found around the chamber to prevent the boss from healing itself.
+
+Lux grubs regenerate their stats at a rate of 1 per 10000 ticks (i.e. never), slower than the standard rate of 1 per 100 ticks.{{CiteDiscord|author=Mod Ash|url=https://discord.com/channels/324132423636090880/434286997360738305/1524701424460628080|date=9 July 2026|quote=Stone guardians - 8 Muttadiles - 15 Vasa Nistirio - 10 Vasa's crystal - 9 Tekton - 15 LizardShamans - 20 Skeletal mystics - 25 Jewelled Crabs - 1 Vespula - 10 Vespula's portal - 45 Vespula's grubs - 10000 (i.e. never) Vespine soldier (flying) - 16 Vespine soldier (walking) - 10000 Otherwise default should be 100, as for outside CoX.|ctxquote=Hi@JagexAsh would you per chance be able to say the regen time (in ticks) for mobs in chambers?}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 29 November 2023
+|update = Chambers of Xeric Changes
+|poll = Chambers of Xeric Room Improvements
+|change = Lux grubs' [[hitpoints]] has been increased from 100 to 125.
+}}
+{{Subject changes footer}}
+
+{{Chambers of Xeric}}

@@ -1,0 +1,344 @@
+{{Update|date=4 May 2020|rev=5 May 2020|link=https://secure.runescape.com/m=news/poll-71-game-improvements-blog?oldschool=1|category=community}}
+[[File:Poll 71 Game Improvements Blog newspost.png|right]]
+{{clear}}
+
+
+''Old School RuneScape’s 71st Game Improvement poll is here! This time, the focus is on PvM. Have a read through the questions, and give us your feedback!''
+{{Horizontal Line}}
+{{Headline|22|Old School RuneScape Content Poll #71}}
+
+[[File:Poll 71 Game Improvements Blog (1).png|center|75px]]
+
+It’s time for another game improvement blog! This time we're here with the proposed questions we'll be putting forward for our 71st Game Improvement poll. We plan to poll these questions pending your feedback.
+
+
+'''Changelist (updated 5th May):'''
+*Removed the poll question regarding the Hunllef's damage done on hit rather than on cast due to numerous player concerns about changing the established meta.
+*Specified that question 1 will apply to only the normal Gauntlet while the others will apply to both modes.
+*Added an image regarding potential demiboss spawns to The Gauntlet.
+*Added proposed animation changes for the Hunllef.
+*Removed the poll question regarding tradeable granite dust to allow ourselves more time to investigate the effect it will have on Slayer XP rates and potentially revist it in the future. You can read more about that decision in the Grotesque Guardians section.
+*Clarified the Twisted Ornament Kit and added an additional question on whether or not it should be tradeable.
+*Clarified the stats and wording surrounding the Mythical Max Cape.
+
+
+'''The Gauntlet'''
+
+[[File:Poll 71 Game Improvements Blog (2).png|center|150px]]
+
+In Poll #70 we made some small changes to The Gauntlet, but we feel that the minigame could be improved even further.
+
+We’d like to remove some of the frustration of finding resources in the early game by reducing the amount of randomisation in the first few rooms and spawning demi bosses in set locations. Please note that only poll question 1 will apply to only the regular gauntlet, all others will apply to both modes.
+
+
+{{News Poll|1|Should the inner square of rooms in The Gauntlet be predetermined to always contain the same basic resources? This will not apply to the Corrupted Gauntlet mode.}}
+
+
+[[File:Poll 71 Game Improvements Blog (3).png|center|150px]]
+<center>''Proposed image of where the demi bosses can spawn. They will only spawn in 6 of the 12 highlighted areas.''</center>
+
+{{News Poll|2|Should demi bosses be spawned in set positions on the outer edge of The Gauntlet to make them easier to find? They will only spawn in 6 of the 12 areas highlighted in the blog.}}
+
+[[File:Poll 71 Game Improvements Blog (4).png|center|100px]]
+
+We’d also like to offer a bit of rebalancing for the Crystal Staff, which we think could use a small buff.
+
+{{News Poll|3|Should we buff the max hit of the Crystal Staff in the Gauntlet to be equivalent to the Crystal bow and Halberd?}}
+
+[[File:Poll 71 Game Improvements Blog (5).png|center|150px]]
+
+There’s also the matter of armour crafting. Currently, a Tier 1 piece of armour requires one of each resource. There are three pieces in the set, so you need nine resources in total just to craft the most basic armour. To upgrade that armour to Tier 2, you need a further 18 resources, and for Tier 3 you need another 27. That means that a fully upgraded set of Gauntlet armour will cost 54 resources in total, which adds up to a lot of time spent doing busywork when you could be challenging the Hunllef.
+
+Our proposal is to cut down the number of resources needed to upgrade armour, so that the cost is frontloaded to the beginning phase of the minigame. Under the new system, legs and helm would each cost one resource of each type to upgrade to Tier 2, and two resources of each type to upgrade to Tier 3. The body piece would cost two resources of each type to upgrade to both Tier 2 and 3.
+
+This reduces the cost to just 39 total resources.
+
+
+[[File:Poll 71 Game Improvements Blog (6).png|center|510px]]
+<center>''Current Gauntlet Resource Table. Click the image to expand it.''</center>
+
+
+[[File:Poll 71 Game Improvements Blog (7).png|center|510px]]
+<center>''Proposed Gauntlet Resource Table. Click the image to expand it.''</center>
+
+
+{{News Poll|4|Should we reduce the number of resources required for upgrading your armour in The Gauntlet as described in the blog?}}
+
+
+[[File:Poll 71 Game Improvements Blog (8).png|center|100px]]
+
+
+Next up, we’d like to offer two more convenient ways to use vials and potions in The Gauntlet. Firstly, we’d like to enable the barbarian smashing technique, which will automatically destroy vials after the potion in them has been drunk. To get this to work in The Gauntlet you’d still need to learn the ability from Alfred Grimhand’s Bar Crawl and enable the setting by talking to the guard outside the Barbarian Agility Course.
+
+{{News Poll|5|Should we allow automatic vial smashing in The Gauntlet? This will only apply if you have unlocked the ability to smash vials after drinking potions and have the option toggled on.}}
+
+
+
+[[File:Poll 71 Game Improvements Blog (9).png|center|100px]]
+
+
+Secondly, we’re aware that you can achieve one-tick vial filling and food cooking while in The Gauntlet by spam-clicking. Since it’s easily achievable anyway, we’d like to save some wrists and make that speed the default. Please be aware that this would only apply within The Gauntlet.
+
+{{News Poll|6|Should the time taken to cook food and fill vials while in The Gauntlet be reduced to just one tick?}}
+
+
+[[File:Poll 71 Game Improvements Blog (10).png|center|150px]]
+
+
+Next, we move on to the Crystalline Hunllef. Right now, the Crystalline Hunllef fights in a very predictable pattern of four ranged attacks followed by four magic attacks. We are not planning to change this, but we’d like to propose a better way to intuit the next attack than simply counting.
+
+
+<center>
+[[File:Poll 71 Game Improvements Blog (11).gif|200px]]
+[[File:Poll 71 Game Improvements Blog (12).gif|200px]]<br>''Proposed animation changes for the Hunllef. Left is the magic animation, right is the ranged.''
+</center>
+
+{{News Poll|7|Should we play an animation and a sound effect just before the Crystalline Hunllef changes attack style? If this question passes we would also make the Ranged and Magic attacks easier to see.}}
+
+
+'''Grotesque Guardians'''
+
+
+[[File:Poll 71 Game Improvements Blog (13).png|center|150px]]
+
+
+We've removed a question in this section which pertained to making granite dust tradeable. As you know, we don’t like to make sudden changes without consulting our players, but in this instance, we realised that the impact tradable granite dust could have on the Slayer skill might be too large.
+
+We believe that the better option is to wait and see how the changes to the Grotesque Guardians boss fight play out. We already know that if the wait times during the fight are reduced, we’ll see an uptick in the amount of granite dust in the game simply because more people are playing and enjoying the fight. If it’s made tradable, we may find that too much granite dust is entering the game, being used to craft granite cannonballs, and making Slayer tasks much faster than we'd like.
+
+We’d very much like to buff the Guardians, but not to the point where we’d be significantly altering one of the most popular activities in the game.
+
+In the meantime, we’d like to hear your feedback! You can let us know what you think about Grotesque Guardians, granite dust, and Slayer on Reddit, Twitter, Discord, or the Official Forums.
+
+We'd like to propose the following improvements, focussing on the combat encounter itself:
+
+{{News Poll|8|Should we remove the lighting transition when Dawn flies away during the Grotesque Guardians fight? This will allow Dusk to become attackable as soon as Dawn flies away. The transition will remain for the part where she flies back.}}
+
+{{News Poll|9|Should we make the Grotesque Guardians reach their places faster during the transition so that they can be attacked sooner?}}
+
+{{News Poll|10|Should we reduce the leftover lightning phase transition time in the Grotesque Guardians fight?}}
+
+{{News Poll|11|Should we allow reduced damage to pass through when the phase changes during the Grotesque Guardians fight?}}
+
+
+'''Chambers of Xeric'''
+
+
+[[File:Poll 71 Game Improvements Blog (14).png|center|200px]]
+
+
+We’d like to revisit the Vanguard Room from Chambers of Xeric, which we understand is a particular pain point for some players.
+
+For one thing, the melee vanguard is hard to hit with Magic, which doesn’t match up with the established combat triangle.
+
+{{News Poll|12|Should we remove the magic defence and increase the melee defence on the melee vanguard?}}
+
+
+[[File:Poll 71 Game Improvements Blog (15).png|center|200px]]
+
+
+Secondly, the vanguards’ fight reset mechanic, where their hitpoints must stay within 33% of the other vanguards’ health at all times, can be frustrating for small parties. This is largely because 33% of a vanguard’s total health is actually within the range of a max hit for a solo player – which means that one lucky (or rather, unlucky) hit could force them to restart the room. Alternatively, they can waste inventory slots and time trying to fight the bosses with lower-tier gear.
+
+We think this problem can be resolved by simply giving the vanguards more hitpoints and making them easier to hit, so that a max hit is once again the lucky break it should be. We do not anticipate that this would make the room any less challenging – just less annoying.
+
+{{News Poll|13|Should we reduce vanguards' defence and augment their hitpoints while otherwise maintaining the room’s difficulty?}}
+
+
+[[File:Poll 71 Game Improvements Blog (16).png|center|150px]]
+
+
+Another issue with the 33% limit is that it’s not actually displayed anywhere during the fight, which can add an unwanted element of randomness. Here’s how we plan to address that:
+
+{{News Poll|14|Should we add a visual cue to each vanguard that will indicate when their health is too high or low and the fight is at risk of resetting? There will be different appearances for when the vanguard is too healthy or too hurt.}}
+
+{{News Poll|15|Should we add a HUD to vanguards, and to all Chambers of Xeric bosses? This should allow us to display the health bracket at which vanguards will reset.}}
+
+
+[[File:Poll 71 Game Improvements Blog (17).png|center|150px]]
+
+
+There are other ways in which we can make the Vanguard Room less of a hassle for smaller groups, including upping the reset mechanic boundaries to 40% of each vanguard’s total health and reducing the vanguards’ aggro range for better targeting.
+
+{{News Poll|16|If Question #14 or #15 passes, should we increase the size of the bracket of the vanguards’ reset mechanic for raids with less than five players?}}
+
+{{News Poll|17|Should we reduce the vanguards’ aggro range to make it less likely to be attacked by multiple vanguards when standing in the corners of the room?}}
+
+
+[[File:Poll 71 Game Improvements Blog (18).png|center|75px]]
+
+
+Last but not least, we’d like to guarantee that at least one of the vanguards will drop an Overload potion when slain. The remaining vanguards will still have a 1/3 chance to drop the potion.
+
+{{News Poll|18|Should we guarantee at least one Overload potion drop from vanguards?}}
+
+
+[[File:Poll 71 Game Improvements Blog (19).png|center|75px]]
+
+
+Alright, enough about vanguards for now. Let’s move on to some other changes we’d like to make to the Chambers of Xeric.
+
+{{News Poll|19|Should the chance of getting grubs from chests in the Chambers of Xeric be based on Thieving levels?}}
+
+
+[[File:Poll 71 Game Improvements Blog (20).png|center|75px]]
+
+
+Assuming question #19 passes, the way we implement it will be the most popular (highest yes vote percentage) of the following two options:
+
+{{News Poll|20|Should Thieving level increase the chance of getting multiple grubs from a chest?}}
+
+Or:
+
+{{News Poll|21|Should Thieving level increase the overall chance of finding a grub in a chest?}}
+
+
+
+[[File:Poll 71 Game Improvements Blog (21).png|center|75px]]
+
+
+There’s another quality of life improvement coming up next. Currently, potion drops appear under raid supplies and bones in the Chambers of Xeric, which can make them easy to miss. We’d like to change that.
+
+{{News Poll|22|Should potion drops appear on top of raid supplies and bones in the Chambers of Xeric?}}
+
+
+[[File:Poll 71 Game Improvements Blog (22).png|center|150px]]
+
+
+Next up: currently, there are three storage units available in the Chambers of Xeric. We’d like to add a fourth, available to build at 99 Construction, which will hold even more supplies.
+
+
+[[File:Poll 71 Game Improvements Blog (23).png|center|400px]]
+
+
+{{News Poll|23|Should we allow construction of an extra-large storage unit within the Chambers of Xeric which will hold up to 1,500 supplies? Building the unit will require 99 Construction and an additional two planks.}}
+<center>
+[[File:Poll 71 Game Improvements Blog (24).png|125px]]
+[[File:Poll 71 Game Improvements Blog (25).png|200px]]
+</center>
+Next up, we’d like to offer a few cosmetic changes:
+
+{{News Poll|24|Should Vespula's flying form be added to the Olmlet metamorphosis list?}}
+
+{{News Poll|25|Should Tekton's enraged form be added to the Olmlet metamorphosis list?}}
+
+
+[[File:Poll 71 Game Improvements Blog (26).png|center|250px]]
+
+
+We'd like to add the Twisted Ornamanet Kit, offered in the Twisted League Reward blog as a potential drop from Chambes of Xeric (Challenge Mode). Similar to the Infinity Robes ornament kits, the Twisted Ornament Kit can be attached to any piece of the ancestral robes set and will make that robe piece untradeable. It will be an additional drop on the loot table, similar to how dust is obtained.
+
+{{News Poll|26|Should the Twisted Ornament Kit be added to the Chambers of Xeric (Challenge Mode) loot table? Using the kit with Ancestral Robes will recolour them to the Twisted theme, as displayed in the Twisted League reward blog.}}
+
+We'd like to give you all a chance to vote on how you'd like to see the Twisted Ornament kit in game. If question 26 passes but 27 does not, the item will enter the game untradeable.
+
+
+{{News Poll|27|If question 27 passes, should the Twisted Ornament kit be tradeable? This will consume the kit when used.}}
+
+Last, but by no means least, we’d like to add a new ‘best time’ feature to the Chambers of Xeric.
+
+
+{{News Poll|28|Should we display your best time in solo and groups after completing the Chambers of Xeric?}}
+
+
+'''Miscellaneous'''
+
+[[File:Poll 71 Game Improvements Blog (27).png|center|125px]]
+
+
+{{News Poll|29|Should we implement superior versions of turoths, wyrms, hydras and drakes?}}
+
+
+[[File:Poll 71 Game Improvements Blog (28).png|center|125px]]
+
+
+Isn’t it a bit weird that Lumbridge has a furnace but no anvil? To get started with Smithing, new players have to walk all the way up to Varrock, dodging the aggressive wizards on the way, to find an anvil. We propose the addition of a beginner’s anvil, which can only smith bronze items, to the forge in Lumbridge. This will allow new players to properly equip themselves before exploring the wider world.
+
+{{News Poll|30|Should we add an anvil next to the furnace in Lumbridge? This would only allow players to smith bronze items.}}
+
+
+[[File:Poll 71 Game Improvements Blog (29).png|center|150px]]
+
+
+Currently, there’s not enough space on the Equipment window to display set effects, such as those offered by the Inquisitor armour or Graceful. To work around this without disrupting the classic interface, we’d like to add a panel that is hidden unless opened. This panel will display the equipment’s stats and list any active set effects. You can equip or unequip items while this panel is open, and it’ll update accordingly.
+
+{{News Poll|31|Should we add a new retractable panel on the Equipment window which lists stats and set effects for the equipment you’re wearing?}}
+
+
+[[File:Poll 71 Game Improvements Blog (30).png|center|300px]]
+
+
+In the last two polls, we’ve introduced recolours for skilling pets. This time, our attention turns to everyone’s favourite raccoon – Rocky, the Thieving pet!
+
+If this question passes, you’ll be able to feed Rocky berries to change its species. Redberries will transform it into a red panda, poison ivy berries will turn it into a tanuki, and white berries will return it to its original state.
+
+{{News Poll|32|Should we allow players to recolour the Rocky pet by feeding it berries?}}
+
+
+[[File:Poll 71 Game Improvements Blog (31).png|center|100px]]
+
+
+Our next proposal is a quality of life change that will make it easier to see at a glance which herb you have planted.
+
+{{News Poll|33|Should herb farming patches be changed to be the same colour as the planted herb?}}
+
+
+[[File:Poll 71 Game Improvements Blog (32).png|center|100px]]
+
+
+This next question is one for all the fashionscapers out there! At the end of Rag and Bone Man II, you’re given the option to choose between two rewards: the Bonesack (an almost completely cosmetic item) and the Ram Skull Helm, which requires 30 Defence to wear and provides stats equal to an adamant full helm. We think it’s unfair to expect players to choose between the two items and would like to offer the opportunity to have both for the first time.
+
+{{News Poll|34|Should we allow players to own both potential rewards of the Rag and Bone Man quest, the Bonesack and Ram Skull Helm, at the same time?}}
+
+
+[[File:Poll 71 Game Improvements Blog (33).png|center|100px]]
+
+
+We’ve heard a lot of requests to combine the Max Cape with other capes. We’d like to test this by allowing you to combine the Mythical Cape with the Max Cape to create the Mythical Max Cape. This cape will have the same stats and utility as a Mythical Cape.
+
+{{News Poll|35|Should we add the option to create a Mythical Max Cape by combining the Mythical Cape and the Max Cape? This cape will have the same stats and utility as a Mythical Cape.}}
+
+
+[[File:Poll 71 Game Improvements Blog (34).png|center|500px]]
+
+
+There’s another player suggestion up next, this time from reddit user /u/rururupert.
+
+If this question passes, you could unlock new transmogs for your Monkey backpack at 100, 250, 500, 1,000, 1,500, and 2,000 laps of the Ape Atoll Agility course. You would be able to choose your Monkey’s appearance from a right-click menu.
+
+{{News Poll|36|Should we allow players to unlock new kinds of Monkey backpack by completing laps of the Ape Atoll Agility course as described in the blog?}}
+
+
+[[File:Poll 71 Game Improvements Blog (35).png|center|100px]]
+
+
+We’d like to offer new ways to obtain soft clay packs and bags full of gems. At the moment, these items are only available from Prospector Percy’s Nugget Shop in the Motherlode Mine. We’d like to make them available in the Mining Guild Mineral Exchange for a comparable price.
+
+{{News Poll|37|Should it be possible to buy a soft clay pack from the Mining Guild Mineral Exchange for 10 unidentified minerals? This item would work the same way as the soft clay pack from Prospector Percy's Nugget Shop.}}
+
+{{News Poll|38|Should it be possible to buy a bag full of gems from the Mining Guild Mineral Exchange for 20 unidentified minerals? This item would work the same way as the bag full of gems from Prospector Percy's Nugget Shop.}}
+
+
+[[File:Poll 71 Game Improvements Blog (36).png|center|125px]]
+
+
+Finally, we’d like to offer a quality of life update for the Player-Owned House. Currently, to upgrade a chest, wardrobe, or rack in the costume room it must first be emptied of clothes, which is a time-consuming process. We’d like to make these items upgradeable in a similar manner to the tool storage in the workshop.
+
+Unfortunately, due to the way we’ve set this up, if you don’t already have the highest tier of furniture in your costume room you would have to build the lowest level first and work your way up.
+
+{{News Poll|39|Should the furniture in the PoH costume room be upgradable so that players do not have to empty a wardrobe, rack or chest to replace it by a better one?}}
+
+
+[[File:Poll 71 Game Improvements Blog (37).png|center|75px]]
+
+
+Since Krystilia's Slayer Task list expansion, there have been some concerns that the population of black knights and bloodvelds are too low for Wilderness Slayer.
+
+{{News Poll|40|Should we increase the number of black knights and bloodvelds in the Wilderness?}}
+
+
+That’s all, folks!
+
+Discuss this poll blog on our [http://services.runescape.com/m=forum/forums.ws?380,381,639,66157767 official forums], the community-led [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the '''#oldschool''' channel. For reference on the above content, check out the official [http://oldschool.runescape.wiki/ Wiki].
+
+
+'''Mods Acorn, Arcane, Archie, Ash, Banjo, Boko, Bonsai, Bruno, Curse, Deagle, Ed, Errol, Fed, Flippy, Gee, Halo, Husky, John C, Kieren, Lenny, Lottie, Maylea, MikeD, Nasty, Oasis, Roq, Ry, Steve W, Sween, Tide, Vegard, Weath & West'''<br>''The Old School Team''

@@ -43,6 +43,9 @@ import json
 import os
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import config_text  # noqa: E402
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(REPO, "docs", "minigames", "theater_of_blood", "sources",
                    "blert_nylocas-waves.json")
@@ -238,10 +241,8 @@ def main() -> None:
         return
 
     os.makedirs(OUT_DIR, exist_ok=True)
-    with open(TABLE_OUT, "w", encoding="utf-8") as fh:
-        fh.write(table)
-    with open(ROW_OUT, "w", encoding="utf-8") as fh:
-        fh.write(rows)
+    config_text.write_config(TABLE_OUT, table)
+    config_text.write_config(ROW_OUT, rows)
     print("\nwrote %s" % os.path.relpath(TABLE_OUT, REPO))
     print("wrote %s" % os.path.relpath(ROW_OUT, REPO))
 

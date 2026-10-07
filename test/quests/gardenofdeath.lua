@@ -5,7 +5,7 @@ return {
     fixture = "fresh_lumbridge.ini",
     setup = {
         "::clearinv", -- the fixture's fourteen tutorial slots
-        "::gardenofdeath", -- stages the quest at 0 and stands the player at the tent
+        "::complete quest_xmarksthespot", -- Veos sails to Great Kourend only once X Marks the Spot is done (xmarksthespot.rs2:27)
         "::setlevel farming 20", -- the guide's requirement: Farming 20 to start (gardenofdeath.rs2:37)
     },
     bind = {
@@ -30,6 +30,19 @@ return {
                 t.ticks(3)
                 t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
 
+                -- Travel on foot and by ship (no ::gardenofdeath placement: it would put the player in Kourend and skip the ferry):
+                -- Port Sarim -> Veos "Can you take me to Great Kourend?" (clientofkourend.rs2:30) -> Port Piscarilius dock
+                -- 1824,3690 -> overland to the Mount Quidamortem camp.
+                t.exec("goto-veosSarim", t.player.goto_tile, 3054, 3246, 0)
+                t.exec("talkToVeos", t.player.talk_to, "veos_sarim", 1)
+                t.exec("talkToVeos-menu", t.chat.drain, { stop_at = "options" })
+                t.exec("talkToVeos-sail", t.chat.choose, "Can you take me to Great Kourend?")
+                t.exec("talkToVeos-done", t.chat.drain, {})
+                t.ticks(4)
+                local _, dock_arrival = t.world.tile()
+                t.check("talkToVeos-landed", dock_arrival ~= nil and dock_arrival.x >= 1800 and dock_arrival.x < 1850, "landed at the Piscarilius dock at " .. tostring(dock_arrival and (dock_arrival.x .. "," .. dock_arrival.z)))
+                t.exec("goto-tent", t.player.goto_tile, 1313, 3472, 0)
+
                 -- Search the tent (gardenofdeath.rs2:341): Start the quest? Yes.
                 t.exec("getJournal", t.player.click_loc, "tgod_tent", 1)
                 t.exec("getJournal-dialog-1", t.chat.play, {"choose:Yes."})
@@ -45,7 +58,7 @@ return {
                 t.expect("quest.stage.t1", t.quest.expect_stage("t1"))
 
                 -- Search the camping equipment (gardenofdeath.rs2:422)
-                t.exec("goto-getSecateurs", t.player.goto_tile, 1311, 3472, 0)
+                t.exec("goto-getSecateurs", t.player.goto_tile, 1312, 3472, 0)
                 t.exec("getSecateurs", t.player.click_loc, "tgod_camping_equipment", 1)
                 t.exec("getSecateurs-dismiss", t.chat.continue_, true)
                 t.ticks(2)
@@ -125,7 +138,7 @@ return {
                 local _, exit_tile = t.world.tile()
                 t.check("leaveHole-surface", exit_tile ~= nil and exit_tile.z < 5000, "back on the surface at " .. tostring(exit_tile and (exit_tile.x .. "," .. exit_tile.z)))
 
-                -- goToMolch: Boaty (gardenofdeath.rs2:960); the surface exit is beside the Molch dock
+                -- goToMolch: Boaty (gardenofdeath.rs2:960); the surface exit lands at 1308,3469, a 281-tile walk south of the Molch dock
                 t.exec("goto-goToMolch", t.player.goto_tile, 1342, 3646, 0)
                 t.exec("goToMolch", t.player.click_loc, "aerial_fishing_boat", 1)
                 t.exec("goToMolch-dialog", t.chat.play, {"choose:Molch Island"})
@@ -313,7 +326,7 @@ return {
                 t.check("leaveHole3-surface", exit3_tile ~= nil and exit3_tile.z < 5000, "back on the surface at " .. tostring(exit3_tile and (exit3_tile.x .. "," .. exit3_tile.z)))
 
                 -- enterMorraHole (gardenofdeath.rs2:469): plain travel to the Ruins of Morra, then the hole
-                t.exec("goto-enterMorraHole", t.player.goto_tile, 1450, 3511, 0)
+                t.exec("goto-enterMorraHole", t.player.goto_tile, 1450, 3510, 0)
                 t.exec("enterMorraHole", t.player.click_loc, "tgod_garden_4_entry_vis", 1)
                 t.ticks(3)
                 t.expect("quest.stage.enter4", t.quest.expect_stage("enter4"))

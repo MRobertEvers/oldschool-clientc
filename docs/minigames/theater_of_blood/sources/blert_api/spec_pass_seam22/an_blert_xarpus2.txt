@@ -1,0 +1,9 @@
+scale 2: {'landings': 97, 'child_player': 15, 'child_other': 66, 'masked': 6, 'missing': 0, 'others': 21, 'landing_without_spit_snapshot': 1}
+  first landing (children on a raider's tile / elsewhere / predicted-but-masked / predicted-and-missing): {'0p/0o/0m/0x': 2, '1p/1o/0m/0x': 1, '1p/0o/0m/0x': 1}
+  later landings: {'0p/1o/0m/0x': 37, '0p/0o/0m/0x': 26, '1p/0o/0m/0x': 11, '0p/2o/0m/0x': 10, '0p/0o/1m/0x': 3, '0p/1o/1m/0x': 3, '1p/1o/0m/0x': 2, '0p/3o/0m/0x': 1}
+scale 3: {'landings': 238, 'child_player': 69, 'child_other': 47, 'masked': 364, 'missing': 42, 'others': 475, 'landing_without_spit_snapshot': 5}
+  first landing (children on a raider's tile / elsewhere / predicted-but-masked / predicted-and-missing): {'0p/1o/1m/1x': 3, '1p/1o/1m/0x': 2, '1p/0o/1m/0x': 2, '1p/0o/0m/1x': 2, '2p/0o/0m/0x': 1, '0p/2o/1m/1x': 1, '0p/0o/2m/0x': 1}
+  later landings: {'0p/0o/2m/0x': 114, '1p/0o/1m/0x': 35, '0p/0o/1m/1x': 28, '0p/1o/2m/0x': 25, '2p/0o/0m/0x': 7, '1p/1o/1m/0x': 5, '1p/0o/0m/1x': 5, '0p/2o/2m/0x': 3, '2p/1o/0m/0x': 1, '0p/1o/1m/0x': 1, '0p/1o/1m/1x': 1, '0p/1o/0m/2x': 1}
+scale 4: {'landings': 61, 'child_player': 30, 'child_other': 10, 'masked': 107, 'missing': 43, 'others': 180}
+  first landing (children on a raider's tile / elsewhere / predicted-but-masked / predicted-and-missing): {'1p/0o/0m/2x': 2, '1p/1o/0m/2x': 1, '1p/0o/1m/1x': 1}
+  later landings: {'0p/0o/2m/1x': 17, '1p/0o/2m/0x': 11, '1p/0o/1m/1x': 8, '0p/1o/3m/0x': 5, '0p/0o/1m/2x': 4, '0p/0o/3m/0x': 4, '0p/1o/2m/1x': 2, '2p/0o/1m/0x': 2, '1p/1o/2m/0x': 1, '0p/0o/2m/0x': 1, '0p/0o/1m/1x': 1, '2p/1o/0m/0x': 1}

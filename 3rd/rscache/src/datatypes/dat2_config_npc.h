@@ -2,10 +2,90 @@
 #define RSCACHE_DATATYPES_DAT2_CONFIG_NPC_H
 
 #include "../rsbuffer.h"
+#include "../rscache_presence.h"
 #include "../rscache_profile.h"
 #include "dat2_entity_ops.h"
 
 #include <stdbool.h>
+
+/**
+ * The fields an npc stream can state, for `RSCache_Dat2ConfigNpc.present`.
+ *
+ * Keyed by meaning, not opcode: the model list is opcode 1, or 61 with int ids
+ * from rev 237, or the build-669 varuint list, and all three are MODELS. Where
+ * one opcode number means two different things by era, it is two fields (111 is
+ * FOLLOWER before rev 233 and RENDER_PRIORITY_HIGH from it).
+ *
+ * A family of SEPARATE opcodes is a field each (the five ops, the six stats);
+ * an opcode that carries several values is one field (134's four movement
+ * sounds and radius). Opcode 17 states two: the walk animation it shares with
+ * 14, and its three turns (likewise 115 with 114, 117 with 116).
+ *
+ * Opcodes the decoder consumes without storing (shadow colours, cursors, the
+ * members-only ops, ...) have no field: the type stays lossy for them.
+ */
+enum RSCache_Dat2ConfigNpcField
+{
+    RSCACHE_NPC_FIELD_MODELS = 0,          /* 1; 61 (rev237 int ids); b669 0x01 */
+    RSCACHE_NPC_FIELD_NAME,                /* 2 */
+    RSCACHE_NPC_FIELD_DESC,                /* 3 */
+    RSCACHE_NPC_FIELD_SIZE,                /* 12 */
+    RSCACHE_NPC_FIELD_READY_ANIM,          /* 13 */
+    RSCACHE_NPC_FIELD_WALK_ANIM,           /* 14, or 17 (which also states the turns) */
+    RSCACHE_NPC_FIELD_IDLE_LEFT_ANIM,      /* 15 */
+    RSCACHE_NPC_FIELD_IDLE_RIGHT_ANIM,     /* 16 */
+    RSCACHE_NPC_FIELD_WALK_TURN_ANIMS,     /* 17: the 180/left/right turns */
+    RSCACHE_NPC_FIELD_CATEGORY,            /* 18 */
+    RSCACHE_NPC_FIELD_OP1,                 /* 30; b669 0x1E */
+    RSCACHE_NPC_FIELD_OP2,                 /* 31 */
+    RSCACHE_NPC_FIELD_OP3,                 /* 32 */
+    RSCACHE_NPC_FIELD_OP4,                 /* 33 */
+    RSCACHE_NPC_FIELD_OP5,                 /* 34 */
+    RSCACHE_NPC_FIELD_RECOLOR,             /* 40 */
+    RSCACHE_NPC_FIELD_RETEXTURE,           /* 41 */
+    RSCACHE_NPC_FIELD_CHATHEADS,           /* 60; 62 (rev237 int ids); b669 0x3C */
+    RSCACHE_NPC_FIELD_STAT1,               /* 74 */
+    RSCACHE_NPC_FIELD_STAT2,               /* 75 */
+    RSCACHE_NPC_FIELD_STAT3,               /* 76 */
+    RSCACHE_NPC_FIELD_STAT4,               /* 77 */
+    RSCACHE_NPC_FIELD_STAT5,               /* 78 */
+    RSCACHE_NPC_FIELD_STAT6,               /* 79 */
+    RSCACHE_NPC_FIELD_MINIMAP_HIDDEN,      /* 93 */
+    RSCACHE_NPC_FIELD_COMBAT_LEVEL,        /* 95 */
+    RSCACHE_NPC_FIELD_WIDTH_SCALE,         /* 97 */
+    RSCACHE_NPC_FIELD_HEIGHT_SCALE,        /* 98 */
+    RSCACHE_NPC_FIELD_RENDER_PRIORITY,     /* 99 */
+    RSCACHE_NPC_FIELD_AMBIENT,             /* 100 */
+    RSCACHE_NPC_FIELD_CONTRAST,            /* 101 */
+    RSCACHE_NPC_FIELD_HEAD_ICONS,          /* 102, either shape */
+    RSCACHE_NPC_FIELD_ROTATION_SPEED,      /* 103 */
+    RSCACHE_NPC_FIELD_MULTI,               /* 106 or 118; b669 0x6A / 0x76 */
+    RSCACHE_NPC_FIELD_NOT_INTERACTABLE,    /* 107 */
+    RSCACHE_NPC_FIELD_NO_ROTATION_FLAG,    /* 109 */
+    RSCACHE_NPC_FIELD_FOLLOWER,            /* 111 before rev 233 */
+    RSCACHE_NPC_FIELD_RENDER_PRIORITY_HIGH, /* 111 from rev 233 */
+    RSCACHE_NPC_FIELD_RUN_ANIM,            /* 114, or 115 (OldSchool) */
+    RSCACHE_NPC_FIELD_RUN_TURN_ANIMS,      /* 115 (OldSchool): the turns */
+    RSCACHE_NPC_FIELD_CRAWL_ANIM,          /* 116, or 117 */
+    RSCACHE_NPC_FIELD_CRAWL_TURN_ANIMS,    /* 117: the turns */
+    RSCACHE_NPC_FIELD_PET,                 /* 122 (OldSchool) */
+    RSCACHE_NPC_FIELD_LOW_PRIORITY_OPS,    /* 123 (OldSchool) */
+    RSCACHE_NPC_FIELD_HEIGHT,              /* 124; b669 0x7B */
+    RSCACHE_NPC_FIELD_FOOTPRINT_SIZE,      /* 126 (rev231) */
+    RSCACHE_NPC_FIELD_BAS_TYPE,            /* 127 */
+    RSCACHE_NPC_FIELD_UNKNOWN129,          /* 129 (rev234) */
+    RSCACHE_NPC_FIELD_IDLE_ANIM_RESTART,   /* 130 (rev236) */
+    RSCACHE_NPC_FIELD_MOVEMENT_SOUNDS,     /* 134 */
+    RSCACHE_NPC_FIELD_SOUND_VOLUME,        /* 140 */
+    RSCACHE_NPC_FIELD_HIDE_FOR_OVERLAP,    /* 145 (rev235) */
+    RSCACHE_NPC_FIELD_OVERLAP_TINT,        /* 146 (rev235) */
+    RSCACHE_NPC_FIELD_ZBUF_OFF,            /* 147 (rev236) */
+    RSCACHE_NPC_FIELD_PARAMS,              /* 249 */
+    RSCACHE_NPC_FIELD_SUB_OPS,             /* 251 (rev237), one entry per opcode */
+    RSCACHE_NPC_FIELD_COND_OPS,            /* 252 (rev237) */
+    RSCACHE_NPC_FIELD_COND_SUB_OPS,        /* 253 (rev237) */
+    RSCACHE_NPC_FIELD_COUNT
+};
 
 /**
  * Sourced from Runelite!
@@ -13,6 +93,10 @@
  */
 struct RSCache_Dat2ConfigNpc
 {
+    /** Which `RSCache_Dat2ConfigNpcField`s the stream stated. The encoder writes
+     *  exactly these; the values below still hold the client defaults for the
+     *  rest, so a reader that only looks at values is unaffected. */
+    struct RSCache_Presence present;
     int* models;
     int models_count;
     char* name;
@@ -255,6 +339,10 @@ RSCache_Dat2ConfigNpcFlags(const struct RSCache* cache);
  * the scales are 128, `rotation_speed` is 32, `overlap_tint_hsl` is 39188 and
  * every stat is 1. A record decoded without this looks plausible and re-encodes
  * to different bytes, which is the only symptom it has.
+ *
+ * Also clears `present`: a record built by hand from here states each field it
+ * means with RSCache_PresenceSet, or the encoder writes nothing but the
+ * terminator.
  */
 void
 RSCache_Dat2ConfigNpcInit(struct RSCache_Dat2ConfigNpc* npc);
@@ -300,34 +388,30 @@ RSCache_Dat2ConfigNpcNewDecodeProfile(
  * produces a record the target client misreads, exactly as decoding with the wrong
  * one did.
  *
- * ## Why byte-exactness is low here (~0%, and only ~33% same-length)
+ * ## What it writes
  *
- * This decoder establishes **no reference defaults**: the struct is calloc'd, so
- * every unset field reads as 0. The reference client — and this library's own dat1
- * npc decoder, which does `npc->readyanim = -1` — defaults the animation, scale
- * and level fields to -1 instead.
+ * Exactly the fields `present` names, in one fixed opcode order. A field the
+ * source stated at its default value (`size` 1, a stat of 1, `vislevel` -1) is
+ * written back, and one it did not state is not, however its value reads. The
+ * clear-flag opcodes 93, 107 and 109 and the walk/run/crawl pairs (14 or 17,
+ * 114 or 115, 116 or 117) are reproduced the same way, from their own fields.
  *
- * Two consequences:
+ * What it cannot reproduce, and so where a re-encode still differs in length:
  *
- *  1. **For this encoder**, "absent" and "present with value 0" are the same state,
- *     so a field explicitly written as 0 (combat_level 0 is common) gets omitted.
- *     Nothing is corrupted — a re-decode yields the same struct, which is why the
- *     semantic round trip is 100% — but the bytes are shorter than the original.
+ *  - opcodes the decoder consumes without storing (shadow colours, cursors, the
+ *    members-only ops 150..154, ...);
+ *  - a field stated twice in one record (only the last value is kept);
+ *  - 14 stated alongside 17 (114 with 115, 116 with 117): both state the one
+ *    walk value, and the record is written with 17 alone;
+ *  - opcode 118 whose trailing value is 0xFFFF, which reads back exactly like
+ *    106 and is written as 106.
  *
- *  2. **Independently of encoding**, a dat2 npc with no opcode 13 gets
- *     standing_animation 0 rather than -1, and that value reaches the world as a
- *     sequence id (`info->idle->readyanim` in src/world/world_cycle.c). Asking for
- *     sequence 0 is not the same as asking for no animation, and dat1 and dat2
- *     therefore disagree about the same logical field.
+ * Every other difference is opcode order, at the same length.
  *
- * Point 2 is a pre-existing decoder gap, not an encoding concern, and fixing it
- * changes what the client renders — so it is recorded here rather than changed in
- * passing. Closing it would also let this encoder distinguish absent from zero and
- * raise byte-exactness substantially; the two changes belong together.
- *
- * Separately, opcodes 93, 107 and 109 *clear* flags (is_minimap_visible,
- * is_interactable, rotation_flag) that the decoder never sets true, so their
- * presence is unrecoverable. No client code reads those three fields today.
+ * Era gating stays: 61/62 are used when the profile has rev-237 int model ids
+ * (or an id does not fit a u16), 102 takes its era's shape, and the OldSchool
+ * meanings of 111/114/115/122/123 are written only where the profile reads
+ * them so. `npc` and `out` must be non-NULL.
  */
 uint32_t
 RSCache_Dat2ConfigNpcEncodeProfile(

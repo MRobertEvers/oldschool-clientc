@@ -1,0 +1,502 @@
+{{Update|date=3 April 2024|rev=12 April 2024|url=https://secure.runescape.com/m=news/project-rebalance---npc-defence-changes?oldschool=1|category=devblog}}
+[[File:Project Rebalance - NPC Defence Changes newspost.png|right]]
+{{clear}}
+__TOC__
+==Blog Update - Friday, April 12th==
+We're back with a (reasonably) small blog update to talk through some of your feedback from last week! We're aiming to go point-by-point where possible, so let's get straight into it.
+
+Many of the more common feedback points and concerns were answered wonderfully by Mod Kieren on a recent Q&A, you can check out the VOD below or by [https://www.youtube.com/watch?v=JavgCYb2RS4&t=672s clicking here].
+
+<center><big><big>[https://www.youtube.com/watch?v=JavgCYb2RS4&t=672s Tune in for a Q&A on Project Rebalance and More! | OSRS Q&A Livestream April 4th]</big></big></center>
+
+===Elemental Weaknesses===
+These proposals went down really positively with many of you, but there are a handful of tweaks we could address. To group up a few key concerns – we've made some changes to the weaknesses we spoke about last week to roll out a handful of Air weaknesses; corrected mistakes with consistency between various dragons; improved the severity of weaknesses in cases where players would lose damage vs. what they're already doing, and improved the severity of weaknesses in cases where you felt some of the listed NPCs should be weaker to a certain element.
+
+By that last point, we mean things like making creatures like Ice Giants or Fire Giants even weaker to the relevant element, to better differentiate them from other NPCs – we agree with you that it makes sense a Fire Giant should feel weaker to Water than the Giant Mole does!
+
+Here's a quick top-level changelist of some adjustments we've made to our Elemental Weakness list:
+* Zulrah - 50% Fire Weakness added.
+* All Metallic dragons have had 50% Earth Weakness applied.
+* All Chromatic dragons have had 50% Water Weakness applied.
+* Fire Giants - Water Weakness increased from 50% to 100%.
+* Ice Giants, Ice Trolls, Ice Warriors, Icefiends - Fire Weakness increased from 50% to 100%.
+* Ghosts - NEW: 50% Air Weakness added.
+* Skeletons - NEW: 35% Air Weakness added.
+* Barrows Brothers - NEW: 50% Air Weakness added.
+* Aviansies - NEW: 45% Air Weakness added.
+* Kree'arra - NEW: 30% Air Weakness added.
+* Black Demon - NEW: 40% Water Weakness added.
+* Demonic Gorilla - NEW: 35% Water Weakness added.
+* Greater Demon - NEW: 50% Water Weakness added.
+* K'ril Tsutsaroth - NEW: 30% Water Weakness added.
+* Hellhounds - NEW: 50% Water Weakness added.
+* Cerberus - NEW: 40% Water Weakness added.
+* Scarab Mages & Swarms - NEW: 50% Fire Weakness added.
+* Arcane, Soldier & Spitting Scarabs - NEW: 50% Fire Weakness added.
+* Kephri ('Shielded' phases) - NEW: 40% Fire Weakness added.
+* Kephri (HP/Final phase) - NEW: 35% Fire Weakness added.
+* Abyssal Portal (Vespula room) - NEW: 50% Fire Weakness added.
+
+To sum up:
+* Metal dragons weak to Earth.
+* Chromatic dragons weak to Water.
+* Ghosts or anything vaguely made up of 'wobbly air' is weak to Air.
+* Big flying birds like Aviansies weak to Air – imagine you're disrupting their natural movement!
+* Demons weak to water – they're already kind of fiery but if you'd like to imagine you're blasting Holy Water at them then feel free.
+* Spiders? Kill it with fire!
+* Scarabs? Kill it with fire! They're like spiders with hard shells and wings, right – nasty.
+* Anything heavily 'elemental' (e.g. the NPC literally has 'fire' or 'ice' in its name) is weaker to its counter-element than most other things.
+* Zulrah having a Weakness applied means that a regular Trident of the Seas should no longer outperform the Harmonised Nightmare Staff + Fire Surge there.
+
+We hope these tweaks and new additions might align with what players feel is intuitive, either from 'Elemental Type' systems in other popular franchises or just from looking at an enemy that's mostly a cloud of mist and thinking ‘Yeah, I could probably ruin their day with a big blast of air!’
+
+In addition to the above, we saw a number of suggestions that we thought were pretty neat. Some of these touched on ideas like assigning most (if not all) spells or Magic items some kind of elemental component, or on giving spells of different elements unique and interesting passives (while letting Elemental Weaknesses still pull the majority of the weight). We liked a lot of these suggestions and absolutely won't rule them out, but for the time being our focus is on shipping a weakness system that doesn't feel like a departure from the current feel of combat, laying a solid foundation that we could build more things in to or on top of in the future.
+
+===Ranged Weaknesses===
+On this topic, we'd strongly recommend checking out [https://youtu.be/JavgCYb2RS4?t=1135 this section] of the recent Q&A to hear our reasoning from Mod Kieren.
+
+Some of you had questions around the choice to use ammunition as the determining factor for these weaknesses instead of weapon type. As it stands, ammunition is, effectively, wholly dependent on weapon type, but this approach gives us flexibility down the line to introduce weapons that might interact with multiple ammunition types. It also means we could easily position things like darts alongside the Toxic Blowpipe, so that players who aren't as far along in their journey are still able to engage with the idea of bringing the right tool for the job.
+
+To be clear, we're absolutely not attached to 'Heavy', 'Standard' and 'Light' as the names for various weaknesses and welcome any and all suggestions. We've seen some of you suggest a Barbarian Assault-esque approach with the likes of 'Barbed' and 'Bullet' ammo, though we think this is less intuitive to apply to the wider game. If you've got any ideas, let us know - we're open to anything that you feel might roll off the tongue easier. Some examples we've seen include terms like 'Piercing' or 'Impact', which do feel pretty thematic!
+
+The other motivator for our approach is the potential to add some more unique character to weapon types in future, potentially producing some unique interactions. For example, Longbows could distinguish themselves from Shortbows by firing arrows but targeting 'Heavy' defences, which might offer alternative approaches to gearing throughout various stages of progression. If you have any neat ideas around reward space to play into this system and diversify Ranged a little, we are all ears!
+
+A number of comments pointed out that we didn't have a great deal of Standard or Light weaknesses in the mix for our initial proposal. This is something we'd love your help with too. If you have any candidates you think make sense for certain Ranged weaknesses then drop them to us and we can always expand the list. Examples we've seen so far include Crabs having a Light weakness to cement their status as a training NPC, or more humanoid NPCs having a Standard weakness to reflect how effective arrows are against fleshy targets. We’ve added two more NPCs to the list for the time being, those are:
+* Nex - Heavy weakness added. The reasoning here is that Crossbows were always meant to excel at Nex but are largely outclassed by Osmumten's Fang. While the Fang is always going to be good against Zaros' most fearsome general, doubling down on your bolts offering more bang for their buck is something we'd like to do.
+* Vespula (Flying) - Light weakness added. In our Chambers of Xeric mini-overhaul last year, we made the 'traditional' means of killing Vespula a little more viable. If you're somebody looking to take on the bug herself and aren't super confident with the common Redemption methods, then try peppering her full of darts!
+
+Get in those comments and fill them up with cool Ranged suggestions - we're eager to see them!
+
+===Wrapping Up===
+That's all we've got on the more specific additions or clarifications for now!
+
+For an updated spreadsheet that shows off all of the changes listed in this blog, [https://docs.google.com/spreadsheets/d/e/2PACX-1vROpFgFliMRmyvQ4NUVDZYlHhgOfmrxmwbJ16Wpy17RU-iJCfQJxbkrBl3L-DK2VQHZLjhmpac7xLMf/pubhtml?gid=1606162427&single=true click here].
+
+All of these changes should be reflected in the beta '''right now!''' Additionally, next week's blog will also feature an Open Beta where these changes will still be present alongside everything else we're looking to adjust.
+
+We would like to close off by answering some of your questions about whether or not this list is exhaustive, and our plans for the future.
+
+Initially, we wanted to roll these weaknesses out to everything in Old School. We decided to pull back on this because we were wary of potentially doing too much all at once and having things slip through the cracks. We're still open to easy additions or low-hanging fruit between now and rolling out these changes (like Zulrah having a Fire weakness applied). So if there's anything you think we're missing that would be reasonably widely applicable, let us know.
+
+In terms of the future, we're absolutely not opposed to further batches of changes like this. Once the groundwork is laid, implementing these changes down the line becomes absolutely trivial for us. What we don't want is to find ourselves adjusting one or two NPCs every single week – we don't want you having to trawl through every game update blog to figure out if your favourite NPC has suddenly changed. We'd much prefer making a bit of a song and dance about a group of changes that are well-communicated and subject to your feedback in advance, so that you're able to keep on top of everything.
+
+Ultimately our motivation is to be able to release content or rewards that really interplay with these new balancing vectors further down the line. We think the avenues this opens up for reward space should prove super exciting, even in cases where those rewards might be a reasonably quick-to-obtain increase rather than major grinds for significant widely-applicable power increases!
+
+We'll be back next week to talk more specifically about Item Rebalancing and more Combat/PvM-focused changes. We’ll be looking at things like autocast delay removal, some drop rate adjustments, minimum hit changes, small raids-focused tweaks (specifically to the Path of Apmeken in TOA and to Verzik with only one player remaining inside TOB), some improvements to early-game Prayers and loads more…
+
+See you there, you won't want to miss it!
+
+----
+
+We're back with our second Project Rebalance blog. This one's likely to be much shorter than our [https://secure.runescape.com/m=news/a=97/project-rebalance-part-one---skilling?oldschool=1 previous Skilling-focused blog] (and subsequent [https://secure.runescape.com/m=news/a=97/updated---project-rebalance-skilling?oldschool=1 updated blog]) but there's a fair bit on the more 'technical' side of Old School to go over.
+
+That being said, if technical blogs, DPS calcs or numbers in general aren't your scene then don't fret - we'll be opening a beta world right as this blog goes live to give you some hands-on experience with everything we're talking about today!
+
+The question is: what ''are'' we talking about today?
+
+==NPC Defence Changes==
+Our focus for this blog is on rolling out changes to NPC Defence, including adjustments to their ''existing'' Defensive Bonus values as well as adding some new Defence types in the form of 'split up' Ranged defence and Elemental weaknesses for Magic.
+
+If you'd rather skip out on reading a load of numbers and tables then we've got you covered! Check out the video below (or [https://www.youtube.com/watch?v=jdwTV89Ykfo click here]) for a nifty explainer from the wonderful [https://www.youtube.com/@coxieRS Coxie], who's taken a short break from obtaining every pet as quickly as possible so that he can break down today's blog for you!
+
+<center><big><big>[https://www.youtube.com/watch?v=jdwTV89Ykfo Defence Changes & Future Reward Space | Project Rebalance]</big></big></center>
+
+Before we get rolling with the 'how', let's cover the 'why'.
+
+One of our primary motivators here is ''kind of'' selfish, in that these changes provide us with more levers to pull for balancing NPCs in the future, which in turn provides us with new avenues to meaningfully expand reward space. Reward space in Old School gets trickier every year - powercreep is something both you and us are extremely conscious of and try to exercise sparingly where possible. In some cases - like Raids - it makes sense to move the needle upwards, but it doesn't make sense to displace something like the Twisted Bow with a reward from a Slayer boss for example.
+
+In these cases, we've been increasingly filling in gaps or niches to introduce items that flesh out 'horizontal progression', meaning items like the Dragon Hunter Lance that really excel in a couple of use-cases but don't outright beat every other Melee offering. 
+
+The idea of bringing 'the right tools for the job' is a huge part of Old School's feel. Where many MMOs have incremental systems and items whose power increases bit-by-bit to determine your power in most or all scenarios, our gear progression has big jumps, breakpoints and discrete points where you really ''feel'' a big increase in your combat potential. 
+
+This ties in to our second goal: making these changes helps us encourage players to bring more specialised weapons and styles for certain NPCs. It's only natural that if our main aim is to open up more avenues for future rewards, it's because it'll feel more rewarding to use those new things that exploit new weaknesses or fill in new gaps!
+
+Our final goal is a little less broad than the other two, and that is to make Elemental spells (your Air, Earth, Water and Fire spells on the Standard Spellbook) have more defined use-cases across existing ''and'' future content. The dawn of powered staves and realising the full potential of Ancient Magicks, co-ordinated Vengeance usage or the consistency of Thralls has left the Standard spellbook somewhat 'in the dust' in many Combat scenarios. While there are some niche examples of Fire Surge proving particularly handy and Iban's Blast remains a fan-favourite among fresh-faced Iron players, it's rare to get much direct Combat utility out of this spellbook.
+
+So, to sum up before we move on, the goals are:
+* Provide us with further levers to aid in future balancing, allowing us to meaningfully expand on reward space in future updates.
+* Further encourage players to bring specialised weapons/styles for certain NPCs.
+* Give Elemental spells a more defined use-case across existing content.
+
+There's the 'why', here's what to expect for the 'how' - we'll be going into each of these in a little more detail further down!
+* Implement Elemental weaknesses
+* Supplement Elemental weaknesses with Elemental Spell scaling.
+* Exaggerate existing weaknesses.
+* Implement new 'split' Ranged weaknesses - Light, Standard and Heavy
+
+We're going to tackle these one-by-one, then cap off with providing you some tools and data you can use to play around with everything you've read so that you can step into our beta worlds armed with all of the information necessary!
+
+==Elemental Spells==
+===Elemental Weaknesses===
+Interestingly, Elemental Weakness is a stat that already exists on a handful of NPCs in the game, denoting which style of spell they're weak to. Currently, this weakness is just a flat-out double damage bonus, but it's not communicated well to players and is only found on a very small number of enemies.
+
+To tackle the communication point, our first step is simply to make 'Elemental Weakness' visible via Monster Examine, so that you're not relying on another trip to the - admittedly fabulous - [[Old School Wiki]] in order to see the full story of NPC weaknesses. 
+
+[[File:Project Rebalance - NPC Defence Changes (1).png|209px|center]]
+
+With communicating this more clearly, we'll look to make Elemental Weakness more ''granular'', meaning we can change exactly ''how'' weak an NPC is to a specific element rather than a blanket 'the numbers can be twice as big' on a 'True or False' setting.
+
+For every point of Elemental Weakness that an NPC has, your spells of that element will gain +1% Accuracy ''and'' +1% damage. This means that casting Fire Surge on an NPC whose Monster Examine displays ''''Weakness: '''<span style="color: #8B0000">'''Fire'''</span>''' - 50%'''' will gain 50% bonus Accuracy and Damage.
+
+When it comes to factoring in your Magic Damage, Elemental Weaknesses look like this: '''Base Damage x (Magic Damage % + Elemental Weakness %)'''. This additive approach means they receive a bigger buff in more middling setups, but don't scale to astronomical power in setups offering high Magic Damage boosts.
+
+Ultimately this gives the Standard spellbook a bit more of a foothold for combat progression, though it's not going to be the case that you'll suddenly go from using a Dragon Hunter Lance to using Earth Surge against Adamant dragons - these flesh out options for players throughout their Magic journey but aren't looking to displace properly optimised setups.
+
+===Elemental Spell Scaling===
+That's all well and good, but anybody who's Fire Striked (or is it Struck?) their way through early-game questing knows that higher level elemental spells do more damage, Air &lt; Water &lt; Earth &lt; Fire. This means that casting Fire spells is always the best damage option, and might lead to some oddity in the earlier stages of progression where Water spells might lose out to Fire spells even if an NPC is weak to Water.
+
+We'd like to let players choose to use whichever spell an NPC is weak to, rather than defaulting to Fire in all scenarios - so we'd like to have each ''tier'' of Elemental spell (Strike, Bolt, Blast, Wave, Surge) share the same max hit, up to a cap of the existing damage. 
+
+In simpler terms, a player with Level 5 Magic would have a max hit of 4 for both Wind Strike and Water Strike, since Water Strike is the highest tier of spell unlocked and has a max hit of 4. If the player ascends to the lofty heights of Level 13 Magic then Wind, Water, Earth and Fire strike would all have a max hit of 8, since their highest Strike spell unlocked is Fire Strike.
+
+This would apply to all of the Elemental tiers (meaning Strike, Bolt, Blast, Wave and Surge), but none of these tiers would scale past their current max hit, meaning even at 99 Magic you'd still have a max hit of 8 with any Strike spell.
+
+These changes mean players are freed up to use whichever element they want, but would be incentivised to use different types depending on their opponent rather than defaulting to fire spells. Some of you might be thinking this is a pretty significant buff to Air/Wind spells for general use because of their cheaper rune cost, but this is counteracted by no NPCs having a specific air weakness so that Air spells are a solid generalist without excelling as a cheap option.
+
+Before we move on, you might be wondering where exactly this leaves the Tome of Fire or the Tome of Water!
+
+The Tome of Fire was designed at a time where its goal was to make the Standard spellbook more relevant, and it succeeded in doing so to some extent, albeit only for Fire spells and only while the Tome was equipped. With the aim of these changes being to make Elemental spells relevant throughout a player's entire progression rather than depending so heavily on a single item, we'll be looking to reduce the damage bonus from the Tome of Fire and Tome of Water down to 10% for their respective elements. This still makes them best-in-slot for their target use-cases by a ''significant'' amount, while being more obtainable than other Magic off-hands like Elidinis' Ward and not being relied on to carry an entire spellbook's combat relevance.
+
+In PvP, the existing damage buffs would be unchanged. Players themselves don't have Elemental weaknesses, so reducing the effectiveness of these Tomes isn't necessary, and Magic struggles to compete with other styles enough as-is in PvP scenarios.
+
+We've got one more short section before some detailed examples and ultimately your hands-on experience in beta worlds!
+
+==Ranged Defence Types==
+One of the things that makes Melee reward space feel so diverse is that Melee Defence is split up into three types: Stab, Slash and Crush. Combining these Defence bonuses with the Defence level of NPCs means that different situations might warrant a Scythe, or an Inquisitor's Mace, or an Osmumten's Fang, or perhaps see faster weapons like the Blade of Saeldor/Ghrazi Rapier outperforming your next-best option.
+
+Ranged Defence is just what it says on the tin, regardless of what weapon you're using. While factors like the target's Magic level, Hitpoints, overall Defence level etc. play a role in distinguishing between the Twisted Bow, Toxic Blowpipe, Zaryte Crossbow or the Bow of Faerdhinen, Ranged Defence isn't really a relevant distinguishing factor here.
+
+We'd like to take the same approach as Melee has and split Ranged Defence types into three categories, allowing us to better promote some weapons over others in certain NPC encounters, and providing us more avenues to meaningfully expand on Ranged reward space in the future. These types are dependent on the ammunition that you're using and look like this:
+* Heavy - Bolts, Javelins.
+* Standard - Arrows (this includes the Bow of Faerdhinen and Crystal Bow, magical arrows are still arrows...)
+* Light - Darts, Knives, other thrown weaponry like Thrownaxes or Toktz-xil-ul.
+
+Since these defences are based on the ammunition that you're using rather than specifically how you're attacking a weapon, you won't suddenly have a bunch more gear bonuses to manage or anything. You won't be accumulating new bonuses for 'Heavy Ranged Accuracy' or having to select between Heavy/Light attack styles on the same weapon - just that the ammo you're using will hit more often against NPCs who are weak to it.
+
+In the examples we've outlined below, some NPCs might have had reductions in one Ranged Defence type, or increased in others, to better carve out niches for a variety of Ranged weaponry.
+
+If there's an NPC we don't specifically mention or touch on in the examples and lists below, you're safe to assume that all three Ranged Defence types are equal to their existing Ranged Defence. Meaning an NPC with 70 Ranged Defence would have 70 Light, Standard and Heavy Ranged Defence and be totally unchanged.
+
+With the scene set and you equipped with everything you need to know, let's talk through a handful of examples first!
+
+==Some Examples==
+This section's going to feature a more detailed look at one NPC, a slightly more 'top-level' look at two more, then provide a table summarising everything we're looking at changing. We'll also include a link to a detailed spreadsheet so that you can see the specific numbers for each change ''and'' we'll include some links to special versions of the OSRS Wiki's DPS Calc where you'll be able to see how different setups are impacted at different NPCs who've had all of their new numbers and Elemental weakness math plugged in!
+
+===Example 1 - Adamant Dragon===
+Everybody's favourite 'walking Slayer points', the Adamant dragon, is a seriously tanky NPC. These metallic menaces have high Hitpoints, decent Defensive bonuses and a whopping 272 Defence - they're no pushovers!
+
+Let's take a look at their 'Live' vs. 'Rebalanced' stats and then dive into exactly what that means.
+
+{| class="wikitable" style="text-align: center;"
+|-
+! Stat
+! Live Value
+! Rebalance Value
+|-
+| Defence Level
+| 272
+| 272
+|-
+| '''Stab Defence'''
+| '''30'''
+| '''20'''
+|-
+| Slash Defence
+| 110
+| 110
+|-
+| Crush Defence
+| 85
+| 85
+|-
+| Ranged - Light Defence
+| +95*
+| 95
+|-
+| Ranged - Standard Defence
+| +95*
+| 95
+|-
+| '''Ranged - Heavy Defence'''
+| '''+95*'''
+| '''65'''
+|-
+| Magic Defence
+| 30
+| 30
+|-
+| '''Elemental Weakness'''
+| '''N/A'''
+| '''+50% '''<span style="color: #008000">'''Earth'''</span>''' Weakness'''
+|}''*Note that they currently have a Ranged defence of +95, represented by the same value in all three defence types marked with an asterisk.''
+
+So the changes here are:
+* Reduced Stab Defence by 10.
+* Reduced Ranged - Heavy Defence by 30.
+* Added +50% Earth Weakness.
+
+It's pretty simple from here to work out that this means players will experience greater specialisation with Stab weaponry (especially if they're still waiting on a Dragon Hunter Lance), see more success with Earth spells at some points, and further cement bolts as the go-to Ranged option. These numbers for Defence bonus changes might not look like much, but the way that Defence works in Old School means that NPCs with a higher Defence levels are impacted much more significantly by changes to Defensive bonuses than NPCs with lower Defence levels. In other words, reducing Stab Defence by 10 impacts an NPC with 272 Defence more than it would impact an NPC with 50 Defence.
+
+We ran some numbers using these changes for two 'progression points'. The first being more 'mid-game' with stats around 80 and using gear like the Rune Crossbow, Ahrim's robes, Black dragonhide, Fighter torso etc., while the second encompasses absolute maxed stats and gear. Let's take a look at some really quick comparisons. Keep in mind that Magic Damage and Elemental Weakness aren't multiplicative, so the max hit doesn't increase by a flat 50% in each case.
+
+===Mid-game setup===
+{| class="wikitable" style="text-align: center;"
+|-
+! Style/Weapon
+! Live Max Hit
+! Live DPS
+! Rebalance Max Hit
+! Rebalance DPS
+! % DPS increase
+|-
+| <span style="color: #008000">Earth</span> Blast
+| 20
+| 1.8
+| 28
+| 2.8
+| 55.55%
+|-
+| Broad Bolts
+| 29
+| 1.5
+| 29
+| 1.8
+| 20%
+|-
+| Dragon Scimitar
+| 33
+| 1.3
+| 33
+| 1.3
+| 0%
+|-
+| Dragon Sword
+| 32
+| 2.2
+| 32
+| 2.5
+| 13.64%
+|-
+| Warped Staff
+| 21
+| 1.9
+| 21
+| 1.9
+| 0%
+|}
+
+===Max setup===
+{| class="wikitable" style="text-align: center;"
+|-
+! Style/Weapon
+! Live Max Hit
+! Live DPS
+! Rebalance Max Hit
+! Rebalance DPS
+! % DPS increase
+|-
+| Harmonised Staff + <span style="color: #008000">Earth</span> Surge
+| 34
+| 4.5
+| 46
+| 7.7
+| 71.11
+|-
+| Sanguinesti Staff
+| 46
+| 6.6
+| 46
+| 6.6
+| 0
+|-
+| Dragon Hunter Crossbow + Dragon Diamond Bolts (e)
+| 65
+| 6.2
+| 65
+| 6.8
+| 9.68
+|-
+| Dragon Hunter Lance
+| 60
+| 7.5
+| 60
+| 7.9
+| 5.33
+|-
+| Blade of Saeldor
+| 54
+| 3.4
+| 54
+| 3.4
+| 0
+|}
+
+Looking at these setups, we can see that the Elemental Weakness addition shoots Earth spells into relevancy (particularly when combined with the Harmonised Staff) while keeping Dragon Hunter Lance the best-in-slot option. Additionally, bolts see an increase in DPS potential, particularly in the lower-tier setup, and even the humble Dragon Sword sees a pretty significant jump in power. This ticks all of our boxes by giving Elemental spells a place, not displacing the existing best-in-slot gear, and better capitalising on existing niches so they feel more rewarding to actually bring in the first place.
+
+These next two examples aren't going to feature any DPS tables - though you're welcome to experiment with making your own using the DPS Calculator slightly further down - but focus on examples of our reasoning behind changes and the ways we'd like to achieve various goals.
+
+===Example 2 - Gargoyles===
+Gargoyles are an absolutely classic Slayer monster who are technically weak to Crush. Remember that point from earlier about how Defensive bonuses are less impactful on NPCs with lower Defence levels? This is a prime example! 
+
+Crush is the strongest attack style to use vs. Gargoyles on paper, but in actuality the difference between a Crush weapon and a similar Stab/Slash weapon isn't all that significant. Coupled with the fact that it's easier to gain access to potent Slash options like an Abyssal whip than it is something like an Abyssal bludgeon, it's just not really ''worth'' delivering some crushing blows to single Gargoyles in your area.
+
+{| class="wikitable" style="text-align: center;"
+|-
+! Stat
+! Live Value
+! Rebalance Value
+|-
+| '''Stab Defence'''
+| '''20'''
+| '''60'''
+|-
+| Slash Defence
+| 20
+| 50
+|-
+| Ranged - Standard Defence
+| 20
+| 20
+|-
+| Ranged - Light Defence
+| 20
+| 20
+|-
+| '''Ranged - Heavy Defence'''
+| '''20'''
+| '''-20'''
+|-
+| Magic Defence
+| 20
+| 20
+|-
+| Elemental Weakness
+| N/A
+| N/A
+|-
+| Defence Level
+| 107
+| 107
+|-
+| '''Crush Defence'''
+| '''0'''
+| '''-20'''
+|}
+
+The changes above aim to really cement Crush feeling worthwhile against Gargoyles (especially with the Zombie Axe's introduction) by creating a bigger disparity between Crush and other styles, but using Slash or Stab weapons as you likely are at the moment should still feel just fine! Additionally, we've rolled out another Heavy weakness for Ranged, since heavy ammo breaks rocks. Give 'Javelin' a go in your next round of Rock, Paper, Scissors - they'll never see it coming!
+
+===Example 3 - Giant Mole===
+One of the simplest bosses Old School has to offer comes with the simplest example so far, let's take a peek.
+
+{| class="wikitable" style="text-align: center;"
+|-
+! Stat
+! Live Value
+! Rebalance Value
+|-
+| Defence Level
+| 200
+| 200
+|-
+| Stab Defence
+| 60
+| 60
+|-
+| Slash Defence
+| 80
+| 80
+|-
+| Crush Defence
+| 100
+| 100
+|-
+| Ranged - Light Defence
+| 60
+| 60
+|-
+| Ranged - Standard Defence
+| 60
+| 60
+|-
+| Ranged - Heavy Defence
+| 60
+| 60
+|-
+| Magic Defence
+| 80
+| 80
+|-
+| '''Elemental Weakness'''
+| '''N/A'''
+| '''+50% '''<span style="color: #0044fa">'''Water'''</span>''' Weakness'''
+|}
+
+For the Giant Mole, we're looking at a hefty added Elemental Weakness severity. This means Water spells could pack a real punch and open up another viable avenue for farming one of the most loved pets in the game.
+
+We chose this example because it doesn't specifically push any existing weakness, but it ''does'' open avenues for new farming methods for bosses or content you engage with primarily later into your journey (in this case, pet hunters). This doesn't necessarily push the Twisted bow or Tumeken's Shadow out of the spotlight, but we're curious if this sort of approach is an area you'd like us to further explore or just leave alone. If you have any ideas for new, cool Elemental-style of ‘split-Ranged’-style weapons that you’d like to see introduced then let us know - let’s get those theorycrafting brains going!
+
+==The Full Changelist==
+'''Note (Tuesday, March 9th):''' This section formerly included a table providing a top-level overview of NPCs having weaknesses applied or Ranged weaknesses rolled out. Due to Character Limit constraints, we've ommitted this table and would instead recommend you check out the spreadsheet that we've linked for a quick glance at everything we're including.
+
+So we've covered the 'why' and the 'how', let's take a full look at ''which'' NPCs we're changing. Below is a table that effectively summarises whether an NPC has had an Elemental Weakness added, whether its Melee Defensive bonuses have been adjusted and whether an NPC has had 'split' Ranged Defence types adjusted. For more information on the specifics of those numbers, you can [https://docs.google.com/spreadsheets/d/e/2PACX-1vROpFgFliMRmyvQ4NUVDZYlHhgOfmrxmwbJ16Wpy17RU-iJCfQJxbkrBl3L-DK2VQHZLjhmpac7xLMf/pubhtml?gid=1606162427&single=true click here] for a spreadsheet highlighting the before and after for all of the NPCs listed.
+
+If you'd rather not look at a spreadsheet or a big table, you can scroll down to the next section where we detail the OSRS Wiki's DPS Calculator, what to look out for and how to use it to look at all of the changes for yourself - we'll provide links featuring a variety of setups and leave you to freely adjust the NPCs.
+
+If ''that's'' not enough, you can carry on scrolling '''even further''' for more information on the playable beta for these changes, which will be live on Worlds 585, 586, 587, 588 & 589 once this blog goes live!
+
+==OSRS Wiki DPS Calculator==
+For those of you not in the know, earlier this year, the wonderful OSRS Wiki Team released their very own 'Damage Per Second Calculator' (or DPS Calc, for short). DPS Calcs are a staple in gaming and especially in MMORPGs, they're a really potent tool for you to figure out exactly how impactful an upgrade is for you and determine what your best loadouts are in any given scenario. They've been around in Old School for a really long time, and many of you will no doubt be familiar with the 'DPS Calc Spreadsheet', a monumental and frequently updated sheet that's full of numbers and tricky maths thanks to efforts from a dedicated community (in particular: Bitterkoekje, Koekenpan, Inevitably and bea5) looking to learn more about Old School's damage formulae.
+
+Spreadsheets can be unwieldy for some, and we've been working with the OSRS Wiki team to put together a version of their DPS Calc which takes into account all of our proposed NPC Defence values and Elemental weaknesses, so that you can take a look for yourself. Before we send you off to mess around though, let's quickly break down what you'll see:
+
+[[File:Project Rebalance - NPC Defence Changes (2).png|600px|center]]
+
+On the left-hand side you'll find the section that we've mostly curated for you. At the top you can switch between loadouts (via the tabs labelled 1, 2, 3) and rename loadouts to your liking.
+
+Below that, you'll see a bar for Combat, Skills, Equipment, Prayer and Extra Options. These tabs allow you to set your Attack style, Stats (including active Potions), Gear loadout (including a variety of presets), active Prayers, and extra bits like whether or not you're on a Slayer Task or fighting a Wilderness NPC etc.
+
+For looking at Elemental spell setups, use the Attack Style tab, select 'Spell - Magic, Autocast' and then choose your spell just underneath!
+
+To change your gear, use the 'Search for equipment...' prompt in the Equipment tab and your equipment slots should be automatically populated with whatever you include.
+
+[[File:Project Rebalance - NPC Defence Changes (3).png|600px|center]]
+
+In the middle, you'll see the selected NPC's stats. You can use the 'Search for monster...' prompt to select whichever NPC you'd like, and the tool should do the rest for you.
+
+If you'd like, you can use the 'Defensive Reductions' dropdown to see how your DPS is impacted by things like Dragon Warhammer or Bandos Godsword special attacks.
+
+[[File:Project Rebalance - NPC Defence Changes (4).png|600px|center]]
+
+On the right, you'll see your 'Results'. Effectively, this section compares all of your loadouts against the selected NPC's stats and gives you some extra information so that you don't have to spend your valuable time crunching even more numbers!
+
+From top to bottom, these fields are:
+* Max hit - the highest possible hitsplat for your chosen gear/stats/prayers against the target NPC.
+* DPS - damage per second. This reflects your average damage per second. Your actual numbers can deviate for this, but spending a considerable length of time in one given setup vs. one given NPC will eventually average out to the displayed DPS.
+* Avg. TTK - average 'time to kill'. This number takes your average DPS and works out how long it would take for you to get through all of an opponent's hitpoints.
+* Attack roll - we won't explain how this one is calculated, but think of this like a dice with thousands of sides, an 'Attack roll' of 30,000 means you're rolling a 30,000-sided dice.
+* NPC def roll - this is the NPC's Defence roll. Think of this like another dice with thousands of sides.
+* Accuracy - how likely you are to hit. 75% accuracy means that you'll hit (on average) 75 attacks out of every 100. This is calculated by comparing your Attack rolls against NPC Defence rolls.
+Scrolling down the page reveals a 'Loadout Comparison Graph'. This handy visualisation shows how the DPS of all of your loadouts varies as the NPC's Defence decreases. There are handy lines included for what the NPC's Defence would be after 1, 2 or 3 Dragon Warhammer Special Attacks. Effectively, these show you the 'breakpoints' at which other gear might be better, and also let you see at a glance exactly how much better one setup is than another - handy!
+
+Now that you're equipped with everything you need to know, use the list below to be whisked away to versions of the DPS Calc that we've pre-loaded with a variety of gear setups that feature all of the new NPC Defence changes.
+* [https://tools.runescape.wiki/osrs-dps-def-rework/?id=PosterSwampTourmaline Mid-game/"Not BiS" setups]
+* [https://tools.runescape.wiki/osrs-dps-def-rework/?id=TetraAngelCured End-game setups]
+
+==Open Beta==
+If you've made it this far, you know everything you need to know before you get hands-on with all of these changes!
+
+Once this blog goes live, you should be able to log in to Worlds 585, 586, 587, 588 & 589 to participate in an open beta where you're able to leave all these numbers and spreadsheets behind, in favour of just seeing how stuff feels. These beta worlds feature all of the NPCs' updated Defence values, Elemental spell scaling (as outlined above), and Monster Examine's updated interface to show off the new weaknesses (both Elemental and Ranged).
+
+We'd love for you to take everything you've learned in this blog with you into the beta, give it a go and let us know how you feel. We want to see your comments, posts, ramble-style videos, rants - everything you've got!
+
+Alternatively, you could take a moment to fill out the survey below and share your thoughts with us there.
+
+That's all for today! Enjoy the beta and make sure to share your thoughts with us, we're eager to hear from you! We'll be back with an updated blog if it's absolutely necessary, or back later in April with another blog about Item Changes!
+
+----
+
+That's everything for this dev blog! We'd love to hear your feedback so please let us know what you think via the [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel.
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Errol, Gecko, Gengis, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hooti, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Necro, Nox, Nylu, Other, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Sarnie, Saiyan, Shogun, Shroom, Sigma, Skane, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titus, Torrance, Tsourorf, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

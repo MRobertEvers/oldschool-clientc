@@ -30,6 +30,8 @@ import re
 import sys
 from collections import defaultdict
 
+import config_text
+
 # Language words, type names and literals. These are grammar, not symbols, and
 # the compiler never looks them up in the symbol table.
 GRAMMAR = {
@@ -206,11 +208,15 @@ LITERAL_TYPES = {'int', 'string', 'coord', 'boolean', 'long', 'char'}
 
 
 def read_blocks(path):
-    """`[name]` sections as (name, [(key, value), ...]), order preserved."""
+    """`[name]` sections as (name, [(key, value), ...]), order preserved.
+
+    `key=default` / `key=empty` (full-key config text) say the key is absent
+    or an empty list -- no value, so nothing to resolve; config_text drops
+    them and unescapes `key=\\default`."""
     blocks = []
     current = None
     with open(path, encoding='utf-8', errors='replace') as handle:
-        for line in handle:
+        for line in config_text.filter_lines(handle):
             line = re.sub(r'//.*$', '', line).strip()
             if not line:
                 continue

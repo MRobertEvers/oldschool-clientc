@@ -67,7 +67,9 @@ import re
 import signal
 import sys
 
-HERE = os.path.dirname(os.path.abspath(__file__))
+import config_text
+
+HERE =os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 TREE = os.path.join(REPO, "OSRS-Content", "osrs239-content")
 GITREPOS = os.path.expanduser("~/Documents/git_repos")
@@ -121,7 +123,7 @@ def load_config(path):
     name = None
     cur = None
     with open(path, encoding="utf-8", errors="replace") as fh:
-        for line in fh:
+        for line in config_text.filter_lines(fh):
             line = line.rstrip("\n")
             if line.startswith("[") and line.endswith("]"):
                 if name is not None:
@@ -137,12 +139,8 @@ def load_config(path):
 
 
 def obj_params(record):
-    out = {}
-    for entry in record.get("param", []):
-        parts = entry.split(",")
-        if len(parts) >= 3:
-            out[parts[0]] = parts[2]
-    return out
+    """{param: value text} from the record's `param=<name>,<value>` lines."""
+    return dict(config_text.split_param(entry) for entry in record.get("param", []))
 
 
 def load_seq_names(path):
@@ -220,7 +218,7 @@ def load_overlays(exclude=None):
             continue
         name = None
         with open(os.path.join(BAS_DIR, fname), encoding="utf-8") as fh:
-            for line in fh:
+            for line in config_text.filter_lines(fh):
                 line = line.strip()
                 if line.startswith("[") and line.endswith("]"):
                     name = line[1:-1]

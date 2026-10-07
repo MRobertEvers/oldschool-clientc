@@ -1,0 +1,111 @@
+{{Update|date=17 June 2022|link=https://secure.runescape.com/m=news/third-party-client-guidelines?oldschool=1|rev=17 April 2024|category=community}}
+[[File:Third Party Client Guidelines newspost.png|right]]
+{{clear}}
+The following guidelines have been put in place to protect the interests of the game by outlining what features aren't acceptable, and by acting if these features are abused. We'd like to note that it's impossible to list every potential feature, so here we give general principles and examples. Outlining and enforcing these rules is vital to protect the integrity of the game, as well as its economy and long-term health. This isn't about us unfairly punishing players by making the game more difficult.
+
+As per our most [https://secure.runescape.com/m=news/third-party-clients-update?oldschool=1 recent statement], we'd like to remind you that the only third-party clients that are approved for use are those in our Approved Clients list below. The use of any other third-party client may result in permanent action being taken against your account.
+
+'''Approved Clients'''
+* RuneLite
+* HDOS
+
+
+'''Guidelines:'''<br><u>Any features which aid any boss fights by doing any of the following are prohibited ''(this includes all Raids sub-bosses, Slayer bosses, Demi-bosses, and wave-based minigames, including the Fight Caves and Inferno):''</u>
+* Next attack prediction (timing or attack style)
+* Projectile targets, or target locations, as well as impact locations
+* Prayer switching indicators
+* Attack counters
+* Anything that automatically indicates where to stand, or not to stand. This applies to only automatic indicators, and not tiles which have been manually marked.
+
+In addition, the following menu changes are prohibited:
+* Any addition of new menu entries which cause actions to be sent to the server
+* Menu option changes for specifically Construction, Blackjacking and Attack (or similar) options in PvP.
+
+The following interface changes are prohibited:
+* Any unhiding of interface components, such as the special attack bar and including the minimap (for example, in Barrows)
+* Any movement or resizing of click zones for 3d components
+* Any movement or resizing of click zones for any interface or component under combat options, inventory, worn equipment, or spell book
+* Any resizing of click zones for any interface or component under prayer book
+
+
+Here’s a larger list of specific feature examples which are unacceptable. This is '''still not exhaustive''' but should give a clearer idea what is not acceptable.
+{| class=wikitable style="text-align:center; width:600px;"
+!Any feature which...
+!Category
+|-
+|Indicates where projectiles will land
+|Combat
+|-
+|Indicates the time where a boss mechanic may start or end
+|Combat
+|-
+|Adds additional visual or audio indicators of a boss mechanic except in cases where this is a manually triggered external helper.
+|Combat
+|-
+|Indicates what prayers to use in what order, for example in the Cerberus boss fight
+|Combat
+|-
+|Indicates players in an opposing clan in PVP
+|Combat
+|-
+|Helps you to know when to 'flinch' your opponent
+|Combat
+|-
+|Indicates how long an opponent is frozen for
+|Combat
+|-
+|Automatically informs you where or where not to stand in a boss fight. This applies to only automatic indicators, and not tiles which have been manually marked.
+|Combat
+|-
+|Makes it easier to target 3D entities with a spell by removing some options
+|Combat
+|-
+|Indicates which player an NPC is focused on
+|Combat
+|-
+|Indicates to other players what items/loot will drop in PvP
+|Combat
+|-
+|Indicates whom your opponent's opponent is in PVP
+|Combat
+|-
+|Indicates which prayer to use in any combat situation
+|Combat
+|-
+|Can resize interface components on the Spellbook interface
+|Combat
+|-
+|Can resize interface components on the Prayer interface
+|Combat
+|-
+|Offers additional information about other players, with the purpose of scouting PvP targets
+|Combat
+|-
+|Which gives summary information about a group of players, such as how many players are attackable and not in your own CC, what prayers they are mostly using, etc
+|Combat
+|-
+|Removes or deprioritises attack, cast (or similar) options from the minimenu in PVP
+|Combat
+|-
+|Reveals the maze layout in the Sotetseg boss fight in Theatre of Blood
+|Combat
+|-
+|Adds additional menu entries which cause actions to be sent to the server, with the exceptions of menu entries for the Max Cape and Achievement diary capes.
+|Menus
+|-
+|Modifies menu options for blackjacking, such as 'Pickpocket' and 'Knock-out'
+|Menus
+|-
+|Reorders or removes player-based options, such as 'Trade with'
+|Menus
+|-
+|Offers world interaction in any detached camera mode
+|Misc
+|}
+
+'''Any features which act similarly to those described in the above list can also be considered unacceptable, and as we become aware of features we reserve the right to add features to the list in future.'''
+
+We’ll continue to work with players and developers alike in order to make it perfectly clear what is not acceptable.
+
+
+'''The Old School Team'''

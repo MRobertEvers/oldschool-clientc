@@ -2,9 +2,24 @@
 #define RSCACHE_DATATYPES_DAT2_CONFIG_STRUCT_H
 
 #include "../rsbuffer.h"
+#include "../rscache_presence.h"
+
+/**
+ * The fields a struct stream can state, for `RSCache_Dat2ConfigStruct.present`.
+ * A struct is nothing but its param map, so there is one.
+ */
+enum RSCache_Dat2ConfigStructField
+{
+    RSCACHE_STRUCT_FIELD_PARAMS = 0, /* 249 */
+    RSCACHE_STRUCT_FIELD_COUNT
+};
 
 struct RSCache_Dat2ConfigStruct
 {
+    /** Which `RSCache_Dat2ConfigStructField`s the stream stated. The encoder
+     *  writes exactly these: a map stated with no entries is opcode 249 with
+     *  count 0, and a record that states nothing is the bare terminator. */
+    struct RSCache_Presence present;
     int id;
     struct RSCache_Params params;
 };
@@ -28,8 +43,8 @@ RSCache_Dat2ConfigStructDecodeInplace(
     const void* data,
     int data_size);
 
-/** Encode a struct record — opcode 249 param map, then the terminator. Returns
- *  bytes written, or 0 on failure. */
+/** Encode a struct record — opcode 249 param map when `present` states it, then
+ *  the terminator. Returns bytes written. */
 uint32_t
 RSCache_Dat2ConfigStructEncode(
     const struct RSCache_Dat2ConfigStruct* entry,

@@ -1,0 +1,128 @@
+# raidwide.scope.tsv -- scope of every row of raidwide.tsv for tools/raid_gate/raid_coverage.py
+# (all | entry | normal | hard | party | stat). 'all' rows read in a solo Entry room or the lobby;
+# 'normal'/'hard' need that mode; 'party' needs two or more clients (or a ::tobmate / ::tobscale cheat); 'stat' is a figure no single room settles.
+mechanic_id	scope	note
+raidwide.party.size_max	all	solo Entry reads one member row
+raidwide.lobby.regions	all	t.world.tile 3670,3218 reads region 14642
+raidwide.lobby.entrance_loc	all	t.world.loc_near tob_surface_raid_entrance
+raidwide.lobby.notice_board_loc	all	t.world.loc_near tob_surface_notice_board
+raidwide.lobby.scoreboard_loc	all	t.world.loc_near tob_scoreboard
+raidwide.lobby.gravestone_chest_loc	all	t.world.loc_near tob_surface_gravestone_chest
+raidwide.lobby.deposit_box_loc	all	t.world.loc_near tob_surface_deposit_box
+raidwide.lobby.rewards_chest_loc	all	t.world.loc_near tob_rewards_chest_lobby_multi
+raidwide.lobby.stranger_present	all	t.npc.nearest tob_stranger
+raidwide.lobby.stranger_trade	all	content bug: no shop
+raidwide.lobby.escape_crystal_cost	all	content bug: unobtainable
+raidwide.lobby.reclaim_fee	normal	chest dialogue reads 'Pay 100000 coins to unlock the chest.'
+raidwide.door.requires_party	all	wording of our refusal line is unsourced and not asserted
+raidwide.door.ready_check	normal	solo Normal; the Entry form reads Mode: Entry
+raidwide.board.first_read_prompt	all	4 pages on the first read, tob_partylist directly on the second
+raidwide.party.default_mode	entry	
+raidwide.party.list_title	all	
+raidwide.party.list_empty	all	
+raidwide.party.mode_option_count	all	
+raidwide.mode.hard_requires_completion	hard	measured: 'You must complete the Theatre of Blood once before attempting Hard Mode.' and the mode stayed Entry
+raidwide.party.reorder_by_leader	party	needs two clients; code read only
+raidwide.chat.enter_line	entry	content bug: line absent
+raidwide.chat.party_enter_line	party	needs two clients
+raidwide.chat.wave_complete_line	entry	content bug: line absent
+raidwide.chat.completion_lines	all	content bug: lines absent
+raidwide.card.wave_names	all	code read of the card text
+raidwide.card.sound	all	cache name only; measured t6 (room entered t5)
+raidwide.hud.room_status_inactive	all	
+raidwide.hud.room_status_boss	all	measured 1 in Entry Maiden
+raidwide.hud.party_status_fight	all	
+raidwide.hud.party_status_in_raid	all	content bug candidate: blert's wording only
+raidwide.hud.party_status_lobby_party	all	written; the lobby HUD box is not mounted (seam7 open issue)
+raidwide.hud.boss_hp_full	all	content bug: val/max ratio is right, the domain is not what two recorders read
+raidwide.hud.orb_full	all	
+raidwide.hud.orb_dead	all	
+raidwide.hud.orb_left	party	not run here: needs a second client; seam7 measured it
+raidwide.music.maiden_sorrow	all	wiki table names the track and where it unlocks; the cache dbrow binds the id
+raidwide.music.maiden_anger	all	wiki table names the track and where it unlocks; the cache dbrow binds the id
+raidwide.music.bloat_nightmare	all	wiki table names the track and where it unlocks; the cache dbrow binds the id
+raidwide.music.bloat_continues	all	wiki table names the track and where it unlocks; the cache dbrow binds the id
+raidwide.music.nylocas_dance	all	wiki table names the track and where it unlocks; the cache dbrow binds the id
+raidwide.music.nylocas_arachnids	all	wiki table names the track and where it unlocks; the cache dbrow binds the id
+raidwide.music.sotetseg_room	all	wiki table names the track and where it unlocks; the cache dbrow binds the id
+raidwide.music.sotetseg_fight	all	wiki table names the track and where it unlocks; the cache dbrow binds the id
+raidwide.music.xarpus_room	all	wiki table names the track and where it unlocks; the cache dbrow binds the id
+raidwide.music.xarpus_fight	all	wiki table names the track and where it unlocks; the cache dbrow binds the id
+raidwide.music.verzik_room	all	wiki table names the track and where it unlocks; the cache dbrow binds the id
+raidwide.music.verzik_fight	all	wiki table names the track and where it unlocks; the cache dbrow binds the id
+raidwide.music.vault	all	wiki table names the track and where it unlocks; the cache dbrow binds the id
+raidwide.music.lobby_region_track	all	content bug (engine): the region unlock writes the wrong varp, so the track never unlocks and varp 18 reads 256 (spec_raidwide_music row 6)
+raidwide.music.unlock_bits	all	final musicmulti_18 = 334848 in that run
+raidwide.music.boss_defeated_jingle	all	only the clearing raider hears it in a party (seam7 open issue)
+raidwide.scale.party_5	party	needs five in the party or ::tobscale; the room tables carry the per-boss integers; code read
+raidwide.scale.party_4	party	code read
+raidwide.scale.party_3_or_fewer	all	code read; every room table's solo hp row measures it
+raidwide.scale.entry_per_extra_player	party	per-room rows (maiden.hp_entry_scaling) measure it; solo reads the unit
+raidwide.chest.points_above	normal	deathless solo Normal first chest reads points=10 (12 of 12 fresh runs; the RNG is deterministic per process, the 10-13 spread is not sampled)
+raidwide.chest.points_avg	normal	
+raidwide.chest.points_below	normal	
+raidwide.chest.points_deathless_solo	normal	approximation, M22
+raidwide.chest.points_carry	normal	code read: the second chest needs a second room
+raidwide.chest.stock_costs	normal	
+raidwide.chest.stock_count	normal	
+raidwide.chest.stamina_limit	normal	stamina=1 measured before; the buy path is a debugproc
+raidwide.chest.supply_loc	normal	
+raidwide.chest.onion	normal	needs two deaths in two rooms
+raidwide.chest.store_interface	normal	
+raidwide.chest.points_label_client	normal	content bug: observed label 0 vs server 8
+raidwide.chest.hard_points_deathless	hard	content bug candidate; the sentence is ambiguous between per chest and per raid
+raidwide.chest.entry_bandages	entry	
+raidwide.chest.entry_bandages_no_carry	entry	
+raidwide.death.line	all	frame read by seam7; the transcript only has the narrator
+raidwide.death.rejoin_at_entry	party	measured with ::tobmate (a non-player party member)
+raidwide.death.boss_ignores_caged	party	content bug: bosses target the cage
+raidwide.death.wipe_delay	entry	approximation, M300
+raidwide.wipe.entry_restarts_room	entry	
+raidwide.wipe.entry_bandages	entry	approximation, M301
+raidwide.wipe.entry_fee	entry	
+raidwide.wipe.normal_ends_raid	normal	
+raidwide.wipe.second_death_loses	normal	needs two wipes
+raidwide.logout.fight_is_death	all	content bug (seam7 open issue)
+raidwide.logout.crystal_consumed	all	content bug: the crystal cannot be obtained
+raidwide.restore.on_clear	all	~tob_restore
+raidwide.vault.chest_count	all	five placed by ::tobvaultall; a solo raider reads one
+raidwide.vault.chest_mine_standard_varbit	all	
+raidwide.vault.chest_mine_rare_varbit	normal	needs a Normal run that rolls a unique
+raidwide.vault.chest_open_loc	all	
+raidwide.vault.chest_open_loc_rare	normal	code read
+raidwide.vault.solo_chest_tile	all	
+raidwide.vault.interface	all	
+raidwide.vault.exit_crystal_loc	all	
+raidwide.vault.loot_flag	all	cache name only
+raidwide.vault.unclaimed_lost_on_logout	all	
+raidwide.vault.trapdoor_loc	all	
+raidwide.vault.trapdoor_after_throne	all	tick-log loc_set rows
+raidwide.vault.music_on_entry	all	tick-log music row
+raidwide.vault.strategy_table_loc	all	interface opened by ::tobperformance here; the loc click is seam7's
+raidwide.reward.unique_chance_normal	normal	content bug: 8.7 per player; read from the constant, not drawn
+raidwide.reward.unique_chance_hard	hard	
+raidwide.reward.entry_unique	entry	solo Entry chest held blood runes and coins only
+raidwide.reward.entry_loot_percent	entry	content bug: Entry chest held 130,110 coins
+raidwide.reward.hard_loot_bonus	hard	content bug: not applied
+raidwide.reward.common_rolls	all	same item may repeat
+raidwide.reward.common_table_entries	all	content bug: not the wiki table
+raidwide.reward.unique_weights_normal	normal	content bug: hilt 7 of 18
+raidwide.reward.unique_weights_hard	hard	content bug: ours 6 of 17
+raidwide.reward.pet_normal	normal	content bug: absent
+raidwide.reward.hard_kits	hard	content bug: absent
+raidwide.reward.elite_clue	all	content bug: absent
+raidwide.completion.entry_counts	entry	content bug: code read
+raidwide.completion.shroud_tiers	stat	content bug: absent
+raidwide.ca.listed_total	stat	the tsv has 46 rows; Veteran/Master/Grandmaster (237-239) and 243 are on their own pages
+raidwide.ca.awarded_of_listed	stat	content bug: 13 of 46; also awarded: 237-239 and 243, not in the tsv
+raidwide.ca.veteran_completions	stat	constant matches
+raidwide.ca.master_completions	stat	constant matches
+raidwide.ca.grandmaster_completions	stat	constant matches
+raidwide.ca.speed_duo_runner	stat	content bug: stale threshold
+raidwide.ca.speed_trio_chaser	stat	content bug: stale threshold
+raidwide.ca.speed_trio_runner	stat	content bug: stale threshold
+raidwide.ca.speed_4s_chaser	stat	content bug: stale threshold
+raidwide.ca.speed_4s_runner	stat	content bug: stale threshold
+raidwide.ca.speed_5s_chaser	stat	content bug: stale threshold
+raidwide.ca.speed_5s_runner	stat	content bug: stale threshold
+raidwide.ca.hard_speed_overall	stat	content bug: absent

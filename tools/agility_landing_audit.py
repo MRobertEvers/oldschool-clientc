@@ -39,6 +39,8 @@ import re
 import subprocess
 import sys
 
+import config_text
+
 COORD = re.compile(r"\b(\d)_(\d+)_(\d+)_(\d+)_(\d+)\b")
 
 # Course scripts whose coord literals are landings. Shared helpers are excluded:
@@ -81,7 +83,10 @@ def main():
     failures = 0
     for pattern in SCRIPT_GLOBS:
         for path in sorted(glob.glob(os.path.join(args.tree, pattern))):
-            text = open(path, encoding="utf-8").read()
+            if path.endswith(".enum"):
+                text = config_text.read_text(path, encoding="utf-8")
+            else:
+                text = open(path, encoding="utf-8").read()
             # Comments state placements and dead reckoning; only live code counts.
             code = "\n".join(
                 line for line in text.split("\n") if not line.lstrip().startswith("//")

@@ -1,0 +1,206 @@
+npc	npc_id	framemap	kind	id	cache_name	frames	game_ticks	frame_sounds	role	tier	note
+tob_xarpus_static	8338	1811	seq	8058	tob_xarpus_idle	52	4.00	f1:3541=tob_xarpus_idle_wingflap_1;f14:3975=tob_xarpus_idle_wingflap_2;f27:3964=tob_xarpus_idle_wingflap_3	other	rig	on the rig, not named by this record; the combat form's ready animation
+tob_xarpus_static	8338	1811	seq	8059	tob_xarpus_attack_ranged	21	2.00	f10:3290=tob_xarpus_attack_ranged_projectile_5	attack1	rig+name	name states attack; script plays it per spit tick (tob_xarpus.rs2:1034)
+tob_xarpus_static	8338	1811	seq	8060	tob_xarpus_absorb	13	2.00	-	ready	bound	static+feeding forms ready+walk; 2 ticks
+tob_xarpus_static	8338	1811	seq	8061	tob_xarpus_fly_up	27	3.00	f1:3962=tob_xarpus_fly_up_wingback_3;f10:3548=tob_xarpus_fly_up_forward_wings_4	unknown	rig	name states a motion not a role; plugin TobIDs.java:213 and script rs2:699 use it as the phase 2 transformation (plugin claim, not rig tier)
+tob_xarpus_static	8338	1811	seq	8062	tob_xarpus_death_a	10	1.00	f1:4014=tob_xarpus_death_wingflap	death	rig+name	name states death; 2 death candidates (a,b); engine plays it from the generated ledger on the combat form
+tob_xarpus_static	8338	1811	seq	8063	tob_xarpus_death_b	16	2.00	f1:3549=tob_xarpus_death_screech	death	rig+name	bound as walkanim of xarpus_death npcs (no readyanim); role death by name; script tob_xarpus.rs2:1660 (not bound on this record)
+tob_xarpus_static	8338	1811	seq	9033	tob_xarpus_pet_idle	52	4.00	-	other	rig	on the rig, not named by this record; the pet's ready animation (a copy of idle, 52 frames)
+tob_xarpus_static	8338	1811	seq	8064	tob_xarpus_exhumed_start	1	0.17	-	other	name	loc animation on framemap 1820 (not this npc's rig); matched by name words only
+tob_xarpus_static	8338	1811	seq	8065	tob_xarpus_exhumed_loop	10	10.00	-	other	name	loc animation on framemap 1820 (not this npc's rig); matched by name words only
+tob_xarpus_static	8338	1811	seq	8066	tob_xarpus_exhumed_end	20	2.00	-	other	name	loc animation on framemap 1820 (not this npc's rig); matched by name words only
+tob_xarpus_static	8338	1811	seq	8067	tob_xarpus_acid_splat_start	1	0.17	-	other	name	loc animation on framemap 1816 (not this npc's rig); matched by name words only
+tob_xarpus_static	8338	1811	seq	8068	tob_xarpus_acid_splat_loop	6	10.00	-	other	name	loc animation on framemap 1816 (not this npc's rig); matched by name words only
+tob_xarpus_static	8338	1811	seq	8069	tob_xarpus_acid_splat_end	4	0.53	-	other	name	loc animation on framemap 1816 (not this npc's rig); matched by name words only
+tob_xarpus_feeding	8339	1811	seq	8058	tob_xarpus_idle	52	4.00	f1:3541=tob_xarpus_idle_wingflap_1;f14:3975=tob_xarpus_idle_wingflap_2;f27:3964=tob_xarpus_idle_wingflap_3	other	rig	on the rig, not named by this record; the combat form's ready animation
+tob_xarpus_feeding	8339	1811	seq	8059	tob_xarpus_attack_ranged	21	2.00	f10:3290=tob_xarpus_attack_ranged_projectile_5	attack1	rig+name	name states attack; script plays it per spit tick (tob_xarpus.rs2:1034)
+tob_xarpus_feeding	8339	1811	seq	8060	tob_xarpus_absorb	13	2.00	-	ready	bound	static+feeding forms ready+walk; 2 ticks
+tob_xarpus_feeding	8339	1811	seq	8061	tob_xarpus_fly_up	27	3.00	f1:3962=tob_xarpus_fly_up_wingback_3;f10:3548=tob_xarpus_fly_up_forward_wings_4	unknown	rig	name states a motion not a role; plugin TobIDs.java:213 and script rs2:699 use it as the phase 2 transformation (plugin claim, not rig tier)
+tob_xarpus_feeding	8339	1811	seq	8062	tob_xarpus_death_a	10	1.00	f1:4014=tob_xarpus_death_wingflap	death	rig+name	name states death; 2 death candidates (a,b); engine plays it from the generated ledger on the combat form
+tob_xarpus_feeding	8339	1811	seq	8063	tob_xarpus_death_b	16	2.00	f1:3549=tob_xarpus_death_screech	death	rig+name	bound as walkanim of xarpus_death npcs (no readyanim); role death by name; script tob_xarpus.rs2:1660 (not bound on this record)
+tob_xarpus_feeding	8339	1811	seq	9033	tob_xarpus_pet_idle	52	4.00	-	other	rig	on the rig, not named by this record; the pet's ready animation (a copy of idle, 52 frames)
+tob_xarpus_feeding	8339	1811	seq	8064	tob_xarpus_exhumed_start	1	0.17	-	other	name	loc animation on framemap 1820 (not this npc's rig); matched by name words only
+tob_xarpus_feeding	8339	1811	seq	8065	tob_xarpus_exhumed_loop	10	10.00	-	other	name	loc animation on framemap 1820 (not this npc's rig); matched by name words only
+tob_xarpus_feeding	8339	1811	seq	8066	tob_xarpus_exhumed_end	20	2.00	-	other	name	loc animation on framemap 1820 (not this npc's rig); matched by name words only
+tob_xarpus_feeding	8339	1811	seq	8067	tob_xarpus_acid_splat_start	1	0.17	-	other	name	loc animation on framemap 1816 (not this npc's rig); matched by name words only
+tob_xarpus_feeding	8339	1811	seq	8068	tob_xarpus_acid_splat_loop	6	10.00	-	other	name	loc animation on framemap 1816 (not this npc's rig); matched by name words only
+tob_xarpus_feeding	8339	1811	seq	8069	tob_xarpus_acid_splat_end	4	0.53	-	other	name	loc animation on framemap 1816 (not this npc's rig); matched by name words only
+tob_xarpus_combat	8340	1811	seq	8058	tob_xarpus_idle	52	4.00	f1:3541=tob_xarpus_idle_wingflap_1;f14:3975=tob_xarpus_idle_wingflap_2;f27:3964=tob_xarpus_idle_wingflap_3	ready	bound	combat form ready+walk; also tobquest_xarpus
+tob_xarpus_combat	8340	1811	seq	8059	tob_xarpus_attack_ranged	21	2.00	f10:3290=tob_xarpus_attack_ranged_projectile_5	attack1	rig+name	name states attack; script plays it per spit tick (tob_xarpus.rs2:1034)
+tob_xarpus_combat	8340	1811	seq	8060	tob_xarpus_absorb	13	2.00	-	other	rig	on the rig, not named by this record; the feeding form's ready animation
+tob_xarpus_combat	8340	1811	seq	8061	tob_xarpus_fly_up	27	3.00	f1:3962=tob_xarpus_fly_up_wingback_3;f10:3548=tob_xarpus_fly_up_forward_wings_4	unknown	rig	name states a motion not a role; plugin TobIDs.java:213 and script rs2:699 use it as the phase 2 transformation (plugin claim, not rig tier)
+tob_xarpus_combat	8340	1811	seq	8062	tob_xarpus_death_a	10	1.00	f1:4014=tob_xarpus_death_wingflap	death	rig+name	name states death; 2 death candidates (a,b); engine plays it from the generated ledger on the combat form
+tob_xarpus_combat	8340	1811	seq	8063	tob_xarpus_death_b	16	2.00	f1:3549=tob_xarpus_death_screech	death	rig+name	bound as walkanim of xarpus_death npcs (no readyanim); role death by name; script tob_xarpus.rs2:1660 (not bound on this record)
+tob_xarpus_combat	8340	1811	seq	9033	tob_xarpus_pet_idle	52	4.00	-	other	rig	on the rig, not named by this record; the pet's ready animation (a copy of idle, 52 frames)
+tob_xarpus_combat	8340	1811	seq	8064	tob_xarpus_exhumed_start	1	0.17	-	other	name	loc animation on framemap 1820 (not this npc's rig); matched by name words only
+tob_xarpus_combat	8340	1811	seq	8065	tob_xarpus_exhumed_loop	10	10.00	-	other	name	loc animation on framemap 1820 (not this npc's rig); matched by name words only
+tob_xarpus_combat	8340	1811	seq	8066	tob_xarpus_exhumed_end	20	2.00	-	other	name	loc animation on framemap 1820 (not this npc's rig); matched by name words only
+tob_xarpus_combat	8340	1811	seq	8067	tob_xarpus_acid_splat_start	1	0.17	-	other	name	loc animation on framemap 1816 (not this npc's rig); matched by name words only
+tob_xarpus_combat	8340	1811	seq	8068	tob_xarpus_acid_splat_loop	6	10.00	-	other	name	loc animation on framemap 1816 (not this npc's rig); matched by name words only
+tob_xarpus_combat	8340	1811	seq	8069	tob_xarpus_acid_splat_end	4	0.53	-	other	name	loc animation on framemap 1816 (not this npc's rig); matched by name words only
+xarpus_death	8341	1811	seq	8058	tob_xarpus_idle	52	4.00	f1:3541=tob_xarpus_idle_wingflap_1;f14:3975=tob_xarpus_idle_wingflap_2;f27:3964=tob_xarpus_idle_wingflap_3	other	rig	on the rig, not named by this record; the combat form's ready animation
+xarpus_death	8341	1811	seq	8059	tob_xarpus_attack_ranged	21	2.00	f10:3290=tob_xarpus_attack_ranged_projectile_5	attack1	rig+name	name states attack; script plays it per spit tick (tob_xarpus.rs2:1034)
+xarpus_death	8341	1811	seq	8060	tob_xarpus_absorb	13	2.00	-	other	rig	on the rig, not named by this record; the feeding form's ready animation
+xarpus_death	8341	1811	seq	8061	tob_xarpus_fly_up	27	3.00	f1:3962=tob_xarpus_fly_up_wingback_3;f10:3548=tob_xarpus_fly_up_forward_wings_4	unknown	rig	name states a motion not a role; plugin TobIDs.java:213 and script rs2:699 use it as the phase 2 transformation (plugin claim, not rig tier)
+xarpus_death	8341	1811	seq	8062	tob_xarpus_death_a	10	1.00	f1:4014=tob_xarpus_death_wingflap	death	rig+name	name states death; 2 death candidates (a,b); engine plays it from the generated ledger on the combat form
+xarpus_death	8341	1811	seq	8063	tob_xarpus_death_b	16	2.00	f1:3549=tob_xarpus_death_screech	death	bound	bound as walkanim of xarpus_death npcs (no readyanim); role death by name; script tob_xarpus.rs2:1660
+xarpus_death	8341	1811	seq	9033	tob_xarpus_pet_idle	52	4.00	-	other	rig	on the rig, not named by this record; the pet's ready animation (a copy of idle, 52 frames)
+xarpus_death	8341	1811	seq	8064	tob_xarpus_exhumed_start	1	0.17	-	other	name	loc animation on framemap 1820 (not this npc's rig); matched by name words only
+xarpus_death	8341	1811	seq	8065	tob_xarpus_exhumed_loop	10	10.00	-	other	name	loc animation on framemap 1820 (not this npc's rig); matched by name words only
+xarpus_death	8341	1811	seq	8066	tob_xarpus_exhumed_end	20	2.00	-	other	name	loc animation on framemap 1820 (not this npc's rig); matched by name words only
+xarpus_death	8341	1811	seq	8067	tob_xarpus_acid_splat_start	1	0.17	-	other	name	loc animation on framemap 1816 (not this npc's rig); matched by name words only
+xarpus_death	8341	1811	seq	8068	tob_xarpus_acid_splat_loop	6	10.00	-	other	name	loc animation on framemap 1816 (not this npc's rig); matched by name words only
+xarpus_death	8341	1811	seq	8069	tob_xarpus_acid_splat_end	4	0.53	-	other	name	loc animation on framemap 1816 (not this npc's rig); matched by name words only
+poh_verzik_pet_xarpus	10765	1811	seq	8058	tob_xarpus_idle	52	4.00	f1:3541=tob_xarpus_idle_wingflap_1;f14:3975=tob_xarpus_idle_wingflap_2;f27:3964=tob_xarpus_idle_wingflap_3	other	rig	on the rig, not named by this record; the combat form's ready animation
+poh_verzik_pet_xarpus	10765	1811	seq	8059	tob_xarpus_attack_ranged	21	2.00	f10:3290=tob_xarpus_attack_ranged_projectile_5	attack1	rig+name	name states attack; script plays it per spit tick (tob_xarpus.rs2:1034)
+poh_verzik_pet_xarpus	10765	1811	seq	8060	tob_xarpus_absorb	13	2.00	-	other	rig	on the rig, not named by this record; the feeding form's ready animation
+poh_verzik_pet_xarpus	10765	1811	seq	8061	tob_xarpus_fly_up	27	3.00	f1:3962=tob_xarpus_fly_up_wingback_3;f10:3548=tob_xarpus_fly_up_forward_wings_4	unknown	rig	name states a motion not a role; plugin TobIDs.java:213 and script rs2:699 use it as the phase 2 transformation (plugin claim, not rig tier)
+poh_verzik_pet_xarpus	10765	1811	seq	8062	tob_xarpus_death_a	10	1.00	f1:4014=tob_xarpus_death_wingflap	death	rig+name	name states death; 2 death candidates (a,b); engine plays it from the generated ledger on the combat form
+poh_verzik_pet_xarpus	10765	1811	seq	8063	tob_xarpus_death_b	16	2.00	f1:3549=tob_xarpus_death_screech	death	rig+name	bound as walkanim of xarpus_death npcs (no readyanim); role death by name; script tob_xarpus.rs2:1660 (not bound on this record)
+poh_verzik_pet_xarpus	10765	1811	seq	9033	tob_xarpus_pet_idle	52	4.00	-	ready	bound	pet npc ready+walk
+poh_verzik_pet_xarpus	10765	1811	seq	8064	tob_xarpus_exhumed_start	1	0.17	-	other	name	loc animation on framemap 1820 (not this npc's rig); matched by name words only
+poh_verzik_pet_xarpus	10765	1811	seq	8065	tob_xarpus_exhumed_loop	10	10.00	-	other	name	loc animation on framemap 1820 (not this npc's rig); matched by name words only
+poh_verzik_pet_xarpus	10765	1811	seq	8066	tob_xarpus_exhumed_end	20	2.00	-	other	name	loc animation on framemap 1820 (not this npc's rig); matched by name words only
+poh_verzik_pet_xarpus	10765	1811	seq	8067	tob_xarpus_acid_splat_start	1	0.17	-	other	name	loc animation on framemap 1816 (not this npc's rig); matched by name words only
+poh_verzik_pet_xarpus	10765	1811	seq	8068	tob_xarpus_acid_splat_loop	6	10.00	-	other	name	loc animation on framemap 1816 (not this npc's rig); matched by name words only
+poh_verzik_pet_xarpus	10765	1811	seq	8069	tob_xarpus_acid_splat_end	4	0.53	-	other	name	loc animation on framemap 1816 (not this npc's rig); matched by name words only
+tob_xarpus_static_story	10766	1811	seq	8058	tob_xarpus_idle	52	4.00	f1:3541=tob_xarpus_idle_wingflap_1;f14:3975=tob_xarpus_idle_wingflap_2;f27:3964=tob_xarpus_idle_wingflap_3	other	rig	on the rig, not named by this record; the combat form's ready animation
+tob_xarpus_static_story	10766	1811	seq	8059	tob_xarpus_attack_ranged	21	2.00	f10:3290=tob_xarpus_attack_ranged_projectile_5	attack1	rig+name	name states attack; script plays it per spit tick (tob_xarpus.rs2:1034)
+tob_xarpus_static_story	10766	1811	seq	8060	tob_xarpus_absorb	13	2.00	-	ready	bound	static+feeding forms ready+walk; 2 ticks
+tob_xarpus_static_story	10766	1811	seq	8061	tob_xarpus_fly_up	27	3.00	f1:3962=tob_xarpus_fly_up_wingback_3;f10:3548=tob_xarpus_fly_up_forward_wings_4	unknown	rig	name states a motion not a role; plugin TobIDs.java:213 and script rs2:699 use it as the phase 2 transformation (plugin claim, not rig tier)
+tob_xarpus_static_story	10766	1811	seq	8062	tob_xarpus_death_a	10	1.00	f1:4014=tob_xarpus_death_wingflap	death	rig+name	name states death; 2 death candidates (a,b); engine plays it from the generated ledger on the combat form
+tob_xarpus_static_story	10766	1811	seq	8063	tob_xarpus_death_b	16	2.00	f1:3549=tob_xarpus_death_screech	death	rig+name	bound as walkanim of xarpus_death npcs (no readyanim); role death by name; script tob_xarpus.rs2:1660 (not bound on this record)
+tob_xarpus_static_story	10766	1811	seq	9033	tob_xarpus_pet_idle	52	4.00	-	other	rig	on the rig, not named by this record; the pet's ready animation (a copy of idle, 52 frames)
+tob_xarpus_static_story	10766	1811	seq	8064	tob_xarpus_exhumed_start	1	0.17	-	other	name	loc animation on framemap 1820 (not this npc's rig); matched by name words only
+tob_xarpus_static_story	10766	1811	seq	8065	tob_xarpus_exhumed_loop	10	10.00	-	other	name	loc animation on framemap 1820 (not this npc's rig); matched by name words only
+tob_xarpus_static_story	10766	1811	seq	8066	tob_xarpus_exhumed_end	20	2.00	-	other	name	loc animation on framemap 1820 (not this npc's rig); matched by name words only
+tob_xarpus_static_story	10766	1811	seq	8067	tob_xarpus_acid_splat_start	1	0.17	-	other	name	loc animation on framemap 1816 (not this npc's rig); matched by name words only
+tob_xarpus_static_story	10766	1811	seq	8068	tob_xarpus_acid_splat_loop	6	10.00	-	other	name	loc animation on framemap 1816 (not this npc's rig); matched by name words only
+tob_xarpus_static_story	10766	1811	seq	8069	tob_xarpus_acid_splat_end	4	0.53	-	other	name	loc animation on framemap 1816 (not this npc's rig); matched by name words only
+tob_xarpus_feeding_story	10767	1811	seq	8058	tob_xarpus_idle	52	4.00	f1:3541=tob_xarpus_idle_wingflap_1;f14:3975=tob_xarpus_idle_wingflap_2;f27:3964=tob_xarpus_idle_wingflap_3	other	rig	on the rig, not named by this record; the combat form's ready animation
+tob_xarpus_feeding_story	10767	1811	seq	8059	tob_xarpus_attack_ranged	21	2.00	f10:3290=tob_xarpus_attack_ranged_projectile_5	attack1	rig+name	name states attack; script plays it per spit tick (tob_xarpus.rs2:1034)
+tob_xarpus_feeding_story	10767	1811	seq	8060	tob_xarpus_absorb	13	2.00	-	ready	bound	static+feeding forms ready+walk; 2 ticks
+tob_xarpus_feeding_story	10767	1811	seq	8061	tob_xarpus_fly_up	27	3.00	f1:3962=tob_xarpus_fly_up_wingback_3;f10:3548=tob_xarpus_fly_up_forward_wings_4	unknown	rig	name states a motion not a role; plugin TobIDs.java:213 and script rs2:699 use it as the phase 2 transformation (plugin claim, not rig tier)
+tob_xarpus_feeding_story	10767	1811	seq	8062	tob_xarpus_death_a	10	1.00	f1:4014=tob_xarpus_death_wingflap	death	rig+name	name states death; 2 death candidates (a,b); engine plays it from the generated ledger on the combat form
+tob_xarpus_feeding_story	10767	1811	seq	8063	tob_xarpus_death_b	16	2.00	f1:3549=tob_xarpus_death_screech	death	rig+name	bound as walkanim of xarpus_death npcs (no readyanim); role death by name; script tob_xarpus.rs2:1660 (not bound on this record)
+tob_xarpus_feeding_story	10767	1811	seq	9033	tob_xarpus_pet_idle	52	4.00	-	other	rig	on the rig, not named by this record; the pet's ready animation (a copy of idle, 52 frames)
+tob_xarpus_feeding_story	10767	1811	seq	8064	tob_xarpus_exhumed_start	1	0.17	-	other	name	loc animation on framemap 1820 (not this npc's rig); matched by name words only
+tob_xarpus_feeding_story	10767	1811	seq	8065	tob_xarpus_exhumed_loop	10	10.00	-	other	name	loc animation on framemap 1820 (not this npc's rig); matched by name words only
+tob_xarpus_feeding_story	10767	1811	seq	8066	tob_xarpus_exhumed_end	20	2.00	-	other	name	loc animation on framemap 1820 (not this npc's rig); matched by name words only
+tob_xarpus_feeding_story	10767	1811	seq	8067	tob_xarpus_acid_splat_start	1	0.17	-	other	name	loc animation on framemap 1816 (not this npc's rig); matched by name words only
+tob_xarpus_feeding_story	10767	1811	seq	8068	tob_xarpus_acid_splat_loop	6	10.00	-	other	name	loc animation on framemap 1816 (not this npc's rig); matched by name words only
+tob_xarpus_feeding_story	10767	1811	seq	8069	tob_xarpus_acid_splat_end	4	0.53	-	other	name	loc animation on framemap 1816 (not this npc's rig); matched by name words only
+tob_xarpus_combat_story	10768	1811	seq	8058	tob_xarpus_idle	52	4.00	f1:3541=tob_xarpus_idle_wingflap_1;f14:3975=tob_xarpus_idle_wingflap_2;f27:3964=tob_xarpus_idle_wingflap_3	ready	bound	combat form ready+walk; also tobquest_xarpus
+tob_xarpus_combat_story	10768	1811	seq	8059	tob_xarpus_attack_ranged	21	2.00	f10:3290=tob_xarpus_attack_ranged_projectile_5	attack1	rig+name	name states attack; script plays it per spit tick (tob_xarpus.rs2:1034)
+tob_xarpus_combat_story	10768	1811	seq	8060	tob_xarpus_absorb	13	2.00	-	other	rig	on the rig, not named by this record; the feeding form's ready animation
+tob_xarpus_combat_story	10768	1811	seq	8061	tob_xarpus_fly_up	27	3.00	f1:3962=tob_xarpus_fly_up_wingback_3;f10:3548=tob_xarpus_fly_up_forward_wings_4	unknown	rig	name states a motion not a role; plugin TobIDs.java:213 and script rs2:699 use it as the phase 2 transformation (plugin claim, not rig tier)
+tob_xarpus_combat_story	10768	1811	seq	8062	tob_xarpus_death_a	10	1.00	f1:4014=tob_xarpus_death_wingflap	death	rig+name	name states death; 2 death candidates (a,b); engine plays it from the generated ledger on the combat form
+tob_xarpus_combat_story	10768	1811	seq	8063	tob_xarpus_death_b	16	2.00	f1:3549=tob_xarpus_death_screech	death	rig+name	bound as walkanim of xarpus_death npcs (no readyanim); role death by name; script tob_xarpus.rs2:1660 (not bound on this record)
+tob_xarpus_combat_story	10768	1811	seq	9033	tob_xarpus_pet_idle	52	4.00	-	other	rig	on the rig, not named by this record; the pet's ready animation (a copy of idle, 52 frames)
+tob_xarpus_combat_story	10768	1811	seq	8064	tob_xarpus_exhumed_start	1	0.17	-	other	name	loc animation on framemap 1820 (not this npc's rig); matched by name words only
+tob_xarpus_combat_story	10768	1811	seq	8065	tob_xarpus_exhumed_loop	10	10.00	-	other	name	loc animation on framemap 1820 (not this npc's rig); matched by name words only
+tob_xarpus_combat_story	10768	1811	seq	8066	tob_xarpus_exhumed_end	20	2.00	-	other	name	loc animation on framemap 1820 (not this npc's rig); matched by name words only
+tob_xarpus_combat_story	10768	1811	seq	8067	tob_xarpus_acid_splat_start	1	0.17	-	other	name	loc animation on framemap 1816 (not this npc's rig); matched by name words only
+tob_xarpus_combat_story	10768	1811	seq	8068	tob_xarpus_acid_splat_loop	6	10.00	-	other	name	loc animation on framemap 1816 (not this npc's rig); matched by name words only
+tob_xarpus_combat_story	10768	1811	seq	8069	tob_xarpus_acid_splat_end	4	0.53	-	other	name	loc animation on framemap 1816 (not this npc's rig); matched by name words only
+xarpus_death_story	10769	1811	seq	8058	tob_xarpus_idle	52	4.00	f1:3541=tob_xarpus_idle_wingflap_1;f14:3975=tob_xarpus_idle_wingflap_2;f27:3964=tob_xarpus_idle_wingflap_3	other	rig	on the rig, not named by this record; the combat form's ready animation
+xarpus_death_story	10769	1811	seq	8059	tob_xarpus_attack_ranged	21	2.00	f10:3290=tob_xarpus_attack_ranged_projectile_5	attack1	rig+name	name states attack; script plays it per spit tick (tob_xarpus.rs2:1034)
+xarpus_death_story	10769	1811	seq	8060	tob_xarpus_absorb	13	2.00	-	other	rig	on the rig, not named by this record; the feeding form's ready animation
+xarpus_death_story	10769	1811	seq	8061	tob_xarpus_fly_up	27	3.00	f1:3962=tob_xarpus_fly_up_wingback_3;f10:3548=tob_xarpus_fly_up_forward_wings_4	unknown	rig	name states a motion not a role; plugin TobIDs.java:213 and script rs2:699 use it as the phase 2 transformation (plugin claim, not rig tier)
+xarpus_death_story	10769	1811	seq	8062	tob_xarpus_death_a	10	1.00	f1:4014=tob_xarpus_death_wingflap	death	rig+name	name states death; 2 death candidates (a,b); engine plays it from the generated ledger on the combat form
+xarpus_death_story	10769	1811	seq	8063	tob_xarpus_death_b	16	2.00	f1:3549=tob_xarpus_death_screech	death	bound	bound as walkanim of xarpus_death npcs (no readyanim); role death by name; script tob_xarpus.rs2:1660
+xarpus_death_story	10769	1811	seq	9033	tob_xarpus_pet_idle	52	4.00	-	other	rig	on the rig, not named by this record; the pet's ready animation (a copy of idle, 52 frames)
+xarpus_death_story	10769	1811	seq	8064	tob_xarpus_exhumed_start	1	0.17	-	other	name	loc animation on framemap 1820 (not this npc's rig); matched by name words only
+xarpus_death_story	10769	1811	seq	8065	tob_xarpus_exhumed_loop	10	10.00	-	other	name	loc animation on framemap 1820 (not this npc's rig); matched by name words only
+xarpus_death_story	10769	1811	seq	8066	tob_xarpus_exhumed_end	20	2.00	-	other	name	loc animation on framemap 1820 (not this npc's rig); matched by name words only
+xarpus_death_story	10769	1811	seq	8067	tob_xarpus_acid_splat_start	1	0.17	-	other	name	loc animation on framemap 1816 (not this npc's rig); matched by name words only
+xarpus_death_story	10769	1811	seq	8068	tob_xarpus_acid_splat_loop	6	10.00	-	other	name	loc animation on framemap 1816 (not this npc's rig); matched by name words only
+xarpus_death_story	10769	1811	seq	8069	tob_xarpus_acid_splat_end	4	0.53	-	other	name	loc animation on framemap 1816 (not this npc's rig); matched by name words only
+tob_xarpus_static_hard	10770	1811	seq	8058	tob_xarpus_idle	52	4.00	f1:3541=tob_xarpus_idle_wingflap_1;f14:3975=tob_xarpus_idle_wingflap_2;f27:3964=tob_xarpus_idle_wingflap_3	other	rig	on the rig, not named by this record; the combat form's ready animation
+tob_xarpus_static_hard	10770	1811	seq	8059	tob_xarpus_attack_ranged	21	2.00	f10:3290=tob_xarpus_attack_ranged_projectile_5	attack1	rig+name	name states attack; script plays it per spit tick (tob_xarpus.rs2:1034)
+tob_xarpus_static_hard	10770	1811	seq	8060	tob_xarpus_absorb	13	2.00	-	ready	bound	static+feeding forms ready+walk; 2 ticks
+tob_xarpus_static_hard	10770	1811	seq	8061	tob_xarpus_fly_up	27	3.00	f1:3962=tob_xarpus_fly_up_wingback_3;f10:3548=tob_xarpus_fly_up_forward_wings_4	unknown	rig	name states a motion not a role; plugin TobIDs.java:213 and script rs2:699 use it as the phase 2 transformation (plugin claim, not rig tier)
+tob_xarpus_static_hard	10770	1811	seq	8062	tob_xarpus_death_a	10	1.00	f1:4014=tob_xarpus_death_wingflap	death	rig+name	name states death; 2 death candidates (a,b); engine plays it from the generated ledger on the combat form
+tob_xarpus_static_hard	10770	1811	seq	8063	tob_xarpus_death_b	16	2.00	f1:3549=tob_xarpus_death_screech	death	rig+name	bound as walkanim of xarpus_death npcs (no readyanim); role death by name; script tob_xarpus.rs2:1660 (not bound on this record)
+tob_xarpus_static_hard	10770	1811	seq	9033	tob_xarpus_pet_idle	52	4.00	-	other	rig	on the rig, not named by this record; the pet's ready animation (a copy of idle, 52 frames)
+tob_xarpus_static_hard	10770	1811	seq	8064	tob_xarpus_exhumed_start	1	0.17	-	other	name	loc animation on framemap 1820 (not this npc's rig); matched by name words only
+tob_xarpus_static_hard	10770	1811	seq	8065	tob_xarpus_exhumed_loop	10	10.00	-	other	name	loc animation on framemap 1820 (not this npc's rig); matched by name words only
+tob_xarpus_static_hard	10770	1811	seq	8066	tob_xarpus_exhumed_end	20	2.00	-	other	name	loc animation on framemap 1820 (not this npc's rig); matched by name words only
+tob_xarpus_static_hard	10770	1811	seq	8067	tob_xarpus_acid_splat_start	1	0.17	-	other	name	loc animation on framemap 1816 (not this npc's rig); matched by name words only
+tob_xarpus_static_hard	10770	1811	seq	8068	tob_xarpus_acid_splat_loop	6	10.00	-	other	name	loc animation on framemap 1816 (not this npc's rig); matched by name words only
+tob_xarpus_static_hard	10770	1811	seq	8069	tob_xarpus_acid_splat_end	4	0.53	-	other	name	loc animation on framemap 1816 (not this npc's rig); matched by name words only
+tob_xarpus_feeding_hard	10771	1811	seq	8058	tob_xarpus_idle	52	4.00	f1:3541=tob_xarpus_idle_wingflap_1;f14:3975=tob_xarpus_idle_wingflap_2;f27:3964=tob_xarpus_idle_wingflap_3	other	rig	on the rig, not named by this record; the combat form's ready animation
+tob_xarpus_feeding_hard	10771	1811	seq	8059	tob_xarpus_attack_ranged	21	2.00	f10:3290=tob_xarpus_attack_ranged_projectile_5	attack1	rig+name	name states attack; script plays it per spit tick (tob_xarpus.rs2:1034)
+tob_xarpus_feeding_hard	10771	1811	seq	8060	tob_xarpus_absorb	13	2.00	-	ready	bound	static+feeding forms ready+walk; 2 ticks
+tob_xarpus_feeding_hard	10771	1811	seq	8061	tob_xarpus_fly_up	27	3.00	f1:3962=tob_xarpus_fly_up_wingback_3;f10:3548=tob_xarpus_fly_up_forward_wings_4	unknown	rig	name states a motion not a role; plugin TobIDs.java:213 and script rs2:699 use it as the phase 2 transformation (plugin claim, not rig tier)
+tob_xarpus_feeding_hard	10771	1811	seq	8062	tob_xarpus_death_a	10	1.00	f1:4014=tob_xarpus_death_wingflap	death	rig+name	name states death; 2 death candidates (a,b); engine plays it from the generated ledger on the combat form
+tob_xarpus_feeding_hard	10771	1811	seq	8063	tob_xarpus_death_b	16	2.00	f1:3549=tob_xarpus_death_screech	death	rig+name	bound as walkanim of xarpus_death npcs (no readyanim); role death by name; script tob_xarpus.rs2:1660 (not bound on this record)
+tob_xarpus_feeding_hard	10771	1811	seq	9033	tob_xarpus_pet_idle	52	4.00	-	other	rig	on the rig, not named by this record; the pet's ready animation (a copy of idle, 52 frames)
+tob_xarpus_feeding_hard	10771	1811	seq	8064	tob_xarpus_exhumed_start	1	0.17	-	other	name	loc animation on framemap 1820 (not this npc's rig); matched by name words only
+tob_xarpus_feeding_hard	10771	1811	seq	8065	tob_xarpus_exhumed_loop	10	10.00	-	other	name	loc animation on framemap 1820 (not this npc's rig); matched by name words only
+tob_xarpus_feeding_hard	10771	1811	seq	8066	tob_xarpus_exhumed_end	20	2.00	-	other	name	loc animation on framemap 1820 (not this npc's rig); matched by name words only
+tob_xarpus_feeding_hard	10771	1811	seq	8067	tob_xarpus_acid_splat_start	1	0.17	-	other	name	loc animation on framemap 1816 (not this npc's rig); matched by name words only
+tob_xarpus_feeding_hard	10771	1811	seq	8068	tob_xarpus_acid_splat_loop	6	10.00	-	other	name	loc animation on framemap 1816 (not this npc's rig); matched by name words only
+tob_xarpus_feeding_hard	10771	1811	seq	8069	tob_xarpus_acid_splat_end	4	0.53	-	other	name	loc animation on framemap 1816 (not this npc's rig); matched by name words only
+tob_xarpus_combat_hard	10772	1811	seq	8058	tob_xarpus_idle	52	4.00	f1:3541=tob_xarpus_idle_wingflap_1;f14:3975=tob_xarpus_idle_wingflap_2;f27:3964=tob_xarpus_idle_wingflap_3	ready	bound	combat form ready+walk; also tobquest_xarpus
+tob_xarpus_combat_hard	10772	1811	seq	8059	tob_xarpus_attack_ranged	21	2.00	f10:3290=tob_xarpus_attack_ranged_projectile_5	attack1	rig+name	name states attack; script plays it per spit tick (tob_xarpus.rs2:1034)
+tob_xarpus_combat_hard	10772	1811	seq	8060	tob_xarpus_absorb	13	2.00	-	other	rig	on the rig, not named by this record; the feeding form's ready animation
+tob_xarpus_combat_hard	10772	1811	seq	8061	tob_xarpus_fly_up	27	3.00	f1:3962=tob_xarpus_fly_up_wingback_3;f10:3548=tob_xarpus_fly_up_forward_wings_4	unknown	rig	name states a motion not a role; plugin TobIDs.java:213 and script rs2:699 use it as the phase 2 transformation (plugin claim, not rig tier)
+tob_xarpus_combat_hard	10772	1811	seq	8062	tob_xarpus_death_a	10	1.00	f1:4014=tob_xarpus_death_wingflap	death	rig+name	name states death; 2 death candidates (a,b); engine plays it from the generated ledger on the combat form
+tob_xarpus_combat_hard	10772	1811	seq	8063	tob_xarpus_death_b	16	2.00	f1:3549=tob_xarpus_death_screech	death	rig+name	bound as walkanim of xarpus_death npcs (no readyanim); role death by name; script tob_xarpus.rs2:1660 (not bound on this record)
+tob_xarpus_combat_hard	10772	1811	seq	9033	tob_xarpus_pet_idle	52	4.00	-	other	rig	on the rig, not named by this record; the pet's ready animation (a copy of idle, 52 frames)
+tob_xarpus_combat_hard	10772	1811	seq	8064	tob_xarpus_exhumed_start	1	0.17	-	other	name	loc animation on framemap 1820 (not this npc's rig); matched by name words only
+tob_xarpus_combat_hard	10772	1811	seq	8065	tob_xarpus_exhumed_loop	10	10.00	-	other	name	loc animation on framemap 1820 (not this npc's rig); matched by name words only
+tob_xarpus_combat_hard	10772	1811	seq	8066	tob_xarpus_exhumed_end	20	2.00	-	other	name	loc animation on framemap 1820 (not this npc's rig); matched by name words only
+tob_xarpus_combat_hard	10772	1811	seq	8067	tob_xarpus_acid_splat_start	1	0.17	-	other	name	loc animation on framemap 1816 (not this npc's rig); matched by name words only
+tob_xarpus_combat_hard	10772	1811	seq	8068	tob_xarpus_acid_splat_loop	6	10.00	-	other	name	loc animation on framemap 1816 (not this npc's rig); matched by name words only
+tob_xarpus_combat_hard	10772	1811	seq	8069	tob_xarpus_acid_splat_end	4	0.53	-	other	name	loc animation on framemap 1816 (not this npc's rig); matched by name words only
+xarpus_death_hard	10773	1811	seq	8058	tob_xarpus_idle	52	4.00	f1:3541=tob_xarpus_idle_wingflap_1;f14:3975=tob_xarpus_idle_wingflap_2;f27:3964=tob_xarpus_idle_wingflap_3	other	rig	on the rig, not named by this record; the combat form's ready animation
+xarpus_death_hard	10773	1811	seq	8059	tob_xarpus_attack_ranged	21	2.00	f10:3290=tob_xarpus_attack_ranged_projectile_5	attack1	rig+name	name states attack; script plays it per spit tick (tob_xarpus.rs2:1034)
+xarpus_death_hard	10773	1811	seq	8060	tob_xarpus_absorb	13	2.00	-	other	rig	on the rig, not named by this record; the feeding form's ready animation
+xarpus_death_hard	10773	1811	seq	8061	tob_xarpus_fly_up	27	3.00	f1:3962=tob_xarpus_fly_up_wingback_3;f10:3548=tob_xarpus_fly_up_forward_wings_4	unknown	rig	name states a motion not a role; plugin TobIDs.java:213 and script rs2:699 use it as the phase 2 transformation (plugin claim, not rig tier)
+xarpus_death_hard	10773	1811	seq	8062	tob_xarpus_death_a	10	1.00	f1:4014=tob_xarpus_death_wingflap	death	rig+name	name states death; 2 death candidates (a,b); engine plays it from the generated ledger on the combat form
+xarpus_death_hard	10773	1811	seq	8063	tob_xarpus_death_b	16	2.00	f1:3549=tob_xarpus_death_screech	death	bound	bound as walkanim of xarpus_death npcs (no readyanim); role death by name; script tob_xarpus.rs2:1660
+xarpus_death_hard	10773	1811	seq	9033	tob_xarpus_pet_idle	52	4.00	-	other	rig	on the rig, not named by this record; the pet's ready animation (a copy of idle, 52 frames)
+xarpus_death_hard	10773	1811	seq	8064	tob_xarpus_exhumed_start	1	0.17	-	other	name	loc animation on framemap 1820 (not this npc's rig); matched by name words only
+xarpus_death_hard	10773	1811	seq	8065	tob_xarpus_exhumed_loop	10	10.00	-	other	name	loc animation on framemap 1820 (not this npc's rig); matched by name words only
+xarpus_death_hard	10773	1811	seq	8066	tob_xarpus_exhumed_end	20	2.00	-	other	name	loc animation on framemap 1820 (not this npc's rig); matched by name words only
+xarpus_death_hard	10773	1811	seq	8067	tob_xarpus_acid_splat_start	1	0.17	-	other	name	loc animation on framemap 1816 (not this npc's rig); matched by name words only
+xarpus_death_hard	10773	1811	seq	8068	tob_xarpus_acid_splat_loop	6	10.00	-	other	name	loc animation on framemap 1816 (not this npc's rig); matched by name words only
+xarpus_death_hard	10773	1811	seq	8069	tob_xarpus_acid_splat_end	4	0.53	-	other	name	loc animation on framemap 1816 (not this npc's rig); matched by name words only
+verzik_pet_xarpus	10874	1811	seq	8058	tob_xarpus_idle	52	4.00	f1:3541=tob_xarpus_idle_wingflap_1;f14:3975=tob_xarpus_idle_wingflap_2;f27:3964=tob_xarpus_idle_wingflap_3	other	rig	on the rig, not named by this record; the combat form's ready animation
+verzik_pet_xarpus	10874	1811	seq	8059	tob_xarpus_attack_ranged	21	2.00	f10:3290=tob_xarpus_attack_ranged_projectile_5	attack1	rig+name	name states attack; script plays it per spit tick (tob_xarpus.rs2:1034)
+verzik_pet_xarpus	10874	1811	seq	8060	tob_xarpus_absorb	13	2.00	-	other	rig	on the rig, not named by this record; the feeding form's ready animation
+verzik_pet_xarpus	10874	1811	seq	8061	tob_xarpus_fly_up	27	3.00	f1:3962=tob_xarpus_fly_up_wingback_3;f10:3548=tob_xarpus_fly_up_forward_wings_4	unknown	rig	name states a motion not a role; plugin TobIDs.java:213 and script rs2:699 use it as the phase 2 transformation (plugin claim, not rig tier)
+verzik_pet_xarpus	10874	1811	seq	8062	tob_xarpus_death_a	10	1.00	f1:4014=tob_xarpus_death_wingflap	death	rig+name	name states death; 2 death candidates (a,b); engine plays it from the generated ledger on the combat form
+verzik_pet_xarpus	10874	1811	seq	8063	tob_xarpus_death_b	16	2.00	f1:3549=tob_xarpus_death_screech	death	rig+name	bound as walkanim of xarpus_death npcs (no readyanim); role death by name; script tob_xarpus.rs2:1660 (not bound on this record)
+verzik_pet_xarpus	10874	1811	seq	9033	tob_xarpus_pet_idle	52	4.00	-	ready	bound	pet npc ready+walk
+verzik_pet_xarpus	10874	1811	seq	8064	tob_xarpus_exhumed_start	1	0.17	-	other	name	loc animation on framemap 1820 (not this npc's rig); matched by name words only
+verzik_pet_xarpus	10874	1811	seq	8065	tob_xarpus_exhumed_loop	10	10.00	-	other	name	loc animation on framemap 1820 (not this npc's rig); matched by name words only
+verzik_pet_xarpus	10874	1811	seq	8066	tob_xarpus_exhumed_end	20	2.00	-	other	name	loc animation on framemap 1820 (not this npc's rig); matched by name words only
+verzik_pet_xarpus	10874	1811	seq	8067	tob_xarpus_acid_splat_start	1	0.17	-	other	name	loc animation on framemap 1816 (not this npc's rig); matched by name words only
+verzik_pet_xarpus	10874	1811	seq	8068	tob_xarpus_acid_splat_loop	6	10.00	-	other	name	loc animation on framemap 1816 (not this npc's rig); matched by name words only
+verzik_pet_xarpus	10874	1811	seq	8069	tob_xarpus_acid_splat_end	4	0.53	-	other	name	loc animation on framemap 1816 (not this npc's rig); matched by name words only
+tob_stranger_xarpus	11167	0	seq	-1	-	0	0	-	unknown	name	shared human rig (3905 seqs); no sequence name contains xarpus; readyanim/walkanim human_ready/human_walk_f
+tobquest_xarpus	11187	1811	seq	8058	tob_xarpus_idle	52	4.00	f1:3541=tob_xarpus_idle_wingflap_1;f14:3975=tob_xarpus_idle_wingflap_2;f27:3964=tob_xarpus_idle_wingflap_3	ready	bound	combat form ready+walk; also tobquest_xarpus
+tobquest_xarpus	11187	1811	seq	8059	tob_xarpus_attack_ranged	21	2.00	f10:3290=tob_xarpus_attack_ranged_projectile_5	attack1	rig+name	name states attack; script plays it per spit tick (tob_xarpus.rs2:1034)
+tobquest_xarpus	11187	1811	seq	8060	tob_xarpus_absorb	13	2.00	-	other	rig	on the rig, not named by this record; the feeding form's ready animation
+tobquest_xarpus	11187	1811	seq	8061	tob_xarpus_fly_up	27	3.00	f1:3962=tob_xarpus_fly_up_wingback_3;f10:3548=tob_xarpus_fly_up_forward_wings_4	unknown	rig	name states a motion not a role; plugin TobIDs.java:213 and script rs2:699 use it as the phase 2 transformation (plugin claim, not rig tier)
+tobquest_xarpus	11187	1811	seq	8062	tob_xarpus_death_a	10	1.00	f1:4014=tob_xarpus_death_wingflap	death	rig+name	name states death; 2 death candidates (a,b); engine plays it from the generated ledger on the combat form
+tobquest_xarpus	11187	1811	seq	8063	tob_xarpus_death_b	16	2.00	f1:3549=tob_xarpus_death_screech	death	rig+name	bound as walkanim of xarpus_death npcs (no readyanim); role death by name; script tob_xarpus.rs2:1660 (not bound on this record)
+tobquest_xarpus	11187	1811	seq	9033	tob_xarpus_pet_idle	52	4.00	-	other	rig	on the rig, not named by this record; the pet's ready animation (a copy of idle, 52 frames)
+tobquest_xarpus	11187	1811	seq	8064	tob_xarpus_exhumed_start	1	0.17	-	other	name	loc animation on framemap 1820 (not this npc's rig); matched by name words only
+tobquest_xarpus	11187	1811	seq	8065	tob_xarpus_exhumed_loop	10	10.00	-	other	name	loc animation on framemap 1820 (not this npc's rig); matched by name words only
+tobquest_xarpus	11187	1811	seq	8066	tob_xarpus_exhumed_end	20	2.00	-	other	name	loc animation on framemap 1820 (not this npc's rig); matched by name words only
+tobquest_xarpus	11187	1811	seq	8067	tob_xarpus_acid_splat_start	1	0.17	-	other	name	loc animation on framemap 1816 (not this npc's rig); matched by name words only
+tobquest_xarpus	11187	1811	seq	8068	tob_xarpus_acid_splat_loop	6	10.00	-	other	name	loc animation on framemap 1816 (not this npc's rig); matched by name words only
+tobquest_xarpus	11187	1811	seq	8069	tob_xarpus_acid_splat_end	4	0.53	-	other	name	loc animation on framemap 1816 (not this npc's rig); matched by name words only
+(spotanim)	-1	-	spotanim		tob_xarpus_acidpool_end_0	4	0.53	anim=tob_xarpus_acid_splat_end id=8069	other	name	model=35394; anim sequence tob_xarpus_acid_splat_end length 16 cycles
+(spotanim)	-1	-	spotanim		tob_xarpus_acidpool_end_1	4	0.53	anim=tob_xarpus_acid_splat_end id=8069	other	name	model=35394; anim sequence tob_xarpus_acid_splat_end length 16 cycles
+(spotanim)	-1	-	spotanim		tob_xarpus_acidpool_end_2	4	0.53	anim=tob_xarpus_acid_splat_end id=8069	other	name	model=35394; anim sequence tob_xarpus_acid_splat_end length 16 cycles
+(spotanim)	-1	-	spotanim		tob_xarpus_acidpool_end_3	4	0.53	anim=tob_xarpus_acid_splat_end id=8069	other	name	model=35394; anim sequence tob_xarpus_acid_splat_end length 16 cycles
+(spotanim)	-1	-	spotanim		tob_xarpus_acidspit	36	6.00	anim=verzik_blood_projectile id=8133	other	name	model=35394; anim sequence verzik_blood_projectile length 180 cycles
+(spotanim)	-1	-	spotanim		tob_xarpus_acidsplash	10	1.03	anim=watersplash id=465	other	name	model=2223; anim sequence watersplash length 31 cycles
+(spotanim)	-1	-	spotanim		tob_xarpus_exhumed_end	20	2.00	anim=tob_xarpus_exhumed_end id=8066	other	name	model=35401; anim sequence tob_xarpus_exhumed_end length 60 cycles
+(spotanim)	-1	-	spotanim		tob_xarpus_exhumed_energyorb	8	0.80	anim=book_spin id=3354	other	name	model=35732; anim sequence book_spin length 24 cycles
+(spotanim)	-1	-	spotanim		tob_xarpus_guano	6	1.00	anim=myq3_vampire_teleport_projectile_anim id=4730	other	name	model=18029; anim sequence myq3_vampire_teleport_projectile_anim length 30 cycles

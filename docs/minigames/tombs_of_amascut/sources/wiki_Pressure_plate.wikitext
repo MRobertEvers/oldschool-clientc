@@ -1,0 +1,87 @@
+{{Infobox Scenery
+|version1 = Lights puzzle
+|version2 = Memory puzzle
+|version3 = Math puzzle, 1
+|version4 = Math puzzle, 2
+|version5 = Math puzzle, 3
+|version6 = Math puzzle, 4
+|version7 = Math puzzle, 5
+|version8 = Math puzzle, 6
+|version9 = Math puzzle, 7
+|version10 = Math puzzle, 8
+|version11 = Math puzzle, 9
+|name = Pressure plate
+|image1 = [[File:Pressure plate (lights puzzle).png|260px]]
+|image2 = [[File:Pressure plate (memory puzzle).png|260px]]
+|image3 = [[File:Pressure plate (math puzzle, 1).png|260px]]
+|image4 = [[File:Pressure plate (math puzzle, 2).png|260px]]
+|image5 = [[File:Pressure plate (math puzzle, 3).png|260px]]
+|image6 = [[File:Pressure plate (math puzzle, 4).png|260px]]
+|image7 = [[File:Pressure plate (math puzzle, 5).png|260px]]
+|image8 = [[File:Pressure plate (math puzzle, 6).png|260px]]
+|image9 = [[File:Pressure plate (math puzzle, 7).png|260px]]
+|image10 = [[File:Pressure plate (math puzzle, 8).png|260px]]
+|image11 = [[File:Pressure plate (math puzzle, 9).png|260px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|quest = No
+|location = [[Tombs of Amascut]]
+|options1 = None
+|options2 = Flip
+|options3 = None
+|options4 = None
+|options5 = None
+|options6 = None
+|options7 = None
+|options8 = None
+|options9 = None
+|options10 = None
+|options11 = None
+|examine1 = I can probably depress this by standing on it.
+|examine2 = I can probably depress this by standing on it.
+|examine3 = A tile.
+|examine4 = A tile.
+|examine5 = A tile.
+|examine6 = A tile.
+|examine7 = A tile.
+|examine8 = A tile.
+|examine9 = A tile.
+|examine10 = A tile.
+|examine11 = A tile.
+|map = No
+|id1 = 45340
+|id2 = 45344
+|id3 = 45345
+|id4 = 45346
+|id5 = 45347
+|id6 = 45348
+|id7 = 45349
+|id8 = 45350
+|id9 = 45351
+|id10 = 45352
+|id11 = 45353
+}}
+'''Pressure plates''' can be found in the Path of Scabaras in the [[Tombs of Amascut]] and as scenery at the entrance to the [[Ruins of Mokhaiotl]]. They appear in four of the puzzles in the Path.
+
+==Memory puzzle==
+[[File:Path of Scabaras - puzzle 1.png|left|thumb|The memory puzzle]]
+The tiles will light up in a specific order, and players must step on the correct tiles in succession afterwards without stepping on other tiles. You need to press the button to activate the sequence. If you forget the sequence you can press it again for another order.
+{{clear|right}}
+==Lights puzzle==
+[[File:Path of Scabaras - puzzle 3.png|right|thumb|The lights puzzle]]
+Players must light up all the pressure plates by stepping on them. However, stepping on one tile causes adjacent tiles to shut off, so players must step on them in a certain arrangement. The light on a single plate can also be flipped via the right-click option, although this will result in a guaranteed 20 damage taken.
+{{clear|left}}
+==Math puzzle==
+[[File:Path of Scabaras - puzzle 4.png|left|thumb|The math puzzle]]
+All previous puzzles must be completed before players can read the nearby tablet that is essential to this puzzle. Reading it will give the players a random number between 20 and 45 and they must step on tiles with the corresponding symbols that represent numbers to add them up to the given number.
+
+For example, if the tablet reads 24, players can step on the tiles with the symbols representing 7, 8, and 9.
+
+The value of each symbol can be found on the north and south wall near the entrance of the path.
+{{clear|right}}
+==Final puzzle==
+[[File:Path of Scabaras - puzzle 5.png|right|thumb|The final puzzle]]
+In this puzzle, players must step on identical tiles for both boards, requiring memorisation of their arrangements to quickly complete.	
+
+{{Tombs of Amascut}}

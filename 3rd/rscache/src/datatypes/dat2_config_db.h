@@ -2,6 +2,7 @@
 #define RSCACHE_DATATYPES_DAT2_CONFIG_DB_H
 
 #include "../rsbuffer.h"
+#include "../rscache_presence.h"
 
 #include <stdbool.h>
 
@@ -35,12 +36,27 @@ struct RSCache_DbColumn
     struct RSCache_DbValue* values; /* [tuple_count * type_count]; owned; may be NULL */
 };
 
+/** The fields a dbrow stream can state, for `RSCache_Dat2ConfigDbRow.present`. */
+enum RSCache_Dat2ConfigDbRowField
+{
+    RSCACHE_DBROW_FIELD_TABLE = 0, /* 4 */
+    RSCACHE_DBROW_FIELD_COLUMNS,   /* 3: the alloc byte and the column list */
+};
+
+/** The fields a dbtable stream can state, for `RSCache_Dat2ConfigDbTable.present`. */
+enum RSCache_Dat2ConfigDbTableField
+{
+    RSCACHE_DBTABLE_FIELD_COLUMNS = 0, /* 1 */
+};
+
 struct RSCache_Dat2ConfigDbRow
 {
     int id;
     int table_id;    /* -1 until opcode 4 sets it */
     int column_count;               /* size of `columns` (allocation count) */
     struct RSCache_DbColumn* columns; /* [column_count], indexed by column id */
+    /** Which fields the stream stated (RSCACHE_DBROW_FIELD_*). */
+    struct RSCache_Presence present;
 };
 
 struct RSCache_Dat2ConfigDbTable
@@ -48,6 +64,8 @@ struct RSCache_Dat2ConfigDbTable
     int id;
     int column_count;
     struct RSCache_DbColumn* columns; /* [column_count]; values hold defaults */
+    /** Which fields the stream stated (RSCACHE_DBTABLE_FIELD_*). */
+    struct RSCache_Presence present;
 };
 
 /* True when a ScriptVarType code decodes as a string rather than a 4-byte int.
@@ -88,7 +106,9 @@ RSCache_Dat2ConfigDbRowFreeInplace(struct RSCache_Dat2ConfigDbRow* entry);
 uint32_t
 RSCache_Dat2ConfigDbRowEncodeBound(const struct RSCache_Dat2ConfigDbRow* entry);
 
-/** Encode into `out`. Returns bytes written, or 0 when `capacity` is too small. */
+/** Encode exactly the fields `present` states into `out` (table id, then the
+ *  columns: the order is load-bearing). Returns bytes written; a `capacity` under
+ *  the bound asserts. */
 uint32_t
 RSCache_Dat2ConfigDbRowEncode(
     const struct RSCache_Dat2ConfigDbRow* entry,

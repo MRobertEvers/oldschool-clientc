@@ -1,0 +1,374 @@
+{{Infobox Scenery
+|name = Rewards Chest
+|image = [[File:Rewards Chest (Fortis Colosseum).png|280px]]
+|release = [[20 March]] [[2024]]
+|update = Varlamore: Part One
+|members = Yes
+|quest = No
+|location = [[Fortis Colosseum]]
+|options = Search
+|examine = Contains a lot of well-earned loot.
+|map = No
+|dropversion = Wave 1,Wave 2,Wave 3,Wave 4,Wave 5,Wave 6,Wave 7,Wave 8,Wave 9,Wave 10,Wave 11,Wave 12
+|id = 50741
+|leagueRegion = Varlamore
+}}
+A '''Rewards Chest''' can be found upon completion of waves during the [[Fortis Colosseum]] [[minigame]], containing all accumulated rewards from each wave.
+
+==Loot mechanics==
+Before the start of every wave, an interface will appear showing players the rewards they'll receive in the next wave upon successfully clearing it. The player has the option to continue their run, potentially acquiring better loot, or end their run and walk away with the rewards they've accumulated so far. If the player dies during a wave, all of the accumulated rewards from the previous waves are lost. The rewards '''must''' be claimed from the chest before leaving, or they will likewise be lost.
+
+Upon the '''end''' of wave 3, the chest will begin to roll the unique drop table, with the chance increasing as the player reaches higher waves. Upon successfully rolling the unique table, the chest will then roll for following items:
+
+Waves 4-6:
+* 4/10 for an [[echo crystal]]; a successful roll for 1 will additionally roll a 1/10 chance of receiving either 2 or 3 crystals.
+* 6/10 for a piece of the [[sunfire fanatic armour]]. There is a duplicate-avoidance system and the game will give preference to a piece not received; otherwise, all parts have an equal chance of rolling.
+
+Waves 7-12:
+* 6/16 for an [[echo crystal]]; a successful roll for 1 will additionally roll a 1/10 chance of receiving either 2 or 3 crystals.
+* 9/16 for a piece of the [[sunfire fanatic armour]]. There is a duplicate-avoidance system and the game will give preference to a piece not received; otherwise, all parts have an equal chance of rolling.
+* 1/16 for the uncharged [[Tonalztics of Ralos]].
+
+The effective rates for the aforementioned items is as follows; [[Glory]] plays no role in rolling the unique drop table.
+{| class="wikitable"
+|+
+!Wave
+!Overall Unique chance
+!Cumulative Unique chance
+!Echo crystal
+!Sunfire fanatic armour
+!Tonalztics of Ralos
+|-
+|4
+|1/124
+|1/124
+|1/310
+|1/206.67
+|
+|-
+|5
+|1/110
+|1/59
+|1/275
+|1/183.33
+|
+|-
+|6
+|1/96
+|1/37
+|1/240
+|1/160
+|
+|-
+|7
+|1/82
+|1/25
+|1/218.67
+|1/145.78
+|1/1312
+|-
+|8
+|1/68
+|1/19
+|1/181.33
+|1/120.89
+|1/1088
+|-
+|9
+|1/54
+|1/14
+|1/144
+|1/96
+|1/864
+|-
+|10
+|1/40
+|1/11
+|1/106.67
+|1/71.11
+|1/640
+|-
+|11
+|1/26
+|1/8
+|1/69.33
+|1/46.22
+|1/416
+|-
+|12
+|1/12
+|1/5
+|1/32
+|1/21.33
+|1/192
+|}
+
+The cumulative drop rate of any piece of sunfire fanatic armour if you complete all 12 waves is approximately 1/8.43. 
+
+The cumulative drop rate of at least 1 echo crystal if you complete all 12 waves is approximately 1/12.44. 
+
+The cumulative drop rate of Tonalztics of Ralos if you complete all 12 waves is approximately 1/83.61.
+
+Lastly, completing wave 12 will guarantee [[Dizana's quiver]] from the rewards chest. Additionally, a flat 1/200 chance for the pet [[Smol Heredit]] is rolled. The quiver can later be given to [[Minimus]] for either 4,000 [[sunfire splinter]]s or another 1/200 chance at receiving Smol Heredit.
+
+As wave 1 has a guaranteed drop of 80 sunfire splinters and, depending on the player's gear, can be cleared in about 25-60 seconds, repeatedly clearing the first wave makes for an ideal method of obtaining sunfire splinters for players struggling to consistently clear the higher waves. Those who can clear the entire run, however, will find themselves getting more splinters at a more consistent rate due to the higher drop rates and quantities in the later waves, especially should they choose to exchange their (excess) quivers for splinters.
+
+==Rewards==
+On average, players can expect to receive 2014.6 [[Sunfire splinters]] per full completion of the Colosseum, or 6014.6 splinters if [[Dizana's quiver]] is traded in.
+
+===Wave 1===
+{{Average drop value|Rewards Chest (Fortis Colosseum)#Wave 1|mobname=wave 1|killname=reward}}
+{{DropsTableHead|dropversion=Wave 1}}
+{{DropsLineReward|name=Sunfire splinters|quantity=80|rarity=Always}}
+{{DropsTableBottom}}
+
+===Wave 2===
+{{Average drop value|Rewards Chest (Fortis Colosseum)#Wave 2|mobname=wave 2|killname=reward}}
+{{DropsTableHead|dropversion=Wave 2}}
+{{DropsLineReward|name=Rune platebody|quantity=1|rarity=1/7}}
+{{DropsLineReward|name=Death rune|quantity=150|rarity=1/7}}
+{{DropsLineReward|name=Chaos rune|quantity=150|rarity=1/7}}
+{{DropsLineReward|name=Sunfire splinters|quantity=150|rarity=1/7}}
+{{DropsLineReward|name=Steel cannonball|quantity=80|rarity=1/7}}
+{{DropsLineReward|name=Rune kiteshield|quantity=4|rarity=1/7}}
+{{DropsLineReward|name=Rune chainbody|quantity=1|rarity=1/7}}
+{{DropsTableBottom}}
+
+===Wave 3===
+{{Average drop value|Rewards Chest (Fortis Colosseum)#Wave 3|mobname=wave 3|killname=reward}}
+{{DropsTableHead|dropversion=Wave 3}}
+{{DropsLineReward|name=Rune platebody|quantity=1|rarity=9/70}}
+{{DropsLineReward|name=Death rune|quantity=150|rarity=9/70}}
+{{DropsLineReward|name=Chaos rune|quantity=150|rarity=9/70}}
+{{DropsLineReward|name=Sunfire splinters|quantity=150|rarity=9/70}}
+{{DropsLineReward|name=Steel cannonball|quantity=80|rarity=9/70}}
+{{DropsLineReward|name=Rune kiteshield|quantity=4|rarity=9/70}}
+{{DropsLineReward|name=Rune chainbody|quantity=1|rarity=9/70}}
+{{DropsLineReward|name=Onyx bolts|quantity=30|rarity=1/70}}
+{{DropsLineReward|name=Snapdragon seed|quantity=1|rarity=1/70}}
+{{DropsLineReward|name=Dragon platelegs|quantity=1|rarity=1/70}}
+{{DropsLineReward|name=Sunfire splinters|quantity=500|rarity=1/70}}
+{{DropsLineReward|name=Earth orb|quantity=80|rarity=1/70}}
+{{DropsLineReward|name=Rune 2h sword|quantity=2|rarity=1/70}}
+{{DropsLineReward|name=Gold ore|quantity=150|rarity=1/70}}
+{{DropsLineReward|name=Token (Varlamore)|quantity=1|rarity=Varies|raritynotes=<ref group=d>See [[Token_(Varlamore)#Token_sources]]</ref>}}
+{{DropsTableBottom}}
+
+===Wave 4===
+{{Average drop value|Rewards Chest (Fortis Colosseum)#Wave 4|mobname=wave 4|killname=reward}}
+{{DropsTableHead|dropversion=Wave 4}}
+{{DropsLineReward|name=Rune platebody|quantity=1|rarity=5535/43400}}
+{{DropsLineReward|name=Death rune|quantity=150|rarity=5535/43400}}
+{{DropsLineReward|name=Chaos rune|quantity=150|rarity=5535/43400}}
+{{DropsLineReward|name=Sunfire splinters|quantity=150|rarity=5535/43400}}
+{{DropsLineReward|name=Steel cannonball|quantity=80|rarity=5535/43400}}
+{{DropsLineReward|name=Rune kiteshield|quantity=4|rarity=5535/43400}}
+{{DropsLineReward|name=Rune chainbody|quantity=1|rarity=5535/43400}}
+{{DropsLineReward|name=Onyx bolts|quantity=30|rarity=615/43400}}
+{{DropsLineReward|name=Snapdragon seed|quantity=1|rarity=615/43400}}
+{{DropsLineReward|name=Dragon platelegs|quantity=1|rarity=615/43400}}
+{{DropsLineReward|name=Sunfire splinters|quantity=500|rarity=615/43400}}
+{{DropsLineReward|name=Earth orb|quantity=80|rarity=615/43400}}
+{{DropsLineReward|name=Rune 2h sword|quantity=2|rarity=615/43400}}
+{{DropsLineReward|name=Gold ore|quantity=150|rarity=615/43400}}
+{{DropsLineReward|name=Echo crystal|quantity=1|rarity=126/43400}}
+{{DropsLineReward|name=Echo crystal|quantity=2-3|rarity=14/43400}}
+{{DropsLineReward|name=Sunfire fanatic helm|quantity=1|rarity=70/43400|raritynotes=<ref group="d" name="Duplicate Protection">Players are guaranteed to receive a full set prior to receiving duplicate Sunfire Fanatic pieces.</ref>}}
+{{DropsLineReward|name=Sunfire fanatic cuirass|quantity=1|rarity=70/43400|raritynotes=<ref group="d" name="Duplicate Protection"/>}}
+{{DropsLineReward|name=Sunfire fanatic chausses|quantity=1|rarity=70/43400|raritynotes=<ref group="d" name="Duplicate Protection"/>}}
+{{DropsTableBottom}}
+
+===Wave 5===
+{{Average drop value|Rewards Chest (Fortis Colosseum)#Wave 5|mobname=wave 5|killname=reward}}
+{{DropsTableHead|dropversion=Wave 5}}
+{{DropsLineReward|name=Onyx bolts|quantity=30|rarity=2725/19250}}
+{{DropsLineReward|name=Snapdragon seed|quantity=1|rarity=2725/19250}}
+{{DropsLineReward|name=Dragon platelegs|quantity=1|rarity=2725/19250}}
+{{DropsLineReward|name=Sunfire splinters|quantity=500|rarity=2725/19250}}
+{{DropsLineReward|name=Earth orb|quantity=80|rarity=2725/19250}}
+{{DropsLineReward|name=Rune 2h sword|quantity=2|rarity=2725/19250}}
+{{DropsLineReward|name=Gold ore|quantity=150|rarity=2725/19250}}
+{{DropsLineReward|name=Echo crystal|quantity=1|rarity=63/19250}}
+{{DropsLineReward|name=Echo crystal|quantity=2-3|rarity=7/19250}}
+{{DropsLineReward|name=Sunfire fanatic helm|quantity=1|rarity=35/19250|raritynotes=<ref group="d" name="Duplicate Protection">Players are guaranteed to receive a full set prior to receiving duplicate Sunfire Fanatic pieces.</ref>}}
+{{DropsLineReward|name=Sunfire fanatic cuirass|quantity=1|rarity=35/19250|raritynotes=<ref group="d" name="Duplicate Protection"/>}}
+{{DropsLineReward|name=Sunfire fanatic chausses|quantity=1|rarity=35/19250|raritynotes=<ref group="d" name="Duplicate Protection"/>}}
+{{DropsTableBottom}}
+
+===Wave 6===
+{{Average drop value|Rewards Chest (Fortis Colosseum)#Wave 6|mobname=wave 6|killname=reward}}
+{{DropsTableHead|dropversion=Wave 6}}
+{{DropsLineReward|name=Onyx bolts|quantity=30|rarity=2375/16800}}
+{{DropsLineReward|name=Snapdragon seed|quantity=1|rarity=2375/16800}}
+{{DropsLineReward|name=Dragon platelegs|quantity=1|rarity=2375/16800}}
+{{DropsLineReward|name=Sunfire splinters|quantity=500|rarity=2375/16800}}
+{{DropsLineReward|name=Earth orb|quantity=80|rarity=2375/16800}}
+{{DropsLineReward|name=Rune 2h sword|quantity=2|rarity=2375/16800}}
+{{DropsLineReward|name=Gold ore|quantity=150|rarity=2375/16800}}
+{{DropsLineReward|name=Echo crystal|quantity=1|rarity=63/16800}}
+{{DropsLineReward|name=Echo crystal|quantity=2-3|rarity=7/16800}}
+{{DropsLineReward|name=Sunfire fanatic helm|quantity=1|rarity=35/16800|raritynotes=<ref group="d" name="Duplicate Protection">Players are guaranteed to receive a full set prior to receiving duplicate Sunfire Fanatic pieces.</ref>}}
+{{DropsLineReward|name=Sunfire fanatic cuirass|quantity=1|rarity=35/16800|raritynotes=<ref group="d" name="Duplicate Protection"/>}}
+{{DropsLineReward|name=Sunfire fanatic chausses|quantity=1|rarity=35/16800|raritynotes=<ref group="d" name="Duplicate Protection"/>}}
+{{DropsTableBottom}}
+
+===Wave 7===
+{{Average drop value|Rewards Chest (Fortis Colosseum)#Wave 7|mobname=wave 7|killname=reward}}
+{{DropsTableHead|dropversion=Wave 7}}
+{{DropsLineReward|name=Onyx bolts|quantity=30|rarity=5832/45920}}
+{{DropsLineReward|name=Snapdragon seed|quantity=1|rarity=5832/45920}}
+{{DropsLineReward|name=Dragon platelegs|quantity=1|rarity=5832/45920}}
+{{DropsLineReward|name=Sunfire splinters|quantity=500|rarity=5832/45920}}
+{{DropsLineReward|name=Earth orb|quantity=80|rarity=5832/45920}}
+{{DropsLineReward|name=Rune 2h sword|quantity=2|rarity=5832/45920}}
+{{DropsLineReward|name=Gold ore|quantity=150|rarity=5832/45920}}
+{{DropsLineReward|name=Dragon bolts (unf)|quantity=200|rarity=756/45920}}
+{{DropsLineReward|name=Ranarr seed|quantity=4|rarity=756/45920}}
+{{DropsLineReward|name=Sunfire splinters|quantity=1100|rarity=756/45920}}
+{{DropsLineReward|name=Dragon arrowtips|quantity=150|rarity=756/45920}}
+{{DropsLineReward|name=Adamantite ore|quantity=100|rarity=756/45920}}
+{{DropsLineReward|name=Death rune|quantity=250|rarity=756/45920}}
+{{DropsLineReward|name=Echo crystal|quantity=1|rarity=189/45920}}
+{{DropsLineReward|name=Echo crystal|quantity=2-3|rarity=21/45920}}
+{{DropsLineReward|name=Sunfire fanatic helm|quantity=1|rarity=105/45920|raritynotes=<ref group="d" name="Duplicate Protection">Players are guaranteed to receive a full set prior to receiving duplicate Sunfire Fanatic pieces.</ref>}}
+{{DropsLineReward|name=Sunfire fanatic cuirass|quantity=1|rarity=105/45920|raritynotes=<ref group="d" name="Duplicate Protection"/>}}
+{{DropsLineReward|name=Sunfire fanatic chausses|quantity=1|rarity=105/45920|raritynotes=<ref group="d" name="Duplicate Protection"/>}}
+{{DropsLineReward|name=Tonalztics of Ralos (uncharged)|quantity=1|rarity=35/45920}}
+{{DropsTableBottom}}
+
+===Wave 8===
+{{Average drop value|Rewards Chest (Fortis Colosseum)#Wave 8|mobname=wave 8|killname=reward}}
+{{DropsTableHead|dropversion=Wave 8}}
+{{DropsLineReward|name=Onyx bolts|quantity=30|rarity=14472/114240}}
+{{DropsLineReward|name=Snapdragon seed|quantity=1|rarity=14472/114240}}
+{{DropsLineReward|name=Dragon platelegs|quantity=1|rarity=14472/114240}}
+{{DropsLineReward|name=Sunfire splinters|quantity=500|rarity=14472/114240}}
+{{DropsLineReward|name=Earth orb|quantity=80|rarity=14472/114240}}
+{{DropsLineReward|name=Rune 2h sword|quantity=2|rarity=14472/114240}}
+{{DropsLineReward|name=Gold ore|quantity=150|rarity=14472/114240}}
+{{DropsLineReward|name=Onyx bolts|quantity=50|rarity=1876/114240}}
+{{DropsLineReward|name=Dragon platelegs|quantity=2|rarity=1876/114240}}
+{{DropsLineReward|name=Sunfire splinters|quantity=1750|rarity=1876/114240}}
+{{DropsLineReward|name=Rune kiteshield|quantity=5|rarity=1876/114240}}
+{{DropsLineReward|name=Runite ore|quantity=12|rarity=1876/114240}}
+{{DropsLineReward|name=Death rune|quantity=300|rarity=1876/114240}}
+{{DropsLineReward|name=Echo crystal|quantity=1|rarity=567/114240}}
+{{DropsLineReward|name=Echo crystal|quantity=2-3|rarity=63/114240}}
+{{DropsLineReward|name=Sunfire fanatic helm|quantity=1|rarity=315/114240|raritynotes=<ref group="d" name="Duplicate Protection">Players are guaranteed to receive a full set prior to receiving duplicate Sunfire Fanatic pieces.</ref>}}
+{{DropsLineReward|name=Sunfire fanatic cuirass|quantity=1|rarity=315/114240|raritynotes=<ref group="d" name="Duplicate Protection"/>}}
+{{DropsLineReward|name=Sunfire fanatic chausses|quantity=1|rarity=315/114240|raritynotes=<ref group="d" name="Duplicate Protection"/>}}
+{{DropsLineReward|name=Tonalztics of Ralos (uncharged)|quantity=1|rarity=105/114240}}
+{{DropsTableBottom}}
+
+===Wave 9===
+{{Average drop value|Rewards Chest (Fortis Colosseum)#Wave 9|mobname=wave 9|killname=reward}}
+{{DropsTableHead|dropversion=Wave 9}}
+{{DropsLineReward|name=Dragon bolts (unf)|quantity=200|rarity=3180/21600}}
+{{DropsLineReward|name=Ranarr seed|quantity=4|rarity=3180/21600}}
+{{DropsLineReward|name=Sunfire splinters|quantity=1100|rarity=3180/21600}}
+{{DropsLineReward|name=Dragon arrowtips|quantity=150|rarity=3180/21600}}
+{{DropsLineReward|name=Adamantite ore|quantity=100|rarity=3180/21600}}
+{{DropsLineReward|name=Death rune|quantity=250|rarity=3180/21600}}
+{{DropsLineReward|name=Onyx bolts|quantity=75|rarity=424/21600}}
+{{DropsLineReward|name=Sunfire splinters|quantity=2500|rarity=424/21600}}
+{{DropsLineReward|name=Dragon platelegs|quantity=3|rarity=424/21600}}
+{{DropsLineReward|name=Death rune|quantity=300|rarity=424/21600}}
+{{DropsLineReward|name=Rune warhammer|quantity=5|rarity=424/21600}}
+{{DropsLineReward|name=Echo crystal|quantity=1|rarity=135/21600}}
+{{DropsLineReward|name=Echo crystal|quantity=2-3|rarity=15/21600}}
+{{DropsLineReward|name=Sunfire fanatic helm|quantity=1|rarity=75/21600|raritynotes=<ref group="d" name="Duplicate Protection">Players are guaranteed to receive a full set prior to receiving duplicate Sunfire Fanatic pieces.</ref>}}
+{{DropsLineReward|name=Sunfire fanatic cuirass|quantity=1|rarity=75/21600|raritynotes=<ref group="d" name="Duplicate Protection"/>}}
+{{DropsLineReward|name=Sunfire fanatic chausses|quantity=1|rarity=75/21600|raritynotes=<ref group="d" name="Duplicate Protection"/>}}
+{{DropsLineReward|name=Tonalztics of Ralos (uncharged)|quantity=1|rarity=25/21600}}
+{{DropsTableBottom}}
+
+===Wave 10===
+{{Average drop value|Rewards Chest (Fortis Colosseum)#Wave 10|mobname=wave 10|killname=reward}}
+{{DropsTableHead|dropversion=Wave 10}}
+{{DropsLineReward|name=Onyx bolts|quantity=50|rarity=2340/16000}}
+{{DropsLineReward|name=Dragon platelegs|quantity=2|rarity=2340/16000}}
+{{DropsLineReward|name=Sunfire splinters|quantity=1750|rarity=2340/16000}}
+{{DropsLineReward|name=Rune kiteshield|quantity=5|rarity=2340/16000}}
+{{DropsLineReward|name=Runite ore|quantity=12|rarity=2340/16000}}
+{{DropsLineReward|name=Death rune|quantity=300|rarity=2340/16000}}
+{{DropsLineReward|name=Onyx bolts|quantity=100|rarity=312/16000}}
+{{DropsLineReward|name=Rune warhammer|quantity=8|rarity=312/16000}}
+{{DropsLineReward|name=Dragon platelegs|quantity=3|rarity=312/16000}}
+{{DropsLineReward|name=Sunfire splinters|quantity=3500|rarity=312/16000}}
+{{DropsLineReward|name=Dragon arrowtips|quantity=250|rarity=312/16000}}
+{{DropsLineReward|name=Echo crystal|quantity=1|rarity=135/16000}}
+{{DropsLineReward|name=Echo crystal|quantity=2-3|rarity=15/16000}}
+{{DropsLineReward|name=Sunfire fanatic helm|quantity=1|rarity=75/16000|raritynotes=<ref group="d" name="Duplicate Protection">Players are guaranteed to receive a full set prior to receiving duplicate Sunfire Fanatic pieces.</ref>}}
+{{DropsLineReward|name=Sunfire fanatic cuirass|quantity=1|rarity=75/16000|raritynotes=<ref group="d" name="Duplicate Protection"/>}}
+{{DropsLineReward|name=Sunfire fanatic chausses|quantity=1|rarity=75/16000|raritynotes=<ref group="d" name="Duplicate Protection"/>}}
+{{DropsLineReward|name=Tonalztics of Ralos (uncharged)|quantity=1|rarity=25/16000}}
+{{DropsTableBottom}}
+
+===Wave 11===
+{{Average drop value|Rewards Chest (Fortis Colosseum)#Wave 11|mobname=wave 11|killname=reward}}
+{{DropsTableHead|dropversion=Wave 11}}
+{{DropsLineReward|name=Onyx bolts|quantity=75|rarity=360/2080}}
+{{DropsLineReward|name=Sunfire splinters|quantity=2500|rarity=360/2080}}
+{{DropsLineReward|name=Dragon platelegs|quantity=3|rarity=360/2080}}
+{{DropsLineReward|name=Death rune|quantity=300|rarity=360/2080}}
+{{DropsLineReward|name=Rune warhammer|quantity=5|rarity=360/2080}}
+{{DropsLineReward|name=Steel cannonball|quantity=2000|rarity=50/2080}}
+{{DropsLineReward|name=Dragon plateskirt|quantity=5|rarity=50/2080}}
+{{DropsLineReward|name=Dragon arrowtips|quantity=350|rarity=50/2080}}
+{{DropsLineReward|name=Onyx bolts|quantity=150|rarity=50/2080}}
+{{DropsLineReward|name=Echo crystal|quantity=1|rarity=27/2080}}
+{{DropsLineReward|name=Echo crystal|quantity=2-3|rarity=3/2080}}
+{{DropsLineReward|name=Sunfire fanatic helm|quantity=1|rarity=15/2080|raritynotes=<ref group="d" name="Duplicate Protection">Players are guaranteed to receive a full set prior to receiving duplicate Sunfire Fanatic pieces.</ref>}}
+{{DropsLineReward|name=Sunfire fanatic cuirass|quantity=1|rarity=15/2080|raritynotes=<ref group="d" name="Duplicate Protection"/>}}
+{{DropsLineReward|name=Sunfire fanatic chausses|quantity=1|rarity=15/2080|raritynotes=<ref group="d" name="Duplicate Protection"/>}}
+{{DropsLineReward|name=Tonalztics of Ralos (uncharged)|quantity=1|rarity=5/2080}}
+{{DropsTableBottom}}
+
+===Wave 12===
+{{Average drop value|Rewards Chest (Fortis Colosseum)#Wave 12|mobname=wave 12|killname=reward}}
+{{DropsTableHead|dropversion=Wave 12}}
+{{DropsLineReward|name=Dizana's quiver|quantity=1|rarity=Always|gemw=no}}
+{{DropsLineReward|name=Smol Heredit|quantity=1|rarity=1/200}}
+{{DropsLineReward|name=Onyx bolts|quantity=100|rarity=792/4800}}
+{{DropsLineReward|name=Rune warhammer|quantity=8|rarity=792/4800}}
+{{DropsLineReward|name=Dragon platelegs|quantity=3|rarity=792/4800}}
+{{DropsLineReward|name=Sunfire splinters|quantity=3500|rarity=792/4800}}
+{{DropsLineReward|name=Dragon arrowtips|quantity=250|rarity=792/4800}}
+{{DropsLineReward|name=Uncut onyx|quantity=1|rarity=110/4800}}
+{{DropsLineReward|name=Dragon plateskirt|quantity=5|rarity=110/4800}}
+{{DropsLineReward|name=Rune 2h sword|quantity=9|rarity=110/4800}}
+{{DropsLineReward|name=Runite ore|quantity=35|rarity=110/4800}}
+{{DropsLineReward|name=Echo crystal|quantity=1|rarity=135/4800}}
+{{DropsLineReward|name=Echo crystal|quantity=2-3|rarity=15/4800}}
+{{DropsLineReward|name=Sunfire fanatic helm|quantity=1|rarity=75/4800|raritynotes=<ref group="d" name="Duplicate Protection">Players are guaranteed to receive a full set prior to receiving duplicate Sunfire Fanatic pieces.</ref>}}
+{{DropsLineReward|name=Sunfire fanatic cuirass|quantity=1|rarity=75/4800|raritynotes=<ref group="d" name="Duplicate Protection"/>}}
+{{DropsLineReward|name=Sunfire fanatic chausses|quantity=1|rarity=75/4800|raritynotes=<ref group="d" name="Duplicate Protection"/>}}
+{{DropsLineReward|name=Tonalztics of Ralos (uncharged)|quantity=1|rarity=25/4800}}
+{{DropsTableBottom}}
+
+The average cumulative reward (that is, Wave 12 and all previous reward chests combined) from one Colosseum completion is {{Coins|{{#expr:
+{{Average drop value|Rewards Chest (Fortis Colosseum)#Wave 1|raw=y}} +
+{{Average drop value|Rewards Chest (Fortis Colosseum)#Wave 2|raw=y}} +
+{{Average drop value|Rewards Chest (Fortis Colosseum)#Wave 3|raw=y}} +
+{{Average drop value|Rewards Chest (Fortis Colosseum)#Wave 4|raw=y}} +
+{{Average drop value|Rewards Chest (Fortis Colosseum)#Wave 5|raw=y}} +
+{{Average drop value|Rewards Chest (Fortis Colosseum)#Wave 6|raw=y}} +
+{{Average drop value|Rewards Chest (Fortis Colosseum)#Wave 7|raw=y}} +
+{{Average drop value|Rewards Chest (Fortis Colosseum)#Wave 7|raw=y}} +
+{{Average drop value|Rewards Chest (Fortis Colosseum)#Wave 8|raw=y}} +
+{{Average drop value|Rewards Chest (Fortis Colosseum)#Wave 9|raw=y}} +
+{{Average drop value|Rewards Chest (Fortis Colosseum)#Wave 10|raw=y}} +
+{{Average drop value|Rewards Chest (Fortis Colosseum)#Wave 11|raw=y}} +
+{{Average drop value|Rewards Chest (Fortis Colosseum)#Wave 12|raw=y}}
+round 0
+}}}}.
+
+==Gallery==
+<gallery>
+Rewards Chest (Fortis Colosseum) animation.gif|The chest appearing.
+</gallery>
+
+==Trivia==
+*If the player is standing in the area that the chest would spawn in, they will be knocked away when it appears.
+
+{{Fortis Colosseum}}

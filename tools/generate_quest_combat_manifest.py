@@ -2294,6 +2294,7 @@ def inventory() -> list[dict[str, object]]:
             "known_gaps": [],
         }
         row.update(AUDITED_OVERRIDES.get(name, {}))
+        fold_npc_stat_audits(row)
         rows.append(row)
     return rows
 
@@ -2417,6 +2418,269 @@ AUDITED_OVERRIDES["Zogre Flesh Eaters"] = {
         "Tertiary drops (zombie/zogre bone during Rag and Bone Man II, the zombie champion scroll) are not ported.",
     ],
 }
+
+AUDITED_OVERRIDES["Shadow of the Storm"] = {
+    "source_audits": [
+        {"url": "https://oldschool.runescape.wiki/w/Agrith_Naar?oldid=15350581", "revision": 15350581, "retrieved": "2026-10-06"},
+        {"url": "https://oldschool.runescape.wiki/w/Shadow_of_the_Storm?oldid=15354765", "revision": 15354765, "retrieved": "2026-10-06"},
+    ],
+    "npc_gamevals": [
+        "agrith_naar: Agrith-Naar (npc 911, level 100, size 3), 95 hitpoints, 83/90/82/100/100 attack/strength/defence/magic/ranged, every bonus and defence 0, crush, attack speed 4, aggressive, 25% Water weakness, max hit 10 crush (falls out of 90 strength) and 10 Fire Blast (^sots_agrith_fireblast_max) (wiki infobox; cache all.npc stat1-6 83/82/90/95/100/100 agrees) (quest_shadowstorm/configs/shadowstorm.npc)",
+    ],
+    "item_gamevals": [
+        "agrith_silverlight_dyed: the finishing blow must land with it worn (or Darklight), else he heals to 12",
+        "darklight: the Silverlight in the striking hand becomes it on the kill",
+        "vile_ashes: his death_drop (wiki: always)",
+    ],
+    "loc_gamevals": [
+        "golem_demon_portal: the throne-room portal; re-entering during the fight puts him back on the throne",
+    ],
+    "trigger_handlers": [
+        "opnpc2:agrith_naar (@player_combat_start; shadowstorm_ritual.rs2)",
+        "ai_opplayer2:agrith_naar (melee, Fire Blast against Protect from Melee or 1 in 4, Telekinetic Grab 1 in 3; shadowstorm_ritual.rs2)",
+        "ai_queue3:agrith_naar (Silverlight finishing-blow gate, revive to ^sots_agrith_revive_hp, queue sots_agrith_slain; shadowstorm_ritual.rs2)",
+        "proc:sots_throne_cast (re-entry resumes the fight with a fresh Agrith-Naar; shadowstorm_ritual.rs2)",
+    ],
+    "loot_contract": "The quest kill hands the player Darklight in place of the dyed Silverlight and completes the quest from the player's own queue; a kill not landed with Silverlight or Darklight worn heals him to 12 hitpoints instead. Outside the quest stage he dies through ~npc_default_death with his death_drop, vile ashes.",
+    "test_ids": [
+        "quest-combat-contract:shadow-of-the-storm",
+        "quest:shadowstorm",
+    ],
+    "known_gaps": [
+        "His prayer reading is partial: Protect from Melee draws Fire Blast, but the unprompted 1-in-4 Fire Blast does not read Protect from Magic.",
+        "Fire Blast rolls accuracy off his attack level (~npc_melee_attack_roll with magic style), not his 100 Magic.",
+        "The standing-torch flinch and the Nightmare Zone variant are not ported.",
+    ],
+}
+
+AUDITED_OVERRIDES["Between a Rock..."] = {
+    "source_audits": [
+        {"url": "https://oldschool.runescape.wiki/w/Arzinian_Avatar_of_Strength?oldid=15200005", "revision": 15200005, "retrieved": "2026-10-06"},
+        {"url": "https://oldschool.runescape.wiki/w/Arzinian_Avatar_of_Ranging?oldid=15200004", "revision": 15200004, "retrieved": "2026-10-06"},
+        {"url": "https://oldschool.runescape.wiki/w/Arzinian_Avatar_of_Magic?oldid=15200003", "revision": 15200003, "retrieved": "2026-10-06"},
+        {"url": "https://oldschool.runescape.wiki/w/Arzinian_Being_of_Bordanzan?oldid=15362316", "revision": 15362316, "retrieved": "2026-10-06"},
+    ],
+    "npc_gamevals": [
+        "dwarf_rock_avatar_warrior_green: Arzinian Avatar of Strength level 125 (npc 1228), 100 hitpoints, 110/100/95 attack/strength/defence, crush, attack speed 4, aggressive, max hit 11 (falls out of 100 strength), defence 20/20/20 stab/slash/crush, 15 magic, 80 ranged (wiki infobox; cache all.npc stat1-6 110/95/100/100/0/0 agrees) (quest_betweenarock/configs/betweenarock.npc)",
+        "dwarf_rock_avatar_warrior_yellow: Arzinian Avatar of Strength level 75 (npc 1229), 70 hitpoints, 70/65/50 attack/strength/defence, crush, speed 4, max hit 7, defence 15/15/15, 10 magic, 40 ranged (wiki; cache 70/50/65/70/0/0 agrees)",
+        "dwarf_rock_avatar_warrior: Invincible version (npc 1227, never spawned), 200 hitpoints, 150/130/120, max hit 14, cache defences 20/20/20/20",
+        "dwarf_rock_avatar_archer_green: Arzinian Avatar of Ranging level 125 (npc 1231), 100 hitpoints, attack 10, strength 100, defence 120, ranged 110, Ranged, speed 4, rangebonus_ammo 10, max hit 14 (~npc_ranged_maxhit), defence 15/15/15, 80 magic, 20 ranged (wiki; cache 10/120/100/100/110/0 agrees); [ai_opplayer2] ~npc_rangeattack",
+        "dwarf_rock_avatar_archer_yellow: Arzinian Avatar of Ranging level 75 (npc 1232), 70 hitpoints, 10/40/75 attack/strength/defence, ranged 75, rangebonus_ammo 5, max hit 9, defence 10/10/10, 40 magic, 15 ranged (wiki; cache 10/75/40/70/75/0 agrees)",
+        "dwarf_rock_avatar_archer: Invincible version (npc 1230, never spawned), 200 hitpoints, ranged 140, rangebonus_ammo 19 (cache), cache defences 20/20/20 and 120 magic",
+        "dwarf_rock_avatar_mage_green: Arzinian Avatar of Magic level 125 (npc 1234), 100 hitpoints, attack 10, strength 90, defence 120, magic 120, Magic, speed 4, magic_maxhit 13, defence 80/80/80, 20 magic, 15 ranged (wiki; cache 10/120/90/100/0/120 agrees); [ai_opplayer2] ~npc_generic_magicattack",
+        "dwarf_rock_avatar_mage_yellow: Arzinian Avatar of Magic level 75 (npc 1235), 70 hitpoints, 10/50/75 attack/strength/defence, magic 75, magic_maxhit 8, defence 40/40/40, 15 magic, 10 ranged (wiki; cache 10/75/50/70/0/75 agrees)",
+        "dwarf_rock_avatar_mage: Invincible version (npc 1233, never spawned), 200 hitpoints, magic 150, magic_maxhit 15, cache defences 120/120/120 and 20 magic",
+        "dwarf_rock_actual_demon: Arzinian Being of Bordanzan (npc 1236), Infobox NPC, Talk-to only, never fought (wiki: inaccessible in the centre of the flames) -- no combat block",
+        "scorpion: the page-1 scorpion (level 14) fights on npc/configs/combat_stats.generated.npc's block (17 hitpoints)",
+    ],
+    "item_gamevals": [
+        "gold_ore: 6-14 held at the central flame spawns the level-125 (_green) Avatar, 15+ the level-75 (_yellow) one (^dwarfrock_gold_ore_needed / ^dwarfrock_gold_ore_reduced)",
+        "dwarf_goldrock_helmet: must be worn to approach the flame and to stay in the realm",
+    ],
+    "loc_gamevals": [
+        "dwarf_firewall_centre_straight / dwarf_firewall_centre_diagonal: the central wall of flame; op1/op2 spawn the Avatar",
+    ],
+    "trigger_handlers": [
+        "label:dwarfrock_face_avatar / proc:dwarfrock_spawn_avatar (style counters the player's highest base stat; tier by gold ore held; betweenarock_realm.rs2)",
+        "opnpc2:dwarf_rock_avatar_* (nine, @dwarfrock_avatar_attack -> @player_combat_start; betweenarock_realm.rs2)",
+        "ai_opplayer2:dwarf_rock_avatar_archer* (~npc_rangeattack) and dwarf_rock_avatar_mage* (~npc_generic_magicattack); the Avatars of Strength use the melee default (betweenarock_realm.rs2)",
+        "ai_queue3:dwarf_rock_avatar_* (~dwarfrock_avatar_death sets ^dwarfrock_avatar_defeated and returns the player, then ~npc_default_death; betweenarock_realm.rs2)",
+        "ai_queue3:scorpion (page-1 drop, coordinate-gated; betweenarock_pages.rs2)",
+    ],
+    "loot_contract": "The Avatar drops nothing (death_drop null; the wiki pages list no drops); its kill advances the quest to ^dwarfrock_avatar_defeated and teleports the player back to Dondakan. The Dwarven Mine scorpion's quest kill drops page 1.",
+    "test_ids": [
+        "quest-combat-contract:between-a-rock",
+        "quest:betweenarock",
+    ],
+    "known_gaps": [
+        "The Invincible versions (5 or fewer gold ore: no combat level, regeneration) are not modelled; the flame refuses under 6 ore, so they never spawn.",
+        "The Invincible Avatar of Ranging computes a max hit of 19 (ranged 140, cache rangebonus_ammo 19) against the page's 17; its page bonuses are blank.",
+        "The gold-ore anti-regeneration is read once at the flame, not continuously; the wiki's 'randomize it just a little bit' style pick is not modelled.",
+        "attackrange 10 for the ranged and magic Avatars is the authored-quest convention (slice.npc), not a sourced number; no projectile or cast spotanim is sourced, so none is drawn.",
+        "The Avatar of Ranging swings rock_avatar_attack (npc_anims.generated.npc) though the cache has a rock_avatar_archer_attack seq.",
+    ],
+}
+
+AUDITED_OVERRIDES["Rum Deal"] = {
+    "source_audits": [
+        {"url": "https://oldschool.runescape.wiki/w/Evil_spirit?oldid=15199641", "revision": 15199641, "retrieved": "2026-10-06"},
+        {"url": "https://oldschool.runescape.wiki/w/Fever_spider?oldid=15275482", "revision": 15275482, "retrieved": "2026-10-06"},
+        {"url": "https://oldschool.runescape.wiki/w/Rum_Deal?oldid=15315444", "revision": 15315444, "retrieved": "2026-10-06"},
+    ],
+    "npc_gamevals": [
+        "deal_evil_spirit: Evil spirit (npc 625, level 150, size 2), 90 hitpoints, 170/146/100 attack/strength/defence, magic 1, ranged 1, every bonus and defence 0, crush, attack speed 4, aggressive, 30% Air weakness, drops Ashes always (wiki infobox; cache all.npc stat1-4 170/100/146/90 agrees) (quest_rumdeal/configs/rumdeal.npc); its swing rolls the page's max hit 28 (^deal_evil_spirit_melee_maxhit, rumdeal.constant) where ~npc_melee_maxhit would give 16; Protect from Melee negates it",
+        "deal_fever_spiders1: Fever spider (level 49), the basement mob, fights on npc/configs/combat_stats.generated.npc's block (40 hitpoints, death_drop null; the quest carcass is deal_combat.rs2's [ai_queue3] drop)",
+    ],
+    "item_gamevals": [
+        "deal_wrench_blessed: Davey's blessing of deal_wrench (47 prayer points, none drained); used on the brewing control it summons the spirit",
+        "ashes: the spirit's death_drop (wiki: always)",
+        "deal_spider_body: the fever spider carcass, dropped only at ^deal_kill_spider",
+    ],
+    "loc_gamevals": [
+        "deal_multicontrol: the brewing control; [oplocu] with deal_wrench_blessed at ^deal_kill_spirit spins it and spawns the spirit at ^deal_multicontrol_coord for 1000 ticks (one at a time within 5 tiles)",
+    ],
+    "trigger_handlers": [
+        "proc:deal_spawn_evilspirit (npc_add at ^deal_multicontrol_coord; deal_combat.rs2)",
+        "opnpc2:deal_evil_spirit (~npc_retaliate(0) -> @player_combat_start; deal_combat.rs2)",
+        "ai_opplayer2:deal_evil_spirit (crush swing: its own ~npc_melee_attack_roll(^crush_style) against ~player_defence_roll, damage randominc(^deal_evil_spirit_melee_maxhit = 28), landed by ~playerhit_n_melee; the Swan Song ssq_queen_melee pattern; deal_combat.rs2)",
+        "ai_queue3:deal_evil_spirit (npc_findhero at ^deal_kill_spirit: %varb1355_deal_multi_hopper = ^deal_control_running, %varp600_deal_quest = ^deal_told_kill_spider, then ~npc_default_death; deal_combat.rs2)",
+        "ai_queue3:deal_fever_spiders1 (deal_spider_body at ^deal_kill_spider, then ~npc_default_death; deal_combat.rs2)",
+    ],
+    "loot_contract": "The spirit drops Ashes (death_drop ashes, the wiki's 100% line); its quest kill moves the quest to ^deal_told_kill_spider and leaves the brewing control running. A fever spider killed at ^deal_kill_spider drops deal_spider_body.",
+    "test_ids": [
+        "quest-combat-contract:rum-deal",
+        "quest:rumdeal",
+    ],
+    "known_gaps": [
+        "The page's 'sucked back into the brewing controls and must be fought again from full hitpoints' is the 1000-tick npc_add duration, not a modelled timer; changing floors to drop its aggression is the engine's ordinary chase.",
+        "The fever spider's 12.5%-of-Hitpoints hit and disease without slayer gloves are not modelled (rumdeal.constant's deferred note).",
+        "The Trivia's 'The power of Guthix compels you!' on attacking it is not said.",
+    ],
+}
+
+AUDITED_OVERRIDES["Wanted!"] = {
+    "source_audits": [
+        {"url": "https://oldschool.runescape.wiki/w/Solus_Dellagar?oldid=15204754", "revision": 15204754, "retrieved": "2026-10-06"},
+        {"url": "https://oldschool.runescape.wiki/w/Black_Knight_(Wanted!)?oldid=15324646", "revision": 15324646, "retrieved": "2026-10-06"},
+        {"url": "https://oldschool.runescape.wiki/w/Wanted!?oldid=15355767", "revision": 15355767, "retrieved": "2026-10-06"},
+    ],
+    "npc_gamevals": [
+        "wanted_solus_attackable: Solus Dellagar (npc 4930/4933/4962, no combat level, size 1), 40 hitpoints, 25/25/25 attack/strength/defence, magic 1, ranged 1, strength bonus 16, defence 5/5/5 stab/slash/crush, 72 magic, Melee (crush, gen_npc_stats.py's 'melee' rule), attack speed 3, aggressive, max hit 4 (falls out of 25 strength + 16 bonus), no drops (wiki infobox; cache all.npc stat1-4 25/25/25/40 and its strengthbonus/attackrate/defence params agree) (quest_wanted/configs/wanted.npc)",
+        "wanted_summoned_black_knight: Black Knight (Wanted!) (npc 4934/4959/4960, level 32), 42 hitpoints, 25/25/25, slash, attbns 18, strbns 16, speed 5, max hit 4, defence 73/76/70, -11 magic, 72 ranged, aggressive, no drops (wiki infobox; the cache's stat4 is 40) (quest_wanted/configs/wanted.npc)",
+    ],
+    "item_gamevals": [
+        "wanted_solus_trophy: Solus's hat, handed over by the Commorb Contact after the kill (wanted_commorb.rs2), not dropped",
+        "wanted_crystal_ball: the Commorb; its Scan at the seventh stop summons Solus, at the sixth the Black Knight",
+    ],
+    "loc_gamevals": [],
+    "trigger_handlers": [
+        "proc:wanted_scan_commorb seventh stop (npc_add wanted_solus_attackable at ^wanted_essence_mine_coord for 100 ticks; wanted_hunt.rs2)",
+        "opnpc2:wanted_solus_attackable (~npc_retaliate(0) -> @player_combat_start; wanted_hunt.rs2)",
+        "ai_queue3:wanted_solus_attackable (npc_findhero at ^wanted_hunt: mission4 bits, %varb1051_wanted_main = ^wanted_final_battle, then ~npc_default_death; wanted_hunt.rs2)",
+        "proc:wanted_hunt_sixth_black_knight (npc_add wanted_summoned_black_knight for 200 ticks, npc_setmode(opplayer2); wanted_hunt.rs2)",
+        "ai_queue3:wanted_summoned_black_knight (npc_findhero -> queue wanted_black_knight_defeated, then ~npc_default_death; wanted_hunt.rs2)",
+    ],
+    "loot_contract": "Neither Solus nor the summoned Black Knight drops anything (death_drop null; the pages list no drops). Solus's kill writes ^wanted_final_battle; his hat comes from the Commorb Contact. The Black Knight's kill completes the sixth hunt stop and returns the 20 essence as the final clue.",
+    "test_ids": [
+        "quest-combat-contract:wanted",
+        "quest:wanted",
+    ],
+    "known_gaps": [
+        "Savant's 15 Temple Knight archers and Solus's Ice Barrage over them are not staged; the fight starts with Solus alone.",
+        "No source names Solus's swing animation (the cache has only his staff ready and halberd walk), so he swings the attack_anim param default.",
+        "The summoned Black Knight's block follows the page's 42 hitpoints against the cache's stat4 40.",
+    ],
+}
+
+# Test-fought npcs that fought on the engine default (matthew-mbp-m4-b68-seam1).
+# None of these records had a block with hitpoints= in any .npc section (the
+# generated anims/movement overlays carry no stats and npc_def_seed_from_cache
+# copies only bonus params and attackrate), so each fought at 10 hitpoints and
+# 1/1/1. Each now has a quest-local block from its OSRS wiki Infobox Monster at
+# the pinned oldid (re-read through api.php 2026-10-06, compared with the cache
+# record). This folds the stat audit into the row's source_audits and
+# npc_gamevals WITHOUT changing its status: the encounter's triggers and loot
+# are not audited here. tools/check_quest_combat_contract.py
+# check_test_fought_npc_blocks pins each block's lines.
+# (quest name, npc symbol, wiki page, oldid, hitpoints, .npc file under
+#  server/scripts, npc_gamevals line)
+NPC_STAT_AUDITS: tuple[tuple[str, str, str, int, int, str, str], ...] = (
+    ("Spirits of the Elid", "elid_golem_white", "White_golem", 15338923, 80, "quests/quest_spiritsoftheelid/configs/spiritsoftheelid.npc",
+     "White golem (npc 4743): 80 hitpoints, 80/30/80 attack/strength/defence, magic 1, ranged 1, stabdefence 1, slashdefence 300, crushdefence 300, magicdefence 300, rangedefence 300, crush, attack speed 4, aggressive, max hit 4 from ~npc_melee_maxhit (configs/all.npc:134851 agrees)"),
+    ("Spirits of the Elid", "elid_golem_grey", "Grey_golem", 15338925, 80, "quests/quest_spiritsoftheelid/configs/spiritsoftheelid.npc",
+     "Grey golem (npc 4744): 80 hitpoints, 80/30/80 attack/strength/defence, magic 1, ranged 1, stabdefence 300, slashdefence 1, crushdefence 300, magicdefence 300, rangedefence 300, crush, attack speed 4, aggressive, max hit 4 from ~npc_melee_maxhit (configs/all.npc:134886 agrees)"),
+    ("Spirits of the Elid", "elid_golem_black", "Black_golem", 15338922, 80, "quests/quest_spiritsoftheelid/configs/spiritsoftheelid.npc",
+     "Black golem (npc 4742): 80 hitpoints, 80/30/80 attack/strength/defence, magic 1, ranged 1, stabdefence 300, slashdefence 300, crushdefence 1, magicdefence 300, rangedefence 300, crush, attack speed 4, aggressive, max hit 4 from ~npc_melee_maxhit (configs/all.npc:134816 agrees)"),
+    ("The Feud", "feud_menap_toughguy", "Tough_Guy", 15292989, 75, "quests/quest_thefeud/configs/thefeud.npc",
+     "Tough Guy (npc 3551): 75 hitpoints, 85/50/50 attack/strength/defence, magic 80, ranged 0, crushattack 9, strengthbonus 9, stabdefence 9, slashdefence 8, crushdefence 10, crush, attack speed 4, aggressive, max hit 7 from ~npc_melee_maxhit (configs/all.npc:92908 agrees)"),
+    ("The Feud", "feud_bandit_toughguy", "Bandit_champion", 15292988, 50, "quests/quest_thefeud/configs/thefeud.npc",
+     "Bandit champion (npc 738): 50 hitpoints, 59/80/50 attack/strength/defence, magic 0, ranged 0, slashattack 9, strengthbonus 9, stabdefence 9, slashdefence 8, crushdefence 10, slash, attack speed 4, aggressive, max hit 10 from ~npc_melee_maxhit (configs/all.npc:19142 agrees)"),
+    ("Biohazard", "mournerstew2", "Mourner_(boss)", 15238134, 19, "areas/area_ardougne_west/configs/mourner.npc",
+     "Mourner (boss) (npc 9230): 19 hitpoints, 10/10/10 attack/strength/defence, magic 1, ranged 1, stabdefence 3, slashdefence 2, crushdefence 4, crush, attack speed 4, not aggressive, max hit 2 from ~npc_melee_maxhit (configs/all.npc:259272 agrees)"),
+    ("Mourning's End Part I", "mourning_overpass_mourner", "Mourner", 15242506, 19, "quests/quest_mourningsendparti/configs/mend1.npc",
+     "Mourner (npc 9233) version 1 \"level 11\": 19 hitpoints, 8/8/8 attack/strength/defence, magic 1, ranged 1, crushattack 6, strengthbonus 2, stabdefence 6, slashdefence 6, crushdefence 9, crush, attack speed 4, not aggressive, max hit 2 from ~npc_melee_maxhit (configs/all.npc:259448 agrees)"),
+    ("Recruitment Drive", "rd_combat_npc_room_3", "Sir_Leye", 15262507, 20, "quests/quest_recruitmentdrive/configs/recruitmentdrive.npc",
+     "Sir Leye (npc 4682): 20 hitpoints, 18/18/15 attack/strength/defence, magic 1, ranged 1, every bonus 0, crush, attack speed 5, aggressive, max hit 3 from ~npc_melee_maxhit (configs/all.npc:133412 agrees)"),
+    ("Prying Times", "sailing_charting_drink_crate_prying_times_effect_troll", "Drink_troll", 15200619, 25, "quests/quest_pryingtimes/configs/pryingtimes.npc",
+     "Drink troll (npc 15164): 25 hitpoints, 9/9/9 attack/strength/defence, magic 1, ranged 1, every bonus 0, crush, attack speed 4, aggressive, max hit 2 from ~npc_melee_maxhit (configs/all.npc:479224 agrees)"),
+    ("Below Ice Mountain", "bim_golem_boss", "Ancient_Guardian", 15200249, 40, "quests/quest_belowicemountain/configs/belowicemountain.npc",
+     "Ancient Guardian (npc 10654) version 1 \"Golem\": 40 hitpoints, 25/33/25 attack/strength/defence, magic 1, ranged 1, crushattack 20, strengthbonus 50, stabdefence 40, slashdefence 40, magicdefence 5, rangedefence 30, crush, attack speed 5, aggressive, max hit 7 from ~npc_melee_maxhit (configs/all.npc:355306 agrees)"),
+    ("The Ribbiting Tale of a Lily Pad Labour Dispute", "frog_quest_cuthbert_combat", "Cuthbert", 15207602, 1, "quests/quest_ribbitingtale/configs/ribbitingtale.npc",
+     "Cuthbert (npc 12957): 1 hitpoints, 1/1/1 attack/strength/defence, magic 1, ranged 1, every bonus 0, crush, attack speed 4, aggressive, max hit 1 from ~npc_melee_maxhit (configs/all.npc:418800 agrees)"),
+    ("The Depths of Despair", "hosidiusquest_snake", "Sand_Snake", 15364396, 60, "quests/quest_depthsofdespair/configs/depthsofdespair.npc",
+     "Sand Snake (npc 7903): 60 hitpoints, 30/20/20 attack/strength/defence, magic 1, ranged 1, every bonus 0, crush, attack speed 4, aggressive, max hit 3 from ~npc_melee_maxhit (configs/all.npc:215648 agrees)"),
+    ("Olaf's Quest", "olaf2_ulfric", "Ulfric", 15351186, 60, "quests/quest_olafsquest/configs/olafsquest.npc",
+     "Ulfric (npc 4500): 60 hitpoints, 100/100/82 attack/strength/defence, magic 1, ranged 1, every bonus 0, slash, attack speed 4, aggressive, max hit 11 from ~npc_melee_maxhit (configs/all.npc:127731 agrees)"),
+    ("A Porcine of Interest", "porcine_sourhog_second", "Sourhog", 15275486, 40, "quests/quest_porcineofinterest/configs/porcineofinterest.npc",
+     "Sourhog (npc 10436): 40 hitpoints, 35/30/25 attack/strength/defence, magic 25, ranged 35, rangebonus 20, slashdefence 30, crushdefence 10, magicdefence 30, crush, attack speed 5, aggressive, max hit 4 from ~npc_melee_maxhit (configs/all.npc:350159 agrees)"),
+    ("A Soul's Bane", "soulbane_anger_unicorn", "Angry_unicorn", 15199351, 200, "quests/quest_soulsbane/configs/soulsbane.npc",
+     "Angry unicorn (npc 1061) version 1 \"Level 45\" (id 1061): 200 hitpoints, 37/38/38 attack/strength/defence, magic 1, ranged 1, every bonus 0, stab, attack speed 4, aggressive, max hit 5 from ~npc_melee_maxhit (configs/all.npc:28647 agrees)"),
+    ("A Soul's Bane", "soulbane_fear_reaper", "Fear_reaper", 15199746, 25, "quests/quest_soulsbane/configs/soulsbane.npc",
+     "Fear reaper (npc 1066) version 1 \"Level 42\" (id 1066): 25 hitpoints, 39/41/40 attack/strength/defence, magic 1, ranged 1, every bonus 0, slash, attack speed 4, aggressive, max hit 5 from ~npc_melee_maxhit (configs/all.npc:28819 agrees)"),
+    ("A Soul's Bane", "soulbane_confu_creeper", "Confusion_beast", 15199269, 28, "quests/quest_soulsbane/configs/soulsbane.npc",
+     "Confusion beast (npc 1067) version 2 \"Level 43 (stab)\" (id 1067): 28 hitpoints, 42/41/40 attack/strength/defence, magic 1, ranged 1, every bonus 0, stab, attack speed 4, aggressive, max hit 5 from ~npc_melee_maxhit (configs/all.npc:28837 agrees)"),
+    ("A Soul's Bane", "soulbane_confu_creeper_fake1", "Confusion_beast", 15199269, 28, "quests/quest_soulsbane/configs/soulsbane.npc",
+     "Confusion beast (npc 1068) version 1 \"Level 43 (crush)\" (ids 1068-1071): 28 hitpoints, 42/41/40 attack/strength/defence, magic 1, ranged 1, every bonus 0, crush, attack speed 4, aggressive, max hit 5 from ~npc_melee_maxhit (configs/all.npc:28854 agrees)"),
+    ("A Soul's Bane", "soulbane_hope_monst3", "Hopeless_creature", 15362688, 25, "quests/quest_soulsbane/configs/soulsbane.npc",
+     "Hopeless creature (npc 1072) version 1 \"Level 40\" (ids 1072-1074): 25 hitpoints, 38/36/39 attack/strength/defence, magic 1, ranged 1, every bonus 0, stab, attack speed 4, aggressive, max hit 5 from ~npc_melee_maxhit (configs/all.npc:28922 agrees)"),
+    ("A Soul's Bane", "soulbane_hope_monst2", "Hopeless_creature", 15362688, 25, "quests/quest_soulsbane/configs/soulsbane.npc",
+     "Hopeless creature (npc 1073) version 1 \"Level 40\" (ids 1072-1074): 25 hitpoints, 38/36/39 attack/strength/defence, magic 1, ranged 1, every bonus 0, stab, attack speed 4, aggressive, max hit 5 from ~npc_melee_maxhit (configs/all.npc:28937 agrees)"),
+    ("A Soul's Bane", "soulbane_hope_monst1", "Hopeless_creature", 15362688, 25, "quests/quest_soulsbane/configs/soulsbane.npc",
+     "Hopeless creature (npc 1074) version 1 \"Level 40\" (ids 1072-1074): 25 hitpoints, 38/36/39 attack/strength/defence, magic 1, ranged 1, every bonus 0, stab, attack speed 4, aggressive, max hit 5 from ~npc_melee_maxhit (configs/all.npc:28954 agrees)"),
+    ("A Soul's Bane", "soulbane_final_tolna1", "Tolna", 15199356, 37, "quests/quest_soulsbane/configs/soulsbane.npc",
+     "Tolna (npc 1075): 37 hitpoints, 42/41/40 attack/strength/defence, magic 1, ranged 1, magicdefence 50, rangedefence 50, slash, attack speed 'Varies' (the cache record's attackrate kept), aggressive, max hit 5 from ~npc_melee_maxhit (configs/all.npc:28971 agrees)"),
+    ("A Soul's Bane", "soulbane_final_tolna2", "Tolna", 15199356, 37, "quests/quest_soulsbane/configs/soulsbane.npc",
+     "Tolna (npc 1076): 37 hitpoints, 42/41/40 attack/strength/defence, magic 1, ranged 1, magicdefence 50, rangedefence 50, slash, attack speed 'Varies' (the cache record's attackrate kept), aggressive, max hit 5 from ~npc_melee_maxhit (configs/all.npc:28988 agrees)"),
+    ("A Soul's Bane", "soulbane_final_tolna3", "Tolna", 15199356, 37, "quests/quest_soulsbane/configs/soulsbane.npc",
+     "Tolna (npc 1077): 37 hitpoints, 42/41/40 attack/strength/defence, magic 1, ranged 1, magicdefence 50, rangedefence 50, slash, attack speed 'Varies' (the cache record's attackrate kept), aggressive, max hit 5 from ~npc_melee_maxhit (configs/all.npc:29005 agrees)"),
+    ("Troll Stronghold", "troll_prison_guard1_awake", "Twig", 15326896, 90, "quests/quest_troll/configs/quest_troll.npc",
+     "Twig (npc 4131) version 1 \"Awake\" (id 4131): 90 hitpoints, 40/90/25 attack/strength/defence, magic 0, ranged 0, crushattack 20, strengthbonus 20, crushdefence 10, magicdefence 200, rangedefence 200, crush, attack speed 6, not aggressive, max hit 13 from ~npc_melee_maxhit (configs/all.npc:115295 agrees)"),
+    ("Troll Stronghold", "troll_prison_guard2_awake", "Berry", 15326895, 90, "quests/quest_troll/configs/quest_troll.npc",
+     "Berry (npc 4132) version 1 \"Awake\" (id 4132): 90 hitpoints, 40/90/25 attack/strength/defence, magic 0, ranged 0, crushattack 20, strengthbonus 20, crushdefence 10, magicdefence 200, rangedefence 200, crush, attack speed 6, aggressive, max hit 13 from ~npc_melee_maxhit (configs/all.npc:115337 agrees)"),
+    ("Shilo Village", "zq_mainzombie1", "Nazastarool", 15199510, 70, "quests/quest_zombiequeen/configs/zombiequeen.npc",
+     "Nazastarool (npc 5353) version 1 \"Zombie\" (id 5353): 70 hitpoints, 85/80/80 attack/strength/defence, magic 0, ranged 0, every bonus 0, slash, attack speed 4, aggressive, max hit 9 from ~npc_melee_maxhit (configs/all.npc:150237 agrees)"),
+    ("Shilo Village", "zq_mainzombie2", "Nazastarool", 15199510, 70, "quests/quest_zombiequeen/configs/zombiequeen.npc",
+     "Nazastarool (npc 5354) version 2 \"Skeleton\" (id 5354): 70 hitpoints, 58/54/58 attack/strength/defence, magic 0, ranged 0, slashattack 15, strengthbonus 15, stabdefence 5, slashdefence 5, crushdefence 5, magicdefence 5, rangedefence 5, slash, attack speed 4, aggressive, max hit 8 from ~npc_melee_maxhit (configs/all.npc:150261 agrees)"),
+    ("Shilo Village", "zq_mainzombie3", "Nazastarool", 15199510, 80, "quests/quest_zombiequeen/configs/zombiequeen.npc",
+     "Nazastarool (npc 5355) version 3 \"Ghost\" (id 5355): 80 hitpoints, 85/80/80 attack/strength/defence, magic 0, ranged 0, every bonus 0, slash, attack speed 4, aggressive, max hit 9 from ~npc_melee_maxhit (configs/all.npc:150285 agrees)"),
+)
+NPC_STAT_AUDIT_RETRIEVED = "2026-10-06"
+# Where a stat block above leaves the page and the engine apart, said once.
+NPC_STAT_KNOWN_GAPS: dict[str, tuple[str, ...]] = {
+    "A Porcine of Interest": (
+        "Sourhog (oldid 15275486): the page's melee max hit 6 is not what its stats roll -- ~npc_melee_maxhit is (30 + 9) * 64 / 640 = 4 and neither the page nor the cache carries a strength bonus; its [ai_opplayer2] (porcineofinterest_locs.rs2) throws the page's 20-30 spit one swing in four and otherwise swings ~npc_meleeattack.",
+    ),
+    "A Soul's Bane": (
+        "Tolna and the Hopeless creatures (oldids 15199356, 15362688): the pages list Slash/Stab AND Ranged; only the melee swing is modelled (the Hopeless creature's ranged max hit is '?'), and Tolna's attack speed 'Varies' keeps each form's cache attackrate (6 / 8 / 20).",
+    ),
+    "Below Ice Mountain": (
+        "Ancient Guardian (oldid 15200249): the block follows the page's attack speed 5 against the cache record's attackrate 6.",
+    ),
+}
+
+
+def fold_npc_stat_audits(row: dict[str, object]) -> None:
+    """Append the stat audits for `row`'s quest to its evidence lists (copies,
+    never the AUDITED_OVERRIDES lists themselves)."""
+    audits = [entry for entry in NPC_STAT_AUDITS if entry[0] == row["name"]]
+    if not audits:
+        return
+    sources = list(row["source_audits"])
+    pinned = {audit["revision"] for audit in sources}
+    npcs = list(row["npc_gamevals"])
+    for _, symbol, page, oldid, _, path, line in audits:
+        if oldid not in pinned:
+            sources.append({
+                "url": f"https://oldschool.runescape.wiki/w/{page}?oldid={oldid}",
+                "revision": oldid,
+                "retrieved": NPC_STAT_AUDIT_RETRIEVED,
+            })
+            pinned.add(oldid)
+        npcs.append(f"{symbol}: {line} ({path})")
+    row["source_audits"] = sources
+    row["npc_gamevals"] = npcs
+    row["known_gaps"] = list(row["known_gaps"]) + list(NPC_STAT_KNOWN_GAPS.get(str(row["name"]), ()))
+
 
 def main() -> int:
     parser = argparse.ArgumentParser()

@@ -1,0 +1,78 @@
+{{Infobox Monster
+|name = Jal-MejRah
+|image = [[File:Jal-MejRah.png|220px]]
+|release = [[1 June]] [[2017]]
+|update = The Inferno
+|members = Yes
+|combat = 85
+|size = 2
+|examine = A dangerous flying creature.
+|xpbonus = 0
+|max hit = 19
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Ranged]]
+|attack speed = 3
+|slayxp = 25
+|cat = TzHaar
+|assignedby = chaeldar,nieve,duradel
+|hitpoints = 25
+|att = 0
+|str = 0
+|def = 55
+|mage = 120
+|range = 120
+|attbns = 0
+|strbns = 0
+|amagic = 0
+|mbns = 0
+|arange = 30
+|rngbns = 30
+|dstab = 30
+|dslash = 30
+|dcrush = 30
+|dmagic = -20
+|dlight = 45
+|dstandard = 45
+|dheavy = 45
+|elementalweaknesstype = Water
+|elementalweaknesspercent = 40
+|poisonresistance = 100
+|venomresistance = 100
+|immunecannon = No
+|immunethrall = No
+|immuneburn = Immune to normal burns
+|id = 7692
+}}
+'''Jal-MejRah''', commonly referred to as '''bats''', is a [[volcanic creature]] that is encountered in the [[Inferno]]. It is apparently the ancestor of the [[Tz-Kih]].
+
+Jal-MejRahs function similar to a Tz-Kih, except rather than draining [[prayer points]] with their attack, they drain the player's [[run energy]] instead. They drain 3 run energy per hit. This '''can''' be prevented via [[Protect from Missiles]].
+
+Jal-MejRah also has the ability to slightly drain a player's combat [[stats]], boosting its own by the same amount. This '''can''' be negated by praying [[Protect from Missiles]].
+
+Jal-MejRah have a very short [[attack range]] compared to other Inferno creatures, at only 4 squares.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 20 August 2025
+|update = More Doom Tweaks, Poll 84, & Summer Sweep Up Changes
+|change = Jal-MejRah now has a 40% [[elemental weakness]] to [[water spells]].
+}}
+{{Subject changes
+|date = 16 April 2025
+|update = Easter Event
+|change = The Jal-MejRah no longer drains run energy if players are praying Protect from Missiles. 
+}}
+{{Subject changes
+|date = 30 June 2021
+|update = Phosani's Nightmare
+|poll = A Night At The Theatre and Old School Content Poll 75: PvM
+|change = The Jal-MejRah no longer drain combat stats if players are praying Protect from Missiles. 
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*This monster closely resembles [[Torcher|torchers]] as well as the Scourge unit from ''{{wp|StarCraft}}''.
+
+{{Inferno}}

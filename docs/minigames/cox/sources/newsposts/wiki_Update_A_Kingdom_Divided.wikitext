@@ -1,0 +1,622 @@
+{{Update|date=16 June 2021|rev=22 June 2021|link=http://services.runescape.com/m=news/a-kingdom-divided?oldschool=1|category=game}}
+[[File:A Kingdom Divided newspost.jpg|right]]
+{{clear}}
+{{ToC}}
+==Player Feedback and Our Changes (June 22nd)==
+{|class=wikitable style="text-align:center; width:665px;"
+!Your Feedback
+!Our Actions
+|-
+|The Ash Sanctifier provides too much value considering its cost when compared to similar items. Currently 1 Death Rune grants the sanctifier 100 charges.
+|Following player feedback and further balancing, we agree that this is a little too generous. We'd like to change this to 10 Death Runes per 100 charges instead.
+|-
+|Some Demons in the game have very high Magic levels, (e.g Skotizo and K'ril Tsutsaroth) so Magic spells feel very weak against them. This makes Demonbane Spells feel less rewarding to use against popular Demons, even though it should be a viable option.
+|The intention of the Arceuus Spellbook rework was to increase variety in viable options, rather than entirely replace existing metas.
+
+We feel the spellbook has achieved this, though we do agree that Demonbane spells could be improved slightly. As such, we'll be looking to increase the accuracy of these spells.
+
+Currently, accuracy is 25% with Mark of Darkness. We will be changing this so that the base accuracy without Mark of Darkness will be increased from 0% to 20%. With Mark of Darkness, accuracy will be increased from 25% to 40%.
+
+We're hopeful this change will make using Demonbane spells feel more worthwhile.
+|-
+|All Demons in the game now consistently drop Ashes. As a result of this, tasks in the Catacombs of Kourend such as Hellhounds and Mutated Bloodvelds no longer provide passive Prayer restoration, as they do not drop bones that can be buried or crushed with the Bonecrusher.
+|Demons droping Ashes instead of bones is intentional and now consistent with their lore. We'd like to keep it this way to maintain consistency across the game.
+
+However, we understand this has impacted an established playstyle that players may not have considered when we proposed the changes.
+
+The best solution we've seen so far is to allow Bloodvelds and Hellhounds to drop bones alongside the Ashes they would also drop. Whilst not ideal from a lore perspective, we'd be willing to compromise on this based on your feedback.
+
+Let us know what you think. Should these demons also drop bones in conjunction with their ashes?
+|-
+|The Harmonised Staff is less viable in certain PvM situations such as The Nightmare of Ashihama and Zulrah. This is because generally it is now more worthwhile for players to use other Magic weapons that are compatible with the Arceuus Spellbook which grants access to Thralls.
+|We'd like to thank you for all your suggestions so far about what we should do. We still haven't come to a decision on what would be best and we welcome you to suggest further improvements for changes to the Harmonised Staff that we could include in a future poll.
+|-
+|Some players feel the Demonic Offering spell is not viable to use during combat due to the spell being interruptable.
+|We'll be removing the ability for monsters to interrupt Demonic Offering. This should make it feel better to use while you're in combat.
+
+We could also look at shortening the animations used with these spells, whilst adding a cool-down between casts to preserve the experience rates that were polled when outside of combat.
+
+Let us know what you think of these changes!
+|-
+|Dark Lure can feel frustrating to use against Implings. Sometimes an Impling will float towards the player as expected and sometimes they will drift off in an inconsistent manner.
+|In tomorrow's game update we'll be making some changes that will improve the behaviour of Implings under the effects of Dark Lure. When hit with Dark Lure, Implings will immediately try to follow the player for a total of 6 seconds (including the time it takes to reach the player). Afterwards, they'll roam around the player in a 5x5 grid. Hopefully these changes make using the spell feel much better!
+|-
+|Some players have expressed issues with the mechanics of Thralls in certain locations across the game.
+|We would like to clarify that Thralls are intended to stay present in the area you have summoned them and have purposefully been designed to not move around too much.
+
+Whilst the mechanics of Thralls will not be changing drastically, we have noticed a few of the issues with their behaviour that we'll be resolving as part of our standard bug-fixing procedure.
+
+Keep an eye out on future Game Update newspost for more information about these fixes and please continue reporting any bugs in-game and we will continue to investigate them on a case-by-case basis.
+|-
+|Players would like to hang the Kourend Map in the Quest Hall.
+|Sure, why not! We've added this into our backlog for a future release.
+
+In the meantime, we'll also investigate the feasibility of updating the maps graphically!
+|-
+|Players have suggested various ways we can improve the A Kingdom Divided quest through small tweaks and changes to dialogue, etc.
+|We appreciate your feedback on how we can improve the quest even more! Your suggestions have been passed to the relevant team and you should expect to see some minor tweaks and changes in the coming weeks!
+|}
+
+==Player Feedback and Our Changes (June 17th)==
+{|class=wikitable style="text-align:center; width:665px;"
+!Your Feedback
+!Our Actions
+|-
+|The Ash Sanctifier is providing more Prayer experience than what was detailed in the initial poll blog.
+|This is due to the Elite Morytania Diary reward which awards full Prayer XP for the Bonecrusher.
+
+We haven't delivered exactly what was offered, and we should have made it clearer during the polling process that this Diary reward would work alongside the Ash Sanctifier.
+
+We apologise for the of confusion and concerns around experience rates this has caused.
+
+We'll be removing the Elite Kourend Diary reward that provides players with full Prayer XP when scattering Ashes, meaning Prayer XP gained will stay at 50%.
+In an upcoming poll, we'll ask you to vote on whether you want the 100% Prayer XP reward to apply to the Ash Sanctifier upon completion of the Kourend Elite Diary.
+|-
+|The Ash Sanctifier doesn't ask how many Death Runes players want to add, it just takes them all.	
+|We'll change this with next week's game upate so that it will work similarly to other items in game and ask how many charges you'd like to add.
+|-
+|The Arceuus Spellbook has outclassed other weapons such as the Harmonised Staff in PvM content.
+|We'd like to invite you to give us your suggestions on how we could improve the Harmonised Staff in PvM.
+We'll be reviewing your suggestions and putting the best ones to a poll in the near future.
+|-
+|Some players felt the Arceuus Spells were underwhelming and they are suggesting various ways we can improve them to offer more viability.
+|As the spellbook was only released yesterday, we're not looking to make any immediate changes.
+
+We will continue to monitor your feedback, with the intention of making changes based on your feedback once the dust has settled and everyone has had a better chance to test the spellbook in-game.
+
+Let us know how you're getting on with the Arceuus Spellbook! Are there any specific changes you'd like to see?
+|-
+|Some Spells in the Arceuus Spellbook are interrupted by combat, limiting their use in certain areas.
+|The Arceuus Spells have been intentionally designed this way.
+
+Due to the animations of the spells, if they were not interruptable then players would be locked in place for a considerable amount of time. This could be even more detrimental than having them be interrupted in combat.
+|-
+|Players would like to see the Book of the Dead left click to wield.
+|Although you can use the Book of the Dead whilst its in your inventory, we will implement this change in next week's game update.
+|-
+|With the Shayzien remap, parts of certain areas became single-way combat when they were previously multi-way combat.
+|We are aware of this and will ensure any areas that were previously multi-way combat will be changed back with next week's game update.
+|-
+|Thralls currently don't give points in Chambers of Xeric.
+|We'll be changing it so Thralls provide points based on the damage they deal whilst in the Chambers of Xeric with next week's game update.
+|-
+|Zalcano isn't dropping Infernal Ashes.
+|With next week's game update, Zalcano will begin dropping Infernal Ashes for the MVP as intended.
+|-
+|When scattering Demonic Ashes, they don't award Prayer points in the Catacombs of Kourend.
+|This benefit is exclusive to bones being buried, and does not apply to ashes. There are no plans to change this currently, as we believe the benefit will change existing metas too much.
+|}
+
+==Player Feedback and Our Changes (June 16th)==
+{|class=wikitable style="text-align:center; width:665px;"
+!Your Feedback
+!Our Actions
+|-
+|Demonic Ashes are not appearing in F2P where the appropriate monsters should drop them (for example, imps). We clarified in our original blog that they should be available in F2P if the monsters are present in F2P.
+|We agree that this should be the case, so we'll be changing this by next week. The Demonic Ashes will drop from appropriate F2P monsters.
+|}
+
+==Issues and Hotfixes (June 16th)==
+{|class=wikitable style="text-align:center; width:665px;"
+!Issues Raised
+!Current Progress
+|-
+|'''(11:05 BST)''' We've received reports of some players not being able to login.
+|'''(11:20 BST)''' Players should now be able to login.
+|-
+|'''(11:25 BST)''' The values for Greater Ghost and Skeleton are shown as 70 XP in the newspost.
+|'''(11:35 BST)''' This was incorrect and the values have now been updated to reflect the correct number (88 XP).
+|-
+|'''(11:50 BST)''' PvP Worlds are not appearing correctly.
+|'''(11:55 BST)''' A 30-minute countdown timer is now activate across all PvP worlds in order to shutdown and convert them for their intended purposes.
+'''(12:15 BST)''' The PvP worlds that were due to close with this week's game update have been taken offline and replaced with the correct worlds as per the current PvP rota.
+|-
+|'''(13:15 BST)''' Tekton's stats appear to be overly high in Chambers of Xeric in Challenge Mode.
+|'''(13:20 BST)''' A hotfix has been deployed to fix this issue.
+|-
+|'''(13:15 BST)''' Part of Piscarillius became single-way combat affecting 2-tick fishing techniques.
+|'''(13:20 BST)''' This will be reverted back with a coldfix (likely to be next week's game update - Wednesday, June 23rd).
+|-
+|'''(13:15 BST)''' The Abyssal Sire pet inventory model is incorrect.
+|'''(13:20 BST)''' This issue will be solved with a coldfix (likely to be next week's game update - Wednesday, June 23rd).
+|-
+|'''(13:15 BST)''' The minimap for the lower level of the Yama Dungeon is all black.
+|'''(13:20 BST)''' This issue will be solved with a coldfix (likely to be next week's game update - Wednesday, June 23rd).
+|-
+|'''(14:30 BST)''' Concerns over whether the Death Charge can be used to restore special attack energy in PvP combat.
+|'''(15:35 BST)''' Players can no longer benefit from the Special Attack energy restoration of Death Charge whilst in PvP combat.
+|-
+|'''(15:00 BST)''' Vanguards are not agressive within Chambers of Xeric after their first transition.
+|'''(15:15 BST)''' This issue has now been resolved.
+|}
+
+''Can you believe it? We're officially 150 quests old! Read on for everything you need to know about the launch of A Kingdom Divided, including a deep dive into the brand new Arceuus Spellbook. We've also got the goss on our Shayzien rework, competition winners and changes to the Chambers of Xeric!''
+
+'''''Before we start, a quick note: upon login, any players currently in Kourend will be teleported to the Castle, due to substantial mapping changes. More on that below…'''''
+
+==A Kingdom Divided==
+[[File:A Kingdom Divided (1).png|centre|600px]]
+
+Well, here we are. The next chapter in the Great Kourend storyline and the 150th Old School Runescape quest: A Kingdom Divided is out now!
+
+A brief message from Mod Ed:
+
+''"We first announced this quest back at RuneFest 2019, but for me, the journey has been much longer. I wrote the first draft of A Kingdom Divided all the way back in mid-2017, alongside drafts for the five Kourend house quests. After four years of waiting, it’s a joy to finally share this story with you all. I hope you enjoy it as much as the team and I enjoyed creating it."''
+
+Great Kourend: a land of wealth, comfort and security. Across its five cities, the people of this Kingdom work to bring peace and prosperity. However, all is not as it seems. Beneath this delicate façade lies an uncomfortable truth: the kingdom of Great Kourend is A Kingdom Divided.
+
+Since the death of the last king, Great Kourend has been ruled by the Kourend Council. Under the watchful gaze of the Council, Kourend has enjoyed a golden age of progression. But not all of its citizens are happy, and, spurred by the recent arrest of Councillor Sophia Hughes, allegations of corruption are growing.
+
+However, the political games of the Council may be the least of Kourend’s concerns. A darker power is gathering in the Kingdom - one that could change the face of Gielinor forever...
+
+Start this quest by speaking to Martin Holt, who can be found protesting in Kingstown, near Kourend Castle.
+
+[[File:A Kingdom Divided (2).png|centre|600px]]
+{{Collapsed section|18|Requirements & Rewards (SPOILER WARNING!) - Click to Expand}}
+To complete A Kingdom Divided you'll need to have finished the following quests:
+* The Depths of Despair
+* The Queen of Thieves
+* The Ascent of Arceuus
+* The Forsaken Tower
+* Tale of the Righteous
+* Architectural Alliance
+
+You'll also need the following skill levels (cannot be boosted):
+* 54 Agility
+* 52 Thieving
+* 52 Woodcutting
+* 50 Herblore
+* 42 Mining
+* 38 Crafting
+* 35 Magic
+
+Upon completion of the quest you'll be rewarded with:
+* 2 Quest Points
+* 10,000 XP Lamp
+* New Arceuus spells
+* Kourend Castle respawn point
+* Your Kharedst's Memoirs changing into the Book of the Dead (+6 Magic attack & +3 Prayer bonus when equipped)
+* 20 additional Book of the Dead charges
+{{Collapsed section end}}
+
+
+<center><big><big>[https://www.youtube.com/watch?v=tl-UubCSkfM A Kingdom Divided - Launch Trailer | Old School RuneScape]</big></big></center>
+
+We'd like to give a big shoutout to Mods Grace, Slippers and Surma for their audio contributions to A Kingdom Divided, as we can't wait for you to hear the sweet sounds they included with quest 150, such as 'The Part Where You Die'
+
+[[File:The Part Where You Die.ogg]]
+
+You'll be able to get up to speed with all the Kourend lore by checking out our [https://secure.runescape.com/m=news/a-kingdom-divided---coming-june-2021?oldschool=1 original newspost] which features Postie Pete's return, the complete collection of Kourend Chronicles and more!
+
+==Arceuus Spells Rework==
+[[File:A Kingdom Divided (3).png|centre|600px]]
+Complete A Kingdom Divided and you'll gain access to the full contents of the new Arceuus Spellbook. Whether you want to clean all your herbs in one swoop or raise the dead, this book has got it all! Just goes to show that reading really does broaden the mind...
+
+''As always, we refer to the in-game timings as cycles. Each cycle is equal to 0.6 seconds and is also commonly referred to as a 'tick' by the wider community.''
+
+===Reanimation Spells===
+{|class=wikitable style="text-align:center; width:750px;"
+!Icon || Spell Name || Magic Requirement || Runes Needed || Magic XP || Description
+|-
+|[[File:Basic Reanimation icon (mobile).png]] || Basic Reanimation || 16 || 4 Body & 2 Nature || 32 || Can be used to reanimate the ensouled heads of '''Goblins''', '''Monkeys''', '''Imps''', '''Minotaurs''', '''Scorpions''', '''Bears''' and '''Unicorns'''
+|-
+|[[File:Adept Reanimation icon (mobile).png]] || Adept Reanimation || 41 || 4 Body''', ''' 3 Nature & 1 Soul || 80 || Can be used to reanimate the ensouled heads of '''Dogs''', ''' Chaos Druids''', '''Ogres''', ''' Giants''', ''' Elves''', '''Trolls''' and '''Horrors'''
+|-
+|[[File:Expert Reanimation icon (mobile).png]] || Expert Reanimation || 72 || 1 Blood''', ''' 3 Nature & 2 Soul || 138 || Can be used to reanimate the ensouled heads of '''Kalphites''', ''' Dagannoth''', ''' Bloodvelds''', ''' TzHaar''' and '''Demons'''
+|-
+|[[File:Master Reanimation icon (mobile).png]] || Master Reanimation || 90 || 2 Blood''', ''' 4 Nature & 4 Soul || 170 || Can be used to reanimate the ensouled heads of '''Aviansie''', ''' Abyssal Creatures''' and '''Dragons'''
+|}
+
+===Teleport Spells===
+{|class=wikitable style="text-align:left; width:750px;"
+!Icon || Spell Name || Magic Requirement || Runes Needed || Magic XP || Description
+|-
+|[[File:Arceuus Home Teleport icon (mobile).png]] || Arceuus Home Teleport || 1 || None || 0 || Teleports to the '''Dark Altar in Great Kourend'''
+|-
+|[[File:Arceuus Library Teleport icon (mobile).png]] || Arceuus Library || 6 || 2 Earth & 1 Law || 9 || Teleports '''north of the Grand Library in Arceuus'''
+|-
+|[[File:Draynor Manor Teleport icon (mobile).png]] || Draynor Manor || 17 || 1 Earth, 1 Water & 1 Law || 16 || Teleports to '''Draynor Manor'''
+|-
+|[[File:Battlefront Teleport icon (mobile).png]] || Battlefront || 23 || 1 Earth, 1 Fire & 1 Law || 19 || Teleports to the '''tomb north-west of the Kebos battlefront'''
+|-
+|[[File:Mind Altar Teleport icon (mobile).png]] || Mind Altar || 28 || 1 Law & 2 Mind || 22 || Teleports to the '''Mind Altar'''
+|-
+|[[File:Respawn Teleport icon (mobile).png]] || Respawn || 34 || 1 Law & 1 Soul || 27 || Teleports to the '''player's respawn location'''
+|-
+|[[File:Salve Graveyard Teleport icon (mobile).png]] || Salve Graveyard || 40 || 1 Law & 2 Soul || 30 || Teleports to the '''Salve graveyard'''
+|-
+|[[File:Fenkenstrain's Castle Teleport icon (mobile).png]] || Fenkenstrain's Castle || 48 || 1 Earth, 1 Law & 1 Soul || 50 || Teleports to '''Fenkenstrain's Castle'''
+|-
+|[[File:West Ardougne Teleport icon (mobile).png]] || West Ardougne || 61 || 2 Law & 2 Soul || 68 || Teleports to '''West Ardougne'''
+|-
+|[[File:Harmony Island Teleport icon (mobile).png]] || Harmony Island || 65 || 1 Law, 1 Nature & 1 Soul || 74 || Teleports to '''Harmony Island'''
+|-
+|[[File:Cemetery Teleport icon (mobile).png]] || Cemetery || 71 || 1 Blood, 1 Law & 1 Soul || 82 || Teleports to the '''Forgotten Cemetery in the Wilderness'''
+|-
+|[[File:Barrows Teleport icon (mobile).png]] || Barrows || 83 || 1 Blood, 2 Law & 2 Soul || 90 || Teleports to the '''Barrows'''
+|-
+|[[File:Ape Atoll Teleport (Arceuus) icon (mobile).png]] || Ape Atoll || 90 || 2 Blood, 2 Law & 2 Soul || 100 || Teleports to the '''Ape Atoll Dungeon''' ''(Requires completion of Monkey Madness I)''
+|}
+
+===Grasp Spells===
+{|class=wikitable style="text-align:left; width:750px;"
+!Icon || Spell Name || Magic Requirement || Runes Needed || Magic XP || Base Max Hit || Description
+|-
+|[[File:Ghostly Grasp icon (mobile).png]] || Ghostly Grasp || 35  || 1 Chaos & 4 Air || 22.5+ Damage || 12 || 10% chance to stop the enemy from moving for two ticks
+|-
+|[[File:Skeletal Grasp icon (mobile).png]] || Skeletal Grasp || 56 || 1 Death & 8 Earth || 33+ Damage || 18 || 25% chance to stop the enemy from moving for four ticks
+|-
+|[[File:Undead Grasp icon (mobile).png]] || Undead Grasp || 79 || 1 Blood & 12 Fire || 46.5 + Damage || 24 || 50% chance to stop the enemy from moving for four ticks
+|}
+
+===Demonbane Spells===
+{|class=wikitable style="text-align:left; width:750px;"
+!Icon || Spell Name || Magic Requirement || Runes Needed || Magic XP || Base Max Hit || Description
+|-
+|[[File:Inferior Demonbane icon (mobile).png]] || Inferior Demonbane || 44 || 1 Chaos & 4 Fire || 27+ Damage || 16 || Only works against demonic foes
+|-
+|[[File:Superior Demonbane icon (mobile).png]] || Superior Demonbane || 62 || 1 Soul & 8 Fire || 36+ Damage || 23 || Only works against demonic foes
+|-
+|[[File:Dark Demonbane icon (mobile).png]] || Dark Demonbane || 82 || 2 Soul & 12 Fire || 43.5+ Damage || 30 || Only works against demonic foes
+|}
+
+===Corruption Spells===
+{|class=wikitable style="text-align:left; width:750px;"
+!Icon || Spell Name || Magic Requirement || Runes Needed || Magic XP || Description
+|-
+|[[File:Lesser Corruption icon (mobile).png]] || Lesser Corruption || 64 || 1 Death & 2 Soul || 75 || 33% chance to inflict corruption upon your target with your next damaging hit
+|-
+|[[File:Greater Corruption icon (mobile).png]] || Greater Corruption || 85 || 1 Blood & 3 Soul || 95 || 66% chance to inflict corruption upon your target with your next damaging hit
+|}
+
+===Resurrection Spells===
+{|class=wikitable style="text-align:center; width:750px;"
+!Icon || Spell Name || Magic Requirement || Combat Style || Runes Needed || Magic XP || Base Max Hit || Description
+|-
+|[[File:Resurrect Lesser Ghost icon (mobile).png]] || Resurrect Lesser Ghost || 38 || Magic || 5 Mind, 10 Air & 1 Cosmic || 55 + Damage || 1 || Resurrects a Ghost that will attack your enemies with Magic damage, and will remain alive one cycle for every Magic level the player had at the time
+|-
+|[[File:Resurrect Lesser Skeleton icon (mobile).png]] || Resurrect Lesser Skeleton || 38 || Ranged || 5 Mind, 10 Air & 1 Cosmic || 55 + Damage || 1 || Resurrects a Skeleton that will attack your enemies with Ranged damage, and will remain alive one cycle for every Magic level the player had at the time
+|-
+|[[File:Resurrect Lesser Zombie icon (mobile).png]] || Resurrect Lesser Zombie || 38 || Melee || 5 Mind, 10 Air & 1 Cosmic || 55 + Damage || 1 || Resurrects a Zombie that will attack your enemies with Melee damage, and will remain alive one cycle for every Magic level the player had at the time
+|-
+|[[File:Resurrect Superior Ghost icon (mobile).png]] || Resurrect Superior Ghost || 57 || Magic || 5 Death, 10 Earth & 1 Cosmic || 70 + Damage || 2 || Resurrects a Ghost that will attack your enemies with Magic damage, and will remain alive one cycle for every Magic level the player had at the time
+|-
+|[[File:Resurrect Superior Skeleton icon (mobile).png]] || Resurrect Superior Skeleton || 57 || Ranged || 5 Death, 10 Earth & 1 Cosmic || 70 + Damage || 2 || Resurrects a Skeleton that will attack your enemies with Ranged damage, and will remain alive one cycle for every Magic level the player had at the time
+|-
+|[[File:Resurrect Superior Zombie icon (mobile).png]] || Resurrect Superior Zombie || 57 || Melee || 5 Death, 10 Earth & 1 Cosmic || 70 + Damage || 2 || Resurrects a Zombie that will attack your enemies with Melee damage, and will remain alive one cycle for every Magic level the player had at the time
+|-
+|[[File:Resurrect Greater Ghost icon (mobile).png]] || Resurrect Greater Ghost || 76 || Magic || 5 Blood, 10 Fire & 1 Cosmic || 88 + Damage || 3 || Resurrects a Ghost that will attack your enemies with Magic damage, and will remain alive one cycle for every Magic level the player had at the time
+|-
+|[[File:Resurrect Greater Skeleton icon (mobile).png]] || Resurrect Greater Skeleton || 76 || Ranged || 5 Blood, 10 Fire & 1 Cosmic || 88 + Damage || 3 || Resurrects a Skeleton that will attack your enemies with Ranged damage, and will remain alive one cycle for every Magic level the player had at the time
+|-
+|[[File:Resurrect Greater Zombie icon (mobile).png]] || Resurrect Greater Zombie || 76 || Melee || 5 Blood, 10 Fire & 1 Cosmic || 88 + Damage || 3 || Resurrects a Zombie that will attack your enemies with Melee damage, and will remain alive one cycle for every Magic level the player had at the time
+|}
+
+===Marking Spells===
+{|class=wikitable style="text-align:center; width:750px;"
+!Icon || Spell Name || Magic Requirement || Runes Needed || Magic XP || Description
+|-
+|[[File:Mark of Darkness icon (mobile).png]] || Mark of Darkness || 59 || 1 Soul & 1 Cosmic || 70 || An enemy with this spell cast upon them suffers an array of debuffs:
+* Corruption hits occur twice as often
+* Your grasping spells are twice as effective (both success % chance and the duration are doubled)
+* Demonbane spells deal an additional 25% damage against demonic enemies.
+* Demonbane spells have additional 25% accuracy against demonic enemies.
+
+This spell will last a cycle for every Magic level the player has at the time
+|-
+|[[File:Ward of Arceuus icon (mobile).png]] || Ward of Arceuus || 73 || 4 Soul, 2 Nature & 1 Cosmic || 85 || When this is cast, the player gains an array of buffs:
+* Immune to corruption.
+* Grasp spells only last for one cycle
+* Damage from demonic foes is reduced by 10%.
+
+This spell will last one cycle for every Magic level the player has at the time
+|}
+
+===Offering Spells===
+{|class=wikitable style="text-align:center; width:750px;"
+!Icon || Spell Name || Magic Requirement || Runes Needed || Magic XP || Description
+|-
+|[[File:Demonic Offering icon (mobile).png]] || Demonic Offering || 84 || 1 Soul & 1 Wrath || 175 || Converts up to 3 sets of ashes into Prayer experience and gives 3 times the base experience
+|-
+|[[File:Sinister Offering icon (mobile).png]] || Sinister Offering || 92 || 1 Blood & 1 Wrath || 180 || Converts up to 3 sets of bones into Prayer points and gives 3 times the base experience
+|}
+
+===Other Spells===
+{|class=wikitable style="text-align:center; width:750px;"
+!Icon || Spell Name || Magic Requirement || Runes Needed || Magic XP || Description
+|-
+|[[File:Shadow Veil icon (mobile).png]] || Shadow Veil || 47 || 5 Earth, 5 Fire & 5 Cosmic || 58 || Grants a 15% chance (40% if wearing the dodgy necklace) to avoid being stunned and damaged while pickpocketing NPCs for a set amount of time
+|-
+|[[File:Dark Lure icon (mobile).png]] || Dark Lure || 50 || 1 Death & 1 Nature || 60 || Stops monsters from retreating during combat, including implings
+|-
+|[[File:Vile Vigour icon (mobile).png]] || Vile Vigour || 66 || 1 Soul & 3 Air || 76 || Converts all remaining prayer points into run energy at a 1:1 ratio
+|-
+|[[File:Degrime icon (mobile).png]] || Degrime || 70 || 4 Earth & 2 Nature || 83 || Cleans all grimy herbs in the player's inventory that the player has the Herblore level to clean
+|-
+|[[File:Resurrect Crops icon (mobile).png]] || Resurrect Crops || 78 ||25 Earth, 8 Blood, 12 Nature & 8 Soul || 90 || Gives a chance for a farming patch to be brought back to life. If the spell fails, the patch is cleared out
+|-
+|[[File:Death Charge icon (mobile).png]] || Death Charge || 80 || 1 Death, 1 Blood & 1 Soul || 90 || Restores 15% of the player's special attack energy upon killing a monster
+|}
+
+===Corruption===
+When a player is corrupted, they will start to lose Prayer points over a short amount of time. After 10 cycles, 1 Prayer point is drained. After another 10 cycles, 2 Prayer points are drained. After a final 10 cycles, 3 Prayer points are drained. If a Mark of Darkness has also been cast, corruption will occur every 5 cycles instead. This new type of damage will be reflected with the new type of hitsplat icon.
+
+Naturally, Corruption spells can only be cast on a player who is not already corrupted. However, there is no cooldown between Corruption expiring and a new Corruption spell being cast. It is not possible to stack multiple Corruption spells on a single player, even within multi-combat zones.
+
+==Shayzien Rework==
+[[File:A Kingdom Divided (4).png|centre|600px]]
+
+Working on the next chapter of the Kourend storyline was the perfect opportunity to give one area of Great Kourend a bit of a makeover. Here's a few words from Mod West:
+
+''"Back in 2016, one of our players posted their vision of what Great Kourend should have been, and it was met with a lot of praise in the community. Since then we’ve made various efforts in crafting a Great Kourend that players want, and one that holds true to the design philosophies behind the rest of Gielinor.''
+
+''"Towards the end of 2016, we worked on the coastlines of Great Kourend to create a more natural silhouette, while also fixing the lack of in-land water and establishing a main castle in the center of the kingdom. These changes went a long way in improving the area, but failed to address the issues with its main cities. The crux of the problem was scale: every building was built with walls that were the thickness of a full game tile (~1 meter), which had adverse effects on the creation of buildings, as they now needed to be a lot bigger to accommodate for the larger walls. As a result, each city was far larger than it needed to be, and looked quite odd when compared to other places! To put this into perspective, some of the buildings in Great Kourend are the size of entire towns – that’s not ideal, and we were keen on fixing this issue as well.''
+
+''"Changing the assets that make up the buildings and layouts of each city, and adding in some much-needed historical world-building (where are my ruins at?!) was a major undertaking, and we knew it would require much more than the handful of weeks we spent on the initial rework. In 2019, we made a start on addressing these issues with the Hosidius rework, which was received very positively by the players – and illustrated how important it was to rework the other four cities.''
+
+''"Some major issues of the Shayzien area included:''
+
+* ''Tents, tents, tents! How has a 1,000 year old city functioned in seemingly temporary accommodation all this time?''
+* ''History? What history? While the area was updated a little with the Chasm of Fire back in 2017, it still had a distinct lack of background. Generally an area this old would have ruins of towns and fortifications, lost to war and time.''
+* ''Strange geography – what is this giant flat grassy plateau doing between farmland and swampland? It’s dull and lacks diversity. What are the local flora and fauna? Why do Giants roam outside the largest cemetery ever seen? So many questions that likely don't have answers, to be honest, as there was little thought put in during the initial crafting of Great Kourend.''
+
+''"With the Shayzien rework, we hope we’ve solved these issues – and even more besides. We encourage you to explore the new city of Shayzien, the war camp and the surrounding outskirts, and we hope you like what you find!"''
+
+So what's changing? Firstly, Shayzien will be split in two. To the south, you'll find the city of Shayzien. To the north, the Shayzien Military Camp – both areas will feel very different from one another.
+
+The camp to the north will have a more temporary, chaotic feel. The tents currently used throughout Shayzien will be used for the buildings here.
+
+[[File:A Kingdom Divided (5).png|centre|600px]]
+
+
+The city to the south has been given a more permanent and organised feel, to really bring the region to life. The tents have been removed from the city and replaced with brick buildings.
+
+[[File:A Kingdom Divided (6).png|centre|600px]]
+
+
+Here's how each piece of content has changed:
+
+[[File:A Kingdom Divided (7).png|centre|600px]]
+
+
+{{Collapsed section|18|Full list of locations - click to expand}}
+{| class="wikitable" style="width:750px; text-align:left;"
+!Content
+!Current Location
+!New Location
+!Other Changes
+|-
+|Bank || Central Shayzien || Northern Shayzien || The poll booth that is currently in a separate building will be moved into the Bank.
+|-
+|General Store || North Eastern Shayzien || North Eastern Shayzien || The general store currently shares a building with other stores. With the remap, it will get its own building.
+|-
+|Clothes Store || Central Shayzien || Northern Shayzien || Right now the clothes store doesn't actually sell any clothes, only graceful recolours! With the remap, it will sell clothes as well.
+|-
+|Phileas Rimor's Home || Northern Shayzien || North Eastern Shayzien || -
+|-
+|Amelia's Home || Central Shayzien || Eastern Shayzien || -
+|-
+|Chapel || Southern Shayzien || Southern Shayzien || The chapel doesn't actually have an altar right now!
+One will be added, along with some NPCs.
+|-
+|Armour Store || North Eastern Shayzien || Eastern Shayzien || The armour store currently shares a building with other stores. With the remap, it will be given its own building.
+|-
+|Weapon Store || North Eastern Shayzien || South Eastern Shayzien || The weapon store currently shares a building with other stores. With the remap, it will be given its own building.
+|-
+|Combat Ring || Eastern Shayzien || South Eastern Military Camp || -
+|-
+|War Tent || Southern Shayzien || Western Military Camp || -
+|-
+|Infirmary || Eastern Shayzien || South Eastern Military Camp || -
+|-
+|Security Tent || Eastern Shayzien || Central Military Camp || -
+|}
+
+===Additions===
+With the remapping, the following content is now within Shayzien:
+
+{| class="wikitable" style="width:750px; text-align:left;"
+!Content
+!Location
+!Description
+|-
+|Administrative Building || Southern Shayzien || An administrative building where the city is managed from. This is separate from the War Tent, which is where the army is led from.
+|-
+|Lord Shayzien's Home || Eastern Shayzien || A home for Lord Shayzien in the city.
+|-
+|Prison || Western Shayzien || A prison for military prisoners on the outskirts of the city.
+|-
+|Archery Shop || Central Shayzien || A new shop in Shayzien that sells archery supplies.
+|-
+|Pub || North Eastern Shayzien || A pub selling food and drink.
+|-
+|Bank || Central Military Camp || A second smaller Bank in the military camp that uses Bank chests. It also has a poll booth.
+|-
+|Smithy || Central Military Camp || A small smithy with anvils.
+|-
+|Agility Course || Eastern Military Camp || A low level agility course, split into two sections. The first section requires 5 Agility to complete, and the second section requires 48 Agility.
+|-
+|Giant Pit || South Western Military Camp || A small area containing a few Hill Giants.
+|-
+|Giant's Den || South Western Military Camp || A dungeon containing Hill Giants, Fire Giants and Moss Giants. An additional entrance to the catacombs can be found here too.
+|-
+|Ruins of Morra || South Western Shayzien || Ancient ruins containing some undead lizardman.
+|-
+|Secluded Chapel || Western Shayzien || A small chapel outside the city.
+|-
+|Rare Trees || Various || Rare trees will be added in and around Shayzien (Maple and Yew).
+|-
+|Ranges and Water sources || Various || Various ranges and water sources will be added to both the city and the military camp.
+|}
+
+===Shops===
+As detailed above, the rework will come with a new archery shop and an expanded clothes shop.
+
+The stock for the archery shop will be:
+* Bronze, Iron, Steel, Mithril, Adamant and Rune Arrows
+* Bronze and Iron Bolts
+* Oak, Willow, Maple and the Standard Shortbow
+* Oak, Willow, Maple and the Standard Longbow
+* Crossbow
+
+The stock for the clothes shop will be:
+* Leather body
+* Leather boots
+* Leather gloves
+* Black skirt
+* Blue skirt
+* White apron
+* Brown apron
+* Chef's hat
+* Black cape
+* Blue cape
+* Red cape
+* Yellow cape
+{{Collapsed section end}}
+
+===Mobs===
+We've changed the mobs in the vicinity to better reflect their environment, and thrown in three brand new NPCs!
+
+====West of Kourend Castle====
+* Giant Spiders (Level 2)
+* Giant Rats (Level 3)
+* NEW - Boar (Level 5)
+
+[[File:A Kingdom Divided (8).png|centre|600px]]
+====North-east of Shayzien====
+* Bandit (Level 22)
+
+[[File:A Kingdom Divided (9).png|centre|600px]]
+====South of Graveyard of Heroes====
+* Zombies (Level 34)
+* NEW - Necromancer (Level 54)
+
+[[File:A Kingdom Divided (10).png|centre|600px]]
+====Ruins of Morra====
+* NEW - Lynx (Level 64)
+
+[[File:A Kingdom Divided (11).png|centre|600px]]
+==Further Changes==
+[[File:A Kingdom Divided (12).png|centre|600px]]
+
+===Ash and the Ash Sanctifier===
+We wanted to make demonic creatures a bit more beneficial, so they now drop different types of ash. You'll be able to scatter ashes to receive Prayer XP (similar to burying bones). Zealot Robes have no effect on demonic ashes, and the ash cannot be offered at Prayer Altars or used at the Ectofuntus. Please note that Superior Slayer will drop the same as their normal equivalent.
+{| class="wikitable align-center-1 align-center-2"  style="width:750px; text-align:left;"
+!Ashes
+!XP
+!Dropped by
+|-
+|Fiendish Ashes || 10 || Imps, Pyrefiends, Icefiends, Waterfiends, Pyrelords, Death Spawns, Scions, Spawns (Sire)
+|-
+|Vile Ashes || 25 || Lesser, Greater Demons, Hellhounds, Bloodveld, Mutated Bloodveld, Agrith Naar, Othainian, Holthion, Doomion, Chronozon, Bouncer
+|-
+|Malicious Ashes || 65 || Black Demons, Nechryael, Greater Nechryaels, Demonic Gorillas, Jungle Demon, Balfrug Kreeyath, Tstanon Karlak, Zakl'n Gritch
+|-
+|Abyssal Ashes || 85 || Abyssal Demons, Abyssal Sire
+|-
+|Infernal Ashes || 110 || Cerberus, K'ril Tsutsaroth, Skotizo, Zalcano
+|}
+
+The Ash Sanctifier is an untradeable object that lets you automatically scatter ashes, similar to how you bury bones with the Bonecrusher. When scattering this way, you will receive half the amount of Prayer XP you would gain from manual scattering. To unlock this new item, you'll need to complete the Kourend and Kebos Hard Achievement Diary. After completing the Elite Diary, you'll be able to gain 100% of the Prayer XP you would normally.
+
+In order to charge the new item, you'll need to use Death Runes, with each Rune giving you 100 charges (and with the maximum charges set at a memorable 2,147,483,622). Your runes can be returned to you if you uncharge or destroy the item. If this item is lost, you can reclaim it by speaking to Tyss by the Dark Altar.
+
+[[File:A Kingdom Divided (13).png|centre|600px]]
+==Competition Winners==
+We ran two competitions to celebrate the launch of A Kingdom Divided, and the results are in. We're sure that you had as hard a time deciding the winner of the Login Screen Competition as we did choosing the winner of the Video competition! All of the entries were fantastic, and we'd like to extend our thanks to everyone who took part. Without further ado, let's reveal our winners:
+
+===Login Screen Competition===
+A massive congratulations to '''Need Plums''', with the most voted entry through our in-game poll! Due to the technical constraints of the login screen, Need Plums kindly adapted their original image to include braziers, for the classic fire animation we all love so much:
+
+[[File:A Kingdom Divided (14).png|centre|600px]]
+
+The other finalists don't go home empty-handed. These talented folks will receive runner-up prizes:
+* 2nd Place: '''Cherrycake4'''
+* 3rd Place: '''Nancyy'''
+* 4th Place: '''Parkshinhide''''
+
+==='The Story So Far' Video Competition===
+After some very close internal voting, the winner of our video competition is '''Evil Robert'''. Here's what some of the team said about the vid:
+
+''"Great voice acting. Very well presented and shot."''
+
+''"Professionally made and very good quality. Your voice is amazing!"''
+
+Here's the full video, so you can see for yourself. It's a great way to refresh your knowledge of the events leading up to A Kingdom Divided:
+
+
+<center><big><big>[https://www.youtube.com/watch?v=ZtesIDlCq8o Kourend, A Kingdom Divided | OSRS Video Competition]</big></big></center>
+
+Congratulations to the following runners-up for their sterling work:
+* 2nd Place: '''Good6rief'''
+* 3rd Place: '''1yfe'''
+* 4th Place: '''Wyzdum13'''
+
+Once again, a huge thanks to everyone who took part in either (or both) competitions. You should be amazingly proud of your entries!
+
+==Chambers Of Xeric==
+[[File:A Kingdom Divided (15).png|centre|600px]]
+
+Chambers of Xeric is getting even more love with this update, including a number of quality of life fixes from Poll 75 that will make your raiding experience all the richer:
+* You can now disable the level-scaling that happens if you have no players at or above 115 combat in Chambers of Xeric, by talking to Captain Rimor.
+* A default chest has been added that can hold 25 items (in personal storage only).
+* Ironmen can now use the shared storage unit on solo raids; Ultimate Ironmen can deposit items to the shared storage, but can't take anything out.
+* The Olms Fire Wall special attack can now be extinguished using Ancient Ice spells.
+* Herb patches now yield more herbs in larger raids.
+* Vasa crystals no longer get the additional 50% defence and health modifier that Challenge Mode bosses gain.
+* A Raid Party can receive up to six unique rewards from a raid if they earn enough points.
+* The Challenge Mode Submerged Muttadile damage model has been altered. Minimum damage is now 20% to 80% of its previous max hit, leading to more consistent damage, but with less combo potential.
+* Points now scale more linearly with combat level, meaning people with certain combat levels no longer receive disproportionately fewer points than they should have.
+* A Pickaxe spawn has been added to all of the Stone Guardians room.
+* Vanguards will take pending damage during the transition phase.
+* Players can now make three tiers of antipoison potions inside of a raid with a Noxifer and a Cicely.
+
+==PvP World Rota==
+The PvP rota has moved to Period A:
+* 539 - (US) - PvP World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+==Extras==
+* Saradomin-themed Theatre of Blood weapons now provide protection from that faction within the God Wars Dungeon.
+* We've fixed an issue with the Saradomin Scythe visually stretching in some circumstances.
+* The look of the Saradomin Scythe inventory icon has been improved to better reflect the item itself.
+* Players can no longer accidentally cast alchemy spells on the XP lamp from A Night at the Theatre.
+* The quest journal for A Night at the Theatre now clarifies whether or not the player has received their reward.
+* The Gauntlet tile patterns have been adjusted, as there was a bug that prevented some patterns from ever appearing.
+* Players can now build cannons inside the Abyssal runecrafting area.
+* The Fight Pits Diary task can now be completed on Deadman Mode worlds by speaking to the Fight Pit master TzHaar- Mej-Kah.
+* The pillars at the Clan Hub no longer clip with the fence.
+* Players may now retrieve the Barrelchest's anchor from Perdu if they lose it after the Barrelchest battle – even if they have not fully completed The Great Brain Robbery.
+* Thorgel's shopping list now correctly states that he wants Pure Essence, not Rune Essence.
+
+
+That's everything for this week's game update! We'd love to hear your feedback so please let us know what you think via our [http://services.runescape.com/m=forum/forums?380,381,733,66219131 official forums], on the [https://www.reddit.com/r/2007scape/comments/o10h3w/a_kingdom_divided/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel.
+
+----
+
+'''Mods Acorn, Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Bonsai, Brow, Bruno, Curse, Daizong, Deagle, Dibber, Ditto, Dylan, Ed, Elena, Errol, Fed, Flippy, Gecko, Grub, Halo, Husky, Jndr, John C, Kandosii, Katies, Kieren, Kirby, Lenny, Light, Lottie, Mack, Maylea, MikeD, Morty, Nasty, Nin, Oasis, Roq, Ry, Sarnie, Squid, Steve W, Sween, Tide, Vegard, West, Wolfy & Zuko'''
+
+
+''The Old School Team''

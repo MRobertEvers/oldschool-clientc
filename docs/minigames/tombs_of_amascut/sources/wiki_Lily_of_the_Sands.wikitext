@@ -1,0 +1,43 @@
+{{Infobox Item
+|name = Lily of the Sands
+|image = [[File:Lily of the Sands.png]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = No
+|noteable = Yes
+|options = Drop
+|examine = A beautiful lily.
+|value = 200
+|weight = 0.003
+|exchange = Yes
+|id = 27272
+}}
+[[File:Lily of the Sands detail.png|left|140px]]
+'''Lily of the Sands''' is an item that can be obtained as a reward from the [[Tombs of Amascut]]. They are used to create [[Menaphite remedies]] at 88 [[Herblore]] by using them on an [[Dwarf weed potion (unf)|unfinished dwarf weed potion]].
+
+==Products==
+{{Uses material list|Lily of the Sands}}
+
+==Item sources==
+{{Drop sources|Lily of the Sands}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 19 August 2026
+|update = Summer Sweep Up - Hunter & Skilling
+|change = The item was renamed from "Lily of the sands" to "Lily of the Sands".
+}}
+{{Subject changes
+|date = 30 April 2025
+|update = Poll 84: Batch II
+|change = Lily of the sands will now be correctly used from the [[reagent pouch]] when making [[menaphite remedy|menaphite remedies]].
+}}
+{{Subject changes footer}}
+
+{{Herblore secondaries}}
+{{Tombs of Amascut}}

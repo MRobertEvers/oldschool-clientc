@@ -2,13 +2,16 @@
 -- for house interviews, then an orb to the Dark Altar. Source of truth for the
 -- dialogue: quest_clientofkourend/scripts/clientofkourend.rs2.
 -- Veos stands at 1825,3691; 1825,3694 is a ship deck, so stand at 1824,3689.
+-- Door rule (b71): no ::clientofkourend placement (it teleports into Kourend, which has no
+-- on-foot route); the player sails with Veos from Port Sarim (cok_veos_sarim_gate,
+-- clientofkourend.rs2:35 -> ~veos_ferry_sail(^cok_veos_piscarilius) 1824,3690). Every walled
+-- general store is entered and left through its door (pass_door), sides read with reach.py.
 return {
     id = "clientofkourend",
     fixture = "fresh_lumbridge.ini",
     setup = {
         "::clearinv",
         "::complete quest_xmarksthespot", -- prerequisite; also shows Veos on the docks
-        "::clientofkourend",
         "::give feather 1", -- the guide brings a feather along
     },
 
@@ -22,6 +25,19 @@ return {
         })
         t.ticks(3)
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
+
+        -- Port Sarim -> Veos "Can you take me to Great Kourend?" -> Port Piscarilius dock.
+        t.exec("goto-veosSarim", t.player.goto_tile, 3054, 3246, 0)
+        t.exec("sailToKourend", t.player.talk_to, "veos_sarim", 1)
+        t.exec("sailToKourend-menu", t.chat.drain, { stop_at = "options" })
+        t.exec("sailToKourend-ask", t.chat.choose, "Can you take me to Great Kourend?")
+        t.exec("sailToKourend-done", t.chat.drain, {})
+        t.ticks(4)
+        do
+            local _, dock = t.world.tile()
+            t.check("sailToKourend-landed", dock ~= nil and dock.x >= 1800 and dock.x < 1850 and dock.z >= 3650 and dock.z < 3720,
+                "landed at the Piscarilius dock at " .. tostring(dock and (dock.x .. "," .. dock.z)))
+        end
 
         t.exec("goto-talkToVeos", t.player.goto_tile, 1824, 3689, 0)
         t.exec("talkToVeos", t.player.talk_to, "veos_vis_amulet", 1)
@@ -53,7 +69,10 @@ return {
         t.ticks(2)
         t.expect("talkToLeenz.recorded", t.var.expect("varb5620_veos_piscarilius", 1))
 
-        t.exec("goto-talkToRegath", t.player.goto_tile, 1720, 3726, 0)
+        -- Arceuus general store: double door on the west edge of 1718,3727.
+        t.exec("goto-talkToRegath", t.player.goto_tile, 1717, 3727, 0)
+        t.exec("talkToRegath.doorIn", t.player.pass_door, { closed = "archeuus_door_double_left_blue", open = "archeuus_door_double_left_blue_open",
+            at = { 1718, 3727, 0 }, near = { 1717, 3727 }, far = { 1718, 3727 } })
         t.exec("talkToRegath", t.player.talk_to, "arceuus_generalstore", 1)
         t.exec("talkToRegath-menu", t.chat.drain, { stop_at = "options" })
         t.exec("talkToRegath-ask", t.chat.choose, "Can I ask you about Arceuus?")
@@ -64,8 +83,13 @@ return {
         t.exec("talkToRegath-closed", t.chat.drain, {})
         t.ticks(2)
         t.expect("talkToRegath.recorded", t.var.expect("varb5621_veos_arceuus", 1))
+        t.exec("talkToRegath.doorOut", t.player.pass_door, { closed = "archeuus_door_double_left_blue", open = "archeuus_door_double_left_blue_open",
+            at = { 1718, 3727, 0 }, near = { 1718, 3727 }, far = { 1717, 3727 } })
 
-        t.exec("goto-talkToMunty", t.player.goto_tile, 1551, 3751, 0)
+        -- Lovakengj general store: door on the north edge of 1551,3754.
+        t.exec("goto-talkToMunty", t.player.goto_tile, 1551, 3755, 0)
+        t.exec("talkToMunty.doorIn", t.player.pass_door, { closed = "lova_wall_door_lower", open = "lova_wall_door_open_lower",
+            at = { 1551, 3754, 0 }, near = { 1551, 3755 }, far = { 1551, 3754 } })
         t.exec("talkToMunty", t.player.talk_to, "lovakengj_generalstore", 1)
         t.exec("talkToMunty-menu", t.chat.drain, { stop_at = "options" })
         t.exec("talkToMunty-ask", t.chat.choose, "Can I ask you about Lovakengj?")
@@ -76,8 +100,13 @@ return {
         t.exec("talkToMunty-closed", t.chat.drain, {})
         t.ticks(2)
         t.expect("talkToMunty.recorded", t.var.expect("varb5622_veos_lovakengj", 1))
+        t.exec("talkToMunty.doorOut", t.player.pass_door, { closed = "lova_wall_door_lower", open = "lova_wall_door_open_lower",
+            at = { 1551, 3754, 0 }, near = { 1551, 3754 }, far = { 1551, 3755 } })
 
-        t.exec("goto-talkToJennifer", t.player.goto_tile, 1519, 3589, 0)
+        -- Shayzien general store: door on the north edge of 1519,3587.
+        t.exec("goto-talkToJennifer", t.player.goto_tile, 1519, 3587, 0)
+        t.exec("talkToJennifer.doorIn", t.player.pass_door, { closed = "wallkit_shayzien_door01_l", open = "wallkit_shayzien_door01_l_open",
+            at = { 1519, 3587, 0 }, near = { 1519, 3587 }, far = { 1519, 3588 } })
         t.exec("talkToJennifer", t.player.talk_to, "shayzien_generalstore", 1)
         t.exec("talkToJennifer-menu", t.chat.drain, { stop_at = "options" })
         t.exec("talkToJennifer-ask", t.chat.choose, "Can I ask you about Shayzien?")
@@ -89,8 +118,13 @@ return {
         t.ticks(2)
         t.expect("talkToJennifer.recorded", t.var.expect("varb5623_veos_shayzien", 1))
         t.expect("quest.stage.houses_still", t.quest.expect_stage("houses"))
+        t.exec("talkToJennifer.doorOut", t.player.pass_door, { closed = "wallkit_shayzien_door01_l", open = "wallkit_shayzien_door01_l_open",
+            at = { 1519, 3587, 0 }, near = { 1519, 3588 }, far = { 1519, 3587 } })
 
-        t.exec("goto-talkToHorace", t.player.goto_tile, 1773, 3590, 0)
+        -- Hosidius general store: the west door on the south edge of 1770,3590.
+        t.exec("goto-talkToHorace", t.player.goto_tile, 1770, 3590, 0)
+        t.exec("talkToHorace.doorIn", t.player.pass_door, { closed = "kore2_hos_door_closed", open = "kore2_hos_door_open",
+            at = { 1770, 3590, 0 }, near = { 1770, 3590 }, far = { 1770, 3589 } })
         t.exec("talkToHorace", t.player.talk_to, "hosidius_generalstore", 1)
         t.exec("talkToHorace-menu", t.chat.drain, { stop_at = "options" })
         t.exec("talkToHorace-ask", t.chat.choose, "Can I ask you about Hosidius?")
@@ -102,6 +136,8 @@ return {
         t.ticks(2)
         t.expect("talkToHorace.recorded", t.var.expect("varb5624_veos_hosidius", 1))
         t.expect("quest.stage.returnv", t.quest.expect_stage("returnv"))
+        t.exec("talkToHorace.doorOut", t.player.pass_door, { closed = "kore2_hos_door_closed", open = "kore2_hos_door_open",
+            at = { 1770, 3590, 0 }, near = { 1770, 3589 }, far = { 1770, 3590 } })
 
         t.exec("goto-returnToVeos", t.player.goto_tile, 1824, 3689, 0)
         t.exec("returnToVeos", t.player.talk_to, "veos_vis_amulet", 1)

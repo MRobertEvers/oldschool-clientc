@@ -1,0 +1,69 @@
+{{External|rs}}
+[[File:Into the Tombs - Rendezvous with the Avatars.png|thumb|Three of the lesser deities of the Menaphite Pantheon during [[Into the Tombs]].]]
+The '''Menaphite Pantheon''' is the name given to an octet of [[gods|deities]] who ruled the [[Kharidian Desert]]. It consists of [[Tumeken]], god of light, his wife [[Elidinis]], goddess of fertility, their children [[Icthlarin]], god of the Underworld, and [[Amascut]], goddess of rebirth, as well as four demi-gods, known as the Avatars of Tumeken: [[Apmeken]], goddess of companionship, [[Crondis]], goddess of resourcefulness, [[Het]], god of health, and [[Scabaras]], god of isolation.
+
+The Menaphite Pantheon acted as spiritual guides rather than leaders, Tumeken himself having appointed a mortal pharaoh to act as leader of their people.{{CiteNews|url=https://secure.runescape.com/m=news/tombs-of-amascut-raid-rewards?oldschool=1|title=Update:Tombs of Amascut: Raid Rewards|newsdate=14 October 2021|quote=Whilst Tumeken and Elidinis steered the people of the Kharidian Desert spiritually, it was the responsibility of the human Pharoah to rule the Desert.|notes=|name=}}
+
+==Gods==
+===Tumeken===
+[[File:Tumeken statue.png|left|frameless|width=138x138]]
+[[Tumeken]] is the leader of the Pantheon and the god of the Sun. He is the husband of Elidinis and father of Icthlarin and Amascut. He is said to have departed on a journey in a dream of his, wherein he created the four avatars of the Pantheon.{{CiteText|text=Book of Light and Day|quote=The Book of Light and Day says that Tumeken once fell into a deep sleep and dreamt for four days and four nights. With each night, his dreams took form. Those four forms became the lesser deities of the pantheon, with Scabaras being the last of them.}} Tumeken perished in the [[Kharidian–Zarosian War]], exploding in a big ball of fire to stop the [[Zaros]]ian invaders.{{CiteNPC|quote=[So how did the war end?] It was Tumeken himself. He sacrificed himself to annihilate the enemy. The cost was great, but the war was won.|npc=Mehhar|loc=Beneath Cursed Sands}}
+{{clear|left}}
+
+===Elidinis===
+[[File:Elidinis Statuette.png|left|frameless|width=138x138]]
+[[Elidinis]] is Tumeken's wife, the goddess of fertility and the river, the mother of Icthlarin and Amascut, and the namesake of the [[River Elid]]. She is mainly worshipped in [[Nardah]], a desert town named after her proselyte [[Nardarine]]. 
+
+Little is known about the goddess, as she withdrew to mourn the loss of her husband following the [[Kharidian–Zarosian War]]. During the [[Third Age]], she forged an alliance with [[Saradomin]],{{CiteNPC|npc=Nirrie|quote=[...] indeed Elidinis was allied with Saradomin many ages past. Saradominist mages even gave us these golems you met as a diplomatic gesture, so you can see we are on good terms;|loc=|notes=|name=}} which apparently led to an increased level of safety and stability of the desert until the final millennium of the [[God Wars]]. It is said that many years ago, Scabaras and his followers the [[Sect of Scabaras]], built tunnels beneath the Elid and used them to attack the desert settlements but Elidinis stood against them, seemingly destroying the sect and driving Scabaras into isolation.{{CiteNPC|npc=High Priest (Sophanem)|loc=Contact!|quote=The Devourer was not the only member of the pantheon to wish ill upon our people. It is said that many years ago, Scabaras and his sect tried to claim these lands as their own. They built great tunnels beneath the Elid and used them to attack our settlements. However, Elidinis stood against them. The sect was destroyed, and Scabaras was fittingly driven into isolation.}} 
+
+At the end of the God Wars, Elidinis, like most other gods of noteworthy power, was banished by [[Guthix]] when he made the [[Edicts of Guthix]].
+{{clear|left}}
+
+===Icthlarin===
+[[File:Icthlarin chathead.png|left]]
+[[Icthlarin]] is the jackal-headed demi-god of the dead, son of Tumeken and Elidinis, brother to Amascut and responsible for guiding souls of the deceased through the [[Grim Underworld]]. He used to do this in cooperation with his sister, but they have become enemies since the warping of Amascut's mind. He is notable for having brought the [[Mahjarrat]] to Gielinor to win the [[Kharidian–Zarosian War]].{{CiteNPC|npc=Mehhar|loc=Beneath Cursed Sands|quote=To turn the tide, Icthlarin and Amascut sought powerful allies to aid us. They found them far from here, in a place beyond this world. A powerful race of faceless ones. They became Icthlarin's Stern Judges.}} This was successful, but they eventually left him for the ranks of Zaros, a great loss for the Pantheon and a turning point in the Second Age.{{CiteNPC|npc=Mehhar|loc=Beneath Cursed Sands|quote=Among the Stern Judges, there was a serpent. After my father [Osmumten] became Pharaoh, this serpent convinced the others to abandon us.}}
+
+Ichtlarin's dealings since then have mainly been confined to the Underworld, with him rarely interacting with Gielinor.{{CiteNPC|npc=Het|loc=Into the Tombs|quote=Icthlarin is limited in what he can do. His duties to the dead require constant attention.}}
+{{clear|left}}
+
+===Amascut===
+[[File:Amascut chathead.png|left]]
+[[Amascut]], daughter of Tumeken and Elidinis and sister to Icthlarin, used to be the feline-headed demi-goddess of rebirth, whose duty was to grant the souls her brother would have escorted to the [[Grim Underworld]] a new life. However, she suffered a mental corruption in the Second Age after witnessing the power of the Mahjarrat{{CiteNPC|npc=Mehhar|quote=It seems highly likely|notes=This is his answer to the question: So you think it had something to do with the Stern Judges?}} and abandoned her duties completely, having become The Devourer. As goddess of destruction, Amascut began stealing souls from people to prevent her brother from escorting them. Following Amascut's warping, her clergy turned against her, and cursed her to minimize her influence on the world.{{CiteNPC|npc=Neite|loc=Sophanem|quote=At the time when Amascut became the Devourer, I was one of her chief priestesses. Many of us tolerated her new habits for some time. She went too far though, so we took action. The last of her priestesses gathered and cursed her. Unfortunately, she also cast a spell of her own, condemning us to an eternity of walking Gielinor in her form. We trapped her in a human form, limiting her power. We also cursed her to never be willing worshipped again, though I fear that curse has started to wane.}}
+
+Amascut made it her goal to ascend to true divinity and has orchestrated many schemes to enhance her power. Her most elaborate scheme involved capturing her father's four avatars and imprisoning them with the intention to claim their divine powers for herself using the wardens hidden in the [[Jaltevas Pyramid]].
+{{clear|left}}
+
+===Avatars of Tumeken===
+====Apmeken====
+[[File:Apmeken chathead.png|left]]
+[[Apmeken]] is the baboon-headed goddess of companionship. She is the patron goddess of the desert monkeys and able to change her head to various types of monkeys at will. She was created by Tumeken when he saw her sociable and sharing nature. He granted her power to rule the desert with him, for she was the "most sociable of creatures". Like the other avatars, she was captured by Amascut and imprisoned in the Jaltevas Pyramid. Amascut used a large troop of undead baboons led by [[Ba-Ba]] to overpower her and imprison her.
+{{clear|left}}
+
+====Crondis====
+[[File:Crondis chathead.png|left]]
+[[Crondis]] is the crocodile-headed goddess of modesty and resourcefulness. She was created by Tumeken, when he was impressed by her resourcefulness upon eating only a single small prey, whereas he'd seen the inhabitants of Ullek feast beyond limits. Like the other avatars, she was captured by Amascut and imprisoned in the Jaltevas Pyramid, being watched over by the monstrous crocodile [[Zebak]]. 
+{{clear|left}}
+
+====Het====
+[[File:Het chathead.png|left]]
+[[Het]] is the human god of physical and mental health. He was created by Tumeken, when he saw his strength and health displayed helping others through a mountain pass near the border of the desert. Like the other avatars, he was captured by Amascut and imprisoned in the Jaltevas Pyramid, after knowingly walking into a trap to try to help his former follower [[Akkha]].
+{{clear|left}}
+
+====Scabaras====
+[[File:Scabaras chathead.png|left]]
+[[Scabaras]] is the scarab-headed god of wisdom and isolation. He was created by Tumeken on the last day of his dream. Tumeken watched and waited for hours in the southern desert, where the only life-form he ever saw was a lone digging beetle isolating itself. This beetle became Scabaras to be an example of what becomes of one when they lose themselves in solitude. It is said that many years ago, Scabaras and his followers, the [[Sect of Scabaras]], built tunnels beneath the Elid and used them to attack the desert settlements, but Elidinis stood against them, seemingly destroying the sect and driving Scabaras into isolation.{{CiteNPC|npc=High Priest (Sophanem)|loc=Contact!|quote=The Devourer was not the only member of the pantheon to wish ill upon our people. It is said that many years ago, Scabaras and his sect tried to claim these lands as their own. They built great tunnels beneath the Elid and used them to attack our settlements. However, Elidinis stood against them. The sect was destroyed, and Scabaras was fittingly driven into isolation.}}
+
+Amascut used him and the Sect of Scabaras to carry out numerous of her schemes. Like the other avatars, he was captured by Amascut and imprisoned in the Jaltevas Pyramid, after being lured by a plea for help from his follower [[Kephri]]. He was the first of the avatars to be captured by Amascut, with him and his sect being under her control since the [[Second Age|Second]] or [[Third Age]].{{CiteVideo|author=Old School RuneScape|title=Lore Q&A With Mods Ed & Errol alongside Creators PosionedPotion and A Cold One.|url=https://youtu.be/GeT-eTIPTBg&t=3219|timestamp=53:39|date=|site=|notes=|name=}}
+{{clear|left}}
+
+==Trivia==
+* Although, not part of the pantheon, the [[mahjarrat]] [[Akthanakos]] was worshipped as a god in the desert, taking on the head of a camel and training them to fight for him.{{CiteNPC|npc=Aristarchus|quote=Akthanakos is a Mahjarrat who was apparently worshipped as a god for a while in these parts. That was a long time ago, of course. Unlike many of his kin, he was against Zamorak's rise to power. Perhaps that's why he ended up out here. Zamorak has little sway in the desert. Whatever his reasons, he clearly took a liking to living here. He took on the head of a camel and even made an amulet that would allow him to understand their kind. Using it, he even trained some of the native camels to fight for him. Their name, 'Ugthanki', is derived from his. Since he disappeared, however, it is said that the Ugthanki became more violent and started attacking travellers.|loc=|notes=|name=}}
+* [[Statue (desert)|Statues]] can be found in the desert, depicting a jackal-headed figure, a bird-headed figure, and a snake-headed figure. The former is likely depicting [[Icthlarin]], but the latter two are unknown, as the animals do not correspond to any known member of the pantheon.
+
+==References==
+{{Reflist}}
+
+{{Gods}}
+{{Tombs of Amascut}}
+{{Into the Tombs}}
+[[Category:Kharidian Desert]]

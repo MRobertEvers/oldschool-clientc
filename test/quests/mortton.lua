@@ -65,6 +65,7 @@ return {
         "::setlevel attack 40",
         "::setlevel strength 40",
         "::complete quest_priestinperil", -- Shades of Mort'ton's own prerequisite quest
+        "::give dagger_wolfbane 1", -- Priest in Peril's own reward (::complete grants no items); Drezel's holy-barrier advice needs it held (mausoleum_drezel.rs2:28-33)
         -- Herblore itself is locked behind Druidic Ritual (brew_potion.rs2:
         -- 513's ~herblore_unlocked, quest_druid.rs2:33) regardless of level.
         "::complete quest_druidicritual",
@@ -330,8 +331,76 @@ return {
         -- the south building of Mort'ton for Herbi Flax's diary. click_loc
         -- steps off the loc's own tile and walks its far sides before
         -- projecting, so the real op-1 click lands. The building is a ruin (crumblywall, no door:
-        -- reach.py walks in with every door closed), so the overland hop from Lumbridge lands on
-        -- the open street outside it, 3485,3282, and the click walks the player in.
+        -- reach.py walks in with every door closed), so the overland hop lands on the open
+        -- street outside it, 3485,3282, and the click walks the player in.
+        --
+        -- INTO MORYTANIA (fix_b66; owner ruling 2026-10-05: the run's first goto obeys the door
+        -- rule). The fixture stands in Lumbridge (3206,3233); no flood from there crosses the
+        -- Salve (reach 3206,3233 -> 3485,3282 UNREACHABLE at margin 600), and no spell this pack
+        -- implements lands in Morytania (skill_magic/scripts/spells/teleport.rs2: the standard
+        -- book stops at Trollheim; Kharyrll is Desert Treasure's, the Ectophial Ghosts Ahoy's).
+        -- So the way in is the one Priest in Peril opens, walked like makinghistory.lua's
+        -- enterMorytania (checked with sample_tools/reach.py --root <worktree>, doors closed):
+        --   * Lumbridge 3206,3233 -> 3318,3468, west of the Varrock members' gate: open ground
+        --     (REACH closed-doors len=389 at margins 30/80/160).
+        --   * fai_varrock_member_gatel 3319,3468 (the only walk to the temple), then
+        --     3321,3468 -> 3405,3506 beside the Paterdomus trapdoor (REACH len=122).
+        --   * The trapdoor (3405,3507), the two mausoleum gates, Drezel's advice
+        --     (mausoleum_drezel.rs2:145-154, 60 -> 61; needs dagger_wolfbane held, :28-33) and the
+        --     holy barrier (mausoleum_interactions.rs2:26, p_telejump out at 3423,3485).
+        --   * 3423,3485 -> 3510,3470 on the Canifis road, east of the Mort Myre gate
+        --     (REACH closed-doors len=110 at margin 30).
+        --   * 3510,3470 -> 3485,3282: south through the Haunted Woods into the swamp's open
+        --     east edge and down to Mort'ton (REACH closed-doors len=779 at margin 80). The
+        --     shorter walk west of it goes through mortmyre_metalgateclosed_r/l 3443-3444,3458,
+        --     which only opens once Nature Spirit is started (quest_druidspirit.rs2:16-20), so
+        --     the route never uses that gate.
+        t.exec("goto-enterMorytania.varrockGate", t.player.goto_tile, 3318, 3468, 0)
+        t.exec("enterMorytania.varrockGate", t.player.pass_door, { closed = "fai_varrock_member_gatel",
+            open = "fai_varrock_member_gatel_open", at = { 3319, 3468, 0 }, near = { 3318, 3468 }, far = { 3321, 3468 } })
+        t.exec("goto-enterMorytania.trapdoor", t.player.goto_tile, 3405, 3506, 0)
+        t.exec("enterMorytania.openTrapdoor", t.player.click_loc, "trapdoor", 1, { at = { 3405, 3507, 0 } })
+        t.await({
+            level = function()
+                return t.world.loc_near("trapdoor_open", 3, { at = { 3405, 3507, 0 } }) == "ok"
+            end,
+            note = "enterMorytania: the trapdoor opens",
+        }, 6)
+        local tdo_r, tdo = t.world.loc_near("trapdoor_open", 3, { at = { 3405, 3507, 0 } })
+        local tdc_r = t.world.loc_near("trapdoor", 3, { at = { 3405, 3507, 0 } })
+        t.check("enterMorytania.trapdoorOpen", tdo_r == "ok" and tdc_r ~= "ok",
+            "trapdoor_open on 3405,3507,0 -> " .. tostring(tdo_r) .. " "
+                .. (tdo_r == "ok" and (tdo.tile_x .. "," .. tdo.tile_z .. "," .. tdo.level) or tostring(tdo))
+                .. "; closed trapdoor there -> " .. tostring(tdc_r) .. " (want the open leaf and no closed one)")
+        t.exec("enterMorytania.descend", t.player.climb, { loc = "trapdoor_open", op = 1, op_name = "Climb-down",
+            at = { 3405, 3507, 0 }, src = { 3405, 3506 }, dest = { 3405, 9906, 0 } })
+        t.exec("enterMorytania.gate1", t.player.cross_gate, { loc = "pip_underground_door1", at = { 3405, 9895, 0 },
+            near = { 3405, 9896 }, far_ok = function(tile) return tile.z > 6400 and tile.z <= 9894 end,
+            far_desc = "south of the golden-key gate, z <= 9894", ticks = 30 })
+        t.exec("enterMorytania.gate2", t.player.cross_gate, { loc = "pip_underground_door2", at = { 3431, 9897, 0 },
+            near = { 3430, 9897 }, far_ok = function(tile) return tile.z > 6400 and tile.x >= 3432 end,
+            far_desc = "Drezel's side of the second gate, x >= 3432", ticks = 60 })
+        -- Priest in Peril's farewell advice (mausoleum_drezel.rs2:145-154,
+        -- LostCity drezel.rs2:138-147): 60 -> 61, the holy barrier opens. The
+        -- advice has no combat-level branch, so the staged combat stats change nothing here.
+        t.exec("enterMorytania.talkToDrezel", t.player.talk_to, "priestperiltrappedmonk2", 1)
+        t.exec("enterMorytania.talkToDrezel-dialog", t.chat.play, {
+            "player:So can I pass through that barrier now?",
+            "npc:Ah, ",
+            "npc:Morytania is an evil land",
+            "npc:You should take some basic precautions",
+            "npc:In many ways Werewolves",
+            "npc:and it is a holy relic",
+            "npc:wolf form is incredibly powerful",
+            "player:Okay, I will keep it equipped",
+        })
+        t.exec("enterMorytania.drezelAdvice", t.var.await_server, "varp302_priestperil", 61, 8)
+        t.exec("enterMorytania.holyBarrier", t.player.cross_gate, { loc = "pip_underground_wall_side_withportal",
+            at = { 3440, 9886, 0 }, near = { 3440, 9887 },
+            far_ok = function(tile) return tile.x == 3423 and tile.z == 3485 end,
+            far_desc = "east of the Salve at 3423,3485 (mausoleum_interactions.rs2 p_telejump(0_53_54_31_29))" })
+        t.exec("enterMorytania.holyBarrier-msg", t.msg.expect, "You pass through the holy barrier")
+        t.exec("goto-enterMorytania.canifisRoad", t.player.goto_tile, 3510, 3470, 0)
         t.exec("goto-searchShelf", t.player.goto_tile, 3485, 3282, 0)
         local shelf_click_result, shelf_click_detail = t.player.click_loc("shades_experimentshelf", 1)
         -- t.settle() does not cover an inventory sync racing the mesbox's

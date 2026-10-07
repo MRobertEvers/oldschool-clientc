@@ -1,0 +1,59 @@
+mechanic_id	scope	note
+arena_and_spawn_tiles.arena.region_id	all	one solo test
+arena_and_spawn_tiles.arena.region_id_blert	all	one solo test
+arena_and_spawn_tiles.arena.wall_corner.loc_id	all	one solo test
+arena_and_spawn_tiles.arena.wall_corner.count	all	one solo test
+arena_and_spawn_tiles.arena.wall_corner.bbox_x	all	one solo test
+arena_and_spawn_tiles.arena.wall_corner.bbox_z	all	one solo test
+arena_and_spawn_tiles.arena.outer_inviswall.count	all	one solo test
+arena_and_spawn_tiles.arena.bop_box_x	all	one solo test
+arena_and_spawn_tiles.arena.bop_box_z	all	one solo test
+arena_and_spawn_tiles.arena.walkable_tile_mask	all	one solo test: every sampled player tile walkable, every pillar tile blocked
+arena_and_spawn_tiles.pillar.count	all	one solo test
+arena_and_spawn_tiles.pillar.loc_id	all	one solo test
+arena_and_spawn_tiles.pillar.size	all	one solo test
+arena_and_spawn_tiles.pillar.sw.origin_local	all	one solo test
+arena_and_spawn_tiles.pillar.nw.origin_local	all	one solo test
+arena_and_spawn_tiles.pillar.se.origin_local	all	one solo test
+arena_and_spawn_tiles.pillar.ne.origin_local	all	one solo test
+arena_and_spawn_tiles.pillar.footprint_never_occupied	all	one solo test
+arena_and_spawn_tiles.pillar.blockrange_default	all	one solo test
+arena_and_spawn_tiles.pillar.nw.los_blocked	all	one solo test
+arena_and_spawn_tiles.pillar.sw.los_blocked	all	one solo test
+arena_and_spawn_tiles.pillar.ne.los_blocked	all	one solo test
+arena_and_spawn_tiles.pillar.se.los_blocked	all	one solo test
+arena_and_spawn_tiles.pillar.red_flag_minotaur_routefind	all	one solo test; id question is M50 of the minotaur unit
+arena_and_spawn_tiles.pillar.small.count	all	one solo test
+arena_and_spawn_tiles.pillar.model_id	all	one solo test
+arena_and_spawn_tiles.pillar.model_resize	all	one solo test
+arena_and_spawn_tiles.pillar.wiki_marker_boxes_are_not_pillars	all	not testable in one run; documentation row
+arena_and_spawn_tiles.pillar.npc_12820.purpose	all	unknown_purpose: nothing to test
+arena_and_spawn_tiles.arena.ambient_wind_locs	all	presentation: a sound near the placed tile; no id
+arena_and_spawn_tiles.arena.brazier_locs	all	presentation: scenery only
+arena_and_spawn_tiles.spawn.default.tile_1811_3104	all	one solo test
+arena_and_spawn_tiles.spawn.default.tile_1811_3109	all	one solo test
+arena_and_spawn_tiles.spawn.default.tile_1821_3103	all	one solo test
+arena_and_spawn_tiles.spawn.default.tile_1821_3109	all	one solo test
+arena_and_spawn_tiles.spawn.default.tile_1824_3099	all	one solo test
+arena_and_spawn_tiles.spawn.default.tile_1825_3114	all	one solo test
+arena_and_spawn_tiles.spawn.default.tile_1827_3103	all	one solo test
+arena_and_spawn_tiles.spawn.default.tile_1827_3109	all	one solo test
+arena_and_spawn_tiles.spawn.default.tile_1832_3107	all	one solo test
+arena_and_spawn_tiles.spawn.default.tile_1836_3104	all	one solo test
+arena_and_spawn_tiles.spawn.default.tile_1836_3109	all	one solo test
+arena_and_spawn_tiles.spawn.default.observed_tile_count	all	one solo test
+arena_and_spawn_tiles.spawn.default.rare_tiles	all	one solo test
+arena_and_spawn_tiles.spawn.default.twelfth_tile_and_weights	stat	recorder tool over a larger sample; one solo test cannot weigh a draw
+arena_and_spawn_tiles.spawn.default.kinds_share_tiles	stat	recorder tool
+arena_and_spawn_tiles.spawn.default.no_repeat_in_wave	all	one solo test per wave with two or more spawns
+arena_and_spawn_tiles.spawn.default.min_distance_to_player	all	one solo test: never below 4 from the player
+arena_and_spawn_tiles.spawn.trio.anchor_tile_count	stat	recorder tool: a uniform draw over the block is consistent, not tested
+arena_and_spawn_tiles.spawn.trio.anchor_x	all	one solo test
+arena_and_spawn_tiles.spawn.trio.anchor_z	all	one solo test
+arena_and_spawn_tiles.spawn.trio.offset_berserker	all	one solo test
+arena_and_spawn_tiles.spawn.trio.offset_seer	all	one solo test
+arena_and_spawn_tiles.spawn.reinforcement.tiles_x	all	one solo test of a wave 2-11 reinforcement
+arena_and_spawn_tiles.spawn.sol.tile	all	one solo test
+arena_and_spawn_tiles.player.wave_start_tile_modal	stat	recorder tool
+arena_and_spawn_tiles.player.entry_and_wave_start_rule	all	one solo test reading the tile after entry and after Start-wave
+arena_and_spawn_tiles.player.sim_start_local	all	documentation row

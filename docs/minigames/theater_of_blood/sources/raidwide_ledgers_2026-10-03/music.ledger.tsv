@@ -1,0 +1,33 @@
+quest-ledger-v1
+index	step	verdict	ticks	shots	detail
+1	music.tab	PASS	7	001-music.tab	nil
+2	music.fresh	PASS	2	002-music.fresh	musicmulti_18=0 unlocked {}
+3	jukebox.sorrow_locked_fresh	PASS	0	003-jukebox.sorrow_locked_fresh	music:jukebox[370] 'The Maiden's Sorrow' op1 -> matched: You have not unlocked this piece of music yet!
+4	lobby.goto	PASS	0	004-lobby.goto	at 3677,3219,0 from 3206,3233,0
+5	lobby.playing	PASS	1	005-lobby.playing	music:now_playing_text reads 'Welcome to the Theatre' (has 'Welcome to the Theatre')
+6	lobby.engine_region_unlock_bug	PASS	3	006-lobby.engine_region_unlock_bug	musicmulti_18=0 unlocked {}; varp18_musicplay=256 (bit 8 = 256 is the region unlock written to the wrong varp)
+7	maiden.enter	PASS	2	007-maiden.enter	in tob maiden (entry) at 6452,94,0; boss present (tob_maiden_100_story slot 64 at 6426,92); handle 1, started 0, fight 6448,94,0
+8	maiden.unlock_sorrow	PASS	0		musicmulti_18=1024 unlocked {10:The Maiden's Sorrow}; now playing 'The Maiden's Sorrow' [frame unchanged]
+9	maiden.playing	PASS	0		music:now_playing_text reads 'The Maiden's Sorrow' (has 'The Maiden's Sorrow') [frame unchanged]
+10	maiden.unlock_line	PASS	0		matched: You have unlocked a new music track: The Maiden's Sorrow. [frame unchanged]
+11	maiden.barrier	PASS	2	008-maiden.barrier	map_flag
+12	maiden.confirm	PASS	2	009-options-p1,010-maiden.confirm	2 page(s): options:options, options:choose:Yes, begin the fight. [frame unchanged]
+13	maiden.unlock_anger	PASS	0	011-maiden.unlock_anger	musicmulti_18=3072 unlocked {10:The Maiden's Sorrow, 11:The Maiden's Anger}; now playing 'The Maiden's Anger'
+14	maiden.fight_playing	PASS	0	012-maiden.fight_playing	music:now_playing_text reads 'The Maiden's Anger' (has 'The Maiden's Anger')
+15	bloat.enter	PASS	2	013-bloat.enter	in tob bloat (entry) at 6452,159,0; boss present (tob_bloat_story slot 65 at 6435,153); handle 2, started 0, fight 6439,159,0
+16	bloat.unlock_nightmare	PASS	0		musicmulti_18=7168 unlocked {10:The Maiden's Sorrow, 11:The Maiden's Anger, 12:Welcome to my Nightmare}; now playing 'Welcome to my Nightmare' [frame unchanged]
+17	bloat.playing	PASS	0		music:now_playing_text reads 'Welcome to my Nightmare' (has 'Welcome to my Nightmare') [frame unchanged]
+18	verzik.enter	PASS	5	014-verzik.enter	in tob verzik (entry) at 6432,84,0; boss present (verzik_initial slot 69 at 6430,99); handle 1, started 0, fight 6432,84,0
+19	verzik.unlock_not_over	PASS	0	015-verzik.unlock_not_over	musicmulti_18=72704 unlocked {10:The Maiden's Sorrow, 11:The Maiden's Anger, 12:Welcome to my Nightmare, 16:It's not over 'til...}; now playing 'It's not over 'til...'
+20	verzik.playing	PASS	0	016-verzik.playing	music:now_playing_text reads 'It's not over 'til...' (has 'It's not over')
+21	jukebox.sorrow_unlocked	PASS	0	017-jukebox.sorrow_unlocked	music:jukebox[370] 'The Maiden's Sorrow' op1 -> matched: Now playing: The Maiden's Sorrow
+22	jukebox.curtain_locked	PASS	0	018-jukebox.curtain_locked	music:jukebox[669] 'The Curtain Closes' op1 -> matched: You have not unlocked this piece of music yet!
+23	tobmusic.vault_cheat	PASS	0	019-tobmusic.vault_cheat	::tobmusic 1 -> ok
+24	vault.unlock_curtain	PASS	1	020-vault.unlock_curtain	musicmulti_18=334848 unlocked {10:The Maiden's Sorrow, 11:The Maiden's Anger, 12:Welcome to my Nightmare, 16:It's not over 'til..., 18:The Curtain Closes}; now playing 'The Curtain Closes'
+25	vault.playing	PASS	0	021-vault.playing	music:now_playing_text reads 'The Curtain Closes' (has 'The Curtain Closes')
+26	jukebox.curtain_unlocked	PASS	0	022-jukebox.curtain_unlocked	music:jukebox[669] 'The Curtain Closes' op1 -> matched: Now playing: The Curtain Closes
+27	tobmusic.jingle	PASS	0	023-tobmusic.jingle	::tobmusic 2 -> ok; matched: tobmusic jingle
+28	raid.leave	PASS	2	024-raid.leave	left tob (::tobout): at 3677,3219,0, varp5893_tob_active = 0
+29	leave.playing	PASS	0	025-leave.playing	music:now_playing_text reads 'Welcome to the Theatre' (has 'Welcome to the Theatre')
+30	music.final	PASS	0	026-music.final	musicmulti_18=334848 unlocked {10:The Maiden's Sorrow, 11:The Maiden's Anger, 12:Welcome to my Nightmare, 16:It's not over 'til..., 18:The Curtain Closes}
+SUMMARY	30	PASS	29	exit=0	pass=30 fail=0

@@ -1,0 +1,289 @@
+{{Update|date=28 November 2024|rev=2 December 2024|url=https://secure.runescape.com/m=news/leagues-v-raging-echoes---issues--fixes?oldschool=1|category=devblog}}
+[[File:Leagues V- Raging Echoes - Issues & Fixes newspost.jpg|right]]
+{{clear}}
+__TOC__
+By now, hundreds of thousands of you have gotten stuck in to Leagues V: Raging Echoes! It's been fantastic to see so many players ticking off Tasks, agonising over area unlocks and racing towards new Relics, but with so many players getting hands-on comes fixes and tweaks galore!
+
+This post is here to give you a rundown of all of the issues that we're hoping to hotfix either today (Thursday, November 28th) or tomorrow (Friday, November 29th). We've included all of the hotfixes that we made yesterday to make sure everybody's on the same page, and another table to let you know the kinds of fixes we're holding off on until next week's Game Update.
+
+Before we get into table territory, we've got an update on yesterday's main game issues with dropped items disappearing. We believe we've identified any and all impacted UIM players and are working to restore any items lost as a result of deathpile deletion, as we've done in the past. We'll send you an Inbox message via your Message Centre when we're done, you won't need to reach out to us - we've got you covered! For players who lost Clue Scrolls that they'd dropped and been saving up, we're unfortunately not able to restore those and can only apologise for the inconvenience.
+
+==Known Issues - Aiming for Hotfixes by Friday, November 29th==
+===Last Updated: Monday, December 2nd, 4:40pm===
+'''Please keep in mind''' that we might not get around to hotfixing everything in this table by the time the week is up, but these are our highest priority fixes for the time being.
+
+{| class="wikitable" style="text-align: center;"
+|-
+! Issue
+! Status
+|-
+| '''Main Game Issues'''
+| ----
+|-
+| Picking Herbs while Farming is occasionally interrupted.
+| INVESTIGATED
+|-
+| '''Clue-related Issues'''
+| ----
+|-
+| Charlie the Tramp can request Leather Chaps from players who only have starting regions unlocked, meaning they cannot obtain a pair.
+| Hotfix being worked on.
+|-
+| A Master Treasure Trail Emote step to Jig at the Barrows chest while wearing a full set of Barrows armour is not completing correctly with the Treasure Arbiter Relic unlocked.
+| HOTFIXED.
+|-
+| A Master Treasure Trail Emote step inside Pyramid Plunder is not completing correctly with the Treasure Arbiter Relic unlocked.
+| HOTFIXED.
+|-
+| "Panic at the Al-Kharid mine" step can be received even without Desert unlocked.
+| Hotfix being worked on.
+|-
+| Players with Kandarin unlocked can be tasked with catching a Mottled Eel even if Kourend is not unlocked.
+| Hotfix being worked on.
+|-
+| A Map step pointing players to the mine just north of Falador can be received even if Asgarnia is not unlocked.
+| Hotfix being worked on.
+|-
+| A Medium Treasure Trail NPC step requiring you to talk to Gabooty cannot be completed. Gabooty is not visible despite Jungle Potion being auto-completed.
+| Hotfix being worked on.
+|-
+| Players with Kandarin unlocked can receive steps from Jorral which requires completion of Making History. This quest is not auto-completed and requires Morytania and Fremennik.
+| Hotfix being worked on.
+|-
+| Some players report that their Clue Compass is not correctly updating with new teleport locations after unlocking the Fremennik region.
+| Hotfix being worked on.
+|-
+| Various issues persist with players getting stuck while teleporting to certain locations using the Clue Compass.
+| Hotfix being worked on.
+|-
+| '''Task-Related Issues'''
+| ----
+|-
+| The task to "Equip a Wizard Robe and Hat" isn't completing if the player uses Wizard Robes (g) or a Wizard Hat (g).
+| INVESTIGATED
+|-
+| Fletching logs with the Lumberjack Axe does not correctly complete some Fletching tasks.
+| HOTFIXED
+|-
+| Varlamore's task to pet Xolo isn't correctly triggering when petting this good boy inside Civitas illa Fortis.
+| INVESTIGATED.
+|-
+| The task to "Buy something from Trader Crewmembers" is not completing if done inside Civitas illa Fortis.
+| HOTFIXED.
+|-
+| Some players report that the "Kill a Wallasalki" task is not completing if done in some areas of the Waterbirth Dungeon.
+| INVESTIGATED.
+|-
+| The hat stand in Draynor Village is not working properly for the "Use a Hat Stand" task.
+| INVESTIGATED.
+|-
+| '''Relic- or Mastery-Related Issues'''
+| ----
+|-
+| Using the Total Recall orb to save a Runecrafting altar in a Region you don't have access to is causing the inability to store new memories to the orb.
+| HOTFIXED.
+|-
+| A bug causing Overgrown to apply Super Compost instead of Ultracompost.
+| HOTFIXED.
+|-
+| Unlocking pocket kingdom wipes all money in the Throne of Miscellania coffer.
+| HOTFIXED.
+|-
+| There was an issue causing Overgrown to fail in finding seeds to replant.
+| HOTFIXED.
+|-
+| Slayer Master XP drops were not working with some creatures.
+| HOTFIXED.
+|-
+| The Tier 6 Magic Combat Mastery's Execution effect was a little unclear
+| HOTFIXED. The Execution effect is now calculated on a hit as opposed to cast.
+|-
+| The Tier 2 Magic Combat Mastery was not working with Natures Reprisal on Magic.
+| HOTFIXED.
+|-
+| Drop rate chance was not being increased whilst on a slayer task with the Slayer Master Relic.
+| HOTFIXED.
+|-
+| Throwing Chinchompas with the Equilibrium Relic was occasionally resulting in crashes or performance problems.
+| HOTFIXED. The number of targets that count as 'separate' instances of gaining XP has been reduced by two (from 9 to 7) to reduce frequency of these issues.
+|-
+| Alchemist's Goggles' 10% Secondary Save was not stacking additively with Friendly Forager's 90% Secondary Save when making Prayer Renewal and Goading Potions.
+| HOTFIXED.
+|-
+| The Combat Achivement to kill the Amoxliatl using the Glacial Temotli cannot be completed with the second Melee mastery unlocked.
+| HOTFIXED.
+|-
+| The Bank Heist Relic cannot teleport players to Giants' Foundry even after Sleeping Giants has been completed.
+| HOTFIXED
+|-
+| Some players reported that killing Ents was not contributing to their '10 Level 100 NPCs' Combat Mastery unlock
+| HOTFIXED.
+|-
+| Some players report that Treasure Arbiter is not boosting all Thieving sources to a 1 in 15 rate for Clue Scrolls.
+| HOTFIXED.
+|-
+| Corner Cutter is not providing additional lap count at the Ape Atoll Agility Course.
+| INVESTIGATED.
+|-
+| Corner cutter was not providing additional laps at Prifddinas Agility Course.
+| HOTFIXED
+|-
+| '''Miscellaneous Issues'''
+| ----
+|-
+| The Sunlight Spear was behaving incorrectly in ToB due to the Reflect immunity.
+| HOTFIXED
+|-
+| The Cerberus Echo Boss's Combat level was not staying the correct value.
+| HOTFIXED
+|-
+| Occasional bug with Sarachnis instances.
+| HOTFIXED
+|-
+| The Cerberus Echo Boss stops retaliating if you leave and re-enter the fight
+| HOTFIXED
+|-
+| The Clue Compass teleport for "The dead, red dragon watches over this chest" is incorrectly sending players to Barbarian Village.
+| Investigated - this teleport is correct for the next step in the clue.
+|-
+| Players were unable to claim Arceuus or Hosidius teleport pages for the Book of the Dead due to missing NPC after Kingdom Divided autocompletion.
+| HOTFIXED
+|-
+| Grotesque Guardian's instances were being limited.
+| HOTFIXED. There is now no limit of how many players can enter the instance.
+|-
+| Players are unable to obtain Konar and Larran keys with the Slayer Relic.
+| HOTFIXED - as long as you have the  correct area unlocked you will be able to obtain these.
+|-
+| Some Slayer monsters were missing their minimum Combat level.
+| HOTFIXED
+|-
+| Sulphur Blades drop rate isn't boosted.
+| HOTFIXED
+|-
+| Kalphite Queen isn't dropping Echo Orb.
+| HOTFIXED
+|-
+| Nature's Reprisal gets ranged strength from ammo slot when it shouldn't.
+| HOTFIXED
+|-
+| Some players report issues with using the certificates from Shield of Arrav on others.
+| Hotfix being worked on.
+|-
+| Every hit of Viggora's Chainmace is using a charge even with passive Charge-save effects.
+| INVESTIGATED.
+|-
+| Some Slayer tasks do not have a minimum Combat level applied.
+| HOTFIXED.
+|-
+| Echo Boss kill durations/PBs are not displaying correctly. Though we'd love to see if somebody could manage a 16 hour endurance test against Echo Hunllef...
+| HOTFIXED.
+|-
+| Some players have reported not receiving an Echo Orb after their first Sol Heredit kill.
+| HOTFIXED. This issue was occurring for players who killed Sol with the Exploding NPCs modifier active.
+|-
+| "What Lies Below" cannot properly progress because Surok Magis is missing as a result of auto-completing "Defender of Varrock".
+| Hotfix being worked on.
+|-
+| "Temple of Ikov" cannot properly progress because Lucien is missing as a result of auto-completing "Defender of Varrock".
+| Hotfix being worked on.
+|-
+| "Garden of Death" is auto-completed by unlocking the Desert, but will not have its task auto-completed if you go on to unlock Kourend.
+| Hotfix being worked on.
+|-
+| TzHaar-Ket-Rak's challenges for Triple Jads and beyond aren't accessible before completing the Inferno.
+| HOTFIXED.
+|-
+| Some players with Kourend unlocked are receiving Lizardman tasks from Konar even if they have Lizardmen blocked.
+| HOTFIXED
+|-
+| <s>Secondary XP from Forestry events (e.g. Farming XP from the Struggling Sapling event) is not being multiplied by the Leagues XP modifier.</s>
+| Report was incorrect, investigations revealed that this was not the case.
+|}
+
+==Issues Fixed On Launch, Wednesday, November 27th==
+{| class="wikitable" style="text-align: center;"
+|-
+! Issue
+! Status
+|-
+| Players reported unusual behaviour with loading Karambwanji into a Karambwan vessel if an Echo Harpoon was present in their inventory.
+| HOTFIXED (sort of). You'll need a Karambwan vessel with you to fish Karambwan for the time being, until we're able to work on a more long-lasting fix for the Echo Harpoon's 'Vessel' functionality.
+|-
+| Players reported receiving Dark Kebbit Hunter Rumours despite not being able to access any area where they're found.
+| HOTFIXED. Players who currently have a Dark Kebbit rumour will need to reset it at the Hunter Guild, then should only be able to receive rumours that they're able to complete.
+|-
+| Players reported no longer being able to left-click teleport to some Treasure Trail locations using the Clue Compass.
+| HOTFIXED.
+|-
+| We've seen reports of some player character models missing their jaws.
+| HOTFIXED
+|-
+| When you switch to a Leagues V: Raging Echoes world, the text mentions Leagues IV: Trailblazer Reloaded instead.
+| HOTFIXED
+|-
+| Corner Cutter's Relic description incorrectly lists 100% Success Rate on Thieving checks
+| HOTFIXED
+|-
+| Players in main game worlds reported bank interfaces closing automatically every 15 seconds or so.
+| HOTFIXED
+|-
+| Alchemy spells were completing too quickly in main game Worlds.
+| HOTFIXED
+|-
+| Players reported the Rune Thrownaxe Special Attack wasn't functioning as intended within the Waterbirth Island Dungeon.
+| HOTFIXED
+|-
+| Players reported a bug with the Rock Cake stall that was preventing progress on the Watchtower Quest in main game worlds.
+| HOTFIXED
+|-
+| Players reported that Power Miner + Echo Axe was not providing Crafting XP when cutting gems obtained while mining regular rocks.
+| HOTFIXED
+|-
+| Players report issues getting stuck in certain locations (e.g. Upstairs at Varrock East) when using Clue Compass teleports
+| HOTFIXED
+|-
+| Lumberjack Relic users can't chop trees without a free Inventory slot, even if not required.
+| ACKNOWLEDGED
+|-
+| A DMM rug tile has mysteriously appeared in Lumbridge Castle.
+| HOTFIXING
+|-
+| Players with the Corner Cutter Relic reported that lap-based tasks weren't completing correctly.
+| HOTFIXED
+|}
+
+==Known Issues - Aiming to be Fixed at a Later Date==
+===Last Updated: Monday, December 2nd, 4:40pm===
+Since the status of these issues isn't going to change, we'll use a list here to keep things a little more concise!
+
+===Clue-related Issues===
+* The Clue Compass teleport for "Search Upstairs in the houses of Seers' Village for some drawers" isn't working as intended.
+* The Clue Compass teleport for Miscellania requires quest completion even though you can access Miscellania without finishing the quest.
+* The Clue Compass teleport for the Drunken Dwarf in Keldagrim requires completion of The Giant Dwarf.
+* Some S.T.A.S.H. Units from Varlamore: The Rising Darkness are missing from the Clue Compass.
+* Using the Clue Compass to teleport to your current step doesn't work if your last teleport was to the same step.
+
+===Relic-or Mastery-related Issues===
+* Herbiboar doesn't interact correctly with Friendly Forager.
+* Mining Gloves aren't correctly increasing the number of successful Mining rolls you can perform if used in conjunction with the Echo pickaxe.
+
+===Miscellaneous Issues===
+* Lovakite Ore depleted after one successful Mining roll, rather than the intended 4 when using the Echo pickaxe.
+* Players reported that buying Mind Rune packs with a full Inventory still took their GP. Aubury will be accosted accordingly.
+* Players report that obtaining the Quetzin didn't complete the task for obtaining a Skilling pet.
+* The 'Relic Icon' setting to make your relics visible above your message box will re-enable itself on every login, which can be frustrating.
+* The Medium Lumbridge Achievement Diary task to "Craft a coif in the Lumbridge Cow Pen" cannot be completed if the player inlocks Tirannwn, Varlamore, Wilderness and Overgrown or Pocket Kingdom.
+* Canifis is spelled incorrectly on the Clue Compass teleport menu, making the game literally unplayable.
+
+That's all we've got for now, but we'll be coming back to this post at the end of the day for an update, and continuing to update this post between now and next week's Game Update.
+
+We hope you're having fun in Leagues V: Raging Echoes, we know we are!
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Entropi, Errol, Gecko, Gengis, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hooti, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Mack, Manked, Markos, Maylea, Moogle, Morty, Necro, Nin, Nox, Nylu, Ori, Other, Philomel, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Saiyan, Sarnie, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titus, TJ, Tsourorf, Tyran, Veda, Vegard, West, Wolfy & Yume'''
+
+''The Old School Team.''

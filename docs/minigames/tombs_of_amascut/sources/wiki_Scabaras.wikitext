@@ -1,0 +1,60 @@
+{{External|rs}}
+{{Infobox NPC
+|version1 = Freed
+|version2 = Imprisoned
+|name = Scabaras
+|image1 = [[File:Scabaras.png|170px]]
+|image2 = [[File:Scabaras (imprisoned).png|280px|class=notpageimage]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|race = Scarab
+|quest = [[Into the Tombs]]
+|location = [[Jaltevas Pyramid]]
+|gender = Male
+|options1 = Talk-to
+|options2 = None
+|examine = Tumeken's avatar of isolation.
+|map = No
+|id1 = 11662,11663
+|id2 = 11661
+|leagueRegion = Desert
+}}
+[[File:Scabaras chathead.png|left]]
+'''Scabaras''' ([[rsw:Transcript:Pronunciation_guide#S|Jagex pronunciation]]: ''SCAB-ah-rass'') is the lesser [[Gods|god]] of isolation and one of the four [[Avatars of Tumeken]], which are minor gods of the [[Menaphite Pantheon]], a collection of deities worshipped in the [[Kharidian Desert]]. His followers, members of the [[Sect of Scabaras]], are known as [[Scabarite]]s.
+
+==History==
+According to a legend from the [[Book of Light and Day]], he was created from the last of the four dreams that the god [[Tumeken]] once had over four days.{{CiteText|text=Book of Light and Day|quote=The Book of Light and Day says that Tumeken once fell into a deep sleep and dreamt for four days and four nights. With each night, his dreams took form. Those four forms became the lesser deities of the pantheon, with Scabaras being the last of them.}}
+
+Sometime in the [[Second Age|Second]] or [[Third Age]], Scabaras was captured by Amascut.{{CiteVideo|author=Old School RuneScape|title=Lore Q&A With Mods Ed & Errol alongside Creators PosionedPotion and A Cold One.|url=https://youtu.be/GeT-eTIPTBg&t=3219|timestamp=53:39|date=|site=|notes=|name=}} He was the first of the four minor gods ([[Apmeken]], [[Crondis]], [[Het]], and himself) that she caught, having manipulated [[Kephri]], who called out to him in the last moments of her consciousness. Both Scabaras as well as the [[Sect of Scabaras]], led by the [[High Priest of Scabaras]], have been under the influence of Amascut for much longer than the other minor gods, having both been used by her for her nefarious schemes.
+
+Some time in the early [[Fourth Age]], Scabaras proclaimed himself omnipotent and demanded that he be the only god worshipped. The people rebelled and banished the god, upon which his blood washed over scarabs to create the race of [[kalphites]].{{CiteNPC|npc=Natural historian|loc=Varrock Museum|quote=Indeed, there is some relationship between the Kalphite Queen and the desert god Scabaras, but no one is really sure what. During the early part of the fourth age, Scabaras proclaimed himself omnipotent and outlawed worship of all other gods save him. When the people eventually revolted against his repressive rule and banished Scabaras, it is said his blood washed over the scarabs and transformed them into the kalphites we know today. Of course, any right-minded scientist discounts these myths as mere stories, with no historical basis in fact.}} How far this is accurate remains up to debate, but the effect of the [[Keris]] dagger does seem to suggest that Scabarites and kalphites are somehow related. Another tale with a similar theme tells of Scabaras and the [[Sect of Scabaras]], who decided to build large tunnels underneath the [[River Elid]]. They used them to attack the desert settlements before [[Elidinis]] supposedly stopped them, and they were not to be seen again until the present day.{{CiteNPC|npc=High Priest (Sophanem)|loc=Contact!|quote=That's right. Scabaras is the god of isolation. In keeping with his teachings, his followers mostly lived underground. As such, they were said to be great architects of the subterranean. [...] The Devourer was not the only member of the pantheon to wish ill upon our people. It is said that many years ago, Scabaras and his sect tried to claim these lands as their own. They built great tunnels beneath the Elid and used them to attack our settlements. However, Elidinis stood against them. The sect was destroyed, and Scabaras was fittingly driven into isolation.}} 
+
+Regardless of the exact nature of the event, it is generally agreed that he suffered a 'fall from grace', details of which are only known to the Menaphite and Sophanite clergy.{{CiteNPC|npc=Jex|loc=Contact!|quote=Not really; there are simply details of Scabaras' fall from grace that are only known to we priests. Some of his supposed faults can be forgiven. I just can't explain why at the moment.}}
+
+A [[Apparition#Scabaras|manifestation]] of him can be encountered during [[Icthlarin's Little Helper]]. If the player picks up the scarab-headed [[canopic jar]] containing the stomach, the player can fight the manifestation, but doing so is not necessary to finish the quest.
+
+Recently, the minor gods have all been taken to the [[Jaltevas Pyramid]], the tomb of [[Osmumten]], where Amascut plans to use two ancient weapons against them to steal their divine energy and ascend from a demi-goddess to a true [[god]]dess. However, an adventurer would free them as well as the Sect of Scabaras from Amascut's control. Scabaras, still coming to terms with his role in Amascut's plots, left the other avatars to go be on his own.
+
+==Dialogue==
+{{Hastranscript|speaksin}}
+
+==Gallery==
+<gallery>
+File:Scabaras (monster).png|The [[Apparition#Scabaras|apparition]] of Scabaras appearing during [[Icthlarin's Little Helper]].
+File:Statue (Scabaras).png|A statue of Scabaras found in the [[Tombs of Amascut]].
+File:Scabaras statue.png|A statue of Scabaras found in the [[Uzer Mastaba]].
+File:Mural (Scabaras).png|A mural depicting Scabaras blessing [[Kephri]], the last remaining [[dawn scarab]].
+File:Statue (Scabaras, Ruins of Ullek).png|A statue of Scabaras found in the [[Ruins of Ullek]].
+File:Scarab emblem detail.png|A [[scarab emblem]] dedicated to Scabaras.
+File:Canopic jar (Scabaras) detail.png|A [[Canopic jar#Scabaras|canopic jar]] containing a stomach bearing the visage of Scabaras.
+File:Menaphite Pantheon lesser gods concept art.png|Concept art of the Avatars of Tumeken, by Mod Jerv.
+File:Scabaras symbol.png|The symbol representing Scabaras as seen in the [[Tombs of Amascut]]
+</gallery>
+
+==References==
+{{reflist}}
+
+{{Gods}}
+{{Into the Tombs}}
+{{Tombs of Amascut}}

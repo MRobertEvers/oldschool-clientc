@@ -1,0 +1,502 @@
+{{Update|date=04 June 2026|rev=9 June 2026|url=https://secure.runescape.com/m=news/summer-sweep-up-2026?oldschool=1|category=future}}
+[[File:Summer Sweep-Up 2026 newspost.png|right]]
+{{clear}}
+__TOC__
+''We're too late for spring cleaning, but just in time for a Summer Sweep-Up! Strap in because we've got a lot to talk about!''
+
+==Blog Update - Tuesday, June 9th==
+It's been great to see such a positive reception to our initial Summer Sweep-Up proposal!
+
+We wanted to check back in with you to address some common talking points, make some changes to our initial offering, and provide clarity on some aspects that we felt could have been clearer.
+
+Let's get straight into it!
+
+===Soulreaper Axe===
+Our initial proposal here was to lower the maximum stack count on the axe, but increase the damage bonus offered by each stack, so that you'd spend less time ramping up for your damage.
+
+On the surface of things this was fine, but many of you felt as though it doesn't address the core reasons that the Soulreaper Axe feels annoying to use, namely the self-damage and having to ramp back up between kills or during intermission phases for some content (ironically, our proposal made losing stacks even more detrimental than their current iteration).
+
+So we'd like to instead propose striking our initial stack-related changes from the record and adjusting the Soulreaper Axe as follows:
+* Gains +4 Strength bonus, this is unchanged from our initial proposal.
+* Stack limit remains at 5, with 6% damage bonus gained per stack.
+* Stacks take 50 ticks to start decrementing, up from 20 ticks.
+* Stacks no longer drain HP whatsoever.
+* Special attack now gains 12% accuracy per stack, up from 6% (60% at max stacks)
+* Special attack now gains 6% minimum hit per stack (30% at max stacks)
+
+This should result in more consistent uptime at max potential, while also reducing how often you send yourself to an early respawn!
+
+===Inquisitor Gear Changes===
+We had a handful of typos or errors in last week's post, so we'd like to reiterate the changes here using the correct numbers to make sure that everybody's on the same page.
+
+The aim here is to bring Inquisitor's offensive statting in-line with Oathplate, while also reducing the reliance on the full set + Inquisitor's Mace combo, instead hoping to make each piece shine brighter individually. However, our numbers yesterday resulted in weakening Crush at the top end, which was not our intent, so we've made a few more tweaks here!
+* Inquisitor's Great Helm gains +2 Crush accuracy and +2 Strength bonus, to match its Oathplate equivalent.
+** Additionally, provides a +0.5% bonus to Crush damage and Crush accuracy. This boost is no longer increased by a set effect or when using the Inquisitor's Mace specifically.
+* Inquisitor's Hauberk gains +4 Crush accuracy, to match its Oathplate equivalent.
+** Additionally, provides a +1% bonus to Crush damage and Crush accuracy, up from +0.5%. This boost is no longer increased by a set effect or when using the Inquisitor's Mace specifically.
+* Inquisitor's Plateskirt gains no Crush accuracy or Strength, since it already matches its Oathplate equivalent.
+** Additionally, provides a +1% bonus to Crush damage and Crush accuracy, up from +0.5%. This boost is no longer increased by a set effect or when using the Inquisitor's Mace specifically.
+* Inquisitor's Mace gains +7 Strength bonus (up from +5 in our initial proposal) and +7 Crush accuracy. This guarantees a max hit in all setups, and might add +2 max hits in some setups.
+
+To top this off, we'll be removing any negative Stab or Slash bonuses from Inquisitor's armour pieces.
+
+These numbers should shake out more-or-less as they currently do, with some better accuracy in the mix and better future-proofing, while also not effectively requiring the full set for the armour to feel worth using!
+
+===Other Gear Changes===
+Before moving on to other topics, we've a few more points to make!
+* Tonalztics of Ralos were something that many of you felt could do with a little extra juice. While we don't think the item itself is bad, we do think it could do with more use-cases to make it stand out. To make those use-cases easier to develop (since there's a fairly complex relationship between Defence level, Magic level, Light Ranged Defence and Crush Defence to figure out whether you'd use this or an Elder Maul), we'd like to make some small improvements:
+** Special attack buffed to reduce opponent's Defence by 12.5% of its Magic level per hit, up from 10%.
+** Special attack buffed to grant +50% increased accuracy.
+* Suggestions relating to the Ghrazi Rapier have been a hot topic lately, particularly the idea of making it a 3-tick weapon with its own discernible niche. We're not inherently opposed to the idea, but aren't confident we have the time to get these numbers right in a way that's safe long-term - viable 3-tick weapons benefit disproportionately from any increases in Strength bonus from other gear, meaning this isn't something that we're keen to explore right now just because it might be satisfying. Naturally some weapons like the Scythe of Vitur also benefit disproportionately from Strength bonus, but we feel this is less of an issue for megarares.
+* We'll be expanding the scope of the Ghommal's Lucky Penny passive effect so that it can preserve charges from the Amulet of Blood Fury. Admittedly the plan is that this won't be an item post-Sweep-Up, but this seemed the most appropriate place to mention this change.
+* Despite it being a nerf, most of you seemed understanding of the change we'd like to make to Burning Claws. Some players pointed out that they enjoyed a niche use in CM Chambers of Xeric for Ice Demon, which helped move away from a relatively tedious Magic Cape Spellbook Swap meta. We'll be exploring an increase to Ice Demon's demonbane vulnerability to see whether or not we can still have the Burning Claws occupy this space.
+* We've adjusted our Rosewood Blowpipe proposal to remove the reduced accuracy on the Special Attack. This is a small conundrum for us, since the Doom of Mokhaiotl finally gave Dragon Knives their first ever PvM-related use-case, and leaving the Rosewood Blowpipe's Special Attack untouched while also allowing Rune Darts effectively removes this use-case instantly. We appreciate that this isn't the biggest issue facing the game, but do quite like seeing niche items find uses and are hesitant to throw them away for an item whose primary function is a Light Ranged DPS weapon as a stepping stone to the Toxic Blowpipe.
+* While not strictly gear-related, we've updated the Crystal Shard numbers in the Gauntlet Prep Changes segment of the main Sweep-Up blog so that they're accurate - apologies for any confusion caused by errors in the initial post.
+
+===Other Skilling Changes===
+We don't have a massive amount to share here, so we'll keep things brief!
+* Some players asked what the point in a Molch pearl refund at Aerial Fishing is if there's nothing to purchase, so we'd like to add Shark Lures to the shop here for a reliable 'sink' if you fancy spending your excess.
+* We're opting not to adjust the recipe for the Energy Potion. Many of you pointed out that Harralanders are much more plentiful than Guams past a certain point, and it didn't seem as though anybody was particularly overjoyed with this specific change anyway, so we'll avoid rocking the boat too much - your Perilous Moons herb stacks are safe!
+* We'll look to add another Agility shortcut to the mix by way of a stepping stone across the River Lum, just south of the Champion's Guild.
+
+===Birdhouses===
+To our surprise, we didn't see as much discussion about our desire to nerf Birdhouses' XP offering as we'd expected. Perhaps that's because you agree that it's justified, or were more focused on other changes, or the 'vagueness' of the section didn't give you much to go on. In an effort to make things feel a little more 'real' and drum up some proper discussion, we'd like to put some numbers in front of you for what we've got in mind. We'd like to reiterate that we are still not 100% committed to making a change here, but do believe that repositioning this timegated content that feels closer to Farming than it does to Hunter would enable us to improve the feel of Hunter progression for players in future.
+
+With that said, here's what we're provisionally working with:
+* Prospective Bird Nest Changes (buffs)
+** Number of rolls for nests from all tiers of birdhouse lowered from 10 to 5.
+** Success rate on any given roll for a nest is tripled.
+** These changes amount to a ~50% increase in the number of nests obtained, and should make the quantity you obtain more consistent and less 'spiky' so that you're not overfilling your inventory on some runs but leaving empty-handed on others.
+* Prospective XP Changes (nerfs)
+** Regular birdhouse XP decreased by 60%.
+** Oak birdhouse XP decreased by 60%.
+** Willow birdhouse XP decreased by 60%.
+** Teak birdhouse XP decreased by 60%.
+** Maple birdhouse XP decreased by 55%.
+** Mahogany birdhouse XP decreased by 50%.
+** Yew birdhouse XP decreased by 40%.
+** Magic birdhouse XP decreased by 15%.
+** Redwood birdhouse XP unchanged.
+
+Naturally at the lower tiers this is - as we said in the initial blog - a big reduction. It might be the case that the other buffs and improvements to early-game Hunter are insufficient and we'd need some numerical improvements to things like butterfly hunting to pick up the slack at certain stages of progression, but the best way for us to nail down these other lacking areas is the invite more discussion, for better or worse!
+
+===Chambers of Xeric, Challenge Mode & Prayer Scrolls===
+This one also drummed up a little less chatter than we'd anticipated, so we'd like to bring the topic of prayer scrolls back up.
+
+Based on our early read, it feels like narrowing down our list of possible approaches would be a stronger place to start from, so we'd like to whittle our options down to two!
+
+====Option 1: Unique re-roll mechanic (including some clarifications)====
+This was our more complicated option, but one that does solve most of the problems or address most of our concerns. It seemed as though many of you agreed that it does solve those problems, but did have issues with how a system like this feels alongside concerns about us setting a precedent for options like this. We'll start with a couple of clarifications:
+* The aim here was to allow people to re-roll anything, not just prayer scrolls. This means that any unique whose value is below the 'average' re-roll value should (in theory) be sunk more frequently and appreciate in value slightly.
+* If we did pursue a system like this, we'd like to make it feel a little more 'in-world' than just clicking a button on an interface, which we agree would feel wrong.
+* We feel CoX's issues are unique and this is a relatively bespoke solution that we wouldn't expect to just roll out willy-nilly to any piece of content that was struggling, we don't expect this to set a precedent on its own.
+
+Clarifications aside, the numbers here are considerably more complicated (we'd recommend checking out this post for a neat look at various potential re-roll rates and scenarios though).
+
+To make things easier, the re-roll rate that we're toying with at the moment is a 1 in 5, meaning you'd have a 20% chance of re-rolling your item into another with the initial item's weighting removed from the loot table. This is a fairly generous option in terms of the number of non-prayer scroll uniques that it would likely introduce, which we're comfortable moving ahead with due to the trade-off involved and the likelihood of increasing the value of cheaper uniques in the process.
+
+We did see a handful of comments that re-rolling and getting nothing can admittedly feel quite bad, but our expectation is that for people willing to re-roll in the first place, the unique that they're re-rolling might as well be 'nothing' already. We'd also like to say that even a 'failed' re-roll would instead provide a roll on the regular loot table, so you'd never be leaving entirely empty-handed.
+
+If this one's not resonating with you, then perhaps:
+
+====Option 2: Increase purple rate by 5%, decrease combined scroll weighting from ~58% to ~56%====
+As we see it, the primary issues that many have with Chambers of Xeric are:
+* Issue #1: The general 'time-to-complete' for uniques is extremely long.
+* Issue #2: The ratio of prayer scrolls to non-prayer scroll uniques feels bad.
+
+These numbers might not look like much, but they mean that non-prayer scroll uniques become 10% more common, and you'll be rolling on that table slightly more frequently! This tackles both to a small extent but should aid the feel of Chambers of Xeric completions, even though you'll still see a fair few prayer scrolls.
+
+We're also aware of the feeling that CoX has too many uniques on its table and saw some suggestions to try and move various uniques off. This isn't something that we're inherently opposed to, but it's not a solution that we think we could work through and deliver confidently in a reasonable timeframe this year. Additionally, last time we asked similar for moving the Dragon Claws onto their historic source (Tormented Demons), opinion did lean towards moving them but not by a massive margin, which doesn't give us much confidence in being able to move multiple uniques to other sources in a way that satisfies most players.
+
+===Closing Thoughts===
+As expected, there's been a bunch of discussion around things that haven't made an appearance this year like the Corporeal Beast or Mastering Mixology. While we can't make any commitments, we've said in a handful of replies to players that we are exploring whether or not we could deliver Sweep-Up styled updates at a greater frequency if we have enough interesting things to do, so even if your favourite suggestion hasn't surfaced yet there's a high chance that it's on our backlog waiting for its moment to shine.
+
+That's all we've got for our small blog update, so we'll make our exit and leave you to mull over what we've shared while undoubtedly keeping up with the Deadman All-Stars action!
+
+{{Horizontal Line}}
+
+Everybody in the office is starting to complain about the heat in the UK, which can only mean one thing: it's time for another Summer Sweep-Up!
+
+For the uninitiated, the Summer Sweep-Up is a collection of changes aimed at improving quality of life, addressing long-standing pain points and often introducing tough topics like rebalances to address long-standing main game issues. The primary goal of projects like this is to modernise parts of Old School that have fallen out of favour (while staying true to our Old School roots) and to future-proof various parts of the game to ensure they remain healthy in the long-term, safeguarding key aspects of the game for years to come. The Sweep-Up spawned following the success of Project Rebalance, which saw the introduction of Elemental Weaknesses alongside gear, defensive stat and skill rebalancing - all things that we built-on for 2025's Sweep-Up alongside improvements to content like Tombs of Amascut and Abyssal Sire and adjustments to loot tables for a variety of resources.
+
+This year we're back with a whole host more tweaks, alongside a handful of topics that we'd like to gauge your thoughts on before committing to a specific direction. We'll waste no more time and kick things off with the changes we're certain will make at least a handful of you say "Oh that's a good change"!
+
+==Hunter Improvements==
+Hunter is ''technically'' Old School's second-most recent skill behind Sailing, being added in November 2006. Despite that, the skill has its fair share of 'jank' or clunky interactions that can make it a bit of a slog to train conventionally, particularly at the earlier levels. It's true that the addition of Hunter Rumours with Varlamore's Hunter Guild improved the value-proposition of conventional Hunter training outside of Chinchompas, but for many training methods there are still changes that could be made to drastically improve the feel of them.
+
+We'll keep things concise with bullet points but aim to expand where needed so that we're all on the same page and understand the aims of all of the key changes we're planning to make!
+
+===Falconry===
+[[File:Summer Sweep-Up 2026 (1).png|thumb|600px|center|If you can't see the asset above, [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-06-04/sweep1.png click here].]]
+
+This is perhaps the most-popular 'traditional' Hunter training method for players midway through their progression, but players engaging in falconry might wonder why Matthias' falcon seemingly lacks all of the speed and grace that these birds of prey are known for. Fortunately, all of that GP that Matthias has taken from you has been put towards some bird-sonal development, meaning you can look forward to the following:
+
+* You will no longer be held in place while the falcon is chasing a kebbit, meaning you can reposition or walk around while the falcon chases its prey.
+* You will be able to ask your falcon to catch a kebbit even if your inventory is full. Excess resources will be discarded to avoid cluttering the floor - though we'll make an exception for Hunter Rumour items here.
+
+===Aerial Fishing===
+Despite its lack of popularity, Aerial Fishing is a reasonably efficient use of time for the min-maxers among you. We suspect that the XP output ''is'' appealing to players but that this activity is held back by extremely high intensity with limited downtime, some clunky interactions, and some excessive 'time-to-complete' for its unique rewards. Here's what we'd like to do to make the most of Aerial Fishing.
+
+* Increase the distance at which you're able to perform 'quick' catches from a 3x3 area to a 4x4 area. In effect, this means you're more likely to chain together back-to-back catches every tick ''if'' you'd like to play at this level of intensity.
+* Add a toggle to Alry the Angler that allows your cormorant to eat fish in your inventory if you don't have any appropriate bait, effectively reducing the need for you to make fish offcuts as you go. This means that you'd forego the Cooking XP you could otherwise obtain, but does make the activity considerably less click intensive.
+* Occasionally, a larger pool will spawn that you can send your cormorant to several times in a row, which adds a little downtime or periods of lower intensity to break up the rapid pace.
+* Increase the chance of you obtaining Molch Pearls by ~50%.
+* Lower the Molch Pearl cost of some rewards (listed below). Any of you with prior purchases here would be refunded any 'lost' pearls.
+** Fishing Sack from 1,000 down to 500.
+** Angler's Outfit pieces from 100 down to 50.
+
+===Deadfall Traps===
+Deadfall Traps are generally associated with the earliest of Hunter levels (which have been more-or-less superseded by Birdhouses for the better part of a decade), with Maniacal Monkeys being a notable exception for their relatively low intensity. We've got a handful of changes that should breathe new life into these dead(fall) traps!
+
+* Increase deadfall trap limit to two. That's twice as many!
+** Maniacal Monkeys will retain the one trap limit. Kruk would never double-trap, so you'd blow your cover. Jokes aside, we don't believe Maniacal Monkeys need extra help and already occupy a healthy space, doubling the number of traps available here would skyrocket them to XP rates far too high for their intensity, while nerfing their XP to compensate would make them much less AFK, so we'd rather leave these as-is.
+* Give deadfall traps a chance to preserve your log when placing a trap, so you can cut down on cutting down trees.
+* Make deadfall traps able to 'catch' 8 ticks (4.8s) after being placed, as opposed to the current 15 ticks (9s).
+* Increase Wild Kebbit catch rate by ~2.5x. These little critters are a bit of an outlier when it comes to catch rate, which drastically reduce the utility of Deadfall traps in those early Hunter levels. Coupled with the other buffs here, this is around a 4x increase in XP/hr from Wild Kebbits.
+* Lower the XP given by Wild, Barbed, Prickly & Sabre-toothed Kebbits and Pyre Foxes by ~20%. The other changes here still math out to ~60% increased XP/hr from these creatures, the hope is to bring them more in-line with other methods as opposed to making them exceptionally strong, given their relatively low intensity.
+
+===Other Hunter Changes===
+
+* Allow two traps be placed starting at level 1 Hunter, rather than level 20. This effectively doubles XP rates for catching birds early-on into your Hunter journey.
+* Make the Ring of pursuit able to reveal full tracks even after one's already been started.
+* Improve the drop rate and pity rate for butterfly and moth hunter rumours. These stand out as pretty non-interactive and feel like they have much higher variance than other rumours, so we'd like to improve their consistency a tad!
+** Drop rate from 1 in 75 to 1 in 40.
+** Pity rate from 150 to 80.
+* Grant 30 Hunter XP for killing a Chompy Bird, it's a token amount but ''feels'' like it makes sense!
+
+==Agility Changes==
+[[File:Summer Sweep-Up 2026 (2).png|thumb|600px|center|If you can't see the asset above, [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-06-04/sweep2.png click here].]]
+
+As much as it will pain some of you, Agility is here to stay! We've got some spicy Sepulchre changes, some term-iffic changes to Varlamore's Wyrm course, and as is tradition: shortcuts, shortcuts, shortcuts!
+
+===Course Changes===
+The Hallowed Sepulchre is a real standout as far as modern skilling methods go, it's fast-paced, intuitive and interactive. Having said that, many players bounce off of their Agility training before getting to the Sepulchre's best parts, and players looking to focus solely on Sepulchre for their training can find some parts of progression to get a little tedious. Here's what we're proposing:
+
+* Lower Floor 4 entry requirement to Level 77, down from 82.
+* Lower Floor 5 entry requirement to Level 87, down from 92.
+* Allow players to boost for Floor entry. Meaning a player at 72 Agility could eat a bite of a Summer pie at the end of Floor 3 to gain entry to Floor 4.
+* Adjust Floor 5's Grand Coffin so that it requires 84 Thieving ''or'' 92 Agility to open.
+
+Ultimately the aim here is to reduce the time spent running the 'comfortable' floors ad nauseum. 72 to 82 Agility stands out for many as a bit of a slog, since Floor 3 gets to be quite mundane after a little while. These changes are aimed at getting players moving through the floors more quickly and putting themselves to the test against the more challenging obstacles early - a perfect excuse for you to burn through that stuck[sic] of Summer pies!
+
+On the other end of the intensity spectrum is the Colossal Wyrm Agility course, nestled into Varlamore's Sunset Coast. This was initially billed as a more low-intensity alternative to rooftops for reduced XP output, but it's more or less the same amount of effort and sees little use beyond players going after their Varlamore Graceful recolour.
+
+* Increase the duration of the Colossal Wyrm Agility course by ~25-30%, increase XP and termites to match so that it's the same XP/hr and termites/hr (this isn't a metric you'd find in any other game) but fewer inputs/hr.
+
+Now let's see what you'll be able to unlock with those Agility gains!
+
+===Shortcuts===
+[[File:Summer Sweep-Up 2026 (3).png|thumb|600px|center|If you can't see the asset above, [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-06-04/sweep3.png click here].]]
+
+We'll not waste any time, here's a list of brand new shortcuts that we'd like to add - these aid general traversal, serve as time-saves for Treasure Trail steps or perhaps just feel like they make sense!
+
+* Level 49 - West of Draynor Manor, a small gap in the fence.
+* Level 54 - South-west of Giant's Plateau, allowing easy access to/from the desert.
+* Level 60 - Southern edge of Edgeville dungeon, cutting down on travel time if you've lost your Brass key.
+* Level 62 - Central area of the top floor of the Arceuus Library, allowing you to jump down to the bottom floor - watch your ankles!
+* Level 79 - North of Sophanem, a slippery stepping stone for those of you who need to cross the River Elid in a flash.
+* Level 82 - The small island north of Mos le'Harmless, your least favourite Treasure Trail step just got a whole lot better.
+* Level 83 - West of Pollnivneach, allowing quick access from Ali the Hag's hut to the nearby plateau.
+
+New shortcuts are all well and good, but we'd also like to take a look at some of the most frustrating out there - grapple shortcuts. There's no shortage of shortcuts in the game that you'll look at and think 'my character's done ''way'' tougher than this', so we'd like to allow some grapple/crossbow shortcuts to be 'overlevelled' and able to be completed without any gear at all. The shortcuts we're looking at here are:
+
+* Level 8 Grapple - Broken raft in River Lum, useable barehanded at Level 48.
+* Level 11 Grapple - Falador wall climb, useable barehanded at Level 52.
+* Level 32 Grapple - Rock-climb between Catherby and Taverly, useable barehanded at Level 68. We'd also like to make this a two-way shortcut.
+* Level 36 Grapple - Catherby/Water Obelisk jump, useable barehanded at Level 72.
+* Level 39 Grapple - Yanille wall climb, useable barehanded at Level 69. The corresponding Achievement Diary task would still require a grapple to be used.
+* Level 53 Grapple - Strong trees just south of Karamja Volcano, useable barehanded at Level 78.
+
+Traversing Gielinor gets better with every Sweep-Up, here's hoping that more variety in Agility's pinnacle training method coupled with more use-cases for training beyond level 70 will have more of you getting your steps in than ever before!
+
+==Other Skilling-related Changes==
+====Guardians of the Rift====
+[[File:Summer Sweep-Up 2026 (4).png|thumb|600px|center|If you can't see the asset above, [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-06-04/sweep4.png click here].]]
+
+Runecraft's premier minigame has been a fan favourite since its release, but its reward structure and offering has left a little to be desired. Having borderline-mandatory Skilling upgrades gated behind RNG with high variance can sour the enjoyment of activities like GOTR, so we've got a couple of tweaks to make your time spent there feel more valuable and more finite if you're looking to grab some rewards and go.
+
+* Allow players to purchase the Abyssal Needle for 750 Abyss pearls, meaning there's a deterministic option for players going dry.
+* Allow the Abyssal Lantern to function '''outside of GOTR''' if it's burning logs that provide some effect beyond the activity. This means Normal, Oak, Maple and Yew logs won't have any function outside of GOTR, but Willow, Blisterwood, Magic and Redwood will.
+* Allow the Guardian's eye to unlock a permanent metamorphosis on the Rift Guardian, rather than taking up space in your bank for whenever you want to switch up your companion's appearance.
+
+====Tempoross====
+In a similar vein to the above, we've another rewards-related readjustment here.
+
+* Allow players to purchase the Fish Barrel and the Tackle Box for 6,000 Spirit Flakes each.
+
+====Coral====
+Introduced alongside Sailing, Coral farming currently occupies a really strong position for Irons and UIMs when it comes to Herblore 'EHP'. EHP is a term you'll see used by the high-level community than means efficient hours played, which means that if you could gain a maximum of 100k XP from an hour of training a skill, then gaining 50k XP would equate to 0.5 Efficient Hours Played. Ordinarily this sort of thing is something we let happen organically and shift over time, but in Coral's case, there is a risk that associated methods becoming more widespread could shift Herblore progression for all Irons over to mass-farming Coral rather than the healthy spread of Herbs that you currently harvest and use for a variety of potions. 
+
+It's important to note that this is currently only significant at the very top end, which means players with 99 Farming, Attas Seeds planted, Magic Secateurs on-hand etc. are enjoying disproportionately high gains. We'd like to enact some changes that increase the amount of Coral gained at lower Farming levels and without all of these extra conditionals, but bring down the top end slightly - ultimately meaning that Coral becomes more appealing for most of you reading, while becoming a little weaker at the very top end. 
+
+These top-end yields for Coral function a little peculiarly, and harvest-boosters like Magic Secateurs, Attas Seeds and Farming levels appear to be doing ''much'' more lifting than they would for traditional herbs. As an example, check out these two graphs for a more 'normal' Ranarr seed vs. an Umbral frag:
+
+[[File:Summer Sweep-Up 2026 (5).png|thumb|541px|center|If you can't see the asset above, [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-06-04/sweepcoral1.png click here].]]
+
+
+[[File:Summer Sweep-Up 2026 (6).png|thumb|534px|center|If you can't see the asset above, [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-06-04/sweepcoral2.png click here].]]
+
+Here's what we'd like to tweak:
+
+* All Coral get 6 harvest lives, up from 4.
+* Chance to obtain Coral frags from their associated Thieving chest reduced to 1 in 20, down from 1 in 15.
+* Adjust some 'stat random' values behind the scenes for the various Frags. This shifts their 'yield' in-game, as a rough estimate of how these changes will shift average yield, here are some numbers:
+** Elkhorn
+*** 18.29 → 19.44 yield at Level 77 Farming
+*** 34.13 → 27.93 yield at Level 99 Farming
+** Pillar
+*** 14.84 → 16.17 yield at Level 77 Farming
+*** 34.13 → 26.95 yield at Level 99 Farming
+** Umbral
+*** 9.48 → 13.24 yield at Level 77 Farming
+*** 34.13 → 25.60 yield at Level 99 Farming
+
+These changes are quite number-heavy, but the tagline is that you'll see more Coral as you progress through Farming, and less Coral at the very top end (i.e. 99 Farming with modifiers like Attas seeds in the mix).
+
+====Other tweaks====
+Rounding off the Skilling changes are a small group of tweaks that don't fit neatly into any broader category.
+
+* Remove the 'Make-X' interface when you use a log on an existing bonfire, instead just use the logs to start adding, and either click away or keep going until you run out of logs.
+* Remove the Herblore level requirement on the Reagent Pouch.
+* Improve Shark Lures so that they increase the rate at which you fish from 5 ticks to 4 ticks per roll. Effectively a 20% increase in the speed at which you catch sharks.
+* Buff the Elite Clue rate from Heroes by 25% from 1 in 1,400 to 1 in 1,050.
+
+==PvM Changes==
+We don't have a huge number of NPC- or content-specific changes here, but similar to our Tombs of Amascut changes in last year's Sweep-Up we're targeting one piece of content in particular to take a real pass over, with some smaller/miscellaneous changes to follow up.
+
+Our focus this year is a fan favourite! You know it, you probably have a complicated relationship with it, it's the red prison: the Gauntlet.
+
+===The Gauntlet & Corrupted Gauntlet Changes===
+[[File:Summer Sweep-Up 2026 (7).png|thumb|600px|center|If you can't see the asset above, [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-06-04/sweep5.png click here].]]
+
+This one's already generated a lot of conversation, hopefully seeing what's actually on the table might calm things down a little!
+
+We'll start this section by saying that our aims for this aren't to drastically speed up the Enchanted Crystal Weapon seed grind, and instead center on reducing variance and smoothing out the prep phase so that you can more readily turn your brain off before locking in for your fight against the Hunllef. Let's take a look!
+
+Changes aimed at reducing Prep phase variance/intensity:
+
+* Guarantee a random demi-boss spawn at the north/east/south/west-most rooms from the centre. Meaning four demi-bosses with fixed locations, but the specific demi-bosses that you encounter will still be random.
+* While we're talking demi-bosses, we'd also like to reduce their maximum attack range from 16 to 10, meaning you're less likely to get jumpscared by an off-screen Dark Beast.
+* Add a guaranteed weapon frame drop from your first 'low tier' NPC kills.
+
+Changes aimed at decluttering or simplifying prep:
+
+* Make Phren Bark, Crystal Ore and Linum Tirinum stackable.
+* Automatically place Crystal Shards in your inventory, rather than you having to pick them up.
+* Reduce variance of the number of Crystal Shards dropped by enemies, meaning the number of enemies you need to kill should feel more consistent between runs.
+* Standardise the stats of the regular (meaning not demi-boss) enemies within tiers, so that it's not 'better' to kill a wolf over a scorpion for example.
+* Simplify the number of Crystal Shards used to create various pieces of equipment so that you're not reliant on remembering odd numbers or over-reliant on a plugin to keep track:
+** Creating a Tier 1 weapon requires no Crystal Shards, down from 20. You'll still need a weapon frame.
+** Creating a Tier 2 weapon requires 50 Crystal Shards, down from 60.
+** Creating a piece of Tier 1 armour requires 50 Crystal Shards, up from 40.
+** Creating a piece of Tier 2 Body armour requires 100 Crystal Shards, up from 80. Creating a piece of Tier 2 Leg or Helmet armour requires 50 Crystal shards, down from 80.
+** Creating a piece of Tier 3 armour requires 100 Crystal Shards, up from 80. The reason for this increase is that we don't want Tier 3 to become a guarantee/must-have for every run and should still be trading comfort for time-loss, encouraging people to push themselves down to Tier 1 prep for the fastest clears.
+** For some comparisons:
+*** A full set of Tier 1 armour and two Tier 3 weapons requires 250 Crystal Shards, down from the 280 that it currently does.
+*** A full set of Tier 2 armour and two Tier 3 weapons requires 450 Crystal Shards, down from the 460 that it currently does.
+*** A full set of Tier 3 armour and two Tier 3 weapons requires 750 Crystal Shards, up from the 700 that it currently does. The additional demi-bosses dotted around and auto-pickups for Crystal Shards should make it much easier to rack these up though!
+* Prevent weapon frames from dropping if you have a total of three weapon frames or crafted weapons.
+
+These changes should make prep feel more reliable, make the quantities of things required easier to remember, and probably speed things up for players of all skill levels so that you can spend more time focusing on the Hunllef fight. Let us know what you make of them, and you can stop yelling at each other now!
+
+===Other PvM or PvM-adjacent Changes===
+While Gauntlet's the headline for this section, we've got some more miscellaneous changes to a variety of NPCs and content too!
+
+* Add a minimum number of player attacks before the Phantom Muspah can change styles, to prevent constant back-to-back swaps which make the fight frustrating in high-tier gear setups.
+* Add a minimum number of player attacks before Demonic Gorillas can change overheads, to prevent constant back-to-back swaps which make them a really draining Slayer task.
+* Lower the duration of the Phantom Muspah's 'homing spikes' attack so that it ends a little sooner, since it's kind of a drag.
+* Add a cooldown before a Skotizo totem can spawn again after being destroyed.
+* Reduce the size of Skotizo's arena so that you're more focused on dealing damage than increasing your daily step counter running between totems non-stop.
+* Remove the restriction on life-steal effects against the Wardens of Elidinis or Tumeken, meaning the Blood Fury and Sanguinesti Staff would be able to function here.
+* Reduce Chivalry's drain rate so that it matches Deadeye and Mystic Vigour. There is no follow-up sentence.
+* Prevent the Surge potion's cooldown from being reset on death inside the Chambers of Xeric, since it introduces a 'feels bad' meta for speedrunners.
+* Prevent progress in the Knight Waves from being reset if you leave via the door.
+
+Before signing off this section, we'd like to share our thoughts on a topic that we see crop up very often and that some of you may feel is noticeably absent from this year's changes.
+
+===Our thoughts on CM Chambers of Xeric and Prayer Scrolls===
+'''Please check out the updated segment on this towards the top of the blog for a more up-to-date rundown, this section is lacking specifics'''
+
+[[File:Summer Sweep-Up 2026 (8).png|thumb|600px|center|If you can't see the asset above, [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-06-04/sweep6.png click here].]]
+
+For many of you, this is a topic that needs no introduction, but we'll set the scene to make sure everybody's up to speed here. 
+
+Chambers of Xeric's (CoX) unique table is weighted heavily towards the Arcane and Dextrous Prayer Scrolls, meaning that roughly 58% of the uniques that you'll see (on average) will be a prayer scroll. Challenge Mode (CM) Chambers of Xeric completions add the Twisted Ancestral kit and Metamorphic Dust to a tertiary loot table, but don't make any adjustments to the ordinary loot table, meaning 58% of the uniques you see in CM completions will also be prayer scrolls.
+
+By contrast, Theatre of Blood's (ToB) Hard Mode ''does'' make adjustments to the loot table, such that the Avernic Defender Hilt (the most common unique) has its weighting reduced by ~7.7%, which makes all of the other uniques more common. The chance at seeing a unique chest in a Hard Mode Theatre of Blood completion is also higher on its own to compensate for the longer completion time, which is mostly mirrored in the increased points-per-raid offered by a Challenge Mode Chambers of Xeric completion.
+
+The high weighting of prayer scrolls applying to CM CoX has been a frequent topic of discussion for some time now, with many players suggesting we should reduce the weighting or remove these scrolls entirely from the CM CoX loot table, in line with how Hard Mode ToB handles the Avernic. This suggestion is simple enough and absolutely has some merit, but we've been hesitant to make a 'simple' change here since we think the problem is a little more complicated, so we'd like to talk it through with you and propose something a little out-of-the-box.
+
+We'll go through some of the simpler approaches we've seen in the past with some brief points on each first:
+
+* Approach 1: Reduce Prayer Scroll weighting slightly, do nothing else.
+** Most closely mirrors the HM ToB approach.
+** Puts 'downward pressure' on every unique on the loot table. 'Downward pressure' means that supply is increased, and value likely drops as a result.
+** Prayer Scroll weighting is so high that you'd likely still see them very frequently, unless we reduced the weighting drastically, which would result in very significant increase for other uniques.
+** Some items can't really absorb this downward pressure and still maintain a healthy value, namely the Twisted Buckler and Dinh's Bulwark, but also the Dragon Hunter Crossbow and Dragon Claws to a lesser extent.
+* Approach 2: Reduce Prayer Scroll weighting, reduce purple chance
+** All of the above still applies here too.
+** Many players feel as though purple chests at CoX are too infrequent as-is, making them more infrequent would feel bad.
+* Approach 3: Increase purple chance
+** Still puts downward pressure on everything.
+** Still results in mostly seeing Prayer Scrolls.
+** Purples are more frequently-seen, which probably does make the raid ''feel'' better for many players.
+
+Unique prices are delicate, and CoX uniques have historically done a ''pretty good'' job at maintaining value considering the raid's lifespan, so we're quite cautious about any solution that might result in a drastic increase for these. Instead, we'd like to float an idea that tackles the problem from a slightly different angle: what if the scrolls themselves had some sort of added-value to apply upwards pressure? Here's an idea we've been toying with: what if you could 're-roll' a unique?
+
+* Hypothetical scenario: player obtains an Arcane Prayer Scroll.
+* Player can withdraw the scroll, or 're-roll' it.
+* Re-roll provides a 1 in x chance to roll on the unique table again, but with the Arcane Prayer Scroll removed from the table, increasing all other unique weightings. If the 1 in x chance is missed, the Arcane Prayer Scroll is deleted.
+
+Effectively this creates upwards pressure on every item whose value is less than the average re-roll value, meaning items like the Prayer Scrolls, Dinh's Bulwark and Twisted Buckler likely increase in value. There's some downwards pressure created on other uniques, but not to such a degree that it's likely to be overtly detrimental. This means that Mains could effectively try their luck at getting something better, Irons who have a healthy Death's Coffer could re-roll any duplicate items, Cloggers could re-roll absolutely everything, ''and'' it's a change that could in theory apply to both CMs and Normal CoX if we wanted. The additional benefit of an approach like this is that we can justify being more 'generous' with this system than we could with simpler buffs/number-changes since there's a trade-off involved.
+
+From a system design perspective, something like this achieves a lot, but it's understandably a bit ''weird'' and we know that 'sacrifice'-style options can be very hit-or-miss for players, so we'd like to gauge your thoughts on our outlandish idea and see how it stacks up against the approaches outlined above.
+
+While you mull this one over, we've got more changes coming!
+
+==Gear Changes & Rebalancing==
+It's time to open up that Grand Exchange interface and prepare to panic-buy or panic-sell, fastest finger wins!
+
+Jokes aside, we tend to use this time to assess the position of existing gear in the game that might be underperforming or overperforming, then make small changes here or there to position gear more effectively to ensure older content remains more relevant or that we're not damaging how future-proof progression is with some gear overperforming drastically.
+
+These are only minor tweaks in most instances so we'll list things off and keep things quick!
+
+===Gear Buffs===
+
+* Sanguinesti Staff Tweaks
+** Chance to heal increased to 1 in 5 (up from 1 in 6), deals 8 additional damage whenever the heal procs - this averages out to +1.6 damage per hit.
+** Base max hit increased by +1.
+** Charge cost reduced to 2 Blood runes per cast, down from 3.
+* Soulreaper Axe Changes
+** Strength bonus increased to +125, up from +121.
+** Stacks to provide +10% damage per stack, up from +6% damage per stack. Stacks cap at 3, down from 5. This equates to the same damage increase but with a faster ramp time and less HP loss to achieve maximum stacks.
+* Ghrazi Rapier Stab accuracy increased by +6, Strength bonus increased by +4. This guarantees an additional max hit in all setups.
+* Blade of Saeldor Slash accuracy increased by +6, Strength bonus increased by +4. This guarantees an additional max hit in all setups.
+* Pegasian Boots gain +1 Ranged Strength bonus.
+* Master Wand gains +10% Magic Damage bonus.
+* Ancient Sceptres (all variants) have their Magic Damage bonus increased to +10%, up from +5%.
+* Aquanite Hopper to have its second hit accuracy penalty halved. There's not much room to buff this loads without it powercreeping on the Twisted Buckler, but a small buff should make it at least a little more worthwhile.
+* Belle's Folly drop rate increased to 1 in 75, up from 1 in 256.
+* Venator Bow to be made more consistent thanks to new engine capabilities. It's hard to quantify this, but in effect it should mean that the bow finds new targets more reliably.
+* Inquisitor changes (it wouldn't be a Summer Sweep-Up without Inquisitor changes)
+** Remove the Inquisitor set bonus. This allows all pieces and the mace to function better independently rather than locking their utility to the complete set.
+** Inquisitor's Mace gains +5 Strength bonus and +7 Crush Accuracy. This guarantees +1 max hit in ''all setups'', and may add +2 max hits in some setups.
+** Inquisitor's Great Helm gains +2 Crush accuracy, putting its total Crush bonus at 10, up from 8, and +2 Strength bonus. This matches the equivalent Slash bonus and Strength bonus granted by the Oathplate Helm.
+** Inquisitor's Hauberk gains +4 Crush accuracy, putting its total Crush bonus at 16, up from 12. This matches the equivalent Slash bonus granted by the Oathplate Chest.
+* Shaman Mask Magic bonus increased to +2 from -6.
+
+===Gear Nerfs===
+
+* Burning Claws Special Attack Energy cost increased to 35%, from 30%. These are ''incredibly'' Energy-efficient and often outcompete Special Attack options obtained from considerably harder content, they make it really difficult for us to fill additional Special Attack weapon space and drastically overperform considering their unlock source, since we wouldn't consider them to be an endgame unlock as opposed to a stepping stone on your way to things like Dragon Claws or the Voidwaker.
+
+We have two other items in this category that overperform ''considerably'' in PvP scenarios only. There's a tough line to walk when it comes to keeping item behaviour consistent across the entire game, but we're not convinced that players using these items would appreciate seeing them weakened across the board solely to bring them into a healthier spot for PvP. Our current proposals are listed below so that you can let us know what you reckon, if you'd prefer to see consistency applied then we have alternate suggestions but these would weaken the position of the affected gear across the entire game, let's take a look:
+
+* In PvP, Eclipse Atlatl made to attack one tick slower unless the full Eclipse set is worn. The Atlatl's 3-tick speed coupled with not needing any considerable Ranged switch makes it an absolute monster for its price point while homogenising gear setups significantly in multiple styles of PvP combat.
+* In PvP, Soulflame Horn's Special Attack adjusted to provide +50% Accuracy rather than +100%. The Soulflame Horn makes one-iteming with weapons like the Ancient Mace exceptionally strong and doesn't confer any meaningful risk to a group utilising this strategy. This would still make it a powerful option, but slightly less reliable than its current one-shot enabling status. Note that this item already behaves differently in PvP, we're just adjusting that PvP-specific behaviour to make it a little less overpowered.
+
+===Gear Adjustment===
+
+* Rosewood Blowpipe made able to use darts up to Rune, instead of its current cap at Adamant. To compensate, the 10% bonus damage on its double-shot ''Rapid Burst'' Special Attack would be removed.
+
+===New Early-game Gear additions===
+====New Early-game Uniques====
+Early-game Slayer has a whole host of monsters who no longer have any interesting loot, we'd like to bolster some loot tables with gear that helps players start climbing the gear ladder for Magic and Ranged while they're still in those earlier stages of progression.
+
+====New Magic Amulets====
+We'd like to add a handful of elemental jewels as drops from NPCs, which can be combined with their respective runes and an Amulet of Magic to create a variety of amulets that shine with Elemental spells. Each of these amulets provides +2 to its elemental max hit, alongside +10 Magic Accuracy.
+
+* Amulet of Air. Made using an Air Diamond, which drops from Killerwatts at a rate of 1 in 64.
+* Amulet of Water. Made using a Water Sapphire, which drops from Sea Snake Hatchlings at a rate of 1 in 64.
+* Amulet of Earth. Made using an Earth Emerald, which drops from Molanisks at a rate of 1 in 64. If you've ever wondered what on earth a Slayer Bell is used for, these little critters are your answer.
+* Amulet of Fire. Made using a Fire Ruby, which drops from Infernal Mages at a rate of 1 in 64.
+
+Crafting each of these amulets will have a Runecraft requirement (likely in the 18 to 22 range), but players with 30 Runecraft can combine all of these to create the Elemental Amulet. The Elemental Amulet provides +2 to the max hit of '''all''' elemental spells, alongside +10 Magic accuracy.
+
+====New Ranged Necklace====
+When it comes to Ranged jewellery, there's not really anything even remotely worthwhile for Ranged-specific bonuses until you obtain a Necklace of Anguish. While our proposal here isn't a game-changer, it's at least a nice unlock for players working their way through Slayer.
+
+* Necklace of Fangs. Drops from Turoths at a rate of 1 in 128. Provides +1 Ranged Strength, +12 Ranged Accuracy.
+
+==Miscellaneous Changes==
+Rounding off the proposals we're committed to are a few smaller things with no particular rhyme or reason, the kinds that you might see scattered throughout regular QoL polls during the year but perhaps a little more involved on the technical or balancing side!
+
+* Changes to Abyssal Creatures
+** Increase Rune Essence Pouch drop rate from Abyssal Guardians to 1 in 8, up from 1 in 42. Increase the rate from Abyssal Walkers to 1 in 5, up from 1 in 42. Nobody kills these mobs because they'd rather just blast the tiny leeches, this should speed up obtaining these pouches since grabbing them isn't exactly challenging but can feel needlessly time-consuming for an item that's effectively mandatory for Runecraft training. We're also bringing down their defences so they fall over a little more easily:
+*** Lower Light and Heavy Ranged Defence for Abyssal Guardians and Abyssal Walkers to 0, down to 70 and 75 respectively.
+*** Lower Crush Defence for Abyssal Guardians to 0, down from 70.
+* Early-game Run Energy improvements
+** Fully restore Run Energy (and cure any damage-over-time effects like poison) upon completing a quest.
+** Add 1- to 3-dose Energy potions to a variety of early game loot tables at a fairly common rate.
+** Buff Energy potions to restore 15% Run Energy per dose.
+** Adjust Herblore recipe for Energy potions so that they're made from an unfinished Guam potion instead of an unfinished Harralander potion. Adjust their Herblore requirement from Level 26 to 10, and subsequently adjust the XP obtained from making them to 45, down from 67.5. This adds another early-game use for Guam leaves that might prove useful for Herblore training while also having increased utility in the early game thanks to the buff listed above.
+* Add a 'Create-last' option to lecterns used to create teleport tablets.
+* Make the Ghommal's Lucky Penny charge-saving effect an 'account unlock' for completing the Master Tier Combat Achievements, rather than requiring the item to be worn.
+* Allow the Seed Vault to respect locked inventory slots.
+* Remove the timeout/cooldown on making parties at the Theatre of Blood.
+* Remove the timeout/cooldown on entering the Fight Caves too many times.
+* Allow pets to follow you into content like the Gauntlet, Fossil Island's Underwater area, various minigames, ''and'' respawn with you on death.
+
+==Potential Changes - Feedback Desired!==
+Rounding off our blog are the "topics that we'd like to gauge your thoughts on before committing to a specific direction" that we mentioned at the start of the blog.
+
+While the Summer Sweep-Up or its progenitor, Project Rebalance, tend to focus on objective improvements or boosts, they also serve as an opportunity for us to surface conversations about parts of the game that we feel are limiting design space, or aspects of content that we feel are aging poorly and could likely do with a second look. In the past we've tackled tough topics like gear balance or the abundance of skilling supplies on loot tables, but today we're narrowing our scope a little and want to talk about Birdhouses.
+
+===Birdhouses===
+[[File:Summer Sweep-Up 2026 (9).png|thumb|600px|center|If you can't see the asset above, [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-06-04/sweep7.png click here].]]
+
+Since their addition alongside Fossil Island in 2017, Birdhouses have absolutely eclipsed the Hunter skill. While the addition of Hunter rumours went some way to dethroning them, Birdhouses account for a ''huge'' chunk of all Hunter XP gained, dominating many level brackets and stages of progression.
+
+[[File:Summer Sweep-Up 2026 (10).png|thumb|600px|center|If you can't see the asset above, [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-06-04/sweepbh.png click here].]]
+
+''That huge grey space in the middle represents how much XP is gained from Birdhouses at various Hunter levels. From around Level 30 onwards it accounts for almost 80% of '''all Hunter XP''', until Herbiboar makes its entrance at Level 80. Early levels look a bit skewed on account of players 'skipping' levels with things like Quest rewards or the Varrock museum quiz.''
+
+It's not inherently a problem for one method to stand out above all others for most players, but Birdhouses strip the skill of its unique identity and result in a gameplay loop that more closely resembles Farming, effectively reducing all early-game methods to the dreaded 'dead content' pile.
+
+The Hunter improvements we outlined earlier in the blog '''are not''' contingent on what we're suggesting here, we'll be rolling them out regardless and that should result in considerable improvements to early-game Hunter levelling, there's no sandwich here of 'we'll buff these things if we're allowed to nerf this other thing'.
+
+Having said that, repositioning Birdhouses' design slightly might be necessary to make conventional Hunter training ''actually'' appealing - perhaps this isn't an issue for many of you, but we think cutting back on 'chores' elements that feel mandatory and instead more strongly positioning activities you can do whenever you feel like it is generally a net positive.
+
+In short, we'd like to try something along the following lines:
+
+* Increase nest output by ~50% and make them more consistent, so that you're not getting a couple on one run and filling your inventory on the next.
+* Reduce the XP offered for checking them, with a big reduction at the lower end and small reduction at the top end.
+
+Let us know what you reckon, we're confident that this would position birdhouses more appropriately within Hunter progression, but we appreciate that they've been around for a long time now and there's bound to be a considerably diversity of opinion here, which is why we're not absolutely committing ourselves to anything at this stage.
+
+Rounding us off is our final 'potential' change. Put your hands together for the unofficial mascot of the Summer Sweep-Up, you know her, you love her: the Nightmare of Ashihama!
+
+===The Nightmare of Ashihama===
+[[File:Summer Sweep-Up 2026 (11).png|thumb|600px|center|If you can't see the asset above, [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-06-04/sweep8.png click here].]]
+
+'''Note: the changes we discuss in this segment are intended as long-term and would rely on future content, these aren't changes that we're planning to make alongside the other things we've outlined so far.'''
+
+It wouldn't be a Summer Sweep-Up without the Nightmare making an appearance, and from a game design perspective the boss certainly lives up to its name. Over the years we've taken numerous passes at the Nightmare (including Phosani's Nightmare) aiming to make the encounter feel more worth engaging with, since Phosani's Nightmare in particular stands out as one of the most solid solo encounters in Old School.
+
+We still have some issues here, which we think might require radical solutions rather than just a couple more number tweaks, so let's outline our issues. Some of these focus specifically on Inquisitor, which we've covered in the gear rebalancing section above to keep things organised.
+
+* The Nightmare's loot table feels bloated. There are four pieces of Inquisitor, the Nightmare staff and three separate orbs to put in the staff. Eight unique rewards can make it really frustrating to chase a couple of specific items, especially when a decent number of these rewards (like the orbs) are relatively niche.
+* Some bosses have very little function or appeal for players at any stage of the game, and could be revitalised with more interesting loot.
+* Inquisitor doesn't feel like a worthwhile unlock, and relying on the full set limits the Inquisitor Mace's potential to be a solid mainhand weapon. This is why we're making the adjustments outlined earlier in the blog.
+
+Regardless of how we address the first two points, improvements to the Inquisitor armour set and mace aren't dependent on the changes we'd like to explore in this segment.
+
+We'd ''like'' to position Nightmare more strongly as 'the place that you go to get Inquisitor' rather than 'the place that you might get Inquisitor from eventually, and a bunch of orbs that you don't care about'. 
+
+* Move the Volatile and Eldritch Orbs off of the Nightmare's loot table.
+** It might be a stronger thematic here to have the Nightmare drop a generic orb and have it be charged with some unique 'essence' that drops from other NPCs, rather than bosses all over Gielinor stumbling across these shiny spheres.
+* Let the Harmonised Nightmare Orb absorb the weighting of the other orbs.
+** At Phosani's Nightmare this would mean a drop rate of around 1 in 533, up from 1 in 1,600.
+* Increase the weighting of the Nightmare staff from 3 to 4, so that you're more likely to obtain one by the time you obtain an orb.
+* Increase the generic chance of hitting the Inquisitor/Nightmare Staff loot table by ~10% to compensate for the staff's increased weighting.
+
+This would mean more Inquisitor, more focused loot, and potentially more reasons to check out other bosses (if we deem them to be appropriate sources of the other two Nightmare orbs). Be sure to let us know if you think we're barking up the wrong tree here, or if you think this is a solid direction to go in! If this does seem like something you're on-board with, then we'll keep these Orbs in mind with any future content releases and poll moving these Orbs over on a case-by-case basis, this means that once both orbs mentioned above are shifted we'll be able to revisit the specific changes to the Nightmare itself.
+
+And with that, we're at the end of our initial proposal - we welcome all of your thoughts, feedback and discussion and we'll be keeping a close eye on any suggestions for things we might have missed that fall within our scope. Depending on how conversations pan out around topics like Birdhouses or the Nightmares, you might want to keep an eye out for follow-up blogs or in-game opinion surveys to make sure that we're on the right track!
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1twllr3/summer_sweepup_2026/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the official [https://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Acorn, Ape, Arcane, Archie, Argo, Ash, Asherz, Ayiza, BigRig, Blighted, Blossom, Boko, Brooksie, Bruno, Chilly, Criminal, Curse, Daizong, Default, Ed, Elena, Enigma, Entropi, Freddie, Frogs, Fuzz, Gecko, Gizmo, Goblin, Grace, Grub, Halo, Harold, Hend, Hornet, Husky, Ivory, Jalo, Jamesy, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Lotus, Mack, Manked, Markos, Maylea, Mobius, Moogle, Morty, Moz, Necro, Nin, Nixon, Nox, Nylu, Ori, Other, Otter, Philomel, Pork, Pumpkin, Puppi, Rach, Redfield, Rice, Romy, Roy, Ry, Saiyan, Sarnie, Schmidt, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Spyro, Squid, Starry, Stilrush, Suharun, Surma, Sween, Tide, Titania, Titus, TJ, Tomb, Tsourorf, Tyran, Veda, Vegard, West, Wolfy, Yozora & Yume.'''
+
+''The Old School Team.''

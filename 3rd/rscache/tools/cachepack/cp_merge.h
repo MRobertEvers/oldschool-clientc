@@ -69,8 +69,22 @@ struct CP_MergeIndexSlot
     int record_plus_one;
 };
 
+struct CP_KeySpec;
+struct RSCache_Register;
+
 struct CP_MergeSet
 {
+    /** The type's key table (cachepack.h CP_KeySpec), or NULL. With it, the
+     *  numbered lines of an INDEXED family (`recol1s`, `recol2d`, ...) and its
+     *  bare-stem marker (`recol=default`) are one field when a higher layer
+     *  replaces a lower one's marker or clears it. Set before the first add. */
+    const struct CP_KeySpec* keys;
+    /** The type's field register (rscache_register.h), or NULL. Its list fields
+     *  are families the same way: `stock1`, `stock2` and the bare-stem marker
+     *  `stock=default` of a `text = indexed` field are one field, and the
+     *  repeated lines of a `text = list` field are a list, not a duplicate.
+     *  Set before the first add. */
+    const struct RSCache_Register* fields;
     struct CP_MergedRecord* records;
     int count;
     int capacity;

@@ -1,0 +1,884 @@
+/*
+ * Copyright (c) 2024 Alexei Frolov
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of
+ * this software and associated documentation files (the “Software”), to deal in
+ * the Software without restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the
+ * Software, and to permit persons to whom the Software is furnished to do so,
+ * subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ */
+
+syntax = "proto3";
+
+package blert;
+import "google/protobuf/empty.proto";
+
+option java_package = "io.blert.proto";
+option java_multiple_files = true;
+
+message Coords {
+  int32 x = 1;
+  int32 y = 2;
+}
+
+enum Challenge {
+  UNKNOWN_CHALLENGE = 0;
+  TOB = 1;
+  COX = 2;
+  TOA = 3;
+  COLOSSEUM = 4;
+  INFERNO = 5;
+  MOKHAIOTL = 6;
+}
+
+enum Stage {
+  UNKNOWN_STAGE = 0;
+
+  TOB_MAIDEN = 10;
+  TOB_BLOAT = 11;
+  TOB_NYLOCAS = 12;
+  TOB_SOTETSEG = 13;
+  TOB_XARPUS = 14;
+  TOB_VERZIK = 15;
+
+  COX_TEKTON = 20;
+  COX_CRABS = 21;
+  COX_ICE_DEMON = 22;
+  COX_SHAMANS = 23;
+  COX_VANGUARDS = 24;
+  COX_THIEVING = 25;
+  COX_VESPULA = 26;
+  COX_TIGHTROPE = 27;
+  COX_GUARDIANS = 28;
+  COX_VASA = 29;
+  COX_MYSTICS = 30;
+  COX_MUTTADILE = 31;
+  COX_OLM = 32;
+
+  TOA_APMEKEN = 40;
+  TOA_BABA = 41;
+  TOA_SCABARAS = 42;
+  TOA_KEPHRI = 43;
+  TOA_HET = 44;
+  TOA_AKKHA = 45;
+  TOA_CRONDIS = 46;
+  TOA_ZEBAK = 47;
+  TOA_WARDENS = 48;
+
+  MOKHAIOTL_DELVE_1 = 50;
+  MOKHAIOTL_DELVE_2 = 51;
+  MOKHAIOTL_DELVE_3 = 52;
+  MOKHAIOTL_DELVE_4 = 53;
+  MOKHAIOTL_DELVE_5 = 54;
+  MOKHAIOTL_DELVE_6 = 55;
+  MOKHAIOTL_DELVE_7 = 56;
+  MOKHAIOTL_DELVE_8 = 57;
+  MOKHAIOTL_DELVE_8PLUS = 58;
+
+  COLOSSEUM_WAVE_1 = 100;
+  COLOSSEUM_WAVE_2 = 101;
+  COLOSSEUM_WAVE_3 = 102;
+  COLOSSEUM_WAVE_4 = 103;
+  COLOSSEUM_WAVE_5 = 104;
+  COLOSSEUM_WAVE_6 = 105;
+  COLOSSEUM_WAVE_7 = 106;
+  COLOSSEUM_WAVE_8 = 107;
+  COLOSSEUM_WAVE_9 = 108;
+  COLOSSEUM_WAVE_10 = 109;
+  COLOSSEUM_WAVE_11 = 110;
+  COLOSSEUM_WAVE_12 = 111;
+
+  INFERNO_WAVE_1 = 200;
+  INFERNO_WAVE_2 = 201;
+  INFERNO_WAVE_3 = 202;
+  INFERNO_WAVE_4 = 203;
+  INFERNO_WAVE_5 = 204;
+  INFERNO_WAVE_6 = 205;
+  INFERNO_WAVE_7 = 206;
+  INFERNO_WAVE_8 = 207;
+  INFERNO_WAVE_9 = 208;
+  INFERNO_WAVE_10 = 209;
+  INFERNO_WAVE_11 = 210;
+  INFERNO_WAVE_12 = 211;
+  INFERNO_WAVE_13 = 212;
+  INFERNO_WAVE_14 = 213;
+  INFERNO_WAVE_15 = 214;
+  INFERNO_WAVE_16 = 215;
+  INFERNO_WAVE_17 = 216;
+  INFERNO_WAVE_18 = 217;
+  INFERNO_WAVE_19 = 218;
+  INFERNO_WAVE_20 = 219;
+  INFERNO_WAVE_21 = 220;
+  INFERNO_WAVE_22 = 221;
+  INFERNO_WAVE_23 = 222;
+  INFERNO_WAVE_24 = 223;
+  INFERNO_WAVE_25 = 224;
+  INFERNO_WAVE_26 = 225;
+  INFERNO_WAVE_27 = 226;
+  INFERNO_WAVE_28 = 227;
+  INFERNO_WAVE_29 = 228;
+  INFERNO_WAVE_30 = 229;
+  INFERNO_WAVE_31 = 230;
+  INFERNO_WAVE_32 = 231;
+  INFERNO_WAVE_33 = 232;
+  INFERNO_WAVE_34 = 233;
+  INFERNO_WAVE_35 = 234;
+  INFERNO_WAVE_36 = 235;
+  INFERNO_WAVE_37 = 236;
+  INFERNO_WAVE_38 = 237;
+  INFERNO_WAVE_39 = 238;
+  INFERNO_WAVE_40 = 239;
+  INFERNO_WAVE_41 = 240;
+  INFERNO_WAVE_42 = 241;
+  INFERNO_WAVE_43 = 242;
+  INFERNO_WAVE_44 = 243;
+  INFERNO_WAVE_45 = 244;
+  INFERNO_WAVE_46 = 245;
+  INFERNO_WAVE_47 = 246;
+  INFERNO_WAVE_48 = 247;
+  INFERNO_WAVE_49 = 248;
+  INFERNO_WAVE_50 = 249;
+  INFERNO_WAVE_51 = 250;
+  INFERNO_WAVE_52 = 251;
+  INFERNO_WAVE_53 = 252;
+  INFERNO_WAVE_54 = 253;
+  INFERNO_WAVE_55 = 254;
+  INFERNO_WAVE_56 = 255;
+  INFERNO_WAVE_57 = 256;
+  INFERNO_WAVE_58 = 257;
+  INFERNO_WAVE_59 = 258;
+  INFERNO_WAVE_60 = 259;
+  INFERNO_WAVE_61 = 260;
+  INFERNO_WAVE_62 = 261;
+  INFERNO_WAVE_63 = 262;
+  INFERNO_WAVE_64 = 263;
+  INFERNO_WAVE_65 = 264;
+  INFERNO_WAVE_66 = 265;
+  INFERNO_WAVE_67 = 266;
+  INFERNO_WAVE_68 = 267;
+  INFERNO_WAVE_69 = 268;
+}
+
+enum ChallengeMode {
+  NO_MODE = 0;
+
+  TOB_ENTRY = 10;
+  TOB_REGULAR = 11;
+  TOB_HARD = 12;
+
+  COX_REGULAR = 20;
+  COX_CHALLENGE = 21;
+
+  TOA_ENTRY = 30;
+  TOA_NORMAL = 31;
+  TOA_EXPERT = 32;
+}
+
+enum PlayerAttack {
+  UNKNOWN = 0;
+  UNKNOWN_BARRAGE = 1;
+  UNKNOWN_BOW = 2;
+  UNKNOWN_POWERED_STAFF = 3;
+  // Space for future unknown categories.
+  reserved 4 to 9;
+
+  GODSWORD_SMACK = 10;
+  BGS_SPEC = 11;
+  BLOWPIPE = 12;
+  BOWFA = 13;
+  CHALLY_SPEC = 14;
+  CHALLY_SWIPE = 15;
+  CHIN_BLACK = 16;
+  CHIN_GREY = 17;
+  CHIN_RED = 18;
+  CLAW_SCRATCH = 19;
+  CLAW_SPEC = 20;
+  DAWN_AUTO = 21;
+  DAWN_SPEC = 22;
+  DINHS_BASH = 23;
+  DINHS_SPEC = 24;
+  FANG_STAB = 25;
+  FANG_SPEC = 26;
+  HAMMER_BOP = 27;
+  HAMMER_SPEC = 28;
+  HAM_JOINT = 29;
+  KODAI_BARRAGE = 30;
+  KODAI_BASH = 31;
+  RAPIER = 32;
+  SAELDOR = 33;
+  SANG = 34;
+  SANG_BARRAGE = 35;
+  SCEPTRE_BASH = 36;
+  SCEPTRE_BARRAGE = 37;
+  SCYTHE = 38;
+  SCYTHE_UNCHARGED = 39;
+  SHADOW = 40;
+  SHADOW_BARRAGE = 41;
+  SOTD_BARRAGE = 42;
+  SOULREAPER_AXE = 43;
+  STAFF_OF_LIGHT_BARRAGE = 44;
+  STAFF_OF_LIGHT_SWIPE = 45;
+  SWIFT_BLADE = 46;
+  TENT_WHIP = 47;
+  TOXIC_TRIDENT = 48;
+  TOXIC_TRIDENT_BARRAGE = 49;
+  TOXIC_STAFF_BARRAGE = 50;
+  TOXIC_STAFF_SWIPE = 51;
+  TRIDENT = 52;
+  TRIDENT_BARRAGE = 53;
+  TWISTED_BOW = 54;
+  NM_STAFF_BARRAGE = 55;
+  VOLATILE_NM_SPEC = 56;
+  ZCB_AUTO = 57;
+  ZCB_SPEC = 58;
+  reserved 59;
+  SGS_SPEC = 60;
+  VENATOR_BOW = 61;
+  TONALZTICS_SPEC = 62;
+  TONALZTICS_AUTO = 63;
+  TONALZTICS_UNCHARGED = 64;
+  NM_STAFF_BASH = 65;
+  PUNCH = 66;
+  KICK = 67;
+  BLOWPIPE_SPEC = 68;
+  AGS_SPEC = 69;
+  ZGS_SPEC = 70;
+  XGS_SPEC = 71;
+  DDS_POKE = 72;
+  DDS_SPEC = 73;
+  DART = 74;
+  WEBWEAVER_AUTO = 75;
+  WEBWEAVER_SPEC = 76;
+  VOIDWAKER_AUTO = 77;
+  VOIDWAKER_SPEC = 78;
+  INQUISITORS_MACE = 79;
+  ABYSSAL_BLUDGEON = 80;
+  ATLATL_AUTO = 81;
+  ATLATL_SPEC = 82;
+  DUAL_MACUAHUITL = 83;
+  ELDER_MAUL = 84;
+  ELDER_MAUL_SPEC = 85;
+  ZOMBIE_AXE = 86;
+  GOBLIN_PAINT_CANNON = 87;
+  BURNING_CLAW_SCRATCH = 88;
+  BURNING_CLAW_SPEC = 89;
+  NOXIOUS_HALBERD = 90;
+  DRAGON_SCIMITAR = 91;
+  DRAGON_HUNTER_LANCE = 92;
+  ACCURSED_SCEPTRE_AUTO = 93;
+  ACCURSED_SCEPTRE_SPEC = 94;
+  KARILS_CROSSBOW = 95;
+  DHAROKS_GREATAXE = 96;
+  VERACS_FLAIL = 97;
+  GUTHANS_WARSPEAR = 98;
+  TORAGS_HAMMERS = 99;
+  ICE_RUSH = 100;
+  SULPHUR_BLADES = 101;
+  GLACIAL_TEMOTLI = 102;
+  EARTHBOUND_TECPATL = 103;
+  EYE_OF_AYAK_AUTO = 104;
+  EYE_OF_AYAK_SPEC = 105;
+  ARCLIGHT_AUTO = 106;
+  ARCLIGHT_SPEC = 107;
+  EMBERLIGHT_AUTO = 108;
+  EMBERLIGHT_SPEC = 109;
+  SCORCHING_BOW_AUTO = 110;
+  SCORCHING_BOW_SPEC = 111;
+  DARK_DEMONBANE = 112;
+  DARKLIGHT_AUTO = 113;
+  DARKLIGHT_SPEC = 114;
+  DRAGON_KNIFE_AUTO = 115;
+  DRAGON_KNIFE_SPEC = 116;
+}
+
+enum PlayerSpell {
+  UNKNOWN_SPELL = 0;
+  SPELLBOOK_SWAP = 1;
+  HUMIDIFY = 2;
+  HUNTER_KIT = 3;
+  NPC_CONTACT = 4;
+  VENGEANCE = 5;
+  VENGEANCE_OTHER = 6;
+  HEAL_OTHER = 7;
+  DEATH_CHARGE = 8;
+  LESSER_CORRUPTION = 9;
+  GREATER_CORRUPTION = 10;
+  SHADOW_VEIL = 11;
+  VILE_VIGOUR = 12;
+  WARD_OF_ARCEUUS = 13;
+  MARK_OF_DARKNESS = 14;
+  RESURRECT_GREATER_GHOST = 15;
+  RESURRECT_GREATER_SKELETON = 16;
+  RESURRECT_GREATER_ZOMBIE = 17;
+}
+
+enum NpcAttack {
+  UNKNOWN_NPC_ATTACK = 0;
+
+  TOB_MAIDEN_AUTO = 1;
+  TOB_MAIDEN_BLOOD_THROW = 2;
+  TOB_BLOAT_STOMP = 3;
+  TOB_NYLO_BOSS_MELEE = 4;
+  TOB_NYLO_BOSS_RANGE = 5;
+  TOB_NYLO_BOSS_MAGE = 6;
+  TOB_SOTE_MELEE = 7;
+  TOB_SOTE_BALL = 8;
+  TOB_SOTE_DEATH_BALL = 9;
+  TOB_XARPUS_SPIT = 10;
+  TOB_XARPUS_TURN = 11;
+  TOB_VERZIK_P1_AUTO = 12;
+  TOB_VERZIK_P2_BOUNCE = 13;
+  TOB_VERZIK_P2_CABBAGE = 14;
+  TOB_VERZIK_P2_ZAP = 15;
+  TOB_VERZIK_P2_PURPLE = 16;
+  TOB_VERZIK_P2_MAGE = 17;
+  TOB_VERZIK_P3_AUTO = 18;
+  TOB_VERZIK_P3_MELEE = 19;
+  TOB_VERZIK_P3_RANGE = 20;
+  TOB_VERZIK_P3_MAGE = 21;
+  TOB_VERZIK_P3_WEBS = 22;
+  TOB_VERZIK_P3_YELLOWS = 23;
+  TOB_VERZIK_P3_BALL = 24;
+
+  MOKHAIOTL_AUTO = 50;
+  MOKHAIOTL_RANGED_AUTO = 51;
+  MOKHAIOTL_MAGE_AUTO = 52;
+  MOKHAIOTL_MELEE_AUTO = 53;
+  MOKHAIOTL_BALL = 54;
+  MOKHAIOTL_MAGE_BALL = 55;
+  MOKHAIOTL_RANGED_BALL = 56;
+  MOKHAIOTL_CHARGE = 57;
+  MOKHAIOTL_BLAST = 58;
+  MOKHAIOTL_RACECAR = 59;
+  MOKHAIOTL_SLAM = 60;
+  MOKHAIOTL_SHOCKWAVE = 61;
+  MOKHAIOTL_MELEE = 62;
+
+  INFERNO_BAT_AUTO = 70;
+  INFERNO_BLOB_RANGED = 71;
+  INFERNO_BLOB_MAGE = 72;
+  INFERNO_BLOB_MELEE = 73;
+  INFERNO_BLOBLET_RANGED_AUTO = 74;
+  INFERNO_BLOBLET_MAGE_AUTO = 75;
+  INFERNO_BLOBLET_MELEE_AUTO = 76;
+  INFERNO_MELEER_AUTO = 77;
+  INFERNO_MELEER_DIG = 78;
+  INFERNO_RANGER_AUTO = 79;
+  INFERNO_RANGER_MELEE = 80;
+  INFERNO_MAGER_AUTO = 81;
+  INFERNO_MAGER_MELEE = 82;
+  INFERNO_MAGER_RESURRECT = 83;
+  INFERNO_JAD_RANGED = 84;
+  INFERNO_JAD_MAGE = 85;
+  INFERNO_JAD_MELEE = 86;
+  INFERNO_JAD_HEALER_AUTO = 87;
+  INFERNO_ZUK_AUTO = 88;
+
+  COLOSSEUM_BERSERKER_AUTO = 100;
+  COLOSSEUM_SEER_AUTO = 101;
+  COLOSSEUM_ARCHER_AUTO = 102;
+  COLOSSEUM_SHAMAN_AUTO = 103;
+  COLOSSEUM_JAGUAR_AUTO = 104;
+  COLOSSEUM_JAVELIN_AUTO = 105;
+  COLOSSEUM_JAVELIN_TOSS = 106;
+  COLOSSEUM_MANTICORE_MAGE = 107;
+  COLOSSEUM_SHOCKWAVE_AUTO = 108;
+  COLOSSEUM_MINOTAUR_AUTO = 109;
+  COLOSSEUM_HEREDIT_THRUST = 110;
+  COLOSSEUM_HEREDIT_SLAM = 111;
+  COLOSSEUM_HEREDIT_BREAK = 112;
+  COLOSSEUM_HEREDIT_COMBO = 113;
+  COLOSSEUM_MANTICORE_RANGE = 114;
+  COLOSSEUM_MANTICORE_MELEE = 115;
+}
+
+// A batch of events for streaming.
+message EventStream {
+  repeated Event events = 1;
+}
+
+message Event {
+  enum Type {
+    UNSPECIFIED = 0;
+    // Deprecated early protocol control messages.
+    reserved 1 to 3;
+
+    PLAYER_UPDATE = 4;
+    PLAYER_ATTACK = 5;
+    PLAYER_DEATH = 6;
+    NPC_SPAWN = 7;
+    NPC_UPDATE = 8;
+    NPC_DEATH = 9;
+    NPC_ATTACK = 10;
+    PLAYER_SPELL = 11;
+
+    TOB_MAIDEN_CRAB_LEAK = 100;
+    TOB_MAIDEN_BLOOD_SPLATS = 101;
+    TOB_BLOAT_DOWN = 110;
+    TOB_BLOAT_UP = 111;
+    TOB_BLOAT_HANDS_DROP = 112;
+    TOB_BLOAT_HANDS_SPLAT = 113;
+    TOB_NYLO_WAVE_SPAWN = 120;
+    TOB_NYLO_WAVE_STALL = 121;
+    TOB_NYLO_CLEANUP_END = 122;
+    TOB_NYLO_BOSS_SPAWN = 123;
+    TOB_SOTE_MAZE_PROC = 130;
+    TOB_SOTE_MAZE_PATH = 131;
+    TOB_SOTE_MAZE_END = 132;
+    TOB_XARPUS_PHASE = 140;
+    TOB_XARPUS_EXHUMED = 141;
+    TOB_XARPUS_SPLAT = 142;
+    TOB_VERZIK_PHASE = 150;
+    TOB_VERZIK_REDS_SPAWN = 151;
+    TOB_VERZIK_ATTACK_STYLE = 152;
+    TOB_VERZIK_YELLOWS = 153;
+    TOB_VERZIK_BOUNCE = 154;
+    TOB_VERZIK_HEAL = 155;
+    TOB_VERZIK_DAWN = 156;
+    TOB_VERZIK_DAWN_DROP = 157;
+
+    COLOSSEUM_HANDICAP_CHOICE = 200;
+    COLOSSEUM_DOOM_APPLIED = 201;
+    COLOSSEUM_TOTEM_HEAL = 202;
+    COLOSSEUM_REENTRY_POOLS = 203;
+    COLOSSEUM_SOL_DUST = 204;
+    COLOSSEUM_SOL_GRAPPLE = 205;
+    COLOSSEUM_SOL_POOLS = 206;
+    COLOSSEUM_SOL_LASERS = 207;
+
+    MOKHAIOTL_ATTACK_STYLE = 250;
+    MOKHAIOTL_ORB = 251;
+    MOKHAIOTL_OBJECTS = 252;
+    MOKHAIOTL_LARVA_LEAK = 253;
+    MOKHAIOTL_SHOCKWAVE = 254;
+
+    INFERNO_WAVE_START = 300;
+  }
+
+  message Player {
+    enum DataSource {
+      PRIMARY = 0;
+      SECONDARY = 1;
+    }
+
+    enum EquipmentSlot {
+      HEAD = 0;
+      CAPE = 1;
+      AMULET = 2;
+      AMMO = 3;
+      WEAPON = 4;
+      TORSO = 5;
+      SHIELD = 6;
+      LEGS = 7;
+      GLOVES = 8;
+      BOOTS = 9;
+      RING = 10;
+      QUIVER = 11;
+    }
+
+    message EquippedItem {
+      EquipmentSlot slot = 1;
+      uint32 id = 2;
+      uint32 quantity = 3;
+    }
+
+    string name = 1;
+    uint32 off_cooldown_tick = 2;
+    optional fixed32 hitpoints = 3;
+    optional fixed32 prayer = 4;
+    optional fixed32 attack = 5;
+    optional fixed32 strength = 6;
+    optional fixed32 defence = 7;
+    optional fixed32 ranged = 8;
+    optional fixed32 magic = 9;
+    repeated fixed64 equipment_deltas = 10;
+    optional fixed64 active_prayers = 11;
+    DataSource data_source = 12;
+    uint32 party_index = 13;
+
+    // If true, this contains a complete snapshot of the player's state.
+    // Delta-based fields should be processed as if the previous state was null.
+    bool snapshot = 14;
+  }
+
+  message Npc {
+    message MaidenCrab {
+      enum Spawn {
+        SEVENTIES = 0;
+        FIFTIES = 1;
+        THIRTIES = 2;
+      }
+
+      enum Position {
+        S1 = 0;
+        N1 = 1;
+        S2 = 2;
+        N2 = 3;
+        S3 = 4;
+        N3 = 5;
+        S4_INNER = 6;
+        S4_OUTER = 7;
+        N4_INNER = 8;
+        N4_OUTER = 9;
+      }
+
+      Spawn spawn = 1;
+      Position position = 2;
+      bool scuffed = 3;
+    }
+
+    message Nylo {
+      enum Style {
+        MELEE = 0;
+        RANGE = 1;
+        MAGE = 2;
+      }
+
+      enum SpawnType {
+        SPLIT = 0;
+        WEST = 1;
+        SOUTH = 2;
+        EAST = 3;
+        UNKNOWN = 4;
+      }
+
+      uint32 wave = 1;
+      fixed64 parent_room_id = 2;
+      bool big = 3;
+      Style style = 4;
+      SpawnType spawn_type = 5;
+    }
+
+    message VerzikCrab {
+      // These enum values were incorrectly encoded from the Java enum using the Java ordinal, which is why it starts
+      // with NORTH and UNKNOWN is in an awkward position.
+      enum Spawn {
+        NORTH = 0;
+        NORTHEAST = 1;
+        NORTHWEST = 2;
+        EAST = 3;
+        SOUTH = 4;
+        SOUTHEAST = 5;
+        SOUTHWEST = 6;
+        WEST = 7;
+        UNKNOWN = 8;
+        SOUTH_FAR = 9;
+        CENTER = 10;
+      }
+
+      VerzikPhase phase = 1;
+      Spawn spawn = 2;
+    }
+
+    uint32 id = 1;
+    fixed64 room_id = 2;
+    fixed32 hitpoints = 3;
+    fixed64 active_prayers = 4;
+
+    // Reserved for additional general NPC fields.
+    reserved 5 to 63;
+
+    oneof type {
+      google.protobuf.Empty basic = 64;
+      MaidenCrab maiden_crab = 65;
+      Nylo nylo = 66;
+      VerzikCrab verzik_crab = 67;
+    }
+  }
+
+  message Attack {
+    PlayerAttack type = 1;
+    optional Player.EquippedItem weapon = 2;
+    optional Npc target = 3;
+    int32 distance_to_target = 4;
+  }
+
+  message Spell {
+    PlayerSpell type = 1;
+
+    oneof target {
+      google.protobuf.Empty no_target = 2;
+      string target_player = 3;
+      Npc target_npc = 4;
+    }
+  }
+
+  message NpcAttacked {
+    NpcAttack attack = 1;
+    optional string target = 2;
+  }
+
+  message BloatDown {
+    uint32 down_number = 1;
+    uint32 up_ticks = 2;
+  }
+
+  message NyloWave {
+    uint32 wave = 1;
+    uint32 nylos_alive = 2;
+    uint32 room_cap = 3;
+  }
+
+  message SoteMaze {
+    enum Maze {
+      MAZE_66 = 0;
+      MAZE_33 = 1;
+    }
+
+    Maze maze = 1;
+
+    // In SOTE_MAZE_PATH events, one of these paths will be populated.
+    repeated Coords overworld_tiles = 2;
+    repeated Coords overworld_pivots = 3;
+    repeated Coords underworld_pivots = 4;
+
+    // In SOTE_MAZE_END events, the player who ran the maze.
+    optional string chosen_player = 5;
+  }
+
+  enum XarpusPhase {
+    XARPUS_P1 = 0;
+    XARPUS_P2 = 1;
+    XARPUS_P3 = 2;
+  }
+
+  // Sent once an exhumed has completed.
+  message XarpusExhumed {
+    uint32 spawn_tick = 1;
+    uint32 heal_amount = 2;
+    repeated uint32 heal_ticks = 3;
+  }
+
+  message XarpusSplat {
+    enum Source {
+      UNKNOWN = 0;
+      XARPUS = 1;
+      BOUNCE = 2;
+    }
+
+    Source source = 1;
+    optional Coords bounce_from = 2;
+  }
+
+  enum VerzikPhase {
+    VERZIK_IDLE = 0;
+    VERZIK_P1 = 1;
+    VERZIK_P2 = 2;
+    VERZIK_P3 = 3;
+  }
+
+  message AttackStyle {
+    enum Style {
+      MELEE = 0;
+      RANGE = 1;
+      MAGE = 2;
+    }
+
+    Style style = 1;
+    uint32 npc_attack_tick = 2;
+  }
+
+  message VerzikBounce {
+    sint32 npc_attack_tick = 1;
+    uint32 players_in_range = 2;
+    uint32 players_not_in_range = 3;
+    optional string bounced_player = 4;
+  }
+
+  message VerzikHeal {
+    string player = 1;
+    sint32 heal_amount = 2;
+  }
+
+  message VerzikDawn {
+    uint32 attack_tick = 1;
+    uint32 damage = 2;
+    string player = 3;
+  }
+
+  message VerzikDawnDrop {
+    bool dropped = 1;
+  }
+
+  enum ColosseumHandicap {
+    MANTIMAYHEM = 0;
+    REENTRY = 1;
+    BEES = 2;
+    VOLATILITY = 3;
+    BLASPHEMY = 4;
+    RELENTLESS = 5;
+    QUARTET = 6;
+    TOTEMIC = 7;
+    DOOM = 8;
+    DYNAMIC_DUO = 9;
+    SOLARFLARE = 10;
+    MYOPIA = 11;
+    FRAILTY = 12;
+    RED_FLAG = 13;
+  }
+
+  message ColosseumTotemHeal {
+    Npc source = 1;
+    Npc target = 2;
+    uint32 start_tick = 3;
+    uint32 heal_amount = 4;
+  }
+
+  message ColosseumReentryPools {
+    repeated Coords primary_spawned = 1;
+    repeated Coords secondary_spawned = 2;
+    repeated Coords primary_despawned = 3;
+    repeated Coords secondary_despawned = 4;
+  }
+
+  message ColosseumSolDust {
+    enum Pattern {
+      TRIDENT_1 = 0;
+      TRIDENT_2 = 1;
+      SHIELD_1 = 2;
+      SHIELD_2 = 3;
+    }
+    enum Direction {
+      NORTH = 0;
+      EAST = 1;
+      SOUTH = 2;
+      WEST = 3;
+    }
+
+    Pattern pattern = 1;
+    optional Direction direction = 2;
+  }
+
+  message ColosseumSolGrapple {
+    enum Outcome {
+      HIT = 0;
+      DEFEND = 1;
+      PARRY = 2;
+    }
+
+    uint32 attack_tick = 1;
+    Player.EquipmentSlot target = 2;
+    Outcome outcome = 3;
+  }
+
+  message ColosseumSolPools {
+    repeated Coords pools = 1;
+  }
+
+  message ColosseumSolLasers {
+    enum Phase {
+      SCAN = 0;
+      SHOT = 1;
+    }
+
+    Phase phase = 1;
+  }
+
+  message MokhaiotlOrb {
+    enum Source {
+      UNKNOWN = 0;
+      MOKHAIOTL = 1;
+      BALL = 2;
+    }
+
+    Source source = 1;
+    Coords source_point = 2;
+    AttackStyle.Style style = 3;
+    uint32 start_tick = 4;
+    uint32 end_tick = 5;
+  }
+
+  message MokhaiotlObjects {
+    repeated Coords rocks_spawned = 1;
+    repeated Coords rocks_despawned = 2;
+    repeated Coords splats_spawned = 3;
+    repeated Coords splats_despawned = 4;
+  }
+
+  message MokhaiotlLarvaLeak {
+    fixed64 room_id = 1;
+    uint32 heal_amount = 2;
+  }
+
+  message MokhaiotlShockwave {
+    repeated Coords tiles = 1;
+  }
+
+  message InfernoWaveStart {
+    uint32 wave = 1;
+    uint32 overall_ticks = 2;
+  }
+
+  // General fields shared by all events.
+  Type type = 1;
+  string challenge_id = 2;
+  Stage stage = 3;
+  uint32 tick = 4;
+  int32 x_coord = 5;
+  int32 y_coord = 6;
+
+  // Event-specific fields.
+  reserved 7 to 9;  // DEPRECATED
+  optional Player player = 10;
+  optional Attack player_attack = 11;
+  optional Npc npc = 12;
+  optional NpcAttacked npc_attack = 13;
+  optional Spell player_spell = 14;
+
+  reserved 15 to 63;
+
+  // ToB event-specific fields.
+  repeated Coords maiden_blood_splats = 64;
+  optional BloatDown bloat_down = 65;
+  repeated Coords bloat_hands = 74;
+  optional NyloWave nylo_wave = 66;
+  optional SoteMaze sote_maze = 67;
+  optional XarpusPhase xarpus_phase = 68;
+  optional XarpusExhumed xarpus_exhumed = 71;
+  optional XarpusSplat xarpus_splat = 72;
+  optional VerzikPhase verzik_phase = 69;
+  optional AttackStyle verzik_attack_style = 70;
+  repeated Coords verzik_yellows = 73;
+  optional VerzikBounce verzik_bounce = 75;
+  optional VerzikHeal verzik_heal = 76;
+  optional VerzikDawn verzik_dawn = 77;
+  optional VerzikDawnDrop verzik_dawn_drop = 78;
+
+  reserved 79 to 99;
+
+  // Colosseum event-specific fields.
+  optional ColosseumHandicap handicap = 100;
+  repeated ColosseumHandicap handicap_options = 101;
+  optional ColosseumTotemHeal colosseum_totem_heal = 102;
+  optional ColosseumReentryPools colosseum_reentry_pools = 103;
+  optional ColosseumSolDust colosseum_sol_dust = 104;
+  optional ColosseumSolGrapple colosseum_sol_grapple = 105;
+  optional ColosseumSolPools colosseum_sol_pools = 106;
+  optional ColosseumSolLasers colosseum_sol_lasers = 107;
+
+  reserved 108 to 119;
+
+  // Mokhaiotl event-specific fields.
+  optional AttackStyle mokhaiotl_attack_style = 120;
+  optional MokhaiotlOrb mokhaiotl_orb = 121;
+  optional MokhaiotlObjects mokhaiotl_objects = 122;
+  optional MokhaiotlLarvaLeak mokhaiotl_larva_leak = 123;
+  optional MokhaiotlShockwave mokhaiotl_shockwave = 124;
+
+  reserved 125 to 139;
+
+  optional InfernoWaveStart inferno_wave_start = 140;
+}

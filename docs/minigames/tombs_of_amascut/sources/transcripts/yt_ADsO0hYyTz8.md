@@ -1,0 +1,58 @@
+# Akkha Guide TOA OSRS | Everything You Need to Know — transcript
+
+Auto-generated captions from <https://www.youtube.com/watch?v=ADsO0hYyTz8>
+(SoundsRS, *Akkha Guide TOA OSRS | Everything You Need to Know*, uploaded 2025-03-02, 10:39, 60 fps source).
+
+Downloaded with `yt-dlp --write-auto-subs` and converted by `tools/raid_gate/vtt_to_md.py` for the Tombs of Amascut source corpus. Timestamps are `H:MM:SS` and link back to the video. Machine transcription: every tick count, npc name and item name must be cross-checked against the wiki, the cache or a recording before it is encoded as a constant.
+
+## Chapter index
+
+- [0:00:00](https://www.youtube.com/watch?v=ADsO0hYyTz8&t=0) — Introduction and Gear Setup
+- [0:00:46](https://www.youtube.com/watch?v=ADsO0hYyTz8&t=46) — Potion and Inventory Prep
+- [0:02:30](https://www.youtube.com/watch?v=ADsO0hYyTz8&t=150) — Puzzle Room Solution
+- [0:03:49](https://www.youtube.com/watch?v=ADsO0hYyTz8&t=229) — Radius Markers Plugin Setup
+- [0:04:39](https://www.youtube.com/watch?v=ADsO0hYyTz8&t=279) — Akkha Fight Phase One
+- [0:05:59](https://www.youtube.com/watch?v=ADsO0hYyTz8&t=359) — Akkha Fight Phase Two
+- [0:07:14](https://www.youtube.com/watch?v=ADsO0hYyTz8&t=434) — Handling Special Attacks
+- [0:07:33](https://www.youtube.com/watch?v=ADsO0hYyTz8&t=453) — Final Ghost Phases
+- [0:08:39](https://www.youtube.com/watch?v=ADsO0hYyTz8&t=519) — Enrage Phase and Conclusion
+
+## Transcript
+
+*[0:00:00](https://www.youtube.com/watch?v=ADsO0hYyTz8&t=0)* — [Music] what is up nerds in today's video I'm going to be going over the boss AKA in the raids tombs of a masket if you like this video please be sure to give it a like And subscribe to the channel I have a goal of reaching 500 Subs by the time my baby is born in June so please help me reach that goal and hit that sub button now let's get right into the video if you have watched any of my other TOA boss guides you'll have these invos and plugins and inventory known to
+
+*[0:00:34](https://www.youtube.com/watch?v=ADsO0hYyTz8&t=34)* — you already but if you want a more in-depth look at it please go to my zebic guide Linked In the description in the beginning of that guide I go over everything in depth but here I will just give you a quick rundown of gear infos and plugins so for range I just use full Crystal aofa anguish barrows gloves light bear A's assembler and Rus blessing for melee I use a Bandos top and bottom face guard prims torture Dragon Defender a Fang and ferocious gloves and for magic I use an arams top and bottom Eternal boots a cult necklace
+
+*[0:01:08](https://www.youtube.com/watch?v=ADsO0hYyTz8&t=68)* — tormented bracelet and Ellie ward in Trident of the swamp now of course this is just what I'm using you can mix and match wherever you feel like it or whatever you have whether you're an iron and you don't have some of this gear or you're a main and you just can't afford some of this gear and don't have it or whatever um this is only a 150 invo raid so honestly you can use a lot less than what I'm using um but yeah so just choose whatever you got and go from there for potions we're just going to bring a ranging pot uh to pre-t with an
+
+*[0:01:42](https://www.youtube.com/watch?v=ADsO0hYyTz8&t=102)* — angler fish to preee with three SAR Bru four super restores a sand fruit serum and divine super combat and if you have the Caris with a yellow gem bring that that's going to be huge as well as dragon dagger for a spec on wardens and by the way when you do preot make sure you just take an extra cereb Brew with you you probably won't need it but never hurts to have an extra one so assuming we just got done with kfre we're going to come over here and deposit our super combat or Divine super combat and then we're going to change our quick prayers
+
+*[0:02:16](https://www.youtube.com/watch?v=ADsO0hYyTz8&t=136)* — to protect from melee and Mystic Vigor if you have it if not just use Mystic might and then we're going to always choose power from the ghost for our first um Supply bundle so we choose power we're going to throw on our magic stuff here um just because magic will be the first attack style we we will use against AA so we're going to go head on in and we're going to have a little puzzle room here it's pretty easy um over here is where you can grab a pickaxe if you store one here um
+
+*[0:02:51](https://www.youtube.com/watch?v=ADsO0hYyTz8&t=171)* — highly suggest doing so otherwise you have to use the bronze pickaxe that they Supply but when we get in this room basically all we're we're going to do is move some of these mirrors to the squares where there's a red line slash through it we're going to place those mirrors there and point them in a certain direction for the light beam that comes out to hit uh the other Statue so we're just going to be picking up these mirrors here that have a gray Square underneath them and place them in these squares and then adjust the
+
+*[0:03:24](https://www.youtube.com/watch?v=ADsO0hYyTz8&t=204)* — alignment of the mirrors to get them in the right position so once you get all three sometimes it's two we're going to run in position and wait to mine the center piece and we're going to place this down move over and we're going to adjust it now we're going to run one square be it and once that turns green we're going to press the Rock and it's going to give us an extra hit if you do not do this while you're solo then you will not be able to one down it also you'll need a higher
+
+*[0:04:00](https://www.youtube.com/watch?v=ADsO0hYyTz8&t=240)* — mining level I'm not sure the exact level but something like 95 mining but right there we just one downed it so if we didn't do that we would have to just do another round where we pick up mirrors adjust them and mine the centerpiece now if you don't have these squares that means you don't have the tombs of a masket plugin and I highly suggest downloading that in the plugin Hub now before we actually start this fight let's go over this one crucial plugin that's going to make your life so much easier at AA this is the radius
+
+*[0:04:33](https://www.youtube.com/watch?v=ADsO0hYyTz8&t=273)* — markers plugin to download simply click the wrench icon on Rune light then click the plug-in Hub icon and search for radius markers and download it when you download it it will appear on the right side of the Run Light Panel open it and copy everything color for color and number for number also I will have the code posted in the description below if you'd like to just copy it and then paste them into the radius markers plugin on run light itself what this plugin will do for you is show you the attack style AA is using at any given moment making it a 100
+
+*[0:05:08](https://www.youtube.com/watch?v=ADsO0hYyTz8&t=308)* — times easier to keep the right prayers on and select the right attack style whether it be range Mage or melee feel free to pause the video now if you need time to copy everything all right so once we have all that squared away we're just going to take a sip of a cabu and then we're going to take a salt and then we are going to hop on in and turn on our quick prayers and attack them once and then we're just going to kind of kite them around the room until he spawns his little uh what are called ghosts around
+
+*[0:05:42](https://www.youtube.com/watch?v=ADsO0hYyTz8&t=342)* — these four quadrants here so we're just going to run around and once you get them uh kited pretty well you can just turn off your protect from melee save some of that prayer and we can kite him all the way around till he gets to 80% and then he's going to spawn his ghost and we're going to start by attacking this one now you can see the radius markers plugin puts this um outlines them with the color so red is melee green is range blue is Mage that's the attack style he will use and then if he's using melee use magic if he's using
+
+*[0:06:16](https://www.youtube.com/watch?v=ADsO0hYyTz8&t=376)* — range you use melee if he's using Mage you use range pretty simple but as long as you have the prayers right that's all that matters figuring out the attack style can come after and in 150 you have have plenty of time kind of to do so as long as you get the prayer right so we're going to just keep attacking once he gets to 60% the next uh ghost will spawn so we'll keep attacking this one can't attack AA until you kill these ghosts so and as you can see here AA
+
+*[0:06:49](https://www.youtube.com/watch?v=ADsO0hYyTz8&t=409)* — disappears and the floor is lighting up so we're going to have to go in between these so it's going to be yellow black yellow white now there is an invocation that will make that a lot faster but without that on it's pretty slow and you have plenty of time to move across you just need to pay attention to what the sequence is so now as we're killing him with our range the BofA you can see every 20% these ghosts will appear and you have to kill a different one each
+
+*[0:07:22](https://www.youtube.com/watch?v=ADsO0hYyTz8&t=442)* — time until you kill the fourth one and then uh you will get to his kind of enrage phase so this a special attack he just use makes us black so every time we move we spawn little orbs and if we run into them they can deal massive damage turn your prayer off stuff like that um so when you turn black you want to try to stand still and not move when you turn like a yellowish you know U light color you want to just also stand still when you're solo when you're with a
+
+*[0:07:56](https://www.youtube.com/watch?v=ADsO0hYyTz8&t=476)* — group it's a little bit different so we got another special here black red black yellow so we're just going to go black red black yellow and boom we are good switch protect from range put our melee gear on and attack until he is down to 20% where we will kill the last ghost and then we'll get AA into his enrage phase once he gets to 0% health so we're almost there one more
+
+*[0:08:29](https://www.youtube.com/watch?v=ADsO0hYyTz8&t=509)* — big hit after this one I promise and there we go so if you don't kill these ghosts in time by the way you do have a certain amount of time to kill them as you can see in that hourglass with the little timer on it uh in a 150 uh even so plenty of time as you can see to kill them but you know if you don't kill them in time then uh all the ghosts will do a Power slam move and you'll get hit and take some damage not the end of the world but you will still have to kill the ghost so um you know don't stop attacking if they do do that but here
+
+*[0:09:03](https://www.youtube.com/watch?v=ADsO0hYyTz8&t=543)* — comes the enrage phase and so we're going to put on our melee gear switch to protect from Magic and have p on and there will be one ghost that isn't um Untouchable uh that in each quadrant you're allowed three hits at a time and you want to try to dodge those white orbs as they will deal massive damage now again in a 150 this raid we didn't have any invocations on so fairly easy but when you have some invos like feeling special it becomes a lot harder
+
+*[0:09:39](https://www.youtube.com/watch?v=ADsO0hYyTz8&t=579)* — especially if you are Solo well nerds that's all I got for you today if you'd like this video again please give it a like And subscribe to the channel to get all my future videos and guides remember I have a goal of getting 500 Subs by June when my baby will be born so please hit that sub button and by the way yes I did get a shout out and yes it's [&nbsp;__&nbsp;] amazing so keep grinding and I will see you all next time peace [Music] what
+
+*[0:10:33](https://www.youtube.com/watch?v=ADsO0hYyTz8&t=633)* — [Music]

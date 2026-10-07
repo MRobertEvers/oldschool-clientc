@@ -1,6 +1,8 @@
 #ifndef SRC_TORIRSSERVER_TORIRS_SERVER_H
 #define SRC_TORIRSSERVER_TORIRS_SERVER_H
 
+struct RSCache_ServerPack;
+
 /*
  * OSRS rev-230 game server: shared state, and the seam between its files.
  *
@@ -1192,7 +1194,7 @@ struct ToriRSServerObjInfo
 /** Decode the whole obj config table once. Returns 0 when the cache is absent,
  *  in which case every lookup reports "not wearable" and the mock still runs. */
 int
-ToriRSServer_ObjInfoLoad(const char* cache_dir);
+ToriRSServer_ObjInfoLoad(struct RSCache_ServerPack* pack);
 
 void
 ToriRSServer_ObjInfoFree(void);
@@ -1489,10 +1491,12 @@ struct ToriRSServerNpcParam
 const struct ToriRSServerNpcParam*
 ToriRSServer_NpcParam(int npc_id, int param_id);
 
-/** Decode the npc config table once. Returns 0 when the cache is absent, in
- *  which case every lookup reports a placeholder name and the mock still runs. */
+
+/** Decode every npc record in the server pack's client-record archives once.
+ *  Returns 1, or 0 after a report when the pack holds none or an archive does
+ *  not validate — a boot failure (`torirs_server_boot.c`), never a fallback. */
 int
-ToriRSServer_NpcInfoLoad(const char* cache_dir);
+ToriRSServer_NpcInfoLoad(struct RSCache_ServerPack* pack);
 
 void
 ToriRSServer_NpcInfoFree(void);
@@ -1557,13 +1561,13 @@ const struct ToriRSServerParamRow*
 ToriRSServer_LocParam(int loc_id, int param_id);
 
 /**
- * Give a loc a param from the *content overlay*, and re-sort.
+ * Give a loc a param from its server band, and re-sort.
  *
- * `torirs_server_content.c` calls this for every `param=` line in a `.loc` overlay
- * block under `server/scripts/`, once, after the whole tree is read. The cache's own
- * params are already in the table by then (`ToriRSServer_LocInfoLoad` runs first in
- * `torirs_server_boot.c`), so an overlay row overwrites a cache row for the same key,
- * which is the direction an overlay is defined to win in.
+ * `torirs_server_content.c` calls this for every loc band field the register binds
+ * to a param (`param = <name>` in `fields/loc.ini`), once, after the pack is read.
+ * The record's own params are already in the table by then (`ToriRSServer_LocInfoLoad`
+ * runs first in `torirs_server_boot.c`), so a band row overwrites a record row for
+ * the same key, which is the direction the server half is defined to win in.
  *
  * The re-sort is here rather than at the call site because the table refuses a
  * lookup while unsorted, and "the overlay left it unsorted" is a failure that
@@ -1648,17 +1652,32 @@ ToriRSServer_StructParam(int struct_id, int param_id);
 const struct ToriRSServerParamRow*
 ToriRSServer_ContentStructParam(int struct_id, int param_id);
 
-/** Decode the loc / struct config groups once. Returns 0 when the cache is
- *  absent, in which case every lookup reports "not carried" and the server
- *  still runs — content then reads the param's declared default. */
+/** Decode every loc record in the server pack's client-record archives once.
+ *  Returns 1, or 0 after a report when the pack holds none or an archive does
+ *  not validate — a boot failure, never a fallback. */
 int
-ToriRSServer_LocInfoLoad(const char* cache_dir);
+ToriRSServer_LocInfoLoad(struct RSCache_ServerPack* pack);
+
+/** Loc `loc_id`'s op `op_num` (1-based) as its pack record states it, a "hidden"
+ *  op in its own spelling, or NULL. */
+const char*
+ToriRSServer_LocInfoOp(
+    int loc_id,
+    int op_num);
+
+/** How many loc records state at least one op, and the id of the `index`th of
+ *  them (ascending) — for the loader that lays them over the scene. */
+int
+ToriRSServer_LocInfoOpCount(void);
+
+int
+ToriRSServer_LocInfoOpLocAt(int index);
 
 void
 ToriRSServer_LocInfoFree(void);
 
 int
-ToriRSServer_StructInfoLoad(const char* cache_dir);
+ToriRSServer_StructInfoLoad(struct RSCache_ServerPack* pack);
 
 void
 ToriRSServer_StructInfoFree(void);
@@ -1668,12 +1687,23 @@ int
 ToriRSServer_LocInfoCount(void);
 int
 ToriRSServer_LocInfoParamCount(void);
+/** How many of those rows the band's server-only params added. */
+int
+ToriRSServer_LocInfoParamOverlaidCount(void);
 int
 ToriRSServer_LocInfoNameCount(void);
 int
 ToriRSServer_LocInfoSizeCount(void);
 int
 ToriRSServer_LocInfoCategoryCount(void);
+
+/** The `index`th (loc id, category) row of the record categories, ascending by
+ *  loc id; `index` below `ToriRSServer_LocInfoCategoryCount()`. */
+void
+ToriRSServer_LocInfoCategoryAt(
+    int index,
+    int* out_loc_id,
+    int* out_category);
 int
 ToriRSServer_StructInfoCount(void);
 int
@@ -2573,6 +2603,16 @@ struct ToriRSServerNpc
     struct SSVM_State* active_script;
     /** Tick at which the npc stops being delayed. */
     int delayed_until;
+    /**
+     * Whether this npc was delayed when its turn began, and the tick that
+     * turn was. Phase 4 takes it once, after the parked script's resume and
+     * before the combat swing -- the reference's single `isValid()` at the
+     * top of `Npc.turn()` -- so a swing that ends in `npc_delay` cannot take
+     * back the timers and queue of the turn it was made in. `advance_npcs`
+     * reads it only when `turn_began_tick` is the current tick.
+     */
+    int turn_began_tick;
+    int turn_began_delayed;
 
     /**
      * The tick this npc last changed tile, **plus one** — LostCity
@@ -4762,7 +4802,7 @@ ToriRSServer_WorldCacheDir(void);
  * client reads them from.
  */
 int
-ToriRSServer_VarbitLoad(const char* cache_dir);
+ToriRSServer_VarbitLoad(struct RSCache_ServerPack* pack);
 void
 ToriRSServer_VarbitFree(void);
 
@@ -5201,6 +5241,322 @@ int ToriRSServer_VesselRecover(struct ToriRSServer* srv, int handle,
 int
 ToriRSServer_CoxSimRun(struct ToriRSServer* srv);
 
+/*
+ * The tick log (torirs_server_ticklog.c): the server's own per-tick record of
+ * what an encounter did -- npc attack starts, projectiles, hits, spawns,
+ * deaths, loc and ground changes, every tile a player or a moving npc stood
+ * on, and every sound, music track and jingle the server sent a player -- for
+ * the raid loop's tick ledger (docs/RAID_ORCHESTRATOR.md sections 4
+ * and 6). It is the event set tools/verify_tob_timings.py reads from Blert, so
+ * a measured cadence here and a recorder's distribution compare directly.
+ *
+ * OFF unless enabled: every hook below is one load and one branch until
+ * `ToriRSServer_TicklogEnable` runs, so no ordinary quest run or live world
+ * pays for it. One world at a time is logged (the embedded server has one;
+ * the selftest enables it on the world it is testing), which is what lets the
+ * hooks that only hold an npc pointer -- the animation funnel, the type
+ * change -- find their slot and their tick.
+ *
+ * Every row is {serial, tick, kind, a..f, label, g}; `tick` is `srv->tick` as
+ * it stood when the event happened, `serial` counts from 1 in recording
+ * order. Coordinates are packed the content way, ToriRSServer_CoordPack. The
+ * fields per kind are listed beside the enum. When a path is given, each row
+ * is also appended to it as it is recorded (TSV, header `ticklog-v1`), so a
+ * python tool and the test read the same rows. `g` is the seventh field, for
+ * the one kind that fills all six others (HIT_PLAYER); the TSV writes it as
+ * the LAST column, after the label, so a reader that indexes the label as
+ * column 9 reads the same file it read before `g` existed. 0 on every other
+ * kind.
+ *
+ * RAW DAMAGE (raid seam11 ticklog_raw_damage_and_loc_count). A hit row's
+ * `damage` is the splat as shown: after `::god`, the absorption pool and the
+ * clamp to the hitpoints the target had left. Its `raw` is the amount the
+ * caller asked to deal, before those three -- the number the script handed
+ * `damage` / `p_overhit` / `npc_damage`, or the engine's own swing. Every
+ * mitigation CONTENT applies (protection prayers, `~gear_reduce_damage`,
+ * `~slayer_on_npc_hit_player`) runs before the call and is inside `raw`:
+ * the engine never sees a script's local roll, so a hit a script zeroed for
+ * prayer reads raw 0. A killing blow of 30 on 12 hitpoints reads damage 12,
+ * raw 30.
+ */
+enum ToriRSServerTicklogKind
+{
+    TORIRSSERVER_TICKLOG_START = 0,     /* a=tick enabled on */
+    TORIRSSERVER_TICKLOG_MARK,          /* label=the test's text */
+    TORIRSSERVER_TICKLOG_NPC_ANIM,      /* a=slot b=npc type c=seq d=delay */
+    TORIRSSERVER_TICKLOG_NPC_SPOTANIM,  /* a=slot b=npc type c=spotanim d=height e=delay */
+    TORIRSSERVER_TICKLOG_PROJECTILE,    /* a=src coord b=dst coord c=target (wire form)
+                                         * d=spotanim e=start cycle f=end cycle */
+    TORIRSSERVER_TICKLOG_MAP_SPOTANIM,  /* a=coord b=spotanim c=height d=delay */
+    TORIRSSERVER_TICKLOG_HIT_PLAYER,    /* a=pid b=dealer npc slot or -1 c=damage d=hitsplat
+                                         * e=dealer pid or -1 f=dealer npc type or -1
+                                         * g=raw (see RAW DAMAGE above) */
+    TORIRSSERVER_TICKLOG_HIT_NPC,       /* a=slot b=npc type c=damage d=hitsplat
+                                         * e=raw (see RAW DAMAGE above) */
+    TORIRSSERVER_TICKLOG_NPC_SPAWN,     /* a=slot b=npc type c=coord */
+    TORIRSSERVER_TICKLOG_NPC_DEATH,     /* a=slot b=npc type c=coord (the killing blow) */
+    TORIRSSERVER_TICKLOG_NPC_FREE,      /* a=slot b=npc type c=coord */
+    TORIRSSERVER_TICKLOG_NPC_RETYPE,    /* a=slot b=from type c=to type d=duration */
+    TORIRSSERVER_TICKLOG_LOC_SET,       /* a=coord b=loc id (-1 removed) c=shape d=angle e=kind */
+    TORIRSSERVER_TICKLOG_OBJ_ADD,       /* a=coord b=obj id c=count d=receiver pid or -1 */
+    TORIRSSERVER_TICKLOG_PLAYER_TILE,   /* a=pid b=x c=z d=level (every tick, after players move) */
+    TORIRSSERVER_TICKLOG_NPC_TILE,      /* a=slot b=x c=z d=level e=npc type f=size (on
+                                         * change only, npcs within 32 tiles of a
+                                         * player) */
+    TORIRSSERVER_TICKLOG_NPC_FACE,      /* a=slot b=npc type c=x d=z (the tile an
+                                         * `npc_facesquare` turned it to) */
+    TORIRSSERVER_TICKLOG_SOUND,         /* a=pid sent to b=sound c=loops d=delay
+                                         * e=source coord or -1 f=radius or -1;
+                                         * label=the source (enum
+                                         * ToriRSServerTicklogSoundSource's name,
+                                         * "npc <slot> <type>" for an npc's own) */
+    TORIRSSERVER_TICKLOG_MUSIC,         /* a=pid b=track (-1 = stop); label=the
+                                         * source: "script", "region", "login" */
+    TORIRSSERVER_TICKLOG_JINGLE,        /* a=pid b=jingle c=length ms; label "script" */
+    TORIRSSERVER_TICKLOG_PLAYER_ANIM,   /* a=pid b=seq (-1 = `anim(null)`, the cancel)
+                                         * c=delay; the seq the client is sent, after
+                                         * the priority gate and p_animprotect */
+    TORIRSSERVER_TICKLOG_PLAYER_SPOTANIM, /* a=pid b=spotanim c=height d=delay
+                                         * (`spotanim_pl`) */
+    TORIRSSERVER_TICKLOG_LOC_ANIM,      /* a=coord b=loc id c=shape d=angle e=seq
+                                         * (`loc_anim`, the active loc) */
+    TORIRSSERVER_TICKLOG_NPC_SAY,       /* a=slot b=npc type c=coord; label=the text
+                                         * (`npc_say`, the overhead line) */
+    TORIRSSERVER_TICKLOG_NPC_HEAL,      /* a=slot b=npc type c=hitpoints gained
+                                         * d=hitpoints after e=base hitpoints;
+                                         * label=the script that healed it
+                                         * (`npc_statheal` / `npc_statadd` on
+                                         * hitpoints, only when it gained some) */
+    /* The RAIDER's side (raid seam29, raid_log_raider_state; what Blert's
+     * PLAYER_UPDATE carries). These three are FILE-ONLY: written to
+     * ticklog.tsv but never pushed into the row array the driver reads, so
+     * they take no serial (their serial column repeats the last real row's)
+     * and no test's ledger moves -- ledgers print serials. */
+    TORIRSSERVER_TICKLOG_RAIDER,        /* a=pid b=hitpoints c=prayer points
+                                         * d=varp83_prayer0 (every prayer lit, one
+                                         * bit each) e=weapon obj or -1 f=com_mode
+                                         * g=special energy (varp300, 0..1000);
+                                         * label "hpmax H prmax P head I input N
+                                         * tgt S" (input 1 = a client input packet,
+                                         * walks included, arrived since the
+                                         * previous RAIDER row; tgt = the npc slot
+                                         * interacted with or -1). Every logged-in
+                                         * player, every tick. An in-process
+                                         * client's packets are handled BETWEEN
+                                         * ticks, so their INPUT/CONSUME rows carry
+                                         * the tick that had just ended and act on
+                                         * the next one. */
+    TORIRSSERVER_TICKLOG_INPUT,         /* a=pid b=trigger c=subject type d=npc slot;
+                                         * label=the trigger, "[opheld1,shark]"
+                                         * (a player-initiated trigger a script
+                                         * ran for: a click, a button, an op) */
+    TORIRSSERVER_TICKLOG_CONSUME,       /* a=pid b=obj c=op d=hitpoints before
+                                         * e=hitpoints after f=prayer before
+                                         * g=prayer after; label=the trigger (an
+                                         * `[opheld*]` script that took the obj
+                                         * out of the backpack: eat, drink) */
+    TORIRSSERVER_TICKLOG_KIND_COUNT
+};
+
+/*
+ * Where a SOUND row's packet came from. A sound is a per-player packet
+ * (SYNTH_SOUND), so "a noise at a tile" is a loop of sends and every send is
+ * its own row; the source says which loop. A seq's FRAME sounds are not here
+ * at all: the client plays them from the seq record (src/world/world_cycle.c
+ * World_EmitAnimFrameSound), so they are implied by the NPC_ANIM row.
+ */
+enum ToriRSServerTicklogSoundSource
+{
+    /* A plain `sound_synth` to the active player. e/f = -1. */
+    TORIRSSERVER_TICKLOG_SOUND_SYNTH = 0,
+    /* `sound_synth` inside `[proc,sound_area]` / `[proc,.sound_area]`
+     * (general/scripts/misc/sound.rs2: huntall + sound_synth per player):
+     * e = the proc's coord, f = its distance. */
+    TORIRSSERVER_TICKLOG_SOUND_AREA,
+    /* `sound_synth` inside `[proc,sound_within_distance]`: e/f as AREA. */
+    TORIRSSERVER_TICKLOG_SOUND_DISTANCE,
+    /* The engine's npc attack/defend/death noise (torirs_server_combat.c
+     * npc_sound_nearby): e = the npc's tile, f = the carry radius. */
+    TORIRSSERVER_TICKLOG_SOUND_NPC,
+    TORIRSSERVER_TICKLOG_SOUND_SOURCE_COUNT
+};
+
+/* Where a MUSIC row's track came from. */
+enum ToriRSServerTicklogMusicSource
+{
+    TORIRSSERVER_TICKLOG_MUSIC_SCRIPT = 0, /* `midi_song` (SS_OP_MIDI_SONG) */
+    TORIRSSERVER_TICKLOG_MUSIC_REGION,     /* ToriRSServer_MusicEnterRegion */
+    TORIRSSERVER_TICKLOG_MUSIC_LOGIN,      /* the login burst's track */
+    TORIRSSERVER_TICKLOG_MUSIC_SOURCE_COUNT
+};
+
+/** "npc_anim", "hit_player", ... -- the name a test and the TSV use. */
+char const*
+ToriRSServer_TicklogKindName(int kind);
+
+/** The kind for a name, or -1. */
+int
+ToriRSServer_TicklogKindFromName(char const* name);
+
+/* One recorded event. `label` is set on a MARK row (the test's text), on
+ * SOUND / MUSIC / JINGLE rows (the source), on an NPC_SAY row (the line the
+ * npc said) and on an NPC_HEAL row (the healing script's name); empty on every
+ * other kind. 80 is `ToriRSServerNpc.say`'s size, so
+ * an NPC_SAY row carries the whole line the client was sent. */
+#define TORIRSSERVER_TICKLOG_LABEL_MAX 80
+struct ToriRSServerTicklogRow
+{
+    uint32_t serial;
+    int tick;
+    int kind;
+    int a, b, c, d, e, f;
+    /* The seventh field (HIT_PLAYER's raw); 0 on every kind that does not
+     * name it. Written after `label` in the TSV -- see the banner above. */
+    int g;
+    char label[TORIRSSERVER_TICKLOG_LABEL_MAX];
+};
+
+/**
+ * Start logging `srv`. `path` may be NULL (rows kept in memory only) or a
+ * file the rows are appended to as they are recorded. Calling it again on the
+ * world already being logged keeps the rows and answers the tick it started
+ * on; a different world takes the log over from scratch. Returns the tick the
+ * log started on.
+ */
+int
+ToriRSServer_TicklogEnable(
+    struct ToriRSServer* srv,
+    char const* path);
+
+/** Stop logging and drop every row. Safe when the log is off. */
+void
+ToriRSServer_TicklogDisable(void);
+
+/** 1 while `srv` is the world being logged. */
+int
+ToriRSServer_TicklogEnabled(const struct ToriRSServer* srv);
+
+/** The tick the log started on, or -1 when it is off. */
+int
+ToriRSServer_TicklogStartTick(void);
+
+/** The path rows are appended to, or NULL. */
+char const*
+ToriRSServer_TicklogPath(void);
+
+/** Rows recorded so far (the last serial). */
+uint32_t
+ToriRSServer_TicklogCount(void);
+
+/**
+ * Copy up to `max` rows whose serial is greater than `after_serial` into
+ * `out`, oldest first. Returns the number copied.
+ */
+int
+ToriRSServer_TicklogRead(
+    uint32_t after_serial,
+    struct ToriRSServerTicklogRow* out,
+    int max);
+
+/**
+ * As ToriRSServer_TicklogRead, keeping only rows of `kind` (-1: any) about npc
+ * `slot` (-1: any; the npc slot is field `a`, or `b` on a HIT_PLAYER row, and
+ * a kind with no npc slot never matches a slot filter). `*out_scanned` is the
+ * last serial looked at, matched or not -- the `after_serial` to pass next --
+ * so a reader pages through a log of npc_tile rows without carrying them
+ * across the Lua boundary.
+ */
+int
+ToriRSServer_TicklogReadFiltered(
+    uint32_t after_serial,
+    int kind,
+    int slot,
+    struct ToriRSServerTicklogRow* out,
+    int max,
+    uint32_t* out_scanned);
+
+/** A MARK row carrying `label` at the logged world's current tick. Returns its
+ *  serial, or 0 when the log is off. */
+uint32_t
+ToriRSServer_TicklogMark(char const* label);
+
+/* The hooks. Each is a no-op while the log is off or `srv` is not the world
+ * being logged. */
+void ToriRSServer_TicklogNpcAnim(const struct ToriRSServerNpc* npc, int seq_id, int delay);
+void ToriRSServer_TicklogNpcSpotanim(const struct ToriRSServerNpc* npc, int spotanim, int height,
+                                     int delay);
+void ToriRSServer_TicklogProjectile(const struct ToriRSServer* srv, int src_coord, int dst_coord,
+                                    int target, int spotanim, int start_cycle, int end_cycle);
+void ToriRSServer_TicklogMapSpotanim(const struct ToriRSServer* srv, int coord, int spotanim,
+                                     int height, int delay);
+/* `damage` is the splat as shown, `raw` the amount the caller asked to deal
+ * (RAW DAMAGE in the banner above the kinds). */
+void ToriRSServer_TicklogHitPlayer(const struct ToriRSServer* srv,
+                                   const struct ToriRSServerPlayer* player, int damage,
+                                   int hitsplat, int dealer_pid, int raw);
+void ToriRSServer_TicklogHitNpc(const struct ToriRSServer* srv, int slot, int damage, int hitsplat,
+                                int raw);
+void ToriRSServer_TicklogNpcSpawn(const struct ToriRSServer* srv, int slot);
+void ToriRSServer_TicklogNpcDeath(const struct ToriRSServer* srv, int slot);
+void ToriRSServer_TicklogNpcFree(const struct ToriRSServer* srv, int slot);
+/* An npc turned to a square (`npc_facesquare`, the one writer of
+ * TORIRSSERVER_NMASK_FACE_COORD): x/z are tiles, not the wire's half-tiles. */
+void ToriRSServer_TicklogNpcFace(const struct ToriRSServerNpc* npc, int x, int z);
+void ToriRSServer_TicklogNpcRetype(const struct ToriRSServerNpc* npc, int from_type, int to_type,
+                                   int duration);
+void ToriRSServer_TicklogLocSet(const struct ToriRSServer* srv, int coord, int loc_id, int shape,
+                                int angle, int kind);
+void ToriRSServer_TicklogObjAdd(const struct ToriRSServer* srv, int coord, int obj_id, int count,
+                                int receiver_pid);
+/* A SYNTH_SOUND sent to `player`. `coord`/`radius` are -1 for SYNTH; `npc_slot`
+ * is the emitting npc for SOUND_NPC and -1 otherwise. */
+void ToriRSServer_TicklogSound(const struct ToriRSServer* srv,
+                               const struct ToriRSServerPlayer* player, int sound, int loops,
+                               int delay, int source, int coord, int radius, int npc_slot);
+/* A MIDI_SONG (or MIDI_SONG_STOP: track -1) sent to `player`. */
+void ToriRSServer_TicklogMusic(const struct ToriRSServer* srv,
+                               const struct ToriRSServerPlayer* player, int track, int source);
+/* A MIDI_JINGLE sent to `player`. */
+void ToriRSServer_TicklogJingle(const struct ToriRSServer* srv,
+                                const struct ToriRSServerPlayer* player, int jingle,
+                                int length_ms);
+/* The presentation rows of a player and a loc, and an npc's overhead text,
+ * recorded at the script ops that send them (torirs_server_scripts.c: `anim`,
+ * `spotanim_pl`, `loc_anim`, `npc_say` -- the only writers of a player's
+ * sequence and spotanim masks, a loc's animation and an npc's SAY mask). */
+void ToriRSServer_TicklogPlayerAnim(const struct ToriRSServer* srv,
+                                    const struct ToriRSServerPlayer* player, int seq_id,
+                                    int delay);
+void ToriRSServer_TicklogPlayerSpotanim(const struct ToriRSServer* srv,
+                                        const struct ToriRSServerPlayer* player, int spotanim,
+                                        int height, int delay);
+void ToriRSServer_TicklogLocAnim(const struct ToriRSServer* srv, int coord, int loc_id, int shape,
+                                 int angle, int seq_id);
+void ToriRSServer_TicklogNpcSay(const struct ToriRSServerNpc* npc, char const* text);
+void ToriRSServer_TicklogNpcHeal(const struct ToriRSServerNpc* npc, int gained, int after,
+                                 int base, char const* source);
+/** Once per tick, after phase_players: a PLAYER_TILE row for every logged-in
+ *  player and an NPC_TILE row for every npc within 32 tiles of a player whose
+ *  tile changed since the last row it got. */
+void ToriRSServer_TicklogTickEnd(struct ToriRSServer* srv);
+
+/** File-only rows (see TORIRSSERVER_TICKLOG_RAIDER): a player-initiated
+ *  trigger a script ran for, and an `[opheld*]` that consumed its obj. */
+void ToriRSServer_TicklogInput(const struct ToriRSServer* srv,
+                               const struct ToriRSServerPlayer* player, int trigger, int type,
+                               int npc_slot, char const* label);
+void ToriRSServer_TicklogConsume(const struct ToriRSServer* srv,
+                                 const struct ToriRSServerPlayer* player, int obj, int op,
+                                 int hitpoints_before, int prayer_before, char const* label);
+
+/**
+ * The npc whose script is dealing the damage being applied, for the
+ * HIT_PLAYER row's dealer: the `damage`/`p_overhit` opcodes run with the
+ * VICTIM active, so the npc is only known to the script state that called
+ * them. Set to the slot around the call and back to -1 after it.
+ */
+void ToriRSServer_TicklogSetDealerNpc(int slot);
+
 /**
  * Route one decoded client packet into the game state.
  *
@@ -5327,6 +5683,18 @@ ToriRSServer_WorldTeleport(
     int abs_x,
     int abs_z);
 
+/** LostCity's `player.delayed`: a script of this player's own is parked on
+ *  `p_delay`/`p_arrivedelay` and has not resumed yet. While it holds, the
+ *  server refuses the held-item and inventory-button packets outright
+ *  (`player_delayed_blocks_packet`) -- the quest driver's
+ *  `api_drive.player_delayed` asks this so a crossing does not hand its
+ *  caller a player whose next item use is dropped. A dialogue wait is not a
+ *  delay. Returns 1 when delayed. */
+int
+ToriRSServer_PlayerDelayed(
+    struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player);
+
 /* ------------------------------------------------------------------ */
 /* World map (torirs_server_worldmap.c)                                      */
 /* ------------------------------------------------------------------ */
@@ -5408,7 +5776,7 @@ ToriRSServer_StepDelta(
  * fraction of. Returns the table size, 0 when the cache has no such group.
  */
 int
-ToriRSServer_HealthbarInfoLoad(const char* cache_dir);
+ToriRSServer_HealthbarInfoLoad(struct RSCache_ServerPack* pack);
 
 void
 ToriRSServer_HealthbarInfoFree(void);
@@ -5426,7 +5794,7 @@ ToriRSServer_HealthbarWidth(int id);
 
 /** Index every sequence's debug name. Returns the count, 0 when absent. */
 int
-ToriRSServer_SeqInfoLoad(const char* cache_dir);
+ToriRSServer_SeqInfoLoad(struct RSCache_ServerPack* pack);
 
 void
 ToriRSServer_SeqInfoFree(void);
@@ -7636,6 +8004,15 @@ ToriRSServer_RegionSquareFor(
     int* out_map_x,
     int* out_map_z);
 
+/**
+ * The varp that holds a music row's unlock bit, from the row's music VARIABLE
+ * (DBTable 44 `music:variable`'s first half, 1..27): clientscript 7305's
+ * mapping, 1 -> varp 20 (musicmulti_1) ... 27 -> varp 5238 (musicmulti_27).
+ * -1 for an index with no word (0, negative, or past 27).
+ */
+int
+ToriRSServer_MusicVariableVarp(int variable);
+
 void
 ToriRSServer_SendAmbientsoundStart(
     struct ToriRSServerPlayer* player,
@@ -8174,5 +8551,130 @@ void
 ToriRSServer_SlotMapRelease(
     struct ToriRSServerPlayer* player,
     int world_slot);
+
+/*
+ * Line-of-sight and pack reads for the test driver (torirs_server_los_query.c;
+ * docs/minigames/waves_loop/SEAM_TRIAGE_2026-10-03b.md "driver: los_and_pack").
+ *
+ * READ-ONLY. Nothing here decides anything for the game: every answer is one
+ * of the server's own routines (ToriRSServer_SceneLineOfSight / LineOfWalk /
+ * Approached, the ones content's `lineofsight`/`lineofwalk`, the AP rung and
+ * the npc's ranged reach call), asked with the arguments those callers pass,
+ * so a test reads what the server would decide this tick instead of a
+ * reimplementation that could drift from it.
+ */
+
+/* At most this many tiles of the ray's box are listed as blockers. */
+#define TORIRSSERVER_LOS_BLOCKERS_MAX 16
+
+struct ToriRSServerLosBlocker
+{
+    int x, z;
+    int flags; /* raw collision flags (engine/world_builder/collision_map.h) */
+};
+
+struct ToriRSServerLosReading
+{
+    int level;
+    int sx, sz, sw, sh; /* source footprint: south-west tile, width, height */
+    int dx, dz, dw, dh; /* destination footprint */
+    /** 1 when the scene has one built window holding both footprints' corner
+     *  tiles; every routine answers 0 (blocked) when it does not. */
+    int in_scene;
+    /** ToriRSServer_SceneLineOfSight(..., extra 0): RuneScript `lineofsight`
+     *  and HuntVis.LINEOFSIGHT. */
+    int line_of_sight;
+    /** ToriRSServer_SceneApproached: the AP / ranged-reach test -- 0 when the
+     *  footprints overlap, else line_of_sight with extra
+     *  COLL_FLAG_BLOCK_NPC_AND_PLAYERS (LostCity GameMap.isApproached). */
+    int approached;
+    /** ToriRSServer_SceneLineOfWalk(..., extra 0): `lineofwalk`. */
+    int line_of_walk;
+    /** The footprints overlap (approached is 0 for that reason alone). */
+    int intersect;
+    /** Chebyshev gap between the footprints: 0 overlapping, 1 adjacent. */
+    int gap;
+    int src_flags; /* collision flags under the source's south-west tile */
+    int dst_flags; /* and the destination's */
+    /** Tiles of the box spanning both footprints whose flags carry a sight
+     *  bit (wall *_PROJ, LOC, LOC_PROJ_BLOCKER, BLOCK_NPC_AND_PLAYERS):
+     *  the candidates that decided a `0`. A diagnostic list, not a ray trace. */
+    int blocker_count;
+    int blockers_truncated;
+    struct ToriRSServerLosBlocker blockers[TORIRSSERVER_LOS_BLOCKERS_MAX];
+};
+
+/** Ask every line routine about one pair of footprints. Widths and heights
+ *  must be >= 1. Never fails: a tile outside the scene reads as blocked,
+ *  exactly as the routines answer it for the game. */
+void
+ToriRSServer_LosQuery(
+    int level,
+    int sx,
+    int sz,
+    int sw,
+    int sh,
+    int dx,
+    int dz,
+    int dw,
+    int dh,
+    struct ToriRSServerLosReading* out);
+
+/** What an npc is aiming at, from the server's own fields. */
+enum ToriRSServerPackTargetKind
+{
+    TORIRSSERVER_PACK_TARGET_NONE = 0,
+    TORIRSSERVER_PACK_TARGET_PLAYER, /* combat_target, or a mode holding a pid */
+    TORIRSSERVER_PACK_TARGET_NPC,    /* combat_target_npc (generation checked) */
+};
+
+struct ToriRSServerPackRow
+{
+    int slot; /* world slot (the tick log's key) */
+    int type;
+    int x, z, level;
+    int size;
+    int hitpoints;
+    int max_hitpoints;
+    int dying;         /* death_tick >= 0 */
+    int attackrange;   /* the npc record's, 1 = melee */
+    int mode;          /* LostCity npcmode numbering, see struct ToriRSServerNpc */
+    int target_kind;   /* enum ToriRSServerPackTargetKind */
+    int target_pid;    /* TARGET_PLAYER: the pid; else -1 */
+    int target_slot;   /* TARGET_NPC: the world slot; else -1 */
+    int target_type;   /* TARGET_NPC: that npc's type; else -1 */
+    int target_via_mode; /* 1 when the player target is the MODE's, not combat */
+    int face_entity;   /* raw latch: npc slot, FACE_PLAYER_BASE + pid, or -1 */
+    int walk_x, walk_z; /* the queued waypoint (npc_walk / pursuit), or -1 */
+    /** The tick log's newest npc_anim for this slot since it spawned:
+     *  seq and the SERVER tick; -1 when the log is off or has none. */
+    int anim_seq;
+    int anim_tick;
+    /** The npc's ranged reach to the player THIS tick, asked the way
+     *  torirs_server_combat.c asks it before an npc with attackrange > 1
+     *  fires: ToriRSServer_SceneApproached from the player's reach tile
+     *  (1x1) to the npc's footprint -- backwards, LostCity
+     *  PathingEntity.inApproachDistance. */
+    int sees_player;
+    /** Plain line of sight the same way round (extra 0): occupancy-blind. */
+    int los_player;
+    /** Chebyshev gap from the npc's footprint to the player's tile. */
+    int gap_player;
+};
+
+/**
+ * Every active npc on `pid`'s level whose footprint lies within `radius`
+ * (Chebyshev, tile gap) of that player, nearest first: the NEAREST `max`
+ * when more qualify. `only_slot` >= 0 reads that one world slot alone (-1:
+ * every slot). Returns the count. `pid` must name an active player.
+ */
+int
+ToriRSServer_NpcPackRead(
+    struct ToriRSServer* srv,
+    int pid,
+    int radius,
+    int only_slot,
+    struct ToriRSServerPackRow* out,
+    int max);
 
 #endif

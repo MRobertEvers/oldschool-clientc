@@ -1,0 +1,15 @@
+runs 20; melee observed 703 (spawn rows 7697); spawned on tick 0: 641; spawned later: 62 (waves [42, 43, 44, 46, 47, 48, 49, 57, 58, 59, 60, 61])
+attack animation ids on npc 7697: {'77/meleer_auto': 1875, '78/meleer_dig': 147}
+melee that never acted before dying: 136 of 703
+gaps between one melee's auto-attack ticks: total 1370; gap 4: 1196; gap <4: 0; gap 5-9: 117; gap >=10: 57
+auto gap histogram (gap:count) 4:1196 5:56 6:21 7:17 8:11 9:12 10:8 11:4 12:5 13:5 14:3 15:5
+dig-to-dig gaps: total 9 min 47 histogram(first 14) 47:1 49:2 50:1 51:1 54:1 56:1 57:1 62:1
+ticks from a dig animation to that melee's next auto attack: n 71 histogram 12:50 13:2 14:2 15:2 16:2 17:1 18:1 19:1 22:1 24:2 28:1 29:1 36:1 53:1 70:1 74:1
+first auto attack tick (tick-0 spawns): n 480 min 2 p10 6 median 18 p90 62 max 125
+first dig tick (tick-0 spawns): n 122 min 50 p10 50 median 50 p90 50 max 105
+death tick (tick-0 spawns): n 641 min 11 p10 24 median 41 p90 83 max 203
+tick-0 spawn tiles, local x,z:count 18,18:72 18,41:69 20,35:60 22,23:88 32,18:75 33,29:63 39,41:70 40,21:61 40,34:83
+tiles used by tick-0 spawns: 9 distinct
+melee per wave (tick-0, per run): {1: 503, 2: 69}
+melee count by wave number: w9:1 w10:1 w11:1 w12:1 w13:1 w14:1 w15:1 w16:2 w25:1 w26:1 w27:1 w28:1 w29:1 w30:1 w31:1 w32:2 w42:1 w43:1 w44:1 w45:1 w46:1 w47:1 w48:1 w49:2 w57:1 w58:1 w59:1 w60:1 w61:1 w62:1 w63:1 w64:2
+late (revived) melee spawns by wave: w42:4 w43:3 w44:3 w46:4 w47:3 w48:5 w49:6 w57:4 w58:7 w59:2 w60:4 w61:3 w62:5 w63:3 w64:6

@@ -1,0 +1,279 @@
+{{Update|date=26 July 2022|link=https://secure.runescape.com/m=news/qa-summary-21072022?oldschool=1|category=community}}
+[[File:Q&A Summary 21-07-2022 newspost.png|right]]
+{{clear}}
+This week's livestream was a general Q&A, with a focus on the recent PvP Arena release! Topics included:
+* [[#Question #1|A/B testing for the Activity Adviser]]
+* [[#Question #4|The future of the Activity Adviser]]
+* [[#Question #18|Agility and free-to-play]]
+
+Thanks to Mod Kieren (Associate Design Director), Mod Squid (Content Developer), Mod Light (Community Manager) and Mod Daizong (Content Developer) for their insight!
+
+Missed the live stream? Check out the transcript below!
+
+DISCLAIMER: Livestreams are a glimpse into the ongoing creative process at Jagex. JMods are speaking off-the-cuff and their comments are not intended to be read in the same way as prepared updates from the company. Please keep this in mind when discussing the Q&A!
+
+__TOC__
+==Clue Scroll Solver==
+[https://www.youtube.com/watch?v=7XAvDmcFkL8&t=144s Youtube Time Stamp]
+
+[[File:Q&A Summary 21-07-2022 (1).webp|center|600px]]
+[[File:Q&A Summary 21-07-2022 (2).webp|center|600px]]
+
+* '''Mod Sova:''' Hello! We’ve been working recently on the Clue Scroll Helper, which, if you’ve used RuneLite at all, you might be familiar with. It’s a feature for the enhanced client on Mobile and our own in-house client.
+* '''Mod Sova:''' One of the features of the Clue Scroll Helper is information on the clues you will be doing on-screen. A few other features on there are the map highlights, in-world highlights and general direction without having to go onto a third-party website and ask, “how do I solve this anagram clue that I’ve done 500 times but can’t remember?”.
+* '''Mod Sova:''' This will highlight the people you need to talk to, places where you need to dig, and all kinds of stuff! I’ll come back for the livestream next week and go into more detail on the features and answer your questions on it.
+
+==New Mod Questions with Mod Daizong==
+[https://www.youtube.com/watch?v=7XAvDmcFkL8&t=265s Youtube Time Stamp]
+===Question #1===
+{{Cquote2|What do you currently work on at Jagex?}}
+
+* '''Mod Daizong:''' I’m currently working with Mod Squid on the Activity Adviser, so I want to use this channel to say thanks for the great feedback we’ve got so far! We’re working hard to go through them in order to improve the Activity Adviser.
+
+===Question #2===
+{{Cquote2|What has been the favourite piece of content that you’ve worked on so far?}}
+
+* '''Mod Daizong:''' I think it would be the Activity Adviser! This is an idea we’ve had in mind for a long time. Sometimes when playing the game, I wondered what I should do next, and it’ll be great to have a tool to help me decide what to do. It’s really exciting to see that we’ve finally released Phase One of it now.
+
+==Tombs of Amascut Teasers==
+[https://www.youtube.com/watch?v=7XAvDmcFkL8&t=353s Youtube Time Stamp]
+* '''Mod Light:''' As we are in the buildup to mid-August, we thought we would share an update on the highly anticipated Masori Armour! So here’s a sneak peek for you!
+[[File:Q&A Summary 21-07-2022 (3).png|center|600px]]
+
+* '''Mod Light:''' Masori Armour is the Best-in-Slot ranged gear that can be earned from participating in Tombs of Amascut. For those of you wondering about the release date, it won’t be too long now! We’ve finalised the dates, and we’ll be sharing that with you on our official channels.
+* '''Mod Light:''' This concept of the Masori Armour is by the lovely Mod Jerv, and I’ve got some text as well to go with it:
+* '''Mod Light:''' ''“During the Kharidian–Zarosian War, a group of rangers known as the Masori were established. While they did their fair share of fighting in the war, their primary role was to defend people from the thieves and murders who would look to take advantage of the war's chaos.”''
+* '''Mod Light:''' You can see that Mod Jerv utilised Egyptian shapes, materials and bird motifs for that ranged feel to tie with this raid. I think it looks absolutely amazing. What do you guys think?
+* '''Mod Daizong:''' It looks amazing!
+* '''Mod Squid:''' It is super cool. The art team just keep raising the bar on what’s possible in Old School. It continues to amaze me!
+* '''Mod Light:''' We also have the in-game renders as well - credit to Mod Soffan.
+[[File:Q&A Summary 21-07-2022 (4).webp|center|600px]]
+
+* '''Mod Light:''' I just think it looks epic! I’ve seen a bunch of people wanting to see this on socials, so I’m really glad we can finally preview it for you. Make sure you send feedback to us. Personally, I love it, and I hope you guys love it as much as we all do!
+* '''Mod Kieren:''' I think that for everything in terms of Amascut, the art team has absolutely blown it all out of the water, and I can’t wait for you all to see all the other bits and pieces that we’ve got going on. It’s been a thrill playtesting it the last few weeks!
+
+==Activity Adviser==
+[https://www.youtube.com/watch?v=7XAvDmcFkL8&t=493s Youtube Time Stamp]
+[[File:Q&A Summary 21-07-2022 (5).png|center|600px]]
+
+* '''Mod Daizong:''' The Activity Adviser is a system that will read a player’s skill level, quest status, recent activities and other essential stats and use them to pick suitable game content from the content list to display to them in the Activity Adviser.
+* '''Mod Daizong:''' We’d like it to be used as a support tool that is similar to the Wiki but can give more customised suggestions based on each player’s profile. It’s to help players, especially new and returning players, when they are unsure what to do next.
+* '''Mod Squid:''' There’s a lot of content in RuneScape, and it can be overwhelming and difficult to find what’s relevant to you. Sometimes it’s not even a case of finding what you should do but what you can do; there’s just so much!
+* '''Mod Squid:''' We know that exploration and goal-setting are a core part of the game, so we don’t want to undermine that; we don’t want to make linear guides or task lists when there are no rewards on this. We’re trying to avoid undermining that.
+* '''Mod Squid:''' Instead, we’re focusing more on surfacing content, making it easier to be aware of things you can do that will be useful to you. For example, travel is a good one, because that’s a pain point that becomes difficult to find how you can move around the world easier.
+* '''Mod Squid:''' With fairy rings, how do you find out about fairy rings unless you stumble across that quest or read through the Wiki? Hopefully, this adviser will help surface those things and just be a tool to aid your own goal-setting.
+* '''Mod Daizong:''' Currently, we have done the system for all the quests in the game as Phase One of it. As we all know, quests are a very important part of the game!
+* '''Mod Daizong:''' There are two types of quests that you can find in the Activity Adviser: Available Quests and Target Quests. Available Quests are the quests that the player can take right now. Target Quests are the quests that will give important rewards to the player, but their character has not yet met all of the quest requirements. It will also display the missing requirements that the player needs to reach for these quests.
+* '''Mod Squid:''' It’s been fun to work on, although it has been challenging! Design-wise, just creating the quest rating system has been tricky. Finding out categories that represent each quest relative to each other and making that scale with your character’s levelling experience has been an interesting challenge. Especially dialling in those numbers, that’s been a team effort! A big shout-out to Husky and Kieren for helping finalise the numbers.
+* '''Mod Squid:''' On the tech side of things, dynamic systems like this in Rune Script are difficult, to say the least. This is doing some funky stuff with arrays that I feel are pushing Rune Script to the limits, but it works, and that’s the main thing! It’s been fun.
+* '''Mod Daizong:''' So we’re currently releasing it during an initial test period. The main reason for this is that we want to make sure the current Activity Adviser can give enough help to the players, especially for the new and returning players.
+* '''Mod Daizong:''' I’ve seen some concern from the community about if this tool will ruin the sense of exploration for players, and that’s also something we’d like to find out from this A/B test period.
+* '''Mod Daizong:''' We already have a few plans in mind about the direction of the Activity Adviser in the future, and I think players and especially community feedback are very important for us. We’d like to hear what players think of the current Phase One and use the feedback we get to improve it and think about how we can carry out more in future.
+
+===Question #1===
+{{Cquote2|Mod Daizong, you worked on Leagues, and a player mentioned that the Activity Adviser looks similar to the Leagues tasklist. Is that where you found inspiration for this system?}}
+
+* '''Mod Daizong:''' That’s an interesting question! To be honest, when we had the idea for making the Activity Adviser, it was before I was working on Leagues. When we were designing the UI of the Activity Adviser, we had to think about how we can make sure the information is clear and easy for a player to pick up, so I think the Leagues Task UI is one of the systems we looked at as a reference, as it’s a system that works well, and players are very familiar with the format of it.
+* '''Mod Kieren:''' I’d just like to say on the A/B testing that players have a really good read on why we’re doing this. This is really helpful for introducing those new people into the game. The depth of the game is so vast that you want to get to grips with it.
+* '''Mod Kieren:''' That is one of the key reasons why we really need to run an A/B test because we could see your feedback through social channels and such, but we also want to get data on how this performs. Does this actually help people? Where do these people quit, or where do they drop out?
+* '''Mod Kieren:''' It also helps get a lot of insight into “how do they use it? What elements do they use of this system? Do they use it at all when it’s presented to them?”. We need to get it right to make sure that we are helping new people and not making it worse for them.
+
+==Question #1==
+{{Cquote2|For players who have not gotten into the A/B testing period, is there a way that they can get in? When do you expect them to be able to try using it?}}
+
+[https://www.youtube.com/watch?v=7XAvDmcFkL8&t=840s Youtube Time Stamp]
+
+* '''Mod Daizong:''' The current A/B test is open to Returning Players who have not played the game for 30 days or more. We’re expecting to run the test for around three to four weeks, depending on the feedback we get.
+* '''Mod Daizong:''' For players who have not been picked, they just need to wait a few more weeks for this to be released to everyone. Like always, we’re listening to player feedback, and if the A/B test goes very well and we get more and more players who would like to join it, then we could stop it early and release it to everyone earlier.
+
+==Question #2==
+{{Cquote2|Can the Activity Adviser be toggled OFF, especially as it is close to the Special Action button, which is clicked many times?}}
+
+[https://www.youtube.com/watch?v=7XAvDmcFkL8&t=897s Youtube Time Stamp]
+
+* '''Mod Daizong:''' Yes, we have added a setting to allow players to hide the Activity Adviser if they want to! And if the Store button is hidden, then the Activity Adviser button will be placed in the position of the Store Button, so we have more space for the gameplay area!
+
+==Question #3==
+{{Cquote2|Why did we decide to put the Activity Adviser underneath the Special Action button, and are we open to feedback about changing the location if players prefer it to be somewhere else?}}
+
+[https://www.youtube.com/watch?v=7XAvDmcFkL8&t=941s Youtube Time Stamp]
+
+* '''Mod Daizong:''' I think this is a very good question! We actually have explored several possible locations for the Activity Adviser. For example, we had thought about putting it in the Manual Tab, maybe next to the Quest List, or inside the Character Summary. However, we think the tabs in the menu are all about the game progress for the player. Putting the Activity Adviser there doesn’t seem to fit very well because we think it is more similar to the Wiki or the World Map as supporting tools for the player to use. So, we decided to put it around the minimap.
+* '''Mod Daizong:''' Unfortunately, there is already a lot of information that needs to be displayed around the minimap, like wilderness level, and the gravestone counting down, so the current position is the one we think most appropriate.
+* '''Mod Daizong:''' But we are always open to player feedback to improve the system, which is part of the reason why we’re doing this A/B test. If a lot of players prefer it to be somewhere else, we’ll definitely take it into consideration!
+
+==Question #4==
+{{Cquote2|Can returning players who have completed all of the Quests expect to see more Activities recommended to them? Players are curious to know whether we would develop the Activity Adviser to Bosses, or money-making, equipment, achievement diaries, etc. What are your thoughts on this?}}
+
+[https://www.youtube.com/watch?v=7XAvDmcFkL8&t=1017s Youtube Time Stamp]
+
+* '''Mod Squid:''' Yeah, we’d love to do that! The initial concept for this had multiple modules, which is what we’re calling them, and right now, the Quest module is available. The other ones we were thinking about were a Skills one, which would show milestones and things for upcoming levels, like wearing a new armour set and being able to catch a new type of fish, as well as Utility, which can address travel options in a dedicated space, and Miscellaneous options like minigames and new bosses that you can do.
+* '''Mod Squid:''' All of these would be awesome and would fit really well, so depending on how the feedback goes, we might be able to. We just need to wait and see at this point.
+* '''Mod Kieren:''' I’d love to extend it to cover all the other core systems of the game, like Squid mentioned. These are big pieces of work, hence why we really tried to get it finished for quests first.
+* '''Mod Kieren:''' They are a big backbone of the game, especially when you’re just starting out. There are so many quests available, so that seemed like a reasonable place to start. Let’s test that; let’s see how it goes. Does this work? Does this improve the experience for players? Do people get use out of it? This can give us reassurance, give us confidence before we go in and spend a lot more time doing the other work for the other systems.
+* '''Mod Kieren:''' For example, with skilling methods, how are you going to train Fishing to that goal level? In code, we basically would need to start to properly define different methods with all the associated information. With fly fishing in Shilo Village, how much XP per hour is that? Let’s get some figures in-game, get some facts and requirements in-game. A lot of this has to be able to tell you on that screen that you can do this.
+* '''Mod Kieren:''' None of this is very centralised in a data-driven fashion that would allow us to do that at the minute. So I just want to highlight that they are big pieces of work, and we don’t want to spend 6+ months doing that kind of work unless we first verify that “yes, this is a good thing to do!”. Let’s not do 6 months of work if it’s not going to help anybody.
+* '''Mod Kieren:''' But also, beyond that, we feel the systems themselves need to be improved. In the quest list, you’ll notice recently; that we released a bunch of new options. You can sort it and filter it via different means. It’s a lot better than it used to be when it was just alphabetical and Free-to-Play / Members split, and that’s it! It didn’t really give any indication about which quest is good for you and which quest isn’t.
+* '''Mod Kieren:''' The Skill Journals are really quite outdated. When you click on the Fishing Skill Journal, it doesn’t tell you anything about how to train it. It merely is a list of unlocks, and it gives you very little information.
+* '''Mod Kieren:''' Those UIs are very outdated. This is something that we would like to tackle alongside this because we see this as a tool that should teach you how and help you interact with the actual game. So maybe one day, after you’ve used the Activity Adviser for a while, you’d decide, “I don’t need it anymore because I’m now familiar with the Skill Journals, and I can fend for myself”.
+* '''Mod Kieren:''' That’s what we want to do because we know the game is deep. We know the game is complex; we can’t change that, but let’s try and provide the players with the tools to help them get to grips with it so they can get to that point where they understand how to set a goal for themselves!
+* '''Mod Daizong:''' One reason that we’re doing this is that we don’t want this to replace any existing system. We want this to build the connection to the existing system like the Quest List.
+
+==Question #5==
+{{Cquote2|Many players like to set their own goals in their gameplay. Will the Activity Adviser include the ability to create specific tasks or add a ‘reverse feature’ which allows a player to set their own goal so they can be advised on how to achieve it?}}
+
+[https://www.youtube.com/watch?v=7XAvDmcFkL8&t=1295s Youtube Time Stamp]
+
+* '''Mod Squid:''' As mentioned, the overarching goal is to support goal-setting; it’s to get players to set their own goals again. When thinking about potential features for this, another idea we had was a content planner which would effectively let you choose a goal, such as “I want to wield the Dragon Scimitar” or “I want to complete Dragon Slayer”, and it would then provide the details of the requirements, and the ways to get there. Then the player can plan out their journey to that point. I’m sure we’ve all done this in Excel or Notepad, but this is a more in-game integrated way to do that. That’d be really cool.
+* '''Mod Squid:''' It’s not planned for the Activity Adviser itself at the moment, and I see them as slightly separate things that can work together. You could open the Adviser, click a recommendation, add it to your content planner, and then create that journey to get there. But there are currently no plans to do that.
+
+==Question #6==
+{{Cquote2|Can Activities be queued up, or can only one activity be advised at a time? Can players expect to see a running list of tasks, or do they disappear depending on what new activity the player is doing?}}
+
+[https://www.youtube.com/watch?v=7XAvDmcFkL8&t=1423s Youtube Time Stamp]
+
+* '''Mod Daizong:''' So as you can see in the screenshot, the setting we have is that there are three Available Quests and two Target Quests that are displayed in the Activity Adviser. We think that one future improvement would be to let a player manually pin a quest in the system, so it will not be replaced by other quests, or alternatively filter a quest out of the system so it will not be selected anymore if you don’t want this to be seen.
+* '''Mod Daizong:''' These are just some early thoughts we have. If we got enough feedback on this from the community, it could be the next improvement we work on.
+
+==Question #7==
+{{Cquote2|Can the Activity Adviser be customisable per account type? So, for example, a 10 HP account or Skiller.}}
+
+[https://www.youtube.com/watch?v=7XAvDmcFkL8&t=1485s Youtube Time Stamp]
+
+* '''Mod Squid:''' Not manually at the moment; it won’t recommend anything you can’t do. If you keep 10HP, and anything requires a high combat level, and you haven’t got it, then it’s not going to recommend those things
+* '''Mod Squid:''' It could recommend something you don’t want to do, but then there’s the argument that if you’re doing these account types, you’re probably more of an advanced player anyway! So the question is, how useful is the Adviser to you?
+* '''Mod Squid:''' Either way, one of the things we would like to add, as Daizong mentioned, is a Block List, so you could disable certain recommendations from showing up at all, which would help in that situation.
+
+==Question #8==
+{{Cquote2|Will there be an option for grouping involved? For example, having an option to find a group before embarking on a minigame or quest.}}
+
+[https://www.youtube.com/watch?v=7XAvDmcFkL8&t=1539s Youtube Time Stamp]
+
+* '''Mod Squid:''' It’s an interesting idea. There’s nothing at the moment, but how would you do grouping for quests? I guess Shield of Arrav is one, but other than that, it’s a bit more tricky. If we added the other modules with minigames and bosses, it could point to the grouping tab. That’s an interesting one to consider. We can make it a bit more social and support grouping for these things.
+* '''Mod Light:''' Just imagine a group of people with their Activity Advisers grouping together; maybe you meet your GF because she was doing the same task as you? It seems like something that could be considered. It’s just a case of how prevalent it is in terms of feedback. I saw it come up in feedback and thought it was cool.
+* '''Mod Light:''' It seems as well that many of the existing players - not new, not returning, the existing players - think this could be a fun activity to do with friends.
+* '''Mod Squid:''' I imagine it could be useful if you’ve got a friend who has joined the game, and you ask, “oh, show me what your Activity Adviser is saying, and we can go do some of those quests”, to take a bit of that legwork out of trying to figure out how to get your friends into the game.
+
+==Question #9==
+{{Cquote2|Will the Activity Adviser differ in F2P? If so, how?}}
+
+[https://www.youtube.com/watch?v=7XAvDmcFkL8&t=1655s Youtube Time Stamp]
+
+* '''Mod Squid:''' There’s no difference; it’ll give you the same recommendations! There is a Free Quests Only tab, so you can look at that to only get recommended Free-to-Play quests, but there’s no distinction between the two, just the two different tabs.
+
+==Question #10==
+{{Cquote2|Will the Activity Adviser be linked to the existing Adventure Path interface/NPC?}}
+
+[https://www.youtube.com/watch?v=7XAvDmcFkL8&t=1680s Youtube Time Stamp]
+
+* '''Mod Squid:''' No, there are no plans to. It’s a standalone tool. It’s slightly different because this is less of a guide or a task list to do. It’s non-linear; it will just recommend goals based on your account rather than a path to follow, so it’s a separate thing. I’d be careful about getting them interlinked, so no, at the moment, they are separate.
+* '''Mod Kieren:''' My current thinking might well differ from what we originally intended. Originally we envisioned it running a bit deeper into the game, having longer paths that get you to grips with things.
+* '''Mod Kieren:''' I think now, what we’ve learned really is that it’s better to be a helpful tool to help get you to grips with the basics because what we’ve settled on, and why the Activity Adviser makes so much sense, is that we need players to be able to set a goal.
+* '''Mod Kieren:''' If you think about it, as a knowledgeable player, you’re always thinking about goals and what you’re trying to achieve. You’re trying to complete Monkey Madness to get that Dragon Scimitar. But if you’re a new player, how on Earth do you know that’s even a sensible thing to do? How do you know that Monkey Madness is what unlocks the Dragon Scimitar?
+* '''Mod Kieren:''' There are so many questions that suddenly are really hard if you don’t have that knowledge to hand. The Wiki is great once you know what you want to do because it will give you all the advice about the activity!
+* '''Mod Kieren:''' The adventure paths, that’s something they don’t do very well. They just give you a task list, and you go through it, but you don’t really get quite to the level of understanding why it’s a good thing to do. It might be a useful tool to teach you the basics of “I fish something, I go to the bank and put it in the bank. Okay, I get to grips with how those basic mechanics work”.  But I see the Activity Adviser as being the thing that can really help you set goals and essentially be the part that runs deeper into the game.
+* '''Mod Kieren:''' To be honest, we probably need to pay more attention to what we’re doing with Adventure Paths and tutorials, that side of the game as well. It’s just something that we’ve not gotten around to yet.
+
+==Question #11==
+{{Cquote2|Have we looked into adding rewards to the Activity Adviser to encourage more retention?}}
+
+[https://www.youtube.com/watch?v=7XAvDmcFkL8&t=1840s Youtube Time Stamp]
+
+* '''Mod Squid:''' I feel quite strongly about this; that we shouldn’t add rewards.
+* '''Mod Squid:''' In psychology, there’s a type of reward known as “controlling reward”, which are rewards that are not intrinsically linked to the task you’re doing, and that would be the case here. Sure, in the short term, that does increase retention and engagement, but in the long term, it undermines intrinsic motivation.
+* '''Mod Squid:''' That’s the kind of motivation we want to cultivate; that’s the one where you have the most fun and keeps you playing the longest. That’s what we wanted to have, so by undermining that; you actually get more dropoff in the later game. Especially when the rewards become less fun, useful, or interesting to you, or the recommendations stop or become more difficult.
+* '''Mod Squid:''' Overall, you’ll have less fun during the tasks if there are controlling rewards involved because you’ll put all the emphasis on the reward and not the fun of doing the task. It’s the same with linear guides and checklists.
+* '''Mod Squid:''' If you follow a linear track, the game’s telling you to do things in a certain order, and even without rewards, that has an undermining effect. This is why we’re trying very hard to avoid doing that with the Activity Adviser and are focusing on the goals and unlocks as you’d naturally do as a player, not forcing you down a path that you don’t want to do or aren’t sure about. So no rewards, please.
+* '''Mod Kieren:''' You can look at it like, “we actually want people to stop using it”! Yeah, we want people to use it to get to the point where they’ve learned, but we actually want them to move off it because it shouldn’t be necessary all through the game. I 100% agree with what you said, Squid. Inevitably we’ll see “my Activity Advisor locked Ironman accounts” and all that, which should be fun down the line.
+* '''Mod Daizong:''' We don’t want it to feel like a daily task or weekly task, feeling like it’s pushing the player to keep doing that or catch up in progress. It should be that when a player wants to do something, they can. If they don’t know what to do next, they can check there to find more useful advice that has been customised for their character.
+
+==Question #12==
+{{Cquote2|With the feedback seen about the Activity Adviser, is there anything extra that you wanted to add in?}}
+
+[https://www.youtube.com/watch?v=7XAvDmcFkL8&t=2024s Youtube Time Stamp]
+
+* '''Mod Squid:''' Just thank you, everyone, for all the feedback! It’s been really encouraging to see people on Reddit and on Twitter being in support of it. We weren’t sure how it would go down with active players and whether you’d see the value, so it’s awesome to see all the comments and feedback on it!
+* '''Mod Squid:''' Keep that coming in. I can’t wait till everyone gets their hands on it, and then we can really start digging into some gritty feedback.
+
+==Question #13==
+{{Cquote2|Lots of players are asking us about any plans to revitalise F2P following this update. Is there any thought of potentially opening up some of the achievement diary tasks to F2P, or adding a F2P Boss such as a Giant Rat or a Giant Goblin (which would perhaps fill a gap in having early to mid-game group content)? What are the panel’s thoughts on this?}}
+
+[https://www.youtube.com/watch?v=7XAvDmcFkL8&t=2095s Youtube Time Stamp]
+
+* '''Mod Kieren:''' I think there’s value in some Free-to-Play content! But I want to say that so many of us have lived the story of back in 2007 when we started playing RuneScape at school, didn’t have access to our parent's credit cards, and played Free-to-Play. Most of us played until we got to Dragon Slayer until, eventually, we either phoned up while they weren’t in the room to pay for a membership or managed to persuade them to pay.
+* '''Mod Kieren:''' Today, most people joining Old School are young adults, 18+ or in their 20s. People have much more access to money to pay for membership. But what I’m getting to is that people spend much less time in Free-to-Play than they did 15 years ago. Many people will subscribe very quickly instead, so there’s less value in putting stuff in Free-to-Play because not many people will get too deep into the Free-to-Play game.
+* '''Mod Kieren:''' We’ve tried some of this. We’ve done Below Ice Mountain, and the quest there had some Free-to-Play content, so it’s not to say there’s no reason to do Free-to-Play content. We should do this, but generally, I’m thinking about early game content.
+* '''Mod Kieren:''' I think an early game route boss would be great, but moreover, I’m getting to the point where you want to explain to the player what the game is about as early as possible, such that the player inherently understands what this game is because if this game is made for you, you probably want to find out as fast as possible. Let’s respect your time, so you can get out of the way if the game isn’t for you!
+* '''Mod Kieren:''' Let’s not fool ourselves into retaining people who will quit after an hour or a day. We want people who are interested in this game to find out that it is for them as fast as possible and get to grips with it.
+* '''Mod Kieren:''' TLDR: people don’t spend as much time in Free-to-Play before they become a member as they used to. I also want to start highlighting why this game is awesome as soon as possible and give people the tools to be able to understand it and get to grips with it.
+* '''Mod Squid:''' It is kind of the point we’ve been talking about with the Adviser, which is surfacing content and making people aware of the depth and breadth of the content beyond Free-to-Play in the game in general. Travel options are a big one there.
+* '''Mod Squid:''' Looking at pain points that are in play, potentially making sure that players are subscribing because they’re having fun and they want to have more fun, not because they’re frustrated that their run energy is so damn low, and they think they might enjoy it if it was a little bit more!
+* '''Mod Squid:''' Also, with group content, I would be in favour of more lower-level content. I think a big reason people stick around in MMOs is for the social factor, even if you’re not directly engaging with clans. Just having people around when doing content, or being able to do content with your friends even at a low level, would be super beneficial and help people have more fun.
+* '''Mod Squid:''' I think Free-to-Play, and low-level group content like that could definitely be improved upon and potentially tied in better with member’s content because sometimes it can feel like Free-to-Play is its own standalone thing. It’s there, but then you subscribe, and then there’s all this new stuff, and you don’t know where to begin! If we had more ties into some of those areas, more introductions and things like that in Free-to-Play, that might provide a nice stepping point for members.
+
+==Question #14==
+{{Cquote2|What considerations would we need to keep in mind if we made changes to F2P?}}
+
+[https://www.youtube.com/watch?v=7XAvDmcFkL8&t=2444s Youtube Time Stamp]
+
+* '''Mod Kieren:''' Well, the first thing we say is - and this applies to almost everything we do - “what are you trying to achieve?”. It’s not just, “oh, this is nice content; someone on Free-to-Play will like this”. We’ve got to think as game designers; what are we trying to achieve with this change?
+* '''Mod Kieren:''' Now, people in Free-to-Play are generally not spending money on Old School. So a lot of the time, we are thinking about how the content will make the game more appealing to you, so you’re more likely to stay or even potentially subscribe because you like it so much and want more of that.
+* '''Mod Kieren:''' It’s not always the case; that is very specific, but generally, we want you to stick around, we want you to become a member, we want you to make this game the next game that you’re going to play for the next 10 years, like so many other people have done, which is ludicrous! I know this game has been part of my life for 15 years, and it’s crazy that people are coming up on these kinds of milestones.
+* '''Mod Kieren:''' I want to help people understand the love that so many people out there have for this title because it’s managed it in a way, while so many other MMOs from the early 2000s haven’t got that love still to this day. Somehow RuneScape and Old School do, and I want to help more people discover that.
+* '''Mod Kieren:''' We’ve all had that moment where it all clicked, and you’ve suddenly had that satisfaction from playing this game. Again, I’m doing a year of consciousness thing, but what do you want to do? Because it’s not just new content, sometimes we make Trimmed Rune Free-to-Play, and why are we doing that? Well, two things.
+* '''Mod Kieren:''' On one hand, there are the Free-to-Play players who are dedicated to Free-to-Play. They’re a small community, but they do exist. You’ll give them a new cap, and really strive for a reason to get more money, to be able to achieve the more valuable version of rune.
+* '''Mod Kieren:''' For members, you’re making Clue Loot more valuable because we all know it ain’t worth too much, but the stuff that has been made available for Free-to-Play ends up being worth more because those players have to buy it and want to buy it from the members who are getting it. So it depends, it’s very contextual on the change, but the key thing I emphasise is what I said at the start - why are we doing it? There’s got to be a reason for doing it, not just because it sounds cool!
+* '''Mod Light:''' Absolutely. That reminds me of Guardians of the Rift; we had a reward that we polled as “should we make this available in Free-to-Play?” and it missed by a small margin, but the intention with that change was to make the item more valuable for the people that get it in the content. It’s interesting to consider all of the different communities and how players respond when we do pitch changes to Free-to-Play.
+
+==Question #15==
+{{Cquote2|What made you subscribe to OSRS?}}
+
+[https://www.youtube.com/watch?v=7XAvDmcFkL8&t=2680s Youtube Time Stamp]
+
+* '''Mod Kieren:''' For some reason, I got it into my head that you had to buy runes from the shop. You had to buy equipment from the actual stores, the armour shops - obviously, this was pre-Grand Exchange. So it didn’t really click for me as a kid that I could just find a player who’s got it and buy it off them!
+* '''Mod Kieren:''' Particularly, you got the defence level for black equipment, and you think, “gosh, I can get an upgrade, but how and where do I get this from?”. I would look at the World Map and think, “oh, look at all those armour shops in the rest of the game world that I can’t go to. I want to go to those armour ships and see if they sell the equipment that I want!”. That’s a distinct memory in my head. I think I subscribed around the time I had just beaten Dragon Slayer.
+* '''Mod Squid:''' I don’t remember at what point I subscribed. It was quite early, and it was definitely not after Dragon Slayer; it was before that! I just wanted membership, but what I do remember is the first thing I did after getting membership was go get the pirate outfit and then go to a free world on Varrock and show my friends this cool new pirate outfit that I got because it’s members only, and I’m super cool now because I’ve got this member’s pirate outfit!
+* '''Mod Light:''' I remember doing that too with my Fashionscape! It was just such a flex; you go to Free-to-Play with the gear on!
+
+==Question #16==
+{{Cquote2|How do we go about getting feedback from newer players, particularly from those who might not be interacting with the community on places like Reddit and Twitter?}}
+
+[https://www.youtube.com/watch?v=7XAvDmcFkL8&t=2824s Youtube Time Stamp]
+
+* '''Mod Kieren:''' It’s certainly a lot harder because everyone in the chat right here has been willing to turn up to our livestream and post thoughts in the chat as we go. Similarly, they’re the dedicated players who post on Reddit, Twitter, or even just upvote them. There’s a whole community of people who will never post on Reddit but read it and vote on things.
+* '''Mod Kieren:''' It’s a lot easier to get feedback from people who are dedicated. They want to give us their feedback because they want the game they’re spending their time playing to get better and their concerns to be listened to.
+* '''Mod Kieren:''' For new players, they haven’t got that investment. Why are they going to spend their time going on Twitter and posting their thoughts? You’ll get some, but there are a few things we can do. One is surveying - this is something we want to start doing more often and more effectively. Similarly to socials, when you send a lot of people a survey, the more dedicated people will be more likely to answer it. We can still get a good amount of data from that and get feedback and input on what they want to say, their feelings, why they didn’t stick around, or what they were looking for when they joined the game. These are the sort of questions you can hopefully pose to these players.
+* '''Mod Kieren:''' On the other side, there’s less feedback but actual hard data. We will see who sticks around in the game, and we will see who will quit. We can try and get a sense of when you quit and understand why you’ve quit. On the other hand, if you stick around, what content were you doing? We have to understand with content, what makes it sticky? What content isn’t sticky? Why do you play? We want to see success, what are the dropout points and so on through the tutorial and beyond.
+* '''Mod Kieren:''' The other thing that we dabbled with a few years ago that I’d like to do more is focused player workshops. You can work with research companies around the world who can bring players in, have them play through the start of your game and get feedback from them. Or we can intentionally reach out to players who we’ve seen join and quit and ask them for an interview.
+* '''Mod Kieren:''' Sometimes this will be the sort of thing you might pay for, for these players to come in and give you their time. It's a lot harder, and you’ve got to be a lot more focused and dedicated to try and get this insight. It’s incredibly valuable to try and understand why someone’s sticking around, why someone is deciding not to stick around, or what they really want.
+* '''Mod Kieren:''' The most painful thing we’ve done was when mobile came out. We did one of those exercises where we worked with a research agency and brought a lot of the players through the tutorial, then gave them a few hours to mess around and just proceed through the game.
+* '''Mod Kieren:''' These companies try and pick an audience that reflects who we think it should appeal to. Then we get footage and watch them try to do the tutorial and beyond. It is the most painful thing trying to watch somebody who has never seen the game before trying to go through the tutorial, and it instantly makes you cringe. There’s a big flashing yellow arrow on the screen! People will still not follow it! They just don’t!
+* '''Mod Kieren:''' It really highlights how hard the struggles can be, and it’s easy to sit in chat and laugh that this is so easy, but I’m sure there have been games you’ve played, and you’ve not even realised that you’ve mindlessly ignored the tutorial, but it highlights to us what you’ve got to try and do.
+* '''Mod Kieren:''' Our tutorials, I’m not even talking about changing the tutorial itself, but the UI, the way the instructions are given to you are really quite dated, and people don’t even read the chatbox. That’s the only text on-screen where people will not read it. There are all sorts to do to improve, but it could be a frustrating process.
+
+==Question #17==
+{{Cquote2|How do we encourage new players to care enough about the world of Gielinor to stick around?}}
+
+[https://www.youtube.com/watch?v=7XAvDmcFkL8&t=3145s Youtube Time Stamp]
+
+* '''Mod Daizong:''' I think one of the main issues we have with new players is that they don’t know where to start after they’ve done the tutorial and been teleported to Lumbridge. I don’t think it’s because they don’t have enough information about the game, but the opposite; they are overwhelmed with the information they get.
+* '''Mod Daizong:''' There are so many different guides and walkthroughs you can find on the Internet. You can find almost everything about the game on the Wiki. For example, after the player has been teleported to Lumbridge, you might open the World Map to find something to do, but instead, find many different activity icons around Lumbridge and don’t know which one suits you the best. You don’t know where to start!
+* '''Mod Daizong:''' That’s one of the main reasons that we are working on this Activity Adviser. We want this to be a handy tool that can give customised suggestions that can help the new player filter out all of this information and only pick the one that is most useful to them. Then hopefully, the new player will know what to do next.
+
+==Question #18==
+{{Cquote2|A lot of new players struggle with getting around as they are not as familiar with teleports and may not have access to Agility. What are the panel’s thoughts on this? Do you think Agility would ever become F2P?}}
+
+[https://www.youtube.com/watch?v=7XAvDmcFkL8&t=3267s Youtube Time Stamp]
+
+* '''Mod Kieren:''' All right, let me rant. This needs a rant. Even if Agility is Free-to-Play, it doesn't fix it. That's my first point. Even if you subscribe straight away, is the first thing you want to do to go and train Agility to 60 so that you get a reasonable experience? It absolutely shouldn't be. 
+* '''Mod Kieren:''' Second, you then have to get Graceful if you really want a good experience. This means you need to go even deeper into the Agility skill, and then that dominates cosmetics. 
+* '''Mod Kieren:''' A lot of members are sick of Graceful dominating cosmetics. Why are you going to wear cosmetics that weigh many kilograms when you can wear Graceful and get all the benefits from that?
+* '''Mod Kieren:''' At the same time, we want Agility to be meaningful as a skill and to still help and benefit you. Simply making Agility Free-to-Play will not solve the problem. It might be part of the solution, but I think there’s still core rebalancing that needs to be done.
+* '''Mod Kieren:''' Are there many other games where you use all your stamina, and then it takes five-to-ten minutes to restore it to 100%? In most games I know, stamina goes down fairly slowly, it reaches zero, and then maybe you need to stand still for ten seconds, and you see it go back up on the UI. It’s absurd when you sit there for ten minutes to get run back to 100% because walking feels so slow.
+* '''Mod Kieren:''' I think it needs rebalancing, maybe quite an extensive rebalancing, and to really think about how this works, how Agility interacts with energy, and how important Graceful and stamina potions are as well because we wouldn’t want to devalue stamina potions and all these other elements. I think we need a proper holistic look at energy as a system, and all these different components that are part of it, to make sure that it is reasonable.
+* '''Mod Kieren:''' It’s awful when you roll one Agility and try to run anywhere, particularly when you put armour on, and guess what any new player does? They’ve got their fancy new armour that they’ve just got, and they want to stick it on! They don’t realise straight away that it has weight, and that makes a drastic difference. It just amplifies the effect straight away.
+* '''Mod Squid:''' Teleportation was definitely on my mind while doing the Adviser. I think Kieren’s point on taking a look at run energy as a whole and Agility is a good thing to do!
+* '''Mod Squid:''' I just want to touch on the tutorial thing quickly as well, which Diazong was saying about being overwhelmed. I think one of the issues with the tutorial is that it provides you with a ton of information completely out of context and then dumps you in a completely different location, and you have to try and make use of that. How is that ever going to work?
+* '''Mod Squid:''' One thing I was thinking about was that we could introduce a new intro quest where we have you squire for an NPC that is modelled after a high-level player, and you go around with them for a bit. This could show you things like fairy rings, and show you how combat works. You can fight Elvarg for the start and set the scene for Dragon Slayer. Doing all these things will help you learn the basics of the game around Lumbridge, Draynor, and Port Sarim.
+* '''Mod Squid:''' Once you finish that, you’ve got the natural first goal, which is to do Dragon Slayer. You’ve gotten your bearings in the starting area, and you’ve got all the context of how to use them and what to do next.
+* '''Mod Squid:''' I think this would be a better first user experience approach. And also, if you examine a fairy ring, why doesn't it give you any clue as to what a fairy ring is?

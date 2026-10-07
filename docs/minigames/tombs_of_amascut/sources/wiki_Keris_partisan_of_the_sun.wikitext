@@ -1,0 +1,102 @@
+{{Infobox Item
+|name = Keris partisan of the sun
+|image = [[File:Keris partisan of the sun.png]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = Yes
+|stackable = No
+|noteable = No
+|options = Wield, Dismantle, Drop
+|examine = A mystical-feeling polearm imbued with radiating power.
+|value = 300000
+|alchable = No
+|weight = 3.218
+|id = 27291
+}}
+[[File:Keris partisan of the sun detail.png|left|150px]]
+The '''keris partisan of the sun''' is a one-handed spear requiring 80 [[Attack]] to equip. It is made by attaching the [[jewel of the sun]] to the [[keris partisan]], granting it a [[Keris partisan of the sun#Special attack|special attack]] and two unique [[passive effect]]s that only apply within the [[Tombs of Amascut]] [[raid]]:
+
+# providing a 25% increase to accuracy for targets with less than 25% health
+# healing the player for 12 [[Hitpoints]] upon killing a target at the cost of 5 [[prayer points]]; this effect can overheal players up to 12 Hitpoints above their base Hitpoints level
+
+The keris partisan of the sun retains the effects of the keris partisan, dealing 33% bonus damage against all [[kalphite (attribute)|kalphites and scabarites]], alongside a 1/51 chance of puncturing a hole in their exoskeleton, dealing triple damage. When this special effect occurs, the chatbox will display the message: {{mes|You slip your weapon through a gap in the creature's chitin, landing a vicious blow.}}
+
+As with the keris partisan, weapon poisons cannot be applied to the partisan.
+
+==Combat stats==
+{{Infobox Bonuses
+|astab = +58
+|aslash = -2
+|acrush = +57
+|amagic = +2
+|arange = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|drange = 0
+|str = +45
+|rstr = 0
+|mdmg = 0
+|prayer = 3
+|slot = weapon
+|speed = 4
+|attackrange = 1
+|combatstyle = Partisan
+|image = [[File:Keris partisan of the sun equipped male.png|200px]]
+|altimage = [[File:Keris partisan of the sun equipped female.png|200px]]
+}}
+
+{{CombatStyles|Partisan|speed=4|attackrange=1}}
+
+==Special attack==
+[[File:Tumeken's Light.gif|thumb|250px|A player performing the Keris partisan of the sun's special attack, ''Tumeken's Light''.]]
+The keris partisan of the sun has a [[special attacks|special attack]], ''Tumeken's Light'', which consumes 50 [[prayer points]] in addition to 75% of the player's special attack energy. If the user has less than 50 current prayer points, they cannot use this special attack.
+
+The special attack will fully heal the player to their maximum health and overheal players up to 20% of their base Hitpoints level. It will also cure [[poison]], and venom, as well as restore the player's [[run energy]] and any drained [[stats]].
+
+Attempting to use the special attack outside of the Tombs of Amascut gives the message {{mes|This special attack can only be used within the Tombs of Amascut.}}
+
+==Creation==
+{{Recipe
+|members = Yes
+|ticks = 0
+|mat1 = Keris partisan
+|mat1cost = 60000
+|mat2 = Jewel of the Sun
+|mat2cost = no
+|output1 = Keris partisan of the sun
+|output1cost = no
+}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 13 May 2026
+|update = Sailing Changes and Gem Bag Expansion
+|change = The keris partisan of the sun's healing effect now works on all scarabs during the Kephri fight in Tombs of Amascut.
+}}
+{{Subject changes
+|date = 20 March 2024
+|update = Varlamore: Part One
+|change = Players may no longer attach jewels obtained from the [[Tombs of Amascut]] to a wielded keris partisan if they do not have level 80 Attack.
+}}
+{{Subject changes
+|date = 21 September 2022
+|update = Tombs of Amascut Changes & Beta Tweaks
+|change = When players deal a critical hit to kalphites and scabarites with the keris partisan, the chat message was updated from "''You slip your weapon through a chink in the creature's chitin, landing a vicious blow.''" to "''You slip your weapon through a gap in the creature's chitin, landing a vicious blow.''"
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* Originally, the keris partisan of the sun did not have a special attack, and had a different passive effect, which applied a debuff to attacked NPCs and caused them to take higher damage for a sustained period of time.
+
+{{Stab weapons}}
+{{Crush weapons}}
+{{Attribute_affinities}}
+{{Tombs of Amascut}}
+
+[[Category:Weapons with Special attacks]]

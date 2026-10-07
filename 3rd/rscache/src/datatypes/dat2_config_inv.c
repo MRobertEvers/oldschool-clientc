@@ -15,9 +15,11 @@ RSCache_Dat2ConfigInvDecodeOp(
     {
     case 2:
         entry->size = g2(buffer);
+        RSCache_PresenceSet(&entry->present, RSCACHE_INV_FIELD_SIZE);
         return true;
     case 249:
         RSCache_BufferReadParams(buffer, &entry->params);
+        RSCache_PresenceSet(&entry->present, RSCACHE_INV_FIELD_PARAMS);
         return true;
     default:
         /* Declining stops the stream rather than guessing a width — see the
@@ -33,6 +35,10 @@ RSCache_Dat2ConfigInvDecode(
 {
     assert(entry);
     assert(buffer);
+
+    /* Nothing stated until an opcode says so; the values keep the caller's
+     * zeroed defaults. */
+    RSCache_PresenceReset(&entry->present);
 
     for( ;; )
     {
@@ -55,8 +61,11 @@ RSCache_Dat2ConfigInvDecodeInplace(
     int data_size)
 {
     assert(entry);
-    if( !data || data_size <= 0 )
+    RSCache_PresenceReset(&entry->present);
+    /* No bytes is the empty record: nothing stated. */
+    if( data_size <= 0 )
         return;
+    assert(data);
 
     struct RSCache_Buffer buffer;
     RSCache_BufferInit(&buffer, (uint8_t*)data, (uint32_t)data_size);
@@ -87,8 +96,7 @@ uint32_t
 RSCache_Dat2ConfigInvEncodeBound(const struct RSCache_Dat2ConfigInv* entry)
 {
     /* Size opcode (1+2), params opcode (1) + its payload, terminator (1). */
-    if( !entry )
-        return 5u;
+    assert(entry);
     return 5u + RSCache_BufferParamsBound(&entry->params);
 }
 
@@ -98,22 +106,21 @@ RSCache_Dat2ConfigInvEncode(
     uint8_t* out,
     uint32_t out_capacity)
 {
-    if( !entry || !out )
-        return 0;
+    assert(entry);
+    assert(out);
 
     struct RSCache_Buffer buffer;
     RSCache_BufferInit(&buffer, out, out_capacity);
 
-    /* Emitted when non-zero. Exact for the corpus, where every record carries a
-     * non-zero size; a zero-size record would re-encode as the bare terminator with
-     * the same meaning. */
-    if( entry->size != 0 )
+    /* Exactly what the record stated: a size of 0 written explicitly is written
+     * back, and a param map stated with no entries is written with count 0. */
+    if( RSCache_PresenceHas(&entry->present, RSCACHE_INV_FIELD_SIZE) )
     {
         p1(&buffer, 2);
         p2(&buffer, entry->size);
     }
 
-    if( entry->params.count > 0 )
+    if( RSCache_PresenceHas(&entry->present, RSCACHE_INV_FIELD_PARAMS) )
     {
         p1(&buffer, 249);
         pparams(&buffer, &entry->params);

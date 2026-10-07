@@ -10,6 +10,8 @@ import os
 import subprocess
 from pathlib import Path
 
+import config_text
+
 
 # The C runtime is always this repository's; the content tree is whichever one
 # is being baked, which is not necessarily the submodule -- TORIRSSERVER_CONTENT_DIR
@@ -106,7 +108,7 @@ def verify_tree(root: Path) -> None:
     lane_configs = root / "ported/rs2012_qbd_td/configs"
     configs = lane_configs if lane_configs.is_dir() else root / "configs"
     seq_ids: list[int] = []
-    for line in (configs / "rs2012.seq").read_text().splitlines():
+    for line in config_text.read_lines(configs / "rs2012.seq"):
         if line.startswith("sound="):
             seq_ids.append(int(line.split(",", 2)[1]))
     require(len(seq_ids) == 184, f"expected 184 sequence sound events, got {len(seq_ids)}")
@@ -118,7 +120,7 @@ def verify_tree(root: Path) -> None:
             "sequence contains an unresolved sound id")
 
     loc_ids: list[int] = []
-    for line in (configs / "rs2012.loc").read_text().splitlines():
+    for line in config_text.read_lines(configs / "rs2012.loc"):
         if line.startswith("soundid=") or line.startswith("soundrandom"):
             loc_ids.append(int(line.split("=", 1)[1]))
     require(len(loc_ids) == 103 and len(set(loc_ids)) == 72,

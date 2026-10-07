@@ -11,6 +11,9 @@ quests exist: a quest whose process crashed before it could even create its
 own build/quest_gate/<name>/ directory must still show up as "no ledger" in
 gate.py, which means gate.py has to know the name was expected without
 looking at what happened to exist on disk.
+
+TORIRS_QUEST_TESTS_DIR moves the whole suite (tests and fixtures/) to another
+directory -- test/raids/, through tools/raid_gate/ -- see TESTS_DIR_ENV below.
 """
 
 import os
@@ -31,9 +34,59 @@ MAX_FRAMES_CEILING = 8 * DEFAULT_MAX_FRAMES
 MAX_FRAMES_RE = re.compile(r"(?m)^[ \t]*max_frames\s*=\s*(\d+)\s*,")
 
 
+# A second suite run by the same tools (the raid room tests, test/raids/,
+# docs/RAID_ORCHESTRATOR.md section 6) must never be discovered by the quest
+# loop's `run.py --all`, `gate.py --all` or `make test-quests`, so it does not
+# live under test/quests/. tools/raid_gate/run.py and gate.py set these two
+# variables and exec the scripts here unchanged. Unset (or empty), nothing
+# changes: the tests are test/quests/*.lua, their fixtures
+# test/quests/fixtures/, and a passing run publishes to the caller's default.
+# A relative value is taken from the repository root.
+TESTS_DIR_ENV = "TORIRS_QUEST_TESTS_DIR"
+PUBLISH_DIR_ENV = "TORIRS_QUEST_PUBLISH_DIR"
+
+
+def _repo_relative(repo_root, value):
+    assert repo_root
+    assert value
+    if os.path.isabs(value):
+        return value
+    return os.path.join(repo_root, value)
+
+
 def quests_dir(repo_root):
     assert repo_root
+    override = os.environ.get(TESTS_DIR_ENV)
+    if override:
+        return _repo_relative(repo_root, override)
     return os.path.join(repo_root, "test", "quests")
+
+
+def fixtures_dir(repo_root):
+    """Where a test's `fixture = "<name>.ini"` is read from: the suite's own
+    fixtures/ directory, so a raid test never depends on a quest fixture."""
+    return os.path.join(quests_dir(repo_root), "fixtures")
+
+
+def publish_dir_override(repo_root):
+    """TORIRS_QUEST_PUBLISH_DIR resolved, or None when it is unset -- the
+    caller keeps its own default (run.py: selftest/quests)."""
+    override = os.environ.get(PUBLISH_DIR_ENV)
+    if not override:
+        return None
+    return _repo_relative(repo_root, override)
+
+
+def suite_publish_subdir(test_id):
+    """The publish subdirectory of a test in an overridden suite, which has no
+    QUEUE.tsv row to name it: `<raid>_<room>` -> `<raid>/<room>`
+    (tob_maiden -> tob/maiden, toa_150 -> toa/150), an id with no `_` as
+    itself."""
+    assert test_id
+    head, sep, rest = test_id.partition("_")
+    if not sep or not head or not rest:
+        return test_id
+    return os.path.join(head, rest)
 
 
 def discover(repo_root):

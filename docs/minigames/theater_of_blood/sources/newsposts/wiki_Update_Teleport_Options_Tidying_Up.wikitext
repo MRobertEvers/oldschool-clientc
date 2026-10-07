@@ -1,0 +1,97 @@
+{{Update|date=14 June 2018|link=http://services.runescape.com/m=news/teleport-options--tidying-up?oldschool=1|category=game}}
+[[File:Teleport Options & Tidying Up newspost.png|right]]
+{{clear}}
+{{Headline|25|Teleport Options & Tidying Up}}
+
+
+<center>''This week our focus has been on preparing the feedback changes from the Theatre of Blood, listed in our most [http://services.runescape.com/m=news/theatre-of-blood-feedback-tweaks?oldschool=1 recent newspost], ready for next week's game update. That being said, this week we're releasing some QoL features and your usual round of bug fixes.''</center>
+
+{{Horizontal Line}}
+
+Player-owned house portals and teleport tablets for Varrock, Camelot and the Watchtower now have options for going to either of their possible destinations when right-clicking them. A new right-click option has been added that lets players toggle which option will appear when left-clicking the spellbook and portals. ''Unfortunately, it's not currently possible to make that toggle apply to inventory items too.''
+
+[[File:Teleport Options & Tidying Up (1).png|center]]
+<center>''Completion of the respective achievement diaries is still required to access the destinations that require them.''</center>
+
+Moving your character by clicking on the tiles on the edge of Xarpus's arena will now navigate the player in an expected manner.
+
+The Vampyre's snarky messages are no longer placed in the gravestone upon being wiped in the Theatre of Blood.
+
+Players that have completed the Western Provinces Elite Diary will now find that when you're resurrected in Zulrah's shrine, '''''providing your auto retaliate is off''''', the fight is paused until you do any actions such as moving, attacking the NPCs or consuming your supplies. A healing hitsplat and a graphical effect and sound have been added to the revival too, making it slightly clearer when it occurs. 
+
+[[File:Teleport Options & Tidying Up (2).gif|center]]
+
+All Spirit shields have been updated to be cleaner in game. Further to this, female characters now have their own unique model, reducing the distance between the shields and their bodies.
+
+Route-finding towards seaweed patches has been improved.
+
+Over-hitting a player's remaining health in PvP will no longer interfere with the correct player receiving the loot.
+
+The messages detailing what is required to enter volcanic mine have been updated to include the information that a player must claim the reward for building the camp.
+
+Theatre of Blood items have been added to the experts' price lists at the Grand Exchange.
+
+Some typos in the Mysterious Stranger's dialogue outside the Theatre of Blood have been fixed.
+
+The Port Khazard anvil building's door is now wedged open to avoid disruption of training.
+
+The spelling of the Avernic defender hilt description has been corrected.
+
+Items found in the supply chests within the Theatre of Blood will now appear to other players instantly if dropped, to assist parties in distributing those items. ''(Ironman restrictions still apply.)''
+
+{{Horizontal Line}}
+{{Headline|25|Deadman Summer Finals: Permadeath Playthrough}}
+
+
+We'll be hosting a beta playthrough of the final stages of the Deadman Summer Finals on the 21st June, starting at 2pm BST. It's important to note that the purpose of the beta playthrough is to determine that the mechanics in-game work as expected, and it's not an opportunity to practise and refine your game plan. As such, we're opting to go ahead with the usual open first-come first-served policy to ensure that the world will be at capacity and allows us to gather the best possible feedback. 
+
+[[File:Teleport Options & Tidying Up (3).png|center|700px]]
+<center>''We've changed the appearance of the arena section of the Permadeath Stage to better reflect the seasonality of the Summer Finals.''</center>
+
+'''The playthrough specifics:'''
+
+The beta playthrough will take place on Thursday 21st June at 2pm BST (9am EST).
+
+The playthrough is going to be held on World 400.
+
+The world will be accessible from 2pm BST (9am EST) and you will be given 15 minutes to login and prepare.
+
+The playthrough begins properly at 2:15pm BST (09:15am EST).
+
+The event is expected to last around 90 minutes but will run through to its completion.
+
+The supply chests will be included in the beta playthrough.
+
+We'll also be testing our new '''contingency measures'''. More information regarding how these will work will be made available soon.
+
+You will login and be given this inventory and this gear: 
+<center>[[File:Teleport Options & Tidying Up (4).png]][[File:Teleport Options & Tidying Up (5).png]]</center>
+
+Be sure to register for the event on our twitch page [https://www.twitch.tv/events/ZpzHjS-rToSZ-UlaWKN3yA twitch.tv/OldSchoolRS] to get notified when the tournament kicks off! 
+
+{{Horizontal Line}}
+{{Headline|25|PvP World Rota Changes}}
+The current active rota is '''Period B'''. For the next '''two weeks'', until Thursday 28th of June. More information can be found on the dedicated [https://www.runescape.com/oldschool/pvpworldrota PvP World Rota page], which will be updated every two weeks.
+
+*The Standard PvP world will be W25, in the UK.
+*The High Risk PvP world be W37, in the USA.
+*The F2P PvP world will be W71, in the UK.
+*The Bounty Hunter world will be W19, in the USA. 
+
+{{Horizontal Line}}
+{{Headline|25|In Case You Missed It}}
+
+Tens of thousands of you have taken on the might of the Theatre of Blood since its release on Thursday and the bloodshed has been plenty. Check out some of our favourite moments from the Theatre thus far. ''Warning: contains Woox solos and cabbages.''
+
+{{youtube|nO9zw-qy5N4|height=315|width=560}}
+
+Don't forget, '''this Saturday on the 16th June at 8pm BST''', we'll be hosting a [https://www.twitch.tv/events/pQtLf7mrT7aaa8ZxWRKC9g Super Secret Stream] with Mods Ayiza and Sween. We're not releasing any information as to what the stream will be about, but believe us, we '''''really''''' think you're going to love this one! 
+
+[[File:Teleport Options & Tidying Up (6).png|center|250px|link=https://www.twitch.tv/directory/game/RuneScape]]
+
+
+{{Horizontal Line}}
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,490,66019519 official forums], the community-led [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the '''#gameupdate''' channel.
+
+'''''Mods Archie, Ash, Ayiza, Curse, Ed, Ghost, Jed, John C, Kieren, Lenny, Lottie, Mat K, Maz, Roq, Ry, Stone, Sween, Weath, West & Wolf'''''<br/>
+The Old School Team

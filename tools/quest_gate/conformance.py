@@ -57,11 +57,25 @@ USER = "qdconform"
 # The quest default (quest_list.DEFAULT_MAX_FRAMES).  At 40000 the harness had
 # outgrown its cap: with 86 seam rows a clean run drew 39,510 frames (about 30
 # a tick), so the 87th row (seam.iban_temple_door_regicide_shortcut, b48-seam1)
-# was cut off mid-row as "frame cap, or the client exited 0".  At 60000 it
-# outgrew it again: 101 seam rows drew ~51,000 and the 102nd
-# (seam.door_revert_reaches_a_returning_client, b59-seam1) waits a door's
-# 500-tick revert out, ~15,000 frames on its own.
-MAX_FRAMES = "90000"
+# was cut off mid-row as "frame cap, or the client exited 0".  At 60000 it had
+# outgrown it again: with 105 seam rows (raid seam6's eat-delay port added
+# seam.eat_does_not_hold_queued_hit and seam.eat_delay_clocks) a run reached the
+# cap at tick 1975 and the last two rows ERRORed on the frame cap.  At 80000 it
+# had outgrown it a third time: with 132 seam rows (raid seam8 added nineteen)
+# a run reached the cap at tick 2649 and the last row
+# (seam.verzik_entry_forms_cage_and_death) ERRORed on the frame cap.  At 120000
+# it had outgrown it a fourth time: with 146 seam rows (raid seam10 added five,
+# the Verzik yellow-pool row alone ~330 ticks) a run drew exactly 120000 frames
+# (6118 drawn, 113882 skipped) and ended at tick 3984 inside the last row
+# (seam.special_attack_spent).  At 160000 it had outgrown it a fifth time:
+# with 182 seam rows (raid seam31 added the goblin stop-and-press row, ~50
+# ticks, and three pure rows) a run reached the cap at tick 5325 inside
+# seam.raid_enter_party_branch_solo_unchanged and the last seven rows
+# ERRORed on the frame cap.  The v3 merge (2026-10-06) carries both
+# branches' rows (218 seam rows and 229 verbs against the raid branch's 182
+# and 202; v3 alone drew ~51,000 for 101 seam rows and set 120000), hence
+# 280000.
+MAX_FRAMES = "280000"
 # Render skip, as run.py: on unless --render-every-frame (run.py's RENDER_SKIP
 # banner). The harness proves the quest runs' own mode, and its render.* rows
 # switch it themselves either way.
@@ -334,6 +348,12 @@ def main():
     if code != 0:
         print("conformance: the script pack did not build", file=sys.stderr)
         return code
+    # The server config pack too, under the same lock (built into a staging
+    # directory and swapped in whole; pack_fingerprint.ensure_server_pack).
+    code = pack_fingerprint.ensure_server_pack(run, label="conformance")
+    if code != 0:
+        print("conformance: the server pack did not build", file=sys.stderr)
+        return code
 
     root = arguments.session or os.path.join(REPO_ROOT, "build", "quest_gate", "_conformance")
     if os.path.isdir(root) and not arguments.keep:
@@ -361,12 +381,21 @@ def main():
         script = harness_with_skips(skips, os.path.join(directory, "_conformance.lua"))
         log_path = os.path.join(directory, "log.txt")
         exit_code = client(binary, manifest_path, directory, saves, log_path, script)
-        if not stale_retried and pack_fingerprint.stale_pack_refused(log_path):
+        scripts_refused = pack_fingerprint.stale_pack_refused(log_path)
+        servpack_refused = pack_fingerprint.server_pack_refused(log_path)
+        if not stale_retried and (scripts_refused or servpack_refused):
             # The fingerprint said current and the server disagreed: its
             # refusal wins -- rebuild once and run this attempt again.
             stale_retried = True
-            if pack_fingerprint.rebuild_after_refusal(run, label="conformance") != 0:
+            if scripts_refused and \
+                    pack_fingerprint.rebuild_after_refusal(run, label="conformance") != 0:
                 print("conformance: the script pack did not rebuild after the STALE refusal",
+                      file=sys.stderr)
+                return 1
+            if servpack_refused and \
+                    pack_fingerprint.rebuild_server_pack_after_refusal(run,
+                                                                       label="conformance") != 0:
+                print("conformance: the server pack did not rebuild after the server refused it",
                       file=sys.stderr)
                 return 1
             directory = os.path.join(root, "attempt-%02d-after-rebuild" % attempt)

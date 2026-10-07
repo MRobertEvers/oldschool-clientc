@@ -14,6 +14,7 @@
  * 230 and decodes in a few milliseconds, so it is read once at startup rather
  * than lazily per id.
  */
+#include "torirs_server_servpack.h"
 #include "torirs_server.h"
 #include <assert.h>
 
@@ -57,99 +58,38 @@ static int g_client_varp_count;
 static int g_patching;
 
 int
-ToriRSServer_VarbitLoad(const char* cache_dir)
+ToriRSServer_VarbitLoad(struct RSCache_ServerPack* pack)
 {
-    struct RSCache profile = RSCache_ProfileZero();
-    struct RSCache_Dat2Disk* disk;
-    struct RSCache_Dat2DiskArchive* archive;
-    struct RSCache_FileList* files;
-    int table;
+    struct ToriRSServerKindRecords records;
     int highest = -1;
     int loaded = 0;
 
+    assert(pack);
     ToriRSServer_VarbitFree();
 
-    profile.game = RSCACHE_GAME_OLDSCHOOL;
-    profile.epoch = RSCACHE_EPOCH_DAT2;
-    profile.revision = TORIRSSERVER_CACHE_REVISION;
-
-    disk = RSCache_Dat2DiskNewFromDirectory(cache_dir);
-    if( !disk )
-    {
-        char parent[512];
-
-        snprintf(parent, sizeof(parent), "../%s", cache_dir);
-        disk = RSCache_Dat2DiskNewFromDirectory(parent);
-    }
-    if( !disk )
-    {
-        fprintf(stderr, "torirsserver: no varbit table (cache '%s' not found)\n", cache_dir);
-        return 0;
-    }
-    RSCache_Dat2DiskSetProfile(disk, &profile);
-
-    table = RSCache_Dat2DiskTableId(disk, RSCACHE_DAT2_TABLE_CONFIGS);
-
     /*
-     * Measure the client's varp array from the active cache, separately from
-     * the highest varbit carrier below.  Base cache.osrs239 has varp records
-     * 0..5704 while a few varbits name carriers through 5724.  The official
-     * client sizes its array from the former: transmitting carrier 5705 is an
-     * immediate ArrayIndexOutOfBoundsException.  Overlay caches such as the
-     * Ancient Curses lane add real records at 5705/5706, so a constant cannot
-     * express the boundary correctly for both lanes.
+     * The client's varp array is sized from the varps the CLIENT cache holds,
+     * separately from the highest varbit carrier below: base cache.osrs239 has
+     * varp records 0..5704 while a few varbits name carriers through 5724, and
+     * transmitting carrier 5705 is an immediate ArrayIndexOutOfBoundsException in
+     * the official client. The pack also holds the server's own allocated varps,
+     * so the bound is the pack's client-routed id list, not its highest record.
      */
+    g_client_varp_count = ToriRSServer_ServPackClientIdBound(pack, RSCACHE_DAT2_CONFIG_KIND_VARPLAYER);
+    if( g_client_varp_count < 0 )
+        return -1;
+
+    if( !ToriRSServer_ServPackKindLoad(pack, RSCACHE_DAT2_CONFIG_KIND_VARBIT, &records) )
+        return -1;
+
+    for( int i = 0; i < records.count; i++ )
     {
-        struct RSCache_Dat2DiskArchive* varps = RSCache_Dat2DiskArchiveNewLoad(
-            disk, table, RSCACHE_DAT2_CONFIG_KIND_VARPLAYER);
-
-        if( varps && RSCache_Dat2DiskArchiveInitMetadata(disk, varps) )
-        {
-            int max_id = -1;
-
-            for( int i = 0; i < varps->file_count; i++ )
-            {
-                int id = varps->file_ids ? varps->file_ids[i] : i;
-
-                if( id > max_id )
-                    max_id = id;
-            }
-            g_client_varp_count = max_id + 1;
-        }
-        if( varps )
-            RSCache_Dat2DiskArchiveFree(varps);
-    }
-
-    archive = RSCache_Dat2DiskArchiveNewLoad(disk, table, RSCACHE_DAT2_CONFIG_KIND_VARBIT);
-    if( !archive || !RSCache_Dat2DiskArchiveInitMetadata(disk, archive) )
-    {
-        if( archive )
-            RSCache_Dat2DiskArchiveFree(archive);
-        RSCache_Dat2DiskFree(disk);
-        fprintf(stderr, "torirsserver: no varbit config group in '%s'\n", cache_dir);
-        return 0;
-    }
-
-    files = RSCache_FileListNewFromDecode(archive->data, archive->data_size,
-                                          archive->file_count);
-    if( !files || !archive->file_ids )
-    {
-        RSCache_FileListFree(files);
-        RSCache_Dat2DiskArchiveFree(archive);
-        RSCache_Dat2DiskFree(disk);
-        return 0;
-    }
-
-    for( int i = 0; i < archive->file_count; i++ )
-    {
-        if( archive->file_ids[i] > highest )
-            highest = archive->file_ids[i];
+        if( records.ids[i] > highest )
+            highest = records.ids[i];
     }
     if( highest < 0 )
     {
-        RSCache_FileListFree(files);
-        RSCache_Dat2DiskArchiveFree(archive);
-        RSCache_Dat2DiskFree(disk);
+        ToriRSServer_ServPackKindFree(&records);
         return 0;
     }
 
@@ -161,15 +101,15 @@ ToriRSServer_VarbitLoad(const char* cache_dir)
     for( int i = 0; i < g_varbit_count; i++ )
         g_varbits[i].basevar = -1;
 
-    for( int i = 0; i < files->file_count; i++ )
+    for( int i = 0; i < records.count; i++ )
     {
-        int id = archive->file_ids[i];
+        int id = records.ids[i];
         struct RSCache_Dat2ConfigVarbit entry;
 
-        if( id < 0 || id >= g_varbit_count || files->file_sizes[i] <= 0 )
+        if( id < 0 || id >= g_varbit_count || (int)records.sizes[i] <= 0 )
             continue;
         memset(&entry, 0, sizeof(entry));
-        RSCache_Dat2ConfigVarbitDecodeInplace(&entry, files->files[i], files->file_sizes[i]);
+        RSCache_Dat2ConfigVarbitDecodeInplace(&entry, (char*)records.files[i], (int)records.sizes[i]);
         g_varbits[id].basevar = entry.basevar;
         g_varbits[id].startbit = (uint8_t)entry.startbit;
         g_varbits[id].endbit = (uint8_t)entry.endbit;
@@ -236,12 +176,10 @@ ToriRSServer_VarbitLoad(const char* cache_dir)
     else
         g_carrier_count = 0;
 
-    RSCache_FileListFree(files);
-    RSCache_Dat2DiskArchiveFree(archive);
-    RSCache_Dat2DiskFree(disk);
-    fprintf(stderr, "torirsserver: varbit table loaded (%d records from %s)\n", loaded, cache_dir);
+    ToriRSServer_ServPackKindFree(&records);
+    fprintf(stderr, "torirsserver: varbit table loaded (%d records from %s)\n", loaded, pack->dir);
     fprintf(stderr, "torirsserver: client varp capacity %d from %s\n",
-            g_client_varp_count, cache_dir);
+            g_client_varp_count, pack->dir);
     return loaded;
 }
 

@@ -1,0 +1,45 @@
+mechanic_id	scope	note
+sol_heredit_phases.threshold.count	all	one solo test
+sol_heredit_phases.threshold.hp_values	all	one solo test
+sol_heredit_phases.threshold.base_hp	all	one solo test
+sol_heredit_phases.threshold.comparison	all	one solo test
+sol_heredit_phases.transition.hp_before_event_ceiling	stat	statistical: settled by the recorder tool, a solo test checks Sol never starts a phase above the threshold
+sol_heredit_phases.transition.delay_after_crossing	stat	statistical
+sol_heredit_phases.transition.overhead_lines	all	one solo test
+sol_heredit_phases.transition.stops_and_speaks	all	one solo test
+sol_heredit_phases.sand.transition_tile_count	stat	statistical (a duplicate tile gives 5)
+sol_heredit_phases.sand.enrage_first_event	stat	statistical
+sol_heredit_phases.sand.target_on_player	all	one solo test
+sol_heredit_phases.sand.beam_to_pool_ticks	all	one solo test
+sol_heredit_phases.sand.persists_until_wave_end	all	one solo test
+sol_heredit_phases.sand.damage_per_tick	all	one solo test
+sol_heredit_phases.sand.cap_per_phase_new_tiles	all	one solo test
+sol_heredit_phases.sand.enrage_cadence	stat	statistical (a solo test reads the median gap)
+sol_heredit_phases.sand.enrage_first_extra_after	stat	statistical
+sol_heredit_phases.sand.enrage_tile_pick	all	one solo test
+sol_heredit_phases.crystal.npc_id	all	one solo test
+sol_heredit_phases.crystal.count_per_run	all	one solo test
+sol_heredit_phases.crystal.spawn_after_pools	stat	statistical
+sol_heredit_phases.crystal.first_scan_after_first_transition	stat	statistical
+sol_heredit_phases.crystal.patrol	stat	statistical; the recorder's 12824 tile stream can settle it
+sol_heredit_phases.laser.scan_to_shot_above_enrage	stat	statistical (a solo test reads the first laser of the wave)
+sol_heredit_phases.laser.scan_to_shot_enrage	stat	statistical
+sol_heredit_phases.laser.scan_gap_above_enrage	stat	statistical
+sol_heredit_phases.laser.scan_gap_enrage	stat	statistical
+sol_heredit_phases.laser.per_crystal_cadence	stat	statistical
+sol_heredit_phases.laser.aim_and_area	all	one solo test
+sol_heredit_phases.laser.damage	all	one solo test
+sol_heredit_phases.laser.prayer_smite_effect	all	belongs with modifier_system's blasphemy row
+sol_heredit_phases.start.sol_first_seen_tick	all	one solo test reads the tick the figure first appears
+sol_heredit_phases.start.seated_to_arena_swap	all	one solo test
+sol_heredit_phases.start.gladiators_close_arena	all	one solo test
+sol_heredit_phases.death.hp_zero	all	one solo test
+sol_heredit_phases.death.clears_hazards_and_chest	all	one solo test
+sol_heredit_phases.death.jingle	all	one solo test
+sol_heredit_phases.presentation.jump_and_land	all	candidate only
+sol_heredit_phases.presentation.death_sequence	all	candidate only
+sol_heredit_phases.presentation.explosion_2724	all	unknown_purpose until M80
+sol_heredit_phases.presentation.laser_scan_and_shot_graphics	all	one solo test
+sol_heredit_phases.presentation.crystal_sequences	all	candidate only
+sol_heredit_phases.presentation.pool_graphic	all	one solo test
+sol_heredit_phases.presentation.transition_beam_graphic	all	one solo test

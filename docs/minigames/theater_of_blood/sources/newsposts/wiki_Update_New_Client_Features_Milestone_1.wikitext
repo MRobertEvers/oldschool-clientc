@@ -1,0 +1,229 @@
+{{Update|date=23 June 2021|link=https://secure.runescape.com/m=news/new-client-features-milestone-1?oldschool=1|category=game}}
+[[File:New Client Features- Milestone 1 newspost.png|right]]
+{{clear}}
+
+'''With the introduction of our new client features, many things have changed. If you're experiencing issues when using a 3rd party client, consider switching over to the Steam client until they have been fully updated!'''
+{{ToC}}
+==Issues and Hotfixes (June 23rd)==
+{|class=wikitable style="text-align:center; width:665px;"
+!Issues Raised
+!Current Progress
+|-
+|'''(11:50 BST)''' STEAM ONLY - Players can't mark tiles at Sire. || '''(11:50 BST)''' This issue will be fixed next week.
+|-
+|'''(11:50 BST)''' STEAM ONLY - Players clients are crashing. || '''(11:50 BST)''' Please make sure to update your game client via Steam before logging in to avoid these crashes.
+
+To do this: right-click the game in steam, go to Properties -> Local Files -> Verify integrity of game files.
+|-
+|'''(12:10 BST)''' STEAM ONLY - The "Minigame Teleport Cooldown" option has the same description as the Home Teleport Cooldown option. || |'''(12:10 BST)''' This issue will be fixed next week.
+|-
+|'''(12:35 BST)''' STEAM ONLY - The XP bar clashed with the Theatre of Blood interface. || '''(12:35 BST)''' This issue will be fixed next week.
+|}
+
+''The first raft of new client features is here! Keep reading for a breakdown of all the nifty toggles ‘n’ tweaks that will make your game smoother than ever. And that’s not all – A Kingdom Divided, Theatre of Blood and Clans have all had a polish, and we’ve got some dazzling new merch to show off...''
+
+==New Client Features: Milestone 1==
+Today sees the arrival of the first batch of shiny new client updates that [https://secure.runescape.com/m=news/client-features-upcoming-testing?oldschool=1 we announced last week]! We’re starting with some really core features, which will in turn provide the foundation for the next milestone that's coming very soon.
+
+We must stress that right now these features '''can only be used on the C++ client through Steam''', but don’t worry device-tappers – they’ll be arriving on mobile later. Stay tuned to our socials as we push forward with this game-changing project!
+
+Here’s what’s in store for the first batch:
+
+===Opponent Information HUD===
+[[File:New Client Features- Milestone 1 (1).png|center|600px]]
+
+
+They say information is the greatest weapon. Err… they say that, right? Well, anyway – we’re saying it now. And when you’re facing off against an opponent, it’s always good to have the information you need to hand! In the latest update, you’ll see your adversary’s name and hitpoints bar in the top left corner of the screen, so you can watch those points plummet with every bludgeon. This is a toggleable feature, but it’s switched on by default.
+
+For regular enemies, there’s a top-left interface that displays HP and monster name. This will be replaced by the larger boss HP bar for enemies with more factors to keep an eye on, for example:
+* Bosses in Chambers of Xeric have HP threshold indicators for Vanguards.
+* The Nightmare has both shield and HP values.
+
+Thanks to your feedback, we've made some slight changes to the text and icons for Clan ranks:
+* The Moderator's icon has changed from the silver crown to a gavel (hammer).
+* Hoarder is now spelt correctly.
+* The icons for Privates and Corporals have been corrected.
+* A new star icon has been added for the Sheriff title.
+* The previous Sheriff rank (Black Scimitar) has been renamed Ninja.
+
+===Buff Bar===
+[[File:New Client Features- Milestone 1 (2).png|center|600px]]
+
+
+When using timed buffs such as Stamina Potion effects, you'll now be able to see which buff is active and how much time you have left with it.
+
+Regularly in the buff? Here are some of the toggleable options you might want to use:
+* Show/hide Buff Bar (it’s shown by default)
+* Show/hide Tooltips
+* Show/hide Leagues Relics on the Buff Bar
+* Show/hide Home Teleport Cooldown
+* Show/hide Minigame Teleport Cooldown
+
+===Stat Boosts===
+These are new info boxes that show any skills which are boosted or drained from a base level, alongside their skill icons. You’ll be able to see the boosted level/base level comparison, always prioritising combat skills.
+
+Options for this feature include:
+* Show/hide Stat Boosts (it’s showing by default)
+* Display Stat Value (60) or Relative Value (+4)
+* Show/hide Tooltips
+* Change the number of maximum boxes shown at once (from 1–6, with 6 as default).
+
+===Fishing Spot Indicators===
+[[File:New Client Features- Milestone 1 (3).png|center|600px]]
+
+
+We’ve made it easy to figure out which fish are bobbing about in your fave spots. When you have a relevant piece of fishing gear, spots corresponding to that item become highlighted. The indicator reacts to multiple pieces of equipment in your inventory, meaning you can see all available spots at once! Hover over the fish icon to reveal which slippery swimmers are up for grabs.
+
+This option is on by default and should work for most fishing spots. You can also set the indicators to display at all times rather than being dependant on what gear you’ve got.
+
+===Tile Markers===
+[[File:New Client Features- Milestone 1 (4).png|center|600px]]
+
+
+Gielinor is massive, and sometimes you’ll want to revisit somewhere (or someone) cool. With the new tile markers, you can highlight key locations in red by holding shift, right-clicking any tile and selecting the ‘Mark Tile’ command. Easy! Only the player setting the markers will be able to see them, so go wild. There's also no limit to the number of markers you can place, and we are looking to include more options for them in the near future.
+
+===Chambers of Xeric Helper===
+[[File:New Client Features- Milestone 1 (5).png|center|600px]]
+
+
+Raiders rejoice! You now have the option to see useful information about your Chambers of Xeric raid with our new Helper. This handy feature will show you how much time has elapsed in your raid, your current points, and an ordered list of rooms to scour, including information about the contents of those rooms and scavenger and connection rooms.
+
+You can view more or less information clicking the button on the bottom right of the Helper. Once again, the feature can be enabled and disabled – but it’s on by default.
+
+===Mouse-Over Tooltips===
+[[File:New Client Features- Milestone 1 (6).png|center|600px]]
+
+
+Before interacting with an NPC, object or item, you have the option to see a handy tooltip below your mouse pointer. This option is on by default.
+
+You’ll also find tooltips for the Spellbook, but of course, you can disable them if you just want to see the spell icons and information on that screen.
+
+You can also toggle the standard top-left option text on and off!
+
+===Chat===
+[[File:New Client Features- Milestone 1 (7).png|center|500px]]
+
+
+Within the Chat Settings, you can now include timestamps within your chat to see when messages were sent. These can be changed from server time (default) to your local time – or switched off altogether.
+
+Your chat history will also be kept for up to 15 minutes after you log-out, and will be visible if you log-in within that time.
+
+===Other Features===
+* Your Health and Special Attack Orbs will display a visual timer to indicate when the next HP and Special Attack will be restored.
+* You’re now able to apply anti-drag to the Settings, allowing you to hold shift and move multiple items in your Inventory.
+* On desktop, you can now control your FPS-limiting options! Choose between Uncapped, 15FPS, 20FPS, 30FPS & 60FPS.
+* You can keep your current combat style displayed on the screen without having to open the Combat Interface.
+* In PvP zones, you can now see the level ranges of the players you can attack.
+* For new players, the Settings menu will show less information by default. Keep it simple, eh?
+* The transparent chatbox will now appear the same in the C++ client as it does on the Java client.
+* The C++ client will remember your display settings the next time you log-in.
+
+==A Kingdom Divided==
+[[File:New Client Features- Milestone 1 (8).png|center|600px]]
+
+
+The Dark Lure spell has been changed slightly with regards to how it interacts with implings. Previously, the spell would cause an impling to briefly drift towards the player, before returning to their normal wandering routine. Now, lured implings will follow the player in a 2x2 area for 6 seconds, after which they will go back to wandering. This should make the spell more useful for this activity and alleviate some of the frustrations being expressed by players about how unreliable it was.
+
+We've also made the following changes:
+* You can now add X amount of runes to the Ash Sanctifier (where X is the number input by the player).
+* Fiendish and Vile Ashes have been added to free-to-play, and Zalcano drops Infernal Ashes on death.
+* The Book of the Dead's left-click option has been changed to 'Equip'.
+* Thralls now give points for damage when used within the Chambers of Xeric.
+* Thralls will now aggro when a player splashes a monster using a Magic attack.
+* The north-western area of Piscarilius has reverted to multi-way combat.
+* The Quest Journal for A Kingdom Divided no longer cuts off when viewed.
+* The Chasm of Fire Cave shows up correctly on the minimap.
+* Boars now drop raw boar meat when killed.
+
+==Theatre of Blood Modes==
+[[File:New Client Features- Milestone 1 (9).png|center|600px]]
+
+
+You'll also find a few changes within Ver Sinhaza's very own Theatre of Blood:
+* Fixed a bug where Verzik's Nylocas explosion damage increased in lower scales.
+* Insulated boots now correctly reduce the damage from the lightning attack in Hard Mode.
+* We've fixed an issue where the non-melee Verzik Nylocas in Hard Mode could be damaged with any style - now they can only be damaged with their respective style.
+* The Duo Normal Global Bests will be reset, as they were displaying incorrectly.
+* We’ve fixed an incorrect Nylocas transition on Wave 20.
+* In all modes, the overall raid timer now starts after the team commences the Maiden fight.
+
+==Clans==
+[[File:New Client Features- Milestone 1 (10).png|center|600px]]
+
+
+Clans can now choose to receive automatic broadcasts when their members do any of the following:
+* Obtain valuable loot (the value at which notifications go out can be determined by senior Clan members, and must be done at least once to start this alert)
+* Obtain a Pet drop
+* Complete quests
+* Reach milestone skill levels
+* Join or leave the Clan
+
+All active recruiters are now notified when applications are received or withdrawn.
+
+We are currently aware that the broadcasts are using the default chat message colour. We're are working on a fix to have them look better than the default colour but felt broadcasts were more important to have than them looking their best.
+
+Barbarian Assault has now been added as a social activity, so your Clan can run one as an event.
+
+When resigning as a Clan Leader, you’ll now be told who else is eligible to become the new Leader in your stead. Make sure they’re big boots to fill!
+
+We’ve also made a couple of rank and title amendments:
+* The Clan rank 'Peon' has been renamed to 'Pawn'.
+* The new rank 'Helper' has been added, using a smiley face icon. This is so you can use smiley face icons in the Clans channels like you could in the legacy Chat Channels.
+* The 'Ruby' rank icon is now a darker shade of red. Touch of class, that!
+* The Metal Bars have been recoloured to match their in-game counterparts.
+
+While you’re here, look out for these features in the near future:
+* The ability to opt-out from your Clan's channel without leaving the Clan (for privacy).
+* The option to left-click Attack members of your Clan for a friendly battle!
+* New ways to sort the Clan lists by various criteria, beyond just alphabetically.
+
+These features are currently in development with help from the Engine team, but they aren’t quite ready for launch this week. We’ll release these as soon as we can!
+
+==Merch==
+[https://runescape.backstreetmerch.com/tag/runescape-featured?utm_source=RSNewspost&utm_medium=Email&utm_campaign=RSnewspost The official merch store] has new stock!
+
+Looking for something to while away those long summer evenings? Look no further than the Map of Gielinor Puzzle! Featuring the iconic map design you know and love, this 1,000pcs brainteaser is sure to get you working those cognitive muscles.
+
+We've also got new Angels Scapes lines! Feast your eyes on the gorgeous Dusk Variant Tutorial Island Pin, a sunset-toned version of the pin made to celebrate our 20th Anniversary.
+
+[[File:New Client Features- Milestone 1 (11).png|center|600px]]
+
+
+Plus, there’s a new Fishing Skill Cape Keyring, and restocks of the trimmed Strength and HP Skillcape Keyrings. Check out the full collection [https://runescape.backstreetmerch.com/tag/runescape-featured?utm_source=RSNewspost&utm_medium=Email&utm_campaign=RSnewspost here].
+
+===RuneScape: The First 20 Years===
+We’re very excited today because we can finally prise open the covers of our forthcoming book, RuneScape: The First 20 Years! Coming October 2021, the book is available for pre-order now, but if you can’t wait to get a gander at its hallowed pages, here’s your first look:
+
+[[File:New Client Features- Milestone 1 (12).png|center|600px]]
+
+
+The book has 224 full-colour pages, including illustrations and exclusive interviews with J-Mods past and present!
+
+And if that’s not enough, today we can also reveal the Deluxe Edition Cover Design and second folio print!
+
+While the first folio print is an iconic Tim and Crunchy illustration, we can reveal that the second is a battle scene from the archives featuring the formidable General Graador! Created in 2012 for a series of prospective loading screens depicting the God Wars, the note on the illustration reads ‘The Lesser Gods opened gates between Gielinor and other neighbouring realms and brought into it new races to fight their battles.’ We think it makes a striking image for our second folio!
+
+==PvP World Rota==
+The PvP rota has moved to Period B:
+* 560 - (UK) - PvP World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-play PvP World
+* 580 - (US) - LMS Competitive
+
+==Extras==
+* Vanguards can no longer become immortal after reaching 0 HP.
+* The model of the Naval Shirts from Trouble Brewing have been edited/replaced to fit the female torso better. Now pose…
+* Models within Mushroom Meadows have been optimised to improve performance.
+* Ploughs in Hosidius will push any players who are standing in front of them.
+* The rocks that lead from the Kharidian Desert surface down to the Agility Pyramid will now walk you to the correct spot if you attempt to use them from the wrong sides.
+* Celestial rings and signets are now protected on death with higher priority.
+* The silver needle in Shayzien has been replaced with a normal one.
+* The new Antipoison potion can go in the shared storage at the Chambers of Xeric.
+
+That's everything for this week's game update. As always, feedback is greatly appreciated, so please let us know what you think via our [http://services.runescape.com/m=forum/forums?380,381,734,66219891 official forums], on the [https://www.reddit.com/r/2007scape/comments/o69ras/new_client_features_milestone_1_weekly_game/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel.
+
+----
+
+'''Mods Acorn, Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Bonsai, Brow, Bruno, Curse, Daizong, Deagle, Dibber, Ditto, Dylan, Ed, Elena, Errol, Fed, Flippy, Gecko, Grub, Halo, Husky, Jndr, John C, Kandosii, Katies, Kieren, Kirby, Lenny, Light, Lottie, Mack, Maylea, MikeD, Morty, Nasty, Nin, Oasis, Roq, Ry, Sarnie, Skylark, Squid, Steve W, Sween, Tide, Vegard, West, Wolfy & Zuko'''
+
+''The Old School Team''

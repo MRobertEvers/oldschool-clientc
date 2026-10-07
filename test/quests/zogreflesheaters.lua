@@ -17,13 +17,13 @@
 --
 -- Travel (b61 door rule: no goto_tile into or out of a closed space; every
 -- door, stair, ladder and barricade clicked on every visit, both ways):
---  * Lumbridge (the fixture) -> Jiggig, and the tomb -> Grish after Slash
---    Bash, are real Camelot Teleports (magic_spells.dbrow
---    [magic_spell_teleport_camelot]: level 45, 5 air + 1 law, 2757,3478)
---    plus an overland goto: reach.py finds Camelot -> Grish 2448,3049
---    (len 750) and Yanille 2594,3101 -> Grish (len 276) with every door
---    closed, at margins 30/80/160/300. Yanille <-> Jiggig is the same open
---    overland hop. (2447,3049, the old landing, is a solid map tile.)
+--  * Lumbridge (the fixture) -> Jiggig is a real Camelot Teleport
+--    (magic_spells.dbrow [magic_spell_teleport_camelot]: level 45, 5 air +
+--    1 law, 2757,3478) plus an overland goto: reach.py finds Camelot ->
+--    Grish 2448,3049 (len 750) and Yanille 2594,3101 -> Grish (len 276)
+--    with every door closed, at margins 30/80/160/300. Yanille <-> Jiggig is
+--    the same open overland hop. (2447,3049, the old landing, is a solid
+--    map tile.)
 --  * Jiggig's ceremonial ground east of the barricade is a 250-tile pocket
 --    (comp.py 2485,3045: no door, no other way out), so the crushed
 --    barricade (zogreflesheaters.rs2 [oploc1,ogre_barricade_collapsedl]:
@@ -32,12 +32,15 @@
 --  * The tomb is entered and left only by its stairs (zogreflesheaters.rs2
 --    [oploc1,ogre_stairs_down]/[oploc1,ogre_stairs]: 2485,3042,0 ->
 --    2477,9437,2 and 2478,9437,2 -> 2485,3045,0), t.player.climb both ways.
---    The tomb doors (zogre_finish.rs2 [proc,zfe_tomb_door]) teleport to
---    ^zfe_tomb_past_door 2480,9446,0 from either pair and either side, and
---    the floor beyond (comp.py: 853 tiles) leaves only by the stairs
---    2443,9417,0 to a 122-tile pocket whose only exits are those doors (back
---    to 2480,9446,0) and the stairs down: there is no walk out after Slash
---    Bash, so the player teleports, as a player would.
+--    The two tomb door pairs (maps/m38_147.jl2:6407-6410, level 2, wall on
+--    the tile's south edge: ogre_cavedoorr/l 2441/2442,9433 and
+--    2440/2441,9426) are walk-through doors (zogre_finish.rs2
+--    [proc,zfe_tomb_door], seam matthew-mbp-m4-b62-seam1): from the north a
+--    press lands one tile south of the leaf, from the south it lands on the
+--    leaf's own tile. Past them, the stairs 2443,9417,2 go down to the boss
+--    floor at 2442,9417,0 and ogre_stairs 2443,9417,0 come back up to
+--    2447,9417,2, so after Slash Bash the player walks out the way he came:
+--    stairs, both door pairs, the tomb stairs, the barricade.
 --  * Yanille: the Magic Guild's east door (magic_guild.rs2
 --    [label,open_mageguild_door], a walk-through door) by cross_gate both
 --    ways; Sithik's house door (xbows_castle_door 2594,3102), the ladder
@@ -86,9 +89,9 @@ return {
         "::give bow_string 1",
         "::give ogre_headless_arrow 60",
         "::give nails_iron 60",
-        -- Two Camelot Teleports (Lumbridge -> Jiggig, the sealed tomb -> Grish).
-        "::give airrune 10",
-        "::give lawrune 2",
+        -- One Camelot Teleport (Lumbridge -> Jiggig); the tomb is walked out of.
+        "::give airrune 5",
+        "::give lawrune 1",
     },
 
     run = function(t)
@@ -547,22 +550,37 @@ return {
         t.exec("equip.bow", t.player.equip, "zogre_bow")
         t.exec("equip.brutal", t.player.equip, "zogre_brutal_iron")
 
-        -- ---- goKillBash: the barricade, the stairs, the locked tomb door --
+        -- ---- goKillBash: the barricade, the stairs, the two locked tomb doors
         t.exec("goto-climbBarricadeForBoss", t.player.goto_tile, 2455, 3048, 0)
         barricade_east("climbBarricadeForBoss")
         tomb_down("goDownStairsForBoss")
-        -- North of the first pair of tomb doors (m38_147.jl2:6408/6410,
-        -- ogre_cavedoorr/l at 2441/2442,9433 level 2): the key opens them.
-        -- [proc,zfe_tomb_door] teleports straight to ^zfe_tomb_past_door
-        -- 2480,9446,0 (the guide's goDownToBoss stairs are folded into it).
-        walk("enterDoors.walk", 2442, 9434, 90)
-        local door_r, door_d = t.player.click_loc("ogre_cavedoorl", 1, { at = { 2442, 9433, 2 } })
-        t.ticks(3)
-        local _, door_tile = t.world.tile()
-        t.check("enterDoors", door_tile.level == 0 and door_tile.x == 2480 and door_tile.z == 9446,
-            tostring(door_r) .. " " .. tostring(door_d) .. " -- tile " .. door_tile.x .. "," .. door_tile.z .. "," .. door_tile.level
-                .. " (want ^zfe_tomb_past_door 2480,9446,0)")
+        -- The guide: "two successive locked doors, proceed through both of
+        -- these and descend the stairs" (wiki oldid 15328252). The key opens
+        -- each leaf (stage < slash_bash: "You use the Ogre Tomb Key to unlock
+        -- the door."); a press from the north lands one tile south of it.
+        t.exec("enterDoors", t.player.cross_gate, { loc = "ogre_cavedoorl", at = { 2442, 9433, 2 },
+            near = { 2442, 9434 }, far = { 2442, 9432 },
+            far_ok = function(tile) return tile.z <= 9432 end, far_desc = "the corridor south of the outer pair, z <= 9432" })
         t.exec("openTombDoor.mes", t.msg.expect, "You use the Ogre Tomb Key to unlock the door.")
+        t.exec("enterDoors2", t.player.cross_gate, { loc = "ogre_cavedoorl", at = { 2441, 9426, 2 },
+            near = { 2441, 9427 }, far = { 2441, 9425 },
+            far_ok = function(tile) return tile.z <= 9425 end, far_desc = "the stair room south of the inner pair, z <= 9425" })
+        -- Both presses spent the key's line: two of them in the ring, not one.
+        local km_r, km_lines = t.msg.last(12)
+        local key_lines = 0
+        if km_r == "ok" and type(km_lines) == "table" then
+            for _, line in ipairs(km_lines) do
+                if type(line) == "table" and string.find(tostring(line.text), "You use the Ogre Tomb Key to unlock the door.", 1, true) then
+                    key_lines = key_lines + 1
+                end
+            end
+        end
+        t.check("enterDoors2.mes", key_lines == 2,
+            "msg.last(12) -> " .. tostring(km_r) .. "; key lines " .. key_lines .. " (want 2, one per door pair)")
+        walk("goDownToBoss.walk", 2442, 9418, 30)
+        t.exec("goDownToBoss", t.player.climb, { loc = "ogre_stairs_down", op = 1, op_name = "Climb-down",
+            at = { 2443, 9417, 2 }, dest = { 2442, 9417, 0 } })
+        walk("searchStand.walk", 2482, 9445, 120)
 
         t.exec("searchStand", t.player.click_loc, "zogre_stand", 1)
         t.exec("searchStand.mes", t.msg.expect, "Something stirs behind you!")
@@ -595,10 +613,22 @@ return {
             string.format("click_obj(zogre_artifacts) -> %s (%s); zogre_artifacts %d -> %d",
                 tostring(pk_r), tostring(pk_d), art0, art1))
 
-        -- ---- returnRelic: no walk out of the sealed boss floor (see the
-        -- header), so a real teleport, then the overland hop to Grish.
-        camelot("returnRelic.camelotTeleport")
-        t.exec("goto-returnRelic", t.player.goto_tile, 2448, 3049, 0)
+        -- ---- returnRelic: back up the stairs, out through both door pairs
+        -- (stage slash_bash: no key needed; from the south each press lands
+        -- on the leaf's own tile), up the tomb stairs, over the barricade.
+        walk("returnRelic.toStairs", 2442, 9418, 120)
+        t.exec("returnRelic.stairsUp", t.player.climb, { loc = "ogre_stairs", op = 1, op_name = "Climb-up",
+            at = { 2443, 9417, 0 }, dest = { 2447, 9417, 2 } })
+        t.exec("returnRelic.innerDoor", t.player.cross_gate, { loc = "ogre_cavedoorr", at = { 2440, 9426, 2 },
+            near = { 2440, 9425 }, far = { 2440, 9426 },
+            far_ok = function(tile) return tile.z >= 9426 end, far_desc = "the corridor north of the inner pair, z >= 9426" })
+        t.exec("returnRelic.outerDoor", t.player.cross_gate, { loc = "ogre_cavedoorr", at = { 2441, 9433, 2 },
+            near = { 2441, 9432 }, far = { 2441, 9433 },
+            far_ok = function(tile) return tile.z >= 9433 end, far_desc = "the tomb north of the outer pair, z >= 9433" })
+        tomb_up("returnRelic.leaveTomb")
+        walk("returnRelic.walkToBarricade", 2457, 3048, 50)
+        barricade_west("returnRelic.barricade")
+        walk("returnRelic.toGrish", 2448, 3049, 40)
         -- Reward rows measure from here: zogreflesheaters.rs2 [queue,zfe_quest_complete]
         -- stat_advance(ranged|fletching|herblore, 20000) (tenths: 2000 XP each),
         -- inv_add(zogre_bones, 2), inv_add(zogre_ancestral_bones_ourg, 3).

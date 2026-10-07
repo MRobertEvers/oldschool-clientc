@@ -1,0 +1,144 @@
+{{Update|date=16 February 2017|link=http://services.runescape.com/m=news/party-petes-birthday-bash?oldschool=1|category=game}}
+[[File:Party Pete's Birthday Bash newspost.png|right]]
+{{clear}}
+<center><font style="font-family:Trajan,'trajan-pro-3',serif;font-size:25px;font-weight:bold;text-shadow:1px 1px #121212;">Party Pete's Birthday Bash</font></center>
+
+
+<center>'''Happy Birthday to us!'''</center>
+
+{{Horizontal Line}}
+
+
+<center><font style="font-family:Trajan,'trajan-pro-3',serif;font-size:22px;font-weight:bold;text-shadow:1px 1px #121212;">4th Birthday Event</font></center>
+
+
+It has been 4 years since the release of Old School RuneScape, and Party Pete is throwing a birthday bash of epic proportions!
+
+[[File:Party Pete's Birthday Bash (1).png|center|575px]]
+
+Head to the Falador party room and have a chat with Party Pete to get started and lend a helping hand.
+
+[[File:Party Pete's Birthday Bash (2).png|center]]
+
+If you're willing to help out and make this party the best to have ever graced Gielinor, Party Pete will reward you with all of the previous rewards from birthday events:
+
+*Cow outfit
+*War ship
+*Gnome child hat
+
+He will also share two brand new rewards: balloons and a 4th birthday hat!
+
+[[File:Party Pete's Birthday Bash (3).png|center|120px]]
+
+
+{{Horizontal Line}}
+
+
+<center><font style="font-family:Trajan,'trajan-pro-3',serif;font-size:22px;font-weight:bold;text-shadow:1px 1px #121212;">Twelve New Worlds!</font></center>
+
+
+We've grown a lot over the past 4 years. There are now more Old School players than ever before. To celebrate this, and to give you all a little more room, we've added '''twelve new worlds'''!
+
+You'll now see the following additional US West Coast worlds on the world list:
+
+::{| width="100%"
+|307
+|339
+|-
+|315
+|340
+|-
+|323
+|347
+|-
+|324
+|348
+|-
+|331
+|355
+|-
+|332
+|356
+|}
+
+'''What about Australian worlds?!'''
+
+Due to the existing infrastructure we have for hosting Old School worlds in North America, it is a much simpler task for us to add NA worlds than it is for us to expand into Australia.
+
+Australian worlds are still something we are still working towards, as we want to make sure they are as robust and stable as they can be when they arrive. Unfortunately we aren't able to put a timeframe forward at this point, but we will keep you all up to date as things progress.
+
+
+{{Horizontal Line}}
+
+
+<center><font style="font-family:Trajan,'trajan-pro-3',serif;font-size:22px;font-weight:bold;text-shadow:1px 1px #121212;">PvM Quality of Life Improvements</font></center>
+
+A couple of weeks ago we ran a poll including 10 PvM Quality of Life updates. 9 out of those 10 updates made it past the poll and can now be found in game!
+
+'''Dagannoth Kings' Slayer Lair'''
+
+It is now possible to right-click the ladder leading to the DKs and select the 'Slayer' option to access a separate version of the lair.
+
+[[File:Party Pete's Birthday Bash (4).png|center]]
+
+Within this version of the lair, you will only be able to attack the Dagannoth Kings while you are on a Dagannoth or Dagannoth Kings slayer task. There are no restrictions on entering this version of the lair, in case you want to return to pick up items after a death.
+
+'''Safe Peeking for KQ and DKs'''
+
+Two new cracks have appeared above both the Kalphite Queen and Dagannoth Kings' lair. These cracks can be used to check whether or not adventurers are already taking on the bosses without having to worry so much about monsters attacking you.
+
+[[File:Party Pete's Birthday Bash (5).png|center]]
+
+'''Corp Cave Shrunk'''
+
+The cave outside the Corporeal Beast’s lair has been made smaller. This means that it will be less likely to have a map loading boundary right in the middle of the Corp’s combat area.
+
+[[File:Party Pete's Birthday Bash (6).png|center]]
+
+'''Elysian Spirit Shield Improved'''
+
+The special effect of the Elysian Spirit Shield now applies to the following attacks that deal damage through protection prayers:
+
+[[File:Party Pete's Birthday Bash (7).png|center]]
+
+'''Other PvM QoL Improvements'''
+
+*The Spectral spirit shield now reduces prayer drain by 50% on all prayer draining attacks outside of PvP.
+*The Dark relic has been upgraded to be useable for any skill, providing experience equal to 150x your level for skills used in Raids (combat skills, Mining, Woodcutting, Herblore, Farming, Hunter, Cooking, Fishing, Thieving, Firemaking and Agility), and 50x for other skills.
+*Slayer Masters now offer to convince Mithril Dragons to drop their bars in noted form while on a slayer assignment, for a cost of 200 slayer points.
+*The Trident of the Seas and Toxic variant can now be charged without un-equipping held items.
+*The King Black Dragon respawn timer has been reduced to 10 seconds.
+
+
+{{Horizontal Line}}
+
+
+<center><font style="font-family:Trajan,'trajan-pro-3',serif;font-size:22px;font-weight:bold;text-shadow:1px 1px #121212;">Redwood Tree Overhaul</font></center>
+
+
+The accessibility and appearance of Redwood Trees have now been drastically improved!
+
+[[File:Party Pete's Birthday Bash (8).png|center]]
+
+Aside from looking distinct, there are now many more spots where you can chop away at the two Redwood Trees found within the Woodcutting Guild.
+
+
+{{Horizontal Line}}
+
+
+'''In other news'''
+
+*Swapped the orientation of inventory icons for enchanted and un-enchanted silver jewellery.
+*A warning message is now provided when trying to bury a bone inside a player owned house.
+*An unnecessary delay after checking the health from fruit trees has been removed.
+*The healing capabilities of the Ice Demon within the Chambers of Xeric have been adjusted for larger parties.
+*The uncharged amulet of glory has been made darker and is now inline with other uncharged jewellery.
+
+'''Bugfixes'''
+
+*Fixed a spelling error within the Ironman banking details on tutorial island.
+*The text displayed when completing the Lumbridge/Draynor medium achievement diary that refers to the shortcut under the wall has been corrected.
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,365,65881275 forums].
+
+'''''Mods Archie, Ash, Ghost, Jed, John C, Kieren, Mat K, Maz, Merchant, Ronan, Roq, TomH, Weath & West'''''<br/>''The Old School Team''

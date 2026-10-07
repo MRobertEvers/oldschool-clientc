@@ -1,0 +1,68 @@
+{{Infobox Monster
+|name = Jal-ImKot
+|image = [[File:Jal-ImKot.png|200px]]
+|release = [[1 June]] [[2017]]
+|update = The Inferno
+|members = Yes
+|combat = 240
+|size = 4
+|examine = Those are some powerful claws.
+|xpbonus = 7.5
+|max hit = 49
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Slash]]
+|attack speed = 4
+|slayxp = 81
+|cat = TzHaar
+|assignedby = chaeldar,nieve,duradel
+|hitpoints = 75
+|att = 210
+|str = 290
+|def = 120
+|mage = 120
+|range = 220
+|attbns = 0
+|strbns = 40
+|amagic = 0
+|mbns = 0
+|arange = 0
+|rngbns = 0
+|dstab = 65
+|dslash = 65
+|dcrush = 65
+|dmagic = 30
+|dlight = 50
+|dstandard = 50
+|dheavy = 50
+|elementalweaknesstype = Water
+|elementalweaknesspercent = 40
+|poisonresistance = 100
+|venomresistance = 100
+|immuneburn = Immune to normal burn
+|id = 7697
+}}
+'''Jal-ImKot''' is one of the [[volcanic creatures]] found in the [[Inferno]].
+
+Jal-ImKots only use [[melee]], but make up for it with extremely damaging attacks. If a Jal-ImKot cannot reach the player, it will burrow into the ground and reappear next to the player to attack them. There is a six [[RuneScape clock|game tick]] delay before the Jal-ImKot attacks after resurfacing, so players can use this time to change [[prayers]] or move out of the way.
+
+Jal-ImKots dig 50 ticks after the start of a wave, and every 40-60 ticks thereafter. This timer is reset whenever the Jal-ImKot enters combat with the player. However, the timer cannot be reset within the first 30 ticks of the wave starting.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = Jal-ImKot now have a 40% [[elemental weakness]] to [[water spells]].
+}}
+{{Subject changes
+|date = 15 March 2018
+|update = QoL, Deadman and the Falador Party Room
+|change = Jal-ImKot can no longer deal damage during its dig animation in the Inferno.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*This monster closely resembles the Hydralisk unit from ''{{wp|StarCraft}}''.
+
+{{Inferno}}

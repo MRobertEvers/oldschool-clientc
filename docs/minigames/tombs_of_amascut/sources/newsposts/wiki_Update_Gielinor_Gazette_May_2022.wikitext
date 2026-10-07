@@ -1,0 +1,435 @@
+{{Update|date=31 May 2022|link=https://secure.runescape.com/m=news/gielinor-gazette---may-2022?oldschool=1|category=community}}
+[[File:Gielinor Gazette - May 2022 newspost.png|right]]
+{{clear}}
+
+MAY we present you with the latest version of the Gazette? This month we witnessed democracy in action, with loads of content revisions based on your feedback. We went back to the drawing board for Giants’ Foundry, Tombs of Amascut, and the PvP Arena Rewards to make them as polished as they can possibly be.
+
+While we weren’t poring over tomes of your feedback, we launched the first bits from Poll 76, the final part of the Equipment Rebalance project, and some big changes to Group Ironman!
+
+Keep reading to get your chance to give us YET MORE FEEDBACK, this time on the recent crop of Game Jam ideas. Plus, Postie Pete is back this month with an extra-big bag of letters – obviously he’s spent his holiday working out.
+
+Let’s get cracking!
+
+__TOC__
+==Project Status Update==
+===Released Content===
+====Group Ironman====
+We made some [https://secure.runescape.com/m=news/group-ironman-changes--group-boss-bash?oldschool=1 big changes] to Group Ironman this month with the release of Unranked Group Ironman! GIM players now have greater flexibility when switching groups in return for being struck from the HiScores.
+
+Meanwhile, we also launched our first-ever GIM Boss Bash, a whole new experience which will see players tackle various bosses in the game for a chance to win fabulous membership prizes. Check out the details in the link above, and good luck to all the participating groups!
+
+====New Client Features and Next Steps====
+We’re refreshing the Mobile User Interface to make space for all the new client features we’re working on! Read all about it [https://secure.runescape.com/m=news/proposed-mobile-user-interface-changes?oldschool=1 right here on the blog].
+
+Right now we’re taking a look at all your feedback, and we’ll update the blog once we’ve had the chance to talk through any changes as a team.
+
+We’ll also be sharing our future milestones for the C++ client in the next few weeks – so keep your eyes peeled!
+
+Speaking of peeled eyes (gross), those of you who missed the iOS Closed Betas will be keen to look out for our new mobile client, which will launch on iOS and Android sometime next month.
+
+We’ll also be adding new features very soon – Clue Scroll Helpers, anyone? Get ready for this, and more, in late July.
+
+If all this has enticed you to take your adventure on the go, then you’re in luck – we’ll be following up with everything you need to know in a dedicated newspost very soon.
+
+===Upcoming Content===
+====Tombs of Amascut====
+Ready to foil Amascut’s evil plans? We hope so, because our third raiding dungeon is launching this August!
+
+This month our team has been working on the invocation system, a new feature that lets you customise the difficulty of each individual raid. Activate invocations to increase the raid level and earn greater rewards… assuming you survive long enough to claim them.
+
+We also released an updated rewards blog earlier this month, all of which passed! Thanks to everyone who provided feedback!
+
+Lastly, feast your eyes on this: the first four bosses of Tombs of Amascut!
+
+[[File:Gielinor Gazette - May 2022 (1).png|centre|600px]]
+[[File:Gielinor Gazette - May 2022 (2).png|centre|600px]]<br><center>''Baba, the final challenge on the Path of Apmeken. She’s just monkeying around.''</center>
+
+
+[[File:Gielinor Gazette - May 2022 (3).png|centre|600px]]
+[[File:Gielinor Gazette - May 2022 (4).png|centre|600px]]<br><center>''Zebak, the final challenge on the Path of Crondis. Looking snappy!''</center>
+
+
+[[File:Gielinor Gazette - May 2022 (5).png|centre|600px]]
+[[File:Gielinor Gazette - May 2022 (6).png|centre|600px]]<br><center>''Kephri, the final challenge on the Path of Scabaras. Don’t bug her!''</center>
+
+
+[[File:Gielinor Gazette - May 2022 (7).png|centre|600px]]
+[[File:Gielinor Gazette - May 2022 (8).png|centre|600px]]<br><center>''Akkha, the final challenge on the Path of Het. We know he looks like just some guy, but we assure you, he is '''very''' tall.''</center>
+
+====Giants' Foundry====
+Good news, everybody! Everything in our latest Giants’ Foundry poll has passed!
+
+This means you’ll be able to experience this new Smithing method as described in [https://secure.runescape.com/m=news/giants-foundry---concept--rewards?oldschool=1 the blog] on June 8th! Have a read through the newspost, brush up on your Smithing knowledge, and get ready to forge some absolutely massive swords!
+
+====Deadman Re-Run====
+After two very successful betas we’re closing in on the main event: the Deadman Mode Re-Run! We’ll be able to confirm the date sometime in early June, along with all the other details, including how those who qualified for last year’s event (and this month’s closed beta) can participate. Stay tuned!
+
+====Quest Speedrunning====
+[https://secure.runescape.com/m=news/gielinor-gazette---april-2022?oldschool=1 Last month], we announced that we’re turning the Quest Speedrunning ideation prototype into a full project.
+
+For those of you who missed it, Quest Speedrunning is a new way to experience Old School’s most iconic quests – in record time! You’ll play on a dedicated Speedrunning World with a separate save profile, allowing you to replay your favourite quests as many times as you like, with the aim of setting new best times.
+
+For now, our focus is getting the system up and running, so on launch only a few quests will be available to speedrun, including:
+* Cook’s Assistant
+* Demon Slayer
+* Dragon Slayer I
+* Ernest the Chicken
+* Vampyre Slayer
+
+Don’t despair, though – we plan to add more quests at regular intervals after launch. Which ones do you want to see most?
+
+====Content Recommender====
+Can’t pick just one quest? Funny enough, our player experience team have been working on something to help with that, too!
+
+The upcoming quest recommendation system will point players towards quests suitable for their current account progress. Useful in those moments when you’re not sure what to do next!
+
+Like we said back in February , we don’t want these systems to become guides that take away player’s choices; we want you to set your own goals and walk your own path. This system is intended to highlight content players might not already know about, and point out how it can help them with their goals.
+
+As such, the current quest recommendation system shows a few quests the player can tackle now, as well as one or two they might want to work towards. They’re based on their existing stats and completed quests, so there’ll always be something to jump into and explore!
+
+Stay tuned for more details in the coming months.
+
+==Game Jam Survey==
+Our first ever Game Jam was a great success, full of creative ideas – some of which we’ve already shown off. If you missed it, you can rewatch our Game Jam preview stream here for all the coolest details on the different projects.
+
+
+So, what’s next?
+
+
+Well, currently these ideas are ''only'' ideas, and none of them are confirmed for the game. That’s where you come in! We want to know what you think. Which ideas do you want to play? Which ones need more refinement? We don’t know! That’s why we’re asking you!
+
+
+We’ve put together a little survey so you can send us your thoughts. Go go go!
+
+[[File:Gielinor Gazette - May 2022 (9).png|centre|link=https://jagex.eu.qualtrics.com/jfe/form/SV_ewVufYDc18sazsy]]
+
+==Postbag From the Hedge==
+Hello everyone! I’m back from my hols and it seems there’s quite a backlog of letters to get through! Make sure you’ve got some snacks to hand, and welcome to Postbag From the Hedge: BUMPER EDITION!
+
+
+'''To the [[Barrows brothers]]'''
+
+{{Letter|Dear Barrows Brothers
+
+How do you feel about people constantly raiding your resting place? I always feel bad when I dig you up, but my need for your clothing outweighs my sorrow. I hope one day you can rest in peace.
+
+With love and respect to my fellow bros,
+
+Code-4}}
+
+Dear Code-4,
+
+Actually, this is an issue we’ve wanted to raise for some time. As accursed wights, our rest wasn’t all that peaceful to begin with, but now that we’re being constantly hassled by adventurers, we hardly have a minute to ourselves. We used to have hobbies! Now all we do is stand around confronting trespassers.
+
+YOUR need for clothing? Don’t make us laugh! Do you realise how many sets of armour we get through every day? It’s not cheap to replace, you know! We don’t understand why you want to wear it anyway – they don’t call him Guthan the Infested for nothing.
+
+We’ll rest in peace when you lot learn to keep your mitts off other people’s stuff!
+
+
+Yours,
+
+Ahrim the Blighted, Dharok the Wretched, Guthan the Infested, Karil the Tainted, Torag the Corrupted, Verac the Defiled
+
+The Barrows Bros.
+
+
+----
+
+'''To [[Archmage Sedridor]]'''
+
+{{Letter|To Archmage Sedridor,
+
+The Wizards’ Tower is a very nicely constructed building and quite a standout piece of architecture, considering the long bridge to reach it and it being completely surrounded by water. However, when entering your quarters downstairs, it seems as though you live in a dungeon! With the dirt floors, broken down walls, and a skeleton to boot it is certainly no place for an Archmage to dwell. Have you ever thought about sprucing the place up to be more fitting for a head mage?
+
+Yours in magic, Cashlemke}}
+
+Dear Cashlemke,
+
+Thank you for writing, and I shall certainly pass on your comments to the former architect of the tower once Grayzag gets his necromancy spells working.
+
+Goodness, this is embarrassing. The truth is, in my youth I had a bit of a teleportation accident – I don’t like to talk about it – and ever since, I’ve been terrified of heights. I’m perfectly comfortable down here in the basement; it’s got modern, open-plan architecture, a storied past, and a nice, quiet roommate. Plus, nobody complains about me keeping a chicken down here.
+
+Perhaps I will think about redecorating, someday. I could give that nice lady at Mahogany Homes a call…
+
+
+Yours,
+
+Archmage Sedridor
+
+
+----
+
+'''To [[Pet rock]]'''
+
+{{Letter|Dear Pet Rock,
+
+Are you ok after being boiled in that one adventure we had? I like to let you rest in my cat basket but I worry you get restless. Would you like me to take you anywhere? To do anything? or are you happy napping?
+
+From your best friend (Lorb163)}}
+
+…
+
+…
+
+…
+
+…
+
+I think your Pet Rock might be sleeping, Lorb163. But he looks happy enough to me!
+
+
+----
+
+'''To [[Bob]]'''
+
+{{Letter|Dear Bob,
+
+I have been a regular patron at your axe shop, I would like to know how you learned your skills to repair the extremely rare Barrows armour.
+
+Do you have a secret history? Or perhaps this is a hobby that you refined into a skillset? I would love to know your story.
+
+Sincerely, BoopNFloop}}
+
+Hello, BoopNFloop!
+
+Funny you should ask! I was just finishing up a big order of Barrows armour for a customer. They were a funny sort, actually. I hope they don’t come by again.
+
+Anyway, I learned to repair this sort of armour when I was but a wee apprentice. My dad didn’t want me learning to make axes – or doing any Smithing at all, to be honest. He sent me off to the Varrock Museum, hoping I’d become some fancy archaeologist type. When the curator saw that I was more practically minded, he put me to work conserving some old Third Age armour they had in storage. I had a real knack for it!
+
+Axes are my real passion, though. And now look at me – I’m running my own business, right next to the castle! It just goes to show that you should always follow your heart.
+
+Right, back to work. Be seeing you!
+
+
+Bob
+
+
+----
+
+'''To [[Demon butler|Alathazdrar the demon butler]]'''
+
+{{Letter|Dear Demon Butler,
+
+How do you teleport infinitely, and with what magic or item? Also, where do you spend all the money we pay you? What do you like to do outside of being a butler for us?
+
+119arjan.}}
+
+Greetings my Lord,
+
+I’m afraid that’s a trade secret, known only to the servants of the Demon Lords. It’s best that you don’t trouble yourself about it.
+
+I save a great deal of it. I like to holiday in the Outer Darkness, and the travel fare is somewhat extortionate. My main hobby is cooking. You’ve already sampled my curry, but I can tell you I make some mean gnome cocktails – not that I would ever allow you to drink while training Construction. A butler is always responsible – and I am one hell of a butler.
+
+Now, if you’ll excuse me, I must get these planks to the Bank.
+
+
+Yours faithfully,
+
+Alathazdrar
+
+
+----
+
+'''To [[Apothecary|the Apothecary]]'''
+
+{{Letter|Dear Apothecary,
+
+Through my adventures you've helped me a countless amount of times with potions and brews that I had never seen before and currently still lack the expertise to make. This makes me curious; Where did you learn your art? I had to learn the methods of the Taverley druids to be able to train the skill of Herblore, do you have any relation to them? How did you learn such proficiencies?
+
+Please enlighten me!
+
+- Pyia
+
+(P.S. If you happen to have any hair care tips, I would love to know)}}
+
+Dear Pyja,
+
+Druids? You’ve been learning Herblore from druids? That bunch of hippies wouldn’t know a cadava bush if it bit them in the bum. They have no vision!
+
+My potions are not an art – they are a science. I trained at the finest medical school in Gielinor and went on to develop my own unique recipes. It took years of training! We can’t all sit around in stone circles drinking tea and hoping for the best. Did you know they kicked me out of their little guild for making a Hair Growth Potion? The side effects weren't even that bad!
+
+Druids. Tch!
+
+
+- The Varrock Apothecary
+
+
+----
+
+'''To [[Randivor]]'''
+
+{{Letter|To Randivor (proprietor of Keldagrim's Best Bread),
+
+Do dwarfs actually eat dwarven rock cake? Or is it the sort of thing you keep at the bottom of you backpack to stave off hunger with the knowledge that things could be worse, you could be eating dwarven rock cake.
+
+From, A (not so hungry) Adventurer, GreedyTacoTheif}}
+
+Hello, GreedyTacoTheif!
+
+Ah yes, Dwarven Rock Cake! A rare delicacy these days. Back when I was a wee dwarf, before the days of our modern minecart system, it was difficult to get hold of wheat to make flour, so we invented Dwarven Rock Cake to preserve the ingredients for as long as possible. Why, I remember the Dwarven Rock Cake my Mam made for my 5th Birthday. I’ve still got it in a cupboard somewhere.
+
+Hope that answers your question!
+
+
+Yours,
+
+Randivor
+
+
+----
+
+'''To [[Gnome child|the gnome child]]'''
+
+{{Letter|Gnome Child at Holiday Event,
+
+O wise child of gnomish descent, we met in 2020 to celebrate a birthday. You may remember cat ears that were honestly a bit cringe.
+
+When we spoke at the party, you gave me a number of cryptic, prophetic statements. I see now the wisdom in many of your words. Have all of your predictions come to pass, noble sage, or are some of these prophecies yet to be fulfilled?
+
+Your disciple,
+
+Lux}}
+
+Hello,
+
+I have seen many things. Past. Future. Dread visions which have come to pass, and tragedies yet averted.
+
+Our enemies gather in the North. The sun rises in the West. In the South, the lost son returns. And in the east… the Blood Moon eclipses all light. The path will open. Are you prepared to walk it?
+
+…
+
+I actually really liked the cat ears! Shame I can’t fit them over my hat, though.
+
+
+See you soon!
+
+Gnome Child
+
+
+----
+
+'''To [[Cyrisus]]'''
+
+{{Letter|My dearest Cyrisus,
+
+How long has it been, old friend? It seems like both yesterday and years ago that we last met! The odd chats I get with you tend to be over Lunar magics, but I know that neither you or I are fond of such artificial, 'virtual' communications.
+
+How have you been doing? You've mentioned taking on some of Gielinor's greatest challenges, but new ones seem to emerge every day. Have you thought about coming with me on another adventure sometime? There's a lot out there that we've yet to explore together (even a whole continent to the west, I'll have you know), and something tells me that any extra preparation we can make for the future will pay back in spades.
+
+Let me know,
+
+~ Gnome}}
+
+Hello you!
+
+I know what you mean – it feels like barely a day has passed since you helped me overcome my fears, and yet I’ve been on so many adventures I almost lose count! Hopefully we’ll catch up soon.
+
+A continent to the West? Oh, you must mean Varlamore! Yes, there’s plenty of adventure to be had here. Hopefully they’ll open up the border with Kourend soon, so I can explore even more.
+
+And don’t talk to me about Spades! I’ve got plenty of those from my adventures in the Wilderness!
+
+
+See you around,
+
+Cyrisus
+
+
+----
+
+'''To the [[thermonuclear smoke devil]]'''
+
+{{Letter|Dear Thermonuclear Smoke Devil,
+
+I've had a lot of fun duelling with you and your brethren, although through all the smoke I'm not quite able to tell; do you have a large eye, or a wide, open mouth? My eyes sting after being in the cave for a bit, so I'd hope yours don't! I'm also curious about the plethora of skeletons strewn about the cave. They don't particularly look like any creature I've seen on my adventures! Do you perchance know what these might have been in their golden years?
+
+Lots of Love, Seph
+
+P.S. Don't worry! I've been taking good care of Lil' Thermy.}}
+
+Hi Seph!
+
+I’ve often wondered about the people who lived in this cave before me. When I arrived here they were already skeletons – although they’ve cooled down quite a bit since then! I can imagine they enjoyed a good scrap, just like I do. It’s all gone now, but they used to have a pretty industrious forge set-up, from the looks of it. I wonder what sort of weapons they were making? It’s hard to see with just one eye.
+
+You should stop by in the evening sometime – you might just catch them glowing!
+
+
+Best,
+
+Thermy
+
+P.S. Glad to hear Lil’ Thermy’s doing well! Give them a hug from me!
+
+… On second thoughts, better not.
+
+
+----
+
+'''To [[Death]]'''
+
+{{Letter|Dear Mr. Death,
+
+I found myself wondering what you do with the many millions of gold you’ve reaped from players over the years. Are you saving up to start a haunted house or something?
+
+Paulet42}}
+
+Greetings, Paulet42
+
+Nothing so exciting, I’m afraid. I spent most of it on those Halloween events you all love so much. You think it’s cheap to mass-produce thousands of pumpkin lanterns every year? Don’t get me started on those jumpers. My fingers were worn down to the... well, you get the picture.
+
+
+Be seeing you,
+
+Harold Death Esq.
+
+
+----
+
+'''To [[Martin the Master Gardener]]'''
+
+{{Letter|To Martin The Master Gardener
+
+You've been taking care of pigs for the better part of two decades now. Will we ever be able to learn some new skills and join you in the raising of cattle?
+
+From Wishgrantedmoncoliss}}
+
+Hello fellow farmer!
+
+Ah yes, me pigs. Cute little creatures, aren’t they? Not easy to care for, though! I suppose if you practice hard and show you can manage plants well enough, it’s not a huge leap to taking care of animals. Perhaps someday I’ll consider showing you the ropes.
+
+Not sure about them cows, though – you’d need a much bigger pen, for starters!
+
+
+Cheerio,
+
+Martin
+
+==Player Showcase Gallery==
+We're back with another batch of your biggest and best pieces of creative work! Everyone featured in the Gazette will receive three months of free membership as thanks for their superb efforts, so keep an eye on the linked social accounts Inbox for more details on how to grab your reward!
+
+If you want to be featured in the next Gazette then make sure to submit your creations through our [https://osrs.game/Player-Showcase-Gallery-Form Player Showcase Gallery Form] and state what Gazette you’d like it to feature in. We look forward to seeing more of your incredible talents!
+
+{| class="wikitable" style="text-align:center;margin:auto;"
+|[[File:Gielinor Gazette - May 2022 (10).jpg|195x150px|centre]]
+|[[File:Gielinor Gazette - May 2022 (11).png|195x150px|centre]]
+|[[File:Gielinor Gazette - May 2022 (12).png|195x150px|centre]]
+|-
+|[https://www.reddit.com/r/2007scape/comments/uev3np/my_first_fanart_based_on_runescape_lore_torag_the/ u/leinty1]
+|[https://www.reddit.com/r/2007scape/comments/ulrznu/your_mother_was_a_bloodveld_and_your_father_smelt/ u/Oldman_Ostentatio]
+|[https://www.reddit.com/r/2007scape/comments/ul806i/osrs_pixel_art/ u/LeimanRates]
+|-
+|[[File:Gielinor Gazette - May 2022 (13).jpg|195x150px|centre]]
+|[[File:Gielinor Gazette - May 2022 (14).jpg|195x150px|centre]]
+|[[File:Gielinor Gazette - May 2022 (15).png|195x150px|centre]]
+|-
+|[https://www.reddit.com/r/2007scape/comments/ux2ewq/nieve_oc/ u/rhinosarus]
+|[https://www.reddit.com/r/2007scape/comments/utidcc/inferno_af1s_sneakers/ u/burpski]
+|[https://www.reddit.com/r/2007scape/comments/uvz862/gen_2_osrs/ u/Thala-siren]
+|}
+
+----
+
+That's your lot! We'd love to hear your feedback on the newest edition and, as with everything else, if you’ve got any ideas about the sorts of things you’d like to see in upcoming editions of the Gielinor Gazette, then please do let us know via our [http://services.runescape.com/m=forum/forums?380,381,782,66243697 official forums], on the [https://www.reddit.com/r/2007scape/comments/v1pf1y/gielinor_gazette_may_2022/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord]. For reference on any of the above content, check out the official [[osrsw:|Old School Wiki]].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Brow, Bruno, Curse, Daizong, Dibber, Ditto, Dylan, Ed, Elena, Errol, Fed, Gecko, Goblin, Grub, Halo, Havik, Hornet, Husky, Jalo, John C, Kandosii, Katies, Kamon, Kieren, Kirby, Kurotou, Lenny, Light, Lottie, Mack, Matheus, Maylea, Markos, Meat, Morty, Nasty, Nin, Nylu, Oasis, Peppers, Regent, Redfield, Roq, Ry, Sarnie, Sigma, Skylark, Soffan, Sova, Squid, Steve W, Tide, Torrance, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

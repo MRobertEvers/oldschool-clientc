@@ -42,64 +42,64 @@
 static const struct CP_Type g_types[CP_TYPE_COUNT] = {
     [CP_TYPE_UNDERLAY] = {
         "underlay", RSCACHE_TYPE_UNDERLAY, RSCACHE_DAT2_CONFIG_KIND_UNDERLAY, -1, 0,
-        cp_unpack_underlay, cp_pack_underlay },
+        cp_unpack_underlay, cp_pack_underlay, cp_underlay_keys },
     [CP_TYPE_OVERLAY] = {
         "overlay", RSCACHE_TYPE_OVERLAY, RSCACHE_DAT2_CONFIG_KIND_OVERLAY, -1, 0,
-        cp_unpack_overlay, cp_pack_overlay },
+        cp_unpack_overlay, cp_pack_overlay, cp_overlay_keys },
     [CP_TYPE_IDK] = {
         "idk", RSCACHE_TYPE_IDK, RSCACHE_DAT2_CONFIG_KIND_IDENTKIT, -1, 0,
-        cp_unpack_idk, cp_pack_idk },
+        cp_unpack_idk, cp_pack_idk, cp_idk_keys },
     [CP_TYPE_INV] = {
         "inv", RSCACHE_TYPE_INV, RSCACHE_DAT2_CONFIG_KIND_INV, 2, 0,
-        cp_unpack_inv, cp_pack_inv },
+        cp_unpack_inv, cp_pack_inv, cp_inv_keys },
     [CP_TYPE_LOC] = {
         "loc", RSCACHE_TYPE_LOC, RSCACHE_DAT2_CONFIG_KIND_LOCS, 6, CP_TYPE_LOSSY,
-        cp_unpack_loc, cp_pack_loc },
+        cp_unpack_loc, cp_pack_loc, cp_loc_keys },
     [CP_TYPE_ENUM] = {
-        "enum", RSCACHE_TYPE_ENUM, RSCACHE_DAT2_CONFIG_KIND_ENUM, -1, CP_TYPE_LOSSY,
-        cp_unpack_enum, cp_pack_enum },
+        "enum", RSCACHE_TYPE_ENUM, RSCACHE_DAT2_CONFIG_KIND_ENUM, -1, 0,
+        cp_unpack_enum, cp_pack_enum, cp_enum_keys },
     [CP_TYPE_NPC] = {
         "npc", RSCACHE_TYPE_NPC, RSCACHE_DAT2_CONFIG_KIND_NPC, 1, CP_TYPE_LOSSY,
-        cp_unpack_npc, cp_pack_npc },
+        cp_unpack_npc, cp_pack_npc, cp_npc_keys },
     [CP_TYPE_OBJ] = {
         "obj", RSCACHE_TYPE_OBJ, RSCACHE_DAT2_CONFIG_KIND_OBJECT, 0, CP_TYPE_LOSSY,
-        cp_unpack_obj, cp_pack_obj },
+        cp_unpack_obj, cp_pack_obj, cp_obj_keys },
     [CP_TYPE_PARAM] = {
         "param", RSCACHE_TYPE_PARAM, RSCACHE_DAT2_CONFIG_KIND_PARAMS, -1, 0,
-        cp_unpack_param, cp_pack_param },
+        cp_unpack_param, cp_pack_param, cp_param_keys },
     [CP_TYPE_SEQ] = {
         "seq", RSCACHE_TYPE_SEQUENCE, RSCACHE_DAT2_CONFIG_KIND_SEQUENCE, 7, CP_TYPE_LOSSY,
-        cp_unpack_seq, cp_pack_seq },
+        cp_unpack_seq, cp_pack_seq, cp_seq_keys },
     [CP_TYPE_SPOTANIM] = {
         "spotanim", RSCACHE_TYPE_SPOTANIM, RSCACHE_DAT2_CONFIG_KIND_SPOTANIM, 8, CP_TYPE_LOSSY,
-        cp_unpack_spotanim, cp_pack_spotanim },
+        cp_unpack_spotanim, cp_pack_spotanim, cp_spotanim_keys },
     [CP_TYPE_VARBIT] = {
         "varbit", RSCACHE_TYPE_VARBIT, RSCACHE_DAT2_CONFIG_KIND_VARBIT, 4, 0,
-        cp_unpack_varbit, cp_pack_varbit },
+        cp_unpack_varbit, cp_pack_varbit, cp_varbit_keys },
     [CP_TYPE_VARP] = {
         "varp", RSCACHE_TYPE_VARPLAYER, RSCACHE_DAT2_CONFIG_KIND_VARPLAYER, 3, 0,
-        cp_unpack_varp, cp_pack_varp },
+        cp_unpack_varp, cp_pack_varp, cp_varp_keys },
     [CP_TYPE_VARC] = {
         "varc", RSCACHE_TYPE_VARCLIENT, RSCACHE_DAT2_CONFIG_KIND_VARCLIENT, 15, 0,
-        cp_unpack_varc, cp_pack_varc },
+        cp_unpack_varc, cp_pack_varc, cp_varc_keys },
     [CP_TYPE_HITSPLAT] = {
         "hitsplat", RSCACHE_TYPE_HITSPLAT, RSCACHE_DAT2_CONFIG_KIND_HITSPLAT, -1, 0,
-        cp_unpack_hitsplat, cp_pack_hitsplat },
+        cp_unpack_hitsplat, cp_pack_hitsplat, cp_hitsplat_keys },
     [CP_TYPE_HEALTHBAR] = {
         "healthbar", RSCACHE_TYPE_HEALTHBAR, RSCACHE_DAT2_CONFIG_KIND_HEALTHBAR, -1, 0,
-        cp_unpack_healthbar, cp_pack_healthbar },
+        cp_unpack_healthbar, cp_pack_healthbar, cp_healthbar_keys },
     [CP_TYPE_STRUCT] = {
         "struct", RSCACHE_TYPE_STRUCT, RSCACHE_DAT2_CONFIG_KIND_STRUCT, -1, 0,
-        cp_unpack_struct, cp_pack_struct },
+        cp_unpack_struct, cp_pack_struct, cp_struct_keys },
     [CP_TYPE_MAPELEMENT] = {
-        "mapelement", RSCACHE_TYPE_MAPELEMENT, RSCACHE_DAT2_CONFIG_KIND_AREA, -1, CP_TYPE_LOSSY,
-        cp_unpack_mapelement, cp_pack_mapelement },
+        "mapelement", RSCACHE_TYPE_MAPELEMENT, RSCACHE_DAT2_CONFIG_KIND_AREA, -1, 0,
+        cp_unpack_mapelement, cp_pack_mapelement, cp_mapelement_keys },
     [CP_TYPE_DBROW] = {
         "dbrow", RSCACHE_TYPE_DBROW, RSCACHE_DAT2_CONFIG_KIND_DBROW, 9, 0,
-        cp_unpack_dbrow, cp_pack_dbrow },
+        cp_unpack_dbrow, cp_pack_dbrow, cp_dbrow_keys },
     [CP_TYPE_DBTABLE] = {
         "dbtable", RSCACHE_TYPE_DBTABLE, RSCACHE_DAT2_CONFIG_KIND_DBTABLE, 10, 0,
-        cp_unpack_dbtable, cp_pack_dbtable },
+        cp_unpack_dbtable, cp_pack_dbtable, cp_dbtable_keys },
 };
 /* clang-format on */
 

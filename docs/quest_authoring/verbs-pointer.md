@@ -57,10 +57,16 @@ t.exec("vargas1.castleGate", t.player.pass_door, { closed = "castledoor", open =
    walk-through door). Absent: the door stands open (`stands open ..., not pressed` -- pressing an
    open leaf shuts it) and the OPEN leaf must stand within 1 of the door tile on that level;
    neither leaf -> `not_found ... neither leaf on level L`;
-3. walks to `far` and grades exactly that tile on the door's level, or `far_ok(tile)`;
+3. walks to `far` and grades exactly that tile on the door's level, or `far_ok(tile)`. A walk that
+   stops short with the CLOSED leaf back on the door tile (the door shut itself on the way -- see
+   below) walks back to `near`, presses it as in step 2 and walks through again, at most twice
+   (`QD.player._pass_door_reshut_presses`); the detail says `the door shut itself during the walk
+   ..., re-press N`;
 4. `close = true`: presses the open leaf on that level, grades the closed leaf back on the door
    tile, walks back to `far` and grades it (a door the client lost after its 500-tick revert while
-   you were away is the reason misc_astrid closes doors behind it).
+   you were away is the reason misc_astrid closes doors behind it). A door that already shut
+   itself after the crossing is not pressed: `close: the door shut itself first ...`, graded on the
+   closed leaf back and the player still past it.
 
 Name `open=` whenever the door's open leaf is a different symbol, even one with no name or op (the
 Water Ravine golem doors open to `elid_underground_inactive_door`): the way back finds that leaf
@@ -72,6 +78,35 @@ that says nothing) is in the detail; the grade is the loc reads and the tiles. P
 castle's stacked `castledoor` 2506,3851 (levels 0 and 1): conformance `player.pass_door` and
 `seam.stacked_door_read_on_its_own_floor`; a misc.lua copy using it for all 25 call sites ran
 207/0 (84 crossings, 17 pressed, 67 standing open, every one on its own floor).
+
+#### A double door's open leaf lands a frame late: awaited (b65-seam1)
+
+After the press, the closed leaf leaving is not the end of step 2: the OPEN leaf is awaited for up
+to the same 6 ticks, because a double door's script (`doubledoors.rs2` `~open_double_door_left`:
+`loc_del` then `loc_add` in one server tick) can reach the client pool a frame apart. Prince Ali's
+Al Kharid palace door (`bankdoor_l` 3293,3167,0) refused with "the closed leaf left ... but no
+openbankdoor_l stands within 1" while the next door row read it standing open. The detail now
+says `open leaf <sym> at x,z,l (after N tick(s), M read(s))` -- `M read(s)` over 1 is a leaf the
+old single read would have refused -- and a leaf that never comes is still `refused ... stood
+within 1 of it on level L after N tick(s) of waiting (M read(s))`. Name `open=` on a double door's
+first visit; the b65 workaround of naming no open leaf there (prince.lua `palace_in`) is no longer
+needed. Conformance `seam.pass_door_awaits_a_late_open_leaf` (seam-facts: Seam pass
+matthew-mbp-m4-b65-seam1 (b)).
+
+#### A door that stands open can shut itself mid-walk: re-pressed (b71)
+
+An opened door reverts 500 ticks after the press that opened it (`doors.rs2`
+`~door_open_active`: `loc_change(..., 500)`), so step 2 can read it `stands open` on tick 499 and
+the walk in step 3 then meets the shut leaf and stalls on the near side -- b71 whatliesbelow
+`wlb2`, `talkToRatToFinish.palaceDoorOut1` at `fai_varrock_castle_door` 3215,3477; the same latent
+flake sits under every "stands open, not pressed" exit in the suite. Step 3 now re-reads the door
+when the walk stops short: the closed leaf back on the door tile means the walk goes back to `near`,
+the closed leaf is pressed and graded exactly as in step 2, and the walk to `far` is retried (two
+re-presses at most; a door that keeps shutting fails `... the door keeps shutting`). A stall with
+the door still open fails as before. The row name, the words and the grade (the tiles and the leaf
+reads) are unchanged, so `close = true` is no longer needed only to dodge the revert. An opening
+gate (`cross_gate` with `open=`) is handed to `pass_door` and gets the same; a walk-through gate
+is pressed on every crossing and has no state to revert.
 
 ### The crossing verbs: `cross_gate`, `cross_trap`, `walk_route`, `teleport_cast` (b60-seam0)
 
@@ -148,6 +183,17 @@ An OPENING gate (a leaf that stays open: `fencegate_l`/`openfencegate_l`) takes 
 leaf>"` and a `far` tile, and is handed to `t.player.pass_door` (closed = `loc`): the leaf standing
 open is walked through, never pressed shut (b60s0_cross3 `penIn` pressed, `penOut` "stands open ...,
 not pressed").
+
+#### A gate ported from LostCity's `~open_and_close_double_door*` is a WALK-THROUGH: `cross_gate`, not `pass_door` (b63-seam1)
+
+Such a gate carries the player through and puts both leaves back 3 ticks later (Gu'Tanoth's
+`ogreguardgate1`/`ogreguardgate2`, `ogre_guard.rs2 ~itwatchtower_gate_walk`, since
+matthew-mbp-m4-b63-seam1). `pass_door`'s "closed leaf gone or far" await is 4 ticks, so it reads
+after the gate has already shut behind the carried player and answers `the closed leaf is still at
+2549,3028,0 (player 2549,3028,0)` (itwatchtower `leaveSouthPocket.southEastGate`). Drive it with
+`t.player.cross_gate{loc=, at=, near=, far_ok=, far_desc=}`, graded on where the player stands
+(build/seam_state/matthew-mbp-m4-b63-seam1/itwatchtower_copy2.lua: 274/274 green). A gate that calls
+the shared `~open_double_door_left/right` instead stands open 500 ticks and is a `pass_door`.
 
 #### `t.player.cross_trap(spec)` -- a trap or obstacle by its own op, src tile to dest tile
 
@@ -235,11 +281,28 @@ t.player.teleport_cast("camelot_teleport", { 2757, 3478, 0 }, { name = "camelotT
 It answers `ok` only when all three passed, else `refused` naming the rows that did not. A step the
 guide does with a teleport is done with this, not with `goto_tile` or `::tele`.
 
+**OPEN OWNER QUESTION (b64-seam1 druid, b65-seam1 pryingtimes): a staged level is a stat change.**
+Staging Magic for a teleport, or attack/strength/defence/hitpoints for a fight, raises the combat
+level (`combat_level.rs2`), and an npc whose dialogue branches on it then shows the staged branch:
+druid's Kaqemeex (`kaqemeex.rs2:103`, `~player_combat_level < 10`: Magic 16 alone already makes
+combat 10, and every standard teleport needs more) and Prying Times (`pryingtimes.rs2:216`: combat
+stats staged at 20 in setup, combat 23, so the low-combat mesbox is never shown). Options recorded
+for the owner: (a) accept the staged dialogue; (b) drive the low-combat branch first and stage
+only after it (conflicts with the ban on mid-run cheats); (c) a second account run (`run.py
+--name`) at combat 3 for the opening dialogue only. Until the owner rules: check every dialogue
+the run passes for a combat-level branch and say in a comment which branch the staged player sees. b66-seam1
+added squire (staged Magic 31, NOT CONFIRMED live, no dialogue on its route reads the level); its
+staging goes away when its re-author leaves the Ice Dungeon by the ladder (seam-facts b66-seam1 (b),
+(f)). The b68-seam1 triage re-raised it unchanged (druid, pryingtimes, squire, ball, grimtales,
+rumdeal) with the Grim Tales ladder tiles and Braindeath's unrouted 2151,5109 stairs; fenkenstrain's
+Magic 48 is no longer needed (tablets carry no level gate, seam-facts b68-seam1 (a)).
+
 ### `t.player.climb(spec)` -- a staircase, ladder or trapdoor, graded on the level and the landing (b60-seam1)
 
 `t.player.climb{ loc=, at={x,z,level}, dest={x,z,level} [, op=1, op_name="Climb-up", slack=0,
-src={x,z}, landed_ok=fn, landed_desc=, presses=2, ticks=10] }` -> `(ok, detail)` `refused` `covered`
-`not_visible` `timeout` ...
+src={x,z}, landed_ok=fn, landed_desc=, presses=2, ticks=10, loc_level=, same_level="<row>",
+chat={...}, chat_optional="<why>"] }` -> `(ok, detail)` `refused` `covered` `not_visible` `timeout`
+`mismatch` ...
 
 ```lua
 -- No maplink row: ladders.rs2 [proc,climb] moves the player one plane on the tile it stands on.
@@ -256,7 +319,8 @@ t.exec("goUpToJohnathon", t.player.climb, { loc = "fai_varrock_stairs_taller", a
 is this verb (b60: crest, idesofmilk, vampire and fenkenstrain each hand-wrote a `climb()` for it).
 `at` names the copy pressed AND the floor it is pressed from (a copy on another raw level, a
 bridge deck: `loc_level`, "A loc on another raw level" above); `dest` names the landing and its NEW
-level (a dest on `at`'s level raises: a one-floor crossing is `pass_door`/`cross_trap`/`walk_route`).
+level (a dest on `at`'s level in `at`'s own map frame raises: a one-floor crossing is
+`pass_door`/`cross_trap`/`walk_route`; a same-level landing in another frame is a climb, below).
 The verdict is the world: the player on `at`'s level before the press (else `refused ... not
 pressed`), on `src` exactly when `src` is given (walked there first; else `refused ... not pressed`),
 and after the press on `dest`'s level within `slack` (Chebyshev) of its x,z with `landed_ok(tile)`
@@ -270,6 +334,70 @@ on `at`'s level is a stair whose route the port does not have -- a content seam 
 crypt stairs, vampire b60), stop at `t.blocked("content_bug: ...")`. `reached level N but not the
 landing` is the wrong `dest`. Conformance `player.climb` climbs Lumbridge castle's stairs up and
 down and refuses a press from the wrong floor.
+
+#### A climb that changes no level: the underground's map frame (b62-seam1)
+
+Most of the underground is level 0 in the map frame z+6400, so a manhole, cellar ladder, trapdoor
+or dungeon stair between it and the surface lands on the level it was pressed from
+(`manholes.rs2:13-16` `p_telejump(movecoord(coord, 0, 0, 6400))`, `plaguehouse.rs2:22-28`; 932 of
+`maplink.dbrow`'s 2,079 rows land on their source level). That is still `climb`, not `cross_trap`:
+
+```lua
+-- maplink [maplink_0_50_154_37_2_up]: 3237,9858,0 -> 3236,3458,0 (frame 1 -> 0). Stand on src:
+-- maplink.rs2 keys the row on the PLAYER's tile, and a press from 3236,9858 falls to the
+-- +-1-plane default and lands on 3236,9858,1.
+t.exec("goUpManhole", t.player.climb, { loc = "fai_varrock_manhole_ladder", op = 1, op_name = "Climb-up",
+    at = { 3237, 9858, 0 }, src = { 3237, 9858 }, dest = { 3236, 3458, 0 } })
+-- Same level AND same frame (346 maplink rows): name the row that moves the player.
+t.exec("enterStronghold", t.player.climb, { loc = "sos_dung_ent_open", op = 1, op_name = "Climb-down",
+    at = { 3081, 3420, 0 }, src = { 3081, 3421 }, dest = { 1859, 5243, 0 },
+    same_level = "maplink.dbrow maplink_0_48_53_9_29_down" })
+```
+
+A `dest` on `at`'s level is accepted when its z is in another map frame (`z // 6400`) than `at`'s,
+or when the spec names the maplink row or telejump as `same_level = "<row>"` (a string; given with
+a level change it raises). The grading is unchanged -- the exact landing within `slack` -- plus: a
+player already on the landing is `refused ... on the landing -- not pressed`, and a press that did
+not land is told apart by TILE: `still at <tile> beside the press (map frame F)` (within 15 tiles of
+`at` or the start, in the start's frame -- the closed Varrock manhole's op1 is Open, and reads
+exactly so) or `reached level L in the landing's map frame F at <tile> but not the landing` (the
+wrong `dest`). The success detail ends `(same level 0, map frame 0 -> 1[ by <row>])`. Proof:
+scratch `b62s1_climbsame_post2` 16/16 -- Demon Slayer's manhole down and ladder up, Plague City's
+house stairs both ways, Family Crest's Ice Mountain trapdoor, Vampire Slayer's crypt stairs, the
+Stronghold entrance by `same_level`; conformance
+`seam.climb_lands_on_its_own_level_in_another_map_frame` (the Varrock sewer ladder).
+
+#### A GUARDED ladder speaks first: `chat=`, `chat_optional=` (b63-seam1)
+
+Some climbs open a page before they move the player, and the page holds the climb until it is
+continued. The Watchtower's `towerladder` (`quest_itwatchtower.rs2` `[oploc1,towerladder]`) shows the
+tower guard's "It is the wizards' helping hand - let 'em up." and only then reaches `if_close` +
+`~climb_ladder(1)`; without `chat`, `climb` waits `ticks` under the page and answers `refused ...
+still on level 0 after 1 press(es); a page is up: npc '<line>' -- the press spoke before it moved the
+player (pass spec.chat, the chat.play list for that page)` -- and the page is still up for the next
+row. Pass the page's `chat.play` list:
+
+```lua
+t.exec("goBackUpToFirstFloor", t.player.climb, { loc = "towerladder", op = 1, op_name = "Climb-up",
+    at = { 2544, 3111, 0 }, src = { 2544, 3112 }, dest = { 2544, 3112, 1 },
+    chat = { "npc:It is the wizards' helping hand" } })
+```
+
+The semantics are `cross_gate`'s ("A GUARDED walk-through speaks first" above; the same helper,
+`QD.player._cross_gate_chat`): after a press the server received, the landing OR a page is awaited
+up to `ticks`; a page is played with the list (its kind and full text and `chat.play`'s answer go in
+the detail: `the press opened npc '...' after N tick(s): chat.play -> ok 1 page(s): ...`), and only
+then is the landing awaited and graded -- the landing is still the verdict. A list that does not
+match is `chat.play`'s `mismatch`. `chat` says a page WILL open: a press that lands with no page is
+`refused ... no page opened in N tick(s) and the press landed <dest>` -- unless `chat_optional =
+"<why>"` says why the page depends on the world, when `no page opened ... (chat_optional: <why>)` is
+in the detail and the landing alone grades it. A `covered`/`not_visible` press reached no server, so
+no page is awaited for it and it is pressed again as usual. A page that refuses the climb (the tower
+guard's "You can't go up there." before the quest starts) is played by the list and then fails on the
+landing. Proof: scratch `b63climbchat` 7/7 (no chat stalls under the page; chat lands on level 1;
+chat_optional on the silent ladder top; chat without a page `refused`), the itwatchtower copy with
+its four `towerladder` climbs through `climb{chat=}` (all four PASS, quest complete); conformance
+`seam.climb_plays_a_guards_page`.
 
 ### `t.player.cancel_selection(why)` -- drop a spell or Use left armed (b60-seam1)
 
@@ -322,6 +450,20 @@ returns a `covered` at once instead of running the pose loop, so a caller with a
 can try it first. Only `t.player.attack`'s first press passes it (verbs-combat: "A covered Attack
 press, a boss that teleports, a timed walk"); every other press is unchanged.
 
+#### After the hunt: the model aim (b66-seam1)
+
+When the whole pose sweep and pixel hunt answered `covered` on a LOC, `click_minimenu` makes one
+last try: `QD.drive._model_aim` asks `api_drive.model_points(element, x, y, max=12)` for the screen
+centroids of the element's visible faces (nearest the projection first) and PROBES each; it presses
+one only when the renderer's pickset holds the element there. It never runs before the hunt and
+never moves a press that the hunt would have landed (the b65 attempt moved the aim and broke five
+greens). The row detail then carries `model aim: face centroid X,Y (+dx,+dy off the projected
+x,y) held on probe N of M candidate(s) from F face(s)`; a miss adds `model aim: none of N face
+centroid(s) probed holds element E ...` or `model aim: not_visible for element E (F face(s))` to the
+`covered`. This is what presses a loc whose footprint centroid is a hole (the Uzer ruin stairs from
+their arch 3491,3090, seam-facts b66-seam1 (a)). A final-covered loc press costs up to 12 more
+probes.
+
 #### The 8,192-row loc pool and the instruction budget
 
 Many scenes fill the 8,192-row loc pool (`DRIVE_UI_POOL_CAP`: the Temple of Light, the Taverley
@@ -352,6 +494,18 @@ use it as a presence check; `t.npc.by_symbol`/`t.npc.nearest` read the live pool
 
 `t.player.walk_to(x, z, ticks=distance+10)` / `t.player.walk_near(target, ticks, minimum=0)` /
 `t.player.idle()` -> `ok` `timeout` (`unsupported` -- walk_near is npc/loc only).
+
+`walk_to` answers a detail on success (matthew-mbp-m4-b62-seam1, seam
+`walk_to_answers_ok_with_no_detail`): `walk_to 2540,3303: reached 2540,3303,0 from 2529,3304 in 5
+tick(s)` (Elena's Jethick walk, `build/quest_gate/b62s1_elena_walkto`) -- the tile read back after
+the walk (with its level), the start tile and the server ticks (the driver's tick clock, as
+`t.await`'s `met after N tick(s)`: a one- or two-tile walk can read `in 0 tick(s)`).
+So `t.exec("walk-talkToJethick", t.player.walk_to, x, z)` is a real row, not a `hollow` FAIL; a
+one-hop `walk_route` is no longer needed to get one. Use `walk_route` for a route of several hops
+(it grades each hop and the exact end tile) or when the row must also check the level (`opts.level`):
+`walk_to` arrives on x,z and reports the level it read, it does not grade it. A walk that does not
+arrive still answers `timeout`/`refused` with `walk_to x,z from a,b stalled at c,d` (and the
+obstacle hint below).
 
 #### A walk stops at an obstacle: cross it with `click_loc` (seam34)
 
@@ -543,6 +697,20 @@ the guide's route first (a missing route is a content seam, not a driver one)`. 
 the guide's route; if the port has no route, report a CONTENT seam. Measured: Cold War's Ice steps
 (`peng_agility_steps01`, 2635,4054,0) answer `other_floor` from level 1 and climb first time from
 2634,4054,0 (`teleport: 2634,4054,0 -> 2634,4054,1`).
+
+#### A named npc copy is pressed at its OWN pose's pixel (FIXED b63-seam1)
+
+`press`/`talk_to` with `{slot=}`/`{at=}` used to answer `covered ... element E at 382,102 ... none
+of 99 pixels` on a small npc ONE tile from the player (Ratcatchers' mansion rats 2, 3, 4 and 6, on
+every try and every camera): `QD.drive._frame` read the projection in the pump that wrote the
+camera, so each pose was pressed at the PREVIOUS pose's pixel (382,102 is pose 4's projection of a
+rat one tile ahead, pressed under pose 5). A target the selector named
+(`QD.player._click_npc_copy` sets `reach_fresh`) now skips two polls, so each pose reads its own
+projection; unnamed targets, attack and cast keep seam17's unsettled read. Proof: vcrat_full2
+(before, rows 65-76 FAIL) against vcrat_fixed1 (rats 1-3 caught on try 1, "hovered +0,+0 off the
+projected 382,215"); the unblocked Ratcatchers copy caught all six mansion rats. No conformance row:
+outside the mansion's old ledge landing the stale read did not reproduce (a chicken one tile off
+read the same pixel framed and settled, with and without the fix).
 
 ### `t.player.click_obj(obj, op=3)`
 

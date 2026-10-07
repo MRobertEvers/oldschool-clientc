@@ -1,0 +1,199 @@
+{{Update|date=15 May 2024|url=https://secure.runescape.com/m=news/further-project-rebalance-skilling--varlamore-changes?oldschool=1|category=game}}
+[[File:Further Project Rebalance (Skilling) & Varlamore Changes newspost.jpg|right]]
+{{clear}}
+__TOC__
+''This week’s update brings further changes from Project Rebalance!''
+
+==Changelog==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+===Project Rebalance===
+
+'''Slayer'''
+
+* Players no longer need to cancel their current Task to do one they have stored.
+* Players can now swap existing Tasks with ones in Storage. This action can be performed for free but must be unlocked for 1,000 Slayer Points.
+
+'''Thieving'''
+
+* Improved Clue Scroll drop rates from gnomes, paladins and heroes.
+* Reduced failure rates when pickpocketing these NPCs.
+
+'''Agility'''
+
+* Improvements to Brimhaven Agility Arena.
+* Removed fail points from some Agility obstacles.
+* Improved accessibility for a shortcut in Taverley.
+* Fixed a bug where the Shilo Village shortcut wasn’t asking for the correct quest requirements.
+
+'''Mining'''
+
+* Mining Gloves no longer work with Sandstone and Granite. We’re discussing balancing in this area and will let you know if anything changes.
+* Added a sound effect when Amethyst depletes.
+* Added a warning when your Sack is full in Motherlode Mine.
+
+
+'''Varlamore'''
+
+* Rebalanced Adept and Expert Hunter Rumours.
+* The bonus effect descriptions of the Kyatt and Guild Hunter outfits are now listed in the Set Bonus tab while wearing at least one piece of either outfit.
+* Prevented certain tiles in the Fortis Colosseum from blocking players who tried to walk on them.
+* Updated the Easy Hunter Guild Clue to direct players to the food barrel on top of the Guild, as it has no level requirement to access.
+* Fixed various graphical and sound-related bugs.
+* Fixed a bug where the "Nothing interesting happens" text pops up when trying to fill Fur and Meat Pouches manually.
+
+'''Other'''
+
+* Players who have completed the Hard Wilderness Achievement Diary can now sell unwanted Ecumenical Keys to the Lesser Fanatic, in Edgeville, for 61,500 GP each.
+* World 508 has been given the Activity "Brimhaven Agility".
+* References to padded spoons have been removed from the Crafting Skill Guide and level-up messages.
+* When Eyatlalli's voice speaks to you after leaving the moon fight, it now does so without creating disruptive Chat Boxes.
+* The Fancy Dress Shop in Varrock now prioritises Tatty Furs when making Hunter Outfits.
+* Revenant imps, goblins and hobgoblins can now drop their respective Champion Scrolls.
+** The revenant demon is Greater rather than Lesser, due to having wings, so it does not drop the Lesser Demon Challenge Scroll.
+* The brightness sliders in the Settings menu and Side Settings menu are now in sync.
+* Adjusted the drag handles for the Activity Advisor and new-style Skill Guide so they don’t overlap with the Close button.
+* Fixed a bug where the giant sea snake’s model was not displayed during Royal Trouble.
+
+'''Hotfixes'''
+
+* Reverted an accidental nerf to loot gained by certain group sizes at Zalcano.
+* Fixed a bug where Collection Log items were incorrectly counted or discounted.
+{{Collapsed section end}}
+
+==Project Rebalance: Skilling==
+We’re back with further Project Rebalance changes this week, starting with our favourite skill – Slayer!
+
+===Slayer===
+Players no longer need to cancel their current Slayer Task to take on one they’ve left in storage. Instead, we’ve implemented a system that lets you swap existing Tasks with stored ones!
+
+Note that the ability to swap tasks is locked behind a one-off fee of 1,000 Slayer Points, although it will be free from then on.
+
+===Thieving===
+We’ve improved the drop rates of Medium, Hard and Elite Clue Scrolls from gnomes, paladins and heroes! We’ve also reduced the pickpocketing fail rate for these NPCs, so you’ll have an easier time stealing from them overall.
+The rates are now as follows, with each number corresponding to a 1/X chance of the Clue:
+
+
+* Gnomes 200 -> 150
+* Paladin 1500 -> 1000
+* Heroes 2000 -> 1400
+
+===Agility===
+You can now convert Agility Arena Tickets into newer, shinier Brimhaven Vouchers, which you can exchange in Pirate Jackie the Fruit’s new shop. To do so, use the old Agility Arena Tickets directly on Jackie, who will then give you the option to convert them. Note that this doesn’t remove the ability to use Brimhaven Graceful on her to revert it back to regular Graceful!
+
+The Agility Arena also now has a world-hop check in place. If you tag a pillar, then hop to a different world and try to tag a pillar again too quickly, you'll be locked out of interacting with pillars for about 60 seconds.
+
+Additionally, tagging Ticket Dispensers now yields the correct amount of XP, based on your Agility level. This was something we hotfixed last week, but we thought we’d mention it here for anyone who missed it!
+
+We've also removed fail points from the following Agility obstacles:
+
+* Canifis Rooftop Course last gap jump
+* Ape Atoll stepping stone and climbing down tropical tree
+
+Lastly, we've altered the fence next to the Taverley tree patch to allow easier access to the new shortcut. We've also fixed an issue where the Shilo Village shortcut wasn't correctly checking for the right quest requirements - oops!
+
+===Mining===
+Since last week’s update we’ve noticed that players are achieving excessively large amounts of XP when Mining Sandstone and Granite with the Mining Gloves. For now, we’ve simply prevented Mining Gloves from working in this circumstance, but we’re actively discussing how best to balance this interaction in future. We’ll let you know if we decide to make further changes, but in the meanwhile, we’ll be glad to hear your feedback on this point!
+
+In other Mining news, a sound now plays when Amethyst Crystals fully deplete, and we’ve added a warning when trying to mine ore in Motherlode Mine when your Sack is full.
+
+==Varlamore==
+This week brings one last round of improvements to Hunters’ Rumours! We’ve looked to address the main feedback regarding the creatures on the Task Lists, removing the most-blocked Rumours from Adept and Expert tiers. This will cut down on the amount of slower tracking and deadfall Rumours and make blocked Rumours more personalised rather than simply clearing them out of the pool.
+
+We've also added some higher-level tasks to the Adept and Expert lists, meaning that as players progress, they will unlock additional, preferable Tasks. Notable additions are Red Chinchompas to both Adept lists, and Herbiboar to Teco's list.
+
+This will mean one last rejig of your blocklists in some cases, but that’s a small price to pay to not have to block more Rumours!
+
+Happy Hunting!
+
+===Ornus===
+* Removed: Barb-tailed and Prickly Kebbits
+* Added: Red Salamanders and Red Chinchompas
+
+===Cervus===
+* Removed: Barb-tailed and Prickly Kebbits
+* Added: Sunlight Moths and Red Chinchompas
+
+===Aco===
+* Removed: Razorback Kebbits and Pyre Foxes
+* Added: Tecu Salamanders and Moonlight Moths
+
+===Teco===
+* Removed: Razorback Kebbits and Orange Salamanders
+* Added: Herbiboar and Sunlight Moths
+
+===Wolf===
+* Removed: Sunlight Moths
+
+These changes will not affect active tasks.
+
+===Smaller fixes include:===
+* The bonus effect descriptions of the Kyatt and Guild Hunter outfits are now listed in the Set Bonus tab while wearing at least one piece of either outfit.
+* Prevented certain tiles in the Fortis Colosseum from blocking players who tried to walk on them.
+* Updated the Easy Hunter Guild Clue to direct players to the food barrel on top of the Guild, as it has no level requirement to access.
+* Fixed various graphical and sound-related bugs.
+* Fixed a bug where the "Nothing interesting happens" text pops up when trying to fill Fur and Meat Pouches manually.
+
+==Other Changes==
+* Players who have completed the Hard Wilderness Achievement Diary can now sell unwanted Ecumenical Keys to the Lesser Fanatic, in Edgeville, for 61,500 GP each.
+* World 508 has been given the Activity "Brimhaven Agility".
+* References to padded spoons have been removed from the Crafting Skill Guide and level-up messages.
+* When Eyatlalli's voice speaks to you after leaving the moon fight, it now does so without creating disruptive Chat Boxes.
+* The Fancy Dress Shop in Varrock now prioritises Tatty Furs when making Hunter Outfits.
+* Revenant imps, goblins and hobgoblins can now drop their respective Champion Scrolls.
+** The revenant demon is Greater rather than Lesser, due to having wings, so it does not drop the Lesser Demon Challenge Scroll.
+* The brightness sliders in the Settings menu and Side Settings menu are now in sync.
+* Adjusted the drag handles for the Activity Advisor and new-style Skill Guide so they don’t overlap with the Close button.
+* Fixed a bug where the giant sea snake’s model was not displayed during Royal Trouble.
+
+==PvP Rota==
+The PvP rota has moved to '''Period A''':
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <u>'''activated'''</u> with this rota.
+
+World 569 (AUS) for Bounty Hunter has been <u>'''activated'''</u> with this rota.
+
+The PvP Arena is using '<b>1 Def Pure</b>' loadouts in Ranked Duels and Tournaments this week.
+
+==Merch Update==
+===Elysian Spirit Shield Keyrings===
+You don't have to brave the Corporeal Beast's lair to get these Spirit Shield Keychains from Angels Scapes! Each one features translucent stained glass-style enamel and glow-in-the-dark stamps!
+
+[[File:Further Project Rebalance (Skilling) & Varlamore Changes (1).jpg|600px|center]]
+
+
+[[File:Further Project Rebalance (Skilling) & Varlamore Changes (2).jpg|600px|center]]
+
+Check out these products and the full Angels Scapes line at the [https://runescape.backstreetmerch.com/ official merchandise store]!
+
+===New Novel out this Week!===
+[[File:Further Project Rebalance (Skilling) & Varlamore Changes (3).jpg|600px|center]]
+The first of three new novels from our partner Titan Books hits retailers around the world on '''Tuesday May 14th'''!
+
+''RuneScape: The Gift of Guthix'' is written by Erin M Evans, and it tells an epic tale of the origin of magic, the plight of civil war, and the crushing defeat of the Fremennik Great Invasion. Get your copy now either online or from local bookstores. The [https://titanbooks.com/71617-runescape-the-gift-of-guthix/ Titan website] has a full list of retailers around the world.
+
+===Scrummy ‘Scape Snacks!===
+It was great to see all the excitement from adventurers around the world receiving their official cookbooks.
+
+Many of you have already started sharing the mouth-watering dishes you bravely prepared, such as Dwarven Rock Cake, Stuffed Snake, Bananas with Karamjan Rum, Blackened Shrimp Tacos and Green Gloop Soup, just to name a few! We’ve gathered some of your most mouthwatering photos below – they look good enough to eat!
+
+[[File:Further Project Rebalance (Skilling) & Varlamore Changes (4).png|600px|center]]
+
+
+[[File:Further Project Rebalance (Skilling) & Varlamore Changes (5).png|600px|center]]
+
+
+[[File:Further Project Rebalance (Skilling) & Varlamore Changes (6).png|600px|center]]
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Errol, Gecko, Gengis, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hooti, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Necro, Nox, Nylu, Other, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Sarnie, Saiyan, Shogun, Shroom, Sigma, Skane, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titus, Torrance, Tsourorf, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

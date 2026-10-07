@@ -1,6 +1,7 @@
 #include "cp_text.h"
 #include "tool_posix_compat.h"
 
+#include <assert.h>
 #include <ctype.h>
 #include <errno.h>
 #include <stdarg.h>
@@ -37,17 +38,13 @@ lines_push(
     struct CP_Lines* lines,
     char* owned)
 {
-    if( !owned )
-        return;
+    assert(lines);
+    assert(owned);
     if( lines->count == lines->capacity )
     {
         int next = lines->capacity ? lines->capacity * 2 : 16;
         char** grown = realloc(lines->lines, (size_t)next * sizeof(*grown));
-        if( !grown )
-        {
-            free(owned);
-            return;
-        }
+        assert(grown);
         lines->lines = grown;
         lines->capacity = next;
     }
@@ -66,17 +63,9 @@ cp_lines_addf(
     va_copy(ap2, ap);
     int n = vsnprintf(NULL, 0, fmt, ap);
     va_end(ap);
-    if( n < 0 )
-    {
-        va_end(ap2);
-        return;
-    }
+    assert(n >= 0);
     char* buf = malloc((size_t)n + 1);
-    if( !buf )
-    {
-        va_end(ap2);
-        return;
-    }
+    assert(buf);
     vsnprintf(buf, (size_t)n + 1, fmt, ap2);
     va_end(ap2);
     lines_push(lines, buf);
@@ -88,17 +77,21 @@ cp_lines_add_str(
     const char* key,
     const char* value)
 {
-    if( !value )
-        return;
+    assert(lines);
+    assert(key);
+    assert(value);
     size_t klen = strlen(key);
     size_t vlen = strlen(value);
-    /* Worst case every byte escapes to two. */
-    char* buf = malloc(klen + 1 + vlen * 2 + 1);
-    if( !buf )
-        return;
+    /* Worst case every byte escapes to two, plus one for a marker escape. */
+    char* buf = malloc(klen + 1 + vlen * 2 + 2);
+    assert(buf);
     memcpy(buf, key, klen);
     buf[klen] = '=';
     size_t w = klen + 1;
+    /* A string that IS one of the two markers is escaped, so `name=\default`
+     * is an item named "default" and `name=default` is an item with no name. */
+    if( cp_value_is_default(value) || cp_value_is_empty(value) )
+        buf[w++] = '\\';
     for( size_t i = 0; i < vlen; i++ )
     {
         unsigned char c = (unsigned char)value[i];
@@ -133,6 +126,116 @@ cp_lines_add_str(
     lines_push(lines, buf);
 }
 
+int
+cp_value_is_default(const char* raw)
+{
+    assert(raw);
+    return strcmp(raw, CP_VALUE_DEFAULT) == 0;
+}
+
+int
+cp_value_is_empty(const char* raw)
+{
+    assert(raw);
+    return strcmp(raw, CP_VALUE_EMPTY) == 0;
+}
+
+void
+cp_lines_add_default(
+    struct CP_Lines* lines,
+    const char* key)
+{
+    assert(key);
+    cp_lines_addf(lines, "%s=" CP_VALUE_DEFAULT, key);
+}
+
+void
+cp_lines_add_empty(
+    struct CP_Lines* lines,
+    const char* key)
+{
+    assert(key);
+    cp_lines_addf(lines, "%s=" CP_VALUE_EMPTY, key);
+}
+
+/*
+ * A trailing comment is `//` that is not escaped, as the server's line cleaner
+ * has always read it, and a value never ends in a blank the reader would trim.
+ * So a value that holds `//` (a wiki URL in a string param) is written `/\/`, and
+ * a trailing blank `\ `. Done once, here, on the finished line, so no emitter has
+ * to remember it; idempotent, so a line an emitter already escaped (db text)
+ * comes through unchanged.
+ */
+static size_t
+line_escape_size(const char* line)
+{
+    return strlen(line) * 2 + 1;
+}
+
+/** Is `s[at]` escaped -- preceded by an odd run of backslashes? */
+static int
+text_escaped(
+    const char* s,
+    size_t at)
+{
+    size_t run = 0;
+
+    while( at > run && s[at - 1 - run] == '\\' )
+        run++;
+    return run & 1;
+}
+
+static void
+line_escape(
+    const char* line,
+    char* out)
+{
+    const char* eq = strchr(line, '=');
+    size_t length = strlen(line);
+    size_t trailing = 0;
+    size_t w = 0;
+
+    if( !eq )
+    {
+        memcpy(out, line, length + 1);
+        return;
+    }
+    while( trailing < length - (size_t)(eq + 1 - line) &&
+           line[length - 1 - trailing] == ' ' && !text_escaped(line, length - 1 - trailing) )
+        trailing++;
+    for( size_t i = 0; i < length; i++ )
+    {
+        char c = line[i];
+
+        if( line + i > eq )
+        {
+            /* The second slash of an unescaped `//`. */
+            if( c == '/' && line[i - 1] == '/' && line + i - 1 > eq && !text_escaped(line, i - 1) )
+                out[w++] = '\\';
+            else if( c == ' ' && i >= length - trailing )
+                out[w++] = '\\';
+        }
+        out[w++] = c;
+    }
+    out[w] = '\0';
+}
+
+void
+cp_line_write(
+    FILE* out,
+    const char* line)
+{
+    char* escaped;
+
+    assert(out);
+    assert(line);
+    escaped = malloc(line_escape_size(line));
+    assert(escaped);
+    line_escape(line, escaped);
+    fprintf(out, "%s\n", escaped);
+    free(escaped);
+}
+
 void
 cp_lines_write(
     const struct CP_Lines* lines,
@@ -141,7 +244,7 @@ cp_lines_write(
 {
     fprintf(out, "[%s]\n", debugname);
     for( int i = 0; i < lines->count; i++ )
-        fprintf(out, "%s\n", lines->lines[i]);
+        cp_line_write(out, lines->lines[i]);
     fputc('\n', out);
 }
 
@@ -236,13 +339,17 @@ cp_lines_to_string(
 {
     size_t need = strlen(debugname) + 4;
     for( int i = 0; i < lines->count; i++ )
-        need += strlen(lines->lines[i]) + 1;
+        need += line_escape_size(lines->lines[i]) + 1;
     char* buf = malloc(need + 1);
-    if( !buf )
-        return NULL;
+    assert(buf);
     size_t w = (size_t)snprintf(buf, need + 1, "[%s]\n", debugname);
     for( int i = 0; i < lines->count; i++ )
-        w += (size_t)snprintf(buf + w, need + 1 - w, "%s\n", lines->lines[i]);
+    {
+        line_escape(lines->lines[i], buf + w);
+        w += strlen(buf + w);
+        buf[w++] = '\n';
+        buf[w] = '\0';
+    }
     if( out_size )
         *out_size = w;
     return buf;
@@ -364,6 +471,30 @@ config_file_read(
             fprintf(stderr, "%s:%d: missing property separator: %s\n", path, line_no, line);
             ok = 0;
             break;
+        }
+        /* The value ends at an unescaped `//` (a comment) and loses its unescaped
+         * trailing blanks: the server's line cleaner, and line_escape's inverse. */
+        {
+            char* cut = eq + 1;
+            size_t end;
+
+            for( ; *cut; cut++ )
+            {
+                if( *cut == '\\' && cut[1] )
+                {
+                    cut++;
+                    continue;
+                }
+                if( cut[0] == '/' && cut[1] == '/' )
+                {
+                    *cut = '\0';
+                    break;
+                }
+            }
+            end = strlen(eq + 1);
+            while( end > 0 && (eq[end] == ' ' || eq[end] == '\t') &&
+                   !text_escaped(eq + 1, end - 1) )
+                eq[end--] = '\0';
         }
         char* key = dup_range(line, (size_t)(eq - line));
         char* value = dup_range(eq + 1, strlen(eq + 1));

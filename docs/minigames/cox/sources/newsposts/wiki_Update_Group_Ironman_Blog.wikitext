@@ -1,0 +1,347 @@
+{{Update|date=1 September 2021|rev=14 September 2021|link=https://secure.runescape.com/m=news/group-ironman-blog?oldschool=1|category=community}}
+[[File:Group Ironman Blog newspost.png|right]]
+{{Clear|right}}
+{{ToC}}
+==Further Feedback and Clarification - September 14th==
+===Polling and Release Date===
+Quite a few questions have been asked about Group Ironman.
+
+Why is it a single poll question? Why haven't we split the poll up into more bits? Why are we polling it all?
+
+In the past we’ve polled Ironman, UIM and Hardcore Ironman, so it’s only right that we poll Group Ironman. We’re also adopting a similar polling strategy as we did with those updates, too.
+
+Our main priority is the long-term health and success of the mode. Currently, each design decision we’ve made has been taken on the basis that we know the following groups of players exist, and we want to accommodate them:
+* Those who want to play casually
+* Those who would prefer to be more competitive
+* Those who want a very hard-core experience
+
+In addition to all these benefits, our approach also ensures that meaningful content choices (such as Individual Prestige, which aims to hinder illicit activities) are present from release. Rather than have to address potential issues in the future, we’re building them into the overall Group Ironman design from day one. They will be something players are accustomed to from the start of their Group Ironman journey.
+
+We're continuously learning from past mistakes, taking into account what works well for players and what doesn't. We hope you understand the reasoning behind our approach. But rest assured, as with other updates, we’ll continue to make adjustments and improvements with your feedback in mind. We want to see you all enjoying Group Ironman as much as you want to get your hands on it - it's certainly been a long time coming!
+
+Should Group Ironman pass the polls, we anticipate it will be ready to release on '''October 6th!'''
+
+===Shared Storage===
+We know that you were looking forward to Shared Storage, and we have good news!
+
+Our wonderful engine team has made a breakthrough and we are delighted to confirm that we will be able to offer the Shared Storage functionality '''at launch!'''
+
+Do note that only one player at a time will be able to use Shared Storage. It will be accessible from your regular Bank via a new button on the Bank interface, which is only visible to Group Ironmen and Hardcore Group Ironmen. Try to be courteous with your group members, everyone - no lobster thievery!
+
+===Prestige System===
+[[File:Group Ironman Blog (1).png|500px|centre]]
+
+[[File:Group Ironman Blog (2).png|500px|centre]]
+
+We've seen your feedback regarding the Prestige System, as well as your thoughts about its perceived complexity.
+
+To clarify, there are two different forms of Prestige:
+
+'''Group Prestige''' is a purely cosmetic indication that your group consists of the original members, and that you've not engaged in certain PvM activities with other players outside of your group.
+
+* It is highlighted in-game via a star icon that shows next to the group's name.
+* Prestige groups will also be shown on the Group Ironman HiScores alongside non-Prestige groups.
+* Losing Group Prestige has no in-game impact other than losing the cosmetic star next to your group name in-game and on the HiScores.
+* You can still trade freely between other Prestige group members even if Group Prestige is lost.
+* Group Prestige is only lost if a new member joins your group, or if someone within the group opts to do certain PvM activities with someone outside of your group.
+
+'''Individual Prestige''' determines whether or not wealth and item transfer restrictions are applied to an individual group member. This system is vital to combat illicit activities.
+
+* It is highlighted in-game via a star icon that shows next to all original group members.
+* Losing Individual Prestige has gameplay consequences: it means that you are subject to the wealth and item restrictions as we outlined in the blog.
+* Individual Prestige is only lost if you join a group other than the one you started with.
+* New players added to the group after formation will not have Individual Prestige.
+
+We know that many of you just want to focus on playing Group Ironman with your friends, and we don't want you to have to worry about maintaining Group Prestige. To reinforce this, we have also added an option for leaders to opt out of Group Prestige entirely upon creation of the group. Unless you intend to play this game mode competitively (we expect only a small portion of players will), losing Group Prestige should not have a significant impact on your Group Ironman experience.
+
+==Your Feedback and Our Response (September 7th)==
+{|class=wikitable style="text-align:center; width:665px;"
+!Your Feedback
+!Our Response
+|-
+|You would like to know the release date for Group Ironman! When it is coming? Tell us already!
+|We really want to give you a date, but we won't want to give you an(other) incorrect one.
+
+The hesitancy to give out a solid release date is because Group Ironman development has been done in tandem with our Engine team. As Mod Elena mentioned in our livestream, we have an idea on a date but this can still be changed. Developers have to wait on some engine commands to be available before some work can be completed, and vice versa.
+
+We're confident that Group Ironman will be releasing, and we'll be ready to give you a release date soon. We're planning to open the Poll for Group Ironman this week, and when the Poll closes, we hope to give you a more solid release date.
+|-
+|You are asking us why we are looking to poll Group Ironman. You'd like to know what exactly is being polled.
+|<br/>It's correct to observe that we typically poll content before development has begun and this isn't what we've done in this particular instance.
+
+It's important for us to have a well-thought out design to present to players before it gets put into a poll. Important design elements such as addressing boosting, shared storage and hardcore groups had to be designed well in advance, alongside the engine work needed for it.
+
+However, we would like to update you on what we intend to poll this week, so check the bottom of the blog for Poll Question #1 and #2!
+|-
+|You would like to know if it's possible for us to make Player Owned Houses useable while their owner is offline, to create a single house where players can go to avoid everyone in the group requiring construction.
+
+The Clan Hub system seems perfect for this.
+
+Failing this, could we look into a way that a Group will only need one construction person.
+|We know there's a massive demand for players to be able to utilise a single Player Owned House while the owner is offline. Not everyone in a group wants to level up their construction - we hear you.
+
+Unfortunately, there are technical reasons restricting this. The game worlds simply offer no way of loading a player's details if they're not logged into them. We've seen some great suggestions on how to get around this, but none of these would be able to replicate the ability to customise rooms, layouts and capabilities of player owned housing.
+
+We would like to emphasise that you will still be able to enter your fellow group members' house and trade with them. This requires them to be online and inside the house, like non Iron accounts have been doing for a while now.
+
+We're looking at solutions which may allow the use of other player's homes when they are online but not at home themselves. This is not something we can promise, but we will look into it post-launch.
+|-
+|Some players feel that Group Ironmen should not be able group up for high-end PvM activities (Chambers of Xeric, Theatre of Blood and Nightmare of Ashihama) with those outside of their group. After all, it should be about pulling through together! If Group Ironmen can group up with anyone, it may ruin the integrity of the game mode.
+
+On the other hand, there are concerns that if we decided to lock this so that groups can only play with their own members, then areas like the Theatre of Blood and any related Combat Achievements would be overly challenging or impossible to complete in smaller groups. This feels especially harsh for a game mode that is looking to offer more accessibility to players, not less.
+|We're going to be making some adjustments that could allow a Group Ironman team to team up with outside members. However, upon doing so we propose that this will remove their '''Group Prestige'''.
+
+Group Prestige is visually represented on the HiScores. This will not appear on HiScores at launch, but will follow shortly after. Until then, it will be displayed somewhere in-game for you, although we haven't yet chosen between an interface or somewhere on the Node.
+
+Group Prestige is lost when:
+Inviting a player into your group once the group has already been formed.
+A player in the group does CoX/ToB/Nightmare of Ashihama with players not in their group.
+This may also be added to future content, such as Tombs of Amascut.
+
+Additionally, players will be warned if an action will lead to the loss of Group Prestige.
+
+This differs slightly from '''Individual Prestige''':
+
+Individual Prestige determines whether or not wealth and item transfer restrictions are applied to an individual group member.<br/>
+If you join a group other than the one you started with, you will lose Individual Prestige.<br/>
+You will always have Individual Prestige unless you join another group.<br/>
+Every player in the group will have Individual Prestige when the initial group is formed.<br/>
+New players added to the group after formation will not have Individual Prestige.
+
+In short - any member of a group will be able to group up with other members outside of your group, but it will result in the entire group losing Group Prestige and the group's stats will no longer be represented on the HiScores as a prestige group (although it will still be represented).
+
+Losing Group Prestige does not have an impact upon Individual Prestige. Grouping with outsiders will not lead to any restrictions - these will only be applied to individuals who swap groups.
+
+We've also seen feedback from those who feel Combat Achievements and duo Theatre of Blood feedback are overly challenging for smaller group sizes. This is something we're going to closely monitor post-launch. We'd like to emphasise that there is a difference between challenging content and impossible to complete content - and we're only looking to solve the latter.
+
+In the weeks following launch, we will examine disabling any tasks that require your group to be larger than it is, as completing these will inevitably lead to the loss of Group Prestige. These tasks would be re-enabled if the group decided to invite new members. This work will depend on whether there are other more critical issues and bugs to address.
+
+Following release, we may also look to ease some restrictions on exceptionally difficult content.
+|-
+|You have expressed concern about the fact that, in order to form a Prestige Group, all original members must be online at the same time when the group is being created.
+
+This is required in order to avoid content restricted items and the wealth transfer cap.
+|A grace period has been suggested to get around this problem, but this is not feasible. Our tracking for the HiScores must know who is going to be in the original group at the time of its creation, so it's not possible to change this.
+|-
+|You would like to know more about the Shared storage we briefly mentioned in this blog.
+
+Plus, some of you would prefer one shared group Bank instead of sharing storage.
+|Shared Storage will be accessible to all members of the group. We've gone with this design because group members still require their own personal Bank facility, as they will still need to store untradeables and items that they do not intend to share within the group.
+We would also like to clarify that at this time we do not know yet whether Shared Storage will be available at launch, but we are committed to making it. The technical challenges for Shared Storage are unlike anything the engine has had to do before, making it hard to predict exactly how much time will be needed to implement it. Should anything go wrong when dealing with inventories/storage, it can have serious consequences for the rest of the game. We must therefore focus on making it correctly, even if it takes longer to deliver.
+
+Please note - you'll still be able to trade among yourselves whilst this feature is in the works. We believe that you would prefer us to release Group Ironman sooner rather than wait for this one feature. We hope this won't impact on your experience too much.
+|-
+|We've seen a lot of ideas about co-op content and group activities for the future. This includes a re-vamp of Partner Slayer, shared Collection Log and tradeable Clue Scrolls!
+|We absolutely love hearing your post-release ideas! Please keep them coming, as they help us to understand your appetite for future updates! These ideas are not something we can commit to in the near future but we'll certainly be considering them. Thank you for sharing them!
+|-
+|'''Clarification:''' We previously mentioned that if a Hardcore Group Iron member leaves, it will subtract one life from the group unless it's their last life.
+|This was incorrect, and the blog has been updated to reflect this. A Hardcore Group's last life '''can and will be lost due to a member leaving.'''
+|}
+
+'''How is Prestige status shown?''' It's shown through the HiScores, which will be available shortly after launch. We're currently working on something to show Group Prestige status in-game, separately from Individual Prestige.
+
+'''Can Ultimate Ironmen form a group together?''' Not currently, but this may be something we look to do in the future depending on player demand.
+
+'''Do all of my friends have to be online at the same time in order to form a Prestige Group together?''' Yes, in order for your group to be keep its Group Prestige, every member will need to be online at The Node at the time of the groups' creation. There is no way around this (as explained in the table above). You can absolutely invite someone to your group who is late to the party, but doing so will mean that the group will lose its prestige status. This isn't the end of the world - you'll still be displayed on the HiScores, but not as a Prestige Group. Please note: if you do invite somebody new to the group, you will still not lose your Individual Prestige unless you join a new group yourself. This means that the wealth transfer caps or content restrictions would not apply to you, but only the new member.
+----
+
+''Group Ironman is Old School's all new Co-Op Ironman Game Mode. Create Standard and Hardcore teams and set new records together.''
+
+==Group Ironman: Design Overview==
+[[File:Group Ironman Blog (3).png|800px|centre]]
+
+Are you ready to band together and become the stuff of legend? This is your chance to build and grow a team of Ironmen that is greater than the sum of its parts and battle for top spot on the leaderboard. It's a whole new way to play Old School RuneScape!
+
+As launch day approaches, it’s time to dive into the who, what and why of this innovative new mode. Whether you’re an Iron novice or an experienced Ultimate, this is everything you need to know about the newest addition to the Iron family! Let’s take a look…
+
+===What?===
+Group Ironman is a new way for the toughest ‘Scapers to explore Gielinor. Enjoyed Ironman? Hardcore Ironman? ''Ultimate'' Ironman? Well now it’s time to bring together your most trusted companions to take on the challenge together.
+
+If you’ve never played Ironman before, here’s a quick summary: imagine Old School RuneScape with no trade, where you have to earn every item yourself. It’s about earning everything with blood, sweat and tears, through gathering, crafting and fighting. Needless to say, it’s a real challenge – and one you would normally have to face alone.
+
+Group Ironman is a little different. Groups of '''two to five''' players can join together and take on Gielinor’s nastiest beasts. They can also trade their resources among one another, delve into new Shared Storage, and visit each other’s Player Owned Houses. Groups will even be able to '''compete for leaderboard positions''' and prove that their gang is the greatest supergroup of Old School RuneScape. It’s Ironman with a little help from your friends – pushing you to your limits while allowing you to share in the glory with your mates!
+
+===Why?===
+Ironman Mode has been a big success for Old School RuneScape, and we’re always looking for ways to build on popular content. We’re also keen to bring in new adventurers and encourage our current player base to explore the game in new ways.
+
+Group Ironman has been requested by players for a long time. It was promised at RuneFest 2019, and interest hasn’t abated since. Plus, with the events of the past year and a half, there’s more appetite than ever for shared experiences in Old School RuneScape. Group Ironman is another way for us to bring people together and encourage cooperation and community-building in Gielinor.
+
+We know it’s going to be a lot of fun and we can’t wait to see you forming your groups and battling together to break new records!
+
+===How?===
+Keen to hear more about how we're making Group Ironman? Well, that’s lucky because we’ve got plenty:
+
+<center>[[#General Rules|General rules]]<br/>[[#Recruitment|Recruitment]]<br/>[[#Hot Topics|Hot topics]]<br/>[[#Hardcore Group Ironman|Hardcore Group Ironman]]</center>
+
+==General Rules==
+<center>[[#Group Identity|Group identity]]<br/>[[#Combat|Combat]]<br/>[[#Group content|Group content]]<br/>[[#Trading|Trading]]<br/>[[#De-Ironing|De-ironing]]<br/>[[#Highscores|Highscores]]<br/>[[#Player Owned Houses|Player Owned Houses]]</center>
+
+===Group Identity===
+A Group Ironman (GIM) group is made up of two to five players. All normal Iron restrictions apply to them when interacting with the world outside their group: in contrast, interactions within the group are more like regular Old School RuneScape.
+
+Group Ironman players have a unique icon next to their name to distinguish them from other Iron players and regular ‘Scapers. Their outfit also shows off their GIM status.
+
+GIM will get to show other players which group size they're playing with a unique armour set. Roman numerals on their chestplates indicate the size of their group (i.e, II-V).
+
+[[File:Group Ironman Blog (4).png|800px|centre|thumb|''Players jumping for joy at their awesome new armour!'']]
+
+===Combat===
+In Combat, GIM are pretty much like regular Ironmen to outsiders. This means that if someone outside the group hits an NPC, the drop would either go to the person outside the group or disappear, just like it would with a regular Iron. However, if only group members have been hitting the NPC, the drop would go to the group member who dealt the most damage.
+
+===Group content===
+GIM players can tackle all the group content that regular Irons can. For example, they can kill the Nightmare with other players, and they can team up with other account types outside their group when playing Theatre of Blood, The Chambers of Xeric and Nightmare.
+
+In Chambers of Xeric, GIM will be just like playing Iron, where items would drop to the floor for anyone to take (provided they got the kill credit).
+
+[[File:Group Ironman Blog (5).png|800px|centre|thumb|''A group of players fighting the Muttadile in CoX'']]
+
+===Trading===
+It goes without saying that GIM can't trade with people outside their group. They can only trade regularly within the group, and some trade restrictions do still apply to new members joining the group (see the [[#The gradual wealth transfer system|gradual wealth transfer system]]).
+
+[[File:Group Ironman Blog (6).png|800px|centre|thumb|''GIM can only do this with fellow group members.'']]
+
+===De-Ironing===
+A player must leave their group before they can de-Iron. (See [[#Leaving a group|leaving a group.]])
+
+===Highscores===
+One of the major draws for GIM is group HiScores: this is your chance to prove your group is the best of the best! There are HiScores for each group size too. This is because a five-player group would have a much easier time than a two-player group, so listing them separately is fairer. HiScores are listed under the group’s name.
+
+Ranks are determined by combined total skill level for your team first, then by combined total experience. Additionally, only XP gained while in the group count towards the group's total level. This means that players leaving a group and joining a new one won't be able to transfer their experience over to the new group.
+
+===Player Owned Houses===
+Currently, your regular Iron accounts can have a Player Owned House of their own, but can’t enter other Player Owned Houses or invite anyone into theirs. GIM is a little different – players can access each other’s houses. Additionally, Ironmen will now be able to let other players into their own house too, although they still can’t enter other players’ houses.
+
+[[File:Group Ironman Blog (7).png|800px|centre|thumb|''Players partying hard in a Player Owned House'']]
+
+==Recruitment==
+You can form a group of between two and five players. One player will be the leader of the group. You’ll establish your group before you arrive at the mainland – you will need to find players to join your gang on the Node, a recruitment hub off the coast of Tutorial Island, before leaving (see below for more details). You will be able to pick a group name, but please note these share a name space with Clans – so you can’t use a name for your group that already belongs to an existing Clan.
+
+Once your group is formed, you are free to recruit new players as you progress, should you wish.
+
+===The Node===
+This is a new island off the coast of Tutorial Island. It’s a place to learn the core elements of Group Ironman and form groups!
+
+[[File:Group Ironman Blog (8).png|800px|centre|thumb|''Tutorial Island with The Node'']]
+
+Talk to the Iron tutors on Tutorial Island to select the GIM game mode, then run South to jump on the boat after completing the tutorial. Once you get to the Node, another tutor is on-hand to explain GIM in more detail.
+
+[[File:Group Ironman Blog (9).png|800px|centre|thumb|''The new Iron Man Setup menu'']]
+
+Once you’ve figured out what you’re doing, it’s time to talk to other players! Communication will be key for succeeding in this game mode, so find teammates you really click with. Once your group is formed, you can always come back to the island to recruit fresh players (although you can’t return to Tutorial Island).
+
+[[File:Group Ironman Blog (10).png|800px|centre|thumb|''Get grouping on The Node!'']]
+
+If you can’t find the right group, or wish to go ahead as a regular player instead, you can leave the Node without a group. At this point you will choose between any of the other game modes before being teleported to the mainland.
+
+[[File:Group Ironman Blog (11).png|800px|centre|thumb|''There's only one way outta here!'']]
+
+Remember, GIM isn’t like Clans – you can’t recruit for your group any place other than the Node. You’ll have to come back here to add more players. To return from the mainland either speak to the Iron tutors in Lumbridge or teleport using the GIM Helmet. This can only be done if you're a GIM player.
+
+[[File:Group Ironman Blog (12).png|800px|centre|thumb|''A new addition to Lumbridge. The portal will only be visible to GIM and HCGIM.'']]
+
+Before you head to the mainland, you might want to try out combat in your group. There are a few low-level NPCs on the island and you can practice bashing them about together before you leave. If you've not left the Node before, your player inventory will be wiped and you’ll receive the standard items you normally get from Tutorial Island.
+
+[[File:Group Ironman Blog (13).png|800px|centre|thumb|''Boars, ores and mores.'']]
+
+===Forming a group===
+Time to find a group! You will be able to apply to any groups you like the look of, simply by using the ‘apply’ option.
+
+[[File:Group Ironman Blog (14).png|800px|centre|thumb|''Boars, ores and mores.'']]
+
+If you want to start your own group, this is what the process looks like:
+# Click "Create Group" to start forming a group.
+# Right-click players to invite them.
+# Choose a group name (this will only be saved once your group has sucessfully formed).
+# Select "Confirm" once you have enough players in your group and a chosen name. You'll then be presented by the following confirmation boxes:<br/>{{*}} Are there enough people in the group?<br/>{{*}} Are you sure you want to create this group?
+# Congratulations, you've created your team for Group Ironman!
+
+===Recruiting into existing groups===
+If you are the leader of your group, you will see an ‘Invite’ option next to the players you meet around the Node. Clicking this option will check if they are part of a group. If they are not, they’ll receive your invitation.
+
+''All new group members must be fresh accounts.'' The second they leave the Node, players can no longer join a group. This is to ensure that no groups or accounts get an unfair advantage or headstart by bringing in experienced players.
+
+If a player chooses to leave their group or is kicked out (see Hot Topics), this will leave a gap. For example: what used to be a group of four will still be considered a four-player group in HiScores, but in reality will only have the three remaining members and an open gap. This group can go to the Node to pick up a new group member.
+
+==Hot Topics==
+===Abdication of the leader===
+Every group will have a leader – by default this will be the player who created the group (see [[#dead link|Recruitment]]). However, this person may wish to quit the game,<br/>play another account or focus on other activities for a bit. At that point, you wouldn't want the group to be fully dependent on this individual because it might ruin the fun for everyone else! An absent leader can be really bad for morale and potentially lead to more people quitting. So, we’ve made it possible for the leader to abdicate.
+
+===Stepping down===
+This works exactly like stepping down in Clans.
+
+The leader can choose to step down from their position at any time. There is a seven day grace period before their decision takes effect. This is to prevent hijackers taking over accounts and maliciously making players step down as leader of their groups.
+
+When a leader steps down, another player must take their place. The abdicator chooses the new leader, and they will not be able to step down until a successor has been chosen.
+
+If the leader has been inactive for 30 days, leadership will be assigned to the group member who has been in the group the longest. If more than one member joined the same day, leadership will go to whichever member joined the group first. Oh, and don’t worry - the leader is not removed from the group, just demoted.
+
+If there's no one else in the group, the leader can't step down. Instead, the group will be disbanded only when they themselves leave.
+
+===Leaving a group===
+Starting GIM with your friends, you may think you’re in it for the long run, but you never know what might happen! Sometimes life gets in the way or priorities change. You can always leave a group by speaking to the Iron tutor on the Node.
+
+Leaders can also remove members of the group. There are grace periods for members leaving or being removed, so let’s look at that next…
+
+===The Grace Period===
+If you choose to leave, you have seven days to cancel the request. This serves several purposes:
+* It allows time to change your mind.
+* Safety. In the case you may mis-click or their account is hijacked, a grace period will hopefully give time to get back in control.
+
+A player who is kicked from a group will also have a short grace period of '''seven days.''' This is so that they can settle things with the group. They can still trade freely within the group in this period.
+
+===Account status===
+If you decide to leave a group, you must pick one of two options. You can choose to:
+* Keep GIM status – if you choose this, you will be placed in a new group where you are the leader. Their group size remains the same. You'll keep your levels, stats, quests, variables and untradable items. However, '''tradable items are deleted.'''
+* Become a regular account. You will lose GIM status and will also be removed from the GIM group and HiScores. You will also keep all levels, stats, quests, variables and untradeable items. '''You also get to keep their tradable items.'''
+
+===Boosting===
+We want to avoid GIM boosting being meta and prevent a situation where experienced players come in and artificially boost new groups. We certainly don't want new groups being tricked into paying anybody to get a good start! However, assisting your friends and long-term group members is not against the rules, and we want to allow for that. The following systems are therefore in place to prevent boosting:
+
+===Prestige groups and highscores===
+Groups that remain the same after formation have ‘Prestige’ status. This means they are distinguished from other groups that have changed over time. This will encourage groups to stick together, and is our way of recognising the loyalty of a group and the progress they’ve made together. Prestige status is ON by default for every group, and is lost upon inviting anyone else into your group after it has been formed.
+
+===The gradual wealth transfer system===
+When a member joins a new group, there are hard caps on how much wealth that player can receive from the existing members of the group, and from the shared storage. This prevents existing groups transferring all their wealth to new members before leaving. By prolonging the transfer, this should deter boosters while not being too much of an inconvenience for legitimate players. The caps start off very restrictive but quickly become more lenient, increasing weekly as follows:
+* '''Week 1''': Wealth caps at 1m.
+* '''Week 2''': Wealth caps at 20m.
+* '''Week 3''': Wealth caps at 50m.
+* '''Week 4''': Wealth caps at 100m.
+* '''Week 5''': Cap is lifted.
+
+===Content restricted items===
+To ensure that the players using certain items are deserving of them, we will restrict the use of them until that new player has successfully completed the relevant quests at least once. For example, if a player wishes to use the Ghrazi rapier they must first complete Theatre of Blood. They would then be able to use all the weapons from that Raid. Similarly they must complete at least one Chambers of Xeric to use any of the items from there. All boss uniques would require at least one boss kill of the relevant boss.
+
+Please note, the 1kc requirement applies to you if you've left your group and joined a new one, or if you join an existing group (i.e you are not prestiged anymore). If the entire group started on The Node as fresh accounts you will not have the 1kc requirement, or the wealth transfer cap.
+
+==Hardcore Group Ironman==
+We know that not everyone likes to take things easy. Perhaps you and your friends like to be ''seriously'' challenged – and can rely on each other to pull through every time. This is where Hardcore Group Ironman comes into play!
+
+[[File:Group Ironman Blog (15).png|300px|centre|thumb|''Hardcore Armour for Group Ironman.'']]
+
+A Hardcore Iron group begins with '''a number of lives equal to the number of players in the group at the time of formation'''. Any death, from any member, will result in one life being subtracted from the group’s total lives – this will be broadcast to the group members who are online at the time. Offline players will get the message once they log-in.
+
+If a group’s total lives hit zero, the whole gang has their Hardcore status revoked. The group will remain together but will be considered to be regular '''Group''' Irons. All items and stats remain.
+
+Hardcore groups cannot accept anyone else into their group. This means that by default, a Hardcore group is Prestige. If they wish to invite anyone else, they must first lose their Hardcore status. If anyone leaves or is kicked, the group keeps its Hardcore status – but loses one of its lives.
+
+Normally, Hardcore Iron Players are able to die in certain areas of the game without losing their Hardcore status. These are termed ‘safe deaths’. In PvM, there are safe deaths within places such as the Chambers of Xeric, the Fight Caves, Inferno and Pest Control. On the PvP side of things, there are minigames where Hardcore status is not affected – e.g. Last Man Standing, Soul Wars, and Castle Wars.
+
+We reckon that’s way too easy for Hardcore Group Ironman! For a Hardcore Group, we want to remove all safe deaths across the entirety of PvM. Any PvM deaths will be unsafe and result in a group life lost. Existing PvP safe deaths within minigames would remain the same as normal, and this change does not affect regular Hardcore Iron players - in fact, none of these changes will impact regular Hardcore Iron Players. Our aim is to maintain prestige within the HCGIM community – and provide some of the most challenging content in the whole game.
+
+Naturally, Hardcore Group Irons will want to show off their astonishing achievements in this merciless new mode. Although we can’t provide HCGIM HiScores on release, it is something we’re working towards including within the year. We’ll let you know when things are confirmed.
+
+{{News Poll|1|Should Group Ironman and Hardcore Group Ironman be added to the game, as described in the blog?}}
+
+{{News Poll|2|'''(Ironman only)''' Should we introduce a way for Iron accounts (Normal, Hardcore, Ultimate and any variation of Group Ironmen) to buy Bonds via the Grand Exchange? They would not be able to sell Bonds.}}
+''Please note that Poll Question #2 can only be voted on by Ironmen (Normal, Hardcore and Ultimate). Should it pass a Poll, it will extend to any variation of Group Ironmen.''
+
+----
+That's everything for this blog. Questions? We'll be holding our regular Twitch Q&A Livestream on Thursday at 17:00 BST, so go ahead and '''submit your questions for us''' and we'll answer them when we're live!
+
+We'd love to hear your feedback so please do...
+
+Join the [https://discord.com/invite/OSRS Official Old School RuneScape Discord] server and head to the #group-ironman channel in the Summer Summit area.<br/>Use the '''''#GroupIronman''''' hashtag on Twitter.<br/>Reply to this [https://www.reddit.com/r/2007scape/comments/po5ih0/group_ironman_blog_updated_v2_poll_goes_live/?utm_source=share&utm_medium=web2x&context=3 Reddit Thread] or make your own thread with '''''#GroupIronman''''' in the title.
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Bonsai, Brow, Bruno, Curse, Daizong, Deagle, Dibber, Ditto, Dylan, Ed, Elena, Errol, Fed, Flippy, Gecko, Grub, Halo, Havik, Husky, Jndr, John C, Kandosii, Katies, Kieren, Kirby, Lenny, Light, Lottie, Mack, Maylea, Morty, Nasty, Nin, Oasis, Roq, Ry, Sarnie, Skylark, Sova, Squid, Steve W, Sween, Tide, Vegard, West, Wolfy & Zuko'''
+
+''The Old School Team''

@@ -1,0 +1,33 @@
+npc	npc_id	framemap	kind	id	cache_name	frames	game_ticks	frame_sounds	role	tier	note
+inferno_creature_splitter	7693	1687	seq	7581	jalak_attack_magic	11	1.0 (30 client)	-	attack	rig+name	forcedpriority=None priority=None
+inferno_creature_splitter	7693	1687	seq	7582	jalak_attack_melee	12	1.0 (30 client)	-	attack	rig+name	forcedpriority=None priority=None
+inferno_creature_splitter	7693	1687	seq	7583	jalak_attack_ranged	11	1.0 (30 client)	-	attack	rig+name	forcedpriority=None priority=None
+inferno_creature_splitter	7693	1687	seq	7584	jalak_death	9	1.5 (45 client)	-	death	rig+name	forcedpriority=10 priority=None
+inferno_creature_splitter	7693	1687	seq	7585	jalak_defend	12	1.0 (30 client)	-	defend	rig+name	forcedpriority=None priority=None
+inferno_creature_splitter	7693	1687	seq	7586	jalak_ready	12	1.0 (30 client)	-	ready	bound	forcedpriority=None priority=None
+inferno_creature_splitter	7693	1687	seq	7587	jalak_walk	12	1.0 (30 client)	-	walk	bound	forcedpriority=None priority=None
+inferno_creature_splitter_mage	7694	1687	seq	7581	jalak_attack_magic	11	1.0 (30 client)	-	attack	rig+name	forcedpriority=None priority=None
+inferno_creature_splitter_mage	7694	1687	seq	7582	jalak_attack_melee	12	1.0 (30 client)	-	attack	rig+name	forcedpriority=None priority=None
+inferno_creature_splitter_mage	7694	1687	seq	7583	jalak_attack_ranged	11	1.0 (30 client)	-	attack	rig+name	forcedpriority=None priority=None
+inferno_creature_splitter_mage	7694	1687	seq	7584	jalak_death	9	1.5 (45 client)	-	death	rig+name	forcedpriority=10 priority=None
+inferno_creature_splitter_mage	7694	1687	seq	7585	jalak_defend	12	1.0 (30 client)	-	defend	rig+name	forcedpriority=None priority=None
+inferno_creature_splitter_mage	7694	1687	seq	7586	jalak_ready	12	1.0 (30 client)	-	ready	bound	forcedpriority=None priority=None
+inferno_creature_splitter_mage	7694	1687	seq	7587	jalak_walk	12	1.0 (30 client)	-	walk	bound	forcedpriority=None priority=None
+inferno_creature_splitter_range	7695	1687	seq	7581	jalak_attack_magic	11	1.0 (30 client)	-	attack	rig+name	forcedpriority=None priority=None
+inferno_creature_splitter_range	7695	1687	seq	7582	jalak_attack_melee	12	1.0 (30 client)	-	attack	rig+name	forcedpriority=None priority=None
+inferno_creature_splitter_range	7695	1687	seq	7583	jalak_attack_ranged	11	1.0 (30 client)	-	attack	rig+name	forcedpriority=None priority=None
+inferno_creature_splitter_range	7695	1687	seq	7584	jalak_death	9	1.5 (45 client)	-	death	rig+name	forcedpriority=10 priority=None
+inferno_creature_splitter_range	7695	1687	seq	7585	jalak_defend	12	1.0 (30 client)	-	defend	rig+name	forcedpriority=None priority=None
+inferno_creature_splitter_range	7695	1687	seq	7586	jalak_ready	12	1.0 (30 client)	-	ready	bound	forcedpriority=None priority=None
+inferno_creature_splitter_range	7695	1687	seq	7587	jalak_walk	12	1.0 (30 client)	-	walk	bound	forcedpriority=None priority=None
+inferno_creature_splitter_melee	7696	1687	seq	7581	jalak_attack_magic	11	1.0 (30 client)	-	attack	rig+name	forcedpriority=None priority=None
+inferno_creature_splitter_melee	7696	1687	seq	7582	jalak_attack_melee	12	1.0 (30 client)	-	attack	rig+name	forcedpriority=None priority=None
+inferno_creature_splitter_melee	7696	1687	seq	7583	jalak_attack_ranged	11	1.0 (30 client)	-	attack	rig+name	forcedpriority=None priority=None
+inferno_creature_splitter_melee	7696	1687	seq	7584	jalak_death	9	1.5 (45 client)	-	death	rig+name	forcedpriority=10 priority=None
+inferno_creature_splitter_melee	7696	1687	seq	7585	jalak_defend	12	1.0 (30 client)	-	defend	rig+name	forcedpriority=None priority=None
+inferno_creature_splitter_melee	7696	1687	seq	7586	jalak_ready	12	1.0 (30 client)	-	ready	bound	forcedpriority=None priority=None
+inferno_creature_splitter_melee	7696	1687	seq	7587	jalak_walk	12	1.0 (30 client)	-	walk	bound	forcedpriority=None priority=None
+inferno_creature_splitter (all four)	7693-7696	-	spotanim	1380	inferno_splitter_mage	24	1.6 (48 client)	-	attack-projectile	name	splitter mage projectile by Jagex name; the words match both the npc symbol inferno_creature_splitter_mage and a parent Jal-Ak attack, so which npc fires it is unsettled (closer); model 33008; anim=inferno_splitter_proj; Jagex name only
+inferno_creature_splitter (all four)	7693-7696	-	spotanim	1381	inferno_babysplitter_mage	24	1.6 (48 client)	-	attack-projectile	name	baby splitter mage projectile by name; model 33009; anim=inferno_splitter_proj; Jagex name only; which npc fires it is unsettled (closer)
+inferno_creature_splitter (all four)	7693-7696	-	spotanim	1378	inferno_splitter_range	15	1.0 (30 client)	-	attack-projectile	name	splitter range projectile by Jagex name; the words match both the npc symbol inferno_creature_splitter_range and a parent Jal-Ak attack, so which npc fires it is unsettled (closer); model 33015; anim=inferno_basic_projectile_02; Jagex name only
+inferno_creature_splitter (all four)	7693-7696	-	spotanim	1379	inferno_babysplitter_range	15	1.0 (30 client)	-	attack-projectile	name	baby splitter range projectile by name; model 33016; anim=inferno_basic_projectile; Jagex name only; which npc fires it is unsettled (closer)

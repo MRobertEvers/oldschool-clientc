@@ -2,38 +2,27 @@
 #define RSCACHE_TOOLS_CACHEPACK_CP_FIELDS_H
 
 /*
- * The tree's field register, `fields/<type>.ini` — the writer's half.
+ * The server pack's container — what cachepack wraps a server band in.
  *
- * `src/torirsserver/torirs_server_servercodec.c` is the *reader*: it holds a C table of
- * `(opcode, wire, struct offset)` and turns a server-band stream back into a
- * `ToriRSServerNpcDef`. This is the other end of that stream. Both are driven by the
- * same declarations —
+ * ## The register and the band are the library's now
  *
- *     [npc.hitpoints]   server = opcode:77:u2
+ * `fields/<type>.ini` is read by `rscache_register.h` (`struct RSCache_Register`)
+ * and the band is written by `rscache_band.h` (`RSCache_BandEncode`). The game
+ * server reads both back through the same two files, so there is one parser of the
+ * register and one codec of the band — this file used to hold a second of each,
+ * and the two halves agreed only through tests. What cachepack keeps is what only
+ * a writer needs:
  *
- * — and neither may hold a number the other does not. A field written under one
- * opcode and read under another produces no error anywhere: both streams are
- * well-formed opcode streams, the value simply lands in the wrong field or in
- * none. So the register is the single source and each side is checked against it
- * (`cp_fields_check` here, `ToriRSServer_ServerCodecTest`'s cross-check there).
+ *   - `ref` validated against `cp_type_by_name` (`pack_server_type`): the library
+ *     knows no config type, so whether `ref = obj` names one is cachepack's
+ *     question, and a misspelling is fatal there.
+ *   - symbolic values resolved to ids (`resolve_field_value` in cp_pack.c), and
+ *     a value too wide for its wire refused with `RSCache_BandFits` and tallied
+ *     per field — never handed to the encoder, which asserts on one.
+ *   - the archive header, the server-only namespaces and their name tables,
+ *     below.
  *
- * ## Why a second reader rather than shared code
- *
- * The same reason `cp_register.h:6-10` gives for `content.ini`: cachepack
- * deliberately links nothing from the server repo's `src/`, because the vendored
- * library and its tools are meant to be usable apart from the client. The `.ini`
- * is the *contract* between them, not a header. `src/content/content_fields.c` is
- * therefore the model for this file and not its supplier, and the two answer
- * different questions:
- *
- *   content_fields.c   what does a field mean? — scope, and how it reaches the
- *                      client (`native` / `param:<n>` / `drop` / `error`). It
- *                      carries built-in defaults so a tree that ships no register
- *                      still behaves as it did before.
- *   cp_fields.c        where does a field land in the server pack? — opcode, wire
- *                      width, and the namespace its value is spelled in.
- *
- * **This one has no built-in defaults, deliberately.** A writer that invents an
+ * **There are no built-in defaults, deliberately.** A writer that invents an
  * opcode the tree did not declare writes bytes nothing agreed to read. A tree with
  * no `fields/<type>.ini` therefore emits no server band at all, which is the safe
  * answer rather than a silently different one.
@@ -42,9 +31,7 @@
  *
  * The band is integers. Content is not: `param=death_drop,bones` names an obj and
  * `param=attack_anim,cow_attack` names a sequence, and turning either into an id
- * needs to know *which* pack file to look in. Nothing else in the register states
- * it — `client = param:<name>` names the param, not the value's type — so this
- * adds one optional row:
+ * needs to know *which* pack file to look in:
  *
  *     [npc.death_drop]  server = opcode:151:u4   ref = obj
  *
@@ -53,224 +40,26 @@
  * guessing one would bake a number nobody agreed on. The unresolved value is
  * reported per field and not written, which is a visible gap rather than a wrong
  * record.
- *
- * The reader never sees `ref` and does not need to — it reads ids, not names — so
- * `content_fields.c` ignoring the key is correct rather than drift.
  */
+
+#include "rscache_band.h"
+#include "rscache_register.h"
+#include "rscache_serverpack.h"
 
 #include <stdint.h>
 
-/**
- * Payload width, spelled as the byte count so it reads the same as the reader's
- * `enum ServerWire`.
- *
- * `string` is parsed and then refused by `cp_fields_check`: the reader's
- * `ToriRSServer_ServerNpcDecode` has no string case, so a tree declaring one would get
- * a stream that stops at that opcode and a record silently missing every field
- * after it. Refusing at the register is the only place that failure is legible.
- */
-enum CP_FieldWire
-{
-    CP_FIELD_WIRE_NONE = 0,
-    CP_FIELD_WIRE_U1 = 1,
-    CP_FIELD_WIRE_U2 = 2,
-    CP_FIELD_WIRE_U4 = 4,
-    CP_FIELD_WIRE_STRING = 5,
-};
-
-/**
- * How a field reaches the client, mirroring `content_fields.h`'s enum.
- *
- * The writer needs this as well as the reader does, and for a sharper reason: it
- * is what decides whether a merged key may be handed to the client encoder at
- * all. `hitpoints` reaching `cp_npc.c` is an unknown key; `hitpoints` reaching
- * the record's param table is the projection working.
- */
-enum CP_FieldClient
-{
-    /** Server-only. The client encoder never sees the key. Default. */
-    CP_FIELD_CLIENT_DROP = 0,
-    /** The record's own field; the client encoder handles the key itself. */
-    CP_FIELD_CLIENT_NATIVE,
-    /** Folded into the record's param table, under `param_name`. */
-    CP_FIELD_CLIENT_PARAM,
-    /** The encoder must refuse. No silent loss allowed. */
-    CP_FIELD_CLIENT_ERROR,
-};
-
-struct CP_Field
-{
-    /** `hitpoints` — the key as a config spells it, without the `<type>.` prefix. */
-    char name[48];
-    /** 64..255, or 0 when the field has no server band. Client npc opcodes run
-     *  1..147, so the reserved band is what keeps a server record from being
-     *  mistaken for a client one. */
-    int opcode;
-    /** `CP_FIELD_WIRE_NONE` for a field the register declares but gives no
-     *  server home — `[npc.name]` is a real declaration with nothing to encode. */
-    enum CP_FieldWire wire;
-    enum CP_FieldClient client;
-    /** For `CP_FIELD_CLIENT_PARAM`: the param's *name*, resolved through the param
-     *  pack at bake time. A name and not a number, because which number
-     *  `hitpoints` is is the pack file's business and it has been renumbered once
-     *  already. */
-    char param_name[48];
-    /**
-     * Namespace a symbolic value is resolved through, or "" for decimal only.
-     *
-     * A cachepack config type name — `obj`, `seq`, `loc` — validated against
-     * `cp_type_by_name` by the caller, not here: this file stays free of
-     * `cachepack.h` so it links into a test without the cache library behind it.
-     */
-    char ref[32];
-};
-
 enum
 {
-    CP_FIELDS_MAX = 128,
     /** Every field at once — opcode byte plus widest payload — plus the
-     *  terminator. A record cannot state more fields than the register declares. */
-    CP_SERVER_BAND_MAX = (CP_FIELDS_MAX * 5) + 1,
+     *  terminator: `RSCache_BandEncodeBound` of the largest register there can be,
+     *  so a stack buffer of this size satisfies the encoder for any register. */
+    CP_SERVER_BAND_MAX = (RSCACHE_REGISTER_MAX * 5) + 1,
 };
 
-struct CP_Fields
-{
-    char type[32];
-    /**
-     * Band fields first, ascending by opcode, then everything else.
-     *
-     * Two things read this array and they want different halves. The band writer
-     * walks `[0, band_count)` and needs ascending opcodes, so two packs of the
-     * same content come out byte-identical. The client-side filter walks all
-     * `count` of them, because `[npc.name]` and `[npc.magic]` have no opcode and
-     * are still real declarations — dropping them, as an earlier cut of this file
-     * did, left the filter unable to tell a client-native key from an unknown one.
-     */
-    struct CP_Field entries[CP_FIELDS_MAX];
-    int count;
-    /** How many of `entries` carry a server opcode. */
-    int band_count;
-    /**
-     * Whether *records the tree adds* belong in the client cache, **by default**.
-     *
-     * Spelled `records = client` in a bare `[<type>]` section. The default is no,
-     * and the default is the interesting one: a block that exists only in
-     * `server/scripts` is usually a server table wearing a config type's grammar.
-     * The 32 enums this tree authors are exactly that — `bank_tabs` and
-     * `worn_slots` are read by `ToriRSServer_ContentEnum`, and no client script has
-     * ever heard of them — so writing them into the cache would add records with
-     * no reader, in a grammar cachepack cannot fully resolve.
-     *
-     * `param` opts in, because it must: `fields/npc.ini` projects `hitpoints`
-     * into param 2643, and a param id with no record behind it is a reference the
-     * client cannot interpret.
-     *
-     * A record that exists at rank 0 is written either way — it is already in the
-     * cache, and this is only about *new* ones.
-     *
-     * **It is one boolean per type, which is why it is no longer the answer.**
-     * There is no way to spell "this one param is the server's" here, and that is
-     * what `pack/<ns>.client` and `pack/<ns>.server` exist to say. `cp_pack.c`
-     * routes on those files and falls back to this only for a record neither of
-     * them names (docs/PACK_ENTITY_SPLIT_PLAN.md §4 step 3), which is what keeps
-     * a namespace nobody has seeded packing exactly as it did.
-     */
-    int records_client;
-    /** 1 when a `fields/<type>.ini` was actually read. A tree that meant to
-     *  declare a projection and misspelled the file otherwise emits nothing and
-     *  looks like a tree that declared nothing. */
-    int from_file;
-    /** Rows the parser refused — an out-of-band opcode, an unreadable spec.
-     *  Counted rather than dropped, so `cp_fields_check` can fail on them. */
-    int rejected;
-};
-
-/**
- * Read `<srcdir>/fields/<type>.ini`.
- *
- * Never fails: a missing file yields an empty register and `from_file == 0`.
- * Returns the number of `server = opcode:...` fields found.
- */
+/** The byte count of a band wire width (`u2` -> 2), for diagnostics that spell
+ *  the width the way the register does. 0 for a field with no band home. */
 int
-cp_fields_load(
-    struct CP_Fields* fields,
-    const char* srcdir,
-    const char* type);
-
-/** By name, or NULL. */
-const struct CP_Field*
-cp_fields_find(
-    const struct CP_Fields* fields,
-    const char* name);
-
-/**
- * Refuse a register the writer and the reader cannot both honour.
- *
- * Three ways a well-formed file still describes an unwritable band, each of which
- * fails silently if allowed through:
- *
- *   - **two fields on one opcode** — the writer emits both, the reader assigns
- *     whichever it matches first and the other value is simply gone.
- *   - **an opcode outside 64..255** — the client band starts at 1, and a server
- *     record overlapping it stops being distinguishable from a client one.
- *   - **`wire = string`** — declared by the register, unimplemented by the
- *     reader's decoder, so the stream would terminate mid-record.
- *
- * Reports each violation naming the field and returns the count.
- */
-int
-cp_fields_check(const struct CP_Fields* fields);
-
-/* ---- the band ----------------------------------------------------------- */
-
-/*
- * One record's server-only fields, as bytes.
- *
- * **Sparse, and by presence rather than by value.** A field is written when the
- * tree states it and omitted when the tree does not — there is no comparison
- * against a default, and there must never be one against zero. `death_drop`
- * defaults to -1 and 0 is a real obj; `idk.type` 0 is a body part; sprite 0 is a
- * sprite. The reader already treats "absent" and "present and zero" as different
- * states (`torirs_server_servercodec.h`, and the seed-then-override rule), and the
- * writer's job is to preserve that distinction, not to re-derive it from values it
- * has no defaults for.
- *
- * Ascending by opcode, which here is a *choice* and not a constraint: the reader
- * dispatches per opcode, so any order decodes identically. Ascending is what makes
- * two packs of the same content byte-identical and a pack diff readable. Worth
- * separating from the cache's own config records, where order is load-bearing and
- * ascending would be wrong — dat1 records are not written in opcode order, and
- * reproducing one means recording the decoded order and replaying it.
- */
-struct CP_ServerBand
-{
-    uint8_t bytes[CP_SERVER_BAND_MAX];
-    int at;
-    /** Fields written. Zero means the record states nothing and needs no archive. */
-    int stated;
-};
-
-void
-cp_server_band_init(struct CP_ServerBand* band);
-
-/**
- * Append one field. Returns 0 when `value` does not survive `field->wire`.
- *
- * The check is against what the reader decodes back, not against a sign
- * convention: `u1` and `u2` are zero-extended there, so only `u4` can carry a
- * negative — which is exactly what `death_drop`'s -1 needs and why it is declared
- * `u4`. A value that would truncate is refused rather than masked, because a
- * masked id is a valid id for some other record.
- */
-int
-cp_server_band_put(
-    struct CP_ServerBand* band,
-    const struct CP_Field* field,
-    int value);
-
-/** Append the terminator. Returns the band's size in bytes. */
-int
-cp_server_band_finish(struct CP_ServerBand* band);
+cp_register_wire_bytes(enum RSCache_RegisterWire wire);
 
 /* ---- the archive -------------------------------------------------------- */
 
@@ -303,26 +92,31 @@ cp_server_band_finish(struct CP_ServerBand* band);
  * payloads live in it — inferring the grammar from the group id would work today
  * and stop working the moment a server-only type has both.
  */
-#define CP_SERVER_PACK_VERSION 1
+/* The framing is the library's (rscache_serverpack.h); these name it here. */
+#define CP_SERVER_PACK_VERSION RSCACHE_SERVERPACK_VERSION
 
 /** What an archive's payload is. */
 enum CP_ServerPayload
 {
     /** `<opcode:u8> <payload>` until a zero opcode — one record's server band. */
-    CP_SERVER_PAYLOAD_BAND = 1,
+    CP_SERVER_PAYLOAD_BAND = RSCACHE_SERVERPACK_KIND_BAND,
     /** `u2 count`, then `u4 id` + NUL-terminated name per entry. */
-    CP_SERVER_PAYLOAD_NAMES = 2,
+    CP_SERVER_PAYLOAD_NAMES = RSCACHE_SERVERPACK_KIND_NAMES,
+    /** Up to 256 records' client encodings. */
+    CP_SERVER_PAYLOAD_RECORDS = RSCACHE_SERVERPACK_KIND_RECORDS,
 };
 
 enum
 {
-    CP_SERVER_PACK_HEADER = 8,
+    CP_SERVER_PACK_HEADER = RSCACHE_SERVERPACK_HEADER,
 };
 
-/** Wrap a finished band in the header. Returns bytes written, or 0. */
+/** Wrap an encoded band — `RSCache_BandEncode`'s output, terminator included —
+ *  in the header. Returns bytes written, or 0. */
 uint32_t
 cp_server_archive_build(
-    const struct CP_ServerBand* band,
+    const uint8_t* band,
+    uint32_t band_size,
     uint8_t* out,
     uint32_t out_capacity);
 
@@ -387,7 +181,7 @@ cp_server_archive_open(
  * that later needs per-record bands — `prayer` will — takes its own group and
  * says so here, rather than sharing one and reserving archive ids inside it.
  */
-#define CP_SERVER_GROUP_BASE 128
+#define CP_SERVER_GROUP_BASE RSCACHE_SERVERPACK_NAMES_GROUP_BASE
 
 struct CP_ServerGroup
 {

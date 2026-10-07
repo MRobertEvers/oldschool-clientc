@@ -6,10 +6,10 @@ retyping 163 rows by hand.
 
     tools/gen_slayer_queue.py > /tmp/slayer_tasks.md
 
-Reads `configs/all.dbrow` for every `slayer_task` block (columndef=/values=
-grammar — the machine export, not the authored `column=`/`data=` grammar
-`torirs_server_db.c` reads) and prints one Markdown table row per task: id, name,
-min_comlevel, min_stat_requirement_all (level, stat).
+Reads `configs/all.dbrow` (with `configs/all.dbtable` beside it, for the
+column shapes) for every `slayer_task` row — LostCity's `table=` / `data=`
+grammar, the one `torirs_server_db.c` reads — and prints one Markdown table row
+per task: id, name, min_comlevel, min_stat_requirement_all (level, stat).
 
 This is a one-shot lister, not a full membership generator — that is
 `tools/gen_slayer_membership.py` (Phase 2), which will also need the
@@ -18,6 +18,8 @@ npc_stats id-join to place each npc under its task.
 import argparse
 import os
 import re
+
+import config_text
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DBROW = os.path.join(REPO, "OSRS-Content", "osrs239-content", "configs", "all.dbrow")
@@ -31,32 +33,31 @@ def covered_task_ids(path):
     """task_id values `slayer_task_member.dbrow` already has a row for."""
     if not os.path.exists(path):
         return set()
-    txt = open(path, encoding="utf8", errors="replace").read()
+    txt = config_text.read_text(path, encoding="utf8", errors="replace")
     return {int(m) for m in re.findall(r"data=task_id,(\d+)", txt)}
 
 
 def parse_slayer_tasks(path):
-    txt = open(path, encoding="utf8", errors="replace").read()
-    rows = []
-    for block in txt.split("\n["):
-        if "table=slayer_task\n" not in block:
+    """Every `slayer_task` row of an `all.dbrow`; a column the row does not state
+    reads as absent (None / 0 / "?"), not as the table's default."""
+    _, rows = config_text.read_db(os.path.dirname(path), encoding="utf8")
+    out = []
+    for row in rows.values():
+        if row.table != "slayer_task":
             continue
-        tid = re.search(r"columndef=0:id,int\nvalues=0:0:(-?\d+)", block)
-        minc = re.search(r"columndef=1:min_comlevel,int\nvalues=1:0:(\d+)", block)
-        stat = re.search(
-            r"columndef=2:min_stat_requirement_all,int,stat\nvalues=2:0:(\d+),(\d+)",
-            block,
-        )
-        nm = re.search(r"columndef=9:name_lowercase,string\nvalues=9:0:(.*)", block)
-        rows.append(
+        tid = row.fields("id")
+        minc = row.fields("min_comlevel")
+        stat = row.tuples("min_stat_requirement_all")  # (level, stat)
+        nm = row.fields("name_lowercase")
+        out.append(
             {
-                "id": int(tid.group(1)) if tid else None,
-                "min_comlevel": int(minc.group(1)) if minc else 0,
-                "min_level": int(stat.group(1)) if stat else 0,
-                "name": nm.group(1).strip() if nm else "?",
+                "id": int(tid[0]) if tid else None,
+                "min_comlevel": int(minc[0]) if minc else 0,
+                "min_level": int(stat[0][0]) if stat else 0,
+                "name": nm[0].strip() if nm else "?",
             }
         )
-    return rows
+    return out
 
 
 def wiki_task_link(name):

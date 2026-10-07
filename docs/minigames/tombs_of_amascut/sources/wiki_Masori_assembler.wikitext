@@ -1,0 +1,126 @@
+{{Infobox Item
+|version1 = Normal
+|version2 = Broken
+|version3 = Locked
+|name1 = Masori assembler
+|name2 = Masori assembler (broken)
+|name3 = Masori assembler (l)
+|image1 = [[File:Masori assembler.png]]
+|image2 = [[File:Masori assembler (broken).png]]
+|image3 = [[File:Masori assembler (l).png]]
+|release = [[8 September]] [[2022]]
+|update = Tombs of Amascut: Ornament Kits & More!
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable1 = Yes
+|equipable2 = No
+|equipable3 = Yes
+|stackable = No
+|noteable = No
+|options1 = Wear, Dismantle, Commune, Drop
+|options2 = Drop
+|options3 = Wear, Commune, Drop
+|wornoptions1 = Commune
+|wornoptions2 = None
+|wornoptions3 = Commune
+|examine1 = A superior bagged chicken empowered by Vorkath, ready to serve you, magnet in claw.
+|examine2 = A broken Masori Assembler.
+|examine3 = A superior bagged chicken empowered by Vorkath, ready to serve you, magnet in claw.
+|value1 = 51000
+|value2 = 1
+|value3 = 51000
+|alchable = No
+|weight = 5.896
+|id1 = 27374
+|id2 = 27359
+|id3 = 27376
+}}
+
+{{Synced switch
+|version1 = [[File:Masori assembler detail.png|left|110px]]
+|version2 = [[File:Masori assembler (broken) detail.png|left|110px]]
+|version3 = [[File:Masori assembler (l) detail.png|left|110px]]
+}}
+
+The '''Masori assembler''' is a cosmetic variant of [[Ava's assembler]] with a [[Masori crafting kit]] added to it. The assembler's colours are based on that of the [[Masori armour]].
+
+The assembler can also be combined with the [[max cape]] to change its appearance further by turning it into the [[Masori assembler max cape]]. A needle is required in order to create and dismantle the Masori assembler.
+
+If the player dies a PvP death and the item is unprotected, it will remain in the player's inventory; however, the item will be in a broken, unusable state and must be repaired by using it on [[Perdu]] and paying him {{NoCoins|240,000}} [[coins]]. The Masori crafting kit will be placed in their gravestone.
+
+==Combat stats==
+{{Infobox Bonuses
+|version1 = Normal
+|version2 = Broken
+|version3 = Locked
+|astab = 0
+|aslash = 0
+|acrush = 0
+|amagic = 0
+|arange = +8
+|dstab = +1
+|dslash = +1
+|dcrush = +1
+|dmagic = +8
+|drange = +2
+|str = 0
+|rstr = +2
+|mdmg = 0
+|prayer = 0
+|slot = cape
+|image = [[File:Masori assembler equipped male.png|130px]]
+|altimage = [[File:Masori assembler equipped female.png|130px]]
+}}
+
+==Creation==
+{{Tabber
+|tab1 = Needle
+|tab2 = Costume needle
+|tab1content = {{Recipe
+|members = Yes
+|ticks = 0
+|tools = Needle
+|mat1 = Ava's assembler
+|mat1cost = No
+|mat2 = Masori crafting kit
+|mat2cost = No
+|output1 = Masori assembler
+|output1cost = No
+|output1subtxt = Needle
+}}
+|tab2content = {{Recipe
+|members = Yes
+|ticks = 0
+|tools = Costume needle
+|mat1 = Ava's assembler
+|mat1cost = No
+|mat2 = Masori crafting kit
+|mat2cost = No
+|output1 = Masori assembler
+|output1cost = No
+|output1subtxt = Costume needle
+}}
+}}
+
+==Products==
+{{Uses material list|Masori assembler}}
+
+==Transcript==
+{{Hastranscript|item}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 March 2026
+|update = Easter 2026 & PvP QoL Improvements
+|change = Losing the Masori assembler in a PvP death will now return the Masori crafting kit.
+}}
+{{Subject changes footer}}
+
+{{Tombs of Amascut}}
+{{Ranged armour}}
+{{Cape}}
+
+[[Category:Ranged armour]]
+[[Category:Lockable items]]

@@ -15,6 +15,8 @@ import re
 from collections import Counter
 from pathlib import Path
 
+import config_text
+
 
 ROOT = Path(__file__).resolve().parents[1]
 GWD = ROOT / "OSRS-Content/osrs239-content/server/scripts/areas/area_godwars"
@@ -35,13 +37,13 @@ PRIVATE = (GWD / "scripts/godwars_private.rs2").read_text()
 AMBIENT = (GWD / "scripts/godwars_ambient.rs2").read_text()
 AGGRESSION = (GWD / "scripts/godwars_aggression.rs2").read_text()
 GODSWORD = (GWD / "scripts/godwars_godsword.rs2").read_text()
-GWD_VARP = (GWD / "configs/godwars.varp").read_text()
-NPC = (GWD / "configs/godwars.npc").read_text()
-LOC = (GWD / "configs/godwars.loc").read_text()
+GWD_VARP = config_text.read_text(GWD / "configs/godwars.varp")
+NPC = config_text.read_text(GWD / "configs/godwars.npc")
+LOC = config_text.read_text(GWD / "configs/godwars.loc")
 CONSTANT = (GWD / "configs/godwars.constant").read_text()
-COMBAT_PARAM = (
+COMBAT_PARAM = config_text.read_text(
     ROOT / "OSRS-Content/osrs239-content/server/scripts/skill_combat/configs/combat.param"
-).read_text()
+)
 RANGED_COMBAT = (
     ROOT
     / "OSRS-Content/osrs239-content/server/scripts/skill_combat/scripts/npc_combat_ranged.rs2"
@@ -324,8 +326,11 @@ def main() -> None:
     require(war, "npc_param(proj_impact)", "ambient impact spot animation")
     require(COMBAT_PARAM, "[proj_impact]", "impact spot-animation parameter")
     require(RANGED_COMBAT, "npc_param(rangebonus_ammo)", "NPC ammunition strength")
-    for param in ("rangebonus_ammo", "poison_severity", "proj_launch", "proj_travel", "proj_impact"):
-        require(CONTENT_ENGINE, f'"{param}"', f"runtime NPC parameter {param}")
+    # The engine no longer names these params: since 16100164f the server reads
+    # every npc param generically from the packed config data, so there is no
+    # per-name string left in torirs_server_content.c to pin. The script-side
+    # requires above (npc_param(rangebonus_ammo), proj_launch/travel/impact)
+    # still pin that the content uses them.
 
     # The classic tables are exact integer partitions, not approximate rarity
     # labels. Pin every ordinary-table boundary and each nested unique divisor.

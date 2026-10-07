@@ -1,0 +1,45 @@
+runs                                                         13
+player attack targets by npc id (-1 = unknown, 7706 zuk)     7702:88 7703:63 7704:142 7705:22 7706:692 7708:263
+set 7702 distinct tiles seen per npc (1 = never moved)       1:12
+set 7702 spawn-to-death lifetimes                            [14, 19, 20, 27, 31, 34, 34, 38, 39, 41, 48, 60]
+set 7702 died with Zuk (no death event, run has Zuk death)   0
+set 7702 ticks from spawn to first player attack on it       [1, 1, 2, 3, 4, 8, 13, 16, 18, 18, 19, 19]
+set 7702 attacks before the first player attack on it        0:6 2:2 3:4
+set 7702 attack ids                                          79:76
+set 7703 distinct tiles seen per npc (1 = never moved)       1:10 2:1 4:1
+set 7703 spawn-to-death lifetimes                            [71, 79, 87, 100, 109, 117, 127, 138, 157, 180]
+set 7703 died with Zuk (no death event, run has Zuk death)   0
+set 7703 ticks from spawn to first player attack on it       [1, 4, 4, 4, 13, 16, 17, 18, 21, 24, 25, 36]
+set 7703 attacks before the first player attack on it        0:4 2:1 3:3 4:1 5:2 8:1
+set 7703 attack ids                                          81:370
+hurkot deaths vs alive                                       alive_at_end:6 died:30
+hurkot spawn-to-death                                        [37, 37, 37, 39, 39, 39, 47, 47, 47, 50, 50, 50, 57, 57, 57, 64, 64, 64, 74, 74, 74, 82, 82, 82, 87, 87, 87, 90, 90, 90]
+hurkot distinct tiles seen                                   1:6 14:1 16:1 17:1 18:2 19:2 20:1 22:1 25:2 26:5 27:2 28:3 31:1 32:3 33:1 34:1 37:1 41:1 49:1
+hurkot attack ids                                            87:125
+jad hp rise per tick after healers spawn                     
+ticks between jad hp rises                                   
+mejjak spawn-to-death (None = lived to end)                  [19, 19, 28, 28, 32, 33, 35, 38, 39, 39, 39, 40, 40, 42, 47, 48, 48, 50, 52, 52, 52, 53, 54, 54, 54, 60, 61, 62, 62, 65, 69, 70, 71, 75, 75, 75, 75, 76, 76, 78, 102, 117, 134, 151, None, None, None, None, None, None, None, None]
+mejjak attack ids                                            
+mejjak first attack - spawn                                  
+mejjak attack gaps                                           
+mejjak players tagged                                        52
+hurkot death == jad death                                                                  30
+jad hp at spawn of healers 0 min-after 0 max-after 0                                       2
+jad hp at spawn of healers 117 min-after 0 max-after 117                                   1
+jad hp at spawn of healers 145 min-after 0 max-after 145                                   1
+jad hp at spawn of healers 147 min-after 0 max-after 147                                   1
+jad hp at spawn of healers 152 min-after 0 max-after 152                                   1
+jad hp at spawn of healers 157 min-after 0 max-after 157                                   1
+jad hp at spawn of healers 164 min-after 0 max-after 164                                   1
+jad hp at spawn of healers 166 min-after 0 max-after 166                                   1
+jad hp at spawn of healers 172 min-after 0 max-after 172                                   1
+jad hp at spawn of healers 174 min-after 0 max-after 174                                   1
+jad hp at spawn of healers 93 min-after 0 max-after 93                                     1
+run with healers; jad dead 0, hurkot dead 0                                                2
+run with healers; jad dead 1, hurkot dead 3                                                10
+zuk death tick present 0 jad death present 0 jad spawn 1                                   2
+zuk death tick present 0 jad death present 1 jad spawn 1                                   10
+zuk death tick present 1 jad death present 1 jad spawn 1                                   1
+hurkot per-npc: spawned 36, attacks per npc [0, 0, 0, 0, 0, 0, 0, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 4, 4, 4, 5, 5, 5, 5, 5, 6, 7, 7, 7, 7, 8, 8, 8]
+hurkot per-npc attack gap 4:61 5:2 6:8 7:2 8:2 9:1 11:4 12:1 13:3 14:1 16:1 17:3 25:1 32:1 33:2 34:2 35:1
+hurkot first attack - spawn 12:1 14:1 15:1 17:3 18:3 19:1 20:2 21:2 23:1 24:1 25:2 26:2 27:2 28:1 36:2 38:1 41:1 47:1 50:1

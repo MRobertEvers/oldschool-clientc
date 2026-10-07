@@ -1,0 +1,99 @@
+{{Update|date=14 May 2020|link=https://secure.runescape.com/m=news/bounty-hunter-feedback-changes?oldschool=1|category=game}}
+[[File:Bounty Hunter Feedback Changes newspost.png|right]]
+{{clear}}
+
+<center>''This week’s update brings improvements to Bounty Hunter, and new player experience changes.''</center>
+
+{{Horizontal Line}}
+
+{{Headline|22|Bounty Hunter Changes}}
+
+
+[[File:Bounty Hunter Feedback Changes (1).png|center|152px]]
+
+
+This week, based on how Bounty Hunter's been used since its relaunch, we've made some adjustments to the balancing.
+
+Some reward prices have been reviewed:
+*Blighted potions have increased to 4,100 points
+*Blighted karambwan have increased to 1,400 points
+*The blighted anglerfish has reduced slightly to 1,200 points
+
+[[File:Bounty Hunter Feedback Changes (2).png|center|64px]]
+
+
+We've also reviewed the task list, replacing some undesirable entries with a couple of new tasks based on the existing dragon dagger one. These new tasks ask you to deal the final hit with a dragon scimitar or granite maul (ornate and upgraded versions of those weapons are accepted too.) Players will only be given these tasks if they meet the requirements to wield the weapons, with the game also checking that a player has access to Ape Atoll to obtain a dragon scimitar.
+
+In addition, we're very much aware that players commonly manipulate the game by cooperating for kills, including for emblem transfers where a player pays for a guaranteed emblem drop. While we don't expect to be able to prevent players from cooperating, we've added a measure to discourage large-scale emblem transfers.
+
+Now, when an emblem is transferred via a PK drop:
+*Tiers 4-10 will always downgrade
+*Tiers 1-3 have a 50% chance of downgrading
+*If a tier 1 emblem downgrades, it becomes 20k coins
+
+[[File:Bounty Hunter Feedback Changes (3).png|center|59px]]
+
+
+There have been a couple of other alterations, too:
+*The standard Bounty Hunter Shop now gives applicable items in banknote form if you're attempting to buy more than one
+*The Blighted Teleblock Sack has become a Blighted Teleport Spell Sack, able to cast either the Teleblock or Teleport to Bounty Target spells
+
+Lastly, now that Bounty Hunter is back with us, we've agreed to make some of its rewards available from another PvP-themed minigame: Last Man Standing. Justine's store now offers Magic Shortbow Scrolls, Ring of Wealth Scrolls, ornate maul handles, and clue boxes.
+
+Keep your eyes peeled for further adjustments to Bounty Hunter as time goes on!
+
+{{Horizontal Line}}
+
+{{Headline|22|New Player Experience}}
+
+<center>[[File:Bounty Hunter Feedback Changes (4).png|100px]] [[File:Bounty Hunter Feedback Changes (5).png|100px]]</center>
+
+
+As you may have read in the [https://secure.runescape.com/m=news/dev-blog-new-player-experience?oldschool=1 New Player Experience Dev Blog], we're in the process of making some unpolled changes to the very early game. We believe these changes will help new players become more comfortable with the game’s mechanics and encourage them to explore the wonderful world of Old School RuneScape in full.
+
+This week we're introducing a new NPC who will explain anything about account security that Count Check doesn't cover. He'll also point new players in the direction of the Stronghold of Security.
+
+We've also taken the opportunity to make some small, inobtrusive changes to some of the free-to-play quests.
+
+To begin with, all of the free-to-play quest journals have been updated to be more informative.
+
+In the same vein, the Restless Ghost quest text is now less ambiguous about the next steps players should take.
+
+Lastly, Farmer Fred in the Sheep Shearer quest will now provide you with some shears if you don’t have any in your Inventory, saving countless adventurers from a short but onerous walk to the General Store.
+
+{{Horizontal Line}}
+
+{{Headline|22|Free Membership with Twitch Prime}}
+
+[[File:Bounty Hunter Feedback Changes (6).jpg|center|400px]]
+
+
+We've teamed up with Twitch Prime this month to offer 14 days of free membership for both Old School RuneScape and RuneScape. To claim yours, you'll need to link your Twitch Prime and Old School RuneScape accounts.
+
+Make sure you follow the entire [https://www.runescape.com/oldschool/twitch-prime redemption process] to claim your reward.
+
+{{Horizontal Line}}
+
+{{Headline|22|In Other News}}
+
+The PvP World rota is switching over to Period B. On the east of the Atlantic, the Standard PvP world is W325, UK and the F2P PvP world is W371, UK. On the west of the Atlantic, hosts the High Risk PvP world W337, USA. 
+
+Since there has been both an EU and a US Bounty Hunter world open for the past few weeks, W318 UK will be closed for two weeks. W319 will remain open.
+
+*Some minor features have been added to the World Map to indicate that it can be resized.
+*The Map key will now be open by default, but once closed it will remember that setting.   
+*You can now speak to a Grand Exchange clerk to either stop or start remembering the last item you searched for in the Grand Exchange.
+*The "Chop down" option on a tree that was obstructing the Prifddinas Agility Course have been removed.
+*Players can no longer stall other players with Slayer partner requests in instances or combat.
+*Vials can now have water poured into them from buckets and related vessels.
+*Farming animations now play more reliably on the seaweed patches if a player is walking down there rather than swimming.
+*Annette now allows her stored drift nets to be withdrawn in banknote form.
+*Some messages that appear when fighting Sarachnis and basilisk knights can now be filtered.
+*The Private Storage at the Chambers of Xeric can now hold watering cans.
+*Some wording has been corrected in messages about Chambers of Xeric parties disbanding.
+
+{{Horizontal Line}}
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,640,66160019 official forums], the community-led [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the '''#gameupdate''' channel. For reference on the above content, check out the official [[Wiki]].
+
+'''Mods Acorn, Arcane, Archie, Ash, Banjo, Boko, Bonsai, Bruno, Curse, Deagle, Ed, Errol, Fed, Flippy, Gayns, Gee, Halo, Husky, Impact, Jndr, John C, Kandosii, Kieren, Lenny, Lottie, Lyric, Maylea, MikeD, Nasty, Oasis, Roq, Ry, Steve W, Sween, Tide, Vegard, Weath & West'''<br/>''The Old School Team''

@@ -12,9 +12,12 @@ test/quests/README.md: `{ id, fixture, setup = {cheats}, run = function(t)
   * builds ONE shared binary into its own objdir (OPT=1 EMBED_SERVER=1,
     PLATFORM_OBJ_BASE=build_questtest, PLATFORM_TARGET=torirs_questtest --
     never another build's objdir, several sessions build from this checkout
-    at once) and rebuilds the server script pack -- which the embedded server
-    refuses to boot on when stale -- when its inputs changed (a stat
-    fingerprint over the script tree, pack_fingerprint.py);
+    at once) and rebuilds the server script pack and the server config pack
+    (<content>/server/pack) -- the embedded server refuses to boot on either
+    when stale -- when their inputs changed (stat fingerprints,
+    pack_fingerprint.py), under one lock every runner shares; each client
+    then boots holding that lock shared until its first heartbeat, so no
+    pack is rebuilt under a booting server;
   * rewrites manifests/manifest_osrs239.ini to transport=embed against this
     checkout's cache.osrs239, into manifests/.questtest.ini (the manifest's
     OWN directory is load-bearing -- run from a session dir instead and
@@ -51,11 +54,17 @@ Usage:
       forces the rebuild (and so the contract checks),
       TORIRS_QUEST_ALWAYS_BUILD=1 rebuilds on every run as before; a server
       that still refuses the pack as STALE gets one forced rebuild and a
-      relaunch -- tools/quest_gate/pack_fingerprint.py)
+      relaunch -- tools/quest_gate/pack_fingerprint.py; the server pack is
+      kept current the same way, and a refusal of it -- "has no stamp",
+      "is STALE" -- also gets one rebuild and a relaunch)
   tools/quest_gate/run.py <quest> --from-leg K | --only-leg K
       (a legs file only: resume from checkpoint K-1 under build/quest_gate/<quest>.leg<K>/;
       exit 2 when it is missing or stale; never published, never graded --
       docs/quest_authoring/relay.md "Checkpoints")
+  TORIRS_QUEST_NO_PUBLISH=1 tools/quest_gate/run.py <quest> ...
+      (as --no-publish on every run.py the environment reaches -- a seam
+      pass or any private-binary run must never replace the evidence
+      published under OSRS-Content selftest/quests/<quest_dir>/play/)
   tools/quest_gate/run.py <quest> --no-build --no-publish --detach   (then:)
   tools/quest_gate/run.py --wait <quest> [--timeout 540]
       (a run longer than a 10-minute shell call: --detach starts it in the
@@ -170,6 +179,11 @@ DEFAULT_FIXTURE = "fresh_lumbridge.ini"
 # directory (2026-09-23, selftest/quests/README.md).
 PUBLISH_DIR = os.path.join(REPO_ROOT, "OSRS-Content", "osrs239-content", "server", "scripts",
                            "selftest", "quests")
+# tools/raid_gate/run.py moves it (TORIRS_QUEST_PUBLISH_DIR, quest_list.py):
+# a raid room's evidence is kept under selftest/minigames/<raid>/<room>/play/.
+PUBLISH_DIR_OVERRIDDEN = quest_list.publish_dir_override(REPO_ROOT) is not None
+if PUBLISH_DIR_OVERRIDDEN:
+    PUBLISH_DIR = quest_list.publish_dir_override(REPO_ROOT)
 
 QUEUE_TSV_PATH = os.path.join(REPO_ROOT, "test", "quests", "QUEUE.tsv")
 
@@ -180,6 +194,10 @@ def quest_dir_for(test_id):
     QUEUE.tsv and is not in it) -- the same fallback
     docs/quests/selftest layout uses."""
     assert test_id
+    if PUBLISH_DIR_OVERRIDDEN:
+        # Not a quest (a raid room): QUEUE.tsv is the quest loop's and has no
+        # row for it, by the owner's rule never will.
+        return quest_list.suite_publish_subdir(test_id)
     rows = quest_queue_tsv.load_rows(QUEUE_TSV_PATH)
     row = quest_queue_tsv.find_row(rows, test_id)
     if row and row.get("quest_dir"):
@@ -225,19 +243,36 @@ def ensure_scripts(force=False):
     return pack_fingerprint.ensure_pack(run, label="scripts", force=force)
 
 
+def ensure_server_pack():
+    """The server config pack (<content>/server/pack) under the same lock as
+    the script pack: rebuilt into a staging directory and swapped in whole
+    when its inputs changed (pack_fingerprint.ensure_server_pack). It used to
+    be nobody's job here, and a run booting while another session's
+    `make torirsserver-servpack` rewrote it died "has no stamp"."""
+    return pack_fingerprint.ensure_server_pack(run, label="servpack")
+
+
 def launch_with_stale_retry(prepare_and_launch):
     """Run `prepare_and_launch()` (-> the launch_and_report dict) and, if the
-    embedded server refused the pack as STALE -- a fingerprint that said
-    "current" and was wrong -- forget the fingerprint, rebuild, and run it
-    once more. The server's refusal stays the last word; this only keeps a
-    false "current" from stranding the run."""
+    embedded server refused the script pack as STALE -- a fingerprint that
+    said "current" and was wrong -- or refused its server pack (no stamp,
+    STALE: a content edit landed after the boot hold's check), rebuild what
+    it refused under the pack lock and run it once more. The server's
+    refusal stays the last word; this only keeps a false "current" or a
+    concurrent edit from stranding the run."""
     result = prepare_and_launch()
-    if not pack_fingerprint.stale_pack_refused(os.path.join(result["directory"], "client.log")):
+    log_path = os.path.join(result["directory"], "client.log")
+    scripts_refused = pack_fingerprint.stale_pack_refused(log_path)
+    servpack_refused = pack_fingerprint.server_pack_refused(log_path)
+    if not scripts_refused and not servpack_refused:
         return result
-    code = pack_fingerprint.rebuild_after_refusal(run)
-    if code != 0:
+    if scripts_refused and pack_fingerprint.rebuild_after_refusal(run) != 0:
         print("run.py: the script pack did not rebuild after the STALE refusal", file=sys.stderr,
               flush=True)
+        return result
+    if servpack_refused and pack_fingerprint.rebuild_server_pack_after_refusal(run) != 0:
+        print("run.py: the server pack did not rebuild after the server refused it",
+              file=sys.stderr, flush=True)
         return result
     return prepare_and_launch()
 
@@ -306,7 +341,7 @@ def write_session_fixture(fixture_name, saves_dir, user):
     as a broken verb if skipped: without it the server makes a fresh
     character and the run boots into the Character Creator modal, which
     blocks tab selection."""
-    fixture_path = os.path.join(REPO_ROOT, "test", "quests", "fixtures", fixture_name)
+    fixture_path = os.path.join(quest_list.fixtures_dir(REPO_ROOT), fixture_name)
     assert os.path.isfile(fixture_path), fixture_path
     with open(fixture_path, "r", encoding="utf-8") as handle:
         text = handle.read()
@@ -341,7 +376,7 @@ end
 
 
 def write_wrapper_script(quest_file, out_path, pass_through_without_setup=False,
-                         leg_mode=None):
+                         leg_mode=None, party=None):
     """A copy of the quest file wrapped so its `setup` cheats run before
     `run(t)` does, matching test/quests/README.md's
     `{ id, fixture, setup = {cheats}, run = function(t) ... end }` shape.
@@ -416,6 +451,10 @@ def write_wrapper_script(quest_file, out_path, pass_through_without_setup=False,
     hitpoints still `stated=false level=10`, the client had not even been
     sent stats) when no setup line had been issued at all.
     """
+    # KEEP IN STEP: the Scripts tab runs a test without this file, through
+    # QD.core_run_test (script/plugins/quest_driver/core.lua), whose
+    # core_run_test_wrapped is a copy of the QUEST.run below (raid seam24). A
+    # change to the setup loop here is the same change there.
     with open(quest_file, "r", encoding="utf-8") as handle:
         source = handle.read()
     if leg_mode:
@@ -424,6 +463,13 @@ def write_wrapper_script(quest_file, out_path, pass_through_without_setup=False,
             ("{ %d, %d, %d }" % tuple(leg_mode["tile"])) if leg_mode.get("tile") else "nil")
     else:
         leg_prelude = "local LEG_FROM = nil\nlocal LEG_ONLY = false\nlocal LEG_TILE = nil\n"
+    if party:
+        # A party run (run_party): who this client is, read by t.party
+        # (script/plugins/quest_driver/raid.lua). A global, not a local: the
+        # driver chunk reads it. A solo run writes nothing here.
+        leg_prelude = ("QD_PARTY = { role = %d, size = %d, names = { %s } }\n" % (
+            party["role"], len(party["names"]),
+            ", ".join('"%s"' % n for n in party["names"]))) + leg_prelude
     wrapper = (
         leg_prelude +
         "local QUEST = (function()\n"
@@ -1037,7 +1083,7 @@ def summary_from_leg(summary):
 RENDER_SKIP = True
 
 
-def client_env(directory, saves, script, max_frames=int(DEFAULT_MAX_FRAMES)):
+def client_env(directory, saves, script, max_frames=int(DEFAULT_MAX_FRAMES), extra_env=None):
     environment = dict(os.environ)
     environment.update({
         "SDL_VIDEODRIVER": "dummy",
@@ -1069,6 +1115,9 @@ def client_env(directory, saves, script, max_frames=int(DEFAULT_MAX_FRAMES)):
         "TORIRS_EMBED_CLOCK_MS": "20",
         "TORIRS_RENDER_SKIP": "1" if RENDER_SKIP else "0",
     })
+    # A party run's link knobs (run_party): TORIRS_EMBED_PARTY_* per seat.
+    if extra_env:
+        environment.update(extra_env)
     return environment
 
 
@@ -1136,7 +1185,7 @@ def kill_process_group(process):
 
 
 def launch_client(binary, manifest_path, user, directory, saves, script, log_path, timeout,
-                  max_frames=int(DEFAULT_MAX_FRAMES), stall_out=None):
+                  max_frames=int(DEFAULT_MAX_FRAMES), stall_out=None, extra_env=None):
     """One client process, killed (whole process group) when it STALLS --
     its <session>/heartbeat older than TORIRS_QUEST_STALL_SECONDS, or never
     written within the boot grace (seam32; see STALL_SECONDS_DEFAULT) -- or
@@ -1149,7 +1198,7 @@ def launch_client(binary, manifest_path, user, directory, saves, script, log_pat
     fingerprints/capture_fingerprints.py)."""
     command = [binary, "--manifest", manifest_path, "--user", user, "--pass", QUEST_PASSWORD,
                "--soft3d", "--window", "765x503"]
-    environment = client_env(directory, saves, script, max_frames)
+    environment = client_env(directory, saves, script, max_frames, extra_env)
     print("+ " + " ".join(command), flush=True)
     if max_frames != int(DEFAULT_MAX_FRAMES):
         print("run.py: %s declares max_frames = %d (wall-clock timeout %d s)"
@@ -1165,6 +1214,24 @@ def launch_client(binary, manifest_path, user, directory, saves, script, log_pat
     # this client's first beat.
     if os.path.exists(heartbeat_path):
         os.unlink(heartbeat_path)
+    # The embedded server reads script.dat and server/pack at boot and never
+    # again: hold the pack lock shared (both packs current) from here to the
+    # first heartbeat, so no rebuild rewrites either under this boot.
+    hold = pack_fingerprint.boot_hold(run, label=user)
+    hold_cap = boot_grace if boot_grace > 0 else STALL_BOOT_GRACE_DEFAULT
+    try:
+        return _launch_client_held(command, environment, log_path, timeout, watch,
+                                   heartbeat_path, stall_seconds, boot_grace, stall_out,
+                                   hold, hold_cap)
+    finally:
+        hold.release()
+
+
+def _launch_client_held(command, environment, log_path, timeout, watch, heartbeat_path,
+                        stall_seconds, boot_grace, stall_out, hold, hold_cap):
+    """launch_client's process loop; `hold` (pack_fingerprint.BootHold) is
+    released at the first heartbeat, or after `hold_cap` seconds for a
+    client that never beats."""
     with open(log_path, "wb") as log:
         # cwd is the repo root, ALWAYS: TORIRS_PLUGIN_MANIFEST resolves under
         # script/ relative to the working directory, not to the binary.
@@ -1182,6 +1249,9 @@ def launch_client(binary, manifest_path, user, directory, saves, script, log_pat
                 return code, False
             except subprocess.TimeoutExpired:
                 pass
+            if hold.held and (os.path.exists(heartbeat_path)
+                              or time.monotonic() - started > hold_cap):
+                hold.release()
             if not watch:
                 continue
             mtime, tick = read_heartbeat(heartbeat_path)
@@ -1768,6 +1838,173 @@ def run_script_direct(name, script_path, fixture_name, binary, manifest_path, ti
         release_session_lock(name)
 
 
+# ------------------------------------------------------------------ party run
+#
+# raid seam17 party_run_and_verbs: N clients, ONE world. A test file that
+# declares `party = N,` (or a run given --party N) is launched as N client
+# processes. The LEADER (seat 1) hosts the embedded world as usual and
+# listens on a loopback port (TORIRS_EMBED_PARTY_LISTEN/_SIZE); every MEMBER
+# (seats 2..N) joins that world over the party link
+# (TORIRS_EMBED_PARTY_JOIN/_SEAT; src/torirsserver/torirs_server_embed.h),
+# and the world ticks in lock step with every client. Each raider:
+#   * logs in as <base>_p<n> (base = the run name, sanitised and cut to 9
+#     characters, so the account is at most 12 -- only the first 12 characters
+#     of a name seed a run, jbase37), password QUEST_PASSWORD;
+#   * has its own session directory build/quest_gate/<run>/p<n>/ (ledger.tsv,
+#     shots/, heartbeat, client.log, its wrapper script);
+#   * runs the SAME test file, wrapped with QD_PARTY = {role, size, names}
+#     (write_wrapper_script), so the file branches on t.party.role().
+# Every fixture goes into the WORLD's saves directory,
+# build/quest_gate/<run>/saves/, written before any client starts. The tick
+# log is the world's one log, in p1/; it is copied into every p<n>/ and the
+# run directory afterwards. The LEADER's process is the run: its stall or exit
+# ends it, then the members get PARTY_MEMBER_GRACE_SECONDS to finish their own
+# script before their process groups are killed, and each member's ledger gets
+# a SUMMARY like any unfinished run. gate.py grades the union of the ledgers
+# (gate.party_union, run here too so the report and publish see it).
+PARTY_RE = re.compile(r"(?m)^\s{0,8}party\s*=\s*(\d+)\s*,")
+PARTY_MAX = 4  # TORIRSSERVER_EMBED_CLIENT_MAX (torirs_server_embed.h)
+PARTY_MEMBER_GRACE_SECONDS = 20
+
+
+def read_party_size(script_file):
+    """The `party = <n>,` field a test file declares, or 1."""
+    with open(script_file, "r", encoding="utf-8") as handle:
+        matches = PARTY_RE.findall(handle.read())
+    assert len(matches) <= 1, "%s: more than one party field" % script_file
+    return int(matches[0]) if matches else 1
+
+
+def party_accounts(name, size):
+    base = save_file_stem(name)[:9]
+    return ["%s_p%d" % (base, n) for n in range(1, size + 1)]
+
+
+def free_loopback_port():
+    import socket
+    probe = socket.socket()
+    probe.bind(("127.0.0.1", 0))
+    port = probe.getsockname()[1]
+    probe.close()
+    return port
+
+
+def run_party(name, source_file, fixture_name, binary, manifest_path, timeout, size,
+              pass_through_without_setup):
+    """One party run of `source_file` under build/quest_gate/<name>/ (see the
+    banner above). Returns a result dict shaped like launch_and_report's, its
+    `directory` the run directory that holds the union ledger."""
+    assert 2 <= size <= PARTY_MAX, "a party is 2..%d raiders, not %d" % (PARTY_MAX, size)
+    import gate  # the union lives with the grader (gate.party_union)
+    max_frames = read_max_frames(source_file)
+    accounts = party_accounts(name, size)
+    refusal = acquire_session_lock(name)
+    if refusal:
+        return locked_result(name, refusal)
+    try:
+        directory = os.path.join(REPO_ROOT, "build", "quest_gate", name)
+        if os.path.isdir(directory):
+            clear_session_directory(directory)
+        os.makedirs(directory, exist_ok=True)
+        saves = os.path.join(directory, "saves")
+        seats = []
+        with open(os.path.join(directory, gate.PARTY_MARKER), "w", encoding="utf-8") as marker:
+            for seat in range(1, size + 1):
+                account = accounts[seat - 1]
+                session = os.path.join(directory, "p%d" % seat)
+                os.makedirs(session)
+                write_session_fixture(fixture_name, saves, account)
+                script_dir = os.path.join(session, "script")
+                os.makedirs(script_dir)
+                script = os.path.join(script_dir, os.path.basename(source_file))
+                write_wrapper_script(source_file, script,
+                                     pass_through_without_setup=pass_through_without_setup,
+                                     party={"role": seat, "names": accounts})
+                seats.append((seat, account, session, script))
+                marker.write("p%d\t%s\tp%d\n" % (seat, account, seat))
+        port = free_loopback_port()
+        wait_s = os.environ.get("TORIRS_EMBED_PARTY_WAIT_S", "60")
+        wall = scaled_timeout(timeout, max_frames)
+        print("run.py: party of %d on port %d: %s" % (size, port, ", ".join(accounts)), flush=True)
+        members = []
+        for seat, account, session, script in seats[1:]:
+            command = [binary, "--manifest", manifest_path, "--user", account, "--pass",
+                       QUEST_PASSWORD, "--soft3d", "--window", "765x503"]
+            environment = client_env(session, saves, script, max_frames, {
+                "TORIRS_EMBED_PARTY_JOIN": str(port),
+                "TORIRS_EMBED_PARTY_SEAT": str(seat),
+                "TORIRS_EMBED_PARTY_WAIT_S": wait_s,
+                "TORIRS_EMBED_PARTY_TRACE": "1",
+            })
+            print("+ [p%d] %s" % (seat, " ".join(command)), flush=True)
+            log = open(os.path.join(session, "client.log"), "wb")
+            # QUEST_PARTY_NICE_SEAT=<n> (raid seam21, party_repeat.py --load):
+            # member n runs at nice 19, so under a load generator it is the
+            # slowest raider; the lock step must not care.
+            slow = os.environ.get("QUEST_PARTY_NICE_SEAT") == str(seat)
+            if slow:
+                print("run.py: p%d runs at nice 19 (QUEST_PARTY_NICE_SEAT)" % seat, flush=True)
+            process = subprocess.Popen(command, env=environment, cwd=REPO_ROOT, stdout=log,
+                                       stderr=subprocess.STDOUT, start_new_session=True,
+                                       preexec_fn=(lambda: os.nice(19)) if slow else None)
+            members.append((seat, session, process, log))
+        started = time.monotonic()
+        leader_session = seats[0][2]
+        stall = {}
+        code, timed_out = launch_client(binary, manifest_path, accounts[0], leader_session, saves,
+                                        seats[0][3], os.path.join(leader_session, "client.log"),
+                                        wall, max_frames, stall_out=stall, extra_env={
+                                            "TORIRS_EMBED_PARTY_LISTEN": str(port),
+                                            "TORIRS_EMBED_PARTY_SIZE": str(size),
+                                            "TORIRS_EMBED_PARTY_WAIT_S": wait_s,
+                                            "TORIRS_EMBED_PARTY_TRACE": "1",
+                                        })
+        stall = stall or None
+        leader_seconds = time.monotonic() - started
+        if timed_out or stall:
+            copy_timeout_shot(leader_session)
+        unfinished = finish_unfinished_ledger(leader_session, code, timed_out, wall, max_frames,
+                                              stall=stall)
+        member_codes = {}
+        deadline = time.monotonic() + PARTY_MEMBER_GRACE_SECONDS
+        for seat, session, process, log in members:
+            try:
+                member_codes[seat] = process.wait(timeout=max(0.1, deadline - time.monotonic()))
+            except subprocess.TimeoutExpired:
+                kill_process_group(process)
+                member_codes[seat] = None
+            log.close()
+            member_unfinished = finish_unfinished_ledger(session, member_codes[seat], False, wall,
+                                                         max_frames)
+            if member_unfinished and unfinished is None:
+                unfinished = "p%d: %s" % (seat, member_unfinished)
+        leader_ticklog = os.path.join(leader_session, "ticklog.tsv")
+        if os.path.isfile(leader_ticklog):
+            for seat, account, session, script in seats[1:]:
+                shutil.copy2(leader_ticklog, os.path.join(session, "ticklog.tsv"))
+        gate.party_union(directory)
+        # raid seam21: every raider's boundary trace against the leader's
+        # (gate.party_lockstep); the union ledger carries it as party.lockstep.
+        lock_verdict, lock_detail = gate.party_lockstep(directory)
+        print("run.py: party %s: party.lockstep %s -- %s" % (name, lock_verdict, lock_detail),
+              flush=True)
+        print("run.py: party %s: leader exit %s after %.1f s; members %s" % (
+            name, "none" if code is None else code, leader_seconds,
+            ", ".join("p%d exit %s" % (seat, "killed" if member_codes[seat] is None
+                                       else member_codes[seat]) for seat in sorted(member_codes))),
+            flush=True)
+        has_ledger = os.path.isfile(os.path.join(directory, "ledger.tsv"))
+        ok = (not timed_out) and (not stall) and code == 0 and has_ledger and unfinished is None \
+            and lock_verdict == "PASS"
+        return {
+            "name": name, "exit_code": code, "timed_out": timed_out, "has_ledger": has_ledger,
+            "directory": directory, "ok": ok, "unfinished": unfinished,
+            "stalled": stall is not None, "party": size, "lockstep": lock_verdict,
+        }
+    finally:
+        release_session_lock(name)
+
+
 def ledger_verdict(ledger_path):
     """The SUMMARY row's verdict word (PASS/FAIL), or None when the ledger
     has no SUMMARY row -- a run that died mid-way."""
@@ -2313,14 +2550,17 @@ def main():
     parser.add_argument("--no-publish", action="store_true",
                         help="do not copy a PASSING quest's ledger and shots into "
                              "OSRS-Content (%s/<quest_dir>/play/); by default every "
-                             "quest run does"
+                             "quest run does. TORIRS_QUEST_NO_PUBLISH=1 in the environment "
+                             "does the same for every run.py it reaches (a seam pass, a "
+                             "private-binary regression run)"
                              % os.path.relpath(PUBLISH_DIR, REPO_ROOT))
     parser.add_argument("--script", default=None,
                         help="advanced: run this .lua file directly as a single session "
                              "(a non-empty setup list is run first, as for a quest) -- see the module "
                              "docstring")
     parser.add_argument("--name", default=None,
-                        help="artefact directory name for --script (default: its basename)")
+                        help="artefact directory name for --script (default: its basename), or "
+                             "for ONE party test id (needs --no-publish; raid seam21)")
     parser.add_argument("--from-leg", type=int, default=None, metavar="K",
                         help="a legs file only: log in from checkpoint K-1 (written by an "
                              "earlier run) and run legs K..end, under the run name <id>.leg<K>; "
@@ -2341,12 +2581,27 @@ def main():
                              "exits with the run's own exit (0 clean, 1 not; gate.py is the "
                              "verdict), 2 no such run, %d still running"
                              % (DETACH_WAIT_DEFAULT, DETACH_WAIT_EXIT_RUNNING))
+    parser.add_argument("--party", type=int, default=None, metavar="N",
+                        help="run N clients in one world as one party (raid seam17): the "
+                             "leader hosts, N-1 members join over the party link; a test file "
+                             "may declare `party = N,` instead (test/raids/README.md)")
     parser.add_argument("--render-every-frame", action="store_true",
                         help="draw every frame (TORIRS_RENDER_SKIP=0); by default a quest "
                              "client draws only the frames a screenshot or a click needs")
     arguments = parser.parse_args()
     global RENDER_SKIP
     RENDER_SKIP = not arguments.render_every_frame
+    # A harness that must never publish (a seam pass, a private-binary
+    # regression run) sets TORIRS_QUEST_NO_PUBLISH once instead of trusting
+    # every command line it hands out to carry --no-publish: before this a
+    # seam fixer's `run.py cooks_assistant --no-build` replaced the committed
+    # evidence under OSRS-Content selftest/quests/quest_cook/play/ with its
+    # private-binary shots. Any value but empty or "0" means "never publish".
+    no_publish_env = os.environ.get("TORIRS_QUEST_NO_PUBLISH", "")
+    if no_publish_env not in ("", "0") and not arguments.no_publish:
+        print("run.py: TORIRS_QUEST_NO_PUBLISH=%s -- this run publishes nothing "
+              "(as --no-publish)" % no_publish_env, flush=True)
+        arguments.no_publish = True
     detach_code = detach_dispatch(parser, arguments)
     if detach_code is not None:
         return detach_code
@@ -2387,6 +2642,10 @@ def main():
     if code != 0:
         print("run.py: the script pack did not build", file=sys.stderr)
         return code
+    code = ensure_server_pack()
+    if code != 0:
+        print("run.py: the server pack did not build", file=sys.stderr)
+        return code
 
     manifest_path = write_manifest()
 
@@ -2410,8 +2669,13 @@ def main():
     if arguments.script:
         script_path = os.path.abspath(arguments.script)
         script_name = arguments.name or os.path.splitext(os.path.basename(script_path))[0]
-        result = run_script_direct(script_name, script_path, arguments.fixture,
-                                    binary, manifest_path, arguments.timeout)
+        party = arguments.party or read_party_size(script_path)
+        if party > 1:
+            result = run_party(script_name, script_path, arguments.fixture, binary,
+                               manifest_path, arguments.timeout, party, True)
+        else:
+            result = run_script_direct(script_name, script_path, arguments.fixture,
+                                        binary, manifest_path, arguments.timeout)
         print_report([result])
         print_failure_block([result])
         return 0 if result["ok"] else 1
@@ -2423,8 +2687,9 @@ def main():
             # indistinguishable, from here, from test/quests/ having been
             # wiped or misconfigured (gate.py makes the same call, same
             # reasoning, for the same input).
-            print("run.py: no quest files under test/quests/ -- nothing to run "
-                  "(this is a discovery fact, not a pass)", file=sys.stderr)
+            print("run.py: no quest files under %s/ -- nothing to run "
+                  "(this is a discovery fact, not a pass)"
+                  % os.path.relpath(quest_list.quests_dir(REPO_ROOT), REPO_ROOT), file=sys.stderr)
             return 1
     else:
         quest_file = quest_list.quest_path(REPO_ROOT, name)
@@ -2433,7 +2698,29 @@ def main():
             return 1
         names = [name]
 
-    if arguments.jobs == 1:
+    def party_of(n):
+        return arguments.party or read_party_size(quest_list.quest_path(REPO_ROOT, n))
+
+    if any(party_of(n) > 1 for n in names):
+        # A party run is N clients already: run them one at a time.
+        # --name gives ONE party test id its own run name (raid seam21:
+        # tools/raid_gate/party_repeat.py, scratch repeats beside the kept
+        # artefact). The name seeds the run (its accounts), and a renamed run
+        # is not the test's evidence, so it never publishes.
+        if arguments.name and (arguments.all or len(names) != 1):
+            parser.error("--name renames one run: give one test id, not --all")
+        if arguments.name and not arguments.no_publish:
+            parser.error("--name with a test id needs --no-publish (a renamed run is a scratch)")
+        results = []
+        for n in names:
+            quest_file = quest_list.quest_path(REPO_ROOT, n)
+            if party_of(n) > 1:
+                results.append(run_party(arguments.name or n, quest_file,
+                                         read_fixture_name(quest_file), binary,
+                                         manifest_path, arguments.timeout, party_of(n), False))
+            else:
+                results.append(run_quest(n, binary, manifest_path, arguments.timeout))
+    elif arguments.jobs == 1:
         results = [run_quest(n, binary, manifest_path, arguments.timeout) for n in names]
     else:
         with ThreadPoolExecutor(max_workers=arguments.jobs) as pool:

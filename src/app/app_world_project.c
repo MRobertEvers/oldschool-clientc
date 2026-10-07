@@ -43,8 +43,8 @@ app_world_project_at(
      * be lowered experimentally, but accepting a point closer than the overlay
      * contract did before this extraction would be an appearance change. */
     return ToriRS_WorldProjectPoint(
-        &app->world_camera,
-        &app->world_camera_pos,
+        &app->frame_view->world_camera,
+        &app->frame_view->world_camera_pos,
         app->world_emit_desc.x,
         app->world_emit_desc.y,
         app->world_emit_desc.w,

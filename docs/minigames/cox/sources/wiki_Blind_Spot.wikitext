@@ -1,0 +1,28 @@
+{{Infobox Combat Achievement
+|name = Blind Spot
+|image = [[File:Tekton.png|220px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Kill Tekton without taking any damage.
+|tier = Master
+|monster = Chambers of Xeric
+|type = Perfection
+|id = 319
+|leagueRegion = Kourend
+}}
+'''Blind Spot''' is a [[Combat Achievements/Master|master combat achievement]] which requires the player to kill [[Tekton]] without taking any damage.
+
+==Strategy==
+You do not need to receive kill credit for Tekton in order to complete this achievement. So it is easiest to get a partner to tank him and do most of the damage while you land one damaging hit. In order to speed up the kill you can have the partner stand on the opposite side of Tekton and hit him only right after he swings at your partner then walk away like you would at guardians.
+
+Lure Tekton to the centre of the arena, away from any pillars of smoke, as these have erratic hitboxes and can deal 1-3 damage when standing on them, disqualifying them from the achievement. Use one of the flinching or running methods to avoid Tekton's standard attacks. Be careful of the fireballs launched during his repair state as they have a 3x3 AoE; while they should generally hit together, they may occasionally desync and hit on different ticks due to travel distance.
+
+Unlike other cox combat achievements, you need to be in the room at the end of the fight to complete the achievement. Entering through Tekton's fire will fail the achievement, meaning the player must be present the whole fight.
+
+'''For solo-run attempts, be sure raid scaling is set to "0" for the easiest fight, as scaling a raid to "1" doubles boss health.'''
+
+==Other tasks==
+{{Combat Achievements list|Chambers of Xeric}}
+
+{{Combat Achievements}}

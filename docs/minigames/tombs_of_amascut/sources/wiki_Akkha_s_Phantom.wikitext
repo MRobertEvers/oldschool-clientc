@@ -1,0 +1,29 @@
+{{Infobox NPC
+|name = Akkha's Phantom
+|image = [[File:Akkha's Phantom.png|250px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|level = 337
+|members = Yes
+|race = Apparition
+|location = [[Tombs of Amascut]]
+|gender = Male
+|examine = A phantom of Akkha.
+|map = No
+|id = 11777
+|leagueRegion = Desert
+}}
+'''Akkha's Phantom''' is a monster encountered in the [[Tombs of Amascut]]. It is summoned alongside [[Kephri's Phantom]] by [[Elidinis' Warden]] in the third phase of the final battle.
+
+As a phantom of [[Akkha]], it will use its standard attacks to attack the player. It will switch between [[ranged]] and [[magic]]al attacks every 3 attacks. It will also always start with Ranged. If the Stay Vigilant invocation is enabled, it will switch between attacks randomly instead.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 14 September 2022
+|update = Quest Speedrunning, Wilderness Boss Rework Rewards & Poison Dynamite Betas
+|change = Akkha's Phantom will no longer change attack styles as frequently when the Stay Vigilant invocation is enabled.
+}}
+{{Subject changes footer}}
+
+{{Tombs of Amascut}}

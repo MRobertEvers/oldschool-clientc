@@ -1,0 +1,1074 @@
+This page shows the overview of each boss as viewed in the in-game [[Combat Achievements]] Bosses interface.
+
+Each boss has links pointing to their Combat Achievements task list, where they are located on the [[world map]], and their respective [[wiki]] articles. Each one also lists a [[combat level]] (in case of [[raids]] showing the final boss's level), the player's [[HiScores]] kill count, and optionally their personal best time in killing the boss; this personal best can be reset.
+<!-- technical insight as of 2025-12-30: param 1313 is boss name, 1315/1312 is boss CA ID assigned by its order so might change with every new boss, 1317 is coord, 1319 is Overview, 1320 is Difficulty, 1321 is link target override -->
+{{ToC|class=hlist}}
+==[[Abyssal Sire]]==
+[[File:Abyssal Sire.png|Boss variant shown|right|200x200px]]
+{{Map|3039,4780|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|An Abyssal Sire is a stronger and larger abyssal demon found within the Abyssal Nexus.<br><br>Attack Styles - Melee, Special<br>Immunities - Poison, Venom<br>Slayer Categories - Abyssal Demon}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - 85 Slayer<br> - An abyssal demon slayer task<br><br>Combat Achievement task difficulty:<br> - Hard<br> - Elite}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:350
+;Personal Best<nowiki>:</nowiki>
+:{{Not okay}} Not shown
+{{div col end}}{{clear}}
+
+==[[Alchemical Hydra]]==
+[[File:Alchemical Hydra (serpentine).png|Boss variant shown|right|200x200px]]
+{{Map|1367,10267|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|The Alchemical Hydra is a boss found in the depths of the Karuulm Slayer Dungeon within Mount Karuulm.<br><br>Attack Styles - Ranged, Magic<br>Immunities - Poison, Venom<br>Slayer Categories - Hydra}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - 95 Slayer<br> - A hydra slayer task<br><br>Combat Achievement task difficulty:<br> - Elite<br> - Master<br> - Grandmaster}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:426
+;Personal Best<nowiki>:</nowiki>
+:{{Okay}} Shown
+{{div col end}}{{clear}}
+
+==[[Amoxliatl]]==
+[[File:Amoxliatl.png|Boss variant shown|right|200x200px]]
+{{Map|1641,3221|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|Amoxliatl is a boss found within the Ruins of Tapoyauik in Varlamore.<br><br>Attack Styles - Magic, Special<br>Immunities - Poison, Venom<br>Slayer Categories - Lesser Nagua}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - The Heart of Darkness<br><br>Combat Achievement task difficulty:<br> - Medium<br> - Hard<br> - Elite}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:263
+;Personal Best<nowiki>:</nowiki>
+:{{Okay}} Shown
+{{div col end}}{{clear}}
+
+==[[Araxxor]]==
+[[File:Araxxor.png|Boss variant shown|right|200x200px]]
+{{Map|3647,9815|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|Araxxor is a boss found within the Morytania Spider Cave, north east of Darkmeyer.<br><br>Attack Styles - Melee, Ranged, Magic, Special<br>Immunities - Venom<br>Slayer Categories - Araxyte, Spider}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - Priest in Peril<br> - 92 Slayer}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:890
+;Personal Best<nowiki>:</nowiki>
+:{{Okay}} Shown
+{{div col end}}{{clear}}
+
+==[[Barrows]]==
+[[File:Dharok the Wretched.png|Boss variant shown|right|200x200px]]
+{{Map|3564,3288|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|The Barrows are a series of six burial mounds located in Morytania.<br><br>Each of the six Barrows Brothers (Ahrim, Dharok, Guthan, Karil, Torag and Verac) attack with a specific combat style and unique abilities granted by their armour and weaponry.<br><br>Attack Styles - Magic, Ranged, Melee<br>Immunities - None<br>Slayer Categories - None}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - Access to Morytania<br> - Spade<br><br>Combat Achievment task difficulty:<br> - Easy<br> - Medium<br> - Hard}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:115
+;Personal Best<nowiki>:</nowiki>
+:{{Not okay}} Not shown
+{{div col end}}{{clear}}
+
+==[[Bryophyta]]==
+[[File:Bryophyta.png|Boss variant shown|right|200x200px]]
+{{Map|3174,9900|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|Bryophyta the Moss Giantess, is the moss giant boss who can be found in her lair in the Varrock Sewers.<br><br>In order to access Bryophyta's lair, a mossy key, obtained from killing a Moss Giant, is required.<br><br>Attack Styles - Melee, Magic<br>Immunities - None<br>Slayer Categories - Moss Giant}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - Mossy key<br><br>Combat Achievement task difficulty:<br> - Easy<br> - Medium}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:128
+;Personal Best<nowiki>:</nowiki>
+:{{Not okay}} Not shown
+{{div col end}}{{clear}}
+
+==[[Callisto]]==
+[[File:Callisto.png|Boss variant shown|right|200x200px]]
+{{Map|3293,3848|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|Callisto is an enormous bear empowered by the corruption of the Wilderness. He resides south of the Demonic Ruins in the Wilderness.<br><br>Attack Styles - Melee, Special<br>Immunities - Poison, Venom, Magic<br>Slayer Categories - Bear}}
+'''Difficulty'''
+{{Blockquote|There are no mandatory requirements to fight Callisto.<br><br>Combat Achievement task difficulty:<br> - Hard<br> - Elite}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:470
+;Personal Best<nowiki>:</nowiki>
+:{{Not okay}} Not shown
+{{div col end}}{{clear}}
+
+==[[Cerberus]]==
+[[File:Cerberus.png|Boss variant shown|right|200x200px]]
+{{Map|1310,1254|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|Cerberus is a stronger and larger three-headed hellhound boss, which is located in her lair, deep beneath the Taverley Dungeon in the cave to the north-east of the hellhound pit.<br><br>Attack Styles - Melee, Ranged, Magic, Special<br>Immunities - Poison, Venom<br>Slayer Categories - Hellhound}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - 91 Slayer<br> - A hellhound slayer task<br><br>Combat Achievement task difficulty:<br> - Elite<br> - Master}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:318
+;Personal Best<nowiki>:</nowiki>
+:{{Not okay}} Not shown
+{{div col end}}{{clear}}
+
+==[[Chaos Elemental]]==
+[[File:Chaos Elemental.png|Boss variant shown|right|200x200px]]
+{{Map|3261,3918|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|The Chaos Elemental is a dark cloud with six tentacles that dwells within the deep Wilderness, just west of the Rogues' Castle.<br><br>Attack Styles - Melee, Ranged, Magic<br>Immunities - Venom<br>Slayer Categories - None}}
+'''Difficulty'''
+{{Blockquote|There are no mandatory requirements to fight the Chaos Elemental.<br><br>Combat Achievement task difficulty:<br> - Hard<br> - Elite}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:305
+;Personal Best<nowiki>:</nowiki>
+:{{Not okay}} Not shown
+{{div col end}}{{clear}}
+
+==[[Chaos Fanatic]]==
+[[File:Chaos Fanatic.png|Boss variant shown|right|200x200px]]
+{{Map|2979,3845|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|The Chaos Fanatic is a demi-boss that resides west of the Lava Maze.<br><br>Attack Styles - Magic, Special<br>Immunities - None<br>Slayer Categories - None}}
+'''Difficulty'''
+{{Blockquote|There are no mandatory requirements to fight the Chaos Fanatic.<br><br>Combat Achievement task difficulty:<br> - Medium<br> - Hard}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:202
+;Personal Best<nowiki>:</nowiki>
+:{{Not okay}} Not shown
+{{div col end}}{{clear}}
+
+==[[Crazy Archaeologist]]==
+[[File:Crazy archaeologist.png|Boss variant shown|right|200x200px]]
+{{Map|2967,3697|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|The Crazy Archaeologist is a demi-boss that resides in the ruins south of The Forgotten Cemetery.<br><br>Attack Styles - Melee, Ranged, Special<br>Immunities - None<br>Slayer Categories - None}}
+'''Difficulty'''
+{{Blockquote|There are no mandatory requirements to fight the Crazy Archaeologist.<br><br>Combat Achievement task difficulty:<br> - Medium<br> - Hard}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:204
+;Personal Best<nowiki>:</nowiki>
+:{{Not okay}} Not shown
+{{div col end}}{{clear}}
+
+==[[Chambers of Xeric]]==
+[[File:Great Olm.png|Boss variant shown|right|200x200px]]
+{{Map|1233,3573|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|The Chambers of Xeric is a large cave system found underneath Mount Quidamortem in the Kebos Lowlands.<br><br>The Chambers of Xeric will scale to the number of players (1-100) and their stats.<br><br>The Chambers of Xeric has a challenge mode difficulty setting for more experienced raiders.<br><br>Attack Styles - Magic, Ranged, Melee, Special<br>Immunities - Poison, Venom<br>Slayer Categories - None}}
+'''Difficulty'''
+{{Blockquote|There are no mandatory requirements to enter the Chambers of Xeric.<br><br>Combat Achievement task difficulty:<br> - Elite<br> - Master<br> - Grandmaster}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:1043
+;Personal Best<nowiki>:</nowiki>
+:{{Okay}} Shown
+{{div col end}}{{clear}}
+
+==[[Chambers of Xeric/Challenge Mode|Chambers of Xeric: Challenge Mode]]==
+[[File:Great Olm.png|Boss variant shown|right|200x200px]]
+{{Map|1233,3573|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|The Chambers of Xeric is a large cave system found underneath Mount Quidamortem in the Kebos Lowlands.<br><br>The Chambers of Xeric will scale to the number of players (1-100) and their stats.<br><br>The Chambers of Xeric has a challenge mode difficulty setting for more experienced raiders.<br><br>Attack Styles - Magic, Ranged, Melee, Special<br>Immunities - Poison, Venom<br>Slayer Categories - None}}
+'''Difficulty'''
+{{Blockquote|There are no mandatory requirements to enter the Chambers of Xeric.<br><br>Combat Achievement task difficulty:<br> - Elite<br> - Master<br> - Grandmaster}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:1043
+;Personal Best<nowiki>:</nowiki>
+:{{Okay}} Shown
+{{div col end}}{{clear}}
+
+==[[Corporeal Beast]]==
+[[File:Corporeal Beast.png|Boss variant shown|right|200x200px]]
+{{Map|2985,4382|plane=2|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|The Corporeal Beast is a group boss that can be found residing in its cave found east of the Graveyard of Shadows in the Wilderness.<br><br>Attack Styles - Melee, Magic, Special.<br>Immunities - Poison, Venom<br>Slayer Categories - None}}
+'''Difficulty'''
+{{Blockquote|There are no mandatory requirements to fight the Corporeal Beast.<br><br>Combat Achievement task difficulty:<br> - Elite<br> - Master}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:785
+;Personal Best<nowiki>:</nowiki>
+:{{Not okay}} Not shown
+{{div col end}}{{clear}}
+
+==[[Commander Zilyana]]==
+[[File:Commander Zilyana.png|Boss variant shown|right|200x200px]]
+{{Map|2899,5267|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|Commander Zilyana represents Saradomin as one of the four generals within the God Wars Dungeon north of Trollheim.<br><br>Attack Styles - Melee, Magic<br>Immunities - Poison, Venom<br>Slayer Categories - None}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - 70 Agility<br> - Rope<br><br>Combat Achievement task difficulty:<br> - Hard<br> - Elite<br> - Master<br> - Grandmaster}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:596
+;Personal Best<nowiki>:</nowiki>
+:{{Not okay}} Not shown
+{{div col end}}{{clear}}
+
+==[[Crystalline Hunllef]]==
+[[File:Crystalline Hunllef.png|Boss variant shown|right|200x200px]]
+{{Map|3228,6116|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|The Crystalline Hunllef is a boss located within The Gauntlet, an activity within the elven capital city of Prifddinas.<br><br>Attack Styles - Ranged, Magic, Special<br>Immunities - Poison, Venom<br>Slayer Categories - None}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - Song of the Elves<br><br>Combat Achievement task difficulty:<br> - Elite<br> - Master<br> - Grandmaster}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:674
+;Personal Best<nowiki>:</nowiki>
+:{{Okay}} Shown
+{{div col end}}{{clear}}
+
+==[[Corrupted Hunllef]]==
+[[File:Corrupted Hunllef.png|Boss variant shown|right|200x200px]]
+{{Map|3228,6116|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|The Corrupted Hunllef is the boss located within The Corrupted Gauntlet, an activity within the elven capital city of Prifddinas.<br><br>Access to The Corrupted Gauntlet is unlocked by completing The Gauntlet.<br><br>Attack Styles - Ranged, Magic, Special<br>Immunities - Poison, Venom<br>Slayer Categories - None}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - Song of the Elves<br> - Access to The Corrupted Gauntlet<br><br>Combat Achievement task difficulty:<br> - Elite<br> - Master<br> - Grandmaster}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:894
+;Personal Best<nowiki>:</nowiki>
+:{{Okay}} Shown
+{{div col end}}{{clear}}
+
+==[[Dagannoth Prime]]==
+[[File:Dagannoth Prime.png|Boss variant shown|right|200x200px]]
+{{Map|2913,4449|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|Dagannoth Prime is one of the three Dagannoth Kings found within the Waterbirth Island Dungeon, along with fellow kings Dagannoth Rex and Dagannoth Supreme.<br><br>Attack Style - Magic<br>Immunities - Venom<br>Slayer Categories - Dagannoth}}
+'''Difficulty'''
+{{Blockquote|There are no mandatory requirements to access the Waterbirth Island Dungeon.<br><br>Combat Achievement task difficulty:<br> - Medium<br> - Hard<br> - Elite}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:303
+;Personal Best<nowiki>:</nowiki>
+:{{Not okay}} Not shown
+{{div col end}}{{clear}}
+
+==[[Dagannoth Rex]]==
+[[File:Dagannoth Rex.png|Boss variant shown|right|200x200px]]
+{{Map|2913,4449|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|Dagannoth Rex is one of the three Dagannoth Kings found within the Waterbirth Island Dungeon, along with fellow kings Dagannoth Supreme and Dagannoth Prime.<br><br>Attack Style - Melee<br>Immunities - Venom<br>Slayer Categories - Dagannoth}}
+'''Difficulty'''
+{{Blockquote|There are no mandatory requirements to access the Waterbirth Island Dungeon.<br><br>Combat Achievement task difficulty:<br> - Medium<br> - Hard<br> - Elite}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:303
+;Personal Best<nowiki>:</nowiki>
+:{{Not okay}} Not shown
+{{div col end}}{{clear}}
+
+==[[Dagannoth Supreme]]==
+[[File:Dagannoth Supreme.png|Boss variant shown|right|200x200px]]
+{{Map|2913,4449|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|Dagannoth Supreme is one of the three Dagannoth Kings found within the Waterbirth Island Dungeon, along with fellow kings Dagannoth Rex and Dagannoth Prime.<br><br>Attack Style - Ranged<br>Immunities - Venom<br>Slayer Categories - Dagannoth}}
+'''Difficulty'''
+{{Blockquote|There are no mandatory requirements to access the Waterbirth Island Dungeon.<br><br>Combat Achievement task difficulty:<br> - Medium<br> - Hard<br> - Elite}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:303
+;Personal Best<nowiki>:</nowiki>
+:{{Not okay}} Not shown
+{{div col end}}{{clear}}
+
+==[[Deranged Archaeologist]]==
+[[File:Deranged archaeologist.png|Boss variant shown|right|200x200px]]
+{{Map|3683,3707|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|The Deranged Archaeologist is a demi-boss located on Fossil Island, at the southern reaches of the Tar Swamp.<br><br>Attack Styles - Melee, Ranged, Special<br>Immunities - None<br>Slayer Categories - None}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - A woodcutting axe<br> - Bone Voyage<br><br>Combat Achievement task difficulty:<br> - Easy<br> - Medium}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:276
+;Personal Best<nowiki>:</nowiki>
+:{{Not okay}} Not shown
+{{div col end}}{{clear}}
+
+==[[Doom of Mokhaiotl]]==
+[[File:Doom of Mokhaiotl.png|Boss variant shown|right|200x200px]]
+{{Map|1306,3035|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|The Doom of Mokhaiotl is found deep beneath the Crypt of Tonali in Varlamore.<br><br>Attack Styles - Melee, Ranged, Magic, Special<br>Immunities - Venom}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - The Final Dawn}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:558
+;Personal Best<nowiki>:</nowiki>
+:{{Not okay}} Not shown
+{{div col end}}{{clear}}
+
+==[[Duke Sucellus]]==
+[[File:Duke Sucellus.png|Boss variant shown|right|200x200px]]
+{{Map|2846,10333|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|Duke Sucellus is a boss found within Ghorrock Prison, deep beneath Weiss.<br><br>Attack Styles - Melee, Magic, Special<br>Immunities - Venom<br>Slayer Categories - None}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - Desert Treasure II - The Fallen Empire}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:758
+;Personal Best<nowiki>:</nowiki>
+:{{Okay}} Shown
+{{div col end}}{{clear}}
+
+==[[Fortis Colosseum]]==
+[[File:Sol Heredit.png|Boss variant shown|right|200x200px]]
+{{Map|1824,3104|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|Sol Heredit is the final boss of the Fortis Colosseum, located in Civitas illa Fortis in Varlamore.<br><br>Attack Styles - Melee, Ranged, Magic, Special<br>Immunities - Venom<br>Slayer Categories - None}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - Children of the Sun}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:1563
+;Personal Best<nowiki>:</nowiki>
+:{{Okay}} Shown
+{{div col end}}{{clear}}
+
+==[[General Graardor]]==
+[[File:General Graardor.png|Boss variant shown|right|200x200px]]
+{{Map|2870,5358|plane=2|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|General Graardor represents Bandos as one of the four generals within the God Wars Dungeon north of Trollheim.<br><br>Attack Styles - Melee, Ranged<br>Immunities - Poison, Venom<br>Slayer Categories - None}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - 70 Strength<br> - Hammer<br><br>Combat Achievement task difficulty:<br> - Hard<br> - Elite<br> - Grandmaster}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:624
+;Personal Best<nowiki>:</nowiki>
+:{{Not okay}} Not shown
+{{div col end}}{{clear}}
+
+==[[Giant Mole]]==
+[[File:Giant Mole.png|Boss variant shown|right|200x200px]]
+{{Map|1761,5190|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|The Giant Mole is found within its lair, found underneath Falador Park.<br><br>Attack Style - Melee<br>Immunities - Venom<br>Slayer Categories - None}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - Light Source<br> - Spade<br><br>Combat Achievement task difficulty:<br> - Easy<br> - Medium<br> - Hard<br> - Elite}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:230
+;Personal Best<nowiki>:</nowiki>
+:{{Not okay}} Not shown
+{{div col end}}{{clear}}
+
+==[[Grotesque Guardians]]==
+[[File:Dusk.png|Boss variant shown|right|200x200px]]
+{{Map|3425,3553|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|The Grotesque Guardians, Dusk and Dawn, can be found on the Slayer Tower's rooftop, through the entrance on the upper floor.<br><br>In order to unlock access to the roof, a brittle key, obtained from killing a gargoyle whilst on a gargoyle slayer task, is required.<br><br>Attack Styles - Melee, Ranged, Magic, Special<br>Immunities - Poison, Venom<br>Slayer Categories - Gargoyle}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - 75 Slayer<br> - A gargoyle slayer task<br> - Access to the Slayer Tower roof<br><br>Combat Achievement task difficulty:<br> - Hard<br> - Elite<br> - Master<br> - Grandmaster}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:328
+;Personal Best<nowiki>:</nowiki>
+:{{Okay}} Shown
+{{div col end}}{{clear}}
+
+==[[Hespori]]==
+[[File:Hespori.png|Boss variant shown|right|200x200px]]
+{{Map|1247,10087|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|The Hespori is a rare carnivorous plant that becomes conscious and highly aggressive once fully grown.<br><br>In order to fight it, a Hespori seed must be planted and fully grown in the Hespori patch within the west wing of the Farming Guild.<br><br>Attack Styles - Ranged, Magic<br>Immunities - Poison, Venom<br>Slayer Categories - None}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - 65 Farming<br>- Hespori Seed<br><br>Combat Achievement task difficulty:<br> - Hard<br> - Elite}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:284
+;Personal Best<nowiki>:</nowiki>
+:{{Okay}} Shown
+{{div col end}}{{clear}}
+
+==[[The Hueycoatl]]==
+[[File:The Hueycoatl.png|Boss variant shown|right|200x200px]]
+{{Map|1512,3292|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|The Hueycoatl is a boss found atop the Darkfrost in Varlamore.<br><br>Attack Styles - Melee, Ranged, Magic, Special<br>Immunities - Poison, Venom<br>Slayer Categories - None}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - Children of the Sun}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:642
+;Personal Best<nowiki>:</nowiki>
+:{{Okay}} Shown
+{{div col end}}{{clear}}
+
+==[[Kalphite Queen]]==
+[[File:Kalphite Queen.png|Boss variant shown|right|200x200px]]
+{{Map|3486,9496|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|The Kalphite Queen is the strongest of the kalphites, residing in the Kalphite Lair within the Kharidian Desert.<br><br>Attack Styles - Melee, Ranged, Mage<br>Immunities - Venom<br>Slayer Categories - Kalphite}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br>- Rope x2<br><br>Combat Achievement task difficulty:<br> - Hard<br> - Elite}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:333
+;Personal Best<nowiki>:</nowiki>
+:{{Not okay}} Not shown
+{{div col end}}{{clear}}
+
+==[[King Black Dragon]]==
+[[File:King Black Dragon.png|Boss variant shown|right|200x200px]]
+{{Map|3016,3848|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|The King Black Dragon is a three-headed black dragon found in his lair, deep within the Wilderness, west of the Lava Maze.<br><br>Attack Styles - Melee, Dragonfire<br>Immunities - None<br>Slayer Categories - Black Dragon}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - Dragon Slayer<br><br>Combat Achievement task difficulty:<br> - Easy<br> - Medium<br> - Hard}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:276
+;Personal Best<nowiki>:</nowiki>
+:{{Not okay}} Not shown
+{{div col end}}{{clear}}
+
+==[[Kraken]]==
+[[File:Kraken.png|Boss variant shown|right|200x200px]]
+{{Map|2280,10033|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|The Kraken is a stronger and larger cave kraken, found within Lieve's cave north of Eagles' Peak. It sleeps underwater until disturbed.<br><br>Attack Styles - Magic<br>Immunities - Venom<br>Slayer Categories - Cave Kraken}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - 87 Slayer<br> - A cave kraken slayer task<br><br>Combat Achievement task difficulty:<br> - Hard<br> - Elite<br> - Master}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:291
+;Personal Best<nowiki>:</nowiki>
+:{{Not okay}} Not shown
+{{div col end}}{{clear}}
+
+==[[Kree'arra]]==
+[[File:Kree'arra.png|Boss variant shown|right|200x200px]]
+{{Map|2833,5302|plane=2|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|Kree'arra represents Armadyl as one of the four generals within the God Wars Dungeon north of Trollheim.<br><br>Attack Styles - Ranged, Ranged-based Magic, Melee<br>Immunities - Melee, Poison, Venom<br>Slayer Categories - Aviansie}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - 70 Ranged<br> - Crossbow<br> - Mithril Grapple<br><br>Combat Achievement task difficulty:<br> - Hard<br> - Elite<br> - Master<br> - Grandmaster}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:580
+;Personal Best<nowiki>:</nowiki>
+:{{Not okay}} Not shown
+{{div col end}}{{clear}}
+
+==[[K'ril Tsutsaroth]]==
+[[File:K'ril Tsutsaroth.png|Boss variant shown|right|200x200px]]
+{{Map|2926,5324|plane=2|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|K'ril Tsutsaroth represents Zamorak as one of the four generals within the God Wars Dungeon north of Trollheim.<br><br>Attack Styles - Melee, Magic, Special<br>Immunities - Poison, Venom<br>Slayer Categories - Greater Demon}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - 70 Hitpoints<br><br>Combat Achievement task difficulty:<br> - Hard<br> - Elite<br> - Grandmaster}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:650
+;Personal Best<nowiki>:</nowiki>
+:{{Not okay}} Not shown
+{{div col end}}{{clear}}
+
+==[[The Leviathan]]==
+[[File:The Leviathan.png|Boss variant shown|right|200x200px]]
+{{Map|3104,9574|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|The Leviathan is a boss found within the Scar, which can be accessed through the Temple of the Eye.<br><br>Attack Styles - Melee, Ranged, Magic, Special<br>Immunities - Venom<br>Slayer Categories - None}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - Desert Treasure II - The Fallen Empire}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:798
+;Personal Best<nowiki>:</nowiki>
+:{{Okay}} Shown
+{{div col end}}{{clear}}
+
+==[[The Mad Angel]]==
+[[File:Mad Angel.png|Boss variant shown|right|200x200px]]
+{{Map|2534,2215|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|The Mad Angel is a boss found within Ardeaglais on Wyrmscraig.<br><br>Attack Styles - Melee, Magic<br>Immunities - Poison, Venom, Burn<br>Slayer Categories - None}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - Fallen From Grace}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:588
+;Personal Best<nowiki>:</nowiki>
+:{{Okay}} Shown
+{{div col end}}{{clear}}
+
+==[[Maggot King]]==
+[[File:Maggot King.png|Boss variant shown|right|200x200px]]
+{{Map|2679,7851|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|The Maggot King is a boss found in the far off land of Vampyrium.<br><br>Attack Styles - All<br>Immunities - Poison, Venom<br>Slayer Categories - None}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - The Blood Moon Rises<br><br>Combat Achievement task difficulty:<br> - Hard <br> - Elite <br> - Master}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:741
+;Personal Best<nowiki>:</nowiki>
+:{{Okay}} Shown
+{{div col end}}{{clear}}
+
+==[[The Mimic]]==
+[[File:The Mimic.png|Boss variant shown|right|200x200px]]
+{{Map|1645,3570|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|The Mimic is a boss occasionally found disguised as either Elite or Master clue scroll reward caskets.<br><br>Mimics can only be found after speaking to the strange casket upstairs in Watson's house in Great Kourend.<br><br>Attack Styles - Melee, Magic, Special<br>Immunities - Poison, Venom<br>Slayer Categories - None}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - Mimic caskets enabled<br> - A mimic casket<br><br>Combat Achievement task difficulty:<br> - Elite}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:186
+;Personal Best<nowiki>:</nowiki>
+:{{Okay}} Shown
+{{div col end}}{{clear}}
+
+==[[Moons of Peril]]==
+[[File:Blood Moon.png|Boss variant shown|right|200x200px]]
+{{Map|1439,9599|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|The Moons of Peril are three bosses found in Neypotzli beneath the city of Cam Torum in Varlamore.<br><br>Attack Styles - Melee, Ranged, Magic, Special<br>Immunities - Venom<br>Slayer Categories - None}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - Perilous Moons}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:416
+;Personal Best<nowiki>:</nowiki>
+:{{Not okay}} Not shown
+{{div col end}}{{clear}}
+
+==[[Nex]]==
+[[File:Nex.png|Boss variant shown|right|200x200px]]
+{{Map|2925,5203|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|Nex is a boss found in the Ancient Prison, deep within the God Wars Dungeon north of Trollheim.<br><br>Attack Styles - Melee, Ranged, Magic, Special<br>Immunities - Poison, Venom<br>Slayer Categories - None}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - The Frozen Door<br><br>Combat Achievement task difficulty:<br> - Elite<br> - Master<br> - Grandmaster}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:1001
+;Personal Best<nowiki>:</nowiki>
+:{{Okay}} Shown
+{{div col end}}{{clear}}
+
+==[[The Nightmare]]==
+[[File:The Nightmare.png|Boss variant shown|right|200x200px]]
+{{Map|3808,9759|plane=1|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|The Nightmare of Ashihama is a group boss found in the Sisterhood Sanctuary within the town of Slepe in Morytania.<br><br>Attack Styles - Melee, Ranged, Magic, Special<br>Immunities - Poison, Venom<br>Slayer Categories - None}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - Access to Morytania<br><br>Combat Achievement task difficulty:<br> - Hard<br> - Elite<br> - Master<br> - Grandmaster}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:814
+;Personal Best<nowiki>:</nowiki>
+:{{Okay}} Shown
+{{div col end}}{{clear}}
+
+==[[Phosanis Nightmare]]==
+[[File:The Nightmare.png|Boss variant shown|right|200x200px]]
+{{Map|3808,9759|plane=1|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|Phosani's Nightmare is a boss found in the Sisterhood Sanctuary within the town of Slepe in Morytania.<br><br>Attack Styles - Melee, Ranged, Magic, Special<br>Immunities - Poison, Venom<br>Slayer Categories - None}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - Access to Morytania<br><br>Combat Achievement task difficulty:<br> - Elite<br> - Master<br> - Grandmaster}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:1024
+;Personal Best<nowiki>:</nowiki>
+:{{Not okay}} Not shown
+{{div col end}}{{clear}}
+
+==[[Obor]]==
+[[File:Obor.png|Boss variant shown|right|200x200px]]
+{{Map|3095,9833|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|Obor the Hill Titan is the strongest of all the hill giants. His lair can be located behind a locked gate found within the hill giant area of the Edgeville Dungeon.<br><br>In order to access Obor's lair, a giant key, obtained from killing a Hill Giant, is required.<br><br>Attack Styles - Melee, Ranged<br>Immunities - Venom<br>Slayer Categories - Hill Giant}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - Giant key<br><br>Combat Achievement task difficulty:<br> - Easy<br> - Medium}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:106
+;Personal Best<nowiki>:</nowiki>
+:{{Not okay}} Not shown
+{{div col end}}{{clear}}
+
+==[[Phantom Muspah]]==
+[[File:Phantom Muspah (melee).png|Boss variant shown|right|200x200px]]
+{{Map|2846,10333|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|The Phantom Muspah is a boss found within Ghorrock Dungeon, deep beneath Weiss.<br><br>Attack Styles - Melee, Ranged, Magic, Special<br>Immunities - Poison, Venom<br>Slayer Categories - None}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - Secrets of the North<br><br>Combat Achievement task difficulty:<br> - Hard<br> - Elite<br> - Master<br> - Grandmaster}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:741
+;Personal Best<nowiki>:</nowiki>
+:{{Okay}} Shown
+{{div col end}}{{clear}}
+
+==[[The Royal Titans]]==
+[[File:Branda the Fire Queen.png|Boss variant shown|right|200x200px]]
+{{Map|2952,9574|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|The Royal Titans, Branda and Eldric, can be found within the Asgarnian Ice Cave, through the tunnel to the north-west.<br><br>Attack Styles - Melee, Special<br>Immunities - Poison, Venom<br>Slayer Categories - Ice Giant, Fire Giant}}
+'''Difficulty'''
+{{Blockquote|There are no mandatory requirements to fight the Royal Titans<br><br>Combat Achievement task difficulty:<br> - Easy<br> - Medium<br> - Hard<br> - Elite}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:350
+;Personal Best<nowiki>:</nowiki>
+:{{Okay}} Shown
+{{div col end}}{{clear}}
+
+==[[Scurrius]]==
+[[File:Scurrius.png|Boss variant shown|right|200x200px]]
+{{Map|3307,9869|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|Scurrius is a boss found within the Varrock Sewers, which can be accessed through the Dungeon within east Varrock.<br><br>Attack Styles - Melee, Ranged, Magic, Special<br>Immunities - Venom<br>Slayer Categories - Rat}}
+'''Difficulty'''
+{{Blockquote|There are no mandatory requirements to fight Scurrius.<br><br>Combat Achievement task difficulty:<br> - Easy<br> - Medium}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:200
+;Personal Best<nowiki>:</nowiki>
+:{{Not okay}} Not shown
+{{div col end}}{{clear}}
+
+==[[Sarachnis]]==
+[[File:Sarachnis.png|Boss variant shown|right|200x200px]]
+{{Map|1841,9902|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|Sarachnis is a spider boss found within the Forthos Dungeon south of the Spider Den.<br><br>Attack Styles - Melee, Ranged<br>Immunities - Poison, Venom<br>Slayer Categories - Spider}}
+'''Difficulty'''
+{{Blockquote|There are no mandatory requirements to fight Sarachnis.<br><br>Combat Achievement task difficulty:<br> - Easy<br> - Medium<br> - Hard}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:318
+;Personal Best<nowiki>:</nowiki>
+:{{Not okay}} Not shown
+{{div col end}}{{clear}}
+
+==[[Scorpia]]==
+[[File:Scorpia.png|Boss variant shown|right|200x200px]]
+{{Map|3234,10343|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|Scorpia is a large scorpion that resides in a cave beneath the Scorpion Pit. The Scorpion Pit can be found deep within the Wilderness west of the Rogues' Castle.<br><br>Attack Styles - Melee<br>Immunities - None<br>Slayer Categories - Scorpion}}
+'''Difficulty'''
+{{Blockquote|There are no mandatory requirements to fight the Scorpia.<br><br>Combat Achievement task difficulty:<br> - Hard<br> - Elite}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:225
+;Personal Best<nowiki>:</nowiki>
+:{{Not okay}} Not shown
+{{div col end}}{{clear}}
+
+==[[Shellbane Gryphon]]==
+[[File:Shellbane gryphon.png|Boss variant shown|right|200x200px]]
+{{Map|3179,8874|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|Shellbane gryphons are found on the Great Conch in the Unquiet Ocean.<br><br>Attack Styles - Melee, Ranged, Special<br>Immunities - Poison, Venom<br>Slayer Categories - Gryphon}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - Troubled Tortugans}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:235
+;Personal Best<nowiki>:</nowiki>
+:{{Okay}} Shown
+{{div col end}}{{clear}}
+
+==[[Skotizo]]==
+[[File:Skotizo.png|Boss variant shown|right|200x200px]]
+{{Map|1664,10047|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|Skotizo is a demonic boss located beneath the Catacombs of Kourend.<br><br>Accessing his lair requires the use of a dark totem on the altar found in the centre of the Catacombs.<br><br>Attack Styles - Melee, Magic<br>Immunities - Poison, Venom<br>Slayer Categories - Black Demon, Greater Demon.}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - A Dark Totem<br><br>Combat Achievement task difficulty:<br> - Medium<br> - Hard<br> - Elite<br> - Master}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:321
+;Personal Best<nowiki>:</nowiki>
+:{{Not okay}} Not shown
+{{div col end}}{{clear}}
+
+==[[Tempoross]]==
+[[File:Tempoross.png|Boss variant shown|right|200x200px]]
+{{Map|3036,2848|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|Tempoross is a skilling boss located off the coast of the Ruins of Unkah in the Kharidian Desert.<br><br>Attack Styles - Special<br>Immunities - Special<br>Slayer Categories - None}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - 35 Fishing<br><br>Combat Achievement task difficulty:<br> - Easy<br> - Medium<br> - Hard}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:N/A
+;Personal Best<nowiki>:</nowiki>
+:{{Okay}} Shown
+{{div col end}}{{clear}}
+
+==[[Theatre of Blood/Story Mode|Theatre of Blood: Entry Mode]]==
+[[File:Verzik Vitur (final form).png|Boss variant shown|right|200x200px]]
+{{Map|3677,3219|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|The Theatre of Blood is a large arena located within the castle of Ver Sinhaza in Morytania.<br><br>The Theatre of Blood is a raid for 1-5 players.<br><br>Entry mode is an easier version of the Theatre of Blood aimed at introducing you to the content and the boss mechanics in a less punishing way.<br><br>Attack Styles - Magic, Ranged, Melee, Special<br>Immunities - Poison, Venom<br>Slayer Categories - None}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - Access to Morytania<br><br>Combat Achievement task difficulty:<br> - Hard <br> - Elite}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:1520
+;Personal Best<nowiki>:</nowiki>
+:{{Okay}} Shown
+{{div col end}}{{clear}}
+
+==[[Theatre of Blood]]==
+[[File:Verzik Vitur (final form).png|Boss variant shown|right|200x200px]]
+{{Map|3677,3219|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|The Theatre of Blood is a large arena located within the castle of Ver Sinhaza in Morytania.<br><br>The Theatre of Blood is a raid for 1-5 players.<br><br>Attack Styles - Magic, Ranged, Melee, Special<br>Immunities - Poison, Venom<br>Slayer Categories - None}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - Access to Morytania<br><br>Combat Achievement task difficulty:<br> - Elite<br> - Master<br> - Grandmaster}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:1520
+;Personal Best<nowiki>:</nowiki>
+:{{Okay}} Shown
+{{div col end}}{{clear}}
+
+==[[Theatre of Blood/Hard Mode|Theatre of Blood: Hard Mode]]==
+[[File:Verzik Vitur (final form).png|Boss variant shown|right|200x200px]]
+{{Map|3677,3219|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|The Theatre of Blood is a large arena located within the castle of Ver Sinhaza in Morytania.<br><br>The Theatre of Blood is a raid for 1-5 players.<br><br>Hard mode is a more challenging experience than the regular raid. Mechanics are harder and more punishing.<br><br>Attack Styles - Magic, Ranged, Melee, Special<br>Immunities - Poison, Venom<br>Slayer Categories - None}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - Access to Morytania<br> - At least one regular Theatre of Blood completion<br><br>Combat Achievement task difficulty:<br> - Master<br> - Grandmaster}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:1520
+;Personal Best<nowiki>:</nowiki>
+:{{Okay}} Shown
+{{div col end}}{{clear}}
+
+==[[Thermonuclear Smoke Devil]]==
+[[File:Thermonuclear smoke devil.png|Boss variant shown|right|200x200px]]
+{{Map|2364,9448|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|The Thermonuclear Smoke Devil is a stronger and larger smoke devil, found within Breive's cave south of Castle Wars.<br><br>Attack Styles - Magical Ranged<br>Immunities - Poison, Venom<br>Slayer Categories - Smoke Devil}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - 93 Slayer<br> - A smoke devil slayer task<br> - A face mask<br><br>Combat Achievement task difficulty:<br> - Elite}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:301
+;Personal Best<nowiki>:</nowiki>
+:{{Not okay}} Not shown
+{{div col end}}{{clear}}
+
+==[[Tombs of Amascut: Entry Mode]]==
+[[File:Tumeken's Warden (level-489).png|Boss variant shown|right|200x200px]]
+{{Map|3358,2711|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|The Tombs of Amascut can be found in an ancient tomb south of Sophanem.<br><br>The Tombs of Amascut is a raid for 1-8 players.<br><br>The Tombs of Amascut can scale in difficulty through the use of Invocations. These Invocations change the Raid Level, with a Raid Level of less than 150 considered an Entry raid.<br><br>Attack Styles - Magic, Ranged, Melee, Special<br>Immunities - Poison, Venom<br>Slayer Categories - None}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - Beneath Cursed Sands<br><br>Combat Achievement task difficulty:<br> - Medium<br> - Hard<br> - Elite}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:544
+;Personal Best<nowiki>:</nowiki>
+:{{Okay}} Shown
+{{div col end}}{{clear}}
+
+==[[Tombs of Amascut]]==
+[[File:Tumeken's Warden (level-489).png|Boss variant shown|right|200x200px]]
+{{Map|3358,2711|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|The Tombs of Amascut can be found in an ancient tomb south of Sophanem.<br><br>The Tombs of Amascut is a raid for 1-8 players.<br><br>The Tombs of Amascut can scale in difficulty through the use of Invocations. These Invocations change the Raid Level, with a Raid Level of 150 to 299 considered a standard raid.<br><br>Attack Styles - Magic, Ranged, Melee, Special<br>Immunities - Poison, Venom<br>Slayer Categories - None}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - Beneath Cursed Sands<br><br>Combat Achievement task difficulty:<br> - Elite<br> - Master<br> - Grandmaster}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:544
+;Personal Best<nowiki>:</nowiki>
+:{{Okay}} Shown
+{{div col end}}{{clear}}
+
+==[[Tombs of Amascut: Expert Mode]]==
+[[File:Tumeken's Warden (level-489).png|Boss variant shown|right|200x200px]]
+{{Map|3358,2711|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|The Tombs of Amascut can be found in an ancient tomb south of Sophanem.<br><br>The Tombs of Amascut is a raid for 1-8 players.<br><br>The Tombs of Amascut can scale in difficulty through the use of Invocations. These Invocations change the Raid Level, with a Raid Level of 300 or greater considered an Expert raid.<br><br>Attack Styles - Magic, Ranged, Melee, Special<br>Immunities - Poison, Venom<br>Slayer Categories - None}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - Beneath Cursed Sands<br><br>Combat Achievement task difficulty:<br> - Elite<br> - Master<br> - Grandmaster}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:544
+;Personal Best<nowiki>:</nowiki>
+:{{Okay}} Shown
+{{div col end}}{{clear}}
+
+==[[TzHaar-Ket-Rak's Challenges]]==
+[[File:TzHaar-Ket-Rak.png|Boss variant shown|right|200x200px]]
+{{Map|2544,5111|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|TzHaar-Ket-Rak's is an elite Tzhaar warrior found within the inner city of Mor Ul Rek.<br><br>TzHaar-Ket-Rak offers a number of challenges where those who have proven themselves within the Fight Caves or the Inferno can go up against an ever increasing number of JalTok-Jads.}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br><br>TzHaar-Ket-Rak's First and Second Challenges<br> - 1 Fight Caves completion<br><br>TzHaar-Ket-Rak's Third to Sixth Challenges<br> - 1 Inferno completion<br><br>Combat Achievement task difficulty:<br> - Elite<br> - Master<br> - Grandmaster}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:900
+;Personal Best<nowiki>:</nowiki>
+:{{Okay}} Shown
+{{div col end}}{{clear}}
+
+==[[TzKal-Zuk]]==
+[[File:TzKal-Zuk.png|Boss variant shown|right|200x200px]]
+{{Map|2495,5118|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|TzKal-Zuk is the final boss found within the depths of the Inferno found within the inner city of Mor Ul Rek.<br><br>Attack Styles - Special<br>Immunities - Poison, Venom<br>Slayer Categories - TzHaar}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - Fire Cape<br><br>Combat Achievement task difficulty:<br> - Elite<br> - Master<br> - Grandmaster}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:1400
+;Personal Best<nowiki>:</nowiki>
+:{{Okay}} Shown
+{{div col end}}{{clear}}
+==[[TzTok-Jad]]==
+[[File:TzTok-Jad.png|Boss variant shown|right|200x200px]]
+{{Map|2438,5168|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|TzTok-Jad is the final boss found within the depths of the Fight Caves found within Mor Ul Rek.<br><br>Attack Styles - Melee, Ranged, Magic<br>Immunities - Venom<br>Slayer Categories - TzHaar}}
+'''Difficulty'''
+{{Blockquote|There are no mandatory requirements to attempt the Fight Caves.<br><br>Combat Achievement task difficulty:<br> - Elite<br> - Master<br> - Grandmaster}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:702
+;Personal Best<nowiki>:</nowiki>
+:{{Okay}} Shown
+{{div col end}}{{clear}}
+==[[Vardorvis]]==
+[[File:Vardorvis.png|Boss variant shown|right|200x200px]]
+{{Map|1129,3418|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|Vardorvis is a boss found within the Stranglewood, south west of Mount Quidamortem.<br><br>Attack Styles - Melee, Special<br>Immunities - Poison, Venom<br>Slayer Categories - None}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - Desert Treasure II - The Fallen Empire}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:784
+;Personal Best<nowiki>:</nowiki>
+:{{Okay}} Shown
+{{div col end}}{{clear}}
+==[[Venenatis]]==
+[[File:Venenatis.png|Boss variant shown|right|200x200px]]
+{{Map|3321,3797|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|Venenatis is a large poison spider that resides east of the Bone Yard in the Wilderness.<br><br>Attack Styles - Melee, Special<br>Immunities - Poison, Venom, Magic<br>Slayer Categories - Spider}}
+'''Difficulty'''
+{{Blockquote|There are no mandatory requirements to fight Venenatis.<br><br>Combat Achievement task difficulty:<br> - Hard<br> - Elite}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:464
+;Personal Best<nowiki>:</nowiki>
+:{{Not okay}} Not shown
+{{div col end}}{{clear}}
+==[[Vet'ion]]==
+[[File:Vet'ion.png|Boss variant shown|right|200x200px]]
+{{Map|3222,3786|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|Vet'ion is a Zamorakian skeletal champion that resides north of the Bone Yard and south of Lava Dragon Isle in the Wilderness.<br><br>Attack Styles - Melee, Magic<br>Immunities - Poison, Venom<br>Slayer Categories - Skeleton}}
+'''Difficulty'''
+{{Blockquote|There are no mandatory requirements to fight Vet'ion.<br><br>Combat Achievement task difficulty:<br> - Hard<br> - Elite}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:454
+;Personal Best<nowiki>:</nowiki>
+:{{Not okay}} Not shown
+{{div col end}}{{clear}}
+==[[Vorkath]]==
+[[File:Vorkath.png|Boss variant shown|right|200x200px]]
+{{Map|2272,4064|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|Vorkath is an undead blue dragon boss found in the crater on the island of Ungael north of the Fremennik Province.<br><br>Attack Styles - Melee, Ranged, Magic, Special, Dragonfire<br>Immunities - Poison, Venom<br>Slayer Categories - Blue Dragon, Zombie}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - Dragon Slayer II<br><br>Combat Achievement task difficulty:<br> - Elite<br> - Master<br> - Grandmaster}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:732
+;Personal Best<nowiki>:</nowiki>
+:{{Okay}} Shown
+{{div col end}}{{clear}}
+==[[The Whisperer]]==
+[[File:The Whisperer.png|Boss variant shown|right|200x200px]]
+{{Map|2922,5826|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|The Whisperer is a boss found within the Lassar Undercity, deep beneath Ice Mountain.<br><br>Attack Styles - Melee, Ranged, Magic, Special<br>Immunities - Poison, Venom<br>Slayer Categories - None}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - Desert Treasure II - The Fallen Empire}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:791
+;Personal Best<nowiki>:</nowiki>
+:{{Okay}} Shown
+{{div col end}}{{clear}}
+==[[Wintertodt]]==
+[[File:Howling Snow Storm.gif|Boss variant shown|right|200x200px]]
+{{Map|1630,4007|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|The Wintertodt is a skilling boss located in the Northern Tundras of Great Kourend, east of the Fishing Hamlet.<br><br>Attack Styles - Special<br>Immunities - Special<br>Slayer Categories - None}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - 50 Firemaking<br><br>Combat Achievement task difficulty:<br> - Easy<br> - Medium<br> - Hard}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:N/A
+;Personal Best<nowiki>:</nowiki>
+:{{Not okay}} Not shown
+{{div col end}}{{clear}}
+==[[Yama]]==
+[[File:Yama.png|Boss variant shown|right|200x200px]]
+{{Map|1439,10079|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|Yama is a boss found within the Chasm of Fire, north west of Shayzien.<br><br>Attack Styles - Melee, Ranged, Magic, Special<br>Immunities - Venom}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - A Kingdom Divided}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:1238
+;Personal Best<nowiki>:</nowiki>
+:{{Okay}} Shown
+{{div col end}}{{clear}}
+==[[Zalcano]]==
+[[File:Zalcano.png|Boss variant shown|right|200x200px]]
+{{Map|3281,6059|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|Zalcano is a demon skilling boss imprisoned beneath the elven capital city of Prifddinas.<br><br>Attack Styles - Special<br>Immunities - Special<br>Slayer Categories - None}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - Song of the Elves<br> - A pickaxe<br><br>Combat Achievement task difficulty:<br> - Elite}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:336
+;Personal Best<nowiki>:</nowiki>
+:{{Not okay}} Not shown
+{{div col end}}{{clear}}
+==[[Zulrah]]==
+[[File:Zulrah (serpentine).png|Boss variant shown|right|200x200px]]
+{{Map|2268,3070|plane=0|mapID=-1|zoom=3|caption=Location shown via "locate"|width=250|height=250|align=right}}
+'''Overview'''
+{{Blockquote|Zulrah is a snake boss found at their shrine within the Poison Wastes south of Isafdar. The followers of Zul-Andra provide access to the shrine via rowboat.<br><br>Attack Styles - Melee, Ranged, Magic.<br>Immunities - Poison, Venom<br>Slayer Categories - None}}
+'''Difficulty'''
+{{Blockquote|Mandatory requirements:<br> - Regicide <br><br>Combat Achievement task difficulty:<br> - Hard<br> - Elite<br> - Master<br> - Grandmaster}}
+{{div col|colwidth=10em}}
+;Combat Level<nowiki>:</nowiki>
+:725
+;Personal Best<nowiki>:</nowiki>
+:{{Okay}} Shown
+{{div col end}}{{clear}}
+
+==Changes==
+<!-- search for "insource:/'1319':/" in RuneScape:Cache/ to find changes -->
+{{Incomplete}}
+{{Subject changes header}}
+{{Subject changes
+|date = 29 July 2026
+|update = Wyrmscraig Is Out Today!
+|change = Entry for [[The Mad Angel]] added with its release.
+}}
+{{Subject changes
+|date = 22 July 2026
+|update = Summer Sweep-Up Gear & PvM Changes
+|change = Description for [[Maggot King]] adjusted to account for addition of Combat Achievements tasks.
+}}
+{{Subject changes
+|date = 8 July 2026
+|update = The Blood Moon Rises Tweaks & Fixes
+|change = Typo in the entry for [[Tombs of Amascut: Entry Mode]] ("[...] a Raid Level of less '''then''' 150 considered an Entry raid.") has been corrected.
+}}
+{{Subject changes
+|date = 30 June 2026
+|update = The Blood Moon Rises - Out Today!
+|change = Entry for [[Maggot King]] added with [[The Blood Moon Rises]].
+}}
+{{Subject changes
+|date = 5 November 2025
+|update = Sailing Technical Pre-Release
+|change = Entry for [[shellbane gryphon]] added with [[Sailing]] pre-release.
+}}
+{{Subject changes
+|date = 23 July 2025
+|update = Varlamore: The Final Dawn Out Now
+|change = Entry for [[Doom of Mokhaiotl]] added with its release.
+}}
+{{Subject changes
+|date = 14 May 2025
+|update = Yama, the Master of Pacts: Out Today
+|change = Entry for [[Yama]] added with its release.
+}}
+{{Subject changes
+|date = 18 February 2025
+|update = Royal Titans CAs & Birthday Rewards
+|change = 
+*Link to [[Royal Titans]] Combat Achievements task list added.
+*Description for Royal Titans adjusted to account for existence of elite Combat Achievements tasks.
+}}
+{{Subject changes
+|date = 5 February 2025
+|update = Royal Titans
+|change = Entry for [[Royal Titans]] added with their release.
+}}
+{{Subject changes
+|date = 23 October 2024
+|update = Halloween Fixes & Miscellaneous Changes
+|change = Vorkath's collection log link now sends players to the correct task page instead of [[the Whisperer]]'s.
+}}
+{{Subject changes
+|date = 16 October 2024
+|update = Halloween 2024
+|change = 
+* Links to [[Amoxliatl]] and [[the Hueycoatl]] Combat Achievements task list added.
+* Description for Amoxliatl adjusted to account for addition of Combat Achievements tasks.
+}}
+{{Subject changes
+|date = 11 September 2024
+|update = Araxxor CAs, Poll 82 Updates & More!
+|change = Entries for [[Amoxliatl]] and [[the Hueycoatl]] added with their release.
+}}
+{{Subject changes
+|date = 28 August 2024
+|update = Araxxor
+|change = Entry for [[Araxxor]] added with its release.
+}}
+{{Subject changes
+|date = 17 April 2024
+|update = Undead Pirates Tweaks, Varlamore CAs & More
+|change = Links to [[Moons of Peril]] and [[Fortis Colosseum]] Combat Achievements task list added.
+}}
+{{Subject changes
+|date = 20 March 2024
+|update = Varlamore: Part One
+|change = Entries for [[Moons of Peril]] and [[Sol Heredit]] added with their release.
+}}
+{{Subject changes
+|date = 31 January 2024
+|update = Scurrius & DT2 Combat Achievements
+|change = 
+* Links to [[Duke Sucellus]], [[the Leviathan]], [[the Whisperer]], and [[Vardorvis]] Combat Achievements task list added.
+* Slayer Categories for [[Scurrius]] now mentions "Rats" rather than "None".
+* The Whisperer's locate coordinates has been changed {{Map|2656,6368|plane=0|mapID=-1|zoom=3|type=maplink|text=from Lassar Undercity}}.
+}}
+{{Subject changes
+|date = 24 January 2024
+|update = Scurrius, the Rat King
+|change = Entry for [[Scurrius]] added with its release.
+}}
+{{Subject changes footer}}
+
+{{Combat Achievements}}

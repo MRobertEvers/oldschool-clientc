@@ -1,0 +1,433 @@
+{{Update|date=3 March 2023|rev=6 March 2023|url=https://secure.runescape.com/m=news/the-ruinous-powers---greenlight-poll-blog?oldschool=1|category=community}}
+[[File:The Ruinous Powers - Greenlight Poll Blog newspost.png|right]]
+__TOC__{{clear}}
+
+'''March 6th - An Update From the Team'''
+
+We're back after reading up on all the things you've shared about the Ruinous Powers over the weekend. We'll outline some of the key points we've observed below, and detail some of our own thoughts. Most importantly, we've included a very short survey that you can take part in by clicking the button at the end of this update. This survey aims to give us a little extra, slightly more quantitative perspective on how you feel about our initial proposal, which we'll use to make some tweaks to a handful of prayers tomorrow (Tuesday, March 7th) before polling whether or not this initial set of prayers are '''to be added to a beta''', before being locked in via a subsequent poll after the beta.
+
+'''Your Feedback'''
+
+Let's start with a rapid-fire list of a handful of points we've seen crop up:
+* Some players felt that Gambit and Vindication combined would result in a frustrating playstyle of always camping extremely low hitpoints to be able to extract the most value out of the Ruinous Powers' high damage potential.
+* Many players felt that the Protection prayers offered in the form of Dampen and Absorb prayers were too weak, citing chip damage as a frustrating gameplay element where it currently exists or that the prayer drain when using Absorb would be so immense that it's hard to benefit from.
+* Some players raised concerns that Rebuke's 25% increase in damage taken is too high to be worth the risk in some scenarios, especially in PvP.
+* A handful of players felt that the self-smite inflicted by Ruinous Smite alongside the extra Prayer drain when using Overprotection would be offputting for people less-seasoned in PvP, as well as other potentially adverse effects such as ragging with two valuable items as opposed to one.
+* Some players felt that the prayers on offer were too weak to be a reward from a Grandmaster quest.
+* Some players felt that the prayer book as a whole had too much 'overlap' with the standard prayer book.
+
+Some of these are easy to tackle while others are a little harder to tweak with ease. We want to take a moment to explain some of our thought process while putting together the initial proposal so that you can understand where we were coming from, before answering the survey questions to help us land on the same page.
+
+'''Our thinking'''
+
+Before we get started here, we want to make it abundantly clear that we're not looking to dismiss any of your feedback or the points we've raised above. We believe everything that you've shared is valid and we appreciate the feedback that you've shared and the passion that many of you have shown in your comments and responses so far. The aim of this section is solely to explain the approach that we took and why we proposed what we did - whether the approach we took was right or wrong is entirely up to you. We hope that by providing you with this context, we might see feedback that tackles or challenges our rationale directly and on a deeper level than feedback for the specific prayers on offer.
+
+First of all, we need to take stock of things and appreciate how many things the regular Prayer book achieves as-is. We've got 100% (in most scenarios) damage reduction via Protection prayers, strong offensive and defensive capabilities in Piety, Rigour and Augury (with slightly less strong offensive capabilities offered by Augury), huge PvP value provided by Protect Item and Smite, and additional utilities offered both in and out of combat by prayers like Redemption and Preserve. By its very nature up until this point, the regular Prayer book does it all.
+
+All that to say that for the Ruinous Powers to hold up, there needs to be some overlap. Predominantly in the form of strong damage mitigation via overhead protection prayers, damage prayers which can keep pace with the likes of Piety, and prayers that add some utility in PvP scenarios. It's no secret that when developing and designing content for Old School, we try to be cautious when it comes to power creep since this is an issue that many of you are extremely passionate about - if power is to increase, players historically haven't wanted it to make older content entirely redundant. This is what gives rise to systems like Torva and Masori's upgrading, or pinnacle items like the Twisted Bow, Scythe of Vitur and Tumeken's Shadow being rare and expensive items with a status that befits their power.
+
+The best parallel for us to draw while thinking about the Ruinous Powers is comparing them to spellbooks. Straight off of Tutorial Island, you gain access to the Standard spellbook (alongside the regular prayer book). As you progress your account, you gain access to Ancient Magicks, Lunar spells or Arceuus spells, each with their own unique identities and use-cases, but none of them directly overshadowing the other in absolutely every scenario. With our initial proposal, we looked through community suggestions and pulled out what we felt were strong choices from popular suggestions to put together a design that has its own identity without leaving 'standard' Prayers in the dust, something much like Ancient Magicks is to the standard spellbook - a powerful and worthwhile unlock that's worth using in many scenarios but not all.
+
+This is something we felt that Ancient Curses could have benefited from when they were released in 2009 by offering players the opportunity to make decisions and meaningful choices around where and how to use their newfound power, and something we were aiming to do with the Ruinous Powers.
+
+On paper, our initial proposal featured 7% additional Melee and Ranged strength, 4% additional Magic damage, up to 33% increased accuracy with all styles, and situational damage increases via Rebuke and Vindication when compared to the standard prayer book. The increase in DPS provided is massive compared to what you'd expect to see from such a (relatively) obtainable reward - even when not making use of Gambit, Rebuke or Vindication. With that in mind, for us to avoid having the Ruinous Powers leave standard prayers in the dust we had to give them some kind of drawback, and the only real remaining candidates was to reduce the effectiveness of Protection prayers.
+
+Our reason for not offering 100% protection overheads initially was that if we'd included these, there's no reason to ever switch back to standard prayers after having unlocked the Ruinous Powers, and this is something we'd been trying to avoid.
+
+'''What's next?'''
+
+However, it looks as though many of you feel like the Ruinous Powers should supersede standard prayers, and represent a turning point in your character's progression. While we're conscious that we want to avoid outright power creep with minimal input from players, if the overwhelming desire from players is for the Ruinous Powers to fill this space at the top then it's something we could explore.
+
+While it's clear to us there's a lot of room for improvement with this proposal, we're still planning to poll what we have so far to see whether some prayers show any particular promise. It's worth pointing out that this absolutely does not need to be the final list of prayers, similar to the Heka ultimately becoming Tumeken's Shadow. It's clear many of you want to see some more spice and variety, and we'll continue to think about and be on the lookout for additions or changes to share with you throughout the whole process.
+
+It's worth bearing in mind that the proposal and subsequent poll questions are for us to put these prayers into a beta so that you could try them out for yourselves - with something as complex as a whole new prayer book, we wouldn't be asking players to lock them in without having hands-on experience. Any prayers that fail to reach beta will be replaced and have alternate designs pitched, since the ultimate point of Community Consultation and polling in this way is for us to avoid developing anything that's an absolute non-starter for you as players. Of course, a small amount of time has been spent on the initial design for us to have shared something with you, but not a single line of RuneScript gets written until we're sure it's something worth exploring further.
+
+With all that said, we've put together a very short survey, containing a handful of questions we'd like to use to help us quantify where your collective heads are at. We'll use the feedback we've gathered so far alongside the survey responses to make some changes to the design tomorrow before polling on Wednesday.
+
+Depending on how the poll shakes out, we'll make some tweaks, substitutions or additions as needed so that we wind up with a design that you're happy with. A reminder that it's fine for things to fail these initial greenlight polls - that's exactly what they're there for! So if after some tweaks you're still absolutely not a fan of what's on offer, make sure to use your 'No' vote and let us know exactly how you feel, so that we can come back with something better in the near future.
+
+To fill out the survey, click the big button below!
+
+[[File:The Ruinous Powers - Greenlight Poll Blog (1).png|centre|199px|link=https://jagex.eu.qualtrics.com/jfe/form/SV_25LnYUsYMa6Z1cy]]
+
+----
+
+<b>A note from the team (15:50 GMT - March 3rd):
+
+Hey all, it looks like you've already got a lot to say about our initial proposal. First of all, we'd like to say thank you to everybody who's taken the time so far to leave constructive feedback for us.
+
+It's clear at the moment that opinion is pretty divided, with different players and player groups ultimately wanting different things from the Ruinous Powers. We'll be taking some time to collate, read over and think about the feedback you've submitted so far as well as over the coming weekend.
+
+While it looks like there are some small tweaks we could make to what we've got already, it seems like we have bigger changes to make to increase both yours and our own confidence in our design.
+
+We'll be back next week with an adjusted approach to help us zero in on your feedback and guide us through the next steps towards delivering a set of Prayers that interest and excite you!</b>
+
+----
+
+Old School's most epic Grandmaster quest to date, Desert Treasure II - The Fallen Empire, is on the horizon. No quest is complete without some exciting rewards, and you've already had your say on handful of the offerings from the upcoming continuation of the Mahjarrat storyline.
+
+This blog is dedicated to the most significant of all of those rewards - the Ruinous Powers, Old School's first ever new Prayer book.
+
+==A Brief History Lesson==
+Some of you might be wondering how we wound up in the middle of all this Mahjarrat mess in the first place, or whether the denizens of Gielinor know anything about the Ruinous Powers already. It's time for a history lesson - but we'll be brief, so don't go reaching for your space bar just yet!
+
+Gielinor these days is a relatively peaceful place. Sure there's the odd incident of regicide and subsequently mobilising an entire army to revive a dark lord, or constructing a fleet of warships and hordes of Demonic gorillas, or laying waste to an entire navy using mind-controlled dragons, or the potential resurgence of an infamous historical mage who wields powers beyond our comprehension. Most of the time though - things are pretty quiet!
+
+Things weren't always this way though, a long time ago during Gielinor's Second Age, war ravaged the lands. The Zarosian Empire's insatiable imperial ambition helped the Empty Lord and his followers spread their tendrils all over Gielinor, with seemingly no worldly match for the servants of the Ruinous Powers.
+
+During Beneath Cursed Sands, Mehhar told us all about the 'great war' he lived to experience, also known as the Kharidian-Zarosian war. He spoke of how the Kharidian forces were utterly decimated by the servants of the Ruinous Powers - a force so insurmountable that demi-gods Icthlarin and Amascut (who wasn't always quite so bad!) sought help from a place beyond Gielinor. The Mahjarrat - Icthlarin's Stern Judges - were brought to Gielinor for the first time to try and turn the tides. For a while, it seemed the Khardians had found a match for the Ruinous Powers, until a snake in the Mahjarrat-shaped grass broke rank and convinced the other Mahjarrat to swap sides.
+
+The rest, as they say, is history. Or it would be if there weren't quite so much miscellaneous Mahjarrat antics occurring in the Kharidian desert after all these years!
+
+Now, that's all a little intense so let's lighten the mood by saying that these powers are soon to be yours for the taking - isn't that nice?!
+
+==Community Suggestions Summary==
+Since we put out our Rewards Greenlight Blog, you've come out in spades with all kinds of creative ideas for what the Ruinous Powers might look like - which is super handy because everybody we've reached out to for information on what they actually looked like has ghosted us.
+
+We've had an absolute blast reading through your suggestions and combing through hundreds of potential prayers, and wanted to take a moment to talk through some of the more common themes we've seen popping up. Getting a sense of where your suggestions overlapping helps give us an idea of areas we can focus on when trying to put together a fancy new book. So here's a brief rundown on some of the main areas of overlap between your suggestions, starting with the most recognisable group of prayers in the game...
+
+===Protection Prayers===
+To the surprise of absolutely nobody, all of you were head over heels for overheads and the protection they provide. These popped up in some form in near enough every full book suggestion, and seemed primarily to take the approach of reducing damage by somewhere in the region of 80 to 90% - which is in line with the example we gave in our initial mention of the Ruinous Powers.
+
+Some of you got a little more creative, including things like: 100% protection with a % of the mitigated damage being taken from Prayer points; hybrid protection (e.g. Protect from Magic & Ranged at reduced effectiveness); timed immunity overheads that you'd flick for a tick or two to mitigate any damage, but with its own cooldown; or even protection that scales with your defensive bonuses.
+
+===Recoil===
+This is something we'd been toying around with a little and were excited to see many of you toying around with too! We saw a handful of approaches on how to tackle these, but the general idea of using your Prayer to somehow buff recoiled/reflected damage seemed to be a popular one as many of you tried honing in on high-risk, high-reward elements for your proposals. We saw approaches as simple as 'turn prayer on, recoil more damage', overheads that increase your recoil damage (and in some cases increase the damage you take) or even ongoing 'thorns' effects overheads - where any target who damages you is returned a % of that damage as long as the Prayer is enabled.
+
+This sort of risky playstyle seemed to excite many of you - especially those looking forward to stepping up their abilities with well-timed and well-executed Vengeance casts as opposed to the more passive approach that something like Thralls provide.
+
+===Damage Prayers===
+No Prayer book is complete without some kind of damage buffs. As for exactly what those buffs look like, there were too many different approaches to properly capture and do justice in this short segment. We've tried baking some of our favourites into our initial proposal, but some examples of things we saw crop up a lot include: powerful offensive prayers without defence boosting components, prayers offering ranged strength or magic damage, tribrid prayers that are weaker than their style-specific counterparts, low-life/high-risk vs. high-reward options for bonus accuracy or damage, and loads more.
+
+===Run Energy===
+Something else that you were suggesting time and again were Prayers that affect Energy in some way. Some of you tackled this by wanting to reduce drain rate, others by draining Prayer instead of Energy while running, having Energy regen scale with Prayer bonus - loads of interesting and innovative approaches! In fact, we have a proposal for an Energy-affecting Prayer that came directly from a community suggestion, but more on that in just a moment!
+
+===Skilling Prayers===
+The Rewards Greenlight poll made it pretty clear that there's interest in Prayers that touch on Skilling. While we didn't see a lot of particularly distinct suggestions, the ones we did see focused pretty consistently on gathering skills. We've included some of your suggestions as well as some of our thoughts down below, so keep reading! There's so much more we could say about some of the fantastic ideas you shared, but we'd be here all day (and probably overshoot the character limit on newsposts). So, without further adieu, let's take a look at our first proposal for the Ruinous Powers and give you the chance to have your say!
+
+==The Ruinous Powers==
+Our task is simple. Make a new Prayer book that doesn't outright overpower the Prayers we all know and love, bake in the common themes from hundreds of community suggestions, make something that feels rewarding for skilling-focused and combat-focused content, and deliver on some elements of high-risk vs. high-reward without making the new set of Prayers inapproachable. Simple, really.
+
+With all that said, let's dive in!
+
+{| class="wikitable" style="text-align:center; width:700px"
+|-
+! Prayer
+! Prayer Type
+! Mechanics
+! Our Notes
+|-
+|Overprotection
+|Utility
+|Protect 2 Items on Death, but;
+
+Drains Prayer by 25% of damage taken while active
+|We saw a lot of people touching on Protect Item in general, and many suggestions seemed to lean in to a higher risk alternative for a potentially higher reward.
+
+This could be given an activation cost to prevent just flicking it on as you meet your untimely end.
+|-
+|Rejuvenation
+|Utility/Combat
+|While active, regenerate 1 HP every ~20 seconds
+|Rapid Heal wasn't quite rapid enough, so we thought we'd try upping the ante. This would likely have a hefty drain rate attached so that it's not worth just leaving on forever.
+
+Additionally, this would conserve the functionality that Rapid Heal has where flicking it on and off could conserve boosted HP, or prevent HP regeneration for all of you Dharok enjoyers out there!
+|-
+|Dampen
+
+(Melee/Magic/Ranged)
+|Overhead - Protection
+|Reduces damage from the appropriate style by 90%.
+|Just like the overheads you've come to know and love, but with slightly less defensive prowess.
+
+It's worth remembering that Old School tends to prefer rounding numbers down. Meaning it's possible to take 0 damage using this prayer.
+
+Effectively, if you would have been hit between 1 and 9 damage, you'll take 0 damage when using the appropriate Dampen prayer.
+
+Or, if you would have been hit a 29, you'll take 2 damage, since we round 2.9 down to 2.
+|-
+|Absorb
+
+(Melee/Magic/Range)
+|Overhead - Protection
+|Reduces damage from the appropriate style by 100%, but;
+
+Drains Prayer points by 10% of the mitigated damage (on top of typical Prayer drain).
+
+E.g. Mitigate 70 damage, lose 7 Prayer points but take 0 damage.
+
+This Prayer drain can round down to 0, meaning if you mitigate 9 damage, you'd lose 0 additional Prayer points.
+|Just like the overheads you've come to know and love, but with an increased cost.
+
+Two sets of protection prayers? That's crazy!
+
+The aim here is to provide overhead options that are both strictly worse than the Standard Prayer book, but that might see use in different types of content, or require on-the-spot decision-making. Perhaps you're running low on food but have a bunch of extra Prayer restore - you could opt into these to restore the balance before returning to 90% damage mitigation.
+
+It's definitely a little 'out there', so let us know your thoughts!
+|-
+|Ancient Precision
+|Offensive
+| +20% Attack
+| rowspan="4" |These are almost on par with the higher-level Prayers we're used to (and higher-tier Prayers in this book) but still not quite there, alongside a heftier Prayer point drain rate.
+
+We could merge Superior Attack/Strength to save some space in the book if absolutely needed, but a combination of the two would also have a higher drain rate to compensate!
+|-
+|Ancient Strength
+|Offensive
+| +20% Strength
+|-
+|Ancient Sight
+|Offensive
+| +20% Ranged Attack & Strength
+|-
+|Ancient Will
+|Offensive
+| +20% Magic Attack
+|-
+|Trinitas
+|Offensive
+| +15% Magic Attack ;
+
++15% Ranged Attack & Strength;
+
++15% Melee Attack & Strength
+|This one might be a little out of left field, but we saw a few suggestions for something like this and thought it worth exploring. Effectively, if you're still getting to grips with nailing your offensive prayer switches, this would enable you to trade some Prayer points and some reduced power (compared to the dedicated Prayers above) for a little less stress if you're still getting to grips with PvM.
+
+We're keen to hear your thoughts on this one! A lot of the Ruinous Powers reward players for riskier playstyles, this is an option we'd like to consider to make this fancy new Prayer book an enticing option even for players just dipping their toes in to more complex combat.
+|-
+|Ruinous Smite
+|Overhead - Offensive
+|Reduces your opponent's and your own Prayer points by 33% of damage dealt.
+|It's Smite, but with a higher drain rate (on both you and your opponent!)
+|-
+|Gambit
+|Overhead - Offensive
+|Increases your accuracy with all Combat styles by 1% per 3% missing HP
+|You wanted risk vs. reward? Try this one on for size!
+
+Gambit is an offensive overhead Prayer whose usefulness increases the lower HP you are. It's not too difficult to get a little boost from this Prayer, but for players willing to risk it all and flick this between defensive overheads, you stand to gain an accuracy increase over 30%.
+
+Flick it on at the wrong time? Good luck tanking boss hits with no protection and at low HP.
+|-
+|Rebuke
+|Overhead - Offensive
+|Reflects 15% of damage taken, but;
+
+Increases damage taken by 25%
+
+E.g. If a boss would hit you for a 60, instead it will deal 75 damage. You'll reflect 11 damage back to the boss.
+|Another offering on the risk vs. reward front, this time centered around recoil.
+
+First and foremost, this Prayer lets you passively recoil damage - great! On the other hand, you'll be taking extra damage and unable to use a Protection prayer.
+
+Alongside the passive recoil damage, increasing your incoming damage gives potential for some seriously hard-hitting Vegeance usage!
+|-
+|Decimate
+|Offensive
+| +20% Attack
+
++30% Strength
+| rowspan="3" |Decimate, Annihilate and Vaporise all pack more of a punch than their counterparts (Piety, Rigour and Augury) but offer none of the Defensive bonuses to compensate, on top of the reduced durability offered by the rest of the Ruinous Powers.
+
+Prayers of this calibre are perfect candidates for post-quest boss drops, similar to the Prayer Scrolls you can obtain from the Chambers of Xeric.
+|-
+|Annihilate
+|Offensive
+| +20% Ranged Attack
+
++30% Ranged Strength
+|-
+|Vaporise
+|Offensive
+| +25% Magic Attack
+
++4% Magic Damage
+|-
+|Vindication
+|Utility/Combat
+|When reduced below 10% of your maximum HP (without taking lethal damage), Vindication will heal you for 15% of your Prayer level, draining 100% of your remaining Prayer points, and;
+
+Upon activation, grant 10% bonus damage on your next attack
+|The final card in the 'risk vs. reward' deck. A well-timed Redemption can sometimes be the difference between life and death. Vindication is no different, except you're healing less to gain an offensive component.
+
+Call an ambulance, but not for me!
+|-
+|Metabolise
+|Utility/Combat
+|Eating delay is reduced by 0.6s while active
+|Turn this bad-boy on and engorge yourself! When disabled, your action delay would be reset to your weapon's attack speed or left unchanged - whichever value is greater (to prevent you from quickly flicking this on to eat food and turn it back off again).
+|-
+|Wrath
+|Combat
+|While active, deal damage equal to 25% of your Prayer level in a 5x5 radius around you on death
+|Ever wished Retribution was bigger? Wish no more!
+|-
+|Ruinous Grace
+|Utility
+|While active, drain Prayer points instead of Run Energy.
+
+This drain rate is modified by Prayer bonus, and does not take into account effects like Stamina.
+|Have you ever gotten half-way through the Underground Pass before realising that you forgot your Stamina potions? Us neither, but it happened to a friend of ours.
+
+Ruinous Grace lets you keep on zooming, at the expense of your Prayer points - so make sure you've got some Prayer restore handy if you wind up charging headfirst into combat and get caught off-guard!
+|-
+|Conservation
+|Skilling
+|While active, you have a chance to prevent a resource from depleting when harvested.
+|Sacrifice a couple of inventory spaces for some Prayer restoring potions, have a small chance at preserving a resource node (such as a Runite rock). Simple!
+|-
+|Ancient Abundance
+|Skilling
+|While active, increases success chance while gathering.
+|This one offers a buff to activities like Hunter, Woodcutting, Fishing and Mining, similar to the invisible boosts you might find in some Skill Guilds.
+|-
+|Ancient Offering
+|Skilling
+|While active, you have a 75% chance to destroy a resource when obtaining it, but;
+
+Drains 1 additional Prayer point whenever a resource is destroyed.
+|If you're looking for a little more AFK time at resources that don't deplete (Fishing spots, for example) and don't mind drinking a couple of Prayer potions, this should be perfect for you!
+|}
+
+'''Note:''' At this stage we're looking to understand how you feel about the concepts proposed, so we haven't included specific level requirements yet. We're anticipating the Prayers on offer to range from 50 to somewhere in the 80s (or even 90s), but that's a detail level for a later stage.
+
+Just like opening a brand new box of Celebrations and removing all the Bounty bars (sorry, not sorry) - there's a lot to unpack here and we can't wait to read your thoughts! But first, a little note from us!
+
+{{News Poll|qtext=|2=Before we carry on, we'd like to exit 'blog mode' temporarily to get a little more personal. To say that designing Old School's first new Prayer book is 'a bit of a daunting task' would be an understatement. Some of our players are extremely nostalgic for Ancient Curses, some loved Curses generally but disliked some specifics (we didn't want to name names, but it's Soul Split), some want to see the Ruinous Powers outperform the Prayers we already have, others want there to be balance - in short, there's a lot going on here. With more players getting stuck in to PvM every year, changes to prayers have the potential to impact huge swathes of content.
+
+We'd like to think that what we're proposing impacts that content positively. Thanks to your collective creativity and fantastic suggestions, we've been able to select a whole host of prayers that are interesting in their own right but most importantly come together in a set that we believe is cohesive and exciting without being overpowered. Swapping 'Protect from X' out for Dampen and Absorb prayers that we've seen crop up in multiple suggestions sets the stage for the Ruinous Powers to sacrifice your longevity and endurance to gain access to power that - when used well - should ''just'' feel good.
+
+Offerings like Gambit or Vindication afford veteran players the opportunity to maximise their damage by interacting with offensive prayers in a new way while providing new avenues for others to improve and hone their abilities. Conversely, Trinitas, Metabolise and Rejuvenation are extremely simple to benefit from and give those of us who aren't exceptional players a reason to use the book. The lack of defensive bonuses or Defence requirements gives some builds better opportunities to 'punch up' in PvP while increasing their own risk (as well as their Combat level) in fast-paced fights, or on the total opposite end of the action we've incorporated suggestions to benefit a more relaxed playstyle in the form of Conservation, Ancient Abundance and Ancient Offering.
+
+We really hope you like what we've put together, and that you're able to look through the list of prayers and think about how you might be able to put them to use. We're excited (and perhaps a ''little'' anxious) to see what all of you think!
+
+- ''The Old School Team''}}
+
+Like we said earlier in the blog, it's clear there's an interest in Prayers that touch on skilling in a meaningful way, but when looking over hundreds of suggestions from all of you we struggled to pull out many that tied in to the wider themes we saw while being both interesting and balanced. We've included some of the more common suggestions to see how you feel, but we think we could likely do better.
+
+We're still on the look out for some more exciting skilling-focused prayers that tie into the themings of sacrificing something to gain something else, so if you have anything cool in mind then make sure to let us know so we can try to improve the balance here! Otherwise, perhaps there's scope for a third, skilling-focused Prayer book some day...
+
+For now though, all that's left for us to do is ask you how you feel about what we've presented so far. These questions are advisory questions so that we can get a clear sense of where you stand on various groups of prayers above.
+
+We'd like to remind all of you that there will be a beta before we lock-in the final version of the Ruinous Powers - these questions are to give us the go-ahead to develop the prayers you'll be experimenting with in the beta. If anything is clearly unpopular then we'll likely aim to replace it with something different before the beta, for things that are generally positive but could be better - we'll make some minor tweaks using your feedback, and for things that seem super popular - we'll be over the moon!
+
+Enough jabbering, it's question time!
+
+{{News Poll|qtext=Question 1: Should we develop the 'Overprotection' prayer outlined in the blog, for use in an upcoming beta, to be locked in at a later date?|2= <nowiki/>
+*Yes
+*No
+*Skip}}
+
+{{News Poll|qtext=Question 2: Should we develop the 'Rejuvenation' prayer outlined in the blog, for use in an upcoming beta, to be locked in at a later date?|2= <nowiki/>
+*Yes
+*No
+*Skip}}
+
+{{News Poll|qtext=Question 3: Should we develop the 'Dampen Melee, Ranged, and Magic' prayers outlined in the blog, for use in an upcoming beta, to be locked in at a later date?|2= <nowiki/>
+*Yes
+*No
+*Skip}}
+
+{{News Poll|qtext=Question 1: Should we develop the 'Overprotection' prayer outlined in the blog, for use in an upcoming beta, to be locked in at a later date?|2= <nowiki/>
+*Yes
+*No
+*Skip}}
+
+{{News Poll|qtext=Question 4: Should we develop the'Absorb Melee, Ranged, and Magic' outlined in the blog, for use in an upcoming beta, to be locked in at a later date?|2= <nowiki/>
+*Yes
+*No
+*Skip}}
+
+{{News Poll|qtext=Question 5: Would you like us to include both the Dampen and Absorb protection prayer outlined in the blog? The aim is that the two different types will see use at different content, or allow for extra decision-making mid-encounter.|2= <nowiki/>
+*Yes
+*No
+*Skip}}
+
+{{News Poll|qtext=Question 6: If we were to include only one set of protection prayers, which of the two would you prefer to see?|2= <nowiki/>
+*Dampen
+*Absorb
+*Skip}}
+
+{{News Poll|qtext=Question 7: Should we develop the Ancient Precision, Strength, Sight and Will prayers outlined in the blog, for use in an upcoming beta, to be locked in at a later date?|2= <nowiki/>
+*Yes
+*No
+*Skip}}
+
+{{News Poll|qtext=Question 8: If added, should we combine the Ancient Precision and Ancient Strength prayers into a single prayer?|2= <nowiki/>
+*Yes
+*No
+*Skip}}
+
+{{News Poll|qtext=Question 9: Should we develop the 'Trinitas' prayer outlined in the blog, for use in an upcoming beta, to be locked in at a later date?|2= <nowiki/>
+*Yes
+*No
+*Skip}}
+
+{{News Poll|qtext=Question 1: Should we develop the 'Overprotection' prayer outlined in the blog, for use in an upcoming beta, to be locked in at a later date?|2= <nowiki/>
+*Yes
+*No
+*Skip}}
+
+{{News Poll|qtext=Question 10: Should we develop the 'Ruinous Smite' prayer outlined in the blog, for use in an upcoming beta, to be locked in at a later date?|2= <nowiki/>
+*Yes
+*No
+*Skip}}
+
+{{News Poll|qtext=Question 11: Should we develop the 'Gambit' prayer outlined in the blog, for use in an upcoming beta, to be locked in at a later date?|2= <nowiki/>
+*Yes
+*No
+*Skip}}
+
+{{News Poll|qtext=Question 12: Should we develop the 'Rebuke' prayer outlined in the blog, for use in an upcoming beta, to be locked in at a later date?|2= <nowiki/>
+*Yes
+*No
+*Skip}}
+
+{{News Poll|qtext=Question 13: Should we develop the 'Decimate', 'Annihilate' and 'Vaporise' prayers outlined in the blog, for use in an upcoming beta, to be locked in at a later date?|2= <nowiki/>
+*Yes
+*No
+*Skip}}
+
+{{News Poll|qtext=Question 14: Should we develop the 'Vindication' prayer outlined in the blog, for use in an upcoming beta, to be locked in at a later date?|2= <nowiki/>
+*Yes
+*No
+*Skip}}
+
+{{News Poll|qtext=Question 15: Should we develop the 'Metabolise' prayer outlined in the blog, for use in an upcoming beta, to be locked in at a later date?|2= <nowiki/>
+*Yes
+*No
+*Skip}}
+
+{{News Poll|qtext=Question 16: Should we develop the 'Wrath' prayer outlined in the blog, for use in an upcoming beta, to be locked in at a later date?|2= <nowiki/>
+*Yes
+*No
+*Skip}}
+
+{{News Poll|qtext=Question 17: Should we develop the 'Ruinous Grace' prayer outlined in the blog, for use in an upcoming beta, to be locked in at a later date?|2= <nowiki/>
+*Yes
+*No
+*Skip}}
+
+{{News Poll|qtext=Question 18: Should we develop the 'Conservation' prayer outlined in the blog, for use in an upcoming beta, to be locked in at a later date?|2= <nowiki/>
+*Yes
+*No
+*Skip}}
+
+{{News Poll|qtext=Question 19: Should we develop the 'Ancient Abundance' prayer outlined in the blog, for use in an upcoming beta, to be locked in at a later date?|2= <nowiki/>
+*Yes
+*No
+*Skip}}
+
+{{News Poll|qtext=Question 20: Should we develop the 'Ancient Offering' prayer outlined in the blog, for use in an upcoming beta, to be locked in at a later date?|2= <nowiki/>
+*Yes
+*No
+*Skip}}
+
+----
+
+
+You can also discuss this update on our [http://services.runescape.com/m=forum/forums?380,381,840,66263292 official forums], on the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[osrsw:|Old School Wiki]].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Boko, Bruno, Chilly, Crystal, Curse, Daizong, Dylan, Ed, Elena, Errol, Fed, Gecko, Gizmo, Goblin, Grub, Halo, Hend, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Nin, Nylu, Other, Pumpkin, Redfield, Regent, Roq, Ry, Sarnie, Shroom, Sigma, Skylark, Sova, Squid, Starry, Stevew, Surma, Sween, Tide, Titus, Torrance, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

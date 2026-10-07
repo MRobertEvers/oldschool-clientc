@@ -25,6 +25,8 @@ every category-bound feature as unbound.
 """
 import argparse, collections, json, os, re, sys
 
+import config_text
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.environ.get(
     "TORIRSSERVER_CONTENT_DIR",
@@ -45,7 +47,7 @@ def parse_config(path, opkeys):
     """[symbol] blocks -> {symbol: {name, ops:{opkey:verb}, category}}."""
     out, cur = {}, None
     with open(path, encoding="utf-8", errors="replace") as f:
-        for line in f:
+        for line in config_text.filter_lines(f):
             line = line.rstrip("\n")
             if line.startswith("[") and line.endswith("]"):
                 cur = line[1:-1]

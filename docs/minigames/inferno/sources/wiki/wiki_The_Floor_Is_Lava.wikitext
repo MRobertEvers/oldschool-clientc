@@ -1,0 +1,26 @@
+{{Infobox Combat Achievement
+|name = The Floor Is Lava
+|image = [[File:Jal-ImKot.png|200px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Kill Tzkal-Zuk without letting Jal-ImKot dig during any wave in the Inferno.
+|tier = Grandmaster
+|monster = TzKal-Zuk
+|type = Mechanical
+|id = 343
+|leagueRegion = Karamja
+}}
+'''The Floor Is Lava''' is a [[Combat Achievements/Grandmaster|grandmaster combat achievement]] which requires the player to kill [[TzKal-Zuk]] without letting [[Jal-ImKot]] dig during any wave in the [[Inferno]].
+
+==Strategy==
+A [[Jal-ImKot]] will burrow towards the player if they have not been able to attack them for 50 ticks after the start of a wave. Letting it attack you at any point instantly resets its dig-timer, and allows you more options than a DPS race to kill the enemy immediately after the start of the wave.
+
+A simple approach for this task is to complete it alongside the [[Budget Setup]] grandmaster task, utilising a longer ranged weapon, such as the [[bow of Faerdhinen]] and full crystal armour, or [[Eye of Ayak]] or [[Tumeken's shadow]] with mage armour, as it is typically failed when Jal-ImKots spawn further south and cannot easily be reached with the [[toxic blowpipe]].
+
+Otherwise, it is important to be comfortable quickly off ticking common stacks to run within range of the Jal-ImKot soon after the start of the wave to blowpipe it down before it can dig, or letting it attack you so you gain additional time before it digs.
+
+==Other tasks==
+{{Combat Achievements list|TzKal-Zuk}}
+
+{{Combat Achievements}}

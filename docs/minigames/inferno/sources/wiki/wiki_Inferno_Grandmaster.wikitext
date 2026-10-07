@@ -1,0 +1,29 @@
+{{Infobox Combat Achievement
+|name = Inferno Grandmaster
+|image = [[File:TzKal-Zuk.png|220px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Complete the Inferno 5 times.
+|tier = Grandmaster
+|monster = TzKal-Zuk
+|type = Kill Count
+|id = 342
+|leagueRegion = Karamja
+}}
+'''Inferno Grandmaster''' is a [[Combat Achievements/Grandmaster|grandmaster combat achievement]] which requires the player to complete the [[Inferno]] 5 times.
+
+==Other tasks==
+{{Combat Achievements list|TzKal-Zuk}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 13 April 2022
+|update = Easter 2022
+|poll = Old School Content Poll 76: Game Improvements
+|change = The amount of Inferno completions required to complete the "Inferno Grandmaster" task has been reduced from 10 to 5.
+}}
+{{Subject changes footer}}
+
+{{Combat Achievements}}

@@ -1,0 +1,60 @@
+{{External|rs=Combat Mastery - Grandmaster}}
+{{DISPLAYTITLE:Grandmaster Combat Achievements}}
+{{Redirect|GM|the past community event|Grid Master}}
+[[File:Combat Achievements - grandmaster tier icon.png|left]]
+'''Grandmaster [[Combat Achievements]]''' tasks require the highest combat levels, the best equipment available, and precise, in-depth knowledge of a boss's mechanics, with the ability to skillfully kill said bosses and deal with their mechanics perfectly without mistakes.
+__TOC__
+==Requirements==
+{{Sync}}
+<div class="qc-active">
+;Items
+{{Checklist|
+* {{plink|Brittle key}} to access the [[Grotesque Guardians]]
+* {{plink|Dharok's greataxe}} (or [[thralls]]) to complete [[No Pressure]]
+* Any [[salamander]] to complete [[The Worst Ranged Weapon]]
+}}
+;Skills
+{{Checklist|
+* {{SCP|Slayer|95|link=yes}}{{Boostable|no}}
+}}
+;Quests
+{{Checklist|smallindent=yes|notoggleparent=yes|
+* [[A Kingdom Divided]]
+* [[Beneath Cursed Sands]]
+* [[The Blood Moon Rises]]
+* [[Dragon Slayer II]]
+* [[The Frozen Door]]
+* [[Desert Treasure II - The Fallen Empire]]
+* [[Song of the Elves]]
+* [[The Final Dawn]]
+* [[The Fremennik Exiles]]
+* [[While Guthix Sleeps]]}}
+</div>
+
+==Tasks==
+<onlyinclude>There are a total of {{Globals|ca gm tasks}} grandmaster-tier tasks for the [[Combat Achievements]] system. Each grandmaster task gives 6 combat achievement points.
+
+{{Sync}}
+{| class="wikitable sortable music-tracks sticky-header" style="width:100%;"
+{{Combat Achievements list|grandmaster}}
+|}
+</onlyinclude>
+
+==Rewards==
+Players who have completed every combat task may claim the grandmaster tier rewards by speaking to [[Laidee Gnonock]] by the entrance to the [[Warriors' Guild]].
+* An [[Antique lamp (Grandmaster Combat Achievements)|antique lamp]] worth 50,000 experience in any skill above 70
+* [[Ghommal's hilt 6]]
+** Unlimited daily teleports to [[Mor Ul Rek]] (within the inner city)
+** Ability to create [[Ghommal's avernic defender 6]] by combining a [[Ghommal's hilt 6]] with an [[Avernic defender]]
+* [[Like a boss]] slayer unlock will now allow players to have up to 65 boss kills (a +30 increase) when assigned a boss task
+* Slayer tasks to kill [[TzTok-Jad]] or [[TzKal-Zuk]] are increased to 3 kills per task
+* [[God Wars Dungeon]] benefits:
+** God Wars Dungeon boss entrances now require 15 follower kill count to enter instead of 25
+** [[Ecumenical key]] drop rate is now increased from 1/45 to 1/40
+** Coin cost for God Wars Dungeon private instances is reduced from 100,000 to 75,000 coins
+* [[Laidee Gnonock]] can make players a [[Tzkal slayer helmet]]
+* Ability to show the [[TzKal slayer helmet]] to [[TzHaar-Ket-Keh]] to gain on-task damage bonuses for [[TzHaar Fight Cave]] and [[Inferno]], without any of the other on-task benefits such as slayer experience and increased pet chance.
+
+{{Combat Achievements}}
+[[Category:Combat Achievements|*6]]
+[[Category:Grandmaster Combat Achievements tasks|*]]

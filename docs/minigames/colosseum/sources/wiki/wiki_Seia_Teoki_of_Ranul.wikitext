@@ -1,0 +1,24 @@
+{{Infobox NPC
+|name = Seia, Teoki of Ranul
+|image = [[File:Seia, Teoki of Ranul.png|120px]]
+|release = [[20 March]] [[2024]]
+|update = Varlamore: Part One
+|members = Yes
+|location = [[Fortis Colosseum entrance]]
+|options = Talk-to
+|examine = A teoki in service to Ranul.
+|map = {{Map|x=1828|y=9483|r=4|plane=0|mtype=square|mapID=-1}}
+|id = 13421
+|leagueRegion = Varlamore
+}}
+[[File:Seia, Teoki of Ranul chathead.png|left]]
+'''Seia''' is a [[Teoki]] within the Sect of [[Ranul]], found in the [[Fortis Colosseum entrance]]. She will not converse with the player for long, explaining that she is busy.{{CiteNPC|npc=Seia, Teoki of Ranul|quote=Forgive me, my child, but I have little time to talk. There is always plenty of Ranul's work to be done here in the Colosseum.}} This is likely due to the amount of death that occurs in the Colosseum, since Ranul is associated with guiding those who pass away to the Gates of Mictl, or the afterlife, and his followers hold responsibility over funerary rites.{{CiteNPC|npc=Nelta of Ranul|quote=For those of us dedicated to Ranul, our primary duty is to care for the dead and prepare them for the journey through the Gates of Mictl.}}
+
+==Dialogue==
+{{Hastranscript|npc}}
+
+==References==
+{{Reflist}}
+
+{{Fortis Colosseum}}
+{{Losanium}}

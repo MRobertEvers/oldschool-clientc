@@ -1,0 +1,6 @@
+quest-ledger-v1
+index	step	verdict	ticks	shots	detail
+1	deaths.1	PASS	30	001-deaths.1	tobjail jailed=0 died_in=0 deaths=0 room=2 cleared=1 orbs=16,0,0,0,0 tile=6407,97,0
+2	chest.1	PASS	5	002-chest.1	tobstores points=10 stamina=1 stock=8 0:
+3	points.distribution	PASS	0		points after the first chest, deathless solo Normal, n=1: 10 [frame unchanged]
+SUMMARY	3	PASS	35	exit=0	pass=3 fail=0

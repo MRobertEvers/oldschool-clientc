@@ -12,6 +12,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import config_text
+
 
 ROOT = Path(__file__).resolve().parents[1]
 AREA = (
@@ -65,7 +67,7 @@ def main() -> None:
     script = SCRIPT.read_text(encoding="utf-8")
     constants_text = CONSTANTS.read_text(encoding="utf-8")
     constants = integer_constants(constants_text)
-    varps = VARPS.read_text(encoding="utf-8")
+    varps = config_text.read_text(VARPS, encoding="utf-8")
 
     for name in ("varp6252_rs2012_td_active", "varp6253_rs2012_td_handle"):
         body = block(varps, name)
@@ -168,7 +170,7 @@ def main() -> None:
     # its post-puzzle child really is 40260.  The chosen return tile is one
     # square south of that 3x2 footprint, not inside the blocking loc.
     assert "2 30 4: 63203 10 2" in SOURCE_MAP.read_text(encoding="utf-8")
-    source_locs = SOURCE_LOCS.read_text(encoding="utf-8")
+    source_locs = config_text.read_text(SOURCE_LOCS, encoding="utf-8")
     morph = block(source_locs, "rs2012_loc_48248")
     cave = block(source_locs, "rs2012_loc_40260")
     assert "multiloc1=rs2012_loc_40260" in morph

@@ -1,0 +1,145 @@
+{{external|rs=Korasi's sword}}
+{{Infobox Item
+|name = Voidwaker
+|image = [[File:Voidwaker.png]]
+|release = [[25 January]] [[2023]]
+|update = Wilderness Boss Rework
+|aka = VW, [[#History|Korasi]]
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = Yes
+|stackable = No
+|noteable = Yes
+|options = Wield, Drop
+|examine = A truly fearsome weapon.
+|value = 2000000
+|weight = 1.814
+|exchange = Yes
+|id = 27690
+|leagueRegion = Wilderness
+}}
+[[File:Voidwaker detail.png|left|150px]]
+The '''Voidwaker''' is a melee weapon that requires level 75 [[Attack]] to wield. It is acquired by providing the [[Voidwaker blade]], [[Voidwaker hilt|hilt]], and [[Voidwaker gem|gem]] to [[Madam Sikaro]] in the [[Ferox Enclave Dungeon]], who will reassemble the weapon for a fee of {{NoCoins|500000|c}}. The three parts are obtained separately as rare drops from [[Vet'ion]], [[Callisto]], and [[Venenatis]] (or their lesser counterparts) respectively. Its base stats are roughly comparable to an [[abyssal whip]], and it has one of the most powerful damaging special attacks of any weapon in the game.
+
+Attempting to combine the pieces on your own displays the message {{mes|You don't think you have the skills to reassemble this weapon yourself.}}.
+
+==Combat stats==
+{{Infobox Bonuses
+|astab = +70
+|aslash = +80
+|acrush = -2
+|amagic = +5
+|arange = 0
+|dstab = 0
+|dslash = +1
+|dcrush = 0
+|dmagic = +2
+|drange = 0
+|str = +80
+|rstr = 0
+|mdmg = 0
+|prayer = 0
+|slot = weapon
+|speed = 4
+|attackrange = 1
+|combatstyle = Slash Sword
+|image = [[File:Voidwaker equipped male.png|180px]]
+|altimage = [[File:Voidwaker equipped female.png|180px]]
+}}
+
+{{CombatStyles|Slash Sword|speed=4|attackrange=1}}
+
+==Special attack==
+[[File:Disrupt.gif|thumb|250px|A player performing the Voidwaker's special attack, ''Disrupt''.]]
+The Voidwaker has a [[special attack]], ''Disrupt'', which consumes 50% of the player's special attack energy. The special attack deals [[successful hit|guaranteed]] Magic damage between 50-150% of the wielder's maximum melee hit. The special attack will provide 2 Magic experience per damage dealt.
+
+The special attack is particularly useful due to its guaranteed medium to high damage. In [[Player killing|PvP]], it can be used for a consistent finishing blow and it pairs well with other high-damage special attack weapons such as the [[Armadyl godsword|Armadyl]] or [[ancient godsword]], [[dragon claws]], or [[granite maul]] due to its special attack cost. 
+
+In PvM situations, the voidwaker is strongest when facing an enemy with high melee defence (such as high slash when using claws) and is not immune or resistant to magic damage. Compared to the [[crimson kisten]], the voidwaker's guaranteed accuracy and higher strength bonus makes it superior against enemies resistant to crush, but it will generally perform slightly worse on average than it when facing crush-susceptible enemies, as the voidwaker has a minimum of 50% and maximum of 150%, whereas the kisten has a minimum of 70-110% on one roll or 130-170% on four rolls.
+
+==Creation==
+{{Recipe
+|facilities = Madam Sikaro
+|members = Yes
+|ticks = 2
+|mat1 = Voidwaker blade
+|mat2 = Voidwaker hilt
+|mat3 = Voidwaker gem
+|mat4 = Coins
+|mat4quantity = 500000
+|mat4cost = 1
+|output1 = Voidwaker
+}}
+
+==Products==
+{{Uses material list|Voidwaker}}
+
+==Sound effects==
+{{SFXTableHead}}
+{{SFXLine|file=Equip sword.wav|desc=Wielding}}
+{{SFXLine|file=Hacksword attack (slash).wav|desc=Attacking, with slash}}
+{{SFXLine|file=Hacksword attack (stab).wav|desc=Attacking, with stab}}
+{{SFXLine|file=Superior Demonbane cast.wav|desc=Special attack}}
+{{SFXLine|file=Wardens' square thunder.wav|desc=Special attack}}
+{{SFXTableBottom}}
+
+==Used in recommended equipment==
+{{Used in recommended equipment|Voidwaker}}
+
+==Gallery==
+<gallery mode="packed" heights="250" style="text-align:left">
+File:Voidwaker model concepts.png|Various concepts for the Voidwaker by [[Mod Grub]].
+File:Voidwaker model poll options.png|The proposed models for the Voidwaker; option C passed the design poll.
+File:Disrupt v1.gif|A player performing the Voidwaker's special attack, ''Disrupt,'' before it was graphically updated.
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 7 August 2024
+|update = Poll 82 Changes
+|change = The special attack animation has been updated to use a slightly modified version of the [[Viggora's chainmace]] attack animation, rather than reuse that of the [[dragon warhammer]].
+}}
+{{Subject changes
+|prerelease = yes
+|page = Voidwaker (beta)
+|date = 28 September 2022
+|update = Tombs of Amascut & Group Ironman Changes
+|change = The Voidwaker's [[special attack]] energy cost has been reduced from 60% to 50%. 
+}}
+{{Subject changes
+|date = 21 September 2022
+|update = Tombs of Amascut Changes & Beta Tweaks
+|change = 
+* The Voidwaker's strength bonus has been increased from +75 to +80.
+* A "Swap" option has been added to the Voidwaker.
+}}
+{{Subject changes
+|daterange =  14 September - 19 October 2022
+|beta = Wildy & Dynamite Beta
+|change = First present in the Wildy & Dynamite Beta.
+}}
+{{Subject changes footer}}
+
+==History==
+Aside from the weapon's name, it is very similar to ''RuneScape 3''{{'}}s {{RSL|Korasi's sword}} as it was in 2010, which was given as an untradeable reward for completing the grandmaster quest {{RSL|The Void Stares Back}}. As the quest required 80 [[Magic]], 71 [[Firemaking]], 70 [[Construction]], 70 [[Crafting]], 70 [[Smithing]], 55 [[Summoning]], 10 [[Defence]], and 78 [[Attack]] and [[Strength]], these effectively acted as the requirements to wield the sword.
+
+The Voidwaker's special attack also bears similarity to that of Korasi's sword. Despite sharing the name ''Disrupt'' with the original, the Voidwaker's special attack excludes the chain-hitting effect of Korasi's sword, which could damage up to two additional, adjacent targets for 50% and 25% of the first hit's damage in multi-combat areas. However, the Voidwaker's ''Disrupt'' only requires 50% special attack energy to use, as opposed to the original's 60%.
+
+In comparison, the Voidwaker is a tradeable item, dropped in three tradeable parts (the blade, hilt, and crystal) from [[Callisto]], [[Venenatis]], and [[Vet'ion]], and only requires level 75 [[Attack]] to wield. The Voidwaker also has slightly higher stats compared to the original iteration of Korasi's sword:
+{{Infotable Bonuses header}}
+{{Infotable Bonuses row|name=rsw:Korasi's sword|hideicon=yes|altname=Korasi's sword|astab=+60|aslash=+70|acrush=-2|amagic=0|arange=0|dstab=0|dslash=+1|dcrush=0|dmagic=0|drange=0|str=+70|prayer=0|rstr=0|mdmg=0}}
+{{Infotable Bonuses row|name=Voidwaker|hideicon=yes|astab=+70|aslash=+80|acrush=-2|amagic=+5|arange=0|dstab=0|dslash=+1|dcrush=0|dmagic=+2|drange=0|str=+80|prayer=0|rstr=0|mdmg=0}}
+{{Infotable Bonuses footer}}
+
+During [[Project Rebalance]], Jagex proposed to alter the Voidwaker's special due to player concerns about its special attack, which was a guaranteed hit and would often hit very high, even through prayers. Initial proposals suggested to change the special attack to give an increased accuracy multiplier based on the target's Slash or Magic defence, whichever was lower. Both suggestions were not well-received, as these changes were primarily meant for [[player killing]] scenarios and would have a much more negative impact in player versus monster scenarios, as the monsters where the voidwaker was primarily used for had high slash and magic defence. On [[24 April]] [[2024]], the proposals were shelved and the voidwaker was left as is for the time being.
+
+==Trivia==
+* Despite the poll blog and newspost stating the Voidwaker requires level 75 [[Attack]], 75 [[Strength]], and 60 [[Magic]] to wield, the weapon only requires level 75 Attack to wield. It is not known whether this is an oversight or not.
+* The special attack's sound effect is actually [[Superior Demonbane]]'s cast and an attack from [[Tombs of Amascut]] Wardens' boss fight sound effects playing at the same time.
+* The voidwaker shares similarities in its special attack and animation with ''RuneScape 3's'' [[rsw:Korasi's sword|Korasi's sword]].
+
+{{Wilderness bosses}}
+{{Slash weapons}}
+[[Category:Weapons with Special attacks]]

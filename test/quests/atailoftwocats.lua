@@ -38,6 +38,17 @@
 -- the death runes are a setup bring-along. The goto audit is in
 -- build/orchestrator/fix_b58/atailoftwocats.progress.md.
 --
+-- RE-DRIVEN b64 (gate_crossings, matthew-mbp-m4-b63-seam1's grader): Burthorpe
+-- and Taverley sit behind the members' wall, whose east gate (membergater
+-- 2935,3450) is the only way on foot to Lumbridge, Varrock and the Sphinx
+-- (reach.py 2938,3450 -> 2932,3450 NEEDS-DOOR via membergater; a flood from
+-- either side never meets the other). Every crossing -- the first trip from
+-- Lumbridge, out to Gertrude, the second search's way back in, out to the
+-- Sphinx, out to the Apothecary, back in for the cure -- presses the gate
+-- (`taverley_gate`, t.player.cross_gate). The Sphinx trip also crosses the
+-- Shantay Pass doorway with a pass bought from Shantay. Audit:
+-- build/orchestrator/fix_b64/atailoftwocats.progress.md.
+--
 -- The locator itself (twocats.rs2:248-458, cache IF1 group 48
 -- bob_locator_amulet): `[opheld3,twocats_amuletofcatspeak]` fires the Open op
 -- while the amulet sits UNWORN in the backpack; worn, the same verb is
@@ -157,7 +168,7 @@
 return {
     id = "atailoftwocats",
     fixture = "fresh_lumbridge.ini",
-    max_frames = 240000, -- three locator searches plus every door on foot
+    max_frames = 300000, -- three locator searches, every door on foot, six gate crossings
     setup = {
         "::clearinv", -- fourteen tutorial slots would otherwise sit in the way
         "::give ics_little_amulet_of_catspeak 1", -- Icthlarin's Little
@@ -198,6 +209,10 @@ return {
         -- (twocats.rs2:1503) refuses the cure, before it is taken back off
         -- and the real disguise is worn.
         "::give bronze_sword 1",
+        -- Five coins for the Shantay pass bought from Shantay on the way to
+        -- the Sphinx (shantay.rs2: 5 gp): the doorway is the desert's only
+        -- way in on foot, and it takes a pass (shantay_pass.rs2 oploc1).
+        "::give coins 5",
     },
 
     run = function(t)
@@ -360,6 +375,64 @@ return {
             return math.sqrt((ax - bx) * (ax - bx) + (az - bz) * (az - bz))
         end
 
+        -- The Taverley members' wall splits the waypoints in two (owner ruling,
+        -- sampler-findings "Sample matthew-mbp-m4-b59" (a): a gate that is the
+        -- only way on foot between two regions is pressed on every crossing).
+        -- A flood over reach.py's static collision with every door closed
+        -- (x2780-3280 z3340-3680) from Bob's street 2925,3558 (16,152 tiles)
+        -- and from Varrock square 3212,3428 (41,321 tiles) never meets; these
+        -- 77 waypoints are on the Taverley/Burthorpe side, the other 179 on
+        -- the Varrock side. Every walk between the two goes through
+        -- membergater/membergatel 2935,3450-3451 (reach.py 2938,3450 ->
+        -- 2932,3450: NEEDS-DOOR via membergater).
+        local INSIDE = {}
+        for wx, wz in ([[2851:3427 2848:3440 2848:3456 2848:3472 2848:3488 2849:3504 2853:3557 2852:3572
+            2846:3582 2867:3421 2865:3439 2864:3456 2862:3474 2863:3485 2866:3505 2862:3524 2869:3535
+            2859:3557 2862:3566 2880:3394 2880:3408 2877:3421 2879:3442 2882:3458 2880:3472 2879:3488
+            2878:3505 2877:3517 2878:3534 2880:3552 2880:3568 2886:3578 2895:3381 2895:3391 2895:3407
+            2896:3421 2896:3440 2896:3456 2895:3471 2895:3487 2894:3502 2898:3517 2896:3536 2896:3552
+            2897:3571 2895:3579 2907:3381 2908:3388 2907:3409 2910:3425 2908:3436 2912:3456 2915:3476
+            2910:3486 2912:3504 2912:3520 2910:3534 2908:3556 2912:3568 2923:3381 2928:3408 2927:3424
+            2927:3439 2928:3456 2928:3472 2927:3487 2926:3502 2925:3523 2928:3536 2926:3554 2927:3567
+            2942:3422 2942:3438 2925:3558 2923:3558 2932:3563 2924:3565]]):gmatch("(%d+):(%d+)") do
+            INSIDE[wx .. ":" .. wz] = true
+        end
+        -- The side of the wall a tile is on: the side of its nearest waypoint
+        -- (every departure and landing below IS a waypoint or a door tile
+        -- beside one).
+        local function inside_taverley(x, z)
+            local best, best_d = nil, nil
+            for _, w in ipairs(WAYPOINTS) do
+                local d = dist(x, z, w.x, w.z)
+                if best_d == nil or d < best_d then
+                    best, best_d = w, d
+                end
+            end
+            return best ~= nil and INSIDE[best.x .. ":" .. best.z] == true
+        end
+
+        -- Cross the Taverley members' wall by its east gate, pressed on every
+        -- crossing (t.player.cross_gate; gates.rs2 [label,member_fencegate_try]
+        -- walk-through: nothing stays open, so each crossing is a press graded
+        -- on the tiles before and after). Travel to the open tile two short of
+        -- it on this side (2938,3450 outside / 2932,3450 inside, both in their
+        -- side's flood), press membergater 2935,3450 from the tile beside it,
+        -- walk on to the open tile beyond.
+        local TAVERLEY_GATE = {
+            ["in"] = { stage = { 2938, 3450 }, near = { 2936, 3450 }, far = { 2933, 3450 },
+                far_ok = function(tile) return tile.x <= 2935 end,
+                far_desc = "inside Taverley's east wall, x <= 2935" },
+            out = { stage = { 2932, 3450 }, near = { 2934, 3450 }, far = { 2938, 3450 },
+                far_ok = function(tile) return tile.x >= 2936 end,
+                far_desc = "outside Taverley's east wall, x >= 2936" },
+        }
+        local function taverley_gate(prefix, way)
+            local g = TAVERLEY_GATE[way]
+            t.exec("goto-" .. prefix .. ".memberGate", t.player.goto_tile, g.stage[1], g.stage[2], 0)
+            t.exec(prefix .. ".memberGate", t.player.cross_gate, { loc = "membergater", at = { 2935, 3450, 0 },
+                near = g.near, far = g.far, far_ok = g.far_ok, far_desc = g.far_desc })
+        end
+
         -- Before a goto from wherever the last walk left the player (beside
         -- Bob, say): walk to the nearest waypoint (trying the three nearest)
         -- and check the tile exactly. A walk crosses no closed door, so a
@@ -502,6 +575,14 @@ return {
                             end
                         end
                     end
+                    -- A hop to the other side of the Taverley wall goes
+                    -- through its gate, pressed (Bob lives on the Taverley
+                    -- side; a search begun in Varrock crosses it once).
+                    local from_in = inside_taverley(fx, fz)
+                    local to_in = INSIDE[best.x .. ":" .. best.z] == true
+                    if from_in ~= to_in then
+                        taverley_gate(step .. ".wall." .. hop, to_in and "in" or "out")
+                    end
                     t.exec(step .. ".goto." .. hop, t.player.goto_tile, best.x, best.z, 0)
                 end
             end
@@ -535,9 +616,14 @@ return {
         t.exec("amulet.equip", t.player.equip, "ics_little_amulet_of_catspeak")
 
         -- talkToUnferth: NE Burthorpe, Unferth in his room (2919,3559). The first
-        -- goto of the run leaves the fixture's open Lumbridge courtyard
-        -- (3206,3233) for the street east of his house; poshdoor is opened on
-        -- foot. Verbatim accept scene, ending in the real Yes/No confirm.
+        -- goto of the run leaves the fixture's open field north of Lumbridge
+        -- castle (3206,3233; comp.py: a 2,325-tile open component) for the
+        -- open ground east of Taverley's members' gate (reach.py 3206,3233 ->
+        -- 2936,3450 REACH closed-doors len=517); the gate is pressed, then
+        -- travel inside the wall to the street east of his house (reach.py
+        -- 2933,3450 -> 2925,3558 REACH len=136); poshdoor is opened on foot.
+        -- Verbatim accept scene, ending in the real Yes/No confirm.
+        taverley_gate("unferth", "in")
         t.exec("goto-unferth", t.player.goto_tile, 2925, 3558, 0)
         pass_door("unferthIn", "poshdoor", "poshdooropen", 2922, 3558, 2923, 3558, 2921, 3558, "inside Unferth's room")
         t.exec("talkToUnferth", t.player.talk_to, "twocats_unferth", 1)
@@ -664,8 +750,15 @@ return {
 
         -- talkToGertrude: west of Varrock, BASE symbol "gertrude" (trap 19), in
         -- her house behind fai_varrock_door 3151,3412. The goto leaves from a
-        -- checked street waypoint beside wherever Bob was talked to.
+        -- checked street waypoint beside wherever Bob was talked to (the
+        -- Taverley side: Bob is a Burthorpe cat and an npc cannot work the
+        -- members' gate), out through the gate, then travel to her doorstep
+        -- (reach.py 2936,3450 -> 3151,3414 REACH len=267).
         depart_open("depart.gertrude")
+        local _, gertrude_from = t.world.tile()
+        if type(gertrude_from) ~= "table" or inside_taverley(gertrude_from.x, gertrude_from.z) then
+            taverley_gate("gertrude", "out")
+        end
         t.exec("goto-gertrude", t.player.goto_tile, 3151, 3414, 0)
         pass_door("gertrudeIn", "fai_varrock_door", "fai_varrock_door_open", 3151, 3412, 3151, 3413, 3151, 3411, "inside Gertrude's house")
         t.exec("talkToGertrude", t.player.talk_to, "gertrude", 1)
@@ -803,9 +896,57 @@ return {
         -- talkToSphinx: Sophanem (3300,2784). The verbatim hypnosis-and-
         -- reveal cutscene, ending in the Burthorpe teleport offer and the
         -- chores objbox.
+        -- The trip: out of Taverley by its members' gate (Bob was found on its
+        -- side), travel to the Shantay Pass (reach.py 2936,3450 -> 3304,3123
+        -- REACH len=717), a pass bought from Shantay, the pass's doorway --
+        -- the desert's only way in on foot (comp.py from 3304,3123 at margin
+        -- 80: the Al Kharid side, 5,113 tiles, never reaches the desert; from
+        -- 3304,3110 the desert joins 3284,2812) -- then travel south (reach.py
+        -- 3304,3115 -> 3284,2812 REACH len=443). Desert heat: the doorway
+        -- starts a 150-tick timer (desert_heat.rs2) that only bites inside
+        -- desert_zones (mapsquares z 46-48); Sophanem (z 43-44) is outside
+        -- them, so the timer clears itself on its first fire.
         -- Sophanem is walled: the goto lands on the desert outside its north
         -- gate and the gate is opened on foot.
         depart_open("depart.sphinx")
+        local _, sphinx_from = t.world.tile()
+        if type(sphinx_from) ~= "table" or inside_taverley(sphinx_from.x, sphinx_from.z) then
+            taverley_gate("sphinx", "out")
+        end
+        t.exec("goto-shantay", t.player.goto_tile, 3304, 3123, 0)
+        local _, coins_before_pass = t.inv.count("coins")
+        t.exec("buyShantayPass", t.player.talk_to, "shantay", 1)
+        t.exec("buyShantayPass-dialog", t.chat.play, {
+            "npc:Hello effendi, I am Shantay.",
+            "npc:I see you're new.",
+            "choose:I want to buy a shantay pass for 5 gold coins.",
+            "player:I want to buy a shantay pass for",
+            "mesbox:You purchase a Shantay Pass.",
+        })
+        local pass_await_r, pass_await_d = t.inv.await("shantay_pass", 1, 5)
+        local _, coins_after_pass = t.inv.count("coins")
+        t.check("buyShantayPass.paid", pass_await_r == "ok" and type(coins_before_pass) == "number"
+                and type(coins_after_pass) == "number" and coins_before_pass - coins_after_pass == 5,
+            "shantay_pass " .. tostring(pass_await_r) .. " " .. tostring(pass_await_d) .. "; coins "
+                .. tostring(coins_before_pass) .. " -> " .. tostring(coins_after_pass) .. " (want -5, shantay.rs2)")
+        -- shantay_pass.rs2 [oploc1,shantay_pass_henge_doorway] from the north:
+        -- the poster pages (no disclaimer carried yet), the pass handed over,
+        -- the disclaimer, then [queue,shantay_pass_enter] p_teleport to
+        -- 3304,3118 and p_telejump 3 south.
+        t.exec("shantayDoorway", t.player.cross_gate, { loc = "shantay_pass_henge_doorway", at = { 3302, 3116, 0 },
+            near = { 3304, 3118 }, far_ok = function(tile) return tile.z <= 3115 end,
+            far_desc = "south of the Shantay Pass doorway, z <= 3115",
+            chat = {
+                "mesbox:There is a large poster on the wall",
+                "mesbox:The Desert is a VERY Dangerous place",
+                "mesbox:That seems pretty scary!",
+                "choose:Yeah, that poster doesn't scare me!",
+                "npc:Can I see your Shantay Desert Pass",
+                "mesbox:You hand over a Shantay Pass.",
+                "player:Sure, here you go!",
+                "npc:Here, have a disclaimer",
+            } })
+        t.expect("shantayDoorway.passHandedOver", t.inv.expect_absent("shantay_pass"))
         t.exec("goto-sphinx", t.player.goto_tile, 3284, 2812, 0)
         pass_door("sophanemGate", "sophanem_gate_right", "sophanem_gate_right", 3284, 2809, 3284, 2810, 3284, 2808, "inside Sophanem's north gate")
         walk_check("sphinx.approach", 3299, 2786, "the square before the Sphinx")
@@ -1013,6 +1154,8 @@ return {
         -- open in m49_53.jl2: asserted, not pressed). A real three-way menu,
         -- then the Doctor's/Nurse hat choice -- "Nurse hat." here.
         pass_door("unferthOut2", "poshdoor", "poshdooropen", 2922, 3558, 2921, 3558, 2923, 3558, "the street east of Unferth's")
+        taverley_gate("apothecary", "out")
+        local _, hat_before = t.inv.count("twocats_nurses_hat")
         t.exec("goto-apothecary", t.player.goto_tile, 3190, 3403, 0)
         pass_door("apothecaryIn", "fai_varrock_door", "fai_varrock_door_open", 3192, 3403, 3191, 3403, 3193, 3403, "inside the Apothecary's shop")
         t.exec("talkToApoth", t.player.talk_to, "apothecary", 1)
@@ -1035,7 +1178,11 @@ return {
             "player:I always wanted to be a Doctor!",
         })
         t.expect("quest.stage.hat_given", t.quest.expect_stage("hat_given"))
-        t.expect("reward.nurses_hat_granted", t.inv.expect_has("twocats_nurses_hat", 1))
+        local hat_r, hat_d = t.inv.await("twocats_nurses_hat", 1, 5)
+        local _, hat_after = t.inv.count("twocats_nurses_hat")
+        t.check("reward.nurses_hat_granted", hat_r == "ok" and hat_before == 0 and hat_after == 1,
+            "twocats_nurses_hat " .. tostring(hat_before) .. " -> " .. tostring(hat_after)
+                .. " (want exactly 0 -> 1, the picked hat; await " .. tostring(hat_r) .. " " .. tostring(hat_d) .. ")")
         pass_door("apothecaryOut", "fai_varrock_door", "fai_varrock_door_open", 3192, 3403, 3193, 3403, 3190, 3403, "the street west of the shop")
 
         -- talkToUnferthAsDoctor: first, deliberately refused holding a
@@ -1045,6 +1192,7 @@ return {
         t.exec("cure.equip_shirt", t.player.equip, "desert_shirt")
         t.exec("cure.equip_robe", t.player.equip, "desert_robe")
         t.exec("cure.equip_sword", t.player.equip, "bronze_sword")
+        taverley_gate("cure", "in")
         t.exec("goto-unferth-cure", t.player.goto_tile, 2925, 3558, 0)
         pass_door("unferthIn2", "poshdoor", "poshdooropen", 2922, 3558, 2923, 3558, 2921, 3558, "inside Unferth's room")
         t.exec("cure.refused", t.player.talk_to, "twocats_unferth", 1)
@@ -1190,10 +1338,23 @@ return {
         -- hat is NOT granted again here (parity1o dropped the second,
         -- unsourced hat) -- it was already asserted at reward.nurses_hat_granted.
         t.expect("present.have", t.inv.await("twocats_present", 1, 10))
+        local _, lamps_before = t.inv.count("twocats_rewardlamp")
+        local _, toy_before = t.inv.count("twocats_mouse_toy")
         t.exec("present.open", t.player.inv_op, "twocats_present", 1)
         t.exec("present.open-dialog", t.chat.play, { "mesbox:You open the package" })
-        t.expect("reward.lamps", t.inv.expect_has("twocats_rewardlamp", 2))
-        t.expect("reward.mousetoy", t.inv.expect_has("twocats_mouse_toy", 1))
+        -- Literal rewards (wiki / Quest Helper: 2 antique lamps and a mouse
+        -- toy in the present), exact before-to-after deltas.
+        local lamps_r, lamps_d = t.inv.await("twocats_rewardlamp", 2, 5)
+        local _, lamps_after = t.inv.count("twocats_rewardlamp")
+        t.check("reward.lamps", lamps_r == "ok" and type(lamps_before) == "number" and type(lamps_after) == "number"
+                and lamps_after - lamps_before == 2,
+            "twocats_rewardlamp " .. tostring(lamps_before) .. " -> " .. tostring(lamps_after)
+                .. " (want +2; await " .. tostring(lamps_r) .. " " .. tostring(lamps_d) .. ")")
+        local _, toy_after = t.inv.count("twocats_mouse_toy")
+        t.check("reward.mousetoy", type(toy_before) == "number" and type(toy_after) == "number"
+                and toy_after - toy_before == 1,
+            "twocats_mouse_toy " .. tostring(toy_before) .. " -> " .. tostring(toy_after) .. " (want +1)")
+        t.expect("present.consumed", t.inv.expect_absent("twocats_present"))
 
         t.finish(0)
         return

@@ -1,0 +1,24 @@
+{{Infobox Item
+|name = Keystone crystal
+|image = [[File:Keystone crystal.png]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Drop
+|examine = A power emanates from the crystal.
+|value = 1
+|weight = 0.907
+|id = 20884
+}}
+[[File:Keystone crystal detail.png|left|130px]]
+The '''keystone crystal''' is obtained from the other side of the tightrope in the tightrope room within the [[Chambers of Xeric]]. Attempting to cross the tightrope will cause any idle [[deathly ranger]]s and [[deathly mage]]s to attack those who cross the rope. The crystal is required to disable the glowing barrier leading deeper into the chambers. Once it is used on the barrier, it is consumed as it dispels it, killing off any deathly rangers and mages still alive at the time.
+
+==Item sources==
+{{Drop sources|Keystone crystal}}
+
+{{Chambers of Xeric}}

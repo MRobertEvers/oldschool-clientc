@@ -1,0 +1,68 @@
+mechanic_id	quantity	spec_value	unit	tags	grade	source_ref	closes	tolerance
+jaguar_warrior.stats.hp	Jaguar warrior 12810 hitpoints (cache stat4; wiki 125; Blert constant 125)	125	hp	[cache][wiki][blert]	A	cache_npc.txt:98; wiki/wiki_Jaguar_warrior.wikitext:17; blert/plugin/src/main/java/io/blert/challenges/colosseum/ColosseumNpc.java:32	-	exact
+jaguar_warrior.stats.combat_level	combat level (cache vislevel)	234	count	[cache]	A	cache_npc.txt:89	-	exact
+jaguar_warrior.stats.attack_level	attack level (cache stat1)	200	count	[cache]	A	cache_npc.txt:95	-	exact
+jaguar_warrior.stats.defence_level	defence level (cache stat2)	125	count	[cache]	A	cache_npc.txt:96	-	exact
+jaguar_warrior.stats.strength_level	strength level (cache stat3)	330	count	[cache]	A	cache_npc.txt:97	-	exact
+jaguar_warrior.stats.ranged_level	ranged level (cache stat5)	160	count	[cache]	A	cache_npc.txt:99	-	exact
+jaguar_warrior.stats.magic_level	magic level (cache stat6)	100	count	[cache]	A	cache_npc.txt:100	-	exact
+jaguar_warrior.stats.size	footprint, tiles per side (cache size)	2	tiles	[cache]	A	cache_npc.txt:82	-	exact
+jaguar_warrior.stats.attack_rate_param	cache attackrate param; here it equals the observed cadence (not so for the Fremennik trio, D44)	5	ticks	[cache]	A	cache_npc.txt:103	-	exact
+jaguar_warrior.stats.strength_bonus	melee strength bonus (cache strengthbonus param)	25	count	[cache]	A	cache_npc.txt:104	-	exact
+jaguar_warrior.stats.stab_defence	stab defence bonus (cache stabdefence param)	30	count	[cache]	A	cache_npc.txt:109	-	exact
+jaguar_warrior.stats.slash_defence	slash defence bonus (cache slashdefence param)	30	count	[cache]	A	cache_npc.txt:110	-	exact
+jaguar_warrior.stats.crush_defence	crush defence bonus (cache crushdefence param)	30	count	[cache]	A	cache_npc.txt:111	-	exact
+jaguar_warrior.stats.magic_defence	magic defence bonus (cache magicdefence param)	15	count	[cache]	A	cache_npc.txt:112	-	exact
+jaguar_warrior.stats.ranged_defence_light	light ranged defence bonus (wiki dlight; the cache record has no ranged-defence param)	45	count	[wiki]	D	wiki/wiki_Jaguar_warrior.wikitext:33	-	exact
+jaguar_warrior.stats.ranged_defence_standard	standard ranged defence bonus (wiki dstandard)	45	count	[wiki]	D	wiki/wiki_Jaguar_warrior.wikitext:34	-	exact
+jaguar_warrior.stats.ranged_defence_heavy	heavy ranged defence bonus (wiki dheavy)	45	count	[wiki]	D	wiki/wiki_Jaguar_warrior.wikitext:35	-	exact
+jaguar_warrior.stats.xp_bonus	xp bonus (wiki xpbonus)	5	percent	[wiki]	D	wiki/wiki_Jaguar_warrior.wikitext:11	-	exact
+jaguar_warrior.stats.examine	examine text (wiki)	A furry with a score to settle.	text	[wiki]	D	wiki/wiki_Jaguar_warrior.wikitext:10	-	exact
+jaguar_warrior.stats.aggressive	aggressive flag (wiki; the monster is spawned already aimed at the player)	1	count	[wiki]	D	wiki/wiki_Jaguar_warrior.wikitext:13	-	exact
+jaguar_warrior.style.attack_style	melee, slash	slash	text	[wiki][guide]	C	wiki/wiki_Jaguar_warrior.wikitext:15; wiki/wiki_Fortis_Colosseum.wikitext:104; transcripts/STATED.md:39	-	exact
+jaguar_warrior.style.auto_prayer	the prayer that blocks it: Protect from Melee ("keep Protect Melee on at all times")	melee	text	[wiki][guide]	C	wiki/wiki_Fortis_Colosseum_Strategies.wikitext:768; transcripts/STATED.md:39	-	exact
+jaguar_warrior.range.tiles	melee range (SUPA range 1; wiki Melee)	1	tiles	[plugin][wiki]	C	CODE_CONSTANTS.md:119; wiki/wiki_Fortis_Colosseum.wikitext:104	-	exact
+jaguar_warrior.range.attack_footprint_gap	at 160 of 160 attacks with a known player tile the player stood cardinally adjacent to the 2x2 footprint (gap (0,1) 126, (1,0) 34; never diagonal, never inside); anchor taken as the south-west tile	100	percent	[blert]	B	encounters/jaguar_warrior.queries.py:q_reach	M64	exact
+jaguar_warrior.range.diagonal_reach	whether it can attack a player diagonally adjacent to its footprint (none observed)	?	text	[M64]	E	encounters/jaguar_warrior.queries.py:q_reach	M64	approx
+jaguar_warrior.attack.hits_per_attack	three hits per attack, each with its own accuracy and damage roll (like a nail beast)	3	count	[wiki][guide]	C	wiki/wiki_Jaguar_warrior.wikitext:41; wiki/wiki_Fortis_Colosseum.wikitext:106; wiki/wiki_Fortis_Colosseum_Strategies.wikitext:768; transcripts/STATED.md:39	-	exact
+jaguar_warrior.maxhit.per_hit_unprayed	max hit of one of the three hits (wiki 47 x3; no recorder sees a hit)	47	hp	[wiki][M11]	D	wiki/wiki_Jaguar_warrior.wikitext:12; wiki/wiki_Fortis_Colosseum.wikitext:105; wiki/wiki_Fortis_Colosseum_Strategies.wikitext:757	M11	exact
+jaguar_warrior.maxhit.attack_total_unprayed	sum of three max hits in one attack ("up to 141")	141	hp	[wiki][M11]	D	wiki/wiki_Fortis_Colosseum_Strategies.wikitext:768	M11	exact
+jaguar_warrior.maxhit.prayed	damage of a hit under Protect from Melee	?	text	[M63]	E	wiki/wiki_Fortis_Colosseum_Strategies.wikitext:768	M63	approx
+jaguar_warrior.accuracy.per_hit_chance	hit chance of each of the three rolls against a player of fixed defence	?	percent	[M63]	E	wiki/wiki_Jaguar_warrior.wikitext:41	M63	approx
+jaguar_warrior.hit.offsets_from_attack	ticks from the attack animation start to each of the three hits (one tick for all three, or staggered)	?	ticks	[M62]	E	wiki/wiki_Jaguar_warrior.wikitext:41	M62	approx
+jaguar_warrior.hit.prayer_read_tick	the tick the player prayer is read on for each hit	?	ticks	[M62]	E	wiki/wiki_Fortis_Colosseum_Strategies.wikitext:768	M62	approx
+jaguar_warrior.cadence.attack	ticks between attacks (wiki 5, "always attacks three times on a five tick cycle"; Blert gaps: 101 of 115 are 5, none below 5)	5	ticks	[blert][wiki]	B	encounters/jaguar_warrior.queries.py:q_cadence; wiki/wiki_Jaguar_warrior.wikitext:16; wiki/wiki_Fortis_Colosseum.wikitext:106; blert/SAMPLE_SUMMARY.md:831-851	-	exact
+jaguar_warrior.cadence.gap_share_five	share of consecutive-attack gaps that equal 5: 101 of 115 (the rest 6,7,8,10,13,16,29,30,47,57: waiting, walking or out of reach)	87.8	percent	[blert]	B	encounters/jaguar_warrior.queries.py:q_cadence	-	+-1
+jaguar_warrior.cadence.gap_minimum	shortest observed gap between two attacks of one jaguar (115 gaps)	5	ticks	[blert]	B	encounters/jaguar_warrior.queries.py:q_cadence	-	exact
+jaguar_warrior.cadence.gap_over_five_cause	why 14 of 115 gaps exceed 5 (player out of reach or hidden behind a pillar vs an internal pause)	?	text	[M64]	E	encounters/jaguar_warrior.queries.py:q_cadence	M64	approx
+jaguar_warrior.cadence.attacks_per_life_max	most attacks one jaguar made before it died (68 instances)	6	count	[blert]	B	encounters/jaguar_warrior.queries.py:q_cadence	-	range
+jaguar_warrior.first_attack.earliest	earliest first attack after the tick-66 spawn: 3 ticks (2 of 45 attackers); median 45, maximum 131 (the walk in sets it)	3	ticks	[blert]	B	encounters/jaguar_warrior.queries.py:q_first; encounters/wave_reinforcements.tsv:45	M6	range
+jaguar_warrior.first_attack.never_attacked_share	instances that died without attacking: 23 of 68	33.8	percent	[blert]	B	encounters/jaguar_warrior.queries.py:q_first	-	+-1
+jaguar_warrior.first_attack.attack_kind	Blert attack id of every jaguar attack (all 160 are id 104 = seq 10847)	104	count	[blert]	B	encounters/jaguar_warrior.queries.py:q_overview; blert/ID_TABLE.md:7	-	exact
+jaguar_warrior.spawn.only_reinforcement	jaguar warrior is a reinforcement only: 0 spawns at wave tick 0 in 68 spawns over 18 runs (the wiki: waves 1-6 only; the max-hit half of M18 stays with M11)	0	count	[blert][wiki]	B	encounters/jaguar_warrior.queries.py:q_tick0; wiki/wiki_Jaguar_warrior.wikitext:43; wiki/wiki_Fortis_Colosseum.wikitext:106	M18	exact
+jaguar_warrior.spawn.tick	every observed spawn on wave tick 66 (68 of 68), waves 2-6; wave 1 never observed (M2)	66	ticks	[blert]	B	encounters/jaguar_warrior.queries.py:q_overview; encounters/wave_reinforcements.tsv:8-14	-	exact
+jaguar_warrior.spawn.wave_one	a jaguar on wave 1 at tick 66 (wiki and FORT list it; no wave-1 stream reaches tick 66)	?	count	[wiki][M2]	E	encounters/wave_reinforcements.tsv:23	M2	approx
+jaguar_warrior.spawn.waves	waves with a jaguar reinforcement (wiki 1-6; Blert 2-6)	1,2,3,4,5,6	count	[wiki][blert]	B	wiki/wiki_Fortis_Colosseum_Strategies.wikitext:766; encounters/wave_reinforcements.tsv:8-14	-	exact
+jaguar_warrior.spawn.tiles	north-gate spawn tiles y=3120, x 1823 (28 of 68), 1824 (24), 1825 (16)	1823,1824,1825	tiles	[blert]	B	encounters/jaguar_warrior.queries.py:q_spawn; encounters/wave_reinforcements.tsv:36	-	range
+jaguar_warrior.spawn.first_move_after_spawn	ticks from spawn to the first tile change: 68 of 68 on the next tick	1	ticks	[blert]	B	encounters/wave_reinforcements.tsv:42; encounters/wave_reinforcements.queries.py:q_movement	-	exact
+jaguar_warrior.movement.max_tiles_per_tick	tiles per tick between consecutive observed positions: 0 in 3,300, 1 in 771, never more (walks, does not run)	1	tiles	[blert]	B	encounters/jaguar_warrior.queries.py:q_move	-	exact
+jaguar_warrior.movement.routefinds	it does not routefind: a pillar blocks it (wiki: "Jaguar and minotaur have no routefinding", Red Flag gives it to minotaurs)	0	count	[wiki]	D	wiki/TECHNIQUES.md:61; wiki/wiki_Fortis_Colosseum.wikitext:169	-	exact
+jaguar_warrior.movement.safespot_nw_pillar	a player hugging the west side of the north-west pillar cannot be reached; two tiles, both usable (pillar safespot as it spawns)	1	count	[wiki]	D	wiki/TECHNIQUES.md:56-59; wiki/wiki_Fortis_Colosseum_Strategies.wikitext:1606; wiki/wiki_Fortis_Colosseum_Strategies.wikitext:1623	-	exact
+jaguar_warrior.movement.safespot_under_red_flag	Red Flag does not defeat the jaguar safespot (the wiki names only the minotaur as an exception; inferred)	1	count	[wiki]	D	wiki/wiki_Fortis_Colosseum_Strategies.wikitext:1606; wiki/wiki_Fortis_Colosseum.wikitext:169	-	exact
+jaguar_warrior.movement.safespot_line_of_sight	whether a safespotted jaguar can still attack a target it cannot reach and the exact blocked tiles	?	text	[M64]	E	wiki/TECHNIQUES.md:61	M64	approx
+jaguar_warrior.reward.ca_claw_special	combat achievement: Kill a Jaguar Warrior using a Claw-type weapon special attack	1	count	[jagex]	A	newsposts/wiki_Update_Undead_Pirates_Tweaks_Varlamore_CAs_More.wikitext:208	-	exact
+jaguar_warrior.presentation.model	models 50748, 53213, 53214; resizeh 160, resizev 170 (cache)	50748,53213,53214	count	[cache]	A	cache_npc.txt:79-81; cache_npc.txt:90-91	-	exact
+jaguar_warrior.presentation.idle.seq	readyanim 808 human_ready	808	count	[cache]	A	cache_npc.txt:83	-	exact
+jaguar_warrior.presentation.walk.seq	walkanims 819 forward, 820 back, 821 left, 822 right (human_walk)	819,820,821,822	count	[cache]	A	cache_npc.txt:84-87; RIG_ANIMATIONS.md:46	-	exact
+jaguar_warrior.presentation.attack.seq	attack animation 10847 npc_jaguar_ranger_claws_attack (Blert NPC_ATTACK 160 events; plugin ColosseumNpc pins 10847)	10847	count	[blert][plugin]	B	blert/ID_TABLE.md:7; blert/plugin/src/main/java/io/blert/challenges/colosseum/ColosseumNpc.java:32; CODE_CONSTANTS.md:54	-	exact
+jaguar_warrior.presentation.attack.length	attack sequence 32 frames, 63 client cycles = 2.10 game ticks (a length is not a cadence, D8)	2.1	ticks	[cache]	A	cache_seq.txt:609-617	-	exact
+jaguar_warrior.presentation.attack.sound_frames	frame:sound 4:8361, 13:8360, 21:8359 (varlamore_jaguar_warrior spear/shield/spear swipe); which frames the hits land on is open	4:8361,13:8360,21:8359	text	[cache]	A	cache_seq.txt:613-615; AV_INVENTORY.tsv:735-737	-	exact
+jaguar_warrior.presentation.attack.hit_frames	which animation frames the three hits land on (the claw-swipe frames are unnamed)	?	text	[M62]	E	cache_seq.txt:609-617	M62	approx
+jaguar_warrior.presentation.attack.likeness	same attack animation as the dragon claws special, barring the uppercut	dragon_claws	text	[wiki]	D	wiki/wiki_Jaguar_warrior.wikitext:51	-	exact
+jaguar_warrior.presentation.defend.seq	defend animation 10848 npc_jaguar_human_unarmed_def (name tier; no recorder sees a defend)	10848	count	[cache][M40]	D	cache_seq.txt:620-626; RIG_ANIMATIONS.md:48	M40	exact
+jaguar_warrior.presentation.defend.length	defend sequence 8 frames, 63 client cycles = 2.10 ticks, sound 513 on frame 1	2.1	ticks	[cache]	A	cache_seq.txt:620-626	-	exact
+jaguar_warrior.presentation.death.seq	death animation 10849 npc_jaguar_human_death (name tier)	10849	count	[cache][M40]	D	cache_seq.txt:628-633; RIG_ANIMATIONS.md:48	M40	exact
+jaguar_warrior.presentation.death.active_cycles	active frames 47 client cycles (8+3x4+14+4+3x3), then the last frame holds 20000 cycles; sound 512 on frame 1	47	cycles	[cache]	A	cache_seq.txt:628-632	-	exact
+jaguar_warrior.presentation.spawn.seq	spawn sequence on its rig (none named; the plan lists it with the other human-rig arrivals)	?	count	[M51]	E	RIG_ANIMATIONS.md:50	M51	approx
+jaguar_warrior.presentation.graphics.none	no spotanim or projectile names a jaguar warrior; its attack has no projectile and no row invents one	0	count	[cache]	D	RIG_ANIMATIONS.md:50; RIG_ANIMATIONS.md:103	-	exact
+jaguar_warrior.presentation.off_rig_jaguar_seqs	seqs 12491, 12492, 12498, 12499 sit on the quadruped jaguar framemap 1969 and are not this npc	12491,12492,12498,12499	count	[cache]	D	RIG_ANIMATIONS.md:49	-	exact

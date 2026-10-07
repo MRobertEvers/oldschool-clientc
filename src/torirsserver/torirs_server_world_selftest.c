@@ -3478,22 +3478,8 @@ ToriRSServer_WorldSelftest(void)
      * payload and still reaches the capture hook, then writes nothing — which
      * is what makes every encoder assertable without a socket. */
     player = ToriRSServer_WorldAddPlayer(srv, NULL);
-    /*
-     * The cache the run was pointed at, not the default one.
-     *
-     * Boot loads this table from `config->cache_dir`, which honours
-     * `TORIRSSERVER_CACHE`; hardcoding the default here meant a selftest run against
-     * a lane cache reloaded the table from the pristine one and threw the lane's
-     * sequence records away. Nothing said so — ids outside the pristine
-     * archive's range simply answer with the default priority — so every lane
-     * animation silently flattened to 5 and no assertion about one could fail
-     * for the right reason.
-     */
-    {
-        const char* cache_env = getenv("TORIRSSERVER_CACHE");
-        ToriRSServer_SeqInfoLoad(cache_env && cache_env[0] ? cache_env
-                                                       : TORIRSSERVER_CACHE_DIR_DEFAULT);
-    }
+    /* The sequence table is boot's (ToriRSServer_BootLoad), from the server pack
+     * of the composition the run was pointed at -- a lane's records included. */
     ToriRSServer_WorldInit(srv, 426, 408);
     ToriRSServer_WorldPlayerInit(player);
 
@@ -12471,21 +12457,28 @@ ToriRSServer_WorldSelftest(void)
     {
         static struct ToriRSServerCapture capture;
         const struct ToriRSServerMusicRegion* track = &k_ToriRSServer_MusicRegions[0];
+        int unlock_varp = track->varp;
         int old_song = player->music_track;
-        int old_unlock = player->varps[track->varp];
+        int old_unlock;
         int text_at;
         int midi_at;
 
         /* Keep this a pure output test: the selected first row has a real
          * unlock bit, but testing its UI label must not perturb the later
-         * varp/persistence cases. */
-        player->varps[track->varp] |= (int)(1u << track->bit);
+         * varp/persistence cases. The bit lives in the musicmulti varp the
+         * generated row carries. */
+        SELFTEST_CHECK(unlock_varp > 0, "the first music row's varp %d should name a word",
+                       track->varp);
+        if( unlock_varp <= 0 )
+            unlock_varp = 0;
+        old_unlock = player->varps[unlock_varp];
+        player->varps[unlock_varp] |= (int)(1u << track->bit);
         player->music_track = -1;
         ToriRSServer_CaptureBegin(srv, &capture);
         ToriRSServer_MusicEnterRegion(player, track->region >> 8, track->region & 0xff);
         ToriRSServer_CaptureEnd(srv);
         player->music_track = old_song;
-        player->varps[track->varp] = old_unlock;
+        player->varps[unlock_varp] = old_unlock;
 
         text_at = ToriRSServer_CaptureFind(
             &capture, ToriRSServer_WireOpcode(srv->wire, PKT_NAME_IF_SETTEXT), 0);
@@ -12504,6 +12497,72 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(selftest_capture_has_midi_song_envelope(
                                &capture, srv->wire, track->song, 0, 30, 0, 30),
                            "the region track should carry the 30-cycle in/out fade profile");
+    }
+
+    fprintf(stderr, "ToriRSServer selftest: region music unlocks the musicmulti word\n");
+    {
+        /*
+         * A music row's unlock pair is (variable, bit), and the variable is an
+         * index into the 27 musicmulti words, not a varp id: clientscript 7305
+         * (OSRS-Content scripts/torirs_music_varp_get.cs2) maps variable 18 to
+         * %varp1681_musicmulti_18, and content's [proc,music_unlock]
+         * (interface_music/scripts/music.rs2) writes the same word. Ver
+         * Sinhaza's square 14642 plays "Welcome to the Theatre" (song 556,
+         * DBTable 44 music:variable 18,8). Writing the index as a varp id set
+         * bit 8 of varp 18 (`musicplay`, which then read 256 in the lobby) and
+         * the track never unlocked.
+         */
+        static struct ToriRSServerCapture capture;
+        const struct ToriRSServerMusicRegion* track = ToriRSServer_MusicForRegion(14642);
+        int old_song = player->music_track;
+        int old_multi18 = player->varps[1681];
+        int old_musicplay = player->varps[18];
+        int old_varp1681_expected;
+
+        /* The generated table carries the musicmulti VARP id the variable maps
+         * to (tools/gen_music_regions.py), so variable 18 reads as 1681. */
+        SELFTEST_CHECK(track != NULL && track->song == 556 && track->varp == 1681 && track->bit == 8,
+                       "region 14642 should be song 556 with unlock varp 1681 (variable 18) bit 8");
+        SELFTEST_CHECK(ToriRSServer_MusicVariableVarp(1) == 20 &&
+                           ToriRSServer_MusicVariableVarp(18) == 1681 &&
+                           ToriRSServer_MusicVariableVarp(27) == 5238,
+                       "music variables 1/18/27 should be varps 20/1681/5238 (clientscript 7305), "
+                       "got %d/%d/%d",
+                       ToriRSServer_MusicVariableVarp(1), ToriRSServer_MusicVariableVarp(18),
+                       ToriRSServer_MusicVariableVarp(27));
+        SELFTEST_CHECK(ToriRSServer_MusicVariableVarp(0) == -1 &&
+                           ToriRSServer_MusicVariableVarp(28) == -1,
+                       "music variables 0 and 28 name no word");
+        if( track != NULL )
+        {
+            player->varps[1681] &= ~(1 << 8);
+            player->varps[18] &= ~(1 << 8);
+            old_varp1681_expected = player->varps[1681] | (1 << 8);
+            player->music_track = -1;
+            ToriRSServer_CaptureBegin(srv, &capture);
+            ToriRSServer_MusicEnterRegion(player, 14642 >> 8, 14642 & 0xff);
+            ToriRSServer_CaptureEnd(srv);
+            SELFTEST_CHECK(player->varps[1681] == old_varp1681_expected,
+                           "entering 14642 should set bit 8 of varp 1681 musicmulti_18 and "
+                           "nothing else, got %d want %d",
+                           player->varps[1681], old_varp1681_expected);
+            SELFTEST_CHECK((player->varps[18] & (1 << 8)) == 0,
+                           "entering 14642 must not write varp 18 musicplay, got %d",
+                           player->varps[18]);
+            SELFTEST_CHECK(
+                ToriRSServer_CaptureFind(
+                    &capture, ToriRSServer_WireOpcode(srv->wire, PKT_NAME_MIDI_SONG), 0) >= 0,
+                "entering 14642 should still start song 556");
+            /* A second crossing finds the bit set and says nothing more. */
+            player->music_track = -1;
+            ToriRSServer_MusicEnterRegion(player, 14642 >> 8, 14642 & 0xff);
+            SELFTEST_CHECK(player->varps[1681] == old_varp1681_expected,
+                           "a second crossing should leave varp 1681 as it was, got %d",
+                           player->varps[1681]);
+        }
+        player->music_track = old_song;
+        player->varps[1681] = old_multi18;
+        player->varps[18] = old_musicplay;
     }
 
     fprintf(stderr, "ToriRSServer selftest: region music unlocks write musicmulti varps\n");
@@ -16950,9 +17009,9 @@ ToriRSServer_WorldSelftest(void)
              * server-side parses an `.if`. Cache enums are loaded now
              * (`configs/all.enum` rank-0), but this selftest still leaves the
              * index↔name check to the real client (docs/skill_guide.md §4).
-             * The exported `configs/all.dbtable` uses a `columndef=`/`values=`
-             * grammar this server's `column=`/`data=` parser skips — so its copy
-             * of skill_guide_subsections is an empty shell.
+             * The cache's skill_guide_subsections rows reach this server from
+             * the binary records (torirs_server_dbinfo.c); `configs/all.dbtable`
+             * only names their columns.
              */
             static const char* const k_cells[] = {
                 "stats:attack",      "stats:strength",     "stats:defence",
@@ -19676,15 +19735,19 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(player->inv[0].obj_id == -1, "and be eaten");
 
             /*
-             * `~eat_food` ends in `p_delay(^eat_delay)`, so the script above is
-             * still parked and a second one sent this tick would be *dropped* —
-             * which used to make this check pass for the wrong reason. It read
-             * "hitpoints are still 10" off a script that never ran, and no
-             * amount of breaking `stat_heal`'s clamp could have turned it red.
-             * Run the delay out first, then assert on the food as well: an
-             * eaten item is the evidence the heal was the clamped one.
+             * A bite sets the food timer (`%varp7224_consume_food_delay` =
+             * map_clock + ^eat_delay, consume_shared.rs2; wiki Food/Fast
+             * foods: "Standard food, when eaten, adds a 3 tick penalty to when
+             * a player may eat again"), so a second bite inside it is *refused* —
+             * which, with the old `p_delay(^eat_delay)` park, used to make this
+             * check pass for the wrong reason: it read "hitpoints are still 10"
+             * off a script that never ran, and no amount of breaking
+             * `stat_heal`'s clamp could have turned it red. Run the food delay
+             * out first (3 ticks: refused while the timer >= map_clock), then
+             * assert on the food as well: an eaten item is the evidence the
+             * heal was the clamped one.
              */
-            for( int i = 0; i < 4 && player->active_script; i++ )
+            for( int i = 0; i < 3; i++ )
                 selftest_tick(srv);
             SELFTEST_CHECK(player->active_script == NULL,
                            "the eat delay should have run out before the next bite");
@@ -19697,9 +19760,11 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(player->hitpoints == 10,
                            "eating at full health should not overheal, got %d",
                            player->hitpoints);
-            /* That bite parked `~eat_food` on its p_delay again, and a delayed
-             * player's OPHELD is refused and his OPNPC only latches (LostCity's
-             * `player.delayed`, OpHeldHandler.ts:16; seam24). Run it out so the
+            /* An eat no longer parks the player (the food timer replaced the
+             * p_delay), but a delayed player's OPHELD is refused and his OPNPC
+             * only latches (this engine's rule, torirs_server_world.c's
+             * delayed-OPHELD refusal; seam24), so any script still running is
+             * run out here and the
              * sections below are asked of an idle player. */
             for( int i = 0; i < 4 && player->active_script; i++ )
                 selftest_tick(srv);
@@ -21488,6 +21553,94 @@ ToriRSServer_WorldSelftest(void)
             for( int i = 0; i < npc->def->respawnrate + 4 && !npc->active; i++ )
                 selftest_tick(srv);
             SELFTEST_CHECK(npc->active, "and the goblin respawns afterwards");
+        }
+    }
+
+    fprintf(stderr, "ToriRSServer selftest: a walking npc stops before it dies, a small "
+                    "Nylocas does not\n");
+    {
+        /*
+         * The arrive delay, from both sides (raid loop seam9).
+         *
+         * A goblin that stepped on the blow's tick waits out `npc_arrivedelay`
+         * before its death animation (two ticks: "stop on t+1, anim t+2" is
+         * blert's walking BIG Nylocas too). A small Nylocas -- `death_delay=1`,
+         * a death shorter than the reference's -- does not: "stop and 'turn'
+         * anim occur on the same tick t+1, despawn t+2" (blert guide
+         * tob_nylocas_mechanics_page.tsx:483-493). Both halves, so the gate in
+         * `npc_death_step` cannot be deleted or widened to every npc without a
+         * failure here.
+         *
+         * 10774 is a small Nylocas record (tob.npc's 18 `death_delay=1` smalls,
+         * the id set tools' nylocas analysis reads); spawned well away from
+         * the player, killed by a blow struck the way `ToriRSServer_CombatHitNpc`
+         * strikes one, and `last_movement` set to "moved on this tick" (the
+         * moving tick plus one).
+         */
+        int goblin = selftest_require_npc(srv, 3028, g_home_x + 3, g_home_z + 5, 0);
+        int small = npc_spawn(srv, 10774, g_home_x - 9, g_home_z - 9, 0);
+
+        SELFTEST_CHECK(goblin >= 0, "the fixture goblin should exist");
+        SELFTEST_CHECK(small >= 0, "a small Nylocas (10774) should spawn");
+        if( goblin >= 0 )
+        {
+            struct ToriRSServerNpc* npc = &srv->npcs[goblin];
+            int blow;
+
+            SELFTEST_CHECK(npc->def->death_delay >= 2,
+                           "the goblin keeps the reference's corpse wait, got %d",
+                           npc->def->death_delay);
+            selftest_park_player(srv, npc->spawn_x + 12, npc->spawn_z + 12);
+            npc->death_tick = -1;
+            npc->hitpoints = npc->max_hitpoints;
+            npc->anim_id = -1;
+            blow = srv->tick;
+            npc->last_movement = blow + 1;
+            ToriRSServer_CombatHitNpc(srv, goblin, 0, npc->hitpoints);
+            selftest_tick(srv);
+            SELFTEST_CHECK(npc->death_stage == TORIRSSERVER_DEATH_ARRIVE,
+                           "a goblin that moved on the blow's tick waits to arrive, "
+                           "stage %d", npc->death_stage);
+            SELFTEST_CHECK(!npc->death_seq_sent,
+                           "and has not started its death animation a tick after "
+                           "the blow (sent on tick %d, blow %d)", npc->death_seq_tick,
+                           blow);
+            for( int i = 0; i < npc->def->death_delay + 6 && npc->active; i++ )
+                selftest_tick(srv);
+            SELFTEST_CHECK(!npc->active, "the walking goblin's corpse despawns");
+            for( int i = 0; i < npc->def->respawnrate + 4 && !npc->active; i++ )
+                selftest_tick(srv);
+            SELFTEST_CHECK(npc->active, "and the goblin respawns afterwards");
+        }
+        if( small >= 0 )
+        {
+            struct ToriRSServerNpc* npc = &srv->npcs[small];
+            int blow;
+
+            SELFTEST_CHECK(npc->def->death_delay == 1,
+                           "10774 is a small: death_delay 1, got %d",
+                           npc->def->death_delay);
+            npc->anim_id = -1;
+            blow = srv->tick;
+            npc->last_movement = blow + 1;
+            ToriRSServer_CombatHitNpc(srv, small, 0, npc->hitpoints);
+            SELFTEST_CHECK(!npc->death_seq_sent,
+                           "the small's death animation is not sent on the blow's tick");
+            selftest_tick(srv);
+            SELFTEST_CHECK(npc->death_stage == TORIRSSERVER_DEATH_CORPSE,
+                           "a small that moved on the blow's tick dies without the "
+                           "arrive wait, stage %d", npc->death_stage);
+            SELFTEST_CHECK(npc->death_seq_sent,
+                           "and its death animation (seq %d) is sent at blow + 1 "
+                           "(tick %d, blow %d)", npc->death_seq, srv->tick, blow);
+            selftest_tick(srv);
+            SELFTEST_CHECK(!npc->active,
+                           "and it despawns at blow + 2 (tick %d, blow %d)", srv->tick,
+                           blow);
+            /* On a failure above, let the engine finish the death rather than
+             * freeing a corpse whose animation never reached the wire. */
+            for( int i = 0; i < 6 && npc->active; i++ )
+                selftest_tick(srv);
         }
     }
 
@@ -23659,6 +23812,80 @@ ToriRSServer_WorldSelftest(void)
         player->stat_xp_tenths[TORIRSSERVER_STAT_ATTACK] = 830;
         player->stat_level[TORIRSSERVER_STAT_ATTACK] = 2;
         player->stat_boosted[TORIRSSERVER_STAT_ATTACK] = 2;
+    }
+
+    fprintf(stderr, "ToriRSServer selftest: a drained stat survives xp (LostCity addXp)\n");
+    {
+        /*
+         * LostCity's Player.addXp (engine/entity/Player.ts:1821-1851): a stat
+         * under its base stays there when xp lands, and a level-up lifts it by
+         * the levels gained, never to the base. This server used to snap every
+         * drained stat back to its base on the next xp drop, so a content
+         * drain (Verzik, Olm, a Sourhog) was undone by the player's own next
+         * hit (docs/RAID_ORCHESTRATOR.md section 4).
+         */
+        int const stat = TORIRSSERVER_STAT_STRENGTH;
+        int const saved_level = player->stat_level[stat];
+        int const saved_boosted = player->stat_boosted[stat];
+        int const saved_xp = player->stat_xp_tenths[stat];
+        int const saved_hp = player->hitpoints;
+        int const saved_hp_level = player->stat_level[TORIRSSERVER_STAT_HITPOINTS];
+        int const saved_hp_xp = player->stat_xp_tenths[TORIRSSERVER_STAT_HITPOINTS];
+
+        /* 40 strength, 37,224 xp (level 40 exactly), drained by 5. */
+        player->stat_xp_tenths[stat] = 372240;
+        player->stat_level[stat] = ToriRSServer_CombatLevelForXp(37224);
+        SELFTEST_CHECK(player->stat_level[stat] == 40, "37,224 xp is level 40, got %d",
+                       player->stat_level[stat]);
+        player->stat_boosted[stat] = player->stat_level[stat] - 5;
+
+        /* 10 xp, no level-up: still drained. */
+        ToriRSServer_CombatAddXp(srv, stat, 100);
+        SELFTEST_CHECK(player->stat_level[stat] == 40, "10 xp should not level, got %d",
+                       player->stat_level[stat]);
+        SELFTEST_CHECK(player->stat_boosted[stat] == 35,
+                       "a drained stat should stay drained through xp, got %d/%d",
+                       player->stat_boosted[stat], player->stat_level[stat]);
+
+        /* Level 40 -> 42 (45,529 xp is 42): lifted by the two levels gained,
+         * to 37, not to the base. */
+        ToriRSServer_CombatAddXp(srv, stat, 455290 - player->stat_xp_tenths[stat]);
+        SELFTEST_CHECK(player->stat_level[stat] == 42, "45,529 xp is level 42, got %d",
+                       player->stat_level[stat]);
+        SELFTEST_CHECK(player->stat_boosted[stat] == 37,
+                       "a level-up lifts a drained stat by the levels gained (35 + 2), got %d",
+                       player->stat_boosted[stat]);
+
+        /* An undrained stat follows its base, as before. */
+        player->stat_boosted[stat] = player->stat_level[stat];
+        ToriRSServer_CombatAddXp(srv, stat, 503390 - player->stat_xp_tenths[stat]);
+        SELFTEST_CHECK(player->stat_level[stat] == 43 && player->stat_boosted[stat] == 43,
+                       "an undrained stat follows a level-up, got %d/%d",
+                       player->stat_boosted[stat], player->stat_level[stat]);
+
+        /* A boosted stat is left where the potion put it. */
+        player->stat_boosted[stat] = 48;
+        ToriRSServer_CombatAddXp(srv, stat, 100);
+        SELFTEST_CHECK(player->stat_boosted[stat] == 48,
+                       "a boost should survive xp, got %d", player->stat_boosted[stat]);
+
+        /* Hitpoints is untouched by the rule: its boosted slot is current
+         * hitpoints, which sync_hitpoints owns. */
+        {
+            int const hp_before = player->hitpoints;
+
+            ToriRSServer_CombatAddXp(srv, TORIRSSERVER_STAT_HITPOINTS, 10);
+            SELFTEST_CHECK(player->hitpoints == hp_before,
+                           "hitpoints xp should not heal, %d -> %d", hp_before, player->hitpoints);
+        }
+
+        player->stat_level[stat] = saved_level;
+        player->stat_boosted[stat] = saved_boosted;
+        player->stat_xp_tenths[stat] = saved_xp;
+        player->stat_level[TORIRSSERVER_STAT_HITPOINTS] = saved_hp_level;
+        player->stat_xp_tenths[TORIRSSERVER_STAT_HITPOINTS] = saved_hp_xp;
+        player->hitpoints = saved_hp;
+        ToriRSServer_CombatSyncHitpoints(player);
     }
 
     fprintf(stderr, "ToriRSServer selftest: collision and routing\n");
@@ -30814,8 +31041,8 @@ ToriRSServer_WorldSelftest(void)
          * she has BECOME, and the latch is actually on a player once she starts
          * throwing.
          *
-         * She is put into phase two rather than fought there. Her P1 pool is
-         * 2437 x 2 hitpoints deep and the fixture is a lone godmoded player
+         * She is put into phase two rather than fought there. Her P2 and P3
+         * pools are 2625 x 2 hitpoints deep and the fixture is a lone godmoded player
          * with a debug command, not a team — `~tob_verzik_phase_hp <= 0` is the
          * script's own gate for the hop, and writing the hitpoints under it is
          * the same event the raid would produce, seventeen ticks of transition
@@ -30845,7 +31072,8 @@ ToriRSServer_WorldSelftest(void)
                  * EXACTLY the P1 share of the bar, and exact matters in both
                  * directions.
                  *
-                 * Her three phases share one 8500-point pool and each phase
+                 * Her three phases share one pool (the record's 9000 at five
+                 * players since seam2, 8500 before) and each phase
                  * reads its own slice of it: P1 ends when
                  * `hitpoints - 2 * p23_pool` reaches zero, P2 when
                  * `hitpoints - p23_pool` does. Nothing heals her in between -
@@ -30854,10 +31082,12 @@ ToriRSServer_WorldSelftest(void)
                  * all three slices at once and she transforms P1 -> P2 -> P3 on
                  * consecutive ticks. Measured: type 8372 for exactly one tick.
                  *
-                 * Twice the <=3-player pool (2437) is the boundary: it ends
-                 * phase one and leaves phase two's own slice whole.
+                 * Twice the <=3-player pool is the boundary: it ends phase
+                 * one and leaves phase two's own slice whole. 2625 is the
+                 * cache's 3500 (`verzik_phase2` / `verzik_phase3` stat4) at
+                 * 75 %, `^tob_verzik_p23_hp_3` since seam2; it was blert's 2437.
                  */
-                srv->npcs[boss].hitpoints = 2 * 2437;
+                srv->npcs[boss].hitpoints = 2 * 2625;
                 /* Three ticks of hop, one to launch, thirteen of flight, and
                  * then her P2 clock: first attack at +5, one every 4 after. */
                 for( int t = 0; t < 60; t++ )
@@ -32035,7 +32265,8 @@ ToriRSServer_WorldSelftest(void)
                  * one is the phase this fixture is in.
                  *
                  * `::tob 6` + `::tobgo` stands her up on the throne at a full
-                 * 8500, the fixture player is in god mode and deals no damage,
+                 * 9000 (the record's base; 8500 before seam2), the fixture
+                 * player is in god mode and deals no damage,
                  * and P1 ends only when its share of the pool is spent
                  * (`~tob_verzik_p1_tick`: "she does not die here, she comes off
                  * the throne"). So she never leaves it inside this window and
@@ -32583,6 +32814,25 @@ ToriRSServer_WorldSelftest(void)
                 int victim_seq = 0;
                 int victim_corpse = 0;
                 int victim_alive_ticks = 0;
+                int pool_on_body = 0;
+                int pool_with_loc = 0;
+                /*
+                 * HER POOLS ARE GRAPHICS, read off the tick log (raid loop
+                 * seam9). A thrown pool is `maiden_lingering_blood` 1579 alone
+                 * -- `~tob_maiden_pool_land` places no loc since the seam8 pool
+                 * finding (CONTENT_BUGS, spec row maiden.av.blood_throw.pool_loc
+                 * = 0); the loc 32984 is a blood spawn's trail. A map graphic
+                 * is a packet, not scene state, so the scene scan this used to
+                 * do cannot see it; the log's MAP_SPOTANIM row is the server
+                 * saying where it put one, on the tick it did.
+                 */
+                int const k_pool_spotanim = 1579;
+                int const pool_log_here = !ToriRSServer_TicklogEnabled(srv);
+                uint32_t pool_serial;
+
+                if( pool_log_here )
+                    ToriRSServer_TicklogEnable(srv, NULL);
+                pool_serial = ToriRSServer_TicklogCount();
 
                 /*
                  * Drop her under 70 % from here rather than by swinging at her.
@@ -32728,29 +32978,11 @@ ToriRSServer_WorldSelftest(void)
                      * standing on can only ever be wrong, and nothing else in
                      * the suite asks the question from the player's side.
                      */
-                    {
-                        /*
-                         * SHAPE 22, not 10. `~tob_maiden_pool_land` adds the
-                         * pool as `grounddecor` and states why in as many
-                         * words: shape 22 is the tile's exclusive decor slot
-                         * and is emitted in the tile's base step, while a
-                         * `centrepiece_straight` joins the tile's scenery chain
-                         * and sorts against the player standing on it — a pool
-                         * nearer the camera than his anchor drew OVER him.
-                         * Looking for a centrepiece here found nothing, every
-                         * run, and reported it as "she never threw".
-                         */
-                        int slot = ToriRSServer_SceneFindLocExact(
-                            player->x, player->z, player->level, 22 /* grounddecor */);
-                        struct ToriRSServerSceneLoc* l =
-                            slot >= 0 ? ToriRSServer_SceneLoc(slot) : NULL;
-                        if( l && l->active && l->loc_id == 32984 )
-                            pool_under_player++;
-                    }
                     /*
-                     * ...AND HOW MANY SHE THREW AT ALL.
+                     * ...AND HOW MANY SHE THREW AT ALL, and whether one landed
+                     * on her own body.
                      *
-                     * Without this the failure above says only "not on the
+                     * Without the count the failure above says only "not on the
                      * player's tile", which reads as a targeting bug and is the
                      * same message whether she threw ten pools at the wrong
                      * tiles or threw none. Those are opposite defects — one is
@@ -32758,23 +32990,57 @@ ToriRSServer_WorldSelftest(void)
                      * that decides whether a blood attack happens — and the
                      * suite has to be able to say which.
                      *
-                     * Counted over her whole arena, once per tick, so the
-                     * number is "pool-tiles seen" rather than "throws": a pool
-                     * lives ^tob_maiden_blood_trail_ticks and this samples it
-                     * every tick it is open.
+                     * One reading per LANDING (the tick `~tob_maiden_pools_tick`
+                     * sends the graphic), where the scene scan this replaced
+                     * counted a pool loc once per tick it stood. The player
+                     * stands still (`tobstand`), so "on his tile" is his tile
+                     * on the landing tick.
                      */
-                    for( int px = -12; px <= 12; px++ )
+                    for( ;; )
                     {
-                        for( int pz = -12; pz <= 12; pz++ )
+                        struct ToriRSServerTicklogRow rows[64];
+                        uint32_t scanned = pool_serial;
+                        int got = ToriRSServer_TicklogReadFiltered(
+                            pool_serial, TORIRSSERVER_TICKLOG_MAP_SPOTANIM, -1, rows, 64,
+                            &scanned);
+                        int const at_player =
+                            ToriRSServer_CoordPack(player->level, player->x, player->z);
+                        int const bsize =
+                            srv->npcs[boss].size > 0 ? srv->npcs[boss].size : 1;
+
+                        for( int r = 0; r < got; r++ )
                         {
-                            int slot = ToriRSServer_SceneFindLocExact(
-                                srv->npcs[boss].x + px, srv->npcs[boss].z + pz,
-                                srv->npcs[boss].level, 22 /* grounddecor */);
-                            struct ToriRSServerSceneLoc* l =
-                                slot >= 0 ? ToriRSServer_SceneLoc(slot) : NULL;
-                            if( l && l->active && l->loc_id == 32984 )
-                                pool_any++;
+                            int const px = (rows[r].a >> 14) & 0x3fff;
+                            int const pz = rows[r].a & 0x3fff;
+
+                            if( rows[r].b != k_pool_spotanim )
+                                continue;
+                            pool_any++;
+                            if( rows[r].a == at_player )
+                                pool_under_player++;
+                            if( px >= srv->npcs[boss].x && px < srv->npcs[boss].x + bsize &&
+                                pz >= srv->npcs[boss].z && pz < srv->npcs[boss].z + bsize )
+                                pool_on_body++;
+                            /*
+                             * AND NO POOL LEAVES A LOC. 32984 is a blood
+                             * spawn's trail; a thrown pool is the graphic
+                             * alone. Read on the landing tick, when a
+                             * `loc_add` beside the `spotanim_map` (what the
+                             * content did before seam9) would be standing.
+                             */
+                            {
+                                int const lslot = ToriRSServer_SceneFindLocExact(
+                                    px, pz, srv->npcs[boss].level, 22 /* grounddecor */);
+                                struct ToriRSServerSceneLoc* const l =
+                                    lslot >= 0 ? ToriRSServer_SceneLoc(lslot) : NULL;
+
+                                if( l && l->active && l->loc_id == 32984 )
+                                    pool_with_loc++;
+                            }
                         }
+                        if( scanned == pool_serial )
+                            break;
+                        pool_serial = scanned;
                     }
                     /*
                      * A CRAB KILLED SHORT OF HER STILL PLAYS ITS DEATH
@@ -32920,6 +33186,9 @@ ToriRSServer_WorldSelftest(void)
                     const int k_dying_b = 8365;
                     int saw_a = 0;
                     int saw_b = 0;
+                    int first_a = -1;
+                    int first_b = -1;
+                    int kill_tick;
 
                     /*
                      * Zeroing hitpoints is not a death - the combat path is
@@ -32931,27 +33200,58 @@ ToriRSServer_WorldSelftest(void)
                     srv->npcs[boss].hitpoints = 0;
                     srv->npcs[boss].death_stage = TORIRSSERVER_DEATH_QUEUED;
                     srv->npcs[boss].death_tick = srv->tick + 1;
+                    kill_tick = srv->tick;
                     for( int t = 0; t < 14; t++ )
                     {
                         selftest_tick(srv);
                         if( srv->npcs[boss].active )
                         {
                             if( srv->npcs[boss].type == k_dying_a )
+                            {
                                 saw_a++;
+                                if( first_a < 0 )
+                                    first_a = srv->tick - kill_tick;
+                            }
                             if( srv->npcs[boss].type == k_dying_b )
+                            {
                                 saw_b++;
+                                if( first_b < 0 )
+                                    first_b = srv->tick - kill_tick;
+                            }
                         }
                     }
                     fprintf(stderr,
-                            "  Maiden death: dying_a on %d ticks, dying_b (the fade) "
-                            "on %d\n",
-                            saw_a, saw_b);
+                            "  Maiden death: dying_a on %d ticks from K+%d, dying_b "
+                            "(the fade) on %d from K+%d\n",
+                            saw_a, first_a, saw_b, first_b);
                     SELFTEST_CHECK(saw_a > 0,
                                    "her death must transmog to 8364 and play "
                                    "maiden_death_a, saw it on %d ticks", saw_a);
                     SELFTEST_CHECK(saw_b > 0,
                                    "and then to 8365 for the fade, saw it on %d ticks",
                                    saw_b);
+                    /*
+                     * AND EACH FORM FOR AS LONG AS THE RECORDINGS HOLD IT (raid
+                     * loop seam9): dying_a four ticks from K+1 and the fade
+                     * four, 13 of 13 blert rooms (spec row
+                     * maiden.av.death.dying_a_form_ticks). dying_a on 2 was the
+                     * engine running her `[ai_queue3]` at its CORPSE stage
+                     * (K+3); her records state `death_delay=0` and
+                     * `npc_death_step` runs it on the animation's tick.
+                     */
+                    SELFTEST_CHECK(saw_a == 4,
+                                   "her dying_a form (8364) holds four ticks, saw %d",
+                                   saw_a);
+                    SELFTEST_CHECK(saw_b == 4,
+                                   "and the fade (8365) four, saw %d", saw_b);
+                    /* Durations alone cannot see the whole sequence slide a
+                     * tick: the marks are blert's, K+1 and K+5 from the
+                     * killing blow K. */
+                    SELFTEST_CHECK(first_a == 1,
+                                   "she takes the dying_a form at K+1, the death "
+                                   "animation's tick, saw K+%d", first_a);
+                    SELFTEST_CHECK(first_b == 5,
+                                   "and the fade at K+5, saw K+%d", first_b);
                 }
                 leaks = ToriRSServer_MapInstanceVarGet(handle, k_var_leaks);
                 /*
@@ -33058,19 +33358,30 @@ ToriRSServer_WorldSelftest(void)
                                 ToriRSServer_MapInstanceVarGet(handle, 77));
                     fprintf(stderr,
                             "  Maiden crabs: seen %d crab-ticks, gap %d -> %d (min %d), "
-                            "leaks %d, blood-on-platform %d, pool-under-player %d, "
-                            "pool-tiles-anywhere %d, hud %d\n",
+                            "leaks %d, trail-on-platform %d, pool-on-platform %d, "
+                            "pool-under-player %d, pools-landed %d, hud %d\n",
                             spawned, first_gap, last_gap, min_gap, leaks, on_body,
-                            pool_under_player, pool_any, hud);
+                            pool_on_body, pool_under_player, pool_any, hud);
                     SELFTEST_CHECK(on_body == 0,
-                                   "no blood pool may land on the Maiden's platform, "
+                                   "no blood trail may lie on the Maiden's platform, "
                                    "found %d",
                                    on_body);
+                    SELFTEST_CHECK(pool_on_body == 0,
+                                   "no blood pool may land on the Maiden's platform, "
+                                   "found %d of %d landings",
+                                   pool_on_body, pool_any);
                     SELFTEST_CHECK(pool_under_player > 0,
-                                   "she must throw a blood pool at the player's own "
-                                   "tile, saw it on %d of %d ticks (she put %d "
-                                   "pool-tile-ticks down anywhere in the arena)",
-                                   pool_under_player, 60, pool_any);
+                                   "she must throw a blood pool (graphic %d) at the "
+                                   "player's own tile, saw %d of %d landings in %d "
+                                   "ticks",
+                                   k_pool_spotanim, pool_under_player, pool_any, 60);
+                    SELFTEST_CHECK(pool_with_loc == 0,
+                                   "a thrown pool is graphic %d alone and places no "
+                                   "loc (32984 is a blood spawn's trail), found the "
+                                   "loc under %d of %d landings",
+                                   k_pool_spotanim, pool_with_loc, pool_any);
+                    if( pool_log_here )
+                        ToriRSServer_TicklogDisable();
                     /*
                      * And the top bar is showing her, with real numbers.
                      *
@@ -34120,7 +34431,11 @@ ToriRSServer_WorldSelftest(void)
          */
         {
             const int k_nylo_support = 8358;
-            const int k_room_ticks = 520;
+            /* 700, not the 520 it was: the room is now defended rather than
+             * idled (see "DEFEND THE SUPPORTS" below), and a defended solo room
+             * empties and drops Vasilias later than an idle one whose bigs
+             * vanished without splitting. */
+            const int k_room_ticks = 700;
             /* Local tiles, from tob.constant. Written here rather than read from
              * the content for the reason the cadence table gives: a test that
              * reads the constant the implementation reads agrees with any value.
@@ -34373,24 +34688,45 @@ ToriRSServer_WorldSelftest(void)
                          * not happen.
                          *
                          * Counted by SPAWN TILE rather than by how the room's
-                         * population moved: the corpse is reaped inside the same
-                         * two ticks and other nylocas detonate on their own
+                         * population moved: other nylocas detonate on their own
                          * schedule, so a net head count answers +-1 whatever the
                          * splits did. blert's six offsets from the parent's
                          * south-west tile are the definition, so they are the
                          * measurement.
                          *
-                         * Two ticks, and no wave can land in them: waves only
-                         * spawn on cycle tick 0, four ticks apart.
+                         * Counted on the tick the corpse is GONE. Since seam2
+                         * the splits arrive on the big's despawn tick, hp0 + 6
+                         * standing / + 7 walking (blert's death-timing table,
+                         * 759 killed bigs; tob_nylocas.rs2
+                         * `~tob_nylo_split_on_death`), so the harness waits for
+                         * the corpse on the death tile to leave, ten ticks at
+                         * most, rather than a fixed two.
                          */
                         static const struct { int dx, dz; } k_split[] = {
                             { -1, 0 }, { 0, 0 }, { 1, 0 }, { 0, 1 }, { 1, 1 }, { 2, 1 },
                         };
+                        int corpse = -1;
 
-                        for( int w = 0; w < 2; w++ )
+                        for( int n = 0; n < TORIRSSERVER_NPC_MAX; n++ )
+                        {
+                            const char* name;
+
+                            if( !srv->npcs[n].active || srv->npcs[n].hitpoints != 0 )
+                                continue;
+                            if( srv->npcs[n].x - base_x != death_lx ||
+                                srv->npcs[n].z - base_z != death_lz )
+                                continue;
+                            name = ToriRSServer_ContentSymbolName(TORIRSSERVER_PACK_NPC,
+                                                               srv->npcs[n].type);
+                            if( name && strstr(name, "_big_") != NULL )
+                                corpse = n;
+                        }
+                        for( int w = 0; w < 10; w++ )
                         {
                             selftest_tick(srv);
                             ToriRSServer_ScriptsRunDebugproc(srv, "tobstand");
+                            if( corpse < 0 || !srv->npcs[corpse].active )
+                                break;
                         }
                         for( int n = 0; n < TORIRSSERVER_NPC_MAX; n++ )
                         {
@@ -34509,6 +34845,53 @@ ToriRSServer_WorldSelftest(void)
                     }
                 }
 
+                /*
+                 * DEFEND THE SUPPORTS once the collapse has been measured. A
+                 * big that explodes on its own now leaves its two splits, as
+                 * the real one does (blert 15 of 15; seam2), so the no-kill solo
+                 * this loop used to be loses all four supports around room tick
+                 * 540 and Vasilias never lands - a raid nobody can clear without
+                 * killing nylocas. So from the collapse on, the harness kills
+                 * one every tick through the real kill path, a chewer
+                 * (an `incoming` one) first: what a team defending the supports does. Before it the
+                 * room is left alone, because `tobnylobreak` needs a support
+                 * with two chewers on it.
+                 */
+                if( collapse_tick >= 0 && boss_slot < 0 )
+                {
+                    int victim = -1;
+                    int victim_chews = 0;
+
+                    for( int n = 0; n < TORIRSSERVER_NPC_MAX && !victim_chews; n++ )
+                    {
+                        const char* name;
+
+                        if( !srv->npcs[n].active || srv->npcs[n].hitpoints <= 0 )
+                            continue;
+                        /* The supports carry a `tob_nylocas_` name too. */
+                        if( srv->npcs[n].type == k_nylo_support )
+                            continue;
+                        if( ToriRSServer_MapInstanceFind(srv->npcs[n].x, srv->npcs[n].z) != handle )
+                            continue;
+                        name = ToriRSServer_ContentSymbolName(TORIRSSERVER_PACK_NPC,
+                                                           srv->npcs[n].type);
+                        if( !name || strncmp(name, "tob_nylocas_", 12) != 0 )
+                            continue;
+                        if( strstr(name, "_incoming_") == NULL && strstr(name, "_fighting_") == NULL )
+                            continue;
+                        /* `incoming` is the pillar-bound form: a chewer. */
+                        if( strstr(name, "_incoming_") != NULL )
+                        {
+                            victim = n;
+                            victim_chews = 1;
+                        }
+                        else if( victim < 0 )
+                            victim = n;
+                    }
+                    if( victim >= 0 )
+                        ToriRSServer_CombatHitNpc(srv, victim, 0, srv->npcs[victim].hitpoints);
+                }
+
                 /* Vasilias' colour clock, once she is down. */
                 if( boss_slot >= 0 && srv->npcs[boss_slot].active )
                 {
@@ -34568,10 +34951,12 @@ ToriRSServer_WorldSelftest(void)
 
             fprintf(stderr,
                     "  Nylocas: wave 1 on room tick %d (%d spawns, %d on a lane tile), "
-                    "pillars %d -> %d, boss %d ticks later, %d colour changes "
-                    "(first %d, then %d..%d)\n",
+                    "pillars %d -> %d (%d standing), emptied on room tick %d, boss %d ticks later, "
+                    "%d colour changes (first %d, then %d..%d)\n",
                     wave1_tick - start_tick, wave1_count, wave1_on_lane, pillar_hp_start,
-                    pillar_hp_low, boss_tick - clear_tick, forms_seen, form_gap_first,
+                    pillar_hp_low, ToriRSServer_MapInstanceVarGet(handle, 14),
+                    clear_tick < 0 ? -1 : clear_tick - start_tick,
+                    boss_tick - clear_tick, forms_seen, form_gap_first,
                     form_gap_min, form_gap_max);
 
             /*
@@ -34622,8 +35007,10 @@ ToriRSServer_WorldSelftest(void)
                 int lx = srv->npcs[boss_slot].x - base_x;
                 int lz = srv->npcs[boss_slot].z - base_z;
 
-                SELFTEST_CHECK(lx == 29 && lz == 22,
-                               "she drops in the middle of the room, at (%d, %d)",
+                /* blert NPC_SPAWN 3294,4247 (her SW tile) in 18 of 18 rooms:
+                 * ^tob_vasilias_boss_lx/lz 30,23 since seam2 (was 29,22). */
+                SELFTEST_CHECK(lx == 30 && lz == 23,
+                               "she drops where blert records her landing, at (%d, %d)",
                                lx, lz);
                 /*
                  * M8: sixteen ticks after the last nylocas despawns, rounded up
@@ -35422,7 +35809,7 @@ ToriRSServer_WorldSelftest(void)
          *
          * WHAT THIS FOUND, and it is the finding of the stage: the requirement
          * is a MERGE of two sources and every prose account of it names one.
-         * The `.obj` overlay (`param=levelrequire`) is 857 objs and 1,254
+         * The `.obj` overlay (`levelrequire<N>=`) is 857 objs and 1,254
          * pairs; the cache's own `skillrequire`/`levelrequire` params are 639
          * FURTHER objs that no `.obj` file mentions — a rune scimitar's Attack
          * 40 among them. `~levelrequire_check` reads both, and this leg is what
@@ -36063,6 +36450,54 @@ ToriRSServer_WorldSelftest(void)
                                    ToriRSServer_Ids()->lootdrop_duration);
                     ToriRSServer_WorldGroundTake(srv, ground);
                 }
+            }
+        }
+
+        /*
+         * 5b. A stack of NOTES dropped underground is ONE pile of the whole
+         * stack on the tile.
+         *
+         * Priest in Peril drops five noted Rune essence under Paterdomus
+         * (3441,9898,0, priestperil dropNotes). A note's own cache record
+         * states no stackability -- `[cert_blankrune]` is `certlink` plus
+         * `certtemplate` -- so this is the obj table's genCert rule
+         * (torirs_server_objinfo.c: a note is stackable) carried through
+         * inv_dropslot: one pile of 5, not five piles of 1 and not nothing.
+         * Seam matthew-mbp-m4-b63-seam1 noted_essence_drop_leaves_no_ground_obj.
+         */
+        {
+            const int note = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "cert_blankrune");
+            const int note_x = 3441;
+            const int note_z = 9898;
+            int saved_x = player->x;
+            int saved_z = player->z;
+            int saved_level = player->level;
+            int note_slot = inv_first_free(player);
+            int ground = -1;
+
+            SELFTEST_CHECK(note >= 0, "cert_blankrune resolves (%d)", note);
+            SELFTEST_CHECK(note_slot >= 0, "a free backpack cell for the notes");
+            if( note >= 0 && note_slot >= 0 )
+            {
+                SELFTEST_CHECK(ToriRSServer_ObjInfo(note)->stackable,
+                               "a note is stackable though its record says nothing");
+                ToriRSServer_WorldTeleport(srv, 0, note_x, note_z);
+                inv_set(player, note_slot, note, 5);
+                selftest_opheld(srv, 5, note_slot);
+                SELFTEST_CHECK(player->inv[note_slot].obj_id == -1,
+                               "~dropslot empties the notes' cell (holds %d x%d)",
+                               player->inv[note_slot].obj_id, player->inv[note_slot].count);
+                ground = ToriRSServer_WorldGroundFind(srv, note_x, note_z, 0, note);
+                SELFTEST_CHECK(ground >= 0 && srv->ground[ground].count == 5,
+                               "and ONE pile of 5 notes lies on %d,%d,0 (slot %d, count %d)",
+                               note_x, note_z, ground,
+                               ground >= 0 ? srv->ground[ground].count : -1);
+                if( ground >= 0 )
+                    ToriRSServer_WorldGroundTake(srv, ground);
+                SELFTEST_CHECK(ToriRSServer_WorldGroundFind(srv, note_x, note_z, 0, note) < 0,
+                               "and no second pile of the notes is on that tile");
+                ToriRSServer_WorldTeleport(srv, saved_level, saved_x, saved_z);
+                selftest_ack_scene(srv);
             }
         }
 
@@ -37959,6 +38394,11 @@ ToriRSServer_WorldSelftest(void)
             npc->max_hitpoints = 200;
             npc->hitpoints = 200;
 
+            /* The tick log rides along (raid seam 1): it changes nothing the
+             * fight does, and this fight has every row kind a boss room
+             * leans on -- swings, hits, a retype, a free, a tile per tick. */
+            int log_start = ToriRSServer_TicklogEnable(srv, NULL);
+
             ToriRSServer_CombatEngage(srv, slot);
             SELFTEST_CHECK(player->combat_target == slot &&
                                player->interaction.kind == TORIRSSERVER_INTERACT_NPC,
@@ -38010,6 +38450,74 @@ ToriRSServer_WorldSelftest(void)
                            npc->hitpoints, hp_after_change);
 
             ToriRSServer_WorldNpcFree(srv, slot);
+
+            /* What the tick log saw of that fight. */
+            {
+                static struct ToriRSServerTicklogRow log_rows[4096];
+                int log_count = ToriRSServer_TicklogRead(0, log_rows, 4096);
+                int player_tiles = 0;
+                int hits_on_slot = 0;
+                int retypes = 0;
+                int frees = 0;
+                int starts = 0;
+                int tiles_in_order = 1;
+                int last_tile_tick = log_start;
+                uint32_t mark;
+
+                for( int i = 0; i < log_count; i++ )
+                {
+                    const struct ToriRSServerTicklogRow* row = &log_rows[i];
+
+                    if( row->kind == TORIRSSERVER_TICKLOG_START )
+                        starts++;
+                    if( row->kind == TORIRSSERVER_TICKLOG_PLAYER_TILE && row->a == player->pid )
+                    {
+                        /* One per tick, each a tick after the last. */
+                        if( row->tick != last_tile_tick + 1 )
+                            tiles_in_order = 0;
+                        last_tile_tick = row->tick;
+                        player_tiles++;
+                    }
+                    if( row->kind == TORIRSSERVER_TICKLOG_HIT_NPC && row->a == slot )
+                        hits_on_slot++;
+                    if( row->kind == TORIRSSERVER_TICKLOG_NPC_RETYPE && row->a == slot &&
+                        row->b == from_type && row->c == to_type )
+                        retypes++;
+                    if( row->kind == TORIRSSERVER_TICKLOG_NPC_FREE && row->a == slot )
+                        frees++;
+                }
+                fprintf(stderr,
+                        "  ticklog: %d row(s); %d player_tile over %d tick(s); %d hit_npc, "
+                        "%d npc_retype, %d npc_free on slot %d\n",
+                        log_count, player_tiles, srv->tick - log_start, hits_on_slot, retypes,
+                        frees, slot);
+                SELFTEST_CHECK(starts == 1 && log_count > 0 && log_rows[0].serial == 1,
+                               "the tick log opens with one start row, got %d of %d rows",
+                               starts, log_count);
+                SELFTEST_CHECK(player_tiles == srv->tick - log_start && tiles_in_order,
+                               "a player_tile row every tick: %d rows over %d ticks (in order "
+                               "%d)",
+                               player_tiles, srv->tick - log_start, tiles_in_order);
+                SELFTEST_CHECK(hits_on_slot > 0, "the swings that landed are hit_npc rows, got %d",
+                               hits_on_slot);
+                SELFTEST_CHECK(retypes == 1, "the transform is one npc_retype row, got %d",
+                               retypes);
+                SELFTEST_CHECK(frees == 1, "and the free is one npc_free row, got %d", frees);
+                mark = ToriRSServer_TicklogMark("selftest\tmark");
+                SELFTEST_CHECK(mark == (uint32_t)log_count + 1 &&
+                                   ToriRSServer_TicklogRead((uint32_t)log_count, log_rows, 1) ==
+                                       1 &&
+                                   log_rows[0].kind == TORIRSSERVER_TICKLOG_MARK &&
+                                   strcmp(log_rows[0].label, "selftest mark") == 0 &&
+                                   log_rows[0].tick == srv->tick,
+                               "a mark is the next serial at this tick, label kept: serial %u "
+                               "label '%s'",
+                               (unsigned)mark, log_rows[0].label);
+                ToriRSServer_TicklogDisable();
+                SELFTEST_CHECK(!ToriRSServer_TicklogEnabled(srv) &&
+                                   ToriRSServer_TicklogMark("off") == 0,
+                               "and a disabled log records nothing");
+            }
             /* Put the level back by hand, as the cow section does:
              * `ToriRSServer_CombatSetLevel` would re-derive the xp from it and
              * the sections below read both. */
@@ -45303,6 +45811,16 @@ ToriRSServer_WorldSelftest(void)
             const int rocks_r = ToriRSServer_ContentSymbol(
                 TORIRSSERVER_PACK_LOC, "inferno_collapsing_wall_side_right_state3");
             int rocks_tick = -1;
+            /* ::zuk stands the player on ^inferno_player_zuk_lz, and the seal's
+             * locs sit at ^inferno_rock_w_lz (the flanks) and
+             * ^inferno_glyph_loc_lz (the slab): read all three rather than pin
+             * the start tile, which moved from local z 40 to 44 with Blert's
+             * wave-69 start (zuk_glyph_shield.player_start, WZ-START). */
+            int const zuk_lz = ToriRSServer_ContentConstantInt("inferno_player_zuk_lz", -1);
+            int const rock_dz =
+                ToriRSServer_ContentConstantInt("inferno_rock_w_lz", -1) - zuk_lz;
+            int const slab_dz =
+                ToriRSServer_ContentConstantInt("inferno_glyph_loc_lz", -1) - zuk_lz;
             int change_tick = -1;
             int anim_tick = -1;
             int removal_tick = -1;
@@ -45444,7 +45962,7 @@ ToriRSServer_WorldSelftest(void)
                  * instead made the measurement report change_tick whenever the
                  * wall went first, which is exactly the case under test. */
                 if( ToriRSServer_SceneFindLocId(
-                        player->x - 1, player->z + 11, player->level, middle) >= 0 )
+                        player->x - 1, player->z + slab_dz, player->level, middle) >= 0 )
                     mid_seen = 1;
                 else if( mid_seen && mid_removal_tick < 0 )
                     mid_removal_tick = tick;
@@ -45476,16 +45994,16 @@ ToriRSServer_WorldSelftest(void)
                  * content now uses `~inferno_coord`, so the rubble lands where
                  * the wall it replaces was rather than a storey above it. */
                 if( rocks_tick < 0 &&
-                    ToriRSServer_SceneFindLocId(player->x - 3, player->z + 12,
+                    ToriRSServer_SceneFindLocId(player->x - 3, player->z + rock_dz,
                                               player->level, rocks_l) >= 0 &&
-                    ToriRSServer_SceneFindLocId(player->x + 2, player->z + 12,
+                    ToriRSServer_SceneFindLocId(player->x + 2, player->z + rock_dz,
                                               player->level, rocks_r) >= 0 )
                     rocks_tick = tick;
                 if( anim_tick >= 0 && removal_tick < 0 &&
                     ToriRSServer_SceneFindLocId(
-                        player->x - 3, player->z + 12, player->level, left) < 0 &&
+                        player->x - 3, player->z + rock_dz, player->level, left) < 0 &&
                     ToriRSServer_SceneFindLocId(
-                        player->x + 2, player->z + 12, player->level, right) < 0 )
+                        player->x + 2, player->z + rock_dz, player->level, right) < 0 )
                     removal_tick = tick;
 
                 SELFTEST_CHECK(!(tick_left && (tick_left_seq || tick_right_seq)) &&
@@ -45619,9 +46137,9 @@ ToriRSServer_WorldSelftest(void)
                            cam_reset_tick, rocks_tick);
             {
                 int west_slot = ToriRSServer_SceneFindLocId(
-                    player->x - 3, player->z + 12, player->level, rocks_l);
+                    player->x - 3, player->z + rock_dz, player->level, rocks_l);
                 int east_slot = ToriRSServer_SceneFindLocId(
-                    player->x + 2, player->z + 12, player->level, rocks_r);
+                    player->x + 2, player->z + rock_dz, player->level, rocks_r);
                 struct ToriRSServerSceneLoc* west = ToriRSServer_SceneLoc(west_slot);
                 struct ToriRSServerSceneLoc* east = ToriRSServer_SceneLoc(east_slot);
                 SELFTEST_CHECK(west && west->angle == 3,
@@ -46130,7 +46648,8 @@ ToriRSServer_WorldSelftest(void)
                             { "north-east", 39, 40 },
                         };
                         int base_x = player->x - 31; /* ^inferno_player_zuk_lx */
-                        int base_z = player->z - 40; /* ^inferno_player_zuk_lz */
+                        int base_z = player->z - ToriRSServer_ContentConstantInt(
+                                                     "inferno_player_zuk_lz", -1);
                         int home_x = xil->x;
                         int home_z = xil->z;
                         int glyph_hp;
@@ -60484,6 +61003,175 @@ ToriRSServer_WorldSelftest(void)
     }
 
     selftest_quest_imp(srv, player);
+    selftest_reset_world(srv, player, 402, 402);
+
+    fprintf(stderr, "ToriRSServer selftest: ::resetcharacter puts a live character back to clean\n");
+    {
+        /*
+         * raid seam25 starting_character_state: the Scripts tab's "Reset
+         * character" start. Dress, fill, boost, drain, poison, skull, freeze,
+         * teleblock and stamina a player, arm an effect timer, then reset and
+         * read every one back. Then `fixture fresh_lumbridge` in place: the
+         * fixture's tile and varps, a quest's progress gone, the starter kit
+         * and Hitpoints 10 that a first login's ~newplayer_setup gives. Last of
+         * the suite because the fixture half teleports the player.
+         */
+        int loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir());
+
+        if( !loaded )
+            loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir_from_src());
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            struct ToriRSServerPlayer* p = srv->active_player;
+            const struct ToriRSServerIds* reset_ids = ToriRSServer_Ids();
+            struct ToriRSServerContainer* backpack;
+            struct ToriRSServerContainer* worn;
+            const struct SSVM_Script* stamina_timer;
+            int varp_poison = ToriRSServer_WorldVarp("varp102_poison");
+            int varp_skull = ToriRSServer_WorldVarp("varp5766_pk_skull");
+            int varp_frozen = ToriRSServer_WorldVarp("varp5754_frozen");
+            int varp_teleblock = ToriRSServer_WorldVarp("varp6447_teleblock");
+            int varp_stamina = ToriRSServer_WorldVarp("varp6221_stamina_ticks_left");
+            int varp_special = ToriRSServer_WorldVarp("varp300_sa_energy");
+            int varp_cook = ToriRSServer_WorldVarp("varp29_cookquest");
+            int varp_tutorial = ToriRSServer_WorldVarp("varp281_tutorial");
+            int varbit_stamina = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT,
+                                                            "varb25_stamina_active");
+            int timer_slot = -1;
+            int filled = 0;
+            int kit = 0;
+
+            assert(p);
+            ToriRSServer_WorldSetActive(srv, p);
+            backpack = ToriRSServer_ContainerResolve(srv, p, reset_ids->inv_backpack);
+            worn = ToriRSServer_ContainerResolve(srv, p, reset_ids->inv_worn);
+            SELFTEST_CHECK(backpack != NULL, "the player has a backpack");
+            SELFTEST_CHECK(worn != NULL, "the player has worn slots");
+            SELFTEST_CHECK(varp_poison >= 0 && varp_skull >= 0 && varp_frozen >= 0 &&
+                               varp_teleblock >= 0 && varp_stamina >= 0 && varp_special >= 0 &&
+                               varp_cook >= 0 && varp_tutorial >= 0 && varbit_stamina >= 0,
+                           "the pack declares every effect var the stanza sets");
+            stamina_timer = SSVM_ProviderGetByName(srv->scripts, "[timer,stamina_expire]");
+            SELFTEST_CHECK(stamina_timer != NULL, "the pack has [timer,stamina_expire]");
+            if( backpack && worn && varp_poison >= 0 && varp_skull >= 0 && varp_frozen >= 0 &&
+                varp_teleblock >= 0 && varp_stamina >= 0 && varp_special >= 0 &&
+                varp_cook >= 0 && varp_tutorial >= 0 && varbit_stamina >= 0 && stamina_timer )
+            {
+                /* Dress, fill, boost, drain, poison, skull, freeze, teleblock. */
+                ToriRSServer_ContainerSet(worn, 3, 1277, 1);  /* bronze sword */
+                ToriRSServer_ContainerSet(worn, 5, 1171, 1);  /* wooden shield */
+                for( int slot = 0; slot < backpack->slots; slot++ )
+                    ToriRSServer_ContainerSet(backpack, slot, 1925, 1); /* bucket */
+                ToriRSServer_CombatSetLevel(p, TORIRSSERVER_STAT_ATTACK, 40);
+                ToriRSServer_CombatSetLevel(p, TORIRSSERVER_STAT_DEFENCE, 40);
+                ToriRSServer_CombatSetLevel(p, TORIRSSERVER_STAT_PRAYER, 43);
+                ToriRSServer_CombatSetLevel(p, TORIRSSERVER_STAT_HITPOINTS, 50);
+                p->stat_boosted[TORIRSSERVER_STAT_ATTACK] = 52;
+                p->stat_boosted[TORIRSSERVER_STAT_DEFENCE] = 31;
+                p->stat_boosted[TORIRSSERVER_STAT_PRAYER] = 2;
+                p->hitpoints = 7;
+                ToriRSServer_CombatSyncHitpoints(p);
+                ToriRSServer_WorldSetVarpOn(srv, p, varp_poison, 20);
+                ToriRSServer_WorldSetVarpOn(srv, p, varp_skull, 500);
+                ToriRSServer_WorldSetVarpOn(srv, p, varp_frozen, srv->tick + 50);
+                ToriRSServer_WorldSetVarpOn(srv, p, varp_teleblock, srv->tick + 500);
+                ToriRSServer_WorldSetVarpOn(srv, p, varp_stamina, 200);
+                ToriRSServer_WorldSetVarpOn(srv, p, varp_special, 250);
+                ToriRSServer_WorldSetVarpOn(srv, p, varp_cook, 2);
+                ToriRSServer_VarbitSetOn(srv, p, varbit_stamina, 1);
+                p->run_energy = 0;
+                p->stun_ticks = 5;
+                for( int i = 0; i < TORIRSSERVER_TIMER_MAX && timer_slot < 0; i++ )
+                    if( !p->timers[i].active )
+                        timer_slot = i;
+                SELFTEST_CHECK(timer_slot >= 0, "a free timer slot for the stamina timer");
+                if( timer_slot >= 0 )
+                {
+                    p->timers[timer_slot].active = 1;
+                    p->timers[timer_slot].script_id = stamina_timer->id;
+                    p->timers[timer_slot].interval = 10;
+                    p->timers[timer_slot].clock = srv->tick;
+                }
+
+                SELFTEST_CHECK(ToriRSServer_RunCheatLadder(srv, p, "resetcharacter") ==
+                                   TORIRSSERVER_TRIGGER_RAN,
+                               "::resetcharacter runs");
+                for( int slot = 0; slot < backpack->slots; slot++ )
+                    filled += backpack->items[slot].obj_id >= 0;
+                SELFTEST_CHECK(filled == 0, "the backpack is empty after the reset, %d left", filled);
+                filled = 0;
+                for( int slot = 0; slot < worn->slots; slot++ )
+                    filled += worn->items[slot].obj_id >= 0;
+                SELFTEST_CHECK(filled == 0, "every worn slot is empty after the reset, %d left",
+                               filled);
+                for( int slot = 0; slot < backpack->slots; slot++ )
+                    SELFTEST_CHECK(p->inv[slot].obj_id != 1277 && p->inv[slot].obj_id != 1171,
+                                   "worn gear was removed, not moved to backpack slot %d", slot);
+                SELFTEST_CHECK(p->stat_boosted[TORIRSSERVER_STAT_ATTACK] == 40,
+                               "an Attack boost is gone, %d", p->stat_boosted[TORIRSSERVER_STAT_ATTACK]);
+                SELFTEST_CHECK(p->stat_boosted[TORIRSSERVER_STAT_DEFENCE] == 40,
+                               "a Defence drain is gone, %d", p->stat_boosted[TORIRSSERVER_STAT_DEFENCE]);
+                SELFTEST_CHECK(p->stat_boosted[TORIRSSERVER_STAT_PRAYER] == 43,
+                               "Prayer is full, %d", p->stat_boosted[TORIRSSERVER_STAT_PRAYER]);
+                SELFTEST_CHECK(p->hitpoints == 50, "Hitpoints are full, %d", p->hitpoints);
+                SELFTEST_CHECK(p->stat_level[TORIRSSERVER_STAT_ATTACK] == 40,
+                               "the base level is left alone, %d", p->stat_level[TORIRSSERVER_STAT_ATTACK]);
+                SELFTEST_CHECK(p->varps[varp_poison] == 0, "poison cured, %d", p->varps[varp_poison]);
+                SELFTEST_CHECK(p->varps[varp_skull] == 0, "skull cleared, %d", p->varps[varp_skull]);
+                SELFTEST_CHECK(p->varps[varp_frozen] == 0, "freeze cleared, %d", p->varps[varp_frozen]);
+                SELFTEST_CHECK(p->varps[varp_teleblock] == 0, "teleblock cleared, %d",
+                               p->varps[varp_teleblock]);
+                SELFTEST_CHECK(p->varps[varp_stamina] == 0, "stamina ticks cleared, %d",
+                               p->varps[varp_stamina]);
+                SELFTEST_CHECK(ToriRSServer_VarbitGet(p, varbit_stamina) == 0,
+                               "the stamina varbit cleared");
+                SELFTEST_CHECK(p->varps[varp_special] == 1000, "special attack full, %d",
+                               p->varps[varp_special]);
+                SELFTEST_CHECK(p->varps[varp_cook] == 2, "quest progress is left alone, %d",
+                               p->varps[varp_cook]);
+                SELFTEST_CHECK(timer_slot < 0 || !p->timers[timer_slot].active,
+                               "the stamina timer is dropped");
+                SELFTEST_CHECK(p->run_energy == TORIRSSERVER_RUN_ENERGY_MAX, "run energy full, %d",
+                               p->run_energy);
+                SELFTEST_CHECK(p->stun_ticks == 0, "the stun is gone, %d", p->stun_ticks);
+
+                /* A wrong argument is refused, not read as a plain reset. */
+                SELFTEST_CHECK(ToriRSServer_RunCheatLadder(srv, p, "resetcharacter sideways") ==
+                                   TORIRSSERVER_TRIGGER_FAILED,
+                               "::resetcharacter with an unknown argument is refused");
+                SELFTEST_CHECK(ToriRSServer_RunCheatLadder(srv, p,
+                                   "resetcharacter fixture no_such_fixture") ==
+                                   TORIRSSERVER_TRIGGER_FAILED,
+                               "::resetcharacter fixture <missing> is refused");
+
+                /* The fixture in place. */
+                ToriRSServer_ContainerSet(backpack, 0, 1925, 1);
+                SELFTEST_CHECK(ToriRSServer_RunCheatLadder(srv, p,
+                                   "resetcharacter fixture fresh_lumbridge") ==
+                                   TORIRSSERVER_TRIGGER_RAN,
+                               "::resetcharacter fixture fresh_lumbridge runs (cwd is the repo root)");
+                SELFTEST_CHECK(p->x == 3206 && p->z == 3233 && p->level == 0,
+                               "the fixture's tile, got %d,%d,%d", p->x, p->z, p->level);
+                SELFTEST_CHECK(p->varps[varp_tutorial] == 1000, "the fixture's tutorial varp, %d",
+                               p->varps[varp_tutorial]);
+                SELFTEST_CHECK(p->varps[varp_cook] == 0,
+                               "a fresh account has no quest progress, %d", p->varps[varp_cook]);
+                SELFTEST_CHECK(p->stat_level[TORIRSSERVER_STAT_ATTACK] == 1,
+                               "a fresh account's Attack is 1, %d", p->stat_level[TORIRSSERVER_STAT_ATTACK]);
+                SELFTEST_CHECK(p->stat_level[TORIRSSERVER_STAT_HITPOINTS] == 10 && p->hitpoints == 10,
+                               "a fresh account's Hitpoints are 10 (~newplayer_stats), %d/%d",
+                               p->hitpoints, p->stat_level[TORIRSSERVER_STAT_HITPOINTS]);
+                for( int slot = 0; slot < backpack->slots; slot++ )
+                    kit += backpack->items[slot].obj_id >= 0 && backpack->items[slot].obj_id != 1925;
+                SELFTEST_CHECK(kit > 0, "the starter kit is in the backpack (~newplayer_inv), %d", kit);
+            }
+            ToriRSServer_ScriptsFree(srv);
+        }
+    }
     selftest_reset_world(srv, player, 402, 402);
 
     /* Across the WHOLE suite — see the two counters' fields. Asserted here

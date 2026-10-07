@@ -1,0 +1,27 @@
+{{Infobox Item
+|name = Eldritch ashes
+|image = [[File:Eldritch ashes.png]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Drop
+|examine = A heap of strange ashes.
+|value = 10
+|alchable = No
+|weight = 0.050
+|id = 27223
+}}
+[[File:Eldritch ashes detail.png|left|130px]]
+'''Eldritch ashes''' are [[Akkha]]'s remains that can be obtained in the [[Tombs of Amascut]]; to obtain it, the player has to deal the most damage to him.
+
+It is given to the [[High Priest (Sophanem)|High Priest of Sophanem]] after having spoken to the [[Bank Camel]], as part of obtaining the [[Ancient key (Tombs of Amascut)|ancient key]] from them. Doing so requires having completed the [[miniquest]] [[Into the Tombs]].
+
+==Item sources==
+{{Drop sources|Eldritch ashes}}
+
+{{Tombs of Amascut}}

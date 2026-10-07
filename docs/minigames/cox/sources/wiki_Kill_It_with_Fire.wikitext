@@ -1,0 +1,21 @@
+{{Infobox Combat Achievement
+|name = Kill It with Fire
+|image = [[File:Ice demon.png|100px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Finish off the Ice Demon with a fire spell.
+|tier = Elite
+|monster = Chambers of Xeric
+|type = Restriction
+|id = 321
+|leagueRegion = Kourend
+}}
+'''Kill It with Fire''' is an [[Combat Achievements/Elite|elite combat achievement]] which requires the player to finish the [[ice demon]] off with a fire spell.
+
+'''For solo-run attempts, be sure raid scaling is set to "0" for the easiest fight, as scaling a raid to "1" doubles boss health.'''
+
+==Other tasks==
+{{Combat Achievements list|Chambers of Xeric}}
+
+{{Combat Achievements}}

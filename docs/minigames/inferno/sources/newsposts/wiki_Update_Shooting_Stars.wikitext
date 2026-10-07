@@ -1,0 +1,398 @@
+{{Update|date=17 March 2021|link=https://secure.runescape.com/m=news/shooting-stars?oldschool=1|category=game}}
+[[File:Shooting Stars newspost.png|right]]
+{{clear}}
+
+''We’re looking to the skies this week for the arrival of Shooting Stars - a blast from the past RuneScape activity from 2008 that’s been brought back and Old School-ified. We’ve also tweaked a few demons and devils and made adjustments to the Corporeal Beast. Cosmic!''
+
+{{ToC}}
+
+==Issues and Hotfixes (17th March)==
+
+{|class=wikitable style="text-align:center; width:665px;"
+!What You Said
+!What We're Doing
+|-
+|'''(11:35 GMT)''' Reports of telescopes not work with Shooting Stars content in the following house styles: Twisted, Hosidius and Christmas. || '''(11:55 GMT)''' HOTFIXED: Players with all house styles can use the telescope to access Shooting Stars locations.
+|-
+|'''(11:40 GMT)''' Reports of the Corporeal Beast not giving players combat XP. || '''(12:00 GMT)''' HOTFIXED: Players will now receive combat XP when fighting the Corporeal Beast.
+|-
+|'''(11:45 GMT)''' Reports of players world hopping and crashing other players at corp, leaving them unable to fight. || '''(12:25 GMT)''' The timer has been reduced from 10 minutes to 3 minutes to make finding an open world easier.<br>'''(12:33 GMT)''' The timer has been reduced from 10 minutes to 3 minutes to make finding an open world easier.
+|}
+
+==Shooting Stars==
+[[File:Shooting Stars (1).png|centre|600px]]
+
+
+Shooting Stars are landing all across Gielinor! These wondrous objects can be mined for rewards, and players can use telescopes to figure out when and where they might land. This is one of the new types of activity we're calling 'Distraction and Diversion' (Treasure Trails and Champions Challenge are also now in this category, rather than being classed as minigames).
+
+On every world, a Shooting Star will fall at a random spot selected from a predetermined list. This happens roughly every two hours, with a variation of up to 15 minutes to stop them from being ''too'' predictable. Read on to find out how to track them, and why it's worth the chase...
+
+===A Star (Hunter) Is Born===
+A lot of you will find Stars by just happening upon them on your travels. However, dedicated hunters can use the telescope in their Player Owned House to determine the rough landing location. Different telescopes will offer varying levels of accuracy.
+
+Sounds easy? Actually, your telescopes will only point to the general region where a Star will fall, so you still need to search for the exact spot.
+
+===Telescopes===
+{| class="wikitable" style="width:665px; text-align:center;"
+!Telescope
+!Window
+!Example
+|-
+|Oak
+|24 minutes
+|[[File:Shooting Stars (2).png|centre|367px]]
+|-
+|Teak
+|9 minutes
+|[[File:Shooting Stars (3).png|centre|367px]]
+|-
+|Mahogany
+|2 minutes
+|[[File:Shooting Stars (4).png|centre|367px]]
+|}
+
+[[File:Shooting Stars (5).jpg|centre|550px]]
+
+{{Collapsed section|18|Landing Sites}}
+
+Here's a list of the assorted landing sites. You'll notice that a lot of them are near Banks or Mining spots - handy! We want this update to complement your gameplay as much as possible.
+
+{| class="wikitable" style="width:450px; text-align:center;"
+!Telescope
+!Window
+|-
+|Misthalin || Varrock (South East)
+|-
+|Misthalin || Varrock (South West)
+|-
+|Misthalin || Lumbridge Swamp (South East)
+|-
+|Misthalin || Varrock (East Bank)
+|-
+|Misthalin || Lumbridge Swamp (South West)
+|-
+|Misthalin || Draynor (Bank)
+|-
+|Kharidian Desert || Al Kharid (North)
+|-
+|Kharidian Desert || Uzer (North West)
+|-
+|Kharidian Desert || Desert (Quarry)
+|-
+|Kharidian Desert || Sophanem (North)
+|-
+|Kharidian Desert || Nardah (Bank)
+|-
+|Kharidian Desert || Duel Arena (Bank)
+|-
+|Kharidian Desert || Al Kharid (Bank)
+|-
+|Wilderness || Pirates' Hideout (South East)
+|-
+|Wilderness || Lava Maze (North)
+|-
+|Wilderness || Bandit Camp (North East)
+|-
+|Wilderness || Dark Warriors' Fortress (South)
+|-
+|Wilderness || Edgeville (North)
+|-
+|Wilderness || Resource Area
+|-
+|Wilderness || Mage Arena (Bank)
+|-
+|Asgarnia || Rimmington (North East)
+|-
+|Asgarnia || Crafting Guild
+|-
+|Asgarnia || Falador (West)
+|-
+|Asgarnia || Mining Guild
+|-
+|Asgarnia || Dwarven Mine
+|-
+|Asgarnia || Taverley (North West)
+|-
+|Crandor or Karamja || Crandor (South West)
+|-
+|Crandor or Karamja || Brimhaven (North West)
+|-
+|Crandor or Karamja || Brimhaven (South West)
+|-
+|Crandor or Karamja || Tai Bwo Wannai (South East)
+|-
+|Crandor or Karamja || Shilo Village (North West)
+|-
+|Crandor or Karamja || Crandor (North West)
+|-
+|Fremennik Lands or Lunar Isle || Keldagrim (South)
+|-
+|Fremennik Lands or Lunar Isle || Rellekka (North East)
+|-
+|Fremennik Lands or Lunar Isle || Miscellania (North)
+|-
+|Fremennik Lands or Lunar Isle || Jatizso (North West)
+|-
+|Fremennik Lands or Lunar Isle || Neitiznot (North East)
+|-
+|Fremennik Lands or Lunar Isle || Lunar Isle (North East)
+|-
+|Piscatoris or Gnome Stronghold || Piscatoris (South)
+|-
+|Piscatoris or Gnome Stronghold || Gnome Stronghold (South Bank)
+|-
+|Piscatoris or Gnome Stronghold || Gnome Stronghold (North Bank)
+|-
+|Tirannwn || Lletya (Bank)
+|-
+|Tirannwn || Gwenith (West)
+|-
+|Tirannwn || Prifddinas (South)
+|-
+|Tirannwn || Isafdar (South East)
+|-
+|Tirannwn || Arandar (South West)
+|-
+|Kandarin || Coal Trucks
+|-
+|Kandarin || Ardougne (North East)
+|-
+|Kandarin || Ardougne (South)
+|-
+|Kandarin || Port Khazard (South West)
+|-
+|Kandarin || Yanille (Bank)
+|-
+|Kandarin || Catherby (Bank)
+|-
+|Fossil Island or Mos Le'Harmless || Mos Le'Harmless (Bank)
+|-
+|Fossil Island or Mos Le'Harmless || Museum Camp (East)
+|-
+|Fossil Island or Mos Le'Harmless || Volcanic Mine
+|-
+|Feldip Hills and the Isle of Souls || Myths' Guild (North East)
+|-
+|Feldip Hills and the Isle of Souls || Feldip Hills (Centre)
+|-
+|Feldip Hills and the Isle of Souls || Corsair Cove (Bank)
+|-
+|Feldip Hills and the Isle of Souls || Myths' Guild (Bank)
+|-
+|Feldip Hills and the Isle of Souls || Feldip Hills (North East)
+|-
+|Feldip Hills and the Isle of Souls || Isle of Souls Mine
+|-
+|Kebos Lowlands || Kebos Swamp( North West)
+|-
+|Kebos Lowlands || Mount Karuulm (West)
+|-
+|Kebos Lowlands || Mount Quidamortem (Bank)
+|-
+|Kebos Lowlands || Mount Karuulm (Bank)
+|-
+|Great Kourend || Hosidius (South)
+|-
+|Great Kourend || Kourend Castle (South West)
+|-
+|Great Kourend || Port Piscarilius (South West)
+|-
+|Great Kourend || Arceuus (North East)
+|-
+|Great Kourend || Lovakengj (North West)
+|-
+|Great Kourend || Lovakengj (Bank)
+|-
+|Morytania || Canifis (Bank)
+|-
+|Morytania || Burgh de Rott (Bank)
+|-
+|Morytania || Haunted Mine
+|-
+|Morytania || Ver Sinhaza (Bank)
+|-
+|Morytania || Darkmeyer (Essence Mine)
+|}
+
+{{Collapsed section end}}
+
+===F2P Stars===
+Shooting Stars was originally for RuneScape members only, but in Old School they will land on F2P worlds too! However, without access to a telescope, players will have to find Stars by chance. Additionally, Stars may still land in non-F2P areas on F2P worlds, rendering them out of reach.
+
+Stars will offer '''50%''' of the usual value on F2P worlds, and as the Reward Shop is not available, XP will be the only benefit. However, Stardust (see next section) will still be given on F2P worlds. It's a good idea to save it up ready to be used should you ever decide to become a member!
+
+===Mining Stars===
+Once a Star has landed, it is ready to be mined.
+
+The landing times of the '''last five Stars''' will also be listed on a board in the Observatory, along with the names of the players that found them.
+
+Fallen Stars come in nine different sizes, and a Star can be any size when it lands. Each has a different Mining Level requirement calculated at the '''size x10'''.
+
+Mining any Star will reward players with Stardust, an untradeable currency that can be used to purchase a variety of untradeable rewards. Each size can be mined for a different amount, and once depleted it will shrink to a smaller size. Every time some Stardust is mined, Mining XP is awarded as well as the chance to also receive gems, clue geodes and the mining pet.
+
+===Star Sizes===
+{| class="wikitable" style="width:650px; text-align:center;"
+!Size || Mining Requirement || Dust Available || XP per Dust || XP per Dust in the original RuneScape
+|-
+|9 || 90 || 15 || 168 || 210
+|-
+|8 || 80 || 40 || 116 || 145
+|-
+|7 || 70 || 40 || 91 || 114
+|-
+|6 || 60 || 80 || 57 || 71
+|-
+|5 || 50 || 175 || 38 || 47
+|-
+|4 || 40 || 250 || 26 || 32
+|-
+|3 || 30 || 430 || 23 || 29
+|-
+|2 || 20 || 700 || 20 || 25
+|-
+|1 || 10 || 1200 || 11 || 14
+|}
+
+==Rewards==
+In addition to all the lovely Mining XP, players can also use their Stardust to buy rewards! Dusuri, a Dwarf found in Falador just outside the Mining Guild will happily take your Stardust in exchange for items. He appears on both P2P and F2P worlds.
+
+===Celestial Ring===
+This untradeable ring will give a hidden '''Mining boost of +4''' when worn. This stacks with other invisible boosts. It will also be chargeable with Stardust. Each Stardust will add '''one charge up''' to a max of '''10,000 charges'''. When charged, the ring will have a '''1/10 chance''' of giving an extra ore when mining, and this extra ore will reward the normal XP amount when mined. Extra ore can emerge at any rock where the Mining Skillcape has a chance of giving it. Every time ore is mined from a suitable rock, a charge will be lost from the ring.
+
+The ring can also be combined with an elven signet to create the Celestial Signet, which grants players the effects of both items. This will require 70 Crafting and Smithing, 100 Crystal Shards and 1,000 Stardust. Players without the requirements can pay Conwenna or Reese an extra 50 crystal shards to combine the items for them. This process is '''not reversible''', and the combined ring would be untradeable.
+
+===Star Fragment===
+These can be used on any piece of the Prospector Outfit to recolour a specific piece gold.
+
+[[File:Shooting Stars (6).png|centre|600px]]
+
+===Bag Full of Gems===
+Contains gems - but which ones? Works like any other [[Bag full of gems|Bag Full of Gems]].
+
+===Soft Clay Pack===
+A pack containing 100 pieces of soft clay. Works like any other [[Soft clay pack|Soft Clay Pack]].
+
+==Bolt Pouch Update==
+After successful polling, we are updating the Bolt Pouch interact! These tweaks should make it much more user-friendly:
+* You no longer need to right-click an item in the Pouch to remove it - you can simply left-click/tap.
+* To wear bolts from the Pouch, just drag and drop them into the current ammo slot.
+* There is a new slot in the Pouch called Extra Ammo, in your worn equipment tab above your normal ammo. You can left-click/tap to switch between your worn bolts and extra bolts without opening the pouch itself. Fewer clicks to switch ammo - nice!
+* The Bolt Pouch now works similarly to items like the Rune Pouch. Upon your character's death, the Bolt Pouch can be picked up with the stored bolts emptied into the gravestone. If the player dies during PvM and below level 20 Wilderness, the bolt pouch contents are emptied into the gravestone and the bolt pouch is preserved. If the player dies during PvM but above level 20 Wilderness, the pouch is destroyed and the contents emptied into the gravestone. On a PvP death, the pouch is destroyed and a coin is given to the player, along with all the bolts. If the pouch is destroyed, you'll be able to pick up another one from Hirko in Keldagrim.
+* The following items can now be added to the bolt pouch:
+** Grapple (one per slot).
+** Bolt Racks.
+
+==Poll 74 Changes==
+[[File:Shooting Stars (7).png|centre|600px]]
+
+
+We've made some changes based on the results of Poll 74!
+
+The following demon-like monsters have been tagged as demons:
+* Bloodveld (all variants)
+* Icefiends
+* Imps
+* Waterfiends
+* Pyrefiends (including superiors)
+* Pyrelords (including superiors)
+* Porazdir
+* Most hellhound types:
+** Unique hellhounds like Cerberus and Bouncer are included in this
+** Undead hellhounds (skeletal, ghost etc) are not included
+
+There is now a small chance of receiving bird's egg nests when emptying a full birdhouse.
+
+Thermonuclear Smoke Devil has a reduced chance of dropping Tinderboxes, Bullseye Lanterns, Pure essence and Kebabs.
+
+Thermonuclear Smoke Devil now has a tertiary roll for the Jar of Smoke.
+
+Players can now make Dark Flippers! Visit Patchy the pirate in Mos Le'Harmless to combine the Dark Claw from Skotizo and Flippers from Mogres!
+
+==Corporeal Beast==
+[[File:Shooting Stars (8).png|centre|600px]]
+
+
+* When Corporeal Beast begins additional heal regeneration in group sizes of eight or more, this now scales from a lower base value.
+* Additionally, the Corporeal Beast will no longer award loot to Iron-players if it has attacked another player. If this happens, you'll be able to tell because a brazier will be lit outside.
+* These changes were implemented to better enforce the Ironman mode, which is about solo-only play. Apologies for not doing this sooner - we acknowledge that this change has come some time after the launch of Corporeal Beast. In future we plan to make more changes to bring the mode closer to where we think it should be!
+* In addition to this, the Corporeal Beast will be reset if it has neither attacked or been attacked by another player for 10 minutes.
+* The Corporeal beast now has a tertiary roll for the Jar of Spirits.
+
+==Castle Wars==
+[[File:Shooting Stars (9).png|centre|600px]]
+
+
+Back in November we proposed some Castle Wars tweaks in the Soul Wars and Minigames poll. Since then we've been in discussion with the Castle Wars community, and this week's update brings the following changes...
+* Potion supply tables have been placed in the starting room for each respective game in Castle Wars.
+* A new notification has been added to the game, directing players to Castle Wars worlds.
+* Players can no longer trade members of the opposite team.
+* Players may no longer hop worlds and re-join Castle Wars games (logging in and out in the same world remains unaffected).
+
+==Clan Hall Concepts==
+We recently showcased the progress we've made on the Clans system, and today we've got a quick update about Clan Halls. These are private areas just for your Clan, and can be accessed through a portal in the Hub.
+
+We've got three options for their theme which are:
+* Crystalline, based on the Prifddinas style.
+* Gothic Mansion, based on the Darkmeyer style.
+* Generic medieval fantasy from the western hemisphere, e.g. a castle or country house.
+
+[[File:Shooting Stars (10).png|thumb|centre|600px|''Theme A: Crystaline/Prifddinas style.'']]
+
+[[File:Shooting Stars (11).png|thumb|centre|600px|''Theme B: Gothic/Darkmeyer style.'']]
+
+[[File:Shooting Stars (12).png|thumb|centre|600px|''Theme C: Medieval Fantasy style.'']]
+
+
+Which style will make it into the final Clans rework? That's up to you! We'll be opening an in-game poll shortly, so let us know your favourite.
+
+We'll only be able to implement one of these themes for release, but that won't stop us adding more in future. This may include extensive customisation options for your Clan to unlock or buy.
+
+In the preview blog, we also showed the Clan Hub, a small encampment where you'll form your Clan. We provisionally placed it in an unused corner of the Grand Exchange, along with the forthcoming gaming tables, since the GE is an existing social area that's easily accessed. Not everyone agreed with that location, though. As an alternative, we could place it south of Falador, like RS3 did. We're open to other locations for the encampment too - if there's a lot of support for a change, we can use the same in-game poll to see which is the most popular approach.
+
+==Merch==
+'''''RuneScape: The First 20 Years''''' arrives in comic shops and bookstores October 5th, 2021, and is available for pre-order now through [https://www.amazon.com/exec/obidos/ASIN/1506721257/ Amazon], [https://www.barnesandnoble.com/noresults/9781506721255 Barnes and Noble] and your local [https://comicshoplocator.com/ comic shops] and [https://www.indiebound.org/ bookstores]!
+
+[[File:Shooting Stars (13).jpg|centre]]
+
+
+Plus, as an extra special treat for fans, '''''RuneScape: The First 20 Years (Deluxe Edition)''''' features a special variant cover, card slipcase, hard backed folio containing art prints, gold edged pages and page marker and can be pre-ordered now exclusively from the [https://runescape.backstreetmerch.com/ RuneScape Merch Store].
+
+The Deluxe Edition is strictly limited, so you'll have to get your orders in by April 15th to make sure you snag your copy!
+
+==Other News==
+===PvP World Rota===
+The PvP world rota has moved to Period B.
+* The host for the High-Risk PvP world will be W337 (US East).
+* The host for the Standard PvP world will be W325 (UK).
+* The host for the free-to-play PvP world, W371 (UK).
+* The members-only LMS world will be W492 (US East).
+* The free-to-play LMS world will be W326 (UK).
+
+Thanks to the over 700 of you who have already taken the time to answer our PvP World Rota survey! We'd like to offer one last chance to have your say before we review the feedback. Tell us what you think about the PvP World rotation and future changes by [https://osrs.game/pvp-world-rota-survey-newspost clicking here].
+
+===Smaller Changes===
+The #SixJadChallenge competition is now closed and we want to say a huge thank you to everyone who participated! We'll be reviewing all the entries carefully and we look forward to announcing the winners in the near future.
+
+Players may now opt out of dropping food and potions as a supply pile upon death, sending them to the gravestone instead. The new toggle is in the Gameplay tab of the Settings menu.
+
+Special Attack energy will now restore when a player enters the new Jad challenge, dropping to the level it was at prior to entering.
+
+The value of Zealot items has increased so that they will protect over all bones upon death.
+
+A new setting has been added to optionally separate personal bests into hours.
+
+The party in Lumbridge is over (boo) and the monkeys have returned to Ape Atoll! Our 8th Birthday event has now been removed from the game. See you all next year...
+
+Plus:
+* The TzHaar-Kets have shrunk a little, so that they can be one-tile NPCs as they used to be (but without the graphical bugs they had before)!
+* You can now click the jar generator more rapidly to get additional jars.
+* Some grammar has been corrected in the Hallowed Sepulchre and the Inferno.
+* A spelling error has been fixed on the Swampbark and Bloodbark gauntlets.
+
+That's everything for this week's game update. We'd love to hear your feedback so please let us know what you think via our [http://services.runescape.com/m=forum/forums.ws?380,381,704,66207984 official forums], on the [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel.
+
+----
+
+'''Mods Acorn, Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Bonsai, Brow, Bruno, Curse, Daizong, Deagle, Dibber, Ditto, Dylan, Ed, Elena, Errol, Fed, Flippy, Gayns, Gecko, Gee, Grub, Halo, Husky, Jndr, John C, Kandosii, Katies, Kieren, Kirby, Lenny, Light, Lottie, Mack, Maylea, MikeD, Morty, Nasty, Nin, Oasis, Roq, Ry, Sarnie, Squid, Steve W, Sween, Tide, Vegard, West, Wolfy & Zuko'''
+
+''The Old School Team''

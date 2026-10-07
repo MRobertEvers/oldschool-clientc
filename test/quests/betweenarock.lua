@@ -34,12 +34,10 @@
 -- Seam pass matthew-mbp-m4-b58-seam1 (OSRS-Content 6369379ada) fixed what used
 -- to stop this route: the cave tunnel's landing (now on the ferry bank,
 -- 2838,10124), the outer flames' Jump-through, and Keldagrim's exits.
--- OPEN (content, not driven around): `trollromance_stronghold_exit_tunnel`
--- (betweenarock_travel.rs2:18) still lands on 2781,10160, a rock tile beside
--- the cave; LostCity (quest_troll_love.rs2:44-45) and maplink give 2773,10162.
--- The next click (dwarf_cavewall_tunnel at 2781,10161) answers from there, so
--- the route is not stopped by it; enterDwarfCave* accepts either tile so the
--- row keeps passing when content moves the landing.
+-- `trollromance_stronghold_exit_tunnel` (betweenarock_travel.rs2:18) lands on
+-- 2773,10162 since landing seam b71 (LostCity quest_troll_love.rs2:44-45,
+-- transports.tsv); it was 2781,10160, a rock tile beside the cave.
+-- enterDwarfCave* still accepts either tile.
 --
 -- The four schematic pieces: Dondakan (from firing the golden cannonball),
 -- the lore book's last page (read the book a SECOND time, at stage 80),
@@ -77,6 +75,12 @@ return {
         "::give ammo_mould 1", -- Quest Helper bring-along for casting the golden cannonball
         "::give coins 100", -- Quest Helper "Coins": the Dwarven Ferryman takes 5 per crossing (betweenarock_travel.rs2:42, four crossings)
         "::give swordfish 8", -- Quest Helper "Food" for the Avatar (and the mine's scorpion)
+        -- The wiki's Avatar advice: pray against its style. This melee build meets the Avatar of
+        -- Magic, so Protect from Magic (prayer 37, the lowest level that has it) and one prayer
+        -- potion for the drain (prayer is not assumed to regenerate). Combat is already 99-melee,
+        -- so no dialogue on the route changes branch on the extra prayer levels.
+        "::setlevel prayer 37",
+        "::give 4doseprayerrestore 1",
     },
 
     run = function(t)
@@ -351,6 +355,16 @@ return {
         -- Dondakan #1 -- accept the quest (dwarfrock_dondakan_talk,
         -- not_started branch).
         -- ============================================================
+        -- From the Lumbridge fixture the only way on foot to the Fremennik
+        -- hillside is the members' gate south of Taverley (goto_table: NEEDS-DOOR
+        -- via membergater@2933,3320 at 30/80/160). Overland to its south side
+        -- (reach.py 3206,3233 -> 2934,3318: REACH closed-doors len=387), the
+        -- gate pressed by its verb, then overland from its north side (2934,3322
+        -- -> 2730,3712: REACH closed-doors len=948 at margin 80).
+        t.exec("goto-enterDwarfCave.memberGate", t.player.goto_tile, 2934, 3318, 0)
+        t.exec("enterDwarfCave.memberGate", t.player.cross_gate, { loc = "membergatel", at = { 2934, 3320, 0 },
+            near = { 2934, 3318 }, far_ok = function(tile) return tile.z >= 3320 and math.abs(tile.x - 2934) <= 2 end,
+            far_desc = "north of the members' gate, z >= 3320" })
         if not to_dondakan("") then
             return
         end
@@ -384,6 +398,15 @@ return {
         -- hillside north of Rolad's hut; the hut door is opened on foot.
         -- ============================================================
         leave_keldagrim("leaveKeldagrimForRolad")
+        -- Ice Mountain lies east of Taverley's wall: the only walk on foot goes
+        -- through the members' gate 2935,3450 (goto_table: NEEDS-DOOR via
+        -- membergater@2935,3450). Overland to its west side (2730,3713 ->
+        -- 2932,3450: REACH closed-doors len=863 at margin 80), out through the
+        -- gate by its verb, then overland (2937,3450 -> 3015,3457: REACH len=221).
+        t.exec("goto-talkToRolad.memberGate", t.player.goto_tile, 2932, 3450, 0)
+        t.exec("talkToRolad.memberGateOut", t.player.cross_gate, { loc = "membergater", at = { 2935, 3450, 0 },
+            near = { 2934, 3450 }, far_ok = function(tl) return tl.x >= 2936 end,
+            far_desc = "out of Taverley, x >= 2936", far = { 2937, 3450 } })
         t.exec("goto-roladHut", t.player.goto_tile, 3015, 3457, 0)
         rolad_in("talkToRolad")
         t.exec("talkToRolad", t.player.talk_to, "dwarfrock_rolad", 1)
@@ -499,6 +522,13 @@ return {
         -- then the book report (stage 60).
         -- ============================================================
         rolad_out("enterDwarfCaveWithBook")
+        -- Back west through the same members' gate (3015,3456 -> 2937,3450:
+        -- REACH closed-doors len=222), pressed by its verb, then overland from
+        -- inside Taverley (2932,3450 -> 2730,3712: REACH closed-doors len=864 at 80).
+        t.exec("goto-enterDwarfCaveWithBook.memberGate", t.player.goto_tile, 2937, 3450, 0)
+        t.exec("enterDwarfCaveWithBook.memberGateIn", t.player.cross_gate, { loc = "membergater", at = { 2935, 3450, 0 },
+            near = { 2936, 3450 }, far_ok = function(tl) return tl.x <= 2935 end,
+            far_desc = "inside Taverley, x <= 2935" })
         if not to_dondakan("WithBook") then
             return
         end
@@ -854,29 +884,35 @@ return {
         -- the presses go round the copies the landing's walkable area touches
         -- (static collision, maps/m36_77.jl2), nearest first, each pressed by
         -- its own tile: stay on a rock until it pays or stops answering.
+        -- Only the goldrock1 copies: skill_mining/configs/mine.dbrow:80-90 maps
+        -- goldrock2 to perfect_gold_ore (Family Crest's Witchaven rocks), which
+        -- the flame's inv_total(inv, gold_ore) (betweenarock_realm.rs2:151,172)
+        -- does not count -- OPEN content bug: half the realm's rocks pay the
+        -- wrong ore. With seven paying rocks at Mining 40 and the realm's
+        -- 800-tick stay (betweenarock.constant:73-74, 16 x 50 ticks), the
+        -- guide's optional 15 ore (level-75 Avatar) does not fit; this test
+        -- takes the guide's 6 (level-125 Avatar) and prays against it.
         local gold_rocks = {
-            { "goldrock2", 2323, 4952 }, { "goldrock2", 2309, 4949 }, { "goldrock1", 2311, 4954 },
-            { "goldrock2", 2308, 4955 }, { "goldrock1", 2310, 4957 }, { "goldrock1", 2323, 4941 },
-            { "goldrock2", 2326, 4942 }, { "goldrock2", 2324, 4937 }, { "goldrock1", 2327, 4938 },
-            { "goldrock1", 2334, 4951 }, { "goldrock2", 2341, 4954 }, { "goldrock1", 2344, 4953 },
-            { "goldrock1", 2343, 4946 }, { "goldrock2", 2347, 4943 },
+            { "goldrock1", 2311, 4954 }, { "goldrock1", 2310, 4957 }, { "goldrock1", 2323, 4941 },
+            { "goldrock1", 2327, 4938 }, { "goldrock1", 2334, 4951 }, { "goldrock1", 2344, 4953 },
+            { "goldrock1", 2343, 4946 },
         }
-        local rock_i, presses, tries = 1, 0, 0
+        local rock_i, presses, tries, unanswered_run = 1, 0, 0, 0
         local passed_over = ""
         local ore_result, ore_count = t.inv.count("gold_ore")
-        while (ore_result ~= "ok" or ore_count < 6) and tries < 40 do
+        while (ore_result ~= "ok" or ore_count < 6) and tries < 60 do
             tries = tries + 1
             local rock = gold_rocks[rock_i]
-            local before_ore_result, before_ore_count = t.inv.count("gold_ore")
+            local _, before_ore_count = t.inv.count("gold_ore")
             local cr, cd = t.player.click_loc(rock[1], 1, { at = { rock[2], rock[3] } })
             if cr == "ok" then
                 presses = presses + 1
-                local ar = t.inv.await("gold_ore", (before_ore_count or 0) + 1, 30)
+                unanswered_run = 0
+                local ar = t.inv.await("gold_ore", (before_ore_count or 0) + 1, 40)
                 ore_result, ore_count = t.inv.count("gold_ore")
-                t.step("mine6GoldOre-" .. presses, (ore_result == "ok" and ore_count >= (before_ore_count or 0)) and "PASS" or "FAIL",
-                    "click_loc(" .. rock[1] .. " at " .. rock[2] .. "," .. rock[3] .. ") -> ok " .. tostring(cd)
-                        .. "; gold_ore " .. tostring(before_ore_count) .. " -> " .. tostring(ore_count) .. " (" .. tostring(ar) .. ")"
-                        .. (passed_over ~= "" and ("; passed over (depleted/unanswered): " .. passed_over) or ""))
+                t.note("mine6GoldOre press " .. presses .. ": click_loc(" .. rock[1] .. " at " .. rock[2] .. "," .. rock[3] .. ") -> ok "
+                    .. tostring(cd) .. "; gold_ore " .. tostring(before_ore_count) .. " -> " .. tostring(ore_count) .. " (" .. tostring(ar) .. ")"
+                    .. (passed_over ~= "" and ("; passed over (depleted/unanswered): " .. passed_over) or ""))
                 passed_over = ""
                 if ar == "ok" then
                     rock_i = rock_i % #gold_rocks + 1 -- one ore depletes the rock
@@ -884,11 +920,18 @@ return {
             else
                 passed_over = passed_over .. " " .. rock[2] .. "," .. rock[3] .. "=" .. tostring(cr)
                 rock_i = rock_i % #gold_rocks + 1
+                unanswered_run = unanswered_run + 1
+                if unanswered_run >= #gold_rocks then
+                    t.ticks(10) -- every paying rock is depleted: wait for a respawn (rock_respawnrate 200)
+                    unanswered_run = 0
+                end
             end
         end
-        t.check("gotGoldOre", ore_result == "ok" and ore_count >= 6,
+        local pr_r, perfect = t.inv.count("perfect_gold_ore")
+        t.check("mine6GoldOre", ore_result == "ok" and ore_count >= 6,
             "inv.count(gold_ore) after " .. tostring(presses) .. " press(es) of " .. tostring(tries) .. " tries -> "
-                .. tostring(ore_result) .. " " .. tostring(ore_count))
+                .. tostring(ore_result) .. " " .. tostring(ore_count) .. " (want >= 6, ^dwarfrock_gold_ore_needed); perfect_gold_ore "
+                .. tostring(pr_r == "ok" and perfect or pr_r) .. " (goldrock2 not pressed)")
 
         -- ============================================================
         -- talkToSecondFlame. Every central wall of flame lies inside a ring
@@ -921,6 +964,26 @@ return {
         if not (wr2 == "ok" and wt2.z >= 4939) then
             return
         end
+
+        -- Protect from Magic goes UP before the Avatar exists: it spawns
+        -- aggressive on the flame's Talk-to, and npc_combat_magic.rs2:74-79
+        -- reads the prayer when it swings (its attack animation), so a prayer
+        -- switched on after seeing the first cast is too late. Prayer points
+        -- are read before the fight (staged 37, nothing has drained them).
+        local ptab_r, ptab_d = t.ui.tab("prayer")
+        t.ticks(2)
+        local pw_widget_r, pw_widget = t.ui.widget("prayerbook:prayer13")
+        t.ui.invoke(pw_widget, 1)
+        t.ticks(2)
+        local pon_r, pon = t.var.varbit("varb4116_prayer_protectfrommagic")
+        local ppts_r, ppts = t.skill.read("prayer")
+        t.check("killAvatar.protectFromMagic", ptab_r == "ok" and pw_widget_r == "ok" and pon_r == "ok" and pon == 1
+                and ppts_r == "ok" and ppts.level >= 30,
+            "prayer tab -> " .. tostring(ptab_r) .. " " .. tostring(ptab_d) .. "; prayerbook:prayer13 -> " .. tostring(pw_widget_r)
+                .. "; varb4116_prayer_protectfrommagic " .. tostring(pon) .. " (want 1); prayer points "
+                .. tostring(ppts_r == "ok" and (ppts.level .. "/" .. ppts.base_level) or ppts_r) .. " (want >= 30 before the fight)")
+        t.ui.tab("inventory")
+        t.ticks(1)
 
         local approach_result, approach_detail = t.player.click_loc("dwarf_firewall_centre_diagonal", 2)
         local approach_sym = "dwarf_firewall_centre_diagonal"
@@ -955,28 +1018,36 @@ return {
             return
         end
 
-        -- The Avatar is not a real fight yet (content): stop honestly before the
-        -- first attack. Everything below is the driven fight and hand-in, proven
-        -- in b58 r2 runs 1-2 (build/orchestrator/fix_b58/betweenarock.r2.fullroute.lua);
-        -- the next author deletes only this block once the Avatar has a combat block.
-        t.blocked("content_bug: the Arzinian Avatar (dwarf_rock_avatar_mage/_mage_green/_mage_yellow, "
-            .. "dwarf_rock_avatar_archer/_archer_green/_archer_yellow, dwarf_rock_avatar_warrior/_warrior_green/_warrior_yellow; "
-            .. "this run spawned " .. tostring(avatar_sym) .. ") exists only in "
-            .. "OSRS-Content/osrs239-content/server/scripts/npc/configs/npc_anims.generated.npc:11930-11990 "
-            .. "(anims only: death/attack/defend, no combat block -- no hitpoints, attack, strength, defence, magic, "
-            .. "ranged or attack rate) and has no entry in docs/bosses/quest_combat_manifest.json; engine defaults "
-            .. "make the Avatar die in one hit (b58 r2 run: 0 eaten, lowest hp 99/99). Needed: a real .npc combat "
-            .. "block per form from the wiki's Arzinian Avatar page (levels 75-125), a quest_combat_manifest.json "
-            .. "entry, and check_quest_combat_contract passing.")
-        do return end
-
         -- The kill is polled on the QUEST VARP (^dwarfrock_avatar_defeated=100),
         -- not npc-pool presence; hitpoints are sampled and food eaten between
         -- presses.
+        -- Prayer is sampled with hitpoints; below 10 points a dose of the
+        -- prayer potion is drunk (prayer is not assumed to regenerate).
+        local prayer_low, prayer_doses = nil, 0
+        local function prayer_watch()
+            local rr, rp = t.skill.read("prayer")
+            if rr == "ok" and type(rp) == "table" and rp.level then
+                if prayer_low == nil or rp.level < prayer_low then
+                    prayer_low = rp.level
+                end
+                if rp.level < 10 then
+                    for _, dose in ipairs({ "4doseprayerrestore", "3doseprayerrestore", "2doseprayerrestore", "1doseprayerrestore" }) do
+                        local cr, cnt = t.inv.count(dose)
+                        if cr == "ok" and cnt >= 1 then
+                            if t.player.inv_op(dose, 1) == "ok" then
+                                prayer_doses = prayer_doses + 1
+                            end
+                            t.ticks(1)
+                            break
+                        end
+                    end
+                end
+            end
+        end
         local kill_attempts = 0
         local kill_stage_result = "refused"
         vitals()
-        while kill_stage_result ~= "ok" and kill_attempts < 6 do
+        while kill_stage_result ~= "ok" and kill_attempts < 12 do
             kill_attempts = kill_attempts + 1
             local atk_result, atk_detail = t.player.attack(avatar_sym, 2, 30)
             t.check("attackAvatar-" .. kill_attempts, atk_result == "ok", tostring(atk_result) .. " " .. tostring(atk_detail))
@@ -986,12 +1057,16 @@ return {
             for _ = 1, 15 do
                 kill_stage_result = t.var.await_server("varb299_dwarfrock_quest", 100, 1)
                 vitals()
+                prayer_watch()
                 if kill_stage_result == "ok" then break end
             end
         end
         t.check("killAvatar", kill_stage_result == "ok",
             "dwarfrock_quest var.await_server(...,100) polled up to 15 ticks per press, after " .. tostring(kill_attempts)
                 .. " attackAvatar attempt(s) -> " .. tostring(kill_stage_result))
+        local pend_r, pend = t.var.varbit("varb4116_prayer_protectfrommagic")
+        t.note("Protect from Magic " .. tostring(pend_r == "ok" and pend or pend_r) .. " at the kill; lowest prayer "
+            .. tostring(prayer_low) .. ", prayer potion doses drunk " .. prayer_doses)
         margin_row("killAvatar.margin", "Arzinian Avatar (" .. tostring(avatar_sym) .. ")")
         if kill_stage_result ~= "ok" then
             return
@@ -1006,6 +1081,19 @@ return {
         local br, bt = t.world.tile()
         t.check("avatarDefeated.returned", br == "ok" and bt.x == 2823 and bt.z == 10165 and bt.level == 0,
             "after the kill -> " .. tile_text(br, bt) .. " (want 2823,10165,0: betweenarock_realm.rs2:211)")
+
+        -- The fight is over: switch the protection off so it stops draining.
+        local poff_tab = t.ui.tab("prayer")
+        t.ticks(2)
+        local poff_wr, poff_w = t.ui.widget("prayerbook:prayer13")
+        t.ui.invoke(poff_w, 1)
+        t.ticks(2)
+        local poff_r, poff = t.var.varbit("varb4116_prayer_protectfrommagic")
+        t.check("killAvatar.prayerOff", poff_tab == "ok" and poff_wr == "ok" and poff_r == "ok" and poff == 0,
+            "prayer tab -> " .. tostring(poff_tab) .. "; prayerbook:prayer13 -> " .. tostring(poff_wr)
+                .. "; varb4116_prayer_protectfrommagic " .. tostring(poff) .. " (want 0 after the kill)")
+        t.ui.tab("inventory")
+        t.ticks(1)
 
         -- ============================================================
         -- Reward snapshot before the hand-in, then finish the quest.

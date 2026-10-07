@@ -1,0 +1,59 @@
+{{Update|date=2 July 2018|rev=3 July 2018|link=http://services.runescape.com/m=news/theatre-of-blood-entry-mode-poll-blog?oldschool=1|category=dev}}
+[[File:Theatre of Blood- Entry Mode Poll Blog newspost.png|right]]
+{{clear}}
+
+{{Headline|25|Theatre of Blood: Entry Mode Dev Blog}}
+
+
+<center>We've been keen to keep on top of all the feedback you've been sending us regarding the Theatre of Blood, and with our most recent batch of changes, we're really happy with how the content has evolved into the rewarding challenge it currently is. We have however also seen the increasing number of players want to access the Theatre, so today we'd like to present to you the Theatre of Blood: Entry Mode. 
+
+
+[[File:Theatre of Blood- Entry Mode Poll Blog (1).jpg|700px]]
+
+As with all other poll focused Dev Blogs, we want to take some time to collate your feedback. The poll is due to go '''live in-game this Friday, 6th July''', meaning there's plenty of time to provide feedback!</center>
+
+{{Horizontal Line}}
+
+'''Changelog'''
+
+[03/07/18] - Added further detail to clarify that solo and duo Entry Mode completions would have a lower chance of obtaining a unique compared to teams of 3-5 players.
+[03/07/18] - Added further detail to clarify that the Supply Chest "shops" would not allow for players to effectively farm high-level potions. 
+
+{{Horizontal Line}}
+
+When we first announced the Theatre of Blood at RuneFest we said it would be challenging, rewarding and emphasise on the need for teamwork. We've seen thousands of you complete the Theatre since it first released on the 7th June and whilst we're extremely happy with how well received it has been, one of the largest pieces of feedback from everything we've seen on social media, your feedback in the recent surveys and the masses of you that watched on Twitch, is that aside from the small but impactful changes we've made to the Theatre of Blood, it's very apparent that more of you want to be able to experience this fantastic piece of content the team have worked so hard on. We're aware it can often be seen that these updates cater more specifically towards the higher-level portion of our community, and that those of you who are still working on building your characters and gathering your gear often miss out on exploring such great content.
+
+Changing the Theatre of Blood in terms of difficulty and group size requirements now would be a heavy hit to those that have already spent hundreds of hours and thousands ''(more like millions)'' in gold to perfect their strategies, push for the fastest completion times and have their chance of the prestigious rewards currently on offer. Because of this, we don't want to make any changes to how difficult or accessible the current Theatre of Blood is.
+
+However, with the current average of around 1,500 unique players completing the Theatre per day, we felt it was worth exploring the options available to us that would make it possible for more of you to enjoy this content, not only from viewing it and seeing others complete it, but '''participate''' yourself.
+
+Theatre of Blood: Entry Mode is not intended to devalue the time and money spent by those already tackling the Theatre of Blood and should not be seen as a replacement for the current 3 to 5-man teams that are confidently beating Verzik and gaining access to her treasure room in record timing. Our aim is to simply open the doors to those of you that may not have maxed combat or the ultimate gear setup, but still want to experience the type of challenge this content offers and hopefully train your skills, so when the time is right, you'll be able to take on the full challenge of the Theatre with your newly developed teams. 
+
+{{Horizontal Line}}
+
+{{Headline|25|Entry Mode: The Specifics}}
+
+
+*Entry Mode is aimed at any '''group size of 1-5 players''', with 5 being the maximum group size allowed.
+*All encounters within Entry Mode will be rebalanced to be aimed at lower level players with less expensive gear. ''We're thinking somewhere around 100-110 combat''.
+*The health of monsters found within will scale to suit the team size. This would work for '''all team sizes''' ''(including solo and duo)''.
+*Where possible, the same encounter mechanics found within the Theatre of Blood will remain for Entry Mode. ''Some tweaks may have to be made to allow for solo play''.
+*The gravestone cost will be reduced to 50k rather than 100k. 
+*The only unique items that can be awarded for completing Entry Mode are the '''Avernic hilt and the Justiciar armour'''. 
+*The chance to get the Avernic hilt and the Justiciar armour in a team size of 3-5 players would be roughly '''10 times rarer''' than a normal Theatre of Blood completion. 
+*The chance of obtaining the Avernic hilt and the Justiciar armour when '''solo or duo''' would be reduced even further when compared to 3-5 players. 
+*Death, the Supply Chest "shops" and the way loot (including uniques) is awarded will follow the same rules as the Theatre of Blood. ''The number of deaths will impact the quantity and quality of loot you receive''.
+*The Supply Chest "shops" would not allow for players to effectively farm high-level potions. 
+*Entry Mode will '''never''' grant a chance of the Lil' zik pet. 
+*Entry Mode will have a separate killcount tracker and leaderboards. The killcount from Entry Mode will '''not count''' towards the Sinhaza Shroud. 
+
+{{Horizontal Line}}
+
+
+{{News Poll|1|Should we add the Theatre of Blood: Entry Mode to the game? Entry Mode would offer a way for more players to learn and enjoy a similar experience to the Theatre of Blood, limited to group sizes of 1-5 players. There will be a separate leaderboard and killcount tracker for Entry Mode and completions will not count towards the requirement for the Sinhaza Shroud. It would not be possible to get the Lil' Zik pet from Entry Mode. The only uniques available would be the Avernic hilt and the Justiciar armour, which would be roughly 10 times rarer than a normal Theatre of Blood completion in team sizes of 3-5 players. Solo and duo completions would have the rate reduced even further.}}
+
+{{Horizontal Line}}
+<span class="plainlinks">Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,495,66023510 '''official forums'''], the community-led [https://www.reddit.com/r/2007scape/ '''2007Scape Reddit'''], or the community-led [http://discord.gg/OSRS '''OSRS Discord'''] in the '''#gameupdate''' channel.</span>
+
+
+'''''Mods Archie, Ash, Ayiza, Bruno, Curse, Ed, Ghost, Jed, John C, Kieren, Lenny, Lottie, Mat K, Maz, Munro, Roq, Ry, Stone, Sween, Weath, West & Wolf'''''<br/>''The Old School Team''

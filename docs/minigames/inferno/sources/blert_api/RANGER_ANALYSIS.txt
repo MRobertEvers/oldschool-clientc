@@ -1,0 +1,15 @@
+runs 20; ranger (7698) spawn rows 598; zuk-set ranger (7702) spawn rows 12
+attack animation ids on npc 7698: {'79': 5771, '80': 128}
+ranger that never acted before dying: 0 of 598
+gaps between two consecutive ranged auto attacks of one ranger: total 5097; gap 4: 4594; gap <4: 0; gap 5-9: 131; gap >=10: 372
+auto gap histogram (gap:count) 4:4594 5:35 6:29 7:25 8:15 9:27 10:28 11:23 12:19 13:12 14:14 15:14 16:7 17:8
+gap between any two consecutive attacks of one ranger: total 5301; min 4; gap 4: 4786; gap<4: 0
+gaps touching a melee attack (either side): total 204 histogram 4:192 5:3 6:2 7:2 14:1 25:1 27:1 47:1 89:1
+melee share of all attack animations: 128 of 5899
+first attack tick (tick-0 spawns): n 591 min 1 p10 1 median 1 p90 44 max 882
+death tick (tick-0 spawns): n 591 min 17 p10 31 median 61 p90 124 max 947
+tick-0 spawn tiles, local x,z:count 18,18:75 18,41:58 20,35:63 22,23:70 32,18:55 33,29:66 39,41:69 40,21:75 40,34:60
+tiles used by tick-0 spawns: 9 distinct
+ranger per wave (tick-0, per run): {1: 525, 2: 33}
+ranger count by wave number: w18:1 w19:1 w20:1 w21:1 w22:1 w23:1 w24:1 w25:1 w26:1 w27:1 w28:1 w29:1 w30:1 w31:1 w32:1 w33:2 w50:1 w51:1 w52:1 w53:1 w54:1 w55:1 w56:1 w57:1 w58:1 w59:1 w60:1 w61:1 w62:1 w63:1 w64:1 w65:2
+late (revived or later) ranger spawn rows by wave: w53:1 w55:1 w61:1 w62:2 w63:1 w65:1

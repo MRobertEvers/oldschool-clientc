@@ -1,0 +1,94 @@
+{{Infobox Monster
+|version1 = Normal
+|version2 = Challenge Mode
+|name = Skeletal Mystic
+|image = [[File:Skeletal mystic (1).png|75px]][[File:Skeletal mystic (2).png|75px]][[File:Skeletal mystic (3).png|75px]]
+|release1 = [[5 January]] [[2017]]
+|release2 = [[17 May]] [[2018]]
+|update1 = Chambers of Xeric
+|update2 = Chambers of Xeric: Challenge Mode Is Here!
+|members = Yes
+|combat = N/A<ref>DISCLAIMER: The stats displayed on this page can vary based on the player with the highest combat level. The stats shown are scaled for a player with maxed combat stats.</ref>
+|size = 2
+|examine = Sounds like some kind of hybrid clothing, actually.
+|attributes = undead, xerician
+|xpbonus1 = 20
+|xpbonus2 = 30
+|max hit = Varies
+|aggressive = No
+|poisonous = No
+|attack style = [[Magic]], [[Melee]]
+|attack speed = 4
+|slayxp1 = 160
+|slayxp2 = 240
+|cat = Skeletons
+|assignedby = turael,spria,mazchna
+|hitpoints1 = 160
+|hitpoints2 = 240
+|scaledhp = Yes
+|att1 = 140
+|att2 = 210
+|str1 = 140
+|str2 = 210
+|def1 = 187
+|def2 = 280
+|mage1 = 140
+|mage2 = 210
+|range = 1
+|attbns = 85
+|strbns = 50
+|amagic = 40
+|mbns = 38
+|arange = 0
+|rngbns = 0
+|dstab = 155
+|dslash = 155
+|dcrush = 75
+|dmagic = 140
+|dlight = 115
+|dstandard = 115
+|dheavy = 75
+|poisonresistance = 0
+|venomresistance = 0
+|id = 7604,7605,7606
+|leagueRegion = Kourend
+}}
+'''Skeletal Mystics''' are [[skeleton]] mages found within the [[Chambers of Xeric]].
+
+The mystics attack with two forms of [[Magic]]; a standard magic attack, and a damaging form of [[Vulnerability]], along with melee. The mystics will react to their target's overhead prayers, though this is also dependent on the mystic and the player's position. If the mystic cannot reach its target using [[Protect from Magic]], they would continue using magic, whereas if a mystic can reach its target who is praying against magic, it would attempt to melee them. The mystics have an attack range of 10 and cannot be safespotted.
+
+Skeletal Mystics regenerate their stats at a rate of 1 per 25 ticks, faster than the standard rate of 1 per 100 ticks.{{CiteDiscord|author=Mod Ash|url=https://discord.com/channels/324132423636090880/434286997360738305/1524701424460628080|date=9 July 2026|quote=Stone guardians - 8 Muttadiles - 15 Vasa Nistirio - 10 Vasa's crystal - 9 Tekton - 15 LizardShamans - 20 Skeletal mystics - 25 Jewelled Crabs - 1 Vespula - 10 Vespula's portal - 45 Vespula's grubs - 10000 (i.e. never) Vespine soldier (flying) - 16 Vespine soldier (walking) - 10000 Otherwise default should be 100, as for outside CoX.|ctxquote=Hi@JagexAsh would you per chance be able to say the regen time (in ticks) for mobs in chambers?}}
+
+Upon death, they drop various amounts of [[golpar seed|golpar]], [[buchu seed|buchu]], and [[noxifer seed]]s.
+
+==Drops==
+===100%===
+{{DropsTableHead}}
+{{DropsLine|name=Big bones|quantity=1|rarity=Always}}
+{{DropsLine|name=Golpar seed|quantity=5-10|rarity=Always|gemw=No}}
+{{DropsLine|name=Buchu seed|quantity=5-10|rarity=Always|gemw=No}}
+{{DropsLine|name=Noxifer seed|quantity=5-10|rarity=Always|gemw=No}}
+{{DropsTableBottom}}
+
+===Tertiary===
+{{DropsTableHead}}
+{{DropsLine|name=Long bone|quantity=1|rarity=1/400|gemw=No}}
+{{DropsLine|name=Curved bone|quantity=1|rarity=1/5012.5|gemw=No}}
+{{DropsTableBottom}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 12 December 2023
+|update = Christmas 2023
+|change = Skeletal Mystics now scale correctly when manually scaling upon raid creation.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*The examine text is a reference to [[skeletal armour]] and [[mystic robes]].
+
+==References==
+{{Reflist}}
+
+{{Chambers of Xeric}}

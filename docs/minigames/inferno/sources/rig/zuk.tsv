@@ -1,0 +1,19 @@
+npc	npc_id	framemap	kind	id	cache_name	frames	game_ticks	frame_sounds	role	tier	note
+inferno_tzkalzuk_placeholder	7706	1691	seq	7562	zuk_death	50	5.0 (150 client)	-	death	rig+name	forcedpriority=10 priority=None
+inferno_tzkalzuk_placeholder	7706	1691	seq	7563	zuk_spawn	70	7.0 (210 client)	-	spawn	rig+name	forcedpriority=10 priority=None; Jagex name states spawn
+inferno_tzkalzuk_placeholder	7706	1691	seq	7564	zuk_idle	28	3.0 (90 client)	-	ready	bound	forcedpriority=None priority=None; Zuk has no walkanim in the record (stationary boss)
+inferno_tzkalzuk_placeholder	7706	1691	seq	7565	zuk_defend	30	3.0 (90 client)	-	defend	rig+name	forcedpriority=6 priority=None
+inferno_tzkalzuk_placeholder	7706	1691	seq	7566	zuk_attack	31	3.0 (90 client)	-	attack	rig+name	forcedpriority=10 priority=None
+inferno_tzkalzuk_placeholder	7706	1691	seq	13717	zuk_spawn_no_rock	70	7.0 (210 client)	-	spawn	rig+name	forcedpriority=None priority=None; Jagex name states spawn; variant without the rock, AV_INVENTORY says purpose unsourced
+inferno_zuk_healer	7708	19	seq	2863	dagannoth_water_creature_walk	9	1.6 (47 client)	-	walk	bound	forcedpriority=None priority=None
+inferno_zuk_healer	7708	19	seq	2864	dagannoth_water_creature_spring_up	10	1.4 (42 client)	-	transition	rig+name	forcedpriority=None priority=None; Jagex name states rise/sink of the water creature
+inferno_zuk_healer	7708	19	seq	2865	dagannoth_water_creature_go_down	10	2.9 (87 client)	-	transition	rig+name	forcedpriority=None priority=None; Jagex name states rise/sink of the water creature
+inferno_zuk_healer	7708	19	seq	2866	dagannoth_water_creature_death	10	7.9 (237 client)	-	death	rig+name	forcedpriority=10 priority=None
+inferno_zuk_healer	7708	19	seq	2867	dagannoth_water_creature_ready	9	1.6 (48 client)	-	ready	bound	forcedpriority=None priority=None
+inferno_zuk_healer	7708	19	seq	2868	dagannoth_water_creature_attack	7	0.9 (26 client)	-	attack	rig+name	forcedpriority=6 priority=None
+inferno_zuk_healer	7708	19	seq	2869	dagannoth_water_creature_defend	6	1.0 (30 client)	-	defend	rig+name	forcedpriority=None priority=None
+inferno_tzkalzuk_placeholder	7706	-	spotanim	1375	inferno_zuk_projectile	12	2.0 (60 client)	-	other (projectile)	name	anim=zuk_proj; none; model 33006; AV_INVENTORY: 2261/2381/2382/3294 unknown_purpose
+inferno_tzkalzuk_placeholder	7706	-	spotanim	2261	inferno_zuk_projectile_small	12	2.0 (60 client)	-	other (projectile)	name	anim=zuk_proj; resize 64; model 33006; AV_INVENTORY: 2261/2381/2382/3294 unknown_purpose
+inferno_tzkalzuk_placeholder	7706	-	spotanim	2381	inferno_zuk_projectile_mid	12	2.0 (60 client)	-	other (projectile)	name	anim=zuk_proj; resize 90; model 33006; AV_INVENTORY: 2261/2381/2382/3294 unknown_purpose
+inferno_tzkalzuk_placeholder	7706	-	spotanim	2382	inferno_zuk_projectile_mid_short	12	1.0 (30 client)	-	other (projectile)	name	anim=zuk_proj_short; resize 90; model 33006; AV_INVENTORY: 2261/2381/2382/3294 unknown_purpose
+inferno_tzkalzuk_placeholder	7706	-	spotanim	3294	inferno_zuk_projectile_gigantic	12	2.0 (60 client)	-	other (projectile)	name	anim=zuk_proj; resize 500; model 33006; AV_INVENTORY: 2261/2381/2382/3294 unknown_purpose

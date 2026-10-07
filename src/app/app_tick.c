@@ -247,7 +247,7 @@ app_logic_tick(struct App* app)
     /*
      * THE LISTENER IS THE PLAYER, NOT THE EYE.
      *
-     * This used to read `app->world_camera_pos`, on the reasoning that the
+     * This used to read `app->frame_view->world_camera_pos`, on the reasoning that the
      * camera is what the stereo field is built around. The reference disagrees,
      * and the difference is not cosmetic. Its queued-effect drain measures
      *
@@ -295,8 +295,10 @@ app_logic_tick(struct App* app)
             }
             else
             {
-                listener_x = app->world_camera_pos.x >> 7;
-                listener_z = app->world_camera_pos.z >> 7;
+                /* What is presented is heard (the runner camera split: the
+                 * watcher's eye while a script is attached). */
+                listener_x = App_PresentedView(app)->world_camera_pos.x >> 7;
+                listener_z = App_PresentedView(app)->world_camera_pos.z >> 7;
             }
             listener_level = app_cinema_level(app);
         }
@@ -416,15 +418,20 @@ app_logic_tick(struct App* app)
             int const level = self ? (self->grid_position.level & 3) : 0;
             dest_coord = (level << 28) | ((x & 0x3fff) << 14) | (z & 0x3fff);
         }
-        if( app->world && app->world_hover_tile_x >= 0 && app->world_hover_tile_z >= 0 )
+        /* The runner camera split: logic runs with frame_view = views[0], so
+         * the CS2 hover coordinate and clientop's menu_open below are the
+         * RUNNER's -- the game's scripts answer the player the script plays,
+         * and a watcher's hover never reaches a test's timeline. */
+        if( app->world && app->frame_view->world_hover_tile_x >= 0 &&
+            app->frame_view->world_hover_tile_z >= 0 )
         {
-            int const x = app->world->_base_tile_x + app->world_hover_tile_x;
-            int const z = app->world->_base_tile_z + app->world_hover_tile_z;
+            int const x = app->world->_base_tile_x + app->frame_view->world_hover_tile_x;
+            int const z = app->world->_base_tile_z + app->frame_view->world_hover_tile_z;
             int const level = World_TerrainWalkLevel(
                                   app->world,
-                                  app->world_hover_tile_x,
-                                  app->world_hover_tile_z,
-                                  app->world_hover_tile_level) &
+                                  app->frame_view->world_hover_tile_x,
+                                  app->frame_view->world_hover_tile_z,
+                                  app->frame_view->world_hover_tile_level) &
                               3;
             hover_coord = (level << 28) | ((x & 0x3fff) << 14) | (z & 0x3fff);
         }
@@ -449,7 +456,7 @@ app_logic_tick(struct App* app)
          *
          * `menu_open` stays here: it is a fact about the popup, not about a row.
          */
-        app->host.clientop.menu_open = app->interact.minimenu.visible;
+        app->host.clientop.menu_open = app->frame_view->minimenu->visible;
 
         /*
          * Publishing is ALL the client does here.

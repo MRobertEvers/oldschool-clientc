@@ -1,10 +1,10 @@
 -- Below Ice Mountain (tier 4). Guide: Quest Helper BelowIceMountain.java via ladder.py.
 -- Source of truth for content: OSRS-Content/osrs239-content/server/scripts/quests/quest_belowicemountain/
--- (rs2:202 Willow, 415 Checkal, 514 Atlas, 635 Marley, 708 cook, 831 Burntof, 967 barmaid, 981 entrance).
+-- (belowicemountain.rs2: the [opnpc1,bim_willow_*], bim_checkal_*, bim_atlas, bim_marley_*, cook, bim_burntof_*, risingsun_barmaid* and [oploc1,bim_entrance] handlers).
 -- Brought along: 16 QP prerequisite, bread/knife/cooked meat/coins (the longhall meat is not
 -- a spawn we found), a weapon + food for the Ancient Guardian.
 -- GUIDE-GAP: reenterDungeon Willow's scene teleports the player into the hall itself (belowicemountain.rs2:367); the entrance click only matters for a re-entry.
--- GUIDE-GAP: watchCutscene the cutscene is chat only (CUTSCENES.tsv spec-pending); the bag at belowicemountain.rs2:1141 completes the quest.
+-- GUIDE-GAP: watchCutscene the cutscene is chat only (CUTSCENES.tsv spec-pending); the bag at belowicemountain.rs2:1185 completes the quest.
 return {
     id = "belowicemountain",
     fixture = "fresh_lumbridge.ini",
@@ -53,7 +53,10 @@ return {
         t.check("recruitCheckal-sent", v == 5, "checkal=" .. tostring(v))
 
         -- talkToAtlas
-        t.exec("goto-talkToAtlas", t.player.goto_tile, 3076, 3438, 0)
+        -- the longhall is walled; its Longhall door (a double door: doors/configs/doubledoors.loc, handled by doors/scripts/doors.rs2) is pressed in and out
+        t.exec("goto-talkToAtlas", t.player.goto_tile, 3078, 3433, 0)
+        t.exec("talkToAtlas.doorIn", t.player.pass_door, { closed = "fai_barbarian_large_doubledoor_l", open = "fai_barbarian_open_large_doubledoor_l",
+            at = { 3078, 3435, 0 }, near = { 3078, 3434 }, far = { 3078, 3436 } })
         t.exec("talkToAtlas", t.player.talk_to, "bim_atlas")
         t.exec("talkToAtlas-menu", t.chat.drain, { stop_at = "options" })
         t.exec("talkToAtlas-yes", t.chat.choose, "Yes.")
@@ -65,6 +68,8 @@ return {
         t.check("talkToAtlas-counter", v == 1, "counter=" .. tostring(v))
 
         -- flexCheckal
+        t.exec("flexCheckal.doorOut", t.player.pass_door, { closed = "fai_barbarian_large_doubledoor_l", open = "fai_barbarian_open_large_doubledoor_l",
+            at = { 3078, 3435, 0 }, near = { 3078, 3436 }, far = { 3078, 3434 } })
         t.exec("goto-flexCheckal", t.player.goto_tile, 3087, 3413, 0)
         t.exec("flexCheckal-ask", t.player.talk_to, "bim_checkal_barb")
         t.exec("flexCheckal-ask-chat", t.chat.drain, {})
@@ -121,7 +126,9 @@ return {
         t.ticks(2)
         ok, v = t.var.varbit("varb12066_bim_burntof")
         t.check("talkToBurntof-wants-drink", v == 5, "burntof=" .. tostring(v))
-        t.exec("goto-buyBeer", t.player.goto_tile, 2954, 3371, 0)
+        -- Emily (risingsun_barmaid, 2954,3373) stands behind the bar; she is talked to across it
+        -- ([apnpc1,risingsun_barmaid] at range 2, belowicemountain.rs2)
+        t.exec("goto-buyBeer", t.player.goto_tile, 2955, 3367, 0)
         t.exec("buyBeer", t.player.talk_to, "risingsun_barmaid")
         t.exec("buyBeer-menu", t.chat.drain, { stop_at = "options" })
         t.exec("buyBeer-ale", t.chat.choose, "One Asgarnian Ale, please.")

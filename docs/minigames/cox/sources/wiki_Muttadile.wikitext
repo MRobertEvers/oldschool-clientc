@@ -1,0 +1,184 @@
+{{Infobox Monster
+|version1 = Small
+|version2 = Large
+|version3 = Small (Challenge Mode)
+|version4 = Large (Challenge Mode)
+|name = Muttadile
+|image = [[File:Muttadile.png|250px]]
+|release1 = [[5 January]] [[2017]]
+|release2 = [[5 January]] [[2017]]
+|release3 = [[17 May]] [[2018]]
+|release4 = [[17 May]] [[2018]]
+|update1 = Chambers of Xeric
+|update2 = Chambers of Xeric
+|update3 = Chambers of Xeric: Challenge Mode Is Here!
+|update4 = Chambers of Xeric: Challenge Mode Is Here!
+|members = Yes
+|combat = N/A<ref>DISCLAIMER: The stats displayed on this page can vary based on the player with the highest combat level. The stats shown are scaled for a player with maxed combat stats.</ref>
+|size1 = 3
+|size2 = 5
+|size3 = 3
+|size4 = 5
+|examine = A mutated guardian of Xeric.
+|attributes = xerician
+|xpbonus1 = 12.5
+|xpbonus2 = 20
+|xpbonus3 = 17.5
+|xpbonus4 = 32.5
+|max hit1 = 28 ([[Melee]]), 30 ([[Ranged]])
+|max hit2 = 72 (Stomp), 48 ([[Melee]]), 45 ([[Ranged]]), 23 ([[Magic]])
+|max hit3 = 41 ([[Melee]]), 44 ([[Ranged]])
+|max hit4 = 106 (Stomp), 71 ([[Melee]]), 67 ([[Ranged]]), 34 ([[Magic]])
+|aggressive = Yes
+|poisonous = No
+|attack style1 = [[Melee]], [[Ranged]]
+|attack style2 = [[Melee]], [[Ranged]], [[Magic]]
+|attack style3 = [[Melee]], [[Ranged]]
+|attack style4 = [[Melee]], [[Ranged]], [[Magic]]
+|attack speed = 4
+|hitpoints1 = 250
+|hitpoints2 = 250
+|hitpoints3 = 375
+|hitpoints4 = 375
+|scaledhp = Yes
+|att1 = 150
+|att2 = 250
+|att3 = 225
+|att4 = 375
+|str1 = 150
+|str2 = 250
+|str3 = 225
+|str4 = 375
+|def1 = 138
+|def2 = 220
+|def3 = 207
+|def4 = 330
+|mage1 = 1
+|mage2 = 250
+|mage3 = 1
+|mage4 = 375
+|range1 = 150
+|range2 = 250
+|range3 = 225
+|range4 = 375
+|attbns1 = 71
+|attbns2 = 88
+|attbns3 = 71
+|attbns4 = 88
+|strbns1 = 48
+|strbns2 = 55
+|strbns3 = 48
+|strbns4 = 55
+|amagic = 0
+|mbns = -8
+|arange1 = 83
+|arange2 = 82
+|arange3 = 83
+|arange4 = 82
+|rngbns1 = 56
+|rngbns2 = 47
+|rngbns3 = 56
+|rngbns4 = 47
+|dstab = -5
+|dslash1 = 72
+|dslash2 = 82
+|dslash3 = 72
+|dslash4 = 82
+|dcrush1 = 50
+|dcrush2 = 60
+|dcrush3 = 50
+|dcrush4 = 60
+|dmagic1 = 60
+|dmagic2 = 75
+|dmagic3 = 60
+|dmagic4 = 75
+|dlight = 0
+|dstandard = 0
+|dheavy = 0
+|elementalweaknesstype = earth
+|elementalweaknesspercent = 40
+|poisonresistance = 100
+|venomresistance = 100
+|id1 = 7562
+|id2 = 7561,7563
+|id3 = 7562
+|id4 = 7561,7563
+}}
+The '''Muttadiles''' are [[bosses]] encountered in the [[Chambers of Xeric]]. Originally a stray [[dog]], it was horribly mutated into a giant crocodilian beast by [[Xeric]].{{CiteText|text=Houndmaster's diary|quote=In the beginning, there were hounds to care for, more than a dozen strays. They seemed to enjoy my company, and I enjoyed theirs. My employer, Lord Xeric, was conducting various experiments on the hounds. Using the powers of this strange place, he sought to speed up the mutation. [...] Something down here made Lord Xeric's experiment a success, or at least that's what he tells me. I fail to see the success of his creation. It had to be her though, of course it did. She was the strongest of the pack, my personal favourite, now a twisted, scaly abomination.}} The original muttadile was pregnant at the time when Xeric transformed it into its current form and as such its offspring was warped too.{{CiteText|text=Houndmaster's diary|quote=When I believed that this situation couldn't become worse, I was a fool! Before Master began his wretched experiments, we failed to notice her... condition. There's two of them now. Perhaps I'm the true monster after all.}} The two beasts now act as guardians of the chambers.
+
+==Mechanics==
+The two muttadiles that reside in the chamber are present upon entering; a small one is on the ground and the large one is lurking in the water. The bosses are fairly notorious for constantly walking towards and away from players.
+
+A [[meat tree]] is also present in the chamber which both muttadiles will start to eat from upon reaching ~50% of their health, eating up to 50% of their health (100% total) if triggered and will eat from the tree a maximum of three times, after which they will no longer attempt to heal from it. If the muttadile is unable to eat from the tree after ~15 or so seconds, they will give up.
+
+The team also has the option of chopping the tree down in which an [[axe]] is required and the team's [[Woodcutting]] level determines its health. Each player's [[Woodcutting]] level also determines their accuracy rate and damage dealt to the tree; the axe's type does not matter. As such, having higher Woodcutting levels makes the fight significantly smoother. A [[bronze axe]] spawn is present in the room for players to take.
+
+The small muttadile attacks with both [[Melee]] and [[Ranged]]. While this smaller muttadile is alive, the larger one will stay submerged in the water, where it is unattackable and attacks players with erratic [[Magic]] that covers the entire chamber. Each player that is within line-of-sight of the submerged muttadile has a 1/3 chance of being targeted by these attacks.{{CiteTwitter|author=Mod Ash|url=https://x.com/JagexAsh/status/1295995804747018241|date=19 August 2020|archiveurl=https://reldo.runescape.wiki/i/27963396|archivedate=7 April 2026|quote=For the submerged version doing its random damaging of everyone in line-of-sight? It's got a 1/3 chance of hitting each person it finds, purely randomly.}} The smaller muttadile prioritises [[Ranged]] from a distance, but due to the bosses' habit of walking in and out of melee distance, it may end up walking straight to the player or out of sight depending on layout. If it is within melee distance of a target, it will prioritise [[Melee]] instead of [[Ranged]].
+
+[[File:Fighting_Muttadile.png|thumb|left|250px|A group of players facing the larger muttadile.]]
+
+When the smaller muttadile dies, the larger one emerges from the water and starts attacking the players in the room; it is still capable of attacking as it emerges. Apart from having higher stats and using all three forms of [[combat]], this larger muttadile will also perform a stomp attack if anyone is within melee range, dealing massive damage to everyone in melee range, which can hit 50% more than the large muttadile's [[Melee]] attack{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1730322831173451985|date=30 November 2023|archiveurl=https://reldo.runescape.wiki/i/27963068|archivedate=16 March 2026|quote=How does the stomp for the big Muttadile boss work? Is it just a typeless melee attack? Does it do any extra damage than a standard melee attack? The multi-target one? It's got a max 50% higher than the melee attack would normally have. And yes, it acts as melee - crush, I think.}}. For this reason, it is advised to stay outside of its melee range at all times, especially in scaled raids where the stomp can potentially cause instant death. Various [[safespot]]s are available depending on the layout and how it tries to walk towards players. Like the smaller muttadile, it prioritises [[Ranged]] from a distance and [[Melee]] up close. When attacking from a distance, the large muttadile will stay on one combat style for a minimum of three auto-attacks.
+
+{{clear|left}}
+
+==Drops==
+
+===100%===
+{{DropsTableHead|leagueRegion=Kourend}}
+{{DropsLine|name=Big bones|quantity=1|rarity=Always}}
+{{DropsLine|name=Houndmaster's diary|quantity=1|rarity=Always|altrarity=Never|raritynotes=<ref name=book group=d>No longer dropped after reading the book.</ref>|gemw=No}}
+{{DropsLine|name=Overload (+)(4)|quantity=1|rarity=Always|gemw=No}}
+{{DropsLine|name=Prayer enhance (+)(4)|quantity=1|rarity=Always|gemw=No}}
+{{DropsLine|name=Xeric's aid (+)(4)|quantity=1|rarity=Always|raritynotes=<ref group="d" name="muttadrop">Only dropped by the larger muttadile.</ref>|gemw=No}}
+{{DropsLine|name=Revitalisation (+)(4)|quantity=1|rarity=Always|raritynotes=<ref group="d" name="muttadrop"/>|gemw=No}}
+{{DropsLine|name=Stinkhorn mushroom|quantity=1-3|rarity=Always|raritynotes=<ref group="d" name="muts">Only dropped by the smaller muttadile.</ref>|gemw=No}}
+{{DropsTableBottom}}
+{{Reflist|group=d}}
+
+===Tertiary===
+{{DropsTableHead|leagueRegion=Kourend}}
+{{DropsLine|name=Long bone|quantity=1|rarity=1/400|gemw=No}}
+{{DropsLine|name=Curved bone|quantity=1|rarity=1/5012.5|gemw=No}}
+{{DropsTableBottom}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = Both muttadiles now have a 40% [[elemental weakness]] to [[earth spells]].
+}}
+{{Subject changes
+|date = 26 June 2024
+|update = Colosseum NPC Clickboxes & More
+|change = Added a bronze axe spawn to the muttadile room, useable by main and ironman accounts.
+}}
+{{Subject changes
+|date = 29 November 2023
+|update = Chambers of Xeric Changes
+|poll = Chambers of Xeric Room Improvements
+|change =
+* Adjusted the damage formula for the [[meat tree]] to be more consistent.
+* Both muttadiles will attempt to heal at the meat tree when reduced below 50% HP (up from 40%).
+* Both muttadiles can now be damaged while frozen, even if they were trying to move towards the meat tree.
+* Reduced the max hits of both muttadiles.
+* Big muttadile will now only swap between Magic and Ranged attacks after using the same style three times, not counting Melee attacks.
+}}
+{{Subject changes
+|date = 4 May 2017
+|update = Skotos & Dark Claws
+|poll = 
+|change = Fixed an issue where the Muttadile would sometimes become permanently invincible.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*The word 'Muttadile' is a portmanteau of ''mutt'', ''mutant'' and ''crocodile''.
+*The [[strange bells]] near the entrance have the examine text "for whom?" which might be a reference to [https://en.wikisource.org/wiki/Meditation_XVII a 1623 text] by {{WP|John Donne}},  {{WP|For Whom The Bell Tolls|the 1940 novel}} by {{WP|Ernest Hemingway|Hemingway}} or {{WP|For Whom the Bell Tolls (disambiguation)|one of the derived works}}.
+
+==References==
+{{Reflist}}
+
+{{Chambers of Xeric}}
+{{Bosses}}
+[[Category:Monsters with no combat level]]

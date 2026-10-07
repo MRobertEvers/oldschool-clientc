@@ -39,6 +39,8 @@ import os
 import re
 import sys
 
+import config_text
+
 DOOR_WORDS = ("door", "gate", "portcullis")
 DOOR_DISPLAY_NAMES = {
     "door", "gate", "gates", "large door", "double door", "doorway",
@@ -73,7 +75,7 @@ JL2_LINE_RE = re.compile(r"^\d+ \d+ \d+: (\d+) (\d+)(?: (\d+))?")
 def parse_blocks(path):
     blocks, cur = {}, None
     with open(path, encoding="utf8", errors="replace") as f:
-        for line in f:
+        for line in config_text.filter_lines(f):
             s = line.strip()
             if not s or s.startswith("//"):
                 continue

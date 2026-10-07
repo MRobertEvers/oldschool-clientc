@@ -21,6 +21,7 @@
  * Nothing here sends a packet, touches a player, or needs a server. Everything
  * that does stayed in `torirs_server_bank.c`.
  */
+#include "torirs_server_servpack.h"
 #include "torirs_server_bank.h"
 
 #include "torirs_server.h"
@@ -52,179 +53,82 @@ static int g_varbit_count;
 static int* g_inv_sizes;
 static int g_inv_count;
 
-/*
- * A file list for one config group, plus the archive it borrows its buffers
- * from. Both have to stay alive until the caller is done decoding, which is why
- * this returns the pair rather than just the list.
- */
-struct ConfigGroup
-{
-    struct RSCache_Dat2DiskArchive* archive;
-    struct RSCache_FileList* files;
-};
-
-static int
-config_group_open(
-    struct RSCache_Dat2Disk* disk,
-    int kind,
-    struct ConfigGroup* out)
-{
-    int table = RSCache_Dat2DiskTableId(disk, RSCACHE_DAT2_TABLE_CONFIGS);
-
-    out->archive = RSCache_Dat2DiskArchiveNewLoad(disk, table, kind);
-    out->files = NULL;
-    if( !out->archive || !RSCache_Dat2DiskArchiveInitMetadata(disk, out->archive) ||
-        out->archive->file_count <= 0 )
-    {
-        if( out->archive )
-            RSCache_Dat2DiskArchiveFree(out->archive);
-        out->archive = NULL;
-        return 0;
-    }
-    out->files = RSCache_FileListNewFromDecode(
-        out->archive->data, out->archive->data_size, out->archive->file_count);
-    if( !out->files )
-    {
-        RSCache_Dat2DiskArchiveFree(out->archive);
-        out->archive = NULL;
-        return 0;
-    }
-    return 1;
-}
-
 static void
-config_group_close(struct ConfigGroup* group)
+load_inv_sizes(const struct ToriRSServerKindRecords* records)
 {
-    if( group->files )
-        RSCache_FileListFree(group->files);
-    if( group->archive )
-        RSCache_Dat2DiskArchiveFree(group->archive);
-    group->files = NULL;
-    group->archive = NULL;
-}
-
-/** file_ids are sparse, so a table has to be sized from the largest one. */
-static int
-config_group_max_id(const struct ConfigGroup* group)
-{
-    int max_id = 0;
-
-    for( int i = 0; i < group->files->file_count; i++ )
-    {
-        int file_id = (group->archive->file_ids && i < group->archive->file_count)
-                          ? group->archive->file_ids[i]
-                          : i;
-        if( file_id + 1 > max_id )
-            max_id = file_id + 1;
-    }
-    return max_id;
-}
-
-static void
-load_inv_sizes(struct RSCache_Dat2Disk* disk)
-{
-    struct ConfigGroup group;
-
-    if( !config_group_open(disk, RSCACHE_DAT2_CONFIG_KIND_INV, &group) )
-        return;
-
-    g_inv_count = config_group_max_id(&group);
+    g_inv_count = ToriRSServer_ServPackKindIdBound(records);
     g_inv_sizes = calloc((size_t)(g_inv_count > 0 ? g_inv_count : 1), sizeof(*g_inv_sizes));
     assert(g_inv_sizes);
 
-    for( int i = 0; i < group.files->file_count; i++ )
+    for( int i = 0; i < records->count; i++ )
     {
-        int file_id = (group.archive->file_ids && i < group.archive->file_count)
-                          ? group.archive->file_ids[i]
-                          : i;
         struct RSCache_Dat2ConfigInv inv;
-        struct RSCache_Buffer buffer;
 
-        if( group.files->file_sizes[i] <= 0 || file_id < 0 || file_id >= g_inv_count )
-            continue;
         memset(&inv, 0, sizeof(inv));
-        RSCache_BufferInit(&buffer, (uint8_t*)group.files->files[i], group.files->file_sizes[i]);
-        RSCache_Dat2ConfigInvDecode(&inv, &buffer);
-        g_inv_sizes[file_id] = inv.size;
+        RSCache_Dat2ConfigInvDecodeInplace(&inv, records->files[i], (int)records->sizes[i]);
+        g_inv_sizes[records->ids[i]] = inv.size;
+        RSCache_Dat2ConfigInvFreeInplace(&inv);
     }
-    config_group_close(&group);
 }
 
 static int
-load_varbits(struct RSCache_Dat2Disk* disk)
+load_varbits(const struct ToriRSServerKindRecords* records)
 {
-    struct ConfigGroup group;
     int loaded = 0;
 
-    if( !config_group_open(disk, RSCACHE_DAT2_CONFIG_KIND_VARBIT, &group) )
-        return 0;
-
-    g_varbit_count = config_group_max_id(&group);
+    g_varbit_count = ToriRSServer_ServPackKindIdBound(records);
     g_varbits = calloc((size_t)(g_varbit_count > 0 ? g_varbit_count : 1), sizeof(*g_varbits));
     assert(g_varbits);
     for( int i = 0; i < g_varbit_count; i++ )
         g_varbits[i].basevar = -1;
 
-    for( int i = 0; i < group.files->file_count; i++ )
+    for( int i = 0; i < records->count; i++ )
     {
-        int file_id = (group.archive->file_ids && i < group.archive->file_count)
-                          ? group.archive->file_ids[i]
-                          : i;
+        int file_id = records->ids[i];
         struct RSCache_Dat2ConfigVarbit varbit;
-        struct RSCache_Buffer buffer;
 
-        if( group.files->file_sizes[i] <= 0 || file_id < 0 || file_id >= g_varbit_count )
-            continue;
         memset(&varbit, 0, sizeof(varbit));
-        RSCache_BufferInit(&buffer, (uint8_t*)group.files->files[i], group.files->file_sizes[i]);
-        RSCache_Dat2ConfigVarbitDecode(&varbit, &buffer);
+        RSCache_Dat2ConfigVarbitDecodeInplace(&varbit, records->files[i], (int)records->sizes[i]);
         if( varbit.basevar < 0 || varbit.startbit < 0 || varbit.endbit > 31 ||
             varbit.endbit < varbit.startbit )
+        {
+            free(varbit.debugname);
             continue;
+        }
         g_varbits[file_id].basevar = (int16_t)varbit.basevar;
         g_varbits[file_id].lsb = (int8_t)varbit.startbit;
         g_varbits[file_id].msb = (int8_t)varbit.endbit;
+        free(varbit.debugname);
         loaded++;
     }
-    config_group_close(&group);
     return loaded;
 }
 
+/*
+ * Inv sizes and varbit ranges, from the server pack's client records -- the
+ * merged tree, so an authored inv's `size=` and an authored varbit reach the
+ * bank exactly as they reach the client.
+ */
 int
-ToriRSServer_BankLoad(const char* cache_dir)
+ToriRSServer_BankLoad(struct RSCache_ServerPack* pack)
 {
-    struct RSCache profile = RSCache_ProfileZero();
-    struct RSCache_Dat2Disk* disk;
+    struct ToriRSServerKindRecords invs;
+    struct ToriRSServerKindRecords varbits;
     int loaded;
 
+    assert(pack);
     ToriRSServer_BankFree();
-
-    profile.game = RSCACHE_GAME_OLDSCHOOL;
-    profile.epoch = RSCACHE_EPOCH_DAT2;
-    profile.revision = TORIRSSERVER_CACHE_REVISION;
-
-    disk = RSCache_Dat2DiskNewFromDirectory(cache_dir);
-    if( !disk )
+    if( !ToriRSServer_ServPackKindLoad(pack, RSCACHE_DAT2_CONFIG_KIND_INV, &invs) )
+        return -1;
+    if( !ToriRSServer_ServPackKindLoad(pack, RSCACHE_DAT2_CONFIG_KIND_VARBIT, &varbits) )
     {
-        /* Same ../ fallback as ToriRSServer_ObjInfoLoad: the binary is run both
-         * from the repo root and from src/. */
-        char parent[512];
-        snprintf(parent, sizeof(parent), "../%s", cache_dir);
-        disk = RSCache_Dat2DiskNewFromDirectory(parent);
+        ToriRSServer_ServPackKindFree(&invs);
+        return -1;
     }
-    if( !disk )
-    {
-        fprintf(stderr,
-                "torirsserver: no cache at %s — bank varbits unavailable "
-                "(settings cannot be pushed to the interface)\n",
-                cache_dir);
-        return 0;
-    }
-    RSCache_Dat2DiskSetProfile(disk, &profile);
-
-    load_inv_sizes(disk);
-    loaded = load_varbits(disk);
-    RSCache_Dat2DiskFree(disk);
+    load_inv_sizes(&invs);
+    loaded = load_varbits(&varbits);
+    ToriRSServer_ServPackKindFree(&invs);
+    ToriRSServer_ServPackKindFree(&varbits);
 
     fprintf(stderr, "torirsserver: bank tables loaded (%d varbits, bank=%d slots)\n", loaded,
             ToriRSServer_BankInvSize(ToriRSServer_Ids()->inv_bank));

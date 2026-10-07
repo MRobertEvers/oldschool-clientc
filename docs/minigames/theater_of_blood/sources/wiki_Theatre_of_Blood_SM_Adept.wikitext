@@ -1,0 +1,22 @@
+{{Infobox Combat Achievement
+|name = Theatre of Blood: SM Adept
+|image = [[File:Fighting Nylocas hordes.png|300px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Complete the Theatre of Blood: Entry Mode 1 time.	
+|tier = Hard
+|monster = Theatre of Blood: Entry Mode
+|type = Kill Count
+|id = 397
+|leagueRegion = Morytania
+}}
+'''Theatre of Blood: SM Adept''' is a [[Combat Achievements/Hard|hard combat achievement]] which requires the player to complete the [[Theatre of Blood/Entry Mode|Theatre of Blood: Entry Mode]] 1 time.
+
+==Other tasks==
+{{Combat Achievements list|Theatre of Blood: Entry Mode}}
+
+==Trivia==
+*The task name uses the term "SM", an abbreviation for Story Mode, which is what Entry Mode was called prior to an update on [[28 July]] [[2021]].
+
+{{Combat Achievements}}

@@ -68,6 +68,13 @@ several workers live, a run by quest id also collides with theirs through the pe
 `gate.py <id>` then reads THEIR ledger: run the regression as a private copy instead,
 `run.py --script <copy> --name <unique> --no-build --no-publish`, then `gate.py <unique>`.
 
+`run.py` takes ONE quest id per call: `run.py cooks_assistant druid` exits 2 with
+`unrecognized arguments: druid` (the seam-pass prompts said exactly that until b62-seam1). Run one
+call per quest, then `gate.py cooks_assistant druid`. `TORIRS_QUEST_NO_PUBLISH=1` (any value but
+empty or `0`) makes every `run.py` it reaches behave as `--no-publish` and prints one line saying
+so; it is for an owner shell or a harness that launches `run.py` itself (a subagent's Bash calls
+share no environment, so the workflow prompts carry `--no-publish` on every command line).
+
 To show a content seam's behaviour BEFORE the fix without touching the shared pack, compile a
 scratch pack (seam-facts: Seam pass matthew-mbp-m4-b58-seam1 (i)): copy `server/scripts` without
 `build*/` and `selftest/` into `<scratch>/server/scripts`, symlink every other entry of
@@ -75,7 +82,9 @@ scratch pack (seam-facts: Seam pass matthew-mbp-m4-b58-seam1 (i)): copy `server/
 `src/build_opt/sscompile --src <scratch>/server/scripts --content-root <scratch> --out <pack>`.
 `--content-root` must be the scratch root, not the real tree (the lane-gated rs2012 files fail to
 compile against the real one). Then run with `TORIRSSERVER_SCRIPTS=<pack>
-TORIRSSERVER_ALLOW_STALE_SCRIPTS=1`.
+TORIRSSERVER_ALLOW_STALE_SCRIPTS=1`. The same env runs the server selftest
+(`torirsserver --selftest`) against the HEAD pack, for a failure-count baseline beside the fixed
+pack's (b66-seam1 (d)).
 
 ## From section 8: harness facts
 
@@ -308,3 +317,16 @@ were. Round 2 of matthew-mbp-m4-b61 committed Desert Treasure with 5 of 725 shot
 so; the sampler then opened all 1,129 shots of that round's three quests on contact sheets (284
 sheets, six per message, one notebook line after each message). Write the number you opened in
 `shots_checked`, never the total, and name the sampler as owing the rest.
+
+### `shots_checked 1`: the reviewer opened only the completion scroll
+
+In matthew-mbp-m4-b62, the Death Plateau reviewer accepted with `shots_checked 1`, the
+`quest.scroll` shot alone, and called every other check "non-visual". The Giant Dwarf reviewer
+accepted with 2 of 463 shots (the scroll and `reward.mining`). The scroll proves only that the
+quest completed. It cannot show that a door press opened a door, that a goto landed outside, or
+that an item came off the floor where the guide says. Those are the shots that catch a cheat.
+For each guide step, open at least the shot of the row that grades it: a door's `*.doorIn`, a
+landing's `*.landed`, an item's `*.in-pack`, and the reward rows. Put four shots on each 2x2
+contact sheet. In the same batch the image Read worked for the sampler on its first try. So a
+low `shots_checked` was not caused by the hook timeout above. If the hook does fail, retry it,
+then write the true count and name the sampler as owing the rest.

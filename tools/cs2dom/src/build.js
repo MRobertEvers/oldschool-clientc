@@ -21,6 +21,7 @@ import { emitInterface, emitCompack } from './emit_if.js';
 import { emitScript } from './emit_cs2.js';
 import { Ledger } from './ledger.js';
 import { packName } from './pack.js';
+import { markerOf, unmark } from './config_text.js';
 
 const MARKER = 'cs2dom';
 
@@ -213,7 +214,12 @@ export function readNamedConfig(path) {
         const opened = /^\[(.+)\]$/.exec(line);
         if( opened ) { current = {}; blocks.set(opened[1], current); continue; }
         const split = line.indexOf('=');
-        if( split > 0 && current ) current[line.slice(0, split)] = line.slice(split + 1);
+        if( split <= 0 || !current ) continue;
+        // `key=default` / `key=empty` say the field is absent / has no entries:
+        // leave the key out, as the text did before every key was stated.
+        const raw = line.slice(split + 1);
+        if( markerOf(raw) !== null ) continue;
+        current[line.slice(0, split)] = unmark(raw);
     }
     return blocks;
 }

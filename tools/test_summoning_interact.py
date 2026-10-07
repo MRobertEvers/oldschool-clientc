@@ -36,6 +36,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+import config_text
+
 REPO = Path(__file__).resolve().parents[1]
 CONTENT = REPO / "OSRS-Content/osrs239-content"
 LANE = CONTENT / "ported/scape2009_summoning"
@@ -73,7 +75,8 @@ def npc_ops(names: set[str]) -> dict[str, dict[str, str]]:
     found: dict[str, dict[str, str]] = {}
     for path in sorted((LANE / "configs").glob("*.npc")):
         current = None
-        for raw in path.read_text(encoding="utf-8").splitlines():
+        # `op2=default` is no op2 at all, not an option labelled "default".
+        for raw in config_text.read_lines(path, encoding="utf-8"):
             line = raw.strip()
             if line.startswith("[") and line.endswith("]"):
                 current = line[1:-1]

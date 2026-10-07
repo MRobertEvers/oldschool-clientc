@@ -3,7 +3,11 @@ return {
     fixture = "fresh_lumbridge.ini",
     setup = {
         "::clearinv",
-        "::ethicallyacquiredantiquities",
+        -- No ::ethicallyacquiredantiquities: that debugproc p_teleports onto the display case
+        -- (ethicallyacquiredantiquities.rs2:957, a solid tile in Varlamore, which has no on-foot
+        -- route). The fresh fixture's quest state is already 0; the prerequisites the start
+        -- checks (eaa_qualify: Children of the Sun, Shield of Arrav, base Thieving 25) are staged
+        -- here and Varlamore is reached the real way below (Regulus Cento's quetzal).
         "::setlevel thieving 25",
         "::complete quest_childrenofthesun",
         "::complete quest_shieldofarrav",
@@ -18,7 +22,27 @@ return {
         })
         t.ticks(5)
         t.expect("eaa.reset", t.quest.expect_stage("not_started"))
-        -- start
+        -- Travel to Varlamore: Regulus Cento outside Varrock's east gate (spawn 3281,3413) flies
+        -- to Civitas illa Fortis. twilightspromise.rs2:146 [opnpc1,vmq2_quetzal_keeper_varrock] ->
+        -- p_telejump(^tp_fortis_arrive = 0_26_49_33_4 = 1697,3140).
+        t.exec("goto-regulusVarrock", t.player.goto_tile, 3281, 3413, 0)
+        t.exec("flyToFortis", t.player.talk_to, "vmq2_quetzal_keeper_varrock", 1)
+        t.exec("flyToFortis.chat", t.chat.play, {
+            "npc:Nilsal, adventurer. Do you wis",
+            "choose:Let's do it!",
+            "player:Let's do it!",
+            "npc:Then hold on tight. Varlamore ",
+        })
+        t.exec("flyToFortis.landed", t.await, {
+            level = function()
+                local _, here = t.world.tile()
+                return here ~= nil and here.x == 1697 and here.z == 3140
+            end,
+            note = "landed at tp_fortis_arrive 1697,3140",
+        }, 10)
+        t.ticks(3)
+        -- start: the Grand Museum, on foot from the landing pad (reach: closed-doors)
+        t.exec("goto-museum", t.player.goto_tile, 1720, 3164, 0)
         t.exec("inspectEmptyDisplayCase", t.player.click_loc, "civitas_museum_display_diadem")
         t.exec("startQuest.chat", t.chat.drain, { stop_at = "options" })
         t.exec("startQuest.yes", t.chat.choose, "Yes.")
@@ -45,10 +69,12 @@ return {
         t.exec("investigateCaseAgain.tail", t.chat.drain, {})
         t.ticks(3)
         t.expect("quest.stage.visitors", t.quest.expect_stage("visitors"))
-        local _, witness = t.var.varbit("varb11199_eaa_shame")
-        t.check("witness.rolled", witness == 1 or witness == 2, "witness " .. tostring(witness))
-        -- visitors until the informant speaks
-        local who = { "varlamore_citizen_normal_m_5", "fortis_academic_01", "varlamore_tourist_m_1", "varlamore_citizen_rich_m_1", "fortis_academic_02", "varlamore_tourist_f_1" }
+        -- Visitors in the guide's fixed order (EthicallyAcquiredAntiquities.java:86-88: academic,
+        -- tourist, citizen), each asked only while the stage is still 6. ~eaa_witness
+        -- (ethicallyacquiredantiquities.rs2:231) rolled which category saw the thief; the test
+        -- does not read that roll to choose who to ask.
+        -- GUIDE-GAP: talkToCitizen is reached only when the witness roll makes the citizen necessary: on the tourist roll the tourist's answer sets ^eaa_regulus (ethicallyacquiredantiquities.rs2:274-276) before the guide's order (EthicallyAcquiredAntiquities.java:86-88) reaches the citizen
+        local who = { "fortis_academic_01", "varlamore_tourist_m_1", "varlamore_citizen_normal_m_5" }
         for i, sym in ipairs(who) do
             local s = select(2, t.quest.stage())
             if s ~= 6 then break end
@@ -57,6 +83,8 @@ return {
             t.ticks(2)
         end
         t.expect("quest.stage.regulus", t.quest.expect_stage("regulus"))
+        local _, witness = t.var.varbit("varb11199_eaa_shame")
+        t.note("witness roll (diagnostic, read after stage 8): " .. tostring(witness) .. " (1 citizen, 2 tourist)")
         t.exec("goto-regulus", t.player.goto_tile, 1701, 3144, 0)
         t.exec("talkToRegulus", t.player.talk_to, "vmq2_quetzal_keeper_fortis")
         t.exec("regulus.menu", t.chat.drain, { stop_at = "options" })
@@ -83,7 +111,11 @@ return {
         t.ticks(3)
         t.expect("quest.stage.sail", t.quest.expect_stage("sail"))
         t.exec("crew.sails.have", t.inv.expect_has, "eaa_tattered_sail", 1)
-        t.exec("goto-artima", t.player.goto_tile, 1766, 3102, 0)
+        -- Artima's crafting store (x 1763-1769 z 3094-3103) is walled in; its one door is
+        -- fortis_door_l_reverse on the north wall of 1766,3103 (maps/m27_48.jl2), pressed in and out.
+        t.exec("goto-artima", t.player.goto_tile, 1766, 3106, 0)
+        t.exec("artimaDoorIn", t.player.pass_door, { closed = "fortis_door_l_reverse", open = "fortis_door_l_reverse_open",
+            at = { 1766, 3103, 0 }, near = { 1766, 3104 }, far = { 1766, 3103 } })
         t.exec("talkToArtima", t.player.talk_to, "fortis_shop_crafting")
         t.exec("artima.menu", t.chat.drain, { stop_at = "options" })
         t.exec("artima.help", t.chat.choose, "I was hoping for some help.")
@@ -93,6 +125,8 @@ return {
         t.ticks(3)
         t.expect("quest.stage.crew2", t.quest.expect_stage("crew2"))
         t.exec("artima.fixed", t.inv.expect_has, "eaa_fixed_sail", 1)
+        t.exec("artimaDoorOut", t.player.pass_door, { closed = "fortis_door_l_reverse", open = "fortis_door_l_reverse_open",
+            at = { 1766, 3103, 0 }, near = { 1766, 3103 }, far = { 1766, 3104 } })
         t.exec("goto-crew2", t.player.goto_tile, 1742, 3137, 0)
         t.exec("returnToCrewmember", t.player.talk_to, "sailing_transport_trader_stan_crew_man3")
         t.exec("return.menu", t.chat.drain, { stop_at = "options" })
@@ -101,7 +135,20 @@ return {
         t.ticks(3)
         t.expect("quest.stage.stan", t.quest.expect_stage("stan"))
         t.exec("sails.gone", t.inv.expect_absent, "eaa_fixed_sail")
-        -- Port Sarim
+        -- Port Sarim: back to the mainland by Regulus's quetzal. His Talk-to at stages 8..36 is the
+        -- quest topic (twilightspromise_teomat.rs2:23); his Travel op flies to Varrock
+        -- (twilightspromise_teomat.rs2:91 [opnpc3,vmq2_quetzal_keeper_fortis] ->
+        -- p_telejump(^tp_regulus_varrock_coord = 0_51_53_18_21 = 3282,3413)). Then on foot.
+        t.exec("goto-regulusFortis", t.player.goto_tile, 1701, 3144, 0)
+        t.exec("flyToVarrock", t.player.talk_to, "vmq2_quetzal_keeper_fortis", 3)
+        t.exec("flyToVarrock.landed", t.await, {
+            level = function()
+                local _, here = t.world.tile()
+                return here ~= nil and here.x == 3282 and here.z == 3413
+            end,
+            note = "landed at tp_regulus_varrock_coord 3282,3413",
+        }, 10)
+        t.ticks(3)
         t.exec("goto-stan", t.player.goto_tile, 3039, 3193, 0)
         t.exec("talkToTraderStan", t.player.talk_to, "sailing_transport_trader_stan")
         t.exec("stan.menu", t.chat.drain, { stop_at = "options" })
@@ -120,7 +167,7 @@ return {
         local tabr = t.ui.tab("inventory")
         t.ticks(2)
         local opr, opd = t.player.inv_op("eaa_rune_order", 1)
-        t.check("readBettysNotes", opr == "ok" or opr == nil, "tab=" .. tostring(tabr) .. " inv_op=" .. tostring(opr) .. " " .. tostring(opd))
+        t.check("readBettysNotes", opr == "ok", "tab=" .. tostring(tabr) .. " inv_op=" .. tostring(opr) .. " " .. tostring(opd))
         t.ticks(3)
         t.exec("readBettysNotes.tail", t.chat.drain, {})
         t.ticks(3)
@@ -141,19 +188,22 @@ return {
         t.ticks(3)
         t.exec("pickpocket.key", t.inv.expect_has, "eaa_store_room_key", 1)
         t.expect("quest.stage.crate", t.quest.expect_stage("crate"))
-        t.exec("goto-door", t.player.goto_tile, 3266, 3454, 0)
-        t.exec("door.open", t.player.click_loc, "vm_store_room_door")
-        t.ticks(3)
-        t.exec("goto-crates", t.player.goto_tile, 3267, 3457, 0)
+        -- The storeroom (x 3265-3267 z 3456-3459): vm_store_room_door on the south wall of
+        -- 3266,3456 (maps/m51_53.jl2), opened with the key (ethicallyacquiredantiquities_locs.rs2
+        -- [oploc1,vm_store_room_door] -> ~door_open_active), crossed in and out on foot.
+        t.exec("goto-door", t.player.goto_tile, 3266, 3455, 0)
+        t.exec("storeroomDoorIn", t.player.pass_door, { closed = "vm_store_room_door", open = "vm_store_room_door_open",
+            at = { 3266, 3456, 0 }, near = { 3266, 3455 }, far = { 3266, 3456 } })
         t.exec("crates.other", t.player.click_loc, "eaa_large_crates")
         t.exec("crates.other.tail", t.chat.drain, {})
-        t.exec("goto-crate", t.player.goto_tile, 3266, 3459, 0)
         t.exec("searchStoreroomCrate", t.player.click_loc, "eaa_large_crate")
         t.exec("crate.tail", t.chat.drain, {})
         t.ticks(3)
         t.expect("quest.stage.shame_talk", t.quest.expect_stage("shame_talk"))
         local _, dis = t.var.varbit("varb11207_eaa_diadem")
         t.check("display.still.empty", dis == 0, "varb11207_eaa_diadem=" .. tostring(dis))
+        t.exec("storeroomDoorOut", t.player.pass_door, { closed = "vm_store_room_door", open = "vm_store_room_door_open",
+            at = { 3266, 3456, 0 }, near = { 3266, 3456 }, far = { 3266, 3455 } })
         -- shame game
         t.exec("goto-haig2", t.player.goto_tile, 3257, 3450, 0)
         t.exec("talkToCuratorBeforeShaming", t.player.talk_to, "curator")
@@ -196,11 +246,14 @@ return {
         ["You've betrayed the trust of Varlamore."]=true,
         ["You've committed a crime."]=true
         }
-        local rounds = 0
+        -- eaa_shame.rs2:44 ~eaa_shame_game: each round is a p_choice5, then the player's line and
+        -- Haig's reply; the meter moves after the reply is continued, so each round plays its two
+        -- pages before the meter is read. The game ends at 100 (five shaming lines) and the
+        -- dialogue goes on with the player's "You can't just keep claiming..." (eaa_haig_confront).
+        t.exec("shame.first", t.chat.drain, { stop_at = "options" })
+        local won = false
         for round = 1, 14 do
-            local r = t.chat.drain({ stop_at = "options" })
             local ok, opts = t.chat.options()
-            local s = select(2, t.quest.stage())
             if ok ~= "ok" or type(opts) ~= "table" then break end
             local pick = nil
             for _, o in ipairs(opts) do
@@ -208,16 +261,46 @@ return {
                 if INC[txt] then pick = txt break end
             end
             if not pick then pick = (type(opts[1]) == "table" and (opts[1].text or opts[1][1]) or opts[1]) end
-            rounds = round
-            local cr, cd = t.chat.choose(pick)
+            local cr = t.chat.choose(pick)
+            local pr, pd = t.chat.play({ "*", "*" })
+            t.ticks(1)
             local _, m = t.var.varbit("varb11199_eaa_shame")
-            t.step("shameCuratorHaigHalen.round" .. round, cr == "ok" and "PASS" or "FAIL", "picked '" .. tostring(pick) .. "' -> " .. tostring(cr) .. " meter " .. tostring(m))
-            if m and m >= 100 then break end
+            t.step("shameCuratorHaigHalen.round" .. round, (cr == "ok" and pr == "ok") and "PASS" or "FAIL",
+                "picked '" .. tostring(pick) .. "' -> " .. tostring(cr) .. " / " .. tostring(pr) .. " " .. tostring(pd) .. " meter " .. tostring(m))
+            if m and m >= 100 then won = true break end
         end
+        t.check("shame.won", won, "Shame-o-meter reached 100 (varb11199_eaa_shame)")
+        -- Stage 32 (precut): the game is won and the player talks on with Haig until he starts
+        -- his story (eaa_haig_confront: the player's page, then %varb11193_eaa = ^eaa_precut).
+        t.exec("shame.after", t.chat.play, { "player:You can't just keep claiming" })
+        t.expect("quest.stage.precut", t.quest.expect_stage("precut"))
+        t.exec("talkToCuratorBeforeCutscene", t.chat.play, {
+            "npc:I didn't steal anything!",
+            "player:What do you mean?",
+            "npc:Well...",
+        })
+        t.expect("quest.stage.cutscene", t.quest.expect_stage("cutscene"))
         -- NOTE watchCutscene: the confession cutscene is spec-pending (no cam_* rows); the port speaks it as plain dialogue, eaa_haig_confront in ethicallyacquiredantiquities.rs2 -- drained here.
         t.exec("watchCutscene", t.chat.drain, {})
         t.ticks(3)
         t.expect("quest.stage.ret", t.quest.expect_stage("ret"))
+        -- Back to Fortis by Regulus Cento's quetzal (spawn 3281,3413), then on foot to the museum.
+        t.exec("goto-regulusVarrock2", t.player.goto_tile, 3281, 3413, 0)
+        t.exec("flyToFortis2", t.player.talk_to, "vmq2_quetzal_keeper_varrock", 1)
+        t.exec("flyToFortis2.chat", t.chat.play, {
+            "npc:Nilsal, adventurer. Do you wis",
+            "choose:Let's do it!",
+            "player:Let's do it!",
+            "npc:Then hold on tight. Varlamore ",
+        })
+        t.exec("flyToFortis2.landed", t.await, {
+            level = function()
+                local _, here = t.world.tile()
+                return here ~= nil and here.x == 1697 and here.z == 3140
+            end,
+            note = "landed at tp_fortis_arrive 1697,3140",
+        }, 10)
+        t.ticks(3)
         t.exec("goto-herminius2", t.player.goto_tile, 1713, 3164, 0)
         local snapr, snap = t.skill.snapshot()
         local _, coins_before = t.inv.count("coins")

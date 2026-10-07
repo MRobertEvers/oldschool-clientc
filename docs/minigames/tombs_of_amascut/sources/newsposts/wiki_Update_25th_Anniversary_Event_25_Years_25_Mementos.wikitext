@@ -1,0 +1,304 @@
+{{Update|date=18 February 2026|url=https://secure.runescape.com/m=news/25th-anniversary-event-25-years-25-mementos?oldschool=1|category=game}}
+[[File:25th Anniversary Event- 25 Years, 25 Mementos! newspost.jpg|right]]
+{{clear}}
+__TOC__
+''25 years of RuneScape meets 13 years of Old School... This calls for a celebration!''
+
+==Changelog - February 18th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+'''25th Anniversary Event: 25 Years, 25 Mementos'''
+
+* This year marks 25 years of RuneScape and 13 years of Old School, bringing the perfect opportunity for a brand-new anniversary event!
+* Start the event by talking to the Apprentice Wizard Gary Grayzag in southern Varrock, and help him open a portal to the Realm of Memories, a place where you can see and fight versions of creatures from the history of RuneScape. Think you've been there before? Well, there are more memories now - including the retro Kalphite Queen in her 2004-style glory!
+* New rewards, inspired by Tim & Crunchy and by the event itself, await those who complete the event:
+** 25th Anniversary Helmet
+** 25th Anniversary Skeleton Tabard
+** 25th Anniversary Warrior Tabard
+** 25th Anniversary 5x5 Hat
+* Plus, mark your calendars for our upcoming Anniversary Livestream on February 27th 16:00 UTC, where we'll be joined by MMORPG, Zecookies and Megan!
+
+'''Deadman: Annihilation Tweaks'''
+
+* To complete the “Have Prissy Scilla protect your Magic tree” task in the Western Province Diary, you can now pay Prissy Scilla to protect the tree.
+* Summoned thralls via the spellbook will now last twice as long if you have the Sigil of the Augmented Thrall unlocked.
+* Deadman Chests for Artio/Callisto, Calvarion/Vetion, Spindel/Venenatis now spawn outside of their cave entrance, allowing you to attempt to loot the chests without constantly being attacked by the bosses.
+* The Trinket of Avarice will now also loot bones from NPCs automatically.
+* Your noted items will now stack as intended even if your Looting Bag is full when you have the Trinket of Avarice active.
+* The risk calculation when attempting to enter a raids area is now based on high alch value, instead of grand exchange value. Accordingly, the required value has also been lowered to 500,000 GP from 800,000.
+* Since parts of the Ruins of Unkah breach occur in a safe zone, the location has been removed.
+* Breach NPCs will no longer spawn on water.
+* The Deadman skull countdown timer for the 2am breach now shows the remaining time left correctly.
+
+'''Sailing Tweaks'''
+
+* The current restrictions for UIMs on the Cargo hold have been removed. UIMs will be able to use the Cargo Hold like regular Ironmen - no more limited capacity!
+* We’d love your feedback! Should the colours of Steel and Iron cannonballs be swapped to better match their appearance elsewhere in-game, and should the same change also apply to Steel and Iron nails? Share your thoughts in the comments on the dedicated update post across our social media platforms.
+
+'''Other Changes'''
+
+* We've made some feedback changes to the music system improvements from last week:
+** Your mobile and desktop clients will now remember their volume settings separately. Meaning if you're an audio-enjoyer when gaming at home but don't want the entire bus to hear you blasting tunes on your way to work, your mobile client will remember its own muted settings.
+** We've made it even easier to tell at a glance which track you're vibing along to with a handy recolour - and yes you can pick the colour from the settings!
+** The "now playing" text above the music list can be clicked to read the unlock hint and to add/remove the track from a playlist.
+* Fixed an issue with right-clicking Eluned in Prifddinas to recharge crystals, they will now charge correctly.
+* Resolved a host of Z-buffering issues:
+** Clipping issues have been fixed for the following:
+*** The Nightmare's flower visual effects
+*** The Kalphite Queen's tunnel entrance
+*** Upstairs in the Grimstone Dungeon
+*** The cave where the Hueycoatl sits
+*** The vines near the Gryphon nests
+*** Pier floors of Port Sarim, Port Phasmatys, Lunar Isle, Rellekka and Piscarillius
+*** Rocnar and Tok-Xil from the dungeon below in POH
+*** The Large Orrery in POH
+*** The Blue Moon Inn fireplace
+*** The walls of the Civitas and Fancy Stone house styles through another floor
+** Fixed some rendering and flickering issues for:
+*** The shadows of the pillars in Tombs of Amascut
+*** The shadows of Leagues Trophies in the POH
+*** The Earthen Shield and the ranged larvae at The Doom of Mokhaiotl
+*** Some visual effects inside the Scar maze during Desert Treasure II
+*** The Elemental Guards from the Sorceress's Garden
+*** The wall kit of the Fancy Stone house style
+*** The exam room door in the Surprise Exam random event
+*** The Kourend Sigil banners
+*** Various assets in The Path of Glouphrie environment
+*** Some staircases in Hosidius as well as Varrock Museum stairs
+** The cape icons of the Skillcape Masters are now visible for Crafting, Woodcutting, Herblore, Fishing and Firemaking.
+* Hovering over the 10 quantity button in the bank/GIM storage no longer claims that the default quantity would be 5 if you clicked that button.
+
+====PvP Rota====
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>de-activated</u>''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''<u>de-activated</u>''' with this rota.
+
+The PvP Arena is using '<b>Max/Med</b>' loadouts in Ranked Duels and Tournaments this week.
+
+{{Collapsed section end}}
+
+==25 Years, 25 Mementos==
+This year marks 25 years of RuneScape. That's a quarter of a century of 'Scaping! In other words, a quarter century of grinds and gains, action and achievements, fun and friendships forged across Gielinor... 
+
+On top of 25 years of RuneScape, this month marks 13 years of Old School, bringing the perfect opportunity for a brand-new anniversary event. We've previously said that special events like anniversaries or birthdays would be reserved to milestone years, 25 years of 'Scaping is exactly that! So, get ready to take a walk down memory lane with: 25 Years, 25 Mementos. 
+
+[[File:25th Anniversary Event- 25 Years, 25 Mementos! (1).jpg|thumb|600px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-02-18/25thanniversary.jpg here]!'']]
+
+To kick things off, head to southern Varrock and chat to the Apprentice Wizard Gary Grayzag. He's been digging through his father's old notes on the mysterious Realm of Memories, and he's convinced he can open a portal there! To do it, he needs your help gathering 25 symbolic mementos - each one represents the skills and moments that have shaped RuneScape over the last 25 years. Will you help this young wizard work his magic and prove himself as a fully-fledged wizard?
+
+[[File:25th Anniversary Event- 25 Years, 25 Mementos! (2).png|thumb|450px|center|''Remember asking "Where Varrock?" when you first set foot in Gielinor? Where better than Varrock to initiate the anniversary event?<br/>If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-02-18/map.jpg here]!'']]
+
+[[File:25th Anniversary Event- 25 Years, 25 Mementos! (3).png|thumb|500px|center|''Speak to Gary in southern Varrock to start the event.<br/>If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-02-18/gary.jpg here]!'']]
+
+Think you've been to the Realm of Memories before? Not this version! Once all mementos are in place, you'll unlock an ''updated version'' of the Realm of Memories - with new memories and NPCs including the retro Kalphite Queen in her 2004-style glory! To explore this realm where you can see and fight versions of creatures from the history of RuneScape, go ahead and embark on an adventure with Gary!
+
+===Rewards===
+Of course, it wouldn't be an anniversary without brand new rewards! The following four cosmetics await those of you complete the event:
+
+* 25th Anniversary Helmet and 25th Anniversary Skeleton Tabard, inspired by Crunchy from the iconic Tim and Crunchy duo.
+* 25th Anniversary Warrior Tabard, inspired from Tim likewise.
+* 25th Anniversary 5x5 Hat - you'll know why when you play the event...
+
+[[File:25th Anniversary Event- 25 Years, 25 Mementos! (4).png|thumb|400px|center|''25th Anniversary Helmet and 25th Anniversary Skeleton Tabard<br/>If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-02-18/rewards1.jpg here]!'']]
+
+[[File:25th Anniversary Event- 25 Years, 25 Mementos! (5).png|thumb|400px|center|''25th Anniversary Warrior Tabard and 25th Anniversary 5x5 Hat<br/>If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-02-18/rewards2.jpg here]!'']]
+
+Make sure to grab these goodies while you can! If you've completed the event, you'll also unlock the rewards from previous birthday events and the 20th Anniversary Event. Just claim them from Diango in Draynor or a toy box in your POH!
+
+===Anniversary Livestream Next Friday!===
+Did you think we'd stop with an in-game Anniversary Event? Mark your calendars for our upcoming Anniversary Livestream ''next Friday''!
+
+* When: '''February 27th, 16:00 UTC'''
+* Where: '''On the <u>[https://www.twitch.tv/oldschoolrs official OSRS Twitch channel]</u>'''
+
+We'll be joined by some of your favourite OSRS content creators for some fun and games: <u>[https://x.com/MmorpgCP MMORPG]</u>, <u>[https://x.com/zecookiess Zecookies]</u>, <u>[https://x.com/MeganTTV_ Megan]</u>!
+
+Plus, Postbag from the Hedge will make a return. You can write directly to the characters of Gielinor, and some of them will answer you live on stream.
+
+[[File:25th Anniversary Event- 25 Years, 25 Mementos! (6).png|thumb|450px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-02-18/postbag.png here]!'']]
+
+* Always wanted to ask Death what he actually does all day?
+* Curious how King Roald handles his taxes?
+* Got beef with a Lumbridge Cow?
+* Need advice from the Wise Old Man?
+
+Send us your questions <u>[http://osrs.game/Birthday-Postbag here]</u> for a chance to have them answered live! During the stream, Mod Ash will read ''selected ''replies out loud in the characters' own words. While filling out the <u>[https://survey.alchemer.eu/s3/91037812/Postbag-from-the-Hedge-Submission survey]</u>, make sure to include:
+
+* Who you’re writing to
+* Your question
+* Your in-game display name
+
+Plus, there will be giveaways and some surprise segments. More details to come next week!
+
+==Deadman: Annihilation Tweaks==
+'''We've had a few players reach out about the Deadman Finale with questions about the cape they'll be given, since its functionality impacts their preparations. To keep things quick, the capes you'll be made to wear in the Finale are bog-standard Team capes, meaning they won't possess strong combat bonuses like the Mage Arena II capes, nor will they have the ammo-collection effect of Ava's devices. Stock up on those bolts ahead of the Finale!'''
+
+If you have the Sigil of Nature, you might’ve run into an issue where you couldn’t complete the “Have Prissy Scilla protect your Magic tree” task in the Western Province Diary. This is because the sigil automatically plants and grows seeds in farming patches, but that’s been sorted. You can now just right-click Prissy Scilla, pay her to protect the tree, and the achievement will be completed.
+
+[[File:25th Anniversary Event- 25 Years, 25 Mementos! (7).jpg|thumb|550px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-02-18/paytoprotect2.jpg here]!'']]
+
+In addition, we've got the following fixes:
+
+* Summoned thralls via the spellbook will now last twice as long if you have the Sigil of the Augmented Thrall unlocked.
+* Deadman Chests for Artio/Callisto, Calvarion/Vetion, Spindel/Venenatis now spawn outside of their cave entrance, allowing you to attempt to loot the chests without constantly being attacked by the bosses.
+* The Trinket of Avarice will now also loot bones from NPCs automatically.
+* Your noted items will now stack as intended even if your Looting Bag is full when you have the Trinket of Avarice active.
+* The risk calculation when attempting to enter a raids area is now based on high alch value, instead of grand exchange value. Accordingly, the required value has also been lowered to 500,000 GP from 800,000.
+* Since parts of the Ruins of Unkah breach occur in a safe zone, the location has been removed.
+* Breach NPCs will no longer spawn on water.
+* The Deadman skull countdown timer for the 2am breach now shows the remaining time left correctly.
+
+We know that you'd have liked to see some of these changes sooner, and we can only apologise for the delay. There's been a lot going on behind-the-scenes that requires careful testing and consideration, so we haven't been able to fit as many player-facing changes in as we'd have wanted to. For now, make the most of these changes ahead of the '''Finale '''on '''February 21st''', and note that these improvements will carry forward into future Deadman events as well.
+
+The Deadman: Annihilation rewards will be available to purchase from Nigel in Lumbridge Graveyard on the 25th of February. Note that you'll need to switch to Permanent Deadman worlds first, then to the regular worlds where your points will transfer over.
+
+===Finale Prizes===
+While we've got your attention and this weekend's Finale is fresh on your minds, we've got exciting news! Despite there not being a cash prizepool this year, winners of the various brackets won't be going away empty-handed and will instead be getting some merch to show off (alongside the bragging rights). That means that if you're lucky enough to be the last player standing, make sure to keep an eye on your character's inbox because we'll be in touch! Full [http://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-02-11/AnnihilationWinners.pdf Terms &amp; Conditions can be found here], and below is a list of what's on the line!
+
+* Brackets 1 and 2
+** [https://youtooz.com/products/lumbridge-castle-brickset 1x Youtooz Lumbridge Castle Brickset]
+** [https://madrinas.com/products/runescape-collectors-box 1x Madrinas Collector's Box Drink Set]
+* Brackets 3 and 4
+** [https://youtooz.com/products/rune-armour 1x Youtooz Rune Armour Figure]
+** [https://youtooz.com/products/dragon-armour 1x Youtooz Dragon Armour Figure]
+** [https://youtooz.com/products/tim-crunchy-monitor-buddiez 1x Youtooz Tim &amp; Crunchy Monitor Buddiez]
+** [https://starforgesystems.com/products/starforge-x-osrs-ducky-tinker-75-keyboard 1x Starforge x OSRS Ducky Tinker 75 Keyboard]
+** [https://starforgesystems.com/products/zuk-artisan-keycap 1x Zuk Artisan Keycap]
+
+Make sure to join us live on Twitch this Saturday, February 21st at 18:00 UTC for the epic conclusion to our biggest Deadman yet!
+
+==Sailing Tweaks==
+The current restrictions for UIMs on the Cargo hold have been removed. UIMs will be able to use the Cargo Hold like regular Ironmen - no more limited capacity! We hope you'll enjoy these changes, and thanks for your patience as we worked on them.
+
+In other news, the team is hoping to launch changes to boat combat very soon, so that we can start to tackle the problems highlighted around boat combat from the Sailing opinion poll. If you're not familiar with the changes yet, please check out <u>[https://osrs.game/sailing-in-2026 this blog]</u> for more information. During the development of these changes, we identified that the colour of cannonballs are a little confusing. Steel cannonballs look like they should be Iron, and vice versa. Not to mention that Steel and Iron Nails also don't seem to accurately depict their metal. 
+
+We think this should be changed, please see the following picture for our proposal:
+
+[[File:25th Anniversary Event- 25 Years, 25 Mementos! (8).png|thumb|600px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-02-18/cannonballs.jpg here]!'']]
+
+We feel strongly that this change makes sense for the game and would improve the new player experience in particular. However, since the current assets have been in-game for quite a while, we would really appreciate your feedback on these tweaks before they are live. Would you be happy with these changes, or do you feel strongly that the current assets should remain the same? 
+
+As this type of adjustment relates to art, it falls under content that we don't typically poll. However, do let us know your thoughts on it and we'll take it into consideration.
+
+==New Failed Payment Service E-mail==
+We're introducing a new automated service email that will be sent if a scheduled membership payment doesn't go through.
+
+If you receive this message, don’t worry. It's a standard notification letting you know there was an issue processing your payment and guiding you on how to update your details if needed.
+
+Payment issues can happen for many reasons, such as expired cards or bank regulations, and this alert is simply to help you take action quickly and avoid any interruption to your membership.
+
+As always, please stay vigilant when it comes to your account security. While this email is a legitimate part of our account support process, phishing attempts do still occur and bad actors may attempt to fool you using this new email alert.
+
+If you're ever unsure about an email claiming to be from Jagex, please keep the following in mind:
+
+* We only send these notifications from '''no-reply@contact.jagex.com'''
+** '''Attackers may still be able to spoof this address, however, it should be flagged as spam by your email provider in most situations.'''
+* We will never ask for your password via email.
+* Links provided in the email go to our billing page via the Jagex Launcher. If you have any doubt, do not click links in the email. Instead, visit the official Old School RuneScape or RuneScape website directly and review your account there.
+
+Your account security is important to us, and this update is simply part of keeping things running smoothly.
+
+==Merch & Publishing Update==
+===13th Birthday Limited Edition Pins===
+We're celebrating Old School's birthday in style with two brand new, limited edition pins!
+
+[[File:25th Anniversary Event- 25 Years, 25 Mementos! (9).jpg|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-02-18/birthdaypins.jpg here]!'']]
+
+You probably don't want to eat this cake, but please tell this birthday Baron you like it. He worked really hard on it! This year's annual Dragon fire shield variant has also arrived, in a nicely nostalgic colourway, featuring red pearl effect enamel and 2.5D antique gold metal!
+
+Nab both Angels Scapes designs on the <u>[https://runescape.backstreetmerch.com/ official merch store]</u>.
+
+===New Audio Book===
+[[File:25th Anniversary Event- 25 Years, 25 Mementos! (10).jpg|thumb|450px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-02-18/novel1.jpg here]!'']]
+
+''RuneScape: Fall of Hallowvale'' is now available alongside ''The Gift of Guthix ''on <u>[https://www.audible.co.uk/search?keywords=runescape Audible]</u>. 
+
+All three novels including the latest, ''RuneScape: Shadows of Amascut ''are available as physical editions from <u>[https://titanbooks.com/catalog/?series=runescape&page bookstores]</u> globally! 
+[[File:25th Anniversary Event- 25 Years, 25 Mementos! (11).jpg|thumb|450px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-02-18/novel2.jpg here]!'']]
+
+===Graphic Novel – Out Soon!===
+[[File:25th Anniversary Event- 25 Years, 25 Mementos! (12).jpg|thumb|450px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-02-18/comic3.jpg here]!'']]
+
+[[File:25th Anniversary Event- 25 Years, 25 Mementos! (13).jpg|thumb|500px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-02-18/comic4.jpg here]!'']]
+
+All issues of the comic series'' RuneScape: Untold Tales of the Godwars'' release as a graphic novel on March 31st. Pre-order now from your local comic store or <u>[https://titan-comics.com/c/2167-runescape-untold-tales-of-the-god-wars/ online retailer]</u>.    
+
+==Other Changes==
+* We've made some feedback changes to the music system improvements from last week:
+** Your mobile and desktop clients will now remember their volume settings separately. Meaning if you're an audio-enjoyer when gaming at home but don't want the entire bus to hear you blasting tunes on your way to work, your mobile client will remember its own muted settings.
+** We've made it even easier to tell at a glance which track you're vibing along to with a handy recolour - and yes you can pick the colour from the settings!
+** The "now playing" text above the music list can be clicked to read the unlock hint and to add/remove the track from a playlist.
+** Fixed an issue with right-clicking Eluned in Prifddinas to recharge crystals, they will now charge correctly.
+* Resolved a host of Z-buffering issues:
+** Clipping issues have been fixed for the following:
+*** The Nightmare's flower visual effects
+*** The Kalphite Queen's tunnel entrance
+*** Upstairs in the Grimstone Dungeon
+*** The cave where the Hueycoatl sits
+*** The vines near the Gryphon nests
+*** Pier floors of Port Sarim, Port Phasmatys, Lunar Isle, Rellekka and Piscarillius
+*** Rocnar and Tok-Xil from the dungeon below in POH
+*** The Large Orrery in POH
+*** The Blue Moon Inn fireplace
+*** The walls of the Civitas and Fancy Stone house styles through another floor
+** Fixed some rendering and flickering issues for:
+*** The shadows of the pillars in Tombs of Amascut
+*** The shadows of Leagues Trophies in the POH
+*** The Earthen Shield and the ranged larvae at The Doom of Mokhaiotl
+*** Some visual effects inside the Scar maze during Desert Treasure II
+*** The Elemental Guards from the Sorceress's Garden
+*** The wall kit of the Fancy Stone house style
+*** The exam room door in the Surprise Exam random event
+*** The Kourend Sigil banners
+*** Various assets in The Path of Glouphrie environment
+*** Some staircases in Hosidius as well as Varrock Museum stairs
+** The cape icons of the Skillcape Masters are now visible for Crafting, Woodcutting, Herblore, Fishing and Firemaking.
+* Hovering over the 10 quantity button in the bank/GIM storage no longer claims that the default quantity would be 5 if you clicked that button.
+
+==JMod Wars: Free-to-Play Castle Wars Chaos==
+Get ready for another round of JMod Castle Wars chaos - this time, in Free-to-Play!
+
+[[File:25th Anniversary Event- 25 Years, 25 Mementos! (14).jpg|thumb|450px|center|''If you can’t see the image above, click [https://cdn.runescape.com/assets/img/external/oldschool/2026/Newsposts/2026-02-10/F2pCWsX.jpg here]!'']]
+
+On Saturday, February 28th, join us at the Ferox Enclave on World 499 as Mods Rach and Civ go head-to-head in a Castle Wars showdown.
+
+This isn’t your standard Castle Wars match. Each team gets a J-Mod dropped into the action as an unkillable, flag-stealing menace. Mods Rach and Civ will each have 100k Hitpoints, zero fear, and one goal: steal the enemy flag. As soon as the match begins, the opposing J-Mod will teleport straight into your base. Your job is to stop them, protect your own J-Mod, and escort that walking mountain of Hitpoints safely home.
+
+====When?====
+* Saturday, February 28th
+* 16:00 UTC/GMT (massing from 15:45 UTC/GMT, 10:45 ET, 07.45 PT, 2:45 AET)
+
+====Where?====
+* Ferox Enclave
+* World 499
+* The Mods will be live in a <u>[https://discord.com/events/324132423636090880/1470770377796878584 Discord Call]</u> and screensharing too, for anyone who wants to sit back and watch the chaos unfold!
+
+==PvP World Rota==
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 319 - (US) - Bounty Hunter World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>de-activated</u>''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''<u>de-activated</u>''' with this rota.
+
+The PvP Arena is using '<b>Max/Med</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Acorn, Ape, Arcane, Archie, Argo, Ash, Asherz, Ayiza, BigRig, Blighted, Blossom, Boko, Brooksie, Bruno, Chilly, Criminal, Curse, Daizong, Ed, Elena, Enigma, Entropi, Freddie, Frogs, Fuzz, Gecko, Gizmo, Goblin, Grace, Grub, Halo, Harold, Hend, Hornet, Husky, Ivory, Jalo, Jamesy, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Lotus, Mack, Manked, Markos, Maylea, Mobius, Moogle, Morty, Moz, Necro, Nin, Nixon, Nox, Nylu, Ori, Other, Otter, Philomel, Pork, Pumpkin, Puppi, Rach, Redfield, Rice, Romy, Roq, Roy, Ry, Saiyan, Sarnie, Schmidt, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Spyro, Squid, Starry, Stilrush, Suharun, Surma, Sween, Tide, Titania, Titus, TJ, Tomb, Tsourorf, Tyran, Veda, Vegard, West, Wolfy, Yozora & Yume'''
+
+''The Old School Team.''

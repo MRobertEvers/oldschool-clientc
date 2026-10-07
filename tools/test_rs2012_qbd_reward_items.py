@@ -6,6 +6,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import config_text
+
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTENT = ROOT / "OSRS-Content" / "osrs239-content"
@@ -13,6 +15,11 @@ CONTENT = ROOT / "OSRS-Content" / "osrs239-content"
 
 def read(relative: str) -> str:
     return (CONTENT / relative).read_text(encoding="utf-8")
+
+
+def read_config(relative: str) -> str:
+    """A `[name]` config file with `key=default`/`key=empty` lines dropped."""
+    return config_text.read_text(CONTENT / relative, encoding="utf-8")
 
 
 def block(text: str, name: str) -> str:
@@ -67,13 +74,13 @@ def main() -> None:
         "server/scripts/minigames/minigame_rs2012_qbd/scripts/"
         "rs2012_qbd_selftest.rs2"
     )
-    qbd_obj = read(
+    qbd_obj = read_config(
         "server/scripts/minigames/minigame_rs2012_qbd/configs/rs2012_qbd.obj"
     )
-    qbd_rows = read(
+    qbd_rows = read_config(
         "server/scripts/minigames/minigame_rs2012_qbd/configs/rs2012_qbd.dbrow"
     )
-    imported = read("ported/rs2012_qbd_td/configs/rs2012.obj")
+    imported = read_config("ported/rs2012_qbd_td/configs/rs2012.obj")
     # The Royal bindings moved out of `skill_crafting/.../leather.rs2` when this
     # lane became one a build may leave out: a base file may not name
     # `rs2012_obj_24374`. The panel and the batch loop they call are still base.
@@ -82,8 +89,8 @@ def main() -> None:
     )
     tanner = read("server/scripts/areas/alkharid/scripts/tanner.rs2")
     sbott = read("server/scripts/areas/area_canifis/scripts/sbott.rs2")
-    disputed = read("server/scripts/skill_combat/configs/equipment_disputed.obj")
-    level_rows = read("server/scripts/skill_combat/configs/levelrequire.dbrow")
+    disputed = read_config("server/scripts/skill_combat/configs/equipment_disputed.obj")
+    level_rows = read_config("server/scripts/skill_combat/configs/levelrequire.dbrow")
     ranged = read("server/scripts/skill_combat/scripts/player/player_ranged.rs2")
 
     conversions = (
@@ -192,7 +199,8 @@ def main() -> None:
     for obj, pairs in requirements.items():
         authored = block(disputed, obj)
         for stat, level in pairs:
-            require(authored, f"param=levelrequire,{stat},{level}", f"{obj} gate")
+            if re.search(rf"(?m)^levelrequire[0-9]+={stat},{level}$", authored) is None:
+                raise AssertionError(f"{obj} gate: missing 'levelrequire<N>={stat},{level}'")
             require(
                 block(level_rows, f"levelrequire_{stat}_{level}"),
                 f"data=obj,{obj}",
@@ -203,7 +211,7 @@ def main() -> None:
     # untradeable source gloves are the prerequisite and revision 727 supplies
     # no skill/level pair on object 24361.
     unsupported_glove_gate = re.search(
-        r"(?ms)^\[rs2012_obj_24361\]\n.*?param=levelrequire",
+        r"(?ms)^\[rs2012_obj_24361\]\n(?:(?!^\[).)*?^levelrequire[0-9]+=",
         disputed,
     )
     if unsupported_glove_gate is not None:
@@ -214,11 +222,11 @@ def main() -> None:
     kite = block(imported, "rs2012_obj_24365")
     for param in (
         "wearpos=5",
-        "param=stabdefence,int,52",
-        "param=slashdefence,int,54",
-        "param=crushdefence,int,53",
-        "param=rangedefence,int,51",
-        "param=magicdefence,int,-1",
+        "param=stabdefence,52",
+        "param=slashdefence,54",
+        "param=crushdefence,53",
+        "param=rangedefence,51",
+        "param=magicdefence,-1",
     ):
         require(kite, param, "imported 2012 Dragon kiteshield")
 

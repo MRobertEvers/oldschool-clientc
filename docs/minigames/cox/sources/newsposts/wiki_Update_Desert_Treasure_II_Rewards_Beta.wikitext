@@ -1,0 +1,405 @@
+{{Update|date=12 April 2023|rev=14 April 2023|url=https://secure.runescape.com/m=news/desert-treasure-ii-rewards-beta?oldschool=1|category=game}}
+[[File:Desert Treasure II Rewards Beta newspost.png|right]]
+__TOC__{{clear}}
+
+==Issues and Hotfixes==
+{| class="wikitable" style="text-align:center; width:665px;"
+!Last Updated
+!Issues Raised
+!Current Progress
+!Status
+|-
+|15:00 GMT - April 14th
+|We've investigated reports of and deployed hotfixes for a variety of issues.
+
+* Damage not being reduced when praying correctly during Nightmare's Prayer shuffle attack.
+* Zebak's Blood Barrage attack dealing more damage than it should if players were stood close together.
+* Callisto's Magic attack displacing the player even when protected against
+* Vanguard's Magic attack hitting instantly when faced in the Chambers of Xeric.
+* Zamorak, Saradomin, Brassican and Ancient Wizards hitting more accurately than intended when encountered during a Treasure Trail.
+* Players being frozen by Suqah when protecting against Magic.
+* Ba-Ba continuing to throw boulders even when attacked during the boulder special attack.
+* Vyres taking damage from all weapons, not just those intended to damage Vampyres.
+* Dagannoth Mother using the wrong attack styles during Horror From the Deep.
+* Hitpoints not regenerating as expected when players activated Rapid Heal and Redemption, leading to unintended behaviour in some instances - in particular the 'rope skip' or 'kirby skip' inside Chambers of Xeric.
+* A number of Combat Achievements not completing properly at Bryophyta, Obor and both the regular & Corrupted Gauntlet.
+* Fumus' Vow dealing far more damage than intended on the Beta worlds.
+* The Phantom Muspah not receiving damage from Deflect prayers on the Beta worlds.
+|All of the issues listed have been hotfixed and should be working as they did prior to yesterday's game update.
+|'''HOTFIXES DEPLOYED'''
+|-
+|15:00 GMT - April 14th
+|Players are seeing two poison hitsplats per poison tick.
+|The team have a fix prepared for the issue, which is purely visual. Poison damage remains the same. Unfortunately, we're not able to hotfix this one, so we'll be fixing this visual bug with a coldfix as part of next week's game update.
+|'''COLDFIX NEXT WEEK'''
+|}
+
+''This week we’re letting you try out the rewards from Desert Treasure II, including the Ruinous Powers!''
+
+==Changelog - April 12th==
+{{collapsed section|18|CLICK HERE TO SHOW}}
+'''Desert Treasure II - Rewards Beta'''
+* Players can now test out all the rewards from Desert Treasure II and the post-quest bosses, including four new rings, Ancient Sceptre upgrades, Virtus Armour, The Ruinous Powers Prayer Book and the community-designed weapon!
+
+'''Poll 79'''
+* Slayer Masters can now increase the number of Revenants received per task.
+* Players will now be guaranteed a Slepey Tablet at 100 Phosani’s Nightmare Kill Count. Players who already meet this requirement will receive the Tablet on their next kill.
+* Larran's Keys are now tradeable and sellable on the Grand Exchange.
+
+'''Other Changes'''
+* Artio, Calvar'ion and Spindel have been added to the HiScores.
+* A display unit from Varrock Museum has been extracted from inside a wall.
+
+'''PvP Rota'''
+
+The PvP rota has moved to '''Period B''':
+* 560 - (UK) - PvP World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''de-activated''' with this rota.
+
+The PvP Arena is using '<b>Main</b>' loadouts in Ranked Duels and Tournaments this week.
+{{Collapsed section end}}
+
+==Desert Treasure II - Rewards Beta==
+[[File:Desert Treasure II Rewards Beta (1).png|center|600px]]
+
+
+This year’s most-anticipated sequel is drawing closer, and before you know it, you’ll be back in the Kharidian Desert to start your next big adventure!
+
+But before then, we want you to feel confident in the rewards you’ll get for completing this epic quest. You’ve already given us the greenlight, and now it’s time to try the goods out for yourself.
+
+Remember, the Beta worlds are separate from the main game, and shouldn’t affect anything on your main game save file.
+
+To access the rewards beta, log in to any of the following worlds: '''401, 405, 407, 409 or 412'''.
+
+''Please note: these worlds will include both rewards from Desert Treasure II and Bounty Hunter.''
+
+===Beta Worlds: Tips & Tricks===
+Upon logging into the Beta worlds, you’ll find yourself at Ferox Enclave - a familiar sight for those of you who’ve participated in previous Betas!
+
+Something less familiar, though, will be the items you have in your Inventory: all the rewards from Desert Treasure II (with some placeholder models, of course):
+* '''Four best-in-slot rings''': Ring of True Blood, Ring of True Shadow, Ring of True Smoke & Ring of True Ice
+* '''Four upgraded Ancient Sceptres''': Blood Variant, Ice Variant, Smoke Variant & Shadow Variant
+* '''Three pieces of Virtus Robes''': Mask, Robe Top & Robe Bottoms
+* '''Soulreaper Axe''': A 2h Axe that will be created by combining the four pieces dropped by the post-quest bosses that was a community-designed weapon inspired by [https://www.reddit.com/r/2007scape/comments/117fp21/sandbreaker_axe_concept_for_community_design/ moronijess'] design
+
+[[File:Desert Treasure II Rewards Beta (2).png|frame|center|''I DO SO LIKE GREEN EGGS AND HAM!'']]
+
+
+You’ll also find a Weird Green Egg in your Inventory. This is not a reward. This fine fellow is the Boss Helper Tool, and it’ll let you access a plethora of options to make your testing experience smoother:
+* '''Teleports''': This will provide teleports (shocking!) to every boss encounter in the game.
+* '''All Gear''': '''You can only use this option near a bank!''' Using this option will open up the Tournament Supplies Interface where you can grab a handful of other goodies you might want for your testing time.
+* '''Gear Loadouts''': This provides a handful of relatively 'standard' setups.
+* '''New Items''': Using this will give the player all of the new items for DT2 (all of the rings, Virtus Robes, all of the Ancient Sceptre upgrades, the community-designed weapon).
+* '''Swap Prayerbook / Spellbook''': This lets you swap your Prayerbook or Spellbook – perfect for testing out the new Ruinous Powers!
+
+While you’re at the Tournament Supplies chest in the Enclave, you’ll be able to see two options: ‘Gear’ and ‘Stats’.
+
+The ‘Gear’ option lets you pick out a specific item using the ‘Search’ feature. You can also use the ‘Loadouts’ tab to get all the gear Loadouts available on the Egg.
+
+The ‘Stats’ option lets you change your skills to whatever value you’d like – as tempting as it is to give yourself UNLIMITED POWER, please do try the new items out at different levels!
+
+[[File:Desert Treasure II Rewards Beta (3).png|thumb|center|600px|''This table covered in tiny chests might come in handy!'']]
+
+
+You can also use the Altar in the Enclave to swap your Spellbook – or, if you’ve gone further afield, you can head to your Player Owned House, which has been magically kitted out with an Occult Altar, an Ornate Jewellery Box, an Ornate Rejuvination Pool and a maxed-out Portal Nexus. No wild parties, please!
+
+Finally, you can make use of the aptly-named Handy Portal on the west side of the Enclave to teleport to various useful places.
+
+You can find a more detailed rundown in our previous [https://secure.runescape.com/m=news/a=13/bounty-hunter-rewards-beta--more?oldschool=1 Bounty Hunter Beta newspost].
+
+Now that you’ve settled into the Beta worlds, let’s see what you’ll be testing!
+
+==Desert Treasure II - Rewards==
+[[File:Desert Treasure II Rewards Beta (4).png|center|600px|thumb|''The placeholder text on the axe will not be featured in game.'']]
+
+
+While some secrets lie buried deep, others have been scattered to the winds. Four remnants of a forgotten, fallen empire, untouched and undiscovered for lifetimes.
+
+Duke Sucellus. Vardorvis. The Leviathan. The Whisperer. Are you prepared to uncover the mysteries… of what these bosses are going to drop?
+
+{{collapsed section|18|New Best-in-Slot Rings (Click to expand)}}
+After you've completed the quest you can go back and fight the four bosses for a chance to bag yourself one of the mighty rings of power!
+
+'''Ring of True Blood'''
+* +12 Melee Strength
+
+'''Ring of True Ice'''
+* +15 Magic
+* +2% Magic Damage
+
+'''Ring of True Smoke'''
+* +10 Ranged
+* +2 Ranged Strength
+
+'''Ring of True Shadow'''
+* +12 Slash Bonus
+* +4 Melee Strength
+{{Collapsed section end}}
+
+{{collapsed section|18|Ancient Sceptre Upgrades (Click to expand)}}
+Requirements:
+* 75 Magic
+* 60 Strength
+* 50 Attack
+
+Attach one of these swanky little gems to your Ancient Sceptre and you’ll empower the associated Ancient Element by 35% while giving the other Elements a 10% buff (as the Ancient sceptre already does) to boot!
+
+
+'''Blood ancient sceptre'''
+
+Blood spells heal for more. Usually these heal for 25% of damage dealt, but this bloody sceptre will have you leeching harder than your fellow raiders!
+* 25% x 1.35 = 33.75% heal.
+* 1.35 is the multiplier as a result of 35% increase.
+
+
+'''Ice ancient sceptre'''
+
+Stop! Sceptre time. This Icy weapon will hold your opponents in place long enough for the Empty Lord to rise again...
+* Rush - 8 ticks (4.8s) -> 10 ticks (6s)
+* Burst - 16 ticks (9.6s) -> 21 ticks (12.6s)
+* Blitz - 24 ticks (14.4s) -> 32 ticks (19.2s)
+* Barrage - 32 ticks (19.2s) -> 43 ticks (25.8s)
+
+
+'''Smoke ancient sceptre'''
+
+Use this if you're looking to inflict your opponents with a particularly tenacious toxin!
+* Rush/burst - poison severity increased from 10 to 13.
+* Blitz/barrage - poison severity increased from 20 to 27.
+
+Poison severity can be a little confusing, but we'll try to put it simply
+
+Whenever poison damage is dealt, the game calculates ''(Poison Severity + 4) divided by 5''. For Smoke barrage using the Smoke ancient sceptre, this works out as ('''27''' + 4) divided by 5, meaning whoever you've poisoned will be dealt 6 damage. After this poison tick, the poison severity is reduced by 1, and the poison damage calculation repeats until the Poison Severity hits 0.
+
+Note if you're trying to work anything out for yourself that Old School almost ''always'' rounds down, so if your poison damage looks like a 6.2, it'll round down to a sensible 6!
+
+
+'''Shadow ancient sceptre'''
+
+This will increase the amount you lower your target's Attack level (or other stats if used in conjunction with Virtus' robes, more on that below!)
+* Rush and Burst spells have had their Stat drain increased from 10% to 13%
+* Blitz and Barrage spells have had their Stat drain increased from 15% to 20%
+{{Collapsed section end}}
+
+{{collapsed section|18|Virtus Robes (Click to expand)}}
+Requirements:
+* 75 Defence
+* 80 Magic
+
+While fighting the four post-quest bosses, you’ll be able to obtain components – one from each boss. Combine them, and you can make pieces of the coveted Virtus Armour. We’re yet to determine how much of each component you’ll need, but we can say that you’ll need to fight each boss at least once to assemble the full armour set.
+
+On the plus side, the pieces of the Virtus Armour are tradeable and do not degrade. When worn, each piece gives a 4% damage increase to all Ancient spells. Wearing all three pieces also nets you a set effect that buffs Ancient spells:
+* Smoke spells reduce healing by 30% while the target is poisoned.
+* Shadow spells also drain Strength, Ranged, Magic and Defence as well as Attack.
+* Blood spells can heal up to 20% over the player's max Hitpoints.
+* Ice spells have 10% additional accuracy against frozen targets.
+
+'''Virtus Mask'''
+[[File:Desert Treasure II Rewards Beta (5).png|center]]
+
+'''Virtus Robe Top'''
+[[File:Desert Treasure II Rewards Beta (6).png|center]]
+
+'''Virtus Robe Legs'''
+[[File:Desert Treasure II Rewards Beta (7).png|center]]
+{{Collapsed section end}}
+
+{{collapsed section|18|Soulreaper Axe (Click to expand)}}
+Requirements:
+* 80 Attack
+* 80 Strength
+
+Each of the four bosses fought after the quest will have a chance of dropping a specific item that is used to make this axe, meaning players must kill all four bosses to assemble it.
+
+Every time the player attacks with the axe, they will take '''8''' damage and gain a stack of the buff. For each stack of the buff, they will gain '''6%''' bonus Strength level. The stacks cap at 5.
+
+While equipped, the player has an overridden Special Attack bar that shows the number of stacks they have. They can use the special attack while they have 1 or more stacks, to consume all of their stacks to deal a bigger hit.
+
+The special attack gains '''6%''' bonus accuracy per stack, in addition to the previous 6% bonus strength. Regardless of if the attack hits or not, the player will then be healed by ''(8 x Stacks consumed)'', regaining all the health they spent obtaining the stacks. Players will not take damage if they cannot gain a stack, and don't gain a stack if they cannot take damage.
+
+[[File:Desert Treasure II Rewards Beta (8).png|center]]
+{{Collapsed section end}}
+
+==Desert Treasure II - The Ruinous Powers==
+[[File:Desert Treasure II Rewards Beta (9).png|frame|center|''Look at all those Prayer Icons!'']]
+
+
+Now onto the most significant of all of those rewards - the Ruinous Powers, Old School's first-ever new Prayer book. With given you a breakdown from seen in the previous [https://secure.runescape.com/m=news/the-ruinous-powers---updated-greenlight-poll-blog?oldschool=1 newspost], so be sure to check that out for some more context and most importantly, have fun!
+
+{{collapsed section|18|Protection Prayers (Click to expand)}}
+'''Deflect Melee / Magic / Ranged'''
+* Reduces damage from the appropriate style by 90% (36% in PvP scenarios), but has a 50% chance to deal 10% of the pre-mitigation damage back to the attacker.
+* For example, if you're using Deflect Melee and an NPC hits you with melee that would deal 49 damage, you'll receive 4 damage and deal 4 damage to the NPC.
+{{Collapsed section end}}
+
+{{collapsed section|18|Offensive Prayers (Click to expand)}}
+'''Ancient Precision'''
+* +20% Attack
+
+
+'''Ancient Strength'''
+* +20% Strength
+
+
+'''Ancient Sight'''
+* +20% Ranged Attack
+* +20% Ranged Strength
+
+
+'''Ancient Will'''
+* +20% Magic Attack
+
+
+'''Trinitas'''
+* +15% Attack
+* +15% Strength
+* +15% Ranged Attack
+* +15% Ranged Strength
+* +15% Magic Attack
+
+
+'''Decimate'''
+* +20% Attack
+* +30% Strength
+
+
+'''Anihilate'''
+* +20% Ranged Attack
+* +30% Ranged Strength
+
+
+'''Vaporise'''
+* +25% Magic Attack
+* +4% Magic Damage
+{{Collapsed section end}}
+
+{{collapsed section|18|Overhead Offensive Prayers (Click to expand)}}
+'''Gambit'''
+* Provides +8% Accuracy in all styles when used.
+Whether you're using this for better odds on hitting that juicy Dragon Warhammer Special attack or flicking between this and your protection prayers to maximise your damage output, we're confident players of all skill levels will be able to get value out of Gambit.
+
+8% Accuracy might not look like much to some of you but combined with the other Offensive prayers above, finding any opportunity to throw Gambit into the mix will take your damage potential to new heights - even if it's something you only bring out for the occasional Special attack!
+
+
+'''Rebuke'''
+* Increases your damage taken by 15%, reflects 15% of any damage dealt to you.
+This is pure risk vs. reward. Sacrifice a protection prayer for a chance at unleashing a devastating Vengeance, or just passively recoil damage in scenarios where you don't feel like you need extra protection.
+
+
+'''Vindication'''
+* When reduced below 10% of your maximum HP (without taking lethal damage), heal for 15% of your Prayer level and lose any remaining Prayer points.
+* For 6 seconds after Vindication triggers, your next attack will deal 10% bonus damage.
+While it's not ''entirely'' offensive and could save your life in a pinch, a well-timed Vindication might serve as a means for you to turn your near-death scenario into a swift change of fortune.
+{{Collapsed section end}}
+
+{{collapsed section|18|Ancient Vows (Click to expand)}}
+'''Cruor's Vow'''
+* While active, you have a 10% chance to heal 10% of damage dealt.
+All this combat is thirsty work, consider keeping yourself topped up with a sanguine treat!
+
+
+'''Glacies' Vow'''
+* While active, you have a 20% chance to deal bonus Magic damage.
+* This bonus damage rolls off of your equipped style against your target's Magic defence.
+* The damage dealt is 10% of your initial hit.
+Chill your target to the bone and shatter them with some recurrent damage.
+
+
+'''Umbra's Vow'''
+* While active, drain your opponent's Defence by 10% of your damage dealt.
+* Umbra's Vow respect the same limit as Shadow spells, meaning Defence cannot be lowered by more than 15% of its initial value.
+* This reduction would apply before other Defence reduction effects, meaning there's still value in using this alongside something like the Dragon Warhammer.
+It's difficult to spend every waking moment with your guard up. Slip into the shadows and get the better of any terribly tanky opponent.
+
+Defence reduction is extremely valuable in Old School these days. While the Accursed Sceptre introduced a means of lowering Defence from afar (a role previously only filled by the Bone crossbow), many players often feel like it's not worth the Special attack energy required. If you're able to pump the damage out, here's a reliable way of knocking those Defence values down (albeit with limited effectiveness compared to staples like the Dragon Warhammer or Bandos Godsword).
+
+
+'''Fumus' Vow'''
+* While active, attacks consume 10% of your poison severity, to deal the same amount as bonus poison damage to an enemy.
+
+This one's a little confusing and perhaps best-illustrated by an example plus a look at how poison actually works in Old School. We'll use the Alchemical Hydra's poison pool for our example.
+
+When you're inflicted with poison, while it might look like a number that just says 'you're about to take this much damage', there's a little more going on under the hood.
+
+The Alchemical Hydra's poison pool will inflict you with a poison severity of 30.
+
+Every time poison damage ticks, the damage you take is equal to (poison severity + 4) all divided by 5. You take some damage, your poison severity decreases by 1, rinse and repeat.
+
+In this example, the poison that these pools inflict you with will deal 6 damage. Since 30 + 4 is 34, divided by 5 gives 6.8, which we round down to 6.
+
+With Fumus' Vow activated, your next attack after being inflicted with this poison will deal 3 additional damage, and reduce your poison severity to 27.
+
+Ultimately, Fumus’ Vow means that you can remove poison faster while converting it to additional damage output. Practical ''and'' cool!
+{{Collapsed section end}}
+
+{{collapsed section|18|Utility Prayers (Click to expand)}}
+'''Ruinous Grace'''
+* While active, drain Prayer Points instead of Run Energy.
+* This drain rate is modified by Prayer bonus and does not take into account effects like Stamina.
+
+
+'''Ruinous Smite'''
+* While active, reduce both yours and your opponent's Prayer Points by 33% of your damage dealt.
+
+
+'''Wrath'''
+* While active, deal damage equal to 25% of your Prayer level in a 5x5 radius around you on death.
+
+
+'''Rejuvenation'''
+* While active, regenerate 1 HP every ~20 seconds.
+
+
+'''Metabolise'''
+* Reduces action delay ('''not eat delay''') by 0.6s after eating.
+* Similar to Preserve, must be active for some length of time (such as 15 seconds) before taking effect.
+* After this 'wind-up' time, deactivating Metabolise will reset your action delay to your weapon's attack speed ''or'' leave it unchanged - whichever of these values is greater
+
+Eat food, get back to fighting more quickly. Simple enough! We spoke about this one further up in the blog but just to reiterate again, Metabolise being active does '''not''' mean you'll be able to eat multiple pieces of food more quickly than before.
+
+
+'''Berserker'''
+* While active, combat stat boosts last 50% longer
+{{Collapsed section end}}
+
+That’s everything you can expect from the Beta! Do feel free to let us know what you think about the rewards through all the usual feedback channels – we’re eager to hear your thoughts. Once the Beta has concluded and we’ve made any major changes, we’ll be polling the Ruinous Powers to determine once and for all which of them will make it to the game… exciting stuff!
+
+==Poll 79 Improvements==
+Let’s lay Desert Treasure aside for a moment and check out the first batch of changes from our recent QoL poll!
+
+First up, Slayer Masters are now selling the option to increase the number of Revenants received per task to between 100 to 150, up from 40 to 100. This upgrade costs 100 Slayer Points.
+
+Speaking of slaying stuff, players are now guaranteed a Slepey Tablet at 100 Phosani’s Nightmare Kill Count. Those of you who’ve already defeated the gangly gal more than 100 times, or who somehow managed to lose their Slepey Tablet without using it, will receive it on their next kill. If you already have a tablet, you won’t gain another one – they don’t grow on trees, you know!
+
+Finally, Larran’s Keys are now tradeable between players and sellable on the Grand Exchange. Yippee!
+
+==Other Changes==
+* Artio, Calvar'ion and Spindel have been added to the HiScores.
+* Curators at the Varrock Museum have unearthed a display unit which was accidentally placed partway inside a wall. It’s now available to view in the proper place.
+
+==Crack the Clue==
+Woox has provided us all with another cryptic clue this week. This time, the clue is obtained by the Chemist... who that could be?
+
+[[File:Desert Treasure II Rewards Beta (10).png|center|600px']]
+
+==PvP World Rota==
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''<u>de-activated</u>''' with this rota. The PvP Arena is using '''Main''' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on our [http://services.runescape.com/m=forum/forums?380,381,869,66278207 official forums], on the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Boko, Bruno, Chilly, Crystal, Curse, Daizong, Dylan, Ed, Elena, Errol, Fed, Gecko, Gizmo, Goblin, Grub, Halo, Hend, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Nin, Nylu, Other, Pumpkin, Redfield, Regent, Roq, Ry, Sarnie, Shroom, Sigma, Skylark, Sova, Squid, Starry, Stevew, Surma, Sween, Tide, Titus, Torrance, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

@@ -1,0 +1,75 @@
+{{Update|date=6 April 2017|link=http://services.runescape.com/m=news/easter-2017-holiday-event?oldschool=1|category=game}}
+[[File:Easter 2017 Holiday Event newspost.png|right]]
+{{clear}}
+{{Headline|25|Easter Holiday Event}}
+
+
+<center>'''Along with the eggy festivities, this week's update brings some tweaks to the Chambers of Xeric, an adjustment to the sorting of your Friends lists and a pile of bugfixes.'''</center>
+
+{{Horizontal Line}}
+
+
+{{Headline|22|Easter Holiday Event}}
+
+Spring is in the air, rabbits are hopping in the meadows, and once again there's a big pink bunny seeking your help for his egg-delivering business.
+
+[[File:Easter 2017 Holiday Event (1).png|center]]
+
+On the remote land of '''Wester Island''', the Easter Bunny's son is trying to revitalise the family trade with innovative new flavours for the chocolate eggs. His attempts to spice up the mix haven't gone well, and he's getting salty. Help him if you want to earn the prestigious new '''Easter Egg Helm'''.
+
+[[File:Easter 2017 Holiday Event (2).png|center]]
+
+You'll also unlock all previous Easter holiday event items, plus all the Easter music tracks. Speak to the Easter Bunny, just '''south of Falador''', to find your way to Wester Island.
+
+[[File:Easter 2017 Holiday Event (3).png|center]]
+
+
+{{Horizontal Line}}
+
+
+{{Headline|22|Chambers of Xeric}}
+
+Some of the chambers within the raiding dungeons are more challenging than others. While they're never all going to be exactly equivalent, we've made some changes here to help with the nastier rooms:
+
+*'''Tekton'''<br/>The dragon warhammer's special attack usually reduces the target's Defence stat by 30% when it successfully deals some damage. Against Tekton, it now reduces the Defence stat by 5% if you fail to deal damage. The behaviour when you successfully deal damage has not changed.
+*'''Vespula'''<br/>The portal in Vespula's room now gives more reward points per unit damage dealt to it. It also spawns some potions on the ground when it is destroyed; these may be picked up by any member of the party, including Iron Men.
+*'''Vanguard'''<br/>The Vanguard previously performed their healing trick when their health differed by 20% or more. This threshold has been increased to 33%.
+*'''Corrupted scavenger'''<br/>The thieving chests room now gives double its previous reward points for each grub deposited into the trough. The scavenger itself will also require less food before it becomes satiated.
+
+[[File:Easter 2017 Holiday Event (4).png|center|250px]]
+
+There are now more possible sequences for the challenge rooms, making the order of dungeon rooms a bit less predictable.
+
+
+{{Horizontal Line}}
+
+
+{{Headline|22|Friends list tweaks}}
+
+
+When you choose an alphabetical sort for the Friends list on your side-panel interface, it now sorts your friends by their online status before ordering alphabetically.
+
+The clan setup menu now allows players with longer Friends lists to use the new sorting arrows; this is quite intensive for your client, so we don't recommend hanging around dangerous areas while you sort your friends' ranks.
+
+{{Horizontal Line}}
+
+
+'''In other news'''
+
+*The bank upstairs in the castle in central Kourend is now recognised as a safe area in PvP worlds.
+*Some more of the extra worlds which were added to handle heavy load during the release of the new Deadman Season have now been removed.
+*Last week we made the Cabbage Cape available from Diango's shop. We've now added the Cruciferous Codex to his stock too.
+*The Cabbage Cape and Cruciferous Codex can now be retrieved from the player-owned house toy box once the game recognises you've had these items; just equip them or put them into the toy box to ensure they're unlocked for you.
+*The Cabbage Cape is no longer permitted on Entrana, as it has some defensive stats.
+[[File:Easter 2017 Holiday Event (5).png|center|650px]]
+*Some graphical errors with the Dragon Chainbody have been fixed.
+*The message displayed when completing sets of Karamja Diary tasks has been updated to mention Jackie the Fruit in more cases.
+*Some clipping issues with the fighter torso on female characters have been addressed.
+*The top hat can no longer be seen through through players' bodies during certain emotes.
+*A stretching issue between Verac's skirt and the ornamented Dragon Defender has been resolved.
+*Ultimate Iron Men will no longer be advised to free up some bank space to let Bert deliver sand every day.
+*A clipping issue between the farming outfit and the Ardougne Cloak has been addressed.
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,378,65898389 forums].
+
+'''''Mods Archie, Ash, Ghost, Jed, John C, Kieren, Mat K, Maz, Ronan, Roq, Ry, Stone, TomH, Weath, West & Wolf'''''<br/>''The Old School Team''

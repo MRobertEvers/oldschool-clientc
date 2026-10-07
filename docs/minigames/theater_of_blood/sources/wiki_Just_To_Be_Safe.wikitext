@@ -1,0 +1,21 @@
+{{Infobox Combat Achievement
+|name = Just To Be Safe
+|image = [[File:Sotetseg.png|290px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Defeat Sotetseg in the Theatre of Blood: Entry Mode after having split the big ball with your entire team. This must be done with a group size of at least 2.
+|tier = Elite
+|monster = Theatre of Blood: Entry Mode
+|type = Mechanical
+|id = 391
+|leagueRegion = Morytania
+}}
+'''Just To Be Safe''' is an [[Combat Achievements/Elite|elite combat achievement]] which requires the player to defeat [[Sotetseg]] in the [[Theatre of Blood/Entry Mode|Theatre of Blood: Entry Mode]] after having split the big ball with your entire team. This must be done with a group size of at least 2.
+
+The big ball refers to the special attack by Sotetseg where it launches a big red ball that cannot be protected against. When multiple players stand on the same tile, the damage inflicted from the ball is split between the players. This attack is used after Sotetseg launches at least ten magic attacks. *Please note: should you fail to split any of the big ball attacks you must restart the entire raid (you cannot simply die and restart this room). It is advised to turn on Combat Achievement Tasks Failure message.*
+
+==Other tasks==
+{{Combat Achievements list|Theatre of Blood: Entry Mode}}
+
+{{Combat Achievements}}

@@ -18,6 +18,8 @@ from pathlib import Path
 import re
 import sys
 
+import config_text
+
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTENT = ROOT / "OSRS-Content" / "osrs239-content"
@@ -289,6 +291,8 @@ def parse_maplinks(path: Path, errors: list[str]) -> list[MaplinkRow]:
     text = read_text(path, errors)
     if text is None:
         return []
+    # Config text: drop the full-key format's `key=default` / `key=empty` lines.
+    text = config_text.filter_text(text)
 
     rows: list[MaplinkRow] = []
     for name, body in trigger_blocks(text):

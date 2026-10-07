@@ -19,7 +19,7 @@ other poses. Saw 1239,3696 and nails (workbench 1239,3698) are in the north buil
 stand at 1239,3697. Planks: two at 1202,3649 and 1203,3652.
 Cave entrance (ga_cave, 1211,3646) is reached from the NORTH (1212,3650); the
 south side is cliff. Yes/No prompt. Lands 1190,10026 (static lair, not instanced).
-Cave exit leaves at 1212,3644 beside the entrance.
+Cave exit (ga_cave_out) lands at 1212,3648, the opening in front of the mouth.
 Beast (level 82, 100 hp): aggressive, crush melee up to ~10 every 4 ticks; one
 blow in six it stamps and drops a rock on your tile 3 ticks later (12-16) -
 step off. Out of its reach (pond) it cannot stamp. Bring 99 combat-ish gear

@@ -28,6 +28,8 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from types import ModuleType
 
+import config_text
+
 
 REPO = Path(__file__).resolve().parents[1]
 DEFAULT_TREE = REPO / "OSRS-Content/osrs239-content"
@@ -219,6 +221,11 @@ def config_records(path: Path) -> dict[str, list[str]]:
     records: dict[str, list[str]] = {}
     current: str | None = None
     for line_no, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        # `op2=default` / `frame=empty` state an absent key: drop them exactly
+        # as a missing line (filtered per line so line numbers stay true).
+        raw = config_text.filter_line(raw)
+        if raw is None:
+            continue
         text = raw.strip()
         if not text:
             continue

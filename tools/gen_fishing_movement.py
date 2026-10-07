@@ -34,6 +34,8 @@ import pathlib
 import re
 import sys
 
+import config_text
+
 FAMILIES = ("memberfish", "freshfish", "saltfish", "rarefish", "lavafish")
 # 0_<mx>_<mz>_<family>, the only shape any fishing-spot spawn uses.
 SPAWN_RE = re.compile(r"^(0_(\d+)_(\d+)_(?:" + "|".join(FAMILIES) + r"))\s+(\d+)\s+(\d+)\s+(\d+)$")
@@ -103,6 +105,13 @@ def splice_params(npc_path: pathlib.Path, idents) -> tuple[str, list[str]]:
             j = i + 1
             block_lines = []
             while j < len(lines) and lines[j].strip() != "":
+                # A `param=default` / `param=empty` marker must be the only
+                # `param` line in a block, so it gives way to the one added
+                # here; every other line is kept exactly as written.
+                kv = config_text.split_line(lines[j])
+                if kv and kv[0] == "param" and config_text.marker(kv[1]) is not None:
+                    j += 1
+                    continue
                 if not lines[j].startswith("param=fishing_movement_enum,"):
                     block_lines.append(lines[j])
                 j += 1
@@ -151,8 +160,8 @@ def main():
     if args.check:
         return 1 if missing else 0
 
-    enum_path.write_text(enum_text)
-    npc_path.write_text(npc_text)
+    config_text.write_config(enum_path, enum_text)
+    config_text.write_config(npc_path, npc_text)
     print(f"gen_fishing_movement: wrote {enum_path}", file=sys.stderr)
     print(f"gen_fishing_movement: rewrote {npc_path}", file=sys.stderr)
     return 1 if missing else 0

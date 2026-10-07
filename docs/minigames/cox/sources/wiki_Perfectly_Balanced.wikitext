@@ -1,0 +1,21 @@
+{{Infobox Combat Achievement
+|name = Perfectly Balanced
+|image = [[File:Fighting_the_Vanguard.png|300px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Kill the Vanguards without them resetting their health.
+|tier = Elite
+|monster = Chambers of Xeric
+|type = Mechanical
+|id = 302
+|leagueRegion = Kourend
+}}
+'''Perfectly Balanced''' is an [[Combat Achievements/Elite|elite combat achievement]] which requires the player to kill the [[Vanguards]] without them resetting their health.
+
+'''For solo-run attempts, be sure raid scaling is set to "0" for the easiest fight, as scaling a raid to "1" doubles boss health.'''
+
+==Other tasks==
+{{Combat Achievements list|Chambers of Xeric}}
+
+{{Combat Achievements}}

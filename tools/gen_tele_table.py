@@ -59,6 +59,8 @@ import os
 import re
 import sys
 
+import config_text
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_TREE = os.path.join(REPO, "OSRS-Content", "osrs239-content")
 
@@ -166,7 +168,7 @@ def read_npc_names(tree):
     names = {}
     block = None
     path = os.path.join(tree, "configs", "all.npc")
-    for raw in open(path, errors="replace"):
+    for raw in config_text.filter_lines(open(path, errors="replace")):
         line = raw.strip()
         m = re.match(r"^\[(.+)\]$", line)
         if m:
@@ -446,6 +448,7 @@ def emit_enum(table):
 
 
 def write_or_check(path, text, check, changed):
+    text = config_text.completed(path, text)
     existing = None
     if os.path.exists(path):
         existing = open(path, errors="replace").read()

@@ -1,0 +1,248 @@
+{{Update|date=26 November 2025|rev=27 November 2025|url=https://secure.runescape.com/m=news/sailing-week-one-feedback--fixes?oldschool=1|category=game}}
+[[File:Sailing- Week One Feedback & Fixes newspost.png|right]]
+{{clear}}
+__TOC__
+''This week addresses a bunch of Sailing bugs and feedback!''
+
+{| class="wikitable" style="text-align: center;"
+|-
+! Known Issues
+! Status
+|-
+| We've been made aware that the Glide Shark Trial is currently not possible to complete the shark time.
+| HOTFIXED
+|-
+| Players are reporting the Crystal Extractor isn't working in certain locations (i.e. Gwenith Glide mooring points). The team is aware of this issue and will be resolved with next week's update.
+| HOTFIXED - We've added an exception to this so that players sailing past a dock, port or mooring point while on a Barracuda Trial can stil use their Crystal Extractor. This should be most noticeable at the Gwenith Glide.
+|-
+| We've seen further reports of the Crystal Extractor not resetting correctly at the start of Barracuda Trials. The team are aware of this issue and looking into it.
+| HOTFIXED - We fixed a bug where the Crystal Extractor wasn't resetting properly if a mote was ready to be extracted. This is now resolved, so the Extractor should reset its progress properly when a new Barracuda Trial is started, so long as you've not disabled your Crystal Extractor.
+|-
+| Some players reported issues with Lost Supplies hitboxes on Barracuda Trials following yesterday's update.
+| HOTFIXED (UPDATE: 18:00 GMT, Thursday, November 27th - Players are reporting that our earlier hotfix was resulting in missing Lost Supplies at certain angles. We're temporarily reverting these changes, meaning Lost Supplies will use their on-release hitbox, and will revisit adjustments to improve them correctly in the near future.
+|}
+
+==Changelog - November 26th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+===Sailing Changes===
+* The Crystal Extractor no longer works while near the docks or Bank Boat. While we enjoy how you've been using Crystal Extractor, to give extremely passive Sailing experience while being able to 'bankstand' train other skills feels against the spirit of Sailing.
+* We've reduced the animations on Fetid Pools with The Jubbly Jive to help improve perfomance. We'll be continue to monitor this area and look to further address performance issues.
+* To make sure that everyone starts a trial with their boat in a neutral state, the Crystal Extractor will now reset its charge progress when a trial restarts and will not charge while the trial is 'paused'.
+** When you interact with it the trial timer will start and if it was activated before the trial started it will re-activate automatically when you start moving.
+* We've fixed issues with extra trial boxes and uneven box collision within all Barracuda Trials. We'll keep an eye on your feedback surrounding this!
+* Opening a chest with a key obtained from a barracuda trial will no longer delete the key if you don't have space to receive what is inside it.
+* Gwenith Glide's blue and green crystal map icons now correctly match their teleport destinations.
+* Fixed a collision logic issue that led to a lot of issues with boats becoming stuck. Additional sticking points are expected to need map changes to resolve them, and we expect to work through these in the coming weeks.
+** '''Please continue to [https://discord.com/channels/324132423636090880/1440656893306736711 report any issues] with your boat becoming stuck!'''
+* Added an option to the settings menu to allow players to determine who can use their cargo hold, separate and independent from who is allowed on your boat.
+* It is now no longer possible to trim the Sails while holding Cargo.
+* The Carpenter's outfit XP bonuses are now granted when crafting items at the Shipwrights’ Workbench.
+* Bounty tasks now correctly match the required Sailing level for their NPC locations, with Narwhals repositioned to keep tasks accessible.
+* Sea creatures that shouldn’t drop bones (such as sharks, rays, and kraken) no longer do so.
+* The materials list has been corrected for the teleport focus and the Rune Salvaging Hook in the skill guide.
+* Fixed an issue where the camera would sometimes hide in a corner when joining a friend's boat.
+* Fixed an issue where Repair Kits weren't updating the Ship's HP in the Sailing side-panel.
+* Made it clearer for players to understand how to return to the Pandemonium during the Quest.
+* The Collection Log buttons for Shellbane Gryphon and Scurrius now open the correct entries.
+* Sailing is now selectable as a skilling activity for a Clan event.
+* Fixed typos in the message when receiving Shark Paint, Sailing music tracks unlock hints and Parleying Preston's examine text.
+
+===Other Changes===
+* The animation for running with a hill giant club, TzHaar-Ket-Om or meat tenderiser has been updated to make your character hold the large weapons more appropriately. This matches the change made for Dharok's Greataxe in 2024.
+
+===Merch===
+* RuneScape: Shadows of Amascut is out tomorrow in the UK and on the December 30th in the US.
+* New AngelsScapes Varlamore themed pins & keyrings, including: Humphrey Dumphrey, Gemstone Crab, Sailing Skillcape, Soup and more.
+
+The PvP rota has moved to '''Period A:'''
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''activated''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''activated''' with this rota.
+
+The PvP Arena is using '<b>1 Def Pure</b>' loadouts in Ranked Duels and Tournaments this week.
+{{Collapsed section end}}
+
+==Sailing Changes==
+What a week, sailors!
+
+Watching Old School’s first-ever new skill set sail has been one of the most surreal, joyful and heart-warming moments in the game’s history. From streamers dressing up as pirates, to players' gleeful spooning of their first Sailing pets (at level 1 and 2… seriously?!), to the absolute storm of memes - you’ve made this launch unforgettable.
+
+We’ve seen wholesome Sailing 'lock-in' snacks, groups adventuring together into the unknown, communities cheering heavily for their favourite rank-1 racers, and players rediscovering that special social magic the game has always had. Seeing the oceans full of life has been incredible.
+
+At the same time, we know launches come with waves. Some feedback has been loud, some passionate, some frustrated, and all of it valuable. The dev team has been working around the clock to read your comments, investigate your bug reports, and respond to issues as fast as we responsibly can. While we can’t fit all of the feedback changes and bug fixes into one release, we’re listening, we’re learning, and we’re committed to making Sailing the long-term skill it deserves to be. Thank you for telling us what’s working, what’s not, and what you want to see next. And do continue to let us know your thoughts on our first-ever skill!
+
+Before we dive in let's go over some big points we're currently looking into. First, we're aware the Crystal Extractor is giving a lot of XP and feeling like compulsory gameplay. We are considering taking some of this XP and redistributing it into other areas of the game, but the team will continue to monitor the situation this week before making any adjustments.
+
+Secondly, the team is very aware of the feedback from our UIM players, particularly surrounding the Cargo Hold. The current set of restrictions in-place was deliberately conservative in case of any unexpected and undesired shift in meta for the game mode, but it's clear that these restrictions go too far. While there isn't a change in this update, it's something we're actively exploring and we'd like to clarify that any changes that affect UIMs would be done in small increments to try to gradually solve your frustrations without removing core elements or problem solving that comes with this gamemode.
+
+Finally, we've also heard the complaints around not being able to use planks directly from your Plank Sack when constructing Ship parts. We are hoping to address this within the next couple of weeks, so stay tuned!
+
+Below is the first batch of changes and fixes going live, many of which were shaped directly by your feedback:
+
+===Barracuda Trials===
+* We've reduced the animations on Fetid Pools with The Jubbly Jive to help improve perfomance. We'll be continue to monitor this area and look to further address performance issues.
+* To make sure that everyone starts a trial with their boat in a neutral state, the Crystal Extractor will now reset its charge progress when a trial restarts and will not charge while the trial is 'paused'.
+** When you interact with it the trial timer will start and if it was activated before the trial started it will re-activate automatically when you start moving.
+* We've fixed issues with extra trial boxes and uneven box collision within all Bararcuda Trials. We'll keep an eye on your feedback surrounding this!
+* Opening a chest with a key obtained from a barracuda trial will no longer delete the key if you don't have space to receive what is inside it.
+* Gwenith Glide's blue and green crystal map icons now correctly match their teleport destinations.
+
+===Boat Interactions===
+* Fixed a collision logic issue that led to a lot of issues with boats becoming stuck. Additional sticking points are expected to need map changes to resolve them, and we expect to work through these in the coming weeks.
+** '''Please continue to [https://discord.com/channels/324132423636090880/1440656893306736711 report any issues] with your boat becoming stuck!'''
+* Added an option to the settings menu to allow players to determine who can use their cargo hold, separate and independent from who is allowed on your boat.
+* It is now no longer possible to trim the Sails while holding Cargo.
+
+===Boat Construction===
+* The Carpenter's outfit XP bonuses are now granted when crafting items at the Shipwrights’ Workbench.
+
+===Skilling Interactions===
+* Bounty tasks now correctly match the required Sailing level for their NPC locations, with Narwhals repositioned to keep tasks accessible.
+* Sea creatures that shouldn’t drop bones (such as sharks, rays, and kraken) no longer do so.
+* The materials list has been corrected for the teleport focus and the Rune Salvaging Hook in the skill guide.
+
+===Animations & Sounds===
+* Fixed an issue where the camera would sometimes hide in a corner when joining a friend's boat.
+
+===Interfaces & Misc===
+* Fixed an issue where Repair Kits weren't updating the Ship's HP in the Sailing side-panel.
+* Made it clearer for players to understand how to return to the Pandemonium during the Quest.
+* The Collection Log buttons for Shellbane Gryphon and Scurrius now open the correct entries.
+* Sailing is now selectable as a skilling activity for a Clan event.
+* Fixed typos in the message when receiving Shark Paint, Sailing music tracks unlock hints and Parleying Preston's examine text.
+
+==Coming soon - Next week & Shorter Term==
+As more feedback comes in, we'll discuss changes and improvements to Sailing. While we've also added these to the [https://secure.runescape.com/m=news/sailing---known-issues--fixes-?oldschool=1 Sailing Known Issues &amp; Fixes] newspost, here are some of the feedback points that we didn't get time to address this week, but will be addressed as soon as possible:
+
+===Crystal Extractor===
+We're aware the Crystal Extractor is giving a lot of XP and feeling like compulsory gameplay. We are considering taking some of this XP and redistributing it into other areas of the game. This is likely to be a change set for next week as part of a wider 'XP Review'. No changes are being made this week as the team is taking a considered approach and reviewing data before we make those adjustments.
+
+===Ultimate Ironmen===
+UIM have expressed concern on restrictions for the Cargo Hold. The current set of restrictions was deliberately conservative in case of any unexpected and undesired shift in meta for the game mode, but it's clear from your feedback that they need changes. While there isn't a change in this update, we're going to be making Cargo not count towards total Cargo Hold space for UIM in next week's update.
+
+As a general approach, we prefer making smaller, incremental improvements for UIM. This helps us address frustrations without removing the problem-solving element that many players value in the game mode. We’ll continue monitoring your feedback around the Cargo Hold, so if you have additional thoughts, please share them in the Sailing space on the Official OSRS Discord<!-- Unsupported tag: link -->. We will be keeping a close eye on the conversations!
+
+===Group Ironmen===
+Group Ironmen should be able to share each others' facilities without having them already built. This was an oversight, and will be fixed in the coming weeks.
+
+===Sail Clickbox===
+We're looking to increase to the model of the Cargo Hold to help tackle issues where players can mistakenly click their sail instead. If this doesn't work, we may look at swapping the position of the Cargo Hold on the boat with a facility that doesn't require as many clicks.
+
+===Boat Repairs===
+We're making a change next week to allow Shipwrights to repair your boat for a fee. Additionally, when upgrading your boat, upgrades will restore HP back to your boat.
+
+===Cargo Hold===
+We're actively looking at ways to make losing items in the Cargo Hold less punishing. Additionally, we're looking at how we can make it clearer to players to understand what items you will lose on death. This will take a little longer for us to implement, as we need time to design a solution that considers the impact that changes may have on Courier Tasks.
+
+===Whirlpool Surprise (Boostable Sailing Unlocks)===
+Players want more Sailing-related unlocks to be boostable, such as Charting and Facility building. Whilst we can't confirm exactly what will and won't be boostable yet, we're going to do a general review of what's boostable and what isn't and make some changes in the coming weeks.
+
+===Plank Sack===
+We've also heard the complaints around not being able to use planks directly from your Plank Sack when constructing Ship parts. We are hoping to address this within the next couple of weeks, so stay tuned!
+
+===New Logs===
+Looks like there was a small miscommunication from one of our previous blogs as the new logs added with Sailing cannot be gotten from any Salvaging. The team have agreed to update the droptables within the next couple of weeks so that players can rarely obtain the higher-tier logs from appropriate tiers of shipwrecks.
+
+===Log-Out Boat Behaviour===
+We've also confirmed that there's a bug related to logging out at sea whilst on a boat sending players to unexpected locations, and we're hoping to get that fixed in the next two weeks.
+
+===Frost Dragons===
+Players have noted that the demand for Frost Dragons (Dragon Sheets) currently outweighs supply. We're exploring how we can increase supply to keep up with demand, e.g a task-only section within the cave.
+
+===Other===
+Lastly, thank you for the excellent quality-of-life suggestions. While we can’t list them all here, these are a few notable ones we’re aiming to include in the coming weeks. As always, ongoing bug triage and feedback may shift priorities:
+
+* Let crewmates remember which task they were doing between world hops.
+* Add Ability to disable teleport warnings while on a boat (Yes and don't ask me again).
+* Adding Level requirements to docking points.
+* Further adjustments to the colourful fade/flash effects within the Gwenith Glide.
+* Add Options for 'Repair Kit' and 'Hull Parts' to Shipwrights' Workbench.
+* Add a toggle for 'Auto-Accept Available Cargo'.
+
+==Further Feedback - Longer Term==
+===Ship Combat===
+We’ve also started reviewing early feedback on Ship Combat. One recurring theme is that Cannons don’t currently feel impactful enough. We’re still gathering data and exploring potential adjustments, so we don’t have any concrete changes to share just yet.
+Once we’ve had more time to analyse player behaviour and feedback, we’ll return with an update on our approach. In the meantime, please continue sending us your thoughts, we genuinely appreciate the insights and will keep you informed as our review progresses.
+
+==Previous Hotfixes==
+If you are interested in seeing some of our previous changes, you can click the button below to see more:
+
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+
+* Bounty Task Drops can no longer be earned from engaging in combat with sea creatures on land.
+* Fixed an issue with Sea Charting tasks: 'Help the meteorologist document the local weather on a small island east of the Kharazi Jungle' and 'Help the meteorologist document the local weather on the southern coast of Neitiznot' tasks. Both task locations have been moved to somewhere more accessible.
+* 'Quick Deposit' now respects the new Cannonball limit we set on Cargo Holds (2,000).
+* We reduced the amount of items you would lose when a boat was capsized or lost.
+* Players who had tried to use the new Sailing Ores with the Blast Furnace found themselves unable to use it. We've added an 'Empty' option to restore access back, and in a future update we will make a change to ensure that players don't soft lock themselves out of the Blast Furnace.
+* Players will no longer receive 500 Magic XP for assembling a Medallion of the Deep.
+* Locked the Cargo Hold temporarily to only be accessible to the Captain for now (preventing any form of multiplayer interaction on it).
+* Removed some of the words used in the pool used in boat naming to avoid some unfortunate combinations. Some players may find that their boat name has changed as a result.
+* Released a hotfix to limit the amount of Cannonballs that you can store to 2,000 (of each type).
+* Fixed an issue where wealth restriction caused Group Ironmen to not be able to withdraw port task cargo.
+* The Dwarf Multicannon has been re-enabled to work against sea creatures and its damage scales appropriately.
+* The drop rate for Squid Beaks has been corrected.
+* Daddy's Special Water's special water was more generous than intended, and will now give an appropriate level of XP.
+* We balanced sea creatures based on player damage, but the Dwarven Multi-cannon wasn’t included in those calculations. As a temporary measure, it has been disabled when fighting sea creatures. We’ll review its intended role and make further updates in the coming days.
+* Sea Charting drinks can teleport your boat, which unintentionally wipes your Cargo Hold. We've restored items back to those who lost them.
+
+{{Collapsed section end}}
+
+==Other Changes==
+Before we kick this section off, we're aware of continued rendering issues where your characters' feet will sink into the floor. We'll be working on tech improvements to get you back on solid ground, but don't have anything to share regarding exactly when we'll have these fixes ready. Just know that we're aware and we're working on it, with more details to be shared once we are able to confirm more of the specifics!
+
+* The animation for running with a hill giant club, TzHaar-Ket-Om or meat tenderiser has been updated to make your character hold the large weapons more appropriately. This matches the change made for Dharok's Greataxe in 2024.
+
+==Merch==
+===RuneScape: Shadows of Amascut===
+[[File:Sailing- Week One Feedback & Fixes (1).jpg|600px|center|thumb|If you can't see the asset above, [https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-11-25/Merch-RSShadows.jpg click here]]]
+
+'''RuneScape: Shadows of Amascut''' is out now in the UK and on the December 30th in the US. Learn the truth about the Hereditas Expedition in this hair-raising tale of betrayal, devotion and religious fanaticism.
+Was the Hereditas Expedition doomed from the start? Led by Pontifex Bilrach, the Mahjarrat must find the artifacts of the dead god Tumeken and complete the Ritual of Rejuvenation, otherwise they face extinction. Forced to work together by Zaros, the Mahjarrat form an uneasy alliance, though they all have their own ambitions.
+
+Having found only sand and false hope wandering through the Kharidian Desert, the search is becoming ever more frustrating and the casualties mount as the humans die for the Mahjarrat cause. The desert is vast and full of danger, the sun is oppressive, and there are traitors in their midst. Can the Mahjarrat succeed despite these impossible odds?
+
+Order now direct from [https://titanbooks.com/71615-runescape-shadows-of-amascut/ Titan Books], other online retailers such as Amazon or your local bookstore! A great read for the upcoming holidays!
+
+[https://titanbooks.com/71617-runescape-the-gift-of-guthix/ RuneScape: The Gift of Guthix] by the same author is also available now as an audio book - great to listen whilst you play!
+
+[https://titanbooks.com/71616-runescape-the-fall-of-hallowvale/ RuneScape: The Fall of Hallowvale] is also avaiable now from all the usual retailers and to pre-order as an audio book, releasing in January.
+
+===Catch up with the Latest AngelsScapes Ranges!===
+[[File:Sailing- Week One Feedback & Fixes (2).jpg|600px|center|thumb|''[https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-11-25/Merch-VTFD.jpg If you can't see the asset above, click here.]'']]
+
+We're back, with Varla-more pins and keyrings. Now you can snag a limited edition pin of the accident-prone Humphrey Dumphrey or even your favourite afk HCIM slayer, the glimmering Gemstone Crab! Check out the full range at our [https://runescape.backstreetmerch.com/ Merch Store].
+
+[[File:Sailing- Week One Feedback & Fixes (3).jpg|600px|center|thumb|''[https://cdn.runescape.com/assets/img/external/oldschool/2025/newsposts/2025-11-25/Merch-Sailing.jpg If you can't see the asset above, click here.]'']]
+
+In celebration of the launch of Sailing, AngelsScapes has also crafted a treasure trove of exclusive pins and keyrings. Display your nautical prowess with the Sailing Skill Icon Pin, or secure a Sailing Skill Cape keyring in preparation for your race to 99! For pet collectors and fans of cute companions, snag the sea turtle Sailing pet, Soup. If you're in search of a quirky guardian for your riches, the Bank Crab will keep your gold safe (probably).
+Every voyage should feel more complete with companions like these at your side! Get yours [https://runescape.backstreetmerch.com/ today]!
+
+==PvP Rota==
+The PvP rota has moved to '''Period A:'''
+
+* 539 - (US) - PvP World
+* 318 - (UK) - Bounty Hunter World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''activated''' with this rota.
+
+World 569 (AUS) for Bounty Hunter has been '''activated''' with this rota.
+
+The PvP Arena is using '<b>1 Def Pure</b>' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1p74odh/sailing_week_one_feedback_fixes/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Acorn, Ape, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blighted, Blossom, Boko, Bruno, Chilly, Criminal, Curse, Daizong, Ed, Elena, Enigma, Entropi, Freddie, Fuzz, Gecko, Gengis, Gizmo, Goblin, Grace, Grub, Halo, Harold, Hend, Hornet, Husky, Ivory, Jalo, Jamesy, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Mack, Manked, Markos, Maylea, Mobius, Moogle, Morty, Moz, Necro, Nin, Nixon, Nox, Nylu, Ori, Other, Otter, Philomel, Pork, Pumpkin, Puppi, Rach, Redfield, Rice, Roq, Roy, Ry, Saiyan, Sarnie, Schmidt, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Spyro, Squid, Starry, Suharun, Surma, Sween, Tide, Titania, Titus, TJ, Tomb, Tsourorf, Tyran, Veda, Vegard, West, Wolfy & Yume'''
+
+''The Old School Team.''

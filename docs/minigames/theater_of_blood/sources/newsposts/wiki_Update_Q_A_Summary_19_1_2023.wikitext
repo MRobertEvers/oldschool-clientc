@@ -1,0 +1,221 @@
+{{Update|date=24 January 2023|link=https://secure.runescape.com/m=news/qa-summary-190123?oldschool=1|category=community}}
+[[File:Q&A Summary 19-1-2023 newspost.png|right]]
+{{clear}}
+This week's livestream focused on the lore of Secrets of the North! Topics included:
+* [[#Question #1|The inspiration behind Secrets of the North]]
+* [[#Question #5|Plans for future Mahjarrat storyline]]
+* [[#Question #15|The process of working with devs when creating lore]]
+* [[#Question #17|Quest backporting]]
+
+Thanks to Mod Sarnie (Community Manager) and Mod Ed (Senior Content Developer) for their insights!
+
+DISCLAIMER: Livestreams are a glimpse into the ongoing creative process at Jagex. JMods are speaking off-the-cuff and their comments are not intended to be read in the same way as prepared updates from the company. Please keep this in mind when discussing the Q&A!
+
+Missed the live stream? Check out the transcript below!
+
+__TOC__
+==Secrets of the North Q&A==
+===Question #1===
+{{Cquote2|I’ve really enjoyed SOTN! What was your inspiration when creating SOTN?}}
+
+[https://www.youtube.com/watch?v=BKhhfypKNQY&t=246s Youtube Time Stamp]
+
+* '''Mod Ed:''' A lot of Secrets of the North came from the planning for Desert Treasure II. Very early on we decided that Desert Treasure II should not only be a sequel to Desert Treasure I, but it should also feel like a spiritual successor and retain some of the iconic elements, such as four new bosses in four new areas that you have to defeat to unlock treasure in the desert.
+* '''Mod Ed:''' Once that had been established, we moved on to lay the groundwork for those four bosses and areas, which we had started doing with other quests. The first one was Below Ice Mountain, then we did Temple of the Eye and Garden of Death at the end of last year. From that, setting up these four areas, we needed four quests, so we had conversations about what the fourth quest could potentially be.
+* '''Mod Ed:''' For that one, we were quite keen on not just having it introduce the area, but also making it a Mahjarrat quest. With it having been so long since we had last seen any of them, we wanted to ease people back into the Mahjarrrat storyline with a small but hopefully quite impactful addition to the storyline before the fun really, really kicks off in Desert Treasure II.
+* '''Mod Ed:''' That was how the conversation on Secrets of the North started. As for the specifics of what happens in it, although it was designed to set up Desert Treasure II, it is a very important quest in its own right because it is our first continuation of the Mahjarrat storyline. It is hopefully setting the standard for all our future Mahjarrat work.
+* '''Mod Ed:''' One of the things we did was look at the Mahjarrat quests that we don’t have in Old School - the ones that are in RuneScape that came out after 2007 right up until Ritual of the Mahjarrat in 2011. It was very important to us to stay true to what the Mahjarrat storyline was, especially a storyline that was incredibly iconic and incredibly well-received. Most of it was written by the same person - Paul Gower himself.
+* '''Mod Ed:''' It was one of those ones where we need to make sure we stay true to it but at the same time we didn’t want it to be a rehash of what has happened before - people already know that story. We needed to work out how to simultaneously stay true to Paul Gower’s work, but also introduce some Old School elements.
+* '''Mod Ed:''' We looked at various quests, and the one that stuck out was Tale of the Muspah, which was a small novice quest that came out and I believe it was the first Mahjarrat quest that came out after While Guthix Sleeps. At that point, the Mahjarrat storyline in RuneScape was in full swing, but there was still quite a bit of backstory that was unknown. Tale of the Muspah was a short quest that was used to establish some of the elements that would be key in the following Mahjarrat quests.
+* '''Mod Ed:''' We were in a similar place with our Mahjarrat quests as when Tale of the Muspah came out, so it made a lot of sense to look at - we’ve not done one in a long time so we need to reintroduce people to the story, get people back into it again and introduce the key elements that we can expect to see more of moving forward. Taking some elements from Tale of the Muspah made sense, but we also wanted to add our own twist on it by taking elements from other places and adding a few new things here - in particular, the stuff with Hazeel and the connection to Devious Minds, and the end result was Secrets of the North.
+* '''Mod Sarnie:''' We even saw some graphical improvements to the Mahjarrat who returned, which was quite nice to see!
+
+===Question #2===
+{{Cquote2|Which quests have been your favourite to work on? Is SOTN one of your favourites?}}
+
+[https://www.youtube.com/watch?v=BKhhfypKNQY&t=548s Youtube Time Stamp]
+
+* '''Mod Ed:''' The wording for this, “favourite to work on” is interesting - it’s not necessarily the same as which quests are my favourite. I would definitely say that there are some quests that were really enjoyable to create, even if the end result wasn’t necessarily the sort of quest that I look back on and go “oh, that’s one of the better ones that I’ve worked on” and they might be some small novice quests.
+* '''Mod Ed:''' I think the ones that are really fun to work on are ones like Secrets of the North where you’re doing a lot of setup for the future. You get to have a lot of fun with little teasers and putting things in that people can speculate on. They can be more fun to work on than the really big ones where lots of stuff starts happening because afterwards you can sit on social media and watch people speculate on “what did this mean? What did that mean?”. I don’t actually know what I’d say my favourite quest to work on would be, but I definitely say Secrets of the North was up there.
+* '''Mod Sarnie:''' Was there a particular part of Secrets of the North outside of the building up for bigger things that you particularly enjoyed?
+* '''Mod Ed:''' I really enjoyed doing stuff with Hazeel! It was decided very early on in development that we want to do more with that character. In RuneScape, he’s one of the ones that aren’t really explored due to the diverting storylines. Is he back or is he not?
+* '''Mod Ed:''' We do want to bring him back and do more with him, so that was one thing that was really fun. On the flip side, another thing that was quite fun was working on the puzzles at the end. We talked for quite a while about how it’d be fun to do more “escape room” style puzzles in Old School. When you look back over a lot of really old quests for those kinds of puzzles; they seem like classic quest puzzles, but we’ve not really done too many in Old School! It was really fun doing some very traditional-style puzzles.
+* '''Mod Sarnie:''' In terms of puzzles lately, I adore Garden of Death and the way we did that with no hand-holding - just “here’s what you need to do”, and you have to figure out all the steps along the way.
+* '''Mod Ed:''' Garden of Death was a really fun quest to make! I think sometimes when doing quests like that - the smaller quests - you get the opportunity to try something a little bit different. It’s definitely not going to be for everyone, but you get the opportunity to think outside the box a bit and ask “what could we do here that we don’t normally do?”. Conveniently, Garden of Death is one of the four setup quests for Desert Treasure II, if you haven’t already played it!
+
+===Question #3===
+{{Cquote2|How long did you spend creating SOTN?}}
+
+[https://www.youtube.com/watch?v=BKhhfypKNQY&t=783s Youtube Time Stamp]
+
+* '''Mod Ed:''' For actual development, it was a fairly short project; it’s not a hugely long quest. It’s not super short either; it’s more of a medium length when you compare it to other quests. We started development on it in October and finished it in December, so it took just over two months to make.
+* '''Mod Ed:''' It was a sort of middle ground with regard to how long it takes us to make quests. That’s for the actual development though - we’ve been thinking about this and planning a lot of it for quite a bit before then. We first started thinking about Desert Treasure II about three and a half years ago - that’s when the first teasers started appearing in-game with Gnome Child via Birthday Event, and then when we released Below Ice Mountain. A lot of ideas have been potential designs floating around for quite a bit before development started.
+* '''Mod Sarnie:''' Compared to the previous quest Garden of Death, how long did that take to make?
+* '''Mod Ed:''' Garden of Death was a Game Jam project so that one took a week to create. On the whole we did do a little bit of tidying up afterwards. If anyone has ever done anything like a Game Jam, they’ll know that those things can sometimes need a little bit of polish afterwards. The focus of the Game Jam was very much “let’s create something that works”. That’s what’s fun about Game Jam - you get to work on something that’s a little bit rough around the edges and then you refine it afterwards. Garden of Death was about a week to make, and a few extra days afterwards to polish it up and make it releasable.
+
+===Question #4===
+{{Cquote2|I really like that Jhallan is having a nightmare and that’s how Phantom Muspah manifests. Can you tell us more about how you approached this storytelling?}}
+
+[https://www.youtube.com/watch?v=BKhhfypKNQY&t=921s Youtube Time Stamp]
+
+* '''Mod Ed:''' I talked a little bit about it already about how we looked at Tale of the Muspah in particular. This is one of the things that we wanted to retain from RuneScape. While the quest does take a bit of a turn, Jhallan being the Muspah was one thing we wanted to keep the same, but we wanted to make it feel more impactful.
+* '''Mod Ed:''' With Tale of the Muspah being a novice quest, there’s not really any combat - you just find that Jhallan is a Muspah and then he turns back into a Mahjarrat. We wanted to make it a bit more intimidating; that the Muspah is something the Mahjarrat themselves fear to the point that they’re having nightmares about them and accidentally shapeshifting into them.
+* '''Mod Ed:''' Turning that into a full boss fight was a really good way of showing that as well. It was one of those really fun places where the gameplay and the narrative combined. We knew we wanted to do a big boss at the end of the quest, and we wanted to make the Muspah feel more intimidating - what better way to do that than by combining that to make the Muspah the boss itself?
+
+===Question #5===
+{{Cquote2|SOTN is essentially a tangent to Tale of the Muspah from RS3. Are there future plans to follow the Mahjarrat story but with an Old School spin to it? Especially While Guthix Sleeps and Ritual of the Mahjarrat.}}
+
+[https://www.youtube.com/watch?v=BKhhfypKNQY&t=1038s Youtube Time Stamp]
+
+* '''Mod Ed:''' Tangent isn’t the word I’d use, but there’s definitely a connection to Tale of the Muspah - it’s the quest we looked at the most - but we also wanted to make sure we added plenty of Old School unique elements. Hopefully, people have seen those elements. That gives you an idea of what we’re planning for the future and hopefully shows that while we do intend to stay true to the feel of the original Mahjarrat quests and the characterisations, this isn’t just going to be a copy and paste. It is going to move in a slightly different direction.
+* '''Mod Ed:''' I suspect, assuming we don’t run out of time later in the stream, we might talk a little bit about the quest backporting survey we did. One thing that was on the survey was While Guthix Sleeps, and when looking at the Mahjarrat quests there are few from RuneScape that we want to follow relatively closely - Lucien’s side of While Guthix Sleeps is something we’d like to stay fairly true to. If nothing else, it’s considered one of the most iconic quests of all time, and it could be dangerous to try and perfect what’s already close to perfection!
+* '''Mod Ed:''' With how beloved While Guthix Sleeps is, I wouldn’t want to just change that story for the sake of it; to just try and do something different. When it comes to doing different things, the hope is that they add to the storyline, so with quests like While Guthix Sleeps I’m very hopeful that we can see our own versions of those in Old School at some point that stay fairly true to those stories.
+* '''Mod Ed:''' With other aspects of the Mahjarrat storyline, I think there are going to be some unexpected twists and turns, and as a result, I don’t expect that we’ll do Ritual of the Mahjarrat in Old School. With Ritual of the Mahjarrat being the finale of the Mahjarrat storyline; where it all leads to, if we wanted to take this quest and put it into Old School, that would basically be us committing to doing all the other Mahjarrat quests exactly as they were done in RuneScape, which we don’t want to do. We will have our own version of the Mahjarrat finale, and a ritual will of course take place in it, but it will not be Ritual of the Mahjarrat.
+
+===Question #6===
+{{Cquote2|SOTN is very fun and has awesome lore with a great set-up to DT2. Can you explain the brainstorming processes for this awesome lore to tie it into DT2 and continue Devious Minds and Hazeel Cult?}}
+
+[https://www.youtube.com/watch?v=BKhhfypKNQY&t=1226s Youtube Time Stamp]
+
+* '''Mod Ed:''' These are the sort of connections that we wanted to add that weren’t present in RuneScape. They played a big part in the Old School elements that we wanted to add to this. As I mentioned in another question, Hazeel is one of the Mahjarrat but wasn’t explored too much in RuneScape; at least not at the time when these quests were coming out.
+* '''Mod Ed:''' Devious Minds was one that while it did play a part, it was quite a small part. It had a small connection to The Temple at Senntisten, but not too deep a connection. Spoilers for anyone who hasn’t played The Temple at Senntisten - it’s been quite a long time so hopefully, you don’t mind - the assassin reappears in that quest and gives the player the relic he stole, so it can be used as part of Azzanadra’s ritual that he’s doing to re-establish contact with Zaros.
+* '''Mod Ed:''' Again, it’s one of those things where Devious Minds is part of the Mahjarrat storyline; it wasn’t obvious in Old School before, but it absolutely always was. The developer of Devious Minds is no longer at the company and didn’t leave much documentation on what their plans were for a sequel to that quest, but the one thing they did make very clear from some comments they left in the code is that Devious Minds from the very beginning was always a Mahjarrat quest. It was just not obvious at the time.
+* '''Mod Ed:''' So we took those comments and we ran with it! We tried to link it into Secrets of the North; we really wanted to feature the assassin quite a bit more heavily than he was featured in RuneScape and make him a core part of the story, to make it feel that Devious Minds was a worthy part of the Mahjarrat storyline rather than an afterthought. Those two quests have been key from the start; they play a big role here.
+
+===Question #7===
+{{Cquote2|Is there a lore reason why the Phantom Muspah uses Corruption (which is otherwise associated with Arceuus magic), or is that coincidental?}}
+
+[https://www.youtube.com/watch?v=BKhhfypKNQY&t=1406s Youtube Time Stamp]
+
+* '''Mod Ed:''' I’m going to have to be a bit disappointing here and follow on from the last fun little teaser with a rather boring answer. Before Secrets of the North, the only reason corruption was considered tied to the Arceuus spellbook is that this was the only place where it was used.
+* '''Mod Ed:''' It was never the intention that corruption is an Arceuus-specific effect. It was designed to be a new prayer-draining effect that could be used throughout the game, similar to poison. So no, I’m afraid not. There’s not really meant to be any secret hints or teasers in that, it’s just an effect that we expect to use in various places in the game.
+
+===Question #8===
+{{Cquote2|Will we be seeing more Mahjarrat in the future that haven’t yet appeared in Old School (like how Jhallan was introduced in this quest)?}}
+
+[https://www.youtube.com/watch?v=BKhhfypKNQY&t=1475s Youtube Time Stamp]
+
+* '''Mod Ed:''' This is spoiler territory, but yes! We don’t want to go overboard and start having Mahjarrat left, right and centre. One of the really nice things about the Mahjarrrat is that there are a good amount of them and each one has their own unique, distinct character that you can explore in a reasonable amount of detail with their quests.
+* '''Mod Ed:''' If you start adding too many, you lose that and it starts to become more about the Mahjarrat as a race, rather than individuals. We don’t want to introduce too many, but there are a few more who haven’t appeared yet in Old School who will do over future quests. When I say quests, I do mean quests; I don’t expect every single Mahjarrat to appear in Desert Treasure II, for example. We’ll save others for other Mahjarrat stories.
+* '''Mod Ed:''' We’re not going to go overboard. It’ll mostly be the ones that were in RuneScape in the 2007-2011 era. It’ll be the ones who appeared in those post-Old School quests prior to Ritual of the Mahjarrat rather than any of the others that are spoken about in history, or any new ones.
+* '''Mod Sarnie:''' Don’t expect an Endgame-style “all the characters are here now!”. I don’t think that’s going to happen.
+
+===Question #9===
+{{Cquote2|Is there a plan at the moment for where the Mahjarrat storyline is going? I'm wondering if you have a plan beyond DT2, or the Ritual of Rejuvenation if those are different things, for where you'll take it.}}
+
+[https://www.youtube.com/watch?v=BKhhfypKNQY&t=1576s Youtube Time Stamp]
+
+* '''Mod Ed:''' I’ve kind of alluded to this with the previous answers - I won’t give too much away, but I want to make sure that we provide a reasonable amount of clarity. When it comes to planning storylines, we generally plan out the main points and then some of the smaller details often aren’t worried about until it comes to developing the individual quest.
+* '''Mod Ed:''' It’s a good balance, I’ve found, and it’s served us really well with the quests we do. You always know where the story’s going. There’s always room for little extra elements to be added based on feedback and other developments that are happening in the game.
+* '''Mod Ed:''' For the Mahjarrat storyline, the fact that we’re now working on it means that we have planned out the key beats of where this storyline is going to go. Desert Treasure II obviously plays a core part in that, but it is not intended to be a finale. I’d put Desert Treasure II as a While Guthix Sleeps tier of quest - it’s going to be big, and it’s going to be impactful. It’s a grandmaster quest, but there will be more to come after that.
+* '''Mod Ed:''' Just like what While Guthix Sleeps is to Ritual of the Mahjarrat, consider this something similar. There will be additional Mahjarrat quests after Desert Treasure II, and similar to the way the Mahjarrat storyline has worked up until this point where it’s not been a linear storyline, it will crisscross over a bit and come back and forth.
+* '''Mod Ed:''' Not all of those quests will require Desert Treasure II; there’ll be some coming from different areas focusing on Mahjarrat that we haven’t seen much of yet or haven’t done much of in a while. There will also be ones that directly follow on from Desert Treasure II as well.
+* '''Mod Ed:''' That goes back to backporting - that’s how we feel, we can do backports of quests like While Guthix Sleeps while still offering plenty of new things as well. The Mahjarrat storyline is really well set up for that sort of thing, with there being lots of branching plot threads that eventually culminate together at the end, rather than being a linear storyline.
+* '''Mod Ed:''' It means we can simultaneously do our own things and backport quests as well. So yeah, there is a rough plan. It involves multiple quests; some new, some potentially backported, and it will culminate in one big finale that will be the ritual of rejuvenation, but will not be the Ritual of the Mahjarrat quest as you know it from RuneScape. It’ll be some other take on the ritual, and to say any more would be a spoiler!
+* '''Mod Ed:''' Hopefully, that provides some clarity on what the plans are. For anyone who was thinking Desert Treasure II might be the end, depending on your take, either breathe a sigh of relief that you’ve got plenty more Mahjarrat coming or “oh no horror” at plenty more Mahjarrat coming!
+
+===Question #10===
+{{Cquote2|Can we discuss the bow/sword-wielding ninja assassin who not only kills monks on Entrana but also is messing up followers of Zamorak? Is this a Rambo Guthix agent? A Zarosian general? Three Gnome children in a trenchcoat? Sliske in disguise?}}
+
+[https://www.youtube.com/watch?v=BKhhfypKNQY&t=1784s Youtube Time Stamp]
+
+* '''Mod Ed:''' The best bit about Old School storytelling is that three Gnome children in a trenchcoat wouldn’t be an impossibility! It’s probably unlikely, but I do like it, so maybe we should make that true. Again, don’t want to give out spoilers about what’s happening in the future, but as I’ve mentioned in an earlier question, we wanted to make the assassin a much bigger character.
+* '''Mod Ed:''' Some of that was based on a few small comments that the original creator of Devious Minds left behind. We wanted to explore him a bit more, and we will be exploring him again in the future to hopefully provide some clarity on “who is he and what is he up to? Who is he working for? Is he working for anyone?” Who knows!
+
+===Question #11===
+{{Cquote2|What's with the plot armour for assassins in OSRS? First AKD and now SOTN. Why do they keep killing people AFTER being clapped by the player?}}
+
+[https://www.youtube.com/watch?v=BKhhfypKNQY&t=1863s Youtube Time Stamp]
+
+* '''Mod Ed:''' I don’t think they have plot armour - I would say that wouldn’t I, I made these quests! With AKD, the assassins in that quest were specifically written to be terrible in a proper fight, and that’s why a player is able to effectively beat them. The advantage they have is their ability to be stealthy assassins, and that is why they’re able to do what they do at the end of the quest. That’s going to obviously be a huge plot point in the current storyline that’s going to be explored very heavily.
+* '''Mod Ed:''' It’s going to be the focus of the next quest of the current storyline of who killed the king, who hired the assassin, how was an assassin able to get into the castle and how are they able to get past all the defences - both physical and magical - to get into that castle? That shouldn’t have been able to happen, what was the reasoning behind that? This is very much the focal point of the next quest of the current storyline when we get to do that one.
+* '''Mod Ed:''' Hopefully, they don’t have plot armour; they just had a very good plan and enacted it very well. It might mean interesting things in future quests. As for Secrets of the North, you didn’t clap him, he just got bored and cracked on! That assassin, he’s definitely not your standard assassin. He’s got more tricks up his sleeve.
+
+===Question #12===
+{{Cquote2|Who is your favourite Mahjarrat?}}
+
+[https://www.youtube.com/watch?v=BKhhfypKNQY&t=1993s Youtube Time Stamp]
+
+* '''Mod Ed:''' I really like Hazeel. Maybe I’m just biased because he’s one of the main Mahjarrat in Secrets of the North and one that wasn’t really explored in RuneScape. It was really fun getting to do more with him.
+* '''Mod Ed:''' I’ve always found Akthanakos quite interesting. He’s got the head of a camel! You have the ability to shapeshift into anything; you’re part of a race that has this magical ability to shapeshift, and you go “I could be anyone…I’m going to be a camel.” I find that fascinating! I really hope we get to explore more about his curious choices.
+
+===Question #13===
+{{Cquote2|Will the Easter Egg connections between Kourend/Xeric and Zaros pay off at Desert Treasure 2?}}
+
+[https://www.youtube.com/watch?v=BKhhfypKNQY&t=2212s Youtube Time Stamp]
+
+* '''Mod Ed:''' I didn’t think there were any easter eggs directly connecting the two. Hopefully, this doesn’t disappoint people - it’s to temper expectations - I don’t think we’ve been putting that many easter eggs in about some big secret link between Xeric and Zulrah. If we did, I didn’t realise.
+* '''Mod Ed:''' I will say that there are links between the Mahjarrat storyline and Kourend; we’ve already said as much with Desert Treasure II, which requires the Garden of Death quest. There are definitely links there, but we’re not talking links to the point where the Kourend storyline is secretly part of a Mahjarrat storyline and the two are going to combine.
+* '''Mod Ed:''' Like you said earlier, the big epic Endgame-style quest where all the storylines combine, that’s very much not the intention, not just with these but with all of our storylines. We want to make sure that we stay true to all of them. We want to keep their own storylines and not just start combining storylines to try and make it feel bigger or more epic.
+* '''Mod Ed:''' There’s a lot of crossover; there are a lot of little links here and there. There are little links between the Mahjarrat and the Kourend storylines that you will see a fair amount of in Desert Treasures II. Some of those links are quite significant, but it isn’t some secret twist that it’s all going to combine and reveal that Xeric was behind everything. That’s not the direction we’re going in.
+
+===Question #14===
+{{Cquote2|One of the new NPCs in Uzer Oasis at SOTN mentions Hosidius. Are these new areas Desert Treasure 2 related?}}
+
+[https://www.youtube.com/watch?v=BKhhfypKNQY&t=2334s Youtube Time Stamp]
+
+* '''Mod Ed:''' When they say new areas, I assume they're referring to the Uzer Oasis, because Hosidius isn't new. We did add a little oasis alongside Secrets of the North; I wonder how that got there?
+* '''Mod Ed:''' Some of that area is definitely Desert Treasure 2-related; that's not a spoiler. If you watched the Desert Treasure 2 trailer, you'll already recognise the vault that is located in this new area of the desert from the trailer. If you haven't watched the Desert Treasure 2 trailer yet, watch it; it’s quite a good trailer, and you might see a few little teasers here and there. 
+* '''Mod Ed:''' Some of that stuff like that vault is absolutely setting up Desert Treasure 2, but also there's other stuff in there as well that isn't Desert Treasure 2-related. Some of that is still Mahjarrat related, which is quite fun - it’s setting up other things that we'd like to do for Mahjarrat in the future that isn't Desert Treasure 2.
+* '''Mod Ed:''' Some of the stuff there is not Mahjarrat related at all. It's just a nice little bit of flavour to add some life to the area and potentially be explored one day but doesn't have to be. The answer is a mixture of yes, maybe and no, depending on which bits you're looking at.
+
+==General Lore Q&A==
+===Question #15===
+{{Cquote2|When creating the lore for a quest, what is the process like between you and other developers?}}
+
+[https://www.youtube.com/watch?v=BKhhfypKNQY&t=2505s Youtube Time Stamp]
+
+* '''Mod Ed:''' It depends from quest to quest, to be honest. The actual process of creating the lore itself varies from quest to quest, depending on a lot of things. Like we just talked about with Secrets of the North, we look to RuneScape and see what they've done to make sure we're being respectful of that, but also adding our own elements.
+* '''Mod Ed:''' With something like adding a new Kourend quest, it has no connection to Runescape whatsoever, so we're not looking at Runescape at all, particularly.
+* '''Mod Ed:''' The actual process of creating lore itself can vary quite a bit when working with other developers; it also depends on what type of project it is. Some quests are a standalone piece of content, where we'll just release a quest and nothing else, for example, Garden of Death was like that.
+* '''Mod Ed:''' If it’s just the quest, in most cases it’s normally just myself working on them, but when we’re working on things like Secrets of the North and Desert Treasure 2 where there's post-quest content like bosses and new areas, then there's normally quite a few of us working on it.
+* '''Mod Ed:''' It's normally me taking a lead on the lore, and when working with other developers, it is often a fun back and forth of - you might have somebody who's thinking more about the gameplay elements or like the mechanics of the boss fight. I’ll be there going “Well, that doesn't quite fit the lore”, and they’ll respond with “But it's really cool!” and I go “Alright, let me see if I can make this work!”
+* '''Mod Ed:''' The ultimate example of that was Theatre of Blood, though it wasn’t actually a quest. For the Theatre of Blood, we decided quite early on in development that we want to do it in Morytania, and at the time, we hadn't really done much content in Morytania.
+* '''Mod Ed:''' Since it was in Morytania, obviously it’s going to be vampyre-themed. Soon after that, the suggestion came up of “Let's lean in heavily on the vampyre society aspect of the lore, and with the way the lords and ladies act, let’s make it a theatre; a place of entertainment!”
+* '''Mod Ed:''' Once those things have been established, it fell to me to fill in all the details like “Okay, we want to do a vampyre theatre in Morytania, and what is the actual lore for that?”. I came up with lots of characters, ideas and backstories for bosses, but when we were midway through development; we were sort of under the impression all of this would be finalised, Mod Ghost comes along and he goes “I've got an idea to give the final boss Verzik more ‘umph’.”
+* '''Mod Ed:''' At the time, Mod Kieren was working on it and he wanted to do an additional phase at the end. We had designed her to be a two-phased boss, and it was not enough - she needed a third phase.
+* '''Mod Ed:''' Mod Ghost comes along and goes “I've got this idea for a third phase. We've got these spiders in other parts of the raid, she turns into one!”. I'm just sitting there like; “A vampyre turns into a spider? That's not what we wrote!”. So I had to go away mid-development, and I basically rewrote Verzik’s story to the one that is presented in the Night at the Theatre quest. All of that only came about because someone came along and went “Spider, that'd be cool”! 
+* '''Mod Ed:''' I hope it doesn't sound like I'm moaning about that. At the time, it was probably very much “Oh God, what am I going to do”, but that is one of the really good parts about game development. Sometimes it really forces you to go back to the drawing board and come up with ideas that are even cooler than before. 
+* '''Mod Ed:''' When someone like Mod Ghost goes on and goes “I want to turn it into a spider”, it was a really good opportunity to go back and go “Okay, how can we make this work?” and the end result was something that was probably far, far superior to the original story, which was just that she's just a boring old vampyre. He gave us the opportunity to be really fun and creative.
+* '''Mod Ed:''' The fun part is, it was all written back for the Theatre of Blood, but we didn't properly explore it until three years later with Night at the Theatre. It just sat there. We always like to establish the backstory of characters even if it's not going to be used in the piece of content we're making them for because chances are there'll be some update in the future that requires us to explore those characters more deeply and it ensures that things always stay really nice and consistent.
+* '''Mod Ed:''' It's always really fun going back to something that was made three years earlier and finally revealing it to people.
+* '''Mod Sarnie:''' I suppose that vampires and spiders have got a lot more in common, considering the first game update I was here for - which was in 2020 I believe - I found out spiders spawned the vampires in Morytania. Maybe they do have more in common than we thought!
+* '''Mod Ed:''' There are some bugs that are bad bugs. That was a good one.
+
+===Question #16===
+{{Cquote2|Is the world of OSRS actually going to step forward and progress? Storylines are "progressing" but they don't seem to matter in the grand scheme of things other than end-game rewards. Quests seem to have no implications on the world as if they're all in their own self-contained bubble.}}
+
+[https://www.youtube.com/watch?v=BKhhfypKNQY&t=2911s Youtube Time Stamp]
+
+* '''Mod Ed:''' I'm insulted! I guess it depends on what you mean and what your definition of progression is. I’m probably a little bit biased, but I do feel that there is a meaningful progression in our storylines and there is stuff that is impacting the world. Some of that is very small; changes to certain characters, but some of that is significantly bigger.
+* '''Mod Ed:''' You complete the Song of the Elves and a whole new city has appeared. Another city that was once full of mourners - they've now all gone and they’re now starting to rebuild. That feels to me that it is impacting the game world in a very meaningful way. 
+* '''Mod Ed:''' If that is the definition of progression, I - politely - disagree with the person asking this question! I do think they are having a meaningful impact on the wider world in that sense.
+* '''Mod Ed:''' If by progression you’re referring to the game being set in the same year and thinking about how RuneScape has progressed to a new age when the Gods came back - no, that’s not what we want to do.
+* '''Mod Ed:''' Part of Old School is that it is “old school”. We add new content to Old School weekly, but the way we add it is if done well, the idea is that the content feels like it could have been present in old school RuneScape as it was back then. It’s new, but it feels old school.
+* '''Mod Ed:''' We take the same attitude to the narrative. With Old School RuneScape, it’s so important that the world always feels familiar; always feels like home. That is the foundation that Old School was built on. Progressing the storyline in a way that would move to a new age; that Gods would come back and Lumbridge blows up, I’m not saying those are bad things to do. It’s great, but RuneScape already did them.
+* '''Mod Ed:''' The fact that RuneScape did them is really beneficial for both games because it means if you want that kind of story, you've got a RuneScape story, and if you want more old school, you've got the Old School story.
+* '''Mod Ed:''' We don't need to do it as well; we can just stay in the fifth age and keep telling stories about a world where the Gods aren't present and focus on what the followers of the Gods do when they don't have a God to tell them what to do. It's all about their own interpretations, rather than the direction Runescape went in. So if that's the definition of progress, then no, that's not something we will ever do in Old School.
+
+===Question #17===
+{{Cquote2|I'd like to ask about Quest Backporting which was surveyed with high success: How is it planned to incorporate the quests into OSRS, having noted that the OSRS devs are trying to incorporate their own spin on the story?}}
+
+[https://www.youtube.com/watch?v=BKhhfypKNQY&t=3126s Youtube Time Stamp]
+
+* '''Mod Ed:''' We talked about this a bit earlier, and I said we’d hopefully talk about more at the end, we've managed to fit it in. So to reiterate, first of all, the survey showed really positive results. People were very interested in the idea of backporting quests with some caveats that we’re already on board with. 
+* '''Mod Ed:''' The general consensus was that people didn't want to backport quests from after 2011, because that's when the storyline started to move towards the Gods returning, which feeds into the previous question. That's not the direction we want to take Old School in, so any backports would be limited to quests released prior to 2011. We would only backport the “good ones”, this was basically what the survey was saying, they were saying “don’t backport bad ones!”. No, we won’t backport bad quests! 
+* '''Mod Ed:''' The quests that we asked about in that survey were specifically chosen based on that; what we felt were good quests and felt Old School. We didn't want quests that progress a story in a way that moved towards like Gods returning, and we don’t want them to interfere or conflict with our own narrative plans.
+* '''Mod Ed:''' So that's why we asked about While Guthix Sleeps. We feel we can do While Guthix Sleeps with a few minor changes, and it would fit really nicely with our own plans for Mahjarrat. We didn't ask about Temple at Senntisten, we didn't ask about the Tale of Muspah and we didn't ask about the Ritual of Mahjarrat. None of those three would fit with what we are doing ourselves, but as with Secrets of the North, some small elements of those quests may still appear in other ways. 
+* '''Mod Ed:''' When it comes to backporting, we'd like to do it in a way that compliments and adds to the quest that we're currently working on, rather than just “let's backport all the quests and not ever make any new Old School quests”. That's the aim of it. That was the feedback when we asked about and it was very early days when we got that feedback.
+* '''Mod Ed:''' It was last year when we sent that survey around, and we did mention in the newspost at the time that that was basically Day One. It's a bit different to anything we've done before where normally we’d wait until later in the process, but there's no point even starting to explore this if people aren't interested, so we asked those questions very early on. 
+* '''Mod Ed:''' It fully owned the expectation that it would not be explored in 2022, but we're not in 2022 anymore! I'm hoping we can start talking about this again a bit more soon and hopefully have some more concrete stuff to share.
+* '''Mod Ed:''' Nothing today - we are in 2023, but it's still January, so we'll take a little time. It's something that we've had a few conversations about internally about what the next steps are now that we are into 2023 and planning some of that long-term stuff. Hopefully, we'll be able to share more soon.
+
+==Player Creations of the Week==
+<gallery mode="packed" heights="200" style="text-align:center">
+Q&A Summary 19-1-2023 (1).png|''@MrColinSawyer''
+Q&A Summary 19-1-2023 (2).png|''@hazenglass''
+Q&A Summary 19-1-2023 (3).png|''u/jcharf1''
+Q&A Summary 19-1-2023 (4).png|''u/DTattoo''
+Q&A Summary 19-1-2023 (5).png|''u/sgoods''
+Q&A Summary 19-1-2023 (6).png|''u/sgoods''
+</gallery>

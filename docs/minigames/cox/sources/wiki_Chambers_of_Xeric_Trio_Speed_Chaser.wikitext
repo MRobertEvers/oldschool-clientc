@@ -1,0 +1,19 @@
+{{Infobox Combat Achievement
+|name = Chambers of Xeric (Trio) Speed-Chaser
+|image = [[File:Chambers of Xeric - keystone room.png|300px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Complete a Chambers of Xeric (Trio) in less than 16 minutes and 30 seconds.
+|tier = Master
+|monster = Chambers of Xeric
+|type = Speed
+|id = 326
+|leagueRegion = Kourend
+}}
+'''Chambers of Xeric (Trio) Speed-Chaser''' is a [[Combat Achievements/Master|master combat achievement]] which requires the player to complete a trio-scaled [[Chambers of Xeric]] in under 16:30.
+
+==Other tasks==
+{{Combat Achievements list|Chambers of Xeric}}
+
+{{Combat Achievements}}

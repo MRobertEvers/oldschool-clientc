@@ -1,0 +1,110 @@
+{{Update|date=12 December 2023|url=https://secure.runescape.com/m=news/christmas-2023?oldschool=1|category=game}}
+[[File:Christmas 2023 newspost.jpg|right]]
+{{clear}}
+__TOC__
+'''''Happy Holidays from everyone on the Old School Team!'''''
+
+'''Reminder:''' Game Updates are now accompanied by a 30-minute downtime period to ensure we can take an up-to-date backup. Game Worlds will be offline at '''11:30 GMT''' and should be back online at '''12:00 GMT'''.
+
+As it stands, Leagues will remain as it is over the Christmas period after next week's update unless there are major bugs or issues that need addressing. Please continue to report your bugs and issues via the in-game Bug Report feature.
+
+==Changelog - December 12th==
+{{Collapsed section|18|CLICK HERE TO SHOW}}
+
+'''2023 Christmas Event'''
+
+* The 2023 Christmas event is here! Speak to Jack Frost in Lumbridge to join in the festive fun.
+* Added Christmas Achievements, just for fun!
+
+'''Leagues IV: Trailblazer Reloaded'''
+
+* Players may be experiencing issues with League Point totals being calculated differently between Leagues and regular worlds.
+** If you’re experiencing this issue, please log in to a Leagues world and either complete a new task or open and close the Point interfaces until the sync triggers.
+* The following Combat Achievements are now correctly checked off after being auto-completed when unlocking the relevant region:
+** Faithless Crypt Run (Morytania/Barrows)
+** Dress Like You Mean It (Desert/Tempoross)
+** Versatile Drainer (Fremennik/Phantom Muspah)
+** More Than Just A Ranged Weapon (Fremennik/Phantom Muspah)
+** The Worst Ranged Weapon (Asgarnia/Kree’arra)
+** Finding The Weak Spot (Wilderness/Corporeal Beast)
+
+'''Chambers of Xeric'''
+
+* Skeletal mages now scale correctly when manually scaling at Raid creation.
+* Players are no longer able to place Kindling in Storage Units.
+* Tumeken’s Shadow will now splash against Jewelled Crabs if your Magic Accuracy is -64 or lower.
+* Potions now correctly award points when sipped.
+
+{{Collapsed section end}}
+
+==2023 Christmas Event==
+It's the most wonderful time of the year! Can you believe that 2023 is almost over? Neither can we!
+
+This year’s fabulously festive Christmas Event takes us to Lumbridge, where regular troublemaker Jack Frost is up to his usual tricks. See, Jack’s been getting a little bored lately and to stop him being a nuisance, Santa’s banished him to Gielinor for the holidays. Not to be deterred from a little mischief, our frosty friend has rented a field in Lumbridge for a winter sports extravaganza – and he needs YOU to test it out!
+
+After helping Jack Frost out, you might want to stick around a little longer – partaking in the event will earn you Christmas Achievements. We don’t want to spoil the fun, so they’ll be hidden until after the event – have fun, get silly, and see how many of them you can find!
+
+Don’t worry, the Christmas Achievements are just a bit of fun. They don’t count towards Leagues tasks or any Achievement Diaries. Try them out solo or with your friends!
+
+If you find the event has been a ''slippery slope ''to further snowy shenanigans, check out Jack Frost’s Sliding Challenge Mode, where you’ll race against the clock to see how fast you can slide! ''Nyooom!''
+
+[[File:Christmas 2023 (1).png|217px|center]]
+
+===Event Items===
+[[File:Christmas 2023 (2).png|250px|center]]
+
+Frosty FashionScape is coming your way! This year, you can earn yourself the Snowglobe Helmet and the Icy Jumper to celebrate the season.
+
+Don’t forget, you can also unlock all the rewards from previous years by speaking to Diango at his stall in Draynor.
+
+===Christmas Livestream===
+Today, Tuesday December 12th, marks the last livestream of the year! Join us for a festive extravaganza!
+
+The J-Mods will be in-game playing through this year’s Christmas Event and having fun with the community. Back in the studio, Santa has dropped by with some OSRS Boss Top Trumps to give away to a few lucky winners – tune in for your chance to win!
+
+[[File:Christmas 2023 (3).png|600px|center]]
+
+==Leagues IV: Trailblazer Reloaded==
+If you’ve been keeping up with our newsposts, you’ll have seen that the frequent reminders about Leagues Points being calculated on a rolling schedule to protect our web systems. Unfortunately, so many of you are racking up the Points that this system began experiencing errors from re-calculating League Points at such a regular pace! Don’t panic, we’ve fixed the issue – but some players may now find they have a different Point total between Leagues and regular worlds.
+
+If you’re experiencing this issue, please log back into a Leagues World and either open and close the Points interface or complete some new tasks. This should cause the Points to sync correctly again.
+
+In other Leagues news, we’ve fixed an issue where auto-completed Combat Achievements weren’t counting as completed when unlocking the associated region. The following Combat Achievements are affected:
+
+* Faithless Crypt Run (Morytania/Barrows)
+* Dress Like You Mean It (Desert/Tempoross)
+* Versatile Drainer (Fremennik/Phantom Muspah)
+* More Than Just A Ranged Weapon (Fremennik/Phantom Muspah)
+* The Worst Ranged Weapon (Asgarnia/Kree’arra)
+* Finding The Weak Spot (Wilderness/Corporeal Beast)
+
+Finally, we've fixed an issue with Pyromancer's Garb, so the task can now be completed without any issues.
+
+==Chambers of Xeric==
+As promised, we have a selection box of changes for the recently-updated Chambers of Xeric raid.
+
+First up, skeletal mystics will now scale correctly when manually scaling a Raid at creation. Previously, their mystical powers let them see through your ‘invisible mates’ ruse, but we’ve given them a stern talking to about respecting other people’s imaginary friends and now they’ve promised to behave.
+
+We’ve also prevented players from placing Kindling in Storage Units, due to an issue where players could stack a bunch of them to deposit at once for extra Point bonuses. ''Someone’s ''going on the naughty list!
+
+Lastly, we have a pair of smaller bug fixes:
+
+* Tumeken’s Shadow will now splash against the Jewelled Crabs if your Magic Accuracy is -64 or lower.
+* Potions now correctly award points when sipped.
+
+You may notice that a couple of the changes we spoke about last week are missing. Firstly, upon further investigation into the Great Grub Bonanza in the Thieving room, we discovered that this behaviour was intended after all. Phew! We also reviewed the implications of removing the attack delay on the Harmonised Nightmare Staff when facing Jewelled Crabs, and discovered that allowing players to cast rapid Fire Strikes would result in those players receiving unusually rapid XP rates. As a result of our investigations, both of these changes have been cancelled.
+
+Nevertheless, we'd like to give a big ol' THANK YOU to everyone who left their feedback! You'll all get extra Cavern Grubs in your stockings this year.
+
+==PvP Rota==
+Over the Christmas period, all worlds will be open, regardless of the region. The PvP rota will begin again next year on the 10th January!
+
+The PvP Arena will be using '''Zerker''' loadouts in Ranked Duels and Tournaments this week, starting on Wednesday, with ''''1 Def Pure'''' the following week as this is on an automatic rota.
+
+----
+
+You can also discuss this update on our [http://services.runescape.com/m=forum/forums?380,381 official forums], on the [https://www.reddit.com/r/2007scape/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abyss, Arcane, Archie, Argo, Ash, Ayiza, Boko, Blossom, Bruno, Chilly, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Errol, Fed, Gecko, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Necro, Nox, Nylu, Other, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Sarnie, Shroom, Sigma, Skane, Skylark, Smithy, Sova, Squid, Starry, Stevew, Surma, Sween, Tide, Titus, Torrance, Tsourorf, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

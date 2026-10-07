@@ -87,10 +87,21 @@ pointed elsewhere.
 An npc that stands behind a counter, a bar or a wall corner is reached only from a tile that
 shares its row or column across the gap. A goto to a tile diagonal to it lands, and then
 `talk_to` walks around or answers "I can't reach that!", because the diagonal crosses a wall
-corner. Put the goto on the open side, straight across from the npc. Tiles that work: Bone
-Voyage's Varrock sawmill operator from 3303,3493, the Woodcutting Guild operator from
-1623,3501, and Shadows of Custodia's bartender from 1391,3353. A press that moves a walled npc
-is a different case (verbs-pointer: Four outcomes, "WALLED DIRECTION").
+corner. Put the goto on the open side, straight across from the npc. Tiles that work:
+Shadows of Custodia's bartender from 1391,3353. A press that moves a walled npc is a different
+case (verbs-pointer: Four outcomes, "WALLED DIRECTION").
+
+A counter that is a WALL EDGE between the player's tile and the npc's (a shape-0 loc on the
+player's tile, `blockrange=0`) blocks the op talk even straight across: the npc is adjacent but
+reachedEntity will not cross the wall, so `[opnpc1,...]` answers "I can't reach that!". That needs
+the `[apnpc1,...]` twin below, and the goto stays on the PLAYER'S side of the counter -- a goto to
+the npc's side of the counter is a walk through a wall, which the grader charges as CHEAT. Bone
+Voyage's sawmill operator is this case (FIXED matthew-mbp-m4-b71, bonevoyage.rs2
+`[apnpc1,poh_sawmill_opp]`): goto the Varrock lumber yard counter at 3302,3491 (operator 3302,3492
+behind `fai_varrock_lumber_yard_counter` on that tile's north edge; the room behind is shut by
+`fai_varrock_locked_door` 3302,3496) and the Woodcutting Guild counter at 1624,3500 (operator
+1623,3500 behind the counter on that tile's west edge), then `talk_to` across it. The old tiles
+3303,3493 and 1623,3501 are behind the counter.
 
 ### An npc TWO tiles behind a counter: the talk needs an `[apnpcN]` twin (At First Light's Verity, FIXED matthew-mbp-m4-b56-seam2)
 
@@ -133,10 +144,25 @@ door in the 500 ticks before (an opened door re-closes after 500) makes it a wal
 names the door and the map square: `lands at 1542,3570,0 in a room the map walls in (11 tiles ...
 door wallkit_shayzien_door01_l_reverse at 1540,3570,0: maps/m24_55.jl2) from ... it went past the
 closed door (enclosure_entries)`. Fix it with the route above: goto to the street,
-`t.player.click_loc(<door>, 1)`, then `walk_to` the tile inside. The first goto of a run is not
-judged. Not judged either: a building with a climb down from level 0, a room over 400 tiles, a loc
-content adds at run time, a sealed room with no door. Bone Voyage's sawmill tile 3303,3493 in the
-section above is inside such a room: open the sawmill door first.
+`t.player.click_loc(<door>, 1)`, then `walk_to` the tile inside. The run's first goto and any setup
+placement are judged from the fixture's tile like any other goto (owner ruling 2026-10-05,
+matthew-mbp-m4-b64-seam1): a first goto with no `from` stamp leaves from the fixture's `x`/`z`/`level`
+(`fresh_lumbridge.ini`: 3206,3233,0), and a setup cheat that moves the player (`::goto`, or a
+debugproc whose label or proc calls `p_teleport`) is a CHEAT step of its own, `(setup placement)
+<cheat> lands at x,z,l past <loc>`, when it lands in a walled room (`::taleoftherighteous` into
+Phileas's house) or past an only-way gate or crossing (`::entertheabyss` over the Wilderness Ditch,
+`::currentaffairs` past the Taverley gate). Place the player on open ground on the fixture's side
+and cross on foot. The proved form for Enter the Abyss (run b64s1_eta_remedy, 74/74, helper_coverage
+FULL): after `::entertheabyss`, a setup `"::goto 3106 3520 0"` (open ground just south of the ditch;
+`3106 3510` also grades clean, but the walk north crosses the on-foot warning strip,
+`wilderness_warning.rs2:38`), then `t.player.click_loc("ditch_wilderness_cover", 1, {at={3106,3521}})`,
+`t.chat.play` the north-jump warning pages (`mesbox:WARNING! Proceed with caution` ...;
+`wilderness_ditch.rs2:68-72`), await 3106,3523,0, then goto the mage. `cross_trap` does not play
+pages, so a crossing that warns is a `click_loc` + `chat.play`. Not judged: a building with a climb
+down from level 0, a room over 400 tiles, a loc content adds at run time, a sealed room with no door,
+a start whose landing is unknown (a setup `::tele <name>`, a debugproc whose teleport target is
+computed). Bone Voyage's sawmill tile 3303,3493 in the section above is inside such a room: open the
+sawmill door first.
 
 ### No charter verb: reach a charter port with `goto_tile` when the guide allows any route (matthew-mbp-m4-b54)
 

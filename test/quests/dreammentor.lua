@@ -1,4 +1,5 @@
--- Dream Mentor. seam2 proof copy (bank_withdraw_and_deposit_verbs): the committed blocked file (ecd69a678) with the fight food banked in setup and withdrawn at the Lunar Isle bank before the brazier.
+-- Dream Mentor. The fight food is banked in setup and withdrawn at the Lunar Isle bank before the brazier; Lunar Isle
+-- is reached by Lokar's boat from Rellekka.
 -- Guide: Quest Helper DreamMentor.java via tools/quest_gate/ladder.py dreammentor.
 -- Content notes: docs/quests/ladders/dreammentor.notes.md.
 
@@ -58,8 +59,28 @@ return {
     legs = {
         { name = "cyrisus", run = function(t)
         -- ---- goDownToCyrisus: the ladder pair into the Lunar mine (dreammentor_cyrisus.rs2:17) ----
-        -- the one travel hop from the Lumbridge fixture to Lunar Isle; the ladder (2142,3944) sits in a three-walled nook
-        -- open to the south, so the hop lands on the open ground south of it and the click walks to the ladder
+        -- Door rule: Lunar Isle has no on-foot route (an island). The way there is Lokar Searunner's boat from
+        -- Rellekka's westernmost dock (lunardip_transport.rs2 [opnpc1,lunar_fremennik_pirate] -> lunardip_lokar_ship_talk:
+        -- after Lunar Diplomacy "Lunar Isle." p_teleports to ^lunardip_isle_harbour_coord 2151,3868). Rellekka itself
+        -- is reached on foot only through the Taverley members' gate membergater 2933,3320 (reach.py 3206,3233 ->
+        -- 2621,3693: NEEDS-DOOR via membergater@2933,3320), so: overland to its south side (REACH closed-doors len=388),
+        -- the gate pressed by its verb, overland from its north side to the dock (2933,3322 -> 2621,3693: REACH len=893).
+        t.exec("goto-memberGate", t.player.goto_tile, 2933, 3318, 0)
+        t.exec("travelToRellekka.memberGate", t.player.cross_gate, { loc = "membergater", at = { 2933, 3320, 0 },
+            near = { 2933, 3318 }, far_ok = function(tile) return tile.z >= 3320 and math.abs(tile.x - 2933) <= 2 end,
+            far_desc = "north of the members' gate, z >= 3320", far = { 2933, 3322 } })
+        t.exec("goto-talkToLokar", t.player.goto_tile, 2621, 3692, 0)
+        t.exec("travelToLunarIsle", t.player.talk_to, "lunar_fremennik_pirate_by_pirateship", 1)
+        t.exec("travelToLunarIsle-menu", t.chat.drain, { stop_at = "options", max_pages = 6 })
+        t.exec("travelToLunarIsle-choose", t.chat.choose, "Lunar Isle.")
+        t.exec("travelToLunarIsle-tail", t.chat.drain, { max_pages = 6 })
+        t.ticks(3)
+        do local _, tile = t.world.tile(); local _, level = t.world.level()
+            t.check("travelToLunarIsle-landed", tile ~= nil and level == 0 and math.abs(tile.x - 2151) <= 3 and math.abs(tile.z - 3868) <= 3,
+                "after Lokar's boat: tile " .. tostring(tile and (tile.x .. "," .. tile.z .. "," .. tostring(level))) .. " want the Lunar Isle harbour 2151,3868,0") end
+        -- overland on the isle from the harbour to the mine ladder (reach.py 2151,3868 -> 2141,3942: REACH closed-doors
+        -- len=154); the ladder (2142,3944) sits in a three-walled nook open to the south, so the hop lands on the open
+        -- ground south of it and the click walks to the ladder
         t.exec("goto-goDownToCyrisus", t.player.goto_tile, 2141, 3942, 0)
         t.exec("goDownToCyrisus", t.player.click_loc, "lunar_mine_slanty_ladder_down", 1)
         t.ticks(3)
@@ -250,7 +271,7 @@ return {
         end
         do local ok = t.ui.await_open("dream_armour", 15)
             t.check("talkToJack-bank-open", ok == "ok", "Cyrisus's bank screen (interface dream_armour) open: " .. tostring(ok)) end
-        -- the melee set (attack+strength 80 beats ranged and magic, dreammentor_shared.rs2:186): helm 15, body 2, legs 27, boots 30, weapon 19
+        -- the melee set ((attack+strength)*2 >= ranged*3 and magic*3 on base levels, dreammentor_shared.rs2 [proc,dreammentor_pick_style]): helm 15, body 2, legs 27, boots 30, weapon 19
         do local picks = { { 15, "dragon med helm", "varb3627_dream_arma_item1" }, { 2, "Ahrim's robetop", "varb3628_dream_arma_item2" }, { 27, "Ahrim's robeskirt", "varb3629_dream_arma_item3" }, { 30, "ranger boots", "varb3630_dream_arma_item4" }, { 19, "abyssal whip", "varb3631_dream_arma_item5" } }
             for _, p in ipairs(picks) do
                 local _, w = t.ui.widget("dream_armour:bank_layer", p[1])
@@ -422,8 +443,8 @@ return {
         -- the potion is made: the hammer and the pestle and mortar have done their work, so they go into the bank and the slots carry food
         t.exec("lightBrazier-bank-deposit-hammer", t.bank.deposit, "hammer", 1)
         t.exec("lightBrazier-bank-deposit-pestle", t.bank.deposit, "pestle_and_mortar", 1)
-        -- 2 sharks + dream vial + tinderbox + seal of passage leave 23 slots; 22 sharks keep one slot free for the reward lamp
-        t.exec("lightBrazier-bank-withdraw-food", t.bank.withdraw, "shark", 22)
+        -- 2 sharks + dream vial + tinderbox + seal of passage leave 23 slots, all filled with sharks: the reward lamp lands in a slot a shark eaten in the dream frees
+        t.exec("lightBrazier-bank-withdraw-food", t.bank.withdraw, "shark", 23)
         t.check("lightBrazier-bank-close", t.bank.close())
         t.player.walk_to(2099, 3913, 12)
         t.ticks(1)
@@ -445,8 +466,8 @@ return {
         t.ticks(2)
         t.expect("lightBrazier-lit", t.msg.expect("You light the brazier"))
 
-        -- the fight food: the two sharks carried from setup plus the 22 withdrawn from the bank
-        t.check("fight-food", select(2, t.inv.count("shark")) == 24, "sharks carried into the dream: " .. tostring(select(2, t.inv.count("shark"))))
+        -- the fight food: the two sharks carried from setup plus the 23 withdrawn from the bank
+        t.check("fight-food", select(2, t.inv.count("shark")) == 25, "sharks carried into the dream: " .. tostring(select(2, t.inv.count("shark"))))
 
         -- ---- talkToCyrisusForDream: 'Yes, let's go!' (dreammentor_dream.rs2:225) ----
         t.exec("talkToCyrisusForDream-present", t.npc.await_present, "dream_cyrisus_outsidebraziermulti", 20, 20)
@@ -459,11 +480,13 @@ return {
             t.check("talkToCyrisusForDream-entered", tile ~= nil and tile.x > 6000, "in the dream instance: tile " .. tostring(tile and (tile.x .. "," .. tile.z))) end
 
         -- ---- the four bosses, fought for real with the banked sharks (magic shortbow + rune arrows worn from setup) ----
+        -- no prayer in the dream (dreammentor_dream.rs2:341 ~prayer_deactivate_all), so the margin is food alone: eat below 60
+        -- (a shark heals 20, so 60+20 stays under 99 and wastes nothing); at below 45 The Untouchable once took the player to 24/99 (b70b)
         local names = { { "killInadaquacy", "dream_inadequacy" }, { "killEverlasting", "dream_everlasting" }, { "killUntouchable", "dream_untouchable" }, { "killIllusive", "dream_illusive" } }
         for _, b in ipairs(names) do
             t.exec(b[1] .. "-present", t.npc.await_present, b[2], 40, 40)
             t.exec(b[1], t.player.attack, b[2], 2, 30)
-            local _, dead_detail = t.exec(b[1] .. "-dead", t.npc.await_dead_engaged, 600, 80, { eat = { item = "shark", below = 45 } })
+            local _, dead_detail = t.exec(b[1] .. "-dead", t.npc.await_dead_engaged, 600, 80, { eat = { item = "shark", below = 60 } })
             local _, hp = t.skill.read("hitpoints")
             local _, sharks = t.inv.count("shark")
             local low = tonumber(string.match(tostring(dead_detail), "lowest hp (%d+)/"))

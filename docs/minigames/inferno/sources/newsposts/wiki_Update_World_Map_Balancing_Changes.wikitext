@@ -1,0 +1,217 @@
+{{Update|date=25 May 2017|link=http://services.runescape.com/m=news/world-map--balancing-changes?oldschool=1|category=game}}
+[[File:World Map & Balancing Changes newspost.png|right]]
+{{clear}}
+
+
+{{Headline|25|In-game World Map}}
+
+''<center>You can now access an in-game world map using the map icon beneath your minimap!</center>''
+
+
+[[File:World Map & Balancing Changes (1).png|center]]
+
+
+A simple left-click will open up a resizeable, moveable world map interface. You can also right-click the icon for a full screen option.
+
+The resizeable, floating world map can be open as you play. You can even have other interfaces open alongside it.
+
+
+[[File:World Map & Balancing Changes (2).png|center]]
+
+
+Once open, the in-game world map has a number of useful functions.
+
+If you wish to see a key, click the key button found in the bottom left of the interface.
+
+
+[[File:World Map & Balancing Changes (3).png|center]]
+
+
+Clicking on one of the items in the key will cause the icons on the map to briefly flash, allowing you to easily locate whatever it is you are looking for!
+
+
+[[File:World Map & Balancing Changes (4).png|center]]
+
+
+If you have the floating world map open, you can move it by clicking the border at the top and dragging.
+
+If you wish to resize the window, click the border anywhere other than at the top of the world map window and drag to resize.
+
+
+[[File:World Map & Balancing Changes (5).png|center]]
+
+
+If you're struggling to find what you are looking for, you can try using the '''search function'''. Start typing for what you are looking for into the search box at the bottom of the world map window, and the search box will start auto-completing as you type.
+
+Once you have typed what you are looking for, or auto-complete has suggested it, press enter and your world map will move to that location!
+
+
+[[File:World Map & Balancing Changes (6).png|center]]
+
+
+The search feature searches any map labels. So, if you are in a dungeon which lists the locations of monsters on the world map - you can search for the name of a monster and be taken to its location!
+
+If you wish to view areas that are not on the surface of Gielinor, you can do so using '''map links'''!
+
+
+[[File:World Map & Balancing Changes (7).png|center]]
+
+
+Entrances across the surface of the world have map link icons which, when clicked, displays the destination of that entrance.
+
+If you are in a complex dungeon, seeing which-entrance-goes-where can be very valuable. Luckily for you, the in-game world map also includes intra-map links!
+
+
+[[File:World Map & Balancing Changes (8).png|center]]
+
+
+If you are in a dungeon with a number of rooms or floors connected by different types of entrances, the world map will show you where those entrances will take you with intra-map links.
+
+
+{{Horizontal Line}}
+
+
+{{Headline|22|Balancing Changes}}
+
+When it comes to our priorities for updates, the longevity of Old School is '''always''' at the top of the list. We want to ensure Old School is here for you to play and enjoy for years to come.
+
+The community has always strongly leaned towards the idea of fixing existing problems rather than building on top of them. With this in mind, we sat down and took a critical look at some of the most problematic pieces of content in game.
+
+Today's update includes several unpolled balancing changes to existing pieces of content; changes we strongly believe to be in the best interest of Old School's long term health.
+
+
+{{Horizontal Line}}
+
+
+<center>'''Zulrah Drop Table'''</center>
+[[File:World Map & Balancing Changes (9).png|center]]
+
+Zulrah has remained one of the most consistently profitable monsters in game since its release in early 2015. It has fundamentally changed how many people play Old School - providing unmatched rates of consistent profit.
+
+While we don't have an issue with a challenging piece of content being profitable, just how profitable that content may be is something we do need to consider - and we have concluded that Zulrah is too rewarding.
+
+As it stands, many players see Zulrah as the only option for making money. It is so fast and so consistent that few other options seem worthwhile.
+
+To address this, '''we have now reduced the average value of loots from Zulrah by roughly 30%'''. As a part of this change, we have also replaced some of Zulrah's resource drops with items which will have a less significant economic impact on skillers.
+
+The specific changes made to the drop table are:
+
+*The drop-rate of Magic tree seeds has been decreased.
+*The number of Runite ore dropped has been decreased from 10 to 2.
+*Mahogany planks have been replaced by Mahogany logs.
+*The number of Papaya seeds dropped has been increased from 2 to 3.
+*The number of Snapdragon seeds dropped has been decreased from 2 to 1.
+*The number of Torstol seeds dropped has been decreased from 2 to 1.
+*Raw sharks have been replaced by Cooked manta rays and the number dropped has been decreased from 100 to 35.
+*The number of Torstols dropped has been decreased from 20 to 10.
+*The number of Dwarf weeds dropped has been increased from 20 to 30.
+*The number of Toadflax dropped has been increased from 20 to 25.
+*The number of Snapdragons dropped has been decreased from 20 to 10.
+*Magic logs have been replaced by Yew logs and the number dropped has been decreased from 100 to 35.
+*The number of Dragon bones dropped has been decreased from 30 to 12.
+*The number of Coal dropped has been decreased from 300 to 200.
+*The number of Adamantite bars dropped has been decreased from 25 to 20.
+*Saradomin brews have been replaced by Bird's nests.
+
+
+{{Horizontal Line}}
+
+
+<center>'''Serpentine Helm'''</center>
+
+[[File:World Map & Balancing Changes (10).png|center]]
+
+The Serpentine Helm provides unmatched defensive and offensive stats and effects. It is a must-have for almost any combat activity in Old School.
+
+Its outstanding stats and venom/poison effects leave us very little room to introduce helmets of a similar tier. It is a near impossibility to design around the helmet in its current state without damaging the long term health of Old School.
+
+To address this, we have now made a couple of changes to the Serpentine Helm. '''The helmet will no longer apply venom to enemies, and its strength bonus has been reduced from +5 to +3'''.
+
+
+{{Horizontal Line}}
+
+
+<center>'''Void Knight Ranged Set'''</center>
+
+[[File:World Map & Balancing Changes (11).png|center]]
+
+When we looked at the balance of Ranged equipment, the Void Knight set stood out like a sore thumb.
+
+The set requires level 42 in combat stats and level 22 in Prayer to equip. It provides a 20% damage boost and 10% accuracy boost for Ranged combat. Aside from time invested, it is free to obtain.
+
+In its current state it is simply '''overpowered'''. This set out-classes even the highest tier Ranged equipment in game in many scenarios - despite having '''substantially''' lower requirements.
+
+Its low requirements and low repair cost, combined with its overwhelming strength, completely wipes out any room for variety in PvP at many levels. There is simply no comparable alternative.
+
+'''To address the above concerns, we have now lowered the damage bonus of the Void Knight Ranged set to 10%.'''
+
+This change leaves the Void Knight Ranged set in a place where it is still strong at many levels, and it still has a place as an alternative to higher cost equipment.
+
+
+
+<center>'''Dropping in the Wilderness'''</center>
+
+[[File:World Map & Balancing Changes (12).png|center]]
+
+
+Risk is something which comes hand-in-hand with the Wilderness. It is a dangerous, abandoned land where its inhabitants do as they please. The way that dropping items in the Wilderness currently works doesn't always play into this vision.
+
+To address this, '''tradeable items dropped manually from your inventory within the Wilderness will now appear instantly to all players.'''
+
+This change will prevent players in the Wilderness dropping items just before they die in order to run back and pick them up. Be cautious with what you bring to the Wilderness - and consider the risk before you take anything of value!
+
+In addition to this change, '''food and potions dropped within the Wilderness will now never appear for other players'''. This change does not affect the loot you receive from other players.
+
+Preventing the exchanging of food and potions mid-combat stops teams from providing their team mates with an unlimited flow of supplies - negating any real risk in single-way combat areas.
+
+
+{{Horizontal Line}}
+
+
+<center>'''Karamja General Store'''</center>
+
+[[File:World Map & Balancing Changes (13).png|center]]
+
+The Karamja General Store has long been a controversial part of Old School. The negativity it creates in the community certainly outweighs the benefits it provides as a piece of content.
+
+As such, we have reduced the effect of the Karamja hard diary reward which changes the price of items sold to the store. Items sold there will now be worth less than their high alchemy value.
+
+{{Horizontal Line}}
+
+
+{{Headline|22|Tournament World - Fight Caves}}
+
+
+In preparation for the release of the Inferno '''next week''', we have opened up two tournament worlds in which you can access the Fight Caves!
+
+Head over to world '''401''' or '''407''', grab your dream set up and get practicing! You can access the Fight Cave using the portal located near the bank chest.
+
+And, of course, you can take advantage of the maxed stats and unlimited free gear in Clan Wars, too!
+
+{{Horizontal Line}}
+
+
+'''Bugfixes'''
+
+*Fixed a typo with Ali the Mayor.
+*Fixed a typo with the Scorpion Catcher quest.
+*Fixed a typo with Gunnjorn’s examine.
+*Fixed a typo with the Temple of Ikov quest.
+*Fixed 2 typos with the Eadger’s Ruse quest.
+*Clue scrolls requiring you to teleport with a personal spirit tree now works with your POH planted spirit tree.
+*Players can now charge their imbued Skull Sceptre with the bottom half.
+*Fixed a typo with Lilly in the Warrior’s Guild.
+*Fixed an examine typo with a piano.
+*Fixed a typo in the Slayer tower basement.
+*Players will no longer get multiple clueless scrolls if they have it stored in their POH.
+*Fixed a typo with the Elite Void Knight.
+*Moved baby black dragons closer together for convenience in Taverley dungeon.
+*Players may no longer deposit a looting bag into a bank on DMM while there’s loot inside.
+*Added the correct link to the Summer Special information page on the bonds interface.
+*Hickton now only has one cape.
+*The unpowered orb seen in the charging animation has been updated to the correct colours.
+*Removed a push tile.
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,390,65914716 forums].
+
+'''''Mods Archie, Ash, Ed, Ghost, Jed, John C, Kieren, Mat K, Maz, Ronan, Roq, Ry, Stone, TomH, Weath, West & Wolf'''''<br/>''The Old School Team''

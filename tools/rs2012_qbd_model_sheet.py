@@ -30,6 +30,8 @@ import tempfile
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
+import config_text
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LANE = "ported/rs2012_qbd_td"
 
@@ -57,7 +59,7 @@ def load_names(tree):
             continue
         block, label = None, None
         kind = fn.rsplit(".", 1)[1]
-        for line in open(os.path.join(cfgdir, fn), encoding="utf-8", errors="replace"):
+        for line in config_text.read_lines(os.path.join(cfgdir, fn), errors="replace"):
             line = line.strip()
             if line.startswith("["):
                 block, label = line[1:-1], None

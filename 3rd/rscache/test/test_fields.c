@@ -12,23 +12,31 @@
  * into a different field, or into none, and every layer in between reports
  * success. Nothing downstream can detect it, so it has to be caught here.
  *
- * Four things are checked:
+ * The register is `rscache_register.h` and the band codec `rscache_band.h` —
+ * one parser and one codec, which the writer (cachepack) and the reader (the game
+ * server) both link. `test_band.c` holds the codec to itself; this holds it to
+ * the content tree's own file and to an independent decoder. Four things:
  *
- *   the parse       cp_fields' table against an independent parse of the same
- *                   file. `fields/npc.ini` declares a field in *two* blocks — the
- *                   projection at the top, the server opcode at the bottom, under
- *                   the same `[npc.hitpoints]` name — so a reader that appends
- *                   sections instead of merging them silently loses half of them.
- *   the register    `cp_fields_check`: the reserved band, no two fields on one
- *                   opcode, no wire the reader cannot decode.
- *   the band        a written band decoded by an independent implementation of the
- *                   reader's algorithm. Our own encoder agreeing with our own
- *                   decoder proves nothing, which is why this test does not link
- *                   the writer's decoder — it has none.
- *   the header      version, CRC, and what a corrupted byte does.
+ *   the parse       RSCache_RegisterLoad's table against an independent parse of
+ *                   the same file. `fields/npc.ini` declares a field in *two*
+ *                   blocks — the projection at the top, the server opcode at the
+ *                   bottom, under the same `[npc.hitpoints]` name — so a reader
+ *                   that appends sections instead of merging them silently loses
+ *                   half of them.
+ *   the register    RSCache_RegisterCheck plus the parser's refusals: the reserved
+ *                   band, no two fields on one opcode, no wire the reader cannot
+ *                   decode.
+ *   the band        RSCache_BandEncode's bytes decoded by an independent
+ *                   implementation of the reader's algorithm. The codec agreeing
+ *                   with its own decoder proves nothing, which is why this test
+ *                   does not call RSCache_BandDecode.
+ *   the header      cachepack's archive framing: version, CRC, and what a
+ *                   corrupted byte does.
  */
 
 #include "cp_fields.h"
+#include "rscache_band.h"
+#include "rscache_register.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -58,7 +66,7 @@ struct IniField
 /**
  * Parse `[<type>.<name>]` blocks carrying `server = opcode:<n>:<wire>`.
  *
- * Deliberately not cp_fields' parser and deliberately not 3rd/ini: a check that
+ * Deliberately not rscache_register.c's parser: a check that
  * shares its reader with the thing it checks tests nothing about the reader.
  * Copied in shape from the reader-side test so the two stay recognisable as a
  * pair.
@@ -134,15 +142,15 @@ check_against_register(
     const char* type)
 {
     char path[1024];
-    struct IniField ini[CP_FIELDS_MAX];
-    struct CP_Fields fields;
+    struct IniField ini[RSCACHE_REGISTER_MAX];
+    static struct RSCache_Register fields;
     int ini_count;
     int matched = 0;
     int mismatched = 0;
     char what[128];
 
     snprintf(path, sizeof(path), "%s/fields/%s.ini", dir, type);
-    ini_count = load_ini(path, type, ini, CP_FIELDS_MAX);
+    ini_count = load_ini(path, type, ini, RSCACHE_REGISTER_MAX);
     if( ini_count < 0 )
     {
         /* Loud, and not a pass — the discipline the cache suites already follow. */
@@ -150,25 +158,26 @@ check_against_register(
         return;
     }
 
-    cp_fields_load(&fields, dir, type);
-    printf("fields: %s — the file declares %d server field(s), cp_fields loaded %d\n", type,
+    RSCache_RegisterLoad(&fields, dir, type);
+    printf("fields: %s — the file declares %d server field(s), the register loaded %d\n", type,
            ini_count, fields.band_count);
 
     for( int i = 0; i < ini_count; i++ )
     {
-        const struct CP_Field* got = cp_fields_find(&fields, ini[i].name);
+        const struct RSCache_RegisterField* got = RSCache_RegisterFind(&fields, ini[i].name);
 
         if( !got )
         {
-            printf("fields:   %s.%s — declared in the file, absent from cp_fields\n", type,
+            printf("fields:   %s.%s — declared in the file, absent from the register\n", type,
                    ini[i].name);
             mismatched++;
             continue;
         }
-        if( got->opcode != ini[i].opcode || (int)got->wire != ini[i].wire )
+        if( got->opcode != ini[i].opcode || cp_register_wire_bytes(got->wire) != ini[i].wire )
         {
-            printf("fields:   %s.%s — file says opcode %d:u%d, cp_fields says %d:u%d\n", type,
-                   ini[i].name, ini[i].opcode, ini[i].wire, got->opcode, (int)got->wire);
+            printf("fields:   %s.%s — file says opcode %d:u%d, the register says %d:u%d\n", type,
+                   ini[i].name, ini[i].opcode, ini[i].wire, got->opcode,
+                   cp_register_wire_bytes(got->wire));
             mismatched++;
             continue;
         }
@@ -177,16 +186,16 @@ check_against_register(
 
     snprintf(what, sizeof(what), "%s: the register declares server opcodes", type);
     check(ini_count > 0, what);
-    snprintf(what, sizeof(what), "%s: every declared field matches cp_fields exactly", type);
+    snprintf(what, sizeof(what), "%s: every declared field matches the register exactly", type);
     check(matched == ini_count && mismatched == 0, what);
     /* `band_count`, not `count`: the register also declares fields with no server
      * opcode — `[npc.name]`, `[npc.magic]` — and those are load-bearing for the
      * client-side filter rather than rows this check is about. */
-    snprintf(what, sizeof(what), "%s: cp_fields states no band field the register does not", type);
+    snprintf(what, sizeof(what), "%s: the register states no band field the file does not", type);
     check(fields.band_count == ini_count, what);
 
     /*
-     * The reserved band, restated here rather than only inside cp_fields_check.
+     * The reserved band, restated here rather than only inside the parser.
      * Client npc opcodes run 1..147, so 64..255 is what keeps a server record from
      * being mistaken for a client one and lets a client decoder fed this stream
      * stop cleanly instead of misreading it.
@@ -203,8 +212,9 @@ check_against_register(
         check(out_of_band == 0, what);
     }
 
-    snprintf(what, sizeof(what), "%s: cp_fields_check passes on the tree's own register", type);
-    check(cp_fields_check(&fields) == 0, what);
+    snprintf(what, sizeof(what), "%s: RSCache_RegisterCheck passes on the tree's own register",
+             type);
+    check(RSCache_RegisterCheck(&fields) == 0, what);
 
     /* Ascending by opcode, which is what makes two packs of the same content
      * byte-identical. Not a decode constraint — the reader dispatches per opcode —
@@ -242,7 +252,7 @@ struct Decoded
  */
 static int
 decode_band(
-    const struct CP_Fields* fields,
+    const struct RSCache_Register* fields,
     const uint8_t* band,
     int size,
     struct Decoded* out,
@@ -254,7 +264,8 @@ decode_band(
     while( at < size )
     {
         int opcode = band[at++];
-        const struct CP_Field* field = NULL;
+        const struct RSCache_RegisterField* field = NULL;
+        int width;
         int value = 0;
 
         if( opcode == 0 )
@@ -267,24 +278,21 @@ decode_band(
                 break;
             }
         }
-        if( !field || at + (int)field->wire > size || count >= max )
+        if( !field || count >= max )
             return -1;
-        switch( field->wire )
-        {
-        case CP_FIELD_WIRE_U1:
+        width = cp_register_wire_bytes(field->wire);
+        if( at + width > size )
+            return -1;
+        if( width == 1 )
             value = band[at];
-            break;
-        case CP_FIELD_WIRE_U2:
+        else if( width == 2 )
             value = (band[at] << 8) | band[at + 1];
-            break;
-        case CP_FIELD_WIRE_U4:
+        else if( width == 4 )
             value = (int)(((uint32_t)band[at] << 24) | ((uint32_t)band[at + 1] << 16) |
                           ((uint32_t)band[at + 2] << 8) | (uint32_t)band[at + 3]);
-            break;
-        default:
+        else
             return -1;
-        }
-        at += (int)field->wire;
+        at += width;
         out[count].opcode = opcode;
         out[count].value = value;
         count++;
@@ -292,48 +300,65 @@ decode_band(
     return count;
 }
 
-/** A register built in memory, so the band checks run with no tree on disk. */
+/**
+ * A register parsed from text, so the band checks run with no tree on disk.
+ * Declared out of opcode order on purpose: the parser sorts the band, and the
+ * encoder's ascending stream depends on it.
+ */
+static const char k_synthetic[] = "[synthetic.huntrange]\n"
+                                  "server = opcode:202:u1\n"
+                                  "[synthetic.hitpoints]\n"
+                                  "server = opcode:77:u2\n"
+                                  "[synthetic.death_drop]\n"
+                                  "server = opcode:151:u4\n"
+                                  "[synthetic.name]\n"
+                                  "client = native\n";
+
 static void
-synthetic_register(struct CP_Fields* fields)
+synthetic_register(struct RSCache_Register* fields)
 {
-    memset(fields, 0, sizeof(*fields));
-    snprintf(fields->type, sizeof(fields->type), "%s", "synthetic");
-    fields->count = 3;
-    fields->band_count = 3;
-    snprintf(fields->entries[0].name, sizeof(fields->entries[0].name), "%s", "huntrange");
-    fields->entries[0].opcode = 202;
-    fields->entries[0].wire = CP_FIELD_WIRE_U1;
-    snprintf(fields->entries[1].name, sizeof(fields->entries[1].name), "%s", "hitpoints");
-    fields->entries[1].opcode = 77;
-    fields->entries[1].wire = CP_FIELD_WIRE_U2;
-    snprintf(fields->entries[2].name, sizeof(fields->entries[2].name), "%s", "death_drop");
-    fields->entries[2].opcode = 151;
-    fields->entries[2].wire = CP_FIELD_WIRE_U4;
+    RSCache_RegisterParse(fields, "synthetic", k_synthetic, sizeof(k_synthetic) - 1);
 }
 
 static void
 check_band(void)
 {
-    struct CP_Fields fields;
-    struct CP_ServerBand band;
+    static struct RSCache_Register fields;
+    struct RSCache_BandRecord record;
+    uint8_t band[CP_SERVER_BAND_MAX];
     struct Decoded got[8];
-    int size;
+    int hitpoints;
+    int death_drop;
+    int huntrange;
+    uint32_t size;
     int count;
 
     synthetic_register(&fields);
-    cp_server_band_init(&band);
+    check(fields.band_count == 3 && fields.count == 4,
+          "three band fields and one client-only declaration");
+    check(fields.entries[0].opcode == 77 && fields.entries[1].opcode == 151 &&
+              fields.entries[2].opcode == 202,
+          "the band fields are sorted ascending by opcode");
+    hitpoints = RSCache_BandIndex(&fields, "hitpoints");
+    death_drop = RSCache_BandIndex(&fields, "death_drop");
+    huntrange = RSCache_BandIndex(&fields, "huntrange");
+    check(RSCache_BandIndex(&fields, "name") < 0, "a field with no opcode has no band index");
 
-    check(cp_server_band_put(&band, &fields.entries[1], 4000), "a u2 field is written");
-    check(cp_server_band_put(&band, &fields.entries[2], -1),
+    RSCache_BandRecordReset(&record);
+    check(RSCache_BandFits(&fields, hitpoints, 4000), "a u2 field takes 4000");
+    RSCache_BandRecordSet(&record, hitpoints, 4000);
+    check(RSCache_BandFits(&fields, death_drop, -1),
           "a u4 field carries -1 — `drops nothing`, not obj 0");
-    check(cp_server_band_put(&band, &fields.entries[0], 12), "a u1 field is written");
+    RSCache_BandRecordSet(&record, death_drop, -1);
+    check(RSCache_BandFits(&fields, huntrange, 12), "a u1 field takes 12");
+    RSCache_BandRecordSet(&record, huntrange, 12);
 
-    size = cp_server_band_finish(&band);
+    size = RSCache_BandEncode(&fields, &record, band, sizeof(band));
     /* u2 -> 1+2, u4 -> 1+4, u1 -> 1+1, then the terminator. */
     check(size == 3 + 5 + 2 + 1,
           "the band is exactly opcode+payload per field, plus the terminator");
 
-    count = decode_band(&fields, band.bytes, size, got, 8);
+    count = decode_band(&fields, band, (int)size, got, 8);
     check(count == 3, "an independent decode reads back every field");
     if( count == 3 )
     {
@@ -345,59 +370,61 @@ check_band(void)
     /*
      * A record stating nothing encodes to a bare terminator, and that is the whole
      * reason the pack is proportional to what someone wrote rather than to the
-     * cache's 16,292 npcs. `stated` is what the packer keys off to skip the archive
-     * entirely.
+     * cache's 16,292 npcs. The packer skips the archive when nothing is stated.
      */
-    {
-        struct CP_ServerBand empty;
+    RSCache_BandRecordReset(&record);
+    check(RSCache_BandEncode(&fields, &record, band, sizeof(band)) == 1 && band[0] == 0,
+          "a record stating nothing encodes to a bare terminator");
 
-        cp_server_band_init(&empty);
-        check(cp_server_band_finish(&empty) == 1 && empty.stated == 0,
-              "a record stating nothing encodes to a bare terminator");
-    }
+    /*
+     * A stated zero is not an absent field: `death_drop` 0 is a real obj. Presence
+     * decides what is written, never the value.
+     */
+    RSCache_BandRecordSet(&record, death_drop, 0);
+    size = RSCache_BandEncode(&fields, &record, band, sizeof(band));
+    count = decode_band(&fields, band, (int)size, got, 8);
+    check(count == 1 && got[0].opcode == 151 && got[0].value == 0,
+          "a stated 0 is written, and only the stated field is");
 
     /*
      * Out-of-range is refused, never masked. A masked id is a valid id for some
      * other record, which is the failure this whole file exists to prevent — it
-     * just arrives one layer earlier.
+     * just arrives one layer earlier. The writer asks before stating the field;
+     * the encoder asserts on one it was handed anyway.
      */
-    {
-        struct CP_ServerBand narrow;
-
-        cp_server_band_init(&narrow);
-        check(!cp_server_band_put(&narrow, &fields.entries[0], 256),
-              "a value too wide for u1 is refused rather than truncated");
-        check(!cp_server_band_put(&narrow, &fields.entries[1], -1),
-              "a negative is refused on u2, which the reader zero-extends");
-        check(narrow.stated == 0, "a refused field writes no bytes");
-    }
+    check(!RSCache_BandFits(&fields, huntrange, 256),
+          "a value too wide for u1 is refused rather than truncated");
+    check(!RSCache_BandFits(&fields, hitpoints, -1),
+          "a negative is refused on u2, which the reader zero-extends");
 }
 
 static void
 check_header(void)
 {
-    struct CP_Fields fields;
-    struct CP_ServerBand band;
+    static struct RSCache_Register fields;
+    struct RSCache_BandRecord record;
+    uint8_t band[CP_SERVER_BAND_MAX];
     uint8_t archive[CP_SERVER_BAND_MAX + CP_SERVER_PACK_HEADER];
     const uint8_t* got = NULL;
     int got_size = 0;
     int version = 0;
     int kind = 0;
+    uint32_t band_size;
     uint32_t written;
 
     synthetic_register(&fields);
-    cp_server_band_init(&band);
-    cp_server_band_put(&band, &fields.entries[1], 5);
-    cp_server_band_finish(&band);
+    RSCache_BandRecordReset(&record);
+    RSCache_BandRecordSet(&record, RSCache_BandIndex(&fields, "hitpoints"), 5);
+    band_size = RSCache_BandEncode(&fields, &record, band, sizeof(band));
 
-    written = cp_server_archive_build(&band, archive, sizeof(archive));
-    check(written == (uint32_t)band.at + CP_SERVER_PACK_HEADER,
+    written = cp_server_archive_build(band, band_size, archive, sizeof(archive));
+    check(written == band_size + CP_SERVER_PACK_HEADER,
           "the archive is the band plus a fixed header");
     check(cp_server_archive_open(archive, (int)written, &version, &kind, &got, &got_size),
           "the header it wrote is the header it accepts");
     check(version == CP_SERVER_PACK_VERSION, "the version reads back");
     check(kind == CP_SERVER_PAYLOAD_BAND, "the kind byte says this archive holds a band");
-    check(got_size == band.at && got && memcmp(got, band.bytes, (size_t)band.at) == 0,
+    check(got_size == (int)band_size && got && memcmp(got, band, band_size) == 0,
           "the band inside is byte-identical");
 
     /*
@@ -507,34 +534,72 @@ check_name_table(void)
           "an undersized buffer is refused rather than overrun");
 }
 
-/* ---- the checks cp_fields_check owns ------------------------------------- */
+/* ---- the register's refusals -------------------------------------------- */
+
+/** RSCache_RegisterCheck over a register parsed from `text`. */
+static int
+register_problems(const char* text)
+{
+    static struct RSCache_Register fields;
+
+    RSCache_RegisterParse(&fields, "synthetic", text, strlen(text));
+    return RSCache_RegisterCheck(&fields);
+}
 
 static void
 check_register_rules(void)
 {
-    struct CP_Fields fields;
+    check(register_problems(k_synthetic) == 0, "a well-formed register passes");
 
-    synthetic_register(&fields);
-    check(cp_fields_check(&fields) == 0, "a well-formed register passes");
-
-    /* The three `cachepack: fields/synthetic.ini: ...` lines on stderr are these
-     * checks working, not a broken tree. */
-    fields.entries[2].opcode = 77; /* the same opcode as hitpoints */
-    check(cp_fields_check(&fields) > 0,
+    /* The `fields/synthetic.ini: ...` lines on stderr are these checks working,
+     * not a broken tree. */
+    check(register_problems("[synthetic.a]\nserver = opcode:77:u2\n"
+                            "[synthetic.b]\nserver = opcode:77:u1\n") > 0,
           "two fields on one opcode is refused — one would be written and never read");
+    check(register_problems("[synthetic.a]\nserver = opcode:13:u1\n") > 0,
+          "an opcode below 64 is refused");
+    check(register_problems("[synthetic.a]\nserver = opcode:256:u1\n") > 0,
+          "an opcode above 255 is refused");
+    check(register_problems("[synthetic.a]\nserver = opcode:90:string\n") == 0,
+          "`wire = string` is a band field");
+    check(register_problems("[synthetic.a]\nserver = opcode:90:list\ntext = indexed\n") > 0,
+          "a list that states no `type` is refused");
+    check(register_problems("[synthetic.a]\nserver = opcode:90:list\ntype = obj,int\n") > 0,
+          "a list spelled as a single key is refused — a list is `text = indexed` or `list`");
+    check(register_problems("[synthetic.a]\nserver = opcode:90:list\ntype = obj,int\n"
+                            "text = indexed\n") == 0,
+          "a typed, indexed list is a band field");
+    check(register_problems("[synthetic.a]\nserver = opcode:90:u3\n") > 0,
+          "an unknown wire width is refused");
+    check(register_problems("[synthetic.a]\ntext = both\n") > 0,
+          "a row the parser refused fails the register");
 
-    synthetic_register(&fields);
-    fields.entries[0].opcode = 13; /* inside the client band */
-    check(cp_fields_check(&fields) > 0, "an opcode below 64 is refused");
+    check(register_problems("[synthetic.a]\nserver = opcode:90:u1\n"
+                            "values = none:0, aggressive:1\n") == 0,
+          "an int field may spell its numbers as words");
+    check(register_problems("[synthetic.a]\nserver = opcode:90:u1\nvalues = none\n") > 0,
+          "a word with no number is refused");
+    check(register_problems("[synthetic.a]\nserver = opcode:90:u1\nvalues = big:256\n") > 0,
+          "a word whose number the width cannot carry is refused");
+    check(register_problems("[synthetic.a]\nserver = opcode:90:string\nvalues = a:1\n") > 0,
+          "`values` on a string field is refused");
+    {
+        static struct RSCache_Register words;
+        static const char text[] = "[synthetic.mode]\nserver = opcode:90:u1\n"
+                                   "values = none:0,wander:0,patrol:1\n";
+        const struct RSCache_RegisterField* field;
+        int value = -1;
 
-    synthetic_register(&fields);
-    fields.entries[0].wire = CP_FIELD_WIRE_STRING;
-    check(cp_fields_check(&fields) > 0,
-          "`wire = string` is refused — the reader's decoder has no string case");
-
-    synthetic_register(&fields);
-    fields.rejected = 1;
-    check(cp_fields_check(&fields) > 0, "a row the parser refused fails the register");
+        RSCache_RegisterParse(&words, "synthetic", text, strlen(text));
+        field = RSCache_RegisterFind(&words, "mode");
+        check(field && field->word_count == 3, "three words parse");
+        check(field && RSCache_RegisterWordValue(field, "patrol", &value) && value == 1,
+              "a word resolves to its number");
+        check(field && !RSCache_RegisterWordValue(field, "aggressive", &value),
+              "an undeclared word does not resolve");
+        check(field && strcmp(RSCache_RegisterValueWord(field, 0), "none") == 0,
+              "a shared number spells as its first word");
+    }
 }
 
 int

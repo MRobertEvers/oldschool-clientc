@@ -1,0 +1,460 @@
+{{Update|date=30 June 2022|link=https://secure.runescape.com/m=news/gielinor-gazette---june-2022?oldschool=1|category=community}}
+[[File:Gielinor Gazette - June 2022 newspost.png|right]]
+{{clear}}
+Can you believe we’re halfway through 2022? That’s flown by faster than a gnome glider pilot who’s just heard it’s Cheeky Tuesday at Gianne’s.
+
+This month has been another busy one, with the release of Giants’ Foundry and the Pride Event. We’re steadily chugging along the roadmap for the rest of the year, and we’ll have more information about that next month!
+
+
+For now though, let’s recap June!
+
+__TOC__
+==Project Status Update==
+===Released Content===
+====Giants' Foundry====
+We went BIG this month with [https://secure.runescape.com/m=news/giants-foundry?oldschool=1 Giants’ Foundry], a new Smithing method and accompanying quest! We’re so pleased that you’re all enjoying what we feel is the perfect content to slide into the Smithing ecosystem. We’d like to extend our utmost gratitude to everyone who submitted their feedback during the development process. Thanks to you, we were able to refine Giants’ Foundry into a fantastic new option for Smithing afficionados across Gielinor.
+
+There are still a few changes we’d like to make, including giving you the option to reclaim your sword back from Perdu, but we’re mostly happy with where the content is now. We’ve also had word from Kovac, who says he’s very pleased with your commissions so far. Great work, everyone!
+
+Speaking of commissions, on release day we launched a competition to design a weapon fit for a giant! We’ve had loads of brilliant entries, and we’ve finally pared them down to a shortlist – or should that be a tall list? Either way, keep your eyes peeled for the winners soon!
+
+====Group Ironman====
+This month also saw the release of [https://secure.runescape.com/m=news/unranked-group-iron-changes-and-more-?oldschool=1 Unranked Group Ironman], a new option which gives GIM more flexibility when it comes to joining and leaving groups.
+
+Players of any Iron mode (Regular, Hardcore or Ultimate) are now able to speak to the Iron Tutor in Lumbridge and become an Unranked GIM. Simply ask the tutor to let you review your Iron status, select 'Unranked Group Iron' under the Group tab, and then join a group - just like any other Unranked GIM!
+
+We also have the winners of the recent Group Ironman Raffle! Thank you to everyone who participated in our first Boss Bash, and congratulations to The Milkmen, who have won lifetime membership.
+
+The following runners-up have also won one year of membership:
+* Weenyhutjr
+* PowerBottoms
+* Iron Ass
+* Kutikud
+* ScooterSquad
+* Muna Kohe
+* Agora
+* Ironskillets
+* eFrail
+
+The winners have been contacted via their in-game Player Inbox. Remember, this is the '''ONLY''' way we’ll contact you – so keep your eyes peeled!
+
+A little birdie has also told us that you wanted to hear some stats – so here they are!
+* Four groups managed to get over 10,000 tickets – wow!
+* The highest number of tickets was from a group named FoodFighterz, with a total of 16,078!
+* One player managed to get 12,612 tickets all by themselves – they’re not part of FoodFighterz, though.
+* The total average tickets per player was 176.
+* The total average tickets per group was 443.
+* In total, you all earned 1,397,321 tickets!
+
+And here are the most popular bosses:
+* 1st Place goes to Bandos, with a whopping 372,645 tickets!
+* 2nd Place is Zalcano, with 169,332 tickets.
+* 3rd Place is the Chambers of Xeric, with 159,890 tickets.
+* 4th Place is Zamorak, with 147,445 tickets.
+* 5th Place is the Wintertodt, with 144,232 tickets.
+
+We hope you all had a blast bashing bosses. If you like these kinds of small events, let us know – we’re keen to explore more competitions in the future, and will be paying close attention to your feedback.
+
+====New Client Features and Next Steps====
+The Mobile client is looking mighty fancy this month as it [https://secure.runescape.com/m=news/pride-2022-pet-reclaim-changes--new-mobile-client?oldschool=1 celebrates its full launch]! Mobile players now have all the benefits of our newest client, including ''all'' the newest features.
+
+This also means that any additions we make to the Steam client will now be carried over to Mobile – so get ready for Loot Indicators, Clue Scroll Helpers, and much more!
+
+Speaking of which, the team has been hard at work on the next C++ client drop. Here’s a little sneak peek:
+
+[[File:Gielinor Gazette - June 2022 (1).png|thumb|centre|600px|''A sneak peek at Hunter Trap Timers.''<br><br>'''Wiki Note: The original file is too large to be uploaded to the wiki. [https://cdn.runescape.com/assets/img/external/oldschool/2022/newsposts/2022-06-30/ClientTeaser-Hunter1.webp Click here] to view it.''']]
+
+[[File:Gielinor Gazette - June 2022 (2).png|thumb|centre|600px|''It's Cannon Time!''<br><br>'''Wiki Note: The original file is too large to be uploaded to the wiki. [https://cdn.runescape.com/assets/img/external/oldschool/2022/newsposts/2022-06-30/ClientTeaser-Cannon1.webp Click here] to view it.''']]
+
+[[File:Gielinor Gazette - June 2022 (3).png|thumb|centre|600px|''Keep track of the Herbiboar!''<br><br>'''Wiki Note: The original file is too large to be uploaded to the wiki. [https://cdn.runescape.com/assets/img/external/oldschool/2022/newsposts/2022-06-30/ClientTeaser-Herbi.webp Click here] to view it.''']]
+
+====Deadman Re-Run====
+Last week saw the re-run for the Deadman Reborn finals come to a close. As you might know, the event didn’t run as smoothly as we had hoped.
+
+Despite our best efforts to mitigate network issues prior to the event, and with bespoke anti-DDoS protection being developed just for this occasion, during the first few rounds of the 1v1 stage we started experiencing a large number of network attacks on our game worlds.
+
+As soon as we were alerted that there was an issue, we paused the Tournament until we were confident that we’d been able to negate the specific attacks our servers were under. After around 60-minutes, working closely with our DDoS protection provider who were with us during the entire event, we were able to resume and the remaining 1v1 fights continued without any interruption.
+
+It’s clear that there is always an inherent risk with running online tournaments, no matter how much time, resource or money we put towards preventing issues from occurring. It’s a constant arms race - for every change we make to help mitigate these, attackers are working out ways to bypass and continue their nefarious activity.
+
+Whilst we want to continue providing Deadman events for those who enjoy it, it’s clear that some changes are going to be needed, especially around how we handle the finals. We're not entirely sure on what the future of Deadman looks like, but we’ll be discussing what options are available to us with the team. In the meantime, we’d like to present some top-level thoughts to gather your feedback, helping us better understand what you want from the future of Deadman:
+* Deadman remains as a seasonal game mode
+* The current 1v1 finals are decommissioned and replaced with an alternate event to mark the end of the season
+* The Deadman prize pool is used to support other future events that are more suited to LAN environments, negating any potential for network attacks.
+* Future events are designed with the ability for individual fights to be restarted with ease
+
+And lastly, let’s celebrate the winners of the Deadman Reborn Re-Run! After various checks with our anti-cheating team, we’re happy to announce the following winners and their prizes:
+* 1st Place: '''Pid Grabber''' - $20,000
+* 2nd Place: '''AL QUDDOOS''' - $10,000
+* 3rd Place: '''DR3CARY''' - $1,000
+* 4th Place: '''Koru''' - $1,000
+* 5th-16th Place: '''Ionia, Umub, BallerNo2K, audwth, RRobert, tmnt4lyfe, FroggyFaker5, ICE GIANT88, pinkbowpetal, Riconeous, wakizashi59, Pee Shiesty''' - 12 Months Membership
+
+====Pride Event and Parade====
+We’re so happy to have finally [https://secure.runescape.com/m=news/pride-2022-pet-reclaim-changes--new-mobile-client?oldschool=1 delivered the Pride Event] our community deserves. Thank you to everyone who welcomed Gilbert back to Gielinor! We’re committed to making this a yearly tradition, and we’re happy to announce that the flower meadow you’ve all helped grow will stick around even after the event is over as a reminder that all are welcome here in Old School RuneScape.
+
+We’d also like to thank everyone who took part in our first-ever Pride Parade on June 23rd – another tradition we hope to continue! It was wonderful to see J-Mods and players marching side by side in support of the LGBTQIA+ community. In fact, so many of you participated that we had to open up a third world to make room!
+
+We’ve seen you all sharing pictures of the event, so we’d like to share some of our favourites, too!
+
+[[File:Gielinor Gazette - June 2022 (4).png|centre|600px]]
+[[File:Gielinor Gazette - June 2022 (5).png|centre|600px]]
+[[File:Gielinor Gazette - June 2022 (6).png|centre|600px]]
+[[File:Gielinor Gazette - June 2022 (7).png|centre|600px]]
+
+
+And check this out – we've created this heatmap of the day, so you can see where players marched around Gielinor!
+
+[[File:Gielinor Gazette - June 2022 (8).png|thumb|centre|600px|'''Wiki Note: The original file is too large to be uploaded to the wiki. [https://cdn.runescape.com/assets/img/external/oldschool/2022/newsposts/2022-06-30/Heatmap.webp Click here] to view it.''']]
+
+
+We’d like to use this space to talk a little about what Pride means to us. Generally, a Pride Event was something that the team felt was long overdue. We were hesitant to discuss the event in advance – mostly out of fear that certain individuals would attempt to ruin the parade. Thankfully, the whole event went much smoother than expected, and that’s all thanks to you, our wonderful community.
+
+Many of the J-Mods participating in the event were on a call together, and we were so thankful to see so many of you showing up and marching with us. We cannot express how great it was to connect with you all over this shared cause, and we are incredibly proud of all of you.
+
+However, it was disappointing to see some individuals trolling the event and the participants. Please note that the Old School team will be taking appropriate action against any accounts that are used to spread toxicity both during these events, and anywhere else. If Pride is not something you can handle in Old School RuneScape, don’t join. If you have trouble not joining, we recommend that you simply do not log on to the game for the hour-long duration of the parade.
+
+We welcome your constructive feedback on what we could do better next time, but we will not be taking into account any comments intended to spread hate or harm to others.
+
+In the future, we’d like to support the LGBTQIA+ community outside the game, alongside other marginalised communities. Watch this space, and keep reading to learn about more the diversity and inclusion changes we’re bringing to Old School RuneScape.
+
+====Third-Party Clients & Rule Changes====
+Earlier this month we announced our [https://secure.runescape.com/m=news/third-party-clients-update?oldschool=1 updated rules for Third-Party Clients] and released a list of guidelines that gave general principles and examples of what isn't allowed in approved clients.
+
+It is important for us to outline and enforce these rules to protect the integrity of the game, as well as its economy and long-term health.
+
+This week thousands of 2 week temp bans were issued for the usage of unapproved third-party clients, and if those players warned continue to use them, we will then proceed with permanent bans. This is something our team will continue to monitor and action punishments accordingly.
+
+===Upcoming Content===
+====Tombs of Amascut====
+August is fast approaching, and Tombs of Amascut, our third raid, is almost here! We’ve entered the final stages of development, primarily focusing on balancing, bugfixing, and general polish. Just like previous editions of the Gazette, we have some teaser images to share! ''PLEASE NOTE: These are WIP.''
+
+Whilst we don't have an exact release date to share just yet, '''we are aiming for the raid to fully release in mid-August'''!
+
+In the Kharidian Desert, you'll find no shortage of tales. Here are three of those many tales. Whether they're true or not, who can say. You'll have to find out for yourself...
+
+=====Zebak=====
+<center>''Legend has it, the lair of the great crocodile Zebak, lays in ruin after many years of housing the ferocious reptilian nightmare. The room was initially much smaller, but as Zebaks hunger grew, so did he. Eventually the room could no longer hold him and the walls and floor gave way to make a vast open cavern. Zebak is waiting patiently for a worthy group of adventurers to devour.''</center>
+
+[[File:Gielinor Gazette - June 2022 (9).png|centre|600px]]
+[[File:Gielinor Gazette - June 2022 (10).png|centre|600px]]
+
+=====Kephri=====
+<center>''The scholars say that the great Scarab, Kephri, can be found in her lecture theatre sat atop her lovely ball of dung. Once a place of great knowledge has since been sullied by a corruption that knows no bounds. Many of Kephri’s hatchlings rush to satiate her thirst for knowledge but her mind has been twisted and she understands them no longer.''</center>
+
+[[File:Gielinor Gazette - June 2022 (11).png|centre|600px]]
+[[File:Gielinor Gazette - June 2022 (12).png|centre|600px]]
+
+=====Shadow of Tumeken=====
+<center>''When forces of the Ruinous Powers arrived in their lands, Tumeken and his people found themselves facing an enemy unlike any other. While his children, Amascut and Icthlarin, sought powerful allies to aid them, Tumeken himself hunted down a weapon of great power to use against this new threat. However, rather than claiming this weapon for himself, he instead used it to create the Shadow of Tumeken. This staff is powered by the sun itself, and with that brightest light comes the darkest shadows.''</center>
+
+[[File:Gielinor Gazette - June 2022 (13).png|centre|600px]]
+[[File:Gielinor Gazette - June 2022 (14).gif|centre|600px]]
+
+====PvP Arena====
+The Emir of Al Kharid has been hard at work this month signing the final permits for the opening of the PvP Arena. Things kick off with a soft launch next week (commencing July 6th) where we’ll ensure the new and improved Arena is up to our exacting standards before a full release the week after.
+
+As we mentioned in our [https://secure.runescape.com/m=news/giants-foundry-changes?oldschool=1 Giants’ Foundry Changes] newspost, we intend to honour the results of the latest rewards poll by offering the following:
+* Imbue Scrolls
+* Blighted Wave Sacks
+* Blighted Surge Sacks
+
+For those of you who really wanted to experience the other rewards, we have a special treat - you'll be able to find the following items in Arena equipment chests, along with 400 other pieces of equipment for your Inventory and Worn slots. Bear in mind, however, that this equipment is exclusively for use within the PvP Arena - by order of the Emir himself!
+* Maoma’s Headgear
+* Koriff’s Headgear
+* Saika’s Headgear
+* Superior Calamity Armour
+* Elite Calamity Armour
+* Fighter’s Wristwraps
+
+We'll be keeping a close eye on your feedback during next week's game update and look forward to the many battles the Arena will host!
+
+====Quest Speedrunning====
+Two months ago, we announced that Quest Speedrunning would be coming to Old School RuneScape. This is a new game mode which allows you to replay select quests as many times as you like on separate worlds especially designed for that purpose. Of course, the main objective is to set best times – how quickly do you reckon you can rustle up those iconic cake ingredients?
+
+Last month we announced the initial set of quests you’ll be able to speedrun. This time, we thought we’d introduce the rules and restrictions present on Speedrunning Worlds:
+* No tutorial: On first login, you’ll skip Tutorial Island and go straight to Lumbridge. Speedy!
+* Iron restrictions: Players on these worlds are Ironmen and cannot trade or help other players.
+* No Wilderness PvP: PvP is disabled at all levels of the Wilderness.
+* Minigame restrictions: Minigames such as Castle Wars, Duel Arena, Fight Pits, Last Man Standing, Rat Pits, Soul Wars and Trouble Brewing minigames are inaccessible while Quest Speedrunning.
+* Teleport cooldown pauses: On logout, teleport cooldowns (such as for the Home Teleport) are paused.
+* Static shop stock: Shops have a static stock, so items are never sold out. Items can still be sold to shops, but these items will be immediately deleted.
+* Infinite ground items: Items on the ground are only removed for the player taking them, so other players don’t have to stand around waiting for it to respawn.
+* Dropped items deleted: Dropped items will be deleted when a speedrun begins.
+* Open doors: Once opened, doors will never close again.
+
+That’s all we have for now on Quest Speedrunning, but we’ll have more to share with you soon. Don’t forget to save the animals! (Except the dragons, natch).
+
+====Content Recommender====
+The Content Recommender is a system that will point players towards content suitable for their current account progress. It’s perfect for returning and new players who might not know what to try next!
+
+Just a small update this month to say that the team have been hard at work on this project, and we can’t wait to share more in the coming months. Stay tuned!
+
+==Diversity and Inclusion==
+<center>''by The Old School Team''</center>
+
+Old School RuneScape is many things: a nostalgic trip to a world of adventure, a hardcore grind for the most dedicated of players – and for many, it’s an escape to a place of safety, enjoyment, and comfort. We want everyone to feel safe and represented here in Gielinor, and as a team, we’re united in our commitment to making Old School RuneScape more diverse and inclusive for our community.
+
+Throughout Q3 (July to September), we’ll be making some changes that better reflect this stance. These changes will be unpolled, as they are a vital step towards making Old School RuneScape a better game for everyone.
+
+Here’s the list:
+* The gender requirement during Recruitment Drive has been removed and replaced with a new puzzle which will test your powers of observation. In addition, players will receive 3,000 GP for completing the quest.
+* Following completion of The Feud, all NPCs in the town of Pollnivneach will revert to their usual names, instead of going by Ali. You can learn more by speaking to the citizens during and after the quest!
+* Players may now enter into a relationship with either of the heirs in the Thone of Miscellania. In fact, the romance component has been made entirely optional – the quest now requires players to earn the trust of either of the King’s children. Once you’ve earned their admiration, you’ll have the option to enter into a relationship if desired. If not, you can complete the quest as normal with a new best friend at your side.
+* During The Giant Dwarf players may now join any Consortium company – excepting The Red Axe – regardless of which gender they present as. Any references to the companies’ previous gender discrimination have been removed from the quest.
+* Inappropriate dialogue has been removed from parts of the Ratcatchers and Tower of Life quests.
+* Both male and female H.A.M. members can now be pickpocketed at level 15 Thieving, granting 22.2 XP per successful pickpocket. The Skill Guide and level up messages have been updated accordingly.
+* Both male and female barbarians in the Barbarian Village can now drop Clue Keys.
+* Cosmetic changes are now available free of charge from all Hairdressers, the Makeover Mage, Thessalia, and Yrsa.
+* Aris is no longer known by a pejorative title and will simply be going by ‘Aris’ from now on. This change was made to cater to our international audience, for whom her original title was far more offensive than intended.
+* Enoch has been renamed to Okina, and his quote referencing ‘rivers of blood’ has been removed.
+* Alice’s Husband, who tends to the undead chickens and cows near Port Phasmatys, will now have a name of his own!
+* Players of any gender are now able to confess their love to Evil Bob’s servants on Evil Bob’s Island.
+
+All this is just the beginning! We have a big list of other changes we’d like to make – and we’re sure you can think of a few more! If you have any further ideas about how we can make Gielinor more welcoming for you, please feel free to let us know!
+
+==Team Ins and Outs==
+After nearly three years, we’re unfortunately saying goodbye to Mod Oasis, a fantastic member of the team who’s been involved in some of our biggest recent updates, including Leagues III, Sleeping Giants, and of course, Giants’ Foundry. You’ll be missed, pal!
+
+Here’s what Mod Oasis has to say:
+
+
+''Hey all, after the roller-coaster that's been the past (almost) three years on the Old School Team, I have decided to move on. Working on Old School had always been a pipe dream of mine until I walked through the Jagex doors on the first day. Since then, there have been so many memorable moments, from naming a location in game after myself to launching an entire League. I've learned so many lessons while working at Jagex that I'll take with me for the rest of my life.''
+
+''It's been a pleasure seeing your reactions to updates and new content over the past few years and I cannot think of a happier note to end on than with the launch of the Giants' Foundry. Seeing everyone exploring the foundry has been incredible. I am so proud of the work we've done, especially the creation of Kovac. Reintroducing an entire race into the game has been an interesting challenge but Kovac has essentially become my child, and I swear if anyone writes a quest to kill him in the future, I'm quitting gaming forever.''
+
+''As anyone who plays Old School knows, you never really quit the game, so I'll definitely still be 'Scaping for the foreseeable future, this time as a player!''
+
+''Anyway, thanks again for all the support and positivity over the past couple years. I'll see you around <|:o)''
+
+==Postbag From the Hedge==
+Postie Pete here with a whole month’s worth of letters! This time we’ve heard from the Wise Old Man, Shantay, and more!
+
+To start with, let’s have a look at this letter here… oh! That’s funny, I don’t remember putting this reply in my Postbag! Let’s have a read anyway…
+
+
+{{Letter|Hello Gielinor Litter Crew,
+
+For as long as I’ve existed, I’ve seen items vanish from plain sight on the ground after a few minutes. Where does this stuff go? Is there some secret vault under the ground filled to the brim with forgotten treasures? What do you do with the millions of logs, fish and bones you surely collect every day?
+
+Thanks,
+
+Litterbug in Lumbridge}}
+
+Dear Litterbug,
+
+Oh yes, we’ve been watching you, too. We’ve seen you dump all manner of things on the ground. Well, you know what they say – one human’s trash is a Dorgeshuun’s treasure!
+
+We take all your discarded thingummies and wotsits down to Dorgesh-Kaan to be processed. Most of it can be reused in buildings, furniture, and even clothes – you’d be surprised what you can make with a little engineering knowledge and a big pile of stuff.
+
+Since our reintroduction into surface society we’ve really expanded the operation. It turns out most humans are fine with us Dorgeshuun borrowing a few things here and there, when they know about it. I mean, no Banker wants to deal with a huge pile of jubbly carcasses just sat there on the shop floor, and we put it to good use instead of letting it rot in some black hole somewhere. Plus, our new rail system will let us send recycled items all over the world, to be enjoyed by everyone – maybe even adventurers like you!
+
+Thanks for noticing our hard work!
+
+
+The Dorgesh-Kaan Recycling Committee
+
+P.S. If you find out where the Bones go, please let us know! As far as we can tell, they just vanish into thin air!
+
+
+----
+
+{{Letter|Dear Myths’ Guild Labrador,
+
+Thank you for the warm welcome when I joined the guild. Are you also a member of the Myths’ Guild? If so, what was your feat that granted you membership?
+
+Regards,
+
+Pup}}
+
+Greetings Pup!
+
+The better question would be – what feats of daring and glory has this dog not achieved? She has fetched sticks from far and wide, including (on numerous occasions) the Guildmaster’s own staff. She has patiently herded innumerable adventurers through these hallowed halls, a friendly face to greet us at the end of a long quest, and a helping paw in times of need.
+
+Most recently, she has successfully fended off the dreaded Man of Post with her Barks of Power. I hope she drops him at some point, though, otherwise he won’t be able to deliver this reply!
+
+
+All the best,
+
+Alec Kincaid
+
+Guildmaster of the Myths’ Guild
+
+
+----
+
+{{Letter|Dear Wise Old Man,
+
+
+Have you ever been down on life? What do you do and how do you handle it? Hopefully in all your years you've gained some knowledge on the matter.}}
+
+Dear ComprehensiveKing707,
+
+Ah, indeed I have found myself in your unenviable position in the past. The life of a wandering hero is filled with ups and downs. For every glorious dragon-slaying adventure there is ‘one small favour’ that sees you drudging across the known universe – I’m sure you understand. Whenever I find myself mired in the doldrums of humdrum life I think back on my past deeds and remind myself that there’s always wonder and excitement waiting in the world… although sometimes it can take a great deal of effort to draw it out.
+
+Should your next adventure involve robbing a Bank, however – take my advice, and be sure to disable the scrying orbs first!
+
+
+Best wishes,
+
+Dionysius, The Wise Old Man
+
+
+----
+
+{{Letter|Dear Shantay,
+
+How upset are you that all the content creators call you 'Shanty' behind your back?
+
+Thanks,
+
+A concerned desert citizen}}
+
+They call me WHAT?!
+
+That’s it, next time I see those sons of camels I’ll give them a piece of my mind. Perhaps some time in the maximum-security prison at Port Sarim will teach them some manners!
+
+
+Thank you for your concern,
+
+Shant'''AY'''
+
+
+----
+
+{{Letter|Greetings [[General Babacus]],
+
+I've recently spent much time in your great city while preparing to take on the fierce Lizardman shamans, and I've come to admire how well-supplied the troops of the Shayzien army are! The head guards in particular are each equipped with a dragon longsword and a dragon square shield. How have you been able to source this magnificent equipment for your head guards? Do you have a special agreement with the fairies of Zanaris and [[Siegfried Erkle]] of the Legends’ Guild? I wasn't even able to wield a dragon longsword (despite certainly being adept enough) until after I had entered the Lost City myself! Moreover, I'm sure your head guards are worthy of being called legends, but I haven't seen any of them at the guild whenever I stop by.
+
+The Shayzien house must truly have some master negotiators on their side.
+
+Yours,
+
+Artchu25}}
+
+Greetings Artchu25,
+
+My commendations. It’s always good to see adventurers pulling their weight in the war effort. May your preparations carry you – and Shayzien – to victory.
+
+The truth is, the Shayzien name carries a lot of weight even overseas. Our house has been home to innumerable brave warriors, including, of course, Lady Camorra herself. To this day, merely mentioning the name ‘Shayzien’ opens a lot of doors for us – and as you say, many of our top generals are champions, legends, and heroes in their own right. That they have chosen to remain here, on the front lines, is a measure of their loyalty to Shayzien House.
+
+Now, if you’ll excuse me, I must return to our deliberations.
+
+
+Respectfully,
+
+General Babacus
+
+
+----
+
+{{Letter|Oh gaseous horror / Who resides so deep / By char and castle / You do so creep
+
+Tentacles flail / With eldritch flair / Chaotic magic / Disturbs the air
+
+I have for thee / A simple ask / As you have done so / In the past
+
+Grant us foresight / Of what's to come / Afford me this / And thy will be done
+
+As your thrall / I'd submit to you / Give my loyalty / For just a clue
+
+Lewu}}
+
+Oh noble being / Of mortal life / Hear these words / And know of strife
+
+Where Judges fight / And trolls flaunt / The Duke feasts / In his icy haunt
+
+While to the west / In strangled weeds / The Headsman waits / For blood he pleads
+
+And below the waves / Within the Scar / The Admiral drowns / In smoke and char
+
+But hidden away / Where light dies / A Whisper is heard / And shadows rise
+
+So hear me now / Or face the fire / You’ll find the truth / In The Fallen Empire
+
+
+Dags Gritting! (Rugate Arrestees Heartier)
+
+
+----
+
+{{Letter|Dear [[Kangai Mau]] of the [[Rantuki Tribe]],
+
+It has been a while since I've helped 'recover' your tribal totem from the dastardly Lord Francis Kurt Handelmort. I hope it remains in your care; it was quite the challenge to take it!
+
+That being said, it would be very insightful to learn more about your tribe, such as its customs and way of life. Are there other tribes hidden in the jungles of Karamja? Lastly, what do you know of the [[Karamjan Temple|ancient temple]] on the south coast of the Kharazi?
+
+Your esteemed thief,
+
+Spineweilder}}
+
+Many greetings, esteemed thief!
+
+Your feats of bravery and skill are known to all the Rantuki. We are immensely grateful for your help – and your tales of Handelmort’s mansion have given us some excellent ideas for our own security. If he ever steps foot in our home again, he’ll get a taste of his own medicine!
+
+I apologise. I cannot reveal the details of our customs – the jungle is full of danger and were some evil spirit to learn of our ways, they could infiltrate our home and destroy us from within. I heard that the Kharazi got in real trouble when a demon possessed their shaman, and they are far more numerous than us.
+
+I can tell you about this ancient temple. Long ago, it was the site of a great massacre, and to this day it emanates an evil power. People say that it is filled with cursed treasures from the age when demons walked freely across the land. Even an esteemed thief like you should stay far away, I think.
+
+
+Farewell for now,
+
+Kangai Mau
+
+
+----
+
+{{Letter|Dear Kovac,
+
+How did you obtain the Smiths' Uniform you sell in your reward shop? It's too small for a Giant and too big for a Dwarven smith. It's a very odd piece of equipment for a Giant smith to have laying around.
+
+Best regards,
+
+Majlo}}
+
+Hello free… friend,
+
+Um.
+
+Kovac did not steal it! Kovac not hurt any body, not giant, not dweeb… dwarf.
+
+Where’d Kovac get it?
+
+Uh… Kovac get it from giant friend. Not sure where she get it… sure it was all leggy hittimat.
+
+No refunds please.
+
+Bye!
+
+
+Kovac
+
+==Player Showcase Gallery==
+We're back with another batch of your biggest and best pieces of creative work! Everyone featured in the Gazette will receive three months of free membership as thanks for their superb efforts, so keep an eye on the linked social accounts Inbox for more details on how to grab your reward!
+
+If you want to be featured in the next Gazette then make sure to submit your creations through our [https://osrs.game/Player-Showcase-Gallery-Form Player Showcase Gallery Form] and state what Gazette you’d like it to feature in. We look forward to seeing more of your incredible talents!
+
+{| class="wikitable" style="text-align:center;margin:auto;"
+|[[File:Gielinor Gazette - June 2022 (15).jpg|195x150px|centre]]
+|[[File:Gielinor Gazette - June 2022 (16).jpg|195x150px|centre]]
+|[[File:Gielinor Gazette - June 2022 (17).jpg|195x150px|centre]]
+|-
+|[https://www.reddit.com/r/2007scape/comments/vj80bm/for_my_b_day_my_gf_3d_printed_a_dragon_cup_to/ u/animeengineer]
+|[https://www.reddit.com/r/2007scape/comments/vi7ul5/made_my_bf_a_music_cape_for_his_birthday/ u/Qwistahn]
+|[https://www.reddit.com/r/2007scape/comments/vi7frm/so_stoked_with_how_this_lil_dude_turned_out_haha/ u/Lujah_OSRS]
+|-
+|[[File:Gielinor Gazette - June 2022 (18).png|195x150px|centre]]
+|[[File:Gielinor Gazette - June 2022 (19).jpg|195x150px|centre]]
+|[[File:Gielinor Gazette - June 2022 (20).jpg|195x150px|centre]]
+|-
+|[https://www.reddit.com/r/2007scape/comments/vbe7b2/what_it_feels_like_making_a_new_iron_man_account/ u/Chosieczek]
+|[https://www.reddit.com/r/2007scape/comments/vgbqqb/the_night_beast/ u/Rallis_Fatalis]
+|[https://www.reddit.com/r/2007scape/comments/vf8feh/i_made_a_maiden_doll_for_my_bf_who_is_bad_at_tob/ u/Yikesemu]
+|}
+
+
+----
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Boko, Brow, Bruno, Curse, Daizong, Ditto, Dylan, Ed, Elena, Errol, Fed, Gecko, Goblin, Grub, Halo, Havik, Hornet, Husky, Jalo, John C, Kandosii, Katies, Kieren, Kirby, Kurotou, Lenny, Light, Lottie, Mack, Matheus, Maylea, Markos, Meat, Morty, Nin, Nylu, Regent, Redfield, Roq, Ry, Sarnie, Sigma, Skylark, Soffan, Sova, Squid, Steve W, Tide, Torrance, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

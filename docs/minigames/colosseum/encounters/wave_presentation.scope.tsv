@@ -1,0 +1,75 @@
+mechanic_id	scope	note
+wave_presentation.attack_marker.jaguar_auto	all	one solo test: the animation id played on the attack tick
+wave_presentation.attack_marker.shaman_auto	all	one solo test: the animation id played on the attack tick
+wave_presentation.attack_marker.minotaur_auto	all	one solo test: the animation id played on the attack tick
+wave_presentation.attack_marker.archer_auto	all	one solo test: the animation id played on the attack tick
+wave_presentation.attack_marker.seer_auto	all	one solo test: the animation id played on the attack tick
+wave_presentation.attack_marker.berserker_auto	all	one solo test: the animation id played on the attack tick
+wave_presentation.attack_marker.javelin_auto	all	one solo test: the animation id played on the attack tick
+wave_presentation.attack_marker.javelin_toss	all	one solo test: the animation id played on the attack tick
+wave_presentation.attack_marker.shockwave_auto	all	one solo test: the animation id played on the attack tick
+wave_presentation.attack_marker.manticore_throw	all	one solo test: the animation id played on the attack tick
+wave_presentation.attack_marker.sol_thrust	all	one solo test: the animation id played on the attack tick
+wave_presentation.attack_marker.sol_break	all	one solo test: the animation id played on the attack tick
+wave_presentation.attack_marker.sol_slam	all	one solo test: the animation id played on the attack tick
+wave_presentation.attack_marker.sol_combo	all	one solo test: the animation id played on the attack tick
+wave_presentation.attack_marker.manticore_charge_window	all	one solo test: the animation id played on the attack tick
+wave_presentation.attack_marker.sol_triple_long	all	one solo test or a driver picture: the test records the value (grade E)
+wave_presentation.spawn.minotaur	all	one solo test or a cache read
+wave_presentation.spawn.minotaur_length	all	one solo test or a cache read
+wave_presentation.spawn.javelin_walkfade	all	one solo test or a cache read
+wave_presentation.spawn.manticore	all	one solo test or a driver picture: the test records the value (grade E)
+wave_presentation.spawn.human_rig_and_shockwave	all	one solo test or a driver picture: the test records the value (grade E)
+wave_presentation.spawn.sol_jump_and_land	all	one solo test or a driver picture: the test records the value (grade E)
+wave_presentation.death.archer.seq	all	one solo test or a driver picture: the test records the value (grade E)
+wave_presentation.death.seer.seq	all	one solo test or a driver picture: the test records the value (grade E)
+wave_presentation.death.berserker.seq	all	one solo test or a driver picture: the test records the value (grade E)
+wave_presentation.death.jaguar.seq	all	one solo test or a driver picture: the test records the value (grade E)
+wave_presentation.death.shaman.seq	all	one solo test or a driver picture: the test records the value (grade E)
+wave_presentation.death.minotaur.seq	all	one solo test or a cache read
+wave_presentation.death.javelin.seq	all	one solo test or a cache read
+wave_presentation.death.shockwave.seq	all	one solo test or a cache read
+wave_presentation.death.manticore.seq	all	one solo test or a cache read
+wave_presentation.death.sol.seq	all	one solo test or a cache read
+wave_presentation.death.minotaur.length	all	one solo test or a cache read
+wave_presentation.death.javelin.length	all	one solo test or a cache read
+wave_presentation.death.shockwave.length	all	one solo test or a cache read
+wave_presentation.death.manticore.length	all	one solo test or a cache read
+wave_presentation.death.sol.length	all	one solo test or a cache read
+wave_presentation.death.human_rig.active_length	all	one solo test or a cache read
+wave_presentation.death.human_rig.sound	all	one solo test or a cache read
+wave_presentation.despawn.archer.lifetime_after_kill	stat	statistical: a lifetime distribution settled by the recorder tool over many kills; one solo kill cannot weigh it
+wave_presentation.despawn.seer.lifetime_after_kill	stat	statistical: a lifetime distribution settled by the recorder tool over many kills; one solo kill cannot weigh it
+wave_presentation.despawn.berserker.lifetime_after_kill	stat	statistical: a lifetime distribution settled by the recorder tool over many kills; one solo kill cannot weigh it
+wave_presentation.despawn.jaguar.lifetime_after_kill	stat	statistical: a lifetime distribution settled by the recorder tool over many kills; one solo kill cannot weigh it
+wave_presentation.despawn.shaman.lifetime_after_kill	stat	statistical: a lifetime distribution settled by the recorder tool over many kills; one solo kill cannot weigh it
+wave_presentation.despawn.minotaur.lifetime_after_kill	stat	statistical: a lifetime distribution settled by the recorder tool over many kills; one solo kill cannot weigh it
+wave_presentation.despawn.javelin.lifetime_after_kill	stat	statistical: a lifetime distribution settled by the recorder tool over many kills; one solo kill cannot weigh it
+wave_presentation.despawn.manticore.lifetime_after_kill	stat	statistical: a lifetime distribution settled by the recorder tool over many kills; one solo kill cannot weigh it
+wave_presentation.despawn.shockwave.lifetime_after_kill	stat	statistical: a lifetime distribution settled by the recorder tool over many kills; one solo kill cannot weigh it
+wave_presentation.despawn.totem.lifetime_after_kill	stat	statistical: a lifetime distribution settled by the recorder tool over many kills; one solo kill cannot weigh it
+wave_presentation.despawn.update_stream_ends_before	stat	statistical: a lifetime distribution settled by the recorder tool over many kills; one solo kill cannot weigh it
+wave_presentation.despawn.sol	all	one solo test or a driver picture: the test records the value (grade E)
+wave_presentation.despawn.lifetime_model	all	one solo test or a driver picture: the test records the value (grade E)
+wave_presentation.gib.human.npc_model	all	one solo test or a cache read
+wave_presentation.gib.manticore.npc_model	all	one solo test or a cache read
+wave_presentation.gib.minotaur.npc_model	all	one solo test or a cache read
+wave_presentation.gib.colossi.npc_model	all	one solo test or a cache read
+wave_presentation.gib.sol.npc_model	all	one solo test or a cache read
+wave_presentation.gib.sequences	all	one solo test or a cache read
+wave_presentation.gib.sequence_length	all	one solo test or a cache read
+wave_presentation.gib.explosion_spotanims	all	one solo test or a driver picture: the test records the value (grade E)
+wave_presentation.gib.pairing	all	one solo test or a driver picture: the test records the value (grade E)
+wave_presentation.gib.minotaur_12830_in_table	all	one solo test or a cache read
+wave_presentation.rule.client_cycle	all	one solo test or a cache read
+wave_presentation.rule.skeletal_sequence_length	all	one solo test or a driver picture: the test records the value (grade E)
+wave_presentation.rule.frame_sounds	all	one solo test or a cache read
+wave_presentation.rule.unknown_purpose_counts	all	one solo test or a cache read
+wave_presentation.rule.projectile_flight	all	one solo test or a driver picture: the test records the value (grade E)
+wave_presentation.rule.water_surge_graphic	all	one solo test or a driver picture: the test records the value (grade E)
+wave_presentation.transition.wave_message	all	one solo test or a cache read
+wave_presentation.transition.intermission_interface	all	one solo test or a cache read
+wave_presentation.transition.wave_complete_interface	all	one solo test or a cache read
+wave_presentation.transition.scoreboard_interface	all	one solo test or a cache read
+wave_presentation.transition.minimus_appear	all	one solo test or a driver picture: the test records the value (grade E)
+wave_presentation.transition.reinforcement_none	all	one solo test or a cache read

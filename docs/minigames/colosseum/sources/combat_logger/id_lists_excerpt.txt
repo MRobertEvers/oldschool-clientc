@@ -1,0 +1,87 @@
+# Excerpts (line-numbered with the source line) of SuperNerdEric/combat-logger@a5c6f30c, BSD-2-Clause (see LICENSE), src/main/java/com/combatlogger/util/. Fetched 2026-10-03.
+## NpcAttackAnimationIds.java lines 58-77
+58:			AnimationID.JALTOKJAD_ATTACK_MAGIC, // JalTok-Jad mage
+59:			AnimationID.JALTOKJAD_ATTACK_RANGED, // JalTok-Jad ranged
+60:			AnimationID.LIZARD_CLERIC_ATTACK, // Yt-HurKot (jad healer) auto
+61:			AnimationID.ZUK_ATTACK, // TzKal-Zuk auto
+62:			// Fortis Colosseum
+63:			AnimationID.NPC_JAGUAR_RANGER_CLAWS_ATTACK, // Jaguar warrior auto
+64:			AnimationID.NPC_SERPENT_MAGER_CASTING, // Serpent shaman auto
+65:			AnimationID.NPC_MINOTAUR_BOSS_ATTACK_MELEE, // Minotaur auto
+66:			AnimationID.NPC_FREMENNIK_WARBANDER_ARCHER_ATT_COLOSSEUM, // Fremennik archer auto
+67:			AnimationID.NPC_FREMENNIK_WARBANDER_MAGE_ZAROS_VERTICAL_CASTING_WALKMERGE, // Fremennik seer auto
+68:			AnimationID.NPC_FREMENNIK_WARBANDER_MELEE_HUMAN_SWORD_STAB, // Fremennik berserker auto
+69:			AnimationID.NPC_COLOSSI_JAVELIN_01_RANGE_ATTACK, // Javelin colossus auto
+70:			AnimationID.NPC_COLOSSI_JAVELIN_01_ARTILLERY_ATTACK, // Javelin colossus toss
+71:			AnimationID.NPC_MANTICORE_01_TRIPLE_THROW, // Manticore attack
+72:			AnimationID.NPC_COLOSSI_SHOCKWAVE_01_CLAPATTACK, // Shockwave colossus auto
+73:			AnimationID.NPC_COLOSSI_FINALBOSS_01_MELEE_ATTACK_TELEGRAPH, // Sol Heredit spear attack
+74:			AnimationID.NPC_COLOSSI_FINALBOSS_01_GRAPPLE_ATTACK_TELEGRAPH, // Sol Heredit break
+75:			AnimationID.NPC_COLOSSI_FINALBOSS_01_SHIELDSLAM_TELEGRAPH, // Sol Heredit shield attack
+76:			AnimationID.NPC_COLOSSI_FINALBOSS_TRIPLEATTACK_SHORTER // Sol Heredit triple parry attack
+77:	));
+## GraphicsObjectIdsToTrack.java lines 43-70
+43:			SpotanimID.VERZIK_POWERBLAST_SAFEZONE, // Verzik yellows
+44:
+45:			SpotanimID.SPOTANIM_COLOSSI_FINALBOSS_01_MELEE, // Colosseum Sol dust
+46:
+47:			SpotanimID.SPOTANIM_COLOSSI_FINALBOSS_02_MELEE, // Colosseum Sol dust
+48:
+49:			SpotanimID.SPOTANIM_COLOSSI_FINALBOSS_03_MELEE, // Colosseum Sol dust
+50:
+51:			SpotanimID.VFX_MANTICORE_01_PROJECTILE_MAGIC_01, // Colosseum Manticore mage style
+52:
+53:			SpotanimID.VFX_MANTICORE_01_PROJECTILE_RANGED_01, // Colosseum Manticore ranged style
+54:
+55:			SpotanimID.VFX_MANTICORE_01_PROJECTILE_MELEE_01, // Colosseum Manticore melee style
+56:
+57:			SpotanimID.VFX_COLOSSEUM_CRYSTAL_CHARGE_01_BEAM_01, // Colosseum Sol laser scan
+58:
+59:			SpotanimID.VFX_COLOSSEUM_CRYSTAL_CHARGE_01_BEAM_02, // Colosseum Sol laser scan
+60:
+61:			SpotanimID.VFX_COLOSSEUM_CRYSTAL_CHARGE_01_BEAM_03, // Colosseum Sol laser scan
+62:
+63:			SpotanimID.VFX_COLOSSEUM_CRYSTAL_ATTACK_01_BEAM_01, // Colosseum Sol laser shot
+64:
+65:			SpotanimID.VFX_COLOSSEUM_CRYSTAL_ATTACK_01_BEAM_02, // Colosseum Sol laser shot
+66:
+67:			SpotanimID.VFX_COLOSSEUM_CRYSTAL_ATTACK_01_BEAM_03, // Colosseum Sol laser shot
+68:
+69:			SpotanimID.VFX_COLOSSEUM_SUNFIRE_LIGHTNING_01_BEAM_01, // Colosseum Sol sunfire pool
+70:
+## NpcIdsToTrack.java lines 660-676
+660:			NpcID.CLANCUP_DAGCAVE_MELEE_BOSS,
+661:
+662:			NpcID.COLOSSEUM_WARBANDER_RANGED_FEMALE,
+663:			NpcID.COLOSSEUM_WARBANDER_MAGE_MALE,
+664:			NpcID.COLOSSEUM_WARBANDER_MELEE_MALE,
+665:			NpcID.COLOSSEUM_JAGUAR_WARRIOR,
+666:			NpcID.COLOSSEUM_STANDARD_MAGER,
+667:			NpcID.COLOSSEUM_MINOTAUR,
+668:			NpcID.COLOSSEUM_MINOTAUR_ROUTEFIND,
+669:			NpcID.COLOSSEUM_JAVELIN_COLOSSUS,
+670:			NpcID.COLOSSEUM_MANTICORE,
+671:			NpcID.COLOSSEUM_SHOCKWAVE_COLOSSUS,
+672:			NpcID.COLOSSEUM_SOL_P1,
+673:			NpcID.COLOSSEUM_DOOM_SCORPION,
+674:			NpcID.COLOSSEUM_MODIFIER_BEES,
+675:			NpcID.COLOSSEUM_HEALING_TOTEM,
+676:
+## BossIds.java lines 276-280
+276:			VETION_TRANS_SINGLE,
+277:			VETION_TRANS_2_SINGLE,
+278:			COLOSSEUM_SOL_P1,
+279:			COLOSSEUM_BOSS_SEATED,
+280:			SLAYER_KRAKEN_BOSS,
+## GameObjectIdsToTrack.java lines 19-22
+19:			ObjectID.TOA_ZEBAK_VOMIT06, // Zebak poison
+20:			ObjectID.TOA_ZEBAK_VOMIT07, // Zebak poison
+21:			ObjectID.COLOSSEUM_MOLTEN_POOL_1, // Colosseum reentry pool
+22:			ObjectID.DOM_ACIDPOOL, // Doom of Mokhaiotl acid blood (venom splat)
+## GroundObjectIdsToTrack.java lines 15-18
+15:			ObjectID.TOB_SOTETSEG_DARKTILE, // Sotetseg maze inactive tile
+16:			ObjectID.TOB_SOTETSEG_LIGHTTILE, // Sotetseg maze active tile
+17:			ObjectID.COLOSSEUM_MOLTEN_POOL_2 // Colosseum reentry pool secondary
+18:	));
+## LeaderboardRegions.java lines 36-36
+36:		putAll(regions, "Fortis Colosseum", 7216);

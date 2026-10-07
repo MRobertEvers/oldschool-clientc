@@ -2,8 +2,8 @@
 
 Source: https://github.com/Skretzo/shortest-path
 
-- Upstream commit: `8551e6016d053aa5930bb16485069a6997718da3` (branch `master`)
-- Fetched: 2026-08-12
+- Upstream commit: `afd9bd856d51b8d614e34414ee2747c96f48bdee` (branch `master`)
+- Fetched: 2026-10-06 (previously `8551e6016d`, 2026-08-12)
 - Files: `transports/*.tsv`, copied verbatim from
   `src/main/resources/transports/` at the commit above. No content was edited;
   `tools/maplink_import.py` is the only consumer and treats every row as an
@@ -27,3 +27,14 @@ done
 
 then update the commit hash above and re-run
 `python3 tools/maplink_import.py --check`.
+
+The 2026-10-06 re-vendor was imported ADDITIVELY: the committed generated
+files had already drifted from a full regenerate (hand rows a full run would
+drop), so only the rows `maplink_import.py --near-miss` emits from this data and
+did NOT emit from `8551e6016d` were added to them (51 maplink.dbrow, 8
+maplink_agility.dbrow, 16 maplinks.loc, 6 maplink_agility.loc); no existing row
+was removed or changed. Not taken: 7 POH-portal rows whose destination moved
+(0_30_89_3_13 -> 0_29_110_2_11), the dropped `lumbridge_diary_desert_shortcut`
+agility row, and the `archeuus_stairs_upper` name binding the new data produces
+in maplink_shared.rs2 (name-wide over 17 placements; the tile rows live in
+areas/area_arceuus/configs/arceuus_stairs_maplinks.dbrow instead).

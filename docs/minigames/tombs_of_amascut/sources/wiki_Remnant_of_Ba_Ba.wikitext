@@ -1,0 +1,43 @@
+{{Infobox Item
+|name = Remnant of Ba-Ba
+|image = [[File:Remnant of Ba-Ba.png]]
+|release = [[8 September]] [[2022]]
+|update = Tombs of Amascut: Ornament Kits & More!
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Drop
+|examine = Contains the essence of Ba-Ba.
+|value = 10000
+|weight = 0.190
+|id = 27378
+|leagueRegion = Desert
+}}
+[[File:Remnant of Ba-Ba detail.png|left|120px]]
+The '''Remnant of Ba-Ba''' is an item obtained from the [[Tombs of Amascut]] raid. It is used on the [[Tumeken's guardian]] [[pet]] to allow it to [[Metamorphosis|metamorphose]] into [[Babi]].
+
+In order to receive one from the [[Chest (Tombs of Amascut)|reward chest]], players must complete a raid at level 450+ with zero deaths for all party members, whilst having all invocations for [[Ba-Ba]] enabled. Furthermore, players must defeat her at path level 4 or higher.
+
+==Item sources==
+{{Drop sources|Remnant of Ba-Ba}}
+
+==Transcript==
+{{Hastranscript|transclude=yes}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 19 August 2026
+|update = Summer Sweep Up - Hunter & Skilling
+|change = The item was renamed from "Remnant of ba-ba" to "Remnant of Ba-Ba".
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* The item model appears to be [[drake bones]] viewed from above.
+
+{{Tombs of Amascut}}
+[[Category:Collection log items]]

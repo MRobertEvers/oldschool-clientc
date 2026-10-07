@@ -6,6 +6,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import config_text
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTENT = ROOT / "OSRS-Content" / "osrs239-content"
@@ -34,7 +35,7 @@ def main() -> None:
     estate = (SCRIPTS / "poh_estate_agent.rs2").read_text(encoding="utf-8")
     rooms = (SCRIPTS / "poh_rooms.rs2").read_text(encoding="utf-8")
     build = (SCRIPTS / "poh_build.rs2").read_text(encoding="utf-8")
-    runtime = (CONFIGS / "poh_runtime_generated.dbrow").read_text(encoding="utf-8")
+    runtime = config_text.read_text(CONFIGS / "poh_runtime_generated.dbrow", encoding="utf-8")
     header = (ROOT / "src/torirsserver/torirs_server_poh.h").read_text(encoding="utf-8")
     engine = (ROOT / "src/torirsserver/torirs_server_poh.c").read_text(encoding="utf-8")
     save = (ROOT / "src/torirsserver/torirs_server_save.c").read_text(encoding="utf-8")

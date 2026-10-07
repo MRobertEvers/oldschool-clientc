@@ -1,0 +1,156 @@
+{{Update|date=1 December 2021|link=https://secure.runescape.com/m=news/pj-timer-beta--chat-changes?oldschool=1|category=game}}
+[[File:PJ Timer Beta & Chat Changes newspost.png|right]]
+{{Clear|right}}
+
+<center>''Hello adventurers! This week we’re releasing the PJ Timer Beta. We’ve also got updates on the Android Mobile Beta, the Hallowed Sepulchre HiScores, Group Chat, and the Economy! Phew.</center>
+{{ToC}}
+==PJ Timer Beta==
+[[File:PJ Timer Beta & Chat Changes (1).png|centre|600px]]
+Quick note before we start on this one – we refer to in-game timings as ‘cycles’. Each cycle is equal to 0.6 seconds, and is also known as a ‘tick’.
+
+So, on the subject of timing, we’re testing out some changes to the PJ Timer! For those unfamiliar, this mechanic is a grace period of 16 cycles (''9.6 seconds'') that begins when a player attacks something and prevents them from being hit by a player opponent or aggressive monster until the timer runs out.
+
+With this Beta, the PJ Timer will be active in all [[Single-way combat|single-way]] and [[Singles-plus combat|single-plus]] areas of the Wilderness. So, if Player A has just finished PvP combat with Player B, Player C won’t be able to attack them for 16 cycles.
+
+Another change is that NPCs will now respect the PJ Timer – so if Player A is engaging in PvP combat with Player B, NPCs won’t be able to get in on the action until the PJ Timer runs down. However, if Player A should attack the NPC themselves in this time, the PJ Timer will be removed, and there’s no holding back – so watch out for those misclicks!
+
+Some activities will be prevented during combat, including the duration of the PJ Timer:
+* Setting new Chinchompa or Salamander traps (picking up, checking and dismantling them is still fine!)
+* Fishing Dark Crabs
+* Mining
+
+You'll be able to join the Beta from the following worlds, which are highlighted in '''blue''' on the World Selection screen:
+* 401 - (US East)
+* 408 - (UK)
+* 409 - (US West)
+* 412 - (Australia)
+
+Choosing any of these worlds will load a separate profile to the one on your main account. Once you log in, you’ll find yourself in Ferox Enclave, with max skills and suitable PvP gear. If you want to try out some other equipment or stats before jumping in, head to the rooms next to the Castle Wars and Free-For-All portals and have a rummage in the Supply Chests on the tables. Please do experiment with lots of different gear and stat combinations!
+
+Alright, you’re free to go – so go on, jump in and let us know what you think!
+
+==Android Beta==
+We want to extend a big thanks to everyone taking part in the Android Beta. Signups have now closed, but due to the fantastic feedback from all those involved we're pleased to say that we’re sending a second round of invites out!
+
+Until '''December 8th''' successful applicants can try a range of awesome features like Buff Bars, Fishing Spot Indicators, Increased Draw Distance and more.
+
+Only those with approved access to the Beta client can participate. Even if your app says you're in the Beta, if you've not received an Inbox message from us then unfortunately you do not have access. We will ONLY message players on this subject via their Inbox.
+
+We’ll be using the official [https://discord.com/invite/osrs OSRS Discord server]’s Mobile Beta channels for all communications during the Beta. Accordingly, we’ll be updating the server with all the info you need to get started, including an FAQ and a list of any known issues. You’ll get an invite to the requisite channels, which will be hidden for everyone else. If you don’t see them straight away, be patient – it takes a while for the permissions to kick in. If you still don’t have access after 24 hours, let us know by sending a message to Mod Light#1353 on Discord and we’ll sort it out.
+
+Lastly, please remember that you need an Android device updated to at least 8.0 (Oreo) to participate. If you’re an iOS player, stay tuned for another Beta currently aiming for early 2022.
+
+==Hallowed Sepulchre Records==
+After investigating, we’ve decided to reset all times for the Hallowed Sculpture – both World and Personal. This is because we’ve become aware of certain players acquiring impossible Personal Best times, as low as 0.6 seconds. While first looking into the issue we determined this was due to a bug, fixed it, and reset any times that were obviously caused by bug abuse.
+
+However, the problem was not resolved, so we went back to the drawing board. Unfortunately, our second fix disabled Fletching in the Sepulchre, which wasn’t optimal – and to make matters worse, new, only marginally less suspicious records were popping up all the time. Although these new records weren’t obviously caused by bug abuse, the timing so soon after the reset and the substantial gap between these times and the former bests made us question their legitimacy. As such, the integrity of these times will always be in question.
+
+So, '''next week''', we’ll be doing a full reset of the Hallowed Sepulchre Records. Since we can’t be 100% sure that the suspicious times were set by bug abuse, we can’t take action against individual accounts, and after speaking with the speedrunning community it was generally agreed that a full reset was the right way to preserve the integrity of their achievements.
+
+We’d like to apologise to any players who have legitimate record times and are affected by this change.
+
+==Group Chat & More==
+[[File:PJ Timer Beta & Chat Changes (2).png|centre]]
+
+We’ve changed the prefixes for Group Chat and Guest Clan Chat, as sentences that began with ‘I’ were erroneously being diverted to the Group Ironman Chat. The new commands are as follows:
+
+/@g or /g will set mode to Group Chat (for Group Iron Players only)
+/@gc or /gc will set mode to Guest
+
+We’ve made a few more changes to various chats, too:
+* You can now clear history from the Group Chat.
+* If the Chat tab is set to ‘off’, broadcasts will no longer be visible.
+* Messages are now capitalised by default when typing in Group Chat, in-line with the behaviour of other Chat tabs.
+* You no longer have to send a message when using the /@x command to change chat mode.
+* Clicking on the Group Chat tab will now make messages you type show up in the Group Chat, as is the case for all tabs regardless of your current chat mode.
+* Setting chat mode by right-clicking has now been moved to the ‘All’ button instead, and now includes the ‘Set Chat Mode Public’ option.
+* Your Clan’s homeworld will display in the Clan Sidepanel rather than the world for the Clan you are guesting in.
+* The Clan/Guest Clan Sidepanel for Clans with more than 99 players in them no longer overlaps the number of players with the Clans icon.
+
+==Economy Update==
+On [https://secure.runescape.com/m=news/old-school-economy---future-plans?oldschool=1 November 4th] we pitched some changes intended to keep the game’s economy healthy. We’ve already implemented the Bank Space expansion and the literal Golden Sink, and today we’d like to update you on our plans for the small tax on Grand Exchange transactions.
+
+If you missed it, the basic idea is that by charging a small fee for each transaction we’ll reduce the amount of gold circulating in the game. Furthermore, this change can help address the rate at which the quantity of prestigious items in the game increases; at present, many more items come into the game via drops than there are players to use them, so the items rapidly lose value. With the tax update, when an item’s owner puts up a Sell offer, the game itself might buy and delete the item, paying the seller with some of the gold taken in taxes.
+
+Originally, we pitched a flat tax rate of 2%. While that’s considerably lower than the rate other games use in their auction houses, we’ve seen feedback raising concerns about the impact it would have on player behaviour. While we don’t mind players doing more direct player-to-player trading to avoid the tax – some feel that Old School lost precious community engagement when the Grand Exchange entered the game – we’d still prefer not to push players back to the dark days of spamming ‘:wave2 buying raw lobs 200 each’ outside every Bank in Gielinor.
+
+We’ve therefore agreed to '''lower the initial tax rate to 1%''' and to '''cap the tax on any given item at 5 million coins'''.
+
+Let’s see how that works in practice.
+
+
+'''Simple case:'''
+
+Ram0ceanFan is selling 100 Cooked Shark for 975 GP each and is matched against a buyer offering the same amount.
+
+The 1% fee charged for each item is 9.75 coins, which the game rounds down to 9 coins per Shark.
+
+Thus Ram0ceanFan receives 96,600 GP, which is 97,500 minus the 900 GP fee.
+
+
+'''Expensive item:'''
+
+OlmRaider73 is selling a Twisted Bow for 870,000,000 GP and is matched against a buyer offering the same amount.
+
+The 1% fee charged for each item is 8,700,000 GP, capped at 5,000,000 GP.
+
+Thus OlmRaider73 receives 865,000,000 GP, which is 870,000,000 minus the 5,000,000 GP fee.
+
+If OlmRaider73 preferred to spend time finding a buyer for a direct player-to-player trade, rather than spending that 5,000,000 fee, that’s totally fair.
+
+
+'''Cheap item:'''
+
+Newb5caper is selling 100 Guam Leaves for 29 GP each and is matched against a buyer offering the same amount.
+
+The 1% fee charged for each item rounds down to zero.
+
+Thus Newb5caper receives the full 2,900 GP.
+
+
+'''More complex case:'''
+
+BigDealerDel is selling 1,000 Tin Ore for 99 GP each.
+
+500 of them are bought by a player who was offering the same amount. The 1% fee charged on each 99 GP item rounds down to zero, so BigDealerDel receives 49,500 GP for those 500 items.
+The other 500 are bought by a player who was offering 101 GP per item. The 1% fee charged on each 101 GP item is 1.01 GP, which the game rounds down to 1 GP per item. BigDealerDel therefore receives 50,000 GP for those 500 items, which is 50,500 minus the 500 GP fee.
+Overall, BigDealerDel has sold their 1,000 Tin Ore for 99,500 GP.
+
+
+The Grand Exchange menus will tell you up front how much money you can expect when you set up your Sell offer – so you don’t have to do all this maths yourself. If your buyer is generous enough to pay more than you asked, you’ll receive more money, and perhaps pay slightly more in fees, but overall you’ll still get at least as much money as the menus told you to expect.
+
+We’ve also agreed to '''exclude some items from the tax altogether'''. Most of these are tools used by new players, since we’d prefer not to inhibit trade on essential items. Bonds are also exempt from the tax, since they already charge a fee when they’re converted from non-tradeable to tradeable. The Grand Exchange menus will clarify which items have fees.
+
+Now, let’s go back to that point about the game buying high-value items from players using your taxes. Which items are eligible to be sunk? We’ve seen some great player suggestions, including rewards from the Theatre of Blood, other bosses, skilling, and even Treasure Trails. While we agree that these would all benefit from a reduced supply, we want to start small. A shorter list will let us monitor the amount of money actually being sunk and any player behaviour changes that arise from the tax before committing to a more extensive (and expensive) list of items to buy out from the game.
+
+Aside from feedback on the update itself, we’ve seen players raising concerns that they might be tricked by scammers switching rapidly while setting up a direct player-to-player trade. To address this, we’re offering a change to the Trade menus, preventing the ‘Accept’ button from being pushed for a few seconds after the other player changes the items, giving you a better chance of spotting the change.
+
+You can opt out of this delay though, if you really need to trade faster – which players rely on in some PvM situations, for example – or if you’re confident taking the risk.
+
+This project is making its way through development now, and we hope to launch on December 8th.
+
+==Other Changes==
+* Fixed a bug where the Dinh’s Bulwark’s special attack was reducing the stats of its target twice as much as intended. We appreciate that some players liked how powerful it was, but this was caused by a bug, and has now been removed. If we see significant demand for stat-reducing special attacks in future, we’ll consider adding new items to accomplish that.
+* You’ll now receive a Big Harpoonfish (if you’ve previously received one) rather than 25 Soaked Pages to showcase how many you’ve got in the Collection Log. If you like, the Retired Sailor will still trade you pages for your fish.
+* You’ll now be notified when the Frozen effect is about to finish, with the message: “The freeze cast upon you is beginning to thaw.”
+* The ‘X’ amount in the Seed Vault will now be remembered.
+* Ali Morrisane now has a right-click ‘Trade’ option to quickly access his shops. Just what we’d expect from Gielinor’s greatest salesman!
+* We’ve lowered the HiScores’ TzKal-Zuk Kill Count Requirement from 2 to 1.
+* On the Deadman World, Zooknock’s Brazier now autocompletes the ‘Glough Speed-Trialist’ task, as the fight is not available on that world.
+* Sotetseg’s fade-to-white effect is now a little less glaring.
+
+==PvP World Rota==
+The PvP rota has moved to Period A:
+* 539 - (US) - PvP World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+* 390 - (AUS) - LMS Competitive - world becomes active with this rota.
+
+----
+
+That's everything for this week's game update. We'd love to hear your feedback so please let us know what you think via our [http://services.runescape.com/m=forum/forums?380,381,772,66237673 official forums], on the [https://www.reddit.com/r/2007scape/comments/r6c9wy/pj_timer_beta_chat_changes_weekly_game_update/ 2007Scape Reddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums] or the community-led [http://discord.gg/OSRS OSRS Discord] in the '''#gameupdate''' channel.
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Brow, Bruno, Con, Curse, Daizong, Deagle, Dibber, Ditto, Dylan, Ed, Elena, Ellie, Errol, Fed, Gecko, Grub, Halo, Havik, Hornet, Husky, Jndr, John C, Kandosii, Katies, Kieren, Kirby, KT, Kurotou, Lenny, Light, Lottie, Mack, Matheus, Maylea, Markos, Meat, Morty, Nasty, Nin, Nylu, Oasis, Peppers, Regent, Redfield, Roq, Ry, Sarnie, Sigma, Skylark, Sova, Squid, Steve W, Tide, Veda, Vegard, West, Wolfy & Zuko'''
+
+''The Old School Team''

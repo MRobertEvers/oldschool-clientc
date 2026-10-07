@@ -1,0 +1,141 @@
+{{Update|date=8 February 2018|link=http://services.runescape.com/m=news/pvm-qol-updates--wilderness-rejuvenation-improvements?oldschool=1|category=game}}
+[[File:PvM QoL updates & Wilderness Rejuvenation improvements newspost.png|right]]
+{{clear}}
+<center>''This week sees the release of the long-awaited graphical improvements and overhaul of combat mechanics to the Mage Arena II bosses. The drop table of Revenants has been improved, and the first updates from the PvM QoL Poll have been implemented.''</center>
+
+{{Horizontal Line}}
+
+
+{{Headline|22|Wilderness Rejuvenation Improvements}}
+
+
+'''Mage Arena II Improvements'''
+
+In our Wilderness Rejuvenation [http://services.runescape.com/m=news/in-retrospect-wilderness-rejuvenation-ii--w345?oldschool=1 retrospect news post], we agreed that the release of Mage Arena II wasn't to either your standards, or the standards to which we hold ourselves. To remedy this we have updated the appearance of the three bosses, we've updated their mechanics, and we've expanded on the lore surrounding Kolodion and the three bosses.
+
+'''Revenant Drop Table Update'''
+
+We learned rather quickly that you weren't overly pleased with the 100x item drop from Revenants, with a common complaint being that it felt artificial and unlike other drops in RuneScape. Alongside this, the average GP/h fell below the intended rate relatively quickly after the Revenant Cave release. To offset both of these, we've made a number of changes to the Revenant drop table. We have removed the 100x drop, we've adjusted the weighting across the normal loot table whilst removing some of the less valuable drops and increasing quantities of others. Additionally, we've added Statuettes as unique drops to Revenants. These can be sold to the Emblem trader for 4 million GP, 8 million GP, and 16 million GP respectively, they can also be alched (''high alchemy, not low alchemy, of course'') for 60% of this sell value. These changes help to bring the average GP/h in line with what was proposed when the Revenant Cave was first polled.
+
+Again we'd like to reiterate that we are '''open to replacing the Statuettes in the future''' if unique rewards can be agreed upon, and we encourage you all to send in suggestions for new rewards in [http://services.runescape.com/m=news/in-retrospect-wilderness-rejuvenation-ii--w345?oldschool=1 this forum thread], or on Reddit ([https://www.reddit.com/r/2007scape/ /r/2007scape/] and [https://www.reddit.com/r/oldschoolrs/ /r/oldschoolrs/]).
+
+'''Other Changes'''
+
+Alongside the graphical overhaul of the bosses we have replaced the Demon's heart drops from Saradomin's boss and Guthix' boss. This is to ensure the drops are now more thematically fitting.
+
+Kolodion's dialogue has been updated to reflect an expansion in lore surrounding the bosses fought during Mage Arena II.
+
+The Enchanted Symbol no longer asks which boss you would like to search for when you have only one boss left to kill. Now it'll just help you find the last remaining boss.
+
+The effectiveness of the Twisted Bow when used against Mage Arena II bosses has been reduced to bring it in line with the effectiveness of other weapons.
+
+[[File:PvM QoL updates & Wilderness Rejuvenation improvements (1).png|center|300px]]<center>''Porazdir. Once one of Zamorak’s most trusted generals. He now roams the Wilderness, killing all in his path.''</center>
+
+[[File:PvM QoL updates & Wilderness Rejuvenation improvements (2).png|center|300px]]<center>''Justiciar Zachariah. One of the last remaining justiciars of Saradomin. He relentlessly pursues Porazdir on behalf of his god.''</center>
+
+[[File:PvM QoL updates & Wilderness Rejuvenation improvements (3).png|center|300px]]<center>''Derwen the Ent. An ancient servant of Guthix. He has devoted himself to maintaining balance across the Wilderness.''</center>
+
+{{Horizontal Line}}
+
+
+{{Headline|22|PvM Quality of Life}}
+
+
+Quality of Life month is upon us, and today sees the release of most of the PvM QoL offerings we polled (not all of the polled updates arrive today, but they aren't being forgotten about, they'll be released in the coming weeks!). Before we detail each update we'd like to remind you that the Skilling QoL poll is currently live in-game, head to a poll booth to have your say on the updates! Next week will see the PvP QoL poll launch, and we're still looking to assemble which questions we poll. Be sure to share your suggestions on the RuneScape forums (see the link at the bottom of this article) and on Reddit ([https://www.reddit.com/r/2007scape/ /r/2007scape/] and [https://www.reddit.com/r/oldschoolrs/ /r/oldschoolrs/]).
+
+
+Players are now able to left-click ''Bank-All'' when using the Soul Bearer to bank Ensouled heads.
+
+Players can now right-click to change their spellbook when using an Occult altar within a Player-owned House.
+
+You can now left-click to ''Inflate'' Swamp toads when an Ogre bellows is present in your inventory. This also applies to dye-filled quest variants.
+
+You can now left-click to ''Suck'' Swamp bubbles to fill Ogre bellows with swamp gas. If you have multiple Ogre bellows in your inventory this will fill those too.
+
+You can now right-click to empty your Dwarf multicannon of Cannonballs. Previously you would have needed to dismantle it.
+
+The Crystal halberd now deals full damage to the Corporeal Beast. Previously its damage was reduced when used against the Corporeal Beast, but the damage of other halberds was not limited.
+
+Players wearing a Ring of wealth will now be able to automatically pick up Tokkul and Numulites. This can be toggled via the ''Currency'' right-click option.
+
+Gravestones which require payment may now take payment directly from your bank.
+
+Players who have 200m XP in any skill will now be able to keep receiving XP drops as though they were continuing to gain XP.
+
+The '''RUUUUUNE''' extension perk unlocked via the Slayer Rewards store increases the task size of Rune Dragons to between 30-60. Previously the task extension would only increase the task size to between 15-25.
+
+Small, Medium, and Large storage chests within the Chambers of Xeric now only require 2, 4, and 6 Mallignum root planks respectively to create.
+
+Dagannoth bones dropped when killing Dagannoth Kings will now prioritise over Dagannoth hide when both items are on the floor. This also applies to the noted form reward from the Fremennik Elite Achievement Diary.
+
+Herb seeds will now appear higher on a loot pile than other lower level/less useful seeds.
+
+You can now right-click the crevice shortcut within the Kalphite lair to ''Listen'' to whether other adventurers are fighting the Kalphite Queen.
+
+Players can now search Kruk's Dungeon to check whether other players are present. The ''Look-in'' option will search a specific section of the tunnel, whereas the ''Look-in All'' option will allow you to search every section.
+
+Vet'ion will now use its magic attack less frequently than before.
+
+The Chaos elemental now uses its teleport attack less frequently than before.
+
+Callisto's knockback attack will now occur less frequently.
+
+The Lizardman shaman's special attack ''Spawns'' will no longer occur in quick succession.
+
+The Staff of Light can now be created by combining Saradomin's light with a Staff of the dead.
+
+The Staff of Light can be used to autocast Saradomin strike.
+
+Barbarian spirits laid to rest by burning Pyre ships can now be tracked and viewed via the Barbarian skills book, or via the adventure log in your Player-owned House. This count will only apply to spirits laid to rest from today's game update onwards.
+
+The Grotesque Guardians now have a timer added for player's to track their fastest kill. These times can be viewed via the adventure log in your Player-owned House.
+
+You may now hand Kraken tentacles to Lieve to further enhance the number of charges held by the Trident of the seas and the Trident of the swamp. Once Lieve has been given 10 Kraken tentacles, your Trident will be able to hold up to 20,000 charges.
+
+A Bronze axe is available for all players in the Chambers of Xeric should the room containing the Ice demon be encountered. The axe will be found on the floor.
+
+The party interface for the Chambers of Xeric will now display the killcount of every player in the party.
+
+A message broadcast will be sent to notify all party members as to who received which drop from any of the bosses within the Chambers of Xeric.
+
+If players attempt to use a special attack with insufficient energy then they'll find that instead of a special attack failing and no attack occurring, a regular attack will instead be performed.
+
+Players can now ask the wounded soldier found outside of the Lizardmen canyon how many adventurers are currently in the East canyon and the West canyon.
+
+{{Horizontal Line}}
+
+
+{{Headline|22|In Other News}}
+
+
+You can now use the Black d'hide shield as part of your evil outfit during the Shadow of the Storm.
+
+Players will now be notified upon the correct level-up messaging when it's possible to fletch Magic shields (level 87), instead of the previous incorrect level (level 86).
+
+Players logging into a F2P world whilst navigating the Draynor Manor to Champion's Guild shortcut will find themselves placed back on solid ground.
+
+''Monster Examine'' will now display the effect of Dragonbane when cast upon monsters affected by Dragonbane (the passive ability of the Dragon Hunter crossbow).
+
+It isn't possible to sail to Entrana with ballistae of any kind. Previously it was possible to bypass the restriction imposed by the Monks of Entrana.
+
+Bottled wine is now treated like Jugs of wine (and other food) when dropped in the Wilderness.
+
+All incorrect spellings of Pizazz have been corrected within the Progress hat's dialogue.
+
+Players can now only enter the cave on top of Trollheim from the correct direction.
+
+Last week engine changes were made to help increase optimization of the Friends list. These changes had the unintended effect of causing an error with the Legacy ordering within your Friends list, and your minimap not correctly displaying players in your Clan Chat. These two issues have now been fixed.
+
+{{Horizontal Line}}
+
+
+{{Headline|22|Our 5th Birthday}}
+
+
+Old School RuneScape turns '''five years old''' on the 22nd February, and we have a very special '''three hour''' stream planned to celebrate our birthday. We'll have more information for you coming soon, but in the meantime go and follow [https://www.twitch.tv/oldschoolrs twitch.tv/oldschoolrs] which is the new Old School RuneScape Twitch channel, as well as [https://www.twitch.tv/events/toVC-9L2SbKia9XyR4Qawg registering for a stream reminder]!
+ 
+{{Horizontal Line}}
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,459,65987338 forums].
+
+'''''Mods Archie, Ash, Ayiza, Curse, Ed, Ghost, Jed, John C, Kieren, Mat K, Maz, Roq, Ry, Stone, Sween, TomH, Weath, West & Wolf'''''<br/>''The Old School Team''

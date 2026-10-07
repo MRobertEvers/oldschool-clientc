@@ -1,0 +1,21 @@
+{{Infobox NPC
+|name = Zebak's Phantom
+|image = [[File:Zebak's Phantom.png|280px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|level = 371
+|members = Yes
+|race = Apparition
+|location = [[Tombs of Amascut]]
+|gender = Male
+|examine = A phantom of Zebak.
+|map = No
+|id = 11774
+|leagueRegion = Desert
+}}
+'''Zebak's Phantom''' is a monster encountered in the [[Tombs of Amascut]]. It is summoned alongside [[Ba-Ba's Phantom]] by [[Tumeken's Warden]] in the third phase of the final battle.
+
+As a phantom of [[Zebak]], it will use its standard attacks to attack the player.
+
+[[File:Tombs of Amascut - fighting Tumeken's Warden.png|thumb|left|Zebak's Phantom in the fight's third phase.]]
+{{Tombs of Amascut}}

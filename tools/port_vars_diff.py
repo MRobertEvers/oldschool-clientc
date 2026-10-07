@@ -55,6 +55,8 @@ import os
 import re
 import sys
 
+import config_text
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TREE = os.path.join(REPO, "OSRS-Content", "osrs239-content")
 REF = "/Users/matthewevers/Documents/git_repos/LostCity_Server/content"
@@ -95,11 +97,19 @@ def walk(root, suffixes, skip=SKIP_DIRS):
                 yield os.path.join(dirpath, name)
 
 
-def blocks(path):
-    """Yield (section, {key: value}, line) for a LostCity-grammar config."""
+def blocks(path, full_key=False):
+    """Yield (section, {key: value}, line) for a LostCity-grammar config.
+
+    `full_key` is this tree's config text, where an unset key is written
+    `key=default`/`key=empty`: those lines are skipped (config_text) so they
+    read as the absent key they mean. LostCity's text has no markers."""
     section, kv, line_no = None, {}, 0
     with open(path, encoding="utf-8", errors="replace") as handle:
         for i, raw in enumerate(handle, 1):
+            if full_key:
+                raw = config_text.filter_line(raw)
+                if raw is None:
+                    continue
             text = raw.split("//")[0].strip()
             if not text:
                 continue
@@ -142,7 +152,8 @@ def pack_ids(namespace):
 def carrier_set():
     """varp name -> [(varbit, startbit, endbit)], from the cache's own records."""
     carriers = collections.defaultdict(list)
-    for name, kv, _ in blocks(os.path.join(TREE, "configs", "all.varbit")):
+    for name, kv, _ in blocks(os.path.join(TREE, "configs", "all.varbit"),
+                              full_key=True):
         base = kv.get("basevar")
         if base is None:
             continue

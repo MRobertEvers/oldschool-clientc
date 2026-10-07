@@ -1,0 +1,224 @@
+{{Update|date=7 March 2018|link=http://services.runescape.com/m=news/dev-blog-theatre-of-blood?oldschool=1|category=website}}
+[[File:Dev Blog- Theatre of Blood newspost.png|right]]
+{{clear}}
+
+
+{{Headline|25|Dev Blog: The Theatre of Blood}}
+<br/>
+<center>''The purpose of this blog is to detail as much as possible prior to the poll going live in-game to allow for player feedback. Whilst there's a lot of detail to be found, we're purposefully not saying much about the how The Theatre of Blood and its surrounding areas will play out as we don't want to ruin the surprise!''</center>
+<br/>
+<center>'''''"The Theatre of Blood was created with one thing in mind, Lady Verzik's entertainment. She commanded her followers to create this challenge, in the hopes of watching many a willing citizen of Meiyerditch or travelling warrior perish"''''' Do you have what it takes to defeat the Theatre of Blood? Are you the hero the Myreque need? </center>
+<br/>
+<center>''It's showtime.''</center>
+
+{{Horizontal Line}}
+
+'''Changelog''':
+
+[20/03/18] - All changes as listed in [http://services.runescape.com/m=news/theatre-of-blood-rewards-tournament-world-feedback-tweaks?oldschool=1 this news post] have been added. To recap, they are as follows:
+*Infernal defender changed to the Avernic defender.
+*Avernic defender stats increased slightly so that it's accuracy and defensive stats are +3 higher than originally proposed.
+*Sanguinesti staff cost per cast reduced to 3 Blood runes rather than 4.
+*Sanguinesti staff heal effect increased to 1/6 chance per cast rather than 1/8.
+*Sanguinesti staff changed so that it has an additional max hit over the Trident of the swamp.
+*Ghrazi rapier 'Stab' bonus increased to +94 and the 'Melee strength' increased to +89.
+*Justiciar armour damage reduction effect removed in PvP situations.
+*Vampyrium vambraces changed to be a standalone drop rather than requiring Ranger gloves.
+*Sycthe of vitur attack rate increased to 5 rather than 7.
+*Charged Scythe of vitur 'Slash' bonus increased to +110.
+[20/03/18] - Further detail added regarding how the Avernic defender is treated in PvP scenarios.<br/>
+[20/03/18] - Changes made to the Judgement prayer. The 10% melee accuracy now also applies to melee strength.<br/>
+[20/03/18] - Further detail added regarding how the damage reduction effect of the Justiciar armour works alongside similar items such as the Elysian spirit shield.
+
+'''We are aiming for the poll to be live in-game at 4pm GMT 20/03/2018.'''
+
+{{Horizontal Line}}
+
+{{Headline|25|Theatre of Blood}}
+
+Towards the east of Gielinor, located within the Sanguinesti region, is Ver Sinhaza. Once the home of Queen Efaritay, it is now ruled over by Verzik Vitur, head of the Vitur family and one of the few true-born vampyres on Gielinor. For millennia, Lady Verzik has commanded an army of vampyres whom she has not only used to do her biddings, but also provide her with on-demand entertainment. It didn't take long before this became tiresome, and so she instructed her followers to create a gauntlet filled with some of the strongest warriors, creations, creatures and puzzles. This is what we call today the Theatre of Blood.
+
+[[File:Dev Blog- Theatre of Blood (1).png|center|700px]]
+
+[[File:Dev Blog- Theatre of Blood (2).png|center|700px]]<center>''The above WIP images detail some of the interior of the Theatre of Blood.''</center>
+
+When the vampyres still lived on their home world of Vampyrium, they were near enough the apex predator. However, there was one species that even the vampyres feared, the Yarasa.
+
+Like bats, these large flying predators are visually impaired. However, that does not make them any less dangerous, as they have heightened senses of smell and sound. Their ability to attack in unpredictable ways makes them a deadly foe to the vampyres for it renders their immunities useless.
+
+While the Yarasa are already a deadly foe, there is none more dangerous than their king, Xarpus. When the vampyres were united under the eight tribes, they hunted down and defeated most of the Yarasa, driving them to near extinction. However, they were unable to defeat Xarpus, with him surviving their hunts until they finally left Vampyrium many years later.
+
+It is unknown how they managed it, but eventually the vampyres brought Xarpus to Gielinor. They trapped him in the Theatre. There, he now fights any who enter, desperate to escape and enact vengeance upon the vampyres.
+
+[[File:Dev Blog- Theatre of Blood (3).png|center|700px]]<center>''Xarpus is one of the many bosses to be found within the Theatre of Blood. This image in WIP and is subject to change.''</center>
+
+The citizens of Meiyerditch often go to the Theatre to fight against the various experiments and abominations contained within, providing entertainment for the vampyres. To encourage them to do this, the vampyres promise them freedom if they survive. With the aid of the Myreque, it's down to you to complete all its challenges and emerge as the victor.
+
+{{Horizontal Line}}
+
+{{Headline|25|Theatre of Blood: The Basics}}
+
+The Theatre of Blood is a linear progression raid challenge located in the Sanguinesti region, East of Meiyerditch, that emphasises on the need for teamwork. The Theatre can be accessed via a boat north of Port Phasmatys for a small fee, alternatively you can walk there, but it's quite the journey and not something we'd recommend.
+
+There is no skilling involved within the Theatre, and all rooms are generated in the same order each time you enter. Throughout the raid, you'll have a few opportunities to receive a small amount of loot and supplies, but your success will heavily depend upon the equipment and supplies you take with you, alongside how well you can work together as a group.
+
+The maximum group size allowed to enter the Theatre is 5, and has been balanced for group sizes of 3-5 players. There are multiple challenge rooms that contain difficult to defeat monsters, bosses and puzzles, that eventually lead up to a final epic boss challenge like nothing ever seen in Old School RuneScape.
+
+[[File:Dev Blog- Theatre of Blood (4).png|center|700px]]<center>''A new lobby system is being implemented for the Theatre of Blood, allowing players to form groups of up to 5 players.''</center>
+
+The Theatre of Blood will have a unique wiping system. Dying in a challenge room means you as an individual must sit out the rest of that room whilst your team carries on. Once the room has been completed, you will be able to re-join your group for the rest of the raid. If a 'full wipe' occurs, for example the whole team dies, the raid is failed completely and you must restart from the beginning. A failed raid is not considered safe and any lost items will go into the gravestone system, like that of Torfinn's, with a gold fee required to retrieve them. Whilst a single death during a challenge room doesn't end the raid, '''any death within the Theatre of Blood''' will cause a Hardcore Ironman to lose their status, reverting them to a regular Ironman.
+
+The number of deaths reduces the players chance of obtaining a unique reward, which will only be awarded after killing the final boss of the raid. All other bosses throughout the raid will offer a small reward to compensate you for your time, but will have no chance of uniques.
+
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question #1'''</center><center>Should we add a new multiplayer raiding experience, The Theatre of Blood, to Old School RuneScape? If this question passes we will also expand the Meiyerditch region.</center></div>
+
+{{Horizontal Line}}
+
+{{Headline|25|A Taste of Hope}}
+
+For many years, the Myreque have fought back against the reign of the Drakans. To many, they act as a glimmer of hope in an otherwise miserable existence. In recent times, the Myreque have been beset by disaster, with numerous members meeting a gruesome end at the hands of Vanstrom Klause, the brutal henchman of the Drakans. However, while the Myreque may be in their darkest hour, hope still remains. Thanks to a recent discovery in the laboratories deep beneath Meiyerditch, the Myreque may have finally found a way to take the fight to the vampyres. They will do just that in the latest instalment in the Myreque questline, '''A Taste of Hope'''.
+
+[[File:Dev Blog- Theatre of Blood (5).png|center|700px]]
+
+A Taste of Hope will be a brand new experienced level quest available to players who have completed Darkness of Hallowvale. Players who manage to complete this quest will be rewarded with the following:
+
+*1 Quest Point.
+*A Tome of Experience (this grants 2500 XP in any three skills of 35 or above).
+*A new unlimited teleport that takes players directly to the Theatre of Blood.
+*A new weapon for killing vampyres.
+
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question #2'''</center><center>Should we add a new experienced difficulty quest called A Taste of Hope? Completing the quest will rewards players with 1 Quest Point, a Tome of Experience with 3 uses which gives 2500 XP in any skill of 35 or above, a new unlimited teleport that takes players directly to the Theatre of Blood and a new weapon for killing vampyres.</center></div>
+
+{{Horizontal Line}}
+
+{{Headline|25|Theatre of Blood Rewards}}
+
+The Theatre of Blood is anticipated to be the next big challenge coming to Old School RuneScape and will offer a gameplay experience like nothing else in-game. With something as challenging and exciting as this, you can be sure that you'll be rewarded well.
+
+All rewards detailed below, other than the potions and Judgement Prayer, will be available for '''testing in Tournament worlds, going live on the 8th of March''' for all members. As with prior releases you'll be given the freedom to select your own stats, and you'll have a wide range of equipment to choose from in addition to the new items listed in this blog. Things will be a little different than normal though, as you'll be able to '''travel anywhere in Gielinor'''. No content is being locked on these worlds, meaning you'll have plenty of opportunities to test each item fully before they're polled. We've made things a little more convenient for testing purposes too, such as adding teleport tabs to the supplies chest and being able to give yourself a new Slayer task free of charge at any Slayer Master by right clicking them and selecting "Assignment" (cancelling tasks will still cost points, so make sure you right-click and select Assignment to avoid any charges).
+
+All of the rewards are subject to change and we're intending to leave these tournament worlds open for as long as they are necessary. In this time '''your feedback will be invaluable to us''', so please let us know your thoughts via this [http://services.runescape.com/m=forum/forums.ws?380,381,466,65995386 forum post], which is also linked at the bottom of the blog, Reddit ([https://www.reddit.com/r/2007scape/ /r/2007scape] and [https://www.reddit.com/r/oldschoolrs/ /r/oldschoolrs]) and [https://twitter.com/OldSchoolRS Twitter] using '''#TheatreOfBlood'''.
+
+'''Vials of Blood & New Potions'''
+
+The vampyres have long believed that there is great power in blood. A belief that has only increased with their recent experiments with Haemalchemy. These vials contain modified blood that enhances the power of potions and can be used to charge new weapons found from within the Theatre of Blood.
+
+Initially when we discussed the introduction of the below potions, we intended for them to lower your HP by 10 with each dose. After some internal balancing of the potion effects and boosts, we determined it was not necessary. Whilst the potions do allow you to save some inventory space, you would likely be required to take additional food to compensate for the HP loss. We feel the bonuses of the potions do not warrant this, though it is something we will consider should any changes be required.
+
+'''Bastion potion''': This single potion boosts both Ranged and Defence levels by the same amounts that using a Ranging potion and Super defence potion would. Mixing this potion requires 80 Herblore and the following ingredients: Vial of blood, Cadantine & Wine of Zamorak. Completing the full potion grants 155 Herblore experience.
+
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question #3'''</center><center>If the Theatre of Blood is added to the game, should it be possible to combine a Vial of blood, Cadantine & Wine of Zamorak to create a Bastion potion? This potion provides the same boosts a Ranging potion and Super defence potion would. Mixing the potion requires 80 Herblore and grants 155 Herblore experience. The potion is tradeable.</center></div><br/>
+
+'''Battlemage potion''': This single potion boosts both Magic and Defence levels by the same amounts that using a Magic potion and Super defence potion would. Mixing this potion requires 80 Herblore and the following ingredients: Vial of blood, Cadantine & Potato cactus. Completing the full potion grants 155 Herblore experience.
+
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question #4'''</center><center>If the Theatre of Blood is added to the game, should it be possible to combine a Vial of blood, Cadantine & Potato cactus to create a Battlemage potion? This potion provides the same boosts a Magic potion and Super defence potion would. Mixing the potion requires 80 Herblore and grants 155 Herblore experience. The potion is tradeable.</center></div><br/>
+
+'''Totality Potion''': This single potion boosts Attack, Strength, Defence, Ranged and Magic levels by the same amounts that using a Super combat potion, Ranging potion and Magic potion would. Mixing this potion requires 96 Herblore and the following ingredients: Super combat potion, Range potion, Magic potion, Vial of blood & Torstol. Completing the full potion grants 180 Herblore experience.
+
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question #5'''</center><center>If the Theatre of Blood is added to the game, should it be possible to combine a Super combat potion, Range potion, Magic potion, Vial of blood & Torstol to create a Totality potion? This potion provides the same boosts a Super combat potion, Ranging potion and Magic potion would. Mixing the potion requires 96 Herblore and grants 180 Herblore experience. The potion is tradeable.</center></div><br/>
+
+'''Vigour potion''': This single potion restores Prayer points (7 + 25% of Prayer level), as well as applying a weak Stamina potion effect that lasts for 1 minute instead of 2. Mixing this potion requires 88 Herblore and the following ingredients: Vial of blood, Amylase crystal & Ranarr. Completing the full potion grants 110 Herblore experience.
+
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question #6'''</center><center>If the Theatre of Blood is added to the game, should it be possible to combine a Vial of blood, Amylase crystal & Ranarr weed to create a Vigour potion? This potion restores Prayer points (7 + 25% of Prayer level), as well as applying a weak Stamina potion effect that lasts for 1 minute instead of 2. Mixing the potion requires 88 Herblore and grants 110 Herblore experience. The potion is tradeable.</center></div><br/>
+
+'''Super Prayer potion''': This potion would restore Prayer points (7 + 25% of prayer level) and add a renewal effect, restoring an additional 6 Prayer points over 30 seconds (at a rate of one point per 5 seconds). Mixing this potion requires 91 Herblore and the following ingredients: Vial of blood, Ranarr weed, Snapdragon & Snape Grass. Completing the full potion grants 120 Herblore experience.
+
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question #7'''</center><center>If the Theatre of Blood is added to the game, should it be possible to combine a Vial of blood, Ranarr weed, Snapdragon & Snape Grass to create a Super Prayer potion? This potion restores Prayer points (7 + 25% of prayer level) and restores an additional 6 Prayer points over 30 seconds at a rate of one point per 5 seconds. Mixing the potion requires 91 Herblore and grants 120 Herblore experience. The potion is tradeable.</center></div><br/>
+
+'''Avernic Defender'''
+
+During the Second Age, Avernic weaponry was common amongst the forces of the Empty Lord. These weapons, crafted by Avernic smiths in the liquid fires of Infernus, were some of the most powerful around.
+
+Today, Avernic weapons are incredibly rare, the secrets behind their creation having long since been lost. Lady Verzik's Avernic Defender is one of the few to still remain and is a relic from her time in the service of the Empty Lord.
+
+The Avernic defender is an upgraded version of the Dragon defender, requiring 70 Attack and 70 Defence to equip. Due to its age, the full defender has been destroyed, leaving behind only the hilt. To create the Avernic defender, you must combine the Avernic hilt with a Dragon defender. The Avernic hilt is tradeable, but once combined with a Dragon defender the Avernic defender is untradeable. You can dismantle the Avernic defender to retrieve the Dragon defender that was used, but the Avernic hilt is destroyed in the process.
+
+If a player dies below level 20 Wilderness with the Avernic defender, it will revert to a broken Avernic defender, which can be repaired for 1,000,000 coins by using the item on Perdu. The player that gets the kill would be awarded 1,000,000 from the defender, in addition to the normal loot their opponent would drop. Deaths above level 20 Wilderness will be treated the same as any other untradable item, meaning the person wearing it will not get a broken Avernic defender back - it will be lost.
+
+[[File:Dev Blog- Theatre of Blood (6).png|center]]
+
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question #8'''</center><center>Should the Avernic hilt be a potential reward from the final boss of the Theatre of Blood? The hilt can be combined with a Dragon defender to create the Avernic defender, requiring 70 Attack and Defence to equip. The Avernic hilt is tradeable but the completed Avernic defender is not. The Avernic defender does not degrade.</center></div><br/>
+
+'''Judgement Prayer Scroll'''
+
+During the God Wars, Armadyl granted his followers great power so that they may defeat his enemies. Judgement was one of these many powers, one that has since been lost to history. However, when Armadyl left Gielinor after the God Wars, his abandoned fortresses were raided by Lady Verzik's vampyres. Within one of these fortresses, they found a scroll containing the hidden knowledge of Judgement.
+
+Judgement is a new overhead prayer, requiring 85 Prayer to use. It is unlocked via a tradeable scroll which can be obtained from within the Theatre of Blood. Use of the Prayer boosts melee attack and strength by 10%, but lowers your own defence by 50%. Whilst Judgement is active, 1/6th of any damage dealt by the user is removed from their Prayer. Use of Judgement stacks with combat prayers such as Piety, but as it is an overhead prayer it cannot be used with similar prayers such as Protect from Melee.
+
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question #9'''</center><center>Should a scroll that unlocks the new overhead prayer "Judgement" be a potential reward from the final boss of the Theatre of Blood? Judgement boosts melee attack and strength by 10%, but lowers your own defence by 50%. Whilst Judgement is active, 1/6th of any damage dealt by the user is removed from their Prayer. The Judgement prayer scroll is tradeable.</center></div><br/>
+
+'''Sanguinesti Staff'''
+
+One of the more recent additions to Lady Verzik's collection, the Sanguinesti staff is a powerful weapon that was crafted by Lord Lowerniel Drakan himself. The staff was given to Lady Verzik by Lord Lowerniel Drakan as a reward for assisting him in their fights against the Seven Priestly Warriors.
+
+The Sanguinesti staff is a new tradeable Magic weapon requiring 75 Magic to wield. It is identical in terms of stats to that of the Trident of the swamp, but can hit 1 damage higher. It has the added effect of a 1/6 chance to heal you for 50% of the damage dealt when attacking an NPC. It is charged with Blood runes and uses 3 runes per cast. The staff does not degrade.
+
+[[File:Dev Blog- Theatre of Blood (7).png|center]]
+
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question #10'''</center><center>Should the Sanguinesti staff be a potential reward from the final boss of the Theatre of Blood? The staff requires 75 Magic to wield and costs 3 Blood runes per cast. It is identical in stats the Trident of the swamp, but can hit 1 damage higher. It has the added effect of a 1/6 chance to heal you for 50% of the damage dealt when attacking an NPC. The Sanguinesti staff is tradeable and does not degrade.</center></div><br/>
+
+'''Ghrazi Rapier'''
+
+Of all Vampyriums tribes, none were more vicious than the Ghrazi. These vampyres took pride in their combat abilities and would regularly bait their prey into battle so that they could test their prowess.
+
+The rapier in Lady Verzik's vault was once wielded by a fearsome Ghrazi warlord. It was given to her by her father who came to possess it after the warlord challenged him to a battle, one that he did not survive to tell the tale.
+
+The Ghrazi rapier is a new tradeable stab weapon that requires 75 Attack to wield. It is not charged and does not degrade. The attack speed of the rapier is the same as the Abyssal tentacle.
+
+[[File:Dev Blog- Theatre of Blood (8).png|center]]
+
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question #11'''</center><center>Should the Ghrazi rapier be a potential reward from the final boss of the Theatre of Blood? The rapier requires 75 Attack to wield. The attack speed of the rapier is the same as the Abyssal tentacle. The Ghrazi rapier is tradeable and does not degrade.</center></div><br/>
+
+'''Justiciar Armour'''
+
+The justiciars were elite warriors in Saradomin's army during the God Wars. Unlike the rest of his forces, the justiciars operated alone, often working as assassins and saboteurs. Selected from a variety of races, they were all chosen by Saradomin himself who granted them great power.
+
+When the vampyres invaded Hallowvale, some of the last remaining justiciars fell in battle. The Justiciar Armour found in Lady Verzik's vault was taken from one of these fallen warriors.
+
+The Justiciar armour is a brand-new set of tradeable tank orientated gear requiring 75 defence to equip. Each individual piece of armour offers defensive stats slightly higher than that of Torag the Corrupted's equipment, with the addition of some Prayer bonus.
+
+When the full set of Justiciar armour is equipped, all incoming damage taken is reduced by x/3000, where 'x' is your equipment's defence bonus. This is based on the style of attack being used against you. For example, if an enemy was using a Crush style attack and you had a defensive bonus total of 450 against Crush then 450/3000 = 15% damage reduction. This effect '''does not apply in PvP combat'''.
+
+When wearing the full Justiciar armour alongside items with similar effects, such as the Elysian spirit shield which has a 70% chance of reducing the damage the player receives by 25%, the damage reduction effect will apply after the Elysian spirit shield's effect. For example, if a player wearing was to be hit for a 40 damage Crush attack whilst wearing the full Justiciar armour with +450 Crush defense and an Elysian spirit shield, and the Elysian spirit shield's effect was activated, the damage would initially be reduced to 30 (25% of 40 is 30). The Justiciar armour would then provide a further 15% damage reduction (as the attack is a Crush attack, and in this example the total Crush defence is +450, then 450/3000 = 15% damage reduction), meaning the original 40 hit would be reduced to 25.
+
+The Justiciar armour does not degrade and it does not require charging.
+
+[[File:Dev Blog- Theatre of Blood (9).png|center|700px]]
+
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question #12'''</center><center>Should the Justiciar armour set be a potential reward from the final boss of the Theatre of Blood? The armour set requires 75 Defence to equip and has defensive stats slightly higher than that of Torag the Corrupted's equipment with the addition of a slight Prayer bonus. It offers a new damage reduction effect against NPCs based on your defence bonus when all 3 pieces are worn. This effect does not work in PvP. The Justiciar armour is tradeable and does not degrade.</center></div><br/>
+
+'''Vampyrium Vambraces'''
+
+The Vampyrium vambraces are amongst the oldest items in Lady Verzik's Vault. They were crafted back when the vampyres still lived on Vampyrium. Their original use was to assist the vampyres in their fight against the Yarasa.
+
+Vampyrium vambraces are a new tradeable ranged hand slot item that require 75 Ranged and Defence to equip. They offer a slight offensive bonus when compared to Barrows gloves, at the expense of some defensive stats.
+
+[[File:Dev Blog- Theatre of Blood (10).png|center]]
+
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question #13'''</center><center>Should Vampyrium vambraces be a potential reward from the final boss of the Theatre of Blood? The vambraces require 75 Ranged and Defence to equip. The Vampyrium vambraces are tradeable and do not degrade.</center></div><br/>
+
+'''Scythe of Vitur'''
+
+Of all of Lady Verzik's possessions, one of the most valuable is the Scythe of Vitur. This legendary weapon was once wielded by the founder of House Vitur, a vampyre now worshipped as a god.
+
+The Scythe of vitur is a hard hitting, tradeable 2-handed weapon. It has no special attack but can hit up to three enemies once in a 1x3 arc in front of the player. Similar to the special attacks of the Dragon and Crystal halberd, each swing can also hit large creatures up to three times in the same attack. The scythe can only hit a maximum of three NPCs and can only hit a maximum of three times. The first hit deals 100% damage, the 2nd deals 50% and the 3rd deals 25%. Each attack, regardless of which enemy is your primary target, is rolled independently based on your attack bonuses versus the NPCs defence bonuses.
+
+The scythe requires 75 Attack and 75 Strength to wield and has two variants, and uncharged and charged version. The uncharged version has relatively low stats, but once charged, gains additional bonuses. Charging the scythe costs 1/100th of a Vial of blood and 3 Blood runes, meaning 100 charges would cost a full Vial of blood and 300 Blood runes.
+
+[[File:Dev Blog- Theatre of Blood (11).png|center]]
+
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question #14'''</center><center>Should the Scythe of vitur be a potential reward from the final boss of the Theatre of Blood? The scythe requires 75 Attack and Strength to equip. It is charged with 1/100th of a Vial of blood and 3 Blood runes. It has no special attack but can hit up to three enemies in a 1x3 arc in front of the player. Each swing can also hit large creatures up to three times in the same attack. The scythe can only hit a maximum of three enemies and can only hit a maximum of three times. The first hit deals 100% damage, the 2nd deals 50% and the 3rd deals 25%. The Scythe of vitur is tradeable and does not degrade.</center></div><br/>
+
+'''Sinhaza Shroud'''
+
+In the courtyard outside the Theatre of Blood, a mysterious figure watches. No one knows why he is there, but he takes a great interest in any who would enter the Theatre. Anyone who manages to survive the Theatre may find that this figure has a strange gift for them, a shroud of unknown origin.
+
+The Sinhaza shroud is an entirely cosmetic cape that players will receive after completing the Theatre of Blood. It is possible to change the appearance of the cape after completing the Theatre of blood 100, 500, 1000, 1500 and 2000 times respectively.
+
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question #15'''</center><center>Should the Sinhaza shroud be awarded to all players who complete the Theatre of Blood? The shroud is an entirely cosmetic cape you can change the appearance of after completing the Theatre of blood 100, 500, 1000, 1500 and 2000 times respectively. The Sinhaza shroud is untradeable.</center></div><br/>
+
+{{Horizontal Line}}
+
+We're really excited for you to try out the rewards over the next few weeks. As well as discussing this Dev Blog on our [http://services.runescape.com/m=forum/forums.ws?380,381,466,65995386 forums], remember to use '''#TheatreOfBlood''' on [https://twitter.com/OldSchoolRS Twitter] so we can see all of your feedback!
+
+'''''Mods Archie, Ash, Ayiza, Curse, Ed, Ghost, Jed, John C, Kieren, Lottie, Mat K, Maz, Roq, Ry, Stone, Sween, Weath, West & Wolf'''''<br/>''The Old School Team''

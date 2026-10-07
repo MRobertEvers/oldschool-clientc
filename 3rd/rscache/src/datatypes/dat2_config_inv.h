@@ -2,6 +2,7 @@
 #define RSCACHE_DATATYPES_DAT2_CONFIG_INV_H
 
 #include "../rsbuffer.h"
+#include "../rscache_presence.h"
 
 #include <stdbool.h>
 
@@ -18,11 +19,26 @@
  * caches leaves exactly one possibility. No record in the corpus carries any other
  * opcode, and none carries a size of zero.
  */
+/**
+ * The fields an inv stream can state, for `RSCache_Dat2ConfigInv.present`. Keyed
+ * by meaning, not opcode number.
+ */
+enum RSCache_Dat2ConfigInvField
+{
+    RSCACHE_INV_FIELD_SIZE = 0, /* 2 */
+    RSCACHE_INV_FIELD_PARAMS,   /* 249 */
+    RSCACHE_INV_FIELD_COUNT
+};
+
 struct RSCache_Dat2ConfigInv
 {
+    /** Which `RSCache_Dat2ConfigInvField`s the stream stated. The encoder writes
+     *  exactly these; a field not stated keeps the client default below. */
+    struct RSCache_Presence present;
     int id;
     /** Slot count. 0 when the record named none, which no cache record does. */
     int size;
+    /** Opcode 249. Stated with zero entries is a real (if useless) record. */
     struct RSCache_Params params;
     /** Bytes consumed. Equal to the record size for a fully understood record. */
     int _consumed;
@@ -59,7 +75,8 @@ RSCache_Dat2ConfigInvDecodeInplace(
 void
 RSCache_Dat2ConfigInvFreeInplace(struct RSCache_Dat2ConfigInv* entry);
 
-/** Byte-exact on every record in the corpus. Returns bytes written, or 0. */
+/** Writes exactly the fields `present` names. Byte-exact on every record in the
+ *  corpus. Returns bytes written. */
 uint32_t
 RSCache_Dat2ConfigInvEncode(
     const struct RSCache_Dat2ConfigInv* entry,

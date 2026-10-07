@@ -1,0 +1,45 @@
+{{External|rs|rsc}}
+{{Infobox NPC
+|version1 = Travel
+|version2 = Locations
+|name = Captain Tobias
+|image = [[File:Captain Tobias.png|120px]]
+|release1 = [[11 June]] [[2001]]
+|release2 = [[19 November]] [[2025]]
+|update1 = The island of Karamja is open
+|update2 = Sailing is OUT TODAY!
+|members = No
+|race = [[Human]]
+|location = [[Port Sarim]] docks
+|gender = Male
+|options1 = Talk-to, Travel
+|options2 = Talk-to, Musa Point, The Pandemonium
+|examine = An old sea dog.
+|map = {{Map|name=Captain Tobias|x=3028|y=3218|plane=0|r=5|mtype=square}}
+|id1 = 14978
+|id2 = 14979
+|leagueRegion = Asgarnia
+}}
+[[File:Captain Tobias chathead.png|left]]
+'''Captain Tobias''' is a sailor found in [[Port Sarim]]. Along with [[Seaman Thresnor]] and [[Seaman Lorris]], players can ask him to take them to [[Musa Point]] in [[Karamja]] or [[The Pandemonium]] at a cost of 30 [[coins]].
+
+The cost for travel to Musa Point is reduced to 15 coins while wearing any form of [[Karamja gloves]]. If the player is wearing a [[Ring of Charos(a)]], they need not pay anything.
+
+==Treasure Trails==
+*{{Anagram|Tobias|medium|[[Clue scroll (medium) - A BASIC ANTI POT|A BASIC ANTI POT]]}}. The challenge scroll answer is '''6'''.
+*{{CrypticNPC|Tobias|easy|[[Clue scroll (easy) - One of the sailors in Port Sarim|One of the sailors in Port Sarim is your next destination.]]}}
+
+==Dialogue==
+{{Hastranscript|npc}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 22 May 2006
+|update = Royal Trouble
+|change = The "Pay-fare" option was added, allowing for quick travel.
+}}
+{{Subject changes footer}}
+
+{{Port Sarim}}
+{{2016 Birthday event}}

@@ -1,0 +1,121 @@
+{{Update|date=23 April 2021|rev=30 April 2021|link=https://secure.runescape.com/m=news/a-night-at-the-theatre?oldschool=1|category=community}}
+[[File:A Night At The Theatre newspost.png|right]]
+{{clear}}
+
+{{ToC}}
+
+==Player Feedback Changes (April 30th)==
+Since we changed the Hard Modes rewards to include Saradominist-themed cosmetics there has been a lot of discussion, feedback and fan-led redesigns. We appreciate all of this and can't thank you enough!
+
+As a team we always enjoy your concepts for weapons. It's enlightening to see what items resonate for players, especially when they've been brought to life by others in the community!
+
+We want to clarify briefly why the items are Saradominist. In the Second Age, when Morytania was still known as Hallowvale and unblemished by the Vampyres, the castle atop The Theatre of Blood was home to a Saradominist queen. Following the God Wars, the Vampyres claimed many valuable Saradominist relics as their own. Some of the originals can still be found deep within Lady Verzik Virtur's vault!
+
+Of course, lore isn't all we're considering design-wise. Gameplay requirements and readability are big factors too. We hope you will find these items satisfying to use: that's why we're polling these items right now.
+
+That's not to say that we won't be seeing some of these community-made concepts materialising eventually. We fully expect to pull inspiration from these fabulous designs for future items, but as it stands, we'll be polling the original concept for now.
+
+We are, however, going to separate the poll question to cover each of the proposed rewards individually. Let us know what you think!
+
+==Player Feedback Changes (April 28th)==
+Thanks for all of your feedback on the blog! There was a lot of discussion around the item that changes the Justiciar Armour into a Vampyre-themed set.
+
+Many of you felt that you don't use the Justiciar Armour as often as other Theatre of Blood rewards, and that you’d rather see more regularly used items receive a cosmetic change.
+
+Here are the items that could change instead of the Justiciar Armour:
+* Ghrazi Rapier
+* Sanguinesti Staff
+* Scythe of Vitur
+
+[[File:A Night At The Theatre (1).png|thumb|center|600px|''A collection of concepts for the Saradomin-themed weapons.'']]
+
+
+When used on any of the weapons, this reward would cosmetically transform it into a Saradomin-inspired version. It wouldn't change the stats or base functionality of the item. We opted not to include a reward for the Avernic Defender – it's too small to portray the right level of detail. Turns out size does matter when it comes to art!
+
+As for the Vampyre-themed Justiciar Armour, we’ll be holding that back for a future poll. Until then, you can find the concept [[:File:A Night At The Theatre (2).png|here]].
+
+We’ve updated the blog to highlight these changes, and the poll question regarding Hard Mode rewards now refers to the new cosmetic additions.
+
+
+----
+
+
+Old School's approach to storytelling is one of its greatest strengths. We always aim to combine compelling gameplay with narrative depth, and to lead our players naturally towards more difficult content. With our new quest, '''A Night At The Theatre''', we hope to introduce more players of different experience levels to the wicked delights of the infamous Theatre of Blood!
+
+Along with this new quest, we're introducing two new difficulty settings for Theatre of Blood - Story Mode and Hard Mode. Read on to find out how we're helping guide mid-level players through end-game content, all while offering end-game players even tougher challenges to sink their teeth into!
+
+Those of you who have been with us for a while may remember [https://secure.runescape.com/m=news/theatre-of-blood-entry-mode-poll-blog?oldschool=1 back in 2018], shortly after the release of Theatre of Blood, when we pitched the idea of an Entry Mode encounter. If we're brutally honest, it wasn't a strong pitch. It was a hasty response to feedback from a small number of players taking part in the Raid on launch. Our proposal for '''Story Mode''' is what that pitch ''should'' have been. And, in A Night At The Theatre, players will fight their way through a scaled-down version of the infamous Theatre, with greatly reduced rewards, but more accessible gameplay!
+
+'''Hard Mode''', meanwhile, is aimed at players who have comfortably mastered the mechanics of the regular Theatre of Blood and are looking to step up their game. And we're not just talking inflated stats here - we'll be changing the very mechanics of each fight to add additional complexity and really put you through your paces.
+
+If both Story Mode and Hard Mode are added to the game, you'll make your selection from the notice board outside the Theatre (and you'll play on Normal Mode by default). Story Mode and Normal Mode will be available to anybody who has access to the Theatre, but Hard Mode will require at least one Normal Mode completion. Only the party leader can set the mode, but the board will show what mode has been selected for all recruiting parties. We'll add additional tracking variables so that completions, deaths and best times will be mode-specific, and the scoreboard outside will show statistics for all three modes.
+
+Rest assured, we've heard your requests for new end-game content, and we have much greater plans in the works - we're simply adapting our schedule to add new challenges in the meantime. If you like this proposal, and it proves to be successful when added to the game, we will adopt a similar approach with future Raids.
+
+And so, without further ado, let's pull back the curtain on A Night At The Theatre...
+
+==A Night At The Theatre==
+A Night at the Theatre will be many players' first experience of Theatre of Blood, so we want it to be a highly playable introduction to this fearsome locale. The quest can be tackled on any mode (Story, Normal, or Hard), but is primarily designed for '''Story Mode'''. First-time adventurers can also team up with players who have already completed the quest. You'll need to complete it for the finale of the Myreque series.
+
+{{Collapsed section|18|Requirements and Rewards (SPOILER WARNING)}}
+A Night At The Theatre is a Master-level quest. As it takes you through a challenging (albeit scaled) Raid encounter, we'd recommend that you have 90 Combat before embarking. As it takes place in Morytania, '''Priest In Peril''' is required.
+
+Upon completion you'll be rewarded:
+* 2 Quest Points
+* 40,000 XP in a Combat skill
+{{Collapsed section end}}
+
+==Story Mode==
+Story Mode is of similar difficulty to the current Theatre of Blood, but with the following changes:
+* All boss stats, including health and defences, are reduced – and all attacks deal less damage to the player.
+* Boss health will scale differently from Normal mode, where health scales down to 75% at three or fewer players. In Story Mode, it will continue scaling down to just 20% for a solo player. At this level of scaling we'd expect it to be similar (perhaps slightly harder) difficulty than our existing quest bosses, so it could be completed as a solo experience.
+* No unique rewards will be given (this includes Lil' Zik).
+* All other rewards will be reduced to 20% of their usual quantity.
+* As detailed above, separate tracking will be used from other modes.
+* Supplies can't be bought with points. Instead, players will be given untradeable Supply Packs which can only be used in the Story Mode Raid.
+* Death mechanics are different. If all party members die (and wipe), they'll respawn outside the challenge area, with the challenge reset. This respawn can happen up to three times. If the party all wipe for a fourth time, they will die as normal.
+
+{{News Poll|1|Would you like A Night At The Theatre, a new Master level quest, to be added to the game? Story Mode, a new difficulty level for Theatre of Blood, will also be added with the quest.}}
+
+==Hard Mode==
+Now it's time for the toughest cookies to step up to the plate! Hard Mode is aimed at players who have mastered the Theatre of Blood and are eager for a new challenge. This isn't like the Chambers of Xeric: Challenge Mode, where we inflated stats on an established and consistent path. Hard Mode will change the very mechanics of each boss fight, giving you a more gnarly and complex encounter. Crumbs!
+
+In terms of scaling, Hard Mode will continue to scale for players in groups of 1-5 using the existing scaling system of 75% health at three (or fewer) players.
+
+Similarly to the Chambers of Xeric: Challenge Mode, the content will carry target times, based on group size, which will affect your chances of acquiring new and unique rewards!
+
+===Rewards===
+Our plan is to improve existing rewards and offer some fresh cosmetic rewards:
+* The existing unique drop chances will be increased, and we will slightly lower the chance of any unique drop being an Avernic Defender. This means Hard Mode will be the best way for habitual players to obtain special Theatre of Blood loot.
+* Quantities of loot on the regular drop table will be increased by 25%.
+
+Speeding through it? For players who finish within the target time, the following rewards await you:
+* A further increase to regular drop table loot.
+* The chance to score a unique untradeable item which can be used to metamorphise Lil' Zik into any of the Theatre of Blood bosses.
+* A chance at unique untradeable item which can change the following into Saradomin-themed weapons (see image below):
+** Ghrazi Rapier
+** Sanguinesti Staff
+** Scythe of Vitur
+* This item will function similarly to the Twisted Ancestral colour kit (one kit is required per weapon, the weapon will become untradeable, and it can be detached from the weapon).
+
+[[File:A Night At The Theatre (1).png|thumb|center|600px|''A collection of concepts for the Saradomin-themed weapons.'']]
+
+{{News Poll|2|Would you like a Hard Mode added to the Theatre of Blood? The boss fight mechanics will be updated to make each encounter more challenging, and rewards will be improved.}}
+
+{{News Poll|3|If Question #2 passes, would you like us to add an item which unlocks the ability to metamorphise Lil' Zik into any of the Theatre of Blood bosses?}}
+
+{{News Poll|4|If Hard Mode passes, an untradeable item will be added as a potential reward which can change the appearance of some weapons. Would you like this item to change the appearance of the Scythe of Vitur into a Saradominist-themed weapon, as shown in the blog?}}
+
+{{News Poll|5|If Hard Mode passes, an untradeable item will be added as a potential reward which can change the appearance of some weapons. Would you like this item to change the appearance of the Ghrazi Rapier into a Saradominist-themed weapon, as shown in the blog?}}
+
+{{News Poll|6|If Hard Mode passes, an untradeable item will be added as a potential reward which can change the appearance of some weapons. Would you like this item to change the appearance of the Sanguinesti Staff into a Saradominist-themed weapon, as shown in the blog?}}
+
+----
+
+This proposal represents a significant change of approach to end-game Raiding content, so we'd really love to hear your thoughts. Do you support our goal of helping new players get to grips with the Raid? Do you think it will work? What would you change? Share your feedback with us via our [https://secure.runescape.com/m=forum/forums?380,381,714,66212745 official forums], on the [https://www.reddit.com/r/2007scape/comments/mwvb8y/a_night_at_the_theatre_tob_new_modes/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the '''#gameupdate''' channel.
+
+----
+
+'''Mods Acorn, Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Bonsai, Brow, Bruno, Curse, Daizong, Deagle, Dibber, Ditto, Dylan, Ed, Elena, Errol, Fed, Flippy, Gecko, Gee, Grub, Halo, Husky, Jndr, John C, Kandosii, Katies, Kieren, Kirby, Lenny, Light, Lottie, Mack, Maylea, MikeD, Morty, Nasty, Nin, Oasis, Roq, Ry, Sarnie, Squid, Steve W, Sween, Tide, Vegard, West, Wolfy & Zuko'''
+
+''The Old School Team''

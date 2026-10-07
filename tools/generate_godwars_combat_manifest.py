@@ -18,6 +18,8 @@ import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 
+import config_text
+
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTENT = ROOT / "OSRS-Content/osrs239-content"
@@ -174,8 +176,14 @@ def family_of(gameval: str) -> str:
     raise ValueError(f"no family mapping for {gameval}")
 
 
-def read_blocks(path: Path) -> dict[str, dict[str, str]]:
-    blocks: dict[str, dict[str, str]] = defaultdict(dict)
+def read_blocks(path: Path) -> dict[str, list[tuple[str, object, bool]]]:
+    """[name] -> [(key, value, from_param)] in file order.
+
+    `param=<name>,<value>` is flattened to `(<name>, <value>, True)`. A marker
+    line (`key=default` / `key=empty`) is kept as `(key, config_text.DEFAULT or
+    EMPTY, False)` so merge_block() can clear what an earlier file set.
+    """
+    blocks: dict[str, list[tuple[str, object, bool]]] = defaultdict(list)
     current = ""
     for raw in path.read_text(errors="replace").splitlines():
         m = re.fullmatch(r"\[([^]]+)]", raw.strip())
@@ -185,10 +193,42 @@ def read_blocks(path: Path) -> dict[str, dict[str, str]]:
         if not current or "=" not in raw or raw.lstrip().startswith("//"):
             continue
         key, value = raw.strip().split("=", 1)
-        if key == "param" and "," in value:
+        mark = config_text.marker(value)
+        if mark is not None:
+            blocks[current].append((key, mark, False))
+            continue
+        value = config_text.unmark(value)
+        from_param = key == "param" and "," in value
+        if from_param:
             key, value = value.split(",", 1)
-        blocks[current][key] = value
+        blocks[current].append((key, value, from_param))
     return blocks
+
+
+def merge_block(merged: dict[str, str], param_keys: set[str], entries) -> None:
+    """Apply one file's block for a record over what earlier files said.
+
+    A key a later file states replaces the earlier value. A marker clears it,
+    so a rank-1 overlay's `key=default` clears a field rank 0 set instead of
+    inheriting it: `param=default`/`param=empty` drops every param, any other
+    stem drops every field of that stem (config_text.key_matches).
+    """
+    for key, value, from_param in entries:
+        if value is config_text.DEFAULT or value is config_text.EMPTY:
+            if key == "param":
+                doomed = set(param_keys)
+            else:
+                doomed = {k for k in merged
+                          if k not in param_keys and config_text.key_matches(key, k)}
+            for k in doomed:
+                del merged[k]
+                param_keys.discard(k)
+            continue
+        merged[key] = value
+        if from_param:
+            param_keys.add(key)
+        else:
+            param_keys.discard(key)
 
 
 def roster() -> tuple[list[str], Counter[str]]:
@@ -304,14 +344,15 @@ def build_rows() -> list[dict[str, str]]:
             roster_meta[row["gameval"]] = row
 
     params: dict[str, dict[str, str]] = defaultdict(dict)
+    param_keys: dict[str, set[str]] = defaultdict(set)
     for path in [
         CONTENT / "configs/all.npc",
         SCRIPTS / "npc/configs/combat_stats.generated.npc",
         SCRIPTS / "npc/configs/npc_anims.generated.npc",
         GWD / "configs/godwars.npc",
     ]:
-        for name, values in read_blocks(path).items():
-            params[name].update(values)
+        for name, entries in read_blocks(path).items():
+            merge_block(params[name], param_keys[name], entries)
 
     rs2_files = list(SCRIPTS.rglob("*.rs2"))
     rs2_text = "\n".join(p.read_text(errors="replace") for p in rs2_files)

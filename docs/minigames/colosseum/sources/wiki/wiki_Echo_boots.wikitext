@@ -1,0 +1,119 @@
+{{Infobox Item
+|name = Echo boots
+|image = [[File:Echo boots.png]]
+|release = [[20 March]] [[2024]]
+|update = Varlamore: Part One
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = Yes
+|stackable = No
+|noteable = No
+|options = Wear, Check, Toggle-activity, Revert
+|wornoptions = Check, Toggle-activity
+|examine = Thick, stony boots. There's a giant crystal in the middle of them.
+|value = 450000
+|alchable = No
+|weight = 7.000
+|id = 28945
+|leagueRegion = Varlamore
+}}
+[[File:Echo boots detail.png|150px|left]]
+'''Echo boots''' are an enhanced pair of [[guardian boots]] which require level 75 [[Defence]] to wear. They are made by combining the boots with an [[echo crystal]], a rare drop from participating in the [[Fortis Colosseum]]. Compared to its predecessor, it gives an additional +2 [[prayer bonus]] and a passive effect in which the boots deal 1 recoil damage to any target that damages the player, limited to a 3x3 square centered on the player. This effectively restricts recoiled targets to only those in melee range.
+
+Each echo crystal will add 6,000 charges to the recoil effect (costing {{Coins|{{GEP|Echo crystal}}/6000}} per charge), up to a maximum of 60,000. The recoil effect can be toggled via the boots' "Toggle-activity" option, allowing players to disable it as to not waste it during casual training, and instead use it in activities where the effect may prove more useful. The "Revert" option reverts the echo boots back into guardian boots, though this '''will not''' return any echo crystals, regardless of whether or not any recoil charges were used. Players can configure the charges while the boots are in their bank by right-clicking on Configure-Charges, as long as players have the required materials.
+
+Like the Bandos and guardian boots used in their creation, they will render followers of [[Bandos]] [[unaggressive]] to the wearer in the [[God Wars Dungeon]].
+
+[[File:Echo boots effect.gif|thumb|240px|A monster taking damage from the echo boots.]]
+
+==Combat stats==
+{{Infobox Bonuses
+|astab = 0
+|aslash = 0
+|acrush = 0
+|amagic = -3
+|arange = -1
+|dstab = +32
+|dslash = +32
+|dcrush = +32
+|dmagic = -3
+|drange = +24
+|str = +3
+|rstr = 0
+|mdmg = 0
+|prayer = +4
+|slot = feet
+|image = [[File:Echo boots equipped male.png|130px]]
+|altimage = [[File:Echo boots equipped female.png|130px]]
+}}
+
+==Creation==
+{{Recipe
+|members = Yes
+|mat1 = Guardian boots
+|mat2 = Echo crystal
+|output1 = Echo boots
+|output1quantity = 1
+}}
+
+==Treasure Trails==
+{{EmoteClue}}
+
+==Used in recommended equipment==
+{{Used in recommended equipment|Echo boots}}
+
+==Transcript==
+{{Hastranscript|item}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 30 April 2025
+|update = Poll 84: Batch II
+|change = Echo boots can now be reverted to [[guardian boots]] on a [[free-to-play]] [[server|world]].
+}}
+{{Subject changes
+|date = 5 March 2025
+|update = Game Jam: Charges QoL
+|change = The Echo boots support a bank item option for changing charges.
+}}
+{{Subject changes
+|date = 8 May 2024
+|type = hotfix
+|change = 
+* Players who are wearing echo boots and no longer meet the 75 Defence requirement to wear them will have their boots forcibly unequipped and placed in their backpack. If the player's backpack is full, the boots are deposited in the player's bank (if plausible). If the player's bank is also full, the boots are destroyed and reclaimable from [[Perdu]].{{CiteReddit|author=FoxDown|url=https://old.reddit.com/r/2007scape/comments/1cn1wax/echo_boots_may_be_75_defence_but_they_didnt/l35lm5f/|title=Echo boots may be 75 defence, but they didn't remove them|quote=[https://i.imgur.com/SCnmXqt.jpeg Update: it's fixed, at least for this account.]|date=8 May 2024|notes=|name=|archiveurl=https://reldo.runescape.wiki/i/27964048|archivedate=23 May 2026}}{{CiteVideo|author=Rendi|title=Mission Impossible <nowiki>|</nowiki> 3.4 Combat Fire Cape|url=https://www.youtube.com/watch?v=xsCt55Fn4kM&t=40m40s|timestamp=40:40&ndash;41:53|date=May 15, 2024|site=YouTube}}
+}}
+{{Subject changes
+|date = 8 May 2024
+|update = Project Rebalance: Skilling & Poll 81 MTA Changes
+|change = 
+* Echo Boots now require 75 Defence.
+}}
+{{Subject changes
+|date = 10 April 2024
+|update = Undead Pirates, Colosseum Changes & more!
+|change = 
+* The maximum amount of charges possible has been increased from 10,000 to 60,000.
+* The recoil effect can now be toggled via a new "Toggle-activity" option on the boots.
+* The boots will now remain intact and equipped, with no recoil effect, when the number of charges reaches 0.
+* The item's [[value]] has been increased from 305,000 to 450,000.
+}}
+{{Subject changes footer}}
+
+==Gallery==
+<gallery mode="packed" heights="200" style="text-align:left">
+Echo boots concept art.png|Concept art of the echoing guardian boots, by [[Mod Jerv]].
+</gallery>
+
+== Trivia ==
+
+* The boots' recoil effect is capable of killing [[Pitfall|pitfall hunter creatures]], which cannot normally be damaged through combat. When killed in this manner, they do not drop anything.
+
+==References==
+{{Reflist}}
+
+{{Fortis Colosseum}}
+{{Boots}}
+[[Category:Upgraded equipment]]
+[[Category:Items with charges]]

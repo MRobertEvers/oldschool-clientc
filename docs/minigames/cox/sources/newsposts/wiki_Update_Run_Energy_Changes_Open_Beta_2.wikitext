@@ -1,0 +1,115 @@
+{{Update|date=24 October 2024|url=https://secure.runescape.com/m=news/run-energy-changes---open-beta-2?oldschool=1|category=devblog}}
+[[File:Run Energy Changes - Open Beta 2 newspost.png|right]]
+{{clear}}
+__TOC__
+'''Update (October 24th, 11:05am BST):''' We've updated the blog copy for the formula for Regen. We'd initially included a reference to a 1.3 multiplier to simulate Graceful, this was included in error and has been removed, but the graphs shown are correct and reflect the formulae accurately. Additionally, we're aware of reports that RuneLite is crashing when trying to load the Beta worlds. We're investigating these to determine whether we're able to resolve on our end!
+
+It's been a while!
+
+Earlier this year, we shared with you a [https://secure.runescape.com/m=news/run-energy-changes?oldschool=1 first iteration of some changes to Run Energy], alongside an Open Beta. Our initial set of changes were too punishing for players in some setups, particularly for content like Raids, while our hotfixes resulted in a set of changes that were perhaps a little too generous. 
+
+Loads of you left valuable feedback, and even started suggesting formulae of your own to try and steer us in a better direction for these changes. We ran the numbers on a bunch of your suggestions, with [https://www.reddit.com/r/2007scape/comments/1dr55ip/an_even_simpler_run_energy_rework/ one in particular from Cheesey_Chicken] standing out above the rest, let's take a look!
+
+==Run Energy Changes - Round Two==
+One thing to keep in mind is that we're still working towards the same goals as before:
+
+* Improve the experience for new players so that Old School feels less sluggish in the early stages.
+* Improve the 'value-proposition' for Agility levels so that levelling the skill feels impactful in more scenarios.
+* Consider the impact of these changes on activities where managing your Run Energy is a means of skill-expression or warrants resource usage, such as Blast Furnace, the Great Olm or various God Wars Dungeon methods.
+** We know this last one wasn't overly popular with some players, but still feel like there's a sweet spot where optimising your movement potentially allowing you an extra Inventory space does feel rewarding and give players move avenues to improve their gameplay.
+
+We're not going to go back over all of the levers that we could be pulling here, that's old news and you can check out the original blog if you want a little more of an in-depth understanding of how Run Energy works in Old School. Let's dive straight into the new stuff!
+
+==The numbers Jagex, what do they mean?!==
+We'll start with a summary before diving deep into the maths of it all, but want to reiterate that the best way for you to get a feel for these is to jump into an '''Open Beta right now''' (instructions are included below as per usual!) and try them out for yourself.
+
+If you're in a rush though, here are the key points:
+
+
+* Energy Regeneration has been drastically improved across the board.
+* Energy Drain is buffed in most scenarios, levelling your Agility will allow you to run for longer.
+* In scenarios where Run Energy drains more quickly, the increased Regeneration should vastly outweigh the increased drain.
+* At level 54 Agility and beyond, Energy Drain is always slower with the new proposal than in the current behaviour, even at maximum weight.
+* At lower weights, this breakpoint for 'always better' occurs at much lower Agility levels and the reduction in Energy Drain rate is more drastic.
+
+What matters more than anything is how stuff ''feels'', it's really easy to get a sense for one part or another in a vacuum but can be tough to get a sense for how changes to Energy Regeneration and Drain work alongside each other in most scenarios where downtime at the bank or interacting with some objects or walking can drastically change the way your Run Energy moves up and down.
+
+On top of all of this, we're looking to leave Graceful as-is for now, so you'll get some weight reduction and a further increase in Energy Restoration. The Ring of Endurance should result in your Energy Drain being slower, and Stamina potions continue to reduce your Energy Drain by the same amount that they already do.
+
+==Energy Regen==
+The current formula for regenerating energy looks like this: (Agility level / 6) + 8.
+
+Keep in mind that behind the scenes, run energy scales between 0 and 10,000. This means that at level 1 Agility, your regen rate is (1 / 6) + 8, which gives a regen rate of 8 per tick (since we always round down). To regenerate from 0% to 100% would take 1,250 ticks, or 12 minutes and 30 seconds. At level 99 Agility, it takes 417 ticks to fully regenerate, or 4 minutes and 10 seconds.
+
+The proposed formula, which you'll be trying out in the beta, looks like this: (Agility level / 3) + 15.
+
+There's a few things going on here! The 15 at the end primarily serves to aid new players by improving the 'base' rate of regeneration before you start racking up Agility levels, and is actually a little higher than what Cheesey_Chicken proposed. You'll also notice that your Agility level is only being divided by 3 rather than by 6, this is a buff at the higher levels, but primarily is intended to have you hitting breakpoints more reliably rather than losing out due to our rounding.
+
+With this formula at level 1 Agility, you'll fully regenerate your run energy in 6 minutes and 40 seconds, speeding up to around 2 minutes and 5 seconds at 99 Agility.
+
+This is strictly a buff across the board, but should feel much more significant in the early stages of the game, which is where many of the common complaints with Run Energy lie. This should help new players replenish a little more while engaging with things like quest dialogue, freeing them up to continue zooming about at their own pace, but still adds a extra value to those higher Agility levels.
+
+For a quick comparison between the current behaviour and what's proposed, here's a lovely graph!
+
+[[File:Run Energy Changes - Open Beta 2 (1).png|600px|center]]
+
+==Energy Drain==
+What goes up must come down! Naturally the value in regenerating your Run Energy is that you have more to use up, let's take a look at what we're changing here.
+
+Since your Agility level and Weight both factor into this, we'll show the comparisons in a table rather than in text, but here's how the formulae look (Keep in mind that Weight only scales between 0 and 64kg.):
+
+
+* Current: 67 + ((67 * Weight) / 64)
+* Proposed: (65 + (90 * Weight / 64)) * (1 - (Agility level / 400))
+
+There's a little to unpack here!
+
+The base drain rate has reduced very slightly from 67 to 65. We're scaling a little more heavily with Weight, but we've got another element that's reducing your Drain Rate as your Agility level scales up.
+
+To contextualise this, at the maximum weight of 64kg, an Agility level of 54 or above would result in a slower drain rate than the current behaviour.
+
+All the way down at level 1 Agility and 64kg, your run energy will drain around 15% quicker than it currently does, which should be offset by the vastly increased regen rate. At 99 Agility, your run energy will drain around 13% slower than it currently does. This difference should feel even larger at lower weights, since the multiplier we're using is bigger!
+
+Naturally, there's a lot going on here, so here are some pretty graphs to illustrate it better!
+
+[[File:Run Energy Changes - Open Beta 2 (2).png|600px|center]]
+
+''This graph shows Drain rate (Energy Lost per tick) vs. Weight (kg), comparing our proposed formula at various Agility levels to the existing behaviour. Remember that lower is better for drain rate!''
+
+[[File:Run Energy Changes - Open Beta 2 (3).png|600px|center]]
+
+''This graph shows Drain rate (Energy lost per tick) vs. Agility Level, comparing our proposed formula at various weights to the existing behaviour. Just like before, lower is better!''
+
+All that's left is for you to get hands on and let us know what you reckon by trying out the beta! We'd very much recommend copying over your main game profile to the beta worlds and engaging with content that you're used to where Run Energy plays a role, things like Chambers of Xeric/Olm, Theatre of Blood (Nylocas and Verzik in particular), Blast Furnace, Ourania Altar Runecrafting, Herbiboar, Hunter Rumours, early-game questing (like the run from Varrock East bank to Drezel when delivering Rune Essence during Priest in Peril), the world's your oyster!
+
+To get you situated, here's a handy tutorial on getting set up with Beta Worlds on Old School!
+
+==Beta Worlds==
+The Open Beta for all these changes is open '''right now'''! This section will clue you in to all things Beta Worlds and provide some guidance as to what’s worth trying out in one.
+
+Log in to '''Beta Worlds 585, 586, 587, 588 or 589''', and you’ll find yourself on Tutorial Island. Be sure to skip the Tutorial so you can start testing – or use a more familiar profile to see how these changes impact the gear setups and activities you’re already familiar with.
+
+To import your main game save to a Beta World, open the Settings menu while logged in to the main game and search for 'Beta', then tick the 'Convert save to Beta Worlds' button. From there, you can hop to any Beta World and should find yourself logging in at the same location, with the stats, gear and progress of whichever save you copied over! Please note, we recommend making sure you have some space in your Inventory before converting your save.
+
+[[File:Run Energy Changes - Open Beta 2 (4).png|600px|center]]
+
+Once logged in, assuming you had space in your Inventory, you ''should ''notice a charming little egg brightening up your UI. Left-clicking on this egg, or 'Boss helper tool' to use its government name, brings up a Debug menu with a number of options.
+
+[[File:Run Energy Changes - Open Beta 2 (5).png|600px|center]]
+
+'Teleports' brings up a list of - you won't believe it - teleport locations for most of the bosses in Old School. 'All Gear' brings up the Tournament Supplies interface (shown below) which you can use to grab any gear you fancy, including the Graceful Outfit. 'Gear Loadouts' provides you with some rudimentary setups if you're not sure where to start building out from. 'Swap Spellbook' does exactly what it says on the tin. 'Set Stats' lets you set the level of any skill, which will be handy for you to experiment at a variety of Agility levels. 'Unlock Everything' can be used to tick off all the Quests or Achievement Diaries you might need, in case you can't interact with a piece of content you’d like to test.
+
+[[File:Run Energy Changes - Open Beta 2 (6).png|600px|center]]
+At this point, it's up to you what you want to try out in the Beta, but here are a few suggestions from the team:
+
+* Try focusing on 'familiar' activities where you feel like Run Energy plays a role. This could mean a Chambers of Xeric solo, smelting bars at Blast Furnace, using the Ourania Altar, or completing an early-game quest in some representative gear. Consider how the activities ''feel'', whether Stamina potions still feel relevant, and whether it still feels important to toggle between running and walking.
+* Try adjusting your Agility level in the same setups to see how much better or worse something feels. Can you feel a difference after gaining more Agility levels, or taking some off?
+* If you've got a friend, family member or partner who's played a little in the past or seen you play, consider letting them run around a little or try Cook's Assistant to see how they feel about running vs. walking!
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape/comments/1gaylcx/open_beta_run_energy_changes_round_two/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abe, Abyss, Arcane, Archie, Argo, Ash, Ayiza, BigRig, Blossom, Boko, Bruno, Chilly, Criminal, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Entropi, Errol, Gecko, Gengis, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hooti, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Leebleh, Lenny, Light, Liron, Lykos, Mack, Manked, Markos, Maylea, Moogle, Morty, Necro, Nin, Nox, Nylu, Other, Philomel, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Saiyan, Sarnie, Shogun, Shroom, Sigma, Skylark, Smithy, Sova, Squid, Starry, Suharun, Surma, Sween, Tide, Titus, TJ, Tsourorf, Tyran, Veda, Vegard, West, Wolfy & Yume'''
+
+''The Old School Team.''

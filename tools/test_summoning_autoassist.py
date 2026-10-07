@@ -31,6 +31,7 @@ import re
 import sys
 from pathlib import Path
 
+import config_text
 from summoning_script_sources import definition, script_dir
 
 
@@ -106,7 +107,9 @@ def npc_blocks() -> dict[str, str]:
     """
     out: dict[str, str] = {}
     for path in sorted(CONFIGS.glob("*.npc")):
-        text = path.read_text(encoding="utf-8")
+        # `attack=default` is no attack line at all; the presence checks below
+        # must not count it.
+        text = config_text.read_text(path, encoding="utf-8")
         for m in re.finditer(r"^\[(\w+)\]\n(.*?)(?=^\[|\Z)", text, re.M | re.S):
             out.setdefault(m.group(1), m.group(2))
     return out
@@ -399,8 +402,8 @@ def main() -> int:
         # themselves by the generator; this re-derives the first one from the
         # staged-source side so a hand edit to the boundary cannot widen or
         # narrow the set unnoticed.
-        seq_text = (CLIENT_LANE / "configs/summoning_roster_530.seq"
-                    ).read_text(encoding="latin-1")
+        seq_text = config_text.read_text(CLIENT_LANE / "configs/summoning_roster_530.seq",
+                                         encoding="latin-1")
         seq_blocks = {m.group(1): m.group(2) for m in
                       re.finditer(r"^\[(\w+)\]\n(.*?)(?=^\[|\Z)", seq_text, re.M | re.S)}
         animations = {}

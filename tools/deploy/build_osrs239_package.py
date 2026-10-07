@@ -56,7 +56,7 @@ EXE = ".exe" if IS_WINDOWS else ""
 # the interface packs, the ported lanes, the pack cache in server/pack, the
 # script sources it walks for .npc/.loc/.obj/.inv/.spawn/.dbtable/... and the
 # compiled pack under server/scripts/build.
-CONTENT_DIRS = ("configs", "interfaces", "ported", "pack", "server/pack")
+CONTENT_DIRS = ("configs", "fields", "interfaces", "ported", "pack", "server/pack")
 
 
 def log(msg: str) -> None:
@@ -522,6 +522,10 @@ def main() -> int:
             make(["torirsserver-scripts"], jobs=1)   # the bake is not -j safe
         else:
             log("script pack is current")
+        # The server pack the world boots from (it reads no config text). It is
+        # stamped with its tree's fingerprint and the server refuses a stale one,
+        # so it is rebuilt (a no-op when fresh) before content/ is copied.
+        make(["torirsserver-servpack"], jobs=1)
     if not args.skip_web:
         make(["web"], args.jobs)                     # also builds io_server
     if not args.skip_servers:

@@ -203,9 +203,9 @@ banners: the topic file named in each group heading.
 
 ### Combat -- `verbs-combat.md`
 
-- `t.player.attack(npc, op=2, ticks, opts)` -> `ok timeout refused`. `refused` can be single-way combat or no route.
-- `t.npc.await_dead_engaged(ticks, attempts, opts)` -> `ok timeout no_row refused`; the kill wait for every hunt. `opts.eat = {item=, below=}` eats.
-- `t.npc.await_dead(npc, ticks, radius, attempts, opts)` -> `ok timeout not_found`; a slot leaving the pool, corroborated.
+- `t.player.attack(npc, op=2, ticks, opts)` -> `ok timeout refused`. `refused` can be single-way combat or no route. `opts.eat = {item=, below=}` eats inside the press and settle (b63-seam1).
+- `t.npc.await_dead_engaged(ticks, attempts, opts)` -> `ok timeout no_row refused despawned`; the kill wait for every hunt. `opts.eat = {item=, below=}` eats.
+- `t.npc.await_dead(npc, ticks, radius, attempts, opts)` -> `ok timeout not_found despawned`; a slot leaving the pool, corroborated. `despawned` = it left alive (last bar above a quarter): never a kill (b68-seam2).
 - `t.player.cast(spell, target, ticks, ...)` -> `ok refused no_runes timeout no_row not_visible unsupported`; npc, obj/loc, held item or no target.
 - `t.player.alive()` -> `ok refused`; takes no argument (use `t.expect`). A death writes `player.died` and ENDS the run.
 
@@ -222,19 +222,19 @@ banners: the topic file named in each group heading.
 
 - `t.player.goto_tile(x, z, level=0)` -> `(ok, "x,z,level") timeout no_row`; the `::goto` travel cheat, re-issues up to 3 times.
 - `t.player.teleport(name)` -> a named destination in `tele_destinations.rs2`.
-- `t.player.walk_to(x, z, ticks)` (hollow on success) / `walk_near(target, ticks)` / `idle()`.
+- `t.player.walk_to(x, z, ticks)` -> `(ok, "walk_to x,z: reached x,z,level from a,b in N tick(s)") timeout refused`, through `t.exec` (b62-seam1) / `walk_near(target, ticks)` / `idle()`.
 - `t.player.talk_to(npc, op=1, opts)` -> waits up to 5 ticks for its page; `opts` `{slot=n}` / `{at={x,z}}`.
 - `t.player.press(npc, op=1, ticks, opts)` -> a silent npc op settled on the npc MOVING; four outcomes.
 - `t.player.click_loc(loc_symbol_string, op=1, opts)` -> walks other approach tiles on `I can't reach that!`; `opts.at` names a copy.
 - `t.player.click_obj(obj, op=3)` -> waits for the backpack count to rise; write the count yourself.
 - `t.player.by_symbol(kind, name)` -> `(target, "ok")` -- reversed order; resolves only, never a presence check.
 - `t.world.tile()` / `level()`; `t.world.loc_near(sym, r[, {level=n|"here"[, deck=true]} | {at={x,z,level}, slack=}])` / `obj_near(sym, r)` -> `(ok, {...}) not_found`; with opts it reads ONE floor.
-- `t.player.pass_door{closed=, open=, at={x,z,level}, near={x,z}, far={x,z}[, close=true, loc_level=]}` -> one door crossed on foot, graded on the leaf reads and tiles.
+- `t.player.pass_door{closed=, open=, at={x,z,level}, near={x,z}, far={x,z}[, close=true, loc_level=]}` -> one door crossed on foot, graded on the leaf reads and tiles; a door that stood open and shut itself mid-walk (the 500-tick revert) is re-pressed and crossed (b71).
 - `t.player.cross_gate{loc=, at=, near=, far_ok=fn, far_desc=[, chat=, chat_optional=, loc_level=]}` -> a members' wall gate pressed on EVERY crossing, graded on far_ok before and after; `open=` hands an opening gate to pass_door.
 - `t.player.cross_trap{loc=, at=, src=, dest=[, attempts=4, vitals=, loc_level=]}` -> a trap/obstacle by its own op, ON src before and ON dest after; re-pressed on a slipped roll.
 - `t.player.walk_route({{x,z},...}[, opts])` -> hops of <=10 tiles (a longer one raises), graded on the exact end tile.
 - `t.player.teleport_cast(spell, {x,z,level}, {name=, runes=})` -> writes `<name>.cast/.runes/.landed` itself; call directly, never through t.exec.
-- `t.player.climb{loc=, at={x,z,level}, dest={x,z,level}[, src=, slack=, landed_ok=, landed_desc=, loc_level=]}` -> one stair, ladder or trapdoor, graded on the new level and the landing, never the press.
+- `t.player.climb{loc=, at={x,z,level}, dest={x,z,level}[, src=, slack=, landed_ok=, landed_desc=, loc_level=, same_level=]}` -> one stair, ladder or trapdoor, graded on the new level and the landing, never the press; a same-level landing in another map frame (z // 6400), or one named `same_level="<row>"`, is a climb too; a guard's page first: `chat={...}`, `chat_optional=` (b63-seam1).
 - `t.player.cancel_selection(why)` -> `(ok, detail, was_armed)`; drops a spell or Use left armed (`covered ... menu rows: <Cancel>`). The driver calls it after a cast fight and a missed cast press.
 - `t.drive.screen_position(target)`, `t.drive.click_minimenu(target, option)`, `t.drive.camera(yaw, pitch, zoom)`.
 - `t.drive.op(target, option)` -> the logged bypass, never the default and never evidence of reach.

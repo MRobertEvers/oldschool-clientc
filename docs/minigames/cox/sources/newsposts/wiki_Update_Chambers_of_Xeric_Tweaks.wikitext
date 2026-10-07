@@ -1,0 +1,76 @@
+{{Update|date=6 January 2017|link=http://services.runescape.com/m=news/chambers-of-xeric-tweaks?oldschool=1|category=game}}
+[[File:Chambers of Xeric Tweaks newspost.png|right]]
+{{clear}}
+<center><font style="font-family:Trajan,'trajan-pro-3',serif;font-size:22px;font-weight:bold;text-shadow:1px 1px #121212;">Raids Feedback Changes</font></center>
+
+
+<center>'''Since the launch of raids yesterday, many thousands of players have taken on the Chambers of Xeric. Having watched many of these attempts and having listened to all of the feedback coming our way, we've now made a few tweaks to raids.'''</center>
+
+
+<font style="font-family:Trajan,'trajan-pro-3',serif;font-size:22px;font-weight:bold;text-shadow:1px 1px #121212;">Changes to Skilling</font><br/>'''Speeding up and simplifying skilling'''
+
+'''Farming'''
+
+Farming within raids has proven to be a bit more time consuming than we would've liked it to be. To address this, a couple of small changes have been made:
+
+*The number of herbs yielded from farming patches in raids now scales based on party size.
+*Picking herbs with a full inventory is now possible. The herbs picked are placed straight onto the ground if your inventory is full.
+
+In addition to these changes, we will also be '''adding a second farming patch to each food room''' in order to speed up how quickly you can stock up on herbs. These additional farming patches will be added with a '''future game update'''.
+
+'''Fishing'''
+
+All fishing spots within raids can now produce any type of fish. The type of fish received is based on your Fishing level.
+
+'''Hunter'''
+
+Previously, only the highest tier of bat which your party is able to catch would spawn within a raid. This has now been changed so that lower tier bats will also spawn, and the number of bat spawns has been increased.
+
+
+<font style="font-family:Trajan,'trajan-pro-3',serif;font-size:22px;font-weight:bold;text-shadow:1px 1px #121212;">Dynamic Scaling Tweak</font><br/>'''Speeding up and simplifying skilling'''
+
+For the most part, the dynamic scaling of the Chambers has been working great. However we're seeing large parties face a challenge that doesn't quite line up with their group size. Bosses are proving a little too tough and in order to make it fairer for those wishing to play in a large group, we'll be making some tweaks to the scaling. While we aren't keen to reveal precise details of this scaling, bosses will now be more manageable for those in a larger group.
+
+
+<font style="font-family:Trajan,'trajan-pro-3',serif;font-size:22px;font-weight:bold;text-shadow:1px 1px #121212;">Boss Rebalances</font><br/>'''Tekton & Ice Demon will prove a little more dangerous'''
+
+We've been enjoying watching players face the challenges contained within the Chambers of Xeric. However Tekton & the Ice Demon weren't quite pulling their weight when it came to massacring players, so we're increasing their offensive capabilities in order for them to put up more of a fight. This is an entirely offensive boost, so be on guard when you take on these bosses new capabilities.
+
+
+<font style="font-family:Trajan,'trajan-pro-3',serif;font-size:22px;font-weight:bold;text-shadow:1px 1px #121212;">Raids storage chests</font><br/>'''Party storage throughout a raid dungeon'''
+
+Inventory management has been one of the obstacles many players have been running into within raids. With a number of rooms requiring a lot of available inventory space, too often teams are forced to drop large numbers of items in order to complete them.
+
+To help with this problem, in an upcoming game update we will be releasing '''party storage chests'''. These are chests which can be constructed in food rooms, thieving chest rooms, the Ice Demon room and the room found at the end of a floor.
+
+They can be used by your party to store raids specific and whitelisted items.
+
+There will be three tiers of chest available:
+
+*'''Tier 1''' - ''30 Construction requirement'' - stores up to 250 items.
+*'''Tier 2''' - ''60 Construction requirement'' - stores up to 500 items.
+*'''Tier 3''' - ''90 Construction requirement'' - stores up to 1000 items.
+
+Constructing one of these chests will require a new type of plank dropped by monsters within a raid, and a hammer.
+
+
+<font style="font-family:Trajan,'trajan-pro-3',serif;font-size:22px;font-weight:bold;text-shadow:1px 1px #121212;">Chambers of Xeric teleport</font><br/>'''A slightly quicker way of getting to the Chambers for avid raiders'''
+
+To help you get back to the Chambers of Xeric a bit quicker, in an upcoming game update we will be adding a new, untradeable enchantment reward to raids.
+
+This enchantment will allow you to unlock a Chambers of Xeric teleport on the Xeric's talisman. Once this teleport is unlocked, you will always have the ability to use it.
+
+
+<font style="font-family:Trajan,'trajan-pro-3',serif;font-size:22px;font-weight:bold;text-shadow:1px 1px #121212;">Kodai enchantment</font><br/>'''The Kodai wand reward is going to be replaced by the Kodai enchantment'''
+
+In order to keep in line with what was described in the original developer blog, the Kodai wand is going to be replaced with a Kodai enchantment from next week's game update.
+
+The Kodai enchantment would then be used on a master wand, consuming the master wand and creating the Kodai wand.
+
+'''Other tweaks'''
+
+*The delay preventing you from performing certain actions following a dragon claw special attack has now been removed.
+*It is no longer possible to logout within the Olm room in order to drop supplies without losing points.
+*Farming patches were occasionally not being visually updated when they progressed a state - this should no longer be the case.
+
+'''''Mods Archie, Ash, Ghost, Jed, John C, Kieren, Mat K, Maz, Merchant, Ronan, Roq, TomH, Weath & West'''''<br/>''The Old School Team''

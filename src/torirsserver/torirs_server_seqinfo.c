@@ -26,6 +26,7 @@
 #include <assert.h>
 
 #include "torirs_server_content.h"
+#include "torirs_server_servpack.h"
 
 #include <rscache.h>
 
@@ -61,69 +62,38 @@ static uint8_t* g_seq_priority;
 static int g_seq_priority_count;
 
 int
-ToriRSServer_SeqInfoLoad(const char* cache_dir)
+ToriRSServer_SeqInfoLoad(struct RSCache_ServerPack* pack)
 {
     struct RSCache profile = RSCache_ProfileZero();
-    struct RSCache_Dat2Disk* disk;
-    struct RSCache_Dat2DiskArchive* archive;
-    struct RSCache_FileList* files;
-    int table;
+    struct ToriRSServerKindRecords records;
     int loaded = 0;
 
+    assert(pack);
     ToriRSServer_SeqInfoFree();
 
     profile.game = RSCACHE_GAME_OLDSCHOOL;
     profile.epoch = RSCACHE_EPOCH_DAT2;
     profile.revision = TORIRSSERVER_CACHE_REVISION;
 
-    disk = RSCache_Dat2DiskNewFromDirectory(cache_dir);
-    if( !disk )
-    {
-        char fallback[512];
-
-        snprintf(fallback, sizeof(fallback), "../%s", cache_dir);
-        disk = RSCache_Dat2DiskNewFromDirectory(fallback);
-    }
-    if( !disk )
-        return 0;
-
-    RSCache_Dat2DiskSetProfile(disk, &profile);
-    table = RSCache_Dat2DiskTableId(disk, RSCACHE_DAT2_TABLE_CONFIGS);
-    archive = RSCache_Dat2DiskArchiveNewLoad(disk, table, RSCACHE_DAT2_CONFIG_KIND_SEQUENCE);
-    if( !archive )
-    {
-        RSCache_Dat2DiskFree(disk);
-        return 0;
-    }
-    RSCache_Dat2DiskArchiveInitMetadata(disk, archive);
-    RSCache_ProfileSetGroupRevision(&profile, RSCACHE_TYPE_SEQUENCE, archive->revision);
-
-    files = RSCache_FileListNewFromDecode(archive->data, archive->data_size, archive->file_count);
-    if( !files )
-    {
-        RSCache_Dat2DiskArchiveFree(archive);
-        RSCache_Dat2DiskFree(disk);
-        return 0;
-    }
+    /* The server pack's client records: the merge of the tree, encoded by the
+     * codec this decoder reads. */
+    if( !ToriRSServer_ServPackKindLoad(pack, RSCACHE_DAT2_CONFIG_KIND_SEQUENCE, &records) )
+        return -1;
 
     /* Sized by the highest id present, not by the file count: the table is
      * indexed by sequence id and the ids are sparse. */
-    for( int i = 0; i < archive->file_count; i++ )
-    {
-        if( archive->file_ids[i] >= g_seq_priority_count )
-            g_seq_priority_count = archive->file_ids[i] + 1;
-    }
-    g_seq_priority = (uint8_t*)malloc((size_t)g_seq_priority_count);
+    g_seq_priority_count = ToriRSServer_ServPackKindIdBound(&records);
+    g_seq_priority = (uint8_t*)malloc((size_t)g_seq_priority_count + 1);
     assert(g_seq_priority);
     memset(g_seq_priority, TORIRSSERVER_SEQ_PRIORITY_DEFAULT, (size_t)g_seq_priority_count);
 
-    g_seqs = (struct SeqName*)calloc((size_t)archive->file_count, sizeof(*g_seqs));
+    g_seqs = (struct SeqName*)calloc((size_t)records.count + 1, sizeof(*g_seqs));
     assert(g_seqs);
-    for( int i = 0; i < archive->file_count; i++ )
+    for( int i = 0; i < records.count; i++ )
     {
         struct RSCache_Dat2ConfigSequence* seq =
             RSCache_Dat2ConfigSequenceNewDecodeProfile(
-                &profile, files->files[i], files->file_sizes[i]);
+                &profile, (char*)records.files[i], (int)records.sizes[i]);
 
         if( !seq )
             continue;
@@ -137,7 +107,7 @@ ToriRSServer_SeqInfoLoad(const char* cache_dir)
         if( seq_dump_want > 0 )
         {
             int want = seq_dump_want;
-            int id = archive->file_ids[i];
+            int id = records.ids[i];
 
             if( want > 0 && id >= want && id <= want + 9 )
             {
@@ -153,7 +123,7 @@ ToriRSServer_SeqInfoLoad(const char* cache_dir)
         if( seq->debug_name && seq->debug_name[0] )
         {
             g_seqs[loaded].name = strdup(seq->debug_name);
-            g_seqs[loaded].id = archive->file_ids[i];
+            g_seqs[loaded].id = records.ids[i];
             loaded++;
         }
         /* The decoder zero-initialises, so a record that omits opcode 5
@@ -161,15 +131,13 @@ ToriRSServer_SeqInfoLoad(const char* cache_dir)
          * that number literally would make every un-prioritised animation
          * lose to every other one — the gate would then be a fancier way of
          * saying "the first animation of the tick wins". */
-        if( archive->file_ids[i] < g_seq_priority_count && seq->forced_priority > 0 )
-            g_seq_priority[archive->file_ids[i]] = (uint8_t)seq->forced_priority;
+        if( records.ids[i] < g_seq_priority_count && seq->forced_priority > 0 )
+            g_seq_priority[records.ids[i]] = (uint8_t)seq->forced_priority;
         RSCache_Dat2ConfigSequenceFree(seq);
     }
     g_seq_count = loaded;
 
-    RSCache_FileListFree(files);
-    RSCache_Dat2DiskArchiveFree(archive);
-    RSCache_Dat2DiskFree(disk);
+    ToriRSServer_ServPackKindFree(&records);
 
     /* OldSchool stopped writing debug names into sequence records, and rev 239
      * has none at all. That is not an error: pack/seq.pack names all 14,413 of

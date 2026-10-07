@@ -1,138 +1,395 @@
 #include "torirs_server_servercodec.h"
 
-#include "rsbuffer.h"
+#include "torirs_server.h"
+#include "torirs_server_shop.h"
+#include "torirs_server_db.h"
 
 #include <assert.h>
 #include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 /*
- * One table per type, both directions, one implementation.
+ * The server's half of the band: field name -> struct member.
  *
- * Encode and decode are generated from the same rows rather than written as two
- * switches, because two switches are exactly how a field comes to be written
- * under one opcode and read under another — a failure with no error attached,
- * since both streams are individually valid. `test_servercodec` walks every table
- * here against its `fields/<type>.ini` so a row that drifts from the register is
- * caught.
+ * No opcode and no width appears here. Both are the register's
+ * (`fields/<type>.ini`, `server = opcode:<n>:<wire>`), read by the one parser
+ * cachepack also uses; a number written here as well would be a second copy that
+ * can drift from the one the packer writes with, and the two disagreeing is a
+ * value landing in the wrong field with no error. ToriRSServer_ServerCheck holds
+ * this table to the register at load, both ways.
  *
- * `wire` is the width the register declares. It is not cosmetic: a field written
- * as u2 and read as u4 consumes two bytes too many and misaligns everything
- * after it, which is the same class of bug as `dat2_config_obj.c` opcode 115.
- *
- * ## The bytes go through RSCache_Buffer
- *
- * `g1/g2/g4` and their `p` inverses, rather than shifts written out here. The
- * library states the property this codec rests on and nothing local can:
- * *"every `g` below has a `p` that is its exact inverse"* (`rsbuffer.h`). A
- * hand-rolled pair would be a fourth place — after the register, these tables and
- * the packer — where the two directions can disagree about a width, and it would
- * disagree silently, because a u2 written big-endian and read little-endian is
- * still a perfectly well-formed stream. It also puts the bounds check on the
- * shared cursor instead of on an `at + wire > size` this file has to keep right
- * by itself.
+ * `sizeof` the member, not the wire width: RSCache_BandBindingCheck refuses a
+ * member narrower than its field's width, which is the check that a u4 id with a
+ * stated -1 (`death_drop` dropping nothing) is not truncated into a different
+ * valid id.
  */
+#define BIND(type, member)                                                                         \
+    {                                                                                              \
+        #member, offsetof(type, member), sizeof(((type*)0)->member), NULL                          \
+    }
 
 /*
- * Ordered by opcode so the encoded stream is ascending, which makes a pack diff
- * readable and two packs of the same content byte-identical. Ascending is a
- * *choice*, not a constraint — the decode below dispatches per opcode, so any
- * order reads back identically. Worth stating because the cache's own config
- * records are the opposite case: dat1 does not write them in opcode order, and
- * reproducing one means recording the decoded order and replaying it.
+ * A field whose statement means more than its value. The member is still named
+ * (offset and size), so a reader of the table sees where the value lands; the
+ * `apply` writes it and whatever else the statement implies.
  */
-static const struct ServerField k_npc_fields[] = {
-    { 74,  WIRE_U2, offsetof(struct ToriRSServerNpcDef, attack),      "attack"      },
-    { 75,  WIRE_U2, offsetof(struct ToriRSServerNpcDef, defence),     "defence"     },
-    { 76,  WIRE_U2, offsetof(struct ToriRSServerNpcDef, strength),    "strength"    },
-    { 77,  WIRE_U2, offsetof(struct ToriRSServerNpcDef, hitpoints),   "hitpoints"   },
-    { 78,  WIRE_U2, offsetof(struct ToriRSServerNpcDef, ranged),      "ranged"      },
-    { 79,  WIRE_U2, offsetof(struct ToriRSServerNpcDef, magic),       "magic"       },
-    { 150, WIRE_U1, offsetof(struct ToriRSServerNpcDef, attackrate),  "attackrate"  },
-    { 151, WIRE_U4, offsetof(struct ToriRSServerNpcDef, death_drop),  "death_drop"  },
-    { 152, WIRE_U4, offsetof(struct ToriRSServerNpcDef, attack_anim), "attack_anim" },
-    { 153, WIRE_U4, offsetof(struct ToriRSServerNpcDef, defend_anim), "defend_anim" },
-    { 154, WIRE_U4, offsetof(struct ToriRSServerNpcDef, death_anim),  "death_anim"  },
-    { 155, WIRE_U1, offsetof(struct ToriRSServerNpcDef, death_delay), "death_delay" },
-    /* 156/157 are ours alone (150..199). LostCity puts blockwalk at 208, but
-     * that opcode already carries this tree's `nomove` boolean. */
-    { 156, WIRE_U1, offsetof(struct ToriRSServerNpcDef, blockwalk),   "blockwalk"   },
-    { 157, WIRE_U1, offsetof(struct ToriRSServerNpcDef, blocksight),  "blocksight"  },
-    /* The three combat sounds. u4 for the same reason as death_drop at 151:
-     * they default to -1, and only u4 round-trips a negative through a
-     * zero-extending decode. */
-    /* Ours (150..199). LostCity has no opcode for this because its engine does
-     * not retaliate on the npc's behalf at all. */
-    { 161, WIRE_U1, offsetof(struct ToriRSServerNpcDef, retaliate),   "retaliate"   },
-    /* Ours (150..199), and u4 for the same reason as death_drop at 151: it is
-     * an id whose stated absence is negative, and only u4 round-trips a
-     * negative through a zero-extending decode. */
-    { 162, WIRE_U4, offsetof(struct ToriRSServerNpcDef, healthbar),   "healthbar"   },
-    /* Ours (150..199). The bar's twin: 162 says which bar, this says whether
-     * the splat rides with it. */
-    { 163, WIRE_U1, offsetof(struct ToriRSServerNpcDef, hitsplat),    "hitsplat"    },
-    /* Ours (150..199). LostCity has an opcode of its own for `forcemulti` in
-     * its 200s; ours sits here rather than guessing at a number that would
-     * collide the first time one of its records is read. */
-    { 164, WIRE_U1, offsetof(struct ToriRSServerNpcDef, forcemulti),  "forcemulti"  },
-    { 158, WIRE_U4, offsetof(struct ToriRSServerNpcDef, attack_sound), "attack_sound" },
-    { 159, WIRE_U4, offsetof(struct ToriRSServerNpcDef, defend_sound), "defend_sound" },
-    { 160, WIRE_U4, offsetof(struct ToriRSServerNpcDef, death_sound),  "death_sound"  },
-    { 200, WIRE_U2, offsetof(struct ToriRSServerNpcDef, wanderrange), "wanderrange" },
-    { 201, WIRE_U2, offsetof(struct ToriRSServerNpcDef, maxrange),    "maxrange"    },
-    { 202, WIRE_U1, offsetof(struct ToriRSServerNpcDef, huntrange),   "huntrange"   },
-    /* LostCity's own opcode for `timer=`, the tick interval `[ai_timer]` runs
-     * at, sitting where it does in its 200 band. */
-    { 203, WIRE_U2, offsetof(struct ToriRSServerNpcDef, timer),       "timer"       },
-    { 204, WIRE_U2, offsetof(struct ToriRSServerNpcDef, respawnrate), "respawnrate" },
-    /* LostCity's moverestrict opcode. `nomove` at 208 stays for packs that
-     * already emit the collapsed boolean. */
-    { 206, WIRE_U1, offsetof(struct ToriRSServerNpcDef, moverestrict),"moverestrict"},
-    { 208, WIRE_U1, offsetof(struct ToriRSServerNpcDef, nomove),      "nomove"      },
-    { 209, WIRE_U1, offsetof(struct ToriRSServerNpcDef, huntmode),    "huntmode"    },
-    { 213, WIRE_U1, offsetof(struct ToriRSServerNpcDef, givechase),   "givechase"   },
+#define BIND_APPLY(type, field, member, fn)                                                        \
+    {                                                                                              \
+        field, offsetof(type, member), sizeof(((type*)0)->member), fn                              \
+    }
+
+static int32_t
+stated_int(
+    const struct RSCache_BandRecord* record,
+    int index)
+{
+    assert(record);
+    assert(index >= 0);
+    assert(index < RSCACHE_REGISTER_MAX);
+    return record->values[index];
+}
+
+/* `hitpoints=` is the statement "this npc is meant to be fought": the validator
+ * reads `authored_combat`, and a speaking npc inheriting the engine's 10 does
+ * not set it. */
+static void
+apply_npc_hitpoints(
+    void* object,
+    const struct RSCache_BandRecord* record,
+    int index)
+{
+    struct ToriRSServerNpcDef* def = (struct ToriRSServerNpcDef*)object;
+
+    def->hitpoints = stated_int(record, index);
+    def->authored_combat = 1;
+}
+
+/* `moverestrict=nomove` pins the mover through the collapsed `nomove`, which is
+ * what it reads; stating any moverestrict restates nomove with it. */
+static void
+apply_npc_moverestrict(
+    void* object,
+    const struct RSCache_BandRecord* record,
+    int index)
+{
+    struct ToriRSServerNpcDef* def = (struct ToriRSServerNpcDef*)object;
+
+    def->moverestrict = stated_int(record, index);
+    def->nomove = def->moverestrict == 5;
+}
+
+/* Presence is the statement: `defaultmode=none` is 0, the same number as an npc
+ * that said nothing, and only `defaultmode_stated` tells them apart. */
+static void
+apply_npc_defaultmode(
+    void* object,
+    const struct RSCache_BandRecord* record,
+    int index)
+{
+    struct ToriRSServerNpcDef* def = (struct ToriRSServerNpcDef*)object;
+
+    def->defaultmode = stated_int(record, index);
+    def->defaultmode_stated = 1;
+}
+
+/*
+ * `patrol<N>=<coord>,<pause>`, one tuple per waypoint in the order of N. A coord
+ * is packed as everywhere else in this tree: level << 28 | x << 14 | z.
+ *
+ * Stated with no tuples is "no route" and clears a seeded one. A route longer
+ * than TORIRSSERVER_NPC_PATROL_MAX keeps its first MAX waypoints here; the loader
+ * reports the overflow as a content error (it holds the record and the register,
+ * this cannot report a record by name).
+ */
+static void
+apply_npc_patrol(
+    void* object,
+    const struct RSCache_BandRecord* record,
+    int index)
+{
+    struct ToriRSServerNpcDef* def = (struct ToriRSServerNpcDef*)object;
+    const struct RSCache_BandList* list;
+    int count;
+
+    assert(record);
+    assert(index >= 0);
+    assert(index < RSCACHE_REGISTER_MAX);
+    list = record->lists[index];
+    free(def->patrol);
+    def->patrol = NULL;
+    def->patrol_count = 0;
+    if( !list || list->count == 0 )
+        return;
+    assert(list->arity == 2);
+    count = list->count < TORIRSSERVER_NPC_PATROL_MAX ? list->count : TORIRSSERVER_NPC_PATROL_MAX;
+    /* Full-size, as the text loader allocated it: a later statement may index
+     * any slot. */
+    def->patrol = calloc(TORIRSSERVER_NPC_PATROL_MAX, sizeof(*def->patrol));
+    assert(def->patrol);
+    for( int i = 0; i < count; i++ )
+    {
+        uint32_t coord = (uint32_t)list->items[i * 2].i;
+
+        def->patrol[i].level = (int)((coord >> 28) & 0x3);
+        def->patrol[i].x = (int)((coord >> 14) & 0x3FFF);
+        def->patrol[i].z = (int)(coord & 0x3FFF);
+        def->patrol[i].pause = list->items[i * 2 + 1].i;
+    }
+    def->patrol_count = count;
+}
+
+static const struct RSCache_BandBinding k_npc_bindings[] = {
+    BIND(struct ToriRSServerNpcDef, attack),
+    BIND(struct ToriRSServerNpcDef, defence),
+    BIND(struct ToriRSServerNpcDef, strength),
+    BIND_APPLY(struct ToriRSServerNpcDef, "hitpoints", hitpoints, apply_npc_hitpoints),
+    BIND(struct ToriRSServerNpcDef, ranged),
+    BIND(struct ToriRSServerNpcDef, magic),
+    BIND(struct ToriRSServerNpcDef, attackrate),
+    BIND(struct ToriRSServerNpcDef, death_drop),
+    BIND(struct ToriRSServerNpcDef, attack_anim),
+    BIND(struct ToriRSServerNpcDef, defend_anim),
+    BIND(struct ToriRSServerNpcDef, death_anim),
+    BIND(struct ToriRSServerNpcDef, death_delay),
+    BIND(struct ToriRSServerNpcDef, blockwalk),
+    BIND(struct ToriRSServerNpcDef, blocksight),
+    BIND(struct ToriRSServerNpcDef, attack_sound),
+    BIND(struct ToriRSServerNpcDef, defend_sound),
+    BIND(struct ToriRSServerNpcDef, death_sound),
+    /* Ours: LostCity's engine does not retaliate on the npc's behalf at all. */
+    BIND(struct ToriRSServerNpcDef, retaliate),
+    /* Which bar, and whether the splat rides with it. */
+    BIND(struct ToriRSServerNpcDef, healthbar),
+    BIND(struct ToriRSServerNpcDef, hitsplat),
+    BIND(struct ToriRSServerNpcDef, forcemulti),
+    BIND(struct ToriRSServerNpcDef, wanderrange),
+    BIND(struct ToriRSServerNpcDef, maxrange),
+    BIND(struct ToriRSServerNpcDef, huntrange),
+    /* `timer=`, the tick interval `[ai_timer]` runs at. */
+    BIND(struct ToriRSServerNpcDef, timer),
+    BIND(struct ToriRSServerNpcDef, respawnrate),
+    /* `nomove` first: a record stating both has its collapsed boolean derived
+     * from moverestrict, which is the one the text spells. */
+    BIND(struct ToriRSServerNpcDef, nomove),
+    /* LostCity's moverestrict; its apply restates nomove (moverestrict 5). */
+    BIND_APPLY(struct ToriRSServerNpcDef, "moverestrict", moverestrict, apply_npc_moverestrict),
+    /* `aggressive_melee` packs as 2 and the engine hunts only on 1
+     * (`TORIRSSERVER_HUNT_AGGRESSIVE`), as it did when the text parse read it. */
+    BIND(struct ToriRSServerNpcDef, huntmode),
+    BIND(struct ToriRSServerNpcDef, givechase),
+    BIND_APPLY(struct ToriRSServerNpcDef, "defaultmode", defaultmode, apply_npc_defaultmode),
+    BIND_APPLY(struct ToriRSServerNpcDef, "patrol", patrol, apply_npc_patrol),
+    BIND(struct ToriRSServerNpcDef, facing),
+    /* Params the engine reads as members rather than through npc_param. */
+    BIND(struct ToriRSServerNpcDef, damagetype),
+    BIND(struct ToriRSServerNpcDef, attackrange),
 };
 
 /*
  * A door's other half.
  *
- * The cache states which locs exist and what they look like; nothing in it says
- * that closing `poordooropen` produces `poordoor`. `u4` and not `u2` because loc
- * ids in this revision already run past 62,000.
- *
  * `category` is deliberately absent: the tree authors `category=door_closed` on
  * these same blocks, but a loc's category is a *client* field the cache record
- * already carries (`cp_loc.c` emits it), so it reaches the server through the
- * decoded record rather than through this band. The register says as much —
- * there is no `[loc.category]` row — and this table agreeing with it is what the
- * cross-check checks.
+ * already carries, so it reaches the server through the decoded record rather
+ * than through this band. The register says as much — `[loc.category]` is
+ * `scope = client` with no server opcode.
  */
-static const struct ServerField k_loc_fields[] = {
-    { 150, WIRE_U4, offsetof(struct ToriRSServerLocDef, next_loc_stage), "next_loc_stage" },
+static const struct RSCache_BandBinding k_loc_bindings[] = {
+    BIND(struct ToriRSServerLocDef, next_loc_stage),
 };
 
-#define FIELD_COUNT(table) ((int)(sizeof(table) / sizeof((table)[0])))
+/*
+ * An obj's skill requirements: `levelrequire1=<stat>,<level>`, `levelrequire2=...`, a
+ * (stat, int) list in the band. The whole list replaces the obj's requirements,
+ * as a config block naming an item states the whole requirement for it.
+ */
+static void
+apply_obj_levelrequire(
+    void* object,
+    const struct RSCache_BandRecord* record,
+    int index)
+{
+    struct ToriRSServerObjBand* obj = (struct ToriRSServerObjBand*)object;
+    const struct RSCache_BandList* list;
+    int stats[TORIRSSERVER_OBJ_REQUIRE_MAX];
+    int levels[TORIRSSERVER_OBJ_REQUIRE_MAX];
+    int count = 0;
 
-static const struct ServerType k_types[] = {
-    { "npc", k_npc_fields, FIELD_COUNT(k_npc_fields), sizeof(struct ToriRSServerNpcDef) },
-    { "loc", k_loc_fields, FIELD_COUNT(k_loc_fields), sizeof(struct ToriRSServerLocDef) },
+    assert(obj);
+    assert(record);
+    assert(index >= 0);
+    assert(index < RSCACHE_REGISTER_MAX);
+    list = record->lists[index];
+    if( list )
+    {
+        assert(list->arity == 2);
+        for( int i = 0; i < list->count && count < TORIRSSERVER_OBJ_REQUIRE_MAX; i++ )
+        {
+            stats[count] = list->items[i * 2].i;
+            levels[count] = list->items[i * 2 + 1].i;
+            count++;
+        }
+    }
+    obj->levelrequire = count;
+    if( !ToriRSServer_ObjRequireSet(obj->obj_id, stats, levels, count) )
+        fprintf(stderr, "torirsserver: server pack: obj %d: %d requirement(s) do not fit\n",
+                obj->obj_id, count);
+}
+
+/* `scope=perm` is the one scope the varp def keeps (`scope_perm`); temp and
+ * shared both read as 0, as the text loader read them. */
+static void
+apply_varp_scope(
+    void* object,
+    const struct RSCache_BandRecord* record,
+    int index)
+{
+    struct ToriRSServerVarpDef* def = (struct ToriRSServerVarpDef*)object;
+
+    assert(def);
+    def->scope_perm = stated_int(record, index) == 1;
+}
+
+static const struct RSCache_BandBinding k_varp_bindings[] = {
+    BIND_APPLY(struct ToriRSServerVarpDef, "scope", scope_perm, apply_varp_scope),
+    BIND(struct ToriRSServerVarpDef, transmit),
+    BIND(struct ToriRSServerVarpDef, protect),
+    BIND_APPLY(struct ToriRSServerVarpDef, "wholewrite", wholewrite_allowed, NULL),
+    BIND_APPLY(struct ToriRSServerVarpDef, "wholeread", wholeread_allowed, NULL),
 };
 
-#define TYPE_COUNT ((int)(sizeof(k_types) / sizeof(k_types[0])))
+/* A shop's `scope`: shared is a world container; temp (and perm) are not. */
+static void
+apply_inv_scope(
+    void* object,
+    const struct RSCache_BandRecord* record,
+    int index)
+{
+    struct ToriRSServerShopDef* def = (struct ToriRSServerShopDef*)object;
 
-const struct ServerType*
+    assert(def);
+    def->shared = stated_int(record, index) == 1;
+}
+
+/* `stockN=obj,baseline,rate`, in order; the list replaces the shop's stock. */
+static void
+apply_inv_stock(
+    void* object,
+    const struct RSCache_BandRecord* record,
+    int index)
+{
+    struct ToriRSServerShopDef* def = (struct ToriRSServerShopDef*)object;
+    const struct RSCache_BandList* list;
+
+    assert(def);
+    assert(record);
+    assert(index >= 0);
+    assert(index < RSCACHE_REGISTER_MAX);
+    def->stock_count = 0;
+    list = record->lists[index];
+    if( !list )
+        return;
+    assert(list->arity == 3);
+    for( int i = 0; i < list->count; i++ )
+    {
+        if( !ToriRSServer_ShopDefAddStock(def, list->items[i * 3].i, list->items[i * 3 + 1].i,
+                                          list->items[i * 3 + 2].i) )
+        {
+            fprintf(stderr, "torirsserver: server pack: inv %d: more than %d stock lines\n",
+                    (int)def->inv_id, TORIRSSERVER_SHOP_STOCK_MAX);
+            break;
+        }
+    }
+}
+
+static const struct RSCache_BandBinding k_inv_bindings[] = {
+    BIND_APPLY(struct ToriRSServerShopDef, "scope", shared, apply_inv_scope),
+    BIND(struct ToriRSServerShopDef, restock),
+    BIND(struct ToriRSServerShopDef, allstock),
+    BIND(struct ToriRSServerShopDef, stackall),
+    BIND_APPLY(struct ToriRSServerShopDef, "stock", stock_count, apply_inv_stock),
+};
+
+/*
+ * A dbtable's column names: its `column=<name>,<types>` lines, in order, one band
+ * tuple each (the client record has the types and no names). An `ABSENT` hole
+ * keeps its position and names nothing.
+ */
+static void
+apply_dbtable_column(
+    void* object,
+    const struct RSCache_BandRecord* record,
+    int index)
+{
+    struct ToriRSServerDbTable* table = (struct ToriRSServerDbTable*)object;
+    const struct RSCache_BandList* list;
+
+    assert(table);
+    assert(record);
+    assert(index >= 0);
+    assert(index < RSCACHE_REGISTER_MAX);
+    list = record->lists[index];
+    if( !list )
+        return;
+    assert(list->arity == 1);
+    for( int i = 0; i < list->count; i++ )
+    {
+        const char* line = list->items[i].s;
+        const char* comma = line ? strchr(line, ',') : NULL;
+        char name[128];
+        size_t length;
+
+        if( !comma )
+            continue;
+        if( strcmp(comma + 1, "ABSENT") == 0 )
+            continue;
+        length = (size_t)(comma - line);
+        if( length >= sizeof(name) )
+            length = sizeof(name) - 1;
+        memcpy(name, line, length);
+        name[length] = '\0';
+        ToriRSServer_DbColumnNameSet(table, i, name);
+    }
+}
+
+static const struct RSCache_BandBinding k_dbtable_bindings[] = {
+    BIND_APPLY(struct ToriRSServerDbTable, "column", column_count, apply_dbtable_column),
+};
+
+static const struct RSCache_BandBinding k_obj_bindings[] = {
+    BIND_APPLY(struct ToriRSServerObjBand, "levelrequire", levelrequire, apply_obj_levelrequire),
+};
+
+#undef BIND
+#undef BIND_APPLY
+
+#define COUNT_OF(table) ((int)(sizeof(table) / sizeof((table)[0])))
+
+static const struct ToriRSServerBandType k_types[] = {
+    { "npc", k_npc_bindings, COUNT_OF(k_npc_bindings), sizeof(struct ToriRSServerNpcDef) },
+    { "loc", k_loc_bindings, COUNT_OF(k_loc_bindings), sizeof(struct ToriRSServerLocDef) },
+    { "obj", k_obj_bindings, COUNT_OF(k_obj_bindings), sizeof(struct ToriRSServerObjBand) },
+    { "varp", k_varp_bindings, COUNT_OF(k_varp_bindings), sizeof(struct ToriRSServerVarpDef) },
+    { "inv", k_inv_bindings, COUNT_OF(k_inv_bindings), sizeof(struct ToriRSServerShopDef) },
+    { "dbtable", k_dbtable_bindings, COUNT_OF(k_dbtable_bindings),
+      sizeof(struct ToriRSServerDbTable) },
+};
+
+const struct ToriRSServerBandType*
 ToriRSServer_ServerTypes(int* out_count)
 {
-    if( out_count )
-        *out_count = TYPE_COUNT;
+    assert(out_count);
+    *out_count = COUNT_OF(k_types);
     return k_types;
 }
 
-const struct ServerType*
+const struct ToriRSServerBandType*
 ToriRSServer_ServerTypeFor(const char* name)
 {
     assert(name);
-    for( int i = 0; i < TYPE_COUNT; i++ )
+    for( int i = 0; i < COUNT_OF(k_types); i++ )
     {
         if( strcmp(k_types[i].name, name) == 0 )
             return &k_types[i];
@@ -140,158 +397,74 @@ ToriRSServer_ServerTypeFor(const char* name)
     return NULL;
 }
 
-/*
- * `memcpy` rather than a cast through `int*`.
- *
- * The offset is a byte count into a struct this file does not otherwise know, and
- * `*(int*)((char*)rec + off)` is only defined when that offset is `int`-aligned.
- * It always is today; a record that ever grows a `char` field before an `int` one
- * would make it undefined behaviour that works everywhere until it does not.
- */
-static int
-field_get(
-    const void* record,
-    const struct ServerField* field)
+int
+ToriRSServer_ServerCheck(
+    const struct ToriRSServerBandType* type,
+    const struct RSCache_Register* reg)
 {
-    int value;
+    int problems;
 
-    memcpy(&value, (const char*)record + field->offset, sizeof(value));
-    return value;
-}
+    assert(type);
+    assert(reg);
+    problems = RSCache_RegisterCheck(reg);
+    problems += RSCache_BandBindingCheck(reg, type->bindings, type->binding_count);
 
-static void
-field_set(
-    void* record,
-    const struct ServerField* field,
-    int value)
-{
-    memcpy((char*)record + field->offset, &value, sizeof(value));
-}
-
-uint32_t
-ToriRSServer_ServerEncodeBound(const struct ServerType* type)
-{
-    /* Every field at once — an opcode byte plus its widest payload — plus the
-     * terminator. Small enough that computing it per record would buy nothing. */
-    return type ? ((uint32_t)type->count * 5u) + 1u : 0u;
-}
-
-uint32_t
-ToriRSServer_ServerEncode(
-    const struct ServerType* type,
-    const void* record,
-    const void* defaults,
-    uint8_t* out,
-    uint32_t out_capacity)
-{
-    struct RSCache_Buffer buffer;
-    int i;
-    assert(type != NULL);
-    assert(record != NULL);
-    assert(out != NULL);
-    assert(out_capacity >= ToriRSServer_ServerEncodeBound(type));
-
-    RSCache_BufferInit(&buffer, out, out_capacity);
-
-    for( i = 0; i < type->count; i++ )
+    /* The direction the library cannot check, because it does not know which
+     * fields a reader consumes: a band field with no member to land in.
+     * cachepack writes it, RSCache_BandBindingApply skips it, and the authored
+     * value never reaches the engine. */
+    for( int i = 0; i < reg->band_count; i++ )
     {
-        const struct ServerField* field = &type->fields[i];
-        int value = field_get(record, field);
+        int bound = 0;
 
-        /*
-         * Compared against the *engine default*, not against zero.
-         *
-         * `death_drop` defaults to -1 (`param=death_drop,null`), so a
-         * zero-compare would emit it for every npc that drops nothing and omit it
-         * for one that drops obj 0. The default record is the only thing that
-         * knows which is which, and the same holds wherever 0 is a real value —
-         * `idk.type` 0 is a body part, sprite 0 is a sprite.
-         */
-        if( defaults && value == field_get(defaults, field) )
-            continue;
-
-        RSCache_BufferP1(&buffer, field->opcode);
-        switch( field->wire )
+        for( int b = 0; b < type->binding_count; b++ )
         {
-        case WIRE_U1:
-            /* Masked, because `p1` asserts on anything wider and a field declared
-             * u1 whose value is not is a register error, not a stream error — the
-             * packer refuses it there (`cp_server_band_put`) rather than truncating
-             * a value into a different valid id here. */
-            RSCache_BufferP1(&buffer, value & 0xFF);
-            break;
-        case WIRE_U2:
-            RSCache_BufferP2(&buffer, value & 0xFFFF);
-            break;
-        case WIRE_U4:
-            RSCache_BufferP4(&buffer, value);
-            break;
+            if( strcmp(type->bindings[b].name, reg->entries[i].name) == 0 )
+                bound++;
+        }
+        /* A field with `param = <name>` lands in the record's param table (a loc's
+         * `loc_param`), which the loader fills from the register itself; it needs
+         * no member. */
+        if( bound == 0 && reg->entries[i].param_name[0] )
+            continue;
+        if( bound == 0 )
+        {
+            fprintf(stderr,
+                    "fields/%s.ini: [%s.%s] has server opcode %d but this server binds no "
+                    "member to it\n",
+                    reg->type, reg->type, reg->entries[i].name, reg->entries[i].opcode);
+            problems++;
+        }
+        else if( bound > 1 )
+        {
+            fprintf(stderr, "fields/%s.ini: [%s.%s] is bound to %d members\n", reg->type,
+                    reg->type, reg->entries[i].name, bound);
+            problems++;
         }
     }
-
-    RSCache_BufferP1(&buffer, 0);
-    return RSCache_BufferLength(&buffer);
+    return problems;
 }
 
 int
 ToriRSServer_ServerDecode(
-    const struct ServerType* type,
-    void* record,
+    const struct ToriRSServerBandType* type,
+    const struct RSCache_Register* reg,
+    struct RSCache_BandRecord* record,
+    void* object,
     const uint8_t* src,
     int size)
 {
-    struct RSCache_Buffer buffer;
+    int consumed;
 
-    if( size < 0 )
-        return -1;
     assert(type);
+    assert(reg);
     assert(record);
+    assert(object);
     assert(src);
-
-    /* Cast away const: the cursor is shared with the encoder and so takes a
-     * writable pointer, but only `g` functions run below and none of them write. */
-    RSCache_BufferInit(&buffer, (uint8_t*)src, (uint32_t)size);
-
-    while( RSCache_BufferRemaining(&buffer) > 0 )
-    {
-        uint32_t opcode_at = buffer.position;
-        int opcode = RSCache_BufferG1(&buffer);
-        const struct ServerField* field = NULL;
-        int value = 0;
-        int i;
-
-        if( opcode == 0 )
-            break;
-        for( i = 0; i < type->count; i++ )
-        {
-            if( type->fields[i].opcode == opcode )
-            {
-                field = &type->fields[i];
-                break;
-            }
-        }
-        /* Unknown opcode: stop. Its payload width is unknown, so continuing would
-         * read a payload byte as the next opcode — the short return is the
-         * signal, exactly as in rscache's decoders. The cursor is rewound to the
-         * opcode itself so the return names the byte that stopped it. */
-        if( !field )
-            return (int)opcode_at;
-        if( RSCache_BufferRemaining(&buffer) < (uint32_t)field->wire )
-            return (int)opcode_at;
-
-        switch( field->wire )
-        {
-        case WIRE_U1:
-            value = RSCache_BufferG1(&buffer);
-            break;
-        case WIRE_U2:
-            value = RSCache_BufferG2(&buffer);
-            break;
-        case WIRE_U4:
-            value = RSCache_BufferG4(&buffer);
-            break;
-        }
-        field_set(record, field, value);
-    }
-    return (int)RSCache_BufferLength(&buffer);
+    assert(size >= 0);
+    consumed = RSCache_BandDecode(reg, record, src, size);
+    if( consumed < 0 )
+        return -1;
+    RSCache_BandBindingApply(reg, type->bindings, type->binding_count, record, object);
+    return consumed;
 }

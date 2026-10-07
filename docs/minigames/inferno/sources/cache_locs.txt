@@ -1,0 +1,2525 @@
+# loc records -- 106 records selected from cache.osrs239
+# source: OSRS-Content/osrs239-content/configs/all.loc (record header line given per record)
+# why= the selection rule(s) that chose the record (LEDGER_cache.md)
+
+[4657] boardgames_barstool_invis    (configs/all.loc:41313)
+  why= map: entrance m38_79
+  shape1=0,2214
+  shape2=1,46749
+  shape3=2,4873
+  shape4=3,46750
+  shape5=4,16239
+  shape6=9,2215
+  shape7=22,16238
+  blockrange=0
+  placed: entrance m38_79 level 0 local 51,55 shape 9 angle 3  (maps/m38_79.jl2:6)
+  placed: entrance m38_79 level 0 local 55,51 shape 9 angle 3  (maps/m38_79.jl2:7)
+  placed: entrance m38_79 level 0 local 57,49 shape 9 angle 3  (maps/m38_79.jl2:8)
+  placed: entrance m38_79 level 0 local 61,48 shape 9 angle 2  (maps/m38_79.jl2:9)
+
+[6926] invisable_nonblocking_wall    (configs/all.loc:62788)
+  why= map: arena m35_83
+  shape1=0,6932
+  shape2=1,15553
+  shape3=2,15554
+  shape4=3,15555
+  shape5=9,15556
+  blockwalk=0
+  blockrange=0
+  placed: arena m35_83 level 0 local 6,8 shape 3 angle 1  (maps/m35_83.jl2:2)
+  placed: arena m35_83 level 0 local 6,13 shape 3 angle 2  (maps/m35_83.jl2:3)
+  placed: arena m35_83 level 0 local 6,18 shape 3 angle 1  (maps/m35_83.jl2:4)
+  placed: arena m35_83 level 0 local 6,33 shape 3 angle 2  (maps/m35_83.jl2:5)
+  placed: arena m35_83 level 0 local 6,38 shape 3 angle 1  (maps/m35_83.jl2:6)
+  placed: arena m35_83 level 0 local 6,47 shape 3 angle 2  (maps/m35_83.jl2:7)
+  placed: arena m35_83 level 0 local 8,6 shape 3 angle 1  (maps/m35_83.jl2:8)
+  placed: arena m35_83 level 0 local 8,58 shape 3 angle 2  (maps/m35_83.jl2:9)
+  placed: arena m35_83 level 0 local 13,58 shape 3 angle 3  (maps/m35_83.jl2:10)
+  placed: arena m35_83 level 0 local 16,4 shape 3 angle 1  (maps/m35_83.jl2:11)
+  placed: arena m35_83 level 0 local 21,4 shape 3 angle 0  (maps/m35_83.jl2:12)
+  placed: arena m35_83 level 0 local 25,56 shape 3 angle 3  (maps/m35_83.jl2:13)
+  placed: ... 28 more placements
+
+[11847] tzhaar_cave_floor_1    (configs/all.loc:132377)
+  why= map: entrance m38_79
+  shape1=22,9264
+  recol1s=33676
+  recol1d=138
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  ambient=-30
+  shadow=no
+  offsety=-3
+  forcedecor=1
+  raise=4
+  placed: entrance m38_79 level 0 local 50,54 shape 22 angle 2  (maps/m38_79.jl2:992)
+  placed: entrance m38_79 level 0 local 52,45 shape 22 angle 0  (maps/m38_79.jl2:1003)
+  placed: entrance m38_79 level 0 local 52,47 shape 22 angle 0  (maps/m38_79.jl2:1004)
+  placed: entrance m38_79 level 0 local 56,47 shape 22 angle 2  (maps/m38_79.jl2:1033)
+  placed: entrance m38_79 level 0 local 58,46 shape 22 angle 0  (maps/m38_79.jl2:1056)
+  placed: entrance m38_79 level 0 local 62,50 shape 22 angle 3  (maps/m38_79.jl2:1077)
+
+[11848] tzhaar_cave_floor_2    (configs/all.loc:132390)
+  why= map: entrance m38_79
+  shape1=22,9265
+  recol1s=33676
+  recol1d=138
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  ambient=-30
+  shadow=no
+  offsety=-3
+  forcedecor=1
+  raise=4
+  placed: entrance m38_79 level 0 local 50,48 shape 22 angle 1  (maps/m38_79.jl2:1282)
+  placed: entrance m38_79 level 0 local 50,53 shape 22 angle 2  (maps/m38_79.jl2:1283)
+  placed: entrance m38_79 level 0 local 51,48 shape 22 angle 2  (maps/m38_79.jl2:1286)
+  placed: entrance m38_79 level 0 local 51,50 shape 22 angle 0  (maps/m38_79.jl2:1287)
+  placed: entrance m38_79 level 0 local 52,51 shape 22 angle 0  (maps/m38_79.jl2:1290)
+  placed: entrance m38_79 level 0 local 53,48 shape 22 angle 1  (maps/m38_79.jl2:1294)
+  placed: entrance m38_79 level 0 local 53,49 shape 22 angle 0  (maps/m38_79.jl2:1295)
+  placed: entrance m38_79 level 0 local 54,46 shape 22 angle 1  (maps/m38_79.jl2:1299)
+  placed: entrance m38_79 level 0 local 54,48 shape 22 angle 1  (maps/m38_79.jl2:1300)
+  placed: entrance m38_79 level 0 local 54,51 shape 22 angle 2  (maps/m38_79.jl2:1301)
+  placed: entrance m38_79 level 0 local 55,51 shape 22 angle 1  (maps/m38_79.jl2:1311)
+  placed: entrance m38_79 level 0 local 57,46 shape 22 angle 0  (maps/m38_79.jl2:1324)
+  placed: ... 6 more placements
+
+[11849] tzhaar_cave_floor_3    (configs/all.loc:132403)
+  why= map: entrance m38_79
+  shape1=22,9266
+  recol1s=33676
+  recol1d=138
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  ambient=-30
+  shadow=no
+  offsety=-3
+  forcedecor=1
+  raise=4
+  placed: entrance m38_79 level 0 local 50,45 shape 22 angle 1  (maps/m38_79.jl2:1532)
+  placed: entrance m38_79 level 0 local 50,46 shape 22 angle 0  (maps/m38_79.jl2:1533)
+  placed: entrance m38_79 level 0 local 50,49 shape 22 angle 0  (maps/m38_79.jl2:1534)
+  placed: entrance m38_79 level 0 local 50,50 shape 22 angle 2  (maps/m38_79.jl2:1535)
+  placed: entrance m38_79 level 0 local 50,52 shape 22 angle 1  (maps/m38_79.jl2:1536)
+  placed: entrance m38_79 level 0 local 50,55 shape 22 angle 1  (maps/m38_79.jl2:1537)
+  placed: entrance m38_79 level 0 local 51,46 shape 22 angle 1  (maps/m38_79.jl2:1544)
+  placed: entrance m38_79 level 0 local 52,48 shape 22 angle 0  (maps/m38_79.jl2:1550)
+  placed: entrance m38_79 level 0 local 53,45 shape 22 angle 0  (maps/m38_79.jl2:1554)
+  placed: entrance m38_79 level 0 local 53,47 shape 22 angle 0  (maps/m38_79.jl2:1555)
+  placed: entrance m38_79 level 0 local 53,51 shape 22 angle 2  (maps/m38_79.jl2:1556)
+  placed: entrance m38_79 level 0 local 54,45 shape 22 angle 2  (maps/m38_79.jl2:1560)
+  placed: ... 4 more placements
+
+[11850] tzhaar_cave_floor_4    (configs/all.loc:132416)
+  why= map: entrance m38_79
+  shape1=22,9267
+  recol1s=33676
+  recol1d=138
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  ambient=-30
+  shadow=no
+  offsety=-3
+  forcedecor=1
+  raise=4
+  placed: entrance m38_79 level 0 local 50,47 shape 22 angle 0  (maps/m38_79.jl2:1769)
+  placed: entrance m38_79 level 0 local 50,51 shape 22 angle 2  (maps/m38_79.jl2:1770)
+  placed: entrance m38_79 level 0 local 51,45 shape 22 angle 0  (maps/m38_79.jl2:1772)
+  placed: entrance m38_79 level 0 local 51,47 shape 22 angle 0  (maps/m38_79.jl2:1773)
+  placed: entrance m38_79 level 0 local 51,49 shape 22 angle 0  (maps/m38_79.jl2:1774)
+  placed: entrance m38_79 level 0 local 51,51 shape 22 angle 1  (maps/m38_79.jl2:1775)
+  placed: entrance m38_79 level 0 local 51,52 shape 22 angle 2  (maps/m38_79.jl2:1776)
+  placed: entrance m38_79 level 0 local 51,53 shape 22 angle 0  (maps/m38_79.jl2:1777)
+  placed: entrance m38_79 level 0 local 51,54 shape 22 angle 1  (maps/m38_79.jl2:1778)
+  placed: entrance m38_79 level 0 local 51,55 shape 22 angle 1  (maps/m38_79.jl2:1779)
+  placed: entrance m38_79 level 0 local 52,46 shape 22 angle 1  (maps/m38_79.jl2:1781)
+  placed: entrance m38_79 level 0 local 52,49 shape 22 angle 3  (maps/m38_79.jl2:1782)
+  placed: ... 32 more placements
+
+[11851] tzhaar_sulphar_vent    (configs/all.loc:132429)
+  why= map: entrance m38_79
+  name=Sulphur vent
+  shape1=10,9294
+  shape2=22,9295
+  recol1s=33676
+  recol1d=0
+  blockwalk=1
+  active=1
+  ambient=30
+  contrast=375
+  category=152
+  shadow=no
+  forcedecor=1
+  soundid=2066
+  sounddistance=3
+  placed: entrance m38_79 level 0 local 54,50 shape 22 angle 0  (maps/m38_79.jl2:1889)
+
+[11852] tzhaar_sulphar_gas    (configs/all.loc:132445)
+  why= map: entrance m38_79
+  shape1=10,9294
+  shape2=22,9295
+  blockwalk=0
+  blockrange=0
+  anim=gas
+  shadow=no
+  placed: entrance m38_79 level 0 local 54,50 shape 10 angle 0  (maps/m38_79.jl2:1918)
+
+[14390] wilderness_rocks_floor_hard_01    (configs/all.loc:160555)
+  why= map: arena m35_83
+  shape1=22,14597
+  recol1s=30
+  recol1d=16
+  recol2s=35
+  recol2d=20
+  recol3s=39
+  recol3d=24
+  recol4s=43
+  recol4d=28
+  recol5s=51
+  recol5d=33
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  placed: arena m35_83 level 0 local 19,20 shape 22 angle 2  (maps/m35_83.jl2:42)
+  placed: arena m35_83 level 0 local 19,34 shape 22 angle 2  (maps/m35_83.jl2:43)
+  placed: arena m35_83 level 0 local 19,41 shape 22 angle 2  (maps/m35_83.jl2:44)
+  placed: arena m35_83 level 0 local 20,20 shape 22 angle 2  (maps/m35_83.jl2:45)
+  placed: arena m35_83 level 0 local 20,34 shape 22 angle 2  (maps/m35_83.jl2:46)
+  placed: arena m35_83 level 0 local 21,20 shape 22 angle 0  (maps/m35_83.jl2:47)
+  placed: arena m35_83 level 0 local 21,34 shape 22 angle 0  (maps/m35_83.jl2:48)
+  placed: arena m35_83 level 0 local 24,27 shape 22 angle 0  (maps/m35_83.jl2:49)
+  placed: arena m35_83 level 0 local 26,42 shape 22 angle 2  (maps/m35_83.jl2:50)
+  placed: arena m35_83 level 0 local 27,42 shape 22 angle 0  (maps/m35_83.jl2:51)
+  placed: arena m35_83 level 0 local 28,42 shape 22 angle 0  (maps/m35_83.jl2:52)
+  placed: arena m35_83 level 0 local 32,19 shape 22 angle 2  (maps/m35_83.jl2:53)
+  placed: ... 9 more placements
+
+[14391] wilderness_rocks_floor_hard_02    (configs/all.loc:160571)
+  why= map: arena m35_83
+  shape1=22,14598
+  recol1s=30
+  recol1d=16
+  recol2s=35
+  recol2d=20
+  recol3s=39
+  recol3d=24
+  recol4s=43
+  recol4d=28
+  recol5s=51
+  recol5d=33
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  placed: arena m35_83 level 0 local 18,20 shape 22 angle 0  (maps/m35_83.jl2:63)
+  placed: arena m35_83 level 0 local 18,34 shape 22 angle 0  (maps/m35_83.jl2:64)
+  placed: arena m35_83 level 0 local 18,41 shape 22 angle 0  (maps/m35_83.jl2:65)
+  placed: arena m35_83 level 0 local 19,19 shape 22 angle 1  (maps/m35_83.jl2:66)
+  placed: arena m35_83 level 0 local 19,21 shape 22 angle 3  (maps/m35_83.jl2:67)
+  placed: arena m35_83 level 0 local 19,33 shape 22 angle 1  (maps/m35_83.jl2:68)
+  placed: arena m35_83 level 0 local 19,35 shape 22 angle 3  (maps/m35_83.jl2:69)
+  placed: arena m35_83 level 0 local 19,40 shape 22 angle 1  (maps/m35_83.jl2:70)
+  placed: arena m35_83 level 0 local 19,42 shape 22 angle 3  (maps/m35_83.jl2:71)
+  placed: arena m35_83 level 0 local 20,18 shape 22 angle 3  (maps/m35_83.jl2:72)
+  placed: arena m35_83 level 0 local 20,19 shape 22 angle 1  (maps/m35_83.jl2:73)
+  placed: arena m35_83 level 0 local 20,21 shape 22 angle 3  (maps/m35_83.jl2:74)
+  placed: ... 63 more placements
+
+[14392] wilderness_rocks_floor_hard_03    (configs/all.loc:160587)
+  why= map: arena m35_83
+  shape1=22,14599
+  recol1s=30
+  recol1d=16
+  recol2s=35
+  recol2d=20
+  recol3s=39
+  recol3d=24
+  recol4s=43
+  recol4d=28
+  recol5s=51
+  recol5d=33
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  placed: arena m35_83 level 0 local 19,39 shape 22 angle 2  (maps/m35_83.jl2:138)
+  placed: arena m35_83 level 0 local 19,43 shape 22 angle 0  (maps/m35_83.jl2:139)
+  placed: arena m35_83 level 0 local 20,23 shape 22 angle 0  (maps/m35_83.jl2:140)
+  placed: arena m35_83 level 0 local 20,31 shape 22 angle 2  (maps/m35_83.jl2:141)
+  placed: arena m35_83 level 0 local 20,37 shape 22 angle 0  (maps/m35_83.jl2:142)
+  placed: arena m35_83 level 0 local 21,41 shape 22 angle 1  (maps/m35_83.jl2:143)
+  placed: arena m35_83 level 0 local 22,27 shape 22 angle 3  (maps/m35_83.jl2:144)
+  placed: arena m35_83 level 0 local 23,20 shape 22 angle 1  (maps/m35_83.jl2:145)
+  placed: arena m35_83 level 0 local 23,34 shape 22 angle 1  (maps/m35_83.jl2:146)
+  placed: arena m35_83 level 0 local 24,25 shape 22 angle 2  (maps/m35_83.jl2:147)
+  placed: arena m35_83 level 0 local 24,29 shape 22 angle 0  (maps/m35_83.jl2:148)
+  placed: arena m35_83 level 0 local 24,42 shape 22 angle 3  (maps/m35_83.jl2:149)
+  placed: ... 26 more placements
+
+[14393] wilderness_rocks_floor_hard_04    (configs/all.loc:160603)
+  why= map: arena m35_83
+  shape1=22,14600
+  recol1s=30
+  recol1d=16
+  recol2s=35
+  recol2d=20
+  recol3s=39
+  recol3d=24
+  recol4s=43
+  recol4d=28
+  recol5s=51
+  recol5d=33
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  placed: arena m35_83 level 0 local 18,19 shape 22 angle 1  (maps/m35_83.jl2:176)
+  placed: arena m35_83 level 0 local 18,21 shape 22 angle 2  (maps/m35_83.jl2:177)
+  placed: arena m35_83 level 0 local 18,27 shape 22 angle 1  (maps/m35_83.jl2:178)
+  placed: arena m35_83 level 0 local 18,28 shape 22 angle 2  (maps/m35_83.jl2:179)
+  placed: arena m35_83 level 0 local 18,33 shape 22 angle 1  (maps/m35_83.jl2:180)
+  placed: arena m35_83 level 0 local 18,35 shape 22 angle 2  (maps/m35_83.jl2:181)
+  placed: arena m35_83 level 0 local 18,40 shape 22 angle 1  (maps/m35_83.jl2:182)
+  placed: arena m35_83 level 0 local 18,42 shape 22 angle 2  (maps/m35_83.jl2:183)
+  placed: arena m35_83 level 0 local 19,18 shape 22 angle 1  (maps/m35_83.jl2:184)
+  placed: arena m35_83 level 0 local 19,22 shape 22 angle 2  (maps/m35_83.jl2:185)
+  placed: arena m35_83 level 0 local 19,27 shape 22 angle 0  (maps/m35_83.jl2:186)
+  placed: arena m35_83 level 0 local 19,28 shape 22 angle 3  (maps/m35_83.jl2:187)
+  placed: ... 72 more placements
+
+[14394] wilderness_rocks_floor_hard_05    (configs/all.loc:160619)
+  why= map: arena m35_83
+  shape1=22,12130
+  recol1s=30
+  recol1d=16
+  recol2s=35
+  recol2d=20
+  recol3s=39
+  recol3d=24
+  recol4s=43
+  recol4d=28
+  recol5s=51
+  recol5d=33
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  placed: arena m35_83 level 0 local 18,18 shape 22 angle 2  (maps/m35_83.jl2:260)
+  placed: arena m35_83 level 0 local 18,22 shape 22 angle 3  (maps/m35_83.jl2:261)
+  placed: arena m35_83 level 0 local 18,24 shape 22 angle 3  (maps/m35_83.jl2:262)
+  placed: arena m35_83 level 0 local 18,26 shape 22 angle 0  (maps/m35_83.jl2:263)
+  placed: arena m35_83 level 0 local 18,29 shape 22 angle 1  (maps/m35_83.jl2:264)
+  placed: arena m35_83 level 0 local 18,30 shape 22 angle 1  (maps/m35_83.jl2:265)
+  placed: arena m35_83 level 0 local 18,32 shape 22 angle 2  (maps/m35_83.jl2:266)
+  placed: arena m35_83 level 0 local 18,36 shape 22 angle 3  (maps/m35_83.jl2:267)
+  placed: arena m35_83 level 0 local 18,39 shape 22 angle 1  (maps/m35_83.jl2:268)
+  placed: arena m35_83 level 0 local 18,43 shape 22 angle 3  (maps/m35_83.jl2:269)
+  placed: arena m35_83 level 0 local 19,23 shape 22 angle 1  (maps/m35_83.jl2:270)
+  placed: arena m35_83 level 0 local 19,25 shape 22 angle 1  (maps/m35_83.jl2:271)
+  placed: ... 279 more placements
+
+[26713] poh_mounted_infernal_cape    (configs/all.loc:295205)
+  why= name: poh_mounted_infernal_cape
+  name=Mounted Infernal Cape
+  models=33143
+  width=2
+  length=2
+  active=1
+  ambient=20
+  contrast=125
+  op1=Admire
+  op4=Take
+  category=206
+  placed: nowhere in the selected map squares
+
+[26714] poh_mounted_max_cape_infernalcape    (configs/all.loc:295217)
+  why= name: poh_mounted_max_cape_infernalcape
+  name=Mounted Max Cape
+  models=33142
+  width=2
+  length=2
+  active=1
+  ambient=20
+  contrast=125
+  op1=Admire
+  op4=Take
+  category=206
+  placed: nowhere in the selected map squares
+
+[26723] morulrek_floor_edge_01    (configs/all.loc:295310)
+  why= map: entrance m38_80, entrance m38_79
+  models=33025
+  width=2
+  length=2
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: entrance m38_80 level 0 local 60,0 shape 10 angle 1  (maps/m38_80.jl2:6492)
+  placed: entrance m38_79 level 0 local 54,52 shape 10 angle 2  (maps/m38_79.jl2:7852)
+  placed: entrance m38_79 level 0 local 60,50 shape 10 angle 1  (maps/m38_79.jl2:7853)
+  placed: entrance m38_79 level 0 local 60,54 shape 10 angle 1  (maps/m38_79.jl2:7854)
+
+[26724] morulrek_floor_edge_02    (configs/all.loc:295319)
+  why= map: entrance m38_79
+  models=33021
+  width=2
+  length=2
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: entrance m38_79 level 0 local 52,54 shape 10 angle 3  (maps/m38_79.jl2:7856)
+  placed: entrance m38_79 level 0 local 60,52 shape 10 angle 1  (maps/m38_79.jl2:7857)
+
+[26725] morulrek_floor_corner_outer_01    (configs/all.loc:295328)
+  why= map: entrance m38_80, entrance m38_79
+  models=33019
+  width=2
+  length=2
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: entrance m38_80 level 0 local 60,2 shape 10 angle 2  (maps/m38_80.jl2:6499)
+  placed: entrance m38_80 level 0 local 62,2 shape 10 angle 3  (maps/m38_80.jl2:6500)
+  placed: entrance m38_79 level 0 local 58,50 shape 10 angle 3  (maps/m38_79.jl2:7859)
+
+[26947] nexus_wall_pink_corner_02_invisible    (configs/all.loc:298324)
+  why= map: arena m35_83
+  shape1=2,29542
+  blockwalk=1
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  shadow=no
+  placed: arena m35_83 level 0 local 8,8 shape 2 angle 1  (maps/m35_83.jl2:551)
+  placed: arena m35_83 level 0 local 8,13 shape 2 angle 2  (maps/m35_83.jl2:552)
+  placed: arena m35_83 level 0 local 8,18 shape 2 angle 1  (maps/m35_83.jl2:553)
+  placed: arena m35_83 level 0 local 8,33 shape 2 angle 2  (maps/m35_83.jl2:554)
+  placed: arena m35_83 level 0 local 8,38 shape 2 angle 1  (maps/m35_83.jl2:555)
+  placed: arena m35_83 level 0 local 8,47 shape 2 angle 2  (maps/m35_83.jl2:556)
+  placed: arena m35_83 level 0 local 13,56 shape 2 angle 3  (maps/m35_83.jl2:557)
+  placed: arena m35_83 level 0 local 16,6 shape 2 angle 1  (maps/m35_83.jl2:558)
+  placed: arena m35_83 level 0 local 21,6 shape 2 angle 0  (maps/m35_83.jl2:559)
+  placed: arena m35_83 level 0 local 25,54 shape 2 angle 3  (maps/m35_83.jl2:560)
+  placed: arena m35_83 level 0 local 26,54 shape 2 angle 2  (maps/m35_83.jl2:561)
+  placed: arena m35_83 level 0 local 36,54 shape 2 angle 3  (maps/m35_83.jl2:562)
+  placed: ... 15 more placements
+
+[27787] archeuus_invisible_type_1    (configs/all.loc:306791)
+  why= map: arena m35_83, entrance m38_79
+  shape1=0,30742
+  blockwalk=1
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  shadow=no
+  placed: arena m35_83 level 0 local 6,9 shape 0 angle 2  (maps/m35_83.jl2:578)
+  placed: arena m35_83 level 0 local 6,10 shape 0 angle 2  (maps/m35_83.jl2:579)
+  placed: arena m35_83 level 0 local 6,11 shape 0 angle 2  (maps/m35_83.jl2:580)
+  placed: arena m35_83 level 0 local 6,12 shape 0 angle 2  (maps/m35_83.jl2:581)
+  placed: arena m35_83 level 0 local 6,19 shape 0 angle 2  (maps/m35_83.jl2:582)
+  placed: arena m35_83 level 0 local 6,20 shape 0 angle 2  (maps/m35_83.jl2:583)
+  placed: arena m35_83 level 0 local 6,21 shape 0 angle 2  (maps/m35_83.jl2:584)
+  placed: arena m35_83 level 0 local 6,22 shape 0 angle 2  (maps/m35_83.jl2:585)
+  placed: arena m35_83 level 0 local 6,23 shape 0 angle 2  (maps/m35_83.jl2:586)
+  placed: arena m35_83 level 0 local 6,24 shape 0 angle 2  (maps/m35_83.jl2:587)
+  placed: arena m35_83 level 0 local 6,25 shape 0 angle 2  (maps/m35_83.jl2:588)
+  placed: arena m35_83 level 0 local 6,26 shape 0 angle 2  (maps/m35_83.jl2:589)
+  placed: ... 323 more placements
+
+[30263] morulrek_floor_corner_outer_02    (configs/all.loc:344892)
+  why= map: entrance m38_80, entrance m38_79
+  models=33020
+  width=2
+  length=2
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: entrance m38_80 level 0 local 56,10 shape 10 angle 0  (maps/m38_80.jl2:6534)
+  placed: entrance m38_79 level 0 local 52,56 shape 10 angle 3  (maps/m38_79.jl2:7921)
+  placed: entrance m38_79 level 0 local 56,52 shape 10 angle 3  (maps/m38_79.jl2:7922)
+  placed: entrance m38_79 level 0 local 58,56 shape 10 angle 1  (maps/m38_79.jl2:7923)
+
+[30264] morulrek_floor_corner_inside_01    (configs/all.loc:344901)
+  why= map: entrance m38_80, entrance m38_79
+  models=33023
+  width=2
+  length=2
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: entrance m38_80 level 0 local 62,0 shape 10 angle 3  (maps/m38_80.jl2:6536)
+  placed: entrance m38_79 level 0 local 60,48 shape 10 angle 2  (maps/m38_79.jl2:7928)
+  placed: entrance m38_79 level 0 local 60,56 shape 10 angle 1  (maps/m38_79.jl2:7929)
+
+[30265] morulrek_floor_corner_inside_02    (configs/all.loc:344910)
+  why= map: entrance m38_79
+  models=33024
+  width=2
+  length=2
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: entrance m38_79 level 0 local 50,56 shape 10 angle 3  (maps/m38_79.jl2:7931)
+  placed: entrance m38_79 level 0 local 52,52 shape 10 angle 3  (maps/m38_79.jl2:7932)
+  placed: entrance m38_79 level 0 local 56,50 shape 10 angle 3  (maps/m38_79.jl2:7933)
+  placed: entrance m38_79 level 0 local 58,48 shape 10 angle 3  (maps/m38_79.jl2:7934)
+
+[30281] inferno_entrance_noop    (configs/all.loc:345058)
+  why= name: inferno_entrance_noop; bind: multiloc1-2 (value 0-1) of loc inferno_entrance
+  name=The Inferno
+  models=33022
+  blockwalk=0
+  blockrange=0
+  active=1
+  sharelight=1
+  placed: nowhere in the selected map squares
+
+[30282] inferno_entrance_op    (configs/all.loc:345066)
+  why= name: inferno_entrance_op; ref: server/scripts/minigames/minigame_inferno/scripts/inferno.rs2:273; bind: multiloc3 (value 2) of loc inferno_entrance
+  name=The Inferno
+  models=33022
+  blockwalk=0
+  blockrange=0
+  active=1
+  sharelight=1
+  op1=Jump-in
+  placed: nowhere in the selected map squares
+
+[30283] inferno_exit    (configs/all.loc:345075)
+  why= name: inferno_exit; map: arena m35_83; ref: server/scripts/minigames/minigame_inferno/scripts/inferno.rs2:288 (+1)
+  name=Cave exit
+  models=33041
+  width=5
+  length=4
+  active=1
+  anim=inferno_exit
+  op1=Exit
+  op2=Quick-exit
+  placed: arena m35_83 level 0 local 29,13 shape 10 angle 0  (maps/m35_83.jl2:891)
+
+[30284] inferno_safespot_100    (configs/all.loc:345085)
+  why= name: inferno_safespot_100; bind: multiloc1-64 (value 0-63) of loc inferno_safespot1, multiloc1-64 (value 0-63) of loc inferno_safespot2, multiloc1-64 (value 0-63) of loc inferno_safespot3
+  name=Rocky support
+  models=33044
+  active=1
+  mapscene=12
+  offsety=-1
+  placed: nowhere in the selected map squares
+
+[30285] inferno_safespot_75    (configs/all.loc:345092)
+  why= name: inferno_safespot_75; bind: multiloc65-128 (value 64-127) of loc inferno_safespot1, multiloc65-128 (value 64-127) of loc inferno_safespot2, multiloc65-128 (value 64-127) of loc inferno_safespot3
+  name=Rocky support
+  models=33043
+  active=1
+  mapscene=12
+  offsety=-1
+  placed: nowhere in the selected map squares
+
+[30286] inferno_safespot_50    (configs/all.loc:345099)
+  why= name: inferno_safespot_50; bind: multiloc129-192 (value 128-191) of loc inferno_safespot1, multiloc129-192 (value 128-191) of loc inferno_safespot2, multiloc129-192 (value 128-191) of loc inferno_safespot3
+  name=Rocky support
+  models=33042
+  active=1
+  mapscene=12
+  offsety=-1
+  placed: nowhere in the selected map squares
+
+[30287] inferno_safespot_25    (configs/all.loc:345106)
+  why= name: inferno_safespot_25; bind: multiloc193-256 (value 192-255) of loc inferno_safespot1, multiloc193-256 (value 192-255) of loc inferno_safespot2, multiloc193-256 (value 192-255) of loc inferno_safespot3
+  name=Rocky support
+  models=33045
+  active=1
+  mapscene=12
+  offsety=-1
+  placed: nowhere in the selected map squares
+
+[30288] inferno_floor_sand_straight_01    (configs/all.loc:345113)
+  why= name: inferno_floor_sand_straight_01; map: arena m35_83
+  shape1=22,33098
+  blockwalk=0
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  placed: arena m35_83 level 0 local 17,18 shape 22 angle 1  (maps/m35_83.jl2:892)
+  placed: arena m35_83 level 0 local 17,19 shape 22 angle 1  (maps/m35_83.jl2:893)
+  placed: arena m35_83 level 0 local 17,20 shape 22 angle 1  (maps/m35_83.jl2:894)
+  placed: arena m35_83 level 0 local 17,21 shape 22 angle 1  (maps/m35_83.jl2:895)
+  placed: arena m35_83 level 0 local 17,22 shape 22 angle 1  (maps/m35_83.jl2:896)
+  placed: arena m35_83 level 0 local 17,23 shape 22 angle 1  (maps/m35_83.jl2:897)
+  placed: arena m35_83 level 0 local 17,24 shape 22 angle 1  (maps/m35_83.jl2:898)
+  placed: arena m35_83 level 0 local 17,25 shape 22 angle 1  (maps/m35_83.jl2:899)
+  placed: arena m35_83 level 0 local 17,26 shape 22 angle 1  (maps/m35_83.jl2:900)
+  placed: arena m35_83 level 0 local 17,27 shape 22 angle 1  (maps/m35_83.jl2:901)
+  placed: arena m35_83 level 0 local 17,28 shape 22 angle 1  (maps/m35_83.jl2:902)
+  placed: arena m35_83 level 0 local 17,29 shape 22 angle 1  (maps/m35_83.jl2:903)
+  placed: ... 98 more placements
+
+[30289] inferno_floor_sand_corner_01    (configs/all.loc:345120)
+  why= name: inferno_floor_sand_corner_01; map: arena m35_83
+  shape1=22,33097
+  blockwalk=0
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  placed: arena m35_83 level 0 local 17,17 shape 22 angle 0  (maps/m35_83.jl2:1002)
+  placed: arena m35_83 level 0 local 17,46 shape 22 angle 1  (maps/m35_83.jl2:1003)
+  placed: arena m35_83 level 0 local 45,17 shape 22 angle 3  (maps/m35_83.jl2:1004)
+  placed: arena m35_83 level 0 local 45,46 shape 22 angle 2  (maps/m35_83.jl2:1005)
+
+[30290] inferno_floor_small_plane_01    (configs/all.loc:345127)
+  why= name: inferno_floor_small_plane_01; map: arena m35_83
+  models=33050
+  blockwalk=0
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: arena m35_83 level 0 local 13,48 shape 10 angle 0  (maps/m35_83.jl2:1006)
+  placed: arena m35_83 level 0 local 13,49 shape 10 angle 0  (maps/m35_83.jl2:1007)
+  placed: arena m35_83 level 0 local 13,50 shape 10 angle 0  (maps/m35_83.jl2:1008)
+  placed: arena m35_83 level 0 local 13,51 shape 10 angle 0  (maps/m35_83.jl2:1009)
+  placed: arena m35_83 level 0 local 14,48 shape 10 angle 0  (maps/m35_83.jl2:1010)
+  placed: arena m35_83 level 0 local 28,57 shape 10 angle 0  (maps/m35_83.jl2:1011)
+  placed: arena m35_83 level 0 local 28,58 shape 10 angle 0  (maps/m35_83.jl2:1012)
+  placed: arena m35_83 level 0 local 29,57 shape 10 angle 0  (maps/m35_83.jl2:1013)
+  placed: arena m35_83 level 0 local 29,58 shape 10 angle 0  (maps/m35_83.jl2:1014)
+  placed: arena m35_83 level 0 local 30,52 shape 10 angle 0  (maps/m35_83.jl2:1015)
+  placed: arena m35_83 level 0 local 30,53 shape 10 angle 0  (maps/m35_83.jl2:1016)
+  placed: arena m35_83 level 0 local 30,54 shape 10 angle 0  (maps/m35_83.jl2:1017)
+  placed: ... 27 more placements
+
+[30291] inferno_floor_small_plane_02    (configs/all.loc:345135)
+  why= name: inferno_floor_small_plane_02; map: arena m35_83
+  shape1=22,33058
+  blockwalk=0
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: arena m35_83 level 0 local 11,45 shape 22 angle 0  (maps/m35_83.jl2:1045)
+  placed: arena m35_83 level 0 local 12,45 shape 22 angle 0  (maps/m35_83.jl2:1046)
+  placed: arena m35_83 level 0 local 13,45 shape 22 angle 0  (maps/m35_83.jl2:1047)
+  placed: arena m35_83 level 0 local 14,45 shape 22 angle 0  (maps/m35_83.jl2:1048)
+  placed: arena m35_83 level 0 local 17,49 shape 22 angle 0  (maps/m35_83.jl2:1049)
+  placed: arena m35_83 level 0 local 17,50 shape 22 angle 0  (maps/m35_83.jl2:1050)
+  placed: arena m35_83 level 0 local 17,51 shape 22 angle 0  (maps/m35_83.jl2:1051)
+  placed: arena m35_83 level 0 local 18,49 shape 22 angle 0  (maps/m35_83.jl2:1052)
+  placed: arena m35_83 level 0 local 18,50 shape 22 angle 0  (maps/m35_83.jl2:1053)
+  placed: arena m35_83 level 0 local 18,51 shape 22 angle 0  (maps/m35_83.jl2:1054)
+  placed: arena m35_83 level 0 local 19,49 shape 22 angle 0  (maps/m35_83.jl2:1055)
+  placed: arena m35_83 level 0 local 19,50 shape 22 angle 0  (maps/m35_83.jl2:1056)
+  placed: ... 85 more placements
+
+[30292] inferno_floor_large_plane_01    (configs/all.loc:345143)
+  why= name: inferno_floor_large_plane_01; map: arena m35_83
+  models=33052
+  width=2
+  length=2
+  blockwalk=0
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: arena m35_83 level 0 local 9,27 shape 10 angle 0  (maps/m35_83.jl2:1142)
+  placed: arena m35_83 level 0 local 9,29 shape 10 angle 0  (maps/m35_83.jl2:1143)
+  placed: arena m35_83 level 0 local 9,41 shape 10 angle 0  (maps/m35_83.jl2:1144)
+  placed: arena m35_83 level 0 local 9,43 shape 10 angle 0  (maps/m35_83.jl2:1145)
+  placed: arena m35_83 level 0 local 11,11 shape 10 angle 0  (maps/m35_83.jl2:1146)
+  placed: arena m35_83 level 0 local 11,19 shape 10 angle 0  (maps/m35_83.jl2:1147)
+  placed: arena m35_83 level 0 local 11,21 shape 10 angle 0  (maps/m35_83.jl2:1148)
+  placed: arena m35_83 level 0 local 11,23 shape 10 angle 0  (maps/m35_83.jl2:1149)
+  placed: arena m35_83 level 0 local 11,25 shape 10 angle 0  (maps/m35_83.jl2:1150)
+  placed: arena m35_83 level 0 local 11,39 shape 10 angle 0  (maps/m35_83.jl2:1151)
+  placed: arena m35_83 level 0 local 11,46 shape 10 angle 0  (maps/m35_83.jl2:1152)
+  placed: arena m35_83 level 0 local 13,11 shape 10 angle 0  (maps/m35_83.jl2:1153)
+  placed: ... 35 more placements
+
+[30293] inferno_roof_small_plane_01    (configs/all.loc:345153)
+  why= name: inferno_roof_small_plane_01; map: arena m35_83
+  models=33054
+  blockwalk=1
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: arena m35_83 level 0 local 0,0 shape 10 angle 0  (maps/m35_83.jl2:1189)
+  placed: arena m35_83 level 0 local 0,1 shape 10 angle 0  (maps/m35_83.jl2:1190)
+  placed: arena m35_83 level 0 local 0,2 shape 10 angle 0  (maps/m35_83.jl2:1191)
+  placed: arena m35_83 level 0 local 0,3 shape 10 angle 0  (maps/m35_83.jl2:1192)
+  placed: arena m35_83 level 0 local 0,4 shape 10 angle 0  (maps/m35_83.jl2:1193)
+  placed: arena m35_83 level 0 local 0,5 shape 10 angle 0  (maps/m35_83.jl2:1194)
+  placed: arena m35_83 level 0 local 0,6 shape 10 angle 0  (maps/m35_83.jl2:1195)
+  placed: arena m35_83 level 0 local 0,7 shape 10 angle 0  (maps/m35_83.jl2:1196)
+  placed: arena m35_83 level 0 local 0,8 shape 10 angle 0  (maps/m35_83.jl2:1197)
+  placed: arena m35_83 level 0 local 0,9 shape 10 angle 0  (maps/m35_83.jl2:1198)
+  placed: arena m35_83 level 0 local 0,10 shape 10 angle 0  (maps/m35_83.jl2:1199)
+  placed: arena m35_83 level 0 local 0,11 shape 10 angle 0  (maps/m35_83.jl2:1200)
+  placed: ... 1125 more placements
+
+[30294] inferno_floor_rocks_lava    (configs/all.loc:345161)
+  why= name: inferno_floor_rocks_lava; map: arena m35_83
+  models=33061
+  width=3
+  length=3
+  blockwalk=0
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: arena m35_83 level 0 local 14,49 shape 10 angle 2  (maps/m35_83.jl2:2326)
+  placed: arena m35_83 level 0 local 46,49 shape 10 angle 0  (maps/m35_83.jl2:2327)
+
+[30295] inferno_floor_rocks_01    (configs/all.loc:345171)
+  why= name: inferno_floor_rocks_01; map: arena m35_83
+  models=33051
+  width=2
+  length=2
+  blockwalk=0
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  mapscene=12
+  placed: arena m35_83 level 0 local 13,29 shape 10 angle 0  (maps/m35_83.jl2:2328)
+  placed: arena m35_83 level 0 local 15,31 shape 10 angle 1  (maps/m35_83.jl2:2329)
+  placed: arena m35_83 level 0 local 15,41 shape 10 angle 3  (maps/m35_83.jl2:2330)
+  placed: arena m35_83 level 0 local 27,15 shape 10 angle 3  (maps/m35_83.jl2:2331)
+  placed: arena m35_83 level 0 local 46,19 shape 10 angle 1  (maps/m35_83.jl2:2332)
+  placed: arena m35_83 level 0 local 46,33 shape 10 angle 3  (maps/m35_83.jl2:2333)
+
+[30296] inferno_floor_rocks_02    (configs/all.loc:345182)
+  why= name: inferno_floor_rocks_02; map: arena m35_83
+  models=33057
+  width=2
+  length=4
+  blockwalk=0
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  mapscene=12
+  placed: arena m35_83 level 0 local 15,25 shape 10 angle 2  (maps/m35_83.jl2:2334)
+  placed: arena m35_83 level 0 local 42,15 shape 10 angle 3  (maps/m35_83.jl2:2335)
+
+[30297] inferno_floor_rocks_03    (configs/all.loc:345193)
+  why= name: inferno_floor_rocks_03; map: arena m35_83
+  models=33053
+  width=2
+  length=4
+  blockwalk=0
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  mapscene=12
+  placed: arena m35_83 level 0 local 15,15 shape 10 angle 1  (maps/m35_83.jl2:2336)
+  placed: arena m35_83 level 0 local 34,15 shape 10 angle 3  (maps/m35_83.jl2:2337)
+
+[30298] inferno_floor_rocks_04    (configs/all.loc:345204)
+  why= name: inferno_floor_rocks_04; map: arena m35_83
+  models=33056
+  width=2
+  length=2
+  blockwalk=0
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  mapscene=12
+  placed: arena m35_83 level 0 local 23,7 shape 10 angle 1  (maps/m35_83.jl2:2338)
+  placed: arena m35_83 level 0 local 39,7 shape 10 angle 1  (maps/m35_83.jl2:2339)
+  placed: arena m35_83 level 0 local 52,23 shape 10 angle 0  (maps/m35_83.jl2:2340)
+  placed: arena m35_83 level 0 local 54,33 shape 10 angle 0  (maps/m35_83.jl2:2341)
+
+[30299] inferno_floor_large_corner_01    (configs/all.loc:345215)
+  why= name: inferno_floor_large_corner_01; map: arena m35_83
+  models=33062
+  width=2
+  length=2
+  blockwalk=0
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: arena m35_83 level 0 local 13,27 shape 10 angle 0  (maps/m35_83.jl2:2342)
+  placed: arena m35_83 level 0 local 13,41 shape 10 angle 0  (maps/m35_83.jl2:2343)
+  placed: arena m35_83 level 0 local 15,13 shape 10 angle 0  (maps/m35_83.jl2:2344)
+  placed: arena m35_83 level 0 local 15,19 shape 10 angle 1  (maps/m35_83.jl2:2345)
+  placed: arena m35_83 level 0 local 15,33 shape 10 angle 1  (maps/m35_83.jl2:2346)
+  placed: arena m35_83 level 0 local 23,15 shape 10 angle 0  (maps/m35_83.jl2:2347)
+  placed: arena m35_83 level 0 local 27,13 shape 10 angle 0  (maps/m35_83.jl2:2348)
+  placed: arena m35_83 level 0 local 34,13 shape 10 angle 3  (maps/m35_83.jl2:2349)
+  placed: arena m35_83 level 0 local 40,15 shape 10 angle 0  (maps/m35_83.jl2:2350)
+  placed: arena m35_83 level 0 local 46,21 shape 10 angle 2  (maps/m35_83.jl2:2351)
+  placed: arena m35_83 level 0 local 46,27 shape 10 angle 2  (maps/m35_83.jl2:2352)
+  placed: arena m35_83 level 0 local 46,35 shape 10 angle 2  (maps/m35_83.jl2:2353)
+  placed: ... 1 more placements
+
+[30300] inferno_floor_large_corner_02    (configs/all.loc:345225)
+  why= name: inferno_floor_large_corner_02; map: arena m35_83
+  models=33048
+  width=2
+  length=2
+  blockwalk=0
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: arena m35_83 level 0 local 13,31 shape 10 angle 1  (maps/m35_83.jl2:2355)
+  placed: arena m35_83 level 0 local 15,23 shape 10 angle 0  (maps/m35_83.jl2:2356)
+  placed: arena m35_83 level 0 local 15,39 shape 10 angle 0  (maps/m35_83.jl2:2357)
+  placed: arena m35_83 level 0 local 15,43 shape 10 angle 1  (maps/m35_83.jl2:2358)
+  placed: arena m35_83 level 0 local 17,13 shape 10 angle 3  (maps/m35_83.jl2:2359)
+  placed: arena m35_83 level 0 local 19,15 shape 10 angle 3  (maps/m35_83.jl2:2360)
+  placed: arena m35_83 level 0 local 25,13 shape 10 angle 3  (maps/m35_83.jl2:2361)
+  placed: arena m35_83 level 0 local 38,15 shape 10 angle 3  (maps/m35_83.jl2:2362)
+  placed: arena m35_83 level 0 local 46,15 shape 10 angle 3  (maps/m35_83.jl2:2363)
+  placed: arena m35_83 level 0 local 46,23 shape 10 angle 3  (maps/m35_83.jl2:2364)
+  placed: arena m35_83 level 0 local 46,31 shape 10 angle 3  (maps/m35_83.jl2:2365)
+  placed: arena m35_83 level 0 local 46,41 shape 10 angle 3  (maps/m35_83.jl2:2366)
+
+[30301] inferno_floor_large_corner_03    (configs/all.loc:345235)
+  why= name: inferno_floor_large_corner_03; map: arena m35_83
+  models=33047
+  width=2
+  length=2
+  blockwalk=0
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: arena m35_83 level 0 local 11,31 shape 10 angle 1  (maps/m35_83.jl2:2367)
+  placed: arena m35_83 level 0 local 11,43 shape 10 angle 1  (maps/m35_83.jl2:2368)
+  placed: arena m35_83 level 0 local 13,23 shape 10 angle 0  (maps/m35_83.jl2:2369)
+  placed: arena m35_83 level 0 local 13,39 shape 10 angle 0  (maps/m35_83.jl2:2370)
+  placed: arena m35_83 level 0 local 15,11 shape 10 angle 0  (maps/m35_83.jl2:2371)
+  placed: arena m35_83 level 0 local 19,13 shape 10 angle 3  (maps/m35_83.jl2:2372)
+  placed: arena m35_83 level 0 local 25,11 shape 10 angle 3  (maps/m35_83.jl2:2373)
+  placed: arena m35_83 level 0 local 38,13 shape 10 angle 3  (maps/m35_83.jl2:2374)
+  placed: arena m35_83 level 0 local 46,13 shape 10 angle 3  (maps/m35_83.jl2:2375)
+  placed: arena m35_83 level 0 local 46,47 shape 10 angle 2  (maps/m35_83.jl2:2376)
+  placed: arena m35_83 level 0 local 48,23 shape 10 angle 3  (maps/m35_83.jl2:2377)
+  placed: arena m35_83 level 0 local 48,31 shape 10 angle 3  (maps/m35_83.jl2:2378)
+  placed: ... 2 more placements
+
+[30302] inferno_floor_large_corner_04    (configs/all.loc:345245)
+  why= name: inferno_floor_large_corner_04; map: arena m35_83
+  models=33059
+  width=2
+  length=2
+  blockwalk=0
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: arena m35_83 level 0 local 11,27 shape 10 angle 0  (maps/m35_83.jl2:2381)
+  placed: arena m35_83 level 0 local 11,41 shape 10 angle 0  (maps/m35_83.jl2:2382)
+  placed: arena m35_83 level 0 local 13,13 shape 10 angle 0  (maps/m35_83.jl2:2383)
+  placed: arena m35_83 level 0 local 13,19 shape 10 angle 1  (maps/m35_83.jl2:2384)
+  placed: arena m35_83 level 0 local 13,33 shape 10 angle 1  (maps/m35_83.jl2:2385)
+  placed: arena m35_83 level 0 local 15,47 shape 10 angle 1  (maps/m35_83.jl2:2386)
+  placed: arena m35_83 level 0 local 17,11 shape 10 angle 3  (maps/m35_83.jl2:2387)
+  placed: arena m35_83 level 0 local 23,11 shape 10 angle 0  (maps/m35_83.jl2:2388)
+  placed: arena m35_83 level 0 local 27,11 shape 10 angle 0  (maps/m35_83.jl2:2389)
+  placed: arena m35_83 level 0 local 34,11 shape 10 angle 3  (maps/m35_83.jl2:2390)
+  placed: arena m35_83 level 0 local 40,13 shape 10 angle 0  (maps/m35_83.jl2:2391)
+  placed: arena m35_83 level 0 local 48,15 shape 10 angle 3  (maps/m35_83.jl2:2392)
+  placed: ... 3 more placements
+
+[30303] inferno_floor_large_edge_01    (configs/all.loc:345255)
+  why= name: inferno_floor_large_edge_01; map: arena m35_83
+  models=33060
+  width=2
+  length=2
+  blockwalk=0
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: arena m35_83 level 0 local 11,29 shape 10 angle 1  (maps/m35_83.jl2:2396)
+  placed: arena m35_83 level 0 local 13,17 shape 10 angle 1  (maps/m35_83.jl2:2397)
+  placed: arena m35_83 level 0 local 15,21 shape 10 angle 1  (maps/m35_83.jl2:2398)
+  placed: arena m35_83 level 0 local 15,37 shape 10 angle 1  (maps/m35_83.jl2:2399)
+  placed: arena m35_83 level 0 local 15,45 shape 10 angle 1  (maps/m35_83.jl2:2400)
+  placed: arena m35_83 level 0 local 23,13 shape 10 angle 1  (maps/m35_83.jl2:2401)
+  placed: arena m35_83 level 0 local 29,11 shape 10 angle 0  (maps/m35_83.jl2:2402)
+  placed: arena m35_83 level 0 local 42,13 shape 10 angle 0  (maps/m35_83.jl2:2403)
+  placed: arena m35_83 level 0 local 46,29 shape 10 angle 3  (maps/m35_83.jl2:2404)
+  placed: arena m35_83 level 0 local 46,39 shape 10 angle 3  (maps/m35_83.jl2:2405)
+  placed: arena m35_83 level 0 local 48,19 shape 10 angle 3  (maps/m35_83.jl2:2406)
+  placed: arena m35_83 level 0 local 48,33 shape 10 angle 3  (maps/m35_83.jl2:2407)
+
+[30304] inferno_floor_large_edge_02    (configs/all.loc:345265)
+  why= name: inferno_floor_large_edge_02; map: arena m35_83
+  models=33049
+  width=2
+  length=2
+  blockwalk=0
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: arena m35_83 level 0 local 13,15 shape 10 angle 1  (maps/m35_83.jl2:2408)
+  placed: arena m35_83 level 0 local 13,25 shape 10 angle 1  (maps/m35_83.jl2:2409)
+  placed: arena m35_83 level 0 local 13,43 shape 10 angle 2  (maps/m35_83.jl2:2410)
+  placed: arena m35_83 level 0 local 15,35 shape 10 angle 1  (maps/m35_83.jl2:2411)
+  placed: arena m35_83 level 0 local 21,15 shape 10 angle 0  (maps/m35_83.jl2:2412)
+  placed: arena m35_83 level 0 local 31,11 shape 10 angle 0  (maps/m35_83.jl2:2413)
+  placed: arena m35_83 level 0 local 36,13 shape 10 angle 0  (maps/m35_83.jl2:2414)
+  placed: arena m35_83 level 0 local 44,13 shape 10 angle 0  (maps/m35_83.jl2:2415)
+  placed: arena m35_83 level 0 local 46,37 shape 10 angle 3  (maps/m35_83.jl2:2416)
+  placed: arena m35_83 level 0 local 48,17 shape 10 angle 3  (maps/m35_83.jl2:2417)
+  placed: arena m35_83 level 0 local 48,25 shape 10 angle 3  (maps/m35_83.jl2:2418)
+  placed: arena m35_83 level 0 local 48,43 shape 10 angle 3  (maps/m35_83.jl2:2419)
+
+[30305] inferno_floor_large_edge_03    (configs/all.loc:345275)
+  why= name: inferno_floor_large_edge_03; map: arena m35_83
+  models=33055
+  length=2
+  blockwalk=0
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: arena m35_83 level 0 local 33,11 shape 10 angle 0  (maps/m35_83.jl2:2420)
+
+[30306] inferno_pillar_edge_01    (configs/all.loc:345284)
+  why= name: inferno_pillar_edge_01; map: arena m35_83
+  models=33031
+  width=2
+  length=2
+  blockwalk=1
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  mapscene=12
+  placed: arena m35_83 level 0 local 15,29 shape 10 angle 1  (maps/m35_83.jl2:2421)
+  placed: arena m35_83 level 0 local 46,25 shape 10 angle 2  (maps/m35_83.jl2:2422)
+
+[30307] inferno_pillar_edge_02    (configs/all.loc:345294)
+  why= name: inferno_pillar_edge_02; map: arena m35_83
+  models=33029
+  width=2
+  length=2
+  blockwalk=1
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  mapscene=12
+  placed: arena m35_83 level 0 local 7,23 shape 10 angle 0  (maps/m35_83.jl2:2423)
+  placed: arena m35_83 level 0 local 9,50 shape 10 angle 3  (maps/m35_83.jl2:2424)
+  placed: arena m35_83 level 0 local 13,7 shape 10 angle 1  (maps/m35_83.jl2:2425)
+  placed: arena m35_83 level 0 local 21,56 shape 10 angle 0  (maps/m35_83.jl2:2426)
+  placed: arena m35_83 level 0 local 39,9 shape 10 angle 1  (maps/m35_83.jl2:2427)
+  placed: arena m35_83 level 0 local 52,13 shape 10 angle 2  (maps/m35_83.jl2:2428)
+  placed: arena m35_83 level 0 local 52,45 shape 10 angle 2  (maps/m35_83.jl2:2429)
+
+[30308] inferno_pillar_edge_03    (configs/all.loc:345304)
+  why= name: inferno_pillar_edge_03; map: arena m35_83
+  models=33030
+  width=2
+  length=2
+  blockwalk=1
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  mapscene=12
+  placed: arena m35_83 level 0 local 25,15 shape 10 angle 2  (maps/m35_83.jl2:2430)
+  placed: arena m35_83 level 0 local 46,43 shape 10 angle 3  (maps/m35_83.jl2:2431)
+
+[30309] inferno_pillar_edge_04    (configs/all.loc:345314)
+  why= name: inferno_pillar_edge_04; map: arena m35_83
+  models=33027
+  width=2
+  length=2
+  blockwalk=1
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  mapscene=12
+  placed: arena m35_83 level 0 local 9,15 shape 10 angle 1  (maps/m35_83.jl2:2432)
+  placed: arena m35_83 level 0 local 48,7 shape 10 angle 3  (maps/m35_83.jl2:2433)
+
+[30310] inferno_pillar_edge_05    (configs/all.loc:345324)
+  why= name: inferno_pillar_edge_05; map: arena m35_83
+  models=33026
+  width=2
+  length=2
+  blockwalk=1
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  mapscene=12
+  placed: arena m35_83 level 0 local 15,17 shape 10 angle 1  (maps/m35_83.jl2:2434)
+  placed: arena m35_83 level 0 local 46,17 shape 10 angle 1  (maps/m35_83.jl2:2435)
+
+[30311] inferno_pillar_edge_06    (configs/all.loc:345334)
+  why= name: inferno_pillar_edge_06; map: arena m35_83
+  models=33028
+  width=2
+  length=2
+  blockwalk=1
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  mapscene=12
+  placed: arena m35_83 level 0 local 9,35 shape 10 angle 3  (maps/m35_83.jl2:2436)
+  placed: arena m35_83 level 0 local 17,54 shape 10 angle 2  (maps/m35_83.jl2:2437)
+  placed: arena m35_83 level 0 local 33,7 shape 10 angle 0  (maps/m35_83.jl2:2438)
+  placed: arena m35_83 level 0 local 52,35 shape 10 angle 1  (maps/m35_83.jl2:2439)
+
+[30312] inferno_floor_wall_large_edge_01    (configs/all.loc:345344)
+  why= name: inferno_floor_wall_large_edge_01; map: arena m35_83
+  models=33070
+  width=2
+  length=2
+  blockwalk=0
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: arena m35_83 level 0 local 7,29 shape 10 angle 2  (maps/m35_83.jl2:2440)
+  placed: arena m35_83 level 0 local 7,41 shape 10 angle 2  (maps/m35_83.jl2:2441)
+  placed: arena m35_83 level 0 local 9,23 shape 10 angle 2  (maps/m35_83.jl2:2442)
+  placed: arena m35_83 level 0 local 11,50 shape 10 angle 2  (maps/m35_83.jl2:2443)
+  placed: arena m35_83 level 0 local 13,9 shape 10 angle 1  (maps/m35_83.jl2:2444)
+  placed: arena m35_83 level 0 local 17,52 shape 10 angle 3  (maps/m35_83.jl2:2445)
+  placed: arena m35_83 level 0 local 23,9 shape 10 angle 1  (maps/m35_83.jl2:2446)
+  placed: arena m35_83 level 0 local 25,52 shape 10 angle 3  (maps/m35_83.jl2:2447)
+  placed: arena m35_83 level 0 local 27,7 shape 10 angle 1  (maps/m35_83.jl2:2448)
+  placed: arena m35_83 level 0 local 33,9 shape 10 angle 1  (maps/m35_83.jl2:2449)
+  placed: arena m35_83 level 0 local 41,9 shape 10 angle 2  (maps/m35_83.jl2:2450)
+  placed: arena m35_83 level 0 local 42,52 shape 10 angle 3  (maps/m35_83.jl2:2451)
+  placed: ... 4 more placements
+
+[30313] inferno_floor_wall_large_edge_02    (configs/all.loc:345354)
+  why= name: inferno_floor_wall_large_edge_02; map: arena m35_83
+  models=33073
+  width=2
+  length=2
+  blockwalk=0
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: arena m35_83 level 0 local 7,27 shape 10 angle 2  (maps/m35_83.jl2:2456)
+  placed: arena m35_83 level 0 local 7,43 shape 10 angle 2  (maps/m35_83.jl2:2457)
+  placed: arena m35_83 level 0 local 9,54 shape 10 angle 2  (maps/m35_83.jl2:2458)
+  placed: arena m35_83 level 0 local 11,15 shape 10 angle 2  (maps/m35_83.jl2:2459)
+  placed: arena m35_83 level 0 local 11,35 shape 10 angle 2  (maps/m35_83.jl2:2460)
+  placed: arena m35_83 level 0 local 13,54 shape 10 angle 3  (maps/m35_83.jl2:2461)
+  placed: arena m35_83 level 0 local 21,54 shape 10 angle 3  (maps/m35_83.jl2:2462)
+  placed: arena m35_83 level 0 local 29,7 shape 10 angle 1  (maps/m35_83.jl2:2463)
+  placed: arena m35_83 level 0 local 36,52 shape 10 angle 3  (maps/m35_83.jl2:2464)
+  placed: arena m35_83 level 0 local 37,9 shape 10 angle 0  (maps/m35_83.jl2:2465)
+  placed: arena m35_83 level 0 local 39,11 shape 10 angle 1  (maps/m35_83.jl2:2466)
+  placed: arena m35_83 level 0 local 44,7 shape 10 angle 1  (maps/m35_83.jl2:2467)
+  placed: ... 5 more placements
+
+[30314] inferno_floor_wall_large_edge_03    (configs/all.loc:345364)
+  why= name: inferno_floor_wall_large_edge_03; map: arena m35_83
+  models=33069
+  width=2
+  blockwalk=0
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: arena m35_83 level 0 local 9,47 shape 10 angle 2  (maps/m35_83.jl2:2473)
+  placed: arena m35_83 level 0 local 43,7 shape 10 angle 1  (maps/m35_83.jl2:2474)
+  placed: arena m35_83 level 0 local 46,54 shape 10 angle 2  (maps/m35_83.jl2:2475)
+
+[30315] inferno_floor_wall_large_corner_01    (configs/all.loc:345373)
+  why= name: inferno_floor_wall_large_corner_01; map: arena m35_83
+  models=33072
+  width=2
+  length=2
+  blockwalk=0
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: arena m35_83 level 0 local 7,21 shape 10 angle 3  (maps/m35_83.jl2:2476)
+  placed: arena m35_83 level 0 local 7,25 shape 10 angle 2  (maps/m35_83.jl2:2477)
+  placed: arena m35_83 level 0 local 7,39 shape 10 angle 2  (maps/m35_83.jl2:2478)
+  placed: arena m35_83 level 0 local 9,7 shape 10 angle 2  (maps/m35_83.jl2:2479)
+  placed: arena m35_83 level 0 local 9,13 shape 10 angle 3  (maps/m35_83.jl2:2480)
+  placed: arena m35_83 level 0 local 9,17 shape 10 angle 2  (maps/m35_83.jl2:2481)
+  placed: arena m35_83 level 0 local 9,33 shape 10 angle 3  (maps/m35_83.jl2:2482)
+  placed: arena m35_83 level 0 local 9,48 shape 10 angle 3  (maps/m35_83.jl2:2483)
+  placed: arena m35_83 level 0 local 9,56 shape 10 angle 3  (maps/m35_83.jl2:2484)
+  placed: arena m35_83 level 0 local 11,7 shape 10 angle 1  (maps/m35_83.jl2:2485)
+  placed: arena m35_83 level 0 local 17,5 shape 10 angle 2  (maps/m35_83.jl2:2486)
+  placed: arena m35_83 level 0 local 21,7 shape 10 angle 1  (maps/m35_83.jl2:2487)
+  placed: ... 14 more placements
+
+[30316] inferno_floor_wall_large_corner_02    (configs/all.loc:345383)
+  why= name: inferno_floor_wall_large_corner_02; map: arena m35_83
+  models=33068
+  width=2
+  length=2
+  blockwalk=0
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: arena m35_83 level 0 local 7,9 shape 10 angle 2  (maps/m35_83.jl2:2502)
+  placed: arena m35_83 level 0 local 7,11 shape 10 angle 3  (maps/m35_83.jl2:2503)
+  placed: arena m35_83 level 0 local 7,19 shape 10 angle 2  (maps/m35_83.jl2:2504)
+  placed: arena m35_83 level 0 local 7,31 shape 10 angle 3  (maps/m35_83.jl2:2505)
+  placed: arena m35_83 level 0 local 7,45 shape 10 angle 3  (maps/m35_83.jl2:2506)
+  placed: arena m35_83 level 0 local 9,37 shape 10 angle 2  (maps/m35_83.jl2:2507)
+  placed: arena m35_83 level 0 local 9,52 shape 10 angle 2  (maps/m35_83.jl2:2508)
+  placed: arena m35_83 level 0 local 11,56 shape 10 angle 0  (maps/m35_83.jl2:2509)
+  placed: arena m35_83 level 0 local 15,7 shape 10 angle 2  (maps/m35_83.jl2:2510)
+  placed: arena m35_83 level 0 local 15,54 shape 10 angle 0  (maps/m35_83.jl2:2511)
+  placed: arena m35_83 level 0 local 19,5 shape 10 angle 1  (maps/m35_83.jl2:2512)
+  placed: arena m35_83 level 0 local 19,54 shape 10 angle 3  (maps/m35_83.jl2:2513)
+  placed: ... 18 more placements
+
+[30317] inferno_floor_wall_large_corner_03    (configs/all.loc:345393)
+  why= name: inferno_floor_wall_large_corner_03; map: arena m35_83
+  models=33071
+  width=2
+  length=2
+  blockwalk=0
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: arena m35_83 level 0 local 9,11 shape 10 angle 3  (maps/m35_83.jl2:2532)
+  placed: arena m35_83 level 0 local 9,21 shape 10 angle 3  (maps/m35_83.jl2:2533)
+  placed: arena m35_83 level 0 local 9,25 shape 10 angle 2  (maps/m35_83.jl2:2534)
+  placed: arena m35_83 level 0 local 9,39 shape 10 angle 2  (maps/m35_83.jl2:2535)
+  placed: arena m35_83 level 0 local 11,17 shape 10 angle 2  (maps/m35_83.jl2:2536)
+  placed: arena m35_83 level 0 local 11,33 shape 10 angle 3  (maps/m35_83.jl2:2537)
+  placed: arena m35_83 level 0 local 11,48 shape 10 angle 3  (maps/m35_83.jl2:2538)
+  placed: arena m35_83 level 0 local 11,54 shape 10 angle 0  (maps/m35_83.jl2:2539)
+  placed: arena m35_83 level 0 local 15,9 shape 10 angle 2  (maps/m35_83.jl2:2540)
+  placed: arena m35_83 level 0 local 15,52 shape 10 angle 0  (maps/m35_83.jl2:2541)
+  placed: arena m35_83 level 0 local 19,7 shape 10 angle 1  (maps/m35_83.jl2:2542)
+  placed: arena m35_83 level 0 local 25,9 shape 10 angle 2  (maps/m35_83.jl2:2543)
+  placed: ... 13 more placements
+
+[30318] inferno_floor_wall_large_corner_04    (configs/all.loc:345403)
+  why= name: inferno_floor_wall_large_corner_04; map: arena m35_83
+  models=33075
+  width=2
+  length=2
+  blockwalk=1
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: arena m35_83 level 0 local 9,9 shape 10 angle 2  (maps/m35_83.jl2:2557)
+  placed: arena m35_83 level 0 local 9,19 shape 10 angle 2  (maps/m35_83.jl2:2558)
+  placed: arena m35_83 level 0 local 9,31 shape 10 angle 3  (maps/m35_83.jl2:2559)
+  placed: arena m35_83 level 0 local 9,45 shape 10 angle 3  (maps/m35_83.jl2:2560)
+  placed: arena m35_83 level 0 local 11,9 shape 10 angle 1  (maps/m35_83.jl2:2561)
+  placed: arena m35_83 level 0 local 11,13 shape 10 angle 3  (maps/m35_83.jl2:2562)
+  placed: arena m35_83 level 0 local 11,37 shape 10 angle 2  (maps/m35_83.jl2:2563)
+  placed: arena m35_83 level 0 local 11,52 shape 10 angle 2  (maps/m35_83.jl2:2564)
+  placed: arena m35_83 level 0 local 17,7 shape 10 angle 2  (maps/m35_83.jl2:2565)
+  placed: arena m35_83 level 0 local 19,52 shape 10 angle 3  (maps/m35_83.jl2:2566)
+  placed: arena m35_83 level 0 local 21,9 shape 10 angle 1  (maps/m35_83.jl2:2567)
+  placed: arena m35_83 level 0 local 23,52 shape 10 angle 0  (maps/m35_83.jl2:2568)
+  placed: ... 15 more placements
+
+[30319] inferno_wall_edge_large_01    (configs/all.loc:345412)
+  why= name: inferno_wall_edge_large_01; map: arena m35_83
+  models=33064
+  width=2
+  blockwalk=1
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: arena m35_83 level 0 local 5,12 shape 10 angle 2  (maps/m35_83.jl2:2584)
+  placed: arena m35_83 level 0 local 5,23 shape 10 angle 2  (maps/m35_83.jl2:2585)
+  placed: arena m35_83 level 0 local 5,32 shape 10 angle 2  (maps/m35_83.jl2:2586)
+  placed: arena m35_83 level 0 local 5,46 shape 10 angle 2  (maps/m35_83.jl2:2587)
+  placed: arena m35_83 level 0 local 7,16 shape 10 angle 2  (maps/m35_83.jl2:2588)
+  placed: arena m35_83 level 0 local 7,36 shape 10 angle 2  (maps/m35_83.jl2:2589)
+  placed: arena m35_83 level 0 local 7,57 shape 10 angle 2  (maps/m35_83.jl2:2590)
+  placed: arena m35_83 level 0 local 13,5 shape 10 angle 1  (maps/m35_83.jl2:2591)
+  placed: arena m35_83 level 0 local 22,58 shape 10 angle 3  (maps/m35_83.jl2:2592)
+  placed: arena m35_83 level 0 local 33,5 shape 10 angle 1  (maps/m35_83.jl2:2593)
+  placed: arena m35_83 level 0 local 37,5 shape 10 angle 1  (maps/m35_83.jl2:2594)
+  placed: arena m35_83 level 0 local 41,56 shape 10 angle 3  (maps/m35_83.jl2:2595)
+  placed: ... 9 more placements
+
+[30320] inferno_wall_edge_large_02    (configs/all.loc:345420)
+  why= name: inferno_wall_edge_large_02; map: arena m35_83
+  models=33076
+  width=2
+  blockwalk=1
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: arena m35_83 level 0 local 5,10 shape 10 angle 2  (maps/m35_83.jl2:2605)
+  placed: arena m35_83 level 0 local 5,11 shape 10 angle 2  (maps/m35_83.jl2:2606)
+  placed: arena m35_83 level 0 local 5,22 shape 10 angle 2  (maps/m35_83.jl2:2607)
+  placed: arena m35_83 level 0 local 5,31 shape 10 angle 2  (maps/m35_83.jl2:2608)
+  placed: arena m35_83 level 0 local 7,56 shape 10 angle 2  (maps/m35_83.jl2:2609)
+  placed: arena m35_83 level 0 local 18,3 shape 10 angle 1  (maps/m35_83.jl2:2610)
+  placed: arena m35_83 level 0 local 34,5 shape 10 angle 1  (maps/m35_83.jl2:2611)
+  placed: arena m35_83 level 0 local 40,56 shape 10 angle 3  (maps/m35_83.jl2:2612)
+  placed: arena m35_83 level 0 local 44,5 shape 10 angle 1  (maps/m35_83.jl2:2613)
+  placed: arena m35_83 level 0 local 49,59 shape 10 angle 3  (maps/m35_83.jl2:2614)
+  placed: arena m35_83 level 0 local 56,10 shape 10 angle 0  (maps/m35_83.jl2:2615)
+  placed: arena m35_83 level 0 local 56,40 shape 10 angle 0  (maps/m35_83.jl2:2616)
+
+[30321] inferno_wall_edge_large_03    (configs/all.loc:345428)
+  why= name: inferno_wall_edge_large_03; map: arena m35_83
+  models=33077
+  width=2
+  blockwalk=1
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: arena m35_83 level 0 local 5,21 shape 10 angle 2  (maps/m35_83.jl2:2617)
+  placed: arena m35_83 level 0 local 7,35 shape 10 angle 2  (maps/m35_83.jl2:2618)
+  placed: arena m35_83 level 0 local 7,55 shape 10 angle 2  (maps/m35_83.jl2:2619)
+  placed: arena m35_83 level 0 local 35,5 shape 10 angle 1  (maps/m35_83.jl2:2620)
+  placed: arena m35_83 level 0 local 39,56 shape 10 angle 3  (maps/m35_83.jl2:2621)
+  placed: arena m35_83 level 0 local 45,5 shape 10 angle 1  (maps/m35_83.jl2:2622)
+  placed: arena m35_83 level 0 local 56,11 shape 10 angle 0  (maps/m35_83.jl2:2623)
+  placed: arena m35_83 level 0 local 56,41 shape 10 angle 0  (maps/m35_83.jl2:2624)
+
+[30322] inferno_wall_edge_large_04    (configs/all.loc:345436)
+  why= name: inferno_wall_edge_large_04; map: arena m35_83
+  models=33065
+  width=2
+  blockwalk=1
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: arena m35_83 level 0 local 5,9 shape 10 angle 2  (maps/m35_83.jl2:2625)
+  placed: arena m35_83 level 0 local 5,20 shape 10 angle 2  (maps/m35_83.jl2:2626)
+  placed: arena m35_83 level 0 local 5,24 shape 10 angle 2  (maps/m35_83.jl2:2627)
+  placed: arena m35_83 level 0 local 5,30 shape 10 angle 2  (maps/m35_83.jl2:2628)
+  placed: arena m35_83 level 0 local 5,39 shape 10 angle 2  (maps/m35_83.jl2:2629)
+  placed: arena m35_83 level 0 local 5,45 shape 10 angle 2  (maps/m35_83.jl2:2630)
+  placed: arena m35_83 level 0 local 7,15 shape 10 angle 2  (maps/m35_83.jl2:2631)
+  placed: arena m35_83 level 0 local 7,54 shape 10 angle 2  (maps/m35_83.jl2:2632)
+  placed: arena m35_83 level 0 local 14,5 shape 10 angle 1  (maps/m35_83.jl2:2633)
+  placed: arena m35_83 level 0 local 20,3 shape 10 angle 1  (maps/m35_83.jl2:2634)
+  placed: arena m35_83 level 0 local 21,58 shape 10 angle 3  (maps/m35_83.jl2:2635)
+  placed: arena m35_83 level 0 local 24,5 shape 10 angle 1  (maps/m35_83.jl2:2636)
+  placed: ... 13 more placements
+
+[30323] inferno_wall_edge_large_05    (configs/all.loc:345444)
+  why= name: inferno_wall_edge_large_05; map: arena m35_83
+  models=33067
+  width=2
+  blockwalk=1
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: arena m35_83 level 0 local 5,25 shape 10 angle 2  (maps/m35_83.jl2:2650)
+  placed: arena m35_83 level 0 local 5,40 shape 10 angle 2  (maps/m35_83.jl2:2651)
+  placed: arena m35_83 level 0 local 17,3 shape 10 angle 1  (maps/m35_83.jl2:2652)
+  placed: arena m35_83 level 0 local 19,3 shape 10 angle 1  (maps/m35_83.jl2:2653)
+  placed: arena m35_83 level 0 local 23,5 shape 10 angle 1  (maps/m35_83.jl2:2654)
+  placed: arena m35_83 level 0 local 52,5 shape 10 angle 1  (maps/m35_83.jl2:2655)
+  placed: arena m35_83 level 0 local 56,33 shape 10 angle 0  (maps/m35_83.jl2:2656)
+
+[30324] inferno_wall_edge_large_06    (configs/all.loc:345452)
+  why= name: inferno_wall_edge_large_06; map: arena m35_83; ref: server/scripts/minigames/minigame_inferno/scripts/inferno_zuk.rs2:342 (+1)
+  models=33066
+  width=2
+  blockwalk=1
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: arena m35_83 level 0 local 5,19 shape 10 angle 2  (maps/m35_83.jl2:2657)
+  placed: arena m35_83 level 0 local 7,49 shape 10 angle 2  (maps/m35_83.jl2:2658)
+  placed: arena m35_83 level 0 local 27,54 shape 10 angle 3  (maps/m35_83.jl2:2659)
+  placed: arena m35_83 level 0 local 44,56 shape 10 angle 2  (maps/m35_83.jl2:2660)
+  placed: arena m35_83 level 0 local 47,5 shape 10 angle 1  (maps/m35_83.jl2:2661)
+
+[30325] inferno_wall_corner_large_01    (configs/all.loc:345460)
+  why= name: inferno_wall_corner_large_01; map: arena m35_83
+  models=33074
+  width=2
+  length=2
+  blockwalk=1
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: arena m35_83 level 0 local 5,26 shape 10 angle 2  (maps/m35_83.jl2:2662)
+  placed: arena m35_83 level 0 local 5,28 shape 10 angle 3  (maps/m35_83.jl2:2663)
+  placed: arena m35_83 level 0 local 5,41 shape 10 angle 2  (maps/m35_83.jl2:2664)
+  placed: arena m35_83 level 0 local 5,43 shape 10 angle 3  (maps/m35_83.jl2:2665)
+  placed: arena m35_83 level 0 local 7,7 shape 10 angle 2  (maps/m35_83.jl2:2666)
+  placed: arena m35_83 level 0 local 7,13 shape 10 angle 3  (maps/m35_83.jl2:2667)
+  placed: arena m35_83 level 0 local 7,17 shape 10 angle 2  (maps/m35_83.jl2:2668)
+  placed: arena m35_83 level 0 local 7,33 shape 10 angle 3  (maps/m35_83.jl2:2669)
+  placed: arena m35_83 level 0 local 7,37 shape 10 angle 2  (maps/m35_83.jl2:2670)
+  placed: arena m35_83 level 0 local 7,47 shape 10 angle 3  (maps/m35_83.jl2:2671)
+  placed: arena m35_83 level 0 local 7,50 shape 10 angle 2  (maps/m35_83.jl2:2672)
+  placed: arena m35_83 level 0 local 7,52 shape 10 angle 3  (maps/m35_83.jl2:2673)
+  placed: ... 41 more placements
+
+[30326] inferno_wall_corner_large_02    (configs/all.loc:345469)
+  why= name: inferno_wall_corner_large_02; map: arena m35_83
+  models=33063
+  width=2
+  length=2
+  blockwalk=1
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: arena m35_83 level 0 local 3,26 shape 10 angle 2  (maps/m35_83.jl2:2715)
+  placed: arena m35_83 level 0 local 3,28 shape 10 angle 3  (maps/m35_83.jl2:2716)
+  placed: arena m35_83 level 0 local 3,41 shape 10 angle 2  (maps/m35_83.jl2:2717)
+  placed: arena m35_83 level 0 local 3,43 shape 10 angle 3  (maps/m35_83.jl2:2718)
+  placed: arena m35_83 level 0 local 5,7 shape 10 angle 2  (maps/m35_83.jl2:2719)
+  placed: arena m35_83 level 0 local 5,13 shape 10 angle 3  (maps/m35_83.jl2:2720)
+  placed: arena m35_83 level 0 local 5,17 shape 10 angle 2  (maps/m35_83.jl2:2721)
+  placed: arena m35_83 level 0 local 5,33 shape 10 angle 3  (maps/m35_83.jl2:2722)
+  placed: arena m35_83 level 0 local 5,37 shape 10 angle 2  (maps/m35_83.jl2:2723)
+  placed: arena m35_83 level 0 local 5,47 shape 10 angle 3  (maps/m35_83.jl2:2724)
+  placed: arena m35_83 level 0 local 5,50 shape 10 angle 2  (maps/m35_83.jl2:2725)
+  placed: arena m35_83 level 0 local 5,52 shape 10 angle 3  (maps/m35_83.jl2:2726)
+  placed: ... 45 more placements
+
+[30327] inferno_prison_wall_edge_01    (configs/all.loc:345478)
+  why= name: inferno_prison_wall_edge_01; map: arena m35_83
+  models=33095
+  blockwalk=1
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: arena m35_83 level 0 local 27,58 shape 10 angle 2  (maps/m35_83.jl2:2772)
+  placed: arena m35_83 level 0 local 29,59 shape 10 angle 3  (maps/m35_83.jl2:2773)
+  placed: arena m35_83 level 0 local 31,59 shape 10 angle 3  (maps/m35_83.jl2:2774)
+  placed: arena m35_83 level 0 local 34,59 shape 10 angle 3  (maps/m35_83.jl2:2775)
+  placed: arena m35_83 level 0 local 35,56 shape 10 angle 0  (maps/m35_83.jl2:2776)
+
+[30328] inferno_prison_wall_edge_02    (configs/all.loc:345485)
+  why= name: inferno_prison_wall_edge_02; map: arena m35_83
+  models=33091
+  blockwalk=1
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: arena m35_83 level 0 local 27,57 shape 10 angle 2  (maps/m35_83.jl2:2777)
+  placed: arena m35_83 level 0 local 30,59 shape 10 angle 3  (maps/m35_83.jl2:2778)
+  placed: arena m35_83 level 0 local 33,59 shape 10 angle 3  (maps/m35_83.jl2:2779)
+  placed: arena m35_83 level 0 local 35,57 shape 10 angle 0  (maps/m35_83.jl2:2780)
+
+[30329] inferno_prison_wall_edge_03    (configs/all.loc:345492)
+  why= name: inferno_prison_wall_edge_03; map: arena m35_83
+  models=33093
+  blockwalk=1
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: arena m35_83 level 0 local 27,56 shape 10 angle 2  (maps/m35_83.jl2:2781)
+  placed: arena m35_83 level 0 local 28,59 shape 10 angle 3  (maps/m35_83.jl2:2782)
+  placed: arena m35_83 level 0 local 32,59 shape 10 angle 3  (maps/m35_83.jl2:2783)
+  placed: arena m35_83 level 0 local 35,58 shape 10 angle 0  (maps/m35_83.jl2:2784)
+
+[30330] inferno_prison_wall_corner_01    (configs/all.loc:345499)
+  why= name: inferno_prison_wall_corner_01; map: arena m35_83
+  models=33092
+  blockwalk=1
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: arena m35_83 level 0 local 27,59 shape 10 angle 3  (maps/m35_83.jl2:2785)
+  placed: arena m35_83 level 0 local 35,59 shape 10 angle 0  (maps/m35_83.jl2:2786)
+
+[30331] inferno_prison_roof    (configs/all.loc:345506)
+  why= name: inferno_prison_roof; bind: multiloc1 (value 0) of loc inferno_collapsing_prison_roof
+  name=Roof
+  models=33032
+  active=1
+  placed: nowhere in the selected map squares
+
+[30332] inferno_collapsing_adjacent_wall_floor_corner_right_state1    (configs/all.loc:345511)
+  why= name: inferno_collapsing_adjacent_wall_floor_corner_right_state1; map: arena m35_83; ref: server/scripts/minigames/minigame_inferno/scripts/inferno_zuk.rs2:336
+  models=33096
+  width=2
+  blockwalk=1
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: arena m35_83 level 0 local 35,52 shape 10 angle 3  (maps/m35_83.jl2:2787)
+
+[30333] inferno_collapsing_adjacent_wall_floor_corner_left_state1    (configs/all.loc:345519)
+  why= name: inferno_collapsing_adjacent_wall_floor_corner_left_state1; map: arena m35_83; ref: server/scripts/minigames/minigame_inferno/scripts/inferno_zuk.rs2:339
+  models=33096
+  width=2
+  blockwalk=1
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: arena m35_83 level 0 local 27,52 shape 10 angle 3  (maps/m35_83.jl2:2788)
+
+[30334] inferno_collapsing_adjacent_corner_join_right_state1    (configs/all.loc:345527)
+  why= name: inferno_collapsing_adjacent_corner_join_right_state1; map: arena m35_83; ref: server/scripts/minigames/minigame_inferno/scripts/inferno_zuk.rs2:347
+  models=33066
+  width=2
+  blockwalk=1
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: arena m35_83 level 0 local 35,54 shape 10 angle 3  (maps/m35_83.jl2:2789)
+
+[30335] inferno_collapsing_adjacent_corner_join_left_state1    (configs/all.loc:345535)
+  why= name: inferno_collapsing_adjacent_corner_join_left_state1
+  models=33067
+  width=2
+  blockwalk=1
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: nowhere in the selected map squares
+
+[30336] inferno_collapsing_wall_side_right_state1    (configs/all.loc:345543)
+  why= name: inferno_collapsing_wall_side_right_state1; map: arena m35_83; ref: server/scripts/minigames/minigame_inferno/scripts/inferno_zuk.rs2:83 (+3)
+  models=33040
+  width=5
+  length=2
+  blockwalk=0
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: arena m35_83 level 0 local 33,52 shape 10 angle 3  (maps/m35_83.jl2:2790)
+
+[30337] inferno_collapsing_wall_side_left_state1    (configs/all.loc:345553)
+  why= name: inferno_collapsing_wall_side_left_state1; map: arena m35_83; ref: server/scripts/minigames/minigame_inferno/scripts/inferno_zuk.rs2:82 (+3)
+  models=33033
+  width=5
+  length=2
+  blockwalk=0
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: arena m35_83 level 0 local 28,52 shape 10 angle 3  (maps/m35_83.jl2:2791)
+
+[30338] inferno_collapsing_wall_safespot_state1    (configs/all.loc:345563)
+  why= name: inferno_collapsing_wall_safespot_state1; map: arena m35_83; ref: server/scripts/minigames/minigame_inferno/scripts/inferno_zuk.rs2:145 (+3)
+  name=Ancestral Glyph
+  models=33037
+  width=6
+  length=3
+  blockwalk=1
+  active=1
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: arena m35_83 level 0 local 30,51 shape 10 angle 3  (maps/m35_83.jl2:2792)
+
+[30339] inferno_prison_wall_floor_corner_right_state2    (configs/all.loc:345574)
+  why= name: inferno_prison_wall_floor_corner_right_state2; ref: server/scripts/minigames/minigame_inferno/scripts/inferno_zuk.rs2:337
+  models=33089
+  width=2
+  blockwalk=1
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: nowhere in the selected map squares
+
+[30340] inferno_prison_wall_floor_corner_left_state2    (configs/all.loc:345582)
+  why= name: inferno_prison_wall_floor_corner_left_state2; ref: server/scripts/minigames/minigame_inferno/scripts/inferno_zuk.rs2:339
+  models=33094
+  width=2
+  blockwalk=1
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: nowhere in the selected map squares
+
+[30341] inferno_prison_wall_corner_join_right_state2    (configs/all.loc:345590)
+  why= name: inferno_prison_wall_corner_join_right_state2; ref: server/scripts/minigames/minigame_inferno/scripts/inferno_zuk.rs2:347
+  models=33088
+  width=2
+  blockwalk=1
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: nowhere in the selected map squares
+
+[30342] inferno_prison_wall_corner_join_left_state2    (configs/all.loc:345598)
+  why= name: inferno_prison_wall_corner_join_left_state2; ref: server/scripts/minigames/minigame_inferno/scripts/inferno_zuk.rs2:343 (+2)
+  models=33090
+  width=2
+  blockwalk=1
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: nowhere in the selected map squares
+
+[30343] inferno_collapsing_wall_side_right_state2    (configs/all.loc:345606)
+  why= name: inferno_collapsing_wall_side_right_state2; ref: server/scripts/minigames/minigame_inferno/scripts/inferno_zuk.rs2:83 (+4)
+  name=Falling rock
+  models=33039
+  width=5
+  length=2
+  blockwalk=0
+  blockrange=0
+  active=1
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: nowhere in the selected map squares
+
+[30344] inferno_collapsing_wall_side_left_state2    (configs/all.loc:345618)
+  why= name: inferno_collapsing_wall_side_left_state2; ref: server/scripts/minigames/minigame_inferno/scripts/inferno_zuk.rs2:82 (+6)
+  name=Falling rock
+  models=33035
+  width=5
+  length=2
+  blockwalk=0
+  blockrange=0
+  active=1
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: nowhere in the selected map squares
+
+[30345] inferno_collapsing_wall_side_right_state3    (configs/all.loc:345630)
+  why= name: inferno_collapsing_wall_side_right_state3; ref: server/scripts/minigames/minigame_inferno/scripts/inferno_zuk.rs2:386 (+2)
+  models=33038
+  width=5
+  length=2
+  blockwalk=0
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: nowhere in the selected map squares
+
+[30346] inferno_collapsing_wall_side_left_state3    (configs/all.loc:345640)
+  why= name: inferno_collapsing_wall_side_left_state3; ref: server/scripts/minigames/minigame_inferno/scripts/inferno_zuk.rs2:385 (+2)
+  models=33038
+  width=5
+  length=2
+  blockwalk=0
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: nowhere in the selected map squares
+
+[30347] inferno_floor_lowered_01    (configs/all.loc:345650)
+  why= name: inferno_floor_lowered_01; map: arena m35_83
+  shape1=10,33082
+  shape2=22,33083
+  blockwalk=0
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: arena m35_83 level 0 local 21,48 shape 22 angle 2  (maps/m35_83.jl2:2793)
+  placed: arena m35_83 level 0 local 24,48 shape 22 angle 2  (maps/m35_83.jl2:2794)
+  placed: arena m35_83 level 0 local 27,48 shape 22 angle 2  (maps/m35_83.jl2:2795)
+  placed: arena m35_83 level 0 local 30,48 shape 22 angle 2  (maps/m35_83.jl2:2796)
+  placed: arena m35_83 level 0 local 33,48 shape 22 angle 2  (maps/m35_83.jl2:2797)
+  placed: arena m35_83 level 0 local 36,48 shape 22 angle 2  (maps/m35_83.jl2:2798)
+  placed: arena m35_83 level 0 local 39,48 shape 22 angle 2  (maps/m35_83.jl2:2799)
+  placed: arena m35_83 level 0 local 42,48 shape 22 angle 2  (maps/m35_83.jl2:2800)
+  placed: arena m35_83 level 0 local 45,48 shape 22 angle 2  (maps/m35_83.jl2:2801)
+
+[30348] inferno_floor_lowered_02a    (configs/all.loc:345659)
+  why= name: inferno_floor_lowered_02a; map: arena m35_83
+  shape1=10,33085
+  shape2=22,33084
+  blockwalk=0
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: arena m35_83 level 0 local 18,48 shape 22 angle 2  (maps/m35_83.jl2:2802)
+  placed: arena m35_83 level 0 local 23,48 shape 22 angle 2  (maps/m35_83.jl2:2803)
+  placed: arena m35_83 level 0 local 26,48 shape 22 angle 2  (maps/m35_83.jl2:2804)
+  placed: arena m35_83 level 0 local 32,48 shape 22 angle 2  (maps/m35_83.jl2:2805)
+  placed: arena m35_83 level 0 local 38,48 shape 22 angle 2  (maps/m35_83.jl2:2806)
+  placed: arena m35_83 level 0 local 44,48 shape 22 angle 2  (maps/m35_83.jl2:2807)
+
+[30349] inferno_floor_lowered_02b    (configs/all.loc:345668)
+  why= name: inferno_floor_lowered_02b; map: arena m35_83
+  shape1=10,33080
+  shape2=22,33087
+  blockwalk=0
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: arena m35_83 level 0 local 17,48 shape 22 angle 2  (maps/m35_83.jl2:2808)
+  placed: arena m35_83 level 0 local 22,48 shape 22 angle 2  (maps/m35_83.jl2:2809)
+  placed: arena m35_83 level 0 local 25,48 shape 22 angle 2  (maps/m35_83.jl2:2810)
+  placed: arena m35_83 level 0 local 31,48 shape 22 angle 2  (maps/m35_83.jl2:2811)
+  placed: arena m35_83 level 0 local 37,48 shape 22 angle 2  (maps/m35_83.jl2:2812)
+  placed: arena m35_83 level 0 local 43,48 shape 22 angle 2  (maps/m35_83.jl2:2813)
+
+[30350] inferno_floor_lowered_03a    (configs/all.loc:345677)
+  why= name: inferno_floor_lowered_03a; map: arena m35_83
+  shape1=10,33086
+  shape2=22,33079
+  blockwalk=0
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: arena m35_83 level 0 local 20,48 shape 22 angle 2  (maps/m35_83.jl2:2814)
+  placed: arena m35_83 level 0 local 29,48 shape 22 angle 2  (maps/m35_83.jl2:2815)
+  placed: arena m35_83 level 0 local 35,48 shape 22 angle 2  (maps/m35_83.jl2:2816)
+  placed: arena m35_83 level 0 local 41,48 shape 22 angle 2  (maps/m35_83.jl2:2817)
+
+[30351] inferno_floor_lowered_03b    (configs/all.loc:345686)
+  why= name: inferno_floor_lowered_03b; map: arena m35_83
+  shape1=10,33078
+  shape2=22,33081
+  blockwalk=0
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: arena m35_83 level 0 local 19,48 shape 22 angle 2  (maps/m35_83.jl2:2818)
+  placed: arena m35_83 level 0 local 28,48 shape 22 angle 2  (maps/m35_83.jl2:2819)
+  placed: arena m35_83 level 0 local 34,48 shape 22 angle 2  (maps/m35_83.jl2:2820)
+  placed: arena m35_83 level 0 local 40,48 shape 22 angle 2  (maps/m35_83.jl2:2821)
+
+[30352] inferno_entrance    (configs/all.loc:345695)
+  why= name: inferno_entrance; map: entrance m38_80, entrance m38_79
+  width=6
+  length=6
+  blockwalk=0
+  blockrange=0
+  active=1
+  sharelight=1
+  multivarbit=varb5646_inferno_sacrificed_firecape
+  multiloc1=inferno_entrance_noop
+  multiloc2=inferno_entrance_noop
+  multiloc3=inferno_entrance_op
+  placed: entrance m38_80 level 0 local 61,4 shape 10 angle 0  (maps/m38_80.jl2:6556)
+  placed: entrance m38_79 level 0 local 56,51 shape 10 angle 0  (maps/m38_79.jl2:7986)
+
+[30353] inferno_safespot1    (configs/all.loc:345707)
+  why= name: inferno_safespot1
+  width=3
+  length=3
+  blockwalk=1
+  active=1
+  category=1131
+  multivarbit=varb5655_inferno_safespot1_health
+  multiloc1=inferno_safespot_100
+  multiloc2=inferno_safespot_100
+  multiloc3=inferno_safespot_100
+  multiloc4=inferno_safespot_100
+  multiloc5=inferno_safespot_100
+  multiloc6=inferno_safespot_100
+  multiloc7=inferno_safespot_100
+  multiloc8=inferno_safespot_100
+  multiloc9=inferno_safespot_100
+  multiloc10=inferno_safespot_100
+  multiloc11=inferno_safespot_100
+  multiloc12=inferno_safespot_100
+  multiloc13=inferno_safespot_100
+  multiloc14=inferno_safespot_100
+  multiloc15=inferno_safespot_100
+  multiloc16=inferno_safespot_100
+  multiloc17=inferno_safespot_100
+  multiloc18=inferno_safespot_100
+  multiloc19=inferno_safespot_100
+  multiloc20=inferno_safespot_100
+  multiloc21=inferno_safespot_100
+  multiloc22=inferno_safespot_100
+  multiloc23=inferno_safespot_100
+  multiloc24=inferno_safespot_100
+  multiloc25=inferno_safespot_100
+  multiloc26=inferno_safespot_100
+  multiloc27=inferno_safespot_100
+  multiloc28=inferno_safespot_100
+  multiloc29=inferno_safespot_100
+  multiloc30=inferno_safespot_100
+  multiloc31=inferno_safespot_100
+  multiloc32=inferno_safespot_100
+  multiloc33=inferno_safespot_100
+  multiloc34=inferno_safespot_100
+  multiloc35=inferno_safespot_100
+  multiloc36=inferno_safespot_100
+  multiloc37=inferno_safespot_100
+  multiloc38=inferno_safespot_100
+  multiloc39=inferno_safespot_100
+  multiloc40=inferno_safespot_100
+  multiloc41=inferno_safespot_100
+  multiloc42=inferno_safespot_100
+  multiloc43=inferno_safespot_100
+  multiloc44=inferno_safespot_100
+  multiloc45=inferno_safespot_100
+  multiloc46=inferno_safespot_100
+  multiloc47=inferno_safespot_100
+  multiloc48=inferno_safespot_100
+  multiloc49=inferno_safespot_100
+  multiloc50=inferno_safespot_100
+  multiloc51=inferno_safespot_100
+  multiloc52=inferno_safespot_100
+  multiloc53=inferno_safespot_100
+  multiloc54=inferno_safespot_100
+  multiloc55=inferno_safespot_100
+  multiloc56=inferno_safespot_100
+  multiloc57=inferno_safespot_100
+  multiloc58=inferno_safespot_100
+  multiloc59=inferno_safespot_100
+  multiloc60=inferno_safespot_100
+  multiloc61=inferno_safespot_100
+  multiloc62=inferno_safespot_100
+  multiloc63=inferno_safespot_100
+  multiloc64=inferno_safespot_100
+  multiloc65=inferno_safespot_75
+  multiloc66=inferno_safespot_75
+  multiloc67=inferno_safespot_75
+  multiloc68=inferno_safespot_75
+  multiloc69=inferno_safespot_75
+  multiloc70=inferno_safespot_75
+  multiloc71=inferno_safespot_75
+  multiloc72=inferno_safespot_75
+  multiloc73=inferno_safespot_75
+  multiloc74=inferno_safespot_75
+  multiloc75=inferno_safespot_75
+  multiloc76=inferno_safespot_75
+  multiloc77=inferno_safespot_75
+  multiloc78=inferno_safespot_75
+  multiloc79=inferno_safespot_75
+  multiloc80=inferno_safespot_75
+  multiloc81=inferno_safespot_75
+  multiloc82=inferno_safespot_75
+  multiloc83=inferno_safespot_75
+  multiloc84=inferno_safespot_75
+  multiloc85=inferno_safespot_75
+  multiloc86=inferno_safespot_75
+  multiloc87=inferno_safespot_75
+  multiloc88=inferno_safespot_75
+  multiloc89=inferno_safespot_75
+  multiloc90=inferno_safespot_75
+  multiloc91=inferno_safespot_75
+  multiloc92=inferno_safespot_75
+  multiloc93=inferno_safespot_75
+  multiloc94=inferno_safespot_75
+  multiloc95=inferno_safespot_75
+  multiloc96=inferno_safespot_75
+  multiloc97=inferno_safespot_75
+  multiloc98=inferno_safespot_75
+  multiloc99=inferno_safespot_75
+  multiloc100=inferno_safespot_75
+  multiloc101=inferno_safespot_75
+  multiloc102=inferno_safespot_75
+  multiloc103=inferno_safespot_75
+  multiloc104=inferno_safespot_75
+  multiloc105=inferno_safespot_75
+  multiloc106=inferno_safespot_75
+  multiloc107=inferno_safespot_75
+  multiloc108=inferno_safespot_75
+  multiloc109=inferno_safespot_75
+  multiloc110=inferno_safespot_75
+  multiloc111=inferno_safespot_75
+  multiloc112=inferno_safespot_75
+  multiloc113=inferno_safespot_75
+  multiloc114=inferno_safespot_75
+  multiloc115=inferno_safespot_75
+  multiloc116=inferno_safespot_75
+  multiloc117=inferno_safespot_75
+  multiloc118=inferno_safespot_75
+  multiloc119=inferno_safespot_75
+  multiloc120=inferno_safespot_75
+  multiloc121=inferno_safespot_75
+  multiloc122=inferno_safespot_75
+  multiloc123=inferno_safespot_75
+  multiloc124=inferno_safespot_75
+  multiloc125=inferno_safespot_75
+  multiloc126=inferno_safespot_75
+  multiloc127=inferno_safespot_75
+  multiloc128=inferno_safespot_75
+  multiloc129=inferno_safespot_50
+  multiloc130=inferno_safespot_50
+  multiloc131=inferno_safespot_50
+  multiloc132=inferno_safespot_50
+  multiloc133=inferno_safespot_50
+  multiloc134=inferno_safespot_50
+  multiloc135=inferno_safespot_50
+  multiloc136=inferno_safespot_50
+  multiloc137=inferno_safespot_50
+  multiloc138=inferno_safespot_50
+  multiloc139=inferno_safespot_50
+  multiloc140=inferno_safespot_50
+  multiloc141=inferno_safespot_50
+  multiloc142=inferno_safespot_50
+  multiloc143=inferno_safespot_50
+  multiloc144=inferno_safespot_50
+  multiloc145=inferno_safespot_50
+  multiloc146=inferno_safespot_50
+  multiloc147=inferno_safespot_50
+  multiloc148=inferno_safespot_50
+  multiloc149=inferno_safespot_50
+  multiloc150=inferno_safespot_50
+  multiloc151=inferno_safespot_50
+  multiloc152=inferno_safespot_50
+  multiloc153=inferno_safespot_50
+  multiloc154=inferno_safespot_50
+  multiloc155=inferno_safespot_50
+  multiloc156=inferno_safespot_50
+  multiloc157=inferno_safespot_50
+  multiloc158=inferno_safespot_50
+  multiloc159=inferno_safespot_50
+  multiloc160=inferno_safespot_50
+  multiloc161=inferno_safespot_50
+  multiloc162=inferno_safespot_50
+  multiloc163=inferno_safespot_50
+  multiloc164=inferno_safespot_50
+  multiloc165=inferno_safespot_50
+  multiloc166=inferno_safespot_50
+  multiloc167=inferno_safespot_50
+  multiloc168=inferno_safespot_50
+  multiloc169=inferno_safespot_50
+  multiloc170=inferno_safespot_50
+  multiloc171=inferno_safespot_50
+  multiloc172=inferno_safespot_50
+  multiloc173=inferno_safespot_50
+  multiloc174=inferno_safespot_50
+  multiloc175=inferno_safespot_50
+  multiloc176=inferno_safespot_50
+  multiloc177=inferno_safespot_50
+  multiloc178=inferno_safespot_50
+  multiloc179=inferno_safespot_50
+  multiloc180=inferno_safespot_50
+  multiloc181=inferno_safespot_50
+  multiloc182=inferno_safespot_50
+  multiloc183=inferno_safespot_50
+  multiloc184=inferno_safespot_50
+  multiloc185=inferno_safespot_50
+  multiloc186=inferno_safespot_50
+  multiloc187=inferno_safespot_50
+  multiloc188=inferno_safespot_50
+  multiloc189=inferno_safespot_50
+  multiloc190=inferno_safespot_50
+  multiloc191=inferno_safespot_50
+  multiloc192=inferno_safespot_50
+  multiloc193=inferno_safespot_25
+  multiloc194=inferno_safespot_25
+  multiloc195=inferno_safespot_25
+  multiloc196=inferno_safespot_25
+  multiloc197=inferno_safespot_25
+  multiloc198=inferno_safespot_25
+  multiloc199=inferno_safespot_25
+  multiloc200=inferno_safespot_25
+  multiloc201=inferno_safespot_25
+  multiloc202=inferno_safespot_25
+  multiloc203=inferno_safespot_25
+  multiloc204=inferno_safespot_25
+  multiloc205=inferno_safespot_25
+  multiloc206=inferno_safespot_25
+  multiloc207=inferno_safespot_25
+  multiloc208=inferno_safespot_25
+  multiloc209=inferno_safespot_25
+  multiloc210=inferno_safespot_25
+  multiloc211=inferno_safespot_25
+  multiloc212=inferno_safespot_25
+  multiloc213=inferno_safespot_25
+  multiloc214=inferno_safespot_25
+  multiloc215=inferno_safespot_25
+  multiloc216=inferno_safespot_25
+  multiloc217=inferno_safespot_25
+  multiloc218=inferno_safespot_25
+  multiloc219=inferno_safespot_25
+  multiloc220=inferno_safespot_25
+  multiloc221=inferno_safespot_25
+  multiloc222=inferno_safespot_25
+  multiloc223=inferno_safespot_25
+  multiloc224=inferno_safespot_25
+  multiloc225=inferno_safespot_25
+  multiloc226=inferno_safespot_25
+  multiloc227=inferno_safespot_25
+  multiloc228=inferno_safespot_25
+  multiloc229=inferno_safespot_25
+  multiloc230=inferno_safespot_25
+  multiloc231=inferno_safespot_25
+  multiloc232=inferno_safespot_25
+  multiloc233=inferno_safespot_25
+  multiloc234=inferno_safespot_25
+  multiloc235=inferno_safespot_25
+  multiloc236=inferno_safespot_25
+  multiloc237=inferno_safespot_25
+  multiloc238=inferno_safespot_25
+  multiloc239=inferno_safespot_25
+  multiloc240=inferno_safespot_25
+  multiloc241=inferno_safespot_25
+  multiloc242=inferno_safespot_25
+  multiloc243=inferno_safespot_25
+  multiloc244=inferno_safespot_25
+  multiloc245=inferno_safespot_25
+  multiloc246=inferno_safespot_25
+  multiloc247=inferno_safespot_25
+  multiloc248=inferno_safespot_25
+  multiloc249=inferno_safespot_25
+  multiloc250=inferno_safespot_25
+  multiloc251=inferno_safespot_25
+  multiloc252=inferno_safespot_25
+  multiloc253=inferno_safespot_25
+  multiloc254=inferno_safespot_25
+  multiloc255=inferno_safespot_25
+  multiloc256=inferno_safespot_25
+  multiloc257=-1
+  placed: nowhere in the selected map squares
+
+[30354] inferno_safespot2    (configs/all.loc:345972)
+  why= name: inferno_safespot2
+  width=3
+  length=3
+  blockwalk=1
+  active=1
+  category=1131
+  multivarbit=varb5656_inferno_safespot2_health
+  multiloc1=inferno_safespot_100
+  multiloc2=inferno_safespot_100
+  multiloc3=inferno_safespot_100
+  multiloc4=inferno_safespot_100
+  multiloc5=inferno_safespot_100
+  multiloc6=inferno_safespot_100
+  multiloc7=inferno_safespot_100
+  multiloc8=inferno_safespot_100
+  multiloc9=inferno_safespot_100
+  multiloc10=inferno_safespot_100
+  multiloc11=inferno_safespot_100
+  multiloc12=inferno_safespot_100
+  multiloc13=inferno_safespot_100
+  multiloc14=inferno_safespot_100
+  multiloc15=inferno_safespot_100
+  multiloc16=inferno_safespot_100
+  multiloc17=inferno_safespot_100
+  multiloc18=inferno_safespot_100
+  multiloc19=inferno_safespot_100
+  multiloc20=inferno_safespot_100
+  multiloc21=inferno_safespot_100
+  multiloc22=inferno_safespot_100
+  multiloc23=inferno_safespot_100
+  multiloc24=inferno_safespot_100
+  multiloc25=inferno_safespot_100
+  multiloc26=inferno_safespot_100
+  multiloc27=inferno_safespot_100
+  multiloc28=inferno_safespot_100
+  multiloc29=inferno_safespot_100
+  multiloc30=inferno_safespot_100
+  multiloc31=inferno_safespot_100
+  multiloc32=inferno_safespot_100
+  multiloc33=inferno_safespot_100
+  multiloc34=inferno_safespot_100
+  multiloc35=inferno_safespot_100
+  multiloc36=inferno_safespot_100
+  multiloc37=inferno_safespot_100
+  multiloc38=inferno_safespot_100
+  multiloc39=inferno_safespot_100
+  multiloc40=inferno_safespot_100
+  multiloc41=inferno_safespot_100
+  multiloc42=inferno_safespot_100
+  multiloc43=inferno_safespot_100
+  multiloc44=inferno_safespot_100
+  multiloc45=inferno_safespot_100
+  multiloc46=inferno_safespot_100
+  multiloc47=inferno_safespot_100
+  multiloc48=inferno_safespot_100
+  multiloc49=inferno_safespot_100
+  multiloc50=inferno_safespot_100
+  multiloc51=inferno_safespot_100
+  multiloc52=inferno_safespot_100
+  multiloc53=inferno_safespot_100
+  multiloc54=inferno_safespot_100
+  multiloc55=inferno_safespot_100
+  multiloc56=inferno_safespot_100
+  multiloc57=inferno_safespot_100
+  multiloc58=inferno_safespot_100
+  multiloc59=inferno_safespot_100
+  multiloc60=inferno_safespot_100
+  multiloc61=inferno_safespot_100
+  multiloc62=inferno_safespot_100
+  multiloc63=inferno_safespot_100
+  multiloc64=inferno_safespot_100
+  multiloc65=inferno_safespot_75
+  multiloc66=inferno_safespot_75
+  multiloc67=inferno_safespot_75
+  multiloc68=inferno_safespot_75
+  multiloc69=inferno_safespot_75
+  multiloc70=inferno_safespot_75
+  multiloc71=inferno_safespot_75
+  multiloc72=inferno_safespot_75
+  multiloc73=inferno_safespot_75
+  multiloc74=inferno_safespot_75
+  multiloc75=inferno_safespot_75
+  multiloc76=inferno_safespot_75
+  multiloc77=inferno_safespot_75
+  multiloc78=inferno_safespot_75
+  multiloc79=inferno_safespot_75
+  multiloc80=inferno_safespot_75
+  multiloc81=inferno_safespot_75
+  multiloc82=inferno_safespot_75
+  multiloc83=inferno_safespot_75
+  multiloc84=inferno_safespot_75
+  multiloc85=inferno_safespot_75
+  multiloc86=inferno_safespot_75
+  multiloc87=inferno_safespot_75
+  multiloc88=inferno_safespot_75
+  multiloc89=inferno_safespot_75
+  multiloc90=inferno_safespot_75
+  multiloc91=inferno_safespot_75
+  multiloc92=inferno_safespot_75
+  multiloc93=inferno_safespot_75
+  multiloc94=inferno_safespot_75
+  multiloc95=inferno_safespot_75
+  multiloc96=inferno_safespot_75
+  multiloc97=inferno_safespot_75
+  multiloc98=inferno_safespot_75
+  multiloc99=inferno_safespot_75
+  multiloc100=inferno_safespot_75
+  multiloc101=inferno_safespot_75
+  multiloc102=inferno_safespot_75
+  multiloc103=inferno_safespot_75
+  multiloc104=inferno_safespot_75
+  multiloc105=inferno_safespot_75
+  multiloc106=inferno_safespot_75
+  multiloc107=inferno_safespot_75
+  multiloc108=inferno_safespot_75
+  multiloc109=inferno_safespot_75
+  multiloc110=inferno_safespot_75
+  multiloc111=inferno_safespot_75
+  multiloc112=inferno_safespot_75
+  multiloc113=inferno_safespot_75
+  multiloc114=inferno_safespot_75
+  multiloc115=inferno_safespot_75
+  multiloc116=inferno_safespot_75
+  multiloc117=inferno_safespot_75
+  multiloc118=inferno_safespot_75
+  multiloc119=inferno_safespot_75
+  multiloc120=inferno_safespot_75
+  multiloc121=inferno_safespot_75
+  multiloc122=inferno_safespot_75
+  multiloc123=inferno_safespot_75
+  multiloc124=inferno_safespot_75
+  multiloc125=inferno_safespot_75
+  multiloc126=inferno_safespot_75
+  multiloc127=inferno_safespot_75
+  multiloc128=inferno_safespot_75
+  multiloc129=inferno_safespot_50
+  multiloc130=inferno_safespot_50
+  multiloc131=inferno_safespot_50
+  multiloc132=inferno_safespot_50
+  multiloc133=inferno_safespot_50
+  multiloc134=inferno_safespot_50
+  multiloc135=inferno_safespot_50
+  multiloc136=inferno_safespot_50
+  multiloc137=inferno_safespot_50
+  multiloc138=inferno_safespot_50
+  multiloc139=inferno_safespot_50
+  multiloc140=inferno_safespot_50
+  multiloc141=inferno_safespot_50
+  multiloc142=inferno_safespot_50
+  multiloc143=inferno_safespot_50
+  multiloc144=inferno_safespot_50
+  multiloc145=inferno_safespot_50
+  multiloc146=inferno_safespot_50
+  multiloc147=inferno_safespot_50
+  multiloc148=inferno_safespot_50
+  multiloc149=inferno_safespot_50
+  multiloc150=inferno_safespot_50
+  multiloc151=inferno_safespot_50
+  multiloc152=inferno_safespot_50
+  multiloc153=inferno_safespot_50
+  multiloc154=inferno_safespot_50
+  multiloc155=inferno_safespot_50
+  multiloc156=inferno_safespot_50
+  multiloc157=inferno_safespot_50
+  multiloc158=inferno_safespot_50
+  multiloc159=inferno_safespot_50
+  multiloc160=inferno_safespot_50
+  multiloc161=inferno_safespot_50
+  multiloc162=inferno_safespot_50
+  multiloc163=inferno_safespot_50
+  multiloc164=inferno_safespot_50
+  multiloc165=inferno_safespot_50
+  multiloc166=inferno_safespot_50
+  multiloc167=inferno_safespot_50
+  multiloc168=inferno_safespot_50
+  multiloc169=inferno_safespot_50
+  multiloc170=inferno_safespot_50
+  multiloc171=inferno_safespot_50
+  multiloc172=inferno_safespot_50
+  multiloc173=inferno_safespot_50
+  multiloc174=inferno_safespot_50
+  multiloc175=inferno_safespot_50
+  multiloc176=inferno_safespot_50
+  multiloc177=inferno_safespot_50
+  multiloc178=inferno_safespot_50
+  multiloc179=inferno_safespot_50
+  multiloc180=inferno_safespot_50
+  multiloc181=inferno_safespot_50
+  multiloc182=inferno_safespot_50
+  multiloc183=inferno_safespot_50
+  multiloc184=inferno_safespot_50
+  multiloc185=inferno_safespot_50
+  multiloc186=inferno_safespot_50
+  multiloc187=inferno_safespot_50
+  multiloc188=inferno_safespot_50
+  multiloc189=inferno_safespot_50
+  multiloc190=inferno_safespot_50
+  multiloc191=inferno_safespot_50
+  multiloc192=inferno_safespot_50
+  multiloc193=inferno_safespot_25
+  multiloc194=inferno_safespot_25
+  multiloc195=inferno_safespot_25
+  multiloc196=inferno_safespot_25
+  multiloc197=inferno_safespot_25
+  multiloc198=inferno_safespot_25
+  multiloc199=inferno_safespot_25
+  multiloc200=inferno_safespot_25
+  multiloc201=inferno_safespot_25
+  multiloc202=inferno_safespot_25
+  multiloc203=inferno_safespot_25
+  multiloc204=inferno_safespot_25
+  multiloc205=inferno_safespot_25
+  multiloc206=inferno_safespot_25
+  multiloc207=inferno_safespot_25
+  multiloc208=inferno_safespot_25
+  multiloc209=inferno_safespot_25
+  multiloc210=inferno_safespot_25
+  multiloc211=inferno_safespot_25
+  multiloc212=inferno_safespot_25
+  multiloc213=inferno_safespot_25
+  multiloc214=inferno_safespot_25
+  multiloc215=inferno_safespot_25
+  multiloc216=inferno_safespot_25
+  multiloc217=inferno_safespot_25
+  multiloc218=inferno_safespot_25
+  multiloc219=inferno_safespot_25
+  multiloc220=inferno_safespot_25
+  multiloc221=inferno_safespot_25
+  multiloc222=inferno_safespot_25
+  multiloc223=inferno_safespot_25
+  multiloc224=inferno_safespot_25
+  multiloc225=inferno_safespot_25
+  multiloc226=inferno_safespot_25
+  multiloc227=inferno_safespot_25
+  multiloc228=inferno_safespot_25
+  multiloc229=inferno_safespot_25
+  multiloc230=inferno_safespot_25
+  multiloc231=inferno_safespot_25
+  multiloc232=inferno_safespot_25
+  multiloc233=inferno_safespot_25
+  multiloc234=inferno_safespot_25
+  multiloc235=inferno_safespot_25
+  multiloc236=inferno_safespot_25
+  multiloc237=inferno_safespot_25
+  multiloc238=inferno_safespot_25
+  multiloc239=inferno_safespot_25
+  multiloc240=inferno_safespot_25
+  multiloc241=inferno_safespot_25
+  multiloc242=inferno_safespot_25
+  multiloc243=inferno_safespot_25
+  multiloc244=inferno_safespot_25
+  multiloc245=inferno_safespot_25
+  multiloc246=inferno_safespot_25
+  multiloc247=inferno_safespot_25
+  multiloc248=inferno_safespot_25
+  multiloc249=inferno_safespot_25
+  multiloc250=inferno_safespot_25
+  multiloc251=inferno_safespot_25
+  multiloc252=inferno_safespot_25
+  multiloc253=inferno_safespot_25
+  multiloc254=inferno_safespot_25
+  multiloc255=inferno_safespot_25
+  multiloc256=inferno_safespot_25
+  multiloc257=-1
+  placed: nowhere in the selected map squares
+
+[30355] inferno_safespot3    (configs/all.loc:346237)
+  why= name: inferno_safespot3
+  width=3
+  length=3
+  blockwalk=1
+  active=1
+  category=1131
+  multivarbit=varb5657_inferno_safespot3_health
+  multiloc1=inferno_safespot_100
+  multiloc2=inferno_safespot_100
+  multiloc3=inferno_safespot_100
+  multiloc4=inferno_safespot_100
+  multiloc5=inferno_safespot_100
+  multiloc6=inferno_safespot_100
+  multiloc7=inferno_safespot_100
+  multiloc8=inferno_safespot_100
+  multiloc9=inferno_safespot_100
+  multiloc10=inferno_safespot_100
+  multiloc11=inferno_safespot_100
+  multiloc12=inferno_safespot_100
+  multiloc13=inferno_safespot_100
+  multiloc14=inferno_safespot_100
+  multiloc15=inferno_safespot_100
+  multiloc16=inferno_safespot_100
+  multiloc17=inferno_safespot_100
+  multiloc18=inferno_safespot_100
+  multiloc19=inferno_safespot_100
+  multiloc20=inferno_safespot_100
+  multiloc21=inferno_safespot_100
+  multiloc22=inferno_safespot_100
+  multiloc23=inferno_safespot_100
+  multiloc24=inferno_safespot_100
+  multiloc25=inferno_safespot_100
+  multiloc26=inferno_safespot_100
+  multiloc27=inferno_safespot_100
+  multiloc28=inferno_safespot_100
+  multiloc29=inferno_safespot_100
+  multiloc30=inferno_safespot_100
+  multiloc31=inferno_safespot_100
+  multiloc32=inferno_safespot_100
+  multiloc33=inferno_safespot_100
+  multiloc34=inferno_safespot_100
+  multiloc35=inferno_safespot_100
+  multiloc36=inferno_safespot_100
+  multiloc37=inferno_safespot_100
+  multiloc38=inferno_safespot_100
+  multiloc39=inferno_safespot_100
+  multiloc40=inferno_safespot_100
+  multiloc41=inferno_safespot_100
+  multiloc42=inferno_safespot_100
+  multiloc43=inferno_safespot_100
+  multiloc44=inferno_safespot_100
+  multiloc45=inferno_safespot_100
+  multiloc46=inferno_safespot_100
+  multiloc47=inferno_safespot_100
+  multiloc48=inferno_safespot_100
+  multiloc49=inferno_safespot_100
+  multiloc50=inferno_safespot_100
+  multiloc51=inferno_safespot_100
+  multiloc52=inferno_safespot_100
+  multiloc53=inferno_safespot_100
+  multiloc54=inferno_safespot_100
+  multiloc55=inferno_safespot_100
+  multiloc56=inferno_safespot_100
+  multiloc57=inferno_safespot_100
+  multiloc58=inferno_safespot_100
+  multiloc59=inferno_safespot_100
+  multiloc60=inferno_safespot_100
+  multiloc61=inferno_safespot_100
+  multiloc62=inferno_safespot_100
+  multiloc63=inferno_safespot_100
+  multiloc64=inferno_safespot_100
+  multiloc65=inferno_safespot_75
+  multiloc66=inferno_safespot_75
+  multiloc67=inferno_safespot_75
+  multiloc68=inferno_safespot_75
+  multiloc69=inferno_safespot_75
+  multiloc70=inferno_safespot_75
+  multiloc71=inferno_safespot_75
+  multiloc72=inferno_safespot_75
+  multiloc73=inferno_safespot_75
+  multiloc74=inferno_safespot_75
+  multiloc75=inferno_safespot_75
+  multiloc76=inferno_safespot_75
+  multiloc77=inferno_safespot_75
+  multiloc78=inferno_safespot_75
+  multiloc79=inferno_safespot_75
+  multiloc80=inferno_safespot_75
+  multiloc81=inferno_safespot_75
+  multiloc82=inferno_safespot_75
+  multiloc83=inferno_safespot_75
+  multiloc84=inferno_safespot_75
+  multiloc85=inferno_safespot_75
+  multiloc86=inferno_safespot_75
+  multiloc87=inferno_safespot_75
+  multiloc88=inferno_safespot_75
+  multiloc89=inferno_safespot_75
+  multiloc90=inferno_safespot_75
+  multiloc91=inferno_safespot_75
+  multiloc92=inferno_safespot_75
+  multiloc93=inferno_safespot_75
+  multiloc94=inferno_safespot_75
+  multiloc95=inferno_safespot_75
+  multiloc96=inferno_safespot_75
+  multiloc97=inferno_safespot_75
+  multiloc98=inferno_safespot_75
+  multiloc99=inferno_safespot_75
+  multiloc100=inferno_safespot_75
+  multiloc101=inferno_safespot_75
+  multiloc102=inferno_safespot_75
+  multiloc103=inferno_safespot_75
+  multiloc104=inferno_safespot_75
+  multiloc105=inferno_safespot_75
+  multiloc106=inferno_safespot_75
+  multiloc107=inferno_safespot_75
+  multiloc108=inferno_safespot_75
+  multiloc109=inferno_safespot_75
+  multiloc110=inferno_safespot_75
+  multiloc111=inferno_safespot_75
+  multiloc112=inferno_safespot_75
+  multiloc113=inferno_safespot_75
+  multiloc114=inferno_safespot_75
+  multiloc115=inferno_safespot_75
+  multiloc116=inferno_safespot_75
+  multiloc117=inferno_safespot_75
+  multiloc118=inferno_safespot_75
+  multiloc119=inferno_safespot_75
+  multiloc120=inferno_safespot_75
+  multiloc121=inferno_safespot_75
+  multiloc122=inferno_safespot_75
+  multiloc123=inferno_safespot_75
+  multiloc124=inferno_safespot_75
+  multiloc125=inferno_safespot_75
+  multiloc126=inferno_safespot_75
+  multiloc127=inferno_safespot_75
+  multiloc128=inferno_safespot_75
+  multiloc129=inferno_safespot_50
+  multiloc130=inferno_safespot_50
+  multiloc131=inferno_safespot_50
+  multiloc132=inferno_safespot_50
+  multiloc133=inferno_safespot_50
+  multiloc134=inferno_safespot_50
+  multiloc135=inferno_safespot_50
+  multiloc136=inferno_safespot_50
+  multiloc137=inferno_safespot_50
+  multiloc138=inferno_safespot_50
+  multiloc139=inferno_safespot_50
+  multiloc140=inferno_safespot_50
+  multiloc141=inferno_safespot_50
+  multiloc142=inferno_safespot_50
+  multiloc143=inferno_safespot_50
+  multiloc144=inferno_safespot_50
+  multiloc145=inferno_safespot_50
+  multiloc146=inferno_safespot_50
+  multiloc147=inferno_safespot_50
+  multiloc148=inferno_safespot_50
+  multiloc149=inferno_safespot_50
+  multiloc150=inferno_safespot_50
+  multiloc151=inferno_safespot_50
+  multiloc152=inferno_safespot_50
+  multiloc153=inferno_safespot_50
+  multiloc154=inferno_safespot_50
+  multiloc155=inferno_safespot_50
+  multiloc156=inferno_safespot_50
+  multiloc157=inferno_safespot_50
+  multiloc158=inferno_safespot_50
+  multiloc159=inferno_safespot_50
+  multiloc160=inferno_safespot_50
+  multiloc161=inferno_safespot_50
+  multiloc162=inferno_safespot_50
+  multiloc163=inferno_safespot_50
+  multiloc164=inferno_safespot_50
+  multiloc165=inferno_safespot_50
+  multiloc166=inferno_safespot_50
+  multiloc167=inferno_safespot_50
+  multiloc168=inferno_safespot_50
+  multiloc169=inferno_safespot_50
+  multiloc170=inferno_safespot_50
+  multiloc171=inferno_safespot_50
+  multiloc172=inferno_safespot_50
+  multiloc173=inferno_safespot_50
+  multiloc174=inferno_safespot_50
+  multiloc175=inferno_safespot_50
+  multiloc176=inferno_safespot_50
+  multiloc177=inferno_safespot_50
+  multiloc178=inferno_safespot_50
+  multiloc179=inferno_safespot_50
+  multiloc180=inferno_safespot_50
+  multiloc181=inferno_safespot_50
+  multiloc182=inferno_safespot_50
+  multiloc183=inferno_safespot_50
+  multiloc184=inferno_safespot_50
+  multiloc185=inferno_safespot_50
+  multiloc186=inferno_safespot_50
+  multiloc187=inferno_safespot_50
+  multiloc188=inferno_safespot_50
+  multiloc189=inferno_safespot_50
+  multiloc190=inferno_safespot_50
+  multiloc191=inferno_safespot_50
+  multiloc192=inferno_safespot_50
+  multiloc193=inferno_safespot_25
+  multiloc194=inferno_safespot_25
+  multiloc195=inferno_safespot_25
+  multiloc196=inferno_safespot_25
+  multiloc197=inferno_safespot_25
+  multiloc198=inferno_safespot_25
+  multiloc199=inferno_safespot_25
+  multiloc200=inferno_safespot_25
+  multiloc201=inferno_safespot_25
+  multiloc202=inferno_safespot_25
+  multiloc203=inferno_safespot_25
+  multiloc204=inferno_safespot_25
+  multiloc205=inferno_safespot_25
+  multiloc206=inferno_safespot_25
+  multiloc207=inferno_safespot_25
+  multiloc208=inferno_safespot_25
+  multiloc209=inferno_safespot_25
+  multiloc210=inferno_safespot_25
+  multiloc211=inferno_safespot_25
+  multiloc212=inferno_safespot_25
+  multiloc213=inferno_safespot_25
+  multiloc214=inferno_safespot_25
+  multiloc215=inferno_safespot_25
+  multiloc216=inferno_safespot_25
+  multiloc217=inferno_safespot_25
+  multiloc218=inferno_safespot_25
+  multiloc219=inferno_safespot_25
+  multiloc220=inferno_safespot_25
+  multiloc221=inferno_safespot_25
+  multiloc222=inferno_safespot_25
+  multiloc223=inferno_safespot_25
+  multiloc224=inferno_safespot_25
+  multiloc225=inferno_safespot_25
+  multiloc226=inferno_safespot_25
+  multiloc227=inferno_safespot_25
+  multiloc228=inferno_safespot_25
+  multiloc229=inferno_safespot_25
+  multiloc230=inferno_safespot_25
+  multiloc231=inferno_safespot_25
+  multiloc232=inferno_safespot_25
+  multiloc233=inferno_safespot_25
+  multiloc234=inferno_safespot_25
+  multiloc235=inferno_safespot_25
+  multiloc236=inferno_safespot_25
+  multiloc237=inferno_safespot_25
+  multiloc238=inferno_safespot_25
+  multiloc239=inferno_safespot_25
+  multiloc240=inferno_safespot_25
+  multiloc241=inferno_safespot_25
+  multiloc242=inferno_safespot_25
+  multiloc243=inferno_safespot_25
+  multiloc244=inferno_safespot_25
+  multiloc245=inferno_safespot_25
+  multiloc246=inferno_safespot_25
+  multiloc247=inferno_safespot_25
+  multiloc248=inferno_safespot_25
+  multiloc249=inferno_safespot_25
+  multiloc250=inferno_safespot_25
+  multiloc251=inferno_safespot_25
+  multiloc252=inferno_safespot_25
+  multiloc253=inferno_safespot_25
+  multiloc254=inferno_safespot_25
+  multiloc255=inferno_safespot_25
+  multiloc256=inferno_safespot_25
+  multiloc257=-1
+  placed: nowhere in the selected map squares
+
+[30356] inferno_collapsing_prison_roof    (configs/all.loc:346502)
+  why= name: inferno_collapsing_prison_roof; map: arena m35_83; ref: server/scripts/minigames/minigame_inferno/scripts/inferno_zuk.rs2:398
+  width=9
+  length=4
+  blockwalk=1
+  active=1
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  multivarbit=varb5652_inferno_prisonroof_hidden
+  multiloc1=inferno_prison_roof
+  multiloc2=-1
+  placed: arena m35_83 level 1 local 27,56 shape 10 angle 0  (maps/m35_83.jl2:2822)
+
+[30359] inferno_floor_fixed_01    (configs/all.loc:346536)
+  why= name: inferno_floor_fixed_01; map: arena m35_83
+  shape1=0,33160
+  blockwalk=0
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: arena m35_83 level 0 local 21,47 shape 0 angle 3  (maps/m35_83.jl2:2823)
+  placed: arena m35_83 level 0 local 24,47 shape 0 angle 3  (maps/m35_83.jl2:2824)
+  placed: arena m35_83 level 0 local 27,47 shape 0 angle 3  (maps/m35_83.jl2:2825)
+  placed: arena m35_83 level 0 local 30,47 shape 0 angle 3  (maps/m35_83.jl2:2826)
+  placed: arena m35_83 level 0 local 33,47 shape 0 angle 3  (maps/m35_83.jl2:2827)
+  placed: arena m35_83 level 0 local 36,47 shape 0 angle 3  (maps/m35_83.jl2:2828)
+  placed: arena m35_83 level 0 local 39,47 shape 0 angle 3  (maps/m35_83.jl2:2829)
+  placed: arena m35_83 level 0 local 42,47 shape 0 angle 3  (maps/m35_83.jl2:2830)
+  placed: arena m35_83 level 0 local 45,47 shape 0 angle 3  (maps/m35_83.jl2:2831)
+
+[30360] inferno_floor_fixed_02a    (configs/all.loc:346544)
+  why= name: inferno_floor_fixed_02a; map: arena m35_83
+  shape1=0,33162
+  blockwalk=0
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: arena m35_83 level 0 local 18,47 shape 0 angle 3  (maps/m35_83.jl2:2832)
+  placed: arena m35_83 level 0 local 23,47 shape 0 angle 3  (maps/m35_83.jl2:2833)
+  placed: arena m35_83 level 0 local 26,47 shape 0 angle 3  (maps/m35_83.jl2:2834)
+  placed: arena m35_83 level 0 local 32,47 shape 0 angle 3  (maps/m35_83.jl2:2835)
+  placed: arena m35_83 level 0 local 38,47 shape 0 angle 3  (maps/m35_83.jl2:2836)
+  placed: arena m35_83 level 0 local 44,47 shape 0 angle 3  (maps/m35_83.jl2:2837)
+
+[30361] inferno_floor_fixed_02b    (configs/all.loc:346552)
+  why= name: inferno_floor_fixed_02b; map: arena m35_83
+  shape1=0,33158
+  blockwalk=0
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: arena m35_83 level 0 local 17,47 shape 0 angle 3  (maps/m35_83.jl2:2838)
+  placed: arena m35_83 level 0 local 22,47 shape 0 angle 3  (maps/m35_83.jl2:2839)
+  placed: arena m35_83 level 0 local 25,47 shape 0 angle 3  (maps/m35_83.jl2:2840)
+  placed: arena m35_83 level 0 local 31,47 shape 0 angle 3  (maps/m35_83.jl2:2841)
+  placed: arena m35_83 level 0 local 37,47 shape 0 angle 3  (maps/m35_83.jl2:2842)
+  placed: arena m35_83 level 0 local 43,47 shape 0 angle 3  (maps/m35_83.jl2:2843)
+
+[30362] inferno_floor_fixed_03a    (configs/all.loc:346560)
+  why= name: inferno_floor_fixed_03a; map: arena m35_83
+  shape1=0,33161
+  blockwalk=0
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: arena m35_83 level 0 local 20,47 shape 0 angle 3  (maps/m35_83.jl2:2844)
+  placed: arena m35_83 level 0 local 29,47 shape 0 angle 3  (maps/m35_83.jl2:2845)
+  placed: arena m35_83 level 0 local 35,47 shape 0 angle 3  (maps/m35_83.jl2:2846)
+  placed: arena m35_83 level 0 local 41,47 shape 0 angle 3  (maps/m35_83.jl2:2847)
+
+[30363] inferno_floor_fixed_03b    (configs/all.loc:346568)
+  why= name: inferno_floor_fixed_03b; map: arena m35_83
+  shape1=0,33156
+  blockwalk=0
+  blockrange=0
+  contourground=0
+  contourgroundtype=1
+  sharelight=1
+  placed: arena m35_83 level 0 local 19,47 shape 0 angle 3  (maps/m35_83.jl2:2848)
+  placed: arena m35_83 level 0 local 28,47 shape 0 angle 3  (maps/m35_83.jl2:2849)
+  placed: arena m35_83 level 0 local 34,47 shape 0 angle 3  (maps/m35_83.jl2:2850)
+  placed: arena m35_83 level 0 local 40,47 shape 0 angle 3  (maps/m35_83.jl2:2851)
+
+[31919] osb5_display_zuk    (configs/all.loc:364273)
+  why= name: osb5_display_zuk
+  name=Tzkal-Zuk display
+  models=34570
+  width=4
+  length=4
+  active=1
+  sharelight=1
+  ambient=20
+  contrast=500
+  shadow=no
+  offsety=-1
+  placed: nowhere in the selected map squares
+
+[33413] poh_amulet_xeric_inferno    (configs/all.loc:380925)
+  why= name: poh_amulet_xeric_inferno
+  name=Xeric's Talisman
+  shape1=4,36041
+  active=1
+  ambient=25
+  contrast=625
+  op1=Inferno
+  op2=Teleport menu
+  op3=Configuration
+  op5=Remove
+  category=206
+  placed: nowhere in the selected map squares
+

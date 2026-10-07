@@ -63,6 +63,7 @@
 #include <assert.h>
 #include "torirs_server_content.h"
 #include "torirs_server_paramtable.h"
+#include "torirs_server_servpack.h"
 
 #include <rscache.h>
 
@@ -126,6 +127,21 @@ static struct LocCategoryRow* g_categories;
 static int g_category_count;
 static int g_category_cap;
 
+/** (id -> five op texts as offsets into g_op_blob, -1 for none), ascending by id.
+ *  Only the records that state an op. */
+struct LocOpRow
+{
+    int32_t id;
+    int32_t offset[5];
+};
+
+static char* g_op_blob;
+static size_t g_op_blob_len;
+static size_t g_op_blob_cap;
+static struct LocOpRow* g_ops;
+static int g_op_count;
+static int g_op_cap;
+
 /** Bit per loc id: 1 when the config group holds a record for it. */
 static uint8_t* g_known;
 static int g_known_bits;
@@ -153,6 +169,15 @@ compare_category_row(const void* a, const void* b)
 {
     int32_t left = ((const struct LocCategoryRow*)a)->id;
     int32_t right = ((const struct LocCategoryRow*)b)->id;
+
+    return left < right ? -1 : (left > right ? 1 : 0);
+}
+
+static int
+compare_op_row(const void* a, const void* b)
+{
+    int32_t left = ((const struct LocOpRow*)a)->id;
+    int32_t right = ((const struct LocOpRow*)b)->id;
 
     return left < right ? -1 : (left > right ? 1 : 0);
 }
@@ -444,6 +469,20 @@ ToriRSServer_LocInfoCategoryCount(void)
     return g_category_count;
 }
 
+void
+ToriRSServer_LocInfoCategoryAt(
+    int index,
+    int* out_loc_id,
+    int* out_category)
+{
+    assert(index >= 0);
+    assert(index < g_category_count);
+    assert(out_loc_id);
+    assert(out_category);
+    *out_loc_id = g_categories[index].id;
+    *out_category = g_categories[index].category;
+}
+
 int
 ToriRSServer_LocInfoCount(void)
 {
@@ -456,15 +495,28 @@ ToriRSServer_LocInfoParamCount(void)
     return g_loc_params.count;
 }
 
+/** Rows the overlay added (rather than replaced): the server-only params a loc's
+ *  band states, which no client record carries. */
+static int g_loc_params_overlaid;
+
+int
+ToriRSServer_LocInfoParamOverlaidCount(void)
+{
+    return g_loc_params_overlaid;
+}
+
 void
 ToriRSServer_LocInfoParamOverlay(
     int loc_id,
     int param_id,
     int value)
 {
-    if( loc_id < 0 || param_id < 0 )
-        return;
+    int before = g_loc_params.count;
+
+    assert(loc_id >= 0);
+    assert(param_id >= 0);
     ToriRSServer_ParamTableSetInt(&g_loc_params, loc_id, param_id, value);
+    g_loc_params_overlaid += g_loc_params.count - before;
     /* Re-sorted per row, and cheap in the way that matters: the table is already
      * sorted, so this is qsort's best case. The alternative — a separate "the
      * overlay is finished" call — is one more thing to forget, and forgetting it
@@ -484,77 +536,184 @@ ToriRSServer_LocInfoSizeCount(void)
     return g_size_count;
 }
 
-int
-ToriRSServer_LocInfoLoad(const char* cache_dir)
+/** Append one op's text to the op blob; returns its offset. */
+static int32_t
+add_op_text(const char* text)
 {
-    struct RSCache profile = RSCache_ProfileZero();
-    struct RSCache_Dat2Disk* disk;
-    struct RSCache_Dat2DiskArchive* archive;
-    struct RSCache_FileList* files;
-    int table;
+    size_t length = strlen(text) + 1;
+    int32_t offset;
 
+    if( g_op_blob_len + length > g_op_blob_cap )
+    {
+        size_t want = g_op_blob_cap ? g_op_blob_cap * 2 : 65536;
+        char* grown;
+
+        while( want < g_op_blob_len + length )
+            want *= 2;
+        grown = realloc(g_op_blob, want);
+        assert(grown);
+        g_op_blob = grown;
+        g_op_blob_cap = want;
+    }
+    offset = (int32_t)g_op_blob_len;
+    memcpy(g_op_blob + g_op_blob_len, text, length);
+    g_op_blob_len += length;
+    return offset;
+}
+
+/**
+ * Keep the record's five ops, when it states any.
+ *
+ * An op the stream spells "hidden" (any case) decodes to NULL in `actions`, as
+ * the client has it, with the spelling in `hidden_actions`. The server keeps the
+ * spelling: a hidden op is the one a skilling loop resumes on (`op3=hidden`,
+ * `p_oploc(3)`), and an empty op is the one `p_oploc` returns silently on.
+ */
+static void
+add_ops(
+    int loc_id,
+    const struct RSCache_Dat2ConfigLoc* loc)
+{
+    struct LocOpRow row;
+    int any = 0;
+
+    row.id = loc_id;
+    for( int op = 0; op < 5; op++ )
+    {
+        const char* text = loc->actions[op] ? loc->actions[op] : loc->hidden_actions[op];
+
+        row.offset[op] = text ? add_op_text(text) : -1;
+        any |= text != NULL;
+    }
+    if( !any )
+        return;
+    if( g_op_count == g_op_cap )
+    {
+        int want = g_op_cap ? g_op_cap * 2 : 1024;
+        struct LocOpRow* grown = realloc(g_ops, (size_t)want * sizeof(*grown));
+
+        assert(grown);
+        g_ops = grown;
+        g_op_cap = want;
+    }
+    g_ops[g_op_count++] = row;
+}
+
+const char*
+ToriRSServer_LocInfoOp(
+    int loc_id,
+    int op_num)
+{
+    int low = 0;
+    int high = g_op_count - 1;
+
+    assert(op_num >= 1);
+    assert(op_num <= 5);
+    while( low <= high )
+    {
+        int mid = low + (high - low) / 2;
+
+        if( g_ops[mid].id == loc_id )
+            return g_ops[mid].offset[op_num - 1] >= 0 ? g_op_blob + g_ops[mid].offset[op_num - 1]
+                                                      : NULL;
+        if( g_ops[mid].id < loc_id )
+            low = mid + 1;
+        else
+            high = mid - 1;
+    }
+    return NULL;
+}
+
+int
+ToriRSServer_LocInfoOpCount(void)
+{
+    return g_op_count;
+}
+
+int
+ToriRSServer_LocInfoOpLocAt(int index)
+{
+    assert(index >= 0);
+    assert(index < g_op_count);
+    return g_ops[index].id;
+}
+
+struct LocLoad
+{
+    struct RSCache profile;
+    int failed;
+};
+
+static void
+loc_load_record(
+    void* context,
+    int id,
+    const uint8_t* body,
+    uint32_t size)
+{
+    struct LocLoad* load = (struct LocLoad*)context;
+    struct RSCache_Dat2ConfigLoc* loc;
+
+    assert(load);
+    if( size == 0 )
+        return;
+    loc = RSCache_Dat2ConfigLocNewDecodeProfile(&load->profile, (char*)body, (int)size);
+    if( !loc )
+    {
+        load->failed++;
+        return;
+    }
+    g_loc_records++;
+    ToriRSServer_ParamTableRead(&g_loc_params, id, &loc->params);
+    mark_known(id);
+    if( loc->name )
+        add_name(id, loc->name);
+    if( loc->size_x != 1 || loc->size_z != 1 )
+        add_size(id, loc->size_x, loc->size_z);
+    if( loc->category > 0 )
+        add_category(id, loc->category);
+    add_ops(id, loc);
+    RSCache_Dat2ConfigLocFree(loc);
+}
+
+/*
+ * Every loc record, from the server pack's loc client-record archives — the
+ * client codec's bytes, written by cachepack from the merge of the whole tree, so
+ * a `.loc` block's `category=`, `name=` or `op3=hidden` is already in the record
+ * here rather than laid over a cache record afterwards.
+ */
+int
+ToriRSServer_LocInfoLoad(struct RSCache_ServerPack* pack)
+{
+    struct LocLoad load;
+    int visited;
+
+    assert(pack);
     ToriRSServer_LocInfoFree();
 
-    profile.game = RSCACHE_GAME_OLDSCHOOL;
-    profile.epoch = RSCACHE_EPOCH_DAT2;
-    profile.revision = TORIRSSERVER_CACHE_REVISION;
+    memset(&load, 0, sizeof(load));
+    load.profile = RSCache_ProfileZero();
+    load.profile.game = RSCACHE_GAME_OLDSCHOOL;
+    load.profile.epoch = RSCACHE_EPOCH_DAT2;
+    /* The declared revision decides every codec branch, the group revision
+     * included (rscache_profile.c): the one cachepack encoded these under. */
+    load.profile.revision = TORIRSSERVER_CACHE_REVISION;
 
-    disk = RSCache_Dat2DiskNewFromDirectory(cache_dir);
-    if( !disk )
+    visited = ToriRSServer_ServPackEachRecord(pack, RSCACHE_DAT2_CONFIG_KIND_LOCS, loc_load_record,
+                                              &load);
+    if( visited < 0 || load.failed > 0 || visited == 0 )
     {
-        /* Run from src/ as well as from the repo root, like objinfo. */
-        char fallback[512];
-
-        snprintf(fallback, sizeof(fallback), "../%s", cache_dir);
-        disk = RSCache_Dat2DiskNewFromDirectory(fallback);
-    }
-    if( !disk )
-    {
-        fprintf(stderr, "torirsserver: no loc params (cache '%s' not found)\n", cache_dir);
+        if( load.failed > 0 )
+            fprintf(stderr,
+                    "torirsserver: %d loc record(s) in the server pack do not decode — rebuild "
+                    "it with `%s`\n",
+                    load.failed, TORIRSSERVER_SERVPACK_FIX);
+        else if( visited == 0 )
+            fprintf(stderr,
+                    "torirsserver: the server pack holds no loc records — rebuild it with `%s`\n",
+                    TORIRSSERVER_SERVPACK_FIX);
+        ToriRSServer_LocInfoFree();
         return 0;
-    }
-
-    RSCache_Dat2DiskSetProfile(disk, &profile);
-    table = RSCache_Dat2DiskTableId(disk, RSCACHE_DAT2_TABLE_CONFIGS);
-    archive = RSCache_Dat2DiskArchiveNewLoad(disk, table, RSCACHE_DAT2_CONFIG_KIND_LOCS);
-    if( !archive )
-    {
-        RSCache_Dat2DiskFree(disk);
-        fprintf(stderr, "torirsserver: no loc config archive in '%s'\n", cache_dir);
-        return 0;
-    }
-    RSCache_Dat2DiskArchiveInitMetadata(disk, archive);
-    /* The loc decoder branches on the group revision — torirs_server_scene.c sets it
-     * the same way before decoding the same archive. */
-    RSCache_ProfileSetGroupRevision(&profile, RSCACHE_TYPE_LOC, archive->revision);
-
-    files = RSCache_FileListNewFromDecode(archive->data, archive->data_size, archive->file_count);
-    if( !files )
-    {
-        RSCache_Dat2DiskArchiveFree(archive);
-        RSCache_Dat2DiskFree(disk);
-        return 0;
-    }
-
-    for( int i = 0; i < archive->file_count; i++ )
-    {
-        struct RSCache_Dat2ConfigLoc* loc;
-
-        if( files->file_sizes[i] <= 0 )
-            continue;
-        loc = RSCache_Dat2ConfigLocNewDecodeProfile(&profile, files->files[i],
-                                                    files->file_sizes[i]);
-        if( !loc )
-            continue;
-        ToriRSServer_ParamTableRead(&g_loc_params, archive->file_ids[i], &loc->params);
-        mark_known(archive->file_ids[i]);
-        if( loc->name )
-            add_name(archive->file_ids[i], loc->name);
-        if( loc->size_x != 1 || loc->size_z != 1 )
-            add_size(archive->file_ids[i], loc->size_x, loc->size_z);
-        if( loc->category > 0 )
-            add_category(archive->file_ids[i], loc->category);
-        RSCache_Dat2ConfigLocFree(loc);
     }
 
     /*
@@ -562,10 +721,9 @@ ToriRSServer_LocInfoLoad(const char* cache_dir)
      * carrying two or more params are out of key order (87.6%). Sorting by
      * construction would miss nearly nine in ten of them, silently.
      *
-     * The name and footprint tables are sorted for the weaker reason that
-     * nothing promises `archive->file_ids` is ascending — it happens to be on
-     * this cache, and a binary search that relied on that would work until it
-     * did not.
+     * The name, footprint, category and op tables arrive in id order (the pack
+     * writes records ascending), and are sorted anyway: a binary search that
+     * relied on the writer's order would work until it did not.
      */
     ToriRSServer_ParamTableSort(&g_loc_params);
     if( g_names && g_name_count > 1 )
@@ -575,27 +733,26 @@ ToriRSServer_LocInfoLoad(const char* cache_dir)
     if( g_categories && g_category_count > 1 )
         qsort(g_categories, (size_t)g_category_count, sizeof(*g_categories),
               compare_category_row);
-
-    g_loc_records = archive->file_count;
-
-    RSCache_FileListFree(files);
-    RSCache_Dat2DiskArchiveFree(archive);
-    RSCache_Dat2DiskFree(disk);
+    if( g_ops && g_op_count > 1 )
+        qsort(g_ops, (size_t)g_op_count, sizeof(*g_ops), compare_op_row);
 
     fprintf(stderr,
             "torirsserver: loc configs loaded (%d records from %s; %d param rows in %zu bytes, "
-            "%d names in %zu bytes, %d footprints in %zu bytes, %d categories in %zu bytes)\n",
-            g_loc_records, cache_dir, g_loc_params.count,
+            "%d names in %zu bytes, %d footprints in %zu bytes, %d categories in %zu bytes, "
+            "%d with ops)\n",
+            g_loc_records, pack->dir, g_loc_params.count,
             ToriRSServer_ParamTableBytes(&g_loc_params), g_name_count,
             g_name_blob_len + (size_t)g_name_count * sizeof(struct LocNameRow),
             g_size_count, (size_t)g_size_count * sizeof(struct LocSizeRow),
-            g_category_count, (size_t)g_category_count * sizeof(struct LocCategoryRow));
+            g_category_count, (size_t)g_category_count * sizeof(struct LocCategoryRow),
+            g_op_count);
     return 1;
 }
 
 void
 ToriRSServer_LocInfoFree(void)
 {
+    g_loc_params_overlaid = 0;
     ToriRSServer_ParamTableFree(&g_loc_params);
     g_loc_records = 0;
 
@@ -621,4 +778,13 @@ ToriRSServer_LocInfoFree(void)
     free(g_known);
     g_known = NULL;
     g_known_bits = 0;
+
+    free(g_op_blob);
+    g_op_blob = NULL;
+    g_op_blob_len = 0;
+    g_op_blob_cap = 0;
+    free(g_ops);
+    g_ops = NULL;
+    g_op_count = 0;
+    g_op_cap = 0;
 }

@@ -1,0 +1,69 @@
+{{Infobox Monster
+|name = Jal-Ak
+|image = [[File:Jal-Ak.png|250px]]
+|release = [[1 June]] [[2017]]
+|update = The Inferno
+|members = Yes
+|combat = 165
+|size = 3
+|examine = Slow and powerful. It seems to use its attacks wisely.
+|xpbonus = 2.5
+|max hit = 29
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Ranged]], [[Magic]], [[Crush]]
+|attack speed = 6
+|slayxp = 40
+|cat = TzHaar
+|assignedby = chaeldar,nieve,duradel
+|hitpoints = 40
+|att = 160
+|str = 160
+|def = 95
+|mage = 160
+|range = 160
+|attbns = 0
+|strbns = 45
+|amagic = 45
+|mbns = 45
+|arange = 45
+|rngbns = 45
+|dstab = 25
+|dslash = 25
+|dcrush = 25
+|dmagic = 25
+|dlight = 25
+|dstandard = 25
+|dheavy = 25
+|elementalweaknesstype = Water
+|elementalweaknesspercent = 40
+|poisonresistance = 100
+|venomresistance = 100
+|immunecannon = No
+|immunethrall = No
+|immuneburn = Immune to normal burns
+|id = 7693
+}}
+'''Jal-Ak''', commonly referred to as '''blobs''', is a [[volcanic creature]] fought in the [[Inferno]]. It bears resemblance to the [[Tz-Kek]] fought in the [[TzHaar Fight Cave]], however it is much more dangerous.
+
+Jal-Ak attacks every 6 [[RuneScape clock|ticks]]; 3 ticks before each attack, it will detect what [[Protection prayers|protection prayer]] the player is using and change its [[Attack types|attack style]] depending on whether the player is using [[Protect from Magic]], [[Protect from Missiles]], or [[Protect from Melee]]. If the player is not using any protection prayer, Jal-Ak's attack will be of a random style. If the player is in melee range and is '''not''' praying Protect from Melee, there is a random chance the Jal-Ak will use a melee attack instead of a ranged/magic attack.
+
+However, there is a delay in the attack animation, so switching to the correct protection prayer before the projectile is launched will block the damage. This delay is particularly useful when the player must leave a [[safespot]], leaving the player vulnerable to attack from both Jal-Ak and another monster; Jal-Ak will be off-tick from the other monster, such that the two monsters will not launch their attacks on the same tick.
+
+When Jal-Ak dies, it splits into 3 smaller versions of itself, each using a different style of the combat triangle: [[Jal-AkRek-Xil]] (Ranged), [[Jal-AkRek-Mej]] (Mage), and [[Jal-AkRek-Ket]] (Melee).
+
+In the Inferno, the double blob waves are 7, 15, 24, 31, 41, 48, 56, 63.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = Jal-Ak now have a 40% [[elemental weakness]] to [[water spells]].
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* Translations of some words and phrases in the TzHaar language were revealed in ''{{RSL|RuneScape 3}}'' via the {{RSL|TzHaar Tourist Guide}} book. According to this text, ''Jal'' means foreign, or not TzHaar, and ''Ak'' means forked or twin.
+
+{{Inferno}}

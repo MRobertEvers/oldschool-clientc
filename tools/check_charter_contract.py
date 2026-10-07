@@ -56,6 +56,8 @@ import re
 import sys
 from pathlib import Path
 
+import config_text
+
 ROOT = Path(__file__).resolve().parents[1]
 BASE = ROOT / "OSRS-Content/osrs239-content"
 FEATURE = BASE / "server/scripts/transport_charter"
@@ -63,13 +65,14 @@ FEATURE = BASE / "server/scripts/transport_charter"
 # TextIO performs universal-newline conversion.  That matters on Windows:
 # parsing decoded bytes directly leaves CRLF in place, while the cache-row
 # grammar below deliberately matches LF-delimited section headers.
-with (BASE / "configs/all.dbrow").open(
-        encoding="utf-8", errors="replace") as handle:
-    ALL_DBROW = handle.read()
-PORT_DBROW = (FEATURE / "configs/charter_port.dbrow").read_text()
-FARE_DBROW = (FEATURE / "configs/charter_fare.dbrow").read_text()
-PORT_DBTABLE = (FEATURE / "configs/charter_port.dbtable").read_text()
-FARE_DBTABLE = (FEATURE / "configs/charter_fare.dbtable").read_text()
+# config_text.read_text opens in text mode too, and drops the full-key format's
+# `key=default` / `key=empty` marker lines.
+ALL_DBROW = config_text.read_text(
+    BASE / "configs/all.dbrow", encoding="utf-8", errors="replace")
+PORT_DBROW = config_text.read_text(FEATURE / "configs/charter_port.dbrow")
+FARE_DBROW = config_text.read_text(FEATURE / "configs/charter_fare.dbrow")
+PORT_DBTABLE = config_text.read_text(FEATURE / "configs/charter_port.dbtable")
+FARE_DBTABLE = config_text.read_text(FEATURE / "configs/charter_fare.dbtable")
 CONSTANT = (FEATURE / "configs/charter.constant").read_text()
 SPAWN = (FEATURE / "configs/charter.spawn").read_text()
 PORT_RS2 = (FEATURE / "scripts/charter_port.rs2").read_text()
@@ -130,27 +133,40 @@ def parse_dbrows(text: str, prefix: str) -> dict:
 
 
 def parse_cache_destinations() -> dict:
+    """suffix -> the row of dbtable 206 (`chartering_destinations`), its columns
+    read by name: id (0), name (1), port_coord (3), inzone (6),
+    related_content (8). Coords as the packed ints the cache stores."""
+    tables = config_text.parse_dbtables(config_text.read_text(
+        BASE / "configs/all.dbtable", encoding="utf-8", errors="replace"))
+    rows = config_text.parse_dbrows(ALL_DBROW, tables)
+    names = config_text.Names(BASE)
     out = {}
-    pattern = r"\[chartering_destination_([a-z_0-9]+)\]\n(.*?)(?=\n\[|\Z)"
-    for suffix, body in re.findall(pattern, ALL_DBROW, re.S):
-        values = {int(m.group(1)): m.group(2).strip()
-                  for m in re.finditer(r"^values=(\d+):0:(.*)$", body, re.M)}
-        raw = int(values.get(3, "0"))
+    for row_name, row in rows.items():
+        m = re.fullmatch(r"chartering_destination_([a-z_0-9]+)", row_name)
+        if not m:
+            continue
+
+        def first(column, fallback):
+            tuples = row.typed("chartering_destination_" + column, names)
+            return tuples[0] if tuples else fallback
+
+        raw = first("port_coord", (0,))[0]
         coord = None
         if raw:
             coord = (((raw - (raw >> 28) * PLANE_BIAS) >> 14) & 0x3FFF, raw & 0x3FFF)
         zone = None
-        parts = [p for p in values.get(6, "").split(",") if p.strip()]
-        if len(parts) == 2:
-            a, b = int(parts[0]), int(parts[1])
+        corners = first("inzone", None)
+        if corners is not None:
+            a, b = corners
             if (a, b) != (0, 0):
                 zone = (((a >> 14) & 0x3FFF, a & 0x3FFF), ((b >> 14) & 0x3FFF, b & 0x3FFF))
-        out[suffix] = {
-            "id": int(values.get(0, "-1")),
-            "name": values.get(1, ""),
+        related = row.typed("related_content", names)
+        out[m.group(1)] = {
+            "id": first("id", (-1,))[0],
+            "name": first("name", ("",))[0].strip(),
             "coord": coord,
             "zone": zone,
-            "related_content": int(values.get(8, "0")),
+            "related_content": related[0][0] if related else 0,
         }
     return out
 

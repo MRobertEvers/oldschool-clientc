@@ -1,0 +1,153 @@
+{{Update|date=27 July 2022|link=https://secure.runescape.com/m=news/new-client-update-clue-scroll-helper?oldschool=1|category=game}}
+[[File:New Client Update- Clue Scroll Helper newspost.png|right]]
+{{clear}}
+<center>''We've hit the next milestone of our Client Update - keep scrolling to read all about it!''</center>
+__TOC__
+==Your Feedback, Our Response==
+{|class=wikitable style="text-align:center; width:665px;"
+!Last Updated
+!Issues Raised
+!Current Progress
+!Status
+|-
+|13:20 BST - July 27th
+|Some models have broken animations when moving.
+|This issue cannot be hotfixed meaning we will have to wait until next Game Update. Let us know if you find any NPCs with this issue. Currently, we have seen:
+* Monkeys on Ape Atoll
+* Wolves
+|To BE COLDFIXED
+|}
+
+==New Client Features: Clue Scroll Update!==
+[[File:New Client Update- Clue Scroll Helper (1).png|centre|600px]]
+
+===Clue Scroll Helper===
+Get ready to Clue your heart out with the brand new Clue Scroll Helper! This handy tool will help you solve all types of Clues fast, including Anagrams, Coordinates, Ciphers, Cryptics, Emotes, Fairy Rings, Falo the Bard, Hot/Colds, Maps, Music and Skill Challenges.
+
+[[File:New Client Update- Clue Scroll Helper (2).png|centre]]
+
+When interacting with a Clue Scroll, the Helper will appear on the left-hand side, giving you instructions on how you can complete that step. For example, if your current clue step is a Music Clue, the relevant track will be displayed within the Music Side Panel, as well as displayed in the Clue Scroll Helper.
+
+You can get directions from hint arrows in-world, on the Minimap or by opening up the World Map. During your Clue Scroll completion the Helper will also display what items you need for your current step, and will helpfully point out if you have them or if they are in a previously built S.T.A.S.H. Unit.
+
+[[File:New Client Update- Clue Scroll Helper (3).png|centre|600px]]
+
+Pop into the Settings and you'll find options to turn off the Helper completely, disable the hint arrows, or toggle other display options including World Map markers, menu highlights, and more. The Helper will automatically disappear if the current Clue Scroll is removed from your Inventory.
+
+===NPC Indicators===
+[[File:New Client Update- Clue Scroll Helper (4).png|centre|600px]]
+
+You can now highlight NPC click regions and their names, so you know where to click when you want to interact with your desired NPC. When this option is on, the NPC you have selected/hovered over will be highlighted and their name displayed above them.
+
+NPCs will also have two shift-right-click options (only available on Steam):
+
+* 'Highlight this NPC' will keep that specific NPC highlighted.
+* 'Highlight all NPCs of this type' will highlight all similar NPCs in the nearby area.
+
+You'll also be able to choose whether just the NPC is highlighted, the tile the NPC is standing on is highlighted, or both, alongside colour options for your selections. This feature is OFF by default and can be changed at any time within the Settings menu.
+
+==New Client Features: And There's More!==
+[[File:New Client Update- Clue Scroll Helper (5).png|centre|600px]]
+===Activity Helpers===
+In our [https://secure.runescape.com/m=news/mobile-new-client-launch--next-steps?oldschool=1 Mobile New Client Launch and Next Steps] blog we revealed that there would be a few bonus extras with today's update, in the form of some of the most popular Activity Helpers. For the record, there are a few missing - but you can look forward to those in a future update. For now, let's see what you can get your hands on:
+
+* '''Blast Furnace Helper:''' Allows you to enable a highlighter for objects you might interact with in the Blast Furnace. You can also keep tabs on key info like the items currently in the melting pot and dispenser or the amount of money in the coffer.
+* '''Cannon HUD:''' You can now see how long your Dwarven Multicannon has left before it breaks and how many Cannon Balls you have. You can also enable notifications alerting you when you're low on, or out of, Cannon Balls.
+* '''Herbiboar Helper:''' This helper highlights the Herbiboar's footprints, interactable scenery, and the elusive Herbiboar itself.
+* '''Hunter Trap Timers:''' These timers let you know when your Hunter traps are about to despawn.
+* '''Tears of Guthix Timers:''' This shows you different coloured timers for the blue and green veins, and reminds you which ones you should be aiming for.
+
+===Further Changes===
+We've also made the following improvements:
+
+* For those of you who haven't upgraded to the Circlet of Water yet, the numbers of Waterskin uses have been added to the Buff Bar.
+* We have made tooltips across the game display consistently when using the C++ Client.
+* You now have the option to toggle icons on the Minimap at the most zoomed level, so that you can see what's going on across a wider area.
+* Agility Course Highlights are now cleared when the player dies, or after five minutes of inactivity.
+
+We've also made some fixes to help make your mobile experience a little smoother:
+
+* Improvements have been made when opening or closing Side Panels.
+* Fixed an issue with entity overlays inside the Chambers of Xeric.
+* Resolved various issues that caused the app to crash or become unresponsive.
+* Fixed an issue allowing Prayer to activate after clicking on an Inventory item and changing tab via hotkey.
+* Audio now works correctly with certain slider setups.
+* Fixed an issue where tiles highlighted incorrectly under certain circumstances.
+* Reduced the visibility of grid lines.
+
+==Masori Armour Feedback==
+We recently revealed the in-game look for the Masori Armour, one of the awesome rewards you can get your hands on in Tombs of Amascut. You had lots to say about the design - here were the main points we noticed:
+
+* At first glance, it doesn't look like Ranged gear. The cloth makes it look like Magic equipment.
+* Some players thought the Ancient Egyptian theme strayed too far from traditional Ranged equipment, which is usually made from hides. You thought it looked more like a costume than a set of best-in-slot armour.
+* It doesn't look strong enough to be a best-in-slot armour set.
+* The upgraded version changes the colour from gold to silver, which seems like a downgrade.
+
+In light of this feedback, we'd like to present two new Masori Armour concepts.
+
+The first one is in line with the previous iteration, with slight tweaks to the base armour. The upgraded version is more distinct from the original.
+
+[[File:New Client Update- Clue Scroll Helper (6).png|centre|600px]]
+
+The second concept is an entirely fresh take on the armour, incorporating crocodile skin textures. This beast features heavily in Tombs of Amascut - the Zebak boss is one example - and so we think this radical change is still on-theme.
+
+[[File:New Client Update- Clue Scroll Helper (7).png|centre|600px]]
+
+We want to hear what you think about these concepts. Here's how we'll be handling Masori Armour going forward:
+
+# An '''in-game poll''' will be launched later today where you’ll be able to decide which direction we should take with the armour.
+# The art team will go away and use the results of the poll, alongside your feedback, to create a new version of the Masori Armour set ready for when Tombs of Amascut launches on August 24th.
+# Once Tombs of Amascut launches, we'll think about other changes based on your feedback. However, we want to make it clear that this will only be after the raid itself is in great shape!
+
+You can look forward to the in-game poll that will run between '''today (July 27th)''' at approximately '''13:00 BST''' until '''Friday July 29th''' at '''13:00 BST'''.
+
+Make sure to also head over to our usual social channels (Twitter, Facebook, Instagram & Reddit) to leave your (constructive) feedback on the new concepts!
+
+Just a quick note on your feedback. Old School is a game that we all love, and as a team we appreciate your passion and commitment to the game. Working closely with you is one of the things that makes Old School so great! We have a team of wonderfully talented and dedicated people that want to do right by both the game and its players. So please remember, when leaving your feedback, keep it constructive, and give us the reasons why you don't like something as opposed to a one-word response. In terms of art specifically, the amazing people on the team have said that they really appreciate feedback with extra detail and reference images, where applicable.
+
+==Other Changes==
+* When outside combat areas on PvP Arena worlds, the 'Trade' option has been replaced with a 'Load-outs' option. Players can right-click another player and open a menu showing the selected player's three load-outs. From here, you can copy their load-out over to yours, replacing your current preset.
+* Rebalanced the grouping algorithm in the PvP Arena to help the less common ranks find matches.
+* The Blast Furnace is now a safe zone on PvP worlds, due to occasional incidents of luring around the Bank Chest.
+* A couple of crates have been deleted from the middle floor of a tower in Hosidius, as they were getting in the way of PvP combat in the area.
+* On the Deadman world, the Ardougne task for casting Ice Barrage in Castle Wars can now be completed by entering the Castle Wars lobby with the relevant quest and skill requirements satisfied.
+* For Ultimate Iron players, any unclaimed Chambers of Xeric rewards may now be dropped outside the Chambers rather than being put in the private storage, since UIM can't use it.
+* Some grammar has been corrected on guards in the H.A.M. cave.
+
+==PvP World Rota==
+The PvP rota has moved to '''Period B''':
+
+* 560 - (UK) - PvP World
+* 579 - (US) - High-Risk PvP World
+* 561 - (UK) - Free-to-Play PvP World
+* 580 - (US) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been '''de-activated''' with this rota.
+
+
+We will now be including the current PvP Arena rotation within this section of the Weekly Game Update newspost:
+
+For those of you that don't know, the rotations for the Arena actually occur before the weekly game update, which is between Tuesday and Wednesday from Midnight to 1am (dependent on the current time standard in the UK). However, we thought this would be a good way to keep you up to date with the week's current rotation!
+
+This rotation only affects Ranked Play, so all other types of battles within the Arena may be fought with your choice of load-out.
+
+The PvP Arena is now using '''<nowiki/>'Max/Med'<nowiki/>''' load-outs in Ranked Tournaments this week.
+
+==Official Merch Store==
+[[File:New Client Update- Clue Scroll Helper (8).png|centre|600px]]
+
+Get ready to be transported to the Kharidian Desert with the latest pins and keyrings from Angels Scapes! Find them in the Cities of RuneScape range at the [https://runescape.backstreetmerch.com/collections/old-school-runescape-featured?utm_campaign=OSRSnewspost&utm_medium=Email&utm_source=OSRSNewspost Official Merch Store].
+
+* '''Sq'irk Mini Pin Set:''' A set of slightly sq'irky, er, we mean, quirky, fruits from the Sorceress's Garden!
+* '''Green Slayer Helm:''' A Slayer Helmet recoloured with the head of the Kalphite Queen.
+* '''Infinity Robes Pin, Light Infinity Robes Pin, Dark Infinity Robes Pin:''' Mystical robes obtained from the Mage Training Arena, with a light recolour and a dark recolour, now in pin form!
+* '''Kebab Pin:''' The delicious camel-based delicacy of Al Kharid - yum!
+* '''Ring of Dueling Keyring:''' This handy item may not actually teleport you to Castle Wars or the Emir's Arena, but at least it won't crumble into nothing after eight uses...
+
+----
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums?380,381,826,66258739 official forums], on the [https://www.reddit.com/r/2007scape/comments/w9aoso/new_client_update_clue_scroll_helper_weekly_game/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[osrsw:|Old School Wiki]].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Banjo, Boko, Brow, Bruno, Curse, Daizong, Dibber, Ditto, Dylan, Ed, Elena, Errol, Fed, Gecko, Goblin, Grub, Halo, Havik, Hornet, Husky, Jalo, John C, Kandosii, Katies, Kamon, Kieren, Kirby, Kurotou, Lenny, Light, Lottie, Mack, Matheus, Maylea, Markos, Meat, Morty, Nasty, Nin, Nylu, Oasis, Peppers, Regent, Redfield, Roq, Ry, Sarnie, Sigma, Skylark, Soffan, Sova, Squid, Steve W, Tide, Torrance, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

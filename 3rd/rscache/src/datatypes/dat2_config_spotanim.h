@@ -1,6 +1,7 @@
 #ifndef RSCACHE_DATATYPES_DAT2_CONFIG_SPOTANIM_H
 #define RSCACHE_DATATYPES_DAT2_CONFIG_SPOTANIM_H
 
+#include "../rscache_presence.h"
 #include "../rscache_profile.h"
 
 #include <stdbool.h>
@@ -17,14 +18,40 @@
  *   60..69: retexture_to_find[code-60] g2 70..79: retexture_to_replace[code-70] g2
  *   0: terminator
  */
-/** Recolour / retexture slots the struct carries. The opcode ranges above are 10
- *  wide, but only 6 slots exist and only 6 are ever used; indices past this are
- *  consumed and dropped rather than written past the end of the array. */
-#define RSCACHE_SPOTANIM_COLOUR_SLOTS 6
+/** Recolour / retexture slots the struct carries. The lists are count-prefixed
+ *  (a u8), and osrs230/osrs239 carry up to 9 pairs (11 records past 6 in each) —
+ *  this used to be 6, which silently dropped the rest of those 11 records' lists.
+ *  Pairs past this are still consumed and dropped rather than written past the
+ *  end of the array. */
+#define RSCACHE_SPOTANIM_COLOUR_SLOTS 16
+
+/** The fields a spotanim stream can state, for `RSCache_Dat2ConfigSpotanim.present`. */
+enum RSCache_Dat2ConfigSpotanimField
+{
+    RSCACHE_SPOTANIM_FIELD_MODEL = 0, /* 1 (u16) or 3 (u32) */
+    RSCACHE_SPOTANIM_FIELD_ANIM,      /* 2 */
+    RSCACHE_SPOTANIM_FIELD_RESIZEH,   /* 4 */
+    RSCACHE_SPOTANIM_FIELD_RESIZEV,   /* 5 */
+    RSCACHE_SPOTANIM_FIELD_ANGLE,     /* 6 */
+    RSCACHE_SPOTANIM_FIELD_AMBIENT,   /* 7 */
+    RSCACHE_SPOTANIM_FIELD_CONTRAST,  /* 8 */
+    RSCACHE_SPOTANIM_FIELD_NAME,      /* OldSchool 9 */
+    RSCACHE_SPOTANIM_FIELD_UNKNOWN10, /* 10 */
+    RSCACHE_SPOTANIM_FIELD_TERRAIN,   /* RS2-727 9, 11..16: consumed, never encoded */
+    RSCACHE_SPOTANIM_FIELD_RECOL,     /* 40 */
+    RSCACHE_SPOTANIM_FIELD_RETEX,     /* 41 */
+    RSCACHE_SPOTANIM_FIELD_COUNT
+};
 
 struct RSCache_Dat2ConfigSpotanim
 {
+    /** Which `RSCache_Dat2ConfigSpotanimField`s the stream stated. The encoder
+     *  writes exactly these. */
+    struct RSCache_Presence present;
     int model;
+    /** The opcode the model came in, 1 (u16) or 3 (u32), so a re-encode keeps
+     *  its width; 0 for a record built by hand, which picks by revision. */
+    int model_opcode;
     int anim; /* seq id, or -1 */
     int resizeh;
     int resizev;
@@ -83,10 +110,7 @@ RSCache_Dat2ConfigSpotanimNewDecodeProfile(
  * `revision` selects whether model ids prefer the int opcode 3 (OSRS >= 237)
  * or the u16 opcode 1. Pass the game revision, or 0 to pick by value width.
  *
- * Emits opcodes in ascending order and omits any field still at its decode
- * default, which is what the packer does — so a record that was itself packed
- * that way round-trips byte-exactly, and one that was not still round-trips
- * semantically.
+ * Emits opcodes in ascending order, exactly the fields `present` names.
  *
  * Returns bytes written, or 0 if `out_capacity` is too small.
  */

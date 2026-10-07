@@ -1,0 +1,28 @@
+mechanic_id	quantity	spec_value	unit	tags	grade	source_ref	closes	tolerance
+entry.sacrifice_item	item the TzHaar-Ket-Keh takes to grant access	tzhaar_cape_fire	text	[jagex][cache]	A	sources/newsposts/wiki_Update_Dev_Blog_Mor_Ul_Rek_The_Inferno.wikitext:80; sources/cache_objs.txt:26	-	exact
+entry.sacrifice_count	fire capes consumed by the first entry	1	count	[jagex]	A	sources/newsposts/wiki_Update_Dev_Blog_Mor_Ul_Rek_The_Inferno.wikitext:80; sources/newsposts/wiki_Update_Progress_Report_The_Inferno.wikitext:105	-	exact
+entry.sacrifice_is_one_time	fire capes consumed by every later entry	0	count	[jagex][wiki]	A	sources/newsposts/wiki_Update_Dev_Blog_Mor_Ul_Rek_The_Inferno.wikitext:80; sources/wiki/wiki_Inferno.wikitext:23	-	exact
+entry.other_requirements	requirements to attempt the Inferno beyond the sacrifice	0	count	[jagex]	A	sources/newsposts/wiki_Update_The_Inferno.wikitext:69	-	exact
+entry.max_fire_cape_sacrificeable	whether a max fire cape can be the sacrificed cape	?	text	[jagex][M3]	E	sources/newsposts/wiki_Update_Progress_Report_The_Inferno.wikitext:105	M3	approx
+entry.city_gate_item	item shown to the TzHaar-Ket guard to enter Mor Ul Rek	tzhaar_cape_fire	text	[jagex][cache]	A	sources/newsposts/wiki_Update_The_Inferno.wikitext:21; sources/cache_objs.txt:26	-	exact
+entry.city_gate_consumes	fire capes lost by showing it to the guard	0	count	[jagex]	A	sources/newsposts/wiki_Update_The_Inferno.wikitext:23	-	exact
+entry.entrance_op_varbit_value	value of varb5646 at which the Cave entrance offers Jump-in	2	count	[cache]	A	sources/cache_locs.txt:1602-1605; sources/cache_locs.txt:486-491	-	exact
+entry.entrance_noop_values	values of varb5646 at which the Cave entrance has no op	0,1	count	[cache]	A	sources/cache_locs.txt:1602-1605	-	exact
+entry.sacrifice_varbit_bits	bit width of varb5646_inferno_sacrificed_firecape	2	count	[cache]	A	sources/cache_vars.txt:37-42	-	exact
+entry.entrance_loc_name	name of the Cave entrance loc, both multiloc states	The Inferno	text	[cache]	A	sources/cache_locs.txt:476; sources/cache_locs.txt:486	-	exact
+entry.entrance_op1_label	op 1 label of the entrance once it is clickable	Jump-in	text	[cache]	A	sources/cache_locs.txt:491	-	exact
+entry.entrance_loc_width	entrance loc footprint width	6	tiles	[cache]	A	sources/cache_locs.txt:1597	-	exact
+entry.entrance_loc_length	entrance loc footprint length	6	tiles	[cache]	A	sources/cache_locs.txt:1598	-	exact
+entry.entrance_placements	cache placements of the entrance loc (map, local x z, level 0)	m38_79 56,51; m38_80 61,4	text	[cache]	A	sources/cache_locs.txt:1606-1607	-	exact
+entry.ketkeh_name	name of the entrance master npc	TzHaar-Ket-Keh	text	[cache]	A	sources/cache_npc.txt:663; sources/cache_npc.txt:683	-	exact
+entry.ketkeh_exchange_zuk_kills	varp1585 total Zuk kills at which the master offers op 3 Exchange	1	count	[cache]	A	sources/cache_npc.txt:43-45; sources/cache_npc.txt:695	-	exact
+entry.ketkeh_exchange_label	op 3 label of the master once it is offered	Exchange	text	[cache]	A	sources/cache_npc.txt:695	-	exact
+entry.ketkeh_ready_anim	ready animation id of the entrance master	2604	count	[cache]	A	sources/cache_npc.txt:40; sources/cache_seq.txt:30	-	exact
+entry.ketkeh_walk_anim	walk animation id of the entrance master	2602	count	[cache]	A	sources/cache_npc.txt:41; sources/cache_seq.txt:24	-	exact
+entry.vent_gas_anim	animation id of the sulphur gas loc beside the entrance	523	count	[cache]	A	sources/cache_locs.txt:168; sources/cache_seq.txt:5	-	exact
+entry.vent_sound_id	sound id of the sulphur vent loc beside the entrance	2066	count	[cache]	A	sources/cache_locs.txt:158	-	exact
+entry.teleport_out_allowed	teleports that leave a run (spell, tablet, jewellery) that are permitted	0	count	[jagex]	A	sources/newsposts/wiki_Update_Pest_Control_Open_Weekend.wikitext:107; sources/newsposts/wiki_Update_Group_Ironman_Post_Launch_Improvements.wikitext:14	-	exact
+entry.dropped_item_despawn	ticks a dropped item stays on the ground (30 minutes)	3000	ticks	[jagex][wiki]	A	sources/newsposts/wiki_Update_Pest_Control_Open_Weekend.wikitext:106; sources/wiki/wiki_Inferno.wikitext:393	-	exact
+entry.players_per_run	players in one run	1	count	[wiki]	D	sources/wiki/wiki_Inferno.wikitext:21; sources/wiki/wiki_Inferno.wikitext:23	-	exact
+entry.landing_x	world x of the first-wave player (idle at the wave-1 message)	2270	tiles	[blert]	B	sources/blert_api/player_start_wave1.tsv:2	-	exact
+entry.landing_z	world z of the first-wave player (idle at the wave-1 message)	5348	tiles	[blert]	B	sources/blert_api/player_start_wave1.tsv:2	-	exact

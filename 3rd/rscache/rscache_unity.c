@@ -86,6 +86,10 @@
 #include "src/datatypes/dat1_config_component.c"
 #include "src/datatypes/dat1_version_list.c"
 #include "src/opcode_codec.c"
+#include "src/rscache_register.c"
+#include "src/rscache_band.c"
+#include "src/rscache_serverpack.c"
+#include "src/rscache_valuetype.c"
 /* Revision modules last: they sit above the datatypes and name the codecs they
  * bind, so they must see every datatype header. */
 #include "src/revisions/revisions.c"

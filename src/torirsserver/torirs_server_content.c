@@ -21,8 +21,10 @@
 
 #include "content/content_fields.h"
 #include "content/content_register.h"
+#include "content/content_value.h"
 #include "torirs_server.h"
 #include "torirs_server_paramtable.h"
+#include "torirs_server_db.h"
 /* A `.loc` block's `opN=` is pushed straight to the scene as it is parsed —
  * see the note beside `struct ToriRSServerLocDef`. */
 #include "torirs_server_scene.h"
@@ -31,11 +33,13 @@
 #include "torirs_server_shop.h"
 
 #include <rscache.h>
+#include "rscache_valuetype.h"
 
 #include <ctype.h>
 #include <dirent.h>
 #include <limits.h>
 #include <stdarg.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -56,12 +60,19 @@ ToriRSServer_PathIsDir(const char* path)
 
 static int g_errors;
 
-/* The npc field register, loaded once per content load. Read by the config parser
- * to decide what an unrecognised key means. */
-static struct ContentFields g_npc_fields;
-static struct ContentFields g_loc_fields;
-/* How many overlay lines restated something the client's own record carries. */
-static int g_client_key_overlays;
+/* The npc and loc field registers (content/content_fields.h), loaded once per
+ * content load: each band field's opcode and width, and what a stated field
+ * means beyond its member (`text = param`, `param = <name>`). */
+static struct RSCache_Register g_npc_fields;
+static struct RSCache_Register g_loc_fields;
+static struct RSCache_Register g_obj_fields;
+static struct RSCache_Register g_varp_fields;
+static struct RSCache_Register g_inv_fields;
+static struct RSCache_Register g_dbtable_fields;
+/* Problems between a register and the server's band bindings, found at content
+ * load (ToriRSServer_ServerCheck). Non-zero refuses the pack: it is a startup
+ * error, already counted in g_errors. */
+static int g_band_register_problems;
 
 /*
  * Every rejection prints and counts. A content tree that half-loads is the
@@ -1145,24 +1156,28 @@ grow(
     return grown ? grown : array;
 }
 
+/*
+ * Both def tables are ascending by id: the pack loader creates them in the
+ * order the pack's band archives are read, which is id order, and sorts the loc
+ * table once more after the category pass appends to it. So a lookup is a binary
+ * search rather than the linear scan the text loader's arrival order needed.
+ */
 const struct ToriRSServerNpcDef*
 ToriRSServer_ContentNpc(int npc_id)
 {
-    for( int i = 0; i < g_npc_def_count; i++ )
-    {
-        if( g_npc_defs[i].npc_id == npc_id )
-            return &g_npc_defs[i];
-    }
-    return NULL;
-}
+    int low = 0;
+    int high = g_npc_def_count - 1;
 
-static struct ToriRSServerNpcDef*
-npc_def_find_mutable(int npc_id)
-{
-    for( int i = 0; i < g_npc_def_count; i++ )
+    while( low <= high )
     {
-        if( g_npc_defs[i].npc_id == npc_id )
-            return &g_npc_defs[i];
+        int mid = low + (high - low) / 2;
+
+        if( g_npc_defs[mid].npc_id == npc_id )
+            return &g_npc_defs[mid];
+        if( g_npc_defs[mid].npc_id < npc_id )
+            low = mid + 1;
+        else
+            high = mid - 1;
     }
     return NULL;
 }
@@ -1238,10 +1253,19 @@ ToriRSServer_ContentVarp(int varp_id)
 const struct ToriRSServerLocDef*
 ToriRSServer_ContentLoc(int loc_id)
 {
-    for( int i = 0; i < g_loc_def_count; i++ )
+    int low = 0;
+    int high = g_loc_def_count - 1;
+
+    while( low <= high )
     {
-        if( g_loc_defs[i].loc_id == loc_id )
-            return &g_loc_defs[i];
+        int mid = low + (high - low) / 2;
+
+        if( g_loc_defs[mid].loc_id == loc_id )
+            return &g_loc_defs[mid];
+        if( g_loc_defs[mid].loc_id < loc_id )
+            low = mid + 1;
+        else
+            high = mid - 1;
     }
     return NULL;
 }
@@ -1269,24 +1293,22 @@ ToriRSServer_ContentObjSpawns(int* count)
 }
 
 /* ------------------------------------------------------------------ */
-/* .npc configs                                                        */
+/* npc definitions                                                     */
 /* ------------------------------------------------------------------ */
-
-/* LostCity's combat.param / npc_combat.param names. The index into this table
- * is the cache param id for the twelve bonuses, which is why the order is not
- * negotiable — see ToriRSServerCombatParam. */
-static const char* const k_bonus_param_names[TORIRSSERVER_PARAM_BONUS_COUNT] = {
-    "stabattack",   "slashattack",   "crushattack",    "magicattack",
-    "rangeattack",  "stabdefence",   "slashdefence",   "crushdefence",
-    "magicdefence", "rangedefence",  "strengthbonus",  "prayerbonus",
-};
 
 static void
 npc_def_seed_from_cache(
     struct ToriRSServerNpcDef* def,
     int npc_id)
 {
-    const struct ToriRSServerNpcInfo* info = ToriRSServer_NpcInfo(npc_id);
+    /*
+     * The ungated row: the bonuses are the record's whether or not it has a
+     * name. The name-gated accessor answers a placeholder for a nameless record
+     * (every multinpc shell), and seeding through it gave a shell none of the
+     * params its own record states — invisible while the text parse restated
+     * them on the def, wrong once the record is the one place they live.
+     */
+    const struct ToriRSServerNpcInfo* info = ToriRSServer_NpcInfoRecord(npc_id);
 
     *def = g_npc_default;
     /* The struct copy aliased the default's heap arrays — a `[default]` block
@@ -1307,67 +1329,12 @@ npc_def_seed_from_cache(
                TORIRSSERVER_NPC_PATROL_MAX * sizeof(*def->patrol));
     }
     def->npc_id = npc_id;
-    if( info->has_params )
+    if( info && info->has_params )
     {
         for( int i = 0; i < TORIRSSERVER_PARAM_BONUS_COUNT; i++ )
             def->bonus[i] = info->bonus[i];
         def->attackrate = info->attackrate;
     }
-}
-
-/**
- * One symbolic param value, resolved or refused.
- *
- * Split out so the four call sites cannot each forget the check independently,
- * which is exactly how they came to share a bug.
- */
-static int
-param_symbol(
-    int* out,
-    enum ToriRSServerPackKind kind,
-    const char* param_name,
-    const char* value,
-    const char* where)
-{
-    int id;
-
-    if( !ToriRSServer_ContentSymbolChecked(kind, value, &id) )
-    {
-        CONTENT_ERROR("%s: param `%s` names `%s`, which is not in %s — write `null` for "
-                      "\"nothing\"\n",
-                      where, param_name, value, pack_kind_name(kind));
-        return 0;
-    }
-    *out = id;
-    return 1;
-}
-
-/** Legacy generated NPC overlays carry numeric synth ids; authored area
- * overlays use checked names. Accept both without letting a misspelled name
- * degrade through atoi() to the valid synth id 0. */
-static int
-param_synth(
-    int* out,
-    const char* param_name,
-    const char* value,
-    const char* where)
-{
-    char* end = NULL;
-    long id = strtol(value, &end, 10);
-
-    if( end && end != value && *end == '\0' )
-    {
-        if( id < -1 || id > INT_MAX )
-        {
-            CONTENT_ERROR("%s: param `%s` synth id is out of range: `%s`\n",
-                          where, param_name, value);
-            return 0;
-        }
-        *out = (int)id;
-        return 1;
-    }
-    return param_symbol(
-        out, TORIRSSERVER_PACK_SYNTH, param_name, value, where);
 }
 
 /*
@@ -1424,1120 +1391,6 @@ record_authored_param(
     def->params[def->param_count].key = param_id;
     def->params[def->param_count].value = resolved;
     def->param_count++;
-}
-
-/** `param=<name>,<value>`. Returns 0 for a name nothing here knows, which is an
- *  error rather than a shrug: a typo'd param is a stat that silently stays at
- *  its default. */
-static int
-apply_param(
-    struct ToriRSServerNpcDef* def,
-    char* text,
-    const char* where)
-{
-    char* comma = strchr(text, ',');
-    const char* value;
-    int32_t resolved;
-
-    if( !comma )
-    {
-        CONTENT_ERROR("%s: param needs `name,value`, got `%s`\n", where, text);
-        return 0;
-    }
-    *comma = '\0';
-    value = comma + 1;
-
-    /*
-     * A `^constant` is expanded HERE, once, for every param — not per branch.
-     *
-     * It used to be expanded in exactly two branches (`undead` and the
-     * elemental weakness) and read with a bare `atoi` everywhere else, and
-     * `atoi("^slash_style")` is **0**. So `param=damagetype,^slash_style` and
-     * `param=attackrate,^dks_attackrate` both silently became zero: the config
-     * read correctly, the compiler had no opinion, `ToriRSServer_Pack` was happy
-     * because it checks the text, and the npc simply fought with damage type 0
-     * and no attack rate.
-     *
-     * Found by probing a scene-backed spawn for a param the config plainly
-     * stated. Nothing else in this tree could have reported it — the value is
-     * only observable through `npc_param` on a live npc, which needs a scene,
-     * which the C-driven selftest does not have. That is why the probe existed.
-     *
-     * `ToriRSServer_ContentConstantInt` answers the fallback for a name it does
-     * not know, so an unresolvable `^name` is caught by the same error path a
-     * misspelled constant already takes rather than reading as 0.
-     */
-    if( value[0] == '^' )
-    {
-        static char expanded[32];
-
-        snprintf(expanded, sizeof(expanded), "%d",
-                 (int)ToriRSServer_ContentConstantInt(value, 0));
-        value = expanded;
-    }
-
-    for( int i = 0; i < TORIRSSERVER_PARAM_BONUS_COUNT; i++ )
-    {
-        if( strcmp(text, k_bonus_param_names[i]) == 0 )
-        {
-            def->bonus[i] = atoi(value);
-            record_authored_param(def, text, def->bonus[i], where);
-            return 1;
-        }
-    }
-    if( strcmp(text, "attackrate") == 0 )
-        resolved = def->attackrate = atoi(value);
-    else if( strcmp(text, "attackrange") == 0 )
-        resolved = def->attackrange = atoi(value);
-    /* NPC source profiles also carry the two offensive scalars that are not
-     * among the legacy twelve bonus slots.  They are script-visible params,
-     * not engine fields: ranged and magic swing code reads them through
-     * npc_param, and keeping them here preserves the normal overlay precedence
-     * over cache defaults. */
-    else if( strcmp(text, "rangebonus") == 0 || strcmp(text, "rangebonus_ammo") == 0 ||
-             strcmp(text, "magicdamage") == 0 || strcmp(text, "magic_maxhit") == 0 ||
-             strcmp(text, "poison_severity") == 0 )
-        resolved = atoi(value);
-    else if( strcmp(text, "damagetype") == 0 )
-        resolved = def->damagetype = atoi(value);
-    else if( strcmp(text, "huntrange") == 0 )
-        resolved = def->huntrange = atoi(value);
-    else if( strcmp(text, "undead") == 0 )
-    {
-        /* Crumble Undead gate — combat.param int; overlays use 0/1 or ^true/^false. */
-        if( value[0] == '^' )
-            resolved = ToriRSServer_ContentConstantInt(value, 0);
-        else
-            resolved = atoi(value);
-    }
-    /*
-     * Project Rebalance's elemental weakness, and the per-npc xp scalar.
-     *
-     * Script-visible only, like `rangebonus` above — `[proc,npc_elemental_weakness]`
-     * in player_magic.rs2 compares `npc_param(elemental_weakness)` against the
-     * spell's element, and combat.rs2 scales its award by
-     * `npc_param(combat_xp_multiplier)`. The element side takes the same
-     * `^constant`-or-number spelling as `undead`, because every one of the nine
-     * npc configs that states it writes `^element_earth` rather than the number.
-     *
-     * Undeclared, these were 35 `unknown param` lines across nine quests and
-     * every one of those bosses fought with no weakness and ordinary xp — the
-     * whitelist's own failure mode, see [[npc-overlay-param-whitelist]].
-     */
-    else if( strcmp(text, "elemental_weakness") == 0 )
-    {
-        if( value[0] == '^' )
-            resolved = ToriRSServer_ContentConstantInt(value, 0);
-        else
-            resolved = atoi(value);
-    }
-    else if( strcmp(text, "elemental_weakness_percent") == 0 ||
-             strcmp(text, "combat_xp_multiplier") == 0 )
-        resolved = atoi(value);
-    /*
-     * The four symbolic params, and the one place the two halves of this merge
-     * had to be combined rather than chosen between.
-     *
-     * The gate: every one of these used to take `ToriRSServer_ContentSymbol`'s -1
-     * for an answer, so a misspelled seq or obj name loaded silently and the npc
-     * simply had no anim and dropped nothing — `param=death_drop,bones_TYPO` at
-     * 0 errors. `null` still means "nothing" (see
-     * `ToriRSServer_ContentSymbolChecked`); a name is now required to exist.
-     *
-     * And the id: the branch cannot `return` on success the way the gate first
-     * wrote it, because `record_authored_param` below is what files the value
-     * under its param *id* so `npc_param` can find it. Returning early here
-     * would leave the four symbolic params the only ones a script could not
-     * read — which is the bug that motivated the id list in the first place.
-     */
-    else if( strcmp(text, "attack_anim") == 0 || strcmp(text, "slashattack_anim") == 0 )
-    {
-        if( !param_symbol(&def->attack_anim, TORIRSSERVER_PACK_SEQ, text, value, where) )
-            return 0;
-        resolved = def->attack_anim;
-    }
-    else if( strcmp(text, "defend_anim") == 0 )
-    {
-        if( !param_symbol(&def->defend_anim, TORIRSSERVER_PACK_SEQ, text, value, where) )
-            return 0;
-        resolved = def->defend_anim;
-    }
-    else if( strcmp(text, "death_anim") == 0 )
-    {
-        if( !param_symbol(&def->death_anim, TORIRSSERVER_PACK_SEQ, text, value, where) )
-            return 0;
-        resolved = def->death_anim;
-    }
-    else if( strcmp(text, "death_drop") == 0 )
-    {
-        if( !param_symbol(&def->death_drop, TORIRSSERVER_PACK_OBJ, text, value, where) )
-            return 0;
-        resolved = def->death_drop;
-    }
-    else if( strcmp(text, "proj_launch") == 0 || strcmp(text, "proj_travel") == 0 ||
-             strcmp(text, "proj_impact") == 0 )
-    {
-        if( !param_symbol(&resolved, TORIRSSERVER_PACK_SPOTANIM, text, value, where) )
-            return 0;
-    }
-    /*
-     * Fishing spot relocation target (docs/FISHING_COMPLETION_PLAN.md S10).
-     * Script-visible only via `nc_param` — no dedicated `def` field, same
-     * shape as `death_drop` above minus the C-side read.
-     */
-    else if( strcmp(text, "fishing_movement_enum") == 0 )
-    {
-        int enum_id;
-
-        if( !param_symbol(&enum_id, TORIRSSERVER_PACK_ENUM, text, value, where) )
-            return 0;
-        resolved = enum_id;
-    }
-    /* Generated overlays retain numeric cache ids while hand-authored content
-     * uses the synth pack's symbolic names. Both forms are intentional. */
-    else if( strcmp(text, "attack_sound") == 0 )
-    {
-        if( !param_synth(&def->attack_sound, text, value, where) )
-            return 0;
-        resolved = def->attack_sound;
-    }
-    else if( strcmp(text, "defend_sound") == 0 )
-    {
-        if( !param_synth(&def->defend_sound, text, value, where) )
-            return 0;
-        resolved = def->defend_sound;
-    }
-    else if( strcmp(text, "death_sound") == 0 )
-    {
-        if( !param_synth(&def->death_sound, text, value, where) )
-            return 0;
-        resolved = def->death_sound;
-    }
-    else
-    {
-        CONTENT_ERROR("%s: unknown param `%s`\n", where, text);
-        return 0;
-    }
-    record_authored_param(def, text, resolved, where);
-    return 1;
-}
-
-/*
- * `<level>_<mapx>_<mapz>_<localx>_<localz>` — the reference's coordinate
- * literal, and the form every `patrol<N>` waypoint is written in.
- *
- * A map square is 64 tiles, so the absolute tile is `mapx * 64 + localx`. The
- * five fields are all required: a four-field spelling is a typo that would
- * otherwise place the waypoint at a plausible-looking wrong tile, which for a
- * patrol reads as the npc walking somewhere odd rather than as a bad config.
- */
-static int
-parse_coord_literal(
-    const char* text,
-    int* out_level,
-    int* out_x,
-    int* out_z)
-{
-    int level;
-    int map_x;
-    int map_z;
-    int local_x;
-    int local_z;
-
-    if( sscanf(text, "%d_%d_%d_%d_%d", &level, &map_x, &map_z, &local_x, &local_z) != 5 )
-        return 0;
-    if( local_x < 0 || local_x > 63 || local_z < 0 || local_z > 63 )
-        return 0;
-    *out_level = level;
-    *out_x = map_x * 64 + local_x;
-    *out_z = map_z * 64 + local_z;
-    return 1;
-}
-
-/*
- * `patrol<N>=<coord>,<pause>`.
- *
- * N is 1-based and the reference writes them in order, but nothing enforces
- * that — so the index in the key is what decides the slot rather than the order
- * the lines happen to be read in. A route with a gap in it (patrol1, patrol3)
- * would otherwise silently compact into a shorter, different route.
- */
-static int
-apply_patrol(
-    struct ToriRSServerNpcDef* def,
-    int index,
-    char* text,
-    const char* where)
-{
-    char* comma = strchr(text, ',');
-    int level;
-    int x;
-    int z;
-
-    if( index < 1 || index > TORIRSSERVER_NPC_PATROL_MAX )
-    {
-        CONTENT_ERROR("%s: patrol%d is outside 1..%d\n", where, index, TORIRSSERVER_NPC_PATROL_MAX);
-        return 0;
-    }
-    if( comma )
-        *comma = '\0';
-    if( !parse_coord_literal(text, &level, &x, &z) )
-    {
-        CONTENT_ERROR("%s: patrol%d wants `<level>_<mapx>_<mapz>_<localx>_<localz>,<pause>`, "
-                      "got `%s`\n",
-                      where, index, text);
-        return 0;
-    }
-    /* Full-size on first touch: N picks the slot, so lines may arrive out of
-     * order, and only the handful of npcs that patrol pay the 256 bytes. */
-    if( !def->patrol )
-    {
-        def->patrol = calloc(TORIRSSERVER_NPC_PATROL_MAX, sizeof(*def->patrol));
-        assert(def->patrol);
-    }
-    def->patrol[index - 1].level = level;
-    def->patrol[index - 1].x = x;
-    def->patrol[index - 1].z = z;
-    def->patrol[index - 1].pause = comma ? atoi(comma + 1) : 0;
-    if( index > def->patrol_count )
-        def->patrol_count = index;
-    return 1;
-}
-
-static void
-npc_config_key(
-    struct ToriRSServerNpcDef* def,
-    const char* key,
-    char* value,
-    const char* where)
-{
-    if( strcmp(key, "hitpoints") == 0 )
-    {
-        def->hitpoints = atoi(value);
-        def->authored_combat = 1;
-    }
-    else if( strcmp(key, "attack") == 0 )
-        def->attack = atoi(value);
-    else if( strcmp(key, "strength") == 0 )
-        def->strength = atoi(value);
-    else if( strcmp(key, "defence") == 0 )
-        def->defence = atoi(value);
-    else if( strcmp(key, "magic") == 0 )
-        def->magic = atoi(value);
-    else if( strcmp(key, "ranged") == 0 )
-        def->ranged = atoi(value);
-    else if( strcmp(key, "respawnrate") == 0 )
-        def->respawnrate = atoi(value);
-    else if( strcmp(key, "timer") == 0 )
-        def->timer = atoi(value);
-    else if( strcmp(key, "death_delay") == 0 )
-        def->death_delay = atoi(value);
-    else if( strcmp(key, "wanderrange") == 0 )
-        def->wanderrange = atoi(value);
-    else if( strcmp(key, "turnspeed") == 0 )
-        def->turnspeed = atoi(value);
-    /* Compass name -> the client's turn-angle index (see the field's comment
-     * in torirs_server_content.h). Numeric literals accepted for a band round-trip,
-     * same convention as blockwalk above. */
-    else if( strcmp(key, "facing") == 0 )
-    {
-        if( strcmp(value, "northwest") == 0 )
-            def->facing = 0;
-        else if( strcmp(value, "north") == 0 )
-            def->facing = 1;
-        else if( strcmp(value, "northeast") == 0 )
-            def->facing = 2;
-        else if( strcmp(value, "west") == 0 )
-            def->facing = 3;
-        else if( strcmp(value, "east") == 0 )
-            def->facing = 4;
-        else if( strcmp(value, "southwest") == 0 )
-            def->facing = 5;
-        else if( strcmp(value, "south") == 0 )
-            def->facing = 6;
-        else if( strcmp(value, "southeast") == 0 )
-            def->facing = 7;
-        else if( strlen(value) == 1 && value[0] >= '0' && value[0] <= '7' )
-            def->facing = value[0] - '0';
-        else
-            CONTENT_ERROR("%s: facing `%s` is not a compass direction\n", where, value);
-    }
-    else if( strcmp(key, "maxrange") == 0 )
-        def->maxrange = atoi(value);
-    /* `givechase=no` is the only value the reference writes — its packer emits
-     * the opcode for the negative case and nothing for the positive — so
-     * anything else means yes. */
-    else if( strcmp(key, "givechase") == 0 )
-        def->givechase = strcmp(value, "no") != 0;
-    /* Same shape as givechase above, and for the same reason: the negative is
-     * the only case worth stating, so anything but `no` means yes. */
-    else if( strcmp(key, "retaliate") == 0 )
-        def->retaliate = strcmp(value, "no") != 0;
-    /* The opposite shape to `givechase`/`retaliate` above, and deliberately:
-     * those two default yes and only the negative is worth stating, while this
-     * defaults no and only the positive is. `forcemulti=no` is therefore
-     * spellable and means the default. */
-    else if( strcmp(key, "forcemulti") == 0 )
-        def->forcemulti = strcmp(value, "no") != 0;
-    /* A healthbar config name, or `null` for an npc that raises no bar at all.
-     * Through the checked lookup because an unresolved name here would
-     * otherwise read as -1 — i.e. exactly as `null` — and silently delete the
-     * bar it was meant to select. */
-    else if( strcmp(key, "healthbar") == 0 )
-    {
-        int id = -1;
-        if( !ToriRSServer_ContentSymbolChecked(TORIRSSERVER_PACK_HEALTHBAR, value, &id) )
-            CONTENT_ERROR("%s: `healthbar=%s` names no healthbar\n", where, value);
-        else
-            def->healthbar = id;
-    }
-    /* Same shape as `retaliate` above: the negative is the only case worth
-     * stating, so anything but `no` means yes. Suppresses the SPLAT alone —
-     * `healthbar=null` is the switch for the bar, and an npc that wants
-     * neither states both. */
-    else if( strcmp(key, "hitsplat") == 0 )
-        def->hitsplat = strcmp(value, "no") != 0;
-    else if( strcmp(key, "blockwalk") == 0 )
-    {
-        /* LostCity BlockWalk: none / npc / all / player (NpcConfig also accepts
-         * `NPC`). Numeric literals are allowed so a band dump round-trips. */
-        if( strcmp(value, "none") == 0 || strcmp(value, "0") == 0 )
-            def->blockwalk = 0;
-        else if( strcmp(value, "npc") == 0 || strcmp(value, "NPC") == 0 ||
-                 strcmp(value, "1") == 0 )
-            def->blockwalk = 1;
-        else if( strcmp(value, "all") == 0 || strcmp(value, "2") == 0 )
-            def->blockwalk = 2;
-        else if( strcmp(value, "player") == 0 || strcmp(value, "3") == 0 )
-            def->blockwalk = 3;
-        else
-            CONTENT_ERROR("%s: blockwalk `%s` is not none/npc/all/player\n", where, value);
-    }
-    else if( strcmp(key, "blocksight") == 0 )
-    {
-        if( strcmp(value, "yes") == 0 || strcmp(value, "true") == 0 ||
-            strcmp(value, "1") == 0 )
-            def->blocksight = 1;
-        else if( strcmp(value, "no") == 0 || strcmp(value, "false") == 0 ||
-                 strcmp(value, "0") == 0 )
-            def->blocksight = 0;
-        else
-            CONTENT_ERROR("%s: blocksight `%s` is not 0/1\n", where, value);
-    }
-    else if( strcmp(key, "moverestrict") == 0 )
-    {
-        /* LostCity MoveRestrict. Only nomove is enforced by the mover; the rest
-         * are stored so content can state them. Always keep `nomove` in sync. */
-        if( strcmp(value, "normal") == 0 )
-            def->moverestrict = 0;
-        else if( strcmp(value, "blocked") == 0 )
-            def->moverestrict = 1;
-        else if( strcmp(value, "blocked+normal") == 0 || strcmp(value, "los") == 0 )
-            def->moverestrict = 2;
-        else if( strcmp(value, "indoors") == 0 )
-            def->moverestrict = 3;
-        else if( strcmp(value, "outdoors") == 0 )
-            def->moverestrict = 4;
-        else if( strcmp(value, "nomove") == 0 )
-            def->moverestrict = 5;
-        else if( strcmp(value, "passthru") == 0 )
-            def->moverestrict = 6;
-        else
-            CONTENT_ERROR("%s: moverestrict `%s` is not a known MoveRestrict\n", where,
-                          value);
-        def->nomove = def->moverestrict == 5;
-    }
-    else if( strcmp(key, "huntmode") == 0 )
-        def->huntmode = strcmp(value, "aggressive") == 0 ? TORIRSSERVER_HUNT_AGGRESSIVE
-                                                         : TORIRSSERVER_HUNT_NONE;
-    else if( strcmp(key, "param") == 0 )
-        (void)apply_param(def, value, where);
-    else if( strcmp(key, "defaultmode") == 0 )
-    {
-        /*
-         * Only `patrol` and `none`/`wander` are accepted, and an unknown mode is
-         * an error rather than a fallback. A `defaultmode` the engine silently
-         * ignored would give an npc the *wander* behaviour under a config line
-         * saying it does something else — which is a config that reads correct
-         * and behaves wrong, the worst outcome available here.
-         */
-        if( strcmp(value, "patrol") == 0 )
-        {
-            def->defaultmode = TORIRSSERVER_NPCMODE_PATROL;
-            def->defaultmode_stated = 1;
-        }
-        else if( strcmp(value, "none") == 0 || strcmp(value, "null") == 0 )
-        {
-            def->defaultmode = TORIRSSERVER_NPCMODE_NONE;
-            def->defaultmode_stated = 1;
-        }
-        else if( strcmp(value, "wander") == 0 )
-        {
-            def->defaultmode = TORIRSSERVER_NPCMODE_WANDER;
-            def->defaultmode_stated = 1;
-        }
-        else
-            CONTENT_ERROR("%s: defaultmode `%s` is not implemented\n", where, value);
-    }
-    else if( strncmp(key, "patrol", 6) == 0 && key[6] >= '0' && key[6] <= '9' )
-        (void)apply_patrol(def, atoi(key + 6), value, where);
-    else
-    {
-        /*
-         * A key the ladder above does not handle. The field register decides what
-         * that means, rather than a list in this file.
-         *
-         * LostCity authors `name=` and `op1=` because it *builds* the npc record;
-         * ours comes from the cache, so those keys are inert — accepted so a config
-         * can be shared with a LostCity tree unchanged. That used to be a
-         * `k_from_cache[]` array right here, which put "the client already states
-         * this" in C where a content author could neither see it nor add to it.
-         *
-         * Declared `scope = client` now says something more useful than "ignored":
-         * the overlay is *patching the cache*, and that is worth a line rather than
-         * silence. Anything the register does not declare at all is still an error.
-         */
-        const struct ContentField* field = ContentFields_Find(&g_npc_fields, key);
-
-        if( field && field->scope == CONTENT_SCOPE_CLIENT )
-        {
-            g_client_key_overlays++;
-            return;
-        }
-        if( field )
-        {
-            /* Declared, but this parser has no field for it — a register row that
-             * has run ahead of the struct. Worth saying, because the value is being
-             * dropped. */
-            CONTENT_ERROR("%s: `%s` is declared in fields/npc.ini but this build has "
-                          "nowhere to put it\n",
-                          where, key);
-            return;
-        }
-        CONTENT_ERROR("%s: unknown key `%s`\n", where, key);
-    }
-}
-
-/*
- * `.npc` files are read twice, and the two passes are not an optimisation.
- *
- * `[default]` states what every npc block starts from, and `npc_def_seed_from_cache`
- * copies it at the moment a block's header is read. So a `[default]` in a file
- * the directory walk reaches *after* the roster would apply to nothing — and
- * `areas/` sorts before `general/`, which is precisely the order that happens.
- * Nothing would report it: every npc would simply carry the built-in numbers.
- *
- * One pass for `[default]` and one for everything else makes the answer
- * independent of where an author puts the file.
- */
-static int g_npc_default_pass;
-
-static void load_npc_config(const char* path);
-static int has_suffix(const char* name, const char* suffix);
-
-static void
-load_npc_default_config(const char* path)
-{
-    g_npc_default_pass = 1;
-    load_npc_config(path);
-    g_npc_default_pass = 0;
-}
-
-/* Generated cache/stat/rig exports are the baseline; authored area files are
- * overlays on top. A single alphabetical walk puts `areas/` before `npc/` and
- * therefore lets a generated fallback overwrite the deliberate attack anim an
- * area selected. cachepack uses the baseline-then-overlay order too, so these
- * two callbacks keep the text runtime and its server band byte-for-byte peers. */
-static void
-load_npc_generated_config(const char* path)
-{
-    if( has_suffix(path, ".generated.npc") )
-        load_npc_config(path);
-}
-
-static void
-load_npc_authored_config(const char* path)
-{
-    if( !has_suffix(path, ".generated.npc") )
-        load_npc_config(path);
-}
-
-static void
-load_npc_config(const char* path)
-{
-    FILE* file = fopen(path, "rb");
-    char raw[1024];
-    struct ToriRSServerNpcDef* def = NULL;
-    int line_number = 0;
-    int skipping = 0;
-    char where[600];
-
-    if( !file )
-        return;
-    while( fgets(raw, sizeof(raw), file) )
-    {
-        char* line = ToriRSServer_ContentCleanLine(raw);
-        char* header;
-        char* value;
-
-        line_number++;
-        if( !*line )
-            continue;
-
-        header = ToriRSServer_ContentSectionHeader(line);
-        if( header )
-        {
-            int npc_id;
-
-            /*
-             * `[default]` edits what every npc starts from.
-             *
-             * The alternative was a table of ids in C (it was one, until this),
-             * and the alternative to *that* was the engine deriving an
-             * animation name from the npc's display name — `"Goblin"` ->
-             * `goblin_attack` — which guessed right often enough to look like a
-             * feature and silently produced -1 for every npc whose sequences
-             * the cache spells differently ("Man" has no `man_attack`).
-             *
-             * `default` is not an npc name in any gameval table, so it cannot
-             * collide with a real block; the symbol lookup below would reject
-             * it, which is why this branch comes first.
-             */
-            if( strcmp(header, "default") == 0 )
-            {
-                def = &g_npc_default;
-                skipping = !g_npc_default_pass;
-                continue;
-            }
-
-            /* Every other block belongs to the second pass. `skipping` rather
-             * than a null def, so its keys are passed over in silence instead of
-             * each reporting "before any [section]". */
-            skipping = g_npc_default_pass;
-            if( skipping )
-            {
-                def = NULL;
-                continue;
-            }
-
-            npc_id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, header);
-
-            def = NULL;
-            if( npc_id < 0 )
-            {
-                CONTENT_ERROR("%s:%d: `%s` is not in configs/all.npc.compack\n", path, line_number,
-                              header);
-                continue;
-            }
-            /* A server NPC is intentionally described by several overlays:
-             * cache-derived combat stats, cache-rig animations, and an area's
-             * authored mechanics/sounds. Directory order puts area overlays
-             * first. Appending another def for every repeated header meant
-             * ToriRSServer_ContentNpc() returned that first, mostly-default copy
-             * forever and silently ignored the generated stats and anims.
-             *
-             * Seed once, then apply every later block to the same record. This
-             * is the same overlay model `.obj` and the server pack already
-             * promise, and leaves later text able to override an earlier field
-             * deliberately. */
-            def = npc_def_find_mutable(npc_id);
-            if( !def )
-            {
-                g_npc_defs = grow(g_npc_defs, &g_npc_def_capacity, g_npc_def_count,
-                                  sizeof(*g_npc_defs));
-                def = &g_npc_defs[g_npc_def_count++];
-                npc_def_seed_from_cache(def, npc_id);
-                def->symbol = ToriRSServer_ContentSymbolName(TORIRSSERVER_PACK_NPC, npc_id);
-            }
-            continue;
-        }
-
-        if( skipping )
-            continue;
-
-        value = ToriRSServer_ContentSplitKeyValue(line);
-        if( !value )
-        {
-            CONTENT_ERROR("%s:%d: expected `key=value`\n", path, line_number);
-            continue;
-        }
-        if( !def )
-        {
-            CONTENT_ERROR("%s:%d: `%s` before any [section]\n", path, line_number, line);
-            continue;
-        }
-        snprintf(where, sizeof(where), "%s:%d", path, line_number);
-        npc_config_key(def, line, value, where);
-    }
-    fclose(file);
-}
-
-/* ------------------------------------------------------------------ */
-/* .obj configs                                                        */
-/* ------------------------------------------------------------------ */
-
-/*
- * Equipment requirements and authored obj params (BAS, attack anims, …).
- *
- * The same overlay contract the `.npc` / `.loc` grammars have: a block starts
- * from what `cache.osrs239` already says and states only what a cache cannot.
- * Combat bonuses and attack rate are already in the record — restating them
- * here is how a config comes to disagree with the client.
- *
- * Two `param=` shapes:
- *
- *     param=levelrequire,attack,20          # repeatable (stat, level) pair
- *     param=ready_baseanim,human_staffready # ordinary typed param → oc_param
- *
- * `levelrequire` stays special: a param maps one id to one scalar, and this is
- * a repeating pair (fields/obj.ini). Everything else goes through
- * `ToriRSServer_ObjInfoParamOverlay` the way `.loc` uses
- * `ToriRSServer_LocInfoParamOverlay`.
- */
-/*
- * And the namespace each param's values are spelled in.
- *
- * `g_param_types` collapses every declared type to `i` or `s`, because that is
- * all the cache's own single-letter `all.param` can say. A server `.param`
- * declares the real thing — `type=struct`, `type=loc`, `type=npc` — and throwing
- * that away left `obj_resolve_param_value` guessing from a fixed list of four
- * namespaces. A `struct` value therefore could not be spelled at all:
- * `param=funeral_pyre_struct,pyre_teak_logs` was 32 unresolved values across
- * Mort'ton's pyres, and each one is a pyre that burns at the wrong level for the
- * wrong xp. `TORIRSSERVER_PACK_COUNT` means "no namespace" — an int literal.
- */
-static enum ToriRSServerPackKind* g_param_kinds;
-static int g_param_kind_count;
-
-static int
-obj_resolve_param_value(
-    int param_id,
-    const char* value,
-    int* out,
-    const char* where)
-{
-    char declared = ToriRSServer_ContentParamType(param_id);
-
-    if( strcmp(value, "null") == 0 )
-    {
-        *out = -1;
-        return 1;
-    }
-    /* Server overlays declare type=seq/obj/…; cache all.param uses single
-     * letters. Either way an int-shaped value may be a symbol or a number. */
-    if( declared == 's' )
-    {
-        CONTENT_ERROR("%s: string obj params are not overlaid yet (got `%s`)\n", where, value);
-        return 0;
-    }
-    /*
-     * A `^constant` value is the constant's text, resolved as if it had been
-     * written in its place. LostCity's pack compiler reads `.obj` values the
-     * same way everywhere else does -- Legends' Quest's
-     * `param=crystal_bit,^legends_smelting_chunk` (LostCity_Content2
-     * quest_legends/configs/quest_legends.obj:464, :476, :489) -- and this
-     * reader answered "cannot resolve param value", so the port wrote the
-     * three furnace bits as the literals 26/27/28. One level only: a constant
-     * whose text is another `^name` is refused rather than chased.
-     */
-    if( value[0] == '^' )
-    {
-        const char* text = ToriRSServer_ContentConstant(value);
-
-        if( !text )
-        {
-            CONTENT_ERROR("%s: no `%s` in any .constant\n", where, value);
-            return 0;
-        }
-        if( text[0] == '^' )
-        {
-            CONTENT_ERROR("%s: `%s` is `%s`, another constant\n", where, value, text);
-            return 0;
-        }
-        return obj_resolve_param_value(param_id, text, out, where);
-    }
-    if( (value[0] >= '0' && value[0] <= '9') || (value[0] == '-' && value[1] >= '0') )
-    {
-        *out = atoi(value);
-        return 1;
-    }
-    /* A param that declared its namespace resolves in that one and nowhere
-     * else. Guessing is only for the ones that did not — a cache `all.param`
-     * row says `i`, and nothing more. */
-    if( g_param_kinds && param_id >= 0 && param_id < g_param_kind_count &&
-        g_param_kinds[param_id] != TORIRSSERVER_PACK_COUNT )
-    {
-        if( ToriRSServer_ContentSymbolChecked(g_param_kinds[param_id], value, out) )
-            return 1;
-        CONTENT_ERROR("%s: `%s` is not in pack/%s.pack\n", where, value,
-                      ToriRSServer_ContentPackName(g_param_kinds[param_id]));
-        return 0;
-    }
-    /* Symbolic: try seq first (anims / baseanim), then obj / spotanim, then
-     * synth. Synth is last because its names are `synth_<id>` and carry no
-     * information — a lookup there can only succeed on a name shaped for it, so
-     * it can never shadow one of the others. */
-    if( ToriRSServer_ContentSymbolChecked(TORIRSSERVER_PACK_SEQ, value, out) )
-        return 1;
-    if( ToriRSServer_ContentSymbolChecked(TORIRSSERVER_PACK_OBJ, value, out) )
-        return 1;
-    if( ToriRSServer_ContentSymbolChecked(TORIRSSERVER_PACK_SPOTANIM, value, out) )
-        return 1;
-    if( ToriRSServer_ContentSymbolChecked(TORIRSSERVER_PACK_SYNTH, value, out) )
-        return 1;
-    CONTENT_ERROR("%s: cannot resolve param value `%s`\n", where, value);
-    return 0;
-}
-
-static void
-obj_config_key(
-    int obj_id,
-    const char* key,
-    const char* value,
-    int* stats,
-    int* levels,
-    int* count,
-    const char* where)
-{
-    char param_name[64] = { 0 };
-    char skill_name[64] = { 0 };
-    char value_name[128] = { 0 };
-    int level = 0;
-    int stat;
-    int param_id;
-    int resolved;
-
-    /*
-     * `category=<name>` — the cache's own opcode 94, and the one key on this
-     * grammar that a cache genuinely cannot always state.
-     *
-     * It is the same id space and the same overlay-beats-cache order the `.loc`
-     * and `.npc` grammars already have. What makes it worth having here is the
-     * shape it retires: `[opheld1,_pickaxe]` binds one script to every pickaxe,
-     * and without an authorable category a tool ladder has to be written out as a
-     * `switch_obj` over all eight ids — once for the level gate, once for the
-     * rate, once for the swing anim, in every skill that holds a tool. This cache
-     * groups bones (category 6) and it does not group pickaxes.
-     */
-    if( strcmp(key, "category") == 0 )
-    {
-        int category = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_CATEGORY, value);
-
-        if( category < 0 )
-            CONTENT_ERROR("%s: `%s` is not in pack/category.pack — a category is named "
-                          "there or it is not a category\n",
-                          where, value);
-        else if( category == 0 )
-            CONTENT_ERROR("%s: `%s` resolves to category 0, which is the decoder's "
-                          "\"unstated\" and must never be a name\n",
-                          where, value);
-        else if( !ToriRSServer_ObjInfoCategoryOverlay(obj_id, category) )
-            CONTENT_ERROR("%s: obj %d is outside the decoded obj table\n", where, obj_id);
-        return;
-    }
-
-    if( strcmp(key, "param") != 0 )
-    {
-        /*
-         * Every other LostCity obj key states something the cache already does.
-         * Accepted and ignored, like the `.npc` grammar's `model=` — but never
-         * silently, so a paste from a LostCity tree reports what it dropped.
-         *
-         * UNLESS THE RECORD IS CONTENT'S OWN. A block for an obj this tree
-         * MINTED (`pack/obj.alloc`, an id past the cache's high-water mark) is
-         * not an overlay on anything: it is the whole record, and the cache
-         * side of it is exactly what `cachepack pack` bakes -- `fields/obj.ini`
-         * routes `name`, `model`, `2dzoom` and the rest into the client band.
-         * The server has no use for them and still ignores them; what it must
-         * not do is call them a mistake. `skill_herblore/configs/herblore_items.obj`
-         * is the standing example (herb tar, twelve keys) and reported twelve
-         * errors a boot for as long as this test did not exist.
-         */
-        if( ToriRSServer_ContentSymbolIsMinted(TORIRSSERVER_PACK_OBJ, obj_id) )
-            return;
-        CONTENT_ERROR("%s: obj key `%s` is the cache's to state, ignored\n", where, key);
-        return;
-    }
-
-    /* Ordinary `param=<name>,<value>` (two fields). */
-    if( sscanf(value, "%63[^,],%127s", param_name, value_name) == 2 &&
-        strchr(value_name, ',') == NULL )
-    {
-        if( strcmp(param_name, "levelrequire") == 0 )
-        {
-            CONTENT_ERROR("%s: `param=levelrequire,<skill>,<level>` needs three fields\n",
-                          where);
-            return;
-        }
-        if( !ToriRSServer_ContentSymbolChecked(TORIRSSERVER_PACK_PARAM, param_name, &param_id) )
-        {
-            CONTENT_ERROR("%s: obj param `%s` is not in configs/all.param.compack\n", where,
-                          param_name);
-            return;
-        }
-        if( !obj_resolve_param_value(param_id, value_name, &resolved, where) )
-            return;
-        ToriRSServer_ObjInfoParamOverlay(obj_id, param_id, resolved);
-        return;
-    }
-
-    /* `param=levelrequire,<skill>,<level>` (three fields). */
-    if( sscanf(value, "%63[^,],%63[^,],%d", param_name, skill_name, &level) != 3 )
-    {
-        CONTENT_ERROR("%s: `param=<name>,<value>` or `param=levelrequire,<skill>,<level>`, "
-                      "got `%s`\n",
-                      where, value);
-        return;
-    }
-    if( strcmp(param_name, "levelrequire") != 0 )
-    {
-        CONTENT_ERROR("%s: three-field obj param must be levelrequire, got `%s`\n", where,
-                      param_name);
-        return;
-    }
-    stat = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_STAT, skill_name);
-    if( stat < 0 )
-    {
-        CONTENT_ERROR("%s: `%s` is not in pack/stat.pack\n", where, skill_name);
-        return;
-    }
-    if( level <= 0 || level > 99 )
-    {
-        CONTENT_ERROR("%s: level %d is outside 1..99\n", where, level);
-        return;
-    }
-    if( *count >= TORIRSSERVER_OBJ_REQUIRE_MAX )
-    {
-        CONTENT_ERROR("%s: more than %d requirements on one obj\n", where,
-                      TORIRSSERVER_OBJ_REQUIRE_MAX);
-        return;
-    }
-    stats[*count] = stat;
-    levels[*count] = level;
-    (*count)++;
-}
-
-static void
-load_obj_config(const char* path)
-{
-    FILE* file = fopen(path, "rb");
-    char raw[1024];
-    char where[600];
-    int obj_id = -1;
-    int stats[TORIRSSERVER_OBJ_REQUIRE_MAX];
-    int levels[TORIRSSERVER_OBJ_REQUIRE_MAX];
-    int count = 0;
-    int line_number = 0;
-
-    if( !file )
-        return;
-    while( fgets(raw, sizeof(raw), file) )
-    {
-        char* line = ToriRSServer_ContentCleanLine(raw);
-        char* header;
-        char* value;
-
-        line_number++;
-        if( !*line )
-            continue;
-
-        header = ToriRSServer_ContentSectionHeader(line);
-        if( header )
-        {
-            /* Flush the block that just ended before starting the next one. The
-             * requirements are a set, so they are applied once per block rather
-             * than accumulated into the table a line at a time. */
-            if( obj_id >= 0 && count )
-                ToriRSServer_ObjRequireSet(obj_id, stats, levels, count);
-            count = 0;
-            obj_id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, header);
-            if( obj_id < 0 )
-                CONTENT_ERROR("%s:%d: `%s` is not in configs/all.obj.compack\n", path, line_number,
-                              header);
-            continue;
-        }
-
-        value = ToriRSServer_ContentSplitKeyValue(line);
-        if( !value )
-        {
-            CONTENT_ERROR("%s:%d: expected `key=value`\n", path, line_number);
-            continue;
-        }
-        if( obj_id < 0 )
-        {
-            CONTENT_ERROR("%s:%d: `%s` before any [section]\n", path, line_number, line);
-            continue;
-        }
-        snprintf(where, sizeof(where), "%s:%d", path, line_number);
-        obj_config_key(obj_id, line, value, stats, levels, &count, where);
-    }
-    if( obj_id >= 0 && count )
-        ToriRSServer_ObjRequireSet(obj_id, stats, levels, count);
-    fclose(file);
-}
-
-/* ------------------------------------------------------------------ */
-/* .inv configs — shop definitions                                     */
-/* ------------------------------------------------------------------ */
-
-/*
- * `fields/inv.ini` reserves this grammar and refuses to let it live there:
- * a shop's slot count is the cache's own fact (config group 5, read through
- * `ToriRSServer_BankInvSize`), but scope/restock/stock policy have no cache
- * representation at all and are authored here instead.
- *
- * LostCity's own `.inv` grammar, unchanged:
- *
- *     [name]
- *     scope=shared
- *     restock=yes
- *     allstock=yes
- *     stackall=yes
- *     stock1=obj_name,baseline_count,restock_rate
- *     stock2=...
- *
- * `size=` is accepted and ignored (with a diagnostic) the same way `.npc`
- * accepts a client-stated field: LostCity's own `.inv` files carry it and a
- * silent drop is worse than a line explaining why it did not apply. `scope`
- * only ever means `shared` here — every other inv this parser never mentions
- * defaults to per-player, which is `ToriRSServer_ContainerScope`'s job to answer,
- * not this file's to restate for the other ~550 non-shop inv names.
- */
-static void
-inv_config_key(
-    struct ToriRSServerShopDef* def,
-    const char* key,
-    const char* value,
-    const char* where)
-{
-    assert(def);
-    if( strcmp(key, "scope") == 0 )
-    {
-        if( strcmp(value, "shared") == 0 )
-            def->shared = 1;
-        else if( strcmp(value, "temp") != 0 )
-            CONTENT_ERROR("%s: inv scope `%s` is neither `shared` nor `temp`\n", where, value);
-        return;
-    }
-    if( strcmp(key, "restock") == 0 )
-    {
-        def->restock = (strcmp(value, "yes") == 0);
-        return;
-    }
-    if( strcmp(key, "allstock") == 0 )
-    {
-        def->allstock = (strcmp(value, "yes") == 0);
-        return;
-    }
-    if( strcmp(key, "stackall") == 0 )
-    {
-        /* This IS the stack policy `ToriRSServer_ContainerAdd` says it is missing —
-         * LostCity's `InvType.stackType`, authored here because the cache's inv
-         * config carries only size. It used to be parsed and dropped, which put
-         * the seed and the add path in disagreement: `ToriRSServer_ShopSeed` writes
-         * `stock1=pot_empty,5,10` as one slot of five unstackable pots, and
-         * selling a pot back then opened a *second* pot cell. */
-        def->stackall = (strcmp(value, "yes") == 0);
-        return;
-    }
-    if( strcmp(key, "size") == 0 )
-    {
-        /* A cache-known inv already has a size (config group 5) and restating
-         * it here would drift silently out of sync with the real fact — kept
-         * as an error for that case. A `pack/inv.alloc` id has no such fact:
-         * this is content declaring the one thing the allocator can't, for a
-         * shop whose cache snapshot never packed its inv (docs/SHOPS_PLAN.md
-         * §8.5). ToriRSServer_ContainerResolve falls back to it only when
-         * ToriRSServer_BankInvSize comes back empty, so a real cache size still
-         * always wins. */
-        if( ToriRSServer_BankInvSize((int)def->inv_id) > 0 )
-        {
-            CONTENT_ERROR(
-                "%s: inv size is a cache fact (config group 5); `size=%s` is inert here — see "
-                "fields/inv.ini\n",
-                where, value);
-            return;
-        }
-        ToriRSServer_ShopDefSetSize(def, atoi(value));
-        return;
-    }
-    if( strncmp(key, "stock", 5) == 0 && key[5] >= '0' && key[5] <= '9' )
-    {
-        char obj_name[128] = { 0 };
-        int baseline = 0;
-        int rate = 0;
-        int obj_id;
-
-        if( sscanf(value, "%127[^,],%d,%d", obj_name, &baseline, &rate) != 3 )
-        {
-            CONTENT_ERROR("%s: `%s=obj,baseline,rate` expected three fields, got `%s`\n", where,
-                          key, value);
-            return;
-        }
-        if( !ToriRSServer_ContentSymbolChecked(TORIRSSERVER_PACK_OBJ, obj_name, &obj_id) )
-        {
-            CONTENT_ERROR("%s: `%s` is not in configs/all.obj.compack\n", where, obj_name);
-            return;
-        }
-        if( !ToriRSServer_ShopDefAddStock(def, obj_id, baseline, rate) )
-            CONTENT_ERROR("%s: more than %d stock lines on inv %d\n", where,
-                          TORIRSSERVER_SHOP_STOCK_MAX, (int)def->inv_id);
-        return;
-    }
-    CONTENT_ERROR("%s: unknown inv key `%s`\n", where, key);
-}
-
-static void
-load_inv_config(const char* path)
-{
-    FILE* file = fopen(path, "rb");
-    char raw[1024];
-    char where[600];
-    struct ToriRSServerShopDef* def = NULL;
-    int line_number = 0;
-
-    if( !file )
-        return;
-    while( fgets(raw, sizeof(raw), file) )
-    {
-        char* line = ToriRSServer_ContentCleanLine(raw);
-        char* header;
-        char* value;
-        int inv_id;
-
-        line_number++;
-        if( !*line )
-            continue;
-
-        header = ToriRSServer_ContentSectionHeader(line);
-        if( header )
-        {
-            if( !ToriRSServer_ContentSymbolChecked(TORIRSSERVER_PACK_INV, header, &inv_id) )
-            {
-                CONTENT_ERROR("%s:%d: `%s` is not in configs/all.inv.compack or pack/inv.alloc\n",
-                              path, line_number, header);
-                def = NULL;
-                continue;
-            }
-            def = ToriRSServer_ShopDefBegin(inv_id);
-            continue;
-        }
-
-        value = ToriRSServer_ContentSplitKeyValue(line);
-        if( !value )
-        {
-            CONTENT_ERROR("%s:%d: expected `key=value`\n", path, line_number);
-            continue;
-        }
-        if( !def )
-        {
-            CONTENT_ERROR("%s:%d: `%s` before any [section]\n", path, line_number, line);
-            continue;
-        }
-        snprintf(where, sizeof(where), "%s:%d", path, line_number);
-        inv_config_key(def, line, value, where);
-    }
-    fclose(file);
 }
 
 /* ------------------------------------------------------------------ */
@@ -2624,6 +1477,7 @@ pack_kind_for_type(const char* name)
         { "component", TORIRSSERVER_PACK_COMPONENT },
         { "stat", TORIRSSERVER_PACK_STAT },       { "param", TORIRSSERVER_PACK_PARAM },
         { "hitsplat", TORIRSSERVER_PACK_HITSPLAT },
+        { "hitmark", TORIRSSERVER_PACK_HITSPLAT }, /* cachepack's (Jagex's) word */
         { "enum", TORIRSSERVER_PACK_ENUM },       { "struct", TORIRSSERVER_PACK_STRUCT },
         { "dbtable", TORIRSSERVER_PACK_DBTABLE }, { "dbrow", TORIRSSERVER_PACK_DBROW },
         { "category", TORIRSSERVER_PACK_CATEGORY },
@@ -2640,275 +1494,6 @@ pack_kind_for_type(const char* name)
 }
 
 /*
- * Whether a declared `.enum` side holds text.
- *
- * Separate from pack_kind_for_type because that answers "which pack does this
- * resolve against", and `int` and `string` both answer "none". The RuneScript
- * `enum` opcode needs the other question answered, because the output type picks
- * which stack it pushes onto.
- */
-static int
-type_is_string(const char* name)
-{
-    return strcmp(name, "string") == 0;
-}
-
-/*
- * And the third question the two above do not answer: whether the side is a
- * COORDINATE.
- *
- * `coord` names no pack, so `pack_kind_for_type` correctly reports "literal" —
- * but the literal is `0_51_48_41_35`, and the literal path was `atoi`, which
- * reads that as 0 and reports success. Every coord an `.enum` stated therefore
- * arrived at `enum()` as coord 0, silently: no unresolved symbol, no parse
- * error, just the south-west corner of the world for every row. That is four
- * enums in this tree (`agility_marks_*`, `trawler_hulls*`, `cocoon_coords`,
- * `magic_carpet_path`) and it reads as content pointing somewhere absurd
- * rather than as a loader that cannot spell a coordinate.
- */
-static int
-type_is_coord(const char* name)
-{
-    return strcmp(name, "coord") == 0;
-}
-
-/** Expand a leading `^constant`, or return the text unchanged. NULL when the
- *  constant does not resolve. */
-static const char*
-enum_text(const char* text)
-{
-    if( *text != '^' )
-        return text;
-    return ToriRSServer_ContentConstant(text);
-}
-
-/** Resolve one side of a `val=` line: a symbol when the declared type names a
- *  pack, a literal when it does not. `^name` expands first, either way — the
- *  reference writes `val=^prayer_thickskin,3`. */
-static int
-enum_operand(
-    enum ToriRSServerPackKind kind,
-    int is_coord,
-    const char* text,
-    int* out_ok)
-{
-    *out_ok = 1;
-    if( *text == '^' )
-    {
-        const char* expanded = ToriRSServer_ContentConstant(text);
-
-        if( !expanded )
-        {
-            *out_ok = 0;
-            return -1;
-        }
-        text = expanded;
-    }
-    if( is_coord )
-    {
-        int level;
-        int x;
-        int z;
-
-        /* `default=null` is the reference's own spelling for "this enum has no
-         * fallback tile" (LostCity's kalphite_cocoon.enum ships it), and -1 is
-         * what a null coord is on the ServerScript stack. Only the default is
-         * ever written that way — a `val=` row naming null would be a row with
-         * no tile, which is a typo rather than an idiom. */
-        if( strcmp(text, "null") == 0 )
-            return -1;
-        if( !parse_coord_literal(text, &level, &x, &z) )
-        {
-            *out_ok = 0;
-            return -1;
-        }
-        return (int)ToriRSServer_CoordPack(level, x, z);
-    }
-    if( kind == TORIRSSERVER_PACK_COUNT )
-        return atoi(text);
-    {
-        int id = ToriRSServer_ContentSymbol(kind, text);
-
-        if( id < 0 )
-            *out_ok = 0;
-        return id;
-    }
-}
-
-static void
-load_enum_config(const char* path)
-{
-    FILE* file = fopen(path, "rb");
-    char raw[1024];
-    struct ToriRSServerEnumDef* def = NULL;
-    int line_number = 0;
-    /* Locals, not fields on the def: `inputtype`/`outputtype` are declared
-     * above the `val=` rows they describe and are read only while this one
-     * pass is parsing them, so the coord-ness of a side never has to outlive
-     * the file. Reset on every `[section]` for the same reason. */
-    int input_is_coord = 0;
-    int output_is_coord = 0;
-
-    if( !file )
-        return;
-    while( fgets(raw, sizeof(raw), file) )
-    {
-        char* line = ToriRSServer_ContentCleanLine(raw);
-        char* header;
-        char* value;
-
-        line_number++;
-        if( !*line )
-            continue;
-
-        header = ToriRSServer_ContentSectionHeader(line);
-        if( header )
-        {
-            g_enum_defs = grow(g_enum_defs, &g_enum_def_capacity, g_enum_def_count,
-                               sizeof(*g_enum_defs));
-            def = &g_enum_defs[g_enum_def_count++];
-            memset(def, 0, sizeof(*def));
-            def->symbol = strdup(header);
-            def->input_kind = TORIRSSERVER_PACK_COUNT;
-            def->output_kind = TORIRSSERVER_PACK_COUNT;
-            /* The reference's own defaults, so a key with no entry yields what
-             * its content expects rather than a zero that means "found". */
-            def->default_int = 0;
-            def->default_text = "null";
-            input_is_coord = 0;
-            output_is_coord = 0;
-            continue;
-        }
-
-        value = ToriRSServer_ContentSplitKeyValue(line);
-        if( !value || !def )
-        {
-            CONTENT_ERROR("%s:%d: expected `key=value` inside a [section]\n", path,
-                          line_number);
-            continue;
-        }
-
-        if( strcmp(line, "inputtype") == 0 )
-        {
-            def->input_kind = pack_kind_for_type(value);
-            def->input_is_string = type_is_string(value);
-            input_is_coord = type_is_coord(value);
-        }
-        else if( strcmp(line, "outputtype") == 0 )
-        {
-            def->output_kind = pack_kind_for_type(value);
-            def->output_is_string = type_is_string(value);
-            output_is_coord = type_is_coord(value);
-        }
-        else if( strcmp(line, "default") == 0 )
-        {
-            const char* expanded = enum_text(value);
-
-            if( !expanded )
-            {
-                CONTENT_ERROR("%s:%d: `%s` does not resolve\n", path, line_number, value);
-                continue;
-            }
-            if( def->output_is_string )
-                def->default_text = strdup(expanded);
-            else if( output_is_coord )
-            {
-                int ok = 0;
-
-                def->default_int = enum_operand(def->output_kind, 1, expanded, &ok);
-                if( !ok )
-                    CONTENT_ERROR("%s:%d: `%s` is not a coord\n", path, line_number, value);
-            }
-            else if( strcmp(expanded, "null") == 0 )
-            {
-                /* `default=null` is the reference's spelling for "this enum has
-                 * no fallback", and the coord branch above already answers it
-                 * with -1. Every other typed output fell through to `atoi`,
-                 * which reads "null" as **0** — and 0 is a real obj, a real npc
-                 * and a real loc. A lookup that missed therefore came back as
-                 * item 0 rather than as nothing, so a caller could not tell
-                 * "this key has no entry" from "this key maps to item 0", and
-                 * the natural `= null` test never fired. Same failure the
-                 * dbrow decoder had with an unset namedobj column. */
-                def->default_int = -1;
-            }
-            else
-                def->default_int = atoi(expanded);
-        }
-        else if( strcmp(line, "val") == 0 )
-        {
-            char* comma = strchr(value, ',');
-            int key_ok = 0;
-            int value_ok = 0;
-            int key;
-            int mapped = 0;
-            const char* text = NULL;
-
-            if( !comma )
-            {
-                CONTENT_ERROR("%s:%d: val needs `key,value`\n", path, line_number);
-                continue;
-            }
-            *comma = '\0';
-            key = enum_operand(def->input_kind, input_is_coord, value, &key_ok);
-            /*
-             * A string-valued enum keeps the text. It cannot go through
-             * enum_operand, which resolves or atoi()s — and atoi() of
-             * "Nothing interesting happens." is 0, so every message in
-             * displaymessage.enum would silently become the same one.
-             *
-             * Commas are not escaped in the reference's grammar, so the value is
-             * everything after the *first* comma; a message containing one still
-             * arrives whole.
-             */
-            if( def->output_is_string )
-            {
-                text = enum_text(comma + 1);
-                value_ok = text != NULL;
-                if( value_ok )
-                    text = strdup(text);
-            }
-            else
-            {
-                mapped =
-                    enum_operand(def->output_kind, output_is_coord, comma + 1, &value_ok);
-            }
-            if( !key_ok )
-                CONTENT_ERROR("%s:%d: `%s` does not resolve\n", path, line_number, value);
-            if( !value_ok )
-                CONTENT_ERROR("%s:%d: `%s` does not resolve\n", path, line_number,
-                              comma + 1);
-            if( !key_ok || !value_ok )
-                continue;
-            if( def->count >= def->capacity )
-            {
-                int next = def->capacity ? def->capacity * 2 : 32;
-                struct ToriRSServerEnumValue* grown =
-                    realloc(def->values, (size_t)next * sizeof(*grown));
-
-                if( !grown )
-                {
-                    CONTENT_ERROR("%s:%d: out of memory growing enum values\n", path,
-                                  line_number);
-                    continue;
-                }
-                def->values = grown;
-                def->capacity = next;
-            }
-            def->values[def->count].key = key;
-            def->values[def->count].text = text;
-            def->values[def->count].value = mapped;
-            def->count++;
-        }
-        else
-        {
-            CONTENT_ERROR("%s:%d: unknown enum key `%s`\n", path, line_number, line);
-        }
-    }
-    fclose(file);
-}
-
-/*
  * Rank-0 enums — the cache export at `configs/all.enum`.
  *
  * ServerScript's `enum` / `enum_getoutputcount` used to answer only for the
@@ -2918,11 +1503,9 @@ load_enum_config(const char* path)
  * content that needed a count hardcoded it. Loading this file is what retires
  * that limitation.
  *
- * The grammar is a subset of the authored one plus three keys the unpacker
- * emits for string enums (`outputstring`, `defaultstr`, `valstr`). Types are
- * not declared (`inputtype`/`outputtype` are absent); int enums are the
- * default and `outputstring=yes` flips the output to text. Values are raw
- * integers — no symbol resolution, because this file is a machine dump.
+ * The grammar is the authored one (cachepack writes `inputtype=`/`outputtype=`
+ * words, `val=<key>,<value>` and `default=` spelled by those types, names for
+ * references), so the same reader reads both -- `load_enum_file`.
  */
 /* ------------------------------------------------------------------ */
 /* Identity kits (configs/all.idk)                                     */
@@ -2953,69 +1536,6 @@ load_enum_config(const char* path)
  */
 static int8_t* g_idk_bodypart;
 static int g_idk_count;
-
-static int
-load_idk_bodyparts(const char* content_dir)
-{
-    char path[1024];
-    FILE* file;
-    char raw[512];
-    int current = -1;
-    int loaded = 0;
-
-    /* Sized off the name table rather than grown, because the ids ARE the
-     * indices: `configs/all.idk.compack` is `<id>=<name>` and the dump's
-     * sections are those names. */
-    g_idk_count = ToriRSServer_ContentSymbolCount(TORIRSSERVER_PACK_IDK);
-    if( g_idk_count <= 0 )
-        return 0;
-    g_idk_bodypart = (int8_t*)malloc((size_t)g_idk_count);
-    assert(g_idk_bodypart);
-    memset(g_idk_bodypart, -1, (size_t)g_idk_count);
-
-    snprintf(path, sizeof(path), "%s/configs/all.idk", content_dir);
-    file = fopen(path, "rb");
-    if( !file )
-    {
-        /* Not an error: a tree with no idk dump simply cannot answer SETIDKIT,
-         * and the opcode says so at the call site rather than here. */
-        fprintf(stderr,
-                "torirsserver: no configs/all.idk — setidkit cannot resolve a kit's "
-                "body part\n");
-        return 0;
-    }
-    while( fgets(raw, sizeof(raw), file) )
-    {
-        char* line = raw;
-        char* end;
-
-        while( *line == ' ' || *line == '\t' )
-            line++;
-        end = line + strlen(line);
-        while( end > line && (end[-1] == '\n' || end[-1] == '\r' || end[-1] == ' ') )
-            *--end = '\0';
-        if( line[0] == '[' && end > line + 1 && end[-1] == ']' )
-        {
-            end[-1] = '\0';
-            current = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_IDK, line + 1);
-            continue;
-        }
-        if( current < 0 || current >= g_idk_count )
-            continue;
-        if( strncmp(line, "bodypart=", 9) == 0 )
-        {
-            int part = atoi(line + 9);
-
-            if( part >= 0 && part < 127 )
-            {
-                g_idk_bodypart[current] = (int8_t)part;
-                loaded++;
-            }
-        }
-    }
-    fclose(file);
-    return loaded;
-}
 
 /*
  * bodypart -> wear position, for both bodies.
@@ -3122,244 +1642,8 @@ ToriRSServer_ContentIdkForGender(int idk_id, int gender)
     return last;
 }
 
-static int
-load_rank0_enums(const char* content_dir)
-{
-    char path[1024];
-    FILE* file;
-    char raw[8192];
-    struct ToriRSServerEnumDef* def = NULL;
-    int line_number = 0;
-    int loaded = 0;
-
-    snprintf(path, sizeof(path), "%s/configs/all.enum", content_dir);
-    file = fopen(path, "rb");
-    if( !file )
-    {
-        fprintf(stderr,
-                "torirsserver: no configs/all.enum — enum()/enum_getoutputcount cannot "
-                "answer for cache tables\n");
-        return 0;
-    }
-
-    while( fgets(raw, sizeof(raw), file) )
-    {
-        char* line = ToriRSServer_ContentCleanLine(raw);
-        char* header;
-        char* value;
-
-        line_number++;
-        if( !*line )
-            continue;
-
-        header = ToriRSServer_ContentSectionHeader(line);
-        if( header )
-        {
-            /* Authored overlays loaded first win: skip a cache dump that
-             * restates a name already present. */
-            if( ToriRSServer_ContentEnum(header) )
-            {
-                def = NULL;
-                continue;
-            }
-            g_enum_defs = grow(g_enum_defs, &g_enum_def_capacity, g_enum_def_count,
-                               sizeof(*g_enum_defs));
-            def = &g_enum_defs[g_enum_def_count++];
-            memset(def, 0, sizeof(*def));
-            def->symbol = strdup(header);
-            def->input_kind = TORIRSSERVER_PACK_COUNT;
-            def->output_kind = TORIRSSERVER_PACK_COUNT;
-            def->default_int = 0;
-            def->default_text = "null";
-            loaded++;
-            continue;
-        }
-
-        value = ToriRSServer_ContentSplitKeyValue(line);
-        if( !value || !def )
-            continue;
-
-        if( strcmp(line, "inputtype") == 0 )
-        {
-            def->input_kind = pack_kind_for_type(value);
-            def->input_is_string = type_is_string(value);
-        }
-        else if( strcmp(line, "outputtype") == 0 )
-        {
-            def->output_kind = pack_kind_for_type(value);
-            def->output_is_string = type_is_string(value);
-        }
-        else if( strcmp(line, "outputstring") == 0 )
-        {
-            def->output_is_string = strcmp(value, "yes") == 0;
-        }
-        else if( strcmp(line, "default") == 0 )
-        {
-            if( def->output_is_string )
-                def->default_text = strdup(value);
-            else
-                def->default_int = atoi(value);
-        }
-        else if( strcmp(line, "defaultstr") == 0 )
-        {
-            def->output_is_string = 1;
-            def->default_text = strdup(value);
-        }
-        else if( strcmp(line, "val") == 0 || strcmp(line, "valstr") == 0 )
-        {
-            char* comma = strchr(value, ',');
-            int key;
-            int mapped = 0;
-            const char* text = NULL;
-            int as_string = def->output_is_string || strcmp(line, "valstr") == 0;
-
-            if( !comma )
-            {
-                CONTENT_ERROR("%s:%d: %s needs `key,value`\n", path, line_number, line);
-                continue;
-            }
-            *comma = '\0';
-            key = atoi(value);
-            if( as_string )
-            {
-                def->output_is_string = 1;
-                text = strdup(comma + 1);
-            }
-            else
-            {
-                mapped = atoi(comma + 1);
-            }
-            if( def->count >= def->capacity )
-            {
-                int next = def->capacity ? def->capacity * 2 : 32;
-                struct ToriRSServerEnumValue* grown =
-                    realloc(def->values, (size_t)next * sizeof(*grown));
-
-                if( !grown )
-                {
-                    CONTENT_ERROR("%s:%d: out of memory growing enum values\n", path,
-                                  line_number);
-                    continue;
-                }
-                def->values = grown;
-                def->capacity = next;
-            }
-            def->values[def->count].key = key;
-            def->values[def->count].text = text;
-            def->values[def->count].value = mapped;
-            def->count++;
-        }
-        /* Unknown keys are ignored here: the unpacker emits fields the
-         * decoder does not store (`EXCEPTIONS.md`), and a silent skip is the
-         * same trade the rest of the rank-0 loaders make. */
-    }
-    fclose(file);
-    return loaded;
-}
-
 /* ------------------------------------------------------------------ */
 /* .varp configs                                                       */
-/* ------------------------------------------------------------------ */
-
-static void
-load_varp_config(const char* path)
-{
-    FILE* file = fopen(path, "rb");
-    char raw[1024];
-    struct ToriRSServerVarpDef* def = NULL;
-    int line_number = 0;
-
-    if( !file )
-        return;
-    while( fgets(raw, sizeof(raw), file) )
-    {
-        char* line = ToriRSServer_ContentCleanLine(raw);
-        char* header;
-        char* value;
-
-        line_number++;
-        if( !*line )
-            continue;
-
-        header = ToriRSServer_ContentSectionHeader(line);
-        if( header )
-        {
-            int varp_id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, header);
-
-            def = NULL;
-            if( varp_id < 0 )
-            {
-                CONTENT_ERROR("%s:%d: `%s` is not in configs/all.varp.compack\n", path, line_number,
-                              header);
-                continue;
-            }
-            g_varp_defs = grow(g_varp_defs, &g_varp_def_capacity, g_varp_def_count,
-                               sizeof(*g_varp_defs));
-            def = &g_varp_defs[g_varp_def_count++];
-            memset(def, 0, sizeof(*def));
-            def->varp_id = varp_id;
-            def->symbol = ToriRSServer_ContentSymbolName(TORIRSSERVER_PACK_VARP, varp_id);
-            def->clientcode = -1;
-            continue;
-        }
-
-        value = ToriRSServer_ContentSplitKeyValue(line);
-        if( !value || !def )
-        {
-            CONTENT_ERROR("%s:%d: expected `key=value` inside a [section]\n", path,
-                          line_number);
-            continue;
-        }
-
-        if( strcmp(line, "transmit") == 0 )
-            def->transmit = strcmp(value, "yes") == 0;
-        else if( strcmp(line, "protect") == 0 )
-            def->protect = strcmp(value, "yes") == 0;
-        else if( strcmp(line, "scope") == 0 )
-            def->scope_perm = strcmp(value, "perm") == 0;
-        else if( strcmp(line, "clientcode") == 0 )
-            def->clientcode = atoi(value);
-        else if( strcmp(line, "wholewrite") == 0 )
-        {
-            /* Only `allow` means anything. Spelling it any other way is a
-             * declaration that reads as a decision and is not one, which is
-             * exactly what an unknown-key error exists to catch. */
-            if( strcmp(value, "allow") != 0 )
-                CONTENT_ERROR("%s:%d: `wholewrite` takes `allow`, not `%s`\n", path,
-                              line_number, value);
-            else
-                def->wholewrite_allowed = 1;
-        }
-        else if( strcmp(line, "wholeread") == 0 )
-        {
-            /*
-             * The read half of the same licence, and it is the compiler's
-             * business rather than this loader's.
-             *
-             * `wholeread=allow` says a whole-varp READ of a carrier is meant —
-             * content naming a bit no cache varbit claims, which is the only way
-             * to reach one (varbit ids are cache-only, so content cannot declare
-             * the varbit it would rather use). `ssc_symbols.c` is what enforces
-             * it, and it also refuses the declaration when no varbit is based on
-             * the varp at all, so the claim is checked where it is made.
-             *
-             * Nothing at runtime needs it: reading a carrier whole destroys
-             * nothing, which is exactly why it is a separate word from
-             * `wholewrite`. What this arm buys is that the key is *accepted* —
-             * it was rejected as unknown, and one rejected line is one content
-             * error, which is a red `ToriRSServer --selftest` for a file that is
-             * correct.
-             */
-            if( strcmp(value, "allow") != 0 )
-                CONTENT_ERROR("%s:%d: `wholeread` takes `allow`, not `%s`\n", path,
-                              line_number, value);
-        }
-        else
-            CONTENT_ERROR("%s:%d: unknown varp key `%s`\n", path, line_number, line);
-    }
-    fclose(file);
-}
-
 /* ------------------------------------------------------------------ */
 /* .struct configs                                                     */
 /* ------------------------------------------------------------------ */
@@ -3395,422 +1679,6 @@ ToriRSServer_ContentStructParam(
     int param_id)
 {
     return ToriRSServer_ParamTableFind(&g_struct_overlay, struct_id, param_id);
-}
-
-static void
-load_struct_config(const char* path)
-{
-    FILE* file = fopen(path, "rb");
-    char raw[1024];
-    char where[1100];
-    int struct_id = -1;
-    int in_block = 0;
-    int line_number = 0;
-
-    if( !file )
-        return;
-    while( fgets(raw, sizeof(raw), file) )
-    {
-        char* line = ToriRSServer_ContentCleanLine(raw);
-        char* header;
-        char* value;
-        char* comma;
-        int param_id;
-        int resolved;
-
-        line_number++;
-        if( !*line )
-            continue;
-
-        header = ToriRSServer_ContentSectionHeader(line);
-        if( header )
-        {
-            in_block = 1;
-            if( !ToriRSServer_ContentSymbolChecked(TORIRSSERVER_PACK_STRUCT, header, &struct_id) )
-            {
-                CONTENT_ERROR("%s:%d: `%s` is not in configs/all.struct.compack or "
-                              "pack/struct.alloc -- run tools/ss_allocate.py\n",
-                              path, line_number, header);
-                struct_id = -1;
-            }
-            continue;
-        }
-
-        value = ToriRSServer_ContentSplitKeyValue(line);
-        if( !value || !in_block )
-        {
-            CONTENT_ERROR("%s:%d: expected `key=value` inside a [section]\n", path,
-                          line_number);
-            continue;
-        }
-        if( struct_id < 0 )
-            continue; /* the header's own error already counted this block */
-        if( strcmp(line, "param") != 0 )
-        {
-            CONTENT_ERROR("%s:%d: struct key `%s` -- a struct carries only `param=`\n", path,
-                          line_number, line);
-            continue;
-        }
-        comma = strchr(value, ',');
-        if( !comma )
-        {
-            CONTENT_ERROR("%s:%d: param needs `name,value`, got `%s`\n", path, line_number,
-                          value);
-            continue;
-        }
-        *comma = '\0';
-        if( !ToriRSServer_ContentSymbolChecked(TORIRSSERVER_PACK_PARAM, value, &param_id) )
-        {
-            CONTENT_ERROR("%s:%d: struct param `%s` is not in configs/all.param.compack\n",
-                          path, line_number, value);
-            continue;
-        }
-        if( ToriRSServer_ContentParamType(param_id) == 's' )
-        {
-            /* The param table's overlay entry point is int-only; a string row
-             * would need a strdup'd `sval`. None is authored yet -- say so
-             * loudly rather than file the text as 0. */
-            CONTENT_ERROR("%s:%d: string struct param `%s` is not overlaid yet\n", path,
-                          line_number, value);
-            continue;
-        }
-        snprintf(where, sizeof(where), "%s:%d", path, line_number);
-        if( !obj_resolve_param_value(param_id, comma + 1, &resolved, where) )
-            continue;
-        ToriRSServer_ParamTableSetInt(&g_struct_overlay, struct_id, param_id, resolved);
-    }
-    fclose(file);
-}
-
-/* ------------------------------------------------------------------ */
-/* .loc configs                                                        */
-/* ------------------------------------------------------------------ */
-
-/*
- * Doors are the reason this exists. Two loc ids look identical to a cache
- * reader — one closed, one open — and nothing in the cache says which pairs
- * with which. LostCity records the pairing as `category=door_closed` plus
- * `param=next_loc_stage,<symbol>`, and so does this.
- *
- * `next_loc_stage` is resolved lazily, after every .loc file has been read: a
- * door names its open half and the open half names it back, so whichever is
- * read first refers forward.
- *
- * Resolution publishes to **two** places and that is the point (2026-08-02):
- * `ToriRSServerLocDef.next_loc_stage`, which the engine's own door swap reads, and
- * the loc param table, which is where `loc_param(next_loc_stage)` — the
- * reference's line in `doors/scripts/doors.rs2` — looks. Only the first existed
- * before, so a `.loc` block could state a param that no script could read; the
- * script got the declared default and a door opened into loc 0. One value, two
- * readers, resolved once.
- *
- * The value's *type* comes from `fields/loc.ini`'s `ref`, which C can ask for
- * since 2026-08-15 (`struct ContentField.ref`). Before that this grammar
- * resolved every value through `pack/loc.pack` regardless, so the only
- * authorable loc param was a loc-typed one and `param=rune_type,7` failed with
- * "is not in configs/all.loc.compack" — the second loc param was exactly what
- * this header predicted would make carrying `ref` worth doing.
- *
- *   no ref        a decimal literal, and nothing else. cp_fields.h's own
- *                 default, and the right one: a number needs no pack to agree.
- *   ref = <ns>    a name resolved through that namespace's pack, by the same
- *                 spelling `ToriRSServer_ContentPackName` gives it — `loc`, `obj`,
- *                 `seq`, `npc`, `category`, `stat`, … A decimal literal is still
- *                 accepted, because `configs/all.loc` is a machine export and
- *                 writes numbers where an authored block writes names.
- *
- * `next_loc_stage` keeps one extra effect no other param has: resolving it also
- * fills `ToriRSServerLocDef.next_loc_stage`, the field the engine's own door swap
- * reads. That is bound to the register row's *name*, not to "the first param
- * that came along" — which is what it used to be, so a second param on the same
- * loc silently redirected every door in the block.
- */
-
-struct PendingStage
-{
-    int def_index;
-    /** The param the overlay line named, resolved through pack/param.pack. */
-    int param_id;
-    /** The namespace the value is spelled in, or TORIRSSERVER_PACK_COUNT for
-     *  "decimal literal only" — `fields/loc.ini`'s `ref`, resolved once here so
-     *  the deferred pass does not re-read the register. */
-    enum ToriRSServerPackKind ref;
-    /** 1 when this row also owns `ToriRSServerLocDef.next_loc_stage`. */
-    int is_next_stage;
-    char* symbol;
-};
-
-/**
- * `ref = <namespace>` → the pack kind, or TORIRSSERVER_PACK_COUNT when unnamed.
- *
- * Reads `pack_kind_name`'s own table backwards rather than restating it: a
- * spelling that appears in only one of the two directions is how `synth` would
- * quietly become authorable as `ref = synth` while resolving against nothing
- * (its pack name is `4_soundeffects`, and `fields/npc.ini` says out loud that
- * there is no `ref = synth`).
- */
-static enum ToriRSServerPackKind
-pack_kind_from_ref(const char* ref)
-{
-    if( !ref || !*ref )
-        return TORIRSSERVER_PACK_COUNT;
-    for( int k = 0; k < TORIRSSERVER_PACK_COUNT; k++ )
-    {
-        if( strcmp(pack_kind_name((enum ToriRSServerPackKind)k), ref) == 0 )
-            return (enum ToriRSServerPackKind)k;
-    }
-    return TORIRSSERVER_PACK_COUNT;
-}
-
-/** 1 when every character is a digit (after an optional `-`), i.e. the value is
- *  a literal and needs no pack. */
-static int
-is_decimal_literal(const char* value)
-{
-    const char* p = value;
-
-    if( *p == '-' )
-        p++;
-    if( !*p )
-        return 0;
-    for( ; *p; p++ )
-    {
-        if( *p < '0' || *p > '9' )
-            return 0;
-    }
-    return 1;
-}
-
-static struct PendingStage* g_pending;
-static int g_pending_count;
-static int g_pending_capacity;
-
-static void
-load_loc_config(const char* path)
-{
-    FILE* file = fopen(path, "rb");
-    char raw[1024];
-    struct ToriRSServerLocDef* def = NULL;
-    int def_index = -1;
-    int line_number = 0;
-
-    if( !file )
-        return;
-    while( fgets(raw, sizeof(raw), file) )
-    {
-        char* line = ToriRSServer_ContentCleanLine(raw);
-        char* header;
-        char* value;
-
-        line_number++;
-        if( !*line )
-            continue;
-
-        header = ToriRSServer_ContentSectionHeader(line);
-        if( header )
-        {
-            int loc_id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, header);
-
-            def = NULL;
-            if( loc_id < 0 )
-            {
-                CONTENT_ERROR("%s:%d: `%s` is not in configs/all.loc.compack\n", path, line_number,
-                              header);
-                continue;
-            }
-            g_loc_defs = grow(g_loc_defs, &g_loc_def_capacity, g_loc_def_count,
-                              sizeof(*g_loc_defs));
-            def_index = g_loc_def_count++;
-            def = &g_loc_defs[def_index];
-            memset(def, 0, sizeof(*def));
-            def->loc_id = loc_id;
-            def->symbol = ToriRSServer_ContentSymbolName(TORIRSSERVER_PACK_LOC, loc_id);
-            def->category = -1;
-            def->next_loc_stage = -1;
-            continue;
-        }
-
-        value = ToriRSServer_ContentSplitKeyValue(line);
-        if( !value || !def )
-        {
-            CONTENT_ERROR("%s:%d: expected `key=value` inside a [section]\n", path,
-                          line_number);
-            continue;
-        }
-
-        if( strcmp(line, "category") == 0 )
-        {
-            /*
-             * Through the pack, not through a `strcmp` ladder.
-             *
-             * The ladder that was here accepted exactly two spellings and filed
-             * them under a private enum, so `category` on a loc meant something
-             * different from `category` on an npc or an obj while being spelled
-             * the same and living in the same field register. Resolving it here
-             * is what makes `[oploc1,_door_closed]` a category subject the trigger
-             * lookup can answer — see `ToriRSServerLocDef.category`.
-             */
-            int id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_CATEGORY, value);
-
-            if( id < 0 )
-                CONTENT_ERROR("%s:%d: `%s` is not in pack/category.pack — a category is "
-                              "named there or it is not a category\n",
-                              path, line_number, value);
-            else if( id == 0 )
-                CONTENT_ERROR("%s:%d: `%s` resolves to category 0, which is the decoder's "
-                              "\"unstated\" and must never be a name\n",
-                              path, line_number, value);
-            else
-                def->category = id;
-        }
-        else if( strcmp(line, "param") == 0 )
-        {
-            char* comma = strchr(value, ',');
-
-            if( !comma )
-            {
-                CONTENT_ERROR("%s:%d: param needs `name,value`\n", path, line_number);
-                continue;
-            }
-            *comma = '\0';
-            {
-                /* Which params a loc may carry is the field register's to say, not a
-                 * name spelled twice. The binding is `param = <name>` (or the retired
-                 * projection spelling `client = param:<name>`) — either fills
-                 * `param_name`, and that is what this parser accepts. */
-                const struct ContentField* field = ContentFields_Find(&g_loc_fields, value);
-                int param_id;
-
-                if( !field || !field->param_name[0] )
-                {
-                    CONTENT_ERROR("%s:%d: `%s` is not a loc param this build knows — "
-                                  "declare it in fields/loc.ini with `param = <name>`\n",
-                                  path, line_number, value);
-                    continue;
-                }
-                /* The register names the param; the pack numbers it. Which number
-                 * `next_loc_stage` is is the pack file's business, and a script
-                 * asking for it by name has to reach the same row this line
-                 * writes. */
-                param_id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_PARAM, field->param_name);
-                if( param_id < 0 )
-                {
-                    CONTENT_ERROR("%s:%d: fields/loc.ini maps `%s` to param `%s`, which "
-                                  "pack/param.pack does not name\n",
-                                  path, line_number, value, field->param_name);
-                    continue;
-                }
-                g_pending = grow(g_pending, &g_pending_capacity, g_pending_count,
-                                 sizeof(*g_pending));
-                g_pending[g_pending_count].def_index = def_index;
-                g_pending[g_pending_count].param_id = param_id;
-                g_pending[g_pending_count].ref = pack_kind_from_ref(field->ref);
-                /* By the register row's name, so the door field belongs to the
-                 * door field's row and to nothing that happens to be parsed
-                 * beside it. See this section's header. */
-                g_pending[g_pending_count].is_next_stage =
-                    strcmp(field->name, "next_loc_stage") == 0;
-                g_pending[g_pending_count].symbol = strdup(comma + 1);
-                g_pending_count++;
-            }
-        }
-        else if( strlen(line) == 3 && strncmp(line, "op", 2) == 0 && line[2] >= '1' &&
-                 line[2] <= '5' )
-        {
-            /*
-             * `op3=hidden` — the resume slot every skilling loop in the reference
-             * turns on, and the reason each one in this tree resumes on op 1
-             * instead.
-             *
-             * `ToriRSServer_SceneLocOp` used to answer from the decoded client record
-             * alone, so a loc's server-side op set was exactly its client-side one.
-             * `p_oploc(3)` on a tree therefore hit the reference's own silent
-             * return (`if (!locType.op || !locType.op[type]) return;`) and the
-             * resume died, which is why `woodcut.rs2` and `mining.rs2` both had to
-             * re-issue the *visible* op and re-run its guards every tick.
-             *
-             * `hidden` is not a special case here, it is the ordinary one: an op
-             * this file states and the client's cache record does not is invisible
-             * in the menu by construction, because the menu is built from the
-             * cache. `torirs_server_world.c`'s OPLOC handler already refused the literal
-             * string — "Hidden / missing ops are a lagging client — drop" — so the
-             * packet path was waiting for this to exist.
-             */
-            ToriRSServer_SceneLocOpOverlay(def->loc_id, line[2] - '0', value);
-        }
-        else
-        {
-            /* Same rule as the npc ladder above: the register decides what a key the
-             * parser does not handle means. */
-            const struct ContentField* field = ContentFields_Find(&g_loc_fields, line);
-
-            if( field && field->scope == CONTENT_SCOPE_CLIENT )
-                g_client_key_overlays++;
-            else if( field )
-                CONTENT_ERROR("%s:%d: `%s` is declared in fields/loc.ini but this build "
-                              "has nowhere to put it\n",
-                              path, line_number, line);
-            else
-                CONTENT_ERROR("%s:%d: unknown key `%s`\n", path, line_number, line);
-        }
-    }
-    fclose(file);
-}
-
-static void
-resolve_loc_stages(void)
-{
-    for( int i = 0; i < g_pending_count; i++ )
-    {
-        int index = g_pending[i].def_index;
-        const char* symbol = g_pending[i].symbol;
-        enum ToriRSServerPackKind ref = g_pending[i].ref;
-        int target;
-
-        /*
-         * A literal first, whatever the ref says. `configs/all.loc` is a machine
-         * export and writes `param=next_loc_stage,1817`; an authored block writes
-         * the name. Both have to reach the same row or the two spellings of one
-         * config disagree.
-         */
-        if( is_decimal_literal(symbol) )
-            target = atoi(symbol);
-        else if( ref == TORIRSSERVER_PACK_COUNT )
-        {
-            CONTENT_ERROR("loc param `%s` takes a number — declare `ref = <namespace>` "
-                          "in fields/loc.ini to spell it as a name\n",
-                          symbol);
-            free(g_pending[i].symbol);
-            continue;
-        }
-        else
-        {
-            target = ToriRSServer_ContentSymbol(ref, symbol);
-            if( target < 0 )
-            {
-                CONTENT_ERROR("loc param value `%s` is not in pack/%s.pack\n", symbol,
-                              pack_kind_name(ref));
-                free(g_pending[i].symbol);
-                continue;
-            }
-        }
-
-        if( index >= 0 && index < g_loc_def_count )
-        {
-            /* Into the param table, so `loc_param(<name>)` answers what this line
-             * says — and, for the door pairing alone, into the field the engine's
-             * own door swap reads. See this section's header. */
-            ToriRSServer_LocInfoParamOverlay(g_loc_defs[index].loc_id, g_pending[i].param_id,
-                                          target);
-            if( g_pending[i].is_next_stage )
-                g_loc_defs[index].next_loc_stage = target;
-        }
-        free(g_pending[i].symbol);
-    }
-    free(g_pending);
-    g_pending = NULL;
-    g_pending_count = 0;
-    g_pending_capacity = 0;
 }
 
 /* ------------------------------------------------------------------ */
@@ -4141,207 +2009,6 @@ ToriRSServer_ContentParamType(int param_id)
     return g_param_types[param_id];
 }
 
-static int
-load_param_types(const char* content_dir)
-{
-    char path[1024];
-    FILE* file;
-    char raw[512];
-    int current = -1;
-    int loaded = 0;
-    int highest = -1;
-    int line_number = 0;
-
-    snprintf(path, sizeof(path), "%s/configs/all.param", content_dir);
-    file = fopen(path, "rb");
-    if( !file )
-    {
-        /*
-         * Not fatal, and deliberately so: a tree without the unpacked config
-         * text still boots, and every `oc_param` call then reports an unknown
-         * type rather than inventing one. Silence here would be the wrong
-         * trade, so it says what it lost.
-         */
-        fprintf(stderr,
-                "torirsserver: no configs/all.param — oc_param cannot type its result\n");
-        return 0;
-    }
-
-    /* Indexed by param id directly, sized off the highest the pack names. The
-     * pack is already loaded at this point — it is layer 0 of the `param`
-     * namespace and comes off `configs/all.param.compack`. */
-    {
-        const struct Pack* pack = &g_packs[TORIRSSERVER_PACK_PARAM];
-
-        for( int i = 0; i < pack->count; i++ )
-            if( pack->entries[i].id > highest )
-                highest = pack->entries[i].id;
-    }
-    if( highest < 0 )
-    {
-        fclose(file);
-        return 0;
-    }
-    g_param_type_count = highest + 1;
-    g_param_types = (char*)calloc((size_t)g_param_type_count, 1);
-    assert(g_param_types);
-    g_param_defaults = (int*)malloc((size_t)g_param_type_count * sizeof(int));
-    assert(g_param_defaults);
-    g_param_kinds = (enum ToriRSServerPackKind*)malloc((size_t)g_param_type_count *
-                                                 sizeof(*g_param_kinds));
-    assert(g_param_kinds);
-    g_param_kind_count = g_param_type_count;
-    for( int i = 0; i < g_param_kind_count; i++ )
-        g_param_kinds[i] = TORIRSSERVER_PACK_COUNT;
-    for( int i = 0; i < g_param_type_count; i++ )
-        g_param_defaults[i] = 0;
-
-    while( fgets(raw, sizeof(raw), file) )
-    {
-        char* line = ToriRSServer_ContentCleanLine(raw);
-        char* header;
-        char* value;
-
-        line_number++;
-        if( !*line )
-            continue;
-        header = ToriRSServer_ContentSectionHeader(line);
-        if( header )
-        {
-            /*
-             * A block naming a param `configs/all.param.compack` does not list.
-             *
-             * Silent before, and the shape of the silence is what makes it worth
-             * an error: the block is skipped, so the param keeps `type` 0 and
-             * `default` 0, and `push_typed_param` then answers every absent row
-             * with 0 instead of the declared default. This file and its index
-             * are both machine exports of the same archive, so a name in one and
-             * not the other means the two have drifted.
-             */
-            if( !ToriRSServer_ContentSymbolChecked(TORIRSSERVER_PACK_PARAM, header, &current) )
-                CONTENT_ERROR("%s:%d: `%s` is not in configs/all.param.compack\n", path,
-                              line_number, header);
-            continue;
-        }
-        if( current < 0 || current >= g_param_type_count )
-            continue;
-        value = ToriRSServer_ContentSplitKeyValue(line);
-        if( !value )
-            continue;
-        if( strcmp(line, "type") == 0 )
-        {
-            g_param_types[current] = value[0];
-            loaded++;
-            continue;
-        }
-        if( strcmp(line, "default") == 0 )
-        {
-            /* Always a plain integer. This file is a cache dump, so the value
-             * is the raw g4 the record carried — every one of the 469 is
-             * numeric, and a *string* param (type 's' — the char here is the
-             * cache's own code, not the overlay grammar's word) declares
-             * `defaultstr=`, which nothing reads yet. Symbolic defaults
-             * (`default=human_death`) live in the server overlay `.param`
-             * files, which this loader does not walk — see the caller. */
-            g_param_defaults[current] = atoi(value);
-        }
-    }
-    fclose(file);
-    return loaded;
-}
-
-/*
- * Server overlay `.param` files (`bas.param`, `combat.param`, …) declare
- * `type=` / `default=` with symbolic defaults (`default=human_ready`). The
- * cache dump in configs/all.param never names these server-allocated params,
- * so without this walk `oc_param` answers 0 for every absent row.
- */
-static int
-load_server_param_defaults_file(const char* path)
-{
-    FILE* file = fopen(path, "rb");
-    char raw[512];
-    int current = -1;
-    int loaded = 0;
-    int line_number = 0;
-
-    if( !file )
-        return 0;
-    while( fgets(raw, sizeof(raw), file) )
-    {
-        char* line = ToriRSServer_ContentCleanLine(raw);
-        char* header;
-        char* value;
-        int resolved;
-
-        line_number++;
-        if( !*line )
-            continue;
-        header = ToriRSServer_ContentSectionHeader(line);
-        if( header )
-        {
-            if( !ToriRSServer_ContentSymbolChecked(TORIRSSERVER_PACK_PARAM, header, &current) )
-            {
-                CONTENT_ERROR("%s:%d: `%s` is not in configs/all.param.compack\n", path,
-                              line_number, header);
-                current = -1;
-            }
-            continue;
-        }
-        if( current < 0 || current >= g_param_type_count )
-            continue;
-        value = ToriRSServer_ContentSplitKeyValue(line);
-        if( !value )
-            continue;
-        if( strcmp(line, "type") == 0 )
-        {
-            /* Overlay words → cache letter. Everything but string is int-shaped. */
-            if( strcmp(value, "string") == 0 || strcmp(value, "s") == 0 )
-                g_param_types[current] = 's';
-            else
-                g_param_types[current] = 'i';
-            if( g_param_kinds && current < g_param_kind_count )
-                g_param_kinds[current] = pack_kind_for_type(value);
-            loaded++;
-            continue;
-        }
-        if( strcmp(line, "default") == 0 )
-        {
-            if( g_param_types[current] == 's' )
-                continue; /* defaultstr= not read yet; leave 0 */
-            if( strcmp(value, "null") == 0 )
-                g_param_defaults[current] = -1;
-            else if( strcmp(value, "yes") == 0 || strcmp(value, "true") == 0 )
-                g_param_defaults[current] = 1;
-            else if( strcmp(value, "no") == 0 || strcmp(value, "false") == 0 )
-                g_param_defaults[current] = 0;
-            else if( (value[0] >= '0' && value[0] <= '9') ||
-                     (value[0] == '-' && value[1] >= '0') )
-                g_param_defaults[current] = atoi(value);
-            else if( strchr(value, ' ') != NULL || value[0] == '^' )
-                continue; /* prose / constant — not a seq/obj id */
-            else if( ToriRSServer_ContentSymbolChecked(TORIRSSERVER_PACK_SEQ, value, &resolved) ||
-                     ToriRSServer_ContentSymbolChecked(TORIRSSERVER_PACK_OBJ, value, &resolved) ||
-                     ToriRSServer_ContentSymbolChecked(TORIRSSERVER_PACK_SPOTANIM, value, &resolved) ||
-                     ToriRSServer_ContentSymbolChecked(TORIRSSERVER_PACK_NPC, value, &resolved) )
-                g_param_defaults[current] = resolved;
-            /* else leave 0 — unknown symbolic defaults are not pack failures */
-        }
-    }
-    fclose(file);
-    return loaded;
-}
-
-/* walk_configs callback: server overlay `.param` type/default declarations. */
-static void
-load_server_param_file(const char* path)
-{
-    int n = load_server_param_defaults_file(path);
-
-    if( n > 0 )
-        fprintf(stderr, "torirsserver: %d server param type(s) from %s\n", n, path);
-}
-
 /* ------------------------------------------------------------------ */
 /* Walking the tree                                                    */
 /* ------------------------------------------------------------------ */
@@ -4608,15 +2275,15 @@ load_maps(const char* dir)
  * animating with sequence 0.
  */
 static void
-init_defaults(void)
+npc_def_builtin(struct ToriRSServerNpcDef* out)
 {
-    memset(&g_npc_default, 0, sizeof(g_npc_default));
-    g_npc_default.npc_id = -1;
-    g_npc_default.hitpoints = 10;
-    g_npc_default.attack = 1;
-    g_npc_default.strength = 1;
-    g_npc_default.defence = 1;
-    g_npc_default.respawnrate = 25;
+    memset(out, 0, sizeof(*out));
+    out->npc_id = -1;
+    out->hitpoints = 10;
+    out->attack = 1;
+    out->strength = 1;
+    out->defence = 1;
+    out->respawnrate = 25;
     /*
      * How long the corpse lies there once the death animation has *started* —
      * `npc_delay(1)` in `[proc,npc_death]`, which is `tick + 1 + 1` and so two
@@ -4629,9 +2296,9 @@ init_defaults(void)
      * and eat it entirely. A tree that states `death_delay` overrides it; this
      * is only what a tree stating nothing degrades to.
      */
-    g_npc_default.death_delay = 2;
-    g_npc_default.attackrate = 4;
-    g_npc_default.attackrange = 1;
+    out->death_delay = 2;
+    out->attackrate = 4;
+    out->attackrange = 1;
     /*
      * The reference's NpcType defaults, and the pair that decides how far a
      * monster will roam and follow: 5 tiles of wander from where it spawned,
@@ -4646,43 +2313,324 @@ init_defaults(void)
      * skips outright. On a world roster of 23,139 npcs, of which 22 files state
      * a wanderrange, that is "most npcs never move".
      */
-    g_npc_default.wanderrange = 5;
-    g_npc_default.maxrange = 7;
-    g_npc_default.givechase = 1;
+    out->wanderrange = 5;
+    out->maxrange = 7;
+    out->givechase = 1;
     /* Everything fights back unless it says otherwise. */
-    g_npc_default.retaliate = 1;
+    out->retaliate = 1;
     /* Single-way unless the zone set or the record says otherwise. See the
      * field: the zone set describes 2004, so every post-2004 multi-combat
      * encounter states this. */
-    g_npc_default.forcemulti = 0;
+    out->forcemulti = 0;
     /* Unstated, so the encoder uses the standard bar — see the field's note. */
-    g_npc_default.healthbar = TORIRSSERVER_NPC_HEALTHBAR_UNSET;
+    out->healthbar = TORIRSSERVER_NPC_HEALTHBAR_UNSET;
     /* Everything that can be hit shows the number unless it says otherwise. */
-    g_npc_default.hitsplat = 1;
+    out->hitsplat = 1;
     /* LostCity NpcType defaults: blockwalk=NPC, no sight block, normal move. */
-    g_npc_default.blockwalk = 1;
-    g_npc_default.blocksight = 0;
-    g_npc_default.moverestrict = 0;
-    g_npc_default.nomove = 0;
-    g_npc_default.turnspeed = -1; /* unstated: defer to the cache record */
-    g_npc_default.facing = -1;    /* unstated: spawn facing south */
-    g_npc_default.damagetype = TORIRSSERVER_DAMAGE_CRUSH;
-    g_npc_default.attack_anim = -1;
-    g_npc_default.defend_anim = -1;
-    g_npc_default.death_anim = -1;
-    g_npc_default.death_drop = -1;
+    out->blockwalk = 1;
+    out->blocksight = 0;
+    out->moverestrict = 0;
+    out->nomove = 0;
+    out->turnspeed = -1; /* unstated: defer to the cache record */
+    out->facing = -1;    /* unstated: spawn facing south */
+    out->damagetype = TORIRSSERVER_DAMAGE_CRUSH;
+    out->attack_anim = -1;
+    out->defend_anim = -1;
+    out->death_anim = -1;
+    out->death_drop = -1;
     /* Silent unless something states otherwise. Sound effect 0 is a real clip,
      * so this cannot be 0 — see the field comment in torirs_server_content.h. */
-    g_npc_default.attack_sound = -1;
-    g_npc_default.defend_sound = -1;
-    g_npc_default.death_sound = -1;
-    g_npc_default.defaultmode = TORIRSSERVER_NPCMODE_NONE;
+    out->attack_sound = -1;
+    out->defend_sound = -1;
+    out->death_sound = -1;
+    out->defaultmode = TORIRSSERVER_NPCMODE_NONE;
     /* Unstated, so an npc with no block keeps the radius-derived default. */
-    g_npc_default.defaultmode_stated = 0;
+    out->defaultmode_stated = 0;
+}
+
+static void
+init_defaults(void)
+{
+    npc_def_builtin(&g_npc_default);
+}
+
+/*
+ * A field register, held to itself and to the server's band bindings.
+ *
+ * Only a register that declares a band for a type the server binds is held to the
+ * bindings: a tree with no `fields/<type>.ini` (or one that declares no server
+ * opcodes) has no band for cachepack to write, and the text overlays stand — the
+ * documented fallback. A tree that does declare one has made it the contract, and
+ * a binding the register does not carry, a member too narrow for its field, or a
+ * band field nothing receives is a startup error rather than a value that quietly
+ * lands nowhere.
+ */
+static int band_decode_whole(const char* type_name, const struct RSCache_Register* fields,
+                             struct RSCache_BandRecord* record, void* object, const uint8_t* band,
+                             uint32_t size, int id);
+
+/* ------------------------------------------------------------------ */
+/* Config records from the server pack                                 */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Everything below reads the pack's client records (the merge of configs/ and
+ * server/scripts, encoded by cachepack with the client codec) and the bands beside
+ * them. No config text is read at run time: what a `.enum`, `.param`, `.idk`,
+ * `.varp` or `.inv` block says reaches the server because cachepack merged it into
+ * the record the pack holds.
+ */
+
+/** The pack kind a value of type character `ch` names, through the one
+ *  ScriptVarType table (rscache_valuetype.h), or TORIRSSERVER_PACK_COUNT. */
+static enum ToriRSServerPackKind
+pack_kind_for_char(int ch)
+{
+    const struct RSCache_ValueType* type = RSCache_ValueTypeOfChar(ch);
+
+    return type ? pack_kind_for_type(type->word) : TORIRSSERVER_PACK_COUNT;
+}
+
+static int
+load_param_types_pack(struct RSCache_ServerPack* pack)
+{
+    struct ToriRSServerKindRecords records;
+
+    if( !ToriRSServer_ServPackKindLoad(pack, RSCACHE_DAT2_CONFIG_KIND_PARAMS, &records) )
+        return -1;
+    g_param_type_count = ToriRSServer_ServPackKindIdBound(&records);
+    if( g_param_type_count < ToriRSServer_ContentSymbolCount(TORIRSSERVER_PACK_PARAM) )
+        g_param_type_count = ToriRSServer_ContentSymbolCount(TORIRSSERVER_PACK_PARAM);
+    g_param_types = (char*)calloc((size_t)g_param_type_count + 1, 1);
+    assert(g_param_types);
+    g_param_defaults = (int*)calloc((size_t)g_param_type_count + 1, sizeof(int));
+    assert(g_param_defaults);
+    for( int i = 0; i < records.count; i++ )
+    {
+        struct RSCache_Dat2ConfigParam param;
+        int id = records.ids[i];
+
+        memset(&param, 0, sizeof(param));
+        RSCache_Dat2ConfigParamDecodeInplace(&param, records.files[i], (int)records.sizes[i]);
+        g_param_types[id] = param.type;
+        g_param_defaults[id] = param.default_int;
+        RSCache_Dat2ConfigParamFreeInplace(&param);
+    }
+    ToriRSServer_ServPackKindFree(&records);
+    return g_param_type_count;
+}
+
+static int
+load_enums_pack(struct RSCache_ServerPack* pack)
+{
+    struct ToriRSServerKindRecords records;
+    int loaded = 0;
+
+    if( !ToriRSServer_ServPackKindLoad(pack, RSCACHE_DAT2_CONFIG_KIND_ENUM, &records) )
+        return -1;
+    for( int i = 0; i < records.count; i++ )
+    {
+        struct RSCache_Dat2ConfigEnum entry;
+        struct ToriRSServerEnumDef* def;
+        const char* symbol = ToriRSServer_ContentSymbolName(TORIRSSERVER_PACK_ENUM, records.ids[i]);
+        char fallback[32];
+
+        memset(&entry, 0, sizeof(entry));
+        RSCache_Dat2ConfigEnumDecodeInplace(&entry, records.files[i], (int)records.sizes[i]);
+        if( !symbol )
+        {
+            snprintf(fallback, sizeof(fallback), "enum_%d", records.ids[i]);
+            symbol = fallback;
+        }
+        g_enum_defs =
+            grow(g_enum_defs, &g_enum_def_capacity, g_enum_def_count, sizeof(*g_enum_defs));
+        def = &g_enum_defs[g_enum_def_count++];
+        memset(def, 0, sizeof(*def));
+        def->symbol = strdup(symbol);
+        assert(def->symbol);
+        def->input_kind = pack_kind_for_char((unsigned char)entry.input_type);
+        def->output_kind = pack_kind_for_char((unsigned char)entry.output_type);
+        def->input_is_string = entry.input_type == 's';
+        def->output_is_string = entry.output_type == 's' || entry.output_is_string;
+        def->default_int = entry.default_int;
+        def->default_text = "null";
+        if( def->output_is_string && entry.default_string )
+        {
+            def->default_text = strdup(entry.default_string);
+            assert(def->default_text);
+        }
+        if( entry.count > 0 )
+        {
+            def->values = (struct ToriRSServerEnumValue*)calloc((size_t)entry.count,
+                                                                sizeof(*def->values));
+            assert(def->values);
+            def->capacity = entry.count;
+        }
+        for( int v = 0; v < entry.count; v++ )
+        {
+            def->values[v].key = entry.keys[v];
+            if( def->output_is_string )
+            {
+                def->values[v].text = strdup(entry.string_values && entry.string_values[v]
+                                                 ? entry.string_values[v]
+                                                 : "");
+                assert(def->values[v].text);
+            }
+            else
+                def->values[v].value = entry.int_values ? entry.int_values[v] : 0;
+        }
+        def->count = entry.count;
+        RSCache_Dat2ConfigEnumFreeInplace(&entry);
+        loaded++;
+    }
+    ToriRSServer_ServPackKindFree(&records);
+    return loaded;
+}
+
+static int
+load_idk_pack(struct RSCache_ServerPack* pack)
+{
+    struct ToriRSServerKindRecords records;
+    int loaded = 0;
+
+    if( !ToriRSServer_ServPackKindLoad(pack, RSCACHE_DAT2_CONFIG_KIND_IDENTKIT, &records) )
+        return -1;
+    g_idk_count = ToriRSServer_ServPackKindIdBound(&records);
+    if( g_idk_count <= 0 )
+    {
+        ToriRSServer_ServPackKindFree(&records);
+        return 0;
+    }
+    g_idk_bodypart = (int8_t*)malloc((size_t)g_idk_count);
+    assert(g_idk_bodypart);
+    memset(g_idk_bodypart, -1, (size_t)g_idk_count);
+    for( int i = 0; i < records.count; i++ )
+    {
+        struct RSCache_Dat2ConfigIdk idk;
+
+        memset(&idk, 0, sizeof(idk));
+        RSCache_Dat2ConfigIdkDecodeInplace(&idk, (char*)records.files[i], (int)records.sizes[i]);
+        if( RSCache_PresenceHas(&idk.present, RSCACHE_IDK_FIELD_BODY_PART) )
+        {
+            g_idk_bodypart[records.ids[i]] = (int8_t)idk.body_part_id;
+            loaded++;
+        }
+        free(idk.model_ids);
+        free(idk.recolors_from);
+        free(idk.recolors_to);
+        free(idk.retextures_from);
+        free(idk.retextures_to);
+    }
+    ToriRSServer_ServPackKindFree(&records);
+    return loaded;
+}
+
+static void
+varp_load_band(
+    void* context,
+    int id,
+    const uint8_t* band,
+    uint32_t size)
+{
+    int* failed = (int*)context;
+    struct ToriRSServerVarpDef* def;
+    struct RSCache_BandRecord record;
+
+    g_varp_defs = grow(g_varp_defs, &g_varp_def_capacity, g_varp_def_count, sizeof(*g_varp_defs));
+    def = &g_varp_defs[g_varp_def_count++];
+    memset(def, 0, sizeof(*def));
+    def->varp_id = id;
+    def->symbol = ToriRSServer_ContentSymbolName(TORIRSSERVER_PACK_VARP, id);
+    def->clientcode = -1;
+    if( !band_decode_whole("varp", &g_varp_fields, &record, def, band, size, id) )
+        (*failed)++;
+    RSCache_BandRecordFree(&record);
+}
+
+/** Varp defs: one per varp the band states a server field for, with the client
+ *  record's `clientcode`. */
+static int
+load_varps_pack(struct RSCache_ServerPack* pack)
+{
+    struct ToriRSServerKindRecords records;
+    int failed = 0;
+    int bands = ToriRSServer_ServPackEachBand(pack, RSCACHE_DAT2_CONFIG_KIND_VARPLAYER,
+                                              varp_load_band, &failed);
+
+    if( bands < 0 || failed )
+        return -1;
+    if( !ToriRSServer_ServPackKindLoad(pack, RSCACHE_DAT2_CONFIG_KIND_VARPLAYER, &records) )
+        return -1;
+    for( int i = 0; i < g_varp_def_count; i++ )
+    {
+        for( int r = 0; r < records.count; r++ )
+        {
+            struct RSCache_Dat2ConfigVarplayer varp;
+
+            if( records.ids[r] != g_varp_defs[i].varp_id )
+                continue;
+            memset(&varp, 0, sizeof(varp));
+            RSCache_Dat2ConfigVarplayerDecodeInplace(&varp, records.files[r], (int)records.sizes[r]);
+            if( RSCache_PresenceHas(&varp.present, RSCACHE_VARP_FIELD_CLIENTCODE) )
+                g_varp_defs[i].clientcode = varp.clientcode;
+            break;
+        }
+    }
+    ToriRSServer_ServPackKindFree(&records);
+    return bands;
+}
+
+static void
+inv_load_band(
+    void* context,
+    int id,
+    const uint8_t* band,
+    uint32_t size)
+{
+    int* failed = (int*)context;
+    struct ToriRSServerShopDef* def = ToriRSServer_ShopDefBegin(id);
+    struct RSCache_BandRecord record;
+
+    if( !band_decode_whole("inv", &g_inv_fields, &record, def, band, size, id) )
+        (*failed)++;
+    RSCache_BandRecordFree(&record);
+}
+
+/** Shop definitions: one per inv the band states a server field for. The size
+ *  is the client record's, which the bank table reads from the same pack. */
+static int
+load_shops_pack(struct RSCache_ServerPack* pack)
+{
+    int failed = 0;
+    int bands;
+
+    ToriRSServer_ShopReset();
+    bands = ToriRSServer_ServPackEachBand(pack, RSCACHE_DAT2_CONFIG_KIND_INV, inv_load_band,
+                                          &failed);
+    return bands < 0 || failed ? -1 : bands;
+}
+
+static int
+content_fields_check(const struct RSCache_Register* fields)
+{
+    const struct ToriRSServerBandType* type = ToriRSServer_ServerTypeFor(fields->type);
+    int problems;
+
+    if( type && fields->band_count > 0 )
+        problems = ToriRSServer_ServerCheck(type, fields);
+    else
+        problems = RSCache_RegisterCheck(fields);
+    if( problems )
+        CONTENT_ERROR("fields/%s.ini: %d problem(s) in the field register or between it and "
+                      "this server's band bindings; see above\n",
+                      fields->type, problems);
+    return problems;
 }
 
 int
-ToriRSServer_ContentLoad(const char* dir)
+ToriRSServer_ContentLoad(
+    const char* dir,
+    struct RSCache_ServerPack* pack)
 {
     struct ContentRegister reg;
     char path[1024];
@@ -4724,7 +2672,16 @@ ToriRSServer_ContentLoad(const char* dir)
     ContentRegister_Load(&reg, dir);
     ContentFields_Load(&g_npc_fields, dir, "npc");
     ContentFields_Load(&g_loc_fields, dir, "loc");
-    g_client_key_overlays = 0;
+    ContentFields_Load(&g_obj_fields, dir, "obj");
+    ContentFields_Load(&g_varp_fields, dir, "varp");
+    ContentFields_Load(&g_inv_fields, dir, "inv");
+    ContentFields_Load(&g_dbtable_fields, dir, "dbtable");
+    g_band_register_problems = content_fields_check(&g_npc_fields) +
+                               content_fields_check(&g_loc_fields) +
+                               content_fields_check(&g_obj_fields) +
+                               content_fields_check(&g_varp_fields) +
+                               content_fields_check(&g_inv_fields) +
+                               content_fields_check(&g_dbtable_fields);
     if( ContentRegister_Validate(&reg) != 0 )
         CONTENT_ERROR("content.ini contradicts the gameval evidence; see above\n");
 
@@ -4851,79 +2808,35 @@ ToriRSServer_ContentLoad(const char* dir)
      * configs (each block starts from a copy of it). */
     init_defaults();
 
-    /* Before the configs: nothing under server/ reads a param type yet, but the
-     * ordering is the one that stays right when something does. */
-    {
-        int param_types = load_param_types(dir);
-
-        if( param_types )
-            fprintf(stderr, "torirsserver: %d param types from configs/all.param\n", param_types);
-    }
-
+    /*
+     * The config records: param types, enums, identity kits, varps and shops, all
+     * from the server pack (merged by cachepack from configs/ and server/scripts),
+     * never from config text. An obj's overlays and a struct's are in the pack's
+     * client records too (ToriRSServer_ObjInfoLoad, ToriRSServer_StructInfoLoad);
+     * an obj's skill requirements are its band (ToriRSServer_ContentLoadPack).
+     * Constants are not config records: the scripts' own `^name` table.
+     */
     snprintf(path, sizeof(path), "%s/server/scripts", dir);
-    /* Server `.param` overlays before configs that write `param=` rows, so
-     * defaults for ready_baseanim / slashattack_anim / … answer correctly. */
-    walk_configs(path, ".param", load_server_param_file);
-    /* Constants first: every other grammar may write `^name` where a number
-     * goes, and an unexpanded caret is a load error rather than a zero. */
     walk_configs(path, ".constant", load_constant_config);
-    walk_configs(path, ".enum", load_enum_config);
-    /* After `.param`: a value resolves through its param's declared type. The
-     * authored struct records, and any overlay rows on the cache's own --
-     * ToriRSServer_StructParam reads this table before the cache's. */
-    ToriRSServer_ParamTableFree(&g_struct_overlay);
-    walk_configs(path, ".struct", load_struct_config);
-    /* Once, after the last row: `_find` refuses an unsorted table. */
-    ToriRSServer_ParamTableSort(&g_struct_overlay);
-    if( g_struct_overlay.count )
-        fprintf(stderr, "torirsserver: %d struct param rows from server/scripts/**/*.struct\n",
-                g_struct_overlay.count);
-    /* Rank-0 enums after the server walk so an authored `.enum` of the same
-     * name keeps winning (ToriRSServer_ContentEnum returns the first match). */
     {
-        int enums = load_rank0_enums(dir);
+        int param_types = load_param_types_pack(pack);
+        int enums = load_enums_pack(pack);
+        int idks = load_idk_pack(pack);
+        int varps = load_varps_pack(pack);
+        int shops = load_shops_pack(pack);
 
-        if( enums )
-            fprintf(stderr, "torirsserver: %d enums from configs/all.enum\n", enums);
+        if( param_types < 0 || enums < 0 || idks < 0 || varps < 0 || shops < 0 )
+            CONTENT_ERROR("server pack %s: a config archive does not validate — rebuild it with "
+                          "`%s`\n",
+                          pack->dir, TORIRSSERVER_SERVPACK_FIX);
+        fprintf(stderr,
+                "torirsserver: from the server pack: %d param types, %d enums, %d idk body "
+                "parts, %d varp defs, %d shop defs\n",
+                param_types, enums, idks, varps, shops);
     }
-    /* After the packs are read (it sizes itself off `idk`'s name table) and
-     * before anything can run a script that says `setidkit`. */
-    {
-        int idks = load_idk_bodyparts(dir);
-
-        if( idks )
-            fprintf(stderr, "torirsserver: %d idk body parts from configs/all.idk\n", idks);
-    }
-    walk_configs(path, ".varp", load_varp_config);
-    /* `[default]` first, then the roster — see load_npc_default_config. */
-    walk_configs(path, ".npc", load_npc_default_config);
-    walk_configs(path, ".npc", load_npc_generated_config);
-    walk_configs(path, ".npc", load_npc_authored_config);
-    /* The roster is complete and nothing appends after this point
-     * (npc_def_find_mutable's only caller is load_npc_config), so give back
-     * the doubling headroom — the last grow leaves up to half the block
-     * empty. Before any World spawn caches a `npc->def` pointer, or the
-     * realloc would move the array out from under it. */
-    if( g_npc_def_count > 0 )
-    {
-        g_npc_defs = realloc(g_npc_defs, (size_t)g_npc_def_count * sizeof(*g_npc_defs));
-        assert(g_npc_defs);
-        g_npc_def_capacity = g_npc_def_count;
-    }
-    walk_configs(path, ".obj", load_obj_config);
-    walk_configs(path, ".loc", load_loc_config);
-    /* After .obj: a stockN= line names an obj and resolves it against
-     * configs/all.obj.compack, which load_obj_config's own walk does not
-     * populate but pack loading (before any of these walks) already has. */
-    ToriRSServer_ShopReset();
-    walk_configs(path, ".inv", load_inv_config);
-    if( ToriRSServer_ShopDefCount() )
-        fprintf(stderr, "torirsserver: %d shop definitions from server/scripts/**/*.inv\n",
-                ToriRSServer_ShopDefCount());
     /* After the configs: a spawn names an npc or an obj, and the name has to
      * resolve against the packs the loader has already read. */
     walk_configs(path, ".spawn", load_spawn_config);
-    resolve_loc_stages();
 
     snprintf(path, sizeof(path), "%s/maps", dir);
     load_maps(path);
@@ -4936,420 +2849,403 @@ ToriRSServer_ContentLoad(const char* dir)
 
         ToriRSServer_ObjRequireCounts(&requires_total, &requires_from_cache);
         fprintf(stderr,
-                "torirsserver: content loaded (%d symbols, %d constants, %d npc defs, %d loc defs, "
+                "torirsserver: content loaded (%d symbols, %d constants, "
                 "%d varp defs, %d equip reqs (%d from the cache), %d npc spawns, "
                 "%d obj spawns%s)\n",
-                symbols, g_constant_count, g_npc_def_count, g_loc_def_count, g_varp_def_count,
+                symbols, g_constant_count, g_varp_def_count,
                 requires_total, requires_from_cache, g_npc_spawn_count, g_obj_spawn_count,
                 g_errors ? ", WITH ERRORS" : "");
-        if( g_client_key_overlays )
-            fprintf(stderr,
-                    "torirsserver: %d config line(s) restate a field the client's own record "
-                    "carries — the cache already says it, so the overlay is inert\n",
-                    g_client_key_overlays);
     }
-    return g_npc_def_count;
+    return symbols;
 }
 
 /* ------------------------------------------------------------------ */
-/* The server band (server/pack)                                       */
+/* npc and loc definitions, from server/pack                           */
 /* ------------------------------------------------------------------ */
 
 /*
- * The band load path: verify everything, then apply, or apply nothing.
+ * The server half of an npc or loc record is its band in `server/pack`, and
+ * nothing else: no `.npc` or `.loc` text is read at run time.
  *
- * The text pass above and `cachepack pack` read the *same* tree, so during
- * migration each is a full check on the other: every value a band archive
- * states must be the value the text parse loaded, and every band-registered
- * field the text moved off its seed must either be in the band or be a field
- * the band has no wire for (`huntmode=aggressive` is an engine enum name and
- * the band carries integers — `fields/npc.ini` documents which). The compare is
- * three-way against the *seed* — engine defaults, the `[default]` block, and
- * the cache params — because "the band omitted it" and "the band contradicts
- * it" are different failures: the first falls back a field, the second means
- * the pack on disk predates the tree and none of it can be trusted.
+ * A record's two halves come from one source. The client half — name, ops,
+ * category, params, size, the multinpc table — is the pack's client-record
+ * archive, decoded into `ToriRSServer_NpcInfo` / `ToriRSServer_LocInfo` by the
+ * same client codec a cache read uses (step 1 of the boot). The server half is
+ * the band beside it, applied here through the register bindings
+ * (`torirs_server_servercodec.c`). cachepack writes both from one merge of the
+ * whole tree, so the text-path derivations live in exactly two places now:
  *
- * Only after every archive of every type passes is the band decoded over the
- * live records, at which point the band — not the text — is what the engine
- * runs on. `ToriRSServer_BootLoad` logs which of the two happened.
+ *   - the BINDINGS, for what a stated field means to its own record
+ *     (`hitpoints` marks the block a combat block, `moverestrict=nomove`
+ *     collapses to `nomove`, `defaultmode` is stated even when it is 0, a
+ *     `patrol` list becomes the route), and
+ *   - the REGISTER, read here, for what a field means beyond its member: a
+ *     `text = param` field is also filed under its param id for `npc_param`,
+ *     exactly as a `param=` line was; a `param = <name>` loc field lands in the
+ *     loc param table `loc_param` reads.
+ *
+ * `[default]` is the type's own band at (192, config kind) and seeds every npc
+ * def exactly as the text block did: built-in numbers, the `[default]` band over
+ * them, the record's cache params over that, and the record's band last.
+ *
+ * Which ids get a def: every npc with a band archive (a record that states a
+ * server field and is named in `pack/npc.server`); every loc with a band archive
+ * or a category. An npc with no band reads `ToriRSServer_ContentNpcDefault()`,
+ * as one with no text block did.
  */
 
-/** Per-type glue the generic codec cannot carry: how to seed a record and how
- *  to reach the text pass's defs. One row per `ToriRSServer_ServerTypes()` entry —
- *  a registered type with no row here is reported at load, not skipped. */
-struct BandGlue
-{
-    const char* name;
-    /** idx number inside server/pack — the type's own config kind, the same
-     *  two coordinates the client cache uses. */
-    int group;
-    enum ToriRSServerPackKind pack_kind;
-    void (*seed)(void* record, int id);
-    /** 1 when `seed` actually sees the cache record for `id`. The npc seed
-     *  reads through `ToriRSServer_NpcInfo`, which hides nameless records behind a
-     *  placeholder — a band over one of those has nothing here to compare
-     *  against, and no def ever seeds from it either. */
-    int (*seed_sees_cache)(int id);
-    int (*def_count)(void);
-    void* (*def_at)(int index, int* out_id);
-};
-
-static void
-band_seed_npc(
-    void* record,
+/** A band that does not decode whole is not this build's to read: the pack was
+ *  written from a different register than the one this boot read. */
+static int
+band_decode_whole(
+    const char* type_name,
+    const struct RSCache_Register* fields,
+    struct RSCache_BandRecord* record,
+    void* object,
+    const uint8_t* band,
+    uint32_t size,
     int id)
 {
-    struct ToriRSServerNpcDef* def = (struct ToriRSServerNpcDef*)record;
+    const struct ToriRSServerBandType* type = ToriRSServer_ServerTypeFor(type_name);
+    int consumed;
 
-    npc_def_seed_from_cache(def, id);
-    /* The band registers only scalar fields, and this stack record is seeded
-     * once per archive — keep the deep-copied arrays and they leak, one pair
-     * per record compared. */
-    free(def->params);
-    def->params = NULL;
-    def->param_count = 0;
-    free(def->patrol);
-    def->patrol = NULL;
-    def->patrol_count = 0;
-}
-
-/** What load_loc_config starts a block from, exactly. */
-static void
-band_seed_loc(
-    void* record,
-    int id)
-{
-    struct ToriRSServerLocDef* def = (struct ToriRSServerLocDef*)record;
-
-    memset(def, 0, sizeof(*def));
-    def->loc_id = id;
-    def->symbol = ToriRSServer_ContentSymbolName(TORIRSSERVER_PACK_LOC, id);
-    def->next_loc_stage = -1;
-}
-
-static int
-band_npc_def_count(void)
-{
-    return g_npc_def_count;
-}
-
-static void*
-band_npc_def_at(
-    int index,
-    int* out_id)
-{
-    *out_id = g_npc_defs[index].npc_id;
-    return &g_npc_defs[index];
-}
-
-static int
-band_loc_def_count(void)
-{
-    return g_loc_def_count;
-}
-
-static void*
-band_loc_def_at(
-    int index,
-    int* out_id)
-{
-    *out_id = g_loc_defs[index].loc_id;
-    return &g_loc_defs[index];
-}
-
-/** The loc seed reads nothing from the cache, so nothing is hidden from it. */
-static int
-band_loc_seed_sees_cache(int id)
-{
-    (void)id;
-    return 1;
-}
-
-static const struct BandGlue k_band_glue[] = {
-    { "npc", RSCACHE_DAT2_CONFIG_KIND_NPC, TORIRSSERVER_PACK_NPC, band_seed_npc,
-      ToriRSServer_NpcInfoKnown, band_npc_def_count, band_npc_def_at },
-    { "loc", RSCACHE_DAT2_CONFIG_KIND_LOCS, TORIRSSERVER_PACK_LOC, band_seed_loc,
-      band_loc_seed_sees_cache, band_loc_def_count, band_loc_def_at },
-};
-
-#define BAND_GLUE_COUNT ((int)(sizeof(k_band_glue) / sizeof(k_band_glue[0])))
-
-/** Big enough for any registered record; checked against `record_size` before
- *  use so a new, larger type fails here rather than overruns. */
-union BandRecord
-{
-    struct ToriRSServerNpcDef npc;
-    struct ToriRSServerLocDef loc;
-};
-
-enum
-{
-    BAND_FIELD_MAX = 64,
-};
-
-/** The same offset read `torirs_server_servercodec.c`'s field_get does, restated
- *  because that one is rightly private: memcpy, not a cast, for the alignment
- *  reason documented there. */
-static int
-band_field(
-    const void* record,
-    const struct ServerField* field)
-{
-    int value;
-
-    memcpy(&value, (const char*)record + field->offset, sizeof(value));
-    return value;
+    assert(type);
+    RSCache_BandRecordReset(record);
+    consumed = ToriRSServer_ServerDecode(type, fields, record, object, band, (int)size);
+    if( consumed == (int)size )
+        return 1;
+    CONTENT_ERROR("server pack: %s %d: the band %s — rebuild the pack with `%s`\n", type_name, id,
+                  consumed < 0 ? "carries an opcode fields/<type>.ini does not declare"
+                               : "has bytes past its terminator",
+                  TORIRSSERVER_SERVPACK_FIX);
+    return 0;
 }
 
 /**
- * Hold one decoded record to the text parse, field by registered field.
- *
- * Returns the mismatches — band values that contradict the text. A field the
- * band merely *lacks* (decoded value still at the seed) goes into the per-field
- * `text_only` tally instead: the text value stands for it, and the tally is
- * what keeps that gap visible in the boot log rather than silent.
+ * File every stated `text = param` int field of an npc band under its param id —
+ * what `record_authored_param` did per `param=` line. A field whose name the param
+ * pack does not know is filed under no id, as before.
  */
+static void
+npc_record_band_params(
+    struct ToriRSServerNpcDef* def,
+    const struct RSCache_BandRecord* record,
+    const char* where)
+{
+    for( int i = 0; i < g_npc_fields.band_count; i++ )
+    {
+        const struct RSCache_RegisterField* field = &g_npc_fields.entries[i];
+
+        if( field->text != RSCACHE_REGISTER_TEXT_PARAM ||
+            !RSCache_PresenceHas(&record->present, i) )
+            continue;
+        if( field->wire == RSCACHE_REGISTER_WIRE_STRING || field->wire == RSCACHE_REGISTER_WIRE_LIST )
+            continue;
+        record_authored_param(def, field->name, record->values[i], where);
+    }
+}
+
+/** Decode one npc band over `def` and finish what the bindings cannot. */
 static int
-band_compare(
-    const struct ServerType* type,
-    const void* merged,
-    const void* text,
-    const void* seed,
+npc_apply_band(
+    struct ToriRSServerNpcDef* def,
+    const uint8_t* band,
+    uint32_t size,
     int id,
-    enum ToriRSServerPackKind pack_kind,
-    int* text_only)
+    const char* where)
 {
-    int mismatched = 0;
-    const char* symbol = NULL;
+    struct RSCache_BandRecord record;
+    int patrol = RSCache_BandIndex(&g_npc_fields, "patrol");
+    int ok = band_decode_whole("npc", &g_npc_fields, &record, def, band, size, id);
 
-    for( int i = 0; i < type->count; i++ )
+    if( ok )
     {
-        const struct ServerField* field = &type->fields[i];
-        int band_value = band_field(merged, field);
-        int text_value = band_field(text, field);
-
-        if( band_value == text_value )
-            continue;
-        if( band_value == band_field(seed, field) )
-        {
-            text_only[i]++;
-            continue;
-        }
-        /* Name lookup is a linear scan of a large pack namespace. Most band
-         * records match, so pay for the diagnostic spelling only when this
-         * record will actually print a diagnostic. */
-        if( !symbol )
-            symbol = ToriRSServer_ContentSymbolName(pack_kind, id);
-        fprintf(stderr,
-                "torirsserver: server band: %s [%s] %d: `%s` is %d in the band but %d from the text "
-                "overlays\n",
-                type->name, symbol ? symbol : "?", id, field->name, band_value, text_value);
-        mismatched++;
+        npc_record_band_params(def, &record, where);
+        if( patrol >= 0 && RSCache_PresenceHas(&record.present, patrol) && record.lists[patrol] &&
+            record.lists[patrol]->count > TORIRSSERVER_NPC_PATROL_MAX )
+            CONTENT_ERROR("%s: a patrol of %d waypoints; the route holds %d\n", where,
+                          record.lists[patrol]->count, TORIRSSERVER_NPC_PATROL_MAX);
     }
-    return mismatched;
+    RSCache_BandRecordFree(&record);
+    return ok;
 }
 
 static void
-band_verify_type(
-    struct ToriRSServerServPack* pack,
-    const struct BandGlue* glue,
-    const struct ServerType* type,
-    struct ToriRSServerBandReport* report,
-    int* text_only)
+npc_load_band(
+    void* context,
+    int id,
+    const uint8_t* band,
+    uint32_t size)
 {
-    uint8_t band[TORIRSSERVER_SERVPACK_BAND_MAX];
-    union BandRecord seed;
-    union BandRecord merged;
-    int entries = ToriRSServer_ServPackEntryCount(pack, glue->group);
+    int* failed = (int*)context;
+    struct ToriRSServerNpcDef* def;
+    char where[96];
 
-    /* Every archive the pack holds, whether or not the text authored a block
-     * for the record: a band over a record with no block must decode to
-     * exactly its seed, which is how a stale export shows up. */
-    for( int id = 0; id < entries; id++ )
-    {
-        int size = ToriRSServer_ServPackReadBand(pack, glue->group, id, band, sizeof(band));
-        const void* text;
-        int consumed;
-
-        if( size == TORIRSSERVER_SERVPACK_ABSENT )
-            continue;
-        if( size == TORIRSSERVER_SERVPACK_INVALID )
-        {
-            if( report->invalid++ < 8 )
-            {
-                const char* symbol = ToriRSServer_ContentSymbolName(glue->pack_kind, id);
-
-                fprintf(stderr,
-                        "torirsserver: server band: %s [%s] %d refuses to open — bad magic, "
-                        "version, kind or CRC\n",
-                        type->name, symbol ? symbol : "?", id);
-            }
-            continue;
-        }
-
-        glue->seed(&seed, id);
-        memcpy(&merged, &seed, type->record_size);
-        consumed = ToriRSServer_ServerDecode(type, &merged, band, size);
-        if( consumed != size )
-        {
-            /* The codec's short-read signal: an opcode this build does not
-             * know. A register that ran ahead of the C table, or a pack from a
-             * newer build — either way not this build's to decode. */
-            if( report->invalid++ < 8 )
-            {
-                const char* symbol = ToriRSServer_ContentSymbolName(glue->pack_kind, id);
-
-                fprintf(stderr,
-                        "torirsserver: server band: %s [%s] %d stops at byte %d of %d — an opcode "
-                        "this build does not know\n",
-                        type->name, symbol ? symbol : "?", id, consumed, size);
-            }
-            continue;
-        }
-
-        report->archives++;
-        text = NULL;
-        for( int i = 0; i < glue->def_count(); i++ )
-        {
-            int def_id;
-            void* def = glue->def_at(i, &def_id);
-
-            if( def_id == id )
-            {
-                text = def;
-                break;
-            }
-        }
-        if( text )
-            report->overlaid++;
-        else if( !glue->seed_sees_cache(id) )
-        {
-            /* No def, and the seed is blind to this record (a nameless multinpc
-             * instance, hidden behind the npcinfo placeholder). The band states
-             * what the tree states, but nothing on this side loads the record
-             * at all, so there is no value to hold it to — and never a def to
-             * apply it over. Counted, not compared. */
-            report->unseeded++;
-            continue;
-        }
-        report->mismatched += band_compare(type, &merged, text ? text : (const void*)&seed,
-                                           &seed, id, glue->pack_kind, text_only);
-    }
-
-    /* And the other direction: text defs the pack holds no archive for. Their
-     * band-registered fields must all still sit at the seed — or be fields the
-     * band has no wire for, which is the text_only tally again. */
-    for( int i = 0; i < glue->def_count(); i++ )
-    {
-        int id;
-        void* def = glue->def_at(i, &id);
-        int size;
-
-        size = ToriRSServer_ServPackReadBand(pack, glue->group, id, band, sizeof(band));
-        if( size != TORIRSSERVER_SERVPACK_ABSENT )
-            continue;
-        glue->seed(&seed, id);
-        report->mismatched +=
-            band_compare(type, &seed, def, &seed, id, glue->pack_kind, text_only);
-    }
+    g_npc_defs = grow(g_npc_defs, &g_npc_def_capacity, g_npc_def_count, sizeof(*g_npc_defs));
+    assert(g_npc_def_count < g_npc_def_capacity);
+    def = &g_npc_defs[g_npc_def_count++];
+    npc_def_seed_from_cache(def, id);
+    def->symbol = ToriRSServer_ContentSymbolName(TORIRSSERVER_PACK_NPC, id);
+    snprintf(where, sizeof(where), "server/pack npc %d (%s)", id, def->symbol ? def->symbol : "?");
+    if( !npc_apply_band(def, band, size, id, where) )
+        (*failed)++;
 }
 
-/** Decode every archive over its live def. Runs only after every type
- *  verified, so this is the preference switch and never a change of value. */
+static struct ToriRSServerLocDef*
+loc_def_add(int loc_id)
+{
+    struct ToriRSServerLocDef* def;
+
+    g_loc_defs = grow(g_loc_defs, &g_loc_def_capacity, g_loc_def_count, sizeof(*g_loc_defs));
+    assert(g_loc_def_count < g_loc_def_capacity);
+    def = &g_loc_defs[g_loc_def_count++];
+    memset(def, 0, sizeof(*def));
+    def->loc_id = loc_id;
+    def->symbol = ToriRSServer_ContentSymbolName(TORIRSSERVER_PACK_LOC, loc_id);
+    def->category = -1;
+    def->next_loc_stage = -1;
+    return def;
+}
+
 static void
-band_apply_type(
-    struct ToriRSServerServPack* pack,
-    const struct BandGlue* glue,
-    const struct ServerType* type)
+loc_load_band(
+    void* context,
+    int id,
+    const uint8_t* band,
+    uint32_t size)
 {
-    uint8_t band[TORIRSSERVER_SERVPACK_BAND_MAX];
+    int* failed = (int*)context;
+    struct ToriRSServerLocDef* def = loc_def_add(id);
+    struct RSCache_BandRecord record;
 
-    for( int i = 0; i < glue->def_count(); i++ )
+    if( !band_decode_whole("loc", &g_loc_fields, &record, def, band, size, id) )
     {
-        int id;
-        void* def = glue->def_at(i, &id);
-        int size = ToriRSServer_ServPackReadBand(pack, glue->group, id, band, sizeof(band));
-
-        if( size > 0 )
-        {
-            ToriRSServer_ServerDecode(type, def, band, size);
-            /* Packs that emit moverestrict=nomove without the collapsed nomove
-             * opcode still pin the mover. */
-            if( strcmp(type->name, "npc") == 0 )
-            {
-                struct ToriRSServerNpcDef* npc = (struct ToriRSServerNpcDef*)def;
-
-                if( npc->moverestrict == 5 )
-                    npc->nomove = 1;
-            }
-        }
+        (*failed)++;
+        RSCache_BandRecordFree(&record);
+        return;
     }
-}
-
-enum ToriRSServerBandStatus
-ToriRSServer_ContentLoadServerBand(
-    const char* dir,
-    struct ToriRSServerBandReport* report)
-{
-    struct ToriRSServerServPack pack;
-    int type_count = 0;
-    const struct ServerType* types = ToriRSServer_ServerTypes(&type_count);
-
-    memset(report, 0, sizeof(*report));
-    if( ToriRSServer_ServPackOpen(&pack, dir) != 0 )
-        return TORIRSSERVER_BAND_MISSING;
-
-    for( int t = 0; t < type_count; t++ )
+    /*
+     * Into the param table, so `loc_param(<name>)` answers what the band states.
+     * Which param a field is, is the register's `param = <name>`; which number
+     * that param is, is the param pack's — a script asking by name reaches the
+     * row this writes.
+     */
+    for( int i = 0; i < g_loc_fields.band_count; i++ )
     {
-        const struct ServerType* type = &types[t];
-        const struct BandGlue* glue = NULL;
-        int text_only[BAND_FIELD_MAX] = { 0 };
+        const struct RSCache_RegisterField* field = &g_loc_fields.entries[i];
+        int param_id;
 
-        for( int g = 0; g < BAND_GLUE_COUNT; g++ )
+        if( !field->param_name[0] || !RSCache_PresenceHas(&record.present, i) )
+            continue;
+        param_id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_PARAM, field->param_name);
+        if( param_id < 0 )
         {
-            if( strcmp(k_band_glue[g].name, type->name) == 0 )
-                glue = &k_band_glue[g];
-        }
-        if( !glue || type->count > BAND_FIELD_MAX || type->record_size > sizeof(union BandRecord) )
-        {
-            /* A type the codec registers that this loader cannot reach is a
-             * gap someone has to see, not a skip. */
-            CONTENT_ERROR("server band: type `%s` is registered but the boot has no glue "
-                          "for it\n",
-                          type->name);
+            CONTENT_ERROR("fields/loc.ini maps `%s` to param `%s`, which pack/param.pack does "
+                          "not name\n",
+                          field->name, field->param_name);
             continue;
         }
+        ToriRSServer_LocInfoParamOverlay(id, param_id, record.values[i]);
+    }
+    RSCache_BandRecordFree(&record);
+}
 
-        band_verify_type(&pack, glue, type, report, text_only);
+static void
+obj_load_band(
+    void* context,
+    int id,
+    const uint8_t* band,
+    uint32_t size)
+{
+    int* failed = (int*)context;
+    struct ToriRSServerObjBand obj;
+    struct RSCache_BandRecord record;
 
-        for( int i = 0; i < type->count; i++ )
+    memset(&obj, 0, sizeof(obj));
+    obj.obj_id = id;
+    if( !band_decode_whole("obj", &g_obj_fields, &record, &obj, band, size, id) )
+        (*failed)++;
+    RSCache_BandRecordFree(&record);
+}
+
+static void
+dbtable_load_band(
+    void* context,
+    int id,
+    const uint8_t* band,
+    uint32_t size)
+{
+    int* failed = (int*)context;
+    struct ToriRSServerDbTable* table = (struct ToriRSServerDbTable*)ToriRSServer_DbTable(id);
+    struct RSCache_BandRecord record;
+
+    if( !table )
+    {
+        CONTENT_ERROR("server pack: dbtable %d has a band and no record\n", id);
+        (*failed)++;
+        return;
+    }
+    if( !band_decode_whole("dbtable", &g_dbtable_fields, &record, table, band, size, id) )
+        (*failed)++;
+    RSCache_BandRecordFree(&record);
+}
+
+static int
+compare_loc_def(
+    const void* a,
+    const void* b)
+{
+    int left = ((const struct ToriRSServerLocDef*)a)->loc_id;
+    int right = ((const struct ToriRSServerLocDef*)b)->loc_id;
+
+    return left < right ? -1 : (left > right ? 1 : 0);
+}
+
+int
+ToriRSServer_ContentLoadPack(struct RSCache_ServerPack* pack)
+{
+    const int errors_before = g_errors;
+    int npc_failed = 0;
+    int loc_failed = 0;
+    int npc_bands;
+    int loc_bands;
+    int obj_failed = 0;
+    int obj_bands;
+    int categorised = 0;
+    int ops = 0;
+
+    assert(pack);
+    /* A register that disagrees with the bindings was a startup error at content
+     * load (content_fields_check); a band read under no contract is not read. */
+    if( g_band_register_problems )
+    {
+        fprintf(stderr, "torirsserver: server pack: refused — the field registers disagree with "
+                        "this server's band bindings (see the content errors above)\n");
+        return -1;
+    }
+
+    /* `[default]`: what every npc def starts from, and what an npc with no def
+     * reads. Over the built-in numbers init_defaults left. */
+    {
+        void* owned = NULL;
+        const uint8_t* band = NULL;
+        uint32_t size = 0;
+
+        if( !ToriRSServer_ServPackDefaults(pack, RSCACHE_DAT2_CONFIG_KIND_NPC, &owned, &band, &size) )
+            return -1;
+        if( !npc_apply_band(&g_npc_default, band, size, -1, "server/pack npc [default]") )
         {
-            if( !text_only[i] )
+            free(owned);
+            return -1;
+        }
+        free(owned);
+    }
+
+    npc_bands = ToriRSServer_ServPackEachBand(pack, RSCACHE_DAT2_CONFIG_KIND_NPC, npc_load_band,
+                                              &npc_failed);
+    if( npc_bands < 0 || npc_failed )
+        return -1;
+    /* The roster is complete and nothing appends after this point, so give back
+     * the doubling headroom — the last grow leaves up to half the block empty.
+     * Before any World spawn caches a `npc->def` pointer, or the realloc would
+     * move the array out from under it. */
+    if( g_npc_def_count > 0 )
+    {
+        g_npc_defs = realloc(g_npc_defs, (size_t)g_npc_def_count * sizeof(*g_npc_defs));
+        assert(g_npc_defs);
+        g_npc_def_capacity = g_npc_def_count;
+    }
+
+    loc_bands = ToriRSServer_ServPackEachBand(pack, RSCACHE_DAT2_CONFIG_KIND_LOCS, loc_load_band,
+                                              &loc_failed);
+    if( loc_bands < 0 || loc_failed )
+        return -1;
+
+    /* The db: tables and rows from their client records, then each table's
+     * column names from its band. */
+    {
+        int db_failed = 0;
+
+        if( ToriRSServer_DbLoadPack(pack) != 0 ||
+            ToriRSServer_ServPackEachBand(pack, RSCACHE_DAT2_CONFIG_KIND_DBTABLE,
+                                          dbtable_load_band, &db_failed) < 0 ||
+            db_failed )
+            return -1;
+    }
+
+    /* obj: only the server's half (skill requirements); the record itself is
+     * the pack's client record, decoded by ToriRSServer_ObjInfoLoad. */
+    obj_bands = ToriRSServer_ServPackEachBand(pack, RSCACHE_DAT2_CONFIG_KIND_OBJECT, obj_load_band,
+                                              &obj_failed);
+    if( obj_bands < 0 || obj_failed )
+        return -1;
+
+    /*
+     * The category half of a loc def. A loc's category is a client field and the
+     * pack's record carries the merged one (`ToriRSServer_LocInfo`), so this is
+     * a copy, not a second source: it is here because the def is what the door
+     * validator and `ToriRSServer_LocCategoryMembers` walk. Appended unsorted,
+     * sorted once below.
+     */
+    {
+        int banded = g_loc_def_count;
+
+        qsort(g_loc_defs, (size_t)g_loc_def_count, sizeof(*g_loc_defs), compare_loc_def);
+        for( int i = 0; i < ToriRSServer_LocInfoCategoryCount(); i++ )
+        {
+            int loc_id;
+            int category;
+            struct ToriRSServerLocDef* def;
+
+            ToriRSServer_LocInfoCategoryAt(i, &loc_id, &category);
+            /* Searched over the banded prefix only: it is sorted, and the
+             * category-only defs appended past it are not, until the sort
+             * below. Each loc id appears once in the category table, so an
+             * appended def is never looked for again. */
+            {
+                struct ToriRSServerLocDef key;
+
+                key.loc_id = loc_id;
+                def = banded > 0 ? (struct ToriRSServerLocDef*)bsearch(
+                                       &key, g_loc_defs, (size_t)banded, sizeof(*g_loc_defs),
+                                       compare_loc_def)
+                                 : NULL;
+            }
+            if( !def )
+                def = loc_def_add(loc_id);
+            def->category = category;
+            categorised++;
+        }
+        qsort(g_loc_defs, (size_t)g_loc_def_count, sizeof(*g_loc_defs), compare_loc_def);
+    }
+
+    /*
+     * The ops the server answers for, from the pack's records. `ToriRSServer_SceneLocOp`
+     * reads the scene's own cache record for anything not laid over it, so every op
+     * the pack states is laid over: the pack is the source, and `op3=hidden` (which
+     * no client cache states) is how a skilling loop resumes.
+     */
+    for( int i = 0; i < ToriRSServer_LocInfoOpCount(); i++ )
+    {
+        int loc_id = ToriRSServer_LocInfoOpLocAt(i);
+
+        for( int op = 1; op <= 5; op++ )
+        {
+            const char* text = ToriRSServer_LocInfoOp(loc_id, op);
+
+            if( !text )
                 continue;
-            report->text_only += text_only[i];
-            fprintf(stderr,
-                    "torirsserver: server band: %s.%s stays text-loaded on %d record(s) — the band "
-                    "has no wire for it\n",
-                    type->name, type->fields[i].name, text_only[i]);
+            ToriRSServer_SceneLocOpOverlay(loc_id, op, text);
+            ops++;
         }
     }
 
-    if( report->invalid || report->mismatched )
-    {
-        ToriRSServer_ServPackClose(&pack);
-        return TORIRSSERVER_BAND_STALE;
-    }
-
-    for( int t = 0; t < type_count; t++ )
-    {
-        for( int g = 0; g < BAND_GLUE_COUNT; g++ )
-        {
-            if( strcmp(k_band_glue[g].name, types[t].name) == 0 )
-                band_apply_type(&pack, &k_band_glue[g], &types[t]);
-        }
-    }
-    ToriRSServer_ServPackClose(&pack);
-    return TORIRSSERVER_BAND_LOADED;
+    fprintf(stderr,
+            "torirsserver: server pack: %d npc defs from %d band(s) over the [default] band, %d loc "
+            "defs (%d banded, %d categorised), %d loc op(s)%s\n",
+            g_npc_def_count, npc_bands, g_loc_def_count, loc_bands, categorised, ops,
+            g_errors != errors_before ? ", WITH ERRORS" : "");
+    return g_errors != errors_before ? -1 : 0;
 }
 
 void
@@ -5418,9 +3314,6 @@ ToriRSServer_ContentFree(void)
     g_constant_count = g_constant_capacity = 0;
     free(g_param_types);
     g_param_types = NULL;
-    free(g_param_kinds);
-    g_param_kinds = NULL;
-    g_param_kind_count = 0;
     g_param_type_count = 0;
 
     free(g_npc_spawns);

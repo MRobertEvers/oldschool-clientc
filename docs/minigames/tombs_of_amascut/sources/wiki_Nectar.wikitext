@@ -1,0 +1,182 @@
+{{Infobox Item
+|defver = 4
+|version1 = 1 dose
+|version2 = 2 dose
+|version3 = 3 dose
+|version4 = 4 dose
+|bucketname1 = (1)
+|bucketname2 = (2)
+|bucketname3 = (3)
+|bucketname4 = (4)
+|name1 = Nectar (1)
+|name2 = Nectar (2)
+|name3 = Nectar (3)
+|name4 = Nectar (4)
+|image1 = [[File:Nectar (1).png]]
+|image2 = [[File:Nectar (2).png]]
+|image3 = [[File:Nectar (3).png]]
+|image4 = [[File:Nectar (4).png]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = No
+|noteable = Yes
+|options = Drink, Drop
+|examine = Provides immediate healing at the cost of combat prowess.
+|value = 30
+|weight = 0.453
+|id1 = 27321
+|id2 = 27319
+|id3 = 27317
+|id4 = 27315
+}}
+{{Synced switch
+|version1 = [[File:Nectar (1) detail.png|left|140px]]
+|version2 = [[File:Nectar (2) detail.png|left|110px]]
+|version3 = [[File:Nectar (3) detail.png|left|110px]]
+|version4 = [[File:Nectar (4) detail.png|left|110px]]
+}}
+'''Nectar''' is an item that can be obtained from the [[Supplies (Tombs of Amascut)|supplies bag]] within the [[Tombs of Amascut]].
+
+Each dose of nectar temporarily raises [[Hitpoints]] by 15% + 3, and can boost a player's Hitpoints above their maximum Hitpoints level. It also temporarily lowers [[Attack]], [[Strength]], [[Defence]], [[Ranged]], and [[Magic]] by <math>\lfloor \frac{CurrentLevel}{20} + 5 \rfloor</math>.
+
+==Hitpoints per dose==
+Hitpoints restoration is calculated with: <math>\lfloor BaseLevel \times \frac{15}{100} \rfloor + 3</math>
+{| class="wikitable" style="text-align:center;"
+!{{SCP|Hitpoints}} Level
+!Boost
+!{{SCP|Hitpoints}} Level
+!Boost
+!{{SCP|Hitpoints}} Level
+!Boost
+|-
+|'''10-13'''||+4||'''40-46'''||+9||'''74-79'''||+14
+|-
+|'''14-19'''||+5||'''47-53'''||+10||'''80-86'''||+15
+|-
+|'''20-26'''||+6||'''54-59'''||+11||'''87-93'''||+16
+|-
+|'''27-33'''||+7||'''60-66'''||+12||'''94-99'''||+17
+|-
+|'''34-39'''||+8||'''67-73'''||+13|| ||
+|}
+
+===Stat drain by level===
+Attack/Strength/Defence/Ranged/Magic drain is calculated with: <math>\lfloor \frac{CurrentLevel}{20} + 5 \rfloor</math>.
+
+{| class="wikitable" style="text-align:center;"
+!{{SCP|Overall}} Level
+! Boost
+|-
+|'''1–19'''||-5
+|-
+|'''20–39'''||-6
+|-
+|'''40–59'''||-7
+|-
+|'''60–79'''||-8
+|-
+|'''80–99'''||-9
+|-
+|'''100–119'''||-10
+|-
+|'''120–125'''||-11 
+|}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 1 September 2022
+|update = Tombs of Amascut: Balancing & Bugfixes
+|change = 1-dose variants of nectar are now more visually distinct.
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{{Switch infobox
+|text1 = 1 dose
+|item1 =
+|text2 = 2 dose
+|item2 =
+|text3 = 3 dose
+|item3 =
+|text4 = 4 dose
+|item4 =
+}}
+{|style="text-align: center" cellpadding="15"
+|
+{{Synced switch
+|version1 = [[File:Nectar (1) detail (pre-release).png|center|300x150px]]
+|version2 = [[File:Nectar (2) detail (pre-release).png|center|300x150px]]
+|version3 = [[File:Nectar (3) detail (pre-release).png|center|300x150px]]
+|version4 = [[File:Nectar (4) detail (pre-release).png|center|300x150px]]
+}}
+|
+{{Synced switch
+|version1 = [[File:Nectar (1) detail v1.png|center|300x150px]]
+|version2 = [[File:Nectar (2) detail.png|center|300x150px]]
+|version3 = [[File:Nectar (3) detail.png|center|300x150px]]
+|version4 = [[File:Nectar (4) detail.png|center|300x150px]]
+}}
+|
+{{Synced switch
+|version1 = [[File:Nectar (1) detail.png|center|300x150px]]
+|version2 = [[File:Placeholder.png|center|link=]]
+|version3 = [[File:Placeholder.png|center|link=]]
+|version4 = [[File:Placeholder.png|center|link=]]
+}}
+|-
+|
+{{Synced switch
+|version1 = [[File:Nectar (1) (pre-release).png|center]]
+|version2 = [[File:Nectar (2) (pre-release).png|center]]
+|version3 = [[File:Nectar (3) (pre-release).png|center]]
+|version4 = [[File:Nectar (4) (pre-release).png|center]]
+}}
+|
+{{Synced switch
+|version1 = [[File:Nectar (1) v1.png|center]]
+|version2 = [[File:Nectar (2).png|center]]
+|version3 = [[File:Nectar (3).png|center]]
+|version4 = [[File:Nectar (4).png|center]]
+}}
+|
+{{Synced switch
+|version1 = [[File:Nectar (1).png|center]]
+|version2 = [[File:Placeholder.png|center|link=]]
+|version3 = [[File:Placeholder.png|center|link=]]
+|version4 = [[File:Placeholder.png|center|link=]]
+}}
+|-
+|
+{{Synced switch
+|version1 = Pre-release
+|version2 = Pre-release
+|version3 = Pre-release
+|version4 = Pre-release
+}}
+|
+{{Synced switch
+|version1 = 24 August 2022 –<br/>1 September 2022
+|version2 = 24 August 2022 –<br/>present
+|version3 = 24 August 2022 –<br/>present
+|version4 = 24 August 2022 –<br/>present
+}}
+|
+{{Synced switch
+|version1 = 1 September 2022 –<br/>present
+|version2 = [[File:Placeholder.png|center|link=]]
+|version3 = [[File:Placeholder.png|center|link=]]
+|version4 = [[File:Placeholder.png|center|link=]]
+}}
+|}
+
+==Trivia==
+* Similar to [[ambrosia]], {{wp|nectar}} ("[[wiktionary:νεκταρ|νεκταρ]]") is thought to be the fabled drink of eternal life in ancient Greek mythology. This is further reinforced by the game message when drinking it: "You drink some of the nectar. It hurts! This was not made for mortals."
+
+{{Tombs of Amascut}}
+[[Category:Temporary skill boost]]
+[[Category:Hitpoints boosting items]]

@@ -1,0 +1,129 @@
+{{Update|date=5 December 2019|link=https://secure.runescape.com/m=news/game-improvements-and-nightmare-beta-changes?oldschool=1|category=game}}
+[[File:Game Improvements and Nightmare Beta Changes newspost.png|right]]
+{{clear}}
+
+<center>''This week sees the release of some content from Poll #69, Boss HiScores, and changes to the Nightmare of Ashihama Rewards Beta.''</center>
+
+{{Horizontal Line}}
+
+{{Headline|22|Poll #69: Game Improvements}}
+
+
+We've made some changes to the game based on the results of Old School Poll #69. Nice.
+
+'''Mage Training Arena Shop Interface'''
+
+[[File:Game Improvements and Nightmare Beta Changes (1).png|center|450px]]
+
+
+The Elnock's Exchange interface has been updated. It now features better use of the space available and a confirmation button that reminds you what you’re purchasing.
+
+'''Puro-Puro Shop Interface'''
+
+[[File:Game Improvements and Nightmare Beta Changes (2).png|center|450px]]
+
+
+The Elnock's Exchange interface has been updated. It now features better use of the space available and a confirmation button that reminds you what you’re purchasing.
+
+'''Jewellery Box'''
+
+[[File:Game Improvements and Nightmare Beta Changes (3).png|center|150px]]
+
+
+You can now teleport to your previous destination by either right clicking or long pressing the jewellery box in the PoH.
+
+'''Voting from Account Management Tab'''
+
+[[File:Game Improvements and Nightmare Beta Changes (4).png|center|200px]]
+
+
+The Account Management tab has been updated to include a polling interface. This interface shows you when a poll is active, lets you view poll archives and lets you vote from anywhere in game. You can still use the poll booths across Gielinor if you prefer to vote the good old-fashioned way.
+
+{{Horizontal Line}}
+
+{{Headline|22|Boss HiScores}}
+
+[[File:Game Improvements and Nightmare Beta Changes (5).png|center|500px]]
+
+
+There is now an option to sort players by their kill count for various bosses on the [https://secure.runescape.com/m=hiscore_oldschool/overall HiScores page]. Players are ranked from highest kill count to lowest.
+
+
+{{Horizontal Line}}
+
+{{Headline|22|The Nightmare Reward Beta}}
+
+[[File:Game Improvements and Nightmare Beta Changes (6).png|center|200px]]
+
+
+The Nightmare of Ashihama Rewards Beta is still underway. To try out the potential rewards for yourself, simply log on to one of the Tournament Worlds.
+
+On these worlds, you spawn at Clan Wars with Tournament Chests nearby that contain various supplies and equipment – this time including rewards from The Nightmare boss. Tournament Worlds use a separate profile from your main account, so no progress is saved. Feel free to go anywhere in Old School to try out the new gear!
+
+Worlds 446, 464 and 477 are being used for this beta. Once the beta closes, these worlds will be turned off.
+
+Here are the changes we've made today:
+*Some new animations have been added to the Inquisitor's Mace
+*Some new animations have been added to all variations of the Nightmare Staff
+*All staff variants now have a Hitpoints requirement of 50 to wield
+*The Volatile Nightmare Staff's special attack cost has been increased to 55%. This is to make it harder to combo with other 50% special attack weapons
+*The Magic attack on the Siren's Tome has been lowered from +25 to +15
+*The Magic defence on the Siren's Tome has been lowered from +20 to +15
+*The Magic attack on the Inquisitor's Great Helm has been lowered from +0 to -5
+*The Magic attack on the Inquisitor's Hauberk has been lowered from +3 to -11
+*The Magic attack on the Inquisitor's Plateskirt has been lowered from +1 to -9
+*Siren's Tome must now be created by attaching a Siren's Charm to a Mage's Book
+
+Here are the changes we've made earlier in the week:
+*The slash, stab, crush and ranged values on the Siren's Tome have been lowered from +0 to -10
+*The Magic damage % on the Siren's Tome has been lowered from +10% to +4%
+*The Volatile Orb and Eldritch Orb special attack no longer have a projectile. Instead they will always hit the enemy two ticks after casting - this attack is subject to accuracy checks
+*The base damage for both the Volatile Orb and Eldritch Orb special attacks now scales with the player’s Magic level
+**The max hit of the Volatile Orb special attack is now capped at 58 before Magic damage bonuses
+**The max hit of the Eldritch Orb special attack is now capped at 44 before Magic damage bonuses
+
+We'd also at some stage like to add an animation on the target the tick before the special attack hits. This will help when an opposing player is casting the special attack at long distance.
+
+You can read more about the Nightmare of Ashihama Rewards Beta [https://secure.runescape.com/m=news/ashihama-rewards-beta-and-sire-changes?oldschool=1 here].
+
+{{Horizontal Line}}
+
+{{Headline|22|Twisted League Rankings & Claim Points}}
+
+[[File:Game Improvements and Nightmare Beta Changes (7).png|center|450px]]
+
+
+League Points will now be claimed automatically upon task completion. As a result, we've removed the Claim Points button on the League Tasks interface.
+
+Here are the points thresholds for each rank in the Twisted League as of the time of this update:
+*Dragon: '''9,900'''
+*Rune: '''6,520'''
+*Adamant: '''3,440'''
+*Mithril: '''1,570'''
+*Steel: '''540'''
+*Iron: '''100'''
+*Bronze: '''10'''
+
+{{Horizontal Line}}
+
+{{Headline|22|In Other News}}
+
+
+*The tap-to-drop option for mobile users will be toggled off if the player logs out for more than a few minutes, so that players are less likely to drop their stuff by mistake when they return
+*Teleport cards for The Chronicle can now be traded on the Grand Exchange
+*A floating black square has been removed from the sky in Lovakengj
+*The TzHaar-Ket-Om (t), tormented bracelet (or) and berserker necklace (or) can now drop their kits when a PKer kills their owner
+*The Mort'ton black chests with purple locks were previously not actually black – they now are
+*The Phoenix necklace now gives a more visible message when it heals you
+*Fixed an issue where the Teleblock spell had recently started to erroneously block player-owned house portals and similar teleports
+*Lizardman shamans will no longer discriminate against players who picked Xeric's Resilience in the Twisted League and will now properly deal 0 damage with their acid splash if the player has full Shayzien tier 5 armour
+*Links to Old School websites in the Account Management tabs and on the welcome screen are no longer displayed when playing on iOS devices
+
+
+Stay tuned next week for the Christmas Holiday Event developed by our newest junior content developer, Mod Oasis! We'd also like to take this time to remind you that during the holiday break updates will be paused. We aim to release the rest of the content from Poll #69 in January.
+
+{{Horizontal Line}}
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,613,66132737 official forums], the community-led [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], or the community-led [http://discord.gg/OSRS OSRS Discord] in the '''#gameupdate''' channel. For reference on the above content, check out the official [[Wiki]].
+
+'''''Mods Acorn, Archie, Ash, Bonsai, Bruno, Curse, Ed, Fed, Flippy, Gambit, Gee, Ghost, Husky, John C, Kieren, Kristy, Lenny, Lottie, Nasty, Oasis, Roq, Ry, Sween, Tide, Weath & West'''''<br/>''The Old School Team''

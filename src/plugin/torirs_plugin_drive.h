@@ -93,6 +93,11 @@ char const* DriveResultName(enum DriveResult result);
  *                                 the world index NPC_SPAWN carries)
  *                               b=seq id (-1 = the server stopped it)
  *                               c=server tick (world cycle / 30) it arrived
+ *   DRIVE_EVENT_NPC_FACE        a=npc SERVER slot  b=tile x  c=tile z
+ *                                 (absolute; the FACE_COORD op's wire
+ *                                 half-tiles halved, so a sized square
+ *                                 reads as its centre tile)
+ *                               d=server tick (world cycle / 30) it arrived
  *
  * The level of a tile payload rides in `c`'s high half nowhere: pass level in
  * `d` only where the table above says so.  If a kind needs a fifth number,
@@ -120,6 +125,7 @@ enum App_DriveEventKind
     DRIVE_EVENT_NPC_RETYPE,
     DRIVE_EVENT_INV_PACKET,
     DRIVE_EVENT_NPC_SEQ,
+    DRIVE_EVENT_NPC_FACE,
     DRIVE_EVENT_KIND_COUNT
 };
 
@@ -235,9 +241,80 @@ void PluginDrive_Shutdown(void);
  * The quest script the process was asked to run (TORIRS_QUEST_SCRIPT), or
  * NULL.  A run with no quest script still loads the driver plugin -- that is
  * the shape the load gate uses -- it simply never creates a thread.
- * Owner: core-scheduler.
+ *
+ * Always NULL in an on-demand client (PluginDrive_OnDemand below): there the
+ * script is the one api.drive.start named, and it is the driver's own state,
+ * not this process's -- so content_test.c never puts a watched client on the
+ * quest-mode virtual clock.  Owner: core-scheduler.
  */
 char const* PluginDrive_QuestScriptPath(void);
+
+/*
+ * ON DEMAND (raid seam23, script_start_on_demand): TORIRS_DRIVE_ON_DEMAND=1.
+ *
+ * A client a person launches and watches -- the Scripts tab
+ * (script/plugins/script_runner.lua) -- installs `api.drive` like a test run
+ * does, but nothing starts at world-ready: api.drive.start(path, session_dir)
+ * starts an already-wrapped script file (run.py's wrapper; the tab uses
+ * api.drive.play since seam24) on the next
+ * frame, api.drive.stop() ends it at its next yield, api.drive.status() reads
+ * where it is.  A finished or stopped script does NOT end the client
+ * (PluginDrive_Finished answers 0): the driver tears the coroutine down at the
+ * next frame boundary, reloads the quest-driver plugin (a fresh Lua state, so
+ * no per-script state of any part outlives its run), and is idle again.
+ *
+ * Without the knob every one of these is inert and every test run is what it
+ * was.  Read once.  Owner: core-scheduler.
+ */
+int PluginDrive_OnDemand(void);
+
+/*
+ * THE SCRIPTS TAB (raid seam24, scripts_tab_every_script), in the same
+ * on-demand client: api.drive.tests([refresh]) reads the scripts manifest
+ * (task_plugin_io.h TESTS_MANIFEST_DEFAULT_PATH, `[test:<id>]` sections) as a
+ * SCRIPT item through the IO layer, as the plugin host reads
+ * plugins/plugins.ini; api.drive.play({id, source, fixture, ...}) reads the
+ * test's source and fixture the same way -- again on every Play, which is the
+ * hot reload -- writes the fixture as the save of a fresh account and runs
+ * the RAW test file through QD.core_run_test (quest_driver/core.lua), which
+ * logs out, logs in as that account and does what run.py's wrapper does.
+ * api.drive.status gains play, id, suite, account, leg, legs, refusal.
+ * Without the knob both refuse. Owner: core-scheduler.
+ */
+
+/*
+ * Defined in torirs_plugin_lua.c beside PluginLua_ThreadCreate, declared here
+ * because the driver is its one caller: the same one-coroutine thread, whose
+ * bootstrap is `t.core_run_test(loader, options)` instead of
+ * `loader().run(t)` -- a raw test file has no wrapper to call. Resume it with
+ * (QD_ROOT, options): two arguments after the loader.
+ */
+struct lua_State* PluginLua_TestThreadCreate(
+    char const* plugin_name,
+    char const* chunk_name,
+    char const* source,
+    int source_len,
+    int* out_registry_ref);
+
+/*
+ * Once a frame from main.c, outside every plugin callback, ONLY in an
+ * on-demand client that is not also a content-test run.  `embed` is the
+ * in-process world (NetTransport_TestClock, fed by main.c with a clock that
+ * reproduces the transport's own) and `bus` the frame's command bus: the two
+ * handles content_test.c hands a test run's driver every frame.  Either may be
+ * NULL (a socket-server run has no embed).  Owner: core-scheduler.
+ */
+void PluginDrive_OnDemandHandOver(struct ToriRSServerEmbed* embed, struct ToriRS_CmdBus* bus);
+
+/*
+ * Once a frame from main.c in an on-demand client, outside every plugin
+ * callback: ends a stopped script (its ledger gets the `run.unfinished` row
+ * and SUMMARY an unfinished run's does), releases a finished one's coroutine
+ * and reloads the quest-driver plugin.  Reloading a plugin from inside a
+ * plugin's own callback is not a state the host supports, which is why this
+ * is main.c's call and not the pump's.  Owner: core-scheduler.
+ */
+void PluginDrive_FrameBoundary(void);
 
 /*
  * Does the driver want the content-test virtual clock stepped this frame?
@@ -291,6 +368,13 @@ void PluginDriveChat_RegisterLua(struct lua_State* L, void* script); /* verbs-ch
 void PluginDriveRead_RegisterLua(struct lua_State* L, void* script); /* verbs-read */
 void PluginDrivePointer_RegisterLua(struct lua_State* L, void* script); /* verbs-pointer */
 void PluginDriveUi_RegisterLua(struct lua_State* L, void* script); /* verbs-ui */
+/* waves seam los_and_pack: api.drive.server_los / server_npc_pack
+ * (torirs_plugin_drive_los.c, over torirs_server_los_query.c). */
+void PluginDriveLos_RegisterLua(struct lua_State* L, void* script);
+/* waves seam npc_record_reads: api.drive.npc_record / seq_length / npc_pose
+ * (torirs_plugin_drive_record.c): an npc type's client and server record, a
+ * sequence's length as the client steps it, an npc's movement track. */
+void PluginDriveRecord_RegisterLua(struct lua_State* L, void* script);
 
 /*
  * Shared Lua argument helpers, defined in torirs_plugin_drive.c so six files
@@ -356,8 +440,10 @@ int PluginDrive_PushResult(struct lua_State* L, enum DriveResult result, char co
  * rename, so a reader never sees a half-written verdict.
  *
  * PluginDrive_Finished() answers 0 until then; main.c must not test any other
- * driver state.  Owner: core-scheduler (the flag), core-events (the main.c
- * branch).
+ * driver state.  In an on-demand client (PluginDrive_OnDemand) it answers 0
+ * always: t.finish writes the SUMMARY and returns the driver to idle, and the
+ * client a person is watching stays up.  Owner: core-scheduler (the flag),
+ * core-events (the main.c branch).
  */
 void PluginDrive_Finish(int code);
 int PluginDrive_Finished(int* out_code);
@@ -389,6 +475,8 @@ enum DriveSymbolKind
     DRIVE_SYMBOL_VARBIT,
     DRIVE_SYMBOL_STAT,
     DRIVE_SYMBOL_INV,
+    /* waves seam npc_record_reads: t.seq.length takes a seq symbol. */
+    DRIVE_SYMBOL_SEQ,
     DRIVE_SYMBOL_KIND_COUNT
 };
 
@@ -852,6 +940,36 @@ enum DriveResult DriveUi_TabByName(struct App* app, char const* name, int* out_t
  *  boot and permanently wrong after the session's first dialogue. */
 enum DriveResult DriveUi_ModalLive(struct App* app, int* out_live);
 
+/**
+ * The open minimenu's rectangle, in canvas pixels -- the box
+ * UIMinimenu_HitOption tests its rows inside -- and, when `has_point`, what a
+ * press at (`point_x`, `point_y`) would do to it: `*out_hit` is
+ * UIMinimenu_HitOption's own answer (>= 0 the option index it would SELECT,
+ * the same index DrivePointer_MenuRows reports rows in; -1 swallowed by the
+ * title bar or the close margin; -2 outside: the menu closes).  -2 when no
+ * point is asked.  `*out_visible` 0 (and every other out untouched) when no
+ * menu is up.
+ *
+ * Why a driver needs it (raid seam4 npc_state_size_and_stale_menu): while a
+ * menu is up it owns the mouse, and a press of EITHER button on one of its
+ * rows SELECTS that row (uitree_interact.c interact_minimenu) -- so a press
+ * aimed at the world whose pixel falls on a row of a menu an earlier
+ * `covered` press left open takes THAT row, another copy's Attack among
+ * them.  The row centres DriveMenuRow carries cannot say where a row's band
+ * or the box's sides are; the client's hit test can.  Owner: verbs-ui.
+ */
+enum DriveResult DriveUi_MenuRect(
+    struct App* app,
+    int has_point,
+    int point_x,
+    int point_y,
+    int* out_visible,
+    int* out_x,
+    int* out_y,
+    int* out_width,
+    int* out_height,
+    int* out_hit);
+
 struct DriveNpcRow
 {
     int slot;
@@ -934,7 +1052,7 @@ struct DriveNpcRow
      *
      * `anim_id` / `anim_frame` are the primary (action) track as it is being
      * DRAWN -- -1 / 0 when no action seq plays (the idle and walk loops are
-     * the secondary track and are not reported). `spotanim_id` is the
+     * the secondary track: `pose_anim` below). `spotanim_id` is the
      * attached graphic being drawn, -1 when none or once its one loop ended.
      *
      * `seq_id` / `seq_tick` are the newest SEQUENCE op the server SENT and
@@ -948,6 +1066,14 @@ struct DriveNpcRow
      * `facing` is the wire face-entity the npc is locked onto: an npc slot
      * below 32768, 32768 + pid for a player, -1 for none
      * (WORLD_FACING_PLAYER_BASE).
+     *
+     * `face_x` / `face_z` / `face_tick` are the newest FACE_COORD op the
+     * server sent (`npc_facesquare`): the absolute tile the npc was turned
+     * to (the centre tile of a sized square) and the server tick it arrived
+     * on. -1 / -1 / -1 before the first one. They outlive the turn: the
+     * entity's own pending square (facing.square_x) is cleared the cycle the
+     * turn is consumed (WorldEntity_NPC.face_sent_x). A face-entity lock
+     * does not clear them; `facing` says whether one is held now.
      */
     int anim_id;
     int anim_frame;
@@ -957,6 +1083,57 @@ struct DriveNpcRow
     int spotanim_sent_id;
     int spotanim_tick;
     int facing;
+    int face_x;
+    int face_z;
+    int face_tick;
+    /**
+     * The npc's footprint in tiles (the npc config's `size`, 1 when the
+     * config states none), as the client entity holds it NOW: World_NpcSetType
+     * rewrites it on every transmog, so a boss that changes form (Xarpus's
+     * static form 3 -> fighting form 5) reads its new footprint the tick the
+     * client applies the new type.  `tile_x`/`tile_z` are the footprint's
+     * south-west corner, so the npc covers [tile_x, tile_x + size) x
+     * [tile_z, tile_z + size). (raid seam4 npc_state_size_and_stale_menu.)
+     */
+    int size;
+    /**
+     * The POSE the npc is drawing under (or instead of) the action track:
+     * the client's secondary / locomotion track (WorldEntity_NPC.animation.
+     * secondary), which world_cycle.c sets every cycle from the npc's own
+     * idle set -- the readyanim standing, a walk/run variant while a route is
+     * being walked (World_UpdateMoverMovementAndAnimation), the turnanim (or
+     * the walkanim when the type has none) while a standing npc turns
+     * (World_EntityFace). The server never sends these: a ready or walk loop
+     * has no SEQUENCE op, so `anim_id` above is -1 the whole time an npc
+     * stands or walks, and this is the only reading of what it plays.
+     *
+     * `pose_anim` / `pose_frame` are the track as drawn (-1 / -1 when the
+     * track is empty: an idle set whose readyanim is -1, or an entity that
+     * has not cycled yet). `pose_kind` names which slot of the npc's idle
+     * set `pose_anim` is: "ready", "walk", "walk_back", "walk_left",
+     * "walk_right", "run", "turn", "other" (a seq that matches no slot -- a
+     * retype left the old pose on the track for the cycle before the next
+     * pick) or "none". A standing npc is matched ready-first and a walking
+     * one walk-first, because many types reuse one seq for two slots.
+     *
+     * The track keeps stepping underneath an action seq; whether it SHOWS
+     * is the action seq's own business (its walkmerge / priority), so a row
+     * with `anim_id` >= 0 is not evidence the pose is visible.
+     *
+     * `ready_anim` / `walk_anim` / `turn_anim` / `run_anim` are the idle set
+     * the client resolved FOR THIS ENTITY now (WorldEntity_NPC.
+     * idle_animations): World_NpcSetType rewrites them on every retype and
+     * the BAS-change mask on NPC_INFO overrides single slots, so after
+     * npc_changetype they are the new type's -- unlike a cache lookup of the
+     * symbol, which answers the old type forever. -1 = the slot is empty.
+     */
+    int pose_anim;
+    int pose_frame;
+    char const* pose_kind; /* a string literal; never NULL in a filled row */
+    int ready_anim;
+    int walk_anim;
+    int turn_anim;
+    int run_anim;
 };
 
 struct DriveLocRow
@@ -986,6 +1163,34 @@ struct DriveLocRow
      *  same tile -- the row carried no shape before, and a shape-blind count
      *  of locs cannot. */
     int shape;
+    /**
+     * The sequence the client is PLAYING on this loc's scene element now
+     * (ToriDraw_SceneElement.anim_seq_id / anim_frame), and -1 / -1 when it
+     * draws static. One reading for both ways a loc animates: a map-placed
+     * loc whose record carries an anim (bound at scene build,
+     * world_scenery.u.c scenery_load_animation) and a LOC_ANIM the server
+     * sent (app_world_apply_seq). A seq that is still loading reads -1 --
+     * the element is not drawing it yet -- and a one-shot loc anim reads -1
+     * again once it has run out (a DynamicObject drops its seq, it does not
+     * hold the last frame unless the seq's frameStep says so).
+     */
+    int seq;
+    int seq_frame;
+    /**
+     * The looping area sound the client REGISTERED for this placement
+     * (world->area_sounds: the emitter list the scene builder gathers from
+     * the placed loc's resolved record, map-placed and server-placed alike,
+     * and that the audio layer turns into looping voices). Matched on the
+     * placement's tile and its id (base or resolved multiloc child).
+     * `ambient_sound` is the continuous sound id, `ambient_range` the
+     * inaudible distance in tiles, `ambient_inner` the full-volume radius,
+     * `ambient_random` how many random alternatives the emitter also plays.
+     * All -1 (ambient_random 0) when the client registered nothing for it.
+     */
+    int ambient_sound;
+    int ambient_range;
+    int ambient_inner;
+    int ambient_random;
 };
 
 struct DriveObjRow
@@ -1013,6 +1218,13 @@ struct DriveSpotanimRow
     int active;
     int cycles_left;
     int element_id;
+    /** The sequence the client is playing for this graphic on its scene
+     *  element (anim_seq_id / anim_frame; the spotanimtype's own seq, bound
+     *  by app_world_apply_seq at spawn and looped, anim_loop). -1 / -1 while
+     *  the seq is still loading or the record names none: what the element
+     *  draws, not what the record says. */
+    int seq;
+    int seq_frame;
 };
 
 /**
@@ -1036,6 +1248,10 @@ struct DriveProjectileRow
     int launched;
     int cycles_left;
     int element_id;
+    /** As DriveSpotanimRow.seq / seq_frame: the projectile graphic's own
+     *  sequence as its scene element plays it, -1 / -1 when none is bound. */
+    int seq;
+    int seq_frame;
 };
 
 /** Pool walks in the shape of content_test.c's npc_json / scenery_json,
@@ -1045,6 +1261,33 @@ enum DriveResult DriveUi_Npcs(
     struct App* app, int radius, struct DriveNpcRow* out, int cap, int* out_count);
 enum DriveResult DriveUi_Locs(
     struct App* app, int radius, struct DriveLocRow* out, int cap, int* out_count);
+/**
+ * Every placed copy of ONE loc id in the loaded scene (the root worldview's
+ * scenery pool -- the same pool DriveUi_Locs walks, so map-placed and
+ * server-placed locs alike), nearest first, filtered on the id BEFORE the
+ * nearest-K window rather than after it.
+ *
+ * Why it is not DriveUi_Locs plus a filter (raid seam11
+ * ticklog_raw_damage_and_loc_count): the Verzik room's map places
+ * `tob_dungeon_verzik_death_cage` 32717 twenty-four times (m49_67.jl2:255-278)
+ * and the AV spec counts them. DriveUi_Locs keeps the nearest 8192 rows of
+ * every id; a scene with more scenery than that drops the far copies without
+ * saying so, and a count read off its rows is a lower bound that looks like a
+ * count. Here only the matching rows are sorted, and `*out_total` is every
+ * match inside `radius` even when more than `cap` matched, so a caller can
+ * tell "24" from "the first 24 of more".
+ *
+ * `loc_id` is the PLACED id (DriveLocRow.loc_id: for a multiloc, the
+ * wrapper the map names). `radius` <= 0 means the whole scene. Rows carry
+ * everything a DriveUi_Locs row does.
+ */
+enum DriveResult DriveUi_LocCopies(struct App* app,
+                                   int loc_id,
+                                   int radius,
+                                   struct DriveLocRow* out,
+                                   int cap,
+                                   int* out_count,
+                                   int* out_total);
 enum DriveResult DriveUi_Objs(
     struct App* app, int radius, struct DriveObjRow* out, int cap, int* out_count);
 /** Every map graphic and every projectile, nearest first like the readers
@@ -1107,7 +1350,8 @@ enum DriveResult DriveCore_Cheat(struct App* app, char const* text);
 enum DriveResult DriveCore_Settled(struct App* app, int* out_settled);
 
 /** The session directory (TORIRS_CONTENT_TEST) every artefact lands under:
- *  ledger.tsv, shots/NN-name.png, result. */
+ *  ledger.tsv, shots/NN-name.png, result.  In an on-demand client it is the
+ *  directory the last api.drive.start named, or NULL before the first. */
 char const* DriveCore_SessionDir(void);
 
 /*
@@ -1145,7 +1389,7 @@ struct ToriRS_CmdBus* PluginDriveCore_CmdBus(void);
  * sets `active`, so that whole branch is dead there, and a world frame with
  * nothing else marking need_redraw (no animation, no camera drift) can go
  * an unbounded number of logic frames without ever rendering again --
- * measured B0 spike: exactly one render at boot, then app->world_pickset
+ * measured B0 spike: exactly one render at boot, then app->frame_view->world_pickset
  * frozen at that one frame's contents for the rest of the run. Forcing a
  * draw while this is true gives a level-await's next poll a current frame
  * to read, the same way `hover_requested` does for the mailbox. An

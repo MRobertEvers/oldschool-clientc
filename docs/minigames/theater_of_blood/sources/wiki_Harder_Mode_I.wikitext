@@ -1,0 +1,24 @@
+{{Infobox Combat Achievement
+|name = Harder Mode I
+|image = [[File:Sotetseg.png|290px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Defeat Sotetseg in the Theatre of Blood: Hard Mode without anyone sharing the ball with anyone, without anyone dying, and without anyone taking damage from any of its other attacks or stepping on the wrong tile in the maze.
+|tier = Grandmaster
+|monster = Theatre of Blood: Hard Mode
+|type = Perfection
+|id = 375
+|leagueRegion = Morytania
+}}
+'''Harder Mode I''' is a [[Combat Achievements/Grandmaster|grandmaster combat achievement]] which requires the player to defeat [[Sotetseg]] in [[Theatre of Blood: Hard Mode|hard mode]], without taking any damage from its attacks, sharing the large red ball damage, stepping on the wrong tile in the maze, and dying.
+
+==Strategy==
+Pray according to Sotetseg's attacks and keep [[Protect from Melee]] on until a projectile requires the player to swap prayers. This achievement basically mirrors [[Perfect Sotetseg]] in normal mode, with the addition of needing to tick eat the large balls. Players targeted by the large balls must [[Tick manipulation|tick eat]] them as sharing them will disqualify the team from the achievement. It is possible to dodge the damage from these balls if the team manages to phase Sotetseg before they can damage them. 
+
+The maze works similarly as in normal mode, but it will be divided among the players sent into the realm; this shouldn't be a problem for anyone however with proper coordination.
+
+==Other tasks==
+{{Combat Achievements list|Theatre of Blood: Hard Mode}}
+
+{{Combat Achievements}}

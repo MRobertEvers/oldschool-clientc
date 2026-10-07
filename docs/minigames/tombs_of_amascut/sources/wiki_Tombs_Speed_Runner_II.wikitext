@@ -1,0 +1,37 @@
+{{Infobox Combat Achievement
+|name = Tombs Speed Runner II
+|image = [[File:Tombs of Amascut - Nexus room.png|300px]]
+|release = [[30 November]] [[2022]]
+|update = The Garden of Death & More
+|members = Yes
+|description = Complete the Tombs of Amascut (expert) within 20 mins at any group size.
+|tier = Grandmaster
+|monster = Tombs of Amascut: Expert Mode
+|type = Speed
+|id = 422
+|leagueRegion = Desert
+}}
+'''Tombs Speed Runner II''' is a [[Combat Achievements/Grandmaster|grandmaster combat achievement]] which requires the player to complete the [[Tombs of Amascut]] raid within 20 minutes, with any group size, at level 300 or above.
+
+This task is usually not done directly, instead, at the same time as [[Tombs Speed Runner III]], as completing that task will satisfy this task. However, with strong enough gear and experience, this task can be easily completed on its own at a 300 raid level.
+
+* Hit 300 raid level while <u>not</u> using any path invocations, <u>do</u> use a 25 minute timer and hardcore. 
+** Avoid Medic, More Overlords, and Double Trouble, as they significantly slow the raid down.
+
+* Use [[Thrall|thralls]]. [[Spellbook Swap|Spellbook swapping]] can be useful but is not necessary in max. Every path boss and Wardens' P2 can be venged.
+* Bring a pickaxe and an empty slot to avoid inventory management issues.
+* Use [[liquid adrenaline]], [[Death Charge|death charge]], and a [[surge potion]] to constantly use [[burning claws]], [[zaryte crossbow]], or [[voidwaker]] special attacks.
+** Death charge baba baboons if they are in a good spot (they are 1 ticked), pre-death charge kephri (swarms, overlords), and pre-death charge Akkha (shadows).
+** P2 Core can be death charged during the first down, it can only be death charged during the final down if you kill it on the last hit.
+
+* Swarm both of Kephri's phases.
+* Butterfly Akkha to ensure he stays in melee. If you do not have a ZCB, spec shadows with your melee spec as you transition quadrants.
+** If on lunars, pre-vengeance. When Akkha is low hp(~around 150 health if shadowing), tank an off prayer, cast vengeance, and tank another off prayer.
+* Two down P2 via [[dragon dagger]] special attacks.
+
+* Kill skulls during P3, attack from melee range.
+
+==Other tasks==
+{{Combat Achievements list|Tombs of Amascut: Expert Mode}}
+
+{{Combat Achievements}}

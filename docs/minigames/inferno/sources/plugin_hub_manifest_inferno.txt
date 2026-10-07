@@ -1,0 +1,36 @@
+# Plugin-hub manifest entries for the Inferno plugins (runelite/plugin-hub, plugins/<name>), fetched 2026-10-03 via the GitHub contents API
+== plugins/inferno-2d-map
+repository=https://github.com/TheRealGuru/inferno-2d-map.git
+commit=463b31a2989d49d5b310f39fe7f3d01c70999db4
+== plugins/inferno-autosplitter
+repository=https://github.com/molgoatkirby/InfernoAutoSplitter.git
+commit=f7c351b9f36baf210aeef3034bc6155177a326b9
+== plugins/inferno-blob-audio
+repository=https://github.com/Deagsly/Blobs.git
+commit=257d7026fb702f51cbee2a284cfc521fba3158c5
+
+== plugins/inferno-scouter
+repository=https://github.com/jeremiah855/inferno-scouter.git
+commit=ff025377ea34d01c30d3bace220b9b14e359cfcb
+== plugins/inferno-splits-logger
+repository=https://github.com/Magnusrn/inferno-splits-logger.git
+commit=57c84041506f4a70d5ab43cf1920b6b9185be095
+disabled=unmaintained== plugins/inferno-stats
+repository=https://github.com/InfernoStats/InfernoStats.git
+commit=0efd7441d0a33486bbf2f13fd54cea846f426ee8
+== plugins/inferno-tracker
+repository=https://github.com/evaan/InfernoTracker.git
+commit=85c8f5ca939623a13bda4bdaf8f6b653c05ed848
+== plugins/inferno-wave-splits
+repository=https://github.com/usa-usa-usa-usa/inferno-wave-splits.git
+commit=5e0265350ff0d7420440965cf0b666f2cf4ebcf5== plugins/infernalfc
+repository=https://github.com/Rickboy26/Infernal.git
+commit=ff5e7b971c8591967b4bb05e72bd12a9c007adfa
+warning=This plugin submits your world, region, and IP address to a 3rd party server not controlled or verified by the RuneLite Developers.
+disabled=unmaintained
+== plugins/set-timer
+repository=https://github.com/InfernoStats/SetTimer.git
+commit=45a47eb32763087006459e43e865975fdace68fe
+== plugins/tzhaar-hp-tracker
+repository=https://github.com/bopsec/buchus-plugins.git
+commit=464672cf74f767febb8762296fc93cf250d3605a

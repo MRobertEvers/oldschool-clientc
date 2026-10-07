@@ -1,0 +1,78 @@
+mechanic_id	scope	note
+reward_pool_and_cash_out.table.w02.g1	stat	statistical: a sample of rolls against the table, not one solo test; the table rows themselves are one data read
+reward_pool_and_cash_out.table.w03.g1	stat	statistical: a sample of rolls against the table, not one solo test; the table rows themselves are one data read
+reward_pool_and_cash_out.table.w03.g2	stat	statistical: a sample of rolls against the table, not one solo test; the table rows themselves are one data read
+reward_pool_and_cash_out.table.w04.g1	stat	statistical: a sample of rolls against the table, not one solo test; the table rows themselves are one data read
+reward_pool_and_cash_out.table.w04.g2	stat	statistical: a sample of rolls against the table, not one solo test; the table rows themselves are one data read
+reward_pool_and_cash_out.table.w05.g1	stat	statistical: a sample of rolls against the table, not one solo test; the table rows themselves are one data read
+reward_pool_and_cash_out.table.w06.g1	stat	statistical: a sample of rolls against the table, not one solo test; the table rows themselves are one data read
+reward_pool_and_cash_out.table.w07.g1	stat	statistical: a sample of rolls against the table, not one solo test; the table rows themselves are one data read
+reward_pool_and_cash_out.table.w07.g2	stat	statistical: a sample of rolls against the table, not one solo test; the table rows themselves are one data read
+reward_pool_and_cash_out.table.w08.g1	stat	statistical: a sample of rolls against the table, not one solo test; the table rows themselves are one data read
+reward_pool_and_cash_out.table.w08.g2	stat	statistical: a sample of rolls against the table, not one solo test; the table rows themselves are one data read
+reward_pool_and_cash_out.table.w09.g1	stat	statistical: a sample of rolls against the table, not one solo test; the table rows themselves are one data read
+reward_pool_and_cash_out.table.w09.g2	stat	statistical: a sample of rolls against the table, not one solo test; the table rows themselves are one data read
+reward_pool_and_cash_out.table.w10.g1	stat	statistical: a sample of rolls against the table, not one solo test; the table rows themselves are one data read
+reward_pool_and_cash_out.table.w10.g2	stat	statistical: a sample of rolls against the table, not one solo test; the table rows themselves are one data read
+reward_pool_and_cash_out.table.w11.g1	stat	statistical: a sample of rolls against the table, not one solo test; the table rows themselves are one data read
+reward_pool_and_cash_out.table.w11.g2	stat	statistical: a sample of rolls against the table, not one solo test; the table rows themselves are one data read
+reward_pool_and_cash_out.table.w12.g1	stat	statistical: a sample of rolls against the table, not one solo test; the table rows themselves are one data read
+reward_pool_and_cash_out.table.w12.g2	stat	statistical: a sample of rolls against the table, not one solo test; the table rows themselves are one data read
+reward_pool_and_cash_out.pool.reward_waves	all	one solo test, a cache read, or an unmeasured open row (grade E)
+reward_pool_and_cash_out.pool.rolls_per_wave	stat	statistical: a sample of rolls against the table, not one solo test; the table rows themselves are one data read
+reward_pool_and_cash_out.pool.preview.concrete_inv	all	one solo test, a cache read, or an unmeasured open row (grade E)
+reward_pool_and_cash_out.pool.preview.slots	all	one solo test, a cache read, or an unmeasured open row (grade E)
+reward_pool_and_cash_out.pool.preview.late_pile	all	one solo test, a cache read, or an unmeasured open row (grade E)
+reward_pool_and_cash_out.pool.wave1.splinters	all	one solo test, a cache read, or an unmeasured open row (grade E)
+reward_pool_and_cash_out.pool.wave1.later_waves_raised	all	one solo test, a cache read, or an unmeasured open row (grade E)
+reward_pool_and_cash_out.pool.wave12.quiver	all	one solo test, a cache read, or an unmeasured open row (grade E)
+reward_pool_and_cash_out.pool.wave12.pet_chance	stat	statistical: a sample of rolls against the table, not one solo test; the table rows themselves are one data read
+reward_pool_and_cash_out.pool.wave12.pet_wave_label	all	one solo test, a cache read, or an unmeasured open row (grade E)
+reward_pool_and_cash_out.numbering.post_header	all	one solo test, a cache read, or an unmeasured open row (grade E)
+reward_pool_and_cash_out.numbering.chest_header	all	one solo test, a cache read, or an unmeasured open row (grade E)
+reward_pool_and_cash_out.numbering.offset	all	one solo test, a cache read, or an unmeasured open row (grade E)
+reward_pool_and_cash_out.unique.first_reward_wave	all	one solo test, a cache read, or an unmeasured open row (grade E)
+reward_pool_and_cash_out.unique.chance.reward_w04	stat	statistical: a sample of rolls against the table, not one solo test; the table rows themselves are one data read
+reward_pool_and_cash_out.unique.chance.reward_w05	stat	statistical: a sample of rolls against the table, not one solo test; the table rows themselves are one data read
+reward_pool_and_cash_out.unique.chance.reward_w06	stat	statistical: a sample of rolls against the table, not one solo test; the table rows themselves are one data read
+reward_pool_and_cash_out.unique.chance.reward_w07	stat	statistical: a sample of rolls against the table, not one solo test; the table rows themselves are one data read
+reward_pool_and_cash_out.unique.chance.reward_w08	stat	statistical: a sample of rolls against the table, not one solo test; the table rows themselves are one data read
+reward_pool_and_cash_out.unique.chance.reward_w09	stat	statistical: a sample of rolls against the table, not one solo test; the table rows themselves are one data read
+reward_pool_and_cash_out.unique.chance.reward_w10	stat	statistical: a sample of rolls against the table, not one solo test; the table rows themselves are one data read
+reward_pool_and_cash_out.unique.chance.reward_w11	stat	statistical: a sample of rolls against the table, not one solo test; the table rows themselves are one data read
+reward_pool_and_cash_out.unique.chance.reward_w12	stat	statistical: a sample of rolls against the table, not one solo test; the table rows themselves are one data read
+reward_pool_and_cash_out.unique.chance.formula	all	one solo test, a cache read, or an unmeasured open row (grade E)
+reward_pool_and_cash_out.unique.chance.old_formula	all	one solo test, a cache read, or an unmeasured open row (grade E)
+reward_pool_and_cash_out.unique.replaces_normal	all	one solo test, a cache read, or an unmeasured open row (grade E)
+reward_pool_and_cash_out.unique.glory_independent	all	one solo test, a cache read, or an unmeasured open row (grade E)
+reward_pool_and_cash_out.unique.split.armour_sixteenths	stat	statistical: a sample of rolls against the table, not one solo test; the table rows themselves are one data read
+reward_pool_and_cash_out.unique.split.echo_sixteenths	stat	statistical: a sample of rolls against the table, not one solo test; the table rows themselves are one data read
+reward_pool_and_cash_out.unique.split.tonalztics_sixteenths	stat	statistical: a sample of rolls against the table, not one solo test; the table rows themselves are one data read
+reward_pool_and_cash_out.unique.split.waves4_6	stat	statistical: a sample of rolls against the table, not one solo test; the table rows themselves are one data read
+reward_pool_and_cash_out.unique.tonalztics.first_reward_wave	all	one solo test, a cache read, or an unmeasured open row (grade E)
+reward_pool_and_cash_out.unique.echo.multi	stat	statistical: a sample of rolls against the table, not one solo test; the table rows themselves are one data read
+reward_pool_and_cash_out.unique.echo.multi_split	all	one solo test, a cache read, or an unmeasured open row (grade E)
+reward_pool_and_cash_out.unique.armour.pieces	all	one solo test, a cache read, or an unmeasured open row (grade E)
+reward_pool_and_cash_out.unique.armour.duplicate_rule	stat	statistical: a sample of rolls against the table, not one solo test; the table rows themselves are one data read
+reward_pool_and_cash_out.unique.armour.duplicate_state	all	one solo test, a cache read, or an unmeasured open row (grade E)
+reward_pool_and_cash_out.table.w03.token_varlamore	stat	statistical: a sample of rolls against the table, not one solo test; the table rows themselves are one data read
+reward_pool_and_cash_out.table.second_source	all	one solo test, a cache read, or an unmeasured open row (grade E)
+reward_pool_and_cash_out.table.expected_splinters	stat	statistical: a sample of rolls against the table, not one solo test; the table rows themselves are one data read
+reward_pool_and_cash_out.cashout.between_waves_only	all	one solo test, a cache read, or an unmeasured open row (grade E)
+reward_pool_and_cash_out.cashout.choice_count	all	one solo test, a cache read, or an unmeasured open row (grade E)
+reward_pool_and_cash_out.cashout.forfeit	all	one solo test, a cache read, or an unmeasured open row (grade E)
+reward_pool_and_cash_out.cashout.leave.before_wave1	all	one solo test, a cache read, or an unmeasured open row (grade E)
+reward_pool_and_cash_out.cashout.leave.after_wave1	all	one solo test, a cache read, or an unmeasured open row (grade E)
+reward_pool_and_cash_out.cashout.stats_restored	all	one solo test, a cache read, or an unmeasured open row (grade E)
+reward_pool_and_cash_out.cashout.chest.spawn	all	one solo test, a cache read, or an unmeasured open row (grade E)
+reward_pool_and_cash_out.cashout.chest.tile_and_tick	all	one solo test, a cache read, or an unmeasured open row (grade E)
+reward_pool_and_cash_out.cashout.chest.loc	all	one solo test, a cache read, or an unmeasured open row (grade E)
+reward_pool_and_cash_out.cashout.chest.model	all	one solo test, a cache read, or an unmeasured open row (grade E)
+reward_pool_and_cash_out.cashout.chest.spawn_anim	all	one solo test, a cache read, or an unmeasured open row (grade E)
+reward_pool_and_cash_out.cashout.chest.interfaces	all	one solo test, a cache read, or an unmeasured open row (grade E)
+reward_pool_and_cash_out.cashout.reward_interface	all	one solo test, a cache read, or an unmeasured open row (grade E)
+reward_pool_and_cash_out.cashout.gp_varps	all	one solo test, a cache read, or an unmeasured open row (grade E)
+reward_pool_and_cash_out.cashout.loot_opened_varbit	all	one solo test, a cache read, or an unmeasured open row (grade E)
+reward_pool_and_cash_out.cashout.broadcast	all	one solo test, a cache read, or an unmeasured open row (grade E)
+reward_pool_and_cash_out.cashout.broadcast_threshold	all	one solo test, a cache read, or an unmeasured open row (grade E)
+reward_pool_and_cash_out.cashout.claim_from_chest	all	one solo test, a cache read, or an unmeasured open row (grade E)

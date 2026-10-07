@@ -1,0 +1,56 @@
+{{Infobox Item
+|name = Cache of runes
+|image = [[File:Cache of runes.png]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Open, Drop
+|examine = An intricate casket engraved with images of blood, soul and death runes.
+|value = 100
+|weight = 0.489
+|id = 27293
+|leagueRegion = Desert
+}}
+[[File:Cache of runes detail.png|left|120px]]
+'''Caches of runes''' can be obtained from the [[Chest (Tombs of Amascut)|reward chest]] within the [[Tombs of Amascut]]. It can be opened to receive runes. Based on the value of the runes, the value of the cache can range from {{NoCoins|{{Min|{{GEP|Death rune|500}}|{{GEP|Blood rune|500}}|{{GEP|Soul rune|500}}}}|c}} to {{NoCoins|{{Max|{{GEP|Death rune|3000}}|{{GEP|Blood rune|3000}}|{{GEP|Soul rune|3000}}}}|c}} each. 
+
+==Rewards==
+Raid factors such as raid level or contribution points have no effect on the roll, thus all cache rolls use the probabilities as described below. The average quantity of runes is 1,125.
+
+{{Average drop value|mobname=cache of runes|killname=}}
+
+{{DropsTableHead|leagueRegion=Desert}}
+{{DropsLineReward|name=Death rune|quantity=500-1000|rarity=6/30}}
+{{DropsLineReward|name=Blood rune|quantity=500-1000|rarity=6/30}}
+{{DropsLineReward|name=Soul rune|quantity=500-1000|rarity=6/30}}
+{{DropsLineReward|name=Death rune|quantity=1000-1500|rarity=3/30}}
+{{DropsLineReward|name=Blood rune|quantity=1000-1500|rarity=3/30}}
+{{DropsLineReward|name=Soul rune|quantity=1000-1500|rarity=3/30}}
+{{DropsLineReward|name=Death rune|quantity=3000|rarity=1/30}}
+{{DropsLineReward|name=Blood rune|quantity=3000|rarity=1/30}}
+{{DropsLineReward|name=Soul rune|quantity=3000|rarity=1/30}}
+{{DropsTableBottom}}
+
+==Item sources==
+{{Drop sources|Cache of runes}}
+
+==Change History==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change =
+* Cache of rune rewards modified:
+** Quantity of lower end of runes reduced to 500-1000 from 1000-1500.
+** Quantity of medium end of runes reduced to 1000-1500 from 1800-2400.
+** Quantity of higher end runes reduced from 2800-3600 to 3000.
+}}
+{{Subject changes footer}}
+
+{{Tombs of Amascut}}
+[[Category:Collection log items]]

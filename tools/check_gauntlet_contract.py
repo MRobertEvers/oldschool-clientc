@@ -8,6 +8,7 @@ import re
 from collections import deque
 from pathlib import Path
 
+import config_text
 
 ROOT = Path(__file__).resolve().parents[1]
 BASE = ROOT / "OSRS-Content/osrs239-content"
@@ -25,8 +26,8 @@ REWARDS = (GAUNTLET / "scripts/gauntlet_rewards.rs2").read_text()
 PROGRESS = (GAUNTLET / "scripts/gauntlet_progress.rs2").read_text()
 LOBBY = (GAUNTLET / "scripts/gauntlet_lobby.rs2").read_text()
 MAP_STATE = (GAUNTLET / "scripts/gauntlet_map_state.rs2").read_text()
-NPC_CONFIG = (GAUNTLET / "configs/gauntlet_monsters.npc").read_text()
-INV_CONFIG = (GAUNTLET / "configs/gauntlet.inv").read_text()
+NPC_CONFIG = config_text.read_text(GAUNTLET / "configs/gauntlet_monsters.npc")
+INV_CONFIG = config_text.read_text(GAUNTLET / "configs/gauntlet.inv")
 RECIPE_INTERFACE = (BASE / "interfaces/gauntlet_recipes.if").read_text()
 COSTUME_ROOM = (
     BASE / "server/scripts/skill_construction/scripts/poh_costume_room.rs2"
@@ -187,11 +188,19 @@ def check_content_contract() -> None:
         "anim(eyeglo_singing_bowl_human, 0);", "p_delay(1);",
     ):
         require(CRAFT, needle, "native recipe dispatch")
+    # The paddlefish pair eats on the shared consume timers (waves seam pass 4):
+    # paddlefish standard food, crystal paddlefish combo food with attack delay 2
+    # and eat delay 3 (wiki Template:Fast foods table, pinned at
+    # docs/minigames/inferno/sources/wiki/wiki_Template_Fast_foods_table.wikitext:509-518).
     for needle in (
-        "%varp6681_gauntlet_combo_tick ! map_clock", "%varp6681_gauntlet_combo_tick = map_clock;",
-        "%varp6682_gauntlet_eat_delay = add(map_clock, $delay);", "%varp5732_action_delay = %varp6682_gauntlet_eat_delay;",
+        "[opheld1,gauntlet_food]", "[opheld1,gauntlet_combo_food]", "[opheld1,gauntlet_combo_food_hm]",
+        "if (~consume_food_ready($combo) = false) {",
+        "def_int $attack_delay = 3;", "$attack_delay = 2;",
+        "~consume_food_taken(^eat_delay, $attack_delay, $combo);",
     ):
         require(CRAFT, needle, "crystal-paddlefish combo timing")
+    for gone in ("%varp6681_gauntlet_combo_tick = map_clock;", "%varp6682_gauntlet_eat_delay = add(map_clock"):
+        assert gone not in CRAFT, f"crystal-paddlefish combo timing: the Gauntlet-only eat timer {gone} is back"
     for npc in DATA["npc_roster"]:
         require(GATHER, f"[ai_queue3,{npc}]", f"{npc} death handler")
         require(GATHER, npc, f"{npc} spawn")

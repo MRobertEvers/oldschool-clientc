@@ -1,0 +1,486 @@
+{{Update|date=30 November 2022|rev=1 December 2022|url=https://secure.runescape.com/m=news/the-garden-of-death--more?oldschool=1|category=game}}
+[[File:The Garden of Death & More newspost.png|right]]
+{{clear|right}}
+''Following last week's downtime, this week’s update is a double feature! Enjoy!''
+
+__TOC__
+==Issues and Hotfixes==
+{| class="wikitable" style="text-align:center; width:665px;"
+!Last Updated
+!Issues Raised
+!Current Progress
+!Status
+|-
+|15:20 - December 1st
+|We've released a plethora of fixes for Tombs of Amascut Combat Achievements.
+|
+* Simultaneous completion & failure messages for 'Perfect Apmeken', 'Perfect Scabaras' & 'Perfect Crondis'
+* Simultaneous completion & failure messages for 'Perfect Apmeken', 'Perfect Scabaras' & 'Perfect Crondis'
+* Using potions would stop you from completing the 'But... Damage' task
+* Losing Prayer Points anywhere during the raid would fail the 'All Praise Zebak' task
+* 'I'm In A Rush' is failed when destroying one weakened boulder
+* Both 'I'm In A Rush' and 'No Skipping Allowed' were only completed in raids with a 300 or more Raid Level.
+* 'No Skipping Allowed' fail condition was swapped with 'I'm In A Rush', even when completing either one correctly.
+* 'Perfect Apmeken', 'Perfect Scabaras' & 'Perfect Crondis' could all be completed if players met the criteria but ran over the allowed time.
+|'''HOTFIXED'''
+|-
+|15:20 - December 1st
+|The kill count reduction rewards for the Hard and Elite Combat Achievements were not accurate to what was shown in the newspost.
+|This now gives you the correct reduction.
+|'''HOTFIXED'''
+|-
+|14:15 GMT - November 30th
+|We are seeing reports of some players experiencing issues using teleports from the Jewellery Box, mounted Skillcapes and Nexus Portal.
+|We've deployed a hotfix to resolve the issues surrounding the PoH teleports. We'll be keeping a close on any further reports.
+|'''FIXED'''
+|-
+|15:55 GMT - November 30th
+|We've received reports that charged items are losing all of their charges upon completing one action.
+|We have deployed hotfixes for several items that were affected by the issue causing charged items to consume all charges.
+
+Please let us know if you find any further issues related to charged items not working correctly.
+|'''FIXED'''
+|-
+|19:15 GMT - November 30th
+|We've various reports of issues found in the new Tombs of Amascut Combat Achievements, including achievements being completed by some members of a group but not everybody.
+|The team is currently investigating these issues. Achievements not being received by all team members could be due to the 10-second after starting rule we had implemented, meaning you'd need to be inside the main part of the room within 10 seconds of entering.
+
+We haven't made this very clear in-game so the team is looking into making this visible by adding it to the Overview section of the various Tombs of Amascut Combat Achievement pages.
+
+We've fixed a couple of issues regarding ToA Combat Achievements:
+* Being able to complete 'Akkhan't Do it' at Level 1 Akkha
+* Simultaneous completion & failure messages for 'Perfect Apmeken'
+* Completing 'You Are Not Prepared' without taking items from the Helpful Spirit
+* Using some Tier 75+ equipment still allowed 'But... Damage' completion
+|'''ONGOING'''
+|}
+
+==Changelog, November 30th==
+Some of you expressed interest in a condensed list of changes for when you’re short on time. So… we’ve made one!
+
+We’re still looking at other ways we could update our updates, so watch this space!
+
+{{Collapsed section|18|CLICK TO EXPAND - (Changelog, November 30th)}}
+'''The Garden of Death'''
+* Added a new quest called 'The Garden of Death' to the game.
+
+'''Improved Quest XP Rewards'''
+* XP Rewards (excluding Combat skills) from Master and Grandmaster level quests have been improved.
+* Players can retroactively receive this experience by talking to Perdu and a handful of other NPCs.
+
+'''Combat Achievements Expansion'''
+* Added Combat Achievements for Tombs of Amascut.
+* Added further rewards for all tiers of Combat Achievements as per the results of [https://secure.runescape.com/m=poll/oldschool/results?id=1650 this poll].
+
+'''Poison Dynamite'''
+* Added Poison Dynamite to the game.
+
+'''Poll 77 Changes'''
+* Players can now get back to Ape Atoll without accepting Daero's Training, after completing Monkey Madness I.
+* Clue Scroll drop rate boosts earned via Combat Achievements now correctly apply inside the Hallowed Sepulchre and for Chests within the Shades of Mort'ton minigame.
+* Iron players can now buy and sell ores at a fixed price from Ordan's Shop at the Blast Furnace, regardless of stock levels.
+* Players can now toggle their default Player-Owned House (POH) teleport to 'Building Mode' via the POH settings menu.
+* Added a setting to the Confirmations category, in the Warnings settings tab, to disable confirmation for Charter Ship payments.
+* Charlie the Tramp will now accept items sourced from anywhere.
+
+'''Other Game Changes'''
+* Prifddinas Agility Course portals are now highlighted on the C++ client.
+* Dragon Defenders are now prioritised higher for protection on death.
+* Soul Wars public games now only require two players per team to start on Fresh Start Worlds.
+* Players can now light fires near the Bank in Nex’s antechamber.
+* Shadow Spiders will no longer drain your Prayer if they’re not in combat with you.
+* On the Deadman world, PvP combat is now blocked in Tombs of Amascut raids.
+
+'''Mobile Client'''
+* We've released a final fix for the black screen issues some players have been experiencing.
+* However, we've deprecated support for OpenGL ES 2.0, meaning devices that don't support OpenGL ES 3+ will no longer work with the mobile client.
+
+'''Behind the Scenes'''
+* Tomorrow, we'll share further news regarding the 'Make Good' incentive from the recent outage.
+* Newspost regarding last week's service issues can be found [https://secure.runescape.com/m=news/a=97/recent-game-outages---nov-22--23?oldschool=1 here.]
+* Deployed fixes to improve game stability.
+* US West and Australia server maintenance planned for December 6th (10:30 - 13:30 GMT and 14:00 - 17:00 respectively) . US East server maintenance planned for January 2023.
+* Schedule subject to change.
+
+'''In Case You Missed It'''
+* The Mysterious Quest Boss rewards and Revenant Weapons poll closed yesterday, November 29th. You can view the results [https://secure.runescape.com/m=poll/oldschool/results?id=1652 here.]
+* The Winter Summit takes place at 20:00 GMT on December 10th.
+* We’re sponsoring EVScape’s $15,000 Battle Royale! Check out [https://youtu.be/uiaKV-4DxT8 the trailer here]
+{{Collapsed section end}}
+Still here? Read on for all the juicy details about everything listed above!
+
+==The Garden of Death==
+[[File:The Garden of Death & More (1).png|center|600px]]
+
+
+In our newest Twisted Tale, you’ll piece together a long-lost language and unravel the mystery of some ancient ruins. Welcome, adventurer, to The Garden of Death.
+
+This quest contains no dialogue and focuses solely on environmental storytelling, so make sure that you set aside some time and prepare to be fully immersed in the world around you!
+
+You’ll need 20 Farming to start the quest, and you can begin your investigation at the campsite south of the Lizardman Settlement in the Kebos Lowlands.
+
+[[File:The Garden of Death & More (2).png|thumb|center|600px|''The starting location of The Garden of Death.'']]
+
+==Improved Experience Rewards from Master & Grandmaster quests==
+That’s not all the questing news we have for you this week! Y’all ready for some improved XP rewards?
+
+You voted ''overwhelmingly'' in support of this, so we shan’t keep you waiting any longer. Here’s the full list of all the quests impacted, and details of where you early-bird adventurers can claim your extra XP.
+{|class=wikitable style="text-align:center;"
+!Quest
+!Tier
+!Old XP Reward
+!New XP Reward
+!Where to Claim + Additional Info
+|-
+|Beneath Cursed Sands
+|Master
+|20,000 Agility XP
+|50,000 Agility XP
+|[[Perdu#Locations|Perdu]], who can be found in several locations.
+|-
+|Desert Treasure
+|Master
+|20,000 Magic XP
+|20,000 Magic XP
+|Unchanged as it's Combat XP.
+|-
+|Dream Mentor
+|Master
+|15,000 Hitpoints XP
+10,000 Magic XP
+|15,000 Hitpoints XP
+10,000 Magic XP
+|Unchanged as it's Combat XP.
+|-
+|The Fremennik Exiles
+|Master
+|15,000 Slayer XP<br>
+15,000 Crafting XP<br>
+5,000 Runecraft XP
+|50,000 Slayer XP<br>
+50,000 Crafting XP<br>
+30,000 Runecraft XP
+|[[Perdu#Locations|Perdu]], who can be found in several locations.
+|-
+|Grim Tales
+|Master
+|14,000 Woodcutting XP<br>
+6,000 Agility XP<br>
+6,000 Thieving XP<br>
+5,000 Herblore XP<br>
+5,000 Hitpoints XP<br>
+4,000 Farming XP
+|60,000 Woodcutting XP<br>
+25,000 Agility XP<br>
+25,000 Thieving XP<br>
+15,000 Herblore XP<br>
+5,000 Hitpoints XP<br>
+10,000 Farming XP
+|[[Perdu#Locations|Perdu]], who can be found in several locations.
+Hitpoints is unchanged as it's a Combat skill.
+|-
+|Legends' Quest
+|Master
+|7,650 XP in four skills of choice.
+|30,000 XP in four skills of choice.
+|[[Radimus Erkle]] in the Legends' Guild.
+Choice is limited to Attack, Defence, Strength, Hitpoints, Prayer, Magic, Woodcutting, Crafting, Smithing, Herblore, Agility and Thieving.
+|-
+|Making Friends with My Arm
+|Master
+|10,000 Mining XP<br>
+10,000 Agility XP<br>
+5,000 Firemaking XP<br>
+2,000 Construction XP
+|50,000 Mining XP<br>
+50,000 Agility XP<br>
+40,000 Firemaking XP<br>
+10,000 Construction XP
+|[[Perdu#Locations|Perdu]], who can be found in several locations.
+|-
+|Monkey Madness I
+|Master
+|N/A
+|N/A
+|Quest gives no XP itself. Instead, XP can be gained post quest by talking to Daero. This XP won't be changed as it's combat XP.
+|-
+|Mourning's End Part I
+|Master
+|25,000 Thieving XP
+25,000 Hitpoints XP
+|40,000 Thieving XP
+25,000 Hitpoints XP
+|[[Perdu#Locations|Perdu]], who can be found in several locations.
+Hitpoints is unchanged as it's a Combat skill.
+|-
+|Mourning's End Part II
+|Master
+|20,000 Agility XP
+|60,000 Agility XP
+|[[Perdu#Locations|Perdu]], who can be found in several locations.
+|-
+|A Night at the Theatre
+|Master
+|3x 20,000 XP Lamps
+|4x 20,000 XP Lamps
+|The [[Mysterious Stranger]] outside the Theatre of Blood.
+Quest gives Lamps instead of XP.
+|-
+|Sins of the Father
+|Master
+|3x 15,000 XP Tomes
+|6x 15,000 XP Tomes
+|[[Ivan Strom]] in the Meiyerditch Myreque hideout. Have fun getting back there!
+Quest gives Tomes instead of XP.
+|-
+|Swan Song
+|Master
+|15,000 Magic XP<br>
+10,000 Prayer XP<br>
+10,000 Fishing XP
+|15,000 Magic XP<br>
+10,000 Prayer XP<br>
+50,000 Fishing XP
+|[[Perdu#Locations|Perdu]], who can be found in several locations.
+Magic and Prayer are unchanged as it's combat xp.
+|-
+|Dragon Slayer II
+|Grandmaster
+|25,000 Smithing XP<br>
+18,000 Mining XP<br>
+15,000 Agility XP<br>
+15,000 Thieving XP
+|80,000 Smithing XP<br>
+60,000 Mining XP<br>
+50,000 Agility XP<br>
+50,000 Thieving XP
+|[[Perdu#Locations|Perdu]], who can be found in several locations.
+|-
+|Monkey Madness II
+|Grandmaster
+|25,000 Slayer XP<br>
+20,000 Agility XP<br>
+15,000 Thieving XP<br>
+15,000 Hunter XP
+|80,000 Slayer XP<br>
+60,000 Agility XP<br>
+50,000 Thieving XP<br>
+50,000 Hunter XP
+|[[Perdu#Locations|Perdu]], who can be found in several locations.
+|-
+|Song of the Elves
+|Grandmaster
+|20,000 Agility XP<br>
+20,000 Construction XP<br>
+20,000 Farming XP<br>
+20,000 Herblore XP<br>
+20,000 Hunter XP<br>
+20,000 Mining XP<br>
+20,000 Smithing XP<br>
+20,000 Woodcutting XP
+|40,000 Agility XP<br>
+40,000 Construction XP<br>
+40,000 Farming XP<br>
+40,000 Herblore XP<br>
+40,000 Hunter XP<br>
+40,000 Mining XP<br>
+40,000 Smithing XP<br>
+40,000 Woodcutting XP
+|[[Perdu#Locations|Perdu]] , who can be found in several locations.
+|-
+|A Mysterious Quest...
+|Master
+|16,000 Agility XP<br>
+12,000 Thieving XP<br>
+8,000 Hunter XP
+|60,000 Agility XP<br>
+50,000 Thieving XP<br>
+40,000 Hunter XP
+|Unreleased
+|}
+
+As the table suggests, most of the XP you’re owed can be claimed from Perdu, although a few other NPCs are also getting in on the game.
+
+If for whatever reason you don’t want to be showered in XP the next time you speak with Perdu, you can politely decline and come back another time.
+
+Please do bear in mind that accepting XP from Perdu is an all or nothing decision – you won’t be able to pick and choose which rewards you get. If you’re keeping one of the impacted skills at a specific level, or holding off on getting a 99 until your friends are around to celebrate with you, we suggest giving Perdu a wide berth until you’re ready.
+
+On that note, we’ve opted not to increase Combat XP rewards retroactively. We don’t want to risk ruining restricted account builds with a single dialogue option, but neither do we want people to feel locked out of rewards that they’ve earned. Additionally, leaving Combat XP as it is allows restricted account players to enjoy all the same quests they’re used to.
+
+As a general rule, if you obtained the end-of-quest XP from a dialogue option, Tomes, or Lamps, you’ll have to go speak to the NPC who gave you those options instead of Perdu. We’ve linked the OSRS Wiki entries for all of them in the table above, so you can see exactly where they hang out and what they’ll give you.
+
+Lastly, as per your vote, the XP reward ranges given above are going to be the standard for future Master and Grandmaster quests. Hmm, looks like there’s a new one coming up soon! Perhaps you’ll learn more at the Winter Summit…?
+
+==Combat Achievements Rewards Expansion==
+[[File:The Garden of Death & More (3).png|center|600px]]
+
+
+Alongside all of the questing goodness above, you also voted for additional rewards for Combat Achievements. In case that particular poll blog passed you by, here's a list of all of the rewards we’ve added:
+
+'''Easy'''
+* 100% bonus Warrior Tokens from the Warriors’ Guild.
+* Gain one additional Void Knight Commendation Point per game of Pest Control.
+* The upper limit for Boss Slayer tasks, unlocked with the ''Like A Boss'' perk, is increased from 35 to 40.
+
+'''Medium'''
+* 200% bonus Warrior Tokens from the Warriors’ Guild. Note that these rewards are cumulative, meaning you'll have to complete both the Easy and Medium tiers for the 200% bonus listed here. This same rule applies to any other rewards that increase per tier.
+* Gain two additional Void Knight Commendation Points per game of Pest Control.
+* No longer affected by the Prayer drain effect at Barrows while Ghommal's Hilt is equipped.
+* Your cannon can hold up to 35 Cannonballs.
+* The upper limit for Boss Slayer tasks, unlocked with the ''Like A Boss'' perk, is increased from 35 to 45.
+
+'''Hard'''
+* Imbues at Nightmare Zone and Soul Wars cost 50% fewer points.
+* Gain three additional Void Knight Commendation Points per game of Pest Control.
+* Your cannon can hold up to 45 Cannonballs.
+* Kill Count required to access the bosses at God Wars Dungeon is reduced from 40 to 36.
+* The upper limit for Boss Slayer tasks, unlocked with the ''Like A Boss'' perk, is increased from 35 to 50.
+
+'''Elite'''
+* Bracelets of Slaughter now have a 10% chance to fully recharge instead of breaking.
+* Expeditious Bracelets now have a 10% chance to fully recharge instead of breaking.
+* Superior Slayer monster spawn rates are increased to 1 in 150.
+* Your cannon can hold up to 60 Cannonballs.
+* Kill Count required to access the bosses at God Wars Dungeon is reduced from 40 to 30.
+* The upper limit for Boss Slayer tasks, unlocked with the ''Like A Boss'' perk, is increased from 35 to 55.
+
+'''Master'''
+* Thralls resurrected via Arceuus spells last 50% longer.
+* Ghommal's Hilt 5 can now be combined with the Avernic Defender for a cosmetic upgrade.
+* Kill Count required to access the bosses at God Wars Dungeon is reduced from 40 to 25.
+* The upper limit for Boss Slayer tasks, unlocked with the ''Like A Boss'' perk, is increased from 35 to 60.
+* Unlocks a new ammo-slot item, Ghommal's Lucky Penny, which gives a 5% chance to not consume charges from items such as jewellery, off-hand equipment (e.g. Tome of Fire) or when worn with charged weaponry such as the Trident of the Seas or the Scythe of Vitur.
+
+'''Grandmaster'''
+* Thralls resurrected via Arceuus spells last 100% longer.
+* Ghommal's Hilt 6 can now be combined with the Avernic Defender for a cosmetic upgrade.
+* Kill Count required to access the bosses at God Wars Dungeon is reduced from 40 to 15.
+* The upper limit for Boss Slayer tasks, unlocked with the ''Like A Boss'' perk, is increased from 35 to 65.
+
+==Tombs of Amascut Combat Achievements==
+Speaking of Combat Achievements, we’ve added nearly 50 of them to Tombs of Amascut! Hooray!
+
+Now, we’re not going to list them all here – you’ve had your fill of tables for the day – so make sure to check them out in-game after the update.
+
+You’ll notice they’ve been added under three new ‘monsters’ – Entry Mode, Normal Mode, and Expert Mode. Completing a challenge at a higher difficulty than specified should unlock the relevant Combat Achievement regardless – so if you complete 50 Expert Mode Kill Count, it’ll count towards the Entry and Normal Mode Kill Count Achievements too.
+
+We’re excited to see you get stuck into Tombs of Amascut all over again, and hope you have loads of fun challenging yourselves with this new batch of Combat Achievements!
+
+==Poison Dynamite==
+Most of you will already be familiar with Poison Dynamite, which we first offered in Poll 76. For those of you who aren’t, Poison Dynamite is a new weapon which lets skilling pures secure kills (when necessary) without gaining Combat XP.
+
+Players can now use their Firemaking skill (at level 50 or above) to craft untradeable Poison Dynamite from one Dynamite and three Cave Nightshade.
+
+Once assembled, simply place the Poison Dynamite on the ground and light it as you would a pile of Logs to deal damage in a 3x3 area. For a more precise attack, you can also stick the Poison Dynamite to your target by using it on them. Using the Poison Dynamite in either fashion will net you a bit of Firemaking experience.
+
+[[File:The Garden of Death & More (4).gif|thumb|center|600px|''What is that mysterious fizzing noise...?'']]
+
+
+After 5 ticks (3 seconds), the Poison Dynamite will explode, dealing between 0-6 damage. This scales with your Firemaking level. If the explosion hits, there’s also a 25% chance to poison the target. Poison damage begins at 6.
+
+The Dynamite’s damage roll is based on your selected combat stance – so enemies weak to Ranged are more likely to take damage from the explosion if you’re holding a bow instead of a scimitar.
+
+The damage type is the same as your currently equipped weapon, too – so if you’re attacking an enemy that’s immune to a certain damage type, watch what you’re wielding!
+
+You can only deploy one piece of Poison Dynamite at a time (sensible…), and only one Poison Dynamite can be active on any given square. This means that multiple accounts are unable to stack their explosions on the same square.
+
+Additionally, you’ll only be able to hit a single target, even if a 3x3 explosion is in range of several NPCs.
+
+One final thing: the TzHaar have forbidden the lighting of Poison Dynamite within the Fight Caves. Scorching hot volcanic undercities are ''not'' the kind of place you want to leave this stuff lying around – and besides, it sets off Jad’s allergies.
+
+==Behind the Scenes==
+''Note: This section was originally written to be included in November 23rd's Game Update Newspost and doesn't include the service outage issues from Tuesday, November 22nd. If you'd like to learn more about those, check out [https://secure.runescape.com/m=news/a=97/recent-game-outages---nov-22--23?oldschool=1 this post.]''
+
+''UPDATE: We’d like to thank everyone for their patience following last week’s server outage. The team is still committed to delivering our ‘Make Good’ plan, and we’ll have more news to share tomorrow! Keep your eye on the newspost above for updates.''
+
+We recently had a period of extended downtime for UK and German worlds, which allowed us to perform some much-needed upgrades in the relevant data centres.
+
+Since this maintenance, we’ve seen loads of positive feedback about the server stability and latency for the affected worlds, leading players who frequent other data centres wondering ‘when’s our turn?’
+
+Well, we’ve got good news! We currently expect to upgrade the Australian and US West worlds before Christmas (only a month away now!) on '''December 6th'''. Maintenance will take place between '''10:30 - 13:30 GMT''' for the US West worlds and between '''14:00 - 17:00 GMT''' for the Australian worlds. This means that all worlds in that region will be unavailable during the alloted times.
+
+We are also looking to tackle the US East worlds in January 2023. Now, this ''is'' subject to change, but nevertheless, we hope to have more of you enjoying consistent and stable performance before long.
+
+This week’s update also comes with some ‘under the hood’ work to optimise the game’s performance and make it more stable. All this hard work means that you can enjoy existing and future content in the best way possible.
+
+==Mobile Client==
+Good news, everyone! Our ace mobile team have figured out a solution for the black screen issues players have been experiencing on mobile platforms.
+
+Unfortunately, in fixing the problem we’ve had to deprecate support for OpenGL ES 2.0, so devices that don’t support OpenGL ES 3 or higher will no longer work with the mobile client.
+
+If your device is not supported, you’ll still see the black screen for around 5-10 seconds before the game crashes. If your device is supported and you’re still experiencing the black screen issues or any other problems, please do send us a report.
+
+==Poll 77 Changes==
+[[File:The Garden of Death & More (5).png|center|600px]]
+
+
+* Players who have completed Monkey Madness I may now return to Ape Atoll to complete Monkey Madness II without accepting Daero’s training. They ''will'' have to complete both Duke and Daero’s training in order to use Heavy Ballistae. Please also note that Culinaromancer’s Gloves beyond Mithril-tier have their own Defence requirements, so 1 Defence accounts will still be unable to use the Adamant Gloves.
+* Clue Scroll drop rate boosts earned from Combat Achievements now apply to the Hallowed Sepulchre and Chests in the Shades of Mort’ton minigame.
+* Iron players may now buy and sell ores at a fixed price from Ordan’s Shop even while it's overstocked. However, they'll pay a static price for this rather than getting the discounts that a non-Iron player would for buying an overstocked item. Additionally, Ordan's shop now resets its contents towards the default stock (100) faster than before.
+* Players can now set their default Player-Owned House teleport to ‘Building Mode’ from the POH Settings. All the usual restrictions still apply, meaning this option won't work if there are already guests inside the POH or if the player has a follower.
+* Players can now disable confirmation messages for Charter Ship payments. To do so, open up the Settings Menu, navigate to Warnings and scroll down to Confirmations, where you’ll find the new toggle.
+* Charlie the Tramp has embraced the phrase ‘beggars can’t be choosers’ and will now allow players to bring him requested items acquired by any means. This means that players doing Beginner Clue Scrolls can fetch his favourite items direct from their own Bank, by trading other players, or buying from in-game shops, instead of having to craft the items themselves.
+
+==Other Changes==
+* Portals on the Prifddinas Agility course are now highlighted like any other obstacle for players using the C++ client.
+* Dragon Defenders were unusually easy to lose on death, considering how long they can take to re-obtain. We’ve bumped up their value, so they’re now prioritised higher for death protection purposes. Of course, there’s always the alternative solution: just don’t die!
+* Players can now light fires near the Bank in Nex’s antechamber. This should give UIM players an opportunity to rustle up some scran and extend their trips to this exciting locale.
+* Shadow Spiders will no longer drain the Prayer Points of innocent bystanders and will instead only use this ability on players they are in direct combat with.
+* You will now get full XP from helping your Throne of Miscellania citizens with Mining, Fishing, and Woodcutting.
+* You can now toggle off the confirmation screen which appears upon paying to protect your crops.
+* Fresh Start Worlds players can now start public Soul Wars lobbies with just two players per team, as opposed to the usual 10 players per team.
+* PvP combat is now blocked in Tombs of Amascut on Deadman worlds, as it is for the other raids. There’s enough danger in the tombs without your friends turning on you!
+* The RuneFest 2014 and 2017, plus the Premier Club 2018 cosmetic rewards are now unlocked by default for everyone, on all world types.
+
+==In Case You Missed It==
+This year’s Winter Summit is a little over two weeks away and will take place at 20:00 GMT on December 10th. It’s THE place to be for news about everything coming up in 2023, so don’t miss out!
+
+Don’t forget, if you tune in a little earlier you can catch [https://www.twitch.tv/evscape EVScape’s] Battle Royale where your favourite creators face-off for their chunk of a $15,000 prize pool. Get yourself in the competitive mood and check out this epic cinematic trailer by Golden Gnome Winner [https://twitter.com/Hooti_osrs Hooti Tooti]!
+
+And if that wasn’t thrilling enough, check out [https://www.youtube.com/@SoupRS Soup’s YouTube channel], where you can watch the first episode of Season 3 of the Gielinor Games! This is without a doubt the most important sporting event going on in the world right now, so do give it a look.
+
+==An Update On The Wilderness Boss Rework==
+[[File:The Garden of Death & More (6).png|center|600px]]
+
+
+Originally, we’d planned for this section to tease the Wilderness Boss Rework, scheduled for next week’s game update. Unfortunately, yesterday we made the difficult decision to delay the release until January 2023.
+
+We understand that you’re as excited as we are to get your hands on the reworked Wilderness bosses, and that this delay is disappointing. In the late stages of testing we discovered a number of significant issues that must be fixed before the content can launch. At any other time of year, this wouldn’t lead to a significant delay – but during December, we operate at reduced capacity, with many members of the team taking holiday to spend time with their family members at Christmas.
+
+We apologise to everyone who was anticipating this update, and hope you understand that we’d rather delay content so that it meets our strict standards than rush a release that falls short.
+
+==Next week in Old School==
+With the unfortunate news above, next week's update may not be as hefty as we imagined it might be but we want to commit to giving you all a small taste of what's to come (where possible) so that you're not caught off-guard and have some time to get excited about upcoming updates.
+
+This game update and the one before brought a large chunk of the Poll 77 changes to you all but if you're waiting on any in particular then it's likely you'll see additional Poll 77 changes making their way to you next week.
+
+On top of that, those of you who enjoy both Morytania and going fast can look forward to the full releases of A Taste of Hope and Sins of the Father on Quest Speedrunning worlds, as well as another batch of quests entering their betas so that we can fine-tune completion times!
+
+==Merch==
+Last week we shared some pictures of a fancy new ceramic 'Jolly Boar Inn' tankard and a Father Gnome Child Xmas jumper, two of the latest goodies to arrive at the [https://runescape.backstreetmerch.com/ Merch Store.]
+
+We also mentioned a handful of swanky tourist tees – so here they are, in case you’re still looking for the ideal gift for the globetrotting adventurer in your life!
+
+[[File:The Garden of Death & More (7).png|center|600px]]
+
+
+Check out all these new lines, plus the range of official pins and keyrings by the talented [https://twitter.com/AngelsScapes Angels Scapes.]
+
+==PvP World Rota==
+The PvP rota has moved to '''Period A''':
+* 539 - (US) - PvP World
+* 548 - (Germany) - High-Risk PvP World
+* 577 - (US) - Free-to-Play PvP World
+* 559 - (UK) - LMS Competitive
+
+World 390 (AUS) for LMS Competitive has been <b><u>activated</b></u> with this rota.
+
+The PvP Arena is using ''''Pure'''' loadouts in Ranked Duels and Tournaments this week.
+
+----
+
+You can also discuss this update on our [http://services.runescape.com/m=forum/forums?380,381,853,66267885 official forums], on the [https://www.reddit.com/r/2007scape/comments/z8odp2/the_garden_of_death_more/ 2007Scape subreddit], the [https://steamcommunity.com/app/1343370/discussions/ Steam forums], or the community-led [http://discord.gg/OSRS OSRS Discord] in the #gameupdate channel. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Arcane, Archie, Argo, Ash, Ayiza, Boko, Bruno, Chilly, Crystal, Curse, Daizong, Dylan, Ed, Elena, Errol, Fed, Gecko, Gizmo, Goblin, Grub, Halo, Havik, Hend, Hornet, Husky, Jalo, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Markos, Maylea, Meat, Moogle, Morty, Nin, Nylu, Other, Redfield, Regent, Roq, Ry, Sarnie, Shaun, Shroom, Sigma, Skylark, Soffan, Sova, Squid, Starry, Stevew, Surma, Tide, Torrance, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

@@ -1,0 +1,517 @@
+{{External|rs|rsc=Player owned houses}}
+{{Redirect|House|Baba Yaga's house|House (Berty)}}
+{{Otheruses|def=no|a list of all items and upgrades within the Construction skill|Construction/Level up table}}
+A '''player-owned house''' (often shortened to '''POH''') is the focus of the [[Construction]] skill. It can be bought from an [[estate agent]] for {{Coins|1000}}, or received for free upon completion of the [[miniquest]] [[Daddy's Home]]. Players' houses are located in [[Rimmington]] by default but can be moved to one of 8 different cities for a fee by talking to an [[estate agent]], if the required (unboostable) Construction level is met. Players can enter the house through [[Portal (Player-owned house)|house portals]], labelled on the [[world map]] as [[File:House portal icon.png]]. For a list of pros and cons on different locations consult the [[Portal (Player-owned house)|house portal]] page.
+
+Additionally, owning a house is required for the following:
+* Ability to use an [[experience lamp]] on the Construction skill<!--only tested this for [[lamp]] and [[Antique lamp (Client of Kourend)]], it is probably true for the level 30 and above requirement lamps as well-->
+* Ability to gain Construction experience from repairing [[Wintertodt]] [[brazier]]s, [[Tempoross]] [[totem pole]]s, Tempoross [[Mast (Tempoross)|masts]] and [[Vale Totems|Vale Totem poles]]
+
+{{Table/POH locations}}
+
+==House styles==
+{{Main|House styles}}
+Houses can be redecorated in different styles. This is a cosmetic change which affects the appearance of the ground, walls, and roofs of a house, but not the layout and features of the house. Redecoration can be done by speaking with any of the estate agents. There are multiple styles available to choose from, though they each require a certain Construction level, and most cost a fee between 5,000 and 35,000 coins. Some styles have additional special requirements.
+
+==Rooms==
+There are many different rooms that can be added to houses. The house a player buys will begin with a [[garden]] and [[parlour]], but more rooms can be added. Different rooms will require different Construction levels and will cost money. New rooms can be added by right-clicking the [[door hotspot]]s or using the [[Settings#House options|viewer]] while in [[building mode]].
+
+===Upper===
+{| class="wikitable align-left-3" style="text-align:center;"
+|-
+!{{SCP|Construction}} Level
+!colspan="2"|Room
+!Cost
+|-
+|1
+|{{plinkt|Parlour|pic=Parlour icon}}
+|{{Coins|1000}}
+|-
+|1
+|{{plinkt|Garden|pic=Garden icon}}
+|{{Coins|1000}}
+|-
+|5
+|{{plinkt|Kitchen|pic=Kitchen icon}}
+|{{Coins|5000}}
+|-
+|10
+|{{plinkt|Dining room|pic=Dining room icon}}
+|{{Coins|5000}}
+|-
+|15
+|{{plinkt|Workshop|pic=Workshop icon}}
+|{{Coins|10000}}
+|-
+|20
+|{{plinkt|Bedroom|pic=Bedroom icon}}
+|{{Coins|10000}}
+|-
+|25
+|{{plinkt|Hall (skill trophies)|pic=Hall (skill trophies) icon|txt=Skill hall}}
+|{{Coins|15000}}
+|-
+|27
+|{{plinkt|League hall|pic=League hall icon}}
+|{{Coins|15000}}
+|-
+|30
+|{{plinkt|Games room|pic=Games room icon}}
+|{{Coins|25000}}
+|-
+|32
+|{{plinkt|Combat room|pic=Combat room icon}}
+|{{Coins|25000}}
+|-
+|35
+|{{plinkt|Hall (quest trophies)|pic=Hall (quest trophies) icon|txt=Quest hall}}
+|{{Coins|25000}}
+|-
+|37
+|{{plinkt|Menagerie|pic=Menagerie icon}}
+|{{Coins|30000}}
+|-
+|40
+|{{plinkt|Study|pic=Study icon}}
+|{{Coins|50000}}
+|-
+|42
+|{{plinkt|Costume room|pic=Costume room icon}}
+|{{Coins|50000}}
+|-
+|45
+|{{plinkt|Chapel|pic=Chapel icon}}
+|{{Coins|50000}}
+|-
+|50
+|{{plinkt|Portal chamber|pic=Portal chamber icon}}
+|{{Coins|100000}}
+|-
+|55
+|{{plinkt|Formal garden|pic=Formal garden icon}}
+|{{Coins|75000}}
+|-
+|60
+|{{plinkt|Throne room|pic=Throne room icon}}
+|{{Coins|150000}}
+|-
+|65
+|{{plinkt|Superior garden|pic=Superior garden icon}}
+|{{Coins|75000}}
+|-
+|72
+|{{plinkt|Portal nexus|pic=Portal nexus icon}}
+|{{Coins|200000}}
+|-
+|80
+|{{plinkt|Achievement gallery|pic=Achievement gallery icon}}
+|{{Coins|200000}}
+|}
+
+===Basement===
+{| class="wikitable align-left-3" style="text-align:center;"
+|-
+!{{SCP|Construction}} Level
+!colspan="2"|Room
+!Cost
+|-
+|65
+|{{plinkt|Oubliette|pic=Oubliette icon}}
+|{{Coins|150000}}
+|-
+|70
+|{{plinkt|Dungeon (Construction)|txt=Dungeon|pic=Dungeon (Construction) icon}}
+|{{Coins|7500}}
+|-
+|75
+|{{plinkt|Treasure room|pic=Treasure room icon}}
+|{{Coins|250000}}
+|}
+
+==Building a house==
+[[File:House Options interface.png|thumb|The House Options interface can be used to toggle Building Mode]]
+The player's first house starts off with only a parlour and garden, but new rooms and furniture can be easily built.
+
+===Building mode===
+{{Main|Building mode}}
+In order to begin customising a house, a player must enter their house with '''building mode''' turned on. This can be done either by entering portal in building mode or by changing the building mode settings in house options of the Settings menu. Changing the setting in the Settings menu while not in a house, the player will automatically be in building mode the next time they cast [[Teleport to House]]. The player cannot drop items while in building mode and pets are not allowed. Building mode cannot be turned on while guests are in the house.
+
+===Adding new rooms===
+While in building mode, players will see white doors in the entryways of all their rooms. Right-clicking on these and selecting '''build''' will allow the player to see a menu of all the rooms that can be built attached to that door. The player will also see the level requirement and the price of the new room. When a room is selected, the player will see a ghost version of the new room and will be able to rotate the room to any desired rotation provided that the doorways line up. If a room is occupying the spot the player wants to build, they are given the option to remove it, unless it is a menagerie or costume room, where it is moved instead to that location for the building fee.
+
+===Removing rooms===
+A room can be removed in building mode by right-clicking the door to the room and selecting the '''build''' option. This brings up a prompt asking if you want to remove the room. You cannot remove a room on the {{FloorNumber|uk=0}} that is supporting another room on the {{FloorNumber|uk=1}}. This rule does not apply to dungeon rooms under the {{FloorNumber|uk=0}} rooms.
+
+It is advisable to remove all the built items in a room before removing the room. In most cases, nothing is gained by removing items, but in some cases items are recovered. For example, armour, swords, and capes that are part of a display can be recovered.
+
+===Moving rooms===
+Rooms can be moved using the House Viewer, which can be found within the house options in your settings tab.
+
+[[File:House viewer interface.png]]
+
+[[File:House Viewer button location.png|The location of the House Viewer button]]
+
+===Planning the layout===
+The most important point to consider when designing the layout is which rooms are placed next to the garden portal. For beginning players, the [[workshop]] or [[kitchen]] can be the best rooms next to the portal because they offer fast training methods such as building flatpacks or larders. [[Portal chamber]]s are very useful to place directly adjacent to the portal, since this allows quick and easy access to teleports for when players wish to use their house as a teleport hub. Another room that is often put near the portal is a [[chapel]], which will allow players to train and recharge prayer more quickly.
+
+Another important point to consider when building a house is which direction that rooms face. While this is not a huge concern for most rooms, some orientations can make moving through the house much faster. For example, normal staircases can be annoying if built facing the wrong direction unlike [[spiral staircase]]s, which can be accessed from any side. When a staircase is added to a skill hall, it will connect to the room above or below by default if and only if the room is facing the proper direction. This restriction is in effect for both normal staircases and, even though they do not have a "direction", spiral staircases. Another good example is the orientation of the [[exit portal]].
+
+===Room layout===
+The layout of a player-owned house can be changed for free at any time by entering building mode and using the 'Viewer' option in the [[Settings#House options|house options]] setting. These are all possible rooms, grouped by number of doors:
+
+{| class="wikitable" cellpadding="8" -
+!colspan=4|Single door
+|-
+|{{POH room|room=Portal chamber}}
+|{{POH room|room=Throne room}}
+|{{POH room|room=Costume room}}
+|{{POH room|room=Treasure room}}
+|}
+
+{| class="wikitable" cellpadding="8" -
+!colspan=4|Two doors (corner room)
+|-
+|{{POH room|room=Kitchen}}
+|{{POH room|room=Bedroom}}
+|{{POH room|room=Chapel}}
+|}
+
+{| class="wikitable" cellpadding="8" -
+!colspan=4|Two doors (hallway)
+|-
+|{{POH room|room=Workshop}}
+|{{POH room|room=Achievement gallery}}
+|{{POH room|room=Dungeon corridor}}
+|}
+
+{| class="wikitable" cellpadding="8" -
+!colspan=4|Three doors
+|-
+|{{POH room|room=Parlour}}
+|{{POH room|room=Dining room}}
+|{{POH room|room=Study}}
+|-
+|{{POH room|room=League hall|doors=esw}}
+|{{POH room|room=Games room}}
+|{{POH room|room=Combat room}}
+|}
+
+{| class="wikitable" cellpadding="8" -
+!colspan=4|Four doors
+|-
+|{{POH room|room=Garden}}
+|{{POH room|room=Menagerie}}
+|{{POH room|room=Formal garden}}
+|-
+|{{POH room|room=Superior garden}}
+|{{POH room|room=Hall (skill trophies)}}
+|{{POH room|room=Hall (quest trophies)}}
+|-
+|{{POH room|room=Portal nexus}}
+|{{POH room|room=Dungeon cross}}
+|{{POH room|room=Oubliette}}
+|}
+
+====Restrictions====
+*House room limit and sizes vary depending on your Construction level. At level 1, you are restricted to a 3×3 grid and 24 room limit, which gradually increases to a 7×7 grid at level 60 and 38 rooms at level 99.
+*Houses can only have a limit of one additional room above or below the {{FloorNumber|uk=0}}. This means you cannot have a {{FloorNumber|uk=2}} in the house or have two levels underground.
+*Some rooms are limited to certain areas. For example, gardens can only be built on ground level, while dungeon rooms must be placed underground.
+*Players cannot have a room above ground level if there is no room below it. Replacing or removing a room supporting another room must relocate or remove the upper level.
+*Costume rooms cannot be removed until all items placed inside have been taken out.
+
+===Maximum number of rooms and area===
+From level 1 to 25 Construction, a maximum of 24 rooms (including gardens) can be built. At level 26 and every 6 levels thereafter to level 92, an additional room can be built. One additional room can also be built at levels 96 and 99, for a maximum of 38.
+
+There is also a maximum area that can be built on that also goes up with Construction level, starting at 3 rooms by 3 rooms up to 7 rooms by 7 rooms.
+
+As your maximum house dimensions goes up, so does your yard space. Yard space increases by adding a row to the top of your current yard space, and a column to the right. You should plan accordingly should you desire a centred house, as increasing your construction over time will off-centre it. Players who wish to centre a 3x3 or 4x4 house that is currently off-centre should move all rooms exactly one tile south-west using the House Viewer, starting with the most south-western room and ending with the most north-eastern room.
+{| class="wikitable" style="text-align:center;"
+|-
+!Construction<br/>level
+!Maximum number<br/>of rooms
+!Maximum house<br/>dimensions
+!Yard space
+|-
+|1||24||3×3||5×5
+|-
+|15||24||4×4||6×6
+|-
+|26||25||4×4||6×6
+|-
+|30||25||5×5||7×7
+|-
+|32||26||5×5||7×7
+|-
+|38||27||5×5||7×7
+|-
+|44||28||5×5||7×7
+|-
+|45||28||6×6||8×8
+|-
+|50||29||6×6||8×8
+|-
+|56||30||6×6||8×8
+|-
+|60||30||7×7||9×9
+|-
+|62||31||7×7||9×9
+|-
+|68||32||7×7||9×9
+|-
+|74||33||7×7||9×9
+|-
+|80||34||7×7||9×9
+|-
+|86||35||7×7||9×9
+|-
+|92||36||7×7||9×9
+|-
+|96||37||7×7||9×9
+|-
+|99||38||7×7||9×9
+|}
+
+==Notable features==
+*The [[superior garden]]'s [[spirit tree & fairy ring]] provides the fastest way to access transportation networks of spirit trees and fairy rings. The [[ornate rejuvenation pool]] is extremely convenient when doing player-versus-monster activities, as other alternatives for restoring all drained stats take notably more time.
+*The [[achievement gallery]] has several useful hotspots; the [[Jewellery box space|jewellery box]], when fully upgraded, will provide unlimited teleports for various useful destinations with the ring of dueling, games necklace, skills necklace, combat bracelet, amulet of glory and ring of wealth. The [[occult altar]] also allows the player to swap between the [[Ancient Magicks|Ancient]], [[Arceuus spellbook|Arceuus]], [[Lunar spells|Lunar]], and [[Standard spells|Standard]] spellbooks without having to go to their respective areas (or have 99 Magic). The [[cape hanger]], equipped with a proper cape, will provide various useful perks.
+*The [[chapel]] may contain an altar, up to a [[gilded altar]] (requires 75 Construction). In addition to being able to recharge prayer at this altar, players may also train prayer here, by using bones with the altar. With one [[marble incense burner]] lit, it gives 300% [[Prayer]] experience per bone. When both are lit, it gives 350% Prayer experience. The experience bonus will easily pay itself back with cheaper training.
+*The [[workshop]] allows you to build flat-pack furniture at your workbench, make clockwork toys at the clockmakers bench, repair [[barrows]] armour for a much cheaper price compared to using NPCs, and less significantly, paint [[Steel equipment|steel]] and [[Rune equipment|rune]] armour (this makes them untradeable), and make banners.
+*With a [[portal chamber]] a player can create portals with any teleports available to them, provided they have met the requirements. This makes it possible to use teleports from different spellbooks without the need for switching spellbook.
+**The [[portal nexus]] is an upgraded portal chamber that can hold even more teleports depending on the type of portal they've built.
+*A [[kitchen]] allows various levels of shelves, which contain unlimited [[Cooking]] supplies such as kettles, teapots, teacups, [[beer glass]]es, [[cake tin]]s, [[bowl]]s, [[pie dish]]es, [[pot]]s, and [[chef's hat]]s. These allow you to make [[Cup of tea (Player-owned house)|tea]], with the various other items in the kitchen, which gives a temporary boost to [[Construction]]. You can also cook here if you wish, and re-building oak larders is a fast method of training Construction.
+*The [[costume room]] can be amazingly helpful in storing items that would normally be taking up room in the bank. Considering that all items in this room may be made flat-pack at a workbench, any player may have the best costume room.
+*Players who wish to hire a servant must have at least two [[bedroom]]s with beds in them.
+*The [[study]] can be used to build a [[lectern]] (levels 47, 57, 67, and 77), which allows you to make [[magic tablet]]s, providing you have some [[soft clay]] and the [[runes]] to cast the spell required. The eagle lectern is used for teleport spells, whilst the demon lectern is used for enchantment spells. The best eagle lectern can create: [[Lvl-1 Enchant]], [[Varrock Teleport]], [[Lumbridge Teleport]], [[Falador Teleport]], [[Camelot Teleport]], [[Ardougne Teleport]], [[Watchtower Teleport]], and [[House Teleport]]. The [[marble lectern]] can make all tablets from both eagle and demon lecterns.
+*The [[Hall (quest trophies)|quest hall]] may contain a [[amulet of glory (mounted)|mounted amulet of glory]] on the wall, which will give you unlimited teleports. This is useful for quick banking once you are finished in your house.
+*A [[dining room]]'s most notable feature is the bell-pull (level 26), which allows you to summon your servant quickly. Having a bell-pull also unlocks the use of the "Call Servant" button to quickly summon your servant from anywhere in your house. The button is in the [[House options]] menu in the Settings side-panel.
+*Unneeded pets may be stored in [[menagerie]] to clear bank space. It also enables storing of [[cat]]s.
+*If any player dies within a house (via the combat room or dungeon rooms), they will be teleported to outside the house but will retain all their items and have their [[Hitpoints]] and other stats restored. This remains true for anyone who may die inside a player-owned house to another player in a PvP world.
+
+==Guest access==
+Other players may enter a host's house via the [[House Advertisement]] board if advertised, or by selecting the 'Friend's house' option on the [[Portal (Player-owned house)|entrance portal]] and typing the host's name. Players will be unable to enter if the host's Private setting is off, even if their house is advertised. The guest must also be on the same world as the host.
+
+Guests will remain in a house if the host leaves. Hosts may remove any player from their house by using the 'Kick' right-click option, or all guests with the 'Expel Guests' button in the house options, but neither will prevent re-entry. Players added to a host's Ignore list will not be able to enter.
+
+A player who is teleblocked may still enter via the entrance portal.
+
+[[Ironman Mode|Ironmen]] may not access another player's house. [[Group Ironman Mode|Group Ironmen]] can enter the houses of other members of the group and teleport directly to them, provided they are online. Players without account restrictions can visit any other player's house, including ironmen, and use their amenities like pools and portals as well as take items from the larder.
+
+==Max houses==
+A max house is a house containing the highest level features that are considered useful to the average player. These include: 
+
+*An [[ornate rejuvenation pool]] for restoring stats
+*A [[gilded altar]] for training [[Prayer]]
+*An [[occult altar]] for switching spellbooks
+*An [[armour stand]] for repairing degradable armour
+*A [[lectern]] to create [[teletabs]]
+*Teleports from the [[ornate jewellery box]], [[portal nexus]], and [[Spirit tree & fairy ring|spiritual fairy tree]]
+
+'''84''' Construction is the lowest Construction level needed for a max house, as it allows players to boost (+8 skill boost) with a [[crystal saw]] (+3 invisible skill boost) and [[spicy stew]] (+5 visible skill boost) to build a  [[Crystalline portal nexus|'''Crystalline portal nexus''']]. Players who wish to avoid using spicy stews may use a [[cup of tea (trimmed)]] (+3 visible skill boost) requiring two extra construction levels. The crystal saw cannot be used for the Fairy ring, the Spirit tree, or the combination of the two, as they do not require a saw to build.
+
+{| class="wikitable lighttable align-left-3" style="text-align:center;"
+!colspan=2|Item
+!{{SCP|Construction}} Level
+!With tea (+3) 
+!With stew (+5)
+!With tea and saw (+6)
+!With stew and saw (+8)
+|-
+|{{plinkt|Ornate rejuvenation pool|pic=Ornate rejuvenation pool icon}}
+|90
+|87
+|85
+|84
+|82
+|-
+|{{plinkt|Occult altar|pic=Occult altar icon}}
+|90
+|87
+|85
+|84
+|82
+|-
+|{{plinkt|Ornate jewellery box|pic=Ornate jewellery box icon}}
+|91
+|88
+|86
+|85
+|83
+|-
+|{{plinkt|Crystalline portal nexus|pic=Crystalline portal nexus icon}}
+|92
+|89
+|87
+|86
+|84
+|-
+|{{plinkt|Fairy ring (Construction)|pic=Fairy ring (Construction) icon|txt=Fairy ring}}
+|85
+|82
+|80
+|{{n/a}}
+|{{n/a}}
+|-
+|{{plinkt|Spirit tree & fairy ring|pic=Spirit tree & fairy ring icon}}
+|95
+|92
+|90
+|{{n/a}}
+|{{n/a}}
+|}
+
+
+In official [[House party#Official worlds|house party worlds]], many players who do not own a max house use other player's houses for the above amenities. 
+
+Players can view whose house is available by viewing the [[house advertisement]] board next to each [[Portal (Player-owned house)|house portal]]. This will list the above information in a menu that the player can select from to pick a house to go to.
+
+Players using other players' houses typically teleport to outside of the house portal by turning Teleport Inside off in the House Options, as seen in the image below.
+[[File:House Options interface.png|frame|Teleport outside of the house option is the second option in the house options interface]]
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 22 July 2026
+|update = Summer Sweep-Up Gear & PvM Changes
+|change =
+* You can now display the Demonic Pacts Relic Hunter outfit on outfit stands in your Player-Owned House.
+* When trying to delete rooms in the PoH which have cosmetic attachments to their furniture, you will now be warned and told to remove them before deleting the room.
+}}
+{{Subject changes
+|date = 26 February 2025
+|update = Game Jam: POH Improvements
+|poll = Summer Summit 2024 - Summary
+|change = 
+* Mounted heads can now be switched out and upgraded without removing the entire display.
+* New house styles for Canifis and Civitas are available.
+* Improved PoH animations including sitting, combat ring entry and exit, treasure and storage interactions, and new interactions for the Trailblazer Globe and League Hall.
+* Maximum rooms increased from 34 to 38.
+* The PoH Bookcase is now alphabetised and fits onto a single menu page.
+}}
+{{Subject changes
+|date = 10 January 2024
+|update = Children of the Sun
+|change = House loading times have been improved, and are now consistent regardless of the house's size{{CiteReddit|author=Mod Light|url=https://www.reddit.com/r/2007scape/comments/1935i6v/comment/kh6ws7u/|title=Children of the Sun - Weekly Game Update, 10th January 2024|quote=I've got confirmation that the size of the house no longer affects the loading time of the house so yeah it should allow people to build homes that are bigger because the efficiency no longer relies on size :)|date=10 January 2024|archiveurl=https://reldo.runescape.wiki/i/97021|archivedate=10 January 2024}} or presence of upper floors or dungeons.{{CiteReddit|author=Mod Light|url=https://www.reddit.com/r/2007scape/comments/1935i6v/comment/kh6xk47/|title=Children of the Sun - Weekly Game Update, 10th January 2024|quote=Just asked the devs. Any room in your house won't affect loading times so I believe they won't affect it!|date=10 January 2024|archiveurl=https://reldo.runescape.wiki/i/97896|archivedate=10 January 2024|notes=In response to the question "Do dungeons affect loading times or is that also fixed?"}}
+}}
+{{Subject changes
+|date = 6 October 2021
+|update = Group Ironman
+|change = Ironmen are now able to let regular players enter their POH.
+}}
+{{Subject changes
+|date = 31 August 2017
+|update = Fossil Island Kudos Display, the Champion's Cape, and much more.
+|change = Random events no longer occur in Build Mode in a player-owned house due to their tendency to obstruct butlers.
+}}
+{{Subject changes
+|date = 27 April 2017
+|update = Diverse Dungeons
+|change = The engine team’s done some under-the-hood work that let us optimise our player-owned house code, meaning we were able to remove an annoying delay when you’re removing furniture in costume rooms.
+}}
+{{Subject changes
+|date = 16 February 2017
+|update = Party Pete's Birthday Bash
+|change = A warning message is now provided when trying to bury a bone inside a player owned house.
+}}
+{{Subject changes
+|date = 24 November 2016
+|update = Quality of Life & Bugfixes
+|change = Resolved an issue in player-owned houses where moving a room not connected to another floor upstairs stated that the room could not be moved.
+}}
+{{Subject changes
+|date = 1 September 2016
+|update = Skill Pets & Family Pest
+|change = * Removed Redwood fence archways in order to prevent them being visible from the dungeon level.
+* Ambient lighting has been added to the furniture in the Achievement gallery to improve the colouring.
+* POH Benches can no longer be removed by logging out while seated on them.
+}}
+{{Subject changes
+|date = 25 August 2016
+|update = The Construction Expansion
+|change = * Major rewrite of player-owned house code, expanding each room to allow for eight+ hotspots and each hotspot to have 31 options.
+* Added the house viewer.
+* Added the superior garden room.
+* Added the achievement gallery room.
+}}
+{{Subject changes
+|date = 19 November 2015
+|update = Max Capes & HP Insurance
+|change = Wintumber trees and Pet rocks now respond more appropriately when a POH instance changes size.
+}}
+{{Subject changes
+|date = 12 November 2015
+|update = Monster Examine & Deadman
+|change = Player-owned houses should now render more reliably for players who've lost Construction XP.
+}}
+{{Subject changes
+|date = 5 November 2015
+|update = Skilling Pets & Deadman Tweaks
+|change = It is no longer possible to cause a POH throne to disappear by sitting on the adjacent throne.
+}}
+{{Subject changes
+|date = 22 October 2015
+|update = Abyssal Bludgeon Buff
+|change = Building mode can now be activated more consistently inside a player-owned house.
+}}
+{{Subject changes
+|date = 10 September 2015
+|update = Slayer Assignment Rework
+|change = It is now possible to toggle whether teleporting to your house will place you inside your house or by the house portal. 
+}}
+{{Subject changes
+|date = 3 September 2015
+|update = Barrows Features & Saradomin's Light
+|change = Doors in player-owned houses can now only be closed by the host.
+}}
+{{Subject changes
+|date = 20 August 2015
+|update = Boss slayer & total worlds
+|change = 
+*Switching weapons while you're sitting down in a player-owned house now updates your weapon holding stance correctly when you stand up.
+*Chairs will no longer disappear if a player uses the leave house button or is evicted.
+*You will no longer stand up from a chair when talking to another player's servant.
+}}
+{{Subject changes
+|date = 19 March 2015
+|update = Boss Pets, Sets, Chat & More
+|change = Watchtower & Camelot player-owned house portals & teleport tablets now teleport you to the new teleport location if you have them set.
+}}
+{{Subject changes
+|date = 19 March 2015
+|update = Player Owned House Menageries
+|change = Watchtower & Camelot player-owned house portals & teleport tablets now teleport you to the new teleport location if you have them set.
+}}
+{{Subject changes
+|date = 4 September 2014
+|update = Player-owned house doors
+|change = Added the menagerie room.
+}}
+{{Subject changes
+|date = 7 November 2013
+|update = POH updates & weapon tweaks
+|poll = Old School feature poll 12: Player-designed content
+|change = Owners now have a 'Kick' option to expel unwanted guests.
+}}
+{{Subject changes
+|date = 5 March 2013
+|update = Patch Notes (5 March 2013)
+|change = Player-Owned Houses are now accessible enabling the proper training of Construction.
+}}
+{{Subject changes
+|date = 22 February 2013
+|update = Patch Notes (22 February 2013)
+|change = ''Old School RuneScape'' servers are officially launched, with player-owned houses and the Construction skill disabled.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*If a player has the poison status inside a POH, exiting the POH in any way will remove this debuff, removing the potential need to wait for death or a recovery pool.
+*Player-owned houses are located inside pocket dimensions that were created by folding space.{{CiteNPC|npc=Estate agent|quote=It all came out of the wizards' experiments. They found a way to fold space, so that they could pack many acres of land into an area only a foot across. They created several folded-space regions across Gielinor. Each one contains hundreds of small plots where people can build houses.}}
+
+==References==
+{{Reflist}}
+
+==See also==
+*[[Template:POH room]] Templates for creating a floor plan of a player's house.
+
+{{House}}
+[[Category:Construction]]

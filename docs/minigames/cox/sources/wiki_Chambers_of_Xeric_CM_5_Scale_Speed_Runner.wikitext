@@ -1,0 +1,21 @@
+{{Infobox Combat Achievement
+|name = Chambers of Xeric: CM (5-Scale) Speed-Runner
+|image = [[File:Chambers of Xeric - keystone room.png|300px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Complete a Chambers of Xeric: Challenge Mode (5-scale) in less than 25 minutes.
+|tier = Grandmaster
+|monster = Chambers of Xeric: Challenge Mode
+|type = Speed
+|id = 296
+|leagueRegion = Kourend
+}}
+'''Chambers of Xeric: CM (5-Scale) Speed-Runner''' is a [[Combat Achievements/Grandmaster|grandmaster combat achievement]] which requires the player to complete a Chambers of Xeric: Challenge Mode (5-scale) in under 25:00.
+
+Like other tasks requiring a specific number of players, this combat achievement is not required for [[Group Ironman Mode|Group Ironmen]] with a smaller group size.
+
+==Other tasks==
+{{Combat Achievements list|Chambers of Xeric: Challenge Mode}}
+
+{{Combat Achievements}}

@@ -1,0 +1,78 @@
+mechanic_id	quantity	spec_value	unit	tags	grade	source_ref	closes	tolerance
+reward.cape_awarded_on_zuk_kill	infernal capes added to the player on a TzKal-Zuk kill	1	count	[jagex][wiki]	A	sources/newsposts/wiki_Update_Dev_Blog_Mor_Ul_Rek_The_Inferno.wikitext:86; sources/wiki/wiki_Inferno.wikitext:296	-	exact
+reward.cape_awarded_every_kill	1 if a second and later kill each award a cape again (the cape is not once only)	1	count	[wiki]	D	sources/wiki/wiki_Inferno.wikitext:303	-	exact
+reward.cape_obj_id	object id of the infernal cape	21295	count	[cache]	A	sources/cache_objs.txt:185	-	exact
+reward.cape_name	name of object 21295	Infernal cape	text	[cache]	A	sources/cache_objs.txt:187	-	exact
+reward.cape_untradeable	1 if the infernal cape is untradeable	1	count	[cache]	A	sources/cache_objs.txt:195	-	exact
+reward.cape_wear_slot	wearpos of the infernal cape (1 = cape slot)	1	count	[cache]	A	sources/cache_objs.txt:197	-	exact
+reward.cape_strength_bonus	strength bonus of the infernal cape	8	count	[cache]	A	sources/cache_objs.txt:205	-	exact
+reward.cape_prayer_bonus	prayer bonus of the infernal cape (a post says it matches the fire cape)	2	count	[jagex][cache]	A	sources/newsposts/wiki_Update_Dev_Blog_Mor_Ul_Rek_The_Inferno.wikitext:17; sources/cache_objs.txt:206	-	exact
+reward.cape_melee_attack_bonus	stab, slash and crush attack bonus of the infernal cape (each)	4	count	[cache]	A	sources/cache_objs.txt:207-209	-	exact
+reward.cape_ranged_magic_attack_bonus	ranged and magic attack bonus of the infernal cape (each)	1	count	[cache]	A	sources/cache_objs.txt:210-211	-	exact
+reward.cape_defence_bonus	stab, slash, crush, ranged and magic defence bonus of the infernal cape (each)	12	count	[cache]	A	sources/cache_objs.txt:212-216	-	exact
+reward.cape_value_coins	cost (store value) of the infernal cape in coins	80000	count	[cache]	A	sources/cache_objs.txt:194	-	exact
+reward.cape_broken_obj_id	object id of the broken infernal cape	21287	count	[cache]	A	sources/cache_objs.txt:133	-	exact
+reward.cape_repair_cost_coins	coins Perdu charges to repair a broken infernal cape	225000	count	[jagex][wiki]	A	sources/newsposts/wiki_Update_Poll_80_Shooting_Stars_Changes.wikitext:92; sources/wiki/wiki_Infernal_cape.wikitext:141	-	exact
+reward.tokkul_zuk_kill	Tokkul added on a TzKal-Zuk kill	16440	count	[wiki]	D	sources/wiki/wiki_TzKal_Zuk.wikitext:91; sources/wiki/wiki_Inferno.wikitext:298	-	exact
+reward.tokkul_elite_diary_multiplier	multiplier on the Zuk-kill Tokkul with the elite Karamja Diary complete	2	ratio	[wiki]	D	sources/wiki/wiki_TzKal_Zuk.wikitext:91; sources/wiki/wiki_Inferno.wikitext:298	-	exact
+reward.pet_obj_id	object id of the Jal-Nib-Rek pet item	21291	count	[cache]	A	sources/cache_objs.txt:167	-	exact
+reward.pet_obj_name	name the rev 239 cache gives object 21291	Jal-nib-rek	text	[cache]	A	sources/cache_objs.txt:169	-	exact
+reward.pet_tzrek_obj_id	object id of the TzRek-Zuk form of the pet item	22319	count	[wiki]	D	sources/wiki/wiki_Jal_Nib_Rek.wikitext:54	-	exact
+reward.pet_follower_npc_id	npc id of the Jal-Nib-Rek follower	7675	count	[cache]	A	sources/cache_npc.txt:20	-	exact
+reward.pet_zuk_follower_npc_id	npc id of the TzRek-Zuk follower	8011	count	[cache]	A	sources/cache_npc.txt:608	-	exact
+reward.pet_follower_model	model of the Jal-Nib-Rek follower	33005	count	[cache]	A	sources/cache_npc.txt:23	-	exact
+reward.pet_follower_ready_anim	ready seq of the Jal-Nib-Rek follower (jalnib_ready)	7573	count	[cache]	A	sources/cache_npc.txt:25; AV_INVENTORY.tsv:45	-	exact
+reward.pet_follower_walk_anim	walk seq of the Jal-Nib-Rek follower (jalnib_walk)	7572	count	[cache]	A	sources/cache_npc.txt:26; AV_INVENTORY.tsv:44	-	exact
+reward.pet_zuk_follower_model	model of the TzRek-Zuk follower	34586	count	[cache]	A	sources/cache_npc.txt:611	-	exact
+reward.pet_zuk_follower_ready_anim	ready seq of the TzRek-Zuk follower (zukrek_idle)	7975	count	[cache]	A	sources/cache_npc.txt:613; AV_INVENTORY.tsv:89	-	exact
+reward.pet_zuk_follower_walk_anim	walk seq of the TzRek-Zuk follower (zukrek_walk)	7977	count	[cache]	A	sources/cache_npc.txt:614; AV_INVENTORY.tsv:91	-	exact
+reward.pet_metamorphosis_offered	1 if the pet follower carries a Metamorphosis option between Jal-Nib-Rek and TzRek-Zuk	1	count	[jagex][cache]	A	sources/newsposts/wiki_Update_Old_School_RuneScape_s_5th_Birthday.wikitext:81; sources/cache_npc.txt:29	-	exact
+reward.pet_zuk_helm_no_boost	1 if showing the Zuk Slayer helmet to Ket-Keh leaves the pet chance unchanged	1	count	[jagex]	A	sources/newsposts/wiki_Update_Summer_Sweep_Up_Combat.wikitext:140	-	exact
+reward.pet_roll_denominator_zuk_kill	pet roll on a TzKal-Zuk kill off a Slayer task, one in N	100	count	[wiki][guide]	C	sources/wiki/wiki_Inferno.wikitext:300; sources/transcripts/STATED.md:14	-	exact
+reward.pet_roll_denominator_on_task	pet roll on a TzKal-Zuk kill while on a Zuk Slayer task, one in N	75	count	[wiki][guide]	D	sources/wiki/wiki_Jal_Nib_Rek.wikitext:64; sources/transcripts/STATED.md:14	-	exact
+reward.pet_slayer_task_raises_chance	1 if a Zuk Slayer task kill raises the pet chance	1	count	[jagex]	A	sources/newsposts/wiki_Update_Inferno_slayer_task_Tournament_worlds_and_Poll_56.wikitext:19	-	exact
+reward.pet_cape_exchange_exists	1 if a cape can be given to TzHaar-Ket-Keh for an extra pet chance	1	count	[jagex]	A	sources/newsposts/wiki_Update_Pest_Control_Open_Weekend.wikitext:98	-	exact
+reward.pet_cape_exchange_denominator	pet roll from handing in one infernal cape, one in N	100	count	[wiki][guide]	C	sources/wiki/wiki_Infernal_cape.wikitext:71; sources/transcripts/STATED.md:14	-	exact
+reward.pet_cape_exchange_consumes_cape	1 if the exchange takes the cape whether or not the pet drops	1	count	[wiki]	D	sources/wiki/wiki_Inferno.wikitext:300	-	exact
+reward.pet_cape_exchange_blocked_if_owned	1 if a player who already has the pet cannot exchange a cape	1	count	[wiki]	D	sources/wiki/wiki_Infernal_cape.wikitext:71	-	exact
+reward.pet_combined_denominator_off_task_with_cape	chance of the pet from one kill plus one cape off task, one in N	50	count	[wiki][guide]	C	sources/wiki/wiki_TzKal_Zuk.wikitext:95; sources/transcripts/STATED.md:14	-	+-1
+reward.pet_combined_denominator_on_task_with_cape	chance of the pet from one task kill plus one cape, one in N	43	count	[wiki][guide]	C	sources/wiki/wiki_Jal_Nib_Rek.wikitext:64; sources/transcripts/STATED.md:14	-	+-1
+reward.pet_received_message	chat line when the pet drops from a kill (red)	You have a funny feeling like you're being followed.	text	[wiki]	D	sources/wiki/wiki_Jal_Nib_Rek.wikitext:68	-	exact
+reward.pet_received_message_follower_out	chat line when the pet goes to the inventory because a follower is out	You feel something weird sneaking into your backpack.	text	[wiki]	D	sources/wiki/wiki_Jal_Nib_Rek.wikitext:68	-	exact
+reward.pet_exchange_message	chat line when the cape gamble wins the pet	Luck be a TzHaar tonight. Jal-Nib-Rek is yours.	text	[wiki]	D	sources/wiki/wiki_Jal_Nib_Rek.wikitext:95	-	exact
+reward.pet_appears_as_follower	1 if a received pet appears as the player's follower	1	count	[wiki]	D	sources/wiki/wiki_Jal_Nib_Rek.wikitext:68	-	exact
+reward.pet_not_received_inventory_full_and_follower	1 if a full inventory plus a follower out means the pet is not received (claimed from Probita)	1	count	[wiki]	D	sources/wiki/wiki_Jal_Nib_Rek.wikitext:70	-	exact
+reward.pet_roll_when_owned	1 if a kill still rolls the pet when the player already owns it	?	count	[M14]	E	sources/wiki/wiki_Jal_Nib_Rek.wikitext:70	M14	approx
+reward.full_inventory_cape_and_tokkul_on_ground	1 if the cape and Tokkul land on the ground when the inventory is full at the kill	1	count	[wiki]	D	sources/wiki/wiki_Infernal_cape.wikitext:167	-	exact
+reward.collection_log_bit_id	varbit that carries the Inferno collection log completion	11986	count	[cache]	A	sources/cache_vars.txt:91	-	exact
+reward.collection_log_bit_set_on_kill	1 if a Zuk kill sets the Inferno collection log completion bit	1	count	[wiki]	D	sources/wiki/wiki_Inferno.wikitext:303; sources/wiki/wiki_Infernal_cape.wikitext:167	-	exact
+reward.kill_count_varp	varp that holds the player's TzKal-Zuk kill count	1585	count	[cache]	A	sources/cache_vars.txt:17; sources/cache_enums_dbrows.txt:27	-	exact
+reward.kill_count_increment_per_kill	kill count added to varp 1585 by one Zuk kill	1	count	[cache]	A	sources/cache_vars.txt:17; sources/cache_npc.txt:43	-	exact
+reward.ket_keh_exchange_kills_threshold	kills at which TzHaar-Ket-Keh gains the Exchange option (multinpc value)	1	count	[cache]	A	sources/cache_npc.txt:44-45; sources/cache_npc.txt:695	-	exact
+reward.ket_keh_exchange_op_label	label of op 3 on Ket-Keh once a kill is recorded	Exchange	text	[cache]	A	sources/cache_npc.txt:695	-	exact
+reward.slayer_task_id	id of the Zuk row in the Slayer task table	105	count	[cache]	A	sources/cache_enums_dbrows.txt:33	-	exact
+reward.slayer_requires_prior_kill	1 if a Zuk Slayer task is offered only to a player who has killed Zuk	1	count	[jagex][wiki]	A	sources/newsposts/wiki_Update_Inferno_slayer_task_Tournament_worlds_and_Poll_56.wikitext:15; sources/wiki/wiki_TzKal_Zuk.wikitext:55	-	exact
+reward.slayer_xp_zuk_kill	Slayer xp for completing a Zuk task	100000	count	[jagex]	A	sources/newsposts/wiki_Update_Inferno_slayer_task_Tournament_worlds_and_Poll_56.wikitext:19	-	exact
+reward.slayer_xp_total_wiki	Slayer xp in total the wiki gives for a Zuk task kill	101890	count	[wiki]	D	sources/wiki/wiki_TzKal_Zuk.wikitext:55	-	exact
+reward.slayer_task_kills_master_tier	Zuk kills a task needs with the Master Combat Achievement tier	2	count	[jagex][wiki]	A	sources/newsposts/wiki_Update_Combat_Achievements_Expansion_Rewards.wikitext:136; sources/wiki/wiki_Combat_Achievements_Master.wikitext:61	-	exact
+reward.slayer_task_kills_grandmaster_tier	Zuk kills a task needs with the Grandmaster Combat Achievement tier	3	count	[jagex][wiki]	A	sources/newsposts/wiki_Update_Combat_Achievements_Expansion_Rewards.wikitext:150; sources/wiki/wiki_Combat_Achievements_Grandmaster.wikitext:50	-	exact
+reward.slayer_hot_stuff_perk_cost	Slayer reward points the Hot Stuff perk costs	100	count	[wiki]	D	sources/wiki/wiki_TzKal_Zuk.wikitext:55	-	exact
+reward.slayer_simultaneous_death_subtracts_kc	1 if dying at the moment Zuk dies still subtracts one task kill	1	count	[jagex]	A	sources/newsposts/wiki_Update_Leagues_III_Shattered_Relics_Launch.wikitext:326	-	exact
+reward.ca_structs_count	Combat Achievement structs the cache carries for the Inferno (param_1312=60)	12	count	[cache]	A	sources/cache_enums_dbrows.txt:102-208	-	exact
+reward.ca_341_half_way_there	tier code of CA 341 Half-Way There (Kill a Jal-Zek within the Inferno.)	4	count	[cache]	A	sources/cache_enums_dbrows.txt:106	-	exact
+reward.ca_342_inferno_grandmaster	tier code of CA 342 Inferno Grandmaster (Complete the Inferno 5 times.)	6	count	[cache]	A	sources/cache_enums_dbrows.txt:115	-	exact
+reward.ca_343_the_floor_is_lava	tier code of CA 343 The Floor Is Lava (Kill TzKal-Zuk without letting Jal-ImKot dig during any wave in the Inferno.)	6	count	[cache]	A	sources/cache_enums_dbrows.txt:124	-	exact
+reward.ca_344_playing_with_jads	tier code of CA 344 Playing with Jads (Complete wave 68 of the Inferno within 30 seconds of the first JalTok-Jad dying.)	6	count	[cache]	A	sources/cache_enums_dbrows.txt:133	-	exact
+reward.ca_345_no_luck_required	tier code of CA 345 No Luck Required (Kill TzKal-Zuk without being attacked by TzKal-Zuk and without taking damage from a JalTok-Jad.)	6	count	[cache]	A	sources/cache_enums_dbrows.txt:142	-	exact
+reward.ca_346_nibblers_begone	tier code of CA 346 Nibblers, Begone! (Kill TzKal-Zuk without letting a pillar fall before wave 67.)	5	count	[cache]	A	sources/cache_enums_dbrows.txt:151	-	exact
+reward.ca_347_wasnt_even_close	tier code of CA 347 Wasn't Even Close (Kill TzKal-Zuk without letting your hitpoints fall below 50 during any wave in the Inferno.)	6	count	[cache]	A	sources/cache_enums_dbrows.txt:160	-	exact
+reward.ca_348_budget_setup	tier code of CA 348 Budget Setup (Kill TzKal-Zuk without equipping a Twisted Bow within the Inferno.)	6	count	[cache]	A	sources/cache_enums_dbrows.txt:169	-	exact
+reward.ca_349_nibbler_chaser	tier code of CA 349 Nibbler Chaser (Kill TzKal-Zuk without using any magic spells during any wave in the Inferno.)	6	count	[cache]	A	sources/cache_enums_dbrows.txt:178	-	exact
+reward.ca_350_facing_jad_head_on_ii	tier code of CA 350 Facing Jad Head-on II (Kill TzKal-Zuk without equipping any range or mage weapons before wave 69.)	6	count	[cache]	A	sources/cache_enums_dbrows.txt:187	-	exact
+reward.ca_351_jad_what_are_you_doing_here	tier code of CA 351 Jad? What Are You Doing Here? (Kill TzKal-Zuk without killing the JalTok-Jad which spawns during wave 69.)	6	count	[cache]	A	sources/cache_enums_dbrows.txt:196	-	exact
+reward.ca_352_inferno_speed_runner	tier code of CA 352 Inferno Speed-Runner (Complete the Inferno in less than 65 minutes.)	6	count	[cache]	A	sources/cache_enums_dbrows.txt:205	-	exact
+reward.ca_completion_varbits_defined	completion varbits the cache defines for the Zuk Combat Achievements (12799-12810 and 12921)	13	count	[cache]	A	sources/cache_vars.txt:97	-	exact
+reward.win_exit_delay_ticks	ticks from Zuk's last damage to the player standing outside holding the reward	?	ticks	[M11]	E	sources/newsposts/wiki_Update_Dev_Blog_Mor_Ul_Rek_The_Inferno.wikitext:86	M11	approx
+reward.win_player_tile	tile the player stands on after a Zuk kill	?	text	[M11]	E	sources/wiki/wiki_Inferno.wikitext:296	M11	approx
+reward.completion_message	chat lines printed on a Zuk kill	?	text	[M12]	E	sources/wiki/wiki_Inferno.wikitext:296	M12	approx
+reward.completion_broadcast	1 if a Zuk kill is broadcast to the clan or world, and its text	?	text	[M13]	E	sources/wiki/wiki_Inferno.wikitext:296	M13	approx

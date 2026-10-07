@@ -1,0 +1,47 @@
+quest-ledger-v1
+index	step	verdict	ticks	shots	detail
+1	goto-lobby	PASS	2	001-goto-lobby	at 3676,3217,0 from 3206,3233,0
+2	door.no_party	PASS	2	002-door.no_party	map_flag
+3	door.refused	PASS	2		matched: You need to be in a party to enter the Theatre. Form or join one at the notice board.
+4	goto-board	PASS	0	003-goto-board	at 3662,3216,0 from 3677,3217,0
+5	board.read	PASS	2	004-board.read	map_flag
+6	board.first_read	PASS	10	005-mesbox-p1,006-options-p2,007-options-p3,008-mesbox-p4,009-board.first_read	4 page(s): mesbox:From this notice board, you ca, options:options, options:choose:Not very experienced. I, mesbox:When you form a raiding party,
+7	partylist.open	PASS	0		tob_partylist open (group 364)
+8	partylist.title	PASS	0		tob_partylist:frame reads 'Performers for the Theatre' (has 'Performers for the Theatre')
+9	partylist.empty	PASS	0		tob_partylist:list reads 'No parties are currently listed.' (has 'No parties are currently listed.')
+10	partylist.make_party	PASS	0	010-partylist.empty.shot,011-partylist.make_party	Make party (tob_partylist:myparty op1) = resume 364:3 sub 1
+11	partydetails.open	PASS	0		tob_partydetails open (group 50)
+12	partydetails.first_push	PASS	3	012-partydetails.first_push	frame[1]=Leaderless party; middle[0]=No current applicants; mode[0]=Mode: Entry; size[0]=Preferred Size: -; level[0]=Preferred Level: -; action[9]=Disband; unblock[9]=Unblock
+13	partydetails.refresh1	PASS	0	013-partydetails.refresh1	Refresh = resume 50:0 sub 1
+14	partydetails.refresh2	PASS	3	014-partydetails.refresh2	Refresh = resume 50:0 sub 1
+15	partydetails.title	FAIL	8		tob_partydetails:frame reads 'Party of spec_raidwide_party', which does not contain 'Party of party_proof' (waited 5 tick(s))
+16	partydetails.leader_row	FAIL	5		tob_partydetails:current reads 'spec_raidwide_party', which does not contain 'party_proof' (waited 5 tick(s))
+17	partydetails.mode_entry	PASS	0		tob_partydetails:mode reads 'Mode: Entry' (has 'Mode: Entry')
+18	partydetails.no_applicants	PASS	0		tob_partydetails:middle reads 'No current applicants' (has 'No current applicants')
+19	partydetails.disband	PASS	0		tob_partydetails:action reads 'Disband' (has 'Disband')
+20	partydetails.read	PASS	0	015-partydetails.read	frame[1]=Party of spec_raidwide_party; current[1]=spec_raidwide_party; current[2]=3; current[3]=1; current[4]=1; current[5]=1; current[6]=1; current[7]=1; current[8]=10; current[9]=1; current[10]=0; middle[0]=No current applicants; mode[0]=Mode: Entry; size[0]=Preferred Size: -; level[0]=Preferred Level: -; action[9]=Disband; unblock[9]=Unblock
+21	party.record	PASS	0	016-partydetails.leader.shot	matched: tobparty: handle 1 role 2 members 1 applicants 0 mode Entry
+22	leader.mode_set	PASS	0	017-leader.mode_set	Mode Set = resume 50:0 sub 6
+23	leader.mode_choose	PASS	14	018-options-p1,019-options-p2,020-leader.mode_choose	2 page(s): options:options, options:choose:Normal Mode.
+24	partydetails.mode_normal	PASS	0		tob_partydetails:mode reads 'Mode: Normal' (has 'Mode: Normal')
+25	board.read2	PASS	2	021-board.read2	modal tob_partylist [frame unchanged]
+26	partylist.open2	PASS	0		tob_partylist open (group 364)
+27	board.read3	PASS	8	022-board.read3	modal tob_partylist
+28	partylist.open3	PASS	0		tob_partylist open (group 364)
+29	partylist.row	PASS	3	023-partylist.row	00[1]=1; 00[3]=spec_raidwide_party; 00[5]=Normal; 00[6]=0:26
+30	partylist.row_name	FAIL	5		tob_partylist:00 reads 'spec_raidwide_party', which does not contain 'party_proof' (waited 5 tick(s))
+31	partylist.row_mode	PASS	0		tob_partylist:00 reads 'Normal' (has 'Normal')
+32	scoreboard.open	PASS	7	024-partylist.row.shot	tob_scoreboard open (group 363)
+33	scoreboard.attempts	PASS	0		tob_scoreboard:data_a_p reads '0' (has '0')
+34	scoreboard.read	PASS	0	025-scoreboard.read	data_a_p[-1]=0; data_c_p[-1]=0; data_d_p[-1]=0
+35	performance.open	PASS	7		tob_infoboard open (group 459) [frame unchanged]
+36	performance.player0	FAIL	5		tob_infoboard:playername0 reads 'spec_raidwide_party', which does not contain 'party_proof' (waited 5 tick(s))
+37	performance.mvp	FAIL	5		tob_infoboard:mvp_player reads 'spec_raidwide_party', which does not contain 'party_proof' (waited 5 tick(s))
+38	goto-door	PASS	2	026-performance.shot,027-goto-door	at 3676,3217,0 from 3662,3217,0
+39	door.enter	PASS	2	028-door.enter	map_flag
+40	door.warning	PASS	2	029-mesbox-p1,030-door.warning	1 page(s): mesbox:The Theatre of Blood is danger
+41	door.ready_check	PASS	1	031-door.ready_check	title=Is your party ready? Members: 1. Mode: Normal.
+42	door.go	PASS	0	032-door.go	chat.choose: page changed
+43	raid.active	PASS	0		varp5893_tob_active = 1 (varp, server content copy; no client copy) after 0 tick(s)
+44	raid.tobstate	PASS	6		matched: tobstate active=1 handle=2 room=1 mode=1 started=0 cleared=0 boss_uid=67106 fight=6448,158,0
+SUMMARY	44	FAIL	106	exit=0	pass=39 fail=5

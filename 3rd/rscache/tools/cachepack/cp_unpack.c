@@ -165,8 +165,17 @@ unpack_record(
     struct CP_Lines* lines)
 {
     const struct CP_Type* type = cp_type(type_id);
+    char where[32];
+
     cp_lines_clear(lines);
     if( !type->unpack(ctx, id, record, size, lines) )
+        return 0;
+    /* A record from the client cache states none of the server's keys: each is
+     * `key=default`, exactly as an unstated client key is. */
+    cp_keys_add_server_defaults(ctx, type, cp_ctx_fields(ctx, type_id), lines);
+    /* The emitter wrote every key, or this record is not written at all. */
+    snprintf(where, sizeof(where), "id %d", id);
+    if( !cp_keys_check_lines_full(ctx, type, cp_ctx_fields(ctx, type_id), where, lines) )
         return 0;
     reorder(lines);
     return 1;

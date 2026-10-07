@@ -88,6 +88,7 @@ struct ToriRS_Frame;
 struct ToriRS_PickHits;
 struct PktRunClientScript;
 
+#include <assert.h>
 #include <limits.h>
 #include <stdint.h>
 
@@ -98,6 +99,7 @@ struct RSCache_Dat1Disk;
 struct Dat1BuildCache;
 struct Dat2BuildCache;
 struct ToriRS_CmdBus;
+struct ToriRS_CmdHeader;
 struct ToriRS_Network;
 struct PktNpcInfoOp;
 struct PktPlayerInfoOp;
@@ -765,19 +767,15 @@ enum AppMinimapState
 #define APP_CLIENTSCRIPT_FENCE_MAX_CYCLES APP_SERVER_TICK_LOGIC_CYCLES
 
 /**
- * Logic cycles the client waits for the server to answer a logout request.
+ * The value App::logout_wait_cycles is armed with when a logout is requested.
  *
- * The reference's `logoutTimer` figure (Client.ts:11212) — 5 seconds — and it
- * means the same thing here for the whole of that time: the session is still
- * live, because the server has not said otherwise.
- *
- * Where this client departs from the reference is what it does when the window
- * runs out. The reference does nothing at all: a server whose content never
- * answers the button leaves the player in the world forever, which is fine for
- * the one server it was written against and is not fine for the several this
- * client is pointed at. Running out ends the session locally instead — the old
- * behaviour, arriving five seconds later, and said out loud in the log so a
- * server that is not answering can be told from one that is slow.
+ * The rev-239 client's logoutTimer value: its CS2 logout op (5630) and CS1
+ * clientCode 205 both store 250. It is NOT counted down, there or here: the
+ * rev-239 client has no decrement of that field, and the session ends only
+ * when the server ends it (a LOGOUT packet, or the socket it closes). A
+ * fallback that ended it locally after five seconds used to live here; it
+ * logged out a player the server had refused (CONTENT_BUGS ENG-29). See
+ * app_logout_tick in app/app_net.c.
  */
 #define APP_LOGOUT_WAIT_CYCLES 250
 
@@ -948,6 +946,255 @@ struct AppClientScale
     int density_percent;
     /** What HighDPI "automatic" means on this lane. @see App_SetHighDpiAuto. */
     enum ClientScaleHighDpi high_dpi_auto;
+};
+
+/** The most world views struct App holds: a script's and a watcher's. */
+#define APP_WORLD_VIEW_MAX 2
+
+/**
+ * One WORLD VIEW: everything a camera looking at the shared world owns, and
+ * nothing it shares.
+ *
+ * The world, the character, the UI tree and its layout, the viewport
+ * rectangle and emit desc, and the game's scripted camera (`cam_script`) are
+ * SHARED and stay on struct App. A view holds the camera pose (the follow
+ * orbit, the eye it derives, the zoom, the reload hold, the projection scale
+ * inside `world_camera`), the camera's input latches, the pointer over the
+ * world, the pick results the last drawn frame left at that pointer, and the
+ * right-click menu.
+ *
+ * Headless, and with no script attached, there is exactly ONE: App_Init
+ * points `frame_view` at `views[0]` and sets `view_split.view_count` to 1.
+ * While a script runs in a client that presents there are two (struct
+ * App_ViewSplit: views[0] the AutomationRunner's, views[1] the watcher's
+ * PlayerClient view). Every reader and writer reaches these fields through a
+ * view pointer -- `app->frame_view`,
+ * the view of the frame being built -- so a second view (a script's camera
+ * beside the watcher's; docs/minigames/raid_loop/CAMERA_VIEW_TABLE.md names
+ * which view each site will take) is a choice made where a stage begins,
+ * never a global. A NULL view is a contract violation.
+ */
+struct App_WorldView
+{
+    struct ToriDraw_Camera world_camera;
+    struct ToriDraw_Position world_camera_pos;
+    /* Reference orbit camera (Client-TS followCamera): velocity-driven
+     * yaw/pitch, a 1/16-eased anchor that trails the player, and a terrain
+     * pitch clamp (cameraPitchClamp, 24.8 fixed) that keeps the eye above
+     * nearby ground. cam_key_* latch arrow-held state for the follow step,
+     * which runs before key sampling in the frame.
+     *
+     * orbit_x/orbit_z are FLOAT because the reference's are (rev-239
+     * client.field917/field879, eased in client.method1605). An integer
+     * `anchor += (target - anchor) / 16` never converges: once the gap drops
+     * to 15 the truncated step is 0, so the anchor parks a permanent ~15
+     * units short on each axis and the camera orbits a point beside the
+     * player instead of the player. */
+    /** The follow camera's anchor, angles and terrain clamp. See
+     *  render/world_camera_orbit.h. */
+    struct WorldCameraOrbit orbit;
+    int cam_key_left;
+    int cam_key_right;
+    int cam_key_up;
+    int cam_key_down;
+    /* Middle-button rotate (revconfig `[camera] controls=mmb`): the press
+     * latches inside the viewport rect and keeps the pointer until release, so
+     * a drag that wanders over the sidebar keeps rotating. cam_mmb_x/y is the
+     * pointer position the last delta was measured from. */
+    int cam_mmb_active;
+    int cam_mmb_x;
+    int cam_mmb_y;
+    /*
+     * The follow camera's live ZOOM: the eye sits `pitch * 3 + this` behind
+     * the player, in fine units, so this is the additive half of zoom. It
+     * starts at `[camera] rest=` (the reference's 600, Client-TS camFollow)
+     * and smaller is closer.
+     *
+     * The wheel and the pinch move it inside `[camera] zoom_closest=` ..
+     * `zoom_furthest=`, in `wheel_step=` notches; the settings page's
+     * REVCONFIG_CAMERA_WHEEL_PINNED stops them, which is how a player asks for
+     * the 2004 camera that does not zoom. The MULTIPLICATIVE half is
+     * `[camera] distance_scale=`, which this field knows nothing about. The
+     * free camera dollies along the view axis instead and ignores all of it.
+     */
+    int world_cam_zoom;
+    /** U toggles: 1 = the follow camera stands down and W/A/S/D + R/F fly
+     *  world_camera_pos freely; relocking eases back onto the player (the
+     *  follow's own >500-unit teleport snap handles the return). */
+    int camera_unlocked;
+    /** Camera hold across an offline world reload. See
+     *  render/world_camera_orbit.h. */
+    struct WorldCameraHold cam_hold;
+
+    /* World picking: the full pickset refreshes as part of every rendered
+     * frame (App_Render hittests visible models at world_mouse_x/y); click
+     * handlers consume the last rendered set. */
+    struct World_PickSet world_pickset;
+    int world_mouse_in_viewport;
+    int world_mouse_x; /* last input mouse, canvas coords */
+    int world_mouse_y;
+    /** No pointer is resting at world_mouse_x/y: the finger that was the
+     *  pointer lifted (LibToriRS_Input_PushMouseLeave). The position is kept,
+     *  because a popup the tap opened is anchored to it, but everything hover
+     *  means -- the tile under the pointer, the world pick, the mouseover line
+     *  -- goes quiet until something points at the canvas again. */
+    int pointer_absent;
+    int world_hover_tile_x; /* scene tile, -1 = none */
+    int world_hover_tile_z;
+    int world_hover_tile_level;
+    /** The hovered DECK tile (world-entity terrain under the pointer), or
+     *  view 0 when the pointer is over no deck. Deck-LOCAL tiles at the deck
+     *  MESH level. Kept beside — never instead of — the root hover latch
+     *  above: the click cross and spawn hotkeys speak root tiles; the
+     *  boat-aware consumers (the tile-indicator plugins' hover marker)
+     *  prefer this one when set. */
+    int world_hover_view;
+    int world_hover_view_x;
+    int world_hover_view_z;
+    int world_hover_view_level;
+
+    /**
+     * The right-click menu this view's clicks open and choose from.
+     *
+     * The STORAGE is still `interact.minimenu` on struct App: the UI layer's
+     * interaction step (ui/uitree_interact.c) opens, steers and closes the
+     * menu inside struct UIInteraction, which this seam does not reach into.
+     * The app layer reads and writes it only through this pointer, so a
+     * second view's menu is a second pointer, set where that view is made.
+     */
+    struct UIMinimenu* minimenu;
+};
+
+/** The view a script's verbs read and write: `views[0]`, always (headless and
+ *  with no script attached it is also the only view). */
+#define APP_VIEW_RUNNER 0
+/** The watcher's view while a script runs in a client that presents:
+ *  `views[1]`, live only between App_ViewAttachPlayerClient and
+ *  App_ViewDetachPlayerClient. */
+#define APP_VIEW_PLAYER_CLIENT 1
+
+/** Physical commands that wait for the runner's gesture to end (see
+ *  App_ViewSplit.held). A press, its release and a few keys. */
+#define APP_VIEW_SPLIT_HELD_MAX 16
+#define APP_VIEW_SPLIT_HELD_PAYLOAD 16
+/** Watcher actions kept for the driver to read (`watcher.<what>` rows). */
+#define APP_VIEW_SPLIT_WATCHER_MAX 32
+
+struct App_ViewSplitHeld
+{
+    uint32_t type;
+    uint16_t length;
+    uint8_t payload[APP_VIEW_SPLIT_HELD_PAYLOAD];
+};
+
+struct App_ViewSplitWatcherAction
+{
+    /** Monotonic serial, from 1; the driver reads past the last one it saw. */
+    uint32_t serial;
+    /** The world clock's tick when the action reached the game. */
+    int tick;
+    /** "click", "right_click", "key", "wheel". A fixed string. */
+    char const* what;
+    int x;
+    int y;
+    int detail; /* button, key code or wheel notches */
+};
+
+/**
+ * THE RUNNER CAMERA SPLIT (docs/minigames/raid_loop/CAMERA_TRIAGE_seam2.md,
+ * runner_view_split). While a script runs in a client that presents, there
+ * are two world views: `views[APP_VIEW_RUNNER]` (AutomationRunner: every
+ * driver verb, its pointer, its picks, its menu, its photographs) and
+ * `views[APP_VIEW_PLAYER_CLIENT]` (PlayerClient: what is presented, what the
+ * physical mouse and keys steer). Everything here is zero and untouched while
+ * `attached` is 0 -- a headless run and a client with no script attached pay
+ * one predicted branch per stage boundary and nothing else.
+ */
+struct App_ViewSplit
+{
+    /** How many world views are live: 1, or 2 while a script's view is
+     *  attached (App::views). */
+    int view_count;
+    /** views[1] is live. */
+    int attached;
+    /** The watcher's client presents frames: set by the host (main.c) once a
+     *  window that draws exists and render skip is off; attach refuses
+     *  without it ("nothing is presented, so there is no watcher"). */
+    int presentable;
+    /** Why the presented lane cannot carry a second view, or NULL. Set by
+     *  the host for a lane this split is not built or tested on. */
+    char const* lane_refusal;
+    /** THE INTERACT SWITCH (owner decision 1). 0 when a script starts: the
+     *  physical mouse and keys are a spectator's (orbit, zoom, hover-inspect,
+     *  the plugin chrome); 1: they act on the game through the PlayerClient
+     *  view. */
+    int interact;
+
+    /** The runner's pointer (the last position a runner event carried) and
+     *  whether one has arrived since attach. */
+    int runner_x;
+    int runner_y;
+    int runner_pointer_valid;
+    /** Runner buttons held (bit per LibToriRS_MouseButton): a gesture in
+     *  flight that physical presses must not interleave with. */
+    int runner_buttons_held;
+    /** The runner pushed an input event this frame. */
+    int runner_events_this_frame;
+    /** The physical pointer and who moved last (hover follows it). */
+    int physical_x;
+    int physical_y;
+    int physical_moved_last;
+    /** This frame's game input carries a physical gesture: the input stage
+     *  runs through the PlayerClient view and its menu. */
+    int physical_frame;
+
+    /** Every physical event, always: the PlayerClient camera's keys, middle
+     *  button and wheel, and its pointer. */
+    struct LibToriRS_Input physical_input;
+    /** The driver's own bus while attached (PluginDriveCore_CmdBus answers
+     *  it): its events are the runner's. Allocated at attach. */
+    struct ToriRS_CmdBus* runner_bus;
+    /** Physical commands waiting for the runner's gesture to end. */
+    struct App_ViewSplitHeld held[APP_VIEW_SPLIT_HELD_MAX];
+    int held_count;
+
+    /** The PlayerClient view's menu storage (views[0]'s is interact.minimenu;
+     *  App_ViewSplitBindMenu swaps the two while a physical gesture is
+     *  handled so the UI interaction step drives the right one). */
+    struct UIMinimenu player_client_menu;
+    int menu_bound_to_player_client;
+
+    /** THE OFFSCREEN RUNNER FRAME (app_render.c). */
+    int runner_fresh;
+    int runner_catch_up_ok;
+    int runner_draw_owed;
+    int offscreen; /* an offscreen frame is being drawn */
+    int* runner_pixels;
+    int runner_pixels_count;
+    struct PaintersBuffer* runner_painter_buffer;
+
+    /** Watcher actions while Interact is on (ring; the driver reads them). */
+    struct App_ViewSplitWatcherAction watcher[APP_VIEW_SPLIT_WATCHER_MAX];
+    uint32_t watcher_serial;
+
+    /** Counters (the status read; the cost proof). */
+    uint64_t offscreen_frames;
+    uint64_t offscreen_frames_for_reads;
+    uint64_t offscreen_frames_for_shots;
+    uint64_t presented_frames;
+    uint64_t physical_delivered;
+    uint64_t physical_dropped;
+    uint64_t physical_held;
+    uint64_t attaches;
+};
+
+/** CAM_SHAKE's per-frame roll, shared by every paint of one frame (the
+ *  offscreen runner frame must not consume rand(); see app_world_paint). */
+struct App_ShakeRoll
+{
+    uint64_t frame;
+    int valid;
+    int jitter[5];
 };
 
 struct App
@@ -1144,34 +1391,21 @@ struct App
     /** Viewport size remembered for TORIRS_PAINTER_CULL=baked debounce (0 = none). */
     int painter_cullmap_bake_w;
     int painter_cullmap_bake_h;
-    struct ToriDraw_Camera world_camera;
-    struct ToriDraw_Position world_camera_pos;
-    /* Reference orbit camera (Client-TS followCamera): velocity-driven
-     * yaw/pitch, a 1/16-eased anchor that trails the player, and a terrain
-     * pitch clamp (cameraPitchClamp, 24.8 fixed) that keeps the eye above
-     * nearby ground. cam_key_* latch arrow-held state for the follow step,
-     * which runs before key sampling in the frame.
-     *
-     * orbit_x/orbit_z are FLOAT because the reference's are (rev-239
-     * client.field917/field879, eased in client.method1605). An integer
-     * `anchor += (target - anchor) / 16` never converges: once the gap drops
-     * to 15 the truncated step is 0, so the anchor parks a permanent ~15
-     * units short on each axis and the camera orbits a point beside the
-     * player instead of the player. */
-    /** The follow camera's anchor, angles and terrain clamp. See
-     *  render/world_camera_orbit.h. */
-    struct WorldCameraOrbit orbit;
-    int cam_key_left;
-    int cam_key_right;
-    int cam_key_up;
-    int cam_key_down;
-    /* Middle-button rotate (revconfig `[camera] controls=mmb`): the press
-     * latches inside the viewport rect and keeps the pointer until release, so
-     * a drag that wanders over the sidebar keeps rotating. cam_mmb_x/y is the
-     * pointer position the last delta was measured from. */
-    int cam_mmb_active;
-    int cam_mmb_x;
-    int cam_mmb_y;
+    /**
+     * The world views (see struct App_WorldView). `views[0]` always exists;
+     * `view_split.view_count` is how many are live (1, and 2 is the most there will
+     * be: a script's camera and the watcher's). `frame_view` is the view the
+     * frame being built reads and writes, chosen where a stage begins: the
+     * presented draw and the emit walk set the presented view, the offscreen
+     * runner frame and the camera follow step set theirs, and each puts
+     * views[0] back -- every other moment (logic, the plugin pump, the
+     * driver's verbs) sees views[0].
+     */
+    struct App_WorldView views[APP_WORLD_VIEW_MAX];
+    struct App_WorldView* frame_view;
+    /** The runner/watcher split (struct App_ViewSplit); all zero while no
+     *  script is attached. */
+    struct App_ViewSplit view_split;
     /*
      * This platform aims the camera with a FINGER, so the revision's
      * `controls=` list does not decide whether it may.
@@ -1226,29 +1460,8 @@ struct App
      * code. Debug world hotkeys share the digit row with the rev-254 tab
      * bindings, so they check this and stand down rather than firing both. */
     uint8_t hotkey_consumed[TORIRS_OSRSKEY_COUNT];
-    /*
-     * The follow camera's live ZOOM: the eye sits `pitch * 3 + this` behind
-     * the player, in fine units, so this is the additive half of zoom. It
-     * starts at `[camera] rest=` (the reference's 600, Client-TS camFollow)
-     * and smaller is closer.
-     *
-     * The wheel and the pinch move it inside `[camera] zoom_closest=` ..
-     * `zoom_furthest=`, in `wheel_step=` notches; the settings page's
-     * REVCONFIG_CAMERA_WHEEL_PINNED stops them, which is how a player asks for
-     * the 2004 camera that does not zoom. The MULTIPLICATIVE half is
-     * `[camera] distance_scale=`, which this field knows nothing about. The
-     * free camera dollies along the view axis instead and ignores all of it.
-     */
-    int world_cam_zoom;
     int world_active; /* 1 once Task_WorldLoad completed */
-    /** U toggles: 1 = the follow camera stands down and W/A/S/D + R/F fly
-     *  world_camera_pos freely; relocking eases back onto the player (the
-     *  follow's own >500-unit teleport snap handles the return). */
-    int camera_unlocked;
 
-    /** Camera hold across an offline world reload. See
-     *  render/world_camera_orbit.h. */
-    struct WorldCameraHold cam_hold;
 
     /**
      * The Place-loc tool's hover ghost: a REAL loc placed at the hovered tile
@@ -1295,12 +1508,9 @@ struct App
      * minimapLevel); a mismatch with the local player's level rebakes it. */
     int world_map_level;
 
-    /* World picking: the full pickset refreshes as part of every rendered
-     * frame (App_Render hittests visible models at world_mouse_x/y); click
-     * handlers consume the last rendered set. world_emit_desc caches the
-     * WORLD node's emit desc — the gate rect and the exact viewport the
-     * render pass draws with. */
-    struct World_PickSet world_pickset;
+    /* The WORLD node's emit desc -- the gate rect and the exact viewport the
+     * render pass draws with. Shared by every view; the pickset each draw
+     * fills is the view's (struct App_WorldView). */
     struct UITreeEmitDesc world_emit_desc;
     int world_view_valid;
     /** Set when this frame reused the previous command list unchanged (PR #49's
@@ -1644,28 +1854,6 @@ struct App
         int gender;
         int built; /* 0 until the first successful composite */
     } player_model;
-    int world_mouse_in_viewport;
-    int world_mouse_x; /* last input mouse, canvas coords */
-    int world_mouse_y;
-    /** No pointer is resting at world_mouse_x/y: the finger that was the
-     *  pointer lifted (LibToriRS_Input_PushMouseLeave). The position is kept,
-     *  because a popup the tap opened is anchored to it, but everything hover
-     *  means -- the tile under the pointer, the world pick, the mouseover line
-     *  -- goes quiet until something points at the canvas again. */
-    int pointer_absent;
-    int world_hover_tile_x; /* scene tile, -1 = none */
-    int world_hover_tile_z;
-    int world_hover_tile_level;
-    /** The hovered DECK tile (world-entity terrain under the pointer), or
-     *  view 0 when the pointer is over no deck. Deck-LOCAL tiles at the deck
-     *  MESH level. Kept beside — never instead of — the root hover latch
-     *  above: the click cross and spawn hotkeys speak root tiles; the
-     *  boat-aware consumers (the tile-indicator plugins' hover marker)
-     *  prefer this one when set. */
-    int world_hover_view;
-    int world_hover_view_x;
-    int world_hover_view_z;
-    int world_hover_view_level;
 
     /* Projectile hotkey latch: first press = src tile, second = dst + fire. */
     /*
@@ -1833,11 +2021,12 @@ struct App
      * changed. What ends it is the server -- its LOGOUT packet, or the socket
      * it closes instead of sending one (app_net_tear_down_session reads this
      * to tell that answer apart from a connection that was lost). The
-     * reference's `logoutTimer`, armed at the same 250 cycles it uses
-     * (Client.ts:11212), and its whole point is that a logout the server never
-     * heard must not take the player off the world it is still playing.
+     * rev-239 client's logoutTimer, armed at the same 250 it uses, and its
+     * whole point is that a logout the server never heard, or refused, must
+     * not take the player off the world it is still playing.
      *
-     * @see APP_LOGOUT_WAIT_CYCLES for what happens when nothing answers.
+     * It stays armed until the session ends: nothing counts it down
+     * (@see APP_LOGOUT_WAIT_CYCLES).
      */
     int logout_wait_cycles;
     /** Client-behaviour era table (src/features/features.h). Never NULL after
@@ -2485,6 +2674,9 @@ struct App
         int shake_amplitude[5]; /* sine amplitude */
         int shake_speed[5];     /* sine rate, hundredths */
         int shake_cycle[5];
+        /** The shake's per-frame roll, shared by every paint of one frame
+         *  while a script's view is attached (struct App_ShakeRoll). */
+        struct App_ShakeRoll shake_roll;
         /** Camera packets executed this session; events[serial % RING] is the
          *  newest once serial > 0. */
         int serial;
@@ -3147,6 +3339,118 @@ App_Init(
     struct App* app,
     struct AppConfig const* cfg);
 
+/**
+ * Make the one world view App_Init starts with: `views[0]`, `view_count` 1,
+ * `frame_view` pointing at it, and its minimenu pointer at the menu
+ * `interact` keeps. Touches nothing else, so App_Init calls it right after
+ * the memset and a test that builds a struct App by hand calls it the same
+ * way before reaching anything that reads a view. Inline, so a test that
+ * links none of src/app/ can still make one.
+ */
+static inline void
+App_WorldViewsInit(struct App* app)
+{
+    assert(app);
+    app->view_split.view_count = 1;
+    app->frame_view = &app->views[0];
+    app->frame_view->minimenu = &app->interact.minimenu;
+}
+
+/** The view a script's verbs act through (views[0], always). */
+static inline struct App_WorldView*
+App_RunnerView(struct App* app)
+{
+    assert(app);
+    return &app->views[APP_VIEW_RUNNER];
+}
+
+/** The view the presented frame draws: the PlayerClient view while a script
+ *  is attached, otherwise the only one. */
+static inline struct App_WorldView*
+App_PresentedView(struct App* app)
+{
+    assert(app);
+    return app->view_split.attached ? &app->views[APP_VIEW_PLAYER_CLIENT] : &app->views[APP_VIEW_RUNNER];
+}
+
+/** The runner camera split (struct App_ViewSplit), app_render.c.
+ *
+ *  Attach makes views[1] a copy of views[0] (no jump), gives it its own menu,
+ *  and hands the driver its own input bus. It answers 1 when two views are
+ *  live afterwards, 0 when the client presents nothing or its lane cannot
+ *  carry the second view; `out_reason` (when non-NULL) then says which. A
+ *  second attach is a no-op answering 1. */
+int
+App_ViewAttachPlayerClient(
+    struct App* app,
+    char const** out_reason);
+
+/** Detach: views[0] takes the watcher's camera, pointer and menu (what is on
+ *  screen stays on screen; nothing the runner did is copied), views[1] and the
+ *  runner's buffers are freed. A detach with nothing attached is a no-op. */
+void
+App_ViewDetachPlayerClient(struct App* app);
+
+/** Swap which view the input stage acts through: 1 = the PlayerClient view
+ *  (its menu is moved into interact.minimenu, the storage the UI step
+ *  drives), 0 = back to the runner's. Only while attached. */
+void
+App_ViewSplitBindPlayerClient(
+    struct App* app,
+    int bind);
+
+/** The Interact switch. */
+void
+App_ViewSetInteract(
+    struct App* app,
+    int interact);
+
+/** Read the watcher actions after `after_serial` into `out` (oldest first);
+ *  answers how many were written. */
+int
+App_ViewWatcherActions(
+    struct App const* app,
+    uint32_t after_serial,
+    struct App_ViewSplitWatcherAction* out,
+    int capacity);
+
+/** The host: route one physical input command while attached (main.c's drain
+ *  hands every input command of its bus here when the split is attached).
+ *  Answers 1 when the command was an input command (consumed or forwarded),
+ *  0 for any other command (the caller dispatches it). */
+int
+App_ViewSplitPhysicalCommand(
+    struct App* app,
+    struct ToriRS_CmdHeader const* header,
+    uint8_t const* payload,
+    struct LibToriRS_Input* game_input);
+
+/** The host: drain the runner's bus into the game input (after the physical
+ *  bus), noting the runner's pointer and gesture. */
+void
+App_ViewSplitDrainRunner(
+    struct App* app,
+    struct LibToriRS_Input* game_input);
+
+/** The host, once per loop iteration while attached, before the presented
+ *  draw: `committed` is App_RunOnce's answer. Draws the owed offscreen
+ *  runner frame (BEFORE the presented one) and ages the runner's pickset. */
+void
+App_ViewSplitBeforePresent(
+    struct App* app,
+    int committed);
+
+/** Draw the offscreen runner frame now into the runner's buffer (or
+ *  `pixels` when non-NULL), pick armed at the runner's pointer unless
+ *  `pick` is 0. The CONTRACT: no frame end, no load-event drain, no
+ *  animation accumulation beyond the pose cache, its own painter buffer, no
+ *  rand(), not counted as a drawn frame. */
+void
+App_ViewSplitDrawRunner(
+    struct App* app,
+    int* pixels,
+    int pick);
+
 /** Tear down in strict reverse of App_Init. */
 void
 App_Shutdown(struct App* app);
@@ -3170,9 +3474,9 @@ App_NetSessionReset(struct App* app);
  * This is the ENDING, not the request. The logout button does not reach it:
  * the button sends its IF_BUTTON and arms App::logout_wait_cycles, and what
  * calls this is the server's answer -- the LOGOUT packet, or the socket it
- * closes instead. The three remaining ways in are that answer, a wait that ran
- * out with no answer at all, and a click with no session to answer it (an
- * offline profile, or a connection already gone).
+ * closes instead. The two ways in are that answer and a click with no session
+ * to answer it (an offline profile, or a connection already gone). A wait
+ * with no answer is not one: it lasts until the server ends the session.
  *
  * A profile that declares no [layout:title] has no login screen to return to;
  * the session still ends, and the client stays on the gameframe it booted into.
@@ -4064,7 +4368,7 @@ App_RenderSkipRequestDraw(
     int frames);
 
 /**
- * Make the render-time state (app->world_pickset and the hover tile, the
+ * Make the render-time state (app->frame_view->world_pickset and the hover tile, the
  * posed model bounds) what it would be with skip off, before something reads
  * it: when the most recent frame was committed but skipped, draw it NOW, late,
  * into a scratch buffer -- same emit list, scene, camera and pointer, so the

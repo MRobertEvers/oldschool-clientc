@@ -1,0 +1,455 @@
+{{Update|date=20 January 2024|url=https://secure.runescape.com/m=news/varlamore-part-one---overview?oldschool=1|category=devblog}}
+[[File:Varlamore- Part One - Overview newspost.jpg|right]]
+{{clear}}
+__TOC__
+
+<center>{{Youtube|sSpO2bQX8fU}}</center>
+
+''Why not learn all about Varlamore by following Mod Ash & Mod Ed's 'definitely real' antics on the continent! ''[https://www.youtube.com/watch?v=sSpO2bQX8fU Click here]'' if you can't see the embedded video.''
+
+It's not long now until Varlamore opens its doors to intrepid explorers from all over Gielinor on '''March 20th'''!
+
+We've shared a lot with you regarding Varlamore over the last few months, and you've shared a whole lot back with us. This post will be your one-stop shop to get yourself up to speed and remind yourself of everything that's entering the game as part of Varlamore's first batch of content, from new boss encounters, to new rewards, all the way up to never-before-seen skilling activities.
+
+You won't find any new information here, so if you're already caught up then carry on with your day, but if you're looking for a refresher or you've been AFK for a couple of weeks then grab your reading glasses and settle in - here's everything you need to know about Old School's biggest ever area expansion! If reading's not your thing, check out the Dev Diary below to learn everything you'll need to know (or click here to watch it on YouTube).
+
+<center>{{Youtube|KXqH3ylqr3M}}</center>
+
+==Varlamore Part One - Key Content Updates==
+Old School’s next area expansion will take you to the Shining Kingdom of Varlamore, and open up a new region south of Kourend and Kebos.
+
+We’re not just offering a new region jam-packed with delightful content – we’re offering answers to some of Old School RuneScape’s biggest questions. Whether you’re a lorehound, an avid PvMer, or a super skiller, Varlamore has something for you.
+
+===A New Dawn===
+Let's take a look at where you’ll start your journey into Varlamore, in the heart of the kingdom.
+
+[[File:Varlamore- Part One - Overview (1).png|600px|center]]
+
+That’s right, the first part of the Varlamore area expansion will let you explore the capital itself – Civitas illa Fortis. This bustling city is a hub for trade, transport, and feats of bravery – as well as Queen Zyanyi herself and her loyal Kualti guards.
+
+Beyond the city’s walls lies the Avium Savannah, a thriving landscape filled with creatures and critters you won’t find anywhere else. Our last stop is the ancient dwarven town of Cam Torum, built deep into the stony face of Ralos’ Rise.
+
+==Quests==
+There’s no better way to make an area feel alive than with a good ol’ chunk of lore!
+
+Quests in Varlamore will give you ample opportunity to explore the region’s history, mythos, and culture over the course of a new storyline that will conclude with the final part of the release. This won’t be an epic, multi-year questline like the Elves or the Mahjarrat, but a punchy introduction to the land of Varlamore and its people. Don’t worry though – there’s hundreds upon thousands of years of lore to get stuck into!
+
+In the first release, you’ll be able to get stuck into two quests. One has already released, so make sure to go and complete 'Children of the Sun' if you haven't already, it's a quick-to-complete Novice-level quest which will be required for access to Varlamore - look for Noah or Alina in Varrock square to see what all the fuss is about.
+
+A second quest will continue the story as soon as you can access the city of Civitas illa Fortis. This will be an Intermediate quest (with appropriate rewards) that will help you build a better understanding of the region’s story to give you a firm footing as soon as you arrive!
+
+Enough lore, let's talk ''violence''!
+
+==Fortis Colosseum==
+Note: this section is a top-level overview of what to expect with the Fortis Colosseum. For a more detailed look, you can check out the following blogs:
+
+* [https://secure.runescape.com/m=news/a=97/fortis-colosseum---first-look--rewards?oldschool=1 First Look &amp; Rewards]
+* [https://secure.runescape.com/m=news/poll-blog-fortis-colosseum-x-perilous-moons?oldschool=1 Poll Blog]
+* [https://secure.runescape.com/m=news/varlamore-part-one---reward-changes?oldschool=1 Reward Changes]
+
+On Varlamore’s south-eastern shores sits the crown jewel and capital city – Civitas illa Fortis. This shining city has many claims to fame, but towering above them all is the city’s defining feature: the Fortis Colosseum.
+
+This epic arena is the setting for a new, wave-based PvM minigame.
+
+The Fortis Colosseum will pit the bravest among you against an onslaught of increasingly complex waves of enemies. Those of you who own a Fire Cape should be able to get your feet wet in the early rounds, but as the waves progress, you can expect combinations of enemies that will test the skills of even the most seasoned combatants.
+
+Unlike other wave-based minigames, as the difficulty increases, so too do the stakes. After each wave, you’ll be offered a choice: swallow your pride and leave with the loot or risk it all on the next battle – you’re here to put on a show, after all!
+
+We want the Fortis Colosseum to feel less like a ‘one and done’ milestone and more like something you’re excited to improve at over time. Some randomising of enemy spawn locations and even slight variations on the enemies you’ll encounter ensure that there’s plenty of variety… but there’s something else that keeps the crowds screaming for more. &nbsp;
+You see, no two Colosseum runs will be the same. Between waves, you’ll be asked to choose between a number of modifiers that will swing the odds against you and empower your opponents. If you plan to go all the way, you’ll need to juggle the increasingly tricky waves and your chosen modifiers, though trickier modifiers often result in greater Glory gains.
+
+You can expect to find yourself handsomely rewarded for your crowd-pleasing deeds. Higher waves offer greater loot, with the opportunity to earn some unique rewards for especially impressive performances. We don’t have specifics in mind just yet, but as always, we’re keen to hear your suggestions.
+
+==Fortis Colosseum Rewards==
+What's the worth of all that bloodshed if not a lovely little trinket or two to take home at the end of it?
+
+===Dizana's Quiver===
+Dizana's Quiver is an untradeable, chargeable (and corruptible) Cape-slot offering, boasting higher offensive bonuses than Ava's Assembler and a particularly unique effect which allows it to hold at least two types of ammo, automatically selecting whichever applies to your current weapon. You'll be able to earn one of these by making it all the way to the end of a Colosseum run!
+
+When charged, ammo fired from the quiver (meaning bolts and arrows exclusively) will gain an additional +1 Ranged Strength and +10 Ranged accuracy. These 'charged' numbers are indicated in brackets in the stat image below:
+
+[[File:Varlamore- Part One - Overview (2).jpg|220px|center]]
+
+===Glaive of Ralos===
+For starters, we're talking about throwing glaives, not those great big spear, polearm thingies (although one of these might prove super cool...)
+
+The Glaive of Ralos is a one-handed, chargeable, thrown weapon in a brand-new weapon category, which bounces back to you after each hit - handy!
+
+Uncharged, you'll throw it out, hit your enemy for between 0 - 75% of your maximum hit and have the glaive return to your hand. Infinite ammo sounds neat, but only 75% damage? What gives?
+
+When ''charged'' this groovy glaive really comes into its own, its sharp edges will slice ''and'' dice for two hitsplats. Each splat rolls its own accuracy and damage, where the damage rolls between 0% and 75% of your maximum hit. Not bad, but there's more!
+
+As fun as the thematics are, we've got a cherry on top to make sure that your time spent obtaining one of these bad boys is worthwhile: its special attack. For 50% Special Attack Energy, successful hitsplats will drain the target's Defence level by 10% of their ''Magic'' level.
+
+[[File:Varlamore- Part One - Overview (3).png|400px|center]]
+
+===Sunfire Fanatic Armour===
+Between the Glaive of Ralos, Echo Crystal, and Sunfire runes (more on those in just a moment), a lot of what's on offer is a little more involved than simple 'bigger number' approaches to rewards. That said, sometimes it's nice to keep things simple, and we've got just the thing!
+
+Sunfire Fanatic Armour is effectively Proselyte armour with bigger numbers. That's it, the whole pitch!
+
+Seriously though, Proselyte has been the go-to Prayer bonus gear since 2006, and spilling blood to sustain an enigmatic sun god in an ancient Colosseum feels like a fitting spot to earn some gear that brings you a little closer to the divine. Each piece of the tradeable Sunfire Fanatic set requires 60 Prayer and 40 Defence, and will be dropped individually with each piece boasting +2 Prayer bonus over its Proselyte equivalent plus similar defensive bonuses to Rune armour.
+
+[[File:Varlamore- Part One - Overview (4).png|600px|center]]
+
+===Sunfire Splinters===
+You’ll receive Sunfire Splinters in bulk pretty regularly throughout your Colosseum runs. Similar to the Phantom Muspah’s Ancient Essence, Sunfire Dust lets you charge or otherwise interact with various other items, making it a consistent source of profit for anybody taking on the Colosseum challenge.
+
+You already know that you can use Sunfire Splinters to charge the Glaive of Ralos & Dizana's Quiver, but you’ll also be able to use it to craft Sunfire Runes!
+
+===Sunfire Runes===
+Sunfire Runes are a ''brand new'' Rune that take a slightly different approach to the Wrath Rune formula.
+
+You’ll make these by combining Sunfire splinters with Rune Essence (Pure or Daeyalt, to taste) and regular Fire Runes at the new Sunfire Altar, found in Varlamore.
+
+The Sunfire Altar is visually distinct from the Rune Altars you’re used to, and reflects the unique way Varlamorians and players alike will interact with it.
+
+Lastly, the number of Sunfire Runes crafted per Essence will scale with your Runecraft level, in much the same way as crafting multiple Runes at once does currently.
+
+Just like Lava Runes, Sunfire Runes will count as Fire Runes when casting spells – but whenever you consume one, that spell will gain a 10% minimum hit. As a brief note, we anticipate that hovering over a Fire spell with any Sunfire Runes in your inventory would clearly show that you'd be using Sunfire runes as opposed to boring old Fire Runes!
+
+Additionally, you'll be able to combine Sunfire runes or dust with Burnt pages to make Searing pages, which would allow the Tome of Fire to provide the additional 10% minimum hit that Sunfire runes offer on their own.
+
+We hope that this boost will breathe new life into the fire spells offered in the Standard Spellbook, especially in conjunction with weapons like the Harmonised Nightmare Staff. Again, we’re thinking that the added damage consistency will help make these underloved options more attractive. Bigger isn’t ''always'' better, you know…
+A grand colosseum filled with never-before-seen enemies, epic loot, and the screams, cheers and gasps of adrenaline-fuelled spectators. Are you not entertained?!
+
+Now let's dig deep and take a look at Perilous Moons, a quest to unlock a brand-new mid-level dungeon, accessible via the Dwarven town of Cam Torum...
+
+==Perilous Moons==
+'''Note:''' this section is a top-level overview of what to expect with Perilous Moons. For a more detailed look, you can check out the following blogs:
+
+* [https://secure.runescape.com/m=news/a=97/perilous-moons---first-look--rewards?oldschool=1 First Look &amp; Rewards]
+* [https://secure.runescape.com/m=news/poll-blog-fortis-colosseum-x-perilous-moons?oldschool=1 Poll Blog]
+
+Beneath the steep and jagged cliffs of Ralos’ Rise sits the dwarven town of Cam Torum. Its strong fortifications have kept it safe through all of Varlamore’s history… but now the inhabitants face a new challenge.
+
+Lurking below the surface is an ancient temple, built to contain powerful entities. Now, the earth has been disturbed – and the dwarves need your help to keep these strange beings contained!
+
+The quest will reveal a new chunk of PvM content aimed at mid-level players. The dungeon holds three deadly demi-bosses. Defeat them, and you’ll reemerge with some exciting new loot!
+
+If you can’t tell, this encounter is heavily inspired by the iconic Barrows Brothers – a mid-level combat staple! Unlike Barrows, however, this activity focuses on discovery and exploration. We want you to feel like you’re progressing through the dungeon in a meaningful way, learning more about Varlamore’s ancient history as you go.
+
+We recommend tackling the dungeon with a combat level of 75 or more. Down in the depths, defence is key – so you’ll want to prepare carefully before heading in.
+
+Now that you know what you’re in for, let’s take a closer look…
+
+===Down in the Dungeon===
+Every trip into the temple begins in the central room, which expands outwards along four ominously long corridors. Each of these leads to a different area of the dungeon, with different elements and opportunities to explore!
+
+However, only one corridor will be open to you each time you enter – meaning that every encounter begins slightly differently to the ones before it.
+
+Once you’ve explored your starting corridor, you’re free to move around and tackle the bosses in any way you like – although taking on the one closest to your starting location will obviously save you quite a bit of time.
+
+Each room in the temple contains enemies to fight, shortcuts to cross, and opportunities to flex your skilling muscles. Although the temple has seemingly been abandoned for many centuries, you’ll have the opportunity to acquire food and Prayer restoration items that will help you achieve your goal. Please note that nothing you acquire inside can leave the temple again – they’re just there to help you restock between fights. Of course, you’re also free to bring your own supplies, although you’ll find that making use of the dungeon’s resources is faster than trekking to the nearest Bank.
+
+Resources aren’t the only thing you’ll find in the temple’s depths – you’ll also encounter some nasty foes to fight! They’ll drop useful stuff like bones and herbs, and of course, you’ll also receive XP for defeating them.
+
+Base camps around the dungeon will let you store and retrieve tools for Hunter, Fishing, and other gathering skills, so you’ll always have the ability to gather those precious resources when you need them.
+
+After spending some time exploring the dungeon and shoring up your supplies, it’s time to face the demi-bosses…
+
+[[File:Varlamore- Part One - Overview (5).png|600px|center]]
+
+It doesn’t matter which demi-boss you tackle first, as your chance of loot is only affected by how many of them you defeat. Subdue all three, and you’ll have the best loot in the bag!
+
+===A Combined Effort===
+Unlike the Barrows Brothers, these demi-bosses can be fought by multiple players at the same time. Without dropping any spoilers, these powerful entities cannot be killed – your job is to distract them to ensure they remain contained within the temple.
+
+To this end, we’re doing things a little differently. Instead of having one big health bar that you and your companions are working to deplete, every player involved will have their own individual health bar. This means that other players’ participation (or lack thereof) won’t affect your reward potential. Go solo, or bring your friends – either way, you’ll get your just reward.
+
+However, this also means that the bosses will attack you all as a collective, using the environment around them to damage players en masse. You’ll need to stay alert to avoid taking damage!
+
+Each of these bosses also provides an opportunity to learn and practice key mechanics you’ll need to master to face more challenging foes later in your adventuring career. It’s a great way for new players to familiarise themselves with some of the tougher elements of PvM!
+
+Obviously, we also plan to include never-before-seen mechanics to keep you on your toes – but discussing them here would spoil the surprise!
+
+===Defence is the Best Offense===
+As we mentioned above, Defence is a keystone of this content. Most gear, especially in the late-game, focuses on offensive bonuses – with the notable exception of Justiciars. Mid-game gear, however, tends towards more defensive bonuses – and that’s what we want to encourage here.
+
+The bosses share a mechanic which highlights the importance of Defence – and each individual boss also has their own way of lowering your DPS when you take damage.
+
+Each boss’s basic attack will hit three times, and each hit is harder than the last. However, should any one of those attacks miss, the others will miss as well. This means that to preserve your DPS, you’ll need to have a strong defence.
+
+After you’ve subdued one demi-boss, it’s up to you whether you want to tackle the remaining two or go straight for the loot. Again, if you want to snatch those uniques, you’ll want to distract all three bosses – but if you’re not feeling up to it, you can always tap out early.
+
+Now, let’s have a look at those uniques in detail!
+
+==Perilous Moons Rewards==
+[[File:Varlamore- Part One - Overview (6).png|600px|center]]
+
+If you've not seen these armour sets before, prepare yourself for some seriously experimental stuff! Now, it’s time to turn our eyes to the skies, and bask in the glow of the blood moon…
+
+===Bloodrager Set===
+[[File:Varlamore- Part One - Overview (7).png|400px|center]]
+
+
+[[File:Varlamore- Part One - Overview (8).png|600px|center]]
+
+Drawing power from the angriest phase of the moon, the Bloodrager Set evokes memories of ancient bloodthirst in the wearer, causing them to rip and tear through low-defence targets in a devastatingly ferocious assault.
+
+The Dual Macuahuitl has a speedy attack rate of 4 ticks, and get this – they hit twice!
+
+They also come with a Special Attack, allowing you to sacrifice 10% of your current Hitpoints to raise your maximum and minimum hit by 25% for that attack. At just 25% energy cost this might seem like a no-brainer, but watch out – use it too many times in a row, and you’ll find yourself low on HP!
+
+Wearing the full set will also earn you a nifty Set Effect: a 33% chance for the Dual Macuahuitl’s second attack to hit one tick sooner. Using the Special Attack with the full set equipped makes that a guarantee, enabling you to slice and dice with unparalleled speed.
+
+For lower-defence foes this set is a gamechanger, although they become less effective against higher-defence enemies.
+
+===Frostmoon Set===
+[[File:Varlamore- Part One - Overview (9).png|400px|center]]
+
+
+[[File:Varlamore- Part One - Overview (10).png|600px|center]]
+
+Feeling blue? Not for long! The Frostmoon Set focuses on both Melee and Magic and immobilises enemies with the sheer cold of the Frostmoon.
+
+Its main benefit is strong Magic accuracy compared to other midgame sets, combined with defensive capabilities against both Magic and Crush styles.
+
+The real star of the set, however, is the Spell Spear, a melee weapon that hits significantly harder than your standard staff while allowing you to auto-cast whatever spells you like. With a 5% increase to Magic strength, you’ll be freezing your enemies in their tracks and doing some serious damage.
+
+The Frostmoon armour’s set effect gives you a 10% chance for your next melee attack to go unaffected by any action delay – although this only affects attacks made with the Spell Spear. Put those Dragon Claws away!
+
+You’ll deal even more damage with the Spell Spear’s Special Attack, which increases your max hit by 1% for every tick remaining on a target inflicted with a binding effect. Once you’ve dealt your deadly blow, the binding effect will be removed – so choose your moment carefully before going in for the kill!
+
+For example: if your target has 10 ticks remaining on their binding effect, hitting them with the Spell Spear's Special Attack will increase your max hit by 10%.
+
+===Eclipse Set===
+[[File:Varlamore- Part One - Overview (11).png|400px|center]]
+
+[[File:Varlamore- Part One - Overview (12).png|600px|center]]
+
+The next stop on our celestial journey is to the all-consuming maw of the Eclipse. This set combines the sharp sting of the arrow with up-close-and-personal melee carnage as you burn your foes and consume the fire to unleash a devastating flurry of flames!
+
+Like the Frostmoon gear, this is a hybrid set. Eclipse combines great Ranged accuracy and Melee strength to create a deadly offence, at the cost of its defensive capabilities.
+
+The set includes the Eclipse Atlatl, a new Ranged weapon with an attack speed of 4 (3 on Rapid). What makes this weapon unique is that it rolls your damage off your Melee Strength.
+
+The Set Effect gives the wearer a 20% chance to inflict Burn, a new effect that causes the target to suffer 1 point of damage every 4 ticks for 40 ticks – a total of 10 base damage. However, the effect can be stacked up to five times to rack up even more damage over time. Yowch!
+
+The Atlatl’s Special Attack costs 50% Special Attack energy and consumes any remaining Burn damage on the target to increase your max hit by that number, and your minimum hit by half of that number. While this is a massive boost, we have capped it at an additional 50 damage – we don’t want you setting the world on fire!
+Let's get out of this dreary ol' dungeon and take a look at the far-reaching plains and savannah to be found in Varlamore, the perfect grounds for budding hunters...
+
+==Hunter Guild==
+'''Note:''' this section is a top-level overview of what to expect with the Hunter Guild. For a more detailed look, you can check out the following blogs:
+
+* [https://secure.runescape.com/m=news/the-hunter-guild---varlamore?oldschool=1 First Look &amp; Rewards]
+* [https://secure.runescape.com/m=news/the-hunter-guild---feedback?oldschool=1 Feedback]
+
+The vast lands of the Avium Savannah are home to all manner of creatures, from the elegant sunlight antelope to the adorable jerboa. Those seeking the bounties of this rich land settle at the Hunters Guild, a purpose-built shelter nestled just outside Civitas Illa Fortis. Once you’ve reached 46 Hunter you can follow the dirt roads from Civitas Illa Fortis into the heart of the Avium Savannah, where the Guild’s many amenities await you.
+
+Come, make your way down into the Burrow, have yourself a Trapper’s Tipple, and see all that this ancient Guild has to offer…
+
+===Hunters' Rumours===
+The Hunter's in the guild have heard whispers of creatures all across Gielinor that you’ll be tasked with tracking down and hunting. These are like Slayer tasks or Farming Contracts and they may be the classic creatures you’ve come to know and love, or one of the many new critters found in Varlamore.
+
+You can only have '''one''' Rumour active at any one time. Just like the Slayer Masters you’re familiar with, each hunter at the bar will have a different Rumour, and they’ll be suitable for different Hunter levels. If you don’t like the look of your current Rumour, simply speak to another hunter – or, if none of their Rumours interest you, you can trade some of your spare creature parts for a low-tier hunt that will reset all the available Rumours. The Rumours start at Tier 1 with 46 Hunter all the way up to Tier 4 at 91 Hunter.
+
+When you’ve selected a rumour to investigate, set off and prepare to hunt! You job is to grab a special Rare Creature Part to complete your Rumour. These Rare Creature Parts can be traded with the hunter you obtained the Rumour from for a bonus XP drop and a Loot Sack of useful Hunter goodies like meats, furs, and bones. If you’re lucky, you might also get some Varlamore-specific items you can use in other activities around the area, Quetzel Whistle recharges, your very own Quetzal Pet or a chance to obtain the new Hunter Skilling Outfit, which provides you with '''+2.5% catch rate''' and a '''5% increased chance to obtain a Rare Creature Part''' when wearing the full set.
+
+===Quetzal Transport Network===
+These beautiful, graceful birds are native to Varlamore, and the citizens there have worked alongside these majestic beasts for centuries. Their powerful wings are capable of carrying their companions to destinations across the continent, and the Hunter Guild maintains their own stable as one of the many amenities available. Guild members are issued a Quetzal Whistle, which allows them to swiftly fly back to the Guild from anywhere in Gielinor – except the Wilderness, of course.
+
+There are three tiers of Quetzal Whistle – Basic, Enhanced (made from Yew), and Perfected (made from Redwood). The Basic Quetzal Whistle can store up to five charges, the Enhanced version up to 20, and the Perfected version up to 50. After completing 5 Rumours of any level, the Quetzal Master in The Roost will reward you with the Basic Whistle Blueprints. You’ll need this to obtain the Blueprints for the Enhanced and Perfected variants, which you’ll receive as a random drop from completing Rumours.
+
+You’ll be spending lots of time with these beautiful birds as you travel the world, so we want to give you the option to customise the quetzal that comes to pick you up! You'll also have a link to Varlamore via the Eagle's Transport system once you unlock access from the guild.
+
+===New Creatures===
+Varlamore is home to all manner of creatures you’ve never seen before, and we can’t wait for you to meet them!
+
+'''Moths'''<br>Just like Butterflies, these creatures are trapped using a Butterfly Net and Jar or your own hands with the right level, and allow you to bestow buffs on up to a random three players in a 3x3 radius around you with one of the following effects:
+
+* Sunlight Moth (65 Hunter): '''6 + 20% of a player's reduced stats''', as well as '''8 Hitpoints'''.
+* Moonlight Moth (75 Hunter): '''5 + 10% of a player's level in Prayer Points'''.
+You can also use these creatures in Hunter’s Mixes, a tradeable two-dose AoE potion that has the same effect as the Moths. Not only do we want to extend this option to Butterflies too, to give them a bit more utility but we'd like to also change their mechanics to work just like Moths!
+
+'''Antelope'''<br>Springy, agile and fast, these four-legged mammals can be found wandering the Avium Savannah and the Hunter Guild. Successfully hunting these creatures with a pitfall trap will provide you with meat and horns. These also have two variants:
+* Sunlight Antelope (72 Hunter): Sunlight Horns and Sunlight Meat
+* Moonlight Antelope (91 Hunter): Moonlight Horns and Moonlight Meat
+
+Sunlight Horns can be used to upgrade the Hunter's Crossbow into the Sunlight Hunter's Crossbow and bolts for the upgraded version, while the Moonlight horns can be crafted into stronger ammunition specifically for the Sunlight Crossbow. More on that in a moment!
+
+'''Jerboa'''<br>Requiring 39 Hunter to catch with a Box Trap, you can craft there tails into Hunter's Spears.
+
+'''Fennec Foxes'''<br>These particular fluffy fellows can be caught in Varlamore, using 57 Hunter and a baited deadfall trap. They drop Fox Fur, Meat, and Bones.
+
+'''Mountain Salamander'''<br>A new tier of Salamander that can be caught with the usual net method. They'll require 79 Hunter to catch and use new Irit Tar as ammunition which will give an additional +60 Ranged Strength. You’ll need 80 Attack/Ranged/Magic to wield these fiesty little fiends effectively.
+* Slash Attack: +77
+* Ranged Attack: +87
+* Strength Bonus: +91
+
+In order to make these fantastic friends fit for battle against other players, you'll need to take them to a member of the guild which will train them up to be combat ready! If you die against another player with these, you'll need to revisit the Guild member to get some less scaredy Salamanders!
+
+===Hunter Meats and Food===
+The gourmets at the Hunter Guild have developed a cooking method that gives your typical, boring meats a bit of extra flavour – and a delayed healing over time effect that gives you more HP than fish over a longer period of time. If you’re wondering – yes, you can still combo-eat with these meats with items like Karambwan or Saradomin Brews in conjunction with some tasty Hunter meats, and you’ll get the benefits of both. If you eat another piece of Hunter Meat before you've received the second lot of healing, it will be overrided with the new Hunter Meat and you won't receive the remainder of healing from the original meat.
+
+Some meats have a bit of extra flavour in the form of effects. Here's a breakdown of how some of the meats we’ve designed so far stack up against their fishy equivalents:
+
+<center>
+{| class="wikitable" style="text-align: center;"
+|-
+!Fish
+!HP
+!Meat
+!HP
+!Additional
+!Total HP
+|-
+|Trout
+|7
+|Wild Kebbit
+|5
+|3
+|8
+|-
+|Salmon
+|9
+|Larupia
+|7
+|4
+|11
+|-
+|Tuna
+|10
+|Barbed Kebbit
+|8
+|4
+|12
+|-
+|Lobster
+|12
+|Graahk
+|9
+|5
+|14
+|-
+|Swordfish
+|14
+|Kyatt
+|11
+|6
+|17
+|-
+|Monkfish
+|16
+|Fox Meat
+|13
+|6
+|19
+|-
+|Karambwan
+|18
+|Sunlight Antelope Meat
+|14
+|7
+|21
+|-
+|Shark
+|20
+|Dashing Kebbit
+|15
+|8 + 10 Run Energy
+|23
+|-
+|Dark Crab/Manta Ray
+|22
+|Moonlight Antelope Meat
+|17
+|4 + 5 + Cure 1 Poison
+|26
+|}
+</center>
+
+There’s one catch – in order to unlock this new method of Cooking, you’ll have to complete Rumours and get the Guild’s residents to trust you with their favourite recipes. Here’s how that shakes out:
+
+* Access to Varlamore: Low Tier Meats (Wild Kebbit, Larupia and Barbed Kebbit)
+* 25 Rumours: Mid Tier Meats (Graahk, Kyatt and Fox)
+* 50 Rumours: High Tier Meats (Antelope and Dashing Kebbit)
+
+===New Gear===
+Fear not, the Hunter Guild also comes with some fancy new equipment that’ll have you strutting your stuff all over the Savannah.
+
+====Mixed Hide Gear====
+This set is a new set that requires 50 Defence and 60 Ranged to equip. We're also thinking this set should be made from a combination of relatively high Hunter furs like Fox and Antelopes.
+
+This set is a Ranged/Melee hybrid that gives you a welcome Defence advantage while offering some significant Strength-based Ranged gains. In order to create this set, you'll need to speak to someone within the Hunter Guild and get it tanned to be 'combat ready' before using it across the world! We’ve designed the set to match Spiky Vambraces for an alternative mid-level option that focuses on both Ranged attack and Melee strength – incidentally, it goes nicely with the new weapon we’re planning to introduce…
+
+[[File:Varlamore- Part One - Overview (13).png|450px|center]]
+
+====Hunter's Spear====
+These Ranged weapons are unique because they roll their damage based on your Melee Strength which the Mixed Hide Gear insinuated. For those wondering, these would be consumable and would work with Ava's Equipment line. To give you more utility from using this weapon in Hunter, they'll give you an increased chance to successfully tease creatures like Kyatt, Ghaark and Larupia by 5%. They'll also not consume any ammo when being used against Chinchompas.
+
+[[File:Varlamore- Part One - Overview (14).png|400px|center]]
+
+===Improving Existing Content===
+Even with all this new and exciting stuff to try, Hunter could use a little love. With that in mind, we’ve gone back to existing content and spiced it up a little.
+
+====Hunter's Crossbow====
+We want to breathe some life into this neglected weapon by allowing skilled hunters to upgrade it to the Hunter’s Sunlight Crossbow using Sunlight Horns from Sunlight Antelopes. The upgraded version will require 66 Ranged and 50 Hunter to use, and 74 Fletching to craft. It comes with +79 Ranged accuracy along with remaining a 4 attack speed weapon (3 on Rapid). It also lets you use new type of bolts crafted from Sunlight Antelope Horns, with a powerful +55 Ranged strength bonus and Moonlight Antelope Horns, with +60 Ranged strength bonus.
+
+====Hunter's Pouches====
+Alongside making furs and meats worth keeping in the first place, we’d also like to give you the option to craft Hunter’s Pouches which will store up to 28 of these core Hunting resources. The Pouches work much like the Rune Pouches – you’ll need the previous version to upgrade to the next.
+* Larupia Fur Pouch: 35 Crafting, 4x Larupia Fur, Needle, Thread. Stores up to 14 furs. Gives 100 Crafting XP.
+* Graahk Fur Pouch: 50 Crafting, Larupia Fur Pouch, 3x Graahk Fur, Needle, Thread. Stores up to 21 furs. Gives 200 Crafting XP.
+* Kyatt Fur Pouch: 65 Crafting, Graahk Fur Pouch, 3x Kyatt Fur, Needle, Thread. Stores up to 28 furs. Gives 300 Crafting XP.
+
+Meat Sacks work similarly, but (as the name suggests) only store meat.
+* Fennec Meat Pouch: 35 Crafting, 4x Fennec Fox Fur, Needle, Thread. Stores up to 14 raw Hunter meats. Gives 200 Crafting XP.
+* Antelope Meat Pouch: 65 Crafting, Fennec Meat Pouch, 3x Antelope Fur, Needle, Thread. Stores up to 28 raw Hunter meats. Gives 300 Crafting XP.
+
+====Hunter Outfits====
+Aside from being pretty gnarly FashionScape, the Hunter outfits made from Larupia, Graahk and Kyatt fur are basically useless. We want to give them a purpose – a damage reduction bonus only against Hunter creatures that applies when wearing the full set by 20%, 40% and 60% respectively.
+
+Don’t worry, we haven’t forgotten the Hunter Camouflage Gear. We’re giving all Camouflage Tops and Legs a weight reduction bonus, for a more thematic lighter step with all tops having a 3kg Weight Reduction and all legs having a 2kg reduction.
+
+====Trap Storage====
+To save you time and Run Energy, we’d like to introduce a form of Trap Storage, much like the Tackle Box for Fishing, which would let you store all your Hunter tools ready for the next hunt. The Trap Storage would only be for traps – you’ll still need to bring your own Knives, Axes, etc. To put it simply, it will store everything created by the Lunar Spell Hunter Kit.
+
+====Implings====
+Finally, you'll be able catch Implings barehanded without a Jar, but when using a Butterfly Net you need a Butterfly Jar. We would like to clarify this wouldn't replace using Jars, but just give you a nice alternative.
+That's all from the Hunter Guild! While this is one of the bigger skilling hubs in the first batch of Varlamore, there's some smaller areas you can utilise for some other skills...
+
+==Smaller Activities==
+'''Note:''' this section is a top-level overview of what to expect with the Hunter Guild. For a more detailed look, you can check out the following blog:
+
+* [https://secure.runescape.com/m=news/varlamore-activities--kourend-changes?oldschool=1 Varlamore Activities &amp; Kourend Changes]
+
+The rich new environments we’re creating will offer plenty of opportunities to skill, and today we’re going to discuss Agility, Mining, Prayer and Thieving activities.
+
+===Colossal Wyrm (Agility)===
+'''PLEASE NOTE: THE AGILITY COURSE WILL NOT BE RELEASING ON MARCH 20TH, FURTHER DETAILS TO FOLLOW IN A FUTURE NEWSPOST.'''
+
+Once you've gained '''50 Agility''', venture over to the Colossal Wyrm, south of Civitas Illa Fortis to help out Worm Tongue in order to rid this boastworthy landmark of it's termite problem. This Agility course will see you exploring the caves underneath the skeleton, gathering up those pesky termites after meeting Worm Tongue to explain how the course works, and once he provides you with an empty jar to collect your critters. Catch the termites and then trade them in for rewards at Worm Tongue's Store, namely:
+
+* Bone Shards: a stackable item used in Prayer training.
+* Basic Teleport Crystals: allow you to teleport out of the Agility Dungeon and back to your Agility guide once.
+* Advanced Teleport Crystal: allows you to teleport out of the Agility Dungeon and back to your Agility guide multiple times.
+* Graceful Sewing Kit: can be used to recolour an item of Graceful Kit to the Varlamore Graceful Kit.
+The Course will also offer a way to get Amylase Crystals. By grinding down the termites with a Pestle and Mortar you can change them into Bug Jelly, which can be traded in along with some GP for Amylase Crystals. Alternatively, you can opt to rescue the termites and gift them to the Hunter Guild, in exchange for Hunter XP!
+
+===Bone Shard Mining (Mining)===
+Requiring '''41 Mining''', the new method will be low intensity, a bit like a combination of Camdozaal Mining and Tears of Guthix. With the veins, you'll be able to mine Bone Shards, which, as we’ve previously mentioned, are items used across Varlamore for worship - and a stackable resource! Every so often, waterfalls will run down one of the veins, and mining those veins increases the mining success rate by 15%.
+
+Occasionally, players will receive Calcified Deposits. These can be smashed with a hammer at an anvil for either a stack of Bone Shards or a chance to receive a one time use, tradeable Cam-Torum teleport. You'll also be able to take the Bone Shards to our next activity in exchange for Prayer XP.
+
+===Offerings to Ralos (Prayer)===
+You'll need a minimum of '''30 Prayer''' to participate in this worship, but it offers a very simple gameplay loop: '''Bring Bones → Bless Bones → Chip into Shards → Offer to Ralos'''.
+
+The only thing you'll need to bring other than bones is a Jug of Wine, which will be used to fill the Libation Pool for a successful offering. Bone Shards can be crafted from most existing bones, and each shard, no matter what bone they are made from, will give the same amount of experience when offered. The tier of bone determines the amount of Bone shards you receive (with higher being better), and some bones also offer a chance for bonus shards!
+
+Wine can be used for up to 1,000 Shards and you'll be able to use Sunfire Splinters found at the Fortis Colosseum to change your wine into Libation Wine, which results in a little bit more experience for each Bone Shard offered. However, it also reduces your maximum Shards - we’re currently thinking to between 500 and 750.
+
+We'll also be offering you a way to un-note your bones so that you won't have to spend loads of time going to and from a Bank and can instead commit to uninterrupted worship. Amen!
+===Pickpocketing, Breaking & Entering (Thieving)===
+One of the main draws of training Thieiving in Varlamore is due to the wealthy citizens that live there. Visit the Bazaar, as long as you have '''50 Thieving''', you can pickpocket the citizens there, but this has a high failure rate under normal conditions. Every so often a nearby Street Urchin will try and distract a wealthy citizen and this will provide a 100% success chance for a short period and will also let you autopickpocket for the duration! Pickpocketing these citizens will give coin pouches with a chance to get a key... but what are they used for?
+
+Also, once you've reached '''50 Thieving''', you'll be able to chat with a suscipious character lurking outside the homes of some of Citivas Illa Fortis' most affluentual individuals. You’ll be requested to steal from these houses and will need to head inside with the keys you've stolen from the wealthy citizens and take the valuables before the owners return. Once inside, you'll search nearby cupboards and wardrobes and gather valuables which can be turned in for coins. Be careful though, as being in the house when the owners return will mean you'll lose some of them!
+
+Talking of a bigger hit… at any one time, a single house in the district will be marked with a chalked symbol. This indicates a high-value target! These will be different for each player, so keep an eye out for your unique opportunity. The high-value household will have a chance for double loot drops, and you might even find a Ivory Figurines. You can take the Ivory Figurines to the Hunter's Guild for a reward pack, or just chip them into Bone Shards for use at Ralos' Rise.
+
+----
+
+You can also discuss this update on the [https://www.reddit.com/r/2007scape 2007Scape subreddit], the community-led [http://discord.gg/OSRS OSRS Discord] or the [https://steamcommunity.com/app/1343370/discussions/ Steam forums]. For more info on the above content, check out the official [[Old School Wiki]].
+
+'''Mods Abyss, Arcane, Archie, Argo, Ash, Ayiza, Blossom, Boko, Bruno, Chilly, Crystal, Curse, Daizong, Dylan, Ed, Elena, Enigma, Errol, Gecko, Gizmo, Goblin, Grub, Halo, Harold, Hend, Hooti, Hornet, Husky, Jalo, Jerv, Keyser, Kieren, Kirby, Kurotou, Lenny, Light, Mack, Manked, Markos, Maylea, Meat, Moogle, Morty, Necro, Nox, Nylu, Other, Pumpkin, Redfield, Regent, Rice, Roq, Ry, Sarnie, Shroom, Sigma, Skane, Skylark, Smithy, Sova, Squid, Starry, Surma, Sween, Tide, Titus, Torrance, Tsourorf, Tyran, Veda, Vegard, West & Wolfy'''
+
+''The Old School Team.''

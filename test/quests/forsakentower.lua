@@ -2,6 +2,11 @@
 -- the legs the guide folds into steps: docs/quests/ladders/forsakentower.notes.md
 -- and quest_forsakentower/scripts/{forsakentower,ft_puzzles,ft_grid}.rs2.
 -- Prerequisites X Marks the Spot and Client of Kourend come from ::complete.
+-- Door rule (b71): no ::forsakentower placement (it stood the player inside Lady Vulcana's walled
+-- room). Lumbridge -> Port Sarim on foot, Veos ferries to Piscarilius (veos_ferry.rs2:97), then
+-- overland; every door between the player and a target is pressed on every visit: Vulcana's
+-- door (lova_wall_door_lower 1484,3743,0) in and out, the tower's entry door in and out, the
+-- ground-floor and first-floor inner doors (lovaquest_inner_door) in and out.
 -- Stages: 2 undor, 3 tower, 4+n after n puzzles, 8 unlocked, 9 hammer, 10 return, 11 complete.
 
 return {
@@ -9,9 +14,8 @@ return {
     fixture = "fresh_lumbridge.ini",
     setup = {
         "::clearinv",
-        "::forsakentower",
-        "::complete quest_xmarksthespot",
-        "::complete quest_clientofkourend",
+        "::complete quest_xmarksthespot", -- Veos ferries to Great Kourend (clientofkourend.rs2:31)
+        "::complete quest_clientofkourend", -- the guide's requirement; Veos' standard ferry menu (veos_ferry.rs2:74)
     },
 
     run = function(t)
@@ -29,8 +33,34 @@ return {
         t.step("quest.bind", bind_result == "ok" and "PASS" or "FAIL", bind_detail)
         t.ticks(3)
 
-        -- talkToVulcana
-        t.exec("goto-talkToVulcana", t.player.goto_tile, 1483, 3747, 0)
+        local function here()
+            local _, tl = t.world.tile()
+            return tl
+        end
+        local function tile_str(tl)
+            return tl and (tostring(tl.x) .. "," .. tostring(tl.z) .. "," .. tostring(tl.level)) or "nil"
+        end
+        -- Lady Vulcana's walled room (x 1480-1487 z 3743-3759): its door is on the south wall.
+        local function vulcana_door(name, inward)
+            local inside, outside = { 1484, 3743 }, { 1484, 3742 }
+            t.exec(name, t.player.pass_door, { closed = "lova_wall_door_lower", open = "lova_wall_door_open_lower",
+                at = { 1484, 3743, 0 }, near = inward and outside or inside, far = inward and inside or outside })
+        end
+
+        -- Lumbridge -> Port Sarim on foot (REACH 255, doors shut) -> Veos sails to Piscarilius.
+        t.exec("goto-veosSarim", t.player.goto_tile, 3054, 3246, 0)
+        t.exec("talkToVeos", t.player.talk_to, "veos_sarim", 1)
+        t.exec("talkToVeos-menu", t.chat.drain, { stop_at = "options" })
+        t.exec("talkToVeos-somewhere", t.chat.choose, "Can you take me somewhere?")
+        t.exec("talkToVeos-where", t.chat.drain, { stop_at = "options" })
+        t.exec("talkToVeos-sail", t.chat.choose, "I'd like to travel to Port Piscarilius, please.")
+        t.exec("talkToVeos-done", t.chat.drain, {})
+        t.ticks(4)
+        do local da = here(); t.check("talkToVeos-landed", da ~= nil and da.x >= 1800 and da.x < 1850 and da.z > 3600 and da.z < 3750, "landed at the Piscarilius dock at " .. tile_str(da)) end
+
+        -- talkToVulcana: Piscarilius dock -> outside her door (REACH 426), pressed, walked in.
+        t.exec("goto-talkToVulcana", t.player.goto_tile, 1484, 3742, 0)
+        vulcana_door("talkToVulcana.doorIn", true)
         t.exec("talkToVulcana", t.player.talk_to, "vulcana_lovakengj_vis", 1)
         t.exec("talkToVulcana-dialog", t.chat.play, {
             "player:I'm looking for a quest.",
@@ -40,6 +70,8 @@ return {
             "npc:Splendid. Find Undor",
         })
         t.expect("quest.stage.undor", t.quest.expect_stage("undor"))
+
+        vulcana_door("talkToVulcana.doorOut", false)
 
         -- Ignisia first: Undor will not take the job until she has been spoken to once.
         t.exec("goto-ignisia", t.player.goto_tile, 1633, 3946, 0)
@@ -60,9 +92,18 @@ return {
 
         -- enterTheForsakenTower
         t.exec("goto-enterTheForsakenTower", t.player.goto_tile, 1382, 3815, 0)
-        t.exec("enterTheForsakenTower", t.player.click_loc, "lovaquest_tower_entry_door", 1)
-        t.ticks(4)
+        -- The entry door (south wall, 1382,3817): its op1 gate (forsakentower.rs2:203) sets stage 4.
+        t.exec("enterTheForsakenTower", t.player.pass_door, { closed = "lovaquest_tower_entry_door", open = "lovaquest_tower_entry_door_open",
+            at = { 1382, 3817, 0 }, near = { 1382, 3816 }, far = { 1382, 3817 } })
+        t.ticks(2)
         t.expect("quest.stage.puzzle", t.quest.expect_stage("puzzle"))
+
+        -- The ground floor's north room (z >= 3826) sits behind lovaquest_inner_door on its south wall.
+        local function ground_inner_door(name, x, inward)
+            local south, north = { x, 3825 }, { x, 3826 }
+            t.exec(name, t.player.pass_door, { closed = "lovaquest_inner_door", open = "lovaquest_inner_door_open",
+                at = { x, 3826, 0 }, near = inward and south or north, far = inward and north or south })
+        end
 
         -- inspectDisplayCase (four locks)
         t.exec("goto-inspectDisplayCase", t.player.goto_tile, 1382, 3819, 0)
@@ -71,7 +112,9 @@ return {
         t.key("escape")
         t.ticks(2)
 
-        -- Furnace puzzle: jugs, tinderbox, coolant tank, light
+        -- Furnace puzzle: jugs, tinderbox, coolant tank, light (the north room)
+        t.exec("goto-innerDoorWest", t.player.goto_tile, 1380, 3824, 0)
+        ground_inner_door("furnaceRoom.doorIn", 1380, true)
         t.exec("goto-searchShelvesJugs", t.player.goto_tile, 1380, 3827, 0)
         t.exec("searchShelvesJugs", t.player.click_loc, "lovaquest_tower_shelves_jugs", 1)
         t.exec("searchShelvesJugs-dialog", t.chat.play, {
@@ -108,10 +151,13 @@ return {
         t.ticks(2)
         t.expect("quest.stage.furnace_done", t.quest.expect_stage("furnace_done"))
 
-        -- goDownLadderToBasement
+        -- goDownLadderToBasement: out of the north room by the east inner door, then the ladder
+        -- (forsakentower.rs2:253 p_teleport(^ft_basement_coord) = 1382,10228).
+        ground_inner_door("furnaceRoom.doorOut", 1384, false)
         t.exec("goto-goDownLadderToBasement", t.player.goto_tile, 1382, 3823, 0)
-        t.exec("goDownLadderToBasement", t.player.click_loc, "lovaquest_tower_dungeon_entry", 1)
-        t.ticks(3)
+        t.exec("goDownLadderToBasement", t.player.climb, { loc = "lovaquest_tower_dungeon_entry", op = 1, op_name = "Climb-down",
+            at = { 1382, 3825, 0 }, dest = { 1382, 10228, 0 }, slack = 0 })
+        t.ticks(2)
 
         -- searchCrate (north eastern cell: open the cell door first)
         t.exec("openCellDoor", t.player.click_loc, "prisondoor", 1, { at = { 1386, 10227 } })
@@ -158,13 +204,29 @@ return {
 
         -- leave the basement
         t.exec("goto-goUpToGroundFloor", t.player.goto_tile, 1382, 10227, 0)
-        t.exec("goUpToGroundFloor", t.player.click_loc, "lovaquest_tower_dungeon_exit", 1)
-        t.ticks(3)
+        t.exec("goUpToGroundFloor", t.player.climb, { loc = "lovaquest_tower_dungeon_exit", op = 1, op_name = "Climb-up",
+            at = { 1382, 10229, 0 }, dest = { 1382, 3824, 0 }, slack = 0 })
+        t.ticks(2)
+
+        -- The first floor's hall (x 1380-1384, z <= 3826: refinery, notes, fluid table) is walled off
+        -- (walls on x 1379 and x 1385) from both stair tops; they land in the ring round the ladder room
+        -- (1378,3826 and 1386,3826, outside those walls), and the hall is
+        -- entered through lovaquest_inner_door (wall on the north edge of 1380/1384,3826,1).
+        local function first_inner_door(name, x, inward)
+            local hall, ring = { x, 3826 }, { x, 3827 }
+            t.exec(name, t.player.pass_door, { closed = "lovaquest_inner_door", open = "lovaquest_inner_door_open",
+                at = { x, 3826, 1 }, near = inward and ring or hall, far = inward and hall or ring })
+        end
 
         -- Refinery: stairs up, inspect (clogged), notes, the right vial, pour, activate
-        t.exec("goto-stairsUp", t.player.goto_tile, 1379, 3824, 0)
-        t.exec("stairsUp", t.player.click_loc, "lovaquest_spiral_stairs", 1)
-        t.ticks(3)
+        -- forsakentower_maplinks.dbrow: Climb-up lands north of the top, in the ring (1386,3826,1);
+        -- the guide's "Go upstairs. Open the door".
+        t.exec("goto-stairsUp", t.player.goto_tile, 1385, 3824, 0)
+        t.exec("stairsUp", t.player.climb, { loc = "lovaquest_spiral_stairs", op = 1, op_name = "Climb-up",
+            at = { 1386, 3824, 0 }, dest = { 1386, 3826, 1 }, slack = 0 })
+        t.ticks(2)
+        t.exec("goto-hallDoorIn", t.player.goto_tile, 1384, 3827, 1)
+        first_inner_door("refinery.doorIn", 1384, true)
         t.exec("goto-inspectRefinery", t.player.goto_tile, 1382, 3821, 1)
         t.exec("inspectRefinery", t.player.click_loc, "lovaquest_tower_refinery", 1)
         t.exec("inspectRefinery-dialog", t.chat.play, { "mesbox:The refinery is sealed", "choose:Yes." })
@@ -203,10 +265,13 @@ return {
         t.expect("quest.stage.refinery_done", t.quest.expect_stage("refinery_done"))
 
         -- Pylons: open the inner door, climb to the top floor, Tower of Hanoi west -> centre
-        t.exec("goto-innerDoor", t.player.goto_tile, 1382, 3825, 1)
-        t.exec("openInnerDoor", t.player.click_loc, "lovaquest_inner_door", 1)
-        t.exec("goUpToPylons", t.player.click_loc, "lovaquest_tower_ladder_up", 1)
-        t.ticks(3)
+        -- The first floor's ladder room (z >= 3827) is behind lovaquest_inner_door's north wall.
+        t.exec("goto-innerDoor", t.player.goto_tile, 1384, 3825, 1)
+        first_inner_door("openInnerDoor", 1384, false)
+        -- forsakentower.rs2:263 p_teleport(movecoord(^ft_ladder_south, 0, 2, 0)) = 1382,3826,2
+        t.exec("goUpToPylons", t.player.climb, { loc = "lovaquest_tower_ladder_up", op = 1, op_name = "Climb-up",
+            at = { 1382, 3827, 1 }, dest = { 1382, 3826, 2 }, slack = 0 })
+        t.ticks(2)
         local moves = {
             { 1, 3 }, { 1, 2 }, { 3, 2 }, { 1, 3 }, { 2, 1 }, { 2, 3 }, { 1, 3 }, { 1, 2 },
             { 3, 2 }, { 3, 1 }, { 2, 1 }, { 3, 2 }, { 1, 3 }, { 1, 2 }, { 3, 2 },
@@ -221,11 +286,17 @@ return {
         t.expect("quest.stage.unlocked", t.quest.expect_stage("unlocked"))
 
         -- goDownToFirstFloor, goDownToGroundFloor
-        t.exec("goDownToFirstFloor", t.player.click_loc, "lovaquest_tower_ladder_down", 1)
-        t.ticks(3)
-        t.exec("goto-goDownToGroundFloor", t.player.goto_tile, 1378, 3824, 1)
-        t.exec("goDownToGroundFloor", t.player.click_loc, "lovaquest_spiral_stairs_top_m", 1)
-        t.ticks(3)
+        -- forsakentower.rs2 p_teleport(movecoord(^ft_ladder_south, 0, 1, 2)) = 1382,3828,1: the
+        -- ladder room, north of lovaquest_tower_ladder_up (its only open side).
+        t.exec("goDownToFirstFloor", t.player.climb, { loc = "lovaquest_tower_ladder_down", op = 1, op_name = "Climb-down",
+            at = { 1382, 3827, 2 }, dest = { 1382, 3828, 1 }, slack = 0 })
+        t.ticks(2)
+        -- Along the ring to the west stair's top; forsakentower_maplinks.dbrow lands the player south of
+        -- lovaquest_spiral_stairs_m in the ground-floor hall (1378,3823,0), beside the display case.
+        t.exec("goto-goDownToGroundFloor", t.player.goto_tile, 1378, 3826, 1)
+        t.exec("goDownToGroundFloor", t.player.climb, { loc = "lovaquest_spiral_stairs_top_m", op = 1, op_name = "Climb-down",
+            at = { 1377, 3824, 1 }, dest = { 1378, 3823, 0 }, slack = 0 })
+        t.ticks(2)
 
         -- getHammer
         t.exec("goto-getHammer", t.player.goto_tile, 1382, 3819, 0)
@@ -233,7 +304,9 @@ return {
         t.exec("getHammer-has", t.inv.await, "lovaquest_hammer", 1, 5)
         t.expect("quest.stage.hammer", t.quest.expect_stage("hammer"))
 
-        -- returnToUndor
+        -- returnToUndor: out by the entry door (pressed from inside), then overland.
+        t.exec("leaveTower.door", t.player.pass_door, { closed = "lovaquest_tower_entry_door", open = "lovaquest_tower_entry_door_open",
+            at = { 1382, 3817, 0 }, near = { 1382, 3817 }, far = { 1382, 3816 } })
         t.exec("goto-returnToUndor", t.player.goto_tile, 1626, 3941, 0)
         t.exec("returnToUndor", t.player.talk_to, "wint_master_smith_normal", 1)
         t.exec("returnToUndor-dialog", t.chat.play, {
@@ -243,7 +316,8 @@ return {
         t.expect("quest.stage.returned", t.quest.expect_stage("returned"))
 
         -- returnToVulcana
-        t.exec("goto-returnToVulcana", t.player.goto_tile, 1483, 3745, 0)
+        t.exec("goto-returnToVulcana", t.player.goto_tile, 1484, 3742, 0)
+        vulcana_door("returnToVulcana.doorIn", true)
         local _, snap = t.skill.snapshot()
         local _, coins_before = t.inv.count("coins")
         t.exec("returnToVulcana", t.player.talk_to, "vulcana_lovakengj_vis", 1)

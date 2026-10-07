@@ -1,0 +1,74 @@
+{{Update|date=17 April 2018|link=http://services.runescape.com/m=news/chambers-of-xeric-challenge-mode?oldschool=1|category=website}}
+[[File:Chambers of Xeric- Challenge Mode newspost.png|right]]
+{{clear}}
+{{Headline|25|Chambers of Xeric: Challenge Mode}}
+{{Horizontal Line}}
+
+'''Changelog'''<br/>[18/04/18] - Added further detail regarding the in-game leaderboards and announced a new dedicated page that will contain the name or Clan Chat of the fastest completion time for that week across all worlds.<br/>[18/04/18] - Added further detail regarding the points earnt from a Challenge Mode raid.<br/>[19/04/18] - Added clarification around which pets are available with the Olmet transmog unlock.
+{{Horizontal Line}}
+
+<center>''The purpose of this blog is to detail as much as possible prior to the poll going live in-game later this week to allow for player feedback. Whilst there's a lot of detail to be found, we're purposefully not saying much about the room order or completion time for the Chambers of Xeric. You'll therefore have to make your preparations after it's live, should it pass the polls.''
+
+'''You've perfected your strategies, honed your skills, and triumphed against the Great Olm. Now, a new challenge awaits...''' For those looking for a twist on the usual raid encounter, the Chambers of Xeric: Challenge Mode might just be what you've been waiting for!
+</center>
+
+[[File:Chambers of Xeric- Challenge Mode (1).jpg|center|700px]]
+
+
+{{Horizontal Line}}
+{{Headline|25|Challenge Mode}}
+
+
+With the upcoming release of the [http://services.runescape.com/m=news/dev-blog-theatre-of-blood?oldschool=1 Theatre of Blood], a linear raid challenge where all rooms are generated in the same order each time you enter and something that will be sure to emphasise the need for teamwork and push teams to earn the fastest raid completion time, we want to create a similar experience for the Chambers of Xeric.
+
+Before going into the detail, we'd like to highlight that towards the end of March, as part of the [http://services.runescape.com/m=news/qol-week-1-pvm-poll-blog?oldschool=1 QoL Month Week 1: PvM blog], we announced that we would dedicate a poll to the Chambers of Xeric in regards to further balancing and tweaks. This is still planned for the near future, where focused discussions with community will begin. No works that would go into Chamber of Xeric: Challenge Mode will impact this. In short, we want to offer this '''in addition''' to the Chambers QoL poll.
+
+[[File:Chambers of Xeric- Challenge Mode (2).png|center|700px]]
+
+The rooms within the Chambers of Xeric are randomly generated each time a raid is started. It's no secret that there are some much preferred room layouts that will take priority over others, meaning due to factors out of your own control, it can be difficult to compete for the fastest completion times. We want to offer a new experience to the Chambers by including a brand-new variant, "Challenge Mode".
+
+[[File:Chambers of Xeric- Challenge Mode (3).png|center]]
+
+Via the party interface for the Chambers of Xeric, raid leaders will be able to select "Challenge Mode" when forming a raid party. Once this has been selected, any raids started by the leader will have a set room order, which will always be the same for all "Challenge Mode" raids. Once inside the raid, you'll find all of its inhabitants have become stronger than their standard counterpart, so be sure to come prepared for a ''challenge''.
+
+The Chambers of Xeric: Challenge Mode will push the limits of your PvM skills and strategy. To encourage those of you looking to battle for the fastest completion times, we would like to add an in-game leaderboard, recording your results for all of Gielinor to see during that week. Each world would have a leaderboard that shows the fastest completion time for each bracket across all worlds, in addition to the completion time and display name of up to the top 5 players or the raid leader from the world it is opened on.
+
+'''Outside of the game''', we will be hosting a dedicated page that will contain the name of the player or the raid leader of the fastest completion time for that week across all worlds. This will not be refreshed live, but we are hoping to update it weekly, and have the following team sizes tracked:
+
+Solo<br/>
+Team of 2<br/>
+Team of 3<br/>
+Team of 4<br/>
+Team of 5<br/>
+Team of 6<br/>
+Team of 7<br/>
+Team of 8<br/>
+Team of 9<br/> 
+Team of 10<br/>
+Team of 11-15<br/>
+Team of 16-20<br/>
+Team of 21-30<br/>
+Team of 31-40<br/>
+Team of 41-50<br/>
+Team of 50+
+
+{{Horizontal Line}}
+{{Headline|25|The Rewards}}
+
+
+It wouldn't be a new PvM challenge if there wasn't a fitting reward. Alongside the '''leaderboard''' mentioned above, you'll also be rewarded with the '''standard loot you'd normally receive''' for completing the Chambers of Xeric. Whilst the type of loot you will get is no different from a standard raid, as the Chambers of Xeric: Challenge Mode has more difficult bosses, '''you will earn more points from killing them'''.
+
+In addition to the above, finishing a "Challenge Mode" run within a set amount of time will also grant you a chance of obtaining an unlock for the Olmlet pet which allows you to transmog it into miniature versions of Tekton, Vespula, Vanguard, Muttadile or Vasa Nistirio. This unlock can be earnt regardless of whether you have the Olmlet pet or not, though you'll need the actual pet before you can utilise the unlocks of course!
+
+[[File:Chambers of Xeric- Challenge Mode (4).png|center|700px]]<br/>[[File:Chambers of Xeric- Challenge Mode (5).png|center|700px]]<center>''Whilst it's not all of them, we thought you may want to see how some of the bosses look as their pet counterpart.''</center>
+
+
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question #1'''</center><center>Should we add a new raiding experience, the Chambers of Xeric: Challenge Mode to Old School RuneScape? Each world would have a leaderboard that shows the fastest completion time for each bracket across all worlds, in addition to the completion time and display name of up to the top 5 players or the raid leader from the world it is opened on. The leaderboards reset with each game update and will be recorded on a dedicated page. Completing a Challenge Mode raid will grant the same type of loot you would gain from completing a standard raid.</center></div><br/>
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question #2'''</center><center>If the Chambers of Xeric: Challenge Mode is added to the game, should completion of the raid within a set amount of time offer a chance of obtaining an unlock for the Olmlet pet which allows you to transmog the Olmlet into miniature versions of Tekton, Vespula, Vanguard, Muttadile or Vasa Nistirio.</center></div><br/>
+<div style="padding: 10px; background-color:rgba(255, 255, 255, 0.05); box-shadow:0px 0px 3px #000000;"><center>'''Poll Question #3'''</center><center>If the Chambers of Xeric: Challenge Mode is added to the game, should all players who complete the raid 100, 500, 1000, 1500 and 2000 times respectively be awarded an untradeable and entirely cosmetic cape? The appearance of the cape would differ depending on which tier of raid completions you have achieved.</center></div><br/>
+
+{{Horizontal Line}}
+
+Discuss this update on our [http://services.runescape.com/m=forum/forums.ws?380,381,477,66005892 official forums], the community lead [https://www.reddit.com/r/2007scape/ 2007Scape Reddit], or the community lead [https://discordapp.com/invite/OSRS OSRS Discord].
+
+'''''Mods Archie, Ash, Ayiza, Curse, Ed, Ghost, Jed, John C, Kieren, Lottie, Mat K, Maz, Roq, Ry, Stone, Sween, Weath, West & Wolf'''''<br/>''The Old School Team''

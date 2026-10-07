@@ -1,0 +1,26 @@
+{{Infobox Combat Achievement
+|name = Reinforcements
+|image = [[File:Sol Heredit.png|150px]]
+|release = [[17 April]] [[2024]]
+|update = Undead Pirates Tweaks, Varlamore CAs & More
+|members = Yes
+|description = Defeat Sol Heredit with "Bees II", "Quartet" and "Solarflare II" modifiers active.
+|tier = Grandmaster
+|monster = Fortis Colosseum
+|type = Mechanical
+|id = 547
+|leagueRegion = Varlamore
+}}
+'''Reinforcements''' is a [[Combat Achievements/Grandmaster|grandmaster combat achievement]] which requires the player to defeat [[Sol Heredit]] with Bees II, Solarflare II and Quartet [[Fortis Colosseum#Modifiers|modifiers]] active.
+
+==Strategy==
+Quartet causes a single Fremennik warbander to appear at the start of the wave, while Bees II will spawn two sets of bees that slowly home on the player. The bees will persist throughout the entire fight, so killing them off is mandatory, ideally with a scythe to avoid unnecessary swaps. Solarflare II is less of an issue if the player knows where to avoid standing. Any [[antipoison]] is highly recommended to lower damage from [[Bee Swarm|Bee Swarms]].
+
+Solarflare III and/or Bees III may also be taken for this task, but the latter should only be taken if it is the least harmful of the offered handicaps.
+
+When aiming to complete this combat achievement, it's recommended to always take Solarflare I/II when available (optionally taking Solarflare III to remove it from the pool and increase the chances of seeing the other required modifiers). Quartet should be avoided until after wave 6, as having to kill an additional Fremennik significantly increases the chances of reinforcements spawning before south spawns are dealt with. Bees should generally be avoided until later waves as well, but can be taken earlier if using a [[venator bow]] to kill them passively, or if intending to use [[Saradomin godsword]] special attacks on them.
+
+==Other tasks==
+{{Combat Achievements list|Fortis Colosseum}}
+
+{{Combat Achievements}}

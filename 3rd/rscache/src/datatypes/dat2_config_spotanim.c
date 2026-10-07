@@ -2,6 +2,7 @@
 
 #include "../rsbuffer.h"
 
+#include <assert.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -65,21 +66,47 @@ decode_dat2_spotanim(
             break;
 
         if( opcode == 1 )
+        {
             s->model = rs2_727 ? gbigsmart(buffer) : g2(buffer);
+            s->model_opcode = 1;
+            RSCache_PresenceSet(&s->present, RSCACHE_SPOTANIM_FIELD_MODEL);
+        }
         else if( opcode == 2 )
+        {
             s->anim = rs2_727 ? gbigsmart(buffer) : g2(buffer);
+            RSCache_PresenceSet(&s->present, RSCACHE_SPOTANIM_FIELD_ANIM);
+        }
         else if( opcode == 3 )
+        {
             s->model = g4(buffer);
+            s->model_opcode = 3;
+            RSCache_PresenceSet(&s->present, RSCACHE_SPOTANIM_FIELD_MODEL);
+        }
         else if( opcode == 4 )
+        {
             s->resizeh = g2(buffer);
+            RSCache_PresenceSet(&s->present, RSCACHE_SPOTANIM_FIELD_RESIZEH);
+        }
         else if( opcode == 5 )
+        {
             s->resizev = g2(buffer);
+            RSCache_PresenceSet(&s->present, RSCACHE_SPOTANIM_FIELD_RESIZEV);
+        }
         else if( opcode == 6 )
+        {
             s->angle = g2(buffer);
+            RSCache_PresenceSet(&s->present, RSCACHE_SPOTANIM_FIELD_ANGLE);
+        }
         else if( opcode == 7 )
+        {
             s->ambient = g1(buffer);
+            RSCache_PresenceSet(&s->present, RSCACHE_SPOTANIM_FIELD_AMBIENT);
+        }
         else if( opcode == 8 )
+        {
             s->contrast = g1(buffer);
+            RSCache_PresenceSet(&s->present, RSCACHE_SPOTANIM_FIELD_CONTRAST);
+        }
         /* Opcode 9 is a debug/content name in OldSchool. Present in caches produced by
          * third-party packing tools (cache.osrs230 has "soul_wars" on spotanim 0)
          * and absent from stock Jagex ones (cache.jan2026 does not). It has to be
@@ -89,38 +116,53 @@ decode_dat2_spotanim(
         {
             free(s->name);
             s->name = gcstring(buffer);
+            RSCache_PresenceSet(&s->present, RSCACHE_SPOTANIM_FIELD_NAME);
         }
         else if( opcode == 9 && rs2_727 )
         {
             s->terrain_mode = 3;
             s->terrain_height = 8224;
+            RSCache_PresenceSet(&s->present, RSCACHE_SPOTANIM_FIELD_TERRAIN);
         }
         else if( opcode == 10 )
         {
             /* Payload-free flag. Not in RuneLite's SpotAnimLoader yet; verified
              * against cache.osrs239 where 39 records are `... 0a 00`. */
             s->unknown10 = true;
+            RSCache_PresenceSet(&s->present, RSCACHE_SPOTANIM_FIELD_UNKNOWN10);
         }
         else if( opcode == 11 && rs2_727 )
+        {
             s->terrain_mode = 1;
+            RSCache_PresenceSet(&s->present, RSCACHE_SPOTANIM_FIELD_TERRAIN);
+        }
         else if( opcode == 12 && rs2_727 )
+        {
             s->terrain_mode = 4;
+            RSCache_PresenceSet(&s->present, RSCACHE_SPOTANIM_FIELD_TERRAIN);
+        }
         else if( opcode == 13 && rs2_727 )
+        {
             s->terrain_mode = 5;
+            RSCache_PresenceSet(&s->present, RSCACHE_SPOTANIM_FIELD_TERRAIN);
+        }
         else if( opcode == 14 && rs2_727 )
         {
             s->terrain_mode = 2;
             s->terrain_height = g1(buffer) * 256;
+            RSCache_PresenceSet(&s->present, RSCACHE_SPOTANIM_FIELD_TERRAIN);
         }
         else if( opcode == 15 && rs2_727 )
         {
             s->terrain_mode = 3;
             s->terrain_height = g2(buffer);
+            RSCache_PresenceSet(&s->present, RSCACHE_SPOTANIM_FIELD_TERRAIN);
         }
         else if( opcode == 16 && rs2_727 )
         {
             s->terrain_mode = 3;
             s->terrain_height = g4(buffer);
+            RSCache_PresenceSet(&s->present, RSCACHE_SPOTANIM_FIELD_TERRAIN);
         }
         /* Recolour and retexture lists are **count-prefixed**: a u8 count, then
          * that many (from, to) u16 pairs. This is not the "one opcode per slot"
@@ -129,9 +171,15 @@ decode_dat2_spotanim(
          * with "Unrecognized opcode 210". Verified by exact consumption across
          * every cache in the repo. */
         else if( opcode == 40 )
+        {
             s->recol_count = decode_colour_list(s->recol_s, s->recol_d, buffer);
+            RSCache_PresenceSet(&s->present, RSCACHE_SPOTANIM_FIELD_RECOL);
+        }
         else if( opcode == 41 )
+        {
             s->retex_count = decode_colour_list(s->retex_s, s->retex_d, buffer);
+            RSCache_PresenceSet(&s->present, RSCACHE_SPOTANIM_FIELD_RETEX);
+        }
         else
         {
             printf("Unrecognized dat2 spotanim opcode %d\n", opcode);
@@ -156,23 +204,22 @@ RSCache_Dat2ConfigSpotanimEncodeRevision(
     uint8_t* out,
     uint32_t out_capacity)
 {
-    if( !spotanim || !out )
-        return 0;
+    assert(spotanim);
+    assert(out);
 
     struct RSCache_Buffer buffer;
     RSCache_BufferInit(&buffer, out, out_capacity);
 
-    /* The decode defaults, so a field left at its default can be omitted — that
-     * is what the packer does, and it is what makes byte-exact round trips
-     * possible for most records. */
-    struct RSCache_Dat2ConfigSpotanim defaults;
-    init_dat2_spotanim(&defaults);
+#define SPOTANIM_HAS(field) RSCache_PresenceHas(&spotanim->present, RSCACHE_SPOTANIM_FIELD_##field)
 
-    if( spotanim->model != defaults.model )
+    if( SPOTANIM_HAS(MODEL) )
     {
-        /* OSRS >= 237 packs model ids with opcode 3 even when they fit in a
-         * u16; prefer that form so a re-encode keeps the same width. */
-        if( revision >= 237 || spotanim->model < 0 || spotanim->model > 0xFFFF )
+        /* The width the record came in. A hand-built record picks: OSRS >= 237
+         * packs model ids with opcode 3 even when they fit in a u16. */
+        int opcode = spotanim->model_opcode;
+        if( opcode == 0 )
+            opcode = (revision >= 237 || spotanim->model < 0 || spotanim->model > 0xFFFF) ? 3 : 1;
+        if( opcode == 3 )
         {
             p1(&buffer, 3);
             p4(&buffer, spotanim->model);
@@ -183,48 +230,49 @@ RSCache_Dat2ConfigSpotanimEncodeRevision(
             p2(&buffer, spotanim->model);
         }
     }
-    if( spotanim->anim != defaults.anim )
+    if( SPOTANIM_HAS(ANIM) )
     {
         p1(&buffer, 2);
         p2(&buffer, spotanim->anim);
     }
-    if( spotanim->resizeh != defaults.resizeh )
+    if( SPOTANIM_HAS(RESIZEH) )
     {
         p1(&buffer, 4);
         p2(&buffer, spotanim->resizeh);
     }
-    if( spotanim->resizev != defaults.resizev )
+    if( SPOTANIM_HAS(RESIZEV) )
     {
         p1(&buffer, 5);
         p2(&buffer, spotanim->resizev);
     }
-    if( spotanim->angle != defaults.angle )
+    if( SPOTANIM_HAS(ANGLE) )
     {
         p1(&buffer, 6);
         p2(&buffer, spotanim->angle);
     }
-    if( spotanim->ambient != defaults.ambient )
+    if( SPOTANIM_HAS(AMBIENT) )
     {
         p1(&buffer, 7);
         p1(&buffer, spotanim->ambient);
     }
-    if( spotanim->contrast != defaults.contrast )
+    if( SPOTANIM_HAS(CONTRAST) )
     {
         p1(&buffer, 8);
         p1(&buffer, spotanim->contrast);
     }
-
     /* Opcode 9 precedes the colour lists in every record observed carrying it. */
-    if( spotanim->name )
+    if( SPOTANIM_HAS(NAME) )
     {
+        assert(spotanim->name);
         p1(&buffer, 9);
         pjstr(&buffer, spotanim->name, RSCACHE_JSTR_TERMINATOR_NULL);
     }
-    if( spotanim->unknown10 )
+    if( SPOTANIM_HAS(UNKNOWN10) )
         p1(&buffer, 10);
-
+    /* RS2 terrain conformance has no OldSchool opcode; a porter consumes and
+     * reports it, and nothing writes it back. */
     /* Count-prefixed lists, matching the decoder. */
-    if( spotanim->recol_count > 0 )
+    if( SPOTANIM_HAS(RECOL) )
     {
         p1(&buffer, 40);
         p1(&buffer, spotanim->recol_count);
@@ -234,7 +282,7 @@ RSCache_Dat2ConfigSpotanimEncodeRevision(
             p2(&buffer, spotanim->recol_d[i]);
         }
     }
-    if( spotanim->retex_count > 0 )
+    if( SPOTANIM_HAS(RETEX) )
     {
         p1(&buffer, 41);
         p1(&buffer, spotanim->retex_count);
@@ -244,6 +292,8 @@ RSCache_Dat2ConfigSpotanimEncodeRevision(
             p2(&buffer, spotanim->retex_d[i]);
         }
     }
+
+#undef SPOTANIM_HAS
 
     p1(&buffer, 0);
     return buffer.position;
@@ -267,8 +317,7 @@ RSCache_Dat2ConfigSpotanimNewDecode(int revision, char* data, int data_size)
     (void)revision;
 
     s = calloc(1, sizeof(*s));
-    if( !s )
-        return NULL;
+    assert(s);
     RSCache_Dat2ConfigSpotanimDecodeInplace(s, data, data_size);
     (void)buffer;
     return s;
@@ -281,8 +330,7 @@ RSCache_Dat2ConfigSpotanimNewDecodeProfile(
     int data_size)
 {
     struct RSCache_Dat2ConfigSpotanim* s = calloc(1, sizeof(*s));
-    if( !s )
-        return NULL;
+    assert(s);
     RSCache_Dat2ConfigSpotanimDecodeInplaceProfile(s, cache, data, data_size);
     return s;
 }
@@ -290,8 +338,7 @@ RSCache_Dat2ConfigSpotanimNewDecodeProfile(
 void
 RSCache_Dat2ConfigSpotanimInit(struct RSCache_Dat2ConfigSpotanim* spotanim)
 {
-    if( !spotanim )
-        return;
+    assert(spotanim);
     init_dat2_spotanim(spotanim);
 }
 
@@ -303,11 +350,11 @@ RSCache_Dat2ConfigSpotanimDecodeInplace(
 {
     struct RSCache_Buffer buffer;
 
-    if( !spotanim )
-        return;
+    assert(spotanim);
     RSCache_Dat2ConfigSpotanimInit(spotanim);
-    if( !data || data_size <= 0 )
+    if( data_size <= 0 )
         return;
+    assert(data);
     RSCache_BufferInit(&buffer, (uint8_t*)data, (uint32_t)data_size);
     decode_dat2_spotanim(spotanim, &buffer, RSCACHE_CODEC_SPOTANIM_OSRS);
 }
@@ -321,11 +368,11 @@ RSCache_Dat2ConfigSpotanimDecodeInplaceProfile(
 {
     struct RSCache_Buffer buffer;
 
-    if( !spotanim )
-        return;
+    assert(spotanim);
     RSCache_Dat2ConfigSpotanimInit(spotanim);
-    if( !data || data_size <= 0 )
+    if( data_size <= 0 )
         return;
+    assert(data);
     RSCache_BufferInit(&buffer, (uint8_t*)data, (uint32_t)data_size);
     decode_dat2_spotanim(
         spotanim, &buffer, RSCache_Dat2ConfigSpotanimCodecVersion(cache));

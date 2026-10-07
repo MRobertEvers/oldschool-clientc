@@ -24,6 +24,8 @@ import os
 import re
 import sys
 
+import config_text
+
 WIKI = "docs/skills/thieving/sources/Thieving.wiki"
 BASE = "OSRS-Content/osrs239-content/server/scripts/skill_thieving/configs"
 CHESTS = os.path.join(BASE, "chests", "trapped_chest.dbrow")
@@ -47,7 +49,7 @@ def wiki_table(text, start_marker, stop_marker):
 
 
 def our_rows(path):
-    text = io.open(path, encoding="utf-8", errors="replace").read()
+    text = config_text.read_text(path, encoding="utf-8", errors="replace")
     out, block = {}, None
     for line in text.split("\n"):
         m = re.match(r"^\[([a-z0-9_]+)\]$", line.strip())
