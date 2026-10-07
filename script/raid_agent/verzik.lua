@@ -667,11 +667,21 @@ local function p3(world, me, m, mems, seats, vz, O, intent)
             -- the bot runner's raiders read one world, so the pair meet
             local N = b.next and world.players[b.next]
             if N ~= nil and N.x ~= nil then
-                local toN = bfs(world, O, N.x, N.z, 30)
+                local nx, nz = N.x, N.z
+                local np = mems[b.next] and mems[b.next].planned
+                if np ~= nil and np.t >= t - 1 then nx, nz = np.x, np.z end
+                local toN = bfs(world, O, nx, nz, 30)
                 soft[#soft + 1] = { name = "meet", w = 12, cost = function(x, z) return toN(x, z) end }
             end
         elseif b.next == me.pid and H ~= nil then
-            local toH = bfs(world, O, H.x, H.z, 30)
+            -- where the holder is GOING, not where it stands: in the enrage it
+            -- dodges every tick (vy00 t627-635: two to four apart all flight).
+            -- The policy decides every bot in one process, so the holder's
+            -- plan of this tick (or the last, if I am decided first) is known
+            local hx2, hz2 = H.x, H.z
+            local hp = mems[b.holder] and mems[b.holder].planned
+            if hp ~= nil and hp.t >= t - 1 then hx2, hz2 = hp.x, hp.z end
+            local toH = bfs(world, O, hx2, hz2, 30)
             soft[#soft + 1] = { name = "join", w = 40, cost = function(x, z) return math.max(0, toH(x, z) - 1) end }
             if left <= 1 then
                 hard[#hard + 1] = { name = "pair", pen = 1000, bad = function(x, z) return cheb(x, z, H.x, H.z) > 1 end }
@@ -698,8 +708,57 @@ local function p3(world, me, m, mems, seats, vz, O, intent)
     end
     if #pools > 0 then
         table.sort(pools, function(p1, p2) return p1.x < p2.x or (p1.x == p2.x and p1.z < p2.z) end)
-        local mine = pools[((m.seat - 1) % #pools) + 1]
-        soft[#soft + 1] = { name = "pool", w = 60, cost = function(x, z) return cheb(x, z, mine.x, mine.z) end }
+        -- the set's assignment, once, when it lands: every ordering of the
+        -- living raiders over the pools, the least worst walk, then the least
+        -- total (by seat order the far pool could be across her body: vx02
+        -- t766 and vx15 t643 blasted unshared on the walk)
+        local first = pools[1].tick
+        for _, pl in ipairs(pools) do first = math.min(first, pl.tick) end
+        if m.pool_set ~= first then
+            m.pool_set = first
+            local live = {}
+            for _, pid in ipairs(seats) do
+                if mems[pid].died == nil and world.players[pid].x ~= nil then live[#live + 1] = pid end
+            end
+            local dist = {}
+            for i, pl in ipairs(pools) do
+                local f = bfs(world, O, pl.x, pl.z, 40)
+                dist[i] = {}
+                for _, pid in ipairs(live) do dist[i][pid] = f(world.players[pid].x, world.players[pid].z) end
+            end
+            local best, best_worst, best_sum = nil, nil, nil
+            local function permute(k, used, chosen)
+                if k > #live then
+                    local worst, sum = 0, 0
+                    for j, pid in ipairs(live) do
+                        local dd = dist[chosen[j]][pid]
+                        worst, sum = math.max(worst, dd), sum + dd
+                    end
+                    if best == nil or worst < best_worst or (worst == best_worst and sum < best_sum) then
+                        best, best_worst, best_sum = {}, worst, sum
+                        for j, pid in ipairs(live) do best[pid] = chosen[j] end
+                    end
+                    return
+                end
+                for i = 1, #pools do
+                    if not used[i] then
+                        used[i] = true
+                        chosen[k] = i
+                        permute(k + 1, used, chosen)
+                        used[i] = false
+                    end
+                end
+            end
+            if #live <= #pools then permute(1, {}, {}) end
+            m.pool_of = best or {}
+        end
+        local idx = (m.pool_of or {})[me.pid] or (((m.seat - 1) % #pools) + 1)
+        local mine = pools[idx]
+        local toPool = bfs(world, O, mine.x, mine.z, 40)
+        soft[#soft + 1] = { name = "pool", w = 60, cost = function(x, z) return toPool(x, z) end }
+        if first + 14 - t <= 2 then
+            hard[#hard + 1] = { name = "unpooled", pen = 900, bad = function(x, z) return x ~= mine.x or z ~= mine.z end }
+        end
         stay_w = 1
     end
     -- in a flight the pair's meeting outranks fleeing a tornado for a gap and
@@ -723,6 +782,8 @@ local function p3(world, me, m, mems, seats, vz, O, intent)
     local here, here_broke = Move.cost_at(q, me.x, me.z)
     local fd = foot_dist(vz, me.x, me.z)
     local in_reach = fd == 2 or (i_tank and fd == 1)
+    m.planned = { x = me.x, z = me.z, t = t }
+    if r.moved and (here_broke ~= nil or here > r.cost + 4 or not in_reach) then m.planned = { x = r.x, z = r.z, t = t } end
     if r.moved and (here_broke ~= nil or here > r.cost + 4 or not in_reach) then
         intent.walk = { x = r.x, z = r.z }
         intent.why = intent.why .. "p3 move " .. (r.x - O.x) .. "," .. (r.z - O.z) .. (here_broke and ("!" .. here_broke) or "") .. " "
