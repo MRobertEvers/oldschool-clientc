@@ -287,6 +287,11 @@ MISTAKES_SHOWN = [12]
 #                  The owner's rule: prayer is checked on the animation tick
 #                  (memory: prayer-checked-on-the-animation-tick); the pinned
 #                  exceptions that check on landing are PRAYER_AT_LANDING.
+#   unprayable     a hit from an attack no protection prayer answers
+#                  (UNPRAYABLE_ATTACKS, pinned by sequence and by content).
+#                  INFORMATION, NOT A FAULT: the prayer classifier used to
+#                  call these `prayer` mistakes and point the reader at a
+#                  prayer or a position that could not have helped.
 #   hazard         the raider stood on a hazard tile on the tick it was live
 #                  (HAZARD_SPOTANIMS, or --hazard ID[:TICKS]).
 #   food           food (not a potion) eaten when the most any raider took in
@@ -317,6 +322,26 @@ PINNED_PRAYER = {
             "Bloat (Entry) flies: tob_bloat.rs2 ~tob_bloat_fly_hit queues the damage for the "
             "flight (at most six ticks) and ~tob_bloat_fly_damage reads the prayer at launch; "
             "Protect from Missiles cuts it by 25%, so a hit through it is not a mistake"),
+}
+# AN ATTACK NO PROTECTION PRAYER ANSWERS IS NOT A PRAYER MISTAKE (owner_verzik,
+# owner_praypress 2026-10-07).  seq -> (name, source).  The classifier used to
+# call every damaging hit with the wrong (or no) protection lit a `prayer`
+# mistake, so Verzik's P3 melee auto -- which content rolls with no prayer term
+# at all -- was reported as `p0 prayer t85 took 53 from npc 8374 (attack sent
+# t85) through protectfrommissiles`.  It cost its owner a survey and nearly a
+# wrong fix (standing permanently outside her melee reach, against Blert's
+# 81.5% of P3 seat-ticks within one tile of her body).  Such a hit is reported
+# as the kind `unprayable` instead: information, not a fault.
+#
+# Pinned BY SEQUENCE and by content, never guessed from the timing: melee is
+# usually prayable (Verzik's own P2 melee, Sotetseg's), so "landed on the tick
+# it was sent" does not mean "no prayer answers it".
+UNPRAYABLE_ATTACKS = {
+    8123: ("Verzik P3 melee",
+           "tob_verzik.rs2 rolls ^tob_verzik_p3_melee_max with no prayer term; reaches distance 1 "
+           "only, and Blert has reference raiders within one tile of her body on 81.5% of P3 "
+           "seat-ticks (12,233 seat-ticks, 27 Normal trio rooms) -- the price of standing where "
+           "the fight is played"),
 }
 PROTECTION_NAMES = ("protectfrommagic", "protectfrommissiles", "protectfrommelee")
 # varp83_prayer0's bits, OSRS's layout; read_protection_bits() replaces them
@@ -556,9 +581,16 @@ def find_mistakes(rows, hazards=None):
                                          "t%d took %d from npc %s through %s" % (
                                              hit["tick"], hit["damage"], hit.get("npc_type"), prayer)))
                     continue
-                send = hit_send_tick(hit, anims)
+                send, seq = hit_send(hit, anims)
                 if send is None:
                     unattributed[pid] = unattributed.get(pid, 0) + 1
+                    continue
+                unprayable = UNPRAYABLE_ATTACKS.get(seq)
+                if unprayable:
+                    mistakes.append((hit["tick"], pid, "unprayable",
+                                     "t%d took %d from npc %s (%s, seq %s sent t%d): no protection "
+                                     "prayer answers it" % (hit["tick"], hit["damage"],
+                                                            hit.get("npc_type"), unprayable[0], seq, send)))
                     continue
                 state = raider[pid].get(send)
                 if state is None:
@@ -632,18 +664,25 @@ def rows_by_slot_anim(rows):
             # seq -1 is a script's npc_anim(null) (a cancel, shipped since
             # owner_verzik_anim 2026-10-07): not an attack being sent.
             if row["kind"] == "npc_anim" and row.get("seq") != -1:
-                index[row["slot"]].append(row["tick"])
+                index[row["slot"]].append((row["tick"], row.get("seq")))
         _ANIM_INDEX.clear()
         _ANIM_INDEX[key] = index
     return _ANIM_INDEX[key]
 
 
+def hit_send(hit, anims):
+    """(tick, seq) of the attack behind `hit`: its npc's last animation in the
+    ten ticks before it, or (None, None) -- the hit is not judged, because no
+    attack row says when it was sent and a guess would invent a prayer
+    mistake."""
+    sends = [pair for pair in anims.get(hit["npc_slot"], [])
+             if hit["tick"] - 10 <= pair[0] <= hit["tick"]]
+    return sends[-1] if sends else (None, None)
+
+
 def hit_send_tick(hit, anims):
-    """The tick the attack behind `hit` was sent: its npc's last animation in
-    the ten ticks before it, or None (the hit is not judged: no attack row
-    says when it was sent, and a guess would invent a prayer mistake)."""
-    sends = [tick for tick in anims.get(hit["npc_slot"], []) if hit["tick"] - 10 <= tick <= hit["tick"]]
-    return sends[-1] if sends else None
+    """The tick alone (hit_send's first half)."""
+    return hit_send(hit, anims)[0]
 
 
 def death_detail(pid, tick, states, tiles, taken, swings, bits):

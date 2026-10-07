@@ -7719,3 +7719,25 @@ The reason was invisible because `_play_send` cut a refusal at 160 characters ex
 are the predicate and the words. So a plan that ends a ball's colour hold a tick early does not lose a press: it
 takes the ball unprayed, and the room then refuses it protection for the window -- the cost of the wrong colour, not
 of the press path.
+
+## RULE: never truncate a diagnostic into a sentence that reads as complete (owner_praypress, 2026-10-07)
+
+A TRUNCATED DIAGNOSTIC IS WORSE THAN NO DIAGNOSTIC, BECAUSE IT READS AS A COMPLETE ANSWER.
+
+`_play_send` recorded a refused together block as `"t" .. tick .. " " .. result .. ": " .. string.sub(detail, 1, 160)`.
+The server's reason sits at the END of a together block's detail, after the block's own account of its inputs, so 160
+characters cut it at `REFUSED the server said 'You `. The line still reads as a finished observation -- a tick, a
+verdict, a quoted server -- and it is why TWO agents independently ruled the content's protection block out and
+reported a library fault instead: the seat was being refused by the server in plain words
+("You can't use protection prayers at the moment.") and the log destroyed the words on the way to the file. The
+cause was in the message the whole time. A Sotetseg fix worth about 15 hitpoints a seat was held up on it.
+
+So, for any line a person will read to decide WHY something failed:
+- Cut nothing that carries the reason. If a cap is needed, keep the TAIL (the reason is at the end of a verb's
+  detail, after its own account) or raise the cap for that line.
+- Better: classify first and say the class in words of your own (`QD.prayer.blocked(d)` ->
+  "the server BLOCKED a protection press on N tick(s) (tA,tB) -- '<the words>'"), so the reason survives whatever
+  the cap does to the rest.
+- A line that cannot carry its reason should say so ("... (detail truncated, see client.log)") rather than end
+  mid-quote. An ellipsis is a diagnostic; a clean cut is a lie.
+The same failure mode as a tool that names the wrong cause confidently: the reader stops looking.

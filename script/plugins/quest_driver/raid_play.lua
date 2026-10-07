@@ -89,6 +89,23 @@ QD.RAID_PLAY_RESTORE_AMOUNT = 32
 QD.RAID_PLAY_COMBAT_DOSES = { "1dose2combat", "2dose2combat", "3dose2combat", "4dose2combat",
     "br_1dose2combat", "br_2dose2combat", "br_3dose2combat", "br_4dose2combat",
     "1dosedivinecombat", "2dosedivinecombat", "3dosedivinecombat", "4dosedivinecombat" }
+-- THE EAT FLOOR, measured from Blert (build/seam_state/supply_policy/
+-- eat_threshold.py; owner 2026-10-07 "play the raid as intended and not use
+-- cheese mechanics like tick eating").  A type-4 player event carries each
+-- seat's hitpoints every tick of every room, so every rise of 4 or more is a
+-- heal and the reading before it is the hitpoints that raider CHOSE to eat
+-- at.  Over the Normal trios, seats that finished the room, the room's exit
+-- reset dropped: median eat hitpoints maiden 73, nylocas 61, verzik 65,
+-- sotetseg 44, bloat 28 (xarpus records no heal at all among its finishers),
+-- and the median of those five room medians is 61 -- 0.62 of the Hitpoints
+-- level, which is how it is written here so a seat below 99 scales.
+--
+-- The SHAPE is the data's, not a choice: expressed as a margin above the
+-- room's maximum hit the same medians spread 75 hp and the margin runs the
+-- WRONG way (+43 where the maximum hit is 30, -32 where it is 60), so no
+-- "survive the next maximum roll" shape fits.  A flat band fits, spread 45.
+QD.RAID_PLAY_EAT_FLOOR_HP = 61
+QD.RAID_PLAY_EAT_FLOOR_LEVEL = 99
 -- Food "adds a 3 tick penalty to when a player may eat again"; a potion
 -- "delay[s] your next potion consumption by 3 ticks" (consume_shared.rs2:31-48).
 QD.RAID_PLAY_EAT_DELAY = 3
@@ -472,12 +489,30 @@ function QD.raid._play_pray(st, v, want, all)
 end
 
 -- SKILL: SUPPLIES.  `threat(h)` is the most damage that can land in the next
--- h ticks (the plan's).  Eat when the hitpoints would not survive the hits
--- that can land before the NEXT chance to eat: on a free tick (not attacking,
--- or the weapon is ready) that chance is the next swing (engaged) or the eat
--- delay (3) away; on a tick between swings eating costs the attack 3 ticks,
--- so between swings only a hit that can land before the next tick's bite is
--- read forces one.  A brew rides along when the food alone is short (combo eating).
+-- h ticks (the plan's).  The threshold has TWO terms and the bite goes out at
+-- whichever is higher.
+--
+-- (1) THE COMFORT FLOOR, QD.RAID_PLAY_EAT_FLOOR_HP, scaled to the seat's
+-- Hitpoints level: 61 of 99, measured from the Blert Normal trios (the
+-- constant carries the per-room medians and the test that picked its shape).
+-- It applies only on a free tick, because that is the tick a bite is free;
+-- between swings a bite costs the attack three ticks and no reference raider
+-- pays that to top up.  This term is the owner's 2026-10-07 ruling ("play the
+-- raid as intended and not use cheese mechanics like tick eating"): WITHOUT
+-- it the threshold was term (2) alone, so a seat at 51 hitpoints facing a
+-- maximum 50 did not eat, and every seat in every room rode the kill floor on
+-- telegraph knowledge no human raider could act on.
+--
+-- (2) THE SURVIVAL TERM, the old threshold, kept as a LOWER BOUND so the
+-- policy can never eat LATER than it used to: the hitpoints would not survive
+-- the hits that can land before the NEXT chance to eat.  On a free tick (not
+-- attacking, or the weapon is ready) that chance is the next swing (engaged)
+-- or the eat delay (3) away; on a tick between swings eating costs the attack
+-- 3 ticks, so between swings only a hit that can land before the next tick's
+-- bite is read forces one.  In a room whose threat already clears the floor
+-- (verzik's maximum 80, bloat's 60) this term still decides.
+--
+-- A brew rides along when the food alone is short (combo eating).
 -- A restore is drunk when the prayer missing is at least one dose's worth
 -- (no dose wasted) or prayer is about to run out.  Returns eat, drink names.
 function QD.raid._play_supplies(st, v, threat)
@@ -511,6 +546,15 @@ function QD.raid._play_supplies(st, v, threat)
         horizon = (st.engaged and st.weapon.speed or QD.RAID_PLAY_EAT_DELAY) + QD.TOGETHER_CONFIRM_TICKS + 1
     end
     local need = threat(horizon)
+    -- THE COMFORT FLOOR (see the block above): on a free tick the threshold is
+    -- at least the reference band's floor, so the bite leaves the kill floor.
+    -- Between swings the survival term alone decides.  The floor never wastes
+    -- a dose: 61 + the largest food (22) is 83 of 99.
+    if free then
+        local floor_hp = math.floor(v.hp_base * QD.RAID_PLAY_EAT_FLOOR_HP
+            / QD.RAID_PLAY_EAT_FLOOR_LEVEL)
+        if need < floor_hp then need = floor_hp end
+    end
     -- FOOD BEFORE BREWS (owner 2026-10-07, Blert Normal trios: brew sips a
     -- seat 2.21 at Verzik and 0.0 in the other five rooms -- they eat): a
     -- brew alone only when the food is gone; with food in the pack a brew
@@ -802,6 +846,25 @@ function QD.raid._play_brew_recovery(st, v)
     return nil
 end
 
+-- A refusal line that keeps its REASON (owner_praypress, 2026-10-07;
+-- DRIVER_NOTES "never truncate a diagnostic into a sentence that reads as
+-- complete").  A verb's detail puts its own account first and the server's
+-- word LAST, so a plain head-cut at 160 removed exactly the half a reader
+-- needs: `_play_send` logged "REFUSED the server said 'You " for three ticks
+-- of refused protection presses and two agents read it as a lost press.
+-- Keeps the head and the tail with the cut marked, so the reason survives and
+-- nothing reads as a finished sentence that is not one.
+function QD.raid._play_reason(text, cap)
+    local s = tostring(text)
+    cap = cap or 200
+    if #s <= cap then
+        return s
+    end
+    local head = math.floor(cap * 0.35)
+    local tail = cap - head - 5
+    return string.sub(s, 1, head) .. " ... " .. string.sub(s, #s - tail + 1)
+end
+
 function QD.raid._play_send(st, v, intent)
     if st.plan.reconcile and (st.party or 1) > 1 then QD.raid._play_reconcile(st, v, intent) end
     if intent.drink == nil and v.tick - st.last_drink >= QD.RAID_PLAY_DRINK_DELAY then
@@ -848,7 +911,8 @@ function QD.raid._play_send(st, v, intent)
                 st.pray_blocked = st.pray_blocked or {}
                 if #st.pray_blocked < 24 then st.pray_blocked[#st.pray_blocked + 1] = v.tick end
             elseif #st.lines < 6 then
-                st.lines[#st.lines + 1] = "t" .. v.tick .. " " .. tostring(r) .. ": " .. string.sub(tostring(d), 1, 160)
+                st.lines[#st.lines + 1] = "t" .. v.tick .. " " .. tostring(r) .. ": "
+                    .. QD.raid._play_reason(d, 200)
             end
         end
         if eat ~= nil then
