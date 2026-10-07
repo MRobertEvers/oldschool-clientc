@@ -21,7 +21,7 @@ return {
         "::give primordial_boots",
         "::give infernal_cape",
         "::give berzerker_ring",
-        "::give amulet_of_fury",
+        "::give amulet_of_glory",
         -- Dragon warhammer for a defence drain so vasa.stat_regen is observable.
         "::give dragon_warhammer",
         -- Food through the teleport special (solo takes current HP - 5) and boulders.
@@ -45,7 +45,7 @@ return {
         t.exec("equip.boots", t.player.equip, "primordial_boots")
         t.exec("equip.cape", t.player.equip, "infernal_cape")
         t.exec("equip.ring", t.player.equip, "berzerker_ring")
-        t.exec("equip.amulet", t.player.equip, "amulet_of_fury")
+        t.exec("equip.amulet", t.player.equip, "amulet_of_glory")
 
         local er, ed = t.raid.enter("cox", "vasa", { seed = 1 })
         t.check("raid.enter", er == "ok", tostring(ed))
