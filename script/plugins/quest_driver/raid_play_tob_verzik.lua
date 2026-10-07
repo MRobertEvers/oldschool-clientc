@@ -541,22 +541,25 @@ function QD.raid._verzik_cover(st, v, ok)
             -- (owner_verzik 2026-10-07: the fall reaches THREE from the centre
             -- now, ^tob_verzik_pillar_collapse_range 3 after Blert 280f7cef, the
             -- anim audit's content change: a tile four out is never caught)
-            -- owner_verzik 2026-10-07: A WORN PILLAR IS STILL COVER.  Only a
-            -- WEST pillar's far corner is both behind it and outside the
-            -- 3-tile fall (an east pillar's whole shadow is inside it), so
-            -- "never stand where a pillar may fall" left the trio with NO
-            -- cover at all once the near row had taken its bolts -- and the
-            -- near row wears out because our P1 runs 119-163 ticks (8-11
-            -- launches) against Blert's 85.  _play_verzik: 10 bolts went into
-            -- pillars, and from L132 the plan stopped hiding with all six
-            -- pillars still standing (hides L64..L118, then none), so the last
-            -- two launches were tanked by all three -- 9 bolts for 329, 109 a
-            -- seat against Blert's 20.  A worn pillar is now cover, ranked
-            -- after a whole one, and the launch tick is still the way out:
-            -- the fall lands with the bolt, 3 ticks after it leaves her hand
-            -- (~tob_verzik_flight_ticks), by which time the hide is over and
-            -- the walk back to her is under way.  p1.no_collapse_damage is
-            -- the row that says whether that margin holds.
+            -- owner_verzik 2026-10-07: A WORN PILLAR IS NOT WORTH HIDING
+            -- BEHIND, MEASURED.  Only a WEST pillar's far corner is both
+            -- behind it and outside the 3-tile fall (an east pillar's whole
+            -- shadow is inside it), so this test leaves the trio with no cover
+            -- at all once the near row has taken its bolts: _play_verzik
+            -- stopped hiding from L132 with all six pillars still standing
+            -- (hides L64..L118, then none) and tanked 9 bolts for 329.
+            --
+            -- Letting a worn pillar count anyway was tried, on _vzslow, and it
+            -- is WORSE on both sides of the trade: P1 229 ticks against 163
+            -- and 245 hp a seat against 185, because the walk to a shadow five
+            -- or six tiles out and back costs four ticks each way against a
+            -- bolt worth 68 at its very worst under the prayer -- and the
+            -- phase lengthening buys her more launches, which is the spiral.
+            -- P2 then ran 964 ticks on a trio that arrived to it already
+            -- eating. The answer to the tanked bolts is a SHORTER P1 (more
+            -- Dawnbringer specials: Blert's P1 median is 85 ticks, six
+            -- launches, against our 163), not more hiding. Kept as the test
+            -- it was, with the number measured against it.
             -- owner_verzik 2026-10-07: THE REACH BOUND IS PART OF THE CHOICE,
             -- not a test on its answer.  The caller discards a cover tile
             -- further than this ("a far shadow is no cover"), so a choice that
@@ -564,7 +567,8 @@ function QD.raid._verzik_cover(st, v, ok)
             -- ones handed back a tile the caller then threw away, and the trio
             -- tanked with cover four tiles from it.  That is why _vzslow's P1
             -- did not move one hitpoint when worn pillars became cover again.
-            if ok(x, z) and QD.raid._verzik_dist(x, z, b) <= QD.RAID_PLAY_VERZIK_COVER_REACH then
+            if (fall >= 4 or not may_fall) and ok(x, z)
+                and QD.raid._verzik_dist(x, z, b) <= QD.RAID_PLAY_VERZIK_COVER_REACH then
                 -- owner_verzik 2026-10-07: A PILLAR THAT CANNOT FALL BEATS A
                 -- NEARER ONE THAT MAY, outright rather than by a tile.  The
                 -- near row is two pillars and three safe bolts each, and
@@ -581,7 +585,7 @@ function QD.raid._verzik_cover(st, v, ok)
                 local d = QD.raid._verzik_dist(x, z, b)
                 -- the choice ranks on this; `d` stays the true distance, which
                 -- the caller's "a far shadow is no cover" test reads
-                local rank = d + (may_fall and 100 or 0) + ((may_fall and fall < 4) and 100 or 0)
+                local rank = d + (may_fall and 100 or 0)
                 -- ties: the west pillar first (W:885 "the pillar directly
                 -- south-west of Verzik"), then the tile nearer her centre line,
                 -- so all three raiders read the same tile from anywhere
