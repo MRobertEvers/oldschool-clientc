@@ -7,7 +7,6 @@
 local STATE = {
     LAND = "LAND",
     LURE = "LURE",
-    BAIT = "BAIT", -- one unprotected wedge hit, then Protect from Melee
     CYCLE = "CYCLE",
     ANVIL_DODGE = "ANVIL_DODGE",
     REENGAGE = "REENGAGE",
@@ -88,7 +87,6 @@ return {
         t.shot("tekton idle or approaching on landing")
 
         local prayer_on = false
-        local unprotected_seen = 0
         local hammer_visits = 0
         local last_form = fs
         local spark_dodges = 0
@@ -124,17 +122,13 @@ return {
 
         local function sustain()
             local hr, hp = t.skill.read("hitpoints")
-            -- Eat early: unprotected Tekton max is ~52; two hits without food kills.
             if hr == "ok" and hp.level < 70 then
                 if t.player.eat("shark") == "ok" then eats = eats + 1 end
             end
             local pr, pp = t.prayer.points()
-            -- Keep Protect from Melee fuelled: a dry prayer at ~tick 1178 was
-            -- the killing blow on the adamant-warhammer pass.
             if pr == "ok" and (pp.points or 0) < 50 then
                 if t.player.drink("br_4dose2restore") == "ok" then
                     drinks = drinks + 1
-                    -- Refill can land after Protect has extinguished at 0.
                     if prayer_on then
                         t.prayer.set("protectfrommelee", true)
                     end
@@ -185,20 +179,12 @@ return {
                 last_form = fs
             end
             local _, now = t.tick()
-            if not prayer_on and unprotected_seen == 0 then
-                local _, hits = t.ticklog.rows({ kind = "hit_player", slot = wslot })
-                if hits ~= nil and #hits > 0 then unprotected_seen = 1 end
-            end
-            -- Arm Protect the instant the first unprotected hit is observed —
-            -- before any further walk/attack that would eat a second auto.
-            if (not prayer_on) and unprotected_seen > 0 then
-                arm_protect()
-                sustain()
-            end
 
             if sm.state == STATE.LAND then
-                -- Synq [1:12:18]: lure far from the anvil. Stay south of his
-                -- footprint so the wake-walk does not put us in the wedge yet.
+                -- Synq fights with Protect from Melee up from the approach.
+                -- Prayer-off BAIT died at tick 57 under two wedge hits.
+                -- melee_prayer_reduction still passes on protected raw <= 26.
+                arm_protect()
                 t.player.walk_to(frow.x + 2, frow.z - 6, 8)
                 t.ticks(1)
                 set_state(STATE.LURE)
@@ -210,28 +196,14 @@ return {
                 t.check("fight.click", ar == "ok" or ar == "timeout", tostring(ar) .. " " .. tostring(ad))
                 t.ticklog.mark("tekton engaged")
                 t.shot("tekton lure / approach click")
-                set_state(STATE.BAIT)
-                return
-            end
-
-            if sm.state == STATE.BAIT then
-                -- Hold for one unprotected hit (prayer-reduction sample), then
-                -- Protect from Melee and start the run-around. Cap wait so a
-                -- missed first swing cannot leave us prayerless in the wedge.
-                sm.sub = sm.sub + 1
-                if unprotected_seen > 0 or sm.sub >= 8 then
-                    arm_protect()
-                    sustain()
-                    set_state(STATE.CYCLE)
-                end
-                t.ticks(1)
+                set_state(STATE.CYCLE)
                 return
             end
 
             if sm.state == STATE.CYCLE then
                 -- Synq monkey / 4-tick: attack on the green pre-corner tile while
                 -- running counterclockwise (never clockwise).
-                if not prayer_on then arm_protect() end
+                arm_protect()
                 local c = corners[(sm.corner % 4) + 1]
                 local tx = frow.x + c[1]
                 local tz = frow.z + c[2]

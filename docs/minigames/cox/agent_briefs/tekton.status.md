@@ -3,20 +3,23 @@
 Branch: `cursor/cox-tekton-runaround-da39`
 Agent: `bc-6e8e01ee` (replacement for stuck `bc-d8bc5247`)
 
-## Strategy (owner 2026-10-07)
+## Strategy
 
-**Synq run-around cycle** (`synq_transcript.md` [1:16:04] / [1:17:50]):
-lure far from anvil, counterclockwise attacks on pre-corner tiles, spark dodge
-on anvil, re-engage. Not stand-and-tank.
+**Synq run-around cycle** with Protect from Melee from LAND (BAIT-without-
+prayer died under wedge hits). Adamant opener → anvil → DWH on REENGAGE.
 
-## Implemented
+## Content
 
-- Test SM: `LAND → LURE → BAIT → CYCLE ⇄ ANVIL_DODGE → REENGAGE → DONE`
-- Spec assertions retained (`test/raids/cox_tekton.lua`)
-- Content: `cox_tekton.rs2` (submodule `dda1f15`)
-- Setup: shark 10 (unstackable), rune plate for unprotected sample hit
-- BAIT state: one unprotected wedge hit → Protect from Melee → cycle
+- `cox_tekton.rs2`: re-issue `npc_walk` while `walking_in` (anvil path was
+  cancelled after one walk; never reached hammering). Submodule commit
+  `919ab24e4` on `cursor/cox-tekton-anvil-repath-da39` (OSRS-Content push
+  may still be retrying HTTP 500).
+
+## Harness
+
+- SM: `LAND → LURE → CYCLE ⇄ ANVIL_DODGE → REENGAGE → DONE`
+- Shark 8 (unstackable), 6 restores, adamant plate, DWH in pack
 
 ## Gate
 
-- In progress under `flock` + `QUEST_BINARY=src/torirs_tekton --no-build --no-publish`
+- Iterating under `flock` + `QUEST_BINARY=src/torirs_tekton`
