@@ -545,11 +545,11 @@ QD.RAID_MAIDEN_REF = {
     lanes = { [0] = "S1", [1] = "N1", [2] = "S2", [3] = "N2", [4] = "S3", [5] = "N3",
         [6] = "S4in", [7] = "S4out", [8] = "N4in", [9] = "N4out" },
     waves = {
-        [1] = { casts = { { 1, "S1" }, { 6, "N2" }, { 11, "S3" }, { 16, "S4out" } }, ret = 21,
+        [1] = { casts = { { 1, "S1" }, { 6, "N2" }, { 16, "AT90" }, { 21, "STACK" } }, ret = 26,
             seat = { [1] = { { "N1", 1, 9 }, { "N2", 6, 10 }, { "STACK", 10, 49 } }, [3] = { { "N1", 1, 9 }, { "N2", 6, 11 }, { "STACK", 10, 49 } } } },
-        [2] = { casts = { { 1, "S1" }, { 6, "S2" }, { 11, "S3" }, { 16, "N4out" } }, ret = 26,
+        [2] = { casts = { { 1, "S1" }, { 6, "S2" }, { 16, "AT90" }, { 21, "STACK" } }, ret = 26,
             seat = { [1] = { { "N1", 1, 9 }, { "N2", 6, 14 }, { "STACK", 10, 49 } }, [3] = { { "N1", 1, 9 }, { "N2", 6, 16 }, { "STACK", 10, 49 } } } },
-        [3] = { casts = { { 1, "S1" }, { 6, "N2" }, { 11, "S3" }, { 16, "N4out" } }, ret = 21,
+        [3] = { casts = { { 1, "S1" }, { 6, "N2" }, { 11, "AT90" }, { 16, "STACK" } }, ret = 21,
             seat = { [1] = { { "N1", 1, 9 }, { "STACK", 10, 49 } }, [3] = { { "N1", 1, 10 }, { "STACK", 10, 49 } } } },
     },
     -- each seat's tile per form (0 = her 100 form .. 3 = 30), the script's
@@ -665,6 +665,36 @@ function QD.raid.mz_nearest_walker(st, v, skip)
         if not a.gone and not a.ice and not skip[slot] and b ~= nil and not theirs[QD.RAID_MAIDEN_REF.lanes[a.label] or ""] then
             local g = QD.raid._play_gap(b, a.x, a.z)
             if g >= 2 and math.max(math.abs(a.x - v.me.x), math.abs(a.z - v.me.z)) <= 10 and (bg == nil or g < bg) then best, bg = { slot = slot, a = a }, g end
+        end
+    end
+    return best
+end
+-- the crab whose next tile (one step toward her south-east tile) is within 1
+-- of (dx, dz) from her south-west tile, most crabs in its 3x3 there
+function QD.raid.mz_at_pick(st, v, skip, dx, dz)
+    local b = v.ev_boss or v.boss
+    if b == nil then return nil end
+    local gx, gz = b.x + (b.size or 1) - 1, b.z
+    local tx, tz = b.x + dx, b.z + dz
+    local at = {}
+    for slot, a in pairs(st.ev.adds) do
+        if not a.gone then
+            local x, z = a.x, a.z
+            if not a.ice and QD.raid._play_gap(b, x, z) > 1 then
+                if x ~= gx then x = x + ((gx > x) and 1 or -1) end
+                if z ~= gz then z = z + ((gz > z) and 1 or -1) end
+            end
+            at[slot] = { x = x, z = z, a = a }
+        end
+    end
+    local best, bn = nil, -1
+    for slot, p in pairs(at) do
+        if not skip[slot] and math.max(math.abs(p.x - tx), math.abs(p.z - tz)) <= 1 then
+            local n = 0
+            for _, q in pairs(at) do
+                if math.max(math.abs(q.x - p.x), math.abs(q.z - p.z)) <= 1 then n = n + 1 end
+            end
+            if n > bn then best, bn = { slot = slot, a = p.a, n = n }, n end
         end
     end
     return best
@@ -998,7 +1028,10 @@ function QD.raid.mz_cast_tick(st, v, intent)
     -- (with the preaim hold the magic set is on before the spawn and no bow
     -- timer runs: every cast, the first too, is sent the tick before it is
     -- to draw -- sm56 svb drew +2/+7/+12/+17 sent at +1/+5/+10/+15)
-    if v.tick < st.ev.wave_tick + c[1] - 1 then return end
+    -- (between casts the barrage's timer is the freezer's: no fill-in bow
+    -- -- sm78, with cast 3 held to +16, the fill-in's attack on her with the
+    -- kodai in hand walked the freezer to melee and casts 3 never drew)
+    if v.tick < st.ev.wave_tick + c[1] - 1 then intent.no_fill = true return end
     -- (the script's lane, else the next walker to arrive: sm15 svb, the
     -- most-crabs pick froze the three 4s at (13,0) at +10, seven tiles out;
     -- the streams' frozen crabs sit at (7,0) (8,0) (8,1), one step from her,
@@ -1015,7 +1048,19 @@ function QD.raid.mz_cast_tick(st, v, intent)
         -- streams' frozen tiles (10,-7) S1 at +1, (7,0) (8,0) (8,1) the S3
         -- and S4 lanes at +11/+16: the stack forms because those lanes share
         -- her south-east corner, not because a cast picked a bunch)
-        t = QD.raid.mz_lane_crab(st, v, c[2], false, true, skip) or QD.raid.mz_nearest_walker(st, v, skip)
+        if c[2] == "AT90" then
+            -- cast 3 (coordinator 05:05; the streams: cast 3 at +16 / +16 / +11
+            -- by wave, its crabs all passing (9,0) at +14 -- 110 of them --
+            -- 2.79 within 1 of its target at landing): the walker on or about
+            -- to enter (9,0) next tick, the most crabs round it
+            t = QD.raid.mz_at_pick(st, v, skip, 9, 0) or QD.raid.mz_bunch_pick(st, v, skip, 4, true)
+        elseif c[2] == "STACK" then
+            -- cast 4 on the stack behind it (+16 / +20 / +16, held to the
+            -- 5-tick minimum; 3.32 within 1)
+            t = QD.raid.mz_bunch_pick(st, v, skip, 4, true) or QD.raid.mz_nearest_walker(st, v, skip)
+        else
+            t = QD.raid.mz_lane_crab(st, v, c[2], false, true, skip) or QD.raid.mz_nearest_walker(st, v, skip)
+        end
     end
     if t == nil then
         local seen = {}
