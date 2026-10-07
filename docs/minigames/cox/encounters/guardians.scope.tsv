@@ -5,3 +5,5 @@ guardians.hp_solo	all	solo raid measures this
 guardians.stomp_size	all	solo raid measures this
 guardians.stat_regen	all	solo raid measures this
 guardians.pickaxe_only	all	solo raid measures this
+guardians.stomp_dodge	all	solo raid measures this
+guardians.flinch_delay	all	solo raid measures this
