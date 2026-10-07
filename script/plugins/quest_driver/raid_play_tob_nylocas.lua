@@ -51,7 +51,8 @@ QD.raid._play_plan("tob_nylocas", {
     -- owner_nylocas: THE TRIO'S SCRIPT, the machine's data (QD.raid._play_nylocas_machine
     -- below).  Per wave 1..31 and role: `tile` the role's most common tile over the
     -- wave (offset from Vasilias' SW tile, P.stand_anchor), `first` the ticks from the
-    -- spawn to its first attack, `weapon` its most common weapon in the wave (a
+    -- spawn to its first attack (targets kept while half the rooms have that many),
+    -- `weapon` its most common weapon in the wave (a
     -- copy of that weapon's colour is pressed with it: the ranger's bow on the
     -- west green at +1 in wave 1, 17 of 27 rooms), `targets` the copies it attacks in order (the i-th
     -- distinct target of the most rooms, by tunnel, colour and size, or a big's
@@ -60,38 +61,38 @@ QD.raid._play_plan("tob_nylocas", {
     -- BEGIN GENERATED P.waves (build/seam_state/owner_nylocas/ny_waves.py; do not hand-edit)
     waves = {
         [1] = { mage = { tile = { 1, -3 }, first = 3, weapon = "EYE_OF_AYAK", targets = { "S-magic" } }, ranger = { tile = { -3, 2 }, first = 1, weapon = "TWISTED_BOW", targets = { "W-ranged" } }, melee = { tile = { 2, -3 }, first = 3, weapon = "EYE_OF_AYAK", targets = { "S-magic" } } },
-        [2] = { mage = { tile = { 7, 1 }, first = 0, weapon = "EYE_OF_AYAK", targets = { "S-magic", "W-magic" } }, ranger = { tile = { -4, 1 }, first = 2, weapon = "TWISTED_BOW", targets = { "E-ranged" } }, melee = { tile = { 7, 2 }, first = 1, weapon = "SULPHUR_BLADES", targets = { "W-magic" } } },
+        [2] = { mage = { tile = { 7, 1 }, first = 0, weapon = "EYE_OF_AYAK", targets = {  } }, ranger = { tile = { -4, 1 }, first = 2, weapon = "TWISTED_BOW", targets = { "E-ranged" } }, melee = { tile = { 7, 2 }, first = 1, weapon = "SULPHUR_BLADES", targets = {  } } },
         [3] = { mage = { tile = { 7, 2 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "E-magic" } }, ranger = { tile = { 2, -3 }, first = 3, weapon = "TWISTED_BOW", targets = { "S-ranged" } }, melee = { tile = { 7, 2 }, first = 0, weapon = "SULPHUR_BLADES", targets = { "E-melee" } } },
-        [4] = { mage = { tile = { 2, -4 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "S-magic-big" } }, ranger = { tile = { -4, 2 }, first = 2, weapon = "BLOWPIPE", targets = { "S-ranged", "S-ranged" } }, melee = { tile = { 1, -4 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "S-magic-big" } } },
-        [5] = { mage = { tile = { 7, 1 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "E-magic", "E-magic", "split-magic", "split-magic", "split-magic" } }, ranger = { tile = { 1, -4 }, first = 1, weapon = "BLOWPIPE", targets = { "W-ranged", "W-ranged-big", "split-ranged", "split-ranged" } }, melee = { tile = { -4, 1 }, first = 1, weapon = "SULPHUR_BLADES", targets = { "W-ranged-big", "S-melee", "split-melee", "S-melee" } } },
-        [6] = { mage = { tile = { -4, 2 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "W-magic", "W-magic" } }, ranger = { tile = { 1, -4 }, first = 1, weapon = "BLOWPIPE", targets = { "S-ranged", "S-ranged" } }, melee = { tile = { 0, 0 }, first = 2, weapon = "SULPHUR_BLADES", targets = { "split-melee", "split-ranged" } } },
-        [7] = { mage = { tile = { 1, -4 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "S-ranged-big", "S-magic", "split-magic", "E-magic" } }, ranger = { tile = { 1, -4 }, first = 1, weapon = "BLOWPIPE", targets = { "S-ranged-big", "S-ranged-big", "S-ranged-big", "split-ranged" } }, melee = { tile = { 7, 1 }, first = 3, weapon = "SCYTHE", targets = { "E-melee-big", "E-melee", "E-melee", "E-melee" } } },
-        [8] = { mage = { tile = { -4, 2 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "W-magic-big", "W-magic-big" } }, ranger = { tile = { -3, 2 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "W-magic-big" } }, melee = { tile = { 4, 4 }, first = 1, weapon = "SULPHUR_BLADES", targets = { "split-melee" } } },
-        [9] = { mage = { tile = { 7, 2 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "W-ranged-big", "E-magic", "split-magic" } }, ranger = { tile = { -3, 2 }, first = 1, weapon = "BLOWPIPE", targets = { "W-ranged-big", "split-ranged", "split-ranged", "split-magic", "split-ranged" } }, melee = { tile = { 1, -4 }, first = 1, weapon = "SULPHUR_BLADES", targets = { "split-melee", "S-melee", "S-melee", "W-melee" } } },
-        [10] = { mage = { tile = { 7, 1 }, first = 1, weapon = "TWISTED_BOW", targets = { "E-ranged-big", "E-ranged", "E-ranged" } }, ranger = { tile = { 2, 2 }, first = 1, weapon = "CHIN_BLACK", targets = { "W-ranged", "S-ranged", "S-ranged", "W-ranged", "E-ranged" } }, melee = { tile = { -4, 2 }, first = 3, weapon = "SULPHUR_BLADES", targets = { "split-melee", "split-melee", "split-magic", "split-melee" } } },
-        [11] = { mage = { tile = { 2, -4 }, first = 1, weapon = "SCEPTRE", targets = { "E-magic", "S-magic", "E-magic" } }, ranger = { tile = { 0, 1 }, first = 1, weapon = "BLOWPIPE", targets = { "S-ranged", "W-magic-big", "E-ranged-big", "E-ranged-big", "E-ranged", "E-ranged-big", "split-ranged" } }, melee = { tile = { -4, 2 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "W-magic-big", "split-magic", "split-magic" } } },
-        [12] = { mage = { tile = { 2, -2 }, first = 3, weapon = "EYE_OF_AYAK", targets = { "S-magic", "S-magic" } }, ranger = { tile = { -4, 1 }, first = 1, weapon = "BLOWPIPE", targets = { "split-ranged", "split-ranged", "split-magic" } }, melee = { tile = { 7, 2 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "split-magic", "split-melee" } } },
-        [13] = { mage = { tile = { 3, 2 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "S-melee-big", "W-magic", "split-magic", "split-magic" } }, ranger = { tile = { -4, 2 }, first = 0, weapon = "BLOWPIPE", targets = { "W-melee", "W-ranged", "S-ranged", "S-ranged", "split-ranged" } }, melee = { tile = { 6, 2 }, first = 0, weapon = "SCYTHE", targets = { "E-melee", "split-melee", "split-melee" } } },
-        [14] = { mage = { tile = { -4, 2 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "W-magic", "split-magic", "W-magic", "split-magic", "S-magic" } }, ranger = { tile = { 2, -4 }, first = 1, weapon = "BLOWPIPE", targets = { "S-ranged", "split-ranged", "S-ranged", "S-ranged" } }, melee = { tile = { 3, 1 }, first = 1, weapon = "SULPHUR_BLADES", targets = { "E-melee-big", "split-melee", "split-melee", "W-melee" } } },
-        [15] = { mage = { tile = { 7, 2 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "E-magic", "E-magic", "E-magic", "E-magic" } }, ranger = { tile = { 7, 2 }, first = 1, weapon = "BLOWPIPE", targets = { "E-ranged-big", "E-ranged", "E-ranged", "E-ranged", "W-ranged", "W-ranged", "S-ranged" } }, melee = { tile = { -3, 1 }, first = 1, weapon = "SULPHUR_BLADES", targets = { "W-melee", "W-melee", "S-melee", "W-melee" } } },
-        [16] = { mage = { tile = { 7, 1 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "E-magic", "E-magic", "E-magic" } }, ranger = { tile = { 2, 1 }, first = 1, weapon = "BLOWPIPE", targets = { "W-ranged", "W-ranged", "W-ranged", "split-ranged" } }, melee = { tile = { -4, 2 }, first = 1, weapon = "SULPHUR_BLADES", targets = { "W-melee", "split-magic" } } },
-        [17] = { mage = { tile = { 7, 2 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "E-magic-big", "split-magic", "S-magic-big", "split-ranged" } }, ranger = { tile = { -1, 1 }, first = 1, weapon = "BLOWPIPE", targets = { "W-ranged", "split-ranged", "S-melee", "split-ranged", "W-ranged", "W-ranged" } }, melee = { tile = { -4, 4 }, first = 2, weapon = "SULPHUR_BLADES", targets = { "W-melee", "split-melee", "S-melee", "S-magic-big" } } },
-        [18] = { mage = { tile = { 2, 2 }, first = 2, weapon = "EYE_OF_AYAK", targets = { "split-ranged", "split-magic", "S-magic-big" } }, ranger = { tile = { -1, 1 }, first = 1, weapon = "BLOWPIPE", targets = { "W-ranged-big", "split-ranged", "split-ranged", "S-magic-big" } }, melee = { tile = { -1, -1 }, first = 2, weapon = "SULPHUR_BLADES", targets = { "split-melee", "split-melee", "split-ranged" } } },
-        [19] = { mage = { tile = { 5, 1 }, first = 2, weapon = "EYE_OF_AYAK", targets = { "E-magic-big", "E-magic-big", "split-magic", "E-magic-big", "split-magic", "S-magic-big", "split-magic" } }, ranger = { tile = { 1, 1 }, first = 1, weapon = "BLOWPIPE", targets = { "W-magic-big", "S-ranged-big", "E-ranged-big", "split-ranged", "W-magic-big", "split-ranged" } }, melee = { tile = { 1, 1 }, first = 2, weapon = "EYE_OF_AYAK", targets = { "split-melee", "W-magic-big", "W-magic-big", "split-magic", "split-ranged", "split-melee" } } },
-        [20] = { mage = { tile = { 1, 2 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "S-magic-big", "split-magic", "split-magic", "split-magic", "split-magic" } }, ranger = { tile = { -1, 1 }, first = 1, weapon = "BLOWPIPE", targets = { "split-ranged", "W-melee-big", "split-ranged", "split-ranged", "split-ranged" } }, melee = { tile = { 5, 3 }, first = 2, weapon = "EYE_OF_AYAK", targets = { "split-melee", "E-melee-big", "split-melee", "split-melee" } } },
-        [21] = { mage = { tile = { -4, 1 }, first = 2, weapon = "SCEPTRE", targets = { "W-magic", "split-magic" } }, ranger = { tile = { 4, 1 }, first = 1, weapon = "CHIN_BLACK", targets = { "E-ranged", "split-ranged", "split-ranged" } }, melee = { tile = { -2, 4 }, first = 2, weapon = "SULPHUR_BLADES", targets = { "split-melee", "split-magic", "S-melee" } } },
-        [22] = { mage = { tile = { 4, 2 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "E-magic-big", "split-magic", "split-magic", "split-magic" } }, ranger = { tile = { 1, 1 }, first = 0, weapon = "BLOWPIPE", targets = { "E-ranged", "split-ranged", "W-melee-big", "split-ranged", "W-melee-big", "split-ranged" } }, melee = { tile = { 1, -4 }, first = 1, weapon = "SCYTHE", targets = { "S-melee", "S-magic", "S-ranged" } } },
-        [23] = { mage = { tile = { 7, 1 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "E-magic-big", "S-ranged-big" } }, ranger = { tile = { -4, 1 }, first = 1, weapon = "TWISTED_BOW", targets = { "S-ranged-big", "W-magic", "W-magic" } }, melee = { tile = { 5, -2 }, first = 2, weapon = "SULPHUR_BLADES", targets = { "E-magic-big", "split-melee" } } },
-        [24] = { mage = { tile = { 1, -4 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "S-magic-big", "split-magic", "split-ranged" } }, ranger = { tile = { -4, 1 }, first = 0, weapon = "BLOWPIPE", targets = { "W-ranged", "W-ranged-big", "split-ranged", "split-ranged" } }, melee = { tile = { 7, 2 }, first = 2, weapon = "SULPHUR_BLADES", targets = { "split-melee", "E-melee-big" } } },
-        [25] = { mage = { tile = { 3, 1 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "E-magic-big", "split-magic", "split-magic" } }, ranger = { tile = { 1, 1 }, first = 1, weapon = "BLOWPIPE", targets = { "S-ranged-big", "split-ranged", "split-ranged", "split-magic" } }, melee = { tile = { 4, 2 }, first = 2, weapon = "SCYTHE", targets = { "E-melee-big", "E-melee-big" } } },
-        [26] = { mage = { tile = { -3, 1 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "W-magic-big", "W-magic-big", "split-magic" } }, ranger = { tile = { 2, 0 }, first = 1, weapon = "BLOWPIPE", targets = { "split-ranged", "split-magic", "W-magic", "split-ranged" } }, melee = { tile = { 1, 2 }, first = 1, weapon = "SCYTHE", targets = { "W-melee-big", "W-melee-big", "split-melee" } } },
-        [27] = { mage = { tile = { -3, 1 }, first = 0, weapon = "EYE_OF_AYAK", targets = { "W-magic-big", "split-magic", "W-magic-big", "split-magic" } }, ranger = { tile = { 2, 2 }, first = 1, weapon = "BLOWPIPE", targets = { "split-ranged", "split-ranged", "split-ranged", "split-ranged", "split-melee", "split-ranged" } }, melee = { tile = { -2, 1 }, first = 2, weapon = "SULPHUR_BLADES", targets = { "split-melee", "S-melee-big", "split-melee" } } },
-        [28] = { mage = { tile = { 2, 2 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "E-magic-big", "split-magic", "W-ranged", "E-magic", "split-magic", "split-melee", "split-magic" } }, ranger = { tile = { 1, 1 }, first = 1, weapon = "BLOWPIPE", targets = { "S-melee-big", "split-ranged", "S-magic", "split-ranged", "S-magic", "split-ranged", "split-magic", "split-ranged" } }, melee = { tile = { 0, -2 }, first = 1, weapon = "SULPHUR_BLADES", targets = { "S-melee-big", "split-melee", "split-melee", "split-melee", "split-melee", "E-magic-big" } } },
-        [29] = { mage = { tile = { 1, 2 }, first = 2, weapon = "EYE_OF_AYAK", targets = { "split-magic", "split-magic", "E-ranged", "W-melee", "split-magic" } }, ranger = { tile = { -4, 1 }, first = 1, weapon = "BLOWPIPE", targets = { "split-ranged", "S-magic", "W-melee", "W-ranged", "split-ranged", "split-magic", "split-ranged" } }, melee = { tile = { 2, -1 }, first = 3, weapon = "SULPHUR_BLADES", targets = { "split-melee", "S-melee-big", "E-magic", "split-melee" } } },
-        [30] = { mage = { tile = { 7, 1 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "E-magic-big", "E-magic-big", "E-ranged", "E-magic-big" } }, ranger = { tile = { -4, 1 }, first = 1, weapon = "BLOWPIPE", targets = { "W-ranged", "W-ranged-big", "W-ranged-big", "split-ranged" } }, melee = { tile = { 6, 4 }, first = 1, weapon = "SULPHUR_BLADES", targets = { "split-melee", "E-magic", "S-melee" } } },
-        [31] = { mage = { tile = { 2, 1 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "E-magic-big", "E-magic" } }, ranger = { tile = { -1, 1 }, first = 0, weapon = "BLOWPIPE", targets = { "W-ranged-big", "S-melee" } }, melee = { tile = { 2, 4 }, first = 1, weapon = "SULPHUR_BLADES", targets = { "split-melee", "S-melee-big" } } },
+        [4] = { mage = { tile = { 2, -4 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "S-magic-big" } }, ranger = { tile = { -4, 2 }, first = 2, weapon = "BLOWPIPE", targets = { "S-ranged" } }, melee = { tile = { 1, -4 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "S-magic-big" } } },
+        [5] = { mage = { tile = { 7, 1 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "E-magic", "E-magic", "split-magic" } }, ranger = { tile = { 1, -4 }, first = 1, weapon = "BLOWPIPE", targets = { "W-ranged", "W-ranged-big", "split-ranged" } }, melee = { tile = { -4, 1 }, first = 1, weapon = "SULPHUR_BLADES", targets = { "W-ranged-big", "S-melee", "split-melee" } } },
+        [6] = { mage = { tile = { -4, 2 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "W-magic" } }, ranger = { tile = { 1, -4 }, first = 1, weapon = "BLOWPIPE", targets = { "S-ranged" } }, melee = { tile = { 0, 0 }, first = 2, weapon = "SULPHUR_BLADES", targets = { "split-melee" } } },
+        [7] = { mage = { tile = { 1, -4 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "S-ranged-big", "S-magic" } }, ranger = { tile = { 1, -4 }, first = 1, weapon = "BLOWPIPE", targets = { "S-ranged-big", "S-ranged-big" } }, melee = { tile = { 7, 1 }, first = 3, weapon = "SCYTHE", targets = { "E-melee-big", "E-melee" } } },
+        [8] = { mage = { tile = { -4, 2 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "W-magic-big" } }, ranger = { tile = { -3, 2 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "W-magic-big" } }, melee = { tile = { 4, 4 }, first = 1, weapon = "SULPHUR_BLADES", targets = { "split-melee" } } },
+        [9] = { mage = { tile = { 7, 2 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "W-ranged-big", "E-magic", "split-magic" } }, ranger = { tile = { -3, 2 }, first = 1, weapon = "BLOWPIPE", targets = { "W-ranged-big", "split-ranged", "split-ranged" } }, melee = { tile = { 1, -4 }, first = 1, weapon = "SULPHUR_BLADES", targets = { "split-melee", "S-melee", "S-melee" } } },
+        [10] = { mage = { tile = { 7, 1 }, first = 1, weapon = "TWISTED_BOW", targets = { "E-ranged-big", "E-ranged" } }, ranger = { tile = { 2, 2 }, first = 1, weapon = "CHIN_BLACK", targets = { "W-ranged", "S-ranged" } }, melee = { tile = { -4, 2 }, first = 3, weapon = "SULPHUR_BLADES", targets = { "split-melee" } } },
+        [11] = { mage = { tile = { 2, -4 }, first = 1, weapon = "SCEPTRE", targets = { "E-magic", "S-magic" } }, ranger = { tile = { 0, 1 }, first = 1, weapon = "BLOWPIPE", targets = { "S-ranged", "W-magic-big", "E-ranged-big" } }, melee = { tile = { -4, 2 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "W-magic-big", "split-magic" } } },
+        [12] = { mage = { tile = { 2, -2 }, first = 3, weapon = "EYE_OF_AYAK", targets = { "S-magic" } }, ranger = { tile = { -4, 1 }, first = 1, weapon = "BLOWPIPE", targets = { "split-ranged" } }, melee = { tile = { 7, 2 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "split-magic" } } },
+        [13] = { mage = { tile = { 3, 2 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "S-melee-big", "W-magic" } }, ranger = { tile = { -4, 2 }, first = 0, weapon = "BLOWPIPE", targets = { "W-melee", "W-ranged" } }, melee = { tile = { 6, 2 }, first = 0, weapon = "SCYTHE", targets = { "E-melee", "split-melee" } } },
+        [14] = { mage = { tile = { -4, 2 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "W-magic", "split-magic" } }, ranger = { tile = { 2, -4 }, first = 1, weapon = "BLOWPIPE", targets = { "S-ranged", "split-ranged", "S-ranged" } }, melee = { tile = { 3, 1 }, first = 1, weapon = "SULPHUR_BLADES", targets = { "E-melee-big", "split-melee" } } },
+        [15] = { mage = { tile = { 7, 2 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "E-magic", "E-magic" } }, ranger = { tile = { 7, 2 }, first = 1, weapon = "BLOWPIPE", targets = { "E-ranged-big", "E-ranged", "E-ranged" } }, melee = { tile = { -3, 1 }, first = 1, weapon = "SULPHUR_BLADES", targets = { "W-melee", "W-melee" } } },
+        [16] = { mage = { tile = { 7, 1 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "E-magic" } }, ranger = { tile = { 2, 1 }, first = 1, weapon = "BLOWPIPE", targets = { "W-ranged" } }, melee = { tile = { -4, 2 }, first = 1, weapon = "SULPHUR_BLADES", targets = { "W-melee" } } },
+        [17] = { mage = { tile = { 7, 2 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "E-magic-big", "split-magic", "S-magic-big" } }, ranger = { tile = { -1, 1 }, first = 1, weapon = "BLOWPIPE", targets = { "W-ranged", "split-ranged", "S-melee", "split-ranged" } }, melee = { tile = { -4, 4 }, first = 2, weapon = "SULPHUR_BLADES", targets = { "W-melee", "split-melee" } } },
+        [18] = { mage = { tile = { 2, 2 }, first = 2, weapon = "EYE_OF_AYAK", targets = { "split-ranged" } }, ranger = { tile = { -1, 1 }, first = 1, weapon = "BLOWPIPE", targets = { "W-ranged-big", "split-ranged" } }, melee = { tile = { -1, -1 }, first = 2, weapon = "SULPHUR_BLADES", targets = { "split-melee" } } },
+        [19] = { mage = { tile = { 5, 1 }, first = 2, weapon = "EYE_OF_AYAK", targets = { "E-magic-big", "E-magic-big", "split-magic" } }, ranger = { tile = { 1, 1 }, first = 1, weapon = "BLOWPIPE", targets = { "W-magic-big", "S-ranged-big", "E-ranged-big", "split-ranged" } }, melee = { tile = { 1, 1 }, first = 2, weapon = "EYE_OF_AYAK", targets = { "split-melee", "W-magic-big" } } },
+        [20] = { mage = { tile = { 1, 2 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "S-magic-big", "split-magic" } }, ranger = { tile = { -1, 1 }, first = 1, weapon = "BLOWPIPE", targets = { "split-ranged", "W-melee-big", "split-ranged" } }, melee = { tile = { 5, 3 }, first = 2, weapon = "EYE_OF_AYAK", targets = { "split-melee", "E-melee-big", "split-melee" } } },
+        [21] = { mage = { tile = { -4, 1 }, first = 2, weapon = "SCEPTRE", targets = { "W-magic" } }, ranger = { tile = { 4, 1 }, first = 1, weapon = "CHIN_BLACK", targets = { "E-ranged", "split-ranged" } }, melee = { tile = { -2, 4 }, first = 2, weapon = "SULPHUR_BLADES", targets = { "split-melee" } } },
+        [22] = { mage = { tile = { 4, 2 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "E-magic-big", "split-magic", "split-magic" } }, ranger = { tile = { 1, 1 }, first = 0, weapon = "BLOWPIPE", targets = { "E-ranged", "split-ranged", "W-melee-big" } }, melee = { tile = { 1, -4 }, first = 1, weapon = "SCYTHE", targets = { "S-melee", "S-magic" } } },
+        [23] = { mage = { tile = { 7, 1 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "E-magic-big", "S-ranged-big" } }, ranger = { tile = { -4, 1 }, first = 1, weapon = "TWISTED_BOW", targets = { "S-ranged-big", "W-magic" } }, melee = { tile = { 5, -2 }, first = 2, weapon = "SULPHUR_BLADES", targets = { "E-magic-big", "split-melee" } } },
+        [24] = { mage = { tile = { 1, -4 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "S-magic-big", "split-magic" } }, ranger = { tile = { -4, 1 }, first = 0, weapon = "BLOWPIPE", targets = { "W-ranged", "W-ranged-big", "split-ranged" } }, melee = { tile = { 7, 2 }, first = 2, weapon = "SULPHUR_BLADES", targets = { "split-melee", "E-melee-big" } } },
+        [25] = { mage = { tile = { 3, 1 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "E-magic-big", "split-magic" } }, ranger = { tile = { 1, 1 }, first = 1, weapon = "BLOWPIPE", targets = { "S-ranged-big", "split-ranged" } }, melee = { tile = { 4, 2 }, first = 2, weapon = "SCYTHE", targets = { "E-melee-big" } } },
+        [26] = { mage = { tile = { -3, 1 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "W-magic-big" } }, ranger = { tile = { 2, 0 }, first = 1, weapon = "BLOWPIPE", targets = { "split-ranged" } }, melee = { tile = { 1, 2 }, first = 1, weapon = "SCYTHE", targets = { "W-melee-big" } } },
+        [27] = { mage = { tile = { -3, 1 }, first = 0, weapon = "EYE_OF_AYAK", targets = { "W-magic-big", "split-magic" } }, ranger = { tile = { 2, 2 }, first = 1, weapon = "BLOWPIPE", targets = { "split-ranged", "split-ranged" } }, melee = { tile = { -2, 1 }, first = 2, weapon = "SULPHUR_BLADES", targets = { "split-melee", "S-melee-big" } } },
+        [28] = { mage = { tile = { 2, 2 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "E-magic-big", "split-magic", "W-ranged" } }, ranger = { tile = { 1, 1 }, first = 1, weapon = "BLOWPIPE", targets = { "S-melee-big", "split-ranged", "S-magic", "split-ranged" } }, melee = { tile = { 0, -2 }, first = 1, weapon = "SULPHUR_BLADES", targets = { "S-melee-big", "split-melee" } } },
+        [29] = { mage = { tile = { 1, 2 }, first = 2, weapon = "EYE_OF_AYAK", targets = { "split-magic", "split-magic" } }, ranger = { tile = { -4, 1 }, first = 1, weapon = "BLOWPIPE", targets = { "split-ranged", "S-magic" } }, melee = { tile = { 2, -1 }, first = 3, weapon = "SULPHUR_BLADES", targets = { "split-melee" } } },
+        [30] = { mage = { tile = { 7, 1 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "E-magic-big", "E-magic-big" } }, ranger = { tile = { -4, 1 }, first = 1, weapon = "BLOWPIPE", targets = { "W-ranged", "W-ranged-big" } }, melee = { tile = { 6, 4 }, first = 1, weapon = "SULPHUR_BLADES", targets = { "split-melee" } } },
+        [31] = { mage = { tile = { 2, 1 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "E-magic-big" } }, ranger = { tile = { -1, 1 }, first = 0, weapon = "BLOWPIPE", targets = { "W-ranged-big" } }, melee = { tile = { 2, 4 }, first = 1, weapon = "SULPHUR_BLADES", targets = { "split-melee" } } },
     },
-    cleanup = { mage = { tile = { 2, 4 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "split-magic", "W-melee", "split-magic", "split-magic", "split-magic", "split-magic", "split-magic", "S-magic" } }, ranger = { tile = { 2, 4 }, first = 2, weapon = "BLOWPIPE", targets = { "W-ranged-big", "W-ranged", "S-melee", "E-ranged", "split-ranged", "split-ranged", "split-ranged", "split-ranged" } }, melee = { tile = { 1, 4 }, first = 2, weapon = "SULPHUR_BLADES", targets = { "split-melee", "split-melee", "split-melee", "split-melee", "split-magic", "split-melee", "split-magic", "S-melee" } } },
+    cleanup = { mage = { tile = { 2, 4 }, first = 1, weapon = "EYE_OF_AYAK", targets = { "split-magic", "W-melee", "split-magic", "split-magic", "split-magic" } }, ranger = { tile = { 2, 4 }, first = 2, weapon = "BLOWPIPE", targets = { "W-ranged-big", "W-ranged", "S-melee", "E-ranged", "split-ranged", "split-ranged", "split-ranged" } }, melee = { tile = { 1, 4 }, first = 2, weapon = "SULPHUR_BLADES", targets = { "split-melee", "split-melee", "split-melee", "split-melee", "split-magic" } } },
     -- END GENERATED P.waves
     -- raid seam32: THE TRIO'S ROLES.  "Each player should be assigned a
     -- style of Nylocas to kill prior to starting the room ... Trio: x1 mager,
@@ -299,10 +300,6 @@ QD.raid._play_plan("tob_nylocas", {
     -- under this bar (Blert's weakest support at her landing: median 0.31,
     -- 34 recorded trio rooms, PLAY_NOTES seam35m)
     defend_below = 0.31,
-    -- owner_nylocas: Blert's median small death age (PLAY_NOTES seam40,
-    -- reference/nylocas_normal_3.json "small death age median 15"): a copy
-    -- another role's script names that has lived longer is the colour's role's
-    overdue_age = 15,
     -- the anchor every P.waves tile is an offset from: Vasilias' south-west
     -- tile, region-local 30,23 (the script's `anchor`)
     stand_anchor = { 30, 23 },
@@ -357,9 +354,10 @@ QD.raid._play_plan("tob_nylocas", {
 -- return nil and change nothing.
 --
 --  state           event                  -> next state (and what it does)
---  AT_STAND        tick                   a live copy of the role's targets[idx..] (the newest the
---                                         key names), else an unnamed copy of its colour (or any
---                                         copy older than P.overdue_age) -> KILL; else walk to
+--  AT_STAND        tick                   off the wave's tile: walk there, unless the copy below is
+--                                         already in the weapon's reach; then a live copy of the
+--                                         role's targets[idx..] (the newest the key names), else the
+--                                         oldest copy of its colour no other seat's list names -> KILL; else walk to
 --                                         P.waves[wave][role].tile
 --                  wave_spawn(w)          stay, wave = w, idx = 1
 --                  target_dead            stay
@@ -369,7 +367,8 @@ QD.raid._play_plan("tob_nylocas", {
 --                  boss_phase             -> BOSS
 --                  hit_taken              an aggro swinging at the seat: resume = AT_STAND -> SELF_DEFENCE
 --  KILL            tick                   press the copy targets[idx] names (idx > #targets: the
---                                         unnamed / overdue copy), with the wave's weapon for its colour
+--                                         oldest copy nobody else's list names), with the wave's
+--                                         weapon for its colour
 --                  wave_spawn(w)          wave = w, idx = 1 -> AT_STAND
 --                  target_dead            idx = the next named target alive; none -> AT_STAND
 --                                         (waves over: -> CLEANUP)
@@ -435,6 +434,27 @@ function QD.raid._nym_pressable_now(c, n)
     if ny.nulled[n.slot] or not n.settled then return false end
     if ny.blocked ~= nil and (ny.blocked[n.slot] or -1) >= v.tick then return false end
     if not n.big and ny.doomed[n.slot] ~= nil and ny.doomed[n.slot] >= v.tick then return false end
+    -- ANOTHER SEAT'S SHOT IN THE AIR: a small with another raider's dart or
+    -- orb flying at it (a big with two) is spoken for, unless this raider is
+    -- already on it (a small has 8 hitpoints in a trio, W :731; the machine's
+    -- sm11 survey: 56 of 276 wave swings landed on a copy already dead)
+    if c.inbound == nil then
+        c.inbound = {}
+        if api_drive.projectiles ~= nil then
+            local pr, prow = api_drive.projectiles(24)
+            if pr == "ok" and type(prow) == "table" then
+                for _, p in ipairs(prow) do
+                    local slot = p.target_npc_slot
+                    if type(slot) == "number" and slot >= 0 and p.src_x ~= nil and p.src_z ~= nil
+                        and math.max(math.abs(p.src_x - c.me.x), math.abs(p.src_z - c.me.z)) > 1 then
+                        c.inbound[slot] = (c.inbound[slot] or 0) + 1
+                    end
+                end
+            end
+        end
+    end
+    local inb = c.inbound[n.slot] or 0
+    if inb >= (n.big and 2 or 1) and not (c.cur ~= nil and c.cur.slot == n.slot) then return false end
     if n.style == "melee" then
         local ea = n.big and P.explode_age_big or P.explode_age
         local lx, lz = n.x - c.O.x, n.z - c.O.z
@@ -485,9 +505,14 @@ function QD.raid._nym_find_now(c, key)
     return best
 end
 
--- a copy nobody's script names this wave is the role whose colour it is
--- (Blert's same-colour role kills the splits: melee 500/523, ranged 645/736,
--- magic 439/616); the nearest such copy of this seat's colour
+-- THE FALLBACK: a seat whose own list is spent takes the OLDEST copy OF ITS
+-- COLOUR that no other seat's list names this wave (the reference's seats
+-- hit their own colour outside their lists: wave 13, range W-range S-range
+-- split-range, melee E-melee S-melee split-melee, mage W-mage split-mage) (the lists are one table, P.waves, so a seat
+-- reads the others' from it), with the weapon of that copy's colour.  The
+-- machine's first cut let a seat take the nearest copy of its colour or any
+-- copy past 15 ticks, named or not, and two seats landed on one copy: 17
+-- percent of the waves' swings hit a copy already dead (svdplaynyloc sm8).
 function QD.raid._nym_unnamed(c)
     if c.unnamed_done then return c.unnamed end
     c.unnamed_done = true
@@ -500,23 +525,12 @@ function QD.raid._nym_unnamed_now(c)
     for role, r in pairs(row) do
         if role ~= c.R.name then for _, k in ipairs(r.targets) do named[k] = true end end
     end
-    local best, bd = nil, nil
+    local best, ba, bd = nil, nil, nil
     for _, n in ipairs(c.v.nylos) do
-        -- a copy another role's script names is still that role's until it
-        -- outlives Blert's median small death age (P.overdue_age)
-        if n.style == c.R.colour and (not named[QD.raid._nym_key(n)] or n.age >= c.P.overdue_age) and QD.raid._nym_pressable(c, n) then
-            local d = c.dist(c.me.x, c.me.z, n.x, n.z, n.size)
+        if n.style == c.R.colour and not named[QD.raid._nym_key(n)] and QD.raid._nym_pressable(c, n) then
             if c.cur ~= nil and c.cur.slot == n.slot then return n end
-            if bd == nil or d < bd then best, bd = n, d end
-        end
-    end
-    if best ~= nil then return best end
-    -- nothing of its colour: an overdue copy of any colour, with that colour's weapon
-    for _, n in ipairs(c.v.nylos) do
-        if n.age >= c.P.overdue_age and QD.raid._nym_pressable(c, n) then
             local d = c.dist(c.me.x, c.me.z, n.x, n.z, n.size)
-            if c.cur ~= nil and c.cur.slot == n.slot then return n end
-            if bd == nil or d < bd then best, bd = n, d end
+            if ba == nil or n.age > ba or (n.age == ba and d < bd) then best, ba, bd = n, n.age, d end
         end
     end
     return best
@@ -652,6 +666,15 @@ local function stay() return nil end
 local function at_stand_tick(c)
     local n, i = QD.raid._nym_named_from(c, c.m.idx)
     if n == nil then n = QD.raid._nym_unnamed(c) end
+    -- STAND WHERE THE SCRIPT SAYS: off the wave's tile the seat walks there
+    -- first, unless its copy is already in its weapon's reach from here
+    local t0 = c.P.waves[math.max(1, math.min(c.m.wave, 31))][c.R.name].tile
+    local sx, sz = c.O.x + c.P.stand_anchor[1] + t0[1], c.O.z + c.P.stand_anchor[2] + t0[2]
+    if math.max(math.abs(c.me.x - sx), math.abs(c.me.z - sz)) > 1 and c.floor_ok(sx, sz)
+        and (n == nil or c.dist(c.me.x, c.me.z, n.x, n.z, n.size) > (c.ny.reach[n.style] or 1)) then
+        c.walk = { x = sx, z = sz }
+        return nil
+    end
     if n ~= nil then
         c.m.idx = i
         QD.raid._nym_go(c, "KILL")

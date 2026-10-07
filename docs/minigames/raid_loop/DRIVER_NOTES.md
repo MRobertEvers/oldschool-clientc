@@ -7591,3 +7591,10 @@ so its plan says its state to the server and the leader's log carries every seat
 sends `STATE/WAVE/IDX` on every change (api_drive.cheat, no reply wait). raid_report.read_ticklog parses it
 into row["state"]; raid_waves' FIRST DEVIATION line ends `[state ...]`. A binary without the C answers
 "debugproc not found" and the row carries nothing.
+
+## t.raid.cross_together: a member returns three ticks after its crossing (owner_nylocas, 2026-10-06)
+
+In the Nylocas trio (_play_nylocas, svaplaynyloc) the members stepped across on t110 with the leader, but their
+cross_together returned on t112-113 (the click_loc press plus the next-tick read), so their t.raid.play loop
+started on the wave-1 spawn tick and the ranger's first shot came at +3 against the script's +1. The library is
+owner_tob_normal's; a return on the press tick would give the members those ticks.

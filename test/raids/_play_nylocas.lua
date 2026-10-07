@@ -425,7 +425,21 @@ return {
                 .. tostring(at and (at.x - ox)) .. "," .. tostring(at and (at.z - oz)))
         end
         if size > 1 then t.expect("party.barrier.entrance", t.party.barrier("entrance", 300)) end
-        if role == 1 then
+        if size > 1 then
+            -- owner_nylocas: THE TRIO THROUGH THE BARRIER ON ONE TICK
+            -- (t.raid.cross_together, raid_play.lua, owner_tob_normal).  The
+            -- machine's first deviation on every name was the ranger's first
+            -- wave-1 attack at +3 against the script's +1 (the bow on the west
+            -- green from the middle): the members pressed the barrier after the
+            -- "started" party barrier and crossed 3 ticks behind the room's
+            -- start (svaplaynyloc: the ranger on 31,30 on the spawn tick, t110,
+            -- d14, its bow walking 2 ticks before the shot).  Blert's three are
+            -- at the barrier together on room tick 0.
+            local mr, md = nil, nil
+            local xr, xd = t.raid.cross_together("nylocas", { at_answer = function() mr, md = t.ticklog.mark("room start") end })
+            t.check("barrier.cross_together", xr == "ok", "p" .. role .. " " .. tostring(xd))
+            if role == 1 then t.check("barrier.mark", mr == "ok", tostring(md)) end
+        elseif role == 1 then
             local click_result, click_detail = t.player.click_loc("tob_arena_barrier", 1)
             t.check("barrier.click", click_result == "ok", tostring(click_detail))
             local play_result, play_detail = t.chat.play({ "options", "choose:Yes, begin the fight." })

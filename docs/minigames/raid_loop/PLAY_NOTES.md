@@ -662,6 +662,14 @@ the newest copy per key (sm9): _play 336/396/109/505, sva 300/372/98/470, svb 31
 svc 300/360/108/468, svd 304/364/103/467 (last wave / boss start / boss ticks / room); pillars red on 4. FIRST DEVIATION on every name: w1 range late +3 (script +1, the bow from the door).
 The scored plan it replaced (738ef1466) was 3 of 5.
 
+Coordinator edits, 5 names each: the trio through the barrier on one tick (t.raid.cross_together); the
+fallback is the oldest copy OF THE SEAT'S COLOUR no other seat's list names; AT_STAND walks to the
+script's tile unless its copy is already in reach; a small with another seat's shot in the air is
+spoken for; a role's targets[i] kept only while half the rooms have an i-th target. sm13: 317/377/108/485,
+309/373/109/482, 313/377/115/492, 321/397/109/506, 317/381/109/490; the weakest support under 0.10 on
+every name. Aggros-first in every state (sm14) was worse. Still red; the first deviation is still the
+wave-1 ranger at +3 (the members' cross_together returns three ticks after the crossing).
+
 ## Sotetseg, Entry solo (`tob_sotetseg`, mode `entry`), proved
 
 Plan: `script/plugins/quest_driver/raid_play_tob_sotetseg.lua` (QD.raid._play_sotetseg_decide,
