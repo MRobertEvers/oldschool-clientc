@@ -500,22 +500,21 @@ return {
                 local _, me = t.world.tile()
                 local aisle_x = sm.ox + 32
                 local dist = math.max(math.abs(me.x - mrow.x), math.abs(me.z - mrow.z))
-                -- attack(1,1) landed zero hit_npc rows; use 2/3 with sphere_delay
-                -- 8 and transmit=yes pending so decide still sees the flick.
-                local ar, ad = t.player.attack(mage, 2, 3, { quick = true, slot = mrow.slot })
-                if ar == "refused" and type(ad) == "string" and string.find(ad, "DIED", 1, true) then
-                    set_state(STATE.DONE)
-                    return
+                -- Re-click attack only every 4 ticks (sang speed). Other ticks
+                -- are pray/eat/walk so lightning→sphere cannot land across a
+                -- blocking attack(2,3) settle with mask=0.
+                if (sm.sub % 4) == 0 then
+                    local ar, ad = t.player.attack(mage, 2, 1, { quick = true, slot = mrow.slot })
+                    if ar == "refused" and type(ad) == "string" and string.find(ad, "DIED", 1, true) then
+                        set_state(STATE.DONE)
+                        return
+                    end
                 end
-                -- Re-check sphere between attack settle and walk (delay=8).
                 sphere_flick()
                 if dist > 8 then
-                    t.player.walk_to(aisle_x, math.min(me.z + 2, mrow.z - 3), 2)
-                else
-                    -- Synq acid/crystal walk: alternate mage safes every tick
-                    -- so a pool underfoot cannot chip for 40+ ticks (prior
-                    -- run glued at 6437,88 until death).
-                    local safe = ((sm.sub % 2) == 0) and sm.tiles.mage_a or sm.tiles.mage_b
+                    t.player.walk_to(aisle_x, math.min(me.z + 2, mrow.z - 3), 1)
+                elseif (sm.sub % 2) == 0 then
+                    local safe = ((sm.sub % 4) < 2) and sm.tiles.mage_a or sm.tiles.mage_b
                     t.player.walk_to(safe.x, safe.z, 1)
                 end
                 sm.sub = sm.sub + 1
@@ -561,8 +560,8 @@ return {
                     return
                 elseif sm.setup_waits < 12 then
                     sphere_flick()
-                    if mrow ~= nil then
-                        t.player.attack(melee, 2, 3, { quick = true, slot = mrow.slot })
+                    if mrow ~= nil and (sm.setup_waits % 4) == 0 then
+                        t.player.attack(melee, 2, 1, { quick = true, slot = mrow.slot })
                     end
                     t.player.walk_to(thumb.x + (sm.setup_waits % 2), thumb.z, 1)
                 elseif sm.setup_waits < 18 then
@@ -593,10 +592,10 @@ return {
                 local thumb = sm.tiles.thumb
                 local tx = thumb.x + (sm.sub % 2)
                 local mrow = npc_ok(t, melee)
-                if mrow ~= nil then
-                    t.player.attack(melee, 2, 4, { quick = true, slot = mrow.slot })
+                if mrow ~= nil and (sm.sub % 4) == 0 then
+                    t.player.attack(melee, 2, 1, { quick = true, slot = mrow.slot })
                 end
-                t.player.walk_to(tx, thumb.z, 4)
+                t.player.walk_to(tx, thumb.z, 1)
                 sustain(t, sm)
                 sm.sub = sm.sub + 1
                 if sm.sub >= 4 then
@@ -616,10 +615,10 @@ return {
                 -- Empty event: free hit window (Synq [2:48:37]).
                 local thumb = sm.tiles.thumb
                 local mrow = npc_ok(t, melee)
-                if mrow ~= nil then
-                    t.player.attack(melee, 2, 4, { quick = true, slot = mrow.slot })
+                if mrow ~= nil and (sm.sub % 4) == 0 then
+                    t.player.attack(melee, 2, 1, { quick = true, slot = mrow.slot })
                 end
-                t.player.walk_to(thumb.x + 1 - (sm.sub % 2), thumb.z, 4)
+                t.player.walk_to(thumb.x + 1 - (sm.sub % 2), thumb.z, 1)
                 sustain(t, sm)
                 sm.sub = sm.sub + 1
                 if sm.sub >= 4 then
