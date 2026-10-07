@@ -2476,3 +2476,38 @@ Open:
   ^exact_northwest"; "if north/south are at least half of east, then return northeast/southeast"). FIXED in
   OSRS-Content 7af6fc2c05 (owner_verzik): a straight axis when the other is under half of it, else the diagonal. Callers:
   tob_verzik.rs2 ~tob_verzik_knockback, godwars_chamber/entrance/nex, toa_raid.
+
+## 2026-10-07 content_bugs: Blert's boss "max hp" against ours -- CLOSED, the stream figure is Blert's own table, not a measurement
+
+The question: Blert's Normal trio NPC_UPDATE rows give Verzik P2/P3 a maximum of 2437 (8372 5306 rows, 8373 108, 8374 3984)
+and Xarpus 3810 (8339 2324, 8340 3335, 8341 60) against ours 2625 / 3750. Measured over build/blert/{bloat,nylocas,
+sotetseg,verzik,xarpus}, all scale 3, mode 11, hitpoints & 0xffff:
+- These agree with ours: Bloat 1500, Vasilias 1875, Sotetseg 3000, Verzik P1 1500. Maiden 2625, per the coordinator's read
+  of build/blert_maiden.
+
+**CLOSED, no change.** Those maxima are not a recording of the game. A client is never sent an npc's hitpoints, only a
+ratio. Blert writes `hitpoints = base * ratio`, and the base is its own table:
+- blert_plugin/HpVarbitTrackedNpc.java:54-56: "The varbit stores a value from 0 to 1000 ... updatedHitpoints = (int)
+  (getHitpoints().getBase() * ratio)".
+- The base comes from `new Hitpoints(tobNpc, theatreChallenge.getScale())` (XarpusDataTracker.java:109, :154;
+  SotetsegDataTracker.java:85; BloatDataTracker.java:99) -> TobNpc.getBaseHitpoints (TobNpc.java:514-533).
+
+So every one of those thousands of rows repeats TobNpc.java's table, which is one source:
+- TobNpc.java:166-168: Xarpus 3810 / 4445 / 5080.
+- TobNpc.java:184-188: Verzik P2/P3 2437 / 2843 / 3250.
+- Its Entry rows scale linearly (`hitpointsByScale[0] * scale`, :524); Jagex's Entry Mode Improvements post (1 March 2023)
+  replaced that with the stacked table the content already uses.
+
+Against that one source stand three that agree with each other:
+- Verzik P2/P3: the cache's stat4 3500 on `verzik_phase2` / `verzik_phase3` (cache_npc_verzik.txt:121, :182);
+  wiki_Verzik_Vitur.wikitext:175-176 `hitpoints2 = 3500`, `hitpoints3 = 3500` with `scaledhp = Yes` (:177); and Jagex's
+  75 / 87.5 percent for three and four raiders. That gives 2625 / 3062 / 3500. Blert's 3250 five-player base appears in
+  no other source.
+- Xarpus: `tob_xarpus_combat` stat4 5000 and wiki_Xarpus.wikitext:122 `hitpoints = 5000`, so 3750 / 4375 / 5000.
+  Blert's own Hard row (TobNpc.java:166-168: 4500 / 5250 / 6000) is the same ladder off the cache's 6000. That shows its
+  Normal row is the ladder off a base, 5080, that no other source gives.
+
+The stream rows count Blert's table 5306 times; they do not count the game once. The spec rows verzik.p23_hp_* stay
+grade A ([cache][wiki][jagex]), and tob.constant's comments at the Xarpus and Verzik P2/P3 pools already say this.
+What would reopen it: an absolute hitpoint figure from the game. That would be a recorded hitsplat total from a full P2,
+or a Jagex statement of the P2 pool at three raiders.
