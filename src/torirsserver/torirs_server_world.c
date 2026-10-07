@@ -5424,9 +5424,23 @@ advance_npcs(struct ToriRSServer* srv)
          * loop; if the deadline is still in the future, timers, queues, hunts,
          * and modes must all wait. Letting a one-tick AI timer run here made
          * Inferno adds attack on every server tick during their four-tick
-         * attack delay, eventually filling the glyph and player queues. */
-        if( npc->active && srv->tick < npc->delayed_until )
-            continue;
+         * attack delay, eventually filling the glyph and player queues.
+         *
+         * The delay asked about is the one the turn BEGAN with (phase_npcs
+         * takes it before the combat swing), not the live deadline. The
+         * reference drains the queue before `processMovementInteraction`
+         * swings, so a swing ending in `npc_delay(4)` still lets this turn's
+         * hits land; here the swing runs first, and reading the deadline it
+         * had just moved skipped the queue on every swing tick. With an
+         * attackrate of 4 that was every tick the npc was not delayed, and the
+         * adult dragons took no damage at all (b71, dragon.rs2). */
+        {
+            int delayed = npc->turn_began_tick == srv->tick ? npc->turn_began_delayed
+                                                            : srv->tick < npc->delayed_until;
+
+            if( npc->active && delayed )
+                continue;
+        }
 
         /*
          * `npc_settimer` and `npc_queue`, in phase 4's own order: **timers
@@ -16092,6 +16106,12 @@ phase_npcs(struct ToriRSServer* srv)
          * never run. The live drain is in `advance_npcs`, which resolves the
          * trigger by npc type. */
         ToriRSServer_ScriptsResumeNpc(srv, slot);
+        /* The turn's one validity question (`Npc.turn()` asks `isValid()`
+         * once, after the resume): the combat swing below may move
+         * `delayed_until`, and the timers and queue in `advance_npcs` belong
+         * to the turn the swing was made in. */
+        srv->npcs[slot].turn_began_tick = srv->tick;
+        srv->npcs[slot].turn_began_delayed = srv->tick < srv->npcs[slot].delayed_until;
         ToriRSServer_CombatNpcTick(srv, slot);
     }
     advance_npcs(srv);
