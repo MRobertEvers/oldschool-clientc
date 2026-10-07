@@ -329,6 +329,8 @@ QD.raid._play_plan("tob_nylocas", {
     -- { scythe_of_vitur = "Reap", twisted_bow = "Rapid", toxic_blowpipe_loaded = "Rapid" }
     boss_styles = nil,
     boss_style_give_up = 6,
+    -- no Saradomin brew on her while food is held (its drain outlasts the restore)
+    boss_no_brew = true,
     -- owner_nylocas: THE SCORED PLAN'S PICK, the machine's KILL / PRE_STAND choice
     -- (QD.raid._play_nylocas_scored_pick): its terms, unchanged from 738ef1466,
     -- whose seats hold 7-18 alive at waves 21-26 against the list machine's 13-23
@@ -1925,7 +1927,17 @@ function QD.raid._play_nylocas_supplies(st, v, threat, interlude)
     local eat, drink = nil, nil
     if v.hp <= need then
         if eat_ready and food ~= nil and food_alone * 2 >= heal then eat = food end
-        if drink_ready and brew ~= nil and brew_alone * 2 >= brew_heal then
+        -- owner_nylocas: NO BREW ON HER WHILE THERE IS FOOD.  A Saradomin brew
+        -- drains Attack, Strength, Magic and Ranged by 10% + 2 (br_potion.rs2)
+        -- and the super restore after it restores to the BASE, so the Ayak's
+        -- 112 and the bow's 112 read 99 for the rest of the room.  The two
+        -- slow boss phases (lo1: svb 132, svc 127 ticks) are the two where the
+        -- mage and the ranger brewed on her (magic-form damage 9.8 and 8.1 a
+        -- tick against 12.4 on _play; Blert magic form 13.8); Blert's trio
+        -- drinks 0-1 (mage), 1 (meleer), 0-2 (ranger) doses on her, restores
+        -- included (reference role.*.phase.boss.drinks).
+        local brew_ok = not (boss_phase and P.boss_no_brew and food ~= nil)
+        if brew_ok and drink_ready and brew ~= nil and brew_alone * 2 >= brew_heal then
             if eat == nil then
                 drink = brew
             elseif v.hp + food_alone <= need then
