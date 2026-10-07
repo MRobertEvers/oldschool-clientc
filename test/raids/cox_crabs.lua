@@ -706,9 +706,9 @@ return {
                 end
                 local wait = 0
                 local missing = 0
-                while wait < 45 do
-                    if wait % 4 == 0 then sustain(t) end
-                    if wait % 2 == 0 then t.player.walk_to(sx, sz, 8) end
+                t.player.walk_to(sx, sz, 20)
+                while wait < 40 do
+                    if wait % 8 == 0 then sustain(t) end
                     if t.player.alive() ~= "ok" then
                         t.check("alive", false, "died waiting crystal " .. sm.crystal_i
                             .. " attempt " .. sm.attempt)
@@ -720,10 +720,11 @@ return {
                     local seated = crab_at(t, wx, wz, 0)
                     if seated == nil then
                         missing = missing + 1
-                        if missing > 5 then break end
+                        if missing > 4 then break end
                     else
                         missing = 0
-                        if want_sym ~= nil and seated.symbol ~= want_sym and wait % 4 == 0 then
+                        -- paint_ticks=12; refresh only when colour dropped.
+                        if want_sym ~= nil and seated.symbol ~= want_sym then
                             t.player.walk_to(wx - 1, wz, 8)
                             if style ~= "melee" then
                                 paint_style(t, style, seated)
@@ -733,15 +734,12 @@ return {
                             t.player.walk_to(sx, sz, 8)
                         end
                     end
-                    t.ticks(1)
-                    wait = wait + 1
+                    t.ticks(2)
+                    wait = wait + 2
                 end
                 if (var_num(t, info.flag) or 0) == 1 then
                     sm.crystal_i = sm.crystal_i + 1
                     sm.attempt = 0
-                    if sm.crystal_i == 2 then
-                        t.shot("crabs mid-mechanic: crystals lighting")
-                    end
                 else
                     sm.attempt = sm.attempt + 1
                     if sm.attempt > 12 then
