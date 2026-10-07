@@ -381,6 +381,11 @@ return {
                         return false, "smash failed: " .. tostring(detail)
                     end
                     t.player.walk_to(sx, sz, 20)
+                    -- Confirm freeze held the crab on the mark.
+                    t.ticks(2)
+                    if crab_at(t, wx, wz, 0) == nil then
+                        return false, "crab left mark after smash"
+                    end
                     t.ticks(10)
                     if style ~= nil and style ~= "melee" then
                         local live = pack_slot(exact.row.slot)
