@@ -388,8 +388,15 @@ return {
                 end
 
                 -- Re-press at most every 4 ticks; tbow is 5-tick.
+                -- Attack opts.slot is the CLIENT slot (run16 passed world
+                -- slot 1099 and dealt 0 damage for 6000 ticks).
                 if sm.ticks - sm.last_attack_tick >= 4 then
-                    t.player.attack(sym, 2, 1, { quick = true, slot = target.slot })
+                    local cslot = target.client_slot
+                    if type(cslot) == "number" then
+                        t.player.attack(sym, 2, 1, { quick = true, slot = cslot })
+                    else
+                        t.player.attack(sym, 2, 1)
+                    end
                     sm.last_attack_tick = sm.ticks
                 end
                 return
