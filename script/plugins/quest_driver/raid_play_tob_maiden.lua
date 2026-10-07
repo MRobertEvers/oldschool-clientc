@@ -919,6 +919,14 @@ function QD.raid.mz_f_on_boss_tick(st, v, intent)
         and b.health_ratio / b.health_scale <= nthr + 1 / 30 then
         QD.raid.mz_wear(intent, st.plan.magic_set)
         intent.no_fill, intent.preaim = true, true
+        -- a swap does not end the attack on her: the server keeps swinging the
+        -- new weapon (svb t123: the kodai's bash 423 two ticks after the
+        -- magic set, its 4-tick timer holding cast 1 to +3); a walk click on
+        -- the tile it stands on ends the interaction without a step
+        if st.engaged and intent.gear == nil then
+            intent.walk = { x = v.me.x, z = v.me.z }
+            st.engaged = false
+        end
         return
     end
     if QD.raid.mz_wear(intent, st.plan.ranged_set) then return end
