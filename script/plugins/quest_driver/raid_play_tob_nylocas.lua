@@ -2637,21 +2637,40 @@ function QD.raid._play_nylocas_decide(st, v)
         pray_style = (vas.form == "spawning") and "melee" or vas.form
     else
         local weight = { melee = 0, ranged = 0, magic = 0 }
+        local bigs_in = {}
         for _, n in ipairs(v.nylos) do
             if n.fighting then
                 local d = dist(me.x, me.z, n.x, n.z, n.size)
                 local reach = (n.style == "melee") and 2 or 9
-                if d <= reach then weight[n.style] = weight[n.style] + (n.big and 2 or 1) end
+                if d <= reach then
+                    weight[n.style] = weight[n.style] + (n.big and 2 or 1)
+                    if n.big then bigs_in[n.style] = true end
+                end
             end
         end
+        -- owner_nylocas 2026-10-07 (relay19 / relay20, the relay agent's
+        -- question): TWO COLOURS ON THIS RAIDER AT ONCE, EQUALLY HEAVY -> PRAY
+        -- AGAINST THE ONE IT DOES NOT KILL ITSELF.  relay20 +61..+95: a blue big
+        -- and a green big on the ranger (2 and 2), Protect from Missiles held by
+        -- the hysteresis, the blue landed 12-22 a hit: 101 of its 107 from bigs
+        -- taken with the wrong prayer on the big's attack tick.  Its own colour
+        -- dies to its own weapon; the other colour is the one still swinging.
+        -- (The client view cannot say which copy is swinging at whom: every
+        -- nylocas row's `facing` read -1 over a whole trio room.)
+        -- (pt1, every colour: 4 of 5, svd's wave 31 at 297; the relay's
+        -- losses are to BIGS, 101 of 107 and 137 of 188 -- so only a big of
+        -- the other colour wins the tie)
+        local function off(s) return R ~= nil and s ~= R.colour and bigs_in[s] == true end
         local best, bw = nil, 0
         for _, s in ipairs(P.styles) do
-            if weight[s] > bw then best, bw = s, weight[s] end
+            if weight[s] > bw or (best ~= nil and weight[s] == bw and bw > 0 and off(s) and not off(best)) then best, bw = s, weight[s] end
         end
         if best ~= nil and best ~= pray_style then
             local cur = pray_style ~= nil and weight[pray_style] or 0
-            if pray_style == nil or bw >= cur + 2 or (cur == 0 and v.tick - ny.prayer_tick >= 3) then
+            if pray_style == nil or bw >= cur + 2 or (cur == 0 and v.tick - ny.prayer_tick >= 3)
+                or (bw >= cur and off(best) and not off(pray_style)) then
                 pray_style = best
+                if bw == cur then ny.tie_prayers = (ny.tie_prayers or 0) + 1 end
             end
         end
     end
