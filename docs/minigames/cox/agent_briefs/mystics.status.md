@@ -8,13 +8,13 @@ Replacement for stuck agent `bc-d3cf9a9c` (empty transcript, no commits).
 
 **Synq learner solo** (`synq_transcript.md` [0:31:54]): Protect from Magic,
 ranged + salve, blowpipe (tbow weaker on mystic magic level), focus one
-mystic at a time until the room clears. Flick Protect from Melee when a
-mystic is walk-adjacent (50/50 melee reroll). Corner safespot optional.
+mystic at a time until the room clears. Corner safespot optional.
 
 ## Implemented
 
-- Test SM: `LAND → ARM_PRAYER → FOCUS → DONE` (tick-loop FOCUS, no await_dead)
+- Test SM: `LAND → ARM_PRAYER → FOCUS → DONE` (await_dead per focus kill)
 - Kit: loaded toxic blowpipe + salve + masori; shark + karambwan combo eat + brews
+- Prayer-reduction samples magic-style hits only (melee under Protect Magic ignored)
 - Spec table: all six kill-path rows grade C
 - Content: existing mystic procs in `cox_minions.rs2` (no shaman edits)
 
