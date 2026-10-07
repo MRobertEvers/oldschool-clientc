@@ -21,7 +21,7 @@ end
 return {
     id = "cox_olm_chamber_shot",
     fixture = "fresh_lumbridge.ini",
-    frames = 800,
+    frames = 1200,
     setup = {
         "::maxstats",
         "::godmode",
@@ -32,32 +32,32 @@ return {
         local er, ed = t.raid.enter("cox", "olm", { seed = 1 })
         t.check("raid.enter", er == "ok", tostring(ed))
 
-        -- Resource terminus hole → Olm corridor (not the barrier).
         local hr, hd = t.player.click_loc("raids_bossentrance", 1)
         t.check("hole.click", hr == "ok" or hr == "timeout", tostring(hr) .. " " .. tostring(hd))
-        t.ticks(6)
+        t.ticks(8)
         local tr, tile = t.world.tile()
         t.check("corridor.tile", tr == "ok" and type(tile) == "table" and tile.level == 2,
             "want plane 2 corridor, got " .. tile_text(t))
+        -- Walk north toward the barrier; look north.
+        t.player.walk_to(6432, 92, 20)
         t.ticks(2)
-        t.drive.camera(0, 200, 600)
-        t.ticks(2)
+        t.drive.camera(0, 180, 500)
+        t.ticks(3)
         t.shot("olm corridor before barrier at " .. tile_text(t))
 
-        -- Mystical barrier on the stamped m50_89 square.
         local cr, cd = t.player.click_loc("raids_olm_barrier", 1)
         t.check("barrier.click", cr == "ok" or cr == "timeout", tostring(cr) .. " " .. tostring(cd))
         local chr, chd = t.chat.play({ "options", "choose:Step through the mystical barrier." })
         t.check("barrier.confirm", chr == "ok" or chr == "timeout", tostring(chr) .. " " .. tostring(chd))
-        t.ticks(8)
+        t.ticks(12)
 
         tr, tile = t.world.tile()
         t.check("tile.read", tr == "ok", tostring(tile))
         t.check("chamber.plane", type(tile) == "table" and tile.level == 2,
             "want plane 2 chamber, got " .. tile_text(t))
-        t.ticks(2)
-        t.drive.camera(0, 250, 700)
-        t.ticks(2)
+        -- Look west at the cave bank.
+        t.drive.camera(1536, 200, 700)
+        t.ticks(3)
         t.shot("olm chamber after barrier at " .. tile_text(t))
 
         local wait = 0
@@ -73,10 +73,11 @@ return {
             head = npc_ok(t, HEAD) or npc_ok(t, HEAD_SPAWN)
         end
         t.check("boss.present", head ~= nil, "waited for olm_head at " .. tile_text(t))
-        -- Look west toward the cave bank (NR left-side rise).
+        -- Closer to west wall, looking west at head cave.
+        t.player.walk_to(6424, 102, 20)
         t.ticks(2)
-        t.drive.camera(1400, 220, 800)
-        t.ticks(2)
+        t.drive.camera(1536, 160, 500)
+        t.ticks(4)
         t.shot("olm west caves after spawn at " .. tile_text(t))
         t.check("done", true, "chamber shots at " .. tile_text(t))
     end,
