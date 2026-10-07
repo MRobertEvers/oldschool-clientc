@@ -498,6 +498,11 @@ check it; a room to re-author must have its `<id>.author.json` / `.review.json` 
   attacks ~1/3 each; our content always takes the first found = the leader-mage), saved at
   build/seam_state/owner_nylocas/tob_nylocas_boss.ties.rs2.
 
+- OWNER RULE 2026-10-07 04:00: "Content fixes override my green room rule." A sourced content fix is kept
+  even if a green room goes red; the room is then re-verified and its plan follows the content. A
+  content-bugs owner (progress: build/seam_state/content_bugs/progress.md) is fixing every OPEN content /
+  engine row in CONTENT_BUGS.md from its source.
+
 ## Next, in order
 
 1. Seam22 lands (above); then relaunch the Normal pass with the same args (its rejected rooms get the findings); re-launch for rejected or sent-back rooms until kept. (Seam21 landed.) SEAM21 was on
