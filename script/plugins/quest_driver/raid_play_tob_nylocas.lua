@@ -469,14 +469,41 @@ QD.raid._play_plan("tob_nylocas", {
 })
 
 -- =====================================================================
--- THE TRIO'S MACHINE (owner_nylocas, 2026-10-06).  A party seat's waves,
--- cleanup and boss are one state machine per seat.  Its whole memory is
--- m = { state, wave, idx, resume } (and m.subs, the current state's own
--- subscriptions); the plan's data above (P.waves, P.cleanup) says what each
--- state does.  On entering a state its `on` handlers are subscribed, on
--- leaving they are unsubscribed; an event reaches only the current state's
--- handler.  Every state names a handler for every event; `stay` handlers
--- return nil and change nothing.
+-- THE ROOM'S MACHINES (owner_nylocas 2026-10-06; DECLARED on raid_sm.lua,
+-- raid seam53 play_state_machines, 2026-10-07).
+--
+-- The owner, 2026-10-07: "all the rooms should be explicit state machines."
+-- Before the port this plan held its machine as a table of functions
+-- (NY_STATES) with its own subscribe/unsubscribe (QD.raid._nym_go) and its own
+-- dispatch (QD.raid._nym_fire), and the room's phases -- her landing, her
+-- forms, her death -- were an if/elseif on her npc row, two hundred lines
+-- away in the decide step.  Nothing said, in one place, what the states were.
+--
+-- Now there are FOUR DECLARATIONS, all of them data (QD.raid.sm_declare):
+--
+--   nylocas_room    THE ROOM'S PHASES: WAVES, CLEANUP, LANDING, FORM_MELEE,
+--                   FORM_MAGIC, FORM_RANGED, DEAD.  It owns the prayer at her
+--                   and the bookkeeping of her landing and her turns.
+--   nylocas_mage    THE SEAT, one declaration per room role so a role can
+--   nylocas_ranger  grow a state of its own without touching the others:
+--   nylocas_melee   AT_STAND, KILL, PRE_STAND, PILLAR_DEFENCE, SELF_DEFENCE,
+--                   CLEANUP, BOSS.  The three are built from one table below
+--                   (NY_SEAT_STATES) because today the three seats play the
+--                   same states on different data (P.waves[w][role]).
+--
+-- A handler is function(ctx, ev) -> intent, go; no `go` means stay.  The ctx
+-- is this plan's own `c`, and the seat's tick handlers write c.pick / c.walk
+-- rather than returning an intent, which is raid_sm's ported-body route: the
+-- executor that reconciles them (raid_play.lua) did not change for the port.
+-- A transition to a state nobody declared aborts and names the typo.
+--
+-- Her whole memory is still m = { state, wave, idx, resume }; m.state is a
+-- mirror the rest of the plan reads (the weapon of the wave, the cleanup
+-- read, the tick-log note), stamped by each state's `enter`.
+--
+-- Every state names a handler for every event; `stay` handlers return nil and
+-- change nothing, so the declaration says what a state ignores as well as
+-- what it acts on.
 --
 --  state           event                  -> next state (and what it does)
 --  AT_STAND        tick                   (before wave 1 only) walk to wave 1's tile
@@ -533,14 +560,45 @@ QD.raid._play_plan("tob_nylocas", {
 --                  hit_taken              an aggro swinging at the seat: resume = CLEANUP -> SELF_DEFENCE
 --  BOSS            tick                   her form: the boss pick (weapon, the form's gear set, special)
 --                  every event            stay
---  Events, in this order each tick: boss_phase (she is in the room), wave_spawn (a new
---  wave seen in the tunnels), waves_over (31 waves, or 28 and 14 quiet ticks),
---  support_hit (the support nearest the seat lost bar, under P.defend_below, with a
---  chewer of its colour), hit_taken (hitpoints fell), target_dead / target_reached_pillar
---  (KILL's copy gone / chewing; CLEANUP's named copy gone).  The tick log's raider row
---  carries state=<state>/<wave>/<idx> (::tlnote).
+--  THE SEAT'S EVENTS, in this order each tick (QD.raid._nym_seat_events, the
+--  one place they are derived): boss_phase (she is in the room), wave_spawn (a
+--  new wave seen in the tunnels), waves_over (31 waves, or 28 and 14 quiet
+--  ticks), support_hit (the support nearest the seat lost bar, under
+--  P.defend_below, with a chewer of its colour), hit_taken (hitpoints fell),
+--  target_dead / target_reached_pillar (KILL's copy gone / chewing; CLEANUP's
+--  named copy gone), defence_clear / aggro_clear (the defence state's own
+--  reason is gone), then ONE action event: big_stick, room_copy or tick.
+--
+--  defence_clear / aggro_clear ARE NEW NAMES FOR AN OLD EDGE, not a new rule.
+--  The old PILLAR_DEFENCE tick, finding no chewer, called QD.raid._nym_go and
+--  then ran the state it returned to BY HAND (NY_STATES[c.m.state].tick(c));
+--  the same for SELF_DEFENCE.  Declared, that is an event raised before
+--  `tick`, so the transition lands mid-list and raid_sm offers the `tick`
+--  after it to the state it returned to.
+--
+--  AND IT IS RAISED ONLY ON A TICK THE STATE'S OWN TICK IS THE ACTION, because
+--  that is where it used to live: with P.room_copy set (the kept plan) the
+--  `room_copy` override takes every wave and cleanup tick, so the old leave
+--  was never reached and a seat that entered PILLAR_DEFENCE or SELF_DEFENCE
+--  left it only on an EVENT.  The port's first cut raised it every tick, which
+--  IS the rule as written but is NOT the measured behaviour: svaplaynyloc then
+--  reached CLEANUP through `resume` with fewer than 31 waves out and tripped
+--  the plan's own clear_time hole (build/seam_state/sm_nylocas/progress.md).
+--  Waking that edge up is the owner's call, not the port's.
+--
+--  big_stick / room_copy ARE THE PLAN'S TWO OVERRIDES of the state's own
+--  action, which before the port returned out of the machine ahead of the
+--  state tick.  They are events now, named by every state but BOSS (on her,
+--  her own pick wins), so the override is visible in the declaration instead
+--  of being a `return` above it.
+--
+--  THE ROOM'S EVENTS (QD.raid._nym_room_events): wave_spawn, waves_over,
+--  boss_spawning (she drops in), form_melee / form_magic / form_ranged (HER
+--  FORM CHANGES, IN WHATEVER ORDER THE RUN ROLLS -- no state assumes a
+--  sequence: every pre-death state names all three), boss_gone (she is off
+--  the floor: her death), tick.
+--  The tick log's raider row carries state=<state>/<wave>/<idx> (::tlnote).
 -- =====================================================================
-local NY_STATES
 local NY_IN_REACH, NY_OWN_IN_REACH
 
 -- copies and their keys ("S-magic", "W-ranged-big", "split-melee")
@@ -766,22 +824,9 @@ function QD.raid._nym_cleanup_target(c)
     return best
 end
 
--- transitions: leave (unsubscribe), enter (subscribe), note the state in the tick log
-function QD.raid._nym_go(c, name)
-    local m = c.m
-    if m.state ~= nil then
-        for event, handler in pairs(NY_STATES[m.state].on) do
-            if m.subs[event] == handler then m.subs[event] = nil end
-        end
-    end
-    m.state = name
-    for event, handler in pairs(NY_STATES[name].on) do m.subs[event] = handler end
-    c.ny.transitions = (c.ny.transitions or 0) + 1
-end
-function QD.raid._nym_fire(c, event, arg)
-    local handler = c.m.subs[event]
-    if handler ~= nil then handler(c, arg) end
-end
+-- the state in the tick log.  (The subscribe / unsubscribe / dispatch this
+-- plan used to carry here -- QD.raid._nym_go and QD.raid._nym_fire -- is
+-- raid_sm.lua's now: a state's `on` table IS its subscription.)
 function QD.raid._nym_note(c)
     local m = c.m
     local text = m.state .. "/" .. m.wave .. "/" .. m.idx
@@ -970,6 +1015,8 @@ function QD.raid._nym_room_copy(c)
     end
     return nil
 end
+-- THE STATES' ACTIONS, the old NY_STATES[state].tick bodies verbatim: each
+-- writes the tick's pick for the executor to reconcile.
 -- AT_STAND
 local function at_stand_tick(c)
     -- before wave 1 only: to the first wave's tile
@@ -977,31 +1024,11 @@ local function at_stand_tick(c)
     if math.max(math.abs(c.me.x - x), math.abs(c.me.z - z)) > 1 and c.floor_ok(x, z) then c.walk = { x = x, z = z } end
     return nil
 end
-local function at_stand_on_wave_spawn(c, w) c.m.wave, c.m.idx = w, 1 c.target = nil QD.raid._nym_go(c, "KILL") end
-local function at_stand_on_support_hit(c) c.m.resume = "AT_STAND" QD.raid._nym_go(c, "PILLAR_DEFENCE") end
-local function at_stand_on_waves_over(c) c.m.idx = 1 QD.raid._nym_go(c, "CLEANUP") end
-local function at_stand_on_boss_phase(c) QD.raid._nym_go(c, "BOSS") end
 -- KILL
 local function kill_tick(c)
     -- the scored plan's choice (QD.raid._play_nylocas_scored_pick)
     return QD.raid._play_nylocas_scored_pick(c)
 end
-local function kill_on_wave_spawn(c, w) c.m.wave, c.m.idx = w, 1 c.target = nil end
-local function kill_on_target_dead(c)
-    local n, i = QD.raid._nym_named_from(c, c.m.idx + 1)
-    c.m.idx = i
-    if n == nil then
-        n = QD.raid._nym_unnamed(c)
-        if n ~= nil and not nym_in_reach(c, n) then n = nil end
-    end
-    c.target = n
-    if n == nil then
-        if c.waves_over then c.m.idx = 1 QD.raid._nym_go(c, "CLEANUP") else QD.raid._nym_go(c, "PRE_STAND") end
-    end
-end
-local function kill_on_target_reached_pillar(c) c.m.resume = "KILL" QD.raid._nym_go(c, "PILLAR_DEFENCE") end
-local function kill_on_support_hit(c) c.m.resume = "KILL" QD.raid._nym_go(c, "PILLAR_DEFENCE") end
-local function kill_on_boss_phase(c) QD.raid._nym_go(c, "BOSS") end
 -- PRE_STAND: the wave's list is done; on the next wave's tile before it spawns
 local function pre_stand_tick(c)
     local nxt = math.min(c.m.wave + 1, 31)
@@ -1011,23 +1038,14 @@ local function pre_stand_tick(c)
     if math.max(math.abs(c.me.x - x), math.abs(c.me.z - z)) > 1 and c.floor_ok(x, z) then c.walk = { x = x, z = z } end
     return nil
 end
-local function pre_stand_on_wave_spawn(c, w) c.m.wave, c.m.idx = w, 1 c.target = nil QD.raid._nym_go(c, "KILL") end
-local function pre_stand_on_support_hit(c) c.m.resume = "PRE_STAND" QD.raid._nym_go(c, "PILLAR_DEFENCE") end
-local function pre_stand_on_waves_over(c) c.m.idx = 1 QD.raid._nym_go(c, "CLEANUP") end
-local function pre_stand_on_boss_phase(c) QD.raid._nym_go(c, "BOSS") end
-local function pre_stand_on_hit_taken(c) if QD.raid._nym_aggro(c) ~= nil then c.m.resume = "PRE_STAND" QD.raid._nym_go(c, "SELF_DEFENCE") end end
--- PILLAR_DEFENCE
+-- PILLAR_DEFENCE: the support is defended by the scored choice (its pillar
+-- terms).  Reached only with a chewer of the seat's colour standing: the tick
+-- there is none raises defence_clear, which is handled before this.
 local function pillar_defence_tick(c)
-    -- the support is defended by the scored choice (its pillar terms)
-    if QD.raid._nym_defence(c) ~= nil then return QD.raid._play_nylocas_scored_pick(c) end
-    local back = c.m.resume
-    if back == nil or back == "PILLAR_DEFENCE" or back == "SELF_DEFENCE" or back == "AT_STAND" then back = "PRE_STAND" end
-    QD.raid._nym_go(c, back)
-    return NY_STATES[c.m.state].tick(c)
+    assert(QD.raid._nym_defence(c) ~= nil,
+        "nylocas PILLAR_DEFENCE: no chewer of the seat's colour -- defence_clear owns that tick")
+    return QD.raid._play_nylocas_scored_pick(c)
 end
-local function pillar_defence_on_wave_spawn(c, w) c.m.wave, c.m.idx, c.m.resume = w, 1, "KILL" end
-local function pillar_defence_on_waves_over(c) if c.m.resume ~= "CLEANUP" then c.m.resume, c.m.idx = "CLEANUP", 1 end end
-local function pillar_defence_on_boss_phase(c) QD.raid._nym_go(c, "BOSS") end
 -- CLEANUP
 local function cleanup_tick(c)
     local n = QD.raid._nym_cleanup_target(c)
@@ -1037,47 +1055,409 @@ local function cleanup_tick(c)
     if math.max(math.abs(c.me.x - x), math.abs(c.me.z - z)) > 1 and c.floor_ok(x, z) then c.walk = { x = x, z = z } end
     return nil
 end
-local function cleanup_on_target_dead(c) c.m.idx = c.m.idx + 1 end
-local function cleanup_on_support_hit(c) c.m.resume = "CLEANUP" QD.raid._nym_go(c, "PILLAR_DEFENCE") end
-local function cleanup_on_boss_phase(c) QD.raid._nym_go(c, "BOSS") end
--- SELF_DEFENCE
+-- SELF_DEFENCE: the aggro swinging at the seat, the one through the prayer
+-- first (aggro_clear owns the tick there is none)
 local function self_defence_tick(c)
-    if QD.raid._nym_aggro(c) ~= nil then return QD.raid._play_nylocas_scored_pick(c) end
-    local back = c.m.resume
-    if back == nil or back == "SELF_DEFENCE" or back == "AT_STAND" then back = "PRE_STAND" end
-    QD.raid._nym_go(c, back)
-    return NY_STATES[c.m.state].tick(c)
+    assert(QD.raid._nym_aggro(c) ~= nil,
+        "nylocas SELF_DEFENCE: nothing swinging at the seat -- aggro_clear owns that tick")
+    return QD.raid._play_nylocas_scored_pick(c)
 end
-local function self_defence_on_wave_spawn(c, w) c.m.wave, c.m.idx = w, 1 if c.m.resume == "PRE_STAND" or c.m.resume == "AT_STAND" then c.m.resume = "KILL" end end
-local function self_defence_on_waves_over(c) if c.m.resume == "AT_STAND" or c.m.resume == "PRE_STAND" then c.m.resume, c.m.idx = "CLEANUP", 1 end end
-local function self_defence_on_boss_phase(c) QD.raid._nym_go(c, "BOSS") end
-local function at_stand_on_hit_taken(c) if QD.raid._nym_aggro(c) ~= nil then c.m.resume = "AT_STAND" QD.raid._nym_go(c, "SELF_DEFENCE") end end
-local function kill_on_hit_taken(c) if QD.raid._nym_aggro(c) ~= nil then c.m.resume = "KILL" QD.raid._nym_go(c, "SELF_DEFENCE") end end
-local function pillar_defence_on_hit_taken(c) if QD.raid._nym_aggro(c) ~= nil then QD.raid._nym_go(c, "SELF_DEFENCE") end end
-local function cleanup_on_hit_taken(c) if QD.raid._nym_aggro(c) ~= nil then c.m.resume = "CLEANUP" QD.raid._nym_go(c, "SELF_DEFENCE") end end
 -- BOSS
 local function boss_tick(c) return QD.raid._play_nylocas_boss_pick(c) end
 
-NY_STATES = {
-    AT_STAND = { tick = at_stand_tick, on = { wave_spawn = at_stand_on_wave_spawn, target_dead = stay, target_reached_pillar = stay,
-        support_hit = at_stand_on_support_hit, waves_over = at_stand_on_waves_over, boss_phase = at_stand_on_boss_phase, hit_taken = at_stand_on_hit_taken } },
-    KILL = { tick = kill_tick, on = { wave_spawn = kill_on_wave_spawn, target_dead = kill_on_target_dead, target_reached_pillar = kill_on_target_reached_pillar,
-        support_hit = kill_on_support_hit, waves_over = stay, boss_phase = kill_on_boss_phase, hit_taken = kill_on_hit_taken } },
-    PRE_STAND = { tick = pre_stand_tick, on = { wave_spawn = pre_stand_on_wave_spawn, target_dead = stay, target_reached_pillar = stay,
-        support_hit = pre_stand_on_support_hit, waves_over = pre_stand_on_waves_over, boss_phase = pre_stand_on_boss_phase, hit_taken = pre_stand_on_hit_taken } },
-    PILLAR_DEFENCE = { tick = pillar_defence_tick, on = { wave_spawn = pillar_defence_on_wave_spawn, target_dead = stay, target_reached_pillar = stay,
-        support_hit = stay, waves_over = pillar_defence_on_waves_over, boss_phase = pillar_defence_on_boss_phase, hit_taken = pillar_defence_on_hit_taken } },
-    CLEANUP = { tick = cleanup_tick, on = { wave_spawn = stay, target_dead = cleanup_on_target_dead, target_reached_pillar = stay,
-        support_hit = cleanup_on_support_hit, waves_over = stay, boss_phase = cleanup_on_boss_phase, hit_taken = cleanup_on_hit_taken } },
-    SELF_DEFENCE = { tick = self_defence_tick, on = { wave_spawn = self_defence_on_wave_spawn, target_dead = stay, target_reached_pillar = stay,
-        support_hit = stay, waves_over = self_defence_on_waves_over, boss_phase = self_defence_on_boss_phase, hit_taken = stay } },
-    BOSS = { tick = boss_tick, on = { wave_spawn = stay, target_dead = stay, target_reached_pillar = stay,
-        support_hit = stay, waves_over = stay, boss_phase = stay, hit_taken = stay } },
+-- THE MIRROR the rest of the plan reads: m.state (the weapon of the wave in
+-- QD.raid._nym_pick, the cleanup read in the decide, the tick-log note).  A
+-- state stamps its own name on entry, so the mirror is right at every moment
+-- of the tick and not only once the run is over.
+local function nym_mark(name)
+    return function(c) c.m.state = name end
+end
+-- A STATE'S ACTION for the tick.  c.action names which of the three action
+-- events the seat answered: the two overrides return out of the machine
+-- without the never-idle fill and without counting the state's tick, as they
+-- did when they were a `return` above the state tick.
+local function nym_action(f)
+    return function(c)
+        c.action = "tick"
+        c.pick = f(c)
+    end
+end
+-- THE BIG IT IS STUCK ON (P.big_stick): while the seat's current copy is a big
+-- of its colour on the floor, it stays the choice (svc / svd traces on cb5)
+local function nym_on_big_stick(c, ev)
+    c.action = "big_stick"
+    c.ny.big_sticks = (c.ny.big_sticks or 0) + 1
+    c.pick = QD.raid._nym_pick(c, ev.copy)
+end
+-- ONE REFERENCE ROOM, COPIED (P.room_copy, QD.raid._nym_room_copy)
+local function nym_on_room_copy(c)
+    c.action = "room_copy"
+    c.pick = QD.raid._nym_room_copy(c)
+end
+-- the two defence states' way back: the state that sent them there, which
+-- each state names when it goes (c.m.resume).  TRANSITIONS BOTH WAYS.
+local function nym_back_from_pillar(c)
+    local back = c.m.resume
+    if back == nil or back == "PILLAR_DEFENCE" or back == "SELF_DEFENCE" or back == "AT_STAND" then back = "PRE_STAND" end
+    return nil, back
+end
+local function nym_back_from_self(c)
+    local back = c.m.resume
+    if back == nil or back == "SELF_DEFENCE" or back == "AT_STAND" then back = "PRE_STAND" end
+    return nil, back
+end
+-- an aggro swinging at the seat takes it to SELF_DEFENCE, naming the way back
+local function nym_to_self_defence(from)
+    return function(c)
+        if QD.raid._nym_aggro(c) == nil then return nil end
+        if from ~= nil then c.m.resume = from end
+        return nil, "SELF_DEFENCE"
+    end
+end
+
+-- THE SEAT'S STATES.  One table, declared once per room role below: today the
+-- three seats play the same states on their own row of P.waves.
+local NY_SEAT_STATES = {
+    AT_STAND = {
+        note = "before wave 1: walking to wave 1's tile",
+        enter = nym_mark("AT_STAND"),
+        on = {
+            tick = nym_action(at_stand_tick),
+            big_stick = nym_on_big_stick,
+            room_copy = nym_on_room_copy,
+            wave_spawn = function(c, ev) c.m.wave, c.m.idx = ev.wave, 1 c.target = nil return nil, "KILL" end,
+            target_dead = stay,
+            target_reached_pillar = stay,
+            support_hit = function(c) c.m.resume = "AT_STAND" return nil, "PILLAR_DEFENCE" end,
+            waves_over = function(c) c.m.idx = 1 return nil, "CLEANUP" end,
+            boss_phase = function(c) return nil, "BOSS" end,
+            hit_taken = nym_to_self_defence("AT_STAND"),
+        },
+    },
+    KILL = {
+        note = "WHICH COPIES THIS SEAT OWNS: the wave's listed copies in order, each with the wave's weapon for its colour",
+        enter = nym_mark("KILL"),
+        on = {
+            tick = nym_action(kill_tick),
+            big_stick = nym_on_big_stick,
+            room_copy = nym_on_room_copy,
+            -- A WAVE SPAWNING: the list starts again, at this wave's row
+            wave_spawn = function(c, ev) c.m.wave, c.m.idx = ev.wave, 1 c.target = nil end,
+            target_dead = function(c)
+                local n, i = QD.raid._nym_named_from(c, c.m.idx + 1)
+                c.m.idx = i
+                if n == nil then
+                    n = QD.raid._nym_unnamed(c)
+                    if n ~= nil and not nym_in_reach(c, n) then n = nil end
+                end
+                c.target = n
+                if n ~= nil then return nil end
+                if c.waves_over then c.m.idx = 1 return nil, "CLEANUP" end
+                return nil, "PRE_STAND"
+            end,
+            target_reached_pillar = function(c) c.m.resume = "KILL" return nil, "PILLAR_DEFENCE" end,
+            support_hit = function(c) c.m.resume = "KILL" return nil, "PILLAR_DEFENCE" end,
+            waves_over = stay,
+            boss_phase = function(c) return nil, "BOSS" end,
+            hit_taken = nym_to_self_defence("KILL"),
+        },
+    },
+    PRE_STAND = {
+        note = "the wave's list is done: on the next wave's tile before it spawns",
+        enter = nym_mark("PRE_STAND"),
+        on = {
+            tick = nym_action(pre_stand_tick),
+            big_stick = nym_on_big_stick,
+            room_copy = nym_on_room_copy,
+            wave_spawn = function(c, ev) c.m.wave, c.m.idx = ev.wave, 1 c.target = nil return nil, "KILL" end,
+            target_dead = stay,
+            target_reached_pillar = stay,
+            support_hit = function(c) c.m.resume = "PRE_STAND" return nil, "PILLAR_DEFENCE" end,
+            waves_over = function(c) c.m.idx = 1 return nil, "CLEANUP" end,
+            boss_phase = function(c) return nil, "BOSS" end,
+            hit_taken = nym_to_self_defence("PRE_STAND"),
+        },
+    },
+    PILLAR_DEFENCE = {
+        note = "PILLAR DEFENCE, four supports that must not fall: the nearest with a chewer of the seat's colour, the least hitpoints first",
+        enter = nym_mark("PILLAR_DEFENCE"),
+        on = {
+            tick = nym_action(pillar_defence_tick),
+            big_stick = nym_on_big_stick,
+            room_copy = nym_on_room_copy,
+            defence_clear = nym_back_from_pillar,
+            wave_spawn = function(c, ev) c.m.wave, c.m.idx, c.m.resume = ev.wave, 1, "KILL" end,
+            target_dead = stay,
+            target_reached_pillar = stay,
+            support_hit = stay,
+            waves_over = function(c) if c.m.resume ~= "CLEANUP" then c.m.resume, c.m.idx = "CLEANUP", 1 end end,
+            boss_phase = function(c) return nil, "BOSS" end,
+            hit_taken = nym_to_self_defence(nil),
+        },
+    },
+    SELF_DEFENCE = {
+        note = "an aggro swinging at the seat, the one through the prayer before all",
+        enter = nym_mark("SELF_DEFENCE"),
+        on = {
+            tick = nym_action(self_defence_tick),
+            big_stick = nym_on_big_stick,
+            room_copy = nym_on_room_copy,
+            aggro_clear = nym_back_from_self,
+            wave_spawn = function(c, ev)
+                c.m.wave, c.m.idx = ev.wave, 1
+                if c.m.resume == "PRE_STAND" or c.m.resume == "AT_STAND" then c.m.resume = "KILL" end
+            end,
+            target_dead = stay,
+            target_reached_pillar = stay,
+            support_hit = stay,
+            waves_over = function(c)
+                if c.m.resume == "AT_STAND" or c.m.resume == "PRE_STAND" then c.m.resume, c.m.idx = "CLEANUP", 1 end
+            end,
+            boss_phase = function(c) return nil, "BOSS" end,
+            hit_taken = stay,
+        },
+    },
+    CLEANUP = {
+        note = "THE CLEANUP AFTER THE LAST WAVE: P.cleanup[role].targets in order, then the role's colour, then any copy",
+        enter = nym_mark("CLEANUP"),
+        on = {
+            tick = nym_action(cleanup_tick),
+            big_stick = nym_on_big_stick,
+            room_copy = nym_on_room_copy,
+            wave_spawn = stay,
+            target_dead = function(c) c.m.idx = c.m.idx + 1 end,
+            target_reached_pillar = stay,
+            support_hit = function(c) c.m.resume = "CLEANUP" return nil, "PILLAR_DEFENCE" end,
+            waves_over = stay,
+            boss_phase = function(c) return nil, "BOSS" end,
+            hit_taken = nym_to_self_defence("CLEANUP"),
+        },
+    },
+    BOSS = {
+        note = "HER FIGHT: the boss pick (the weapon of her form, that form's gear set, the claws' special on melee)",
+        enter = nym_mark("BOSS"),
+        on = {
+            tick = nym_action(boss_tick),
+            wave_spawn = stay,
+            target_dead = stay,
+            target_reached_pillar = stay,
+            support_hit = stay,
+            waves_over = stay,
+            boss_phase = stay,
+            hit_taken = stay,
+        },
+    },
 }
 
--- One tick of a seat's machine: the events of this tick in a fixed order, each
--- to the current state's handler, then the current state's tick.  Returns the
--- pick (or nil) and a walk (or nil).
+-- PER-ROLE MACHINES.  The mage is also the party leader (raid seam49: the
+-- leader is the MAGE, not the tank), the ranger carries the chinchompas and
+-- the pipe, the meleer the scythe; the three play the same states on their own
+-- row of P.waves, so the table above is declared three times rather than
+-- copied three times.  Declaring them apart is what lets ONE role grow a
+-- state the others do not have -- which, hand-rolled, meant finding every
+-- string comparison that named its neighbours.
+local NY_ROLE_MACHINE = { mage = "nylocas_mage", ranger = "nylocas_ranger", melee = "nylocas_melee" }
+for _, role in ipairs({ "mage", "ranger", "melee" }) do
+    QD.raid.sm_declare(NY_ROLE_MACHINE[role], { start = "AT_STAND", states = NY_SEAT_STATES })
+end
+
+-- =====================================================================
+-- THE ROOM'S PHASES, DECLARED: the waves, the cleanup after the last wave,
+-- her landing, her fight (one state per form) and her death.  It owns
+--
+--   * THE PRAYER AT HER.  Her form order is the run's own roll (owner_nylocas
+--     2026-10-07, npc rolls seeded by the run name: nine names, nine
+--     different orders), so NO STATE ASSUMES A SEQUENCE -- every form state
+--     names all three form events, and so does every state before them.  The
+--     state's own `tick` re-asserts its prayer every tick, which is how the
+--     leader's protection reaches her new style within 2 ticks (the test's
+--     tech.prayer reads her npc_retype rows against the lit prayer; Blert's
+--     seats, vasp.py over 27 rooms: a median 1-2 ticks after a turn, her
+--     first swing in the new form 2-3 ticks after it).  Her records are
+--     8355 melee, 8356 magic, 8357 ranged (P.modes[mode].form names them).
+--   * HER LANDING and HER TURNS.  The FIRST real form is the landing -- she
+--     lands melee (W :754 "Vasilias will always spawn in its melee form"),
+--     the supports' bars are read on that tick (the report's "pillars at the
+--     boss") and the first window is a tick shorter; a later one is a turn.
+--     The window the press rule holds against (ny.next_turn) is set by the
+--     state entered, not by a counter outside them.
+--   * HER DEATH, as a state of its own: she is off the floor, the wave
+--     prayer takes over again and the seat's BOSS state has nothing to press.
+--
+-- The weapon follows the prayer through the pick: QD.raid._play_nylocas_key
+-- names her form's weapon (the Eye of Ayak on her magic form) and
+-- P.boss_gear her form's set, both off the form this machine is in.
+-- =====================================================================
+local function nym_phase(name)
+    return function(c) c.ny.phase = name end
+end
+-- a form state: its prayer every tick, and on entry the landing or the turn
+local function nym_form_state(style)
+    local phase = "FORM_" .. string.upper(style)
+    return {
+        note = "her " .. style .. " form: pray " .. style .. ", swing the weapon of " .. style,
+        enter = function(c, ev, prev)
+            local v, P, N, ny = c.v, c.P, c.N, c.ny
+            ny.phase = phase
+            if prev == "FORM_MELEE" or prev == "FORM_MAGIC" or prev == "FORM_RANGED" then
+                -- A TURN: "The boss will change forms every 10 ticks" (W :752)
+                ny.turns[#ny.turns + 1] = { tick = v.tick, form = style }
+                ny.next_turn = v.tick + (N.window or P.window)
+            else
+                -- SHE LANDS (the first real form, in whatever order)
+                ny.landed = v.tick
+                ny.next_turn = v.tick + (N.first_window or P.first_window)
+                -- raid seam32: the supports' bars on the tick she lands (the
+                -- report's "pillars at the boss")
+                local bars = {}
+                for _, s in ipairs(v.supports) do bars[#bars + 1] = string.format("%d,%d:%.2f%s", s.x - c.st.origin.x, s.z - c.st.origin.z, s.frac, s.alive and "" or "x") end
+                ny.supports_at_landing = table.concat(bars, " ")
+                ny.supports_alive_at_landing = 0
+                for _, s in ipairs(v.supports) do if s.alive then ny.supports_alive_at_landing = ny.supports_alive_at_landing + 1 end end
+                -- raid seam33: the weakest standing bar (the kept trio's row
+                -- asks every support above 0.10)
+                ny.supports_min_at_landing = nil
+                for _, s in ipairs(v.supports) do
+                    if s.alive and (ny.supports_min_at_landing == nil or s.frac < ny.supports_min_at_landing) then ny.supports_min_at_landing = s.frac end
+                end
+            end
+            ny.form = style
+            -- the turn stops every player's attack ("The player will stop
+            -- attacking when Vasilias changes forms", W :752; NB :176)
+            ny.target = nil
+        end,
+        on = {
+            tick = function(c) c.ny.form_pray = style end,
+            form_melee = function(c) return nil, "FORM_MELEE" end,
+            form_magic = function(c) return nil, "FORM_MAGIC" end,
+            form_ranged = function(c) return nil, "FORM_RANGED" end,
+            boss_gone = function(c) return nil, "DEAD" end,
+            wave_spawn = stay,
+            waves_over = stay,
+            boss_spawning = stay,
+        },
+    }
+end
+local function nym_to_form(name)
+    return function(c) return nil, name end
+end
+
+QD.raid.sm_declare("nylocas_room", {
+    start = "WAVES",
+    states = {
+        WAVES = {
+            note = "the 31 waves out of the tunnels, the room's alive cap holding them back",
+            enter = nym_phase("WAVES"),
+            on = {
+                tick = stay,
+                wave_spawn = stay,
+                waves_over = function(c) return nil, "CLEANUP" end,
+                boss_spawning = function(c) return nil, "LANDING" end,
+                form_melee = nym_to_form("FORM_MELEE"),
+                form_magic = nym_to_form("FORM_MAGIC"),
+                form_ranged = nym_to_form("FORM_RANGED"),
+            },
+        },
+        CLEANUP = {
+            note = "the last wave is out: the leftovers on the floor, before she drops in",
+            enter = nym_phase("CLEANUP"),
+            on = {
+                tick = stay,
+                -- THE WAY BACK: a quiet that read as the cleanup can end in
+                -- another wave (at the alive cap the quiet was a stall, not
+                -- the end -- the traced svd ranger, wave 29's 28-tick stall)
+                wave_spawn = nym_to_form("WAVES"),
+                waves_over = stay,
+                boss_spawning = function(c) return nil, "LANDING" end,
+                form_melee = nym_to_form("FORM_MELEE"),
+                form_magic = nym_to_form("FORM_MAGIC"),
+                form_ranged = nym_to_form("FORM_RANGED"),
+            },
+        },
+        LANDING = {
+            note = "she is in the room in her spawning form: pray melee, she lands melee (W :754)",
+            enter = function(c)
+                c.ny.phase = "LANDING"
+                c.ny.form = "spawning"
+                c.ny.target = nil
+            end,
+            on = {
+                tick = function(c) c.ny.form_pray = "melee" end,
+                form_melee = nym_to_form("FORM_MELEE"),
+                form_magic = nym_to_form("FORM_MAGIC"),
+                form_ranged = nym_to_form("FORM_RANGED"),
+                boss_gone = function(c) return nil, "DEAD" end,
+                wave_spawn = stay,
+                waves_over = stay,
+                boss_spawning = stay,
+            },
+        },
+        FORM_MELEE = nym_form_state("melee"),
+        FORM_MAGIC = nym_form_state("magic"),
+        FORM_RANGED = nym_form_state("ranged"),
+        DEAD = {
+            note = "her death: she is off the floor, the room is over and the wave prayer takes over again",
+            enter = nym_phase("DEAD"),
+            on = {
+                tick = stay,
+                wave_spawn = stay,
+                waves_over = stay,
+                boss_gone = stay,
+            },
+        },
+    },
+})
+
+-- THE ROOM'S EVENTS, derived ONCE a tick, here and nowhere else, so no
+-- machine can grow a private reading of the tick.  Called from the decide
+-- step through QD.raid.sm_events, right where the plan used to read her form
+-- off her npc row, which is before the prayer is decided.
+function QD.raid._nym_room_events(st, v)
+    assert(st, "_nym_room_events: st")
+    assert(v, "_nym_room_events: v")
+    local P, ny = st.plan, st.ny
+    assert(ny, "_nym_room_events: st.ny (call after the plan's own init)")
+    local out = {}
+    local function raise(name, e)
+        e = e or {}
+        e.name = name
+        out[#out + 1] = e
+    end
+    -- a wave seen in the tunnels (the see step counts them)
+    if ny.waves > (ny.room_wave or 0) and ny.waves <= 31 then
+        raise("wave_spawn", { wave = ny.waves })
+        ny.room_wave = ny.waves
+    end
+    -- THE LAST WAVE IS OUT.  (A quiet spell after wave 28 is the cleanup only
+    -- below the alive cap: at the cap it is a stall and the waves are not
+    -- over -- the traced svd ranger went to CLEANUP in wave 29's 28-tick
+    -- stall.)  The reading is kept on ny.waves_over because the seat machine
+    -- raises its own waves_over from the same boolean, this same tick.
+    ny.waves_over = ny.waves >= 31 or (ny.waves >= P.cleanup_waves and v.tick - (ny.last_wave_tick or v.tick) >= P.cleanup_quiet
+        and #v.nylos < (ny.waves >= 20 and 24 or 12))
+    if ny.waves_over then raise("waves_over", {}) end
+    -- HER FORM, as an edge on her npc row, in WHATEVER ORDER THE RUN ROLLS
+    local vas = v.vas
+    if vas == nil then
+        if ny.form ~= nil and ny.boss_gone == nil then
+            ny.boss_gone = v.tick
+            raise("boss_gone", { was = ny.form })
+        end
+    elseif vas.form ~= ny.form then
+        assert(vas.form == "spawning" or vas.form == "melee" or vas.form == "magic" or vas.form == "ranged",
+            "nylocas: her npc row reads an unknown form '" .. tostring(vas.form) .. "'")
+        if vas.form == "spawning" then raise("boss_spawning", {})
+        else raise("form_" .. vas.form, { form = vas.form, from = ny.form }) end
+    end
+    -- every tick, so a state can act without an event of its own (the prayer
+    -- at her is re-asserted here)
+    raise("tick", { tick = v.tick })
+    return out
+end
+
+-- One tick of a seat's machine: this tick's events through its role's
+-- declaration (raid_sm.lua), which ends in the one action event the state
+-- answers.  Returns the pick (or nil) and a walk (or nil).
 -- THE OTHER SEATS' CHOICE, COMPUTED (coordinator 2026-10-07: same-tick
 -- double choices, 12-13 a room, cannot be seen on the party link, which is a
 -- tick behind).  Every seat runs the same pick on the same view, so this seat
@@ -1184,12 +1564,118 @@ function QD.raid._nym_claims(c)
     c.claimed = claimed
     ny.claims = (ny.claims or 0) + 1
 end
+-- THE SEAT'S EVENTS, derived ONCE a tick, here and nowhere else, so the
+-- machine cannot grow a private reading of the tick.  There are two
+-- derivations in this plan, one per machine family: the ROOM's
+-- (QD.raid._nym_room_events) is read off her npc row before the prayer is
+-- decided, while the SEAT's needs the tick's blast lead, its reach and the
+-- copies it may press, which the decide builds after -- so the seat's are
+-- derived here, at its machine's own call, and from one place only.
+--
+-- The list ends with EXACTLY ONE action event (big_stick, room_copy or tick),
+-- which is what the machine answers the tick with.
+function QD.raid._nym_seat_events(c)
+    assert(c, "_nym_seat_events: c")
+    assert(c.m, "_nym_seat_events: c.m")
+    assert(c.R, "_nym_seat_events: c.R (a seat's room role)")
+    local v, P, ny, m = c.v, c.P, c.ny, c.m
+    local out = {}
+    local function raise(name, e)
+        e = e or {}
+        e.name = name
+        out[#out + 1] = e
+    end
+    local state = m.state
+    -- THE ACTION, exactly one, decided FIRST because the two defence states'
+    -- own edge below is raised only when the state's own tick is the action.
+    -- Which action it is was decided below the events before the port, on the
+    -- state they had LEFT the machine in -- and that state is known here:
+    -- every pre-boss state goes to BOSS on boss_phase, so the machine ends
+    -- this tick in BOSS exactly when it is there already or she is in the room.
+    local on_her = state == "BOSS" or v.vas ~= nil
+    -- A BIG OF ITS COLOUR, ONCE PRESSED, UNTIL IT DIES (svc / svd traces on
+    -- cb5: the wave-30 big blue walked in from 45,24, the mage pressed it at
+    -- +12/+13, hit it once and went back to small blues; it died at age 49 and
+    -- its splits were the room's last copies.  The 27 rooms kill a big in 1.51
+    -- hits, mean): while the seat's current copy is a big of its colour on the
+    -- floor, it stays the choice
+    local stuck = nil
+    if not on_her and P.big_stick and ny.waves >= P.big_stick and c.cur ~= nil and not c.cur.vas then
+        for _, n in ipairs(v.nylos) do
+            if n.slot == c.cur.slot and n.big and n.style == c.R.colour and QD.raid._nym_pressable(c, n) then stuck = n end
+        end
+    end
+    local action, action_event = "tick", { tick = v.tick }
+    if stuck ~= nil then
+        action, action_event = "big_stick", { copy = stuck }
+    elseif not on_her and P.room_copy ~= nil and ny.waves >= 1 then
+        action, action_event = "room_copy", {}
+    end
+    -- SHE IS IN THE ROOM: nothing else is read -- the supports' bars are not
+    -- sampled and a hit taken raises nothing, exactly as before the port.
+    -- (Every pre-boss state's boss_phase goes to BOSS, so the old
+    -- `if m.state ~= "BOSS"` guard below the fire was already false.)
+    if state ~= "BOSS" and v.vas ~= nil then
+        raise("boss_phase", {})
+    elseif state ~= "BOSS" then
+        if ny.waves > m.wave and ny.waves <= 31 then raise("wave_spawn", { wave = ny.waves }) end
+        if c.waves_over then raise("waves_over", {}) end
+        -- a support taking hits: the support nearest this seat lost bar since the last tick
+        local near, nd = nil, nil
+        for _, sp in ipairs(v.supports) do
+            if sp.alive then
+                local d = c.dist(c.me.x, c.me.z, sp.x, sp.z, 3)
+                if nd == nil or d < nd then near, nd = sp, d end
+            end
+        end
+        ny.bars = ny.bars or {}
+        local hit = nil
+        for _, sp in ipairs(v.supports) do
+            local k = sp.x .. "," .. sp.z
+            if ny.bars[k] ~= nil and sp.frac < ny.bars[k] and sp == near and sp.frac < P.defend_below then hit = sp end
+            ny.bars[k] = sp.frac
+        end
+        if hit ~= nil and QD.raid._nym_defence(c) ~= nil then raise("support_hit", { support = hit }) end
+        if ny.last_hp ~= nil and v.hp < ny.last_hp then raise("hit_taken", { hp = v.hp, was = ny.last_hp }) end
+        -- the current target's events (KILL: the named copy or the unnamed one)
+        if state == "KILL" then
+            local list = P.waves[math.max(1, math.min(m.wave, 31))][c.R.name].targets
+            if m.idx <= #list then c.target = QD.raid._nym_find(c, list[m.idx]) else c.target = QD.raid._nym_unnamed(c) end
+            if c.target == nil then raise("target_dead", {})
+            elseif QD.raid._nym_support_of(c, c.target) ~= nil then raise("target_reached_pillar", { target = c.target }) end
+        elseif state == "CLEANUP" then
+            local list = P.cleanup[c.R.name].targets
+            if m.idx <= #list and QD.raid._nym_find(c, list[m.idx]) == nil then raise("target_dead", {}) end
+        end
+        -- A DEFENCE STATE'S OWN REASON, GONE.  The old machine read this
+        -- INSIDE the state's tick and called the state it returned to by hand,
+        -- so it is raised only on a tick the state's own tick is the action --
+        -- which with P.room_copy set is only before wave 1.  (It is a real
+        -- edge, and the kept plan never reaches it: `room_copy` takes every
+        -- wave and cleanup tick, so a seat that enters PILLAR_DEFENCE or
+        -- SELF_DEFENCE leaves it only on an EVENT -- boss_phase, or
+        -- hit_taken out of PILLAR_DEFENCE.  Raising it unconditionally is the
+        -- one behaviour change the port made and it was measured: svaplaynyloc
+        -- reached CLEANUP through `resume` while fewer than 31 waves were out,
+        -- which tripped the plan's own clear_time hole -- see progress.md.
+        -- Leaving that alive is the owner's call, not the port's.)
+        if action == "tick" then
+            if state == "PILLAR_DEFENCE" and QD.raid._nym_defence(c) == nil then raise("defence_clear", {}) end
+            if state == "SELF_DEFENCE" and QD.raid._nym_aggro(c) == nil then raise("aggro_clear", {}) end
+        end
+    end
+    ny.last_hp = v.hp
+    raise(action, action_event)
+    return out
+end
+
 function QD.raid._play_nylocas_machine(c)
     local ny, v, P = c.ny, c.v, c.P
     if ny.m == nil then
-        ny.m = { state = nil, wave = 0, idx = 1, resume = nil, subs = {} }
-        c.m = ny.m
-        QD.raid._nym_go(c, "AT_STAND")
+        -- the author's own memory, which raid_sm passes through untouched.
+        -- m.state is the mirror of the machine's state, seeded with the
+        -- declaration's own start (the start state's `enter` is not called).
+        ny.m = { state = "AT_STAND", wave = 0, idx = 1, resume = nil }
     end
     c.m = ny.m
     local m = c.m
@@ -1235,66 +1721,30 @@ function QD.raid._play_nylocas_machine(c)
         -- (in the waves; the cleanup's floor is the leftovers, every seat on them)
         if ny.waves < 31 then QD.raid._nym_claims(c) else c.claimed = nil end
     end
-    -- the events
-    -- (a quiet spell after wave 28 is the cleanup only below the alive cap: at the
-    -- cap it is a stall, and the waves are not over -- the traced svd ranger went
-    -- to CLEANUP in wave 29's 28-tick stall)
-    c.waves_over = ny.waves >= 31 or (ny.waves >= P.cleanup_waves and v.tick - (ny.last_wave_tick or v.tick) >= P.cleanup_quiet
-        and #v.nylos < (ny.waves >= 20 and 24 or 12))
-    if v.vas ~= nil and m.state ~= "BOSS" then QD.raid._nym_fire(c, "boss_phase") end
-    if m.state ~= "BOSS" then
-        if ny.waves > m.wave and ny.waves <= 31 then QD.raid._nym_fire(c, "wave_spawn", ny.waves) end
-        if c.waves_over then QD.raid._nym_fire(c, "waves_over") end
-        -- a support taking hits: the support nearest this seat lost bar since the last tick
-        local near, nd = nil, nil
-        for _, sp in ipairs(v.supports) do
-            if sp.alive then
-                local d = c.dist(c.me.x, c.me.z, sp.x, sp.z, 3)
-                if nd == nil or d < nd then near, nd = sp, d end
-            end
-        end
-        ny.bars = ny.bars or {}
-        local hit = nil
-        for _, sp in ipairs(v.supports) do
-            local k = sp.x .. "," .. sp.z
-            if ny.bars[k] ~= nil and sp.frac < ny.bars[k] and sp == near and sp.frac < P.defend_below then hit = sp end
-            ny.bars[k] = sp.frac
-        end
-        if hit ~= nil and QD.raid._nym_defence(c) ~= nil then QD.raid._nym_fire(c, "support_hit", hit) end
-        if ny.last_hp ~= nil and v.hp < ny.last_hp then QD.raid._nym_fire(c, "hit_taken") end
-        -- the current target's events (KILL: the named copy or the unnamed one)
-        if m.state == "KILL" then
-            local list = P.waves[math.max(1, math.min(m.wave, 31))][c.R.name].targets
-            if m.idx <= #list then c.target = QD.raid._nym_find(c, list[m.idx]) else c.target = QD.raid._nym_unnamed(c) end
-            if c.target == nil then QD.raid._nym_fire(c, "target_dead")
-            elseif QD.raid._nym_support_of(c, c.target) ~= nil then QD.raid._nym_fire(c, "target_reached_pillar", c.target) end
-        elseif m.state == "CLEANUP" then
-            local list = P.cleanup[c.R.name].targets
-            if m.idx <= #list and QD.raid._nym_find(c, list[m.idx]) == nil then QD.raid._nym_fire(c, "target_dead") end
-        end
-    end
-    ny.last_hp = v.hp
-    -- A BIG OF ITS COLOUR, ONCE PRESSED, UNTIL IT DIES (svc / svd traces on
-    -- cb5: the wave-30 big blue walked in from 45,24, the mage pressed it at
-    -- +12/+13, hit it once and went back to small blues; it died at age 49 and
-    -- its splits were the room's last copies.  The 27 rooms kill a big in 1.51
-    -- hits, mean): while the seat's current copy is a big of its colour on the
-    -- floor, it stays the choice
-    if P.big_stick and ny.waves >= P.big_stick and m.state ~= "BOSS" and c.cur ~= nil and not c.cur.vas then
-        for _, n in ipairs(v.nylos) do
-            if n.slot == c.cur.slot and n.big and n.style == c.R.colour and QD.raid._nym_pressable(c, n) then
-                ny.big_sticks = (ny.big_sticks or 0) + 1
-                QD.raid._nym_note(c)
-                return QD.raid._nym_pick(c, n), nil
-            end
-        end
-    end
-    if P.room_copy ~= nil and m.state ~= "BOSS" and ny.waves >= 1 then
-        local rp = QD.raid._nym_room_copy(c)
+    -- THE LAST WAVE IS OUT: the room machine's own reading of this tick
+    -- (QD.raid._nym_room_events, run from the decide step before this).  The
+    -- seat's KILL state reads it to choose between CLEANUP and PRE_STAND.
+    c.waves_over = ny.waves_over == true
+    -- THE SEAT'S TICK: its events through its role's machine, which ends with
+    -- exactly one action event, so the state's own action (or one of the
+    -- plan's two overrides of it) has run by the time sm_run returns.
+    local id = NY_ROLE_MACHINE[c.R.name]
+    assert(id ~= nil, "nylocas: no machine is declared for the room role " .. tostring(c.R.name))
+    c.action, c.pick = nil, nil
+    local sm = QD.raid.sm_run(c.st, v, id, c, QD.raid._nym_seat_events(c))
+    ny.transitions = sm.moves
+    assert(c.action ~= nil, "nylocas " .. id .. ": state " .. tostring(m.state) .. " answered no action event")
+    -- the two overrides answer for the whole tick: no never-idle fill, and the
+    -- state's tick is not counted (as when they were a `return` above it)
+    if c.action == "big_stick" then
         QD.raid._nym_note(c)
-        return rp, c.walk
+        return c.pick, nil
     end
-    local pick = NY_STATES[m.state].tick(c)
+    if c.action == "room_copy" then
+        QD.raid._nym_note(c)
+        return c.pick, c.walk
+    end
+    local pick = c.pick
     -- A SEAT NEVER IDLES: a state whose own action has no copy this tick does
     -- the KILL action for the tick and stays where it is -- the wave's listed
     -- copy if in reach, else the nearest copy of its colour in reach (the
@@ -2595,34 +3045,14 @@ function QD.raid._play_nylocas_decide(st, v)
         end
     end
 
-    -- HER FORM.  She lands melee (W :754 "Vasilias will always spawn in its
-    -- melee form"), turns every 15 ticks after a first 14 (NB :436-464), and
-    -- the turn stops every player's attack ("The player will stop attacking
-    -- when Vasilias changes forms", W :752; NB :176 p_stopaction).
-    if vas ~= nil and vas.form ~= ny.form then
-        if ny.form ~= nil and ny.form ~= "spawning" and vas.form ~= "spawning" then
-            ny.turns[#ny.turns + 1] = { tick = v.tick, form = vas.form }
-            ny.next_turn = v.tick + (N.window or P.window)
-        elseif vas.form ~= "spawning" then
-            ny.landed = v.tick
-            ny.next_turn = v.tick + (N.first_window or P.first_window)
-            -- raid seam32: the supports' bars on the tick she lands (the
-            -- report's "pillars at the boss")
-            local bars = {}
-            for _, s in ipairs(v.supports) do bars[#bars + 1] = string.format("%d,%d:%.2f%s", s.x - st.origin.x, s.z - st.origin.z, s.frac, s.alive and "" or "x") end
-            ny.supports_at_landing = table.concat(bars, " ")
-            ny.supports_alive_at_landing = 0
-            for _, s in ipairs(v.supports) do if s.alive then ny.supports_alive_at_landing = ny.supports_alive_at_landing + 1 end end
-            -- raid seam33: the weakest standing bar (the kept trio's row asks
-            -- every support above half)
-            ny.supports_min_at_landing = nil
-            for _, s in ipairs(v.supports) do
-                if s.alive and (ny.supports_min_at_landing == nil or s.frac < ny.supports_min_at_landing) then ny.supports_min_at_landing = s.frac end
-            end
-        end
-        ny.form = vas.form
-        ny.target = nil
-    end
+    -- THE ROOM'S PHASE, one run a tick (the `nylocas_room` declaration above:
+    -- WAVES, CLEANUP, LANDING, FORM_MELEE / FORM_MAGIC / FORM_RANGED, DEAD).
+    -- Her landing, her turns, the window the press rule holds against and the
+    -- prayer at her are its states' -- this plan used to read her form off her
+    -- npc row here and branch on it.  It runs for a trio seat and for the
+    -- Entry solo alike: the phases are the ROOM's, not a seat's.
+    QD.raid.sm_run(st, v, "nylocas_room", { st = st, v = v, P = P, N = N, ny = ny },
+        QD.raid.sm_events(st, v, QD.raid._nym_room_events))
 
     -- PRAYER.  Vasilias: by her form, from the tick she is seen (W :752
     -- "always switch protection prayers to Protect from Melee before
@@ -2634,7 +3064,11 @@ function QD.raid._play_nylocas_decide(st, v)
     -- until another colour is clearly heavier, so one prayer is on per hit.
     local pray_style = ny.prayer
     if vas ~= nil then
-        pray_style = (vas.form == "spawning") and "melee" or vas.form
+        -- the phase state's own prayer, re-asserted by its `tick` every tick:
+        -- LANDING prays melee (she lands melee), and each form state prays its
+        -- own form in WHATEVER ORDER the run rolled them
+        pray_style = ny.form_pray
+        assert(pray_style ~= nil, "nylocas: she is in the room and no phase state asked for a prayer")
     else
         local weight = { melee = 0, ranged = 0, magic = 0 }
         local bigs_in = {}
