@@ -690,6 +690,127 @@ function QD.raid._verzik_avoid(f)
     return m.state
 end
 
+-- THE YELLOW POOL, TIMED (owner 2026-10-07: "Prioritize pools and you need to
+-- plan ahead a bit so the yellow is safe when the projectile hits but timed so
+-- the tornado is not on them - create an algorithm to handle that.  You have to
+-- be on the yellow during the dangerous tick, but you can't be standing still
+-- because of the tornado.")
+--
+-- The two facts it is built on.  The blast reads each raider's tile when her
+-- queued hit fires (tob_verzik.rs2 ~tob_verzik_powerblast, npc_queue 4 at the
+-- charge + 1): ^tob_verzik_yellow_charge_ticks 14 after the pools are seen, so
+-- the DANGEROUS TICKS are blast - 1 and blast, which covers either order the
+-- server takes npcs and players in.  And a tornado touches only by stepping
+-- onto its raider's own tile, one tile a tick (fdf77aae1c, Blert 16 of 16),
+-- while a raider runs two: standing still is the only way it catches up.
+--
+-- So the seat keeps moving until it must stand, through tiles from which the
+-- pool is still reachable by the first dangerous tick, and is on it for exactly
+-- those two ticks.  Two ticks of standing let a tornado that was kept two
+-- behind close to one -- never onto the tile.
+--   NONE    no charge on.
+--   ARRIVE  nothing hunts me: straight to my pool and stand on it.
+--   ORBIT   a tornado hunts me and there is time: one move a tick, never to a
+--           tile the pool is out of reach from, clearest of the tornadoes and
+--           the crabs, nearest the pool.
+--   HOLD    on it for the dangerous ticks.
+--   AFTER   the blast has landed; the plan has the tick back.
+QD.RAID_PLAY_VERZIK_POOL = { hold = 1, tor_near = 4, run = 2 }
+local function pool_to(state) return function() return nil, state end end
+local POOL_ON = { pool_none = pool_to("NONE"), pool_arrive = pool_to("ARRIVE"), pool_orbit = pool_to("ORBIT"),
+    pool_hold = pool_to("HOLD"), pool_after = pool_to("AFTER") }
+QD.raid.sm_declare("verzik_pool", {
+    start = "NONE",
+    states = {
+        NONE   = { note = "no charge on", on = POOL_ON },
+        ARRIVE = { note = "nothing hunts me: straight to my pool", on = POOL_ON },
+        ORBIT  = { note = "hunted with time to spare: keep moving, the pool always in reach by the dangerous tick",
+            on = POOL_ON, enter = function(c) c.vz.pool_orbits = (c.vz.pool_orbits or 0) + 1 end },
+        HOLD   = { note = "on my pool for the dangerous ticks", on = POOL_ON },
+        AFTER  = { note = "the blast has landed", on = POOL_ON },
+    },
+})
+
+-- The tick.  `f`: st, v, intent, ok (a floor test), pool = {x, z} (mine, from
+-- the pairing), tor (vz.tor), crabs (optional, _verzik_nylo_read's).  Sets
+-- intent.walk and clears the attack while the charge is on.  Returns true when
+-- the pool owns the tick (ARRIVE, ORBIT, HOLD).
+function QD.raid._verzik_pool_run(f)
+    assert(f, "_verzik_pool_run: f")
+    assert(f.intent, "_verzik_pool_run: f.intent")
+    assert(f.ok, "_verzik_pool_run: f.ok")
+    local st, v, intent = f.st, f.v, f.intent
+    local vz, me, b, P = st.vz, v.me, v.boss, st.plan
+    local PL = QD.RAID_PLAY_VERZIK_POOL
+    local pool = f.pool
+    local ev = "pool_none"
+    local B, A, r, d = nil, nil, nil, nil
+    if pool ~= nil and vz.pool_first ~= nil then
+        B = vz.pool_first + P.pool_life
+        A = B - PL.hold
+        d = math.max(math.abs(pool.x - me.x), math.abs(pool.z - me.z))
+        r = A - v.tick
+        local hunted = false
+        for _, e in pairs(f.tor or {}) do
+            if math.max(math.abs(e.x - me.x), math.abs(e.z - me.z)) <= PL.tor_near then hunted = true end
+        end
+        if v.tick > B then
+            ev = "pool_after"
+        elseif d == 0 and r <= 0 then
+            ev = "pool_hold"
+        elseif hunted and PL.run * (r - 1) >= d + 1 then
+            ev = "pool_orbit"
+        else
+            ev = "pool_arrive"
+        end
+    end
+    local m = QD.raid.sm_run(st, v, "verzik_pool", { vz = vz }, { { name = ev } })
+    if m.state == "NONE" or m.state == "AFTER" then return false end
+    intent.attack = false
+    st.engaged = false
+    vz.target_slot = nil
+    if m.state == "HOLD" then
+        intent.walk = nil
+        return true
+    end
+    if m.state == "ARRIVE" then
+        intent.walk = (d > 0) and { x = pool.x, z = pool.z } or nil
+        return true
+    end
+    -- ORBIT: one move, the pool still reachable by A from wherever it lands
+    local reach_left = PL.run * (r - 1)
+    local best, bx, bz = nil, nil, nil
+    for dx = -2, 2 do
+        for dz = -2, 2 do
+            local x, z = me.x + dx, me.z + dz
+            local dp = math.max(math.abs(pool.x - x), math.abs(pool.z - z))
+            if (dx ~= 0 or dz ~= 0) and dp <= reach_left and f.ok(x, z) and not v.shadows[x * 100000 + z]
+                and (b == nil or QD.raid._verzik_dist(x, z, b) >= 1) then
+                local sc = dp * 3
+                for _, e in pairs(f.tor or {}) do
+                    -- where it steps next if I am on x, z
+                    local nx, nz = e.x, e.z
+                    if x > nx then nx = nx + 1 elseif x < nx then nx = nx - 1 end
+                    if z > nz then nz = nz + 1 elseif z < nz then nz = nz - 1 end
+                    local c2 = math.max(math.abs(nx - x), math.abs(nz - z))
+                    if c2 == 0 then sc = sc + 1000 elseif c2 == 1 then sc = sc + 40 end
+                end
+                for _, k in ipairs(f.crabs or {}) do
+                    local g = QD.raid._verzik_nylo_gap(x, z, k.row)
+                    if g <= QD.RAID_PLAY_VERZIK_NYLO.reach then sc = sc + (QD.RAID_PLAY_VERZIK_NYLO.band[g] or 0) * 4 end
+                end
+                if best == nil or sc < best then best, bx, bz = sc, x, z end
+            end
+        end
+    end
+    if bx == nil then
+        intent.walk = { x = pool.x, z = pool.z }
+    else
+        intent.walk = { x = bx, z = bz }
+    end
+    return true
+end
+
 QD.RAID_PLAY_VERZIK_COVER_REACH = 7
 QD.RAID_PLAY_VERZIK_PILLAR_HP = 185
 QD.RAID_PLAY_VERZIK_PILLAR_HIT_MAX = 60
@@ -2211,6 +2332,11 @@ end
 -- states act on it; what the machine adds over the old chain is the named
 -- transition matrix, the trace, and somewhere for EAT to go.
 QD.RAID_PLAY_VERZIK_ENRAGE_ON = {
+    pool_timed = function(c, ev)
+        QD.raid._verzik_pool_run({ st = c.st, v = c.v, intent = c.intent, pool = c.pool, tor = c.st.vz.tor,
+            ok = function(x, z) return c.floor(x, z) end })
+        return nil, ev.go
+    end,
     pool_stand = function(c, ev) return QD.raid._verzik_enrage_stand(c, ev) end,
     pool_walk  = function(c, ev) return QD.raid._verzik_enrage_step(c, ev) end,
     ball_share = function(c, ev) return QD.raid._verzik_enrage_step(c, ev) end,
@@ -2240,14 +2366,9 @@ function QD.raid._verzik_ring_events(st, v, c)
     assert(c, "_verzik_ring_events: c")
     local P, vz, me = st.plan, st.vz, v.me
     c.target, c.pull = nil, 0
-    if c.pool ~= nil and not c.on_pool then
-        local left = (vz.pool_first or v.tick) + P.pool_life - v.tick
-        c.target = { x = c.pool.x, z = c.pool.z }
-        c.pull = (left <= math.ceil(c.pool.d / 2) + 4) and 60 or 10
-        return { { name = "pool_walk", go = "PROTECT" } }
-    end
-    if c.pool ~= nil and c.on_pool then
-        return { { name = "pool_stand", go = "PROTECT" } }
+    -- the pool, timed: the same planner the chain uses (verzik_pool)
+    if c.pool ~= nil then
+        return { { name = "pool_timed", go = "PROTECT" } }
     end
     if c.ball ~= nil then
         -- THE SHARE IN THE RING (2026-10-07, _vzslow / svbvzslow: every raider
@@ -3491,18 +3612,9 @@ function QD.raid._verzik_phase_p3(c)
         st.engaged = false
         vz.target_slot = nil
         intent.attack = false
-    elseif pool ~= nil and not pool_late then
-        if not on_pool then
-            intent.walk = { x = pool.x, z = pool.z }
-            vz.steps = vz.steps + 1
-        elseif st.mode == "normal" and st.engaged then
-            -- on it and still swinging: a click on the pool's own tile
-            -- ends the bow's repeat, which would path off it (s34v
-            -- _play_verzik t578)
-            intent.walk = { x = me.x, z = me.z }
-            st.engaged = false
-            vz.target_slot = nil
-        end
+    elseif pool ~= nil and QD.raid._verzik_pool_run({ st = st, v = v, intent = intent, ok = okp,
+            pool = pool, tor = vz.tor }) then
+        -- the timed pool (verzik_pool): it walked, orbited or held
     elseif melee and (next(vz.tor or {}) ~= nil or #v.crabs > 0) and QD.raid._verzik_avoid({ st = st, v = v,
             go = go, ok = okp, reach = (m3_hold and 2 or reach), mates = mates, tor = vz.tor,
             side = { x = hx3, z = hz3 },
