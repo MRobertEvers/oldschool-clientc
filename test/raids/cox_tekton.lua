@@ -257,42 +257,10 @@ return {
                     cycle_hits = cycle_hits + 1
                     return
                 end
-                -- Water/fire sample after at least one DWH drain, on any form.
-                if dwh_specs >= 1 and mage_casts < 8 and (cycle_hits % 4) == 0 then
-                    local hr, hp = t.skill.read("hitpoints")
-                    if hr == "ok" and hp.level >= 65 then
-                        t.player.equip("kodai_wand", { quick = true })
-                        local before_serial = 0
-                        local _, nh0 = t.ticklog.rows({ kind = "hit_npc", slot = wslot })
-                        if nh0 ~= nil and #nh0 > 0 then before_serial = nh0[#nh0].serial end
-                        local cr = t.player.cast(mage_kind, fs, 2, 4,
-                            { quick = true, slot = frow.slot })
-                        if cr == "ok" then
-                            mage_casts = mage_casts + 1
-                            t.ticks(5)
-                            local _, nh1 = t.ticklog.rows({ kind = "hit_npc", slot = wslot, since = before_serial })
-                            local hi = 1
-                            while nh1 ~= nil and hi <= #nh1 do
-                                local d = nh1[hi].damage or nh1[hi].raw or 0
-                                if d <= 0 then d = nh1[hi].e or 0 end
-                                if d > 0 then
-                                    if mage_kind == "water_wave" then
-                                        water_hits[#water_hits + 1] = d
-                                    else
-                                        fire_hits[#fire_hits + 1] = d
-                                    end
-                                end
-                                hi = hi + 1
-                            end
-                            if mage_kind == "water_wave" then mage_kind = "fire_wave" else mage_kind = "water_wave" end
-                        end
-                    end
-                end
                 local c = corners[(sm.corner % 4) + 1]
                 local tx = frow.x + c[1]
                 local tz = frow.z + c[2]
                 t.player.walk_to(tx, tz, 3)
-                -- Stay on DWH after the first special — adamant deals near-zero.
                 t.player.equip("dragon_warhammer", { quick = true })
                 t.player.attack(fs, 2, 1, { quick = true, slot = frow.slot })
                 cycle_hits = cycle_hits + 1
@@ -313,11 +281,10 @@ return {
                     set_state(STATE.REENGAGE)
                     return
                 end
-                -- First anvil: stand for the first ~3 spark volleys (sample
-                -- 10-20 + count), eating hard; then dodge. Later anvils: dodge
-                -- only — sparks ignore melee prayer.
-                -- 5 spark sets × interval 4 ≈ 20 ticks of standing.
-                local tank_ticks = 22
+                -- First anvil: stand through all five spark volleys while maging
+                -- (do NOT re-equip DWH mid-cast — that cancelled every wave).
+                -- Later anvils: dodge first, then a short mage window.
+                local tank_ticks = 24
                 local anvil_age = sm.sub
                 sm.sub = sm.sub + 1
                 local should_dodge = hammer_visits > 1 or anvil_age >= tank_ticks
@@ -330,23 +297,28 @@ return {
                     spark_dodges = spark_dodges + 1
                     last_dodge_tick = now
                 end
-                -- Mage only while tanking (standing) and HP is healthy.
-                if hammer_visits == 1 and not should_dodge and mage_casts < 10 then
+                local want_mage = mage_casts < 12 and (
+                    (hammer_visits == 1 and not should_dodge)
+                    or (hammer_visits > 1 and should_dodge and mage_casts < 8)
+                )
+                if want_mage then
                     local hr, hp = t.skill.read("hitpoints")
-                    if hr == "ok" and hp.level >= 70 then
+                    if hr == "ok" and hp.level >= 50 then
                         t.player.equip("kodai_wand", { quick = true })
+                        t.ticks(1)
                         local before_serial = 0
                         local _, nh0 = t.ticklog.rows({ kind = "hit_npc", slot = wslot })
                         if nh0 ~= nil and #nh0 > 0 then before_serial = nh0[#nh0].serial end
-                        local cr = t.player.cast(mage_kind, "raids_tekton_hammering", 2, 3,
-                            { quick = true, slot = frow.slot })
+                        local cr = t.player.cast(mage_kind, "raids_tekton_hammering", 2, 5,
+                            { slot = frow.slot })
+                        mage_casts = mage_casts + 1
+                        t.ticks(5)
                         if cr == "ok" then
-                            mage_casts = mage_casts + 1
-                            t.ticks(4)
                             local _, nh1 = t.ticklog.rows({ kind = "hit_npc", slot = wslot, since = before_serial })
                             local hi = 1
                             while nh1 ~= nil and hi <= #nh1 do
                                 local d = nh1[hi].damage or nh1[hi].raw or 0
+                                if d <= 0 then d = nh1[hi].e or 0 end
                                 if d > 0 then
                                     if mage_kind == "water_wave" then
                                         water_hits[#water_hits + 1] = d
@@ -356,8 +328,9 @@ return {
                                 end
                                 hi = hi + 1
                             end
-                            if mage_kind == "water_wave" then mage_kind = "fire_wave" else mage_kind = "water_wave" end
                         end
+                        if mage_kind == "water_wave" then mage_kind = "fire_wave" else mage_kind = "water_wave" end
+                        return
                     end
                 end
                 t.ticks(1)
