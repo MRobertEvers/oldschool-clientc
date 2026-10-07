@@ -258,12 +258,21 @@ end
 -- that is the only time to run from one (owner: "only run away when they are
 -- in the pop zone").  No swing on her for 5 ticks after a summon: it heals her
 -- (Entry_Mode.wikitext:231).
-local P2_SUMMON, P2_ABSORB = 8117, 5
+local P2_SUMMON, P2_ABSORB, P2_SUMMON_EVERY = 8117, 5, 44
 local BOMB = 1583
 local ATHANATOS = { tob_verzik_phase2_armourednylocas = true }
 local REDS = { tob_verzik_phase2_bloodnylocas = true }
 local NYLO = { verzik_nylocas_melee = true, verzik_nylocas_ranged = true, verzik_nylocas_magic = true }
 local HALBERD, SERP = "noxious_halberd", "serpentine_helm_charged"
+-- THE SCYTHE STEP-OUT.  The halberd's one hit a swing (13.7 a hit) left P2 at
+-- 430-850 ticks and the long fights died of empty bags.  Her P2 attacks come
+-- every 4 ticks exactly (12 after a summon) and the slam reads who stood next
+-- to her at the end of the tick before, so a scythe can be in for three ticks
+-- of every four: step in and swing after her attack, step out on the tick
+-- before the next.  RAID_AGENT_P2_WEAPON=noxious_halberd keeps the old way.
+local P2_WEAPON = os.getenv("RAID_AGENT_P2_WEAPON") or "scythe_of_vitur"
+local P2_REACH = (P2_WEAPON == HALBERD) and 2 or 1
+local P2_ATTACKS = { [8114] = true, [8116] = true }
 
 local function foot_dist(n, x, z)
     local s = n.size or 1
@@ -283,12 +292,16 @@ local function p2(world, me, m, mems, seats, vz, O, intent)
     local t = world.tick
     -- gear for the phase: the halberd in hand, the serpentine helm on
     intent.op = intent.op or {}
-    local hs, h = World.inv_slot(me, HALBERD)
-    if hs ~= nil then intent.op[#intent.op + 1] = { 2, h.obj, hs } end
+    local hs, h = World.inv_slot(me, P2_WEAPON)
+    if hs ~= nil and (m.claws_at or -9) + 3 < t then intent.op[#intent.op + 1] = { 2, h.obj, hs } end
     local ss, s = World.inv_slot(me, SERP)
     if ss ~= nil then intent.op[#intent.op + 1] = { 2, s.obj, ss } end
     for _, ev in ipairs(world.events) do
-        if ev.kind == "npc_anim" and ev.npc.slot == vz.slot and ev.anim == P2_SUMMON then m.summon = t end
+        if ev.kind == "npc_anim" and ev.npc.slot == vz.slot and ev.anim == P2_SUMMON then
+            m.summon = t
+            m.p2_next = t + 12
+        end
+        if ev.kind == "npc_anim" and ev.npc.slot == vz.slot and P2_ATTACKS[ev.anim] then m.p2_next = t + 4 end
         if ev.kind == "npc_spawn" and ATHANATOS[ev.npc.name] then
             -- the poisoner: the living seat nearest it now, ties to the lower seat
             local best, bd = nil, nil
@@ -307,8 +320,30 @@ local function p2(world, me, m, mems, seats, vz, O, intent)
     local ath = world:find(ATHANATOS, me.x, me.z)[1]
     if ath ~= nil and m.poisoner == me.pid then target = ath end
     if target == nil then target = world:find(REDS, me.x, me.z)[1] end
-    local absorbing = m.summon ~= nil and t - m.summon <= P2_ABSORB
+    -- the summon's absorb: a swing that lands in it heals her, and the swing
+    -- the server repeats on its own is already out when the anim is seen
+    -- (vz04 t384 summon, absorbed hits t386); the summons come every 44, so
+    -- the next is predicted and her own swings stop the tick before
+    local next_summon = m.summon and (m.summon + P2_SUMMON_EVERY) or nil
+    local absorbing = (m.summon ~= nil and t - m.summon <= P2_ABSORB)
+        or (next_summon ~= nil and next_summon - t <= 1)
     if target == nil and not absorbing then target = vz end
+    -- the claws on a red: their spec's two hits on the add that heals her
+    if target ~= nil and REDS[target.name] and (me.spec or 0) >= 500 then
+        local cs, c = World.inv_slot(me, "dragon_claws")
+        if cs ~= nil then
+            intent.op[#intent.op + 1] = { 2, c.obj, cs }
+            intent.spec = true
+            m.claws_at = t
+            intent.why = intent.why .. "claws "
+        elseif me.weapon ~= nil and world.names.obj[me.weapon] == "dragon_claws" then
+            intent.spec = true
+            m.claws_at = t
+        end
+    elseif me.weapon ~= nil and world.names.obj[me.weapon] == "dragon_claws" and (m.claws_at or -9) + 3 < t then
+        local hs2, h2 = World.inv_slot(me, P2_WEAPON)
+        if hs2 ~= nil then intent.op[#intent.op + 1] = { 2, h2.obj, hs2 } end
+    end
     -- the tile: hazards hard, home soft
     local hx, hz = p2_home(vz, m.seat)
     local bombs = {}
@@ -323,7 +358,13 @@ local function p2(world, me, m, mems, seats, vz, O, intent)
         me = me, step = 2, stay_w = 2,
         ok = function(x, z) return walkable(world, O, x, z) end,
         hard = {
-            { name = "slam", pen = 600, bad = function(x, z) return foot_dist(vz, x, z) <= 1 end },
+            -- under her is never right; beside her only when her next attack
+            -- is not the tick after my step lands
+            { name = "under", pen = 1000, bad = function(x, z) return foot_dist(vz, x, z) < 1 end },
+            { name = "slam", pen = 600, bad = function(x, z)
+                if P2_REACH >= 2 then return foot_dist(vz, x, z) <= 1 end
+                return foot_dist(vz, x, z) <= 1 and (m.p2_next == nil or m.p2_next <= t + 2)
+            end },
             { name = "bomb", pen = 500, bad = function(x, z)
                 for _, b in ipairs(bombs) do if b.dx == x and b.dz == z and b.land <= t + 3 then return true end end
                 return false
@@ -342,12 +383,34 @@ local function p2(world, me, m, mems, seats, vz, O, intent)
     if target == vz or target == nil then
         q.soft[#q.soft + 1] = { name = "home", w = 6, cost = function(x, z) return cheb(x, z, hx, hz) end }
     end
+    local reach = P2_REACH
+    if target ~= nil and target ~= vz then reach = (P2_REACH >= 2) and 2 or 1 end
+    local stepping_out = target == vz and P2_REACH < 2 and (m.p2_next == nil or m.p2_next <= t + 2)
     if target ~= nil then
-        q.soft[#q.soft + 1] = { name = "reach", w = 10, cost = function(x, z) return math.max(0, foot_dist(target, x, z) - 2) end }
+        -- stepping out: wait two out, ready to step back in
+        local want = stepping_out and 2 or reach
+        q.soft[#q.soft + 1] = { name = "reach", w = 10, cost = function(x, z)
+            local d = foot_dist(target, x, z)
+            if stepping_out then return math.abs(d - 2) end
+            return math.max(0, d - want)
+        end }
     end
     local r = Move.solve(q)
     local here, here_broke = Move.cost_at(q, me.x, me.z)
-    local in_reach = target ~= nil and foot_dist(target, me.x, me.z) <= 2 and foot_dist(target, me.x, me.z) >= 1
+    local fdt = target and foot_dist(target, me.x, me.z) or 99
+    local in_reach = target ~= nil and fdt >= 1 and fdt <= reach
+    -- a scythe swing on her starts from two out: the click walks the one tile
+    if target == vz and P2_REACH < 2 and not stepping_out and fdt == 2 then in_reach = true end
+    if stepping_out then
+        -- no click on her now: the swing the server repeats would walk me in
+        if me.target == vz.slot or foot_dist(vz, me.x, me.z) <= 1 then
+            local r2 = Move.solve(q)
+            intent.walk = { x = r2.x, z = r2.z }
+            intent.why = intent.why .. "p2 out " .. (r2.x - O.x) .. "," .. (r2.z - O.z) .. " "
+            return intent
+        end
+        in_reach = false
+    end
     if r.moved and (here_broke ~= nil or here > r.cost + 4 or (target ~= nil and not in_reach)) then
         intent.walk = { x = r.x, z = r.z }
         intent.why = intent.why .. "p2 move " .. (r.x - O.x) .. "," .. (r.z - O.z) .. (here_broke and ("!" .. here_broke) or "") .. " "
@@ -359,7 +422,7 @@ local function p2(world, me, m, mems, seats, vz, O, intent)
     if target ~= nil and (me.target ~= target.slot) then
         intent.attack = target.slot
         intent.why = intent.why .. "p2 hit " .. target.name .. " "
-    elseif target == nil and me.target ~= nil and me.target >= 0 then
+    elseif (target == nil or intent.spec) and me.target ~= nil and me.target >= 0 and not (target and me.target == target.slot) then
         intent.walk = { x = me.x, z = me.z }
         intent.why = intent.why .. "p2 hold (absorb) "
     end
