@@ -891,6 +891,19 @@ function QD.raid.mz_f_on_boss_tick(st, v, intent)
     -- every tick it is free, from wherever the freezer stands; no PREAIM
     -- standing still (the magic set goes on at the spawn, CAST/1), no walk
     -- home while she is in the bow's reach
+    -- THE PREAIM HOLD (owner via coordinator 00:10, copying the reference
+    -- over the never-idle rule): the script's freezer stops attacking ~9
+    -- ticks before each threshold (its phase-100 attacks end +33 of 42), so
+    -- the barrage timer is free at the spawn and cast 1 lands at +1.  Ours
+    -- holds from the last health-bar step above the threshold (the bar's
+    -- 1/30 is the finest read): the magic set on, no bow, no fill-in.
+    local nthr = QD.RAID_MAIDEN_REF.thresholds[QD.raid.mz_form(st) + 1]
+    if nthr ~= nil and b.health_ratio ~= nil and b.health_scale ~= nil and b.health_scale > 0 and b.health_ratio >= 0
+        and b.health_ratio / b.health_scale <= nthr + 1 / 30 then
+        QD.raid.mz_wear(intent, st.plan.magic_set)
+        intent.no_fill, intent.preaim = true, true
+        return
+    end
     if QD.raid.mz_wear(intent, st.plan.ranged_set) then return end
     if math.max(math.abs(v.me.x - (b.x + 2)), math.abs(v.me.z - (b.z + 2))) > 12 and QD.raid.mz_walk_home(st, v, intent) then return end
     intent.attack = true
@@ -954,7 +967,10 @@ function QD.raid.mz_cast_tick(st, v, intent)
     -- (sm24: every cast sent a tick early drew at +0/+5/+10/+15 -- the first
     -- one draws on its send tick, the later ones a tick after theirs, behind
     -- the 5-tick cooldown; so cast 1 is sent at +1, casts 2-4 at +k-1)
-    if v.tick < st.ev.wave_tick + c[1] - ((m.idx > 1) and 1 or 0) then return end
+    -- (with the preaim hold the magic set is on before the spawn and no bow
+    -- timer runs: every cast, the first too, is sent the tick before it is
+    -- to draw -- sm56 svb drew +2/+7/+12/+17 sent at +1/+5/+10/+15)
+    if v.tick < st.ev.wave_tick + c[1] - 1 then return end
     -- (the script's lane, else the next walker to arrive: sm15 svb, the
     -- most-crabs pick froze the three 4s at (13,0) at +10, seven tiles out;
     -- the streams' frozen crabs sit at (7,0) (8,0) (8,1), one step from her,
@@ -1311,6 +1327,11 @@ function QD.raid._play_maiden_trio(st, v)
     if acting then m.last_act = v.tick end
     local free = not st.engaged and v.tick - (m.last_act or -100) >= 5
     m.idle = m.idle or { by = {}, run = 0, longest = 0, longest_at = -1 }
+    if intent.preaim then
+        local f = QD.raid.mz_form(st)
+        m.idle.preaim = m.idle.preaim or {}
+        m.idle.preaim[f] = (m.idle.preaim[f] or 0) + 1
+    end
     if free and not acting and not intent.no_fill and v.boss ~= nil then
         local f = QD.raid.mz_form(st)
         m.idle.by[f] = (m.idle.by[f] or 0) + 1

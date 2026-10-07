@@ -224,7 +224,11 @@ local function party_run(t)
         end
         t.check("tech.never_idle", m.idle.longest <= 2 and worst <= 3,
             "p" .. role .. " idle ticks by form " .. table.concat(per, " ") .. ", longest run " .. m.idle.longest
-            .. " (ending t" .. m.idle.longest_at .. "); library fill-ins " .. tostring(rec.fill_ins or 0) .. "; leaks seen " .. tostring(m.leaks or 0))
+            .. " (ending t" .. m.idle.longest_at .. "); library fill-ins " .. tostring(rec.fill_ins or 0) .. "; leaks seen " .. tostring(m.leaks or 0) .. (function()
+                local pa = {}
+                for f = 0, 3 do if (m.idle.preaim or {})[f] then pa[#pa + 1] = ({ "100", "70", "50", "30" })[f + 1] .. ":" .. m.idle.preaim[f] end end
+                return #pa > 0 and ("; preaim hold " .. table.concat(pa, " ") .. " ticks (exempt: the script's freezer stops ~9 ticks before each threshold)") or ""
+            end)())
     end
     if role == 2 then
         -- raid seam40: the thresholds the casts were made in (the reference's
