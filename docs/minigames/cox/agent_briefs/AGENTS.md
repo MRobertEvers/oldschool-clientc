@@ -16,7 +16,7 @@ your ownership row in `ROOM_AGENT.md`. See workspace rule
 | icedemon | bc-28036115-f582-5175-aaf5-64487f2d13ab | **green FULL** — `cursor/cox-icedemon-sm-da39` PR #138 |
 | tightrope | bc-0e60f709-4b14-5912-b2ee-beb76784676d | **green FULL** — `cursor/cox-tightrope-traversal-da39` PR #137 |
 | crabs | bc-51ffcdb3-8125-50a6-9573-1c025b79eb35 | replacement |
-| thieving | bc-311e5e87-f634-5584-8481-aa63d95c7978 | resumed (was IDLE / green) |
+| thieving | bc-311e5e87-f634-5584-8481-aa63d95c7978 | **green FULL** — `cursor/cox-thieving-status-7978` PR #140 |
 | resource | bc-cb753ee5-02cd-5e19-bdeb-2ffb116453db | prior (still updating) |
 | shamans | bc-64efd667-9a32-5a76-a197-0f98c1b1c645 | replacement |
 | mystics | bc-2922cae1-cc03-537b-b38f-2397016f48d2 | replacement |
