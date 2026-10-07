@@ -51,23 +51,17 @@ return {
         t.ticks(3)
         t.shot("olm chamber looking north at " .. tile_text(t))
 
-        local wait, head = 0, npc_ok(t, HEAD)
-        while head == nil and wait < 40 do
-            wait = wait + 1
-            t.ticks(1)
-            head = npc_ok(t, HEAD) or npc_ok(t, HEAD_SPAWN)
-        end
-        if head == nil then
-            t.cheat("::coxolm")
-            t.ticks(12)
-            head = npc_ok(t, HEAD) or npc_ok(t, HEAD_SPAWN)
-        end
-        t.check("boss.present", head ~= nil, "olm_head at " .. tile_text(t))
+        local head = npc_ok(t, HEAD) or npc_ok(t, HEAD_SPAWN)
+        t.check("boss.present", head ~= nil, "head/spawn at " .. tile_text(t))
         -- From centre look west at the rise — stay at chamber x, do not walk
         -- into raids_olmic_head2 carved heads at window (12,24)/(19,24).
         t.drive.camera(1536, 180, 650)
         t.ticks(4)
         t.shot("olm west wall rise at " .. tile_text(t))
+        -- Also look north so the west-wall claw sits on the left of frame.
+        t.drive.camera(0, 200, 700)
+        t.ticks(3)
+        t.shot("olm chamber north after spawn at " .. tile_text(t))
         t.check("done", true, "shots at " .. tile_text(t))
     end,
 }

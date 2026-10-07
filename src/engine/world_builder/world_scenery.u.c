@@ -25,6 +25,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #define WALL_DECOR_YAW_ADJUST 256
 #define WORLD_TILE_SIZE 128
@@ -2134,6 +2135,8 @@ scenery_add_normal(
     int size_x = config_loc->size_x;
     int size_z = config_loc->size_z;
     int yaw = 0;
+    int const cfg_sx = size_x;
+    int const cfg_sz = size_z;
 
     if( map_loc->orientation == 1 || map_loc->orientation == 3 )
     {
@@ -2147,7 +2150,8 @@ scenery_add_normal(
     if( config_loc->seq_id != -1 )
         yaw += 512 * orientation;
 
-    builder->scenery_deferred_angle = config_loc->seq_id != -1 ? orientation : 0;
+    int const deferred_set = config_loc->seq_id != -1 ? orientation : 0;
+    builder->scenery_deferred_angle = deferred_set;
     int element_id = scenery_load_model(
         builder,
         map_loc,
@@ -2162,7 +2166,113 @@ scenery_add_normal(
         return;
     scenery_element_position_init(
         builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, size_x, size_z, yaw);
+    // #region agent log
+    if( map_loc->loc_id >= 29880 && map_loc->loc_id <= 29888 )
+    {
+        struct ToriDraw_SceneElement* el = ToriDraw_SceneElementGet(builder->scene, element_id);
+        int minx = 0, maxx = 0, minz = 0, maxz = 0, vc = 0;
+        if( el && ToriDraw_ModelKindIsFull(el->model.kind) && el->model.u.model.model &&
+            el->model.u.model.model->vertex_count > 0 )
+        {
+            struct ToriDraw_Model* m = el->model.u.model.model;
+            vc = m->vertex_count;
+            minx = maxx = m->vertices_x[0];
+            minz = maxz = m->vertices_z[0];
+            for( int v = 1; v < m->vertex_count; v++ )
+            {
+                if( m->vertices_x[v] < minx ) minx = m->vertices_x[v];
+                if( m->vertices_x[v] > maxx ) maxx = m->vertices_x[v];
+                if( m->vertices_z[v] < minz ) minz = m->vertices_z[v];
+                if( m->vertices_z[v] > maxz ) maxz = m->vertices_z[v];
+            }
+        }
+        FILE* df = fopen("/opt/cursor/logs/debug.log", "a");
+        if( df )
+        {
+            fprintf(
+                df,
+                "{\"hypothesisId\":\"A,B,C\",\"location\":\"world_scenery.u.c:scenery_add_normal\","
+                "\"message\":\"olm centrepiece place\",\"data\":{\"loc_id\":%d,\"shape\":%d,"
+                "\"orient\":%d,\"rotation\":%d,\"seq\":%d,\"cfg_size\":[%d,%d],\"draw_size\":[%d,%d],"
+                "\"yaw\":%d,\"deferred\":%d,\"runtime\":%d,\"scene\":[%d,%d],\"elem\":%d,"
+                "\"pos\":[%d,%d,%d],\"elem_yaw\":%d,\"aabb_x\":[%d,%d],\"aabb_z\":[%d,%d],\"vc\":%d},"
+                "\"timestamp\":%ld}\n",
+                map_loc->loc_id,
+                map_loc->shape_select,
+                orientation,
+                rotation,
+                config_loc->seq_id,
+                cfg_sx,
+                cfg_sz,
+                size_x,
+                size_z,
+                yaw,
+                deferred_set,
+                builder->scenery_runtime_spawn,
+                scene_x,
+                scene_z,
+                element_id,
+                el ? el->world_position.x : -1,
+                el ? el->world_position.y : -1,
+                el ? el->world_position.z : -1,
+                el ? el->world_position.yaw : -1,
+                minx,
+                maxx,
+                minz,
+                maxz,
+                vc,
+                (long)time(NULL));
+            fclose(df);
+        }
+    }
+    // #endregion
     scenery_load_animation(builder, element_id, config_loc->seq_id);
+    // #region agent log
+    if( map_loc->loc_id >= 29880 && map_loc->loc_id <= 29888 )
+    {
+        struct ToriDraw_SceneElement* el = ToriDraw_SceneElementGet(builder->scene, element_id);
+        int minx = 0, maxx = 0, minz = 0, maxz = 0, vc = 0;
+        int has_orig = 0;
+        if( el && ToriDraw_ModelKindIsFull(el->model.kind) && el->model.u.model.model &&
+            el->model.u.model.model->vertex_count > 0 )
+        {
+            struct ToriDraw_Model* m = el->model.u.model.model;
+            vc = m->vertex_count;
+            has_orig = m->original_vertices_x != NULL;
+            minx = maxx = m->vertices_x[0];
+            minz = maxz = m->vertices_z[0];
+            for( int v = 1; v < m->vertex_count; v++ )
+            {
+                if( m->vertices_x[v] < minx ) minx = m->vertices_x[v];
+                if( m->vertices_x[v] > maxx ) maxx = m->vertices_x[v];
+                if( m->vertices_z[v] < minz ) minz = m->vertices_z[v];
+                if( m->vertices_z[v] > maxz ) maxz = m->vertices_z[v];
+            }
+        }
+        FILE* df = fopen("/opt/cursor/logs/debug.log", "a");
+        if( df )
+        {
+            fprintf(
+                df,
+                "{\"hypothesisId\":\"C,D\",\"location\":\"world_scenery.u.c:scenery_add_normal:post_anim\","
+                "\"message\":\"olm after anim bind\",\"data\":{\"loc_id\":%d,\"elem\":%d,"
+                "\"elem_yaw\":%d,\"has_orig\":%d,\"aabb_x\":[%d,%d],\"aabb_z\":[%d,%d],\"vc\":%d,"
+                "\"anim_seq\":%d},\"timestamp\":%ld}\n",
+                map_loc->loc_id,
+                element_id,
+                el ? el->world_position.yaw : -1,
+                has_orig,
+                minx,
+                maxx,
+                minz,
+                maxz,
+                vc,
+                el ? el->anim_seq_id : -1,
+                (long)time(NULL));
+            fclose(df);
+        }
+    }
+    // #endregion
 
     painter_add_normal_scenery_ex(
         world->painter,
