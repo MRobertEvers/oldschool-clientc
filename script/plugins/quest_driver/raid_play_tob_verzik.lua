@@ -674,7 +674,31 @@ function QD.raid._verzik_dawn_absent(c, ev)
     assert(c, "_verzik_dawn_absent: c")
     assert(ev, "_verzik_dawn_absent: ev")
     local st, v, dw = c.st, c.v, c.dw
-    if not (c.floor_now and dw.appear == st.role - 1) then return end
+    -- owner_verzik 2026-10-07, BLERT-SOURCED: THE SWORD GOES ROUND TWICE.
+    --
+    -- Blert's 27 Normal trio rooms spend 9-11 Dawnbringer specials a room
+    -- (median 10) at 111.8 damage each -- about 1118 of the 1500 P1 pool,
+    -- three quarters of the phase -- with gaps of 4 to 7 ticks between them,
+    -- so the sword is in somebody's hand for nearly all of P1.  We spent SIX,
+    -- and the arithmetic says why: the special costs 350 of a 1000 orb, so a
+    -- full orb buys TWO, and three raiders passing it once is six.  The other
+    -- four come from the orb REGENERATING while it goes round -- 85 ticks is
+    -- 51 seconds, about 170 energy a raider, which takes the 300 left after
+    -- two specials back over the 350 and buys a THIRD each.
+    --
+    -- That is P1's whole story: 450 damage of the pool we had to find with
+    -- melee instead, which is why our P1 ran 163 ticks and ELEVEN bolt
+    -- launches against Blert's 85 and six -- and the near row's safe pillar
+    -- absorptions only cover six, so the trio tanked the rest.
+    --
+    -- So the turn is modular rather than once: raider r takes it on the
+    -- (r-1)th appearance, the (r-1+party)th, and so on.  A raider whose orb
+    -- cannot pay for a special leaves it for whoever can, which is what keeps
+    -- the rounds in step without anyone being told.
+    if not c.floor_now then return end
+    local turn = dw.appear - (st.role - 1)
+    if turn < 0 or (st.party > 0 and turn % st.party ~= 0) then return end
+    if ev.energy < QD.RAID_PLAY_VERZIK_DAWN_COST then return end
     local tr, td = QD.player.click_obj("verzik_special_weapon", 3)
     st.inputs[v.tick] = (st.inputs[v.tick] or 0) + 1
     local cr, n = QD.inv.count("verzik_special_weapon")
@@ -747,7 +771,11 @@ function QD.raid._verzik_dawn_held(c, ev)
         local cr, n = QD.inv.count("verzik_special_weapon")
         if cr == "ok" and n == 0 then
             dw.dropped = v.tick
-            return nil, "done"
+            dw.rounds = (dw.rounds or 0) + 1
+            -- back to ABSENT, not done: the sword comes round again and this
+            -- raider's orb will have regenerated past the 350 by then.  `done`
+            -- is for the raider that has nobody left to pass to.
+            return nil, "absent"
         end
     elseif st.role >= st.party then
         return nil, "done"
@@ -1977,12 +2005,81 @@ end
 -- This replaced an if/elseif on `phase` whose seven arms were 1,285 lines in
 -- one function.  Each arm is now a handler of its own, named after its state,
 -- with the body unchanged.
+-- raid seam53 hierarchy, owner 2026-10-07 ("perhaps you need nested state
+-- machines?"): THE RAIDER'S OWN WEAPON, which belongs to no phase.
+--
+-- This is the third of the three homes the layer's header names
+-- (raid_sm.lua:52-101) and it is the one my own defect proved exists.  Her
+-- shield breaking destroys the Dawnbringer IN THE HOLDER'S HAND, and in
+-- _vzslow the sword went at t211 while her form did not change until t214 --
+-- so for three ticks the holder was empty-handed while still in p1.  A check
+-- nested under p1 could fire there but not past the boundary; an exit hook on
+-- p1 fires at the boundary but cannot see those three ticks.  "I have a weapon
+-- I can fight with" is true however the hand emptied -- a destroyed sword, a
+-- failed equip, a dropped swap, a death and a return -- so it is a fact about
+-- the RAIDER and it is NOT nested.
+--   ARMED     holding something I can fight with.
+--   EMPTY     the belief says dawnbringer but the phase has moved past P1, so
+--             the sword is gone whatever put it there: put the main weapon
+--             back on.  One tick, then ARMED.
+QD.raid.sm_declare("verzik_weapon", {
+    start = "ARMED",
+    states = {
+        ARMED = { note = "a weapon I can fight with", on = {
+            orb = function(c, ev) return QD.raid._verzik_weapon_armed(c, ev) end } },
+        EMPTY = { note = "the sword was destroyed in my hand; the main weapon goes back on", on = {
+            orb = function(c, ev) return QD.raid._verzik_weapon_empty(c, ev) end } },
+    },
+})
+
+function QD.raid._verzik_weapon_armed(c, ev)
+    assert(c, "_verzik_weapon_armed: c")
+    assert(ev, "_verzik_weapon_armed: ev")
+    local vz, phase = c.vz, c.phase
+    if vz.held == "dawnbringer" and phase ~= nil and phase ~= "pre" and phase ~= "p1" then
+        vz.sword_gone = vz.sword_gone or c.v.tick
+        return nil, "EMPTY"
+    end
+end
+
+function QD.raid._verzik_weapon_empty(c, ev)
+    assert(c, "_verzik_weapon_empty: c")
+    assert(ev, "_verzik_weapon_empty: ev")
+    QD.raid._verzik_main_weapon_back(c.st, c.vz, c.intent)
+    return nil, "ARMED"
+end
+
 QD.raid.sm_declare("verzik_phase", {
     start = "pre",
     states = {
         pre = { on = { form_change = function(c, ev) return nil, ev.to end,
             tick = function(c) return QD.raid._verzik_phase_pre(c) end } },
-        p1  = { on = { form_change = function(c, ev) return nil, ev.to end,
+        -- P1'S EXIT owns the sword's end: "the sword is spent when P1 ends"
+        -- is a fact about the BOUNDARY, so it runs here rather than on the
+        -- first tick past it, which is where the hand-rolled guard ran.
+        --
+        -- `children = { "verzik_dawnbringer" }` IS DECLINED HERE, and this is
+        -- the reasoned decline the layer's header asks for rather than
+        -- silence.  A child is stepped by the LAYER after the parent has
+        -- handled the event, with the PARENT's context, and
+        -- `verzik_dawnbringer` cannot be driven that way yet for two reasons:
+        -- its step needs a context p1 does not have (`hiding`, `on_cover` --
+        -- whether I am behind a pillar this tick, which decides whether a
+        -- special may be armed at all), and it RETURNS `busy`, which p1 acts
+        -- on in the SAME tick to decide whether to press an attack.  Nesting
+        -- it as it stands would step it twice a tick -- once by the layer and
+        -- once by `_verzik_dawn`'s own sm_run -- and the parent would still
+        -- have decided the attack before the child ran.
+        --
+        -- Fixing that is the control-flow inversion the P1/P2/P3 rebuild
+        -- needs: the parent's handler goes thin (cover and movement only) and
+        -- the press becomes a child that CLAIMS the tick (QD.raid.sm_claim)
+        -- when the sword is busy.  That is the next piece of the rebuild, not
+        -- a thing to half-do here, because a child stepped twice or stepped
+        -- after the decision is worse than a call site that is at least
+        -- honest about its order.
+        p1  = { exit = function(c) return QD.raid._verzik_p1_exit(c) end,
+            on = { form_change = function(c, ev) return nil, ev.to end,
             tick = function(c) return QD.raid._verzik_phase_p1(c) end } },
         t12 = { on = { form_change = function(c, ev) return nil, ev.to end,
             tick = function(c) return QD.raid._verzik_phase_t12(c) end } },
@@ -1994,6 +2091,22 @@ QD.raid.sm_declare("verzik_phase", {
             tick = function(c) return QD.raid._verzik_phase_p3(c) end } },
     },
 })
+
+-- P1'S EXIT: the sword is spent when P1 ends.  Her shield breaking destroys
+-- the Dawnbringer (tob_verzik.rs2 ~tob_verzik_shield_broken), so whatever the
+-- holder believed, past this boundary the main weapon goes back on -- and it
+-- happens AT the boundary rather than on the first tick past it, which is the
+-- tick the old hand-rolled guard cost.  The raider-level invariant
+-- (verzik_weapon) still stands behind this for the ways a hand can empty that
+-- are nothing to do with the phase ending.
+function QD.raid._verzik_p1_exit(c)
+    assert(c, "_verzik_p1_exit: c")
+    local vz = c.vz
+    if vz.held == "dawnbringer" then
+        vz.sword_gone = vz.sword_gone or c.v.tick
+        QD.raid._verzik_main_weapon_back(c.st, vz, c.intent)
+    end
+end
 
 -- PRE: she has not taken her first form yet.  Nothing is decided and the
 -- tick's intent goes back untouched -- the one state that leaves the
@@ -3371,28 +3484,20 @@ function QD.raid._play_verzik_decide(st, v)
     if b == nil then
         return intent
     end
-    -- owner_verzik 2026-10-07: A WEAPON IN MY HAND, PAST P1.  Her shield
-    -- breaking destroys the Dawnbringer in the holder's hand (tob_verzik.rs2
-    -- ~tob_verzik_shield_broken) while the orb may still hold the 350, so the
-    -- holder's `held` state kept arming a special with an EMPTY HAND: _vzslow
-    -- seat 1 took the sword at t208, it was destroyed at t211, and the seat
-    -- fought t211..t954 -- all of P2 and most of P3 -- at `weapon -1`.  A
-    -- third of the trio's damage: that P2 ran 488 ticks at 7.2 damage a tick
-    -- where the fast team's ran 247 at 11.6.  It also froze the P3 swap, whose
-    -- guard declines to swap while `vz.held` says "dawnbringer".
-    --
-    -- THE GUARD BELONGS HERE, not in the state: `verzik_dawnbringer` is
-    -- stepped from inside the P1 branch only (the `_verzik_dawn` call in
-    -- QD.raid._verzik_p1), so a premise of its own would never be tested on
-    -- the tick that breaks it.  P1 is the only phase the sword is held in, so
-    -- past P1 the belief is simply wrong, whatever put it there.
-    if vz.held == "dawnbringer" and phase ~= "pre" and phase ~= "p1" then
-        vz.sword_gone = vz.sword_gone or v.tick
-        QD.raid._verzik_main_weapon_back(st, vz, intent)
-    end
     -- raid seam53: THIS TICK'S EVENTS, derived once (QD.raid._verzik_events)
     -- and handed to every machine the plan runs, so they all read one tick
     local events = QD.raid.sm_events(st, v, QD.raid._verzik_events)
+    -- raid seam53 hierarchy: the weapon invariant is a DECLARED machine
+    -- (verzik_weapon, TOP LEVEL because no phase owns it) and the sword's end
+    -- is p1's `exit` hook.  The hand-rolled guard that used to sit here is
+    -- gone: it ran on the first tick PAST the boundary, where the hook runs AT
+    -- it.  See the layer's header (raid_sm.lua:52-101) for the three homes and
+    -- why this one is not nested.  It runs HERE, after the tick's events are
+    -- derived and before her phase is stepped, because every machine reads one
+    -- shared derivation and this one must be able to re-arm the hand before
+    -- the phase decides what to press with it.
+    QD.raid.sm_run(st, v, "verzik_weapon",
+        { st = st, v = v, vz = vz, intent = intent, phase = phase }, events)
     local ok = QD.raid._verzik_floor(st, v)
     -- raid seam53: THE FLOOR TEST, through a holder.  P2 and P3 NARROW `ok`
     -- to exclude her footprint's ring, and the walk helper `go` below must
