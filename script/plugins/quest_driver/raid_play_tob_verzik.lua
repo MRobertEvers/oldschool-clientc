@@ -1491,7 +1491,9 @@ QD.RAID_PLAY_VERZIK_PILLAR_HP = 185
 QD.RAID_PLAY_VERZIK_PILLAR_HIT_MAX = 60
 QD.RAID_PLAY_VERZIK_PILLAR_HIT_TOP = 60   -- a bolt takes 40-60 (tob.constant ^tob_verzik_pillar_hit_max)
 function QD.raid._verzik_cover(st, v, ok)
-    local b, O = v.boss, st.origin
+    -- `me` was read below as a GLOBAL (be49fbb29): nil, so the first fallen
+    -- pillar with no raider near enough to see it would end the script
+    local b, O, me = v.boss, st.origin, v.me
     local cx = b.x + math.floor((b.size or 1) / 2)
     local best = nil
     -- owner_verzik 2026-10-07: THE BOLTS EACH PILLAR HAS TAKEN, seen as they
@@ -1791,7 +1793,7 @@ QD.raid.sm_declare("verzik_sword", {
 -- The main weapon back in my hand -- the scythe, or the slow pace's halberd
 -- (the plan header's table).  One place, because it is reached from two: the
 -- orb going flat, and her shield breaking with the sword still in my hand.
-function QD.raid._verzik_main_weapon_back(st, vz, intent)
+function QD.raid._verzik_main_weapon_back(st, v, vz, intent)
     assert(st, "_verzik_main_weapon_back: st")
     assert(vz, "_verzik_main_weapon_back: vz")
     assert(intent, "_verzik_main_weapon_back: intent")
@@ -1870,7 +1872,7 @@ end
 function QD.raid._verzik_sword_wield(c, ev)
     assert(c, "_verzik_sword_wield: c")
     assert(ev, "_verzik_sword_wield: ev")
-    local st, vz, intent = c.st, c.vz, c.intent
+    local st, v, vz, intent = c.st, c.v, c.vz, c.intent
     if vz.held ~= "dawnbringer" then
         intent.gear = { "verzik_special_weapon" }
         vz.held = "dawnbringer"
@@ -1921,7 +1923,7 @@ function QD.raid._verzik_sword_spent(c, ev)
     assert(ev, "_verzik_sword_spent: ev")
     local st, v, vz, dw, intent = c.st, c.v, c.vz, c.dw, c.intent
     if vz.held == "dawnbringer" then
-        QD.raid._verzik_main_weapon_back(st, vz, intent)
+        QD.raid._verzik_main_weapon_back(st, v, vz, intent)
         dw.unwield = v.tick
         return
     end
@@ -3271,7 +3273,7 @@ end
 function QD.raid._verzik_weapon_empty(c, ev)
     assert(c, "_verzik_weapon_empty: c")
     assert(ev, "_verzik_weapon_empty: ev")
-    QD.raid._verzik_main_weapon_back(c.st, c.vz, c.intent)
+    QD.raid._verzik_main_weapon_back(c.st, c.v, c.vz, c.intent)
     return nil, "ARMED"
 end
 
@@ -3323,7 +3325,7 @@ function QD.raid._verzik_p1_exit(c)
     local vz = c.vz
     if vz.held == "dawnbringer" then
         vz.sword_gone = vz.sword_gone or c.v.tick
-        QD.raid._verzik_main_weapon_back(c.st, vz, c.intent)
+        QD.raid._verzik_main_weapon_back(c.st, c.v, vz, c.intent)
     end
 end
 
