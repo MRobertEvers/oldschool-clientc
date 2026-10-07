@@ -231,40 +231,45 @@ return {
                     set_state(STATE.REENGAGE)
                     return
                 end
-                -- Water weakness sample on the first anvil only.
-                if hammer_visits == 1 and mage_casts < 10 then
-                    t.player.equip("kodai_wand", { quick = true })
-                    local before_serial = 0
-                    local _, nh0 = t.ticklog.rows({ kind = "hit_npc", slot = wslot })
-                    if nh0 ~= nil and #nh0 > 0 then before_serial = nh0[#nh0].serial end
-                    local cr = t.player.cast(mage_kind, "raids_tekton_hammering", 2, 4,
-                        { quick = true, slot = frow.slot })
-                    if cr == "ok" then
-                        mage_casts = mage_casts + 1
-                        t.ticks(5)
-                        local _, nh1 = t.ticklog.rows({ kind = "hit_npc", slot = wslot, since = before_serial })
-                        local hi = 1
-                        while nh1 ~= nil and hi <= #nh1 do
-                            local d = nh1[hi].damage or nh1[hi].raw or 0
-                            if d > 0 then
-                                if mage_kind == "water_wave" then
-                                    water_hits[#water_hits + 1] = d
-                                else
-                                    fire_hits[#fire_hits + 1] = d
-                                end
-                            end
-                            hi = hi + 1
-                        end
-                        if mage_kind == "water_wave" then mage_kind = "fire_wave" else mage_kind = "water_wave" end
-                    end
-                elseif now - last_dodge_tick >= 3 then
-                    -- Synq mid-phase: step away from the spark tile.
+                -- Sparks are flat 10-20 and ignore melee prayer: always step
+                -- off the capture tile first (delay 2 ticks), then mage.
+                if now - last_dodge_tick >= 2 then
                     local _, me = t.world.tile()
-                    local dx, dz = 3, 0
-                    if (spark_dodges % 2) == 1 then dx, dz = 0, 3 end
-                    t.player.walk_to(me.x + dx, me.z + dz, 3)
+                    local dx, dz = 4, 0
+                    if (spark_dodges % 2) == 1 then dx, dz = 0, 4 end
+                    if (spark_dodges % 4) >= 2 then dx, dz = -dx, -dz end
+                    t.player.walk_to(me.x + dx, me.z + dz, 2)
                     spark_dodges = spark_dodges + 1
                     last_dodge_tick = now
+                end
+                if hammer_visits == 1 and mage_casts < 8 then
+                    local hr, hp = t.skill.read("hitpoints")
+                    if hr == "ok" and hp.level >= 60 then
+                        t.player.equip("kodai_wand", { quick = true })
+                        local before_serial = 0
+                        local _, nh0 = t.ticklog.rows({ kind = "hit_npc", slot = wslot })
+                        if nh0 ~= nil and #nh0 > 0 then before_serial = nh0[#nh0].serial end
+                        local cr = t.player.cast(mage_kind, "raids_tekton_hammering", 2, 3,
+                            { quick = true, slot = frow.slot })
+                        if cr == "ok" then
+                            mage_casts = mage_casts + 1
+                            t.ticks(4)
+                            local _, nh1 = t.ticklog.rows({ kind = "hit_npc", slot = wslot, since = before_serial })
+                            local hi = 1
+                            while nh1 ~= nil and hi <= #nh1 do
+                                local d = nh1[hi].damage or nh1[hi].raw or 0
+                                if d > 0 then
+                                    if mage_kind == "water_wave" then
+                                        water_hits[#water_hits + 1] = d
+                                    else
+                                        fire_hits[#fire_hits + 1] = d
+                                    end
+                                end
+                                hi = hi + 1
+                            end
+                            if mage_kind == "water_wave" then mage_kind = "fire_wave" else mage_kind = "water_wave" end
+                        end
+                    end
                 end
                 t.ticks(1)
                 return
