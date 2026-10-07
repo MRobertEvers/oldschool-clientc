@@ -475,27 +475,92 @@ function QD.raid._play_bloat_safe_route(st, v, want_x, want_z, floor_ok)
     return v.me.x, v.me.z, true
 end
 
--- THE BLOAT PLAN'S DECIDE (PLAY_NOTES.md "Bloat").  Walk: hide straight
--- behind the tank from where Bloat will be ("Hug the pillar and hide from
--- Bloat as it walks around the room", wiki_Theatre_of_Blood_Strategies
--- :687), Protect from Missiles lit, off any shadow ("simply don't stand on
--- the shadows", transcripts/yt_4i4lv-srJkw.md:71).  Down: in at once and
--- swing on cooldown with Piety ("As soon as Bloat deactivates ... begin
--- attacking with melee ... five attacks when close", wiki :689).  The stomp:
--- Entry tick-eats it in place (wiki :675) and clicks back on the rise ("when
--- he starts to get back up ... that's when you click back", the flinch
--- guide, ENCOUNTER_TIMING.md 3.1); Normal/Hard runs out of its reach after
--- the last swing that fits ("run away after the last attack", wiki :689).
-function QD.raid._play_bloat_decide(st, v)
+-- ==========================================================================
+-- raid seam53 play_state_machines (2026-10-07): BLOAT'S ROOM AS DECLARED
+-- MACHINES, on raid_sm.lua.
+--
+-- The owner, 2026-10-07: "all the rooms should be explicit state machines.
+-- Create an agent for each one", and, on how a role is modelled: named
+-- states; each state handles all events and transitions forward AND
+-- backward; the event handlers subscribed per state; the per-tick contract
+-- Events + State -> Intents, with an executor reconciling the intents per
+-- channel.
+--
+-- Before this the room was one 300-line `decide`.  His cycle was a string
+-- ("walk"/"down") and an `age`, and what the raider owed the tick was an
+-- if/elseif chain on that age against three computed ones (leave_age,
+-- stomp_age, rise_age + 1), with the run-by's six stages in a seventh field
+-- and the claws' four in an eighth.  Nothing named the states and nothing
+-- said how they connected: adding one meant finding every comparison that
+-- bounded its neighbours.
+--
+-- THE SAME PLAY, DECLARED.  Nothing in the behaviour changed with this port
+-- -- build/seam_state/sm_bloat/progress.md has the five seed-survey names,
+-- their room ticks and their per-seat damage taken, before it and after it.
+-- What changed is where the play is written:
+--
+--   HIS CYCLE            bloat_cycle      active -> down -> stomp -> rising
+--                                         -> active; dead
+--   THE RAIDER'S ROLE    bloat_raider     outside, run_by, hiding,
+--                                         attacking, leaving, rise_swing,
+--                                         tick_eat, stomp_eat, flinch
+--   THE STARTER'S DRAIN  bloat_runby      waiting -> equipping -> swinging
+--                                         -> fired -> done; gave_up
+--   THE DOWN'S CLAWS     bloat_down_spec  stowed -> worn -> armed ->
+--                                         stowed; spent
+--
+-- THREE STEPS A TICK, in the old body's own order:
+--   1. THE FACTS (QD.raid._bloat_facts): the readings the old decide took
+--      before its chain -- his animation and its age, the shadow memory, the
+--      hide tile, the leave age, the fly damage, the threat function.
+--      Lifted verbatim: this is the part that was measured.
+--   2. THE EVENTS (QD.raid._bloat_events), derived ONCE a tick through
+--      QD.raid.sm_events, so every machine on the raider sees the same set
+--      and none of them can grow a private reading of the tick: his
+--      animation, the hazards, and the one duty this tick asks of the
+--      raider.
+--   3. THE MACHINES, and then THE EXECUTOR.  A state puts a target tile and
+--      an attack on the tick's intent; the plan's executor turns the target
+--      into a walk through the hazard step, the route dodge and the press
+--      (raid_play.lua _play_reach / _play_hazard, _play_bloat_safe_route),
+--      and the supplies, the prayers and the gear reconcile per channel as
+--      they always have.
+--
+-- WHY THE DUTY IS AN EVENT.  Bloat's raider has no hysteresis, and that is
+-- measured, not assumed: what it owes this tick is a function of his cycle
+-- and of its own distance out (the leave age is read from the tile it
+-- stands on; the rise window is open until its own swing shows).  So the
+-- derivation raises exactly ONE duty a tick -- flies, swing_window,
+-- leave_window, rise_window, tick_eat_window, stomp_eat_window,
+-- flinch_window -- and every state handles every one of them: its own by
+-- doing the work and staying put, another's by doing that work and GOING
+-- there.  The declaration is then the whole transition table, forward and
+-- backward: `leaving` goes back to `attacking` if the leave age moves out
+-- from under it (a hand dodge changes the distance), `rise_swing` goes back
+-- to `leaving` the tick its swing shows, and any state goes to `outside`
+-- when his row leaves the raider's view.
+--
+-- WHAT A STATE WRITES is its own: the hide's Protect from Missiles, the
+-- down's Piety, the claws on the walk and the scythe back, the hammer and
+-- Piety of the run-by.  The one prayer rule they share is in
+-- QD.raid._bloat_pray, because its boundary is a tick of his cycle and not
+-- a state's choice (T+32, the tick before the flies resume, lights the
+-- walk's prayer).
+-- ==========================================================================
+
+-- THE TICK'S FACTS.  Every reading the states and the executor need, taken
+-- once, in the order the old decide took them; the seam comments stay on the
+-- lines they belong to.  `intent` is this tick's intent table, which the
+-- threat function reads for the hand dodge (a shadow the tick's own step
+-- leaves is not a hand that lands).
+function QD.raid._bloat_facts(st, v, intent)
+    assert(st, "_bloat_facts: st")
+    assert(v, "_bloat_facts: v")
+    assert(intent, "_bloat_facts: intent")
+    assert(v.boss, "_bloat_facts: Bloat is in view (the caller's question)")
     local P, N, O = st.plan, st.numbers, st.origin
-    local intent = { want = {}, walk = nil, attack = false }
     local b = v.boss
-    if b == nil then
-        return intent
-    end
-    if st.first_tick == nil then st.first_tick = v.tick end
-    -- owner_rooms4: run kept on (QD.raid._play_run_keep, below the plan table)
-    QD.raid._play_run_keep(st, v)
+    local f = { tick = v.tick }
     -- raid seam51 (N.shadow_memory): A SHADOW IS A HAND FOR THREE TICKS.  The
     -- telegraph (1570-1573) is gone from the client's spotanims before its
     -- splat (1576) lands three ticks after it (ET 3.4; seam51 survey_1 and
@@ -525,6 +590,8 @@ function QD.raid._play_bloat_decide(st, v)
             end
         end
     end
+    -- HIS ANIMATION and its age: the one reading of his cycle, which the
+    -- events turn into the cycle machine's state (ENCOUNTER_TIMING.md 3.1).
     local phase, age = "walk", -1
     if b.seq_id == P.down_seq then
         local a = v.api_now - b.seq_tick
@@ -538,11 +605,13 @@ function QD.raid._play_bloat_decide(st, v)
         st.downs[#st.downs + 1] = st.down
     end
     st.phase = phase
-    local function floor_ok(x, z)
+    f.phase, f.age = phase, age
+    f.floor_ok = function(x, z)
         local inside = x >= O.x + P.floor[1] and x <= O.x + P.floor[3] and z >= O.z + P.floor[2] and z <= O.z + P.floor[4]
         local tank = x >= O.x + P.tank[1] and x <= O.x + P.tank[3] and z >= O.z + P.tank[2] and z <= O.z + P.tank[4]
         return inside and not tank
     end
+    local floor_ok = f.floor_ok
     -- where Bloat will be two ticks on (its walk is visible); the hide tile
     -- is that tile mirrored through the tank (tob_bloat.lua :1206)
     local fx, fz = b.x, b.z
@@ -551,6 +620,7 @@ function QD.raid._play_bloat_decide(st, v)
         fz = math.max(O.z + P.ring[2], math.min(O.z + P.ring[4], b.z + 2 * (b.z - st.prev_b.z)))
     end
     st.prev_b = { x = b.x, z = b.z }
+    f.fx, f.fz = fx, fz
     local hide_x, hide_z = 2 * O.x + P.mirror[1] - fx, 2 * O.z + P.mirror[2] - fz
     -- raid seam42 (N.hug_tank): "Hug the pillar" (W:687).  The mirror tile is
     -- two tiles off the tank (seam42 _play_bloat: all three at 6428,101, nine
@@ -567,6 +637,7 @@ function QD.raid._play_bloat_decide(st, v)
     -- fallback when no ring tile is hidden.  After the stomp (the rise) the
     -- same tile, from where Bloat stands.
     local tank = { O.x + P.tank[1], O.z + P.tank[2], O.x + P.tank[3], O.z + P.tank[4] }
+    f.tank = tank
     local hug_x, hug_z = nil, nil
     if N.hug_seen and (phase == "walk" or age > P.stomp_age) then
         local at = { { b.x, b.z } }
@@ -609,10 +680,12 @@ function QD.raid._play_bloat_decide(st, v)
             hide_x, hide_z = hug_x, hug_z
         end
     end
+    f.hide_x, f.hide_z, f.hug_x, f.hug_z = hide_x, hide_z, hug_x, hug_z
     local in_stomp = math.max(math.abs(v.me.x - (b.x + P.stomp_centre)), math.abs(v.me.z - (b.z + P.stomp_centre)))
         <= P.stomp_range
     local hidden = math.max(math.abs(v.me.x - hide_x), math.abs(v.me.z - hide_z)) <= 1
     local on_shadow = v.shadows[v.me.x * 100000 + v.me.z] == true
+    f.in_stomp, f.hidden, f.on_shadow = in_stomp, hidden, on_shadow
     local leave_age = P.stomp_age - 1 - math.ceil((P.stomp_range + 1) / QD.RAID_PLAY_RUN_TILES)
     -- raid seam42 (N.leave_from_here): the stomp is a huntall of stomp_range
     -- round Bloat's south-west tile (tob_bloat.rs2:823), so a raider is out of
@@ -653,15 +726,27 @@ function QD.raid._play_bloat_decide(st, v)
             leave_age = math.min(leave_age, st.down.leave_at.age)
         end
     end
+    f.leave_age = leave_age
     -- raid seam32: the most one fly lands with Protect from Missiles (W:673).
     -- The plan lights it on every walking tick and from T+32, the tick before
-    -- the first fly of a rise (walk_prayers; the `list` below), so every fly
-    -- the threat counts lands on a prayed raider while any prayer is left.
-    -- Entry carries no fly_prayed and reads N.fly as before.
+    -- the first fly of a rise (walk_prayers; QD.raid._bloat_pray), so every
+    -- fly the threat counts lands on a prayed raider while any prayer is
+    -- left.  Entry carries no fly_prayed and reads N.fly as before.
     local straight_out = N.leave_straight and st.down ~= nil and st.down.leave_at ~= nil and st.down.leave_at.tile ~= nil
     local fly = N.fly
     if N.fly_prayed ~= nil and v.prayer > 0 then fly = N.fly_prayed end
-    local function threat(h)
+    f.straight_out, f.fly = straight_out, fly
+    -- raid seam51 (N.rise_swing): THE RISE SWING is open while his rise is a
+    -- full-damage window and this raider's own swing has not shown in it
+    -- (the state `rise_swing`, whose block below says why ages 29-31).
+    f.rise_open = (N.rise_swing and N.stomp_plan ~= "stay" and phase == "down"
+        and age >= P.stomp_age and age <= P.rise_age + 1
+        and st.down ~= nil and st.last_swing < st.down.tick + P.stomp_age) or false
+    -- the hitpoints the stomp found, for the harness's row
+    if phase == "down" and age >= P.stomp_age - 2 and age <= P.stomp_age - 1 and st.down.pre_stomp == nil then
+        st.down.pre_stomp = v.hp
+    end
+    f.threat = function(h)
         local total = 0
         for k = 1, h do
             if phase == "walk" then
@@ -691,205 +776,437 @@ function QD.raid._play_bloat_decide(st, v)
         if on_shadow and not leaving then total = total + N.hand end
         return total
     end
-    -- prayers for the NEXT tick: down prayers through the attackable window,
-    -- the walk's prayer from the tick before the first fly (T+33)
-    local list = P.walk_prayers
-    if phase == "down" and age < P.up_age - 1 then list = P.down_prayers end
-    for _, name in ipairs(list) do intent.want[name] = true end
-    -- raid seam32: THE RUN-BY (W:687), the first walk, the raider in the room.
-    local runby = QD.raid._play_bloat_runby(st, v, phase, intent)
-    local target_x, target_z = nil, nil
-    if runby then
-        -- the spec is being swung: no hide walk, the attack press paths in
-    elseif phase == "walk" then
-        target_x, target_z = hide_x, hide_z
-    elseif N.stomp_plan == "stay" then
-        intent.attack = age < P.stomp_age
-        if age >= P.rise_age then
-            target_x, target_z = 2 * O.x + P.mirror[1] - b.x, 2 * O.z + P.mirror[2] - b.z
-        end
-    else
-        intent.attack = age < leave_age
-        -- raid seam51 (N.rise_swing): THE RISE SWING.  The stomp is T+29 and
-        -- Bloat is UP (damage halved, flies) only from T+33 (ET 3.1), so the
-        -- rise T+30..T+32 is a full-damage window: the reference's last swing
-        -- of a down is at age 26.5 median, p90 31 (PLAY_NOTES "Bloat, Normal
-        -- trio -- follows Blert"), and the flinch guide's "when he starts to
-        -- get back up ... that's when you click back" is the same window from
-        -- the other side.  Without it a raider swung five times a down
-        -- against the reference's six (seam49 survey_5: ages 4-23 / 6-25,
-        -- the leave at 26-27, nothing after).  The press is decided on ages
-        -- 29 and 30: the stomp has resolved in the NPC turn of T+29 before
-        -- any player moves (ET 1.1), so the way back in lands after it, the
-        -- swing on T+30-31; from age 31 the raider hides for the first fly.
-        -- (iteration 3: until the raider's own swing shows, through age 31:
-        -- a raider that ate on the leave reached its tile on age 30 with the
-        -- weapon not ready and the age-31 hide cancelled the swing, seam51
-        -- survey_2 _play_bloat down2 p0 and p2)
-        local rise_open = N.rise_swing and age >= P.stomp_age and age <= P.rise_age + 1
-            and st.down ~= nil and st.last_swing < st.down.tick + P.stomp_age
-        if rise_open then
-            intent.attack = true
-            if st.down ~= nil and st.down.rise == nil then st.down.rise = { tick = v.tick, age = age } end
-        elseif age >= leave_age then
-            target_x, target_z = 2 * O.x + P.mirror[1] - b.x, 2 * O.z + P.mirror[2] - b.z
-            local lt = st.down ~= nil and st.down.leave_at ~= nil and st.down.leave_at.tile or nil
-            if lt ~= nil and age <= P.stomp_age then
-                target_x, target_z = lt.x, lt.z
-            elseif hug_x ~= nil then
-                target_x, target_z = hug_x, hug_z
-            end
-        end
-    end
-    if phase == "down" and age >= P.stomp_age - 2 and age <= P.stomp_age - 1 and st.down.pre_stomp == nil then
-        st.down.pre_stomp = v.hp
-    end
-    -- raid seam29: the plan's own walk (the hide, the flinch, the leave) is
-    -- `plan_walk`; with none, the attack press's own path and a marker under a
-    -- standing raider go through the same skills (raid_play.lua _play_reach,
-    -- _play_hazard, _play_safe_step).
-    local plan_walk = target_x ~= nil
-    if not plan_walk and intent.attack then
-        local rx, rz, hold = QD.raid._play_reach(st, v, floor_ok)
-        if rx ~= nil then
-            target_x, target_z = rx, rz
-        elseif hold then
-            intent.attack = false
-        end
-    end
-    if target_x == nil and on_shadow then
-        target_x, target_z = v.me.x, v.me.z
-    end
-    if target_x ~= nil then
-        local sx, sz, moved = QD.raid._play_hazard(st, v, target_x, target_z, floor_ok)
-        sx, sz = QD.raid._play_bloat_safe_route(st, v, sx, sz, floor_ok)
-        if on_shadow then st.dodges = st.dodges + 1 end
-        local same = st.walk_target ~= nil and st.walk_target.x == sx and st.walk_target.z == sz
-        local stuck = st.last_me ~= nil and st.last_me.x == v.me.x and st.last_me.z == v.me.z
-        if (v.me.x ~= sx or v.me.z ~= sz) and (not same or stuck) then
-            intent.walk = { x = sx, z = sz }
-            if plan_walk and phase == "down" and st.down.flinch == nil then
-                st.down.flinch = { tick = v.tick, age = age, from = { x = v.me.x, z = v.me.z } }
-                st.flinches[#st.flinches + 1] = st.down.flinch
-            end
-        end
-    end
-    -- raid seam32: while the run-by's special is being swung a bite costs the
-    -- swing 3 ticks (wiki Food, consume_shared.rs2:28-49), and on a free tick
-    -- the library looks six ticks ahead, so a raider standing in the flies ate
-    -- every other tick and never swung (_play_bloat t67-92: 25 ticks targeted,
-    -- no swing).  The run-by is a few ticks in the flies by design (W:687), so
-    -- it eats only for what can land in the next RUNBY_EAT_TICKS ticks.
-    local supplies_threat = threat
-    -- raid seam51 (N.rise_swing): on the rise the first fly is T+33, and the
-    -- library's free-tick horizon (a swing's length ahead) counted it on ages
-    -- 29-30, so the raider ate on its way back in and the bite cost the swing
-    -- (seam51 survey_1 _play_bloat down2: p0 ate at age 30, no rise swing).
-    -- Through the swing the supplies look only to T+32: what can land before
-    -- the first fly, i.e. a raider low enough to die to nothing still eats.
-    if N.rise_swing and phase == "down" and age >= P.stomp_age and age <= P.rise_age + 1 then
-        supplies_threat = function(h) return threat(math.min(h, P.up_age - 1 - age)) end
-    end
-    if runby then
-        supplies_threat = function(h) return threat(math.min(h, QD.RAID_PLAY_BLOAT_RUNBY_EAT_TICKS)) end
-    end
-    intent.eat, intent.drink, intent.need = QD.raid._play_supplies(st, v, supplies_threat)
-    if N.offence_pots and intent.drink == nil then
-        intent.drink = QD.raid._play_bloat_offence(st, v, phase)
-    end
-    intent.attack = QD.raid._play_attack(st, v, intent.attack and intent.walk == nil)
-    if N.down_spec ~= nil then
-        QD.raid._play_bloat_down_spec(st, v, phase, age, intent)
-    end
-    return intent
+    st.bl = f
+    return f
 end
 
--- raid seam49 play_tob_bloat_round2: THE DOWN'S SPECIAL.  The reference's
--- trios open a down with a special: the Dragon claws in down 2 in 12 of 19
--- rooms, the crystal halberd in down 1 in 17-18 of 19 (seam49 against_1.log,
--- weapon flags).  This content's crystal halberd special is ONE hit (its
--- large-target second hit is not reproduced: pvm_dragon_halberd.rs2:18-26,
--- no npc_size opcode), so on a 7-tick weapon it costs damage against a
--- scythe swing here; the claws (four hits, 4 ticks, pvm_dragon_claws.rs2)
--- are the special this content can land, and the energy for two (100%) is
--- spent on the first two downs, the first attack of each.  The claws go on
--- during the walk (no attack is lost: the walk has none), the special is
--- armed from the orb (varp301 read, so a second press never disarms it),
--- the attack press carries it, and the scythe goes back on the tick the
--- energy falls by the cost (varp300; DRIVER_NOTES seam10).
-QD.RAID_PLAY_BLOAT_CLAWS_COST = 500
-QD.RAID_PLAY_BLOAT_CLAWS_GIVE_UP = 8   -- ticks armed with no energy spent
-function QD.raid._play_bloat_down_spec(st, v, phase, age, intent)
-    local N = st.numbers
-    local ds = st.down_spec
-    if ds == nil then
-        ds = { worn = false, fired = 0, log = {} }
-        st.down_spec = ds
+-- THE EVENTS, derived ONCE a tick from the facts and the tick view, here and
+-- nowhere else (QD.raid.sm_events caches the list on the raider), so the four
+-- machines see one reading of the tick.  A state that does not name an event
+-- ignores it, and what it ignores is visible in the declaration by what is
+-- absent.
+--
+--   tick              {tick, hp}          every tick, by the layer's convention
+--   orb               {energy}            the special-attack orb, read once
+--   boss_absent       {}                  his row is not in this raider's view
+--   HIS ANIMATION, one of (ENCOUNTER_TIMING.md 3.1):
+--   walks             {x, z, to_x, to_z}  up and walking the ring; to_* is
+--                                         where he will be two ticks on
+--   down_anim         {age, index}        down and attackable, T+0..T+28
+--   stomp             {age, in_stomp}     his stomp, T+29
+--   rises             {age}               the rise, T+30..T+32
+--   THE HAZARDS:
+--   flies             {hidden, fly, x, z} every tick he is up, every raider
+--                                         with line of sight takes 10-20
+--                                         (x0.75 prayed) and the hit SPREADS
+--                                         -- the test is re-run from each
+--                                         raider hit to every other raider
+--                                         (ET 3.3).  This seat's screen can
+--                                         answer only his line to itself, so
+--                                         `hidden` is that; the spread is why
+--                                         the hide is worth its tiles.  x, z
+--                                         is the tile he cannot see.
+--   limbs             {count}             the falling limbs live this tick
+--                                         (their shadows, dated by animation)
+--   limb_underfoot    {x, z}              one of them is on my own tile
+--   THE RAIDER'S DUTY, exactly one a tick:
+--   swing_window      {age}               in and swinging (the leave is not due)
+--   leave_window      {age}               out of the stomp's reach
+--   rise_window       {age}               back in for the rise swing
+--   tick_eat_window   {age}               Entry: swing, the stomp is eaten
+--   stomp_eat_window  {age}               Entry: T+29, stand and eat it
+--   flinch_window     {age}               Entry: the click back on the rise
+-- (`flies` is the walk's duty as well as its hazard: the tick set is the
+-- same -- every tick he is up is a tick to be out of his sight.)
+function QD.raid._bloat_events(st, v)
+    assert(st, "_bloat_events: st")
+    assert(v, "_bloat_events: v")
+    local P, N = st.plan, st.numbers
+    local out = {}
+    local function raise(name, e)
+        e = e or {}
+        e.name = name
+        out[#out + 1] = e
     end
+    raise("tick", { tick = v.tick, hp = v.hp })
+    -- the orb before his animation: the run-by's swinging state reads the
+    -- energy it spent before it reads the phase it gave up on, which is the
+    -- order the old body checked them in
     local _, energy = QD.var.varp("varp300_sa_energy")
-    energy = tonumber(energy) or 0
-    local function back()
-        if intent.gear == nil then intent.gear = {} end
-        intent.gear[#intent.gear + 1] = "scythe_of_vitur"
-        ds.worn = false
-        ds.armed = nil
-        st.engaged = false
+    raise("orb", { energy = tonumber(energy) or 0 })
+    if v.boss == nil then
+        raise("boss_absent", {})
+        return out
     end
-    if ds.armed ~= nil then
-        if energy <= ds.energy0 - QD.RAID_PLAY_BLOAT_CLAWS_COST then
-            ds.fired = ds.fired + 1
-            ds.log[#ds.log + 1] = "fired t" .. v.tick .. " age " .. age
-            if st.down ~= nil then st.down.spec_fired = v.tick end
-            back()
-        elseif v.tick - ds.armed > QD.RAID_PLAY_BLOAT_CLAWS_GIVE_UP or (phase == "walk" and ds.armed_phase == "down") then
-            ds.log[#ds.log + 1] = "gave up t" .. v.tick
-            back()
+    local f = st.bl
+    assert(f ~= nil, "_bloat_events: st.bl (call after QD.raid._bloat_facts)")
+    assert(f.tick == v.tick, "_bloat_events: st.bl is last tick's reading")
+    local b, age = v.boss, f.age
+    if f.phase == "walk" then
+        raise("walks", { x = b.x, z = b.z, to_x = f.fx, to_z = f.fz })
+    elseif age < P.stomp_age then
+        raise("down_anim", { age = age, index = st.down ~= nil and st.down.index or nil })
+    elseif age == P.stomp_age then
+        raise("stomp", { age = age, in_stomp = f.in_stomp })
+    else
+        raise("rises", { age = age })
+    end
+    if f.phase == "walk" then
+        raise("flies", { hidden = f.hidden, fly = f.fly, x = f.hide_x, z = f.hide_z })
+    elseif N.stomp_plan == "stay" then
+        if age < P.stomp_age then
+            raise("tick_eat_window", { age = age })
+        elseif age < P.rise_age then
+            raise("stomp_eat_window", { age = age })
         else
-            local _, armed = QD.var.varp("varp301_sa_attack")
-            if tonumber(armed) == 0 and intent.attack and v.tick - ds.armed >= 2 then
-                intent.spec = true
-            end
+            raise("flinch_window", { age = age })
         end
-        return
+    elseif f.rise_open then
+        raise("rise_window", { age = age })
+    elseif age < f.leave_age then
+        raise("swing_window", { age = age })
+    else
+        raise("leave_window", { age = age, leave_age = f.leave_age })
     end
-    local want = ds.fired < N.down_spec and energy >= QD.RAID_PLAY_BLOAT_CLAWS_COST
-    if not want then
-        if ds.worn and phase == "walk" then back() end
-        return
-    end
-    if not ds.worn then
-        if phase == "walk" and intent.gear == nil then
-            intent.gear = { "dragon_claws" }
-            ds.worn = true
-        end
-        return
-    end
-    -- worn and wanted: arm with the down's first attack press
-    if phase == "down" and intent.attack and (st.down == nil or st.down.spec_fired == nil) then
-        local _, armed = QD.var.varp("varp301_sa_attack")
-        if tonumber(armed) == 0 then intent.spec = true end
-        ds.armed = v.tick
-        ds.armed_phase = phase
-        ds.energy0 = energy
-        ds.log[#ds.log + 1] = "armed t" .. v.tick .. " age " .. age .. " energy " .. energy
-    end
+    local limbs = 0
+    for _ in pairs(v.shadows) do limbs = limbs + 1 end
+    raise("limbs", { count = limbs })
+    if f.on_shadow then raise("limb_underfoot", { x = v.me.x, z = v.me.z }) end
+    return out
 end
 
--- raid seam32 play_tob_bloat_normal: THE RUN-BY.  W:687 "While optional, one
--- or two players should do a run-by on the boss with a Bandos godsword special
--- to lower its Defence"; the Dragon warhammer is the drain this cache has
--- (N.runby; tob_bloat_normal.lua:5) and drains 30% of the current Defence when
--- its hit is above 0 (DRIVER_NOTES "Bloat: Defence reads 80 of 80 after a
--- Dragon warhammer special").  Who: the one raider in the room before the
--- first down (W:687-689: the rest enter on the down), on the first walk.
--- The kit goes on in one block, the special is armed from the orb with the
--- attack press the next tick, and the swing is SEEN as the energy it spends
--- (varp300, the special orb's own number).  The hammer stays on until the
--- special's splat shows on Bloat (a 0 drains nothing and is swung again while
--- the energy lasts); on that tick the scythe goes back on in the same block as
--- the walk back to the hide tile ("the scythe back the same tick").  The stomp restores Defence (W:675), so the drain serves
--- the first down.  Returns true while the run-by owns the tick (no hide walk;
--- the attack press is the approach).  st.runby is the record.
+-- HIS CYCLE (ENCOUNTER_TIMING.md 3.1, the plan table's down_seq/down_ticks/
+-- stomp_age/rise_age/up_age).  He walks the ring round the tank throwing
+-- flies every tick; he goes down (seq 8082, T), and is attackable and
+-- harmless T+1..T+28; he stomps T+29; he rises T+30..T+32 and is up again
+-- T+33, when the flies resume and damage to him is halved once more.  `dead`
+-- is his row gone from this raider's view -- the play itself ends on his
+-- npc_death row (raid_play.lua _play_tick), so this state is what a seat
+-- sees before it has crossed the barrier and after the kill, and it goes
+-- back on his next animation because a gone row is not a death
+-- (raid seam31 FAULT 4).
+--
+-- The machine states where he is; it answers no intent.  The raider's own
+-- machine below reacts to the same animation events with the duty they put
+-- on it, which is why this one holds no play.
+QD.raid.sm_declare("bloat_cycle", {
+    start = "active",
+    states = {
+        -- up and walking: the flies are in the air every tick
+        active = { on = {
+            walks     = function(c, ev) return nil end,            -- still walking
+            down_anim = function(c, ev) return nil, "down" end,     -- he goes down
+            stomp     = function(c, ev) return nil, "stomp" end,
+            rises     = function(c, ev) return nil, "rising" end,
+            boss_absent = function(c, ev) return nil, "dead" end,
+        } },
+        -- down and attackable, T+0..T+28
+        down = { on = {
+            down_anim = function(c, ev) return nil end,             -- still down
+            stomp     = function(c, ev) return nil, "stomp" end,
+            rises     = function(c, ev) return nil, "rising" end,
+            walks     = function(c, ev) return nil, "active" end,   -- up early (a cut-short down)
+            boss_absent = function(c, ev) return nil, "dead" end,
+        } },
+        -- T+29: 40-80 to everything within stomp_range of his centre, and
+        -- his Defence back to base (W:675)
+        stomp = { on = {
+            stomp     = function(c, ev) return nil end,
+            rises     = function(c, ev) return nil, "rising" end,
+            down_anim = function(c, ev) return nil, "down" end,     -- a fresh down
+            walks     = function(c, ev) return nil, "active" end,
+            boss_absent = function(c, ev) return nil, "dead" end,
+        } },
+        -- T+30..T+32, the flinch window: full damage, no flies yet
+        rising = { on = {
+            rises     = function(c, ev) return nil end,
+            walks     = function(c, ev) return nil, "active" end,   -- UP, T+33
+            down_anim = function(c, ev) return nil, "down" end,     -- a fresh down
+            stomp     = function(c, ev) return nil, "stomp" end,
+            boss_absent = function(c, ev) return nil, "dead" end,
+        } },
+        -- his row is not in view: before the crossing, and after the kill
+        dead = { on = {
+            boss_absent = function(c, ev) return nil end,
+            walks     = function(c, ev) return nil, "active" end,
+            down_anim = function(c, ev) return nil, "down" end,
+            stomp     = function(c, ev) return nil, "stomp" end,
+            rises     = function(c, ev) return nil, "rising" end,
+        } },
+    },
+})
+
+-- THE PRAYERS, the one rule the raider's states share, because its boundary
+-- is a tick of HIS cycle and not a state's choice: the down prayers through
+-- the attackable window (Piety -- no source flicks it here), and the walk's
+-- Protect from Missiles from T+32, the tick before the first fly of the rise
+-- (W:673 "reduced by 25% if Protect from Missiles are active"; the flies are
+-- sent every tick he is up, so the prayer must already be lit on T+33).
+function QD.raid._bloat_pray(c)
+    assert(c, "_bloat_pray: c")
+    local P, f = c.P, c.f
+    local list = P.walk_prayers
+    if f.phase == "down" and f.age < P.up_age - 1 then list = P.down_prayers end
+    for _, name in ipairs(list) do c.intent.want[name] = true end
+end
+
+-- THE DUTIES.  One function a duty: what the raider writes on the tick's
+-- intent when it owes that duty, whatever state it was in when the duty came
+-- (c.go is the plan's own walk target, which the executor at the end of the
+-- decide turns into a walk through the hazard step and the route dodge).
+-- The states below subscribe these, so the work is written once and the
+-- declaration is only about where each duty leads.
+
+-- HIDE: out of his sight behind the tank ("Hug the pillar and hide from
+-- Bloat as it walks around the room", W:687), off every shadow, with
+-- Protect from Missiles lit.  owner_rooms4: the tile is the mirror through
+-- the tank clamped to its ring -- THE FAR SIDE from him, not the nearest
+-- hidden tile, which is what the recorded trios stand on (the plan table's
+-- hug_tank/hug_seen block).
+function QD.raid._bloat_hide(c, ev)
+    assert(c, "_bloat_hide: c")
+    assert(ev, "_bloat_hide: ev")
+    QD.raid._bloat_pray(c)
+    c.go.x, c.go.z = ev.x, ev.z
+end
+
+-- SWING: "As soon as Bloat deactivates ... begin attacking with melee"
+-- (W:689), on cooldown, with Piety.  No target of its own: the attack
+-- press's own path walks the raider in (_play_reach).
+function QD.raid._bloat_swing(c, ev)
+    assert(c, "_bloat_swing: c")
+    assert(ev, "_bloat_swing: ev")
+    QD.raid._bloat_pray(c)
+    c.intent.attack = true
+end
+
+-- LEAVE: "it is recommended to run away after the last attack" (W:689), out
+-- to the straight-leave tile past the stomp's reach while the stomp is still
+-- ahead (raid seam49 N.leave_straight), else the mirror tile through the
+-- tank, else the hug tile when one is hidden.
+function QD.raid._bloat_leave(c, ev)
+    assert(c, "_bloat_leave: c")
+    assert(ev, "_bloat_leave: ev")
+    local P, O, st, f = c.P, c.O, c.st, c.f
+    QD.raid._bloat_pray(c)
+    c.intent.attack = false
+    local b = c.v.boss
+    local x, z = 2 * O.x + P.mirror[1] - b.x, 2 * O.z + P.mirror[2] - b.z
+    local lt = st.down ~= nil and st.down.leave_at ~= nil and st.down.leave_at.tile or nil
+    if lt ~= nil and f.age <= P.stomp_age then
+        x, z = lt.x, lt.z
+    elseif f.hug_x ~= nil then
+        x, z = f.hug_x, f.hug_z
+    end
+    c.go.x, c.go.z = x, z
+end
+
+-- RISE SWING (raid seam51, N.rise_swing).  The stomp is T+29 and he is UP
+-- (damage halved, flies) only from T+33, so the rise T+30..T+32 is a
+-- full-damage window: the reference's last swing of a down is at age 26.5
+-- median, p90 31, and the flinch guide's "when he starts to get back up ...
+-- that's when you click back" is the same window from the other side.
+-- Without it a raider swung five times a down against the reference's six
+-- (seam49 survey_5).  The press is decided on ages 29 and 30 -- the stomp
+-- resolves in the NPC turn of T+29 before any player moves (ET 1.1), so the
+-- way back in lands after it and the swing comes on T+30-31 -- and through
+-- age 31 until the raider's own swing shows (iteration 3: a raider that ate
+-- on the leave reached its tile on age 30 with the weapon not ready, and the
+-- age-31 hide cancelled the swing, seam51 survey_2 down2 p0 and p2).  From
+-- age 32 the duty is the leave again, for the first fly.
+function QD.raid._bloat_rise(c, ev)
+    assert(c, "_bloat_rise: c")
+    assert(ev, "_bloat_rise: ev")
+    QD.raid._bloat_pray(c)
+    c.intent.attack = true
+end
+
+-- ENTRY'S STOMP PLAN (N.stomp_plan == "stay").  The stomp is tick-eaten in
+-- place (wiki :675 "It is possible to tick eat this attack") and the flinch
+-- is the click back on the rise (ENCOUNTER_TIMING.md 3.1), so Entry has
+-- three down duties where Normal has three of its own: swing, stand, click
+-- back.
+function QD.raid._bloat_tick_eat(c, ev)
+    assert(c, "_bloat_tick_eat: c")
+    assert(ev, "_bloat_tick_eat: ev")
+    QD.raid._bloat_pray(c)
+    c.intent.attack = true
+end
+
+function QD.raid._bloat_stomp_eat(c, ev)
+    assert(c, "_bloat_stomp_eat: c")
+    assert(ev, "_bloat_stomp_eat: ev")
+    QD.raid._bloat_pray(c)
+    c.intent.attack = false
+end
+
+function QD.raid._bloat_flinch(c, ev)
+    assert(c, "_bloat_flinch: c")
+    assert(ev, "_bloat_flinch: ev")
+    local P, O = c.P, c.O
+    QD.raid._bloat_pray(c)
+    c.intent.attack = false
+    local b = c.v.boss
+    c.go.x, c.go.z = 2 * O.x + P.mirror[1] - b.x, 2 * O.z + P.mirror[2] - b.z
+end
+
+-- A LIMB UNDERFOOT, for a state whose duty sets no target of its own: the
+-- raider's own tile becomes the target, so the hazard step and the safe
+-- route step it off (raid_play.lua _play_hazard; a hand is judged on the
+-- tile the raider ends the tick before its impact on, ET 3.4).  The states
+-- that DO set a target ignore this event on purpose: their tile was already
+-- chosen off every live shadow (the hug's own test, the leave tile's, and
+-- the route dodge's).
+function QD.raid._bloat_step_off(c, ev)
+    assert(c, "_bloat_step_off: c")
+    assert(ev, "_bloat_step_off: ev")
+    c.go.step_off = true
+end
+
+-- the duty handlers: the work, and the state the duty belongs to.  A state
+-- that owes its own duty stays put (the layer ignores a transition to the
+-- state the machine is already in), so one handler serves both readings.
+local function duty_hide(c, ev) QD.raid._bloat_hide(c, ev) return nil, "hiding" end
+local function duty_swing(c, ev) QD.raid._bloat_swing(c, ev) return nil, "attacking" end
+local function duty_leave(c, ev) QD.raid._bloat_leave(c, ev) return nil, "leaving" end
+local function duty_rise(c, ev) QD.raid._bloat_rise(c, ev) return nil, "rise_swing" end
+local function duty_tick_eat(c, ev) QD.raid._bloat_tick_eat(c, ev) return nil, "tick_eat" end
+local function duty_stomp_eat(c, ev) QD.raid._bloat_stomp_eat(c, ev) return nil, "stomp_eat" end
+local function duty_flinch(c, ev) QD.raid._bloat_flinch(c, ev) return nil, "flinch" end
+local function duty_outside(c, ev) return nil, "outside" end
+local function step_off(c, ev) QD.raid._bloat_step_off(c, ev) end
+
+-- THE RAIDER'S ROLE.  Every state handles every duty: its own by doing the
+-- work and staying, another's by doing that work and going there -- so the
+-- nine `on` tables below are the room's whole transition table, forward and
+-- backward.
+--
+--   outside     his row is not in view: the seats waiting outside the
+--               barrier (p2/p3 click it and the plan's first ticks run while
+--               they cross) and the ticks after the kill.  The tick's intent
+--               is empty, which is what the old body's early return did.
+--   run_by      the starter's Defence drain owns the tick (bloat_runby
+--               below): no hide walk, because the attack press IS the
+--               approach.  Entered by force from the decide, with the reason
+--               -- the run-by's own machine knows whether it owns the tick,
+--               and that is not a reading the derivation can take.  Left by
+--               the next duty, like any other state.
+--   hiding      the walk: the far-side ring tile he cannot see, Protect from
+--               Missiles lit.
+--   attacking   the attackable window: in and swinging with Piety.
+--   leaving     the run out of the stomp's reach, before it lands.
+--   rise_swing  the way back in for the full-damage rise.
+--   tick_eat /  Entry's stomp plan: swing, stand and eat the stomp, then
+--   stomp_eat / click back on the rise.
+--   flinch
+QD.raid.sm_declare("bloat_raider", {
+    start = "outside",
+    states = {
+        outside = { on = {
+            boss_absent = function(c, ev) return nil end,
+            flies = duty_hide, swing_window = duty_swing, leave_window = duty_leave,
+            rise_window = duty_rise, tick_eat_window = duty_tick_eat,
+            stomp_eat_window = duty_stomp_eat, flinch_window = duty_flinch,
+        } },
+        run_by = { on = {
+            boss_absent = duty_outside,
+            flies = duty_hide, swing_window = duty_swing, leave_window = duty_leave,
+            rise_window = duty_rise, tick_eat_window = duty_tick_eat,
+            stomp_eat_window = duty_stomp_eat, flinch_window = duty_flinch,
+            -- it sets no target of its own while the special is swung
+            limb_underfoot = step_off,
+        } },
+        hiding = { on = {
+            boss_absent = duty_outside,
+            flies = duty_hide, swing_window = duty_swing, leave_window = duty_leave,
+            rise_window = duty_rise, tick_eat_window = duty_tick_eat,
+            stomp_eat_window = duty_stomp_eat, flinch_window = duty_flinch,
+        } },
+        attacking = { on = {
+            boss_absent = duty_outside,
+            flies = duty_hide, swing_window = duty_swing, leave_window = duty_leave,
+            rise_window = duty_rise, tick_eat_window = duty_tick_eat,
+            stomp_eat_window = duty_stomp_eat, flinch_window = duty_flinch,
+            limb_underfoot = step_off,
+        } },
+        leaving = { on = {
+            boss_absent = duty_outside,
+            flies = duty_hide, swing_window = duty_swing, leave_window = duty_leave,
+            rise_window = duty_rise, tick_eat_window = duty_tick_eat,
+            stomp_eat_window = duty_stomp_eat, flinch_window = duty_flinch,
+        } },
+        rise_swing = {
+            -- the record the harness reads, written once per down on the way
+            -- in (the old body's st.down.rise)
+            enter = function(c, ev)
+                local st, v = c.st, c.v
+                if st.down ~= nil and st.down.rise == nil then
+                    st.down.rise = { tick = v.tick, age = c.f.age }
+                end
+            end,
+            on = {
+                boss_absent = duty_outside,
+                flies = duty_hide, swing_window = duty_swing, leave_window = duty_leave,
+                rise_window = duty_rise, tick_eat_window = duty_tick_eat,
+                stomp_eat_window = duty_stomp_eat, flinch_window = duty_flinch,
+                limb_underfoot = step_off,
+            },
+        },
+        tick_eat = { on = {
+            boss_absent = duty_outside,
+            flies = duty_hide, swing_window = duty_swing, leave_window = duty_leave,
+            rise_window = duty_rise, tick_eat_window = duty_tick_eat,
+            stomp_eat_window = duty_stomp_eat, flinch_window = duty_flinch,
+            limb_underfoot = step_off,
+        } },
+        stomp_eat = { on = {
+            boss_absent = duty_outside,
+            flies = duty_hide, swing_window = duty_swing, leave_window = duty_leave,
+            rise_window = duty_rise, tick_eat_window = duty_tick_eat,
+            stomp_eat_window = duty_stomp_eat, flinch_window = duty_flinch,
+            limb_underfoot = step_off,
+        } },
+        flinch = { on = {
+            boss_absent = duty_outside,
+            flies = duty_hide, swing_window = duty_swing, leave_window = duty_leave,
+            rise_window = duty_rise, tick_eat_window = duty_tick_eat,
+            stomp_eat_window = duty_stomp_eat, flinch_window = duty_flinch,
+        } },
+    },
+})
+
+-- raid seam32 play_tob_bloat_normal, ported to raid_sm 2026-10-07: THE
+-- STARTER'S RUN-BY.  W:687 "While optional, one or two players should do a
+-- run-by on the boss with a Bandos godsword special to lower its Defence";
+-- the Dragon warhammer is the drain this cache has (N.runby;
+-- tob_bloat_normal.lua:5) and drains 30% of the current Defence when its hit
+-- is above 0 (DRIVER_NOTES "Bloat: Defence reads 80 of 80 after a Dragon
+-- warhammer special").  Who: the one raider in the room before the first
+-- down (W:687-689: the rest enter on the down), on the first walk -- the
+-- CALLER's question, asked once in the decide.  The stomp restores Defence
+-- (W:675), so the drain serves the first down.
+--
+-- A SPECIAL IS SEEN AS THE ENERGY IT SPENDS (varp300, the special orb's own
+-- number), so this machine is driven by the `orb` event, and one handler a
+-- state keeps each stage's checks in the order the old stage field read them
+-- (the energy before the phase it gives up on).  The phase it gives up on is
+-- the facts' (c.f.phase), the derivation's single reading, not one of its
+-- own.  While a state owns the tick it sets rb.owns, and the decide then
+-- forces the raider's own machine into `run_by`: no hide walk, because the
+-- attack press is the approach.
+--
+--   waiting    -> equipping  the energy for one special and the hitpoints to
+--                            stand in the flies: the hammer goes on
+--   equipping  -> swinging   the special armed from the orb with the attack
+--                            press
+--   swinging   -> fired      the orb's energy fell by the cost
+--   fired      -> swinging    a 0 splat drains nothing: swing again while the
+--                            energy and the walk last (RUNBY_TRIES)
+--   fired      -> done       the splat showed, or none in three ticks: the
+--                            scythe back on in the same block as the walk
+--                            back to the hide tile
+--   any        -> gave_up    the first down came first, or no energy spent in
+--                            RUNBY_GIVE_UP ticks
 QD.RAID_PLAY_BLOAT_SPEC_COST = 500      -- the Dragon warhammer's special (DRIVER_NOTES seam10: "falls by 500 (DWH)")
 QD.RAID_PLAY_BLOAT_RUNBY_GIVE_UP = 24   -- ticks from the arm with no energy spent (the seam's bound: four DWH swings)
 -- Specials one run-by may spend.  1000 energy is two hammer specials, but a
@@ -897,103 +1214,378 @@ QD.RAID_PLAY_BLOAT_RUNBY_GIVE_UP = 24   -- ticks from the arm with no energy spe
 -- other tick and never swinging (_play_bloat t65-91, hitpoints 18-47): one.
 QD.RAID_PLAY_BLOAT_RUNBY_TRIES = 1
 QD.RAID_PLAY_BLOAT_RUNBY_EAT_TICKS = 3  -- the run-by's supplies horizon (the seam's choice: three flies, 45 with the prayer)
-function QD.raid._play_bloat_runby(st, v, phase, intent)
-    local N = st.numbers
-    if N.runby == nil or st.party <= 1 or st.role ~= 1 then
-        return false
-    end
+
+QD.raid.sm_declare("bloat_runby", {
+    start = "waiting",
+    states = {
+        waiting = {
+            note = "the first walk, waiting for the energy and the hitpoints",
+            on = {
+                orb = function(c, ev)
+                    local st, v, rb = c.st, c.v, c.rb
+                    if c.f.phase ~= "walk" or #st.downs > 0 then
+                        rb.why = "the first down came first"
+                        return nil, "gave_up"
+                    end
+                    if ev.energy < QD.RAID_PLAY_BLOAT_SPEC_COST or v.hp < 70 then
+                        return nil
+                    end
+                    rb.equip_tick = v.tick
+                    rb.energy0 = ev.energy
+                    QD.raid._bloat_pray(c)
+                    c.intent.gear = { rb.weapon }
+                    c.intent.want.piety = true
+                    rb.owns = true
+                    return nil, "equipping"
+                end,
+            },
+        },
+        equipping = {
+            note = "the hammer in hand; the special is armed with the next attack press",
+            on = {
+                orb = function(c, ev)
+                    local v, rb = c.v, c.rb
+                    QD.raid._bloat_pray(c)
+                    c.intent.want.piety = true
+                    rb.arm_tick = v.tick
+                    c.intent.spec = true
+                    c.intent.attack = true
+                    c.st.engaged = false
+                    rb.owns = true
+                    return nil, "swinging"
+                end,
+                limb_underfoot = step_off,
+            },
+        },
+        swinging = {
+            note = "armed and swinging: the special is spent when the orb's energy falls by its cost",
+            on = {
+                orb = function(c, ev)
+                    local v, rb, f = c.v, c.rb, c.f
+                    QD.raid._bloat_pray(c)
+                    c.intent.want.piety = true
+                    if ev.energy <= rb.energy0 - QD.RAID_PLAY_BLOAT_SPEC_COST then
+                        rb.fired = v.tick
+                        rb.energy1 = ev.energy
+                        rb.cycle_at_fire = v.boss ~= nil and v.boss.hit_cycle or nil
+                        rb.owns = true
+                        return nil, "fired"
+                    end
+                    if v.tick - rb.arm_tick > QD.RAID_PLAY_BLOAT_RUNBY_GIVE_UP or f.phase ~= "walk" then
+                        rb.why = "no energy spent in " .. (v.tick - rb.arm_tick) .. " ticks (phase " .. f.phase .. ")"
+                        c.intent.gear = { "scythe_of_vitur" }
+                        c.intent.want.piety = nil
+                        return nil, "gave_up"
+                    end
+                    -- re-arm if the orb reads unarmed two ticks on and nothing was spent
+                    local _, armed = QD.var.varp("varp301_sa_attack")
+                    if tonumber(armed) == 0 and v.tick - rb.arm_tick >= 2 and (rb.rearm or 0) < 3 then
+                        rb.rearm = (rb.rearm or 0) + 1
+                        rb.arm_tick_last = v.tick
+                        c.intent.spec = true
+                    end
+                    c.intent.attack = true
+                    rb.owns = true
+                end,
+                limb_underfoot = step_off,
+            },
+        },
+        fired = {
+            note = "the hammer stays on until the special's own splat shows on Bloat",
+            on = {
+                orb = function(c, ev)
+                    local v, rb, f = c.v, c.rb, c.f
+                    QD.raid._bloat_pray(c)
+                    c.intent.want.piety = true
+                    local b = v.boss
+                    local seen = b ~= nil and b.hit_cycle ~= nil and rb.cycle_at_fire ~= nil
+                        and b.hit_cycle > rb.cycle_at_fire
+                    if seen then
+                        rb.splat = b.hit_damage
+                        rb.splats[#rb.splats + 1] = tostring(b.hit_damage) .. "@t" .. v.tick
+                    end
+                    -- a 0 splat drains nothing (DRIVER_NOTES seam10): with the
+                    -- energy for another and the walk still on, arm again
+                    if seen and rb.splat == 0 and ev.energy >= QD.RAID_PLAY_BLOAT_SPEC_COST
+                        and f.phase == "walk" and #rb.splats < QD.RAID_PLAY_BLOAT_RUNBY_TRIES then
+                        rb.arm_tick = v.tick
+                        rb.energy0 = ev.energy
+                        c.intent.spec = true
+                        c.intent.attack = true
+                        c.st.engaged = false
+                        rb.owns = true
+                        return nil, "swinging"
+                    end
+                    if seen or v.tick - rb.fired >= 3 or f.phase ~= "walk" then
+                        c.intent.gear = { "scythe_of_vitur" }
+                        c.intent.want.piety = nil
+                        return nil, "done"
+                    end
+                    rb.owns = true
+                end,
+                limb_underfoot = step_off,
+            },
+        },
+        -- the drain is done, or it never happened: the raider plays the room
+        -- like every other seat from here (its own machine owns every tick)
+        done = { note = "the scythe back on, the drain spent" },
+        gave_up = { note = "the first down came first, or no energy was spent" },
+    },
+})
+
+-- st.runby is the record the harness reads; rb.owns is this tick's answer.
+function QD.raid._bloat_run_by(st, v, c, events)
+    assert(st, "_bloat_run_by: st")
+    assert(v, "_bloat_run_by: v")
+    assert(c, "_bloat_run_by: c")
+    assert(type(events) == "table", "_bloat_run_by: events")
     local rb = st.runby
     if rb == nil then
-        rb = { stage = "wait", weapon = N.runby, splats = {} }
+        rb = { weapon = st.numbers.runby, splats = {} }
         st.runby = rb
     end
-    if rb.stage == "done" or rb.stage == "gave_up" then
-        return false
+    rb.owns = false
+    c.rb = rb
+    local m = QD.raid.sm_run(st, v, "bloat_runby", c, events)
+    rb.stage = m.state
+    return rb.owns
+end
+
+-- raid seam49 play_tob_bloat_round2, ported to raid_sm 2026-10-07: THE
+-- DOWN'S SPECIAL.  The reference's trios open a down with a special: the
+-- Dragon claws in down 2 in 12 of 19 rooms, the crystal halberd in down 1 in
+-- 17-18 of 19 (seam49 against_1.log, weapon flags).  This content's crystal
+-- halberd special is ONE hit (its large-target second hit is not reproduced:
+-- pvm_dragon_halberd.rs2:18-26, no npc_size opcode), so on a 7-tick weapon it
+-- costs damage against a scythe swing here; the claws (four hits, 4 ticks,
+-- pvm_dragon_claws.rs2) are the special this content can land, and the energy
+-- for two (100%) is spent on the first two downs, the first attack of each.
+--
+-- THE GEAR CHANGES BELONG TO THE STATES: the claws go on during the walk (no
+-- attack is lost: the walk has none), the special is armed from the orb with
+-- the down's first attack press (varp301 read, so a second press never
+-- disarms it), and the scythe goes back on the tick the energy falls by the
+-- cost (varp300; DRIVER_NOTES seam10).
+--
+--   stowed -> worn   a walk tick, the energy for a special, and nothing else
+--                    claiming the gear channel this tick
+--   worn   -> armed  the down's first attack press carries the special
+--   armed  -> stowed the energy fell (fired), or it never did (given up):
+--                    the scythe back on
+--   armed  -> spent  the last of N.down_spec specials has fired
+QD.RAID_PLAY_BLOAT_CLAWS_COST = 500
+QD.RAID_PLAY_BLOAT_CLAWS_GIVE_UP = 8   -- ticks armed with no energy spent
+
+-- the scythe back on, in the same block as whatever walk this tick carries
+function QD.raid._bloat_claws_back(c)
+    assert(c, "_bloat_claws_back: c")
+    local intent = c.intent
+    if intent.gear == nil then intent.gear = {} end
+    intent.gear[#intent.gear + 1] = "scythe_of_vitur"
+    c.ds.worn = false
+    c.ds.armed = nil
+    c.st.engaged = false
+end
+
+-- is another special still owed, and is the orb holding its cost?
+local function claws_wanted(c, ev)
+    return c.ds.fired < c.N.down_spec and ev.energy >= QD.RAID_PLAY_BLOAT_CLAWS_COST
+end
+
+QD.raid.sm_declare("bloat_down_spec", {
+    start = "stowed",
+    states = {
+        stowed = {
+            note = "the scythe in hand, the claws carried",
+            on = {
+                orb = function(c, ev)
+                    if not claws_wanted(c, ev) then return nil end
+                    if c.f.phase == "walk" and c.intent.gear == nil then
+                        c.intent.gear = { "dragon_claws" }
+                        c.ds.worn = true
+                        return nil, "worn"
+                    end
+                end,
+            },
+        },
+        worn = {
+            note = "the claws in hand, waiting for the down's first attack press",
+            on = {
+                orb = function(c, ev)
+                    local st, v, ds, f = c.st, c.v, c.ds, c.f
+                    if not claws_wanted(c, ev) then
+                        if f.phase == "walk" then
+                            QD.raid._bloat_claws_back(c)
+                            return nil, "stowed"
+                        end
+                        return nil
+                    end
+                    if f.phase == "down" and c.intent.attack
+                        and (st.down == nil or st.down.spec_fired == nil) then
+                        local _, armed = QD.var.varp("varp301_sa_attack")
+                        if tonumber(armed) == 0 then c.intent.spec = true end
+                        ds.armed = v.tick
+                        ds.armed_phase = f.phase
+                        ds.energy0 = ev.energy
+                        ds.log[#ds.log + 1] = "armed t" .. v.tick .. " age " .. f.age .. " energy " .. ev.energy
+                        return nil, "armed"
+                    end
+                end,
+            },
+        },
+        armed = {
+            note = "the special armed; it is SEEN as the energy it spends",
+            on = {
+                orb = function(c, ev)
+                    local st, v, ds, f = c.st, c.v, c.ds, c.f
+                    if ev.energy <= ds.energy0 - QD.RAID_PLAY_BLOAT_CLAWS_COST then
+                        ds.fired = ds.fired + 1
+                        ds.log[#ds.log + 1] = "fired t" .. v.tick .. " age " .. f.age
+                        if st.down ~= nil then st.down.spec_fired = v.tick end
+                        QD.raid._bloat_claws_back(c)
+                        if ds.fired >= c.N.down_spec then return nil, "spent" end
+                        return nil, "stowed"
+                    end
+                    if v.tick - ds.armed > QD.RAID_PLAY_BLOAT_CLAWS_GIVE_UP
+                        or (f.phase == "walk" and ds.armed_phase == "down") then
+                        ds.log[#ds.log + 1] = "gave up t" .. v.tick
+                        QD.raid._bloat_claws_back(c)
+                        return nil, "stowed"
+                    end
+                    local _, armed = QD.var.varp("varp301_sa_attack")
+                    if tonumber(armed) == 0 and c.intent.attack and v.tick - ds.armed >= 2 then
+                        c.intent.spec = true
+                    end
+                end,
+            },
+        },
+        spent = { note = "every special this plan spends has fired" },
+    },
+})
+
+-- st.down_spec is the record the harness reads (its log lines and the count)
+function QD.raid._bloat_down_spec(st, v, c, events)
+    assert(st, "_bloat_down_spec: st")
+    assert(v, "_bloat_down_spec: v")
+    assert(c, "_bloat_down_spec: c")
+    assert(type(events) == "table", "_bloat_down_spec: events")
+    local ds = st.down_spec
+    if ds == nil then
+        ds = { worn = false, fired = 0, log = {} }
+        st.down_spec = ds
     end
-    local _, energy = QD.var.varp("varp300_sa_energy")
-    energy = tonumber(energy) or 0
-    if rb.stage == "wait" then
-        -- the first walk, with the energy for one special and the hitpoints
-        -- to stand in the flies while it is swung
-        if phase ~= "walk" or #st.downs > 0 then
-            rb.stage = "gave_up"
-            rb.why = "the first down came first"
-            return false
+    c.ds = ds
+    local m = QD.raid.sm_run(st, v, "bloat_down_spec", c, events)
+    ds.state = m.state
+end
+
+-- THE BLOAT PLAN'S DECIDE (PLAY_NOTES.md "Bloat"): the facts, the events,
+-- the machines, and then the executor.  The strategy the states carry out is
+-- unchanged.  Walk: hide straight behind the tank from where Bloat will be
+-- ("Hug the pillar and hide from Bloat as it walks around the room",
+-- wiki_Theatre_of_Blood_Strategies :687), Protect from Missiles lit, off any
+-- shadow ("simply don't stand on the shadows", yt_4i4lv-srJkw.md:71).  Down:
+-- in at once and swing on cooldown with Piety ("As soon as Bloat
+-- deactivates ... begin attacking with melee ... five attacks when close",
+-- wiki :689).  The stomp: Entry tick-eats it in place (wiki :675) and clicks
+-- back on the rise ("when he starts to get back up ... that's when you click
+-- back", the flinch guide, ENCOUNTER_TIMING.md 3.1); Normal/Hard runs out of
+-- its reach after the last swing that fits ("run away after the last
+-- attack", wiki :689).
+function QD.raid._play_bloat_decide(st, v)
+    local P, N, O = st.plan, st.numbers, st.origin
+    local intent = { want = {}, walk = nil, attack = false }
+    local c = { st = st, v = v, P = P, N = N, O = O, intent = intent, go = { step_off = false } }
+    if v.boss == nil then
+        -- he is not in this raider's view: a seat still crossing the barrier,
+        -- and the ticks after his death row.  The machines are told so and
+        -- the tick's intent stays empty, which is what the old body's early
+        -- return did.
+        local events = QD.raid.sm_events(st, v, QD.raid._bloat_events)
+        QD.raid.sm_run(st, v, "bloat_cycle", c, events)
+        QD.raid.sm_run(st, v, "bloat_raider", c, events)
+        return intent
+    end
+    if st.first_tick == nil then st.first_tick = v.tick end
+    -- owner_rooms4: run kept on (QD.raid._play_run_keep, below the plan table)
+    QD.raid._play_run_keep(st, v)
+    local f = QD.raid._bloat_facts(st, v, intent)
+    c.f = f
+    local events = QD.raid.sm_events(st, v, QD.raid._bloat_events)
+    QD.raid.sm_run(st, v, "bloat_cycle", c, events)
+    -- WHOSE RUN-BY IT IS, is the caller's question (CLAUDE.md: the existence
+    -- test goes where the knowledge is): the starter of a party, in a mode
+    -- that carries a drain weapon.  Normal carries none -- the 30 recorded
+    -- Normal trio rooms hold no Dragon warhammer special (raid seam42).
+    local owns = false
+    if N.runby ~= nil and st.party > 1 and st.role == 1 then
+        owns = QD.raid._bloat_run_by(st, v, c, events)
+    end
+    if owns then
+        QD.raid.sm_force(st, v, "bloat_raider", "run_by", c, "runby_owns")
+    else
+        QD.raid.sm_run(st, v, "bloat_raider", c, events)
+    end
+    -- THE EXECUTOR.  raid seam29: the plan's own walk (the hide, the leave,
+    -- the flinch) is `plan_walk`; with none, the attack press's own path and
+    -- a marker under a standing raider go through the same skills
+    -- (raid_play.lua _play_reach, _play_hazard, _play_bloat_safe_route).
+    local target_x, target_z = c.go.x, c.go.z
+    local plan_walk = target_x ~= nil
+    if not plan_walk and intent.attack then
+        local rx, rz, hold = QD.raid._play_reach(st, v, f.floor_ok)
+        if rx ~= nil then
+            target_x, target_z = rx, rz
+        elseif hold then
+            intent.attack = false
         end
-        if energy < QD.RAID_PLAY_BLOAT_SPEC_COST or v.hp < 70 then
-            return false
+    end
+    if target_x == nil and c.go.step_off then
+        target_x, target_z = v.me.x, v.me.z
+    end
+    if target_x ~= nil then
+        local sx, sz = QD.raid._play_hazard(st, v, target_x, target_z, f.floor_ok)
+        sx, sz = QD.raid._play_bloat_safe_route(st, v, sx, sz, f.floor_ok)
+        if f.on_shadow then st.dodges = st.dodges + 1 end
+        local same = st.walk_target ~= nil and st.walk_target.x == sx and st.walk_target.z == sz
+        local stuck = st.last_me ~= nil and st.last_me.x == v.me.x and st.last_me.z == v.me.z
+        if (v.me.x ~= sx or v.me.z ~= sz) and (not same or stuck) then
+            intent.walk = { x = sx, z = sz }
+            if plan_walk and f.phase == "down" and st.down.flinch == nil then
+                st.down.flinch = { tick = v.tick, age = f.age, from = { x = v.me.x, z = v.me.z } }
+                st.flinches[#st.flinches + 1] = st.down.flinch
+            end
         end
-        rb.stage = "equip"
-        rb.equip_tick = v.tick
-        rb.energy0 = energy
-        intent.gear = { rb.weapon }
-        intent.want.piety = true
-        return true
     end
-    intent.want.piety = true
-    if rb.stage == "equip" then
-        rb.stage = "swing"
-        rb.arm_tick = v.tick
-        intent.spec = true
-        intent.attack = true
-        st.engaged = false
-        return true
+    -- THE SUPPLIES' HORIZON, per state.  raid seam32: while the run-by's
+    -- special is being swung a bite costs the swing 3 ticks (wiki Food,
+    -- consume_shared.rs2:28-49), and on a free tick the library looks six
+    -- ticks ahead, so a raider standing in the flies ate every other tick and
+    -- never swung (_play_bloat t67-92: 25 ticks targeted, no swing).  The
+    -- run-by is a few ticks in the flies by design (W:687), so it eats only
+    -- for what can land in the next RUNBY_EAT_TICKS ticks.
+    -- raid seam51 (N.rise_swing): on the rise the first fly is T+33, and the
+    -- library's free-tick horizon (a swing's length ahead) counted it on ages
+    -- 29-30, so the raider ate on its way back in and the bite cost the swing
+    -- (seam51 survey_1 _play_bloat down2: p0 ate at age 30, no rise swing).
+    -- Through the swing the supplies look only to T+32: what can land before
+    -- the first fly, i.e. a raider low enough to die to nothing still eats.
+    local supplies_threat = f.threat
+    if N.rise_swing and f.phase == "down" and f.age >= P.stomp_age and f.age <= P.rise_age + 1 then
+        supplies_threat = function(h) return f.threat(math.min(h, P.up_age - 1 - f.age)) end
     end
-    -- "fired": the hammer stays on until the special's own splat shows on
-    -- Bloat (the npc row's latest hitsplat, what a person sees: one tick after
-    -- the swing).  A 0 drains nothing (DRIVER_NOTES seam10 "A 0 splat drains
-    -- nothing: try again ... while energy is 500 or more"): with the energy
-    -- for another and the walk still on, the special is armed again.  Any
-    -- other splat, or none in three ticks, ends the run-by: the scythe goes
-    -- back on in the same block as the walk back to the hide tile.
-    if rb.stage == "fired" then
-        local seen = v.boss ~= nil and v.boss.hit_cycle ~= nil and rb.cycle_at_fire ~= nil and v.boss.hit_cycle > rb.cycle_at_fire
-        if seen then
-            rb.splat = v.boss.hit_damage
-            rb.splats[#rb.splats + 1] = tostring(v.boss.hit_damage) .. "@t" .. v.tick
-        end
-        if seen and rb.splat == 0 and energy >= QD.RAID_PLAY_BLOAT_SPEC_COST and phase == "walk"
-            and #rb.splats < QD.RAID_PLAY_BLOAT_RUNBY_TRIES then
-            rb.stage = "swing"
-            rb.arm_tick = v.tick
-            rb.energy0 = energy
-            intent.spec = true
-            intent.attack = true
-            st.engaged = false
-            return true
-        end
-        if seen or v.tick - rb.fired >= 3 or phase ~= "walk" then
-            rb.stage = "done"
-            intent.gear = { "scythe_of_vitur" }
-            intent.want.piety = nil
-            return false
-        end
-        return true
+    if owns then
+        supplies_threat = function(h) return f.threat(math.min(h, QD.RAID_PLAY_BLOAT_RUNBY_EAT_TICKS)) end
     end
-    -- "swing": the special is spent when the orb's energy falls by its cost
-    if energy <= rb.energy0 - QD.RAID_PLAY_BLOAT_SPEC_COST then
-        rb.stage = "fired"
-        rb.fired = v.tick
-        rb.energy1 = energy
-        rb.cycle_at_fire = v.boss ~= nil and v.boss.hit_cycle or nil
-        return true
+    intent.eat, intent.drink, intent.need = QD.raid._play_supplies(st, v, supplies_threat)
+    if N.offence_pots and intent.drink == nil then
+        intent.drink = QD.raid._play_bloat_offence(st, v, f.phase)
     end
-    if v.tick - rb.arm_tick > QD.RAID_PLAY_BLOAT_RUNBY_GIVE_UP or phase ~= "walk" then
-        rb.stage = "gave_up"
-        rb.why = "no energy spent in " .. (v.tick - rb.arm_tick) .. " ticks (phase " .. phase .. ")"
-        intent.gear = { "scythe_of_vitur" }
-        intent.want.piety = nil
-        return false
+    intent.attack = QD.raid._play_attack(st, v, intent.attack and intent.walk == nil)
+    if N.down_spec ~= nil then
+        QD.raid._bloat_down_spec(st, v, c, events)
     end
-    -- re-arm if the orb reads unarmed two ticks on and nothing was spent
-    local _, armed = QD.var.varp("varp301_sa_attack")
-    if tonumber(armed) == 0 and v.tick - rb.arm_tick >= 2 and (rb.rearm or 0) < 3 then
-        rb.rearm = (rb.rearm or 0) + 1
-        rb.arm_tick_last = v.tick
-        intent.spec = true
-    end
-    intent.attack = true
-    return true
+    return intent
 end
 
 -- raid seam32: THE OFFENCE POTIONS (N.offence_pots).  A Saradomin brew drains
