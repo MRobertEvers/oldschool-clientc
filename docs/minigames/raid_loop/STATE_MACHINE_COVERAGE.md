@@ -67,17 +67,17 @@ not express.
 
 | room | machine | states | branches | edges | ratio |
 |---|---|---|---|---|---|
-| verzik | `verzik_phase` | 6 | 218 | 6 | **36.3** |
-| nylocas | seat machines | 7 | 295 | 11 | **26.8** |
+| verzik | `verzik_phase` | 6 | 116 | 6 | **19.3** |
 | maiden | `maiden_freezer` | 4 | 43 | 4 | **10.8** |
 | maiden | `maiden_scythe` | 6 | 62 | 6 | **10.3** |
+| nylocas | seat machines | 7 | 49 | 7 | **7.0** |
 | sotetseg | `sotetseg_seat_N` | 5 | 25 | 5 | 5.0 |
 | sotetseg | `sotetseg_weapon` | 5 | 16 | 4 | 4.0 |
-| bloat | `bloat_down_spec` | 4 | 12 | 4 | 3.0 |
+| bloat | `bloat_down_spec` | 4 | 11 | 4 | 2.8 |
 | verzik | `verzik_specdump` | 4 | 5 | 2 | 2.5 |
 | verzik | `verzik_enrage` | 5 | 12 | 5 | 2.4 |
 | bloat | `bloat_runby` | 6 | 9 | 5 | 1.8 |
-| verzik | `verzik_sword` (owner's rebuild) | 9 | 14 | 9 | 1.6 |
+| verzik | `verzik_sword` (owner's rebuild) | 10 | 15 | 10 | 1.5 |
 | xarpus | `xarpus_gaze` / `_exhumed` / `_spit_solo` | 3–5 | 3–5 | 3–5 | 1.0 |
 | sotetseg | `sotetseg_prayer` | 3 | 3 | 3 | 1.0 |
 | bloat | `bloat_raider` | 9 | 5 | 8 | **0.6** |
@@ -85,67 +85,123 @@ not express.
 | nylocas | `nylocas_room` | 7 | 3 | 7 | 0.4 |
 | xarpus | `xarpus_room` | 5 | 2 | 5 | 0.4 |
 | sotetseg | `sotetseg_room` | 6 | 1 | 6 | 0.2 |
-| — | `bloat_cycle`, `maiden_crab`, `maiden_phase`, `verzik_rotation`, `verzik_bolt`, `xarpus_spit_trio`, `sotetseg_weapon`… | | 0 | | 0.0 |
+| — | `bloat_cycle`, `maiden_crab`, `maiden_phase`, `verzik_rotation`, `verzik_bolt`, `xarpus_spit_trio` | | 0 | | 0.0 |
 
-**INDICTED: `verzik_phase` (36.3), the Nylocas seat machines (26.8),
-`maiden_freezer` (10.8), `maiden_scythe` (10.3).**
+**INDICTED: `verzik_phase` (19.3), `maiden_freezer` (10.8), `maiden_scythe`
+(10.3), the Nylocas seat machines (7.0).**
 
-`verzik_phase` is the purest case and it is **mine**: six state names, each a
+`verzik_phase` is still the worst and it is **mine**: six state names, each a
 shell forwarding to a phase function, with `_verzik_phase_p3` alone at 1,002
-lines. 218 branches behind six declared transitions.
+lines. 116 branches behind six declared transitions.
 
-### CORRECTION: the first published table was wrong in both directions
+### CORRECTION: the first two published tables were both wrong
 
-The table above replaces one I published and the coordinator quoted to the
-owner. Three bugs, found by three different agents reading their own rooms, and
-**two of them inflated my headline number**:
+This replaces two earlier tables, one of which the coordinator quoted to the
+owner. **Four bugs, every one found by a room owner checking a number about
+their own room**, and they pulled in opposite directions:
 
 | bug | found by | effect |
 |---|---|---|
-| A **dynamic** target (`return nil, ev.to`) collapsed every state's transition to **one edge** | the Maiden port | inflated ratios, worst for the **most connected** machines |
-| A **constant target table** (`QD.RAID_MAIDEN_PHASE_STATES[ev.form]`) also collapsed to one edge | the Maiden port | same, up to the size of the table |
-| Delegation followed only **one hop**, so a handler named through a wrapper read as branch-free | the Bloat port | **deflated** branch counts, flattering any room that wraps its handlers |
+| **Offset desync** — pairs scanned in the RAW text but measured in the blanked copy, so a comment quoting Lua was read as a handler and the span over-ran | Nylocas port | the root bug; wildly inflated whichever machine had example code in a comment |
+| A **dynamic** target (`return nil, ev.to`) collapsed every transition to **one edge** | Maiden port | inflated, worst for the **most connected** machines |
+| A **constant target table** collapsed the same way | Maiden port | inflated, up to the size of the table |
+| Delegation followed **one hop**, so a handler named through a thin wrapper read as branch-free | Bloat port | **deflated** — flattered any room that wraps |
 
-What moved, and these are the numbers that were quoted:
+What moved, including both numbers that were quoted:
 
-- **`verzik_phase` 116.0 → 36.3.** Its edges were 1 and are 6 (all six states
-  transition by `return nil, ev.to`). Its branches were 116 and are **218**,
-  because the one-hop limit hid nearly half of them. So the ratio I led with
-  was overstated 3.2× while the branch count under it was understated 47%.
-  "116.0, in a class of its own" was an artifact; at 36.3 it is of a piece with
-  the Nylocas seats, and **sending work to the wrong room** is exactly what a
-  number like that does.
-- **`verzik_enrage` 12.0 → 2.4**, the worst single over-statement at 5×. My own
-  caveat predicted this case and I still published it.
-- **`nylocas` seat machines 19.6 → 26.8** (transitivity found more branches).
-- **`bloat_raider` 0.1 → 0.6.** Its agent reported this *against its own
-  headline*, with a hand count of five branches — `_bloat_pray` 1,
-  `_bloat_leave` 3, the inline `rise_swing.enter` 1 — and the corrected tool
-  now reproduces 5 exactly. 0.1 read as "almost nothing left behind"; 0.6 is
-  the truth, "one duty handler still carries three branches", and
-  `_bloat_leave`'s straight-leave / hug-fallback / rise-hide chain is three
-  candidate states. It remains the lowest non-zero of the 26 and the ranking is
-  unchanged.
-- **`maiden_phase` edges 1 → 5** (ratio stays 0.0). It was being penalised for
+- **`verzik_phase` 116.0 → 36.3 → 19.3.** Its edges were 1 and are 6; the
+  branch count went up with the wrapper fix and back down with the desync fix.
+  "116.0, in a class of its own" was an artifact of two bugs at once. 19.3
+  **independently matches the figure the coordinator hand-verified from the
+  declaration**, which is the best evidence the tool is now right.
+- **Nylocas seat machines 19.6 → 26.8 → 7.0.** They were never second-worst;
+  they are mid-pack. The tell that proved the desync: the tool credited them
+  with edges to `LANDING`, `DEAD` and the three `FORM_*` states, which belong
+  to `nylocas_room` and are unreachable from `NY_SEAT_STATES` at all.
+- **`verzik_enrage` 12.0 → 2.4**, a 5× over-statement. My own caveat predicted
+  that exact case and I published it anyway.
+- **`bloat_raider` 0.1 → 0.6 → 0.6**; see the collision below.
+- **`maiden_phase` edges 1 → 5** (ratio stays 0.0). It had been penalised for
   having every form reachable from every other, which is the entire point of
-  it — the perverse case.
+  it.
 
-**The fix also changed the tool's bias to match its own stated discipline.**
-An unresolved dynamic target is now counted as the machine's **state count**
-rather than as 1, so the residual error under-claims instead of over-claiming.
-Before, the failure mode pointed the opposite way to the rule in the docstring
-("a floor, read to indict and never to acquit"), which is how a caveat I had
-written down still let me publish a wrong number.
+### The bug-2 / bug-3 collision, resolved rather than chosen between
 
-**Credit, because it is the same discipline that found the bugs.** The Maiden
-agent declined to contest its own 43 and 62 — it tried to split them by hand,
-its brace matcher returned obvious nonsense (282 branches for a twelve-line
-function), and it said so rather than report a number it could not stand
-behind. The Bloat agent corrected a number that flattered its own room. Neither
-had to.
+The Bloat owner's hand count of **five** branches and the Nylocas owner's
+measurement of **one** for the same machine could not both be right. **Bloat's
+is correct and its correction stands.** `duty_leave` is literally
+`local function duty_leave(c, ev) QD.raid._bloat_leave(c, ev) return nil,
+"leaving" end` — the handler *is* a thin wrapper and its real body is one call
+away, so stopping at the wrapper genuinely reads branch-free. Nylocas measured
+1 because its patch fixed the desync without the wrapper hop; the two fixes are
+independent and both are needed.
 
-`assert` is **not** counted as a branch, on the Maiden agent's argument that it
-has no alternative; the counter only matches `if` and `elseif`.
+The rule that satisfies both rooms: **follow a delegation only out of a body
+that branches nowhere.** A body doing nothing but delegating is a wrapper and
+its callee is the real handler; a body with branches of its own is doing the
+work, and descending further chases shared per-tick computation the handler
+merely reads from. That rule reproduces Bloat's hand count of 5 exactly and the
+coordinator's hand-verified 19.3 exactly.
+
+**One residual disagreement, stated rather than smoothed over:** the Nylocas
+seat machines read 49 where that owner's hand count was 13. The extra comes
+from descending through chains of thin wrappers. I cannot tell from here
+whether those 36 branches are the machines' own behaviour or shared helpers,
+and the Nylocas owner is better placed to say. **Treat 7.0 as the least
+trustworthy row in the table** until it does.
+
+### The culture this depended on, which is worth more than the tool
+
+Every one of the four bugs was found by a room owner auditing a figure about
+their own room, and **two of them had nothing to gain or something to lose:**
+
+- The **Maiden** owner's zeros were unaffected either way; it reported the edge
+  collapse anyway, and declined to contest its own 43 and 62 because its brace
+  matcher returned obvious nonsense (282 branches for a twelve-line function)
+  and it would not stand behind a number it could not verify.
+- The **Bloat** owner corrected a number **in its own disfavour, unprompted**,
+  knowing the coordinator had already quoted 0.1 to the owner as the best of
+  26. It said the right thing about why: 0.1 reads as "almost nothing left
+  behind", 0.6 reads as "one duty handler still carries three branches", and
+  the second is the truth.
+- The **Nylocas** owner found the root bug in a tool whose output made its room
+  look second-worst, supplied the one-line fix, and explicitly did **not**
+  argue away the finding underneath the wrong number.
+
+### Two causes outside the tool, recorded because they will recur
+
+- **Example code in comments is not hypothetical.** The Nylocas room was the
+  worst-hit row because it was told to record its demonstration change's code
+  in a comment, and wrote `waves_over = function(c) c.m.idx = 1 return nil,
+  "CLEANUP" end` verbatim inside one. An instruction to "write it down"
+  manufactured the artifact. Any tool that scans declarations must read the
+  comment-stripped copy, and any instruction to record code in prose has a cost
+  somewhere.
+- **A caveat in a docstring does not protect against the bug it describes.** I
+  had written down that dynamic targets would inflate `verzik_enrage`, and then
+  published 12.0 and led with 116.0 built on the same fault. The fix is in the
+  tool's *bias*, not its prose: an unresolved dynamic target now counts as the
+  machine's state count rather than as 1, so the residual error under-claims.
+  Before, the failure mode pointed the opposite way to the stated rule.
+
+`assert` is **not** counted as a branch, on the Maiden owner's argument that it
+has no alternative; the counter matches only `if` and `elseif`.
+
+### What survives the corrections, said explicitly
+
+All of the qualitative findings, and the conclusion:
+
+- `verzik_phase` is still the worst concentration of undeclared behaviour in
+  the raid, still 116 branches behind a 1,002-line body, and still mine.
+- Maiden's cast tick is still indicted, as the coordinator guessed.
+- **`bloat_raider` at 0.6 is still the lowest non-zero of the 26** and the
+  ranking is unchanged, so it still refutes "the mandate made depth
+  impossible". The argument rested on that number being near-zero; it rests
+  just as well on it being lowest, and that is the ground it should be read on.
+- Nylocas's `PILLAR_DEFENCE` / `SELF_DEFENCE` finding is untouched: hundreds of
+  ticks, one live exit, and a `waves_over` handler remembering a transition it
+  can never take. They stay as they are because the coordinator ruled it, not
+  because the ratio was wrong.
 
 ### The metric validated against the machine the owner complained about
 
@@ -154,10 +210,10 @@ Measured on the committed history, which is the decisive test:
 | machine | states | branches | edges | ratio |
 |---|---|---|---|---|
 | `verzik_dawnbringer` (my port, `9216bb205`) | 3 | 10 | 2 | **5.0** |
-| `verzik_sword` (the owner's rebuild) | 9 | 14 | 9 | **1.6** |
+| `verzik_sword` (the owner's rebuild) | 10 | 15 | 10 | **1.5** |
 
-The rebuild took the declared edges from 2 to 9 and cut the ratio by 68%
-**while adding branches** (10 → 14, because the machine does more now). That is
+The rebuild took the declared edges from 2 to 10 and cut the ratio by 70%
+**while adding branches** (10 → 15, because the machine does more now). That is
 what declaring the behaviour looks like, and the reading tracks it. It indicts
 the machine the owner objected to and credits the one that replaced it.
 
@@ -189,8 +245,8 @@ required them.
 
 The confirmation is the before/after on one machine across the boundary: 5.0
 under the mandate, 1.5 once the owner lifted it and allowed behaviour to
-change. A "no behaviour change" port cannot reach 1.6 from 5.0, because the
-nine declared edges did not exist to be found — they had to be *decided*.
+change. A "no behaviour change" port cannot reach 1.5 from 5.0, because the
+ten declared edges did not exist to be found — they had to be *decided*.
 
 ### What this reading cannot do
 

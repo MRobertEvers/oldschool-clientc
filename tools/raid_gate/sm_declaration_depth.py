@@ -163,10 +163,23 @@ for path in sorted(glob.glob(os.path.join(ROOT, 'script/plugins/quest_driver/rai
                 mm = re.match(r'\s*([A-Za-z_]\w*)\s*=', line)
                 if mm: names.append(mm.group(1))
             depth += line.count('{') - line.count('}')
-        # every `<key> = <value>` in the declaration, line by line
+        # every `<key> = <value>` in the declaration.
+        #
+        # ITERATE THE CLEAN COPY, not the raw text.  Scanning raw and then
+        # measuring in `clean` means a COMMENT THAT QUOTES LUA is read as a
+        # handler: `off` lands in a region that is blank in `clean`, block_end
+        # never finds the `end` that would close it, and the span runs forward
+        # through the rest of the file -- so branches, targets and the
+        # delegation scan all operate on hundreds of lines they have no
+        # business in.  The Nylocas room was the worst case because the owner
+        # told it to record its demonstration change's code in a comment, and
+        # `waves_over = function(c) ... end` inside that comment was picked up
+        # (reported by the Nylocas port, 2026-10-07, with the one-line fix).
+        sclean = clean[soff:soff + len(sbody)]
+        assert len(sclean) == len(sbody)
         nbr, edges, dynset, delegated = 0, set(), set(), set()
-        for mm in re.finditer(r'([A-Za-z_]\w*)\s*=\s*', sbody):
-            rhs = sbody[mm.end():]
+        for mm in re.finditer(r'([A-Za-z_]\w*)\s*=\s*', sclean):
+            rhs = sclean[mm.end():]
             if rhs.startswith('function'):
                 off = soff + mm.end()
                 e = block_end(clean, off + len('function'))
@@ -178,10 +191,17 @@ for path in sorted(glob.glob(os.path.join(ROOT, 'script/plugins/quest_driver/rai
                 # behaviour itself, so follow it or a 1,002-line phase body
                 # reads as zero.  Library helpers (_play_*) are NOT followed:
                 # they are the executor's, not this machine's.
-                for fm in re.finditer(r'QD\.raid\.(_\w+)\s*\(', body):
-                    if not fm.group(1).startswith('_play_'): delegated.add(fm.group(1))
+                if branches(body, cbody) == 0:
+                    for fm in re.finditer(r'QD\.raid\.(_\w+)\s*\(', body):
+                        if not fm.group(1).startswith('_play_'): delegated.add(fm.group(1))
             else:
                 im = re.match(r'(QD\.raid\.)?([A-Za-z_]\w*)\s*(\(|,|$|\n)', rhs)
+                # the key regex also matches assignments INSIDE a handler
+                # body, so `local n, i = QD.raid._nym_named_from(...)` offers
+                # `i`, `n` and `end`; they resolve to nothing, but skip the
+                # obvious noise so a debug dump does not list a delegate
+                # called `end` (Nylocas port's nit)
+                if im and im.group(2) in ('end', 'then', 'do', 'local', 'return'): im = None
                 if im and im.group(2) not in ('true', 'false', 'nil') \
                         and not im.group(2).startswith('_play_'):
                     delegated.add(im.group(2))
@@ -210,13 +230,28 @@ for path in sorted(glob.glob(os.path.join(ROOT, 'script/plugins/quest_driver/rai
             seen.add(name)
             body, cbody = find_named(text, clean, name)
             if body is None: continue
-            nbr += branches(body, cbody)
+            nb = branches(body, cbody)
+            nbr += nb
             edges |= targets(body) | table_targets(text, body); dynset |= dyn(body)
-            for fm in re.finditer(r'QD\.raid\.(_\w+)\s*\(', body):
-                if not fm.group(1).startswith('_play_') and fm.group(1) not in seen:
-                    work.append(fm.group(1))
-            for fm in re.finditer(r'(?<![\w.])([a-z_]\w*)\s*\(c\s*[,)]', body):
-                if fm.group(1) not in seen: work.append(fm.group(1))
+            # FOLLOW A WRAPPER, NOT A CALL CHAIN.  The hop exists because a
+            # handler can BE a thin wrapper -- `local function duty_leave(c,
+            # ev) QD.raid._bloat_leave(c, ev) return nil, "leaving" end` -- so
+            # its real body is one call away and stopping at the wrapper reads
+            # as branch-free (Bloat port).  But following out of a body that
+            # has branches of its OWN chases shared per-tick computation the
+            # handler merely reads from, which inflated the Nylocas seats from
+            # 13 branches to 76.  So: only descend from a body that branches
+            # nowhere, i.e. one that is doing nothing but delegating.  This is
+            # the rule that reproduces BOTH rooms' hand counts.
+            if nb == 0:
+                for fm in re.finditer(r'QD\.raid\.(_\w+)\s*\(', body):
+                    if not fm.group(1).startswith('_play_') and fm.group(1) not in seen:
+                        work.append(fm.group(1))
+            # NOT every local called with `c`: that follows the per-tick
+            # computation helpers a handler merely reads from, and inflated
+            # the Nylocas seats sixfold.  Only the plan's own QD.raid._* hop
+            # above, which is the shape a named wrapper actually uses
+            # (`duty_leave` -> QD.raid._bloat_leave).
         for mm in re.finditer(r'children\s*=\s*\{([^}]*)\}', sbody):
             for cm in re.finditer(r'"(\w+)"', mm.group(1)): edges.add('child:' + cm.group(1))
         # An UNRESOLVED dynamic target could be any declared state, so count it
