@@ -368,9 +368,8 @@ return {
             end
 
             if sm.state == STATE.KILL_MAGE then
-                -- Synq 4-tick mage running [2:19:07]. Entry is ~18 tiles south
-                -- of the claws (lz=12 vs hand lz=30); short walk/attack
-                -- deadlines left the prior runs stranded on the entry tile.
+                -- Synq 4-tick mage running [2:19:07]. Entry lands at lz=25 on
+                -- the open arena aisle (see ^cox_olm_entry_lz); claws at lz=30.
                 refresh_geometry()
                 sample_vislevels()
                 local mage = sm.tiles.mage
@@ -384,30 +383,20 @@ return {
                     return
                 end
                 local _, me = t.world.tile()
-                -- Centre aisle (lx=32) is walkable from entry lz=12; claw-adjacent
-                -- tiles under the 5x5 head/hand locs timed out with zero movement.
                 local aisle_x = sm.ox + 32
-                local approach = {
-                    { x = aisle_x, z = sm.oz + 18 },
-                    { x = aisle_x, z = sm.oz + 24 },
-                    { x = aisle_x, z = sm.oz + 28 },
-                    { x = mrow.x, z = mrow.z - 3 },
-                }
                 local dist = math.max(math.abs(me.x - mrow.x), math.abs(me.z - mrow.z))
                 if dist > 5 then
-                    local dest = approach[1]
-                    for i = 1, #approach do
-                        if me.z < approach[i].z - 1 then
-                            dest = approach[i]
-                            break
-                        end
-                        dest = approach[i]
+                    -- Prefer mage-claw safes; fall back to aisle steps north.
+                    local dest = { x = mrow.x, z = mrow.z - 3 }
+                    if me.z < sm.oz + 27 then
+                        dest = { x = aisle_x, z = sm.oz + 28 }
                     end
-                    local wr, wd = t.player.walk_to(dest.x, dest.z, 10)
+                    local wr = t.player.walk_to(dest.x, dest.z, 20)
                     if wr ~= "ok" then
-                        -- Nudge north on the aisle if the chosen tile is blocked.
-                        t.player.walk_to(aisle_x, me.z + 4, 6)
+                        t.player.walk_to(aisle_x, math.min(me.z + 3, sm.oz + 28), 8)
                     end
+                    -- Attack while closing (sang is 10-range).
+                    t.player.attack(mage, 2, 8, { quick = true, slot = mrow.slot })
                     sustain(t, sm)
                     sm.sub = sm.sub + 1
                     return
@@ -415,8 +404,8 @@ return {
                 local a = { x = aisle_x - 2, z = mrow.z - 3 }
                 local b = { x = aisle_x + 2, z = mrow.z - 3 }
                 local dest = ((sm.sub % 8) < 4) and a or b
-                t.player.attack(mage, 2, 6, { quick = true, slot = mrow.slot })
-                t.player.walk_to(dest.x, dest.z, 6)
+                t.player.attack(mage, 2, 8, { quick = true, slot = mrow.slot })
+                t.player.walk_to(dest.x, dest.z, 8)
                 sustain(t, sm)
                 sm.sub = sm.sub + 1
                 t.ticks(1)

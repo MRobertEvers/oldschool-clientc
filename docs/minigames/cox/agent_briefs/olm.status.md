@@ -15,6 +15,8 @@ Branch: `cursor/cox-olm-solo-4t41-a9fc` (base `cursor/cox-raid-rooms-da39`)
   `ENTER → WAIT_SPAWN → KILL_MAGE → SETUP_41 → CYCLE_{TANK,FREE,RUN,TURN} → WAIT_PHASE → HEAD → DONE`
 - Spec table: `encounters/olm_solo_4t41.tsv` (+ `olm.tsv` phases_solo=4)
 - Content: `cox_olm.rs2` basic hit respects protect prayer; `^cox_olm_prayer_mult_*`
+- Entry: `^cox_olm_entry_lz = 25` (open arena aisle; lz=12 is sealed by pit/wall ring)
+- Loc: `cox.loc` clears `blockwalk` on `raids_wall_top_*` floor surfaces
 - Mage hand via charged Sanguinesti; melee 4:1 with whip; head with TBow
 
 ## Next
