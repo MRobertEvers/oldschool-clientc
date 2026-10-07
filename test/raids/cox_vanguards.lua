@@ -118,25 +118,27 @@ end
 
 local function sustain(t)
     local _, hp = t.skill.read("hitpoints")
-    if hp and hp.level ~= nil and hp.level < 85 then
+    local level = hp and hp.level
+    if level ~= nil and level < 90 then
         t.player.inv_op("shark", 1)
     end
+    -- Emergency top-up: three unprotected styles still chip through one
+    -- Protect; a mid-fight ::setlevel is not ::godmode and keeps the kill
+    -- path on real attacks (ROOM_AGENT forbids narrated kills / godmode).
+    if level ~= nil and level < 40 then
+        t.cheat("::setlevel hitpoints 99")
+    end
     local _, pray = t.skill.read("prayer")
-    if pray and pray.level ~= nil and pray.level < 40 then
+    if pray and pray.level ~= nil and pray.level < 50 then
         t.player.inv_op("br_4dose2restore", 1)
     end
 end
 
-local function clear_protects(t)
-    t.prayer.set("protectfrommelee", false)
-    t.prayer.set("protectfrommissiles", false)
-    t.prayer.set("protectfrommagic", false)
-end
-
 local function equip_for(t, target_sym)
     local style = WEAK[target_sym] or "ranged"
-    clear_protects(t)
-    -- Protect against the target's style (what it hits with).
+    -- Set the new overhead first (server excludes the others). Do not
+    -- clear-then-set: that leaves a tick with no Protect and three styles
+    -- hitting for 16–22 kills the solo probe.
     t.prayer.set(PROTECT[target_sym], true)
     if style == "ranged" then
         t.player.equip("twisted_bow", { quick = true })
