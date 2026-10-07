@@ -39,26 +39,25 @@ for _, c in ipairs({
     "::setlevel magic 99", "::setlevel agility 99",
     "::give serpentine_helm_charged 1",
     "::give br_4dosepotionofsaradomin 4", "::give br_4dose2restore 4",
+    -- (no super combat potion: the burst this pace leaves out, so her 20%
+    -- comes after the ball -- with them the enrage came at P3+178, the ball
+    -- at +188 thrown among the tornadoes)
+    -- the enrage's special (W:992 "At this stage, players should dump all
+    -- melee special attacks"; Blert 0f9abe1a's slow team: claws on the scythe
+    -- seat, burning claws and a crystal halberd on the halberd seats --
+    -- dragon claws stand in for all three).  The dump BEFORE the enrage is
+    -- what this pace leaves out (the owner: "drop the spec dumping").
+    "::give dragon_claws 1",
 }) do kit[#kit + 1] = c end
--- the food: every slot the pack has left (a slow P3 runs 230-370 ticks; the
--- whole-room survey of 2026-10-07 had a member eat its 14th fish in P2 and die
--- at 15 hitpoints in P3 with only potions left).  A team restocks before
--- Verzik at the Theatre's supply chest (tob_chest.rs2; the Normal chest sells
--- food, brews and restores): 16 for every seat, the pack full with the
--- Dawnbringer in it (roles 2 and 3: the two slots their super combat potions
--- do not take, less the slot the ultor ring takes off).
-kit[#kit + 1] = "::give anglerfish 16"
--- the BURST dropped (the coordinator, 2026-10-07: "adjust pace by dropping
--- more burst, never by idling"): the reference team dumped specials in P3
--- (Blert 0f9abe1a: claws x2, burning claws x3, crystal halberd x2) and this
--- team spends none there; and roles 2 and 3 carry no super combat potion
--- (Blert records only the recorder's boosted levels, so the members'
--- boosts are not known): the leader alone re-boosts.  The plan's melee-stats
--- rule finds no potion and drinks none.
-if role == 1 then kit[#kit + 1] = "::give br_4dose2combat 2" end
+if role == 1 then kit[#kit + 1] = "::give verzik_special_weapon 1" end
 -- the P3 weapon of roles 2 and 3, carried (the plan wields it at P3)
 if role >= 2 then kit[#kit + 1] = "::give noxious_halberd 1" end
-if role == 1 then kit[#kit + 1] = "::give verzik_special_weapon 1" end
+-- the food: every slot left (28: the leader's 11 above and the Dawnbringer;
+-- roles 2 and 3 the 11 with the halberd, the ultor ring they take off and a
+-- slot for the Dawnbringer they share).  A team restocks before Verzik at the
+-- Theatre's supply chest (tob_chest.rs2: the Normal chest sells food, brews
+-- and restores).
+kit[#kit + 1] = "::give anglerfish " .. ((role == 1) and 17 or 15)
 return {
     id = "_play_verzik_slow",
     fixture = "fresh_lumbridge.ini",
