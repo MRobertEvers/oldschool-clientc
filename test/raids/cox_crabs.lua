@@ -408,7 +408,7 @@ return {
             -- Pull any crab off the focus column south of this mark so the
             -- beam is not intercepted before the bounce (run33: blue seated
             -- on 13,23 but crystal 1 never lit — leftover on 13,13).
-            for dz = 2, 10, 2 do
+            for dz = 1, 10 do
                 local c = crab_at(t, wx, wz - dz, 0)
                 if c ~= nil then
                     t.player.walk_to(wx - 4, wz - dz, 14)
