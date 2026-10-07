@@ -326,8 +326,11 @@ def main() -> None:
     require(war, "npc_param(proj_impact)", "ambient impact spot animation")
     require(COMBAT_PARAM, "[proj_impact]", "impact spot-animation parameter")
     require(RANGED_COMBAT, "npc_param(rangebonus_ammo)", "NPC ammunition strength")
-    for param in ("rangebonus_ammo", "poison_severity", "proj_launch", "proj_travel", "proj_impact"):
-        require(CONTENT_ENGINE, f'"{param}"', f"runtime NPC parameter {param}")
+    # The engine no longer names these params: since 16100164f the server reads
+    # every npc param generically from the packed config data, so there is no
+    # per-name string left in torirs_server_content.c to pin. The script-side
+    # requires above (npc_param(rangebonus_ammo), proj_launch/travel/impact)
+    # still pin that the content uses them.
 
     # The classic tables are exact integer partitions, not approximate rarity
     # labels. Pin every ordinary-table boundary and each nested unique divisor.
