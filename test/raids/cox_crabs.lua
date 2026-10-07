@@ -412,72 +412,79 @@ return {
             t.player.attack(crab.symbol, 2, 1, { quick = true, slot = slot })
             t.ticks(2)
             local guard = 0
-            while guard < 35 do
+            local last_detail = "crab never seated"
+            while guard < 55 do
                 sustain(t)
                 -- Prefer safe tile between pulls so the beam column is free.
-                if guard % 4 == 3 then
+                if guard % 5 == 4 then
                     t.player.walk_to(sx, sz, 10)
                     t.ticks(2)
                 end
                 local exact = crab_at(t, wx, wz, 0)
                 if exact ~= nil then
-                    local ok, detail = smash(t, exact)
-                    if not ok then
-                        return false, "smash failed: " .. tostring(detail)
-                    end
-                    if crab_at(t, wx, wz, 0) == nil then
-                        return false, "crab left mark after smash"
-                    end
-                    if style ~= nil and style ~= "melee" then
-                        local want = (style == "mage") and "raids_lasercrabs_crab_blue"
-                            or "raids_lasercrabs_crab_green"
-                        -- Break lure melee first: Attack with a wand paints RED
-                        -- and was overwriting a successful blue cast (run18).
-                        t.player.walk_to(sx, sz, 20)
-                        t.ticks(4)
-                        local last_paint = "none"
-                        local painted = false
-                        for _ = 1, 5 do
-                            sustain(t)
-                            local live = crab_at(t, wx, wz, 0)
-                            if live == nil then
-                                return false, "crab left mark during paint"
-                            end
-                            if live.symbol == want then
-                                painted = true
-                                break
-                            end
-                            t.player.walk_to(lure_x, lure_z, 12)
-                            t.ticks(1)
-                            live = crab_at(t, wx, wz, 0)
-                            if live == nil then
-                                return false, "crab left mark during paint"
-                            end
-                            local pr, pd = paint_style(t, style, live)
-                            last_paint = tostring(pr) .. ":" .. tostring(pd)
-                            -- Colour flips on cast prepare; read it before any
-                            -- leftover Attack swing can melee-paint red again.
-                            for _ = 1, 5 do
-                                t.ticks(1)
-                                live = crab_at(t, wx, wz, 0)
-                                if live ~= nil and live.symbol == want then
-                                    painted = true
-                                    break
-                                end
-                            end
-                            t.player.walk_to(sx, sz, 12)
+                    -- Stop Attack before smash: crab often walks off the mark
+                    -- during the smash approach (run19), and wand-melee later
+                    -- paints red over blue.
+                    t.player.walk_to(lure_x, lure_z, 8)
+                    t.ticks(1)
+                    exact = crab_at(t, wx, wz, 0)
+                    if exact == nil then
+                        last_detail = "crab slipped mark before smash"
+                    else
+                        local ok, detail = smash(t, exact)
+                        if not ok then
+                            last_detail = "smash failed: " .. tostring(detail)
+                        else
+                            -- Freeze must hold ON the bounce tile.
                             t.ticks(2)
-                            if painted then break end
-                        end
-                        if not painted then
-                            local live = crab_at(t, wx, wz, 0)
-                            return false, "paint failed want=" .. want
-                                .. " got=" .. tostring(live and live.symbol)
-                                .. " last=" .. last_paint
+                            exact = crab_at(t, wx, wz, 0)
+                            if exact == nil then
+                                last_detail = "crab left mark after smash"
+                            elseif style ~= nil and style ~= "melee" then
+                                local want = (style == "mage") and "raids_lasercrabs_crab_blue"
+                                    or "raids_lasercrabs_crab_green"
+                                local last_paint = "none"
+                                local painted = false
+                                for _ = 1, 4 do
+                                    sustain(t)
+                                    local live = crab_at(t, wx, wz, 0)
+                                    if live == nil then
+                                        last_detail = "crab left mark during paint"
+                                        break
+                                    end
+                                    if live.symbol == want then
+                                        painted = true
+                                        break
+                                    end
+                                    t.player.walk_to(lure_x, lure_z, 8)
+                                    local pr, pd = paint_style(t, style, live)
+                                    last_paint = tostring(pr) .. ":" .. tostring(pd)
+                                    for _ = 1, 4 do
+                                        t.ticks(1)
+                                        live = crab_at(t, wx, wz, 0)
+                                        if live ~= nil and live.symbol == want then
+                                            painted = true
+                                            break
+                                        end
+                                    end
+                                    if painted then break end
+                                    if crab_at(t, wx, wz, 0) == nil then
+                                        last_detail = "crab left mark during paint"
+                                        break
+                                    end
+                                end
+                                if painted then
+                                    t.player.walk_to(sx, sz, 20)
+                                    return true, want
+                                end
+                                last_detail = "paint failed want=" .. want
+                                    .. " last=" .. last_paint
+                            else
+                                t.player.walk_to(sx, sz, 20)
+                                return true, exact.symbol
+                            end
                         end
                     end
-                    t.player.walk_to(sx, sz, 20)
-                    return true, exact.symbol
                 end
                 local live = pack_slot(slot) or (nearest_crab(t) and nearest_crab(t).row)
                 if live ~= nil then
@@ -488,9 +495,12 @@ return {
                         t.player.walk_to(lure_x, lure_z, 8)
                     else
                         t.player.walk_to(lure_x, lure_z, 8)
-                        t.player.attack(live.symbol, 2, 1, {
-                            quick = true, slot = live.slot,
-                        })
+                        -- Only re-aggro when the crab is not already on the mark.
+                        if crab_at(t, wx, wz, 0) == nil then
+                            t.player.attack(live.symbol, 2, 1, {
+                                quick = true, slot = live.slot,
+                            })
+                        end
                     end
                 else
                     t.player.walk_to(lure_x, lure_z, 8)
@@ -499,7 +509,7 @@ return {
                 guard = guard + 1
             end
             t.player.walk_to(sx, sz, 20)
-            return false, "crab never seated"
+            return false, last_detail
         end
 
         local function measure_stun()
