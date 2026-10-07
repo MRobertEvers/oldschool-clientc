@@ -138,15 +138,18 @@ local function crystals_done(t)
 end
 
 local function sustain(t)
-    if hp(t) > 0 and hp(t) < 50 then
+    if hp(t) > 0 and hp(t) < 70 then
         t.player.inv_op("shark", 1)
+        t.ticks(1)
     end
     local pr, pp = t.prayer.points()
     local points = 0
     if pr == "ok" then points = pp.points or pp.level or 0 end
-    if points < 20 then
+    if points < 30 then
         t.player.inv_op("br_4dose2restore", 1)
+        t.ticks(1)
     end
+    t.prayer.set("protectfrommelee", true)
 end
 
 local function wield(t, item)
@@ -168,10 +171,11 @@ local function paint_style(t, style, crab_sym)
     t.ticks(2)
 end
 
-local function smash(t, crab_sym)
+local function smash(t, crab_sym, opts)
     wield(t, "dragon_warhammer")
-    t.player.attack(crab_sym, 3, 2, { quick = true })
-    t.ticks(2)
+    -- Cache op3=Smash on every jewellled crab form (all.npc).
+    t.player.attack(crab_sym, 3, 3, opts or { quick = true })
+    t.ticks(3)
 end
 
 local function parse_coxcrabs(lines)
@@ -213,8 +217,9 @@ return {
         "::give air_rune 400",
         "::give blood_rune 80",
         "::give hammer",
-        "::give shark 16",
-        "::give br_4dose2restore 4",
+        "::give shark 24",
+        "::give br_4dose2restore 6",
+        "::give br_4dosepotionofsaradomin 2",
     },
 
     run = function(t)
@@ -307,44 +312,70 @@ return {
             return tiles
         end
 
+        local function pack_slot(slot)
+            local pr, pd, pack = t.npc.pack(40)
+            if pr ~= "ok" then return nil end
+            for i = 1, #pack do
+                if pack[i].slot == slot then return pack[i] end
+            end
+            return nil
+        end
+
+        local function safe_tile(wx, wz)
+            -- Stay off the bounce tile and off the focus column (beam lane).
+            return wx + 2, wz + 1
+        end
+
         local function seat_crab(tile, style)
             local wx, wz = world(tile.lx, tile.lz)
-            -- Approach from a side tile so we do not stand on the bounce tile.
-            local approach = { x = wx + 1, z = wz }
-            t.player.walk_to(approach.x, approach.z, 40)
+            local sx, sz = safe_tile(wx, wz)
+            -- Never stand on the bounce tile: the beam self-destructs on the
+            -- player and the crystal never sees the bounce.
+            t.player.walk_to(sx, sz, 40)
             t.ticks(2)
+            sustain(t)
             local crab = nearest_crab(t)
             if crab == nil then return false, "no crab" end
-            -- Tag / aggro then walk onto the mark so the crab follows.
+            local slot = crab.row.slot
+            -- Tag from the safe tile so the crab walks onto the mark.
             wield(t, "dragon_warhammer")
-            t.player.attack(crab.symbol, 2, 1, { quick = true, slot = crab.row.slot })
+            t.player.attack(crab.symbol, 2, 1, { quick = true, slot = slot })
             t.ticks(1)
-            t.player.walk_to(wx, wz, 40)
+            -- Step one tile toward the mark (adjacent), not onto it.
+            local adj_x, adj_z = wx + 1, wz
+            if adj_x == sx and adj_z == sz then adj_x, adj_z = wx, wz + 1 end
+            t.player.walk_to(adj_x, adj_z, 30)
             local guard = 0
-            while guard < 40 do
+            while guard < 50 do
                 sustain(t)
                 local seated = crab_at(t, wx, wz)
                 if seated ~= nil then
-                    smash(t, seated.symbol)
+                    smash(t, seated.symbol, { quick = true, slot = seated.row.slot })
                     -- Smash paints red; wait paint revert (~8 ticks) while stunned.
                     t.ticks(10)
                     if style ~= nil and style ~= "melee" then
                         paint_style(t, style, seated.symbol)
                     elseif style == nil then
-                        -- Want grey/white: ensure paint has reverted.
                         local still = crab_at(t, wx, wz)
                         if still ~= nil and still.symbol ~= "raids_lasercrabs_crab_grey" then
                             t.ticks(8)
                         end
                     end
-                    -- Step off the bounce tile / beam lane.
-                    t.player.walk_to(wx + 2, wz + 2, 20)
+                    t.player.walk_to(sx, sz, 20)
                     return true, seated.symbol
                 end
-                t.player.walk_to(wx, wz, 10)
+                -- Re-tag and keep the crab interested without standing on wx,wz.
+                local live = pack_slot(slot) or nearest_crab(t)
+                if live ~= nil then
+                    t.player.attack(live.symbol or crab.symbol, 2, 1, {
+                        quick = true, slot = live.slot or slot,
+                    })
+                end
+                t.player.walk_to(adj_x, adj_z, 10)
                 t.ticks(1)
                 guard = guard + 1
             end
+            t.player.walk_to(sx, sz, 20)
             return false, "crab never seated"
         end
 
@@ -353,23 +384,14 @@ return {
             if crab == nil then return nil end
             local slot = crab.row.slot
             local x0, z0 = crab.row.x, crab.row.z
-            smash(t, crab.symbol)
+            -- Stand adjacent so smash lands; smash recolours grey->red.
+            t.player.walk_to(x0 + 1, z0, 30)
+            smash(t, crab.symbol, { quick = true, slot = slot })
             local still = 0
             for _ = 1, 70 do
                 t.ticks(1)
-                local r, row = t.npc.nearest(crab.symbol, 40)
-                if r ~= "ok" or row == nil then break end
-                -- Prefer the same slot when the nearest form changes colour.
-                if row.slot ~= slot then
-                    local pr, pd, pack = t.npc.pack(40)
-                    row = nil
-                    if pr == "ok" then
-                        for i = 1, #pack do
-                            if pack[i].slot == slot then row = pack[i] break end
-                        end
-                    end
-                    if row == nil then break end
-                end
+                local row = pack_slot(slot)
+                if row == nil then break end
                 if row.x == x0 and row.z == z0 then
                     still = still + 1
                 else
@@ -478,26 +500,43 @@ return {
                 end
 
                 local info = CRYSTAL[sm.crystal_i]
-                local tiles = candidate_tiles()
-                -- Prefer the known CCW bounce tile for this crystal when present.
-                if sm.variant == "ccw" and CCW_SOLVE[sm.crystal_i] ~= nil then
+                local tile, style
+                if sm.variant == "ccw" and CCW_SOLVE[sm.crystal_i] ~= nil and sm.attempt < 8 then
+                    -- Hold the open-floor bounce tile for several beam cycles.
                     local pref = CCW_SOLVE[sm.crystal_i]
-                    table.insert(tiles, 1, { lx = pref.lx, lz = pref.lz })
-                end
-                local idx = (sm.attempt % #tiles) + 1
-                local tile = tiles[idx]
-                local style = info.style
-                if sm.variant == "ccw" and CCW_SOLVE[sm.crystal_i] ~= nil then
-                    style = CCW_SOLVE[sm.crystal_i].style
+                    tile = { lx = pref.lx, lz = pref.lz }
+                    style = pref.style
+                else
+                    local tiles = candidate_tiles()
+                    if sm.variant == "ccw" and CCW_SOLVE[sm.crystal_i] ~= nil then
+                        table.insert(tiles, 1, {
+                            lx = CCW_SOLVE[sm.crystal_i].lx,
+                            lz = CCW_SOLVE[sm.crystal_i].lz,
+                        })
+                    end
+                    local idx = (sm.attempt % #tiles) + 1
+                    tile = tiles[idx]
+                    style = info.style
+                    if sm.variant == "ccw" and CCW_SOLVE[sm.crystal_i] ~= nil then
+                        style = CCW_SOLVE[sm.crystal_i].style
+                    end
                 end
                 local before = var_num(t, info.flag) or 0
                 local ok, detail = seat_crab(tile, style)
                 t.check("solve.seat_" .. sm.crystal_i .. "_" .. sm.attempt, true,
                     "tile " .. tile.lx .. "," .. tile.lz .. " style=" .. tostring(style)
-                        .. " ok=" .. tostring(ok) .. " " .. tostring(detail))
-                -- Wait for this beam cycle to finish / crystal flag.
+                        .. " ok=" .. tostring(ok) .. " " .. tostring(detail)
+                        .. " stage=" .. tostring(var_num(t, "varp7044_cox_crab_big_stage")))
+                -- Wait through a full beam life (focus delay + travel + finish).
                 local wait = 0
-                while wait < 48 do
+                while wait < 90 do
+                    sustain(t)
+                    if t.player.alive() ~= "ok" then
+                        t.check("alive", false, "died waiting crystal " .. sm.crystal_i
+                            .. " attempt " .. sm.attempt)
+                        set_state(STATE.DONE)
+                        return
+                    end
                     t.ticks(1)
                     wait = wait + 1
                     if (var_num(t, info.flag) or 0) == 1 and before == 0 then
@@ -515,9 +554,9 @@ return {
                     end
                 else
                     sm.attempt = sm.attempt + 1
-                    if sm.attempt > 60 then
+                    if sm.attempt > 40 then
                         t.check("solve.stuck", false,
-                            "crystal " .. sm.crystal_i .. " unsatisfied after 60 seat attempts; stage="
+                            "crystal " .. sm.crystal_i .. " unsatisfied after 40 seat attempts; stage="
                                 .. tostring(var_num(t, "varp7044_cox_crab_big_stage")))
                         set_state(STATE.DONE)
                     end
