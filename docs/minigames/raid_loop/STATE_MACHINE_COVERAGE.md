@@ -190,6 +190,37 @@ nobody reads a terminal state's zero as a port bug. It also means **no room's
 terminal state has ever been exercised on the leader**, which is worth the
 owner knowing.
 
+## How much of `COLD` is signal — two views, and why it stays as it is
+
+The Nylocas agent measured it honestly and reported against its own interest:
+on its room `COLD` is **about 7 percent signal** — the two lines that matter
+(`PILLAR_DEFENCE/waves_over`, `SELF_DEFENCE/waves_over`) in about thirty, the
+rest being eight `stay` entries per state for events that simply did not
+happen. It suggested an opt-in marker so a shared `stay` sentinel could be
+excluded.
+
+**Declined, on the Bloat agent's argument**, which I think is right: every COLD
+entry in its room is legitimate, because a duty can arrive in any state and
+**the declaration is the room's contract, not a transcript of these five
+runs**. A handler that is cold on these seeds is exactly what the author must
+keep declared. Filtering by a sentinel would hide the case where an author
+*thought* they had covered an event and the `stay` was the bug.
+
+And `COLD` earned its keep twice over in ways neither of us predicted:
+
+- **It names a dead edge at its definition** rather than leaving it inferred
+  from a zero in another table — Nylocas's two `waves_over` lines.
+- **It proves an invariant a hand-written clamp was enforcing.** Bloat found
+  `leaving/swing_window` COLD, which is the measurement that the swing duty
+  never returns inside a down once the run-out has started — something the
+  seam48 `leave_age` clamp was already making true. It had considered "make
+  `leaving` sticky" as a demonstration change and *reasoned* it would be a
+  no-op; the cold list is the evidence instead of the reasoning, and it tells
+  you the clamp could be replaced by the state and nothing else.
+
+So the ratio is the price of a complete contract, and it is recorded here so
+nobody reads the row as noise-free or as alarming.
+
 ## Correction to the previous revision of this file
 
 The earlier revision recorded a "header disagrees with the declaration" finding
@@ -256,9 +287,26 @@ no room's byte-identical evidence covers it. What can be said without a re-run:
   identical verdicts each time and with Verzik, Bloat, Nylocas and Xarpus
   byte-identical in their coverage clauses between sweeps.
 
-That is evidence, not proof. **It is my change, so the re-verification is mine
-to run, not the room agents'** — five surveys at roughly twenty minutes each
-should not be charged to them for a library change they did not make.
+**CONFIRMED BEHAVIOUR-NEUTRAL by two rooms, independently**, so no further
+re-verification is needed and the duplicate run can be skipped:
+
+- **Bloat** re-baselined ON `34281e774` and got 5 of 5 green with **every
+  reading unchanged from its first proof** — four survey rounds and three layer
+  revisions later — per name: 142 ticks 85/18/25, 144 88/84/91, 139 124/58/60,
+  141 117/104/120, 143 122/121/122. Those are tick-log and structural readings,
+  not the `play.fight` detail, so they are exactly the rows that remain
+  comparable across the hook. Its coverage sums from the library's clause also
+  came out **identical to the ones its own local row had measured**, which
+  cross-checks the two implementations against each other.
+- **Nylocas** re-verified 9 of 9 KEEP with every reading identical against
+  `b2fe8cd99` and `06f07bd62` as well, having correctly noted that its earlier
+  proof against `8c51e3841` did not carry over on its own because
+  `b2fe8cd99` touches `sm_run`'s handler path and `sm_go`.
+
+Together with three six-room sweeps of my own showing identical verdicts, the
+library change is neutral. **It was my change, so the burden was mine rather
+than the room agents'** — five surveys at roughly twenty minutes each should
+not have been charged to them for a shared-library change they did not make.
 
 **`34281e774` changes ledger detail strings** for the six ported rooms, so the
 next before/after comparison in each must be like-for-like on that commit or
