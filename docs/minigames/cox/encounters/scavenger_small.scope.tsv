@@ -1,0 +1,5 @@
+mechanic_id	scope	note
+scavenger.hp	all	solo raid measures this
+scavenger.cadence	all	solo raid measures this
+scavenger.max_hit	all	solo raid measures this
+scavenger.drop_rolls	all	solo raid measures this

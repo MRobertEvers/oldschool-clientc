@@ -1,0 +1,7 @@
+mechanic_id	scope	note
+tightrope.ranger_hp	all	solo raid measures this
+tightrope.mage_hp	all	solo raid measures this
+tightrope.cadence	all	solo raid measures this
+tightrope.ranger_max	all	solo raid measures this
+tightrope.mage_max	all	solo raid measures this
+tightrope.solo_count	all	solo raid measures this

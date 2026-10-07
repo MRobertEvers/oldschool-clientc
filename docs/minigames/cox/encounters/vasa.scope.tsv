@@ -1,0 +1,8 @@
+mechanic_id	scope	note
+vasa.cadence	all	solo raid measures this
+vasa.stat_regen	all	solo raid measures this
+vasa.crystal_regen	all	solo raid measures this
+vasa.crystal_timer	all	solo raid measures this
+vasa.crystal_heal_period	all	solo raid measures this
+vasa.boulder_range	all	solo raid measures this
+vasa.stomp_max	all	solo raid measures this

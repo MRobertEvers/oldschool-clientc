@@ -1,0 +1,8 @@
+mechanic_id	quantity	spec_value	unit	tags	grade	source_ref	closes	tolerance
+icedemon.hp_solo	hitpoints, solo	140	hp	[wiki]	D	sources/wiki_Ice_demon.wikitext; COX_MECHANICS.md:609	-	exact
+icedemon.cadence	attack speed while thawed	3	ticks	[wiki]	D	COX_MECHANICS.md:611	-	exact
+icedemon.aoe	attack footprint	3	tiles	[wiki]	D	COX_MECHANICS.md:611	-	exact
+icedemon.damage_reduction	reduction on non-fire non-demonbane	67	percent	[wiki]	D	COX_MECHANICS.md:612	-	exact
+icedemon.icefiend_extinguish_period	icefiend extinguish attempt period	3-4	ticks	[wiki]	D	COX_MECHANICS.md:615	-	range
+icedemon.icefiend_success	extinguish success chance as 1 in N	6	count	[wiki]	D	COX_MECHANICS.md:615	-	exact
+icedemon.kindling_max	kindling per swing at wc 96+	8	count	[wiki]	D	COX_MECHANICS.md:617	-	exact

@@ -1,0 +1,7 @@
+mechanic_id	scope	note
+resource.herb_grow	all	solo raid measures this
+resource.plots	all	solo raid measures this
+resource.overload_boost_99	all	solo raid measures this
+resource.overload_hp_cost	all	solo raid measures this
+resource.overload_reapply	all	solo raid measures this
+resource.overload_duration	all	solo raid measures this

@@ -1,0 +1,7 @@
+mechanic_id	scope	note
+guardians.count	all	solo raid measures this
+guardians.cadence	all	solo raid measures this
+guardians.hp_solo	all	solo raid measures this
+guardians.stomp_size	all	solo raid measures this
+guardians.stat_regen	all	solo raid measures this
+guardians.pickaxe_only	all	solo raid measures this

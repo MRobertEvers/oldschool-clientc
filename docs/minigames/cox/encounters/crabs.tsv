@@ -1,0 +1,6 @@
+mechanic_id	quantity	spec_value	unit	tags	grade	source_ref	closes	tolerance
+crabs.needed	crabs used on every layout	3	count	[wiki]	D	COX_MECHANICS.md:670; sources/wiki_Jewelled_Crab.wikitext	-	exact
+crabs.stun_solo	stun duration, solo	50-60	ticks	[wiki]	D	COX_MECHANICS.md:666	-	range
+crabs.stat_regen	stat regeneration period	1	ticks	[wiki]	D	COX_MECHANICS.md:667	-	exact
+crabs.magic_splash_floor	magic bonus below which splash starts	-64	count	[video]	D	COX_MECHANICS.md:663; synq_transcript.md	-	exact
+crabs.aggro_tiles	standing this close aggros immediately	2	tiles	[video]	D	COX_MECHANICS.md:664	-	exact

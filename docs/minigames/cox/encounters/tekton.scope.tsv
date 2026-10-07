@@ -1,0 +1,11 @@
+mechanic_id	scope	note
+tekton.cadence	all	solo raid measures this
+tekton.hp_solo	all	solo raid measures this
+tekton.size	all	solo raid measures this
+tekton.anvil_attacks_min	all	solo raid measures this
+tekton.anvil_attacks_max	all	solo raid measures this
+tekton.anvil_enraged_min	all	solo raid measures this
+tekton.anvil_enraged_max	all	solo raid measures this
+tekton.spark_volleys	all	solo raid measures this
+tekton.melee_prayer_reduction	all	solo raid measures this
+tekton.water_weakness	all	solo raid measures this

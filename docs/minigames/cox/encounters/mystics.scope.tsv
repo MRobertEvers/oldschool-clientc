@@ -1,0 +1,7 @@
+mechanic_id	scope	note
+mystics.hp_solo	all	solo raid measures this
+mystics.defence	all	solo raid measures this
+mystics.cadence	all	solo raid measures this
+mystics.range	all	solo raid measures this
+mystics.prayer_reduction	all	solo raid measures this
+mystics.count_solo	all	solo raid measures this

@@ -1,0 +1,8 @@
+mechanic_id	scope	note
+shamans.hp_solo	all	solo raid measures this
+shamans.defence	all	solo raid measures this
+shamans.cadence	all	solo raid measures this
+shamans.size	all	solo raid measures this
+shamans.poison	all	solo raid measures this
+shamans.stat_regen	all	solo raid measures this
+shamans.count_solo	all	solo raid measures this

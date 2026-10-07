@@ -1,0 +1,6 @@
+mechanic_id	scope	note
+crabs.needed	all	solo raid measures this
+crabs.stun_solo	all	solo raid measures this
+crabs.stat_regen	all	solo raid measures this
+crabs.magic_splash_floor	all	solo raid measures this
+crabs.aggro_tiles	all	solo raid measures this

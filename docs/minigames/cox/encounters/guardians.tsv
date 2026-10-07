@@ -1,0 +1,7 @@
+mechanic_id	quantity	spec_value	unit	tags	grade	source_ref	closes	tolerance
+guardians.count	statues in the room	2	count	[wiki][cache]	C	COX_MECHANICS.md:451; sources/wiki_Guardian_Chambers_of_Xeric.wikitext	-	exact
+guardians.cadence	attack speed	4	ticks	[wiki][cache]	C	COX_MECHANICS.md:456	-	exact
+guardians.hp_solo	hitpoints each, solo mining 99	250	hp	[wiki]	D	COX_MECHANICS.md:465; sources/wiki_Stone_Guardian.wikitext	-	exact
+guardians.stomp_size	stomp footprint centred on target tile	3	tiles	[wiki]	D	COX_MECHANICS.md:459	-	exact
+guardians.stat_regen	stat regeneration period	8	ticks	[wiki]	D	COX_MECHANICS.md:463	-	exact
+guardians.pickaxe_only	non-pickaxe damage reduced to	0	hp	[wiki]	D	COX_MECHANICS.md:457	-	exact
