@@ -140,6 +140,7 @@ return {
         "::give ultor_ring",
         "::wield ultor_ring",
         -- Mage hand wants magic (66% mitigation on non-magic). Synq sang/shadow.
+        -- Keep the kit ≤28 inv slots (worn melee already fills equipment).
         "::give sanguinesti_staff_uncharged",
         "::give bloodrune 4000",
         "::give ancestral_hat",
@@ -149,14 +150,10 @@ return {
         -- Head phase: twisted bow (ranged weakness on head).
         "::give twisted_bow",
         "::give dragon_arrow 2000",
-        "::give masori_mask",
-        "::give masori_body",
-        "::give masori_chaps",
-        "::give avas_assembler",
-        "::give shark 24",
-        "::give br_4dose2restore 8",
-        "::give br_4dosepotionofsaradomin 6",
-        "::give 4dose2combat 2",
+        "::give shark 12",
+        "::give br_4dose2restore 4",
+        "::give br_4dosepotionofsaradomin 3",
+        "::give 4dose2combat 1",
     },
 
     run = function(t)
