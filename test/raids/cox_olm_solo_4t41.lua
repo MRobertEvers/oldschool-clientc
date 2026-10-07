@@ -762,8 +762,11 @@ return {
                 refresh_geometry()
                 local hx = sm.ox + 32
                 local hz = sm.oz + 28
+                -- Adjacent south of size=1 head (z-1). z-2 left a one-tile gap
+                -- so CombatAtRangeReady LoS failed and drive.op's OPNPC2 never
+                -- armed (tgt stayed -1, zero hit_npc).
                 if hrow ~= nil then
-                    hx, hz = hrow.x, hrow.z - 2
+                    hx, hz = hrow.x, hrow.z - 1
                 end
                 local _, me = t.world.tile()
                 if not sm._head_stood then
@@ -773,25 +776,18 @@ return {
                     or me.z < hrow.z - 14 or me.z > hrow.z + 8) then
                     t.player.walk_to(hx, hz, 4)
                 end
-                -- The head combat npc has no hittable pixels (placeholder claw
-                -- mesh inside the north wall; Attack aim only offers Examine on
-                -- Crystal/Large-rock). Same seam as eadgar secret door /
-                -- Treus Dayth: t.drive.op sends OPNPC2 with no pixel.
+                -- No hittable pixels on the head mesh: drive.op sends OPNPC2.
                 local target = t.player.by_symbol("npc", HEAD)
                 if target == nil then
                     t.ticks(1)
                     return
-                end
-                if hrow ~= nil then
-                    target.reach_element = hrow.element_id
                 end
                 local ar, ad = t.drive.op(target, 2)
                 if ar == "refused" and type(ad) == "string" and string.find(ad, "DIED", 1, true) then
                     set_state(STATE.DONE)
                     return
                 end
-                -- Give the approach→opnpc2 a few ticks; re-issue each decide.
-                t.ticks(3)
+                t.ticks(2)
                 return
             end
         end
