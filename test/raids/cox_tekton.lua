@@ -27,10 +27,12 @@ return {
         "::setlevel prayer 99",
         "::setlevel magic 99",
         "::setlevel agility 99",
-        -- Crush for Synq 4-tick / monkey run-around. DWH out-DPSes adamant —
-        -- seed-1 runs with adamant died prayer-dry after ~197 damage dealt.
+        -- Crush for Synq 4-tick / monkey run-around. Start on adamant so the
+        -- first anvil (and water-weakness mage window) still happens before
+        -- the kill; swap to DWH on REENGAGE after the anvil.
+        "::give adamnt_warhammer",
+        "::wield adamnt_warhammer",
         "::give dragon_warhammer",
-        "::wield dragon_warhammer",
         -- No rune plate: Dragon Slayer gates it. Adamant has no quest gate and
         -- still softens the one intentional unprotected wedge sample hit.
         "::give adamant_platebody",
@@ -289,6 +291,7 @@ return {
             end
 
             if sm.state == STATE.REENGAGE then
+                -- Post-anvil: DWH for the enraged band so the kill still lands.
                 t.player.equip("dragon_warhammer", { quick = true })
                 arm_protect()
                 -- Lure again as far as possible before the next cycle.
@@ -307,6 +310,9 @@ return {
         t.check("fight.done", dead == true,
             "ticks " .. sm.ticks .. " form " .. tostring(last_form)
                 .. " hammers " .. hammer_visits .. " cycle_hits " .. cycle_hits)
+        t.check("tech.anvil_seen", hammer_visits >= 1,
+            "need at least one anvil for sparks/water/enraged specs; hammers "
+                .. hammer_visits)
         t.check("tech.synq_runaround", cycle_hits >= 8,
             "counterclockwise cycle attacks " .. cycle_hits
                 .. " corners advanced " .. sm.corner)
