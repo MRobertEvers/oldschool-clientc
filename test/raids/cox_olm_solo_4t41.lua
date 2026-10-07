@@ -758,34 +758,41 @@ return {
                     end
                 end
                 local hrow = npc_ok(t, HEAD)
-                -- Stand just south of the head ONCE.
+                -- Stand on the open chamber aisle south of the 5x5 head once.
+                -- Centre-south (SW+2, z-2): z-1 west tiles sit under
+                -- raids_olmic_head2 blockwalk and never accept a walk.
                 refresh_geometry()
-                local hx = sm.ox + 32
-                local hz = sm.oz + 28
-                -- Adjacent south of size=1 head (z-1). z-2 left a one-tile gap
-                -- so CombatAtRangeReady LoS failed and drive.op's OPNPC2 never
-                -- armed (tgt stayed -1, zero hit_npc).
+                local hx = sm.ox + 31
+                local hz = sm.oz + 31
                 if hrow ~= nil then
-                    hx, hz = hrow.x, hrow.z - 1
+                    hx, hz = hrow.x + 2, hrow.z - 2
                 end
                 local _, me = t.world.tile()
                 if not sm._head_stood then
-                    t.player.walk_to(hx, hz, 6)
+                    t.player.walk_to(hx, hz, 8)
                     sm._head_stood = true
-                elseif hrow ~= nil and (math.abs(me.x - hrow.x) > 14
-                    or me.z < hrow.z - 14 or me.z > hrow.z + 8) then
+                elseif hrow ~= nil and (math.abs(me.x - (hrow.x + 2)) > 6
+                    or me.z < hrow.z - 14 or me.z > hrow.z + 2) then
                     t.player.walk_to(hx, hz, 4)
                 end
-                -- No hittable pixels on the head mesh: drive.op sends OPNPC2.
-                local target = t.player.by_symbol("npc", HEAD)
-                if target == nil then
-                    t.ticks(1)
-                    return
-                end
-                local ar, ad = t.drive.op(target, 2)
-                if ar == "refused" and type(ad) == "string" and string.find(ad, "DIED", 1, true) then
-                    set_state(STATE.DONE)
-                    return
+                -- Prefer the same Attack path as the claws (quick+slot). Head
+                -- mesh overlays give pickable pixels; drive.op is the fallback
+                -- when the menu still has no Attack row.
+                if hrow ~= nil then
+                    local ar, ad = t.player.attack(HEAD, 2, 2, {
+                        quick = true, slot = hrow.slot,
+                    })
+                    if ar == "refused" and type(ad) == "string"
+                        and string.find(ad, "DIED", 1, true) then
+                        set_state(STATE.DONE)
+                        return
+                    end
+                    if ar ~= "ok" then
+                        local target = t.player.by_symbol("npc", HEAD)
+                        if target ~= nil then
+                            t.drive.op(target, 2)
+                        end
+                    end
                 end
                 t.ticks(2)
                 return
