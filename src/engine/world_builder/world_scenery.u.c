@@ -1407,16 +1407,22 @@ scenery_add_wall_single(
     int scene_z)
 {
     struct World* world = builder->world;
-    int rotation = map_loc->orientation;
+    /* An animated wall is built unrotated and turned by a draw-time yaw, as
+     * every other animated shape is: the seq's frames are authored in the
+     * model's own frame (Between a Rock's dwarf_firewall_* walls of flame). */
+    int rotation = config_loc->seq_id != -1 ? 0 : map_loc->orientation;
     int orientation = map_loc->orientation;
+    int yaw = config_loc->seq_id != -1 ? 512 * orientation : 0;
 
+    builder->scenery_deferred_angle = config_loc->seq_id != -1 ? orientation : 0;
     int element_id = scenery_load_model(
         builder, map_loc, config_loc, RSCACHE_LOC_SHAPE_WALL_SINGLE_SIDE, rotation, scene_x, scene_z, 1, 1);
     if( element_id < 0 )
         return;
 
     scenery_element_position_init(
-        builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, 0);
+        builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, yaw);
+    scenery_load_animation(builder, element_id, config_loc->seq_id);
 
     painter_add_wall(
         world->painter,
@@ -1499,15 +1505,19 @@ scenery_add_wall_tri_corner(
     int scene_z)
 {
     struct World* world = builder->world;
-    int rotation = map_loc->orientation;
+    int rotation = config_loc->seq_id != -1 ? 0 : map_loc->orientation;
     int orientation = map_loc->orientation;
+    int yaw = config_loc->seq_id != -1 ? 512 * orientation : 0;
+
+    builder->scenery_deferred_angle = config_loc->seq_id != -1 ? orientation : 0;
     int element_id = scenery_load_model(
         builder, map_loc, config_loc, RSCACHE_LOC_SHAPE_WALL_TRI_CORNER, rotation, scene_x, scene_z, 1, 1);
     if( element_id < 0 )
         return;
 
     scenery_element_position_init(
-        builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, 0);
+        builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, yaw);
+    scenery_load_animation(builder, element_id, config_loc->seq_id);
 
     painter_add_wall(
         world->painter,
@@ -1547,16 +1557,28 @@ scenery_add_wall_two_sides(
 {
     struct World* world = builder->world;
     int orientation = map_loc->orientation;
-    int rotation = orientation + 4;
     int next_orientation = (orientation + 1) & 0x3;
-    int next_rotation = (rotation + 1) & 0x3;
+    bool const animated = config_loc->seq_id != -1;
+    /* Rotation 4..7 is "mirrored, then turned (rotation & 3)". An animated
+     * arm keeps the mirror in the model and defers the turn to the yaw. */
+    int rotation = animated ? 4 : orientation + 4;
+    int next_rotation = animated ? 0 : next_orientation;
 
+    builder->scenery_deferred_angle = animated ? orientation : 0;
     int element_id = scenery_load_model(
         builder, map_loc, config_loc, RSCACHE_LOC_SHAPE_WALL_TWO_SIDES, rotation, scene_x, scene_z, 1, 1);
     if( element_id < 0 )
         return;
     scenery_element_position_init(
-        builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, 0);
+        builder,
+        element_id,
+        scene_x,
+        scene_z,
+        map_loc->chunk_pos_level,
+        1,
+        1,
+        animated ? 512 * orientation : 0);
+    scenery_load_animation(builder, element_id, config_loc->seq_id);
     painter_add_wall(
         world->painter,
         scene_x,
@@ -1569,6 +1591,7 @@ scenery_add_wall_two_sides(
     scenery_register_sharelight(
         builder, config_loc, scene_x, scene_z, map_loc->chunk_pos_level, element_id, 1, 1);
 
+    builder->scenery_deferred_angle = animated ? next_orientation : 0;
     int element_id2 = scenery_load_model(
         builder,
         map_loc,
@@ -1582,7 +1605,15 @@ scenery_add_wall_two_sides(
     if( element_id2 < 0 )
         return;
     scenery_element_position_init(
-        builder, element_id2, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, 0);
+        builder,
+        element_id2,
+        scene_x,
+        scene_z,
+        map_loc->chunk_pos_level,
+        1,
+        1,
+        animated ? 512 * next_orientation : 0);
+    scenery_load_animation(builder, element_id2, config_loc->seq_id);
     painter_add_wall(
         world->painter,
         scene_x,
@@ -1680,14 +1711,18 @@ scenery_add_wall_rect_corner(
     int scene_z)
 {
     struct World* world = builder->world;
-    int rotation = map_loc->orientation;
+    int rotation = config_loc->seq_id != -1 ? 0 : map_loc->orientation;
     int orientation = map_loc->orientation;
+    int yaw = config_loc->seq_id != -1 ? 512 * orientation : 0;
+
+    builder->scenery_deferred_angle = config_loc->seq_id != -1 ? orientation : 0;
     int element_id = scenery_load_model(
         builder, map_loc, config_loc, RSCACHE_LOC_SHAPE_WALL_RECT_CORNER, rotation, scene_x, scene_z, 1, 1);
     if( element_id < 0 )
         return;
     scenery_element_position_init(
-        builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, 0);
+        builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, yaw);
+    scenery_load_animation(builder, element_id, config_loc->seq_id);
 
     painter_add_wall(
         world->painter,
@@ -2052,13 +2087,17 @@ scenery_add_wall_diagonal(
     int scene_z)
 {
     struct World* world = builder->world;
-    int rotation = map_loc->orientation;
+    int rotation = config_loc->seq_id != -1 ? 0 : map_loc->orientation;
+    int yaw = config_loc->seq_id != -1 ? 512 * map_loc->orientation : 0;
+
+    builder->scenery_deferred_angle = config_loc->seq_id != -1 ? map_loc->orientation : 0;
     int element_id = scenery_load_model(
         builder, map_loc, config_loc, RSCACHE_LOC_SHAPE_WALL_DIAGONAL, rotation, scene_x, scene_z, 1, 1);
     if( element_id < 0 )
         return;
     scenery_element_position_init(
-        builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, 0);
+        builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, 1, 1, yaw);
+    scenery_load_animation(builder, element_id, config_loc->seq_id);
 
     painter_add_normal_scenery(
         world->painter,

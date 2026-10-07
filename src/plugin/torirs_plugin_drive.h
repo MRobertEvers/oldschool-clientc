@@ -89,6 +89,10 @@ char const* DriveResultName(enum DriveResult result);
  *   DRIVE_EVENT_NPC_DESPAWN     a=npc slot  b=npc_id
  *   DRIVE_EVENT_NPC_RETYPE      a=npc slot  b=npc_id  c=base_npc_id
  *   DRIVE_EVENT_INV_PACKET      a=container_id                     (dat1)
+ *   DRIVE_EVENT_NPC_SEQ         a=npc SERVER slot (DriveNpcRow.slot, not
+ *                                 the world index NPC_SPAWN carries)
+ *                               b=seq id (-1 = the server stopped it)
+ *                               c=server tick (world cycle / 30) it arrived
  *
  * The level of a tile payload rides in `c`'s high half nowhere: pass level in
  * `d` only where the table above says so.  If a kind needs a fifth number,
@@ -115,6 +119,7 @@ enum App_DriveEventKind
     DRIVE_EVENT_NPC_DESPAWN,
     DRIVE_EVENT_NPC_RETYPE,
     DRIVE_EVENT_INV_PACKET,
+    DRIVE_EVENT_NPC_SEQ,
     DRIVE_EVENT_KIND_COUNT
 };
 
@@ -923,6 +928,35 @@ struct DriveNpcRow
      */
     char overhead[100];
     int overhead_timer;
+    /**
+     * What the npc is DOING, for a raid test that reacts to the boss rather
+     * than to a timer (docs/RAID_ORCHESTRATOR.md section 4, `npc.state`).
+     *
+     * `anim_id` / `anim_frame` are the primary (action) track as it is being
+     * DRAWN -- -1 / 0 when no action seq plays (the idle and walk loops are
+     * the secondary track and are not reported). `spotanim_id` is the
+     * attached graphic being drawn, -1 when none or once its one loop ended.
+     *
+     * `seq_id` / `seq_tick` are the newest SEQUENCE op the server SENT and
+     * the server tick (world cycle / APP_SERVER_TICK_LOGIC_CYCLES) it arrived
+     * on: the edge "it attacked on tick T" is read from, because a seq re-sent
+     * while it is still playing does not restart the drawn track
+     * (WorldEntity_NPC.seq_sent_id). `spotanim_sent_id` / `spotanim_tick`
+     * are the same for the newest SPOTANIM op (a spell's impact graphic
+     * outlives no frame-rate guess). -1 / -1 before the first op.
+     *
+     * `facing` is the wire face-entity the npc is locked onto: an npc slot
+     * below 32768, 32768 + pid for a player, -1 for none
+     * (WORLD_FACING_PLAYER_BASE).
+     */
+    int anim_id;
+    int anim_frame;
+    int spotanim_id;
+    int seq_id;
+    int seq_tick;
+    int spotanim_sent_id;
+    int spotanim_tick;
+    int facing;
 };
 
 struct DriveLocRow
@@ -962,6 +996,48 @@ struct DriveObjRow
     int element_id;
 };
 
+/**
+ * A free-standing map graphic (MAP_ANIM / `spotanim_map`): the tile hazard
+ * half of `world.hazard_at` (Xarpus acid, Maiden blood, Olm crystals are
+ * graphics on a tile, not locs). `spotanim_id` is the spotanimtype; -1 only
+ * for a graphic the client invented. `active` is 0 while the graphic still
+ * waits out its delay (a splash timed to a projectile's flight) and
+ * `cycles_left` counts that wait plus its whole life; once active it is the
+ * life left. CLIENT cycles (20 ms), not server ticks: a graphic's life is a
+ * seq's frame durations and has no tick boundary.
+ */
+struct DriveSpotanimRow
+{
+    int spotanim_id;
+    int tile_x, tile_z, level;
+    int active;
+    int cycles_left;
+    int element_id;
+};
+
+/**
+ * A projectile in flight (MAP_PROJANIM). `src_*` is the tile it left from;
+ * `dst_*` the tile it is aimed at NOW -- for a projectile that homes on an
+ * entity that is the target's live tile (World re-aims it every cycle), for
+ * a tile shot the fixed destination. `target` is the wire target id
+ * (WorldEntity_Projectile.target): npc slot + 1, -(pid) - 1 for a player, 0
+ * for a tile shot; `target_npc_slot` decodes the npc case (-1 otherwise).
+ * `cycles_left` is client cycles to impact; `launched` is 0 while it still
+ * waits out its start delay.
+ */
+struct DriveProjectileRow
+{
+    int spotanim_id;
+    int src_tile_x, src_tile_z;
+    int dst_tile_x, dst_tile_z;
+    int level;
+    int target;
+    int target_npc_slot;
+    int launched;
+    int cycles_left;
+    int element_id;
+};
+
 /** Pool walks in the shape of content_test.c's npc_json / scenery_json,
  *  nearest first by tile distance from the local player.  `radius` <= 0 means
  *  the whole pool. */
@@ -971,6 +1047,13 @@ enum DriveResult DriveUi_Locs(
     struct App* app, int radius, struct DriveLocRow* out, int cap, int* out_count);
 enum DriveResult DriveUi_Objs(
     struct App* app, int radius, struct DriveObjRow* out, int cap, int* out_count);
+/** Every map graphic and every projectile, nearest first like the readers
+ *  above (a projectile ranks by its DESTINATION tile: the question a test
+ *  asks of one is "where does it land"). */
+enum DriveResult DriveUi_Spotanims(
+    struct App* app, int radius, struct DriveSpotanimRow* out, int cap, int* out_count);
+enum DriveResult DriveUi_Projectiles(
+    struct App* app, int radius, struct DriveProjectileRow* out, int cap, int* out_count);
 
 /**
  * A loc def's multiloc family: the child it resolves to NOW, and every id its

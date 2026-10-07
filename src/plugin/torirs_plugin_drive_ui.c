@@ -401,6 +401,40 @@ drive_ui_fill_npc_combat(
     }
 }
 
+/*
+ * The state half of a row (struct DriveNpcRow's banner): the action track and
+ * graphic being drawn, and the newest SEQUENCE / SPOTANIM op the server sent
+ * with the server tick it arrived on. The tick is the cycle stamp divided
+ * down to SERVER ticks -- the unit api_drive.tick() and every deadline in a
+ * test are written in -- never a raw cycle.
+ */
+static void
+drive_ui_fill_npc_state(struct WorldEntity_NPC const* npc, struct DriveNpcRow* out)
+{
+    assert(npc);
+    assert(out);
+
+    if( npc->animation.primary.anim_id == (uint16_t)-1 )
+    {
+        out->anim_id = -1;
+        out->anim_frame = 0;
+    }
+    else
+    {
+        out->anim_id = npc->animation.primary.anim_id;
+        out->anim_frame = npc->animation.primary.frame;
+    }
+    out->spotanim_id = npc->spotanim.id;
+    out->seq_id = npc->seq_sent_id;
+    out->seq_tick =
+        npc->seq_sent_id >= 0 ? npc->seq_sent_cycle / APP_SERVER_TICK_LOGIC_CYCLES : -1;
+    out->spotanim_sent_id = npc->spotanim_sent_id;
+    out->spotanim_tick = npc->spotanim_sent_id >= 0
+        ? npc->spotanim_sent_cycle / APP_SERVER_TICK_LOGIC_CYCLES
+        : -1;
+    out->facing = npc->facing.entity_id;
+}
+
 enum DriveResult
 DriveUi_Npcs(struct App* app, int radius, struct DriveNpcRow* out, int cap, int* out_count)
 {
@@ -507,6 +541,7 @@ DriveUi_Npcs(struct App* app, int radius, struct DriveNpcRow* out, int cap, int*
             out[j].overhead[0] = '\0';
             out[j].overhead_timer = 0;
         }
+        drive_ui_fill_npc_state(npc, &out[j]);
         if( count < cap )
             count++;
     }
@@ -802,6 +837,160 @@ DriveUi_Objs(struct App* app, int radius, struct DriveObjRow* out, int cap, int*
         out[j].element_id = stack->element_id;
         if( count < cap )
             count++;
+    }
+    *out_count = count;
+    return DRIVE_OK;
+}
+
+/*
+ * Nearest-first insertion shared by the two hazard readers below: `rows` is
+ * an array of `cap` records of `row_size` bytes, `distances` its parallel
+ * keys. Answers the index the new record goes to (rows after it already
+ * shifted down), or -1 when the array is full of nearer ones. Same order as
+ * DriveUi_Npcs's inline insertion: ties keep pool order.
+ */
+static int
+drive_ui_nearest_insert(
+    void* rows, size_t row_size, long* distances, int* count, int cap, long distance)
+{
+    unsigned char* bytes = rows;
+    int insert_at;
+    int j;
+
+    assert(rows);
+    assert(distances);
+    assert(count);
+    assert(cap > 0);
+
+    if( *count >= cap && distance >= distances[cap - 1] )
+        return -1;
+    insert_at = *count < cap ? *count : cap - 1;
+    for( j = insert_at; j > 0 && distances[j - 1] > distance; j-- )
+        ;
+    if( insert_at > j )
+    {
+        memmove(bytes + (size_t)(j + 1) * row_size, bytes + (size_t)j * row_size,
+            (size_t)(insert_at - j) * row_size);
+        memmove(&distances[j + 1], &distances[j], (size_t)(insert_at - j) * sizeof(long));
+    }
+    distances[j] = distance;
+    if( *count < cap )
+        (*count)++;
+    return j;
+}
+
+/* Graphics and projectiles in one scene are tens, not thousands (a Nylocas
+ * wave, a Zebak wave); 512 is the bound the two readers rank within. */
+#define DRIVE_UI_HAZARD_CAP 512
+
+enum DriveResult
+DriveUi_Spotanims(
+    struct App* app, int radius, struct DriveSpotanimRow* out, int cap, int* out_count)
+{
+    long distances[DRIVE_UI_HAZARD_CAP];
+    int px = 0, pz = 0;
+    int have_player;
+    int aboard;
+    int count = 0;
+    struct World_EntityPool* pool;
+    int i;
+
+    assert(app);
+    assert(out);
+    assert(cap > 0);
+    assert(cap <= DRIVE_UI_HAZARD_CAP);
+    assert(out_count);
+
+    *out_count = 0;
+    if( !app->world )
+        return DRIVE_OK;
+
+    have_player = drive_ui_search_origin(app, &px, &pz, &aboard);
+    pool = &app->world->entities.spotanim;
+    for( i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_Spotanim const* spot = World_EntityPoolGet(pool, i);
+        int tile_x, tile_z;
+        int j;
+
+        if( !spot )
+            continue;
+        tile_x = app->world->_base_tile_x + (int)(spot->draw_position.x >> 7);
+        tile_z = app->world->_base_tile_z + (int)(spot->draw_position.z >> 7);
+        if( have_player && !drive_ui_within_radius(tile_x, tile_z, px, pz, radius) )
+            continue;
+        j = drive_ui_nearest_insert(out, sizeof(*out), distances, &count, cap,
+            have_player ? drive_ui_distance2(tile_x, tile_z, px, pz) : 0);
+        if( j < 0 )
+            continue;
+        out[j].spotanim_id = spot->spotanim_id;
+        out[j].tile_x = tile_x;
+        out[j].tile_z = tile_z;
+        out[j].level = spot->level;
+        out[j].active = spot->active;
+        /* World_CycleUpdateSpotanims: idle_cycles counts the delay down, then
+         * active_cycle counts up to lifetime and the graphic despawns. */
+        out[j].cycles_left = spot->active ? spot->lifetime - spot->active_cycle
+                                          : spot->idle_cycles + spot->lifetime;
+        out[j].element_id = spot->element_id;
+    }
+    *out_count = count;
+    return DRIVE_OK;
+}
+
+enum DriveResult
+DriveUi_Projectiles(
+    struct App* app, int radius, struct DriveProjectileRow* out, int cap, int* out_count)
+{
+    long distances[DRIVE_UI_HAZARD_CAP];
+    int px = 0, pz = 0;
+    int have_player;
+    int aboard;
+    int count = 0;
+    struct World_EntityPool* pool;
+    int i;
+
+    assert(app);
+    assert(out);
+    assert(cap > 0);
+    assert(cap <= DRIVE_UI_HAZARD_CAP);
+    assert(out_count);
+
+    *out_count = 0;
+    if( !app->world )
+        return DRIVE_OK;
+
+    have_player = drive_ui_search_origin(app, &px, &pz, &aboard);
+    pool = &app->world->entities.projectile;
+    for( i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_Projectile const* proj = World_EntityPoolGet(pool, i);
+        int dst_tile_x, dst_tile_z;
+        int j;
+
+        if( !proj )
+            continue;
+        dst_tile_x = app->world->_base_tile_x + (proj->dst_x >> 7);
+        dst_tile_z = app->world->_base_tile_z + (proj->dst_z >> 7);
+        if( have_player && !drive_ui_within_radius(dst_tile_x, dst_tile_z, px, pz, radius) )
+            continue;
+        j = drive_ui_nearest_insert(out, sizeof(*out), distances, &count, cap,
+            have_player ? drive_ui_distance2(dst_tile_x, dst_tile_z, px, pz) : 0);
+        if( j < 0 )
+            continue;
+        out[j].spotanim_id = proj->spotanim_id;
+        out[j].src_tile_x = app->world->_base_tile_x + (proj->src_x >> 7);
+        out[j].src_tile_z = app->world->_base_tile_z + (proj->src_z >> 7);
+        out[j].dst_tile_x = dst_tile_x;
+        out[j].dst_tile_z = dst_tile_z;
+        out[j].level = proj->dst_level;
+        out[j].target = proj->target;
+        /* WorldEntity_Projectile.target's encoding: slot + 1 for an npc. */
+        out[j].target_npc_slot = proj->target > 0 ? proj->target - 1 : -1;
+        out[j].launched = proj->cycle >= proj->t1;
+        /* World_CycleUpdateProjectiles despawns once cycle passes t2. */
+        out[j].cycles_left = proj->t2 - proj->cycle;
+        out[j].element_id = proj->element_id;
     }
     *out_count = count;
     return DRIVE_OK;
@@ -1324,6 +1513,25 @@ drive_ui_push_npc_row(struct lua_State* L, struct DriveNpcRow const* row)
     lua_setfield(L, -2, "overhead");
     lua_pushinteger(L, row->overhead_timer);
     lua_setfield(L, -2, "overhead_timer");
+    /* The state half (struct DriveNpcRow): what the npc is drawing, and the
+     * newest SEQUENCE / SPOTANIM op with the SERVER tick it arrived on. A
+     * `nil` anim_id means a binary built before these fields. */
+    lua_pushinteger(L, row->anim_id);
+    lua_setfield(L, -2, "anim_id");
+    lua_pushinteger(L, row->anim_frame);
+    lua_setfield(L, -2, "anim_frame");
+    lua_pushinteger(L, row->spotanim_id);
+    lua_setfield(L, -2, "spotanim_id");
+    lua_pushinteger(L, row->seq_id);
+    lua_setfield(L, -2, "seq_id");
+    lua_pushinteger(L, row->seq_tick);
+    lua_setfield(L, -2, "seq_tick");
+    lua_pushinteger(L, row->spotanim_sent_id);
+    lua_setfield(L, -2, "spotanim_sent_id");
+    lua_pushinteger(L, row->spotanim_tick);
+    lua_setfield(L, -2, "spotanim_tick");
+    lua_pushinteger(L, row->facing);
+    lua_setfield(L, -2, "facing");
 }
 
 static int
@@ -1593,6 +1801,91 @@ lua_drive_shot(struct lua_State* L)
 }
 
 
+/* api_drive.spotanims(radius) -> result, { {spotanim_id, x, z, level, active,
+ * cycles_left, element_id}, ... } nearest first (struct DriveSpotanimRow). */
+static int
+lua_drive_spotanims(struct lua_State* L)
+{
+    static struct DriveSpotanimRow rows[DRIVE_UI_HAZARD_CAP];
+    struct App* app = PluginDrive_App();
+    int radius = PluginDrive_ArgOptInt(L, 1, 0);
+    int count = 0;
+    enum DriveResult result;
+    int i;
+
+    assert(app);
+    result = DriveUi_Spotanims(app, radius, rows, DRIVE_UI_HAZARD_CAP, &count);
+    lua_pushstring(L, DriveResultName(result));
+    lua_createtable(L, count, 0);
+    for( i = 0; i < count; i++ )
+    {
+        lua_createtable(L, 0, 7);
+        lua_pushinteger(L, rows[i].spotanim_id);
+        lua_setfield(L, -2, "spotanim_id");
+        lua_pushinteger(L, rows[i].tile_x);
+        lua_setfield(L, -2, "x");
+        lua_pushinteger(L, rows[i].tile_z);
+        lua_setfield(L, -2, "z");
+        lua_pushinteger(L, rows[i].level);
+        lua_setfield(L, -2, "level");
+        lua_pushboolean(L, rows[i].active);
+        lua_setfield(L, -2, "active");
+        lua_pushinteger(L, rows[i].cycles_left);
+        lua_setfield(L, -2, "cycles_left");
+        lua_pushinteger(L, rows[i].element_id);
+        lua_setfield(L, -2, "element_id");
+        lua_rawseti(L, -2, i + 1);
+    }
+    return 2;
+}
+
+/* api_drive.projectiles(radius) -> result, { {spotanim_id, src_x, src_z,
+ * dst_x, dst_z, level, target, target_npc_slot, launched, cycles_left,
+ * element_id}, ... } nearest DESTINATION first (struct DriveProjectileRow). */
+static int
+lua_drive_projectiles(struct lua_State* L)
+{
+    static struct DriveProjectileRow rows[DRIVE_UI_HAZARD_CAP];
+    struct App* app = PluginDrive_App();
+    int radius = PluginDrive_ArgOptInt(L, 1, 0);
+    int count = 0;
+    enum DriveResult result;
+    int i;
+
+    assert(app);
+    result = DriveUi_Projectiles(app, radius, rows, DRIVE_UI_HAZARD_CAP, &count);
+    lua_pushstring(L, DriveResultName(result));
+    lua_createtable(L, count, 0);
+    for( i = 0; i < count; i++ )
+    {
+        lua_createtable(L, 0, 11);
+        lua_pushinteger(L, rows[i].spotanim_id);
+        lua_setfield(L, -2, "spotanim_id");
+        lua_pushinteger(L, rows[i].src_tile_x);
+        lua_setfield(L, -2, "src_x");
+        lua_pushinteger(L, rows[i].src_tile_z);
+        lua_setfield(L, -2, "src_z");
+        lua_pushinteger(L, rows[i].dst_tile_x);
+        lua_setfield(L, -2, "dst_x");
+        lua_pushinteger(L, rows[i].dst_tile_z);
+        lua_setfield(L, -2, "dst_z");
+        lua_pushinteger(L, rows[i].level);
+        lua_setfield(L, -2, "level");
+        lua_pushinteger(L, rows[i].target);
+        lua_setfield(L, -2, "target");
+        lua_pushinteger(L, rows[i].target_npc_slot);
+        lua_setfield(L, -2, "target_npc_slot");
+        lua_pushboolean(L, rows[i].launched);
+        lua_setfield(L, -2, "launched");
+        lua_pushinteger(L, rows[i].cycles_left);
+        lua_setfield(L, -2, "cycles_left");
+        lua_pushinteger(L, rows[i].element_id);
+        lua_setfield(L, -2, "element_id");
+        lua_rawseti(L, -2, i + 1);
+    }
+    return 2;
+}
+
 static struct LuaFn const LUA_DRIVE_UI_FNS[] = {
     {"group_present", lua_drive_group_present},
     {"component", lua_drive_component},
@@ -1605,6 +1898,8 @@ static struct LuaFn const LUA_DRIVE_UI_FNS[] = {
     {"locs", lua_drive_locs},
     {"loc_variants", lua_drive_loc_variants},
     {"objs", lua_drive_objs},
+    {"spotanims", lua_drive_spotanims},
+    {"projectiles", lua_drive_projectiles},
     {"player_tile", lua_drive_player_tile},
     {"key", lua_drive_key},
     {"text", lua_drive_text},
