@@ -159,15 +159,17 @@ local function crystals_done(t)
 end
 
 local function sustain(t)
-    -- Beam collision can chunk HP; eat earlier than a normal kill room.
-    if hp(t) > 0 and hp(t) < 85 then
-        t.player.inv_op("shark", 1)
+    -- Beam splash scales with current HP but still kills at low HP.
+    while hp(t) > 0 and hp(t) < 90 do
+        local er = t.player.inv_op("shark", 1)
         t.ticks(1)
+        if er ~= "ok" then break end
+        if hp(t) >= 90 then break end
     end
     local pr, pp = t.prayer.points()
     local points = 0
     if pr == "ok" then points = pp.points or pp.level or 0 end
-    if points < 40 then
+    if points < 50 then
         t.player.inv_op("br_4dose2restore", 1)
         t.ticks(1)
     end
