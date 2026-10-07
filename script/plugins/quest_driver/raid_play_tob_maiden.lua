@@ -581,7 +581,7 @@ QD.RAID_MAIDEN_REF = {
             seat = { [1] = { { "N1", 1, 9 }, { "N2", 6, 10 }, { "STACK", 22, 49 } }, [3] = { { "N1", 1, 9 }, { "N2", 6, 11 }, { "STACK", 22, 49 } } } },
         [2] = { casts = { { 1, "S1" }, { 6, "S2|N2" }, { 11, "NEXT" } }, again_until = 31, ret = 31,
             seat = { [1] = { { "N1", 1, 9 }, { "N2", 6, 14 }, { "STACK", 22, 49 } }, [3] = { { "N1", 1, 9 }, { "N2", 6, 16 }, { "STACK", 22, 49 } } } },
-        [3] = { casts = { { 1, "S1" }, { 6, "S2|N2" }, { 11, "AT90" }, { 16, "STACK" } }, ret = 21,
+        [3] = { casts = { { 1, "S1" }, { 6, "S2|N2" }, { 11, "NEXT" } }, ret = 21,
             seat = { [1] = { { "N1", 1, 9 }, { "STACK", 17, 49 } }, [3] = { { "N1", 1, 10 }, { "STACK", 17, 49 } } } },
     },
     -- each seat's tile per form (0 = her 100 form .. 3 = 30), the script's
@@ -591,7 +591,11 @@ QD.RAID_MAIDEN_REF = {
     -- 50 (5,6) (6,4) (12,-1); 30 (5,6) (6,5) (6,2)
     home = { [0] = { [1] = { 4, 6 }, [2] = { 15, -1 }, [3] = { 5, 6 } },
         [1] = { [1] = { 5, 6 }, [2] = { 15, 0 }, [3] = { 6, 5 } },
-        [2] = { [1] = { 5, 6 }, [2] = { 12, -1 }, [3] = { 6, 4 } },
+        -- (the 50-form freezer at (15,3), the streams' modal tile at the 30
+        -- spawn (15,3) 3 / (15,-1) 2 / (13,0) 2: their (12,-1) lies on the S3
+        -- lane's walk, and sm101 svg's +6 cast on N2 was "covered" by the S3
+        -- crab passing over the freezer, N2 walking in with all 75)
+        [2] = { [1] = { 5, 6 }, [2] = { 15, 3 }, [3] = { 6, 4 } },
         [3] = { [1] = { 5, 6 }, [2] = { 6, 2 }, [3] = { 6, 5 } } },
     -- the thresholds and how near one the freezer puts its magic set on (W:643
     -- "hover their mouse over the S1's spawn position when Maiden is close to
@@ -972,7 +976,23 @@ function QD.raid.mz_dodge_tick(st, v, intent)
 end
 
 -- ----- OPEN (scythe seats): the bow from the run-in, in the ranged set -----
-function QD.raid.mz_open_on_blood(st, v, ev) return QD.raid.mz_dodge(st, v, ev) end
+-- THE RUN-IN THROW (sm103 sva: the leader bowed at +6 from (14,2), her first
+-- throw at +9 sent it one tile to (13,1) and it stood in DODGE to +16, then
+-- walked home and threw the special at +23, the first scythe +30 against the
+-- script's +10 / +16): a scythe seat still to walk home walks home under the
+-- throw -- the walk leaves the tile -- unless the throw lands on home itself
+function QD.raid.mz_walking_home_dodge(st, v, ev)
+    if st.role ~= 2 and ev.mine and ev.x ~= nil then
+        local hx, hz = QD.raid.mz_home(st, v)
+        local far = math.max(math.abs(v.me.x - hx), math.abs(v.me.z - hz)) > 1
+        if far and math.max(math.abs(ev.x - hx), math.abs(ev.z - hz)) > 1 then
+            if st.m.state == "OPEN" then QD.raid.mz_go(st, v, "DRAIN", 0) end
+            return nil
+        end
+    end
+    return QD.raid.mz_dodge(st, v, ev)
+end
+function QD.raid.mz_open_on_blood(st, v, ev) return QD.raid.mz_walking_home_dodge(st, v, ev) end
 function QD.raid.mz_open_on_pool(st, v, ev) return QD.raid.mz_dodge(st, v, ev) end
 function QD.raid.mz_open_tick(st, v, intent)
     local m = st.m
@@ -985,7 +1005,7 @@ function QD.raid.mz_open_tick(st, v, intent)
 end
 
 -- ----- DRAIN: the Tonalztics special (W:249; TONALZTICS 23/16/15 of 24) -----
-function QD.raid.mz_drain_on_blood(st, v, ev) return QD.raid.mz_dodge(st, v, ev) end
+function QD.raid.mz_drain_on_blood(st, v, ev) return QD.raid.mz_walking_home_dodge(st, v, ev) end
 function QD.raid.mz_drain_on_pool(st, v, ev) return QD.raid.mz_dodge(st, v, ev) end
 function QD.raid.mz_drain_tick(st, v, intent)
     local m = st.m
@@ -1086,8 +1106,11 @@ function QD.raid.mz_cast_tick(st, v, intent)
     if last ~= nil and last.result == "cast" and last.tick < v.tick and last.tick >= v.tick - 2 and st.last_press ~= nil and st.last_press.tick == last.tick
         and st.last_press.spell ~= nil and st.last_press.answer ~= "pressed" and st.last_press.answer ~= "ok" and m.idx > 1 then
         last.result = "covered"
-        -- (a NEXT cast stays on its entry and picks again with the slot skipped)
-        if not (W.casts[m.idx] ~= nil and W.casts[m.idx][2] == "NEXT") then m.idx = m.idx - 1 end
+        -- (a NEXT cast stays on its entry and picks again with the slot
+        -- skipped; a covered lane cast is cast again -- sm101 svg, the +6 N2
+        -- cast covered, NEXT waited to +10 and N2 walked in with all 75)
+        local was_next = last.why ~= nil and (last.why:sub(1, 4) == "NEXT" or last.why:sub(1, 5) == "AGAIN")
+        if not was_next then m.idx = m.idx - 1 end
         if m.cast_send == last.tick then m.cast_send = nil end
     end
     for i = #m.casts, math.max(1, #m.casts - 3), -1 do
