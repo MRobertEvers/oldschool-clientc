@@ -266,9 +266,8 @@ return {
         "::give air_rune 800",
         "::give blood_rune 200",
         "::give abyssal_whip",
-        "::give shark 40",
-        "::give br_4dose2restore 12",
-        "::give saradomin_brew4 6",
+        "::give shark 28",
+        "::give br_4dose2restore 8",
     },
 
     run = function(t)
