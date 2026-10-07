@@ -7,15 +7,15 @@ Replacement for stuck agent `bc-d3cf9a9c` (empty transcript, no commits).
 ## Strategy (owner 2026-10-07)
 
 **Synq learner solo** (`synq_transcript.md` [0:31:54]): Protect from Magic,
-ranged + salve, blowpipe (tbow weaker on mystic magic level), focus one
-mystic at a time until the room clears. Corner safespot optional.
+ranged + salve, focus one mystic at a time. Twisted bow is acceptable (5-tick
+cycle survives await eating better than blowpipe under stacked DPS). Corner
+safespot optional.
 
 ## Implemented
 
-- Test SM: `LAND → ARM_PRAYER → FOCUS → DONE` (await_dead per focus kill)
-- Kit: loaded toxic blowpipe + salve + masori; shark + karambwan combo; eat below 32
-  (higher thresholds canceled blowpipe DPS)
-- Prayer-reduction samples magic-style hits only (melee under Protect Magic ignored)
+- Test SM: `LAND → ARM_PRAYER → FOCUS → DONE` (tick-loop FOCUS so brews sip)
+- Kit: tbow + salve + masori; brew-first sustain + sharks/karambwan
+- Prayer-reduction samples magic-style hits only
 - Spec table: all six kill-path rows grade C
 - Content: existing mystic procs in `cox_minions.rs2` (no shaman edits)
 
