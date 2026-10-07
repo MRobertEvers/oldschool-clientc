@@ -533,16 +533,25 @@ local function nylo_lock(c, ev)
     return nil, "HUNTING_MATE"
 end
 local function nylo_gone() return nil, "GONE" end
+local function nylo_dying() return nil, "DYING" end
+-- DYING (2026-10-07, svbvzfastp3 P3+243..246): every ending -- arrived, timed
+-- out or killed -- reaches the blast through the death sequence, so the blast
+-- lands about three ticks AFTER the row reads dead (all three crabs died at
+-- P3+243, the blast hit at +246).  This read a dead row as GONE, the seat
+-- stopped avoiding it, walked back beside the corpse and took 62.  A dying crab
+-- is everyone's hazard, whoever it hunted, until its row is freed.
 QD.raid.sm_declare("verzik_nylo", {
     start = "SPAWNED",
     states = {
         SPAWNED      = { note = "on the floor, not yet facing anyone",
-            on = { nylo_row = nylo_lock, nylo_gone = nylo_gone } },
+            on = { nylo_row = nylo_lock, nylo_dying = nylo_dying, nylo_gone = nylo_gone } },
         HUNTING_ME   = { note = "locked on me: it must not arrive",
-            on = { nylo_row = nylo_lock, nylo_gone = nylo_gone } },
+            on = { nylo_row = nylo_lock, nylo_dying = nylo_dying, nylo_gone = nylo_gone } },
         HUNTING_MATE = { note = "locked on a mate: its blast must not reach me",
-            on = { nylo_row = nylo_lock, nylo_gone = nylo_gone } },
-        GONE         = { note = "blown, timed out or killed",
+            on = { nylo_row = nylo_lock, nylo_dying = nylo_dying, nylo_gone = nylo_gone } },
+        DYING        = { note = "dead, its blast still to land: nobody within its band",
+            on = { nylo_dying = nylo_dying, nylo_gone = nylo_gone } },
+        GONE         = { note = "blown and freed",
             on = { nylo_row = function() return nil, "SPAWNED" end } },
     },
 })
@@ -563,8 +572,9 @@ function QD.raid._verzik_nylo_read(st, v)
         if c.row.facing ~= nil and c.row.facing >= 32768 then rec.owner = c.row.facing - 32768 end
         local ctx = { my_pid = st.my_pid }
         if c.dead then
-            rec.gone = true
-            QD.raid.sm_run(st, v, "verzik_nylo", ctx, { { name = "nylo_gone" } }, slot)
+            -- still a hazard until the row is freed: the blast is to come
+            local m = QD.raid.sm_run(st, v, "verzik_nylo", ctx, { { name = "nylo_dying" } }, slot)
+            live[#live + 1] = { row = c.row, state = m.state, age = v.tick - rec.first }
         else
             local m = QD.raid.sm_run(st, v, "verzik_nylo", ctx, { { name = "nylo_row", owner = rec.owner } }, slot)
             live[#live + 1] = { row = c.row, state = m.state, age = v.tick - rec.first }
