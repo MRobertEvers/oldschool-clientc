@@ -1409,9 +1409,13 @@ function QD.raid.mz_home(st, v)
     end
     return b.x + h[1], b.z + h[2]
 end
--- the tile off her edge for her next aim, or nil: the client tick two before
--- it (the step lands at the end of the tick before, which is what she reads),
--- on my pass turn, from beside the take tile, with the pass tile clean
+-- the tile 4 out for her next aim, or nil: on the client tick two before it
+-- (the step lands at the end of the tick before, which is what she reads),
+-- on my pass turn, while I stand 3 out -- from her edge or from a crab beside
+-- it, whatever the state (the relay's sva at t400-t420: dps1 on her east
+-- edge in LANE, 3 out on its pass turn, took 17 and 28); the form's pass tile
+-- when it is the one step, else a clean floor tile one step away that is 4
+-- out, one beside her first
 function QD.raid.mz_storm_step(st, v)
     if not QD.raid.mz_storm_turn_on(st) then return nil end
     local m, b = st.m, v.boss
@@ -1419,11 +1423,25 @@ function QD.raid.mz_storm_step(st, v)
     if b == nil or last == nil then return nil end
     if v.tick ~= last.at + st.plan.attack_every - 2 then return nil end
     if QD.raid.mz_storm_turn(st, v) ~= "pass" then return nil end
+    local half = (b.size or st.plan.boss_size) // 2
+    local cx, cz = b.x + half, b.z + half
+    local function out(x, z) return math.max(math.abs(x - cx), math.abs(z - cz)) end
+    if out(v.me.x, v.me.z) >= 4 then return nil end
     local T = QD.RAID_MAIDEN_STORM_TURN[QD.raid.mz_form(st)]
     local px, pz = b.x + T.pass[1], b.z + T.pass[2]
-    if QD.raid._play_gap(b, px, pz) == 1 or v.marks[px * 100000 + pz] then return nil end
-    if math.max(math.abs(v.me.x - (b.x + T.take[1])), math.abs(v.me.z - (b.z + T.take[2]))) > 1 then return nil end
-    return px, pz
+    local ok = QD.raid.mz_floor_ok(st, v)
+    local best, bx, bz = nil, nil, nil
+    for dx = -1, 1 do
+        for dz = -1, 1 do
+            local x, z = v.me.x + dx, v.me.z + dz
+            if (dx ~= 0 or dz ~= 0) and out(x, z) >= 4 and ok(x, z) and not v.marks[x * 100000 + z] then
+                local score = (QD.raid._play_gap(b, x, z) == 1) and 0 or 10
+                if x == px and z == pz then score = score - 5 end
+                if best == nil or score < best then best, bx, bz = score, x, z end
+            end
+        end
+    end
+    return bx, bz
 end
 -- walk home when more than a tile off it and no walk is under way
 function QD.raid.mz_walk_home(st, v, intent)
@@ -2033,13 +2051,6 @@ function QD.raid.mz_s_on_boss_tick(c, ev)
     local m = st.m
     local function ok(x, z)
         return x >= st.plan.floor[1] + m.ox - 12 and x <= st.plan.floor[3] + m.ox and z >= st.plan.floor[2] + m.oz and z <= st.plan.floor[4] + m.oz
-    end
-    -- THE STORM TURN's step off her edge for her aim (the relay's dps1)
-    local sx, sz = QD.raid.mz_storm_step(st, v)
-    if sx ~= nil then
-        m.storm_steps = (m.storm_steps or 0) + 1
-        QD.raid.mz_walk_to(st, v, intent, sx, sz)
-        return
     end
     local hx, hz = QD.raid.mz_home(st, v)
     if QD.raid._play_gap(b, hx, hz) == 1 and not v.marks[hx * 100000 + hz] and (v.me.x ~= hx or v.me.z ~= hz) then
@@ -2664,6 +2675,16 @@ function QD.raid._play_maiden_trio(st, v)
         for k in pairs(intent) do intent[k] = nil end
         intent.want = keep
         QD.raid.mz_tick(st, v, intent)
+    end
+    -- THE STORM TURN's step 4 out for her aim (the relay's dps1), over
+    -- whatever the standing state wanted this one tick; a dodge keeps its walk
+    if m.state ~= "DODGE" then
+        local sx, sz = QD.raid.mz_storm_step(st, v)
+        if sx ~= nil then
+            m.storm_steps = (m.storm_steps or 0) + 1
+            intent.walk, intent.press, intent.cast, intent.attack = nil, nil, nil, false
+            QD.raid.mz_walk_to(st, v, intent, sx, sz)
+        end
     end
     -- PRAYERS: Protect from Magic always (the storm is magic, W:590); Piety on
     -- a scythe seat, Rigour on the freezer's bow (10Boot 0:02:45)
