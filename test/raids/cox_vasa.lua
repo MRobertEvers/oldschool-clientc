@@ -7,8 +7,9 @@ return {
         "::setlevel attack 99",
         "::setlevel strength 99",
         "::setlevel defence 99",
-        -- Solo teleport special deals (current HP - 5); start low so it cannot kill.
-        "::setlevel hitpoints 40",
+        -- Equip needs HP 75+ for torva/zenyte; solo special is (HP-5) so drop
+        -- to 40 after gear is on (see run()) — leaves 5 HP, survivable with food.
+        "::setlevel hitpoints 99",
         "::setlevel prayer 99",
         "::setlevel ranged 99",
         -- Stab for the glowing crystal (wiki: ranged-immune, magic 1/3, crush/slash resist).
@@ -45,6 +46,8 @@ return {
         t.exec("equip.cape", t.player.equip, "infernal_cape")
         t.exec("equip.ring", t.player.equip, "berzerker_ring")
         t.exec("equip.amulet", t.player.equip, "zenyte_amulet_enchanted")
+        -- Solo special = currentHP-5. At 99 that is fatal; drop after gear on.
+        t.cheat("::setlevel hitpoints 40")
 
         local er, ed = t.raid.enter("cox", "vasa", { seed = 1 })
         t.check("raid.enter", er == "ok", tostring(ed))
@@ -69,17 +72,22 @@ return {
 
         local br, brow, bsym = find_boss()
         t.check("boss.present", br == "ok", "dormant/walking/healing within 32: " .. tostring(bsym))
+        -- Enter lands within ~4 of the pile; wake_range is 3 so he must still be dormant.
+        t.check("boss.dormant", bsym == "raids_vasanistirio_dormant",
+            "expected dormant on enter, got " .. tostring(bsym))
         local wr, ws = t.ticklog.slot(brow)
         t.check("boss.slot", wr == "ok", tostring(ws))
         t.shot("vasa idle pile before approach")
 
+        -- Pray BEFORE approach: special teleports + banks (HP-5); boulders follow.
+        t.prayer.set("protectfrommissiles", true)
+        t.ticks(1)
+
         -- CoX wakes on approach (DRIVER_NOTES): walk onto the pile.
-        local _, me = t.world.tile()
         t.player.walk_to(brow.x, brow.z, 40)
         t.ticklog.mark("approach")
         t.shot("vasa approach / wake")
 
-        -- Survive the teleport special: eat if needed, pray missiles for boulders after.
         local special_seen = false
         local crystal_spawn_tick = nil
         local arrival_tick = nil
@@ -95,24 +103,20 @@ return {
         local function eat_if_low()
             local _, hpw = t.skill.read("hitpoints")
             if hpw.level < lowest_hp then lowest_hp = hpw.level end
-            if hpw.level < 25 then
+            -- After special we sit at ~5; eat every tick until mid-bag HP.
+            if hpw.level < 30 then
                 t.player.inv_op("shark", 1)
                 eats = eats + 1
             end
         end
 
-        -- Wait for wake + special (retype to walking, then teleport).
-        for k = 1, 40 do
-            local r, row = find_boss()
-            if r == "ok" and row.name and string.find(tostring(row.name), "Vasa", 1, true) then
+        -- Wait for wake + special (retype off dormant). Eat/step out of stomp.
+        for k = 1, 60 do
+            eat_if_low()
+            local r, row, sym = find_boss()
+            if r == "ok" and sym ~= "raids_vasanistirio_dormant" then
                 special_seen = true
-                break
             end
-            if r == "ok" and bsym ~= "raids_vasanistirio_dormant" then
-                special_seen = true
-                break
-            end
-            -- Retype is the reliable wake tell.
             local ar, arows = t.ticklog.rows({ kind = "npc_retype", slot = ws })
             if ar == "ok" then
                 for i = 1, #arows do
@@ -121,12 +125,18 @@ return {
                     end
                 end
             end
-            if special_seen then break end
+            -- Step off his tile so the post-teleport stomp cannot finish a 5-HP player.
+            if r == "ok" and special_seen then
+                local _, me2 = t.world.tile()
+                if math.max(math.abs(me2.x - row.x), math.abs(me2.z - row.z)) <= 1 then
+                    t.player.walk_to(row.x + 4, row.z + 4, 4)
+                end
+            end
+            if special_seen and k >= 8 then break end
             t.ticks(1)
         end
         t.check("fight.wake", special_seen, "Vasa left the dormant pile after approach")
 
-        -- After special, pray missiles; hunt crystals and Vasa.
         t.prayer.set("protectfrommissiles", true)
         t.ticks(1)
 
