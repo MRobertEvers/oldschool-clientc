@@ -1903,3 +1903,11 @@ hits up to 10 enemies (in both PvM and PvP) in a 11x11 area around the player (t
 player) with 20% increased accuracy"; :74 the 5% drain on every monster hit, not on the primary's doubled hit; :135
 "the actual range is 11 x 11". Now: npc_findallany(coord, 5) after the primary's two hits, up to 9 more, each its
 own roll and drain; multiway or an instance only, as the barrage's splash.
+
+### owner_tob_normal: a Normal blood-spawn trail hit 10 + 2c (36-42 a tick) -- FIXED (content 35366f400e)
+tob_maiden.rs2 `~tob_maiden_blood_damage` gave a Normal trail tile the splat rule `10 + 2c`; with 13-16 leaks a
+trail hit 36-42 a tick, and the trio runs (sm91: sva, svd, svf) died on it three or four times in ten ticks.
+wiki_Blood_spawn.wikitext:48 "In entry mode the damage is 2 to 5, and in normal mode the damage is 5 to 13."
+Now a Normal trail rolls 5..13 uniform (`^tob_maiden_trail_damage_normal_min/_max`, grade D, the Entry row's shape);
+pools are unchanged (10 + 2c); Hard keeps the splat rule (no source; The_Maiden_of_Sugadinti:144 only says Hard
+splatters stay). Eight names after: 0 deaths (from 3), trail hits 5-13.
