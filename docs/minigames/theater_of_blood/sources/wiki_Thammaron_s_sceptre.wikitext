@@ -1,0 +1,193 @@
+{{Otheruses|def=no|the autocast mode of the sceptre|Thammaron's sceptre (a)|the upgraded sceptre|accursed sceptre}}
+{{Infobox Item
+|defver = 2
+|version1 = Uncharged
+|version2 = Charged
+|name1 = Thammaron's sceptre (u)
+|name2 = Thammaron's sceptre
+|image1 = [[File:Thammaron's sceptre (u).png]]
+|image2 = [[File:Thammaron's sceptre.png]]
+|release = [[26 July]] [[2018]]
+|update = Revenant Cave Rewards and Troll Quest Announcement
+|members = Yes
+|quest = No
+|tradeable1 = Yes
+|tradeable2 = No
+|equipable = Yes
+|stackable = No
+|noteable1 = Yes
+|noteable2 = No
+|options1 = Wield, Dismantle, Swap, Drop
+|options2 = Wield, Check, Swap, Uncharge
+|wornoptions1 = None
+|wornoptions2 = Check, Swap
+|destroy1 = N/A
+|destroy2 = ''If you uncharge this weapon, all the revenant ether will return to your inventory.''
+|examine = A mighty sceptre used in long forgotten battles.
+|value = 120000
+|weight = 0.198
+|exchange1 = Yes
+|exchange2 = No
+|id1 = 22552
+|id2 = 22555
+|leagueRegion = Wilderness
+}}
+{{Synced switch
+|version1 = [[File:Thammaron's sceptre (u) detail.png|left|150px]]
+|version2 = [[File:Thammaron's sceptre detail.png|left|150px]]
+}}
+[[File:Thammaron's sceptre spell.gif|thumb|250px|A player using Thammaron's sceptre's built in spell.]]
+'''Thammaron's sceptre''' is a [[powered staff]] requiring 60 [[Magic]] to wield, available as a drop from [[revenants]]. Like most powered staves, it is only tradeable when it is fully uncharged. It was once owned by [[Thammaron]], a Tsutsaroth [[demon]] who was one of [[Zamorak]]'s most trusted allies during the reign of [[Zaros]], and later one of his key generals during the [[God Wars]]. This item counts as a [[Zamorak]]ian item in the [[God Wars Dungeon]].
+
+The sceptre shares the same magic attack bonus as the [[trident of the seas]], and has a powerful [[passive effect]] within the [[Wilderness]] when charged with [[revenant ether]]. In addition, unlike other powered staves, the sceptre can attack players outside of [[minigames]]. The sceptre also has a "Swap" option that allows players to switch it to [[Thammaron's sceptre (a)]], which is a variant that can [[autocast]] offensive [[combat spells]] from the [[standard spellbook]] (including [[Flames of Zamorak]]) and the [[Ancient Magicks]].
+
+The sceptre can be upgraded to an [[accursed sceptre]] by attaching the [[skull of Vet'ion]] to it, requiring level 85 Crafting or paying [[Phabelle Bile]] {{NoCoins|500000|c}}. Players can also dismantle an uncharged sceptre to receive 7,500 [[revenant ether]], resulting in {{NoCoins|{{GEP|Revenant ether|7500}}|c}} and a {{#ifexpr:{{#vardefineecho:profit|{{GEP|Revenant ether|7500}}-{{GEP|Thammaron's sceptre (u)}}}} > 0 |profit|loss}} of {{NoCoins|{{#var:profit}}|c}}.
+
+==Combat stats==
+{{Infobox Bonuses
+|version1 = Uncharged
+|version2 = Charged
+|astab = 0
+|aslash = 0
+|acrush = 0
+|amagic = +15
+|arange = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = +20
+|drange = 0
+|str = 0
+|rstr = 0
+|mdmg = 0
+|prayer = 0
+|slot = weapon
+|speed = 4
+|attackrange = 7
+|combatstyle = Powered Staff
+|image1 = [[File:Thammaron's sceptre (u) equipped.png|220px]]
+|image2 = [[File:Thammaron's sceptre equipped.png|220px]]
+|altimage1 = [[File:Thammaron's sceptre (u) equipped female.png|220px]]
+|altimage2 = [[File:Thammaron's sceptre equipped female.png|220px]]
+}}
+
+{{CombatStyles|Powered Staff|speed=4|attackrange=7}}
+
+==Charging==
+To use the sceptre's magic spell or passive effect, it must be charged with [[revenant ether]], holding up to 17,000 charges when fully charged. The first 1,000 ether (costing {{NoCoins|{{GEP|Revenant ether|1000}}|c}}) act as an activation deposit before the built-in spell or passive effect can be used. Players can configure the charges while the weapon is in their bank by right-clicking on Configure-Charges, as long as players have the required materials. The built-in spell and passive effect consume 1 charge, and will only consume from charges '''beyond''' the first 1,000 ether. There is no additional cost for using the built-in spell and activating the passive effect at the same time. Using the ''Check'' option on the sceptre will display the amount of usable charges remaining, not including the activation deposit, up to the usable limit of 16,000.
+
+The hourly cost of constantly using this weapon's built-in spell is 1,500 ether ({{NoCoins|{{GEP|Revenant ether|1500}}|c}}). The hourly cost of casting other spells is 1,200 ether ({{NoCoins|{{GEP|Revenant ether|1200}}|c}}), as spells can only be cast every 5 [[game tick]]s.
+
+The ether can be safely removed (including the activation deposit) by selecting the right-click ''Uncharge'' option on the sceptre, after which the sceptre becomes tradeable again.
+
+==Passive effect==
+When Thammaron's sceptre is charged, an additional 50% magic accuracy and damage boost is applied when attacking any [[NPC]] in the [[Wilderness]], consuming 1 ether per attack whether the player hits or not. It is also applied to any [[combat spells]] cast when it is equipped, though it cannot [[autocast]] them when using the staff's built in spell.
+
+This effect will stack with a [[slayer helmet (i)]] or a [[Salve amulet(i)]] and their variants, but not both simultaneously. This makes the sceptre the second best magic weapon in the Wilderness after the [[accursed sceptre]], surpassing the damage output of a [[trident of the seas]] or [[Trident of the Swamp|swamp]] with the additional capability of attacking any hostile players, something which both tridents are incapable of doing.
+
+==Death==
+Upon [[death]] within the Wilderness, any revenant ether stored within the sceptre will '''always''' be dropped, even if the sceptre is one of the player's protected items. Because of this, despite the sceptre being able to store a maximum of 17,000 revenant ether, it is recommended to store the minimum amount required for a trip into the Wilderness (in addition to the 1,000 ether required to activate the weapon). This mechanic is not indicated on the [[Items Kept on Death]] interface.
+
+==Maximum hit==	
+The [[Maximum Magic hit|maximum hit]] dealt by the sceptre is dependent on the player's current visible [[Magic]] level. The formula is as follows:
+
+<math>\begin{align}
+\text{Max Hit} &= \lfloor \frac{\text{Magic}}{3} \rfloor - 8\\
+\end{align}</math>
+
+===Calculator===
+{{Magic damage calculator|Thammaron's sceptre|weapons=Thammaron's sceptre (Wilderness)}}
+
+==Products==
+{{Uses material list|Thammaron's sceptre (u)}}
+
+==Item sources==
+{{Drop sources|Thammaron's sceptre (u)}}
+
+The drop rate is increased when [[Skull (status)|skulled]]. This does not apply to the skull given by a [[PvP world#High-risk%20worlds|high-risk PvP world]].
+
+==Comparison between other magic weapons==
+{{Magic weapons comparison}}
+
+==Used in recommended equipment==
+{{Used in recommended equipment|Thammaron's sceptre}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 15 July 2026
+|update = The Blood Moon Rises & Bank Tags Tweaks
+|change = Fixed a bug where the Auto-Charge from Bank feature allowed the Revenant weapons to be loaded with up to 17,000 ether when they were already in their charged state. The maximum capacity option should now respect the maximum charges you can add at 16,000.
+}}
+{{Subject changes
+|date = 5 March 2025
+|update = Game Jam: Charges QoL
+|change = The Thammaron's sceptre supports a bank item option for changing charges.
+}}
+{{Subject changes
+|date = 3 May 2023
+|update = Points-Based Combat Achievements
+|change = * The item now prompts players to input the amount of [[revenant ether|ether]] they would like to add if there is another [[Wilderness weapon]] in their inventory.
+* The ‘Check’ [[Bank#Inventory_item_options|inventory option]] has been replaced with ‘Wield’ when the [[Bank]] is open.
+}}
+{{Subject changes
+|date = 5 April 2023
+|update = Easter 2023
+|change = Players can now check the number of charges in the Thammaron's sceptre while in the [[Bank]] interface, via a new ‘Check’ option.
+}}
+{{Subject changes
+|date = 8 February 2023
+|update = Poll 78 Updates & More
+|change = * The sceptre now has a "Swap" option that switches it to an autocasting variant.
+* The attack animation is now corrected when used against players.
+}}
+{{Subject changes
+|date = 25 January 2023
+|update = Wilderness Boss Rework
+|change = * Thammaron's sceptre is now a [[powered staff]].
+* The magic attack bonus has been reduced from +20 to +15.
+* The passive effect that increases the magic accuracy has been decreased from 100% to 50%, while the magic damage bonus has been increased from 25% to 50%.
+}}
+{{Subject changes
+|date = 15 September 2022
+|type = hotfix
+|change = The changes to Thammaron's sceptre have been reverted as it was not meant to be implemented yet.
+}}
+{{Subject changes
+|date = 14 September 2022
+|update = Quest Speedrunning, Wilderness Boss Rework Rewards & Poison Dynamite Betas
+|change = * Thammaron's sceptre is now a [[powered staff]].
+* The magic attack bonus has been reduced from +20 to +15.
+* The passive effect that increases the magic accuracy has been decreased from 100% to 50%, while the magic damage bonus has been increased from 25% to 50%.
+}}
+{{Subject changes
+|date = 16 April 2020
+|update = Poll 70 Game Improvements
+|poll = Old School Content Poll 70: Game Improvements
+|change = Uncharged variants of Thammaron's sceptre can now be dismantled into 7,500 revenant ether.
+}}
+{{Subject changes
+|date = 11 October 2018
+|update = Spellbook Rework, Wise Old Man and, Increased Zoom
+|change = An animation delay when defending with Thammoron's Sceptre has been fixed.
+}}
+{{Subject changes
+|date = 30 August 2018
+|update = Stronghold of Security, iOS Closed Beta Launch and Ghostly Robes
+|change = Thammaron's Sceptre has had its defend animation changed to make it interfere less with walking and other combat animations.
+}}
+{{Subject changes footer}}
+
+==Gallery==
+<gallery mode="packed" heights="150" style="text-align:left">
+Thammaron's sceptre work-in-progress.png|Three proposed models of Thammaron's sceptre made by [[Mod Ghost]], shown in a Q&A stream on 04/07/2018. Option 3 was chosen.
+</gallery>
+
+==Trivia==
+*Upon release, Thammaron's sceptre had a starting [[Grand Exchange]] price of 10,000,000 coins. This was manually adjusted to 20,000,000 coins on 1 August after frequent [[scams#4 noted items|luring]] in the Wilderness via dropping items whose prices on the Grand Exchange were more than the sceptre itself. As the game prioritises the protection of items that have the highest price on the Grand Exchange, the player may end up losing the sceptre by picking up an item worth slightly more than the sceptre on the Grand Exchange, which was worth around 45 million coins at the time.
+*Thammaron's sceptre, alongside the accursed sceptre, are almost weightless which is unique compared to other powered staves.
+
+{{Revenant Caves}}
+{{Magic weapons}}
+[[Category:Collection log items]]
+[[Category:Items with charges]]

@@ -1,0 +1,136 @@
+{{confuse|Skull sceptre}}{{Infobox Item
+|name = Bone staff
+|image = [[File:Bone staff.png]]
+|release = [[24 January]] [[2024]]
+|update = Scurrius, the Rat King
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = Yes
+|stackable = No
+|noteable = No
+|options = Wield, Check, Uncharge, Drop
+|wornoptions = Check
+|examine = It's a slightly magical stick intertwined with Scurrius' spine.
+|value = 1
+|alchable = No
+|weight = 2.267
+|id = 28796
+|leagueRegion = Misthalin
+}}
+[[File:Bone staff detail.png|left|130px]]
+The '''bone staff''' is a [[powered staff]] requiring level 50 [[Magic]] to wield. It is made by combining a [[battlestaff]] with [[Scurrius' spine]] alongside 1,000 [[chaos rune]]s, requiring a [[chisel]] and level 35 [[Crafting]] to do so; players without the required level can alternatively pay [[Historian Aldo]] 50,000 [[coins]] to create it on their behalf. The chaos runes are not consumed but are used to give the bone staff an initial 1,000 charges.
+
+In order to use the staff's magic spell, it must be charged with [[chaos rune]]s, holding up to 20,000 charges when fully charged. Each cast requires one chaos rune, costing {{NoCoins|{{GEP|Chaos rune}}|c}}. Uncharging the staff returns all remaining runes back. Additionally, unlike other powered staves, the bone staff's built-in spell gives 35 base [[Magic]] experience on a successful hit.
+
+As a [[rat bone weapon]], it is effective against all types of [[rat (attribute)|rats]] by adding 10 damage to the player's [[maximum hit]].{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1754468057638973449|date=5 February 2024|archiveurl=https://reldo.runescape.wiki/i/106036|archivedate=5 February 2024|quote=Looks like a static +10 in the code, from what I can see.}} The staff '''cannot be used''' against any other type of monster (including manual cast [[spell]]s); doing so will yield the game message {{Mes|You can only use this weapon against rats.}} Additionally, this weapon has no attack cooldown when attacking the [[Giant rat (Scurrius)|giant rats]] that [[Scurrius]] summons.
+
+[[File:Bone staff spell.gif|thumb|250px|A player using the bone staff's built in spell.]]
+
+==Combat stats==
+{{Infobox Bonuses
+|astab = 0
+|aslash = 0
+|acrush = 0
+|amagic = +14
+|arange = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|drange = 0
+|str = 0
+|rstr = 0
+|mdmg = 0
+|prayer = 0
+|slot = weapon
+|speed = 4
+|attackrange = 8
+|combatstyle = Powered Staff
+|image = [[File:Bone staff equipped male.png|140px]]
+|altimage = [[File:Bone staff equipped female.png|140px]]
+}}
+
+{{CombatStyles|Powered Staff|speed=4|attackrange=8}}
+
+==Creation==
+<tabber>
+|-|Crafting = 
+{{Recipe
+|skill1 = Crafting
+|skill1lvl = 35
+|skill1exp = 300
+|skill1boostable = yes
+|members = yes
+|ticks = 0
+|tools = chisel
+|facilities = 
+|mat1 = Battlestaff
+|mat2 = Chaos rune
+|mat2quantity = 1000
+|mat3 = Scurrius' spine
+|output1 = Bone staff
+|output1subtxt = Crafting
+}}
+|-|Historian Aldo =
+{{Recipe
+|members = Yes
+|ticks = 0
+|facilities = Historian Aldo
+|mat1 = Battlestaff
+|mat2 = Chaos rune
+|mat2quantity = 1000
+|mat3 = Scurrius' spine
+|mat4 = Coins
+|mat4quantity = 50000
+|mat4cost = 1
+|output1 = Bone staff
+|output1subtxt = Historian Aldo
+}}
+</tabber>
+
+==Maximum hit==
+The [[Maximum Magic hit|maximum hit]] dealt by the staff is dependent on the player's current visible [[Magic]] level; the formula is as follows:
+
+<math>\begin{align}
+ \text{Max Hit} &= \lfloor \frac{\text{MagicLevel}}{3} \rfloor + 5\\
+\end{align}</math>
+
+===Calculator===
+{{Magic damage calculator|Bone staff}}
+
+==Used in recommended equipment==
+{{Used in recommended equipment|Bone staff}}
+
+==Gallery==
+<gallery mode="packed" heights="200" style="text-align:left">
+Scurrius, the Rat King (1).png|Concept art for the bone weapons, by [[Mod Jerv]].
+Rat bone weapons original suggestion.jpg|The inspiration behind the [[rat bone weapons]], originating from a player suggestion.
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 31 January 2024
+|update = Scurrius & DT2 Combat Achievements
+|change = 
+* An "Uncharge" option was added to the item.
+* The weapon can now be used against [[Combat dummy space|dummies]] within a [[player-owned house]].
+}}
+{{Subject changes
+|date = 24 January 2024
+|type = hotfix
+|change = The bone staff no longer gives experience when splashing, as players were able to splash on the [[Giant rat (Scurrius)|giant rats]] summoned by Scurrius for incredibly fast experience rates due to the lack of attack cooldown.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* The rat bone weapons were based on a suggestion by a user named ''N1nja_P1g'', and was credited by [[Mod Jerv]] for the suggestion that inspired the in-game designs.{{CiteTwitter|author=Mod Jerv|url=https://twitter.com/JagexJerv/status/1750118834327982369|date=24 January 2024|archiveurl=https://reldo.runescape.wiki/i/108643|archivedate=2 February 2023|quote=I would like to shout out @N1nja_P1g for the awesome player suggestions that helped inspire the final designs. Especially the addition of stinky cheese and the mace!}}
+
+==References==
+{{reflist}}
+
+{{Scurrius}}
+{{Magic weapons}}
+{{Attribute_affinities}}
+[[Category:Items with charges]]

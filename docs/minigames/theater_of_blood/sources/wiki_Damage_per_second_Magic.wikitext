@@ -1,0 +1,92 @@
+{{DPS calculator}}
+
+{{otheruses|Magic Damage per second|other uses|Magic damage}} This article is about calculating magic damage output, not to be confused with the Equipment stat [[Magic damage|Magic Damage]].[[File:Staff of the Dead equipped.png|thumb|250x250px|right|The [[Staff of the Dead|staff of the dead]] gives a 15% boost to magic damage.]]
+Magic damage is affected by the spell used, [[equipment]], [[prayer]], [[Temporary skill boost|skill boosts]] and the [[monster]] being attacked.
+
+There are various methods by which players can increase their potential '''[[Magic]] damage'''. The effects of most equipped items can be seen in the [[Equipment Stats|stats window]] (labelled as Magic: +x and Magic damage: +x%).
+
+== Calculating your magic damage output ==
+
+=== Step one: Calculate the ''maximum hit'' ===
+Maximum hit is affected only by damage boosting equipment and the base max hit of the spell used{{CiteForum|author=Bitterkoekje|url=https://web.archive.org/web/20190905124128/http://webcache.googleusercontent.com/search?q=cache:http://services.runescape.com/m=forum/forums.ws?317,318,712,65587452|title=Combat Formulas|postdate=10 March 2015|name=Bitterkoekje}}.
+
+See [[maximum magic hit]] for the information on calculating the maximum hit for a specific setup.
+
+=== Step two: Calculate the ''effective level'' ===
+Effective level is affected by your current level multiplied by prayers used and skill level boosts.
+
+'''To calculate your effective level:'''
+
+# (Magic level + Magic level boost) * prayer bonus
+# Round down to nearest integer
+#Multiply by 1.45 if using Void Magic
+# +3 if using Accurate on [[Powered staff#List of powered staves|powered staves]], or +1 if using Longrange instead on powered staves
+# +8
+# Round down to nearest integer
+
+'''Magic Level boost:'''
+{{main|Temporary skill boost}}
+{{:Temporary skill boost/Magic}}
+Note that temporarily increasing your Magic level only increases your accuracy, but not max hit, with the exception of [[Magic Dart]], [[salamanders]], [[trident of the seas]]/[[Trident of the Swamp|swamp]] and [[sanguinesti staff]].
+
+'''Prayer Multiplier:'''
+{| class="wikitable"
+<tr><th colspan="2">Prayer</th></tr>
+|-
+|[[Mystic Will]]
+|1.05
+|-
+|[[Mystic Lore]]
+|1.10
+|-
+|[[Mystic Might]]
+|1.15
+|-
+|[[Mystic Vigour]]
+|1.18
+|-
+|[[Augury]]
+|1.25
+|}
+
+=== Step three: Calculate the ''equipment bonus'' ===
+Equipment bonus is equal to the Magic Attack stat in the Equipment stats window. Wearing magic gear will increase your equipment bonus.
+
+See [[Calculator:Armoury|here]] for a full list of all stat-boosting gear, or [[Armour/Magic armour|here]] for a list magic armour.
+
+Add up the Magic Attack of each piece of equipment worn to find your equipment bonus.
+
+=== Step four: Calculate the ''accuracy roll''===
+'''To calculate your accuracy roll:'''
+
+# Effective level * (Equipment bonus + 64)
+# Multiply by 1.15 if wearing a slayer helm on task or killing undead monsters with an imbued salve amulet.
+# Round down to nearest integer
+
+=== Step five: Calculate the ''hit chance''===
+
+<math>\text{Defence Roll} =(9+ \text{NPC magic level}) * (\text{NPC magic defence} + 64)</math>
+
+'''If Accuracy Roll > Defence roll:'''
+
+<math>\text{Hit Chance} =1-\frac{\text{Def roll} + 2}{2*(\text{Acc roll}+1)}</math>
+
+'''Else'''
+
+<math>\text{Hit Chance} =\frac{\text{Acc roll}}{2*(\text{Def roll}+1)}</math>
+
+=== Step six: Calculate the ''magic damage output''===
+<math>\text{Damage per hit} =\text{Hit Chance} * \Biggl(\frac{\text{Maximum hit}}{2} + \frac{1}{\text{Maximum hit} + 1}\Biggr)</math>
+
+To calculate the Damage Per Second, divide the Damage Per hit by the attack speed of the spell in seconds.
+
+Spells from the Standard and Ancient spellbook have attack speed of 3 seconds, while tridents and staves that cast their own spells have an attack speed of 2.4
+
+If bursting/barraging, multiply the DPS by the amount of targets getting hit (Note that maximum amount of targets for every AOE spell is 9).
+
+== References ==
+{{Reflist}}
+[[Category:Magic]]
+[[Category:Mechanics]]
+
+{{Combat Mechanics}}

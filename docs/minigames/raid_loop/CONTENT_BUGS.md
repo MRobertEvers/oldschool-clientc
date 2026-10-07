@@ -1777,7 +1777,17 @@ reference was the KIT and the reference's own number:
   the Salve amulet (e) row :164) and rolls under it. Same maximum; the distribution is
   lumpy and the mean slightly low (Bloat with `::tobkitsalve`: 41.5 against 42.6). Moving
   it touches every caller of `~player_hit_npc_prepare` (ranged, magic, every special) --
-  left for a seam that owns them.
+  left for a seam that owns them. **FIXED 2026-10-07 content_bugs (OSRS-Content b8118fbdfd)**:
+  `[proc,player_maxhit_vs_npc]` (gear/salve_amulet.rs2) scales `%varp6287_com_maxhit` by the
+  salve (else the black mask / slayer helmet) after the two target-bound recomputes a swing
+  rolls from (`[label,player_combat_start]`, `~player_melee_swing`); every melee and ranged
+  roll site and every special reads that varp, specials multiply after it (the page's order).
+  `~player_hit_npc_prepare` keeps the factor for MAGIC only (a spell's or powered staff's own
+  maximum). Source: wiki_Maximum_melee_hit.wikitext:86-87 "Max Hit = floor(floor(Base Damage)
+  x Special Bonus)", table :161-166 "Salve amulet (undead) 7/6 ... Salve amulet (e) 1.2".
+  Proof (build/quest_gate/cb_staff_salve1, salve(e), whip, Deviant spectre): 7 of 47 landed
+  hits are 5 mod 6 (5, 11, 17, 23); floor(r*6/5) is never 5 mod 6, so roll scaling could not
+  land one. Disclosed: a multi-target swing's secondaries take the primary's maximum.
 - NOT THE FORMULA: Vasilias's 21 per swing against Blert's 34 (seam51 nylocas) -- the wiki
   expectation in its melee form is 41-42 per swing with either kit; the shortfall is the
   room (swings into the wrong form, reflected, or across a form change), not the swing.
@@ -1806,6 +1816,23 @@ seat still casts; the LABELS and the Longrange option are wrong, and `t.ui.style
 button on these weapons (the relay picks "Pound" for the Ayak seat for now, test/raids/_play_normal.lua). OPEN:
 add the powered-staff table and map the powered staves to it in combat_stats.rs2, then the harnesses pick
 "Accurate".
+
+**FIXED 2026-10-07 content_bugs (OSRS-Content b8118fbdfd).** Every `~powered_staff_is` weapon now writes
+varbit 357 = 24 (`^weapon_type_powered_staff`, the cache's DBTable 78 row `combat_interface_staff_selfpowering`:
+"Accurate / Accurate / Longrange") and rolls `weapon_powered_staff_table` (combat.dbrow: magic, magic, magic;
+`^style_magic_powered_accurate` x2, `^style_magic_powered_longrange`). Sources: wiki_Module_CombatStyles.lua:485-502
+'Powered Staff'; "combatstyle = Powered Staff" on Eye_of_Ayak:71, Sanguinesti_staff:67, Tumeken_s_shadow:66,
+Trident_of_the_Seas:80, Trident_of_the_Swamp:69, Warped_sceptre:64, Thammaron_s_sceptre:67, Accursed_sceptre:64,
+Bone_staff:49, Dawnbringer:45 (pages fetched into sources/ by name). The styles' invisible bonuses came with it:
+"+3 if using Accurate on powered staves, or +1 if using Longrange ... +8" (wiki_Damage_per_second_Magic.wikitext:20-24),
+Longrange "+3 invisible bonus to their Defence level" (wiki_Combat_Options.wikitext:46); and a SPELL now gets no
+style bonus ("autocasting does not give invisible bonuses", :49): the flat +1 every cast carried
+(LostCity_Content2 player_combat_stat.rs2:73) is gone, so every spell's accuracy roll is one effective level lower
+(about 1 percent). Probe build/quest_gate/cb_staff_salve1: varbit 357 = 24; `t.ui.style("Accurate")` slot 0,
+`"Longrange"` slot 3, `"Pound"` no_style. HARNESS CHANGE: a seat that picks "Pound" on a powered staff must
+pick "Accurate" (told the Nylocas and Maiden owners). Not changed: Longrange's XP split (the powered staff
+still gives 2 Magic XP a damage on every style; wiki_Powered_staff.wikitext:8 and :132 say only that Longrange
+gives Defence XP, no split).
 
 ## 2026-10-06 owner_tob_normal: the Matomenos walked to the nearest tile of Maiden, not her south-east tile
 

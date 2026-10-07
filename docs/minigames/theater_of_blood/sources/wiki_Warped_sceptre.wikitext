@@ -1,0 +1,146 @@
+{{Infobox Item
+|defver = 2
+|version1 = Uncharged
+|version2 = Charged
+|name1 = Warped sceptre (uncharged)
+|name2 = Warped sceptre
+|image1 = [[File:Warped sceptre (uncharged).png]]
+|image2 = [[File:Warped sceptre.png]]
+|release = [[13 September]] [[2023]]
+|update = The Path of Glouphrie
+|members = Yes
+|quest = No
+|tradeable1 = Yes
+|tradeable2 = No
+|equipable = Yes
+|stackable = No
+|noteable1 = Yes
+|noteable2 = No
+|options1 = Wield, Charge, Drop
+|options2 = Wield, Check, Charge, Uncharge
+|wornoptions = Check
+|examine = A magical warped weapon.
+|value = 150000
+|weight = 1.814
+|exchange1 = Yes
+|exchange2 = No
+|id1 = 28583
+|id2 = 28585
+|leagueRegion = Kandarin
+}}
+{{Synced switch
+|version1 = [[File:Warped sceptre (uncharged) detail.png|left|140px]]
+|version2 = [[File:Warped sceptre detail.png|left|140px]]
+}}
+The '''warped sceptre''' is a [[powered staff]] requiring 62 [[Magic]] to wield, available as a drop from [[Warped Terrorbird|warped terrorbird]]s or [[Warped Tortoise|warped tortoise]]s with level 56 [[Slayer]]. Like most powered staves, it is only tradeable when it is fully uncharged.
+
+Its cast speed gives it an improved damage output compared to the [[Iban's staff]] (at 81 or higher Magic), but less than the [[trident of the seas]]. This is particularly useful for midgame [[Ironman Mode|ironmen players]] who are unable to kill [[Cave kraken]]s. Additionally, the fact that the runes it uses are stored within the staff makes it useful over the Iban's staff (which doesn't store runes) when inventory slots are scarce. 
+
+On death in the wilderness, if you have the sceptre as one of your protected items, it will not lose charges. The built-in spell cannot be used against other players in the wilderness. 
+
+[[File:Warped sceptre spell.gif|thumb|250px|A player using the warped sceptre's built in spell.]]
+
+==Combat stats==
+{{Infobox Bonuses
+|version1 = Uncharged
+|version2 = Charged
+|astab = 0
+|aslash = 0
+|acrush = 0
+|amagic = 12
+|arange = 0
+|dstab = 2
+|dslash = 3
+|dcrush = 1
+|dmagic = 12
+|drange = 0
+|str = 0
+|rstr = 0
+|mdmg = 0
+|prayer = 0
+|slot = weapon
+|speed = 4
+|attackrange = 7
+|combatstyle = Powered Staff
+|image1 = [[File:Warped sceptre (uncharged) equipped male.png|170px]]
+|image2 = [[File:Warped sceptre equipped male.png|170px]]
+|altimage1 = [[File:Warped sceptre (uncharged) equipped female.png|170px]]
+|altimage2 = [[File:Warped sceptre equipped female.png|170px]]
+}}
+
+{{CombatStyles|Powered Staff|speed=4|attackrange=7}}
+
+==Charging==
+To use the sceptre's magic spell, it must be charged with [[earth rune|earth]] and [[chaos rune]]s, holding up to 20,000 charges when fully charged. Each cast requires 2 chaos runes and 5 earth runes, costing {{NoCoins|{{GEP|Chaos rune|2}}+{{GEP|Earth rune|5}}|c}} per cast. Players can configure the charges while the sceptre is in their bank by right-clicking on Configure-Charges, as long as players have the required materials. Uncharging the sceptre grants all the runes back. Casting continuously results in 25 casts a minute up to 1,500 casts per hour. 
+
+{| class="wikitable align-right-2"
+!Resource 
+!Cost per charge
+|-
+|2 x {{plink|Chaos rune}}
+|{{Coins|{{GEP|Chaos rune}} * 2}}
+|-
+|5 x {{plink|Earth rune}}
+|{{Coins|{{GEP|Earth rune}} * 5}}
+|-
+! '''Total cost per charge'''
+| style="text-align:right;" | {{Coins|({{GEP|Chaos rune}} * 2)+({{GEP|Earth rune}} * 5)}}
+|}
+
+==Maximum hit==
+The base [[Maximum Magic hit|maximum hit]] dealt by the sceptre is dependent on the player's current [[Magic]] level, starting at 16 with level 62, up to a maximum of 24 at level 99.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1701910078675157295|date=13 September 2023|archiveurl=https://reldo.runescape.wiki/i/105162|archivedate=13 September 2023|quote=Interpolates linearly between 16 at level 62 and 24 at level 99 (and higher for visible Magic boosts).}} Both magic damage bonuses and visible stat boosts will modify the max hit of the spell; likewise, stat-reductions will lower the damage. Invisible boosts, such as from the sceptre's attack styles, do not affect the max hit.
+
+<math>\begin{align}
+\text{Max Hit} &= \left\lfloor \frac{8(\text{Magic Level}) + 96}{37} \right\rfloor
+\end{align}</math>
+
+===Calculator===
+{{Magic damage calculator|Warped sceptre}}
+
+==Item sources==
+{{Drop sources|Warped sceptre (uncharged)}}
+
+Partial completion of [[The Path of Glouphrie]] is required to kill any of the warped or mutated terrorbirds and tortoises.
+
+==Used in recommended equipment==
+{{Used in recommended equipment|Warped sceptre}}
+
+==Gallery==
+<gallery mode="packed" heights="200" style="text-align:left">
+Warped sceptre concept art.jpg|Concept art of the warped sceptre by [[Mod Jerv]].
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 14 May 2025
+|update = Yama, the Master of Pacts: Out Today
+|change = The warped sceptre can now be charged with [[combination rune]]s.
+}}
+{{Subject changes
+|date = 5 March 2025
+|update = Game Jam: Charges QoL
+|change = The Warped sceptre supports a bank item option for changing charges.
+}}
+{{Subject changes
+|update = World 45 & PvP Changes
+|date = 4 October 2023
+|change = Removed a rogue green pixel on the Warped Sceptre’s attack animation.
+}}
+{{Subject changes
+|date = 20 September 2023
+|update = Poll 80 & Shooting Stars Changes
+|change = * The sceptre's projectile height has been adjusted to match the sceptre's height.
+* The charged variant was made untradeable.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*The warped sceptre's projectile is the superior [[Shadow Wyrm]] standard attack.
+
+==References==
+{{Reflist}}
+
+{{Magic weapons}}
+[[Category:Collection log items]]
+[[Category:Items with charges]]
