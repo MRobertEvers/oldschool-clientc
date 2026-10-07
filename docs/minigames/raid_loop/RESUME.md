@@ -438,3 +438,4 @@ state directory's sample.json orchestrator_notes; for a seam pass it is the tria
 plus the closer's duties (rooms re-run and 'must be re-authored' lines, quest suite at its
 baseline with any sourced red listed in SEAM_LEDGER.md and MERGE_CHECKLIST.md, conformance,
 DRIVER_NOTES, CONTENT_BUGS, commit by explicit path submodule first, push the raid branch only).
+- ~13:55 Verzik: 61d609fcb P1 pillar bolt count + caged raiders not mates/tank + _play_verzik_death (forced death caged through P1-P3, released after win: green); death path correct. Revive look-alike = seq 1157 human_troll_flyback on debris (wiki 408 says stun only) -> anim audit agent to judge/remove. P3 follow/tornado/tank content: decision (b)+(a) commit now (content-fix rule), keep working the dodge; library non-blocking SEND near tornadoes gated by Maiden/Nylocas/relay. Blert: 0-2 tornado touches per enrage; one tank per phase in 24/27.
