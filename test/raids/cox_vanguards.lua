@@ -575,9 +575,10 @@ return {
                     return
                 end
                 attack_focus(t, mage.symbol)
+                -- Attack engagement walks into range; clear stance so the next
+                -- decide re-isolates before the other two's range-10 reconnects.
+                sm.stance_ok = false
                 sm.probe_hits = sm.probe_hits + 1
-                -- Cap probe; only claim heal if spread actually crossed 40%
-                -- or ticklog recorded npc_heal on a combat slot.
                 if sm.probe_hits >= 40 then
                     if sm.last_spread_pct ~= nil and sm.last_spread_pct >= 40 then
                         sm.heal_spread_pct = 40
@@ -635,6 +636,7 @@ return {
                     return
                 end
                 attack_focus(t, target.symbol)
+                sm.stance_ok = false
                 return
             end
         end
