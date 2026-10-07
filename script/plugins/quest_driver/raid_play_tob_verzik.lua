@@ -959,6 +959,9 @@ function QD.raid._verzik_pool_run(f)
                     if z > nz then nz = nz + 1 elseif z < nz then nz = nz - 1 end
                     local c2 = math.max(math.abs(nx - x), math.abs(nz - z))
                     if c2 == 0 then sc = sc + 1000 elseif c2 == 1 then sc = sc + 40 end
+                    -- BUILD THE GAP: the hold stands two ticks; with the click's
+                    -- lag a tornado must be four back when I step on
+                    sc = sc + math.max(0, PL.hold + 2 - c2) * 12
                 end
                 for _, k in ipairs(f.crabs or {}) do
                     local g = QD.raid._verzik_nylo_gap(x, z, k.row)
@@ -1146,23 +1149,35 @@ function QD.raid._verzik_ball_run(f)
             vz.ball_log[#vz.ball_log + 1] = v.tick .. "R" .. tile.x .. "," .. tile.z .. "p" .. place .. "/" .. n .. "L" .. vz.bm.L
         end
     end
+    -- EACH PLACE HOLDS ONLY THE TICKS THE CHAIN READS IT (2026-10-07, fast P3
+    -- 1d1ab12ba: the trio held the line from L - 2 through L + 2, up to five
+    -- ticks still, inside enrage; the tornado guard pulled the holders off and
+    -- the target took 74).  The landing on T0 reads T0's tile and its
+    -- neighbours' at the end of L - 1 (or L, by pid order); the hop to T1 reads
+    -- T1's and its neighbours' at the end of L (or L + 1).  So place k must
+    -- stand on its tile at the ends of [L - 2 + max(0, k - 1), L - 1 + k] (one
+    -- tick of margin on L), which is the click on the tick before each:
+    -- decisions [L - 3 + max(0, k - 1), L - 2 + k].  T0 holds two ticks, T1
+    -- three, T2 three -- not five.
     local bm = vz.bm
     local ev = "ball_none"
     if bm ~= nil and not bm.done then
-        local mine = bm.L + bm.place
+        local from = bm.L - 3 + math.max(0, bm.place - 1)
+        local to = bm.L - 2 + bm.place
         if v.tick > bm.L + bm.n - 1 + BL.after then
             bm.done = true
             vz.ball_resolved = (vz.ball_resolved or 0) + 1
             ev = "ball_after"
-        elseif v.tick > mine then
+        elseif v.tick > to then
             ev = "ball_passed"
-        elseif v.tick == mine then
+        elseif v.tick == to then
             ev = "ball_holding"
-        elseif v.tick >= bm.L - BL.before then
+        elseif v.tick >= from then
             ev = "ball_wait"
         else
             ev = "ball_gather"
         end
+        bm.from = from
     end
     local m = QD.raid.sm_run(st, v, "verzik_ball", { vz = vz }, { { name = ev } })
     if m.state == "NONE" or m.state == "AFTER" then return false end
@@ -1194,10 +1209,10 @@ function QD.raid._verzik_ball_run(f)
         end
         return true
     end
-    -- GATHER: a sortie first -- a swing on the way, my tile still made by L - 2
-    local rem = (bm.L - BL.before) - v.tick
+    -- GATHER: a sortie first -- a swing on the way, my tile still made by `from`
+    local rem = bm.from + 1 - v.tick
     if QD.raid._verzik_sortie({ st = st, v = v, intent = intent, ok = f.ok, reach = f.reach, tor = f.tor,
-            goal = R, deadline = bm.L - BL.before }) then
+            goal = R, deadline = bm.from + 1 }) then
         if intent.attack then vz.ball_swings = (vz.ball_swings or 0) + 1 end
         return true
     end
@@ -1220,12 +1235,18 @@ function QD.raid._verzik_ball_run(f)
             if (dx ~= 0 or dz ~= 0) and dp <= BL.run * (rem - 1) and f.ok(x, z) and not v.shadows[x * 100000 + z]
                 and (b == nil or QD.raid._verzik_dist(x, z, b) >= 1) then
                 local sc = dp * 3
+                -- BUILD THE GAP: arrive with every tornado far enough back that
+                -- the ticks I must stand cannot let it reach me (two to stand,
+                -- one click of lag, one spare)
+                local need = (bm.place == 0 and 2 or 3) + 2
                 for _, e in pairs(f.tor or {}) do
                     local nx, nz = e.x, e.z
                     if x > nx then nx = nx + 1 elseif x < nx then nx = nx - 1 end
                     if z > nz then nz = nz + 1 elseif z < nz then nz = nz - 1 end
                     local c2 = math.max(math.abs(nx - x), math.abs(nz - z))
                     if c2 == 0 then sc = sc + 1000 elseif c2 == 1 then sc = sc + 40 end
+                    local gt = math.max(math.abs(e.x - R.x), math.abs(e.z - R.z))
+                    sc = sc + math.max(0, need - gt) * 6 + math.max(0, need - c2) * 12
                 end
                 if b ~= nil then
                     local db = QD.raid._verzik_dist(x, z, b)
