@@ -287,10 +287,9 @@ return {
     max_frames = 150000,  -- six legs add up past the default 2000-tick budget (relay.md)
     setup = {
         "::clearinv",
-        "::setlevel mining 2",   -- the king asks 7 coal at Mining 2-54 (fris_shared.rs2 fris_ore_type); the guide lists Coal as brought
         "::complete quest_fremenniktrials",  -- the prerequisite; Mord Gunnars on Rellekka's pier starts the quest
         "::give raw_tuna 1",     -- guide item requirement of talkToGjuki: Raw tuna
-        "::give coal 7",         -- guide item requirement of bringOreToGjuki: Coal (Mining 2 variant)
+        "::give tin_ore 8",      -- bringOreToGjuki at the fixture's Mining 1: the king asks 8 tin ore (fris_shared.rs2 fris_ore_type/fris_ore_count); no Mining is staged, since the ore asked branches on it
         "::setlevel crafting 30",      -- leg 2: spinning yak hair into rope needs Crafting 30 (spinning.dbrow spin_yak_hair)
         "::setlevel woodcutting 56",   -- leg 2: splitting arctic pine logs needs Woodcutting 56 (fris_bridges.rs2 fris_stump_split)
         "::setlevel construction 20",  -- leg 2: repairing a bridge needs Construction 20 (fris_bridges.rs2 fris_bridge_repair)
@@ -374,8 +373,8 @@ return {
             t.expect("quest.stage.ore_handed", t.quest.expect_stage("ore_handed"))
             t.exec("talkToGjukiAfterOre", t.player.talk_to, "fris_r_king", 1)
             convo(t, "talkToGjukiAfterOre-dialog", {})
-            t.check("bringOreToGjuki.paid", count(t, "coins") == coins0 + 10000 and count(t, "coal") == 0,
-                "coins " .. coins0 .. " -> " .. count(t, "coins") .. ", coal left " .. count(t, "coal"))
+            t.check("bringOreToGjuki.paid", count(t, "coins") == coins0 + 10000 and count(t, "tin_ore") == 0,
+                "coins " .. coins0 .. " -> " .. count(t, "coins") .. ", tin ore left " .. count(t, "tin_ore"))
             t.expect("quest.stage.get_outfit", t.quest.expect_stage("get_outfit"))
 
             -- the jester outfit, from the chest behind the throne
