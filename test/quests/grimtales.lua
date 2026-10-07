@@ -44,7 +44,8 @@
 -- food). The door key is NOT given: Miazrqa hands one over ("I need a key
 -- for the house."). Combat staging for Glod (level 138, Quest Helper's
 -- combat requirement): Attack/Strength/Defence/Hitpoints 99 and Prayer 70
--- (Protect from Melee, the wiki's melee method) -- a margin no script
+-- (Protect from Melee, the wiki's melee method) and four prayer potions
+-- against his prayer drain -- a margin no script
 -- branches on (grep: no combat-level read in quest_grimtales/).
 
 return {
@@ -64,6 +65,7 @@ return {
         "::give rune_platelegs 1",
         "::give rune_kiteshield 1",
         "::give shark 10",
+        "::give 4doseprayerrestore 4", -- Glod's GLOD SMASH drains 2% + 20 prayer (wiki Glod oldid 15221322)
         "::setlevel farming 45",
         "::setlevel herblore 52",
         "::setlevel thieving 58",
@@ -484,8 +486,10 @@ return {
         protect_melee("killGlod-protectMelee", 1)
         t.exec("killGlod", t.player.attack, "grim_glod", 2, 30, EAT)
         local lowest_fight, waits, details = nil, 0, {}
-        for round = 1, 10 do
-            local r, d = t.npc.await_dead_engaged(120, 20, EAT)
+        -- Short kill waits (30 ticks) so a GLOD SMASH costs at most ~30
+        -- unprotected ticks before the prayer is back on.
+        for round = 1, 40 do
+            local r, d = t.npc.await_dead_engaged(30, 20, EAT)
             waits = waits + 1
             details[#details + 1] = "wait " .. round .. ": " .. tostring(r) .. " " .. string.sub(tostring(d), 1, 160)
             local low = tonumber(tostring(d):match("lowest hp (%d+)/"))
@@ -493,15 +497,45 @@ return {
                 lowest_fight = low
             end
             t.ticks(4)
-            local _, dead = t.var.varbit("varb3715_grim_giant_dead")
-            if dead == 1 then
+            -- A kill wait that timed out on his last ticks leaves a corpse in the
+            -- pool before [ai_queue3,grim_glod] writes the varbit: wait for the
+            -- varbit a little before ever pressing Attack again (the graded row
+            -- after the loop reads it).
+            local dr = t.var.await("varb3715_grim_giant_dead", 1, 8)
+            if dr == "ok" then
                 break
+            end
+            local nr = t.npc.nearest("grim_glod", 20)
+            if nr ~= "ok" then
+                t.note("killGlod: no Glod within 20 tiles after wait " .. round .. " (" .. tostring(nr) .. ")")
+                break
+            end
+            -- Each GLOD SMASH takes 2% + 20 prayer points: drink a dose of
+            -- prayer potion before the prayer goes back on when under 30.
+            local pr, reading = t.prayer.points()
+            local points = pr == "ok" and type(reading) == "table" and reading.points or nil
+            if points ~= nil and points < 30 then
+                local dose = nil
+                for dd = 1, 4 do
+                    if count(dd .. "doseprayerrestore") > 0 then
+                        dose = dd .. "doseprayerrestore"
+                        break
+                    end
+                end
+                if dose ~= nil then
+                    t.exec("killGlod.prayerPotion" .. round, t.player.inv_op, dose, 1)
+                    t.ticks(2)
+                end
             end
             local _, prayer_on = t.var.varbit("varb4118_prayer_protectfrommelee")
             if prayer_on ~= 1 then
                 protect_melee("killGlod-protectMelee.again" .. round, 1)
             end
-            t.player.attack("grim_glod", 2, 30, EAT)
+            local _, ad = t.exec("killGlod.reattack" .. round, t.player.attack, "grim_glod", 2, 30, EAT)
+            local alow = tonumber(tostring(ad):match("lowest hp (%d+)/"))
+            if alow ~= nil and (lowest_fight == nil or alow < lowest_fight) then
+                lowest_fight = alow
+            end
         end
         t.note("killGlod waits: " .. table.concat(details, " | "))
         local _, sharks_left = t.inv.count("shark")
