@@ -26,14 +26,16 @@ plus dedicated recovery that returns via `IDENTIFY`:
 | `REC_SPHERE` | TRACE sphere | overhead from chat | prayer set |
 | `NOODLE` | basic lands on skip-b2 | tank b2 → skip special | re-lock 4:1 |
 
-## Known content gaps (pre-gate, from `cox_olm.rs2` read)
+## Content status
 
-- `cox_olm_crystal_burst` — uid damage after delay, not seedling tile check
-- `cox_olm_lightning` — huntall damage + prayer sap, no moving bolts
-- `cox_olm_teleport` — solo flat separation damage, no portals
-- `cox_olm_life_siphon` — delayed uid damage + heal, no standable marks
+| Mechanic | Status |
+|---|---|
+| Crystal burst tile dodge | **FIXED** in OSRS-Content `85560cee9b` (`cox_olm_crystal_burst_resolve` on seedling tile) |
+| Lightning bolts / side dodge | OPEN — huntall damage + prayer sap → probe `content.olm.lightning_no_bolts` |
+| Teleport portals | OPEN — solo flat damage → probe `content.olm.teleport_no_portals` |
+| Life siphon safe tiles | OPEN — delayed uid damage + heal → probe `content.olm.siphon_no_safe_tiles` |
 
-Gate run should turn these into named `content.olm.*` check failures.
+Gate run turns OPEN rows into named `content.olm.*` check failures.
 
 ## Next
 
