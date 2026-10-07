@@ -136,23 +136,67 @@ local function attack_focus(t, sym)
     return t.player.attack(sym, 2, 1, { quick = true })
 end
 
--- Stance after Protect-scaled AoE (content fix): stand ON the focus pad.
--- Far-side isolation (run7–15) walked every decide and cancelled every
--- attack (0 hit_npc). Synq "in front of the one you focus" + givechase=no
--- pads: walk onto the focus tile once per focus change, then only attack.
-local function go_stance(t, focus, sm)
+-- Far-side of focus (past the other two) so attackrange-10 misses, once per
+-- focus change. Re-walking every tick cancelled attacks (run7–15); standing
+-- ON the pad took unprotected ranged/melee (run16 max hit 21).
+local ISOLATE_PAST = 5
+
+local function isolate_tile(pack, focus)
+    if focus == nil then return nil end
+    if focus.symbol == RANGED then
+        return focus.x, focus.z
+    end
+    local ox, oz, n = 0, 0, 0
+    for i = 1, #COMBAT do
+        local row = row_by_sym(pack, COMBAT[i])
+        if row ~= nil and row.symbol ~= focus.symbol then
+            ox = ox + row.x
+            oz = oz + row.z
+            n = n + 1
+        end
+    end
+    if n == 0 then return focus.x, focus.z end
+    ox = math.floor(ox / n)
+    oz = math.floor(oz / n)
+    local dx = focus.x - ox
+    local dz = focus.z - oz
+    if dx == 0 and dz == 0 then
+        return focus.x + ISOLATE_PAST, focus.z
+    end
+    local sx, sz = 0, 0
+    if math.abs(dx) >= math.abs(dz) then
+        sx = (dx > 0) and 1 or -1
+    else
+        sz = (dz > 0) and 1 or -1
+    end
+    return focus.x + sx * ISOLATE_PAST, focus.z + sz * ISOLATE_PAST
+end
+
+local function go_stance(t, pack, focus, sm)
     if focus == nil then return false end
     if sm.stance_sym == focus.symbol and sm.stance_ok then
         return false
     end
+    if sm.stance_sym ~= focus.symbol then
+        sm.stance_walks = 0
+    end
+    local x, z = isolate_tile(pack, focus)
+    if x == nil then return false end
     local _, me = t.world.tile()
-    local dx = math.abs(me.x - focus.x)
-    local dz = math.abs(me.z - focus.z)
-    -- Tbow/kodai: within 4 of the pad is enough. Whip (ranged form): on tile.
-    local need = 4
+    local dx = math.abs(me.x - x)
+    local dz = math.abs(me.z - z)
+    local need = 1
     if focus.symbol == RANGED then need = 0 end
     if dx > need or dz > need then
-        t.player.walk_to(focus.x, focus.z, 3)
+        sm.stance_walks = (sm.stance_walks or 0) + 1
+        -- Give up pathing after a few ticks; attack from here rather than
+        -- starve DPS forever on a blocked isolate tile.
+        if sm.stance_walks > 10 then
+            sm.stance_sym = focus.symbol
+            sm.stance_ok = true
+            return false
+        end
+        t.player.walk_to(x, z, 3)
         sm.stance_sym = focus.symbol
         sm.stance_ok = false
         return true
@@ -504,7 +548,7 @@ return {
                 else
                     t.prayer.set(PROTECT[mage.symbol], true)
                 end
-                if go_stance(t, mage, sm) then
+                if go_stance(t, pack, mage, sm) then
                     return
                 end
                 attack_focus(t, mage.symbol)
@@ -564,7 +608,7 @@ return {
                 else
                     t.prayer.set(PROTECT[target.symbol], true)
                 end
-                if go_stance(t, target, sm) then
+                if go_stance(t, pack, target, sm) then
                     return
                 end
                 attack_focus(t, target.symbol)
