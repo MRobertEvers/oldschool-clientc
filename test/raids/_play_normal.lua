@@ -127,18 +127,21 @@ if mrole == 2 then
         -- (seat 1 starts Bloat -- its role 1 must be the leader -- and swings
         -- the scythe there: owner_rooms4's snippet plays every Bloat seat in
         -- ::tobkitsalve's melee armour; relay15's seat 1 swung in void, Bloat
-        -- 198-200 ticks against [75-195].  The torva helm and the oathplate
-        -- body ride in the pack, in the slots of the divine ranging potion this
-        -- seat never drinks and the splinters / demon tears the charges leave)
-        "::give torva_helm", "::give radiant_oathplate_chest", "::give radiant_oathplate_legs",
-        -- (and the melee set's amulet of rancour and ferocious gloves:
-        -- relay24's Sotetseg missed on 35% of the party's hits against the
-        -- harness's 20%, 3000 hp over 323 ticks against 221 -- seat 1 swung
-        -- the scythe there in occult, void gloves, magus ring and Ava's.  The
-        -- slots: its plain super combat -- the divine's four doses cover
-        -- Bloat, Nylocas, Sotetseg and Xarpus -- and its Maiden fish, which
-        -- it has not eaten in a relay run yet)
-        "::give amulet_of_rancour", "::give ferocious_gloves",
+        -- 198-200 ticks against [75-195].  Its five pieces -- the torva helm,
+        -- the oathplate body and legs, the amulet of rancour, the ferocious
+        -- gloves (relay24's Sotetseg missed on 35% of the party's hits against
+        -- the harness's 20% without them) -- are DELIVERED AT THE BLOAT DOOR,
+        -- not carried from the lobby: SEAT1_MELEE / seat1_melee.
+        -- (the supply budget, 2026-10-07: every seat starts at 0 free slots, so
+        -- the ::give commands past 28 are silently dropped -- this seat reached
+        -- Maiden with no food and no combat dose at all, 60 Hitpoints of
+        -- healing against seats 2 and 3 at 230, and finished the raid 28%
+        -- short.  Nothing in its pack is spare: the magic set, the scythe, the
+        -- tonalztics, the zaryte Evoke, the barrage runes, the Ayak, the salve,
+        -- the elder maul, the warhammer and the divine are each a mechanic's
+        -- tool or the owner's own rule.  The armour is not spare either -- it
+        -- is simply not needed until Bloat, and Maiden is where this seat
+        -- starves.)
         "::give saturated_heart", "::give 4doserangerspotion",
         "::give 4dosedivinecombat" }) do KIT[#KIT + 1] = c end
 else
@@ -185,7 +188,11 @@ local SUPPLIES = nil
 -- reached Bloat with 0-1 fish and died there).  Food still comes first,
 -- the brew after it (library 112c9eb06).)
 if mrole == 2 then
-    SUPPLIES = { "::give br_4dosepotionofsaradomin 1", "::give br_4dose2restore 2" }
+    -- (the Maiden freezer, with its Bloat armour now delivered at Bloat: the
+    -- same two brews and two restores as the others and four anglerfish --
+    -- eight slots, where the armour took five.  It lost 122 Hitpoints a room
+    -- at Maiden and 105 at Bloat, 227 against the 60 its single brew held)
+    SUPPLIES = { "::give br_4dosepotionofsaradomin 2", "::give br_4dose2restore 2", "::give anglerfish 4" }
 elseif role == 2 then
     SUPPLIES = { "::give br_4dosepotionofsaradomin 2", "::give br_4dose2restore 2", "::give anglerfish 5" }
 else
@@ -750,12 +757,23 @@ local function restock(t, name)
     local keep = (name == "sotetseg") and 1 or 0
     local slots = free_slots(t) - keep
     local guard = 0
+    -- (the supply budget, 2026-10-07: the chest is POINTS-bound in every
+    -- measured run -- 10-13 points a seat against 8-13 free slots -- and a
+    -- point buys 20 Hitpoints as a shark against a manta ray's 11, so the
+    -- points go to sharks unless the SLOTS bind.  When they do, a brew is the
+    -- densest slot there is: 3 points for four doses, 60 Hitpoints in one
+    -- slot, where a manta is 22 and a shark 20.)
     while guard < 30 and slots > 0 and points >= CHEST_COST.shark do
         guard = guard + 1
-        -- a manta while the points left still buy a shark for every other slot
-        local kind = (points - CHEST_COST.manta >= (slots - 1) * CHEST_COST.shark) and "manta" or "shark"
+        local kind = "shark"
+        if slots < points then
+            -- the slots bind: the most Hitpoints a slot -- a brew (60) first,
+            -- then a manta ray (22), then a shark (20)
+            if points >= CHEST_COST.brew then kind = "brew"
+            elseif points >= CHEST_COST.manta then kind = "manta" end
+        end
         if not buy(kind) then
-            if kind == "manta" and buy("shark") then else break end
+            if kind ~= "shark" and buy("shark") then else break end
         end
         slots = free_slots(t) - keep
     end
@@ -1965,9 +1983,20 @@ end
 local BLOAT_STARTER = 1  -- the seat playing Bloat role 1 (ROLE_IN.bloat)
 -- Seat 1 (Maiden's freezer, whose worn set is the void opener) into its melee
 -- armour for a melee room, one piece a tick; the void pieces go to the pack.
+local SEAT1_MELEE_GIVEN = false
 local SEAT1_MELEE = { "torva_helm", "radiant_oathplate_chest", "radiant_oathplate_legs", "amulet_of_rancour", "ferocious_gloves" }
 local function seat1_melee(t, name)
     if role ~= 1 then return end
+    -- the pieces are handed over at the first room that wears them (Bloat),
+    -- not carried through Maiden: they cost five of this seat's 28 slots and
+    -- no room before Bloat wears one (the supply budget, 2026-10-07)
+    -- (once, at the first room that asks -- Bloat; afterwards the pieces are
+    -- worn, and wear() reads an absent piece as "worn since an earlier room")
+    if not SEAT1_MELEE_GIVEN then
+        SEAT1_MELEE_GIVEN = true
+        for _, it in ipairs(SEAT1_MELEE) do t.cheat("::give " .. it) end
+        t.ticks(2)
+    end
     for _, it in ipairs(SEAT1_MELEE) do wear(t, name .. ".equip." .. it, it) end
 end
 local function seat1_void(t, name)
@@ -2194,7 +2223,7 @@ PRE.verzik = function(t, ox, oz)
     seat1_melee(t, "verzik")
     stamina(t, "verzik")
     -- owner_verzik's slow snippet (build/seam_state/owner_verzik/
-    -- relay_verzik_snippet.lua; green in _play_verzik_slow --party 3 at
+    -- relay_verzik_snippet.lua; green in _vzslow (was _play_verzik_slow) --party 3 at
     -- 1717b0427 + 5f2717f23): the slow pace -- every P3 mechanic, crabs, webs,
     -- yellows, the shared green ball (owner: "The relay should use the slow
     -- verzik script") -- and seats 2 and 3 carry no super combat (the room
@@ -2417,7 +2446,10 @@ return {
         for _, c in ipairs(SUPPLIES) do t.cheat(c) end
         t.ticks(2)
         local kit0 = supplies(t)
-        t.check("kit.supplies", kit0.restore > 0 and (kit0.angler > 0 or mrole == 2), P .. "one raid's supplies at the start: " .. supplies_text(kit0)
+        -- (strict for every seat now: a pack at 0 free slots drops the last
+        -- ::give commands without a word, and that is how the freezer reached
+        -- Maiden with no food -- the row must fail, not shrug)
+        t.check("kit.supplies", kit0.restore > 0 and kit0.angler > 0, P .. "one raid's supplies at the start: " .. supplies_text(kit0)
             .. "; free slots " .. free_slots(t))
 
         -- THE LOBBY (_party_smoke.lua phases A and B): the board, the party, the door
