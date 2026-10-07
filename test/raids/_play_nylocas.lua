@@ -736,13 +736,40 @@ return {
         -- leader's lit protection prayer is her new style's within 2 ticks.
         -- Blert's seats (vasp.py, 27 rooms): median 1-2 ticks after a turn, her
         -- first swing in the new form 2-3 ticks after it.
+        -- owner ruling (the raid coordinator, 2026-10-07): A FORM CHANGE WITH
+        -- NO ATTACK BEHIND IT CANNOT BE ANSWERED, so it is not asked about.
+        -- svbplaynyloc read red on this row for exactly that: her npc_retype
+        -- rows end t542 ranged->melee, t552 melee->ranged, t562 ranged->magic,
+        -- and her npc_death row is t562 -- THE SAME TICK as that last change.
+        -- Her last attack is t561 (ranged, 0 on pid2) and she has no
+        -- hit_player row at or after t562 in any form.  The room's record ends
+        -- on her death, so there is no tick in [t559, t568] for the leader's
+        -- protectfrommagic to be read lit at: the row was asking the play to
+        -- answer a switch the engine itself never used.  "Her first swing in
+        -- the new form comes 2-3 ticks after the turn" (NB :146-150), so a
+        -- change she dies ON OR BEFORE, with no swing of that form behind it,
+        -- is skipped and counted apart.  Her other 11 changes in that room
+        -- were answered on lag 0 (one at -2): the play was not at fault.
         local turns_seen, turns_late, turn_lags = 0, 0, {}
+        local turns_unanswerable = 0
+        -- the last tick she HIT anything in each form, in one pass over the
+        -- hit rows (a room has ~900 of them and a dozen changes: the nested
+        -- read would be 11,000 iterations of the test's instruction budget)
+        local last_hit_in_form = {}
+        for _, h in ipairs(hits) do
+            local hf = h.npc_type ~= nil and form_of(h.npc_type) or nil
+            if hf ~= nil then last_hit_in_form[hf] = math.max(last_hit_in_form[hf] or -1, h.tick) end
+        end
         if boss.slot ~= nil then
             local _, retypes = t.ticklog.rows({ kind = "npc_retype", slot = boss.slot })
             local prot = { melee = "protectfrommelee", ranged = "protectfrommissiles", magic = "protectfrommagic" }
             for _, r in ipairs(retypes or {}) do
                 local f = form_of(r.to_type)
-                if f ~= nil and prot[f] ~= nil then
+                local swung_in_form = f ~= nil and (last_hit_in_form[f] or -1) >= r.tick
+                if f ~= nil and prot[f] ~= nil and not swung_in_form and boss.death ~= nil and r.tick >= boss.death then
+                    turns_unanswerable = turns_unanswerable + 1
+                    if #turn_lags < 16 then turn_lags[#turn_lags + 1] = string.sub(f, 1, 3) .. ":died@" .. tostring(r.tick) end
+                elseif f ~= nil and prot[f] ~= nil then
                     turns_seen = turns_seen + 1
                     local lag = nil
                     for d = -3, 6 do
@@ -757,7 +784,8 @@ return {
         local her_half = turns_seen > 0 and turns_late == 0
         t.check("tech.prayer", wave_half and her_half, (size > 1 and ("the leader (the mage) lost " .. leader_taken
             .. " hitpoints in the room; reference outcome.hp_lost.mage 67 [24-120]; ") or "") .. "her forms: " .. turns_seen
-            .. " changes, the leader's prayer on the new style within 2 ticks on all but " .. turns_late .. " [" .. table.concat(turn_lags, " ") .. "]; protection prayer switched " .. prayer_switches .. " times to the style of the swinging majority (a big counts two, a melee copy only "
+            .. " changes, the leader's prayer on the new style within 2 ticks on all but " .. turns_late .. " [" .. table.concat(turn_lags, " ") .. "]"
+            .. " (" .. turns_unanswerable .. " not asked about: she died on or before the change with no swing of that form behind it); protection prayer switched " .. prayer_switches .. " times to the style of the swinging majority (a big counts two, a melee copy only "
             .. "inside four tiles): " .. wave_block_count .. " hit_player rows from wave nylocas at 0 while the prayer held covered their style (blocks), against " .. wave_unprayed_zero
             .. " zeros with no prayer on their style (misses, not counted) and " .. wave_unprayed_landed .. " that landed with none on (the other two styles, and explosions); "
             .. "her melee form: " .. melee_block_count .. " blocked against " .. melee_cover_landed .. " landed on the switch ticks before the prayer followed")
