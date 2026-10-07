@@ -266,8 +266,11 @@ return {
         "::give air_rune 800",
         "::give blood_rune 200",
         "::give abyssal_whip",
-        "::give shark 28",
+        -- Potions before food: unstackable doses need free slots; shark is
+        -- one stack. Mid-setup inv pressure after the scripts rebuild was
+        -- failing restore with 0 landed (run12/13).
         "::give br_4dose2restore 8",
+        "::give shark 20",
     },
 
     run = function(t)
