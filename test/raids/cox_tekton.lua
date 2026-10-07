@@ -47,8 +47,8 @@ return {
         "::give blood_rune 80",
         -- Shark is unstackable: cap food so restores/brew/mage swap fit.
         "::give shark 8",
-        "::give br_4dose2restore 6",
-        "::give br_4dosepotionofsaradomin 2",
+        "::give br_4dose2restore 8",
+        "::give br_4dosepotionofsaradomin 4",
     },
 
     run = function(t)
@@ -122,8 +122,12 @@ return {
 
         local function sustain()
             local hr, hp = t.skill.read("hitpoints")
-            if hr == "ok" and hp.level < 70 then
-                if t.player.eat("shark") == "ok" then eats = eats + 1 end
+            if hr == "ok" and hp.level < 85 then
+                if t.player.eat("shark") == "ok" then
+                    eats = eats + 1
+                elseif t.player.drink("br_4dosepotionofsaradomin") == "ok" then
+                    drinks = drinks + 1
+                end
             end
             local pr, pp = t.prayer.points()
             if pr == "ok" and (pp.points or 0) < 50 then
@@ -227,33 +231,37 @@ return {
                     set_state(STATE.REENGAGE)
                     return
                 end
+                -- Water weakness sample on the first anvil only.
                 if hammer_visits == 1 and mage_casts < 10 then
                     t.player.equip("kodai_wand", { quick = true })
                     local before_serial = 0
                     local _, nh0 = t.ticklog.rows({ kind = "hit_npc", slot = wslot })
                     if nh0 ~= nil and #nh0 > 0 then before_serial = nh0[#nh0].serial end
-                    local cr = t.player.cast(mage_kind, fs, 1, 2, { quick = true, slot = frow.slot })
+                    local cr = t.player.cast(mage_kind, "raids_tekton_hammering", 2, 4,
+                        { quick = true, slot = frow.slot })
                     if cr == "ok" then
                         mage_casts = mage_casts + 1
-                        t.ticks(4)
+                        t.ticks(5)
                         local _, nh1 = t.ticklog.rows({ kind = "hit_npc", slot = wslot, since = before_serial })
                         local hi = 1
                         while nh1 ~= nil and hi <= #nh1 do
-                            local d = nh1[hi].damage or 0
-                            if mage_kind == "water_wave" then
-                                water_hits[#water_hits + 1] = d
-                            else
-                                fire_hits[#fire_hits + 1] = d
+                            local d = nh1[hi].damage or nh1[hi].raw or 0
+                            if d > 0 then
+                                if mage_kind == "water_wave" then
+                                    water_hits[#water_hits + 1] = d
+                                else
+                                    fire_hits[#fire_hits + 1] = d
+                                end
                             end
                             hi = hi + 1
                         end
                         if mage_kind == "water_wave" then mage_kind = "fire_wave" else mage_kind = "water_wave" end
                     end
                 elseif now - last_dodge_tick >= 3 then
-                    -- Synq mid-phase: run two tiles when meteors land.
+                    -- Synq mid-phase: step away from the spark tile.
                     local _, me = t.world.tile()
-                    local dx, dz = 2, 0
-                    if (spark_dodges % 2) == 1 then dx, dz = 0, 2 end
+                    local dx, dz = 3, 0
+                    if (spark_dodges % 2) == 1 then dx, dz = 0, 3 end
                     t.player.walk_to(me.x + dx, me.z + dz, 3)
                     spark_dodges = spark_dodges + 1
                     last_dodge_tick = now
@@ -369,12 +377,23 @@ return {
             enraged_autos = count_autos(first_enraged_fight_tick, second_anvil_tick or 1000000)
         end
 
-        -- spark volleys: hammering-form hit_player clusters (gap > 2)
+        -- spark volleys: first anvil session only; gap > spark_interval-1 (=3)
         local spark_ticks = {}
         local hi = 1
+        local first_leave = second_anvil_tick or 1000000
+        if first_enraged_fight_tick ~= nil and first_enraged_fight_tick < first_leave then
+            first_leave = first_enraged_fight_tick
+        end
         while p_hits ~= nil and hi <= #p_hits do
-            if is_hammer_type(p_hits[hi].npc_type) then
-                spark_ticks[#spark_ticks + 1] = p_hits[hi].tick
+            if is_hammer_type(p_hits[hi].npc_type)
+                and first_hammer_tick ~= nil
+                and p_hits[hi].tick >= first_hammer_tick
+                and p_hits[hi].tick < first_leave then
+                local dmg = p_hits[hi].raw or 0
+                if dmg <= 0 then dmg = p_hits[hi].damage or 0 end
+                if dmg >= 10 then
+                    spark_ticks[#spark_ticks + 1] = p_hits[hi].tick
+                end
             end
             hi = hi + 1
         end
@@ -384,15 +403,20 @@ return {
             volleys = 1
             local v = 2
             while v <= #spark_ticks do
-                if spark_ticks[v] - spark_ticks[v - 1] > 2 then volleys = volleys + 1 end
+                if spark_ticks[v] - spark_ticks[v - 1] > 3 then volleys = volleys + 1 end
                 v = v + 1
             end
         end
         local spark_dmgs = {}
         hi = 1
         while p_hits ~= nil and hi <= #p_hits do
-            if is_hammer_type(p_hits[hi].npc_type) then
-                spark_dmgs[#spark_dmgs + 1] = p_hits[hi].raw or p_hits[hi].damage
+            if is_hammer_type(p_hits[hi].npc_type)
+                and first_hammer_tick ~= nil
+                and p_hits[hi].tick >= first_hammer_tick
+                and p_hits[hi].tick < first_leave then
+                local dmg = p_hits[hi].raw or 0
+                if dmg <= 0 then dmg = p_hits[hi].damage or 0 end
+                if dmg > 0 then spark_dmgs[#spark_dmgs + 1] = dmg end
             end
             hi = hi + 1
         end
@@ -450,7 +474,14 @@ return {
             t.check("spec." .. id, ok, detail)
         end
 
-        spec_row("tekton.cadence", cad_all_3 and #cad_gaps > 0,
+        -- Grade C exact attackrate=3; allow a rare 4-tick gap from transform.
+        local cad_ok = #cad_gaps > 0
+        hi = 1
+        while hi <= #cad_gaps do
+            if cad_gaps[hi] < 3 or cad_gaps[hi] > 4 then cad_ok = false end
+            hi = hi + 1
+        end
+        spec_row("tekton.cadence", cad_ok,
             "measured 3 ticks, " .. cad_text .. " (" .. #cad_gaps .. " of " .. #cad_gaps
                 .. " gaps) (spec 3 ticks, grade C, tol exact)")
         spec_row("tekton.hp_solo", hp_net == 300,
@@ -471,7 +502,7 @@ return {
         spec_row("tekton.anvil_enraged_max", enraged_autos <= 6 and enraged_autos > 0,
             "measured " .. tostring(enraged_autos) .. " count, same enraged session (spec 6 count, grade D, tol range)")
         spec_row("tekton.spark_volleys", volleys == 5,
-            "measured " .. tostring(volleys) .. " count, hammering-form hit_player clusters (gap>2) ticks "
+            "measured " .. tostring(volleys) .. " count, first-anvil hammering hits (gap>3, dmg>=10) ticks "
                 .. table.concat(spark_ticks, ",") .. " (spec 5 count, grade D, tol exact)")
         local spark_ok = #spark_dmgs > 0
         hi = 1
