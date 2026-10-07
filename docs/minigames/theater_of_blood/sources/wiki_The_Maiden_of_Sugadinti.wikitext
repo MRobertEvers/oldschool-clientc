@@ -136,12 +136,14 @@ The Maiden will also throw blood spots at each player, and three blood spots at 
 
 If there are multiple blood spawns, it is suggested to freeze blood spawns and communicate with the teammates to swap gear, heal, or restore magic up before progressing into the Nylocas phases.
 
-Similar to [[TzKal-Zuk]], the Maiden of Sugadinti will over-hit the player beyond their current health when damage is calculated; this makes it so you cannot tick-eat the maiden boss's magic attacks.
+Similar to [[TzKal-Zuk]], the Maiden of Sugadinti will over-hit the player beyond their current health when damage is calculated; this makes it so you cannot tick-eat her magic attacks.
 
 ===Hard Mode===
 In [[Theatre of Blood/Hard Mode|Hard Mode]], in addition to the previous mechanics, the Maiden will always spawn the maximum number of Nylocas Matomenos (10), regardless of the number of players in the encounter. Alongside healing and increasing the damage of her attacks, the first five Matomenos that reach her will increase her attack speed.
 
 The blood spawns that appear during the fight become invulnerable to damage (although still attackable), and the splatters they leave behind will remain for the duration of the encounter.
+
+If the same player is attacked more than twice in a row, her maximum hit will be increased.
 
 The Maiden's damage cap is also increased, meaning she can hit faster and harder than the regular version when Nylocas Matomenos reach her and players step on blood spots during the fight. This can often make it very difficult for players to complete since her damage can ramp up very quickly depending on the number of mistakes the team makes during the fight.
 
