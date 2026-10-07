@@ -80,40 +80,48 @@ local KIT = {
     "::setlevel prayer 99", "::setlevel agility 99", "::setlevel slayer 37",
     "::setvar varb4070_spellbook 1",
 }
--- owner_tob_normal 2026-10-07: THE SEATS AND THEIR KIT ARE THE GREEN ROOM
--- HARNESSES'.  Seat 1 (the party leader, orb 0) is Maiden's FREEZER, as in all
--- 24 reference rooms and _play_maiden.lua since b02968ded, and the Nylocas
--- MAGE (the Nylocas owner: the room is green only with the mage leading,
--- relay_nylocas_snippet.lua DIFFERENCES 1); seat 2 Maiden's dps1 and the
--- Nylocas ranger; seat 3 Maiden's dps2 and the Nylocas meleer.  The Maiden
--- kit below is _play_maiden.lua party_kit by Maiden role (6cba215fd /
--- 5b61b41c7, green on the owner's ruling of 2026-10-07); the later rooms'
--- items take the slots Maiden's supplies leave (the seat's last fish).
+-- owner_tob_normal 2026-10-07: ONE WHOLE-RAID INVENTORY PER SEAT, the
+-- Strategies page's Normal "Example setups"
+-- (wiki_Theatre_of_Blood_Strategies.wikitext:292-520: the Melee, the
+-- Mage/Freezer and the Range roles) -- gear switches, a few fish, one brew,
+-- one restore, a divine and a super combat -- topped up from the supply
+-- chest after Bloat and after Sotetseg with each raider's own points
+-- (restock()).  The page's items are kept where our plans use them and
+-- swapped for the plan's tool where they differ: the Tonalztics (our
+-- Maiden opener) for the elder maul / BGS, the zaryte crossbow for the
+-- freezer's Evoke, Dinh's bulwark (our 50-wave stack) for the halberd.
+-- The seats: seat 1 (the party leader, orb 0) Maiden's freezer, the
+-- Nylocas mage, Bloat role 1; seat 2 Maiden's dps1, the Nylocas ranger
+-- (the page's Range role: chinchompas, W:717), Bloat role 3; seat 3
+-- Maiden's dps2, the Nylocas meleer (the page's Melee role: a second melee
+-- weapon for the room, W:723 -- sulphur blades -- and the whip), Bloat
+-- role 2.
 local MAIDEN_ROLE_OF_SEAT = { [1] = 2, [2] = 1, [3] = 3 }
 local mrole = MAIDEN_ROLE_OF_SEAT[role]
 if mrole == 2 then
     for _, c in ipairs({
+        -- worn: the Maiden freezer's opener set (_play_maiden.lua party_kit)
         "::give twisted_bow", "::wield twisted_bow",
         "::give dragon_arrow 1000", "::wield dragon_arrow",
         "::give game_pest_archer_helm", "::wield game_pest_archer_helm",
         "::give elite_void_knight_top", "::wield elite_void_knight_top",
         "::give elite_void_knight_robes", "::wield elite_void_knight_robes",
         "::give pest_void_knight_gloves", "::wield pest_void_knight_gloves",
-        "::give necklace_of_rupture",
         "::give avas_assembler", "::wield avas_assembler",
         "::give eternal_boots", "::wield eternal_boots",
         "::give magus_ring", "::wield magus_ring",
         "::give occult_necklace", "::wield occult_necklace",
+        -- the pack: the freezer's magic set, the scythe, the specials, runes
+        "::give kodai_wand", "::give ancestral_hat", "::give ancestral_robe_top", "::give ancestral_robe_bottom", "::give arcane",
+        "::fullscythe",
         "::give tonalztics_of_ralos_uncharged", "::give sunfiresplinter 100",
         "::give zaryte_xbow", "::give xbows_crossbow_bolts_adamantite_tipped_ruby_enchanted 50",
-        "::give water_rune 2000", "::give blood_rune 1000", "::give death_rune 1000",
-        "::give ancestral_hat", "::give ancestral_robe_top", "::give ancestral_robe_bottom",
-        "::give kodai_wand", "::give arcane",
-        "::fullscythe",
-        "::give 4doserangerspotion", "::give saturated_heart",
-        -- the Nylocas mage's own weapon (relay_nylocas_snippet.lua KIT), charged in run()
         "::give eye_of_ayak_uncharged", "::give demon_tear 2000",
-        "::give 4dosestamina 1" }) do KIT[#KIT + 1] = c end
+        "::give water_rune 2000", "::give blood_rune 1000", "::give death_rune 1000",
+        "::give necklace_of_rupture",
+        "::give saturated_heart", "::give 4doserangerspotion", "::give 4dosedivinerange",
+        "::give 4dosedivinecombat", "::give 4dose2combat",
+        "::give 4dosestamina" }) do KIT[#KIT + 1] = c end
 else
     for _, c in ipairs({ "::tobkit", "::blowpipe dragon_dart 2000 2000",
         "::give twisted_bow", "::wield twisted_bow",
@@ -121,23 +129,25 @@ else
         "::give tonalztics_of_ralos_uncharged", "::give sunfiresplinter 100",
         "::give game_pest_archer_helm", "::give elite_void_knight_top", "::give elite_void_knight_robes",
         "::give pest_void_knight_gloves", "::give necklace_of_rupture",
-        "::give dinhs_bulwark",
-        "::give 4dose2combat 2",
-        "::give dragon_claws",
-        "::give 4doserangerspotion",
-        "::give 4dosestamina 1" }) do KIT[#KIT + 1] = c end
-    -- the Nylocas meleer's whip (relay_nylocas_snippet.lua KIT, meleer)
-    if role == 3 then KIT[#KIT + 1] = "::give abyssal_whip" end
+        "::give dinhs_bulwark", "::give dragon_claws",
+        "::give 4dose2combat", "::give 4dosedivinecombat",
+        "::give 4doserangerspotion", "::give 4dosedivinerange",
+        "::give 4dosestamina" }) do KIT[#KIT + 1] = c end
+    if role == 2 then KIT[#KIT + 1] = "::give chinchompa_black 300" end
+    if role == 3 then
+        KIT[#KIT + 1] = "::give abyssal_whip"
+        KIT[#KIT + 1] = "::give sulphur_blades"
+    end
 end
--- the supplies, handed over after the charges (run()): Maiden's mix by role,
--- a fish fewer for each later room's item above
+-- the food and the brew / restore, handed over after the charges free their
+-- slots (run()); the chests top them up
 local SUPPLIES = nil
 if mrole == 2 then
-    SUPPLIES = { "::give anglerfish 5", "::give br_4dose2restore 4" }
+    SUPPLIES = { "::give br_4dosepotionofsaradomin 1", "::give br_4dose2restore 2", "::give anglerfish 5" }
 elseif role == 2 then
-    SUPPLIES = { "::give br_4dosepotionofsaradomin 4", "::give br_4dose2restore 4", "::give anglerfish 4" }
+    SUPPLIES = { "::give br_4dosepotionofsaradomin 2", "::give br_4dose2restore 2", "::give anglerfish 7" }
 else
-    SUPPLIES = { "::give br_4dosepotionofsaradomin 4", "::give br_4dose2restore 4", "::give anglerfish 3" }
+    SUPPLIES = { "::give br_4dosepotionofsaradomin 2", "::give br_4dose2restore 2", "::give anglerfish 6" }
 end
 
 -- What each seat leaves on the floor once no later room uses it (the Entry
@@ -145,18 +155,23 @@ end
 local DROP_AFTER = {
     -- (Maiden-only pieces; the freezer keeps its barrage runes for the
     -- Nylocas mage)
-    maiden = { [1] = { "kodai_wand", "ancestral_hat", "ancestral_robe_top", "ancestral_robe_bottom", "arcane", "tonalztics_of_ralos_charged", "zaryte_xbow" },
-        [2] = { "tonalztics_of_ralos_charged", "dinhs_bulwark" },
-        [3] = { "tonalztics_of_ralos_charged", "dinhs_bulwark" } },
+    maiden = { [1] = { "kodai_wand", "ancestral_hat", "ancestral_robe_top", "ancestral_robe_bottom", "arcane", "tonalztics_of_ralos_charged",
+        "zaryte_xbow", "xbows_crossbow_bolts_adamantite_tipped_ruby_enchanted", "sunfiresplinter", "demon_tear" },
+        [2] = { "tonalztics_of_ralos_charged", "dinhs_bulwark", "sunfiresplinter" },
+        [3] = { "tonalztics_of_ralos_charged", "dinhs_bulwark", "sunfiresplinter" } },
     nylocas = {
         [1] = { "eye_of_ayak", "waterrune", "bloodrune", "deathrune" },
-        [2] = { "toxic_blowpipe_loaded" },
-        [3] = { "abyssal_whip", "toxic_blowpipe_loaded" },
+        [2] = { "chinchompa_black" },
+        [3] = { "abyssal_whip", "sulphur_blades" },
     },
 }
 
 local SUPPLY_ITEMS = {
-    anglerfish = "angler",
+    anglerfish = "angler", mantaray = "angler", seaturtle = "angler", shark = "angler",
+    ["4dosepotionofsaradomin"] = "brew", ["3dosepotionofsaradomin"] = "brew",
+    ["2dosepotionofsaradomin"] = "brew", ["1dosepotionofsaradomin"] = "brew",
+    ["4dose2restore"] = "restore", ["3dose2restore"] = "restore",
+    ["2dose2restore"] = "restore", ["1dose2restore"] = "restore",
     br_4dosepotionofsaradomin = "brew", br_3dosepotionofsaradomin = "brew",
     br_2dosepotionofsaradomin = "brew", br_1dosepotionofsaradomin = "brew",
     br_4dose2restore = "restore", br_3dose2restore = "restore",
@@ -165,6 +180,8 @@ local SUPPLY_ITEMS = {
     ["2dose2combat"] = "combat", ["1dose2combat"] = "combat",
 }
 local DOSES = {
+    ["4dosepotionofsaradomin"] = 4, ["3dosepotionofsaradomin"] = 3, ["2dosepotionofsaradomin"] = 2, ["1dosepotionofsaradomin"] = 1,
+    ["4dose2restore"] = 4, ["3dose2restore"] = 3, ["2dose2restore"] = 2, ["1dose2restore"] = 1,
     br_4dosepotionofsaradomin = 4, br_3dosepotionofsaradomin = 3, br_2dosepotionofsaradomin = 2, br_1dosepotionofsaradomin = 1,
     br_4dose2restore = 4, br_3dose2restore = 3, br_2dose2restore = 2, br_1dose2restore = 1,
     ["4dose2combat"] = 4, ["3dose2combat"] = 3, ["2dose2combat"] = 2, ["1dose2combat"] = 1,
@@ -425,7 +442,8 @@ local function await_stat(t, stat, from, ticks)
     return s, waited
 end
 
-local RESTORE_DOSES = { "br_1dose2restore", "br_2dose2restore", "br_3dose2restore", "br_4dose2restore" }
+local RESTORE_DOSES = { "br_1dose2restore", "br_2dose2restore", "br_3dose2restore", "br_4dose2restore",
+    "1dose2restore", "2dose2restore", "3dose2restore", "4dose2restore" }
 local COMBAT_DOSES = { "1dose2combat", "2dose2combat", "3dose2combat", "4dose2combat" }
 
 local function first_held(t, list)
@@ -479,8 +497,9 @@ end
 -- 34 hitpoints and died on the second tick of the fight.  Fish first, then
 -- brews (the brew's drain is the boost's to restore), up to 99; a super
 -- restore when prayer is under half.
-local FOOD_FIRST = { "anglerfish", "br_1dosepotionofsaradomin", "br_2dosepotionofsaradomin",
-    "br_3dosepotionofsaradomin", "br_4dosepotionofsaradomin" }
+local FOOD_FIRST = { "anglerfish", "mantaray", "seaturtle", "shark", "br_1dosepotionofsaradomin", "br_2dosepotionofsaradomin",
+    "br_3dosepotionofsaradomin", "br_4dosepotionofsaradomin",
+    "1dosepotionofsaradomin", "2dosepotionofsaradomin", "3dosepotionofsaradomin", "4dosepotionofsaradomin" }
 local function top_up(t, name)
     local _, h0 = t.skill.read("hitpoints")
     local _, p0 = t.skill.read("prayer")
@@ -556,6 +575,61 @@ local function start_room(t, name, leader_pre, member_cross, starter)
         at_answer = function() if role == 1 then R[name].mark = mark_tick(t, name .. " start") end end })
     t.check(name .. ".cross", xr == "ok", P .. tostring(xd))
     if role == 1 and R[name].mark == nil then R[name].mark = mark_tick(t, name .. " start (seat " .. starter .. " began it)") end
+end
+
+-- THE SUPPLY CHEST (tob_chest.rs2: Normal opens tob_midway_stores, a
+-- points store, after Bloat and after Sotetseg; each raider's own points,
+-- 10-13 a deathless chest, Chest:20).  Every seat walks to it, opens it and
+-- buys what the teams restock (Strategies: brews, restores, food): a super
+-- restore and a brew first, then the most food its points and free slots
+-- buy.  Stock and costs are enum_1952 / enum_1953: slot 2 brew 3 points,
+-- slot 3 super restore 3, slot 7 manta ray 2, slot 5 shark 1.
+local CHEST_SLOT = { brew = 2, restore = 3, manta = 7, shark = 5 }
+local CHEST_COST = { brew = 3, restore = 3, manta = 2, shark = 1 }
+local function free_slots(t)
+    local n = 0
+    for i = 0, 27 do
+        local r, sl = t.inv.slot(i)
+        if r == "ok" and type(sl) == "table" and sl.count == 0 then n = n + 1 end
+    end
+    return n
+end
+local function restock(t, name)
+    local chr, chrow = t.world.loc_near("tob_midway_chest_closed", 40)
+    t.check(name .. ".chest_found", chr == "ok" and chrow ~= nil, P .. tostring(chr) .. " " .. tostring(chrow and chrow.tile_x) .. "," .. tostring(chrow and chrow.tile_z))
+    if chr ~= "ok" or chrow == nil then return end
+    t.player.walk_to(chrow.tile_x + 1, chrow.tile_z - 1, 30)
+    local cr, cd = t.player.click_loc("tob_midway_chest_closed", 1)
+    local or_, od = t.ui.await_open("tob_midway_stores", 6)
+    t.check(name .. ".chest_open", or_ == "ok", P .. "chest " .. tostring(cr) .. " " .. string.sub(tostring(cd), 1, 80) .. "; store " .. tostring(or_))
+    if or_ ~= "ok" then t.key("escape") return end
+    local _, points = t.var.varbit("varb6460_tob_midwaychest_points")
+    points = tonumber(points) or 0
+    local p0 = points
+    local bought = {}
+    local function buy(kind)
+        local wr, cell = api_drive.component("tob_midway_stores:items", CHEST_SLOT[kind])
+        if wr ~= "ok" then return false end
+        local ir = api_drive.if_click(cell, 2)
+        t.ticks(1)
+        if ir ~= "ok" then return false end
+        points = points - CHEST_COST[kind]
+        bought[#bought + 1] = kind
+        return true
+    end
+    for _, kind in ipairs({ "restore", "brew" }) do
+        if points >= CHEST_COST[kind] and free_slots(t) > 0 then buy(kind) end
+    end
+    local guard = 0
+    while guard < 20 and free_slots(t) > 0 and points >= CHEST_COST.shark do
+        guard = guard + 1
+        if points >= CHEST_COST.manta and free_slots(t) > 0 and buy("manta") then
+        elseif not buy("shark") then break end
+    end
+    local _, left = t.var.varbit("varb6460_tob_midwaychest_points")
+    t.check(name .. ".chest_bought", #bought > 0, P .. "points " .. p0 .. " -> " .. tostring(left) .. "; bought " .. table.concat(bought, " ") .. "; now " .. supplies_text(supplies(t)))
+    t.key("escape")
+    t.ticks(1)
 end
 
 -- ------------------------------------------------- each room's pre-fight
@@ -875,7 +949,7 @@ return {
         t.ticks(2)
         local tir, tin = t.inv.count("tonalztics_of_ralos_charged")
         t.check("kit.tonalztics", tir == "ok" and tin == 1, P .. "Charge " .. tostring(tcr) .. " " .. string.sub(tostring(tcd), 1, 80) .. "; charged " .. tostring(tin))
-        if role == 1 then
+        if mrole == 2 then
             local chr, chd = t.player.inv_op("eye_of_ayak_uncharged", 3)
             t.ticks(2)
             local sr, sn = t.inv.count("eye_of_ayak")
@@ -958,6 +1032,24 @@ return {
             t.check(name .. ".supplies", true, P .. "used " .. used_text(R[name].before, R[name].after) .. "; eats "
                 .. tostring(rec and #(rec.eats or {})) .. ", drinks " .. tostring(rec and #(rec.drinks or {})) .. "; left " .. supplies_text(R[name].after))
             t.expect(name .. ".barrier.done", t.party.barrier(name .. "_done", 9000))
+            -- every seat out of the arena to the supply chest and back to the
+            -- party (after Bloat, after Sotetseg)
+            if result == "ok" and (name == "bloat" or name == "sotetseg") then
+                if name == "bloat" then
+                    for _, at in ipairs({ { 23, 31 }, { 24, 31 }, { 23, 30 }, { 22, 31 } }) do
+                        local _, here1 = t.world.tile()
+                        if here1.x >= ox + 23 then
+                            t.player.click_loc("tob_arena_barrier", 1, { at = { ox + at[1], oz + at[2] } })
+                            t.ticks(2)
+                        end
+                    end
+                else
+                    t.player.click_loc("tob_arena_barrier", 1)
+                    t.ticks(3)
+                end
+                restock(t, name)
+                t.expect(name .. ".barrier.chest", t.party.barrier(name .. "_chest", 3000))
+            end
             if role == 1 then
                 local wave = nil
                 for _ = 1, 30 do
