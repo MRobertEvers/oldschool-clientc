@@ -539,7 +539,13 @@ return {
                 for k, n in pairs(ny.state_ticks or {}) do p[#p + 1] = k .. "=" .. n end
                 table.sort(p)
                 return table.concat(p, " ")
-            end)())
+            end)()
+            -- EVERY DECLARED STATE'S ticks/entries and the ones that never
+            -- fired (raid_sm QD.raid.sm_coverage).  A port proved by
+            -- "identical readings" is worth only as much as the states the
+            -- runs entered: a change to a state nothing enters is
+            -- indistinguishable from no change (raid seam53).
+            .. t.raid.sm_coverage(rec))
 
         if role ~= 1 then
             -- raid seam32: a member's own record (its presses are its own; the
@@ -554,6 +560,7 @@ return {
                     table.sort(p)
                     return table.concat(p, " ")
                 end)()
+                .. t.raid.sm_coverage(rec)
                 .. ", casts " .. tostring(ny.casts) .. ", freezes " .. tostring(ny.freezes) .. ", swaps " .. tostring(ny.swaps) .. ", own colour "
                 .. tostring(ny.own_presses) .. " / other colours " .. tostring(ny.other_presses) .. ", flicker cancels " .. tostring(ny.flicker_cancels)
                 .. ", presses on her " .. #(ny.vas_presses or {}) .. ", turn holds " .. tostring(ny.holds) .. ", turn steps " .. tostring(ny.turn_steps) .. ", XP-read swings " .. tostring(ny.xp_swings) .. ", nulled read " .. tostring(ny.null_reads) .. ", eats " .. #(rec.eats or {}) .. ", drinks " .. #(rec.drinks or {}))

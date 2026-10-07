@@ -1190,6 +1190,30 @@ local NY_SEAT_STATES = {
             target_dead = stay,
             target_reached_pillar = stay,
             support_hit = stay,
+            -- THE LAST WAVE IS OUT: this state only REMEMBERS it, and the
+            -- memory (c.m.resume) is read by `defence_clear`, which cannot
+            -- fire while P.room_copy takes the tick.  SO THE SEAT MACHINES'
+            -- CLEANUP STATE IS NEVER ENTERED: 0 ticks and 0 entries for all
+            -- three seats on all nine names (QD.raid.sm_coverage, raid
+            -- seam53), because a seat is nearly always inside PILLAR_DEFENCE
+            -- or SELF_DEFENCE when the last wave goes out and then goes
+            -- straight to BOSS.  With CLEANUP dead, ny.in_cleanup never reads
+            -- true for a trio and the cleanup's own rules are dead with it:
+            -- the cleanup blast window (P.cleanup_blast; the 6-tick wave
+            -- window applies instead), the cleanup order (P.cleanup_order,
+            -- so ny.cleanup_passes is always 0) and the cleanup's weapon rule
+            -- in QD.raid._nym_pick.  P.cleanup_bigs_first still runs: it
+            -- hangs off ny.waves >= 31 inside _nym_room_copy, not off a state.
+            --
+            -- TURNING IT ON WAS MEASURED (raid seam53's demonstration change:
+            -- `waves_over = function(c) c.m.idx = 1 return nil, "CLEANUP" end`
+            -- here and in SELF_DEFENCE, two lines).  It works -- every state
+            -- fires, CLEANUP takes 66-73 ticks a seat -- and it reads 8 of 9:
+            -- boss ticks 85-114 (all inside Blert's 75-123) and room ticks
+            -- 433-463, but svcplaynyloc's leader loses 125 against the
+            -- reference's 120.  Every name's numbers move, so switching the
+            -- trio's last thirty ticks onto the cleanup's rules is the
+            -- OWNER'S call, not a port's.
             waves_over = function(c) if c.m.resume ~= "CLEANUP" then c.m.resume, c.m.idx = "CLEANUP", 1 end end,
             boss_phase = function(c) return nil, "BOSS" end,
             hit_taken = nym_to_self_defence(nil),
