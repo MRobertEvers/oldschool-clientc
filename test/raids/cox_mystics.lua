@@ -2,11 +2,13 @@
 -- Spec: docs/minigames/cox/encounters/mystics.tsv
 -- Source: docs/minigames/cox/synq_transcript.md [0:31:54]
 --   "Make sure you're protecting from magic while doing this room."
---   "The bofa and blowpipe are also commonly used here."
--- Kill path: Protect from Magic + toxic blowpipe, focus one at a time.
--- Tick-loop FOCUS: 2-tick blowpipe fits between food delays; no kite
--- (kiting every tick starved all DPS when three mystics stayed adjacent).
--- Model: named-state machine, one intent per tick.
+--   "The salve amulet EI is strongly recommended."
+--   "The bofa and blowpipe are also commonly used here. The twisted bow
+--    isn't as strong here ... still an acceptable weapon."
+-- Kill path: Protect from Magic; tbow + salve; focus one mystic at a time.
+-- Model: named-state machine; one intent per FOCUS tick (sustain or attack);
+-- pack rows (not await_dead) decide when a mystic is dead so corpse grace
+-- cannot drain the backpack while the other two keep hitting.
 -- No ::godmode, ::kill, or teleport past a phase.
 
 local FORMS = {
@@ -17,8 +19,6 @@ local FORMS = {
 
 local ANIM_MELEE = 5485
 local ANIM_MAGIC = 5523
-local CONSUME_COOLDOWN = 3
-local ATTACK_EVERY = 2
 
 local STATE = {
     LAND = "LAND",
@@ -46,6 +46,15 @@ local function mystic_rows(t)
     return out
 end
 
+local function find_slot(rows, slot)
+    for i = 1, #rows do
+        if rows[i].slot == slot then
+            return rows[i]
+        end
+    end
+    return nil
+end
+
 local function remember_slots(sm, rows)
     for i = 1, #rows do
         sm.slots[rows[i].slot] = true
@@ -66,15 +75,16 @@ local function is_mystic_hit(sm, row)
 end
 
 local function nearest_mystic(t)
-    for i = 1, #FORMS do
-        local r, row = t.npc.nearest(FORMS[i], 40)
-        if r == "ok" and row ~= nil then
-            return row, FORMS[i]
-        end
-    end
     local rows = mystic_rows(t)
     if #rows == 0 then return nil, nil end
-    return rows[1], rows[1].symbol
+    -- Prefer the lowest world slot so focus stays sticky across ticks.
+    local best = rows[1]
+    for i = 2, #rows do
+        if rows[i].slot < best.slot then
+            best = rows[i]
+        end
+    end
+    return best, best.symbol
 end
 
 local function hp(t)
@@ -117,6 +127,28 @@ local function drink_restore(t)
     return false
 end
 
+-- Brew first (shares a tick with food), then shark, then karambwan.
+-- Thresholds stay low so the tbow's 5-tick cycle is not permanently delayed.
+local function sustain(t)
+    local h = hp(t)
+    if h > 0 and h < 45 then
+        drink_brew(t)
+        h = hp(t)
+    end
+    if h > 0 and h < 38 then
+        if t.player.eat("shark") ~= "ok" then
+            t.player.eat("tbwt_cooked_karambwan")
+        end
+        h = hp(t)
+    end
+    if h > 0 and h < 28 then
+        t.player.eat("tbwt_cooked_karambwan")
+    end
+    if prayer_points(t) < 35 then
+        drink_restore(t)
+    end
+end
+
 local function mode_of(gaps)
     local counts = {}
     for i = 1, #gaps do
@@ -145,9 +177,8 @@ return {
         "::setlevel magic 99",
         "::setlevel hitpoints 99",
         "::setlevel prayer 99",
-        -- Synq [0:31:54]: blowpipe commonly used; 2-tick rapid fits food delay.
-        "::blowpipe dragon_dart 2000 2000",
-        "::wield toxic_blowpipe_loaded",
+        -- Synq [0:31:54]: salve + ranged. Twisted bow is acceptable learner
+        -- kit; its 5-tick cycle survives eat delay better than blowpipe.
         "::give masori_mask",
         "::wield masori_mask",
         "::give masori_body",
@@ -158,14 +189,20 @@ return {
         "::wield avas_assembler",
         "::give nzone_salve_amulet_e",
         "::wield nzone_salve_amulet_e",
-        "::give br_4dose2restore 2",
+        "::give twisted_bow",
+        "::wield twisted_bow",
+        "::give dragon_arrow 2000",
+        "::wield dragon_arrow",
+        -- Max backpack heal: await_dead corpse stalls burned 17 sharks on
+        -- mystic 1; pack-death FOCUS needs the surplus for mystic 2/3.
+        "::give br_4dose2restore 1",
         "::give br_4dosepotionofsaradomin 3",
         "::give shark 20",
-        "::give tbwt_cooked_karambwan 3",
+        "::give tbwt_cooked_karambwan 4",
     },
 
     run = function(t)
-        t.check("spec.scope", true, "mode=all party=1; synq blowpipe + Protect Magic")
+        t.check("spec.scope", true, "mode=all party=1; synq Protect Magic + tbow focus")
         local lr, ld = t.ticklog.start()
         t.check("ticklog.start", lr == "ok", tostring(ld))
 
@@ -174,10 +211,6 @@ return {
         local sr, room = t.raid.state()
         t.check("raid.state", sr == "ok" and room.room == "mystics",
             sr == "ok" and (tostring(room.raid) .. " " .. tostring(room.room)) or tostring(room))
-
-        local br, bp = t.inv.blowpipe()
-        t.check("kit.blowpipe", br == "ok" and type(bp) == "table" and bp.where == "worn",
-            "blowpipe " .. tostring(br) .. " " .. tostring(bp and bp.line or bp))
 
         local landing = mystic_rows(t)
         t.check("mystics.present", #landing >= 1,
@@ -215,11 +248,10 @@ return {
             unprot_hits = 0,
             prot_hits = 0,
             prayer_on = false,
-            next_attack_at = 0,
-            next_consume_at = 0,
-            last_alive = count_solo,
             slots = {},
             types = {},
+            last_attack_tick = -99,
+            last_sustain_tick = -99,
         }
         remember_slots(sm, landing)
 
@@ -281,43 +313,12 @@ return {
 
         local function arm_prayers(check)
             local pr, pd = t.prayer.set("protectfrommagic", true)
-            local er, ed = t.prayer.set("eagleeye", true)
+            local er2, ed2 = t.prayer.set("eagleeye", true)
             if check then
                 t.check("pray.magic", pr == "ok", tostring(pd))
-                t.check("pray.eagle", er == "ok", tostring(ed))
+                t.check("pray.eagle", er2 == "ok", tostring(ed2))
             end
             sm.prayer_on = (pr == "ok")
-        end
-
-        local function sustain()
-            local h = hp(t)
-            local urgent = h > 0 and h < 28
-            if not urgent and sm.ticks < sm.next_consume_at then
-                if prayer_points(t) < 30 then
-                    drink_restore(t)
-                    arm_prayers(false)
-                end
-                return
-            end
-            if h > 0 and h < 50 then
-                if drink_brew(t) then
-                    sm.next_consume_at = sm.ticks + CONSUME_COOLDOWN
-                    return
-                end
-            end
-            if h > 0 and h < 55 then
-                if t.player.eat("shark") == "ok"
-                    or t.player.eat("tbwt_cooked_karambwan") == "ok" then
-                    sm.next_consume_at = sm.ticks + CONSUME_COOLDOWN
-                    return
-                end
-            end
-            if prayer_points(t) < 40 then
-                if drink_restore(t) then
-                    arm_prayers(false)
-                    sm.next_consume_at = sm.ticks + CONSUME_COOLDOWN
-                end
-            end
         end
 
         local function decide()
@@ -339,55 +340,57 @@ return {
 
             if sm.state == STATE.ARM_PRAYER then
                 arm_prayers(true)
-                for _ = 1, 4 do
-                    if hp(t) >= 90 then break end
-                    if not drink_brew(t) then break end
-                    t.ticks(1)
-                end
                 set_state(STATE.FOCUS)
                 return
             end
 
             if sm.state == STATE.FOCUS then
-                arm_prayers(false)
-                sustain()
-
-                if #alive < sm.last_alive then
-                    sm.kills = sm.kills + (sm.last_alive - #alive)
-                end
-                sm.last_alive = #alive
-
-                local target, sym = nearest_mystic(t)
-                if target == nil or sym == nil then
-                    set_state(STATE.DONE)
+                -- Critical sustain takes the tick (inv_op settles 3); otherwise
+                -- attack. Thresholds stay low so tbow keeps cycling.
+                local h = hp(t)
+                local need_food = h > 0 and h < 38
+                local need_pray = prayer_points(t) < 35
+                if (need_food or need_pray)
+                    and (sm.ticks - sm.last_sustain_tick) >= 3 then
+                    sustain(t)
+                    arm_prayers(false)
+                    sm.last_sustain_tick = sm.ticks
                     return
                 end
-                if sm.focus_sym ~= nil then
-                    local still = false
-                    for i = 1, #alive do
-                        if alive[i].symbol == sm.focus_sym then
-                            still = true
-                            break
-                        end
-                    end
-                    if still then
-                        sym = sm.focus_sym
+                arm_prayers(false)
+
+                local target = nil
+                local sym = nil
+                if sm.focus_slot ~= nil then
+                    target = find_slot(alive, sm.focus_slot)
+                    if target ~= nil then
+                        sym = target.symbol
                     else
-                        sm.focus_sym = sym
+                        -- Pack dropped the focus: count the kill and re-pick.
+                        sm.kills = sm.kills + 1
+                        sm.focus_slot = nil
+                        sm.focus_sym = nil
                     end
-                else
-                    sm.focus_sym = sym
                 end
-                sm.focus_slot = target.slot
+                if target == nil then
+                    target, sym = nearest_mystic(t)
+                    if target == nil or sym == nil then
+                        set_state(STATE.DONE)
+                        return
+                    end
+                    sm.focus_sym = sym
+                    sm.focus_slot = target.slot
+                end
 
                 if not sm.mid_shot then
                     t.shot("mystics mid-mechanic focus kill")
                     sm.mid_shot = true
                 end
 
-                if sm.ticks >= sm.next_attack_at then
-                    t.player.attack(sym, 2, 1, { quick = true })
-                    sm.next_attack_at = sm.ticks + ATTACK_EVERY
+                -- Re-press at most every 4 ticks; tbow is 5-tick.
+                if sm.ticks - sm.last_attack_tick >= 4 then
+                    t.player.attack(sym, 2, 1, { quick = true, slot = target.slot })
+                    sm.last_attack_tick = sm.ticks
                 end
                 return
             end
@@ -396,7 +399,10 @@ return {
         local start_count = count_solo
         while sm.state ~= STATE.DONE and sm.ticks < 8000 do
             if t.player.alive() ~= "ok" then
-                t.check("alive", false, "died in state " .. sm.state .. " ticks " .. sm.ticks)
+                t.check("alive", false, "died in state " .. sm.state
+                    .. " ticks " .. sm.ticks
+                    .. " kills " .. tostring(sm.kills)
+                    .. " hp " .. tostring(hp(t)))
                 return
             end
             decide()
@@ -411,7 +417,8 @@ return {
             "state=" .. tostring(sm.state)
                 .. " remaining=" .. tostring(#remaining)
                 .. " ticks=" .. tostring(sm.ticks)
-                .. " start_count=" .. tostring(start_count))
+                .. " start_count=" .. tostring(start_count)
+                .. " kills=" .. tostring(sm.kills))
         t.shot("mystics room clear")
 
         sm.kills = start_count - #remaining
@@ -457,6 +464,6 @@ return {
             "Protect from Magic armed; protected hits sampled " .. tostring(sm.prot_hits)
                 .. " unprotected " .. tostring(sm.unprot_hits))
         t.check("tech.focus_kill", sm.kills == 3,
-            "cleared " .. tostring(sm.kills) .. " of 3 skeletal mystics with blowpipe focus")
+            "cleared " .. tostring(sm.kills) .. " of 3 skeletal mystics with ranged focus")
     end,
 }
