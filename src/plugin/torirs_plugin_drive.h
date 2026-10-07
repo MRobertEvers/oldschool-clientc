@@ -985,6 +985,15 @@ struct DriveNpcRow
     int npc_id;
     int base_npc_id;
     int tile_x, tile_z, level;
+    /**
+     * The npc's LATEST SERVER TILE: the head of its route queue (the step the
+     * last NPC_INFO pushed), where tile_x/tile_z is grid_position, which only
+     * advances when the drawn model ARRIVES at a step -- a tick behind a
+     * walking npc.  Equal to tile_x/tile_z once the route is walked.  (Verzik's
+     * tornadoes, 2026-10-07: a seat reading tile_x saw its tornado one tile
+     * further than the server had it, and every dodge was a tile late.)
+     */
+    int server_x, server_z;
     int element_id;
     /**
      * The overhead health bar, the ONLY hitpoints reading a client has.

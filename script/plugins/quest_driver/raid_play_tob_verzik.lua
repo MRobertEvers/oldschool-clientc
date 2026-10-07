@@ -916,7 +916,11 @@ function QD.raid._verzik_tor_tiles(v)
     local me = v.me
     for _, tr in ipairs(v.tornadoes or {}) do
         local x, z = tr.x, tr.z
-        if me ~= nil then
+        if tr.server_x ~= nil then
+            -- the server's own tile (DriveNpcRow.server_x: the head of its
+            -- route queue), no guess needed
+            x, z = tr.server_x, tr.server_z
+        elseif me ~= nil then
             if me.x > x then x = x + 1 elseif me.x < x then x = x - 1 end
             if me.z > z then z = z + 1 elseif me.z < z then z = z - 1 end
         end

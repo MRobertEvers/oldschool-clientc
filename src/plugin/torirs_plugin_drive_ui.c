@@ -665,6 +665,13 @@ DriveUi_Npcs(struct App* app, int radius, struct DriveNpcRow* out, int cap, int*
         out[j].base_npc_id = npc->base_npc_id;
         out[j].tile_x = tile_x;
         out[j].tile_z = tile_z;
+        out[j].server_x = tile_x;
+        out[j].server_z = tile_z;
+        if( npc->pathing.route_length > 0 )
+        {
+            out[j].server_x = base_x + npc->pathing.route_x[0];
+            out[j].server_z = base_z + npc->pathing.route_z[0];
+        }
         out[j].level = npc->grid_position.level;
         out[j].element_id = npc->element_id;
         drive_ui_fill_npc_combat(app, npc, &out[j]);
@@ -2086,6 +2093,10 @@ drive_ui_push_npc_row(struct lua_State* L, struct DriveNpcRow const* row)
     lua_setfield(L, -2, "x");
     lua_pushinteger(L, row->tile_z);
     lua_setfield(L, -2, "z");
+    lua_pushinteger(L, row->server_x);
+    lua_setfield(L, -2, "server_x");
+    lua_pushinteger(L, row->server_z);
+    lua_setfield(L, -2, "server_z");
     lua_pushinteger(L, row->level);
     lua_setfield(L, -2, "level");
     lua_pushinteger(L, row->element_id);
