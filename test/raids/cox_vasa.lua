@@ -27,7 +27,7 @@ return {
         -- Food through the teleport special (solo takes current HP - 5) and boulders.
         -- Gear above is still in the bag until run() equips it (9 slots); sharks
         -- only — potions are unused here and would overflow the 28-slot inv.
-        "::give shark 18",
+        "::give shark 24",
     },
 
     run = function(t)
@@ -146,7 +146,7 @@ return {
         -- measures vasa.crystal_timer (66-67). Do not attack the crystal.
         local serial_mark = 0
         local expire_tick = nil
-        for loop = 1, 200 do
+        for loop = 1, 280 do
             eat_if_low()
             local _, now = t.tick()
             local cr, crow = nearest_crystal()
@@ -156,24 +156,25 @@ return {
                 t.ticklog.mark("crystal spawn")
                 t.shot("mid-mechanic crystal active")
             end
+            -- Arrival: healing form within 1 of the crystal (pathing stops adjacent).
             if vr == "ok" and cr == "ok" and arrival_tick == nil
-                and vsym == "raids_vasanistirio_healing"
-                and vrow.x == crow.x and vrow.z == crow.z then
-                arrival_tick = now
-                t.ticklog.mark("crystal arrival")
+                and vsym == "raids_vasanistirio_healing" then
+                local ad = math.max(math.abs(vrow.x - crow.x), math.abs(vrow.z - crow.z))
+                if ad <= 1 then
+                    arrival_tick = now
+                    t.ticklog.mark("crystal arrival")
+                end
             end
-            -- Stand 3-6 tiles out: boulder range, not stomp.
+            -- Hold 4 tiles from Vasa — never walk onto the crystal (avoids opnpc2).
             if vr == "ok" then
                 local _, me2 = t.world.tile()
-                local dx = math.abs(me2.x - vrow.x)
-                local dz = math.abs(me2.z - vrow.z)
-                local dist = math.max(dx, dz)
-                if dist <= 1 or dist > 8 then
-                    t.player.walk_to(vrow.x + 4, vrow.z + 4, 4)
-                end
-                -- Brief stomp probe once after arrival.
-                if arrival_tick ~= nil and #stomp_hits == 0 and now == arrival_tick + 2 then
-                    t.player.walk_to(vrow.x, vrow.z, 2)
+                local dist = math.max(math.abs(me2.x - vrow.x), math.abs(me2.z - vrow.z))
+                if dist <= 1 or dist > 6 then
+                    local tx, tz = vrow.x + 4, vrow.z
+                    if cr == "ok" and tx == crow.x and tz == crow.z then
+                        tx, tz = vrow.x, vrow.z + 4
+                    end
+                    t.player.walk_to(tx, tz, 4)
                 end
             end
             local hr, hrows = t.ticklog.rows({ kind = "hit_player", slot = ws, since = serial_mark })
