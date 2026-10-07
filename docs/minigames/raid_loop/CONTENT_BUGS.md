@@ -1919,3 +1919,15 @@ the player lands a successful hit"; :54/:86 the passive: Ruby bolts (e) "22% of 
 a cap of 110" (20% / 100 without, wiki_Ruby_bolts_e.wikitext:52). Now Evoke calls `~bolt_enchant_on_hit_evoke`:
 ruby always forfeits on a hit, 22% / 110 with the crossbow worn (autos too); other bolts keep their ordinary roll under
 Evoke (not implemented, disclosed). Measured: the freezer's opener Evoke on Maiden hit 110.
+
+## 2026-10-07 (owner-approved): Vasilias gave every tied target to the first player found
+
+`tob_nylocas_boss.rs2 ~tob_vasilias_act` picked the nearest player and kept the first one found on a tie, so
+with the trio at one distance (the usual case: the 27 reference rooms put all three a median 3 tiles from her)
+the party leader took every attack -- svdplaynyloc's mage 17 of her 20. Blert's 27 death-free Normal trio rooms
+give her 492 attacks to the three roles about equally on every form (melee 35/35/30%, magic 36/33/32%, ranged
+39/35/27%), the target the strict nearest in only 260 of them. Fixed: the nearest, and among players as near a
+uniform pick (a running count of the tied, each replacing the choice with odds 1 in that count). Approved by
+the owner 2026-10-07. Note: the content is right that her hits pass a matching protection prayer up to 17
+(wiki_Theatre_of_Blood_Strategies.wikitext, Nylocas Vasilias: "up to 70 off-prayer, and 17 if prayed against
+(except melee, which is fully protected)").
