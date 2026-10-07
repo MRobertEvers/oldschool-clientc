@@ -2010,8 +2010,7 @@ function QD.raid._play_verzik_decide(st, v)
             -- invulnerable charge restores to above her melee: W:977 "use
             -- this time to restore health and stats as needed")
             if st.mode == "normal" and cyc.state == "yellows" then t = math.max(t, N.melee) end
-            -- (enraged, the ball at me is tanked: above it and an auto)
-            if st.mode == "normal" and cyc.tank_ball ~= nil and ball and v.tick - cyc.tank_ball <= 1 then t = math.max(t, N.ball + N.auto) end
+
             -- raid seam34v: a nylocas's blast is outside the enrage band
             -- (s34v _play_verzik t652: a magic nylocas took a leader's last 47
             -- of a 55 with the band capping the bite at 45): 63 within 3 of
@@ -2136,20 +2135,13 @@ function QD.raid._play_verzik_decide(st, v)
             -- wipfastp3 P3+186-189; the hops still find all three adjacent)
             local tor_out = false
             for _, e in pairs(vz.tor or {}) do tor_out = true end
-            if false and tx ~= nil and tor_out and bleft ~= nil and bleft > 3 then
-                -- (tried: the late gather left the hops short, wipslowp3 P3+194,
-                -- the target took the 73 alone; kept off)
+            -- (the owner: the ball is SHARED in the enrage too, no tank. With
+            -- tornadoes out the trio dodges toward the target's tile (the pull
+            -- below) and gathers on the corner for the flight's last five
+            -- ticks -- a run of up to ten tiles -- so the tornadoes have the
+            -- least time on a standing trio)
+            if tx ~= nil and tor_out and bleft ~= nil and bleft > 5 then
                 vz.share_hold = { x = tx, z = tz }
-                tx = nil
-            end
-            -- owner_verzik: ENRAGED, the target TANKS it -- "The green ball
-            -- attack should be tanked, or bounced if the targeted player doesn't
-            -- have enough health to tank it" (W:990) -- the trio spread round
-            -- her for its tornadoes cannot gather in the flight (_play_verzik_p3
-            -- P3+185-188: the target walked into its own tornado for the corner,
-            -- the others 6-11 away); it eats above it in the flight (threat)
-            if tx ~= nil and vz.enraged then
-                if tx == me.x and tz == me.z then cyc.tank_ball = v.tick end
                 tx = nil
             end
             if tx ~= nil then
@@ -2188,6 +2180,24 @@ function QD.raid._play_verzik_decide(st, v)
                 else
                     cyc.share = nil
                     cyc.split_until = v.tick + 2
+                end
+            end
+        end
+        -- THE TORNADO CHECK ON THE SHARING WALK (owner_verzik; the coordinator,
+        -- 2026-10-07): a tornado whose next step lands on my corner tile, or on
+        -- the tile I stand on, wins over the corner this tick -- svcplayverzi
+        -- t210-213, a raider held on the ball's corner while its tornado walked
+        -- the last tile onto it
+        if share ~= nil then
+            for _, e in pairs(vz.tor or {}) do
+                local nx, nz = e.x, e.z
+                if me.x > nx then nx = nx + 1 elseif me.x < nx then nx = nx - 1 end
+                if me.z > nz then nz = nz + 1 elseif me.z < nz then nz = nz - 1 end
+                if (math.abs(nx - share.x) <= 1 and math.abs(nz - share.z) <= 1)
+                    or (math.abs(nx - me.x) <= 1 and math.abs(nz - me.z) <= 1) then
+                    share = nil
+                    cyc.share_yield = (cyc.share_yield or 0) + 1
+                    break
                 end
             end
         end
@@ -2298,7 +2308,15 @@ function QD.raid._play_verzik_decide(st, v)
                                     -- -> 6422,79 and was touched there; "think in
                                     -- rectangles", yt_sDaQ2qsU8AQ: it is circled,
                                     -- passing it at two tiles a tick to its one)
-                                    sc = sc + math.max(0, dd - (reach + 2)) * 12
+                                    -- (Blert's Normal trios in the enrage, 27 rooms, every
+                                    -- raider every tick: beside her footprint 62% of
+                                    -- ticks, under it 14%, two or more out 24%; moving
+                                    -- two tiles a tick on 67% -- they RUN ROUND HER,
+                                    -- swinging as they pass, 13 swings a team in a
+                                    -- 25-35 tick enrage. The tornado walks through her,
+                                    -- one tile to their two: the ring round her body is
+                                    -- 32 tiles of track)
+                                    sc = sc + math.max(0, dd - reach) * 25
                                     -- (the yellows charging: within reach of my
                                     -- pool, stepped on at the last moment, W:983)
                                     if near_pool ~= nil then
@@ -2351,7 +2369,7 @@ function QD.raid._play_verzik_decide(st, v)
                 -- (waiting in reach for the next swing is safe while it is clear)
             end
             vz.m3.dbg = vz.m3.dbg or {}
-            if #vz.m3.dbg < 30 then
+            if #vz.m3.dbg < 80 then
                 local nl = {}
                 for _, n in ipairs(nexts) do nl[#nl + 1] = n[1] .. "," .. n[2] end
                 vz.m3.dbg[#vz.m3.dbg + 1] = v.tick .. "@" .. me.x .. "," .. me.z .. "n" .. table.concat(nl, ";") .. ">" .. tostring(bx) .. "," .. tostring(bz) .. "s" .. tostring(best) .. "m" .. tostring(mine_slot and mine_slot % 10)
@@ -2603,6 +2621,10 @@ function QD.raid._play_verzik_decide(st, v)
                 -- (enraged only: Blert's trios spent 38 of their 96 P3 specials
                 -- before her enrage, but the dump before it cost this plan
                 -- raiders -- s_fastp3c 2026-10-07, three deaths in five names)
+                -- (enraged only: a dump from the start of P3 on the fast pace
+                -- -- Blert's fast trios spend 38 of their 96 P3 specials before
+                -- the enrage -- cost this plan raiders twice, s_fastp3c and
+                -- s_fastp3g 2026-10-07; open)
                 if melee and vz.enraged and not tor_near then QD.raid._verzik_spec_dump(st, v, intent) end
             end
         end
@@ -2658,10 +2680,9 @@ function QD.raid._play_verzik_decide(st, v)
         for _, e in pairs(vz.tor) do
             if math.max(math.abs(e.x - v.me.x), math.abs(e.z - v.me.z)) <= 4 then close = true end
         end
-        local tanking = vz.cyc ~= nil and vz.cyc.tank_ball ~= nil and v.tick - vz.cyc.tank_ball <= 1
         -- (above her melee only: _play_verzik_slow_p3 P3+514, the tank held off
         -- eating at 61 with a tornado close and her melee took the 61)
-        if close and v.hp > N.melee + 7 and not tanking then
+        if close and v.hp > N.melee + 7 then
             intent.eat, intent.drink, intent.gear = nil, nil, nil
             vz.tor_held_supplies = (vz.tor_held_supplies or 0) + 1
             -- (and none of the library's own sips: its brew recovery fills a
@@ -3086,11 +3107,6 @@ function QD.raid.verzik_p3_rows(t, cfg, rec, M)
     -- Verzik_Vitur:402 "must be bounced between every player of the team"):
     -- its target, the raiders it hopped to, the damage each took, no tank
     local bl_txt, bl_ok, landed_n = {}, true, 0
-    -- (her enrage: the first tornado; a ball thrown after it is TANKED by its
-    -- target, the wiki's enrage rule -- "The green ball attack should be
-    -- tanked, or bounced if the targeted player doesn't have enough health to
-    -- tank it" (W:990) -- and the target living through it is the answer)
-    local enrage_at = C.enrage_at
     for _, bl in ipairs(C.ball) do
         local hops, pids, n, dmg = {}, {}, 0, 0
         for _, h in ipairs(bl.hops) do
@@ -3105,15 +3121,9 @@ function QD.raid.verzik_p3_rows(t, cfg, rec, M)
         else
             landed_n = landed_n + 1
             local shared = n >= size and dmg == 0
-            local enraged_ball = enrage_at ~= nil and bl.tick >= enrage_at
-            if enraged_ball then
-                verdict = "ENRAGED: tanked by p" .. bl.hops[1].pid .. " for " .. dmg .. " (W:990)" .. (deathless and ", alive" or ", A DEATH IN THE ROOM")
-                if not deathless then bl_ok = false end
-            else
-                verdict = shared and ("SHARED: target p" .. bl.hops[1].pid .. ", hopped through all " .. n .. " raiders, 0 damage, no tank")
-                    or ("NOT SHARED: " .. n .. " of " .. size .. " raiders, " .. dmg .. " damage")
-                if not shared then bl_ok = false end
-            end
+            verdict = shared and ("SHARED: target p" .. bl.hops[1].pid .. ", hopped through all " .. n .. " raiders, 0 damage, no tank")
+                or ("NOT SHARED: " .. n .. " of " .. size .. " raiders, " .. dmg .. " damage")
+            if not shared then bl_ok = false end
         end
         bl_txt[#bl_txt + 1] = string.format("%s thrown: %s -- %s", rel(bl.tick), #hops > 0 and table.concat(hops, ", ") or "no impact", verdict)
     end
