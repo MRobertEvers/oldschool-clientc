@@ -1,18 +1,14 @@
 # Tekton room status
 
 Branch: `cursor/cox-tekton-runaround-da39`
-OSRS-Content: `cursor/cox-tekton-stand-da39` @ `81a2b52fa`
+OSRS-Content: `cursor/cox-tekton-stand-da39` @ `f3825db89835d9114fb6ed928367de38386d5bbc`
 Agent: replacement for stuck `bc-d8bc5247`
-
-## Strategy
-
-Synq run-around; Protect from LAND; adamant → anvil → DWH REENGAGE.
 
 ## Content
 
-- npc_var phase state after `npc_changetype`
-- anvil SW via `loc_find` on CCW/THRU/CW tiles; stand at `-spawn_gap`
+- walking timer: findhero + sync `%varp6749` walking_in into npc_var
+- anvil via loc_find; stand at -spawn_gap
 
 ## Gate
 
-- Iterating under flock + private `QUEST_BINARY`
+- Iterating
