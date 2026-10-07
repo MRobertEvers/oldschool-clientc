@@ -29,11 +29,21 @@ local CRYSTAL = {
 
 -- Open-floor single-bounce bounce tiles for the CCW focus ray (north from
 -- 13,9). Other variants fall through to a spawn-tile / ray search.
+-- Bounce tiles: crab on (13, lz) turns a north-bound focus ray east along
+-- z=lz-1 (beam stays on the prior tile). Crystal 0 is at local (19,12), so
+-- the mark is (13,13). (13,14) is kept as a second try when the crab seats
+-- one tile north of the mark.
 local CCW_SOLVE = {
     [0] = { lx = 13, lz = 13, style = nil },
     [1] = { lx = 13, lz = 23, style = "mage" },
     [2] = { lx = 13, lz = 19, style = "range" },
     [3] = { lx = 13, lz = 16, style = "melee" },
+}
+local CCW_SOLVE_ALT = {
+    [0] = { lx = 13, lz = 14, style = nil },
+    [1] = { lx = 13, lz = 22, style = "mage" },
+    [2] = { lx = 13, lz = 18, style = "range" },
+    [3] = { lx = 13, lz = 15, style = "melee" },
 }
 
 local STATE = {
@@ -548,25 +558,18 @@ return {
 
                 local info = CRYSTAL[sm.crystal_i]
                 local tile, style
-                if sm.variant == "ccw" and CCW_SOLVE[sm.crystal_i] ~= nil and sm.attempt < 8 then
-                    -- Hold the open-floor bounce tile for several beam cycles.
+                if sm.variant == "ccw" and CCW_SOLVE[sm.crystal_i] ~= nil then
                     local pref = CCW_SOLVE[sm.crystal_i]
+                    if sm.attempt % 2 == 1 and CCW_SOLVE_ALT[sm.crystal_i] ~= nil then
+                        pref = CCW_SOLVE_ALT[sm.crystal_i]
+                    end
                     tile = { lx = pref.lx, lz = pref.lz }
                     style = pref.style
                 else
                     local tiles = candidate_tiles()
-                    if sm.variant == "ccw" and CCW_SOLVE[sm.crystal_i] ~= nil then
-                        table.insert(tiles, 1, {
-                            lx = CCW_SOLVE[sm.crystal_i].lx,
-                            lz = CCW_SOLVE[sm.crystal_i].lz,
-                        })
-                    end
                     local idx = (sm.attempt % #tiles) + 1
                     tile = tiles[idx]
                     style = info.style
-                    if sm.variant == "ccw" and CCW_SOLVE[sm.crystal_i] ~= nil then
-                        style = CCW_SOLVE[sm.crystal_i].style
-                    end
                 end
                 local before = var_num(t, info.flag) or 0
                 local ok, detail = seat_crab(tile, style)
