@@ -45,6 +45,12 @@
  *                                      as the server walks it, not as a policy
  *                                      guessed it (a Verzik pool landed at x 44
  *                                      of a floor the policy had ending at 41)
+ *     <pid> say <text>                THE PARTY CHANNEL: a raid team talks, and
+ *                                      what one bot plans is what the others need
+ *                                      (the ball's pair). Delivered to every
+ *                                      OTHER bot on the next tick's stream as
+ *                                      "party <pid> <text>" -- a tick of latency,
+ *                                      as a callout has
  *     <pid> close                     (the client's CLOSE_MODAL: a modal left open
  *                                      blocks every normal queue -- the Verzik
  *                                      P1 bolt lands through one)
@@ -128,6 +134,12 @@ struct BotRun
     char* msgs;
     size_t msgs_len;
     size_t msgs_capacity;
+    /* party lines said this tick ("party\t<pid>\t<text>\n"), and the ones
+     * being delivered on this tick's stream */
+    char* said;
+    size_t said_len, said_capacity;
+    char* heard;
+    size_t heard_len, heard_capacity;
     int commands;
     int refused;
     /* collision queries answered on the next tick's stream */
@@ -352,6 +364,24 @@ botrun_command(
             run->queries[run->query_count].h = atoi(fields[5]);
             run->queries[run->query_count].pid = player->pid;
             run->query_count++;
+        }
+    }
+    else if( strcmp(verb, "say") == 0 && n >= 3 )
+    {
+        char text[300];
+        int len = snprintf(text, sizeof(text), "party\t%d\t%s\n", player->pid, fields[2]);
+
+        run->commands--;
+        if( len > 0 && len < (int)sizeof(text) )
+        {
+            if( run->said_len + (size_t)len > run->said_capacity )
+            {
+                run->said_capacity = (run->said_capacity + (size_t)len) * 2;
+                run->said = realloc(run->said, run->said_capacity);
+                assert(run->said);
+            }
+            memcpy(run->said + run->said_len, text, (size_t)len);
+            run->said_len += (size_t)len;
         }
     }
     else if( strcmp(verb, "close") == 0 )
@@ -605,6 +635,17 @@ botrun_send_tick(
         else if( viewer < 0 || r->a == viewer )
             botrun_put_row(out, r);
     }
+    /* the party lines said last tick, to everyone but the speaker */
+    for( size_t at = 0; at < run->heard_len; )
+    {
+        const char* line = run->heard + at;
+        const char* nl = memchr(line, '\n', run->heard_len - at);
+        size_t len = nl ? (size_t)(nl - line) + 1 : run->heard_len - at;
+
+        if( viewer < 0 || atoi(line + 6) != viewer )
+            fwrite(line, 1, len, out);
+        at += len;
+    }
     /* messages: "msg\t<pid>\t..." lines, each only to its own bot */
     for( size_t at = 0; at < run->msgs_len; )
     {
@@ -816,6 +857,14 @@ ToriRSServer_BotRun(
             /* everyone sees the tick before anyone's command lands */
             for( int k = 0; k < run.agents; k++ )
                 botrun_send_tick(&run, k, rows, row_count);
+            /* Reset what was sent NOW, before the commands: a command's own
+             * output -- a collision query, the consume row and the "You eat"
+             * of an eat -- belongs to the next tick's stream (15661efb9 reset
+             * after the commands, so no collision query was ever answered and
+             * every eat's row vanished). */
+            run.side_count = 0;
+            run.msgs_len = 0;
+            run.query_count = 0;
             for( int k = 0; k < run.agents && verdict != 2; k++ )
             {
                 int said = 0;
@@ -841,9 +890,24 @@ ToriRSServer_BotRun(
             if( run.record )
                 fprintf(run.record, "%d\t%s\n", (int)srv->tick, verdict == 2 ? "quit" : "done");
         }
-        run.side_count = 0;
-        run.msgs_len = 0;
-        run.query_count = 0;
+        if( run.replay )
+        {
+            run.side_count = 0;
+            run.msgs_len = 0;
+            run.query_count = 0;
+        }
+        /* what was said this tick is heard on the next */
+        {
+            char* swap = run.heard;
+            size_t cap = run.heard_capacity;
+
+            run.heard = run.said;
+            run.heard_len = run.said_len;
+            run.heard_capacity = run.said_capacity;
+            run.said = swap;
+            run.said_capacity = cap;
+            run.said_len = 0;
+        }
         if( verdict == 2 )
             break;
         if( realtime )
@@ -870,6 +934,8 @@ ToriRSServer_BotRun(
     }
     free(rows);
     free(run.known);
+    free(run.said);
+    free(run.heard);
     if( run.record )
         fclose(run.record);
     fprintf(stderr, "botrun: %d ticks, %d commands, %d refused, ended at tick %d\n",

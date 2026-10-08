@@ -28,6 +28,8 @@ def run_one(policy, name, bots, out_dir):
            "--ticklog", os.path.join(out_dir, name + ".tsv"),
            "--record", os.path.join(out_dir, name + ".cmd"),
            "--agent", "lua tools/raid_agent/run.lua " + policy]
+    if os.environ.get("RAID_AGENT_SHARED"):
+        cmd.append("--shared")
     env = dict(os.environ, TORIRSSERVER_SAVES=saves)
     with open(log_path, "w") as log:
         subprocess.run(cmd, cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT, timeout=600)

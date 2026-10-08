@@ -37,6 +37,7 @@ function Act.lines(pid, intent)
     assert(intent, "Act.lines: intent")
     local out = {}
     if intent.close then out[#out + 1] = pid .. "\tclose" end
+    if intent.say then out[#out + 1] = pid .. "\tsay\t" .. intent.say end
     if intent.query then
         local q = intent.query
         out[#out + 1] = pid .. "\tcollision\t" .. q.x0 .. "\t" .. q.z0 .. "\t" .. q.w .. "\t" .. q.h

@@ -35,6 +35,7 @@ function World.new(names)
         ground = {},      -- dropped objs: { obj, name, x, z, count, tick } (obj_add; gone when held)
         events = {},      -- this tick: npc_anim / npc_spawn / npc_retype / npc_death rows, for the policy
         messages = {},    -- this tick: { pid, text }
+        heard = {},       -- the party channel: pid -> { tick, plan = {x, z}, spec = n }
     }, World)
 end
 
@@ -145,6 +146,18 @@ function World:row(kind, sa, sb, sc, sd, se, sf, label, sg)
     elseif kind == "loc_set" then
         self.locs[a] = { loc = b, name = name_of(self, "loc", b), shape = c, angle = d, kind = e, tick = self.tick }
     end
+end
+
+-- A teammate's callout, said last tick: "plan <x> <z>", "spec <n>", ...
+function World:party(pid, text)
+    pid = tonumber(pid)
+    local h = self.heard[pid] or {}
+    self.heard[pid] = h
+    h.tick = self.tick
+    local x, z = text:match("plan (%-?%d+) (%-?%d+)")
+    if x then h.plan = { x = tonumber(x), z = tonumber(z), tick = self.tick } end
+    local s = text:match("spec (%-?%d+)")
+    if s then h.spec, h.spec_tick = tonumber(s), self.tick end
 end
 
 -- A collision answer: w*h of 0/1, z-major, 1 walk-blocked.

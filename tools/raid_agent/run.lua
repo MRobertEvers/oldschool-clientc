@@ -8,6 +8,8 @@
 -- Diagnostics go to stderr (the runner's log); stdout is the protocol only.
 local ROOT = os.getenv("RAID_AGENT_ROOT") or "."
 package.path = ROOT .. "/script/raid_agent/?.lua;" .. ROOT .. "/script/plugins/quest_driver/?.lua;" .. package.path
+-- a policy kept elsewhere (a bisect's old copy): RAID_AGENT_PATH=<dir>
+if os.getenv("RAID_AGENT_PATH") then package.path = os.getenv("RAID_AGENT_PATH") .. "/?.lua;" .. package.path end
 
 local World = require("world")
 local Act = require("act")
@@ -51,6 +53,8 @@ for line in io.lines() do
     elseif word == "row" then
         world:row(f[4], f[5], f[6], f[7], f[8], f[9], f[10], f[11], f[12])
         if f[4] == "raider" then seat_of(tonumber(f[5])) end
+    elseif word == "party" then
+        world:party(f[2], f[3] or "")
     elseif word == "coll" then
         world:collision(f[2], f[3], f[4], f[5], f[6])
     elseif word == "npcsize" then
