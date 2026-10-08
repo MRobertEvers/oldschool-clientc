@@ -6513,6 +6513,26 @@ handle_opheld(
         return;
 
     /*
+     * Every backpack op is an interruption: eat, drink, wield, rub, drop. It
+     * ends the interaction whether the player is still walking to the target
+     * or already fighting it, and it leaves the walk queue alone, so eating
+     * while running keeps running (osrs-docs entity-interactions: "All item
+     * interactions within inventory"; rsmod HeldOpScript clearPendingAction;
+     * Kronos Consumable resetActions(..., resetCombat=true)). Melee PvM hides
+     * it because auto-retaliate re-engages a tick after the next hit lands
+     * (combat.rs2 `[queue,playerhit_n_retaliate]`); with it off the player
+     * stands idle until they click again.
+     *
+     * The two routes above are exempt and stay above this line: a worn-tab op
+     * does not interrupt in OSRS, and the bank's grids are not the backpack.
+     * The stale-click check stays above it too, so a packet naming an item
+     * that is no longer in the slot clears nothing. Packets are handled in
+     * arrival order, so an eat followed by an attack in the same tick leaves
+     * the attack standing: this clear runs, then OPNPC sets a new interaction.
+     */
+    ToriRSServer_WorldClearPendingAction(srv);
+
+    /*
      * Content first, exactly as OPNPC and OPLOC do it.
      *
      * The obj record's own `category` is the second key, which is what lets

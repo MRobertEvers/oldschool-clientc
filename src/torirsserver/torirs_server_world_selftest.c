@@ -2515,6 +2515,32 @@ selftest_opheld(
 }
 
 /*
+ * The same packet with every field named, for the clicks `selftest_opheld`
+ * cannot make: a worn-tab cell, a bank grid, or a stale obj id that no longer
+ * matches its slot.
+ */
+static void
+selftest_opheld_raw(
+    struct ToriRSServer* srv,
+    int op_num,
+    int obj_id,
+    int slot,
+    int component)
+{
+    uint8_t payload[8];
+
+    payload[0] = (uint8_t)(obj_id >> 8);
+    payload[1] = (uint8_t)(obj_id & 0xff);
+    payload[2] = (uint8_t)(slot >> 8);
+    payload[3] = (uint8_t)(slot & 0xff);
+    payload[4] = (uint8_t)(component >> 24);
+    payload[5] = (uint8_t)(component >> 16);
+    payload[6] = (uint8_t)(component >> 8);
+    payload[7] = (uint8_t)component;
+    selftest_handle(srv->active_player, PKTOUT_NAME_OPHELD1 + (op_num - 1), payload, 8);
+}
+
+/*
  * Backpack fixtures.
  *
  * `selftest_give` writes one slot per call rather than a count, because that is
@@ -3494,6 +3520,316 @@ selftest_npc_run_seed(struct ToriRSServer* srv)
     }
 }
 
+/*
+ * Every backpack op interrupts the interaction; the equipment tab and the
+ * bank grids do not. A function, not an inline stanza, so
+ * TORIRSSERVER_SELFTEST_HELDOP_ONLY can run it alone.
+ */
+static void
+selftest_backpack_op_interrupts(struct ToriRSServer* srv)
+{
+    fprintf(stderr, "ToriRSServer selftest: a backpack op interrupts the interaction\n");
+    /*
+     * OSRS: every op made from the backpack (eat, drink, wield, ...) ends
+     * the player's interaction, whether they are still walking to the
+     * target or already fighting it, and leaves the walk queue alone.
+     * Equipment-tab ops do not interrupt (osrs-docs entity-interactions:
+     * "All item interactions within inventory. The same does not however
+     * apply when interacting from within the equipment tab."; rsmod
+     * HeldOpScript clearPendingAction; Kronos Consumable resetCombat=true).
+     * `handle_opheld` cleared nothing until 2026-10-08, so every eat in a
+     * fight was free: the player kept swinging.
+     *
+     * Five claims, each against the real packets:
+     *   1. pathing to an attack, then eat / drink / wield: the attack is
+     *      dropped, the walk goes on;
+     *   2. engaged, then eat, auto-retaliate off: no further swing;
+     *   3. engaged, then eat, auto-retaliate on: the attack is dropped and
+     *      re-engaged by the goblin's next hit (combat.rs2
+     *      `[queue,playerhit_n_retaliate]`), not by the eat;
+     *   4. eat then Attack in one tick: the Attack stands (and Attack then
+     *      eat: it does not);
+     *   5. a worn-tab op, a bank-grid op and a stale click clear nothing.
+     */
+    int loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir());
+
+    if( !loaded )
+        loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir_from_src());
+
+    if( !loaded )
+    {
+        fprintf(stderr, "  SKIP  no compiled script pack\n");
+    }
+    else
+    {
+        struct ToriRSServerPlayer* p = srv->active_player;
+        const struct ToriRSServerIds* ids = ToriRSServer_Ids();
+        int goblin_type = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "goblin");
+        int meat = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "cooked_meat");
+        int potion = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "4dose1attack");
+        int scimitar = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "bronze_scimitar");
+        int option_nodef =
+            ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp172_option_nodef");
+        int action_delay =
+            ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp5732_action_delay");
+        int food_delay =
+            ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp7224_consume_food_delay");
+        int potion_delay =
+            ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp7225_consume_potion_delay");
+        int goblin = goblin_type >= 0
+                         ? npc_spawn(srv, goblin_type, g_home_x + 3, g_home_z + 5, 0)
+                         : -1;
+
+        assert(p);
+        SELFTEST_CHECK(goblin >= 0, "the goblin fixture should spawn, got %d", goblin);
+        SELFTEST_CHECK(meat > 0 && potion > 0 && scimitar > 0,
+                       "cooked_meat, 4dose1attack and bronze_scimitar should resolve "
+                       "(%d, %d, %d)",
+                       meat, potion, scimitar);
+        SELFTEST_CHECK(option_nodef >= 0 && action_delay >= 0 && food_delay >= 0 &&
+                           potion_delay >= 0,
+                       "the combat and consume varps should resolve");
+
+        if( goblin >= 0 && meat > 0 && potion > 0 && scimitar > 0 && option_nodef >= 0 &&
+            action_delay >= 0 && food_delay >= 0 && potion_delay >= 0 )
+        {
+            struct ToriRSServerNpc* npc = &srv->npcs[goblin];
+            int hp_level_before = p->stat_level[TORIRSSERVER_STAT_HITPOINTS];
+            int hp_boost_before = p->stat_boosted[TORIRSSERVER_STAT_HITPOINTS];
+            int hp_xp_before = p->stat_xp_tenths[TORIRSSERVER_STAT_HITPOINTS];
+            int nodef_before = p->varps[option_nodef];
+            int worn_before = p->worn[TORIRSSERVER_WEAR_WEAPON].obj_id;
+            int worn_count_before = p->worn[TORIRSSERVER_WEAR_WEAPON].count;
+            uint8_t opnpc[2];
+            /* Food (op 1), a potion (op 1), a weapon (op 2). The evidence
+             * that the op itself ran is what is left in slot 0. */
+            const struct
+            {
+                const char* what;
+                int obj;
+                int op;
+            } k_held[3] = {
+                { "eating", meat, 1 },
+                { "drinking", potion, 1 },
+                { "wielding", scimitar, 2 },
+            };
+
+            /* An aggressive goblin latching on by itself would decide the
+             * pathing case by tick order; this is about the clicks. 400
+             * hitpoints so the engaged cases never end on a kill. */
+            npc->huntmode = TORIRSSERVER_HUNT_NONE;
+            npc->max_hitpoints = 400;
+            npc->hitpoints = 400;
+            p->stat_level[TORIRSSERVER_STAT_HITPOINTS] = 99;
+            p->stat_boosted[TORIRSSERVER_STAT_HITPOINTS] = 99;
+            ToriRSServer_CombatSyncHitpoints(p);
+            p->hitpoints = p->max_hitpoints;
+            worn_set(p, TORIRSSERVER_WEAR_WEAPON, -1, 0);
+
+            /* 1. Pathing, then a backpack op. */
+            for( int k = 0; k < 3; k++ )
+            {
+                int wp;
+                int from_x;
+                int from_z;
+
+                selftest_park_player(srv, npc->x, npc->z + 6);
+                p->level = npc->level;
+                p->delayed_until = srv->tick;
+                p->varps[option_nodef] = 1; /* Off: no hit may re-arm it. */
+                p->varps[food_delay] = 0;
+                p->varps[potion_delay] = 0;
+                worn_set(p, TORIRSSERVER_WEAR_WEAPON, -1, 0);
+                for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
+                    inv_set(p, i, -1, 0);
+                inv_set(p, 0, k_held[k].obj, 1);
+
+                selftest_npc_payload(p, goblin, opnpc);
+                selftest_handle(p, PKTOUT_NAME_OPNPC2, opnpc, sizeof(opnpc));
+                selftest_tick(srv);
+                SELFTEST_CHECK(p->interaction.kind == TORIRSSERVER_INTERACT_NPC &&
+                                   p->waypoint_index >= 0,
+                               "%s: the Attack click should still be walking after a "
+                               "tick (kind %d, waypoint %d)",
+                               k_held[k].what, (int)p->interaction.kind,
+                               p->waypoint_index);
+                wp = p->waypoint_index;
+                from_x = p->x;
+                from_z = p->z;
+
+                selftest_opheld(srv, k_held[k].op, 0);
+                SELFTEST_CHECK(p->inv[0].obj_id != k_held[k].obj,
+                               "%s: the op itself should have run, slot 0 still holds %d",
+                               k_held[k].what, p->inv[0].obj_id);
+                SELFTEST_CHECK(p->interaction.kind == TORIRSSERVER_INTERACT_NONE &&
+                                   p->combat_target == -1,
+                               "%s while walking to the goblin should drop the attack "
+                               "(kind %d, target %d)",
+                               k_held[k].what, (int)p->interaction.kind, p->combat_target);
+                SELFTEST_CHECK(p->waypoint_index == wp,
+                               "%s should leave the walk queue alone (waypoint %d, was %d)",
+                               k_held[k].what, p->waypoint_index, wp);
+                selftest_tick(srv);
+                SELFTEST_CHECK(p->x != from_x || p->z != from_z,
+                               "%s: the walk should go on, still at %d,%d",
+                               k_held[k].what, p->x, p->z);
+            }
+
+            /* 2 and 3. Engaged, then eat, with auto-retaliate off and on. */
+            for( int retaliate = 0; retaliate < 2; retaliate++ )
+            {
+                int clicked;
+                int delay;
+                int reengaged = -1;
+
+                selftest_park_player(srv, npc->x + 1, npc->z);
+                p->level = npc->level;
+                p->delayed_until = srv->tick;
+                p->varps[option_nodef] = retaliate ? 0 : 1;
+                p->varps[food_delay] = 0;
+                for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
+                    inv_set(p, i, -1, 0);
+                inv_set(p, 0, meat, 1);
+                clicked = srv->tick;
+
+                selftest_npc_payload(p, goblin, opnpc);
+                selftest_handle(p, PKTOUT_NAME_OPNPC2, opnpc, sizeof(opnpc));
+                for( int i = 0; i < 4; i++ )
+                    selftest_tick(srv);
+                SELFTEST_CHECK(p->combat_target == goblin &&
+                                   p->varps[action_delay] > clicked,
+                               "retaliate %s: standing beside the goblin the Attack "
+                               "should swing (target %d, action_delay %d, clicked %d)",
+                               retaliate ? "on" : "off", p->combat_target,
+                               p->varps[action_delay], clicked);
+
+                selftest_opheld(srv, 1, 0);
+                SELFTEST_CHECK(p->inv[0].obj_id == -1, "retaliate %s: the meat should be eaten",
+                               retaliate ? "on" : "off");
+                SELFTEST_CHECK(p->interaction.kind == TORIRSSERVER_INTERACT_NONE &&
+                                   p->combat_target == -1,
+                               "retaliate %s: eating mid-fight should stop the attack "
+                               "(kind %d, target %d)",
+                               retaliate ? "on" : "off", (int)p->interaction.kind,
+                               p->combat_target);
+                delay = p->varps[action_delay];
+
+                for( int i = 0; i < 12 && reengaged < 0; i++ )
+                {
+                    selftest_tick(srv);
+                    if( p->combat_target == goblin )
+                        reengaged = i;
+                }
+                if( retaliate )
+                    SELFTEST_CHECK(reengaged >= 0,
+                                   "auto-retaliate on: the goblin's next hit should "
+                                   "re-engage it within 12 ticks");
+                else
+                    SELFTEST_CHECK(reengaged < 0 && p->varps[action_delay] == delay,
+                                   "auto-retaliate off: after the eat the player should "
+                                   "stand idle (re-engaged on tick %d, action_delay "
+                                   "%d, was %d)",
+                                   reengaged, p->varps[action_delay], delay);
+            }
+
+            /* 4. One tick, two packets, in both orders. */
+            for( int order = 0; order < 2; order++ )
+            {
+                selftest_park_player(srv, npc->x, npc->z + 6);
+                p->level = npc->level;
+                p->delayed_until = srv->tick;
+                p->varps[option_nodef] = 1;
+                p->varps[food_delay] = 0;
+                for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
+                    inv_set(p, i, -1, 0);
+                inv_set(p, 0, meat, 1);
+                selftest_npc_payload(p, goblin, opnpc);
+
+                if( order == 0 )
+                {
+                    selftest_opheld(srv, 1, 0);
+                    selftest_handle(p, PKTOUT_NAME_OPNPC2, opnpc, sizeof(opnpc));
+                    SELFTEST_CHECK(p->interaction.kind == TORIRSSERVER_INTERACT_NPC &&
+                                       p->interaction.npc_slot == goblin,
+                                   "an Attack after an eat in the same tick should stand "
+                                   "(kind %d, npc %d)",
+                                   (int)p->interaction.kind, p->interaction.npc_slot);
+                }
+                else
+                {
+                    selftest_handle(p, PKTOUT_NAME_OPNPC2, opnpc, sizeof(opnpc));
+                    selftest_opheld(srv, 1, 0);
+                    SELFTEST_CHECK(p->interaction.kind == TORIRSSERVER_INTERACT_NONE,
+                                   "an eat after an Attack in the same tick should drop "
+                                   "it (kind %d)",
+                                   (int)p->interaction.kind);
+                }
+                SELFTEST_CHECK(p->inv[0].obj_id == -1, "order %d: the meat should be eaten",
+                               order);
+            }
+
+            /* 5. Clicks that are not backpack ops clear nothing. */
+            selftest_park_player(srv, npc->x, npc->z + 6);
+            p->level = npc->level;
+            p->delayed_until = srv->tick;
+            p->varps[option_nodef] = 1;
+            for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
+                inv_set(p, i, -1, 0);
+            inv_set(p, 0, meat, 1);
+            worn_set(p, TORIRSSERVER_WEAR_WEAPON, scimitar, 1);
+            selftest_npc_payload(p, goblin, opnpc);
+            selftest_handle(p, PKTOUT_NAME_OPNPC2, opnpc, sizeof(opnpc));
+            SELFTEST_CHECK(p->interaction.kind == TORIRSSERVER_INTERACT_NPC,
+                           "the Attack click should latch (kind %d)",
+                           (int)p->interaction.kind);
+
+            /* Remove, from the worn tab. */
+            selftest_opheld_raw(srv, 1, scimitar, 0,
+                                ToriRSServer_EquipmentWornComponent(TORIRSSERVER_WEAR_WEAPON));
+            SELFTEST_CHECK(p->worn[TORIRSSERVER_WEAR_WEAPON].obj_id != scimitar,
+                           "the worn-tab Remove should have run");
+            SELFTEST_CHECK(p->interaction.kind == TORIRSSERVER_INTERACT_NPC,
+                           "a worn-tab op must not interrupt (kind %d)",
+                           (int)p->interaction.kind);
+
+            /* The bank's side grid answers on the same packet. This click and the
+             * next re-press Attack first, so each check stands alone. */
+            selftest_handle(p, PKTOUT_NAME_OPNPC2, opnpc, sizeof(opnpc));
+            selftest_opheld_raw(srv, 1, meat, 0, ids->com_bankside_items);
+            SELFTEST_CHECK(p->interaction.kind == TORIRSSERVER_INTERACT_NPC,
+                           "a bank-grid op must not interrupt (kind %d)",
+                           (int)p->interaction.kind);
+
+            /* A packet naming an item that is no longer in the slot. */
+            selftest_handle(p, PKTOUT_NAME_OPNPC2, opnpc, sizeof(opnpc));
+            selftest_opheld_raw(srv, 1, potion, 0, ids->com_inventory_items);
+            SELFTEST_CHECK(p->interaction.kind == TORIRSSERVER_INTERACT_NPC &&
+                               p->inv[0].obj_id == meat,
+                           "a stale backpack click must clear nothing (kind %d)",
+                           (int)p->interaction.kind);
+
+            /* Put the fight down, then the fixture. */
+            ToriRSServer_CombatStopPlayer(srv);
+            ToriRSServer_WorldStepsClear(p);
+            for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
+                inv_set(p, i, -1, 0);
+            worn_set(p, TORIRSSERVER_WEAR_WEAPON, worn_before, worn_count_before);
+            p->varps[option_nodef] = nodef_before;
+            p->stat_level[TORIRSSERVER_STAT_HITPOINTS] = hp_level_before;
+            p->stat_boosted[TORIRSSERVER_STAT_HITPOINTS] = hp_boost_before;
+            p->stat_xp_tenths[TORIRSSERVER_STAT_HITPOINTS] = hp_xp_before;
+            ToriRSServer_CombatSyncHitpoints(p);
+            p->hitpoints = p->max_hitpoints;
+            for( int q = 0; q < TORIRSSERVER_NPC_QUEUE_MAX; q++ )
+                npc->queue[q].active = 0;
+            npc->combat_target = -1;
+            npc->active = 0;
+            selftest_park_player(srv, 3222, 3218);
+        }
+        ToriRSServer_ScriptsFree(srv);
+    }
+}
+
 int
 ToriRSServer_WorldSelftest(void)
 {
@@ -3671,6 +4007,15 @@ ToriRSServer_WorldSelftest(void)
         fprintf(stderr, "ToriRSServer mcannon selftest: %lu checks, %d failures\n",
                 g_selftest_checks, g_selftest_failures);
         selftest_evidence_end("mcannon");
+        return g_selftest_failures;
+    }
+
+    if( getenv("TORIRSSERVER_SELFTEST_HELDOP_ONLY") )
+    {
+        selftest_backpack_op_interrupts(srv);
+        fprintf(stderr, "ToriRSServer heldop selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("heldop");
         return g_selftest_failures;
     }
 
@@ -48588,6 +48933,8 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_ScriptsFree(srv);
         }
     }
+
+    selftest_backpack_op_interrupts(srv);
 
     fprintf(stderr, "ToriRSServer selftest: date_runeday\n");
     {
