@@ -64,11 +64,16 @@
 -- (api.drive.party().launch_session/_token) every PARTY_INTERVAL_FRAMES
 -- frames: per seat its process (pid, up or how it ended) and the status it
 -- last posted (state, step, rows, hitpoints, alive). Stop all sends `stop` to
--- every member and stops raider 1; the members stay logged in. Respawn closes
--- the party and plays the row again with new members (a member cannot rejoin
--- a lock step that is already running). The session is CLOSED (quit, the
--- grace, then the kill) on Stop, on the next Play, when this client logs out,
--- when the plugin stops, and by the service itself when this process exits.
+-- every member and stops raider 1, so every raider writes its unfinished row
+-- before the party closes. Respawn plays the row again with new members (a
+-- member cannot rejoin a lock step that is already running). The session is
+-- CLOSED (quit, the grace, then the kill) on Stop, once raider 1's Play has
+-- ended (stopped, failed or finished: a party lives as long as the Play that
+-- brought it up), on the next Play, when this client logs out, when the
+-- plugin stops, and by the service itself when this process exits. A closed
+-- session releases the party from this client's world (the driver's
+-- ToriRSServer_EmbedPartyHostRelease), so the next login waits for no member
+-- and the next party row can host again.
 
 ---@type torirs.Plugin
 local plugin = { id = "script-runner", title = "Scripts", version = "2" }
@@ -142,15 +147,9 @@ local party_last_play = nil     -- the party row the last Play started (Respawn 
 -- The last session seen open, read on after its close until no member is
 -- up, so the block ends on each member's exit instead of its last "up".
 local party_known = nil         -- {session =, token =, settled = false}
--- This process hosted a party already. The embedded transport keeps a
--- runtime-hosted party's link until the client exits
--- (torirs_server_embed.c ToriRSServer_EmbedPartyHostRequest refuses a second
--- host: measured, seam37 runB, launch.party FAIL "this client already hosts a
--- party"), so a second party Play in one client cannot host: the rows say so
--- instead of failing a row.
-local party_hosted = false
-local PARTY_REHOST_REASON = "this client already hosted a party; the embedded transport keeps that link "
-    .. "until the client exits: restart the client to play another party"
+-- The session a close was queued for, so the poll does not queue another
+-- while the first is unanswered.
+local party_closing = nil
 local list_stale = false        -- the party gate moved: the list's "unavailable" words follow
 
 local function clip(text)
@@ -255,8 +254,7 @@ local function refilter()
 end
 
 -- Whether this client can play a party at all (see the banner): the launch
--- service answered the probe, and this client hosts no party yet. Returns ok and,
--- when not, why.
+-- service answered the probe. Returns ok and, when not, why.
 local function party_gate(api)
     if api.drive == nil or api.drive.launch_status == nil or api.drive.party == nil then
         return false, "this client's driver has no launch channel"
@@ -269,9 +267,6 @@ local function party_gate(api)
     local result, info = api.drive.party()
     if result ~= "ok" or type(info) ~= "table" then
         return false, "drive.party answered " .. tostring(result)
-    end
-    if party_hosted then
-        return false, PARTY_REHOST_REASON
     end
     return true, ""
 end
@@ -641,8 +636,13 @@ local function party_close(api, why)
     if own == nil then
         return false
     end
+    if party_closing == own.session then
+        return true
+    end
     api.core.log("script-runner: party close (" .. why .. ") session " .. own.session)
-    party_queue(api, "close", "launch_close", leader_lines(own))
+    if party_queue(api, "close", "launch_close", leader_lines(own)) then
+        party_closing = own.session
+    end
     party_logout_reads = 0
     return true
 end
@@ -664,9 +664,13 @@ local function party_poll(api)
     local own = own_session(api)
     if own ~= nil and (party_known == nil or party_known.session ~= own.session) then
         party_known = { session = own.session, token = own.token, settled = false }
-        if not party_hosted then
-            party_hosted = true
-            list_stale = true
+    end
+    if own ~= nil and api.drive.status ~= nil then
+        -- The Play that brought the party up has ended (Stop all, a failed
+        -- row, its own finish): its members go with it.
+        local _, status = api.drive.status()
+        if type(status) == "table" and status.state ~= "running" then
+            party_close(api, "raider 1's Play ended")
         end
     end
     if own == nil then
@@ -1102,7 +1106,7 @@ local function stop(api)
 end
 
 -- Stop all: every member's script stops where it is and so does raider 1's;
--- the members stay logged in (Stop, a new Play or logging out closes them).
+-- once raider 1's has ended, party_poll closes the party.
 local function stop_all(api)
     local own = own_session(api)
     if own == nil then
@@ -1114,7 +1118,7 @@ local function stop_all(api)
     if type(status) == "table" and status.state == "running" then
         api.drive.stop()
     end
-    note = "Stop all: every raider stops at its next step; the members stay logged in."
+    note = "Stop all: every raider stops at its next step, then the party closes (every member quits)."
     api.core.log("script-runner: stop all (session " .. own.session .. ")")
 end
 
@@ -1122,11 +1126,6 @@ end
 local function respawn(api)
     if party_last_play == nil then
         note = "No party was played yet."
-        return
-    end
-    if party_hosted then
-        note = clip("Respawn: " .. PARTY_REHOST_REASON .. ".")
-        api.core.log("script-runner: respawn refused: " .. PARTY_REHOST_REASON)
         return
     end
     local _, status = api.drive.status()

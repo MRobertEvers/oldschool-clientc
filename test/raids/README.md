@@ -134,14 +134,18 @@ are headless unless their **Seat n in a window** tick was on before Play.
   (`pid N up`, `exited 0`, `ended by signal 9`) and the status it last posted (state, step,
   verdict, rows, hitpoints, alive).
 - **Stop** stops raider 1 and closes the party: every member quits (then the grace, then
-  the kill). After a party test finishes its members stay logged in, so their verdicts stay
-  readable; Stop closes them.
-- **Stop all** stops every raider's script where it is; the members stay logged in.
-- **Respawn** would close the party and play the row again, but one client hosts ONE party:
-  the embedded transport keeps the first party's link until the client exits, so a second
-  party Play (and Respawn) says "restart the client to play another party" instead.
-- The party also closes when you log out, when the plugin stops, and when the client exits
-  (the launch service kills every member it started).
+  the kill).
+- **Stop all** stops every raider's script where it is, so each writes its unfinished row;
+  then the party closes.
+- A party lives as long as raider 1's Play: once it ends (stopped, failed or finished) the
+  party closes. The members' verdicts stay in their `p2`/`p3` ledgers, and the Party block
+  keeps each seat's last posted status beside how its process ended.
+- **Respawn** plays the row again with new members.
+- The party also closes on the next Play, when you log out, when the plugin stops, and when
+  the client exits (the launch service kills every member it started).
+- A closed party is released from this client's world: the members' links are dropped and
+  the next login (a Fresh start's relog) waits for nobody, and the next party row hosts
+  again in the same client.
 - A party plays in lock step: hosting it frame-locks this client from then on (one logic
   cycle and 20 ms of world clock a frame, real speed at the 50 fps pace), and its members
   are launched frame-locked. No launch flag is needed. On web, Android, iOS and Windows a

@@ -573,6 +573,28 @@ ToriRSServer_EmbedPartyHostTake(
 void
 ToriRSServer_EmbedPartyHostNote(int hosting);
 
+/** Runtime party release: the launch session that hosted it was closed. The
+ *  transport lets a RUNTIME party go once no member link is open (the
+ *  service's `quit`, grace and kill end them) -- whatever link is left
+ *  dropped, the listener closed, hosting allowed again -- so the next login
+ *  is not held waiting for members that are gone, and the next party Play can
+ *  host. A logout releases it at once. A boot-time party
+ *  (TORIRS_EMBED_PARTY_LISTEN) is never released. A host request not yet
+ *  taken is withdrawn. */
+void
+ToriRSServer_EmbedPartyHostRelease(void);
+
+/** The transport's half: 1 when a release was asked for since the last take. */
+int
+ToriRSServer_EmbedPartyHostReleaseTake(void);
+
+/** Detach the party from `embed`: every member logged out and its link
+ *  closed, every link still to say its seat closed. The listener is the
+ *  transport's to close. After it, ToriRSServer_EmbedPartyAttach may run
+ *  again. */
+void
+ToriRSServer_EmbedPartyDetach(struct ToriRSServerEmbed* embed);
+
 /** Start the bot runner's drive (torirs_server_botrun.c) at run time with
  *  `agent`, a shell command as TORIRS_BOTDRIVE_AGENT takes: at the next tick
  *  with a world, this process's agent decides for every player in it.

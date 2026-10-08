@@ -3034,7 +3034,9 @@ drive_launch_remember_open(char const* answer)
         sizeof(g_launch_own_token));
 }
 
-/* An `ok` close of `session`: forget it when it is the own one. */
+/* An `ok` close of `session`: forget it when it is the own one, and let the
+ * party it hosted go (the transport releases it once its members have quit),
+ * so this client's next login and next party_host find no party. */
 static void
 drive_launch_forget_closed(char const* session)
 {
@@ -3043,6 +3045,7 @@ drive_launch_forget_closed(char const* session)
     {
         g_launch_own_session[0] = '\0';
         g_launch_own_token[0] = '\0';
+        ToriRSServer_EmbedPartyHostRelease();
     }
 }
 

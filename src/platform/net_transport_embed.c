@@ -94,6 +94,12 @@ struct NetTransportEmbed
      */
     int party_listener;
     int party_size;
+    /** The party was hosted at run time (api.drive.party_host), not by the
+     *  boot knobs: it is released when its launch session closes and when
+     *  this client logs out (party_host_release). */
+    int party_runtime;
+    /** Its launch session closed: released once no member link is open. */
+    int party_release_pending;
     int party_wait_ms;
     int party_trace;
     int party_join_port;
@@ -259,6 +265,7 @@ party_host_take(struct NetTransportEmbed* self)
         return;
     self->party_listener = listener;
     self->party_size = size;
+    self->party_runtime = 1;
     if( self->party_trace == 0 )
         self->party_trace = 1;
     ToriRSServer_EmbedPartyAttach(self->embed, self->party_listener, self->party_size,
@@ -267,6 +274,43 @@ party_host_take(struct NetTransportEmbed* self)
     self->leader_boundaries = 0;
     TORIRS_ERR("net: party: hosting at runtime: a party of %d, waiting up to %d s for %d seat(s)\n",
                size, self->party_wait_ms / 1000, size - 1);
+}
+
+/*
+ * Let a RUNTIME party go (ToriRSServer_EmbedPartyHostRelease, or this client
+ * logging out): the world drops every member's link, and a member whose link
+ * ends exits (party_member_lost); the listener is closed and this process may
+ * host again. Without it the listener outlived the party: a logout's DISCONNECT
+ * kept it, the next CONNECT attached it to the new world, and that world's
+ * first boundary held the client up to TORIRS_EMBED_PARTY_WAIT_S for members
+ * that had already quit -- the Scripts tab's next Play hung after its login.
+ */
+static void
+party_host_release(
+    struct NetTransportEmbed* self,
+    char const* why)
+{
+    assert(self->party_runtime);
+    assert(self->party_listener >= 0);
+    if( self->embed )
+    {
+        /* The leader's held bytes go in now: from here client 0 is pumped
+         * every frame, as before the party. */
+        if( self->lead_out_len > 0 )
+            ToriRSServer_EmbedWrite(self->embed, 0, self->lead_out, self->lead_out_len);
+        ToriRSServer_EmbedPartyDetach(self->embed);
+    }
+    self->lead_out_len = 0;
+#if EMBED_PARTY_SOCKETS
+    close(self->party_listener);
+#endif
+    self->party_listener = -1;
+    self->party_size = 0;
+    self->party_runtime = 0;
+    self->party_release_pending = 0;
+    ToriRSServer_EmbedPartyAuditArm(0);
+    ToriRSServer_EmbedPartyHostNote(0);
+    TORIRS_ERR("net: party: the runtime party is released (%s)\n", why);
 }
 
 static void
@@ -456,12 +500,24 @@ embed_poll(
             ToriRSServer_EmbedStop(self->embed);
             self->embed = NULL;
             self->next_tick_ms = 0;
-            if( self->party_listener >= 0 )
+            if( self->party_runtime )
+                party_host_release(self, "this client logged out");
+            else if( self->party_listener >= 0 )
                 ToriRSServer_EmbedPartyAuditArm(0);
             emit_status(self, bus, TORIRS_NET_STATUS_DISCONNECTED);
         }
     }
 
+    /* A party whose launch session closed lets go once its members have
+     * (their `quit` comes at their next boundary, the service's kill after the
+     * grace), so each exits on its own `quit` rather than on a dropped link;
+     * and before a new host is taken, so both in one frame leave the new one
+     * attached. */
+    if( ToriRSServer_EmbedPartyHostReleaseTake() && self->party_runtime )
+        self->party_release_pending = 1;
+    if( self->party_release_pending &&
+        (!self->embed || ToriRSServer_EmbedPartyOpen(self->embed) == 0) )
+        party_host_release(self, "its launch session closed and every member has left");
     if( !self->embed )
         return;
     party_host_take(self);

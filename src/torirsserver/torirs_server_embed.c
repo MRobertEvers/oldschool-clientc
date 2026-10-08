@@ -955,6 +955,31 @@ ToriRSServer_EmbedPartyHostNote(int hosting)
     g_party_hosting = hosting;
 }
 
+static int g_party_host_release_pending;
+
+void
+ToriRSServer_EmbedPartyHostRelease(void)
+{
+    if( g_party_host_pending_listener >= 0 )
+    {
+#if EMBED_PARTY_SOCKETS
+        close(g_party_host_pending_listener);
+#endif
+        g_party_host_pending_listener = -1;
+        g_party_host_pending_size = 0;
+    }
+    g_party_host_release_pending = 1;
+}
+
+int
+ToriRSServer_EmbedPartyHostReleaseTake(void)
+{
+    int const pending = g_party_host_release_pending;
+
+    g_party_host_release_pending = 0;
+    return pending;
+}
+
 #if EMBED_PARTY_SOCKETS
 
 /*
@@ -1297,6 +1322,34 @@ ToriRSServer_EmbedPartyOpen(const struct ToriRSServerEmbed* embed)
         if( embed->clients[i].open && embed->clients[i].link_fd >= 0 )
             open++;
     return open;
+}
+
+void
+ToriRSServer_EmbedPartyDetach(struct ToriRSServerEmbed* embed)
+{
+    assert(embed);
+    assert(embed->party_listener >= 0);
+    for( int i = 0; i < TORIRSSERVER_EMBED_CLIENT_MAX; i++ )
+    {
+        if( !embed->clients[i].open || embed->clients[i].link_fd < 0 )
+            continue;
+        fprintf(stderr, "torirsserver: party: client %d: the party was released -- logged out\n", i);
+        ToriRSServer_EmbedDisconnect(embed, i);
+    }
+    for( int i = 0; i < TORIRSSERVER_EMBED_CLIENT_MAX; i++ )
+    {
+#if EMBED_PARTY_SOCKETS
+        if( embed->pending_fd[i] >= 0 )
+            close(embed->pending_fd[i]);
+#endif
+        embed->pending_fd[i] = -1;
+        ToriRSServer_EmbedLinkReaderFree(&embed->pending_in[i]);
+    }
+    embed->party_listener = -1;
+    embed->party_size = 0;
+    embed->party_joined = 0;
+    embed->party_assembled = 0;
+    embed->party_boundaries = 0;
 }
 
 #if EMBED_PARTY_SOCKETS

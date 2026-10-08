@@ -5296,18 +5296,26 @@ scripts_tab_every_script) replaced that plumbing. What it is now:
   member is up, so the block ends on `pid N exited 0`. One `script-runner: party ...` log
   line per change (the headless trace).
 - Stop: `api.drive.stop()` if raider 1 runs, then `launch/close` (quit, grace, kill); with
-  only the party left up (a finished test), Stop just closes it. Stop all: `launch/command
-  seat=all command=stop` plus raider 1's stop; members stay logged in. The party is also
-  closed on the next Play, after 3 status reads with no local player (logout), in
-  `on_stop`, and by the service at process exit.
-- ONE PARTY PER CLIENT: `ToriRSServer_EmbedPartyHostRequest` refuses once
-  `g_party_hosting` is set and nothing clears it, so a second party Play in one process
-  failed `launch.party FAIL party_host: drive.party_host: this client already hosts a
-  party` (measured, runB). The tab now gates it: after it has seen a session open, party
-  rows and Respawn say "this client already hosted a party ... restart the client". Lifting
-  it needs the embedded transport to release a runtime-hosted party once every member link
-  has closed (close the listener, reset party_size/party_assembled/party_joined,
-  `ToriRSServer_EmbedPartyHostNote(0)`).
+  only the party left up, Stop just closes it. Stop all: `launch/command seat=all
+  command=stop` plus raider 1's stop. A party lives as long as raider 1's Play: once
+  `api.drive.status().state` is no longer `running` (Stop all, a failed row, its own
+  finish) the tab's 30-frame poll closes it. The party is also closed on the next Play,
+  after 3 status reads with no local player (logout), in `on_stop`, and by the service at
+  process exit. (Owner, 2026-10-08: "When stopping a script, it should kill any child
+  clients.")
+- A CLOSED PARTY IS RELEASED (2026-10-08). Before, nothing cleared `g_party_hosting` and the
+  transport kept the runtime listener across a logout: the next CONNECT attached it to the
+  new world, whose first boundary held the client up to `TORIRS_EMBED_PARTY_WAIT_S` for
+  members that had quit -- every Play after a party row hung after its login (the owner's
+  `watch/coxolmso9`, `coxolmso10`: no ledger). Now the driver's `ok` answer to a close of
+  its own session calls `ToriRSServer_EmbedPartyHostRelease`, and the transport lets a
+  RUNTIME party go once no member link is open -- each member exits on its own `quit`, the
+  service's grace and kill end the rest (`party_host_release`: the leader's held bytes
+  written, `ToriRSServer_EmbedPartyDetach` drops any link left, the listener closed,
+  `ToriRSServer_EmbedPartyHostNote(0)`). A logout's DISCONNECT releases it at once (the
+  world's end closes every link; a member exits when its link ends). A boot-time party (`TORIRS_EMBED_PARTY_LISTEN`, run.py) is never
+  released. One client may now host party after party; the tab's one-party gate is gone.
+  The frame lock stays engaged (`App_FrameLockEngage` is never released).
 - Members inherit the leader's env minus the service's strip list, so a tab leader's
   members load plugins/script_runner.ini too (headless, harmless) AND any
   `TORIRS_SIM_*` knobs of a headless harness (their own tab replays the picks; Play is

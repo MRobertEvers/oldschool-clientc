@@ -3412,7 +3412,8 @@ App_ViewDetachPlayerClient(struct App* app);
  *  on_demand_world_clock). A bounded run (TORIRS_MAX_FRAMES) is locked from
  *  boot; a client that hosts a party (api.drive.party_host) engages it there,
  *  because a party plays in lock step. At the 50 fps pace that is real speed.
- *  Never released: the party link outlives the Play that opened it. */
+ *  Never released, not even when the party is: the world clock has stepped
+ *  20 ms a frame since, and the wall clock may be behind it. */
 int
 App_FrameLocked(void);
 
