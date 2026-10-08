@@ -530,7 +530,16 @@ return {
             sm.last_serial = serial
             local action = var(t, TRACE)
             local slot = step_slot(var(t, STEP))
-            if action == TRACE_SKIP then sm.skips = sm.skips + 1 end
+            if action == TRACE_SKIP then
+                sm.skips = sm.skips + 1
+                -- Head-turn skip of the special slot is the 4:1 beat (Synq).
+                -- Count it here so a fast claw melt that never walks the
+                -- LOCKED skip_special edge still proves the technique
+                -- (sang8: skips=11 cycles=0 from LOCKED alone → FAIL).
+                if slot == SLOT_SPECIAL then
+                    sm.cycle = sm.cycle + 1
+                end
+            end
             if action == TRACE_EMPTY then sm.empties = sm.empties + 1 end
             return true, action, slot
         end
@@ -841,6 +850,7 @@ return {
                     equip_melee()
                     pray_style("protectfrommelee")
                     t.player.inv_op("4dose2combat", 1)
+                    plant_thumb()
                     sm.id_prev = nil
                     set_state(STATE.IDENTIFY)
                     return
