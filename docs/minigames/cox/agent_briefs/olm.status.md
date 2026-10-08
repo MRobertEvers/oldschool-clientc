@@ -41,9 +41,15 @@ Gate run turns OPEN rows into named `content.olm.*` check failures.
 
 Setup pack ≤28 after Sang charge: melee worn + `sanguinesti_staff` (magic
 claw — right hand mitigates non-MAGIC `/3`) + TBow/arrows (head) + restore 4 +
-sara 4 + combat 2 + shark 12. Prior TBow-on-mage + masori kit overfilled or
-stalled under `/3` mitigation and restore-spam. Potions before food; drink
-uses the full dose ladder.
+sara 4 + combat 2 + shark 12. Potions before food; drink uses the full dose
+ladder. Melee claw: `goto_tile` onto Synq thumb (pathing cannot walk the
+size-5 footprint).
+
+## Proven (2026-10-08)
+
+`cox_olm_solo_4t41_sang` ledger **SUMMARY PASS** (12/12):
+`sm.done` head_dead cycles=5 skips=11; `tech.synq_4t41` PASS; chamber
+`6416,158,2`. Artifacts: `/opt/cursor/artifacts/cox_olm_solo_4t41_final/`.
 
 ## Enter
 
