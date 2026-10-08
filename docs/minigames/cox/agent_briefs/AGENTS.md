@@ -15,7 +15,7 @@ your ownership row in `ROOM_AGENT.md`. See workspace rule
 | vespula | bc-fb0ab973-c75c-5858-904b-d383618c8cbb |
 | icedemon | bc-bdf6ec09-4078-5353-97fa-f67250200e2a |
 | tightrope | bc-48602814-f889-5a4b-b59f-b531d9c6b763 |
-| crabs | bc-e2a3208d-64e0-5db3-8e8c-8ab7a122b8a7 |
+| crabs | bc-51ffcdb3-8125-50a6-9573-1c025b79eb35 (replacement; prior bc-e2a3208d stuck) |
 | thieving | bc-311e5e87-f634-5584-8481-aa63d95c7978 |
 | resource | bc-cb753ee5-02cd-5e19-bdeb-2ffb116453db |
 | shamans | bc-78e89317-b21a-5369-ba0d-6ac060166133 |
