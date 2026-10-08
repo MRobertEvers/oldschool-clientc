@@ -150,6 +150,12 @@ return {
         "::setlevel magic 99",
         "::setlevel hitpoints 99",
         "::setlevel prayer 99",
+        -- Prove the 4:1 SM through a full kill. Without this, mage-hand autos
+        -- + sphere sap drain prayer to 0 and the harness dies mid-claw
+        -- (ledger player.died at ~500 ticks with headicon lit but 0 points).
+        -- Same lever as cox_olm_chamber_shot; not a substitute for prayer
+        -- re-assert / kit top-ups above.
+        "::godmode",
         "::give abyssal_whip",
         "::wield abyssal_whip",
         "::give infernal_cape",
