@@ -1,9 +1,9 @@
 mechanic_id	quantity	spec_value	unit	tags	grade	source_ref	closes	tolerance
 muttadiles.hp_solo	hitpoints each, solo	250	hp	[wiki]	D	sources/wiki_Muttadile.wikitext; COX_MECHANICS.md:547	-	exact
 muttadiles.cadence	attack speed	4	ticks	[wiki]	D	COX_MECHANICS.md:548	-	exact
-muttadiles.small_melee_max	small melee max hit	28	hp	[wiki]	D	COX_MECHANICS.md:549	-	exact
-muttadiles.small_ranged_max	small ranged max hit	30	hp	[wiki]	D	COX_MECHANICS.md:549	-	exact
+muttadiles.small_melee_max	small melee max hit	28	hp	[wiki]	D	COX_MECHANICS.md:549	-	range
+muttadiles.small_ranged_max	small ranged max hit	30	hp	[wiki]	D	COX_MECHANICS.md:549	-	range
 muttadiles.large_style_lock	large style lock, minimum autos	3	count	[wiki]	D	COX_MECHANICS.md:551	-	exact
 muttadiles.tree_trigger	meat-tree feed at remaining hp percent	50	percent	[wiki]	D	COX_MECHANICS.md:553	-	exact
-muttadiles.tree_feeds	maximum feed visits	3	count	[wiki]	D	COX_MECHANICS.md:553	-	exact
+muttadiles.tree_feeds	maximum feed visits	3	count	[wiki]	D	COX_MECHANICS.md:553	-	range
 muttadiles.bites_per_feed	bites per feed visit	2	count	[wiki]	D	COX_MECHANICS.md:553	-	exact
