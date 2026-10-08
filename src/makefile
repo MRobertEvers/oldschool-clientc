@@ -895,6 +895,7 @@ SS_SRCS = serverscript/ss_meta.c serverscript/ssvm_script.c \
 TORIRSSERVER_CORE_SRCS = torirsserver/torirs_server_world.c \
 	torirsserver/torirs_server_world_selftest.c \
 	torirsserver/torirs_server_cox_sim.c \
+	torirsserver/torirs_server_botrun.c \
 	torirsserver/torirs_server_encode.c torirsserver/torirs_server_wire.c js5/server/js5_server_cache.c \
 	torirsserver/torirs_server_interface_state.c \
 	torirsserver/torirs_server_poh.c \
@@ -4676,7 +4677,6 @@ test-revconfig: $(OBJ_DIR)
 # list is also what EMBED_SERVER=1 links into the client, which has no listener
 # and drives ToriRSServer_EmbedPump itself.
 TORIRSSERVER_SRCS = torirsserver/torirs_server_main.c torirsserver/torirs_server_host.c \
-	torirsserver/torirs_server_botrun.c \
 	net/jbase37.c net/wordpack.c $(TORIRSSERVER_CORE_SRCS)
 # Dedicated read-only, multi-client JS5 cache service.
 #

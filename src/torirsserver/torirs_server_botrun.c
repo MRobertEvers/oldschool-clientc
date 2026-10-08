@@ -92,13 +92,17 @@
 #include "net/rev/pktnames.h"
 
 #include <assert.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+/* An agent is a child process on pipes: native POSIX hosts only, as the party
+ * link is (torirs_server_embed.c). Elsewhere the drive answers NULL. */
+#if !defined(_WIN32) && !defined(__EMSCRIPTEN__) && !defined(TORIRS_PLATFORM_WEB)
+#include <errno.h>
+#include <fcntl.h>
+#include <signal.h>
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
@@ -229,6 +233,9 @@ static void
 botrun_scene_ack(struct ToriRSServerPlayer* player)
 {
     assert(player);
+    /* a real client (the embedded drive's players) answers for itself */
+    if( player->session )
+        return;
     if( player->active && (player->login_scene_pending || player->rebuild_scene_pending) )
         ToriRSServer_WorldHandle(player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
 }
@@ -947,3 +954,194 @@ ToriRSServer_BotRun(
     free(run.side);
     return status;
 }
+
+/*
+ * THE DRIVE IN A CLIENT (owner 2026-10-07: "make the client runs run like the
+ * server ones"). The embedded server in a party's LEADER client hosts the one
+ * world all three clients play in (torirs_server_embed.h, the party link), so
+ * the bot runner's tick -- the stream out, the agent's commands in, through
+ * ToriRSServer_WorldHandle -- runs there unchanged, before each world tick,
+ * for every player in the world: the three logged-in clients. They play what
+ * the agent decides, and draw it, so a run is watched live (QUEST_WATCH=1)
+ * while it plays exactly as the bot runner's shared mode does.
+ *
+ *   TORIRS_BOTDRIVE_AGENT="lua <root>/tools/raid_agent/run.lua verzik"
+ */
+struct ToriRSServerBotDrive
+{
+    struct BotRun run;
+    struct ToriRSServerTicklogRow* rows;
+    int row_capacity;
+    int stopped;
+};
+
+struct ToriRSServerBotDrive*
+ToriRSServer_BotDriveStart(
+    struct ToriRSServer* srv,
+    const char* agent)
+{
+    struct ToriRSServerBotDrive* drive;
+
+    assert(srv);
+    assert(agent);
+    drive = calloc(1, sizeof(*drive));
+    assert(drive);
+    drive->run.srv = srv;
+    drive->run.shared = 1;
+    drive->run.agents = 1;
+    drive->run.allowed_pid = -1;
+    drive->run.known = calloc((size_t)BOTRUN_MAX * TORIRSSERVER_NPC_MAX, sizeof(*drive->run.known));
+    assert(drive->run.known);
+    if( !ToriRSServer_TicklogEnabled(srv) )
+        ToriRSServer_TicklogEnable(srv, NULL);
+    drive->run.cursor = ToriRSServer_TicklogCount();
+    ToriRSServer_TicklogSideSink(botrun_side_row, &drive->run);
+    ToriRSServer_MessageSink(botrun_message, &drive->run);
+    if( getenv("TORIRS_BOTDRIVE_RECORD") )
+        drive->run.record = fopen(getenv("TORIRS_BOTDRIVE_RECORD"), "w");
+    if( botrun_spawn(&drive->run, agent, 0, -1) != 0 )
+    {
+        drive->stopped = 1;
+        return drive;
+    }
+    fprintf(stderr, "botdrive: agent \"%s\" drives the world's players\n", agent);
+    return drive;
+}
+
+void
+ToriRSServer_BotDriveStep(struct ToriRSServerBotDrive* drive)
+{
+    struct BotRun* run;
+    struct ToriRSServer* srv;
+    int row_count = 0;
+    int said = 0;
+    char line[BOTRUN_LINE];
+
+    assert(drive);
+    if( drive->stopped )
+        return;
+    run = &drive->run;
+    srv = run->srv;
+    run->count = 0;
+    for( int pid = 0; pid < srv->player_count && run->count < BOTRUN_MAX; pid++ )
+    {
+        if( srv->players[pid].active )
+            run->bots[run->count++] = &srv->players[pid];
+    }
+    for( ;; )
+    {
+        int got;
+
+        if( row_count == drive->row_capacity )
+        {
+            drive->row_capacity = drive->row_capacity ? drive->row_capacity * 2 : BOTRUN_ROWS;
+            drive->rows = realloc(drive->rows, (size_t)drive->row_capacity * sizeof(*drive->rows));
+            assert(drive->rows);
+        }
+        got = ToriRSServer_TicklogRead(run->cursor, drive->rows + row_count, drive->row_capacity - row_count);
+        if( got == 0 )
+            break;
+        row_count += got;
+        run->cursor = drive->rows[row_count - 1].serial;
+    }
+    botrun_send_tick(run, 0, drive->rows, row_count);
+    run->side_count = 0;
+    run->msgs_len = 0;
+    run->query_count = 0;
+    while( said == 0 )
+    {
+        if( !fgets(line, sizeof(line), run->from_agent[0]) )
+        {
+            fprintf(stderr, "botdrive: the agent closed its output at tick %d\n", (int)srv->tick);
+            said = 2;
+            break;
+        }
+        if( run->record && strcmp(line, "done\n") != 0 && strcmp(line, "quit\n") != 0 )
+            fprintf(run->record, "%d\t%s", (int)srv->tick, line);
+        said = botrun_command(run, line);
+    }
+    if( run->record )
+        fprintf(run->record, "%d\t%s\n", (int)srv->tick, said == 2 ? "quit" : "done");
+    {
+        char* swap = run->heard;
+        size_t cap = run->heard_capacity;
+
+        run->heard = run->said;
+        run->heard_len = run->said_len;
+        run->heard_capacity = run->said_capacity;
+        run->said = swap;
+        run->said_capacity = cap;
+        run->said_len = 0;
+    }
+    if( said == 2 )
+    {
+        fprintf(stderr, "botdrive: the agent is done at tick %d (%d commands, %d refused)\n",
+                (int)srv->tick, run->commands, run->refused);
+        drive->stopped = 1;
+    }
+}
+
+void
+ToriRSServer_BotDriveStop(struct ToriRSServerBotDrive* drive)
+{
+    if( !drive )
+        return;
+    ToriRSServer_TicklogSideSink(NULL, NULL);
+    ToriRSServer_MessageSink(NULL, NULL);
+    if( drive->run.to_agent[0] )
+        fclose(drive->run.to_agent[0]);
+    if( drive->run.from_agent[0] )
+        fclose(drive->run.from_agent[0]);
+    if( drive->run.agent_pid[0] > 0 )
+        waitpid(drive->run.agent_pid[0], NULL, 0);
+    if( drive->run.record )
+        fclose(drive->run.record);
+    free(drive->run.side);
+    free(drive->run.msgs);
+    free(drive->run.said);
+    free(drive->run.heard);
+    free(drive->run.known);
+    free(drive->rows);
+    free(drive);
+}
+
+#else /* no child processes on this host */
+
+int
+ToriRSServer_BotRun(
+    struct ToriRSServer* srv,
+    const struct ToriRSServerBootConfig* config,
+    int argc,
+    char** argv)
+{
+    (void)srv;
+    (void)config;
+    (void)argc;
+    (void)argv;
+    fprintf(stderr, "torirsserver --botrun: not on this host\n");
+    return 2;
+}
+
+struct ToriRSServerBotDrive*
+ToriRSServer_BotDriveStart(
+    struct ToriRSServer* srv,
+    const char* agent)
+{
+    (void)srv;
+    (void)agent;
+    fprintf(stderr, "botdrive: not on this host\n");
+    return NULL;
+}
+
+void
+ToriRSServer_BotDriveStep(struct ToriRSServerBotDrive* drive)
+{
+    (void)drive;
+}
+
+void
+ToriRSServer_BotDriveStop(struct ToriRSServerBotDrive* drive)
+{
+    (void)drive;
+}
+#endif

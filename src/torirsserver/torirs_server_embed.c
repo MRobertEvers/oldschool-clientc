@@ -89,6 +89,9 @@ struct ToriRSServerEmbed
     struct ToriRSServerBootConfig config;
     /* Recently ended sessions, for a GAMERECONNECT to reclaim. */
     struct ToriRSServerClaims claims;
+    /* TORIRS_BOTDRIVE_AGENT's drive, once the world is built */
+    struct ToriRSServerBotDrive* botdrive;
+    int botdrive_tried;
 
     /* The party link, or -1: see ToriRSServer_EmbedPartyAttach. */
     int party_listener;
@@ -280,6 +283,9 @@ void
 ToriRSServer_EmbedStop(struct ToriRSServerEmbed* embed)
 {
     assert(embed);
+
+    ToriRSServer_BotDriveStop(embed->botdrive);
+    embed->botdrive = NULL;
 
     for( int i = 0; i < TORIRSSERVER_EMBED_CLIENT_MAX; i++ )
     {
@@ -1804,7 +1810,20 @@ ToriRSServer_EmbedPump(
     }
 
     if( run_tick && any_online )
+    {
+        /* The bot runner's drive (torirs_server_botrun.c): an agent decides
+         * for every player in this world before each tick. Started on the
+         * first tick with a world -- here, in the process that hosts it, so a
+         * party's leader and never its members. */
+        if( !embed->botdrive_tried && getenv("TORIRS_BOTDRIVE_AGENT") && embed->srv.world_built )
+        {
+            embed->botdrive_tried = 1;
+            embed->botdrive = ToriRSServer_BotDriveStart(&embed->srv, getenv("TORIRS_BOTDRIVE_AGENT"));
+        }
+        if( embed->botdrive )
+            ToriRSServer_BotDriveStep(embed->botdrive);
         ToriRSServer_WorldTick(&embed->srv);
+    }
     /* Even with no world yet: a member waiting at its boundary is released
      * by the TICK, built or not. */
     if( run_tick && embed->party_listener >= 0 )

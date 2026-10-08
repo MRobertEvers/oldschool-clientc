@@ -112,5 +112,13 @@ function M.cost_at(q, x, z)
     return score(q, x, z)
 end
 
-if QD ~= nil and QD.raid ~= nil then QD.raid.move = M end
-return M
+-- Loaded two ways: by `require` (the bot agent, tools/raid_agent/run.lua),
+-- which wants the table back, and as one part of the quest driver's single
+-- concatenated chunk (src/plugin/torirs_plugin_drive.c), where a bare
+-- trailing `return` ends the chunk early ("<eof> expected", the driver fails
+-- to load). A return inside a block is legal anywhere.
+if QD ~= nil and QD.raid ~= nil then
+    QD.raid.move = M
+else
+    return M
+end

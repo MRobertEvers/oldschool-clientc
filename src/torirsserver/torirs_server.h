@@ -5484,6 +5484,22 @@ ToriRSServer_TicklogSideSink(
     ToriRSServerTicklogSideFn fn,
     void* ctx);
 
+/**
+ * The bot runner's tick inside a hosting world (torirs_server_botrun.c): an
+ * agent process (shell command) decides for every player in the world, its
+ * commands entering as those players' packets. Step before each world tick.
+ * POSIX hosts only; elsewhere Start answers NULL.
+ */
+struct ToriRSServerBotDrive;
+struct ToriRSServerBotDrive*
+ToriRSServer_BotDriveStart(
+    struct ToriRSServer* srv,
+    const char* agent);
+void
+ToriRSServer_BotDriveStep(struct ToriRSServerBotDrive* drive);
+void
+ToriRSServer_BotDriveStop(struct ToriRSServerBotDrive* drive);
+
 /** Rows recorded so far (the last serial). */
 uint32_t
 ToriRSServer_TicklogCount(void);
