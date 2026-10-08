@@ -36,9 +36,10 @@ return {
         "::give fire_rune 400",
         "::give air_rune 400",
         "::give blood_rune 80",
-        "::give shark 22",
+        -- Pack ≤28: kodai + 4 runes leave 23. Prior shark 22 + pots was 33.
         "::give br_4dose2restore 4",
         "::give br_4dosepotionofsaradomin 2",
+        "::give shark 16",
     },
 
     run = function(t)

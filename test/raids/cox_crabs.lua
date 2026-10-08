@@ -291,8 +291,10 @@ return {
         "::give air_rune 400",
         "::give blood_rune 80",
         "::give hammer",
-        "::give br_4dose2restore 6",
-        "::give shark 40",
+        -- Pack ≤28: switches (tbow, kodai, 4 runes, hammer) leave 21 for supplies.
+        -- Prior shark 40 + restore 6 was 53 and starved the restore give.
+        "::give br_4dose2restore 4",
+        "::give shark 14",
     },
 
     run = function(t)

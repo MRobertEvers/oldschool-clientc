@@ -23,9 +23,11 @@ return {
         "::wield dragon_boots",
         "::give amulet_of_glory",
         "::wield amulet_of_glory",
-        "::give 4dosepotionofsaradomin 6",
+        -- Pack ≤28: whip switch + supplies. Prior sara 6 + restore 4 + shark 22
+        -- was 33 with the whip and blocked potion gives.
+        "::give 4dosepotionofsaradomin 4",
         "::give 4dose2restore 4",
-        "::give shark 22",
+        "::give shark 16",
     },
 
     run = function(t)

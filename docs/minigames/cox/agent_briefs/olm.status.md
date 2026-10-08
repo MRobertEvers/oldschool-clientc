@@ -37,10 +37,39 @@ plus dedicated recovery that returns via `IDENTIFY`:
 
 Gate run turns OPEN rows into named `content.olm.*` check failures.
 
+## Kit
+
+Setup pack ≤28 after Sang charge: melee worn + `sanguinesti_staff` (magic
+claw — right hand mitigates non-MAGIC `/3`) + TBow/arrows (head) + restore 4 +
+sara 4 + combat 2 + shark 12. Potions before food; drink uses the full dose
+ladder. Melee claw: `goto_tile` onto Synq thumb (pathing cannot walk the
+size-5 footprint).
+
+## Proven (2026-10-08)
+
+`cox_olm_solo_4t41_sang` ledger **SUMMARY PASS** (12/12):
+`sm.done` head_dead cycles=5 skips=11; `tech.synq_4t41` PASS; chamber
+`6416,158,2`. Artifacts: `/opt/cursor/artifacts/cox_olm_solo_4t41_final/`.
+
+## Enter
+
+`raid.enter("olm")` lands in floor-2 **resource** (room 7) at the hole.
+Harness must: click `raids_bossentrance` → plane-2 corridor → click
+`raids_olm_barrier` → dialogue → chamber spawn. Clicking the hole as the
+barrier left the player at resource `6416,112,1` (nonsensical "corridor" shot).
+
+## Pass bar
+
+Green only when the full SM reaches `sm.done` with `head_dead` and
+`tech.synq_4t41` (cycles≥1, skips≥1). Kit smoke / enter shots alone are not
+a pass. Known OPEN content probes (lightning bolts, teleport portals, siphon
+marks) are recorded but do not red-gate the 4:1 proof.
+
 ## Next
 
 ```sh
 flock /tmp/cox_raid_gate.lock \
+  env QUEST_BINARY=/workspace/src/torirs_questtest \
   python3 tools/raid_gate/run.py cox_olm_solo_4t41 --no-publish
 python3 tools/raid_gate/gate.py cox_olm_solo_4t41
 ```
