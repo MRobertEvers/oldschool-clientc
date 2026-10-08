@@ -149,9 +149,9 @@ local BREW_DOSES = {
 return {
     id = "cox_olm_solo_4t41",
     fixture = "fresh_lumbridge.ini",
-    -- Full solo Olm (mage × N + melee 4:1 × N + head) needs headroom past the
-    -- 10k-tick budget that 300000 frames allows (FRAMES_PER_SERVER_TICK=30).
-    max_frames = 900000,
+    -- Full solo Olm needs headroom past the 10k-tick budget 300000 frames
+    -- allows (FRAMES_PER_SERVER_TICK=30). Ceiling is MAX_FRAMES_CEILING=480000.
+    max_frames = 480000,
     setup = {
         "::clearinv",
         "::setlevel attack 99",
