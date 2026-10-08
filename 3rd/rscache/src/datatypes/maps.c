@@ -33,6 +33,15 @@ generate_height(
     return n;
 }
 
+int
+RSCache_MapProceduralHeight(
+    int world_x,
+    int world_z)
+{
+    return -generate_height(world_x + 932731, world_z + 556238) *
+           RSCACHE_MAP_UNITS_TILE_HEIGHT_BASIS;
+}
+
 void
 RSCache_MapTerrainFixup(
     struct RSCache_MapTerrain* map_terrain,
@@ -53,10 +62,7 @@ RSCache_MapTerrainFixup(
                 {
                     if( level == 0 )
                     {
-                        int world_x = base_x + x + 932731;
-                        int world_z = base_z + z + 556238;
-                        int height = generate_height(world_x, world_z);
-                        map->height = -height * RSCACHE_MAP_UNITS_TILE_HEIGHT_BASIS;
+                        map->height = RSCache_MapProceduralHeight(base_x + x, base_z + z);
                     }
                     else
                     {

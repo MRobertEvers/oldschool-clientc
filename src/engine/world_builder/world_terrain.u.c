@@ -210,7 +210,8 @@ world_terrain_apply_tile(
     int src_level,
     int offset_x,
     int offset_z,
-    int dst_level)
+    int dst_level,
+    int zone_rotation)
 {
     struct World* world = builder->world;
     int scene_size = world->_scene_size;
@@ -351,7 +352,9 @@ world_terrain_apply_tile(
                     if( overlay_id != -1 )
                     {
                         shape = tile->shape + 1;
-                        rotation = tile->rotation;
+                        /* A turned zone turns its overlay shapes with it, as
+                         * the reference's loader does (shape rotation + r). */
+                        rotation = (tile->rotation + zone_rotation) & 3;
                     }
 
                     terrain_shape_map_set_tile(
@@ -406,9 +409,60 @@ WorldBuilder_RebuildCenterzoneChunkTerrain(
 
             for( int level = 0; level < WORLD_MAP_TERRAIN_LEVELS; level++ )
                 world_terrain_apply_tile(
-                    builder, map_terrain, tile_x, tile_z, level, offset_x, offset_z, level);
+                    builder, map_terrain, tile_x, tile_z, level, offset_x, offset_z, level, 0);
         }
     }
+}
+
+/*
+ * A copied tile's height, resolved against the plane it LANDS on.
+ *
+ * `tile->height` was resolved when its square was decoded, against that
+ * square's own lower planes and Perlin at that square's coords. The square path
+ * can use it as is, because there the planes under a tile are the same planes in
+ * the scene. An instance breaks both: a zone authored on template plane 1 can
+ * land on scene plane 0, and the zone under it in the scene is a different piece
+ * of map. The reference's instanced loader applies the file's height opcode with
+ * the DESTINATION plane and coords, so that is what this does:
+ *
+ *   authored h:  plane 0 -> -h*8,             plane N -> height[N-1] - h*8
+ *   none:        plane 0 -> Perlin(dst world), plane N -> height[N-1] - 240
+ *
+ * Copying the resolved height instead stacked the Chambers of Xeric: every
+ * template tile there authors h100 (-800 a plane), so Olm's chamber (template
+ * plane 0) stamped onto scene plane 2 sat at -800 -- the height of the floor-1
+ * rooms -- and a plane-1 room such as Tekton's stood 800 units above the
+ * plane-0 room beside it on the same floor.
+ *
+ * Runs per level in order, so `dst_level - 1` is already resolved here
+ * (WorldBuilder_RebuildInstance walks every zone of a level before the next).
+ */
+static int
+world_instance_tile_height(
+    struct World* world,
+    const struct ToriRS_MapFloor* tile,
+    int dst_x,
+    int dst_z,
+    int dst_level)
+{
+    int lower = 0;
+    int authored;
+
+    if( dst_level > 0 )
+        lower = heightmap_get(world->heightmap, dst_x, dst_z, dst_level - 1);
+
+    if( !tile->has_authored_height )
+    {
+        if( dst_level > 0 )
+            return lower - RSCACHE_MAP_UNITS_LEVEL_HEIGHT;
+        return RSCache_MapProceduralHeight(
+            world->_chunk_sw_x * WORLD_MAP_TERRAIN_X + world->_offset_x + dst_x,
+            world->_chunk_sw_z * WORLD_MAP_TERRAIN_Z + world->_offset_z + dst_z);
+    }
+
+    /* The wire spells an authored zero as 1 (fixup, and the reference). */
+    authored = tile->authored_height == 1 ? 0 : tile->authored_height;
+    return lower - authored * RSCACHE_MAP_UNITS_TILE_HEIGHT_BASIS;
 }
 
 /*
@@ -460,7 +514,20 @@ WorldBuilder_RebuildInstanceZoneTerrain(
                 src_level,
                 dst_zone_x * 8 + dx,
                 dst_zone_z * 8 + dz,
-                dst_level);
+                dst_level,
+                rotation);
+            heightmap_set(
+                builder->world->heightmap,
+                dst_zone_x * 8 + dx,
+                dst_zone_z * 8 + dz,
+                dst_level,
+                world_instance_tile_height(
+                    builder->world,
+                    &map_terrain->tiles_xyz[World_MapTileCoord(
+                        src_tile_x + sx, src_tile_z + sz, src_level)],
+                    dst_zone_x * 8 + dx,
+                    dst_zone_z * 8 + dz,
+                    dst_level));
         }
     }
 }

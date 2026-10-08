@@ -216,16 +216,16 @@ ToriRSServer_MapInstanceRotateToSrc(
     switch( rotation & 3 )
     {
     case 1:
-        *out_sx = dz;
-        *out_sz = 7 - dx;
+        *out_sx = 7 - dz;
+        *out_sz = dx;
         break;
     case 2:
         *out_sx = 7 - dx;
         *out_sz = 7 - dz;
         break;
     case 3:
-        *out_sx = 7 - dz;
-        *out_sz = dx;
+        *out_sx = dz;
+        *out_sz = 7 - dx;
         break;
     default:
         *out_sx = dx;
@@ -263,16 +263,16 @@ ToriRSServer_MapInstanceRotateToDst(
     switch( rotation & 3 )
     {
     case 1:
-        *out_dx = 7 - sz - (size_z - 1);
-        *out_dz = sx;
+        *out_dx = sz;
+        *out_dz = 7 - sx - (size_x - 1);
         break;
     case 2:
         *out_dx = 7 - sx - (size_x - 1);
         *out_dz = 7 - sz - (size_z - 1);
         break;
     case 3:
-        *out_dx = sz;
-        *out_dz = 7 - sx - (size_x - 1);
+        *out_dx = 7 - sz - (size_z - 1);
+        *out_dz = sx;
         break;
     default:
         *out_dx = sx;

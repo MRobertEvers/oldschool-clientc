@@ -292,7 +292,7 @@ return {
         "::give blood_rune 80",
         "::give hammer",
         "::give br_4dose2restore 6",
-        "::give shark 40",
+        "::give shark 15",  -- 28 slots: 7 kit + 6 restores + 15
     },
 
     run = function(t)

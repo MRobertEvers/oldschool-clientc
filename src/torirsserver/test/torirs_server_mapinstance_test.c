@@ -88,6 +88,52 @@ main(int argc, char** argv)
              "recycled instance left the old tenant's group");
     ToriRSServer_MapInstanceReset();
 
+    /* Zone rotation is the OSRS client's: source (x, z) lands on
+     * class133.method3118 / class147.method3210 -- (z, 7-x) at r=1 -- which is
+     * clockwise, the same sense a loc's angle turns (+r). These were once
+     * mirrored at r=1 and r=3 on both server and client, which agreed with
+     * each other and so passed everything but a look at a turned room: every
+     * wall faced out of it. */
+    for( int r = 0; r < 4; r++ )
+    {
+        for( int sx = 0; sx < 8; sx++ )
+        {
+            for( int sz = 0; sz < 8; sz++ )
+            {
+                int ref_x = r == 0 ? sx : r == 1 ? sz : r == 2 ? 7 - sx : 7 - sz;
+                int ref_z = r == 0 ? sz : r == 1 ? 7 - sx : r == 2 ? 7 - sz : sx;
+                int dx;
+                int dz;
+                int back_x;
+                int back_z;
+
+                ToriRSServer_MapInstanceRotateToDst(r, sx, sz, 1, 1, &dx, &dz);
+                ToriRSServer_MapInstanceRotateToSrc(r, dx, dz, &back_x, &back_z);
+                if( dx != ref_x || dz != ref_z || back_x != sx || back_z != sz )
+                {
+                    printf("  FAIL r=%d src (%d,%d): dst (%d,%d) want (%d,%d), back (%d,%d)\n",
+                           r, sx, sz, dx, dz, ref_x, ref_z, back_x, back_z);
+                    g_fail++;
+                }
+            }
+        }
+    }
+    {
+        int dx;
+        int dz;
+
+        /* A wall on the west edge (angle 0) at (0, 3), turned once, has angle 1
+         * -- the north edge -- so its tile must be on the north row. */
+        ToriRSServer_MapInstanceRotateToDst(1, 0, 3, 1, 1, &dx, &dz);
+        CHECK_EQ(dx, 3, "west wall turned cw: x");
+        CHECK_EQ(dz, 7, "west wall turned cw: on the north row, where angle 1 puts it");
+        /* A 2x1 loc at the source's south-west corner keeps covering the
+         * corner's tiles: after one clockwise turn they are (0,6)-(0,7). */
+        ToriRSServer_MapInstanceRotateToDst(1, 0, 0, 2, 1, &dx, &dz);
+        CHECK_EQ(dx, 0, "2x1 loc turned cw: x");
+        CHECK_EQ(dz, 6, "2x1 loc turned cw: south-west corner moved down its extent");
+    }
+
     if( g_fail )
     {
         printf("ToriRSServer_MapInstanceTest: %d failure(s)\n", g_fail);

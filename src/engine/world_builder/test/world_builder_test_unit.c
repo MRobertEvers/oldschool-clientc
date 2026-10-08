@@ -389,3 +389,44 @@ test_prerotate_placement(void)
                 "  angle %d: got (%d,%d) want (%d,%d)\n", angle, got_x, got_z, ref_x, ref_z);
     }
 }
+
+/*
+ * An instanced zone turns the way the reference's loader turns it: source
+ * (x, z) lands on (z, 7-x) at r=1 (class133.method3118/class147.method3210),
+ * clockwise -- the same direction a loc's angle gains +r in the scenery pass.
+ * Both twins were once mirrored at r=1 and r=3, which kept server collision and
+ * client geometry agreeing with each other while every turned room's walls
+ * faced out of it.
+ */
+void
+test_instance_rotation_is_clockwise(void)
+{
+    int bad = 0;
+
+    for( int r = 0; r < 4; r++ )
+    {
+        for( int sx = 0; sx < 8; sx++ )
+        {
+            for( int sz = 0; sz < 8; sz++ )
+            {
+                int ref_x = r == 0 ? sx : r == 1 ? sz : r == 2 ? 7 - sx : 7 - sz;
+                int ref_z = r == 0 ? sz : r == 1 ? 7 - sx : r == 2 ? 7 - sz : sx;
+                int dx;
+                int dz;
+                int back_x;
+                int back_z;
+
+                world_instance_rotate_to_dst(r, sx, sz, 1, 1, &dx, &dz);
+                world_instance_rotate_to_src(r, dx, dz, &back_x, &back_z);
+                if( dx != ref_x || dz != ref_z || back_x != sx || back_z != sz )
+                {
+                    if( bad < 4 )
+                        printf("  r=%d src (%d,%d): dst (%d,%d) want (%d,%d), back (%d,%d)\n",
+                               r, sx, sz, dx, dz, ref_x, ref_z, back_x, back_z);
+                    bad++;
+                }
+            }
+        }
+    }
+    TEST_ASSERT(bad == 0, "instance zone rotation matches the reference, both directions");
+}

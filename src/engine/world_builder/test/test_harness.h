@@ -23,6 +23,7 @@ void test_minimap_push_down_colourless_deck(void);
 void test_builder_lifecycle(void);
 void test_rebuild_keeps_tagged_entity_elements(void);
 void test_prerotate_placement(void);
+void test_instance_rotation_is_clockwise(void);
 
 /* Cache-backed render integration test (skips if cache dir missing). */
 void test_world_builder_cache_render(void);

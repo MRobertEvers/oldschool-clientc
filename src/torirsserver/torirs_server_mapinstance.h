@@ -417,8 +417,13 @@ ToriRSServer_MapInstanceWindow(
  * destination and reads the source. For rotation r, destination local (dx, dz)
  * in 0..7 reads source local:
  *
- *     r=0  (dx, dz)        r=1  (dz, 7-dx)
- *     r=2  (7-dx, 7-dz)    r=3  (7-dz, dx)
+ *     r=0  (dx, dz)        r=1  (7-dz, dx)
+ *     r=2  (7-dx, 7-dz)    r=3  (dz, 7-dx)
+ *
+ * Rotation r is the client's: quarter-turns CLOCKWISE (a source tile (x, z)
+ * lands on (z, 7-x) at r=1; class133.method3118/class147.method3210 in the
+ * OSRS client), the same sense every loc's angle turns by (+r). Positions and
+ * angles must turn the same way, or a turned room's walls face out of it.
  */
 void
 ToriRSServer_MapInstanceRotateToSrc(

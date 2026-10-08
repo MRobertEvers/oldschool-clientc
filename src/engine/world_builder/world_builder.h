@@ -334,8 +334,13 @@ WorldBuilder_RebuildInstanceZoneScenery(
  * The terrain copy's direction: it walks the destination and reads the source.
  * For rotation r and local coords in 0..7,
  *
- *     r=0  (dx, dz)        r=1  (dz, 7-dx)
- *     r=2  (7-dx, 7-dz)    r=3  (7-dz, dx)
+ *     r=0  (dx, dz)        r=1  (7-dz, dx)
+ *     r=2  (7-dx, 7-dz)    r=3  (dz, 7-dx)
+ *
+ * r is quarter-turns clockwise, the reference's sense: its instanced loader
+ * puts source (x, z) at (z, 7-x) for r=1, and a loc's angle gains +r in the
+ * same direction. The two must turn the same way or a turned zone's walls face
+ * out of it.
  *
  * This is `ToriRSServer_MapInstanceRotateToSrc`'s twin, and the two must agree or
  * the server's collision and the client's geometry describe mirrored rooms.
@@ -351,16 +356,16 @@ world_instance_rotate_to_src(
     switch( rotation & 3 )
     {
     case 1:
-        *out_sx = dz;
-        *out_sz = 7 - dx;
+        *out_sx = 7 - dz;
+        *out_sz = dx;
         break;
     case 2:
         *out_sx = 7 - dx;
         *out_sz = 7 - dz;
         break;
     case 3:
-        *out_sx = 7 - dz;
-        *out_sz = dx;
+        *out_sx = dz;
+        *out_sz = 7 - dx;
         break;
     default:
         *out_sx = dx;
@@ -396,16 +401,16 @@ world_instance_rotate_to_dst(
     switch( rotation & 3 )
     {
     case 1:
-        *out_dx = 7 - sz - (size_z - 1);
-        *out_dz = sx;
+        *out_dx = sz;
+        *out_dz = 7 - sx - (size_x - 1);
         break;
     case 2:
         *out_dx = 7 - sx - (size_x - 1);
         *out_dz = 7 - sz - (size_z - 1);
         break;
     case 3:
-        *out_dx = sz;
-        *out_dz = 7 - sx - (size_x - 1);
+        *out_dx = 7 - sz - (size_z - 1);
+        *out_dz = sx;
         break;
     default:
         *out_dx = sx;

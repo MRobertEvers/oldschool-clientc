@@ -25,7 +25,7 @@ return {
         "::wield amulet_of_glory",
         "::give 4dosepotionofsaradomin 6",
         "::give 4dose2restore 4",
-        "::give shark 22",
+        "::give shark 17",  -- 28 slots: whip + 6 brews + 4 restores + 17
     },
 
     run = function(t)

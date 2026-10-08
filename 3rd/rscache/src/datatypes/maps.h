@@ -192,6 +192,19 @@ RSCache_MapTerrainFixup(
     int map_x,
     int map_z);
 
+/**
+ * The level-0 height the fixup generates for a tile that authored none, at
+ * WORLD tile (`world_x`, `world_z`), resolved and scaled like `height`.
+ *
+ * Public for the instanced loader: a template zone copied somewhere else takes
+ * its generated terrain from where it LANDS, not from the square it was copied
+ * out of, so it cannot reuse the source tile's already-resolved height.
+ */
+int
+RSCache_MapProceduralHeight(
+    int world_x,
+    int world_z);
+
 struct RSCache_Dat2Disk;
 struct RSCache_Dat2DiskArchive;
 

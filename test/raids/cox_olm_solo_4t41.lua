@@ -166,12 +166,13 @@ return {
         "::give masori_body",
         "::give masori_chaps",
         "::give avas_assembler",
-        "::give shark 24",
-        -- Non-br restores (same as cox_olm.lua); br_* answered ok but never
-        -- landed in the backpack on this pack (gate setup FAIL 2026-10-07).
-        "::give 4dose2restore 8",
-        "::give 4dosepotionofsaradomin 6",
+        -- 28 slots: 6 ranged-swap items above + 2 + 6 + 4 + 10. The old
+        -- 24 sharks filled the pack before any potion, so every potion give
+        -- FAILed setup ("No room for Super restore(4)").
         "::give 4dose2combat 2",
+        "::give 4dose2restore 6",
+        "::give 4dosepotionofsaradomin 4",
+        "::give shark 10",
     },
 
     run = function(t)

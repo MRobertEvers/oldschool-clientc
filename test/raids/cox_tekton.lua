@@ -36,9 +36,11 @@ return {
         "::give fire_rune 400",
         "::give air_rune 400",
         "::give blood_rune 80",
-        "::give shark 22",
+        -- 28 slots: kodai + 4 rune stacks + 4 + 2 + 17. Potions before the
+        -- sharks: 22 sharks filled the pack and no potion ever landed.
         "::give br_4dose2restore 4",
         "::give br_4dosepotionofsaradomin 2",
+        "::give shark 17",
     },
 
     run = function(t)

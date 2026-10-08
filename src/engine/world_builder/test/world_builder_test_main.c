@@ -23,6 +23,7 @@ main(void)
     test_builder_lifecycle();
     test_rebuild_keeps_tagged_entity_elements();
     test_prerotate_placement();
+    test_instance_rotation_is_clockwise();
 
     printf("== world_builder cache render test ==\n");
     test_world_builder_cache_render();
