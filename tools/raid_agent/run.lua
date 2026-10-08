@@ -57,6 +57,7 @@ for line in io.lines() do
         world:party(f[2], f[3] or "")
     elseif word == "coll" then
         world:collision(f[2], f[3], f[4], f[5], f[6])
+        if trace then log:write("t", world.tick, " coll ", f[2], ",", f[3], " ", f[4], "x", f[5], " bits ", #(f[6] or ""), "\n") end
     elseif word == "npcsize" then
         world:npc(tonumber(f[2])).size = tonumber(f[3])
     elseif word == "msg" then
@@ -66,6 +67,20 @@ for line in io.lines() do
         world:self_line(f[2], f[3], f[4], f[5], f[6], f[7], f[8], f[9])
         seat_of(tonumber(f[2]))
     elseif word == "end" then
+        -- RAID_AGENT_DUMP_FLOOR=<x0>,<z0>: the collision answer once, # blocked
+        if os.getenv("RAID_AGENT_DUMP_FLOOR") and world.blocked ~= nil and not dumped_floor then
+            dumped_floor = true
+            local x0, z0 = os.getenv("RAID_AGENT_DUMP_FLOOR"):match("(%d+),(%d+)")
+            x0, z0 = tonumber(x0), tonumber(z0)
+            for dz = 40, 0, -1 do
+                local row = {}
+                for dx = 0, 50 do
+                    local b = world.blocked[(x0 + dx) * 100000 + (z0 + dz)]
+                    row[#row + 1] = (b == nil) and " " or (b and "#" or ".")
+                end
+                log:write(string.format("floor %3d ", dz), table.concat(row), "\n")
+            end
+        end
         -- RAID_AGENT_DUMP_INV=<tick>: every player's inventory and gear then
         if tonumber(os.getenv("RAID_AGENT_DUMP_INV") or "") == world.tick then
             for _, pid in ipairs(seats) do

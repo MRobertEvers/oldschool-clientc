@@ -100,6 +100,7 @@ function World:row(kind, sa, sb, sc, sd, se, sf, label, sg)
         local n = self:npc(a)
         n.type, n.name = b, name_of(self, "npc", b)
         n.x, n.z = unpack_coord(c)
+        n.sx, n.sz = n.x, n.z
         n.alive, n.spawn_tick, n.anim = true, self.tick, nil
         n.hp, n.hpmax = nil, nil
         self.events[#self.events + 1] = { kind = kind, npc = n }
