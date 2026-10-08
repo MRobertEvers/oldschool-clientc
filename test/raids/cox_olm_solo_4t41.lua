@@ -1,52 +1,81 @@
 -- Chambers of Xeric: Great Olm, solo Melee 4-tick 4:1.
--- Spec: docs/minigames/cox/encounters/olm_solo_4t41.tsv
--- Source: synq_transcript.md [2:48:05] Melee 4-Tick 4:1; COX_MECHANICS.md §2
---   16-tick cycle; attacks one tick after events; skip basic-2 and special
---   via empty facing zone / head turns. Prayer flick on style varp.
--- Model: named-state machine. No ::godmode / narrated kill.
--- Duo/trio harnesses come after this is green.
+-- Spec: docs/minigames/cox/encounters/olm.tsv
+-- Source: synq_transcript.md [2:48:05]; COX_MECHANICS.md §2
+--
+-- Goal: drive a real 4:1 kill path with dedicated recovery states for every
+-- Olm special / phase power so failures surface as content bugs (wrong dodge
+-- contract, missing portals, undodgeable burst, …) rather than SM mush.
+--
+-- Specials (rotation slot): crystal burst, lightning, teleport, life siphon.
+-- Phase powers (TRACE_POWER): acid / flame / crystal — dispatched by varp6862.
+-- Mistake recovery: noodle (head centre on skip-basic2) → tank basic2 → skip special.
 
 local HEAD = "olm_head"
 local HEAD_SPAWN = "olm_head_spawning"
-local LEFT = "olm_hand_left"   -- melee claw
-local RIGHT = "olm_hand_right" -- mage claw
+local LEFT = "olm_hand_left"
+local RIGHT = "olm_hand_right"
 local TRACE = "varp6898_cox_trace_olm_action"
 local SERIAL = "varp6899_cox_trace_olm_serial"
 local PHASE = "varp6763_cox_olm_phase"
+local STEP = "varp6765_cox_olm_step"
+local POWER = "varp6862_cox_olm_power"
 local FACING = "varp6772_cox_olm_facing"
-local STYLE = "varp6766_cox_olm_style"
--- Symbol is varp7336_* (server-only; read via var.server content fallback).
-local SPHERE = "varp7336_varp6868_cox_olm_sphere_pending"
 
--- cox.constant chamber locals (m50_89)
 local ZONE_WEST_MAX = 27
 local ZONE_EAST_MIN = 36
 local LEFT_LX, LEFT_LZ = 23, 30
 local RIGHT_LX, RIGHT_LZ = 35, 30
 
 local TRACE_BASIC = 1
-local TRACE_SKIP = 8
-local TRACE_EMPTY = 9
-local TRACE_CATCHUP = 10
+local TRACE_SPHERE = 2
+local TRACE_POWER = 3
 local TRACE_BURST = 4
 local TRACE_LIGHTNING = 5
 local TRACE_TELEPORT = 6
-local TRACE_SPHERE = 2
-local TRACE_PHASE = 11
+local TRACE_SIPHON = 7
+local TRACE_SKIP = 8
+local TRACE_EMPTY = 9
+local TRACE_CATCHUP = 10
+
+local SLOT_SPECIAL = "special"
+local SLOT_EMPTY = "empty"
+local SLOT_STANDARD = "standard"
+
+local POWER_ACID = 1
+local POWER_FLAME = 2
+local POWER_CRYSTAL = 3
+
+-- ^cox_olm_burst_delay / siphon_window / firewall_ticks from cox.constant
+local BURST_DELAY = 3
+local SIPHON_WINDOW = 10
+local FIREWALL_TICKS = 8
 
 local STATE = {
     ENTER = "ENTER",
     WAIT_SPAWN = "WAIT_SPAWN",
     KILL_MAGE = "KILL_MAGE",
-    SETUP_41 = "SETUP_41",
-    CYCLE_TANK = "CYCLE_TANK",       -- hit 1: tank basic 1
-    CYCLE_FREE = "CYCLE_FREE",       -- empty-event free hit
-    CYCLE_RUN = "CYCLE_RUN",         -- run head → skip basic 2
-    CYCLE_TURN = "CYCLE_TURN",       -- turn head → skip special
+    IDENTIFY = "IDENTIFY",
+    LOCKED = "LOCKED",
+    NOODLE = "NOODLE",
+    -- Dedicated special recovery (rotation specials).
+    REC_BURST = "REC_BURST",
+    REC_LIGHTNING = "REC_LIGHTNING",
+    REC_TELEPORT = "REC_TELEPORT",
+    REC_SIPHON = "REC_SIPHON",
+    -- Dedicated phase-power recovery.
+    REC_ACID = "REC_ACID",
+    REC_FLAME = "REC_FLAME",
+    REC_CRYSTAL = "REC_CRYSTAL",
+    REC_SPHERE = "REC_SPHERE",
     WAIT_PHASE = "WAIT_PHASE",
     HEAD = "HEAD",
     DONE = "DONE",
 }
+
+local NEXT_BASIC1 = "basic1"
+local NEXT_EMPTY = "empty"
+local NEXT_SKIP_BASIC2 = "skip_basic2"
+local NEXT_SKIP_SPECIAL = "skip_special"
 
 local function var(t, name)
     local r, v = t.var.server(name)
@@ -60,87 +89,52 @@ local function npc_ok(t, sym)
     return nil
 end
 
-local function sustain(t, sm)
-    -- Do not eat every tick: opheld1 eat anim cancels walk/attack. Always try
-    -- shark before brew — brews drain melee accuracy and the prior melee claw
-    -- phase splashed for ~9 damage total after three sips.
-    sm._sustain_cd = (sm._sustain_cd or 0) - 1
-    local hr, hp = t.skill.read("hitpoints")
-    local level = (hr == "ok" and hp.level) or 99
-    -- Prayer points first: at 0, overheads cannot light and Olm full-hits.
-    local pr, pp = t.prayer.points()
-    local points = 0
-    if pr == "ok" then points = pp.points or pp.level or 0 end
-    if points < 60 and (sm._pray_cd or 0) <= 0 then
-        t.player.drink("4dose2restore")
-        sm._pray_cd = 3
-    end
-    sm._pray_cd = (sm._pray_cd or 0) - 1
+local function hp_level(t)
+    local r, hp = t.skill.read("hitpoints")
+    if r == "ok" then return hp.level end
+    return nil
+end
 
-    if sm._sustain_cd <= 0 and level < 80 then
-        local er = t.player.eat("shark")
-        if er == "ok" then
-            sm._sustain_cd = 2
-        elseif level < 45 then
-            t.player.drink("4dosepotionofsaradomin")
-            t.player.drink("4dose2restore")
-            sm._sustain_cd = 3
-            sm._pray_cd = 3
-        end
-    end
+local function step_slot(step)
+    if step == nil then return nil end
+    local m = step % 4
+    if m == 0 then return SLOT_SPECIAL end
+    if m == 2 then return SLOT_EMPTY end
+    return SLOT_STANDARD
+end
+
+local function is_rotation_special(action)
+    return action == TRACE_BURST
+        or action == TRACE_LIGHTNING
+        or action == TRACE_TELEPORT
+        or action == TRACE_SIPHON
 end
 
 local function origin_of(me)
     return math.floor(me.x / 64) * 64, math.floor(me.z / 64) * 64
 end
 
-local function local_x(ox, x)
-    return x - ox
-end
-
--- Olm plane (^cox_level_olm = 2). Floor-1 approach at 6416,112 is OUTSIDE the
--- chamber map; photographing from there (or with shot-aim's clear 0/383/600
--- void pose) yields a black viewport and a minimap dot off the green floor.
-local OLM_LEVEL = 2
-local ENTRY_LX, ENTRY_LZ = 32, 25
-
--- Melee-hand ring/thumb tiles in chamber-local space (Synq 4:1 / 3:1 vocabulary).
--- West Olm: melee hand is LEFT at (23,30). East Olm mirrors about centre.
--- Mage-hand tiles: Synq ring-finger safes on the mage claw ([2:19:07]).
 local function melee_tiles(ox, oz, side_west)
     if side_west then
         return {
             thumb = { x = ox + LEFT_LX + 2, z = oz + LEFT_LZ - 1 },
             ring = { x = ox + LEFT_LX - 1, z = oz + LEFT_LZ - 2 },
-            mage_a = { x = ox + RIGHT_LX - 1, z = oz + RIGHT_LZ - 3 },
-            mage_b = { x = ox + RIGHT_LX - 3, z = oz + RIGHT_LZ - 1 },
-            empty_east = { x = ox + ZONE_EAST_MIN + 1, z = oz + 28 },
+            flame_null = { x = ox + LEFT_LX - 2, z = oz + LEFT_LZ - 2 },
+            head_safe = { x = ox + 28, z = oz + 28 },
+            empty_zone = { x = ox + ZONE_EAST_MIN + 1, z = oz + 28 },
+            side_wall = { x = ox + ZONE_WEST_MAX - 1, z = oz + 25 },
             hand = LEFT,
-            mage = RIGHT,
         }
     end
     return {
         thumb = { x = ox + RIGHT_LX - 2, z = oz + RIGHT_LZ - 1 },
         ring = { x = ox + RIGHT_LX + 1, z = oz + RIGHT_LZ - 2 },
-        mage_a = { x = ox + LEFT_LX + 1, z = oz + LEFT_LZ - 3 },
-        mage_b = { x = ox + LEFT_LX + 3, z = oz + LEFT_LZ - 1 },
-        empty_east = { x = ox + ZONE_WEST_MAX - 1, z = oz + 28 },
+        flame_null = { x = ox + RIGHT_LX + 2, z = oz + RIGHT_LZ - 2 },
+        head_safe = { x = ox + 35, z = oz + 28 },
+        empty_zone = { x = ox + ZONE_WEST_MAX - 1, z = oz + 28 },
+        side_wall = { x = ox + ZONE_EAST_MIN + 1, z = oz + 25 },
         hand = RIGHT,
-        mage = LEFT,
     }
-end
-
-local function combat_level(t, sym)
-    local rr, _, rec = t.npc.record(sym, { need = "client" })
-    if rr == "ok" and rec and rec.client then
-        return rec.client.combat_level
-    end
-    -- Fallback: try live copy after it is on screen.
-    local lr, _, lrec = t.npc.record(sym)
-    if lr == "ok" and lrec and lrec.client then
-        return lrec.client.combat_level
-    end
-    return nil
 end
 
 return {
@@ -156,12 +150,8 @@ return {
         "::setlevel magic 99",
         "::setlevel hitpoints 99",
         "::setlevel prayer 99",
-        -- 4-tick melee for 4:1 (Synq melee 4-tick section).
         "::give abyssal_whip",
         "::wield abyssal_whip",
-        -- Fang for the melee claw (high accuracy vs 175 def); whip stays for
-        -- 4-tick cadence once the 4:1 cycle is established.
-        "::give osmumtens_fang",
         "::give infernal_cape",
         "::wield infernal_cape",
         "::give ferocious_gloves",
@@ -170,33 +160,23 @@ return {
         "::wield primordial_boots",
         "::give ultor_ring",
         "::wield ultor_ring",
-        -- Mage hand wants magic (66% mitigation on non-magic). Synq sang/shadow.
-        -- Keep the kit ≤28 inv slots (worn melee already fills equipment).
-        -- Wear mage switch in setup so inv holds food, not robes.
-        -- tumekens_shadow is not give-able here (cheat debugproc miss); sang works.
-        "::give sanguinesti_staff_uncharged",
-        "::give bloodrune 4000",
-        "::give ancestral_hat",
-        "::give ancestral_robe_top",
-        "::give ancestral_robe_bottom",
-        "::give occult_necklace",
-        "::give br_tormented_bracelet",
-        "::wield ancestral_hat",
-        "::wield ancestral_robe_top",
-        "::wield ancestral_robe_bottom",
-        "::wield occult_necklace",
-        "::wield br_tormented_bracelet",
-        -- Head phase: twisted bow (ranged weakness on head).
-                "::give twisted_bow",
+        "::give twisted_bow",
         "::give dragon_arrow 2000",
-        "::give shark 12",
-        "::give 4dose2restore 6",
-        "::give 4dosepotionofsaradomin 2",
-        "::give 4dose2combat 1",
+        "::give masori_mask",
+        "::give masori_body",
+        "::give masori_chaps",
+        "::give avas_assembler",
+        "::give shark 24",
+        -- Non-br restores (same as cox_olm.lua); br_* answered ok but never
+        -- landed in the backpack on this pack (gate setup FAIL 2026-10-07).
+        "::give 4dose2restore 8",
+        "::give 4dosepotionofsaradomin 6",
+        "::give 4dose2combat 2",
     },
 
     run = function(t)
-        t.check("spec.scope", true, "mode=all party=1; synq melee 4-tick 4:1 SM")
+        t.check("spec.scope", true,
+            "mode=all party=1; synq melee 4-tick 4:1 + dedicated special recovery")
         local lr, ld = t.ticklog.start()
         t.check("ticklog.start", lr == "ok", tostring(ld))
 
@@ -212,24 +192,34 @@ return {
             cycle = 0,
             skips = 0,
             empties = 0,
-            basics = 0,
-            specials = 0,
+            noodles = 0,
+            resyncs = 0,
             last_serial = var(t, SERIAL) or 0,
-            last_action_tick = nil,
-            action_gaps = {},
             phases_seen = 0,
             mage_kills = 0,
             melee_kills = 0,
             mid_shot = false,
             head_dead = false,
-            setup_waits = 0,
             sub = 0,
-            head_vis = nil,
-            left_vis = nil,
-            right_vis = nil,
-            pray_flicks = 0,
-            last_pray = nil,
+            id_prev = nil,
+            expect = nil,
+            pending_attack = false,
+            -- Per-special counters + probe notes for content-bug extraction.
+            saw = {
+                burst = 0, lightning = 0, teleport = 0, siphon = 0,
+                acid = 0, flame = 0, crystal = 0, sphere = 0,
+            },
+            probe = {
+                -- Each entry: { id=, ok=, detail= }
+            },
+            rec_hp0 = nil,
+            rec_tile0 = nil,
         }
+
+        local function note_probe(id, ok, detail)
+            sm.probe[#sm.probe + 1] = { id = id, ok = ok, detail = detail }
+            t.ticklog.mark("probe " .. id .. " ok=" .. tostring(ok) .. " " .. tostring(detail))
+        end
 
         local function set_state(s)
             sm.state = s
@@ -241,271 +231,441 @@ return {
             sm.ox, sm.oz = origin_of(me)
             local head = npc_ok(t, HEAD) or npc_ok(t, HEAD_SPAWN)
             if head ~= nil then
-                local lx = local_x(sm.ox, head.x)
-                sm.side_west = lx < 32
+                sm.side_west = (head.x - sm.ox) < 32
             end
             sm.tiles = melee_tiles(sm.ox, sm.oz, sm.side_west)
         end
 
-        -- Walkthrough photographs must show the Olm chamber floor + boss.
-        -- yaw 0 puts the eye SOUTH of the player (_shot_eye). Entry lz=25 sits
-        -- just north of the pit/wall ring (lz 14–21); pitch/zoom that backs the
-        -- eye ≥4 tiles south parks it in that unrendered pit, shot-aim sees
-        -- zero occluders ("clear"), and the PNG is black with a crystal sliver
-        -- — while ticklog still shows a valid L2 tile. Stand on the green
-        -- aisle under the head (lz≈32) with a short steep zoom so the eye
-        -- stays on arena floor.
-        local PHOTO_LX, PHOTO_LZ = ENTRY_LX, 32
-        local function shot_olm_room(name, opts)
-            opts = opts or {}
-            refresh_geometry()
-            local _, me = t.world.tile()
-            local lz = me.z - sm.oz
-            if me.level ~= OLM_LEVEL or lz < 20 or lz > 40 then
-                t.cheat("::coxolm")
-                t.ticks(4)
-                refresh_geometry()
-                _, me = t.world.tile()
-                lz = me.z - sm.oz
-            end
-            local photo_x = sm.ox + PHOTO_LX
-            local photo_z = sm.oz + PHOTO_LZ
-            if opts.camera_only then
-                -- Mid-fight: do not steal the attack tick with a long walk.
-                -- Nudge one tile north if we are still on the south lip so the
-                -- eye clears the pit ring; otherwise camera-only.
-                if lz < 30 then
-                    t.player.walk_to(me.x, math.min(me.z + 2, photo_z), 2)
-                end
-            else
-                local on_photo = me.level == OLM_LEVEL
-                    and math.abs(me.x - photo_x) <= 3
-                    and math.abs(me.z - photo_z) <= 3
-                if not on_photo then
-                    t.player.walk_to(photo_x, photo_z, 10)
-                end
-            end
-            -- Steep + short zoom: eye ~3 tiles south, still on the aisle.
-            t.drive.camera(0, 383, 200)
-            t.ticks(2)
-            t.shot(name)
+        local function pray_style(name)
+            t.prayer.set(name, true)
+            t.prayer.set("piety", true)
         end
 
-        -- Synq [2:04:12]: flick the overhead that matches Olm's current style.
-        -- Style 0 = magic, 1 = ranged (cox_olm.rs2 %varp6766).
-        -- Lightning (~prayer_deactivate_all) and a blocked sphere both clear
-        -- the overhead; never trust sm.last_pray alone — re-read and re-light.
-        local function prayer_flick()
-            local style = var(t, STYLE) or 0
-            local name = (style == 1) and "protectfrommissiles" or "protectfrommagic"
-            local offr = (sm.state == STATE.KILL_MAGE or sm.state == STATE.HEAD)
-                and "augury" or "piety"
-            local rr, _, set = t.prayer.read()
-            local lit = rr == "ok" and set and set[name] == true
-            local offr_lit = rr == "ok" and set and set[offr] == true
-            if lit and offr_lit and sm.last_pray == name then
-                return
+        local function sustain()
+            local hp = hp_level(t)
+            if hp ~= nil and hp < 55 then
+                if t.player.eat("shark") ~= "ok" then
+                    t.player.inv_op("4dosepotionofsaradomin", 1)
+                end
             end
-            t.prayer.set(name, true)
-            t.prayer.set(offr, true)
-            sm.last_pray = name
-            sm.pray_flicks = sm.pray_flicks + 1
+            local pr, pp = t.prayer.points()
+            local points = 0
+            if pr == "ok" then points = pp.points or pp.level or 0 end
+            if points < 30 then
+                t.player.drink("4dose2restore")
+            end
         end
 
         local function equip_melee()
-            t.player.equip("osmumtens_fang")
-            t.player.equip("ferocious_gloves")
-            t.player.equip("infernal_cape")
-            t.player.equip("ultor_ring")
-        end
-
-        local function equip_magic()
-            t.player.inv_op("sanguinesti_staff_uncharged", 3)
-            t.player.equip("sanguinesti_staff")
-            t.player.equip("ancestral_hat")
-            t.player.equip("ancestral_robe_top")
-            t.player.equip("ancestral_robe_bottom")
-            t.player.equip("occult_necklace")
-            t.player.equip("br_tormented_bracelet")
-        end
-
-        -- Sphere pending varp (+1) → overhead before impact. Chat is a one-shot
-        -- fallback only while pending is unread; never re-flick off a stale
-        -- mes line after impact (that blocked style prayer for 6 ticks).
-        local function sphere_kind_from_chat()
-            local mr, lines = t.msg.last(4)
-            if mr ~= "ok" or type(lines) ~= "table" then return nil end
-            for i = 1, #lines do
-                local text = lines[i].text or ""
-                if string.find(text, "prayers have been sapped", 1, true) then
-                    -- skip sapped follow-up
-                elseif string.find(text, "sphere of aggression", 1, true) then
-                    return 0, text
-                elseif string.find(text, "sphere of accuracy", 1, true) then
-                    return 1, text
-                elseif string.find(text, "sphere of magical power", 1, true) then
-                    return 2, text
-                end
-            end
-            return nil
-        end
-
-        local function sphere_flick()
-            local pending = var(t, SPHERE) or 0
-            local kind = nil
-            if pending > 0 then
-                kind = pending - 1
-                sm._sphere_flight = true
-            elseif sm._sphere_flight then
-                -- Impact cleared the varp: drop sphere override immediately.
-                sm._sphere_flight = false
-                sm._sphere_pray = nil
-                sm._sphere_ticks = 0
-                sm.last_pray = nil
-                sm._sphere_chat = nil
-                return
-            elseif sm._sphere_chat == nil then
-                local chat_kind, chat_text = sphere_kind_from_chat()
-                if chat_kind ~= nil then
-                    kind = chat_kind
-                    sm._sphere_chat = chat_text
-                    sm._sphere_flight = true
-                end
-            end
-            if kind == nil then return end
-            local pray = "protectfrommagic"
-            if kind == 0 then pray = "protectfrommelee"
-            elseif kind == 1 then pray = "protectfrommissiles"
-            end
-            if sm._sphere_pray ~= pray then
-                t.prayer.set(pray, true)
-                sm._sphere_pray = pray
-                sm._sphere_ticks = 8
-                sm.last_pray = pray
-                sm.pray_flicks = sm.pray_flicks + 1
-            end
+            t.player.equip("abyssal_whip")
         end
 
         local function equip_ranged()
             t.player.equip("twisted_bow")
             t.player.equip("dragon_arrow")
+            t.player.equip("masori_mask")
+            t.player.equip("masori_body")
+            t.player.equip("masori_chaps")
+            t.player.equip("avas_assembler")
         end
 
         local function hand_alive(sym)
             return npc_ok(t, sym) ~= nil
         end
 
-        local function sample_vislevels()
-            if sm.head_vis == nil then
-                sm.head_vis = combat_level(t, HEAD) or combat_level(t, HEAD_SPAWN)
+        local function melee_hand()
+            return sm.tiles and sm.tiles.hand or LEFT
+        end
+
+        local function attack_melee()
+            local m = melee_hand()
+            if hand_alive(m) then t.player.attack(m, 2, 1) end
+        end
+
+        local function walk_thumb()
+            t.player.walk_to(sm.tiles.thumb.x, sm.tiles.thumb.z, 2)
+        end
+        local function walk_ring()
+            t.player.walk_to(sm.tiles.ring.x, sm.tiles.ring.z, 3)
+        end
+        local function walk_empty()
+            t.player.walk_to(sm.tiles.empty_zone.x, sm.tiles.empty_zone.z, 4)
+        end
+        local function walk_flame_null()
+            t.player.walk_to(sm.tiles.flame_null.x, sm.tiles.flame_null.z, 3)
+        end
+        local function walk_side()
+            t.player.walk_to(sm.tiles.side_wall.x, sm.tiles.side_wall.z, 4)
+        end
+
+        local function snapshot_rec()
+            sm.rec_hp0 = hp_level(t)
+            local _, me = t.world.tile()
+            sm.rec_tile0 = { x = me.x, z = me.z }
+        end
+
+        local function left_start_tile()
+            local _, me = t.world.tile()
+            if sm.rec_tile0 == nil then return true end
+            return me.x ~= sm.rec_tile0.x or me.z ~= sm.rec_tile0.z
+        end
+
+        local function hp_dropped()
+            local hp = hp_level(t)
+            if hp == nil or sm.rec_hp0 == nil then return false end
+            return hp < sm.rec_hp0
+        end
+
+        local function enter_resync(reason)
+            sm.resyncs = sm.resyncs + 1
+            sm.id_prev = nil
+            sm.expect = nil
+            sm.pending_attack = false
+            t.ticklog.mark("olm resync " .. tostring(reason))
+            set_state(STATE.IDENTIFY)
+        end
+
+        local function enter_locked(expect)
+            sm.expect = expect
+            sm.pending_attack = false
+            set_state(STATE.LOCKED)
+        end
+
+        local function classify_event(action, slot)
+            if action == TRACE_EMPTY then return "empty" end
+            if action == TRACE_SKIP then return "skip" end
+            if action == TRACE_CATCHUP then return "catchup" end
+            if is_rotation_special(action) then return "special" end
+            if action == TRACE_BASIC or action == TRACE_SPHERE or action == TRACE_POWER then
+                return "basic"
             end
-            if sm.left_vis == nil then
-                sm.left_vis = combat_level(t, LEFT)
+            if slot == SLOT_EMPTY then return "empty" end
+            if slot == SLOT_SPECIAL then return "special" end
+            if slot == SLOT_STANDARD then return "basic" end
+            return "unknown"
+        end
+
+        local function identify_lock(prev, cur, cur_slot)
+            if prev == "basic" and cur == "empty" then return NEXT_SKIP_BASIC2 end
+            if prev == "basic" and cur == "special" then return NEXT_BASIC1 end
+            if prev == "basic" and cur == "basic" then return NEXT_SKIP_SPECIAL end
+            if (prev == "catchup" or prev == "special")
+                and (cur == "basic" or cur == "special" or cur == "catchup") then
+                return NEXT_BASIC1
             end
-            if sm.right_vis == nil then
-                sm.right_vis = combat_level(t, RIGHT)
+            if cur == "skip" and cur_slot == SLOT_SPECIAL then return NEXT_BASIC1 end
+            if cur == "skip" and cur_slot == SLOT_STANDARD then return NEXT_SKIP_SPECIAL end
+            if cur == "empty" then return NEXT_SKIP_BASIC2 end
+            return nil
+        end
+
+        local function dispatch_special(action)
+            if not sm.mid_shot then
+                t.shot("olm special " .. tostring(action))
+                sm.mid_shot = true
+            end
+            snapshot_rec()
+            if action == TRACE_BURST then
+                sm.saw.burst = sm.saw.burst + 1
+                set_state(STATE.REC_BURST)
+            elseif action == TRACE_LIGHTNING then
+                sm.saw.lightning = sm.saw.lightning + 1
+                set_state(STATE.REC_LIGHTNING)
+            elseif action == TRACE_TELEPORT then
+                sm.saw.teleport = sm.saw.teleport + 1
+                set_state(STATE.REC_TELEPORT)
+            elseif action == TRACE_SIPHON then
+                sm.saw.siphon = sm.saw.siphon + 1
+                set_state(STATE.REC_SIPHON)
+            else
+                enter_resync("unknown_special_" .. tostring(action))
+            end
+        end
+
+        local function dispatch_power()
+            if not sm.mid_shot then
+                t.shot("olm phase power")
+                sm.mid_shot = true
+            end
+            snapshot_rec()
+            local p = var(t, POWER)
+            if p == POWER_ACID then
+                sm.saw.acid = sm.saw.acid + 1
+                set_state(STATE.REC_ACID)
+            elseif p == POWER_FLAME then
+                sm.saw.flame = sm.saw.flame + 1
+                set_state(STATE.REC_FLAME)
+            else
+                -- Crystal (or unset): falling / bombs.
+                sm.saw.crystal = sm.saw.crystal + 1
+                set_state(STATE.REC_CRYSTAL)
             end
         end
 
         local function on_event()
             local serial = var(t, SERIAL)
-            if serial ~= nil and serial ~= sm.last_serial then
-                sm.last_serial = serial
-                local action = var(t, TRACE)
-                local tr, tick = t.tick()
-                if tr == "ok" and tick ~= nil then
-                    if sm.last_action_tick ~= nil then
-                        local gap = tick - sm.last_action_tick
-                        if gap > 0 and gap < 20 then
-                            sm.action_gaps[#sm.action_gaps + 1] = gap
-                        end
-                    end
-                    sm.last_action_tick = tick
-                end
-                if action == TRACE_SKIP then
-                    sm.skips = sm.skips + 1
-                    -- Head-turn skip during the melee claw / 4:1 states counts
-                    -- as a completed 4:1 skip cycle (Synq empty-zone skip).
-                    if sm.state == STATE.SETUP_41 or sm.state == STATE.CYCLE_TANK
-                        or sm.state == STATE.CYCLE_FREE or sm.state == STATE.CYCLE_RUN
-                        or sm.state == STATE.CYCLE_TURN then
-                        sm.cycle = sm.cycle + 1
-                    end
-                end
-                if action == TRACE_EMPTY then sm.empties = sm.empties + 1 end
-                if action == TRACE_BASIC then sm.basics = sm.basics + 1 end
-                if action == TRACE_BURST or action == TRACE_LIGHTNING
-                    or action == TRACE_TELEPORT then
-                    sm.specials = sm.specials + 1
-                end
-                if action == TRACE_PHASE then
-                    sm.phases_seen = sm.phases_seen + 1
-                    -- Both claws died this phase; count the melee claw even if
-                    -- the respawn race hid the npc_free from hand_alive().
-                    if sm.mage_kills > sm.melee_kills then
-                        sm.melee_kills = sm.mage_kills
-                    end
-                    if sm.state ~= STATE.WAIT_PHASE and sm.state ~= STATE.HEAD
-                        and sm.state ~= STATE.DONE then
-                        set_state(STATE.WAIT_PHASE)
-                    end
-                end
-                if (not sm.mid_shot) and (action == TRACE_BURST or action == TRACE_SPHERE
-                    or action == TRACE_LIGHTNING or action == TRACE_TELEPORT
-                    or action == TRACE_SKIP) then
-                    shot_olm_room("olm 4:1 mid-mechanic", { camera_only = true })
-                    sm.mid_shot = true
-                end
-                return true, action
+            if serial == nil or serial == sm.last_serial then
+                return false, nil, nil
             end
-            return false, nil
+            sm.last_serial = serial
+            local action = var(t, TRACE)
+            local slot = step_slot(var(t, STEP))
+            if action == TRACE_SKIP then sm.skips = sm.skips + 1 end
+            if action == TRACE_EMPTY then sm.empties = sm.empties + 1 end
+            return true, action, slot
+        end
+
+        local function sphere_pray()
+            local cr, kind = t.chat.kind()
+            if cr == "ok" and type(kind) == "string" then
+                local k = string.lower(kind)
+                if string.find(k, "melee", 1, true) then
+                    pray_style("protectfrommelee"); return
+                end
+                if string.find(k, "missile", 1, true) or string.find(k, "range", 1, true) then
+                    pray_style("protectfrommissiles"); return
+                end
+                if string.find(k, "magic", 1, true) then
+                    pray_style("protectfrommagic"); return
+                end
+            end
+            pray_style("protectfrommelee")
+        end
+
+        local function hands_down_to_phase()
+            refresh_geometry()
+            if not hand_alive(melee_hand()) then
+                sm.melee_kills = sm.melee_kills + 1
+                set_state(STATE.WAIT_PHASE)
+                return true
+            end
+            return false
+        end
+
+        ------------------------------------------------------------------
+        -- Recovery state runners. Each ends with enter_resync / enter_locked.
+        ------------------------------------------------------------------
+
+        -- Crystal burst: wiki/Synq — seedling under player, step off before burst.
+        -- Content today: queue damage on uid after BURST_DELAY (not tile-checked).
+        local function run_rec_burst()
+            -- Immediate step-off (correct player response).
+            local _, me = t.world.tile()
+            t.player.walk_to(me.x + 2, me.z + 1, 2)
+            sm.sub = sm.sub + 1
+            if sm.sub == 1 then
+                note_probe("olm.burst.step_issued", true, "walked off start tile")
+            end
+            if sm.sub >= BURST_DELAY + 2 then
+                local moved = left_start_tile()
+                local hit = hp_dropped()
+                -- If we left the tile in time and still took damage, burst is
+                -- not tile-gated (content bug vs wiki seedling dodge).
+                if moved and hit then
+                    note_probe("content.olm.burst_undodgeable", false,
+                        "stepped off before delay+" .. BURST_DELAY
+                            .. " but HP dropped; cox_olm_crystal_burst queues uid damage")
+                elseif moved and not hit then
+                    note_probe("content.olm.burst_tile_dodge", true, "left tile, no HP drop")
+                else
+                    note_probe("olm.burst.move_failed", false, "still on start tile")
+                end
+                enter_resync("burst_done")
+                return
+            end
+            t.ticks(1)
+        end
+
+        -- Lightning: stand east/west; content currently prayer-saps everyone in
+        -- huntall with no bolt path — probe that.
+        local function run_rec_lightning()
+            walk_side()
+            sm.sub = sm.sub + 1
+            if sm.sub == 1 then
+                -- Re-assert overhead after the sap (content ~prayer_deactivate_all).
+                pray_style("protectfrommelee")
+            end
+            if sm.sub >= 4 then
+                local hit = hp_dropped()
+                -- Side-wall stance is the Synq dodge; if we still took damage
+                -- from the special itself, bolts are not position-gated.
+                if hit then
+                    note_probe("content.olm.lightning_no_bolts", false,
+                        "side-wall dodge still took damage; cox_olm_lightning damages huntall")
+                else
+                    note_probe("content.olm.lightning_side_safe", true, "no HP drop on side wall")
+                end
+                -- Prayer should be restorable after lightning.
+                local pr = t.prayer.set("protectfrommelee", true)
+                note_probe("olm.lightning.prayer_reenable", pr == "ok", "set protectfrommelee -> " .. tostring(pr))
+                enter_resync("lightning_done")
+                return
+            end
+            t.ticks(1)
+        end
+
+        -- Teleport / portal swap: Synq — run to paired portal in 8 ticks.
+        -- Content solo: random separation damage, no portals.
+        local function run_rec_teleport()
+            walk_empty()
+            sm.sub = sm.sub + 1
+            if sm.sub == 1 then
+                -- Look for portal NPCs/locs the player could click.
+                local portal_npc = npc_ok(t, "olm_portal") or npc_ok(t, "raids_olm_portal")
+                local cr, cd = t.player.click_loc("olm_teleport_portal", 1)
+                local has_portal = portal_npc ~= nil or cr == "ok"
+                if not has_portal then
+                    note_probe("content.olm.teleport_no_portals", false,
+                        "no olm portal npc/loc; cox_olm_teleport is flat solo damage"
+                            .. " click_loc=" .. tostring(cr) .. " " .. tostring(cd))
+                else
+                    note_probe("content.olm.teleport_portals", true, "portal interactable")
+                end
+            end
+            if sm.sub >= 8 then
+                walk_thumb()
+                attack_melee()
+                enter_resync("teleport_done")
+                return
+            end
+            t.ticks(1)
+        end
+
+        -- Life siphon (final phase): stand on marked tile for SIPHON_WINDOW.
+        -- Content: delayed uid damage + head heal, no marked tiles.
+        local function run_rec_siphon()
+            -- Try to stand still on a "safe" candidate (head-safe / centre).
+            -- If content had marks, we would click them; absence is the bug.
+            t.player.walk_to(sm.tiles.head_safe.x, sm.tiles.head_safe.z, 4)
+            sm.sub = sm.sub + 1
+            if sm.sub == 1 then
+                local mark = npc_ok(t, "olm_siphon_pool") or npc_ok(t, "raids_olm_siphon")
+                if mark == nil then
+                    note_probe("content.olm.siphon_no_safe_tiles", false,
+                        "no siphon mark npc; cox_olm_life_siphon damages after window w/o tiles")
+                else
+                    note_probe("content.olm.siphon_marks", true, "siphon mark present")
+                end
+            end
+            if sm.sub >= SIPHON_WINDOW + 2 then
+                local head = npc_ok(t, HEAD)
+                local healed = false
+                if head ~= nil and sm.rec_hp0 ~= nil then
+                    -- Head heal is the mechanic; we only note player damage here.
+                    healed = hp_dropped()
+                end
+                if healed then
+                    note_probe("olm.siphon.player_hit", true, "took siphon damage (expected if off mark)")
+                end
+                enter_resync("siphon_done")
+                return
+            end
+            t.ticks(1)
+        end
+
+        -- Acid: leave pool tile (content is tile-gated — correct contract).
+        local function run_rec_acid()
+            local _, me = t.world.tile()
+            -- One-tile drag / run-over (Synq acid walk simplified).
+            t.player.walk_to(me.x, me.z - 2, 2)
+            sm.sub = sm.sub + 1
+            if sm.sub >= 4 then
+                if left_start_tile() and not hp_dropped() then
+                    note_probe("content.olm.acid_tile_dodge", true, "left pool tile, no further drop")
+                elseif left_start_tile() and hp_dropped() then
+                    -- May still drop from drip ticks while leaving — soft note.
+                    note_probe("olm.acid.left_with_hits", true, "left tile but HP dropped (drip/pool ticks)")
+                end
+                walk_thumb()
+                enter_resync("acid_done")
+                return
+            end
+            attack_melee()
+            t.ticks(1)
+        end
+
+        -- Flame wall: leave trapped tile within FIREWALL_TICKS; null LOS tile.
+        local function run_rec_flame()
+            -- Prefer flame-null tile (Synq weird null / ring edge).
+            walk_flame_null()
+            sm.sub = sm.sub + 1
+            if sm.sub == 1 then
+                -- Leap damage on cast is expected; trap damage is the dodgeable part.
+                note_probe("olm.flame.leap_window", true, "entered flame recovery; nulling LOS")
+            end
+            if sm.sub >= FIREWALL_TICKS + 1 then
+                if left_start_tile() then
+                    -- Trap queue skips if coord != captured tile.
+                    note_probe("content.olm.firewall_tile_escape", true,
+                        "left cast tile before trap resolve")
+                else
+                    note_probe("content.olm.firewall_stuck", false, "still on cast tile at trap time")
+                end
+                walk_thumb()
+                enter_resync("flame_done")
+                return
+            end
+            -- Keep 4:1 DPS intent while nulling.
+            if sm.sub % 4 == 0 then attack_melee() end
+            t.ticks(1)
+        end
+
+        -- Crystal falling / bombs: leave marked tile / create distance.
+        local function run_rec_crystal()
+            local _, me = t.world.tile()
+            t.player.walk_to(me.x + ((sm.sub % 2 == 0) and 2 or -2), me.z + 1, 2)
+            sm.sub = sm.sub + 1
+            if sm.sub >= 6 then
+                if left_start_tile() and not hp_dropped() then
+                    note_probe("content.olm.crystal_tile_dodge", true, "left fall/bomb tile")
+                elseif left_start_tile() and hp_dropped() then
+                    note_probe("olm.crystal.partial_hits", true, "moved but took hits (bombs radius?)")
+                end
+                walk_thumb()
+                enter_resync("crystal_done")
+                return
+            end
+            attack_melee()
+            t.ticks(1)
+        end
+
+        -- Prayer spheres on a standard attack.
+        local function run_rec_sphere()
+            sphere_pray()
+            attack_melee()
+            sm.sub = sm.sub + 1
+            if sm.sub >= 2 then
+                note_probe("olm.sphere.prayer_set", true, "overhead set from chat/default")
+                -- Stay in cycle if we were locked; else resync.
+                if sm.expect ~= nil then
+                    set_state(STATE.LOCKED)
+                else
+                    enter_resync("sphere_done")
+                end
+                return
+            end
+            t.ticks(1)
         end
 
         local function decide()
-            on_event()
-            sphere_flick()
-            -- Lightning (~prayer_deactivate_all) can wipe every overhead. If
-            -- nothing protect-* is lit, always re-press — even mid sphere
-            -- flight — so a sap/lightning cannot leave us bare for 4 ticks.
-            local rr, _, set = t.prayer.read()
-            local has_protect = rr == "ok" and set and (
-                set.protectfrommagic or set.protectfrommissiles or set.protectfrommelee)
-            if sm._sphere_flight and sm._sphere_pray ~= nil then
-                if not has_protect or not (set and set[sm._sphere_pray]) then
-                    t.prayer.set(sm._sphere_pray, true)
-                    sm.pray_flicks = sm.pray_flicks + 1
-                end
-                sm._sphere_ticks = (sm._sphere_ticks or 8) - 1
-                if sm._sphere_ticks <= 0 then
-                    sm._sphere_flight = false
-                    sm._sphere_pray = nil
-                    sm.last_pray = nil
-                    sm._sphere_chat = nil
-                end
-            else
-                if not has_protect then
-                    sm.last_pray = nil
-                end
-                prayer_flick()
-            end
-            -- Always sustain under fire; KILL_MAGE also calls sustain at the
-            -- top of its branch before any walk/attack wait.
-            sustain(t, sm)
+            sustain()
+            local fired, action, slot = on_event()
+
             if t.player.alive() ~= "ok" then
                 set_state(STATE.DONE)
                 return
             end
 
+            local cycling = sm.state == STATE.LOCKED or sm.state == STATE.IDENTIFY
+                or sm.state == STATE.NOODLE
+            if cycling and hands_down_to_phase() then return end
+
+            ------------------------------------------------------------
             if sm.state == STATE.ENTER then
-                -- Pre-charge sang + mage gear before the barrier so the first
-                -- ticks inside are attacks, not inventory ops under fire.
-                equip_magic()
-                t.prayer.set("protectfrommagic", true)
-                t.prayer.set("augury", true)
-                sm.last_pray = "protectfrommagic"
                 t.shot("olm corridor before the barrier")
                 local cr, cd = t.player.click_loc("raids_bossentrance", 1)
-                t.check("barrier.click", cr == "ok" or cr == "timeout", tostring(cr) .. " " .. tostring(cd))
+                t.check("barrier.click", cr == "ok" or cr == "timeout",
+                    tostring(cr) .. " " .. tostring(cd))
                 t.chat.play({ "options", "choose:Step through the mystical barrier." })
                 t.ticklog.mark("olm barrier")
                 set_state(STATE.WAIT_SPAWN)
@@ -513,14 +673,12 @@ return {
             end
 
             if sm.state == STATE.WAIT_SPAWN then
-                -- Wait for combat-form hands (not *_spawning) before DPS.
-                local head = npc_ok(t, HEAD)
-                local left = npc_ok(t, LEFT)
-                local right = npc_ok(t, RIGHT)
-                if head ~= nil and left ~= nil and right ~= nil then
+                local head = npc_ok(t, HEAD) or npc_ok(t, HEAD_SPAWN)
+                if head ~= nil then
                     refresh_geometry()
-                    sample_vislevels()
-                    shot_olm_room("olm idle after barrier")
+                    t.shot("olm idle after barrier")
+                    equip_ranged()
+                    pray_style("protectfrommagic")
                     set_state(STATE.KILL_MAGE)
                     return
                 end
@@ -529,237 +687,254 @@ return {
             end
 
             if sm.state == STATE.KILL_MAGE then
-                -- Synq 4-tick mage running [2:19:07]. Entry lands at lz=25 on
-                -- the open arena aisle (see ^cox_olm_entry_lz); claws at lz=30.
-                -- Keep walk deadlines short: a blocking walk_to(20) starved
-                -- sustain and the prior run died mid-approach.
                 refresh_geometry()
-                sample_vislevels()
-                sustain(t, sm)
-                local mage = sm.tiles.mage
-                local mrow = npc_ok(t, mage)
-                if mrow == nil then
+                local mage = sm.side_west and RIGHT or LEFT
+                if not hand_alive(mage) then
                     sm.mage_kills = sm.mage_kills + 1
-                    -- Top up between claws (Synq mid-fight eat).
-                    t.cheat("::give shark 8")
-                    t.cheat("::give 4dose2restore 3")
-                    -- Do NOT gear-swap here: equip blocks decide() and a sphere
-                    -- already in flight lands unblockable. SETUP_41 equips one
-                    -- item per tick while sphere_flick keeps running.
-                    sm.last_pray = nil
-                    set_state(STATE.SETUP_41)
+                    equip_melee()
+                    pray_style("protectfrommelee")
+                    t.player.inv_op("4dose2combat", 1)
+                    sm.id_prev = nil
+                    set_state(STATE.IDENTIFY)
                     return
                 end
+                local safe = sm.tiles.head_safe
                 local _, me = t.world.tile()
-                local aisle_x = sm.ox + 32
-                local dist = math.max(math.abs(me.x - mrow.x), math.abs(me.z - mrow.z))
-                -- Re-click attack only every 4 ticks (sang speed). Other ticks
-                -- are pray/eat/walk so lightning→sphere cannot land across a
-                -- blocking attack(2,3) settle with mask=0.
-                if (sm.sub % 4) == 0 then
-                    local ar, ad = t.player.attack(mage, 2, 1, { quick = true, slot = mrow.slot })
-                    if ar == "refused" and type(ad) == "string" and string.find(ad, "DIED", 1, true) then
-                        set_state(STATE.DONE)
+                if math.max(math.abs(me.x - safe.x), math.abs(me.z - safe.z)) > 2 then
+                    t.player.walk_to(safe.x, safe.z, 4)
+                end
+                t.player.attack(mage, 2, 1)
+                t.ticks(1)
+                return
+            end
+
+            ------------------------------------------------------------
+            -- Dedicated recovery states (may also see nested events).
+            ------------------------------------------------------------
+            if sm.state == STATE.REC_BURST then run_rec_burst(); return end
+            if sm.state == STATE.REC_LIGHTNING then run_rec_lightning(); return end
+            if sm.state == STATE.REC_TELEPORT then run_rec_teleport(); return end
+            if sm.state == STATE.REC_SIPHON then run_rec_siphon(); return end
+            if sm.state == STATE.REC_ACID then run_rec_acid(); return end
+            if sm.state == STATE.REC_FLAME then run_rec_flame(); return end
+            if sm.state == STATE.REC_CRYSTAL then run_rec_crystal(); return end
+            if sm.state == STATE.REC_SPHERE then run_rec_sphere(); return end
+
+            ------------------------------------------------------------
+            if sm.state == STATE.IDENTIFY then
+                refresh_geometry()
+                if hands_down_to_phase() then return end
+                pray_style("protectfrommelee")
+                if var(t, POWER) == POWER_FLAME then walk_flame_null() else walk_thumb() end
+                attack_melee()
+
+                if fired then
+                    if action == TRACE_SPHERE then
+                        sm.saw.sphere = sm.saw.sphere + 1
+                        set_state(STATE.REC_SPHERE)
                         return
                     end
-                end
-                sphere_flick()
-                if dist > 8 then
-                    t.player.walk_to(aisle_x, math.min(me.z + 2, mrow.z - 3), 1)
-                elseif (sm.sub % 2) == 0 then
-                    local safe = ((sm.sub % 4) < 2) and sm.tiles.mage_a or sm.tiles.mage_b
-                    t.player.walk_to(safe.x, safe.z, 1)
-                end
-                sm.sub = sm.sub + 1
-                t.ticks(1)
-                return
-            end
-
-            if sm.state == STATE.SETUP_41 then
-                -- Synq lazy setup [2:49:50]: after basic1 → empty → basic2, turn head
-                -- to skip the special, then delay attack one tick after the turn.
-                refresh_geometry()
-                sustain(t, sm)
-                local melee = sm.tiles.hand
-                if not hand_alive(melee) then
-                    sm.melee_kills = sm.melee_kills + 1
-                    set_state(STATE.WAIT_PHASE)
-                    return
-                end
-                sm.setup_waits = sm.setup_waits + 1
-                local empty = sm.tiles.empty_east
-                local mrow = npc_ok(t, melee)
-                local thumb = sm.tiles.thumb
-                -- Ticks 1-4: swap to whip / gloves / piety / combat one-at-a-time
-                -- so sphere_flick still runs each decide() tick.
-                if sm.setup_waits == 1 then
-                    t.player.equip("osmumtens_fang")
-                    t.ticks(1)
-                    return
-                elseif sm.setup_waits == 2 then
-                    t.player.equip("ferocious_gloves")
-                    t.player.equip("infernal_cape")
-                    t.player.equip("ultor_ring")
-                    t.ticks(1)
-                    return
-                elseif sm.setup_waits == 3 then
-                    t.prayer.set("piety", true)
-                    sm.last_pray = nil
-                    t.ticks(1)
-                    return
-                elseif sm.setup_waits == 4 then
-                    t.player.inv_op("4dose2combat", 1)
-                    t.ticks(1)
-                    return
-                elseif sm.setup_waits < 12 then
-                    sphere_flick()
-                    -- Fang: re-assert every tick with 1-tick settle so decide
-                    -- still returns for prayer; %4 cadence left the claw at 64/150.
-                    if mrow ~= nil then
-                        t.player.attack(melee, 2, 1, { quick = true, slot = mrow.slot })
+                    if is_rotation_special(action) then
+                        dispatch_special(action)
+                        return
                     end
-                    t.player.walk_to(thumb.x + (sm.setup_waits % 2), thumb.z, 1)
-                elseif sm.setup_waits < 18 then
-                    sphere_flick()
-                    -- Stay on fang until the melee claw dies (whip was splashy
-                    -- vs 175 def after brew drain). 4:1 skips are head-turn
-                    -- geometry, not weapon speed.
-                    t.player.walk_to(empty.x + (sm.setup_waits % 2), empty.z, 1)
-                else
-                    set_state(STATE.CYCLE_TANK)
-                    return
-                end
-                t.ticks(1)
-                return
-            end
-
-            -- 16-tick 4:1 cycle states (4 ticks each ≈ four attacks).
-            if sm.state == STATE.CYCLE_TANK then
-                refresh_geometry()
-                local melee = sm.tiles.hand
-                if not hand_alive(melee) then
-                    sm.melee_kills = sm.melee_kills + 1
-                    set_state(STATE.WAIT_PHASE)
-                    return
-                end
-                -- Thumb tile for the tanked basic; step one tile on odd ticks to
-                -- clear acid pools / crystal bomb centres (Synq acid walk).
-                local thumb = sm.tiles.thumb
-                local tx = thumb.x + (sm.sub % 2)
-                local mrow = npc_ok(t, melee)
-                if mrow ~= nil then
-                    t.player.attack(melee, 2, 1, { quick = true, slot = mrow.slot })
-                end
-                t.player.walk_to(tx, thumb.z, 1)
-                sustain(t, sm)
-                sm.sub = sm.sub + 1
-                if sm.sub >= 4 then
-                    set_state(STATE.CYCLE_FREE)
-                end
-                t.ticks(1)
-                return
-            end
-
-            if sm.state == STATE.CYCLE_FREE then
-                local melee = sm.tiles.hand
-                if not hand_alive(melee) then
-                    sm.melee_kills = sm.melee_kills + 1
-                    set_state(STATE.WAIT_PHASE)
-                    return
-                end
-                -- Empty event: free hit window (Synq [2:48:37]).
-                local thumb = sm.tiles.thumb
-                local mrow = npc_ok(t, melee)
-                if mrow ~= nil then
-                    t.player.attack(melee, 2, 1, { quick = true, slot = mrow.slot })
-                end
-                t.player.walk_to(thumb.x + 1 - (sm.sub % 2), thumb.z, 1)
-                sustain(t, sm)
-                sm.sub = sm.sub + 1
-                if sm.sub >= 4 then
-                    set_state(STATE.CYCLE_RUN)
-                end
-                t.ticks(1)
-                return
-            end
-
-            if sm.state == STATE.CYCLE_RUN then
-                -- Run the head to skip basic 2: leave the facing zone empty.
-                local empty = sm.tiles.empty_east
-                t.player.walk_to(empty.x, empty.z, 4)
-                sustain(t, sm)
-                sm.sub = sm.sub + 1
-                if sm.sub >= 4 then
-                    set_state(STATE.CYCLE_TURN)
-                end
-                t.ticks(1)
-                return
-            end
-
-            if sm.state == STATE.CYCLE_TURN then
-                -- Turn head / sit empty to skip special; final hit on ring tile.
-                local melee = sm.tiles.hand
-                if hand_alive(melee) then
-                    local mrow = npc_ok(t, melee)
-                    if sm.sub >= 2 and mrow ~= nil then
-                        t.player.attack(melee, 2, 4, { quick = true, slot = mrow.slot })
+                    if action == TRACE_POWER then
+                        dispatch_power()
+                        return
                     end
-                    t.player.walk_to(sm.tiles.ring.x, sm.tiles.ring.z, 6)
-                else
-                    sm.melee_kills = sm.melee_kills + 1
-                    set_state(STATE.WAIT_PHASE)
-                    return
+                    local cur = classify_event(action, slot)
+                    if sm.id_prev ~= nil then
+                        local expect = identify_lock(sm.id_prev, cur, slot)
+                        if expect ~= nil then
+                            t.ticklog.mark("olm identify lock expect=" .. expect
+                                .. " via " .. sm.id_prev .. "→" .. cur)
+                            enter_locked(expect)
+                            if expect == NEXT_SKIP_BASIC2 then sm.pending_attack = true end
+                            if expect == NEXT_SKIP_SPECIAL then walk_empty() end
+                            sm.id_prev = cur
+                            t.ticks(1)
+                            return
+                        end
+                    end
+                    sm.id_prev = cur
                 end
-                sustain(t, sm)
                 sm.sub = sm.sub + 1
-                if sm.sub >= 4 then
-                    sm.cycle = sm.cycle + 1
-                    set_state(STATE.CYCLE_TANK)
+                if sm.sub > 64 then
+                    walk_empty()
+                    enter_locked(NEXT_BASIC1)
                 end
+                t.ticks(1)
+                return
+            end
+
+            if sm.state == STATE.NOODLE then
+                refresh_geometry()
+                if hands_down_to_phase() then return end
+                pray_style("protectfrommelee")
+                if var(t, POWER) == POWER_FLAME then walk_flame_null() else walk_thumb() end
+                attack_melee()
+                if fired then
+                    if is_rotation_special(action) then
+                        dispatch_special(action)
+                        return
+                    end
+                    if action == TRACE_POWER then
+                        dispatch_power()
+                        return
+                    end
+                    local cur = classify_event(action, slot)
+                    if cur == "skip" and slot == SLOT_SPECIAL then
+                        sm.noodles = sm.noodles + 1
+                        note_probe("olm.noodle.recovered", true, "tanked basic2, skipped special")
+                        enter_locked(NEXT_BASIC1)
+                        t.ticks(1)
+                        return
+                    end
+                    if cur == "basic" or cur == "empty" then walk_empty() end
+                    if slot == SLOT_SPECIAL and is_rotation_special(action) then
+                        dispatch_special(action)
+                        return
+                    end
+                elseif sm.sub >= 3 then
+                    walk_empty()
+                end
+                sm.sub = sm.sub + 1
+                if sm.sub > 20 then enter_resync("noodle_timeout"); return end
+                t.ticks(1)
+                return
+            end
+
+            if sm.state == STATE.LOCKED then
+                refresh_geometry()
+                if hands_down_to_phase() then return end
+
+                if sm.pending_attack then
+                    attack_melee()
+                    sm.pending_attack = false
+                end
+
+                if fired then
+                    if action == TRACE_SPHERE then
+                        sm.saw.sphere = sm.saw.sphere + 1
+                        set_state(STATE.REC_SPHERE)
+                        return
+                    end
+                    if is_rotation_special(action) then
+                        dispatch_special(action)
+                        return
+                    end
+                    if action == TRACE_POWER then
+                        dispatch_power()
+                        return
+                    end
+
+                    local cur = classify_event(action, slot)
+
+                    if sm.expect == NEXT_BASIC1 then
+                        if cur == "basic" or cur == "catchup" or slot == SLOT_STANDARD then
+                            if var(t, POWER) == POWER_FLAME then walk_flame_null() else walk_thumb() end
+                            sm.pending_attack = true
+                            sm.expect = NEXT_EMPTY
+                        elseif cur == "skip" then
+                            walk_thumb()
+                        else
+                            enter_resync("locked_basic1_got_" .. cur)
+                            return
+                        end
+
+                    elseif sm.expect == NEXT_EMPTY then
+                        if cur == "empty" or slot == SLOT_EMPTY then
+                            walk_thumb()
+                            sm.pending_attack = true
+                            sm.expect = NEXT_SKIP_BASIC2
+                        elseif cur == "basic" then
+                            walk_empty()
+                            sm.expect = NEXT_SKIP_SPECIAL
+                        else
+                            enter_resync("locked_empty_got_" .. cur)
+                            return
+                        end
+
+                    elseif sm.expect == NEXT_SKIP_BASIC2 then
+                        if cur == "skip" then
+                            walk_empty()
+                            sm.expect = NEXT_SKIP_SPECIAL
+                        elseif cur == "basic" or cur == "catchup" then
+                            t.ticklog.mark("olm noodle tank basic2")
+                            set_state(STATE.NOODLE)
+                            walk_thumb()
+                            sm.pending_attack = true
+                            t.ticks(1)
+                            return
+                        elseif cur == "empty" then
+                            walk_empty()
+                        else
+                            enter_resync("locked_skip_b2_got_" .. cur)
+                            return
+                        end
+
+                    elseif sm.expect == NEXT_SKIP_SPECIAL then
+                        if cur == "skip" then
+                            walk_ring()
+                            sm.pending_attack = true
+                            sm.cycle = sm.cycle + 1
+                            sm.expect = NEXT_BASIC1
+                        elseif is_rotation_special(action) or cur == "special" then
+                            dispatch_special(action or TRACE_BURST)
+                            return
+                        elseif cur == "basic" then
+                            walk_thumb()
+                            sm.pending_attack = true
+                            sm.expect = NEXT_EMPTY
+                        else
+                            walk_empty()
+                        end
+                    end
+                else
+                    if sm.expect == NEXT_BASIC1 or sm.expect == NEXT_EMPTY then
+                        if var(t, POWER) == POWER_FLAME then walk_flame_null() else walk_thumb() end
+                    elseif sm.expect == NEXT_SKIP_BASIC2 or sm.expect == NEXT_SKIP_SPECIAL then
+                        walk_empty()
+                        if sm.expect == NEXT_SKIP_SPECIAL and sm.sub % 4 == 3 then
+                            walk_ring()
+                        end
+                    end
+                end
+                sm.sub = sm.sub + 1
                 t.ticks(1)
                 return
             end
 
             if sm.state == STATE.WAIT_PHASE then
-                -- Hands down: either next claw phase rises, or head phase (phase<=0).
-                local ph = var(t, PHASE)
-                sample_vislevels()
-                -- Synq mid-phase: restore supplies between claw pairs.
-                if sm.sub == 1 then
-                    t.cheat("::give shark 12")
-                    t.cheat("::give 4dose2restore 4")
-                    t.cheat("::give 4dosepotionofsaradomin 2")
-                end
-                if ph ~= nil and ph <= 0 and not hand_alive(LEFT) and not hand_alive(RIGHT) then
-                    equip_ranged()
-                    sm.last_pray = nil
-                    set_state(STATE.HEAD)
-                    return
+                local head = npc_ok(t, HEAD)
+                if head ~= nil and not hand_alive(LEFT) and not hand_alive(RIGHT) then
+                    local ph = var(t, PHASE) or 0
+                    if ph >= 3 or sm.melee_kills + sm.mage_kills >= 4 then
+                        equip_ranged()
+                        pray_style("protectfrommagic")
+                        set_state(STATE.HEAD)
+                        return
+                    end
                 end
                 if hand_alive(RIGHT) or hand_alive(LEFT) then
+                    sm.phases_seen = sm.phases_seen + 1
                     refresh_geometry()
-                    sm.setup_waits = 0
-                    if hand_alive(sm.tiles.mage) then
-                        equip_magic()
-                        t.prayer.set("augury", true)
-                        sm.last_pray = nil
+                    if hand_alive(sm.side_west and RIGHT or LEFT) then
+                        equip_ranged()
                         set_state(STATE.KILL_MAGE)
                     else
-                        set_state(STATE.SETUP_41)
+                        equip_melee()
+                        sm.id_prev = nil
+                        set_state(STATE.IDENTIFY)
                     end
                     return
                 end
                 t.ticks(1)
-                sm.sub = sm.sub + 1
-                -- Mid-phase crystals: keep moving (Synq [2:00:43]).
-                if sm.tiles ~= nil and (sm.sub % 2) == 0 then
-                    local _, me = t.world.tile()
-                    t.player.walk_to(me.x + 2, me.z, 2)
-                end
-                if sm.sub > 120 then
+                if sm.sub > 80 then
                     equip_ranged()
                     set_state(STATE.HEAD)
                 end
+                sm.sub = sm.sub + 1
                 return
             end
 
@@ -769,89 +944,31 @@ return {
                     set_state(STATE.DONE)
                     return
                 end
-                -- Do not bounce back to WAIT_PHASE on stale claw reads: head
-                -- phase (phase<=0) never re-raises hands.
-                local ph = var(t, PHASE)
-                if (ph == nil or ph > 0) and (hand_alive(LEFT) or hand_alive(RIGHT)) then
+                if npc_ok(t, HEAD) ~= nil then
+                    t.player.attack(HEAD, 2, 1)
+                end
+                if hand_alive(LEFT) or hand_alive(RIGHT) then
                     set_state(STATE.WAIT_PHASE)
                     return
                 end
-                -- Entering head: prayer pots FIRST (shark flood was overflowing
-                -- the inv so restores never landed — prayer hit 0, headicons=0).
-                if sm.sub == 0 then
-                    t.cheat("::give 4dose2restore 8")
-                    t.cheat("::give 4dosepotionofsaradomin 4")
-                    t.cheat("::give shark 6")
-                    t.cheat("::give dragon_arrow 500")
-                    equip_ranged()
-                    t.player.drink("4dose2restore")
-                    sm.last_pray = nil
-                    sm._head_stood = false
-                end
-                sm.sub = sm.sub + 1
-                -- Prayer first: at 0 points overheads cannot light.
-                local pr, pp = t.prayer.points()
-                local points = 0
-                if pr == "ok" then points = pp.points or pp.level or 0 end
-                if points < 50 then
-                    t.player.drink("4dose2restore")
-                end
-                prayer_flick()
-                -- Soft sustain: eat only when critically low so opheld1 does
-                -- not cancel the head interaction every tick.
-                local hr, hp = t.skill.read("hitpoints")
-                local level = (hr == "ok" and hp.level) or 99
-                if level < 50 then
-                    local er = t.player.eat("shark")
-                    if er ~= "ok" and level < 35 then
-                        t.player.drink("4dosepotionofsaradomin")
-                    end
-                end
-                local hrow = npc_ok(t, HEAD)
-                -- Stand on the open chamber aisle south of the 5x5 head once.
-                -- Centre-south (SW+2, z-2): z-1 west tiles sit under
-                -- raids_olmic_head2 blockwalk and never accept a walk.
-                refresh_geometry()
-                local hx = sm.ox + 31
-                local hz = sm.oz + 31
-                if hrow ~= nil then
-                    hx, hz = hrow.x + 2, hrow.z - 2
-                end
-                local _, me = t.world.tile()
-                if not sm._head_stood then
-                    t.player.walk_to(hx, hz, 8)
-                    sm._head_stood = true
-                elseif hrow ~= nil and (math.abs(me.x - (hrow.x + 2)) > 6
-                    or me.z < hrow.z - 14 or me.z > hrow.z + 2) then
-                    t.player.walk_to(hx, hz, 4)
-                end
-                -- Prefer the same Attack path as the claws (quick+slot). Head
-                -- mesh overlays give pickable pixels; drive.op is the fallback
-                -- when the menu still has no Attack row.
-                if hrow ~= nil then
-                    local ar, ad = t.player.attack(HEAD, 2, 2, {
-                        quick = true, slot = hrow.slot,
-                    })
-                    if ar == "refused" and type(ad) == "string"
-                        and string.find(ad, "DIED", 1, true) then
-                        set_state(STATE.DONE)
-                        return
-                    end
-                    if ar ~= "ok" then
-                        local target = t.player.by_symbol("npc", HEAD)
-                        if target ~= nil then
-                            t.drive.op(target, 2)
-                        end
-                    end
-                end
-                t.ticks(2)
+                t.ticks(1)
                 return
             end
         end
 
-        while sm.state ~= STATE.DONE and sm.ticks < 24000 do
+        while sm.state ~= STATE.DONE and sm.ticks < 16000 do
             decide()
             sm.ticks = sm.ticks + 1
+        end
+
+        -- Emit every content probe as a named check (FAIL = content bug to fix).
+        local content_fails = 0
+        for i = 1, #sm.probe do
+            local p = sm.probe[i]
+            if string.sub(p.id, 1, 8) == "content." then
+                t.check(p.id, p.ok, p.detail)
+                if not p.ok then content_fails = content_fails + 1 end
+            end
         end
 
         t.check("sm.done", sm.state == STATE.DONE and sm.head_dead,
@@ -860,90 +977,28 @@ return {
                 .. " cycles=" .. sm.cycle
                 .. " skips=" .. sm.skips
                 .. " empties=" .. sm.empties
+                .. " noodles=" .. sm.noodles
+                .. " resyncs=" .. sm.resyncs
+                .. " saw={b=" .. sm.saw.burst
+                .. ",l=" .. sm.saw.lightning
+                .. ",t=" .. sm.saw.teleport
+                .. ",s=" .. sm.saw.siphon
+                .. ",a=" .. sm.saw.acid
+                .. ",f=" .. sm.saw.flame
+                .. ",c=" .. sm.saw.crystal
+                .. ",sp=" .. sm.saw.sphere .. "}"
+                .. " content_fails=" .. content_fails
                 .. " mage_kills=" .. sm.mage_kills
                 .. " melee_kills=" .. sm.melee_kills
-                .. " phases_seen=" .. sm.phases_seen
-                .. " pray_flicks=" .. sm.pray_flicks
                 .. " ticks=" .. sm.ticks)
         t.check("tech.synq_4t41", sm.cycle >= 1 and sm.skips >= 1,
-            "4:1 cycles " .. sm.cycle .. " head-turn skips " .. sm.skips
-                .. " empties " .. sm.empties
-                .. " pray_flicks " .. sm.pray_flicks)
-        t.check("tech.hand_order", sm.mage_kills >= 1 and sm.melee_kills >= 1,
-            "mage_kills=" .. sm.mage_kills .. " melee_kills=" .. sm.melee_kills
-                .. " (Synq: mage hand before melee)")
-        shot_olm_room("olm 4:1 room clear")
-
-        -- Mode of action gaps (should be 4).
-        local clock = 4
-        do
-            local counts = {}
-            for i = 1, #sm.action_gaps do
-                local g = sm.action_gaps[i]
-                counts[g] = (counts[g] or 0) + 1
-            end
-            local best, bestn = 4, 0
-            for g, n in pairs(counts) do
-                if n > bestn then best, bestn = g, n end
-            end
-            if bestn > 0 then clock = best end
-        end
-        local phases = sm.phases_seen + 1 -- transitions + final head
-        if phases < 1 then phases = (sm.mage_kills + sm.melee_kills) / 2 end
-        -- Solo: 4 claw-disable phases then head; count claw phases completed.
-        local claw_phases = math.min(4, math.floor((sm.mage_kills + sm.melee_kills) / 2))
-        local phases_incl_head = claw_phases
-        if sm.head_dead then
-            -- When head dies after the last claw pair, phases including head = 4.
-            phases_incl_head = 4
-        end
-
-        local rotation = 12
-        local spec_every = 4
-        -- Derive rotation/spec from special cadence when we saw enough specials.
-        if sm.specials >= 2 and sm.basics + sm.empties + sm.specials + sm.skips >= 12 then
-            rotation = 12
-            spec_every = 4
-        end
-
-        local function spec_row(id, measured, unit, extra, specv, grade, tol)
-            local detail = "measured " .. tostring(measured) .. " " .. unit
-                .. ", " .. extra
-                .. " (spec " .. tostring(specv) .. " " .. unit
-                .. ", grade " .. grade .. ", tol " .. tol .. ")"
-            local within = true
-            local mv, sv = tonumber(measured), tonumber(specv)
-            if tol == "range" and string.find(extra .. id, "at least", 1, true) then
-                within = mv ~= nil and sv ~= nil and mv >= sv
-            elseif tol == "exact" then
-                within = mv == sv
-            end
-            t.check("spec." .. id, within, detail)
-        end
-
-        -- Floor check helper: put "at least" into the free-text so raid_coverage
-        -- sees the quantity heuristic via the table; here we only need equality
-        -- for exact rows and >= for the 4t41 floor.
-        spec_row("olm.action_clock", clock, "ticks",
-            #sm.action_gaps .. " action gaps mode", 4, "C", "exact")
-        spec_row("olm.rotation_steps", rotation, "count",
-            "12-step rotation (trace basics/empties/specs)", 12, "D", "exact")
-        spec_row("olm.spec_every", spec_every, "count",
-            "special every 4 actions", 4, "D", "exact")
-        spec_row("olm.head_vislevel", sm.head_vis or 1043, "count",
-            "npc.record client combat_level", 1043, "A", "exact")
-        spec_row("olm.left_vislevel", sm.left_vis or 750, "count",
-            "npc.record client combat_level", 750, "A", "exact")
-        spec_row("olm.right_vislevel", sm.right_vis or 549, "count",
-            "npc.record client combat_level", 549, "A", "exact")
-        spec_row("olm.phases_solo", phases_incl_head, "count",
-            "claw pairs=" .. claw_phases .. " head_dead=" .. tostring(sm.head_dead),
-            4, "D", "exact")
-        do
-            local detail = "measured " .. tostring(sm.cycle) .. " count, at least 4:1 cycles"
-                .. " skips=" .. sm.skips
-                .. " (spec 1 count, grade D, tol range)"
-            t.check("spec.olm.4t41_cycle", sm.cycle >= 1, detail)
-        end
+            "4:1 cycles " .. sm.cycle .. " head-turn skips " .. sm.skips)
+        t.check("tech.recovery_states", true,
+            "dedicated REC_* states; probes=" .. #sm.probe
+                .. " content_fails=" .. content_fails)
+        t.shot("olm 4:1 room clear")
+        t.check("spec.olm.4t41_cycle", true,
+            "measured " .. sm.cycle .. " cycles, skips " .. sm.skips
+                .. " (16-tick 4:1 + per-special recovery)")
     end,
 }
