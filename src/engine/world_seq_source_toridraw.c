@@ -114,14 +114,6 @@ world_seq_source_toridraw_priority(
 }
 
 static int
-world_seq_source_toridraw_resident(
-    void* userdata,
-    int seq_id)
-{
-    return world_seq_source_toridraw_anim(userdata, seq_id) != NULL;
-}
-
-static int
 world_seq_source_toridraw_duplicate_behavior(
     void* userdata,
     int seq_id)
@@ -189,5 +181,4 @@ WorldSeqSourceToriDraw_Fill(
     out_seq_source->postanim_move = world_seq_source_toridraw_postanim_move;
     out_seq_source->stretches = world_seq_source_toridraw_stretches;
     out_seq_source->spotanim_seq = world_seq_source_toridraw_spotanim_seq;
-    out_seq_source->resident = world_seq_source_toridraw_resident;
 }
