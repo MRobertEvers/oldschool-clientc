@@ -37,6 +37,12 @@ plus dedicated recovery that returns via `IDENTIFY`:
 
 Gate run turns OPEN rows into named `content.olm.*` check failures.
 
+## Kit
+
+Setup pack is **28 slots**: 6 range-switch + restore 4 + sara 4 + combat 2 +
+shark 12. The prior shark-24 kit overfilled and potions never landed (setup
+FAIL). Potions are given before food.
+
 ## Next
 
 ```sh

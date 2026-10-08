@@ -166,12 +166,14 @@ return {
         "::give masori_body",
         "::give masori_chaps",
         "::give avas_assembler",
-        "::give shark 24",
-        -- Non-br restores (same as cox_olm.lua); br_* answered ok but never
-        -- landed in the backpack on this pack (gate setup FAIL 2026-10-07).
-        "::give 4dose2restore 8",
-        "::give 4dosepotionofsaradomin 6",
+        -- Pack must stay ≤28. Six range-switch slots leave 22 for supplies.
+        -- Prior kit (shark 24 + restore 8 + sara 6 + combat 2) was 46 and
+        -- failed setup: ::give answered ok but potions never landed (ledger
+        -- 2026-10-07 / muttadiles run27 same trap). Potions before food.
+        "::give 4dose2restore 4",
+        "::give 4dosepotionofsaradomin 4",
         "::give 4dose2combat 2",
+        "::give shark 12",
     },
 
     run = function(t)
