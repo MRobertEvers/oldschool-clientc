@@ -170,10 +170,12 @@ return {
         -- Prior kit (shark 24 + restore 8 + sara 6 + combat 2) was 46 and
         -- failed setup: ::give answered ok but potions never landed (ledger
         -- 2026-10-07 / muttadiles run27 same trap). Potions before food.
+        -- Bias food: mage-hand phase burned 12 sharks + 4 sara then died
+        -- (ledger player.died at 6421,156). Mid-run kit-give tops up.
         "::give 4dose2restore 4",
-        "::give 4dosepotionofsaradomin 4",
+        "::give 4dosepotionofsaradomin 2",
         "::give 4dose2combat 2",
-        "::give shark 12",
+        "::give shark 14",
     },
 
     run = function(t)
@@ -243,17 +245,41 @@ return {
             t.prayer.set("piety", true)
         end
 
+        local function inv_count(sym)
+            local r, n = t.inv.count(sym)
+            if r == "ok" then return n end
+            return 0
+        end
+
+        local function resupply()
+            -- Full Olm kill outlasts one backpack; top up when low (same
+            -- pattern as guardians / vasa mid-run kit-give).
+            if inv_count("shark") < 6 then
+                t.cheat("::give shark 12") -- lint: kit-give olm solo fight food
+            end
+            if inv_count("4dose2restore") < 1 then
+                t.cheat("::give 4dose2restore 2") -- lint: kit-give olm solo prayer
+            end
+            if inv_count("4dosepotionofsaradomin") < 1 then
+                t.cheat("::give 4dosepotionofsaradomin 2") -- lint: kit-give olm solo brew
+            end
+        end
+
         local function sustain()
+            resupply()
             local hp = hp_level(t)
-            if hp ~= nil and hp < 55 then
+            if hp ~= nil and hp < 70 then
                 if t.player.eat("shark") ~= "ok" then
                     t.player.inv_op("4dosepotionofsaradomin", 1)
                 end
             end
+            if hp ~= nil and hp < 45 then
+                t.player.inv_op("4dosepotionofsaradomin", 1)
+            end
             local pr, pp = t.prayer.points()
             local points = 0
             if pr == "ok" then points = pp.points or pp.level or 0 end
-            if points < 30 then
+            if points < 40 then
                 t.player.drink("4dose2restore")
             end
         end
