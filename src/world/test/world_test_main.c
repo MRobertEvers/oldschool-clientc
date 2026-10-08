@@ -54,6 +54,7 @@ main(void)
     test_cold_seq_is_parked_not_refused();
     test_action_anim_hands_back_to_the_readyanim_loop_point();
     test_entity_spotanim_holds_until_resident();
+    test_entity_spotanim_without_a_seq_retires();
     test_npc_retype_keeps_animation();
     test_line_of_sight();
     test_line_of_sight_asymmetry();

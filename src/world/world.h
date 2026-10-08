@@ -163,11 +163,18 @@ struct World_SeqSource
      * stretching primary action registers with the painter over the tile ahead
      * and does not draw in front of a wall it should sit behind. */
     int (*stretches)(void* userdata, int seq_id);
-    /* Resolve a spotanim (SpotType) id to its animation seq id (-1 if none or
-     * not yet resident). Lets the world step an entity's attached-graphic frame
-     * from the spot's own seq without pulling in cache/config types. */
+    /* Resolve a spotanim (SpotType) id to its animation seq id. Lets the world
+     * step an entity's attached-graphic frame from the spot's own seq without
+     * pulling in cache/config types. -1 while it cannot be drawn yet (the
+     * world waits); WORLD_SPOTANIM_SEQ_NONE when it has resolved to nothing
+     * to play -- no seq, or a seq that failed to load -- and the world retires
+     * the graphic, as the reference does the cycle one comes due without a
+     * valid seq (deob Statics ~40085, `var13.method3011()`). */
     int (*spotanim_seq)(void* userdata, int spotanim_id);
 };
+
+/* World_SeqSource.spotanim_seq's "resolved, nothing to play". */
+#define WORLD_SPOTANIM_SEQ_NONE (-2)
 
 /*
  * Where an entity animation's per-frame sounds go.

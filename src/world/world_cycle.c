@@ -806,9 +806,14 @@ World_StepEntityAnimation(
         int seq = world->seq_source.spotanim_seq
                       ? world->seq_source.spotanim_seq(world->seq_source.userdata, spot->id)
                       : -1;
-        int count = cycle_seq_frame_count(world, seq);
+        int count = seq >= 0 ? cycle_seq_frame_count(world, seq) : 0;
 
-        if( spot->frame < 0 )
+        /* Due, and nothing to play: the reference unlinks it on this cycle.
+         * Waiting instead pinned the entity's graphic slot -- and the app's
+         * combine entry -- until the entity despawned. */
+        if( seq == WORLD_SPOTANIM_SEQ_NONE )
+            spot->id = -1;
+        else if( spot->frame < 0 )
             spot->frame = 0;
         /* The clock runs only while the graphic can be drawn. It used to tick
          * through the load as well, and the first cycle the seq resolved spent

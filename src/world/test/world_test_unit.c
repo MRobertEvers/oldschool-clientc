@@ -2050,7 +2050,9 @@ static int
 spot_test_spotanim_seq(void* userdata, int spotanim_id)
 {
     (void)userdata;
-    (void)spotanim_id;
+    /* 85 stands for a graphic with no seq: resolved, nothing to play. */
+    if( spotanim_id == 85 )
+        return g_spot_test_resident ? WORLD_SPOTANIM_SEQ_NONE : -1;
     return g_spot_test_resident ? 900 : -1;
 }
 
@@ -2100,6 +2102,41 @@ test_entity_spotanim_holds_until_resident(void)
     for( int i = 0; i < 8 && npc->spotanim.id != -1; i++ )
         World_Cycle(world, 1);
     TEST_ASSERT(npc->spotanim.id == -1, "and it ends after playing its frames once");
+
+    World_Free(world);
+}
+
+/*
+ * A graphic that resolves to nothing to play retires the cycle it comes due.
+ *
+ * The reference unlinks a spot whose seq is not valid on its first due cycle.
+ * Ours waited for frames that would never come, so the entity carried a dead
+ * graphic -- and the app a combine entry -- until it despawned. Loading is
+ * still a wait: only the resolved answer retires it.
+ */
+void
+test_entity_spotanim_without_a_seq_retires(void)
+{
+    printf("TEST: an entity graphic with nothing to play retires when due\n");
+
+    struct World* world = World_TestMakeReady(104);
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+    int ni = World_NpcSpawn(world, 7, 1234, 1, 20, 20, 5, idle);
+    struct WorldEntity_NPC* npc = World_EntityPoolGet(&world->entities.npc, ni);
+
+    world->seq_source.spotanim_seq = spot_test_spotanim_seq;
+    world->seq_source.frame_count = spot_test_frame_count;
+    world->seq_source.frame_duration = spot_test_frame_duration;
+
+    g_spot_test_resident = 0;
+    World_NpcSetSpotanim(world, ni, 85, 0, 2);
+    for( int i = 0; i < 10; i++ )
+        World_Cycle(world, 1);
+    TEST_ASSERT(npc->spotanim.id == 85, "still loading: it waits");
+
+    g_spot_test_resident = 1;
+    World_Cycle(world, 1);
+    TEST_ASSERT(npc->spotanim.id == -1, "resolved to nothing: retired on that cycle");
 
     World_Free(world);
 }

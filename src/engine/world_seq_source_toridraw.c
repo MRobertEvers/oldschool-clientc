@@ -164,8 +164,17 @@ world_seq_source_toridraw_spotanim_seq(
     struct WorldSeqSourceToriDraw const* source = (struct WorldSeqSourceToriDraw const*)userdata;
     struct ToriRS_Spotanimtype* spot =
         spotanim_id >= 0 ? CacheProvider_SpotanimtypeGet(source->provider, spotanim_id) : NULL;
+    struct ToriDraw_Animation* anim;
+
     if( !spot )
         return -1;
+    if( spot->seq < 0 )
+        return WORLD_SPOTANIM_SEQ_NONE;
+    /* A failed load registers an empty placeholder; one still loading is not
+     * registered at all. Only the first is final. */
+    anim = WorldSeqSourceToriDraw_Animation(source, spot->seq);
+    if( anim && anim->frame_count <= 0 )
+        return WORLD_SPOTANIM_SEQ_NONE;
     if( spot->model >= 0 && !CacheProvider_ModelGet(source->provider, spot->model) )
         return -1;
     return spot->seq;

@@ -160,6 +160,7 @@ void test_action_anim_restarts_the_readyanim(void);
 void test_cold_seq_is_parked_not_refused(void);
 void test_action_anim_hands_back_to_the_readyanim_loop_point(void);
 void test_entity_spotanim_holds_until_resident(void);
+void test_entity_spotanim_without_a_seq_retires(void);
 void test_npc_retype_keeps_animation(void);
 void test_line_of_sight(void);
 void test_line_of_sight_asymmetry(void);
