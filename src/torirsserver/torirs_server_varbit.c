@@ -210,6 +210,26 @@ ToriRSServer_VarbitMaxBasevar(void)
 }
 
 int
+ToriRSServer_VarbitRange(
+    int varbit_id,
+    int* basevar,
+    int* startbit,
+    int* endbit)
+{
+    assert(basevar);
+    assert(startbit);
+    assert(endbit);
+    if( varbit_id < 0 || varbit_id >= g_varbit_count || !g_varbits )
+        return 0;
+    if( g_varbits[varbit_id].basevar < 0 )
+        return 0;
+    *basevar = g_varbits[varbit_id].basevar;
+    *startbit = g_varbits[varbit_id].startbit;
+    *endbit = g_varbits[varbit_id].endbit;
+    return 1;
+}
+
+int
 ToriRSServer_VarbitCarrierBits(int varp)
 {
     if( !g_carrier_bits || varp < 0 || varp >= g_carrier_count )

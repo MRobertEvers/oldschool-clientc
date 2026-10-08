@@ -399,6 +399,13 @@ ToriRSServer_Send(
         }
     }
 
+    /* The in-process script runner's perception (torirs_server_scriptrun.c):
+     * every payload addressed to a player, exactly as a client would decode
+     * it, handed over before the session check because its bots have no
+     * session. Whole payloads, never cut, and in send order. */
+    if( srv && srv->packet_sink )
+        srv->packet_sink(player, pkt_name, payload, len, srv->packet_sink_ctx);
+
     /*
      * No session is a world with no client — the selftest. Everything above
      * this point still ran, so the capture saw the packet.

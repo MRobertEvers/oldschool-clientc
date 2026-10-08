@@ -4712,7 +4712,23 @@ test-revconfig: $(OBJ_DIR)
 # list is also what EMBED_SERVER=1 links into the client, which has no listener
 # and drives ToriRSServer_EmbedPump itself.
 TORIRSSERVER_SRCS = torirsserver/torirs_server_main.c torirsserver/torirs_server_host.c \
-	net/jbase37.c net/wordpack.c $(TORIRSSERVER_CORE_SRCS)
+	net/jbase37.c net/wordpack.c $(TORIRSSERVER_CORE_SRCS) $(SCRIPTRUN_SRCS)
+# --scriptrun (torirsserver/torirs_server_scriptrun.c): the in-process script
+# runner, standalone server only -- never TORIRSSERVER_CORE_SRCS, which the
+# embedded client also compiles and which would then carry a second copy of the
+# client files below and of scriptrun_stubs.c's link stand-ins. Its bots perceive
+# through the CLIENT's own parser, entity decoders and world model, listed here.
+SCRIPTRUN_SRCS = torirsserver/torirs_server_scriptrun.c scriptrun/scriptrun_core.c \
+	scriptrun/scriptrun_stubs.c \
+	net/rev/gameproto_parse.c net/rev/osrs239/gameproto_rev_osrs239.c net/rev/rsprot_bridge.c \
+	net/rev/osrs239/osrs239_parse.c net/loginproto_osrs239.c \
+	net/rev/osrs230/osrs230_parse.c net/pow_sha256.c net/sha256.c \
+	net/rev/packets/pkt_npc_info.c net/rev/packets/pkt_player_info.c \
+	net/rev/packets/pkt_player_appearance.c net/rev/packets/pkt_rebuild_region.c net/rev/packets/pkt_rebuild_normal.c \
+	world/world.c world/world_cycle.c world/entity_pool.c world/world_entity.c \
+	world/entity_pathing.c world/entity_registry.c game/rs_entity_sync.c \
+	scriptrun/scriptrun_collision.c engine/torirs_types.c engine/torirs_map_from_rscache.c \
+	engine/torirs_location_from_rscache.c
 # Dedicated read-only, multi-client JS5 cache service.
 #
 # It is separate from ToriRSServer because a client uses ONE port for JS5 and the
@@ -4754,13 +4770,19 @@ mock-js5: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 # build: a selftest row added to torirs_server_world_selftest.c was silently
 # absent from the binary that ran, and an absent row cannot fail, so it reads
 # exactly like a passing one. Found after a mutation refused to bite twice.
+# --scriptrun (torirs_server_scriptrun.c) hosts the quest driver's Lua parts
+# inside the server, so the server links the same Lua 5.5 object the client's
+# plugin host does (lua_unity.o) and compiles with its include path.
 torirsserver: $(OBJ_DIR) $(TORIRSSERVER_SRCS) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
-		$(OBJ_DIR)/rsprot_buf.o
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/torirsserver $(TORIRSSERVER_SRCS) \
+		$(OBJ_DIR)/rsprot_buf.o $(OBJ_DIR)/lua_unity.o \
+		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o
+	$(CC) $(CFLAGS) -I$(LUA_DIR) $(RSPROT_INCLUDES) -o $(OBJ_DIR)/torirsserver $(TORIRSSERVER_SRCS) \
 		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
-		$(OBJ_DIR)/rsprot_buf.o -lm $(JS5_SOCKET_LIBS)
+		$(OBJ_DIR)/rsprot_buf.o $(OBJ_DIR)/lua_unity.o \
+		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o \
+		-lm $(JS5_SOCKET_LIBS)
 	@echo "built $(OBJ_DIR)/torirsserver"
 
 # ---- ToriRSMapEd -----------------------------------------------------------

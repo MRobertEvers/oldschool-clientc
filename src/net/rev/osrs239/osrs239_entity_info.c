@@ -144,6 +144,33 @@ osrs239_playerinfo_set_local(int local_index)
     g_player.local_index = local_index;
 }
 
+/*
+ * The table above, parked and restored by a host that decodes SEVERAL players'
+ * streams in one process (the server's in-process script runner,
+ * scriptrun/scriptrun_core.c): each bot's table is loaded before its packets and
+ * saved after, so one bot's high-resolution set never reads another's stream.
+ * A client decodes one stream and never calls these.
+ */
+size_t
+osrs239_playerinfo_state_size(void)
+{
+    return sizeof(g_player);
+}
+
+void
+osrs239_playerinfo_state_save(void* out)
+{
+    assert(out);
+    memcpy(out, &g_player, sizeof(g_player));
+}
+
+void
+osrs239_playerinfo_state_load(void const* in)
+{
+    assert(in);
+    memcpy(&g_player, in, sizeof(g_player));
+}
+
 void
 osrs239_playerinfo_init(
     uint8_t const* data,

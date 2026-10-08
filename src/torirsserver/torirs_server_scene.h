@@ -714,6 +714,11 @@ ToriRSServer_SceneWalkBlocked(
     int x,
     int z);
 
+struct RSCache_Dat2ConfigLoc;
+/** A fresh decode of a loc's client record (caller frees); NULL when none. */
+struct RSCache_Dat2ConfigLoc*
+ToriRSServer_SceneLocConfigDecode(int loc_id);
+
 /**
  * LostCity `HuntVis`: 0 = off, 1 = lineofsight, 2 = lineofwalk.
  *

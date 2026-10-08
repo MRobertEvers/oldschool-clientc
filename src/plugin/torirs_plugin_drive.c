@@ -107,64 +107,7 @@ static int g_compose_capacity;
  * prepended to it, in this order, and the entry file is the ONLY one with a
  * top-level `return plugin` -- a part with one would truncate the chunk.
  */
-static char const* const DRIVE_SCRIPT_PARTS[] = {
-    "plugins/quest_driver/core.lua",
-    "plugins/quest_driver/state.lua",
-    "plugins/quest_driver/chat.lua",
-    "plugins/quest_driver/read.lua",
-    "plugins/quest_driver/pointer.lua",
-    "plugins/quest_driver/world.lua",
-    "plugins/quest_driver/ui.lua",
-    "plugins/quest_driver/quest.lua",
-    "plugins/quest_driver/combat.lua",
-    /* After combat.lua, which only needs to follow pointer.lua and state.lua:
-     * sail.lua wraps nothing, it adds QD.sail (docs/QUEST_SUITE_KIT.md). */
-    "plugins/quest_driver/sail.lua",
-    "plugins/quest_driver/session.lua",
-    /* After combat.lua: t.player.cast stamps QD._combat_last, the record
-     * npc.await_dead_engaged holds (seam cast_spell_on_npc, 2026-09-27). */
-    "plugins/quest_driver/spell.lua",
-    /* The raid seam (docs/RAID_ORCHESTRATOR.md section 4): prayer.lua adds
-     * QD.prayer, raid.lua adds QD.raid, ticklog.lua adds QD.ticklog, and
-     * waves.lua (QD.wave, docs/WAVES_ORCHESTRATOR.md section 5) the waves
-     * loop's verbs. Since seam22 raid.lua wraps three things (combat.lua's
-     * death fence and state.lua's death record for a party member,
-     * ticklog.lua's rows for `area`); they follow combat.lua because raid.lua
-     * and a wave verb read QD._combat_last. */
-    "plugins/quest_driver/prayer.lua",
-    "plugins/quest_driver/waves.lua",
-    /* ticklog.lua BEFORE raid.lua (raid seam22): raid.lua wraps
-     * QD.ticklog.rows to add the `area` filter (a room's own tiles, so a room
-     * test never pulls every region npc) and asserts it is there. */
-    "plugins/quest_driver/ticklog.lua",
-    "plugins/quest_driver/raid.lua",
-    /* The play library (raid seam29, moved out of raid.lua's tail): the loop
-     * t.raid.play and its skills, then one part per room plan, each
-     * registering through QD.raid._play_plan (raid_play.lua), so a room's
-     * plan is written without touching another's
-     * (docs/minigames/raid_loop/PLAY_NOTES.md). After raid.lua: the loop
-     * reads QD.party (raid.lua) and QD.ticklog.rows as raid.lua wrapped it. */
-    "plugins/quest_driver/raid_play.lua",
-    /* raid seam53 play_state_machines: the state machine layer the room
-     * plans declare their roles on (QD.raid.sm_declare).  After
-     * raid_play.lua, whose QD.raid._play_fold it folds a state's intents
-     * with, and before every room plan, which declare at load time. */
-    "plugins/quest_driver/raid_sm.lua",
-    /* raid seam54 move_arbiter: the one movement decision a tick
-     * (QD.raid.move.solve); pure, before the room plans that build its
-     * queries. */
-    "plugins/quest_driver/raid_move.lua",
-    "plugins/quest_driver/raid_play_tob_maiden.lua",
-    "plugins/quest_driver/raid_play_tob_bloat.lua",
-    "plugins/quest_driver/raid_play_tob_nylocas.lua",
-    "plugins/quest_driver/raid_play_tob_sotetseg.lua",
-    "plugins/quest_driver/raid_play_tob_xarpus.lua",
-    "plugins/quest_driver/raid_play_tob_verzik.lua",
-    /* Last: t.cutscene wraps QD.core_row_begin (core.lua) to remember the
-     * camera serial each t.exec row began at, and reads QD.shot (ui.lua)
-     * (seam32 cutscene_verb_and_camera_read). */
-    "plugins/quest_driver/cutscene.lua",
-};
+#include "torirs_plugin_drive_parts.h"
 
 /* The manifest identity, not a file name: the loader asks by plugin name so a
  * renamed source file cannot silently drop the parts. */

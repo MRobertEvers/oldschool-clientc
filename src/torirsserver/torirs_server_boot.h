@@ -100,4 +100,17 @@ ToriRSServer_BotRun(
     int argc,
     char** argv);
 
+/**
+ * `torirsserver --scriptrun <test.lua> [--bots N] ...`: botrun's sessionless
+ * party, each bot running a quest-driver test on its own Lua state in this
+ * process, api.drive bound to the server directly (torirs_server_scriptrun.c).
+ * Returns the process exit status.
+ */
+int
+ToriRSServer_ScriptRun(
+    struct ToriRSServer* srv,
+    const struct ToriRSServerBootConfig* config,
+    int argc,
+    char** argv);
+
 #endif

@@ -4624,6 +4624,19 @@ struct ToriRSServer
      *  the scene is ordinary map. See `scene_centre_generation`. */
     int scene_built_generation;
     struct ToriRSServerCapture* capture;
+    /**
+     * The in-process script runner's perception feed (torirs_server_scriptrun.c):
+     * called by ToriRSServer_Send with every payload addressed to `player`,
+     * before the session check, so a sessionless bot receives what a client
+     * would. NULL everywhere else.
+     */
+    void (*packet_sink)(
+        struct ToriRSServerPlayer* player,
+        int pkt_name,
+        const uint8_t* payload,
+        int len,
+        void* ctx);
+    void* packet_sink_ctx;
 
     /**
      * Which revision's bytes this world writes. See torirs_server_wire.h.
@@ -5034,6 +5047,19 @@ ToriRSServer_VarbitCarrierBits(int varp);
  */
 int
 ToriRSServer_VarbitMaxBasevar(void);
+
+/**
+ * A varbit's DEFINITION -- its base varp and bit range -- with no player's
+ * values: the config record every client also carries. 1 when `varbit_id` is a
+ * loaded varbit, 0 otherwise. The in-process script runner reads its bots'
+ * varbits out of the varps the bot was SENT, never the server's own copy.
+ */
+int
+ToriRSServer_VarbitRange(
+    int varbit_id,
+    int* basevar,
+    int* startbit,
+    int* endbit);
 
 /** Non-zero while a varbit write is patching its base varp. That write is the
  *  correct way to touch a carrier, so the backstop must not count it. */
@@ -5928,6 +5954,11 @@ ToriRSServer_SeqInfoFree(void);
 /** Sequence id for an exact debug name, or -1. */
 int
 ToriRSServer_SeqByName(const char* name);
+
+/** A sequence's total frame length in client cycles (30 to a server tick), or 0
+ *  for an unknown id: the length the client plays an action track for. */
+int
+ToriRSServer_SeqLengthCycles(int seq_id);
 
 /**
  * A sequence's animation priority — cache opcode 5, `forcedpriority` in the

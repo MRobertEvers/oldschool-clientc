@@ -60,6 +60,10 @@ static int g_seq_count;
 
 static uint8_t* g_seq_priority;
 static int g_seq_priority_count;
+/* Total frame length of each sequence, in client cycles (cache frame_lengths
+ * summed): the client's own clock for when an action track ends. Indexed like
+ * g_seq_priority; 0 when the record carries no frames. */
+static int32_t* g_seq_cycles;
 
 int
 ToriRSServer_SeqInfoLoad(struct RSCache_ServerPack* pack)
@@ -86,6 +90,8 @@ ToriRSServer_SeqInfoLoad(struct RSCache_ServerPack* pack)
     g_seq_priority = (uint8_t*)malloc((size_t)g_seq_priority_count + 1);
     assert(g_seq_priority);
     memset(g_seq_priority, TORIRSSERVER_SEQ_PRIORITY_DEFAULT, (size_t)g_seq_priority_count);
+    g_seq_cycles = (int32_t*)calloc((size_t)g_seq_priority_count + 1, sizeof(*g_seq_cycles));
+    assert(g_seq_cycles);
 
     g_seqs = (struct SeqName*)calloc((size_t)records.count + 1, sizeof(*g_seqs));
     assert(g_seqs);
@@ -133,6 +139,13 @@ ToriRSServer_SeqInfoLoad(struct RSCache_ServerPack* pack)
          * saying "the first animation of the tick wins". */
         if( records.ids[i] < g_seq_priority_count && seq->forced_priority > 0 )
             g_seq_priority[records.ids[i]] = (uint8_t)seq->forced_priority;
+        if( records.ids[i] >= 0 && records.ids[i] < g_seq_priority_count && seq->frame_lengths )
+        {
+            int32_t total = 0;
+            for( int f = 0; f < seq->frame_count; f++ )
+                total += seq->frame_lengths[f];
+            g_seq_cycles[records.ids[i]] = total;
+        }
         RSCache_Dat2ConfigSequenceFree(seq);
     }
     g_seq_count = loaded;
@@ -160,7 +173,17 @@ ToriRSServer_SeqInfoFree(void)
     g_seq_count = 0;
     free(g_seq_priority);
     g_seq_priority = NULL;
+    free(g_seq_cycles);
+    g_seq_cycles = NULL;
     g_seq_priority_count = 0;
+}
+
+int
+ToriRSServer_SeqLengthCycles(int seq_id)
+{
+    if( seq_id < 0 || seq_id >= g_seq_priority_count || !g_seq_cycles )
+        return 0;
+    return g_seq_cycles[seq_id];
 }
 
 int

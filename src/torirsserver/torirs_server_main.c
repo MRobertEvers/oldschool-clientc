@@ -110,7 +110,10 @@ main(
     /* --botrun: a party of sessionless bots driven by an agent process, no
      * socket (torirs_server_botrun.c). Also before the port parse. */
     int botrun = argc > 1 && strcmp(argv[1], "--botrun") == 0;
-    int port = (argc > 1 && !selftest && !botrun) ? atoi(argv[1]) : TORIRSSERVER_DEFAULT_PORT;
+    /* --scriptrun: the same sessionless bots, each running a quest-driver test
+     * script on a Lua state inside this process (torirs_server_scriptrun.c). */
+    int scriptrun = argc > 1 && strcmp(argv[1], "--scriptrun") == 0;
+    int port = (argc > 1 && !selftest && !botrun && !scriptrun) ? atoi(argv[1]) : TORIRSSERVER_DEFAULT_PORT;
     int listener = -1;
     int reuse = 1;
     /* What the startup line reports, so it names where the socket actually
@@ -202,7 +205,7 @@ main(
      * A bind failure still means "someone else holds this port", and now says so
      * a second sooner, which is what run-live.sh's already-running check reads.
      */
-    if( !selftest && !botrun )
+    if( !selftest && !botrun && !scriptrun )
     {
         listener = (int)socket(AF_INET, SOCK_STREAM, 0);
         if( listener < 0 )
@@ -330,6 +333,13 @@ main(
     if( botrun )
     {
         status = ToriRSServer_BotRun(&srv, &config, argc, argv);
+        ToriRSServer_ScriptsFree(&srv);
+        ToriRSServer_BootFree();
+        return status;
+    }
+    if( scriptrun )
+    {
+        status = ToriRSServer_ScriptRun(&srv, &config, argc, argv);
         ToriRSServer_ScriptsFree(&srv);
         ToriRSServer_BootFree();
         return status;

@@ -503,6 +503,22 @@ loc_config(int loc_id)
     return config;
 }
 
+/*
+ * A FRESH decode of `loc_id`'s client record -- the bytes the client codec
+ * reads -- for a reader outside the scene (the in-process script runner builds
+ * its bots' collision from it, as a client builds its own from the cache). The
+ * caller owns the result (RSCache_Dat2ConfigLocFree). NULL when the id has no
+ * record.
+ */
+struct RSCache_Dat2ConfigLoc*
+ToriRSServer_SceneLocConfigDecode(int loc_id)
+{
+    if( !g_loc_raw || loc_id < 0 || loc_id >= g_loc_config_count || g_loc_raw_size[loc_id] <= 0 )
+        return NULL;
+    return RSCache_Dat2ConfigLocNewDecodeProfile(
+        &g_loc_profile, (char*)(g_loc_raw + g_loc_raw_offset[loc_id]), g_loc_raw_size[loc_id]);
+}
+
 /* ------------------------------------------------------------------ */
 /* Authored loc ops (rank 1)                                           */
 /* ------------------------------------------------------------------ */

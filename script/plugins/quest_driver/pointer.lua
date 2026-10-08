@@ -1308,6 +1308,17 @@ end
 -- recovery's callers, so every other press is exactly what it was.
 function QD.drive.click_minimenu(target, option, deadline, before_retry, single)
     deadline = deadline or 4
+
+    -- SCRIPTRUN (torirsserver --scriptrun): there is no screen to project onto
+    -- and no menu to read. The runner sends the op the row would have sent, on
+    -- the nearest perceived instance of the target's type -- the one a player
+    -- would click. A held-item use and Examine need the client's menu.
+    if api_drive.scriptrun == true then
+        if option == "select" or option == "examine" then
+            return "unsupported", "click_minimenu: " .. tostring(option) .. " needs a client"
+        end
+        return api_drive.world_op(target.kind, target.id, option, target.reach_element)
+    end
     local slot
     if option == "examine" then
         slot = -1
@@ -8495,6 +8506,10 @@ QD.player._cover_clear_range = 1
 QD.player._cover_clear_distance = 2
 
 function QD.drive._press_settled(target, option, deadline, poses)
+    if api_drive.scriptrun == true then
+        local result, detail = QD.drive.click_minimenu(target, option, deadline)
+        return result, detail, "scriptrun: the op sent directly"
+    end
     -- click_minimenu's own default: _press_row's two awaits take it as their
     -- deadline, and a nil there is no wait at all.
     deadline = deadline or 4
@@ -8971,6 +8986,10 @@ end
 -- aim, press, the re-aim and the ticks spent.
 function QD.drive._press_quick(target, option, before_retry)
     assert(type(target) == "table", "press_quick has no target")
+    if api_drive.scriptrun == true then
+        local result, detail = QD.drive.click_minimenu(target, option)
+        return result, detail, "scriptrun: the op sent directly", 1, nil
+    end
     local start = api_drive.tick()
     local action = nil
     if option ~= "select" then
