@@ -29,6 +29,16 @@ for _, space in ipairs({ "npc", "obj", "seq", "spotanim", "loc" }) do names[spac
 
 local world = World.new(names)
 local seats, mem = {}, {}
+-- one bot (RAID_AGENT_PID: the runner's default, one process a bot, seeing
+-- what its client sees) or every bot (--shared)
+local ME = tonumber(os.getenv("RAID_AGENT_PID") or "")
+local function seat_of(pid)
+    if mem[pid] ~= nil then return end
+    seats[#seats + 1] = pid
+    table.sort(seats)
+    mem[pid] = { pid = pid }
+    for i, p in ipairs(seats) do mem[p].seat = i end
+end
 local log = io.stderr
 local trace = os.getenv("RAID_AGENT_TRACE")
 
@@ -40,6 +50,7 @@ for line in io.lines() do
         world:begin_tick(tonumber(f[2]))
     elseif word == "row" then
         world:row(f[4], f[5], f[6], f[7], f[8], f[9], f[10], f[11], f[12])
+        if f[4] == "raider" then seat_of(tonumber(f[5])) end
     elseif word == "coll" then
         world:collision(f[2], f[3], f[4], f[5], f[6])
     elseif word == "npcsize" then
@@ -49,16 +60,13 @@ for line in io.lines() do
         if trace then log:write("t", world.tick, " msg p", f[2], " ", f[3] or "", "\n") end
     elseif word == "self" then
         world:self_line(f[2], f[3], f[4], f[5], f[6], f[7], f[8], f[9])
-        local pid = tonumber(f[2])
-        if mem[pid] == nil then
-            seats[#seats + 1] = pid
-            mem[pid] = { seat = #seats, pid = pid }
-        end
+        seat_of(tonumber(f[2]))
     elseif word == "end" then
         local stop = false
         for _, pid in ipairs(seats) do
             local m = mem[pid]
-            local intent = policy.step(world, world.players[pid], m, seats, mem)
+            local intent = nil
+            if ME == nil or pid == ME then intent = policy.step(world, world.players[pid], m, seats, mem) end
             if intent == "quit" then stop = true break end
             if intent ~= nil then
                 for _, l in ipairs(Act.lines(pid, intent)) do io.stdout:write(l, "\n") end

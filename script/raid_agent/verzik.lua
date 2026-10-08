@@ -166,17 +166,45 @@ local function p1_dawn(world, me, m, mems, seats, vz, intent, covered)
     m.dawn_id = m.dawn_id or dawn_obj(world)
     local inv_slot, it = World.inv_slot(me, DAWN)
     local wielded = me.weapon == m.dawn_id
-    -- not the holder: take it off the ground if I am next
+    -- who has held it: a teammate's weapon is drawn, its energy is not.  The
+    -- energy is ESTIMATED from what is drawn: a raider puts it down spent
+    -- (near 30%) and regains 10% every 50 ticks, so 30 ticks after its drop it
+    -- can spec again
+    m.dawn_held = m.dawn_held or {}
+    m.dawn_put = m.dawn_put or {}
+    for _, pid in ipairs(seats) do
+        local w = world.players[pid].weapon
+        if w == m.dawn_id then
+            m.dawn_held[pid] = true
+            m.dawn_last = pid
+            m.dawn_wielding = m.dawn_wielding or {}
+            m.dawn_wielding[pid] = true
+        elseif m.dawn_wielding and m.dawn_wielding[pid] then
+            m.dawn_wielding[pid] = nil
+            m.dawn_put[pid] = t
+        end
+    end
+    local function eligible(pid)
+        if mems[pid].died ~= nil then return false end
+        if not m.dawn_held[pid] then return true end
+        return m.dawn_put[pid] ~= nil and t - m.dawn_put[pid] >= 30 and pid ~= m.dawn_last
+    end
+    -- not the holder: take it off the ground if I am the next in seat order
+    -- who has not held it
     if inv_slot == nil and not wielded then
         local g = world:on_ground(DAWN)
         if g ~= nil and (me.spec or 0) >= SPEC_COST then
-            for _, pid in ipairs(seats) do
-                local o = world.players[pid]
-                if mems[pid].died == nil and (o.spec or 0) >= SPEC_COST and pid ~= me.pid
-                    and mems[pid].seat < m.seat and o.weapon ~= m.dawn_id then
-                    return false
+            local last = m.dawn_last and mems[m.dawn_last] and mems[m.dawn_last].seat or 0
+            local taker = nil
+            for k = 1, #seats do
+                local s = ((last - 1 + k) % #seats) + 1
+                for _, pid in ipairs(seats) do
+                    if taker == nil and mems[pid].seat == s and (eligible(pid) or pid == me.pid) and pid ~= m.dawn_last then
+                        taker = pid
+                    end
                 end
             end
+            if taker ~= me.pid then return false end
             intent.take = { x = g.x, z = g.z, obj = g.obj }
             intent.why = intent.why .. "take dawn "
             return true
@@ -212,8 +240,7 @@ local function p1_dawn(world, me, m, mems, seats, vz, intent, covered)
     -- spent: pass it to a teammate who can still spec
     local other = false
     for _, pid in ipairs(seats) do
-        local o = world.players[pid]
-        if pid ~= me.pid and mems[pid].died == nil and (o.spec or 0) >= SPEC_COST then other = true end
+        if pid ~= me.pid and eligible(pid) then other = true end
     end
     if other and covered then
         if wielded then
@@ -856,15 +883,29 @@ function V.step(world, me, m, seats, mems)
 
     -- the run ends when every raider is dead, or Verzik is gone after being seen
     if me.died_tick ~= nil and not m.died then m.died = me.died_tick end
-    local vz = world:find(VERZIK, me.x, me.z)[1]
-    if vz ~= nil then m.saw_verzik = true end
-    if m.seat == 1 then
-        local alive = 0
-        for _, pid in ipairs(seats) do if mems[pid].died == nil then alive = alive + 1 end end
-        if alive == 0 then report(world, mems, "WIPE") return "quit" end
-        if m.saw_verzik and vz == nil then report(world, mems, "VERZIK GONE") return "quit" end
-        if age > 2400 then report(world, mems, "TIMEOUT") return "quit" end
+    -- a teammate's death is never told to me; what I see is them CAGED, off
+    -- the arena's floor (the Theatre's dead go to the room's prison)
+    local Oc = m.O
+    if Oc ~= nil and world.blocked ~= nil then
+        for _, pid in ipairs(seats) do
+            local o = world.players[pid]
+            if pid ~= me.pid and mems[pid].died == nil and o.x ~= nil then
+                local b = world.blocked[o.x * 100000 + o.z]
+                if b == nil or b then mems[pid].died = t end
+            end
+        end
     end
+    local vz = world:find(VERZIK, me.x, me.z)[1]
+    -- the run's end is what content says, not what a raider sees: a caged
+    -- raider's client stops tracking her (vz05: seat 1 caged at t203 read
+    -- "gone" and ended a fight still going)
+    for _, msg in ipairs(world.messages) do
+        if msg.text:find("Verzik Vitur has fallen", 1, true) then m.fallen = true end
+        if msg.text:find("Your party has failed", 1, true) then m.failed = true end
+    end
+    if m.fallen then report(world, mems, "VERZIK GONE") return "quit" end
+    if m.failed then report(world, mems, "WIPE") return "quit" end
+    if m.seat == 1 and age > 2400 then report(world, mems, "TIMEOUT") return "quit" end
     if m.died ~= nil then return nil end
 
     local intent = { why = "" }
@@ -928,7 +969,13 @@ function V.step(world, me, m, seats, mems)
         local covered = cover ~= nil and cover.x == me.x and cover.z == me.z
         -- the shot reads my tile at the end of shot - 1; a walk sent now lands
         -- next tick, two tiles a tick
-        local need = cover and math.ceil(cheb(me.x, me.z, cover.x, cover.z) / 2) or 0
+        -- the walk round her and the pillars, not the straight line, and a tick
+        -- of slack (vz02 t162-167: nine tiles took six ticks, one short)
+        local need = 0
+        if cover ~= nil then
+            local to = bfs(world, O, cover.x, cover.z, 30)
+            need = math.ceil(to(me.x, me.z) / 2) + 1
+        end
         local hide = shot == nil or (shot - 1 - t) <= need + 1
         -- the endgame does not hide: the walk to cover and back eats the whole
         -- window (vzb4 t175: nine tiles each way), and a prayed bolt is at most

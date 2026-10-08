@@ -34,9 +34,17 @@ def run_one(policy, name, bots, out_dir):
     report = ""
     with open(log_path) as log:
         for line in log:
-            if line.startswith(policy + ":"):
+            if line.startswith(policy + ":") or line.startswith(os.environ.get("RAID_AGENT_REPORT", "~") + ":"):
                 report = line.strip()
-    return name, report
+    # deaths from the server's own record (raider rows at 0), not from what
+    # any raider's client saw
+    dead = set()
+    with open(os.path.join(out_dir, name + ".tsv")) as tl:
+        for line in tl:
+            c = line.split("\t")
+            if len(c) > 5 and c[2] == "raider" and c[4] == "0":
+                dead.add(c[3])
+    return name, report + (" | deaths %d" % len(dead) if dead else "")
 
 
 def main():
@@ -48,15 +56,15 @@ def main():
     ap.add_argument("--jobs", type=int, default=6)
     args = ap.parse_args()
     assert os.path.exists(SERVER), "build it: make -B -C src OPT=1 PLATFORM_OBJ_BASE=build_botrun torirsserver"
-    out_dir = os.path.join(ROOT, "build", "raid_agent", args.policy)
+    out_dir = os.path.join(ROOT, "build", "raid_agent", os.environ.get("RAID_AGENT_REPORT", args.policy))
     os.makedirs(out_dir, exist_ok=True)
     names = ["%s%02d" % (args.prefix, i) for i in range(args.names)]
     green = 0
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as pool:
         for name, report in pool.map(lambda n: run_one(args.policy, n, args.bots, out_dir), names):
-            ok = "GONE" in report and "died" not in report
+            ok = "GONE" in report and "deaths" not in report
             green += ok
-            print("%-8s %s  %s" % (name, "GREEN" if ok else "FAIL ", report[len(args.policy) + 2:][:150]))
+            print("%-8s %s  %s" % (name, "GREEN" if ok else "FAIL ", report.split(":", 1)[-1].strip()[:150]))
             sys.stdout.flush()
     print("%s: %d of %d green" % (args.policy, green, len(names)))
 
