@@ -507,6 +507,12 @@ struct ToriRS_Npctype
      *  record can move its own overheads, and it exists precisely because a
      *  model-less npc never refreshes logicalHeight from anything. */
     int height;
+    /** Opcode 126 (rev 231+) footprintSize, fine units; the decoder fills
+     *  0.4 * size * 128 when the record states none. The deob projects an
+     *  npc's overheads from the HIGHEST ground across a square this wide
+     *  (Statics.method7004, via NPC.method2869), not the ground at its centre.
+     *  0 = sample the centre only, which is every revision before 231. */
+    int footprint_size;
     /** Client render hint from the npc's params: draw this npc's model through
      *  the depth-tested kernels rather than the painter's sort. Param
      *  `zbuffer_model` (TORIRS_PARAM_ZBUFFER_MODEL); 0 for every npc that does

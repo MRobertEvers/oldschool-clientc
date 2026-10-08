@@ -1324,7 +1324,8 @@ app_world_tile_marks_place(struct App* app);
 void
 app_overlay_build_chat(
     struct App* app,
-    int element_id,
+    int anchor_height,
+    int footprint,
     struct WorldEntityFacet_Chat const* chat,
     struct WorldEntityFacet_DrawPosition const* draw_position,
     struct WorldEntityFacet_ViewPlacement const* placement,
@@ -1334,7 +1335,8 @@ app_overlay_build_chat(
 void
 app_overlay_build_player_headicons(
     struct App* app,
-    int element_id,
+    int anchor_height,
+    int footprint,
     int headicons,
     struct WorldEntityFacet_DrawPosition const* draw_position,
     struct WorldEntityFacet_ViewPlacement const* placement,
@@ -1347,7 +1349,8 @@ app_overlay_build_hint_arrow(struct App* app);
 void
 app_overlay_build_npc_headicon(
     struct App* app,
-    int element_id,
+    int anchor_height,
+    int footprint,
     struct ToriRS_Npctype const* npctype,
     struct WorldEntityFacet_DrawPosition const* draw_position,
     struct WorldEntityFacet_ViewPlacement const* placement,
@@ -2179,9 +2182,26 @@ app_world_project_actor(
     int* out_y);
 
 int
+app_world_project_actor_footprint(
+    struct App* app,
+    struct WorldEntityFacet_ViewPlacement const* placement,
+    int actor_level,
+    int fine_x,
+    int fine_z,
+    int footprint,
+    int height_above_ground,
+    int* out_x,
+    int* out_y);
+
+int
 app_entity_model_height(
     struct App* app,
     int element_id);
+
+int
+app_actor_seq_vertical_offset(
+    struct App* app,
+    struct WorldEntityFacet_Animation const* animation);
 
 int
 app_entity_overlay_height(
@@ -2348,7 +2368,8 @@ app_world_sync_placement(
     struct WorldEntityFacet_ViewPlacement const* placement,
     int element_id,
     int yaw,
-    int actor_level);
+    int actor_level,
+    int lift);
 
 void
 app_world_sync_positions(struct App* app);

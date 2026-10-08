@@ -49,7 +49,9 @@ app_overlay_build_entity(
     int actor_level,
     int font_id,
     int hitmarks_scene,
-    int type_height);
+    int type_height,
+    struct WorldEntityFacet_Animation const* animation,
+    int footprint);
 static struct AppOverlayPos
 app_overlay_anchor(
     struct App* app,
@@ -210,10 +212,17 @@ app_overlay_build_entity(
     int actor_level,
     int font_id,
     int hitmarks_scene,
-    int type_height)
+    int type_height,
+    struct WorldEntityFacet_Animation const* animation,
+    int footprint)
 {
     int cycle = app->world->cycle;
-    int height = app_entity_overlay_height(app, element_id, type_height);
+    /* The deob's anchor, Actor/NPC.method3494: the type's opcode-124 height
+     * or the posed model's, PLUS the shown seq's vertical offset (method1181).
+     * Every overhead below projects it through method8181, i.e. from the
+     * highest ground under the actor's footprint (method2869). */
+    int height = app_entity_overlay_height(app, element_id, type_height) +
+                 app_actor_seq_vertical_offset(app, animation);
     int screen_x, screen_y;
 
     /*
@@ -229,12 +238,13 @@ app_overlay_build_entity(
      *     healthbar type spells as its persist window).
      */
     if( combat->healthbar_type >= 0 && combat->healthbar_end_cycle > cycle &&
-        app_world_project_actor(
+        app_world_project_actor_footprint(
             app,
             placement,
             actor_level,
             (int)draw_position->x,
             (int)draw_position->z,
+            footprint,
             height + 15,
             &screen_x,
             &screen_y) )
@@ -244,12 +254,13 @@ app_overlay_build_entity(
     else if(
         combat->healthbar_type < 0 && combat->combat_cycle > cycle + 100 &&
         combat->total_health > 0 &&
-        app_world_project_actor(
+        app_world_project_actor_footprint(
             app,
             placement,
             actor_level,
             (int)draw_position->x,
             (int)draw_position->z,
+            footprint,
             height + 15,
             &screen_x,
             &screen_y) )
@@ -311,12 +322,13 @@ app_overlay_build_entity(
         if( splat_type < 0 )
             continue;
 
-        if( !app_world_project_actor(
+        if( !app_world_project_actor_footprint(
                 app,
                 placement,
                 actor_level,
                 (int)draw_position->x,
                 (int)draw_position->z,
+                footprint,
                 height / 2,
                 &screen_x,
                 &screen_y) )
@@ -721,12 +733,17 @@ app_build_entity_overlays(
     {
         struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, i);
         struct ToriRS_Npctype* npctype;
+        int anchor;
+        int footprint;
         if( !npc || npc->multinpc_hidden || npc->element_id < 0 )
             continue;
         /* Only the npc branch can carry an overhead-height override; the
          * reference reads it off the NpcComposition, which players have no
          * equivalent of (Actor.getLogicalHeight is unconditional there). */
         npctype = CacheProvider_NpctypeGet(app->provider, npc->npc_id);
+        anchor = app_entity_overlay_height(app, npc->element_id, npctype ? npctype->height : -1) +
+                 app_actor_seq_vertical_offset(app, &npc->animation);
+        footprint = npctype ? npctype->footprint_size : 0;
         app_overlay_build_entity(
             app,
             npc->element_id,
@@ -736,10 +753,13 @@ app_build_entity_overlays(
             -1,
             font_id,
             hitmarks_scene,
-            npctype ? npctype->height : -1);
+            npctype ? npctype->height : -1,
+            &npc->animation,
+            npctype ? npctype->footprint_size : 0);
         app_overlay_build_npc_headicon(
             app,
-            npc->element_id,
+            anchor,
+            footprint,
             npctype,
             &npc->draw_position,
             &npc->view_placement,
@@ -763,10 +783,14 @@ app_build_entity_overlays(
             player->grid_position.level,
             font_id,
             hitmarks_scene,
-            -1);
+            -1,
+            &player->animation,
+            0);
         app_overlay_build_player_headicons(
             app,
-            player->element_id,
+            app_entity_overlay_height(app, player->element_id, -1) +
+                app_actor_seq_vertical_offset(app, &player->animation),
+            0,
             player->headicon,
             &player->draw_position,
             &player->view_placement,
@@ -789,11 +813,15 @@ app_build_entity_overlays(
              i = World_EntityPoolNext(pool, i) )
         {
             struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, i);
+            struct ToriRS_Npctype* npctype;
             if( !npc || npc->multinpc_hidden || npc->element_id < 0 )
                 continue;
+            npctype = CacheProvider_NpctypeGet(app->provider, npc->npc_id);
             app_overlay_build_chat(
                 app,
-                npc->element_id,
+                app_entity_overlay_height(app, npc->element_id, npctype ? npctype->height : -1) +
+                    app_actor_seq_vertical_offset(app, &npc->animation),
+                npctype ? npctype->footprint_size : 0,
                 &npc->chat,
                 &npc->draw_position,
                 &npc->view_placement,
@@ -810,7 +838,9 @@ app_build_entity_overlays(
                 continue;
             app_overlay_build_chat(
                 app,
-                player->element_id,
+                app_entity_overlay_height(app, player->element_id, -1) +
+                    app_actor_seq_vertical_offset(app, &player->animation),
+                0,
                 &player->chat,
                 &player->draw_position,
                 &player->view_placement,

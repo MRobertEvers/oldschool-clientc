@@ -48,6 +48,7 @@ ToriDraw_AnimationSetSeqMeta(
     anim->replaceheldleft = meta->replaceheldleft;
     anim->replaceheldright = meta->replaceheldright;
     anim->stretches = meta->stretches;
+    anim->vertical_offset = meta->vertical_offset;
 }
 
 bool

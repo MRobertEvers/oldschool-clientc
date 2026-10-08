@@ -95,6 +95,86 @@ app_world_project(
  * rider ride the hull. Projected (footprint-routed) actors keep root draw
  * positions and take the root arm.
  */
+/*
+ * The deob's ground under an actor's overheads (Statics.method7004, reached from
+ * method8181 -> method7666 with the actor's method2869 footprint): with no
+ * footprint, the interpolated height at the point; with one, the HIGHEST ground
+ * (the minimum y) over the tile corners strictly inside the square of that
+ * width centred on the point, its four corners and the point itself. A big npc
+ * on uneven floor therefore hangs its health bar off the top of the slope it
+ * straddles, not off the ground under its middle.
+ */
+static int
+app_world_footprint_ground(
+    struct App* app,
+    int fine_x,
+    int fine_z,
+    int level,
+    int footprint)
+{
+    int ground = app_world_height(app, fine_x, fine_z, level);
+    int half;
+    int tile_x0;
+    int tile_z0;
+    int tile_x1;
+    int tile_z1;
+    int h;
+
+    if( footprint <= 0 )
+        return ground;
+    half = footprint / 2;
+    tile_x0 = ((fine_x - half) >> 7) + 1;
+    tile_z0 = ((fine_z - half) >> 7) + 1;
+    tile_x1 = (fine_x + half) >> 7;
+    tile_z1 = (fine_z + half) >> 7;
+    for( int tx = tile_x0; tx <= tile_x1; tx++ )
+    {
+        for( int tz = tile_z0; tz <= tile_z1; tz++ )
+        {
+            h = app_world_height(app, tx << 7, tz << 7, level);
+            if( h < ground )
+                ground = h;
+        }
+    }
+    h = app_world_height(app, fine_x - half, fine_z - half, level);
+    if( h < ground )
+        ground = h;
+    h = app_world_height(app, fine_x - half, fine_z + half, level);
+    if( h < ground )
+        ground = h;
+    h = app_world_height(app, fine_x + half, fine_z - half, level);
+    if( h < ground )
+        ground = h;
+    h = app_world_height(app, fine_x + half, fine_z + half, level);
+    if( h < ground )
+        ground = h;
+    return ground;
+}
+
+/* `app_world_project` over a footprint: the same root plane and the same
+ * rejections, the ground taken over the square (`app_world_footprint_ground`). */
+static int
+app_world_project_footprint(
+    struct App* app,
+    int fine_x,
+    int fine_z,
+    int footprint,
+    int height_above_ground,
+    int* out_x,
+    int* out_y)
+{
+    int ground_y;
+
+    if( footprint <= 0 )
+        return app_world_project(app, fine_x, fine_z, height_above_ground, out_x, out_y);
+    if( !app->world || !app->world_view_valid )
+        return 0;
+    if( fine_x < 128 || fine_z < 128 )
+        return 0;
+    ground_y = app_world_footprint_ground(app, fine_x, fine_z, app_cinema_level(app), footprint);
+    return app_world_project_at(app, fine_x, fine_z, ground_y - height_above_ground, out_x, out_y);
+}
+
 int
 app_world_project_actor(
     struct App* app,
@@ -102,6 +182,25 @@ app_world_project_actor(
     int actor_level,
     int fine_x,
     int fine_z,
+    int height_above_ground,
+    int* out_x,
+    int* out_y)
+{
+    return app_world_project_actor_footprint(
+        app, placement, actor_level, fine_x, fine_z, 0, height_above_ground, out_x, out_y);
+}
+
+/* `footprint` is the actor's method2869: an npc type's `footprint_size`, 0 for
+ * no square. A rider on a deck keeps the single sample below - the footprint
+ * applies to the root world's terrain, which is all the deck path never reads. */
+int
+app_world_project_actor_footprint(
+    struct App* app,
+    struct WorldEntityFacet_ViewPlacement const* placement,
+    int actor_level,
+    int fine_x,
+    int fine_z,
+    int footprint,
     int height_above_ground,
     int* out_x,
     int* out_y)
@@ -117,14 +216,16 @@ app_world_project_actor(
     if( !placement || placement->view_id == WORLDVIEW_ROOT ||
         !Wevs_IsLive(&app->wevs, placement->view_id) ||
         !WorldviewRegistry_IsLive(&app->worldviews, placement->view_id) )
-        return app_world_project(app, fine_x, fine_z, height_above_ground, out_x, out_y);
+        return app_world_project_footprint(
+            app, fine_x, fine_z, footprint, height_above_ground, out_x, out_y);
     wev = Wevs_Get(&app->wevs, placement->view_id);
     /* Model population and its overlay have the same visibility contract:
      * flattened/skipped passengers must not leave floating names or bars. */
     if( wev->flattened || !wev->render_visible )
         return 0;
     if( wev->parent_view_id != WORLDVIEW_ROOT )
-        return app_world_project(app, fine_x, fine_z, height_above_ground, out_x, out_y);
+        return app_world_project_footprint(
+            app, fine_x, fine_z, footprint, height_above_ground, out_x, out_y);
     view = WorldviewRegistry_Get(&app->worldviews, placement->view_id);
     if( placement->home_view == 0 )
     {
@@ -164,9 +265,19 @@ app_world_project_actor(
  * here pulled the spot graphic's own (frequently rescaled, always moving)
  * geometry into the entity's reported height, so the health bar / hitsplat /
  * chat / headicon position — everything anchored on this — tracked the spot
- * animation's pose instead of standing still on the entity. `entry->body` is
- * the pristine pre-combine snapshot (`ToriDraw_ModelCopy` sets its own bounds
- * cylinder), the port's equivalent of the reference's separate `height` field. */
+ * animation's pose instead of standing still on the entity.
+ *
+ * But the reference's `height` is the POSED body (NpcType.getModel poses, then
+ * resizes, then calculateBoundsCylinder), and `entry->body` is not that: it is
+ * snapshotted after `ToriDraw_ModelAnimateReset`, so it is the bind pose at the
+ * authored size. Reading it moved every overhead element to the bind pose for
+ * as long as any graphic played on the entity. Sotetseg's idle collapses a
+ * 973-high part of his bind pose to 780, so each Tumeken's-shadow or spell
+ * impact on him threw his health bar ~190 units up (owner, 2026-10-08: "WAY
+ * too far above his head"). The merge copies the body's vertices FIRST
+ * (`parts[0]`, ToriDraw_ModelMerge keeps order), and the renderer poses the
+ * combined mesh in place, so the posed body is the combined model's first
+ * `body->vertex_count` vertices - read here, the spot graphic's left out. */
 int
 app_entity_model_height(
     struct App* app,
@@ -176,19 +287,28 @@ app_entity_model_height(
     struct ToriDraw_BoundsCylinder* bounds;
     struct AppEntitySpotanim* spot_entry = app_entity_spotanim_find(app, element_id, 0);
 
-    if( spot_entry && spot_entry->body )
-    {
-        struct ToriDraw_ModelHandle body_hnd = { .kind = TORIDRAWMK_MODEL };
-        body_hnd.u.model.model = spot_entry->body;
-        bounds = ToriDraw_ModelGetBoundsCylinder(body_hnd);
-        return bounds ? -bounds->min_y : 0;
-    }
-
     if( element_id < 0 || !app->scene || !ToriDraw_SceneElementIsLive(app->scene, element_id) )
         return 0;
     el = ToriDraw_SceneElementGet(app->scene, element_id);
     if( !el || !ToriDraw_ModelKindIsFull(el->model.kind) )
         return 0;
+
+    if( spot_entry && spot_entry->body && spot_entry->combined &&
+        el->model.u.model.model == spot_entry->combined )
+    {
+        struct ToriDraw_Model const* combined = spot_entry->combined;
+        int body_count = spot_entry->body->vertex_count;
+        int height = 0;
+
+        assert(body_count <= combined->vertex_count);
+        for( int i = 0; i < body_count; i++ )
+        {
+            if( -(int)combined->vertices_y[i] > height )
+                height = -(int)combined->vertices_y[i];
+        }
+        return height;
+    }
+
     bounds = ToriDraw_ModelGetBoundsCylinder(el->model);
     return bounds ? -bounds->min_y : 0;
 }
@@ -205,6 +325,41 @@ app_entity_overlay_height(
         return type_height;
     height = app_entity_model_height(app, element_id);
     return height > 0 ? height : APP_OVERLAY_DEFAULT_LOGICAL_HEIGHT;
+}
+
+/*
+ * The deob's Actor.method1181: the vertical offset (seq opcode 16) of the seq
+ * the actor is showing - the ACTION seq when one is playing past its start
+ * delay and loaded (method3471), else the movement seq (field1448, the
+ * ready/walk/turn seq). It lifts the drawn model (Renderable.draw subtracts it
+ * from the draw height) and is added to the overhead anchor (method3494), so a
+ * lifted actor's health bar rides up with it. 0 for any seq that states none,
+ * and for every dat1 seq.
+ */
+int
+app_actor_seq_vertical_offset(
+    struct App* app,
+    struct WorldEntityFacet_Animation const* animation)
+{
+    struct ToriDraw_Animation* anim;
+
+    assert(app);
+    assert(animation);
+    if( !app->scene )
+        return 0;
+    if( animation->primary.anim_id != (uint16_t)-1 && animation->primary.delay == 0 )
+    {
+        anim = ToriDraw_SceneAnimationGet(app->scene, animation->primary.anim_id);
+        if( anim && anim->frame_count > 0 )
+            return anim->vertical_offset;
+    }
+    if( animation->secondary.anim_id != (uint16_t)-1 )
+    {
+        anim = ToriDraw_SceneAnimationGet(app->scene, animation->secondary.anim_id);
+        if( anim && anim->frame_count > 0 )
+            return anim->vertical_offset;
+    }
+    return 0;
 }
 
 /**

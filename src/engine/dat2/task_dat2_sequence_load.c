@@ -118,6 +118,7 @@ seq_apply_meta(
         .replaceheldleft = held_left,
         .replaceheldright = held_right,
         .stretches = seq->stretches ? 1 : 0,
+        .vertical_offset = seq->vertical_offset,
     };
     if( meta.preanim_move == -1 )
         meta.preanim_move = meta.walkmerge ? 2 : 0;

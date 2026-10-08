@@ -96,6 +96,12 @@ struct ToriDraw_Animation
      * i.e. the held item is hidden. -1 => leave the worn item as-is. */
     int replaceheldleft;
     int replaceheldright;
+    /** Seq opcode 16 (rev 226+): how far the actor playing this seq is LIFTED,
+     * in model units. The deob subtracts it from an actor's draw height
+     * (Renderable.draw, `var5 - method1181()`) and adds it to the overhead
+     * anchor (Actor.method3494, `logicalHeight + method1181()`); method1181
+     * reads it off the active action seq, else the movement seq. 0 = none. */
+    int vertical_offset;
     /** Set when this sequence is skeletal (Animaya) rather than classic
      * frame/framemap: `base`/`frames` are then NULL and posing goes through
      * ToriDraw_ModelAnimateSkeletal instead. `frame_count` still bounds
@@ -120,6 +126,7 @@ struct ToriDraw_AnimSeqMeta
     int replaceheldleft;
     int replaceheldright;
     int stretches;
+    int vertical_offset;
 };
 
 void

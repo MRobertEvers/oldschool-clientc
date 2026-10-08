@@ -404,26 +404,27 @@ app_overlay_chat_colour(
 void
 app_overlay_build_chat(
     struct App* app,
-    int element_id,
+    int anchor_height,
+    int footprint,
     struct WorldEntityFacet_Chat const* chat,
     struct WorldEntityFacet_DrawPosition const* draw_position,
     struct WorldEntityFacet_ViewPlacement const* placement,
     int actor_level,
     int font_id)
 {
-    int height = app_entity_model_height(app, element_id);
     int screen_x, screen_y;
 
     assert(chat);
     if( chat->timer <= 0 || chat->message[0] == '\0' || font_id < 0 )
         return;
-    if( !app_world_project_actor(
+    if( !app_world_project_actor_footprint(
             app,
             placement,
             actor_level,
             (int)draw_position->x,
             (int)draw_position->z,
-            height,
+            footprint,
+            anchor_height,
             &screen_x,
             &screen_y) )
         return;
@@ -457,26 +458,27 @@ app_overlay_build_chat(
 void
 app_overlay_build_player_headicons(
     struct App* app,
-    int element_id,
+    int anchor_height,
+    int footprint,
     int headicons,
     struct WorldEntityFacet_DrawPosition const* draw_position,
     struct WorldEntityFacet_ViewPlacement const* placement,
     int actor_level,
     int headicons_scene)
 {
-    int height = app_entity_model_height(app, element_id);
     int screen_x, screen_y;
     int y_off = 30;
 
     if( headicons == 0 || headicons_scene <= 0 )
         return;
-    if( !app_world_project_actor(
+    if( !app_world_project_actor_footprint(
             app,
             placement,
             actor_level,
             (int)draw_position->x,
             (int)draw_position->z,
-            height + 15,
+            footprint,
+            anchor_height + 15,
             &screen_x,
             &screen_y) )
         return;
@@ -670,28 +672,28 @@ app_overlay_build_hint_arrow(struct App* app)
 void
 app_overlay_build_npc_headicon(
     struct App* app,
-    int element_id,
+    int anchor_height,
+    int footprint,
     struct ToriRS_Npctype const* npctype,
     struct WorldEntityFacet_DrawPosition const* draw_position,
     struct WorldEntityFacet_ViewPlacement const* placement,
     int prayer_scene,
     int prayer_group)
 {
-    int height;
     int screen_x, screen_y;
 
     if( !npctype || npctype->head_icon_index < 0 || prayer_scene <= 0 )
         return;
     if( npctype->head_icon_group >= 0 && npctype->head_icon_group != prayer_group )
         return;
-    height = app_entity_model_height(app, element_id);
-    if( !app_world_project_actor(
+    if( !app_world_project_actor_footprint(
             app,
             placement,
             -1,
             (int)draw_position->x,
             (int)draw_position->z,
-            height + 15,
+            footprint,
+            anchor_height + 15,
             &screen_x,
             &screen_y) )
         return;

@@ -186,6 +186,8 @@ ToriRS_NpctypeFromRSCacheDat1(
     npctype->height_scale = src->resizev > 0 ? src->resizev : 128;
     /* dat1 has no overhead-height opcode; -1 means "use the model's height". */
     npctype->height = -1;
+    /* dat1 has no footprint either: overheads sample the centre tile. */
+    npctype->footprint_size = 0;
     npctype->alwaysontop = src->alwaysontop;
     npctype->minimap_visible = src->minimap;
     /* dat1 has no opcode 107. True rather than the calloc zero: the flag's
@@ -353,6 +355,9 @@ ToriRS_NpctypeFromRSCacheDat2(
     /* Opcode 124, already -1 from the decoder when the record does not state
      * it. Note 123 is a boolean here and only carries a height on RS2 caches. */
     npctype->height = src->height;
+    /* -1 from the decoder before rev 231, where the deob's predecessors have no
+     * footprint and project from the centre. */
+    npctype->footprint_size = src->footprint_size > 0 ? src->footprint_size : 0;
     npctype->alwaysontop = src->has_render_priority;
     npctype->minimap_visible = src->is_minimap_visible;
     npctype->interactable = src->is_interactable;

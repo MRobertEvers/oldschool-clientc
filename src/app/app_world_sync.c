@@ -39,7 +39,8 @@ app_world_sync_placement(
     struct WorldEntityFacet_ViewPlacement const* placement,
     int element_id,
     int yaw,
-    int actor_level)
+    int actor_level,
+    int lift)
 {
     struct Worldview* view;
     struct Wev const* wev;
@@ -93,7 +94,7 @@ app_world_sync_placement(
         deck_y = World_HeightAt(view->world, placement->x, placement->z, deck_level);
     }
     ToriDraw_SceneElementSetPosition(
-        app->scene, element_id, placement->x, deck_y, placement->z, deck_yaw);
+        app->scene, element_id, placement->x, deck_y - lift, placement->z, deck_yaw);
     return 1;
 }
 
@@ -129,14 +130,18 @@ app_world_sync_positions(struct App* app)
         int wx = (int)player->draw_position.x;
         int wz = (int)player->draw_position.z;
         int wy;
+        /* The shown seq's vertical offset lifts the drawn actor: the deob's
+         * Renderable.draw passes `y - method1181()` to the model draw. */
+        int lift = app_actor_seq_vertical_offset(app, &player->animation);
         if( app_world_sync_placement(
                 app,
                 &player->view_placement,
                 player->element_id,
                 player->orientation.yaw,
-                player->grid_position.level) )
+                player->grid_position.level,
+                lift) )
             continue;
-        wy = app_world_height(app, wx, wz, local_level);
+        wy = app_world_height(app, wx, wz, local_level) - lift;
         if( npcpos_debug )
             TORIRS_LOG(
                 "plrpos: tile=%d,%d lvl=%d(local %d) w=%d,%d y=%d\n",
@@ -165,12 +170,13 @@ app_world_sync_positions(struct App* app)
         int wx = (int)npc->draw_position.x;
         int wz = (int)npc->draw_position.z;
         int wy;
+        int lift = app_actor_seq_vertical_offset(app, &npc->animation);
         /* -1: npcs take the deck's config plane, the deob's rule (class86
          * does not override getPlane, so an npc reads its view's plane). */
         if( app_world_sync_placement(
-                app, &npc->view_placement, npc->element_id, npc->orientation.yaw, -1) )
+                app, &npc->view_placement, npc->element_id, npc->orientation.yaw, -1, lift) )
             continue;
-        wy = app_world_height(app, wx, wz, local_level);
+        wy = app_world_height(app, wx, wz, local_level) - lift;
         if( npcpos_debug )
             TORIRS_LOG(
                 "npcpos: id=%d tile=%d,%d lvl=%d(local %d) w=%d,%d y=%d size=%d "
