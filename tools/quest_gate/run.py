@@ -319,6 +319,12 @@ def write_session_fixture(fixture_name, saves_dir, user):
     as a broken verb if skipped: without it the server makes a fresh
     character and the run boots into the Character Creator modal, which
     blocks tab selection."""
+    # A party's per-seat LOADOUT (tools/raid_agent/loadout.py): "{seat}" in the
+    # name is the seat of `user` ("<base>_p<seat>"), so each raider logs in on
+    # its own save.
+    if "{seat}" in fixture_name:
+        seat_match = re.search(r"_p(\d+)$", user)
+        fixture_name = fixture_name.replace("{seat}", seat_match.group(1) if seat_match else "1")
     fixture_path = os.path.join(quest_list.fixtures_dir(REPO_ROOT), fixture_name)
     assert os.path.isfile(fixture_path), fixture_path
     with open(fixture_path, "r", encoding="utf-8") as handle:

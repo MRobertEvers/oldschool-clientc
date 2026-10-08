@@ -10,6 +10,7 @@
 -- their lanes, each raider the ones nearest it in seat order; else the scythe
 -- on her.  Her auto is magic: Protect from Magic all room.
 local World = require("world")
+local Setup = require("setup")
 local Move = require("raid_move")
 local M = {}
 
@@ -68,15 +69,6 @@ local function potion(me, name)
     end
 end
 
-local function kit_gear(seat)
-    return { "clearinv", "tobkit", "setlevel attack 99", "setlevel strength 99", "setlevel defence 99",
-        "setlevel prayer 99", "setlevel hitpoints 99", "setlevel magic 99", "setlevel ranged 99", "setlevel agility 99" }
-end
-local function kit_bag(seat)
-    return { "clearinv", "give br_4dosepotionofsaradomin 4", "give br_4dose2restore 4", "give br_4dose2combat 2",
-        "give dragon_claws 1", "give anglerfish 16" }
-end
-
 local function report(world, mems, verdict)
     local p = {}
     for _, m in pairs(mems) do
@@ -90,13 +82,15 @@ end
 function M.step(world, me, m, seats, mems)
     local t = world.tick
     if PARTY > 0 and #seats < PARTY then return nil end
-    m.t0 = m.t0 or t
+    local gate = Setup.gate(world, me, m, "maiden")
+    if gate ~= nil then return gate end
     local age = t - m.t0
-    if age == 1 then return { cheat = kit_gear(m.seat) } end
-    if age == 2 then return { cheat = kit_bag(m.seat) } end
+    -- (setup is the shared state: script/raid_agent/setup.lua, before m.t0)
     if age == 4 and m.seat == 1 then return { cheat = { "tobmode 1 1" } } end
-    if age == 6 and m.seat > 1 then return { cheat = { "tobjoinroom 1" } } end
-    if age == 8 + m.seat then return { cheat = { "tobgo" } } end
+    local joining = Setup.join(world, me, m, age)
+    if joining ~= nil then return joining end
+    local starting = Setup.start(world, me, m, seats, mems, age, true)
+    if starting ~= nil then return starting end
     if age < 13 then return nil end
     if me.died_tick ~= nil and not m.died then m.died = me.died_tick end
     -- the end: she turns into her dying form; a wipe is content's own line

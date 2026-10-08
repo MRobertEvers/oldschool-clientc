@@ -61,6 +61,11 @@
  * USAGE
  *   torirsserver --botrun --bots 3 --agent "lua tools/raid_agent/run.lua" \
  *       [--name <run name>] [--bot-prefix <p>] [--ticks N] [--ticklog path] [--realtime]
+ *       [--snapshot <tick> <dir>]
+ * --snapshot writes every bot's save (the server's own player save, the
+ * fixture format) into <dir>/<bot name>.ini on that tick and ends the run: how
+ * a script's LOADOUT is made from whatever set it up, then kept as a file and
+ * loaded at login from then on (owner: "a setup state for each script").
  * --name seeds the npc stream as TORIRSSERVER_RUN_NAME does for a quest run
  * and names the bots <name>1..N. --realtime paces ticks at 600 ms so a client
  * logged in beside them can watch.
@@ -89,6 +94,7 @@
 
 #include "torirs_server.h"
 #include "torirs_server_boot.h"
+#include "torirs_server_save.h"
 #include "net/rev/pktnames.h"
 
 #include <assert.h>
@@ -736,6 +742,8 @@ ToriRSServer_BotRun(
     const char* ticklog = NULL;
     const char* record = NULL;
     const char* replay = NULL;
+    int snapshot_tick = -1;
+    const char* snapshot_dir = NULL;
     int bots = 1;
     int ticks_max = 3000;
     int realtime = 0;
@@ -766,6 +774,11 @@ ToriRSServer_BotRun(
             realtime = 1;
         else if( strcmp(argv[i], "--shared") == 0 )
             run.shared = 1;
+        else if( strcmp(argv[i], "--snapshot") == 0 && i + 2 < argc )
+        {
+            snapshot_tick = atoi(argv[++i]);
+            snapshot_dir = argv[++i];
+        }
         else if( strcmp(argv[i], "--record") == 0 && i + 1 < argc )
             record = argv[++i];
         else if( strcmp(argv[i], "--replay") == 0 && i + 1 < argc )
@@ -922,6 +935,19 @@ ToriRSServer_BotRun(
         }
         if( verdict == 2 )
             break;
+        if( snapshot_dir && (int)srv->tick >= snapshot_tick )
+        {
+            for( int i = 0; i < run.count; i++ )
+            {
+                char path[1024];
+
+                snprintf(path, sizeof(path), "%s/%s.ini", snapshot_dir, run.bots[i]->display_name);
+                if( !ToriRSServer_SavePlayer(run.bots[i], path) )
+                    status = 1;
+                fprintf(stderr, "botrun: snapshot %s\n", path);
+            }
+            break;
+        }
         if( realtime )
         {
             next += BOTRUN_TICK_MS;

@@ -13,6 +13,7 @@ import argparse
 import concurrent.futures
 import os
 import re
+import re
 import subprocess
 import sys
 import tempfile
@@ -23,6 +24,12 @@ SERVER = os.path.join(ROOT, "src", "build_botrun_opt", "torirsserver")
 
 def run_one(policy, name, bots, out_dir):
     saves = tempfile.mkdtemp(prefix="botsaves_")
+    # the policy's LOADOUT (tools/raid_agent/loadout.py): each bot logs in on
+    # its seat's save, the runner names bots <name>1..N
+    loadout = os.environ.get("RAID_AGENT_LOADOUT", policy)
+    if os.path.isfile(os.path.join(ROOT, "test", "raids", "fixtures", "loadouts", loadout + "_seat1.ini")):
+        subprocess.run([sys.executable, os.path.join(ROOT, "tools", "raid_agent", "loadout.py"), "install",
+                        loadout, saves, name], check=True)
     log_path = os.path.join(out_dir, name + ".log")
     cmd = [SERVER, "--botrun", "--bots", str(bots), "--name", name, "--ticks", "4000",
            "--ticklog", os.path.join(out_dir, name + ".tsv"),
@@ -31,12 +38,16 @@ def run_one(policy, name, bots, out_dir):
     if os.environ.get("RAID_AGENT_SHARED"):
         cmd.append("--shared")
     env = dict(os.environ, TORIRSSERVER_SAVES=saves)
+    if os.path.isfile(os.path.join(ROOT, "test", "raids", "fixtures", "loadouts", loadout + "_seat1.ini")):
+        env["RAID_AGENT_LOADOUT"] = loadout
     with open(log_path, "w") as log:
         subprocess.run(cmd, cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT, timeout=600)
     report = ""
     with open(log_path) as log:
         for line in log:
-            if line.startswith(policy + ":") or line.startswith(os.environ.get("RAID_AGENT_REPORT", "~") + ":"):
+            # the policy's report line by its shape, not its prefix: a policy
+            # kept under another name (RAID_AGENT_PATH) still reports as its room
+            if re.match(r"^[a-z_]+: [A-Z ]*(GONE|WIPE|TIMEOUT) at t\d+", line):
                 report = line.strip()
     # deaths from the server's own record (raider rows at 0), not from what
     # any raider's client saw

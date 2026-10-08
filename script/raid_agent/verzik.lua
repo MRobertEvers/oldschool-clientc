@@ -5,6 +5,7 @@
 -- cheats; the fight is Measure (world.lua) -> Decide (here) -> Act (act.lua).
 
 local World = require("world")
+local Setup = require("setup")
 local Move = require("raid_move")
 local V = {}
 
@@ -809,61 +810,6 @@ local function p3(world, me, m, mems, seats, vz, O, intent)
     return intent
 end
 
--- THE KIT in two ticks: the gear, then the bag.  A wield resolves a tick
--- late, so whatever it displaces lands in the inventory AFTER a clearinv in
--- the same tick -- a client's account wears a bronze full helm, a fresh bot
--- nothing, and the helm took the one free slot the Dawnbringer is passed into
--- ("You don't have enough inventory space", svbvzbot t29-64).
-local function kit_gear(seat)
-    local k = { "clearinv", "tobkit" }
-    local worn = {
-        [2] = { "oathplate_helm", "oathplate_chest", "oathplate_legs" },
-        [3] = { "neitiznot_faceguard", "tzhaar_cape_fire", "bandos_chestplate", "bandos_skirt" },
-    }
-    for _, item in ipairs(worn[seat] or {}) do
-        k[#k + 1] = "give " .. item .. " 1"
-        k[#k + 1] = "wield " .. item
-    end
-    for _, c in ipairs({ "setlevel slayer 37", "give slayer_boots 1", "wield slayer_boots",
-        "setlevel attack 99", "setlevel strength 99", "setlevel prayer 99", "setlevel magic 99",
-        "setlevel agility 99" }) do k[#k + 1] = c end
-    return k
-end
-
-local function kit_bag(seat)
-    local k = { "clearinv" }
-    for _, c in ipairs({ "give serpentine_helm_charged 1",
-        "give br_4dosepotionofsaradomin 4", "give br_4dose2restore 4", "give br_4dose2combat 2",
-        "give dragon_claws 1" }) do k[#k + 1] = c end
-    if seat == 1 then k[#k + 1] = "give verzik_special_weapon 1" end
-    k[#k + 1] = "give noxious_halberd 1"
-    k[#k + 1] = "give anglerfish " .. ((seat == 1) and 16 or 14)
-    return k
-end
-
-local function kit(seat)
-    local k = { "clearinv", "tobkit" }
-    local worn = {
-        [2] = { "oathplate_helm", "oathplate_chest", "oathplate_legs" },
-        [3] = { "neitiznot_faceguard", "tzhaar_cape_fire", "bandos_chestplate", "bandos_skirt" },
-    }
-    for _, item in ipairs(worn[seat] or {}) do
-        k[#k + 1] = "give " .. item .. " 1"
-        k[#k + 1] = "wield " .. item
-    end
-    for _, c in ipairs({
-        "setlevel slayer 37", "give slayer_boots 1", "wield slayer_boots", "clearinv",
-        "setlevel attack 99", "setlevel strength 99", "setlevel prayer 99", "setlevel magic 99",
-        "setlevel agility 99", "give serpentine_helm_charged 1",
-        "give br_4dosepotionofsaradomin 4", "give br_4dose2restore 4", "give br_4dose2combat 2",
-        "give dragon_claws 1",
-    }) do k[#k + 1] = c end
-    if seat == 1 then k[#k + 1] = "give verzik_special_weapon 1" end
-    k[#k + 1] = "give noxious_halberd 1"
-    k[#k + 1] = "give anglerfish " .. ((seat == 1) and 16 or 14)
-    return k
-end
-
 -- The run's report line, once, to stderr.
 local function report(world, mems, verdict)
     local p = {}
@@ -882,14 +828,16 @@ local PARTY = tonumber(os.getenv("RAID_AGENT_PARTY") or "0")
 function V.step(world, me, m, seats, mems)
     local t = world.tick
     if PARTY > 0 and #seats < PARTY then return nil end
-    m.t0 = m.t0 or t
+    local gate = Setup.gate(world, me, m, "verzik")
+    if gate ~= nil then return gate end
     local age = t - m.t0
     -- SETUP: kit on tick 1, the leader enters on 3, members join on 5, the leader starts on 7
-    if age == 1 then return { cheat = kit_gear(m.seat), why = "kit gear" } end
-    if age == 2 then return { cheat = kit_bag(m.seat), why = "kit bag" } end
+    -- (setup is the shared state: script/raid_agent/setup.lua, before m.t0)
     if age == 3 and m.seat == 1 then return { cheat = { "tobmode 6 1" }, why = "enter" } end
-    if age == 5 and m.seat > 1 then return { cheat = { "tobjoinroom 1" }, why = "join" } end
-    if age == 7 and m.seat == 1 then return { cheat = { "tobgo" }, why = "start" } end
+    local joining = Setup.join(world, me, m, age)
+    if joining ~= nil then return joining end
+    local starting = Setup.start(world, me, m, seats, mems, age, false)
+    if starting ~= nil then return starting end
     if age < 9 then return nil end
 
     -- the run ends when every raider is dead, or Verzik is gone after being seen

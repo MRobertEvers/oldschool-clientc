@@ -11,6 +11,7 @@
 -- others; down, everyone swings from beside it, and steps out of the stomp
 -- before the 29th.
 local World = require("world")
+local Setup = require("setup")
 local Move = require("raid_move")
 local B = {}
 
@@ -67,7 +68,17 @@ local function sees(world, bx, bz, size, x, z)
     return false
 end
 
+-- The fight box (tob.constant ^tob_bloat_fight_*: 24..39): floor outside it is
+-- walkable on the collision map and unreachable from the arena (b207 t74-86:
+-- a walk to (22, 30) every tick, the raider never left Bloat's track).
+local FIGHT_LO, FIGHT_HI = 24, 39
+local room_O = nil
+
 local function walkable(world, boss, x, z)
+    if room_O ~= nil then
+        local rx, rz = x - room_O.x, z - room_O.z
+        if rx < FIGHT_LO or rx > FIGHT_HI or rz < FIGHT_LO or rz > FIGHT_HI then return false end
+    end
     if world.blocked ~= nil and blocked(world, x, z) then return false end
     if boss ~= nil then
         local s = boss.size or 5
@@ -129,15 +140,15 @@ end
 function B.step(world, me, m, seats, mems)
     local t = world.tick
     if PARTY > 0 and #seats < PARTY then return nil end
-    m.t0 = m.t0 or t
+    local gate = Setup.gate(world, me, m, "bloat")
+    if gate ~= nil then return gate end
     local age = t - m.t0
-    if age == 1 then return { cheat = { "clearinv", "tobkit", "setlevel attack 99", "setlevel strength 99",
-        "setlevel defence 99", "setlevel prayer 99", "setlevel hitpoints 99", "setlevel agility 99" } } end
-    if age == 2 then return { cheat = { "clearinv", "give br_4dosepotionofsaradomin 4", "give br_4dose2restore 4",
-        "give br_4dose2combat 2", "give anglerfish 18" } } end
+    -- (setup is the shared state: script/raid_agent/setup.lua, before m.t0)
     if age == 4 and m.seat == 1 then return { cheat = { "tobmode 2 1" } } end
-    if age == 6 and m.seat > 1 then return { cheat = { "tobjoinroom 1" } } end
-    if age == 8 + m.seat then return { cheat = { "tobgo" } } end
+    local joining = Setup.join(world, me, m, age)
+    if joining ~= nil then return joining end
+    local starting = Setup.start(world, me, m, seats, mems, age, true)
+    if starting ~= nil then return starting end
     if age < 13 then return nil end
     if me.died_tick ~= nil and not m.died then m.died = me.died_tick end
     local boss = world:find(BOSS, me.x, me.z)[1]
@@ -176,6 +187,7 @@ function B.step(world, me, m, seats, mems)
     -- from its SPAWN tile: it walks before anyone crosses the barrier, so the
     -- tile it is first seen on is not the corner (b100: 8 tiles north)
     if m.O == nil then m.O = { x = (boss.sx or boss.x) - 35, z = (boss.sz or boss.z) - 24 } end
+    room_O = m.O
     if not m.asked_floor then
         intent.query = { x0 = m.O.x + 18, z0 = m.O.z + 18, w = 28, h = 28 }
         m.asked_floor = true

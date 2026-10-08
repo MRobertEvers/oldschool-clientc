@@ -13,7 +13,8 @@
 local role = (QD_PARTY and QD_PARTY.role) or 1
 return {
     id = "_vzbot",
-    fixture = "fresh_lumbridge.ini",
+    -- each seat logs in on its LOADOUT (tools/raid_agent/loadout.py)
+    fixture = "loadouts/verzik_seat{seat}.ini",
     party = 3,
     max_frames = 120000,
     setup = {},

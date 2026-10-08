@@ -12,6 +12,9 @@ package.path = ROOT .. "/script/raid_agent/?.lua;" .. ROOT .. "/script/plugins/q
 if os.getenv("RAID_AGENT_PATH") then package.path = os.getenv("RAID_AGENT_PATH") .. "/?.lua;" .. package.path end
 
 local World = require("world")
+local Setup = require("setup")
+-- the seats' loadouts (RAID_AGENT_LOADOUT=<name>): the bag setup checks
+local LOADOUT = os.getenv("RAID_AGENT_LOADOUT")
 local Act = require("act")
 local policy = require(arg[1] or "verzik")
 
@@ -39,7 +42,12 @@ local function seat_of(pid)
     seats[#seats + 1] = pid
     table.sort(seats)
     mem[pid] = { pid = pid }
-    for i, p in ipairs(seats) do mem[p].seat = i end
+    for i, p in ipairs(seats) do
+        mem[p].seat = i
+        if LOADOUT and LOADOUT ~= "none" then
+            mem[p].want = Setup.read(ROOT .. "/test/raids/fixtures/loadouts/" .. LOADOUT .. "_seat" .. i .. ".ini")
+        end
+    end
 end
 local log = io.stderr
 local trace = os.getenv("RAID_AGENT_TRACE")
