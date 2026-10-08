@@ -115,23 +115,28 @@ local function origin_of(me)
 end
 
 local function melee_tiles(ox, oz, side_west)
+    -- Thumb tiles sit on the size-5 claw footprint; pathing in this client
+    -- refuses x past 6421 when Olm is west. Prefer ring/approach tiles west
+    -- (or east) of the claw that a range-2 halberd can hit from.
     if side_west then
         return {
-            thumb = { x = ox + LEFT_LX + 2, z = oz + LEFT_LZ - 1 },
-            ring = { x = ox + LEFT_LX - 1, z = oz + LEFT_LZ - 2 },
+            thumb = { x = ox + LEFT_LX - 2, z = oz + LEFT_LZ },
+            ring = { x = ox + LEFT_LX - 2, z = oz + LEFT_LZ - 2 },
             flame_null = { x = ox + LEFT_LX - 2, z = oz + LEFT_LZ - 2 },
-            head_safe = { x = ox + 28, z = oz + 28 },
-            empty_zone = { x = ox + ZONE_EAST_MIN + 1, z = oz + 28 },
+            head_safe = { x = ox + 21, z = oz + 28 },
+            -- East empty is often blocked by the head; use far-west null as
+            -- the head-turn skip tile (out of the west aim cone's centre).
+            empty_zone = { x = ox + 16, z = oz + 28 },
             side_wall = { x = ox + ZONE_WEST_MAX - 1, z = oz + 25 },
             hand = LEFT,
         }
     end
     return {
-        thumb = { x = ox + RIGHT_LX - 2, z = oz + RIGHT_LZ - 1 },
-        ring = { x = ox + RIGHT_LX + 1, z = oz + RIGHT_LZ - 2 },
+        thumb = { x = ox + RIGHT_LX + 2, z = oz + RIGHT_LZ },
+        ring = { x = ox + RIGHT_LX + 2, z = oz + RIGHT_LZ - 2 },
         flame_null = { x = ox + RIGHT_LX + 2, z = oz + RIGHT_LZ - 2 },
-        head_safe = { x = ox + 35, z = oz + 28 },
-        empty_zone = { x = ox + ZONE_WEST_MAX - 1, z = oz + 28 },
+        head_safe = { x = ox + 42, z = oz + 28 },
+        empty_zone = { x = ox + 47, z = oz + 28 },
         side_wall = { x = ox + ZONE_EAST_MIN + 1, z = oz + 25 },
         hand = RIGHT,
     }
@@ -167,8 +172,11 @@ return {
         -- Same lever as cox_olm_chamber_shot; not a substitute for prayer
         -- re-assert / kit top-ups above.
         "::godmode",
-        "::give abyssal_whip",
-        "::wield abyssal_whip",
+        -- Halberd (range 2): whip from 6421 never hit the size-5 left claw
+        -- (thumb 6425 is on the footprint and pathing caps x at 6421). Sang5
+        -- ledger: 355 apnpc2 left, 0 hit_npc.
+        "::give crystal_halberd",
+        "::wield crystal_halberd",
         "::give infernal_cape",
         "::wield infernal_cape",
         "::give ferocious_gloves",
@@ -177,17 +185,13 @@ return {
         "::wield primordial_boots",
         "::give ultor_ring",
         "::wield ultor_ring",
-        -- Right claw mitigates non-MAGIC to /3 (cox_olm_mitigate). TBow was
-        -- landing ~385/600 then stalling under restore spam. Sang is magic
-        -- style on attack(); charge in run() (bloodrune consumed).
+        -- Right claw mitigates non-MAGIC to /3 (cox_olm_mitigate). Sang is
+        -- magic style on attack(); charge in run() (bloodrune consumed).
         "::give sanguinesti_staff_uncharged",
         "::give bloodrune 3000",
-        -- Head is weak to ranged; keep TBow (+ arrows). Drop masori/ava so
-        -- pack stays ≤28 with sang + supplies.
+        -- Head is weak to ranged; TBow (+ arrows). Pack ≤28 after charge.
         "::give twisted_bow",
         "::give dragon_arrow 2000",
-        -- Pack ≤28 after charge frees the bloodrune slot: sang + tbow +
-        -- arrows + restore4 + sara4 + combat2 + shark12 = 25.
         "::give 4dose2restore 4",
         "::give 4dosepotionofsaradomin 4",
         "::give 4dose2combat 2",
@@ -347,7 +351,7 @@ return {
         end
 
         local function equip_melee()
-            t.player.equip("abyssal_whip")
+            t.player.equip("crystal_halberd")
         end
 
         -- Mage claw: magic style (Sang). Head: ranged (TBow).
