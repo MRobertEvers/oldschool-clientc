@@ -5408,18 +5408,23 @@ function QD.raid._verzik_cycle_read(t, p3s, death_tick)
         end
         w.thrown, w.landed, w.bound, w.snaps, w.snap_dmg = thrown, landed, bound, snaps, snap_dmg
     end
-    -- the yellows: the blast tick (1596 on each raider), who it found
-    -- protected (1597, tob_verzik.rs2 ~tob_verzik_powerblast), and the tiles
-    -- they stood on (one raider a pool, W:975)
+    -- the yellows: the blast tick (1597 protected or 1600 struck on each
+    -- raider, tob_verzik.rs2 ~tob_verzik_powerblast), who it found
+    -- protected (1597), and the tiles they stood on (one raider a pool,
+    -- W:975).  1596 is the orb's PROJECTILE now (~tob_verzik_yellow_shot,
+    -- NR DotPassiveSpell), not a graphic on the raider; the window is the
+    -- charge (14, Hard 20) and a tick, so a web's or the ball's 1600 is not
+    -- read as the blast.
     for _, y in ipairs(C.yellows) do
         local blast = nil
         for _, s in ipairs(K.player_spotanim) do
-            if s.spotanim == 1596 and s.tick > y.tick and blast == nil then blast = s.tick end
+            if (s.spotanim == 1597 or s.spotanim == 1600) and s.tick > y.tick and s.tick <= y.tick + 21
+                and blast == nil then blast = s.tick end
         end
         local hit, safe, tiles, distinct = {}, {}, {}, true
         if blast ~= nil then
             for _, s in ipairs(K.player_spotanim) do
-                if s.tick == blast and s.spotanim == 1596 then hit[#hit + 1] = s.pid end
+                if s.tick == blast and (s.spotanim == 1597 or s.spotanim == 1600) then hit[#hit + 1] = s.pid end
                 if s.tick == blast and s.spotanim == 1597 then safe[s.pid] = true end
             end
             local seen = {}
