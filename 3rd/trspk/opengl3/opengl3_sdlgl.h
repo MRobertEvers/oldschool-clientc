@@ -12,6 +12,10 @@ typedef void(APIENTRYP* PFNGLBUFFERSTORAGEPROC)(
     GLbitfield flags);
 #endif
 #else
+/* Linux glcorearb.h is typedefs-only unless this is set; desktop soft3d /
+ * questtest still compiles the GL3 TU and needs the prototypes that macOS
+ * OpenGL/gl3.h exposes by default. Aliases below still prefer trspk_gl*. */
+#define GL_GLEXT_PROTOTYPES 1
 #include <GL/glcorearb.h>
 #endif
 

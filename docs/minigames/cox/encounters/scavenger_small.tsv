@@ -1,5 +1,5 @@
 mechanic_id	quantity	spec_value	unit	tags	grade	source_ref	closes	tolerance
 scavenger.hp	scavenger beast hitpoints	30	hp	[wiki][cache]	C	sources/wiki_Scavenger_beast.wikitext; COX_MECHANICS.md:740	-	exact
-scavenger.cadence	attack speed	4	ticks	[wiki]	D	COX_MECHANICS.md:740	-	exact
-scavenger.max_hit	crush max hit	13	hp	[wiki]	D	COX_MECHANICS.md:740	-	exact
+scavenger.cadence	attack speed	4	ticks	[wiki][cache]	C	sources/wiki_Scavenger_beast.wikitext; COX_MECHANICS.md:740	-	exact
+scavenger.max_hit	crush max hit	13	hp	[wiki]	D	sources/wiki_Scavenger_beast.wikitext; COX_MECHANICS.md:740	-	range
 scavenger.drop_rolls	drop rolls per kill since Nov 2023	2	count	[wiki][jagex]	A	COX_MECHANICS.md:741	-	exact
