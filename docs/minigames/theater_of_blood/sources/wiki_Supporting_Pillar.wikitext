@@ -1,0 +1,67 @@
+{{Otheruses|the pillars near [[Verzik Vitur]]|the pillars in [[Nylocas Vasilias]]' room|Support (Theatre of Blood)}}
+{{Multi Infobox
+|text1 = Supporting
+|item1 =
+{{Switch infobox
+|text1 = Scenery
+|item1 =
+{{Infobox Scenery
+|name = Supporting Pillar
+|image = [[File:Supporting Pillar.png|x250px]]
+|release = [[7 June]] [[2018]]
+|update = The Theatre of Blood
+|members = Yes
+|quest = No
+|location = [[Theatre of Blood]], near [[Verzik Vitur]]
+|options = None
+|examine = An immense pillar supporting the roof.
+|map = {{Map|mapID=-1|mtype=pin|zoom=3|3162,4319|3162,4313|3162,4307|3174,4319|3174,4313|3174,4307}}
+|id = 32687
+|leagueRegion = Morytania
+}}
+|text2 = NPC
+|item2 =
+{{Infobox NPC
+|name = Supporting Pillar
+|image = [[File:Supporting Pillar.png|x250px]]
+|release = [[7 June]] [[2018]]
+|update = The Theatre of Blood
+|members = Yes
+|location = [[Theatre of Blood]], near [[Verzik Vitur]]
+|options = None
+|examine = An immense pillar supporting the roof.
+|map = {{Map|mapID=-1|mtype=pin|zoom=3|3162,4319|3162,4313|3162,4307|3174,4319|3174,4313|3174,4307}}
+|id = 8379,10840,10857
+|leagueRegion = Morytania
+}}
+}}
+|text2 = Collapsing
+|item2 =
+{{Infobox NPC
+|version1 = Collapsing
+|version2 = Fading
+|name = Collapsing Pillar
+|image1 = [[File:Collapsing Pillar.png|x250px]]
+|image2 = [[File:Collapsing Pillar (collapsed).png|125x250px]]
+|release = [[7 June]] [[2018]]
+|update = The Theatre of Blood
+|members = Yes
+|location = [[Theatre of Blood]], near [[Verzik Vitur]]
+|options = None
+|examine = An immense pillar, no longer supporting the roof.
+|map = {{Map|mapID=-1|mtype=pin|zoom=3|3162,4319|3162,4313|3162,4307|3174,4319|3174,4313|3174,4307}}
+|id1 = 8377,10838,10855
+|id2 = 8378,10839,10856
+|leagueRegion = Morytania
+}}
+}}
+
+'''Supporting Pillars''' are important parts of scenery in the [[Theatre of Blood]] [[raid]]. They are found when fighting the first phase of [[Verzik Vitur]]. When fighting Verzik, players stand behind these pillars to prevent her from attacking them.
+
+These pillars have a certain amount of hitpoints, and when these hitpoints reach zero, they collapse. When this happens, all players standing directly adjacent to the pillars will get damaged and stunned.
+
+When [[Verzik]]'s phase one is ended and she transitions to phase two, all pillars in the room collapse, and players standing adjacent to a pillar will be damaged and stunned.
+
+[[File:Fighting Verzik Vitur (phase 1).png|thumb|left|A pillar next to some players fighting [[Verzik Vitur]].]]
+
+{{Theatre of Blood}}

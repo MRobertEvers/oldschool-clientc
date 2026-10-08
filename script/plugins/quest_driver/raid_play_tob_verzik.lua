@@ -1110,7 +1110,7 @@ function QD.raid._verzik_pool_run(f)
     -- going for my pool, only a tornado stepping onto me next is dodged
     -- (svavzslow t831-845 on 0c5edb444: two seats were two from their pools
     -- at the blast and took 68 and 60)
-    if m.state == "HOLD" or m.state == "ARRIVE" then vz.guard_tight_tick = v.tick end
+    if m.state == "HOLD" or m.state == "ARRIVE" then vz.pool_hold_tick = v.tick end
     if m.state == "HOLD" then
         intent.walk = nil
         return true
@@ -1291,10 +1291,12 @@ function QD.raid._verzik_ball_run(f)
     local bm = st.vz.bm
     if bm ~= nil and not bm.done then
         local m = QD.raid.sm_at(st, "verzik_ball")
+        local key = (m and m.state or "?") .. tostring(bm.holder)
         st.notes = st.notes or {}
-        if #st.notes < 90 then
+        if key ~= st.vz.ball_note_key and #st.notes < 90 then
+            st.vz.ball_note_key = key
             st.notes[#st.notes + 1] = "b" .. v.tick .. (m and m.state or "?"):sub(1, 2) .. "h" .. tostring(bm.holder)
-                .. "@" .. v.me.x .. "," .. v.me.z .. (intent.walk and (">" .. intent.walk.x .. "," .. intent.walk.z) or "")
+                .. "@" .. v.me.x .. "," .. v.me.z
         end
     end
     return owned
@@ -1312,6 +1314,11 @@ function QD.raid._verzik_ball_run_once(f)
         if seat ~= nil then ring[#ring + 1] = { seat = seat, pid = m.pid, x = m.x, z = m.z } end
     end
     table.sort(ring, function(r1, r2) return r1.seat < r2.seat end)
+    -- every seat's tile last tick (the joiner's aim reads the holder's step)
+    local seen_before = vz.ball_seen
+    vz.ball_seen = {}
+    for _, r in ipairs(ring) do vz.ball_seen[r.seat] = { x = r.x, z = r.z, tick = v.tick } end
+    vz.ball_seen_prev = seen_before
     -- the ball in flight, and the raider it is for
     local proj = nil
     for _, p in ipairs(v.proj or {}) do
@@ -1328,29 +1335,51 @@ function QD.raid._verzik_ball_run_once(f)
         if proj.target ~= nil and proj.target >= 32768 then want = proj.target - 32768 end
         local tgt, td = nil, nil
         for _, r in ipairs(ring) do
-            -- (checked against its destination: an encoding read wrong must
-            -- not name a raider across the room)
-            if want ~= nil and r.pid == want and cheb(r.x, r.z, proj.dst_x, proj.dst_z) <= 2 then tgt, td = r, -1 end
+            -- (no distance check against its destination: the decode is the
+            -- same on every client -- t-2 -> pid 1, t-3 -> pid 2, logged on all
+            -- three -- but a raider reads its OWN tile a tick ahead of its
+            -- mates' rows, so a check of 2 rejected the target on the target's
+            -- own client only (svbvzslow t815: 3 from its own view, 2 from
+            -- theirs) and it named another seat)
+            if want ~= nil and r.pid == want then tgt, td = r, -1 end
         end
         vz.ball_target_named = (vz.ball_target_named or 0) + ((td == -1) and 1 or 0)
         for _, r in ipairs(ring) do
             local d = cheb(r.x, r.z, proj.dst_x, proj.dst_z)
             if td == nil or d < td then tgt, td = r, d end
         end
+        -- ONE TARGET PER PROJECTILE: read once, when it is first seen (its
+        -- element and launch).  Re-read every tick, "nearest its destination"
+        -- flipped between seats as they moved and every flip counted as a hop
+        -- (svbvzslow t815-822: the holder read as 1, 3, 2, 3, 1, 2), marking
+        -- them all visited.
+        local pkey = tostring(proj.element_id) .. ":" .. tostring(proj.launched)
+        if bm ~= nil and not bm.done and bm.pkey == pkey then
+            for _, r in ipairs(ring) do if r.seat == bm.holder then tgt = r end end
+        end
         if bm == nil or bm.done then
-            bm = { first = v.tick, visited = {}, holder = tgt.seat, hops = 0, last = v.tick }
+            bm = { first = v.tick, visited = {}, holder = tgt.seat, hops = 0, last = v.tick, pkey = pkey }
             vz.bm = bm
             st.notes = st.notes or {}
             if #st.notes < 24 then
+                local pids = {}
+                for _, r in ipairs(ring) do pids[#pids + 1] = r.seat .. "=" .. tostring(r.pid) end
                 st.notes[#st.notes + 1] = "ball" .. v.tick .. "s" .. tgt.seat .. "@" .. me.x .. "," .. me.z .. "n" .. #ring
+                    .. "t" .. tostring(proj.target) .. "w" .. tostring(want) .. "[" .. table.concat(pids, ",") .. "]"
+                    .. "d" .. proj.dst_x .. "," .. proj.dst_z
             end
-        elseif bm.holder ~= tgt.seat then
-            bm.visited[bm.holder] = true
-            bm.holder = tgt.seat
-            bm.hops = bm.hops + 1
+        elseif bm.pkey ~= pkey then
+            bm.pkey = pkey
+            if bm.holder ~= tgt.seat then
+                bm.visited[bm.holder] = true
+                bm.holder = tgt.seat
+                bm.hops = bm.hops + 1
+            end
         end
         bm.last = v.tick
-        bm.land = v.tick + math.ceil((proj.cycles_left or 0) / QD.RAID_PLAY_CYCLES_PER_TICK)
+        -- (down, as content queues the landing: calc($flight / 30); up put the
+        -- landing a tick late, svbvzslow t821 against the plan's t822)
+        bm.land = v.tick + math.floor((proj.cycles_left or 0) / QD.RAID_PLAY_CYCLES_PER_TICK)
     end
     local ev = "ball_none"
     local H, nxt = nil, nil
@@ -1386,44 +1415,10 @@ function QD.raid._verzik_ball_run_once(f)
     -- tile, and the ball landed on a crowd.  The target keeps off every seat
     -- but the one joining it; the rest keep out of the target's 3x3.  (The
     -- joining seat's dodge is free: it chases the target anyway.)
-    vz.guard_goal_tick, vz.guard_goal = nil, nil
-    -- the ball's pair dodge only a tornado stepping onto them next (read on
-    -- the server's own tile, DriveNpcRow.server_x): on the two-step warning
-    -- the holder and its joiner each fled their own tornado and never closed
-    -- -- the ball's final 74 (svavzslow t881, svbvzslow t787 on 0c5edb444)
-    vz.guard_tight_tick = (m.state == "HOLDING" or m.state == "JOINING") and v.tick or nil
-    if m.state == "HOLDING" and nxt ~= nil then
-        vz.guard_goal_tick, vz.guard_goal = v.tick, { x = nxt.x, z = nxt.z }
-    elseif m.state == "JOINING" and H ~= nil then
-        vz.guard_goal_tick, vz.guard_goal = v.tick, { x = H.x, z = H.z }
-    end
-    -- THE LANDING READS THE 3x3 AS IT STANDS (_vzslow t865-866: joined on
-    -- one tile, then the holder and the joiner each dodged a tornado the
-    -- other way, two apart on the landing, and the ball's final 74 hit the
-    -- holder): in the last two ticks the pair dodge only inside each other's
-    -- 3x3.  (The guard still dodges anywhere if nothing is left.)
-    local landing = bm ~= nil and bm.land ~= nil and bm.land - v.tick <= 1
-    if H ~= nil then
-        vz.ball_forbid_tick = v.tick
-        if m.state == "HOLDING" and landing and nxt ~= nil and cheb(me.x, me.z, nxt.x, nxt.z) <= BL.range then
-            vz.ball_forbid = function(x, z) return cheb(x, z, nxt.x, nxt.z) > BL.range end
-        elseif m.state == "JOINING" and landing and cheb(me.x, me.z, H.x, H.z) <= BL.range then
-            vz.ball_forbid = function(x, z) return cheb(x, z, H.x, H.z) > BL.range end
-        elseif m.state == "HOLDING" then
-            vz.ball_forbid = function(x, z)
-                for _, r in ipairs(ring) do
-                    if not r.me and (nxt == nil or r.seat ~= nxt.seat) and cheb(r.x, r.z, x, z) <= BL.range + 1 then return true end
-                end
-                return false
-            end
-        elseif m.state == "CLEAR" then
-            -- (a tile of margin: the target may dodge too, the same tick)
-            vz.ball_forbid = function(x, z) return cheb(x, z, H.x, H.z) <= BL.range + 1 end
-        else
-            vz.ball_forbid_tick = nil
-        end
-    end
-    -- a swing from where I stand, or no press at all (a press would walk me)
+    -- THE BALL'S MEASUREMENT for P3's one move (_verzik_p3_move): who holds,
+    -- who is next in orb order, when it lands.  The move decides the tile.
+    vz.ball_now = { tick = v.tick, state = m.state, H = H, nxt = nxt,
+        land = (bm ~= nil) and bm.land or nil }
     local function stand()
         intent.walk = nil
         if QD.raid._verzik_swing_window(st, v, f.reach, f.tor) then
@@ -1452,29 +1447,11 @@ function QD.raid._verzik_ball_run_once(f)
             stand()
             return true
         end
-        -- the tile beside them nearest me, with no other raider's 3x3 on it
-        -- (a second valid one is a crowd), in her reach if one is
-        local best, bx, bz = nil, nil, nil
-        for dx = -BL.range, BL.range do
-            for dz = -BL.range, BL.range do
-                local x, z = H.x + dx, H.z + dz
-                if (dx ~= 0 or dz ~= 0) and tile_ok(x, z) then
-                    local sc = cheb(me.x, me.z, x, z) * 3
-                    for _, r in ipairs(ring) do
-                        if not r.me and r.seat ~= H.seat and cheb(r.x, r.z, x, z) <= BL.range then sc = sc + 50 end
-                    end
-                    if in_reach(x, z) then sc = sc - 2 end
-                    if best == nil or sc < best then best, bx, bz = sc, x, z end
-                end
-            end
-        end
-        if bx == nil then return false end
-        intent.walk = { x = bx, z = bz }
+        intent.walk = { x = H.x, z = H.z }
         intent.attack = false
         vz.ball_lock = v.tick
         return true
     end
-    -- CLEAR: out of the target's 3x3, and not where a press would walk me into it
     local dH = cheb(me.x, me.z, H.x, H.z)
     if dH > BL.range then
         if dH <= BL.range + 1 then vz.ball_lock = v.tick end
@@ -1634,88 +1611,141 @@ end
 -- touch.  (2026-10-07, dc3f76625: the guard looked one step ahead from the
 -- plan's PREDICTED tornado tiles, and tornado hits of 28-43 kept landing.)
 local function tor_reaches(tornadoes, me, mid, x, z)
-    for _, e in ipairs(tornadoes or {}) do
-        local ax, az = tor_step(e, me.x, me.z)
-        local a2x, a2z = tor_step({ x = ax, z = az }, mid.x, mid.z)
-        local b2x, b2z = tor_step({ x = ax, z = az }, x, z)
-        if (e.x == x and e.z == z) or (ax == x and az == z) or (a2x == x and a2z == z) or (b2x == x and b2z == z) then
-            return true
-        end
-    end
-    return false
+    return QD.raid.move.tornado_reaches(tornadoes or {}, me, mid, x, z)
 end
 QD.raid._verzik_tor_reaches = tor_reaches
-function QD.raid._verzik_tornado_guard(st, v, intent, ok)
-    assert(st, "_verzik_tornado_guard: st")
-    assert(v, "_verzik_tornado_guard: v")
-    assert(intent, "_verzik_tornado_guard: intent")
-    assert(ok, "_verzik_tornado_guard: ok")
+-- P3'S ONE MOVE (raid_move.lua, owner 2026-10-07 "Measure, Decide, Act").
+-- The chain above decided an OBJECTIVE (intent.walk, or an attack press with
+-- no walk); this decides the TILE.  Hazards are hard penalties on the tile I
+-- end the tick on, goals are soft costs, and the chain's walk survives
+-- unchanged whenever its first run breaks nothing.  It replaces the tornado
+-- guard, the enrage close-in and the web detour, which each searched a 5x5 of
+-- their own and overwrote each other's answer.
+QD.RAID_PLAY_VERZIK_MOVE = {
+    pen_ball = 1000,     -- the green ball landing on a pair not in its 3x3: ~71
+    pen_tornado = 400,   -- half my hp and 3x that healed onto her
+    pen_shadow = 300,    -- a bomb, purple or web landing tile, or a live web
+    w_objective = 10,    -- per tile from the chain's walk target
+    w_reach = 12,        -- per tile outside the weapon's reach while pressing
+    w_pair = 40,         -- per tile outside the holder's 3x3, joiner, in flight
+    w_margin = 2,        -- per tile a tornado is inside 3
+    stay_holder = 30,    -- the holder is the meeting point: one mover
+    stay_pressing = 6,   -- in reach and pressing: do not jitter off the swing
+    follow_slack = 15,   -- the chain's own first step may cost this much more
+}
+function QD.raid._verzik_p3_move(st, v, intent, f)
+    assert(st, "_verzik_p3_move: st")
+    assert(v, "_verzik_p3_move: v")
+    assert(intent, "_verzik_p3_move: intent")
+    assert(f, "_verzik_p3_move: f")
+    assert(f.ok, "_verzik_p3_move: f.ok")
+    local MV, MC = QD.raid.move, QD.RAID_PLAY_VERZIK_MOVE
     local vz, me, b = st.vz, v.me, v.boss
-    -- the tornadoes as the client sees them, one step on (the row is a tick
-    -- behind the server: QD.raid._verzik_tor_tiles)
+    local reach = f.reach or 1
+    local cheb = MV.cheb
     local tornadoes = QD.raid._verzik_tor_tiles(v)
-    if #tornadoes == 0 then return false end
-    -- where my last click has me at the end of this tick
-    local mid = me
-    if st.walk_target ~= nil and math.max(math.abs(st.walk_target.x - me.x), math.abs(st.walk_target.z - me.z)) <= 2 then
-        mid = st.walk_target
+    local tor_reaches = QD.raid._verzik_tor_reaches
+    local obj = intent.walk
+    local pressing = intent.attack and obj == nil and b ~= nil
+    local function dist_b(x, z) return QD.raid._verzik_dist(x, z, b) end
+    local hard, soft = {}, {}
+    if b ~= nil then
+        hard[#hard + 1] = { name = "under", bad = function(x, z) return dist_b(x, z) < 1 end }
     end
-    local want = intent.walk
-    local tx, tz = mid.x, mid.z
-    if want ~= nil and math.max(math.abs(want.x - me.x), math.abs(want.z - me.z)) <= 2 then tx, tz = want.x, want.z end
-    -- (my own tile too: `mid` is the walk I last sent, and a walk not taken
-    -- -- bound in a web, or eaten by a press -- left me on a tile the check
-    -- never looked at: svavzslow seat 3, t808 one from its tornado and no
-    -- dodge, touched at t809)
-    if vz.guard_tight_tick == v.tick then
-        local onto = false
-        for _, e in ipairs(tornadoes) do
-            local ax, az = tor_step(e, me.x, me.z)
-            if (e.x == me.x and e.z == me.z) or (ax == me.x and az == me.z) then onto = true end
+    hard[#hard + 1] = { name = "shadow", pen = MC.pen_shadow, bad = function(x, z)
+        if v.shadows[x * 100000 + z] then return true end
+        if cheb(me.x, me.z, x, z) < 2 then return false end
+        local mx, mz = MV.toward(me.x, me.z, x, z, 1)
+        return v.shadows[mx * 100000 + mz] == true
+    end }
+    if #tornadoes > 0 then
+        hard[#hard + 1] = { name = "tor", pen = MC.pen_tornado, bad = function(x, z)
+            return tor_reaches(tornadoes, me, me, x, z)
+        end }
+        soft[#soft + 1] = { name = "margin", w = MC.w_margin, cost = function(x, z)
+            local near = 99
+            for _, e in ipairs(tornadoes) do near = math.min(near, cheb(e.x, e.z, x, z)) end
+            return math.max(0, 3 - near)
+        end }
+    end
+    local stay_w = 1
+    -- On my yellow pool (its HOLD or ARRIVE): leaving it unshares the blast,
+    -- so only a tornado stepping onto me moves me off it.
+    if vz.pool_hold_tick == v.tick then
+        hard[#hard + 1] = { name = "pool", pen = 500, bad = function(x, z) return x ~= me.x or z ~= me.z end }
+        for _, h in ipairs(hard) do
+            if h.name == "tor" then
+                h.pen = 150
+                hard[#hard + 1] = { name = "tor_onto", pen = 600, bad = function(x, z)
+                    for _, e in ipairs(tornadoes) do
+                        local ax, az = MV.toward(e.x, e.z, me.x, me.z, 1)
+                        if (e.x == x and e.z == z) or (ax == x and az == z) then return true end
+                    end
+                    return false
+                end }
+                break
+            end
         end
-        if not onto then return false end
-    elseif not tor_reaches(tornadoes, me, mid, tx, tz) and not tor_reaches(tornadoes, me, me, me.x, me.z) then
-        return false
     end
-    local gx, gz = (want and want.x) or me.x, (want and want.z) or me.z
-    -- a ball holder's dodge goes toward the seat joining it, and a joining
-    -- seat's toward its holder (_vzslow t858-865: the holder fled its
-    -- tornado away from the chain, the hop came late and the last link never
-    -- reached the new holder -- the ball's final 74)
-    if vz.guard_goal_tick == v.tick and vz.guard_goal ~= nil then gx, gz = vz.guard_goal.x, vz.guard_goal.z end
-    -- the ball's forbidden tiles first; with none left, the tornado wins: a
-    -- touch is half my hitpoints AND heals her (svbvzslow t823-830: two seats
-    -- held 6436,92 under a ball with every dodge forbidden, and were caught)
-    local best, bx, bz = nil, nil, nil
-    for pass = 1, 2 do
-        local honour = pass == 1 and vz.ball_forbid_tick == v.tick
+    local bn = vz.ball_now
+    if bn ~= nil and bn.tick == v.tick and bn.H ~= nil then
+        local R = QD.RAID_PLAY_VERZIK_BALL.range
+        local left = (bn.land or v.tick) - v.tick
+        local H, nxt = bn.H, bn.nxt
+        if bn.state == "HOLDING" then
+            stay_w = MC.stay_holder
+            if nxt ~= nil and left <= 1 then
+                hard[#hard + 1] = { name = "pair", pen = MC.pen_ball, bad = function(x, z) return cheb(x, z, nxt.x, nxt.z) > R end }
+            end
+        elseif bn.state == "JOINING" then
+            soft[#soft + 1] = { name = "pair", w = MC.w_pair, cost = function(x, z) return math.max(0, cheb(x, z, H.x, H.z) - R) end }
+            if left <= 1 then
+                hard[#hard + 1] = { name = "pair", pen = MC.pen_ball, bad = function(x, z) return cheb(x, z, H.x, H.z) > R end }
+            end
+        elseif bn.state == "CLEAR" then
+            hard[#hard + 1] = { name = "crowd", pen = (left <= 2) and MC.pen_ball or MC.pen_shadow,
+                bad = function(x, z) return cheb(x, z, H.x, H.z) <= R end }
+        end
+    end
+    if obj ~= nil then
+        soft[#soft + 1] = { name = "obj", w = MC.w_objective, cost = function(x, z) return cheb(x, z, obj.x, obj.z) end }
+    elseif b ~= nil and (pressing or intent.attack == nil) then
+        soft[#soft + 1] = { name = "reach", w = MC.w_reach, cost = function(x, z) return math.max(0, dist_b(x, z) - reach) end }
+        if pressing and dist_b(me.x, me.z) <= reach and stay_w < MC.stay_pressing then stay_w = MC.stay_pressing end
+    end
+    local q = { me = me, step = 2, hard = hard, soft = soft, stay_w = stay_w,
+        ok = function(x, z) return f.ok(x, z) end }
+    local r = MV.solve(q)
+    -- The chain's own walk (or the press's own approach) survives when its
+    -- first run breaks nothing and costs little more than the best tile: a
+    -- far objective is the server's pathing to do, not a tile a tick.
+    local fx, fz = me.x, me.z
+    if obj ~= nil then
+        fx, fz = MV.toward(me.x, me.z, obj.x, obj.z, 2)
+    elseif pressing and dist_b(me.x, me.z) > reach then
+        local bd = nil
         for dx = -2, 2 do
             for dz = -2, 2 do
                 local x, z = me.x + dx, me.z + dz
-                if ok(x, z) and not v.shadows[x * 100000 + z] and (b == nil or QD.raid._verzik_dist(x, z, b) >= 1)
-                    and not tor_reaches(tornadoes, me, mid, x, z)
-                    and not (honour and vz.ball_forbid(x, z)) then
-                    local sc = math.max(math.abs(x - gx), math.abs(z - gz)) * 10 + math.max(math.abs(dx), math.abs(dz))
-                    -- a dodge that keeps her in reach is a swing not lost:
-                    -- the walk back after a dodge was what cancelled them (an
-                    -- enrage of 290-325 ticks at 2-3 a tick, 60d10a2d0)
-                    if b ~= nil and vz.reach_now ~= nil then
-                        local db = QD.raid._verzik_dist(x, z, b)
-                        if db >= 1 and db <= vz.reach_now then sc = sc - 15 end
-                    end
-                    if best == nil or sc < best then best, bx, bz = sc, x, z end
-                end
+                local d = dist_b(x, z)
+                if d >= 1 and f.ok(x, z) and (bd == nil or d < bd) then bd, fx, fz = d, x, z end
             end
         end
-        if bx ~= nil or vz.ball_forbid_tick ~= v.tick then break end
     end
-    if bx == nil then return false end
-    intent.walk = { x = bx, z = bz }
-    intent.attack = false
-    vz.tor_guards = (vz.tor_guards or 0) + 1
-    if vz.bm ~= nil and not vz.bm.done then
-        st.notes = st.notes or {}
-        if #st.notes < 90 then st.notes[#st.notes + 1] = "g" .. v.tick .. ">" .. bx .. "," .. bz end
+    local fc, fbroke = MV.cost_at(q, fx, fz)
+    if fbroke == nil and fc <= r.cost + MC.follow_slack then return false end
+    if r.x == me.x and r.z == me.z then
+        intent.walk = nil
+        if obj ~= nil then intent.attack = false end
+    else
+        intent.walk = { x = r.x, z = r.z }
+        intent.attack = false
+    end
+    vz.arb_moves = (vz.arb_moves or 0) + 1
+    st.notes = st.notes or {}
+    if #st.notes < 90 then
+        st.notes[#st.notes + 1] = "m" .. v.tick .. ">" .. r.x .. "," .. r.z .. ":" .. tostring(fbroke or "slack")
+            .. (r.broke and ("!" .. r.broke) or "")
     end
     return true
 end
@@ -5049,69 +5079,7 @@ function QD.raid._verzik_phase_p3(c)
             vz.claws_back = (vz.claws_back or 0) + 1
         end
     end
-    if melee then QD.raid._verzik_tornado_guard(st, v, intent, okp) end
-    -- POWERED THROUGH, NOT WALKED INTO: an attack press out of reach walks me
-    -- back to her by the server's path, and with my tornado within three that
-    -- path was its tile -- the guard's dodge, then the press straight back
-    -- (_vzslow on ae7ca6e50+: ~1700 healed from P3+250, ~11 touches).  So
-    -- with a tornado near, the press is sent only from a tile already in
-    -- reach (it does not move me); else I walk to the in-reach tile my
-    -- tornado can be on last.
-    if power_through and vz.enraged and melee and intent.attack and b ~= nil then
-        local tors = {}
-        for _, tr in ipairs(v.tornadoes or {}) do
-            if math.max(math.abs(tr.x - me.x), math.abs(tr.z - me.z)) <= 3 then tors[#tors + 1] = { x = tr.x, z = tr.z } end
-        end
-        local dme = QD.raid._verzik_dist(me.x, me.z, b)
-        if #tors > 0 and (dme < 1 or dme > reach) then
-            local best, bx, bz = nil, nil, nil
-            for dx = -2, 2 do
-                for dz = -2, 2 do
-                    local x, z = me.x + dx, me.z + dz
-                    local db = QD.raid._verzik_dist(x, z, b)
-                    if db >= 1 and db <= reach and okp(x, z) and not v.shadows[x * 100000 + z]
-                        and not tor_reaches(tors, me, me, x, z) then
-                        local far = 99
-                        for _, tr in ipairs(tors) do far = math.min(far, math.max(math.abs(tr.x - x), math.abs(tr.z - z))) end
-                        local sc = math.max(math.abs(dx), math.abs(dz)) * 2 - far * 3
-                        if best == nil or sc < best then best, bx, bz = sc, x, z end
-                    end
-                end
-            end
-            intent.attack = false
-            if bx ~= nil then intent.walk = { x = bx, z = bz } end
-            vz.enrage_closes = (vz.enrage_closes or 0) + 1
-        end
-    end
-    -- NEVER ONTO OR ACROSS A LIVE WEB, whatever decided the walk: moving off a
-    -- web tile binds for 10 ticks (Near Reality VerzikViturRoom.processMovement,
-    -- content f4b4d64ea0), mid-run too, and a bound raider is a tornado's
-    -- (svbvzslow t752-762: a web spawned on 6437,90, two seats walked onto
-    -- it, stood bound and were touched -- heal 3x the hit).  A run of two
-    -- tiles passes its first-step tile (diagonal first), so that one counts.
-    if intent.walk ~= nil and #v.webs > 0 then
-        local web = {}
-        for _, w in ipairs(v.webs) do web[w.row.x * 100000 + w.row.z] = true end
-        local wx, wz = intent.walk.x, intent.walk.z
-        local function sgn(a) return a > 0 and 1 or (a < 0 and -1 or 0) end
-        local mx, mz = me.x + sgn(wx - me.x), me.z + sgn(wz - me.z)
-        local far = math.max(math.abs(wx - me.x), math.abs(wz - me.z)) > 1
-        if web[wx * 100000 + wz] or (far and web[mx * 100000 + mz]) then
-            local best, bx, bz = nil, nil, nil
-            for dx = -1, 1 do
-                for dz = -1, 1 do
-                    local x, z = me.x + dx, me.z + dz
-                    if (dx ~= 0 or dz ~= 0) and not web[x * 100000 + z] and okp(x, z)
-                        and (b == nil or QD.raid._verzik_dist(x, z, b) >= 1) then
-                        local sc = math.max(math.abs(x - wx), math.abs(z - wz))
-                        if best == nil or sc < best then best, bx, bz = sc, x, z end
-                    end
-                end
-            end
-            intent.walk = (bx ~= nil) and { x = bx, z = bz } or nil
-            vz.web_detours = (vz.web_detours or 0) + 1
-        end
-    end
+    QD.raid._verzik_p3_move(st, v, intent, { ok = okp, reach = reach })
     if QD.raid._verzik_slow_hold(st, v) then
         -- an engaged raider swings on by itself: ask the executor to stop it
         -- (raider_engage: a step onto my own tile, sent only while ENGAGED)

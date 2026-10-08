@@ -150,6 +150,10 @@ static char const* const DRIVE_SCRIPT_PARTS[] = {
      * raid_play.lua, whose QD.raid._play_fold it folds a state's intents
      * with, and before every room plan, which declare at load time. */
     "plugins/quest_driver/raid_sm.lua",
+    /* raid seam54 move_arbiter: the one movement decision a tick
+     * (QD.raid.move.solve); pure, before the room plans that build its
+     * queries. */
+    "plugins/quest_driver/raid_move.lua",
     "plugins/quest_driver/raid_play_tob_maiden.lua",
     "plugins/quest_driver/raid_play_tob_bloat.lua",
     "plugins/quest_driver/raid_play_tob_nylocas.lua",
