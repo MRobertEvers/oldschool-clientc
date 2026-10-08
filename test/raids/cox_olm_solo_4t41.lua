@@ -115,28 +115,26 @@ local function origin_of(me)
 end
 
 local function melee_tiles(ox, oz, side_west)
-    -- Thumb tiles sit on the size-5 claw footprint; pathing in this client
-    -- refuses x past 6421 when Olm is west. Prefer ring/approach tiles west
-    -- (or east) of the claw that a range-2 halberd can hit from.
+    -- Synq thumb/ring on the claw. Pathing refuses the size-5 footprint
+    -- (sang5/7: x capped at 6421, 0 melee hits) — use goto_tile to stand on
+    -- thumb, walk_to only for empty/side recovery tiles outside the claw.
     if side_west then
         return {
-            thumb = { x = ox + LEFT_LX - 2, z = oz + LEFT_LZ },
-            ring = { x = ox + LEFT_LX - 2, z = oz + LEFT_LZ - 2 },
+            thumb = { x = ox + LEFT_LX + 2, z = oz + LEFT_LZ - 1 },
+            ring = { x = ox + LEFT_LX - 1, z = oz + LEFT_LZ - 2 },
             flame_null = { x = ox + LEFT_LX - 2, z = oz + LEFT_LZ - 2 },
-            head_safe = { x = ox + 21, z = oz + 28 },
-            -- East empty is often blocked by the head; use far-west null as
-            -- the head-turn skip tile (out of the west aim cone's centre).
-            empty_zone = { x = ox + 16, z = oz + 28 },
+            head_safe = { x = ox + 28, z = oz + 28 },
+            empty_zone = { x = ox + ZONE_EAST_MIN + 1, z = oz + 28 },
             side_wall = { x = ox + ZONE_WEST_MAX - 1, z = oz + 25 },
             hand = LEFT,
         }
     end
     return {
-        thumb = { x = ox + RIGHT_LX + 2, z = oz + RIGHT_LZ },
-        ring = { x = ox + RIGHT_LX + 2, z = oz + RIGHT_LZ - 2 },
+        thumb = { x = ox + RIGHT_LX - 2, z = oz + RIGHT_LZ - 1 },
+        ring = { x = ox + RIGHT_LX + 1, z = oz + RIGHT_LZ - 2 },
         flame_null = { x = ox + RIGHT_LX + 2, z = oz + RIGHT_LZ - 2 },
-        head_safe = { x = ox + 42, z = oz + 28 },
-        empty_zone = { x = ox + 47, z = oz + 28 },
+        head_safe = { x = ox + 35, z = oz + 28 },
+        empty_zone = { x = ox + ZONE_WEST_MAX - 1, z = oz + 28 },
         side_wall = { x = ox + ZONE_EAST_MIN + 1, z = oz + 25 },
         hand = RIGHT,
     }
@@ -172,11 +170,10 @@ return {
         -- Same lever as cox_olm_chamber_shot; not a substitute for prayer
         -- re-assert / kit top-ups above.
         "::godmode",
-        -- Halberd (range 2): whip from 6421 never hit the size-5 left claw
-        -- (thumb 6425 is on the footprint and pathing caps x at 6421).
-        -- crystal_halberd (23987) is the inactive shell — use dragon_halberd.
-        "::give dragon_halberd",
-        "::wield dragon_halberd",
+        -- Melee claw: stand on Synq thumb via goto_tile (pathing cannot walk
+        -- onto the size-5 footprint). Whip is enough once planted.
+        "::give abyssal_whip",
+        "::wield abyssal_whip",
         "::give infernal_cape",
         "::wield infernal_cape",
         "::give ferocious_gloves",
@@ -351,7 +348,7 @@ return {
         end
 
         local function equip_melee()
-            t.player.equip("crystal_halberd")
+            t.player.equip("abyssal_whip")
         end
 
         -- Mage claw: magic style (Sang). Head: ranged (TBow).
@@ -378,31 +375,47 @@ return {
             return math.max(math.abs(me.x - tile.x), math.abs(me.z - tile.z)) <= slack
         end
 
+        local function plant_thumb()
+            -- ::goto onto the claw thumb; walk_to cannot path here.
+            if on_tile(sm.tiles.thumb, 1) then return true end
+            local gr, gd = t.player.goto_tile(sm.tiles.thumb.x, sm.tiles.thumb.z, 2, 20, 2)
+            t.ticklog.mark("olm goto thumb " .. tostring(gr) .. " " .. tostring(gd))
+            return on_tile(sm.tiles.thumb, 1)
+        end
+
         local function attack_melee()
             local m = melee_hand()
             if not hand_alive(m) then return end
-            -- Halberd range 2 from the post-barrier camp (6421) reaches the
-            -- size-5 claw; still nudge toward the approach tile when far.
-            if not on_tile(sm.tiles.thumb, 3) then
-                t.player.walk_to(sm.tiles.thumb.x, sm.tiles.thumb.z, 2)
+            if not on_tile(sm.tiles.thumb, 1) then
+                plant_thumb()
             end
             t.player.attack(m, 2, 1)
         end
 
         local function walk_thumb()
-            t.player.walk_to(sm.tiles.thumb.x, sm.tiles.thumb.z, 3)
+            if not on_tile(sm.tiles.thumb, 1) then
+                plant_thumb()
+            end
         end
         local function walk_ring()
-            t.player.walk_to(sm.tiles.ring.x, sm.tiles.ring.z, 3)
+            if not on_tile(sm.tiles.ring, 1) then
+                t.player.goto_tile(sm.tiles.ring.x, sm.tiles.ring.z, 2, 20, 2)
+            end
         end
         local function walk_empty()
-            t.player.walk_to(sm.tiles.empty_zone.x, sm.tiles.empty_zone.z, 4)
+            if not on_tile(sm.tiles.empty_zone, 2) then
+                t.player.goto_tile(sm.tiles.empty_zone.x, sm.tiles.empty_zone.z, 2, 20, 2)
+            end
         end
         local function walk_flame_null()
-            t.player.walk_to(sm.tiles.flame_null.x, sm.tiles.flame_null.z, 3)
+            if not on_tile(sm.tiles.flame_null, 1) then
+                t.player.goto_tile(sm.tiles.flame_null.x, sm.tiles.flame_null.z, 2, 20, 2)
+            end
         end
         local function walk_side()
-            t.player.walk_to(sm.tiles.side_wall.x, sm.tiles.side_wall.z, 4)
+            if not on_tile(sm.tiles.side_wall, 2) then
+                t.player.goto_tile(sm.tiles.side_wall.x, sm.tiles.side_wall.z, 2, 20, 2)
+            end
         end
 
         local function snapshot_rec()
