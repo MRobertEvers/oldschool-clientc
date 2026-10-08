@@ -319,15 +319,14 @@ return {
             if pr == "ok" and type(pp) == "table" then
                 points = pp.points or pp.level or 0
             end
-            if points < 40 then
-                -- Dose list: after the first sip a 4dose is a 3dose; a bare
-                -- drink("4dose2restore") then no-ops while prayer stays low
-                -- and the old resupply path flooded ::give.
+            -- Drink at most every 8 SM ticks so restore presses cannot starve
+            -- attack inputs (sang run had 0 apnpc / 0 hit_npc — only drinks).
+            if points < 40 and (sm.ticks % 8) == 0 then
                 t.player.drink(RESTORE_DOSES)
             end
             -- Keep the phase overhead up after spheres / drains clear it.
             -- Re-assert only when points remain (set refuses at 0).
-            if sm_pray ~= nil and points > 0 then
+            if sm_pray ~= nil and points > 0 and (sm.ticks % 4) == 0 then
                 local rr, _, set = t.prayer.read()
                 if rr ~= "ok" or set == nil or set[sm_pray] ~= true then
                     t.prayer.set(sm_pray, true)
@@ -337,12 +336,12 @@ return {
                 end
             end
             local hp = hp_level(t)
-            if hp ~= nil and hp < 70 then
+            if hp ~= nil and hp < 70 and (sm.ticks % 4) == 0 then
                 if t.player.eat("shark") ~= "ok" then
                     t.player.drink(BREW_DOSES)
                 end
             end
-            if hp ~= nil and hp < 45 then
+            if hp ~= nil and hp < 45 and (sm.ticks % 4) == 1 then
                 t.player.drink(BREW_DOSES)
             end
         end
@@ -817,17 +816,11 @@ return {
                     set_state(STATE.IDENTIFY)
                     return
                 end
-                -- Do not walk+attack every tick: walk cancels the attack
-                -- target and left the prior TBow run oscillating on x without
-                -- issuing apnpc after ~tick 372. Walk only when far; else hit.
-                local safe = sm.tiles.head_safe
-                local _, me = t.world.tile()
-                local dist = math.max(math.abs(me.x - safe.x), math.abs(me.z - safe.z))
-                if dist > 6 then
-                    t.player.walk_to(safe.x, safe.z, 4)
-                else
-                    t.player.attack(mage, 2, 1)
-                end
+                -- ALWAYS attack. A prior "walk when dist>6 else attack" branch
+                -- left the player at 6421,156 (head_safe 6428) with dist=7 —
+                -- walk-only for 16k ticks, 0 apnpc / 0 hit_npc on the mage
+                -- claw (sang4 ledger). Sang reaches from the post-barrier tile.
+                t.player.attack(mage, 2, 1)
                 t.ticks(1)
                 return
             end
