@@ -664,8 +664,28 @@ return {
 
             ------------------------------------------------------------
             if sm.state == STATE.ENTER then
+                -- raid.enter("olm") lands in floor-2 resource (id 7) at the
+                -- hole. Hole → corridor (plane 2); barrier → chamber + spawn.
+                -- An earlier harness clicked the hole as if it were the
+                -- mystical barrier and photographed the resource corner
+                -- (6416,112,1) as "corridor" — nonsensical position.
+                local hr, hd = t.player.click_loc("raids_bossentrance", 1)
+                t.check("hole.click", hr == "ok" or hr == "timeout",
+                    tostring(hr) .. " " .. tostring(hd))
+                t.ticks(8)
+                local tr, tile = t.world.tile()
+                t.check("corridor.tile",
+                    tr == "ok" and type(tile) == "table" and tile.level == 2,
+                    "want plane-2 corridor after hole, got "
+                        .. (type(tile) == "table"
+                            and string.format("%d,%d,%d", tile.x, tile.z, tile.level)
+                            or tostring(tile)))
+                if type(tile) == "table" then
+                    t.player.walk_to(tile.x, tile.z + 4, 24)
+                    t.ticks(2)
+                end
                 t.shot("olm corridor before the barrier")
-                local cr, cd = t.player.click_loc("raids_bossentrance", 1)
+                local cr, cd = t.player.click_loc("raids_olm_barrier", 1)
                 t.check("barrier.click", cr == "ok" or cr == "timeout",
                     tostring(cr) .. " " .. tostring(cd))
                 t.chat.play({ "options", "choose:Step through the mystical barrier." })
@@ -678,6 +698,13 @@ return {
                 local head = npc_ok(t, HEAD) or npc_ok(t, HEAD_SPAWN)
                 if head ~= nil then
                     refresh_geometry()
+                    local tr, tile = t.world.tile()
+                    t.check("chamber.tile",
+                        tr == "ok" and type(tile) == "table" and tile.level == 2,
+                        "want plane-2 chamber after barrier, got "
+                            .. (type(tile) == "table"
+                                and string.format("%d,%d,%d", tile.x, tile.z, tile.level)
+                                or tostring(tile)))
                     t.shot("olm idle after barrier")
                     equip_ranged()
                     pray_style("protectfrommagic")

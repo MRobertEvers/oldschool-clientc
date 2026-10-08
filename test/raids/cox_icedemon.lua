@@ -105,12 +105,12 @@ return {
         "::give airrune 2000",
         "::give bloodrune 400",
         "::give wrathrune 200",
-        -- Kindling + tinderbox for braziers (trees/axe pickup not wired).
-        "::give raids_wood 28",
+        -- Pack ≤28. Prior raids_wood 28 alone filled the backpack and blocked
+        -- sharks/potions; harness lights braziers via ::cox_icedemon_fuel.
         "::give tinderbox 1",
-        "::give shark 16",
         "::give br_4dose2restore 4",
         "::give br_4dosepotionofsaradomin 2",
+        "::give shark 16",
     },
 
     run = function(t)

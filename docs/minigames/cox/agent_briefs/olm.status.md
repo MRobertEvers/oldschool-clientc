@@ -43,6 +43,13 @@ Setup pack is **28 slots**: 6 range-switch + restore 4 + sara 4 + combat 2 +
 shark 12. The prior shark-24 kit overfilled and potions never landed (setup
 FAIL). Potions are given before food.
 
+## Enter
+
+`raid.enter("olm")` lands in floor-2 **resource** (room 7) at the hole.
+Harness must: click `raids_bossentrance` → plane-2 corridor → click
+`raids_olm_barrier` → dialogue → chamber spawn. Clicking the hole as the
+barrier left the player at resource `6416,112,1` (nonsensical "corridor" shot).
+
 ## Next
 
 ```sh
