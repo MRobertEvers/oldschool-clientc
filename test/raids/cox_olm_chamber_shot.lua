@@ -22,7 +22,7 @@ return {
     frames = 1200,
     setup = { "::maxstats", "::godmode" },
     run = function(t)
-        t.check("scope", true, "5x7 shelf; hole→corridor; barrier→chamber; west rise")
+        t.check("scope", true, "5x7 shelf; west rise + east idle caves")
         local er, ed = t.raid.enter("cox", "olm", { seed = 1 })
         t.check("raid.enter", er == "ok", tostring(ed))
 
@@ -58,7 +58,11 @@ return {
         t.drive.camera(1536, 180, 650)
         t.ticks(4)
         t.shot("olm west wall rise at " .. tile_text(t))
-        -- Also look north so the west-wall claw sits on the left of frame.
+        -- East idle bank: NR keeps empty Large rock/hole caves (rot 1).
+        t.drive.camera(512, 180, 650)
+        t.ticks(4)
+        t.shot("olm east wall idle caves at " .. tile_text(t))
+        -- North: west claws on the left, east empty rocks on the right.
         t.drive.camera(0, 200, 700)
         t.ticks(3)
         t.shot("olm chamber north after spawn at " .. tile_text(t))
