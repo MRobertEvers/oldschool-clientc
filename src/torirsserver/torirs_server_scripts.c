@@ -8097,22 +8097,6 @@ ToriRSServer_ScriptCommand(
         ToriRSServer_SceneBindWindow(bound);
         if( slot >= 0 )
         {
-            // #region agent log
-            if( loc_id >= 29880 && loc_id <= 29890 )
-            {
-                FILE* _df = fopen("/opt/cursor/logs/debug.log", "a");
-                if( _df )
-                {
-                    fprintf(_df,
-                            "{\"hypothesisId\":\"A\",\"location\":\"torirs_server_scripts.c:LOC_FIND\","
-                            "\"message\":\"loc_find hit\",\"data\":{\"loc_id\":%d,\"x\":%d,\"z\":%d,"
-                            "\"level\":%d,\"window\":%d,\"slot\":%d},\"timestamp\":%lld}\n",
-                            (int)loc_id, coord_x(coord), coord_z(coord), coord_level(coord),
-                            window ? 1 : 0, slot, (long long)time(NULL) * 1000LL);
-                    fclose(_df);
-                }
-            }
-            // #endregion
             script_set_active_loc(state, handle);
             SSVM_PushInt(state, 1);
             return 1;
@@ -8124,22 +8108,6 @@ ToriRSServer_ScriptCommand(
 
             if( rec )
             {
-                // #region agent log
-                if( loc_id >= 29880 && loc_id <= 29890 )
-                {
-                    FILE* _df = fopen("/opt/cursor/logs/debug.log", "a");
-                    if( _df )
-                    {
-                        fprintf(_df,
-                                "{\"hypothesisId\":\"A\",\"location\":\"torirs_server_scripts.c:LOC_FIND\","
-                                "\"message\":\"loc_find zone hit\",\"data\":{\"loc_id\":%d,\"x\":%d,\"z\":%d,"
-                                "\"level\":%d},\"timestamp\":%lld}\n",
-                                (int)loc_id, coord_x(coord), coord_z(coord), coord_level(coord),
-                                (long long)time(NULL) * 1000LL);
-                        fclose(_df);
-                    }
-                }
-                // #endregion
                 script_set_active_loc(state,
                                ToriRSServer_ScriptZoneLocHandle(coord_x(coord), coord_z(coord),
                                                               coord_level(coord), rec->shape));
@@ -8147,22 +8115,6 @@ ToriRSServer_ScriptCommand(
                 return 1;
             }
         }
-        // #region agent log
-        if( loc_id >= 29880 && loc_id <= 29890 )
-        {
-            FILE* _df = fopen("/opt/cursor/logs/debug.log", "a");
-            if( _df )
-            {
-                fprintf(_df,
-                        "{\"hypothesisId\":\"A\",\"location\":\"torirs_server_scripts.c:LOC_FIND\","
-                        "\"message\":\"loc_find MISS\",\"data\":{\"loc_id\":%d,\"x\":%d,\"z\":%d,"
-                        "\"level\":%d,\"window\":%d},\"timestamp\":%lld}\n",
-                        (int)loc_id, coord_x(coord), coord_z(coord), coord_level(coord),
-                        window ? 1 : 0, (long long)time(NULL) * 1000LL);
-                fclose(_df);
-            }
-        }
-        // #endregion
         SSVM_PushInt(state, 0);
         return 1;
     }
@@ -8219,22 +8171,6 @@ ToriRSServer_ScriptCommand(
         z = loc->z;
         level = loc->level;
 
-        // #region agent log
-        if( (was_id >= 29880 && was_id <= 29890) || (loc_id >= 29880 && loc_id <= 29890) )
-        {
-            FILE* _df = fopen("/opt/cursor/logs/debug.log", "a");
-            if( _df )
-            {
-                fprintf(_df,
-                        "{\"hypothesisId\":\"D\",\"location\":\"torirs_server_scripts.c:LOC_CHANGE\","
-                        "\"message\":\"loc_change\",\"data\":{\"was_id\":%d,\"to_id\":%d,\"x\":%d,\"z\":%d,"
-                        "\"level\":%d,\"angle\":%d,\"shape\":%d},\"timestamp\":%lld}\n",
-                        was_id, (int)loc_id, x, z, level, angle, shape,
-                        (long long)time(NULL) * 1000LL);
-                fclose(_df);
-            }
-        }
-        // #endregion
         if( !ToriRSServer_WorldLocSet(srv, x, z, level, shape, loc_id, angle,
                                    TORIRSSERVER_LOC_SET_CHANGE) )
         {
@@ -8288,21 +8224,6 @@ ToriRSServer_ScriptCommand(
         x = loc->x;
         z = loc->z;
         level = loc->level;
-        // #region agent log
-        if( was_id >= 29880 && was_id <= 29890 )
-        {
-            FILE* _df = fopen("/opt/cursor/logs/debug.log", "a");
-            if( _df )
-            {
-                fprintf(_df,
-                        "{\"hypothesisId\":\"A\",\"location\":\"torirs_server_scripts.c:LOC_DEL\","
-                        "\"message\":\"loc_del\",\"data\":{\"was_id\":%d,\"x\":%d,\"z\":%d,"
-                        "\"level\":%d,\"angle\":%d,\"shape\":%d},\"timestamp\":%lld}\n",
-                        was_id, x, z, level, angle, shape, (long long)time(NULL) * 1000LL);
-                fclose(_df);
-            }
-        }
-        // #endregion
         /* Copied before the removal: a zone handle's view is the resolver's
          * static, and the scene slot is about to go inactive. */
         {
@@ -8358,22 +8279,6 @@ ToriRSServer_ScriptCommand(
         if( !SSVM_PopInt(state, &coord) )
             return 1;
 
-        // #region agent log
-        if( loc_id >= 29880 && loc_id <= 29890 )
-        {
-            FILE* _df = fopen("/opt/cursor/logs/debug.log", "a");
-            if( _df )
-            {
-                fprintf(_df,
-                        "{\"hypothesisId\":\"D\",\"location\":\"torirs_server_scripts.c:LOC_ADD\","
-                        "\"message\":\"loc_add\",\"data\":{\"loc_id\":%d,\"x\":%d,\"z\":%d,"
-                        "\"level\":%d,\"angle\":%d,\"shape\":%d},\"timestamp\":%lld}\n",
-                        (int)loc_id, coord_x(coord), coord_z(coord), coord_level(coord),
-                        (int)angle, (int)shape, (long long)time(NULL) * 1000LL);
-                fclose(_df);
-            }
-        }
-        // #endregion
         if( !ToriRSServer_WorldLocSet(srv, coord_x(coord), coord_z(coord), coord_level(coord),
                                    shape, loc_id, angle, TORIRSSERVER_LOC_SET_ADD) )
         {
