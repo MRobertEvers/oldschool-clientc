@@ -228,8 +228,12 @@ return {
             end
 
             if sm.state == STATE.ENTER then
+                -- Hole → corridor, then mystical barrier → chamber + spawn (NR).
+                local hr, hd = t.player.click_loc("raids_bossentrance", 1)
+                t.check("hole.click", hr == "ok" or hr == "timeout", tostring(hr) .. " " .. tostring(hd))
+                t.ticks(4)
                 t.shot("olm corridor before the barrier")
-                local cr, cd = t.player.click_loc("raids_bossentrance", 1)
+                local cr, cd = t.player.click_loc("raids_olm_barrier", 1)
                 t.check("barrier.click", cr == "ok" or cr == "timeout", tostring(cr) .. " " .. tostring(cd))
                 t.chat.play({ "options", "choose:Step through the mystical barrier." })
                 t.ticklog.mark("olm barrier")

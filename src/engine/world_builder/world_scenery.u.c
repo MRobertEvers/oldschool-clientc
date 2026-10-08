@@ -2129,7 +2129,8 @@ scenery_add_normal(
     int scene_z)
 {
     struct World* world = builder->world;
-    int rotation = config_loc->seq_id != -1 ? 0 : map_loc->orientation;
+    bool const animated = config_loc->seq_id != -1;
+    int rotation = animated ? 0 : map_loc->orientation;
     int orientation = map_loc->orientation;
     int size_x = config_loc->size_x;
     int size_z = config_loc->size_z;
@@ -2144,10 +2145,16 @@ scenery_add_normal(
 
     if( map_loc->shape_select == RSCACHE_LOC_SHAPE_SCENERY_DIAGONAL )
         yaw += WALL_DECOR_YAW_ADJUST;
-    if( config_loc->seq_id != -1 )
-        yaw += 512 * orientation;
-
-    builder->scenery_deferred_angle = config_loc->seq_id != -1 ? orientation : 0;
+    /*
+     * Animated centrepieces: keep the authored (unrotated) bind pose and apply
+     * the map orientation as post_orient after each pose (class393.method8916:
+     * animate -> rotate90 -> resize -> translate). Draw-time yaw (512*angle) is
+     * what walls still use, but for multi-tile centrepieces it left Great Olm's
+     * 5x8 claws freestanding in the arena — the long axis stayed in the
+     * authored Z frame on screen. post_orient applies the same ModelOrient the
+     * static cave rock uses, after the seq has posed.
+     */
+    builder->scenery_deferred_angle = 0;
     int element_id = scenery_load_model(
         builder,
         map_loc,
@@ -2160,6 +2167,12 @@ scenery_add_normal(
         size_z);
     if( element_id < 0 )
         return;
+    if( animated && (orientation & 3) != 0 )
+    {
+        struct ToriDraw_SceneElement* el = ToriDraw_SceneElementGet(builder->scene, element_id);
+        if( el && ToriDraw_ModelKindIsFull(el->model.kind) && el->model.u.model.model )
+            ToriDraw_ModelSetPostOrient(el->model.u.model.model, orientation & 3);
+    }
     scenery_element_position_init(
         builder, element_id, scene_x, scene_z, map_loc->chunk_pos_level, size_x, size_z, yaw);
     scenery_load_animation(builder, element_id, config_loc->seq_id);
