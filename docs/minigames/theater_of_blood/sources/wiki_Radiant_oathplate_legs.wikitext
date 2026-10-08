@@ -1,0 +1,88 @@
+{{Infobox Item
+|name = Radiant oathplate legs
+|image = [[File:Radiant oathplate legs.png]]
+|release = [[23 May]] [[2025]]
+|update = Yama: The Calm Before the Contract Storm
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = Yes
+|stackable = No
+|noteable = No
+|options = Wear, Revert, Drop
+|examine = Platelegs forged from infernal metal, then purified by an ancient rite.
+|value = 400000
+|weight = 9.071
+|id = 30781
+}}
+[[File:Radiant oathplate legs detail.png|90px|left]]
+'''Radiant oathplate legs''' are [[oathplate legs]] modified by a [[purifying sigil]] and 2,500 [[aether rune]]s; the sigil is not consumed. The ornament gives no additional bonuses, and is purely cosmetic.
+
+While the item is untradeable in its radiant state, it can be reverted anytime. However, the aether runes will not be returned.
+
+{{Costume storage|armour case|[[radiant oathplate armour]] set|set=true}}
+
+==Combat stats==
+{{Infobox Bonuses
+|astab = 0
+|aslash = +12
+|acrush = 0
+|amagic = -12
+|arange = -14
+|dstab = +75
+|dslash = +100
+|dcrush = +73
+|dmagic = -3
+|drange = +81
+|str = +2
+|rstr = 0
+|mdmg = 0
+|prayer = 0
+|slot = legs
+|image = [[File:Radiant oathplate legs equipped male.png]]
+|altimage = [[File:Radiant oathplate legs equipped female.png]]
+}}
+
+==Creation==
+{{Recipe
+|members = Yes
+|ticks = 0
+|mat1 = Oathplate legs
+|mat2 = Purifying sigil
+|mat2cost = No
+|mat3 = Aether rune
+|mat3quantity = 2500
+|output1 = Radiant oathplate legs
+|output1cost = No
+}}
+
+==Transcript==
+{{hastranscript|transclude=yes}}
+
+==Gallery==
+<gallery heights="250" style="text-align:left">
+Radiant oathplate armour equipped male.png|Radiant oathplate armour on body type A.
+Radiant oathplate armour equipped female.png|Radiant oathplate armour set on body type B.
+Radiant oathplate creation.webm|A player creating a piece of radiant oathplate armour.
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 4 June 2025
+|update = Poll 84, AFK Timers & More
+|change = The number of aether runes needed to create a piece of [[radiant oathplate armour]] has been reduced from 10,000 to 2,500. Players who have done so prior to this update had 7,500 aether runes deposited into their bank for each piece created.
+}}
+{{Subject changes
+|date = 23 May 2025
+|update = Yama: The Calm Before the Contract Storm
+|change = The item is now obtainable.
+}}
+{{Subject changes
+|date = 14 May 2025
+|update = Yama, the Master of Pacts: Out Today
+|change = The item was added to the game, but was unobtainable.
+}}
+{{Subject changes footer}}
+
+{{Yama}}

@@ -29,7 +29,7 @@ maiden.scan_lead	a blood throw is aimed at the tile each player stood on at the 
 maiden.pool_damage_base	damage per hit standing on a splat or trail at c = 0, Normal	10	hp	[wiki]	D	wiki_Theatre_of_Blood_Strategies.wikitext:597	-	exact
 maiden.pool_damage_per_leak	extra damage per hit for every Matomenos that has reached her	2	hp	[wiki]	D	wiki_Theatre_of_Blood_Strategies.wikitext:597	-	exact
 maiden.pool_heal_ratio	she is healed by the same amount every hit deals	1	ratio	[wiki]	D	wiki_Theatre_of_Blood_Strategies.wikitext:597; wiki_The_Maiden_of_Sugadinti.wikitext:135	-	exact
-maiden.auto_damage_base	blackstorm damage at c = 0 (36.5: always a successful hit, cannot be tick-eaten)	36.5	hp	[wiki]	D	wiki_Theatre_of_Blood_Strategies.wikitext:590; wiki_The_Maiden_of_Sugadinti.wikitext:139	-	range
+maiden.auto_damage_base	blackstorm MAX damage at c = 0 (36.5: always a successful hit, the damage rolled 0..max; cannot be tick-eaten) -- infobox max hit 36, Blert 112 recorded hits median 12.5 [0-62]	36.5	hp	[wiki]	D	wiki_Theatre_of_Blood_Strategies.wikitext:590; wiki_The_Maiden_of_Sugadinti.wikitext:139	-	range
 maiden.auto_damage_per_leak	blackstorm damage added per Matomenos that reached her	3.5	hp	[wiki]	D	wiki_Theatre_of_Blood_Strategies.wikitext:590	-	exact
 maiden.auto_protect_ratio	Protect from Magic multiplies the blackstorm by this	0.5	ratio	[wiki]	D	wiki_Theatre_of_Blood_Strategies.wikitext:590	-	exact
 maiden.auto_max_entry	blackstorm maximum hit, Entry (infobox)	18	hp	[wiki]	D	wiki_The_Maiden_of_Sugadinti.wikitext:39; cache_maiden_seq_npc.txt:35	-	exact

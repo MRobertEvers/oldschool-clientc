@@ -25,6 +25,16 @@ read against one that did not.
     python3 tools/raid_gate/raid_report.py RUN_A RUN_B --timeline 380-420
     python3 tools/raid_gate/raid_report.py build/quest_gate/RUN --against         docs/minigames/theater_of_blood/sources/blert_api/reference/maiden_normal_3.json
 
+--waves SCRIPT.json [--wave N] (tools seam, 2026-10-06): instead of the
+report, the run against a Blert PER-WAVE script (blert_script.py): every wave
+aligned on its own spawn tick, per role ours vs the script's tile, first
+action, targets in order and return-to-boss, and the FIRST tick where the run
+deviates (raid_waves.py says how each is judged).  Under 4 KB; --wave N for
+one wave in full.
+
+    python3 tools/raid_gate/raid_report.py build/quest_gate/_play_maiden --waves \
+        docs/minigames/theater_of_blood/sources/blert_api/reference/maiden_normal_3.script.json
+
 --against (seam40): the run's numbers beside what successful real teams did in
 the same room, mode and scale (the reference blert_reference.py writes): the
 room and phase ticks, the boss's hitpoints lost per tick per phase (the damage
@@ -95,6 +105,12 @@ def read_ticklog(run_directory):
             if kind == "raider":
                 # "hpmax H prmax P head I input N tgt S"
                 words = row["label"].split()
+                # owner_nylocas: a plan's machine state rides as `state=NAME/WAVE/IDX`
+                # (the server's ::tlnote, torirs_server_ticklog.c)
+                for word in words:
+                    if word.startswith("state="):
+                        row["state"] = word[len("state="):]
+                words = [w for w in words if not w.startswith("state=")]
                 for key, value in zip(words[0::2], words[1::2]):
                     try:
                         row[key] = int(value)
@@ -271,6 +287,11 @@ MISTAKES_SHOWN = [12]
 #                  The owner's rule: prayer is checked on the animation tick
 #                  (memory: prayer-checked-on-the-animation-tick); the pinned
 #                  exceptions that check on landing are PRAYER_AT_LANDING.
+#   unprayable     a hit from an attack no protection prayer answers
+#                  (UNPRAYABLE_ATTACKS, pinned by sequence and by content).
+#                  INFORMATION, NOT A FAULT: the prayer classifier used to
+#                  call these `prayer` mistakes and point the reader at a
+#                  prayer or a position that could not have helped.
 #   hazard         the raider stood on a hazard tile on the tick it was live
 #                  (HAZARD_SPOTANIMS, or --hazard ID[:TICKS]).
 #   food           food (not a potion) eaten when the most any raider took in
@@ -301,6 +322,26 @@ PINNED_PRAYER = {
             "Bloat (Entry) flies: tob_bloat.rs2 ~tob_bloat_fly_hit queues the damage for the "
             "flight (at most six ticks) and ~tob_bloat_fly_damage reads the prayer at launch; "
             "Protect from Missiles cuts it by 25%, so a hit through it is not a mistake"),
+}
+# AN ATTACK NO PROTECTION PRAYER ANSWERS IS NOT A PRAYER MISTAKE (owner_verzik,
+# owner_praypress 2026-10-07).  seq -> (name, source).  The classifier used to
+# call every damaging hit with the wrong (or no) protection lit a `prayer`
+# mistake, so Verzik's P3 melee auto -- which content rolls with no prayer term
+# at all -- was reported as `p0 prayer t85 took 53 from npc 8374 (attack sent
+# t85) through protectfrommissiles`.  It cost its owner a survey and nearly a
+# wrong fix (standing permanently outside her melee reach, against Blert's
+# 81.5% of P3 seat-ticks within one tile of her body).  Such a hit is reported
+# as the kind `unprayable` instead: information, not a fault.
+#
+# Pinned BY SEQUENCE and by content, never guessed from the timing: melee is
+# usually prayable (Verzik's own P2 melee, Sotetseg's), so "landed on the tick
+# it was sent" does not mean "no prayer answers it".
+UNPRAYABLE_ATTACKS = {
+    8123: ("Verzik P3 melee",
+           "tob_verzik.rs2 rolls ^tob_verzik_p3_melee_max with no prayer term; reaches distance 1 "
+           "only, and Blert has reference raiders within one tile of her body on 81.5% of P3 "
+           "seat-ticks (12,233 seat-ticks, 27 Normal trio rooms) -- the price of standing where "
+           "the fight is played"),
 }
 PROTECTION_NAMES = ("protectfrommagic", "protectfrommissiles", "protectfrommelee")
 # varp83_prayer0's bits, OSRS's layout; read_protection_bits() replaces them
@@ -540,9 +581,16 @@ def find_mistakes(rows, hazards=None):
                                          "t%d took %d from npc %s through %s" % (
                                              hit["tick"], hit["damage"], hit.get("npc_type"), prayer)))
                     continue
-                send = hit_send_tick(hit, anims)
+                send, seq = hit_send(hit, anims)
                 if send is None:
                     unattributed[pid] = unattributed.get(pid, 0) + 1
+                    continue
+                unprayable = UNPRAYABLE_ATTACKS.get(seq)
+                if unprayable:
+                    mistakes.append((hit["tick"], pid, "unprayable",
+                                     "t%d took %d from npc %s (%s, seq %s sent t%d): no protection "
+                                     "prayer answers it" % (hit["tick"], hit["damage"],
+                                                            hit.get("npc_type"), unprayable[0], seq, send)))
                     continue
                 state = raider[pid].get(send)
                 if state is None:
@@ -613,19 +661,28 @@ def rows_by_slot_anim(rows):
     if key not in _ANIM_INDEX:
         index = collections.defaultdict(list)
         for row in rows:
-            if row["kind"] == "npc_anim":
-                index[row["slot"]].append(row["tick"])
+            # seq -1 is a script's npc_anim(null) (a cancel, shipped since
+            # owner_verzik_anim 2026-10-07): not an attack being sent.
+            if row["kind"] == "npc_anim" and row.get("seq") != -1:
+                index[row["slot"]].append((row["tick"], row.get("seq")))
         _ANIM_INDEX.clear()
         _ANIM_INDEX[key] = index
     return _ANIM_INDEX[key]
 
 
+def hit_send(hit, anims):
+    """(tick, seq) of the attack behind `hit`: its npc's last animation in the
+    ten ticks before it, or (None, None) -- the hit is not judged, because no
+    attack row says when it was sent and a guess would invent a prayer
+    mistake."""
+    sends = [pair for pair in anims.get(hit["npc_slot"], [])
+             if hit["tick"] - 10 <= pair[0] <= hit["tick"]]
+    return sends[-1] if sends else (None, None)
+
+
 def hit_send_tick(hit, anims):
-    """The tick the attack behind `hit` was sent: its npc's last animation in
-    the ten ticks before it, or None (the hit is not judged: no attack row
-    says when it was sent, and a guess would invent a prayer mistake)."""
-    sends = [tick for tick in anims.get(hit["npc_slot"], []) if hit["tick"] - 10 <= tick <= hit["tick"]]
-    return sends[-1] if sends else None
+    """The tick alone (hit_send's first half)."""
+    return hit_send(hit, anims)[0]
 
 
 def death_detail(pid, tick, states, tiles, taken, swings, bits):
@@ -717,16 +774,38 @@ def pick_attack(candidates, weapon):
     return candidates[0][0] if candidates else None
 
 
+# Each room's boss ids, every mode (Entry / Normal / Hard), for telling which
+# room a ticklog is in.  Maiden's are blert_reference.BOSS_IDS; Nylocas also
+# answers to its pillars (8358 / 10790 / 10811), which stand from the room's
+# first tick while the Vasilias only spawns at the end.
+ROOM_NPC_IDS = {
+    "maiden": blert_reference.BOSS_IDS["maiden"],
+    "nylocas": {8354, 8355, 8356, 8357, 10786, 10787, 10788, 10789, 10807, 10808, 10809, 10810,
+                8358, 10790, 10811},
+    "bloat": {8359, 10812, 10813},
+    "sotetseg": {8387, 8388, 10864, 10865, 10867, 10868},
+    "xarpus": {8338, 8339, 8340, 8341, 10766, 10767, 10768, 10769, 10770, 10771, 10772, 10773},
+    "verzik": set(range(8369, 8376)) | set(range(10830, 10837)) | set(range(10847, 10854)),
+}
+ROOM_OVERRIDE = [None]
+
+
 def run_room(rows):
-    for room, ids in blert_reference.BOSS_IDS.items():
-        if any(row["kind"] == "npc_spawn" and row.get("type") in ids for row in rows):
-            return room
+    """The room a ticklog is in: --room when given, else the first room whose
+    boss (or Nylocas pillar) spawns in it."""
+    if ROOM_OVERRIDE[0]:
+        return ROOM_OVERRIDE[0]
+    for row in rows:
+        if row["kind"] == "npc_spawn":
+            for room, ids in ROOM_NPC_IDS.items():
+                if row.get("type") in ids:
+                    return room
     return None
 
 
 def ticklog_trace(rows, room, definitions):
     """The TRACE (blert_reference.py) of one run's ticklog rows."""
-    boss_ids = blert_reference.BOSS_IDS[room]
+    boss_ids = blert_reference.BOSS_IDS.get(room) or (ROOM_NPC_IDS[room] - {8358, 10790, 10811})
     add_ids = blert_reference.ADD_IDS.get(room, set())
     marks = [row["tick"] for row in rows if row["kind"] == "mark" and row.get("label") == "room start"]
     start = marks[0] if marks else rows[0]["tick"]
@@ -926,13 +1005,37 @@ def main():
     parser.add_argument("--against", default=None, metavar="REFERENCE.json",
                         help="also print the run's numbers against a Blert reference "
                              "(tools/raid_gate/blert_reference.py) and flag every one outside its range")
+    parser.add_argument("--waves", default=None, metavar="SCRIPT.json",
+                        help="print only the WAVE-ALIGNED DIFF of the run against a Blert per-wave script "
+                             "(tools/raid_gate/blert_script.py; raid_waves.py), under 4 KB")
+    parser.add_argument("--wave", default=None, metavar="N",
+                        help="with --waves, one wave in full (70 / 50 / 30 / 100 at Maiden, 7 or w7 at Nylocas)")
+    parser.add_argument("--roles", default=None, metavar="p0=ROLE,...",
+                        help="with --waves, seat our players on the script's roles by hand")
+    parser.add_argument("--room", default=None, choices=sorted(ROOM_NPC_IDS),
+                        help="the room the run is in (default: from the boss npc ids in the ticklog)")
     parser.add_argument("--all-numbers", action="store_true",
                         help="with --against, list the numbers inside the range too")
     arguments = parser.parse_args()
+    ROOM_OVERRIDE[0] = arguments.room
     MISTAKES_SHOWN[0] = arguments.mistakes
     for entry in arguments.hazard:
         spotanim, _, ticks = entry.partition(":")
         HAZARDS_IN_USE[int(spotanim)] = ("spotanim %s" % spotanim, int(ticks or 1))
+
+    if arguments.waves:
+        import raid_waves
+        with open(arguments.waves, "r", encoding="utf-8") as handle:
+            script = json.load(handle)
+        assert script.get("kind") == "blert-script-v1", "%s is not a blert script" % arguments.waves
+        script["_path"] = arguments.waves
+        lines = []
+        for run_directory in arguments.run_directories:
+            lines += raid_waves.wave_lines(run_directory, script, sys.modules[__name__], arguments.wave,
+                                            arguments.roles)
+        for line in raid_waves.budget(lines, raid_waves.BYTE_BUDGET * (4 if arguments.wave else 1)):
+            print(line)
+        return 0
 
     lines = []
     for run_directory in arguments.run_directories:

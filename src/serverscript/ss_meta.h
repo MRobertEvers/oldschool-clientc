@@ -18,6 +18,22 @@
 
 #include <stdint.h>
 
+/*
+ * The seq the compiler emits for a LITERAL `npc_anim(null, ...)`: a stop.
+ *
+ * At runtime the op cannot tell `npc_anim(null, 0)` -- a script ending an
+ * animation, which the reference ships as 65535 -- from
+ * `npc_anim(npc_param(defend_anim), 20)` on an npc with no defend anim, which
+ * ~40 player-attack scripts do and which must play nothing (shipping it as a
+ * stop erased Xarpus' spit, Maiden's and Sotetseg's attacks and the Nylocas
+ * boss's swings ~20 cycles in, owner_verzik_anim 2026-10-07). Both are -1 on
+ * the stack. So the compiler, which can tell, rewrites the literal's push to
+ * this value (ssc_compile.c, the NPC_ANIM argument), and SS_OP_NPC_ANIM
+ * stops on it and still drops a plain -1. A pack compiled before the rewrite
+ * carries -1 and keeps the old drop.
+ */
+#define SS_NPC_ANIM_STOP_SEQ (-2)
+
 /* ------------------------------------------------------------------ */
 /* Active-entity pointers                                              */
 /* ------------------------------------------------------------------ */

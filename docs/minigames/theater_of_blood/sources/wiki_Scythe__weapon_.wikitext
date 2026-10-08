@@ -1,0 +1,16 @@
+{{Infobox Weapon Group
+|name = Scythe
+|images = {{plinkp|Scythe (Halloween event)}}{{plinkp|Scythe of Vitur}}
+|primary = [[Slash]]
+|secondary = [[Crush]]
+|speed = 6
+}}
+'''Scythes''' are a [[Weapons/Categories|category]] of [[melee]] [[weapon]]s that use a set of combat options containing  [[slash weapons|slash]] and [[crush weapon|crush]] attack styles.
+==Combat styles==
+{{CombatStyles|Scythe}}
+
+==Scythes==
+{{Infotable Bonuses|Scythe (Halloween event)|Scythe of Vitur#Charged|Corrupted Scythe of Vitur#Charged|Sanguine Scythe of Vitur#Charged|Holy Scythe of Vitur#Charged|sort=aslash|nototals=yes}}
+
+{{Weapon}}
+{{Slash weapons}}

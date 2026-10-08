@@ -202,16 +202,40 @@ in_attack_range_with(
     return (dx > dz ? dx : dz) <= range;
 }
 
-/** Player weapon reach from the cache's `weapon_attackrange` param, capped at
- *  10 the way LostCity's `~player_attackrange` is. Unarmed / missing = 1. */
+/** Player weapon reach, as CONTENT computes it: `[proc,player_attackrange]`
+ *  (skill_combat/combat.rs2), the same proc the `[apnpc2,_]` trigger fires
+ *  from -- the weapon's `weapon_attackrange` param capped at 10, two more on
+ *  the Longrange style (wiki Combat Options :37 "Attack range is increased by +2 tiles
+ *  up to a maximum of 10 tiles"), 10 while autocasting.  The engine used to read the bare
+ *  param here, so the approach walked a Longrange bow or an Eye of Ayak on its
+ *  Longrange slot two tiles closer than the trigger would have fired from
+ *  (combat.rs2 said so: "the fix is for the approach to stop reading the param
+ *  at all").  Melee answers 0 there and is reach 1 here.  The bare param is the
+ *  fallback when no content proc answers (a tree without combat.rs2). */
 static int
-player_weapon_attackrange(const struct ToriRSServerPlayer* player)
+player_weapon_attackrange(
+    struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player)
 {
     int weapon = player->worn[TORIRSSERVER_WEAR_WEAPON].obj_id;
     int param_id;
     const struct ToriRSServerObjParam* p;
     int range = 1;
+    int32_t arg;
+    int32_t out = 0;
 
+    assert(srv);
+    assert(player);
+    if( player == srv->active_player )
+    {
+        arg = weapon;
+        if( ToriRSServer_ScriptsRunProcInt(srv, "[proc,player_attackrange]", &arg, 1, &out) )
+        {
+            if( out < 1 )
+                return 1;
+            return out > 10 ? 10 : out;
+        }
+    }
     if( weapon < 0 )
         return 1;
     param_id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_PARAM, "weapon_attackrange");
@@ -258,7 +282,7 @@ in_player_attack_range(
     const struct ToriRSServerPlayer* player,
     const struct ToriRSServerNpc* npc)
 {
-    return in_attack_range_with(srv, player, npc, player_weapon_attackrange(player));
+    return in_attack_range_with(srv, player, npc, player_weapon_attackrange(srv, player));
 }
 
 static int
@@ -2316,9 +2340,9 @@ ToriRSServer_CombatAtRangeReady(
     if( srv->verbose )
         fprintf(stderr,
                 "torirsserver: at-range ready? slot=%d range=%d in_range=%d\n",
-                slot, player_weapon_attackrange(player),
+                slot, player_weapon_attackrange(srv, player),
                 in_player_attack_range(srv, player, npc));
-    if( player_weapon_attackrange(player) <= 1 )
+    if( player_weapon_attackrange(srv, player) <= 1 )
         return 0;
     if( !in_player_attack_range(srv, player, npc) )
         return 0;
@@ -3722,6 +3746,7 @@ ToriRSServer_CombatRespawnTick(struct ToriRSServer* srv)
          * hits went missing too. */
         npc->delayed_until = 0;
         npc->frozen_ticks = 0;
+        npc->freeze_immune_ticks = 0;
         /* A pending `npc_changetype` reversion describes the life that ended.
          * Left running it would fire on whatever form the new life is standing
          * in and change it out from under a fresh `[ai_spawn]`. */

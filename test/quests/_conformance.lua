@@ -3736,6 +3736,113 @@ return {
             return "ok", text
         end)
 
+        -- seam owner_praypress (2026-10-07): A PROTECTION SWITCHED ON
+        -- CONSECUTIVE TICKS ENDS LIT, AND A REFUSED ONE NAMES ITS REASON.
+        --
+        -- Reported as "the press path loses the prayer when the plan switches
+        -- protections on consecutive ticks" (svdplaysotet p2: missiles t62,
+        -- melee t63, magic t64, then ten ticks with nothing lit, 77 hitpoints
+        -- and the raider's life).  The press path does NOT lose it -- the
+        -- first half below switches all three on consecutive ticks through the
+        -- very path a plan uses (one t.together a tick, prayer.set inside it)
+        -- and every press lands.  What loses it is the CONTENT's protection
+        -- block: an unprayed ball calls `~prayer_block_protection`
+        -- (tob_sotetseg.rs2), which puts all three out and makes
+        -- `[proc,prayer_can_use]` refuse every protection press while
+        -- `%varp6891_prayer_protect_blocked > map_clock` (prayer.rs2:108,
+        -- 137-141).  The plan's presses were refused by the server, and the
+        -- reason was being cut off at 160 characters exactly where it sat
+        -- ("the server said 'You ").  So the second half pins the refusal: a
+        -- press under the block answers `refused`, leaves the varbit at 0 and
+        -- says what the server said.  SEAM_COUNT +1, no new verb.
+        seam("seam.prayer_consecutive_ticks", function()
+            local set = verb("prayer", "set")
+            local tog = verb("together")
+            local server = verb("var", "server")
+            local tick_fn = verb("tick")
+            if not set then return missing("prayer", "set") end
+            if not tog then return missing("together") end
+            if not server then return missing("var", "server") end
+            if not tick_fn then return missing("tick") end
+            local VARBIT = {
+                protectfrommissiles = "varb4117_prayer_protectfrommissiles",
+                protectfrommelee = "varb4118_prayer_protectfrommelee",
+                protectfrommagic = "varb4116_prayer_protectfrommagic",
+            }
+            local ORDER = { "protectfrommissiles", "protectfrommelee", "protectfrommagic" }
+            local steps, lit_now = {}, nil
+            for _, name in ipairs(ORDER) do
+                local _, before = tick_fn()
+                local r = tog(function() set(name, true) end)
+                local _, value = server(VARBIT[name])
+                local _, after = tick_fn()
+                steps[#steps + 1] = string.format("%s t%s->%s %s varbit %s",
+                    string.sub(name, 12), describe(before), describe(after), describe(r), describe(value))
+                if r ~= "ok" or value ~= 1 then
+                    return "hollow", "switching on consecutive ticks lost " .. name .. ": "
+                        .. table.concat(steps, " | ")
+                end
+                lit_now = name
+                -- the next press is the NEXT tick's, as a plan's is
+                local want = (after or 0) + 1
+                t.await({ level = function() return (select(2, tick_fn()) or 0) >= want end,
+                    note = "seam: next tick" }, 5)
+            end
+            -- and exactly one is lit: each press put the one before it out
+            local others = {}
+            for _, name in ipairs(ORDER) do
+                local _, value = server(VARBIT[name])
+                if value == 1 and name ~= lit_now then others[#others + 1] = name end
+            end
+            if #others > 0 then
+                return "hollow", "after the run " .. lit_now .. " and also " .. table.concat(others, ",")
+                    .. " are lit: " .. table.concat(steps, " | ")
+            end
+            -- THE NEGATIVE CONTROL: the content's protection block.
+            local cheat = verb("cheat")
+            if not cheat then return missing("cheat") end
+            local cr = cheat("::setvar varp6891_prayer_protect_blocked 999999999", true)
+            if cr ~= "ok" then
+                return "no_subject", "the protection block could not be set: " .. describe(cr)
+            end
+            local blocked_result, blocked_detail = tog(function() set("protectfrommelee", true) end)
+            local _, blocked_value = server(VARBIT.protectfrommelee)
+            cheat("::setvar varp6891_prayer_protect_blocked 0", true)
+            if blocked_result ~= "refused" or blocked_value == 1
+                or not string.find(tostring(blocked_detail), "protection prayers", 1, true) then
+                return "hollow", string.format("under the protection block a press answered %s (varbit %s)"
+                    .. " without naming the reason: %s", describe(blocked_result), describe(blocked_value),
+                    describe(blocked_detail))
+            end
+            -- LEAVE NO PROTECTION LIT.  A lit protection puts an overhead
+            -- icon above the player, and the rows below measure the drawn
+            -- height of the player's model (seam.transmog_draws_the_npc reads
+            -- the top of what is drawn: with an icon up, the human read dy=18
+            -- instead of 84 and the row failed).  The stage after this one
+            -- presses protectfrommelee OFF, but a press it makes while this
+            -- seam's own press is still in flight reads "already off, no
+            -- press" and the prayer then lights behind it -- so this seam
+            -- puts them out itself and says so.
+            for _, name in ipairs(ORDER) do
+                local _, value = server(VARBIT[name])
+                if value == 1 then
+                    tog(function() set(name, false) end)
+                end
+            end
+            local still = {}
+            for _, name in ipairs(ORDER) do
+                local _, value = server(VARBIT[name])
+                if value == 1 then still[#still + 1] = name end
+            end
+            if #still > 0 then
+                return "hollow", "the seam left " .. table.concat(still, ",")
+                    .. " lit for the rows below: " .. table.concat(steps, " | ")
+            end
+            return "ok", "consecutive ticks: " .. table.concat(steps, " | ")
+                .. "; under the content's protection block a press answers refused, the varbit stays "
+                .. describe(blocked_value) .. ", and the detail names it"
+        end)
+
         -- put the prayer out and the inventory tab back for the rows below
         stage(function()
             local set = verb("prayer", "set")
@@ -15275,6 +15382,134 @@ return {
                 .. table.concat(firsts, ",") .. " -> " .. t.raid._play_press_text(st3)
         end)
 
+        -- (merged by the seam48 closer; VERB_COUNT +1, SEAM_COUNT unchanged)
+        -- raid seam48 member_swings_seen: t.raid.own_anim (raid_play.lua), the swings
+        -- this raider's own screen shows it start (api_drive.players' `me` row:
+        -- seq, seq_tick, seq_starts, seq_history; torirs_plugin_drive.c
+        -- drive_own_animation_watch, every frame).  A party member has no tick log,
+        -- so the play library used to COUNT a phantom swing every weapon-speed ticks
+        -- and never re-pressed after the server stopped its swings.
+        --
+        -- Proved by scratch s48oa2 (build/quest_gate/s48oa2/ledger.tsv rows 5-6,
+        -- 2026-10-06): unarmed on a Lumbridge goblin, log 7 swings
+        -- [7,11,15,19,23,27,31], seen 7 [7,11,15,19,23,27,31], offsets all 0; none
+        -- seen after a step-away.
+        step("raid.own_anim", function()
+            local fn = verb("raid", "own_anim")
+            local goto_tile = verb("player", "goto_tile")
+            local attack = verb("player", "attack")
+            if not fn then return missing("raid", "own_anim") end
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not attack then return missing("player", "attack") end
+            local G = "goblin_unarmed_melee_1"
+            local r0, own0 = fn()
+            if r0 ~= "ok" or type(own0) ~= "table" or type(own0.starts) ~= "number" then
+                return "fail", "own_anim before the fight answered " .. describe(r0) .. " / " .. describe(own0)
+            end
+            t.ticklog.start()
+            setup_cheat("::setlevel attack 1")
+            setup_cheat("::setlevel strength 1")
+            if goto_tile(3241, 3247, 0) ~= "ok" then return "no_subject", "goto the goblin field" end
+            setup_cheat("::spawn " .. G)
+            setup_cheat("::passive " .. G)
+            settle(3)
+            local _, from_tick = t.tick()
+            local ar = attack(G, 2, 20)
+            if ar ~= "ok" then
+                setup_cheat("::kill " .. G .. " 12")
+                return "no_subject", "attack the goblin answered " .. describe(ar)
+            end
+            -- read once a tick, as the play loop does; the unarmed swings
+            -- (punch 422, kick 423; wiki Unarmed: speed 4) by start number
+            local seen, last_n = {}, own0.starts
+            for _ = 1, 20 do
+                settle(1)
+                local rr, own = fn()
+                if rr == "ok" then
+                    for _, h in ipairs(own.history) do
+                        if h.n > last_n then
+                            last_n = h.n
+                            if h.seq == 422 or h.seq == 423 then seen[#seen + 1] = h.tick end
+                        end
+                    end
+                end
+            end
+            setup_cheat("::kill " .. G .. " 12")
+            settle(2)
+            local lr, rows = t.ticklog.rows({ kind = "player_anim" })
+            local logged = {}
+            if lr == "ok" then
+                for _, row in ipairs(rows) do
+                    if (row.seq == 422 or row.seq == 423) and row.tick >= from_tick then logged[#logged + 1] = row.tick end
+                end
+            end
+            -- the screen saw every swing the server made, on the server's tick
+            local n = math.min(#seen, #logged)
+            local same = n >= 3 and math.abs(#seen - #logged) <= 1
+            for i = 1, n do
+                if seen[i] ~= logged[i] then same = false end
+            end
+            if not same then
+                return "fail", "seen [" .. table.concat(seen, ",") .. "] vs the log's player_anim [" .. table.concat(logged, ",") .. "]"
+            end
+            return "ok", string.format("%d swings seen on the server's own ticks [%s] (log [%s])", #seen,
+                table.concat(seen, ","), table.concat(logged, ","))
+        end)
+
+        -- conformance.play_tob_maiden_triggers_like_blert (raid seam55).  ONE new
+        -- library verb, t.raid.watch (QD.raid.watch), and the play loop's
+        -- trigger machinery it rides on (st.on / st.watch, QD.raid._play_fire,
+        -- _play_fold, _play_merge: raid_play.lua "TRIGGERS AND WATCHES").
+        -- PLACE: test/quests/_conformance.lua's PLAN directly AFTER
+        -- step("raid.own_anim", ...).  VERB_COUNT +1 (raid.watch), SEAM_COUNT +1
+        -- (@seam-count) for seam.raid_play_triggers.
+        -- Merged by the seam55 closer (VERB_COUNT 231 -> 232, SEAM_COUNT -> 224).  Proved in the world first by
+        -- build/seam_state/matthew-mbp-m4-raid-b1-seam55/_play_triggers.lua (run
+        -- m55trig, Maiden Entry): crab_spawn 6/6, blood_thrown 9/9, pool_landed 9/9
+        -- on the tick log's own ticks (lag +0, one pool +1), 24 of 24 rows.
+        step("raid.watch", function()
+            local f = verb("raid", "watch")
+            if not f then return missing("raid", "watch") end
+            local init = verb("raid", "_play_triggers_init")
+            if not init then return missing("raid", "_play_triggers_init") end
+            local st = { plan = {}, mode = "entry", party = 1, log = false }
+            init(st, nil)
+            f(st, "probe", function(_, v) return v.n end, function()
+                return { pri = 1, want = { piety = true } }
+            end)
+            if #st.watches ~= 1 then return "fail", "t.raid.watch registered " .. #st.watches .. " watches, want 1" end
+            return "ok", "t.raid.watch: one watch registered on the play state (reader, on_change)"
+        end)
+        seam("seam.raid_play_triggers", function()
+            local init, fire, merge = verb("raid", "_play_triggers_init"), verb("raid", "_play_fire"), verb("raid", "_play_merge")
+            if not init then return missing("raid", "_play_triggers_init") end
+            if not fire then return missing("raid", "_play_fire") end
+            if not merge then return missing("raid", "_play_merge") end
+            local st = { plan = {}, mode = "entry", party = 1, log = false }
+            init(st, nil)
+            -- hit_taken (own hp fell 5) -> two handlers: a step (pri 8) and a cast
+            -- (pri 5); a watch whose reading changes -> a prayer (pri 1)
+            st.on("hit_taken", function(_, _, e) return { pri = 8, walk = { x = 1, z = 2 }, why = "took " .. e.amount } end)
+            st.on("hit_taken", function() return { pri = 5, cast = { spell = "ice_barrage", symbol = "x", slot = 7 } } end)
+            st.watch("n", function(_, v) return v.n end, function() return { pri = 1, want = { piety = true } } end)
+            local bad = {}
+            local v1 = { tick = 100, hp = 90, me = { x = 0, z = 0 }, n = 1 }
+            st.ev.hp = 95
+            local f1 = fire(st, v1)
+            if f1 == nil or f1.walk == nil or f1.walk.x ~= 1 then bad[#bad + 1] = "tick 1: the pri-8 step did not win the walk" end
+            if f1 ~= nil and f1.cast ~= nil then bad[#bad + 1] = "tick 1: the cast went out with the step (it must be HELD)" end
+            if st.trig_hold == nil or st.trig_hold.field ~= "cast" then bad[#bad + 1] = "tick 1: no held cast" end
+            if (st.trig_counts.hit_taken or 0) ~= 1 then bad[#bad + 1] = "tick 1: hit_taken counted " .. tostring(st.trig_counts.hit_taken) end
+            local v2 = { tick = 101, hp = 90, me = { x = 1, z = 2 }, n = 2 }
+            local f2 = fire(st, v2)
+            if f2 == nil or f2.cast == nil or f2.cast.slot ~= 7 then bad[#bad + 1] = "tick 2: the held cast did not go out" end
+            if f2 == nil or f2.want.piety ~= true then bad[#bad + 1] = "tick 2: the watch's change (1->2) gave no prayer" end
+            local m = merge(st, v2, { want = {}, attack = true, walk = { x = 9, z = 9 } }, f2)
+            if m.attack ~= false or m.walk ~= nil or m.cast == nil then bad[#bad + 1] = "merge: a trigger cast must clear the default attack and walk" end
+            if #bad > 0 then return "fail", table.concat(bad, "; ") end
+            return "ok", "fold by priority: the step won tick 1 and the cast was held to tick 2; the watch fired on 1->2; the merge cleared the default attack and walk"
+        end)
+
         -- raid seam31 play_tob_nylocas_green (merged by the seam31 closer): the
         -- Nylocas plan's supply guards.  No npc.  SEAM_COUNT +1.
         seam("seam.raid_play_nylocas_supplies", function()
@@ -15313,6 +15548,150 @@ return {
             if #bad > 0 then return "fail", "QD.raid._play_nylocas_supplies: " .. table.concat(bad, "; ") end
             return "ok", "QD.raid._play_nylocas_supplies: 7 of 7 (nothing at 99 or 92 under a threat of 200; the shark alone at 88 and 85; brew and shark at 50; "
                 .. "nothing over the threat; the interlude bandage once at 99)"
+        end)
+
+        -- PLACE: test/quests/_conformance.lua PLAN, after the
+        -- seam("seam.raid_play_nylocas_supplies", ...) row (the other raid
+        -- plan-helper rows).  SEAM_COUNT +1, @seam-count +1.
+        --
+        -- raid seam51 play_tob_bloat_whole: the Bloat hide is scored by the
+        -- WALK to an attack tile (QD.raid._play_bloat_path_dist), not the
+        -- straight line: a breadth-first walk on Bloat's floor from the reach
+        -- ring (the tiles beside the 5x5's four sides; no diagonal melee), a
+        -- diagonal step only where both of its sides are floor (no corner cut
+        -- past the tank).  No npc, no cheat: the floor and the tank are the
+        -- plan's own geometry in map square 6400,64.
+        seam("seam.raid_play_bloat_path_dist", function()
+            local pd = verb("raid", "_play_bloat_path_dist")
+            if not pd then return missing("raid", "_play_bloat_path_dist") end
+            local function floor_ok(x, z)
+                local inside = x >= 6424 and x <= 6437 and z >= 89 and z <= 102
+                local tank = x >= 6429 and x <= 6434 and z >= 93 and z <= 98
+                return inside and not tank
+            end
+            local cases = {
+                -- Bloat south-west tile, the tile, the walk (seam51 survey_1/_3 _play_bloat)
+                { 6435, 95, 6434, 99, 0 },   -- beside the 5x5's west side: an attack tile
+                { 6435, 95, 6431, 99, 3 },   -- three along the north edge
+                { 6435, 95, 6428, 98, 7 },   -- the seam49 hide: seven, round the tank's corner
+                { 6435, 95, 6428, 93, 10 },  -- the far corner
+                { 6424, 94, 6429, 99, 1 },   -- diagonal to the 5x5's corner is not an attack tile
+                { 6424, 94, 6437, 97, 9 },   -- survey_3 down3: the members' nine-tile run
+            }
+            local bad = {}
+            for _, c in ipairs(cases) do
+                local d = pd(c[1], c[2], floor_ok)[c[3] * 100000 + c[4]]
+                if d ~= c[5] then
+                    bad[#bad + 1] = string.format("Bloat %d,%d tile %d,%d gave %s want %d", c[1], c[2], c[3], c[4], tostring(d), c[5])
+                end
+            end
+            if #bad > 0 then return "fail", "QD.raid._play_bloat_path_dist: " .. table.concat(bad, "; ") end
+            return "ok", "QD.raid._play_bloat_path_dist: 6 of 6 (the reach ring 0, three along the edge, seven and ten round the tank, the 5x5's diagonal corner 1, the survey's nine-tile run)"
+        end)
+
+        -- conformance.play_tob_sotetseg_last (raid seam52).  ONE seam row, no new
+        -- library verb: the plan helper QD.raid._play_sotetseg_gap (the tiles
+        -- between two Sotetseg maze glows), pure logic.
+        -- PLACE: test/quests/_conformance.lua, right after
+        -- seam("seam.raid_play_bloat_path_dist", ...).  SEAM_COUNT +1 (@seam-count).
+        -- Proved first as build/seam_state/matthew-mbp-m4-raid-b1-seam52/sotetseg/
+        -- sote_gap_probe.lua, run s52sotegap: PASS 9 of 9; its copy with case 5's
+        -- expectation flipped (sote_gap_probe_neg.lua, s52sotegapneg) FAILS
+        -- "case 5 20,27->19,29: certain false corners '19,27' (want true '19,27')".
+        seam("seam.raid_play_sotetseg_gap", function()
+            local gap = verb("raid", "_play_sotetseg_gap")
+            if not gap then return missing("raid", "_play_sotetseg_gap") end
+            local cases = {
+                -- last glow, this glow, consecutive reads, want certain, want corners (between the two)
+                { { 22, 23 }, { 22, 25 }, true,  true,  "" },          -- one tick north across an even row
+                { { 20, 25 }, { 20, 27 }, true,  true,  "" },          -- odd row to odd row in one tick: straight
+                { { 16, 24 }, { 17, 25 }, true,  true,  "16,25" },     -- even row: north first (parity)
+                { { 21, 25 }, { 22, 26 }, true,  true,  "22,25" },     -- odd row: along it first (parity)
+                { { 20, 27 }, { 19, 29 }, false, false, "19,27" },     -- seam51 blast at (19,27): two-way
+                { { 17, 31 }, { 16, 33 }, false, false, "16,31" },     -- seam51 blast at (16,31): two-way
+                { { 19, 28 }, { 21, 29 }, false, true,  "19,29" },     -- even row to the odd row above: one corner
+                { { 16, 24 }, { 21, 26 }, false, true,  "16,25 21,25" }, -- even to even two rows on: the run between
+                { { 17, 25 }, { 21, 25 }, false, true,  "" },          -- along one odd row
+            }
+            local bad = {}
+            for i, c in ipairs(cases) do
+                local points, certain = gap(c[1], c[2], 22, c[3])
+                local mids = {}
+                for k = 2, #points - 1 do mids[#mids + 1] = points[k][1] .. "," .. points[k][2] end
+                local got = table.concat(mids, " ")
+                local ends_ok = points[1] == c[1] and points[#points][1] == c[2][1] and points[#points][2] == c[2][2]
+                if certain ~= c[4] or got ~= c[5] or not ends_ok then
+                    bad[#bad + 1] = string.format("case %d %d,%d->%d,%d: certain %s corners '%s' (want %s '%s')",
+                        i, c[1][1], c[1][2], c[2][1], c[2][2], tostring(certain), got, tostring(c[4]), c[5])
+                end
+            end
+            if #bad > 0 then return "fail", "QD.raid._play_sotetseg_gap: " .. table.concat(bad, "; ") end
+            return "ok", "QD.raid._play_sotetseg_gap: 9 of 9 (straight runs, the parity corner of a one-tick read, "
+                .. "the seam51 blast gaps (19,27) and (16,31) two-way, the corners the maze's shape names)"
+        end)
+        -- conformance.play_tob_sotetseg_room_ticks (raid seam55).  ONE seam row, no
+        -- new library verb: the plan helper QD.raid._play_sotetseg_seat now takes
+        -- st.sote.seat_shift and walks round the four Blert corners (THE NEXT
+        -- CORNER: a raider whose press framed nothing twice steps to the next).
+        -- PLACE: test/quests/_conformance.lua, right after
+        -- seam("seam.raid_play_sotetseg_gap", ...).  SEAM_COUNT +1 (@seam-count).
+        -- Merged by the seam55 closer (SEAM_COUNT 222 -> 223).
+        -- Proved as build/seam_state/matthew-mbp-m4-raid-b1-seam55/sotetseg/
+        -- sote_corner_probe.lua, run s55corner2: PASS 8 of 8; its copy with case
+        -- 7 flipped (sote_corner_probe_neg.lua, s55cornerneg) FAILS
+        -- "case 7 role 2 shift 4: 99,200 (want 104,199)".
+        seam("seam.raid_play_sotetseg_corner", function()
+            local seat = verb("raid", "_play_sotetseg_seat")
+            if not seat then return missing("raid", "_play_sotetseg_seat") end
+            local b = { x = 100, z = 200, size = 5 }
+            -- role, shift, want x, want z (corners from his SW tile: -1,0 4,-1 5,4 0,5)
+            local cases = {
+                { 1, 0, 105, 204 }, { 2, 0, 99, 200 }, { 3, 0, 104, 199 },
+                { 2, 1, 104, 199 }, { 2, 2, 105, 204 }, { 2, 3, 100, 205 }, { 2, 4, 99, 200 },
+                { 1, 1, 100, 205 },
+            }
+            local bad = {}
+            for i, c in ipairs(cases) do
+                local x, z = seat({ role = c[1], sote = { seat_shift = c[2] } }, b)
+                if x ~= c[3] or z ~= c[4] then
+                    bad[#bad + 1] = string.format("case %d role %d shift %d: %s,%s (want %d,%d)", i, c[1], c[2], tostring(x), tostring(z), c[3], c[4])
+                end
+            end
+            if #bad > 0 then return "fail", "QD.raid._play_sotetseg_seat: " .. table.concat(bad, "; ") end
+            return "ok", "QD.raid._play_sotetseg_seat: 8 of 8 (three home corners, the shift round all four and back)"
+        end)
+
+
+        -- conformance.play_tob_maiden_whole (raid seam54).  ONE seam row, no new
+        -- library verb: the Maiden plan helper QD.raid._play_maiden_in_blood
+        -- (the freezer's blood rule: no barrage is sent while the freezer stands on
+        -- a pool, a trail or a landing splat, or while it steps off one), pure logic.
+        -- PLACE: test/quests/_conformance.lua, right after
+        -- seam("seam.raid_play_sotetseg_gap", ...).  SEAM_COUNT +1 (@seam-count).
+        -- Proved first as build/seam_state/matthew-mbp-m4-raid-b1-seam54/
+        -- maiden_in_blood_probe.lua, run m54blood: PASS 6 of 6; its copy with case 5's
+        -- expectation flipped (maiden_in_blood_probe_neg.lua, m54bloodneg2) FAILS
+        -- "case 5 clear tile, standing (NEGATIVE: flipped): got false want true".
+        seam("seam.raid_play_maiden_in_blood", function()
+            local f = verb("raid", "_play_maiden_in_blood")
+            if not f then return missing("raid", "_play_maiden_in_blood") end
+            local k = 6441 * 100000 + 94
+            local cases = {
+                -- view marks, plan move, want  (camera seam53 survey2: the freezer on its home tile)
+                { { [k] = true }, nil, true, "a pool under the freezer" },
+                { {}, { x = 6442, z = 94, why = "pool" }, true, "stepping off a pool" },
+                { {}, { x = 6444, z = 94, why = "dodge" }, true, "dodging a splat in flight" },
+                { {}, { x = 6441, z = 95, why = "home" }, false, "a walk home, no blood" },
+                { {}, nil, false, "clear tile, standing" },
+                { { [k + 1] = true }, nil, false, "a pool on the next tile only" },
+            }
+            local bad = {}
+            for i, c in ipairs(cases) do
+                local got = f({ me = { x = 6441, z = 94 }, marks = c[1] }, { move = c[2] })
+                if got ~= c[3] then bad[#bad + 1] = string.format("case %d %s: got %s want %s", i, c[4], tostring(got), tostring(c[3])) end
+            end
+            if #bad > 0 then return "fail", "QD.raid._play_maiden_in_blood: " .. table.concat(bad, "; ") end
+            return "ok", "QD.raid._play_maiden_in_blood: 6 of 6 (pool under, stepping off, dodging, home walk, clear, neighbour pool)"
         end)
 
         -- conformance.play_tob_nylocas_normal (raid seam32).  ONE seam row, no verb.
@@ -16333,6 +16712,15 @@ return {
         -- and anything 0..9 (it does NOT strongly separate a roll that keeps the fixed damage: at 99
         -- Defence and Magic 1 such a roll lands ~0.9 of the time). ::god 1 keeps him up through the
         -- pools; `raw` is the hit before ::god (ticklog.lua hit_player).
+        -- RAID SEAM54 CLOSER: the DAMAGE is rolled now (OSRS-Content 081bb7e61a,
+        -- the seam55 ruling: random(max + 1) before the halvings; the Maiden
+        -- infobox's max hit 36, wiki_The_Maiden_of_Sugadinti.wikitext:40-44, and
+        -- Blert's 112 recorded storms, median 12.5 [0-62]).  What the row still
+        -- holds is the ACCURACY verdict: every launch lands a hit row (a 0 is a
+        -- landed hit, not a miss), each raw in 0..9 (the prayed Entry max at
+        -- c 0), and the six are not all one value -- the fixed 9 this row used
+        -- to want is the over-max the ruling retired (all-equal on a 0..9 roll
+        -- is 1e-5 for six storms).
         seam("seam.maiden_blackstorm_always_lands_entry", function()
             local enter = verb("raid", "enter")
             local click_loc = verb("player", "click_loc")
@@ -16383,11 +16771,13 @@ return {
             local from_tick = 0
             if tick_verb then local _, t0 = tick_verb() from_tick = tonumber(t0) or 0 end
             local launches, landed, nines, parts = 0, 0, 0, {}
+            local values = {}
             for _ = 1, 24 do
                 settle(5)
                 setup_cheat("::setlevel prayer 99")
                 pray("protectfrommagic", true)
                 launches, landed, nines, parts = 0, 0, 0, {}
+                values = {}
                 local _, anims = log_rows({ kind = "npc_anim", slot = slot })
                 local _, hits = log_rows({ kind = "hit_player" })
                 local last = 0
@@ -16402,7 +16792,8 @@ return {
                         if got ~= nil then
                             landed = landed + 1
                             local raw = got.raw or got.damage
-                            if raw == 9 then nines = nines + 1 end
+                            if type(raw) == "number" and raw >= 0 and raw <= 9 then nines = nines + 1 end
+                            if type(raw) == "number" then values[raw] = true end
                             parts[#parts + 1] = "L" .. a.tick .. "/H" .. got.tick .. "=" .. tostring(raw)
                         else
                             parts[#parts + 1] = "L" .. a.tick .. "/none"
@@ -16412,9 +16803,13 @@ return {
                 if launches >= 6 then break end
             end
             teardown()
-            local detail = launches .. " blackstorms launched, " .. landed .. " landed, " .. nines .. " raw 9 (Entry, Protect from Magic, c 0, Defence 99): " .. table.concat(parts, " ")
-            if launches >= 6 and landed == launches and nines == launches then return "ok", detail end
-            return "refused", detail .. " (want >= 6, every one landed at raw 9: wiki Strategies:590 'always lands as a successful hit')"
+            local distinct = 0
+            for _ in pairs(values) do distinct = distinct + 1 end
+            local detail = launches .. " blackstorms launched, " .. landed .. " landed, " .. nines .. " raw in 0..9, "
+                .. distinct .. " distinct (Entry, Protect from Magic, c 0, Defence 99): " .. table.concat(parts, " ")
+            if launches >= 6 and landed == launches and nines == launches and distinct >= 2 then return "ok", detail end
+            return "refused", detail .. " (want >= 6, every one landed, raw rolled in 0..9 with more than one value:"
+                .. " wiki Strategies:590 'always lands as a successful hit'; the max is the infobox's, the damage rolled)"
         end)
 
 -- seam7 tob_bloat_presentation: one seam row, no verb added or changed.
@@ -21489,6 +21884,86 @@ return {
                 .. ": hit_npc on " .. n .. " slot(s)"
             if n ~= 3 then
                 return "refused", text .. " -- want three goblins hit by one swing (wiki_Scythe_of_vitur:81)"
+            end
+            return "ok", text
+        end)
+
+        -- PLACE: test/quests/_conformance.lua, right after the
+        -- seam("seam.scythe_arc_three_in_a_row", ...) row (the scythe's own seam;
+        -- the seam52 closer's first placement after seam.raid_play_sotetseg_gap left
+        -- ::maxmelee's scythe worn into seam.raid_play_member_swing_xp, whose Wind
+        -- Strike casts then fell to one: keep this row where the scythe already is).
+        --
+        -- raid seam52 melee_damage_per_swing: the Theatre melee kit the recorded
+        -- raiders wear (Blert equipmentDeltas: radiant oathplate body and legs,
+        -- a salve amulet(ei) at Bloat), one cheat each (cheat_max_gear.rs2
+        -- ::tobkit / ::tobkitsalve).  The row asks the worn slots back from the
+        -- client: a cheat that left ::maxmelee's torva or rancour on is hollow,
+        -- because the damage per swing follows the kit (CONTENT_BUGS seam52).
+        seam("seam.tob_melee_kit_worn", function()
+            local held = verb("session", "held")
+            if not held then return missing("session", "held") end
+            local function worn_set()
+                settle(2)
+                local r, h = held()
+                local set = {}
+                if r == "ok" then
+                    for _, name in ipairs(h.worn or {}) do set[name] = true end
+                end
+                return r, set
+            end
+            setup_cheat("::tobkitsalve")
+            local r1, w1 = worn_set()
+            setup_cheat("::tobkit")
+            local r2, w2 = worn_set()
+            setup_cheat("::maxmelee")
+            settle(2)
+            if r1 ~= "ok" or r2 ~= "ok" then
+                return "no_subject", "session.held " .. tostring(r1) .. "/" .. tostring(r2)
+            end
+            local text = string.format("::tobkitsalve body %s legs %s neck salve %s scythe %s; ::tobkit neck rancour %s salve %s",
+                tostring(w1.radiant_oathplate_chest == true), tostring(w1.radiant_oathplate_legs == true),
+                tostring(w1.lotr_crystalshard_necklace_upgrade == true), tostring(w1.scythe_of_vitur == true),
+                tostring(w2.amulet_of_rancour == true), tostring(w2.lotr_crystalshard_necklace_upgrade == true))
+            if not (w1.radiant_oathplate_chest and w1.radiant_oathplate_legs and w1.lotr_crystalshard_necklace_upgrade
+                    and w1.scythe_of_vitur and not w1.torva_chest and not w1.amulet_of_rancour) then
+                return "refused", text .. " -- want the recorded Bloat kit worn (oathplate, salve(ei), scythe)"
+            end
+            if not (w2.amulet_of_rancour and w2.radiant_oathplate_chest and not w2.lotr_crystalshard_necklace_upgrade) then
+                return "refused", text .. " -- want ::tobkit's rancour and oathplate"
+            end
+            return "ok", text
+        end)
+
+        -- raid seam54 (the orchestrator's ui.style, ab1c3e602): t.ui.style(name)
+        -- picks a combat style by the NAME its button shows, never by a slot
+        -- number.  Every room harness used to press slot 1 for every seat, so the
+        -- scythe seats swung "Chop", which this content makes stab
+        -- (CONTENT_BUGS seam52).  The subject is the scythe ::maxmelee left worn
+        -- in the row above.  Three asks: "Chop" must land on slot 1 and "Reap" on
+        -- slot 0, each read back from varp43_com_mode by the verb itself, and
+        -- "Rapid" (a bow's name, on none of the scythe's buttons) must answer
+        -- no_style -- a verb that pressed a fixed slot, or answered ok on a name
+        -- the screen does not show, is hollow.  Ends on Reap and the backpack tab.
+        step("ui.style", function()
+            local fn = verb("ui", "style")
+            local tab = verb("ui", "tab")
+            if not fn then return missing("ui", "style") end
+            if not tab then return missing("ui", "tab") end
+            local cr, cd, cs = fn("Chop")
+            local rr, rd, rs = fn("Reap")
+            local nr, nd = fn("Rapid")
+            tab(INVENTORY_INTERFACE)
+            local text = "Chop " .. tostring(cr) .. " slot " .. tostring(cs) .. "; Reap " .. tostring(rr)
+                .. " slot " .. tostring(rs) .. "; Rapid " .. tostring(nr) .. " (" .. tostring(rd) .. ")"
+            if cr ~= "ok" or rr ~= "ok" then
+                return (rr ~= "ok") and rr or cr, text .. " / " .. tostring(cd) .. " / " .. tostring(rd)
+            end
+            if cs ~= 1 or rs ~= 0 then
+                return "refused", text .. " -- want the scythe's Chop on slot 1 and Reap on slot 0"
+            end
+            if nr ~= "no_style" then
+                return "refused", text .. " -- want no_style for a name no button shows: " .. tostring(nd)
             end
             return "ok", text
         end)

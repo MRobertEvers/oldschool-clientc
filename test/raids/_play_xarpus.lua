@@ -35,6 +35,9 @@ local trio_kit = {
     -- the Defence drain W:839 asks for ("at least two successful hammer/maul
     -- specials"; the Dragon warhammer is the cache's hammer, _play_bloat.lua)
     "::give dragon_warhammer 1",
+    -- owner_rooms4: a stamina dose (the owner's "are all players running?"; the
+    -- plan's run keep drinks it only if run goes off)
+    "::give 4dosestamina 1",
 }
 local trio_run = nil
 local solo_kit = {
@@ -117,6 +120,8 @@ trio_run = function(t, role, size)
     -- THE FIGHT: the library and the room's plan, nothing else
     local result, detail, rec = t.raid.play("tob_xarpus", { mode = mode, weapon = "scythe_of_vitur", max_ticks = 1400 })
     t.check("play.fight", result == "ok", "p" .. role .. " " .. tostring(detail))
+    t.check("note.run", true, "p" .. role .. " run: varp173 read 0 on " .. tostring(rec.run_offs or 0) .. " ticks, orb presses "
+        .. tostring(rec.run_presses or 0) .. ", stamina doses " .. tostring(rec.staminas or 0))
     if role ~= 1 then
         t.expect("party.barrier.done", t.party.barrier("done", 9000))
         t.finish(0)
@@ -262,25 +267,45 @@ trio_run = function(t, role, size)
     end
     local tr = XA.trio or { outs = 0, ins = 0, no_out = 0, home_walks = 0 }
 
-    -- the stack (phase 2): ticks the three raiders stood on one tile
-    local stack_same, stack_apart = 0, 0
-    for tk = U + 8, p3 - 1 do
-        local first, apart = nil, false
-        for _, pid in ipairs(pid_list) do
-            local tt = tile_at[pid][tk]
-            if tt ~= nil then
-                if first == nil then first = tt elseif tt.x ~= first.x or tt.z ~= first.z then apart = true end
+    -- the spread (phase 2, raid seam42): real Normal trios hold their own
+    -- sides -- each raider's nearest other raider is a median 5 tiles away
+    -- over the phase, 3 to 6 across 13 death-free Blert rooms
+    -- (docs/minigames/theater_of_blood/sources/blert_api/reference/
+    -- xarpus_normal_3.json, role.melee1/2/3.phase.phase1.dist_raider), and
+    -- 0 of the phase's ticks in 20 rooms had all three on one tile
+    local spread_ok, spread_list = true, {}
+    for _, pid in ipairs(pid_list) do
+        local ds = {}
+        for tk = U + 8, p3 - 1 do
+            local me = tile_at[pid][tk]
+            if me ~= nil then
+                local near = nil
+                for _, o in ipairs(pid_list) do
+                    local ot = (o ~= pid) and tile_at[o][tk] or nil
+                    if ot ~= nil then
+                        local dd = math.max(math.abs(ot.x - me.x), math.abs(ot.z - me.z))
+                        if near == nil or dd < near then near = dd end
+                    end
+                end
+                if near ~= nil then ds[#ds + 1] = near end
             end
         end
-        if apart then stack_apart = stack_apart + 1 else stack_same = stack_same + 1 end
+        table.sort(ds)
+        local med = ds[math.floor((#ds + 1) / 2)]
+        spread_list[#spread_list + 1] = "pid" .. pid .. " " .. tostring(med)
+        if med == nil or med < 3 or med > 6 then spread_ok = false end
     end
 
     -- THE ROWS
     t.expect("fight.done", (kill ~= nil) and "ok" or "bad", "boss npc_death row " .. tostring(kill and kill.tick) .. ", mark " .. tostring(mark_tick) .. ", stand-up U " .. tostring(U) .. ", screech seen " .. tostring(XA.p3_tick))
     t.check("trio.no_death", #pid_list == size and #dead_list == 0, #pid_list .. " raiders in the tick log; deaths: " .. (#dead_list > 0 and table.concat(dead_list, ", ") or "none"))
     t.check("trio.exhumed_cover", #rises >= 12 and stood == #rises, "stood on " .. stood .. " of " .. #rises .. " exhumed (X exhumed_count.normal 12 at party 3); heal orbs " .. orbs .. " (" .. orbs_covered .. " from a covered tile), healed " .. healed .. ";" .. stood_by)
-    t.check("trio.ring_clean", ring_pools == 0, ring_pools .. " of " .. pools .. " phase 2 puddles on a melee tile (one from his footprint)" .. ring_list .. "; steps back " .. tr.outs .. ", steps in " .. tr.ins .. ", no clean tile " .. tr.no_out)
-    t.check("trio.stacked", stack_apart * 10 <= stack_same + stack_apart, "phase 2 (U+8 to the screech): the three raiders on one tile on " .. stack_same .. " ticks, apart on " .. stack_apart)
+    -- raid seam42: the bound is the real rooms', not zero: 13 death-free
+    -- Blert Normal trio rooms leave 2 to 7 (median 4) phase 2 splats on
+    -- distinct melee tiles (reference/xarpus_normal_3.json
+    -- extra_seam42.ring_splat_tiles); the spread leaves 0-3
+    t.check("trio.ring_clean", ring_pools <= 7, ring_pools .. " of " .. pools .. " phase 2 puddles on a melee tile (one from his footprint; Blert death-free Normal trios leave 2-7, median 4, on distinct melee tiles: xarpus_blert/ring_splats, reference/xarpus_normal_3.json extra_seam42.ring_splat_tiles)" .. ring_list .. "; steps back " .. tr.outs .. ", steps in " .. tr.ins .. ", no clean tile " .. tr.no_out)
+    t.check("trio.spread", spread_ok, "phase 2 (U+8 to the screech): each raider's median distance to the nearest other raider " .. table.concat(spread_list, ", ") .. " (Blert Normal trios 5 [3-6], reference/xarpus_normal_3.json)")
     t.check("play.gaze_kept", XA.phase == 3 and retal_n == 0, retal_n .. " retaliation hitsplat(s) after the screech" .. (#retal > 0 and (": " .. table.concat(retal, ", ")) or "") .. "; " .. #(XA.turns or {}) .. " turns seen by p1")
     t.check("play.measure_trio", true, string.format("p1 specials%s (energy before each); p1 steps back %s; kill %s ticks from the mark (%s to %s), U %s (p1 saw %s), screech %s; dealt %d in %d hits (%d zeros); %s; p1 food %d drinks %d; p1 inputs per tick 1:%d 2:%d 3:%d 4+:%d; %s",
         tostring(tr.spec_log), table.concat(tr.out_list or {}, " "),
@@ -295,11 +320,25 @@ trio_run = function(t, role, size)
     t.ticks(2)
     local _, gat = t.world.tile()
     t.check("exit.gate_crossed", gat.z == 108, "pressed the exit gate (" .. tostring(gr) .. "), stood on " .. tostring(gat.x) .. "," .. tostring(gat.z))
+    -- raid seam42: the skeleton refuses a full pack ("You don't have enough
+    -- inventory space to take that", S ~tob_dawnbringer_take).  The spread
+    -- takes less poison, so the leader can leave the room with all sixteen
+    -- anglerfish and a full pack: it eats one first, as a raider would.
+    local free = 0
+    for i = 0, 27 do
+        local sr, sl = t.inv.slot(i)
+        if sr == "ok" and sl.name == "" then free = free + 1 end
+    end
+    local made = "free " .. free
+    if free == 0 then
+        made = made .. ", ate " .. tostring(t.player.inv_op("anglerfish", 1, { quick = true }))
+        t.ticks(2)
+    end
     local xr, xd = t.player.click_loc("tob_skeleton_with_weapon", 1)
     t.check("exit.skeleton", xr == "ok", tostring(xd))
     t.chat.continue_()
     local wok = t.inv.await("verzik_special_weapon", 1, 5)
-    t.check("exit.dawnbringer", wok == "ok" or wok == true, "inventory holds verzik_special_weapon after the skeleton: " .. tostring(wok))
+    t.check("exit.dawnbringer", wok == "ok" or wok == true, "inventory holds verzik_special_weapon after the skeleton: " .. tostring(wok) .. " (" .. made .. ")")
     t.expect("party.barrier.done", t.party.barrier("done", 9000))
     t.finish(0)
 end

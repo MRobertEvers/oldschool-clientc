@@ -1813,6 +1813,88 @@ test_exact_move_across_far_teleport(void)
 }
 
 /*
+ * A cold seq is judged by its OWN priority, not the default.
+ *
+ * Verzik's throne exit (tob_verzik.rs2 ~tob_verzik_transit_tick): 8111, the
+ * dismount on her P1 rig 1796 at forcedpriority 11, is still playing when the
+ * same packet retypes her to 8371 (rig 1808) and sends 8112 (also priority 11).
+ * 8112 had never played, so its record was not resident and the seq source
+ * answered the default priority 5: 5 < 11, the seq was refused, and 8111 went on
+ * posing the new model on the wrong rig -- held on its last frame
+ * (framestep=1) for the whole flight. The request now waits for its record.
+ */
+static int g_parked_seq_resident;
+
+static int
+test_parked_priority(void* userdata, int seq_id)
+{
+    (void)userdata;
+    if( seq_id == 8112 && !g_parked_seq_resident )
+        return -1; /* not loaded yet: the source has no priority to give */
+    return seq_id == 8114 ? 6 : 11;
+}
+
+static int
+test_parked_frame_count(void* userdata, int seq_id)
+{
+    (void)userdata;
+    (void)seq_id;
+    return 26;
+}
+
+void
+test_cold_seq_is_parked_not_refused(void)
+{
+    printf("TEST: a cold seq waits for its own priority instead of losing on the default\n");
+
+    struct World* world = World_TestMakeReady(104);
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+    struct World_SeqSource seq = {
+        .userdata = NULL,
+        .frame_count = test_parked_frame_count,
+        .priority = test_parked_priority,
+    };
+    World_SetSeqSource(world, &seq);
+    g_parked_seq_resident = 0;
+
+    int ni = World_NpcSpawn(world, 7, 8370, 0, 20, 20, 5, idle);
+    struct WorldEntity_NPC* npc = World_EntityPoolGet(&world->entities.npc, ni);
+
+    World_NpcSetPrimaryAnimation(world, ni, 8111, 0);
+    TEST_ASSERT(npc->animation.primary.anim_id == 8111, "the dismount plays");
+    World_Cycle(world, 1);
+
+    World_NpcSetPrimaryAnimation(world, ni, 8112, 0);
+    TEST_ASSERT(npc->animation.primary.anim_id == 8111,
+                "a seq whose record is not in yet is not judged on arrival");
+    TEST_ASSERT(npc->animation.pending_set && npc->animation.pending_anim_id == 8112,
+                "it is parked rather than refused");
+    World_Cycle(world, 1);
+    TEST_ASSERT(npc->animation.primary.anim_id == 8111 && npc->animation.pending_set,
+                "and stays parked while its record is still loading");
+
+    g_parked_seq_resident = 1;
+    World_Cycle(world, 1);
+    TEST_ASSERT(npc->animation.primary.anim_id == 8112,
+                "the cycle its record lands, its priority 11 >= 8111's 11 takes the track");
+    TEST_ASSERT(!npc->animation.pending_set, "and nothing stays parked");
+
+    /* A cancel clears a parked request as well as the playing one. */
+    g_parked_seq_resident = 0;
+    World_NpcSetPrimaryAnimation(world, ni, 8111, 0);
+    World_NpcSetPrimaryAnimation(world, ni, 8112, 0);
+    World_NpcSetPrimaryAnimation(world, ni, -1, 0);
+    TEST_ASSERT(npc->animation.primary.anim_id == (uint16_t)-1 && !npc->animation.pending_set,
+                "npc_anim(null) cancels the parked seq too");
+    g_parked_seq_resident = 1;
+    World_Cycle(world, 1);
+    TEST_ASSERT(npc->animation.primary.anim_id == (uint16_t)-1,
+                "and the cancelled seq does not come back when its record lands");
+
+    World_Free(world);
+}
+
+/*
  * An action animation puts the readyanim back on its loop point.
  *
  * The readyanim free-runs underneath an action animation -- it has to, its

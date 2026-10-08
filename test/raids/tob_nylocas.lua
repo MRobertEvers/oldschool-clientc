@@ -72,14 +72,9 @@ return {
         -- the combat tab's second style button: rapid for the bow (an arrow every three ticks, not four)
         local tab_result, tab_detail = t.ui.tab("combat")
         t.ticks(1)
-        local style_widget_result, style_widget = t.ui.widget("combat_interface:style_slot_1")
-        local style_press_result, style_press_detail = t.ui.invoke(style_widget, 1)
-        t.ticks(2)
-        local style_read_result, style_read = t.var.varp("varp43_com_mode")
-        t.check("setup.rapid", style_widget_result == "ok" and style_press_result == "ok" and style_read == 1,
-            "combat tab style slot 1 pressed for the bow: tab " .. tostring(tab_result) .. " " .. tostring(tab_detail) .. ", widget "
-            .. tostring(style_widget_result) .. " " .. tostring(style_widget) .. ", press " .. tostring(style_press_result)
-            .. " " .. tostring(style_press_detail) .. ", varp43_com_mode reads " .. tostring(style_read_result) .. " " .. tostring(style_read))
+        local style_result, style_detail = t.ui.style("Rapid")
+        t.check("setup.rapid", style_result == "ok",
+            "combat tab style Rapid for the bow: tab " .. tostring(tab_result) .. " " .. tostring(tab_detail) .. "; " .. tostring(style_detail))
         -- auto-retaliate off (the combat tab's own button): the server would otherwise swing back at whatever hit the player with the
         -- weapon in hand, and a wrong-style swing nulls that nylocas for good (56 nulled hits in one pass)
         local retaliate_before_result, retaliate_before = t.var.varp("varp172_option_nodef")

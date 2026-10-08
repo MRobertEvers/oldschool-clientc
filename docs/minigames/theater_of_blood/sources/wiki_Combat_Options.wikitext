@@ -1,0 +1,103 @@
+{{External|rs=Combat styles}}
+[[File:Combat icon.png|left]]
+[[File:Attack style tab.png|frame|The Combat Options interface.]]
+The '''Combat Options''' tab allows players to choose how to use their equipped weapon. Players can choose from a list of combat styles, each with different [[attack types]] and [[weapon style|weapon styles]] that a player can use in [[Combat]], which in turn affects their level boost and what [[experience]] they receive. Available combat options are determined by the [[Weapons/Categories|weapon category]], which is listed just beneath the [[Auto Retaliate|auto-retaliate]] option and [[Special attacks|special attack]] bar. After the start of the [[Pandemonium]] quest a toggle will be added in the top left to swap to the [[Sailing Options]] interface.
+
+==Melee weapons==
+[[Melee]] [[weapons]] vary in their combat options. Some present 3 options, one each for '''accurate''', '''aggressive''', and '''defensive''' styles; while others might have four options, the extra one typically being either a '''controlled''' option or an alternative '''aggressive''' attack. See [[Weapons/Categories]] for a full list of options by weapon category. 
+
+===[[Attack types]]===
+*[[Stab]]
+*[[Slash]]
+*[[Crush]]
+Selecting type will change the player's accuracy. Bonuses can be seen in the [[Equipment Stats|Equipment Stats interface]]. The player's accuracy rolls are determined by their selected attack type. This applies to special attacks too. The player's accuracy roll rolls against their opponent's matching type defence. There are exceptions; most special attacks are rolled always against a predefined type. The general rule is that you can determine the attack's  type from its special attack animation. Slashing specials roll against slash defence, and crushing animations against crush defence (dragon dagger / crystal halberd special attacks' selected type accuracy roll will roll against an opponent's slash defence).{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/785130015541325824|date=9 October 2016|archiveurl=https://reldo.runescape.wiki/i/106488|archivedate=28 May 2020|quote=It uses whatever attack style you have selected to calculate your accuracy, but looks at their slash defence.}}
+
+There currently isn't a player wieldable melee weapon that calculates accuracy from magic or ranged bonus, but there is ranged weapon, the [[dwarf multicannon]], which calculates accuracy using the player's Ranged or melee bonus depending on the weapon and attack style, detailed in [[Dwarf_multicannon#Accuracy|the accuracy section]] of its page.
+
+===Accurate===
+When using the '''accurate''' style, for every point of damage a player deals, they gain 4 experience in [[Attack]] and 1.33 experience in [[Hitpoints]]. Using the '''accurate '''style provides an invisible +3 boost to your Attack level.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/496978405909614592|date=6 August 2014|archiveurl=https://reldo.runescape.wiki/i/27963840|archivedate=11 April 2026|quote=It treats you as if your Attack stat were +3 higher than it does for Aggressive or Defensive. Controlled would do +1.|name=Attack}}
+
+===Aggressive===
+When using the '''aggressive''' style, for every point of damage a player deals, they gain 4 experience in [[Strength]] and 1.33 experience in [[Hitpoints]]. Using the '''aggressive '''style provides an invisible +3 boost to your Strength level.{{NamedRef|Attack}}
+
+===Defensive===
+When using the '''defensive''' style, for every point of damage a player deals, they gain 4 experience in [[Defence]] and 1.33 experience in [[Hitpoints]]. Using the '''defensive '''style provides an invisible +3 boost to your Defence level.{{NamedRef|Attack}}
+
+===Controlled===
+When using the '''controlled''' style, for every point of damage a player deals, they gain 1.33 experience each in [[Attack]], [[Strength]], [[Hitpoints]], and [[Defence]]. Using the '''controlled '''style provides an invisible +1 boost to your Attack, Strength and Defence levels.{{NamedRef|Attack}} This attack style is only available for certain melee weapons: [[longsword]]s, [[scimitars]], [[maces]], [[spears]], [[halberds]], [[hastae]], [[claws]], and [[whips]].
+
+==Ranged weapons==
+===Accurate===
+When using the '''accurate''' style, for every point of damage a player deals, they gain 4 experience in [[Ranged]] and 1.33 experience in [[Hitpoints]]. The accurate style allows a player to shoot less often than in the rapid style, however they receive a +3 invisible bonus to their Ranged level, thereby increasing accuracy and damage.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/973134559444422656|date=12 March 2018|archiveurl=https://reldo.runescape.wiki/i/102622|archivedate=28 May 2020|quote=The same as melee: +3.}}
+
+===Rapid===
+When using the '''rapid''' style, for every point of damage a player deals, they gain 4 experience in [[Ranged]] and 1.33 experience in [[Hitpoints]]. The rapid style allows a player to shoot more often than in the accurate style, but a player is more likely to miss (i.e. dealing 0 damage).
+
+===Longrange===
+When using the '''longrange''' style, for every point of damage a player deals, they gain 2 experience in [[Ranged]], 2 experience in [[Defence]], and 1.33 in [[Hitpoints]]. Attack range is increased by +2 tiles up to a maximum of 10 tiles.
+
+Using the '''longrange''' style provides an invisible +3 boost to your Defence level.{{CiteForum|author=Bitterkoekje|url=https://web.archive.org/web/20190905124128/http://webcache.googleusercontent.com/search?q=cache:http://services.runescape.com/m=forum/forums.ws?317,318,712,65587452|title=Combat Formulas|postdate=10 March 2015|name=Bitterkoekje}}
+
+==Magic weapons==
+While wielding a [[Magic]] [[weapon]] (commonly a [[Staves|staff]]), a player can use the normal [[Attack style#Melee weapons|melee attack styles]] in [[Melee]] [[combat]], or use the '''[[Autocast]]''' option to automatically attack with a [[spell]]. Selecting this option will bring up a list of spells that can be autocast, which varies with each magical weapon. If the player selects a spell, the selected spell is repeatedly cast during combat as long as the player has the required Magic level and has the required [[runes]]. While a player has the autocast option chosen, they must also choose either the normal or defensive style to represent how they are casting their Magic.
+
+===Powered staff===
+*The '''accurate''' style allows a player to receive a +3 invisible bonus to their Magic level.{{NamedRef|Bitterkoekje}}
+*The '''longrange''' style allows a player to receive a +1 invisible bonus to their Magic level and a +3 invisible bonus to their Defence level. Attack range is increased with this attack style.{{NamedRef|Bitterkoekje}}
+
+===Autocast===
+Unlike other combat styles and powered staves, autocasting does not give invisible bonuses.
+
+====Standard====
+If a player chooses the '''standard''' style for autocasting, they perform a normal magical attack and for each point of damage the spell deals, they gain 2 experience in [[Magic]] and 1.33 experience in [[Hitpoints]], in addition to the Magic experience from casting the spell.
+
+====Defensive====
+If a player chooses the '''defensive''' style for autocasting, they perform a normal magical attack and for each point of damage the spell deals, they gain 1.33 experience in [[Magic]], 1 experience in [[Defence]], and 1.33 experience in [[Hitpoints]]. The experience from casting the spell is still given entirely to Magic.
+
+==Gallery==
+<gallery>
+CombatStyles Slash Sword.png|The combat options of a [[longsword]].
+CombatStyles Crossbow.png|The combat options of a [[Crossbow (weapon)|crossbow]].
+CombatStyles Staff.png|The combat options of a [[Staves|staff]].
+Combat options mobile interface.png|The combat options menu in the mobile client.
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 21 February 2019
+|update = 6th Birthday and QoL
+|change = Weapons that share a category (daggers, swords, bows etc.) will now remember the combat style that was used.
+}}
+{{Subject changes
+|date = 20 February 2014
+|update = Happy Birthday!
+|change = When switching weapons, if you're not already in a Defensive stance, the game will try to make sure it doesn't put you into one. Similarly, when you stop autocasting, the game will try not to put you in a Defensive stance unless you were using the Defensive Autocast setting. 
+}}
+{{Subject changes
+|date = 23 January 2014
+|update = Slayer Cave & High Risk Worlds
+|change = Toggling [[Auto Retaliate]] no longer disrupts movement.
+}}
+{{Subject changes
+|date = 6 January 2014
+|update = Second Slayer Batch: The Helm
+|change = The tooltip on the combat interface for spiked weapons, such as the [[Barrelchest anchor|Anchor]], will now correctly state that the Aggressive stance gives Strength XP. A typo had led to it claiming that the weapon gave Controlled XP.
+}}
+{{Subject changes
+|date = 17 December 2013
+|update = Christmas Holiday Event
+|change = When you switch between different styles of weapon, there's been a long-standing issue where the Special Attack button ignored clicks for a moment afterwards. We've rewritten the combat side-panel interfaces to fix this.
+}}
+{{Subject changes
+|date = 31 October 2013
+|update = PvP Worlds & Free Access Weekend - now here!
+|change = The combat interface once again highlights the autocast buttons in red when you've enabled autocasting of a spell.
+}}
+{{Subject changes footer}}
+
+==References==
+{{Reflist}}
+
+{{Interface}}
+[[Category:Combat]]

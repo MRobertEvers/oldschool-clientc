@@ -157,6 +157,7 @@ void test_rebuild_shift(void);
 void test_exact_move_across_far_teleport(void);
 void test_obj_raise(void);
 void test_action_anim_restarts_the_readyanim(void);
+void test_cold_seq_is_parked_not_refused(void);
 void test_action_anim_hands_back_to_the_readyanim_loop_point(void);
 void test_npc_retype_keeps_animation(void);
 void test_line_of_sight(void);

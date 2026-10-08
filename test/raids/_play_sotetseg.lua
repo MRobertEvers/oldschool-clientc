@@ -23,7 +23,10 @@
 local role = (QD_PARTY and QD_PARTY.role) or 1
 local size = (QD_PARTY and QD_PARTY.size) or 1
 local trio_kit, trio_run = nil, nil
--- The trio's kit: ::maxmelee (the scythe of vitur; "it is best to attack
+-- The trio's kit: ::tobkit (seam52 melee_damage_per_swing: ::maxmelee with
+-- the recorded raiders' radiant oathplate body and legs and the amulet of
+-- rancour -- Blert equipmentDeltas, build/blert/sotetseg, oathplate on 81 of
+-- 87 -- cheat_max_gear.rs2; the scythe of vitur; "it is best to attack
 -- Sotetseg with Melee", Entry page :191, and the trio guide's melee set),
 -- anglerfish ("make sure that you eat your angler", yt_KF9y2GYTJ-A.md:114),
 -- restores and brews ("eat up if you drop below 45 HP ... brew up",
@@ -31,9 +34,43 @@ local trio_kit, trio_run = nil, nil
 -- the maze and the death-ball gathers spend (the Bloat trio's finding,
 -- PLAY_NOTES "Bloat, Normal trio").
 trio_kit = {
-    "::clearinv", "::maxmelee", "::setlevel prayer 99", "::setlevel agility 99",
-    "::give anglerfish 16", "::give br_4dose2restore 3", "::give 4dose2combat 1",
-    "::give br_4dosepotionofsaradomin 4",
+    "::clearinv", "::tobkit", "::setlevel prayer 99", "::setlevel agility 99",
+    -- owner_rooms4: 10 anglerfish, not 16 -- the pack carries the bow opener's
+    -- ranged set (six pieces, worn from the barrier, so the melee set's six ride
+    -- in their slots) and a stamina dose; the reference's raiders lose 92.5-108
+    -- hitpoints a room, 225 at most (sotetseg_normal_3.json outcome.hp_lost)
+    -- owner_rooms4 (coordinator, from build/blert/sotetseg's type 4 stats): the
+    -- recorded seats are at Attack and Strength 118 five ticks into EVERY phase
+    -- (median 118 in fights 1-3, n 33-37) and drink no brew here: a divine super
+    -- combat at the door (no decay for its 5 minutes, wiki Divine super combat
+    -- potion), not a super combat that decays to ~116 by fight 3, and the brews'
+    -- four slots are anglerfish
+    "::give anglerfish 14", "::give br_4dose2restore 3", "::give 4dosedivinecombat 1",
+    -- raid seam42: the elder maul the Blert trios spec once a phase
+    -- (sotetseg_normal_3.json weapons ELDER_MAUL; the plan's THE ELDER MAUL)
+    "::give elder_maul 1",
+    -- raid seam55: the twisted bow the Blert trios open the room with, one
+    -- arrow each on the walk in (sotetseg_normal_3.json weapons, start:
+    -- TWISTED_BOW in 14, 12 and 13 of 19 rooms, count 1; the plan's THE BOW
+    -- OPENER), its dragon arrows (cheat_max_gear.rs2 ::maxrange's quiver)
+    -- and the Ranged it is wielded with
+    "::setlevel ranged 99", "::give twisted_bow 1", "::give dragon_arrow 100",
+    -- owner_rooms4: a stamina dose (the owner's "are all players running?"; the
+    -- plan's run keep drinks it only if run goes off)
+    "::give 4dosestamina 1",
+    -- owner_rooms4 FIX 1 (the owner, 2026-10-07: "Make the fixes"): the bow
+    -- opener's ranged set, as 46-49 of the 81 recorded seats walk in wearing it
+    -- (build/blert/sotetseg equipmentDeltas: elite void top and robes and void
+    -- gloves, the void ranger helm, Dizana's quiver, anguish or rupture)
+    -- (worn here, as the Maiden harness wears its freezer's: a click on the
+    -- six in one block pressed four while the backpack tab was not drawn; the
+    -- bow goes on in run(), after the scythe's style is set by name)
+    "::give game_pest_archer_helm 1", "::give elite_void_knight_top 1", "::give elite_void_knight_robes 1",
+    "::give pest_void_knight_gloves 1", "::give necklace_of_rupture 1", "::give dizanas_quiver_infinite 1",
+    -- (the void pieces ask Magic 42 among their levels: the recorded raiders' are 99)
+    "::setlevel magic 99",
+    "::wield game_pest_archer_helm", "::wield elite_void_knight_top", "::wield elite_void_knight_robes",
+    "::wield pest_void_knight_gloves", "::wield necklace_of_rupture", "::wield dizanas_quiver_infinite",
 }
 
 trio_run = function(t)
@@ -54,10 +91,21 @@ trio_run = function(t)
         t.check("start_tile", fr == "ok", tostring(ftext))
         fight = ftile
     end
-    local pr0 = t.player.inv_op("4dose2combat", 1, { quick = true })
+    local pr0 = t.player.inv_op("4dosedivinecombat", 1, { quick = true })
     t.ticks(1)
     local ar2, att2 = t.skill.read("attack")
     t.check("play.potion", ar2 == "ok" and att2.level > 99, "p" .. role .. " super combat before the barrier: attack " .. tostring(att2 and att2.level) .. " (" .. tostring(pr0) .. ")")
+    -- raid seam55: the arrows into the quiver (the bow opener's), and the
+    -- scythe's style by its NAME (ui.style; slot 1 "Chop" is stab)
+    local qr, qd = t.player.equip("dragon_arrow")
+    t.check("kit.arrows", qr == "ok", "p" .. role .. " " .. tostring(qd))
+    local yr, yd = t.ui.style("Reap")
+    t.check("kit.style", yr == "ok", "p" .. role .. " " .. tostring(yd))
+    -- owner_rooms4 FIX 1: the room is started holding the bow in the ranged
+    -- set (the kit's comment); the plan looses it on the walk in and puts the
+    -- melee set back on with the maul or the scythe
+    local gr, gd = t.player.equip("twisted_bow")
+    t.check("kit.ranged_opener", gr == "ok", "p" .. role .. " the bow on, in the ranged set the kit wore: " .. tostring(gd))
     -- "to start the room pray magic and piety" (yt_KF9y2GYTJ-A.md:151)
     t.exec("prayer.magic", t.prayer.set, "protectfrommagic", true)
     if role == 1 then t.player.walk_to(fight.x, fight.z - 2, 20) end
@@ -78,6 +126,8 @@ trio_run = function(t)
     -- THE FIGHT: the library and the room's plan, nothing else
     local result, detail, rec = t.raid.play("tob_sotetseg", { mode = mode, weapon = "scythe_of_vitur", max_ticks = 2400 })
     local S = rec.sote or { mazes = {}, follows = {} }
+    t.check("note.run", true, "p" .. role .. " run: varp173 read 0 on " .. tostring(rec.run_offs or 0) .. " ticks, orb presses "
+        .. tostring(rec.run_presses or 0) .. ", stamina doses " .. tostring(rec.staminas or 0))
     local function maze_text()
         local parts = {}
         for k, mz in ipairs(S.mazes or {}) do
@@ -86,16 +136,26 @@ trio_run = function(t)
         end
         for k, fw in ipairs(S.follows or {}) do
             parts[#parts + 1] = "read maze " .. k .. ": from t" .. tostring(fw.seen) .. ", " .. #fw.samples .. " glows (" .. fw.gaps
-                .. " gaps), path " .. fw.path_n .. " tiles complete t" .. tostring(fw.complete) .. (fw.bad and " BAD SHAPE" or "")
+                .. " gaps, " .. tostring(fw.ambiguous or 0) .. " of them two-way), path " .. fw.path_n .. " tiles complete t" .. tostring(fw.complete) .. (fw.bad and " BAD SHAPE" or "")
                 .. ", walk t" .. tostring(fw.start_walk) .. ", off north t" .. tostring(fw.off_north) .. ", " .. fw.on_grid
                 .. " ticks on the grid (" .. fw.off_path .. " off the path)"
+                -- raid seam52: the read side, measured: ticks the read was
+                -- not taken while the glow was live, the unsent guesses
+                .. ", read skips " .. tostring(fw.read_skips or 0) .. ", reads with two lit " .. tostring(fw.multi_lit or 0) .. ", frame polls " .. tostring(fw.polls or 0) .. ", early runs " .. tostring(fw.early_steps or 0) .. ", direct walks " .. tostring(fw.direct_walks or 0)
+                .. ", held at a two-way gap " .. tostring(fw.held or 0) .. " ticks, guessed " .. tostring(fw.guess_walked or 0)
+                .. (fw.stayed_off and ", stayed off the grid" or "")
         end
         return #parts > 0 and table.concat(parts, "; ") or "no maze"
     end
     t.check("play.fight", result == "ok", "p" .. role .. " " .. tostring(detail))
     t.check("play.mazes", true, "p" .. role .. " " .. maze_text() .. "; death balls seen " .. tostring(S.death_balls)
         .. ", gathers " .. tostring(S.gathers) .. " (" .. tostring(S.gather_ticks) .. " ticks), seat ticks " .. tostring(S.seat_ticks)
-        .. ", seats given up " .. tostring(S.seats_given_up or 0) .. ", ticks a ball flew at me " .. tostring(S.aimed))
+        .. ", seats given up " .. tostring(S.seats_given_up or 0) .. ", ticks a ball flew at me " .. tostring(S.aimed)
+            .. ", bow " .. tostring(S.bow_log) .. ", corner shifts " .. tostring(S.seat_shifts or 0)
+        .. "; elder maul " .. ((S.em and #S.em.log > 0) and table.concat(S.em.log, ", ") or "none")
+        -- raid seam51: his attack clock as this raider read it, and the boosts
+        .. "; his attacks seen " .. tostring(S.attacks_seen or 0) .. ", melee prayer on his due tick " .. tostring(S.melee_due or 0)
+        .. " ticks, super combat sips " .. tostring(S.reboosts or 0))
     if role ~= 1 then
         t.expect("party.barrier.done", t.party.barrier("done", 9000))
         t.finish(0)
@@ -231,12 +291,28 @@ trio_run = function(t)
                 stacked = stacked and #at == size
                 parts[#parts + 1] = (stacked and "all " .. #at .. " within a tile at t" .. (land - 1)) or ("NOT stacked at t" .. (land - 1))
                 if not stacked then shared_all = false end
+                -- OWNER 2026-10-07: "the raiders should share the red ball" -- and
+                -- the content splits it among every raider within a tile of the
+                -- target (tob_sotetseg.rs2 [queue,tob_sote_ball_impact], radius 1,
+                -- the wiki's 3x3): every raider struck by THIS ball, the same
+                -- share each, or it was not shared (owner_rooms4)
+                if n > 0 and n ~= size then   -- (a roll under 3 shares 0 each: no splat to count)
+                    shared_all = false
+                    parts[#parts + 1] = "struck " .. n .. " of " .. size
+                end
             end
+            if not nulled and land > end_tick then parts[#parts + 1] = "landed after his death" end
             ball_lines[#ball_lines + 1] = "t" .. r.tick .. " land t" .. land .. ": " .. n .. " raiders (" .. table.concat(parts, ",") .. ")"
         end
     end
-    t.expect("technique.trio.death_ball_shared", (balls >= 1 and shared_all) and "ok" or "fail",
-        balls .. " death balls, the party stacked within a tile at every landing (the splats: the largest equal group, landing to +2): " .. table.concat(ball_lines, "; "))
+    -- raid seam50: a room whose only death ball landed inside a maze (nulled,
+    -- W:799) has nothing to judge: the row is absent on that seed, never a
+    -- FAIL on nothing (seam49 s2 _play_sotetseg: t190 land t205, nulled) nor
+    -- a PASS on nothing; play.measure carries the line
+    if balls >= 1 then
+        t.expect("technique.trio.death_ball_shared", shared_all and "ok" or "fail",
+            balls .. " death balls, the party stacked within a tile at every landing (the splats: the largest equal group, landing to +2): " .. table.concat(ball_lines, "; "))
+    end
     -- the balls: blocked splats (hitsplat 26, 0) against ones that hurt
     local blocked, hurt = 0, 0
     for _, h in ipairs(hits) do
@@ -263,6 +339,44 @@ trio_run = function(t)
     for _, n in pairs(rec.inputs) do
         if n > 0 then hist[math.min(n, 4)] = hist[math.min(n, 4)] + 1 end
     end
+    -- raid seam50 play_tob_sotetseg_whole: THE REFERENCE ROWS.  The room
+    -- against the 20 recorded death-free Normal trio rooms on Blert
+    -- (docs/minigames/theater_of_blood/sources/blert_api/reference/
+    -- sotetseg_normal_3.json): outcome.room_ticks 212.5 [164-262];
+    -- outcome.hp_lost per raider melee1 92.5 [27-155], melee2 108 [3-225],
+    -- melee3 105 [83-135] (the roles are the recorder's labels, so a raider
+    -- is held to their union [3-225]); outcome.deaths 0 [0-0]; the maze, proc
+    -- to his combat form back, 28 [14-47] over 26 mazes (blert_api/
+    -- sote_maze.csv reactivate_tick - proc_tick).
+    -- OWNER RULING 2026-10-07 (owner_rooms4, via the coordinator): "If sotetseg
+    -- is completing but just a bit slower, count it as good, don't worry about
+    -- meeting blert times."  So for SOTETSEG ONLY the room's green is that it
+    -- completes (his death row, no raider dead: the deaths row below); the
+    -- reference's [164-262] is printed beside it, not asserted.  The other rooms'
+    -- time bounds stand.
+    local room_ticks = death_tick and (death_tick - mark_tick) or nil
+    t.check("blert.room_ticks", room_ticks ~= nil,
+        "room " .. tostring(room_ticks) .. " ticks from the mark to his death (completion is the bound, owner 2026-10-07); the reference's 20 rooms: 212.5 [164-262]"
+        .. ((room_ticks ~= nil and room_ticks > 262) and " -- slower than every recorded room" or ""))
+    -- OWNER RULING 2026-10-07 (owner_rooms4, via the coordinator): "Missing by 2
+    -- hitpoints is fine. Maybe loosen the requirements."  The bound was the
+    -- reference's largest seat, 225 (also the largest of the 37 seats with
+    -- hitpoints in build/blert/sotetseg's scale-3 PLAYER updates); _play lost
+    -- 227 on one seat (two melees on a ball's landing tick).  It is 250 now,
+    -- the coordinator's cap for the loosened bound; the reference is printed.
+    local HP_LOST_BOUND = 250
+    local hp_ok = #per >= 1
+    for pid, _ in pairs(pids) do
+        if (taken[pid] or 0) > HP_LOST_BOUND then hp_ok = false end
+    end
+    t.check("blert.hp_lost", hp_ok, "hitpoints lost a raider " .. table.concat(per, ", ") .. " (bound " .. HP_LOST_BOUND .. ", owner 2026-10-07); the reference: melee1 92.5 [27-155], melee2 108 [3-225], melee3 105 [83-135]")
+    local maze_ok, maze_d = #mazes >= 1, {}
+    for _, mz in ipairs(mazes) do
+        local d = mz.react and (mz.react - mz.proc) or nil
+        maze_d[#maze_d + 1] = tostring(d)
+        if d == nil or d < 14 or d > 47 then maze_ok = false end
+    end
+    t.check("blert.maze_ticks", maze_ok, "mazes proc to back " .. table.concat(maze_d, ", ") .. " ticks; the reference's 26 mazes: 28 [14-47]")
     t.check("play.measure", true, string.format("room %s ticks (mark %s, death %s); damage taken %s; his melee swings %d; "
         .. "balls blocked %d; death balls %d; mazes %d; leader eats %d, drinks %d, swings %d; inputs 1/2/3/4+ %d/%d/%d/%d",
         tostring(death_tick and (death_tick - mark_tick)), tostring(mark_tick), tostring(death_tick), table.concat(per, ", "),

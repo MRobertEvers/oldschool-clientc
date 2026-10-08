@@ -387,9 +387,10 @@ asserts after it. Each was measured with a scratch script that entered the room 
   npc turn, so `npc_queue(q, arg, N)` from a timer fires on T+N-1, and one armed
   elsewhere fires on T+N. Verzik's P1 bolt, yellows and webs ask for N+1 for this
   reason.
-- Per-room rolls replay: a boss's rolls are seeded from its spawn key and a lives
-  counter, so two runs with the same history replay identical rooms. Offset runs by
-  entering and leaving rooms, not with a new `--name`. About 16,000 server ticks is the
+- Per-room rolls replay: a boss's rolls are seeded from its spawn key, a lives counter
+  and (since 2026-10-07) the run's name, so two runs under one name with the same history
+  replay identical rooms, and a new `--name` is a new boss and crab scenario (see "Npc
+  rolls are seeded by the run name" at the end). About 16,000 server ticks is the
   480000-frame ceiling.
 
 ## tools/verify_tob_timings.py --ticklog: our run against the blert checks
@@ -6883,3 +6884,905 @@ by the delay (play.potion row).
 
 P.trace_seat = <role> in the Nylocas plan traces one party seat without turning on the whole
 trace; leave it nil in committed code.
+
+## A party follower has no tick log, so it never re-presses a stopped attack (seam42)
+
+`raid_play.lua` `_play_attack` counts a swing every `st.weapon.speed` ticks once a follower
+(p2, p3: no tick log of its own) is engaged, so the "no swing for speed + 2 ticks" re-press
+never fires for it. In seam42 `_play_bloat`, p3 stood adjacent to Bloat's footprint and sent no
+input for 20 ticks of down 2 and down 3 (leader's tick log t170-190, t242-262), about a third
+of the party's damage on those downs. Open: a follower needs to see its own swing (a per-member
+tick log, or its own seq in `api_drive.players()`), or to re-press every speed + 2 ticks while
+the plan wants a swing. Every trio room is affected.
+
+## A party follower answers `unsupported` to any `*_content` read (seam42)
+
+A follower process has no embedded world, so `api_drive.varbit_content` and the other
+content readers answer `unsupported` there. The v3 `prayer.lua` merged at 90ea66f70 read it
+for every press, and `t.prayer.set` was refused on every follower until 1d82249dd added the
+fallback to the client's record. Any new driver read that goes through the content readers
+needs the same fallback before a trio harness can use it.
+
+## `raid_report.py --against` reads only Maiden (seam42)
+
+`blert_reference.BOSS_IDS` holds only Maiden's ids, so `run_room` returns None for any other
+room and the assert fires. Until the ids are added (Bloat 8359/10812/10813 with phases cut
+from npc_anim 8082; Sotetseg 8387/8388 for Normal; Xarpus; Verzik with her P2/P3 size), the
+seam42 readers stand in: `build/seam_state/matthew-mbp-m4-raid-b1-seam42/bloat/against.py`,
+`.../sotetseg/compare.py`, `.../xarpus_blert/xcompare.py`, `.../verzik/compare_verzik.py`.
+
+## `blert_reference.py` rewrites `reference/README.md` (seam42)
+
+Every run regenerates the README from every `*_*_*.json` in the reference directory. With
+several fixers running it at once, leave the README to the closer, who regenerates it once
+(`blert_reference.write_readme`).
+
+## Xarpus P2, Normal trio: spread, and tell the spit from a chain by its source tile (seam42)
+
+Real Normal trios never stack in P2 (nearest other raider 5 [3-6], stacked 0% of ticks;
+`xarpus_normal_3.json`). With our content's rules (the next spit never takes the last
+target, chains never go to the spit's target), the raider whose step-back tile the spit's
+acid is heading to stays in melee that cycle; the other two step out on S+2 and S+3. Tell the
+spit from a chain by the projectile's source tile (`v.incoming[i].sx/sz`, inside his
+footprint): a chain still in flight from the last landing aims at the same step-back tile,
+and reading it as the spit gave false stays and 18 puddles on melee tiles.
+
+## A trio harness can leave a room with a full pack (seam42)
+
+Raiders who take little damage keep every anglerfish, and the Dawnbringer skeleton refuses
+("not enough inventory space"): `exit.dawnbringer` times out. Free a slot first (the Xarpus
+harness eats one anglerfish when the pack is full).
+
+## Sotetseg's maze glow is one tile, the runner's tile at the end of each tick (seam42)
+
+Running two tiles a tick, the middle tile is never lit (`tob_sote_mirror`). A missed read
+leaves a gap of three or more tiles that can cross two lateral rows, and the turn cannot be
+recovered from it. Real Normal trio mazes (Blert events 130/131, npc 8387/8388): proc to the
+combat form back 28 [15-49] ticks over 58 mazes; proc to the first path tile 7; first tile
+to last 14. The seam42 attempt to follow behind the glow did not land (see SEAM_LEDGER).
+
+## The elder maul is equipped in the same block as the special orb (seam42)
+
+Equip it on the tick after a scythe swing, in the block that presses the orb: one tick
+earlier and the auto-attack swings it plain first (seq 7516, then the special 11124 six
+ticks later). Measured in the seam42 Sotetseg attempt, which did not land.
+
+## Verzik, Normal trio: the recorded trios play all melee (seam42)
+
+`verzik_normal_3.json` (20 rooms): P1 is DAWN 4 + SCYTHE 8-10 per role, P2 SCYTHE about 31 on
+her and 5-6 on the adds, P3 SCYTHE 21-24. Our `::maxrange` plan is a different strategy, not a
+tuning gap. A scythe in the `::maxrange` kit (no melee gear, Rigour) deals 8.0 a hit on a
+Normal Matomenos (729 hits): never trade bow shots on her for scythe swings on reds in that
+kit, or P2 never ends (a fresh pair every 44 ticks).
+## Zero hitsplats on a wave nylocas are nulling, not misses (seam46)
+
+A run of 0 hitsplats (type 26) on a wave nylocas that the seat's correct-style weapon should
+kill is NULLING: after one wrong-style hit, "the player that attacked them can no longer
+damage them" (wiki Theatre_of_Blood/Strategies:724; content tob_damage.rs2
+~tob_nylo_nulled_here). Look at the seat's weapon on the swing BEFORE the zeros (the raider
+row's weapon column in the ticklog). ny40j: raider 2 fired its blowpipe at a grey on t154,
+then its whip hit 0 four times. A plan must equip the colour's weapon before the attack click
+on a new target.
+
+## Blert's magic level 112 is the saturated heart (seam46)
+
+Blert's mage at 112 Magic is the saturated heart (stat_boost(magic, 4, 10) on 99); 109 is the
+imbued heart, 103 a magic potion. Both hearts exist in content
+(skill_slayer/scripts/imbued_heart.rs2, opheld1), so a plan can invigorate at the door.
+
+## A Nylocas wave stall is slow kills, not a different cap (seam46)
+
+The alive cap (12 to wave 20, 24 after; Hard 15) is the wiki's and blert's, counted per copy
+until it despawns, tested on the due tick. A room that stalls earlier than Blert is killing
+slower: look at attacks per kill and nulled copies before the spawn loop.
+
+## Verzik melee: step out on either of the plan's T-2 and T-1 (seam45)
+
+The plan's tick and the server's are one apart for an input, either way. A step on the
+plan's T-2 alone stood the raider out at the end of T-2, and its press on T-1 brought him
+back beside her before her scan; a step on T-1 alone was late. Step out on EITHER of the
+plan's T-2 and T-1 (whichever finds the raider beside her), send no press on them, and
+press back in at T (`QD.RAID_PLAY_VERZIK_OUT_LEAD = 2`): 0 body slams in a 273-tick P2. A
+one-tick lead (`= 1`) took 67 slams.
+
+## A melee plan that brews must restore and re-boost (seam45)
+
+Every Saradomin brew dose drains Attack and Strength. After 16 doses, 43 of 48 enrage
+splats on Verzik were zeros (s45 e15). The Verzik plan now drinks a super restore when
+Attack is below base - 8 and a super combat dose when it is below base + 8; with that
+upkeep P2 fell from about 390 ticks to about 270.
+
+## The server paths a player through Verzik's P3 body, but walls her tornadoes (seam45)
+
+A straight walk to her far edge in P3 stood the leader inside her 7x7 every other tick,
+and the floor rule walked him back out: 43 ticks with no swing (s45 e9). Route the walk
+round her, two out. Her tornadoes cannot step through her: they go round her corner.
+
+## A member re-presses after a knockback or her web special (seam45)
+
+Before seam48's `t.raid.own_anim`, a party member read no tick log, so its swings were
+counted, not seen. After a slam's knockback, or when the server ended its attack at her
+web special, it still thought it was engaged. The Verzik plan re-presses when it is
+engaged from two tiles out without moving, and every 8 ticks in P3. With
+`t.raid.own_anim` landed, a member sees its own swings and these two heuristics are
+a fallback.
+
+## Verzik P2 reds for a melee trio: one per role, 10 ticks (seam45)
+
+Each raider takes one red, picked by role in slot order, and only during the 10-tick
+summon animation (W:928). Killing every red took P2 to 307-350 ticks and a 5-tick window
+to 259-335; the 10-tick window gave 270-310, measured on five names.
+
+## t.raid.own_anim: the swings a raider's own screen shows it start (seam48)
+
+`t.raid.own_anim()` answers `ok, {seq, tick, starts, history, anim}`. It reads
+`api_drive.players`' `me` row, which `drive_own_animation_watch` in
+`src/plugin/torirs_plugin_drive.c` fills every frame from the local player's
+drawn action track. `history` holds the newest eight starts, oldest first, as
+`{n, seq, tick}`. `n` counts from 1, so a reader keeps the last `n` it took.
+`tick` is on `t.tick`'s axis: the tick read now less the start's age in client
+cycles divided by 30. Flooring two cycle counts gave a constant -1. On a
+Lumbridge goblin, unarmed, the starts matched the server's `player_anim` rows
+tick for tick (scratch s48oa2: 7 of 7; conformance row `raid.own_anim`: 6 of 6).
+Every row of `api_drive.players` also carries `anim`, the seq drawn now (-1 none).
+
+It is the draw, not the wire. A seq refused by a higher-priority incumbent, or
+re-sent while still playing under replay mode 2, shows no start. A weapon
+whose swing outlasts its attack speed under replay mode 2 would go unseen, and
+the re-press would fire after speed + 1 ticks.
+
+## In a party every raider takes its swings from its own screen (seam48)
+
+`_play_see` reads the tick log's `player_anim` rows only in a solo run. In a
+party, `api_drive.players`' pid is not the log's pid, and the leader counted
+another raider's swings as its own (survey: log pid 0 swung 13 times, the
+library counted 12). Every raider, leader included, now takes its swings from
+`t.raid.own_anim`. In the closer's `_play_bloat` survey every raider's library
+count equalled its own screen's: the `play.fight` row ends "own screen saw N
+weapon starts". Before this, a member counted a phantom swing every
+weapon-speed ticks and never re-pressed after the server stopped its swings.
+
+## _play_attack re-presses after speed + 1 ticks with no swing (seam48)
+
+The press goes out when no swing has shown for speed + 1 ticks after the
+newest of the logged swing, the seen swing and the press. It was speed + 2,
+with phantom swings on members. Party members in `_play_bloat` now have gaps
+of 2 ticks at most where they stood in reach without input (seam42: 20 ticks,
+twice).
+
+## Bloat's stomp reach is measured from his centre tile (seam48)
+
+The content hunts from `movecoord(npc_coord, 2, 0, 2)` with range 5: the
+footprint plus 3 tiles on every side. The plan's `in_stomp` and the leave
+distance use `b + stomp_centre` (2). The leave margin stays at -2: with -1,
+p0 was stomped on every down of the closer's first survey. A hand dodge west
+and the run north round the corner took three ticks for a three-tile need.
+A raider that has started the run also keeps running. `leave_age` is read
+from the tile it stands on, so a step out pushed the age a tick later, and
+the next attack press walked it back in. With both, `tech.leave_before_stomp`
+passed on 3 of 3 names with 0 stomp hits.
+
+## A Nylocas member's XP rise is a probe, not a swing (seam48)
+
+`raid_play_tob_nylocas.lua` used to add each XP rise as a member swing. With
+the own-screen swings that counted each swing twice, the second a tick or
+more late. Every raider now records the XP rise in `ny.xp_probe`
+(note.xp_swing_lag) and nothing else.
+
+## Bloat Normal: the rise T+30..T+32 is a full-damage swing (seam51)
+
+Bloat Normal (seam51): the rise T+30..T+32 is a full-damage window. Walk
+back in on decide-ages 29-31 (the stomp resolves in the NPC turn of T+29
+before any player moves, ET 1.1), take one swing, then hide. Clamp the
+supplies horizon to T+32 while doing it, or the library eats for the T+33
+fly and the bite costs the swing. That is the sixth swing a raider a down; 0
+stomp hits in 10 downs.
+
+## Bloat's hide is scored by the walk to an attack tile, not a straight line (seam51)
+
+Bloat hide: score hidden tiles by a BFS walk (8-neighbour, no corner cut
+past the tank) from the reach ring (tiles beside the 5x5's four sides; a
+tile diagonal to a corner is not an attack tile), not by straight-line
+distance. From walk age 32 (36 on the first walk) look only 4 steps ahead.
+Together these cut down-1 first swings from age 4-6 to 2-3.
+
+## Bloat's shadows leave the client's list before their splat (seam51)
+
+Bloat shadows (1570-1573) leave the client's spotanim list before their
+splat lands 3 ticks later. A plan that reads only v.shadows dodges and then
+steps back onto the tile the next tick. Remember each shadow tile for 3
+ticks (QD.RAID_PLAY_BLOAT_SHADOW_TICKS).
+
+## Bloat: a raider already leaving is not counted in the stomp's threat (seam51)
+
+Bloat threat: with the straight leave (leave tile set) a leaving raider is
+not caught by the stomp (0 hits in every survey). Counting the stomp made it
+eat on the leave at age 26-27, and that bite's attack delay cost the rise
+swing.
+
+## In a party, a member's input lands a tick after the leader's (seam51)
+
+Party latency, read from the tick log: the leader's input lands on its
+decide-age, members' one tick later (both see the down; members act a tick
+behind).
+
+## Bloat damage gap: 36-39 a swing against the reference's about 49 (seam51)
+
+Damage gap: this content's scythe/claws trio deals 36-39 a swing on Bloat
+against the Blert reference's ~49 (down 1 890 in ~18 attacks). With six
+swings a raider a down, d1+d2 come to 1373-1486 of 1500, so the room is 3
+downs and its length follows Bloat's walk rolls: 180-185 on one roll set,
+202 on the other.
+
+## Verzik's attack clock is dated by the tick that first saw her seq (seam51)
+
+Verzik Normal trio, her attack clock: date her seq by the plan tick that
+first SAW it, not by the row's age. The age dated the leader's every P2
+attack one early. The seen tick equals the server's tick log, except on a
+tick after the decide pressed (the one-tick settle), when it is one late.
+Her P2 cadence is exact (4; 12 after the summon; 8 into a counted summon),
+so a seq seen one tick after the named slot is that slot. Never snap twice
+in a row, or a clock that really ran late locks in early.
+
+## Verzik's step out is sent on T-2 and the press back on T-1 (seam51)
+
+The plan's tick t is the server's t, and an input sent on it lands on t+1.
+So the T-1 step (ET 1.1) is SENT on T-2 and the press back on T-1 (it lands
+on T, after her turn). That is one tick-end out of reach, not two. The two-
+tick step left each raider ready and not swinging for about 12 swings of a
+P2.
+
+## Verzik: hold swings from T-1 of a summon slot (seam51)
+
+Hold swings from T-1 of a summon slot, not T: a press or repeat sent on T-1
+is rolled on the summon tick and heals her (tob_prepare_player_hit). Her
+first P2 summon is not counted: it comes at 35% (tob_verzik.rs2), on a plain
+4-tick slot.
+
+## A dying P2 nylocas still blasts four ticks after its death (seam51)
+
+A dying P2 nylocas blasts 4 ticks after its death, while its row reads
+health 0. Keep running from it until the row is freed.
+
+## Nylocas trio: the ranger's black chinchompas (seq 7618) (seam51)
+
+Nylocas trio: the ranger's black chinchompas are a plan loadout key
+(ranged_chin, item chinchompa_black). Their swing is seq 7618
+human_chinchompa_attack_pvn, not 2779; projectile spotanim 1272. The plan's
+chin candidate needs 2 or more pressable greens in the 3x3 (a big counts
+half). Source: Blert range|wave10 CHIN_BLACK in 23 of 27 Normal trio rooms.
+
+## A Nylocas big's split never flickers (seam51)
+
+A big's split never flickers (tob_nylocas.rs2 ~tob_nylo_spawn_split arms it
+with no flicker chain). A plan's flicker settle wait applies only to copies
+that walk out of a lane.
+
+## api_drive.projectiles shows a party member's shot in the air (seam51)
+
+api_drive.projectiles shows a party member's shot in the air
+(target_npc_slot, src tile in world coords). This is what a person sees, and
+it is enough to keep a second seat off a small that is about to die.
+
+## A Nylocas seat can miss waves: never gate on ny.waves >= 31 (seam51)
+
+A seat's ny.waves can miss waves (the ranger saw 29 of 31). Never gate
+anything on ny.waves >= 31; use waves >= 28 plus a quiet gap.
+
+## party_repeat.py has no --party flag (seam51)
+
+party_repeat.py has no --party flag. For a size-from-QD_PARTY harness,
+repeat a scratch copy that declares party = 3.
+
+## Sotetseg: an unprayed ball or ricochet blocks protection prayers 5 ticks (seam51)
+
+Sotetseg (Normal trio): an unprayed ball OR ricochet takes the victim's
+protection prayers away for 5 ticks (tob_sotetseg.rs2:15,
+~prayer_block_protection at the impact). Every press in that window comes
+back REFUSED, and a plan that keeps pressing sits at no protection: seam51
+s1 had 20 ticks at m0 and a death. The ball's colour therefore always beats
+the melee prayer.
+
+## Sotetseg's ricochet impact tick depends on pid order (seam51)
+
+Sotetseg's ricochet impact depends on PID order: launch + floor(duration/30)
+when the target pid is above the raider it bounced off (45 of 45), one tick
+later when below (31 of 35). Ricochets launched at his attack A+2 land at
+A+4 or A+5, and A+5 is his next attack tick, so the A+5 melee lands on the
+wrong prayer for the raider holding the ricochet's colour. In a party, the
+client's api_drive.players pid is not the server's order: a schedule keyed
+on it was a tick early (seam51 s3b).
+
+## Elder maul special in a party plan: equip, then arm on the next tick (seam51)
+
+Elder maul special in a party plan: equip it in one block, then arm from the
+orb with the attack press on the NEXT tick (Maiden opener shape). Arming in
+the same block as the equip missed (seam50 p1: plain maul swing, then the
+special 6 ticks later).
+
+## Sotetseg's Defence is back at its level after every maze (seam51)
+
+Sotetseg's Defence is back at its level after every maze in our server (zero
+splats 17%/25%/48% by phase with 3/3/0 specials). Spread two specials per
+phase across the three raiders (role 1: start and maze 1; role 2: start and
+maze 2; role 3: maze 1 and maze 2). Energy is 1000 per raider with 10% back
+every 50 ticks.
+
+## Sotetseg plan trap: S.balls is a counter, not a table (seam51)
+
+Lua plan trap: S.balls in the Sotetseg plan is a ball COUNTER (st.sote
+init). Reusing the name for a table raised 'for iterator: table expected,
+got number' at tick 17 in every name (seam51 s3).
+
+## Melee damage per swing follows the kit: ::tobkit and ::tobkitsalve (seam52)
+
+`::maxmelee` is the wiki's highest-bonus row per slot. The recorded Theatre raiders
+(Blert equipmentDeltas) wear radiant oathplate body and legs instead of torva, and a
+salve amulet(ei) at Bloat, which is undead. Use `::tobkitsalve` at Bloat and `::tobkit`
+in the other melee rooms (cheat_max_gear.rs2; both run `::maxmelee` first). Wiki
+expectations per scythe swing (99+19 Strength, Piety, Reap): Bloat down 42.6, Verzik P2
+28.9, Verzik P3 34.7, Vasilias melee form 40.5. The seam52 probe read 41.9 on Bloat.
+Conformance: seam.tob_melee_kit_worn.
+
+## Never pick style slot 1 (Chop) on a scythe (seam52)
+
+combat.dbrow:72 makes the scythe's slot 1 STAB; the wiki says it has no stab style.
+Until that content row is fixed, a harness presses Reap (slot 0) for a scythe seat.
+
+## Reading per-swing damage from a tick log (seam52)
+
+Group the hit_npc rows on the boss slot by tick. One charged-scythe swing on a large npc
+is three rows on one tick, in the order hit2, hit3, primary (the primary is queued last,
+combat_stats.rs2 ~player_melee_swing).
+
+## A Blert per-attack damage average is not a per-scythe-swing number (seam52)
+
+Halberd and claw specials sit in the same window. Regress on attack kind before comparing
+(protoId 38 SCYTHE, 14 CHALLY_SPEC, 20 CLAW_SPEC; attack_definitions.json). Over 29 Bloat
+rooms that gives 46 per scythe swing, not seam51's "about 49".
+
+## Verzik P2's own percent is (bar - 50) x 2 (seam52)
+
+Her client health bar covers P2 and P3 together (one pool of 2 x ^tob_verzik_p23_hp_3 =
+5250). P2 runs the bar from 100 to 50. With a 30-step bar one step is 6.7% of P2, so a
+test against the raw bar (the old "bar <= 36 before her first summon") never fires in P2.
+
+## Verzik P2 reds, as Blert's Normal trios play them (seam52)
+
+First summon at P2+100..152, then one every 44; two summons in most rooms, three in a
+few. The reds of a summon that is not her last take 6-11 swings across the trio and are
+absorbed with about 45 left. The last summon's reds are never absorbed, because P3 comes
+first, and get 0-2 swings a raider. Measure her P2 heal without the [proc,tob_boss_set_hp]
+rows: those are fresh-pool resets at phase boundaries (85 at P2's start, 23 at P2 -> P3).
+
+## Verzik P3: webs hit every raider on the web's tile (seam52)
+
+A member that is not the tank has no dangerous tick (her melee needs the tank beside her),
+but each web snaps once on every raider standing on its tile, so two raiders on one tile
+take two webs each. Keep members off each other's tiles. A raider bound on its own web
+cannot swing at that web and cannot walk: it breaks an orthogonally adjacent mate's web or
+swings at her.
+
+## Sotetseg maze followers: poll the glow every frame, send the step directly (seam52)
+
+A member's loop wakes on a lockstep boundary that can come before or after that tick's loc
+packets, so a glow read once a tick jumps 3-4 tiles between reads even with read skips 0.
+Poll the glow on every frame until the tick turns (QD.await with a predicate that returns
+true when t.tick() changes), and send the step with api_drive.move_to rather than a
+together block, so the read loop never waits on a confirmation. Send the next straight run
+on the frame the arrival at a corner shows (fw.next_step): it removed a one-tick stall at
+every corner (mazes 35-47 ticks down to 30-39).
+
+## Sotetseg maze gaps: QD.raid._play_sotetseg_gap (seam52)
+
+An even grid row is one tile and an odd row is the run between two of them.
+`QD.raid._play_sotetseg_gap(last, now, gz, consecutive)` returns the points between two
+glows and whether they are certain. A one-tick pair of at most 2 tiles is certain; so are
+odd row to the even row above, even row to the odd row above, even to even two rows on,
+and along one odd row. Odd to odd two rows on after a missed read is two-way (seam51's
+blasts at (19,27) and (16,31)). Never walk past a two-way gap, and hold at most one tick
+(the tornado reached a follower held for 10). Conformance: seam.raid_play_sotetseg_gap.
+
+## Sotetseg ball landing: floor, not ceil (seam52)
+
+lo = launch tick + floor(cycles_left / 30). His own ball (source inside his footprint)
+lands on lo; a ricochet lands on lo or lo+1; his ball wins a tie. With ceil() a primary
+whose flight is not a whole number of ticks was dated a tick late, and the arrival double
+ball followed: a primary under a held Protect from Missiles disables protections for 5
+ticks.
+
+## party_repeat.py needs `party = 3,` in the harness (seam52)
+
+_play_sotetseg.lua is also the Entry solo test, so its repeat copy lives in the pass's
+state dir (seam52/sotetseg/repeat_sotetseg.lua).
+
+## Nylocas trio stands and the split cleanup (seam52)
+
+Reference positions '<role>|wave<N>' are offsets from Vasilias' SW tile (local 30,23). The
+lane mouths are west (26,25), south (32,19 / 31,19) and east (37,24). An idle-only walk to
+a stand does nothing in a trio (seats are idle 1-5 times a room); the stand has to weigh
+the target choice (stand_leash, 4 points a tile beyond the weapon's reach). The cleanup is
+a dogpile unless split: the mage takes the north side, the ranger and meleer the south,
+newest first, and a copy within 10 ticks of its pop is left to pop (trio guide :175,
+:185-187, :363-366, :496).
+
+## Nylocas "no effect" message can name the wrong copy (seam52)
+
+A weapon swap's press can land on the previous target, so the message is not always about
+the copy the plan last swung at. Never strike a copy off for good on the message alone when
+it is the worn weapon's colour; better, make the swap's press go to the new target.
+
+## Survey runs read the plan Lua from disk (seam52)
+
+A plan edit needs no rebuild of a private binary. seed_survey and solo or regression runs
+overwrite build/quest_gate/<name>: copy the summary lines out before the next survey.
+## A whole-raid relay copies each room harness's pre-fight exactly (seam53)
+
+The worn set, the potion at the door and the weapon passed to t.raid.play
+must be the room harness's own. After seam40 every Normal plan is melee and
+every trio harness wears ::maxmelee, apart from Maiden's freezer, which keeps
+the ranged set. _play_normal had kept the ranged Maiden's masori into every
+room until seam53.
+
+## ::maxmelee then '::wield <boots>' costs a supply slot (seam53)
+
+The extra boots push the avernic treads into the backpack (survey2: seat 1
+held 8 anglerfish, not 9; seat 3 held 6, not 7). Leave the extra boots out,
+or drop the treads in run().
+
+## A room plan's re-boost empties the next room's potion in a relay (seam53)
+
+The Maiden plan (raid_play_tob_maiden.lua, about line 1700) drinks a super
+combat whenever attack or strength is under 108, from any dose in the pack.
+In a relay that leaves nothing for Bloat's door (bloat.potion FAIL on seats 1
+and 3 in survey1). Room plans need a reserve so a relay can play several
+rooms on one pack.
+
+## Normal ToB: the pack has to carry Maiden and Bloat together (seam53)
+
+The first supply chest stands after Bloat and is a points store
+(tob_midway_stores:items, Buy-1 on op 2, tob_chest.rs2:287-297). One Maiden
+cost a dps seat 35-56 drinks and 6-8 eats in seam53; the trio pages' kit
+for the whole raid is 8 brews, 4 restores and 3 anglers (10Boot 0:04:23).
+The relay stays supply-bound until a room costs about that.
+
+## Bloat, Normal trio: the kit closed the gap (seam54)
+
+The seam51 plan did not change. With ::tobkitsalve (radiant oathplate plus
+salve amulet(ei), the kit the recorded raiders wear) every survey name kills
+in down 2. d1+d2 = 1500, and rooms run 133-148 ticks against the Blert median
+of 137 and the cap of 195. On ::maxmelee the same plan dealt 1373-1399 in two
+downs and needed a third (room 202).
+
+## Falling flesh is random tiles, so a step row reads every raider (seam54)
+
+Bloat's hands land on random tiles (tob_bloat.rs2 ~tob_bloat_drop_hand, 16
+of the room's 220 tiles a volley). They are not aimed at a raider, so a
+two-down room can drop none on anyone: 94 shadows and 0 on a raider in three
+of five names. In a party, tech.step_off_shadow in _play_bloat.lua reads every
+raider's player_tile rows by pid. When no shadow fell on any raider it says
+"no step to judge" and asserts only that 0 hand hits landed on the party. A
+technique row that needs a hazard to reach someone has to say so rather than
+fail.
+
+## Maiden, the recorded gear (seam54)
+
+From the 24 reference streams' equipmentDeltas per slot, the dps wear sanguine
+torva helm 28254, radiant oathplate 30779/30781, ferocious gloves, avernic
+treads, ultor and rancour (::tobkit). They pray Protect from Magic on 60-68
+percent of their ticks. Their storm loss does not come from the armour.
+
+## A combat style slot carries across a weapon swap: use t.ui.style (seam54)
+
+varp43 keeps the slot, not the style. A harness that presses the bow's Rapid
+(slot 1) leaves the scythe on Chop, which this content makes stab
+(combat.dbrow:72, CONTENT_BUGS seam52). t.ui.style(name) reads the four button
+names off the combat tab, presses the one that matches and checks varp43
+(conformance row ui.style: scythe Chop slot 1, Reap slot 0, "Rapid" no_style).
+Pick styles by name. _play_maiden.lua still presses style_slot_<n> directly.
+
+## The freezer's blood rule: a cast cancels the step (seam54)
+
+A spell click replaces a walk. A barrage sent while the freezer stands on a
+pool, trail or landing splat, or while it is stepping off one, keeps the
+caster standing in it (camera seam53: 3-4 ticks in blood, dead from 90+).
+QD.raid._play_maiden_in_blood holds the cast until the step arrives (row
+seam.raid_play_maiden_in_blood). With it the freezer took 0 HP on all five
+survey names.
+
+## Maiden's blackstorm is rolled now (content 081bb7e61a)
+
+Through seam54's surveys every storm landed at exactly its max, floor(36.5 +
+3.5c), halved for Entry and for the prayer. The Blert reference's per-hit
+median is 12.5 [0-62] (n=112). The seam55 ruling rolls the damage
+(random(max + 1)) but keeps the "always lands" accuracy verdict, and
+seam.maiden_blackstorm_always_lands_entry now asserts exactly that: every
+launch lands, raw within 0..9 at c 0, and more than one value. The seam54
+Maiden numbers (hp_lost.dps 198-543 against 60-106, 5-8 eats a phase) were
+measured on the fixed storm, so they predate the ruling.
+
+## Reference scripts and the wave diff
+
+Tools seam, 2026-10-06 (the owner: "Blert literally tells you what you need to do ...
+improve the test harness so you can more quickly iterate").  A fixer no longer re-derives
+the Blert raiders' per-wave play from the raw streams by hand:
+
+    python3 tools/raid_gate/blert_script.py maiden --mode normal --scale 3     # writes reference/maiden_normal_3.script.json
+    python3 tools/raid_gate/raid_report.py build/quest_gate/_play_maiden --waves \
+        docs/minigames/theater_of_blood/sources/blert_api/reference/maiden_normal_3.script.json
+    ... --wave 70            # one wave in full: ours vs script tile, first action, casts, targets, return, weapon, prayer
+    ... --roles p0=freezer   # seat a player on a script role by hand (default: same name, then same style, then by attack count)
+
+The script is per segment (Maiden 100/70/50/30, Nylocas w1..w31/cleanup/boss, the other
+rooms Blert's phase events) and per role, every number a median/min/max over the same
+rooms the statistical reference uses; the field list is in the reference README,
+"Per-wave scripts".  The diff prints one line per wave, `role:tNNN kind` or `role:ok`,
+and a `FIRST DEVIATION` line on top; kinds are tile (off the script's tile box 3 ticks
+running), late (first action after the latest real team's), none, target (i-th distinct
+target not the one at least half the teams hit), return (back on the boss later than
+any team).  All six normal_3 scripts are written; Maiden and Nylocas are the ones
+checked against runs.  The other four use Blert's phase events as segments only
+(Sotetseg has no maze-end segment in these streams, Xarpus/Verzik roles vary by
+composition), so read them with --wave and judgment.  Nylocas streams are cached in
+build/blert/nylocas/ (fetched 2026-10-06, the reference's 27 rooms); Maiden's in
+build/blert_maiden/.
+
+**The "missing" crab spawn rows were not missing.**  The run read as "a Normal trio with
+2 crab spawns a wave" was the Entry SOLO run of _play_maiden (its ledger: `spec.scope
+mode=entry party=1`); tob_maiden.rs2 `~tob_maiden_crab_count` is two crabs per player, so
+2 a wave is right.  The writer (torirs_server_ticklog.c ToriRSServer_TicklogNpcSpawn,
+called from every npc_add in torirs_server_world.c) has no slot, LOS, level or row-cap
+filter; the later trio run of the same harness logs 6 a wave (t103, t153, t219).
+
+**Leaks are now their own row.**  A crab reaching her healed through
+`~tob_maiden_heal_found`, the same proc as a blood-splat heal, so its npc_heal row could
+not be told from a splat's (and raid_report.py's --against counted every heal on her as
+a leak).  tob_maiden.rs2 now passes `$leak` down `~tob_maiden_heal_at` and a leak heals
+inside `[proc,tob_maiden_leak_heal]`: the row reads `npc_heal t SLOT TYPE amount hp base
+[proc,tob_maiden_leak_heal]`, the crab's hitpoints = amount / 2 unless her maximum
+clamped it (hp = base).  No row if she is at full health when it lands (nothing healed).
+raid_waves.py counts these per wave; a log from before the change falls back to "a
+heal_found heal on a tick a crab died".
+
+## Triggers and watches (seam55)
+
+The owner, 2026-10-06: "You need to do what the blert raid players do and you need to
+add triggers and watch capabilities to the script api so you can do so."  The play loop
+(`t.raid.play`, raid_play.lua "TRIGGERS AND WATCHES") now DIFFS what the client shows
+between two ticks and raises events before the plan's `decide` runs:
+
+| Event | Fields | Raised when |
+|---|---|---|
+| `<add>_spawn` | slot, x, z, dx, dz (from the boss SW), wave, index, label | a new row of the plan's add (`events.add`, prefix `events.add_event`); a gap over 3 ticks starts a new wave |
+| `<add>_walk` | slot, x, z, gap, was | its tile moved closer to the boss |
+| `<add>_frozen` | slot, x, z, how = graphic / halted | a spotanim in `events.freeze_spotanims` landed on it, or it had walked and stood still a tick; once per freeze |
+| `<add>_gone` | slot, x, z, at_her | its row left the scene (at_her: within one tile of her footprint) |
+| `events.projectiles[spotanim]` (Maiden: `blood_thrown`) | x, z, cycles, ticks, mine, near | a throw not seen before; a throw AT an entity (target != 0) is keyed by source + target and its dst is the one at first sight |
+| `events.pools[spotanim]` (Maiden: `pool_landed`) | x, z, mine | a ground spotanim new at a tile |
+| `events.boss_seqs[seq]` (Maiden: `storm_sent`, `blood_sent`) | seq, tick, target | the boss started that seq on a new seq_tick |
+| `hit_taken` | amount, hp, was | own hitpoints fell since last tick |
+| `boss_phase` | from, to, symbol | the boss's npc id changed (`events.forms` names the plan's form list, so a retype is seen on its own tick) |
+
+A plan registers handlers in its `on_start` (`st.on(event, fn)`) and readings with
+`st.watch(name, reader, on_change)` / `t.raid.watch(st, ...)` (fires when the reading
+changes; the first reading only primes it).  A test can pass `opts.on = {event = fn}`.
+A handler returns an INTENT for this tick: the plan intent's fields (walk, attack,
+press = {symbol, slot, op}, cast = {spell, symbol, slot}, want, eat, drink, gear,
+spec) plus `pri` (default 1) and `why`.
+
+THE FOLD: field by field the highest `pri` wins (a tie keeps the first registered);
+`want` merges prayer by prayer.  The plan's `decide` then runs with `v.events` and
+`v.trigger` (the folded intent) in view; its intent is the DEFAULT and every field the
+fold set replaces it.  A step and a press/cast cannot both land in one tick (the press's
+path replaces the step), so the step is sent and the press/cast is HELD to the next tick
+at its own priority (`st.trig_hold`, dropped after 2 ticks).  A trigger press/cast also
+clears the default's attack and walk.  The record carries `st.trig_log` (per tick: the
+events fired and the field winners), the summary one clause (`triggers [...] won [...]
+held N`), and the leader writes a ticklog MARK per won tick when `opts.trigger_marks`.
+The server's FILE-ONLY `raider` row is written by the server and cannot name a client
+trigger without a new wire; the trigger record lives in the play record and the ledger.
+
+Proof (Maiden Entry, run m55trig, `_play_triggers.lua` = `_play_maiden.lua` solo plus
+three probe rows): crab_spawn 6/6 on the npc_spawn ticks (lag +0), blood_thrown 9/9 on
+the projectile ticks (lag +0, no extra), pool_landed 9/9 on the map_spotanim ticks
+(+0 x8, +1 x1).  The first probe read 18 throws for 9: the throw at the raider follows
+it on the client (target -(pid + 1)), so its dst moved every tick.
+
+Maiden's trio plan on the triggers (QD.RAID_MAIDEN_REF, from the 26 Regular trio Blert
+rooms): the freezer's cast clock (a watch on the 5-tick index since the wave's spawn)
+casts on the spawn tick in the order position 0, 2/3, 4, 6/7/9, 5/8/1, then the
+biggest live clump every 5 ticks (up to 8 a wave: the barrage is what kills the crabs,
+216 of 233 kills under the barrage or a scythe, 20-50 ticks after the spawn); the scythe
+seats take the 1st / 2nd north crab of the burst (+1..+10 / +5..+14) and the east seat a
+frozen south crab at +15..+35; `blood_thrown` / `pool_landed` on my tile steps to the
+shortest safe tile (pri 8, the cast held a tick); `storm_sent` lights Protect from Magic.
+Normal trio stays 0 of 5 on it (seam55 report): the spawns are RANDOM subsets of the ten
+positions (ours and the reference's), and the leaks did not come down to the median.
+
+Room detection (same day, the seam56 Nylocas fixer's report): `raid_report.py --against`
+asserted "the run is in None" on every room but Maiden, because run_room() only knew
+Maiden's boss ids.  It now knows every room's boss ids (Nylocas also by its pillars,
+which stand from the first tick) and takes `--room <name>` to say so by hand; --waves
+checks the same.  A party run reads the leader's log (<run>/p1/ticklog.tsv when the run
+directory has none of its own), which carries every seat's raider / player_tile /
+player_anim rows (p0..p2 all classify from it).  The Nylocas script also carries, per
+role per wave, `wave_adds_hit` (seam56 ny_table.py's "kills": the wave's lanes the role
+attacked at any tick, the share of rooms and the offset of its first hit); --wave N
+prints it as `lanes`.  The leak row is proven to compile and the splat path still reads
+heal_found (scratch run build/quest_gate/tools_leak1, Entry solo); that run had no crab
+reach her, so the first leak row will appear in the next run that leaks.
+
+## tech.protect_magic on a rolled storm asserts the cap (seam55)
+
+Since the blackstorm is rolled 0..max (content 081bb7e61a), comparing the first
+protected storm hit with the first unprotected one compares two rolls: every name's
+first unprotected storm rolled 1 and the row failed on all five.  `_play_maiden.lua`
+now asserts the cap instead: no protected hit above 9 and no unprotected hit above 18
+(the Entry blackstorm's max, maiden.auto_max_entry 18, halved by the prayer).
+
+## A combat style press needs the combat tab shown (seam55)
+
+A style press lands only while the combat tab is shown.  With the inventory open,
+`combat_interface:<n>_text` reads not_visible and `if_click` on `style_slot_<n>` leaves
+varp43 unchanged (seam55 probe_style).  An equip shows the inventory, so a retaliate or
+style press right after an equip needs `t.ui.tab("combat")` first.  `t.ui.style(name)`
+does that for you; a hand-rolled press does not.
+
+The style is one index (varp43) carried across swaps.  Index 1 is Rapid on the pipe and
+the bow, Lash on the whip, Chop on the scythe (stab on this content) and Pound on the
+Eye of Ayak.  Set it by name on the weapon whose name you want, then swap.  The Ayak
+shows Bash / Pound / Focus here, so `t.ui.style("Accurate")` answers no_style on it:
+pick the style on another weapon and put the Ayak back on.
+
+Pressing styles mid-fight from a room plan (a tab flip plus a press) cost 8-22 ticks
+with no attack in a Nylocas trio boss phase, more than Reap's slash bonus gave back.
+The Nylocas plan keeps the helper (`_play_nylocas_style`) switched off
+(`boss_styles = nil`).
+
+## Sotetseg, Normal trio: where the room's time goes (seam55)
+
+From the seam52 tick logs against sotetseg_normal_3.json: the mazes are fine (30-39
+ticks against [14-47]).  The start phase is decided by the elder maul's luck: two mauls
+landed gave 56 ticks, two missed gave 81, against [42-67].  Scythe splats after each
+maze are 0 on 30-45% of hits, against 12-20% before the first maze.  For room ticks,
+read the maul outcomes and the zero rate per phase, not the maze.  The seam55 survey
+went 5 of 5 inside [164-262] (251/244/252/233/238), but no mechanism was proved: treat
+that green as RNG-sensitive.
+
+## Sotetseg bow opener (seam55)
+
+The Blert start weapons list TWISTED_BOW once per raider in 12-14 of 19 rooms.  The
+trio kit now carries `::setlevel ranged 99`, a twisted bow and dragon arrows; in phase 0
+a raider with the bow in its pack equips it with the attack press, the shot is proved by
+its own seq 426 (`t.raid.own_anim` history, not the swing counter: `st.weapon` is the
+scythe), and the scythe goes back on.  With the recorded melee kit the arrow hit 1 of 15
+times.  Read the Blert equipmentDeltas at the bow tick before keeping or dropping it.
+
+## Sotetseg's next corner (seam55)
+
+`QD.raid._play_sotetseg_seat(st, b)` takes `st.sote.seat_shift` and steps round the four
+Blert corners (-1,0), (4,-1), (5,4), (0,5) from his SW tile.  The trio plan shifts after
+two not_visible press answers (`st.press_answers.not_visible`).  It never fired in the
+seam55 survey.  Conformance row: `seam.raid_play_sotetseg_corner`.
+
+## The party through a room's door on one tick: t.raid.cross_together (owner_tob_normal)
+
+`t.raid.cross_together(name, { starter, before, at_answer, loc, answer, timeout })` (raid_play.lua): every
+seat walks to the tile beside the barrier on its own side (the barrier's nearest copy, its axis read off the
+gap), a party barrier, the starter (default seat 1) runs `before` and presses until the question opens, a
+second party barrier, then on its release the starter answers (`at_answer` first: the room mark) and every
+other seat presses the barrier; a member that sees the question (its press beat the start) answers "Not
+yet." and presses again. Probe (ownmaidx, Maiden Normal trio): leader on (22,1) at t64, both members at t65
+-- they used to cross 3-4 ticks after the leader (and from the entry tile, eighteen tiles off at the Nylocas
+door: probes/_probe_door.lua reads every room's barrier and entry tile). Used by _play_maiden.lua and the
+relay's start_room for every barrier room.
+
+## Attack reach is content's (owner_tob_normal)
+
+The engine's approach asks `[proc,player_attackrange]` for the reach (torirs_server_combat.c
+player_weapon_attackrange), so a Longrange style or a powered staff on its Longrange button fires from its
+content reach (the Eye of Ayak 6, 8 on Focus). CONTENT_BUGS.md 2026-10-06 owner_tob_normal.
+
+
+## A plan's state in the tick log (owner_nylocas, 2026-10-06)
+
+`::tlnote <text>` (torirs_server_world.c ToriRSServer_RunCheatLadder) sets the raider's note; the tick log's
+RAIDER row then ends ` state=<text>` (torirs_server_ticklog.c ticklog_raider_row). A member holds no tick log,
+so its plan says its state to the server and the leader's log carries every seat's. The Nylocas trio machine
+sends `STATE/WAVE/IDX` on every change (api_drive.cheat, no reply wait). raid_report.read_ticklog parses it
+into row["state"]; raid_waves' FIRST DEVIATION line ends `[state ...]`. A binary without the C answers
+"debugproc not found" and the row carries nothing.
+
+## t.raid.cross_together: a member returns three ticks after its crossing (owner_nylocas, 2026-10-06)
+
+In the Nylocas trio (_play_nylocas, svaplaynyloc) the members stepped across on t110 with the leader, but their
+cross_together returned on t112-113 (the click_loc press plus the next-tick read), so their t.raid.play loop
+started on the wave-1 spawn tick and the ranger's first shot came at +3 against the script's +1. The library is
+owner_tob_normal's; a return on the press tick would give the members those ticks.
+
+`api_drive.route(x, z [, {size = n, run = bool}])` (owner_rooms4, 2026-10-07): the walk a click on x,z would take, from the client's own collision map with the server's own flood (collision_map_route_tiles; every seat has it) -- `tiles` in walk order, `ticks` the tile stood on at the end of each tick (two a tick with `run = true`, the caller reads its run orb), `arrive`, `nearest`, `from`; `size` routes to an npc's reach. Probe (_play_bloat, every plan walk): 186 of 192 per-tick tiles equal the server's player_tile rows, 40 of 42 walks routed round the tank's corner; the misses are views whose own tile is a tick old (the route is from where the client shows the player).
+
+## A cold seq is parked, not judged on the default priority (owner_verzik_anim, 2026-10-07)
+
+The owner: "The animation of verzik leaving the throne just corrupts verzik and it shows a corrupted model."
+Client bug, not content. tob_verzik.rs2 plays 8111 (rig 1796, forcedpriority 11, framestep=1) on 8370 and three
+ticks later retypes her to 8371 (rig 1808) and sends 8112 (rig 1808, priority 11). The ANIM block is applied
+without waiting for the seq's load, and an unloaded seq's priority read the seq source's default 5: `anim: seq
+8112 (prio 5) refused by incumbent 8111 (prio 11)` (TORIRS_ANIM_DEBUG). A transmog keeps the action track, so
+8111 posed the 8371 model on the wrong rig, held on its last frame for the whole flight (verts 2075, radius 841).
+Now world.c parks an ANIM whose seq is not resident (WorldEntityFacet_Animation.pending_*, World_SeqSource.resident)
+and judges it by the full rule the cycle it lands (World_EntityResolvePendingAnimation, world_cycle.c); a later
+ANIM or a cancel supersedes it. Server: a LITERAL `npc_anim(null)` now ships 65535 -- it had been dropped, so the
+stop of 8112 one tick later never reached the client and 8112 would have held at priority 11 over P2's attacks. Only
+the literal: the compiler marks it SS_NPC_ANIM_STOP_SEQ (-2, ss_meta.h); a seq that is null at run time
+(`npc_anim(npc_param(defend_anim), d)` on Xarpus, Maiden, Sotetseg, the Nylocas, Verzik P2/P3 -- ~40 player-attack
+scripts) is still dropped. Shipping every -1 (1e90c684a alone) erased those bosses' attacks on each player hit
+(anim audit, a7a2565bb039fe9de). Tick logs carry the literal stop as an npc_anim row with seq -1. Check: `python3 tools/raid_gate/run.py _verzik_throne_rig --no-publish`
+(throne.anim_on_rig: every tick from the dismount to P2, the drawn action seq is on her record's framemap);
+unit: `make -C src test-world` (test_cold_seq_is_parked_not_refused). Crops:
+build/seam_state/owner_verzik_anim/{before,after}_sheet.png, crop_compare.png.
+
+## Npc rolls are seeded by the run name (owner, 2026-10-07)
+
+The owner: npc randomness varies by the run's name, so each test name is its own boss and crab
+scenario, deterministic per name. Before, an npc's stream was keyed by its spawn tile, type,
+ordinal and life only, so all five seed_survey names of a room replayed one boss and the same
+three Maiden crab layouts per spawn tile (and the relay's Maiden tile 6426,156 always got layouts
+the harness's 6426,92 never saw).
+
+- `npc_random_seed` (src/torirsserver/torirs_server_world.c) XORs `srv->npc_run_seed` into the
+  key after the tile/ordinal/life mix, so different npcs in one run still differ.
+- `npc_run_seed` is `ToriRSServer_NpcRunSeedFromName(TORIRSSERVER_RUN_NAME)`, read once in
+  `ToriRSServer_WorldInit` before the boot spawns: FNV-1a 64 of the whole case-folded name, so
+  unlike the player stream (`name37`, first 12 characters) every character counts.
+- tools/quest_gate/run.py sets TORIRSSERVER_RUN_NAME to the account the hosting client logs in
+  as: the run name for a solo run, the leader's account (`<name[:9]>_p1`) for a party, handed to
+  every member too. It is always set, never inherited from the shell.
+- Same name, same tick log: `party_repeat.py` must still AGREE.
+- The server logs `torirsserver: npc seed from run name "<name>" (0x...)` in client.log.
+- `TORIRS_NPC_SEED_LEGACY=1` (exported before run.py, or seed_survey/party_repeat) brings back
+  the old streams; it logs `npc seed LEGACY`. A server with no TORIRSSERVER_RUN_NAME (the
+  standalone server, any launcher other than the quest gate) also runs the old streams.
+- Unit: `TORIRSSERVER_SELFTEST_NPC_SEED_ONLY=1 ./src/build_opt/torirsserver --selftest`
+  (`selftest_npc_run_seed`; also in the full selftest). The selftest unsets both variables.
+
+## A fast press aims at the copy it names, and every press is judged by receipt (owner_presslat, 2026-10-07)
+
+The relay's Maiden freezer pressed its +16 barrage on the 4s at t291; the server received it at t293, the tick
+they walked in and healed her, and cast nothing (mrlya/b/c, engine aa98a5360; the room harness 0-1). Traced tick by
+tick (client send trace, server receive trace): transport is NOT it -- every client's packet, the leader's held
+bytes and the members' alike, reaches the server at the next boundary. The two ticks were QD.drive._quick_aim's.
+`api_drive.screen_position("npc", type)` answers the type's copy nearest the viewport's centre, which on a room of
+crabs is another crab; the aim then turned the YAW onto the named copy (the relay's camera drift, cross 512 / exit
+1687), guessed its pixel from a scale, hunted 14 pixels to the tick cap, pressed `covered`, waited a tick for the
+copy's step to draw and pressed again. Now `api_drive.screen_position("npc", type, element)` projects ONE copy
+(App_NpcElementScreenPosition) and the fast press aims there first ("the named copy's own projection"); an older
+binary ignores the argument and the old path runs. Same names after: every cast animated at +0/+1, Maiden 247 -> 223
+ticks, tech.freeze green. Verzik's enrage swings never had the lag (owner_verzik: 47 of 55 on the decide tick).
+Regression: gate.py `raid.press_latency` (party ledger), from the leader's ticklog.tsv -- each press a seat SENT
+(its `<plan>.press_latency` row, report-only, lists `t<tick>s|a` and its players() pid) must show `input 1` on that
+pid's raider row at most two rows after its decide tick (received within one tick). Receipt, not the action: a
+barrage re-pressed inside its own timer, or a boss not yet attackable, delays the action with the packet on time.
+mrlya old driver FAIL (t291 cast received t293), fixed PASS; _play_maiden trio 90/90; _vzfastp3 102/102.
+`python3 tools/quest_gate/press_latency_check_test.py` is the fixture test.
+
+## A FULL PACK DROPS THE REST OF THE KIT WITHOUT A WORD (2026-10-07, owner_tob_normal)
+
+A harness that hands a seat its kit with `::give` must count the slots. The
+backpack is 28, and a `::give` into a full one does nothing and says nothing:
+no error, no chat line, no failed row. The relay (`test/raids/_play_normal.lua`)
+gives each seat its worn set, every switch a room needs, then its supplies --
+and every one of the three seats reached the lobby at **0 free slots**, so the
+commands at the END of the list were the ones that vanished. Seat 1 asked for
+one brew and two restores and started the raid with no food AND no combat dose
+at all; seat 2 asked for five anglerfish and held four; seat 3 asked for four
+and held three. Relay runs then died of starvation in Verzik, room by room,
+and the rooms were blamed for an hour.
+
+Nothing in the tick log says so either: there is no "give refused" event, and
+the readout that would have shown it (`kit.supplies`) was written to tolerate
+the one seat that had no food (`kit0.angler > 0 or mrole == 2`), so the
+measurement that could have caught it was the thing hiding it.
+
+So, for any harness with a large kit:
+
+* **Check the pack after the last give, strictly, for every seat** -- the row
+  must name what it expected and what it holds, and FAIL on a shortfall. The
+  relay's `kit.supplies` now asserts food and restores for all three seats and
+  prints `free slots`.
+* **Free slots are the budget.** `free_slots(t)` after the kit is the number to
+  watch; 0 means the next give is already lost, not that the pack is nicely
+  full.
+* **Give a room's switches at the room**, not in the lobby, when no earlier
+  room wears them: the relay hands seat 1 its five melee pieces at the Bloat
+  door (`SEAT1_MELEE` / `seat1_melee`), which is what freed the slots for its
+  food. A charge that consumes an item (the Ayak's demon tears, the
+  tonalztics' splinters) frees its slot too, which is why the supplies are
+  handed over after the charges.
+
+## A prayer the plan "loses" on consecutive ticks is the content's protection block (owner_praypress, 2026-10-07)
+
+Reported as a press-path defect: "when the plan switches protections on CONSECUTIVE ticks the press path loses the
+prayer" (svdplaysotet seat 2: missiles t62, melee t63, magic t64, then nothing lit t64-t73, 77 hitpoints and the
+raider's life). THE PRESS PATH DOES NOT LOSE IT. Measured straight through the path a plan uses -- one `t.together`
+a tick with `prayer.set` inside it -- all three switch on three genuinely consecutive ticks and each varbit reads 1
+after its own press (`seam.prayer_consecutive_ticks`, three conformance runs; and a standalone probe, 9 of 9).
+What loses it is CONTENT: an unprayed Sotetseg ball calls `~prayer_block_protection`
+(tob_sotetseg.rs2:394), which puts all three protections out and then makes `[proc,prayer_can_use]` REFUSE every
+protection press while `%varp6891_prayer_protect_blocked > map_clock` (skill_prayer/scripts/prayer.rs2:108,137-141),
+saying "You can't use protection prayers at the moment." Reproduced: the seat's protections vanish on the tick of
+the impact and its presses are refused from that same tick (p2 t64, t66, t67). Piety stays lit and the points are
+untouched, which is why the block is easy to mistake for a lost press -- it only ever takes the three protections.
+The reason was invisible because `_play_send` cut a refusal at 160 characters exactly where it sat ("the server said
+'You "). It is now named instead: the play summary ends `the server BLOCKED a protection press on N tick(s) (tA,tB)
+-- 'You can't use protection prayers at the moment.'`, and `QD.prayer.blocked(text)` / `QD.prayer.BLOCKED_MESSAGE`
+are the predicate and the words. So a plan that ends a ball's colour hold a tick early does not lose a press: it
+takes the ball unprayed, and the room then refuses it protection for the window -- the cost of the wrong colour, not
+of the press path.
+
+## RULE: never truncate a diagnostic into a sentence that reads as complete (owner_praypress, 2026-10-07)
+
+A TRUNCATED DIAGNOSTIC IS WORSE THAN NO DIAGNOSTIC, BECAUSE IT READS AS A COMPLETE ANSWER.
+
+`_play_send` recorded a refused together block as `"t" .. tick .. " " .. result .. ": " .. string.sub(detail, 1, 160)`.
+The server's reason sits at the END of a together block's detail, after the block's own account of its inputs, so 160
+characters cut it at `REFUSED the server said 'You `. The line still reads as a finished observation -- a tick, a
+verdict, a quoted server -- and it is why TWO agents independently ruled the content's protection block out and
+reported a library fault instead: the seat was being refused by the server in plain words
+("You can't use protection prayers at the moment.") and the log destroyed the words on the way to the file. The
+cause was in the message the whole time. A Sotetseg fix worth about 15 hitpoints a seat was held up on it.
+
+So, for any line a person will read to decide WHY something failed:
+- Cut nothing that carries the reason. If a cap is needed, keep the TAIL (the reason is at the end of a verb's
+  detail, after its own account) or raise the cap for that line.
+- Better: classify first and say the class in words of your own (`QD.prayer.blocked(d)` ->
+  "the server BLOCKED a protection press on N tick(s) (tA,tB) -- '<the words>'"), so the reason survives whatever
+  the cap does to the rest.
+- A line that cannot carry its reason should say so ("... (detail truncated, see client.log)") rather than end
+  mid-quote. An ellipsis is a diagnostic; a clean cut is a lie.
+The same failure mode as a tool that names the wrong cause confidently: the reader stops looking.
+
+## The conformance harness is seed-stable, not flaky: compare A/B under ONE run name (owner_praypress, 2026-10-07)
+
+Reported as "the conformance harness is unstable on this tree: 12 and 16 failures at clean HEAD, a different set of
+seam rows each time, neither reaching t.finish" -- which would have made every measurement taken through it
+worthless, including the one judging the change that reported it. QUANTIFIED AND ATTRIBUTED INSTEAD, and it has ONE
+cause, which is not a bug.
+
+- THREE runs of ONE commit (dd31ef628) under three names (cfser1/2/3), one at a time, no parallelism:
+  13, 15 and 19 failures. A stable core of 10 rows failed in all three (ledger_verdict.word_probe, session.login,
+  run.unfinished, seam.attack_fast_path, seam.eat_delay_clocks, seam.eat_does_not_hold_queued_hit,
+  seam.element_seq_projectile_and_static_loc, seam.if1_button_unnumbered_trigger, seam.inv_op_wield_reads_worn,
+  seam.render_skip_pick_read_catches_up); a tail of 15 more rows failed in one or two of the three. Nearly every
+  row in that tail reads a WANDERING npc or a ground item: attack_exact_copy_on_one_tile, npc_cover_settled_recovery,
+  npc_tele_reslot_followed, npc_facing_read, npc_pose_reads_the_drawn_track, npc.await_face, the drop rows.
+- FOUR runs under ONE name (`cfseed`), same binary, serial: base twice -> 304 rows, 286 pass, 18 fail, 1996 ticks,
+  the SAME failing set both times; the changed tree twice -> 305 rows, 286 pass, 19 fail, 1990 ticks, the same
+  failing set both times. BYTE-STABLE on each side.
+- THE CAUSE: a47a38de7 seeds npc rolls from the run name (npc_random_seed XORs srv->npc_run_seed, FNV-1a of
+  TORIRSSERVER_RUN_SEED). A different name is a different world: the npcs these rows press, face and walk around
+  wander differently, so a row whose subject moved reads a different answer. Nothing is racing; the seed changed.
+- SO: AN A/B THROUGH THIS HARNESS MUST USE THE SAME `--name` ON BOTH SIDES, and `--no-publish` with it. Two runs
+  under different names tell you nothing about a change; they tell you about two worlds. A first pass of mine
+  compared confbase/conffix under different names, concluded "9 ticks of 1970 and my seam passed in every run", and
+  was not entitled to it: under one name the same change cost exactly one row (seam.transmog_draws_the_npc, a lit
+  protection's overhead icon changing the drawn height the row measures), which is a real finding the uncontrolled
+  comparison hid.
+- `run.unfinished` and the stable core of 10 are a separate, pre-existing matter: they fail identically every run
+  and are nobody's flake. They are not this note's subject and have not been investigated here.
+
+### The cost of `seam.prayer_consecutive_ticks`, measured and OPEN (owner_praypress, 2026-10-07)
+
+Under the one-name method above, that seam costs exactly ONE downstream row: `seam.transmog_draws_the_npc` fails
+with it and passes without it, identically in two runs of each side (base 304 rows / 18 fail / 1996 ticks; with the
+seam 305 / 19 / 1990). The seam itself PASSES every run. The row measures the top of the player's drawn model, and
+the failing side reads the human at `dy=18` (the monkey's height) with the player projected at 382,**251** against
+382,**250** on the base side -- the player is drawn one pixel lower, so what the row probes above its head is not
+what it means to probe. A first guess, that the seam left a protection lit and its overhead icon changed the
+height, was TESTED AND IS WRONG: the seam now puts every protection out and checks that none is lit, and the row
+still fails in both runs.
+NOT FIXED, and left stated rather than quietly carried: whoever picks this up should either find what the seam
+moves by a pixel, or move the seam after every row that reads the world (the harness's own banner names that as the
+home for seam rows that cost ticks or state). The standalone probe that proves the same behaviour without touching
+the harness is build/seam_state/owner_praypress/_probe_pray_consec.lua (9 of 9 consecutive-tick switches land,
+server and client varbits agreeing).

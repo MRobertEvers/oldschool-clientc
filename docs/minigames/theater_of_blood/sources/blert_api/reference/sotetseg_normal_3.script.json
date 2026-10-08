@@ -1,0 +1,1524 @@
+{
+ "kind": "blert-script-v1",
+ "room": "sotetseg",
+ "mode": "normal",
+ "scale": 3,
+ "anchor": {
+  "what": "the boss's first tile",
+  "region_local": [
+   13,
+   38
+  ]
+ },
+ "lanes": {},
+ "rooms": 20,
+ "missing_streams": [],
+ "uuids": [
+  "3c05ed00-a3b3-43ed-8b08-0da852073157",
+  "6f97e7fe-aa6a-4cfa-a1a2-3a779b207f9d",
+  "8d1e055d-b107-44b3-aee8-420d97773273",
+  "23bdbe80-5e59-47d2-b579-2104df3b0b57",
+  "245bc9b5-4077-4034-9fcc-a1946edc3eef",
+  "635ee0b6-cf7b-419b-b78c-b95d70501ad6",
+  "cf0d70f9-63b0-45fa-a999-cb2bf7395337",
+  "5c1b9584-f132-4572-ac92-a98b72ef028e",
+  "2f2d639f-88cd-47d5-9125-492822731b47",
+  "f3bdffe2-b9cb-40e3-8795-4353062d974c",
+  "16ff015b-5a87-45c4-9b49-f29db0deada9",
+  "18274856-4209-43e2-b165-2e534b0a971e",
+  "377236c2-893f-473f-81cd-60bf7e79f039",
+  "2c0208a5-654b-4f48-a9b8-4bf6555217f0",
+  "4721ed67-b397-469c-bbc8-043404e1a735",
+  "e84b03ba-eb61-44ea-a73f-948695b97633",
+  "ffb1fbff-9ea5-4040-bdf4-bc5d18d35272",
+  "ac2a6a91-c32a-4f15-8f40-dbb845ec5893",
+  "e9b276c8-350f-44b4-9382-7e89052cc3b8",
+  "d05eb065-98fc-422a-855e-1a24dced70aa"
+ ],
+ "segments": [
+  {
+   "name": "start",
+   "n": 20,
+   "start": {
+    "median": 0.0,
+    "min": 0,
+    "max": 0,
+    "n": 20
+   },
+   "length": {
+    "median": 52.5,
+    "min": 42,
+    "max": 67,
+    "n": 20
+   },
+   "adds": {
+    "median": 0.0,
+    "min": 0,
+    "max": 0,
+    "n": 20
+   },
+   "lanes": {},
+   "leaks": {
+    "median": 0.0,
+    "min": 0,
+    "max": 0,
+    "n": 20
+   },
+   "leak_hp": null,
+   "roles": {
+    "melee1": {
+     "n": 20,
+     "tile": {
+      "mode": [
+       0,
+       5
+      ],
+      "share": 0.3,
+      "dx": {
+       "median": 0.0,
+       "min": -1,
+       "max": 6,
+       "n": 20
+      },
+      "dy": {
+       "median": 4.0,
+       "min": -1,
+       "max": 5,
+       "n": 20
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       1,
+       -18
+      ],
+      "share": 0.5
+     },
+     "first_action": {
+      "median": 5.0,
+      "min": 5,
+      "max": 6,
+      "n": 20
+     },
+     "no_action_share": 0.0,
+     "attacks": {
+      "median": 10.0,
+      "min": 8,
+      "max": 13,
+      "n": 20
+     },
+     "casts": [
+      {
+       "median": 5.0,
+       "min": 5,
+       "max": 6,
+       "n": 20
+      },
+      {
+       "median": 10.0,
+       "min": 10,
+       "max": 12,
+       "n": 20
+      },
+      {
+       "median": 16.0,
+       "min": 15,
+       "max": 18,
+       "n": 20
+      },
+      {
+       "median": 21.0,
+       "min": 20,
+       "max": 23,
+       "n": 20
+      },
+      {
+       "median": 26.0,
+       "min": 25,
+       "max": 28,
+       "n": 20
+      },
+      {
+       "median": 31.0,
+       "min": 30,
+       "max": 33,
+       "n": 20
+      },
+      {
+       "median": 36.0,
+       "min": 35,
+       "max": 38,
+       "n": 20
+      },
+      {
+       "median": 41.0,
+       "min": 40,
+       "max": 43,
+       "n": 20
+      }
+     ],
+     "targets": [
+      {
+       "i": 0,
+       "mode": "boss",
+       "share": 1.0,
+       "n": 20
+      }
+     ],
+     "attack_names": {
+      "SCYTHE": 119,
+      "TWISTED_BOW": 18,
+      "ELDER_MAUL_SPEC": 15,
+      "SCEPTRE_BARRAGE": 5
+     },
+     "return_to_boss": null,
+     "wave_adds_hit": {},
+     "weapon": {
+      "SCYTHE": 19,
+      "TWISTED_BOW": 1
+     },
+     "prayer": {
+      "none": 11,
+      "magic": 6,
+      "melee": 2
+     }
+    },
+    "melee2": {
+     "n": 20,
+     "tile": {
+      "mode": [
+       4,
+       -1
+      ],
+      "share": 0.35,
+      "dx": {
+       "median": 4.0,
+       "min": -2,
+       "max": 5,
+       "n": 20
+      },
+      "dy": {
+       "median": 0.0,
+       "min": -2,
+       "max": 6,
+       "n": 20
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       1,
+       -18
+      ],
+      "share": 0.45
+     },
+     "first_action": {
+      "median": 5.0,
+      "min": 5,
+      "max": 11,
+      "n": 20
+     },
+     "no_action_share": 0.0,
+     "attacks": {
+      "median": 9.5,
+      "min": 8,
+      "max": 13,
+      "n": 20
+     },
+     "casts": [
+      {
+       "median": 5.0,
+       "min": 5,
+       "max": 11,
+       "n": 20
+      },
+      {
+       "median": 10.5,
+       "min": 10,
+       "max": 16,
+       "n": 20
+      },
+      {
+       "median": 16.0,
+       "min": 15,
+       "max": 21,
+       "n": 20
+      },
+      {
+       "median": 21.0,
+       "min": 20,
+       "max": 27,
+       "n": 20
+      },
+      {
+       "median": 26.0,
+       "min": 25,
+       "max": 32,
+       "n": 20
+      },
+      {
+       "median": 31.0,
+       "min": 30,
+       "max": 37,
+       "n": 20
+      },
+      {
+       "median": 36.0,
+       "min": 35,
+       "max": 42,
+       "n": 20
+      },
+      {
+       "median": 41.0,
+       "min": 40,
+       "max": 47,
+       "n": 20
+      }
+     ],
+     "targets": [
+      {
+       "i": 0,
+       "mode": "boss",
+       "share": 1.0,
+       "n": 20
+      }
+     ],
+     "attack_names": {
+      "SCYTHE": 124,
+      "TWISTED_BOW": 12,
+      "ELDER_MAUL_SPEC": 11,
+      "FANG": 8
+     },
+     "return_to_boss": null,
+     "wave_adds_hit": {},
+     "weapon": {
+      "SCYTHE": 19,
+      "FANG": 1
+     },
+     "prayer": {
+      "none": 11,
+      "magic": 6,
+      "melee": 3
+     }
+    },
+    "melee3": {
+     "n": 19,
+     "tile": {
+      "mode": [
+       4,
+       -1
+      ],
+      "share": 0.37,
+      "dx": {
+       "median": 4,
+       "min": -2,
+       "max": 5,
+       "n": 19
+      },
+      "dy": {
+       "median": 0,
+       "min": -1,
+       "max": 5,
+       "n": 19
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       4,
+       -18
+      ],
+      "share": 0.32
+     },
+     "first_action": {
+      "median": 5,
+      "min": 5,
+      "max": 12,
+      "n": 19
+     },
+     "no_action_share": 0.0,
+     "attacks": {
+      "median": 9,
+      "min": 7,
+      "max": 12,
+      "n": 19
+     },
+     "casts": [
+      {
+       "median": 5,
+       "min": 5,
+       "max": 12,
+       "n": 19
+      },
+      {
+       "median": 10,
+       "min": 10,
+       "max": 18,
+       "n": 19
+      },
+      {
+       "median": 16,
+       "min": 15,
+       "max": 24,
+       "n": 19
+      },
+      {
+       "median": 21,
+       "min": 20,
+       "max": 29,
+       "n": 19
+      },
+      {
+       "median": 26,
+       "min": 25,
+       "max": 34,
+       "n": 19
+      },
+      {
+       "median": 31,
+       "min": 30,
+       "max": 39,
+       "n": 19
+      },
+      {
+       "median": 36,
+       "min": 35,
+       "max": 44,
+       "n": 19
+      },
+      {
+       "median": 41.0,
+       "min": 40,
+       "max": 48,
+       "n": 18
+      }
+     ],
+     "targets": [
+      {
+       "i": 0,
+       "mode": "boss",
+       "share": 1.0,
+       "n": 19
+      }
+     ],
+     "attack_names": {
+      "SCYTHE": 114,
+      "TWISTED_BOW": 13,
+      "ELDER_MAUL_SPEC": 10,
+      "FANG": 7
+     },
+     "return_to_boss": null,
+     "wave_adds_hit": {},
+     "weapon": {
+      "SCYTHE": 18,
+      "FANG": 1
+     },
+     "prayer": {
+      "none": 11,
+      "magic": 7,
+      "melee": 1
+     }
+    },
+    "range": {
+     "n": 1,
+     "tile": {
+      "mode": [
+       5,
+       4
+      ],
+      "share": 1.0,
+      "dx": {
+       "median": 5,
+       "min": 5,
+       "max": 5,
+       "n": 1
+      },
+      "dy": {
+       "median": 4,
+       "min": 4,
+       "max": 4,
+       "n": 1
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       4,
+       -18
+      ],
+      "share": 1.0
+     },
+     "first_action": {
+      "median": 5,
+      "min": 5,
+      "max": 5,
+      "n": 1
+     },
+     "no_action_share": 0.0,
+     "attacks": {
+      "median": 12,
+      "min": 12,
+      "max": 12,
+      "n": 1
+     },
+     "casts": [
+      {
+       "median": 5,
+       "min": 5,
+       "max": 5,
+       "n": 1
+      },
+      {
+       "median": 10,
+       "min": 10,
+       "max": 10,
+       "n": 1
+      },
+      {
+       "median": 16,
+       "min": 16,
+       "max": 16,
+       "n": 1
+      },
+      {
+       "median": 22,
+       "min": 22,
+       "max": 22,
+       "n": 1
+      },
+      {
+       "median": 27,
+       "min": 27,
+       "max": 27,
+       "n": 1
+      },
+      {
+       "median": 32,
+       "min": 32,
+       "max": 32,
+       "n": 1
+      },
+      {
+       "median": 37,
+       "min": 37,
+       "max": 37,
+       "n": 1
+      },
+      {
+       "median": 42,
+       "min": 42,
+       "max": 42,
+       "n": 1
+      }
+     ],
+     "targets": [
+      {
+       "i": 0,
+       "mode": "boss",
+       "share": 1.0,
+       "n": 1
+      }
+     ],
+     "attack_names": {
+      "TWISTED_BOW": 7,
+      "HAMMER_SPEC": 1
+     },
+     "return_to_boss": null,
+     "wave_adds_hit": {},
+     "weapon": {
+      "TWISTED_BOW": 1
+     },
+     "prayer": {
+      "magic": 1
+     }
+    }
+   }
+  },
+  {
+   "name": "maze1",
+   "n": 20,
+   "start": {
+    "median": 52.5,
+    "min": 42,
+    "max": 67,
+    "n": 20
+   },
+   "length": {
+    "median": 74.5,
+    "min": 59,
+    "max": 96,
+    "n": 20
+   },
+   "adds": {
+    "median": 0.0,
+    "min": 0,
+    "max": 0,
+    "n": 20
+   },
+   "lanes": {},
+   "leaks": {
+    "median": 0.0,
+    "min": 0,
+    "max": 0,
+    "n": 20
+   },
+   "leak_hp": null,
+   "roles": {
+    "melee1": {
+     "n": 20,
+     "tile": {
+      "mode": [
+       5,
+       4
+      ],
+      "share": 0.25,
+      "dx": {
+       "median": 2.0,
+       "min": -2,
+       "max": 6,
+       "n": 20
+      },
+      "dy": {
+       "median": 4.0,
+       "min": -2,
+       "max": 5,
+       "n": 20
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       0,
+       5
+      ],
+      "share": 0.3
+     },
+     "first_action": {
+      "median": 30.0,
+      "min": 17,
+      "max": 38,
+      "n": 20
+     },
+     "no_action_share": 0.0,
+     "attacks": {
+      "median": 10.0,
+      "min": 8,
+      "max": 13,
+      "n": 20
+     },
+     "casts": [
+      {
+       "median": 30.0,
+       "min": 17,
+       "max": 38,
+       "n": 20
+      },
+      {
+       "median": 35.5,
+       "min": 22,
+       "max": 43,
+       "n": 20
+      },
+      {
+       "median": 41.0,
+       "min": 28,
+       "max": 48,
+       "n": 20
+      },
+      {
+       "median": 46.0,
+       "min": 33,
+       "max": 53,
+       "n": 20
+      },
+      {
+       "median": 51.0,
+       "min": 38,
+       "max": 60,
+       "n": 20
+      },
+      {
+       "median": 56.0,
+       "min": 43,
+       "max": 65,
+       "n": 20
+      },
+      {
+       "median": 61.0,
+       "min": 48,
+       "max": 70,
+       "n": 20
+      },
+      {
+       "median": 66.0,
+       "min": 53,
+       "max": 75,
+       "n": 20
+      }
+     ],
+     "targets": [
+      {
+       "i": 0,
+       "mode": "boss",
+       "share": 1.0,
+       "n": 20
+      }
+     ],
+     "attack_names": {
+      "SCYTHE": 139,
+      "ELDER_MAUL_SPEC": 13,
+      "TWISTED_BOW": 5,
+      "SOULREAPER_AXE": 2
+     },
+     "return_to_boss": null,
+     "wave_adds_hit": {},
+     "weapon": {
+      "SCYTHE": 19,
+      "TWISTED_BOW": 1
+     },
+     "prayer": {
+      "magic": 11,
+      "melee": 6,
+      "none": 3
+     }
+    },
+    "melee2": {
+     "n": 20,
+     "tile": {
+      "mode": [
+       4,
+       -1
+      ],
+      "share": 0.35,
+      "dx": {
+       "median": 4.0,
+       "min": -2,
+       "max": 6,
+       "n": 20
+      },
+      "dy": {
+       "median": 0.0,
+       "min": -2,
+       "max": 6,
+       "n": 20
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       4,
+       -1
+      ],
+      "share": 0.35
+     },
+     "first_action": {
+      "median": 30.0,
+      "min": 17,
+      "max": 39,
+      "n": 20
+     },
+     "no_action_share": 0.0,
+     "attacks": {
+      "median": 10.0,
+      "min": 8,
+      "max": 13,
+      "n": 20
+     },
+     "casts": [
+      {
+       "median": 30.0,
+       "min": 17,
+       "max": 39,
+       "n": 20
+      },
+      {
+       "median": 35.0,
+       "min": 23,
+       "max": 44,
+       "n": 20
+      },
+      {
+       "median": 40.0,
+       "min": 28,
+       "max": 49,
+       "n": 20
+      },
+      {
+       "median": 45.0,
+       "min": 33,
+       "max": 54,
+       "n": 20
+      },
+      {
+       "median": 50.0,
+       "min": 38,
+       "max": 59,
+       "n": 20
+      },
+      {
+       "median": 54.5,
+       "min": 43,
+       "max": 64,
+       "n": 20
+      },
+      {
+       "median": 59.5,
+       "min": 48,
+       "max": 69,
+       "n": 20
+      },
+      {
+       "median": 64.5,
+       "min": 53,
+       "max": 74,
+       "n": 20
+      }
+     ],
+     "targets": [
+      {
+       "i": 0,
+       "mode": "boss",
+       "share": 1.0,
+       "n": 20
+      }
+     ],
+     "attack_names": {
+      "SCYTHE": 137,
+      "ELDER_MAUL_SPEC": 14,
+      "FANG": 7,
+      "CLAW_SPEC": 1
+     },
+     "return_to_boss": null,
+     "wave_adds_hit": {},
+     "weapon": {
+      "SCYTHE": 19,
+      "FANG": 1
+     },
+     "prayer": {
+      "magic": 7,
+      "none": 7,
+      "melee": 4
+     }
+    },
+    "melee3": {
+     "n": 19,
+     "tile": {
+      "mode": [
+       -1,
+       0
+      ],
+      "share": 0.26,
+      "dx": {
+       "median": 4,
+       "min": -2,
+       "max": 6,
+       "n": 19
+      },
+      "dy": {
+       "median": 0,
+       "min": -2,
+       "max": 4,
+       "n": 19
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       4,
+       -1
+      ],
+      "share": 0.37
+     },
+     "first_action": {
+      "median": 30,
+      "min": 19,
+      "max": 41,
+      "n": 19
+     },
+     "no_action_share": 0.0,
+     "attacks": {
+      "median": 9,
+      "min": 8,
+      "max": 12,
+      "n": 19
+     },
+     "casts": [
+      {
+       "median": 30,
+       "min": 19,
+       "max": 41,
+       "n": 19
+      },
+      {
+       "median": 36,
+       "min": 25,
+       "max": 47,
+       "n": 19
+      },
+      {
+       "median": 41,
+       "min": 30,
+       "max": 52,
+       "n": 19
+      },
+      {
+       "median": 46,
+       "min": 35,
+       "max": 57,
+       "n": 19
+      },
+      {
+       "median": 51,
+       "min": 40,
+       "max": 62,
+       "n": 19
+      },
+      {
+       "median": 56,
+       "min": 45,
+       "max": 67,
+       "n": 19
+      },
+      {
+       "median": 62,
+       "min": 50,
+       "max": 72,
+       "n": 19
+      },
+      {
+       "median": 67,
+       "min": 55,
+       "max": 77,
+       "n": 19
+      }
+     ],
+     "targets": [
+      {
+       "i": 0,
+       "mode": "boss",
+       "share": 1.0,
+       "n": 19
+      }
+     ],
+     "attack_names": {
+      "SCYTHE": 130,
+      "ELDER_MAUL_SPEC": 14,
+      "FANG": 7,
+      "HAMMER_SPEC": 1
+     },
+     "return_to_boss": null,
+     "wave_adds_hit": {},
+     "weapon": {
+      "SCYTHE": 18,
+      "FANG": 1
+     },
+     "prayer": {
+      "none": 7,
+      "magic": 7,
+      "melee": 5
+     }
+    },
+    "range": {
+     "n": 1,
+     "tile": {
+      "mode": [
+       5,
+       4
+      ],
+      "share": 1.0,
+      "dx": {
+       "median": 5,
+       "min": 5,
+       "max": 5,
+       "n": 1
+      },
+      "dy": {
+       "median": 4,
+       "min": 4,
+       "max": 4,
+       "n": 1
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       5,
+       4
+      ],
+      "share": 1.0
+     },
+     "first_action": {
+      "median": 30,
+      "min": 30,
+      "max": 30,
+      "n": 1
+     },
+     "no_action_share": 0.0,
+     "attacks": {
+      "median": 8,
+      "min": 8,
+      "max": 8,
+      "n": 1
+     },
+     "casts": [
+      {
+       "median": 30,
+       "min": 30,
+       "max": 30,
+       "n": 1
+      },
+      {
+       "median": 36,
+       "min": 36,
+       "max": 36,
+       "n": 1
+      },
+      {
+       "median": 41,
+       "min": 41,
+       "max": 41,
+       "n": 1
+      },
+      {
+       "median": 46,
+       "min": 46,
+       "max": 46,
+       "n": 1
+      },
+      {
+       "median": 51,
+       "min": 51,
+       "max": 51,
+       "n": 1
+      },
+      {
+       "median": 56,
+       "min": 56,
+       "max": 56,
+       "n": 1
+      },
+      {
+       "median": 61,
+       "min": 61,
+       "max": 61,
+       "n": 1
+      },
+      {
+       "median": 66,
+       "min": 66,
+       "max": 66,
+       "n": 1
+      }
+     ],
+     "targets": [
+      {
+       "i": 0,
+       "mode": "boss",
+       "share": 1.0,
+       "n": 1
+      }
+     ],
+     "attack_names": {
+      "TWISTED_BOW": 7,
+      "HAMMER_SPEC": 1
+     },
+     "return_to_boss": null,
+     "wave_adds_hit": {},
+     "weapon": {
+      "TWISTED_BOW": 1
+     },
+     "prayer": {
+      "melee": 1
+     }
+    }
+   }
+  },
+  {
+   "name": "maze2",
+   "n": 20,
+   "start": {
+    "median": 128.5,
+    "min": 106,
+    "max": 159,
+    "n": 20
+   },
+   "length": {
+    "median": 78.5,
+    "min": 58,
+    "max": 108,
+    "n": 20
+   },
+   "adds": {
+    "median": 0.0,
+    "min": 0,
+    "max": 0,
+    "n": 20
+   },
+   "lanes": {},
+   "leaks": {
+    "median": 0.0,
+    "min": 0,
+    "max": 0,
+    "n": 20
+   },
+   "leak_hp": null,
+   "roles": {
+    "melee1": {
+     "n": 20,
+     "tile": {
+      "mode": [
+       0,
+       5
+      ],
+      "share": 0.25,
+      "dx": {
+       "median": 0.0,
+       "min": -2,
+       "max": 6,
+       "n": 20
+      },
+      "dy": {
+       "median": 4.0,
+       "min": -2,
+       "max": 6,
+       "n": 20
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       5,
+       4
+      ],
+      "share": 0.25
+     },
+     "first_action": {
+      "median": 29.0,
+      "min": 17,
+      "max": 36,
+      "n": 20
+     },
+     "no_action_share": 0.0,
+     "attacks": {
+      "median": 10.0,
+      "min": 8,
+      "max": 16,
+      "n": 20
+     },
+     "casts": [
+      {
+       "median": 29.0,
+       "min": 17,
+       "max": 36,
+       "n": 20
+      },
+      {
+       "median": 35.0,
+       "min": 22,
+       "max": 42,
+       "n": 20
+      },
+      {
+       "median": 40.0,
+       "min": 27,
+       "max": 47,
+       "n": 20
+      },
+      {
+       "median": 45.0,
+       "min": 32,
+       "max": 52,
+       "n": 20
+      },
+      {
+       "median": 50.0,
+       "min": 37,
+       "max": 57,
+       "n": 20
+      },
+      {
+       "median": 55.0,
+       "min": 42,
+       "max": 62,
+       "n": 20
+      },
+      {
+       "median": 60.0,
+       "min": 47,
+       "max": 67,
+       "n": 20
+      },
+      {
+       "median": 65.0,
+       "min": 52,
+       "max": 72,
+       "n": 20
+      }
+     ],
+     "targets": [
+      {
+       "i": 0,
+       "mode": "boss",
+       "share": 1.0,
+       "n": 20
+      }
+     ],
+     "attack_names": {
+      "SCYTHE": 137,
+      "ELDER_MAUL_SPEC": 12,
+      "SOULREAPER_AXE": 7,
+      "CHALLY_SPEC": 2
+     },
+     "return_to_boss": null,
+     "wave_adds_hit": {},
+     "weapon": {
+      "SCYTHE": 19,
+      "SOULREAPER_AXE": 1
+     },
+     "prayer": {
+      "magic": 11,
+      "melee": 5,
+      "none": 3
+     }
+    },
+    "melee2": {
+     "n": 20,
+     "tile": {
+      "mode": [
+       4,
+       -1
+      ],
+      "share": 0.35,
+      "dx": {
+       "median": 4.0,
+       "min": -2,
+       "max": 6,
+       "n": 20
+      },
+      "dy": {
+       "median": 0.0,
+       "min": -2,
+       "max": 6,
+       "n": 20
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       4,
+       -1
+      ],
+      "share": 0.35
+     },
+     "first_action": {
+      "median": 29.0,
+      "min": 19,
+      "max": 36,
+      "n": 20
+     },
+     "no_action_share": 0.0,
+     "attacks": {
+      "median": 10.0,
+      "min": 7,
+      "max": 16,
+      "n": 20
+     },
+     "casts": [
+      {
+       "median": 29.0,
+       "min": 19,
+       "max": 36,
+       "n": 20
+      },
+      {
+       "median": 34.0,
+       "min": 25,
+       "max": 42,
+       "n": 20
+      },
+      {
+       "median": 39.0,
+       "min": 30,
+       "max": 47,
+       "n": 20
+      },
+      {
+       "median": 44.0,
+       "min": 35,
+       "max": 52,
+       "n": 20
+      },
+      {
+       "median": 49.0,
+       "min": 40,
+       "max": 57,
+       "n": 20
+      },
+      {
+       "median": 54.0,
+       "min": 45,
+       "max": 62,
+       "n": 20
+      },
+      {
+       "median": 59.0,
+       "min": 50,
+       "max": 67,
+       "n": 20
+      },
+      {
+       "median": 64,
+       "min": 57,
+       "max": 72,
+       "n": 19
+      }
+     ],
+     "targets": [
+      {
+       "i": 0,
+       "mode": "boss",
+       "share": 1.0,
+       "n": 20
+      }
+     ],
+     "attack_names": {
+      "SCYTHE": 135,
+      "ELDER_MAUL_SPEC": 10,
+      "FANG": 7,
+      "CHALLY_SPEC": 2
+     },
+     "return_to_boss": null,
+     "wave_adds_hit": {},
+     "weapon": {
+      "SCYTHE": 19,
+      "FANG": 1
+     },
+     "prayer": {
+      "magic": 12,
+      "melee": 5,
+      "none": 3
+     }
+    },
+    "melee3": {
+     "n": 19,
+     "tile": {
+      "mode": [
+       4,
+       -1
+      ],
+      "share": 0.26,
+      "dx": {
+       "median": 4,
+       "min": -2,
+       "max": 6,
+       "n": 19
+      },
+      "dy": {
+       "median": 0,
+       "min": -2,
+       "max": 4,
+       "n": 19
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       -1,
+       0
+      ],
+      "share": 0.32
+     },
+     "first_action": {
+      "median": 30,
+      "min": 18,
+      "max": 36,
+      "n": 19
+     },
+     "no_action_share": 0.0,
+     "attacks": {
+      "median": 9,
+      "min": 7,
+      "max": 16,
+      "n": 19
+     },
+     "casts": [
+      {
+       "median": 30,
+       "min": 18,
+       "max": 36,
+       "n": 19
+      },
+      {
+       "median": 36,
+       "min": 24,
+       "max": 42,
+       "n": 19
+      },
+      {
+       "median": 41,
+       "min": 29,
+       "max": 51,
+       "n": 19
+      },
+      {
+       "median": 46,
+       "min": 34,
+       "max": 56,
+       "n": 19
+      },
+      {
+       "median": 51,
+       "min": 39,
+       "max": 61,
+       "n": 19
+      },
+      {
+       "median": 56,
+       "min": 44,
+       "max": 66,
+       "n": 19
+      },
+      {
+       "median": 61,
+       "min": 49,
+       "max": 71,
+       "n": 19
+      },
+      {
+       "median": 67,
+       "min": 59,
+       "max": 76,
+       "n": 17
+      }
+     ],
+     "targets": [
+      {
+       "i": 0,
+       "mode": "boss",
+       "share": 1.0,
+       "n": 19
+      }
+     ],
+     "attack_names": {
+      "SCYTHE": 125,
+      "ELDER_MAUL_SPEC": 13,
+      "FANG": 7,
+      "CHALLY_SPEC": 3
+     },
+     "return_to_boss": null,
+     "wave_adds_hit": {},
+     "weapon": {
+      "SCYTHE": 18,
+      "FANG": 1
+     },
+     "prayer": {
+      "magic": 8,
+      "melee": 6,
+      "none": 5
+     }
+    },
+    "range": {
+     "n": 1,
+     "tile": {
+      "mode": [
+       6,
+       4
+      ],
+      "share": 1.0,
+      "dx": {
+       "median": 6,
+       "min": 6,
+       "max": 6,
+       "n": 1
+      },
+      "dy": {
+       "median": 4,
+       "min": 4,
+       "max": 4,
+       "n": 1
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       4,
+       -1
+      ],
+      "share": 1.0
+     },
+     "first_action": {
+      "median": 28,
+      "min": 28,
+      "max": 28,
+      "n": 1
+     },
+     "no_action_share": 0.0,
+     "attacks": {
+      "median": 10,
+      "min": 10,
+      "max": 10,
+      "n": 1
+     },
+     "casts": [
+      {
+       "median": 28,
+       "min": 28,
+       "max": 28,
+       "n": 1
+      },
+      {
+       "median": 33,
+       "min": 33,
+       "max": 33,
+       "n": 1
+      },
+      {
+       "median": 39,
+       "min": 39,
+       "max": 39,
+       "n": 1
+      },
+      {
+       "median": 44,
+       "min": 44,
+       "max": 44,
+       "n": 1
+      },
+      {
+       "median": 49,
+       "min": 49,
+       "max": 49,
+       "n": 1
+      },
+      {
+       "median": 54,
+       "min": 54,
+       "max": 54,
+       "n": 1
+      },
+      {
+       "median": 59,
+       "min": 59,
+       "max": 59,
+       "n": 1
+      },
+      {
+       "median": 64,
+       "min": 64,
+       "max": 64,
+       "n": 1
+      }
+     ],
+     "targets": [
+      {
+       "i": 0,
+       "mode": "boss",
+       "share": 1.0,
+       "n": 1
+      }
+     ],
+     "attack_names": {
+      "TWISTED_BOW": 8
+     },
+     "return_to_boss": null,
+     "wave_adds_hit": {},
+     "weapon": {
+      "TWISTED_BOW": 1
+     },
+     "prayer": {
+      "magic": 1
+     }
+    }
+   }
+  }
+ ]
+}

@@ -1,0 +1,217 @@
+{{otheruses|maximum melee hit|other uses|Maximum hit}}
+'''Maximum melee hit''' is the maximum damage a player can deal in a [[melee]] combat. It is affected by player's [[Strength]], equipment and other bonuses such as [[prayer]], [[passive effect]]s, enemy weaknesses, or potions.
+
+All damage players can deal is capped at 200 to soften the impact of potential exploits.{{CiteNews|url=https://secure.runescape.com/m=news/new-renderer-beta-pause?oldschool=1|title=New Renderer Beta Pause|newsdate=29 October 2025|quote=The existing cap of 200 is a global damage cap as a guardrail for the whole game.}}
+
+Were the cap not to exist, the max possible hit currently accessible through normal means would be 285. This is accomplished by using full [[Dharok the Wretched's equipment|Dharok's equipment]] against an unshielded [[tormented demon]] at the end of [[While Guthix Sleeps]], as the [[Stone of Jas]] boost brings the player to 255 Strength, which is only accessible at the end of the quest. This also requires a combination of [https://dps.osrs.wiki?id=EldritchMineEnergy best-in-slot strength gear], [[Piety]], and [[Dharok's greataxe]] set to crush, as the bonus damage granted to slower melee weapons only applies to crush attacks.
+
+It is also possible to hit 201 with the [[Keris]]. This again requires the best gear, strength level, and boosts, but also uses the [[Dragon battleaxe]] special attack, a [[Black mask]], and the [[Keris]] on a [[Kalphite (attribute)|Kalphite]] while on the appropriate slayer task for the monster. The only kalphites with enough hit points to reach this hit are the [[Kalphite Queen]] and [[Kephri]], given a high enough [[invocation]]. In this scenario, the chance of hitting 201 is extremely slim. 
+
+For free-to-play the maximum hit is 31, using a [[rune 2h sword]], an [[amulet of strength]], [[decorative boots (gold)]], and a [[strength potion]] with [[Ultimate Strength]] active.  
+
+In free-to-play [[Castle Wars]], a maximum hit of 39 can be achieved using a [[rune 2h sword]], an [[amulet of strength]], [[decorative boots (gold)]], [[Castle wars bracelet]], and a [[Castlewars brew]] with [[Ultimate Strength]] and [[attack style]] set to Aggressive at 99 Strength when you attack a Flag Bearing player. 
+
+==Calculating your maximum melee hit==
+===Step one: Calculate the ''effective strength''===
+<math>\text{Effective Strength} = \Bigg\lfloor\bigg(\Big\lfloor\big\lfloor\text{Strength Level} + \text{Potion Bonus}\big\rfloor \times \text{Prayer Bonus}\Big\rfloor + \text{Style Bonus} + 8 \bigg) \times \text{Void Bonus} \Bigg\rfloor</math>
+
+See the following table for the various bonuses values:
+{|class="wikitable"
+!Condition
+!Bonus/Multiplier
+|-
+!colspan="2"|Potion (note: addition not multiplier)
+|-
+|[[Strength potion]]
+|<math>\lfloor \text{Strength Level} \times 10% \rfloor + 3</math>
+|-
+|[[Zamorak brew]]
+|<math>\lfloor \text{Strength Level} \times 12% \rfloor + 2</math>
+|-
+|[[Black warlock]]
+|<math>\lfloor \text{Strength Level} \times 15% \rfloor + 4</math>
+|-
+|[[Super strength potion]]
+|<math>\lfloor \text{Strength Level} \times 15% \rfloor + 5</math>
+|-
+|[[Dragon battleaxe]] special attack
+|<math>\big\lfloor (\lfloor \text{Attack} \times 10% \rfloor + \lfloor \text{Defence} \times 10% \rfloor + \lfloor \text{Magic} \times 10% \rfloor + \lfloor \text{Ranged} \times 10% \rfloor) \times 25% \big\rfloor + 10</math>{{Efn|This uses the player's visible levels, not the base levels|name="dba"}}
+|-
+!colspan="2"|Prayer
+|-
+|[[Burst of Strength]]
+|1.05{{Efn|Always boost the player's Strength level by at least 1|name="burst"}}
+|-
+|[[Superhuman Strength]]
+|1.1
+|-
+|[[Ultimate Strength]]
+|1.15
+|-
+|[[Chivalry]]
+|1.18
+|-
+|[[Piety]]
+|1.23
+|-
+!colspan="2"|Void
+|-
+|[[Void Knight equipment|Void melee armour]]
+|1.1
+|-
+!colspan="2"|Style (note: addition not multiplier)
+|-
+|Aggressive
+|3
+|-
+|Controlled
+|1
+|-
+|Accurate/Defensive
+|0
+|}
+{{Notelist}}
+
+Remember that if you use the Dragon battleaxe special attack you cannot use another special attack right after unless you drink a dose of [[surge potion]], use [[restoration pool]] in [[POH]] or if another player casts [[Energy Transfer]] upon you. Also note that the dragon battleaxe special attack raises your Strength depending on the other levels.
+
+===Step two: Calculate the ''base damage''===
+<math>\text{Base Damage} = 0.5 + \text{Effective Strength} \times \frac{\text{Strength Bonus}+64}{640}</math>
+
+Then floor it:
+
+<math>\text{Max Hit} = \lfloor \text{Base Damage} \rfloor</math>
+
+If you are using a special attack or effect continue to step three.
+
+===Step three: Calculate the ''bonus damage''===
+<math>\text{Max Hit} = \lfloor \lfloor \text{Base Damage} \rfloor \times \text{Special Bonus} \rfloor</math>
+
+The following special attack/effect bonuses apply:
+{|class="wikitable"
+!Attack/Effect
+!Multiplier
+|-
+!colspan="2"|[[Special attack]]s
+|-
+|[[Armadyl godsword]]
+|1.375
+|-
+|[[Bandos godsword]]
+|1.21
+|-
+|[[Ancient godsword|Ancient]], [[Saradomin godsword|Saradomin]] or [[Zamorak godsword]]
+|1.1
+|-
+|[[Dragon dagger]]
+|1.15 + 1.15
+|-
+|[[Dragon halberd]] or [[Crystal halberd]]
+|1.1
+|-
+|[[Dragon hasta]]
+|1.0 + (0.5 x Special bar %)
+|-
+|[[Dragon longsword]]
+|1.25
+|-
+|[[Dragon mace]]
+|1.5
+|-
+|[[Dragon warhammer]]
+|1.5
+|-
+|[[Rune claws]]
+|1.1
+|-
+|[[Abyssal dagger]]
+|0.85
+|-
+|[[Abyssal bludgeon]]
+|1.0 + 0.005 x (Prayer points missing)
+|-
+|[[Saradomin sword]]
+|1.1
+|-
+|[[Saradomin's blessed sword]]
+|1.25
+|-
+!colspan="2"|[[Passive effect]]s
+|-
+|[[Dharok the Wretched's equipment]]
+|<math>1 + {\text{Max HP} - \text{Current HP} \over 100} \times {\text{Max HP} \over 100}</math>
+|-
+|[[Berserker necklace]], [[Obsidian armour]] ([[Obsidian helmet|helmet]], [[Obsidian platebody|platebody]], [[Obsidian platelegs|platelegs]]), Obsidian weapon
+|1.3
+|-
+|[[Castle wars bracelet]]
+|1.2
+|-
+|[[Blisterwood flail]] (vampyres)
+|1.25
+|-
+|[[Ivandis flail]] (vampyres)
+|1.20
+|-
+|[[Viggora's chainmace]]/[[Ursine chainmace]] (charged, wilderness)
+|1.5
+|-
+|[[Black mask]]/[[Slayer helm]] (slayer tasks)
+|<math>1.1\overline{6}</math>(7/6)
+|-
+|[[Salve amulet]] (undead)
+|<math>1.1\overline{6}</math>(7/6)
+|-
+|[[Salve amulet (e)]] (undead)
+|1.2
+|-
+|[[Inquisitor's armour]] (crush)
+|1.025
+|-
+|[[Colossal blade]]
+|<math>1 + (2 \times \text{MonsterSize})</math> (Additive damage)
+|-
+|[[Osmumten's fang]]
+|0.85{{efn|Note that this does not decrease the average hit, as the minimum hit is 0.15x the "base" maximum hit.|name="fang"}}
+|}
+{{Notelist}}
+
+=== Special cases ===
+
+Using [[Dharok the Wretched's equipment|Dharok]]'s against [[tormented demon]]s, it's possible to hit extremely high. This is because weapons with a slower [[attack speed]] deal more damage against the tormented demon when its shield drops, stacking with the Dharok's set bonus of hitting much higher when at low [[hitpoints]]. Using this setup increases the [https://dps.osrs.wiki?id=RevitalisingForestersRicktors max hit] to 220. This is currently the highest possible single hit in the game.
+
+The [[Keris]]'s and [[Keris partisan]]'s maximum hits are also high when fighting kalphites or scabarites:
+
+<math>\text{Max Hit}_{\text{Keris, normal}} = \lfloor \text{Base Damage} \times 1.33 \rfloor</math>
+
+<math>\text{Max Hit}_{\text{Keris, critical}} = \lfloor \text{Base Damage} \times 1.33 \times 3 \rfloor</math>
+
+A player with 99 Strength can hit [https://dps.osrs.wiki?id=StuffSerumPiracy up to 201] when on a [[Kalphite]] slayer task, using the [[Keris]], best Strength equipment, the [[Piety]] prayer, a [[Slayer helm]] or [[Black mask]], and using a [[Dragon battleaxe]] special attack to boost to 120 Strength. 
+
+While in the [[Tombs of Amascut]], an even higher max hit is possible, due to the combination of [[Smelling salts]] allowing a greater Strength boost to 125 instead of 120, the [[Keris partisan of corruption]]'s special attack providing an additional 25% damage boost, and prior uses of the partisan's special attack providing a 25% damage boost to subsequent hits for 6 seconds. The combination of all these effects bring the maximum melee hit up to 228. This hit can only be performed while fighting [[Kephri]], and depending on the invocation level may be higher than her maximum hitpoints. 
+
+Note that the effects of a [[slayer helmet]] will not work inside the raid.
+
+When accounting for special attacks that can damage multiple targets, the maximum possible hit becomes much higher: the [[Dragon 2h Sword]] has a special attack which, with max Strength gear and boosts, Piety, and a [[Salve amulet (ei)]], can hit a 62 on each of 11 targets if all are undead, dealing a total of 682 damage. However, the odds of this occurring are extremely low. With [[Crystal halberd]], it's possible this number would be much higher.
+
+The [[Saradomin sword]]'s special attack hit up to an extra 16 magic-based damage:
+
+<math>\text{Max Hit}_{\text{Saradomin sword}} = \lfloor \text{Base Damage} + 16 \rfloor</math>
+
+In [[Tolna's rift]] during [[A Soul's Bane]] quest, players could hit up to 200 on monsters in the rage room, however that damage is simply a player's normal damage times twenty, and doesn't give any experience.
+
+In the [[Barbarian Assault]] minigame you can hit a possible of your max hit +5 if your attacker level is 5 on the penance rangers and fighters.
+
+When fighting [[Phosani's Nightmare]], the player is guaranteed a max hit on [[Husk (Phosani's Nightmare)|husks]] and [[Parasite (Phosani's Nightmare)|parasites]] if they are attacked with a weapon which is set on a crush setting.
+
+When facing [[Sol Heredit]], if the player perfectly parries his grab attack, the player is guaranteed a max hit upon attacking him within 5 ticks of the parry.
+
+==Trivia==
+* The theoretical highest maximum hit a player could achieve in the game's history (were the 200 damage cap not to exist) would be to use the [[Blue Moon spear]]'s special attack against [[Yama]] in phase 3 prior to [[30 October]] [[2025]] (which added a cap to how much the special attack's damage could be boosted), resulting in a max hit of 704,999. As Yama is considered 'bound' for an indefinite period of time during phase 3 to prevent him from moving, the special attack would have received a 1,499,998% damage boost to the spear's standard max hit of 47 (assuming best-in-slot strength gear from that time).{{CiteReddit|author=Mod Goblin|url=https://www.reddit.com/r/2007scape/comments/1ok4xz1/comment/nm83le1/|title= A brief update on 'RoboSpear'|quote=[how much could the spear have theoretically hit without the 200 damage cap?] Damage multiplier with how long Yama was held in place for shakes out to 1,499,998%. In max Str, looks like max hit for Blue Moon spear is 47, so would guess: 47 x 1,499,998% / 100% = 704,999.06. OSRS always rounds down, so theoretical max hit of 704,999.|date=30 October 2025|archiveurl=https://archive.ph/rkEbC|archivedate=30 October 2025}}
+
+==References==
+{{Reflist}}
+
+[[Category:Combat]]
+[[Category:Mechanics]]
+
+{{Combat Mechanics}}

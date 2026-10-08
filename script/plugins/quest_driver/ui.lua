@@ -287,6 +287,56 @@ function QD.ui.drag(sym, sub, to)
         .. " %d,%d", where, grab_x, grab_y, end_x, end_y, wanted, landed_x, landed_y)
 end
 
+-- ui.style(name) -> result, detail, slot
+-- Pick a combat style BY NAME ("Reap", "Rapid", "Chop", "Accurate", ...),
+-- never by slot. The combat tab's four buttons show the WORN WEAPON's style
+-- names in their text children (combat_interface:<n>_text, filled by the
+-- interface's clientscript from the weapon's combat_style_table), so which
+-- slot carries "Reap" is read from the screen, not assumed. (Raid seam54:
+-- every harness pressed slot 1 for every seat, so the scythe seats swung Chop,
+-- which the scythe table makes stab -- 13 percent fewer hits on the Maiden.)
+-- Opens the combat tab, reads the four names, presses the matching slot and
+-- checks varp43_com_mode reads it. Results: ok; no_style (the name is on none
+-- of the four buttons: `detail` lists what they show); not_set (the press did
+-- not change varp43); and the tab's own failures.
+function QD.ui.style(name)
+    local want = string.lower(tostring(name))
+    local tab_result, tab_detail = QD.ui.tab("combat")
+    if tab_result ~= "ok" then
+        return tab_result, "ui.style: combat tab: " .. tostring(tab_detail)
+    end
+    QD.ticks(1)
+    local shown = {}
+    local slot = nil
+    for n = 0, 3 do
+        local text_result, text = QD.ui.text("combat_interface:" .. n .. "_text")
+        local label = (text_result == "ok") and text or ("(" .. tostring(text_result) .. ")")
+        shown[#shown + 1] = n .. "=" .. label
+        if text_result == "ok" and slot == nil and string.lower(text) == want then
+            slot = n
+        end
+    end
+    local listing = table.concat(shown, " ")
+    if slot == nil then
+        return "no_style", "ui.style: no button shows '" .. tostring(name) .. "': " .. listing
+    end
+    local widget_result, widget = QD.ui.widget("combat_interface:style_slot_" .. slot)
+    if widget_result ~= "ok" then
+        return widget_result, "ui.style: combat_interface:style_slot_" .. slot .. " " .. tostring(widget)
+    end
+    local press_result, press_detail = QD.ui.invoke(widget, 1)
+    if press_result ~= "ok" then
+        return press_result, "ui.style: press slot " .. slot .. ": " .. tostring(press_detail)
+    end
+    QD.ticks(2)
+    local read_result, read = QD.var.varp("varp43_com_mode")
+    if read_result ~= "ok" or read ~= slot then
+        return "not_set", "ui.style: pressed slot " .. slot .. " ('" .. tostring(name)
+            .. "') but varp43_com_mode reads " .. tostring(read) .. " (" .. tostring(read_result) .. "); " .. listing
+    end
+    return "ok", "style '" .. tostring(name) .. "' is slot " .. slot .. " (" .. listing .. ")", slot
+end
+
 -- "the numbering the ini already documents" (plan 5.8): no name -> tab
 -- number table (porcelain_frames.c's own PORCELAIN_TAB_NAME is a different
 -- plugin layer's table, not this one). api_drive.tab_by_name resolves a name

@@ -1,0 +1,94 @@
+{{Infobox Item
+|name = Avernic treads
+|image = [[File:Avernic treads.png]]
+|release = [[23 July]] [[2025]]
+|update = Varlamore: The Final Dawn Out Now
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = Yes
+|stackable = No
+|noteable = 
+|options = Wear, Drop
+|examine = A finely crafted pair of boots.
+|value = 192000
+|weight = 1.814
+|exchange = Yes
+|id = 31088
+|leagueRegion = Varlamore
+}}
+[[File:Avernic treads detail.png|left|120px]]
+'''Avernic treads''' are boots that require level 80 in [[Defence]], [[Strength]], [[Ranged]], and [[Magic]] to wear. They are dropped in their base form by the [[Doom of Mokhaiotl]], and can be upgraded into stronger variants.
+
+In their base form, the treads already surpass each of the [[Primordial boots|primordial]], [[Eternal boots|eternal]], and [[pegasian boots]] in accuracy and most defensive bonuses as well as providing a ranged strength bonus. However, they have slightly less strength bonus than the primordial boots and no [[prayer]] bonus compared to [[aranea boots]].
+
+The treads can be upgraded by adding a pair of primordial, eternal, and pegasian boots onto them. Each pair is added separately, and 4,000 [[demon tear]]s are required per pair, for a total of 12,000 demon tears.
+
+==Combat stats==
+{{Infobox Bonuses
+|astab = +5
+|aslash = +5
+|acrush = +5
+|amagic = +11
+|arange = +15
+|dstab = +21
+|dslash = +25
+|dcrush = +25
+|dmagic = +10
+|drange = +10
+|str = +4
+|rstr = +2
+|mdmg = 1
+|prayer = 0
+|slot = feet
+|image = [[File:Avernic treads equipped male.png|190px]]
+|altimage = [[File:Avernic treads equipped female.png|190px]]
+}}
+
+==Upgrades==
+The avernic treads can be upgraded by using a pair of [[Primordial boots|primordial]], [[Eternal boots|eternal]], and [[pegasian boots]] on it. These boots may be added in any order, and it's entirely possible to only add one or two pair of boots to these treads.
+
+Players must have 80 [[Magic]] and 60 [[Runecraft]] to add any upgrade, in addition to 4,000 [[demon tear]]s per pair of boots (12,000 demon tears in total). As soon as at least one upgrade has been added, the treads become ''untradeable''. This process is reversible, returning the base avernic treads and all pairs of boots used on it - however, any spent demon tears will be lost.
+
+Upgrading the treads only affects the bonuses of the associated combat style, e.g. adding [[primordial boots]] will increase the treads' melee strength bonus:
+
+* {{plink|Primordial boots}}: +2 melee strength
+* {{plink|Pegasian boots}}: +1 ranged strength
+* {{plink|Eternal boots}}: +1% magic damage
+
+Once fully upgraded, the boots become [[avernic treads (max)]]. In addition to the cost of the avernic treads themselves, the [[Grand Exchange]] cost of fully upgrading the treads is {{NoCoins|{{GEP|Demon tear|12000}} + {{GEP|Primordial boots}} + {{GEP|Eternal boots}} + {{GEP|Pegasian boots}}|c}}, giving a total cost of {{NoCoins|{{GEP|Demon tear|12000}} + {{GEP|Primordial boots}} + {{GEP|Eternal boots}} + {{GEP|Pegasian boots}} + {{GEP|Avernic treads}}|c}}.
+
+{{Avernic treads table}}
+
+If the boots are lost on [[PvP]] death, the base avernic treads and any applied boots will be dropped for the killer and all used tears will be lost.
+
+Any upgraded version of the avernic treads may be used as a replacement for the [[dragon boots]] in the elite [[STASH]] hole near the [[Fountain of Heroes]] inside the [[Heroes' Guild]]. The base treads cannot be stored there.
+
+==Item sources==
+{{Drop sources|Avernic treads}}
+
+==Products==
+{{Uses material list|Avernic treads}}
+
+==Used in recommended equipment==
+{{Used in recommended equipment|Avernic treads (max)}}
+
+==Development==
+The treads were originally required to have all three boot sets (primordial, pegasian, and eternal), which would be combined with an [[avernic catalyst]]. The boots would have had three different recolour options.{{CiteNews|url=https://secure.runescape.com/m=news/varlamore-the-final-dawn-quest-delve-boss--slayer-dungeon-rewards?oldschool=1|title=Varlamore: The Final Dawn Quest, Delve Boss & Slayer Dungeon Rewards|newsdate=9 January 2025|quote=The Avernic Catalyst is a consumable item that can be used together with the Primordial, Pegasian ''and'' Eternal boots (you'll need all three) to create the Avernic Treads. This conversion is irreversible but would include three recolours to make sure your new shoes fit your FashionScape.}} Player concerns quickly arose about the requirement of pegasian boots, as [[ranger boots]] were much harder to acquire compared to [[dragon boots]] and [[infinity boots]], respectively. The new requirements were revealed on [[11 March]] [[2025]], accounting for player feedback about the treads. Due to the new requirements allowing players to add one boot at a time, the three different recolours were scrapped due to it complicating the work that would have to be done, and was replaced with all upgraded versions of the boots appearing identical to one another.{{CiteNews|url=https://secure.runescape.com/m=news/new-delve-boss-rewards---varlamore-the-final-dawn?oldschool=1|title=New Delve Boss Rewards - Varlamore: The Final Dawn|newsdate=11 March 2025|quote=While we wanted to offer three different aesthetic options for these boots, the new design proposal complicates the work required to do that, so we will be proceeding with just one, still very stylish, option:}}
+
+==Gallery==
+<gallery mode="packed" heights="200" style="text-align:left">
+Eye of Ayak, Avernic treads, Confliction gauntlets concept art.png|Concept art of rewards from the Doom of Mokhaiotl, by [[Mod Jerv]].
+</gallery>
+
+==Trivia==
+* The word "Avernic" refers to a specific race of [[demons]] which consists of the more standard demons such as [[lesser demon]]s, [[greater demon]]s, and [[black demon]]s. The other piece of equipment with Avernic in the name, the [[Avernic defender hilt]] (used to make the [[Avernic defender]]), was created by Avernic demon smiths in their homeworld of [[Infernus]].
+** Based on the treads appearing to have wings and spikes like most Avernic demons do, it is possible that the treads were crafted from the body of a demon, rather than being created by one like the Avernic defender hilt.
+
+==References==
+{{Reflist}}
+
+{{Doom of Mokhaiotl}}
+{{Boots}}
+[[Category:Hybrid armour]]
+[[Category:Collection log items]]

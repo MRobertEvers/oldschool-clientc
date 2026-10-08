@@ -2956,11 +2956,17 @@ npc_apply_band(
 {
     struct RSCache_BandRecord record;
     int patrol = RSCache_BandIndex(&g_npc_fields, "patrol");
+    int forcemulti = RSCache_BandIndex(&g_npc_fields, "forcemulti");
     int ok = band_decode_whole("npc", &g_npc_fields, &record, def, band, size, id);
 
     if( ok )
     {
         npc_record_band_params(def, &record, where);
+        /* Mirrored into the script-visible `forcemulti` param (combat.param) so
+         * content's splash tests (`~npc_combat_multiway`) ask the same three legs
+         * as ToriRSServer_CombatMultiway; undeclared, this records nothing. */
+        if( forcemulti >= 0 && RSCache_PresenceHas(&record.present, forcemulti) )
+            record_authored_param(def, "forcemulti", def->forcemulti, where);
         if( patrol >= 0 && RSCache_PresenceHas(&record.present, patrol) && record.lists[patrol] &&
             record.lists[patrol]->count > TORIRSSERVER_NPC_PATROL_MAX )
             CONTENT_ERROR("%s: a patrol of %d waypoints; the route holds %d\n", where,

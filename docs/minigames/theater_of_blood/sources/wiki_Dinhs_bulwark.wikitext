@@ -1,0 +1,146 @@
+{{Infobox Item
+|name = Dinh's bulwark
+|image = [[File:Dinh's bulwark.png]]
+|release = [[5 January]] [[2017]]
+|update = Chambers of Xeric
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = Yes
+|stackable = No
+|noteable = Yes
+|options = Wear, Drop
+|examine = Is it... looking at me?
+|value = 560000
+|weight = 30.000
+|exchange = Yes
+|id = 21015
+|leagueRegion = Kourend
+}}
+[[File:Dinh's bulwark detail.png|left|180px]]
+'''Dinh's bulwark''' is a two-handed shield created by [[Dinh]], a [[Lovakengj]] smith of unparalleled skill. It requires 75 [[Attack]] and [[Defence]] to wield and is obtained as a rare reward from the [[Chambers of Xeric]].
+
+As the strongest shield in-game (barring any [[passive effect]]s), it is often equipped alongside magically defensive armour (such as [[black dragonhide armour]]) while doing non-combat activities in the [[Wilderness]] to defend against [[player killing]] and/or dangerous monsters. As a two-handed shield, the bulwark is also capable of attacking opponents. In order to attack with the bulwark, it must be set to the pummel option. This also allows it to perform its special attack.
+
+Players wielding the bulwark will not be able to cast any combat spells; players attempting to do so will receive the message "''Your bulwark gets in the way''". When in defensive mode, the [[dwarf multicannon]] will not fire, but it will still rotate, with a filterable message stating "''Your bulwark shuns your cowardliness; stopping your cannon from firing.''"
+
+==Combat stats==
+{{Infobox Bonuses
+|astab = 0
+|aslash = 0
+|acrush = +124
+|amagic = 0
+|arange = 0
+|dstab = +106
+|dslash = +109
+|dcrush = +109
+|dmagic = -10
+|drange = +148
+|str = +38
+|rstr = 0
+|mdmg = 0
+|prayer = 0
+|slot = 2h
+|speed = 5
+|attackrange = 1
+|combatstyle = Bulwark
+|image = [[File:Dinh's bulwark equipped.png|180px]]
+|altimage = [[File:Dinh's bulwark equipped female.png|180px]]
+}}
+
+{{CombatStyles|Bulwark|speed=5|attackrange=1}}
+
+==Passive effects==
+[[File:Equipping Dinh's bulwark.gif|thumb|170px|The animation upon equipping the bulwark.]]
+Dinh's bulwark has two different [[passive effect]]s depending on the combat style chosen: A strength bonus buff when in the Pummel style, and a damage reducing effect when in the Block style.
+
+===Strength buff===
+While the Pummel attack style is chosen, the player's strength bonus is increased based on the player's average defence bonus.
+
+<math>\text{Extra Strength Bonus} = \max\left(0, \frac{\text{Stab Defence + Slash Defence + Crush Defence + Ranged Defence} - 800}{12} - 38\right)
+</math>
+
+While average defence is under 314, the bulwark does not provide an additional strength bonus outside of its base stats and there is no penalty for equipping the bulwark.
+
+This unique strength buff means equipment usually considered to be best-in-slot for strength bonus, such as [[Primordial boots]] and [[Ferocious gloves]], actually give less ''extra'' strength bonus than [[Guardian Boots]] or [[Barrows gloves]].
+
+===Damage reduction===
+While the 'Block' attack style is chosen, players lose the ability to attack, but incoming damage is reduced by 20% (except in PvP). There is an 8-tick (4.8 seconds) delay before the damage reduction applies after switching to the bulwark, to prevent players from equipping it on a defence tick and switching back to a more damaging weapon for the attack tick. Changing attack style from 'Block' attack style to the 'Pummel' attack style, will cause a 8-tick (4.8 seconds) delay when trying to attack. This delay persists even when switching to another weapon.
+
+==Special attack==
+[[File:Shield Bash.gif|thumb|270px|A player performs the special attack of Dinh's bulwark, ''Shield Bash''.]]
+Dinh's bulwark has a [[special attack]], ''Shield Bash'', which hits up to 10 enemies (in both PvM and PvP) in a 11×11 area around the player (thus up to five tiles away from the player) with 20% increased accuracy, consuming 50% of the player's special attack energy.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/825032666785468417|date=27 January 2017|archiveurl=https://reldo.runescape.wiki/i/105032|archivedate=24 April 2023|quote=Does it make a difference to you that it's already a *radius* of 5 tiles? i.e. 5 from you in each direction = 11x11.}} The targeted monster gets hit twice by the attack, while all other monsters get hit once. These effects only occur in multicombat areas. The accuracy roll for ''Shield Bash'' is made against an opponent's crush defence.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1440644852098625549|date=22 September 2021|archiveurl=https://reldo.runescape.wiki/i/100242|archivedate=29 December 2022|quote=It does roll against the opponent's crush defence, yes, and it'd use attack based on your stance (i.e. crush).}}
+
+In addition, all monsters hit by the special attack will have their highest offensive stats reduced by 5% on a successful hit. This drain does not apply to the doubled hit on the primary target. If all stats are equal, it will drain both Attack and Strength, then Ranged, then Magic.
+
+This special attack is useful for players in a [[multicombat area]] to attack multiple monsters simultaneously to get their attention, such as for [[dust devil]]s and [[greater nechryael]] in the [[Catacombs of Kourend]]; as the special attack is considered a melee attack against all affected monsters, it can be useful to use in tandem with the [[serpentine helm]] due to its passive chance to inflict venom on hit.
+
+==Ornament kit==
+Dinh's bulwark can be cosmetically enhanced via the [[Trailblazer reloaded bulwark ornament kit]] to convert it to [[Dinh's blazing bulwark]], resembling the [[Ancestral Glyph]] within the [[Inferno]]. The kit can be applied and removed at any time, returning both items.
+
+==Products==
+{{Uses material list|Dinh's bulwark}}
+
+==Item sources==
+{{Drop sources|Dinh's bulwark}}
+
+==Used in recommended equipment==
+{{Used in recommended equipment|Dinh's bulwark}}
+
+==Transcript==
+{{Hastranscript|item}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 1 December 2021
+|update = PJ Timer Beta & Chat Changes
+|poll = 
+|change = The special attack no longer drains the main target's stats twice per attack due to the double-hit, which occurred due to a bug.
+}}
+{{Subject changes
+|date = 22 September 2021
+|update = Wilderness & Equipment Rebalance Changes
+|poll =
+|change = Dinh's bulwark has received the following changes:
+* A passive effect has been added to Dinh's bulwark when in the Pummel combat style.
+* Attack speed increased from 7 (4.2 seconds) to 5 (3.0 seconds).
+* Crush Attack bonus increased from +110 to +124.
+* Stab Defence bonus decreased from +141 to +106.
+* Slash Defence bonus decreased from +145 to +109.
+* Crush Defence bonus decreased from +145 to +109.
+* Magic Defence bonus decreased from +0 to -10.
+}}
+{{Subject changes
+|date = 5 September 2019
+|update = PvP Balancing, LMS, and Elf Graphics
+|change = The Dinh's bulwark Magic defence bonus was reduced from +18 to 0.
+}}
+{{Subject changes
+|date = 15 February 2018
+|update = Farming Timer Rework & Skilling QoL
+|change = Dinh's Bulwark now applies its damage reduction effect only if wielded in the Defensive stance, as originally specified in the blogs.
+}}
+{{Subject changes footer}}
+
+==Gallery==
+<gallery mode="packed" heights="180" style="text-align:left">
+Dinh's bulwark model shapes.jpg|Proposal of shapes for the bulwark. Option C was chosen via [[Mod West]]'s Twitter.
+Dinh's bulwark model designs.jpg|Proposal of designs for the bulwark. Option B was chosen.
+</gallery>
+
+==Trivia==
+* Dinh's bulwark is mentioned in the short story [[Transcript:Lab Notes|Lab Notes]] from the [[Kourend Chronicles]], in which [[Xamphur|the writer]] remarks that the bulwark was likely intended as a prototype of the [[Doors of Dinh]], but that the bulwark lacked something that allowed the Doors to properly seal away the [[Wintertodt]].{{CiteText|text=Transcript:Lab Notes{{!}}Lab Notes|quote=Before I sign off, there’s also the other matter you asked me to look into. I can confirm that the Bulwark of legend was among the artefacts abandoned in the tower – and if the rest of our contact’s information is solid, then I will also concede that it does indeed share some similarities with the Doors of Dinh. It’s my hypothesis that the Bulwark was intended as some kind of early prototype – but it’s missing some key factor that made the Doors fit for purpose, an issue I discovered quite by chance after freezing an assistant during testing.}}
+* The special attack of Dinh's bulwark can be used to damage [[aviansie]]—which cannot be targeted by [[melee]] attacks directly—if used on a nearby ground NPC.
+* Despite the special attack description stating that it can hit surrounding enemies in a 10 × 10 area, the actual range is 11 × 11. 
+* The shield's animation will play when the wielder fails to block an incoming attack. This can alert the wielder to heal as it occurs prior to the hit landing.
+* The design on the front of the shield is made to look like an eye, alongside an eye-blinking animation.
+
+==References==
+{{Reflist}}
+
+{{Chambers of Xeric}}
+[[Category:Weapons with Special attacks]]
+[[Category:Items subject to Grand Exchange item sink]]
+[[Category:Collection log items]]
+[[Category:Walk animation modifiers]]

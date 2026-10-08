@@ -1,0 +1,1180 @@
+/*
+ * The bot runner: a party of sessionless players driven by an agent process,
+ * on the real server, at CPU speed.
+ *
+ * WHY THIS EXISTS
+ * ---------------
+ * The owner, 2026-10-07: "we just need to iterate faster ... the real
+ * automation runner doesn't need to click, it should just send commands."
+ * A raid test was three full clients in lockstep at about real speed: a
+ * Verzik fight is ~1,100 ticks, ten minutes a name, and a tactic took a
+ * survey of three names to judge. Nothing in that loop needs a client. The
+ * fight is the server's scripts; the player is a stream of packets.
+ *
+ * So here the players have no session and no client. Each tick the agent is
+ * handed what the tick did -- the server's own ticklog rows, the same rows the
+ * quest driver reads from the embedded server -- plus each bot's inventory and
+ * gear, and answers with commands. A command becomes the packet a client would
+ * have sent and goes through ToriRSServer_WorldHandle, the one door every
+ * client packet takes, so content cannot tell a bot from a player: the scene
+ * barrier, the action lock, the stun, the op triggers all apply.
+ *
+ * THE PROTOCOL (text, tab separated, one line per record)
+ * -------------------------------------------------------
+ * runner -> agent, once per tick, after the world ticked:
+ *     tick <n>
+ *     row <serial> <tick> <kind> <a> <b> <c> <d> <e> <f> <label> <g>
+ *                                     (ticklog.tsv's columns, every new row)
+ *     npcsize <slot> <size>           (after each npc_spawn / npc_retype row)
+ *     msg <pid> <text>                (every game message to a bot)
+ *     self <pid> <x> <z> <level> <inv slot:obj:count,...> <worn slot:obj,...>
+ *          <mainmodal group> <chatmodal group>    (0: none)
+ *     end
+ * agent -> runner, before the next tick:
+ *     <pid> walk <x> <z> [ctrl]       (ctrl 1: the ctrl-click that turns run on)
+ *     <pid> opnpc <op> <world npc slot>
+ *     <pid> opheld <op> <obj> <inv slot>
+ *     <pid> opobj <op> <x> <z> <obj>   (a ground item: op 3 is Take)
+ *     <pid> button <component uid>
+ *     <pid> resume <component uid>
+ *     <pid> cheat <text without ::>
+ *     <pid> collision <x0> <z0> <w> <h>   a query, not a packet: the next tick's
+ *                                      stream carries "coll <x0> <z0> <w> <h>
+ *                                      <w*h of 0/1, z-major>" (1: walk-blocked,
+ *                                      the scene's static collision) -- the floor
+ *                                      as the server walks it, not as a policy
+ *                                      guessed it (a Verzik pool landed at x 44
+ *                                      of a floor the policy had ending at 41)
+ *     <pid> say <text>                THE PARTY CHANNEL: a raid team talks, and
+ *                                      what one bot plans is what the others need
+ *                                      (the ball's pair). Delivered to every
+ *                                      OTHER bot on the next tick's stream as
+ *                                      "party <pid> <text>" -- a tick of latency,
+ *                                      as a callout has
+ *     <pid> close                     (the client's CLOSE_MODAL: a modal left open
+ *                                      blocks every normal queue -- the Verzik
+ *                                      P1 bolt lands through one)
+ *     done                            (or `quit` to stop the run)
+ * A command answered after tick n is handled on tick n + 1, the tick a click
+ * made while watching tick n reaches the server.
+ *
+ * USAGE
+ *   torirsserver --botrun --bots 3 --agent "lua tools/raid_agent/run.lua" \
+ *       [--name <run name>] [--bot-prefix <p>] [--ticks N] [--ticklog path] [--realtime]
+ *       [--snapshot <tick> <dir>]
+ * --snapshot writes every bot's save (the server's own player save, the
+ * fixture format) into <dir>/<bot name>.ini on that tick and ends the run: how
+ * a script's LOADOUT is made from whatever set it up, then kept as a file and
+ * loaded at login from then on (owner: "a setup state for each script").
+ * --name seeds the npc stream as TORIRSSERVER_RUN_NAME does for a quest run
+ * and names the bots <name>1..N. --realtime paces ticks at 600 ms so a client
+ * logged in beside them can watch.
+ *
+ * ONE AGENT PER BOT, SEEING WHAT ITS CLIENT SEES (the default; --shared is
+ * the old one-process, every-row mode).  The owner, 2026-10-07: "Why didn't
+ * you design the server side client to act as if it was a client - seeing
+ * things after the server sent them out."  A policy that reads facts a client
+ * never gets -- a teammate's exact hitpoints, prayer, special energy, an npc
+ * the client is not tracking, another bot's plan through shared memory --
+ * passes here and fails in the client.  So each bot gets its own process
+ * (RAID_AGENT_PID in its environment) and its own stream: its own raider row,
+ * self line, messages and collision answers; a teammate's raider row with only
+ * what the client draws (tile through player_tile, weapon, overhead); npc rows
+ * only for npcs the server's npc-info encoder has this bot's client tracking
+ * (ToriRSServer_SlotMapClient), an npc entering that set arriving as a spawn
+ * row and leaving it as a free.  A command naming another bot is refused.
+ *
+ * REPLAY.  The world is seeded by the run name and the bots' only input is
+ * the agent's lines, so a run is those lines.  --record <file> writes each
+ * one as "<tick>\t<line>"; --replay <file> feeds them back on their ticks
+ * with no agent at all.  Same --name, same --bots, same tree: the same run,
+ * which a ticklog diff against the original proves (any difference is a
+ * nondeterminism to find, not noise).  Seeking is re-running: ~2 ms a tick.
+ */
+
+#include "torirs_server.h"
+#include "torirs_server_boot.h"
+#include "torirs_server_save.h"
+#include "net/rev/pktnames.h"
+
+#include <assert.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+/* An agent is a child process on pipes: native POSIX hosts only, as the party
+ * link is (torirs_server_embed.c). Elsewhere the drive answers NULL. */
+#if !defined(_WIN32) && !defined(__EMSCRIPTEN__) && !defined(TORIRS_PLATFORM_WEB)
+#include <errno.h>
+#include <fcntl.h>
+#include <signal.h>
+#include <sys/wait.h>
+#include <time.h>
+#include <unistd.h>
+
+#define BOTRUN_MAX 8
+#define BOTRUN_ROWS 512
+#define BOTRUN_LINE 1024
+/* The world's tick, as torirs_server_host.c paces it. */
+#define BOTRUN_TICK_MS 600
+
+struct BotRun
+{
+    struct ToriRSServer* srv;
+    int count;
+    struct ToriRSServerPlayer* bots[BOTRUN_MAX];
+    /* one agent per bot (agents == count), or one for all (--shared) */
+    FILE* to_agent[BOTRUN_MAX];
+    FILE* from_agent[BOTRUN_MAX];
+    pid_t agent_pid[BOTRUN_MAX];
+    int agents;
+    int shared;
+    /* the bot the agent being read may command, or -1 for any (--shared) */
+    int allowed_pid;
+    /* per bot: the npc type its client is tracking in each slot, plus one (0:
+     * not tracking) */
+    unsigned short* known;
+    uint32_t cursor;
+    /* The tick's file-only rows (raider, input, consume), from the side sink. */
+    struct ToriRSServerTicklogRow* side;
+    int side_count;
+    int side_capacity;
+    /* The tick's game messages to bots, as "msg\t<pid>\t<text>\n" lines. */
+    char* msgs;
+    size_t msgs_len;
+    size_t msgs_capacity;
+    /* party lines said this tick ("party\t<pid>\t<text>\n"), and the ones
+     * being delivered on this tick's stream */
+    char* said;
+    size_t said_len, said_capacity;
+    char* heard;
+    size_t heard_len, heard_capacity;
+    int commands;
+    int refused;
+    /* collision queries answered on the next tick's stream */
+    struct
+    {
+        int level, x0, z0, w, h, pid;
+    } queries[8];
+    int query_count;
+    FILE* record;
+    FILE* replay;
+    /* The replay's next line, read ahead: its tick says when it is due. */
+    char replay_line[BOTRUN_LINE];
+    int replay_tick;
+};
+
+static int
+botrun_spawn(
+    struct BotRun* run,
+    const char* command,
+    int k,
+    int bot_pid)
+{
+    int down[2];
+    int up[2];
+
+    assert(run);
+    assert(command);
+    if( pipe(down) != 0 || pipe(up) != 0 )
+    {
+        perror("botrun: pipe");
+        return -1;
+    }
+    /* The runner's ends must not leak into the NEXT agent's fork: an agent
+     * holding another's stdin open keeps that one from ever reading EOF, and
+     * the runner's waitpid at the end hangs on it. */
+    fcntl(down[1], F_SETFD, FD_CLOEXEC);
+    fcntl(up[0], F_SETFD, FD_CLOEXEC);
+    run->agent_pid[k] = fork();
+    if( run->agent_pid[k] < 0 )
+    {
+        perror("botrun: fork");
+        return -1;
+    }
+    if( run->agent_pid[k] == 0 )
+    {
+        char pid_text[16];
+
+        snprintf(pid_text, sizeof(pid_text), "%d", bot_pid);
+        if( bot_pid >= 0 )
+            setenv("RAID_AGENT_PID", pid_text, 1);
+        dup2(down[0], 0);
+        dup2(up[1], 1);
+        close(down[1]);
+        close(up[0]);
+        execl("/bin/sh", "sh", "-c", command, (char*)NULL);
+        _exit(127);
+    }
+    close(down[0]);
+    close(up[1]);
+    run->to_agent[k] = fdopen(down[1], "w");
+    run->from_agent[k] = fdopen(up[0], "r");
+    assert(run->to_agent[k]);
+    assert(run->from_agent[k]);
+    return 0;
+}
+
+static void
+put2(uint8_t* out, int v)
+{
+    out[0] = (uint8_t)((v >> 8) & 0xff);
+    out[1] = (uint8_t)(v & 0xff);
+}
+
+static void
+put4(uint8_t* out, int v)
+{
+    out[0] = (uint8_t)((v >> 24) & 0xff);
+    out[1] = (uint8_t)((v >> 16) & 0xff);
+    out[2] = (uint8_t)((v >> 8) & 0xff);
+    out[3] = (uint8_t)(v & 0xff);
+}
+
+/* A bot has no client to answer the scene barrier, so it answers at once: the
+ * world it would load is the world it is already in. Without this every
+ * packet after a login or a rebuild is dropped behind the barrier. */
+static void
+botrun_scene_ack(struct ToriRSServerPlayer* player)
+{
+    assert(player);
+    /* a real client (the embedded drive's players) answers for itself */
+    if( player->session )
+        return;
+    if( player->active && (player->login_scene_pending || player->rebuild_scene_pending) )
+        ToriRSServer_WorldHandle(player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
+}
+
+static struct ToriRSServerPlayer*
+botrun_bot(
+    struct BotRun* run,
+    int pid)
+{
+    for( int i = 0; i < run->count; i++ )
+    {
+        if( run->bots[i] && run->bots[i]->pid == pid )
+            return run->bots[i];
+    }
+    return NULL;
+}
+
+/* One agent line -> one packet through the client's door. Returns 1 for
+ * `done`, 2 for `quit`, 0 otherwise. */
+static int
+botrun_command(
+    struct BotRun* run,
+    char* line)
+{
+    char* fields[8];
+    int n = 0;
+    char* save = NULL;
+    struct ToriRSServerPlayer* player;
+    uint8_t payload[160];
+    const char* verb;
+
+    line[strcspn(line, "\r\n")] = '\0';
+    if( strcmp(line, "done") == 0 )
+        return 1;
+    if( strcmp(line, "quit") == 0 )
+        return 2;
+    if( line[0] == '\0' || line[0] == '#' )
+        return 0;
+    for( char* tok = strtok_r(line, "\t", &save); tok && n < 8; tok = strtok_r(NULL, "\t", &save) )
+        fields[n++] = tok;
+    if( n < 2 )
+    {
+        fprintf(stderr, "botrun: agent line has no verb: %s\n", line);
+        run->refused++;
+        return 0;
+    }
+    player = botrun_bot(run, atoi(fields[0]));
+    verb = fields[1];
+    if( player && run->allowed_pid >= 0 && player->pid != run->allowed_pid )
+    {
+        fprintf(stderr, "botrun: bot %d's agent named bot %s\n", run->allowed_pid, fields[0]);
+        run->refused++;
+        return 0;
+    }
+    if( !player || !player->active )
+    {
+        fprintf(stderr, "botrun: agent named pid %s, not a live bot\n", fields[0]);
+        run->refused++;
+        return 0;
+    }
+    botrun_scene_ack(player);
+    run->commands++;
+    if( strcmp(verb, "walk") == 0 && n >= 4 )
+    {
+        payload[0] = (uint8_t)(n >= 5 ? atoi(fields[4]) : 0);
+        put2(payload + 1, atoi(fields[2]));
+        put2(payload + 3, atoi(fields[3]));
+        ToriRSServer_WorldHandle(player, PKTOUT_NAME_MOVE_GAMECLICK, payload, 5);
+    }
+    else if( strcmp(verb, "opnpc") == 0 && n >= 4 )
+    {
+        int op = atoi(fields[2]);
+        int client_slot = ToriRSServer_SlotMapAcquire(player, atoi(fields[3]));
+
+        if( op < 1 || op > 5 || client_slot < 0 )
+        {
+            run->refused++;
+            return 0;
+        }
+        put2(payload, client_slot);
+        payload[2] = 0;
+        ToriRSServer_WorldHandle(player, PKTOUT_NAME_OPNPC1 + (op - 1), payload, 3);
+    }
+    else if( strcmp(verb, "opheld") == 0 && n >= 5 )
+    {
+        int op = atoi(fields[2]);
+
+        if( op < 1 || op > 5 )
+        {
+            run->refused++;
+            return 0;
+        }
+        put2(payload, atoi(fields[3]));
+        put2(payload + 2, atoi(fields[4]));
+        put4(payload + 4, (149 << 16) | 0);
+        ToriRSServer_WorldHandle(player, PKTOUT_NAME_OPHELD1 + (op - 1), payload, 8);
+    }
+    else if( strcmp(verb, "opobj") == 0 && n >= 6 )
+    {
+        int op = atoi(fields[2]);
+
+        if( op < 1 || op > 5 )
+        {
+            run->refused++;
+            return 0;
+        }
+        put2(payload, atoi(fields[3]));
+        put2(payload + 2, atoi(fields[4]));
+        put2(payload + 4, atoi(fields[5]));
+        payload[6] = 0;
+        ToriRSServer_WorldHandle(player, PKTOUT_NAME_OPOBJ1 + (op - 1), payload, 7);
+    }
+    else if( strcmp(verb, "button") == 0 && n >= 3 )
+    {
+        put4(payload, (int)strtol(fields[2], NULL, 0));
+        ToriRSServer_WorldHandle(player, PKTOUT_NAME_IF_BUTTON, payload, 4);
+    }
+    else if( strcmp(verb, "resume") == 0 && n >= 3 )
+    {
+        put4(payload, (int)strtol(fields[2], NULL, 0));
+        put2(payload + 4, -1);
+        ToriRSServer_WorldHandle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON, payload, 6);
+    }
+    else if( strcmp(verb, "collision") == 0 && n >= 6 )
+    {
+        run->commands--;
+        if( run->query_count < 8 )
+        {
+            run->queries[run->query_count].level = player->level;
+            run->queries[run->query_count].x0 = atoi(fields[2]);
+            run->queries[run->query_count].z0 = atoi(fields[3]);
+            run->queries[run->query_count].w = atoi(fields[4]);
+            run->queries[run->query_count].h = atoi(fields[5]);
+            run->queries[run->query_count].pid = player->pid;
+            run->query_count++;
+        }
+    }
+    else if( strcmp(verb, "say") == 0 && n >= 3 )
+    {
+        char text[300];
+        int len = snprintf(text, sizeof(text), "party\t%d\t%s\n", player->pid, fields[2]);
+
+        run->commands--;
+        if( len > 0 && len < (int)sizeof(text) )
+        {
+            if( run->said_len + (size_t)len > run->said_capacity )
+            {
+                run->said_capacity = (run->said_capacity + (size_t)len) * 2;
+                run->said = realloc(run->said, run->said_capacity);
+                assert(run->said);
+            }
+            memcpy(run->said + run->said_len, text, (size_t)len);
+            run->said_len += (size_t)len;
+        }
+    }
+    else if( strcmp(verb, "close") == 0 )
+    {
+        ToriRSServer_WorldHandle(player, PKTOUT_NAME_CLOSE_MODAL, NULL, 0);
+    }
+    else if( strcmp(verb, "cheat") == 0 && n >= 3 )
+    {
+        int len = snprintf((char*)payload, sizeof(payload), "%s\n", fields[2]);
+
+        if( len >= (int)sizeof(payload) )
+        {
+            run->refused++;
+            return 0;
+        }
+        ToriRSServer_WorldHandle(player, PKTOUT_NAME_CLIENT_CHEAT, payload, len);
+    }
+    else
+    {
+        fprintf(stderr, "botrun: unknown agent command '%s' (%d fields)\n", verb, n);
+        run->refused++;
+        run->commands--;
+    }
+    return 0;
+}
+
+static void
+botrun_side_row(
+    const struct ToriRSServerTicklogRow* row,
+    void* ctx)
+{
+    struct BotRun* run = ctx;
+
+    assert(row);
+    assert(run);
+    if( run->side_count == run->side_capacity )
+    {
+        run->side_capacity = run->side_capacity ? run->side_capacity * 2 : 64;
+        run->side = realloc(run->side, (size_t)run->side_capacity * sizeof(*run->side));
+        assert(run->side);
+    }
+    run->side[run->side_count++] = *row;
+}
+
+static void
+botrun_message(
+    const struct ToriRSServerPlayer* player,
+    const char* text,
+    void* ctx)
+{
+    struct BotRun* run = ctx;
+    char line[320];
+    int n;
+
+    assert(player);
+    assert(text);
+    assert(run);
+    n = snprintf(line, sizeof(line), "msg\t%d\t", player->pid);
+    for( const char* s = text; *s && n < (int)sizeof(line) - 2; s++ )
+        line[n++] = (*s == '\t' || *s == '\n' || *s == '\r') ? ' ' : *s;
+    line[n++] = '\n';
+    if( run->msgs_len + (size_t)n > run->msgs_capacity )
+    {
+        run->msgs_capacity = (run->msgs_capacity + (size_t)n) * 2;
+        run->msgs = realloc(run->msgs, run->msgs_capacity);
+        assert(run->msgs);
+    }
+    memcpy(run->msgs + run->msgs_len, line, (size_t)n);
+    run->msgs_len += (size_t)n;
+}
+
+static void
+botrun_put_row(
+    FILE* out,
+    const struct ToriRSServerTicklogRow* r)
+{
+    fprintf(out, "row\t%u\t%d\t%s\t%d\t%d\t%d\t%d\t%d\t%d\t%s\t%d\n", r->serial, r->tick,
+            ToriRSServer_TicklogKindName(r->kind), r->a, r->b, r->c, r->d, r->e, r->f, r->label,
+            r->g);
+}
+
+/* The npc a row is about, or -1: the slot is field a on every npc kind. */
+static int
+botrun_row_npc(const struct ToriRSServerTicklogRow* r)
+{
+    switch( r->kind )
+    {
+    case TORIRSSERVER_TICKLOG_NPC_ANIM:
+    case TORIRSSERVER_TICKLOG_NPC_SPOTANIM:
+    case TORIRSSERVER_TICKLOG_HIT_NPC:
+    case TORIRSSERVER_TICKLOG_NPC_SPAWN:
+    case TORIRSSERVER_TICKLOG_NPC_DEATH:
+    case TORIRSSERVER_TICKLOG_NPC_FREE:
+    case TORIRSSERVER_TICKLOG_NPC_FACE:
+    case TORIRSSERVER_TICKLOG_NPC_RETYPE:
+    case TORIRSSERVER_TICKLOG_NPC_TILE:
+    case TORIRSSERVER_TICKLOG_NPC_SAY:
+    case TORIRSSERVER_TICKLOG_NPC_HEAL:
+    case TORIRSSERVER_TICKLOG_HUDBAR:
+        return r->a;
+    default:
+        return -1;
+    }
+}
+
+/* The tracking changes of `bot` since the last tick, as the rows its client
+ * would have drawn them from: a spawn (type, tile) and its size for an npc it
+ * now tracks, a free for one it no longer does. */
+static void
+botrun_track(
+    struct BotRun* run,
+    FILE* out,
+    const struct ToriRSServerPlayer* bot,
+    int k)
+{
+    unsigned short* known = run->known + (size_t)k * TORIRSSERVER_NPC_MAX;
+    int top = run->srv->npc_slot_max < TORIRSSERVER_NPC_MAX ? run->srv->npc_slot_max : TORIRSSERVER_NPC_MAX;
+
+    for( int slot = 0; slot < top; slot++ )
+    {
+        const struct ToriRSServerNpc* npc = &run->srv->npcs[slot];
+        int tracked = npc->active && ToriRSServer_SlotMapClient(bot, slot) >= 0;
+        unsigned short now = tracked ? (unsigned short)(npc->type + 1) : 0;
+
+        if( now == known[slot] )
+            continue;
+        if( known[slot] != 0 && now == 0 )
+            fprintf(out, "row\t%u\t%d\tnpc_free\t%d\t%d\t%d\t0\t0\t0\t\t0\n", run->cursor,
+                    (int)run->srv->tick, slot, known[slot] - 1,
+                    ToriRSServer_CoordPack(npc->level, npc->x, npc->z));
+        else if( now != 0 )
+        {
+            fprintf(out, "row\t%u\t%d\tnpc_spawn\t%d\t%d\t%d\t0\t0\t0\t\t0\n", run->cursor,
+                    (int)run->srv->tick, slot, npc->type,
+                    ToriRSServer_CoordPack(npc->level, npc->x, npc->z));
+            fprintf(out, "npcsize\t%d\t%d\n", slot, npc->size);
+        }
+        known[slot] = now;
+    }
+}
+
+/* One raider row as `viewer` may see it: its own whole; a teammate's with only
+ * what the client draws -- the weapon (appearance) and the overhead. */
+static void
+botrun_put_raider(
+    FILE* out,
+    const struct ToriRSServerTicklogRow* r,
+    int viewer)
+{
+    char label[TORIRSSERVER_TICKLOG_LABEL_MAX];
+    const char* head;
+
+    if( viewer < 0 || r->a == viewer )
+    {
+        botrun_put_row(out, r);
+        return;
+    }
+    head = strstr(r->label, "head ");
+    snprintf(label, sizeof(label), "head %d", head ? atoi(head + 5) : 0);
+    fprintf(out, "row\t%u\t%d\traider\t%d\t-1\t-1\t-1\t%d\t-1\t%s\t-1\n", r->serial, r->tick, r->a, r->e,
+            label);
+}
+
+static void
+botrun_send_self(
+    FILE* out,
+    const struct ToriRSServerPlayer* p)
+{
+    fprintf(out, "self\t%d\t%d\t%d\t%d\t", p->pid, p->x, p->z, p->level);
+    for( int s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
+    {
+        if( p->inv[s].obj_id >= 0 && p->inv[s].count > 0 )
+            fprintf(out, "%d:%d:%d,", s, p->inv[s].obj_id, p->inv[s].count);
+    }
+    fputc('\t', out);
+    for( int s = 0; s < TORIRSSERVER_WORN_SLOTS; s++ )
+    {
+        if( p->worn[s].obj_id >= 0 && p->worn[s].count > 0 )
+            fprintf(out, "%d:%d,", s, p->worn[s].obj_id);
+    }
+    fprintf(out, "\t%d\t%d\n", p->mainmodal_group, p->chatmodal_group);
+}
+
+/* The tick for agent `k`: every row (--shared), or what bot k's client sees. */
+static void
+botrun_send_tick(
+    struct BotRun* run,
+    int k,
+    const struct ToriRSServerTicklogRow* rows,
+    int row_count)
+{
+    FILE* out = run->to_agent[k];
+    const struct ToriRSServerPlayer* bot = run->shared ? NULL : run->bots[k];
+    int viewer = bot ? bot->pid : -1;
+    const unsigned short* known = bot ? run->known + (size_t)k * TORIRSSERVER_NPC_MAX : NULL;
+
+    fprintf(out, "tick\t%d\n", (int)run->srv->tick);
+    if( bot )
+        botrun_track(run, out, bot, k);
+    for( int i = 0; i < row_count; i++ )
+    {
+        const struct ToriRSServerTicklogRow* r = &rows[i];
+        int npc = botrun_row_npc(r);
+
+        if( bot && npc >= 0 )
+        {
+            /* spawns and frees are the tracking's to say */
+            if( r->kind == TORIRSSERVER_TICKLOG_NPC_SPAWN || r->kind == TORIRSSERVER_TICKLOG_NPC_FREE )
+                continue;
+            if( npc >= TORIRSSERVER_NPC_MAX || known[npc] == 0 )
+                continue;
+        }
+        botrun_put_row(out, r);
+        /* A spawn or a retype says what the npc is, never how big: an npc
+         * that never walks has no NPC_TILE row to carry its size. */
+        if( (r->kind == TORIRSSERVER_TICKLOG_NPC_SPAWN || r->kind == TORIRSSERVER_TICKLOG_NPC_RETYPE) &&
+            r->a >= 0 && r->a < TORIRSSERVER_NPC_MAX )
+            fprintf(out, "npcsize\t%d\t%d\n", r->a, run->srv->npcs[r->a].size);
+    }
+    for( int q = 0; q < run->query_count; q++ )
+    {
+        int w = run->queries[q].w;
+        int h = run->queries[q].h;
+
+        if( w < 1 || h < 1 || w > 128 || h > 128 || (viewer >= 0 && run->queries[q].pid != viewer) )
+            continue;
+        fprintf(out, "coll\t%d\t%d\t%d\t%d\t", run->queries[q].x0, run->queries[q].z0, w, h);
+        for( int dz = 0; dz < h; dz++ )
+        {
+            for( int dx = 0; dx < w; dx++ )
+                fputc(ToriRSServer_SceneWalkBlocked(run->queries[q].level, run->queries[q].x0 + dx,
+                                                    run->queries[q].z0 + dz)
+                          ? '1'
+                          : '0',
+                      out);
+        }
+        fputc('\n', out);
+    }
+    for( int i = 0; i < run->side_count; i++ )
+    {
+        const struct ToriRSServerTicklogRow* r = &run->side[i];
+
+        if( r->kind == TORIRSSERVER_TICKLOG_RAIDER )
+            botrun_put_raider(out, r, viewer);
+        else if( r->kind == TORIRSSERVER_TICKLOG_HUDBAR )
+        {
+            /* the boss's health bar: drawn for any npc the client tracks */
+            if( viewer < 0 || (r->a >= 0 && r->a < TORIRSSERVER_NPC_MAX && known[r->a] != 0) )
+                botrun_put_row(out, r);
+        }
+        else if( viewer < 0 || r->a == viewer )
+            botrun_put_row(out, r);
+    }
+    /* the party lines said last tick, to everyone but the speaker */
+    for( size_t at = 0; at < run->heard_len; )
+    {
+        const char* line = run->heard + at;
+        const char* nl = memchr(line, '\n', run->heard_len - at);
+        size_t len = nl ? (size_t)(nl - line) + 1 : run->heard_len - at;
+
+        if( viewer < 0 || atoi(line + 6) != viewer )
+            fwrite(line, 1, len, out);
+        at += len;
+    }
+    /* messages: "msg\t<pid>\t..." lines, each only to its own bot */
+    for( size_t at = 0; at < run->msgs_len; )
+    {
+        const char* line = run->msgs + at;
+        const char* nl = memchr(line, '\n', run->msgs_len - at);
+        size_t len = nl ? (size_t)(nl - line) + 1 : run->msgs_len - at;
+
+        if( viewer < 0 || atoi(line + 4) == viewer )
+            fwrite(line, 1, len, out);
+        at += len;
+    }
+    for( int i = 0; i < run->count; i++ )
+    {
+        const struct ToriRSServerPlayer* p = run->bots[i];
+
+        if( p && p->active && (viewer < 0 || p->pid == viewer) )
+            botrun_send_self(out, p);
+    }
+    fputs("end\n", out);
+    fflush(out);
+}
+
+/* A replay tick: every recorded line for `tick`, then `done` (or `quit`).
+ * Returns what botrun_command returned for the last line. */
+static int
+botrun_replay_tick(
+    struct BotRun* run,
+    int tick)
+{
+    for( ;; )
+    {
+        char* tab;
+
+        if( run->replay_line[0] == '\0' )
+        {
+            if( !fgets(run->replay_line, sizeof(run->replay_line), run->replay) )
+                return 2;
+            run->replay_tick = atoi(run->replay_line);
+        }
+        if( run->replay_tick > tick )
+            return 1;
+        tab = strchr(run->replay_line, '\t');
+        if( tab && run->replay_tick == tick )
+        {
+            char line[BOTRUN_LINE];
+            int verdict;
+
+            snprintf(line, sizeof(line), "%s", tab + 1);
+            run->replay_line[0] = '\0';
+            verdict = botrun_command(run, line);
+            if( verdict != 0 )
+                return verdict;
+            continue;
+        }
+        run->replay_line[0] = '\0';
+    }
+}
+
+static int64_t
+botrun_now_ms(void)
+{
+    struct timespec ts;
+
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+}
+
+int
+ToriRSServer_BotRun(
+    struct ToriRSServer* srv,
+    const struct ToriRSServerBootConfig* config,
+    int argc,
+    char** argv)
+{
+    struct BotRun run;
+    const char* agent = NULL;
+
+    memset(&run, 0, sizeof(run));
+    const char* name = "bot";
+    const char* prefix = NULL;
+    const char* ticklog = NULL;
+    const char* record = NULL;
+    const char* replay = NULL;
+    int snapshot_tick = -1;
+    const char* snapshot_dir = NULL;
+    int bots = 1;
+    int ticks_max = 3000;
+    int realtime = 0;
+    int status = 0;
+    int64_t next = 0;
+    char line[BOTRUN_LINE];
+    struct ToriRSServerTicklogRow* rows = NULL;
+    int row_count = 0;
+    int row_capacity = 0;
+
+    assert(srv);
+    assert(config);
+    for( int i = 1; i < argc; i++ )
+    {
+        if( strcmp(argv[i], "--bots") == 0 && i + 1 < argc )
+            bots = atoi(argv[++i]);
+        else if( strcmp(argv[i], "--agent") == 0 && i + 1 < argc )
+            agent = argv[++i];
+        else if( strcmp(argv[i], "--name") == 0 && i + 1 < argc )
+            name = argv[++i];
+        else if( strcmp(argv[i], "--bot-prefix") == 0 && i + 1 < argc )
+            prefix = argv[++i];
+        else if( strcmp(argv[i], "--ticks") == 0 && i + 1 < argc )
+            ticks_max = atoi(argv[++i]);
+        else if( strcmp(argv[i], "--ticklog") == 0 && i + 1 < argc )
+            ticklog = argv[++i];
+        else if( strcmp(argv[i], "--realtime") == 0 )
+            realtime = 1;
+        else if( strcmp(argv[i], "--shared") == 0 )
+            run.shared = 1;
+        else if( strcmp(argv[i], "--snapshot") == 0 && i + 2 < argc )
+        {
+            snapshot_tick = atoi(argv[++i]);
+            snapshot_dir = argv[++i];
+        }
+        else if( strcmp(argv[i], "--record") == 0 && i + 1 < argc )
+            record = argv[++i];
+        else if( strcmp(argv[i], "--replay") == 0 && i + 1 < argc )
+            replay = argv[++i];
+    }
+    if( (!agent && !replay) || (agent && replay) || bots < 1 || bots > BOTRUN_MAX )
+    {
+        fprintf(stderr, "torirsserver --botrun: needs one of --agent <command> or --replay <file>,"
+                        " and --bots 1..%d\n",
+                BOTRUN_MAX);
+        return 2;
+    }
+
+    run.srv = srv;
+    run.count = bots;
+    run.allowed_pid = -1;
+    run.known = calloc((size_t)BOTRUN_MAX * TORIRSSERVER_NPC_MAX, sizeof(*run.known));
+    assert(run.known);
+    setenv("TORIRSSERVER_RUN_NAME", name, 1);
+    ToriRSServer_WorldInit(srv, ToriRSServer_BootZone(config->home_x),
+                           ToriRSServer_BootZone(config->home_z));
+    ToriRSServer_TicklogEnable(srv, ticklog);
+    ToriRSServer_TicklogSideSink(botrun_side_row, &run);
+    ToriRSServer_MessageSink(botrun_message, &run);
+    for( int i = 0; i < bots; i++ )
+    {
+        char bot_name[32];
+        struct ToriRSServerPlayer* player = ToriRSServer_WorldAddPlayer(srv, NULL);
+
+        assert(player);
+        /* --bot-prefix: a client party's own account names (a quest run's
+         * "<name>_p1..3"), so a client run's seed replays here */
+        snprintf(bot_name, sizeof(bot_name), "%s%d", prefix ? prefix : name, i + 1);
+        ToriRSServer_WorldPlayerInit(player);
+        ToriRSServer_WorldSetDisplayName(player, bot_name);
+        ToriRSServer_WorldLogin(player);
+        botrun_scene_ack(player);
+        run.bots[i] = player;
+        fprintf(stderr, "botrun: %s is pid %d at %d,%d\n", player->display_name, player->pid,
+                player->x, player->z);
+    }
+    if( replay )
+    {
+        run.replay = fopen(replay, "r");
+        if( !run.replay )
+        {
+            fprintf(stderr, "botrun: cannot read --replay %s\n", replay);
+            return 1;
+        }
+    }
+    else
+    {
+        run.agents = run.shared ? 1 : run.count;
+        for( int k = 0; k < run.agents; k++ )
+        {
+            if( botrun_spawn(&run, agent, k, run.shared ? -1 : run.bots[k]->pid) != 0 )
+                return 1;
+        }
+    }
+    if( record )
+    {
+        run.record = fopen(record, "w");
+        if( !run.record )
+        {
+            fprintf(stderr, "botrun: cannot write --record %s\n", record);
+            return 1;
+        }
+    }
+
+    next = botrun_now_ms();
+    for( int t = 0; t < ticks_max; t++ )
+    {
+        int verdict = 0;
+
+        for( int i = 0; i < run.count; i++ )
+            botrun_scene_ack(run.bots[i]);
+        /* the tick's array rows, read once for every agent */
+        row_count = 0;
+        for( ;; )
+        {
+            int got;
+
+            if( row_count == row_capacity )
+            {
+                row_capacity = row_capacity ? row_capacity * 2 : BOTRUN_ROWS;
+                rows = realloc(rows, (size_t)row_capacity * sizeof(*rows));
+                assert(rows);
+            }
+            got = ToriRSServer_TicklogRead(run.cursor, rows + row_count, row_capacity - row_count);
+            if( got == 0 )
+                break;
+            row_count += got;
+            run.cursor = rows[row_count - 1].serial;
+        }
+        if( run.replay )
+        {
+            verdict = botrun_replay_tick(&run, (int)srv->tick);
+        }
+        else
+        {
+            /* everyone sees the tick before anyone's command lands */
+            for( int k = 0; k < run.agents; k++ )
+                botrun_send_tick(&run, k, rows, row_count);
+            /* Reset what was sent NOW, before the commands: a command's own
+             * output -- a collision query, the consume row and the "You eat"
+             * of an eat -- belongs to the next tick's stream (15661efb9 reset
+             * after the commands, so no collision query was ever answered and
+             * every eat's row vanished). */
+            run.side_count = 0;
+            run.msgs_len = 0;
+            run.query_count = 0;
+            for( int k = 0; k < run.agents && verdict != 2; k++ )
+            {
+                int said = 0;
+
+                run.allowed_pid = run.shared ? -1 : run.bots[k]->pid;
+                while( said == 0 )
+                {
+                    if( !fgets(line, sizeof(line), run.from_agent[k]) )
+                    {
+                        fprintf(stderr, "botrun: agent %d closed its output at tick %d\n", k, (int)srv->tick);
+                        said = 2;
+                        status = 1;
+                        break;
+                    }
+                    if( run.record && strcmp(line, "done\n") != 0 && strcmp(line, "quit\n") != 0 )
+                        fprintf(run.record, "%d\t%s", (int)srv->tick, line);
+                    said = botrun_command(&run, line);
+                }
+                if( said == 2 )
+                    verdict = 2;
+            }
+            run.allowed_pid = -1;
+            if( run.record )
+                fprintf(run.record, "%d\t%s\n", (int)srv->tick, verdict == 2 ? "quit" : "done");
+        }
+        if( run.replay )
+        {
+            run.side_count = 0;
+            run.msgs_len = 0;
+            run.query_count = 0;
+        }
+        /* what was said this tick is heard on the next */
+        {
+            char* swap = run.heard;
+            size_t cap = run.heard_capacity;
+
+            run.heard = run.said;
+            run.heard_len = run.said_len;
+            run.heard_capacity = run.said_capacity;
+            run.said = swap;
+            run.said_capacity = cap;
+            run.said_len = 0;
+        }
+        if( verdict == 2 )
+            break;
+        if( snapshot_dir && (int)srv->tick >= snapshot_tick )
+        {
+            for( int i = 0; i < run.count; i++ )
+            {
+                char path[1024];
+
+                snprintf(path, sizeof(path), "%s/%s.ini", snapshot_dir, run.bots[i]->display_name);
+                if( !ToriRSServer_SavePlayer(run.bots[i], path) )
+                    status = 1;
+                fprintf(stderr, "botrun: snapshot %s\n", path);
+            }
+            break;
+        }
+        if( realtime )
+        {
+            next += BOTRUN_TICK_MS;
+            while( botrun_now_ms() < next )
+                usleep(2000);
+        }
+        ToriRSServer_WorldTick(srv);
+    }
+
+    if( run.replay )
+    {
+        fclose(run.replay);
+    }
+    else
+    {
+        for( int k = 0; k < run.agents; k++ )
+        {
+            fclose(run.to_agent[k]);
+            fclose(run.from_agent[k]);
+            waitpid(run.agent_pid[k], NULL, 0);
+        }
+    }
+    free(rows);
+    free(run.known);
+    free(run.said);
+    free(run.heard);
+    if( run.record )
+        fclose(run.record);
+    fprintf(stderr, "botrun: %d ticks, %d commands, %d refused, ended at tick %d\n",
+            (int)srv->tick, run.commands, run.refused, (int)srv->tick);
+    ToriRSServer_TicklogSideSink(NULL, NULL);
+    ToriRSServer_MessageSink(NULL, NULL);
+    free(run.msgs);
+    ToriRSServer_TicklogDisable();
+    free(run.side);
+    return status;
+}
+
+/*
+ * THE DRIVE IN A CLIENT (owner 2026-10-07: "make the client runs run like the
+ * server ones"). The embedded server in a party's LEADER client hosts the one
+ * world all three clients play in (torirs_server_embed.h, the party link), so
+ * the bot runner's tick -- the stream out, the agent's commands in, through
+ * ToriRSServer_WorldHandle -- runs there unchanged, before each world tick,
+ * for every player in the world: the three logged-in clients. They play what
+ * the agent decides, and draw it, so a run is watched live (QUEST_WATCH=1)
+ * while it plays exactly as the bot runner's shared mode does.
+ *
+ *   TORIRS_BOTDRIVE_AGENT="lua <root>/tools/raid_agent/run.lua verzik"
+ */
+struct ToriRSServerBotDrive
+{
+    struct BotRun run;
+    struct ToriRSServerTicklogRow* rows;
+    int row_capacity;
+    int stopped;
+};
+
+struct ToriRSServerBotDrive*
+ToriRSServer_BotDriveStart(
+    struct ToriRSServer* srv,
+    const char* agent)
+{
+    struct ToriRSServerBotDrive* drive;
+
+    assert(srv);
+    assert(agent);
+    drive = calloc(1, sizeof(*drive));
+    assert(drive);
+    drive->run.srv = srv;
+    drive->run.shared = 1;
+    drive->run.agents = 1;
+    drive->run.allowed_pid = -1;
+    drive->run.known = calloc((size_t)BOTRUN_MAX * TORIRSSERVER_NPC_MAX, sizeof(*drive->run.known));
+    assert(drive->run.known);
+    /* TORIRS_BOTDRIVE_TICKLOG: the rows to a file too, for the same tools a
+     * bot-runner run is read with (tools/raid_agent/deaths.py, balls.py) */
+    if( !ToriRSServer_TicklogEnabled(srv) )
+        ToriRSServer_TicklogEnable(srv, getenv("TORIRS_BOTDRIVE_TICKLOG"));
+    drive->run.cursor = ToriRSServer_TicklogCount();
+    ToriRSServer_TicklogSideSink(botrun_side_row, &drive->run);
+    ToriRSServer_MessageSink(botrun_message, &drive->run);
+    if( getenv("TORIRS_BOTDRIVE_RECORD") )
+        drive->run.record = fopen(getenv("TORIRS_BOTDRIVE_RECORD"), "w");
+    if( botrun_spawn(&drive->run, agent, 0, -1) != 0 )
+    {
+        drive->stopped = 1;
+        return drive;
+    }
+    fprintf(stderr, "botdrive: agent \"%s\" drives the world's players\n", agent);
+    return drive;
+}
+
+void
+ToriRSServer_BotDriveStep(struct ToriRSServerBotDrive* drive)
+{
+    struct BotRun* run;
+    struct ToriRSServer* srv;
+    int row_count = 0;
+    int said = 0;
+    char line[BOTRUN_LINE];
+
+    assert(drive);
+    if( drive->stopped )
+        return;
+    run = &drive->run;
+    srv = run->srv;
+    run->count = 0;
+    for( int pid = 0; pid < srv->player_count && run->count < BOTRUN_MAX; pid++ )
+    {
+        if( srv->players[pid].active )
+            run->bots[run->count++] = &srv->players[pid];
+    }
+    for( ;; )
+    {
+        int got;
+
+        if( row_count == drive->row_capacity )
+        {
+            drive->row_capacity = drive->row_capacity ? drive->row_capacity * 2 : BOTRUN_ROWS;
+            drive->rows = realloc(drive->rows, (size_t)drive->row_capacity * sizeof(*drive->rows));
+            assert(drive->rows);
+        }
+        got = ToriRSServer_TicklogRead(run->cursor, drive->rows + row_count, drive->row_capacity - row_count);
+        if( got == 0 )
+            break;
+        row_count += got;
+        run->cursor = drive->rows[row_count - 1].serial;
+    }
+    botrun_send_tick(run, 0, drive->rows, row_count);
+    run->side_count = 0;
+    run->msgs_len = 0;
+    run->query_count = 0;
+    while( said == 0 )
+    {
+        if( !fgets(line, sizeof(line), run->from_agent[0]) )
+        {
+            fprintf(stderr, "botdrive: the agent closed its output at tick %d\n", (int)srv->tick);
+            said = 2;
+            break;
+        }
+        if( run->record && strcmp(line, "done\n") != 0 && strcmp(line, "quit\n") != 0 )
+            fprintf(run->record, "%d\t%s", (int)srv->tick, line);
+        said = botrun_command(run, line);
+    }
+    if( run->record )
+        fprintf(run->record, "%d\t%s\n", (int)srv->tick, said == 2 ? "quit" : "done");
+    {
+        char* swap = run->heard;
+        size_t cap = run->heard_capacity;
+
+        run->heard = run->said;
+        run->heard_len = run->said_len;
+        run->heard_capacity = run->said_capacity;
+        run->said = swap;
+        run->said_capacity = cap;
+        run->said_len = 0;
+    }
+    if( said == 2 )
+    {
+        fprintf(stderr, "botdrive: the agent is done at tick %d (%d commands, %d refused)\n",
+                (int)srv->tick, run->commands, run->refused);
+        drive->stopped = 1;
+    }
+}
+
+void
+ToriRSServer_BotDriveStop(struct ToriRSServerBotDrive* drive)
+{
+    if( !drive )
+        return;
+    ToriRSServer_TicklogSideSink(NULL, NULL);
+    ToriRSServer_MessageSink(NULL, NULL);
+    if( drive->run.to_agent[0] )
+        fclose(drive->run.to_agent[0]);
+    if( drive->run.from_agent[0] )
+        fclose(drive->run.from_agent[0]);
+    if( drive->run.agent_pid[0] > 0 )
+        waitpid(drive->run.agent_pid[0], NULL, 0);
+    if( drive->run.record )
+        fclose(drive->run.record);
+    free(drive->run.side);
+    free(drive->run.msgs);
+    free(drive->run.said);
+    free(drive->run.heard);
+    free(drive->run.known);
+    free(drive->rows);
+    free(drive);
+}
+
+#else /* no child processes on this host */
+
+int
+ToriRSServer_BotRun(
+    struct ToriRSServer* srv,
+    const struct ToriRSServerBootConfig* config,
+    int argc,
+    char** argv)
+{
+    (void)srv;
+    (void)config;
+    (void)argc;
+    (void)argv;
+    fprintf(stderr, "torirsserver --botrun: not on this host\n");
+    return 2;
+}
+
+struct ToriRSServerBotDrive*
+ToriRSServer_BotDriveStart(
+    struct ToriRSServer* srv,
+    const char* agent)
+{
+    (void)srv;
+    (void)agent;
+    fprintf(stderr, "botdrive: not on this host\n");
+    return NULL;
+}
+
+void
+ToriRSServer_BotDriveStep(struct ToriRSServerBotDrive* drive)
+{
+    (void)drive;
+}
+
+void
+ToriRSServer_BotDriveStop(struct ToriRSServerBotDrive* drive)
+{
+    (void)drive;
+}
+#endif

@@ -281,6 +281,21 @@ function QD.prayer._prepare(entry, who)
 end
 
 -- t.prayer.set(name, on): `on` is true (light it) or false (put it out).
+-- THE CONTENT'S PROTECTION BLOCK (owner_praypress, 2026-10-07).  An unprayed
+-- Sotetseg ball calls `~prayer_block_protection` (tob_sotetseg.rs2), which
+-- puts all three protections out and makes `[proc,prayer_can_use]` REFUSE
+-- every protection press while `%varp6891_prayer_protect_blocked > map_clock`
+-- (skill_prayer/scripts/prayer.rs2:108, 137-141).  A plan pressing into it is
+-- not losing the press: the server is saying no, in these words.  Reported as
+-- "the press path loses the prayer on consecutive ticks" because the reason
+-- was cut off at 160 characters right where it sat ("the server said 'You ").
+QD.prayer.BLOCKED_MESSAGE = "You can't use protection prayers at the moment."
+
+-- Does this verb's detail (or a chat line) carry that refusal?
+function QD.prayer.blocked(text)
+    return string.find(tostring(text), "protection prayers at the moment", 1, true) ~= nil
+end
+
 function QD.prayer.set(name, on)
     if on ~= true and on ~= false then
         error("prayer.set(" .. tostring(name) .. ", on): on must be true or false, got " .. tostring(on))
@@ -513,6 +528,14 @@ function QD.prayer._server_varbit(entry)
         return result, value, "client record (no api_drive.varbit_content in this binary)"
     end
     local result, value = api_drive.varbit_content(varbit_id)
+    if result == "unsupported" then
+        -- A PARTY MEMBER hosts no embedded server (the leader does), so the
+        -- server-side reader answers unsupported there: the client's record
+        -- is the member's truth, as on a binary without the reader (raid
+        -- seam42: after the v3 merge every member fought prayerless).
+        local client_result, client_value = api_drive.varbit_server(varbit_id)
+        return client_result, client_value, "client record (no embedded server in this process)"
+    end
     if result ~= "ok" then
         return result, "prayer: varbit_content(" .. entry[3] .. ") answered " .. tostring(result)
     end

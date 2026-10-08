@@ -6995,6 +6995,63 @@ ToriRSServer_ScriptCommand(
         return 1;
     }
 
+    case SS_OP_NPC_SETHEADBARRESERVE:
+    {
+        int32_t reserve;
+        struct ToriRSServerNpc* npc = active_npc(state);
+
+        if( !SSVM_PopInt(state, &reserve) )
+            return 1;
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_setheadbarreserve with no active npc");
+            return 1;
+        }
+        if( reserve < 0 || reserve >= npc->max_hitpoints )
+        {
+            SSVM_Abort(state, "npc_setheadbarreserve %d is outside 0..%d", reserve,
+                       npc->max_hitpoints - 1);
+            return 1;
+        }
+        npc->headbar_reserve = reserve;
+        return 1;
+    }
+
+    case SS_OP_NPC_HUDBAR_CHECK:
+    {
+        int32_t cur;
+        int32_t max;
+        struct ToriRSServerNpc* npc = active_npc(state);
+        int width = 0;
+        int head;
+        int hud;
+
+        if( !SSVM_PopInt(state, &max) || !SSVM_PopInt(state, &cur) )
+            return 1;
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_hudbar_check with no active npc");
+            return 1;
+        }
+        if( max <= 0 )
+        {
+            SSVM_Abort(state, "npc_hudbar_check max %d is not a pool", max);
+            return 1;
+        }
+        head = ToriRSServer_NpcHeadbarFill(npc, &width);
+        if( head < 0 )
+            return 1; /* no overhead bar to disagree with */
+        hud = cur <= 0 ? 0 : (cur >= max ? width : (int)(((int64_t)cur * width) / max));
+        ToriRSServer_TicklogHudbar(npc, hud, head, width, cur, max);
+        if( hud - head > 1 || head - hud > 1 )
+            fprintf(stderr,
+                    "torirsserver: HUDBAR MISMATCH npc type=%d: HUD %d/%d = %d of %d, overhead "
+                    "%d of %d (hp %d/%d reserve %d)\n",
+                    npc->type, cur, max, hud, width, head, width, npc->hitpoints,
+                    npc->max_hitpoints, npc->headbar_reserve);
+        return 1;
+    }
+
     case SS_OP_NPC_SETMAXHP:
     {
         int32_t max;
@@ -8876,6 +8933,25 @@ ToriRSServer_ScriptCommand(
                 (int)(npc - srv->npcs),
                 values[0],
                 values[1]);
+        /* A LITERAL `npc_anim(null)` is the script's way to END an animation
+         * (the reference sends 65535 and the client clears the action track),
+         * the npc twin of the player op's rule above. The compiler marks the
+         * literal as SS_NPC_ANIM_STOP_SEQ; a plain -1 is an expression that
+         * came out null -- `npc_anim(npc_param(defend_anim), 20)` on an npc
+         * with no defend anim -- and plays nothing, as before (sending it
+         * as a stop erased bosses' attacks on every player hit).
+         * Verzik's throne exit is the stop that needs it: tob_verzik.rs2 ends
+         * 8112 (framestep=1, it holds its last frame for 99 loops) one tick
+         * after playing it, and without the stop the client was still holding
+         * it, at priority 11, when P2's attacks (priority 6) arrived. */
+        if( values[0] == SS_NPC_ANIM_STOP_SEQ )
+        {
+            npc->anim_id = -1;
+            npc->anim_delay = (int)values[1];
+            npc->masks |= TORIRSSERVER_NMASK_ANIM;
+            ToriRSServer_TicklogNpcAnim(npc, -1, (int)values[1]);
+            return 1;
+        }
         ToriRSServer_AnimPlayNpc(npc, values[0], values[1]);
         return 1;
     }
@@ -9397,7 +9473,7 @@ ToriRSServer_ScriptCommand(
         if( !SSVM_PopStr(state, &argv[1]) || !SSVM_PopStr(state, &argv[0]) ||
             !SSVM_PopInt(state, &script_id) )
             return 1;
-        ToriRSServer_SendRunClientscriptMixed(srv->active_player, (int)script_id, "ss", NULL, argv, 2);
+        ToriRSServer_SendRunClientscriptMixed(player, (int)script_id, "ss", NULL, argv, 2);
         return 1;
     }
 
@@ -9459,8 +9535,16 @@ ToriRSServer_ScriptCommand(
         }
         if( !SSVM_PopInt(state, &script_id) )
             return 1;
-        ToriRSServer_SendRunClientscriptMixed(srv->active_player, (int)script_id, types, intv,
-                                            strv, argc);
+        /*
+         * To the script's ACTIVE player (`player`, which follows `p_finduid`),
+         * not `srv->active_player` -- the player whose turn is being
+         * processed. A script that walks a party with `p_finduid` and runs a
+         * clientscript for each raider (tob_hud.rs2 `~tob_hud_names`) sent
+         * every copy to whoever triggered it: the Theatre's orb letters
+         * reached the joiner three times and the raiders already inside never,
+         * so their orbs drew "-" for the raider who joined after them.
+         */
+        ToriRSServer_SendRunClientscriptMixed(player, (int)script_id, types, intv, strv, argc);
         return 1;
     }
 
@@ -10528,13 +10612,16 @@ ToriRSServer_ScriptCommand(
             return 1;
         }
         /*
-         * The longer freeze wins rather than the newer one. Re-freezing a
-         * target that is already frozen for longer must not shorten it, which
-         * is what a plain assignment would do — and the case is not exotic: it
-         * is a Barrage landing on an npc a Blitz already froze.
+         * A frozen npc is not frozen again, and not for the immunity after its
+         * freeze either (wiki_Freeze.wikitext:7, :9 -- 5 ticks for every freeze
+         * but the Grasp spells' 2, which share this one window here). Before,
+         * the longer freeze won, so a barrage on a frozen Matomenos renewed it
+         * to the full 32 (owner_tob_normal: a crab hit again at +11 stood 50
+         * ticks).
          */
-        if( ticks > npc->frozen_ticks )
-            npc->frozen_ticks = (int)ticks;
+        if( npc->frozen_ticks > 0 || npc->freeze_immune_ticks > 0 )
+            return 1;
+        npc->frozen_ticks = (int)ticks;
         return 1;
     }
 

@@ -333,6 +333,157 @@ def party_seats(directory):
 PARTY_TRACE_RE = re.compile(r"(?m)^net: party: boundary (\d+) -> tick (-?\d+) digest ([0-9a-f]{8})\s*$")
 PARTY_LOCKSTEP_STEP = "party.lockstep"
 
+# The raid HUD against the overhead bar (owner, 2026-10-07: "overhead health bars
+# do not match the HUD health bars"). Every boss HUD push asks the engine for the
+# overhead fill it draws (`npc_hudbar_check`, tob_hud.rs2 `~tob_hud_push_boss`)
+# and leaves a FILE-ONLY `hudbar` row in ticklog.tsv: c = the HUD's fill, d = the
+# overhead bar's, e = the bar's width, in the bar's own units. A run with such rows
+# gets this ledger row: FAIL when any push disagrees by more than one unit.
+HUDBAR_STEP = "raid.hudbar_matches_overhead"
+
+
+def hudbar_check(ticklog_path):
+    """("PASS"|"FAIL", detail) over a ticklog's `hudbar` rows, or (None, None)
+    when it has none (not a raid boss fight)."""
+    if not os.path.isfile(ticklog_path):
+        return None, None
+    per_type = {}
+    first_bad = None
+    total = 0
+    bad = 0
+    with open(ticklog_path, "r", encoding="utf-8", errors="replace") as handle:
+        for line in handle:
+            cols = line.rstrip("\n").split("\t")
+            # serial tick kind a b c d e f label g (the ticklog-v1 header)
+            if len(cols) < 11 or cols[2] != "hudbar":
+                continue
+            try:
+                tick, npc_type = int(cols[1]), int(cols[4])
+                hud, head, width = int(cols[5]), int(cols[6]), int(cols[7])
+            except ValueError:
+                continue
+            total += 1
+            entry = per_type.setdefault(npc_type, [0, 0])
+            entry[0] += 1
+            if abs(hud - head) > 1:
+                bad += 1
+                entry[1] += 1
+                if first_bad is None:
+                    first_bad = "tick %d npc %d HUD %d/%d overhead %d/%d (%s)" % (
+                        tick, npc_type, hud, width, head, width, cols[9])
+    if total == 0:
+        return None, None
+    kinds = ", ".join("npc %d %d of %d" % (t, n - b, n) for t, (n, b) in sorted(per_type.items()))
+    if bad:
+        return "FAIL", "%d of %d boss HUD pushes disagree with the overhead bar by more than one " \
+            "unit; first: %s; agree per npc: %s" % (bad, total, first_bad, kinds)
+    return "PASS", "%d of %d boss HUD pushes match the overhead bar within one unit (%s)" % (
+        total, total, kinds)
+
+
+PRESS_LATENCY_STEP = "raid.press_latency"
+# A press's decide tick against the tick the server acted on it (owner_presslat,
+# 2026-10-07: the relay's Maiden freezer pressed at t291 and the server took
+# it at t293, the tick the 4s healed her).
+PRESS_LATENCY_MAX = 1
+PRESS_SENT_RE = re.compile(r"players pid (-?\d+); sent ([t0-9as,]+)")
+
+
+def press_latency_check(seats):
+    """("PASS"|"FAIL", detail) over every seat's `<plan>.press_latency` rows
+    (script/plugins/quest_driver/raid_play.lua _play_press_latency_row: the
+    presses each seat SENT, `t<decide tick>s|a`, and its players() pid),
+    judged from the leader's ticklog.tsv by when the SERVER RECEIVED them: the
+    seat's first `raider` row at or after the decide tick whose label says
+    `input 1` (a client packet arrived since the previous raider row). A packet
+    handled at the boundary after tick T shows on T+1's raider row, so a press
+    received within PRESS_LATENCY_MAX tick of its decide tick shows at most
+    PRESS_LATENCY_MAX + 1 rows later. Receipt, not the action: an attack's
+    trigger waits on rules a client cannot hurry (a boss not yet attackable
+    ran every seat's first [apnpc] four ticks late at Maiden's start, and the
+    in-run row already judges a leader's casts by their animation). The log
+    pid is players() pid - 1 (raid seam32: players() counts from 1, the log
+    from 0). (None, None) when no seat pressed anything."""
+    ticklog = os.path.join(seats[0][2], "ticklog.tsv")
+    wanted = []
+    for seat, _account, session in seats:
+        ledger = os.path.join(session, "ledger.tsv")
+        if not os.path.isfile(ledger):
+            continue
+        with open(ledger, "r", encoding="utf-8", errors="replace") as handle:
+            for line in handle:
+                cols = line.rstrip("\n").split("\t")
+                if len(cols) < 6 or not cols[1].endswith(".press_latency"):
+                    continue
+                match = PRESS_SENT_RE.search(cols[5])
+                if not match:
+                    continue
+                pid = int(match.group(1)) - 1
+                for item in match.group(2).split(","):
+                    if len(item) >= 3 and item[0] == "t" and item[-1] in "sa":
+                        wanted.append((seat, cols[1].split(".")[0], pid, int(item[1:-1]), item[-1]))
+    if not wanted:
+        return None, None
+    if not os.path.isfile(ticklog):
+        return "FAIL", "%d presses to judge and no leader ticklog.tsv" % len(wanted)
+    received = {}
+    with open(ticklog, "r", encoding="utf-8", errors="replace") as handle:
+        for line in handle:
+            cols = line.rstrip("\n").split("\t")
+            if len(cols) < 10 or cols[2] != "raider" or " input 1 " not in cols[9]:
+                continue
+            try:
+                received.setdefault(int(cols[3]), []).append(int(cols[1]))
+            except ValueError:
+                continue
+    late = []
+    per_seat = {}
+    for seat, plan, pid, tick, what in wanted:
+        at = next((k for k in sorted(received.get(pid, [])) if k >= tick), None)
+        delta = None if at is None else at - tick - 1
+        entry = per_seat.setdefault(seat, [0, 0])
+        entry[0] += 1
+        if delta is None or delta > PRESS_LATENCY_MAX:
+            entry[1] += 1
+            late.append("p%d %s t%d %s -> %s" % (seat, plan, tick, "cast" if what == "s" else "attack",
+                                                   "never" if at is None else "received t%d (+%d)" % (at - 1, delta)))
+    seats_text = ", ".join("p%d %d of %d" % (s, n - b, n) for s, (n, b) in sorted(per_seat.items()))
+    if late:
+        return "FAIL", "%d of %d presses reached the server more than %d tick after their decide " \
+            "tick (%s); late: %s" % (len(late), len(wanted), PRESS_LATENCY_MAX, seats_text,
+                                    ", ".join(late[:12]))
+    return "PASS", "%d of %d presses reached the server within %d tick of their decide tick " \
+        "(%s)" % (len(wanted), len(wanted), PRESS_LATENCY_MAX, seats_text)
+
+
+def append_ledger_row(ledger_path, step, verdict, detail):
+    """Insert one row before a ledger's SUMMARY and recount it."""
+    assert step
+    if not os.path.isfile(ledger_path):
+        return
+    with open(ledger_path, "r", encoding="utf-8", errors="replace") as handle:
+        lines = handle.read().splitlines()
+    summary_at = next((i for i, l in enumerate(lines) if l.startswith("SUMMARY\t")), None)
+    if summary_at is None:
+        return
+    rows = [l for l in lines[2:summary_at] if l]
+    index = len(rows) + 1
+    row = "%d\t%s\t%s\t0\t\t%s" % (index, step, verdict, detail.replace("\t", " "))
+    summary = lines[summary_at].split("\t")
+    passed, failed, blocked = parse_summary_counts(summary)
+    if passed is None:
+        return
+    if verdict == "PASS":
+        passed += 1
+    else:
+        failed += 1
+    summary[1] = str(index)
+    summary[2] = "PASS" if failed == 0 else "FAIL"
+    summary[5] = "pass=%d fail=%d" % (passed, failed) + (" blocked=%d" % blocked if blocked else "")
+    lines = lines[:summary_at] + [row, "\t".join(summary)] + lines[summary_at + 1:]
+    with open(ledger_path, "w", encoding="utf-8") as handle:
+        handle.write("\n".join(lines) + "\n")
+
 
 def party_trace(session):
     """[(boundary, tick, digest)] from <session>/client.log, in log order, or
@@ -463,6 +614,18 @@ def party_union(directory):
     counts[lock_verdict] += 1
     lines.append("%d\t%s\t%s\t0\t\t%s" % (index, PARTY_LOCKSTEP_STEP, lock_verdict,
                                           lock_detail.replace("\t", " ")))
+    hud_verdict, hud_detail = hudbar_check(os.path.join(seats[0][2], "ticklog.tsv"))
+    if hud_verdict is not None:
+        index += 1
+        counts[hud_verdict] += 1
+        lines.append("%d\t%s\t%s\t0\t\t%s" % (index, HUDBAR_STEP, hud_verdict,
+                                              hud_detail.replace("\t", " ")))
+    press_verdict, press_detail = press_latency_check(seats)
+    if press_verdict is not None:
+        index += 1
+        counts[press_verdict] += 1
+        lines.append("%d\t%s\t%s\t0\t\t%s" % (index, PRESS_LATENCY_STEP, press_verdict,
+                                              press_detail.replace("\t", " ")))
     verdict = "PASS" if counts["FAIL"] == 0 else "FAIL"
     summary = "SUMMARY\t%d\t%s\t%s\t%s\tpass=%d fail=%d" % (
         index, verdict, leader_ticks, leader_exit, counts["PASS"], counts["FAIL"])

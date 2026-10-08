@@ -1,0 +1,223 @@
+{{Hatnote|The '''uncharged toxic trident''' is the uncharged version of this item and becomes '''trident of the swamp''' when charged.}}
+{{Infobox Item
+|defver = 2
+|version1 = Uncharged
+|version2 = Charged
+|name1 = Uncharged toxic trident
+|name2 = Trident of the Swamp
+|image1 = [[File:Uncharged toxic trident.png]]
+|image2 = [[File:Trident of the Swamp.png]]
+|release = [[8 January]] [[2015]]
+|update = Zulrah - The Solo Snake Boss
+|members = Yes
+|quest = No
+|tradeable1 = Yes
+|tradeable2 = No
+|equipable = Yes
+|stackable = No
+|noteable1 = Yes
+|noteable2 = No
+|options1 = Wield, Check, Dismantle, Drop
+|options2 = Wield, Check, Uncharge, Drop
+|wornoptions = Check
+|examine1 = It needs to be charged with death runes, chaos runes, fire runes and Zulrah's scales.
+|examine2 = A toxic weapon from the deep.
+|value1 = 78000
+|value2 = 78500
+|weight = 1.814
+|exchange1 = Yes
+|exchange2 = No
+|id1 = 12900
+|id2 = 12899
+|leagueRegion = Tirannwn
+}}
+{{Synced switch
+|version1 = [[File:Uncharged toxic trident detail.png|left|150px]]
+|version2 = [[File:Trident of the Swamp detail.png|left|150px]]
+}}
+The '''trident of the swamp''' is a one-handed [[powered staff]] requiring 78 [[Magic]] to wield. It is a direct upgrade of the [[trident of the seas]], made with level 59 [[Crafting]] by using a [[magic fang]] on it with a [[chisel]], which is a reversible process. However, unlike its predecessor, the trident can only be listed for sale on the [[Grand Exchange]] when it is fully uncharged.
+
+The trident possesses a [[passive effect]] wherein [[successful hit]]s with either the built-in spell or a manually-cast combat spell have a 25% chance of inflicting [[venom]] on the opponent. If the player is wearing a [[serpentine helm]], the chance is increased to 100% if the target is a monster. If using a manually-cast spell, the staff must contain at least one charge for it to be able to apply venom, although this will not use up any charges.
+
+Additionally, the trident of the swamp has the same effect in [[drift net fishing]] as the [[merfolk trident]], though it does not have the ability to hold [[pufferfish]] charges (convenient for breathing [[underwater]]).
+
+The trident of the swamp is a popular weapon choice for applying venom among [[combat pure]]s who do not want to get 75 [[Attack]] for the [[toxic staff of the dead]].
+
+[[File:Trident of the Swamp spell.gif|thumb|250px|A player using the trident of the swamp's built in spell.]]
+
+==Combat stats==
+{{Infobox Bonuses
+|version1 = Uncharged
+|version2 = Charged
+|astab = 0
+|aslash = 0
+|acrush = 0
+|amagic = 25
+|arange = 0
+|dstab = 2
+|dslash = 3
+|dcrush = 1
+|dmagic = 15
+|drange = 0
+|str = 0
+|rstr = 0
+|mdmg = 0
+|prayer = 0
+|slot = weapon
+|speed = 4
+|attackrange = 7
+|combatstyle = Powered Staff
+|image1 = [[File:Uncharged toxic trident equipped.png|170px]]
+|image2 = [[File:Trident of the Swamp equipped.png|170px]]
+|altimage1 = [[File:Uncharged toxic trident equipped female.png|170px]]
+|altimage2 = [[File:Trident of the Swamp equipped female.png|170px]]
+}}
+
+{{CombatStyles|Powered Staff|speed=4|attackrange=7}}
+
+==Creation==
+{{Recipe
+|skill1 = Crafting
+|skill1lvl = 59
+|skill1boostable = Yes
+|skill1exp = 0
+|members = Yes
+|ticks = 
+|tools = Chisel
+|mat1 = Uncharged trident
+|mat2 = Magic fang
+|output1 = Uncharged toxic trident
+}}
+
+==Charging==
+In order to use the trident's magic spell, it must be charged with various [[runes]], holding up to 2,500 charges when fully charged. One charge is consumed each time you cast the built-in spell. Charging the trident requires level 78 Magic, and the following items are required for a single charge:
+
+{| class="wikitable align-right-2"
+!Resource 
+!Cost per charge
+|-
+|1 x {{plink|Death rune}}
+|{{Coins|{{GEP|Death rune}}}}
+|-
+|1 x {{plink|Chaos rune}}
+|{{Coins|{{GEP|Chaos rune}}}}
+|-
+|5 x {{plink|Fire rune}}
+|{{Coins|{{GEP|Fire rune|5}}}}
+|-
+|1 x {{plink|Zulrah's scales}}
+|{{Coins|{{GEP|Zulrah's scales}}}}
+|-
+! '''Total cost per charge'''
+| style="text-align:right;" | {{Coins|{{GEP|Death rune}}+{{GEP|Chaos rune}}+{{GEP|Fire rune|5}}+{{GEP|Zulrah's scales}}}}
+|}
+
+The trident is charged by using the runes and scales on it. Players can configure the charges while the weapon is in their bank by right-clicking on Configure-Charges, as long as players have the required materials and has enabled this option. With a maximum of 2500 charges, fully charging a trident costs {{NoCoins|{{GEP|Zulrah's scales|2500}} + {{GEP|Death rune|2500}} + {{GEP|Chaos rune|2500}} + {{GEP|Fire rune|12500}}|c}}. Assuming non-stop use (one cast every 2.4 seconds, 1,500 casts per hour), the trident costs {{NoCoins|({{GEP|Death rune}}+{{GEP|Chaos rune}}+{{GEP|Fire rune|5}}+{{GEP|Zulrah's scales}}) * 1500|c}} per hour to use.
+
+Any remaining charges within the trident can be removed at any time to recover the [[runes]] and [[Zulrah's scale]]s.
+
+If lost on death, any scales that were used to charge the trident will appear on the floor along with the uncharged trident.
+
+==Upgrading==
+Players can give a toxic trident and 10 [[kraken tentacle]]s to [[Lieve McCracken]] to create an [[Trident of the Swamp (e)|enhanced trident of the swamp]], which holds 20,000 charges instead of 2,500.
+
+==Maximum hit==
+The following formula may be used to describe the maximum hit of the trident of the swamp:
+
+<math>\begin{align}
+ \text{Max Hit} &= \lfloor \frac{\text{MagicLevel}}{3} \rfloor - 2\\
+\end{align}</math>
+
+The base [[Maximum Magic hit|maximum hit]] dealt by the trident is dependent on the player's current [[Magic]] level, starting at 24 with level 78 Magic and increasing by one every three Magic levels, up to a maximum of 39 at level 123 (obtainable only through [[smelling salts]] in [[Tombs of Amascut]]). Both magic damage bonuses and visible stat boosts will modify the max hit of the spell; likewise, stat-reductions will lower the damage. Invisible boosts, such as from the trident's attack styles, do not affect the max hit. The trident always has a max hit of at least 4, even when reduced to 0 magic. Compared to the other two powered staves, the [[trident of the seas]] has a lower base maximum hit by 4 (max of 20 at level 75), and the [[Sanguinesti staff]] increases the base maximum hit by 2 (max of 26 at level 82). When used at the same level, the trident of the seas will have a lower maximum hit by 3 and the Sanguinesti staff will have a higher maximum hit by 1.
+
+===Calculator===
+{{Magic damage calculator|Trident of the Swamp}}
+
+==Products==
+{{Uses material list|Uncharged toxic trident|Trident of the Swamp}}
+
+==Used in recommended equipment==
+{{Used in recommended equipment|Trident of the Swamp}}
+
+==Comparison between other magic weapons==
+{{Magic weapons comparison}}
+
+==Transcript==
+{{Hastranscript|transclude=yes}}
+
+==Concept art==
+<gallery>
+Trident of the Swamp work-in-progress.png|Pre-release model of the trident of the swamp
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 19 August 2026
+|update = Summer Sweep Up - Hunter & Skilling
+|change = The item was renamed from "Trident of the swamp" to "Trident of the Swamp".
+}}
+{{Subject changes
+|date = 14 May 2025
+|update = Yama, the Master of Pacts: Out Today
+|change = The trident of the swamp can now be charged with [[combination rune]]s.
+}}
+{{Subject changes
+|date = 5 March 2025
+|update = Game Jam: Charges QoL
+|change = The trident of the swamp supports a bank item option for changing charges.
+}}
+{{Subject changes
+|date = 11 May 2022
+|update = Equipment Rebalance Tier Changes & Poll 76
+|change = * The trident of the swamp now requires level 78 Magic to wield instead of level 75 Magic.
+* The trident's charge text has been changed to read "Toxic Trident" instead of "weapon", bringing it in line with other weapons' text.
+}}
+{{Subject changes
+|date = 4 January 2018
+|update = Dragon Slayer II
+|change = Dropping a charged toxic trident on a F2P world will no longer cause you to lose your scales.
+}}
+{{Subject changes
+|date = 3 August 2017
+|update = Inferno slayer task, Tournament worlds, and Poll 56!
+|change = A 100 charge remaining warning has been added to the Trident of the Seas and Trident of the Swamp.
+}}
+{{Subject changes
+|date = 16 February 2017
+|update = Party Pete's Birthday Bash
+|change = The Trident of the Seas and Toxic variant can now be charged without un-equipping held items.
+}}
+{{Subject changes
+|date = 6 October 2016
+|update = The Hill Giant Boss
+|change = The damage cap of the Tridents has been increased by 1 so it can respect the maximum possible Magic stat-boost from the Imbued Heart.
+}}
+{{Subject changes
+|date = 24 September 2015
+|update = New Animations & Barbarian Assault Changes
+|poll = Old School Content Poll 36: Skilling Pets
+|change = An additional attack style has been added to the trident to prevent it switching your selected attack style for other weapons. This new attack style has no impact on combat stats.
+}}
+{{Subject changes
+|date = 30 July 2015
+|update = Custom F-Keys & Music Cape
+|change = Players will no longer see the trident of the sea during the charge animation for the trident of the swamp.
+}}
+{{Subject changes
+|date = 6 February 2014
+|update = Quick-prayers & Loot Broadcast
+|change = The Trident of the Seas has had its model adjusted slightly to prevent it sticking to Verac's skirt or the pantaloons.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* Like all [[Powered staff|powered staves]], the trident has two identical "Accurate" combat styles, due to some [[Powered staff#Trivia|old technical limitations]].
+
+{{Upgraded equipment}}
+{{Zulrah}}
+{{Magic weapons}}
+
+[[Category:Items with charges]]
+[[Category:Upgraded equipment]]
+[[Category:Underwater weapons]]

@@ -1,0 +1,28 @@
+{{External|rs}}
+{{Infobox Prayer
+|name = Piety
+|image = [[File:Piety.png]]
+|release = [[24 July]] [[2007]]
+|update = King's Ransom
+|members = Yes
+|level = 70
+|drain = 40
+|effect = Increases your defence by 25%, strength by 23%, and attack by 20%. (Drain: 1pt per 1.5s)
+|sound = [[File:Piety.ogg]]
+}}
+'''Piety''' is the third highest level [[Prayer]] in ''[[Old School RuneScape]]''. It requires a [[Prayer]] level of 70 and [[Defence]] level of 70 to use. Piety gives a temporary 25% boost to a player's [[Defence]], a 23% boost to a player's [[Strength]], and a 20% boost to a player's [[Attack]].
+
+To gain access to this prayer, players must complete the quest [[King's Ransom]] and the [[Knight Waves Training Grounds]] activity, along with having level 70 [[Defence]] and 70 [[Prayer]].
+
+Other than its several uses in Defence and [[Melee]] combat, it is also a requirement to have this prayer unlocked for completion of both the [[Morytania Diary#Hard|Morytania Hard Diary]] and the [[Kandarin Diary#Hard|Kandarin Hard Diary]].
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 26 March 2025
+|update = Poll 83 QoL Changes
+|change = The prayer's tooltip now includes the base drain rate of the prayer.
+}}
+{{Subject changes footer}}
+
+{{Prayers}}

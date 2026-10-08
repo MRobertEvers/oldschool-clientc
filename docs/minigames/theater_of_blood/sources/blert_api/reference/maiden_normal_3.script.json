@@ -1,0 +1,2647 @@
+{
+ "kind": "blert-script-v1",
+ "room": "maiden",
+ "mode": "normal",
+ "scale": 3,
+ "anchor": {
+  "what": "Maiden's south-west tile",
+  "region_local": [
+   26,
+   28
+  ]
+ },
+ "lanes": {
+  "S1": [
+   11,
+   -8
+  ],
+  "N1": [
+   11,
+   12
+  ],
+  "S2": [
+   15,
+   -8
+  ],
+  "N2": [
+   15,
+   12
+  ],
+  "S3": [
+   19,
+   -8
+  ],
+  "N3": [
+   19,
+   12
+  ],
+  "S4in": [
+   23,
+   -6
+  ],
+  "S4out": [
+   23,
+   -8
+  ],
+  "N4in": [
+   23,
+   10
+  ],
+  "N4out": [
+   23,
+   12
+  ]
+ },
+ "rooms": 24,
+ "missing_streams": [],
+ "uuids": [
+  "cada953d-3cd9-4fb1-a37f-1b44216f5774",
+  "5d75e98c-8d33-4e9e-9461-50b01664e197",
+  "cafb4804-c0aa-4d41-8f10-a252de0e0081",
+  "5c089a69-fd3c-4c95-a43b-4ce284931844",
+  "ebe1ebdd-5789-4057-834b-47e28632d49c",
+  "14ff85e3-a60b-4133-a0d2-5aecf0795974",
+  "7f3528ba-2cf2-4476-9071-02aa6e4bbf42",
+  "02da4bb8-5e73-46ba-92e1-8597dc02dd25",
+  "e6951b9d-ac0c-4078-b042-cd6af23f9d46",
+  "6d9f25e6-3fdf-4039-bfef-c21d46fc2111",
+  "3d344722-3ee2-456d-920b-7e21ff8ac39c",
+  "953d176d-6e43-45f0-af04-a3c568a27386",
+  "f6b215d1-812c-4263-9674-b747b34630e8",
+  "9d6b2bfa-7dc2-4c42-82af-6d3851485e94",
+  "cc7396c0-8447-42c3-af36-2d02ab13bf1b",
+  "f6865ebe-7717-48c0-87c0-3639e45c8cc5",
+  "e12186dd-1e8d-41b3-8a3a-4f22cb94cfa5",
+  "8af721aa-3562-4572-82a7-e8cb3bc2badc",
+  "c427a49d-a807-40d1-93de-7cdb8a74983f",
+  "456ada2c-ab6c-40a5-b197-0e08110f6441",
+  "17368eb4-6da1-40fc-a23b-88a626394ea1",
+  "635be504-74a1-42cb-8b25-b833cada89ba",
+  "af617ce0-b303-4280-b601-6f136d167b37",
+  "f833a03f-b132-4ffc-bf72-fcd88eeab48d"
+ ],
+ "segments": [
+  {
+   "name": "100",
+   "n": 24,
+   "start": {
+    "median": 0.0,
+    "min": 0,
+    "max": 0,
+    "n": 24
+   },
+   "length": {
+    "median": 42.0,
+    "min": 32,
+    "max": 52,
+    "n": 24
+   },
+   "adds": {
+    "median": 0.0,
+    "min": 0,
+    "max": 2,
+    "n": 24
+   },
+   "lanes": {
+    "off": 6
+   },
+   "leaks": {
+    "median": 0.0,
+    "min": 0,
+    "max": 0,
+    "n": 24
+   },
+   "leak_hp": null,
+   "roles": {
+    "dps1": {
+     "n": 24,
+     "tile": {
+      "mode": [
+       0,
+       6
+      ],
+      "share": 0.17,
+      "dx": {
+       "median": 4.0,
+       "min": 0,
+       "max": 7,
+       "n": 24
+      },
+      "dy": {
+       "median": 6.0,
+       "min": -1,
+       "max": 9,
+       "n": 24
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       22,
+       4
+      ],
+      "share": 0.79
+     },
+     "first_action": {
+      "median": 5.0,
+      "min": 5,
+      "max": 12,
+      "n": 24
+     },
+     "no_action_share": 0.0,
+     "attacks": {
+      "median": 7.5,
+      "min": 6,
+      "max": 15,
+      "n": 24
+     },
+     "casts": [
+      {
+       "median": 5.0,
+       "min": 5,
+       "max": 12,
+       "n": 24
+      },
+      {
+       "median": 10.0,
+       "min": 10,
+       "max": 18,
+       "n": 24
+      },
+      {
+       "median": 16.0,
+       "min": 15,
+       "max": 25,
+       "n": 24
+      },
+      {
+       "median": 21.0,
+       "min": 21,
+       "max": 27,
+       "n": 24
+      },
+      {
+       "median": 26.0,
+       "min": 26,
+       "max": 31,
+       "n": 24
+      },
+      {
+       "median": 31.0,
+       "min": 29,
+       "max": 36,
+       "n": 24
+      },
+      {
+       "median": 36,
+       "min": 31,
+       "max": 41,
+       "n": 19
+      },
+      {
+       "median": 41.0,
+       "min": 33,
+       "max": 45,
+       "n": 12
+      }
+     ],
+     "targets": [
+      {
+       "i": 0,
+       "mode": "boss",
+       "share": 1.0,
+       "n": 24
+      }
+     ],
+     "attack_names": {
+      "SCYTHE": 92,
+      "TWISTED_BOW": 28,
+      "BLOWPIPE": 22,
+      "TONALZTICS_SPEC": 16
+     },
+     "return_to_boss": null,
+     "wave_adds_hit": {},
+     "weapon": {
+      "SCYTHE": 18,
+      "BLOWPIPE": 4,
+      "TWISTED_BOW": 2
+     },
+     "prayer": {
+      "none": 16,
+      "magic": 8
+     }
+    },
+    "dps2": {
+     "n": 24,
+     "tile": {
+      "mode": [
+       5,
+       6
+      ],
+      "share": 0.17,
+      "dx": {
+       "median": 3.5,
+       "min": 0,
+       "max": 6,
+       "n": 24
+      },
+      "dy": {
+       "median": 6.0,
+       "min": -1,
+       "max": 6,
+       "n": 24
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       22,
+       4
+      ],
+      "share": 0.71
+     },
+     "first_action": {
+      "median": 5.0,
+      "min": 5,
+      "max": 11,
+      "n": 24
+     },
+     "no_action_share": 0.0,
+     "attacks": {
+      "median": 7.0,
+      "min": 6,
+      "max": 11,
+      "n": 24
+     },
+     "casts": [
+      {
+       "median": 5.0,
+       "min": 5,
+       "max": 11,
+       "n": 24
+      },
+      {
+       "median": 10.0,
+       "min": 10,
+       "max": 17,
+       "n": 24
+      },
+      {
+       "median": 16.0,
+       "min": 16,
+       "max": 23,
+       "n": 24
+      },
+      {
+       "median": 21.0,
+       "min": 21,
+       "max": 29,
+       "n": 24
+      },
+      {
+       "median": 26.0,
+       "min": 26,
+       "max": 34,
+       "n": 24
+      },
+      {
+       "median": 31.0,
+       "min": 31,
+       "max": 39,
+       "n": 24
+      },
+      {
+       "median": 36.0,
+       "min": 33,
+       "max": 44,
+       "n": 18
+      }
+     ],
+     "targets": [
+      {
+       "i": 0,
+       "mode": "boss",
+       "share": 1.0,
+       "n": 24
+      }
+     ],
+     "attack_names": {
+      "SCYTHE": 110,
+      "TWISTED_BOW": 23,
+      "TONALZTICS_SPEC": 15,
+      "ELDER_MAUL_SPEC": 9
+     },
+     "return_to_boss": null,
+     "wave_adds_hit": {},
+     "weapon": {
+      "SCYTHE": 23,
+      "BLOWPIPE": 1
+     },
+     "prayer": {
+      "none": 16,
+      "magic": 8
+     }
+    },
+    "freezer": {
+     "n": 24,
+     "tile": {
+      "mode": [
+       15,
+       -1
+      ],
+      "share": 0.21,
+      "dx": {
+       "median": 15.0,
+       "min": 10,
+       "max": 15,
+       "n": 24
+      },
+      "dy": {
+       "median": 1.0,
+       "min": -5,
+       "max": 6,
+       "n": 24
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       22,
+       1
+      ],
+      "share": 0.71
+     },
+     "first_action": {
+      "median": 5.0,
+      "min": 5,
+      "max": 6,
+      "n": 24
+     },
+     "no_action_share": 0.0,
+     "attacks": {
+      "median": 7.0,
+      "min": 5,
+      "max": 9,
+      "n": 24
+     },
+     "casts": [
+      {
+       "median": 5.0,
+       "min": 5,
+       "max": 6,
+       "n": 24
+      },
+      {
+       "median": 10.0,
+       "min": 10,
+       "max": 14,
+       "n": 24
+      },
+      {
+       "median": 16.0,
+       "min": 16,
+       "max": 23,
+       "n": 24
+      },
+      {
+       "median": 18.0,
+       "min": 18,
+       "max": 28,
+       "n": 24
+      },
+      {
+       "median": 23.0,
+       "min": 23,
+       "max": 34,
+       "n": 24
+      },
+      {
+       "median": 28.0,
+       "min": 28,
+       "max": 39,
+       "n": 22
+      },
+      {
+       "median": 33.0,
+       "min": 33,
+       "max": 41,
+       "n": 14
+      }
+     ],
+     "targets": [
+      {
+       "i": 0,
+       "mode": "boss",
+       "share": 1.0,
+       "n": 24
+      }
+     ],
+     "attack_names": {
+      "TWISTED_BOW": 120,
+      "TONALZTICS_SPEC": 24,
+      "BLOWPIPE": 14,
+      "ZCB_AUTO": 4
+     },
+     "return_to_boss": null,
+     "wave_adds_hit": {},
+     "weapon": {
+      "TWISTED_BOW": 23,
+      "ZCB": 1
+     },
+     "prayer": {
+      "none": 20,
+      "magic": 4
+     }
+    }
+   }
+  },
+  {
+   "name": "70",
+   "n": 24,
+   "start": {
+    "median": 42.0,
+    "min": 32,
+    "max": 52,
+    "n": 24
+   },
+   "length": {
+    "median": 30.0,
+    "min": 20,
+    "max": 55,
+    "n": 24
+   },
+   "adds": {
+    "median": 6.0,
+    "min": 6,
+    "max": 7,
+    "n": 24
+   },
+   "lanes": {
+    "N2": 18,
+    "S4out": 17,
+    "S2": 16,
+    "N1": 15,
+    "S4in": 15,
+    "S3": 15,
+    "N3": 14,
+    "S1": 13,
+    "N4out": 11,
+    "N4in": 10,
+    "off": 5
+   },
+   "leaks": {
+    "median": 1.0,
+    "min": 0,
+    "max": 2,
+    "n": 24
+   },
+   "leak_hp": {
+    "median": 49,
+    "min": 1,
+    "max": 75,
+    "n": 17
+   },
+   "roles": {
+    "dps1": {
+     "n": 24,
+     "tile": {
+      "mode": [
+       5,
+       6
+      ],
+      "share": 0.21,
+      "dx": {
+       "median": 5.0,
+       "min": 0,
+       "max": 8,
+       "n": 24
+      },
+      "dy": {
+       "median": 6.0,
+       "min": -4,
+       "max": 8,
+       "n": 24
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       5,
+       6
+      ],
+      "share": 0.21
+     },
+     "first_action": {
+      "median": 4.0,
+      "min": 0,
+      "max": 5,
+      "n": 24
+     },
+     "no_action_share": 0.0,
+     "attacks": {
+      "median": 6.0,
+      "min": 4,
+      "max": 23,
+      "n": 24
+     },
+     "casts": [
+      {
+       "median": 4.0,
+       "min": 0,
+       "max": 5,
+       "n": 24
+      },
+      {
+       "median": 9.0,
+       "min": 2,
+       "max": 10,
+       "n": 24
+      },
+      {
+       "median": 14.0,
+       "min": 5,
+       "max": 15,
+       "n": 24
+      },
+      {
+       "median": 19.0,
+       "min": 7,
+       "max": 20,
+       "n": 24
+      },
+      {
+       "median": 24.0,
+       "min": 9,
+       "max": 25,
+       "n": 22
+      },
+      {
+       "median": 29,
+       "min": 11,
+       "max": 31,
+       "n": 15
+      }
+     ],
+     "targets": [
+      {
+       "i": 0,
+       "mode": "boss",
+       "share": 0.5,
+       "n": 24
+      },
+      {
+       "i": 1,
+       "mode": "boss",
+       "share": 0.5,
+       "n": 20
+      },
+      {
+       "i": 2,
+       "mode": "boss",
+       "share": 0.54,
+       "n": 13
+      },
+      {
+       "i": 3,
+       "mode": "boss",
+       "share": 0.38,
+       "n": 8
+      },
+      {
+       "i": 4,
+       "mode": "S4out",
+       "share": 0.29,
+       "n": 7
+      },
+      {
+       "i": 5,
+       "mode": "boss",
+       "share": 0.83,
+       "n": 6
+      },
+      {
+       "i": 6,
+       "mode": "S4in",
+       "share": 0.67,
+       "n": 3
+      },
+      {
+       "i": 7,
+       "mode": "boss",
+       "share": 1.0,
+       "n": 3
+      }
+     ],
+     "attack_names": {
+      "SCYTHE": 95,
+      "BLOWPIPE": 47,
+      "ZCB_SPEC": 8,
+      "TWISTED_BOW": 1
+     },
+     "return_to_boss": {
+      "median": 9.5,
+      "min": 7,
+      "max": 40,
+      "n": 20
+     },
+     "wave_adds_hit": {
+      "N1": {
+       "share": 0.58,
+       "first": {
+        "median": 4.0,
+        "min": 3,
+        "max": 8,
+        "n": 14
+       }
+      },
+      "N2": {
+       "share": 0.58,
+       "first": {
+        "median": 9.0,
+        "min": 3,
+        "max": 39,
+        "n": 14
+       }
+      },
+      "N3": {
+       "share": 0.04,
+       "first": {
+        "median": 11,
+        "min": 11,
+        "max": 11,
+        "n": 1
+       }
+      },
+      "N4out": {
+       "share": 0.08,
+       "first": {
+        "median": 34.0,
+        "min": 30,
+        "max": 38,
+        "n": 2
+       }
+      },
+      "S1": {
+       "share": 0.12,
+       "first": {
+        "median": 19,
+        "min": 16,
+        "max": 23,
+        "n": 3
+       }
+      },
+      "S2": {
+       "share": 0.25,
+       "first": {
+        "median": 24.0,
+        "min": 11,
+        "max": 40,
+        "n": 6
+       }
+      },
+      "S3": {
+       "share": 0.04,
+       "first": {
+        "median": 25,
+        "min": 25,
+        "max": 25,
+        "n": 1
+       }
+      },
+      "S4in": {
+       "share": 0.12,
+       "first": {
+        "median": 33,
+        "min": 26,
+        "max": 36,
+        "n": 3
+       }
+      },
+      "S4out": {
+       "share": 0.21,
+       "first": {
+        "median": 31,
+        "min": 22,
+        "max": 42,
+        "n": 5
+       }
+      },
+      "off": {
+       "share": 0.04,
+       "first": {
+        "median": 33,
+        "min": 33,
+        "max": 33,
+        "n": 1
+       }
+      }
+     },
+     "weapon": {
+      "SCYTHE": 18,
+      "BLOWPIPE": 6
+     },
+     "prayer": {
+      "magic": 14,
+      "none": 10
+     }
+    },
+    "dps2": {
+     "n": 24,
+     "tile": {
+      "mode": [
+       6,
+       5
+      ],
+      "share": 0.42,
+      "dx": {
+       "median": 6.0,
+       "min": 2,
+       "max": 8,
+       "n": 24
+      },
+      "dy": {
+       "median": 5.0,
+       "min": -1,
+       "max": 8,
+       "n": 24
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       6,
+       5
+      ],
+      "share": 0.21
+     },
+     "first_action": {
+      "median": 4.0,
+      "min": 0,
+      "max": 4,
+      "n": 24
+     },
+     "no_action_share": 0.0,
+     "attacks": {
+      "median": 6.0,
+      "min": 4,
+      "max": 25,
+      "n": 24
+     },
+     "casts": [
+      {
+       "median": 4.0,
+       "min": 0,
+       "max": 4,
+       "n": 24
+      },
+      {
+       "median": 9.0,
+       "min": 3,
+       "max": 10,
+       "n": 24
+      },
+      {
+       "median": 14.0,
+       "min": 5,
+       "max": 15,
+       "n": 24
+      },
+      {
+       "median": 19.0,
+       "min": 7,
+       "max": 19,
+       "n": 24
+      },
+      {
+       "median": 24.0,
+       "min": 9,
+       "max": 24,
+       "n": 22
+      },
+      {
+       "median": 29.0,
+       "min": 11,
+       "max": 29,
+       "n": 16
+      }
+     ],
+     "targets": [
+      {
+       "i": 0,
+       "mode": "boss",
+       "share": 0.54,
+       "n": 24
+      },
+      {
+       "i": 1,
+       "mode": "boss",
+       "share": 0.42,
+       "n": 19
+      },
+      {
+       "i": 2,
+       "mode": "boss",
+       "share": 0.91,
+       "n": 11
+      },
+      {
+       "i": 3,
+       "mode": "S2",
+       "share": 0.5,
+       "n": 6
+      },
+      {
+       "i": 4,
+       "mode": "boss",
+       "share": 0.6,
+       "n": 5
+      },
+      {
+       "i": 5,
+       "mode": "S4out",
+       "share": 0.5,
+       "n": 2
+      },
+      {
+       "i": 6,
+       "mode": "boss",
+       "share": 1.0,
+       "n": 2
+      }
+     ],
+     "attack_names": {
+      "SCYTHE": 125,
+      "ZCB_SPEC": 9,
+      "BLOWPIPE": 8,
+      "SCYTHE_UNCHARGED": 6
+     },
+     "return_to_boss": {
+      "median": 11,
+      "min": 9,
+      "max": 32,
+      "n": 19
+     },
+     "wave_adds_hit": {
+      "N1": {
+       "share": 0.58,
+       "first": {
+        "median": 4.0,
+        "min": 3,
+        "max": 6,
+        "n": 14
+       }
+      },
+      "N2": {
+       "share": 0.54,
+       "first": {
+        "median": 9,
+        "min": 4,
+        "max": 44,
+        "n": 13
+       }
+      },
+      "N3": {
+       "share": 0.08,
+       "first": {
+        "median": 20.5,
+        "min": 17,
+        "max": 24,
+        "n": 2
+       }
+      },
+      "N4out": {
+       "share": 0.04,
+       "first": {
+        "median": 50,
+        "min": 50,
+        "max": 50,
+        "n": 1
+       }
+      },
+      "S1": {
+       "share": 0.33,
+       "first": {
+        "median": 39.0,
+        "min": 23,
+        "max": 40,
+        "n": 8
+       }
+      },
+      "S2": {
+       "share": 0.33,
+       "first": {
+        "median": 31.0,
+        "min": 12,
+        "max": 44,
+        "n": 8
+       }
+      },
+      "S3": {
+       "share": 0.08,
+       "first": {
+        "median": 34.0,
+        "min": 29,
+        "max": 39,
+        "n": 2
+       }
+      },
+      "S4out": {
+       "share": 0.04,
+       "first": {
+        "median": 28,
+        "min": 28,
+        "max": 28,
+        "n": 1
+       }
+      }
+     },
+     "weapon": {
+      "SCYTHE": 23,
+      "BLOWPIPE": 1
+     },
+     "prayer": {
+      "magic": 12,
+      "none": 12
+     }
+    },
+    "freezer": {
+     "n": 24,
+     "tile": {
+      "mode": [
+       15,
+       0
+      ],
+      "share": 0.25,
+      "dx": {
+       "median": 15.0,
+       "min": 11,
+       "max": 18,
+       "n": 24
+      },
+      "dy": {
+       "median": 0.0,
+       "min": -4,
+       "max": 4,
+       "n": 24
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       15,
+       -1
+      ],
+      "share": 0.29
+     },
+     "first_action": {
+      "median": 1.0,
+      "min": 1,
+      "max": 6,
+      "n": 24
+     },
+     "no_action_share": 0.0,
+     "attacks": {
+      "median": 6.0,
+      "min": 4,
+      "max": 10,
+      "n": 24
+     },
+     "casts": [
+      {
+       "median": 1.0,
+       "min": 1,
+       "max": 6,
+       "n": 24
+      },
+      {
+       "median": 6.0,
+       "min": 6,
+       "max": 11,
+       "n": 24
+      },
+      {
+       "median": 11.0,
+       "min": 9,
+       "max": 16,
+       "n": 24
+      },
+      {
+       "median": 16.0,
+       "min": 16,
+       "max": 24,
+       "n": 24
+      },
+      {
+       "median": 21.0,
+       "min": 21,
+       "max": 29,
+       "n": 22
+      },
+      {
+       "median": 26.0,
+       "min": 26,
+       "max": 34,
+       "n": 16
+      }
+     ],
+     "targets": [
+      {
+       "i": 0,
+       "mode": "S1",
+       "share": 0.5,
+       "n": 24
+      },
+      {
+       "i": 1,
+       "mode": "N2",
+       "share": 0.46,
+       "n": 24
+      },
+      {
+       "i": 2,
+       "mode": "S3",
+       "share": 0.54,
+       "n": 24
+      },
+      {
+       "i": 3,
+       "mode": "S4out",
+       "share": 0.38,
+       "n": 24
+      },
+      {
+       "i": 4,
+       "mode": "boss",
+       "share": 0.71,
+       "n": 21
+      },
+      {
+       "i": 5,
+       "mode": "N3",
+       "share": 0.4,
+       "n": 5
+      },
+      {
+       "i": 6,
+       "mode": "boss",
+       "share": 1.0,
+       "n": 1
+      }
+     ],
+     "attack_names": {
+      "SCEPTRE_BARRAGE": 75,
+      "TWISTED_BOW": 38,
+      "KODAI_BARRAGE": 13,
+      "NM_STAFF_BARRAGE": 12
+     },
+     "return_to_boss": {
+      "median": 21,
+      "min": 6,
+      "max": 41,
+      "n": 23
+     },
+     "wave_adds_hit": {
+      "N1": {
+       "share": 0.04,
+       "first": {
+        "median": 2,
+        "min": 2,
+        "max": 2,
+        "n": 1
+       }
+      },
+      "N2": {
+       "share": 0.5,
+       "first": {
+        "median": 6.0,
+        "min": 2,
+        "max": 7,
+        "n": 12
+       }
+      },
+      "N3": {
+       "share": 0.25,
+       "first": {
+        "median": 11.0,
+        "min": 11,
+        "max": 26,
+        "n": 6
+       }
+      },
+      "N4in": {
+       "share": 0.04,
+       "first": {
+        "median": 31,
+        "min": 31,
+        "max": 31,
+        "n": 1
+       }
+      },
+      "N4out": {
+       "share": 0.42,
+       "first": {
+        "median": 16.0,
+        "min": 15,
+        "max": 36,
+        "n": 10
+       }
+      },
+      "S1": {
+       "share": 0.5,
+       "first": {
+        "median": 1.0,
+        "min": 1,
+        "max": 2,
+        "n": 12
+       }
+      },
+      "S2": {
+       "share": 0.67,
+       "first": {
+        "median": 3.5,
+        "min": 1,
+        "max": 6,
+        "n": 16
+       }
+      },
+      "S3": {
+       "share": 0.58,
+       "first": {
+        "median": 11.0,
+        "min": 11,
+        "max": 11,
+        "n": 14
+       }
+      },
+      "S4in": {
+       "share": 0.25,
+       "first": {
+        "median": 16.0,
+        "min": 16,
+        "max": 16,
+        "n": 6
+       }
+      },
+      "S4out": {
+       "share": 0.46,
+       "first": {
+        "median": 16,
+        "min": 16,
+        "max": 20,
+        "n": 11
+       }
+      },
+      "off": {
+       "share": 0.04,
+       "first": {
+        "median": 36,
+        "min": 36,
+        "max": 36,
+        "n": 1
+       }
+      }
+     },
+     "weapon": {
+      "SCEPTRE": 19,
+      "KODAI": 2,
+      "NM_STAFF": 2
+     },
+     "prayer": {
+      "none": 20,
+      "magic": 4
+     }
+    }
+   }
+  },
+  {
+   "name": "50",
+   "n": 24,
+   "start": {
+    "median": 69.5,
+    "min": 57,
+    "max": 107,
+    "n": 24
+   },
+   "length": {
+    "median": 40.0,
+    "min": 25,
+    "max": 66,
+    "n": 24
+   },
+   "adds": {
+    "median": 6.0,
+    "min": 6,
+    "max": 9,
+    "n": 24
+   },
+   "lanes": {
+    "N3": 17,
+    "S1": 17,
+    "N4out": 16,
+    "S3": 16,
+    "N1": 15,
+    "N4in": 15,
+    "S4out": 13,
+    "S4in": 12,
+    "S2": 12,
+    "N2": 11,
+    "off": 8
+   },
+   "leaks": {
+    "median": 2.0,
+    "min": 0,
+    "max": 5,
+    "n": 24
+   },
+   "leak_hp": {
+    "median": 31,
+    "min": 1,
+    "max": 75,
+    "n": 53
+   },
+   "roles": {
+    "dps1": {
+     "n": 24,
+     "tile": {
+      "mode": [
+       5,
+       6
+      ],
+      "share": 0.25,
+      "dx": {
+       "median": 5.0,
+       "min": 1,
+       "max": 8,
+       "n": 24
+      },
+      "dy": {
+       "median": 6.0,
+       "min": -3,
+       "max": 6,
+       "n": 24
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       5,
+       6
+      ],
+      "share": 0.38
+     },
+     "first_action": {
+      "median": 4.0,
+      "min": 0,
+      "max": 5,
+      "n": 24
+     },
+     "no_action_share": 0.0,
+     "attacks": {
+      "median": 8.0,
+      "min": 4,
+      "max": 25,
+      "n": 24
+     },
+     "casts": [
+      {
+       "median": 4.0,
+       "min": 0,
+       "max": 5,
+       "n": 24
+      },
+      {
+       "median": 9.0,
+       "min": 2,
+       "max": 13,
+       "n": 24
+      },
+      {
+       "median": 14.0,
+       "min": 4,
+       "max": 16,
+       "n": 24
+      },
+      {
+       "median": 19.0,
+       "min": 6,
+       "max": 21,
+       "n": 24
+      },
+      {
+       "median": 24,
+       "min": 8,
+       "max": 26,
+       "n": 23
+      },
+      {
+       "median": 29,
+       "min": 10,
+       "max": 31,
+       "n": 23
+      },
+      {
+       "median": 34,
+       "min": 12,
+       "max": 36,
+       "n": 19
+      },
+      {
+       "median": 35,
+       "min": 14,
+       "max": 39,
+       "n": 13
+      }
+     ],
+     "targets": [
+      {
+       "i": 0,
+       "mode": "boss",
+       "share": 0.42,
+       "n": 24
+      },
+      {
+       "i": 1,
+       "mode": "N2",
+       "share": 0.45,
+       "n": 22
+      },
+      {
+       "i": 2,
+       "mode": "boss",
+       "share": 0.59,
+       "n": 17
+      },
+      {
+       "i": 3,
+       "mode": "boss",
+       "share": 0.67,
+       "n": 9
+      },
+      {
+       "i": 4,
+       "mode": "boss",
+       "share": 0.6,
+       "n": 5
+      },
+      {
+       "i": 5,
+       "mode": "S4in",
+       "share": 0.33,
+       "n": 3
+      },
+      {
+       "i": 6,
+       "mode": "boss",
+       "share": 1.0,
+       "n": 3
+      },
+      {
+       "i": 7,
+       "mode": "N4out",
+       "share": 1.0,
+       "n": 1
+      }
+     ],
+     "attack_names": {
+      "SCYTHE": 117,
+      "BLOWPIPE": 44,
+      "DINHS_SPEC": 7,
+      "TWISTED_BOW": 4
+     },
+     "return_to_boss": {
+      "median": 14.0,
+      "min": 7,
+      "max": 40,
+      "n": 22
+     },
+     "wave_adds_hit": {
+      "N1": {
+       "share": 0.42,
+       "first": {
+        "median": 4.0,
+        "min": 3,
+        "max": 5,
+        "n": 10
+       }
+      },
+      "N2": {
+       "share": 0.33,
+       "first": {
+        "median": 9.0,
+        "min": 4,
+        "max": 14,
+        "n": 8
+       }
+      },
+      "N3": {
+       "share": 0.08,
+       "first": {
+        "median": 14.0,
+        "min": 14,
+        "max": 14,
+        "n": 2
+       }
+      },
+      "N4out": {
+       "share": 0.12,
+       "first": {
+        "median": 20,
+        "min": 20,
+        "max": 31,
+        "n": 3
+       }
+      },
+      "S1": {
+       "share": 0.12,
+       "first": {
+        "median": 5,
+        "min": 4,
+        "max": 13,
+        "n": 3
+       }
+      },
+      "S2": {
+       "share": 0.12,
+       "first": {
+        "median": 12,
+        "min": 9,
+        "max": 34,
+        "n": 3
+       }
+      },
+      "S3": {
+       "share": 0.08,
+       "first": {
+        "median": 11.0,
+        "min": 9,
+        "max": 13,
+        "n": 2
+       }
+      },
+      "S4in": {
+       "share": 0.04,
+       "first": {
+        "median": 19,
+        "min": 19,
+        "max": 19,
+        "n": 1
+       }
+      },
+      "S4out": {
+       "share": 0.12,
+       "first": {
+        "median": 38,
+        "min": 32,
+        "max": 45,
+        "n": 3
+       }
+      }
+     },
+     "weapon": {
+      "SCYTHE": 18,
+      "BLOWPIPE": 6
+     },
+     "prayer": {
+      "magic": 20,
+      "none": 4
+     }
+    },
+    "dps2": {
+     "n": 24,
+     "tile": {
+      "mode": [
+       6,
+       2
+      ],
+      "share": 0.21,
+      "dx": {
+       "median": 6.0,
+       "min": 4,
+       "max": 9,
+       "n": 24
+      },
+      "dy": {
+       "median": 4.0,
+       "min": -1,
+       "max": 10,
+       "n": 24
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       6,
+       5
+      ],
+      "share": 0.29
+     },
+     "first_action": {
+      "median": 4.0,
+      "min": 0,
+      "max": 4,
+      "n": 24
+     },
+     "no_action_share": 0.0,
+     "attacks": {
+      "median": 8.0,
+      "min": 5,
+      "max": 25,
+      "n": 24
+     },
+     "casts": [
+      {
+       "median": 4.0,
+       "min": 0,
+       "max": 4,
+       "n": 24
+      },
+      {
+       "median": 9.0,
+       "min": 2,
+       "max": 14,
+       "n": 24
+      },
+      {
+       "median": 14.0,
+       "min": 4,
+       "max": 19,
+       "n": 24
+      },
+      {
+       "median": 19.0,
+       "min": 6,
+       "max": 24,
+       "n": 24
+      },
+      {
+       "median": 24.0,
+       "min": 8,
+       "max": 29,
+       "n": 24
+      },
+      {
+       "median": 29,
+       "min": 10,
+       "max": 34,
+       "n": 23
+      },
+      {
+       "median": 34.0,
+       "min": 12,
+       "max": 39,
+       "n": 18
+      },
+      {
+       "median": 39,
+       "min": 14,
+       "max": 44,
+       "n": 13
+      }
+     ],
+     "targets": [
+      {
+       "i": 0,
+       "mode": "boss",
+       "share": 0.5,
+       "n": 24
+      },
+      {
+       "i": 1,
+       "mode": "N2",
+       "share": 0.38,
+       "n": 24
+      },
+      {
+       "i": 2,
+       "mode": "boss",
+       "share": 0.55,
+       "n": 22
+      },
+      {
+       "i": 3,
+       "mode": "boss",
+       "share": 0.47,
+       "n": 17
+      },
+      {
+       "i": 4,
+       "mode": "boss",
+       "share": 0.55,
+       "n": 11
+      },
+      {
+       "i": 5,
+       "mode": "boss",
+       "share": 0.8,
+       "n": 5
+      },
+      {
+       "i": 6,
+       "mode": "boss",
+       "share": 1.0,
+       "n": 1
+      }
+     ],
+     "attack_names": {
+      "SCYTHE": 152,
+      "DINHS_SPEC": 9,
+      "BLOWPIPE": 8,
+      "SCYTHE_UNCHARGED": 5
+     },
+     "return_to_boss": {
+      "median": 16.5,
+      "min": 9,
+      "max": 27,
+      "n": 24
+     },
+     "wave_adds_hit": {
+      "N1": {
+       "share": 0.62,
+       "first": {
+        "median": 4,
+        "min": 2,
+        "max": 5,
+        "n": 15
+       }
+      },
+      "N2": {
+       "share": 0.25,
+       "first": {
+        "median": 8.5,
+        "min": 6,
+        "max": 9,
+        "n": 6
+       }
+      },
+      "N3": {
+       "share": 0.17,
+       "first": {
+        "median": 31.5,
+        "min": 17,
+        "max": 45,
+        "n": 4
+       }
+      },
+      "N4out": {
+       "share": 0.12,
+       "first": {
+        "median": 32,
+        "min": 26,
+        "max": 34,
+        "n": 3
+       }
+      },
+      "S1": {
+       "share": 0.38,
+       "first": {
+        "median": 18,
+        "min": 14,
+        "max": 39,
+        "n": 9
+       }
+      },
+      "S2": {
+       "share": 0.25,
+       "first": {
+        "median": 16.0,
+        "min": 9,
+        "max": 44,
+        "n": 6
+       }
+      },
+      "S4out": {
+       "share": 0.08,
+       "first": {
+        "median": 44.5,
+        "min": 44,
+        "max": 45,
+        "n": 2
+       }
+      }
+     },
+     "weapon": {
+      "SCYTHE": 23,
+      "BLOWPIPE": 1
+     },
+     "prayer": {
+      "magic": 20,
+      "none": 4
+     }
+    },
+    "freezer": {
+     "n": 24,
+     "tile": {
+      "mode": [
+       9,
+       -1
+      ],
+      "share": 0.12,
+      "dx": {
+       "median": 12.0,
+       "min": 6,
+       "max": 16,
+       "n": 24
+      },
+      "dy": {
+       "median": -1.0,
+       "min": -3,
+       "max": 5,
+       "n": 24
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       15,
+       3
+      ],
+      "share": 0.12
+     },
+     "first_action": {
+      "median": 1.0,
+      "min": 1,
+      "max": 6,
+      "n": 24
+     },
+     "no_action_share": 0.0,
+     "attacks": {
+      "median": 8.0,
+      "min": 4,
+      "max": 12,
+      "n": 24
+     },
+     "casts": [
+      {
+       "median": 1.0,
+       "min": 1,
+       "max": 6,
+       "n": 24
+      },
+      {
+       "median": 6.0,
+       "min": 6,
+       "max": 11,
+       "n": 24
+      },
+      {
+       "median": 11.0,
+       "min": 10,
+       "max": 16,
+       "n": 24
+      },
+      {
+       "median": 16.0,
+       "min": 15,
+       "max": 21,
+       "n": 24
+      },
+      {
+       "median": 21,
+       "min": 20,
+       "max": 26,
+       "n": 23
+      },
+      {
+       "median": 26,
+       "min": 26,
+       "max": 31,
+       "n": 23
+      },
+      {
+       "median": 31,
+       "min": 31,
+       "max": 36,
+       "n": 17
+      },
+      {
+       "median": 36.5,
+       "min": 36,
+       "max": 41,
+       "n": 14
+      }
+     ],
+     "targets": [
+      {
+       "i": 0,
+       "mode": "S1",
+       "share": 0.67,
+       "n": 24
+      },
+      {
+       "i": 1,
+       "mode": "S2",
+       "share": 0.42,
+       "n": 24
+      },
+      {
+       "i": 2,
+       "mode": "S3",
+       "share": 0.5,
+       "n": 24
+      },
+      {
+       "i": 3,
+       "mode": "N4out",
+       "share": 0.3,
+       "n": 23
+      },
+      {
+       "i": 4,
+       "mode": "boss",
+       "share": 0.59,
+       "n": 22
+      },
+      {
+       "i": 5,
+       "mode": "boss",
+       "share": 0.5,
+       "n": 12
+      },
+      {
+       "i": 6,
+       "mode": "boss",
+       "share": 0.75,
+       "n": 4
+      },
+      {
+       "i": 7,
+       "mode": "boss",
+       "share": 1.0,
+       "n": 1
+      }
+     ],
+     "attack_names": {
+      "SCEPTRE_BARRAGE": 92,
+      "TWISTED_BOW": 35,
+      "ZCB_SPEC": 14,
+      "KODAI_BARRAGE": 14
+     },
+     "return_to_boss": {
+      "median": 26.0,
+      "min": 6,
+      "max": 43,
+      "n": 24
+     },
+     "wave_adds_hit": {
+      "N1": {
+       "share": 0.04,
+       "first": {
+        "median": 1,
+        "min": 1,
+        "max": 1,
+        "n": 1
+       }
+      },
+      "N2": {
+       "share": 0.21,
+       "first": {
+        "median": 6,
+        "min": 3,
+        "max": 6,
+        "n": 5
+       }
+      },
+      "N3": {
+       "share": 0.25,
+       "first": {
+        "median": 11.0,
+        "min": 11,
+        "max": 21,
+        "n": 6
+       }
+      },
+      "N4in": {
+       "share": 0.08,
+       "first": {
+        "median": 31.0,
+        "min": 15,
+        "max": 47,
+        "n": 2
+       }
+      },
+      "N4out": {
+       "share": 0.67,
+       "first": {
+        "median": 18.0,
+        "min": 16,
+        "max": 41,
+        "n": 16
+       }
+      },
+      "S1": {
+       "share": 0.67,
+       "first": {
+        "median": 1.0,
+        "min": 1,
+        "max": 2,
+        "n": 16
+       }
+      },
+      "S2": {
+       "share": 0.46,
+       "first": {
+        "median": 6,
+        "min": 1,
+        "max": 7,
+        "n": 11
+       }
+      },
+      "S3": {
+       "share": 0.67,
+       "first": {
+        "median": 11.0,
+        "min": 10,
+        "max": 11,
+        "n": 16
+       }
+      },
+      "S4in": {
+       "share": 0.38,
+       "first": {
+        "median": 16,
+        "min": 16,
+        "max": 31,
+        "n": 9
+       }
+      },
+      "S4out": {
+       "share": 0.29,
+       "first": {
+        "median": 16,
+        "min": 16,
+        "max": 35,
+        "n": 7
+       }
+      }
+     },
+     "weapon": {
+      "SCEPTRE": 18,
+      "KODAI": 2,
+      "NM_STAFF": 2
+     },
+     "prayer": {
+      "none": 19,
+      "magic": 5
+     }
+    }
+   }
+  },
+  {
+   "name": "30",
+   "n": 24,
+   "start": {
+    "median": 107.0,
+    "min": 87,
+    "max": 156,
+    "n": 24
+   },
+   "length": {
+    "median": 48.0,
+    "min": 34,
+    "max": 75,
+    "n": 24
+   },
+   "adds": {
+    "median": 6.5,
+    "min": 6,
+    "max": 8,
+    "n": 24
+   },
+   "lanes": {
+    "N4out": 18,
+    "S4in": 18,
+    "N1": 17,
+    "S3": 15,
+    "S1": 13,
+    "S4out": 13,
+    "off": 13,
+    "N2": 13,
+    "S2": 13,
+    "N3": 13,
+    "N4in": 11
+   },
+   "leaks": {
+    "median": 2.0,
+    "min": 0,
+    "max": 9,
+    "n": 24
+   },
+   "leak_hp": {
+    "median": 33,
+    "min": 1,
+    "max": 75,
+    "n": 53
+   },
+   "roles": {
+    "dps1": {
+     "n": 24,
+     "tile": {
+      "mode": [
+       5,
+       6
+      ],
+      "share": 0.33,
+      "dx": {
+       "median": 5.0,
+       "min": -1,
+       "max": 9,
+       "n": 24
+      },
+      "dy": {
+       "median": 6.0,
+       "min": -2,
+       "max": 7,
+       "n": 24
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       5,
+       6
+      ],
+      "share": 0.21
+     },
+     "first_action": {
+      "median": 4.0,
+      "min": 0,
+      "max": 4,
+      "n": 24
+     },
+     "no_action_share": 0.0,
+     "attacks": {
+      "median": 8.0,
+      "min": 5,
+      "max": 23,
+      "n": 24
+     },
+     "casts": [
+      {
+       "median": 4.0,
+       "min": 0,
+       "max": 4,
+       "n": 24
+      },
+      {
+       "median": 9.0,
+       "min": 2,
+       "max": 9,
+       "n": 24
+      },
+      {
+       "median": 14.0,
+       "min": 4,
+       "max": 14,
+       "n": 24
+      },
+      {
+       "median": 19.0,
+       "min": 6,
+       "max": 19,
+       "n": 24
+      },
+      {
+       "median": 24.0,
+       "min": 8,
+       "max": 24,
+       "n": 24
+      },
+      {
+       "median": 29,
+       "min": 10,
+       "max": 30,
+       "n": 23
+      },
+      {
+       "median": 34.0,
+       "min": 12,
+       "max": 35,
+       "n": 20
+      },
+      {
+       "median": 38,
+       "min": 14,
+       "max": 41,
+       "n": 15
+      }
+     ],
+     "targets": [
+      {
+       "i": 0,
+       "mode": "boss",
+       "share": 0.5,
+       "n": 24
+      },
+      {
+       "i": 1,
+       "mode": "boss",
+       "share": 0.47,
+       "n": 17
+      },
+      {
+       "i": 2,
+       "mode": "boss",
+       "share": 0.89,
+       "n": 9
+      },
+      {
+       "i": 3,
+       "mode": "S1",
+       "share": 0.5,
+       "n": 2
+      },
+      {
+       "i": 4,
+       "mode": "boss",
+       "share": 1.0,
+       "n": 2
+      },
+      {
+       "i": 5,
+       "mode": "S3",
+       "share": 1.0,
+       "n": 1
+      },
+      {
+       "i": 6,
+       "mode": "boss",
+       "share": 1.0,
+       "n": 1
+      },
+      {
+       "i": 7,
+       "mode": "S3",
+       "share": 1.0,
+       "n": 1
+      }
+     ],
+     "attack_names": {
+      "SCYTHE": 118,
+      "BLOWPIPE": 36,
+      "TWISTED_BOW": 8,
+      "CLAW_SPEC": 8
+     },
+     "return_to_boss": {
+      "median": 9,
+      "min": 6,
+      "max": 23,
+      "n": 17
+     },
+     "wave_adds_hit": {
+      "N1": {
+       "share": 0.58,
+       "first": {
+        "median": 4.0,
+        "min": 2,
+        "max": 6,
+        "n": 14
+       }
+      },
+      "N2": {
+       "share": 0.17,
+       "first": {
+        "median": 9.0,
+        "min": 3,
+        "max": 9,
+        "n": 4
+       }
+      },
+      "N4out": {
+       "share": 0.08,
+       "first": {
+        "median": 21.5,
+        "min": 15,
+        "max": 28,
+        "n": 2
+       }
+      },
+      "S1": {
+       "share": 0.04,
+       "first": {
+        "median": 4,
+        "min": 4,
+        "max": 4,
+        "n": 1
+       }
+      },
+      "S3": {
+       "share": 0.08,
+       "first": {
+        "median": 14.5,
+        "min": 13,
+        "max": 16,
+        "n": 2
+       }
+      },
+      "S4out": {
+       "share": 0.04,
+       "first": {
+        "median": 36,
+        "min": 36,
+        "max": 36,
+        "n": 1
+       }
+      }
+     },
+     "weapon": {
+      "SCYTHE": 18,
+      "BLOWPIPE": 4,
+      "TWISTED_BOW": 2
+     },
+     "prayer": {
+      "magic": 23,
+      "none": 1
+     }
+    },
+    "dps2": {
+     "n": 24,
+     "tile": {
+      "mode": [
+       2,
+       -1
+      ],
+      "share": 0.12,
+      "dx": {
+       "median": 4.0,
+       "min": 0,
+       "max": 6,
+       "n": 24
+      },
+      "dy": {
+       "median": 4.5,
+       "min": -2,
+       "max": 6,
+       "n": 24
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       6,
+       5
+      ],
+      "share": 0.25
+     },
+     "first_action": {
+      "median": 4.0,
+      "min": 0,
+      "max": 5,
+      "n": 24
+     },
+     "no_action_share": 0.0,
+     "attacks": {
+      "median": 8.0,
+      "min": 5,
+      "max": 14,
+      "n": 24
+     },
+     "casts": [
+      {
+       "median": 4.0,
+       "min": 0,
+       "max": 5,
+       "n": 24
+      },
+      {
+       "median": 9.0,
+       "min": 2,
+       "max": 11,
+       "n": 24
+      },
+      {
+       "median": 14.0,
+       "min": 4,
+       "max": 16,
+       "n": 24
+      },
+      {
+       "median": 19.0,
+       "min": 6,
+       "max": 21,
+       "n": 24
+      },
+      {
+       "median": 24.0,
+       "min": 8,
+       "max": 27,
+       "n": 24
+      },
+      {
+       "median": 29,
+       "min": 10,
+       "max": 32,
+       "n": 23
+      },
+      {
+       "median": 34,
+       "min": 13,
+       "max": 36,
+       "n": 19
+      },
+      {
+       "median": 39,
+       "min": 18,
+       "max": 41,
+       "n": 13
+      }
+     ],
+     "targets": [
+      {
+       "i": 0,
+       "mode": "N1",
+       "share": 0.58,
+       "n": 24
+      },
+      {
+       "i": 1,
+       "mode": "boss",
+       "share": 0.65,
+       "n": 20
+      },
+      {
+       "i": 2,
+       "mode": "boss",
+       "share": 0.86,
+       "n": 7
+      },
+      {
+       "i": 3,
+       "mode": "boss",
+       "share": 1.0,
+       "n": 1
+      }
+     ],
+     "attack_names": {
+      "SCYTHE": 139,
+      "ZCB_SPEC": 10,
+      "SCYTHE_UNCHARGED": 7,
+      "BLOWPIPE": 6
+     },
+     "return_to_boss": {
+      "median": 10.0,
+      "min": 8,
+      "max": 21,
+      "n": 20
+     },
+     "wave_adds_hit": {
+      "N1": {
+       "share": 0.71,
+       "first": {
+        "median": 4,
+        "min": 2,
+        "max": 5,
+        "n": 17
+       }
+      },
+      "N2": {
+       "share": 0.12,
+       "first": {
+        "median": 9,
+        "min": 5,
+        "max": 10,
+        "n": 3
+       }
+      }
+     },
+     "weapon": {
+      "SCYTHE": 23,
+      "BLOWPIPE": 1
+     },
+     "prayer": {
+      "magic": 17,
+      "none": 7
+     }
+    },
+    "freezer": {
+     "n": 24,
+     "tile": {
+      "mode": [
+       6,
+       0
+      ],
+      "share": 0.25,
+      "dx": {
+       "median": 6.0,
+       "min": 2,
+       "max": 6,
+       "n": 24
+      },
+      "dy": {
+       "median": 2.0,
+       "min": -3,
+       "max": 6,
+       "n": 24
+      }
+     },
+     "spawn_tile": {
+      "mode": [
+       15,
+       3
+      ],
+      "share": 0.12
+     },
+     "first_action": {
+      "median": 1.0,
+      "min": 1,
+      "max": 7,
+      "n": 24
+     },
+     "no_action_share": 0.0,
+     "attacks": {
+      "median": 8.0,
+      "min": 5,
+      "max": 14,
+      "n": 24
+     },
+     "casts": [
+      {
+       "median": 1.0,
+       "min": 1,
+       "max": 7,
+       "n": 24
+      },
+      {
+       "median": 6.0,
+       "min": 6,
+       "max": 12,
+       "n": 24
+      },
+      {
+       "median": 11.0,
+       "min": 11,
+       "max": 17,
+       "n": 24
+      },
+      {
+       "median": 16.0,
+       "min": 16,
+       "max": 22,
+       "n": 24
+      },
+      {
+       "median": 21.0,
+       "min": 21,
+       "max": 27,
+       "n": 24
+      },
+      {
+       "median": 26,
+       "min": 26,
+       "max": 36,
+       "n": 23
+      },
+      {
+       "median": 31.0,
+       "min": 31,
+       "max": 37,
+       "n": 20
+      },
+      {
+       "median": 36,
+       "min": 36,
+       "max": 42,
+       "n": 15
+      }
+     ],
+     "targets": [
+      {
+       "i": 0,
+       "mode": "S1",
+       "share": 0.5,
+       "n": 24
+      },
+      {
+       "i": 1,
+       "mode": "N2",
+       "share": 0.38,
+       "n": 24
+      },
+      {
+       "i": 2,
+       "mode": "S3",
+       "share": 0.46,
+       "n": 24
+      },
+      {
+       "i": 3,
+       "mode": "N4out",
+       "share": 0.38,
+       "n": 24
+      },
+      {
+       "i": 4,
+       "mode": "boss",
+       "share": 0.88,
+       "n": 17
+      },
+      {
+       "i": 5,
+       "mode": "boss",
+       "share": 0.5,
+       "n": 2
+      },
+      {
+       "i": 6,
+       "mode": "boss",
+       "share": 1.0,
+       "n": 1
+      }
+     ],
+     "attack_names": {
+      "SCEPTRE_BARRAGE": 75,
+      "SCYTHE": 50,
+      "TWISTED_BOW": 27,
+      "KODAI_BARRAGE": 9
+     },
+     "return_to_boss": {
+      "median": 21.0,
+      "min": 6,
+      "max": 36,
+      "n": 24
+     },
+     "wave_adds_hit": {
+      "N1": {
+       "share": 0.04,
+       "first": {
+        "median": 4,
+        "min": 4,
+        "max": 4,
+        "n": 1
+       }
+      },
+      "N2": {
+       "share": 0.46,
+       "first": {
+        "median": 6,
+        "min": 2,
+        "max": 7,
+        "n": 11
+       }
+      },
+      "N3": {
+       "share": 0.17,
+       "first": {
+        "median": 11.0,
+        "min": 11,
+        "max": 12,
+        "n": 4
+       }
+      },
+      "N4out": {
+       "share": 0.5,
+       "first": {
+        "median": 16.0,
+        "min": 16,
+        "max": 21,
+        "n": 12
+       }
+      },
+      "S1": {
+       "share": 0.5,
+       "first": {
+        "median": 1.0,
+        "min": 1,
+        "max": 1,
+        "n": 12
+       }
+      },
+      "S2": {
+       "share": 0.54,
+       "first": {
+        "median": 3,
+        "min": 1,
+        "max": 6,
+        "n": 13
+       }
+      },
+      "S3": {
+       "share": 0.62,
+       "first": {
+        "median": 11,
+        "min": 6,
+        "max": 12,
+        "n": 15
+       }
+      },
+      "S4in": {
+       "share": 0.33,
+       "first": {
+        "median": 16.0,
+        "min": 16,
+        "max": 16,
+        "n": 8
+       }
+      },
+      "S4out": {
+       "share": 0.21,
+       "first": {
+        "median": 16,
+        "min": 11,
+        "max": 31,
+        "n": 5
+       }
+      }
+     },
+     "weapon": {
+      "SCEPTRE": 15,
+      "SCYTHE": 4,
+      "KODAI": 2
+     },
+     "prayer": {
+      "none": 17,
+      "magic": 7
+     }
+    }
+   }
+  }
+ ]
+}

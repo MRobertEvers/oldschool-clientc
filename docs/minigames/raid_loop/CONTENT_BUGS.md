@@ -326,7 +326,15 @@ Seam 7 was the presentation pass (OSRS-Content a006110486). Found by the fixers 
 - ToB, death: the inventory and equipment tabs are not closed in the cage (Near Reality closes them; the video shows them blank). The logout-during-a-fight half FIXED in OSRS-Content 26ba1bd604 (seam8 tob_hud_chat_lines_and_room_flow: a death, settled on return). A maze runner who dies in the realm is caged and the realm let go (seam8 tob_sotetseg_tornado_and_cage); what the real game does with the maze is unsourced. A logout during Sotetseg's maze (the realm branch of `~tob_on_reenter`) still folds the maze and restarts the room.
 - ToB, death: Entry wipe bandages are 3 per raider (Entry Mode page :35) where the 2023 newspost says the number depends on what was used; grade D.
 - ToB, lobby: `~tob_orator_place` (tob.rs2) is not called; one line in tob_raid.rs2 `~tob_build_room` after `~tob_spawn_boss` would place them (rooms 1-5). The Stranger's shop and the escape crystal FIXED in OSRS-Content 26ba1bd604 (seam8; tob_lobby.inv, `[opheld1,tob_teleport]`). Open: the Poll 83 logout-with-crystal rule (`~tob_escape_crystal_login`, written in tob.rs2, needs its call in `~tob_on_reenter`); A Night at the Theatre's Stranger talk must set `%varb15607_tobquest_stranger_vis` and offer the crystal and shroud options (nightatthetheatre.rs2); the crystal's animation/graphic, Configure/Auto-afk/Wear and the other activities are not implemented; the Hard chest death bands are an approximation (tob_lobby.constant `[M-open: hard chest death bands]`).
+  2026-10-07 content_bugs: the Poll 83 rule is WIRED (OSRS-Content e11e84535d): `~tob_on_reenter` spends the crystal and
+  stands the player outside (`~tob_escape_crystal_login`), for a room and, after the maze folds, for a realm runner
+  ("Logging out whilst in the Theatre of Blood while having an escape crystal in your inventory will now consume the
+  crystal and teleport you outside of the raid on login", wiki_Theatre_of_Blood.wikitext:291); compiled, not driven.
+  STILL OPEN: the orators (only Near Reality places them, no OSRS page or cache map does -- an OSRS source is
+  missing), the A Night at the Theatre talk, the crystal's animation/graphic and options.
 - ToB, lobby: `[oploc1,tob_scoreboard]` (tob_chest.rs2) still prints chat lines; it should call `~tob_board_scoreboard_open`. The lobby `tob_hud` box is not mounted in Ver Sinhaza, so varbit 6440 written on forming a party is not drawn, and `~tob_hud_close` resets it after a raid while the party persists. A party record whose members all log out stays in the 32-slot instance pool (no logout hook). The scoreboard keeps attempts, completions and deaths per account, not per mode or size; global stats are not kept.
+  2026-10-07 content_bugs: the scoreboard loc now opens the cache's `tob_scoreboard` interface
+  (`~tob_board_scoreboard_open`, OSRS-Content e11e84535d); compiled, not driven. The rest of the row stands.
 - ToB, lobby: apply, withdraw, accept, reject, Unblock, kick, leave, the leader's re-order arrows, the friends filter and the members' call-in are implemented but not run (one client). `~tob_join_raid` still joins whatever raid carries the flag, not this party's.
 - Tree-wide, retrieval: `~retrieval_room_for_all` (player/scripts/retrieval.rs2) passes its running count as `inv_itemspace`'s 4th argument, which the engine reads as a slot limit, so `~retrieval_reclaim_all` refuses 'Not enough space' when the service holds 2+ stacks. The ToB claim chest works around it; every other retrieval service (Nex excepted) still has it.
 - Tree-wide, God Wars: `~gwd_in_bounds_coord` (godwars_chamber.rs2) translates the Nex chamber rectangle into whatever instance the player is in, so `~gwd_nex_on_death` claims deaths in other instanced activities (Inferno, Fight Caves, ToA, CoX) whose tile falls in that local box. death.rs2 now skips it for Theatre deaths only.
@@ -424,6 +432,14 @@ Fixed in OSRS-Content 26ba1bd604 and the seam8 parent commit 0397a0b29: the rows
 
 - Canifis, canafis_citizen.rs2:29-35: a Canifis citizen (canafis_man1) never turns into a werewolf when hit. No npc_retype row and npc_id 2613 unchanged after three melee hits or several landed wind strikes, although `[ai_queue2,_canafis_citizen]` calls `npc_changetype(~canafis_werewolf_type, 500)` (seam9 scratches s9retype1, s9retype2). Not a raid row; quest-loop content.
 - ENGINE, torirs_server_world.c `npc_spawn`: the record is memset and `death_seq_tick` is never set to -1 (only the respawn reset in torirs_server_combat.c does). The phase-cleanup stamp (`death_seq_tick < 0`) therefore never runs for an npc in its first life from `npc_spawn` (every script-spawned npc, all of ToB), and `ToriRSServer_WorldNpcFree`'s "death animation seen in full" hold reads 0 and never holds. Found by the seam9 selftest stanza, which checks `death_seq_sent` instead. Not fixed.
+  **FIXED 2026-10-07 content_bugs (engine):** `npc_spawn` sets `npc->death_seq_tick = -1` after its memset, the
+  respawn reset's own value (torirs_server_combat.c "A new life: its death has not been shown yet"). Built and
+  measured in a private worktree (scratchpad/eng, binaries torirs_cb / torirsserver_fix vs _base): server selftest
+  18 failures before and after, the same lines; the svcplayentry Entry raid's 773 npc_free and every npc_death row
+  are identical on both binaries (md5 of the tick/kind/type rows equal), and a Deviant-spectre probe with
+  TORIRSSERVER_ANIM_LOST=1 prints no hold on either. So no ToB timing moves; the stamp and the hold are now armed for
+  a first life as the code intends.
+
 - ToB, Xarpus: since seam9 a spit or orb still in flight when Xarpus dies is dropped (the engine's death step clears the npc queue). The original comment said no splat can land after him; no source states either way.
 - ToB, Xarpus: since seam9 orbs land on throw + floor(end/30) (they mostly landed a tick later on the old player queue). No Xarpus-specific source states the orb impact tick; ENCOUNTER_TIMING.md 1.2/1.4 is the rule used.
 - ToB, room tests: `tob_maiden.lua` (committed) names `tob_maiden_100` where Entry spawns `tob_maiden_100_story`, and `tob_verzik.lua` (committed) names `verzik_initial` where Entry is `_story`; both predate seam5. The WIP files are the authors'.
@@ -532,6 +548,9 @@ Open:
 - Open, ToB, supply chests: an Entry chest hands over min(10, free slots) and then answers "The
   chest is empty." (tob_chest.rs2:159). No source says whether a raider may come back for the
   rest after freeing slots.
+  **CLOSED 2026-10-07 content_bugs (content already does it):** tob_chest.rs2 `[oploc1,tob_midway_chest_closed]` keeps
+  `left = ^tob_entry_bandages - taken` per player (`%varp6854/6855_tob_supply_*`), so a raider who took 6 of 10 for
+  want of slots gets the other 4 on the next Open; "The chest is empty." only once all 10 are taken.
 
 ## From seam14 (matthew-mbp-m4-raid-b1-seam14, 2026-10-04)
 
@@ -560,6 +579,8 @@ Open:
   supply chest do not carry over from each boss") say the leftovers stay until the next chest.
   Patch proposed at build/seam_state/matthew-mbp-m4-raid-b1-seam14/verz/chest_proposal/ (not in
   the seam's files, not applied, not compiled).
+  **CLOSED 2026-10-07 content_bugs:** the leftovers already stay in the same chest for that raider (row above); they
+  are not carried to the second chest (each chest has its own `%varp685x_tob_supply_*`), as the pages say.
 - Open, ToB, bandages: no prayer restore (tob_spectate.rs2). Entry Mode :7/:35 say the bandage
   acts as a prayer potion; :151 says it "slightly restores Prayer"; the item page says "more
   research is needed". A prayer-potion restore would be grade E at best: the owner decides. The
@@ -572,6 +593,11 @@ Open:
   Entry "a percentage", :256) has no Entry figure either.
 - Open, ToB, Verzik: her pillars spawn as the Normal records 8379/8377/8378, not Entry
   10840/10838/10839, in every run (npc_retype rows); hp is set to 200 by script. Presentation only.
+  Re-checked 2026-10-07 content_bugs, NOT CHANGED: all.npc `verzik_story_pillar_npc` and `verzik_pillar_npc` are
+  byte-identical apart from stat4 (md5 of the remaining fields equal; the same for the collapsing forms), and the
+  script sets the Entry 200; the only observable difference is the npc id a client sees. Swapping the record by
+  mode means per-mode `[ai_queue1,...]` triggers and five `npc_find` sites in tob_verzik.rs2: left OPEN (presentation
+  only, low value).
 - Closed as stale, ToB, Verzik: tob.constant's "25 with insulated boots" comment is the
   Strategies page's figure, not stale; the 60 percent is now ^tob_verzik_p2_zap_boots_pct with
   both quotes (behaviour unchanged).
@@ -601,16 +627,28 @@ Open:
   4 + 30% (restore_potion.rs2:79-83, and the br copy at br_potion.rs2:93-97). Wiki [Sanfew
   serum] oldid 15236706 line 53: "restores 4 + 30% of the player's base level (rounded down) per
   dose in all skills except Hitpoints". Both copies should change together.
+  **FIXED 2026-10-07 content_bugs (OSRS-Content 3bd2334365):** `~sanfew_serum_restore` (prayer_potion.rs2), the
+  super restore's list at 4 + 30%, called by both copies; the page is pinned at sources/wiki_Sanfew_serum.wikitext:53.
+  Probe cb_potions1: agility 59 -> 92, prayer 39 -> 72.
 - Open, potions, Super restore mix (barbarian_mix.rs2 `[proc,brutal_mix_restore_all]`):
   restores only the five combat stats, not Prayer or the other skills. Wiki [Super restore]
   line 61: the mix is a super restore with caviar, healing 6 Hitpoints a dose (the 6 is there).
+  **FIXED 2026-10-07 content_bugs (3bd2334365):** `[proc,brutal_mix_restore_all]` is `~super_restore_effect` (Prayer and
+  every other skill but Hitpoints; the unsourced poison immunity is gone). wiki_Super_restore.wikitext:61. Probe
+  cb_potions1: prayer 0 -> 34.
 - Open, potions: a super restore drunk with a Prayer cape or ring of the gods (i) worn, or a
   holy wrench carried, should restore Prayer by 8 + 27% (wiki [Super restore] line 57). Not
   implemented.
+  **FIXED 2026-10-07 content_bugs (3bd2334365):** `~prayer_restore_pct` (prayer_potion.rs2) adds 2 to the Prayer percent
+  of the prayer potion, the super restore (and through it the br_ copy, the Castlewars brew and the restore mix)
+  and the brutal prayer mix when a ring of the gods (i) or a Prayer / max cape is worn, or a holy wrench / Prayer or
+  max cape is carried: wiki_Prayer_potion.wikitext:90 (fetched by name; the longer list) and wiki_Super_restore
+  .wikitext:57. Probe cb_potions1: super restore with a wrench, prayer 0 -> 34 (8 + floor(99 x 27/100)).
 - Open, ToB, configs/tob.constant: `^tob_verzik_nvar_expire` (register 2) is documented as
   "crab / web: the tick it dies"; seam15's tornado fade also keeps the tick its despawn began
   there. Suggested comment: "crab / web: the tick it dies; tornado: the tick its despawn began".
   Documentation only.
+  **FIXED 2026-10-07 content_bugs (3bd2334365):** tob.constant:2620 now says so.
 
 ## From seam16 (matthew-mbp-m4-raid-b1-seam16, 2026-10-04)
 
@@ -650,6 +688,7 @@ Open:
   sources/ with a manifest row). Every brew a raider drinks makes each accuracy-rolled hit
   land more often. Engine-wide: the quest suite must be re-run after the fix. Found by the
   tob_relay_wiki_kit fixer.
+  **Already FIXED (seam36, checked 2026-10-07):** sara_brew.rs2:52 `stat_boost(defence, 2, 20)`.
 - Open, ToB, Xarpus [M70]: the poison buff counts an exhumed as fully absorbed when one orb
   reaches him. s15k1 leaked 1-4 orbs from 6 of 7 exhumeds, giving +85% and Entry poison hits of
   4-6. Mod Kieren's "buffed by a percentage based upon how many exhumed absorbs you missed"
@@ -695,6 +734,7 @@ Open:
   the Tombs of Amascut supply brew; the file's header says it mirrors the ordinary families
   "constant for constant") still runs `stat_drain(defence, 2, 10)`. The same one-line fix,
   `stat_boost(defence, 2, 20)` in place of that drain, was outside seam18's file list.
+  **Already FIXED (seam36, checked 2026-10-07):** br_potion.rs2:85 `stat_boost(defence, 2, 20)`.
 - Open, potions, Saradomin brew drains, of the base or the current level: line 56 and line 114
   ("Attack/Strength/Ranged/Magic drain is calculated with: floor((Current Stat Level) * 1/10) +
   2") say the drain is of the current level; `stat_drain(x, 2, 10)` steps by the base level.
@@ -782,6 +822,12 @@ Open:
   `music 0 570` at tick 98 on entry, no music row for the two members who joined at tick 111.
   Found by seam19 tob_party_room_bring_along (tick log read; not fixed: the music pages'
   "upon entering" sentences were not re-read for a party).
+  **FIXED 2026-10-07 content_bugs (OSRS-Content 23b2c94f4d):** "Players are not required to participate in the raid
+  to unlock all of the music, and may spectate one to do so" (wiki_Theatre_of_Blood.wikitext:211; each track
+  "Unlocked in ... arena" / "Unlocked during the fight with ...", :223, :227). The room track now plays for every
+  raider the passage carries and for a joiner, the fight track for every raider of the party
+  (`~tob_music_fight_party`). Measured cb_music2 (Normal trio Bloat): 578 for p0 at t11 and p1/p2 at t15; 571 for
+  all three at the fight start (before, cb_chest3: p0 only).
 
 ## Owner rulings (2026-10-04)
 
@@ -1028,6 +1074,12 @@ TORIRSSERVER_SCRIPTS; the shared tree was never edited to prove it).
   rows of 1606, 6 of 1604, 0 of 1607. Open: which projectile a solo raider's main ball is (no recorder
   row for solo Entry here); the play prays Missiles for a 1607 already, so a fix changes
   no play.
+  **CLOSED 2026-10-07 content_bugs (content matches the boss page):** "It launches small red projectiles which can be
+  blocked with Protect from Magic. Upon striking a player, these projectiles will split into two other similar
+  projectiles, both of which will ricochet towards other players as one grey and one red projectiles"
+  (wiki_Sotetseg.wikitext:92). The grey ball is a ricochet "towards other players", so a party of one never sees one;
+  the Entry page's "red or grey" (Entry Mode :191) describes the room for a party. Ours: main 1606 red, splits 1606 /
+  1607 to `uid ! $victim` -- the same.
 - ToB, Sotetseg Entry: the melee through Protect from Melee hits 1..10
   (`^tob_sote_melee_prayed_max_entry = 10`, tob_sotetseg.constant:26, "[derived] 20
   halved, the 45 -> 22 rule; no Entry source"). Not a disagreement, an UNSOURCED number
@@ -1157,12 +1209,23 @@ TORIRSSERVER_SCRIPTS; the shared tree was never edited to prove it).
   "applied to the accuracy/defence roll when the attack is cast") and the "heavy" ranged
   defence for the primary's roll are not modelled: `~player_npc_hit_roll`
   (combat_stats.rs2:710) takes no modifier. Not in seam33's files.
+  **CLOSED 2026-10-07 content_bugs (already done, plus this pass):** the fuse table is in
+  `~player_chinchompa_hit_roll` (player_ranged.rs2: short 100/75/50, medium 75/100/75, long 50/75/100 at 0-3/4-6/7+,
+  scaling the attack roll, "applied to the accuracy/defence roll when the attack is cast", wiki_Chinchompa_weapon:21),
+  and the primary's roll now meets the npc's HEAVY ranged defence (`~npc_defence_roll_player`, the ~1467 fix above).
 - Still open, CONTENT: an npc whose record says `forcemulti=yes`, standing outside both
   maps/multiway.csv and a map instance, is treated as single-way by the chinchompa splash:
   the record key is the engine's (`ToriRSServer_CombatMultiway`) and content cannot read it.
+  **FIXED 2026-10-07 content_bugs (OSRS-Content 627ccf65f3 + engine torirs_server_content.c):** the npc loader mirrors
+  `forcemulti` into a script-visible `forcemulti` param (combat.param), and `~npc_combat_multiway(coord)` asks the
+  engine's three legs (forcemulti, any map instance, maps/multiway.csv) for the barrage/burst splash, the chinchompa
+  splash, the scythe arc and Dinh's bulwark special. Probe (scratch ::cbmulti, private binary): dagcave_melee_boss in
+  single-way Lumbridge forcemulti=1 map=0 combat=1; Abyssal guardian 0 / 0. Server selftest 18 = 18.
 - Still open, CONTENT: `~pvm_barrage_spell` (player_magic.rs2:68-71) still hits the 3x3 in
   single-way areas; its comment says multiway "is not modelled", which stopped being true
   when `map_multiway` was hosted. Same wiki line as above (Multicombat area:68).
+  **Already FIXED (seam36, checked 2026-10-07):** player_magic.rs2 sweeps the 3x3 only when multi-combat (now through
+  `~npc_combat_multiway`, row above).
 
 ## From seam33's Normal trio plans (matthew-mbp-m4-raid-b1-seam33, 2026-10-06; filed by the closer)
 
@@ -1275,6 +1338,11 @@ TORIRSSERVER_SCRIPTS; the shared tree was never edited to prove it).
   spec sotetseg.melee_max_prayed_entry (E, [M165]); the plan's open table needs its M165 row.
   raid_report.py counting a hit through the right prayer as a "prayer" MISTAKE is the tool's
   rule, not the play's error, for this boss.
+  Re-checked 2026-10-07 content_bugs: STILL the disclosed approximation, blocked on a source. The Entry page
+  gives only "an inaccurate but high-hitting melee attack" and the advice to pray Protect from Melee
+  (wiki_Theatre_of_Blood_Entry_Mode.wikitext:191); the Entry infobox only the unprayed 20 (wiki_Sotetseg
+  .wikitext:23); Blert's one Entry raid has no melee on the recorder. Missing: any Entry recording of a melee
+  hit through Protect from Melee (a Blert Entry stream with Sotetseg melee on the recorder, or a video).
 - FIXED (content): the `br_` Saradomin brew drained Defence. `br_` is the cache's Last Man
   Standing supply family ("battle royale": all.obj also holds br_bloody_key, br_token); the
   ToB chest (tob.rs2 :855) and the ToA bundles hand it out. br_potion.rs2 now
@@ -1465,6 +1533,21 @@ TORIRSSERVER_SCRIPTS; the shared tree was never edited to prove it).
   Xarpus 100/160; Verzik 10-250 per form; every Nylocas and the Maiden and Blood spawn 0), so
   a heavy split changes no ToB roll; the tree's single `rangedefence` equals the heavy value
   there. Still open tree-wide (an npc whose heavy differs needs the param first).
+  **FIXED 2026-10-07 content_bugs (OSRS-Content 7995b720af + engine torirs_server_content.c whitelist):** npc params
+  `rangedefence_light` / `rangedefence_heavy` (combat.param, -1 = same as `rangedefence`), stated on the 149 npc
+  blocks whose page splits them (the wiki monster corpus: 133 version blocks with dlight/dstandard/dheavy not all
+  equal); `~npc_defence_roll_player` reads the one for the worn weapon's class, `~player_ranged_weight`: thrown ->
+  light, crossbows / ballistas / chinchompas -> heavy, the rest standard ("Light: Thrown weapons such as darts,
+  knives, thrownaxes, Toktz-xil-ul, blowpipes, and the Tonalztics of Ralos / Standard: Arrows, Atlatl darts,
+  Salamanders ... / Heavy: Bolts, javelins, and chinchompas", wiki_Ranged.wikitext:48-50; :340 the split). Every
+  player hit roll and the 21 ranged/generic specials go through it; npc-vs-npc rolls and the boat cannons keep
+  `~npc_defence_roll`. Proof: scratch-pack ::cbdefroll on an Abyssal guardian (0/70/0): dart 2496, bow 5226,
+  crossbow 2496; server selftest 18 = 18 failures, 0 content errors (176 "unknown param" lines before the engine
+  whitelist). tools/gen_npc_stats.py now emits the two params (a re-run reproduces them; NOTE: a re-run on this tree
+  also churns ledgers unrelated to this change -- the committed generated file has drifted from the generator).
+  Not changed: 6 authored blocks whose rangedefence disagrees with the wiki's dstandard (death_troll_thrower1-5 200 vs
+  120, green_dragon 20 vs 50): filed as their own row below. No ToB npc splits (every ToB page: light = standard =
+  heavy), so no raid roll moves; the quest suite's crossbow/dart fights against the 149 do.
 
 ## From seam41 tob_room_clear_restore (matthew-mbp-m4-camera-b1-seam41, 2026-10-06)
 
@@ -1517,6 +1600,15 @@ TORIRSSERVER_SCRIPTS; the shared tree was never edited to prove it).
   POST.bloat + take_chest whole in a Normal party and reads `::tobstores points=` per raider
   (expected: each 6-13, not a sum). The "below average" band is now unreached (one raider's
   own deaths are 0, 1 or 2 = the onion); what "below average" measures is unpublished (M22).
+  **CLOSED 2026-10-07 content_bugs: driven in a party, each balance is the raider's own.** Probe
+  build/seam_state/content_bugs/probes/cb_chest_party.lua (the HEAD _play_bloat fight, then every seat opens
+  the chest and reads `::tobstores`), run build/quest_gate/cb_chest3 (Normal trio, Bloat killed tick 273):
+  p1 13, p2 12, p3 10 points, each inside the wiki's 6..13 ("the amount of points a player is given can range
+  from 6 to 13", wiki_Chest__Theatre_of_Blood_.wikitext:20), none a sum. Found on the way (cb_chest1/2, p2/p3
+  read 0): the chest (local 5,33) stands one tile from Bloat's exit (5,31)-(5,32), and `~tob_exit_walked`
+  (tob_raid.rs2, `^tob_exit_reach = 1`) moves the WHOLE party on when any raider steps within a tile of it; a
+  raider who walks to the chest's south-east side leaves the room for the two who have not opened it yet. Filed
+  below as its own OPEN row (needs a source for who the passage moves).
 - CHECKED, no change: where the Normal chest stands. "It is accessible twice per raid - once
   after killing the Pestilent Bloat, and once after killing Sotetseg" (Chest page :20; the
   main page :61 "After Bloat and Sotetseg, players have an opportunity to buy supplies ...
@@ -1552,6 +1644,13 @@ TORIRSSERVER_SCRIPTS; the shared tree was never edited to prove it).
   `remote_view_end` still act on `srv->active_player`
   (torirs_server_ops_player.c, `SS_OP_REMOTE_VIEW_START`/`_END`); a remote view started from
   a script bound to another player would open on the wrong one.
+  **FIXED 2026-10-07 content_bugs (engine, torirs_server_ops_player.c):** both now act on
+  `SSVM_Active(state, SSVM_ENT_PLAYER)` (asserted; the opcodes require the protected active player,
+  ss_meta_test.c:296-298), the source being the same Engine-TS rule as p_oploc above
+  (ScriptState.ts:214 `activePlayer` is the bound one). The view is player-scoped
+  (`ToriRSServer_WorldRemoteViewStart(player, ...)` touches only that player), so no world bind. Every
+  content caller (poh_portal_nexus.rs2, poh_portal_chamber_functions.rs2) runs in the viewer's own script,
+  where the two pointers are one player: behaviour-identical there; no stand-in proof run.
 - FIXED, KEPT TEST ROW: tob_bloat.lua `tech.protect_from_missiles` (and the
   `spec.bloat.fly_prayer` reading built on the same window) counted a walking tick as
   shielded when prayer POINTS were above 0, so flies before the first press counted as
@@ -1579,6 +1678,15 @@ TORIRSSERVER_SCRIPTS; the shared tree was never edited to prove it).
   (s41verziknew2, tick 461), against Blert's 35. Since seam36 the 35 percent test runs on the
   attack slot only (tob_verzik.rs2 `[proc,tob_verzik_reds_due]`); a summon above 35 percent
   is not explained by that, so either the `::tobboss` phase_hp read or the trigger is wrong.
+  **CLOSED 2026-10-07 content_bugs, the trigger is the source's (no content change).** The summon is
+  `~tob_verzik_reds_due` on an attack slot: the first slot where `hp * 100 <= pool * 35` of P2's own
+  pool (tob_verzik.rs2 `[proc,tob_verzik_left_at_or_below]`, `^tob_verzik_p2_reds_pct = 35` [wiki]),
+  "the first set on the slot after she crosses 35% (4 ticks after the attack before it in 62 of 62
+  recorded rooms)" (Blert, the code's own citation). A read under 35 is a big hit between slots; the
+  kept test now reads both sides of the last hit: build/quest_gate/cb_vz1 (tob_verzik, HEAD test, own
+  run) PASS "41.2 percent just before it ... 28.5 percent" at the summon on tick 387 (one 51 hit
+  crossed 35). The 43.2 percent of s41verziknew2 is not reproduced and is above the line the code
+  tests on every slot; it was read before the test subtracted the absorb window's heals (seam41).
 ## From seam40 play_tob_maiden_follows_blert (matthew-mbp-m4-raid-b1-seam40, 2026-10-06)
 
 ### Maiden blackstorm: the tie-break hands one raider every storm (Blert says the dps share them)
@@ -1588,6 +1696,8 @@ Content: `tob_maiden.rs2 [proc,tob_maiden_blackstorm]` targets "the closest play
 Blert (`docs/minigames/theater_of_blood/sources/blert_api/reference/maiden_normal_3.json`, 24 Normal trio rooms) measures who she targets within each room. role.dps1.boss_targeted_pct is 38 [5.6-58.8] and role.dps2 is 41.45 [18.8-64.3]: the two dps share the storms in every room. If ties were broken by a fixed orb order, most rooms would read near 0 / 100. role.freezer is 19.95 [6.2-50], with the freezer at dist_boss 10 in phases 100/70.
 
 Open: what breaks the tie in the real game? Candidates are random, last-attacker, and a different centre. No source has been found. The plan works around it: seat 1 steps one tile off on every other attack ("THE SHARED TANK"). Grade: the [mc] sentence is D; Blert's split contradicts a deterministic orb tie-break (B).
+
+**CLOSED 2026-10-07 (settled by owner_tob_normal, progress.md "STORM TILES, streams", 20:15): no content bug.** Over all 293 recorded storms (24 rooms, stormtiles.py) the target is the raider nearest her centre (SW +3,+3) by Chebyshev distance with the orb-order tie: 293 of 293; a north/east tie-break also 100 % (it never decides one), centre SW+2.5 97.3 %. The share split above is where the raiders STAND (in all 24 rooms the freezer is orb 0, the leader, and takes the ties from her east edge in her 30 form), not a random tie. `~tob_maiden_blackstorm` already does exactly this (`~tob_maiden_centre` = SW + size/2, `distance`, orb tie).
 
 ### Maiden Normal trio: our room runs about 1.7x the real length, and specials are not the whole gap
 
@@ -1623,3 +1733,781 @@ nylocas' defence/accuracy against the wiki stat block and whether a copy attacki
 ### Vasilias: 12.5 hp per tick vs Blert 20.3 (24.7 a swing vs ~34) with Blert's weapons on her forms.
 
 ### Mage level 112 in Blert = Imbued heart; no heart in content (the plan drinks a magic potion, 103).
+
+### Bloat stomp reach is anchored on the SOUTH-WEST tile (tob_bloat.rs2:823 huntall(npc_coord, ^tob_bloat_stomp_range = 6))
+Status: OPEN (seam42 closer). Not applied: the plan's in_stomp (raid_play_tob_bloat.lua) reads the same south-west anchor, so the content and the plan must change together, with a run; the radius is still the closer's guess from Blert data.
+**CLOSED 2026-10-07 content_bugs: FIXED by seam48** (row "Bloat stomp reach: centre-based (landed, seam48)" below). HEAD tob_bloat.rs2:831 `huntall(movecoord(npc_coord, 2, 0, 2), ^tob_bloat_stomp_range, 0)` with `^tob_bloat_stomp_range = 5` (tob.constant:973): footprint + 3 on every side, the Blert data (footprint+2 23/27, +3 4/10, >=4 0/10); raid_play_tob_bloat.lua:434 `in_stomp` reads the same centre (`P.stomp_centre`). No wiki or cache number exists (wiki_Pestilent_Bloat.wikitext:92 "it will stomp the surrounding area"; Strategies:675 none), so Blert stays the source. Nothing changed here.
+Source: Blert, 27 recorded Normal trio downs (build/blert/bloat, seam42 reader bloat/blert_bloat_reference.py):
+a raider at Chebyshev distance <=2 from Bloat's 5x5 footprint at T+28 took the stomp 23 of 27 times, at 3 4 of 10,
+at >=4 0 of 10, on every side.  Ours reaches footprint distance 6 on the south and west faces and only 2 on the
+north and east faces (radius 6 round the south-west corner).  The tob.constant comment says [M65] "no source gives
+a number".  Proposed (the closer decides the radius; the data puts it at footprint+2..3):
+    huntall(movecoord(npc_coord, 2, 0, 2), 5, 0);   // centre tile, footprint + 3
+or radius 4 (footprint + 2).  The plan's in_stomp (raid_play_tob_bloat.lua) reads stomp_range from the
+south-west tile like the content; change both together.  UNPROVED by a run in this pass (no content edit made).
+
+### From raid seam42 play_tob_xarpus_follows_blert -- Xarpus Normal trio phase 3 is short (UNSOURCED, Open)
+Status: OPEN (seam42 closer): unsourced; measure first, as the entry says.
+
+Evidence: Blert reference/xarpus_normal_3.json (13 death-free Regular trio rooms):
+outcome.phase.phase2.ticks (the screech to his death) 51 [45-70]; role.melee*.phase.phase2.attacks_boss
+9-10 [8-12] per raider, mostly scythe (weapons.melee*|phase2.SCYTHE 8-9). Ours (seed_survey.py
+_play_xarpus --party 3 --names 5, seam42 final): 36-44 ticks on 7-9 swings a raider, 0 retaliations.
+Fewer swings and a shorter phase means each swing takes more of him in ours, or he has less left at
+the screech (ours screeches on the first grid slot after the bar reads <= 25%: plan screech_pct 27.5
+with the margin; X xarpus.p3.screech_pct 22.5 for Entry, W:851 "~25%"). Not fixed: no source in hand
+says which (his Normal hit points at the screech, or the scythe's three hits on a 5x5 in phase 3);
+measure the screech hit points from the npc row against Blert's npc hitpoints (event 8 at the
+xarpusPhase 2 tick) before changing anything.
+**CLOSED 2026-10-07 content_bugs as content (measured, no change).** (1) The screech point: Blert
+reference/xarpus_normal_3.json (13 rooms) output.phase.phase2.boss_pct_per_tick 0.517 x ticks 51 = 26.4 %
+of his pool dealt from the screech to his death (19.71 hp a tick x 51 = 1005 of 3750, with a median 94 hp
+healed inside it), against "Xarpus screeches once at 25% of his health" (wiki_Xarpus.wikitext:258) and
+"Upon reaching ~25% of his health" (Strategies:851); ours screeches at the first slot under 25 %: the same
+point within the heal. (2) His P3 stats are the wiki infobox's: tob.npc `[tob_xarpus_combat]` defence 250,
+ranged 100, magic 220, hitpoints 5000 scaled (wiki_Xarpus.wikitext:122-145, id 8340, dstab/dslash/dcrush 0);
+the melee formula and the scythe's three hits on a 5x5 were settled in seam52. (3) What is left is the
+PLAY: ours ~23 hp a tick (937 in 36-44 ticks) against Blert's 19.7, because the real teams lose swings to
+the quadrant dance ("He will rotate every 8 ticks ... 1/2 from a 5-tick weapon", Strategies:853; "will
+immediately look at the direction from which he was attacked", wiki_Xarpus.wikitext:265) and ours took 0
+retaliations. STILL OPEN on a source: what heals him a median 94 (25-139) inside Blert's P3 window; no
+page names a P3 heal (an exhumed still absorbing at the screech is the likely reading; unmeasured).
+## From seam46 nylocas_waves_and_vasilias_rows (matthew-mbp-m4-raid-b1-seam46, 2026-10-06)
+
+Settles the four seam40 Nylocas rows above against their sources. None is a content defect in
+minigame_tob: every number the rows suspected matches its source, and no content file changed.
+
+### Nylocas wave stall from wave 11 -- CLOSED, content matches the source (no change)
+
+The cap, what it counts and when it is tested are all sourced and our content has all three:
+- value: "Before wave 20, the cap is 12 nylocas; afterwards, the cap is doubled to 24."
+  (wiki_Theatre_of_Blood_Strategies_Nylocas.wikitext:3); blert `waveCap()` is
+  `currentWave < CAP_INCREASE_WAVE ? 12 : 24` (Hard 15) (blert_plugin/NylocasDataTracker.java:88-92).
+  No source scales it with the party. Ours: tob.constant `^tob_nylo_cap_early` 12, `_hard` 15, `_late` 24,
+  `^tob_nylo_cap_increase_wave` 20.
+- count: blert `roomNyloCount()` is `nylosInRoom.size()` (+3 for a Prinkipas), a nylo leaving the map only
+  on its DESPAWN (NylocasDataTracker.java:84-86, :215): splits and bigs count one each, a corpse counts until
+  it despawns. Ours: `~tob_nylo_count` (tob_nylocas.rs2), the same.
+- test: on the tick the wave is due, `roomNyloCount() >= waveCap()` is a stall (NylocasDataTracker.java:123);
+  ours `~tob_nylo_count >= ~tob_nylo_cap(...)` (tob_nylocas.rs2 `[proc,tob_nylo_wave_tick]`), retried every
+  4-tick cycle.
+Blert's "14 alive right after a spawn" is a room under 12 on the due tick plus the 2-4 the wave adds, so the
+same cap. Our stalls from w11 are the room holding 12 on the due tick because copies die slower (the grey
+row below and the plan's weapon switching), not a different rule. Spec rows nylocas.cap_pre20 / cap_post20 /
+cap_pre20_hard / cap_increase_gate already carry it (grade B/C).
+
+### Small greys 1.34-1.40 attacks per kill -- CLOSED as content; the zeros are NULLING (sourced) after a plan misclick
+
+- Stat block matches: wiki Nylocas Ischyros `def1 = 1`, `dstab..dheavy = 0`, `hitpoints1 = 11`, `scaledhp = Yes`
+  (wiki_Nylocas_Ischyros.wikitext:29-75); cache 8342 has no stat2 and no defence params
+  (cache_npc_nylocas.txt:1-20); tob.npc `[tob_nylocas_incoming_melee]` defence=1; trio hp 8 / 9 / 11
+  (tob.constant `^tob_nylo_small_hp_3/4/5`). Big: wiki def2 20, cache stat2=20, tob.npc 20.
+- A pillar-chewer is hittable: nothing in tob_nylocas.rs2 or tob_damage.rs2 blocks a hit on a copy that is
+  biting a support.
+- The four zeros in ny40j are NULLING. build/quest_gate/ny40j/ticklog.tsv: raider 2 `tgt 1096` holding 12926
+  (toxic blowpipe), player_anim 5061 at t154 -> `hit_npc 1096 8342 0 26` at t157 (ranged on an Ischyros); from
+  t157 raider 2 holds 4151 (whip), anims 1658 at t170/174/178/182 -> `hit_npc 1096 8342 0 26` at
+  t171/175/179/183. The rule is the wiki's: "Each spider is immune to damage outside of their combat style ...
+  If the nylocas is attacked with a wrong style, the player that attacked them can no longer damage them."
+  (wiki_Theatre_of_Blood_Strategies.wikitext:724), implemented in tob_damage.rs2 `~tob_nylo_nulled_here`.
+  OPEN, DRIVER (not content): the trio plan fires its previous weapon at a newly chosen target before the
+  colour's weapon is equipped, which nulls that copy for the seat for life. The plan must equip the colour's
+  weapon BEFORE the attack click on a new target (raid driver / _play_nylocas, not minigame_tob).
+
+### Vasilias 12.5 hp per tick vs Blert 20.3 -- CLOSED as content (stats match); per-swing gap OPEN (player side)
+
+- wiki Nylocas Vasilias `def = 50`, `dstab..dheavy = 0`, `hitpoints2 = 2500`, `scaledhp = Yes`
+  (wiki_Nylocas_Vasilias.wikitext:31-68); cache 8355 stat2=50, stab/slash/crush/magicdefence 0
+  (cache_npc_nylocas.txt:306-336); tob.npc `[nylocas_boss_melee/_magic/_ranged]` defence=50; tob.constant
+  `^tob_vasilias_hp_3/4/5` 1875 / 2187 / 2500. Nothing to change.
+- ny40j: 175 hits on her, 34 at 0 (19%), spread evenly over the 10-tick window (dt0 3/13, dt3 8/40, dt9 6/19),
+  so wrong-style reflects at the turn are not the gap. With def 50 and no bonuses a 118-attack scythe should
+  almost never miss: the gap is on the player side (boosts -- see the heart row -- prayer, the scythe's three
+  hits on a size-4, or accuracy), not in her content. OPEN with that evidence; no source settles it here.
+- **CLOSED 2026-10-07 content_bugs (player side checked, matches).** Her block: wiki_Nylocas_Vasilias.wikitext:18
+  `size = 4`, :41 `def = 50`, defence bonuses 0; all.npc nylocas_boss_melee/_magic/_ranged size=4 stat2=50. The
+  scythe on a 3x3-or-larger target takes three independently rolled hits at 100/50/25 % (wiki_Scythe_of_vitur
+  :81-85; gear/scythe_of_vitur.rs2 header, size 3+ three hits, unchanged since seam38). The player formula is the
+  wiki's to the term (seam52 "Settled: the melee formula is not short"; its 'NOT THE FORMULA' line puts her melee-form
+  expectation at 41-42 a swing). The 21-25 a swing is the room (swings into the wrong form, reflected, across a form
+  change): a DRIVER/plan question, not a content row.
+
+### Mage level 112 in Blert -- the heart EXISTS in content (correction of the seam40 row)
+
+skill_slayer/scripts/imbued_heart.rs2: `[opheld1,imbued_heart]` -> `stat_boost(magic, 1, 10)` (99 -> 109) and
+`[opheld1,saturated_heart]` -> `stat_boost(magic, 4, 10)` (99 -> 112). Blert's 112 is the SATURATED heart
+exactly. OPEN, DRIVER (plan): give the mage seat a saturated heart and invigorate at the door instead of the
+magic potion (103). Not a content row.
+
+### Seen by seam45 (Verzik Normal trio, melee) -- rows to triage, nothing edited
+
+- DRIVER/CLIENT (C, src/plugin): `api_drive.npcs` rows for Verzik's P3 tornadoes (8386) mostly stay on the
+  spawn tile while the server walks them (s45 e8 enrage log: rows "6431,91;6432,91;6432,90" for 10+ ticks
+  while the tick log walked T81 6431,91 -> 6431,98); some rows do move. The plan cannot dodge what it
+  cannot see; it dodges only rows seen moving (raid_play_tob_verzik.lua QD.RAID_PLAY_VERZIK_DODGE note).
+  Same finding as s31 vz31d, still open.
+- CONTENT, unsourced either way: a P2/P3 nylocas blasts on EVERY ending, killed included
+  (tob_verzik.rs2 ~tob_verzik_crab_blast, after Near Reality's onFinish); the wiki sentence quoted there
+  is "explode if they reach their target". A melee raider can never kill one without taking up to 63.
+- CONTENT (spec V verzik.p3_auto_max): a PRAYED P3 auto still deals up to 16-17 to every raider; the
+  melee trio takes 8-12 eats in P3 against Blert's 0-6. If OSRS blocks it fully, hp lost per raider
+  (232-566 here, Blert 69-259) is mostly this and P2's urnbomb/zap.
+- CONTENT: the P3 tornado reaches a raider on her east edge (round her body, 12+ tiles) about every 28
+  ticks per raider (respawn 16, tob.constant ^tob_verzik_p3_tornado_respawn); W:981 calls a touch "the
+  off chance". A ball landing with a touch (74 + 50% of current) is lethal at any hitpoints (e18 svb).
+
+## Seen by seam48 (member_swings_seen)
+
+### Crystal halberd special: the large-target second hit is not implemented (pvm_dragon_halberd.rs2, sa_kind 19)
+special_attack.obj gives crystal_halberd sa_kind 19 (300 energy), the dragon halberd's Sweep. The script's own header
+says it implements only "a single hit with the unconditional +10% damage boost"; the second hit "if used against
+'large' monsters (anything larger than 1x1)" (wiki Dragon halberd, quoted there) is NOT reproduced because the
+engine has no npc_size opcode. Bloat is 5x5: the real trios' down-1 special (17 of 19 Blert Normal trios, seam42)
+would do about half its damage here. Needs an npc_size opcode, then the second hit at 25% reduced accuracy.
+### Bloat stomp reach: centre-based (landed, seam48)
+tob_bloat.rs2 huntall(movecoord(npc_coord, 2, 0, 2), ^tob_bloat_stomp_range = 5): "it will stomp the surrounding
+area" (wiki_Pestilent_Bloat.wikitext:92) + Blert's 27 downs (footprint+2: 23/27, +3: 4/10, >=4: 0/10). [M65] grade D.
+The plan moved with it in the same commit (centre distance, leave margin kept at -2, the leave locked once
+started): tech.leave_before_stomp PASS 3 of 3, 0 stomp hits (closer survey 2).
+
+## From seam52 melee_damage_per_swing (matthew-mbp-m4-raid-b1-seam52, 2026-10-06)
+
+Settled: the melee formula is not short. `combat_stats.rs2` and the scythe split follow the
+wiki to the term: `~combat_effective_stat` scales the CURRENT (boosted) level by the prayer
+(Piety 123, `~check_strength_prayer`) before `+ style + 8` (wiki_Maximum_melee_hit step one),
+`~combat_maxhit` is `(effective * (bonus + 64) + 320) / 640` (step two, the 0.5 is the 320),
+the defence roll is `(level + 9) * (bonus + 64)`, the hit test is `randominc(A) > randominc(D)`,
+and `scythe_of_vitur.rs2` rolls hits 2 and 3 on their own accuracy at `scale(50)` and
+`scale(25)` of the max (wiki_Scythe_of_vitur :83 "each hit will deal 50% less damage,
+(rounded down), than the preceding hit"). Bloat, Verzik P2/P3 and Vasilias stats in
+all.npc equal the wiki's. With `::maxmelee` (torva body/legs, rancour) the wiki expectation
+on Bloat is 38.0 per swing (Reap) -- exactly the 36-39 seam51 measured. The gap to the
+reference was the KIT and the reference's own number:
+
+- KIT (fixed by a test affordance, `cheat_max_gear.rs2` `::tobkit` / `::tobkitsalve`): the
+  recorded raiders (Blert equipmentDeltas, build/blert/{bloat,verzik,sotetseg}) wear radiant
+  oathplate body and legs (Bloat 79/90, Verzik 66/81, Sotetseg 81/87; torva 0), and at
+  Bloat a salve amulet(ei) (74/90; Bloat is undead). Wiki expectation with that kit on
+  Bloat: 42.6 (Reap) / 43.8 (Chop); Verzik P2 29.3 (against 28.0 for `::maxmelee`).
+  Measured on this content: seam52_melee_probe (solo Normal Bloat, `::tobkitsalve`, Reap):
+  24 swings in the downs, 1005 damage, **41.9 per swing**, 7 of 72 rows zero, maxes seen
+  50/26/13 within 55/27/13.
+- THE REFERENCE'S "~49": the down-1 damage divided by ALL attacks, of which about 4.7 per
+  room are crystal-halberd specials. Regressed per kind over 29 recorded rooms (Bloat HP
+  drop in down 1 against attack counts): scythe **46** per swing, halberd special 72.5,
+  claw special 50. The scythe's 46 is inside the noise of the wiki's 42.6-43.8.
+- OPEN (not my file): `skill_combat/configs/combat.dbrow:72`, `weapon_scythe_table` slot 1
+  ("Chop") is `^stab_style`; the wiki's Module:CombatStyles (sources/wiki_Module_CombatStyles.lua
+  :547-549) has `'Chop', 'Slash', Aggressive`, and wiki_Scythe_of_vitur :41 "it does not
+  have a Stab combat style". Fix: `data=damagetype,^slash_style` on line 72. Until it lands
+  a raider must NOT pick style slot 1 with a scythe (stab 70 against Bloat's 40 stab
+  defence); Reap (slot 0, the default) costs 1 max hit (50 against 51) and nothing else.
+- OPEN (shared funnel, EV -1.2 per swing on an undead): the salve multiplies the ROLLED
+  damage (`player_hit_npc_prepare.rs2` `~salve_or_black_mask_scale_target($prepared)`),
+  where the wiki multiplies the MAX HIT ("Step three", wiki_Maximum_melee_hit :86-87 and
+  the Salve amulet (e) row :164) and rolls under it. Same maximum; the distribution is
+  lumpy and the mean slightly low (Bloat with `::tobkitsalve`: 41.5 against 42.6). Moving
+  it touches every caller of `~player_hit_npc_prepare` (ranged, magic, every special) --
+  left for a seam that owns them. **FIXED 2026-10-07 content_bugs (OSRS-Content b8118fbdfd)**:
+  `[proc,player_maxhit_vs_npc]` (gear/salve_amulet.rs2) scales `%varp6287_com_maxhit` by the
+  salve (else the black mask / slayer helmet) after the two target-bound recomputes a swing
+  rolls from (`[label,player_combat_start]`, `~player_melee_swing`); every melee and ranged
+  roll site and every special reads that varp, specials multiply after it (the page's order).
+  `~player_hit_npc_prepare` keeps the factor for MAGIC only (a spell's or powered staff's own
+  maximum). Source: wiki_Maximum_melee_hit.wikitext:86-87 "Max Hit = floor(floor(Base Damage)
+  x Special Bonus)", table :161-166 "Salve amulet (undead) 7/6 ... Salve amulet (e) 1.2".
+  Proof (build/quest_gate/cb_staff_salve1, salve(e), whip, Deviant spectre): 7 of 47 landed
+  hits are 5 mod 6 (5, 11, 17, 23); floor(r*6/5) is never 5 mod 6, so roll scaling could not
+  land one. Disclosed: a multi-target swing's secondaries take the primary's maximum.
+- NOT THE FORMULA: Vasilias's 21 per swing against Blert's 34 (seam51 nylocas) -- the wiki
+  expectation in its melee form is 41-42 per swing with either kit; the shortfall is the
+  room (swings into the wrong form, reflected, or across a form change), not the swing.
+  Verzik P2's 43% zero splats: the formula gives 39% (`::maxmelee`) / 36% (`::tobkit`) per
+  row; the rest are the heal window's zeros (`tob_damage.rs2` `~tob_prepare_player_hit`).
+
+## 2026-10-06 seam55 (orchestrator, owner: "This needs to be fixed. Fix it now"): the Maiden's blackstorm landed exactly its max
+
+`tob_maiden.rs2 ~tob_maiden_hit_damage` returned `36.5 + 3.5c` (halved by Entry and by Protect from Magic)
+on every storm. The Strategies page's "deals damage equal to 36.5 + 3.5c" (wiki_Theatre_of_Blood_Strategies
+.wikitext:590) is the MAX: the Maiden's infobox lists max hit 36 (18 in Entry; wiki_The_Maiden_of_Sugadinti
+.wikitext:39-44) and the 112 recorded Normal trio storms on the Blert raiders have a median of 12.5 and a
+range of 0 to 62 (blert_api/reference/maiden_normal_3.json boss.hit_on_recorder.maiden_auto). Fixed: the
+damage is `random(max + 1)`, still with no accuracy roll ("always lands as a successful hit") and the over-hit
+kept. Effect before the fix: a trio lost 170-390 hitpoints at Maiden against the recorded 60-106, ate its pack
+empty and reached Bloat with nothing (seam53 relay, seam54 Maiden). maiden.tsv auto_damage_base reworded.
+
+## 2026-10-06 seam55 (orchestrator, from the Nylocas fixer's combat-tab probe): powered staves show the melee staff's styles
+
+The combat tab shows Bash / Pound / - / Focus for the Eye of Ayak (and so for every powered staff: there is no
+`weapon_powered_staff_table` in skill_combat/configs/combat.dbrow, only `weapon_staff_table`, and all.obj gives
+the Ayak and the Sanguinesti staff the same category 1 / param_1564 3). OSRS: a powered staff's styles are
+Accurate / Accurate / Longrange (wiki_Eye_of_Ayak.wikitext:71 "combatstyle = Powered Staff") and every style
+casts its built-in spell. The damage TYPE was already made magic for powered staves (seam36 content row), so the
+seat still casts; the LABELS and the Longrange option are wrong, and `t.ui.style("Accurate")` cannot find a
+button on these weapons (the relay picks "Pound" for the Ayak seat for now, test/raids/_play_normal.lua). OPEN:
+add the powered-staff table and map the powered staves to it in combat_stats.rs2, then the harnesses pick
+"Accurate".
+
+**FIXED 2026-10-07 content_bugs (OSRS-Content b8118fbdfd).** Every `~powered_staff_is` weapon now writes
+varbit 357 = 24 (`^weapon_type_powered_staff`, the cache's DBTable 78 row `combat_interface_staff_selfpowering`:
+"Accurate / Accurate / Longrange") and rolls `weapon_powered_staff_table` (combat.dbrow: magic, magic, magic;
+`^style_magic_powered_accurate` x2, `^style_magic_powered_longrange`). Sources: wiki_Module_CombatStyles.lua:485-502
+'Powered Staff'; "combatstyle = Powered Staff" on Eye_of_Ayak:71, Sanguinesti_staff:67, Tumeken_s_shadow:66,
+Trident_of_the_Seas:80, Trident_of_the_Swamp:69, Warped_sceptre:64, Thammaron_s_sceptre:67, Accursed_sceptre:64,
+Bone_staff:49, Dawnbringer:45 (pages fetched into sources/ by name). The styles' invisible bonuses came with it:
+"+3 if using Accurate on powered staves, or +1 if using Longrange ... +8" (wiki_Damage_per_second_Magic.wikitext:20-24),
+Longrange "+3 invisible bonus to their Defence level" (wiki_Combat_Options.wikitext:46); and a SPELL now gets no
+style bonus ("autocasting does not give invisible bonuses", :49): the flat +1 every cast carried
+(LostCity_Content2 player_combat_stat.rs2:73) is gone, so every spell's accuracy roll is one effective level lower
+(about 1 percent). Probe build/quest_gate/cb_staff_salve1: varbit 357 = 24; `t.ui.style("Accurate")` slot 0,
+`"Longrange"` slot 3, `"Pound"` no_style. HARNESS CHANGE: a seat that picks "Pound" on a powered staff must
+pick "Accurate" (told the Nylocas and Maiden owners). Not changed: Longrange's XP split (the powered staff
+still gives 2 Magic XP a damage on every style; wiki_Powered_staff.wikitext:8 and :132 say only that Longrange
+gives Defence XP, no split).
+
+## 2026-10-06 owner_tob_normal: the Matomenos walked to the nearest tile of Maiden, not her south-east tile
+
+`tob_maiden.rs2 [proc,tob_maiden_crab_goal]` clamped the crab's tile into her 6x6 (the nearest tile), so a crab
+from the north row walked along her TOP row to her north-east corner (ours: a north 4 at (23,10) on (16,5) at +6,
+then west along z+5 to (6,5)). The recorded rooms walk every crab to her SOUTH-EAST tile: in the 26 Blert
+Regular trio Maiden streams (build/blert_maiden, NPC_UPDATE per tick, tiles from her SW tile) the north 4 at
+(23,10) walks (22,9) (21,8) ... (14,1) (13,0) and then west along her bottom row to (7,0); the north 3 at (19,12)
+reaches (8,1) at +11 beside the south 3 at (8,0) -- "3s and 4s are the nylocas which spawn on the eastern side of
+the arena, and will clump together 11 ticks and 16 ticks after spawning" (wiki_Theatre_of_Blood_Strategies
+.wikitext:520), "frozen on top of each other in front of Maiden" (:637); Mc's "the crabs will walk towards
+Maiden's southeast tile" was the rule the clamp replaced. FIXED: the goal is her south-east tile again (the
+nearest-tile clamp procs stay for `::tobrun`'s law check). Pack compiled.
+
+## 2026-10-06 owner_tob_normal: a Matomenos took its first step on the tick it spawned
+
+Ours stood one tile in on its spawn tick (pos 5 spawned at (19,12) read (18,11) on the spawn tick); every
+recorded crab is still on its spawn tile on its NPC_SPAWN tick and one tile in a tick later (Blert pos 5:
++1 (18,11), +2 (17,10) ... +11 (8,1)), so ours reached every tile -- and her -- a tick early. FIXED:
+`^tob_var_maiden_crab_clock` (tob.constant, slot 9, unused in her room) holds the map_clock of the last
+70/50/30 spawn and `~tob_maiden_crab_tick` takes no step on it. Arrival ticks now match Blert's leaks (pos 0/1
+at +6, 2/3 at +9, 5 at +13, 6-9 at +17). Pack compiled.
+
+## 2026-10-06 owner_tob_normal: the engine walked a ranged/magic weapon to its BARE cache reach, not the content's
+
+`torirs_server_combat.c player_weapon_attackrange` read the obj's `weapon_attackrange` param, while content's
+`[apnpc2,_]` fires from `~player_attackrange` (skill_combat/combat.rs2), which adds two on Longrange ("Attack
+range is increased by +2 tiles up to a maximum of 10 tiles", wiki_Combat_Options.wikitext:37) -- so the
+approach walked a Longrange bow, or the Eye of Ayak on its Longrange slot, two tiles closer than the trigger
+fired from. FIXED in the engine: the reach is `[proc,player_attackrange]`'s answer (the bare param only when
+no content proc answers). And in content, the powered-staff Longrange check read `%varp43_com_mode = 3` (the
+tab's fourth button, Focus) but `~player_combat_stat` clamps the mode to the style row's count on the first
+swing (combat_stats.rs2:382: the melee staff row has three entries, Bash / Pound / Focus), so from the second
+swing it read 2 and the reach fell back to 6. Now `>= 2`. The Eye of Ayak stays at its own reach: 6
+(wiki_Eye_of_Ayak.wikitext:70 "attackrange = 6", :78 "{{CombatStyles|Powered Staff|speed=3|attackrange=6}}"),
+8 on Longrange. PROBE build/seam_state/owner_tob_normal/probes/_probe_range.lua (Ayak on Focus, Attack on
+Maiden from 8 off her edge): the old binary swung once from 8 and walked to 6 (`moved true, now 6437`), the
+owner binary swings from 8 and stays (`moved false, 6439`; verbose "at-range ready? range=8 in_range=1"
+on every ask).
+
+## 2026-10-06 owner_tob_normal: a spell on a target out of reach -- checked, no divergence
+
+A combat spell pressed on an npc beyond its ten tiles walks the caster into reach and casts there: PROBE
+probes/_probe_cast.lua, Ice Barrage on Maiden pressed from 13 tiles off her edge, the barrage seen two ticks
+later from 9 tiles off. A walk the player clicks afterwards replaces the interaction here as any click does
+(the engine's OPNPC/OPLOC/MOVE handlers clear the target first, torirs_server_combat.c), so a plan that steps
+off a splat re-casts after the step; nothing changed.
+
+## 2026-10-06 owner_tob_normal: FIXED the seam52 OPEN row -- the scythe's "Chop" was stab
+
+`skill_combat/configs/combat.dbrow` `weapon_scythe_table` slot 1 was `^stab_style`; the wiki's Module:CombatStyles
+(sources/wiki_Module_CombatStyles.lua :547-549) has `'Chop', 'Slash', Aggressive` and wiki_Scythe_of_vitur :41 "it does not
+have a Stab combat style". Now `^slash_style`. The Maiden scythe seats swing on Chop (+3 Strength levels at a target drained
+to 0 Defence). Pack compiled.
+
+## 2026-10-06 owner_nylocas: a powered staff's built-in spell took no equipment magic damage -- FIXED
+
+wiki_Tumeken_s_shadow.wikitext:108 "Note that any magic damage bonuses are applied after the base max hit is
+calculated" (the powered staff's own max-hit page), :76 the shadow's passive multiplies "magic damage ... from
+the player's worn equipment" by three, "capped at a total of 100%". The spellbook's casts added
+%varp6222_com_magicdamage (player_magic.rs2); the powered staves' attack (powered_staff.rs2
+[label,player_powered_staff_attack]) never did, so an Eye of Ayak in an occult necklace hit for the bare
+floor(Magic/3) - 6. Fixed: `[proc,powered_staff_magicdamage]` applies the worn bonus (tenths of a percent), x3
+capped at 100% for Tumeken's shadow. Not handled: the shadow's x4 inside the Tombs of Amascut. Also noted, not
+changed: all.obj gives the occult necklace magicdamage 50 (5% by the cache unit combat_stats.rs2 states) where
+the wiki's occult is +10%.
+
+### owner_tob_normal: a frozen npc was frozen again (engine npc_freeze), no immunity -- FIXED (C)
+`npc_freeze` kept the longer of the two freezes, so a barrage on a Matomenos already frozen renewed it to the
+full 32 ticks (svaplaymaide 724b841a9: crab 1080 hit at +1 and again at +11 stood still 50 ticks), and a crab
+could be frozen again the tick it thawed. wiki_Freeze.wikitext:7 "followed by a short immunity to the Status
+after which the target can be frozen again"; :9 "The immunity window for most freezes (with the exception of
+Grasp spells) is 5 ticks". Fixed in torirs_server_scripts.c SS_OP_NPC_FREEZE: nothing lands while
+`frozen_ticks` or the new `freeze_immune_ticks` (TORIRSSERVER_FREEZE_IMMUNITY_TICKS 5, set when the freeze runs
+out, torirs_server_world.c) is above zero; a respawn clears both. Not handled: Grasp spells' 2-tick immunity
+(they share the 5). The barrage's damage still lands on a frozen crab (player_magic.rs2 is unchanged).
+Checked, no divergence: the freeze CHANCE (wiki_Nylocas_Matomenos.wikitext:168, scales with magic attack, 100%
+at +140) is the content's accuracy roll -- `~pvm_freeze_effect` runs only on a successful
+`~player_npc_hit_roll(^magic_style)`.
+
+## 2026-10-06 (orchestrator, owner's rule): only the party leader starts a room; the barrier started it once per click
+
+`tob_party.rs2 [oploc1,tob_arena_barrier]` asked every clicker "Yes, begin the fight." and started the room on
+each answer; the question suspends the script, so three seats answering on one tick (the lockstep door,
+raid_play.lua 41f763640) built the Nylocas room three times (twelve supports at room tick 3). Owner, 2026-10-06:
+"Only the party leader can start a room. The non leaders can only pass the gate once the room is started."
+Fixed: a member (orb slot != 0) clicking an unstarted barrier is told to wait and does not move; the leader's
+answer re-reads `^tob_var_started` and a started room is only stepped through; a started room is a gate for
+everyone (unchanged). The library's cross_together must now have the leader answer and the members press the
+barrier only after the room has started.
+
+### owner_tob_normal: Dinh's bulwark special hit one target -- FIXED (content d259d21c54)
+pvm_dinhs_bulwark.rs2 hit its primary twice and nothing else. wiki_Dinhs_bulwark.wikitext:72 "Shield Bash, which
+hits up to 10 enemies (in both PvM and PvP) in a 11x11 area around the player (thus up to five tiles away from the
+player) with 20% increased accuracy"; :74 the 5% drain on every monster hit, not on the primary's doubled hit; :135
+"the actual range is 11 x 11". Now: npc_findallany(coord, 5) after the primary's two hits, up to 9 more, each its
+own roll and drain; multiway or an instance only, as the barrage's splash.
+
+### owner_tob_normal: a Normal blood-spawn trail hit 10 + 2c (36-42 a tick) -- FIXED (content 35366f400e)
+tob_maiden.rs2 `~tob_maiden_blood_damage` gave a Normal trail tile the splat rule `10 + 2c`; with 13-16 leaks a
+trail hit 36-42 a tick, and the trio runs (sm91: sva, svd, svf) died on it three or four times in ten ticks.
+wiki_Blood_spawn.wikitext:48 "In entry mode the damage is 2 to 5, and in normal mode the damage is 5 to 13."
+Now a Normal trail rolls 5..13 uniform (`^tob_maiden_trail_damage_normal_min/_max`, grade D, the Entry row's shape);
+pools are unchanged (10 + 2c); Hard keeps the splat rule (no source; The_Maiden_of_Sugadinti:144 only says Hard
+splatters stay). Eight names after: 0 deaths (from 3), trail hits 5-13.
+
+### owner_tob_normal: the zaryte crossbow's Evoke was a plain doubled-accuracy hit -- FIXED (content ade9c689b0)
+pvm_zaryte_xbow.rs2 said the bolt guarantee was "moot -- no enchanted-bolt system exists", but enchanted_bolts.rs2
+has one. wiki_Zaryte_crossbow.wikitext:108 "guarantees the special effect of any enchanted bolts used, provided that
+the player lands a successful hit"; :54/:86 the passive: Ruby bolts (e) "22% of the opponent's current hitpoints with
+a cap of 110" (20% / 100 without, wiki_Ruby_bolts_e.wikitext:52). Now Evoke calls `~bolt_enchant_on_hit_evoke`:
+ruby always forfeits on a hit, 22% / 110 with the crossbow worn (autos too); other bolts keep their ordinary roll under
+Evoke (not implemented, disclosed). Measured: the freezer's opener Evoke on Maiden hit 110.
+
+## 2026-10-07 (owner-approved): Vasilias gave every tied target to the first player found
+
+`tob_nylocas_boss.rs2 ~tob_vasilias_act` picked the nearest player and kept the first one found on a tie, so
+with the trio at one distance (the usual case: the 27 reference rooms put all three a median 3 tiles from her)
+the party leader took every attack -- svdplaynyloc's mage 17 of her 20. Blert's 27 death-free Normal trio rooms
+give her 492 attacks to the three roles about equally on every form (melee 35/35/30%, magic 36/33/32%, ranged
+39/35/27%), the target the strict nearest in only 260 of them. Fixed: the nearest, and among players as near a
+uniform pick (a running count of the tied, each replacing the choice with odds 1 in that count). Approved by
+the owner 2026-10-07. Note: the content is right that her hits pass a matching protection prayer up to 17
+(wiki_Theatre_of_Blood_Strategies.wikitext, Nylocas Vasilias: "up to 70 off-prayer, and 17 if prayed against
+(except melee, which is fully protected)").
+
+## 2026-10-07 (owner's rule, every room): only the party leader starts a room -- the doors and Verzik too
+
+Owner, 2026-10-07: "Only the leader CAN start the room. That should be every room." The arena barrier had the
+rule (0b6dffc89); the other two start paths did not: `tob_party.rs2 ~tob_door_enter` (the Xarpus arena door,
+the Verzik entrance door, the Nylocas walkway landings, the spectator barrier) and `tob_verzik.rs2`
+`~tob_verzik_talk` / `~tob_verzik_quickstart` (talking to Verzik). Fixed: a shared `~tob_is_party_leader`
+(orb slot 0); a member is told "You must wait for the party leader to start the fight." and nothing starts;
+the leader's answer re-reads `^tob_var_started` after the suspending question/dialogue, so a room never starts
+twice. The debug `::tobgo` is unchanged (a command, not a player path).
+
+## 2026-10-07 (owner): nothing but the red barrier and talking to Verzik starts an encounter
+
+Owner, 2026-10-07: "When I say start the room, I mean the red barrier and talking to Verzik to start the
+encounter" and "Nothing else should start the encounter." `tob_party.rs2 ~tob_door_enter` (the Xarpus arena
+door, the Verzik entrance door, the Nylocas walkway landings, the spectator barrier) asked "Yes, begin the
+fight." and called `~tob_start_room` -- a divergence (doors are doors). Fixed: those doors never start an
+encounter; the leader gate added there in afd14f6018 is reverted with it. The encounter starts only at the red
+barrier ([oploc1,tob_arena_barrier], the party leader) and at Verzik (~tob_verzik_talk / ~tob_verzik_quickstart,
+the party leader). No harness or relay step used those doors to start a room (checked: they use the barrier,
+Verzik, and the exit passages).
+
+## 2026-10-07 content_bugs: walking near a cleared room's exit moves the whole party
+
+- OPEN, CONTENT (found by the cb_chest party probe; no source in hand). `~tob_exit_walked` (tob_raid.rs2,
+  asked from the per-player room watchdog while the room is cleared) calls `~tob_advance_room` when ANY raider
+  stands within `^tob_exit_reach` (1) of the room's exit, and the advance moves every raider (the "KNOWN GAP,
+  PARTY" note in `~tob_advance_room`). After Bloat the supply chest (local 5,33, the wiki map pin) is one tile
+  from the exit (5,31)-(5,32): cb_chest2, p2 stepped to local 6,32 beside the chest on tick 313 and on tick 314
+  all three were in the Nylocas room, p2 and p3 with 0 points and the chest never opened. Needed: a source for
+  what the passage does to the raiders who have not walked through (OSRS: each raider walks it on their own, as
+  far as any page shows; none here says so in a line). The instance holds one room at a time, so a per-raider
+  passage is an architecture change, not a constant.
+
+
+## 2026-10-07 (owner-approved): two-hit melee weapons rolled one hit
+
+The melee swing (`skill_combat/combat_stats.rs2`) rolled ONE hit for every weapon but the scythe, so sulphur
+blades, glacial temotli, earthbound tecpatl and the dual macuahuitl were weaker one-hit weapons. The recorded
+Normal trio meleers clear the Nylocas greys mostly with the blades (Blert: 771 attacks in 27 rooms;
+owner_nylocas progress Step 18). Sources: wiki_Multi-hit_weapons.wikitext:25/32/39 "two independently rolled
+hits per attack, hitting twice on the same game tick ... the combined max hit ... dividing it by two"; :54-55
+and wiki_Dual_macuahuitl.wikitext:25 the macuahuitl "spaced one game tick apart ... The first hit takes half,
+rounded down, and the second hit takes the remainder ... the second check will only proceed if the first
+succeeds". Fixed: `gear/multihit_melee.rs2` (~melee_multihit_kind / _first_max / _second) wired into the melee
+swing; the first hit rolls against half the max (rounded down), the second against the remainder, through the
+same per-target funnel and XP; same tick for the three, a tick later and only after a landed first hit for the
+macuahuitl. Not modelled: the Blood moon set's early-attack effect; Torag's hammers (not in this cache's obj
+symbols under that name; same rule when added).
+
+### owner_tob_normal: the Void Knight set had no set effect -- FIXED (content bc52eba22f)
+combat_stats.rs2 ~player_combat_stat summed the set's item stats and nothing else. wiki_Void_Knight_equipment.wikitext:19-30
+(melee +10% accuracy and damage; ranged +10%, elite +12.5% damage; mage +45% accuracy) and wiki_Maximum_ranged_hit.wikitext:19/:23
+(the modifier multiplies the effective level after the +8). Now ~void_set_worn reads helm / top / robe / gloves (every (l), (or)
+variant; not broken ones) and scales the effective levels. Not done: the elite mage helm's +5% magic damage. Found because every
+reference ToB raider bows and pipes in elite ranged void (Blert equipmentDeltas, 24 Maiden rooms).
+
+## 2026-10-07 content_bugs: authored ranged defence disagrees with the wiki
+
+- OPEN, CONTENT (found by the heavy-defence pass; source in hand, not this pass's npcs): areas/area_burthorpe/configs/
+  troll_thrower.npc `death_troll_thrower1..5` param=rangedefence,200 against the Thrower Troll page's dstandard 120;
+  npc/configs/dragon.npc `green_dragon` rangedefence 20 against the Green dragon page's dstandard 50 (wiki/monsters
+  corpus). Each is a hand-authored block; whoever authored them should say why before they move.
+
+## 2026-10-07 content_bugs: an npc's queue held eight, and a trio's Dragon claws special aborted on Bloat
+
+- **FIXED (engine, torirs_server.h `TORIRSSERVER_NPC_QUEUE_MAX` 8 -> 32).** Found in every Normal trio Bloat probe
+  (cb_chest3, cb_music1/2): "npc 8359's queue is full" at pvm_dragon_claws.rs2:52 / :60, three to four aborts a
+  room: three scythes queue three hits a swing and the claws four, so the special died before its hits queued.
+  Source: the reference has no cap, Engine-TS src/engine/entity/Npc.ts:59 `queue: LinkList<NpcQueueRequest> = new
+  LinkList()`, :240-243 `enqueueScript ... this.queue.addTail(request)`. Measured in a private worktree build
+  (torirs_cb): 0 aborts (was 4), and Bloat fell in 2 downs, 146 ticks, against 3 downs / 186 ticks with the
+  special dropped; server selftest 18 = 18 failures. Overflow still aborts loudly. ROOM EFFECT: _play_bloat now
+  kills a down earlier (Blert's trios: claws in down 2 in 12 of 19 rooms, seam49).
+
+## 2026-10-07 content_bugs: Entry solo red after the evening's content -- not from the content_bugs commits
+
+- Measured, for the room owners: `seed_survey.py _play_entry --names 5` was 5 of 5 at 04:1x (content b8118fbdfd) and is
+  1 of 5 now (svc PASS; _play_entry/sva/svb/svd red on `xarpus.dawnbringer` "verzik_special_weapon in the pack:
+  timeout" and `verzik.unequip.scythe` "You don't have enough inventory space"; the Sotetseg chest filled the pack:
+  "You take 9 bandages"). svaplayentry is red with the SAME two rows and the same 2459 ticks on (a) the shared binary
+  without the content_bugs engine commits and (b) a scratch pack with content_bugs' later content commits reverted
+  (3bd2334365, 7995b720af, 23b2c94f4d, 627ccf65f3): so it comes from the other commits since (192be95dc0 doors,
+  0b5ef3da0d two-hit weapons, bc52eba22f Void). The harness's take-every-bandage chest rule leaves no slot for the
+  Dawnbringer: a DRIVER question first.
+
+## 2026-10-07 content_bugs: the rooms re-run after the content_bugs batch (private binary = HEAD src, HEAD pack)
+
+- `seed_survey.py <id> --party 3 --names 5 --jobs 3`: _play_bloat 5 of 5 KEEP (was 1 of 5 before the batch: the claws
+  special now lands); _play_xarpus 5 of 5 KEEP; _play_verzik 4 of 5 (svaplayverzi: p2 and p3 die on world tick 676 in
+  P3, `p2:player.died`, `p3:play.fight`); _play_sotetseg 2 of 5 (`blert.room_ticks` 282 / 286 / 273 against the
+  reference's 212.5 [164-262]). Entry solo (`_play_entry --names 5`) 1 of 5 (row above). Maiden and Nylocas trios not
+  re-run here: their owners are on them (Nylocas: a powered staff's tab now reads Accurate, so "Pound" must become
+  "Accurate" in its harness -- told).
+- Attribution, one name each, A/B: Sotetseg 282 ticks on the shared (pre-batch) binary, on a pack with every
+  content_bugs content commit reverted, and on both together -- the same 282: NOT content_bugs. Verzik sva PASS on the
+  old binary with either pack and RED on the content_bugs binary with the pre-batch pack: the ENGINE change, the npc
+  queue cap (the old binary aborted one player melee swing, "npc ... queue is full" at combat_stats.rs2:931; the new
+  one lands it and the fight runs another way). The cap is the reference's (Engine-TS Npc.ts:59, no cap) and stays;
+  the room is the Verzik plan's to re-fit.
+
+
+## 2026-10-07 content_bugs: Sotetseg's maze froze the arena raiders' drawn models (filed by owner_rooms4)
+
+- **FIXED (the code's own reading; OSRS-Content 4dfdd180c4).** `~tob_sote_send_party` plays seq 1816
+  `human_teleport_other_impact` on every raider at the proc, with the comment "17 frames of 4 cycles, so it has played
+  out before the move on the third tick". all.seq has 16 frames of 4 cycles and a 17th of 2000 (the teleother target's
+  hold pose: 2064 cycles, ~69 ticks). That is the cache record, not a decoding error. Default postanim_move is
+  DELAYMOVE (no walkmerge; Client-TS SeqType.ts:155-160, ClientEntity.ts:69-72 aborts only for ABORTANIM). So the
+  client held each raider's model on the old tile while the server walked them (o4sotetseg1 pid2 t221-252: every
+  attack press `not_visible`). `[queue,tob_sote_portal]` now sends `anim(null, 0)` first. Measured
+  (`seed_survey.py _play_sotetseg --party 3 --names 5`, private binary = HEAD src, pack 05:50): 5 of 5 green; 6 seq-1816
+  rows and 6 clear rows a room; 0 `not_visible`; room 272 / 237 / 268 / 245 / 272 ticks (before: 282 / 251 / 286 / - /
+  273). The reference is 212.5 [164-262], so 3 of 5 are still slower than every recorded room. Own name, swings per seat
+  30/31/38 -> 28/35/35.
+- OPEN, SOURCE: what ends seq 1816 for the arena raiders in the real game. Blert's plugin keys the proc on 1816
+  (SotetsegDataTracker.java:50, :232). Blert's 58 maze procs show the raiders' tiles moving from T+3 (5-9 distinct tiles
+  in T+3..T+12), but those are server tiles, not the drawn model. Near Reality plays no animation. The wiki says
+  nothing. Needed: a recording of an arena raider walking right after the maze proc (does the model slide at once, or
+  hold the pose?), or a server source for the reset.
+
+## 2026-10-07 content_bugs: the shadow-realm runner came back at the room's south end (filed by owner_rooms4)
+
+- **FIXED (OSRS-Content 2b405c1f85).** `~tob_sote_leave_realm` teleported the runner to `~tob_room_fight_tile` (15,20),
+  the south end, 20 tiles from Sotetseg. Source: Blert build/blert/sotetseg, 29 rooms at scale 3. Every one of the 29
+  returns on the recorder (the other 29 of the 58 mazes had another raider as the runner, out of the recorder's sight)
+  lands on (3275,4327), against his south-west tile (3277,4326): (-2, +1), 29 of 29. Near Reality Sotetseg.kt:338
+  `player.setLocation(room.getLocation(3275, 4327, 0))` gives the same tile. The wiki says only "enter the portal at
+  the end to return to the arena" (wiki_Sotetseg.wikitext:97); no transcript names the tile. Now his south-west tile +
+  `^tob_sote_realm_return_dx/dz` (-2, +1) (tob.constant). Measured (`_play_sotetseg --party 3 --names 5`, private binary
+  = HEAD src 374e383d3, pack 06:23): 5 of 5 green. Every return lands on local (11,41). The runner's first action after
+  maze 1 is +3 (an elder maul special); after maze 2, +4 (eat) and a scythe at +5. Before the fix: +11..+13; Blert
+  median +2. Room 249 / 236 / 270 / 231 / 227 ticks (before: 272 / 237 / 268 / 245 / 272; reference 212.5 [164-262]).
+- OPEN, CONTENT (found here, not changed: it moves the room the owner is fitting): OUR SOTETSEG STANDS TWO TILES NORTH
+  OF THE RECORDED ONE. tob.constant `^tob_sote_boss_lx/lz = 13,40` (its comment: "Sotetseg (3277,4328)", from an
+  external dump) against Blert's npc tile (3277,4326) in every one of 6158 rows over the 29 rooms. Near Reality spawns
+  him at `room.getLocation(3277, 4326)` (Sotetseg.kt:47). The frames agree everywhere else: the maze rows z 22..36
+  (`^tob_sote_maze_lz = 22`; Near Reality mazeBottomRight 4310) and the thrown raiders' tile (3274,4307). The fix is
+  `^tob_sote_boss_lz = 38`. It moves his melee tiles, the gap to the maze's top row (3 rows to 1), and every plan tile
+  measured from him, so it waits for the coordinator's call. The realm return above is relative to him, so it follows.
+  **FIXED 2026-10-07 content_bugs (OSRS-Content f049148cf9, on the coordinator's word under the owner's rule):**
+  `^tob_sote_boss_lz = 38`, citing Blert (6,158 of 6,158 rows at (3277,4326)) and Near Reality Sotetseg.kt:47. Checked
+  for tiles that assumed z 40: none. tob_sotetseg.rs2 reads every Sotetseg tile (melee range, ball source, facing) off
+  `npc_coord`. The maze, fight, gate, entry and exit constants are room tiles, not his. The realm return is relative to
+  this anchor (now local (11,39), Blert's own (3275,4327)). raid_play_tob_sotetseg.lua measures from his live tile
+  (`b.z`), with no hard-coded 40. Measured: npc_spawn on local (13,38). `_play_sotetseg --party 3 --names 5` (private
+  binary = HEAD src 427b1f4ac, pack 06:30): 4 of 5. Rooms 220 / 255 / 260 / 238 / 233 ticks (before: 249 / 236 / 270 /
+  231 / 227). Red: svaplaysotet `blert.hp_lost`, p0 lost 307 against the bound 250; the first mistakes are p0 at t64 and
+  t65, his melee 39 and 34 with no protection prayer lit. That is a plan question (the stand and prayer timing beside his
+  new south face) for the four-rooms agent.
+
+- ToB, Verzik P3: the power blast (yellows) judged only the FIRST raider its hunt found. `~tob_verzik_protected`
+  counted a pool's occupants with its own `huntall($at, 0, 0)` inside the blast's raider hunt (and the struck branch
+  ran a second one): a `huntall` replaces the hunt in progress, so the outer `huntnext` went on with the spent one-tile
+  hunt and the loop ended. Every Normal trio log had one 1596 and one 1597 per blast, both pid 0
+  (build/quest_gate/svaplayverzi t659; _play_verzik_slow_p3 t233, the members on their own pools). Source: "If the
+  player is not on a pool before the shot hits, they will take up to 80 damage ... If several players stand on the
+  same pool, they will all take damage" (wiki_Theatre_of_Blood_Strategies.wikitext:977). FIXED in OSRS-Content
+  fd3183311f (owner_verzik): `~tob_verzik_pools_alone` counts each pool's occupants BEFORE the raider hunt (a bit per
+  pool held by exactly one player), and `~tob_verzik_protected($at, $alone)` no longer hunts. Measured on the private
+  pack: `_play_verzik_slow_p3 --party 3 --names 5`, every blast "3 of 3 raiders protected, own pools".
+
+- ToB, Verzik P3: the green ball always went to pid 0. `~tob_verzik_green_ball` launched at the FIRST target of its
+  hunt, which iterates by pid (every `_play_verzik_slow_p3` name, five of five: p0). Source: "Verzik will launch a
+  green ball at a random player" (wiki_Theatre_of_Blood_Strategies.wikitext:980); "verzik will send this at a player
+  chosen at random" (transcripts/yt_KF9y2GYTJ-A.md); Blert's five Normal trio balls went to five raiders of four
+  teams. FIXED in OSRS-Content 440dac8170 (owner_verzik): the targets are counted, then `random(n)` picks one.
+
+- ToB, Verzik P3: the green ball could not be shared. The last raider of a bounce chain always ate it (a team that
+  bounced it through all three still lost 74), and "the same player twice" was judged against the one sender only.
+  Source: "She can also launch a green projectile which must be bounced between every player of the team or the
+  player who is targeted will take up to 74% of their Hitpoints level as damage. This cannot be bounced to the same
+  player twice, otherwise both players (the sender and the intended recipient) will take up to 74% ..."
+  (wiki_Verzik_Vitur.wikitext:402); "continuing to do so to a different player until it safely dissipates"
+  (wiki_Theatre_of_Blood_Strategies.wikitext:980); Entry "must be bounced three times to allow it to dissipate
+  safely" (wiki_Theatre_of_Blood_Entry_Mode.wikitext:252). FIXED in OSRS-Content 1a28484637 (owner_verzik): the
+  visited raiders ride the chain; a hop goes to an unvisited neighbour; only visited neighbours = target and that
+  one both hit; none = the target eats it; once it has landed on every raider in the room (2+) it dissipates (Entry
+  also after three hops). Hard keeps its 89/74/49 ladder and three-hop cap. Measured: `_play_verzik_slow_p3 --party 3
+  --names 5`, every ball p0 -> p2 -> p1, 0 damage.
+
+- ToB, Verzik P3: two yellow pools could share a tile. Each raider's pool is drawn within two of that raider
+  (`~tob_verzik_pool_near`), so two raiders a tile or two apart could draw the same tile and a trio got two pools
+  (`_play_verzik_slow` P3+149: pools 6438,94 and 6440,92 for three raiders, two struck; svc the same). Source:
+  "Yellow pools (one for each player) will appear around the arena" (wiki_Theatre_of_Blood_Entry_Mode.wikitext:251);
+  "Each pool can only hold one player" (wiki_Theatre_of_Blood_Strategies.wikitext:975); Blert's VerzikYellowsEvent
+  lists three distinct tiles per Normal trio set. FIXED in OSRS-Content 255e927837 (owner_verzik): a drawn tile that
+  an earlier pool of the charge holds is passed over like a blocked one (`~tob_verzik_pool_taken`). Measured:
+  `_play_verzik_slow --party 3 --names 5`, five of five, three pools and three raiders protected on every name.
+- ToB, every room after Maiden, party only: the boss uid every wake / rescale / teardown reads (%varp6886_tob_boss_uid,
+  per player) named the room's boss on ONE raider. `~tob_carry_party` walks the party with the non-dot `huntnext`,
+  which binds the PRIMARY player (engine HUNTNEXT, PlayerOps.ts), and `~tob_build_room` carried on after it in what it
+  took to be the caller's context: `~tob_boss_at` set the uid (and the title card and the room's track went) on the
+  last raider the loop moved. The caller -- the raider who walks the passage, the party leader in every relay -- kept
+  Maiden's uid in every later room, and `~tob_wake_boss` (the leader's barrier) never found Xarpus: relay15 (owner_tob_normal,
+  pack 255e927837) cleared four rooms and then stood 1400 ticks in front of a `tob_xarpus_static` that never retyped,
+  "The fight begins: Xarpus" printed and his bar open. Verzik's stand-up reads the same copy. FIXED in OSRS-Content
+  (owner_tob_normal): `p_finduid($self)` ends `~tob_carry_party`; the uid is kept on the room register
+  `^tob_var_boss_uid` (88) and written to EVERY raider standing in the instance by `~tob_boss_uid_publish`
+  (`.huntnext` / `.%varp`, so the script's own player or npc stays bound) -- null at each build, the boss at
+  `~tob_boss_at`, Vasilias at her landing -- each raider copies the register into its own varp on arrival
+  (`[queue,tob_room_settle]`), and the room watchdog (`~tob_watch_room`) holds every raider's copy to the register
+  each tick (Vasilias' publish from her own npc turn reached one raider of three in relay18). OSRS-Content
+  f145b799ff + 2628dd28a9. `::tobstate` prints `roomboss=` and `bosslive=`; the relay's per-room guard rows
+  (`<room>.guard.boss_uid_start/_after`, every seat, and `<room>.guard.boss_woke`) and `_play_maiden`'s `guard.boss_uid`
+  check it. The other per-player ToB varps (sote_under, sote_chip, bloat_burned, xarpus_prev, died_in, maiden_started)
+  are each raider's own state by design; the room's started / cleared / phase / HUD are already on the room register.
+  The other non-dot `huntnext` loops in tob_*.rs2 are npc turns that rebind with `npc_finduid($me)`, or player turns
+  that end the script (`~tob_wipe_raid`, `~tob_vault_roll_party` followed only by handle-keyed work).
+
+## 2026-10-07 content_bugs: the overhead health bars did not match the HUD health bars (owner)
+
+Owner: "I'm noticing that overhead health bars do not match the HUD health bars. This has been an issue before and looks
+like it's back. You need to fix that." (seen live on _play_verzik_slow). The earlier fix was OSRS-Content 57147f786d.
+- MEASURED with a new engine check. Every boss HUD push now calls `npc_hudbar_check(cur, max)` (tob_hud.rs2
+  `~tob_hud_push_boss`). That writes a file-only `hudbar` tick-log row with the HUD's fill and the overhead bar's fill, in
+  the bar's own units. Before the fix (Normal trio, one name a room, check-only pack):
+  - Verzik: 312 of 489 pushes disagreed. P1 agreed in 6 of 121 (HUD 74/80, overhead 78/80 at tick 49), P2 in 27 of 224,
+    P3 in 143 of 143. Her three pools sit end to end on one npc (`~tob_verzik_pool_for`), and the overhead bar divided by
+    the stacked total. In the game each phase is its own npc with its own bar.
+  - Bloat: no HUD push at all. `~tob_start_room` opened the bar full and nothing moved it.
+  - Vasilias: 99/99 "agree", but both bars read 75% at full. Her hitpoints were a cut from the five-man record (2500),
+    not her pool (`~tob_nylo_set_hp`), and each `npc_changetype` re-based her on 2500.
+  - Maiden 205/205, Sotetseg 247/247, Xarpus 249/249: they agreed, so 57147f786d holds.
+  - The engine change since August: `npc_changetype_rehydrate` re-bases max_hitpoints on the record; the bosses that
+    setmaxhp after it are fine.
+- FIXED (OSRS-Content 33187928c9 + engine):
+  - New engine field `headbar_reserve` and op `npc_setheadbarreserve`. The NPC_INFO HEADBAR encoder and the enemy
+    health overlay (`ToriRSServer_NpcHeadbarFill`, torirs_server_hpbar.c) now draw (hp - reserve) / (max - reserve).
+    Verzik sets the reserve to the pools after the current phase, in `~tob_verzik_hud` and `~tob_verzik_fresh_pool`.
+  - Bloat pushes the HUD every fight tick.
+  - Vasilias: `npc_setmaxhp(pool)` at landing, and `~tob_vasilias_retype` across each form change.
+- REGRESSION GUARD: `tools/quest_gate/gate.py hudbar_check` adds a ledger row `raid.hudbar_matches_overhead` to every
+  run whose tick log has `hudbar` rows: party runs through `party_union`, solo runs through run.py. The row is FAIL when
+  any push differs by more than one bar unit. The engine also prints `HUDBAR MISMATCH` on stderr.
+- AFTER (private binary + pack): Maiden 205/205, Nylocas 91/91, Bloat 143/143, Sotetseg 251/251, Xarpus 260/260,
+  Verzik 751/751, Verzik slow 1018/1018.
+- PLAN READ that mirrors the old bar: raid_play_tob_verzik.lua:1058 computes P2's percent as `(ratio*100/scale - 50)*2`,
+  the stacked P2+P3 bar. It must become `ratio*100/scale`. Sent to the Verzik owner, who owns that file. With it
+  unchanged, _play_verzik / _play_verzik_slow went red with p2/p3 deaths in P3.
+- SURVEYS on the shared binary and pack (`seed_survey.py <id> --party 3 --names 5`, after the fix landed):
+  - Maiden, Nylocas, Bloat, Sotetseg and Xarpus: each 5 of 5. Each run's ledger carries a PASS
+    `raid.hudbar_matches_overhead` row (25 of 25).
+  - _play_verzik_slow and _play_verzik: each 0 of 5. Their guard rows PASS (4 of 4 each; the fifth name in each never
+    reached the fight). The reds are deaths in P3: the plan's P2 percentage still reads the old stacked bar
+    (raid_play_tob_verzik.lua:1058, sent to the Verzik owner). They are not a bar mismatch.
+
+## 2026-10-07 anim audit: every ToB animation, graphic and projectile against Blert (build/seam_state/anim_audit/AUDIT.tsv)
+
+Fixed (OSRS-Content 7a70ed5169, 8491f556a5, 55d34897e9, 964c87af49, f0478f39c7):
+- ToB, Verzik P2 bounce (and the P1 pillar stun, same proc): `[proc,tob_verzik_stun]` drew spotanim 80 `stunned`;
+  blert names the bounce by spotanim 245 `stunned_thieving` on the bounced player (`P2_BOUNCE_GRAPHIC = 245`,
+  `player.hasSpotAnim(P2_BOUNCE_GRAPHIC)`, blert_plugin/VerzikDataTracker.java:56,569). Same model 3070, other seq,
+  so it looked right and was the wrong id on the wire. Now 245. Fixed 7a70ed5169.
+- ToB, Verzik P3 webs: `verzik_web_npc` 8376 (no readyanim, no rig, the support's model 21832) fell through to
+  `[default]` and played human_unarmedblock 424 on every hit and human_death 836 on its death (2 + 2 npc_anim rows in
+  a _play_verzik_slow ticklog) -- a human rig's animation on a web. blert knows the web only by npc id
+  (VerzikDataTracker.java:78); tob.npc now nulls defend_anim / death_anim, as the Nylocas support record does.
+  Fixed 8491f556a5. A hit web also RETALIATED with [default] human_unarmedpunch 422 (t814 of a slow trio);
+  retaliate=no, huntmode=none, attack_anim null. Fixed f0478f39c7.
+- ToB, Nylocas Vasilias / Prinkipas: the late first attack was one 1-in-3 for the opening (+4) and every colour change
+  (+3), from 18 rooms. Every blert room in the tree (build/blert/nylocas + spec_state blert_nylo_raw, 46 deduped):
+  opening +4 in 9 of 41 Regular rooms (22 %), a change's +3 in 23 of 94 into melee (24 %) and 119 of 246 into ranged
+  or magic (48 %). No wiki, guide or plugin states a rule. `^tob_vasilias_open_late_pct` / `_turn_late_pct_melee` /
+  `_turn_late_pct_other`. Fixed 55d34897e9.
+- ToB, Verzik's exploding nylocas: `~tob_verzik_crab_blast` drew 1565 (melee detonate) for every crab; the cache files
+  one per style (1565 / 1566 / 1567) and the Nylocas room maps them by style (`~tob_nylo_detonate_gfx`). Fixed
+  964c87af49.
+
+- ToB, Verzik P1 pillar collapse (P1 collapses and the P1->P2 collapse of all pillars), corrected twice.
+  (1) The original threw every raider in range TWO tiles, always SOUTH-WEST, with human_troll_flyback 1157:
+  `~tob_verzik_knockback` takes its heading from `~coord_direction2`, which answers south-west for a point due west.
+  (2) 8b927584d8 removed the shove on "no source" (the owner had seen it as a death and revive). That was wrong.
+  OWNER RULING 2026-10-07: "The collapsing pillar DOES knock 1 tile away from the pillar and has the animation." blert
+  agrees (coordinator's harvest, T = the pillar 8379's NPC_DEATH, centre = SW + 1,1): 280f7cef T108 3 east of the
+  centre -> 1 east at T+2, 39 damage at T+1; 45e4e8b6 T108 2 west -> 1 west at T+2, 36 at T+3; 45e4e8b6 T117 (the
+  P1->P2 collapse) 2 east -> 1 east at T+2, 55 at T+3; 6f735fbc T66 2 south -> 1 south at T+2, 46 at T+3.
+  Fixed fc1e60784a. The raider takes the stun (848 + 245), then 1157 and ONE tile directly away from the centre, using the
+  sign of each axis, so a diagonal stand goes diagonally. There is no move when that step is blocked. The shove lands on
+  T+2 (`[queue,tob_verzik_pillar_shove]`, the P2 slam's stun-then-flyback order); the damage (Near Reality's 32-65)
+  lands on T+3. The range is 3 (was 2), from 280f7cef. Neither the step nor (48bf6206a1) the facing uses
+  `~coord_direction2`. test/raids/_verzik_pillar_collapse.lua forces three collapses (`::tobvzpillar`): west
+  (24,19 -> 23,19), diagonal (28,27 -> 29,28) and east (40,19 -> 41,19). It is 20/20 on 48bf6206a1. On a8e1d1e517
+  (no shove) it fails flyback, shove and damage timing (T+1) in all three cases (9 rows). Crops:
+  build/seam_state/anim_audit/pillar_test3/pillar_{west,diag,east}_crops.png.
+  `~coord_direction2` itself (and with it the P2 stomp/slam `~tob_verzik_knockback`) was fixed by the Verzik owner,
+  7af6fc2c05.
+
+Open:
+- (fixed, below) Engine, every room (parent 1e90c684a): the npc_anim op now ships seq < 0 as a cancel, and ~40 player-attack scripts
+  play the defender's block as `npc_anim(npc_param(defend_anim), d)` (skill_combat/scripts/player/player_ranged.rs2:165,
+  292, gear/powered_staff.rs2:544, specs/pvm_*.rs2). For an npc whose defend_anim is null (Xarpus, Maiden, Sotetseg,
+  Vasilias, wave nylocas, Bloat, Verzik P3, her reds) each hit now sends a cancel that erases the boss's own attack
+  seq: Xarpus' 8059 spit cancelled on the same tick 6 of 6 times in one trio run, Sotetseg 2 of 9, Vasilias 7 of 40.
+  The owners' 07:xx baselines carried zero cancel rows. FIXED in the engine by the throne agent, parent 346bf3c05: only
+  a literal npc_anim(null) stops. Re-run at 346bf3c05: zero cancel rows in every room except Verzik's one literal stop
+  (8371, the tick after 8112).
+- ToB, Vasilias style switch: the retype to another rig (1800 / 1801 / 1799) can land on the 2nd tick of her 2-tick
+  attack seq. blert shows OSRS doing the same (opening +4, +8 then switch +9 in 3 of 27 rooms), so the content
+  matches the wire; noted only.
+- ToB, Verzik P3 crab special poses `verzik_phase3_attack_summon` 14406 (her rig, cache-named). blert says the crabs
+  ride a regular attack (VerzikDataTracker.java:747-751) and does not read P3 poses; OpenOSRS's counter keys
+  8123-8125 only, but predates seq 14406. Kept.
+
+## 2026-10-07 content_bugs: the server pack stopped building (membership gate)
+
+- **FIXED (OSRS-Content d9f053ee42).** `make -C src torirsserver-servpack` failed rc 2 with "Membership: 22 record(s) state a
+  server field pack/<ns>.server does not claim" (docs/PACK_ENTITY_SPLIT_PLAN.md §2 cell (a)), and every client printed
+  "server band is STALE". Listed with `cachepack pack --server-only --warn -1` against a scratch output dir:
+  - 8 locs: the Elid golem and mirror doors (doors.loc), jatoba_tree (jatoba.loc).
+  - 14 npcs: eyeglo_fluffie_evil_1..6, olaf2_ulfric, slice_sigmund_* x5, shayzienquest_puzzle_piece,
+    inferno_safespot_dying.
+
+  All are authored records from the merged quest and waves seams (b55-b68, waves seam7), not today's ToB work. Their
+  server fields are deliberate, so the plan's answer is the membership line (the cb3cf9f768 precedent for arctic_pine).
+- The same gate also counted 2 unresolved names. inferno.npc put comments on the value line
+  (`param=defend_anim,jaltokjad_defend   // [M46] ...`). The engine's loader strips `//`; cachepack does not. So the band
+  packed no defend or death anim for the wave-67 Jad. Eight such lines now carry their comment on the line above; the
+  values are unchanged. Scratch check: rc 0, 10480 records, 0 unresolved.
+- The band was still STALE after that (3 mismatched archives). `dragonslayer_giantrat_1_key` was stated twice: in
+  lumbridge.npc as 8/3/3 and in quest_dragon.npc as 5/2/2. The engine took the quest file's, cachepack the lumbridge
+  one. The quest's figures are the wiki's level-3 Giant rat (wiki/monsters "Giant rat" combat1: hitpoints 5, att 2,
+  def 2), so lumbridge.npc no longer states them (OSRS-Content 672ddc7d7e). Servpack rebuilt at 08:49 when no runs were
+  active: rc 0. A client run now prints no "server band is STALE" and no "in the band but" lines.
+
+- ToB, Verzik P3: she never moved. Nothing walked her in P3: a whole Normal trio room (build/quest_gate/watchverzik)
+  held her on two tiles for 282 ticks (the webs' walk to the centre and back). Sources: "She is now mobile"
+  (wiki_Verzik_Vitur.wikitext:399); "Moving away from Verzik will slightly displace her ... Moving under Verzik will
+  keep her more grounded" (wiki_Theatre_of_Blood_Strategies.wikitext:953); Blert's 27 Normal trio rooms (npc 8374):
+  one tile a tick on 419 of 3,957 P3 ticks, a raider beside her footprint 77% of ticks and under it 17%. FIXED in
+  OSRS-Content af0bd89a4d (owner_verzik): `~tob_verzik_p3_follow`, every tick her clock is not suspended: her tank two
+  or more from her footprint, one step toward it; beside or under her, she stands.
+- ToB, Verzik P3: her tornadoes did not follow. (1) A `blockwalk=npc` walker spawned on her tile was refused by her
+  occupancy (watchverzik: two of three did not move for 56 ticks); Blert: one tile on 2,400 of 2,443 tornado ticks,
+  815-1,279 of 2,531 tornado tiles inside her footprint -- it walks through her. `blockwalk=none` (af0bd89a4d).
+  (2) Its spawn seq 9004 `tob_shadow_projectile_spawn` (framestep=1, default maxloops 99, no pre/post-anim move)
+  held the client's row on the spawn tile ~10 ticks while the server walked it; Blert: first step one tick after
+  appearing, 78 of 79. The spawn seq is dropped (OSRS-Content edf9d35de7). (3) It rose on her tile; Blert: 4-8 tiles
+  from its own raider in 57 of 78 spawns. It now rises on a random floor tile 4-8 from its raider (5907f83654).
+  Source for the follow itself: "a purple magical tornado for each player in the room, which will constantly follow
+  them" (wiki_Verzik_Vitur.wikitext:403).
+- ToB, Verzik P3: every special after the crabs came ten ticks late. After the crabs (and the ball) she threw five
+  autos, the first ten ticks on; Blert, all 27 rooms: crabs on an auto at P3+40, autos +47 +54 +61 +68, webs +75
+  (377236c2's second rotation the same at 5 ticks; the ball, autos +200..+215, crabs +220); "attacking four times
+  before performing the next" (wiki_Theatre_of_Blood_Strategies.wikitext:953). FIXED (af0bd89a4d): four autos, the
+  first at her attack speed.
+- ToB, Verzik P3: her tank was always the leader. `~tob_verzik_pick_tank` took the hunt's first (pid order), its
+  comment said "the nearest". Blert (NPC_ATTACK target of every P3 auto): one tank the whole phase in 24 of 27
+  rooms, one change in 3 (each after that tank died); the first tank nearest her in 8 of 27, party slot 0/1/2 in
+  11/8/8; "Verzik will pick one player in the team and pick them as their primary target for the duration of the
+  phase" (wiki_Theatre_of_Blood_Strategies.wikitext:946). FIXED (0e35991215): a random target; she faces it while
+  it is in her reach (Blert reads the tank as her interacting target, VerzikDataTracker.java:651).
+- Correction (owner_verzik, 2026-10-07): the Verzik plan's P2 bar line was already fixed in c25cd0c93
+  (`pct = health_ratio*100/health_scale`). The two 0-of-5 Verzik surveys above read owner_verzik's uncommitted WIP plan,
+  which was in the shared tree at the time. On engine 346bf3c05 or later with content f0478f39c7, the committed plans
+  measure Verzik fast 5 of 5 and slow 4 of 5. The health-bar fix is not implicated.
+
+- ToB, Verzik P3: a tornado touched from the tile beside its raider. Blert's 27 Normal trio rooms (npc 8386 and every
+  raider, every tick): each of the 16 touches (verzikHeal) came the tick after the tornado stood ON its raider's tile
+  (distance 0 at t-1, 16 of 16); 53 tornado lives came within one tile and never touched; distance 1 on 208 ticks.
+  The seam11 note had guessed range 1 ("No source says whether contact is the shared tile or the one beside it")
+  because the walker could not enter a player's tile. FIXED in OSRS-Content fdf77aae1c (owner_verzik): `moverestrict=passthru`
+  on the three tornado records and contact at range 0. Measured: P3-only touches fast 18-21 -> 4, slow 23-30 -> 8.
+
+- ToB, Verzik P3: the webs special neither made her invulnerable nor knocked aside the raiders where she lands
+  ([M35] had withdrawn both as unsourced). Source: "Upon initiating this attack, Verzik will move towards to the centre
+  of the room, becoming invulnerable in the process, until she begins launching webs. Any players in the area will be
+  knocked away as she turns into a hard NPC (unable to be walked through) for the duration of this attack"
+  (wiki_Theatre_of_Blood_Strategies.wikitext:960). FIXED in OSRS-Content 587206763e (owner_verzik): invulnerable
+  (^tob_var_vz_invuln, tob_damage.rs2 ~tob_prepare_player_hit) until she stands on the centre; every raider on or beside
+  her centre footprint is thrown with the P2 slam's flyback and distance. NOT DONE: the "hard NPC" half -- an npc's
+  occupancy is its record's blockwalk and the engine has no switch for it while she lives (engine work).
+- ToB, Verzik P3: she took damage through the yellows' charge. "Verzik is invulnerable while charging this attack"
+  (wiki_Theatre_of_Blood_Strategies.wikitext:977; :975). FIXED in 587206763e: invulnerable from the charge to the blast.
+- ToB, Verzik P1: a falling pillar hit 1-70 (the 70 tagged [wiki], no pinned page states it). Near Reality's
+  SupportingPillar.kt: 32-65 within 2 tiles of the pillar's middle, no animation, no knockback; "all players standing
+  directly adjacent to the pillars will get damaged and stunned" (wiki_Supporting_Pillar.wikitext:61, :63). The reach
+  (two from the middle = on it or beside it) already matched. FIXED in OSRS-Content da8ac1ef36 (owner_verzik): 32-65
+  Normal/Hard (^tob_verzik_pillar_collapse_min/_max); Entry keeps 1-50 (no source for its floor).
+
+- General (ToB Verzik knockback, GWD, ToA): `~coord_direction2` answered the wrong bearing. Its body tested
+  `abs(dx) >= abs(dz)/2` as the DIAGONAL case and had no north or south branch: due west answered south-west, due
+  east south-east, due north west, due south south-west. Verzik's P2 stomp and slam threw a raider due west of her
+  south-west (found by the anim audit, 2026-10-07). Source: the proc's own contract ("returns ^exact_north, ...,
+  ^exact_northwest"; "if north/south are at least half of east, then return northeast/southeast"). FIXED in
+  OSRS-Content 7af6fc2c05 (owner_verzik): a straight axis when the other is under half of it, else the diagonal. Callers:
+  tob_verzik.rs2 ~tob_verzik_knockback, godwars_chamber/entrance/nex, toa_raid.
+
+## 2026-10-07 content_bugs: Blert's boss "max hp" against ours -- CLOSED, the stream figure is Blert's own table, not a measurement
+
+The question: Blert's Normal trio NPC_UPDATE rows give Verzik P2/P3 a maximum of 2437 (8372 5306 rows, 8373 108, 8374 3984)
+and Xarpus 3810 (8339 2324, 8340 3335, 8341 60) against ours 2625 / 3750. Measured over build/blert/{bloat,nylocas,
+sotetseg,verzik,xarpus}, all scale 3, mode 11, hitpoints & 0xffff:
+- These agree with ours: Bloat 1500, Vasilias 1875, Sotetseg 3000, Verzik P1 1500. Maiden 2625, per the coordinator's read
+  of build/blert_maiden.
+
+**CLOSED, no change.** Those maxima are not a recording of the game. A client is never sent an npc's hitpoints, only a
+ratio. Blert writes `hitpoints = base * ratio`, and the base is its own table:
+- blert_plugin/HpVarbitTrackedNpc.java:54-56: "The varbit stores a value from 0 to 1000 ... updatedHitpoints = (int)
+  (getHitpoints().getBase() * ratio)".
+- The base comes from `new Hitpoints(tobNpc, theatreChallenge.getScale())` (XarpusDataTracker.java:109, :154;
+  SotetsegDataTracker.java:85; BloatDataTracker.java:99) -> TobNpc.getBaseHitpoints (TobNpc.java:514-533).
+
+So every one of those thousands of rows repeats TobNpc.java's table, which is one source:
+- TobNpc.java:166-168: Xarpus 3810 / 4445 / 5080.
+- TobNpc.java:184-188: Verzik P2/P3 2437 / 2843 / 3250.
+- Its Entry rows scale linearly (`hitpointsByScale[0] * scale`, :524); Jagex's Entry Mode Improvements post (1 March 2023)
+  replaced that with the stacked table the content already uses.
+
+Against that one source stand three that agree with each other:
+- Verzik P2/P3: the cache's stat4 3500 on `verzik_phase2` / `verzik_phase3` (cache_npc_verzik.txt:121, :182);
+  wiki_Verzik_Vitur.wikitext:175-176 `hitpoints2 = 3500`, `hitpoints3 = 3500` with `scaledhp = Yes` (:177); and Jagex's
+  75 / 87.5 percent for three and four raiders. That gives 2625 / 3062 / 3500. Blert's 3250 five-player base appears in
+  no other source.
+- Xarpus: `tob_xarpus_combat` stat4 5000 and wiki_Xarpus.wikitext:122 `hitpoints = 5000`, so 3750 / 4375 / 5000.
+  Blert's own Hard row (TobNpc.java:166-168: 4500 / 5250 / 6000) is the same ladder off the cache's 6000. That shows its
+  Normal row is the ladder off a base, 5080, that no other source gives.
+
+The stream rows count Blert's table 5306 times; they do not count the game once. The spec rows verzik.p23_hp_* stay
+grade A ([cache][wiki][jagex]), and tob.constant's comments at the Xarpus and Verzik P2/P3 pools already say this.
+What would reopen it: an absolute hitpoint figure from the game. That would be a recorded hitsplat total from a full P2,
+or a Jagex statement of the P2 pool at three raiders.

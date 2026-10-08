@@ -905,6 +905,7 @@ SS_SRCS = serverscript/ss_meta.c serverscript/ssvm_script.c \
 TORIRSSERVER_CORE_SRCS = torirsserver/torirs_server_world.c \
 	torirsserver/torirs_server_world_selftest.c \
 	torirsserver/torirs_server_cox_sim.c \
+	torirsserver/torirs_server_botrun.c \
 	torirsserver/torirs_server_encode.c torirsserver/torirs_server_wire.c js5/server/js5_server_cache.c \
 	torirsserver/torirs_server_interface_state.c \
 	torirsserver/torirs_server_poh.c \

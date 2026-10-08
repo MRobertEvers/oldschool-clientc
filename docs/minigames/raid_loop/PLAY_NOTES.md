@@ -46,12 +46,33 @@ reads its technique rows from the record and the tick log.
 |---|---|---|---|
 | Attack on cooldown | `_play_attack`, `_play_next_swing` | A click only STARTS a fight. After that the weapon swings every `speed` ticks by itself, so the library presses Attack only when it is not engaged (after a step), or when no swing has been seen for speed + 2 ticks. | wiki Attack speed; scythe speed 5; swing seq 8056 measured in build/quest_gate/tob_bloat/ticklog.tsv |
 | Pray by the telegraph | `_play_pray` | The plan names the set wanted on the NEXT tick, because a press made between ticks T-1 and T is in force for T. Bloat: Protect from Missiles from age 32 of the down onwards (the first fly is at T+33), and Piety for the attackable window. Pinned exceptions from DRIVER_NOTES seam20 are carried by those rooms' plans: Verzik P3 on hit, Sotetseg's ball at impact, urn bombs at landing. | ET 1.1; DRIVER_NOTES "Several inputs in one tick", "Which ToB attacks read the prayer on the send tick" |
-| Supplies | `_play_supplies` | Eat when hitpoints <= the largest total the plan's `threat(h)` says can land before the next chance to eat. On a FREE tick (not attacking, or the weapon is ready, so eating adds no delay) h is the gap to the next free tick + `QD.TOGETHER_CONFIRM_TICKS` + 1. Between swings h = 2, so a bite there costs the attack 3 ticks and only an imminent hit forces it. If the best food alone is short, a brew rides in the same tick. Restores are drunk when the missing prayer is at least one dose (32), or prayer is at 2 or less. | wiki Food ("If your weapon is ready ... eating does not add any new delay"; 3-tick eat delay), Potions ("do not incur the standard 3 tick attack or eat delay"), Food/Fast foods (combo), Super restore (8 + 25%); all quoted at consume_shared.rs2:28-49 |
+| Supplies | `_play_supplies` | Eat when hitpoints <= `max(threat(h), the comfort floor)` -- the largest total the plan's `threat(h)` says can land before the next chance to eat, and NEVER above the kill floor: on a free tick the threshold is at least `QD.RAID_PLAY_EAT_FLOOR_HP` (61 of Hitpoints 99), measured from Blert (see "The eat floor is sourced" below). On a FREE tick (not attacking, or the weapon is ready, so eating adds no delay) h is the gap to the next free tick + `QD.TOGETHER_CONFIRM_TICKS` + 1. Between swings h = 2, so a bite there costs the attack 3 ticks and only an imminent hit forces it. If the best food alone is short, a brew rides in the same tick. Restores are drunk when the missing prayer is at least one dose (32), or prayer is at 2 or less. | wiki Food ("If your weapon is ready ... eating does not add any new delay"; 3-tick eat delay), Potions ("do not incur the standard 3 tick attack or eat delay"), Food/Fast foods (combo), Super restore (8 + 25%); all quoted at consume_shared.rs2:28-49 |
 | Hazards | `_play_hazard` | A marked tile is avoided from the tick it is seen. The library moves to the safe tile nearest the wanted tile, and the shortest step from the player breaks ties. It never stands on a tank or off the floor. | ET 1.3 / 3.4 (judged on the previous tick's tile); "simply don't stand on the shadows" (transcripts/yt_4i4lv-srJkw.md:71) |
 | Safe step (seam29) | `_play_safe_step` | Every walk a plan sends goes through it, after `_play_hazard`. A hand is judged on the tile the player ends the tick BEFORE the impact on, so every tick-end of a walk matters, not only its last tile. If `want` and the first two tiles of both route shapes toward it (diagonal first, and straight along the longer axis first: the server was measured doing both) are unmarked, the walk goes to `want`. Otherwise it goes to the unmarked floor tile within two that gets nearest `want`, provided the first step of either shape is unmarked too. If no tile gets nearer and the player's own tile is unmarked, it stays. | ET 1.1 (T-1), ET 3.4; measured routes in svaplaysmoke t164-166 and s29n3 t187-189 |
 | The attack's own path (seam29) | `_play_reach` | An attack press out of reach makes the SERVER path the player, through no skill. While no marker is on the floor the press goes out as before. While one is, the player walks (through the two skills above) to the unmarked floor tile sharing an edge with the npc's footprint (`size` from the npc row; corners are left out, the seam's conservative choice) that is nearest, and presses from there. If every reach tile is marked, the press is held for that tick. A marker that appears under a standing raider is stepped off the same way: the plan sends the raider's own tile through `_play_hazard`. | playn3 t437-440 (seam27); ET 3.3 "5x5" |
 | Loadouts | `intent.gear` (worn items) in the tick's one `t.together` block, after food and before the step; `intent.spec` arms the special from the orb before the attack press (raid seam32) | A gear swap is one tick, and rides the same tick as a walk ("the scythe back the same tick"). Bloat Normal's run-by uses both. | DRIVER_NOTES "Several inputs in one tick"; DRIVER_NOTES "Bloat: Defence reads 80 of 80 after a Dragon warhammer special" |
 | Roles | `opts.role` / `t.party.role()` | Every raider runs the same library, and the plan picks the role's line. See "Bloat, Normal trio" for what is coded today. | the room plans below |
+
+**The eat floor is SOURCED, and it is not the kill floor** (owner 2026-10-07:
+"I want the scripts to play the raid as intended and not use cheese mechanics like tick
+eating"). The threshold used to be `threat(horizon)` alone, so a seat at 51 hitpoints facing a
+maximum 50 did not eat and every seat in every room rode the kill floor on telegraph knowledge
+no human raider could act on. `build/seam_state/supply_policy/eat_threshold.py` reads the
+hitpoints a Blert Normal trio seat carries on EVERY tick of every room (event type 4, current
+hitpoints in the high 16 bits) and takes the reading just before each rise of 4 or more as the
+hitpoints that raider chose to eat at. Seats that finished the room, the room's exit reset to
+full dropped, median eat hitpoints: maiden 73, nylocas 61, verzik 65, sotetseg 44, bloat 28
+(xarpus records no heal at all). The SHAPE is the data's: as a margin above the room's maximum
+hit those medians spread 75 hp and the margin runs the wrong way (+43 where the maximum hit is
+30, -32 where it is 60), so no "survive the next maximum roll" shape is sourceable; as a flat
+band the spread is 45. The value is the median of the five room medians, 61 at Hitpoints 99
+(0.62 of the level, so it scales), applied only on a FREE tick -- between swings a bite costs
+the attack three ticks and no reference raider pays that to top up. The old term stays as a
+LOWER bound, so the policy can never eat later than it used to; in a room whose threat already
+clears 61 (verzik 80, bloat 60) it still decides, and the Bloat survey is byte-identical
+before and after because of it. The floor wastes no dose: 61 + the largest food (22) is 83 of
+99. Reference raiders do spend 21% of room ticks within one maximum hit (bloat 41%, sotetseg
+39%, verzik 35%) -- being there is not the cheese; eating only there was.
 
 **The supplies margin is the seam's own choice.** The `+ TOGETHER_CONFIRM_TICKS + 1` was
 measured, not sourced. Under `svbbloat` a bite pressed on the swing two ticks before the stomp
@@ -152,6 +173,48 @@ No deaths, no stomp hit on any raider in any down that reached it. Zeros: the fi
 
 **Not done.** Swings per raider per down are 3-4, not W:689's five: the first swing comes 5-7
 ticks into the down (the walk around the tank from the hide tile) and the leave is at age 24.
+
+### Bloat, Normal trio, on the lockstep engine (owner_rooms4, 2026-10-07) -- 5 of 5 with every seat running
+
+Red after f2eb93d50 (1 of 5, tech.step_off_shadow). First deviations, read from the tick log with a
+per-tick `::tlnote` (view tick, own tile, walk, target):
+1. **The route, not the timing.** Every seat sees tick T on view T and a walk sent on view V moves on V+1.
+   The server routes a walk round the tank (`collision_flood`: W, E, S, N, then diagonals; a diagonal needs
+   both sides open) and a running raider ends the tick two tiles along it; the library's safe step judged
+   two straight shapes through the tank. `_play_bloat` t227: 6430,92 -> 6428,93 ran 6429,92 -> 6428,92 (the
+   diagonal past the corner 6429,93 is closed), the tick ended on a shadow seen t226, the hand hit all
+   three at t229. Now the dodge asks `api_drive.route` (3705bafd2) and takes the tile nearest the want
+   whose every per-tick tile is clean on ITS tick (deadly = the end of tick t0+2), then its end tile.
+2. **A walk in flight is not standing still.** svcplaybloat t237-240: the hide became the raider's own
+   tile, nothing was sent, the walk of t237 carried the trio onto a shadow. With a walk in flight the
+   no-input option is that walk's route, and the own tile is no candidate.
+3. **A shadow is dated by its animation.** Half the volleys reach the view a tick after they fall, on all
+   seats alike (cycles_left 139 of 168 on first sight: t157, t163, t181, t187, t233, t237 in svc); dated by
+   the view, the shadow read deadly a tick late. tob_bloat_falling_flesh is 28 frames x 6 cycles (all.seq),
+   30 cycles a tick; a landed shadow is off the list though its animation still shows (5.6 ticks).
+4. **The row counted flies as hands.** tech.step_off_shadow took any hit of 15+ on a splat tick as a hand:
+   the leader's two unprayed flies at the barrier (19, 20 at 6439,94) made it red with no hand on anyone.
+   A hand is now a hit whose raider stood on that tick's splat tile at the end of the tick before (ET 3.4).
+Run: varp173 is read every tick (orb, or a stamina dose if run had been on; the kit carries one dose);
+it reads 0 on the play's first tick only, the server's raider rows read run 1 on every tick of every seat.
+
+Pinned: binary 3705bafd2 (build/seam_state/owner_rooms4/bin), pack = content 3bd2334365 (private).
+seed_survey _play_bloat 5 of 5: rooms 190 / 190 / 195 / 140 / 183 (ref 137 [75-195]), downs 3/3/3/2/3,
+d1+d2 1381-1500 of 1500; party_repeat 3 runs AGREE (sha 19c6e0ae66bf, 264 boundaries); Entry solo
+(_play_smoke) 5 of 5. Still outside the reference (raid_report --against): hp lost 262-409 a raider
+(ref ~100), eat at 80-87% (ref 25%), a third down on 4 of 5 names (ref 2 of 19) -- the rooms sit at the cap.
+
+#### Bloat, Normal trio: the far side (owner_rooms4, 2026-10-07)
+
+Every hit the seats took was a fly: 157-299 a seat against the recorded trios' median 116 (max 217, build/blert/
+bloat, scale 3, PLAYER hitpoints). In his sight (any tile of his 5x5 with a line past the tank to the seat), per seat,
+median: Blert entry 3 of 37, rise (down+33..+45) 1 of 13.5, walk 0 of 26; ours 6 of 36, 11 of 21, 1 of 22. The hug
+(seam49) chose the hidden ring tile NEAREST his footprint and the seats stood on the lane he rose in. The recorded seats
+stand on the tank's ring opposite him (him west -> x 35, south -> z 35, east -> x 28, north -> z 28): the mirror tile
+clamped to the ring (hug_tank), hug_seen off. After: in sight 2 of 34 / 1 of 26 / 0 of 31; taken 16-118 a seat; 10
+names green (rooms 138/147/138/147/147/141/141/193/141/147); party_repeat AGREE (sha cb1cab05b11b); Entry solo 5 of 5.
+Eats and drinks a seat (10 names; pid0 the leader): pid0 3-4 fish, 2 brew doses, 1-2 restore, 2-3 combat sips; pid1
+1-5 fish, 0-1 brew, 0-1 restore, 1-2 combat; pid2 1-4 fish, 0-1 brew, 0-1 restore, 1-2 combat.
 
 ## Maiden: the full plan (decide function: the re-author pass)
 
@@ -299,6 +362,27 @@ Open (first cause of each red name, from its log):
 - `sva`: the north ranger (p3) died; `svb`: the freezer took one storm (tech.tank). Not read further.
 - Preferring to leave NORTH crabs (10Boot 0:08:48, the rangers camp north) was tried (sv5) and was
   worse; reverted.
+
+### Maiden, Normal trio, the owner's plan (owner_tob_normal, 2026-10-06; NOT green yet)
+
+Rules, each with its reference line (raid_play_tob_maiden.lua, the trigger plan seam55 built):
+- DOOR: the trio through the barrier on one tick (t.raid.cross_together); Blert's first swings are at +5 on every seat.
+- OPENER: Tonalztics special on every seat after one bow shot (W:249 "reduce Maiden to 0 defence in only 2 specs after a single
+  Dragon warhammer"; TONALZTICS freezer|100 23/24 rooms, dps 16/15; her Magic 350 -> 43 Defence a hit). Her Defence reaches 0
+  (scythe zeros 2-6 per 60 splats). Scythe on Chop (aggressive slash: Module:CombatStyles :547-549; content row fixed).
+- FREEZER: the casts are a PLAN: a four-cast search over every walker's predicted path (a tile a tick to her south-east tile,
+  absorbed inside her 6x6 grown 2 W/S and 1 N/E: tob.constant arrive 24..32 / 26..34), the first cast may wait up to three
+  ticks for a stack (W:520 3s/4s clump +11/+16), worth = the walker's bar (a leak heals twice its hitpoints, W:593). A cast at
+  client tick T freezes the crab on its T+1 tile (probe M22). Then clump barrages (W:639 "barrage the clump until it is dead"),
+  never in the last five ticks before her next threshold (W:643 cast ready on the spawn). No brew (role.freezer drinks 0; a
+  dose costs Ice Barrage's 94 Magic), a restore under 94. Idle: the bow on her (return_to_boss +21 [6-41]).
+- SCYTHE SEATS: on her north-east corner (dps tiles (5,6)/(6,5)); both take N1/N2 in their windows (dps lanes "N1:58%+4
+  N2:58%+9"); a walker arriving within two tiles; a frozen crab in its last six ticks of ice beside them; the lone frozen
+  crab (no clump) in its last fourteen ticks: north seat above her middle, east seat below (dps2 "S1:33%+39 S2:33%+31").
+  Eat at 45 or under, no brew while a fish is left (eat_at_hp_pct 36 [14-75]); super combat re-boost under 112 (her storm
+  drains melee stats, W:591). Claws special once in her 30 form (W:646 "utilise any remaining special attacks"; CLAW dps|30).
+- Numbers (three names, owner binary): rooms 217-252 against 132-204; 70 wave 32-66 (ref 30 [20-55]) with 0-2 leaks; the
+  heal left is the 50 and 30 waves' thaws (crabs frozen +1..+16 thaw +33..+48).
 
 ### Maiden, Normal trio, following the Blert reference (raid seam40)
 
@@ -588,6 +672,94 @@ Where the gap is (diagnosis scripts under build/seam_state/matthew-mbp-m4-raid-b
 - Her phase: 12.5 hp/tick vs 20.3; 24.7 a swing vs ~34.
 - One traced run (ny40j, P.trace_seat = 3, restored to nil): the meleer whipped one grey 4 times for 0
   (t170-183) while it chewed pillar 36,29 -- nulled or blocked, unresolved.
+
+### Nylocas, Normal trio, owner pass (owner_nylocas, 2026-10-06) -- 3 of 5, NOT green yet
+
+Reference: `reference/nylocas_normal_3.json` / `.script.json` (27 death-free Normal trio rooms). Progress and
+every survey: build/seam_state/owner_nylocas/progress.md. What the plan and harness now do, each with its line:
+
+| Change | Reference line | Effect (5 names) |
+|---|---|---|
+| THE DOOR TOGETHER: the members wait on the barrier's north side (local 31,33 / 32,33), not where t.raid.enter left them | Blert room tick 0: all three at local 31-32,30-32; w1 spawn_tile mage 1,1 melee 2,1 range -3,2. Ours: two seats 18-22 tiles north at wave 1 (the wave diff's first deviation) | last wave 280-304 -> 272-284, boss start 356-376 -> 340-356 |
+| HER FORMS IN THEIR OWN GEAR (P.boss_gear; kit: mage/ranger carry torva helm, rancour, radiant oathplate, ferocious gloves and wear avernic treads, ultor ring, infernal cape; the meleer carries the void range set + rupture) | recorders' equipmentDeltas per form: melee form every role torva/rancour/oathplate/ferocious (mage 61/68+23/58/89 percent), ranged form every role void range (meleer 62) | boss phase 116-148 -> 95-121 |
+| support_of() FOOTPRINT TO FOOTPRINT (was: only copies beside the support's south-west corner tile read as chewers) | 34/34 rooms land her with four standing, weakest 0.10-0.54 | weakest support 0.00-0.19 -> 0.12-0.33, 5 of 5 standing |
+| a low support's chewer is every seat's (low_any) | as above | (with the fix) |
+| cleanup: blast window 2 ticks, not 6 (cleanup_blast); pop-pass only before the clear time (cleanup_order.rate 0.71); age order for smalls only | Blert kills small greys at ages 45-50 (30 in 27 rooms); cleanup_end - wave31 = 32; a big that blows up still splits (15/15) | cleanups ended on greys passed for blast -> fewer |
+| THE SCYTHE ON A GREY STACK (grey_stack 12) | trio guide :415 "scythe the grey doubles"; the scythe arc (scythe_of_vitur.rs2) | 3 of 5 green |
+| play.heart within one level; tech.prayer party half: leader at most the reference max 120 | a decay tick between press and read; hp_lost.mage [24-120] (the lower end measured exposure) | |
+
+Tried and NOT kept (each one survey; reverted): the per-wave opening (walk to the reference spawn_tile of the next
+wave, hold the mouth, lane ownership from wave_adds_hit; waves 308-324); the mage on Focus/Longrange on the OLD
+binary (its engine read the bare range); seam56's owner table (288-296); colour cleanup with north stands;
+keep_low 0.31; overdue bigs for every seat (a big killed at the cap is two smalls); mage virtus/confliction in the
+waves + bow on big greens; no protection prayer in the waves (0 of 5, tech.prayer red).
+
+State at commit (survey stack5d): _play 280/348/109/457 weakest 0.20; sva 284/344/114/458 0.23; svb 304!/356/115/471
+0.19; svc 296!/360!/109/469 0.15; svd 284/356/115/471 0.19 (last wave / boss start / boss ticks / room ticks).
+
+### Nylocas, Normal trio -- GREEN, 5 of 5 (owner_nylocas, b59ebc45d, 2026-10-07)
+
+Five names (`seed_survey.py _play_nylocas --party 3`, library aa9488741, content 0b6dffc89, binary
+src/torirs_owner_ny at dfdb73264): 269/345/109/454, 285/353/109/462, 289/357/109/466, 293/357/99/456,
+293/357/92/449 (last wave / boss start / boss ticks / room ticks; Blert 244-293 / 296-357 / 75-123 /
+371-471); every support standing at her landing (weakest 0.10-0.24). `party_repeat.py --script
+build/seam_state/owner_nylocas/_play_nylocas_trio.lua --runs 3`: AGREE. Entry solo 5 of 5 KEEP.
+
+What each seat does, every tick, in order (raid_play_tob_nylocas.lua `_play_nylocas_machine`):
+
+| when | the seat's choice | source |
+|---|---|---|
+| every tick, not her | publishes its current copy on the party link (`t.party.publish_target`, raid.lua 5d82f77c9) and reads the others' (one tick behind) | owner's direction: share the chosen copy |
+| from wave 31 | a big of its colour it has pressed stays its choice until it dies | traces: the wave-30 big blue hit once and left lived to age 49-51, its splits closed the room; before wave 31 a big's kill adds a copy at the cap |
+| in the waves | runs the scored pick for each other seat (that seat's loadout, reach, tile, current copy) and yields a copy that seat will take when it owns the colour, is nearer, or is as near and earlier in role order (`_nym_claims`) | same-tick double choices 12.8 -> 8.8 a room |
+| after wave 31 | its colour's chewer on a support under 0.31; else the oldest big of its colour; the leave-to-owner rule off (every seat on the leftovers) | the 27 rooms: weakest support at landing median 0.31; a seat's first hit on its big +1..+3 after wave 31; helpers swing at the leftovers |
+| otherwise | the scored pick (738ef1466's terms: own colour first, leave-to-owner as a rule, inbound shots, keep/low/urgent support terms, chins, Ice Barrage on blue clumps, grey stack) | progress.md steps 5-12 |
+| nothing to press | stands on the tile of the reference room d05eb065's seat's next entry (P.room_copy; the entries are never matched, see the comment in the plan) | one-room copy |
+| her | her form's weapon, gear set and special; no Saradomin brew while food is held | Blert equipmentDeltas per form; role.*.phase.boss.drinks |
+
+Kit: the mage carries Ice Barrage runes (bloodrune / deathrune / waterrune) in place of two brews and three anglerfish.
+
+### Nylocas, Normal trio, THE MACHINE (owner_nylocas, owner's direction 2026-10-06 20:00) -- history
+
+The trio's waves, cleanup and boss are one state machine per seat (`QD.raid._play_nylocas_machine`,
+raid_play_tob_nylocas.lua; the full state x event table is the comment above `NY_STATES`). Its data is
+generated (`P.waves` / `P.cleanup` from reference/nylocas_normal_3.script.json by
+build/seam_state/owner_nylocas/ny_waves.py: per wave and role the tile, first_action, modal weapon and the
+ordered targets). Memory: m.state, m.wave, m.idx, m.resume; a state subscribes its own handlers on entry
+and drops them on exit. The Entry solo plan keeps its own pick (`_play_nylocas_solo_pick`), 5 of 5.
+
+| state | does each tick | leaves on |
+|---|---|---|
+| AT_STAND | before wave 1 only: walk to wave 1's tile | wave_spawn -> KILL; support_hit -> PILLAR_DEFENCE; hit_taken (aggro) -> SELF_DEFENCE; waves_over -> CLEANUP; boss_phase -> BOSS |
+| PRE_STAND | the wave's list is done: the scored choice (QD.raid._play_nylocas_scored_pick) if it names a copy, else walk to the NEXT wave's script tile | wave_spawn -> KILL (first target pressed on the spawn tick); support_hit / hit_taken / waves_over / boss_phase as AT_STAND |
+| KILL | the scored choice, QD.raid._play_nylocas_scored_pick (738ef1466's target terms unchanged: own colour, inbound shots, keep/low/urgent support terms, cleanup order, grey stack, chins, burst); the list index still drives target_dead / PRE_STAND | wave_spawn -> AT_STAND(w); target_dead -> next idx / AT_STAND / CLEANUP; target_reached_pillar, support_hit -> PILLAR_DEFENCE (resume KILL, same idx); hit_taken -> SELF_DEFENCE; boss_phase -> BOSS |
+| PILLAR_DEFENCE | while a support of the seat's colour is being chewed: the scored choice (its pillar terms) | none left -> resume; boss_phase -> BOSS; hit_taken -> SELF_DEFENCE |
+| SELF_DEFENCE | while an aggro swings at the seat: the scored choice | none -> resume; boss_phase -> BOSS |
+| CLEANUP | the script's cleanup order, then its colour, then any copy | support_hit -> PILLAR_DEFENCE; hit_taken -> SELF_DEFENCE; boss_phase -> BOSS |
+| BOSS | her form's weapon, gear set and special (unchanged from the 3 of 5 plan) | -- |
+
+The raider tick-log row carries `state=<state>/<wave>/<idx>` (`::tlnote`, torirs_server_ticklog.c; needs a
+binary with the C of this commit, src/torirs_owner_ny) and `raid_report --waves` prints it at the first deviation.
+
+Surveys (5 names, src/torirs_owner_ny): first cut 0/5 waves 332-352, PILLAR_DEFENCE 187-267 ticks a seat;
+defence by colour and under 0.31, cached reads (the per-tick instruction budget ran out): waves 312-400;
+idle seats take overdue copies: 300-328, cleanup 36-52 (the scored plan's 51-60); lane keys restored and
+the newest copy per key (sm9): _play 336/396/109/505, sva 300/372/98/470, svb 316/384/104/488,
+svc 300/360/108/468, svd 304/364/103/467 (last wave / boss start / boss ticks / room); pillars red on 4. FIRST DEVIATION on every name: w1 range late +3 (script +1, the bow from the door).
+The scored plan it replaced (738ef1466) was 3 of 5.
+
+Coordinator edits, 5 names each: the trio through the barrier on one tick (t.raid.cross_together); the
+fallback is the oldest copy OF THE SEAT'S COLOUR no other seat's list names; AT_STAND walks to the
+script's tile unless its copy is already in reach; a small with another seat's shot in the air is
+spoken for; a role's targets[i] kept only while half the rooms have an i-th target. sm13: 317/377/108/485,
+309/373/109/482, 313/377/115/492, 321/397/109/506, 317/381/109/490; the weakest support under 0.10 on
+every name. Aggros-first in every state (sm14) was worse. Powered staves now take the worn magic damage
+(OSRS-Content 5b87903eb7). PRE_STAND (sm17): 313/373/103/476, 309/381/104/485, 309/373/115/488,
+309/373/123/496, 317/385/109/494; wave 9 attacks 4/6/2 and 4/4/2 (Blert 3/4/3), first attack +0..3 from
+wave 4 on; the stall is now at wave 29-30 (36-44 ticks): at w29's spawn Blert itself carries 23 alive. Still red; the first deviation is still the
+wave-1 ranger at +3 (the members' cross_together returns three ticks after the crossing).
+Scored choice inside the machine (sm28, 2026-10-06): _play 285/353/99/452 green, sva 293/361!/125!/486!, svb 313!/385!/115/500!, svc 297!/365!/109/474!, svd 277/349/95/444 green; pillars 4/4 on all five (weakest 0.15-0.31); 2 of 5. Entry solo 5 of 5. Waves 21-26 alive before spawn now at or under the scored plan's row on svb (4/12/10/9/10/14 vs 10/17/13/8/8/13). Still slow vs Blert: stalls 33-69 ticks a room (Blert median 16), and last wave to boss 64-72 (Blert medians 260 -> 308 = 48).
+Barrage runes in the kit + the scored burst candidate casts Ice Barrage (br1, c6f1d9f36): 2 of 5. Leave-to-owner as a rule, not +60 points (lo1): an off-colour copy whose owner stands within its reach+2 and nearer is not a candidate -- the attack classes put 22 of ~57 wasted swings a room on shots in flight at a copy another seat killed first; 289/357/104/461, 289/357/109/466, 277/349/132!/481!, 301!/357/127!/484!, 281/349/95/444: 3 of 5, pillars 4/4 on five.
 
 ## Sotetseg, Entry solo (`tob_sotetseg`, mode `entry`), proved
 
@@ -1045,3 +1217,268 @@ Sources: E = wiki_Theatre_of_Blood_Entry_Mode.wikitext, W = wiki_Theatre_of_Bloo
   wiki says restore is Entry's ("your Hitpoints and Prayer are replenished after defeating each
   boss", E:17), so Normal should restore nobody and Entry everybody. Not changed here: no seam
   row names tob_raid.rs2.
+
+## The four rooms against Blert, Normal trio (raid seam42)
+
+Closer survey on HEAD 407dc4a25: Xarpus 3 of 3 (fixer: 5 of 5, party_repeat AGREE), LANDED;
+Bloat 0 of 3 on blert.room_ticks and blert.downs only (every technique row passes), LANDED as
+the measured step toward the reference; Sotetseg NOT LANDED (0 of 3 against HEAD's 2 of 3);
+Verzik unchanged (the gap is the kit). Entry solo 5 of 5 on _play_smoke, _play_xarpus,
+_play_sotetseg.
+
+### Bloat, Normal trio -- follows Blert (seam42)
+Reference: docs/minigames/theater_of_blood/sources/blert_api/reference/bloat_normal_3.json (blert_reference.py
+bloat --mode normal --scale 3 --offline; 19 death-free of 30 cached rooms): room 137 [75-195], downs 2 (3 in 2 of 19),
+down1 starts at 42 [39-47] and lasts 33, swings per raider in down1 6 [5-7], first swing age 3, last swing age 26.5,
+down1 party damage 27 hp/tick [18.7-35.1], down2 22.8 [19.9-26.4], eat at ~25% hitpoints, hp lost per raider ~95.
+What the plan now does like the recorded trios: all three enter with the leader (15 of 22 death-free rooms; the
+wiki's "rest enter on the down" is 3 of 22); NO Dragon warhammer run-by (no DWH special in 30 rooms, one BGS);
+hide hugging the tank, one tile off it ("Hug the pillar", W:687; Blert walk distance mode 7; the mirror tile was 9);
+the last swing as late as the raider's own distance out of the stomp allows (leave_from_here) and no stomp threat
+counted while it will leave in time (no more bites at 85-99 hitpoints on a down's last swings).
+Before -> after (_play_bloat leader; after = 3 names): room 332 -> 259/340/269; downs 5 -> 4/5/4; down1 hp/tick
+11.6 -> 16.6/13.8/12.4; down1 swings p1 4 p2 2 -> 4/4/4 each; first swing age 7-9 -> 5-7; hp lost 269/184/215 ->
+131/36/56 (inside the reference); stomp hits 0; PfM'd fly max 15.
+Still outside: room ticks, downs, swings per down (4 vs 6), damage per tick (half), eat threshold (81-99% vs 25%).
+Where the rest is: (1) followers have no tick log, so raid_play.lua counts a swing every 5 ticks once engaged and
+never re-presses when the server stops swinging: p3 stood in reach 20 ticks of down2 and down3 with no input
+(_play_bloat t170-190, t242-262); (2) the 5th swing (age 25) is lost to the stomp margin (a -1 margin put the
+stomp on 2-3 raiders, survey_5); (3) the real trios add a crystal halberd special on down1 (17 of 19) and claws on
+down2 (12 of 19) and ZCB/tbow on walk1 (11 of 19), none in our kit.
+
+### Xarpus, Normal trio, follows Blert (raid seam42 play_tob_xarpus_follows_blert)
+
+Reference: `docs/minigames/theater_of_blood/sources/blert_api/reference/xarpus_normal_3.json`
+(`blert_reference.py xarpus --mode normal --scale 3 --rooms 20 --offline`: 13 death-free rooms of 20
+cached Regular trio rooms under build/blert/xarpus/; plus `extra_seam42` from
+build/seam_state/matthew-mbp-m4-raid-b1-seam42/xarpus_blert/analyse.py). Comparison:
+xarpus_blert/xcompare.py (raid_report.py --against knows only Maiden in this tree).
+
+What real trios do that the stack did not: they never stack in phase 2 (0% of ticks; each raider's
+nearest other raider 5 [3-6] tiles away) and swing about every 5.2 ticks (21.5 scythe swings in a
+112-tick phase; W:844 "With a 5 tick weapon ... players will only delay an attack once in their
+cycle"). The stack has to step out on S+2 (the chains' aim) and S+3 (the next spit's aim) every
+cycle, so it swung every ~7.2 ticks and phase 2 ran 117-141 ticks.
+
+| Who / when | Intent (changed rows only) | Source |
+|---|---|---|
+| phase 1 | The exhumed goes to the raider whose wait tile is nearest, unless that raider holds one still up (then the nearest free one) | reference outcome.phase.start.boss_heal 96 [50-182] (ours was 204); role.melee*.phase.start.dist_raider 5 |
+| phase 2, the spread | Each raider holds its own side: the melee and step-back tiles whose nearest wait tile is its own (Voronoi of 34,32 / 31,35 / 37,35) | reference role.melee*.phase.phase1.dist_raider 5 [3-6]; extra_seam42 p2_all_three_on_one_tile_pct 0 |
+| phase 2, the target stays in | The raider the spit in flight was aimed at (acid thrown from inside his footprint, destination = its own step-back tile) stays in melee that cycle; the other two step out on S+2 and S+3 as before | S ~tob_xarpus_spit (never the last target twice running, Near-Reality validTargets) and ~tob_xarpus_chain_to (a chain never goes to the spit's target); W:844 |
+| phase 2, a used-up side | A melee tile with no clean step-back tile of its own side in reach is left for one that has one (also at the press: the run back in goes there); with none, any clean step-back tile in reach | measured: late-phase chains on melee tiles (t248) without it |
+| exit | The leader eats one anglerfish if the pack is full before searching the skeleton | S ~tob_dawnbringer_take ("You don't have enough inventory space to take that"); measured svb (free 0) |
+
+Rows: `trio.stacked` is gone; `trio.spread` (each raider's median nearest-other distance in [3,6]);
+`trio.ring_clean` is bounded by the real rooms (<= 7: 13 death-free rooms leave 2-7, median 4,
+distinct P2 splats on melee tiles; was == 0).
+
+**Measured, five names (leader p1), `seed_survey.py _play_xarpus --party 3 --names 5`: 5 of 5.**
+
+| Leader | Room (ref 276 [257-298]) | P1 heal (96 [50-182]) | P2 ticks (112 [96-124]) | P3 ticks (51 [45-70]) | spits (27 [23-30]) | P2 swings/raider (21.5 [19-29]) | P2 dist_raider (5 [3-6]) | ring puddles (2-7) |
+|---|---|---|---|---|---|---|---|---|
+| before (_play_xarpus, stack) | 297 | 204 | 139 | 41 | 33 | ~20 over P2+P3 27 | 0 | 0 |
+| _play_xarpus | 273 | 168 | 119 | 37 | 28 | 20/20/20 | 5/5/5 | 2 |
+| svaplayxarpu | 266 | 168 | 111 | 38 | 26 | 18/18/19 | 5/5/5 | 2 |
+| svbplayxarpu | 264 | 168 | 103 | 44 | 24 | 17/17/18 | 5/5/5 | 0 |
+| svcplayxarpu | 252 | 168 | 99 | 36 | 23 | 17/16/17 | 5/5/5 | 0 |
+| svdplayxarpu | 278 | 168 | 123 | 38 | 29 | 20/20/21 | 5/5/5 | 2 |
+
+Heal orbs 14 (was 17); no deaths. Repeat: `party_repeat.py --script build/xn42_repeat/_play_xarpus_trio.lua
+--name xn42rep --runs 3`: AGREE (tick log sha ccbb1f5144c5, 342 boundaries). Entry solo
+`seed_survey.py _play_xarpus`: 5 of 5.
+
+**Still outside the reference.** Phase 3 is 36-44 ticks on every name (ref 45-70) with 7-9 swings
+a raider (ref 9-12): ours kills the last 25% faster on FEWER swings, so the gap is the damage per
+swing or the hit points left at the screech, not the plan (phase 3 is the Entry per-raider plan,
+unchanged). svc's room (252) is 5 under the reference's minimum for the same reason. P3 raiders
+sit 0-6 apart (ref 2 [0-4]).
+
+NOT LANDED. The closer's survey on HEAD 407dc4a25 (after the follower-prayer fix) put the plan below at 0 of 3 (two deaths, one unfinished run) against HEAD's own plan at 2 of 3; the files were restored from HEAD and the work is kept at build/seam_state/matthew-mbp-m4-raid-b1-seam42/close/sotetseg_unproved.patch. The measurements stand.
+
+#### Xarpus, Normal trio, on the lockstep engine (owner_rooms4, 2026-10-07) -- 5 of 5, every seat running
+
+Pinned bin 38aa954b3, private pack 4dfdd180c4. HEAD as-is: 5 of 5 (the engine change moved nothing red).
+Run kept on (QD.raid._play_run_keep, trio only) + a stamina dose in the trio kit: seed_survey --party 3 5 of 5,
+plays 266 / 261 / 254 / 247 / 271 ticks; the server reads run on every tick of every seat; party_repeat 3 AGREE
+(sha dabfa652c5db, build/seam_state/owner_rooms4/_play_xarpus_trio.lua); Entry solo 5 of 5.
+Sotetseg on the same pin (content's seq 1816 clear, 4dfdd180c4): 5 of 5, rooms 267 / 237 / 268 / 245 / 272,
+repeat AGREE (sha 2ce00c12c475); Bloat 5 of 5 (143 / 139 / 143 / 133 / 133), repeat AGREE (sha 1da6772536ef).
+
+### Sotetseg, Normal trio, against Blert (seam42 play_tob_sotetseg_follows_blert)
+
+Reference: `docs/minigames/theater_of_blood/sources/blert_api/reference/sotetseg_normal_3.json`
+(`blert_reference.py sotetseg --mode normal --scale 3 --rooms 20`; 20 death-free rooms of 29; roles melee x3 in 19).
+`raid_report.py --against` cannot read a Sotetseg run (`blert_reference.BOSS_IDS` holds only Maiden: run_room -> None);
+the comparison is `build/seam_state/matthew-mbp-m4-raid-b1-seam42/sotetseg/compare.py`, the real maze timings
+`.../sotetseg/maze_times.py` over the cached streams in build/blert/sotetseg (58 mazes).
+
+| number | Blert median [range] | before (seam33 plan) | after (s4, last clean party run) |
+|---|---|---|---|
+| room ticks | 212.5 [164-262] | 418 / 460 / died | 333 / 350 / 354 |
+| start phase ticks (to maze 1) | 52.5 [42-67] | 92 / 83 | 63 / 73 / 88 |
+| maze, proc to combat form back | 28 [15-49] | 41, 47 | 31-36 |
+| scythe accuracy before maze 1 | (~30 dmg a swing) | 0.47 (22 a swing) | 0.85-0.87 |
+| hp lost per raider | 92.5-108 [3-225] | 247-327 | 199-383 |
+
+What the real trios do that ours did not:
+* ELDER_MAUL once a phase per raider (weapons table: 15/13/12 of 19 rooms by phase). Defence 200 untouched left
+  the scythe at 47% accuracy; one maul special each (`pvm_elder_maul.rs2`: -35% of current Defence) took it to 87%.
+  The maul goes on in the SAME block as the orb press, the tick after a scythe swing; a tick earlier and the
+  auto-attack swings it plain first (seq 7516 then 11124 six ticks later).
+* Followers walk BEHIND the glow while it is lit (two tiles back), not after the last tile: maze 41/47 -> 31-36.
+  Rules that made it safe: follow a neighbour chain built from the lit tiles each tick (the order tiles were lit in
+  cut a corner diagonally onto a dark tile); never retarget mid-run on the grid (the server routes the new target
+  from wherever the raider got to); never walk a tile guessed across a 3+ tile glow gap (a glow missed while the
+  runner ran two a tick crosses two lateral rows, and either can hold the turn).
+* Eat for ONE attack of his, not one per five ticks of the horizon: two worst-case melees made every raider eat
+  and brew at 80-115 of 99, and the brews' Attack drain took accuracy to 0.29 by the last phase.
+
+Still outside the reference: room 333-354 (> 262); hp lost; the post-maze phases (defence back, fewer specs: the
+energy allows two mauls, the real teams three - a lightbearer or spec restore is the next lever, unsourced here).
+
+#### Sotetseg, Normal trio, on the lockstep engine (owner_rooms4, 2026-10-07) -- 5 of 5, every seat running
+
+OWNER RULING 2026-10-07: "If sotetseg is completing but just a bit slower, count it as good, don't worry about
+meeting blert times." blert.room_ticks in _play_sotetseg asserts completion only (his death, no raider dead);
+the reference's 212.5 [164-262] is printed. Pinned bin 5e555aa62, private pack b86cd99a3f.
+- HEAD plan: rooms 282 / 251 / 286 / 261 / 273, red on [164-262] alone before the ruling.
+- Where the time goes (the first deviation, open): one seat a maze swings nothing for 30-75 ticks after it --
+  the maze's seq 1816 (human_teleport_other_impact: 16 frames of 4 cycles and a 17th of 2000) is DELAYMOVE, so
+  that seat's drawn player stays on the far-end tile while its server tile walks back; the camera follows the
+  frozen model and every npc projects off screen (attack press `not_visible`). Content row filed (content_bugs).
+- Run kept on (QD.raid._play_run_keep, shared with Bloat) + a stamina dose: 5 of 5, rooms 277 / 250 / 307 /
+  260 / 272, hp lost <= 225; the server reads run on every tick of every seat. party_repeat 3 AGREE (sha
+  7c508405fae9, build/seam_state/owner_rooms4/_play_sotetseg_trio.lua).
+
+### Verzik, Normal trio, against Blert (seam42 play_tob_verzik_follows_blert) -- NOT closed
+
+Reference: `docs/minigames/theater_of_blood/sources/blert_api/reference/verzik_normal_3.json`
+(blert_reference.py verzik --mode normal --scale 3 --rooms 20: 20 death-free rooms of 27).
+`raid_report.py --against` refuses Verzik (BOSS_IDS knows only Maiden), so the comparison was
+`build/seam_state/matthew-mbp-m4-raid-b1-seam42/verzik/compare_verzik.py` (phase bounds from her retypes 8371/8373).
+
+| Number | Blert median [range] | Ours at HEAD 7f942f915: _play_verzik / sva / svb |
+|---|---|---|
+| room ticks | 438.5 [359-607] | 833 (two died) / 638 / 591 |
+| P1 ticks | 85.5 [60-152] | 127 / 135 / 156 |
+| P2 ticks | 210 [170-261] | 299 / 296 / 289 |
+| P3 ticks | 134.5 [122-200] | 407 / 207 / 146 |
+| P2 heal on her | 198 [65-313] | 802-848 (three red absorbs of 206-228) |
+| hp lost per raider | 130-173 [69-259] | 268-715 |
+| P2 weapon | SCYTHE (16-18 of 20 rooms per role; melee 83-92%) | twisted bow 47-51 shots |
+| P3 weapon | SCYTHE (21-23 swings per role) | twisted bow 26-66 shots |
+| P1 | DAWN 4 + SCYTHE 8-10 per role | dawn 3-4 + scythe 14-21 per role |
+
+Every real Normal trio plays Verzik ALL MELEE. Ours is a ranged kit (`::maxrange`, Rigour). Tried and
+reverted: the scythe on the reds in P2 with the ranged kit -- 8.0 a hit on a red (729 hits), P2 never
+ended (0 of 3). Next: the melee kit (`::maxmelee` exists, cheat_max_gear.rs2:31) with Piety, P2 melee with
+the out-on-T-1 step against the bounce (V verzik.p2_scan_rule), P3 melee with the under-her step on T-1
+(V verzik.p3_melee_predicate). At HEAD the survey is 2 of 3 (the leader's own name dies in a 407-tick P3),
+where seam34v measured 5 of 5 before the content merge bf3dabef7c.
+
+### Verzik, Normal trio, MELEE as Blert's trios play it (seam45 play_tob_verzik_melee_follows_blert)
+
+Replaces the kit row and the P2/P3 rows of "Verzik, Normal trio" (the ranged plan). Reference:
+`docs/minigames/theater_of_blood/sources/blert_api/reference/verzik_normal_3.json` (20 death-free
+Normal trio rooms, every role melee). Compared with seam42's `verzik/compare_verzik.py`.
+
+| Who / when | Intent | Source |
+|---|---|---|
+| kit | `::maxmelee` (Torva, charged scythe) + insulated boots; carried: serpentine helm, 4 brews, 4 super restores, 2 super combat, 14 anglerfish; p1 the Dawnbringer | Blert: scythe in P2/P3 in 16-18 of 20 rooms per role; W:891; W:923 venom; V p2_zap_max |
+| P1 | unchanged (pillar cover, Dawnbringer shared by specials, scythe between) | W:871-891 |
+| T1->2 | Piety + Protect from Missiles, one super combat dose, serpentine helm on; each to its side two out (p1 W, p2 E, p3 S) | W:904 |
+| P2 | beside her, swinging; on the plan's T-2 or T-1 before her next attack a one-tile step to two out (no press on those ticks), the press back in at T. Clock: +4, the summon 8 after the 7th attack since one, +12 after a summon | V verzik.p2_scan_rule (C); ET 1.1-1.3; V p2_cadence, reds_first_attack_after |
+| P2 adds | Athanatos first (not while a nylocas is within 4 of it); Matomenos split one per role in slot order, only for 10 ticks after a summon; no swing on her across a summon or its 5-tick absorb; a nylocas within 4 is run from, never swung at | W:927-931; Entry_Mode:231; tob_verzik.rs2 ~tob_verzik_crab_blast |
+| P3 | her EAST edge (the tornadoes rise on her SW tile), routed round her two out; step out on the plan's T-2/T-1 when beside her. Clock: auto +7 (+5 enraged) sure; crabs 10, webs 40, yellows 20, ball 12, enrage +4 held until her attack shows | V verzik.p3_melee_predicate (C); W:953 |
+| P3 enrage | powers through (W:983): eats only to the 45 band unless the ball or nylocas; dodges a tornado only when its ROW is seen moving within 2 | W:981, W:983 |
+| stats | a super restore when Attack < base-8 (brews drain it), a super combat dose when < base+8 | e15: 43 of 48 enrage splats zero after 16 brew doses |
+
+Timing, measured: the plan's tick and the server's are one apart for an input, either way. A step on the
+plan's T-2 alone stood the leader out at the end of T-2 and its T-1 press brought him back before the
+scan (slams t181/t197); a step on T-1 alone was late (67 slams, e11). Two ticks out, press at T: 0 slams
+in P2 on the final repeat run (56 attacks, all 8114), 2 melees of 26 P3 attacks.
+
+Members read no tick log: their swings are counted, not seen, so a member re-presses when engaged from
+two out without moving (after a slam's knockback) and every 8 ticks in P3 (the server ended their attack
+at her web special, e13).
+
+Our room vs Blert (final plan, `seed_survey.py _play_verzik --party 3 --names 5`, 5 of 5 green,
+party_repeat 3 runs AGREE):
+
+| Number | Blert median [range] | Ours: _play_verzik / sva / svb / svc / svd (repeat s45vzfin) |
+|---|---|---|
+| room ticks | 438.5 [359-607] | 629 / 634 / 626 / 593 / 605 (626) |
+| P1 ticks | 85.5 [60-152] | 118 / 122 / 123 / 109 / 122 (115) |
+| P2 ticks | 210 [170-261] | 270 / 300 / 278 / 297 / 310 (273) |
+| P3 ticks | 134.5 [122-200] | 241 / 212 / 225 / 187 / 173 (221) |
+| hp lost per raider | 130-173 [69-259] | 232-566; svc 117-176 |
+| swings per role P2 / P3 | 31+6 [25-41 + 2-13] / 24 [21-33] | 43-45 / 31-32 (repeat) |
+| eats per role P2 / P3 | 1.5 [0-4] / 2 [0-6] | 6-10 / 8-12 (repeat) |
+
+Before (ranged, HEAD cf69609bc): 2 of 3 names, room 591-833, P2 289-299, P3 146-407, hp lost 268-715.
+
+Closer seam45, on the tree with seam48's `t.raid.own_anim` built in (src/torirs_seam45_close): the party survey is 4 of 5, not the fixer's 5 of 5 (that run used the older binary). svdplayverzi p2 died at t611 in the enrage: all three raiders stood on ONE yellow pool at 6431,96, two tornadoes walked up column 6431 and touched p2 for 29, and the yellows blast took its last 50. OPEN: one raider per pool in the melee P3, and the hitpoints lost. Entry solo stays 5 of 5.
+
+## The whole raid, Normal trio, run once on the Blert-shaped rooms (raid seam53 play_tob_normal_relay_once), NOT KEPT
+
+One survey as the harness stood, one edit of `test/raids/_play_normal.lua` for the
+relay-level faults, one more survey (`seed_survey.py _play_normal --party 3 --names 3
+--jobs 3`, 43 s each). Both surveys 0 of 3. Logs and reports:
+`build/seam_state/matthew-mbp-m4-camera-b1-seam53/` (survey1.log, survey2.log,
+s1_report_*.txt, s2_report_*.txt).
+
+| name | survey1 (as it stood) | survey2 (after the edit) |
+|---|---|---|
+| own (`_play_normal`) | Maiden cleared, 437 ticks; leader died at Bloat t829 (role 3, entered with 0 fish, 2 brew doses, 0 restores, 0 combat) | all three died at Maiden: freezer t385 (blood at 6440,157), dps1 t549, dps2 t579 (her 48-59 hits) |
+| `svaplaynorma` | leader (dps1) died at Maiden t425, blood 30/30/30 at 6432-6435,160 | freezer t503 (blood 36 x3 at 6441,158), leader t517 |
+| `svbplaynorma` | freezer t542, leader t648 (hp 26 for ten ticks, pack empty: 7 eats, 56 drinks) | freezer t453 (blood 26 x3 at 6441,158), leader t558 |
+
+Supplies at Maiden, survey1 own name: seat 1 (dps1) used 7 fish, 30 brew doses, 20
+restore doses and all 4 combat doses; seat 2 (freezer) 3 fish, 2 brew, 6 restore; seat 3
+5 fish, 13 brew, 10 restore, 4 combat. One Maiden empties a dps seat's whole raid pack;
+the trio pages' kit for the whole raid is "eight brews, four restores, and three anglers"
+(10Boot yt_4i4lv-srJkw.md 0:04:23).
+
+RELAY-LEVEL, fixed in the one edit (survey2 shows the Maiden part; nobody reached Bloat,
+so the Bloat part is unexercised):
+
+- The worn set was the old ranged Maiden's (masori) in every room, while every room plan
+  since seam40 is melee and every trio harness wears `::maxmelee`. Seats 1 and 3 now wear
+  `::maxmelee` with the twisted bow at Maiden's door (`_play_maiden.lua` party_kit); seat 2,
+  Maiden's freezer, keeps its harness's ranged set.
+- Maiden's door: the dps seats drink the super combat (`maiden.potion` PASS on all six
+  dps seats in survey2) and play `weapon = scythe_of_vitur`, as `_play_maiden.lua`
+  party_run.
+- The supply mix is the Maiden harness's ratio in each seat's slots (seat 1 9 fish / 7
+  brews / 4 restores, seat 2 6 / 2 / 2, seat 3 7 / 5 / 3).
+- Bloat: the members cross with the starter (the harness since seam42), not on the first
+  down; role 1 (the heaviest in seam51's harness) goes to seat 2, the seat survey1's
+  Maiden left the most (14 brew doses, 6 restore, 4 combat), and seat 1 keeps role 3.
+
+RELAY-LEVEL, found in survey2, not fixed (one edit): `::wield slayer_boots` after
+`::maxmelee` puts the avernic treads in the pack, so seat 1 starts with 8 fish, not 9,
+and seat 3 with 6, not 7. Drop the slayer-boots line for seats 1 and 3, or drop the
+treads in run().
+
+ROOM-LEVEL, for the room seams:
+
+- Maiden's freezer stands in her blood at its home tile (6440-6441,157-161) for 3-4 ticks
+  and dies from 90+ hitpoints: survey2 3 of 3 names, survey1 1 of 3
+  (`raid_play_tob_maiden.lua`, the freezer's `holding` for a cast). Seam39 reported the
+  same thing.
+- In the `::maxmelee` set, the dps seats take 41-59 from npc 8363 (`tob_maiden_30`) every
+  10 ticks; in masori in survey1 the largest was 35. The Maiden harness wears the same set,
+  so this is the room's or the damage content's problem, not the relay's.
+- The Maiden plan's re-boost drinks every combat dose in the pack
+  (`raid_play_tob_maiden.lua` ~1700, the super combat under 108). Survey1's `bloat.potion`
+  failed on seats 1 and 3 because they had none left. A relay needs the plan to keep one
+  dose back.
+- What the dps seats spend at Maiden (35-56 drinks and 6-8 eats each) is more than one
+  pack holds. No relay mix makes Maiden plus Bloat fit in one pack until the room spends
+  closer to the trio pages' kit.
+- Not reached, still open on the relay side: the Normal supply chest after Bloat and
+  Sotetseg is never bought from. It is a points store, `tob_midway_stores:items`, with
+  Buy-1 on op 2 (tob_chest.rs2:287-297); each raider opens their own, and members have to
+  be standing in the old room's square for the passage to carry them. The relay also
+  carries no Dragon claws for Bloat's down spec (the `_play_bloat.lua` kit) and no Elder
+  maul for Sotetseg (the `_play_sotetseg.lua` kit).

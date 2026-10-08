@@ -29,7 +29,8 @@
 -- the server's registers, `::tob*` readouts, the seed, the tick log's hidden
 -- columns.  The one tick-log kind it reads is `player_anim` for its own pid
 -- (the swing it sees itself make) and, to stop, the boss's `npc_death`; a
--- member (no tick log) counts its swings from its presses and the speed.
+-- member (no tick log) reads the swings its own screen shows it start
+-- (t.raid.own_anim, raid seam48 member_swings_seen).
 --
 -- THE SKILLS, each a small function below with its source in a comment
 -- (PLAY_NOTES.md "Skills"): _play_attack (attack on cooldown), _play_pray
@@ -66,23 +67,57 @@ QD.RAID_PLAY_WEAPONS = {
 -- with fish eats the fish first as before; a raider whose fish are gone
 -- after the supply chest eats them (the relay's Xarpus died at 14 hp with
 -- ten bandages in the pack because this table did not know them).
+-- (owner_tob_normal, the relay: the Normal supply chest sells manta ray,
+-- sea turtle and shark, and the plain Saradomin brew and super restore --
+-- enum_1952 / tob_chest.rs2; heals general/configs/food.dbrow)
 QD.RAID_PLAY_FOOD = {
     { item = "anglerfish", heal = 22 },
+    { item = "mantaray", heal = 22 },
+    { item = "seaturtle", heal = 21 },
     { item = "shark", heal = 20 },
     { item = "tob_bandages", heal = 20 },
 }
 QD.RAID_PLAY_BREWS = { "br_1dosepotionofsaradomin", "br_2dosepotionofsaradomin",
-    "br_3dosepotionofsaradomin", "br_4dosepotionofsaradomin" }
+    "br_3dosepotionofsaradomin", "br_4dosepotionofsaradomin",
+    "1dosepotionofsaradomin", "2dosepotionofsaradomin", "3dosepotionofsaradomin", "4dosepotionofsaradomin" }
 QD.RAID_PLAY_BREW_HEAL = 16
 -- Super restore: 8 + 25% of the Prayer level = 32 at 99 (wiki Super restore).
-QD.RAID_PLAY_RESTORES = { "br_1dose2restore", "br_2dose2restore", "br_3dose2restore", "br_4dose2restore" }
+QD.RAID_PLAY_RESTORES = { "br_1dose2restore", "br_2dose2restore", "br_3dose2restore", "br_4dose2restore",
+    "1dose2restore", "2dose2restore", "3dose2restore", "4dose2restore" }
 QD.RAID_PLAY_RESTORE_AMOUNT = 32
+-- The super combat, plain then divine (the brew recovery below).
+QD.RAID_PLAY_COMBAT_DOSES = { "1dose2combat", "2dose2combat", "3dose2combat", "4dose2combat",
+    "br_1dose2combat", "br_2dose2combat", "br_3dose2combat", "br_4dose2combat",
+    "1dosedivinecombat", "2dosedivinecombat", "3dosedivinecombat", "4dosedivinecombat" }
+-- THE EAT FLOOR, measured from Blert (build/seam_state/supply_policy/
+-- eat_threshold.py; owner 2026-10-07 "play the raid as intended and not use
+-- cheese mechanics like tick eating").  A type-4 player event carries each
+-- seat's hitpoints every tick of every room, so every rise of 4 or more is a
+-- heal and the reading before it is the hitpoints that raider CHOSE to eat
+-- at.  Over the Normal trios, seats that finished the room, the room's exit
+-- reset dropped: median eat hitpoints maiden 73, nylocas 61, verzik 65,
+-- sotetseg 44, bloat 28 (xarpus records no heal at all among its finishers),
+-- and the median of those five room medians is 61 -- 0.62 of the Hitpoints
+-- level, which is how it is written here so a seat below 99 scales.
+--
+-- The SHAPE is the data's, not a choice: expressed as a margin above the
+-- room's maximum hit the same medians spread 75 hp and the margin runs the
+-- WRONG way (+43 where the maximum hit is 30, -32 where it is 60), so no
+-- "survive the next maximum roll" shape fits.  A flat band fits, spread 45.
+QD.RAID_PLAY_EAT_FLOOR_HP = 61
+QD.RAID_PLAY_EAT_FLOOR_LEVEL = 99
 -- Food "adds a 3 tick penalty to when a player may eat again"; a potion
 -- "delay[s] your next potion consumption by 3 ticks" (consume_shared.rs2:31-48).
 QD.RAID_PLAY_EAT_DELAY = 3
+-- A ground-stack Take is re-pressed no sooner than this many ticks after the
+-- last one (it routes onto the square; a re-press restarts the route).
+QD.RAID_PLAY_TAKE_RESEND = 3
 QD.RAID_PLAY_DRINK_DELAY = 3
 -- Running moves two tiles a tick (wiki Energy: run); used to time a leave.
 QD.RAID_PLAY_RUN_TILES = 2
+-- 30 client cycles per game tick (ENCOUNTER_TIMING.md 1.2:
+-- CYCLES_PER_GAME_TICK = 600/20; src/app.h APP_SERVER_TICK_LOGIC_CYCLES).
+QD.RAID_PLAY_CYCLES_PER_TICK = 30
 
 -- THE PLANS.  One table per room, each registered by its own driver part
 -- (raid_play_tob_bloat.lua, raid_play_tob_maiden.lua, ...: after this file in
@@ -130,6 +165,7 @@ function QD.raid.play(plan_id, opts)
     local weapon = QD.RAID_PLAY_WEAPONS[weapon_name]
     assert(weapon, "raid.play: no weapon row for " .. tostring(weapon_name))
     local st = QD.raid._play_state(plan, plan_id, mode, numbers, weapon, opts)
+    st.weapon_name = weapon_name
     local max_ticks = opts.max_ticks or 1500
     local result = "timeout"
     while true do
@@ -144,7 +180,49 @@ function QD.raid.play(plan_id, opts)
         end
     end
     st.result = result
+    QD.raid._play_press_latency_row(st)
     return result, QD.raid._play_summary(st), st
+end
+
+-- ==========================================================================
+-- owner_presslat 2026-10-07: EVERY PRESS REACHES THE SERVER WITHIN A TICK.
+--
+-- The relay's Maiden freezer pressed its +16 barrage on the 4s at t291 and the
+-- server took it at t293 -- the tick the crabs walked in and healed her -- and
+-- cast nothing (mrlya/b/c on aa98a5360; the room harness 0-1).  Transport was
+-- not it: every client's packet reaches the server at the next boundary,
+-- leader and members alike (the leader's held bytes are written ahead of the
+-- pump, net_transport_embed.c).  The two ticks were the fast press's own: the
+-- type's projection named ANOTHER crab, and the aim turned the camera, hunted
+-- a line of pixels to the tick cap, pressed `covered` and re-aimed
+-- (QD.drive._quick_aim, now on the named copy's own projection).
+--
+-- The row, `<plan>.press_latency`, on every seat, REPORT ONLY (always PASS):
+-- the presses that SENT something (answer ok / pressed), each `t<decide
+-- tick><s|a>` (s a cast, a an attack), and this seat's players() pid.  The
+-- verdict is tools/quest_gate/gate.py press_latency_check (the party ledger's
+-- raid.press_latency row), from the leader's ticklog.tsv after the run: each
+-- press RECEIVED by the server at most one tick after its decide tick (the
+-- seat's raider rows' `input 1`; the raider rows are FILE-ONLY,
+-- QD.ticklog.FILE_ONLY).  Receipt, not the action: an action waits on rules a
+-- client cannot hurry -- a barrage pressed again inside its own 5-tick timer
+-- animated 4 ticks later with its packet on time (plmaiden3 t192), a boss not
+-- yet attackable ran every seat's first [apnpc] 4 ticks late at Maiden's
+-- start.  The row reads NO tick log: a whole-run read at the end of a long
+-- room (3000 player_tile rows) spent the script's instruction budget
+-- (owner_verzik, _vzslow / svdvzslow).
+function QD.raid._play_press_latency_row(st)
+    local sent = st.press_sent or {}
+    if #sent == 0 then
+        return
+    end
+    local list = {}
+    for _, p in ipairs(sent) do
+        list[#list + 1] = "t" .. p.tick .. (p.spell ~= nil and "s" or "a")
+    end
+    QD.check(tostring(st.plan_id) .. ".press_latency", true, string.format(
+        "%s; judged by gate.py raid.press_latency; players pid %s; sent %s",
+        st.log and "the leader" or "a member", tostring(st.my_pid_players), table.concat(list, ",")))
 end
 
 function QD.raid._play_state(plan, plan_id, mode, numbers, weapon, opts)
@@ -153,6 +231,9 @@ function QD.raid._play_state(plan, plan_id, mode, numbers, weapon, opts)
     local st = {
         plan = plan, plan_id = plan_id, mode = mode, numbers = numbers, weapon = weapon,
         boss_symbol = plan.boss[mode], role = opts.role or QD.party.role(), party = QD.party.size(),
+        -- a caller's named switches for the plan (a relay's variant of a
+        -- room: opts.variant, read as st.variant; nil in the room harnesses)
+        variant = opts.variant,
         start_tick = now, origin = { x = math.floor(me.x / 64) * 64, z = math.floor(me.z / 64) * 64 },
         -- what happened, per server tick (the room test's rows read these)
         inputs = {}, hp_at = {}, prayer_at = {}, tile_at = {}, swings = {}, eats = {}, drinks = {},
@@ -160,6 +241,11 @@ function QD.raid._play_state(plan, plan_id, mode, numbers, weapon, opts)
         last_swing = -1000, engaged = false, engaged_tick = -1000, last_eat = -1000, last_drink = -1000,
         walk_target = nil, boss_seen = false, boss_gone = 0, boss_slot = nil, anim_serial = 0,
         death_serial = 0, log = false, my_pid = nil,
+        -- raid seam48: the own-animation starts read so far (t.raid.own_anim)
+        -- and the weapon swings among them, on every raider; a member's
+        -- swings ARE these, the leader keeps its log's and records these
+        -- beside them (the summary's "seen" count)
+        own_starts = 0, seen_swings = {},
     }
     -- The tick log is the leader's; a member reads none (README "A party run").
     local lr = QD.ticklog.rows({ kind = "mark" })
@@ -182,10 +268,60 @@ function QD.raid._play_state(plan, plan_id, mode, numbers, weapon, opts)
     local pr, rows = api_drive.players()
     if pr == "ok" then
         for _, r in ipairs(rows) do
-            if r.me then st.my_pid = r.pid end
+            if r.me then st.my_pid = r.pid; st.my_pid_players = r.pid end
         end
     end
+    -- the starts before this room are not this room's swings
+    local orr, own = QD.raid.own_anim()
+    if orr == "ok" then st.own_starts = own.starts end
+    -- raid seam55: the plan's triggers and watches (QD.raid._play_triggers_init)
+    QD.raid._play_triggers_init(st, opts)
     return st
+end
+
+-- t.raid.own_anim() -> "ok", {seq, tick, starts, history, anim} |
+-- not_found | unsupported.  Raid seam48 member_swings_seen: what this
+-- raider's own screen shows its character START playing -- the action seq
+-- the server sent it, as the model draws it (api_drive.players' `me` row,
+-- watched every frame by torirs_plugin_drive.c drive_own_animation_watch).
+-- `seq`/`tick`: the newest start (-1 before the first); `starts`: how many
+-- this client has seen; `history`: the newest starts, oldest first, as
+-- {n, seq, tick} (n counts from 1, so a reader keeps the last n it took);
+-- `anim`: the seq drawn now (-1 none).  Ticks are t.tick's (the server
+-- tick, or the party's lockstep tick on a member): the tick read now less
+-- the whole ticks the start is old (its age in client cycles / 30), so a
+-- member's swing and the leader's log row sit on one axis.  A party member has no tick log; before this it COUNTED
+-- a swing every weapon-speed ticks and never re-pressed after the server
+-- stopped its swings (seam42 _play_bloat: p3 in reach, no input for 20
+-- ticks of a down, twice).  What the screen shows and no more: a seq a hit's
+-- higher-priority block seq refused, or one re-sent while still playing
+-- under replay mode 2, shows no start.
+function QD.raid.own_anim()
+    local pr, rows = api_drive.players()
+    if pr ~= "ok" then
+        return pr, "t.raid.own_anim: api_drive.players answered " .. tostring(pr)
+    end
+    local tr, now = QD.tick()
+    if tr ~= "ok" then
+        now = api_drive.tick()
+    end
+    for _, row in ipairs(rows) do
+        if row.me then
+            if row.seq_starts == nil then
+                return "unsupported", "t.raid.own_anim: this binary's api_drive.players has no seq_starts (rebuild)"
+            end
+            local history = {}
+            for _, h in ipairs(row.seq_history) do
+                history[#history + 1] = { n = h.n, seq = h.seq, tick = now - h.age // QD.RAID_PLAY_CYCLES_PER_TICK }
+            end
+            local newest = history[#history]
+            return "ok", {
+                seq = row.seq, tick = newest and newest.tick or -1,
+                starts = row.seq_starts, history = history, anim = row.anim,
+            }
+        end
+    end
+    return "not_found", "t.raid.own_anim: this client has not placed its own player yet"
 end
 
 -- SEE: what a person at the screen reads this tick.
@@ -216,8 +352,15 @@ function QD.raid._play_see(st)
             end
         end
     end
-    -- the swing animation of the player's own weapon (player_anim, own pid)
-    if st.log then
+    -- the swing animation of the player's own weapon (player_anim, own pid).
+    -- SOLO only (raid seam48): in a party the library's st.my_pid is
+    -- api_drive.players' pid, which is not the log's (the maiden seam32
+    -- finding, s32mzn1), so the leader read another raider's swings as its
+    -- own (seam48 survey _play_bloat: the leader's log pid 0 swung 13 times,
+    -- the library counted 12, pid 1's).  In a party every raider, the leader
+    -- included, takes its swings from its own screen (below), which matched
+    -- the log tick for tick (scratch s48oa2: 7 of 7, offset 0).
+    if st.log and (st.party or 1) <= 1 then
         local ar, rows = QD.ticklog.rows({ kind = "player_anim", since = st.anim_serial })
         if ar == "ok" then
             for _, row in ipairs(rows) do
@@ -226,6 +369,24 @@ function QD.raid._play_see(st)
                     if row.tick > st.last_swing then
                         st.last_swing = row.tick
                         st.swings[#st.swings + 1] = row.tick
+                    end
+                end
+            end
+        end
+    end
+    -- raid seam48: the swings this raider's own screen shows it start
+    -- (t.raid.own_anim).  A member has no log, and a party leader's log read
+    -- cannot tell its own pid (above): for both, these are its swings.
+    local orr, own = QD.raid.own_anim()
+    if orr == "ok" then
+        for _, h in ipairs(own.history) do
+            if h.n > st.own_starts then
+                st.own_starts = h.n
+                if st.weapon.seqs[h.seq] then
+                    st.seen_swings[#st.seen_swings + 1] = h.tick
+                    if not (st.log and (st.party or 1) <= 1) and h.tick > st.last_swing then
+                        st.last_swing = h.tick
+                        st.swings[#st.swings + 1] = h.tick
                     end
                 end
             end
@@ -247,22 +408,80 @@ end
 -- its own every `speed` ticks (wiki Attack speed: "the number of ticks
 -- between attacks"); a click is needed only to START the fight or after a
 -- step cleared it.  So the press goes out when the plan wants a swing and
--- the player is not engaged, or no swing was seen for speed + 2 ticks.  A
--- member with no tick log counts a swing every `speed` ticks of engagement.
+-- the player is not engaged, or no swing was seen inside the speed window:
+-- the swing due `speed` ticks after the last one (or after the press) did
+-- not show, and one tick of grace for the frame it shows on, so the press
+-- goes out the tick after that (raid seam48; it was speed + 2 before).
+-- Every swing here is SEEN: the leader's from its tick log, every raider's
+-- from its own screen (t.raid.own_anim, _play_see; raid seam48: a member
+-- used to count a phantom swing every `speed` ticks of engagement, so the
+-- re-press below never fired for it after the server stopped its swings).
 -- Returns true when this tick should carry an attack press.
+-- THE RAIDER'S ENGAGEMENT, as a machine (owner 2026-10-07: "st.engaged seems
+-- like boolean soup? Why isn't that behavior encoded into the state machine or
+-- hierarchical state machine.").  "Am I in combat, my weapon swinging by
+-- itself?" is a fact about the RAIDER, and it was a flag that 58 places across
+-- the six plans wrote -- 31 of them in Verzik's -- each guessing it from what
+-- it had just asked for.  The executor is the one place that knows what was
+-- actually sent and seen, so for a plan that opts in (st.engage_owned) it is
+-- the only writer, through these events:
+--   engaged {target}  an attack press on `target` ("boss" | "slot:N") answered
+--   stepped           a step went out: a step clears the attack
+--   stalled           no swing seen for a weapon cycle and two ticks
+--   rearmed           a weapon went on (the plans re-press after a swap)
+-- and st.engaged is a READ-ONLY view of the state.  A plan asks for `attack`
+-- (on the boss) or `press` (on a row) or `stop` (end the swings here); the
+-- executor re-presses when engaged on a different target or when a special
+-- is being armed.  The plans that have not opted in keep the flag as before.
+local function engage_declare()
+    if QD.raid.sm_decls ~= nil and QD.raid.sm_decls["raider_engage"] ~= nil then return end
+    local function idle() return nil, "IDLE" end
+    QD.raid.sm_declare("raider_engage", {
+        start = "IDLE",
+        states = {
+            IDLE    = { note = "not in combat: a press starts the swings", on = {
+                engaged = function() return nil, "ENGAGED" end } },
+            ENGAGED = { note = "in combat with one target: the weapon swings by itself in reach",
+                enter = function(c) c.st.engaged_tick = c.v.tick end,
+                on = {
+                    engaged = function(c, ev)
+                        if ev.target ~= c.st.engage_target then c.st.engaged_tick = c.v.tick end
+                        return nil, "ENGAGED"
+                    end,
+                    stepped = idle, stalled = idle, rearmed = idle,
+                } },
+        },
+    })
+end
+function QD.raid._engage_event(st, v, name, target)
+    assert(st, "_engage_event: st")
+    assert(v, "_engage_event: v")
+    assert(st.engage_owned, "_engage_event: the plan has not opted in (st.engage_owned)")
+    engage_declare()
+    local m = QD.raid.sm_run(st, v, "raider_engage", { st = st, v = v }, { { name = name, target = target } })
+    if m.state == "ENGAGED" then
+        if name == "engaged" then st.engage_target = target end
+    else
+        st.engage_target = nil
+    end
+    st.engaged = m.state == "ENGAGED"
+    return m.state
+end
+
 function QD.raid._play_attack(st, v, want)
     if not want then
         return false
     end
     local speed = st.weapon.speed
-    if not st.log and st.engaged and v.tick - math.max(st.last_swing, st.engaged_tick) >= speed then
-        st.last_swing = v.tick
-        st.swings[#st.swings + 1] = v.tick
-    end
     if not st.engaged then
         return true
     end
-    return v.tick - math.max(st.last_swing, st.engaged_tick) > speed + 2
+    -- engaged on something else (a crab, an add): the boss needs its own press
+    if st.engage_owned and st.engage_target ~= "boss" then
+        return true
+    end
+    local seen = st.seen_swings[#st.seen_swings] or -1000
+    return v.tick - math.max(st.last_swing, seen, st.engaged_tick) > speed + 1
 end
 
 -- The next tick the weapon is ready (the "free" tick to eat on: "If your
@@ -328,12 +547,30 @@ function QD.raid._play_pray(st, v, want, all)
 end
 
 -- SKILL: SUPPLIES.  `threat(h)` is the most damage that can land in the next
--- h ticks (the plan's).  Eat when the hitpoints would not survive the hits
--- that can land before the NEXT chance to eat: on a free tick (not attacking,
--- or the weapon is ready) that chance is the next swing (engaged) or the eat
--- delay (3) away; on a tick between swings eating costs the attack 3 ticks,
--- so between swings only a hit that can land before the next tick's bite is
--- read forces one.  A brew rides along when the food alone is short (combo eating).
+-- h ticks (the plan's).  The threshold has TWO terms and the bite goes out at
+-- whichever is higher.
+--
+-- (1) THE COMFORT FLOOR, QD.RAID_PLAY_EAT_FLOOR_HP, scaled to the seat's
+-- Hitpoints level: 61 of 99, measured from the Blert Normal trios (the
+-- constant carries the per-room medians and the test that picked its shape).
+-- It applies only on a free tick, because that is the tick a bite is free;
+-- between swings a bite costs the attack three ticks and no reference raider
+-- pays that to top up.  This term is the owner's 2026-10-07 ruling ("play the
+-- raid as intended and not use cheese mechanics like tick eating"): WITHOUT
+-- it the threshold was term (2) alone, so a seat at 51 hitpoints facing a
+-- maximum 50 did not eat, and every seat in every room rode the kill floor on
+-- telegraph knowledge no human raider could act on.
+--
+-- (2) THE SURVIVAL TERM, the old threshold, kept as a LOWER BOUND so the
+-- policy can never eat LATER than it used to: the hitpoints would not survive
+-- the hits that can land before the NEXT chance to eat.  On a free tick (not
+-- attacking, or the weapon is ready) that chance is the next swing (engaged)
+-- or the eat delay (3) away; on a tick between swings eating costs the attack
+-- 3 ticks, so between swings only a hit that can land before the next tick's
+-- bite is read forces one.  In a room whose threat already clears the floor
+-- (verzik's maximum 80, bloat's 60) this term still decides.
+--
+-- A brew rides along when the food alone is short (combo eating).
 -- A restore is drunk when the prayer missing is at least one dose's worth
 -- (no dose wasted) or prayer is about to run out.  Returns eat, drink names.
 function QD.raid._play_supplies(st, v, threat)
@@ -367,13 +604,66 @@ function QD.raid._play_supplies(st, v, threat)
         horizon = (st.engaged and st.weapon.speed or QD.RAID_PLAY_EAT_DELAY) + QD.TOGETHER_CONFIRM_TICKS + 1
     end
     local need = threat(horizon)
+    -- THE COMFORT FLOOR (see the block above): on a free tick the threshold is
+    -- at least the reference band's floor, so the bite leaves the kill floor.
+    -- Between swings the survival term alone decides FOR FOOD, whose bite
+    -- costs the attack three ticks.  A brew is a potion and costs the attack
+    -- nothing ("do not incur the standard 3 tick attack or eat delay", wiki
+    -- Potions, quoted above QD.RAID_PLAY_FOOD), so a seat whose heal is a
+    -- brew (no food left) keeps the floor on every tick: svbplaynorma p1 at
+    -- Xarpus, brew-only and between swings at 28 hitpoints, was under no
+    -- threat(2) and drank a prayer restore in the brew's slot, then died two
+    -- ticks later (t2012-2014).  The floor never wastes a dose: 61 + the
+    -- largest food (22) is 83 of 99.
+    if free or food == nil then
+        local floor_hp = math.floor(v.hp_base * QD.RAID_PLAY_EAT_FLOOR_HP
+            / QD.RAID_PLAY_EAT_FLOOR_LEVEL)
+        if need < floor_hp then need = floor_hp end
+    end
+    -- FOOD BEFORE BREWS (owner 2026-10-07, Blert Normal trios: brew sips a
+    -- seat 2.21 at Verzik and 0.0 in the other five rooms -- they eat): a
+    -- brew alone only when the food is gone; with food in the pack a brew
+    -- only rides a bite that is short (the combo), never stands in for a
+    -- bite the eat delay holds back
+    --
+    -- A HEAL IS TAKEN ONLY WHERE AT LEAST HALF OF IT LANDS under the
+    -- Hitpoints level -- the Nylocas plan's measured guard
+    -- (_play_nylocas_supplies: 89-214 of 760 healing never realised in five
+    -- runs), now for every room.  Without it a threat that clears the level
+    -- asks for a heal at full: the Normal relay's seats drank brews at 89-99
+    -- hitpoints through Bloat (svaplaynorma p3 t675-766: seven brews at 82-99)
+    -- and healed MORE than they lost there (116 lost, 144 healed), and every
+    -- boss kill restores the party to full anyway ("When each boss is killed,
+    -- the hitpoints ... of all team members are restored to full",
+    -- wiki_Theatre_of_Blood_Strategies:545; Blert, 96 of 96 surviving seats
+    -- end each room on their level), so a heal that does not land is gone.
+    -- A brew's overheal is not counted (Nylocas: on this server it does not
+    -- hold).  The combo's brew is judged on what the food leaves under it.
+    local function lands(amount, from)
+        return math.min(amount, v.hp_base - from) * 2 >= amount
+    end
+    local brew_heal = QD.RAID_PLAY_BREW_HEAL
     if v.hp <= need then
-        if eat_ready and food ~= nil then
+        if eat_ready and food ~= nil and lands(heal, v.hp) then
             eat = food
-            if v.hp + heal <= need and drink_ready and brew ~= nil then drink = brew end
-        elseif drink_ready and brew ~= nil then
+            if v.hp + heal <= need and drink_ready and brew ~= nil
+                and lands(brew_heal, math.min(v.hp + heal, v.hp_base)) then
+                drink = brew
+            end
+        elseif drink_ready and brew ~= nil and food == nil and lands(brew_heal, v.hp) then
             drink = brew
         end
+    end
+    -- THE BREW RUN IS STILL OPEN while a brew-only seat is within one sip of
+    -- its threshold: _play_brew_recovery reads this so its super combat waits
+    -- for the END of the run, as Blert's raiders drink it (runs of 2 and 3+
+    -- sips exist, and the dose comes after them).  Without it the recovery
+    -- filled the free potion tick between two sips, and the next sip drained
+    -- the dose it had just bought: brew, combat, brew, combat, brew, restore
+    -- (_play_normal p2 Bloat t673-688), two combat doses wasted per run.
+    st.brew_run_open = nil
+    if food == nil and brew ~= nil and v.hp <= need + brew_heal then
+        st.brew_run_open = v.tick
     end
     if drink == nil and drink_ready then
         local missing = v.prayer_base - v.prayer
@@ -532,11 +822,181 @@ end
 -- SEND: the tick's whole intent, together (prayers first, potions and food,
 -- the step last: DRIVER_NOTES "How a fight loop is written now"); the attack
 -- press after the block (a slow verb may not sit inside one).
+-- owner_tob_normal: EXECUTE BY RECONCILING (a plan with `reconcile = true`).
+-- The interaction channel (walk / cast / press / attack) carries one standing
+-- intent; it is sent only when it differs from the last one sent or the last
+-- one has lapsed: the same walk tile while the player moves, the same cast
+-- (a cast is sent once: a re-click would cancel its own interaction), the same
+-- npc pressed while its swings land, the boss attack while engaged
+-- (_play_attack).  Prayers (_play_pray) and gear (a plan lists only what is not
+-- worn) already send only the difference.
+function QD.raid._play_reconcile(st, v, intent)
+    local key = nil
+    if intent.walk ~= nil then key = "walk:" .. intent.walk.x .. "," .. intent.walk.z
+    elseif intent.cast ~= nil then key = "cast:" .. tostring(intent.cast.slot) .. ":" .. tostring(intent.cast.why)
+    elseif intent.press ~= nil then key = "press:" .. tostring(intent.press.slot)
+    elseif intent.take ~= nil then key = "take:" .. tostring(intent.take.obj)
+    elseif intent.attack then key = "attack" end
+    local prev = st.chan
+    if key == nil then
+        st.chan = nil
+        return
+    end
+    local same = prev ~= nil and prev.key == key
+    local drop = false
+    if same then
+        if intent.walk ~= nil then
+            local arrived = v.me.x == intent.walk.x and v.me.z == intent.walk.z
+            local moving = st.last_me ~= nil and (st.last_me.x ~= v.me.x or st.last_me.z ~= v.me.z)
+            drop = arrived or moving
+        elseif intent.cast ~= nil then
+            drop = true
+        elseif intent.press ~= nil then
+            local last = st.swings[#st.swings] or -1000
+            drop = not (v.tick - math.max(prev.tick, last) > st.weapon.speed + 2)
+        elseif intent.take ~= nil then
+            -- a Take routes the player onto the square by itself; pressing it
+            -- again before it can land would restart the route
+            drop = v.tick - prev.tick < QD.RAID_PLAY_TAKE_RESEND
+        else
+            -- a special is armed on the attack that carries it: always pressed
+            drop = not QD.raid._play_attack(st, v, true) and not intent.spec
+        end
+    end
+    if drop then
+        intent.walk, intent.cast, intent.press, intent.take, intent.attack = nil, nil, nil, nil, false
+        st.chan_held = (st.chan_held or 0) + 1
+    else
+        st.chan = { key = key, tick = v.tick }
+        st.chan_sent = (st.chan_sent or 0) + 1
+    end
+end
+
+-- THE BREW RECOVERY (owner 2026-10-07: "they should be super restore or
+-- super combat after brewing. Check the data and implement that").  Blert,
+-- Normal trios, all six rooms, what follows a run of brew sips: after 1 sip
+-- a super combat 51 times (a restore 1); after 2, super combat 18, restore 2;
+-- after 3 or more a super restore 20 times (super combat 1), and a super
+-- combat within 10 ticks of that restore in 10 of 20.  The super combat
+-- comes a median 4 ticks after the run's first brew (quartiles 3-9) -- the
+-- next free potion tick, the brew's own delay being 3 -- the restore a
+-- median 18.  So: 1-2 sips, a super combat (plain, else divine; a super
+-- restore when neither is held); 3 or more, a super restore, then a super
+-- combat.  Read off st.drinks, so a brew any part of a plan drank counts;
+-- the plan's own drink always goes first (this only fills a free potion
+-- tick), and a restore the plan drinks for prayer after 3 sips is the run's
+-- restore.  Returns the dose to drink, or nil.
+local function play_in(list, item)
+    for _, name in ipairs(list) do if name == item then return true end end
+    return false
+end
+local function play_first_held(list)
+    for _, name in ipairs(list) do
+        local cr, n = QD.inv.count(name)
+        if cr == "ok" and (tonumber(n) or 0) > 0 then return name end
+    end
+    return nil
+end
+function QD.raid._play_brew_recovery(st, v)
+    local from = st.brew_recover_from or 1
+    local sips, restored = 0, false
+    for i = from, #st.drinks do
+        local item = st.drinks[i].item
+        if play_in(QD.RAID_PLAY_BREWS, item) then
+            sips = sips + 1
+            restored = false
+        elseif sips > 0 and play_in(QD.RAID_PLAY_COMBAT_DOSES, item) then
+            sips, restored = 0, false
+            st.brew_recover_from = i + 1
+        elseif sips > 0 and play_in(QD.RAID_PLAY_RESTORES, item) then
+            if sips >= 3 then
+                restored = true
+            else
+                -- (1-2 sips with no super combat held: the restore was the
+                -- recovery)
+                if play_first_held(QD.RAID_PLAY_COMBAT_DOSES) == nil then
+                    sips = 0
+                    st.brew_recover_from = i + 1
+                end
+            end
+        end
+    end
+    if sips == 0 then return nil end
+    -- the run is still open (_play_supplies saw this brew-only seat within
+    -- one sip of its threshold this tick): the 1-2 sip dose waits for the
+    -- run's end, so the next sip does not drain it; at 3 sips the restore
+    -- goes out as before
+    if sips < 3 and st.brew_run_open == v.tick then return nil end
+    if sips >= 3 and not restored then
+        local restore = play_first_held(QD.RAID_PLAY_RESTORES)
+        if restore ~= nil then return restore end
+    end
+    -- (a super combat only for a melee seat: a seat fighting with a bow or a
+    -- staff has no use for Attack and Strength, and the relay's Maiden freezer
+    -- drank two of its divine doses here and reached Sotetseg without one;
+    -- the bow / staff seat's drain after 3 or more sips is a super restore's)
+    local melee = string.find(tostring(st.weapon_name), "scythe", 1, true) ~= nil
+    if not melee and sips < 3 then
+        -- (and 1-2 sips get nothing on such a seat: a restore after every
+        -- short run drank the relay freezer's eight restore doses at Maiden,
+        -- relay36, and it reached Sotetseg with no prayer)
+        st.brew_recover_from = #st.drinks + 1
+        return nil
+    end
+    local combat = melee and play_first_held(QD.RAID_PLAY_COMBAT_DOSES) or nil
+    if combat ~= nil then return combat end
+    if not restored then
+        local restore = play_first_held(QD.RAID_PLAY_RESTORES)
+        if restore ~= nil then return restore end
+    end
+    -- nothing left to recover with: the run is closed
+    st.brew_recover_from = #st.drinks + 1
+    return nil
+end
+
+-- A refusal line that keeps its REASON (owner_praypress, 2026-10-07;
+-- DRIVER_NOTES "never truncate a diagnostic into a sentence that reads as
+-- complete").  A verb's detail puts its own account first and the server's
+-- word LAST, so a plain head-cut at 160 removed exactly the half a reader
+-- needs: `_play_send` logged "REFUSED the server said 'You " for three ticks
+-- of refused protection presses and two agents read it as a lost press.
+-- Keeps the head and the tail with the cut marked, so the reason survives and
+-- nothing reads as a finished sentence that is not one.
+function QD.raid._play_reason(text, cap)
+    local s = tostring(text)
+    cap = cap or 200
+    if #s <= cap then
+        return s
+    end
+    local head = math.floor(cap * 0.35)
+    local tail = cap - head - 5
+    return string.sub(s, 1, head) .. " ... " .. string.sub(s, #s - tail + 1)
+end
+
 function QD.raid._play_send(st, v, intent)
+    if st.plan.reconcile and (st.party or 1) > 1 then QD.raid._play_reconcile(st, v, intent) end
+    if intent.drink == nil and v.tick - st.last_drink >= QD.RAID_PLAY_DRINK_DELAY then
+        local dose = QD.raid._play_brew_recovery(st, v)
+        if dose ~= nil then
+            intent.drink = dose
+            st.brew_recoveries = (st.brew_recoveries or 0) + 1
+        end
+    end
     local all = {}
     for _, name in ipairs(st.plan.walk_prayers) do all[#all + 1] = name end
     for _, name in ipairs(st.plan.down_prayers) do all[#all + 1] = name end
     local switches = QD.raid._play_pray(st, v, intent.want, all)
+    if st.engage_owned and st.engaged then
+        local seen = st.seen_swings[#st.seen_swings] or -1000
+        if v.tick - math.max(st.last_swing, seen, st.engaged_tick or -1000) > st.weapon.speed + 2 then
+            QD.raid._engage_event(st, v, "stalled")
+        end
+    end
+    -- `stop`: end the swings here -- a step onto my own tile clears the attack,
+    -- and is only sent while the machine says I am engaged
+    if intent.stop and st.engage_owned and st.engaged and intent.walk == nil then
+        intent.walk = { x = v.me.x, z = v.me.z }
+    end
     local eat, drink, walk = intent.eat, intent.drink, intent.walk
     -- raid seam32 play_tob_bloat_normal: THE LOADOUT.  `intent.gear` is a list
     -- of worn items to put on in this tick's block (held items, after the
@@ -561,7 +1021,18 @@ function QD.raid._play_send(st, v, intent)
         st.blocks[r] = (st.blocks[r] or 0) + 1
         if r ~= "ok" and r ~= "split" then
             st.refusals = st.refusals + 1
-            if #st.lines < 6 then st.lines[#st.lines + 1] = "t" .. v.tick .. " " .. tostring(r) .. ": " .. string.sub(tostring(d), 1, 160) end
+            -- owner_praypress: the server's protection block is named rather
+            -- than cut off.  It is not a press the driver lost: content put
+            -- the protections out and refuses every one of them for its
+            -- window (QD.prayer.BLOCKED_MESSAGE), so a plan that sees this is
+            -- reading a mechanic, not a fault.
+            if QD.prayer.blocked(d) then
+                st.pray_blocked = st.pray_blocked or {}
+                if #st.pray_blocked < 24 then st.pray_blocked[#st.pray_blocked + 1] = v.tick end
+            elseif #st.lines < 6 then
+                st.lines[#st.lines + 1] = "t" .. v.tick .. " " .. tostring(r) .. ": "
+                    .. QD.raid._play_reason(d, 200)
+            end
         end
         if eat ~= nil then
             st.last_eat = v.tick
@@ -572,7 +1043,7 @@ function QD.raid._play_send(st, v, intent)
             st.drinks[#st.drinks + 1] = { tick = v.tick, item = drink, hp = v.hp, prayer = v.prayer }
         end
         if walk ~= nil then
-            st.engaged = false
+            if st.engage_owned then QD.raid._engage_event(st, v, "stepped") else st.engaged = false end
             st.walk_target = walk
         end
     end
@@ -598,11 +1069,59 @@ function QD.raid._play_send(st, v, intent)
         n = n + 1
         st.attack_presses = (st.attack_presses or 0) + 1
         if ar == "ok" or ar == "pressed" then
-            st.engaged = true
-            st.engaged_tick = v.tick
+            if st.engage_owned then
+                QD.raid._engage_event(st, v, "engaged", "boss")
+            else
+                st.engaged = true
+                st.engaged_tick = v.tick
+            end
             st.walk_target = nil
         elseif #st.lines < 6 then
             st.lines[#st.lines + 1] = "t" .. v.tick .. " attack " .. tostring(ar) .. ": " .. tostring(why)
+        end
+    end
+    -- THE TAKE: one press on a ground stack, NOT QD.player.click_obj -- that
+    -- verb awaits the backpack count for up to 15 ticks, and a plan blocked
+    -- inside it stops ticking: _vzslow seat 2 sent its Dawnbringer take at
+    -- t75 and t88 and nothing between, so its bolt cover never ran and it
+    -- died to the t89 bolt in the open.  The plan reads the backpack next
+    -- tick like any other effect.
+    -- a step and a take cannot both land in one tick: the step goes
+    if intent.take ~= nil and walk == nil then
+        local target, tr, tname = QD.player.by_symbol("obj", intent.take.obj)
+        local ar, why = tr, tname
+        if target then ar, why = QD.drive.click_minimenu(target, intent.take.op or 3) end
+        n = n + 1
+        st.takes = st.takes or {}
+        if #st.takes < 24 then st.takes[#st.takes + 1] = { tick = v.tick, obj = intent.take.obj, answer = tostring(ar) } end
+        if ar ~= "ok" and #st.lines < 6 then
+            st.lines[#st.lines + 1] = "t" .. v.tick .. " take " .. tostring(ar) .. ": " .. QD.raid._play_reason(why, 120)
+        end
+    end
+    -- raid seam55: a trigger's press on a named row, or a cast on one (the
+    -- freezer's barrage on the crab its crab_spawn picked), through the same
+    -- library press and its true answer
+    for _, f in ipairs({ "press", "cast" }) do
+        local p = intent[f]
+        if p ~= nil then
+            local ar, why = QD.raid._play_press(st, v, { symbol = p.symbol, slot = p.slot, op = p.op or 2, spell = p.spell })
+            n = n + 1
+            st.trig_presses = st.trig_presses or {}
+            if #st.trig_presses < 80 then
+                st.trig_presses[#st.trig_presses + 1] = { tick = v.tick, field = f, slot = p.slot, spell = p.spell, answer = tostring(ar), why = p.why }
+            end
+            if ar == "ok" or ar == "pressed" then
+                if f == "press" then
+                    if st.engage_owned then
+                        QD.raid._engage_event(st, v, "engaged", "slot:" .. tostring(p.slot))
+                    else
+                        st.engaged, st.engaged_tick = true, v.tick
+                    end
+                end
+                st.walk_target = nil
+            elseif #st.lines < 6 then
+                st.lines[#st.lines + 1] = "t" .. v.tick .. " " .. f .. " " .. tostring(ar) .. ": " .. string.sub(tostring(why), 1, 120)
+            end
         end
     end
     st.inputs[v.tick] = (st.inputs[v.tick] or 0) + n
@@ -674,6 +1193,42 @@ function QD.raid._play_press_answer(r, d)
     return tostring(r), string.sub(first, 1, 140)
 end
 
+-- A COVERED PRESS TURNS THE CAMERA TO ITS TARGET.  The quick press's own
+-- ladder changes pitch and zoom (QD.drive._quick_alt_pose) and never the yaw,
+-- so a target the yaw keeps under the side panel stays covered: svbvzslow
+-- seat 2, 38 presses on Verzik answered `covered` ("projected 553,202 is under
+-- ui 161:59"), no swing from t650 to its death at t830.  So the yaw is turned
+-- onto the copy pressed -- through the one camera call (QD.drive.camera_aim: a
+-- snap headless, a turn on a watched client), the pose's pitch and zoom kept --
+-- and the next press finds it on screen.  At most once a QD.RAID_PLAY_FACE_GAP.
+QD.RAID_PLAY_FACE_GAP = 2
+function QD.raid._play_face(st, v, spec)
+    assert(st, "raid._play_face: st")
+    assert(v, "raid._play_face: v")
+    assert(spec, "raid._play_face: spec")
+    if st.face_tick ~= nil and v.tick - st.face_tick < QD.RAID_PLAY_FACE_GAP then return end
+    if v.me == nil then return end
+    local row = nil
+    if spec.slot ~= nil then
+        local rr, sr = QD._combat_row_by_slot(spec.slot)
+        if rr == "ok" then row = sr end
+    end
+    if row == nil then
+        local br, b = QD.npc.state(spec.symbol)
+        if br == "ok" then row = b end
+    end
+    if row == nil or row.x == nil then return end
+    local half = math.floor((row.size or 1) / 2)
+    local yaw = QD.drive._yaw_towards(row.x + half - v.me.x, row.z + half - v.me.z)
+    if yaw == nil then return end
+    local pr, pose = QD.drive._camera_pose()
+    if pr ~= "ok" or type(pose) ~= "table" or pose.pitch == nil or pose.zoom == nil then return end
+    st.face_tick = v.tick
+    st.faces = (st.faces or 0) + 1
+    QD.drive.camera_aim({ yaw = yaw, pitch = pose.pitch, zoom = pose.zoom, purpose = "pose",
+        note = "raid: face the copy a press answered covered" })
+end
+
 function QD.raid._play_press(st, v, spec)
     assert(type(spec) == "table", "raid._play_press: spec must be a table")
     assert(type(spec.symbol) == "string", "raid._play_press: spec.symbol must be an npc symbol")
@@ -688,6 +1243,7 @@ function QD.raid._play_press(st, v, spec)
         r, d = QD.player.attack(spec.symbol, spec.op or 2, 1, opts)
     end
     local answer, reason = QD.raid._play_press_answer(r, d)
+    if answer == "covered" then QD.raid._play_face(st, v, spec) end
     st.press_answers = st.press_answers or {}
     st.press_reasons = st.press_reasons or {}
     st.press_log = st.press_log or {}
@@ -716,6 +1272,14 @@ function QD.raid._play_press(st, v, spec)
     if #st.press_log < 40 then
         st.press_log[#st.press_log + 1] = entry
     end
+    -- every press that sent something, for the press-latency row
+    if answer == "ok" or answer == "pressed" then
+        st.press_sent = st.press_sent or {}
+        st.press_sent[#st.press_sent + 1] = { tick = v.tick, spell = spec.spell }
+    end
+    -- (owner_tob_normal: the last press, whatever its answer, so a plan can
+    -- see a click that landed on the wrong npc and press again)
+    st.last_press = entry
     return answer, reason, r, d
 end
 
@@ -783,6 +1347,454 @@ end
 
 -- One turn of the loop: SEE, stop if the room is over, DECIDE, SEND, then
 -- wait for the next server tick (the loop's beat, never a wait for an effect).
+-- ==========================================================================
+-- SEAM play_tob_maiden_triggers_like_blert (raid seam55, 2026-10-06) --
+-- TRIGGERS AND WATCHES.  The owner, 2026-10-06: "You need to do what the
+-- blert raid players do and you need to add triggers and watch capabilities
+-- to the script api so you can do so."
+--
+--   st.on(event, handler)              handler(st, v, ev) -> intent | nil
+--   st.watch(name, reader, on_change)  reader(st, v) -> value;
+--                                      on_change(st, v, value, old) -> intent | nil
+--   QD.raid.watch(st, name, reader, on_change)   the same, as a library call
+--
+-- Every server tick, before the plan's decide, the loop DIFFS what the
+-- client shows against the previous tick (QD.raid._play_events) and raises
+-- the events below; each registered handler, then each watch whose reading
+-- changed, may answer an INTENT for this tick: the fields of the plan's own
+-- intent (walk, attack, press = {symbol, slot, op}, cast = {spell, symbol,
+-- slot}, want = {prayer = bool}, eat, drink, gear, spec) plus `pri` (default
+-- 1) and `why`.  THE FOLD (QD.raid._play_fold): field by field, the highest
+-- `pri` wins (a tie keeps the first registered); `want` merges prayer by
+-- prayer the same way.  The plan's decide then runs with v.events (this
+-- tick's events) and v.trigger (the folded intent) in view, and its intent
+-- is the DEFAULT: every field the fold set replaces the default's.  A walk
+-- and a press/cast in one tick cannot both land (the press's path replaces
+-- the step on the server), so the walk is sent and the press/cast is HELD to
+-- the next tick at its own priority (st.trig_hold; "step and KEEP the
+-- cast"), dropped after QD.RAID_PLAY_HOLD_TICKS.
+--
+-- The events, all from the client's own view (npc rows, projectiles,
+-- spotanims, its own hitpoints), configured by the plan's `events` table:
+--   <add>_spawn  {slot, x, z, dx, dz, wave, index, label}  a new add row
+--                (events.add names the plan key whose [mode] is the add's
+--                symbol; `add_event` its event prefix, "crab" -> crab_spawn).
+--                dx/dz from the boss's SW tile; `wave` counts spawn bursts
+--                (a gap of more than 3 ticks starts a new one), `index` the
+--                n-th of its burst, `label` events.label(dx, dz) if given.
+--   <add>_walk   {slot, x, z, gap, was}   its tile moved closer to the boss
+--   <add>_frozen {slot, x, z, how}        how = "graphic" (a spotanim in
+--                events.freeze_spotanims landed on it) or "halted" (it had
+--                walked and did not move this tick); once per freeze
+--   <add>_gone   {slot, x, z, at_her}     its row left the scene; at_her = it
+--                was within one tile of her footprint (a leak, not a kill)
+--   <proj>       events.projectiles[spotanim] names it: {x, z, cycles, ticks,
+--                mine, near}: a projectile row not there last tick (by
+--                spotanim and destination); `mine` = it lands on this tile
+--   <pool>       events.pools[spotanim]: {x, z, mine} a ground spotanim new
+--                at a tile this tick
+--   <boss seq>   events.boss_seqs[seq]: {seq, tick, target} the boss started
+--                that sequence on a new seq_tick (target = the row's
+--                interacting target when the binary carries one)
+--   hit_taken    {amount, hp, was}  own hitpoints fell since last tick
+--                (net of food eaten in between; the client sees the bar and
+--                the number, not who hit)
+--   boss_phase   {from, to, symbol}  the boss's npc id changed (a retype)
+-- The ticklog: the loop records per tick which events fired and which
+-- intent won each field (st.trig_log, the record's `triggers`, and one
+-- summary clause); the leader also writes a ticklog MARK on a tick a
+-- trigger's intent won ("trig <event>:<field>"), when opts.trigger_marks.
+-- ==========================================================================
+QD.RAID_PLAY_HOLD_TICKS = 2
+QD.RAID_PLAY_INTENT_FIELDS = { "walk", "attack", "press", "cast", "take", "stop", "eat", "drink", "gear", "spec" }
+
+function QD.raid._play_triggers_init(st, opts)
+    st.handlers, st.watches, st.trig_log, st.trig_counts, st.trig_wins = {}, {}, {}, {}, {}
+    st.ev = { adds = {}, add_ids = nil, projs = {}, pools = {}, boss_seq = nil, boss_id = nil, hp = nil,
+        wave = 0, wave_tick = -1000, wave_n = 0 }
+    st.on = function(name, handler)
+        assert(type(name) == "string", "st.on: an event name is a string")
+        assert(handler ~= nil, "st.on: no handler for " .. name)
+        local list = st.handlers[name]
+        if list == nil then
+            list = {}
+            st.handlers[name] = list
+        end
+        list[#list + 1] = handler
+    end
+    -- owner_tob_normal: a state machine subscribes its state's handlers on
+    -- entering it and takes them off on leaving (the handler itself, by
+    -- reference: the one st.on put on)
+    st.off = function(name, handler)
+        assert(type(name) == "string", "st.off: an event name is a string")
+        assert(handler ~= nil, "st.off: no handler for " .. name)
+        local list = st.handlers[name]
+        assert(list ~= nil, "st.off: nothing subscribed to " .. name)
+        for i = #list, 1, -1 do
+            if list[i] == handler then
+                table.remove(list, i)
+                return
+            end
+        end
+        assert(false, "st.off: the handler was not subscribed to " .. name)
+    end
+    st.watch = function(name, reader, on_change)
+        QD.raid.watch(st, name, reader, on_change)
+    end
+    if st.plan.on_start ~= nil then QD.raid[st.plan.on_start](st) end
+    if opts ~= nil and opts.on ~= nil then
+        for name, handler in pairs(opts.on) do st.on(name, handler) end
+    end
+    st.trigger_marks = opts ~= nil and opts.trigger_marks == true
+end
+
+function QD.raid.watch(st, name, reader, on_change)
+    assert(type(st) == "table", "t.raid.watch: no play state")
+    assert(type(name) == "string", "t.raid.watch: a watch name is a string")
+    assert(reader ~= nil, "t.raid.watch: no reader for " .. name)
+    assert(on_change ~= nil, "t.raid.watch: no on_change for " .. name)
+    st.watches[#st.watches + 1] = { name = name, reader = reader, on_change = on_change, primed = false }
+end
+
+function QD.raid._play_call(f, ...)
+    if type(f) == "string" then return QD.raid[f](...) end
+    return f(...)
+end
+
+-- The boss footprint's Chebyshev gap to a tile (0 = under or adjacent edge).
+function QD.raid._play_gap(b, x, z)
+    local size = b.size or 1
+    local gx = math.max(b.x - x, 0, x - (b.x + size - 1))
+    local gz = math.max(b.z - z, 0, z - (b.z + size - 1))
+    return math.max(gx, gz)
+end
+
+-- DIFF: this tick's events, from what the client shows now against what it
+-- showed last tick (st.ev).  Pure reads; nothing is sent.
+function QD.raid._play_events(st, v)
+    local E, ev = st.plan.events or {}, st.ev
+    local out = {}
+    local function raise(name, e)
+        e.name = name
+        out[#out + 1] = e
+    end
+    -- one npc scan serves the boss (every form the plan names, so a retype
+    -- is seen on its own tick) and the adds
+    local nr, rows = api_drive.npcs(0)
+    if nr ~= "ok" then rows = {} end
+    local b = v.boss
+    if E.forms ~= nil then
+        if ev.form_ids == nil then
+            ev.form_ids = {}
+            for _, sym in ipairs(st.plan[E.forms][st.mode]) do
+                local r, id = api_drive.symbol("npc", sym)
+                if r == "ok" then ev.form_ids[id] = true end
+            end
+        end
+        for _, row in ipairs(rows) do
+            if ev.form_ids[row.npc_id] or ev.form_ids[row.base_npc_id] then b = row end
+        end
+    end
+    -- (owner_tob_normal: a pool row carries no size; a plan that names its
+    -- boss's footprint gives it, so the add gaps measure from her edge)
+    if b ~= nil and b.size == nil and st.plan.boss_size ~= nil then b.size = st.plan.boss_size end
+    v.ev_boss = b
+    -- own hitpoints
+    if ev.hp ~= nil and v.hp < ev.hp then
+        raise("hit_taken", { amount = ev.hp - v.hp, hp = v.hp, was = ev.hp })
+    end
+    ev.hp = v.hp
+    -- the boss: a retype, a new sequence
+    if b ~= nil then
+        if ev.boss_id ~= nil and b.npc_id ~= ev.boss_id then
+            raise("boss_phase", { from = ev.boss_id, to = b.npc_id, symbol = st.boss_symbol })
+        end
+        ev.boss_id = b.npc_id
+        if E.boss_seqs ~= nil and b.seq_id ~= nil and E.boss_seqs[b.seq_id] ~= nil and b.seq_tick ~= ev.boss_seq then
+            raise(E.boss_seqs[b.seq_id], { seq = b.seq_id, tick = b.seq_tick, target = b.target })
+        end
+        if b.seq_tick ~= nil then ev.boss_seq = b.seq_tick end
+    end
+    -- the adds: spawn, walk, frozen, gone
+    if E.add ~= nil and b ~= nil then
+        if ev.add_ids == nil then
+            ev.add_ids = {}
+            local sym = st.plan[E.add][st.mode]
+            local r, id = api_drive.symbol("npc", sym)
+            if r == "ok" then ev.add_ids[id] = true end
+        end
+        local pre = E.add_event or E.add
+        local here = {}
+        do
+            for _, row in ipairs(rows) do
+                if (ev.add_ids[row.npc_id] or ev.add_ids[row.base_npc_id]) and (row.health_ratio == nil or row.health_ratio ~= 0) then
+                    here[row.slot] = true
+                    local a = ev.adds[row.slot]
+                    local dx, dz = row.x - b.x, row.z - b.z
+                    if a == nil or a.gone then
+                        if v.tick - ev.wave_tick > 3 then
+                            ev.wave, ev.wave_n = ev.wave + 1, 0
+                        end
+                        ev.wave_tick = v.tick
+                        ev.wave_n = ev.wave_n + 1
+                        a = { x = row.x, z = row.z, first = v.tick, moved = false, frozen = false, spot = row.spotanim_tick }
+                        ev.adds[row.slot] = a
+                        local label = nil
+                        if E.label ~= nil then label = QD.raid._play_call(E.label, dx, dz) end
+                        a.label = label
+                        raise(pre .. "_spawn", { slot = row.slot, x = row.x, z = row.z, dx = dx, dz = dz, wave = ev.wave,
+                            index = ev.wave_n, label = label, row = row })
+                    else
+                        local moved = row.x ~= a.x or row.z ~= a.z
+                        if moved then
+                            local was = QD.raid._play_gap(b, a.x, a.z)
+                            local gap = QD.raid._play_gap(b, row.x, row.z)
+                            if gap < was then
+                                raise(pre .. "_walk", { slot = row.slot, x = row.x, z = row.z, gap = gap, was = was, label = a.label, row = row })
+                            end
+                            -- (owner_tob_normal: a frozen add that moves has
+                            -- thawed -- its own event, so a plan can re-freeze it)
+                            -- (the freeze holds from the tile after the one
+                            -- the graphic lands on -- raid seam: "cast at T
+                            -- freezes it at its T+1 tile" -- so the one step
+                            -- after the graphic is not a thaw)
+                            local settling = a.ice_tick ~= nil and v.tick - a.ice_tick <= 1
+                            -- (only a freeze the graphic showed: a crab halted
+                            -- behind another one was never frozen)
+                            if a.ice and not settling then
+                                raise(pre .. "_thaw", { slot = row.slot, x = row.x, z = row.z, gap = gap, label = a.label, row = row })
+                            end
+                            a.moved = true
+                            if not settling then a.frozen, a.ice = false, false end
+                        end
+                        local graphic = E.freeze_spotanims ~= nil and row.spotanim_sent_id ~= nil
+                            and E.freeze_spotanims[row.spotanim_sent_id] and row.spotanim_tick ~= a.spot
+                        -- (owner_tob_normal: `ice` only on the freeze graphic --
+                        -- a crab halted behind a frozen one is not frozen and
+                        -- walks on: owner sm2 svbplaymaide, the 4s stood a tick
+                        -- behind the frozen 3s, read frozen, and walked in at 75)
+                        if graphic then a.ice, a.ice_tick = true, v.tick end
+                        if not a.frozen and (graphic or (not moved and a.moved)) then
+                            a.frozen = true
+                            raise(pre .. "_frozen", { slot = row.slot, x = row.x, z = row.z, label = a.label,
+                                how = graphic and "graphic" or "halted", row = row })
+                        end
+                        a.x, a.z = row.x, row.z
+                    end
+                    a.spot = row.spotanim_tick
+                    -- (owner_tob_normal: its health bar, what the screen shows;
+                    -- -1 / nil before the first hit draws one)
+                    a.hr, a.hs = row.health_ratio, row.health_scale
+                end
+            end
+        end
+        for slot, a in pairs(ev.adds) do
+            if not a.gone and not here[slot] then
+                a.gone = true
+                raise(pre .. "_gone", { slot = slot, x = a.x, z = a.z, label = a.label, at_her = QD.raid._play_gap(b, a.x, a.z) <= 1 })
+            end
+        end
+    end
+    -- projectiles: new by spotanim and destination.  A throw is remembered
+    -- while it is listed and two ticks past its flight at first sight; its
+    -- cycles_left is NOT a re-throw signal (probe m55trig: re-raising on a
+    -- larger cycles_left read 9 throws as 18, one extra a tick in flight)
+    if E.projectiles ~= nil then
+        local known = {}
+        for key, k in pairs(ev.projs) do
+            if v.tick <= k.until_tick then known[key] = k end
+        end
+        local pr, projs = QD.world.projectiles(0)
+        if pr == "ok" and type(projs) == "table" then
+            for _, p in ipairs(projs) do
+                local name = E.projectiles[p.spotanim_id]
+                if name ~= nil then
+                    -- a throw AT an entity follows it on the client (its dst
+                    -- moves with the raider: probe m55trig read one throw a
+                    -- tick while the solo walked), so such a throw is keyed by
+                    -- its source and target, and its dst is the one at first
+                    -- sight (where the server aimed it); a ground throw by its
+                    -- destination
+                    -- (target: an npc's slot + 1, a player's -(pid + 1),
+                    -- 0 a tile; the probe's moving dst was a player's)
+                    local target = p.target or 0
+                    local key
+                    if target ~= 0 then
+                        key = p.spotanim_id .. ":" .. tostring(p.src_x) .. ":" .. tostring(p.src_z) .. ":t" .. target
+                    else
+                        key = p.spotanim_id .. ":" .. p.dst_x .. ":" .. p.dst_z
+                    end
+                    local cyc = p.cycles_left or 0
+                    local k = known[key]
+                    if k == nil then
+                        local ticks = (cyc + QD.RAID_PLAY_CYCLES_PER_TICK - 1) // QD.RAID_PLAY_CYCLES_PER_TICK
+                        raise(name, { x = p.dst_x, z = p.dst_z, cycles = cyc, ticks = ticks,
+                            mine = p.dst_x == v.me.x and p.dst_z == v.me.z,
+                            near = math.max(math.abs(p.dst_x - v.me.x), math.abs(p.dst_z - v.me.z)) <= 1 })
+                        known[key] = { cycles = cyc, until_tick = v.tick + math.max(ticks, 1) + 2, x = p.dst_x, z = p.dst_z }
+                        ev.proj_log = ev.proj_log or {}
+                        if #ev.proj_log < 40 then ev.proj_log[#ev.proj_log + 1] = "t" .. v.tick .. " " .. key .. " c" .. cyc .. " d" .. p.dst_x .. "," .. p.dst_z end
+                    else
+                        -- still listed: the same throw (its cycles_left is
+                        -- not monotonic before launch, probe m55trig)
+                        k.cycles = cyc
+                        k.until_tick = math.max(k.until_tick, v.tick + 1)
+                    end
+                end
+            end
+        end
+        ev.projs = known
+    end
+    -- ground spotanims: new at a tile
+    if E.pools ~= nil then
+        local now = {}
+        local sr, spots = QD.world.spotanims(0)
+        if sr == "ok" and type(spots) == "table" then
+            for _, s in ipairs(spots) do
+                local name = E.pools[s.spotanim_id]
+                if name ~= nil then
+                    local key = s.spotanim_id .. ":" .. s.x .. ":" .. s.z
+                    if not ev.pools[key] then
+                        raise(name, { x = s.x, z = s.z, mine = s.x == v.me.x and s.z == v.me.z })
+                    end
+                    now[key] = true
+                end
+            end
+        end
+        ev.pools = now
+    end
+    return out
+end
+
+-- FOLD: the intents of this tick's handlers and watches, by priority.
+function QD.raid._play_fold(intents)
+    local fold, win = { want = {} }, {}
+    for _, it in ipairs(intents) do
+        local pri = it.pri or 1
+        for _, f in ipairs(QD.RAID_PLAY_INTENT_FIELDS) do
+            if it[f] ~= nil and it[f] ~= false and (win[f] == nil or pri > win[f].pri) then
+                fold[f] = it[f]
+                win[f] = { pri = pri, by = it.by }
+            end
+        end
+        if it.want ~= nil then
+            for name, on in pairs(it.want) do
+                local k = "want." .. name
+                if win[k] == nil or pri > win[k].pri then
+                    fold.want[name] = on
+                    win[k] = { pri = pri, by = it.by }
+                end
+            end
+        end
+    end
+    -- a step and a press cannot both land in one tick: the step goes, the
+    -- press is held (QD.raid._play_fire)
+    return fold, win
+end
+
+-- FIRE: raise the events, run the handlers and the watches, fold.  Returns
+-- the events and the folded trigger intent (nil when nothing answered).
+function QD.raid._play_fire(st, v)
+    local events = QD.raid._play_events(st, v)
+    local intents = {}
+    local fired = {}
+    if st.trig_hold ~= nil then
+        local h = st.trig_hold
+        st.trig_hold = nil
+        if v.tick <= h.until_tick then
+            local it = { pri = h.pri, by = "hold:" .. h.by, why = "held" }
+            it[h.field] = h.value
+            intents[#intents + 1] = it
+        end
+    end
+    for _, e in ipairs(events) do
+        st.trig_counts[e.name] = (st.trig_counts[e.name] or 0) + 1
+        fired[#fired + 1] = e.name
+        local list = st.handlers[e.name]
+        if list ~= nil then
+            for _, handler in ipairs(list) do
+                local it = QD.raid._play_call(handler, st, v, e)
+                if it ~= nil then
+                    it.by = it.by or e.name
+                    intents[#intents + 1] = it
+                end
+            end
+        end
+    end
+    for _, w in ipairs(st.watches) do
+        local value = QD.raid._play_call(w.reader, st, v)
+        if w.primed and value ~= w.value then
+            st.trig_counts["watch:" .. w.name] = (st.trig_counts["watch:" .. w.name] or 0) + 1
+            fired[#fired + 1] = "watch:" .. w.name
+            local it = QD.raid._play_call(w.on_change, st, v, value, w.value)
+            if it ~= nil then
+                it.by = it.by or ("watch:" .. w.name)
+                intents[#intents + 1] = it
+            end
+        end
+        w.value, w.primed = value, true
+    end
+    v.events = events
+    if #intents == 0 then
+        if #fired > 0 and #st.trig_log < 600 then st.trig_log[#st.trig_log + 1] = { tick = v.tick, fired = table.concat(fired, ","), won = "" } end
+        return nil
+    end
+    local fold, win = QD.raid._play_fold(intents)
+    if fold.walk ~= nil then
+        for _, f in ipairs({ "press", "cast" }) do
+            if fold[f] ~= nil then
+                st.trig_hold = { field = f, value = fold[f], pri = win[f].pri, by = win[f].by,
+                    until_tick = v.tick + QD.RAID_PLAY_HOLD_TICKS }
+                st.trig_holds = (st.trig_holds or 0) + 1
+                fold[f], win[f] = nil, nil
+            end
+        end
+        if fold.attack ~= nil then fold.attack, win.attack = nil, nil end
+    end
+    fold.wins = win
+    local won = {}
+    for f, w in pairs(win) do
+        won[#won + 1] = f .. "=" .. tostring(w.by) .. "(" .. w.pri .. ")"
+        local k = f .. ":" .. tostring(w.by)
+        st.trig_wins[k] = (st.trig_wins[k] or 0) + 1
+    end
+    table.sort(won)
+    if #st.trig_log < 600 then
+        st.trig_log[#st.trig_log + 1] = { tick = v.tick, fired = table.concat(fired, ","), won = table.concat(won, " ") }
+    end
+    if st.trigger_marks and st.log and #won > 0 then QD.ticklog.mark("trig " .. table.concat(won, " ")) end
+    return fold
+end
+
+-- MERGE: the plan's default intent with the folded trigger intent.
+function QD.raid._play_merge(st, v, intent, fold)
+    if fold == nil then return intent end
+    intent = intent or { want = {} }
+    for _, f in ipairs(QD.RAID_PLAY_INTENT_FIELDS) do
+        if fold[f] ~= nil then intent[f] = fold[f] end
+    end
+    intent.want = intent.want or {}
+    for name, on in pairs(fold.want) do intent.want[name] = on end
+    if fold.walk ~= nil then intent.attack = false end
+    if fold.press ~= nil or fold.cast ~= nil then
+        intent.attack = false
+        if fold.walk == nil then intent.walk = nil end
+    end
+    intent.trigger = fold
+    return intent
+end
+
+-- The summary clause: the events seen and the intents that won.
+function QD.raid._play_summary_triggers(st)
+    if st.trig_counts == nil or next(st.trig_counts) == nil then return "" end
+    local c, w = {}, {}
+    for k, n in pairs(st.trig_counts) do c[#c + 1] = k .. " " .. n end
+    for k, n in pairs(st.trig_wins) do w[#w + 1] = k .. " " .. n end
+    table.sort(c)
+    table.sort(w)
+    return "; triggers [" .. table.concat(c, ", ") .. "] won [" .. table.concat(w, ", ") .. "] held " .. (st.trig_holds or 0)
+end
+
 function QD.raid._play_tick(st)
     local v = QD.raid._play_see(st)
     for _, f in ipairs(st.flinches) do
@@ -867,7 +1879,12 @@ function QD.raid._play_tick(st)
             return "ok"
         end
     end
+    -- raid seam55: the events of this tick fire first; the plan's decide sees
+    -- them (v.events, v.trigger) and its intent is the default the folded
+    -- trigger intent overrides field by field (QD.raid._play_merge)
+    v.trigger = QD.raid._play_fire(st, v)
     local intent = QD.raid[st.plan.decide](st, v)
+    intent = QD.raid._play_merge(st, v, intent, v.trigger)
     QD.raid._play_send(st, v, intent)
     st.last_me = { x = v.me.x, z = v.me.z }
     local _, after = QD.tick()
@@ -900,7 +1917,21 @@ function QD.raid._play_summary(st)
         st.start_tick, tostring(st.end_tick), #st.downs, #st.swings, #st.eats, #st.drinks, st.dodges, flinch,
         ticks, hist[1], hist[2], hist[3], hist[4], st.attack_presses or 0, table.concat(blocks, ", "),
         #st.lines > 0 and table.concat(st.lines, " | ") or "no refusals")
+        .. string.format("; own screen saw %d weapon starts", #st.seen_swings)
         .. QD.raid._play_summary_seam31(st)
+        .. QD.raid._play_summary_triggers(st)
+        -- raid seam53: THE STATE MACHINES' COVERAGE, when the plan declared
+        -- any (QD.raid.sm_coverage; the empty string for a plan with no
+        -- machine, so a room that declares none is unaffected).  A port's
+        -- proof is "identical readings", and that is worth only as much as the
+        -- states the runs entered: the Xarpus port surveyed 5 of 5 green with
+        -- byte-identical ledgers for a change hung off a state that no
+        -- measured run enters.  Putting the per-state counts in the summary
+        -- makes coverage part of the comparison instead of an assumption.
+        .. QD.raid.sm_coverage(st)
+        -- a plan's own per-run readings (st.notes, short tokens), last so
+        -- every line before keeps its bytes
+        .. ((st.notes ~= nil and #st.notes > 0) and ("; notes " .. table.concat(st.notes, " ")) or "")
 end
 
 -- raid seam31 play_library_faults: the stop's reason, the prayer offs the
@@ -912,6 +1943,10 @@ function QD.raid._play_summary_seam31(st)
     if (st.pray_skips or 0) > 0 then
         parts[#parts + 1] = "prayer offs kept back (the server put them out) " .. st.pray_skips
     end
+    if st.pray_blocked ~= nil and #st.pray_blocked > 0 then
+        parts[#parts + 1] = string.format("the server BLOCKED a protection press on %d tick(s) (t%s) -- '%s'",
+            #st.pray_blocked, table.concat(st.pray_blocked, ",t"), QD.prayer.BLOCKED_MESSAGE)
+    end
     if (st.gone_without_death or 0) > 0 then
         parts[#parts + 1] = "boss gone with no death row " .. st.gone_without_death .. " time(s)"
     end
@@ -922,4 +1957,188 @@ function QD.raid._play_summary_seam31(st)
         return ""
     end
     return "; " .. table.concat(parts, "; ")
+end
+
+-- ==========================================================================
+-- owner_tob_normal 2026-10-06: THE PARTY THROUGH THE DOOR ON ONE TICK.
+--
+--   t.raid.cross_together(name, opts) -> ok | timeout | refused, detail
+--
+-- The owner, 2026-10-06: "PARTY ENTRY IN LOCKSTEP".  A room harness used to
+-- have the leader walk to the barrier, answer "Yes, begin the fight." and only
+-- then let the members (behind a party barrier) click it from wherever they
+-- stood: they crossed three to four ticks after the leader, eighteen tiles away
+-- at the Nylocas door (owner probe _probe_door: the entry tile 6431,113, the
+-- barrier 6431,95), and Maiden's phase 100 ran 54-59 ticks against Blert's 42
+-- [32-52] with the trio's first swings at +4 / +8 / +8 (Blert: +5 every seat).
+-- Here every seat first walks to the tile beside the barrier on its own side
+-- (the barrier's nearest copy, the long axis read off the gap to it), the
+-- starter opens the question, and on the tick the party barrier releases the
+-- starter answers and every other seat presses the barrier: the server takes
+-- the start and the members' steps in one tick.  A member whose press beat the
+-- start (it sees the question) answers "Not yet." and presses again.
+--   opts.loc      the barrier loc (default tob_arena_barrier)
+--   opts.starter  the seat that begins the fight (default 1)
+--   opts.answer   the option text (default "Yes, begin the fight.")
+--   opts.before   function() the starter runs at the door before the press
+--   opts.at_answer function() the starter runs on the tick it answers (a mark)
+--   opts.timeout  party-barrier ticks (default 900)
+function QD.raid.cross_together(name, opts)
+    assert(type(name) == "string")
+    opts = opts or {}
+    local loc = opts.loc or "tob_arena_barrier"
+    local starter = opts.starter or 1
+    local answer = opts.answer or "Yes, begin the fight."
+    local timeout = opts.timeout or 900
+    local role = QD.party.role()
+    local lr, row = QD.world.loc_near(loc, 40)
+    if lr ~= "ok" or type(row) ~= "table" then
+        return "refused", "cross_together " .. name .. ": no " .. loc .. " within 40 (" .. tostring(lr) .. ")"
+    end
+    local _, here = QD.world.tile()
+    local dx, dz = here.x - row.tile_x, here.z - row.tile_z
+    -- the barrier's run: another copy beside it on x means it runs along x
+    -- and is crossed along z (and the other way round); a tie in the
+    -- player's offset used to pick the x side, a tile DIAGONAL to a 1x1
+    -- Nylocas barrier, and that seat's press walked a tick first (mzprobenyl:
+    -- p3 on 6432,96 pressed t115, p2 on 6431,96 t113)
+    local along_x = nil
+    local cr, _, copies = QD.world.loc_copies(loc, 40)
+    if cr == "ok" and type(copies) == "table" then
+        for _, c in ipairs(copies) do
+            if c.z == row.tile_z and math.abs(c.x - row.tile_x) == 1 then along_x = true end
+            if c.x == row.tile_x and math.abs(c.z - row.tile_z) == 1 then along_x = false end
+        end
+        -- one copy per seat where the run has them: seat r takes the r-th
+        -- copy along the run from the nearest, so no two seats share a door
+        -- tile (mzprobenylocas: p3 on the leader's 6432,96 pressed a tick
+        -- after p2 on 6431,96 -- the click found the leader standing there)
+        local run = {}
+        for _, c in ipairs(copies) do
+            local same_line = (along_x == true and c.z == row.tile_z) or (along_x == false and c.x == row.tile_x)
+            if same_line and math.abs(c.x - row.tile_x) + math.abs(c.z - row.tile_z) <= 3 then run[#run + 1] = c end
+        end
+        table.sort(run, function(a, b)
+            local da = math.abs(a.x - row.tile_x) + math.abs(a.z - row.tile_z)
+            local db = math.abs(b.x - row.tile_x) + math.abs(b.z - row.tile_z)
+            if da ~= db then return da < db end
+            return (a.x * 100000 + a.z) < (b.x * 100000 + b.z)
+        end)
+        if #run >= 2 then
+            local pick = run[((role - 1) % #run) + 1]
+            row = { tile_x = pick.x, tile_z = pick.z }
+            dx, dz = here.x - row.tile_x, here.z - row.tile_z
+        end
+    end
+    local sx, sz
+    if along_x == false or (along_x == nil and math.abs(dx) >= math.abs(dz)) then
+        sx, sz = row.tile_x + ((dx >= 0) and 1 or -1), row.tile_z
+    else
+        sx, sz = row.tile_x, row.tile_z + ((dz >= 0) and 1 or -1)
+    end
+    QD.player.walk_to(sx, sz, 40)
+    local _, at = QD.world.tile()
+    local br = QD.party.barrier(name .. "_door", timeout)
+    if br ~= "ok" then return "timeout", "cross_together " .. name .. ": the door barrier " .. tostring(br) end
+    if role == starter and opts.before ~= nil then opts.before() end
+    -- THE OWNER'S RULE (content 0b6dffc89, tob_party.rs2): "Only the party
+    -- leader can start a room. The non leaders can only pass the gate once
+    -- the room is started."  The leader presses and answers; a member waits
+    -- for the leader's answer (the `<name>_go` barrier file names its tick),
+    -- presses the gate on the tick after it, and presses again next tick while
+    -- the gate still holds it ("You must wait for the party leader to start
+    -- the fight."); no member ever answers the question.
+    -- (every press is on the copy in front of this seat's door tile: the
+    -- nearest-copy click sent mzprobemaiden's members from 6450,94 to the
+    -- copy before 6450,93, a tick's walk before the step)
+    local detail = ""
+    local go_tick = nil
+    local door = nil
+    if role == starter then
+        local presses, opened = 0, false
+        while presses < 3 and not opened do
+            presses = presses + 1
+            QD.player.click_loc(loc, 1, { at = { row.tile_x, row.tile_z } })
+            QD.await({ level = function() return QD.chat.kind() == "options" end, note = name .. ": the barrier's question" }, 6)
+            opened = QD.chat.kind() == "options"
+        end
+        if not opened then
+            QD.party.barrier(name .. "_asked", timeout)
+            return "refused", "cross_together " .. name .. ": no question after " .. presses .. " press(es)"
+        end
+        local ar = QD.party.barrier(name .. "_asked", timeout)
+        if ar ~= "ok" then return "timeout", "cross_together " .. name .. ": the asked barrier " .. tostring(ar) end
+        -- (the go mark a tick AHEAD of the answer: a member reads the barrier
+        -- file on its next frame, which can be the next tick's -- with the
+        -- mark written on the answer's tick the members pressed a tick late,
+        -- and their DATA reached the world a tick after that)
+        local _, now = QD.tick()
+        go_tick = now + 2
+        api_drive.barrier_mark(string.format("barrier.%s_go%d.p%d", name, go_tick, role))
+        while true do
+            local _, t = QD.tick()
+            if t >= go_tick then break end
+            QD.ticks(1)
+        end
+        if opts.at_answer ~= nil then opts.at_answer() end
+        local pr, pd = QD.chat.play({ "options", "choose:" .. answer })
+        if pr ~= "ok" then return "refused", "cross_together " .. name .. ": " .. tostring(pd) end
+        detail = "answered " .. tostring(pr) .. " after " .. presses .. " press(es)"
+    else
+        local ar = QD.party.barrier(name .. "_asked", timeout)
+        if ar ~= "ok" then return "timeout", "cross_together " .. name .. ": the asked barrier " .. tostring(ar) end
+        for _ = 1, 40 do
+            local _, t = QD.tick()
+            for k = t - 8, t + 2 do
+                if api_drive.barrier_present(string.format("barrier.%s_go%d.p%d", name, k, starter)) == "ok" then go_tick = k break end
+            end
+            if go_tick ~= nil then break end
+            QD.ticks(1)
+        end
+        if go_tick == nil then return "timeout", "cross_together " .. name .. ": no answer from the leader" end
+        -- (pressed ON the answer's tick: a press reaches the server a tick
+        -- after the leader's answer does, so it finds the room started --
+        -- mzprobemaiden with the press a tick later stepped the members two
+        -- ticks after the leader)
+        while true do
+            local _, t = QD.tick()
+            if t >= go_tick then break end
+            QD.ticks(1)
+        end
+        local _
+        _, door = QD.world.tile()
+        -- (coordinator 03:30) back to the caller on the tick after the press:
+        -- it either stepped the seat through on that tick or drew the wait
+        -- message, and the message is the only thing polled -- a member's
+        -- own-tile read runs about two ticks behind the server (Nylocas: the
+        -- crossing at t113, the read at t115, the members' loops 4 ticks late)
+        local presses, refused = 0, true
+        while presses < 5 and refused do
+            presses = presses + 1
+            local _, since = api_drive.message_serial()
+            -- a QUICK press: the menu click alone, no settle (click_loc waits
+            -- out its settle -- two ticks here -- before it returns)
+            local target = QD.player.by_symbol("loc", loc)
+            local pressed = false
+            if target then
+                local cr2 = QD.player._loc_copy(target, { at = { row.tile_x, row.tile_z } })
+                if cr2 == "ok" then pressed = (QD.drive.click_minimenu(target, 1) == "ok") end
+            end
+            if not pressed then QD.player.click_loc(loc, 1, { at = { row.tile_x, row.tile_z } }) end
+            QD.ticks(1)
+            if QD.chat.kind() == "options" then QD.chat.play({ "options", "choose:Not yet." }) end
+            refused = false
+            local mr, list = api_drive.messages()
+            if mr == "ok" and type(list) == "table" then
+                for i = 1, #list do
+                    if (list[i].serial or 0) > (since or 0) and string.find(list[i].text or "", "wait for the party leader", 1, true) then refused = true end
+                end
+            end
+        end
+        detail = presses .. " press(es)" .. (refused and ", still told to wait" or "")
+    end
+    local _, after = QD.world.tile()
+    local _, t_after = QD.tick()
+    return "ok", string.format("cross_together %s: p%d from %d,%d (door tile %d,%d), on %d,%d at t%d; go t%d; %s",
+        name, role, at.x, at.z, sx, sz, after.x, after.z, t_after, go_tick, detail)
 end

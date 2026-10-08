@@ -1,0 +1,229 @@
+{{External|rs|rsc=Restore prayer Potion}}
+{{see also|Prayer regeneration potion}}
+{{Infobox Item
+|defver = 4
+|version1 = 1 dose
+|version2 = 2 dose
+|version3 = 3 dose
+|version4 = 4 dose
+|bucketname1 = (1)
+|bucketname2 = (2)
+|bucketname3 = (3)
+|bucketname4 = (4)
+|name1 = Prayer potion(1)
+|name2 = Prayer potion(2)
+|name3 = Prayer potion(3)
+|name4 = Prayer potion(4)
+|image1 = [[File:Prayer potion(1).png]]
+|image2 = [[File:Prayer potion(2).png]]
+|image3 = [[File:Prayer potion(3).png]]
+|image4 = [[File:Prayer potion(4).png]]
+|release1 = [[27 February]] [[2002]]
+|release2 = [[27 February]] [[2002]]
+|release3 = [[27 February]] [[2002]]
+|release4 = [[29 March]] [[2004]]
+|update1 = Latest RuneScape News (27 February 2002)
+|update2 = Latest RuneScape News (27 February 2002)
+|update3 = Latest RuneScape News (27 February 2002)
+|update4 = RS2 Launched!
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = No
+|noteable = Yes
+|options = Drink, Empty, Drop
+|examine1 = 1 dose of Prayer restore potion.
+|examine2 = 2 doses of Prayer restore potion.
+|examine3 = 3 doses of Prayer restore potion.
+|examine4 = 4 doses of Prayer restore potion.
+|value1 = 76
+|value2 = 114
+|value3 = 152
+|value4 = 190
+|weight1 = 0.020
+|weight2 = 0.025
+|weight3 = 0.030
+|weight4 = 0.035
+|exchange = Yes
+|id1 = 143
+|id2 = 141
+|id3 = 139
+|id4 = 2434
+}}
+{{Synced switch
+|version1 = [[File:Prayer potion(1) detail.png|left|130x200px]]
+|version2 = [[File:Prayer potion(2) detail.png|left|130x200px]]
+|version3 = [[File:Prayer potion(3) detail.png|left|130x200px]]
+|version4 = [[File:Prayer potion(4) detail.png|left|130x200px|class=pageimage]]
+}}
+A '''Prayer potion''' is a [[Herblore#Potions|potion]] made by using [[snape grass]] on a [[ranarr potion (unf)]], requiring 38 [[Herblore]], yielding a Prayer potion(3) and 87.5 Herblore [[experience]]. A dose of Prayer potion restores [[Prayer]] points equal to 7 + 25% of the player's current Prayer level, rounded down. If a [[Prayer cape]], [[Max cape]] or [[ring of the gods (i)]] is equipped or a [[Prayer cape]], [[Max cape]] or [[holy wrench]] is in the player's inventory, the restore increases to 7 + 27% of the player's current Prayer level, rounded down. It provides less Prayer point restoration than a [[super restore]] potion by 1 point per dose.
+
+Prayer potions are always in high demand due to use of Prayers during combat or skilling activities and a need to restore points without travelling to an [[altar]]. 
+
+After [[Barbarian Training#Barbarian Herblore|Barbarian Herblore Training]], [[caviar]] can be added to a Prayer potion(2), requiring 42 Herblore, yielding a [[Prayer mix]] and 29 Herblore experience. A Prayer mix has 2 doses, restores Prayer by the same amounts, and heals 6 [[Hitpoints]], with the disadvantage being it now incurs an attack delay.
+
+==Effects==
+Prayer restore is calculated with: <math>\lfloor PrayerLevel \times \frac{1}{4} \rfloor + 7</math>
+{| class="wikitable" style="text-align:center"
+!{{SCP|Prayer}} Level!!Boost!!{{SCP|Prayer}} Level!!Boost!!{{SCP|Prayer}} Level!!Boost
+|-
+|'''1-3'''||+7||'''36-39'''||+16||'''72-75'''||+25
+|-
+|'''4-7'''||+8||'''40-43'''||+17||'''76-79'''||+26
+|-
+|'''8-11'''||+9||'''44-47'''||+18||'''80-83'''||+27
+|-
+|'''12-15'''||+10||'''48-51'''||+19||'''84-87'''||+28
+|-
+|'''16-19'''||+11||'''52-55'''||+20||'''88-91'''||+29
+|-
+|'''20-23'''||+12||'''56-59'''||+21||'''92-95'''||+30
+|-
+|'''24-27'''||+13||'''60-63'''||+22||'''96-99'''||+31
+|-
+|'''28-31'''||+14||'''64-67'''||+23
+|-
+|'''32-35'''||+15||'''68-71'''||+24
+|}
+
+If either a [[ring of the gods (i)]] or [[Prayer cape|Prayer]]/[[max cape]] is equipped, or a [[holy wrench]] or Prayer/max cape is in the player's inventory, the amount of restored Prayer points is calculated with: <math>\lfloor PrayerLevel \times \frac{27}{100} \rfloor + 7</math>
+{| class="wikitable" style="text-align:center"
+!{{SCP|Prayer}} Level!!Boost!!{{SCP|Prayer}} Level!!Boost!!{{SCP|Prayer}} Level!!Boost
+|-
+|'''1-3'''||+7||'''34-37'''||+16||'''67-70'''||+25
+|-
+|'''4-7'''||+8||'''38-40'''||+17||'''71-74'''||+26
+|-
+|'''8-11'''||+9||'''41-44'''||+18||'''75-77'''||+27
+|-
+|'''12-14'''||+10||'''45-48'''||+19||'''78-81'''||+28
+|-
+|'''15-18'''||+11||'''49-51'''||+20||'''82-85'''||+29
+|-
+|'''19-22'''||+12||'''52-55'''||+21||'''86-88'''||+30
+|-
+|'''23-25'''||+13||'''56-59'''||+22||'''89-92'''||+31
+|-
+|'''26-29'''||+14||'''60-62'''||+23||'''93-96'''||+32
+|-
+|'''30-33'''||+15||'''63-66'''||+24||'''97-99'''||+33
+|}
+
+==Creation==
+{{Recipe
+|skill1 = Herblore
+|skill1lvl = 38
+|skill1boostable = Yes
+|skill1exp = 87.5
+|members = Yes
+|ticks = 2
+|mat1 = Ranarr potion (unf)
+|mat2 = Snape grass
+|output1 = Prayer potion(3)
+|output1itemnote = When worn, an [[amulet of chemistry]] or [[alchemist's amulet]] can be helpful offsetting negative profits by creating Prayer potion(4) with 5% or 15% chance respectively.
+}}
+
+==Money making==
+{{Mmgsection|Making prayer potions}}
+
+==Products==
+{{Uses material list|Prayer potion(1)|Prayer potion(2)|Prayer potion(3)|Prayer potion(4)}}
+
+==Price per dose==
+{{See also|Calculator:Prayer/Prayer point cost}}
+{{Price per dose|Prayer potion}}
+
+As compared to similar potions (purchasing the 4-dose variant), at level 99 Prayer:
+* Prayer potions cost {{NoCoins|{{GEP|Prayer potion(4)}}/4/31|c}} per Prayer point restored
+* [[Super restore]] potions cost {{NoCoins|{{GEP|Super restore(4)}}/4/32|c}} per Prayer point restored
+* [[Prayer regeneration potions]] cost {{NoCoins|{{GEP|Prayer regeneration potion(4)}}/4/66|c}} per Prayer point restored
+* [[Moonlight moth mix (2)]] costs {{NoCoins|{{GEP|Moonlight moth mix (2)}}/2/22|c}} per Prayer point restored
+
+==Item sources==
+===Prayer potion(1)===
+{{Drop sources|Prayer potion(1)}}
+
+===Prayer potion(2)===
+{{Drop sources|Prayer potion(2)}}
+
+===Prayer potion(3)===
+{{Drop sources|Prayer potion(3)}}
+
+===Prayer potion(4)===
+{{Drop sources|Prayer potion(4)}}
+
+====Shop locations====
+{{Store locations list|Prayer potion(4)}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 1 June 2017
+|update = The Inferno
+|change = Removed a double space from the examine text of prayer potions.
+}}
+{{Subject changes
+|date = 15 April 2016
+|update = Bank Placeholder Feedback Changes
+|change = Half full potions could now be turned into bank placeholders.
+}}
+{{Subject changes
+|date = 26 October 2004
+|update = Treasure Trails and Changes
+|change = An "Empty" option was added.
+}}
+{{Subject changes
+|date = 29 March 2004
+|update = RS2 Launched!
+|change = The 4 dose potion became permanently available with the launch of ''RuneScape 2''.
+}}
+{{Subject changes
+|date = 9 March 2004
+|update = RS2 Beta update
+|change = The 4 dose potion was added to the ''RuneScape 2'' Beta.
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{{Switch infobox
+|text1 = 1 dose
+|item1 =
+|text2 = 2 dose
+|item2 =
+|text3 = 3 dose
+|item3 =
+}}
+{|style="text-align: center" cellpadding="15"
+|
+{{Synced switch
+|version1 = [[File:Prayer potion(1) detail (beta).png|center|300x150px]]
+|version2 = [[File:Prayer potion(2) detail (beta).png|center|300x150px]]
+|version3 = [[File:Prayer potion(3) detail (beta).png|center|300x150px]]
+}}
+|
+{{Synced switch
+|version1 = [[File:Prayer potion(1) detail.png|center|300x150px]]
+|version2 = [[File:Prayer potion(2) detail.png|center|300x150px]]
+|version3 = [[File:Prayer potion(3) detail.png|center|300x150px]]
+}}
+|-
+|
+{{Synced switch
+|version1 = [[File:Prayer potion(1) (beta).png|center]]
+|version2 = [[File:Prayer potion(2) (beta).png|center]]
+|version3 = [[File:Prayer potion(3) (beta).png|center]]
+}}
+|
+{{Synced switch
+|version1 = [[File:Prayer potion(1).png|center]]
+|version2 = [[File:Prayer potion(2).png|center]]
+|version3 = [[File:Prayer potion(3).png|center]]
+}}
+|-
+|RuneScape 2<br/>Beta
+|29 March 2004 –<br/>present
+|}
+
+{{Potions}}
+[[Category:Items storable in the potion storage]]

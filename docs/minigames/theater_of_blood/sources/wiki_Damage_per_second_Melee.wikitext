@@ -1,0 +1,154 @@
+{{DPS calculator}}
+
+This article is about calculating melee damage output.
+Melee damage is affected by the [[Equipment]] used, [[prayer]], [[Temporary skill boost|skill boosts]] and the [[monster]] being attacked.
+
+There are various methods by which players can increase their potential '''[[Melee]] damage'''. The effects of most equipped items can be seen in the [[Equipment Stats|stats window]] (labelled as Stab, Slash, Crush and Melee Strength).
+
+==Calculating your melee damage output==
+===Step one: Calculate the ''effective strength level''===
+Effective level is affected by your current strength level multiplied by prayers used and skill level boosts.
+
+'''To calculate effective strength level:'''
+
+#(Strength level + Strength level boost) * prayer modifier
+#Round down to nearest integer
+#If you're calculating for:
+#*A player, +3 if they're using the aggressive attack style, or +1 if using controlled
+#*An NPC, +1
+#+8
+#Multiply by 1.1 if wearing full [[Void Knight equipment|melee void]]
+#Round down to nearest integer
+
+'''Strength Level boost:'''
+{{main|Temporary skill boost}}
+<div class="mw-collapsible">
+{{:Temporary skill boost/Strength}}
+</div>
+
+'''Prayer Multiplier:'''
+{| class="wikitable"
+! colspan="2" |Prayer
+|-
+|[[Burst of Strength]]
+|1.05
+|-
+|[[Superhuman Strength]]
+|1.10
+|-
+|[[Ultimate Strength]]
+|1.15
+|-
+|[[Chivalry]]
+|1.18
+|-
+|[[Piety]]
+|1.23
+|}
+
+===Step two: Calculate the ''maximum hit''===
+The maximum hit is the largest hit you can possibly do with the current setup. It can be tested by using the Combat Dummy in a Player Owned House.
+
+'''To calculate your maximum hit:'''
+#Effective strength level
+#Multiply by (Equipment Strength bonus + 64)
+#*The Equipment Strength bonus can be found in the Equipment Stats window under 'Other bonuses'.
+#Add 320
+#Divide by 640
+#Round down to nearest integer
+#Multiply by target-specific gear bonus
+#*If slaying monsters on task while wearing a black mask or slayer helm, gear bonus is 7/6. If killing undead monsters while wearing a salve amulet, gear bonus is 7/6, or 1.2 if using salve amulet (e) or (ei). Note that these two bonuses DO NOT stack.
+#*If attacking another player who has the Protect from Melee prayer active, multiply by 6/10.
+#Round down to nearest integer
+
+===Step three: Calculate the ''effective attack level''===
+Effective level is affected by your current attack level multiplied by prayers used and skill level boosts.
+
+'''To calculate your effective attack level:'''
+#(Attack level + Attack level boost) * prayer modifier
+#Round down to nearest integer
+#If you're calculating for:
+#*A player, +3 if they're using the accurate attack style, or +1 if using controlled
+#*An NPC, +1
+#+8
+#Multiply by 1.1 if wearing void
+#Round down to nearest integer
+
+'''Attack Level boost:'''
+{{main|Temporary skill boost}}
+<div class="mw-collapsible">
+{{:Temporary skill boost/Attack}}
+</div>
+
+'''Prayer Multiplier:'''
+{| class="wikitable"
+! colspan="2" |Prayer
+|-
+|[[Clarity of Thought]]
+|1.05
+|-
+|[[Improved Reflexes]]
+|1.10
+|-
+|[[Incredible Reflexes]]
+|1.15
+|-
+|[[Chivalry]]
+|1.15
+|-
+|[[Piety]]
+|1.20
+|}
+
+===Step four: Calculate the ''Attack roll''===
+#Effective attack level * (Equipment Attack bonus + 64)
+#Multiply by target-specific gear bonus
+#Round down to nearest integer
+
+The Equipment Attack bonus can be found in the Equipment Stats window, and is labelled Stab, Slash, Crush. Use the value of whichever attack type you are using.
+
+Gear bonus is the same as in Step Two.
+
+===Step five: Calculate the ''effective defence level''===
+The effective defence level is only used for calculating the defence roll for players, it is not used for monsters.
+
+It is affected by the player's defence level multiplied by prayers used and skill level boosts.
+
+'''To calculate your effective defence level:'''
+#(Defence level + Defence level boost) * prayer bonus
+#Round down to nearest integer
+#+3 if the player is using the defensive attack style, or +1 if using controlled
+#+8
+
+===Step six: Calculate the ''Defence roll''===
+
+To calculate a [[Monsters|monster's]] defence roll, use the formula:
+
+<math>\text{Def roll} =(\text{Target Defence level}+9)*(\text{Target Style Defence Bonus}+64)</math>
+
+Target's Defence level is denoted by a shield icon on the target's wiki page.
+
+To calculate a [[player|player's]] defence roll, use the formula:
+
+<math>\text{Def roll} =\text {Effective Defence}*(\text{Target Style Defence Bonus}+64)</math>
+
+Target's style defence bonus refers to its stab, slash or crush defensive stats, depending on the attack type used.
+
+===Step seven: Calculate the ''hit chance''===
+'''If Attack Roll > Defence roll:'''
+
+<math>\text{Hit Chance} =1-\frac{\text{Def roll} + 2}{2*(\text{Atk roll}+1)}</math>
+
+'''Else'''
+
+<math>\text{Hit Chance} =\frac{\text{Atk roll}}{2*(\text{Def roll}+1)}</math>
+
+===Step eight: Calculate the ''melee damage output''===
+<math>\text{Average damage per attack} = \text{Hit Chance} * \Biggl(\frac{\text{Maximum hit}}{2}+\frac{\text{1}}{\text{Maximum hit}+1}\Biggr)</math>
+
+A small amount is added equal to the inverse of the maximum hit. This is because if you roll a 0 on a successful attack it will be changed to a 1.
+
+To calculate the average damage per second (dps), divide the average damage per attack by the attack speed of the weapon in seconds.
+
+{{Reflist}}
+{{Combat Mechanics}}

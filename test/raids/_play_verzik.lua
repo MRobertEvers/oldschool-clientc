@@ -17,13 +17,16 @@
 -- PARTY_RE), and the Entry solo must stay one.
 local role = (QD_PARTY and QD_PARTY.role) or 1
 local size = (QD_PARTY and QD_PARTY.size) or 1
--- The kit.  Worn: ::maxrange (the twisted bow and the Masori a P2/P3 ranger
--- shoots in: W:923 the bow for the nylocas, the plan's P2/P3), insulated boots
--- (the zap 48 -> 25, V p2_zap_max; Entry_Mode.wikitext:94).  Carried: the
--- scythe for P1 (W:891 "weapon1 = Scythe of vitur"; W:881 "players should use
--- their melee weapons"), wielded at the door; a charged serpentine helm (the
--- Athanatos "has to be hit with poison or venom", W:923); brews, restores, a
--- ranging potion, anglerfish.  THE DAWNBRINGER: one per raid, taken from the
+-- The kit (raid seam45 play_tob_verzik_melee_follows_blert: MELEE, as every
+-- recorded Normal trio plays her -- Blert verzik_normal_3.json, 20 death-free
+-- rooms: the scythe in P2 and P3 in 16-18 of 20 rooms per role, melee 83-92%
+-- of attacks).  Worn: ::tobkit (::maxmelee's charged scythe, the oathplate: W:891 "weapon1 =
+-- Scythe of vitur"; W:881 "players should use their melee weapons"),
+-- insulated boots (the zap 48 -> 25, V p2_zap_max; Entry_Mode.wikitext:94).
+-- Carried: a charged serpentine helm (the Athanatos "has to be hit with
+-- poison or venom", W:923); four brews, four super restores and two super
+-- combat potions (a brew drains the Attack and Strength the scythe swings
+-- with: the plan restores and re-boosts them), fourteen anglerfish.  THE DAWNBRINGER: one per raid, taken from the
 -- skeleton after Xarpus (tob_xarpus.rs2 [oploc1,tob_skeleton_with_weapon],
 -- [proc,tob_dawnbringer_take]: the searcher's backpack); the room before
 -- Verzik is not played here, so the first raider is handed it as that search
@@ -31,13 +34,21 @@ local size = (QD_PARTY and QD_PARTY.size) or 1
 -- (W:875 "drop the Dawnbringer for the next player (in orb order)").  p2 and
 -- p3 keep one backpack slot free for it.
 local party_kit = {
-    "::clearinv", "::maxrange",
+    -- (raid seam52 melee_damage_per_swing: ::tobkit = ::maxmelee, then the
+    -- recorded raiders' radiant oathplate body and legs and the amulet of
+    -- rancour -- Blert equipmentDeltas, build/blert/verzik, 66/81 rooms;
+    -- cheat_max_gear.rs2; the wiki's swing on her P2 28.9, P3 34.7)
+    "::clearinv", "::tobkit",
     "::setlevel attack 99", "::setlevel strength 99", "::setlevel prayer 99",
     "::setlevel magic 99", "::setlevel agility 99",
     "::setlevel slayer 37", "::give slayer_boots 1", "::wield slayer_boots",
-    "::fullscythe", "::give serpentine_helm_charged 1",
-    "::give br_4dosepotionofsaradomin 4", "::give br_4dose2restore 3", "::give br_4doserangerspotion 1",
-    "::give anglerfish 16",
+    "::give serpentine_helm_charged 1",
+    "::give br_4dosepotionofsaradomin 4", "::give br_4dose2restore 4", "::give br_4dose2combat 2",
+    "::give anglerfish 14",
+    -- owner_verzik: the fast pace's enrage special (W:992 "dump all melee
+    -- special attacks"; Blert's fast trios: dragon claws, CLAW_SPEC 1-2 a
+    -- raider in P3), the pack's last free slot
+    "::give dragon_claws 1",
 }
 if role == 1 then party_kit[#party_kit + 1] = "::give verzik_special_weapon 1" end
 
@@ -49,7 +60,7 @@ local function party_run(t)
     end
     local r, d = t.raid.enter("tob", "verzik", { mode = mode })
     t.check("verzik.enter", r == "ok", "p" .. role .. " " .. tostring(d))
-    t.exec("equip.scythe", t.player.equip, "scythe_of_vitur")
+    -- (the scythe is worn: ::maxmelee wields it charged)
     -- W:871 "All players must have Protect from Magic on before starting the fight."
     t.exec("p1.prayer", t.prayer.set, "protectfrommagic", true)
     if size > 1 then t.expect("party.barrier.ready", t.party.barrier("ready", 300)) end
@@ -86,6 +97,14 @@ local function party_run(t)
         .. "; refusals " .. table.concat(dw.refused or {}, " | ") .. "; hides " .. table.concat(hides, " "))
     t.check("play.measure_raider", true, string.format("p%d: %s; eats %d, drinks %d, swings %d, add presses %s, kites %s, tornado runs %s",
         role, tostring(detail), #rec.eats, #rec.drinks, #rec.swings, tostring(vz.add_presses), tostring(vz.kites), tostring(vz.tornado_runs)))
+    -- raid seam45: the melee clock as the plan read it (P2 and P3)
+    local m2, m3 = vz.m2 or {}, vz.m3 or {}
+    -- (raid seam51: the late-seen attacks the clocks re-dated, and P2's late ticks)
+    t.check("play.melee_clock", true, string.format("p%d P2 outs %s late %s [%s] snaps %s waits %s add presses %s kites %s; P3 outs %s late %s snaps %s holds %s; P2 log %s",
+        role, tostring(m2.outs), tostring(m2.late), table.concat(m2.late_ticks or {}, " "), tostring(vz.m2_snaps or 0), tostring(m2.waits), tostring(m2.add_presses), tostring(m2.kites),
+        tostring(m3.outs), tostring(m3.late), tostring(vz.m3_snaps or 0), tostring(m3.holds), table.concat(m2.log or {}, " ")) .. "; P3 dodges " .. tostring(m3.dodges) .. "; enrage log " .. table.concat(m3.log or {}, " ") .. "; webs log " .. table.concat(m3.log2 or {}, " ")
+        -- (raid seam52: each summon's red policy: tick, K kill / L last, her bar %)
+        .. "; red policy " .. table.concat(m2.red_policy or {}, " ") .. "; P3 apart " .. tostring(m3.apart or 0) .. " bound " .. tostring(m3.bound or 0) .. " bound walks " .. tostring(m3.bound_walks or 0))
     if role ~= 1 then
         t.expect("party.barrier.done", t.party.barrier("done", 9000))
         t.finish(0)
@@ -165,19 +184,11 @@ local function party_run(t)
     table.sort(bomb_txt)
     t.check("play.p2_bombs_dodged", bombs >= 1,
         bombs .. " urnbombs thrown; on a raider's held tile the tick before landing: " .. (#bomb_txt > 0 and table.concat(bomb_txt, ", ") or "none"))
-    -- THE ROOM COMPLETE: the raid's death counter (read-only ::tobjail)
-    if death_tick ~= nil then
-        t.ticks(10)
-        t.cheat("::tobjail")
-        t.ticks(2)
-        local _, jl = t.msg.last(40)
-        local jail_line = ""
-        for _, m in ipairs(jl) do
-            local jt = tostring(m.text)
-            if jail_line == "" and jt:find("tobjail jailed=", 1, true) then jail_line = jt end
-        end
-        t.check("verzik.deathless", jail_line:find("jailed=0 died_in=0 deaths=0", 1, true) ~= nil, "party: " .. jail_line)
-    end
+    -- THE ROOM COMPLETE (owner_verzik 2026-10-07): the death counter, her P3
+    -- form's death, the P3 rotation reported and p3.fast_before_ball checked
+    -- (raid_play_tob_verzik.lua QD.raid.verzik_p3_rows; the read-only ::tobjail
+    -- row verzik.deathless was here)
+    t.raid.verzik_p3_rows(t, { pace = "fast", cycle = false }, rec, M)
     local forms = {}
     for _, f in ipairs(vz.forms or {}) do forms[#forms + 1] = f.symbol .. "@" .. f.tick end
     t.check("play.measure", true, string.format("room %s ticks (mark %s; P1 t%s, P2 t%s, P3 t%s, death t%s); P1 %s ticks, P2 %s, P3 %s; taken %s; bolts at raiders %d, at pillars %d; balls %d; forms %s; summons %s",

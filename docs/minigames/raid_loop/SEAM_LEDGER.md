@@ -1626,3 +1626,198 @@ all clean. No C and no content changed.
 - play_tob_maiden_follows_blert: LANDED (b001b5000), NOT green. Entry solo `_play_maiden` 5 of 5 (closer re-run). Party survey in the closer: 0 of 5, room 324-370 ticks against the reference's 157.5 [132-204]; `ref.room_ticks` red on every name, `ref.phase_100_ticks` on 3, `tech.crabs_killed` on 3, svd lost the leader. The fixer's own survey read 259-305: the gap between the two was not chased. Open: crab-phase damage (no specials), heals, the blackstorm tie-break (CONTENT_BUGS).
 - play_tob_nylocas_follows_blert: LANDED (this commit), NOT green. Per-target weapon key, Blert gear and boosts, offensive prayer per seat. Boss phase 240 -> 143-188 ticks (reference 95 [75-123]); entry solo 5 of 5 and party_repeat AGREE (fixer); closer party survey 0 of 5 (`tech.pillars_at_boss` on 5, `tech.prayer` on 4). Open: wave alive-cap stall from w11, small greys 1.34-1.40 attacks a kill against 1.13, Vasilias 12.5 hp/tick against 20.3 (CONTENT_BUGS, unsourced rule).
 - Closer gates: conformance 386/386 rows PASS (195 verbs, 191 seam rows, no new rows this pass); check-quest-verbs, check-drive-abi, check-pt-switch, test-plugin-lua PASS; cooks_assistant ledger byte-identical to build/merge17_check/cooks_before.tsv. No C changed; the quest suite was not run (pass rule).
+
+## matthew-mbp-m4-raid-b1-seam42 (2026-10-06; the commit that carries this heading, OSRS-Content unchanged): four ToB rooms follow Blert, Normal trio
+
+- play_tob_xarpus_follows_blert: LANDED. P2 spread (Voronoi sides, the spit told from a chain by its source tile), P1 exhumed to the nearest raider; closer `_play_xarpus --party 3` 3 of 3 on HEAD 407dc4a25 (fixer 5 of 5, party_repeat AGREE); room 273 (ref 276 [257-298]). Open: P3 36-44 ticks vs ref 45-70 (CONTENT_BUGS, unsourced).
+- play_tob_bloat_follows_blert: LANDED, NOT green. No DWH run-by, all three enter with the leader, hug the tank, leave the stomp by own distance; hp lost 131/36/56 (inside the reference). Closer survey 0 of 3, failing only blert.room_ticks (259-340 vs [75-195]) and blert.downs (4-5 vs 1-3). Open: follower re-press (raid_play.lua), stomp anchor (CONTENT_BUGS, needs a run), halberd/claws kit.
+- play_tob_sotetseg_follows_blert: NOT LANDED. Closer survey on HEAD: 0 of 3 (deaths, one unfinished) against HEAD's own plan at 2 of 3, so both files were restored from HEAD; the work is at build/seam_state/matthew-mbp-m4-raid-b1-seam42/close/sotetseg_unproved.patch. Its elder maul and maze-follow findings are in DRIVER_NOTES and PLAY_NOTES.
+- play_tob_verzik_follows_blert: reference only (verzik_normal_3.json). The plan was unchanged; the room needs a melee rewrite. seam45 is working on it now in this worktree, so its uncommitted plan and harness were left alone and not committed.
+- Closer gates: conformance 447/447 rows PASS (229 verbs, 218 seam rows, no new rows: none of the four seams added a verb); check-quest-verbs, check-drive-abi, check-pt-switch, test-plugin-lua, test-quest-cheats PASS; torirsserver-scripts clean. Entry solo 5 of 5 on `_play_smoke`, `_play_xarpus`, `_play_sotetseg` (Verzik Entry not run: seam45's live edit). cooks_assistant has 0 FAIL rows but is NOT byte-identical to the Oct 4 cooks_before.tsv (48 steps then, about 78 now, after the v3 merge). Quest suite not run (no C change). reference/README.md regenerated once.
+## matthew-mbp-m4-raid-b1-seam46 (2026-10-06; the commit that carries this heading, OSRS-Content unchanged): the Nylocas content rows the Blert comparison found
+
+- nylocas_waves_and_vasilias_rows: LANDED as docs, no content change. Every suspected number matches its source: the wave cap 12 to wave 20 then 24, Hard 15, counted per copy until despawn (wiki Theatre_of_Blood/Strategies/Nylocas:3 "Before wave 20, the cap is 12 nylocas; afterwards, the cap is doubled to 24."; blert NylocasDataTracker.java:84-92,123); Ischyros def 1 and bonuses 0, big def 20, Vasilias def 50 and hp 1875/2187/2500 (wiki infoboxes, cache_npc_nylocas.txt, tob.npc). The ny40j zeros on greys are nulling after a wrong-style blowpipe swing (wiki Strategies:724), a plan defect. CONTENT_BUGS rows settled; four PROPOSED comment rows in nylocas.tsv; two stale tob.constant line refs there corrected (940 -> 1026, 950 -> 1043). OPEN, driver/plan: equip the colour's weapon before the attack click on a new target; the mage seat should invigorate a saturated heart (Blert 112) instead of a magic potion (103); Vasilias' per-swing gap (24.7 vs about 34) is player-side and no source settles it in content.
+- Closer gates: conformance 395/395 rows PASS (202 verbs, 193 seam rows, no new rows this pass); check-quest-verbs, check-drive-abi, check-pt-switch, test-plugin-lua, test-quest-cheats PASS; spec_check ok; pack rc 0. Quest suite (run.py --all) then gate.py: 115 green + deserttreasure forgettabletale regicide troll red = baseline, with QUEST_HELPER_ROOT=/Users/matthewevers/Documents/git_repos/quest-helper. Without it zombiequeen reads RED in this worktree: helper_coverage.py looks for quest-helper one or two directories above the worktree, and worktrees/raid25 sits three deep, so the cutscene exemptions find no guide. Lint on committed quest files: 34 findings in 11 files, none from this pass (no test file changed).
+
+## matthew-mbp-m4-raid-b1-seam45 (2026-10-06; the commit that carries this heading, OSRS-Content unchanged): Normal Verzik all melee, as Blert's trios play it
+
+- play_tob_verzik_melee_follows_blert: LANDED, but not every number is inside Blert's range.
+  The Normal trio plan is rewritten for melee: ::maxmelee, Piety, the scythe, a super
+  restore and super combat upkeep. P2 has the step out on the plan's T-2/T-1 and the press
+  back in at T. P3 holds her east edge and steps out on T-2/T-1. Each role takes one red
+  during the 10-tick summon. The Entry branch is untouched. Fixer: 5 of 5 on the older
+  binary, and the repeat gate agrees. Closer, on the tree with seam48's own_anim built in:
+  the party survey is 4 of 5 (HEAD was 2 of 3) and Entry solo is 5 of 5.
+  Inside the range: P1 109-123 [60-152], 0 slams in P2, room 593/605 on two names [359-607],
+  P3 173/187 on two names [122-200]. OPEN: P2 270-310 [170-261], because she heals about
+  550-650; P3 212-241 and room 626-639 on three names; hp lost per raider 232-566 [69-259],
+  with 6-12 eats a phase [0-6]. svdplayverzi on the combined tree: p2 dies in the enrage
+  with all three raiders on one yellow pool. The client tornado rows freeze on the spawn
+  tile (C). The content questions are in CONTENT_BUGS.md: the prayed P3 auto still deals
+  16-17, and a killed nylocas blasts.
+- Closer: no conformance row (no verb changed); check-quest-verbs (230 verbs) and
+  check-pt-switch PASS; luac -p clean. The full quest suite was not run: this pass changed
+  only the Verzik plan module and its raid harness, no C, content or shared driver file.
+  The fixer ran cooks_assistant and druid green. seam48's uncommitted C, raid_play.lua,
+  conformance and Bloat content in this tree are seam48's and were not committed here.
+
+## matthew-mbp-m4-raid-b1-seam51 (2026-10-06; the commit that carries this heading, OSRS-Content unchanged): four ToB Normal trio rooms written whole from Blert
+
+- play_tob_bloat_whole: LANDED, not KEPT (3 of 5 names green, repeat AGREE). Six swings a
+  raider in downs 1 and 2 on every name (a rise swing at T+30-31, the hide scored by the
+  walk to an attack tile, shadows remembered until their splat); 0 stomp hits. OPEN: two
+  names at 202 room ticks [75-195], every name takes 3 downs (the content's swing deals
+  36-39 against the reference's about 49); hp lost 232-467 a raider, outside [11-217] with
+  no harness row yet; the raiders stand stacked on one tile. Fixer's Entry solo run died in
+  Maiden on one name (ice barrage cast timeout), before Bloat.
+- play_tob_verzik_whole: LANDED, not KEPT (5 of 5 green, repeat AGREE, Entry solo 5 of 5).
+  Her attacks are dated by the tick that saw the seq; the step out is sent on T-2, the
+  press back on T-1; swings held from T-1 of a summon slot; a dying P2 nylocas stays a
+  threat. P2 swing rate 0.17 a tick a raider (Blert 0.176). OPEN: P2 262-315 [170-261] on
+  4 of 5 (she heals 330-520 against 65-313); P3 over 200 on two names; hp lost outside on
+  7 of 15 raiders.
+- play_tob_nylocas_whole: LANDED, not KEPT (1 of 5 green, was 0 of 5; repeat AGREE on the
+  green name; Entry solo 5 of 5). The ranger's black chinchompas on green clumps (seq
+  7618), no support left to fall, a seat avoids a copy another raider's shot is flying at,
+  splits settled at once. OPEN: support 25,18 weakest on every red name (every idle seat
+  goes to the centre, not the reference's per-wave stands); cleanup 55-63 ticks against
+  32; boss damage per swing about 21 against 34.
+- play_tob_sotetseg_whole: LANDED, not KEPT (1 of 5 green, was 0 of 3; repeat AGREE; Entry
+  solo 5 of 5). The ball's colour beats Protect from Melee, the elder maul is equipped then
+  armed on the next tick, two specials a phase shared by role, the super combat re-drunk.
+  The pid-ordered ricochet schedule (iteration 3) was worse and is not in the plan. OPEN:
+  maze-1 blasts on 3 of 5 names (followers miss glows at two-way gaps); p2's double ball
+  at t13-14; start phase 66-86 against 42-67 (no bow in the kit).
+- Closer: one conformance row merged, seam.raid_play_bloat_path_dist (SEAM_COUNT 219);
+  test-quest-conformance 449/449 rows PASS (230 verbs + 219 seam rows); check-quest-verbs
+  PASS; torirsserver-scripts rc 0; luac -p clean on every changed file. No C, content or
+  shared driver file changed, and per the pass's closer rule nothing else was run (the
+  quest suite was not run; the fixers ran cooks_assistant and druid green, check-drive-abi
+  and check-pt-switch PASS on their binaries).
+
+## matthew-mbp-m4-raid-b1-seam52 (2026-10-06; the commit that carries this heading, OSRS-Content cheat_max_gear.rs2): the melee kit and the last gaps of Sotetseg, Nylocas, Verzik
+
+- melee_damage_per_swing: LANDED (content). The formula matches the wiki term by term; the
+  gap was the kit. ::tobkit (radiant oathplate, rancour) and ::tobkitsalve (oathplate,
+  salve(ei)) in cheat_max_gear.rs2, sourced from the Blert equipmentDeltas of the recorded
+  rooms; probe 41.9 per swing on Bloat against the wiki's 42.6-43.8, reference regressed by
+  attack kind 46. Row seam.tob_melee_kit_worn. OPEN: combat.dbrow:72 scythe Chop is STAB
+  (wiki: no stab style); the salve scales rolled damage, not the max hit (~1.1 a swing);
+  the 19 new wiki source files have no manifest.tsv rows (revision ids not fetched).
+- play_tob_verzik_last: LANDED and KEPT (5 of 5 green on ::tobkit, repeat AGREE, Entry solo
+  5 of 5). The reds policy per summon, P2's own percent off the shared bar, P3 members off
+  each other's tiles and the own-web bind. OPEN: P2 267 on one name [170-261]; last-summon
+  choice is coarse on a 30-step bar; hp lost 8 of 15 raiders inside; P3 tank step-under on
+  T-1 not tried.
+- play_tob_sotetseg_last: LANDED, not KEPT (2 of 5 green on ::tobkit, 3 of 5 on ::maxmelee;
+  repeat AGREE; Entry solo 5 of 5). Maze blasts 0 on 10 of 10 mazes (frame-polled glow,
+  direct steps, QD.raid._play_sotetseg_gap, row seam.raid_play_sotetseg_gap); arrival double
+  ball gone (floor landing). OPEN: room_ticks 268-304 on 3 names [164-262] (start walk, no
+  bow opener, post-maze DPS, the unsourced return tile); p2's t39 melee on Protect from
+  Magic; p1's t44 ball through Protect from Melee.
+- play_tob_nylocas_last: LANDED, not KEPT (0 of 5 green, was 1 of 5; repeat AGREE; Entry
+  solo 5 of 5). Stands from the reference positions with a leash, cleanup split by side,
+  ::tobkit for the meleer; last wave and boss start now in range on 3 of 5 (seam51 1 of 5).
+  OPEN: the SW support falls on 2 names; the "no effect" reader strikes off the seat's own
+  colour after a stale swap press; boss ticks 124-131 on 3 names [75-123]; tech.prayer
+  reads 20 hp lost on one name [24-120].
+- Closer: two conformance rows merged (seam.raid_play_sotetseg_gap after
+  seam.raid_play_bloat_path_dist; seam.tob_melee_kit_worn after
+  seam.scythe_arc_three_in_a_row, moved there after its first placement left the scythe
+  worn into seam.raid_play_member_swing_xp and failed it). SEAM_COUNT 221;
+  test-quest-conformance 451/451 rows PASS, check-quest-verbs PASS, luac -p clean. No C
+  changed; per the pass's closer rule nothing else was run (the fixers ran cooks_assistant
+  and druid green, check-drive-abi and check-pt-switch PASS, the pack rc 0 at 16:43). A
+  concurrent seam54 pass was editing the Bloat and Maiden files in this worktree: those are
+  not in this commit.
+## matthew-mbp-m4-camera-b1-seam53 (2026-10-06; the commit that carries this heading, OSRS-Content unchanged): the Normal relay run once on the Blert-shaped rooms
+
+- play_tob_normal_relay_once: NOT LANDED, not KEPT (0 of 3 before the edit, 0 of 3 after;
+  Maiden clears fell from 1 of 3 to 0 of 3). The one relay edit is kept because each
+  change copies a room harness (::maxmelee on the dps seats, the door super combat, the
+  scythe at Maiden, Maiden's supply ratios, Bloat role 1 to seat 2, the trio in from
+  the start). OPEN, relay-level: '::wield slayer_boots' after ::maxmelee costs a supply
+  slot; nobody buys from the Normal points chest after Bloat/Sotetseg; no claws for
+  Bloat or elder maul for Sotetseg. OPEN, room-level: Maiden's freezer stands in blood at
+  its home tile for 3-4 ticks (3 of 3 names); Maiden's re-boost drinks every combat dose
+  (needs a reserve); one Maiden costs 35-56 drinks a dps seat; in ::maxmelee npc 8363
+  hits 41-59 every 10 ticks (Maiden seam or the melee-damage content seam).
+
+## matthew-mbp-m4-raid-b1-seam54 (2026-10-06; parent 541b03b64, OSRS-Content unchanged by this pass): Normal Maiden written whole, Bloat on the recorded kit
+
+- play_tob_bloat_on_tobkit: LANDED and KEPT. Normal trio Bloat 5 of 5 on ::tobkitsalve
+  (rooms 133-148 against Blert's median 137, cap 195; two downs on every name; repeat
+  AGREE). Plan unchanged; harness kit plus a pid-wide tech.step_off_shadow. OPEN: the
+  "no step to judge" branch fires on 3 of 5 names (it asserts 0 party hand hits only);
+  five names give 4 distinct rolls; 2 party hand hits on two names; tob_bloat_normal.lua
+  (author attempt) still says ::maxmelee. Entry solo 4 of 5 (the own name dies in Maiden).
+- play_tob_maiden_whole: NOT LANDED as a room (0 of 5; rooms 253-327 against 132-204;
+  heal 604-1266 against 223.5; 6-23 leaks; svd p3 died at t333). Kept as progress, proved
+  per piece: ::tobkit for the scythe seats, Reap on slot 0 (setup.reap PASS), the freezer's
+  blood rule (freezer 0 HP on 5 of 5; seam.raid_play_maiden_in_blood), reboost_keep 4.
+  Entry solo 5 of 5. OPEN: the storm was fixed at the max through these surveys (rolled
+  since 081bb7e61a, seam55 ruling, so resurvey on it); leaks reach her whole because the
+  freezer at 15,2 freezes one crab a cast and the 30-percent add rule never fired; the
+  freezer drifts toward her; phase-100 output 13-15.6 against 17.94.
+- Closer: conformance 453/453 PASS (231 verbs, 222 seam rows): seam.raid_play_maiden_in_blood
+  merged; ui.style row added for the orchestrator's verb (ab1c3e602); the blackstorm row
+  re-asserted for the rolled storm. check-quest-verbs, check-drive-abi, check-pt-switch,
+  test-plugin-lua, test-quest-cheats PASS; torirsserver-scripts clean. No quest suite run
+  (closer capped at conformance plus verb list); no C changed.
+
+## matthew-mbp-m4-raid-b1-seam56 (2026-10-06)
+
+- play_tob_nylocas_waves_like_blert: NOT LANDED (0 of 3 names, so no five-name survey). The
+  fixer fetched the 27 Blert reference rooms and generated P.waves (31 rows: wave tick, each
+  role's tile and arrival tick, and each spawn's lane, size, colour, owning role and death
+  offset). The plan scored targets from it and held each seat on its tile for 6 ticks after
+  the wave spawned. it1 was worse (room 688-724 ticks); it2 was level with seam55 (last wave
+  300/304, room 594-626 ticks) and still red. The south-west support (25,18) fell on
+  svaplaynyloc and svbplaynyloc, and the weakest support on _play_nylocas was at 0.04. The two
+  Nylocas files were put back to seam55's uncommitted state (not to HEAD, which lacks seam55's
+  style edits that its closer commits). it2 and the generator are kept in
+  build/seam_state/matthew-mbp-m4-raid-b1-seam56/nylocas/ (plan.it2.lua, harness.it2.lua,
+  ny_table.py, ny_waves.lua). OPEN: which copies chew the south supports, wave by wave, by seat
+  (raid_report.py --against could not place the p1 run: "the run is in None"); per-seat wave
+  numbering drifts by one when a seat misses a wave (re-anchor on P.waves[w].tick); weights
+  wave_own/wave_other 40, wave_late 6 and stand_hold 6 were never tuned.
+- Closer: no verb added or changed, so nothing was merged into _conformance.lua or
+  verb_list.py. No C or content change. check-pt-switch PASS. check-quest-verbs is red on
+  the tree only because seam55's uncommitted raid.watch (raid_play.lua:978) has no conformance
+  row yet; seam55's closer owns that. Conformance and the quest suite were not run: this pass
+  has no code delta, and seam55's closer was running run.py --all on the same tree.
+
+## matthew-mbp-m4-raid-b1-seam55 (2026-10-06; the commit that carries this heading, OSRS-Content unchanged by this pass): triggers and watches, Maiden on triggers, Nylocas styles, Sotetseg room ticks
+
+- play_tob_maiden_triggers_like_blert: the library part LANDED and the room did NOT.
+  Triggers and watches are in raid_play.lua: `st.on`, `st.watch` and `t.raid.watch`. Events:
+  spawn, walk, frozen and gone for adds, projectiles, ground pools, boss seqs, `hit_taken` and
+  `boss_phase`. Handler intents are folded by priority, and a press or cast is held behind a
+  step. The probe m55trig read 24 of 24 on the tick log's own ticks. Conformance rows
+  raid.watch and seam.raid_play_triggers PASS. The Maiden trio plan now runs on the triggers,
+  built from the 26 Blert rooms (QD.RAID_MAIDEN_REF), and is kept. The room is still 0 of 5,
+  the same as seam54. Entry solo is 5 of 5, and its tech.protect_magic row now checks the
+  rolled storm's cap. OPEN: 11-15 leaks against a median of 5. Phase 100 runs 50 ticks
+  against 42, so damage on her is about 17% low. In the 30% wave, frozen crabs thaw before
+  she dies. On sva, p0 and p2 died at 6431,98 and the cause was not found. varp43 keeps one
+  style for every weapon, and this has no CONTENT_BUGS row yet.
+- play_tob_nylocas_stands_like_blert: NOT LANDED (0 of 5). Kept: each seat picks its style
+  by name with t.ui.style, and retaliate now presses with the combat tab shown. The boss-phase
+  style helper is switched off (boss_styles = nil). OPEN: the stands, the wave kill order and
+  the cleanup did not change, and seam56 is carrying them on. The south-west support falls,
+  the last wave is late at 296/304 against at most 293, the cleanup takes 55-68 ticks against
+  32, and the boss takes 124-130 against [75-123]. The Ayak shows Bash/Pound/Focus.
+- play_tob_sotetseg_room_ticks: LANDED on the survey's terms. The five-name trio survey is
+  5 of 5 inside [164-262] (251/244/252/233/238), the repeat agrees, and Entry solo is
+  green. Kept: the bow opener (the Blert start weapons list a twisted bow) and the next-corner
+  rotation. Conformance row seam.raid_play_sotetseg_corner PASS. OPEN: the cause is not
+  proved. The bow hit 1 of 15 and the corner shift never fired, so treat the green as
+  RNG-sensitive. After each maze, 30-45% of scythe hits are 0, and no source covers it.
+  The runner's return tile and raid_report.py's Sotetseg boss ids are also open.
+- Closer: VERB_COUNT 231 -> 232 and SEAM_COUNT 222 -> 224. Conformance had 456/456 rows
+  PASS. check-quest-verbs, check-drive-abi, check-pt-switch, test-plugin-lua and
+  test-quest-cheats all pass. No C changed and this pass made no content change, and the
+  pass's method said no quest-suite runs. The Maiden fixer ran cooks_assistant 78/78 and
+  druid 55/55, and gate.py was green on both. The tob_maiden.rs2 leak-label edit that was in
+  the content tree during this pass is the tools seam's work. The tools seam committed it
+  itself (af76d14935, parent de221c093), and this pass did not touch it.

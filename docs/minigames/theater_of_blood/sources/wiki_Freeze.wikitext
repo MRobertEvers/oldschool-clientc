@@ -1,0 +1,236 @@
+{{Otheruses|the status effect|the [[Ancient Magicks]] applying this effect|Ice spells|the similar effect caused by non-spell means|Stun (status)}}
+[[File:Ice_Barrage.gif|thumb|400px|A [[Player character|player]] using [[Ice Barrage]] against another player, Freezing them and thus preventing movement]]
+
+'''Freeze''', also referred to as [[Bind]], [[Entangle]] or '''Root''' is a [[Status effect]] which restricts movement of affected players and NPCs, rendering them immobile for a period of time without disabling other actions. Due to the specialised nature of Freezes (i.e., restricting only movement) they usually last significantly longer than [[Stun (status)|Stuns]].
+
+== Mechanics ==
+'''Freeze''' restricts [[Game square|movement]] for a duration dictated by its source, followed by a short immunity to the Status after which the target can be frozen again.
+
+Freezes have both a variable duration, and a variable immunity based on the source of the effect. For example, [[Ice spells]] have a duration dependent on the tier of spell used, starting at 8 ticks when using [[Ice Rush]] and increasing by 8<ref>Without the Ancient sceptre - See [[Freeze#Equipment|the equipment section]] for more information.</ref> for every tier of spell, with a freeze from [[Ice Barrage]] lasting up to 32 ticks (19.2 seconds). The immunity window for most freezes (with the exception of Grasp spells) is {{ticks|5}}. For Grasp spells it is only {{ticks|2}}.
+
+Freeze only restricts regular movement, but not forced movement such as caused by [[Mithril seeds]] and [[Adamant seeds]] or by interacting with adjacent game objects such as ladders or cave entrances.
+
+In [[PvP]], all freeze effects applied to other players will only restrict movement whilst both players remain within the 10-tile maximum player weapon range. Moving outside of this range will cause the frozen target to become free to move. The game code only checks the X and Y coordinates of both players, meaning a player who changes plane by e.g. going up a ladder will be able to maintain a freeze as long as they stay within the X and Y coordinate of their target.
+{{Reflist}}
+
+== Sources ==
+===Weapons===
+====Abyssal tentacle====
+The [[Abyssal tentacle]] has a special attack, ''Binding Tentacle'', which freezes a target for {{ticks|8}} ''regardless'' of whether it landed a [[successful hit]].
+
+====Zamorak godsword====
+The [[Zamorak godsword]] has a special attack, ''Ice Cleave'', which freezes a target for {{ticks|32}} '''provided''' that it lands a successful hit.
+
+===Spells===
+Freezes are available on three different [[Spellbook|spellbooks]] with each type serving a different purpose. The only spellbook without any Freeze capability is the [[Lunar spellbook]].
+
+The following tables will list durations in [[Game tick|ticks]], where each tick is equal to 0.6 seconds of real time. To learn more about ticks please refer to the [[Game tick]] page.
+
+====Curse spells====
+There are three [[Curse spells]] on the [[Standard spellbook]] which can apply Freeze. These spells do little or no damage, have no requirements other than Magic level, and the first two can be used by [[free-to-play]] players.
+
+When a Bind-type spell is about to expire the chat box will report: {{Mes|The holding effect is beginning to fade.|color=red}} 
+
+There is no message upon the spell being applied.
+
+[[Blighted entangle sack]]s allow players to cast these spells in lieu of using runes while in the [[Wilderness]].
+
+{|class="wikitable" style="text-align:center;"
+!Icon
+![[Mobile]]<br/>icon
+!Spell
+!{{SCP|Magic}} Level
+!Runes
+!Experience
+!Base<br>Max hit
+!Freeze<br>duration<ref name="ticks">Values provided are in [[Game tick|Game ticks]], one tick is equal to 0.6 seconds.</ref>
+!Immunity<br>duration<ref name="ticks"/>
+|-
+|[[File:Bind.png]]
+|[[File:Bind icon (mobile).png]]
+|[[Bind]]
+|{{SCP|Magic|20}}
+|{{RuneReq|Earth=3|Water=3|Nature=2}}
+|31
+|0
+|8t (+6)<ref name="swampbark">The [[Swampbark armour|Swampbark]] [[Swampbark helm|helm]], [[Swampbark body|body]], and [[Swampbark legs|legs]] each increase the duration by {{ticks|2}}, for a maximum possible increase of {{ticks|6}}.</ref>
+|5t
+|-
+|[[File:Snare.png]]
+|[[File:Snare icon (mobile).png]]
+|[[Snare]]
+|{{SCP|Magic|50}}
+|{{RuneReq|Earth=4|Water=4|Nature=3}}
+|61
+|2
+|16t ''(+6)''<ref name="swampbark/>
+|5t
+|-
+|[[File:Entangle.png]]
+|[[File:Entangle icon (mobile).png]]
+|[[Entangle]]
+|{{SCP|Magic|79}}
+|{{RuneReq|Earth=5|Water=5|Nature=4}}
+|89
+|5
+|24t ''(+6)''<ref name="swampbark/>
+|5t
+|-
+|}
+{{Reflist}}
+====Ice spells====
+'''[[Ice spells]]''' are one of four types of [[Ancient Magicks]] combat spells, and the only type that can apply Freeze. Ice spells are notable for high damage and Area of Effect capability, giving players the ability to freeze multiple targets at the same time.
+
+Upon being affected by an ice spell the chat box will report: {{Mes|You have been frozen!|color=red}}
+
+When the effect is about to expire the following message notifies the affected player: {{Mes|The freeze cast upon you is beginning to thaw.|color=red}}
+
+[[Blighted ancient ice sack|Blighted ancient ice sacks]] allow players to cast these spells in lieu of using runes while in the [[Wilderness]], [[PvP worlds]], [[Castle Wars]], [[Clan Wars]], or [[Soul Wars]]. Keep in mind switching weapons '''will cancel''' auto-casting when in the Wilderness.
+
+{|class="wikitable" style="text-align:center;"
+!Icon
+![[Mobile]]<br/>icon
+!Spell
+!{{SCP|Magic}} Level
+!Runes
+!Experience
+!Base<br>Max hit
+!Freeze<br>duration<ref name="ticks">Values provided are in [[Game tick|Game ticks]], one tick is equal to 0.6 seconds.</ref>
+!Immunity<br>duration<ref name="ticks"/>
+|-
+|[[File:Ice Rush.png]]
+|[[File:Ice Rush icon (mobile).png]]
+|[[Ice Rush]]
+|{{SCP|Magic|58}}
+|{{RuneReq|Death=2|Chaos=2|Water=2}}
+|34
+|16
+|8t ''(+0)''<ref name="ice">The [[Ancient sceptre]] increases the duration of Ice spells by 10%, rounding down.</ref>
+|5t
+|-
+|[[File:Ice Burst.png]]
+|[[File:Ice Burst icon (mobile).png]]
+|[[Ice Burst]]
+|{{SCP|Magic|70}}
+|{{RuneReq|Death=2|Chaos=4|Water=4}}
+|40
+|22
+|16t ''(+1)''<ref name="ice"/>
+|5t
+|-
+|[[File:Ice Blitz.png]]
+|[[File:Ice Blitz icon (mobile).png]]
+|[[Ice Blitz]]
+|{{SCP|Magic|82}}
+|{{RuneReq|Death=2|Blood=2|Water=3}}
+|48.5
+|26
+|24t ''(+2)''<ref name="ice"/>
+|5t
+|-
+|[[File:Ice Barrage.png]]
+|[[File:Ice Barrage icon (mobile).png]]
+|[[Ice Barrage]]
+|{{SCP|Magic|94}}
+|{{RuneReq|Death=4|Blood=2|Water=6}}
+|52
+|30
+|32t ''(+3)''<ref name="ice"/>
+|5t
+|}
+{{Reflist}}
+
+====Grasp spells====
+'''[[Grasp spells]]''' are a category of offensive spells in the [[Arceuus spellbook]]. Unlike Ice or Curse spells which serve to immobilize for a long period, Grasp spells offer a short freeze with a short immunity period whilst also dealing considerable damage. Unlike other sources of Freeze, Grasp spells are not guaranteed to freeze the target with the exception of Undead Grasp whilst under the effects of [[Mark of Darkness]].
+
+{|class="wikitable" style="text-align:center;"
+!Icon
+![[Mobile]]<br/>icon
+!Spell
+!{{SCP|Magic}} Level
+!Runes
+!Experience
+!Base<br>Max hit
+!Freeze <br>chance
+!Freeze<br>duration<ref name="ticks">Values provided are in [[Game tick|Game ticks]], one tick is equal to 0.6 seconds.</ref>
+!Immunity<br>duration<ref name="ticks"/>
+|-
+|[[File:Ghostly Grasp.png]]
+|[[File:Ghostly Grasp icon (mobile).png]]
+|[[Ghostly Grasp]]
+|{{SCP|Magic|35}}
+|{{RuneReq|Air=4|Chaos=1}}
+|22.5
+|12
+|10% ''(20%)''<ref name="mark">Freeze chance doubles whilst source is under the effect of [[Mark of Darkness]].</ref>
+|2t ''(1t)''<ref name="ward">Freeze duration of Grasp spells is reduced to one tick if the target is under the effect of [[Ward of Arceuus]].</ref>
+|2t
+|-
+|[[File:Skeletal Grasp.png]]
+|[[File:Skeletal Grasp icon (mobile).png]]
+|[[Skeletal Grasp]]
+|{{SCP|Magic|56}}
+|{{RuneReq|Earth=8|Death=1}}
+|33
+|17
+|25% ''(50%)''<ref name="mark"/>
+|3t ''(1t)''<ref name="ward"/>
+|2t
+|-
+|[[File:Undead Grasp.png]]
+|[[File:Undead Grasp icon (mobile).png]]
+|[[Undead Grasp]]
+|{{SCP|Magic|79}}
+|{{RuneReq|Fire=12|Blood=1}}
+|46.5
+|24
+|50% ''(100%)''<ref name="mark"/>
+|4t ''(1t)''<ref name="ward"/>
+|2t
+|}
+{{Reflist}}
+===Monsters===
+Monsters that are capable of Freezing the player:
+*[[Chaos druid]]
+*[[Dawn]]
+*[[Guard (Deadman Mode)|Deadman Mode guards]]
+*[[Frost dragons]]
+*[[Glacies]]
+*[[Hespori]]
+*[[Ice Troll King]]
+*[[King Black Dragon]]
+*[[Marble gargoyle]]
+*[[The Nightmare]]
+*[[Pestilent Bloat]]<ref>Visually looks like a [[Stun (status)|stun]], however no actions other than movement are restricted.</ref>
+*[[Phosani's Nightmare]]
+*[[Revenants]]
+*[[Sarachnis]]
+*[[Solus Dellagar]]<ref>Only in a cutscene.</ref>
+*[[Spiritual mage#Zaros|Spiritual mage (Ancient)]]
+*[[Suqah]]
+*[[Vorkath]]
+{{Reflist}}
+
+==Equipment==
+Certain [[Worn Equipment|equipment]] can increase the duration of, or otherwise synergise with specific sources of Freeze.
+
+====Swampbark armour====
+The [[Swampbark helm|helm]], [[Swampbark body|body]] and [[Swampbark legs|legs]] of [[Swampbark armour]] each increase the duration of freezing [[Curse spells]] from the [[Standard spellbook]] by 2 ticks, up to 6 ticks provided that all 3 aforementioned pieces are equipped. The gloves and boots do not provide any additional effect.
+
+====Blue Moon armour====
+Wearing the full [[Blue Moon armour]] set, the player gains the ''Frostweaver'' set effect, where after casting a Freeze spell the [[Blue Moon spear]] has a 20% chance for its next melee attack to be unaffected by attack delay. This chance increases to 50% when using the [[Arceuus spellbook]] [[Grasp spells]].
+
+====Tome of Water====
+The accuracy of all [[Curse spells]] from the [[Standard spellbook]], including the ones capable of freezing, is increased by 20% when wielding a charged [[tome of water]].
+
+====Ancient sceptre====
+The passive effect of an [[Ancient sceptre]] will increase the freeze duration of [[Ice spells]] by 10% while equipped by the player.
+
+====Ice ancient sceptre====
+The [[Ice ancient sceptre]] passively grants a 10% accuracy bonus to [[Ice spells]] on targets that can be frozen and are not currently frozen on top of the Ancient sceptre's base 10% duration increase.
+
+==Trivia==
+*The official name of this status effect per [[Monster Examine]] is ''Freeze'', however other popular community names include ''[[Bind]]'' or ''[[Entangle]]'' after the spells of the same name (the former being the first spell of this type available, and the latter having been the best spell of its type until the release of [[Ice spells]] along with [[Desert Treasure I|Desert Treasure]]) and ''Root'', a loanword from other games with a similar immobilising mechanic.
+
+{{Status effects}}
+[[Category:Mechanics]]

@@ -749,6 +749,15 @@ enum DriveResult DrivePointer_ScreenPosition(
     int* out_y,
     int* out_element_id);
 
+/** Project ONE npc copy, named by its scene element, to a canvas point
+ *  (App_NpcElementScreenPosition). DRIVE_NOT_FOUND when no synced npc owns
+ *  the element, DRIVE_NOT_VISIBLE when it projects off screen. */
+enum DriveResult DrivePointer_NpcElementScreenPosition(
+    struct App* app,
+    int element_id,
+    int* out_x,
+    int* out_y);
+
 /** Does this frame's world pickset hold `element_id`?  Meaningless before a
  *  frame has RENDERED at the moved-to point -- the pickset is stamped at the
  *  render-time hover point -- which is why click_minimenu moves, waits a
@@ -1000,6 +1009,15 @@ struct DriveNpcRow
     int npc_id;
     int base_npc_id;
     int tile_x, tile_z, level;
+    /**
+     * The npc's LATEST SERVER TILE: the head of its route queue (the step the
+     * last NPC_INFO pushed), where tile_x/tile_z is grid_position, which only
+     * advances when the drawn model ARRIVES at a step -- a tick behind a
+     * walking npc.  Equal to tile_x/tile_z once the route is walked.  (Verzik's
+     * tornadoes, 2026-10-07: a seat reading tile_x saw its tornado one tile
+     * further than the server had it, and every dodge was a tile late.)
+     */
+    int server_x, server_z;
     int element_id;
     /**
      * The overhead health bar, the ONLY hitpoints reading a client has.
@@ -1354,6 +1372,25 @@ enum DriveResult DriveUi_LocVariants(
 /** App_LocalPlayerTiles; its false return is DRIVE_NOT_VISIBLE. */
 enum DriveResult DriveUi_PlayerTile(
     struct App* app, int* out_x, int* out_z, int* out_level);
+
+/** The walk a click on dst would take, every tile in walk order (absolute),
+ *  from the player's whole tile on the client's collision map --
+ *  collision_map_route_tiles, the server's own flood (api.drive.route).
+ *  entity_size > 0: to the reach of that size's entity with its south-west
+ *  tile at dst. DRIVE_NOT_FOUND: no route; DRIVE_REFUSED: dst outside the
+ *  scene; DRIVE_NOT_VISIBLE: no player or world. */
+enum DriveResult DriveUi_Route(
+    struct App* app,
+    int dst_x,
+    int dst_z,
+    int entity_size,
+    int* out_x,
+    int* out_z,
+    int cap,
+    int* out_count,
+    int* out_arrive_x,
+    int* out_arrive_z,
+    int* out_nearest);
 
 /** torirs_keymap.c's named table, wider than content_test.c's four names. */
 enum DriveResult DriveUi_Key(struct App* app, char const* name, int down);

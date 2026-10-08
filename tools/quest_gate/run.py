@@ -341,6 +341,12 @@ def write_session_fixture(fixture_name, saves_dir, user):
     as a broken verb if skipped: without it the server makes a fresh
     character and the run boots into the Character Creator modal, which
     blocks tab selection."""
+    # A party's per-seat LOADOUT (tools/raid_agent/loadout.py): "{seat}" in the
+    # name is the seat of `user` ("<base>_p<seat>"), so each raider logs in on
+    # its own save.
+    if "{seat}" in fixture_name:
+        seat_match = re.search(r"_p(\d+)$", user)
+        fixture_name = fixture_name.replace("{seat}", seat_match.group(1) if seat_match else "1")
     fixture_path = os.path.join(quest_list.fixtures_dir(REPO_ROOT), fixture_name)
     assert os.path.isfile(fixture_path), fixture_path
     with open(fixture_path, "r", encoding="utf-8") as handle:
@@ -1199,6 +1205,28 @@ def launch_client(binary, manifest_path, user, directory, saves, script, log_pat
     command = [binary, "--manifest", manifest_path, "--user", user, "--pass", QUEST_PASSWORD,
                "--soft3d", "--window", "765x503"]
     environment = client_env(directory, saves, script, max_frames, extra_env)
+    # The npc world seed (src/torirsserver/torirs_server.h npc_run_seed): the
+    # account this client logs in as, so each run name is its own npc
+    # scenario, deterministic per name. A party's leader passes its own
+    # account and the members are handed the leader's (run_party), so every
+    # seat agrees. TORIRS_NPC_SEED_LEGACY=1 in the caller's environment brings
+    # back the tile-and-life streams (docs/minigames/raid_loop/DRIVER_NOTES.md).
+    # Set, never inherited: a name left exported in a shell would make every
+    # run one scenario again.
+    environment["TORIRSSERVER_RUN_NAME"] = (extra_env or {}).get("TORIRSSERVER_RUN_NAME", user)
+    # QUEST_WATCH=1 (owner 2026-10-07: "How do I run it so I can watch
+    # vzslow?"): THIS client -- a solo run, or a party's leader; the members
+    # stay headless and follow it in lock step -- opens a real window and draws
+    # every frame, so the run can be watched while it is measured.  Nothing
+    # else changes: the same accounts, the same frame clock
+    # (TORIRS_EMBED_CLOCK_MS=20 a frame, so about real speed at a 50-60 Hz
+    # present), the same ledger.  Pass --timeout generously: the wall-clock
+    # ceiling assumes an uncapped headless client.
+    if os.environ.get("QUEST_WATCH") == "1":
+        environment.pop("SDL_VIDEODRIVER", None)
+        environment.pop("SDL_AUDIODRIVER", None)
+        environment["TORIRS_RENDER_SKIP"] = "0"
+        print("run.py: QUEST_WATCH=1 -- %s opens a window" % user, flush=True)
     print("+ " + " ".join(command), flush=True)
     if max_frames != int(DEFAULT_MAX_FRAMES):
         print("run.py: %s declares max_frames = %d (wall-clock timeout %d s)"
@@ -1711,6 +1739,12 @@ def launch_and_report(name, binary, manifest_path, directory, saves, script, tim
                                           scaled_timeout(timeout, max_frames), max_frames,
                                           stall=stall)
     ledger_path = os.path.join(directory, "ledger.tsv")
+    # The raid HUD against the overhead bar, on every run whose tick log has boss
+    # HUD pushes (gate.hudbar_check; a party run gets it from gate.party_union).
+    import gate
+    hud_verdict, hud_detail = gate.hudbar_check(os.path.join(directory, "ticklog.tsv"))
+    if hud_verdict is not None:
+        gate.append_ledger_row(ledger_path, gate.HUDBAR_STEP, hud_verdict, hud_detail)
     has_ledger = os.path.isfile(ledger_path)
     ok = (not timed_out) and (not stall) and code == 0 and has_ledger and unfinished is None
     return {
@@ -1935,6 +1969,8 @@ def run_party(name, source_file, fixture_name, binary, manifest_path, timeout, s
                 "TORIRS_EMBED_PARTY_SEAT": str(seat),
                 "TORIRS_EMBED_PARTY_WAIT_S": wait_s,
                 "TORIRS_EMBED_PARTY_TRACE": "1",
+                # The leader hosts the world; one run, one npc seed.
+                "TORIRSSERVER_RUN_NAME": accounts[0],
             })
             print("+ [p%d] %s" % (seat, " ".join(command)), flush=True)
             log = open(os.path.join(session, "client.log"), "wb")

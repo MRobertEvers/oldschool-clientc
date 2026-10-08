@@ -1074,6 +1074,7 @@ World_ActorLeftSceneReset(
     animation->primary.cycle = 0;
     animation->primary.delay = 0;
     animation->primary.loop = 0;
+    animation->pending_set = 0;
     spotanim->id = -1;
     exact->move_end = 0;
     exact->move_start = 0;

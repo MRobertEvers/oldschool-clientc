@@ -1001,6 +1001,25 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # script: it is the content's bug, never a value to default.
     "LAST_TRIGGER_INT": (11116, 1, 0, 1, 0),
 
+    # ---- the overhead bar's reserve and the HUD check (11117..11118) -------
+    # npc_setheadbarreserve(reserve)
+    # Hitpoints the active npc holds for LATER PHASES, which its overhead bar
+    # (NPC_INFO HEADBAR) and the enemy health overlay do not count: they draw
+    # (hitpoints - reserve) / (max - reserve). Verzik's three phase pools sit end
+    # to end on one npc (tob_verzik.rs2 `~tob_verzik_fresh_pool`); in the game
+    # each phase is its own npc with its own bar, so a bar over the stacked total
+    # drew P1 at 2/3 full and disagreed with the room's HUD. 0 (the spawn value)
+    # is "no reserve".
+    "NPC_SETHEADBARRESERVE": (11117, 1, 0, 0, 0),
+
+    # npc_hudbar_check(cur, max)
+    # The room HUD is about to show cur/max for the active npc: the engine
+    # compares it with the overhead bar it draws for that npc, writes a `hudbar`
+    # tick log row with both fills, and prints a line when they differ by more
+    # than one step of the bar. The raid gate turns the rows into a ledger row
+    # (tools/quest_gate/gate.py `hudbar_check`). Pure observation.
+    "NPC_HUDBAR_CHECK": (11118, 2, 0, 0, 0),
+
     # npc_findowned2()(boolean)
     # Resolve the active player's familiar into the secondary NPC context. A
     # targeted trigger can retain its primary target while `.npc_*` addresses
@@ -1269,6 +1288,8 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "NPC_VAR_SET": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_SETMOVESPEED": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_SETMAXHP": (1 << POINTER_BITS["active_npc"], 0),
+    "NPC_SETHEADBARRESERVE": (1 << POINTER_BITS["active_npc"], 0),
+    "NPC_HUDBAR_CHECK": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_FACING_COORD": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_ATTACKNPC": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_ATTACKPLAYER": (

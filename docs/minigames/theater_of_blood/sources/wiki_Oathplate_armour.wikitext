@@ -1,0 +1,67 @@
+[[File:Oathplate helm chathead.png|left]]
+'''Oathplate armour''' is a set of equipment requiring level 78 [[Defence]] to equip. 
+
+The individual pieces are obtainable directly as a drop from [[Yama]] or more rarely through the [[forgotten lockbox]], which Yama also drops.
+
+Alternately, they can be created with 78 [[Mining]] and 83 [[Smithing]], both of which are boostable. This method requires players to combine 2,520 [[crushed infernal shale]] with 450 [[oathplate shards]] to create 9 [[infernal plate]]s needed to create a piece of armour. Approximately 22,000 Smithing xp is earned in creating one piece of oathplate armour. The shale is minable, while the shards are a drop from Yama. As Yama is a Zamorakian demon, the set pieces count as Zamorakian items for the [[God Wars Dungeon]].
+
+This set can be stored in the [[armour case space]] of a [[costume room]] in a [[player-owned house]]. [[Ultimate Ironmen]] will be unable to retrieve individual pieces until the full set is stored. 
+
+==Components==
+{{CostTableHead}}
+{{CostLine|Oathplate helm}}
+{{CostLine|Oathplate chest}}
+{{CostLine|Oathplate legs}}
+{{CostTableBottom|total=y|compare=Oathplate armour set}}
+
+==Bonuses==
+{{Infotable Bonuses|Oathplate helm|Oathplate chest|Oathplate legs}}
+
+==Comparison==
+Oathplate armour is ideal against enemies with high Defence that are susceptible to slash attacks, such as [[Vardorvis]], [[Duke Sucellus]], [[Verzik Vitur]], and even Yama himself. In these situations, the slash accuracy bonus provided by Oathplate meaningfully improves hit chance, which can make up for the lower strength bonus than [[Torva armour]]. Against enemies that are equally weak to all melee types with high Defence, such as the [[Great Olm]], Oathplate is marginally better compared to [[Bandos armour]] and [[Torva armour]]. Against enemies that are equally weak to all melee but with very low Defence, Torva armour can outperform Oathplate.
+
+Compared to Torva armour, Oathplate gains offensive slash bonus, has lower strength bonus, and lacks any prayer bonus. The other bonuses are mixed, Oathplate has stronger slash and magic defence, but less stab, crush, and ranged defence. It also penalises magic attack slightly less than Torva, and penalises ranged attack more.
+
+The armour's strength bonus is on par with [[Bandos armour]] and a [[Neitiznot faceguard]]. Considering the full "set" (of [[bandos chestplate]], [[bandos tassets]] and faceguard), Oathplate has slightly higher stab and crush defence, significantly higher slash defence, slightly less ranged and magic defence and lacks any prayer bonus. Given the similar defence capabilities, Oathplate is far superior when using slash weapons, due to the slash accuracy. Defensively, is an upgrade in encounters against melee opponents where prayers cannot completely block damage.
+
+[[Inquisitor's armour]] is only better when using crush attacks. Oathplate does not have a passive effect, but is more flexible than gear which requires multiple pieces to make use of a set effect. The Inquisitor’s has significantly worse defence bonuses compared to Oathplate.
+
+==Radiant oathplate==
+Oathplate armour can be cosmetically upgraded to [[radiant oathplate armour]] using a [[purifying sigil]]. This works similarly to the [[Ancient blood ornament kit]], used to create [[sanguine torva armour]]. This sigil requires the player to defeat Yama in five distinct scenarios: the [[Contract of Bloodied Blows]], [[Contract of Divine Severance]], [[Contract of Forfeit Breath]], [[Contract of Glyphic Attenuation]], and [[Contract of Sensory Clouding]].
+
+Alongside the sigil, 2,500 [[aether rune]]s are required to convert each piece for a total of 7,500 for the entire set.
+
+{| class="wikitable align-center-1"
+! colspan="2" | Item
+|-
+|{{plinkt|Radiant oathplate helm}}
+|-
+|{{plinkt|Radiant oathplate chest}}
+|-
+|{{plinkt|Radiant oathplate legs}}
+|}
+
+==Gallery==
+<gallery heights="250" style="text-align:left">
+Oathplate armour equipped male.png|Oathplate armour on body type A.
+Oathplate armour equipped female.png|Oathplate armour on body type B.
+Radiant oathplate armour equipped male.png|Radiant oathplate armour on body type A.
+Radiant oathplate armour equipped female.png|Radiant oathplate armour on body type B.
+</gallery>
+
+===Concept art===
+<gallery mode="packed" heights="150" style="text-align:left">
+Oathplate armour concept art.png|Initial concept art of oathplate armour and its upgraded cosmetic variant, by [[Mod Grub]].
+Oathplate armour concept art (alternate colours).png|Concept art exploring alternate colours for both versions of the armour, by Mod Grub.
+Farming & Autocast QoL Improvements (7).png|Revised model for oathplate armour after player feedback.
+Farming & Autocast QoL Improvements (8).png|Revised model for radiant oathplate armour after player feedback.
+</gallery>
+
+==Trivia==
+* Oathplate armour and its radiant counterpart are likely inspired by [https://coppermind.net/wiki/Shardplate Shardplate armour] from ''{{WP|The Stormlight Archive}}'' series of novels by {{WP|Brandon Sanderson}}.{{CiteReddit|author=Mod Arcane|url=https://www.reddit.com/r/2007scape/comments/1kkrsui/comment/mrx812w/|title=YamAMA - Ask the devs about Yama!|quote=[Are you guys huge Sanderson fans? Oathplate radiant etc] Yes, I've read almost all of his books.|date=12 May 2025|archiveurl=https://archive.ph/HaZ8i|archivedate=18 May 2025}}
+
+==References==
+{{Reflist}}
+
+{{Equipment class}}
+{{Yama}}

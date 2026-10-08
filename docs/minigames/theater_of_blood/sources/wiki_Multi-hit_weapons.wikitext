@@ -1,0 +1,100 @@
+{{No official name|multi-hit weapons}}
+'''Multi-hit weapons''' (also called '''double-hitting weapons'''{{CiteNews|url=https://secure.runescape.com/m=news/defender-of-varrock-varlamore-rewards--more?oldschool=1|title=Defender of Varrock, Varlamore Rewards & More|newsdate=31 January 2024|quote='''Double-hitting weapons''' are going to be useful in Perilous Moons}} and '''twin weapons'''{{CiteNews|url=https://secure.runescape.com/m=news/varlamore-the-final-dawn-launches-july-23rd?oldschool=1|title=Varlamore The Final Dawn Launches July 23rd!|newsdate=17 June 2025|quote=This is a two-handed '''twin weapon''' requiring 55 Attack to wield.}}) are [[weapons]] that hit an enemy multiple times in one attack. Some weapons attack multiple times on the same [[game tick]] while others attack multiple times on consecutive game ticks.
+
+Multi-hit weapons are useful when fighting NPCs with negative [[flat armour]], such as the [[Blue Moon]], as the flat damage increase gets applied to each hitsplat separately. They can also be useful for delivering killing blows in [[PvP]].
+
+Multi-hit weapons are not to be confused with weapons such as the [[venator bow]] and spells such as [[Ice Barrage]] that hit multiple enemies in one attack, as these are instead considered [[Multicombat area#Area-of-effect attacks|area-of-effect attacks]].
+
+==List of multi-hit weapons==
+{{Infotable Bonuses|Sulphur blades|Glacial temotli|Earthbound tecpatl|Infernal tecpatl|Torag's hammers#Undamaged|Dual macuahuitl|Dark bow#Regular|Twinflame staff|Tonalztics of Ralos#Charged|Scythe of Vitur#Charged|nototals=yes|attackspeed=yes}}
+
+==Comparison of multi-hit weapons==
+{| class="wikitable sortable mw-collapsible align-center-1 align-center-2"
+|-
+|+ Multi-hit weapons comparison table
+! colspan="2" | Name
+! Requirements
+! Price
+! style="min-width:18em" | Notes
+|-
+! {{plinkt|Sulphur blades}}
+| {{SCP|Attack|55}}
+| {{Coins|{{GEP|Sulphur blades}}}}
+| 
+* Deals [[slash]]-based damage
+* Performs two independently rolled hits per attack, hitting twice on the same game tick. The maximum damage of each hit is determined by calculating the combined max hit as normal and dividing it by two. If the combined max hit is odd, one max hit is rounded up while the other is rounded down (e.g., 45 → 22 + 23).
+|-
+! {{plinkt|Glacial temotli}}
+| {{SCP|Attack|55}}
+| {{Coins|{{GEP|Glacial temotli}}}}
+| 
+* Deals [[crush]]-based damage
+* Performs two independently rolled hits per attack, hitting twice on the same game tick. The maximum damage of each hit is determined by calculating the combined max hit as normal and dividing it by two. If the combined max hit is odd, one max hit is rounded up while the other is rounded down (e.g., 45 → 22 + 23).
+|-
+! {{plinkt|Earthbound tecpatl}}
+| {{SCP|Attack|55}}
+| {{Coins|{{GEP|Earthbound tecpatl}}}}
+| 
+* Deals [[stab]]-based damage
+* Performs two independently rolled hits per attack, hitting twice on the same game tick. The maximum damage of each hit is determined by calculating the combined max hit as normal and dividing it by two. If the combined max hit is odd, one max hit is rounded up while the other is rounded down (e.g., 45 → 22 + 23).
+|-
+! {{plinkt|Torag's hammers}}
+| {{SCP|Attack|70}}, {{SCP|Strength|70}}
+| {{Coins|{{GEP|Torag's hammers}}}}
+|
+* Performs two independently rolled hits per attack, hitting twice on the same game tick. The maximum damage of each hit is determined by calculating the combined max hit as normal and dividing it by two. If the combined max hit is odd, one max hit is rounded up while the other is rounded down (e.g., 45 → 22 + 23).
+* If worn with the rest of [[Torag the Corrupted's equipment]], it offers a set effect which lowers the target's [[run energy]] by 20% (only works on players).
+* Wearing an [[amulet of the damned]] together with the whole equipment set will increase the player's [[Defence]] level according to the amount of damage taken.
+* Like all [[Barrows equipment]], it degrades and will fully degrade after 15 hours of combat. It is repairable.
+|-
+! {{plinkt|Dual macuahuitl}}
+| {{SCP|Attack|70}}, {{SCP|Strength|75}}
+| {{Coins|{{GEP|Dual macuahuitl}}}}
+|
+* Hits twice per attack, spaced one game tick apart when attacking monsters, and dealing damage in two [[hitsplats]], with both hitsplats having their max hit halved. If the player has an odd [[Maximum melee hit|maximum hit]], the first hit's maximum damage will be rounded down and the second hit's will be rounded up, e.g. a maximum hit of 25 will be split into two maximum hits of 12 and 13.
+* Each hitsplat has its own accuracy check, however unlike other two-hit weapons like [[Torag's hammers]] or [[sulphur blades]], where both checks are independent (either can hit or miss without affecting the other, equivalent to two separate hits with a single-hit weapon), the dual macuahuitl checks the two hits sequentially and the second check will only proceed if the first succeeds. If the first accuracy check succeeds, damage will be rolled for the first hit and a second accuracy check will roll for the second hit. If the first accuracy check fails, the second check will not proceed at all and both hits will be zeroes. As a result, "half" of the weapon's DPS functions normally, while the other "half" is reduced due to needing to pass two accuracy checks.
+* If worn with the rest of [[Blood moon armour]] set, it offers a set effect which grants a 33% chance upon a [[successful hit]] to attack one [[tick]] earlier than usual, allowing the player to attack again after 3 ticks. This chance applies to each hit individually, for an effective rate of 55.5% chance if both hits are successful.
+|-
+! {{plinkt|Dark bow}}
+| {{SCP|Ranged|60}}
+| {{Coins|{{GEP|Dark bow}}}}
+|
+* Fires two arrows per attack which roll independent accuracy checks, hitting twice on the same game tick.
+* The slowest weapon in the game, with an [[attack speed]] of 9 (5.4 seconds).
+* Offers a powerful [[special attack]], which if used with [[dragon arrow]]s increases damage dealt by 50% with a minimum hit of 8 (30% with any other arrow type with a minimum. hit of 5). Costs 55% special attack energy.
+|-
+! {{plinkt|Twinflame staff}}
+| {{SCP|Magic|60}}
+| {{Coins|{{GEP|Twinflame staff}}}}
+|
+* When casting [[elemental spells]] ('''excluding''' Strike and Surge), the staff will fire off two spells at once; the second hit will land one tick after the first, dealing 40% of the damage dealt by the first, rounded down.
+* Provides a 10% increase in accuracy and damage when casting spells from the [[standard spellbook]]
+* Automatically casts the appropriate elemental spell for an NPC with a different [[elemental weakness]] than what the player is autocasting, provided that the player has the required runes and Magic level for the selected spell.
+|-
+! {{plinkt|Tonalztics of Ralos}}
+| {{SCP|Ranged|75}}
+| {{Coins|{{GEP|Tonalztics of Ralos (uncharged)}}}}
+|
+* When charged with Sunfire splinters, the weapon will hit twice.
+* Each hit deals 0-75% of total weapon damage.
+* Each hit rolls for accuracy independently.
+|-
+! {{plinkt|Scythe of Vitur}}
+| {{SCP|Attack|80}}, {{SCP|Strength|90}}
+| {{Coins|{{GEP|Scythe of Vitur (uncharged)}}}}
+|
+* Hits 2x2 monsters twice and 3x3 or larger monsters 3 times. Can also hit additional 1x1 targets in front of the wielder in a 1x3 arc.
+* The 2nd hit has 1/2 of the base maximum hit, while the 3rd hit has 1/4 of the base maximum hit.
+* Each hit rolls for accuracy independently.
+|}
+
+==Other==
+[[Karil's crossbow]], when worn with the rest of [[Karil the Tainted's equipment]] and an [[amulet of the damned]], grants a 25% chance for an attack to hit twice, in which case the second hit will inflict half the damage of the first.
+
+Some weapons have [[Special_attacks#Multi-hit|special attacks that hit multiple times in one attack]]. The player must choose to activate these attacks.
+
+==References==
+{{reflist}}
+
+{{Multi-hit weapons}}
+{{Weapon}}

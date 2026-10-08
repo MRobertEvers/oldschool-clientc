@@ -534,8 +534,17 @@ enum
      * away has arrived: four is exactly the point where a second shot in flight
      * kills the swing script. Eight leaves the same headroom for a fight where
      * an npc is being hit by more than one thing.
+     *
+     * Thirty-two since 2026-10-07 (content_bugs): a Normal trio on Bloat -- three
+     * scythes queueing three hits a swing, a Dragon claws special queueing four --
+     * filled eight in one tick and aborted the special ("npc 8359's queue is
+     * full", pvm_dragon_claws.rs2:52/:60, three to four times a room). The
+     * reference has no cap at all: Engine-TS Npc.ts:59 `queue:
+     * LinkList<NpcQueueRequest> = new LinkList()`, :240-243 `enqueueScript` ->
+     * `this.queue.addTail(request)`. 32 is headroom for five raiders' multi-hit
+     * weapons in one tick; overflow still aborts loudly.
      */
-    TORIRSSERVER_NPC_QUEUE_MAX = 8,
+    TORIRSSERVER_NPC_QUEUE_MAX = 32,
     /** Script-owned integer state slots carried by each live npc instance. */
     /* Slots 0..15 are established runtime state; slot 16 is the
      * GiantChinchompa post-special dismissal latch, slot 17 retains the Spirit
@@ -943,6 +952,11 @@ enum
  * for the same reason from the other side.
  */
 #define TORIRSSERVER_XP_MAX_TENTHS 2000000000
+
+/* The immunity after a freeze ends, in ticks: wiki_Freeze.wikitext:9 "The
+ * immunity window for most freezes (with the exception of Grasp spells) is 5
+ * ticks". */
+#define TORIRSSERVER_FREEZE_IMMUNITY_TICKS 5
 
 /*
  * The ceiling a script may raise an npc stat to.
@@ -2546,6 +2560,15 @@ struct ToriRSServerNpc
     int damage_type;
     int hitpoints;
     int max_hitpoints;
+    /**
+     * Hitpoints held for LATER PHASES, which the overhead bar (NPC_INFO HEADBAR)
+     * and the enemy health overlay leave out: they draw
+     * (hitpoints - headbar_reserve) / (max_hitpoints - headbar_reserve). Set by
+     * `npc_setheadbarreserve`; 0 (the spawn's memset) is "none". Verzik's three
+     * phase pools sit end to end on one npc (tob_verzik.rs2), where the game has
+     * one npc and one full bar per phase. `npc_changetype` leaves it alone.
+     */
+    int headbar_reserve;
 
     /**
      * How much a script has drained each stat below the level the content block
@@ -2658,6 +2681,15 @@ struct ToriRSServerNpc
      * is it". Decremented once per npc phase, next to the delay it sits beside.
      */
     int frozen_ticks;
+
+    /**
+     * Ticks left of the immunity that follows a freeze: wiki_Freeze.wikitext:7
+     * "followed by a short immunity to the Status after which the target can
+     * be frozen again", :9 "The immunity window for most freezes (with the
+     * exception of Grasp spells) is 5 ticks". Set when `frozen_ticks` runs
+     * out; while either is above zero `npc_freeze` lands nothing.
+     */
+    int freeze_immune_ticks;
 
     /**
      * What this npc is *doing*, from `npc_setmode` — LostCity's `npcmode`
@@ -3442,6 +3474,12 @@ struct ToriRSServerPlayer
      * and that must be a time rather than an opt-out.
      */
     int32_t last_input_tick;
+    /** A raid plan's own state for the tick log's raider row (`::tlnote
+     *  <text>`, owner_nylocas): the row is the server's, the plan is the
+     *  client's, and a member holds no tick log of its own -- so the plan
+     *  says its state to the server and the leader's log carries it as
+     *  ` state=<text>`. Empty: no note. */
+    char ticklog_note[32];
     /** The overhead-icon bits for the appearance block. Content's, through
      *  HEADICONS_GET/SET — the engine neither knows nor asks which prayer put a
      *  bit here, which is exactly the reference's arrangement
@@ -4482,6 +4520,19 @@ struct ToriRSServer
         uint32_t lives;
     } npc_seed_lives[TORIRSSERVER_NPC_SEED_LIVES];
 
+    /** The run's world seed, mixed into every npc stream `npc_random_seed`
+     *  starts: `ToriRSServer_NpcRunSeedFromName` of TORIRSSERVER_RUN_NAME,
+     *  read once by `ToriRSServer_WorldInit` before the first spawn. Without
+     *  it an npc's rolls were a function of its spawn tile and life alone, so
+     *  every test name replayed one boss and one set of Maiden crab layouts
+     *  per spawn tile (owner, 2026-10-07: each run name is its own scenario,
+     *  deterministic per name). The quest gate sets the variable to the
+     *  account the hosting client logs in as -- a party's leader, so every
+     *  seat shares one seed. 0 is "no run seed": the old tile-and-life
+     *  streams exactly, which is what a server with no run name (or with
+     *  TORIRS_NPC_SEED_LEGACY=1) gets. */
+    uint64_t npc_run_seed;
+
     /** Selftest affordance: nonzero means scripts draw straight from
      *  `script_env->rng` as the test seeded it (`SSVM_EnvSeed`), with no
      *  per-entity swap. Never set outside a selftest. */
@@ -5372,6 +5423,12 @@ enum ToriRSServerTicklogKind
                                          * g=prayer after; label=the trigger (an
                                          * `[opheld*]` script that took the obj
                                          * out of the backpack: eat, drink) */
+    TORIRSSERVER_TICKLOG_HUDBAR,        /* FILE-ONLY. a=slot b=npc type c=the HUD's
+                                         * fill d=the overhead bar's fill e=the bar's
+                                         * width (both fills in its units, -1 for d
+                                         * when the npc draws no bar) f=hitpoints
+                                         * g=max hitpoints; label "hud C/M reserve R"
+                                         * (`npc_hudbar_check`, every boss HUD push) */
     TORIRSSERVER_TICKLOG_KIND_COUNT
 };
 
@@ -5420,7 +5477,7 @@ ToriRSServer_TicklogKindFromName(char const* name);
  * npc said) and on an NPC_HEAL row (the healing script's name); empty on every
  * other kind. 80 is `ToriRSServerNpc.say`'s size, so
  * an NPC_SAY row carries the whole line the client was sent. */
-#define TORIRSSERVER_TICKLOG_LABEL_MAX 80
+#define TORIRSSERVER_TICKLOG_LABEL_MAX 112
 struct ToriRSServerTicklogRow
 {
     uint32_t serial;
@@ -5460,6 +5517,45 @@ ToriRSServer_TicklogStartTick(void);
 /** The path rows are appended to, or NULL. */
 char const*
 ToriRSServer_TicklogPath(void);
+
+/**
+ * Hand every FILE-ONLY row (raider, input, consume) to `fn` as it is written,
+ * whether or not the log has a file; NULL stops it. They never enter the row
+ * array, so ToriRSServer_TicklogRead cannot return them (the bot runner,
+ * torirs_server_botrun.c, streams them to its agent through this).
+ */
+/**
+ * Hand every game message (ToriRSServer_SendMessage) to `fn` before it is
+ * encoded; NULL stops it. The bot runner streams them to its agent.
+ */
+typedef void (*ToriRSServerMessageFn)(const struct ToriRSServerPlayer* player, const char* text,
+                                      void* ctx);
+void
+ToriRSServer_MessageSink(
+    ToriRSServerMessageFn fn,
+    void* ctx);
+
+typedef void (*ToriRSServerTicklogSideFn)(const struct ToriRSServerTicklogRow* row, void* ctx);
+void
+ToriRSServer_TicklogSideSink(
+    ToriRSServerTicklogSideFn fn,
+    void* ctx);
+
+/**
+ * The bot runner's tick inside a hosting world (torirs_server_botrun.c): an
+ * agent process (shell command) decides for every player in the world, its
+ * commands entering as those players' packets. Step before each world tick.
+ * POSIX hosts only; elsewhere Start answers NULL.
+ */
+struct ToriRSServerBotDrive;
+struct ToriRSServerBotDrive*
+ToriRSServer_BotDriveStart(
+    struct ToriRSServer* srv,
+    const char* agent);
+void
+ToriRSServer_BotDriveStep(struct ToriRSServerBotDrive* drive);
+void
+ToriRSServer_BotDriveStop(struct ToriRSServerBotDrive* drive);
 
 /** Rows recorded so far (the last serial). */
 uint32_t
@@ -5552,6 +5648,9 @@ void ToriRSServer_TicklogLocAnim(const struct ToriRSServer* srv, int coord, int 
 void ToriRSServer_TicklogNpcSay(const struct ToriRSServerNpc* npc, char const* text);
 void ToriRSServer_TicklogNpcHeal(const struct ToriRSServerNpc* npc, int gained, int after,
                                  int base, char const* source);
+/** File-only HUDBAR row: the HUD's fill against the overhead bar's, see the kind. */
+void ToriRSServer_TicklogHudbar(const struct ToriRSServerNpc* npc, int hud_fill, int head_fill,
+                                int width, int hud_cur, int hud_max);
 /** Once per tick, after phase_players: a PLAYER_TILE row for every logged-in
  *  player and an NPC_TILE row for every npc within 32 tiles of a player whose
  *  tile changed since the last row it got. */
@@ -5805,6 +5904,16 @@ ToriRSServer_HealthbarInfoCount(void);
  *  so it is always safe to divide by. */
 int
 ToriRSServer_HealthbarWidth(int id);
+
+/**
+ * The overhead bar's fill for this npc, in its bar's width units, and that
+ * width through `width_out`: (hitpoints - headbar_reserve) * width /
+ * (max_hitpoints - headbar_reserve), clamped to 0..width. -1 when the npc
+ * draws no overhead bar (`healthbar=null`, or no maximum). The NPC_INFO
+ * HEADBAR encoder sends exactly this number.
+ */
+int
+ToriRSServer_NpcHeadbarFill(const struct ToriRSServerNpc* npc, int* width_out);
 
 /** class381 var10: the fill denominator when a record states no opcode 14. */
 #define TORIRSSERVER_HEALTHBAR_DEFAULT_WIDTH 30
@@ -6147,6 +6256,13 @@ ToriRSServer_WorldPlayerRandom(struct ToriRSServerPlayer* player);
  *  entity's script stream starts where a seeded env would. */
 uint64_t
 ToriRSServer_RandomScriptSeed(uint64_t seed);
+
+/** A run name's npc world seed (`ToriRSServer.npc_run_seed`): a 64-bit hash
+ *  of the whole name, case folded as a login is, never 0. Every character
+ *  counts -- unlike `name37`, two names that share their first 12 still
+ *  differ. */
+uint64_t
+ToriRSServer_NpcRunSeedFromName(const char* name);
 
 /** An npc reached zero hitpoints: run its drop table and leave the loot. */
 /** Spawn an npc and return its slot, or -1. `npc_add`'s entry point. */

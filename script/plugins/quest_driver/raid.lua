@@ -1078,6 +1078,45 @@ function QD.party.barrier(name, timeout_ticks)
         name, size, QD.party.role(), frames, ticks)
 end
 
+-- t.party.publish_target(slot) / t.party.others_on(slot, ticks): each seat's
+-- current target on the party link (owner_nylocas, 2026-10-07: "share each
+-- seat's chosen copy between the seats" -- a trio's sight and convention, here
+-- the link). A seat marks <run dir>/barrier.tgt_t<tick>_s<slot>.p<n> (the
+-- barrier files, api_drive.barrier_mark); a mark counts from the lockstep
+-- boundary after it was written, so a target published on tick t is read by
+-- the others from t+1 -- the same on every run. others_on answers the roles
+-- (a list, possibly empty) of the OTHER seats that published `slot` on any of
+-- the last `ticks` ticks before this one. Driver state, not game state.
+function QD.party.publish_target(slot)
+    assert(type(slot) == "number")
+    if QD.party.size() <= 1 or slot < 0 then
+        return "ok"
+    end
+    return api_drive.barrier_mark(string.format("barrier.tgt_t%d_s%d.p%d", api_drive.tick(), slot, QD.party.role()))
+end
+
+function QD.party.others_on(slot, ticks)
+    assert(type(slot) == "number")
+    assert(type(ticks) == "number")
+    local roles = {}
+    local size = QD.party.size()
+    if size <= 1 or slot < 0 then
+        return roles
+    end
+    local me, now = QD.party.role(), api_drive.tick()
+    for n = 1, size do
+        if n ~= me then
+            for t = now - ticks, now - 1 do
+                if api_drive.barrier_present(string.format("barrier.tgt_t%d_s%d.p%d", t, slot, n)) == "ok" then
+                    roles[#roles + 1] = n
+                    break
+                end
+            end
+        end
+    end
+    return roles
+end
+
 function QD.party._rows_text(rows)
     local parts = {}
     for _, r in ipairs(rows) do

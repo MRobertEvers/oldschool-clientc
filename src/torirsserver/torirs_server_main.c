@@ -107,7 +107,10 @@ main(
     /* --selftest: run the game logic with no socket and exit. Detected before
      * the port parse because atoi("--selftest") is 0. */
     int selftest = argc > 1 && strcmp(argv[1], "--selftest") == 0;
-    int port = (argc > 1 && !selftest) ? atoi(argv[1]) : TORIRSSERVER_DEFAULT_PORT;
+    /* --botrun: a party of sessionless bots driven by an agent process, no
+     * socket (torirs_server_botrun.c). Also before the port parse. */
+    int botrun = argc > 1 && strcmp(argv[1], "--botrun") == 0;
+    int port = (argc > 1 && !selftest && !botrun) ? atoi(argv[1]) : TORIRSSERVER_DEFAULT_PORT;
     int listener = -1;
     int reuse = 1;
     /* What the startup line reports, so it names where the socket actually
@@ -199,7 +202,7 @@ main(
      * A bind failure still means "someone else holds this port", and now says so
      * a second sooner, which is what run-live.sh's already-running check reads.
      */
-    if( !selftest )
+    if( !selftest && !botrun )
     {
         listener = (int)socket(AF_INET, SOCK_STREAM, 0);
         if( listener < 0 )
@@ -323,6 +326,14 @@ main(
      * Boot is the honest place — the server is not claiming to be ready yet.
      */
     ToriRSServer_ScriptsLoad(&srv, config.script_dir);
+
+    if( botrun )
+    {
+        status = ToriRSServer_BotRun(&srv, &config, argc, argv);
+        ToriRSServer_ScriptsFree(&srv);
+        ToriRSServer_BootFree();
+        return status;
+    }
 
     /* Listening since before the loaders ran; this is where it starts accepting. */
     fprintf(stderr,

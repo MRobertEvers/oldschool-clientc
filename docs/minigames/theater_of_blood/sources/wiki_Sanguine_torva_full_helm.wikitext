@@ -1,0 +1,104 @@
+{{Infobox Item
+|name = Sanguine torva full helm
+|image = [[File:Sanguine torva full helm.png]]
+|release = [[28 July]] [[2023]]
+|update = Desert Treasure II - The Fallen Empire
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = Yes
+|stackable = No
+|noteable = No
+|options = Wear, Revert
+|examine = An ancient warrior's full helm.
+|value = 200000
+|weight = 2.721
+|id = 28254
+}}
+[[File:Sanguine torva full helm detail.png|left|120px]]
+[[File:Sanguine torva full helm chathead.png|left]]
+The '''sanguine torva full helm''' is a [[Torva full helm]] modified by an [[ancient blood ornament kit]] and 20,000 [[blood rune]]s; the kit is not consumed. The ornament gives no additional bonuses, and is purely cosmetic.
+
+While the item is untradeable in its sanguine state, it can be reverted anytime. However, the blood runes will not be returned.
+
+==Combat stats==
+{{Infobox Bonuses
+|astab = 0
+|aslash = 0
+|acrush = 0
+|amagic = -5
+|arange = -5
+|dstab = 59
+|dslash = 60
+|dcrush = 62
+|dmagic = -2
+|drange = 57
+|str = 8
+|rstr = 0
+|mdmg = 0
+|prayer = 1
+|slot = head
+|image = [[File:Sanguine torva full helm equipped male.png|140px]]
+|altimage = [[File:Sanguine torva full helm equipped female.png|130px]]
+}}
+
+==Creation==
+{{Recipe
+|skill1 = Magic
+|skill1lvl = 0
+|skill1boostable = 
+|skill1exp = 500
+|members = Yes
+|ticks = 
+|mat1 = Torva full helm
+|mat2 = Ancient blood ornament kit
+|mat2cost = No
+|mat3 = Blood rune
+|mat3quantity = 20000
+|output1 = Sanguine torva full helm
+|output1cost = No
+}}
+
+==Gallery==
+<gallery heights="250" style="text-align:left">
+Sanguine torva armour equipped male.png|The full Sanguine Torva armour set on body type A.
+Sanguine torva armour equipped female.png|The full Sanguine Torva armour set on body type B.
+Ancient blood ornament kit creation.webp|A player creating a piece of Sanguine Torva.
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 3 August 2023
+|update = Desert Treasure II - Tweaks and Drop Rates
+|change = 
+* The item models for Sanguine Torva armour have been [[graphically updated]] to match the [[:File:Desert Treasure II - Awakened Bosses, Blood Torva & Old School's Art (3).jpg|reworked version]] shared in the [[Update:Desert Treasure II - Awakened Bosses, Blood Torva & Old School's Art|newspost]] on 12 July 2023.
+* Sanguine Torva armour now has the correct graphics when equipped by a female character.
+}}
+{{Subject changes
+|date = 28 July 2023
+|update = Desert Treasure II - The Fallen Empire
+|poll = Awakened DT2 Bosses & Poll 80
+|change = The item is now obtainable.
+}}
+{{Subject changes
+|date = 26 July 2023
+|update = Desert Treasure II - The Fallen Empire
+|change = The item was added to the game, but was unobtainable.
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="15"
+|[[File:Sanguine torva full helm v1 detail.png|center|300x150px]]
+|[[File:Sanguine torva full helm detail.png|center|300x150px]]
+|-
+|[[File:Sanguine torva full helm v1.png|center]]
+|[[File:Sanguine torva full helm.png|center]]
+|-
+|26 July 2023 –<br/>3 August 2023
+|3 August 2023 –<br/>present
+|}
+
+{{The Forgotten Four}}
+{{Melee headgear}}

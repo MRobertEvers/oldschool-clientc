@@ -1,0 +1,107 @@
+{{External|rs}}
+[[File:Torva full helm chathead.png|left]]
+'''Torva armour''' is a set of equipment named after the [[Zaros]]ian warrior [[Torva (character)|Torva]] requiring level 80 [[Defence]] to equip. The individual armour pieces are obtainable only as rewards from [[Nex]].
+
+The pieces of armour are dropped in a broken state, and must be repaired using [[Bandosian components]] made by breaking down [[Bandos chestplate]]s and [[Bandos tassets|tassets]]. Breaking down the components can only be performed at the [[Ancient Forge]] within the [[God Wars Dungeon]]'s [[God Wars Dungeon#Ancient Prison|Ancient Prison]].
+
+Torva armour has the highest strength bonus out of all strength boosting armour, alongside reasonable melee and ranged defence.
+
+==Components==
+{{CostTableHead}}
+{{CostLine|Torva full helm}}
+{{CostLine|Torva platebody}}
+{{CostLine|Torva platelegs}}
+{{CostTableBottom|total=y|compare=Torva armour set}}
+
+==Components (damaged)==
+{{CostTableHead}}
+{{CostLine|Torva full helm (damaged)}}
+{{CostLine|Torva platebody (damaged)}}
+{{CostLine|Torva platelegs (damaged)}}
+{{CostLine|Bandosian components|5|txt=Bandosian components x5}}
+{{CostTableBottom|total=y}}
+
+==Bonuses==
+{{Infotable Bonuses|Torva full helm#Restored|Torva platebody#Restored|Torva platelegs#Restored}}
+
+==Sanguine torva==
+Torva armour pieces can be cosmetically enhanced via the [[ancient blood ornament kit]] into [[sanguine torva armour]]. This requires the player to have defeated the awakened versions of [[Vardorvis]], [[The Leviathan]], [[The Whisperer]], and [[Duke Sucellus]] at least once. The kit has unlimited uses, though converting a piece of torva armour into its sanguine variant requires an additional 20,000 [[blood rune]]s.
+
+{| class="wikitable align-center-1"
+! colspan="2" | Item
+|-
+|{{plinkt|Sanguine torva full helm}}
+|-
+|{{plinkt|Sanguine torva platebody}}
+|-
+|{{plinkt|Sanguine torva platelegs}}
+|}
+
+==Gallery==
+<gallery heights="250" style="text-align:left">
+Torva armour equipped male.png|Torva armour on body type A.
+Torva armour equipped female.png|Torva armour set on body type B.
+Sanguine torva armour equipped male.png|Sanguine Torva armour on body type A.
+Sanguine torva armour equipped female.png|Sanguine Torva armour on body type B.
+</gallery>
+
+==Historical==
+Torva armour was one of the original rewards from Nex upon its release in ''RuneScape 2'', along with [[Virtus robes]] and {{RSL|Pernix armour}}; the robes would later be obtainable in ''Old School RuneScape'' as drops from [[The Forgotten Four]] after completion of [[Desert Treasure II - The Fallen Empire]].
+
+Compared to ''Old School RuneScape''{{'}}s version of the set, the original set had several differences:
+* Having the armour equipped made all factions in the [[God Wars Dungeon]] unaggressive, rather than just Zarosian NPCs.
+* The armour lasted for 15 hours in combat before needing to be repaired, and each piece of the set boosted Hitpoints by a certain amount, equal to 40 Hitpoints:
+{| class="wikitable"
+|+RuneScape 2 (pre-EoC) stats
+! colspan="2" |Item
+!Hitpoints boost
+!Base repair cost
+!Skill requirements
+|-
+|{{Plinkt|Torva full helm}}
+|6.6
+|{{Coins|500,000}}
+| rowspan="3" |{{SCP|Hitpoints|80}} {{SCP|Strength|80}} {{SCP|Defence|80}}
+|-
+|{{plinkt|Torva platebody}}
+|20
+|{{Coins|2,000,000}}
+|-
+|{{plinkt|Torva platelegs}}
+|13.4
+|{{Coins|1,000,000}}
+|}
+
+The armour had the following bonuses:
+{{Infotable Bonuses header}}
+{{Infotable Bonuses row|name=Torva full helm|astab=0|aslash=0|acrush=0|amagic=-7|arange=-3|dstab=+68|dslash=+73|dcrush=+65|dmagic=-2|drange=+74|str=+3|prayer=+1|rstr=0|mdmg=0}}
+{{Infotable Bonuses row|name=Torva platebody|astab=0|aslash=0|acrush=0|amagic=-31|arange=-11|dstab=+156|dslash=+140|dcrush=+120|dmagic=-10|drange=+160|str=+4|prayer=+1|rstr=0|mdmg=0}}
+{{Infotable Bonuses row|name=Torva platelegs|astab=0|aslash=0|acrush=0|amagic=-21|arange=-8|dstab=+112|dslash=+100|dcrush=+95|dmagic=-5|drange=+125|str=+2|prayer=+1|rstr=0|mdmg=0}}
+{{Infotable Bonuses totals}}
+{{Infotable Bonuses footer}}
+
+===Appearance===
+The appearance of Torva armour was graphically updated on 3 August 2023, as it was believed to have clashed with the "simple and bold aesthetics" of Old School's art style. The level of detail of the original was designed for the larger world scale of ''RuneScape'', and thus was believed to have appeared "cluttered and out-of place".
+
+A non-trivial number of players disagreed with said change, mostly due to nostalgia towards its iconic appearance in its original release in RuneScape 2 in 2011. As such, [[unobtainable]] variants of the [[Torva full helm (unobtainable item)|full helm]], [[Torva platebody (unobtainable item)|platebody]], and [[Torva platelegs (unobtainable item)|platelegs]] were released as a compromise to allow the third party client [[RuneLite]] to use the assets for various plugins which changed the appearance of the player character (such as [https://runelite.net/plugin-hub/show/fashionscape Fashionscape] and [https://runelite.net/plugin-hub/show/weapon-animation-replacer Weapon/Gear/Animation Replacer]), although other players would not be able to see said player overriding their appearance:
+
+<gallery heights="250" style="text-align:left">
+Torva armour (retro) equipped male.png|The retro Torva armour set on body type A.
+Torva armour (retro) equipped female.png|The retro Torva armour set on body type B.
+</gallery>
+
+Prior to Torva armour's graphical update, a [[Update:Desert Treasure II - Awakened Bosses, Blood Torva & Old School's Art|newspost]] was released detailing the reasons for the change, as well as proposed alterations to the design:
+<gallery mode="packed" heights="140px">
+Nex Rewards - Updated (1).png|''8 November 2021''<br/>The first design is made public in the [[Update:Nex Rewards - Updated|Nex Rewards]] blog.
+Nex Rewards - Updated (2).png|''12 November 2021''<br/>A second design replaces the first in an updated blog post.
+Poll 76 Game Improvements Blog (1).png|''10 February 2022''<br/>A simplified version is scrapped from [[Update:Poll 76 Game Improvements Blog|poll 76]].
+Desert Treasure II - Awakened Bosses, Blood Torva & Old School's Art (5).png|''12 July 2023''<br/>A rework of the armour set is presented in the [[Update:Desert Treasure II - Awakened Bosses, Blood Torva & Old School's Art|blood torva poll blog]].
+Desert Treasure II - Awakened Bosses, Blood Torva & Old School's Art (6).gif|''12 July 2023''<br/>An all-around view of the design.
+Desert Treasure II - Awakened Bosses, Blood Torva & Old School's Art (7).jpg|''14 July 2023''<br/>The final iteration is added to the poll blog after integrating feedback.
+Desert Treasure II Changes & More (2).png|''16 August 2023''<br/>An [[Update:Desert Treasure II Changes & More|update]] brings adjustments to the waist and neck area.
+</gallery>
+
+{{God Wars Dungeon}}
+{{Prayer items}}
+{{Equipment class}}
+[[Category:Upgraded equipment]]

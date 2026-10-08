@@ -145,6 +145,15 @@ static char const* const DRIVE_SCRIPT_PARTS[] = {
      * (docs/minigames/raid_loop/PLAY_NOTES.md). After raid.lua: the loop
      * reads QD.party (raid.lua) and QD.ticklog.rows as raid.lua wrapped it. */
     "plugins/quest_driver/raid_play.lua",
+    /* raid seam53 play_state_machines: the state machine layer the room
+     * plans declare their roles on (QD.raid.sm_declare).  After
+     * raid_play.lua, whose QD.raid._play_fold it folds a state's intents
+     * with, and before every room plan, which declare at load time. */
+    "plugins/quest_driver/raid_sm.lua",
+    /* raid seam54 move_arbiter: the one movement decision a tick
+     * (QD.raid.move.solve); pure, before the room plans that build its
+     * queries. */
+    "plugins/quest_driver/raid_move.lua",
     "plugins/quest_driver/raid_play_tob_maiden.lua",
     "plugins/quest_driver/raid_play_tob_bloat.lua",
     "plugins/quest_driver/raid_play_tob_nylocas.lua",
@@ -1908,6 +1917,7 @@ PluginDrive_FrameBoundary(void)
 }
 
 static void drive_launch_member_pump(struct lua_State* L);
+static void drive_own_animation_watch(void);
 
 static int
 lua_drive_pump(struct lua_State* L)
@@ -1929,6 +1939,10 @@ lua_drive_pump(struct lua_State* L)
      * and status (nothing at all in a client started without either). */
     if( g_app )
         drive_launch_member_pump(L);
+    /* Raid seam48: every frame, so no start of the player's own action seq
+     * goes unseen between two of the script's reads. */
+    if( g_app )
+        drive_own_animation_watch();
     if( PluginDrive_OnDemand() )
     {
         /* On demand nothing starts at world-ready: a start api.drive.start
@@ -3597,8 +3611,164 @@ lua_drive_barrier_present(struct lua_State* L)
     return PluginDrive_PushResult(L, DRIVE_OK, NULL);
 }
 
+/* ------------------------------------------------------- own swing watch
+ *
+ * Raid seam48 member_swings_seen.  What a person at the screen sees of
+ * their OWN character: the action sequence it starts playing, and when.  A
+ * party member has no tick log (the world's one log lives with the leader),
+ * so before this the play library COUNTED a phantom swing every
+ * weapon-speed ticks of engagement and never re-pressed after the server
+ * stopped its swings (seam42 _play_bloat: p3 in reach with no input for 20
+ * ticks of a down, twice).
+ *
+ * Watched once a frame from lua_drive_pump, off the local player's DRAWN
+ * action track (animation.primary): a start is the track taking a new seq,
+ * or the same seq going back to an earlier frame without its loop counter
+ * rising (world_apply_primary_animation's RestartMode.RESET re-send, or the
+ * seq ending and being sent again between two pumps).  It is the draw, not
+ * the wire: a seq refused by a higher-priority incumbent, or re-sent while
+ * still playing under RestartMode.RESETLOOP, shows no start -- exactly what
+ * the person sees.  The start cycle is the detecting cycle less the cycles
+ * the track already ran in its first frame; a start found past frame 0 (a
+ * pump stalled longer than a frame) is stamped at detection.  Reset only by
+ * a new process: the reader keys on `starts`, never on an absolute. */
+#define DRIVE_OWN_ANIMATION_HISTORY 8
+
+struct DriveOwnAnimationStart
+{
+    int seq;         /**< the action seq that started */
+    int start_cycle; /**< world cycle it started on */
+};
+
+struct DriveOwnAnimation
+{
+    /** The newest DRIVE_OWN_ANIMATION_HISTORY starts, a ring indexed by
+     *  start number: a swing and the block seq a hit plays over it inside
+     *  one tick are both read by a script that reads once a tick. */
+    struct DriveOwnAnimationStart history[DRIVE_OWN_ANIMATION_HISTORY];
+    int starts;      /**< how many starts this process has seen */
+    int drawn;       /**< the track's seq at the last watch; -1 none */
+    int frame;       /**< the track's frame at the last watch */
+    int cycle;       /**< the track's per-frame accumulator at the last watch */
+    int loop;        /**< the track's loop counter at the last watch */
+};
+
+static struct DriveOwnAnimation g_own_animation = { .drawn = -1 };
+
+/* The local player's entity-pool index, the way drive_pointer_local_player
+ * finds it: the entity sync's slot for local_pid (2047 before the server
+ * named one).  -1 when this client has not placed itself yet. */
+static int
+drive_local_player_index(void)
+{
+    int local_idx = -1;
+
+    assert(g_app);
+    if( !RS_EntitySync_FindPlayer(&g_app->esync,
+            g_app->esync.local_pid >= 0 ? g_app->esync.local_pid : 2047, &local_idx, NULL) )
+        return -1;
+    return local_idx;
+}
+
+static void
+drive_own_animation_watch(void)
+{
+    struct WorldEntity_Player const* player;
+    struct WorldEntityFacet_AnimationStep const* track;
+    int idx;
+    int drawn;
+    int restarted;
+
+    assert(g_app);
+    if( !g_app->world )
+        return; /* before login: nothing is drawn yet */
+    idx = drive_local_player_index();
+    if( idx < 0 )
+        return;
+    player = World_EntityPoolGet(&g_app->world->entities.player, idx);
+    if( !player )
+        return;
+    track = &player->animation.primary;
+    /* world_cycle.c's anim_step_active: 0xFFFF and 0 both mean "no action
+     * track" (a fresh entity's zeroed track is 0). */
+    drawn = (track->anim_id == (uint16_t)-1 || track->anim_id == 0) ? -1 : (int)track->anim_id;
+    restarted = drawn >= 0 && drawn == g_own_animation.drawn && track->loop <= g_own_animation.loop &&
+                (track->frame < g_own_animation.frame ||
+                    (track->frame == g_own_animation.frame && track->cycle < g_own_animation.cycle));
+    if( drawn >= 0 && (drawn != g_own_animation.drawn || restarted) )
+    {
+        struct DriveOwnAnimationStart* start =
+            &g_own_animation.history[g_own_animation.starts % DRIVE_OWN_ANIMATION_HISTORY];
+        start->seq = drawn;
+        start->start_cycle = g_app->world->cycle - (track->frame == 0 ? (int)track->cycle : 0);
+        g_own_animation.starts++;
+    }
+    g_own_animation.drawn = drawn;
+    g_own_animation.frame = track->frame;
+    g_own_animation.cycle = track->cycle;
+    g_own_animation.loop = track->loop;
+}
+
+/* The `me` row's own-animation fields: seq and seq_tick (the newest start,
+ * -1 before the first; the tick in api_drive.tick's client ticks),
+ * seq_starts (how many starts this process has seen) and seq_history (the
+ * newest starts, oldest first, as {n, seq, tick, age}; n counts from 1, age
+ * is the world cycles since the start -- the reader puts a start on its own
+ * tick axis by age, not by flooring two cycles that straddle a boundary). */
+static void
+drive_push_own_animation(struct lua_State* L)
+{
+    int first;
+    int k;
+    int row = 0;
+
+    assert(L);
+    assert(g_app);
+    assert(g_app->world);
+    if( g_own_animation.starts > 0 )
+    {
+        struct DriveOwnAnimationStart const* newest =
+            &g_own_animation.history[(g_own_animation.starts - 1) % DRIVE_OWN_ANIMATION_HISTORY];
+        lua_pushinteger(L, newest->seq);
+        lua_setfield(L, -2, "seq");
+        lua_pushinteger(L, (lua_Integer)(newest->start_cycle / APP_SERVER_TICK_LOGIC_CYCLES));
+        lua_setfield(L, -2, "seq_tick");
+    }
+    else
+    {
+        lua_pushinteger(L, -1);
+        lua_setfield(L, -2, "seq");
+        lua_pushinteger(L, -1);
+        lua_setfield(L, -2, "seq_tick");
+    }
+    lua_pushinteger(L, g_own_animation.starts);
+    lua_setfield(L, -2, "seq_starts");
+    first = g_own_animation.starts - DRIVE_OWN_ANIMATION_HISTORY;
+    if( first < 0 )
+        first = 0;
+    lua_createtable(L, g_own_animation.starts - first, 0);
+    for( k = first; k < g_own_animation.starts; k++ )
+    {
+        struct DriveOwnAnimationStart const* start =
+            &g_own_animation.history[k % DRIVE_OWN_ANIMATION_HISTORY];
+        lua_createtable(L, 0, 4);
+        lua_pushinteger(L, k + 1);
+        lua_setfield(L, -2, "n");
+        lua_pushinteger(L, start->seq);
+        lua_setfield(L, -2, "seq");
+        lua_pushinteger(L, (lua_Integer)(start->start_cycle / APP_SERVER_TICK_LOGIC_CYCLES));
+        lua_setfield(L, -2, "tick");
+        lua_pushinteger(L, (lua_Integer)(g_app->world->cycle - start->start_cycle));
+        lua_setfield(L, -2, "age");
+        lua_rawseti(L, -2, ++row);
+    }
+    lua_setfield(L, -2, "seq_history");
+}
+
 /* api_drive.players() -> result, rows: every player in THIS client's entity
- * pool -- the raiders it can see -- as {name, x, z, level, pid, me}. The tile
+ * pool -- the raiders it can see -- as {name, x, z, level, pid, me, anim}, the
+ * `me` row also {seq, seq_tick, seq_starts, seq_history} (raid seam48,
+ * drive_push_own_animation). The tile
  * is the world tile (scene base + grid), `me` marks the local player. A read
  * of what the client was sent, so it works on a party member as on the
  * leader; t.party.players (raid.lua) filters it by radius. */
@@ -3608,16 +3778,12 @@ lua_drive_players(struct lua_State* L)
     struct World_EntityPool* pool;
     int i;
     int n = 0;
-    int local_idx = -1;
+    int local_idx;
 
     assert(g_app);
     if( !g_app->world )
         return PluginDrive_PushResult(L, DRIVE_NOT_FOUND, NULL);
-    /* The local player the way drive_pointer_local_player finds it: the
-     * entity sync's slot for local_pid (2047 before the server named one). */
-    if( !RS_EntitySync_FindPlayer(&g_app->esync,
-            g_app->esync.local_pid >= 0 ? g_app->esync.local_pid : 2047, &local_idx, NULL) )
-        local_idx = -1;
+    local_idx = drive_local_player_index();
     lua_pushstring(L, DriveResultName(DRIVE_OK));
     lua_newtable(L);
     pool = &g_app->world->entities.player;
@@ -3639,6 +3805,17 @@ lua_drive_players(struct lua_State* L)
         lua_setfield(L, -2, "pid");
         lua_pushboolean(L, i == local_idx);
         lua_setfield(L, -2, "me");
+        /* Raid seam48: the action seq this player's model is drawing (-1
+         * none), and on the `me` row what its own screen saw it START
+         * (g_own_animation): seq, the client tick it started on and how many
+         * starts this process has seen (a reader keys a new swing on it). */
+        lua_pushinteger(L, (player->animation.primary.anim_id == (uint16_t)-1 ||
+                               player->animation.primary.anim_id == 0)
+                               ? -1
+                               : (lua_Integer)player->animation.primary.anim_id);
+        lua_setfield(L, -2, "anim");
+        if( i == local_idx )
+            drive_push_own_animation(L);
         lua_rawseti(L, -2, ++n);
     }
     return 2;

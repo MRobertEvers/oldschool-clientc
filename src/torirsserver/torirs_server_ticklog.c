@@ -95,6 +95,7 @@ static char const* const k_kind_names[TORIRSSERVER_TICKLOG_KIND_COUNT] = {
     [TORIRSSERVER_TICKLOG_RAIDER] = "raider",
     [TORIRSSERVER_TICKLOG_INPUT] = "input",
     [TORIRSSERVER_TICKLOG_CONSUME] = "consume",
+    [TORIRSSERVER_TICKLOG_HUDBAR] = "hudbar",
 };
 
 /* A SOUND row's label: where the send came from (the npc source adds the
@@ -229,6 +230,21 @@ ticklog_push_row(
  * kept room's ledger with it. Its serial column repeats the last real row's,
  * which keeps the file in order. t.ticklog.rows() does not see these.
  */
+/* The bot runner's reader of the file-only rows (ToriRSServer_TicklogSideSink):
+ * an agent needs the raider row's hitpoints and prayer as much as a ledger
+ * reader does, and the row array must not hold them. */
+static ToriRSServerTicklogSideFn g_side_fn;
+static void* g_side_ctx;
+
+void
+ToriRSServer_TicklogSideSink(
+    ToriRSServerTicklogSideFn fn,
+    void* ctx)
+{
+    g_side_fn = fn;
+    g_side_ctx = ctx;
+}
+
 static void
 ticklog_write_side(
     int kind,
@@ -245,7 +261,7 @@ ticklog_write_side(
 
     assert(g_ticklog.srv);
     assert(label);
-    if( !g_ticklog.out )
+    if( !g_ticklog.out && !g_side_fn )
         return;
     memset(&row, 0, sizeof(row));
     row.serial = (uint32_t)g_ticklog.count;
@@ -264,7 +280,10 @@ ticklog_write_side(
         if( row.label[i] == '\t' || row.label[i] == '\n' || row.label[i] == '\r' )
             row.label[i] = ' ';
     }
-    ticklog_write_row(&row);
+    if( g_side_fn )
+        g_side_fn(&row, g_side_ctx);
+    if( g_ticklog.out )
+        ticklog_write_row(&row);
 }
 
 static uint32_t
@@ -922,10 +941,14 @@ ticklog_raider_row(
         target = player->interaction.npc_slot;
     input = player->last_input_tick != g_ticklog.input_seen[player->pid];
     g_ticklog.input_seen[player->pid] = player->last_input_tick;
-    snprintf(label, sizeof(label), "hpmax %d prmax %d head %d input %d tgt %d",
+    /* `energy` / `run`: the run energy (0..TORIRSSERVER_RUN_ENERGY_MAX) and the
+     * run orb, so a seat that ran dry and walks shows as such (raid loop: the
+     * owner's "are all players running?"). */
+    snprintf(label, sizeof(label), "hpmax %d prmax %d head %d input %d tgt %d energy %d run %d%s%s",
              player->stat_level[TORIRSSERVER_STAT_HITPOINTS],
              player->stat_level[TORIRSSERVER_STAT_PRAYER], player->headicons,
-             input, target);
+             input, target, player->run_energy, player->run_toggle,
+             player->ticklog_note[0] ? " state=" : "", player->ticklog_note);
     ticklog_write_side(TORIRSSERVER_TICKLOG_RAIDER, player->pid,
                        player->stat_boosted[TORIRSSERVER_STAT_HITPOINTS],
                        player->stat_boosted[TORIRSSERVER_STAT_PRAYER],
@@ -1034,3 +1057,33 @@ ToriRSServer_TicklogSetDealerNpc(int slot)
 {
     g_ticklog.dealer_npc = slot;
 }
+
+/*
+ * The room HUD against the overhead bar, one row per boss HUD push. FILE-ONLY
+ * (no serial moves; see ticklog_write_side). The raid gate reads these rows
+ * and fails a room whose two bars ever disagree (tools/quest_gate/gate.py).
+ */
+void
+ToriRSServer_TicklogHudbar(
+    const struct ToriRSServerNpc* npc,
+    int hud_fill,
+    int head_fill,
+    int width,
+    int hud_cur,
+    int hud_max)
+{
+    char label[64];
+    int slot;
+
+    if( !g_ticklog.srv )
+        return;
+    assert(npc);
+    slot = ticklog_npc_slot(npc);
+    if( slot < 0 )
+        return;
+    snprintf(label, sizeof(label), "hud %d/%d reserve %d", hud_cur, hud_max,
+             npc->headbar_reserve);
+    ticklog_write_side(TORIRSSERVER_TICKLOG_HUDBAR, slot, npc->type, hud_fill, head_fill, width,
+                       npc->hitpoints, npc->max_hitpoints, label);
+}
+

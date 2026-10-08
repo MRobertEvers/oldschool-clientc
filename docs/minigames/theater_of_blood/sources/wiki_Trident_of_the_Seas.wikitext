@@ -1,0 +1,332 @@
+{{Infobox Item
+|defver = 3
+|version1 = Uncharged
+|version2 = Partially charged
+|version3 = Charged
+|name1 = Uncharged trident
+|name2 = Trident of the Seas
+|name3 = Trident of the Seas (full)
+|image1 = [[File:Uncharged trident.png]]
+|image2 = [[File:Trident of the Seas.png]]
+|image3 = [[File:Trident of the Seas (full).png]]
+|release = [[30 January]] [[2014]]
+|update = Release the Kraken!
+|members = Yes
+|quest = No
+|tradeable1 = Yes
+|tradeable2 = No
+|tradeable3 = Yes
+|equipable = Yes
+|stackable = No
+|noteable1 = Yes
+|noteable2 = No
+|noteable3 = Yes
+|options1 = Wield, Check, Drop
+|options2 = Wield, Check, Uncharge, Drop
+|options3 = Wield, Check, Uncharge, Drop
+|wornoptions = Check
+|examine1 = It needs to be charged with death runes, chaos runes, fire runes and coins.
+|examine2 = A weapon from the deep.
+|examine3 = A weapon from the deep.
+|value1 = 68000
+|value2 = 68500
+|value3 = 69000
+|weight = 1.814
+|exchange1 = Yes
+|exchange2 = No
+|exchange3 = Yes
+|id1 = 11908
+|id2 = 11907
+|id3 = 11905
+|leagueRegion = Kandarin,Tirannwn
+}}
+{{Synced switch
+|version1 = [[File:Uncharged trident detail.png|left|150x150px]]
+|version2 = [[File:Trident of the Seas detail.png|left|150px]]
+|version3 = [[File:Trident of the Seas (full) detail.png|left|150x150px]]
+}}
+The '''trident of the seas''' is a one-handed [[powered staff]] requiring 75 [[Magic]] to wield. Once charged with runes and coins, it can be used to attack with a built-in magic spell regardless of the player’s current [[spellbook]].
+
+It is available as a task-only drop from [[cave kraken]]s (or the [[kraken]] boss) with level 87 [[Slayer]]; normal cave krakens can drop an uncharged trident, whereas the kraken boss can drop a fully charged one. Similar to [[Barrows equipment]], the trident is only tradeable when either uncharged or fully charged.
+
+The trident of the seas has the same effect in [[drift net fishing]] as the [[merfolk trident]],{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1148163991405043713|date=8 July 2019|archiveurl=https://web.archive.org/save/https://twitter.com/JagexAsh/status/1148163991405043713|archivedate=26 August 2019|quote=[Does the trident of the seas have the same effect in driftnet fishing as the merfolk trident?] Yes.}} though it does not have the ability to hold [[pufferfish]] charges (convenient for breathing [[underwater]]).
+
+The staff's charge cannot be used against another player in dangerous PvP, only safe minigames.
+
+[[File:Trident of the seas spell.gif|thumb|250px|A player using the trident of the sea's built in spell.]]
+
+==Combat stats==
+{{Infobox Bonuses
+|version1 = Uncharged
+|version2 = Partially charged
+|version3 = Charged
+|astab = 0
+|aslash = 0
+|acrush = 0
+|amagic = +15
+|arange = 0
+|dstab = +2
+|dslash = +3
+|dcrush = +1
+|dmagic = +15
+|drange = 0
+|str = 0
+|rstr = 0
+|mdmg = 0
+|prayer = 0
+|slot = weapon
+|speed = 4
+|attackrange = 7
+|combatstyle = Powered Staff
+|image = [[File:Trident of the Seas equipped.png|150px]]
+|altimage1 = [[File:Uncharged trident equipped female.png|150px]]
+|altimage2 = [[File:Trident of the Seas equipped female.png|150px]]
+|altimage3 = [[File:Trident of the Seas (full) equipped female.png|150px]]
+}}
+
+{{CombatStyles|Powered Staff|speed=4|attackrange=7}}
+
+==Charging==
+[[File:Charging trident.gif|frame|A player charging the trident of the seas.]]
+To use the trident's magic spell, it must be charged with various [[runes]], holding up to 2,500 charges when fully charged. One charge is consumed each time you cast the built-in spell. Charging the trident requires level 75 Magic, and the following items are required for a single charge:
+
+{| class="wikitable align-right-2"
+!Resource 
+!Cost per charge
+|-
+|1 x {{plink|Death rune}}
+|{{Coins|{{GEP|Death rune}}}}
+|-
+|1 x {{plink|Chaos rune}}
+|{{Coins|{{GEP|Chaos rune}}}}
+|-
+|5 x {{plink|Fire rune}}
+|{{Coins|{{GEP|Fire rune|5}}}}
+|-
+|10 x {{plink|Coins}}
+|{{Coins|10}}
+|-
+! '''Total cost per charge'''
+| style="text-align:right;" | {{Coins|{{GEP|Death rune}}+{{GEP|Chaos rune}}+{{GEP|Fire rune|5}}+10}}
+|}
+
+To charge the trident, use the runes or coins on the trident. Assuming non-stop use (one cast every 2.4 seconds, 1,500 casts per hour), the trident costs {{NoCoins|({{GEP|Death rune}}+{{GEP|Chaos rune}}+{{GEP|Fire rune|5}}+10) * 1500|c}} per hour to use.
+
+Fully charging an uncharged staff costs {{NoCoins|{{GEP|Death rune|2500}}+{{GEP|Chaos rune|2500}}+{{GEP|Fire rune|12500}}+25000|c}} total: 2,500 death runes, 2,500 chaos runes, 12,500 fire runes, and 25,000 coins. Players can configure the charges while the weapon is in their bank by right-clicking on Configure-Charges, as long as players have the required materials.
+
+Any remaining charges within the trident can be removed at any time using the 'uncharge' option. This will recover '''only''' the [[runes]]; any coins used to charge it will be '''permanently lost''' when the trident is uncharged.
+
+If lost on [[death]], only the uncharged trident will appear on the floor.
+
+Rune substitutes, such as elemental staves or the [[Fountain of Rune]] '''cannot''' be used to charge the trident. Combination runes. such as [[lava rune]]s, as well as runes stored in a rune pouch '''can''' be used. However, a trident charged with combination runes will always return fire runes when uncharged. This may lead to a potential loss of up to {{coins|{{#expr:({{GEP|Fire rune|5}} - {{GEP|Steam rune|5}})}}}} per charge, when using steam runes.
+
+{{Recipe
+|mat1 = Death rune
+|mat1quantity = 2500
+|mat2 = Chaos rune
+|mat2quantity = 2500
+|mat3 = Fire rune
+|mat3quantity = 12500
+|mat4 = Coins
+|mat4quantity = 25000
+|mat4cost = 1
+|mat5 = Uncharged trident
+|mat5quantity = 1
+|output1 = Trident of the Seas (full)
+|output1quantity = 1
+}}
+
+==Upgrading==
+Players with level 59 [[Crafting]] can attach a [[magic fang]] to the trident using a [[chisel]], creating a [[trident of the swamp]]. In addition to a +10 magic attack bonus and a +3 bonus to the max hit, it also gains the ability to inflict [[venom]] on a target. However, the trident of the swamp requires using 1 [[Zulrah's scales|Zulrah's scale]] (with a cost of {{NoCoins|{{GEP|Zulrah's scales}}|c}}) instead of just 10 coins for each charge.
+
+{{Infotable Bonuses|Trident of the Seas#Charged|Trident of the Swamp#Charged|nototals=yes}}
+
+Players can also give an uncharged trident of the seas and 10 [[kraken tentacle]]s to [[Lieve McCracken]] to create an [[Trident of the Seas (e)|enhanced trident of the seas]], which holds 20,000 charges instead of 2,500. The same can be done with an uncharged trident of the swamp, which turns it into an [[Trident of the Swamp (e)|enhanced trident of the swamp]].
+
+==Maximum hit==
+<math>\begin{align}
+ \text{Max Hit} &= \lfloor \frac{\text{MagicLevel}}{3} \rfloor - 5\\
+\end{align}</math>
+
+The base [[Maximum Magic hit|maximum hit]] dealt by the trident is dependent on the player's current [[Magic]] level, starting at 20 with level 75 Magic and increasing by one every three Magic levels, up to a maximum of 36 at level 123+ (obtainable only through [[smelling salts]] in [[Tombs of Amascut]]). Both magic damage bonuses and visible stat boosts will modify the max hit of the spell; likewise, stat-reductions will lower the damage. Invisible boosts, such as from the trident's attack styles, do not affect the max hit. The trident always has a max hit of at least 1, even when reduced to 0 magic. Compared to the other two powered staves, the [[trident of the swamp]] increases the base maximum hit by 3 (max of 23 at level 75), and the [[Sanguinesti staff]] increases the base maximum hit by 4 (max of 24 at level 75).
+
+===Calculator===
+{{Magic damage calculator|Trident of the Seas}}
+
+==Products==
+{{Uses material list|Uncharged trident|Trident of the Seas}}
+
+==Item sources==
+===Uncharged trident===
+{{Drop sources|Uncharged trident}}
+
+===Trident of the Seas (full)===
+{{Drop sources|Trident of the Seas (full)}}
+
+==Used in recommended equipment==
+{{Used in recommended equipment|Trident of the Seas}}
+
+==Comparison between other magic weapons==
+{{Magic weapons comparison}}
+
+==Transcript==
+{{Hastranscript|item}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 19 August 2026
+|update = Summer Sweep Up - Hunter & Skilling
+|change = The item was renamed from "Trident of the seas" to "Trident of the Seas".
+}}
+{{Subject changes
+|date = 29 May 2025
+|update = Yama CAs & More!
+|change = The trident of the seas (full) has been removed from the Grand Exchange's [[Grand_Exchange#Items_regulated_via_item_sink|item sink list]].
+}}
+{{Subject changes
+|date = 14 May 2025
+|update = Yama, the Master of Pacts: Out Today
+|change = The trident of the seas can now be charged with [[combination rune]]s.
+}}
+{{Subject changes
+|date = 5 March 2025
+|update = Game Jam: Charges QoL
+|change = The Trident of the seas support a bank item option for changing charges.
+}}
+{{Subject changes 
+|date = 15 November 2018
+|update = POH Portals, DHCB Recolour and Planned Changes
+|change = The item's inventory sprite was adjusted slightly.
+}}
+{{Subject changes 
+|date = 11 October 2018
+|update = Spellbook Rework, Wise Old Man and, Increased Zoom
+|change = The item's inventory sprite was rotated.
+}}
+{{Subject changes
+|date = 3 August 2017
+|update = Inferno slayer task, Tournament worlds, and Poll 56!
+|change = A 100 charge remaining warning has been added to the Trident of the Seas and Trident of the Swamp.
+}}
+{{Subject changes
+|date = 9 March 2017
+|update = General QoL!
+|change = The Trident of the Seas now respects stat boosts up to 120.
+}}
+{{Subject changes
+|date = 16 February 2017
+|update = Party Pete's Birthday Bash
+|change = The Trident of the Seas and Toxic variant can now be charged without un-equipping held items.
+}}
+{{Subject changes
+|date = 6 October 2016
+|update = The Hill Giant Boss
+|poll = 
+|change = The damage cap of the Tridents has been increased by 1 so it can respect the maximum possible Magic stat-boost from the Imbued Heart.
+}}
+{{Subject changes
+|date = 29 January 2016
+|update = System Update (29 January 2016)
+|change = The trident's model was retopologised to fix a bug that caused the player to turn invisible when equipped alongside [[Ahrim's robeskirt]].{{CiteVideo|author=Old School RuneScape|title=Quality of Life Special - Old School RuneScape Q&A|url=https://youtu.be/G-U_ztZY6ek?t=20|timestamp=0:20|date=28 January 2016|site=YouTube}}
+}}
+{{Subject changes
+|date = 24 September 2015
+|update = New Animations & Barbarian Assault Changes
+|poll = Old School Content Poll 36: Skilling Pets
+|change = An additional attack style has been added to the trident to prevent it switching your selected attack style for other weapons. This new attack style has no impact on combat stats.
+}}
+{{Subject changes
+|date = 8 January 2015
+|update = Zulrah - The Solo Snake Boss
+|change = The trident of seas can now be upgraded to a trident of the swamp by attaching a magic fang.
+}}
+{{Subject changes
+|date = 14 August 2014
+|update = The Penance Pet & Super Combat Potions
+|change = The trident of the seas no longer damages [[Salarin the Twisted]].
+}}
+{{Subject changes
+|date = 20 March 2014
+|update = Fresh 'Old' Fashion
+|change = The Trident of the seas no longer stretches with Guthan's chainskirt on female characters.
+}}
+{{Subject changes
+|date = 27 February 2014
+|update = Trident, pouches and roots
+|poll = Old School feature poll 16
+|change = The trident of the seas can now cast its spell on players in [[Castle Wars]] and the [[TzHaar Fight Pit]].
+}}
+{{Subject changes
+|date = 6 February 2014
+|update = Quick-prayers & Loot Broadcast
+|change = The trident of the seas has had its model adjusted slightly to prevent it sticking to [[Verac's plateskirt|Verac's skirt]] or the [[pantaloons]].
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{{Switch infobox
+|text1 = Uncharged
+|item1 =
+|text2 = Partially charged
+|item2 =
+|text3 = Charged
+|item3 =
+}}
+{|style="text-align: center" cellpadding="15"
+|
+{{Synced switch
+|version1 = [[File:Uncharged trident (v1) detail.png|center|300x150px]]
+|version2 = [[File:Trident of the seas (v1) detail.png|center|300x150px]]
+|version3 = [[File:Trident of the seas (full) (v1) detail.png|center|300x150px]]
+}}
+|
+{{Synced switch
+|version1 = [[File:Uncharged trident (v2) detail.png|center|300x150px]]
+|version2 = [[File:Trident of the seas (v2) detail.png|center|300x150px]]
+|version3 = [[File:Trident of the seas (full) (v2) detail.png|center|300x150px]]
+}}
+|
+{{Synced switch
+|version1 = [[File:Uncharged trident detail.png|center|300x150px]]
+|version2 = [[File:Trident of the Seas detail.png|center|300x150px]]
+|version3 = [[File:Trident of the Seas (full) detail.png|center|300x150px]]
+}}
+|-
+|
+{{Synced switch
+|version1 = [[File:Uncharged trident v1.png|center]]
+|version2 = [[File:Trident of the seas v1.png|center]]
+|version3 = [[File:Trident of the seas (full) v1.png|center]]
+}}
+|
+{{Synced switch
+|version1 = [[File:Uncharged trident v2.png|center]]
+|version2 = [[File:Trident of the seas v2.png|center]]
+|version3 = [[File:Trident of the seas (full) v2.png|center]]
+}}
+|
+{{Synced switch
+|version1 = [[File:Uncharged trident.png|center]]
+|version2 = [[File:Trident of the Seas.png|center]]
+|version3 = [[File:Trident of the Seas (full).png|center]]
+}}
+|-
+|30 January 2014 –<br/>11 October 2018
+|11 October 2018 –<br/>15 November 2018
+|15 November 2018 –<br/>present
+|}
+
+==Trivia==
+*The trident is a reference to the trident of the Greek god of seas, {{wp|Poseidon}}.
+*The trident of the seas is the ''[[Old School RuneScape]]'' equivalent to the {{RSL|polypore staff}} from ''{{RSL|RuneScape}}''.
+
+==References==
+{{Reflist}}
+
+{{Magic weapons}}
+{{Kraken Cove}}
+[[Category:Items subject to Grand Exchange item sink]]
+[[Category:Collection log items]]
+[[Category:Items with charges]]
+[[Category:Underwater weapons]]

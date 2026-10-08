@@ -113,6 +113,13 @@ struct NetTransportEmbed
      *  listening or gone -- either way it answers at once, so it does not
      *  get the boot-time wait. */
     int party_ever_joined;
+    /** A party LEADER's own client bytes, held to the boundary: the leader's
+     *  client is an ordinary client of its own world, its input reaching the
+     *  world where a member's does (at the tick, through the barrier) and its
+     *  output leaving where a member's does (after the tick). */
+    uint8_t* lead_out;
+    int lead_out_len;
+    int lead_out_cap;
 };
 
 /*
@@ -406,6 +413,32 @@ embed_poll(
             }
             emit_status(self, bus, TORIRS_NET_STATUS_CONNECTED);
         }
+        else if( header.type == TORIRS_NET_OUT_SEND_DATA && self->embed && self->party_listener >= 0 )
+        {
+            /*
+             * A PARTY LEADER'S OWN CLIENT IS AN ORDINARY CLIENT (owner,
+             * 2026-10-07: "It should behave just as every other client").
+             * Its bytes wait for the boundary, as a member's wait on the link
+             * for the barrier; written then, ahead of the tick, they decode
+             * where a member's do. Before this the leader's client was pumped
+             * every frame mid-interval -- the one-client embed path
+             * (552ea7f80) kept when the party link was added beside it
+             * (3736f3d22) -- so whatever the server answered outside the tick
+             * reached the leader up to a tick before the members.
+             */
+            if( self->lead_out_len + (int)header.length > self->lead_out_cap )
+            {
+                int cap = self->lead_out_cap ? self->lead_out_cap : 4096;
+
+                while( cap < self->lead_out_len + (int)header.length )
+                    cap *= 2;
+                self->lead_out = realloc(self->lead_out, (size_t)cap);
+                assert(self->lead_out);
+                self->lead_out_cap = cap;
+            }
+            memcpy(self->lead_out + self->lead_out_len, payload, header.length);
+            self->lead_out_len += (int)header.length;
+        }
         else if( header.type == TORIRS_NET_OUT_SEND_DATA && self->embed )
         {
             /* One client: this host is the game itself, playing alone. */
@@ -450,6 +483,17 @@ embed_poll(
     if( run_tick )
         self->clock_frames = 0;
 
+    /* A party leader's world is serviced at the boundary only, like every
+     * member's view of it: its own held bytes go in first, then the pump. */
+    if( self->party_listener >= 0 && run_tick && self->lead_out_len > 0 )
+    {
+        ToriRSServer_EmbedWrite(self->embed, 0, self->lead_out, self->lead_out_len);
+        self->lead_out_len = 0;
+    }
+
+    /* (between boundaries: no pump; step 3 still drains the boundary's
+     * output as the bus has room, as a member's pending bytes are) */
+    if( self->party_listener < 0 || run_tick )
     {
         int alive = 1;
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_SERVER)
@@ -536,6 +580,7 @@ embed_free(struct NetTransport* transport)
         close(self->party_listener);
 #endif
     free(self->party_pending);
+    free(self->lead_out);
     free(self);
 }
 

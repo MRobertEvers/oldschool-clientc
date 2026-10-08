@@ -37,7 +37,7 @@ Entry Mode=
 |1=Void ranger helm
 |2=Magic shortbow (i)
 |3=Void mage helm
-|4=Trident of the seas
+|4=Trident of the Seas
 |5=Salve amulet (e)
 |6=Rune pouch
 |7=Dragon dagger(p++)
@@ -135,7 +135,7 @@ Every role will bring the best melee equipment available, as melee is used predo
 |style = Melee
 |head1 = {{plink|Torva full helm}}{{efn|Assuming best-in-slot gear in all other slots, the best combination for slash accuracy while maintaining a scythe max hit of 50 is Torva helm with Oathplate chest + legs, though any combination of 2 Oathplate pieces and 1 Torva piece will suffice.|name=scy50}} / {{plink|Oathplate helm}}
 |head2 = {{plink|Neitiznot faceguard}} / {{plink|Serpentine helm}}{{efn|Can be used in place of a poison weapon for [[Nylocas Athanatos]]|name=serp}}
-|head3 = {{plink|Blood moon helm}} / {{plink|Helm of neitiznot}}
+|head3 = {{plink|Blood Moon helm}} / {{plink|Helm of Neitiznot}}
 |head4 = {{plink|Void melee helm}}{{efn|With full void in all styles|name=void}}
 |neck1 = {{plink|Amulet of rancour}}
 |neck2 = {{plink|Amulet of torture}}
@@ -144,22 +144,23 @@ Every role will bring the best melee equipment available, as melee is used predo
 |cape1 = {{plink|Infernal cape}}
 |cape2 = {{plink|Fire cape}}
 |body1 = {{plink|Torva platebody}}{{efn|Assuming best-in-slot gear in all other slots, the best combination for slash accuracy while maintaining a scythe max hit of 50 is Torva helm with Oathplate chest + legs, though any combination of 2 Oathplate pieces and 1 Torva piece will suffice.|name=scy50}} / {{plink|Oathplate chest}}
-|body2 = {{plink|Bandos chestplate}} / {{plink|Blood moon chestplate}}
+|body2 = {{plink|Bandos chestplate}} / {{plink|Blood Moon chestplate}}
 |body3 = {{plink|Fighter torso}}
 |body4 = {{plink|Elite void top}}{{efn|With full void in all styles|name=void}}
 |legs1 = {{plink|Torva platelegs}}{{efn|Assuming best-in-slot gear in all other slots, the best combination for slash accuracy while maintaining a scythe max hit of 50 is Torva helm with Oathplate chest + legs, though any combination of 2 Oathplate pieces and 1 Torva piece will suffice.|name=scy50}} / {{plink|Oathplate legs}}
-|legs2 = {{plink|Bandos tassets}} / {{plink|Blood moon tassets}}
+|legs2 = {{plink|Bandos tassets}} / {{plink|Blood Moon tassets}}
 |legs3 = {{plink|Obsidian platelegs}}
 |legs4 = {{plink|Elite void robe}}{{efn|With full void in all styles|name=void}}
-|weapon1 = {{plink|Scythe of vitur}}
+|weapon1 = {{plink|Scythe of Vitur}}
 |weapon2 = {{plink|Soulreaper axe}}{{efn|Beats Saeldor after 3 stacks.|name=SRA}} / {{plink|Blade of Saeldor}} / {{plink|Osmumten's fang}}{{efn|On certain bosses.|name=fang}}
 |weapon3 = {{plink|Abyssal tentacle}} / {{plink|Noxious halberd}}{{efn|Requires advanced movement for P2 Verzik|name=nox}}
 |weapon4 = {{plink|Abyssal whip}}
 |shield1 = {{plink|Avernic defender}}
 |shield2 = {{plink|Dragon defender}}
-|ammo1 = {{plink|Dragon arrow}}{{efn|If using a [[Twisted bow]]|name=arrows}} / {{plink|Ghommal's lucky penny}}
-|ammo2 = {{plink|Amethyst arrow}}{{efn|name=arrows}} / {{plink|Rada's blessing 4}}
-|ammo3 = {{plink|God blessing|pic=Peaceful blessing}} / {{plink|Rada's blessing 3|txt=Rada's blessing 3/2}}
+|ammo1 = {{plink|Seeking dragon arrow}}{{efn|If using a [[Twisted bow]]|name=arrows}} / {{plink|Rada's blessing 4}}
+|ammo2 = {{plink|Dragon arrow}}{{efn|name=arrows}}{{efn|Dragon arrows are better than seeking amethyst arrows against Maiden and Nylo, but worse against Xarpus and Sotetseg|name=seeking}} / {{plink|God blessing|pic=Peaceful blessing}} / {{plink|Rada's blessing 3|txt=Rada's blessing 3/2}}
+|ammo3 = {{plink|Seeking amethyst arrow}}{{efn|name=arrows}}{{efn|name=seeking}}
+|ammo4 = {{plink|Amethyst arrow}}{{efn|name=arrows}}  
 |hands1 = {{plink|Ferocious gloves}}
 |hands2 = {{plink|Barrows gloves}}
 |hands3 = {{plink|Void knight gloves}}{{efn|With full void in all styles|name=void}}
@@ -191,14 +192,14 @@ Every role will bring the best melee equipment available, as melee is used predo
 |head = Neitiznot faceguard
 |cape = Infernal cape
 |neck = Amulet of torture
-|weapon = Scythe of vitur
+|weapon = Scythe of Vitur
 |torso = Fighter torso
-|legs = Blood moon tassets
+|legs = Blood Moon tassets
 |gloves = Ferocious gloves
 |boots = Dragon boots
 |ring = Berserker ring (i)
 }}
-Due to the Scythe's unique interaction with max hit scaling, it is recommended for users bringing a Scythe of vitur to check max hit thresholds for the gear they have available to them. For example, the setup shown with 131 strength bonus, [[Piety]], 118 Strength (99 Strength and +19 from a [[Divine super combat potion]]), and having the Scythe on aggressive gives a max hit of 48, but dropping stats or strength bonus from this decreases your max hit by 3, as the Scythe's scaling is nonlinear.
+Due to the Scythe's unique interaction with max hit scaling, it is recommended for users bringing a Scythe of Vitur to check max hit thresholds for the gear they have available to them. For example, the setup shown with 131 strength bonus, [[Piety]], 118 Strength (99 Strength and +19 from a [[Divine super combat potion]]), and having the Scythe on aggressive gives a max hit of 48, but dropping stats or strength bonus from this decreases your max hit by 3, as the Scythe's scaling is nonlinear.
 
 Common max hit thresholds are 46 (+2 max hits), 48 (+3 max hits), and 50 (+2 max hits).
 
@@ -218,21 +219,22 @@ In addition to full melee gear, freezers will bring additional magic equipment f
 |body2 = {{plink|Elite void top}}{{efn|name=void}}
 |legs1 = {{plink|Ancestral robe bottom}}/{{plink|Virtus robe bottom}}
 |legs2 = {{plink|Elite void robe}}{{efn|name=void}}
-|weapon1 = {{plink|Eye of ayak}}<br>& {{plink|Kodai wand}} / {{plink|Nightmare staff}}
-|weapon2 = {{plink|Sanguinesti staff}}<br>& {{plink|Staff of the Dead|pic=Toxic staff of the dead}}
-|weapon3 = {{plink|Trident of the swamp}}<br>& {{plink|Ancient sceptre}} / {{plink|Dragon hunter wand}} / {{plink|Master wand}}
+|weapon1 = {{plink|Eye of Ayak}}<br>& {{plink|Kodai wand}} / {{plink|Nightmare staff}}
+|weapon2 = {{plink|Sanguinesti staff}}<br>& {{plink|Toxic Staff of the Dead|pic=Toxic Staff of the Dead}}
+|weapon3 = {{plink|Trident of the Swamp}}<br>& {{plink|Ancient sceptre}} / {{plink|Dragon hunter wand}} / {{plink|Master wand}}
 |shield1 = {{plink|Elidinis' ward (f)}}
 |shield2 = {{plink|Elidinis' ward}}{{efn|If not bringing a defender|name=mageoffhand}}
 |shield3 = {{plink|Book of Darkness}}{{efn|name=magecape}}
-|ammo1 = {{plink|Dragon arrow}}{{efn|If using a [[Twisted bow]]|name=arrows}} / {{plink|Ghommal's lucky penny}}
-|ammo2 = {{plink|Amethyst arrow}}{{efn|name=arrows}} / {{plink|Rada's blessing 4}}
-|ammo3 = {{plink|God blessing|pic=Peaceful blessing}} / {{plink|Rada's blessing 3|txt=Rada's blessing 3/2}}
+|ammo1 = {{plink|Seeking dragon arrow}}{{efn|If using a [[Twisted bow]]|name=arrows}} / {{plink|Rada's blessing 4}}
+|ammo2 = {{plink|Dragon arrow}}{{efn|name=arrows}}{{efn|Dragon arrows are better than seeking amethyst arrows against Maiden and Nylo, but worse against Xarpus and Sotetseg|name=seeking}} / {{plink|God blessing|pic=Peaceful blessing}} / {{plink|Rada's blessing 3|txt=Rada's blessing 3/2}}
+|ammo3 = {{plink|Seeking amethyst arrow}}{{efn|name=arrows}}{{efn|name=seeking}}
+|ammo4 = {{plink|Amethyst arrow}}{{efn|name=arrows}}  
 |hands1 = {{plink|Confliction gauntlets}}
 |hands2 = {{plink|Tormented bracelet}}
 |hands3 = {{plink|Void knight gloves}}{{efn|name=void}}
 |feet1 = {{plink|Avernic treads (max)}}
 |feet2 = Melee boots
-|special1 = {{plink|Dragon claws}} and<br/>{{plink|Elder maul}} / {{plink|Tonalztics of ralos}}
+|special1 = {{plink|Dragon claws}} and<br/>{{plink|Elder maul}} / {{plink|Tonalztics of Ralos}}
 |special2 = {{plink|Crystal halberd}} and<br/>{{plink|Dragon warhammer}} / {{plink|Bandos godsword}}
 }}
 
@@ -246,12 +248,12 @@ In addition to full melee gear, freezers will bring additional magic equipment f
 **For 100% freeze rate at Maiden (without a boosted magic level), +103 magic accuracy is required for ancestral/virtus, and +54 magic accuracy is required for void, both assume Augury is active. If using equipment other than this, refer to [[Nylocas Matomenos]] for magic accuracy requirements.
 **Void freezers may need to take off their defender and boots to reach 100% freeze rate. If freezing with a powered staff put it on accurate for an invisible accuracy bonus
 *Freeze roles should take a [[saturated heart]] or [[imbued heart]] for the nylo room. 
-*[[Tonalztics of ralos]] can be used to reduce Maiden to 0 defence in only 2 specs after a single Dragon warhammer or Elder maul to save special attacks for stacking or 30s skip.
+*[[Tonalztics of Ralos]] can be used to reduce Maiden to 0 defence in only 2 specs after a single Dragon warhammer or Elder maul to save special attacks for stacking or 30s skip.
 {{Notelist}}
 |-|
 
 Range=
-In addition to full melee gear, the ranger will bring full [[Elite Void Knight equipment|Elite void]] and a [[Toxic blowpipe]] as its speed and damage far exceeds other range equipment on [[Nylocas]]. Without a [[Scythe of vitur|Scythe]], elite void and a [[Toxic blowpipe]] will deal more damage than most melee setups on Maiden and Xarpus.
+In addition to full melee gear, the ranger will bring full [[Elite Void Knight equipment|Elite void]] and a [[Toxic blowpipe]] as its speed and damage far exceeds other range equipment on [[Nylocas]]. Without a [[Scythe of Vitur|Scythe]], elite void and a [[Toxic blowpipe]] will deal more damage than most melee setups on Maiden and Xarpus.
 
 {{Recommended equipment
 |style = Range
@@ -266,9 +268,10 @@ In addition to full melee gear, the ranger will bring full [[Elite Void Knight e
 |legs2 = {{plink|Masori chaps (f)}}{{efn|name=masori}}
 |weapon1 = {{plink|Twisted bow}} & {{plink|Toxic blowpipe}}
 |shield1 = {{plink|Twisted buckler}}{{efn|If bringing chinchompas|name=chin}}
-|ammo1 = {{plink|Dragon arrow}}{{efn|If using a [[Twisted bow]]|name=arrows}} / {{plink|Ghommal's lucky penny}}
-|ammo2 = {{plink|Amethyst arrow}}{{efn|name=arrows}} / {{plink|Rada's blessing 4}}
-|ammo3 = {{plink|God blessing|pic=Peaceful blessing}} / {{plink|Rada's blessing 3|txt=Rada's blessing 3/2}}
+|ammo1 = {{plink|Seeking dragon arrow}}{{efn|If using a [[Twisted bow]]|name=arrows}} / {{plink|Rada's blessing 4}}
+|ammo2 = {{plink|Dragon arrow}}{{efn|name=arrows}}{{efn|Dragon arrows are better than seeking amethyst arrows against Maiden and Nylo, but worse against Xarpus and Sotetseg|name=seeking}} / {{plink|God blessing|pic=Peaceful blessing}} / {{plink|Rada's blessing 3|txt=Rada's blessing 3/2}}
+|ammo3 = {{plink|Seeking amethyst arrow}}{{efn|name=arrows}}{{efn|name=seeking}}
+|ammo4 = {{plink|Amethyst arrow}}{{efn|name=arrows}}  
 |hands1 = {{plink|Void knight gloves}}{{efn|name=void}}
 |feet1 = {{plink|Avernic treads (max)}}
 |feet2 = Melee boots
@@ -289,9 +292,9 @@ In addition to full melee gear, the ranger will bring full [[Elite Void Knight e
 {| style="clear:both;"
 |+Example setups
 !Learner/Void
-!Melee
-!Freezer
-!Ranger
+!Melee Role
+!Mage/Freezer Role
+!Range Role
 |-
 |
 {{Equipment
@@ -314,8 +317,8 @@ In addition to full melee gear, the ranger will bring full [[Elite Void Knight e
 |head = Torva full helm
 |cape = Infernal cape
 |neck = Amulet of rancour
-|ammo = Dragon arrow
-|weapon = Sanguinesti staff
+|ammo = Seeking dragon arrow
+|weapon = Eye of Ayak
 |torso = Oathplate chest
 |legs = Oathplate legs
 |shield = Book of the Dead
@@ -329,7 +332,7 @@ In addition to full melee gear, the ranger will bring full [[Elite Void Knight e
 |head = Torva full helm
 |cape = Infernal cape
 |neck = Occult necklace
-|ammo = Dragon arrow
+|ammo = Seeking dragon arrow
 |weapon = Kodai wand
 |torso = Ancestral robe top
 |legs = Ancestral robe bottom
@@ -344,7 +347,7 @@ In addition to full melee gear, the ranger will bring full [[Elite Void Knight e
 |head = Void ranger helm
 |cape = Dizana's quiver
 |neck = Necklace of rupture
-|ammo = Dragon arrow
+|ammo = Seeking dragon arrow
 |weapon = Black chinchompa
 |torso = Elite void top
 |legs = Elite void robe
@@ -359,7 +362,7 @@ In addition to full melee gear, the ranger will bring full [[Elite Void Knight e
 |1=Void ranger helm
 |2=Toxic blowpipe
 |3=Void mage helm
-|4=Trident of the swamp
+|4=Trident of the Swamp
 |5=Necklace of anguish
 |6=Ava's assembler 
 |7=Occult necklace
@@ -385,10 +388,11 @@ In addition to full melee gear, the ranger will bring full [[Elite Void Knight e
 |27=Salve amulet (e)
 |28=Rune pouch
 }}
-{{Rune pouch|align=right
-|1=Blood rune
-|2=Death rune
-|3=Water rune
+{{Rune pouch
+| align = center
+| 1 = Blood rune
+| 2 = Death rune
+| 3 = Water rune
 }}
 |
 {{Inventory
@@ -401,7 +405,7 @@ In addition to full melee gear, the ranger will bring full [[Elite Void Knight e
 |6=Void knight gloves
 |7=Void ranger helm 
 |8=Toxic blowpipe
-|9=Scythe of vitur
+|9=Scythe of Vitur
 |10=Dual macuahuitl
 |11=Occult necklace
 |12=Bandos godsword
@@ -422,10 +426,12 @@ In addition to full melee gear, the ranger will bring full [[Elite Void Knight e
 |27=Super restore(4)
 |28=Divine rune pouch
 }}
-{{Rune pouch|align=right
-|1=Cosmic rune
-|2=Fire rune
-|3=Blood rune
+{{Rune pouch
+| align = center
+| 1 = Cosmic rune
+| 2 = Fire rune
+| 3 = Blood rune
+| 4 = Aether rune
 }}
 |
 {{Inventory
@@ -438,7 +444,7 @@ In addition to full melee gear, the ranger will bring full [[Elite Void Knight e
 |6=Void knight gloves
 |7=Void ranger helm 
 |8=Toxic blowpipe
-|9=Scythe of vitur
+|9=Scythe of Vitur
 |10=Oathplate chest
 |11=Oathplate legs
 |12=Saturated heart
@@ -447,7 +453,7 @@ In addition to full melee gear, the ranger will bring full [[Elite Void Knight e
 |15=Elder maul
 |16=Bandos godsword
 |17=Dragon claws
-|18=Eye of ayak
+|18=Eye of Ayak
 |19=Crystal halberd
 |20=Salve amulet (e)
 |21=Anglerfish
@@ -459,49 +465,51 @@ In addition to full melee gear, the ranger will bring full [[Elite Void Knight e
 |27=Super restore(4)
 |28=Divine rune pouch
 }}
-{{Rune pouch|align=right
-|1=Blood rune
-|2=Death rune
-|3=Water rune
-|4=Soul rune
+{{Rune pouch
+| align = center
+| 1 = Blood rune
+| 2 = Death rune
+| 3 = Water rune
+| 4 = Soul rune
 }}
 |
 {{Inventory
-|align=right
-|1=Twisted bow
-|2=Torva full helm
-|3=Oathplate chest
-|4=Infernal cape
-|5=Amulet of rancour
-|6=Ferocious gloves
-|7=Oathplate legs
-|8=Toxic blowpipe
-|9=Scythe of vitur
-|10=Sanguinesti staff 
-|11=Occult necklace
-|12=Bandos godsword
-|13=Dragon claws
-|14=Elder maul
-|15=Crystal halberd
-|16=Salve amulet (e)
-|17=Anglerfish
-|18=Anglerfish
-|19=Ranging potion(4)
-|20=Super combat potion(4)
-|21=Anglerfish
-|22=Anglerfish
-|23=Super combat potion(4)
-|24=Divine super combat potion(4)
-|25=Guthix rest(4)
-|26=Saradomin brew(4)
-|27=Super restore(4)
-|28=Divine rune pouch
+|align = center
+|1 = Twisted bow
+|2 = Torva full helm
+|3 = Oathplate chest
+|4 = Infernal cape
+|5 = Amulet of rancour
+|6 = Ferocious gloves
+|7 = Oathplate legs
+|8 = Toxic blowpipe
+|9 = Scythe of Vitur
+|10 = Eye of Ayak
+|11 = Occult necklace
+|12 = Bandos godsword
+|13 = Dragon claws
+|14 = Elder maul
+|15 = Crystal halberd
+|16 = Salve amulet (e)
+|17 = Anglerfish
+|18 = Anglerfish
+|19 = Ranging potion(4)
+|20 = Super combat potion(4)
+|21 = Anglerfish
+|22 = Anglerfish
+|23 = Super combat potion(4)
+|24 = Divine super combat potion(4)
+|25 = Guthix rest(4)
+|26 = Saradomin brew(4)
+|27 = Super restore(4)
+|28 = Divine rune pouch
 }}
-{{Rune pouch|align=right
-|1=Water rune
-|2=Earth rune
-|3=Death rune
-|4=Astral rune
+{{Rune pouch
+| align = center
+| 1 = Water rune
+| 2 = Earth rune
+| 3 = Death rune
+| 4 = Astral rune
 }}
 |-
 
@@ -655,7 +663,7 @@ The Maiden of Sugadinti - skipping 30's.mp4||A demonstration of skipping 30's.
 
 {{Recommended equipment
 |style = Maiden (0 defence)
-|weapon1 = {{plink|Scythe of vitur}}
+|weapon1 = {{plink|Scythe of Vitur}}
 |weapon2 = {{plink|Twisted bow}}{{efn|With elite void ranged|name=void}}
 |weapon3 = {{plink|Toxic blowpipe}}{{efn|name=void}}
 |weapon4 = {{plink|Soulreaper axe}}(5 stacks)
@@ -692,7 +700,7 @@ Before entering the next room, raiders should drop their [[salve amulet (e)]] an
 
 {{Recommended equipment
 |style = Bloat
-|weapon1 = {{plink|Scythe of vitur}}
+|weapon1 = {{plink|Scythe of Vitur}}
 |weapon2 = {{plink|Blade of Saeldor}}
 |weapon3 = {{plink|Noxious halberd}}
 |weapon4 = {{plink|Abyssal tentacle}}
@@ -716,7 +724,7 @@ Meleers with a scythe are encouraged to bring another weapon for this room, such
 
 Rangers should use a [[toxic blowpipe]] in this room. Chinchompas can help deal with clusters of nylocas, but this is only needed if teams are struggling to kill them.
 
-Mages should use an [[eye of ayak]], as its 3 tick speed and fairly high damage makes clearing them incredibly trivial. If not available, use a 4 tick staff instead, although this will result in more leaks. Barrages should only be used when the fight becomes hectic. Frozen nylocas will usually stop attacking a pillar for a short time.
+Mages should use an [[Eye of Ayak]], as its 3 tick speed and fairly high damage makes clearing them incredibly trivial. If not available, use a 4 tick staff instead, although this will result in more leaks. Barrages should only be used when the fight becomes hectic. Frozen nylocas will usually stop attacking a pillar for a short time.
 
 As the nylocas have nonexistent defence bonuses (including the Hagios, who have no Magic), players are encouraged to focus on strength bonus over accuracy.
 
@@ -755,11 +763,11 @@ Vasilias will always spawn in its melee form. One player should use a Bandos god
 
 {{Recommended equipment
 | style = Melee Nylocas Vasilias
-| weapon1 = {{plink|Scythe of vitur}}
-| weapon2 = {{plink|Noxious halberd}} / {{plink|Soulreaper axe}}
-| weapon3 = {{plink|Osmumten's fang}}
-| weapon4 = {{plink|Blade of Saeldor}}
-| weapon5 = {{plink|Abyssal tentacle}}
+| weapon1 = {{plink|Scythe of Vitur}}
+| weapon2 = {{plink|Soulreaper axe}}
+| weapon3 = {{plink|Blade of Saeldor}}
+| weapon4 = {{plink|Noxious halberd}}/{{plink|Abyssal tentacle}}
+| weapon5 = {{plink|Osmumten's fang}}
 }}
 
 {{Recommended equipment
@@ -770,8 +778,8 @@ Vasilias will always spawn in its melee form. One player should use a Bandos god
 
 {{Recommended equipment
 | style = Mage Nylocas Vasilias
-| weapon1 = {{plink|Sanguinesti staff}} / {{plink|Eye of ayak}}
-| weapon2 = {{plink|Trident of the swamp}}
+| weapon1 = {{plink|Sanguinesti staff}} / {{plink|Eye of Ayak}}
+| weapon2 = {{plink|Trident of the Swamp}}
 }}
 
 ==Sotetseg==
@@ -810,14 +818,13 @@ Once Sotetseg is slain, the last and final supply chest will be available to the
 
 {{Recommended equipment
 | style = Sotetseg (100 defence)
-| weapon1 = {{plink|Scythe of vitur}}
+| weapon1 = {{plink|Scythe of Vitur}}
 | weapon2 = {{plink|Soulreaper axe}}{{efn|Beats fang after 3 stacks.}}
-| weapon3 = {{plink|Osmumten's fang}}
-| weapon4 = {{plink|Noxious halberd}}
-| weapon5 = {{plink|Blade of Saeldor}} > {{plink|Abyssal tentacle}}
+| weapon3 = {{plink|Blade of Saeldor}}
+| weapon4 = {{plink|Osmumten's fang}}
+| weapon5 = {{plink|Noxious halberd}}/{{plink|Abyssal tentacle}}
 }}
 {{notelist}}
-
 
 ==Xarpus==
 [[File:Fighting Xarpus.png|thumb|A group of players fighting Xarpus, the last of the Yarasa race and its king.]]
@@ -856,7 +863,7 @@ Once Xarpus is defeated, pick up dropped supplies (if any were dropped) and have
 
 {{Recommended equipment
 | style = Xarpus (0 defence)
-| weapon1 = {{plink|Scythe of vitur}}
+| weapon1 = {{plink|Scythe of Vitur}}
 | weapon2 = {{plink|Toxic blowpipe}}{{efn|With elite void ranged|name=void}}
 | weapon3 = {{plink|Twisted bow}}{{efn|name=void}}
 | weapon4 = {{plink|Soulreaper axe}}(5 stacks)
@@ -888,8 +895,8 @@ The simplest approach to this phase, "416" or "pillar drop", is to simply drop t
 
 {{Recommended equipment
 | style = Verzik P1
-| weapon1 = {{plink|Scythe of vitur}}
-| weapon2 = {{plink|Dual macuahuitl}} > {{plink|Sulphur blades}}
+| weapon1 = {{plink|Scythe of Vitur}}
+| weapon2 = {{plink|Dual macuahuitl}} / {{plink|Sulphur blades}}
 | weapon3 = {{plink|Blade of Saeldor}} / {{plink|Abyssal tentacle}} / {{plink|Noxious halberd}}
 }}
 {{Notelist}}
@@ -913,12 +920,12 @@ Every five attacks, Verzik will fire a ball of lightning, bouncing between playe
 {{Bug|The damage dealt by the lightning ball will not be capped in Normal Mode if there is only one player left alive in a team of multiple people.}}
 
 [[File:Verzik Vitur - phase 2 melee.mp4|thumb|400px|A demonstration of the timing required to safely melee Verzik with a whip/Scythe.]]
-To dodge urnbombs and the slam attack, players must step back to a different tile or by stepping back before the scan tick where she determines whether to bomb or slam you. To effectively use a [[Scythe of vitur]] during phase 2, you must use the latter method, which is commonly referred to as "Scythe walking".
+To dodge urnbombs and the slam attack, players must step back to a different tile or by stepping back before the scan tick where she determines whether to bomb or slam you. To effectively use a [[Scythe of Vitur]] during phase 2, you must use the latter method, which is commonly referred to as "Scythe walking".
 
 To scythe walk, you must be next to Verzik for all 3 safe ticks; the visual cue to click back is when the urnbomb explodes on the ground. As soon as it explodes click back, then click back on Verzik, done right your character should never stop on the tile the bomb exploded on. If players need to practice this, they are encouraged to try this on other monsters on a 4-tick attack cycle such as [[metal dragons]].
 
 ===Nylocas===
-At the start of phase 2, Verzik will summon a group of nylocas who will home in on the player and self-destruct for up to 46 damage, or up to 8 if three tiles away from them. Players can safely "pop" them by letting them approach within three tiles, then running away from them. If they have not exploded after ~15 seconds of movement, they will die, making [[Ice Barrage]] a viable option to deal with them.
+At the start of phase 2, Verzik will summon a group of nylocas who will home in on the player and self-destruct for up to 46 damage, or up to 8 if three tiles away from them. The homing nylocas have 25 health each. Players can safely "pop" them by letting them approach within three tiles, then running away from them. If they have not exploded after ~15 seconds of movement, they will die, making [[Ice Barrage]] a viable option to deal with them.
 
 Additionally, a [[Nylocas Athanatos]] will also spawn, healing her for 9-10 health every few ticks. To kill the Athanatos, it has to be hit with poison or venom, which will cause it to absorb the poison and deal up to 70 damage on her.
 
@@ -941,7 +948,7 @@ Unlike the previous phases, where Verzik frequently changes aggression, Verzik w
 
 She can use all combat styles and her projectile attacks will hit all players in the room - stomping her front limbs launches ranged barbs, while crackling with blue energy will launch a blue orb magic attack, dealing up to 33 damage, reduced to 16 if prayed against. As her attacks are very accurate, it's important to switch prayers accordingly. Additionally, every attack, Verzik will check if her chosen target (the tank) is within melee distance or not. If they are, there is a chance for her to use a melee attack instead (which has a very similar animation to the magic attack, but a different sound played) that deals up to 63 damage on every player next to her that cannot be prayed against. This should be avoided at all times; regardless, players should keep their health above 80 to avoid being killed by this attack.
 
-As such, the primary tank should either walk under or away from Verzik one or two ticks before she attacks to avoid the melee attack completely. Try to keep Verzik at the centre (phase start area) when possible. Moving away from Verzik will slightly displace her, but allows the base tank to react to attacks better. Moving under Verzik will keep her more grounded, but also means the base tank has less time to react to her attacks.
+As such, the primary tank should either walk under or away from Verzik one tick before she attacks to avoid the melee attack completely. Try to keep Verzik at the centre (phase start area) when possible. Moving away from Verzik will slightly displace her, but allows the base tank to react to attacks better. Moving under Verzik will keep her more grounded, but also means the base tank has less time to react to her attacks.
 
 During this phase, Verzik has four special attacks that she uses in rotation, attacking '''four times''' before performing the next:
 * '''Nylocas''' - identical to phase 2, but no Athanatos are ever summoned. Avoid dragging them into teammates, especially whoever is tanking. Freezing the nylocas will give the team more time to damage the boss.
@@ -988,7 +995,7 @@ Once Verzik is finally defeated her throne will collapse revealing a secret entr
 
 {{Recommended equipment
 | style = Verzik
-| weapon1 = {{plink|Scythe of vitur}}
+| weapon1 = {{plink|Scythe of Vitur}}
 | weapon2 = {{plink|Soulreaper axe}} (5 stacks)
 | weapon3 = {{plink|Blade of Saeldor}}
 | weapon4 = {{plink|Abyssal tentacle}} / {{plink|Noxious halberd}}{{efn|Requires advanced movement for P2 to effectively 5.33t / 5t.|Name=nox}}{{efn|Better than Saeldor for webs and 1:1 tanking|name=5t}}
