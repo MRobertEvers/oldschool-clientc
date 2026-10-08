@@ -2512,6 +2512,11 @@ frame_loop_scan_meter_check(void)
  * TORIRS_EMBED_CLOCK_MS=n, n ms per frame -- the frame-locked clock a
  * headless proof uses -- exactly the step the transport's own poll clock
  * takes (net_transport_embed.c, embed_poll_clock_ms). Read once.
+ *
+ * A client frame-locked at run time (App_FrameLockEngage: the Scripts tab
+ * hosting a party) leaves the wall clock where it stands and steps 20 ms a
+ * frame from there on, the step a frame-locked launch is given, so the
+ * world's clock never runs backwards across the switch.
  */
 static unsigned long long
 on_demand_world_clock(void)
@@ -2526,9 +2531,12 @@ on_demand_world_clock(void)
         if( step_ms < 0 )
             step_ms = 0;
     }
-    if( step_ms == 0 )
-        return PlatformWindow_Ticks64();
-    frame_clock += (unsigned long long)step_ms;
+    if( step_ms == 0 && !App_FrameLocked() )
+    {
+        frame_clock = PlatformWindow_Ticks64();
+        return frame_clock;
+    }
+    frame_clock += (unsigned long long)(step_ms > 0 ? step_ms : 20);
     return frame_clock;
 }
 

@@ -3406,6 +3406,19 @@ App_ViewAttachPlayerClient(
 void
 App_ViewDetachPlayerClient(struct App* app);
 
+/** FRAME LOCK: every frame pays exactly k logic cycles
+ *  (TORIRS_LOGIC_CYCLES_PER_FRAME, default 1) instead of what the wall clock
+ *  owes, and a watched client's world clock steps 20 ms a frame (main.c
+ *  on_demand_world_clock). A bounded run (TORIRS_MAX_FRAMES) is locked from
+ *  boot; a client that hosts a party (api.drive.party_host) engages it there,
+ *  because a party plays in lock step. At the 50 fps pace that is real speed.
+ *  Never released: the party link outlives the Play that opened it. */
+int
+App_FrameLocked(void);
+
+void
+App_FrameLockEngage(void);
+
 /** Swap which view the input stage acts through: 1 = the PlayerClient view
  *  (its menu is moved into interact.minimenu, the storage the UI step
  *  drives), 0 = back to the runner's. Only while attached. */

@@ -169,8 +169,14 @@ def describe(suite, directory, directory_script_path):
         legs = len(layout["legs"]) if layout else 0
         title = raid_title(test_id, source, party) if suite == "raid" else quest_title(test_id, source)
         reason = ""
-        if not os.path.isfile(os.path.join(directory, "fixtures", fixture)):
-            reason = "no fixture %s beside it" % fixture
+        # A party's per-seat LOADOUT names "{seat}" (run.py
+        # write_session_fixture): every seat's file must be there.
+        seats = range(1, max(party, 1) + 1) if "{seat}" in fixture else [None]
+        for seat in seats:
+            seat_fixture = fixture.replace("{seat}", str(seat)) if seat else fixture
+            if not os.path.isfile(os.path.join(directory, "fixtures", seat_fixture)):
+                reason = "no fixture %s beside it" % seat_fixture
+                break
         entries.append({
             "id": test_id,
             "suite": suite,

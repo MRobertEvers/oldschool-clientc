@@ -884,7 +884,7 @@ App_RunOnce(
          */
         int const cycles_per_frame = app_logic_cycles_per_frame();
 
-        if( g_torirs_max_frames > 0 )
+        if( App_FrameLocked() )
         {
             ticks = cycles_per_frame + s_cycles_owed;
             s_cycles_owed = 0;
@@ -902,7 +902,7 @@ App_RunOnce(
 #ifdef TORIRS_EMBED_SERVER
         /* A party client's frame pays exactly k cycles (a fence's carry is
          * last frame's, not this one's); the accumulator's 0..N is refused. */
-        ToriRSServer_EmbedPartyAuditCycles(g_torirs_max_frames > 0 ? cycles_per_frame : ticks);
+        ToriRSServer_EmbedPartyAuditCycles(App_FrameLocked() ? cycles_per_frame : ticks);
 #endif
 
         /*
@@ -986,7 +986,7 @@ App_RunOnce(
              * the world falls behind the clock it is supposed to keep. */
             if( ticks < ticks_paid )
             {
-                if( g_torirs_max_frames > 0 )
+                if( App_FrameLocked() )
                     /* The accumulator is emptied every frame on this path:
                      * owe the cycles to the next frame instead. */
                     s_cycles_owed = ticks_paid - ticks;

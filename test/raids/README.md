@@ -142,10 +142,10 @@ are headless unless their **Seat n in a window** tick was on before Play.
   party Play (and Respawn) says "restart the client to play another party" instead.
 - The party also closes when you log out, when the plugin stops, and when the client exits
   (the launch service kills every member it started).
-- A party needs a frame-locked client: until the profile carries it, a party row says
-  "unavailable: a party plays in lock step: start this client frame-locked
-  (TORIRS_MAX_FRAMES=2000000000 TORIRS_EMBED_CLOCK_MS=20)". On web, Android, iOS and Windows
-  it says the launch service's own reason (not supported there).
+- A party plays in lock step: hosting it frame-locks this client from then on (one logic
+  cycle and 20 ms of world clock a frame, real speed at the 50 fps pace), and its members
+  are launched frame-locked. No launch flag is needed. On web, Android, iOS and Windows a
+  party row says the launch service's own reason (not supported there).
 - The run directory is `build/quest_gate/watch/<raider 1>/p1..p3/`. Like any watched run it
   grades nothing; `run.py --party 3` stays the gate.
 

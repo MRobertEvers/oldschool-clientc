@@ -57,9 +57,9 @@
 -- (quest_driver/raid.lua QD.launch._party_up). A party row is playable when
 -- the launch service answers here (one probe at start: `launch/status` of no
 -- session answers "no such session" where the service runs, "unsupported"
--- with the reason on web, Android, iOS and Windows) and the client is
--- frame-locked (TORIRS_MAX_FRAMES: a party's frames each pay one logic
--- cycle, and the party host refuses otherwise). The PARTY block reads
+-- with the reason on web, Android, iOS and Windows). A party's frames each
+-- pay one logic cycle; the party host frame-locks this client when it hosts,
+-- so no launch flag is needed. The PARTY block reads
 -- `launch/status` of the session the driver opened
 -- (api.drive.party().launch_session/_token) every PARTY_INTERVAL_FRAMES
 -- frames: per seat its process (pid, up or how it ended) and the status it
@@ -255,7 +255,7 @@ local function refilter()
 end
 
 -- Whether this client can play a party at all (see the banner): the launch
--- service answered the probe, and the client is frame-locked. Returns ok and,
+-- service answered the probe, and this client hosts no party yet. Returns ok and,
 -- when not, why.
 local function party_gate(api)
     if api.drive == nil or api.drive.launch_status == nil or api.drive.party == nil then
@@ -264,13 +264,11 @@ local function party_gate(api)
     if launch_service.state ~= "yes" then
         return false, launch_service.reason
     end
+    -- A party plays in lock step; hosting it (api.drive.party_host) locks
+    -- this client's frames there, so no launch flag is asked for.
     local result, info = api.drive.party()
     if result ~= "ok" or type(info) ~= "table" then
         return false, "drive.party answered " .. tostring(result)
-    end
-    if not info.frame_locked then
-        return false, "a party plays in lock step: start this client frame-locked "
-            .. "(TORIRS_MAX_FRAMES=2000000000 TORIRS_EMBED_CLOCK_MS=20)"
     end
     if party_hosted then
         return false, PARTY_REHOST_REASON

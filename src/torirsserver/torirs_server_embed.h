@@ -573,4 +573,20 @@ ToriRSServer_EmbedPartyHostTake(
 void
 ToriRSServer_EmbedPartyHostNote(int hosting);
 
+/** Start the bot runner's drive (torirs_server_botrun.c) at run time with
+ *  `agent`, a shell command as TORIRS_BOTDRIVE_AGENT takes: at the next tick
+ *  with a world, this process's agent decides for every player in it.
+ *  0 queued; 1 when a drive already runs or TORIRS_BOTDRIVE_AGENT starts one
+ *  (run.py's flow), which this one would only duplicate. */
+int
+ToriRSServer_EmbedBotDriveRequest(
+    struct ToriRSServerEmbed* embed,
+    char const* agent);
+
+/** End a drive ToriRSServer_EmbedBotDriveRequest started (the Play that asked
+ *  for it ended), and forget one still queued. TORIRS_BOTDRIVE_AGENT's drive
+ *  runs on. */
+void
+ToriRSServer_EmbedBotDriveRelease(struct ToriRSServerEmbed* embed);
+
 #endif

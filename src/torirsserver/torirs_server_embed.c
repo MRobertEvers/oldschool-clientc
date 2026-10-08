@@ -89,9 +89,13 @@ struct ToriRSServerEmbed
     struct ToriRSServerBootConfig config;
     /* Recently ended sessions, for a GAMERECONNECT to reclaim. */
     struct ToriRSServerClaims claims;
-    /* TORIRS_BOTDRIVE_AGENT's drive, once the world is built */
+    /* TORIRS_BOTDRIVE_AGENT's drive, once the world is built -- or the one a
+     * Play asked for (ToriRSServer_EmbedBotDriveRequest), botdrive_requested
+     * set, which ends with that Play */
     struct ToriRSServerBotDrive* botdrive;
     int botdrive_tried;
+    int botdrive_requested;
+    char botdrive_request[512];
 
     /* The party link, or -1: see ToriRSServer_EmbedPartyAttach. */
     int party_listener;
@@ -285,6 +289,33 @@ ToriRSServer_EmbedDisconnect(
     embed_link_close(client);
     client->open = 0;
     return 1;
+}
+
+int
+ToriRSServer_EmbedBotDriveRequest(
+    struct ToriRSServerEmbed* embed,
+    char const* agent)
+{
+    assert(embed);
+    assert(agent);
+    assert(agent[0]);
+    if( embed->botdrive || getenv("TORIRS_BOTDRIVE_AGENT") )
+        return 1;
+    snprintf(embed->botdrive_request, sizeof(embed->botdrive_request), "%s", agent);
+    return 0;
+}
+
+void
+ToriRSServer_EmbedBotDriveRelease(struct ToriRSServerEmbed* embed)
+{
+    assert(embed);
+    embed->botdrive_request[0] = '\0';
+    if( !embed->botdrive_requested )
+        return;
+    ToriRSServer_BotDriveStop(embed->botdrive);
+    embed->botdrive = NULL;
+    embed->botdrive_requested = 0;
+    fprintf(stderr, "botdrive: the Play that asked for the agent ended; it drives no one now\n");
 }
 
 void
@@ -1827,6 +1858,12 @@ ToriRSServer_EmbedPump(
         {
             embed->botdrive_tried = 1;
             embed->botdrive = ToriRSServer_BotDriveStart(&embed->srv, getenv("TORIRS_BOTDRIVE_AGENT"));
+        }
+        if( !embed->botdrive && embed->botdrive_request[0] && embed->srv.world_built )
+        {
+            embed->botdrive = ToriRSServer_BotDriveStart(&embed->srv, embed->botdrive_request);
+            embed->botdrive_requested = 1;
+            embed->botdrive_request[0] = '\0';
         }
         if( embed->botdrive )
             ToriRSServer_BotDriveStep(embed->botdrive);

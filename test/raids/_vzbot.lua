@@ -10,6 +10,10 @@
 --   RAID_AGENT_ROOT=$PWD RAID_AGENT_PARTY=3 \
 --   TORIRS_BOTDRIVE_AGENT="lua $PWD/tools/raid_agent/run.lua verzik" \
 --   [QUEST_WATCH=1] python3 tools/raid_gate/run.py _vzbot --party 3
+--
+-- From the Scripts tab nothing sets TORIRS_BOTDRIVE_AGENT: the leader asks
+-- its own world for the agent (t.launch.botdrive), which stops with the Play.
+-- Under run.py the env already started it and the ask answers "already driving".
 local role = (QD_PARTY and QD_PARTY.role) or 1
 return {
     id = "_vzbot",
@@ -19,6 +23,10 @@ return {
     max_frames = 120000,
     setup = {},
     run = function(t)
+        if role == 1 then
+            local result, detail = t.launch.botdrive("lua tools/raid_agent/run.lua verzik")
+            t.check("vzbot.agent", result == "ok", tostring(result) .. " " .. tostring(detail))
+        end
         local verdict, seen = nil, ""
         for _ = 1, 400 do
             t.ticks(10)

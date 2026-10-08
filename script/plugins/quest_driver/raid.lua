@@ -1999,6 +1999,15 @@ function QD.launch.party()
     return api_drive.party()
 end
 
+-- t.launch.botdrive(agent) -> ok, "queued" | ok, "already driving" | refused:
+-- the leader's own world runs the bot runner's drive with `agent` (a shell
+-- command, as TORIRS_BOTDRIVE_AGENT takes) until this Play ends -- what a
+-- watched client (the Scripts tab) has instead of run.py's env.
+function QD.launch.botdrive(agent)
+    assert(type(agent) == "string" and agent ~= "", "t.launch.botdrive: agent is a command line")
+    return api_drive.botdrive(agent)
+end
+
 function QD.launch.close()
     local lines = QD.launch._leader_lines()
     if lines == nil then return "refused", "t.launch.close: no session (t.launch.open first)" end
@@ -2021,8 +2030,6 @@ function QD.launch._party_up(options)
     local party = options.party
     assert(type(party) == "table" and party.launch, "t.launch._party_up: not a launching leader's Play")
     local size = party.size
-    local info_result, info = QD.launch.party()
-    local frame_locked = info_result == "ok" and info.frame_locked
     local open_result, opened = QD.launch.open({ size = size, port = 0 })
     if open_result ~= "ok" then
         return open_result, "launch.open: " .. tostring(opened)
@@ -2031,11 +2038,13 @@ function QD.launch._party_up(options)
     local run_dir = string.match(session.dir or "", "^(.*)/[^/]+$") or session.dir
     local seats = {}
     for n = 2, size do
-        local env = nil
         -- A party's frames each pay exactly one logic cycle (the frame
-        -- audit): a frame-locked leader's members are frame-locked too, with
-        -- no budget of their own -- a member runs until its leader ends.
-        if frame_locked then env = { TORIRS_MAX_FRAMES = "2000000000" } end
+        -- audit): the leader is frame-locked (from launch, or by party_host
+        -- below), so its members are too, with no budget of their own -- a
+        -- member runs until its leader ends -- and a world clock of 20 ms a
+        -- frame, the leader's own (a leader the Scripts tab locked at run
+        -- time has no TORIRS_EMBED_CLOCK_MS for them to inherit).
+        local env = { TORIRS_MAX_FRAMES = "2000000000", TORIRS_EMBED_CLOCK_MS = "20" }
         seats[#seats + 1] = {
             seat = n, account = party.names[n], password = options.password,
             directory = run_dir .. "/p" .. n, env = env,

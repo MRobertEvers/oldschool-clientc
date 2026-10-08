@@ -56,6 +56,20 @@ long g_torirs_frame_no = 0;
 /* TORIRS_MAX_FRAMES, mirrored here from main.c so the logic pacer can see it.
  * Zero in an ordinary session. See the pacer for what it changes. */
 long g_torirs_max_frames = 0;
+/* Engaged at run time by a party host (App_FrameLockEngage). */
+static int s_frame_lock_engaged = 0;
+
+int
+App_FrameLocked(void)
+{
+    return g_torirs_max_frames > 0 || s_frame_lock_engaged;
+}
+
+void
+App_FrameLockEngage(void)
+{
+    s_frame_lock_engaged = 1;
+}
 /*
  * Construction and teardown.
  *
