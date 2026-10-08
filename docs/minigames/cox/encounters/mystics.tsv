@@ -1,7 +1,7 @@
 mechanic_id	quantity	spec_value	unit	tags	grade	source_ref	closes	tolerance
-mystics.hp_solo	hitpoints, solo	160	hp	[wiki]	D	sources/wiki_Skeletal_Mystic.wikitext; COX_MECHANICS.md:588	-	exact
-mystics.defence	defence level	187	count	[wiki]	D	COX_MECHANICS.md:589	-	exact
-mystics.cadence	attack speed	4	ticks	[wiki]	D	COX_MECHANICS.md:590	-	exact
-mystics.range	attack range	10	tiles	[wiki]	D	COX_MECHANICS.md:591	-	exact
-mystics.prayer_reduction	Protect from Magic remaining damage	50	percent	[wiki]	D	COX_MECHANICS.md:594	-	+-10
-mystics.count_solo	spawn count, solo	3	count	[wiki][nr]	C	COX_MECHANICS.md:595	-	exact
+mystics.hp_solo	hitpoints, solo	160	hp	[wiki][cache]	C	sources/wiki_Skeletal_Mystic.wikitext; COX_MECHANICS.md:588	-	exact
+mystics.defence	defence level	187	count	[wiki][cache]	C	sources/wiki_Skeletal_Mystic.wikitext; COX_MECHANICS.md:589	-	exact
+mystics.cadence	attack speed	4	ticks	[wiki][cache]	C	sources/wiki_Skeletal_Mystic.wikitext; COX_MECHANICS.md:590	-	exact
+mystics.range	attack range	10	tiles	[wiki][cache]	C	sources/wiki_Skeletal_Mystic.wikitext; COX_MECHANICS.md:591	-	exact
+mystics.prayer_reduction	Protect from Magic remaining damage	50	percent	[wiki][nr]	C	COX_MECHANICS.md:594; COX_NEARREALITY_PORT_PLAN.md	-	+-10
+mystics.count_solo	spawn count, solo	3	count	[wiki][nr]	C	COX_MECHANICS.md:595; COX_NEARREALITY_PORT_PLAN.md	-	exact
