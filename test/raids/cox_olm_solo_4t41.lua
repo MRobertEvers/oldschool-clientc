@@ -173,10 +173,10 @@ return {
         -- re-assert / kit top-ups above.
         "::godmode",
         -- Halberd (range 2): whip from 6421 never hit the size-5 left claw
-        -- (thumb 6425 is on the footprint and pathing caps x at 6421). Sang5
-        -- ledger: 355 apnpc2 left, 0 hit_npc.
-        "::give crystal_halberd",
-        "::wield crystal_halberd",
+        -- (thumb 6425 is on the footprint and pathing caps x at 6421).
+        -- crystal_halberd (23987) is the inactive shell — use dragon_halberd.
+        "::give dragon_halberd",
+        "::wield dragon_halberd",
         "::give infernal_cape",
         "::wield infernal_cape",
         "::give ferocious_gloves",
@@ -372,13 +372,25 @@ return {
             return sm.tiles and sm.tiles.hand or LEFT
         end
 
+        local function on_tile(tile, slack)
+            local _, me = t.world.tile()
+            slack = slack or 1
+            return math.max(math.abs(me.x - tile.x), math.abs(me.z - tile.z)) <= slack
+        end
+
         local function attack_melee()
             local m = melee_hand()
-            if hand_alive(m) then t.player.attack(m, 2, 1) end
+            if not hand_alive(m) then return end
+            -- Halberd range 2 from the post-barrier camp (6421) reaches the
+            -- size-5 claw; still nudge toward the approach tile when far.
+            if not on_tile(sm.tiles.thumb, 3) then
+                t.player.walk_to(sm.tiles.thumb.x, sm.tiles.thumb.z, 2)
+            end
+            t.player.attack(m, 2, 1)
         end
 
         local function walk_thumb()
-            t.player.walk_to(sm.tiles.thumb.x, sm.tiles.thumb.z, 2)
+            t.player.walk_to(sm.tiles.thumb.x, sm.tiles.thumb.z, 3)
         end
         local function walk_ring()
             t.player.walk_to(sm.tiles.ring.x, sm.tiles.ring.z, 3)
