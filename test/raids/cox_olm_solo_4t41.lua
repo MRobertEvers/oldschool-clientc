@@ -240,9 +240,17 @@ return {
             sm.tiles = melee_tiles(sm.ox, sm.oz, sm.side_west)
         end
 
+        -- Wanted overhead for the current phase; re-asserted every sustain.
+        -- Ticklog 4t41 run2: protectfrommagic (headicon bit → head 4) lit at
+        -- tick 118, cleared at 139 on a sphere sap, then never re-lit — full
+        -- mage-claw damage until death at 469.
+        local sm_pray = "protectfrommagic"
+
         local function pray_style(name)
-            t.prayer.set(name, true)
+            sm_pray = name
+            -- Overhead last so a conflicting group press cannot displace it.
             t.prayer.set("piety", true)
+            t.prayer.set(name, true)
         end
 
         local function inv_count(sym)
@@ -267,6 +275,16 @@ return {
 
         local function sustain()
             resupply()
+            -- Keep the phase overhead up after spheres / drains clear it.
+            if sm_pray ~= nil then
+                local rr, _, set = t.prayer.read()
+                if rr ~= "ok" or set == nil or set[sm_pray] ~= true then
+                    t.prayer.set(sm_pray, true)
+                end
+                if rr == "ok" and set ~= nil and set.piety ~= true then
+                    t.prayer.set("piety", true)
+                end
+            end
             local hp = hp_level(t)
             if hp ~= nil and hp < 70 then
                 if t.player.eat("shark") ~= "ok" then
