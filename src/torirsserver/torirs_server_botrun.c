@@ -60,7 +60,7 @@
  *
  * USAGE
  *   torirsserver --botrun --bots 3 --agent "lua tools/raid_agent/run.lua" \
- *       [--name <run name>] [--ticks N] [--ticklog path] [--realtime]
+ *       [--name <run name>] [--bot-prefix <p>] [--ticks N] [--ticklog path] [--realtime]
  * --name seeds the npc stream as TORIRSSERVER_RUN_NAME does for a quest run
  * and names the bots <name>1..N. --realtime paces ticks at 600 ms so a client
  * logged in beside them can watch.
@@ -732,6 +732,7 @@ ToriRSServer_BotRun(
 
     memset(&run, 0, sizeof(run));
     const char* name = "bot";
+    const char* prefix = NULL;
     const char* ticklog = NULL;
     const char* record = NULL;
     const char* replay = NULL;
@@ -755,6 +756,8 @@ ToriRSServer_BotRun(
             agent = argv[++i];
         else if( strcmp(argv[i], "--name") == 0 && i + 1 < argc )
             name = argv[++i];
+        else if( strcmp(argv[i], "--bot-prefix") == 0 && i + 1 < argc )
+            prefix = argv[++i];
         else if( strcmp(argv[i], "--ticks") == 0 && i + 1 < argc )
             ticks_max = atoi(argv[++i]);
         else if( strcmp(argv[i], "--ticklog") == 0 && i + 1 < argc )
@@ -793,7 +796,9 @@ ToriRSServer_BotRun(
         struct ToriRSServerPlayer* player = ToriRSServer_WorldAddPlayer(srv, NULL);
 
         assert(player);
-        snprintf(bot_name, sizeof(bot_name), "%s%d", name, i + 1);
+        /* --bot-prefix: a client party's own account names (a quest run's
+         * "<name>_p1..3"), so a client run's seed replays here */
+        snprintf(bot_name, sizeof(bot_name), "%s%d", prefix ? prefix : name, i + 1);
         ToriRSServer_WorldPlayerInit(player);
         ToriRSServer_WorldSetDisplayName(player, bot_name);
         ToriRSServer_WorldLogin(player);
@@ -992,8 +997,10 @@ ToriRSServer_BotDriveStart(
     drive->run.allowed_pid = -1;
     drive->run.known = calloc((size_t)BOTRUN_MAX * TORIRSSERVER_NPC_MAX, sizeof(*drive->run.known));
     assert(drive->run.known);
+    /* TORIRS_BOTDRIVE_TICKLOG: the rows to a file too, for the same tools a
+     * bot-runner run is read with (tools/raid_agent/deaths.py, balls.py) */
     if( !ToriRSServer_TicklogEnabled(srv) )
-        ToriRSServer_TicklogEnable(srv, NULL);
+        ToriRSServer_TicklogEnable(srv, getenv("TORIRS_BOTDRIVE_TICKLOG"));
     drive->run.cursor = ToriRSServer_TicklogCount();
     ToriRSServer_TicklogSideSink(botrun_side_row, &drive->run);
     ToriRSServer_MessageSink(botrun_message, &drive->run);

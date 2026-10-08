@@ -66,6 +66,15 @@ for line in io.lines() do
         world:self_line(f[2], f[3], f[4], f[5], f[6], f[7], f[8], f[9])
         seat_of(tonumber(f[2]))
     elseif word == "end" then
+        -- RAID_AGENT_DUMP_INV=<tick>: every player's inventory and gear then
+        if tonumber(os.getenv("RAID_AGENT_DUMP_INV") or "") == world.tick then
+            for _, pid in ipairs(seats) do
+                local p, inv, worn = world.players[pid], {}, {}
+                for s = 0, 27 do if p.inv[s] then inv[#inv + 1] = p.inv[s].name end end
+                for _, w in pairs(p.worn or {}) do worn[#worn + 1] = w.name end
+                log:write("inv p", pid, " ", #inv, ": ", table.concat(inv, ","), " | worn: ", table.concat(worn, ","), "\n")
+            end
+        end
         local stop = false
         for _, pid in ipairs(seats) do
             local m = mem[pid]
