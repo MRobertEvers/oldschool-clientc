@@ -1,0 +1,13 @@
+mechanic_id	scope	note
+vespula.hp_solo	all	solo raid measures this
+vespula.size	all	solo raid measures this
+vespula.cadence	all	solo raid measures this
+vespula.max_ranged	all	solo raid measures this
+vespula.max_stomp	all	solo raid measures this
+vespula.max_sting	all	solo raid measures this
+vespula.portal_hp	all	solo raid measures this
+vespula.portal_regen	all	solo raid measures this
+vespula.prayer_drain_period	all	solo raid measures this
+vespula.prayer_drain	all	solo raid measures this
+vespula.grounding_pct	all	solo raid measures this
+vespula.grub_self_heal	all	solo raid measures this

@@ -1,0 +1,8 @@
+mechanic_id	quantity	spec_value	unit	tags	grade	source_ref	closes	tolerance
+shamans.hp_solo	hitpoints, solo	190	hp	[wiki]	D	sources/wiki_Lizardman_shaman_Chambers_of_Xeric.wikitext; COX_MECHANICS.md:566	-	exact
+shamans.defence	defence level	210	count	[wiki]	D	COX_MECHANICS.md:567	-	exact
+shamans.cadence	attack speed	4	ticks	[wiki]	D	COX_MECHANICS.md:568	-	exact
+shamans.size	npc size	3	tiles	[wiki][cache]	C	COX_MECHANICS.md:569	-	exact
+shamans.poison	poison level	12	count	[wiki]	D	COX_MECHANICS.md:570	-	exact
+shamans.stat_regen	stat regeneration period	20	ticks	[wiki]	D	COX_MECHANICS.md:572	-	exact
+shamans.count_solo	spawn count, solo	2	count	[wiki][nr]	C	COX_MECHANICS.md:574; COX_NEARREALITY_PORT_PLAN.md	-	exact

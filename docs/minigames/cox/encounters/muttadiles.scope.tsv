@@ -1,0 +1,9 @@
+mechanic_id	scope	note
+muttadiles.hp_solo	all	solo raid measures this
+muttadiles.cadence	all	solo raid measures this
+muttadiles.small_melee_max	all	solo raid measures this
+muttadiles.small_ranged_max	all	solo raid measures this
+muttadiles.large_style_lock	all	solo raid measures this
+muttadiles.tree_trigger	all	solo raid measures this
+muttadiles.tree_feeds	all	solo raid measures this
+muttadiles.bites_per_feed	all	solo raid measures this

@@ -1,0 +1,8 @@
+mechanic_id	quantity	spec_value	unit	tags	grade	source_ref	closes	tolerance
+olm.action_clock	ticks between Olm actions	4	ticks	[plugin][wiki]	C	COX_MECHANICS.md:172; sources/openosrs_coxhelper/CoxPlugin.java; sources/wiki_Great_Olm.wikitext	-	exact
+olm.rotation_steps	fixed rotation length	12	count	[wiki]	D	COX_MECHANICS.md:150	-	exact
+olm.spec_every	actions between specials	4	count	[plugin]	D	COX_MECHANICS.md:174	-	exact
+olm.head_vislevel	live head vislevel	1043	count	[cache]	A	COX_PLAN.md:90	-	exact
+olm.left_vislevel	live left claw vislevel	750	count	[cache]	A	COX_PLAN.md:91	-	exact
+olm.right_vislevel	live right claw vislevel	549	count	[cache]	A	COX_PLAN.md:92	-	exact
+olm.phases_solo	phases including head, solo	4	count	[wiki]	D	COX_MECHANICS.md:277; COX_PLAN.md:808; sources/wiki_Perfect_Olm_Solo.wikitext	-	exact

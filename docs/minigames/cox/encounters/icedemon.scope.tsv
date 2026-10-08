@@ -1,0 +1,8 @@
+mechanic_id	scope	note
+icedemon.hp_solo	all	solo raid measures this
+icedemon.cadence	all	solo raid measures this
+icedemon.aoe	all	solo raid measures this
+icedemon.damage_reduction	all	solo raid measures this
+icedemon.icefiend_extinguish_period	all	solo raid measures this
+icedemon.icefiend_success	all	solo raid measures this
+icedemon.kindling_max	all	solo raid measures this

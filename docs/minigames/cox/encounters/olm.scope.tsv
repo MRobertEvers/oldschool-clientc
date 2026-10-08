@@ -1,0 +1,8 @@
+mechanic_id	scope	note
+olm.action_clock	all	solo raid measures this
+olm.rotation_steps	all	solo raid measures this
+olm.spec_every	all	solo raid measures this
+olm.head_vislevel	all	solo raid measures this
+olm.left_vislevel	all	solo raid measures this
+olm.right_vislevel	all	solo raid measures this
+olm.phases_solo	all	solo raid measures this

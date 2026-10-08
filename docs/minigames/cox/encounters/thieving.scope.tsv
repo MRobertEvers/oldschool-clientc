@@ -1,0 +1,8 @@
+mechanic_id	scope	note
+thieving.points_per_grub	all	solo raid measures this
+thieving.grub_stack_cap	all	solo raid measures this
+thieving.min_per_open	all	solo raid measures this
+thieving.hunger_delay	all	solo raid measures this
+thieving.chest_count_ccw	all	solo raid measures this
+thieving.chest_count_thru	all	solo raid measures this
+thieving.chest_count_cw	all	solo raid measures this

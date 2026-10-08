@@ -1,0 +1,11 @@
+mechanic_id	quantity	spec_value	unit	tags	grade	source_ref	closes	tolerance
+tekton.cadence	attack cadence while fighting (normal and enraged)	3	ticks	[cache][wiki]	C	COX_MECHANICS.md:348; sources/wiki_Tekton.wikitext	-	exact
+tekton.hp_solo	hitpoints, solo maxed	300	hp	[wiki]	D	sources/wiki_Tekton.wikitext; COX_PLAN.md	-	exact
+tekton.size	npc size	4	tiles	[cache]	A	COX_PLAN.md:67	-	exact
+tekton.anvil_attacks_min	autos before anvil, normal, min	10	count	[wiki][plugin]	C	COX_MECHANICS.md:405; sources/openosrs_coxhelper/CoxPlugin.java	-	exact
+tekton.anvil_attacks_max	autos before anvil, normal, max	14	count	[wiki][plugin]	C	COX_MECHANICS.md:405	-	exact
+tekton.anvil_enraged_min	autos before anvil, enraged, min	4	count	[wiki]	D	COX_MECHANICS.md:405	-	exact
+tekton.anvil_enraged_max	autos before anvil, enraged, max	6	count	[wiki]	D	COX_MECHANICS.md:405	-	exact
+tekton.spark_volleys	spark volleys during anvil before resume	5	count	[wiki]	D	COX_MECHANICS.md:376	-	exact
+tekton.melee_prayer_reduction	Protect from Melee damage remaining	50	percent	[wiki][nr]	C	COX_MECHANICS.md:403	-	exact
+tekton.water_weakness	water elemental weakness	20	percent	[wiki][jagex]	A	COX_MECHANICS.md:420	-	exact

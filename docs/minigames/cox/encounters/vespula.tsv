@@ -1,0 +1,13 @@
+mechanic_id	quantity	spec_value	unit	tags	grade	source_ref	closes	tolerance
+vespula.hp_solo	Vespula hitpoints, solo	200	hp	[wiki][cache]	C	COX_MECHANICS.md:499; sources/wiki_Vespula.wikitext	-	exact
+vespula.size	flying size	5	tiles	[wiki][cache]	C	COX_MECHANICS.md:499	-	exact
+vespula.cadence	attack speed	3	ticks	[wiki]	D	COX_MECHANICS.md:500	-	exact
+vespula.max_ranged	ranged max hit	14	hp	[wiki]	D	COX_MECHANICS.md:501	-	exact
+vespula.max_stomp	stomp max hit	8	hp	[wiki]	D	COX_MECHANICS.md:501	-	exact
+vespula.max_sting	sting max hit	20	hp	[wiki]	D	COX_MECHANICS.md:501	-	exact
+vespula.portal_hp	abyssal portal hitpoints	250	hp	[wiki]	D	COX_MECHANICS.md:504; sources/wiki_Abyssal_portal.wikitext	-	exact
+vespula.portal_regen	portal regen period	45	ticks	[wiki]	D	COX_MECHANICS.md:505	-	exact
+vespula.prayer_drain_period	portal prayer drain period	2	ticks	[wiki]	D	COX_MECHANICS.md:506	-	exact
+vespula.prayer_drain	prayer points drained per pulse	3	count	[wiki]	D	COX_MECHANICS.md:506	-	exact
+vespula.grounding_pct	lands at this remaining hp percent	20	percent	[wiki]	D	COX_MECHANICS.md:507	-	exact
+vespula.grub_self_heal	grub self-heal period (never)	10000	ticks	[jagex][wiki]	A	COX_MECHANICS.md:503	-	exact

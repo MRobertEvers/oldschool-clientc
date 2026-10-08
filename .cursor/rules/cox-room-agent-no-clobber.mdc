@@ -1,0 +1,43 @@
+---
+description: CoX room agents must not move or overwrite sibling trees
+alwaysApply: true
+---
+
+# CoX room agents — no clobbering siblings
+
+**Non-negotiable.** Parallel CoX room agents share one checkout
+(`OSRS-Content/`, `test/raids/`, `docs/minigames/cox/`). Your room lane must
+**never** move, reset, or overwrite another room's work to green a gate.
+
+## Forbidden
+
+- `git checkout -f`, `git reset --hard`, or `git clean` on the shared parent
+  or on `OSRS-Content/` (wipes sibling WIP)
+- `git stash` / `stash drop` of files you do not own
+- Replacing another room's `test/raids/cox_<other>.lua` (including
+  `cp`, `sed -i`, hardlink games, or "restore from pin")
+- Rewriting `cox.constant` / `cox.varp` / `cox.npc` / shared `cox_*.rs2`
+  except **additive** `^cox_<your_room>_…` / `%cox_<your_room>_…` blocks
+- Editing `cox_layout.rs2`, `cox.rs2` (except a marked `::coxrun` for your
+  room), `cox_points.rs2`, or a sibling room's `cox_<sibling>.rs2`
+- Renaming or moving trees to `*.skip`, `/tmp`, or "park" backups (also
+  covered by `no-park-sibling-content`)
+- Pointing the `OSRS-Content` submodule gitlink at a commit that drops
+  sibling room changes you did not author
+- Running `prepare_scripts.py` / pack rebuilds that you then "fix" by
+  restoring a private copy of **another** room's harness
+
+## Required
+
+- Stay on **your** room branch; edit only the ownership table row in
+  `docs/minigames/cox/ROOM_AGENT.md`
+- Shared file edits: take the named flock (`/tmp/cox_config.lock`,
+  `/tmp/cox_puzzles.lock`, `/tmp/cox_minions.lock`, …), touch only your
+  symbols, release
+- Gate with `QUEST_BINARY` private to your room when possible; use
+  `--no-build` if a sibling holds the pack lock — do not rebuild by
+  deleting their tree
+- If a sibling file is broken: **report it**, do not rewrite or park it
+
+See `docs/minigames/cox/ROOM_AGENT.md` § Standing rules and
+`docs/minigames/cox/agent_briefs/AGENTS.md`.

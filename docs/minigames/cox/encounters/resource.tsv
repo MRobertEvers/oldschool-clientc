@@ -1,0 +1,7 @@
+mechanic_id	quantity	spec_value	unit	tags	grade	source_ref	closes	tolerance
+resource.herb_grow	herb grow time	50	ticks	[wiki]	D	COX_MECHANICS.md:747; sources/wiki_Overload_Chambers_of_Xeric.wikitext	-	exact
+resource.plots	farming plots per resource room	2	count	[wiki]	D	COX_MECHANICS.md:747	-	exact
+resource.overload_boost_99	overload boost at 99	17	count	[wiki]	D	COX_MECHANICS.md:756	-	exact
+resource.overload_hp_cost	hitpoints lost on drink	50	hp	[wiki]	D	COX_MECHANICS.md:756	-	exact
+resource.overload_reapply	boost re-apply period	25	ticks	[wiki]	D	COX_MECHANICS.md:757	-	exact
+resource.overload_duration	overload duration	500	ticks	[wiki]	D	COX_MECHANICS.md:757	-	exact

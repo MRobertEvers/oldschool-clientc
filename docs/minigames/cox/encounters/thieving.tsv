@@ -1,0 +1,8 @@
+mechanic_id	quantity	spec_value	unit	tags	grade	source_ref	closes	tolerance
+thieving.points_per_grub	points awarded per cavern grub	115	count	[wiki]	D	sources/wiki_Cavern_grubs.wikitext; COX_MECHANICS.md:705	-	exact
+thieving.grub_stack_cap	grub stack cap	28	count	[wiki]	D	COX_MECHANICS.md:707	-	exact
+thieving.min_per_open	grubs guaranteed on a successful open	1	count	[wiki]	D	COX_MECHANICS.md:708	-	exact
+thieving.hunger_delay	ticks after last feed before hunger resumes	100	ticks	[wiki][jagex]	A	COX_MECHANICS.md:709	-	exact
+thieving.chest_count_ccw	closed chests, CCW variant	64	count	[plugin]	D	sources/de0/ChestData.java; COX_MECHANICS.md:719	-	exact
+thieving.chest_count_thru	closed chests, THRU variant	66	count	[plugin]	D	sources/de0/ChestData.java; COX_MECHANICS.md:720	-	exact
+thieving.chest_count_cw	closed chests, CW variant	74	count	[plugin]	D	sources/de0/ChestData.java; COX_MECHANICS.md:721	-	exact

@@ -1,0 +1,8 @@
+mechanic_id	scope	note
+vanguards.hp_solo	all	solo raid measures this
+vanguards.defence	all	solo raid measures this
+vanguards.cadence	all	solo raid measures this
+vanguards.max_hit	all	solo raid measures this
+vanguards.attacks_per_action	all	solo raid measures this
+vanguards.heal_threshold_small	all	solo raid measures this
+vanguards.shuffle	all	solo raid measures this

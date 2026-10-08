@@ -12,6 +12,10 @@ typedef void(APIENTRYP* PFNGLBUFFERSTORAGEPROC)(
     GLbitfield flags);
 #endif
 #else
+/* Linux glcorearb.h is typedefs-only unless this is set; desktop soft3d /
+ * questtest still compiles the GL3 TU and needs the prototypes that macOS
+ * OpenGL/gl3.h exposes by default. Aliases below still prefer trspk_gl*. */
+#define GL_GLEXT_PROTOTYPES 1
 #include <GL/glcorearb.h>
 #endif
 
@@ -81,6 +85,30 @@ extern PFNGLFENCESYNCPROC trspk_glFenceSync;
 extern PFNGLDELETESYNCPROC trspk_glDeleteSync;
 extern PFNGLCLIENTWAITSYNCPROC trspk_glClientWaitSync;
 extern PFNGLFLUSHPROC trspk_glFlush;
+/* Framebuffer / uniform / readback entry points used by
+ * platform_sdl2_renderer_gl3.c (were undeclared on glcorearb-only builds). */
+extern PFNGLBLENDFUNCSEPARATEPROC trspk_glBlendFuncSeparate;
+extern PFNGLGETERRORPROC trspk_glGetError;
+extern PFNGLGETINTEGERVPROC trspk_glGetIntegerv;
+extern PFNGLGETSTRINGPROC trspk_glGetString;
+extern PFNGLPIXELSTOREIPROC trspk_glPixelStorei;
+extern PFNGLTEXSUBIMAGE2DPROC trspk_glTexSubImage2D;
+extern PFNGLUNIFORM2FPROC trspk_glUniform2f;
+extern PFNGLUNIFORM4FPROC trspk_glUniform4f;
+extern PFNGLGENFRAMEBUFFERSPROC trspk_glGenFramebuffers;
+extern PFNGLDELETEFRAMEBUFFERSPROC trspk_glDeleteFramebuffers;
+extern PFNGLBINDFRAMEBUFFERPROC trspk_glBindFramebuffer;
+extern PFNGLFRAMEBUFFERTEXTURE2DPROC trspk_glFramebufferTexture2D;
+extern PFNGLCHECKFRAMEBUFFERSTATUSPROC trspk_glCheckFramebufferStatus;
+extern PFNGLBLITFRAMEBUFFERPROC trspk_glBlitFramebuffer;
+extern PFNGLGENRENDERBUFFERSPROC trspk_glGenRenderbuffers;
+extern PFNGLDELETERENDERBUFFERSPROC trspk_glDeleteRenderbuffers;
+extern PFNGLBINDRENDERBUFFERPROC trspk_glBindRenderbuffer;
+extern PFNGLRENDERBUFFERSTORAGEPROC trspk_glRenderbufferStorage;
+extern PFNGLFRAMEBUFFERRENDERBUFFERPROC trspk_glFramebufferRenderbuffer;
+extern PFNGLGETBUFFERSUBDATAPROC trspk_glGetBufferSubData;
+extern PFNGLREADBUFFERPROC trspk_glReadBuffer;
+extern PFNGLREADPIXELSPROC trspk_glReadPixels;
 
 bool
 trspk_sdlgl_init(void);
@@ -150,6 +178,28 @@ trspk_sdlgl_init(void);
 #define glDeleteSync trspk_glDeleteSync
 #define glClientWaitSync trspk_glClientWaitSync
 #define glFlush trspk_glFlush
+#define glBlendFuncSeparate trspk_glBlendFuncSeparate
+#define glGetError trspk_glGetError
+#define glGetIntegerv trspk_glGetIntegerv
+#define glGetString trspk_glGetString
+#define glPixelStorei trspk_glPixelStorei
+#define glTexSubImage2D trspk_glTexSubImage2D
+#define glUniform2f trspk_glUniform2f
+#define glUniform4f trspk_glUniform4f
+#define glGenFramebuffers trspk_glGenFramebuffers
+#define glDeleteFramebuffers trspk_glDeleteFramebuffers
+#define glBindFramebuffer trspk_glBindFramebuffer
+#define glFramebufferTexture2D trspk_glFramebufferTexture2D
+#define glCheckFramebufferStatus trspk_glCheckFramebufferStatus
+#define glBlitFramebuffer trspk_glBlitFramebuffer
+#define glGenRenderbuffers trspk_glGenRenderbuffers
+#define glDeleteRenderbuffers trspk_glDeleteRenderbuffers
+#define glBindRenderbuffer trspk_glBindRenderbuffer
+#define glRenderbufferStorage trspk_glRenderbufferStorage
+#define glFramebufferRenderbuffer trspk_glFramebufferRenderbuffer
+#define glGetBufferSubData trspk_glGetBufferSubData
+#define glReadBuffer trspk_glReadBuffer
+#define glReadPixels trspk_glReadPixels
 #endif
 
 #endif
