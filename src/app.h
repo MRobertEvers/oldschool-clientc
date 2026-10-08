@@ -4095,6 +4095,16 @@ App_WorldSceneryAnim(
     int loc_shape,
     int seq_id);
 
+/** SPOTANIM mask: start loading an entity-attached graphic the moment the
+ * packet names it, rather than when its start delay has run out. A delayed
+ * impact (a barrage's ice block, a bolt's splash) is timed to land with its
+ * projectile; loading it only then meant a cold graphic drew late or, once the
+ * world had played its frames out, not at all. No-op when already resident. */
+void
+App_EntitySpotanimPrefetch(
+    struct App* app,
+    int spotanim_id);
+
 /* Spawn a free-standing spotanim (graphical effect) at a tile — reference
  * MapSpotAnim, driven by the MAP_ANIM zone packet. Enqueues an async load of
  * the spotanim config + its model/seq before building the world entity. */

@@ -4634,9 +4634,14 @@ player_extended_v5(struct ToriRSServer* srv, struct ToriRSServerPlayer* viewer,
                     ext.hit_extra_count++;
                 }
                 /* The standard bar's configuration and width are content
-                 * symbols, not an engine-side numeric convention. Start from
-                 * full and advance to the current fill so the v239 client can
-                 * retain the config width independently of hitpoints. */
+                 * symbols, not an engine-side numeric convention.
+                 *
+                 * Duration 0: the bar IS the current fill. It used to say
+                 * "start full, travel to the fill over 1 cycle", and the
+                 * client draws the start fill on the cycle the block lands
+                 * (elapsed 0 < duration 1) -- one full-bar frame per hit,
+                 * which on a target hit every tick is a bar flickering
+                 * between its value and full. See put_npc_extended_v5. */
                 if( subject->max_hitpoints > 0 && ToriRSServer_Ids()->healthbar_standard >= 0 )
                 {
                     /* Players are size 1, so the standard bar is the whole of
@@ -4649,11 +4654,11 @@ player_extended_v5(struct ToriRSServer* srv, struct ToriRSServerPlayer* viewer,
 
                     ext.has_headbar = 1;
                     ext.headbar_type = ToriRSServer_Ids()->healthbar_standard;
-                    ext.headbar_duration = 1;
+                    ext.headbar_duration = 0;
                     ext.headbar_start_delay = 0;
-                    ext.headbar_start_fill = width;
-                    ext.headbar_end_fill =
+                    ext.headbar_start_fill =
                         (subject->hitpoints * width) / subject->max_hitpoints;
+                    ext.headbar_end_fill = ext.headbar_start_fill;
                 }
             }
             if( (subject->masks & TORIRSSERVER_PMASK_SEQUENCE) || (entering && subject->anim_id >= 0) )
@@ -5755,12 +5760,20 @@ put_npc_extended_v5(
          * is the deob (`Statics.method10109`, `method13137`/`method13166`) and
          * RSProt's NpcHeadbarEncoder, and they agree with each other.
          */
+        /*
+         * Duration 0, so the block carries ONE fill and no target: the bar is
+         * set to the current health rather than travelling to it. This wrote
+         * duration 1 from a start fill of `width` until 2026-10-08, and the
+         * client draws the start fill on the cycle a block lands (elapsed 0 <
+         * duration 1) -- a full bar for one frame after every hit. A Nylocas
+         * support chewed by a dozen nylocas takes a bite most ticks, so its bar
+         * read as flickering between its value and full.
+         */
         rsab_p1_alt2(buf, 1);
         v5_psmart1or2(buf, headbar);
-        v5_psmart1or2(buf, 1);
         v5_psmart1or2(buf, 0);
-        rsab_p1_alt1(buf, width);
-        rsab_p1_alt3(buf, fill);
+        v5_psmart1or2(buf, 0);
+        rsab_p1_alt1(buf, fill);
     }
     if( classic & TORIRSSERVER_NMASK_ANIM )
     {

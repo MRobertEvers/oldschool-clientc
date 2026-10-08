@@ -151,7 +151,11 @@ world_seq_source_toridraw_stretches(
 
 /* World_SeqSource.spotanim_seq: resolve a spotanim id to its animation seq id so
  * the world can step an entity's attached-graphic frame. -1 when the id is
- * invalid or the spotanimtype is not yet resident (the world then waits). */
+ * invalid or the graphic cannot be drawn yet (the world then waits).
+ *
+ * "Drawn" includes the MODEL, because the app's combine will not run without it
+ * (app_entity_spotanim_resident). Answering from the type alone let a warm seq
+ * over a cold model play its frames out while nothing could be drawn. */
 static int
 world_seq_source_toridraw_spotanim_seq(
     void* userdata,
@@ -160,7 +164,11 @@ world_seq_source_toridraw_spotanim_seq(
     struct WorldSeqSourceToriDraw const* source = (struct WorldSeqSourceToriDraw const*)userdata;
     struct ToriRS_Spotanimtype* spot =
         spotanim_id >= 0 ? CacheProvider_SpotanimtypeGet(source->provider, spotanim_id) : NULL;
-    return spot ? spot->seq : -1;
+    if( !spot )
+        return -1;
+    if( spot->model >= 0 && !CacheProvider_ModelGet(source->provider, spot->model) )
+        return -1;
+    return spot->seq;
 }
 
 void

@@ -15,6 +15,50 @@ app_entity_spotanim_detach(
     struct App* app,
     struct AppEntitySpotanim* entry,
     bool restore);
+/* The whole asset chain an attached graphic needs before it can be combined:
+ * the spotanimtype, its model, and a playable seq. One test for the per-frame
+ * combine below and for the packet-time prefetch, so the two cannot disagree
+ * about what "loaded" means. */
+static int
+app_entity_spotanim_resident(
+    struct App* app,
+    int spotanim_id)
+{
+    struct ToriRS_Spotanimtype* type;
+    struct ToriDraw_Animation* anim;
+
+    assert(app);
+    type = CacheProvider_SpotanimtypeGet(app->provider, spotanim_id);
+    if( !type || !CacheProvider_ModelGet(app->provider, type->model) )
+        return 0;
+    anim = type->seq >= 0 ? ToriDraw_SceneAnimationGet(app->scene, type->seq) : NULL;
+    return anim && anim->frame_count > 0 && anim->frames && anim->base;
+}
+
+static void
+app_entity_spotanim_load(
+    struct App* app,
+    int spotanim_id,
+    int element_id)
+{
+    struct Task_AppSpawn* task = app_spawn_task_new(app, APP_SPAWN_ENTITY_SPOTANIM, 0, 0, 0);
+    task->spotanim_id = spotanim_id;
+    task->entity_element_id = element_id;
+    ToriRS_TaskQueue_Add(app->runner.queue, &task->task);
+}
+
+void
+App_EntitySpotanimPrefetch(
+    struct App* app,
+    int spotanim_id)
+{
+    assert(app);
+    assert(spotanim_id >= 0);
+    if( app_entity_spotanim_resident(app, spotanim_id) )
+        return;
+    app_entity_spotanim_load(app, spotanim_id, -1);
+}
+
 static void
 app_world_sync_one_entity_spotanim(
     struct App* app,
@@ -337,22 +381,20 @@ app_world_sync_one_entity_spotanim(
      * cache (the browser's) that was most of the stall on the first attack
      * after a login: the combat graphics are the first spotanims a session
      * ever asks for. */
-    type = CacheProvider_SpotanimtypeGet(app->provider, spot->id);
-    anim = (type && type->seq >= 0) ? ToriDraw_SceneAnimationGet(app->scene, type->seq) : NULL;
-    if( !type || !CacheProvider_ModelGet(app->provider, type->model) || !anim ||
-        anim->frame_count <= 0 || !anim->frames || !anim->base )
+    if( !app_entity_spotanim_resident(app, spot->id) )
     {
+        /* Normally already in flight: the packet that set the graphic
+         * prefetched it (App_EntitySpotanimPrefetch), so the start delay
+         * covers the load. This is the fallback for anything that did not. */
         if( !entry->load_enqueued )
         {
-            struct Task_AppSpawn* task =
-                app_spawn_task_new(app, APP_SPAWN_ENTITY_SPOTANIM, 0, 0, 0);
-            task->spotanim_id = spot->id;
-            task->entity_element_id = element_id;
-            ToriRS_TaskQueue_Add(app->runner.queue, &task->task);
+            app_entity_spotanim_load(app, spot->id, element_id);
             entry->load_enqueued = 1;
         }
         return;
     }
+    type = CacheProvider_SpotanimtypeGet(app->provider, spot->id);
+    anim = ToriDraw_SceneAnimationGet(app->scene, type->seq);
 
     if( !ToriDraw_SceneElementIsLive(app->scene, element_id) )
         return;

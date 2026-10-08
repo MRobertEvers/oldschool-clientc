@@ -810,7 +810,14 @@ World_StepEntityAnimation(
 
         if( spot->frame < 0 )
             spot->frame = 0;
-        spot->cycle++;
+        /* The clock runs only while the graphic can be drawn. It used to tick
+         * through the load as well, and the first cycle the seq resolved spent
+         * the whole stall at once: a graphic whose assets took longer than its
+         * seq to arrive expired on the cycle it landed and was never drawn --
+         * the barrage that "fizzled". A late graphic now holds frame 0 and plays
+         * in full, the same rule a cold primary seq follows. */
+        if( count > 0 )
+            spot->cycle++;
         while( count > 0 && spot->frame < count &&
                spot->cycle > cycle_seq_frame_duration(world, seq, spot->frame) )
         {

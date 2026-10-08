@@ -780,6 +780,8 @@ player_apply_op(
             op->_spotanim.spotanim_id,
             op->_spotanim.height_delay >> 16,
             op->_spotanim.height_delay & 0xffff);
+        if( op->_spotanim.spotanim_id >= 0 )
+            App_EntitySpotanimPrefetch(self->app, op->_spotanim.spotanim_id);
         break;
     case PKT_PLAYER_INFO_OP_EXACT_MOVE:
     {
@@ -1427,12 +1429,16 @@ npc_apply_op(
         break;
     case PKT_NPC_INFO_OP_SPOTANIM:
         if( idx >= 0 )
+        {
             World_NpcSetSpotanim(
                 world,
                 idx,
                 op->_spotanim.spotanim_id,
                 op->_spotanim.height_delay >> 16,
                 op->_spotanim.height_delay & 0xffff);
+            if( op->_spotanim.spotanim_id >= 0 )
+                App_EntitySpotanimPrefetch(self->app, op->_spotanim.spotanim_id);
+        }
         break;
     case PKT_NPC_INFO_OP_EXACT_MOVE:
         if( idx >= 0 )

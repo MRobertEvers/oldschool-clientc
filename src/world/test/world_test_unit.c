@@ -2035,6 +2035,76 @@ test_action_anim_hands_back_to_the_readyanim_loop_point(void)
 }
 
 /*
+ * An entity graphic whose assets arrive late plays from its first frame.
+ *
+ * The spot's clock used to tick through the load, and the first cycle the seq
+ * resolved spent the whole stall in one go: a graphic that took longer to load
+ * than its seq lasts expired on the cycle it became drawable and was never
+ * seen. That is the Ice Barrage "fizzle" on a cold model. The fix holds the
+ * clock while the seq source says not-yet (-1), so frame 0 is the first frame
+ * the app is ever asked to combine.
+ */
+static int g_spot_test_resident;
+
+static int
+spot_test_spotanim_seq(void* userdata, int spotanim_id)
+{
+    (void)userdata;
+    (void)spotanim_id;
+    return g_spot_test_resident ? 900 : -1;
+}
+
+static int
+spot_test_frame_count(void* userdata, int seq_id)
+{
+    (void)userdata;
+    return seq_id == 900 ? 4 : 0;
+}
+
+static int
+spot_test_frame_duration(void* userdata, int seq_id, int frame)
+{
+    (void)userdata;
+    (void)seq_id;
+    (void)frame;
+    return 2;
+}
+
+void
+test_entity_spotanim_holds_until_resident(void)
+{
+    printf("TEST: an entity graphic that loads late still plays from frame 0\n");
+
+    struct World* world = World_TestMakeReady(104);
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+    int ni = World_NpcSpawn(world, 7, 1234, 1, 20, 20, 5, idle);
+    struct WorldEntity_NPC* npc = World_EntityPoolGet(&world->entities.npc, ni);
+
+    world->seq_source.spotanim_seq = spot_test_spotanim_seq;
+    world->seq_source.frame_count = spot_test_frame_count;
+    world->seq_source.frame_duration = spot_test_frame_duration;
+
+    g_spot_test_resident = 0;
+    World_NpcSetSpotanim(world, ni, 369, 0, 5);
+    /* Far longer than the seq's 8 cycles, delay included. */
+    for( int i = 0; i < 40; i++ )
+        World_Cycle(world, 1);
+    TEST_ASSERT(npc->spotanim.id == 369, "a graphic still loading is not expired");
+    TEST_ASSERT(npc->spotanim.frame == 0, "and it waits on frame 0");
+
+    g_spot_test_resident = 1;
+    World_Cycle(world, 1);
+    TEST_ASSERT(npc->spotanim.id == 369, "the cycle it lands it is still playing");
+    TEST_ASSERT(npc->spotanim.frame == 0, "from its first frame, not the stall's");
+
+    for( int i = 0; i < 8 && npc->spotanim.id != -1; i++ )
+        World_Cycle(world, 1);
+    TEST_ASSERT(npc->spotanim.id == -1, "and it ends after playing its frames once");
+
+    World_Free(world);
+}
+
+/*
  * A transmog keeps whatever one-shot is already playing.
  *
  * `Client.ts`'s CHANGETYPE branch writes type, size, turnspeed, the four walk
