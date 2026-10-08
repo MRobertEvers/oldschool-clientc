@@ -2,6 +2,9 @@ mechanic_id	quantity	spec_value	unit	tags	grade	source_ref	closes	tolerance
 tightrope.ranger_hp	deathly ranger hitpoints	120	hp	[wiki]	D	sources/wiki_Tightrope_Chambers_of_Xeric.wikitext; COX_MECHANICS.md:680	-	exact
 tightrope.mage_hp	deathly mage hitpoints	120	hp	[wiki]	D	COX_MECHANICS.md:680	-	exact
 tightrope.cadence	attack speed, both	4	ticks	[wiki]	D	COX_MECHANICS.md:683	-	exact
-tightrope.ranger_max	ranger max hit	70	hp	[wiki]	D	COX_MECHANICS.md:684	-	exact
-tightrope.mage_max	mage max hit	22	hp	[wiki]	D	COX_MECHANICS.md:684	-	exact
+tightrope.ranger_max	ranger max hit	70	hp	[wiki]	D	COX_MECHANICS.md:684	-	range
+tightrope.mage_max	mage max hit	22	hp	[wiki]	D	COX_MECHANICS.md:684	-	range
 tightrope.solo_count	rangers and mages each, solo	2	count	[wiki]	D	COX_MECHANICS.md:687	-	exact
+tightrope.passive_until_rope	hit_player rows before Cross	0	count	[wiki]	D	COX_MECHANICS.md:687; sources/wiki_Chambers_of_Xeric_Strategies.wikitext	-	exact
+tightrope.damage_after_cross	ticks spanning the landing damage dump	1	ticks	[wiki]	D	COX_MECHANICS.md:691; sources/wiki_Chambers_of_Xeric_Strategies.wikitext	-	exact
+tightrope.keystone_dispels	rangers+mages left after Dispel	0	count	[wiki]	D	COX_MECHANICS.md:688-690; sources/wiki_Keystone_crystal.wikitext	-	exact

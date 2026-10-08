@@ -5,3 +5,6 @@ tightrope.cadence	all	solo raid measures this
 tightrope.ranger_max	all	solo raid measures this
 tightrope.mage_max	all	solo raid measures this
 tightrope.solo_count	all	solo raid measures this
+tightrope.passive_until_rope	all	solo raid measures this
+tightrope.damage_after_cross	all	solo raid measures this
+tightrope.keystone_dispels	all	solo raid measures this

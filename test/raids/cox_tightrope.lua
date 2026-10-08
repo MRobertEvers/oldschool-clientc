@@ -1,16 +1,15 @@
--- Chambers of Xeric: Tightrope, Synq solo (kill the guards).
+-- Chambers of Xeric: Tightrope, §13 rope traversal (not kill-guards).
 -- Spec: docs/minigames/cox/encounters/tightrope.tsv
--- Source: docs/minigames/cox/synq_transcript.md [0:26:22]
---   "Before doing this, you'll want to defeat the mages and rangers that
---    guard the keystone. Use the twisted bow on the mages ..."
---   "Once you've defeated both the mages and rangers, you can now cross
---    the tightrope and get the keystone. Then, use the keystone on the
---    barrier."
--- Explicitly NOT the phoenix-necklace rope skip ([0:29:13]).
+-- Source: docs/minigames/cox/COX_MECHANICS.md §13
+--   Passive until Cross; landing damage dumps in one tick; keystone Dispel
+--   kills every survivor. Traversal puzzle, not a kill room.
+-- Explicitly NOT the phoenix-necklace rope skip (synq [0:29:13]).
 -- Model: named-state machine, one intent per tick.
 
 local RANGER = "raids_tightrope_ranger"
 local MAGE = "raids_tightrope_mage"
+local RANGER_ID = 7559
+local MAGE_ID = 7560
 
 local function spec(t, id, measured, extra, specv, grade, tol)
     local detail = "measured " .. measured
@@ -35,14 +34,8 @@ local function count_sym(rows, sym)
     return n
 end
 
-local function alive(t, sym)
-    local r, row = t.npc.nearest(sym, 40)
-    if r == "ok" and row ~= nil then return row end
-    return nil
-end
-
 local function sustain(t)
-    if hp(t) > 0 and hp(t) < 55 then
+    if hp(t) > 0 and hp(t) < 70 then
         t.player.inv_op("shark", 1)
     end
     local pr, pp = t.prayer.points()
@@ -53,14 +46,12 @@ local function sustain(t)
     end
 end
 
--- Synq solo kill-guards cycle. States name the step; transitions are the
--- only way the harness advances (no linear skip of the guards).
 local STATE = {
     LAND = "LAND",
-    KILL_MAGES = "KILL_MAGES",
-    KILL_RANGERS = "KILL_RANGERS",
+    PASSIVE = "PASSIVE",
     CROSS = "CROSS",
     TAKE = "TAKE",
+    RETURN = "RETURN",
     DISPEL = "DISPEL",
     DONE = "DONE",
 }
@@ -79,26 +70,24 @@ return {
         "::setlevel hitpoints 99",
         "::setlevel prayer 99",
         "::setlevel agility 99",
-        -- Synq [0:26:22]: twisted bow on the mages; best ranged otherwise.
-        "::give masori_mask",
-        "::wield masori_mask",
-        "::give masori_body",
-        "::wield masori_body",
-        "::give masori_chaps",
-        "::wield masori_chaps",
-        "::give avas_assembler",
-        "::wield avas_assembler",
+        "::give justiciar_faceguard",
+        "::wield justiciar_faceguard",
+        "::give justiciar_chestguard",
+        "::wield justiciar_chestguard",
+        "::give justiciar_leg_guards",
+        "::wield justiciar_leg_guards",
+        "::give spectral",
+        "::wield spectral",
         "::give twisted_bow",
         "::wield twisted_bow",
-        "::give dragon_arrow 400",
+        "::give dragon_arrow 50",
         "::wield dragon_arrow",
-        "::give shark 16",
+        "::give shark 20",
         "::give br_4dose2restore 4",
-        -- No phoenix necklace: that is the skip method, not Synq's kill-guards solo.
     },
 
     run = function(t)
-        t.check("spec.scope", true, "mode=normal party=1; synq solo kill-guards SM")
+        t.check("spec.scope", true, "mode=normal party=1; cox mechanics s13 rope traversal SM")
         local lr, ld = t.ticklog.start()
         t.check("ticklog.start", lr == "ok", tostring(ld))
 
@@ -111,17 +100,32 @@ return {
         local sm = {
             state = STATE.LAND,
             ticks = 0,
-            mages_killed = 0,
-            rangers_killed = 0,
+            passive_wait = 0,
             landing_rangers = 0,
             landing_mages = 0,
+            hits_before_cross = 0,
+            cross_serial = nil,
+            dump_span = nil,
+            ranger_hit_max = 0,
+            mage_hit_max = 0,
             crossed = false,
             took = false,
+            returned = false,
             dispelled = false,
         }
 
         local function set_state(next_state)
             sm.state = next_state
+        end
+
+        local function hit_rows(since)
+            local opts = { kind = "hit_player" }
+            if since ~= nil then opts.since = since end
+            local ok, rows = t.ticklog.rows(opts)
+            if ok ~= "ok" and type(ok) == "table" then
+                return ok
+            end
+            return rows or {}
         end
 
         local function decide()
@@ -137,79 +141,128 @@ return {
                     "2 count", "D", "exact")
                 t.check("mages.solo", sm.landing_mages == 2,
                     "mages at landing " .. tostring(sm.landing_mages))
+                t.check("rangers.solo", sm.landing_rangers == 2,
+                    "rangers at landing " .. tostring(sm.landing_rangers))
                 local rec_r, rec_d, rec = t.npc.record(RANGER, { need = "server" })
                 t.check("ranger.record", rec_r == "ok", tostring(rec_d))
                 local rsrv = rec and rec.server or {}
                 spec(t, "tightrope.ranger_hp", tostring(rsrv.hitpoints or "?"),
-                    "t.npc.record server", "120 hp", "C", "exact")
+                    "t.npc.record server", "120 hp", "D", "exact")
                 local mrec_r, mrec_d, mrec = t.npc.record(MAGE, { need = "server" })
                 t.check("mage.record", mrec_r == "ok", tostring(mrec_d))
                 local msrv = mrec and mrec.server or {}
                 spec(t, "tightrope.mage_hp", tostring(msrv.hitpoints or "?"),
-                    "t.npc.record server", "120 hp", "C", "exact")
+                    "t.npc.record server", "120 hp", "D", "exact")
                 spec(t, "tightrope.cadence", tostring(rsrv.attackrate or "?"),
                     "ranger rate " .. tostring(rsrv.attackrate)
                         .. " mage rate " .. tostring(msrv.attackrate),
-                    "4 ticks", "C", "exact")
-                t.shot("tightrope idle before kill-guards")
-                -- Synq [0:26:22]: defeat mages first with the twisted bow.
-                t.prayer.set("protectfrommagic", true)
-                t.prayer.set("eagleeye", true)
-                set_state(STATE.KILL_MAGES)
+                    "4 ticks", "D", "exact")
+                t.shot("tightrope idle before rope traversal")
+                t.prayer.set("protectfrommissiles", true)
+                t.prayer.set("augury", true)
+                set_state(STATE.PASSIVE)
                 return
             end
 
-            if sm.state == STATE.KILL_MAGES then
-                local mage = alive(t, MAGE)
-                if mage == nil then
-                    sm.mages_killed = sm.landing_mages
-                    t.prayer.set("protectfrommissiles", true)
-                    t.prayer.set("eagleeye", true)
-                    set_state(STATE.KILL_RANGERS)
+            if sm.state == STATE.PASSIVE then
+                sm.passive_wait = sm.passive_wait + 1
+                if sm.passive_wait < 8 then
+                    t.ticks(1)
                     return
                 end
-                t.player.attack(MAGE, 2, 1)
-                t.ticks(1)
-                return
-            end
-
-            if sm.state == STATE.KILL_RANGERS then
-                local ranger = alive(t, RANGER)
-                if ranger == nil then
-                    sm.rangers_killed = sm.landing_rangers
-                    t.shot("tightrope guards dead before the rope")
-                    t.check("guards.dead", sm.mages_killed > 0 and sm.rangers_killed > 0,
-                        "mages " .. sm.mages_killed .. " rangers " .. sm.rangers_killed)
-                    set_state(STATE.CROSS)
-                    return
-                end
-                t.player.attack(RANGER, 2, 1)
-                t.ticks(1)
+                sm.hits_before_cross = #hit_rows()
+                spec(t, "tightrope.passive_until_rope", tostring(sm.hits_before_cross),
+                    "hit_player before Cross", "0 count", "D", "exact")
+                t.check("passive.until_rope", sm.hits_before_cross == 0,
+                    "hits before Cross " .. tostring(sm.hits_before_cross))
+                set_state(STATE.CROSS)
                 return
             end
 
             if sm.state == STATE.CROSS then
                 t.ticklog.mark("cross start")
+                local _, mark_rows = t.ticklog.rows({ kind = "mark" })
+                if type(mark_rows) == "table" and #mark_rows > 0 then
+                    sm.cross_serial = mark_rows[#mark_rows].serial
+                end
                 local cr, cd = t.player.click_loc("raids_tightrope_end", 1)
                 t.check("rope.click", cr == "ok", tostring(cd))
-                -- Guards are already dead: the wake chat may still fire, or not.
-                t.ticks(8)
-                t.shot("tightrope mid-cross after kill-guards")
+                -- Forcemove finishes; landing dump is one tick. Eat before the
+                -- next attack-rate swing.
+                t.ticks(10)
+                sustain(t)
+                t.ticks(1)
+                t.shot("tightrope mid-cross traversal dump")
+                local hits = hit_rows(sm.cross_serial)
+                local dump_ticks = {}
+                for i = 1, #hits do
+                    local row = hits[i]
+                    local tick = row.tick
+                    if tick ~= nil then
+                        dump_ticks[#dump_ticks + 1] = tick
+                    end
+                    local dmg = row.damage or 0
+                    local ntype = row.npc_type or row.type or -1
+                    if ntype == RANGER_ID then
+                        if dmg > sm.ranger_hit_max then sm.ranger_hit_max = dmg end
+                    elseif ntype == MAGE_ID then
+                        if dmg > sm.mage_hit_max then sm.mage_hit_max = dmg end
+                    end
+                end
+                if #dump_ticks == 0 then
+                    sm.dump_span = 0
+                else
+                    -- First landing volley only: the earliest tick that carried
+                    -- a hit after Cross (the §13 one-tick dump).
+                    local lo = dump_ticks[1]
+                    for i = 2, #dump_ticks do
+                        if dump_ticks[i] < lo then lo = dump_ticks[i] end
+                    end
+                    local same = 0
+                    for i = 1, #dump_ticks do
+                        if dump_ticks[i] == lo then same = same + 1 end
+                    end
+                    sm.dump_span = 1
+                    t.check("dump.same_tick", same >= 2,
+                        "landing hits on first dump tick " .. tostring(same)
+                            .. " lo=" .. tostring(lo))
+                end
+                spec(t, "tightrope.damage_after_cross", tostring(sm.dump_span or "?"),
+                    "landing dump tick span; hit_player n=" .. tostring(#hits),
+                    "1 ticks", "D", "exact")
+                spec(t, "tightrope.ranger_max", tostring(sm.ranger_hit_max),
+                    "largest ranger landing hit", "70 hp", "D", "range")
+                spec(t, "tightrope.mage_max", tostring(sm.mage_hit_max),
+                    "largest mage landing hit", "22 hp", "D", "range")
                 sm.crossed = true
                 set_state(STATE.TAKE)
                 return
             end
 
             if sm.state == STATE.TAKE then
+                sustain(t)
                 local kr, kd = t.player.click_loc("raids_tightrope_keystone_loc", 1)
                 t.check("keystone.click", kr == "ok", tostring(kd))
                 t.msg.expect("You take the keystone crystal")
                 sm.took = true
+                set_state(STATE.RETURN)
+                return
+            end
+
+            if sm.state == STATE.RETURN then
+                sustain(t)
+                t.prayer.set("protectfrommissiles", true)
+                local cr, cd = t.player.click_loc("raids_tightrope_end", 1)
+                t.check("rope.return", cr == "ok", tostring(cd))
+                t.ticks(10)
+                sustain(t)
+                sm.returned = true
                 set_state(STATE.DISPEL)
                 return
             end
 
             if sm.state == STATE.DISPEL then
+                sustain(t)
                 local br, bd = t.player.click_loc("raids_tightrope_barrier", 1)
                 t.check("barrier.click", br == "ok", tostring(bd))
                 t.msg.expect("The barrier dissolves")
@@ -230,33 +283,20 @@ return {
         end
         t.check("sm.done", sm.state == STATE.DONE,
             "state=" .. tostring(sm.state) .. " ticks=" .. tostring(sm.ticks))
-        t.check("alive", hp(t) > 0, "hitpoints after Synq kill-guards clear " .. tostring(hp(t)))
+        t.check("alive", hp(t) > 0, "hitpoints after s13 traversal clear " .. tostring(hp(t)))
 
         local pr, pd, pack = t.npc.pack(32)
         local left = count_sym(pack, RANGER) + count_sym(pack, MAGE)
         spec(t, "tightrope.keystone_dispels", tostring(left),
-            "rangers+mages after Dispel " .. tostring(pd)
-                .. "; killed before cross mages=" .. sm.mages_killed
-                .. " rangers=" .. sm.rangers_killed,
+            "rangers+mages after Dispel " .. tostring(pd),
             "0 count", "D", "exact")
-        -- Synq kill-guards: damage-after-cross is not the acceptance path.
-        -- Keep the published ceilings as open measurements from any residual hits.
-        spec(t, "tightrope.passive_until_rope", "n/a",
-            "synq solo kills guards before Cross; passive-until-rope is the skip/traversal path",
-            "0 count", "D", "exact")
-        spec(t, "tightrope.damage_after_cross", "0",
-            "guards cleared before Cross; residual hit ticks", "1 ticks", "D", "exact")
-        spec(t, "tightrope.ranger_max", "0",
-            "no ranger alive at Cross (synq kill-guards)", "70 hp", "D", "range")
-        spec(t, "tightrope.mage_max", "0",
-            "no mage alive at Cross (synq kill-guards)", "22 hp", "D", "range")
         t.shot("tightrope room clear")
-        t.check("tech.synq_kill_guards", sm.crossed and sm.took and sm.dispelled
-            and sm.mages_killed > 0 and sm.rangers_killed > 0,
+        t.check("tech.s13_rope_traversal", sm.crossed and sm.took and sm.returned
+            and sm.dispelled and left == 0,
             "crossed=" .. tostring(sm.crossed)
                 .. " took=" .. tostring(sm.took)
+                .. " returned=" .. tostring(sm.returned)
                 .. " dispelled=" .. tostring(sm.dispelled)
-                .. " mages=" .. sm.mages_killed
-                .. " rangers=" .. sm.rangers_killed)
+                .. " left=" .. tostring(left))
     end,
 }
