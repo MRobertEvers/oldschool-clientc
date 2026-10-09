@@ -2427,6 +2427,16 @@ ToriRSServer_WorldRealtimeMs(const struct ToriRSServer* srv)
     struct timespec ts;
 
     assert(srv);
+    /* A SEEDED RUN'S CLOCK IS ITS TICKS. A run named for a seed
+     * (TORIRSSERVER_RUN_NAME, `npc_run_seed`) is one the gate replays and
+     * compares across lanes; read off the wall, `date_minutes` (varp3078,
+     * the spellbook's clock) took whatever minute each lane happened to log
+     * in on, and a live party and scriptrun of one seed differed in it
+     * (2026-10-09). 2026-01-01T00:00Z plus 600 ms a server tick, the pace the
+     * real server keeps: the same on every lane, and still `::clockskip`able. */
+    if( srv->npc_run_seed != 0 )
+        return 1767225600000LL + (long long)srv->tick * 600LL +
+               (long long)srv->clock_skip_minutes * 60000LL;
     if( clock_gettime(CLOCK_REALTIME, &ts) != 0 )
         ts.tv_sec = 0, ts.tv_nsec = 0;
     return (long long)ts.tv_sec * 1000LL + (long long)ts.tv_nsec / 1000000LL +
@@ -5303,6 +5313,27 @@ var_player(
     return player;
 }
 
+/* A player-variable op with no player to address is the script's bug, and it
+ * stops the script there, named (SSVM_Abort prints the script): an assert
+ * named nothing and was compiled out of a release build, which then read
+ * through NULL (2026-10-09, `torirsserver --selftest` segfaulting). 1 when it
+ * aborted. */
+static int
+var_player_missing(
+    struct SSVM_State* state,
+    struct ToriRSServerPlayer const* target,
+    char const* kind,
+    int id)
+{
+    if( target )
+        return 0;
+    SSVM_Abort(state, "%s: %s%s %d read or written with no %s player bound",
+        state->script->name ? state->script->name : "?",
+        (state->script->int_operands[state->pc] & (1 << 16)) ? "." : "", kind, id,
+        (state->script->int_operands[state->pc] & (1 << 16)) ? "secondary" : "primary");
+    return 1;
+}
+
 int
 ToriRSServer_ScriptCommand(
     struct SSVM_State* state,
@@ -5397,7 +5428,11 @@ ToriRSServer_ScriptCommand(
 
         if( !SSVM_PopStr(state, &text) )
             return 1;
-        fprintf(stderr, "torirsserver: script error: %s\n", text);
+        /* `error` ENDS the script, as the reference's does (LostCity
+         * ScriptOpcode.ERROR throws). It used to print and run on, so the
+         * line after an `error` executed anyway -- a guard written to stop a
+         * script on an impossible state did not stop it (2026-10-09). */
+        SSVM_Abort(state, "script error: %s", text);
         return 1;
     }
 
@@ -6121,7 +6156,8 @@ ToriRSServer_ScriptCommand(
          * stops here, named: before this it read whatever player the server
          * had bound last (2026-10-09, `~tob_dbg_attack` from a boss timer). */
         struct ToriRSServerPlayer* target = var_player(state, player);
-        assert(target);
+        if( var_player_missing(state, target, "%varp", varp) )
+            return 1;
         SSVM_PushInt(state, target->varps[varp]);
         return 1;
     }
@@ -6139,7 +6175,8 @@ ToriRSServer_ScriptCommand(
             return 1;
         }
         struct ToriRSServerPlayer* target = var_player(state, player);
-        assert(target);
+        if( var_player_missing(state, target, "%varp", varp) )
+            return 1;
         /*
          * Assignment always marks the varp for transmission, even when the
          * value is unchanged.
@@ -13520,7 +13557,8 @@ ToriRSServer_ScriptCommand(
         int varbit_id = state->script->int_operands[state->pc] & 0xffff;
         struct ToriRSServerPlayer* target = var_player(state, player);
 
-        assert(target);
+        if( var_player_missing(state, target, "%varbit", varbit_id) )
+            return 1;
         SSVM_PushInt(state, ToriRSServer_VarbitGet(target, varbit_id));
         return 1;
     }
@@ -13540,7 +13578,8 @@ ToriRSServer_ScriptCommand(
          * and wrote another - see `ToriRSServer_VarbitSetOn`. */
         struct ToriRSServerPlayer* target = var_player(state, player);
 
-        assert(target);
+        if( var_player_missing(state, target, "%varbit", varbit_id) )
+            return 1;
         if( ToriRSServer_VarbitSetOn(srv, target, varbit_id, (int)value) < 0 )
             SSVM_Abort(state, "varbit %d is not in the cache", varbit_id);
         return 1;

@@ -415,3 +415,60 @@ below; the timelines gave them up at once.
     servpack 118 s), and run the server from a scratch root of symlinks
     whose `OSRS-Content` points at the worktree: the server resolves
     `OSRS-Content/osrs239-content` relative to its working directory.
+
+## What Maiden's lane identity added (2026-10-09)
+
+The Verzik proof (41) compared from the first retype on, and Verzik's start
+never crosses a barrier by loc op, so Maiden found what that window never
+covered. Seeds mz and mq, live party against scriptrun: 428 of 428 and 339
+of 339 ticks identical with NOTHING ignored (digest, varps, npc and player
+state), and both lanes click the barrier on the same absolute tick. In the
+order found:
+
+62. **A verb on one lane only is a crash on the other.** `cast_npc` was
+    scriptrun-only; the live freezer's first barrage was a Lua error and the
+    other seats stood idle and died. Diff the two verb sets before a live run.
+63. **The live tick is the APPLIED fence's tick.** The raw counter (the
+    leader's `srv->tick`, a member's TICK frame) moves a pump or more before
+    that tick's fence is applied, so a level on the tick passed early and the
+    next `server_tick` await was answered by the same tick's fence: every
+    live seat decided a tick ahead. `PluginDrive_ServerTick` now answers the
+    tick of the last fence pumped; barrier marks are stamped and honoured
+    with it (as scriptrun's `core->tick`).
+64. **Scriptrun pumps like the client.** One event cursor per bot, 32-event
+    batches, and a newly armed await is offered the rest of its batch
+    (`drive_pump_once`'s R3) -- `bot_step_once` mirrors it.
+65. **The copy a verb picks is one rule.** `world_op` with no element chose
+    the nearest copy by squared distance live and by Chebyshev on scriptrun,
+    ties by pool order: the members crossed the barrier by different copies
+    and stood a tile apart. `torirs_drive_pick.h` is the rule on both lanes.
+66. **Perception comes from packets, never from asset-gated entities.** The
+    live world spawns a first-seen projectile, loc or graphic after its models
+    load, a tick late. Projectiles (earlier), loc changes (now:
+    `App_DriveLocChangeNote`, answered from the packet until the scenery
+    catches up), and a solver reads the SENT spotanim (`spotanim_sent_id`),
+    never the drawn one, whose delay counts down on the frame clock.
+67. **A stamp names the tick that SENT it.** Live stamped a seq / spotanim
+    / face with the perceived tick (one past the tick-log row); scriptrun with
+    the sending tick. `PluginDrive_ServerTickOfCycle` now counts fences (the
+    first fence at or after the stamp's cycle, less one); a projectile's
+    elapsed and expiry are whole server ticks from that.
+68. **The driver never runs on a half-applied tick.** Packets apply over
+    several frames; a level read a cheat's reply before its tick's fence.
+    `App_DriveRing.batch_open` (first packet of a tick .. its fence) holds the
+    pump.
+69. **Answers leave with the tick.** The session answered input between
+    ticks at once; as on LostCity (`processClientsIn` .. `processClientsOut`)
+    and scriptrun, what handling input sends is held and released at the start
+    of the next world tick (`ToriRSServer_SessionReleaseHeld`).
+70. **One absolute start.** Setup and a member's process launch take a
+    different number of ticks per lane, so the room's absolute clocks were 13
+    apart: the test enters on a fixed tick (`t.until_tick`, after a `kitted`
+    barrier), and `::synctimers` restarts the playtime minute too.
+71. **A seeded run's clock is its ticks.** `date_minutes` (varp3078, the
+    spellbook's clock) read the wall clock, so each lane carried the minute
+    it logged in on. `ToriRSServer_WorldRealtimeMs` answers 2026-01-01 plus
+    600 ms a tick when `TORIRSSERVER_RUN_NAME` seeds the run, and
+    `::synctimers` restarts its 100-tick refresh. `TORIRSSERVER_TICKLOG_SEED=1`
+    logs every nonzero varp / state at the log's start, so a digest that parts
+    on a value that never changes in the log names it.

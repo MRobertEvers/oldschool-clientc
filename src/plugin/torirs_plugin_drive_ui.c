@@ -27,6 +27,7 @@
  */
 
 #include "plugin/torirs_plugin_drive.h"
+#include "world/world.h"
 
 #if defined(TORIRS_EMBED_SERVER) && TORIRS_EMBED_SERVER
 
@@ -869,6 +870,96 @@ drive_ui_locs_attach_ambient(struct App* app, struct DriveLocRow* rows, int coun
     }
 }
 
+/* Insert one loc row into `out`, nearest the player first, keeping the
+ * nearest `cap`. */
+static void
+drive_ui_locs_insert(
+    struct DriveLocRow* out,
+    int* count,
+    int cap,
+    int have_player,
+    int px,
+    int pz,
+    struct DriveLocRow const* row)
+{
+    long distance = have_player ? drive_ui_distance2(row->tile_x, row->tile_z, px, pz) : 0;
+    int insert_at = *count < cap ? *count : cap - 1;
+    int j;
+
+    if( *count >= cap )
+    {
+        long worst = have_player ? drive_ui_distance2(out[cap - 1].tile_x, out[cap - 1].tile_z, px, pz) : 0;
+        if( have_player && distance >= worst )
+            return;
+    }
+    for( j = insert_at; j > 0; j-- )
+    {
+        long prev_distance = have_player ? drive_ui_distance2(out[j - 1].tile_x, out[j - 1].tile_z, px, pz) : 0;
+        if( !have_player || prev_distance <= distance )
+            break;
+        out[j] = out[j - 1];
+    }
+    out[j] = *row;
+    if( *count < cap )
+        (*count)++;
+}
+
+/* The pending loc change (App_DriveLocChangeNote) for this scenery's tile and
+ * layer, or NULL. */
+static struct App_DriveLocChange const*
+drive_ui_loc_pending(
+    struct App_DriveRing const* ring,
+    int x,
+    int z,
+    int level,
+    int layer)
+{
+    for( int k = 0; k < ring->loc_change_count; k++ )
+    {
+        struct App_DriveLocChange const* c = &ring->loc_changes[k];
+        if( c->x == x && c->z == z && c->level == level && c->layer == layer )
+            return c;
+    }
+    return NULL;
+}
+
+/* Drop the loc changes the scenery now shows (the task landed: the new loc in
+ * that tile and layer, or none there for a delete) and those from another
+ * scene base (a rebuild dropped their task and the server re-sends the zone). */
+static void
+drive_ui_locs_retire(struct App* app)
+{
+    struct App_DriveRing* ring = &app->drive_events;
+    struct World_EntityPool* pool = &app->world->entities.scenery;
+    int base_x = app->world->_base_tile_x;
+    int base_z = app->world->_base_tile_z;
+    int kept = 0;
+
+    for( int k = 0; k < ring->loc_change_count; k++ )
+    {
+        struct App_DriveLocChange const* c = &ring->loc_changes[k];
+        int shown = 0;
+
+        if( c->base_x != base_x || c->base_z != base_z )
+            continue;
+        for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
+        {
+            struct WorldEntity_Scenery const* sc = World_EntityPoolGet(pool, i);
+            if( !sc || base_x + sc->grid_position.x != c->x || base_z + sc->grid_position.z != c->z ||
+                sc->grid_position.level != c->level || World_LocShapeToLayer(sc->shape) != c->layer )
+                continue;
+            shown = sc->loc_id == c->loc_id ? 1 : -1;
+            if( shown > 0 )
+                break;
+        }
+        /* An add is shown by its loc; a delete by nothing in the layer. */
+        if( (c->loc_id >= 0 && shown > 0) || (c->loc_id < 0 && shown == 0) )
+            continue;
+        ring->loc_changes[kept++] = *c;
+    }
+    ring->loc_change_count = kept;
+}
+
 enum DriveResult
 DriveUi_Locs(struct App* app, int radius, struct DriveLocRow* out, int cap, int* out_count)
 {
@@ -877,39 +968,42 @@ DriveUi_Locs(struct App* app, int radius, struct DriveLocRow* out, int cap, int*
     int base_x, base_z;
     int count = 0;
     struct World_EntityPool* pool;
+    struct App_DriveRing const* ring;
     int i;
 
     assert(app);
     assert(out);
     assert(cap > 0);
     assert(out_count);
-
     *out_count = 0;
     if( !app->world )
         return DRIVE_OK;
-
     have_player = App_LocalPlayerTiles(
         app, &px, &pz, &plevel, &dest_x, &dest_z, &flag_x, &flag_z, &draw_x, &draw_z);
     base_x = app->world->_base_tile_x;
     base_z = app->world->_base_tile_z;
-
     /* Root worldview only (content_test.c's own scenery_json walks every
      * live worldview; this group has not settled U12 -- non-root worldviews
      * -- so this matches npc_json's narrower, root-only scope instead of
      * guessing at the aboard-view base tile math). */
     pool = &app->world->entities.scenery;
+    /* FROM THE PACKETS where the scene lags them: a loc change waits on its
+     * models before the scenery shows it, so the tiles it touches answer
+     * from the change itself (App_DriveLocChangeNote), as scriptrun's
+     * packet-built loc list does, until the scenery catches up. */
+    drive_ui_locs_retire(app);
+    ring = &app->drive_events;
     if( getenv("TORIRS_DRIVE_DEBUG") )
         fprintf(stderr,
             "drive_locs: world=%p scenery_pool=%d head=%d have_player=%d at %d,%d base=%d,%d "
-            "radius=%d\n",
+            "radius=%d pending=%d\n",
             (void*)app->world, pool->count, World_EntityPoolHead(pool), have_player, px, pz,
-            base_x, base_z, radius);
+            base_x, base_z, radius, ring->loc_change_count);
     for( i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
     {
         struct WorldEntity_Scenery const* sc = World_EntityPoolGet(pool, i);
+        struct DriveLocRow row;
         int tile_x, tile_z;
-        long distance;
-        int j, insert_at;
 
         if( !sc )
             continue;
@@ -924,36 +1018,42 @@ DriveUi_Locs(struct App* app, int radius, struct DriveLocRow* out, int cap, int*
         }
         if( have_player && !drive_ui_within_radius(tile_x, tile_z, px, pz, radius) )
             continue;
+        /* A change still waiting on its models replaces this loc. */
+        if( drive_ui_loc_pending(ring, tile_x, tile_z, sc->grid_position.level,
+                World_LocShapeToLayer(sc->shape)) )
+            continue;
+        memset(&row, 0, sizeof(row));
+        row.loc_id = sc->loc_id;
+        row.resolved_loc_id = drive_ui_loc_resolved(app, sc->loc_id);
+        row.tile_x = tile_x;
+        row.tile_z = tile_z;
+        row.level = sc->grid_position.level;
+        row.element_id = sc->element_id;
+        row.shape = sc->shape;
+        drive_ui_element_seq(app, sc->element_id, &row.seq, &row.seq_frame);
+        drive_ui_locs_insert(out, &count, cap, have_player, px, pz, &row);
+    }
+    for( i = 0; i < ring->loc_change_count; i++ )
+    {
+        struct App_DriveLocChange const* c = &ring->loc_changes[i];
+        struct DriveLocRow row;
 
-        distance = have_player ? drive_ui_distance2(tile_x, tile_z, px, pz) : 0;
-        insert_at = count < cap ? count : cap - 1;
-        if( count >= cap )
-        {
-            long worst = have_player
-                ? drive_ui_distance2(out[cap - 1].tile_x, out[cap - 1].tile_z, px, pz)
-                : 0;
-            if( have_player && distance >= worst )
-                continue;
-        }
-        for( j = insert_at; j > 0; j-- )
-        {
-            long prev_distance = have_player
-                ? drive_ui_distance2(out[j - 1].tile_x, out[j - 1].tile_z, px, pz)
-                : 0;
-            if( !have_player || prev_distance <= distance )
-                break;
-            out[j] = out[j - 1];
-        }
-        out[j].loc_id = sc->loc_id;
-        out[j].resolved_loc_id = drive_ui_loc_resolved(app, sc->loc_id);
-        out[j].tile_x = tile_x;
-        out[j].tile_z = tile_z;
-        out[j].level = sc->grid_position.level;
-        out[j].element_id = sc->element_id;
-        out[j].shape = sc->shape;
-        drive_ui_element_seq(app, sc->element_id, &out[j].seq, &out[j].seq_frame);
-        if( count < cap )
-            count++;
+        if( c->loc_id < 0 )
+            continue;
+        if( have_player && !drive_ui_within_radius(c->x, c->z, px, pz, radius) )
+            continue;
+        /* The packet's facts: no element (nothing drawn yet), no seq. */
+        memset(&row, 0, sizeof(row));
+        row.loc_id = c->loc_id;
+        row.resolved_loc_id = drive_ui_loc_resolved(app, c->loc_id);
+        row.tile_x = c->x;
+        row.tile_z = c->z;
+        row.level = c->level;
+        row.element_id = 0;
+        row.shape = c->shape;
+        row.seq = -1;
+        row.seq_frame = 0;
+        drive_ui_locs_insert(out, &count, cap, have_player, px, pz, &row);
     }
     drive_ui_locs_attach_ambient(app, out, count);
     *out_count = count;
@@ -1336,9 +1436,9 @@ DriveUi_Projectiles(
      * scriptrun counts from the tick's end. These rows are the applied
      * MAP_PROJANIMs (App_DriveProjectileNote), in packet order, with
      * scriptrun's arithmetic (torirs_server_scriptrun.c d_projectiles):
-     * elapsed is whole ticks since the apply, counted from the end of the
-     * tick that applied it, so a row read in the packet's own tick has
-     * elapsed 30 on both lanes. No seq, no element: the model is the
+     * elapsed is whole ticks from the tick that SENT it
+     * (PluginDrive_ServerTickOfCycle) to the tick perceived now, so a row
+     * read on the tick its packet is perceived has elapsed 30 on both lanes. No seq, no element: the model is the
      * drawing's business, not the driver's.
      */
     struct App_DriveRing const* ring;
@@ -1365,10 +1465,17 @@ DriveUi_Projectiles(
     for( i = 0; i < ring->projectile_count && count < cap; i++ )
     {
         struct App_DriveProjectile const* p = &ring->projectiles[i];
-        int elapsed = (now_tick - PluginDrive_ServerTickOfCycle(p->cycle) + 1) * APP_SERVER_TICK_LOGIC_CYCLES;
+        int elapsed = (now_tick - PluginDrive_ServerTickOfCycle(p->cycle)) * APP_SERVER_TICK_LOGIC_CYCLES;
         struct DriveProjectileRow* row;
 
-        if( p->cycle + p->end_delay < (int)app->world->cycle )
+        /* Gone once its flight is over, counted in the same whole ticks
+         * scriptrun prunes by (ScriptrunCore_BeginTick keeps a projectile
+         * while launch + end_delay >= the tick's cycle). The client's own
+         * cycle drifts against the server tick and moves mid-tick, so a
+         * row expired on it outlived scriptrun's by a tick: the Maiden
+         * freezer saw a landed blood throw again and keyed it as a new
+         * pool (seed mxp, 2026-10-09). */
+        if( elapsed > p->end_delay )
             continue;
         if( have_player && !drive_ui_within_radius(p->dst_x, p->dst_z, px, pz, radius) )
             continue;

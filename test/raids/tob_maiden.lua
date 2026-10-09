@@ -34,14 +34,17 @@ for _, line in ipairs({
     "::setvar varb5453_prayer_preserve_unlocked 1",
     "::setvar varb16097_prayer_deadeye_unlocked 1",
     "::setvar varb16098_prayer_mystic_vigour_unlocked 1",
+    -- Desert Treasure done: the Ancient Magicks (the client's spellbook and
+    -- skill guide read varb358 >= 15)
+    "::setvar varb358_deserttreasure ^dt_complete",
 }) do kit[#kit + 1] = line end
 for _, obj in ipairs(WORN) do
     kit[#kit + 1] = "::give " .. obj .. " 1"
     kit[#kit + 1] = "::wield " .. obj
 end
 -- THE FREEZER (seat 1, the leader: ROOM_SOLVERS.md 4.1): Ancient Magicks and
--- the Ice Barrage runes, loose (no pouch-loading cheat); two supply slots
--- fewer so the defender and the boots can come off for the cast set.
+-- the Ice Barrage runes in a rune pouch; two supply slots fewer so the
+-- defender and the boots can come off for the cast set.
 if role == 1 then kit[#kit + 1] = "::setvar varb4070_spellbook 1" end
 for _, line in ipairs({
     "::~charge abyssal_tentacle 10000",
@@ -57,7 +60,14 @@ for _, line in ipairs({
 }) do kit[#kit + 1] = line end
 if role == 1 then
     for _, line in ipairs({
-        "::give waterrune 600", "::give deathrune 400", "::give bloodrune 200",
+        -- the barrage's runes in a rune pouch, as a raider carries them: the
+        -- pouch's three slots are vars (a rune index into
+        -- enum982_rune_pouch_rune and a count), read by the client's
+        -- magic_runecount.cs2 and the server's ~rune_pouch_total alike
+        "::give bh_rune_pouch 1",
+        "::setvar varb29_rune_pouch_type_1 2", "::setvar varb1624_rune_pouch_quantity_1 600",   -- water
+        "::setvar varb1622_rune_pouch_type_2 7", "::setvar varb1625_rune_pouch_quantity_2 400", -- death
+        "::setvar varb1623_rune_pouch_type_3 8", "::setvar varb1626_rune_pouch_quantity_3 200", -- blood
         "::give br_4dose2restore 4", "::give br_4doserangerspotion 1",
         "::give br_4dosepotionofsaradomin 3", "::give anglerfish 3",
     }) do kit[#kit + 1] = line end
@@ -68,8 +78,19 @@ else
     }) do kit[#kit + 1] = line end
 end
 
+-- THE ROOM STARTS ON ONE ABSOLUTE TICK ON EVERY LANE (2026-10-09). The
+-- setup takes a different number of ticks on scriptrun and live, and a live
+-- member's process starts after the leader's login, so the two lanes reached
+-- the barrier 13 ticks apart: every row of the room agreed, and every clock
+-- it stamps (the instance's, varp 7225) was 13 apart. Every seat kitted,
+-- then the party enters on START_TICK.
+local START_TICK = 150
+
 local function run(t)
     if role == 1 then t.check("maiden.ticklog", t.ticklog.start() == "ok", "") end
+    t.expect("party.barrier.kitted", t.party.barrier("kitted", 300))
+    local sr, sd = t.until_tick(START_TICK)
+    t.check("party.start_tick", sr == "ok", tostring(sd))
     local r, d = t.raid.enter("tob", "maiden", { mode = "normal" })
     t.check("maiden.enter", r == "ok", "p" .. role .. " " .. tostring(d))
     t.expect("party.barrier.ready", t.party.barrier("ready", 300))

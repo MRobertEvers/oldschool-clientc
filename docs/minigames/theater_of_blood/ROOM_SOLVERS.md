@@ -507,6 +507,95 @@ a wrong style on her reflects and heals her.
   bot, no reflect, no wrong-style heal); 0 detonation hits; room <= 472 (Blert
   max, median 412); <= 120 damage a raider; no deaths.
 
+### 4.3.1 Nylocas v1: the implementation plan (2026-10-09, after Bloat)
+
+**Calibration first** (probe `test/raids/tob_nylocas_probe.lua`, 8 seeds,
+against 302 Blert Normal trio rooms; scratchpad `nylo_cal.py`,
+`nylo_walkers_by_tile.py`, `nylo_steer.py`). What players do not drive
+matches Blert:
+- the lane walks, every lane and size;
+- the flickers at +5/+7;
+- the aggro swaps at +9/+10/+11;
+- detonation despawns at +52 small and +55 big;
+- the in-box steering: walkers step at the support's CENTRE, 84% of Blert's
+  steps (the SW tile 81%, footprint overlap 71%).
+
+One content bug was found and fixed: **the E-lane big walker** stepped
+36,24 <-> 37,24 for its whole life (16 of 16), never chewing. Its lane gate
+walked it due west, and the first step at the centre was back into the lane.
+It now leaves the mouth on a diagonal toward its support's row, as Blert's
+491 do (37,24 at +8, 36,25 or 36,23 at +9).
+
+Wave timing under the cap, aggro hunting, splits' pillars and Vasilias need
+kills. They are calibrated from the solver's own runs (PROBES below).
+
+The plan:
+- **START**: the Bloat test's: kit, prayer unlocks, `ready` barrier,
+  `::synctimers`, the leader's `::tobsyncroom`, `synced` barrier. The room has
+  no hazard before the start, so the leader answers at once
+  (`_tob_start(S, nil)`) and members cross when they see it inside.
+- **ROLES by seat = by STYLE** (wiki trio "x1 mager, x1 melee, x1 ranger"; Blert
+  76-79% own-style attacks). Every seat carries the Learner kit's three sets:
+  - seat 1 RANGER: blowpipe on Rapid, Rigour, west station (27,25);
+  - seat 2 MELEE: tentacle, Piety, south station (31,21);
+  - seat 3 MAGE: trident (powered staff, an attack not a cast), Augury, east
+    station (36,25).
+  Small 8 hp, big 16 at scale 3: mostly one hit a small.
+- **MEASURE**:
+  - the origin from my tile, room tick r from the supports' first sight;
+  - the supports' bars;
+  - every nylo by slot LIFE (a slot that vanishes and reappears is a new
+    nylo), with style from the npc id, big, aggro (fighting id), birth.
+  - birth is the FIRST-SEEN tick. On a lane spawn tile that is the spawn
+    tick; off it, minus the lane steps. A split's birth is its first sight.
+  - the wave count: spawn events with r = 0 mod 4.
+  - my nulled set: the shielded graphic on my target's tile, or "no effect".
+- **ATTACKABLE by me**: its id's style is mine; not nulled; and settled. A
+  nylo born at wave >= 16 may flicker until +7, so it is attacked only from
+  age 7, seen at the end of +7, the swing at +8. In my weapon's reach from a
+  box tile: melee beside it and never into a lane; ranged/magic through the
+  client's route with range.
+- **TARGET**, kept until it dies or stops being attackable. Priority:
+  1. an aggro within 8 of any raider;
+  2. a chewer at the weakest support;
+  3. the nylo that reaches its support soonest (lane walkers by steps);
+  4. ties to the lower slot.
+  Cross-help is v1.1, only if a support falls under 50%.
+- **SPEC**:
+  - DETONATION zones, LETHAL (0 detonation hits is the pass): every nylo
+    whose det = birth+51 (small) / +52 (big) is in the horizon, footprint
+    gap 0..2 at det-1. For a walker the footprint is where it stands; for an
+    aggro, grown by 1.
+  - aggro melee zones (gap <= 1, soft 9) on its swing ticks when my overhead
+    is not melee;
+  - the box edge;
+  - a station pull of 0.2;
+  - reach to my target.
+- **CHANNELS**: the offensive prayer of my style; protect from the style of
+  the most aggros in reach of me (melee within 1), else melee; eat under 51
+  when a support is under 25% (a collapse is 1..50 room-wide), else the
+  shared thresholds.
+- **BOSS_DUE** (after "The chamber shakes."): full hp and prayer, Protect
+  from Melee, the melee set; stand on my side of her landing (30..33, 23..26).
+- **BOSS**: her colour from her npc id every tick, switches predicted at
+  M+9+10k (M = her melee form's first sight).
+  - On seeing a new colour at T, decide in ONE tick: the protect prayer of
+    her style, the set of her colour, the attack (live from T+1; her first
+    swing comes at T+2 or T+3).
+  - NEVER press an attack on the decision tick before a predicted switch: it
+    resolves after T's retype, a wrong style, reflected and healed.
+  - Stand in my weapon's reach and within 8, so she never walks.
+- **PROBES, seed 1**:
+  - wave 31's room tick (Blert <= 293), the cleanup end (<= 341), L - C
+    (Blert 16..19), the boss phase (Blert 75..123);
+  - supports' lowest hp;
+  - every hit on a raider by source;
+  - nulls and reflects (must be 0).
+- **PASS**: supports lost 0; wrong-style 0 (no shielded graphic from a
+  raider's swing, no reflect); detonation hits 0; <= 120 a raider; room
+  <= 472 (Blert max); no deaths. Then 16 seeds, then the same seed live with
+  identical room rows.
+
 ### 4.4 Sotetseg (`solver_specs/sotetseg.md`)
 
 Facts: 5x5 at (13,38), never moves; an attack every 5 from start + 6; a ball

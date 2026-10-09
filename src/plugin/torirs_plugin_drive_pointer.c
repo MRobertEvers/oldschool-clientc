@@ -47,6 +47,7 @@
  *     verbs-ui lands the shared helpers.
  */
 
+#include "plugin/torirs_drive_pick.h"
 #include "plugin/torirs_plugin_drive.h"
 
 #if defined(TORIRS_EMBED_SERVER) && TORIRS_EMBED_SERVER
@@ -1229,23 +1230,19 @@ drive_pointer_player_tile(struct App* app, int* out_x, int* out_z)
     return 1;
 }
 
-static long
-drive_pointer_tile_distance(int have_origin, int origin_x, int origin_z, int x, int z)
-{
-    if( !have_origin )
-        return 0;
-    return (long)(x - origin_x) * (x - origin_x) + (long)(z - origin_z) * (z - origin_z);
-}
-
 enum DriveResult
 DrivePointer_ElementId(struct App* app, enum DrivePickKind kind, int id, int* out_element_id)
 {
     struct World_EntityPool* pool;
     int origin_x = 0;
     int origin_z = 0;
+    int origin_level = 0;
     int have_origin;
     int best = -1;
-    long best_distance = 0;
+    int best_distance = 0;
+    int best_x = 0;
+    int best_z = 0;
+    int best_slot = 0;
     int i;
 
     assert(app);
@@ -1254,6 +1251,10 @@ DrivePointer_ElementId(struct App* app, enum DrivePickKind kind, int id, int* ou
     if( !app->world )
         return DRIVE_NOT_FOUND;
     have_origin = drive_pointer_player_tile(app, &origin_x, &origin_z);
+    {
+        struct WorldEntity_Player* me = drive_pointer_local_player(app);
+        origin_level = me ? me->grid_position.level : 0;
+    }
     if( kind == DRIVE_PICK_NPC )
         pool = &app->world->entities.npc;
     else if( kind == DRIVE_PICK_LOC )
@@ -1270,7 +1271,9 @@ DrivePointer_ElementId(struct App* app, enum DrivePickKind kind, int id, int* ou
         int element_id;
         int tile_x;
         int tile_z;
-        long distance;
+        int tile_level;
+        int slot = 0;
+        int distance;
 
         if( !entry )
             continue;
@@ -1289,6 +1292,8 @@ DrivePointer_ElementId(struct App* app, enum DrivePickKind kind, int id, int* ou
             element_id = npc->element_id;
             tile_x = npc->grid_position.x;
             tile_z = npc->grid_position.z;
+            tile_level = npc->grid_position.level;
+            slot = npc->server_slot;
         }
         else if( kind == DRIVE_PICK_LOC )
         {
@@ -1298,6 +1303,7 @@ DrivePointer_ElementId(struct App* app, enum DrivePickKind kind, int id, int* ou
             element_id = loc->element_id;
             tile_x = loc->grid_position.x;
             tile_z = loc->grid_position.z;
+            tile_level = loc->grid_position.level;
         }
         else if( kind == DRIVE_PICK_OBJ )
         {
@@ -1307,6 +1313,7 @@ DrivePointer_ElementId(struct App* app, enum DrivePickKind kind, int id, int* ou
             element_id = stack->element_id;
             tile_x = stack->grid_position.x;
             tile_z = stack->grid_position.z;
+            tile_level = stack->grid_position.level;
         }
         else
         {
@@ -1316,12 +1323,21 @@ DrivePointer_ElementId(struct App* app, enum DrivePickKind kind, int id, int* ou
             element_id = player->element_id;
             tile_x = player->grid_position.x;
             tile_z = player->grid_position.z;
+            tile_level = player->grid_position.level;
+            slot = player->server_pid;
         }
-        distance = drive_pointer_tile_distance(have_origin, origin_x, origin_z, tile_x, tile_z);
-        if( best >= 0 && distance >= best_distance )
+        /* The nearest copy by the rule both lanes share (torirs_drive_pick.h). */
+        distance = have_origin
+                       ? DrivePick_Distance(tile_x, tile_z, tile_level, origin_x, origin_z, origin_level)
+                       : 0;
+        if( !DrivePick_Better(best >= 0, distance, tile_x, tile_z, slot, best_distance, best_x, best_z,
+                              best_slot) )
             continue;
         best = element_id;
         best_distance = distance;
+        best_x = tile_x;
+        best_z = tile_z;
+        best_slot = slot;
     }
     if( best < 0 )
         return DRIVE_NOT_FOUND;
@@ -1397,25 +1413,15 @@ DrivePointer_OpAvailable(
     return DRIVE_UNSUPPORTED;
 }
 
-enum DriveResult
-DrivePointer_WorldOp(struct App* app, enum DrivePickKind kind, int id, int option, int want_element)
+/* The copy a world verb acts on: the named element when the script names one
+ * (it must exist, be of the type, and be in view, as on scriptrun), else the
+ * first copy of the type DrivePointer_ElementId finds. */
+static enum DriveResult
+drive_pointer_world_element(
+    struct App* app, enum DrivePickKind kind, int id, int want_element, int* out_element_id)
 {
-    int element_id = -1;
-    int available = 0;
-    enum DriveResult resolved;
-
     assert(app);
-    if( kind != DRIVE_PICK_NPC && kind != DRIVE_PICK_LOC && kind != DRIVE_PICK_OBJ )
-        return DRIVE_UNSUPPORTED;
-    /*
-     * THE COPY THE SCRIPT NAMED. scriptrun's d_world_op takes an optional
-     * element id and acts on that copy or answers not_found; this lane took
-     * the type alone and acted on the NEAREST copy, so a solver that chose
-     * one of two reds by position attacked the other on the live lane, the
-     * red retaliated against a different raider, and the two lanes' tick
-     * logs parted (2026-10-09, t+422 of seed sa). A named element must
-     * exist, be of the type, and be in view, as on scriptrun.
-     */
+    assert(out_element_id);
     if( want_element >= 0 )
     {
         struct World_EntityPool* pool;
@@ -1454,17 +1460,40 @@ DrivePointer_WorldOp(struct App* app, enum DrivePickKind kind, int id, int optio
         }
         if( !found )
             return DRIVE_NOT_FOUND;
-        element_id = want_element;
+        *out_element_id = want_element;
     }
     else
     {
         /* `id` is a CONTENT TYPE id (see DrivePointer_ElementId): the bridge
          * takes an element id, and handing it the type id is what made this
          * answer not_found for every npc in the world. */
-        resolved = DrivePointer_ElementId(app, kind, id, &element_id);
-        if( resolved != DRIVE_OK )
-            return resolved;
+        return DrivePointer_ElementId(app, kind, id, out_element_id);
     }
+    return DRIVE_OK;
+}
+
+enum DriveResult
+DrivePointer_WorldOp(struct App* app, enum DrivePickKind kind, int id, int option, int want_element)
+{
+    int element_id = -1;
+    int available = 0;
+    enum DriveResult resolved;
+
+    assert(app);
+    if( kind != DRIVE_PICK_NPC && kind != DRIVE_PICK_LOC && kind != DRIVE_PICK_OBJ )
+        return DRIVE_UNSUPPORTED;
+    /*
+     * THE COPY THE SCRIPT NAMED. scriptrun's d_world_op takes an optional
+     * element id and acts on that copy or answers not_found; this lane took
+     * the type alone and acted on the NEAREST copy, so a solver that chose
+     * one of two reds by position attacked the other on the live lane, the
+     * red retaliated against a different raider, and the two lanes' tick
+     * logs parted (2026-10-09, t+422 of seed sa). A named element must
+     * exist, be of the type, and be in view, as on scriptrun.
+     */
+    resolved = drive_pointer_world_element(app, kind, id, want_element, &element_id);
+    if( resolved != DRIVE_OK )
+        return resolved;
     resolved = DrivePointer_OpAvailable(app, kind, id, option, &available);
     if( resolved != DRIVE_OK )
         return resolved;
@@ -1874,6 +1903,91 @@ drive_pointer_inv_cast(
         *out_reason = "the cast row ran and the spell stayed armed: nothing was sent";
         return DRIVE_REFUSED;
     }
+    return DRIVE_OK;
+}
+
+/*
+ * CAST A SPELL ON AN NPC -- api_drive.cast_npc, the live twin of scriptrun's
+ * d_cast_npc (torirs_server_scriptrun.c).  The ToB loop casts Ice Barrage as
+ * one verb in one tick; the live lane had no such verb, so the freezer's
+ * first cast was a Lua error and the room went on without it (2026-10-09,
+ * watch tobmaide3 p1: "attempt to call a nil value (field 'cast_npc')").
+ *
+ * The two clicks a player makes, in one call: the spell's own "Cast" row
+ * (drive_pointer_spell_arm, with every refusal it carries -- the magic tab not
+ * shown, no target verb) and the npc's one collapsed "Cast <spell> -> <npc>"
+ * row (add_world_select_row, REVCONFIG_MINIMENU_TGT_NPC), run through
+ * app_minimenu_run_option as app_plugin_world_op runs an op row.  That branch
+ * sends OPNPCT and then clears the selection whatever it sent, so what it
+ * would send on is checked first: the armed mask must hold the npc bit (the
+ * builder offers no cast row otherwise) and the copy must hold a server slot.
+ * The copy is the named element, else the first of the type, as world_op.
+ * Rune and level checks are the server's, as on scriptrun.
+ */
+static enum DriveResult
+drive_pointer_cast_npc(
+    struct App* app,
+    int npc_type,
+    int component_id,
+    int want_element,
+    char const** out_reason)
+{
+    struct UIMinimenu scratch;
+    struct UIMinimenu saved;
+    struct UIMinimenuPick pick;
+    struct WorldEntity_NPC* npc;
+    enum DriveResult result;
+    int element_id = -1;
+    int was_armed = 0;
+
+    assert(app);
+    assert(out_reason);
+    *out_reason = NULL;
+    if( !app->world )
+    {
+        *out_reason = "no world yet";
+        return DRIVE_NOT_FOUND;
+    }
+    result = drive_pointer_world_element(app, DRIVE_PICK_NPC, npc_type, want_element, &element_id);
+    if( result != DRIVE_OK )
+    {
+        *out_reason = want_element >= 0 ? "that npc copy is not in view" : "no such npc in view";
+        return result;
+    }
+    npc = World_NpcGetByElementId(app->world, element_id, NULL);
+    if( !npc || npc->server_slot < 0 )
+    {
+        *out_reason = "the npc holds no server slot";
+        return DRIVE_NOT_FOUND;
+    }
+    result = drive_pointer_spell_arm(app, component_id, &was_armed, out_reason);
+    if( result != DRIVE_OK )
+        return result;
+    if( (app->targetsel.mask & TORIRS_TARGET_MASK_NPC) == 0 )
+    {
+        app_selection_clear(app);
+        *out_reason = "the armed spell's target mask has no npc bit: the npc offers no cast row";
+        return DRIVE_REFUSED;
+    }
+
+    memset(&pick, 0, sizeof(pick));
+    pick.kind = UI_MINIMENU_PICK_NPC;
+    pick.id = element_id;
+    pick.secondary_id = npc->npc_id;
+    pick.tertiary_id = npc->grid_position.x;
+    pick.quaternary_id = npc->grid_position.z;
+    UIMinimenu_Reset(&scratch);
+    scratch.font_id = app->frame_view->minimenu->font_id;
+    if( !UIMinimenu_AddOption(&scratch, "", REVCONFIG_MINIMENU_TGT_NPC, 0, pick) )
+    {
+        app_selection_clear(app);
+        *out_reason = "the scratch minimenu would not take the row";
+        return DRIVE_REFUSED;
+    }
+    saved = *app->frame_view->minimenu;
+    *app->frame_view->minimenu = scratch;
+    app_minimenu_run_option(app, 0, 0, 0);
+    *app->frame_view->minimenu = saved;
     return DRIVE_OK;
 }
 
@@ -2561,6 +2675,24 @@ lua_drive_spell_arm(struct lua_State* L)
     return PluginDrive_PushResult(L, result, detail);
 }
 
+/* api_drive.cast_npc(npc_type, spell_component, [element_id]) -> (result,
+ * detail).  detail is the refusal sentence, or nil on ok.  See
+ * drive_pointer_cast_npc. */
+static int
+lua_drive_cast_npc(struct lua_State* L)
+{
+    struct App* app = PluginDrive_App();
+    int npc_type = PluginDrive_ArgInt(L, 1);
+    int component_id = PluginDrive_ArgInt(L, 2);
+    int want_element = PluginDrive_ArgOptInt(L, 3, -1);
+    char const* reason = NULL;
+    enum DriveResult result;
+
+    assert(app);
+    result = drive_pointer_cast_npc(app, npc_type, component_id, want_element, &reason);
+    return PluginDrive_PushResult(L, result, reason);
+}
+
 static int
 lua_drive_op_available(struct lua_State* L)
 {
@@ -2940,6 +3072,7 @@ static struct LuaFn const LUA_DRIVE_POINTER_FNS[] = {
     {"inv_arm", lua_drive_inv_arm},
     {"inv_use_on", lua_drive_inv_use_on},
     {"spell_arm", lua_drive_spell_arm},
+    {"cast_npc", lua_drive_cast_npc},
     {"inv_cast", lua_drive_inv_cast},
     {"move_to", lua_drive_move_to},
     {"move_near", lua_drive_move_near},

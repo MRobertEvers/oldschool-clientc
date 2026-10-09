@@ -161,6 +161,14 @@ Task_GameProtoExec_Run(
 
     PT_BEGIN(&self->pt);
 
+    /* The driver's half-applied-tick latch (App_DriveRing.batch_open): open
+     * from a tick's first packet to its fence. */
+    if( self->packet.packet_type != PKT_NAME_SERVER_TICK_END && !app->drive_events.batch_open )
+    {
+        app->drive_events.batch_open = 1;
+        app->drive_events.batch_open_cycle = (int)app->logic_cycle;
+    }
+
     /* Entity command streams decode + apply inside their own awaited tasks
      * (spawn/appearance/seq cache loads). Everything else applies
      * synchronously; handlers that mutate interfaces enqueue slot-mount
@@ -446,6 +454,7 @@ Task_GameProtoExec_Run(
              * is present in every build; only the plugin-host dispatch below
              * stays gated on app->plugins, the same shape as the spawn/despawn/
              * retype stamps in app_world_spawn.c. */
+            app->drive_events.batch_open = 0;
             App_DriveEvent(
                 app, DRIVE_EVENT_SERVER_TICK, app->world ? app->world->cycle : 0, 0, 0, 0);
             if( app->plugins )

@@ -44,7 +44,7 @@
 -- order) from her north-east corner. The DPS melee in the kit's void set with
 -- the abyssal tentacle and Piety (the owner, 2026-10-09), opening with a
 -- dragon warhammer special (:617-640); the freezer ranges her with the
--- blowpipe between waves (:646) and barrages in the void mage set with
+-- blowpipe on Rapid between waves (:646) and barrages in the void mage set with
 -- Augury, the defender and boots off (:248-249).
 --
 -- MEASURE -> DECIDE -> ACT each tick: MEASURE the npcs, her clock, pools,
@@ -136,8 +136,13 @@ function QD.raid._maiden_ids()
         { "torture", "obj", "zenyte_amulet_enchanted" }, { "fire_cape", "obj", "tzhaar_cape_fire" },
         { "barrage", "component", "magic_spellbook:ice_barrage" },
         { "hud", "varbit", "varb6448_tob_client_waveprogress_val" },
+        { "rapid_slot", "component", "combat_interface:style_slot_1" },
+        { "com_mode", "varp", "varp43_com_mode" },
     })
     for k, v in pairs(room) do ids[k] = v end
+    local tr, combat_tab = api_drive.tab_by_name("combat")
+    assert(tr == "ok", "maiden_solve: no combat tab")
+    ids.combat_tab = combat_tab
     ids.forms = { [ids.m100] = true, [ids.m70] = true, [ids.m50] = true, [ids.m30] = true }
     ids.range_set = { ids.archer_helm, ids.pipe, ids.anguish, ids.assembler, ids.boots }
     ids.melee_set = { ids.melee_helm, ids.tentacle, ids.torture, ids.fire_cape, ids.defender }
@@ -270,7 +275,11 @@ function QD.raid._maiden_crabs(S, F)
             S.crab_rec[c.slot] = rec
             S.crab_probe[#S.crab_probe + 1] = string.format("slot%d born t%d at %d,%d", c.slot, F.tick, c.x - S.base.x, c.z - S.base.z)
         end
-        if c.spotanim_id == S.ids.freeze_gfx and c.spotanim_tick ~= nil and c.spotanim_tick ~= rec.gfx_tick then
+        -- the SENT graphic and its tick (the packet's facts), never the drawn
+        -- spotanim_id: that waits out the graphic's delay on the client's
+        -- own frame clock, a tick later live than on scriptrun for the same
+        -- packet (seed mxp, 2026-10-09: "cast lag 1" live, 0 on scriptrun)
+        if c.spotanim_sent_id == S.ids.freeze_gfx and c.spotanim_tick ~= nil and c.spotanim_tick ~= rec.gfx_tick then
             rec.gfx_tick = c.spotanim_tick
             if rec.frozen_until == nil or rec.frozen_until < F.tick then
                 rec.frozen_until = F.tick + V.FREEZE_TICKS
@@ -558,6 +567,31 @@ function QD.raid._maiden_step(S, F)
         return nil
     end
     local freezer = (S.role == 1)
+    -- THE PIPE ON RAPID (the owner, 2026-10-09): once the blowpipe is in
+    -- hand, the combat tab's style_slot_1 (combat_tab.rs2 writes
+    -- varp43_com_mode = 1; the thrown row, combat.dbrow weapon_thrown_table,
+    -- is Accurate, Rapid, Longrange) until varp43 reads 1. By slot, not by
+    -- name: the names are a clientscript's text and scriptrun runs none, so
+    -- QD.ui.style finds no 'Rapid' there and the lanes would part. Once: the
+    -- server clamps varp43 to a new weapon's style count on wield
+    -- (combat_stats.rs2:410) and slot 1 is inside the trident's row, so the
+    -- swaps to the cast set and back keep Rapid. The press is an IF_BUTTON:
+    -- it ends no attack, so the tick decides on as usual.
+    if freezer and not S.pipe_rapid and QD.raid._tob_worn(S, ids.pipe) then
+        local mr, mode = api_drive.varp(ids.com_mode)
+        assert(mr == "ok", S.who .. ": varp43_com_mode answered " .. tostring(mr))
+        if mode == 1 then
+            S.pipe_rapid = true
+            QD.raid._tob_trace(S, F.tick, "blowpipe on Rapid")
+        elseif F.tick - (S.rapid_sent or -10) >= 2 then
+            S.rapid_presses = (S.rapid_presses or 0) + 1
+            assert(S.rapid_presses <= 3, S.who .. ": three Rapid presses and varp43_com_mode reads " .. tostring(mode))
+            QD.raid._tob_tab(S, ids.combat_tab)
+            local pr, pd = api_drive.if_click(ids.rapid_slot, 1)
+            assert(pr == "ok", S.who .. ": the Rapid press answered " .. tostring(pr) .. " " .. tostring(pd))
+            S.rapid_sent = F.tick
+        end
+    end
     local target, kind, range = nil, nil, V.PIPE_RANGE
     -- THE HAMMER OPENER (the DPS): the warhammer in hand and the special
     -- armed until a special has gone (energy fell) or the opener's cap

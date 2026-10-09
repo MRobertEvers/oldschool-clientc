@@ -693,6 +693,10 @@ exec_zone_sub_packet_at(
          * replacement. Routed through the async loc-change task so it stays
          * ordered with in-flight LOC_ADD_CHANGE loads on the same tile. */
         App_WorldLocChange(app, tile_x, tile_z, level, -1, pkt->info >> 2, pkt->info & 0x3);
+        /* The driver reads the change from the packet, not from the scene
+         * the async task updates (App_DriveLocChangeNote). */
+        if( App_ActiveWorldview(app)->world == app->world )
+            App_DriveLocChangeNote(app, tile_x, tile_z, level, -1, pkt->info >> 2, pkt->info & 0x3);
         break;
     }
     case PKT_NAME_LOC_ADD_CHANGE:
@@ -709,6 +713,10 @@ exec_zone_sub_packet_at(
         App_WorldLocChangeOps(
             app, tile_x, tile_z, level, pkt->loc_id, pkt->info >> 2, pkt->info & 0x3,
             pkt->op_flags, pkt->ops);
+        /* The driver's loc rows are the root world's (DriveUi_Locs). */
+        if( App_ActiveWorldview(app)->world == app->world )
+            App_DriveLocChangeNote(
+                app, tile_x, tile_z, level, pkt->loc_id, pkt->info >> 2, pkt->info & 0x3);
         if( torirs_env_net_debug() )
             TORIRS_LOG("gameproto_exec: LOC_ADD_CHANGE loc=%d shape=%d angle=%d at %d,%d,l%d\n",
                 pkt->loc_id,
@@ -2447,6 +2455,7 @@ RS_GameProto_Exec(
             /* DRIVE_STAMP: server_tick -- a=world cycle. Every await's
              * deadline is counted in these, and every level predicate is
              * re-checked on one. */
+            ctx->app->drive_events.batch_open = 0;
             App_DriveEvent(
                 ctx->app,
                 DRIVE_EVENT_SERVER_TICK,

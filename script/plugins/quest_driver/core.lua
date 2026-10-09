@@ -716,6 +716,22 @@ function QD.settle()
     return await({ level = function() return api_drive.settled() end, note = "t.settle" }, 30)
 end
 
+-- t.until_tick(tick) -> "ok" | "late", detail: wait for the server tick
+-- `tick` (api_drive.tick, the tick this client has perceived). "late" when it
+-- has already passed: a party that starts a room on a fixed absolute tick
+-- starts it on the same tick on every lane, so every absolute clock the room
+-- stamps (an instance's clock, a varp holding a tick) agrees between a live
+-- party and scriptrun -- and a seat that got there late must say so rather
+-- than start on another tick.
+function QD.until_tick(tick)
+    local now = api_drive.tick()
+    if now > tick then
+        return "late", string.format("t.until_tick: tick %d is past (now %d)", tick, now)
+    end
+    return await({ level = function() return api_drive.tick() >= tick end,
+                   note = "t.until_tick " .. tostring(tick) }, tick - now + 2)
+end
+
 -- t.tick() -> (ok, tick): the SERVER's tick, srv->tick, read from the
 -- embedded world (raid seam 1, docs/RAID_ORCHESTRATOR.md section 4).
 --

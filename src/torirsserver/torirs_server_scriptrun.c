@@ -40,6 +40,7 @@
 #include "game/rs_entity_sync.h"
 #include "net/rev/gameproto_revisions.h"
 #include "net/rev/pktnames.h"
+#include "plugin/torirs_drive_pick.h"
 #include "plugin/torirs_plugin_drive_parts.h"
 #include "scriptrun/scriptrun_core.h"
 #include "world/entity_npc.h"
@@ -122,7 +123,10 @@ struct ScriptBot
      * not showing is display-hidden to the client's dispatcher. */
     int tab;
     int await_match_ref; /* LUA_NOREF, or a 1-arg predicate over the event */
-    int await_since;     /* the last event serial already offered */
+    /* The last event serial the pump has read: the client's g_event_cursor
+     * (torirs_plugin_drive.c). One cursor for the bot, never one per await:
+     * arming an await does not move it (lua_drive_await). */
+    int event_cursor;
     int await_deadline;
     char await_note[128];
     int finished;
@@ -353,6 +357,24 @@ push_event(
     lua_setfield(L, -2, "d");
 }
 
+/* TORIRS_DRIVE_AWAIT_TRACE=1: the client's await trace line for line
+ * (torirs_plugin_drive.c drive_await_trace), prefixed with the bot. */
+static void
+await_trace(
+    struct ScriptBot const* bot,
+    char const* how,
+    char const* note)
+{
+    static int on = -1;
+    if( on < 0 )
+    {
+        char const* e = getenv("TORIRS_DRIVE_AWAIT_TRACE");
+        on = e && e[0] && e[0] != '0';
+    }
+    if( on )
+        fprintf(stderr, "[%s] await-trace t%d %s '%s'\n", bot->name, bot->core->tick, how, note ? note : "");
+}
+
 /* await(descriptor, deadline): a `level` predicate re-tested each tick, and/or
  * an `event` kind whose events since the call are offered to `match`, exactly
  * as the client's scheduler does (plugin/torirs_plugin_drive.c). Deadlines are
@@ -402,6 +424,7 @@ d_await(lua_State* L)
         if( lua_toboolean(L, -1) )
         {
             lua_pop(L, 2);
+            await_trace(bot, "level-now", note);
             return push_result(L, "ok", NULL);
         }
         lua_pop(L, 1);
@@ -436,10 +459,10 @@ d_await(lua_State* L)
     bot->await_level_ref = level_ref;
     bot->await_match_ref = match_ref;
     bot->await_kind = kind;
-    bot->await_since = bot->core->event_serial;
     bot->await_deadline = bot->core->tick + deadline;
     snprintf(bot->await_note, sizeof(bot->await_note), "%s", note);
     bot->state = SCRIPTBOT_AWAIT;
+    await_trace(bot, "arm", note);
     return lua_yield(L, 0);
 }
 
@@ -1333,6 +1356,7 @@ d_cast_npc(lua_State* L)
     struct World_EntityPool* pool = &c->world->entities.npc;
     struct WorldEntity_NPC const* best = NULL;
     int best_d = 1 << 30;
+    int best_tx = 0, best_tz = 0;
     int px = 0, pz = 0, plevel = 0;
     uint8_t payload[8];
 
@@ -1350,10 +1374,13 @@ d_cast_npc(lua_State* L)
             continue;
         tx = c->world->_base_tile_x + npc->grid_position.x;
         tz = c->world->_base_tile_z + npc->grid_position.z;
-        d = cheb(tx, tz, px, pz);
-        if( d < best_d )
+        d = DrivePick_Distance(tx, tz, npc->grid_position.level, px, pz, plevel);
+        if( DrivePick_Better(best != NULL, d, tx, tz, npc->server_slot, best_d, best_tx, best_tz,
+                             best ? best->server_slot : 0) )
         {
             best_d = d;
+            best_tx = tx;
+            best_tz = tz;
             best = npc;
         }
     }
@@ -1390,6 +1417,7 @@ d_world_op(lua_State* L)
         struct World_EntityPool* pool = &c->world->entities.npc;
         struct WorldEntity_NPC const* best = NULL;
         int best_d = 1 << 30;
+        int best_tx = 0, best_tz = 0;
         const struct ToriRSServerNpcInfo* info;
         for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
         {
@@ -1401,10 +1429,13 @@ d_world_op(lua_State* L)
                 continue;
             tx = c->world->_base_tile_x + npc->grid_position.x;
             tz = c->world->_base_tile_z + npc->grid_position.z;
-            d = cheb(tx, tz, px, pz);
-            if( d < best_d )
+            d = DrivePick_Distance(tx, tz, npc->grid_position.level, px, pz, plevel);
+            if( DrivePick_Better(best != NULL, d, tx, tz, npc->server_slot, best_d, best_tx, best_tz,
+                                 best ? best->server_slot : 0) )
             {
                 best_d = d;
+                best_tx = tx;
+                best_tz = tz;
                 best = npc;
             }
         }
@@ -1434,8 +1465,8 @@ d_world_op(lua_State* L)
                 continue;
             /* Another floor's copy only when this floor has none (a loc's
              * level is its cache level: a bridge's differs). */
-            d = cheb(l->x, l->z, px, pz) + (l->level != plevel ? 10000 : 0);
-            if( d < best_d )
+            d = DrivePick_Distance(l->x, l->z, l->level, px, pz, plevel);
+            if( DrivePick_Better(best != NULL, d, l->x, l->z, 0, best_d, best ? best->x : 0, best ? best->z : 0, 0) )
             {
                 best_d = d;
                 best = l;
@@ -1465,8 +1496,8 @@ d_world_op(lua_State* L)
                 continue;
             /* Another floor's copy only when this floor has none (a loc's
              * level is its cache level: a bridge's differs). */
-            d = cheb(o->x, o->z, px, pz) + (o->level != plevel ? 10000 : 0);
-            if( d < best_d )
+            d = DrivePick_Distance(o->x, o->z, o->level, px, pz, plevel);
+            if( DrivePick_Better(best != NULL, d, o->x, o->z, 0, best_d, best ? best->x : 0, best ? best->z : 0, 0) )
             {
                 best_d = d;
                 best = o;
@@ -2591,98 +2622,162 @@ bot_resume(
     bot->state = SCRIPTBOT_DONE;
 }
 
-/* One look at the bot's await: 1 when it resumed the coroutine. */
+/* Settle the armed await: "ok" when its edge or level came, else "timeout". */
+static void
+bot_settle(
+    struct ScriptBot* bot,
+    int satisfied)
+{
+    if( bot->await_level_ref != LUA_NOREF )
+        luaL_unref(bot->L, LUA_REGISTRYINDEX, bot->await_level_ref);
+    if( bot->await_match_ref != LUA_NOREF )
+        luaL_unref(bot->L, LUA_REGISTRYINDEX, bot->await_match_ref);
+    bot->await_level_ref = LUA_NOREF;
+    bot->await_match_ref = LUA_NOREF;
+    bot->await_kind = 0;
+    bot->state = SCRIPTBOT_DONE;
+    if( satisfied )
+    {
+        lua_pushstring(bot->co, "ok");
+        lua_pushnil(bot->co);
+    }
+    else
+    {
+        lua_pushstring(bot->co, "timeout");
+        lua_pushstring(bot->co, bot->await_note);
+    }
+    bot_resume(bot, 2);
+}
+
+/* The client's pump reads at most this many events a frame
+ * (drive_pump_once's `struct App_DriveEvent events[32]`). */
+enum
+{
+    SCRIPTRUN_PUMP_BATCH = 32
+};
+
+/*
+ * ONE PUMP: the client's drive_pump_once (torirs_plugin_drive.c), step for
+ * step. Read the next batch past the bot's cursor; offer it in order to the
+ * armed await; when an event settles it and the resume arms a NEW await, offer
+ * that one the rest of the SAME batch (the client's R3) -- so an event read
+ * before the new await was armed can settle it, as it does live. Then the
+ * (possibly new) await's level, then its deadline. 1 when it resumed.
+ *
+ * Before this each await only saw events raised after its own call, so a
+ * script that answered a dialogue and then awaited the next server_tick
+ * waited one tick longer on scriptrun than live, where that tick's fence sat
+ * later in the batch that settled the dialogue: the Maiden leader's first
+ * gear switch landed a tick after the live leader's (seed sa, 2026-10-09),
+ * and every action after it sat a tick late against her clock.
+ */
 static int
 bot_step_once(struct ScriptBot* bot)
 {
+    struct ScriptrunCore* c = bot->core;
+    int from;
+    int batch_end;
+    int resumed = 0;
+
     if( bot->state == SCRIPTBOT_START )
     {
+        /* An on-demand Play's cursor starts at the ring's newest entry
+         * (drive_demand_begin): what came before is not this script's. */
+        bot->event_cursor = c->event_serial;
         bot->state = SCRIPTBOT_DONE; /* until it yields */
         bot_resume(bot, 3);
         return 1;
     }
+
+    from = bot->event_cursor + 1;
+    if( from < c->event_serial - SCRIPTRUN_EVENTS + 1 )
+        from = c->event_serial - SCRIPTRUN_EVENTS + 1;
+    batch_end = c->event_serial;
+    if( batch_end - from + 1 > SCRIPTRUN_PUMP_BATCH )
+        batch_end = from + SCRIPTRUN_PUMP_BATCH - 1;
+    if( batch_end >= from )
+        bot->event_cursor = batch_end;
+
     if( bot->state != SCRIPTBOT_AWAIT )
         return 0;
 
-    /* Satisfied? Predicates run on the main state: they are plain functions. */
+    /* Predicates run on the main state: they are plain functions. */
+    for( int serial = from; serial <= batch_end; serial++ )
+    {
+        struct ScriptrunEvent const* ev = &c->events[serial % SCRIPTRUN_EVENTS];
+        int matched;
+
+        if( bot->state != SCRIPTBOT_AWAIT )
+            return resumed;
+        if( bot->await_match_ref == LUA_NOREF )
+            continue;
+        if( bot->await_kind >= 0 && ev->kind != bot->await_kind )
+            continue;
+        lua_rawgeti(bot->L, LUA_REGISTRYINDEX, bot->await_match_ref);
+        push_event(bot->L, ev);
+        if( lua_pcall(bot->L, 1, 1, 0) != LUA_OK )
+        {
+            char const* error = lua_tostring(bot->L, -1);
+            fprintf(stdout, "[%s t%d] NOTE   await match error: %s\n", bot->name, c->tick,
+                    error ? error : "?");
+            lua_pop(bot->L, 1);
+            continue;
+        }
+        matched = lua_toboolean(bot->L, -1);
+        lua_pop(bot->L, 1);
+        if( matched )
+        {
+            char how[64];
+            snprintf(how, sizeof(how), "event %s %d/%d", EVENT_NAMES[ev->kind], serial - from + 1,
+                     batch_end - from + 1);
+            await_trace(bot, how, bot->await_note);
+            bot_settle(bot, 1);
+            resumed = 1;
+        }
+    }
+    if( bot->state != SCRIPTBOT_AWAIT )
+        return resumed;
+
+    if( bot->await_level_ref != LUA_NOREF )
     {
         int satisfied = 0;
-        char const* error = NULL;
-
-        if( bot->await_match_ref != LUA_NOREF )
+        lua_rawgeti(bot->L, LUA_REGISTRYINDEX, bot->await_level_ref);
+        if( lua_pcall(bot->L, 0, 1, 0) != LUA_OK )
         {
-            struct ScriptrunCore* c = bot->core;
-            int from = bot->await_since + 1;
-            if( from < c->event_serial - SCRIPTRUN_EVENTS + 1 )
-                from = c->event_serial - SCRIPTRUN_EVENTS + 1;
-            for( int serial = from; serial <= c->event_serial && !satisfied; serial++ )
-            {
-                struct ScriptrunEvent const* ev = &c->events[serial % SCRIPTRUN_EVENTS];
-                bot->await_since = serial;
-                if( bot->await_kind >= 0 && ev->kind != bot->await_kind )
-                    continue;
-                lua_rawgeti(bot->L, LUA_REGISTRYINDEX, bot->await_match_ref);
-                push_event(bot->L, ev);
-                if( lua_pcall(bot->L, 1, 1, 0) != LUA_OK )
-                {
-                    error = lua_tostring(bot->L, -1);
-                    fprintf(stdout, "[%s t%d] NOTE   await match error: %s\n", bot->name,
-                            c->tick, error ? error : "?");
-                    lua_pop(bot->L, 1);
-                    continue;
-                }
-                satisfied = lua_toboolean(bot->L, -1);
-                lua_pop(bot->L, 1);
-            }
-        }
-        if( !satisfied && bot->await_level_ref != LUA_NOREF )
-        {
-            lua_rawgeti(bot->L, LUA_REGISTRYINDEX, bot->await_level_ref);
-            if( lua_pcall(bot->L, 0, 1, 0) != LUA_OK )
-            {
-                error = lua_tostring(bot->L, -1);
-                fprintf(stdout, "[%s t%d] NOTE   await level error: %s\n", bot->name,
-                        bot->core->tick, error ? error : "?");
-            }
-            else
-                satisfied = lua_toboolean(bot->L, -1);
-            lua_pop(bot->L, 1);
-        }
-        if( !satisfied && bot->core->tick < bot->await_deadline )
-            return 0;
-
-        if( bot->await_level_ref != LUA_NOREF )
-            luaL_unref(bot->L, LUA_REGISTRYINDEX, bot->await_level_ref);
-        if( bot->await_match_ref != LUA_NOREF )
-            luaL_unref(bot->L, LUA_REGISTRYINDEX, bot->await_match_ref);
-        bot->await_level_ref = LUA_NOREF;
-        bot->await_match_ref = LUA_NOREF;
-        bot->await_kind = 0;
-        bot->state = SCRIPTBOT_DONE;
-        if( satisfied )
-        {
-            lua_pushstring(bot->co, "ok");
-            lua_pushnil(bot->co);
+            char const* error = lua_tostring(bot->L, -1);
+            fprintf(stdout, "[%s t%d] NOTE   await level error: %s\n", bot->name, c->tick,
+                    error ? error : "?");
         }
         else
+            satisfied = lua_toboolean(bot->L, -1);
+        lua_pop(bot->L, 1);
+        if( satisfied )
         {
-            lua_pushstring(bot->co, "timeout");
-            lua_pushstring(bot->co, bot->await_note);
+            await_trace(bot, "level", bot->await_note);
+            bot_settle(bot, 1);
+            return 1;
         }
-        bot_resume(bot, 2);
+    }
+    if( c->tick >= bot->await_deadline )
+    {
+        await_trace(bot, "timeout", bot->await_note);
+        bot_settle(bot, 0);
         return 1;
     }
+    return resumed;
 }
 
-/* The client checks a fresh await against the same frame's events (a
- * resume's resume_answered lands in the flush right after the verb armed its
- * await), so a resumed bot is looked at again within the tick -- bounded:
- * only an event raised after the await was armed can settle it here. */
+/* The client pumps once a frame and runs several frames to a server tick,
+ * so within a tick a bot is pumped again while it resumes, or while events
+ * are left past its cursor (more than one batch arrived) -- bounded. */
 static void
 bot_step(struct ScriptBot* bot)
 {
-    for( int pass = 0; pass < 8 && bot_step_once(bot); pass++ )
+    for( int pass = 0; pass < 32; pass++ )
     {
+        int resumed = bot_step_once(bot);
+        if( !resumed && bot->event_cursor >= bot->core->event_serial )
+            break;
     }
 }
 

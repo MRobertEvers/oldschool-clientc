@@ -18559,6 +18559,15 @@ ToriRSServer_WorldTick(struct ToriRSServer* srv)
      */
     struct ToriRSServerPlayer* caller_active = srv->active_player;
 
+    /* The answers to input handled since the last tick leave first, ahead of
+     * this tick's output, as scriptrun's do (torirs_server_session.h
+     * `holding`). */
+    TORIRSSERVER_FOR_EACH_PLAYER(srv, player)
+    {
+        if( player->session )
+            ToriRSServer_SessionReleaseHeld(player->session);
+    }
+
     srv->tick++;
 
     phase_world(srv);

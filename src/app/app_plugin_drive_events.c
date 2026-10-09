@@ -19,6 +19,7 @@
 #include "app.h"
 
 #include "plugin/torirs_plugin_drive.h"
+#include "world/world.h"
 
 #include <assert.h>
 #include <string.h>
@@ -165,6 +166,50 @@ App_DriveProjectileNote(
     p->start_delay = start_delay;
     p->end_delay = end_delay;
     p->cycle = now;
+}
+
+void
+App_DriveLocChangeNote(
+    struct App* app, int scene_x, int scene_z, int level, int loc_id, int shape, int angle)
+{
+    struct App_DriveRing* ring;
+    struct App_DriveLocChange* c = NULL;
+    int base_x, base_z, x, z, layer, i;
+
+    assert(app);
+    assert(app->world);
+    ring = &app->drive_events;
+    base_x = app->world->_base_tile_x;
+    base_z = app->world->_base_tile_z;
+    x = base_x + scene_x;
+    z = base_z + scene_z;
+    layer = World_LocShapeToLayer(shape);
+    for( i = 0; i < ring->loc_change_count; i++ )
+    {
+        struct App_DriveLocChange* e = &ring->loc_changes[i];
+        if( e->x == x && e->z == z && e->level == level && e->layer == layer )
+        {
+            c = e;
+            break;
+        }
+    }
+    if( !c )
+    {
+        /* Only changes the scenery has not caught up with are held
+         * (DriveUi_Locs retires the rest); more than this many waiting on
+         * their models at once is a contract violation, not a drop. */
+        assert(ring->loc_change_count < APP_DRIVE_LOC_CHANGE_CAP);
+        c = &ring->loc_changes[ring->loc_change_count++];
+    }
+    c->x = x;
+    c->z = z;
+    c->level = level;
+    c->layer = layer;
+    c->loc_id = loc_id;
+    c->shape = shape;
+    c->angle = angle;
+    c->base_x = base_x;
+    c->base_z = base_z;
 }
 
 enum DriveResult

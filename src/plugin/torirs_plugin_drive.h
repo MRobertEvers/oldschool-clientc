@@ -164,10 +164,39 @@ struct App_DriveProjectile
     int32_t spotanim, target, start_delay, end_delay;
     int32_t cycle; /**< world cycle at the apply */
 };
+/* A loc change as its packet applied it (LOC_ADD_CHANGE; LOC_DEL is loc_id
+ * -1), held until the world's scenery shows it. The world applies a change
+ * through a task that first awaits the new loc's models (App_WorldLocChangeOps,
+ * the reference's changeLocAvailable gate), so a first-seen loc type reached
+ * api_drive.locs a tick late -- where scriptrun, which keeps the packet,
+ * listed it in the packet's tick (2026-10-09: Maiden's first blood trail, one
+ * tick apart, and the freezer's plan parted). The drive's loc rows answer
+ * these tiles from the packet. Absolute tiles; `layer` is
+ * World_LocShapeToLayer(shape); `base_x/z` the scene base it was applied in. */
+#define APP_DRIVE_LOC_CHANGE_CAP 256
+struct App_DriveLocChange
+{
+    int32_t x, z, level, layer;
+    int32_t loc_id, shape, angle;
+    int32_t base_x, base_z;
+};
 struct App_DriveRing
 {
     struct App_DriveProjectile projectiles[APP_DRIVE_PROJECTILE_CAP];
     int projectile_count;
+    struct App_DriveLocChange loc_changes[APP_DRIVE_LOC_CHANGE_CAP];
+    int loc_change_count;
+    /* A server tick is HALF-APPLIED: the exec runner has started on a packet
+     * of a tick whose fence (SERVER_TICK_END, or PLAYER_INFO on a revision
+     * with none) has not run yet. Packets apply over several frames and the
+     * driver pumps every frame, so without this a level read the world with
+     * part of a tick in it -- a cheat's reply, the instance's state -- a tick
+     * before scriptrun, whose bots only ever run on whole ticks (2026-10-09:
+     * the Maiden leader's entry two ticks apart). The driver waits it out
+     * (drive_pump_once). `batch_open_cycle` is the logic cycle it opened on,
+     * for the lost-fence backstop. */
+    int batch_open;
+    int batch_open_cycle;
     struct App_DriveEvent entries[APP_DRIVE_RING_CAPACITY];
     /** Serial of the newest entry; 0 before the first stamp. */
     uint32_t newest_serial;
@@ -217,6 +246,11 @@ void App_DriveEvent(
 void App_DriveProjectileNote(
     struct App* app, int src_x, int src_z, int dst_x, int dst_z, int level, int spotanim,
     int target, int start_delay, int end_delay);
+/* Record a LOC_ADD_CHANGE (or a LOC_DEL, loc_id -1) as applied
+ * (rs_gameproto_exec.c), scene tiles at the loc's cache level: it replaces any
+ * pending change for the same tile and layer, as the packet does. */
+void App_DriveLocChangeNote(
+    struct App* app, int scene_x, int scene_z, int level, int loc_id, int shape, int angle);
 
 enum DriveResult App_DriveEventsRead(
     struct App* app,

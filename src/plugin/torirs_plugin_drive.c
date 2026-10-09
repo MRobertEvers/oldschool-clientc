@@ -684,6 +684,24 @@ static lua_State* g_thread;
 static int g_thread_ref = LUA_NOREF;
 static int g_started;
 static uint32_t g_event_cursor;
+/* The server tick of the last fence this client has APPLIED: the raw tick
+ * (drive_raw_server_tick) as it read when the pump met that fence's
+ * server_tick event. -1 until the first. See PluginDrive_ServerTick. */
+static int g_fence_tick = -1;
+/* The last fences pumped, oldest first: each one's tick (g_fence_tick then)
+ * and the world cycle its server_tick event was raised on. A packet applied
+ * on a cycle at or before a fence's, and after the one before it, was that
+ * fence's batch. See PluginDrive_ServerTickOfCycle. */
+enum
+{
+    DRIVE_FENCE_HISTORY = 64
+};
+static struct
+{
+    int tick;
+    int cycle;
+} g_fences[DRIVE_FENCE_HISTORY];
+static int g_fence_count;
 static struct DriveAwait g_await;
 static char g_quest_name[64];
 
@@ -1066,6 +1084,50 @@ drive_scheduler_start(void)
     drive_scheduler_handle_status(status, error);
 }
 
+/* The server's own tick where this client has one: the embed world's counter
+ * for a leader, the lockstep tick a member's last TICK frame carried, else
+ * the client's cycle clock. Moves BEFORE the tick's fence is applied; the
+ * driver reads PluginDrive_ServerTick. */
+static int
+drive_raw_server_tick(void)
+{
+    struct ToriRSServer* srv = PluginDrive_EmbedWorld();
+    int const lockstep = ToriRSServer_EmbedLockstepTick();
+
+    if( srv && srv->world_built )
+        return (int)srv->tick;
+    if( lockstep != TORIRSSERVER_EMBED_LOCKSTEP_NONE )
+        return lockstep;
+    return g_app && g_app->world ? (int)(g_app->world->cycle / APP_SERVER_TICK_LOGIC_CYCLES) : 0;
+}
+
+/* TORIRS_DRIVE_AWAIT_TRACE=1: one stderr line per await armed and settled,
+ * stamped with the server tick, so a live seat's decisions can be set beside
+ * a scriptrun bot's (torirs_server_scriptrun.c prints the same lines): which
+ * tick each await settled on and what settled it -- an event (and whether it
+ * was read in the batch before the await was armed), the level, or the
+ * deadline. Lane identity reads these when two tick logs part on a decision
+ * tick (solver_lessons.md 36). */
+static int
+drive_await_trace_on(void)
+{
+    static int on = -1;
+    if( on < 0 )
+    {
+        char const* e = getenv("TORIRS_DRIVE_AWAIT_TRACE");
+        on = e && e[0] && e[0] != '0';
+    }
+    return on;
+}
+
+static void
+drive_await_trace(char const* how, char const* note)
+{
+    if( !drive_await_trace_on() )
+        return;
+    fprintf(stderr, "await-trace t%d %s '%s'\n", PluginDrive_ServerTick(), how, note ? note : "");
+}
+
 static void
 drive_pump_once(void)
 {
@@ -1077,12 +1139,37 @@ drive_pump_once(void)
     if( !g_app || !g_thread )
         return;
 
+    /* NEVER ON A HALF-APPLIED TICK (App_DriveRing.batch_open): the driver
+     * reads, settles and resumes only between a fence and the next tick's
+     * first packet, so it sees each tick whole, as a scriptrun bot does.
+     * Bounded, so a fence lost to a disconnect cannot park the driver
+     * forever; generously, since a tick's exec tasks may wait on assets. */
+    if( g_app->drive_events.batch_open )
+    {
+        if( (int)g_app->logic_cycle - g_app->drive_events.batch_open_cycle < 20 * APP_SERVER_TICK_LOGIC_CYCLES )
+            return;
+        g_app->drive_events.batch_open = 0;
+    }
+
     /* DRIVE_REFUSED just means the cursor fell off the ring's tail; the level
      * re-check below is still the source of truth for a level-only await, and
      * an event-only await that was missed this way still resolves the moment
      * its deadline passes -- a late timeout, never a silent hang. */
     (void)App_DriveEventsRead(g_app, g_event_cursor, events, 32, &count, &next_serial);
     g_event_cursor = next_serial;
+    for( i = 0; i < count; i++ )
+        if( events[i].kind == DRIVE_EVENT_SERVER_TICK )
+        {
+            g_fence_tick = drive_raw_server_tick();
+            if( g_fence_count == DRIVE_FENCE_HISTORY )
+            {
+                memmove(&g_fences[0], &g_fences[1], sizeof(g_fences[0]) * (DRIVE_FENCE_HISTORY - 1));
+                g_fence_count--;
+            }
+            g_fences[g_fence_count].tick = g_fence_tick;
+            g_fences[g_fence_count].cycle = events[i].a;
+            g_fence_count++;
+        }
 
     if( !g_await.active )
         return;
@@ -1093,6 +1180,13 @@ drive_pump_once(void)
             continue;
         if( !drive_await_match_true(g_await.match_ref, &events[i]) )
             continue;
+        if( drive_await_trace_on() )
+        {
+            char how[64];
+            snprintf(how, sizeof(how), "event %s %d/%d",
+                     DriveEventKindName((enum App_DriveEventKind)events[i].kind), i + 1, count);
+            drive_await_trace(how, g_await.note);
+        }
         drive_await_settle(DRIVE_OK, NULL);
         /* drive_await_settle resumes the coroutine, which routinely arms a
          * NEW await in that same resume (e.g. chat.continue_ awaiting
@@ -1111,6 +1205,7 @@ drive_pump_once(void)
 
     if( drive_await_level_true(g_await.level_ref) )
     {
+        drive_await_trace("level", g_await.note);
         drive_await_settle(DRIVE_OK, NULL);
         return;
     }
@@ -1118,6 +1213,7 @@ drive_pump_once(void)
     if( g_await.deadline_cycle >= 0 && g_app->world &&
         g_app->world->cycle >= g_await.deadline_cycle )
     {
+        drive_await_trace("timeout", g_await.note);
         drive_await_settle(DRIVE_TIMEOUT, g_await.note[0] ? g_await.note : NULL);
     }
 }
@@ -1166,6 +1262,7 @@ lua_drive_await(struct lua_State* L)
      * registering an await, let alone yielding. */
     if( drive_await_level_true(level_ref) )
     {
+        drive_await_trace("level-now", note);
         if( level_ref != LUA_NOREF ) luaL_unref(L, LUA_REGISTRYINDEX, level_ref);
         if( match_ref != LUA_NOREF ) luaL_unref(L, LUA_REGISTRYINDEX, match_ref);
         return PluginDrive_PushResult(L, DRIVE_OK, NULL);
@@ -1220,6 +1317,7 @@ lua_drive_await(struct lua_State* L)
      */
     g_await.deadline_cycle = cycle_now + deadline_ticks * APP_SERVER_TICK_LOGIC_CYCLES;
     snprintf(g_await.note, sizeof(g_await.note), "%s", note);
+    drive_await_trace("arm", note);
 
     return lua_yield(L, 0);
 }
@@ -1723,6 +1821,9 @@ drive_demand_begin_play(void)
 
     g_demand_start_pending = 0;
     g_event_cursor = g_app->drive_events.newest_serial;
+    /* A new Play counts ticks from its own fences. */
+    g_fence_tick = -1;
+    g_fence_count = 0;
     g_started = 1;
     drive_quest_name_from_path(g_demand_script);
     fprintf(stderr, "quest-driver: on demand: start %d: play %s (%s) as %s (session %s)\n",
@@ -1799,6 +1900,9 @@ drive_demand_begin(void)
      * the person pressed Play is not this script's to await. (A test run's
      * first pump reads from 0 -- everything since boot -- and is unchanged.) */
     g_event_cursor = g_app->drive_events.newest_serial;
+    /* A new Play counts ticks from its own fences. */
+    g_fence_tick = -1;
+    g_fence_count = 0;
     /* The pump's half of a start: the coroutine, created as a test run's is. */
     g_started = 1;
     fprintf(stderr, "quest-driver: on demand: start %d: %s (session %s)\n",
@@ -2004,34 +2108,82 @@ lua_drive_events(struct lua_State* L)
 int
 PluginDrive_ServerTick(void)
 {
-    struct ToriRSServer* srv = PluginDrive_EmbedWorld();
-    int const lockstep = ToriRSServer_EmbedLockstepTick();
+    /*
+     * THE TICK THIS CLIENT HAS PERCEIVED, not the tick the server has run.
+     * The raw counter moves before the tick's packets are applied: the
+     * leader's embed srv->tick when its server runs the boundary, a member's
+     * lockstep tick when the TICK frame lands -- a pump or more before that
+     * tick's SERVER_TICK_END fence is applied and its server_tick event is
+     * raised. A level on the tick (t.ticks, party.barrier) then passed at N,
+     * and the next `await{event="server_tick"}` was answered by tick N's own
+     * fence, so every live seat decided a tick before scriptrun, where a tick
+     * and its fence arrive together (Maiden seed mx, 2026-10-09: the leader's
+     * first gear switch at click+2 live, click+3 scriptrun; Bloat's fight a
+     * tile apart at +0). Answering the last applied fence's tick is the
+     * boundary scriptrun's core->tick already is. Recorded in the pump, where
+     * the event is read: the lockstep runs a fixed number of frames to a
+     * boundary, so the fence for N is pumped before N + 1 can run.
+     */
+    if( g_fence_tick >= 0 )
+        return g_fence_tick;
+    return drive_raw_server_tick();
+}
 
-    if( srv && srv->world_built )
-        return (int)srv->tick;
-    if( lockstep != TORIRSSERVER_EMBED_LOCKSTEP_NONE )
-        return lockstep;
-    return g_app && g_app->world ? (int)(g_app->world->cycle / APP_SERVER_TICK_LOGIC_CYCLES) : 0;
+/* A party barrier mark's tick, written and read: the tick this seat has
+ * PERCEIVED (PluginDrive_ServerTick), as scriptrun stamps and honours its
+ * marks with core->tick (d_barrier_mark). The raw lockstep tick moved before
+ * the boundary's fence was applied, so a member saw a mark a pump before its
+ * world caught up and passed the barrier a tick ahead of scriptrun.
+ * TORIRSSERVER_EMBED_LOCKSTEP_NONE outside a party. */
+static int
+drive_party_tick(void)
+{
+    if( ToriRSServer_EmbedLockstepTick() == TORIRSSERVER_EMBED_LOCKSTEP_NONE )
+        return TORIRSSERVER_EMBED_LOCKSTEP_NONE;
+    return PluginDrive_ServerTick();
 }
 
 int
 PluginDrive_ServerTickOfCycle(int cycle)
 {
-    /* A client cycle stamped on an entity (the cycle a seq, a spotanim or a
-     * face was applied), as the server tick it belongs to: the tick now,
-     * less the whole ticks of cycles since. The client's own cycle count
-     * and the server's tick drift apart over hundreds of ticks (see
-     * lua_drive_tick), so a stamp divided by 30 named a tick the server
-     * never ran it on -- her slam's seq read two ticks old on the live seat
-     * and current on scriptrun, and a scorer that windows on it answered
-     * finite on one lane and infinite on the other (2026-10-09). Rounded,
-     * so a stamp from this tick's packets (a frame or two ago) is this tick. */
-    int const now_cycle = g_app && g_app->world ? (int)g_app->world->cycle : 0;
-    int const ago = now_cycle - cycle;
+    /*
+     * A client cycle stamped on an entity (the cycle a seq, a spotanim or a
+     * face was applied), as the SERVER TICK THAT SENT IT -- the tick its
+     * tick-log row carries, and what scriptrun answers (the core's cycle is
+     * the sending tick's while that tick's packets land). Counted by fences,
+     * not by dividing cycles: a packet belongs to the batch of the first
+     * fence pumped at or after its cycle, and that fence's tick is the one
+     * the batch is PERCEIVED on, one past the tick that sent it. A stamp
+     * after the newest fence is the batch now landing, sent on the newest
+     * fence's tick.
+     *
+     * The client's cycle drifts against the server tick (lua_drive_tick), and
+     * the earlier rounding answered the perceived tick, one past scriptrun's:
+     * the Maiden freezer read its first barrage landing a tick later live and
+     * re-timed every later cast (seed mxp, 2026-10-09, "cast lag 1").
+     */
+    int sent;
+    int k;
 
-    /* A stamp newer than now is not a stamp this world made. */
-    assert(ago >= 0);
-    return PluginDrive_ServerTick() - (ago + APP_SERVER_TICK_LOGIC_CYCLES / 2) / APP_SERVER_TICK_LOGIC_CYCLES;
+    if( g_fence_count == 0 )
+    {
+        int const now_cycle = g_app && g_app->world ? (int)g_app->world->cycle : 0;
+        int const ago = now_cycle - cycle;
+
+        /* A stamp newer than now is not a stamp this world made. */
+        assert(ago >= 0);
+        return PluginDrive_ServerTick() - 1 - (ago + APP_SERVER_TICK_LOGIC_CYCLES / 2) / APP_SERVER_TICK_LOGIC_CYCLES;
+    }
+    sent = g_fences[g_fence_count - 1].tick;
+    for( k = g_fence_count - 1; k >= 0 && g_fences[k].cycle >= cycle; k-- )
+        sent = g_fences[k].tick - 1;
+    if( k < 0 )
+    {
+        /* Older than every fence held: whole ticks of cycles before it. */
+        int const before = g_fences[0].cycle - cycle;
+        sent = g_fences[0].tick - 1 - (before + APP_SERVER_TICK_LOGIC_CYCLES - 1) / APP_SERVER_TICK_LOGIC_CYCLES;
+    }
+    return sent;
 }
 
 static int
@@ -3652,7 +3804,7 @@ lua_drive_barrier_mark(struct lua_State* L)
          * problem to report (the barrier then times out naming it), not a
          * contract violation by the caller. */
         return PluginDrive_PushResult(L, DRIVE_REFUSED, NULL);
-    fprintf(f, "lockstep=%d\ntick=%d\n", ToriRSServer_EmbedLockstepTick(),
+    fprintf(f, "lockstep=%d\ntick=%d\n", drive_party_tick(),
             g_app && g_app->world ? (int)(g_app->world->cycle / APP_SERVER_TICK_LOGIC_CYCLES)
                                   : -1);
     fclose(f);
@@ -3672,7 +3824,7 @@ lua_drive_barrier_present(struct lua_State* L)
     if( !f )
         return PluginDrive_PushResult(L, DRIVE_NOT_FOUND, NULL);
     {
-        int const now = ToriRSServer_EmbedLockstepTick();
+        int const now = drive_party_tick();
         int mark = TORIRSSERVER_EMBED_LOCKSTEP_NONE;
         int parsed = fscanf(f, "lockstep=%d", &mark) == 1;
 

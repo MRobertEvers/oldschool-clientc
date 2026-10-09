@@ -75,6 +75,10 @@ ToriRSServer_SessionFree(struct ToriRSServerSession* session)
     isaac_free(session->cipher_in);
     session->cipher_out = NULL;
     session->cipher_in = NULL;
+    free(session->held);
+    session->held = NULL;
+    session->held_len = 0;
+    session->held_cap = 0;
     if( session->transport.close )
         session->transport.close(session->transport.ctx);
     session->state = TORIRSSERVER_SESSION_DEAD;
@@ -132,10 +136,38 @@ ToriRSServer_SessionSend(
 
     if( session->state == TORIRSSERVER_SESSION_DEAD || !session->transport.send )
         return -1;
+    if( session->holding )
+    {
+        if( session->held_len + len > session->held_cap )
+        {
+            int cap = session->held_cap ? session->held_cap : 4096;
+            while( cap < session->held_len + len )
+                cap *= 2;
+            session->held = realloc(session->held, (size_t)cap);
+            assert(session->held);
+            session->held_cap = cap;
+        }
+        memcpy(session->held + session->held_len, data, (size_t)len);
+        session->held_len += len;
+        session->output_generation++;
+        return len;
+    }
     result = session->transport.send(session->transport.ctx, data, len);
     if( result >= 0 )
         session->output_generation++;
     return result;
+}
+
+void
+ToriRSServer_SessionReleaseHeld(struct ToriRSServerSession* session)
+{
+    assert(session);
+    session->holding = 0;
+    if( session->held_len == 0 )
+        return;
+    if( session->state != TORIRSSERVER_SESSION_DEAD && session->transport.send )
+        (void)session->transport.send(session->transport.ctx, session->held, session->held_len);
+    session->held_len = 0;
 }
 
 int
@@ -1007,6 +1039,7 @@ step_online(
             else
             {
                 (void)srv;
+                session->holding = 1;
                 ToriRSServer_WorldHandle(session->player, translated, xlat, xlat_len);
             }
         }
@@ -1022,6 +1055,7 @@ step_online(
              * player": with two sessions the second one's clicks used to move
              * the first one's character. */
             (void)srv;
+            session->holding = 1;
             ToriRSServer_WorldHandle(session->player, name, session->in + len_bytes, payload_len);
         }
 

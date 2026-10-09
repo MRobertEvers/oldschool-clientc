@@ -107,6 +107,23 @@ struct ToriRSServerSession
      */
     int pending_opcode;
 
+    /*
+     * ANSWERS LEAVE WITH THE TICK. Client input is handled as it arrives,
+     * between ticks (step_online), but what handling it sends is held here
+     * and released at the start of the next world tick, ahead of the tick's
+     * own output (ToriRSServer_SessionReleaseHeld from ToriRSServer_WorldTick):
+     * the reference decodes input inside the tick and writes everything at
+     * its end (LostCity World.cycle: processClientsIn ... processClientsOut),
+     * and scriptrun hands its bots' input to the world just before the tick.
+     * Sent at once, a cheat's reply or an interface's answer reached the live
+     * client before the tick's fence, so a driver read it a tick earlier than
+     * scriptrun (2026-10-09, Maiden's entry two ticks apart).
+     */
+    int holding;
+    uint8_t* held;
+    int held_len;
+    int held_cap;
+
     /** Raised when the game stream arms; cleared by ToriRSServer_SessionTakeLogin
      *  so the caller runs the world's login burst exactly once. */
     int login_raised;
@@ -234,6 +251,11 @@ ToriRSServer_SessionTakeLogin(struct ToriRSServerSession* session);
  */
 int
 ToriRSServer_SessionSendLoginOk(struct ToriRSServerSession* session);
+
+/** Send the bytes handled input held (see `holding`), then stop holding:
+ *  the start of a world tick. A session holding nothing sends nothing. */
+void
+ToriRSServer_SessionReleaseHeld(struct ToriRSServerSession* session);
 
 /** Frame-level write. Bytes are already scrambled and framed by the encoder. */
 int
