@@ -421,7 +421,13 @@ function QD.raid._tob_order(S, F, plan, opts)
         end
         return d
     end
-    if reach and not opts.chased and not opts.holding then
+    -- an npc that steps this tick is re-pathed by the server AFTER its step:
+    -- the route below is to where it stands now, so its first step can match
+    -- the plan's and the server still not move me (seed v2d/sp t234: a DPS
+    -- dodging a pool pressed N1, which stepped into reach, and stood on the
+    -- pool). Only a target that stands still takes the attack for the step.
+    local moving = target ~= nil and target.nx ~= nil and (target.nx ~= target.x or target.nz ~= target.z)
+    if reach and not moving and not opts.chased and not opts.holding then
         -- the attack's own route takes this very step: press the npc instead
         -- of the tile and the swing goes out on arrival (lesson 8)
         local rr, rt = api_drive.route(target.x, target.z, { run = true, size = target.size or 1,
