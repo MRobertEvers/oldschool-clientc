@@ -6157,6 +6157,19 @@ app_plugin_tab_select(void* user, int tabno)
         }
         args[0] = tabno;
         RS_CS2_RunScript(&app->host, &app->runner, script, args, 1, 0, NULL, 0);
+        /* THE TAB IS SWITCHED NOW, not over the next frames (the owner,
+         * 2026-10-09: "Interface tab changes do not need to wait for a tick
+         * boundary"). The switch script mounts the panel through the task
+         * runner and the frame's settle lays it out, so a press or a held op
+         * on it in the same resume found no laid-out node and went nowhere
+         * -- where scriptrun, which has no frames, pressed it. The same
+         * settle the frame runs, run here to its fixed point; a settle that
+         * stays pending on a real platform read is finished by the frame as
+         * before. The drive pump resumes in on_frame_start, outside any
+         * task, so this cannot re-enter the runner. */
+        for( int i = 0; i < 8; i++ )
+            if( app_settle_cs2_frame(app) == TASK_RUNNER_IDLE )
+                break;
         app->need_redraw = 1;
         return 1;
     }

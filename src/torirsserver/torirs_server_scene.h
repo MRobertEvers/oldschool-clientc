@@ -708,6 +708,10 @@ ToriRSServer_SceneContains(
  * would also make the flag test the *only* thing standing between a script and
  * `collision_map_tile`'s bounds assert.
  */
+/* The raw collision flags at an absolute tile through any built window
+ * containing it; -1 where no window does. The tick log's digest row. */
+int ToriRSServer_SceneCollisionFlagsAt(int level, int x, int z);
+
 int
 ToriRSServer_SceneWalkBlocked(
     int level,

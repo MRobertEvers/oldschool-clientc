@@ -424,6 +424,20 @@ ToriRSServer_SceneContains(
 }
 
 int
+ToriRSServer_SceneCollisionFlagsAt(
+    int level,
+    int x,
+    int z)
+{
+    struct ToriRSServerSceneWindow* window = window_containing(x, z);
+    struct CollisionMap* collision = window ? window_collision(window, level) : NULL;
+
+    if( !collision )
+        return -1;
+    return collision_map_tile(collision, x - window->base_x, z - window->base_z);
+}
+
+int
 ToriRSServer_SceneWalkBlocked(
     int level,
     int x,

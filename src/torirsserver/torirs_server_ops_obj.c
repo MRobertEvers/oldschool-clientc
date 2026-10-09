@@ -66,6 +66,7 @@
 #include "ss_opcode.h"
 #include "ssvm.h"
 
+#include <assert.h>
 #include <stdint.h>
 
 /*
@@ -96,12 +97,23 @@ active_obj(
         SSVM_Abort(state, "%s: the active obj is gone", SSVM_OpcodeName(opcode));
         return NULL;
     }
-    if( !srv->active_player ||
-        !ToriRSServer_WorldGroundVisibleTo(srv, slot, srv->active_player->pid) )
+    /* The SCRIPT'S player, the dispatcher's way: inside a hunt the server's
+     * binding is not the hunted raider, so a raider's own private drop,
+     * found by obj_find from that raider, was "not visible" to obj_del
+     * (2026-10-09, the Dawnbringer sweep). A script with no player at all
+     * cannot see any obj: that is the content's bug, and it stops here. */
     {
-        SSVM_Abort(state, "%s: the active obj is not visible to this player",
-                   SSVM_OpcodeName(opcode));
-        return NULL;
+        const struct ToriRSServerPlayer* viewer =
+            (const struct ToriRSServerPlayer*)SSVM_Active(state, SSVM_ENT_PLAYER);
+        if( !viewer )
+            viewer = srv->active_player;
+        assert(viewer);
+        if( !ToriRSServer_WorldGroundVisibleTo(srv, slot, viewer->pid) )
+        {
+            SSVM_Abort(state, "%s: the active obj is not visible to this player",
+                       SSVM_OpcodeName(opcode));
+            return NULL;
+        }
     }
     return &srv->ground[slot];
 }
@@ -404,8 +416,16 @@ ToriRSServer_OpsObj(
         if( !SSVM_PopInt(state, &coord) )
             return 1;
 
-        slot = ToriRSServer_WorldGroundFind(srv, ToriRSServer_CoordX(coord), ToriRSServer_CoordZ(coord),
-                                        ToriRSServer_CoordLevel(coord), (int)obj_id);
+        {
+            /* The script's own player, the dispatcher's way. */
+            struct ToriRSServerPlayer* viewer =
+                (struct ToriRSServerPlayer*)SSVM_Active(state, SSVM_ENT_PLAYER);
+            if( !viewer )
+                viewer = srv->active_player;
+            slot = ToriRSServer_WorldGroundFind(srv, viewer, ToriRSServer_CoordX(coord),
+                                            ToriRSServer_CoordZ(coord), ToriRSServer_CoordLevel(coord),
+                                            (int)obj_id);
+        }
         if( slot < 0 )
         {
             SSVM_PushInt(state, 0);

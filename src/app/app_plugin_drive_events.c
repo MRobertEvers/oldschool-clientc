@@ -133,6 +133,40 @@ App_DriveEvent(
     ring->write_index = (ring->write_index + 1) % APP_DRIVE_RING_CAPACITY;
 }
 
+void
+App_DriveProjectileNote(
+    struct App* app, int src_x, int src_z, int dst_x, int dst_z, int level, int spotanim,
+    int target, int start_delay, int end_delay)
+{
+    struct App_DriveRing* ring;
+    struct App_DriveProjectile* p;
+    int now, kept, i;
+
+    assert(app);
+    ring = &app->drive_events;
+    now = app->world ? (int)app->world->cycle : 0;
+    /* The ones a client would still draw: scriptrun_core.c's rule. */
+    kept = 0;
+    for( i = 0; i < ring->projectile_count; i++ )
+        if( ring->projectiles[i].cycle + ring->projectiles[i].end_delay >= now )
+            ring->projectiles[kept++] = ring->projectiles[i];
+    ring->projectile_count = kept;
+    /* The ring holds every projectile a client would still draw; more than
+     * its capacity in flight at once is a contract violation, not a drop. */
+    assert(ring->projectile_count < APP_DRIVE_PROJECTILE_CAP);
+    p = &ring->projectiles[ring->projectile_count++];
+    p->src_x = src_x;
+    p->src_z = src_z;
+    p->dst_x = dst_x;
+    p->dst_z = dst_z;
+    p->level = level;
+    p->spotanim = spotanim;
+    p->target = target;
+    p->start_delay = start_delay;
+    p->end_delay = end_delay;
+    p->cycle = now;
+}
+
 enum DriveResult
 App_DriveEventsRead(
     struct App* app,

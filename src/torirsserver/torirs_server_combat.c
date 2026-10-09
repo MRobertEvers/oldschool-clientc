@@ -1441,7 +1441,8 @@ ToriRSServer_CombatHitNpc(
     ToriRSServer_HitmarkAdd(npc->hitmarks, &npc->hitmark_count, amount,
                         amount > 0 ? type : hitsplat_block(),
                         ToriRSServer_HitmarkDealerFromAttackerScript(srv));
-    ToriRSServer_TicklogHitNpc(srv, slot, amount, amount > 0 ? type : hitsplat_block(), requested);
+    ToriRSServer_TicklogHitNpc(srv, slot, amount, amount > 0 ? type : hitsplat_block(), requested,
+                               ToriRSServer_HitmarkDealerFromAttackerScript(srv));
 
     /* Warn every ironman fighting this npc, not just the one who swung: the
      * player who is about to lose the drop is the one who got there FIRST, and
@@ -1482,6 +1483,9 @@ ToriRSServer_CombatHitNpc(
      * chew on it for the whole Zuk phase — needs the hit, the splat and the
      * flinch below, and none of this. */
     if( !immutable_target && npc->combat_target < 0 && npc_def(npc)->retaliate &&
+        /* A hit with no player behind it (an npc's, a trap's) is nobody to
+         * retaliate against; before this the latch took pid 0. */
+        srv->active_player &&
         /* `::passive` opts a type out of the retaliation latch too, for the
          * same reason it opts out of aggression: the latch is the OTHER way an
          * npc comes to hold a player as a target, and a type held passive that

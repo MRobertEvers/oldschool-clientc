@@ -149,8 +149,25 @@ struct App_DriveEvent
     int32_t a, b, c, d; /**< per-kind, per the table above */
 };
 
+/* A projectile as its MAP_PROJANIM packet said it, stamped with the world
+ * cycle the packet was applied on. The world's projectile entity is spawned
+ * by a task that first awaits the spotanim's assets (Task_AppSpawn), so a
+ * first-seen spotanim's projectile reached the drive rows a tick late and a
+ * tick into its flight -- where scriptrun, which keeps the packet, listed it
+ * in the packet's tick (2026-10-09: the two tick logs parted on an urn one
+ * lane carried and the other did not). The drive's projectile rows come
+ * from these records, with scriptrun's arithmetic. Absolute tiles. */
+#define APP_DRIVE_PROJECTILE_CAP 64
+struct App_DriveProjectile
+{
+    int32_t src_x, src_z, dst_x, dst_z, level;
+    int32_t spotanim, target, start_delay, end_delay;
+    int32_t cycle; /**< world cycle at the apply */
+};
 struct App_DriveRing
 {
+    struct App_DriveProjectile projectiles[APP_DRIVE_PROJECTILE_CAP];
+    int projectile_count;
     struct App_DriveEvent entries[APP_DRIVE_RING_CAPACITY];
     /** Serial of the newest entry; 0 before the first stamp. */
     uint32_t newest_serial;
@@ -196,6 +213,11 @@ void App_DriveEvent(
  * re-poll that resumes exactly where it stopped instead of skipping the
  * entries `cap` cut off.  Owner: core-events.
  */
+/* Record a MAP_PROJANIM as applied (rs_gameproto_exec.c), absolute tiles. */
+void App_DriveProjectileNote(
+    struct App* app, int src_x, int src_z, int dst_x, int dst_z, int level, int spotanim,
+    int target, int start_delay, int end_delay);
+
 enum DriveResult App_DriveEventsRead(
     struct App* app,
     uint32_t after_serial,
@@ -233,6 +255,11 @@ struct App* PluginDrive_App(void);
  * DriveState_VarpContent.  Owner: core-scheduler (the embed handle is its).
  */
 struct ToriRSServer* PluginDrive_EmbedWorld(void);
+
+/* The server tick this client is on (lua_drive_tick's answer), and the
+ * server tick a client cycle stamp belongs to (torirs_plugin_drive.c). */
+int PluginDrive_ServerTick(void);
+int PluginDrive_ServerTickOfCycle(int cycle);
 
 /** Shutdown: drop the coroutine, close the ledger, forget the app. */
 void PluginDrive_Shutdown(void);
@@ -842,7 +869,7 @@ enum DriveResult DrivePointer_ActionForSlot(
  *  a C caller wanting a stderr trace of its own should add one at its own
  *  call site (QD-16). */
 enum DriveResult DrivePointer_WorldOp(
-    struct App* app, enum DrivePickKind kind, int id, int option);
+    struct App* app, enum DrivePickKind kind, int id, int option, int want_element);
 
 /*
  * The backpack half of the same bypass: fabricate the one INV_SLOT row a real

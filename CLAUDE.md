@@ -231,3 +231,33 @@ aborts. `make -C src check-scan-meter` runs the real client under every frame
 provider and the phone's mobile identity and must pass after any change to a
 plugin, the bridge or a tree lookup. `TORIRS_SCAN_METER_TRACE=1|2` prints the
 per-frame reading and sites.
+
+## An ASan binary on this Mac runs with the dyld shim, or it hangs at startup
+
+`-fsanitize=address` binaries spin forever before `main` on macOS (LLVM
+#182943: `dyld_shared_cache_iterate_text` allocates through `_Block_copy`
+before ASan's malloc interceptor is ready). The tree carries the fix,
+`src/platform/asan_dyld_shim.c`, built as `$(OBJ_DIR)/asan_dyld_shim.dylib`
+and linked into the CLIENT targets under `ENABLE_ASAN=1`. The server targets
+(`torirsserver`, `dev_torirsserver`, ...) do NOT link it. A server built with
+`ENABLE_ASAN=1` and run bare sits at 100% CPU with a 2 MB footprint, no
+session files, nothing on stderr — and looks like a slow sanitizer run. On
+2026-10-09 that cost forty-five minutes of waiting on a process that had
+never reached `main`.
+
+```sh
+# NO -- hangs before main, silently.
+./src/build_sanity_opt_asan/torirsserver --scriptrun ...
+
+# YES -- the shim interposed; any ASan objdir's copy is the same interposer.
+DYLD_INSERT_LIBRARIES=$PWD/src/build_asan/asan_dyld_shim.dylib \
+  ASAN_OPTIONS=halt_on_error=0:log_path=... UBSAN_OPTIONS=print_stacktrace=1:log_path=... \
+  TORIRS_STDERR_UNBUFFERED=1 ./src/build_sanity_opt_asan/torirsserver --scriptrun ...
+```
+
+Before waiting on any sanitizer run, confirm it reached `main`: a session
+file, a log line, or RSS in the hundreds of MB within the first seconds.
+Whole-server UBSan is not `ENABLE_UBSAN=1` (ToriDraw-only); pass the
+compiler through `PLATFORM_CC='cc -fsanitize=undefined -fsanitize-recover=all'`
+on its own `PLATFORM_OBJ_BASE`, because a command-line `CFLAGS=` replaces
+the Makefile's flags.

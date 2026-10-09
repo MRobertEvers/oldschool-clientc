@@ -1030,10 +1030,19 @@ step_online(
          * transaction now. Otherwise a visual IF_* or RUNCLIENTSCRIPT response
          * makes the client retain its old frame until the unrelated next
          * 600ms tick. Quiet packets (NO_TIMEOUT, input telemetry) add nothing. */
-        if( session->player && session->state == TORIRSSERVER_SESSION_ONLINE &&
-            session->output_generation != response_generation &&
-            session->last_output_packet_name != PKT_NAME_SERVER_TICK_END )
-            ToriRSServer_SendTickEnd(session->player);
+        /*
+         * NO FENCE FOR A RESPONSE. A request answered here used to be closed
+         * with its own SERVER_TICK_END, so a client whose click drew any
+         * output saw TWO fences a tick: one before the world tick ran (the
+         * old world plus the answer) and the tick's own. A quest driver
+         * waking on the first decided on the previous tick's world and its
+         * input landed a tick late -- walks and prayer presses one tick
+         * behind scriptrun's, which has no sessions and only the tick's
+         * fence (2026-10-09, the Verzik P3 live seat). The answer rides the
+         * tick's flush, as it does on the real server, where client input is
+         * processed inside the tick and everything leaves at its end.
+         */
+        (void)response_generation;
 
         if( bd_on )
         {

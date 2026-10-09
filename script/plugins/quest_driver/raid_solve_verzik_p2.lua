@@ -62,7 +62,8 @@ QD.VZP2 = {
     CADENCE = 4, FIRST_ATTACK = 3, AFTER_SUMMON = 12, AFTER_SEVENTH = 8, ATTACKS_PER_REDS = 7,
     ZAP_EVERY = 5, ABSORB_TICKS = 5,
     REDS_NEAR = 0.37,          -- her bar at or below this: any attack slot may be the first summon
-    REDS_LEAVE = 0.15,         -- her bar at or below this at a summon: the set is not worth killing
+    REDS_LEAVE = 0.15,         -- her bar at or below this at a summon: the set is not worth killing (a cap: the rate below decides)
+    REDS_RATE_TICKS = 24,      -- her bar's fall over this many ticks is the kit's rate
     HEAL_SWING = 8,            -- a swing on her in the absorb window: worse than three idle ticks
     CRAB_LIFE = 25, CRAB_BLAST = 3, CRAB_SIZE = 2,
     SIZE = 3,
@@ -170,6 +171,12 @@ function QD.raid._vzp2_measure(S)
     if nr ~= "ok" then rows = {} end
     for _, row in ipairs(rows) do
         local id = row.npc_id
+        -- THE SERVER TILE. Live npc rows carry the drawn (stepping) tile in
+        -- x/z and the server's in server_x/server_z; scriptrun's x IS the
+        -- server tile. Read off x, both lanes decide from the same tile
+        -- (2026-10-09: the two tick logs were identical for 245 ticks and
+        -- parted on one P2 decision made from her stepping tile).
+        if row.server_x ~= nil then row.x, row.z = row.server_x, row.server_z end
         if id == ids.p2 then F.boss = row
         elseif id == ids.before then F.before = row
         elseif id == ids.after then F.after = row
@@ -181,7 +188,7 @@ function QD.raid._vzp2_measure(S)
     local pr, players = api_drive.players()
     if pr == "ok" then
         for _, p in ipairs(players) do
-            if not p.me then F.mates[#F.mates + 1] = { x = p.x, z = p.z } end
+            if not p.me then F.mates[#F.mates + 1] = { x = p.server_x or p.x, z = p.server_z or p.z } end
         end
     end
     local hr, hp = api_drive.skill(ids.hitpoints)
@@ -296,6 +303,11 @@ function QD.raid._vzp2_projectiles(S, F)
     for _, p in ipairs(projs) do
         local key = tostring(p.spotanim_id) .. ":" .. p.src_x .. "," .. p.src_z .. ">" .. p.dst_x .. "," .. p.dst_z
         now[key] = true
+        if not S.seen_proj[key] and (S.proj_trace or 0) < 40 then
+            S.proj_trace = (S.proj_trace or 0) + 1
+            QD.raid._vzp2_trace(S, F.tick, string.format("proj new %s cycles %s target %s launched %s (%d rows)", key,
+                tostring(p.cycles_left), tostring(p.target), tostring(p.launched), #projs))
+        end
         if not S.seen_proj[key] then
             if p.spotanim_id == S.ids.urn then
                 local n = math.floor((56 + 8 * QD.raid._vzp2_cheb(cx, cz, p.dst_x, p.dst_z)) / 30)
@@ -366,6 +378,13 @@ function QD.raid._vzp2_route(S, from, x, z, size)
     local r, rt = api_drive.route(x, z, { run = true, size = size, from = { x = from.x, z = from.z } })
     local ticks = (r == "ok" and rt) and rt.ticks or false
     S.routes[key] = ticks
+    -- the lane-parity trace: the first sixty route answers once a crab exists
+    if next(S.crab_seen) ~= nil and (S.route_trace or 0) < 60 then
+        S.route_trace = (S.route_trace or 0) + 1
+        QD.raid._vzp2_trace(S, S.last_tick or 0, string.format("route %s -> %s arrive %s,%s = %s first %s", key, tostring(r),
+            tostring(rt and rt.arrive and rt.arrive.x), tostring(rt and rt.arrive and rt.arrive.z), tostring(ticks and #ticks),
+            ticks and ticks[1] and (ticks[1].x .. "," .. ticks[1].z) or "-"))
+    end
     return ticks
 end
 
@@ -423,7 +442,25 @@ function QD.raid._vzp2_target(S, F)
     -- her, at the end of P2 -- and every earlier set was killed)
     local frac = (F.boss.health_ratio and F.boss.health_scale and F.boss.health_scale > 0)
         and F.boss.health_ratio / F.boss.health_scale or 1
-    if #F.reds > 0 and frac <= QD.VZP2.REDS_LEAVE then
+    -- ...AT THE RATE THIS KIT TAKES HER DOWN. A fixed 15% was a scythe's
+    -- five ticks; a whip team at 15% cannot finish her before the absorb, so
+    -- every late set healed her 300 and the sets kept coming (r14: up to 14
+    -- reds and 900 healed; Blert's trios: 4 reds, all killed, no heals).
+    -- The bar's fall over the last REDS_RATE_TICKS is the rate; the set is
+    -- left alone only when what is left of her goes in the absorb window at
+    -- that rate, with a tick of margin.
+    S.frac_hist = S.frac_hist or {}
+    S.frac_hist[#S.frac_hist + 1] = frac
+    if #S.frac_hist > QD.VZP2.REDS_RATE_TICKS then table.remove(S.frac_hist, 1) end
+    local rate = (#S.frac_hist >= 2) and math.max((S.frac_hist[1] - frac) / (#S.frac_hist - 1), 0) or 0
+    local leave = math.min(QD.VZP2.REDS_LEAVE, rate * (QD.VZP2.ABSORB_TICKS - 1))
+    -- the lane-parity trace: what this read saw, while reds are out
+    if #F.reds > 0 and (S.target_trace or 0) < 40 then
+        S.target_trace = (S.target_trace or 0) + 1
+        QD.raid._vzp2_trace(S, F.tick, string.format("target read: hp %s/%s frac %.4f rate %.5f leave %.4f reds %d absorb %s",
+            tostring(F.boss.health_ratio), tostring(F.boss.health_scale), frac, rate, leave, #F.reds, tostring(F.absorb)))
+    end
+    if #F.reds > 0 and frac <= leave then
         if F.absorb then return nil, "absorb" end
         return F.boss, "her (last set)"
     end
@@ -650,7 +687,14 @@ function QD.raid._vzp2_move(S, F, terms)
                 if not QD.raid._vzp2_same_order(o1, o2) then
                     local plan = { w = 0, order = o1, w2 = j, order2 = o2 }
                     local path = QD.raid._vzp2_simulate(S, F, plan)
-                    local cost = QD.raid._vzp2_score(S, F, terms, path) + 0.02
+                    local cost, why = QD.raid._vzp2_score(S, F, terms, path)
+                    cost = cost + 0.02
+                    if S.snap_tick == F.tick and j <= 2 then
+                        local pp = {}
+                        for k = 1, #path do pp[#pp + 1] = path[k].x .. "," .. path[k].z .. (path[k].attacking and "a" or "") end
+                        QD.raid._vzp2_trace(S, F.tick, string.format("cand o1 %s%s j%d o2 %s cost %.3f why %s inc %s path %s", o1.mode,
+                            o1.x and (" " .. o1.x .. "," .. o1.z) or "", j, o2.mode, cost, tostring(why), tostring(S.inc_why), table.concat(pp, ">")))
+                    end
                     local margin = (inc_cost < V.INF) and V.MARGIN or 0
                     if cost + margin < best_cost then best, best_cost, best_path = plan, cost, path end
                 end
@@ -791,6 +835,15 @@ function QD.raid.verzik_p2_solve(opts)
     local last_hp = nil
     while true do
         local F = QD.raid._vzp2_measure(S)
+        S.last_tick = F.tick
+        -- the lane-parity wake trace (the first eighty wakes after her P2
+        -- form): the server tick and whether this tick was decided already
+        if S.entered and (S.wakes or 0) < 80 then
+            S.wakes = (S.wakes or 0) + 1
+            QD.raid._vzp2_trace(S, F.tick, string.format("wake srv=%s %s @%d,%d", tostring(select(2, api_drive.server_tick())),
+                F.tick == S.decided_tick and "repeat" or "decide", F.me.x, F.me.z))
+            S.decided_tick = F.tick
+        end
         if F.tick - start > (opts.max_ticks or 600) then return "timeout", QD.raid._vzp2_summary(S), S end
         if F.hp <= 0 then return "died", QD.raid._vzp2_summary(S), S end
         if F.after then return "ok", QD.raid._vzp2_summary(S), S end
@@ -814,6 +867,28 @@ function QD.raid.verzik_p2_solve(opts)
             QD.raid._vzp2_projectiles(S, F)
             QD.raid._vzp2_crabs(S, F)
             S.target = QD.raid._vzp2_target(S, F)
+            -- the lane-parity snapshot: everything the planner reads, on the
+            -- tick the first crab is seen
+            if S.snap_tick == nil and next(S.crab_seen) ~= nil then
+                S.snap_tick = F.tick
+                local b = F.boss
+                local parts = { string.format("snap her %s,%s hp %s/%s seq %s@%s anim %s target %s absorb %s na %s reds_out %s summon %s absorb_until %s",
+                    tostring(b and b.x), tostring(b and b.z), tostring(b and b.health_ratio), tostring(b and b.health_scale),
+                    tostring(b and b.seq_id), tostring(b and b.seq_tick), tostring(b and b.anim_id),
+                    S.target and (S.target == b and "her" or ("npc" .. tostring(S.target.slot))) or "nil", tostring(F.absorb),
+                    tostring(S.next_attack), tostring(S.reds_out), tostring(S.next_summon), tostring(S.absorb_until)) }
+                local sc = {}
+                for t = F.tick, F.tick + 12 do if F.scans[t] then sc[#sc + 1] = tostring(t) end end
+                local ht = {}
+                for t = F.tick, F.tick + 12 do if F.heal_ticks[t] then ht[#ht + 1] = tostring(t) end end
+                parts[#parts + 1] = "scans " .. table.concat(sc, ",") .. " heals " .. table.concat(ht, ",")
+                for _, c in ipairs(F.crabs) do parts[#parts + 1] = string.format("crab s%s %s,%s hp %s", tostring(c.slot), c.x, c.z, tostring(c.health_ratio)) end
+                for _, m in ipairs(F.mates) do parts[#parts + 1] = string.format("mate %s,%s", m.x, m.z) end
+                parts[#parts + 1] = string.format("me %s,%s hp %s blasts %d hazards %d order %s terms %s", F.me.x, F.me.z, tostring(F.hp), #S.blasts, #(F.hazards or {}),
+                    S.order and (S.order.mode .. (S.order.x and (" " .. S.order.x .. "," .. S.order.z) or (" s" .. tostring(S.order.target and S.order.target.slot)))) or "nil",
+                    table.concat(QD.raid._vzp2_terms(S, F).names, ","))
+                QD.raid._vzp2_trace(S, F.tick, table.concat(parts, " ; "))
+            end
             -- overhead: Missiles for the bombs, Magic once the reds are out
             -- (the blood spell deals 0 under it)
             local want = S.reds_out and "magic" or "missiles"

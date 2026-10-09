@@ -556,10 +556,10 @@ drive_ui_fill_npc_state(struct WorldEntity_NPC const* npc, struct DriveNpcRow* o
     out->spotanim_id = npc->spotanim.id;
     out->seq_id = npc->seq_sent_id;
     out->seq_tick =
-        npc->seq_sent_id >= 0 ? npc->seq_sent_cycle / APP_SERVER_TICK_LOGIC_CYCLES : -1;
+        npc->seq_sent_id >= 0 ? PluginDrive_ServerTickOfCycle((int)npc->seq_sent_cycle) : -1;
     out->spotanim_sent_id = npc->spotanim_sent_id;
     out->spotanim_tick = npc->spotanim_sent_id >= 0
-        ? npc->spotanim_sent_cycle / APP_SERVER_TICK_LOGIC_CYCLES
+        ? PluginDrive_ServerTickOfCycle((int)npc->spotanim_sent_cycle)
         : -1;
     out->facing = npc->facing.entity_id;
     /* The newest FACE_COORD op, in absolute tiles: the wire's half-tiles
@@ -568,7 +568,7 @@ drive_ui_fill_npc_state(struct WorldEntity_NPC const* npc, struct DriveNpcRow* o
     {
         out->face_x = npc->face_sent_x >> 1;
         out->face_z = npc->face_sent_z >> 1;
-        out->face_tick = npc->face_sent_cycle / APP_SERVER_TICK_LOGIC_CYCLES;
+        out->face_tick = PluginDrive_ServerTickOfCycle((int)npc->face_sent_cycle);
     }
     else
     {
@@ -1328,12 +1328,24 @@ enum DriveResult
 DriveUi_Projectiles(
     struct App* app, int radius, struct DriveProjectileRow* out, int cap, int* out_count)
 {
-    long distances[DRIVE_UI_HAZARD_CAP];
+    /*
+     * FROM THE PACKETS, NOT THE POOL. The world's projectile entity is
+     * spawned by a task that awaits the spotanim's assets, so a first-seen
+     * spotanim's projectile reached these rows a tick late; and a pool read
+     * a frame after the fence counted its flight from that frame, where
+     * scriptrun counts from the tick's end. These rows are the applied
+     * MAP_PROJANIMs (App_DriveProjectileNote), in packet order, with
+     * scriptrun's arithmetic (torirs_server_scriptrun.c d_projectiles):
+     * elapsed is whole ticks since the apply, counted from the end of the
+     * tick that applied it, so a row read in the packet's own tick has
+     * elapsed 30 on both lanes. No seq, no element: the model is the
+     * drawing's business, not the driver's.
+     */
+    struct App_DriveRing const* ring;
     int px = 0, pz = 0;
-    int have_player;
+    int have_player = 0;
     int aboard;
-    int count = 0;
-    struct World_EntityPool* pool;
+    int now_tick, count = 0;
     int i;
 
     assert(app);
@@ -1346,38 +1358,35 @@ DriveUi_Projectiles(
     if( !app->world )
         return DRIVE_OK;
 
-    have_player = drive_ui_search_origin(app, &px, &pz, &aboard);
-    pool = &app->world->entities.projectile;
-    for( i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
+    if( radius > 0 )
+        have_player = drive_ui_search_origin(app, &px, &pz, &aboard);
+    ring = &app->drive_events;
+    now_tick = PluginDrive_ServerTick();
+    for( i = 0; i < ring->projectile_count && count < cap; i++ )
     {
-        struct WorldEntity_Projectile const* proj = World_EntityPoolGet(pool, i);
-        int dst_tile_x, dst_tile_z;
-        int j;
+        struct App_DriveProjectile const* p = &ring->projectiles[i];
+        int elapsed = (now_tick - PluginDrive_ServerTickOfCycle(p->cycle) + 1) * APP_SERVER_TICK_LOGIC_CYCLES;
+        struct DriveProjectileRow* row;
 
-        if( !proj )
+        if( p->cycle + p->end_delay < (int)app->world->cycle )
             continue;
-        dst_tile_x = app->world->_base_tile_x + (proj->dst_x >> 7);
-        dst_tile_z = app->world->_base_tile_z + (proj->dst_z >> 7);
-        if( have_player && !drive_ui_within_radius(dst_tile_x, dst_tile_z, px, pz, radius) )
+        if( have_player && !drive_ui_within_radius(p->dst_x, p->dst_z, px, pz, radius) )
             continue;
-        j = drive_ui_nearest_insert(out, sizeof(*out), distances, &count, cap,
-            have_player ? drive_ui_distance2(dst_tile_x, dst_tile_z, px, pz) : 0);
-        if( j < 0 )
-            continue;
-        out[j].spotanim_id = proj->spotanim_id;
-        out[j].src_tile_x = app->world->_base_tile_x + (proj->src_x >> 7);
-        out[j].src_tile_z = app->world->_base_tile_z + (proj->src_z >> 7);
-        out[j].dst_tile_x = dst_tile_x;
-        out[j].dst_tile_z = dst_tile_z;
-        out[j].level = proj->dst_level;
-        out[j].target = proj->target;
-        /* WorldEntity_Projectile.target's encoding: slot + 1 for an npc. */
-        out[j].target_npc_slot = proj->target > 0 ? proj->target - 1 : -1;
-        out[j].launched = proj->cycle >= proj->t1;
-        /* World_CycleUpdateProjectiles despawns once cycle passes t2. */
-        out[j].cycles_left = proj->t2 - proj->cycle;
-        out[j].element_id = proj->element_id;
-        drive_ui_element_seq(app, proj->element_id, &out[j].seq, &out[j].seq_frame);
+        row = &out[count++];
+        memset(row, 0, sizeof(*row));
+        row->spotanim_id = p->spotanim;
+        row->src_tile_x = p->src_x;
+        row->src_tile_z = p->src_z;
+        row->dst_tile_x = p->dst_x;
+        row->dst_tile_z = p->dst_z;
+        row->level = p->level;
+        row->target = p->target;
+        row->target_npc_slot = p->target > 0 ? p->target - 1 : -1;
+        row->launched = elapsed >= p->start_delay;
+        row->cycles_left = p->end_delay - elapsed > 0 ? p->end_delay - elapsed : 0;
+        row->element_id = 0;
+        row->seq = -1;
+        row->seq_frame = 0;
     }
     *out_count = count;
     return DRIVE_OK;
@@ -2498,9 +2507,21 @@ lua_drive_plan(struct lua_State* L)
         lua_pushnil(L);
         return 2;
     }
-    return DrivePlanLua(L, 1, cm, app->world->_base_tile_x, app->world->_base_tile_z, app->world->_scene_size,
-                        player->grid_position.x + app->world->_base_tile_x,
-                        player->grid_position.z + app->world->_base_tile_z);
+    /* The TRUE tile (route[0] while a route is in flight), the same reading
+     * as DriveUi_PlayerTile and scriptrun's d_plan: grid_position is the
+     * drawn tile, a tile behind the server's while the figure steps, and a
+     * plan from it reads "step onto my own tile" as "stay" (the live leader
+     * stood while its tornado walked on, 2026-10-09). */
+    {
+        int tx, tz, tl, dest_x, dest_z, flag_x, flag_z, draw_x, draw_z;
+        if( !App_LocalPlayerTiles(app, &tx, &tz, &tl, &dest_x, &dest_z, &flag_x, &flag_z, &draw_x, &draw_z) )
+        {
+            lua_pushstring(L, "not_visible");
+            lua_pushnil(L);
+            return 2;
+        }
+        return DrivePlanLua(L, 1, cm, app->world->_base_tile_x, app->world->_base_tile_z, app->world->_scene_size, tx, tz);
+    }
 }
 
 static int

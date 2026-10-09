@@ -281,7 +281,7 @@ ep_take_ground_near(
             int x = player->x + dx;
             int z = player->z + dz;
             int level = player->level;
-            int ground = ToriRSServer_WorldGroundFind(srv, x, z, level, obj_id);
+            int ground = ToriRSServer_WorldGroundFind(srv, srv->active_player, x, z, level, obj_id);
 
             if( ground < 0 )
                 continue;

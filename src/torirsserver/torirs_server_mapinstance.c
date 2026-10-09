@@ -89,6 +89,22 @@ struct ToriRSServerMapInstance
 
 static struct ToriRSServerMapInstance g_instances[TORIRSSERVER_MAPINSTANCE_MAX];
 
+uint32_t
+ToriRSServer_MapInstanceVarsDigest(uint32_t hash, int handle)
+{
+    for( int i = 0; i < TORIRSSERVER_MAPINSTANCE_MAX; i++ )
+    {
+        const struct ToriRSServerMapInstance* inst = &g_instances[i];
+        if( !inst->active || (handle > 0 && i != handle - 1) )
+            continue;
+        hash = (hash ^ (uint32_t)i) * 16777619u;
+        hash = (hash ^ inst->flags) * 16777619u;
+        for( int v = 0; v < TORIRSSERVER_MAPINSTANCE_VARS; v++ )
+            hash = (hash ^ (uint32_t)inst->vars[v]) * 16777619u;
+    }
+    return hash;
+}
+
 /*
  * Monotonic across the whole pool, never reset while the server runs.
  *

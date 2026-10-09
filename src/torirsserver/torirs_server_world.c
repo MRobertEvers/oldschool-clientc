@@ -1742,8 +1742,9 @@ run_interaction_trigger(
         }
         else if( interaction->kind == TORIRSSERVER_INTERACT_OBJ )
         {
-            int obj_slot = ToriRSServer_WorldGroundFind(srv, interaction->x, interaction->z,
-                                                     interaction->level, interaction->target_id);
+            int obj_slot = ToriRSServer_WorldGroundFind(srv, srv->active_player, interaction->x,
+                                                     interaction->z, interaction->level,
+                                                     interaction->target_id);
 
             srv->pending_active_obj =
                 obj_slot >= 0 ? ToriRSServer_WorldObjHandle(srv, obj_slot) : 0;
@@ -2485,7 +2486,7 @@ interaction_try(
              * `obj_*` opcode aborts on the VM's require-an-active-obj check and
              * `[opobj<n>]` can only be written blind. */
             int obj_slot =
-                ToriRSServer_WorldGroundFind(srv, loc_x, loc_z, loc_level, target_id);
+                ToriRSServer_WorldGroundFind(srv, player, loc_x, loc_z, loc_level, target_id);
             int result;
 
             srv->pending_active_obj =
@@ -5511,8 +5512,21 @@ advance_npcs(struct ToriRSServer* srv)
         {
             if( ++npc->timer_clock >= npc->timer_interval )
             {
+                /* NO PLAYER behind a timer, as the reference's npc scripts
+                 * run (ScriptRunner.init(script, npc, null)). A script's
+                 * primary player is seeded from the server's binding at
+                 * start, so before this a timer ran under whatever player the
+                 * server had bound last -- the last client pumped on the live
+                 * lane, another on scriptrun -- and every hit it dealt, every
+                 * queue it armed and every retaliation it caused carried that
+                 * player (2026-10-09). A timer that needs a player finds one
+                 * (huntall, p_finduid). */
+                struct ToriRSServerPlayer* saved = srv->active_player;
+
                 npc->timer_clock = 0;
+                ToriRSServer_WorldSetActive(srv, NULL);
                 ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_AI_TIMER, npc->type, -1, slot);
+                ToriRSServer_WorldSetActive(srv, saved);
             }
         }
         /*
@@ -5562,6 +5576,30 @@ advance_npcs(struct ToriRSServer* srv)
                 if( npc->queue[i].delay > 0 )
                     continue;
                 npc->queue[i].active = 0;
+                /* The arming player is the script's player again (see the
+                 * entry's hero_pid): a valid, still-logged-in one is bound for
+                 * the run and the previous binding restored after. */
+                {
+                    struct ToriRSServerPlayer* saved = srv->active_player;
+                    int hero = npc->queue[i].hero_pid;
+                    int bound = 0;
+
+                    if( hero >= 0 && hero < TORIRSSERVER_PLAYER_MAX && srv->players[hero].active &&
+                        srv->players[hero].login_generation == npc->queue[i].hero_gen )
+                        ToriRSServer_WorldSetActive(srv, &srv->players[hero]);
+                    else
+                        /* No player armed it (an npc's script did): the entry
+                         * runs with none, as the reference's npc queues do,
+                         * rather than under a stale binding. */
+                        ToriRSServer_WorldSetActive(srv, NULL);
+                    bound = 1;
+                    ToriRSServer_ScriptsRunTriggerLastint(
+                        srv, SS_TRIGGER_AI_QUEUE1 + (npc->queue[i].queue - 1), npc->type, -1, slot,
+                        npc->queue[i].arg);
+                    if( bound )
+                        ToriRSServer_WorldSetActive(srv, saved);
+                    continue;
+                }
                 /* The queued value IS the script's `last_int` — `npc_queue(2,
                  * $damage, $delay)` is how one npc damages another, and
                  * `[ai_queue2]` reads it back with `last_int`. Dispatching
@@ -6009,16 +6047,19 @@ ToriRSServer_WorldGroundTake(
 int
 ToriRSServer_WorldGroundFind(
     struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* viewer,
     int x,
     int z,
     int level,
     int obj_id)
 {
+    assert(srv);
+    assert(viewer);
     for( int i = 0; i < TORIRSSERVER_GROUND_MAX; i++ )
     {
         const struct ToriRSServerGroundObj* obj = &srv->ground[i];
 
-        if( !ToriRSServer_WorldGroundVisibleTo(srv, i, srv->active_player->pid) ||
+        if( !ToriRSServer_WorldGroundVisibleTo(srv, i, viewer->pid) ||
             obj->obj_id != obj_id )
             continue;
         if( obj->x != x || obj->z != z || obj->level != level )

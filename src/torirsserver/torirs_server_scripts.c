@@ -6062,6 +6062,11 @@ ToriRSServer_ScriptCommand(
             SSVM_Abort(state, "varp %d is outside the mock's range", varp);
             return 1;
         }
+        /* A varp is a PLAYER's. A script with no player of its own (an
+         * npc's timer, a map queue) reading one is the content bug, and it
+         * stops here, named: before this it read whatever player the server
+         * had bound last (2026-10-09, `~tob_dbg_attack` from a boss timer). */
+        assert(player);
         SSVM_PushInt(state, player->varps[varp]);
         return 1;
     }
@@ -6078,6 +6083,7 @@ ToriRSServer_ScriptCommand(
             SSVM_Abort(state, "varp %d is outside the mock's range", varp);
             return 1;
         }
+        assert(player);
         /*
          * Assignment always marks the varp for transmission, even when the
          * value is unchanged.
@@ -6564,6 +6570,15 @@ ToriRSServer_ScriptCommand(
              */
             npc->queue[i].delay = delay;
             npc->queue[i].arg = arg;
+            /* The ARMING SCRIPT'S OWN player, not the server's binding: an
+             * npc's script arming a queue on another npc runs under whatever
+             * player the server bound last, which is not its hero. */
+            {
+                struct ToriRSServerPlayer* hero = (struct ToriRSServerPlayer*)SSVM_ActiveSlot(
+                    state, SSVM_ENT_PLAYER, SSVM_PRIMARY);
+                npc->queue[i].hero_pid = hero ? hero->pid : -1;
+                npc->queue[i].hero_gen = hero ? hero->login_generation : 0;
+            }
             return 1;
         }
         SSVM_Abort(state, "npc %d's queue is full", npc->type);
@@ -10081,7 +10096,20 @@ ToriRSServer_ScriptCommand(
             SSVM_Abort(state, "npc_damage with no active npc");
             return 1;
         }
-        ToriRSServer_CombatHitNpc(srv, slot, values[0], values[1]);
+        /* THE SCRIPT'S OWN PLAYER behind the hit, or none: the hit's dealer
+         * (hitmark, tick log) and the retaliation latch read the server's
+         * active player, and a script with no player of its own (a timer, a
+         * map queue) ran under whatever the server had bound last -- a
+         * different player on each lane (2026-10-09, seed sb t+635). */
+        {
+            struct ToriRSServerPlayer* saved = srv->active_player;
+            struct ToriRSServerPlayer* own = (struct ToriRSServerPlayer*)SSVM_ActiveSlot(
+                state, SSVM_ENT_PLAYER, SSVM_PRIMARY);
+
+            ToriRSServer_WorldSetActive(srv, own);
+            ToriRSServer_CombatHitNpc(srv, slot, values[0], values[1]);
+            ToriRSServer_WorldSetActive(srv, saved);
+        }
         return 1;
     }
 

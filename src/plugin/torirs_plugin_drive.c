@@ -2001,14 +2001,51 @@ lua_drive_events(struct lua_State* L)
  * quest test is written in. The client's own world cycle is 30x faster, and
  * returning that here is what made t.ticks(10) mean 200 ms instead of six
  * seconds -- see the note on the deadline in drive_await. */
+int
+PluginDrive_ServerTick(void)
+{
+    struct ToriRSServer* srv = PluginDrive_EmbedWorld();
+    int const lockstep = ToriRSServer_EmbedLockstepTick();
+
+    if( srv && srv->world_built )
+        return (int)srv->tick;
+    if( lockstep != TORIRSSERVER_EMBED_LOCKSTEP_NONE )
+        return lockstep;
+    return g_app && g_app->world ? (int)(g_app->world->cycle / APP_SERVER_TICK_LOGIC_CYCLES) : 0;
+}
+
+int
+PluginDrive_ServerTickOfCycle(int cycle)
+{
+    /* A client cycle stamped on an entity (the cycle a seq, a spotanim or a
+     * face was applied), as the server tick it belongs to: the tick now,
+     * less the whole ticks of cycles since. The client's own cycle count
+     * and the server's tick drift apart over hundreds of ticks (see
+     * lua_drive_tick), so a stamp divided by 30 named a tick the server
+     * never ran it on -- her slam's seq read two ticks old on the live seat
+     * and current on scriptrun, and a scorer that windows on it answered
+     * finite on one lane and infinite on the other (2026-10-09). Rounded,
+     * so a stamp from this tick's packets (a frame or two ago) is this tick. */
+    int const now_cycle = g_app && g_app->world ? (int)g_app->world->cycle : 0;
+    int const ago = now_cycle - cycle;
+
+    /* A stamp newer than now is not a stamp this world made. */
+    assert(ago >= 0);
+    return PluginDrive_ServerTick() - (ago + APP_SERVER_TICK_LOGIC_CYCLES / 2) / APP_SERVER_TICK_LOGIC_CYCLES;
+}
+
 static int
 lua_drive_tick(struct lua_State* L)
 {
-    lua_pushinteger(
-        L,
-        g_app && g_app->world
-            ? (lua_Integer)(g_app->world->cycle / APP_SERVER_TICK_LOGIC_CYCLES)
-            : 0);
+    /* THE SERVER'S OWN TICK where this client has one: the embed world's
+     * counter for a leader, the lockstep tick a member is handed with every
+     * TICK frame -- the number scriptrun's core->tick is, so a script's F.tick
+     * names the same tick-log row on every lane. The client's own clock
+     * (world cycle / 30) runs beside the server's and gained a tick on the
+     * server every few hundred (a P3 solver's rotation slots were read a
+     * tick early live and never on scriptrun, 2026-10-09); it is the answer
+     * only for a client with no embed world at all. */
+    lua_pushinteger(L, (lua_Integer)PluginDrive_ServerTick());
     return 1;
 }
 

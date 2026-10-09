@@ -49,10 +49,26 @@ local function run(t)
     if role == 1 then t.check("p3.ticklog", t.ticklog.start() == "ok", "") end
     local r, d = t.raid.enter("tob", "verzik", { mode = "normal" })
     t.check("p1.enter", r == "ok", "p" .. role .. " " .. tostring(d))
-    t.exec("p1.prayer", t.prayer.set, "protectfrommagic", true)
     local prep = t.raid.verzik_p1_prepare()
     t.check("p1.prepare", prep ~= nil, "p" .. role .. " " .. (prep and (prep.pillars .. " pillars searched") or "the room never came into view"))
     t.expect("party.barrier.ready", t.party.barrier("ready", 300))
+    -- every seat's login-tick clocks (hitpoints regen, stat drift, special
+    -- energy, prayer drain fraction) restarted on this same tick, so the
+    -- fight starts from the same state on every seat and lane (the owner,
+    -- 2026-10-09: "the cheat that starts the raid party can sync clocks")
+    -- fire-and-forget: a member saw this cheat's reply a tick after the
+    -- leader did on the live lane, and a wait on it put the members' overhead
+    -- a tick behind the leader's (and behind scriptrun's); the press below
+    -- goes in the same tick as the cheat on every seat
+    t.cheat("::synctimers", false)
+    -- the overhead AFTER the barrier, so every seat on every lane lights it
+    -- on the same tick and carries the same prayer points into the fight:
+    -- the raid entry takes a different number of ticks per lane (the live
+    -- client loads its scene over frames), and lit before the barrier the
+    -- members' points were one drain apart at the first retype, the one
+    -- field that kept the two lanes' tick logs from being identical
+    -- (2026-10-09)
+    t.exec("p1.prayer", t.prayer.set, "protectfrommagic", true)
     if role == 1 then
         t.check("p1.talk", t.player.talk_to("verzik_initial", 1) == "ok", "")
         local cr, cd = t.chat.play({ "npc:So, you wish to entertain me", "options", "choose:Yes, begin the fight." })

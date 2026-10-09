@@ -2751,6 +2751,20 @@ struct ToriRSServerNpc
         int queue;
         int delay;
         int arg;
+        /**
+         * THE PLAYER WHO ARMED IT, bound again when it fires. A player's hit
+         * on an npc is armed as an npc queue from the attack script
+         * (`[ai_queue3,_]` -> `~npc_default_damage` -> `npc_damage`), so it
+         * landed in the npc phase under whatever player the server had
+         * bound last: the last client pumped on the live lane, another on
+         * scriptrun. Retaliation (`combat_target = active_player`), the
+         * hitmark's dealer and the tick log's dealer all read that binding,
+         * so a red took a different raider on each lane from identical
+         * state (2026-10-09). -1 when no player armed it; the generation
+         * guards a slot reused by a later login.
+         */
+        int hero_pid;
+        uint32_t hero_gen;
     } queue[TORIRSSERVER_NPC_QUEUE_MAX];
 
     /** [ai_timer]: re-runs every `timer_interval` ticks, 0 = stopped. Armed by
@@ -5455,6 +5469,23 @@ enum ToriRSServerTicklogKind
                                          * when the npc draws no bar) f=hitpoints
                                          * g=max hitpoints; label "hud C/M reserve R"
                                          * (`npc_hudbar_check`, every boss HUD push) */
+    /* a=players b=npcs c=npc random streams d=player random streams
+     * e=map instance vars f=collision flags round pid 0 g=world stream.
+     * FNV digests of the hidden state the other rows do not carry, one row
+     * a tick, so two lanes' logs that agree on every visible row and part
+     * can be read for the tick and the subsystem where they first part
+     * (2026-10-09, the P2 red that took a different raider on each lane). */
+    TORIRSSERVER_TICKLOG_DIGEST,
+    /* a=pid b=varp id c=new value: a server varp that changed this tick,
+     * from the second tick the log sees the player (the first tick seeds). */
+    TORIRSSERVER_TICKLOG_VARP,
+    /* a=npc slot b=field (0 mode 1 waypoint_index 2 stuck_counter 3 face_entity
+     * 4 face_x 5 face_z 6 combat_target 7 attack_clock 8 timer_clock 9 frozen)
+     * c=new value: a raid npc's hidden field that changed this tick. */
+    TORIRSSERVER_TICKLOG_NPC_STATE,
+    /* a=pid b=field (0 waypoint_index 1 face_x 2 face_z 3 combat_target
+     * 4 attack_clock 5 run_energy) c=new value. */
+    TORIRSSERVER_TICKLOG_PLAYER_STATE,
     TORIRSSERVER_TICKLOG_KIND_COUNT
 };
 
@@ -5634,7 +5665,7 @@ void ToriRSServer_TicklogHitPlayer(const struct ToriRSServer* srv,
                                    const struct ToriRSServerPlayer* player, int damage,
                                    int hitsplat, int dealer_pid, int raw);
 void ToriRSServer_TicklogHitNpc(const struct ToriRSServer* srv, int slot, int damage, int hitsplat,
-                                int raw);
+                               int raw, int dealer_pid);
 void ToriRSServer_TicklogNpcSpawn(const struct ToriRSServer* srv, int slot);
 void ToriRSServer_TicklogNpcDeath(const struct ToriRSServer* srv, int slot);
 void ToriRSServer_TicklogNpcFree(const struct ToriRSServer* srv, int slot);
@@ -6504,10 +6535,15 @@ ToriRSServer_WorldGroundVisibleTo(
     int slot,
     int pid);
 
-/** The first active ground obj of `obj_id` on that tile, or -1. */
+/** The first active ground obj of `obj_id` on that tile VISIBLE TO `viewer`,
+ *  or -1. The viewer is the script's own player (an op's `player`: the state's
+ *  active slot, which `huntnext` and `p_finduid` set), never the server's
+ *  binding: inside a hunt the global is not the hunted raider, and in an
+ *  npc's own turn there is none (2026-10-09). */
 int
 ToriRSServer_WorldGroundFind(
     struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* viewer,
     int x,
     int z,
     int level,

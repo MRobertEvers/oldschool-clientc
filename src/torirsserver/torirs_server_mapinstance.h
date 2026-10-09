@@ -362,6 +362,10 @@ ToriRSServer_MapInstanceFree(int handle);
 int
 ToriRSServer_MapInstanceLiveCount(void);
 
+/* FNV digest of every active instance's flags and vars, chained on `hash`:
+ * the tick log's digest row (TORIRSSERVER_TICKLOG_DIGEST). */
+uint32_t ToriRSServer_MapInstanceVarsDigest(uint32_t hash, int handle);
+
 /** The handle whose reserved area contains this absolute tile, or 0. */
 int
 ToriRSServer_MapInstanceFind(

@@ -74,6 +74,10 @@ static char const* const k_kind_names[TORIRSSERVER_TICKLOG_KIND_COUNT] = {
     [TORIRSSERVER_TICKLOG_PROJECTILE] = "projectile",
     [TORIRSSERVER_TICKLOG_MAP_SPOTANIM] = "map_spotanim",
     [TORIRSSERVER_TICKLOG_HIT_PLAYER] = "hit_player",
+    [TORIRSSERVER_TICKLOG_DIGEST] = "digest",
+    [TORIRSSERVER_TICKLOG_VARP] = "varp",
+    [TORIRSSERVER_TICKLOG_NPC_STATE] = "npc_state",
+    [TORIRSSERVER_TICKLOG_PLAYER_STATE] = "player_state",
     [TORIRSSERVER_TICKLOG_HIT_NPC] = "hit_npc",
     [TORIRSSERVER_TICKLOG_NPC_SPAWN] = "npc_spawn",
     [TORIRSSERVER_TICKLOG_NPC_DEATH] = "npc_death",
@@ -588,14 +592,17 @@ ToriRSServer_TicklogHitNpc(
     int slot,
     int damage,
     int hitsplat,
-    int raw)
+    int raw,
+    int dealer_pid)
 {
     if( !ticklog_on_for(srv) )
         return;
     assert(slot >= 0);
     assert(slot < TORIRSSERVER_NPC_MAX);
-    ticklog_push(TORIRSSERVER_TICKLOG_HIT_NPC, slot, srv->npcs[slot].type, damage, hitsplat, raw, 0,
-                 NULL);
+    /* f = the dealing player's pid (-1 when no player dealt it): the lane
+     * comparison needs who hit which red, not just how hard (2026-10-09). */
+    ticklog_push(TORIRSSERVER_TICKLOG_HIT_NPC, slot, srv->npcs[slot].type, damage, hitsplat, raw,
+                 dealer_pid, NULL);
 }
 
 void
@@ -996,6 +1003,142 @@ ToriRSServer_TicklogConsume(
                        player->stat_boosted[TORIRSSERVER_STAT_PRAYER], label);
 }
 
+static uint32_t
+digest_add(uint32_t hash, uint32_t v)
+{
+    return (hash ^ v) * 16777619u;
+}
+
+/* The digest row: see TORIRSSERVER_TICKLOG_DIGEST. Scoped to the RAID: the
+ * npcs within DIGEST_RADIUS of pid 0 and pid 0's instance, because the
+ * world's ambient npcs wander on their own clocks from boot and two runs
+ * that enter the raid on different absolute ticks differ in them forever
+ * without it meaning anything. The varp rows name what the players' varp
+ * column hashes. */
+#define DIGEST_RADIUS 48
+static int32_t g_varp_shadow[TORIRSSERVER_PLAYER_MAX][TORIRSSERVER_VARP_COUNT];
+static int g_varp_shadow_seeded[TORIRSSERVER_PLAYER_MAX];
+#define NPC_STATE_FIELDS 10
+#define PLAYER_STATE_FIELDS 6
+static int32_t g_npc_shadow[TORIRSSERVER_NPC_MAX][NPC_STATE_FIELDS];
+static int g_npc_shadow_seeded[TORIRSSERVER_NPC_MAX];
+static int32_t g_player_shadow[TORIRSSERVER_PLAYER_MAX][PLAYER_STATE_FIELDS];
+static int g_player_shadow_seeded[TORIRSSERVER_PLAYER_MAX];
+
+static void
+shadow_rows(int kind, int who, int32_t* shadow, int* seeded, const int32_t* now, int n)
+{
+    for( int i = 0; i < n; i++ )
+    {
+        if( *seeded && shadow[i] != now[i] )
+            ticklog_push_row(kind, who, i, now[i], 0, 0, 0, 0, NULL);
+        shadow[i] = now[i];
+    }
+    *seeded = 1;
+}
+
+static void
+ticklog_digest(struct ToriRSServer* srv)
+{
+    uint32_t a = 2166136261u, b = 2166136261u, c = 2166136261u, d = 2166136261u;
+    uint32_t e, f = 2166136261u, g = 2166136261u;
+    int px = 0, pz = 0, plevel = 0;
+
+    for( int pid = 0; pid < srv->player_count; pid++ )
+    {
+        const struct ToriRSServerPlayer* p = &srv->players[pid];
+        if( !p->active )
+            continue;
+        if( pid == 0 )
+        {
+            px = p->x;
+            pz = p->z;
+            plevel = p->level;
+        }
+        a = digest_add(a, (uint32_t)pid);
+        a = digest_add(a, (uint32_t)p->x);
+        a = digest_add(a, (uint32_t)p->z);
+        a = digest_add(a, (uint32_t)p->level);
+        a = digest_add(a, (uint32_t)p->hitpoints);
+        a = digest_add(a, (uint32_t)p->run_energy);
+        a = digest_add(a, (uint32_t)p->waypoint_index);
+        a = digest_add(a, (uint32_t)p->face_x);
+        a = digest_add(a, (uint32_t)p->face_z);
+        a = digest_add(a, (uint32_t)p->combat_target);
+        a = digest_add(a, (uint32_t)p->attack_clock);
+        assert(pid < TORIRSSERVER_PLAYER_MAX);
+        {
+            int32_t now[PLAYER_STATE_FIELDS] = { p->waypoint_index, p->face_x, p->face_z,
+                                                 p->combat_target, p->attack_clock, p->run_energy };
+            shadow_rows(TORIRSSERVER_TICKLOG_PLAYER_STATE, pid, g_player_shadow[pid],
+                        &g_player_shadow_seeded[pid], now, PLAYER_STATE_FIELDS);
+        }
+        for( int v = 0; v < TORIRSSERVER_VARP_COUNT; v++ )
+        {
+            b = digest_add(b, (uint32_t)p->varps[v]);
+            if( g_varp_shadow_seeded[pid] && g_varp_shadow[pid][v] != p->varps[v] )
+                ticklog_push_row(TORIRSSERVER_TICKLOG_VARP, pid, v, p->varps[v], 0, 0, 0, 0, NULL);
+            g_varp_shadow[pid][v] = p->varps[v];
+        }
+        g_varp_shadow_seeded[pid] = 1;
+        g = digest_add(g, p->random.engine);
+        g = digest_add(g, (uint32_t)p->random.script);
+        g = digest_add(g, (uint32_t)(p->random.script >> 32));
+        g = digest_add(g, p->random.seeded);
+    }
+    for( int slot = 0; slot < TORIRSSERVER_NPC_MAX; slot++ )
+    {
+        const struct ToriRSServerNpc* n = &srv->npcs[slot];
+        int dx, dz;
+        if( !n->active )
+            continue;
+        dx = n->x - px;
+        dz = n->z - pz;
+        if( dx < 0 )
+            dx = -dx;
+        if( dz < 0 )
+            dz = -dz;
+        if( dx > DIGEST_RADIUS || dz > DIGEST_RADIUS || n->level != plevel )
+            continue;
+        c = digest_add(c, (uint32_t)slot);
+        c = digest_add(c, (uint32_t)n->type);
+        c = digest_add(c, (uint32_t)n->x);
+        c = digest_add(c, (uint32_t)n->z);
+        c = digest_add(c, (uint32_t)n->hitpoints);
+        c = digest_add(c, (uint32_t)n->mode);
+        c = digest_add(c, (uint32_t)n->waypoint_index);
+        c = digest_add(c, (uint32_t)n->stuck_counter);
+        c = digest_add(c, (uint32_t)n->face_entity);
+        c = digest_add(c, (uint32_t)n->face_x);
+        c = digest_add(c, (uint32_t)n->face_z);
+        c = digest_add(c, (uint32_t)n->combat_target);
+        c = digest_add(c, (uint32_t)n->attack_clock);
+        c = digest_add(c, (uint32_t)n->timer_clock);
+        c = digest_add(c, (uint32_t)n->frozen_ticks);
+        c = digest_add(c, (uint32_t)n->death_tick);
+        {
+            int32_t now[NPC_STATE_FIELDS] = { n->mode, n->waypoint_index, n->stuck_counter,
+                                              n->face_entity, n->face_x, n->face_z,
+                                              n->combat_target, n->attack_clock,
+                                              n->timer_clock, n->frozen_ticks };
+            shadow_rows(TORIRSSERVER_TICKLOG_NPC_STATE, slot, g_npc_shadow[slot],
+                        &g_npc_shadow_seeded[slot], now, NPC_STATE_FIELDS);
+        }
+        for( int v = 0; v < TORIRSSERVER_NPC_VAR_MAX; v++ )
+            c = digest_add(c, (uint32_t)n->script_vars[v]);
+        d = digest_add(d, n->random.engine);
+        d = digest_add(d, (uint32_t)n->random.script);
+        d = digest_add(d, (uint32_t)(n->random.script >> 32));
+        d = digest_add(d, n->random.seeded);
+    }
+    e = ToriRSServer_MapInstanceVarsDigest(2166136261u, ToriRSServer_MapInstanceFind(px, pz));
+    for( int dz = -20; dz <= 20; dz++ )
+        for( int dx = -20; dx <= 20; dx++ )
+            f = digest_add(f, (uint32_t)ToriRSServer_SceneCollisionFlagsAt(plevel, px + dx, pz + dz));
+    ticklog_push_row(TORIRSSERVER_TICKLOG_DIGEST, (int)a, (int)b, (int)c, (int)d, (int)e, (int)f,
+                     (int)g, NULL);
+}
+
 void
 ToriRSServer_TicklogTickEnd(struct ToriRSServer* srv)
 {
@@ -1006,6 +1149,7 @@ ToriRSServer_TicklogTickEnd(struct ToriRSServer* srv)
     assert(srv);
     if( !ticklog_on_for(srv) )
         return;
+    ticklog_digest(srv);
     for( int pid = 0; pid < srv->player_count; pid++ )
     {
         const struct ToriRSServerPlayer* player = &srv->players[pid];

@@ -143,7 +143,7 @@ cog_take_ground(
     assert(player);
     ToriRSServer_WorldTeleport(srv, level, x, z);
     selftest_tick(srv);
-    ground = ToriRSServer_WorldGroundFind(srv, x, z, level, obj_id);
+    ground = ToriRSServer_WorldGroundFind(srv, srv->active_player, x, z, level, obj_id);
     if( ground < 0 )
         ground = ToriRSServer_WorldObjAdd(srv, obj_id, 1, x, z, level, -1);
     SELFTEST_CHECK(ground >= 0, "clocktower ground obj %d should exist at %d,%d", obj_id, x, z);

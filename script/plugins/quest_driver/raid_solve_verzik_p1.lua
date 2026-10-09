@@ -158,6 +158,9 @@ function QD.raid._vzp1_measure(S)
     if nr ~= "ok" then rows = {} end
     for _, row in ipairs(rows) do
         local id, base = row.npc_id, row.base_npc_id
+        -- the server tile on both lanes (live x/z is the drawn tile; see
+        -- the P2 and P3 measures)
+        if row.server_x ~= nil then row.x, row.z = row.server_x, row.server_z end
         if id == ids.p1 or base == ids.p1 then F.boss = row
         elseif id == ids.initial or base == ids.initial then F.initial = row
         elseif id == ids.transition or base == ids.transition then F.after = row
@@ -391,6 +394,14 @@ function QD.raid._vzp1_terms(S, F)
         add("cover", function(x, z, t)
             if not F.in_box[x .. "," .. z] then
                 if F.hold or t == F.read then return V.INF end
+                -- THE POINT OF NO RETURN: out of the box with more tiles to
+                -- the box than two a tick can cover before the read. The
+                -- Dawnbringer trip to her side began with the read eight
+                -- ticks off, beyond this horizon, and the way back fell one
+                -- tile short: her last bolt, judged on that read with the
+                -- pillars still standing, hit seat 0 on 6 of 16 seeds and on
+                -- every live run (33/49 at D+4). Blert never lands that bolt.
+                if F.read and t < F.read and F.box_dist(x, z) > 2 * (F.read - t) then return V.INF end
                 -- the way back, when no plan can make it: toward the box
                 return 0.05 * F.box_dist(x, z)
             end
@@ -678,6 +689,17 @@ function QD.raid.verzik_p1_solve(opts)
         routes = {}, reach_cache = {},
     }
     local start = QD.raid._vzp1_now()
+    -- THE INVENTORY TAB, OURS TO OPEN: every held op (the Dawnbringer, the
+    -- food, the drops) is refused on any other tab, and the test may have
+    -- lit a prayer -- the prayer tab -- just before this call (2026-10-09:
+    -- "gear refused" every tick from the first, no eats, three deaths on
+    -- BOTH lanes, identically). The prepare opened it before; a solver
+    -- opens what it needs itself.
+    do
+        local tr, tab = api_drive.tab_by_name("inventory")
+        assert(tr == "ok", "verzik_p1_solve: no inventory tab")
+        api_drive.tab(tab)
+    end
     -- before her first wind-up: the content's first-attack delay from the
     -- fight's start, which was `started_ago` ticks before this call
     S.read = start - (opts.started_ago or 8) + V.FIRST_WINDUP + V.WINDUP_TO_READ

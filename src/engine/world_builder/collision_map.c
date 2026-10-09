@@ -1914,7 +1914,9 @@ collision_map_try_route_op(
 static int
 collision_scale_up(int tiles)
 {
-    return tiles << 16;
+    /* A multiply, not a shift: a negative delta shifted left is undefined
+     * (UBSan, 2026-10-09) and the ray caster passes negative deltas. */
+    return tiles * 65536;
 }
 
 static int

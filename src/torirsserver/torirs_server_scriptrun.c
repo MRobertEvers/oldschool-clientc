@@ -56,6 +56,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <ctype.h>
 #include <string.h>
 #include <time.h>
 #include <math.h>
@@ -141,6 +142,7 @@ struct ScriptRun
     char const* fixture;
     char* test_source;
     char* barriers[SCRIPTRUN_BARRIERS];
+    int barrier_ticks[SCRIPTRUN_BARRIERS];
     int barrier_count;
     int quiet;
     FILE* ledger;
@@ -1984,6 +1986,16 @@ d_barrier_mark(lua_State* L)
     assert(run->barrier_count < SCRIPTRUN_BARRIERS);
     run->barriers[run->barrier_count] = strdup(file);
     assert(run->barriers[run->barrier_count]);
+    /* STAMPED WITH THE TICK, honoured from the next tick on -- the live
+     * lane's rule (torirs_plugin_drive.c lua_drive_barrier_present: a mark
+     * carries its writer's lockstep tick and is present only to a reader a
+     * boundary later). Before this a mark counted at once, so a party whose
+     * members were already waiting passed a barrier in the tick the leader
+     * marked it, one tick before the live party did, and every player
+     * action after it sat one tick earlier than the live lane's against
+     * Verzik's unchanged clock (2026-10-09: the two tick logs differed by
+     * exactly that tick from the first consume on). */
+    run->barrier_ticks[run->barrier_count] = bot_of(L)->core->tick;
     run->barrier_count++;
     return push_result(L, "ok", NULL);
 }
@@ -1996,7 +2008,7 @@ d_barrier_present(lua_State* L)
 
     for( int i = 0; i < run->barrier_count; i++ )
         if( strcmp(run->barriers[i], file) == 0 )
-            return push_result(L, "ok", NULL);
+            return push_result(L, run->barrier_ticks[i] < bot_of(L)->core->tick ? "ok" : "not_found", NULL);
     return push_result(L, "not_found", NULL);
 }
 
@@ -2957,6 +2969,45 @@ ToriRSServer_ScriptRun(
     srv->packet_sink = scriptrun_sink;
     srv->packet_sink_ctx = &run;
 
+    /*
+     * THE GATE'S WORLD, so the same --name is the same run on both lanes
+     * (the owner, 2026-10-09: "Given the same seeds, you should expect the
+     * scriptrun and the live client runner's ticklog to be identical"):
+     *
+     * - the bots are named as tools/quest_gate/run.py party_accounts names a
+     *   party's accounts -- the run name's save-file stem, at most nine
+     *   characters, then _p<seat> -- because a player's random stream is
+     *   keyed by its name (ToriRSServer_WorldPlayerRandom);
+     * - the npc run seed is the first account's name, as run.py exports it
+     *   (TORIRSSERVER_RUN_NAME), read by ToriRSServer_WorldInit;
+     * - the world is built as the embed builds it (torirs_server_embed.c):
+     *   the global npc population included, so every npc slot the raid's
+     *   spawns take is the slot the live world hands out.
+     * Before this the scriptrun world was never WorldInit'd: no run seed
+     * (the legacy tile-and-life streams), ten npcs where the live world had
+     * a thousand, and bots named <name><seat>.
+     */
+    {
+        static char stem[10];
+        static char leader[32];
+        int n = 0;
+        for( char const* at = name; *at && n < 9; at++ )
+        {
+            unsigned char c = (unsigned char)*at;
+            if( isalnum(c) )
+                stem[n++] = (char)tolower(c);
+            else if( c == '_' || c == '-' || c == ' ' )
+                stem[n++] = '_';
+        }
+        stem[n] = '\0';
+        snprintf(leader, sizeof(leader), "%s_p1", stem);
+        setenv("TORIRSSERVER_RUN_NAME", leader, 1);
+        ToriRSServer_WorldInit(srv, ToriRSServer_BootZone(config->home_x),
+                               ToriRSServer_BootZone(config->home_z));
+        for( int i = 0; i < bots; i++ )
+            snprintf(run.bots[i].name, sizeof(run.bots[i].name), "%s_p%d", stem, i + 1);
+    }
+
     for( int i = 0; i < bots; i++ )
     {
         struct ScriptBot* bot = &run.bots[i];
@@ -2965,7 +3016,6 @@ ToriRSServer_ScriptRun(
         bot->run = &run;
         bot->index = i;
         bot->tab = SCRIPTRUN_TAB_INVENTORY;
-        snprintf(bot->name, sizeof(bot->name), "%s%d", name, i + 1);
         bot->core = ScriptrunCore_New(run.rev);
         bot->core->cache_disk = run.cache_disk;
         run.count = i + 1;

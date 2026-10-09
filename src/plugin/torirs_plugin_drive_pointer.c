@@ -1398,7 +1398,7 @@ DrivePointer_OpAvailable(
 }
 
 enum DriveResult
-DrivePointer_WorldOp(struct App* app, enum DrivePickKind kind, int id, int option)
+DrivePointer_WorldOp(struct App* app, enum DrivePickKind kind, int id, int option, int want_element)
 {
     int element_id = -1;
     int available = 0;
@@ -1407,12 +1407,64 @@ DrivePointer_WorldOp(struct App* app, enum DrivePickKind kind, int id, int optio
     assert(app);
     if( kind != DRIVE_PICK_NPC && kind != DRIVE_PICK_LOC && kind != DRIVE_PICK_OBJ )
         return DRIVE_UNSUPPORTED;
-    /* `id` is a CONTENT TYPE id (see DrivePointer_ElementId): the bridge takes
-     * an element id, and handing it the type id is what made this answer
-     * not_found for every npc in the world. */
-    resolved = DrivePointer_ElementId(app, kind, id, &element_id);
-    if( resolved != DRIVE_OK )
-        return resolved;
+    /*
+     * THE COPY THE SCRIPT NAMED. scriptrun's d_world_op takes an optional
+     * element id and acts on that copy or answers not_found; this lane took
+     * the type alone and acted on the NEAREST copy, so a solver that chose
+     * one of two reds by position attacked the other on the live lane, the
+     * red retaliated against a different raider, and the two lanes' tick
+     * logs parted (2026-10-09, t+422 of seed sa). A named element must
+     * exist, be of the type, and be in view, as on scriptrun.
+     */
+    if( want_element >= 0 )
+    {
+        struct World_EntityPool* pool;
+        int found = 0;
+        int i;
+
+        if( !app->world )
+            return DRIVE_NOT_FOUND;
+        pool = kind == DRIVE_PICK_NPC   ? &app->world->entities.npc
+               : kind == DRIVE_PICK_LOC ? &app->world->entities.scenery
+                                        : &app->world->entities.obj_stack;
+        for( i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
+        {
+            void* entry = World_EntityPoolGet(pool, i);
+
+            if( !entry )
+                continue;
+            if( kind == DRIVE_PICK_NPC )
+            {
+                struct WorldEntity_NPC* npc = entry;
+                found = npc->element_id == want_element && npc->server_slot >= 0 &&
+                        (id < 0 || npc->npc_id == id || npc->base_npc_id == id);
+            }
+            else if( kind == DRIVE_PICK_LOC )
+            {
+                struct WorldEntity_Scenery* loc = entry;
+                found = loc->element_id == want_element;
+            }
+            else
+            {
+                struct WorldEntity_ObjStack* stack = entry;
+                found = stack->element_id == want_element;
+            }
+            if( found )
+                break;
+        }
+        if( !found )
+            return DRIVE_NOT_FOUND;
+        element_id = want_element;
+    }
+    else
+    {
+        /* `id` is a CONTENT TYPE id (see DrivePointer_ElementId): the bridge
+         * takes an element id, and handing it the type id is what made this
+         * answer not_found for every npc in the world. */
+        resolved = DrivePointer_ElementId(app, kind, id, &element_id);
+        if( resolved != DRIVE_OK )
+            return resolved;
+    }
     resolved = DrivePointer_OpAvailable(app, kind, id, option, &available);
     if( resolved != DRIVE_OK )
         return resolved;
@@ -2400,12 +2452,13 @@ lua_drive_world_op(struct lua_State* L)
     int id = PluginDrive_ArgInt(L, 2);
     int option = PluginDrive_ArgInt(L, 3);
     int kind = drive_pointer_kind_from_name(kind_name);
+    int want_element = PluginDrive_ArgOptInt(L, 4, -1);
     enum DriveResult result;
 
     assert(app);
     if( kind < 0 )
         return luaL_error(L, "drive.world_op: unknown kind '%s'", kind_name);
-    result = DrivePointer_WorldOp(app, (enum DrivePickKind)kind, id, option);
+    result = DrivePointer_WorldOp(app, (enum DrivePickKind)kind, id, option, want_element);
     return PluginDrive_PushResult(L, result, NULL);
 }
 

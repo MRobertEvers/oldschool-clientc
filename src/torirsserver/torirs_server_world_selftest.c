@@ -9992,8 +9992,7 @@ ToriRSServer_WorldSelftest(void)
                         ToriRSServer_ScriptsRunProc(
                             srv, "[proc,gwd_drop_frozen_key_piece]",
                             piece_args, 3);
-                        armadyl_piece = ToriRSServer_WorldGroundFind(
-                            srv, player->x, player->z, player->level,
+                        armadyl_piece = ToriRSServer_WorldGroundFind(srv, player, player->x, player->z, player->level,
                             pieces[0]);
                         SELFTEST_CHECK(
                             armadyl_piece < 0,
@@ -10003,8 +10002,7 @@ ToriRSServer_WorldSelftest(void)
                         ToriRSServer_ScriptsRunProc(
                             srv, "[proc,gwd_drop_frozen_key_piece]",
                             piece_args, 3);
-                        armadyl_piece = ToriRSServer_WorldGroundFind(
-                            srv, player->x, player->z, player->level,
+                        armadyl_piece = ToriRSServer_WorldGroundFind(srv, player, player->x, player->z, player->level,
                             pieces[0]);
                         SELFTEST_CHECK(
                             armadyl_piece >= 0 &&
@@ -10018,8 +10016,7 @@ ToriRSServer_WorldSelftest(void)
                             srv, "[proc,gwd_drop_frozen_key_piece]",
                             piece_args, 3);
                         SELFTEST_CHECK(
-                            ToriRSServer_WorldGroundFind(
-                                srv, player->x, player->z, player->level,
+                            ToriRSServer_WorldGroundFind(srv, srv->active_player,  player->x, player->z, player->level,
                                 pieces[0]) < 0,
                             "owned frozen-key piece suppresses a duplicate drop");
 
@@ -10030,8 +10027,7 @@ ToriRSServer_WorldSelftest(void)
                             srv, "[proc,gwd_drop_frozen_key_piece]",
                             piece_args, 3);
                         SELFTEST_CHECK(
-                            ToriRSServer_WorldGroundFind(
-                                srv, player->x, player->z, player->level,
+                            ToriRSServer_WorldGroundFind(srv, srv->active_player,  player->x, player->z, player->level,
                                 pieces[0]) < 0,
                             "assembled frozen key suppresses replacement pieces");
                     }
@@ -10562,8 +10558,7 @@ ToriRSServer_WorldSelftest(void)
                                         drop_args, 4),
                                 "GWD production clue award executes at X "
                                 "Marks completion=%d", complete);
-                            slot = ToriRSServer_WorldGroundFind(
-                                srv, player->x, player->z, player->level,
+                            slot = ToriRSServer_WorldGroundFind(srv, srv->active_player,  player->x, player->z, player->level,
                                 expected);
                             SELFTEST_CHECK(
                                 slot >= 0,
@@ -10733,11 +10728,9 @@ ToriRSServer_WorldSelftest(void)
                                     tertiary_args, 3),
                                 "classic boss tertiary award code %d executes",
                                 code);
-                            elite_slot = ToriRSServer_WorldGroundFind(
-                                srv, player->x, player->z, player->level,
+                            elite_slot = ToriRSServer_WorldGroundFind(srv, srv->active_player,  player->x, player->z, player->level,
                                 elite);
-                            pet_slot = ToriRSServer_WorldGroundFind(
-                                srv, player->x, player->z, player->level, pet);
+                            pet_slot = ToriRSServer_WorldGroundFind(srv, srv->active_player,  player->x, player->z, player->level, pet);
                             SELFTEST_CHECK(
                                 (elite_slot >= 0) == ((code % 2) == 1) &&
                                     (pet_slot >= 0) == (code >= 2),
@@ -10762,8 +10755,7 @@ ToriRSServer_WorldSelftest(void)
                                     tertiary_args, 2),
                                 "classic bodyguard tertiary award code %d executes",
                                 code);
-                            hard_slot = ToriRSServer_WorldGroundFind(
-                                srv, player->x, player->z, player->level, hard);
+                            hard_slot = ToriRSServer_WorldGroundFind(srv, srv->active_player,  player->x, player->z, player->level, hard);
                             SELFTEST_CHECK(
                                 (hard_slot >= 0) == (code == 1),
                                 "classic bodyguard tertiary code %d awards hard "
@@ -10814,11 +10806,9 @@ ToriRSServer_WorldSelftest(void)
                                     srv, paired[i].proc, paired_args, 2),
                                 "%s paired branch %d executes",
                                 paired[i].proc, paired[i].roll);
-                            first_slot = ToriRSServer_WorldGroundFind(
-                                srv, player->x, player->z, player->level,
+                            first_slot = ToriRSServer_WorldGroundFind(srv, srv->active_player,  player->x, player->z, player->level,
                                 first_id);
-                            second_slot = ToriRSServer_WorldGroundFind(
-                                srv, player->x, player->z, player->level,
+                            second_slot = ToriRSServer_WorldGroundFind(srv, srv->active_player,  player->x, player->z, player->level,
                                 second_id);
                             SELFTEST_CHECK(
                                 first_slot >= 0 && second_slot >= 0 &&
@@ -10857,8 +10847,7 @@ ToriRSServer_WorldSelftest(void)
                                 ToriRSServer_ScriptsRunProc(
                                     srv, "[proc,gwd_bodyguard_armadyl_main]",
                                     ammo_args, 3);
-                                slot = ToriRSServer_WorldGroundFind(
-                                    srv, player->x, player->z, player->level,
+                                slot = ToriRSServer_WorldGroundFind(srv, srv->active_player,  player->x, player->z, player->level,
                                     object_id);
                                 SELFTEST_CHECK(
                                     slot >= 0 &&
@@ -10925,8 +10914,7 @@ ToriRSServer_WorldSelftest(void)
                                     "%s resolves for %s boundary roll %d",
                                     test->obj, test->proc, roll);
                                 if( expected_id >= 0 )
-                                    found = ToriRSServer_WorldGroundFind(
-                                        srv, player->x, player->z,
+                                    found = ToriRSServer_WorldGroundFind(srv, srv->active_player,  player->x, player->z,
                                         player->level, expected_id);
                                 SELFTEST_CHECK(
                                     found >= 0 &&
@@ -10969,8 +10957,7 @@ ToriRSServer_WorldSelftest(void)
                                     reaver),
                             "ordinary Blood Reaver real death hook executes");
                         if( ashes_id >= 0 )
-                            ashes = ToriRSServer_WorldGroundFind(
-                                srv, player->x, player->z, player->level,
+                            ashes = ToriRSServer_WorldGroundFind(srv, srv->active_player,  player->x, player->z, player->level,
                                 ashes_id);
                         SELFTEST_CHECK(
                             ashes_id >= 0 && ashes >= 0 &&
@@ -11045,8 +11032,7 @@ ToriRSServer_WorldSelftest(void)
                                 "GWD goblin real death hook executes for Rag "
                                 "and Bone Man case %zu",
                                 i);
-                            bone_slot = ToriRSServer_WorldGroundFind(
-                                srv, player->x, player->z, player->level,
+                            bone_slot = ToriRSServer_WorldGroundFind(srv, srv->active_player,  player->x, player->z, player->level,
                                 bone_id);
                             SELFTEST_CHECK(
                                 (bone_slot >= 0) == bone_cases[i].expected,
@@ -11092,8 +11078,7 @@ ToriRSServer_WorldSelftest(void)
                                        "Nex common object %s resolves",
                                        nex_common_objs[code]);
                         slot = expected_id >= 0
-                                   ? ToriRSServer_WorldGroundFind(
-                                         srv, player->x, player->z, player->level,
+                                   ? ToriRSServer_WorldGroundFind(srv, srv->active_player,  player->x, player->z, player->level,
                                          expected_id)
                                    : -1;
                         SELFTEST_CHECK(slot >= 0,
@@ -11116,8 +11101,7 @@ ToriRSServer_WorldSelftest(void)
                                                             : "4dose2restore";
                             int paired_id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, paired);
                             int paired_slot = paired_id >= 0
-                                                  ? ToriRSServer_WorldGroundFind(
-                                                        srv, player->x, player->z,
+                                                  ? ToriRSServer_WorldGroundFind(srv, srv->active_player,  player->x, player->z,
                                                         player->level, paired_id)
                                                   : -1;
                             SELFTEST_CHECK(
@@ -11166,8 +11150,7 @@ ToriRSServer_WorldSelftest(void)
                                         common_args, 7),
                                     "Nex account mode %d awards with a full "
                                     "inventory", mode);
-                                ground_slot = ToriRSServer_WorldGroundFind(
-                                    srv, player->x, player->z,
+                                ground_slot = ToriRSServer_WorldGroundFind(srv, srv->active_player,  player->x, player->z,
                                     player->level, air);
                                 SELFTEST_CHECK(
                                     ground_slot >= 0 &&
@@ -11201,8 +11184,7 @@ ToriRSServer_WorldSelftest(void)
                                 unique_args, 2),
                             "Nex unique roll %d executes", nex_unique_cases[i].roll);
                         slot = expected_id >= 0
-                                   ? ToriRSServer_WorldGroundFind(
-                                         srv, player->x, player->z, player->level,
+                                   ? ToriRSServer_WorldGroundFind(srv, srv->active_player,  player->x, player->z, player->level,
                                          expected_id)
                                    : -1;
                         SELFTEST_CHECK(
@@ -14061,7 +14043,7 @@ ToriRSServer_WorldSelftest(void)
                         }
                     }
                     SELFTEST_CHECK(free_slot >= 0, "the backpack should have a free slot");
-                    SELFTEST_CHECK(ToriRSServer_WorldGroundFind(srv, player->x, player->z,
+                    SELFTEST_CHECK(ToriRSServer_WorldGroundFind(srv, srv->active_player,  player->x, player->z,
                                                                 player->level, rune) < 0,
                                    "no law rune should lie under the player before the drop");
                     if( rune >= 0 && free_slot >= 0 )
@@ -14087,7 +14069,7 @@ ToriRSServer_WorldSelftest(void)
                                        "inv_dropitem(inv, coord, lawrune, 2, 50) should take 2 of "
                                        "3 out, left %d x %d",
                                        row->items[free_slot].obj_id, row->items[free_slot].count);
-                        ground = ToriRSServer_WorldGroundFind(srv, player->x, player->z,
+                        ground = ToriRSServer_WorldGroundFind(srv, srv->active_player,  player->x, player->z,
                                                               player->level, rune);
                         {
                             int active_ground = 0;
@@ -14116,7 +14098,7 @@ ToriRSServer_WorldSelftest(void)
 
                         /* Nothing held, nothing lands: `completed == 0` returns. */
                         ran = ToriRSServer_ScriptsRunHook(srv, &none_script, NULL, 0);
-                        SELFTEST_CHECK(ran && ToriRSServer_WorldGroundFind(srv, player->x,
+                        SELFTEST_CHECK(ran && ToriRSServer_WorldGroundFind(srv, srv->active_player,  player->x,
                                                                           player->z,
                                                                           player->level,
                                                                           rune) < 0,
@@ -36947,7 +36929,7 @@ ToriRSServer_WorldSelftest(void)
                 selftest_opheld(srv, 5, drop_slot);
                 SELFTEST_CHECK(player->inv[drop_slot].obj_id == -1,
                                "content's ~dropslot empties the slot");
-                ground = ToriRSServer_WorldGroundFind(srv, player->x, player->z, player->level, helm);
+                ground = ToriRSServer_WorldGroundFind(srv, srv->active_player,  player->x, player->z, player->level, helm);
                 SELFTEST_CHECK(ground >= 0, "and the helm is on the tile under the player");
                 if( ground >= 0 )
                 {
@@ -36995,14 +36977,14 @@ ToriRSServer_WorldSelftest(void)
                 SELFTEST_CHECK(player->inv[note_slot].obj_id == -1,
                                "~dropslot empties the notes' cell (holds %d x%d)",
                                player->inv[note_slot].obj_id, player->inv[note_slot].count);
-                ground = ToriRSServer_WorldGroundFind(srv, note_x, note_z, 0, note);
+                ground = ToriRSServer_WorldGroundFind(srv, srv->active_player, note_x, note_z, 0, note);
                 SELFTEST_CHECK(ground >= 0 && srv->ground[ground].count == 5,
                                "and ONE pile of 5 notes lies on %d,%d,0 (slot %d, count %d)",
                                note_x, note_z, ground,
                                ground >= 0 ? srv->ground[ground].count : -1);
                 if( ground >= 0 )
                     ToriRSServer_WorldGroundTake(srv, ground);
-                SELFTEST_CHECK(ToriRSServer_WorldGroundFind(srv, note_x, note_z, 0, note) < 0,
+                SELFTEST_CHECK(ToriRSServer_WorldGroundFind(srv, srv->active_player, note_x, note_z, 0, note) < 0,
                                "and no second pile of the notes is on that tile");
                 ToriRSServer_WorldTeleport(srv, saved_level, saved_x, saved_z);
                 selftest_ack_scene(srv);

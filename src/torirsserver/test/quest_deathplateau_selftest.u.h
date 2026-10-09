@@ -262,7 +262,7 @@ death_take_ground(
     assert(srv);
     assert(player);
     death_snap(srv, player, level, x, z);
-    ground = ToriRSServer_WorldGroundFind(srv, x, z, level, obj_id);
+    ground = ToriRSServer_WorldGroundFind(srv, srv->active_player, x, z, level, obj_id);
     if( ground < 0 )
         ground = ToriRSServer_WorldObjAdd(srv, obj_id, 1, x, z, level, -1);
     SELFTEST_CHECK(ground >= 0, "deathplateau ground obj %d should exist at %d,%d", obj_id, x, z);

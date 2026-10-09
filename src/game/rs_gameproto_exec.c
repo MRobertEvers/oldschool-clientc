@@ -783,6 +783,19 @@ exec_zone_sub_packet_at(
             dst_tx = tile_x + pkt->dx_offset;
             dst_tz = tile_z + pkt->dz_offset;
         }
+        /* The spawn below requires the world; so does the note. */
+        assert(app->world);
+        App_DriveProjectileNote(
+                app,
+                app->world->_base_tile_x + src_tx,
+                app->world->_base_tile_z + src_tz,
+                app->world->_base_tile_x + dst_tx,
+                app->world->_base_tile_z + dst_tz,
+                level,
+                pkt->spotanim,
+                pkt->target,
+                pkt->start_delay,
+                pkt->end_delay);
         App_WorldProjectileSpawn(
             app,
             src_tx,

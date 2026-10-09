@@ -100,6 +100,7 @@ QD.VZP3 = {
     YELLOW_CHARGE = 14, AFTER_YELLOWS = 21,    -- Y to the blast, Y to the next slot
     WEB_RESUME = 42,            -- the webs slot to the next slot
     WEB_LIFE = 12, WEB_FLIGHT = 4, WEB_KNOCK = 3,
+    BALL_FLIGHT = 7, BALL_HOP = 6,  -- C: 227 and 185 cycles over 30, the queue delays
     ENRAGE_PULL = 5,
     CENTRE = { x = 32, z = 25 },  -- her middle for the webs, local to the room's origin
     -- the P3 floor, local to the room's origin (the pools' scatter round her
@@ -115,7 +116,7 @@ QD.VZP3 = {
     PIETY_FLOOR = 40,          -- Piety only with points to spare (the overheads come first)
     TORNADO_RING = { 2, 10 },  -- a spawn this far from a raider (end of T-1, seen a tick later) may be its
     OWNER_MARGIN = 2,          -- another raider's votes over mine before a tornado is not mine
-    TRACE_CAP = 160, RECENT = 400,
+    TRACE_CAP = 400, RECENT = 400,
 }
 
 local function cheb(ax, az, bx, bz) return QD.raid._vzp2_cheb(ax, az, bx, bz) end
@@ -185,14 +186,18 @@ end
 function QD.raid._vzp3_measure(S)
     local ids = S.ids
     local F = { crabs = {}, webs = {}, tornadoes = {}, raiders = {}, mates = {} }
-    -- THE TICK IS COUNTED, one per server_tick event the loop woke on (S.tick,
-    -- seeded from the clock once). A party member's api_drive clock is the
-    -- leader's stamp at its last boundary, which repeats and skips while the
-    -- member's own client applies ticks: the live seat ran this loop two or
-    -- three times per "tick" with the raiders moving between runs (t769
-    -- three times, t768 never; 2026-10-08).
-    if S.tick == nil then S.tick = QD.raid._vzp2_now() end
-    F.tick = S.tick
+    -- THE TICK IS THE CLIENT'S OWN: api_drive.tick(), the world cycle over
+    -- 30 on the live client and the bot's applied tick on scriptrun. The
+    -- live loop wakes about twice per server tick (today's run: 376 wakes
+    -- over 188 ticks on every seat), so a counted tick ran ahead 2x and every
+    -- absolute-tick hold -- the pool at Y+13, the ball at L-1, the scans --
+    -- landed on the wrong tick; the server's own counter (srv->tick, or a
+    -- member's lockstep stamp) was right but repeated. The cycle clock is
+    -- what the client's projectiles and anims are stepped on, so deadlines
+    -- in it agree with the observations. A wake in a tick already decided
+    -- is not decided again (the loop below).
+    F.tick = api_drive.tick()
+    assert(math.type(F.tick) == "integer", "verzik_p3_solve: api_drive.tick answered no tick")
     local tr, tile = api_drive.player_tile()
     assert(tr == "ok", "verzik_p3_solve: no tile")
     F.me = { x = tile.x, z = tile.z }
@@ -406,7 +411,13 @@ function QD.raid._vzp3_projectiles(S, F)
             -- tick early (harmless) and floor put the ball a tick early, which
             -- the three-tick hold hid until the hold became one tick (sa t817:
             -- a 74 on a raider holding the right tile at the wrong tick).
-            local land = F.tick + (cycles // 30) + 1
+            -- FROM FIRST SIGHT, BY THE CONTENT'S FLIGHT, not from cycles_left:
+            -- the live client reads a projectile further into its flight than
+            -- scriptrun does (a throw of 227 cycles read as 197 on scriptrun,
+            -- fewer live), and a landing a tick late put the "clear" raider
+            -- at gap 2 on the read: three 74s, two deaths (live, 2026-10-09).
+            -- A web is 120 cycles: +4.
+            local land = F.tick + V.WEB_FLIGHT
             local key = p.dst_x .. "," .. p.dst_z .. "@" .. land
             if not S.web_seen[key] then
                 S.web_seen[key] = true
@@ -416,7 +427,11 @@ function QD.raid._vzp3_projectiles(S, F)
                 end
             end
         elseif p.spotanim_id == ids.ball and p.target ~= nil and p.target < 0 then
-            ball_now = { pid = -p.target - 1, land = F.tick + (cycles // 30) + 1 }
+            -- the throw's 227 cycles land +7 from the throw tick, a hop's 185
+            -- land +6 from the landing it left (the pid rule adds one below);
+            -- first sight is the throw tick (it rides her ranged pose) and the
+            -- previous landing
+            ball_now = { pid = -p.target - 1, first = F.tick }
         elseif (p.spotanim_id == ids.proj_ranged or p.spotanim_id == ids.proj_magic)
             and F.pid ~= nil and p.target == -F.pid - 1 then
             S.prot = (p.spotanim_id == ids.proj_magic) and "magic" or "missiles"
@@ -444,6 +459,7 @@ function QD.raid._vzp3_projectiles(S, F)
         if B.cur ~= ball_now.pid then
             -- a hop's landing queue counts one tick more when the new
             -- target's pid is below the sender's (its queues ran already)
+            ball_now.land = ball_now.first + (B.cur == nil and V.BALL_FLIGHT or V.BALL_HOP)
             if B.cur ~= nil and ball_now.pid < B.cur then ball_now.land = ball_now.land + 1 end
             B.cur = ball_now.pid
             B.visited[ball_now.pid] = true
@@ -607,6 +623,9 @@ function QD.raid._vzp3_spec(S, F)
     local V, b = QD.VZP3, F.boss
     local base = S.base
     local spec = {
+        -- from MY tile as measured (player_tile, the server's), never the
+        -- lane's default: the live plugin's was the drawn tile
+        from = { x = F.me.x, z = F.me.z },
         now = F.tick, h = V.H, beam = V.BEAM, run = true, move_cost = V.MOVE_COST,
         chasers = {}, forbid = {}, zones = {}, pulls = {},
         edge = { x0 = base.x + V.ARENA.x0, z0 = base.z + V.ARENA.z0, x1 = base.x + V.ARENA.x1, z1 = base.z + V.ARENA.z1,
@@ -696,11 +715,20 @@ function QD.raid._vzp3_spec(S, F)
         end
     end
     -- the enrage: every tornado that may be mine, walked along each path
+    local near_trace = {}
     for _, tn in ipairs(F.tornadoes) do
         if tn.mine and #spec.chasers < 4 then
             spec.chasers[#spec.chasers + 1] = { x = tn.x, z = tn.z, tier = "lethal" }
             names.chasers[#spec.chasers] = "tornado " .. tn.slot
         end
+        if cheb(tn.x, tn.z, F.me.x, F.me.z) <= 3 then
+            near_trace[#near_trace + 1] = tn.slot .. "@" .. tn.x .. "," .. tn.z .. (tn.mine and "!" or "-")
+        end
+    end
+    -- the seat's own view of a tornado at its heels (the live lane's touches
+    -- are read against this; TRACE_CAP bounds it)
+    if #near_trace > 0 then
+        QD.raid._vzp3_trace(S, F.tick, "me " .. F.me.x .. "," .. F.me.z .. " tornadoes " .. table.concat(near_trace, " "))
     end
     -- damage: beside her, on my role's side (so the three do not stack)
     local target = S.target
@@ -825,37 +853,50 @@ function QD.raid._vzp3_emit(S, F, order, intent)
     -- the client's own and instant, like an F-key: inputs queue in call order
     -- and the server takes them together at the next tick (the owner,
     -- 2026-10-08: "Prayer should be a free action").
-    -- ONE PANEL CHANNEL A TICK, AND NEVER THE PRESS IN THE TICK ITS TAB WAS
-    -- SWITCHED: the live client refuses an op on a panel it has not laid out
-    -- yet, so a tab-and-press in one resume works on scriptrun and is dropped
-    -- live (the live seat: 118 held intents, 35 consumed, 19 unprayed autos;
-    -- 2026-10-08). The P2 solver's shape, live-proven. The overhead wins the
-    -- channel; a bite or a sip waits a tick.
+    -- ONE PANEL CHANNEL A TICK, THE PRESS IN THE TICK ITS TAB IS SWITCHED:
+    -- a tab is instant (the owner, 2026-10-09: "Interface tab changes do not
+    -- need to wait for a tick boundary"). The live plugin lays the panel out
+    -- inside the switch now (app_plugin_tab_select), so a tab-and-press in
+    -- one resume lands on both lanes; before, live refused the press on a
+    -- panel it had not laid out and the overhead lit a tick late, racing the
+    -- landing. The overhead wins the channel; a bite or a sip waits a tick.
     local held = intent.eat or intent.drink or intent.gear
     local switched = false
+    if intent.pray and (S.pray_trace or 0) < 12 then
+        S.pray_trace = (S.pray_trace or 0) + 1
+        QD.raid._vzp3_trace(S, F.tick, string.format("pray %s wanted (tab %s, last press t%s, lit m%s r%s)", intent.pray,
+            tostring(S.tab == S.ids.prayer_tab and "prayer" or S.tab), tostring(S.pray_clicked[intent.pray]), tostring(F.lit.magic), tostring(F.lit.missiles)))
+    end
     if intent.pray and F.tick - (S.pray_clicked[intent.pray] or -10) >= 2 then
         if S.tab ~= S.ids.prayer_tab then
             api_drive.tab(S.ids.prayer_tab)
             S.tab = S.ids.prayer_tab
-            switched = true
-        else
-            api_drive.if_click(S.ids[intent.pray], 1)
+        end
+        -- a press the client refuses is not a press: it is retried next
+        -- tick, and counted
+        local pr = api_drive.if_click(S.ids[intent.pray], 1)
+        if (S.pray_trace or 0) <= 12 then QD.raid._vzp3_trace(S, F.tick, "press " .. intent.pray .. " -> " .. tostring(pr)) end
+        if pr == "ok" then
             S.pray_clicked[intent.pray] = F.tick
             S.presses = S.presses + 1
+        else
+            S.press_refused = (S.press_refused or 0) + 1
+            if S.press_refused <= 5 then QD.raid._vzp3_trace(S, F.tick, "prayer press refused: " .. tostring(pr)) end
         end
     elseif held and S.tab ~= S.ids.inv_tab then
         api_drive.tab(S.ids.inv_tab)
         S.tab = S.ids.inv_tab
-        switched = true
     end
     if held and S.tab == S.ids.inv_tab and not switched and not intent.pray then
         if intent.eat then
-            QD.raid._vzp3_held(S, intent.eat, 1)
-            S.eats = S.eats + 1
+            local er = QD.raid._vzp3_held(S, intent.eat, 1)
+            if er == "ok" then S.eats = S.eats + 1 else S.op_refused = (S.op_refused or 0) + 1; S.last_eat = nil
+                if S.op_refused <= 5 then QD.raid._vzp3_trace(S, F.tick, "eat refused: " .. tostring(er)) end end
         end
         if intent.drink then
-            QD.raid._vzp3_held(S, intent.drink, 1)
-            S.drinks = S.drinks + 1
+            local dr = QD.raid._vzp3_held(S, intent.drink, 1)
+            if dr == "ok" then S.drinks = S.drinks + 1 else S.op_refused = (S.op_refused or 0) + 1; S.last_drink = nil
+                if S.op_refused <= 5 then QD.raid._vzp3_trace(S, F.tick, "drink refused: " .. tostring(dr)) end end
         end
         if intent.gear then QD.raid._vzp3_held(S, intent.gear, 2) end
         -- a held op ends the interaction (the walk goes on): an attack under
@@ -897,10 +938,33 @@ function QD.raid.verzik_p3_solve(opts)
         autos = 0, melees = 0, eats = 0, drinks = 0, clicks = 0, presses = 0,
         prot = "magic",
     }
-    local start = QD.raid._vzp2_now()
+    local start = api_drive.tick()
     local last_hp = nil
     while true do
         local F = QD.raid._vzp3_measure(S)
+        -- the wake trace (the first forty wakes after her form): the client
+        -- tick, the server's counter, the await's answer and whether this
+        -- wake decides -- the live lane wakes about twice a tick and this
+        -- says which wake is which
+        -- ... and WHAT THE WAKE SEES: her server tile and my hitpoints,
+        -- which the tick log also carries (npc_tile, raider), so a wake can
+        -- be matched to the tick-log tick it perceives (2026-10-09: the live
+        -- seat perceived every tick one late)
+        if S.entered and (S.wakes or 0) < 120 then
+            S.wakes = (S.wakes or 0) + 1
+            local _, srv = api_drive.server_tick()
+            QD.raid._vzp3_trace(S, F.tick, string.format("wake srv=%s await=%s %s @%d,%d her %s,%s hp %s", tostring(srv), tostring(S.last_await),
+                F.tick == S.decided_tick and "repeat" or "decide", F.me.x, F.me.z,
+                tostring(F.boss and F.boss.x), tostring(F.boss and F.boss.z), tostring(F.hp)))
+        end
+        if F.tick == S.decided_tick then
+            -- a second wake in a tick already decided (the live client): the
+            -- clicks are out, the next tick's packets are not in
+            S.last_await = await({ event = "server_tick", match = function() return true end,
+                note = "verzik_p3_solve: a repeated wake" }, 3)
+            goto continue
+        end
+        S.decided_tick = F.tick
         if F.tick - start > (opts.max_ticks or 900) then return "timeout", QD.raid._vzp3_summary(S), S end
         if F.hp <= 0 then return "died", QD.raid._vzp3_summary(S), S end
         if F.bat or (S.entered and F.boss == nil and F.transition == nil) then
@@ -975,9 +1039,9 @@ function QD.raid.verzik_p3_solve(opts)
             -- prayer book only
             QD.raid._vzp3_emit(S, F, nil, intent)
         end
-        local ar = await({ event = "server_tick", match = function() return true end,
+        S.last_await = await({ event = "server_tick", match = function() return true end,
             note = "verzik_p3_solve: the tick's packets applied" }, 3)
-        if ar == "ok" then S.tick = S.tick + 1 else S.tick = QD.raid._vzp2_now() end
+        ::continue::
     end
 end
 
@@ -1026,10 +1090,16 @@ function QD.raid.vzp3_plan_check()
     return n, bad
 end
 
+-- A planner probe for a test file: the spec as given, the answer as given.
+function QD.raid.vzp3_plan_probe(spec)
+    local r, plan = api_drive.plan(spec)
+    return r, plan
+end
+
 function QD.raid._vzp3_summary(S)
     local seen = {}
     for _, k in ipairs({ "crabs", "webs", "yellows", "ball" }) do seen[#seen + 1] = k .. " " .. tostring(S.seen[k] or 0) end
-    return string.format("p%d: taken %d in %d hits; specials %s; autos %d (melee %d); tornado spawns %d; eats %d, drinks %d, clicks %d, presses %d; plan nodes %d; trace %s",
+    return string.format("p%d: taken %d in %d hits; specials %s; autos %d (melee %d); tornado spawns %d; eats %d, drinks %d, clicks %d, presses %d (refused %d, ops refused %d); plan nodes %d; trace %s",
         S.role, S.taken or 0, #S.hits, table.concat(seen, ", "), S.autos, S.melees, S.tornado_spawns or 0, S.eats, S.drinks, S.clicks,
-        S.presses, S.expanded or 0, table.concat(S.trace, " | ")) .. "; recent " .. table.concat(S.recent, " ")
+        S.presses, S.press_refused or 0, S.op_refused or 0, S.expanded or 0, table.concat(S.trace, " | ")) .. "; recent " .. table.concat(S.recent, " ")
 end

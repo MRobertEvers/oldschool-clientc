@@ -327,9 +327,9 @@ selftest_quest_cook(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
     ToriRSServer_WorldTeleport(srv, 0, 3177, 3296);
     selftest_tick(srv);
     {
-        int ground = ToriRSServer_WorldGroundFind(srv, 3177, 3296, 0, egg);
+        int ground = ToriRSServer_WorldGroundFind(srv, srv->active_player, 3177, 3296, 0, egg);
         if( ground < 0 )
-            ground = ToriRSServer_WorldGroundFind(srv, 3169, 3291, 0, egg);
+            ground = ToriRSServer_WorldGroundFind(srv, srv->active_player, 3169, 3291, 0, egg);
         if( ground < 0 )
             ground = ToriRSServer_WorldObjAdd(srv, egg, 1, 3177, 3296, 0, -1);
         SELFTEST_CHECK(ground >= 0, "an egg should exist on the Lumbridge farm");

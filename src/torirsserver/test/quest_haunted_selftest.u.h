@@ -397,7 +397,7 @@ selftest_quest_haunted(struct ToriRSServer* srv, struct ToriRSServerPlayer* play
     haunted_snap(srv, player, 0, 3092, 9755);
     if( obj_oil > 0 )
     {
-        int ground = ToriRSServer_WorldGroundFind(srv, 3092, 9755, 0, obj_oil);
+        int ground = ToriRSServer_WorldGroundFind(srv, srv->active_player, 3092, 9755, 0, obj_oil);
         if( ground < 0 )
             ground = ToriRSServer_WorldObjAdd(srv, obj_oil, 1, 3092, 9755, 0, -1);
         SELFTEST_CHECK(ground >= 0, "oil_can should exist in the maze");
@@ -420,7 +420,7 @@ selftest_quest_haunted(struct ToriRSServer* srv, struct ToriRSServerPlayer* play
     {
         haunted_snap(srv, player, 0, 3111, 3367);
         {
-            int ground = ToriRSServer_WorldGroundFind(srv, 3111, 3367, 0, obj_tube);
+            int ground = ToriRSServer_WorldGroundFind(srv, srv->active_player, 3111, 3367, 0, obj_tube);
             if( ground < 0 )
                 ground = ToriRSServer_WorldObjAdd(srv, obj_tube, 1, 3111, 3367, 0, -1);
             if( ground >= 0 )
