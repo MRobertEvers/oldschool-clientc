@@ -1,4 +1,5 @@
 #include "cachepack.h"
+#include "cp_incremental.h"
 #include "rscache_register.h"
 
 #include "cp_assets.h"
@@ -507,6 +508,24 @@ main(int argc, char** argv)
     {
         fprintf(stderr, "cachepack: --rev is required (or run unpack first so meta.ini exists)\n");
         return 1;
+    }
+
+    /*
+     * The whole server pack, already current: answered from stats against the
+     * input list the last build recorded, before any name table is loaded —
+     * loading them is most of what a build that changes nothing would cost.
+     */
+    if( strcmp(command, "pack") == 0 && server_only && sel.all && !force_server )
+    {
+        char server_dir[1100];
+
+        if( server_out )
+            snprintf(server_dir, sizeof(server_dir), "%s", server_out);
+        else
+            snprintf(server_dir, sizeof(server_dir), "%s/server/pack", src_dir);
+        if( cp_server_up_to_date(src_dir, server_dir, (const char* const*)ctx.lanes, ctx.lane_count,
+                                 argv[0]) )
+            return 0;
     }
 
     if( !cp_names_load(&ctx.names, src_dir) )

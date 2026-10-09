@@ -1,6 +1,8 @@
 #ifndef RSCACHE_TOOLS_LC_PACK_H
 #define RSCACHE_TOOLS_LC_PACK_H
 
+#include <stdint.h>
+
 /*
  * LostCity `content/pack/<type>.pack` files: `id=name` per line, sparse, sorted by id
  * on write.
@@ -127,6 +129,17 @@ struct LC_Pack
      * thinned.
      */
     int malformed;
+    /**
+     * Name -> lowest id carrying it, built on the first `lc_pack_find` and kept
+     * current by `lc_pack_set` while valid. Anything else that writes a name
+     * drops it (`index_valid = 0`) and the next find rebuilds it. A find used to
+     * scan every id, and the server pack calls it about three times per record:
+     * on the 62,000 locs that was most of a two-minute build.
+     */
+    int32_t* index_slots;
+    int index_capacity;
+    int index_used;
+    int index_valid;
 };
 
 enum LC_PackKind

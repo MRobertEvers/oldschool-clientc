@@ -217,14 +217,53 @@ struct SSC_VarpCarrier
     int sample_end[SSC_CARRIER_SAMPLES];
 };
 
+/**
+ * What a compile asked the symbol table, recorded per source file so an
+ * incremental build can ask again and recompile only the files whose answers
+ * moved (ssc_build.c). SSC_QUERY_SCRIPT is the compiler's own table of script
+ * names, asked through the same observer.
+ */
+enum SSC_Query
+{
+    SSC_QUERY_FIND = 1,    /* SSC_SymbolsFind(name, kind) */
+    SSC_QUERY_VALUE = 2,   /* SSC_SymbolsFindValue(name) */
+    SSC_QUERY_KINDS = 3,   /* SSC_SymbolsValueKinds(name) */
+    SSC_QUERY_CARRIER = 4, /* SSC_SymbolsCarrier(varp = arg) */
+    SSC_QUERY_SCRIPT = 5,  /* the script id and signature of `name` */
+};
+
+typedef void (*SSC_QueryObserver)(void* context, int query, const char* name, int32_t arg);
+/** `is_dir`: a directory listed, or searched for a file that was not there. */
+typedef void (*SSC_InputObserver)(void* context, const char* path, int is_dir);
+
+/** One distinct name's chain in the symbol index: its first and last entry. */
+struct SSC_SymbolSlot
+{
+    int32_t head;
+    int32_t tail;
+};
+
 struct SSC_Symbols
 {
     struct SSC_Symbol* entries;
     int count;
     int capacity;
-    /** Sorted index over `entries`, rebuilt when a load adds names. */
+    /** Sorted permutation of `entries`, built only for SSC_SymbolsValidate's
+     *  adjacent-pair rules; lookups go through the name index below. */
     int32_t* order;
     int sorted;
+    /** Name index: open-addressed slots, one per distinct name, each the chain
+     *  of entries carrying that name in insertion order (`name_next`). */
+    struct SSC_SymbolSlot* name_slots;
+    int name_slot_capacity;
+    int name_slot_used;
+    int32_t* name_next;
+    int name_next_capacity;
+
+    /** Optional observers; NULL for an ordinary build. */
+    SSC_QueryObserver observe;
+    SSC_InputObserver observe_input;
+    void* observe_context;
 
     /** Carriers, keyed by varp id, in insertion order. See SSC_SymbolsCarrier. */
     struct SSC_VarpCarrier* carriers;
@@ -418,6 +457,26 @@ SSC_SymbolsLoadConstantDir(
 int
 SSC_SymbolsValidate(struct SSC_Symbols* symbols);
 
+/**
+ * Ask `query` again, without observing it, and hash the answer: the value, the
+ * kind and the text of every symbol it returns (0 answers hash too). Two tables
+ * that give one query the same digest compile it to the same thing.
+ */
+uint64_t
+SSC_SymbolsQueryDigest(
+    struct SSC_Symbols* symbols,
+    int query,
+    const char* name,
+    int32_t arg);
+
+struct dirent;
+/** 1 for a directory, 0 for anything else, -1 when it cannot be read. Uses the
+ *  entry's d_type where the platform has one and stat() where it does not. */
+int
+SSC_DirEntryIsDir(
+    const struct dirent* entry,
+    const char* path);
+
 /** NULL when the name is unknown. `kind` may be SSC_SYM_UNKNOWN to match any. */
 const struct SSC_Symbol*
 SSC_SymbolsFind(
@@ -490,6 +549,64 @@ SSC_Declare(
     const char* path,
     struct SSC_Diag* diag);
 
+/**
+ * One script header as the declare pass reads it: the name and the signature
+ * call sites check against. A pure function of the file's text — nothing here
+ * depends on another file or on the symbol table — which is what lets an
+ * incremental build keep it per file (ssc_build.c).
+ */
+struct SSC_Decl
+{
+    char name[SSC_MAX_NAME];
+    int line;
+    /** 1 for `[debugproc,*]`, 2 for `[login,_]`: names that must be declared
+     *  once and get their own duplicate diagnostic. */
+    int singleton;
+    int8_t int_args;
+    int8_t str_args;
+    int8_t str_return;
+    int8_t int_returns;
+    int8_t str_returns;
+    uint8_t param_kinds[SS_MAX_PARAM_TYPES];
+};
+
+/** Read `path`'s headers into a malloc'd array the caller frees. */
+int
+SSC_ScanDeclarations(
+    const char* path,
+    struct SSC_Decl** out_decls,
+    int* out_count,
+    struct SSC_Diag* diag);
+
+/**
+ * Check one declaration against everything registered so far.
+ *
+ * Returns 1 when it needs an id (pass it to SSC_DeclareAt), 0 when it is a lane
+ * seam a strong root already declared (no id; the compile pass drops its body),
+ * -1 on a duplicate, with `diag` filled in. Register every strong root's
+ * declarations before any weak (`weak` = 1) one.
+ */
+int
+SSC_DeclarePrepare(
+    struct SSC_Compiler* compiler,
+    const struct SSC_Decl* decl,
+    const char* path,
+    int weak,
+    struct SSC_Diag* diag);
+
+/** Register a prepared declaration at script id `id`, which must be free. */
+int
+SSC_DeclareAt(
+    struct SSC_Compiler* compiler,
+    const struct SSC_Decl* decl,
+    int id,
+    int weak);
+
+/** Grow the id table to at least `size` slots — the ids of retired scripts
+ *  stay in the pack as empty slots rather than being reused. */
+int
+SSC_DeclareTableSize(struct SSC_Compiler* compiler, int size);
+
 int
 SSC_CompileFile(
     struct SSC_Compiler* compiler,
@@ -554,6 +671,43 @@ SSC_Write(
 
 int
 SSC_ScriptCount(const struct SSC_Compiler* compiler);
+
+typedef void (*SSC_WarningSink)(void* context, int ambiguous, const char* text);
+
+/** Observe every symbol-table and script-name query the compiler makes. */
+void
+SSC_SetObserver(
+    struct SSC_Compiler* compiler,
+    SSC_QueryObserver observe,
+    void* context);
+
+/** Take the compiler's warnings (each a whole line, newline included) instead
+ *  of letting it print them. With a sink set every ambiguous-name warning is
+ *  delivered; the "first 20" cut is the sink's to make. */
+void
+SSC_SetWarningSink(
+    struct SSC_Compiler* compiler,
+    SSC_WarningSink sink,
+    void* context);
+
+/** The digest of a SSC_QUERY_SCRIPT answer: the id and the signature callers
+ *  compile against, or "no such script". */
+uint64_t
+SSC_ScriptQueryDigest(
+    struct SSC_Compiler* compiler,
+    const char* name);
+
+/** A seam name a strong root took over (its body is not compiled). */
+int
+SSC_IsShadowed(
+    struct SSC_Compiler* compiler,
+    const char* name);
+
+/** Mark the files compiled next as a lane seam root's (see SSC_SourceRoot). */
+void
+SSC_SetWeakSource(
+    struct SSC_Compiler* compiler,
+    int weak);
 
 /** Bare names compiled where nothing said which namespace was meant, each one
  *  already printed by `report_ambiguous_name`. A count on the summary line is

@@ -23,6 +23,16 @@
  * --lane       compile this lane, named by its directory under `ported/`
  * --no-lane    leave this lane out even though its descriptor says default=on
  * --list-lanes print the lanes this tree declares, and stop
+ * --full       recompile every unit (the incremental build keeps the ids)
+ * --renumber   forget the stable ids and number the tree afresh
+ * --verbose    print every unit's line, not only those that compiled
+ * --dry-run    print what is stale and why; write nothing
+ * --explain F  print why the unit (or input) matching F is stale; write nothing
+ * --serve DIR  the content selftest's recompile loop; a non-incremental build
+ *
+ * A build is incremental: <out>/ssc.state remembers what every source file
+ * compiled to and what it asked the symbol table, and only the files whose text
+ * or answers moved compile again. See ssc_build.h and docs/serverpack.md.
  *
  * Lanes are described by `<content-root>/ported/<lane>/lane.ini` and nothing
  * else — see ssc_lane.h. A lane the build does not select contributes no
@@ -35,8 +45,12 @@
  */
 
 #include "ssc.h"
+#include "ssc_build.h"
+#include "ssc_hash.h"
 #include "ssc_lane.h"
+#include "ssvm_provider.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <time.h>
 #ifdef _WIN32
@@ -60,7 +74,8 @@ usage(void)
     fprintf(stderr,
             "usage: sscompile --src DIR --out DIR [--pack DIR]... "
             "[--component-root DIR]... [--constants DIR] [--content-root DIR] "
-            "[--seams DIR]... [--lane NAME]... [--no-lane NAME]... [--list-lanes] [--serve DIR]\n");
+            "[--seams DIR]... [--lane NAME]... [--no-lane NAME]... [--list-lanes] [--serve DIR]\n"
+            "                 [--full] [--renumber] [--verbose] [--dry-run] [--explain FILE]\n");
 }
 
 static int
@@ -69,6 +84,178 @@ path_exists(const char* path)
     struct stat info;
 
     return stat(path, &info) == 0;
+}
+
+/* Everything the symbol table is loaded from, so the load can be a callback:
+ * an incremental build that finds nothing changed never loads it at all. */
+struct SymbolSources
+{
+    const char* const* packs;
+    int pack_count;
+    const char* const* component_roots;
+    int component_root_count;
+    const char* constants;
+    const char* content_root;
+    const char* src;
+    const struct SSC_LaneSet* lane_set;
+};
+
+static int
+load_symbols(void* context, struct SSC_Symbols* symbols)
+{
+    const struct SymbolSources* sources = (const struct SymbolSources*)context;
+    int symbol_count = 0;
+    int component_count = 0;
+    int constant_count = 0;
+    int dbcolumn_count = 0;
+    int i;
+    int j;
+
+    for( i = 0; i < sources->pack_count; i++ )
+    {
+        int loaded = SSC_SymbolsLoadPackDir(symbols, sources->packs[i]);
+
+        /*
+         * A missing --pack directory warns rather than fails.
+         *
+         * It used to be fatal, which looked careful and was not: a content tree
+         * splits its names across several directories and the *set* of them
+         * changes as the tree is reorganised, so one that has not been created
+         * yet stopped the build for every tree, including the ones that never
+         * had it. Nothing can pass silently either way — a name that does not
+         * resolve is still a hard compile error a few lines below, so the only
+         * thing tolerating this loses is a worse diagnostic for a typo'd path.
+         */
+        if( loaded < 0 )
+        {
+            fprintf(stderr, "sscompile: no symbol packs at %s (skipping)\n", sources->packs[i]);
+            continue;
+        }
+        symbol_count += loaded;
+    }
+    /* A lane's single-file indexes, after its directories: same table, and the
+     * file is named because the directory around it must not be read. */
+    for( i = 0; i < sources->lane_set->count; i++ )
+    {
+        const struct SSC_Lane* lane = &sources->lane_set->lanes[i];
+
+        if( !lane->enabled )
+            continue;
+        for( j = 0; j < lane->pack_file_count; j++ )
+        {
+            int loaded = SSC_SymbolsLoadPackFile(symbols, lane->pack_files[j]);
+
+            if( loaded < 0 )
+            {
+                fprintf(stderr, "sscompile: lane '%s' names a missing index %s\n", lane->name,
+                        lane->pack_files[j]);
+                return 0;
+            }
+            symbol_count += loaded;
+        }
+    }
+    /*
+     * Components, after the packs because they compose against the interface ids
+     * those load. There is no `pack/component.pack`: a component's name lives in
+     * `interfaces/<name>.compack` and its id is `(interface << 16) | child`.
+     */
+    component_count = SSC_SymbolsLoadComponentDir(symbols, sources->content_root);
+    for( i = 0; i < sources->component_root_count; i++ )
+    {
+        int loaded = SSC_SymbolsLoadComponentDir(symbols, sources->component_roots[i]);
+
+        if( loaded < 0 )
+        {
+            fprintf(stderr, "sscompile: no component indexes at %s (skipping)\n",
+                    sources->component_roots[i]);
+            continue;
+        }
+        component_count += loaded;
+    }
+    /* Imported cache schemas live beside their all.<type>.compack indexes.
+     * Load them only after every pack directory has contributed table names;
+     * a column token needs the table id in order to be composed. */
+    for( i = 0; i < sources->pack_count; i++ )
+    {
+        int loaded = SSC_SymbolsLoadDbTableDir(symbols, sources->packs[i]);
+
+        if( loaded > 0 )
+            dbcolumn_count += loaded;
+    }
+    constant_count = SSC_SymbolsLoadConstantDir(symbols, sources->constants);
+    {
+        int loaded = SSC_SymbolsLoadDbTableDir(symbols, sources->constants);
+
+        if( loaded > 0 )
+            dbcolumn_count += loaded;
+    }
+    /*
+     * Every lane's flag, both ways round.
+     *
+     * A lane that is off still has to *have* its constant, at 0: shared files
+     * test `^curses_enabled` unconditionally, and an undefined constant is a
+     * compile error rather than a false. This is the build's answer, not
+     * content's — no file in the tree can know which lanes this pack was asked
+     * for — which is why it is declared here rather than staged into a copy of
+     * the constant tree, as it was when a python step owned the same two values.
+     */
+    for( i = 0; i < sources->lane_set->count; i++ )
+    {
+        const struct SSC_Lane* lane = &sources->lane_set->lanes[i];
+        char origin[256];
+
+        if( !lane->constant[0] )
+            continue;
+        snprintf(origin, sizeof(origin), "lane %s", lane->name);
+        if( !SSC_SymbolsDefineConstant(symbols, lane->constant, lane->enabled ? "1" : "0",
+                                       origin) )
+        {
+            fprintf(stderr, "sscompile: lane '%s' cannot declare ^%s\n", lane->name,
+                    lane->constant);
+            return 0;
+        }
+        constant_count += (constant_count >= 0);
+    }
+    SSC_SymbolsSeedBuiltins(symbols);
+
+    /*
+     * Which varps other variables live inside, and which of those content has
+     * declared it may still write whole. Both after the packs, because the first
+     * resolves `basevar=<name>` through the varp symbols and the second resolves
+     * the `[section]` headers of a `.varp` the same way.
+     */
+    for( i = 0; i < sources->pack_count; i++ )
+        SSC_SymbolsLoadVarbitBases(symbols, sources->packs[i]);
+    SSC_SymbolsLoadVarpDecls(symbols, sources->src);
+
+    /* The two exemptions are counted apart because they are not the same claim:
+     * `wholewrite` licenses destroying a neighbour's variable, `wholeread` only
+     * licenses reading the packed word. One number would have hidden a rise in
+     * the first behind a rise in the second. */
+    printf("symbols: %d from packs, %d components, %d constants, %d db columns, "
+           "%d carrier varp(s), %d whole-write exemption(s), %d whole-read\n",
+           symbol_count, component_count, constant_count < 0 ? 0 : constant_count,
+           dbcolumn_count < 0 ? 0 : dbcolumn_count, symbols->carrier_count,
+           symbols->exempt_count, symbols->read_exempt_count);
+
+    /*
+     * Before a single line is compiled, and fatal.
+     *
+     * A table that answers a name two ways does not fail loudly later — it
+     * compiles, to whichever answer the sort happened to put first. See
+     * SSC_SymbolsValidate for the two rules and why both cost nothing today.
+     */
+    {
+        int problems = SSC_SymbolsValidate(symbols);
+
+        if( problems )
+        {
+            fprintf(stderr, "sscompile: %d symbol-table problem(s) — refusing to compile\n",
+                    problems);
+            return 0;
+        }
+    }
+    return 1;
 }
 
 int
@@ -89,6 +276,13 @@ main(int argc, char** argv)
     const char* unwanted_lanes[SSC_LANE_MAX];
     int unwanted_lane_count = 0;
     int list_lanes = 0;
+    int full = 0;
+    int renumber = 0;
+    int verbose = 0;
+    int dry_run = 0;
+    const char* explain = NULL;
+    char lanes_label[512];
+    struct SymbolSources sources;
     struct SSC_LaneSet lane_set;
     struct SSC_SourceRoot source_roots[SSC_MAIN_MAX_SOURCE_ROOTS];
     int source_root_count = 0;
@@ -104,10 +298,6 @@ main(int argc, char** argv)
     struct SSC_Compiler* compiler;
     const char* serve = NULL;
     struct SSC_Diag diag;
-    int symbol_count = 0;
-    int component_count = 0;
-    int constant_count = 0;
-    int dbcolumn_count = 0;
     int i;
     int j;
     int status = 0;
@@ -173,6 +363,16 @@ main(int argc, char** argv)
         }
         else if( strcmp(argv[i], "--list-lanes") == 0 )
             list_lanes = 1;
+        else if( strcmp(argv[i], "--full") == 0 )
+            full = 1;
+        else if( strcmp(argv[i], "--renumber") == 0 )
+            renumber = 1;
+        else if( strcmp(argv[i], "--verbose") == 0 )
+            verbose = 1;
+        else if( strcmp(argv[i], "--dry-run") == 0 )
+            dry_run = 1;
+        else if( strcmp(argv[i], "--explain") == 0 && i + 1 < argc )
+            explain = argv[++i];
         else
         {
             usage();
@@ -325,173 +525,6 @@ main(int argc, char** argv)
     if( !constants )
         constants = src;
 
-    SSC_SymbolsInit(&symbols);
-    for( i = 0; i < pack_count; i++ )
-    {
-        int loaded = SSC_SymbolsLoadPackDir(&symbols, packs[i]);
-
-        /*
-         * A missing --pack directory warns rather than fails.
-         *
-         * It used to be fatal, which looked careful and was not: a content tree
-         * splits its names across several directories and the *set* of them
-         * changes as the tree is reorganised, so one that has not been created
-         * yet stopped the build for every tree, including the ones that never
-         * had it. Nothing can pass silently either way — a name that does not
-         * resolve is still a hard compile error a few lines below, so the only
-         * thing tolerating this loses is a worse diagnostic for a typo'd path.
-         */
-        if( loaded < 0 )
-        {
-            fprintf(stderr, "sscompile: no symbol packs at %s (skipping)\n", packs[i]);
-            continue;
-        }
-        symbol_count += loaded;
-    }
-    /* A lane's single-file indexes, after its directories: same table, and the
-     * file is named because the directory around it must not be read. */
-    for( i = 0; i < lane_set.count; i++ )
-    {
-        struct SSC_Lane* lane = &lane_set.lanes[i];
-
-        if( !lane->enabled )
-            continue;
-        for( j = 0; j < lane->pack_file_count; j++ )
-        {
-            int loaded = SSC_SymbolsLoadPackFile(&symbols, lane->pack_files[j]);
-
-            if( loaded < 0 )
-            {
-                fprintf(stderr, "sscompile: lane '%s' names a missing index %s\n", lane->name,
-                        lane->pack_files[j]);
-                SSC_SymbolsFree(&symbols);
-                return 1;
-            }
-            symbol_count += loaded;
-        }
-    }
-    /*
-     * Components, after the packs because they compose against the interface ids
-     * those load. There is no `pack/component.pack`: a component's name lives in
-     * `interfaces/<name>.compack` and its id is `(interface << 16) | child`.
-     */
-    component_count = SSC_SymbolsLoadComponentDir(&symbols, content_root);
-    for( i = 0; i < component_root_count; i++ )
-    {
-        int loaded = SSC_SymbolsLoadComponentDir(&symbols, component_roots[i]);
-
-        if( loaded < 0 )
-        {
-            fprintf(stderr, "sscompile: no component indexes at %s (skipping)\n",
-                    component_roots[i]);
-            continue;
-        }
-        component_count += loaded;
-    }
-    /* Imported cache schemas live beside their all.<type>.compack indexes.
-     * Load them only after every pack directory has contributed table names;
-     * a column token needs the table id in order to be composed. */
-    for( i = 0; i < pack_count; i++ )
-    {
-        int loaded = SSC_SymbolsLoadDbTableDir(&symbols, packs[i]);
-
-        if( loaded > 0 )
-            dbcolumn_count += loaded;
-    }
-    constant_count = SSC_SymbolsLoadConstantDir(&symbols, constants);
-    {
-        int loaded = SSC_SymbolsLoadDbTableDir(&symbols, constants);
-
-        if( loaded > 0 )
-            dbcolumn_count += loaded;
-    }
-    /*
-     * Every lane's flag, both ways round.
-     *
-     * A lane that is off still has to *have* its constant, at 0: shared files
-     * test `^curses_enabled` unconditionally, and an undefined constant is a
-     * compile error rather than a false. This is the build's answer, not
-     * content's — no file in the tree can know which lanes this pack was asked
-     * for — which is why it is declared here rather than staged into a copy of
-     * the constant tree, as it was when a python step owned the same two values.
-     */
-    for( i = 0; i < lane_set.count; i++ )
-    {
-        struct SSC_Lane* lane = &lane_set.lanes[i];
-        char origin[256];
-
-        if( !lane->constant[0] )
-            continue;
-        snprintf(origin, sizeof(origin), "lane %s", lane->name);
-        if( !SSC_SymbolsDefineConstant(&symbols, lane->constant, lane->enabled ? "1" : "0",
-                                       origin) )
-        {
-            fprintf(stderr, "sscompile: lane '%s' cannot declare ^%s\n", lane->name,
-                    lane->constant);
-            SSC_SymbolsFree(&symbols);
-            return 1;
-        }
-        constant_count += (constant_count >= 0);
-    }
-    SSC_SymbolsSeedBuiltins(&symbols);
-
-    /*
-     * Which varps other variables live inside, and which of those content has
-     * declared it may still write whole. Both after the packs, because the first
-     * resolves `basevar=<name>` through the varp symbols and the second resolves
-     * the `[section]` headers of a `.varp` the same way.
-     */
-    for( i = 0; i < pack_count; i++ )
-        SSC_SymbolsLoadVarbitBases(&symbols, packs[i]);
-    SSC_SymbolsLoadVarpDecls(&symbols, src);
-
-    /* The two exemptions are counted apart because they are not the same claim:
-     * `wholewrite` licenses destroying a neighbour's variable, `wholeread` only
-     * licenses reading the packed word. One number would have hidden a rise in
-     * the first behind a rise in the second. */
-    printf("symbols: %d from packs, %d components, %d constants, %d db columns, "
-           "%d carrier varp(s), %d whole-write exemption(s), %d whole-read\n",
-           symbol_count, component_count, constant_count < 0 ? 0 : constant_count,
-           dbcolumn_count < 0 ? 0 : dbcolumn_count, symbols.carrier_count,
-           symbols.exempt_count, symbols.read_exempt_count);
-
-    /* Named, not counted. "3 of 4 lanes" is exactly the report that lets a
-     * session spend an hour on content that was never compiled. */
-    if( lane_set.count )
-    {
-        printf("lanes: %d of %d compiled —", enabled_lane_count, lane_set.count);
-        for( i = 0; i < lane_set.count; i++ )
-            printf(" %s=%s", lane_set.lanes[i].name, lane_set.lanes[i].enabled ? "on" : "off");
-        printf("\n");
-    }
-
-    /*
-     * Before a single line is compiled, and fatal.
-     *
-     * A table that answers a name two ways does not fail loudly later — it
-     * compiles, to whichever answer the sort happened to put first. See
-     * SSC_SymbolsValidate for the two rules and why both cost nothing today.
-     */
-    {
-        int problems = SSC_SymbolsValidate(&symbols);
-
-        if( problems )
-        {
-            fprintf(stderr, "sscompile: %d symbol-table problem(s) — refusing to compile\n",
-                    problems);
-            SSC_SymbolsFree(&symbols);
-            return 1;
-        }
-    }
-
-    compiler = SSC_New(&symbols);
-    if( !compiler )
-    {
-        fprintf(stderr, "sscompile: out of memory\n");
-        SSC_SymbolsFree(&symbols);
-        return 1;
-    }
-
     /*
      * `--src` last among the strong roots and the seams last of all, so the
      * declaration order is: the base tree, then the lanes it does have, then the
@@ -501,8 +534,6 @@ main(int argc, char** argv)
     if( source_root_count == SSC_MAIN_MAX_SOURCE_ROOTS )
     {
         fprintf(stderr, "sscompile: too many source roots\n");
-        SSC_Free(compiler);
-        SSC_SymbolsFree(&symbols);
         return 1;
     }
     source_roots[source_root_count].dir = src;
@@ -521,14 +552,101 @@ main(int argc, char** argv)
         if( source_root_count == SSC_MAIN_MAX_SOURCE_ROOTS )
         {
             fprintf(stderr, "sscompile: too many source roots\n");
-            SSC_Free(compiler);
-            SSC_SymbolsFree(&symbols);
             return 1;
         }
         source_roots[source_root_count].dir = seams[i];
         source_roots[source_root_count].weak = 1;
         source_root_count++;
     }
+
+    sources.packs = packs;
+    sources.pack_count = pack_count;
+    sources.component_roots = component_roots;
+    sources.component_root_count = component_root_count;
+    sources.constants = constants;
+    sources.content_root = content_root;
+    sources.src = src;
+    sources.lane_set = &lane_set;
+
+    /* Named, not counted. "3 of 4 lanes" is exactly the report that lets a
+     * session spend an hour on content that was never compiled. */
+    lanes_label[0] = '\0';
+    if( lane_set.count )
+    {
+        printf("lanes: %d of %d compiled —", enabled_lane_count, lane_set.count);
+        for( i = 0; i < lane_set.count; i++ )
+        {
+            printf(" %s=%s", lane_set.lanes[i].name, lane_set.lanes[i].enabled ? "on" : "off");
+            if( lane_set.lanes[i].enabled )
+            {
+                size_t used = strlen(lanes_label);
+
+                snprintf(lanes_label + used, sizeof(lanes_label) - used, "%s%s", used ? " " : "",
+                         lane_set.lanes[i].name);
+            }
+        }
+        printf("\n");
+    }
+
+    /*
+     * The incremental build, unless a --serve session wants the whole program in
+     * memory to recompile against. Everything that decides what a unit compiles
+     * to without being a file the build reads goes into the configuration key:
+     * the compiler binary, the format version, the lane selection and each
+     * lane's descriptor, and every root and pack directory in order.
+     */
+    if( !serve )
+    {
+        struct SSC_BuildOptions options;
+        uint64_t key = ssc_hash_u64(SSC_HASH_SEED, SSVM_COMPILER_VERSION);
+
+        key = ssc_hash_u64(key, SSC_BuildExecutableHash(argv[0]));
+        for( i = 0; i < pack_count; i++ )
+            key = ssc_hash_str(key, packs[i]);
+        for( i = 0; i < component_root_count; i++ )
+            key = ssc_hash_str(key, component_roots[i]);
+        key = ssc_hash_str(key, constants);
+        key = ssc_hash_str(key, content_root);
+        for( i = 0; i < source_root_count; i++ )
+            key = ssc_hash_u64(ssc_hash_str(key, source_roots[i].dir), (uint64_t)source_roots[i].weak);
+        for( i = 0; i < exclude_count; i++ )
+            key = ssc_hash_str(key, excludes[i]);
+        for( i = 0; i < lane_set.count; i++ )
+        {
+            const struct SSC_Lane* lane = &lane_set.lanes[i];
+
+            key = ssc_hash_str(key, lane->name);
+            key = ssc_hash_u64(key, (uint64_t)lane->enabled);
+            key = ssc_hash_str(key, lane->constant);
+        }
+
+        memset(&options, 0, sizeof(options));
+        options.out = out;
+        options.content_root = content_root;
+        options.roots = source_roots;
+        options.root_count = source_root_count;
+        options.excludes = excludes;
+        options.exclude_count = exclude_count;
+        options.config_key = key;
+        options.lanes = lanes_label;
+        options.load_symbols = load_symbols;
+        options.load_context = &sources;
+        options.full = full;
+        options.renumber = renumber;
+        options.verbose = verbose;
+        options.explain = explain;
+        options.dry_run = dry_run;
+        return SSC_BuildPack(&options);
+    }
+
+    SSC_SymbolsInit(&symbols);
+    if( !load_symbols(&sources, &symbols) )
+    {
+        SSC_SymbolsFree(&symbols);
+        return 1;
+    }
+    compiler = SSC_New(&symbols);
+    assert(compiler);
     memset(&diag, 0, sizeof(diag));
     if( !SSC_CompileRoots(compiler, source_roots, source_root_count, excludes, exclude_count,
                           &diag) )
@@ -547,10 +665,6 @@ main(int argc, char** argv)
     else
     {
         printf("compiled %d scripts to %s/script.dat\n", SSC_ScriptCount(compiler), out);
-        /* Names nothing in the source could type, each already printed above.
-         * On the summary line so the number is visible when the warnings have
-         * scrolled past, and so a new collision reads as a number that went up
-         * rather than as one more line in a long build. */
         if( SSC_AmbiguousNameCount(compiler) )
             printf("  %d bare name(s) resolved by namespace sort order alone\n",
                    SSC_AmbiguousNameCount(compiler));

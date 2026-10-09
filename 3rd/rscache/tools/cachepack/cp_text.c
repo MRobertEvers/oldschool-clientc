@@ -1,3 +1,4 @@
+#include <stdint.h>
 #include "cp_text.h"
 #include "tool_posix_compat.h"
 
@@ -405,6 +406,9 @@ config_file_read(
     int line_no = 0;
     struct CP_Config* current = NULL;
     int ok = 1;
+    int* seen = NULL;
+    uint32_t seen_capacity = 0;
+    uint32_t seen_used = 0;
 
     while( (len = getline(&line, &cap, f)) > 0 )
     {
@@ -432,14 +436,51 @@ config_file_read(
             }
             char* name = dup_range(line + 1, (size_t)len - 2);
             /* A duplicate name is a lost record, not a merge: whichever block the
-             * packer reached last would win silently. */
-            for( int i = 0; i < file->count; i++ )
+             * packer reached last would win silently. Hashed: a scan of every
+             * earlier block was quadratic in the file, and all.loc has 62,000. */
             {
-                if( strcmp(file->configs[i].debugname, name) == 0 )
+                uint32_t hash = 2166136261u;
+                uint32_t slot;
+
+                for( const char* c = name; *c; c++ )
+                    hash = (hash ^ (uint8_t)*c) * 16777619u;
+                if( (seen_used + 1) * 2 > seen_capacity )
                 {
-                    fprintf(stderr, "%s:%d: duplicate config: %s\n", path, line_no, name);
-                    ok = 0;
-                    break;
+                    seen_capacity = seen_capacity ? seen_capacity * 2 : 1024;
+                    free(seen);
+                    seen = (int*)malloc(seen_capacity * sizeof(int));
+                    assert(seen);
+                    memset(seen, -1, seen_capacity * sizeof(int));
+                    seen_used = 0;
+                    for( int i = 0; i < file->count; i++ )
+                    {
+                        uint32_t h = 2166136261u;
+
+                        for( const char* c = file->configs[i].debugname; *c; c++ )
+                            h = (h ^ (uint8_t)*c) * 16777619u;
+                        slot = h & (seen_capacity - 1);
+                        while( seen[slot] >= 0 )
+                            slot = (slot + 1) & (seen_capacity - 1);
+                        seen[slot] = i;
+                        seen_used++;
+                    }
+                }
+                slot = hash & (seen_capacity - 1);
+                while( seen[slot] >= 0 )
+                {
+                    if( strcmp(file->configs[seen[slot]].debugname, name) == 0 )
+                    {
+                        fprintf(stderr, "%s:%d: duplicate config: %s\n", path, line_no, name);
+                        ok = 0;
+                        break;
+                    }
+                    slot = (slot + 1) & (seen_capacity - 1);
+                }
+                if( ok )
+                {
+                    /* The block pushed just below takes index `file->count`. */
+                    seen[slot] = file->count;
+                    seen_used++;
                 }
             }
             if( !ok )
@@ -507,6 +548,7 @@ config_file_read(
         }
     }
 
+    free(seen);
     free(line);
     fclose(f);
     if( !ok )

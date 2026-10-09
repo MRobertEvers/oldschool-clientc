@@ -13,6 +13,7 @@
  */
 
 #include "ssc.h"
+#include "ssc_hash.h"
 #include <assert.h>
 
 #include "content/content_register.h"
@@ -24,6 +25,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+static FILE*
+symbols_fopen(
+    const struct SSC_Symbols* symbols,
+    const char* path);
+static DIR*
+symbols_opendir(
+    const struct SSC_Symbols* symbols,
+    const char* dir);
 
 /* ------------------------------------------------------------------ */
 
@@ -48,10 +58,117 @@ SSC_SymbolsFree(struct SSC_Symbols* symbols)
     }
     free(symbols->entries);
     free(symbols->order);
+    free(symbols->name_slots);
+    free(symbols->name_next);
     free(symbols->carriers);
     free(symbols->exempt);
     free(symbols->read_exempt);
     memset(symbols, 0, sizeof(*symbols));
+}
+
+/*
+ * The name index: every distinct name maps to the chain of entries that carry
+ * it, in insertion order.
+ *
+ * The lookups used to binary-search a name-sorted permutation of `entries`,
+ * and every load that interleaves adds with lookups (a dbtable file resolving
+ * its table before adding its columns, the builtins checking for a pack name
+ * before seeding one, a constant checking for its own duplicate) re-sorted all
+ * ~250,000 names for the next lookup. That was two thirds of a full compile:
+ * 11 of 17 seconds on the 2026-10-09 tree, before a single script was read.
+ * A hash insert keeps the index current for free, so nothing is ever re-sorted
+ * on the lookup path.
+ */
+static uint32_t
+name_hash(const char* name)
+{
+    uint32_t hash = 2166136261u;
+
+    for( ; *name; name++ )
+        hash = (hash ^ (uint8_t)*name) * 16777619u;
+    return hash;
+}
+
+/** The slot holding `name`'s chain, or the empty slot where it would go. */
+static int
+index_slot(const struct SSC_Symbols* symbols, const char* name)
+{
+    uint32_t mask = (uint32_t)symbols->name_slot_capacity - 1;
+    uint32_t slot = name_hash(name) & mask;
+
+    for( ;; )
+    {
+        int32_t head = symbols->name_slots[slot].head;
+
+        if( head < 0 || strcmp(symbols->entries[head].name, name) == 0 )
+            return (int)slot;
+        slot = (slot + 1) & mask;
+    }
+}
+
+static void index_insert(struct SSC_Symbols* symbols, int entry);
+
+static void
+index_rebuild(struct SSC_Symbols* symbols, int capacity)
+{
+    int count = symbols->count;
+
+    free(symbols->name_slots);
+    symbols->name_slot_capacity = capacity;
+    symbols->name_slots =
+        (struct SSC_SymbolSlot*)malloc((size_t)capacity * sizeof(*symbols->name_slots));
+    assert(symbols->name_slots);
+    for( int i = 0; i < capacity; i++ )
+    {
+        symbols->name_slots[i].head = -1;
+        symbols->name_slots[i].tail = -1;
+    }
+    symbols->name_slot_used = 0;
+    /* Re-inserting in entry order is what keeps each chain in insertion order. */
+    for( int i = 0; i < count; i++ )
+        index_insert(symbols, i);
+}
+
+static void
+index_insert(struct SSC_Symbols* symbols, int entry)
+{
+    int slot;
+
+    if( symbols->name_next_capacity < symbols->capacity )
+    {
+        symbols->name_next =
+            (int32_t*)realloc(symbols->name_next, (size_t)symbols->capacity * sizeof(int32_t));
+        assert(symbols->name_next);
+        symbols->name_next_capacity = symbols->capacity;
+    }
+    /* Half full at most, so a probe run stays short. */
+    if( (symbols->name_slot_used + 1) * 2 > symbols->name_slot_capacity )
+    {
+        index_rebuild(symbols, symbols->name_slot_capacity ? symbols->name_slot_capacity * 2
+                                                            : 4096);
+        return;
+    }
+    symbols->name_next[entry] = -1;
+    slot = index_slot(symbols, symbols->entries[entry].name);
+    if( symbols->name_slots[slot].head < 0 )
+    {
+        symbols->name_slots[slot].head = entry;
+        symbols->name_slot_used++;
+    }
+    else
+    {
+        symbols->name_next[symbols->name_slots[slot].tail] = entry;
+    }
+    symbols->name_slots[slot].tail = entry;
+}
+
+/** The first entry (in insertion order) named `name`, or -1. */
+static int
+index_first(const struct SSC_Symbols* symbols, const char* name)
+{
+    if( !symbols->name_slots )
+        return -1;
+    return symbols->name_slots[index_slot(symbols, name)].head;
 }
 
 int
@@ -88,6 +205,7 @@ SSC_SymbolsAdd(
     entry->text = text ? strdup(text) : NULL;
 
     symbols->sorted = 0;
+    index_insert(symbols, symbols->count - 1);
     return 1;
 }
 
@@ -111,7 +229,11 @@ cmp_order(
     /* Same name in two namespaces is normal (an interface and a loc can share
      * one); order by kind so a kind-qualified lookup can binary-search to the
      * right one. */
-    return (int)x->kind - (int)y->kind;
+    if( x->kind != y->kind )
+        return (int)x->kind - (int)y->kind;
+    /* Insertion order last, so the sort is total and the report it feeds reads
+     * the same on every machine. */
+    return x < y ? -1 : (x > y);
 }
 
 static void
@@ -295,57 +417,13 @@ SSC_SymbolsValidate(struct SSC_Symbols* symbols)
 }
 
 /*
- * Position in `order` of the FIRST entry named `name`, or -1.
- *
- * Both lookups below walk from here: the name-sorted order groups every kind
- * that carries a name together, so finding one of them is a binary search and
- * enumerating all of them is the walk that follows.
- */
-static int
-first_ordered_index(struct SSC_Symbols* symbols, const char* name)
-{
-    int lo;
-    int hi;
-
-    assert(symbols);
-    assert(name);
-    ensure_sorted(symbols);
-    if( !symbols->order )
-        return -1;
-
-    lo = 0;
-    hi = symbols->count - 1;
-    while( lo <= hi )
-    {
-        int mid = lo + ((hi - lo) / 2);
-        const struct SSC_Symbol* entry = &symbols->entries[symbols->order[mid]];
-        int order = strcmp(entry->name, name);
-
-        if( order < 0 )
-        {
-            lo = mid + 1;
-        }
-        else if( order > 0 )
-        {
-            hi = mid - 1;
-        }
-        else
-        {
-            int i = mid;
-
-            while( i > 0 && strcmp(symbols->entries[symbols->order[i - 1]].name, name) == 0 )
-                i--;
-            return i;
-        }
-    }
-    return -1;
-}
-
-/*
  * The shared lookup. `allow_constant` is what separates the two entry points
- * below; everything else is the walk from the first entry with this name,
- * taking the first that matches the requested kind (or any, when none was
- * requested).
+ * below.
+ *
+ * Among the entries carrying the name, the answer is the lowest kind that
+ * matches the request (any kind, when none was requested), and within one kind
+ * the first loaded — the (name, kind) order the sorted table used to give,
+ * with the tie inside one kind now broken by load order instead of by qsort.
  */
 static const struct SSC_Symbol*
 find_symbol(
@@ -354,22 +432,25 @@ find_symbol(
     enum SSC_SymbolKind kind,
     int allow_constant)
 {
-    int i = first_ordered_index(symbols, name);
+    const struct SSC_Symbol* best = NULL;
 
-    if( i < 0 )
-        return NULL;
-    for( ; i < symbols->count; i++ )
+    assert(symbols);
+    assert(name);
+    if( symbols->observe )
+        symbols->observe(symbols->observe_context,
+                         allow_constant ? SSC_QUERY_FIND : SSC_QUERY_VALUE, name, (int32_t)kind);
+    for( int i = index_first(symbols, name); i >= 0; i = symbols->name_next[i] )
     {
-        const struct SSC_Symbol* candidate = &symbols->entries[symbols->order[i]];
+        const struct SSC_Symbol* candidate = &symbols->entries[i];
 
-        if( strcmp(candidate->name, name) != 0 )
-            break;
         if( !allow_constant && candidate->kind == SSC_SYM_CONSTANT )
             continue;
-        if( kind == SSC_SYM_UNKNOWN || candidate->kind == kind )
-            return candidate;
+        if( kind != SSC_SYM_UNKNOWN && candidate->kind != kind )
+            continue;
+        if( !best || candidate->kind < best->kind )
+            best = candidate;
     }
-    return NULL;
+    return best;
 }
 
 int
@@ -379,33 +460,36 @@ SSC_SymbolsValueKinds(
     const struct SSC_Symbol** out,
     int max)
 {
-    enum SSC_SymbolKind previous = SSC_SYM_UNKNOWN;
+    const struct SSC_Symbol* first_of_kind[SSC_SYM_KIND_COUNT];
     int found = 0;
-    int i;
 
     assert(symbols);
     assert(name);
     assert(out);
     assert(max > 0);
 
-    i = first_ordered_index(symbols, name);
-    if( i < 0 )
-        return 0;
-    for( ; i < symbols->count; i++ )
+    if( symbols->observe )
+        symbols->observe(symbols->observe_context, SSC_QUERY_KINDS, name, 0);
+    memset(first_of_kind, 0, sizeof(first_of_kind));
+    for( int i = index_first(symbols, name); i >= 0; i = symbols->name_next[i] )
     {
-        const struct SSC_Symbol* candidate = &symbols->entries[symbols->order[i]];
+        const struct SSC_Symbol* candidate = &symbols->entries[i];
 
-        if( strcmp(candidate->name, name) != 0 )
-            break;
         if( candidate->kind == SSC_SYM_CONSTANT )
             continue;
-        /* The order is (name, kind), so equal kinds are adjacent: an alias pack
-         * listing the same name twice in one namespace is one kind, not two. */
-        if( found && candidate->kind == previous )
+        assert(candidate->kind < SSC_SYM_KIND_COUNT);
+        /* An alias pack listing the same name twice in one namespace is one
+         * kind, not two. */
+        if( !first_of_kind[candidate->kind] )
+            first_of_kind[candidate->kind] = candidate;
+    }
+    /* In the order a bare lookup takes them: lowest kind first. */
+    for( int k = 0; k < SSC_SYM_KIND_COUNT; k++ )
+    {
+        if( !first_of_kind[k] )
             continue;
-        previous = candidate->kind;
         if( found < max )
-            out[found] = candidate;
+            out[found] = first_of_kind[k];
         found++;
     }
     return found;
@@ -446,7 +530,7 @@ SSC_SymbolsLoadPack(
     const char* path,
     enum SSC_SymbolKind kind)
 {
-    FILE* file = fopen(path, "rb");
+    FILE* file = symbols_fopen(symbols, path);
     char line[512];
     int loaded = 0;
 
@@ -528,7 +612,7 @@ SSC_SymbolsLoadConstants(
     struct SSC_Symbols* symbols,
     const char* path)
 {
-    FILE* file = fopen(path, "rb");
+    FILE* file = symbols_fopen(symbols, path);
     char line[1024];
     int loaded = 0;
     int line_number = 0;
@@ -708,14 +792,79 @@ has_suffix(
     return name_length >= suffix_length && strcmp(name + name_length - suffix_length, suffix) == 0;
 }
 
-/* dirent's d_type is a BSD/Linux extension MinGW's dirent lacks, so classify by
- * path with stat() instead -- portable across the unix and win32 builds. Same
- * shape as ToriRSServer_PathIsDir() in src/torirsserver/torirs_server_content.c. */
-static int
-ssc_path_is_dir(const char* path)
+int
+SSC_DirEntryIsDir(
+    const struct dirent* entry,
+    const char* path)
 {
-    struct stat st;
-    return stat(path, &st) == 0 && (st.st_mode & S_IFDIR) != 0;
+    struct stat info;
+
+    assert(entry);
+    assert(path);
+    /*
+     * d_type first: it costs nothing, and a stat() per entry was what made every
+     * walk of server/scripts pay for the ~50,000 selftest screenshots under it.
+     * MinGW's dirent has no d_type, and a filesystem may answer DT_UNKNOWN (or a
+     * symlink, which stat follows), so stat() is the fallback, not the rule.
+     */
+#ifdef DT_DIR
+    if( entry->d_type == DT_DIR )
+        return 1;
+    if( entry->d_type == DT_REG )
+        return 0;
+#endif
+    if( stat(path, &info) != 0 )
+        return -1;
+    return (info.st_mode & S_IFDIR) != 0;
+}
+
+/*
+ * Every file and directory the loaders read goes through these two, so an
+ * incremental build (ssc_build.c) learns the complete set of symbol inputs
+ * without a second list of them that could drift. A probe that finds nothing
+ * reports the directory it looked in: a file appearing there changes that
+ * directory's mtime, which is how "a compack now exists" is noticed.
+ */
+static FILE*
+symbols_fopen(
+    const struct SSC_Symbols* symbols,
+    const char* path)
+{
+    FILE* file = fopen(path, "rb");
+
+    if( symbols->observe_input )
+    {
+        if( file )
+        {
+            symbols->observe_input(symbols->observe_context, path, 0);
+        }
+        else
+        {
+            char dir[1024];
+            char* slash;
+
+            snprintf(dir, sizeof(dir), "%s", path);
+            slash = strrchr(dir, '/');
+            if( slash )
+            {
+                *slash = '\0';
+                symbols->observe_input(symbols->observe_context, dir, 1);
+            }
+        }
+    }
+    return file;
+}
+
+static DIR*
+symbols_opendir(
+    const struct SSC_Symbols* symbols,
+    const char* dir)
+{
+    DIR* handle = opendir(dir);
+
+    if( handle && symbols->observe_input )
+        symbols->observe_input(symbols->observe_context, dir, 1);
+    return handle;
 }
 
 int
@@ -743,7 +892,7 @@ SSC_SymbolsLoadPackDir(
     struct SSC_Symbols* symbols,
     const char* dir)
 {
-    DIR* handle = opendir(dir);
+    DIR* handle = symbols_opendir(symbols, dir);
     struct dirent* entry;
     int loaded = 0;
 
@@ -761,7 +910,7 @@ SSC_SymbolsLoadPackDir(
          * Recurse. `SSC_SymbolsLoadConstantDir` below already does, and this one
          * not doing so is why nothing under a subdirectory was ever reachable.
          */
-        if( ssc_path_is_dir(path) )
+        if( SSC_DirEntryIsDir(entry, path) == 1 )
         {
             if( entry->d_name[0] != '.' )
             {
@@ -874,6 +1023,8 @@ SSC_SymbolsLoadComponentDir(
         snprintf(path, sizeof(path), "%s/interfaces/%s.compack", content_dir,
                  ifaces[i].name);
         SSC_SymbolsInit(&children);
+        children.observe_input = symbols->observe_input;
+        children.observe_context = symbols->observe_context;
         if( SSC_SymbolsLoadPack(&children, path, SSC_SYM_COMPONENT) > 0 )
         {
             for( int c = 0; c < children.count; c++ )
@@ -901,7 +1052,7 @@ SSC_SymbolsLoadConstantDir(
     struct SSC_Symbols* symbols,
     const char* dir)
 {
-    DIR* handle = opendir(dir);
+    DIR* handle = symbols_opendir(symbols, dir);
     struct dirent* entry;
     int loaded = 0;
 
@@ -911,15 +1062,16 @@ SSC_SymbolsLoadConstantDir(
     while( (entry = readdir(handle)) != NULL )
     {
         char path[1024];
-        struct stat info;
+        int is_dir;
 
         if( entry->d_name[0] == '.' )
             continue;
         snprintf(path, sizeof(path), "%s/%s", dir, entry->d_name);
-        if( stat(path, &info) != 0 )
+        is_dir = SSC_DirEntryIsDir(entry, path);
+        if( is_dir < 0 )
             continue;
 
-        if( S_ISDIR(info.st_mode) )
+        if( is_dir )
         {
             int count = SSC_SymbolsLoadConstantDir(symbols, path);
 
@@ -993,7 +1145,7 @@ load_dbtable_file(
     struct SSC_Symbols* symbols,
     const char* path)
 {
-    FILE* file = fopen(path, "rb");
+    FILE* file = symbols_fopen(symbols, path);
     char line[8192];
     char table_name[SSC_MAX_NAME] = "";
     int32_t table_id = -1;
@@ -1096,7 +1248,7 @@ SSC_SymbolsLoadDbTableDir(
     struct SSC_Symbols* symbols,
     const char* dir)
 {
-    DIR* handle = opendir(dir);
+    DIR* handle = symbols_opendir(symbols, dir);
     struct dirent* entry;
     int loaded = 0;
 
@@ -1106,15 +1258,16 @@ SSC_SymbolsLoadDbTableDir(
     while( (entry = readdir(handle)) != NULL )
     {
         char path[1024];
-        struct stat info;
+        int is_dir;
 
         if( entry->d_name[0] == '.' )
             continue;
         snprintf(path, sizeof(path), "%s/%s", dir, entry->d_name);
-        if( stat(path, &info) != 0 )
+        is_dir = SSC_DirEntryIsDir(entry, path);
+        if( is_dir < 0 )
             continue;
 
-        if( S_ISDIR(info.st_mode) )
+        if( is_dir )
         {
             int count = SSC_SymbolsLoadDbTableDir(symbols, path);
 
@@ -1202,6 +1355,8 @@ SSC_SymbolsCarrier(
     int32_t varp)
 {
     assert(symbols);
+    if( symbols->observe )
+        symbols->observe(symbols->observe_context, SSC_QUERY_CARRIER, "", varp);
     for( int i = 0; i < symbols->carrier_count; i++ )
     {
         if( symbols->carriers[i].varp == varp )
@@ -1229,7 +1384,7 @@ SSC_SymbolsLoadVarbitBases(
     assert(symbols);
     assert(dir);
     snprintf(path, sizeof(path), "%s/all.%s", dir, ns);
-    file = fopen(path, "rb");
+    file = symbols_fopen(symbols, path);
     if( !file )
         return -1;
 
@@ -1366,7 +1521,7 @@ load_varp_decl_file(
     struct SSC_Symbols* symbols,
     const char* path)
 {
-    FILE* file = fopen(path, "rb");
+    FILE* file = symbols_fopen(symbols, path);
     char line[512];
     int32_t varp = -1;
     int loaded = 0;
@@ -1425,7 +1580,7 @@ SSC_SymbolsLoadVarpDecls(
     struct SSC_Symbols* symbols,
     const char* dir)
 {
-    DIR* handle = opendir(dir);
+    DIR* handle = symbols_opendir(symbols, dir);
     struct dirent* entry;
     int loaded = 0;
 
@@ -1434,14 +1589,15 @@ SSC_SymbolsLoadVarpDecls(
     while( (entry = readdir(handle)) != NULL )
     {
         char path[1024];
-        struct stat info;
+        int is_dir;
 
         if( entry->d_name[0] == '.' )
             continue;
         snprintf(path, sizeof(path), "%s/%s", dir, entry->d_name);
-        if( stat(path, &info) != 0 )
+        is_dir = SSC_DirEntryIsDir(entry, path);
+        if( is_dir < 0 )
             continue;
-        if( S_ISDIR(info.st_mode) )
+        if( is_dir )
             loaded += SSC_SymbolsLoadVarpDecls(symbols, path);
         else if( has_suffix(entry->d_name, ".varp") )
             loaded += load_varp_decl_file(symbols, path);
@@ -1627,4 +1783,75 @@ SSC_SymbolsSeedBuiltins(struct SSC_Symbols* symbols)
         if( !SSC_SymbolsFind(symbols, k_types[i].name, SSC_SYM_TYPE) )
             SSC_SymbolsAdd(symbols, k_types[i].name, k_types[i].value, SSC_SYM_TYPE, NULL);
     }
+}
+
+static uint64_t
+symbol_digest(uint64_t h, const struct SSC_Symbol* symbol)
+{
+    if( !symbol )
+        return ssc_hash_u64(h, 0x6e6f6e65ull);
+    h = ssc_hash_u64(h, (uint64_t)(uint32_t)symbol->value);
+    h = ssc_hash_u64(h, (uint64_t)symbol->kind);
+    return ssc_hash_str(h, symbol->text);
+}
+
+uint64_t
+SSC_SymbolsQueryDigest(
+    struct SSC_Symbols* symbols,
+    int query,
+    const char* name,
+    int32_t arg)
+{
+    SSC_QueryObserver observe;
+    uint64_t h = ssc_hash_u64(SSC_HASH_SEED, (uint64_t)query);
+
+    assert(symbols);
+    assert(name);
+    /* Asked again on the build's behalf, not the compile's: not a dependency. */
+    observe = symbols->observe;
+    symbols->observe = NULL;
+    switch( query )
+    {
+    case SSC_QUERY_FIND:
+        h = symbol_digest(h, find_symbol(symbols, name, (enum SSC_SymbolKind)arg, 1));
+        break;
+    case SSC_QUERY_VALUE:
+        h = symbol_digest(h, find_symbol(symbols, name, SSC_SYM_UNKNOWN, 0));
+        break;
+    case SSC_QUERY_KINDS:
+    {
+        const struct SSC_Symbol* kinds[SSC_SYM_KIND_COUNT];
+        int count = SSC_SymbolsValueKinds(symbols, name, kinds, SSC_SYM_KIND_COUNT);
+
+        h = ssc_hash_u64(h, (uint64_t)count);
+        for( int i = 0; i < count && i < SSC_SYM_KIND_COUNT; i++ )
+            h = symbol_digest(h, kinds[i]);
+        break;
+    }
+    case SSC_QUERY_CARRIER:
+    {
+        const struct SSC_VarpCarrier* carrier = SSC_SymbolsCarrier(symbols, arg);
+
+        if( !carrier )
+        {
+            h = ssc_hash_u64(h, 0x6e6f6e65ull);
+            break;
+        }
+        h = ssc_hash_u64(h, (uint64_t)carrier->bits);
+        h = ssc_hash_u64(h, (uint64_t)carrier->exempt);
+        h = ssc_hash_u64(h, (uint64_t)carrier->read_exempt);
+        h = ssc_hash_u64(h, (uint64_t)carrier->sample_count);
+        for( int i = 0; i < carrier->sample_count; i++ )
+        {
+            h = ssc_hash_str(h, carrier->sample[i]);
+            h = ssc_hash_u64(h, (uint64_t)carrier->sample_start[i]);
+            h = ssc_hash_u64(h, (uint64_t)carrier->sample_end[i]);
+        }
+        break;
+    }
+    default:
+        assert(!"SSC_SymbolsQueryDigest: not a symbol-table query");
+    }
+    symbols->observe = observe;
+    return h;
 }

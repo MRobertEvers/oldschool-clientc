@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Fixture test: the server pack is rebuilt under the pack lock, swapped in
-whole, and never rewritten under a booting run.
+"""Fixture test: the server pack is rebuilt under the pack lock, replaced file
+by file under its own directory lock, and never rewritten under a booting run.
 
     python3 tools/quest_gate/pack_fingerprint_servpack_test.py
 
@@ -12,8 +12,10 @@ run.py's pack lock covered only the script pack.
 
 Every case runs in a temporary tree: the module's paths (CONTENT,
 SERVPACK_DIR, the lock files) are pointed there, and `run` is a fake
-cachepack that writes a pack into SERVPACK_OUT -- no make, no cachepack, no
-client.
+cachepack that writes a pack into SERVPACK_OUT the way the incremental one
+does (cp_incremental.c): holding `<pack>/.pack.lock` exclusive, stamp removed
+first, each store file replaced whole, stamp written last -- no make, no
+cachepack, no client.
 
   case                    want
   fingerprint_scope       the stat fingerprint moves for exactly the files
@@ -25,13 +27,12 @@ client.
   current_after_build     a build records the fingerprint; the next ensure
                           says current without calling cachepack; an input
                           edit makes it call cachepack again
-  up_to_date_keeps_live   cachepack writing nothing into the staging dir
-                          (its copied stamp was current) leaves the live pack
-                          as it was -- same inode -- and no staging dir
-  swap_is_whole           an observer polling the live pack throughout a slow
-                          rebuild never sees it without a stamp, nor a stamp
-                          from one build beside a dat2 from another; the
-                          same with the two-rename fallback (no exchange)
+  up_to_date_keeps_live   cachepack writing nothing (the pack was current)
+                          leaves the live pack as it was -- same inode
+  swap_is_whole           an observer reading the live pack the way the
+                          server does (holding `.pack.lock` shared) throughout
+                          a slow rebuild never sees it without a stamp, nor a
+                          stamp from one build beside a dat2 from another
   rebuild_waits_for_boot  ensure_server_pack waits while a boot hold is held
                           and builds only after release()
   boot_waits_for_rebuild  boot_hold started mid-rebuild returns only after
@@ -45,6 +46,7 @@ client.
 Exit 0 when every case holds.
 """
 
+import fcntl
 import os
 import shutil
 import sys
@@ -85,7 +87,7 @@ class Tree:
             write(os.path.join(self.content, rel), "v1\n")
         self.saved = {name: getattr(pf, name) for name in (
             "CONTENT", "SERVPACK_DIR", "SERVPACK_FINGERPRINT_PATH", "LOCK_PATH",
-            "TURNSTILE_PATH", "_packs_not_current", "_exchange")}
+            "TURNSTILE_PATH", "_packs_not_current")}
         pf.CONTENT = self.content
         pf.SERVPACK_DIR = os.path.join(self.content, "server", "pack")
         pf.SERVPACK_FINGERPRINT_PATH = os.path.join(self.root, "lock", ".servpack.fingerprint")
@@ -103,8 +105,9 @@ class Tree:
 
 class FakeCachepack:
     """`run` for ensure_server_pack: emulates `cachepack pack --server-only
-    --server-out <staging>` -- "up to date" when the copied stamp names the
-    current generation, else clear, slow archive writes, stamp last."""
+    --server-out <live pack>` -- "up to date" when the live stamp names the
+    current generation, else, holding the pack directory's lock exclusive:
+    stamp removed, a slow staged dat2 replaced into place, stamp last."""
 
     def __init__(self, generation, steps=1, step_seconds=0.0):
         self.generation = generation
@@ -117,21 +120,29 @@ class FakeCachepack:
         self.calls += 1
         out = [a.split("=", 1)[1] for a in command if a.startswith("SERVPACK_OUT=")]
         assert out, command
-        staging = out[0]
-        stamp = os.path.join(staging, pf.SERVPACK_STAMP)
-        if os.path.isfile(stamp):
-            with open(stamp, encoding="utf-8") as handle:
-                if handle.read() == "gen %s\n" % self.generation:
-                    self.finished_at = time.monotonic()
-                    return 0
-            os.unlink(stamp)
-        with open(os.path.join(staging, pf.SERVPACK_DAT2), "w", encoding="utf-8") as dat2:
-            for _ in range(self.steps):
-                dat2.write("gen %s\n" % self.generation)
-                dat2.flush()
-                time.sleep(self.step_seconds)
-        write(stamp, "gen %s\n" % self.generation)
-        self.finished_at = time.monotonic()
+        live = out[0]
+        os.makedirs(live, exist_ok=True)
+        with open(os.path.join(live, ".pack.lock"), "a+") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            stamp = os.path.join(live, pf.SERVPACK_STAMP)
+            if os.path.isfile(stamp):
+                with open(stamp, encoding="utf-8") as handle:
+                    if handle.read() == "gen %s\n" % self.generation:
+                        self.finished_at = time.monotonic()
+                        return 0
+            staged = os.path.join(live, ".staging.%d" % os.getpid())
+            os.makedirs(staged, exist_ok=True)
+            with open(os.path.join(staged, pf.SERVPACK_DAT2), "w", encoding="utf-8") as dat2:
+                for _ in range(self.steps):
+                    dat2.write("gen %s\n" % self.generation)
+                    dat2.flush()
+                    time.sleep(self.step_seconds)
+            if os.path.isfile(stamp):
+                os.unlink(stamp)
+            os.replace(os.path.join(staged, pf.SERVPACK_DAT2), os.path.join(live, pf.SERVPACK_DAT2))
+            os.rmdir(staged)
+            write(stamp, "gen %s\n" % self.generation)
+            self.finished_at = time.monotonic()
         return 0
 
 
@@ -147,32 +158,19 @@ def live_generation():
     return first_line(pf.SERVPACK_STAMP), first_line(pf.SERVPACK_DAT2)
 
 
-def pinned_generation():
-    """live_generation() read through one open handle on the live directory,
-    so a swap between the two reads cannot mix two packs in the SAMPLE: the
-    pinned directory is whole or the sample is dropped (it stopped being the
-    live one while read). ("absent", None) when there is no live directory."""
-    try:
-        fd = os.open(pf.SERVPACK_DIR, os.O_RDONLY)
-    except FileNotFoundError:
+def locked_generation():
+    """live_generation() read as the server reads a pack: holding
+    `<pack>/.pack.lock` shared (ToriRSServer_PackLockShared). ("absent", None)
+    when there is no live directory."""
+    if not os.path.isdir(pf.SERVPACK_DIR):
         return ("absent", None)
     try:
-        out = []
-        for name in (pf.SERVPACK_STAMP, pf.SERVPACK_DAT2):
-            try:
-                handle = os.open(name, os.O_RDONLY, dir_fd=fd)
-            except FileNotFoundError:
-                out.append(None)
-                continue
-            with os.fdopen(handle, encoding="utf-8") as text:
-                out.append(text.readline().strip())
-        try:
-            still_live = os.stat(pf.SERVPACK_DIR).st_ino == os.fstat(fd).st_ino
-        except FileNotFoundError:
-            still_live = False
-        return tuple(out) if still_live else None
-    finally:
-        os.close(fd)
+        lock = open(os.path.join(pf.SERVPACK_DIR, ".pack.lock"), "r")
+    except FileNotFoundError:
+        return live_generation()
+    with lock:
+        fcntl.flock(lock, fcntl.LOCK_SH)
+        return live_generation()
 
 
 def quiet(fn, *args, **kwargs):
@@ -218,8 +216,7 @@ def case_current_after_build():
         quiet(pf.ensure_server_pack, fake)
         check("current_after_build", fake.calls == 2 and live_generation() == ("gen 2", "gen 2"),
               "an edit rebuilt it")
-        parent = os.path.dirname(pf.SERVPACK_DIR)
-        leftovers = [e for e in os.listdir(parent) if e.startswith(".pack.")]
+        leftovers = [e for e in os.listdir(pf.SERVPACK_DIR) if e.startswith(".staging.")]
         check("current_after_build", not leftovers, "no staging left: %s" % leftovers)
     finally:
         tree.close()
@@ -239,35 +236,23 @@ def case_up_to_date_keeps_live():
         after = os.stat(os.path.join(pf.SERVPACK_DIR, pf.SERVPACK_DAT2)).st_ino
         check("up_to_date_keeps_live", fake.calls == 2, "cachepack was asked")
         check("up_to_date_keeps_live", after == inode, "live dat2 untouched")
-        parent = os.path.dirname(pf.SERVPACK_DIR)
-        check("up_to_date_keeps_live",
-              not [e for e in os.listdir(parent) if e.startswith(".pack.")], "no staging left")
         current, _ = pf._servpack_current(pf.servpack_input_fingerprint()[0])
         check("up_to_date_keeps_live", current, "recorded as current")
     finally:
         tree.close()
 
 
-def observe_rebuild(case, exchange):
+def case_swap_is_whole():
     tree = Tree()
     try:
-        if not exchange:
-            pf._exchange = lambda first, second: False
         quiet(pf.ensure_server_pack, FakeCachepack("1"))
         seen = []
         stop = threading.Event()
 
         def observer():
             while not stop.is_set():
-                sample = pinned_generation()
-                if sample is None:
-                    continue
-                stamp, dat2 = sample
-                if stamp == "absent":
-                    # Between the two renames of the fallback: no pack at all,
-                    # which the server reports as "no server pack" -- counted.
-                    seen.append(("absent", None))
-                elif stamp is None or stamp != dat2:
+                stamp, dat2 = locked_generation()
+                if stamp == "absent" or stamp is None or stamp != dat2:
                     seen.append((stamp, dat2))
 
         thread = threading.Thread(target=observer)
@@ -278,18 +263,14 @@ def observe_rebuild(case, exchange):
         finally:
             stop.set()
             thread.join()
-        partial = [s for s in seen if s[0] != "absent"]
-        check(case, not partial, "never a stamp-less or mixed pack (%d bad reads)" % len(partial))
-        if exchange:
-            check(case, not seen, "never absent with an atomic exchange")
-        check(case, live_generation() == ("gen 2", "gen 2"), "live is gen 2 after")
+        check("swap_is_whole", not seen,
+              "never absent, stamp-less or mixed (%d bad reads)" % len(seen))
+        check("swap_is_whole", live_generation() == ("gen 2", "gen 2"), "live is gen 2 after")
+        check("swap_is_whole",
+              not [e for e in os.listdir(pf.SERVPACK_DIR) if e.startswith(".staging.")],
+              "no staging left")
     finally:
         tree.close()
-
-
-def case_swap_is_whole():
-    observe_rebuild("swap_is_whole", exchange=True)
-    observe_rebuild("swap_is_whole_fallback", exchange=False)
 
 
 def case_rebuild_waits_for_boot():

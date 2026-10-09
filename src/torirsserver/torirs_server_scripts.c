@@ -26,6 +26,8 @@
 #include <assert.h>
 
 #include "torirs_server.h"
+#include "torirs_server_boot.h"
+#include "torirs_server_packcheck.h"
 
 #include "torirs_server_container.h"
 #include "torirs_server_content.h"
@@ -296,6 +298,7 @@ ToriRSServer_ScriptsLoad(
     const char* dir)
 {
     struct SSVM_Error err;
+    int loaded;
 
     /*
      * Once per world, however many players log in.
@@ -318,7 +321,15 @@ ToriRSServer_ScriptsLoad(
     assert(srv->script_env);
 
     SSVM_ErrorClear(&err);
-    if( !SSVM_ProviderLoadDir(srv->scripts, dir, &err) )
+    /* Shared while the two files are read, so a build swapping in a new
+     * script.dat/script.idx pair is never seen half-done (ssc_build.c). */
+    {
+        long lock = ToriRSServer_PackLockShared(dir);
+
+        loaded = SSVM_ProviderLoadDir(srv->scripts, dir, &err);
+        ToriRSServer_PackUnlock(lock);
+    }
+    if( !loaded )
     {
         /*
          * A banner, not a line, because of what it now means.
@@ -457,6 +468,28 @@ ToriRSServer_ScriptsLoad(
             return 0;
         }
     }
+    /*
+     * Staleness, per unit, from the manifest the incremental build writes
+     * (torirs_server_packcheck.c): every stale source is NAMED, and the pack
+     * runs as built unless TORIRSSERVER_STALE=refuse. Another session's edit to
+     * a file this run never touches is not a reason to refuse it; an edit of
+     * your own shows up in the list by name. A pack with no manifest is held to
+     * the old whole-tree mtime rule below.
+     */
+    {
+        int stale = ToriRSServer_PackCheck("script pack", dir, ToriRSServer_BootContentDir());
+
+        if( stale > 0 && ToriRSServer_PackStaleRefuses() )
+        {
+            fprintf(stderr, "torirsserver: STALE SCRIPT PACK — %d source(s) above changed since "
+                            "it was built (TORIRSSERVER_STALE=refuse)\n"
+                            "torirsserver: refusing to run on a stale script pack.\n",
+                    stale);
+            exit(1);
+        }
+        if( stale != TORIRSSERVER_PACKCHECK_NO_MANIFEST )
+            goto checked;
+    }
     {
         char newer[1024] = { 0 };
         long delta = 0;
@@ -508,6 +541,7 @@ ToriRSServer_ScriptsLoad(
                     "torirsserver: TORIRSSERVER_ALLOW_STALE_SCRIPTS=1 — continuing anyway.\n");
         }
     }
+checked:
     /* Before anything runs: an opcode this tree needs and the engine lacks is a
      * fact about the tree, not about whichever player eventually triggers it. */
     ToriRSServer_ScriptsReportGaps(srv);

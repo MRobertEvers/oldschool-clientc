@@ -63,6 +63,7 @@ only thing keeping these allocations alive.
 """
 
 import argparse
+import hashlib
 import os
 import re
 import subprocess
@@ -374,29 +375,128 @@ def id_authority(tree, ns):
     return authority.get(ns, 'server')
 
 
+# --- the --stamp fast path -------------------------------------------------
+#
+# Every file this tool reads goes through `open` below and every directory it
+# walks through `_files_by_extension`, so a stamp of their sizes and mtimes is
+# the complete statement of its inputs. When none moved, nothing new can need
+# an id and the run is a stat of a few thousand paths instead of a read of
+# every config file — the difference between 0.75 s and 0.05 s on each build.
+_READ_PATHS = set()
+_WALKED_DIRS = set()
+_builtin_open = open
+
+
+def open(file, mode='r', *args, **kwargs):  # noqa: A001 — records what is read
+    if not any(c in mode for c in 'wax+'):
+        _READ_PATHS.add(os.path.abspath(file))
+    return _builtin_open(file, mode, *args, **kwargs)
+
+
+# A directory is stamped by what it holds that this tool could read -- its
+# subdirectories and its files with a namespace or ledger extension -- not by
+# its mtime: packs, logs and this stamp are written into server/scripts/build
+# and screenshots into selftest/, and an mtime test re-ran the whole sweep after
+# every one of them.
+_RELEVANT_EXTENSIONS = None
+
+
+def _relevant(name):
+    global _RELEVANT_EXTENSIONS
+    if _RELEVANT_EXTENSIONS is None:
+        _RELEVANT_EXTENSIONS = set(SERVER_NAMESPACES) | {
+            'alloc', 'pack', 'compack', 'ini', 'constant', 'server', 'client'}
+    dot = name.rfind('.')
+    return name.startswith('all.') or (dot > 0 and name[dot + 1:] in _RELEVANT_EXTENSIONS)
+
+
+def _stat_line(kind, path):
+    if kind == 'D':
+        try:
+            with os.scandir(path) as entries:
+                names = sorted(e.name + '/' if e.is_dir() else e.name for e in entries
+                               if not e.name.startswith('.') and
+                               (e.is_dir() or _relevant(e.name)))
+        except OSError:
+            return f'D\t-\t-\t{path}'
+        digest = hashlib.sha1('\n'.join(names).encode('utf-8')).hexdigest()
+        return f'D\t0\t{digest}\t{path}'
+    try:
+        st = os.stat(path)
+    except OSError:
+        return f'{kind}\t-\t-\t{path}'
+    return f'{kind}\t{st.st_size}\t{st.st_mtime_ns}\t{path}'
+
+
+def _stamp_lines():
+    lines = [_stat_line('F', os.path.abspath(__file__))]
+    dirs = set(_WALKED_DIRS) | {os.path.dirname(p) for p in _READ_PATHS}
+    lines += [_stat_line('D', d) for d in sorted(dirs)]
+    lines += [_stat_line('F', p) for p in sorted(_READ_PATHS)]
+    return lines
+
+
+def _stamp_current(stamp):
+    try:
+        with _builtin_open(stamp, encoding='utf-8') as handle:
+            recorded = handle.read().splitlines()
+    except OSError:
+        return False
+    if not recorded:
+        return False
+    for line in recorded:
+        kind, _, _, path = line.split('\t', 3)
+        if _stat_line(kind, path) != line:
+            return False
+    return True
+
+
+_FILES_BY_EXT = {}
+_BLOCK_RE = re.compile(r'\s*\[([A-Za-z0-9_+.\-]+)\]\s*$')
+
+
+def _files_by_extension(source_roots):
+    """{extension: [path]} for every file under the roots, walked once.
+
+    Each namespace used to walk the whole tree for its own extension, and
+    server/scripts holds ~54,000 files (most of them selftest screenshots): a
+    dozen walks were most of this tool's 1.3 s, which every pack build pays.
+    The per-directory `sorted(files)` order is kept.
+    """
+    key = tuple(source_roots)
+    if key not in _FILES_BY_EXT:
+        found = {}
+        for source_root in source_roots:
+            if not os.path.isdir(source_root):
+                continue
+            for base, _, files in os.walk(source_root):
+                _WALKED_DIRS.add(os.path.abspath(base))
+                for f in sorted(files):
+                    dot = f.rfind('.')
+                    if dot > 0:
+                        found.setdefault(f[dot + 1:], []).append(os.path.join(base, f))
+        _FILES_BY_EXT[key] = found
+    return _FILES_BY_EXT[key]
+
+
 def declared_blocks(source_roots, ns):
     """Every allocated `[name]` block in the server tree and marked client lanes."""
-    names = []
-    for source_root in source_roots:
-        if not os.path.isdir(source_root):
-            continue
-        for base, _, files in os.walk(source_root):
-            for f in sorted(files):
-                if not f.endswith('.' + ns):
+    names = {}
+    numeric = re.compile(re.escape(ns) + r'_\d+')
+    for path in _files_by_extension(source_roots).get(ns, []):
+        with open(path, encoding='utf-8', errors='replace') as handle:
+            for line in handle:
+                if '[' not in line:
                     continue
-                with open(os.path.join(base, f), encoding='utf-8',
-                          errors='replace') as handle:
-                    for line in handle:
-                        m = re.match(r'\s*\[([A-Za-z0-9_+.\-]+)\]\s*$', line)
-                        if not m:
-                            continue
-                        name = m.group(1)
-                        # A numeric block is the cache's own record, not ours.
-                        if re.fullmatch(re.escape(ns) + r'_\d+', name):
-                            continue
-                        if name not in names:
-                            names.append(name)
-    return names
+                m = _BLOCK_RE.match(line)
+                if not m:
+                    continue
+                name = m.group(1)
+                # A numeric block is the cache's own record, not ours.
+                if numeric.fullmatch(name):
+                    continue
+                names.setdefault(name, None)
+    return list(names)
 
 
 DEFAULT_HEADER = (
@@ -447,7 +547,16 @@ def main():
     ap.add_argument('--check', action='store_true',
                     help='report what would change and exit non-zero')
     ap.add_argument('--namespace', action='append', default=[])
+    ap.add_argument('--stamp',
+                    help='skip the run when nothing it read last time has moved; '
+                         'record what it read here after a clean run')
+    ap.add_argument('--verbose', action='store_true',
+                    help='list the ids no block declares any more')
     args = ap.parse_args()
+
+    if args.stamp and not args.check and _stamp_current(args.stamp):
+        print('ss_allocate: up to date (no input moved since the last run)')
+        return 0
 
     scripts_root = os.path.join(args.tree, 'server', 'scripts')
     if not os.path.isdir(scripts_root):
@@ -529,23 +638,68 @@ def main():
         allocated = []
         if fresh:
             dirty = True
+            held = {ident: name for name, ident in list(mapping.items()) +
+                    list(elsewhere.items())}
+            prefixed_re = re.compile(rf'^{prefix}(\d+)_(.+)$') if prefix else None
+            base_of = {}
+            if prefix:
+                for name, ident in list(mapping.items()) + list(elsewhere.items()):
+                    m = prefixed_re.match(name)
+                    base_of[m.group(2) if m and int(m.group(1)) == ident else name] = name
             for name in fresh:
+                # A block that already spells a `varp<N>_` prefix.
+                #
+                # This used to prefix the whole name again — `[varp6883_x]`
+                # became `varp7344_varp6883_x` in the ledger and in the tree,
+                # and a hand fix back to `[varp7344_x]` matched nothing, so the
+                # next build allocated `varp7346_varp7344_x`: a fresh id and a
+                # deeper prefix on every build. var_prefix_names.py can only
+                # respell a block whose *base* name the ledger holds, so no
+                # silent respelling of a prefixed block converges. The rules:
+                # the id is free -> adopt it as written; anything else -> stop
+                # and say which spelling to use.
+                m = prefixed_re.match(name) if prefix else None
+                if m:
+                    ident, rest = int(m.group(1)), m.group(2)
+                    if rest in base_of:
+                        print(f'{ns:9} ERROR: [{name}] is `{rest}` with a guessed id; '
+                              f'the ledger already spells it [{base_of[rest]}]')
+                        failed = True
+                        continue
+                    if ident in held or ident < floor:
+                        owner = held.get(ident)
+                        print(f'{ns:9} ERROR: [{name}] states id {ident}, which '
+                              + (f'pack/{ns}.alloc gives to {owner}' if owner
+                                 else f'is below the server floor {floor}')
+                              + f'; spell the block [{rest}] and this tool numbers it')
+                        failed = True
+                        continue
+                    mapping[name] = ident
+                    held[ident] = name
+                    allocated.append((ident, name))
+                    continue
+                while base in held:
+                    base += 1
                 if prefix:
                     name = f'{prefix}{base}_{name}'
                 mapping[name] = base
+                held[base] = name
                 allocated.append((base, name))
                 base += 1
             fresh = [name for _, name in allocated]
 
         print(f'{ns:9} declared={len(declared):5} allocated={len(mapping):5} '
-              f'base_was={base - len(fresh)} floor={floor}'
+              f'base_was={max(mark, floor)} floor={floor}'
               + (f' NEW={len(fresh)}' if fresh else '')
-              + (f' STALE={len(stale)}' if stale else ''))
+              + (f' STALE={len(stale)} (kept; --verbose lists them)' if stale else ''))
         for name in fresh:
             print(f'            + {mapping[name]}={name}')
-        for name in sorted(stale):
-            print(f'            ? {mapping[name]}={name} '
-                  f'(no longer declared; kept, ids are stable)')
+        # Stale ids are kept on purpose (ids are stable), so they are not news
+        # on every build: the count is on the line above, the list on request.
+        if args.verbose:
+            for name in sorted(stale):
+                print(f'            ? {mapping[name]}={name} '
+                      f'(no longer declared; kept, ids are stable)')
 
         if fresh and not args.check:
             write_pack(path, ns, raw, allocated)
@@ -558,13 +712,22 @@ def main():
         tool = os.path.join(args.tree, os.pardir, 'tools', 'var_prefix_names.py')
         subprocess.run([sys.executable, tool, '--write'], check=True)
     if failed:
-        print('ss_allocate: a cache-owned name has no id (see above)',
-              file=sys.stderr)
+        print('ss_allocate: a declared name cannot be given an id (see the ERROR '
+              'lines above)', file=sys.stderr)
         return 2
     if args.check and dirty:
         print('ss_allocate: pack/<ns>.alloc is stale; '
               'run tools/ss_allocate.py', file=sys.stderr)
         return 1
+    # Recorded after the writes and the respelling, so the stamp describes the
+    # tree as this run left it. A respelling run rewrites sources it did not
+    # read; the next run sees their directories move and does the full pass.
+    if args.stamp and not args.check:
+        os.makedirs(os.path.dirname(os.path.abspath(args.stamp)), exist_ok=True)
+        temporary = args.stamp + '.tmp'
+        with _builtin_open(temporary, 'w', encoding='utf-8') as handle:
+            handle.write('\n'.join(_stamp_lines()) + '\n')
+        os.replace(temporary, args.stamp)
     return 0
 
 

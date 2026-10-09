@@ -49,6 +49,9 @@ struct CP_Walk
     struct CP_WalkFile* files;
     int count;
     int capacity;
+    /** `files` indices in (rank, path) order, built by the first cp_walk_find. */
+    int* order;
+    int ordered;
 };
 
 /**

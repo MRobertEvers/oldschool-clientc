@@ -1,4 +1,5 @@
 #include "cachepack.h"
+#include "cp_incremental.h"
 #include "rscache_valuetype.h"
 
 #include <assert.h>
@@ -345,6 +346,16 @@ value_clean_plain(char* line)
     return line;
 }
 
+static uint32_t
+value_name_hash(const char* name)
+{
+    uint32_t hash = 2166136261u;
+
+    for( ; *name; name++ )
+        hash = (hash ^ (uint8_t)*name) * 16777619u;
+    return hash;
+}
+
 const char*
 cp_value_constant_text(
     struct CP_Ctx* ctx,
@@ -409,10 +420,43 @@ cp_value_constant_text(
             fclose(fp);
         }
     }
-    for( int i = 0; i < g_constants.count; i++ )
+    if( g_cp_recording )
+        cp_lookup_note(CP_LOOKUP_CONST_TEXT, 0, 0, name);
+    /* The first declaration of the name, indexed (see cp_resolve_caret). */
     {
-        if( strcmp(g_constants.names[i], name) == 0 )
-            return g_constants.texts[i];
+        static int* slots;
+        static uint32_t capacity;
+        static int indexed_count = -1;
+        static char** indexed;
+        uint32_t slot;
+
+        if( indexed != g_constants.names || indexed_count != g_constants.count )
+        {
+            capacity = 1024;
+            while( capacity < (uint32_t)g_constants.count * 2 + 16 )
+                capacity *= 2;
+            free(slots);
+            slots = (int*)malloc(capacity * sizeof(int));
+            assert(slots);
+            memset(slots, -1, capacity * sizeof(int));
+            for( int i = 0; i < g_constants.count; i++ )
+            {
+                slot = value_name_hash(g_constants.names[i]) & (capacity - 1);
+                while( slots[slot] >= 0 && strcmp(g_constants.names[slots[slot]], g_constants.names[i]) != 0 )
+                    slot = (slot + 1) & (capacity - 1);
+                if( slots[slot] < 0 )
+                    slots[slot] = i;
+            }
+            indexed = g_constants.names;
+            indexed_count = g_constants.count;
+        }
+        slot = value_name_hash(name) & (capacity - 1);
+        while( slots[slot] >= 0 )
+        {
+            if( strcmp(g_constants.names[slots[slot]], name) == 0 )
+                return g_constants.texts[slots[slot]];
+            slot = (slot + 1) & (capacity - 1);
+        }
     }
     return NULL;
 }

@@ -1,4 +1,5 @@
 #include "cachepack.h"
+#include "cp_incremental.h"
 
 #include "checksum.h"
 #include "cp_fields.h"
@@ -661,6 +662,12 @@ band_indexed_number(
 /**
  * Read one tuple's text into `tuple`, `field->type_count` elements by the field's
  * `type`s. Returns 1, or 0 with the failing text in `tally`.
+ *
+ * A string element points into `buffer`, which is the CALLER's: it has to
+ * outlive this call until RSCache_BandRecordAppendTuple has copied the tuple.
+ * It used to be a local here, and every string band value was copied out of a
+ * dead stack frame — correct only while nothing reused the frame in between
+ * (AddressSanitizer: stack-use-after-scope).
  */
 static int
 band_tuple(
@@ -668,18 +675,20 @@ band_tuple(
     const struct RSCache_RegisterField* field,
     const char* text,
     struct RSCache_BandValue* tuple,
-    struct CP_FieldTally* tally)
+    struct CP_FieldTally* tally,
+    char* buffer,
+    size_t buffer_size)
 {
-    char buffer[2048];
     char* parts[RSCACHE_REGISTER_TYPES_MAX];
     int found;
 
-    if( strlen(text) >= sizeof(buffer) )
+    assert(buffer);
+    if( strlen(text) >= buffer_size )
     {
         tally_refuse(tally, 0, text);
         return 0;
     }
-    snprintf(buffer, sizeof(buffer), "%s", text);
+    snprintf(buffer, buffer_size, "%s", text);
     found = cp_value_split(buffer, field->type_count, parts);
     if( found != field->type_count )
     {
@@ -705,7 +714,8 @@ band_tuple(
             return 0;
         }
     }
-    /* AppendTuple copies the strings, so pointers into `buffer` are enough. */
+    /* AppendTuple copies the strings, so pointers into the caller's `buffer`
+     * are enough as long as it is still in scope there. */
     return 1;
 }
 
@@ -822,6 +832,7 @@ band_list(
         for( int i = 0; i < count && result > 0; i++ )
         {
             struct RSCache_BandValue tuple[RSCACHE_REGISTER_TYPES_MAX];
+            char text[2048];
 
             /* `stock3` twice in one layer: which one is meant? */
             if( i > 0 && lines[i].number == lines[i - 1].number )
@@ -829,7 +840,7 @@ band_list(
                 tally_refuse(tally, 0, lines[i].key);
                 result = -1;
             }
-            else if( !band_tuple(ctx, field, lines[i].value, tuple, tally) )
+            else if( !band_tuple(ctx, field, lines[i].value, tuple, tally, text, sizeof(text)) )
                 result = -1;
             else
                 RSCache_BandRecordAppendTuple(record, f, tuple, field->type_count);
@@ -1173,7 +1184,7 @@ record_states_client_field(
 {
     for( int i = 0; i < rec->count; i++ )
     {
-        const struct RSCache_RegisterField* field = RSCache_RegisterFind(fields, rec->lines[i].key);
+        const struct RSCache_RegisterField* field = cp_register_find(fields, rec->lines[i].key);
 
         if( !field && strcmp(rec->lines[i].key, "param") == 0 )
         {
@@ -1186,7 +1197,7 @@ record_states_client_field(
             {
                 memcpy(name, value, n);
                 name[n] = 0;
-                field = RSCache_RegisterFind(fields, name);
+                field = cp_register_find(fields, name);
             }
         }
         if( !field )
@@ -1473,7 +1484,7 @@ server_defaults_write(
     framed = RSCache_ArchiveEncode(container, container_capacity, archive, payload,
                                    RSCACHE_ARCHIVE_COMPRESSION_NONE, NULL);
     ok = payload && framed &&
-         RSCache_Dat2DiskWriteArchive(server_dir, RSCACHE_SERVERPACK_DEFAULTS_GROUP,
+         cp_server_write(server_dir, RSCACHE_SERVERPACK_DEFAULTS_GROUP,
                                       type->config_kind, container, (int)framed) == 0;
     if( !ok )
         fprintf(stderr, "cachepack: %s [default] failed to write its band\n", type->name);
@@ -1634,7 +1645,7 @@ pack_server_type(
                                        RSCACHE_ARCHIVE_COMPRESSION_NONE, NULL);
         if( !framed )
             continue;
-        if( RSCache_Dat2DiskWriteArchive(server_dir, type->config_kind, id, container,
+        if( cp_server_write(server_dir, type->config_kind, id, container,
                                          (int)framed) != 0 )
         {
             fprintf(stderr, "cachepack: %s [%s] failed to write its server band\n", type->name,
@@ -1827,7 +1838,7 @@ client_view_build(
     {
         /* `patrol3=...` is a line of the indexed field `patrol`. */
         const struct RSCache_RegisterField* field =
-            RSCache_RegisterFindLine(fields, rec->lines[i].key);
+            cp_register_find_line(fields, rec->lines[i].key);
 
         /*
          * A `param=<name>,...` line is looked up by the *param name*, not by the
@@ -1844,7 +1855,7 @@ client_view_build(
             char subkey[128];
 
             map_subkey(rec->lines[i].value, subkey, sizeof(subkey));
-            field = RSCache_RegisterFind(fields, subkey);
+            field = cp_register_find(fields, subkey);
             /* Only a field SPELLED as a param owns `param=<name>,...` lines; one
              * spelled as a key that happens to share a real param's name (obj's
              * `levelrequire<N>=` and the cache's param 436 `levelrequire`) does
@@ -2075,7 +2086,7 @@ pack_server_names(
                                                  payload, RSCACHE_ARCHIVE_COMPRESSION_NONE, NULL)
                          : 0;
         if( !framed ||
-            RSCache_Dat2DiskWriteArchive(server_dir, groups[g].group, 0, container, (int)framed) !=
+            cp_server_write(server_dir, groups[g].group, 0, container, (int)framed) !=
                 0 )
         {
             fprintf(stderr, "cachepack: %s: failed to write its name table\n", groups[g].name);
@@ -2173,7 +2184,7 @@ server_records_archive_write(
     container_size = RSCache_ArchiveEncode(container, container_capacity, payload, framed_size,
                                            RSCACHE_ARCHIVE_COMPRESSION_GZIP, NULL);
     ok = container_size > 0 &&
-         RSCache_Dat2DiskWriteArchive(server_dir, RSCache_ServerPackRecordsGroup(type->config_kind),
+         cp_server_write(server_dir, RSCache_ServerPackRecordsGroup(type->config_kind),
                                       RSCache_ServerPackRecordsArchive(bodies[0].id), container,
                                       (int)container_size) == 0;
     if( !ok )
@@ -2244,7 +2255,7 @@ server_client_ids_write(
     container_size = RSCache_ArchiveEncode(container, container_capacity, payload, framed,
                                            RSCACHE_ARCHIVE_COMPRESSION_GZIP, NULL);
     ok = container_size > 0 &&
-         RSCache_Dat2DiskWriteArchive(server_dir, RSCACHE_SERVERPACK_CLIENT_IDS_GROUP,
+         cp_server_write(server_dir, RSCACHE_SERVERPACK_CLIENT_IDS_GROUP,
                                       type->config_kind, container, (int)container_size) == 0;
     if( !ok )
         fprintf(stderr, "cachepack: %s: failed to write its client ids\n", type->name);
@@ -2869,6 +2880,99 @@ cp_missing_run(
     return ok;
 }
 
+/*
+ * One config type's half of the server pack: merge every file of the type, check
+ * the records, and write the type's bands and client encodings into
+ * `server_dir`. Returns 1 when it wrote, 0 when the type has nothing to write
+ * (no band and no client codec, or no files), -1 on failure. The incremental
+ * build (cp_incremental.c) runs this per type and reuses what it wrote.
+ */
+int
+cp_server_pack_type(
+    struct CP_Ctx* ctx,
+    enum CP_TypeId i,
+    const char* server_dir,
+    int* server_total,
+    int* membership_errors)
+{
+    const struct CP_Type* type = cp_type(i);
+    const char* found[CP_PACK_MAX_SOURCES];
+    int found_count;
+    struct CP_MergeSet merged;
+    struct RSCache_Register fields;
+    struct CP_Routing routing;
+    struct CP_PackStats stats;
+    int ok = 1;
+
+    assert(ctx);
+    assert(server_dir);
+    assert(server_total);
+    assert(membership_errors);
+    /*
+     * Every type the client codec can encode, band or not: the server reads
+     * each record's client body from this pack too (`pack_server_records`),
+     * so a type with no `server = opcode:` row still has a half here. The
+     * merge's record checks are therefore this mode's contract as much as
+     * the full pack's.
+     */
+    RSCache_RegisterLoad(&fields, ctx->srcdir, type->name);
+    if( !type->pack && fields.band_count <= 0 )
+        return 0;
+    found_count = cp_walk_find(&ctx->walk, type->name, found, CP_PACK_MAX_SOURCES);
+    if( found_count <= 0 )
+        return 0;
+
+    memset(&merged, 0, sizeof(merged));
+    merged.keys = type->keys;
+    merged.fields = cp_ctx_fields(ctx, (enum CP_TypeId)i);
+    memset(&stats, 0, sizeof(stats));
+    for( int f = 0; f < found_count && ok; f++ )
+    {
+        struct CP_ConfigFile layer;
+
+        if( !cp_config_file_load(&layer, found[f]) )
+            continue;
+        ok = cp_merge_add(&merged, &layer, cp_merge_rank_for(f, found[f]), found[f]);
+        cp_config_file_free(&layer);
+    }
+    /*
+     * The same gate the full pack runs, from the same files. No cache is
+     * opened here, and the server side never asks for one: `<ns>.server` names
+     * the entities with a server half, and whether the client cache also holds
+     * them is the *client* question. That is what keeps the two modes writing
+     * the same bands.
+     */
+    /* The same record checks the full pack runs: a server band is written
+     * from records that state every key, client and server, in one
+     * spelling, or not at all. */
+    ok = ok && merged_records_check(ctx, (enum CP_TypeId)i, &merged);
+    routing_load(ctx, i, &routing);
+    if( !ok ||
+        (fields.band_count > 0 &&
+         !pack_server_type(ctx, i, &merged, &routing, server_dir, &stats)) ||
+        (type->pack &&
+         !pack_server_records(ctx, i, &merged, server_dir, &stats, &routing, NULL, 0)) )
+    {
+        routing_free(&routing);
+        cp_merge_free(&merged);
+        return -1;
+    }
+    routing_report_server(type, &routing);
+    *membership_errors += stats.membership_errors;
+    routing_free(&routing);
+    cp_merge_free(&merged);
+    *server_total += stats.server_records;
+    return 1;
+}
+
+int
+cp_server_pack_names(
+    struct CP_Ctx* ctx,
+    const char* server_dir)
+{
+    return pack_server_names(ctx, server_dir);
+}
+
 int
 cp_pack_server_run(
     struct CP_Ctx* ctx,
@@ -2889,6 +2993,11 @@ cp_pack_server_run(
     printf("Typed %d param(s) from the tree\n", cp_param_types_load(ctx));
 
     cp_server_dir(ctx, server_dir, sizeof(server_dir));
+    /* Every type: the incremental build (cp_incremental.c), which reuses the
+     * types whose files and lookups did not move and writes the same bytes a
+     * full build would. --types is the old direct path. */
+    if( sel->all )
+        return cp_pack_server_incremental(ctx, server_dir);
     if( sel->all && server_pack_fresh(ctx, server_dir) )
     {
         printf("Server pack at %s is up to date with its tree (--force rewrites it)\n",
@@ -2905,71 +3014,11 @@ cp_pack_server_run(
     int membership_errors = 0;
     for( int i = 0; i < CP_TYPE_COUNT; i++ )
     {
-        const struct CP_Type* type = cp_type(i);
-        const char* found[CP_PACK_MAX_SOURCES];
-        int found_count;
-        struct CP_MergeSet merged;
-        struct RSCache_Register fields;
-        struct CP_Routing routing;
-        struct CP_PackStats stats;
-        int ok = 1;
-
         if( !sel->all && !(sel->mask & (1u << i)) )
             continue;
-        /*
-         * Every type the client codec can encode, band or not: the server reads
-         * each record's client body from this pack too (`pack_server_records`),
-         * so a type with no `server = opcode:` row still has a half here. The
-         * merge's record checks are therefore this mode's contract as much as
-         * the full pack's.
-         */
-        RSCache_RegisterLoad(&fields, ctx->srcdir, type->name);
-        if( !type->pack && fields.band_count <= 0 )
-            continue;
-        found_count = cp_walk_find(&ctx->walk, type->name, found, CP_PACK_MAX_SOURCES);
-        if( found_count <= 0 )
-            continue;
-
-        memset(&merged, 0, sizeof(merged));
-        merged.keys = type->keys;
-        merged.fields = cp_ctx_fields(ctx, (enum CP_TypeId)i);
-        memset(&stats, 0, sizeof(stats));
-        for( int f = 0; f < found_count && ok; f++ )
-        {
-            struct CP_ConfigFile layer;
-
-            if( !cp_config_file_load(&layer, found[f]) )
-                continue;
-            ok = cp_merge_add(&merged, &layer, cp_merge_rank_for(f, found[f]), found[f]);
-            cp_config_file_free(&layer);
-        }
-        /*
-         * The same gate the full pack runs, from the same files. No cache is
-         * opened here, and the server side never asks for one: `<ns>.server` names
-         * the entities with a server half, and whether the client cache also holds
-         * them is the *client* question. That is what keeps the two modes writing
-         * the same bands.
-         */
-        /* The same record checks the full pack runs: a server band is written
-         * from records that state every key, client and server, in one
-         * spelling, or not at all. */
-        ok = ok && merged_records_check(ctx, (enum CP_TypeId)i, &merged);
-        routing_load(ctx, i, &routing);
-        if( !ok ||
-            (fields.band_count > 0 &&
-             !pack_server_type(ctx, i, &merged, &routing, server_dir, &stats)) ||
-            (type->pack &&
-             !pack_server_records(ctx, i, &merged, server_dir, &stats, &routing, NULL, 0)) )
-        {
-            routing_free(&routing);
-            cp_merge_free(&merged);
+        if( cp_server_pack_type(ctx, (enum CP_TypeId)i, server_dir, &server_total,
+                                &membership_errors) < 0 )
             return 0;
-        }
-        routing_report_server(type, &routing);
-        membership_errors += stats.membership_errors;
-        routing_free(&routing);
-        cp_merge_free(&merged);
-        server_total += stats.server_records;
     }
 
     if( !pack_server_names(ctx, server_dir) )
@@ -3501,7 +3550,7 @@ overlay_states_unrouted_field(
 
         if( rec->lines[i].rank == 0 )
             continue;
-        field = RSCache_RegisterFind(fields, rec->lines[i].key);
+        field = cp_register_find(fields, rec->lines[i].key);
         if( !field && strcmp(rec->lines[i].key, "param") == 0 )
         {
             const char* value = rec->lines[i].value;
@@ -3513,7 +3562,7 @@ overlay_states_unrouted_field(
                 continue;
             memcpy(name, value, n);
             name[n] = 0;
-            field = RSCache_RegisterFind(fields, name);
+            field = cp_register_find(fields, name);
         }
         if( !field || field->client != RSCACHE_REGISTER_CLIENT_DROP || field->opcode != 0 )
             continue;

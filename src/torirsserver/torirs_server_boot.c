@@ -12,6 +12,7 @@
 #include "torirs_server_ids.h"
 #include "torirs_server_scene.h"
 #include "torirs_server_servpack.h"
+#include "torirs_server_packcheck.h"
 #include "features/features.h"
 
 #include "rscache_profile.h"
@@ -113,6 +114,12 @@ resolve_content_dir(void)
     return resolved;
 }
 
+const char*
+ToriRSServer_BootContentDir(void)
+{
+    return resolve_content_dir();
+}
+
 void
 ToriRSServer_BootDefaults(struct ToriRSServerBootConfig* config)
 {
@@ -168,12 +175,31 @@ ToriRSServer_BootLoadContent(
         char pack_dir[1024];
         int failed = 0;
 
+        long lock;
+        int stale;
+
         ToriRSServer_ServPackDir(content_dir, cache_dir, pack_dir, sizeof(pack_dir));
+        /* Shared for the whole read: a build holds it exclusive while it swaps
+         * a new store in, so the archives below all come from one build. */
+        lock = ToriRSServer_PackLockShared(pack_dir);
         if( !ToriRSServer_ServPackOpen(&pack, pack_dir) )
-            return TORIRSSERVER_BOOT_NO_PACK;
-        if( !ToriRSServer_ServPackFresh(pack_dir, content_dir) )
         {
+            ToriRSServer_PackUnlock(lock);
+            return TORIRSSERVER_BOOT_NO_PACK;
+        }
+        /* Per input, against the manifest the build wrote; a pack built before
+         * manifests is held to its whole-tree stamp as it always was. */
+        stale = ToriRSServer_PackCheck("server pack", pack_dir, content_dir);
+        if( stale == TORIRSSERVER_PACKCHECK_NO_MANIFEST ? !ToriRSServer_ServPackFresh(pack_dir, content_dir)
+                                                       : (stale > 0 && ToriRSServer_PackStaleRefuses()) )
+        {
+            if( stale > 0 )
+                fprintf(stderr,
+                        "torirsserver: the server pack at %s is STALE — %d input(s) changed "
+                        "since it was written; run `%s` (TORIRSSERVER_STALE=refuse)\n",
+                        pack_dir, stale, TORIRSSERVER_SERVPACK_FIX);
             RSCache_ServerPackClose(&pack);
+            ToriRSServer_PackUnlock(lock);
             return TORIRSSERVER_BOOT_NO_PACK;
         }
         failed |= ToriRSServer_ObjInfoLoad(&pack) < 0;
@@ -202,6 +228,7 @@ ToriRSServer_BootLoadContent(
             failed |= ToriRSServer_BankLoad(&pack) < 0;
         }
         RSCache_ServerPackClose(&pack);
+        ToriRSServer_PackUnlock(lock);
         if( failed )
         {
             fprintf(stderr, "torirsserver: the server pack at %s was refused — rebuild it with "

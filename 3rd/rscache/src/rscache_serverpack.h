@@ -230,6 +230,18 @@ RSCache_ServerPackIdsDecode(
  * hashed in sorted path order with the pack format version, so the answer does
  * not depend on directory order.
  */
+/**
+ * The files RSCache_ServerPackFingerprint reads, relative to `srcdir`, sorted —
+ * the input set of a server pack. Returns the count; `*out_paths` is a malloc'd
+ * array of malloc'd strings the caller frees.
+ */
+int
+RSCache_ServerPackInputs(
+    const char* srcdir,
+    const char* const* lanes,
+    int lane_count,
+    char*** out_paths);
+
 uint64_t
 RSCache_ServerPackFingerprint(
     const char* srcdir,

@@ -95,6 +95,80 @@ pack_grow(struct LC_Pack* pack, int needed)
     return 1;
 }
 
+/* ---- name index ---------------------------------------------------------- */
+
+static uint32_t
+index_hash(const char* name)
+{
+    uint32_t hash = 2166136261u;
+
+    for( ; *name; name++ )
+        hash = (hash ^ (uint8_t)*name) * 16777619u;
+    return hash;
+}
+
+/** The slot holding `name`, or the empty slot where it would go. */
+static int
+index_slot(const struct LC_Pack* pack, const char* name)
+{
+    uint32_t mask = (uint32_t)pack->index_capacity - 1;
+    uint32_t slot = index_hash(name) & mask;
+
+    for( ;; )
+    {
+        int32_t id = pack->index_slots[slot];
+
+        if( id < 0 || strcmp(pack->names[id], name) == 0 )
+            return (int)slot;
+        slot = (slot + 1) & mask;
+    }
+}
+
+/** Index `id`'s name unless a lower id already carries it: a find answers the
+ *  lowest id, as the scan it replaced did. */
+static void
+index_add(struct LC_Pack* pack, int id)
+{
+    int slot = index_slot(pack, pack->names[id]);
+
+    if( pack->index_slots[slot] < 0 )
+    {
+        pack->index_slots[slot] = id;
+        pack->index_used++;
+    }
+    else if( pack->index_slots[slot] > id )
+    {
+        pack->index_slots[slot] = id;
+    }
+}
+
+static void
+index_build(struct LC_Pack* pack)
+{
+    int needed = 1024;
+    int live = 0;
+
+    for( int id = 0; id < pack->capacity; id++ )
+        live += pack->names[id] != NULL;
+    while( needed < live * 2 + 64 )
+        needed *= 2;
+    if( needed != pack->index_capacity )
+    {
+        free(pack->index_slots);
+        pack->index_slots = (int32_t*)malloc((size_t)needed * sizeof(int32_t));
+        assert(pack->index_slots);
+        pack->index_capacity = needed;
+    }
+    memset(pack->index_slots, -1, (size_t)needed * sizeof(int32_t));
+    pack->index_used = 0;
+    for( int id = 0; id < pack->capacity; id++ )
+    {
+        if( pack->names[id] )
+            index_add(pack, id);
+    }
+    pack->index_valid = 1;
+}
+
 int
 lc_pack_set(struct LC_Pack* pack, int id, const char* name)
 {
@@ -103,10 +177,20 @@ lc_pack_set(struct LC_Pack* pack, int id, const char* name)
         return 0;
     if( !pack_grow(pack, id + 1) )
         return 0;
+    /* A rename takes the old name out of the index, which open addressing
+     * cannot do in place: rebuild on the next find instead. A first name for an
+     * empty id, which is what an allocation is, goes straight in. */
+    if( pack->index_valid )
+    {
+        if( pack->names[id] || (pack->index_used + 1) * 2 > pack->index_capacity )
+            pack->index_valid = 0;
+    }
     /* Comments are deliberately untouched: a rename does not retract what
      * someone wrote about the id. */
     if( !sset(&pack->names[id], name) )
         return 0;
+    if( pack->index_valid )
+        index_add(pack, id);
     if( id + 1 > pack->max )
         pack->max = id + 1;
     return 1;
@@ -136,6 +220,7 @@ lc_pack_remove(struct LC_Pack* pack, int id)
     assert(pack);
     if( id < 0 || id >= pack->capacity || !pack->names[id] )
         return 0;
+    pack->index_valid = 0;
     free(pack->names[id]);
     pack->names[id] = NULL;
     free(pack->trailing[id]);
@@ -934,6 +1019,7 @@ pack_merged_snapshot(
     if( pack->trailer && !sset(&out->trailer, pack->trailer) )
         return 0;
 
+    out->index_valid = 0;
     out->max = 0;
     for( int id = out->capacity - 1; id >= 0; id-- )
     {
@@ -1138,6 +1224,7 @@ lc_pack_free(struct LC_Pack* pack)
     free(pack->preamble);
     free(pack->trailer);
     free(pack->tombstones);
+    free(pack->index_slots);
     memset(pack, 0, sizeof(*pack));
 }
 
@@ -1146,13 +1233,14 @@ lc_pack_find(
     const struct LC_Pack* pack,
     const char* name)
 {
+    /* The index is a cache over `names`, so building it is not a change to the
+     * pack a caller can observe; hence the cast. */
+    struct LC_Pack* indexed = (struct LC_Pack*)pack;
+
     assert(pack && name);
-    for( int id = 0; id < pack->capacity; id++ )
-    {
-        if( pack->names[id] && strcmp(pack->names[id], name) == 0 )
-            return id;
-    }
-    return -1;
+    if( !pack->index_valid )
+        index_build(indexed);
+    return pack->index_slots[index_slot(pack, name)];
 }
 
 int

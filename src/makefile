@@ -925,7 +925,7 @@ TORIRSSERVER_CORE_SRCS = torirsserver/torirs_server_world.c \
 	torirsserver/torirs_server_hpbar.c \
 	torirsserver/torirs_server_helper.c \
 	torirsserver/torirs_server_scripts.c torirsserver/torirs_server_ws.c torirsserver/torirs_server_content.c \
-	torirsserver/torirs_server_servercodec.c torirsserver/torirs_server_servpack.c \
+	torirsserver/torirs_server_servercodec.c torirsserver/torirs_server_servpack.c torirsserver/torirs_server_packcheck.c \
 	torirsserver/torirs_server_db.c \
 	torirsserver/torirs_server_paramtable.c \
 	torirsserver/torirs_server_locinfo.c torirsserver/torirs_server_structinfo.c \
@@ -3341,8 +3341,16 @@ test-ss-verify: $(OBJ_DIR) $(SS_SRCS) serverscript/test/ss_verify_test.c
 # deliberate choice.
 SSC_CFLAGS = $(CFLAGS) -O3
 
-sscompile: $(OBJ_DIR) $(SSC_SRCS) serverscript/ssc_main.c
-	$(CC) $(SSC_CFLAGS) -o $(OBJ_DIR)/sscompile $(SSC_SRCS) serverscript/ssc_main.c
+# A file target behind the phony name: an unchanged compiler is not relinked on
+# every pack build. That relink (-O3, LTO) cost more than an incremental
+# compile of the whole tree (docs/serverpack.md).
+SSC_BIN = $(OBJ_DIR)/sscompile$(PLATFORM_EXE_SUFFIX)
+SSC_MAIN_SRCS = serverscript/ssc_build.c serverscript/ssc_main.c
+
+sscompile: $(SSC_BIN)
+
+$(SSC_BIN): $(SSC_SRCS) $(SSC_MAIN_SRCS) $(wildcard serverscript/*.h) $(wildcard content/*.h) | $(OBJ_DIR)
+	$(CC) $(SSC_CFLAGS) -o $(OBJ_DIR)/sscompile $(SSC_SRCS) $(SSC_MAIN_SRCS)
 	@echo "built $(OBJ_DIR)/sscompile"
 
 # Compiler end to end: each case writes real RuneScript, compiles it, loads it
@@ -5232,7 +5240,8 @@ TORIRSSERVER_SCRIPT_OUT ?= $(TORIRSSERVER_CONTENT_DIR)/server/scripts/build
 # compiles the same tree the default pack already gated.
 torirsserver-scripts-lanes: sscompile
 	@mkdir -p $(TORIRSSERVER_SCRIPT_OUT)
-	@python3 $(REPO_ROOT)/tools/ss_allocate.py --tree $(TORIRSSERVER_CONTENT_DIR)
+	@python3 $(REPO_ROOT)/tools/ss_allocate.py --tree $(TORIRSSERVER_CONTENT_DIR) \
+		--stamp $(TORIRSSERVER_CONTENT_DIR)/server/scripts/build/.ss_allocate.stamp
 	./$(OBJ_DIR)/sscompile$(PLATFORM_EXE_SUFFIX) \
 		--src $(TORIRSSERVER_CONTENT_DIR)/server/scripts \
 		--out $(TORIRSSERVER_SCRIPT_OUT) \
@@ -5334,9 +5343,10 @@ test-rs2012-server-overlay:
 		--cachepack $(CACHEPACK_BIN)
 
 # The server pack: every config record the server boots from (it reads no config
-# text). Run before every boot -- it is stamped with its tree's fingerprint, so an
-# unchanged tree costs a directory walk, and the server refuses a pack whose stamp
-# does not match. A lane composition has its own pack:
+# text). Run before every boot -- it is incremental (cp_incremental.c), so an
+# unchanged tree costs a stat of its inputs (~0.1 s), and the server names every
+# input that changed since it was built (pack.manifest; docs/serverpack.md).
+# A lane composition has its own pack:
 #   make torirsserver-servpack SERVPACK_LANES="rs2012_qbd_td" SERVPACK_OUT=<dir>
 # and the server reads it through TORIRSSERVER_PACK_DIR=<dir>.
 SERVPACK_LANES ?=
@@ -5347,19 +5357,18 @@ torirsserver-servpack-summoning:
 	@$(MAKE) --no-print-directory torirsserver-servpack SERVPACK_LANES=scape2009_summoning \
 		SERVPACK_OUT=$(SUMMONING_CACHE_DIR).serverpack
 #
-# The default tree's pack (no SERVPACK_LANES/SERVPACK_OUT, not Windows) goes
-# through tools/quest_gate/pack_fingerprint.py: it takes the quest runners'
-# pack lock, so no run boots while it is rebuilt, and builds into a staging
-# directory that is swapped in whole -- this target used to clear the stamp and
-# rewrite <content>/server/pack in place for ~150 s, and every run booting
-# meanwhile died "has no stamp". `torirsserver-servpack-direct` is the bare
-# cachepack call (what the helper runs, with SERVPACK_OUT=<staging>).
+# This target used to clear the stamp and rewrite <content>/server/pack in place
+# for ~150 s, and every run booting meanwhile died "has no stamp"; the default
+# tree's pack then went through tools/quest_gate/pack_fingerprint.py, which built
+# into a staging directory and swapped it in whole. The quest runners still call
+# that helper (for their own pack lock), and it now calls the target below.
+#
+# cachepack is incremental now (cp_incremental.c): it repacks only the config
+# types whose files or lookups moved, holds `<pack>/.pack.lock` while it works,
+# and replaces the store file by file, so the build goes straight at the live
+# pack — there is no staging directory to swap any more.
 torirsserver-servpack:
-ifeq ($(OS)$(SERVPACK_LANES)$(SERVPACK_OUT)$(TORIRSSERVER_CONTENT_DIR),$(REPO_ROOT)/OSRS-Content/osrs239-content)
-	cd $(REPO_ROOT) && python3 tools/quest_gate/pack_fingerprint.py servpack
-else
 	@$(MAKE) --no-print-directory torirsserver-servpack-direct
-endif
 .PHONY: torirsserver-servpack-direct
 torirsserver-servpack-direct:
 	$(SUBMAKE) -C $(RSCACHE_DIR)/tools cachepack
@@ -5367,6 +5376,36 @@ torirsserver-servpack-direct:
 		--src $(TORIRSSERVER_CONTENT_DIR) --server-only \
 		$(foreach lane,$(SERVPACK_LANES),--lane $(lane)) \
 		$(if $(SERVPACK_OUT),--server-out $(SERVPACK_OUT),)
+
+# ---------------------------------------------------------------------------
+# Every server pack, full or incremental: one command (docs/serverpack.md)
+# ---------------------------------------------------------------------------
+#
+#   make -C src torirsserver-packs
+#
+# The id allocation, then three builds side by side: the base script pack
+# (TORIRSSERVER_SCRIPT_OUT), the lane script pack (TORIRSSERVER_PACKS_LANES into
+# TORIRSSERVER_PACKS_LANE_OUT) and the server pack (SERVPACK_OUT, default
+# <content>/server/pack). Each is incremental — a script edit recompiles that
+# file and what depends on it, a config edit repacks that record's type — and a
+# build with nothing to do takes a fraction of a second, so there is no separate
+# "is it fresh?" step to run first. Every tool's output is printed in full, in
+# order, with one line per unit it rebuilt and why; the complete per-unit logs
+# are `pack.log` beside each pack.
+#
+# This is what tools/tob_build_packs.sh runs. It does not run the content
+# contracts (`torirsserver-scripts` does, for the default pack).
+TORIRSSERVER_PACKS_LANES ?= scape2009_summoning rs558_ancient_curses
+TORIRSSERVER_PACKS_LANE_OUT ?= $(TORIRSSERVER_CONTENT_DIR)/server/scripts/build_summoning_curses
+.PHONY: torirsserver-packs
+torirsserver-packs: sscompile
+	@$(SUBMAKE) --no-print-directory -C $(RSCACHE_DIR)/tools cachepack > /dev/null
+	@cd $(REPO_ROOT) && python3 tools/build_packs.py \
+		--sscompile src/$(SSC_BIN) --cachepack $(CACHEPACK_BIN) \
+		--content $(TORIRSSERVER_CONTENT_DIR) \
+		--out $(TORIRSSERVER_SCRIPT_OUT) \
+		--lane-out $(TORIRSSERVER_PACKS_LANE_OUT) --lanes "$(TORIRSSERVER_PACKS_LANES)" \
+		$(if $(SERVPACK_OUT),--servpack-out $(SERVPACK_OUT),) $(PACKS_ARGS)
 
 # The client half of the same bake: the tree written back into a cache the
 # client can boot (PORTING_GUIDE Â§1, `cachepack pack âââº client cache (--out)`).
@@ -5865,7 +5904,7 @@ TORIRSSERVER_PACK_SRCS = torirsserver/torirs_server_pack.c torirsserver/torirs_s
 	torirsserver/torirs_server_objinfo.c torirsserver/torirs_server_npcinfo.c torirsserver/torirs_server_seqinfo.c \
 	torirsserver/torirs_server_dbinfo.c torirsserver/torirs_server_healthbarinfo.c \
 	torirsserver/torirs_server_locinfo.c torirsserver/torirs_server_paramtable.c \
-	torirsserver/torirs_server_servercodec.c torirsserver/torirs_server_servpack.c \
+	torirsserver/torirs_server_servercodec.c torirsserver/torirs_server_servpack.c torirsserver/torirs_server_packcheck.c \
 	torirsserver/torirs_server_zone_index.c torirsserver/torirs_server_varbit.c \
 	torirsserver/torirs_server_scene.c torirsserver/torirs_server_loc_ops.c torirsserver/torirs_server_mapinstance.c \
 	torirsserver/torirs_server_shop.c torirsserver/torirs_server_bank_tables.c \

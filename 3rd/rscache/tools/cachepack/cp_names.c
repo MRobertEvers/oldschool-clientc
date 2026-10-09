@@ -1,4 +1,5 @@
 #include "cachepack.h"
+#include "cp_incremental.h"
 
 #include "cp_assets.h"
 #include "cp_register.h"
@@ -1510,6 +1511,8 @@ cp_name_get(
     struct LC_Pack* pack = &ctx->names.packs[type];
     struct LC_Pack* alloc = &ctx->names.alloc[type];
 
+    if( g_cp_recording )
+        cp_lookup_note(CP_LOOKUP_NAME_GET, type, id, NULL);
     if( id >= 0 && id < pack->capacity && pack->names && pack->names[id] )
         return pack->names[id];
     if( id >= 0 && id < alloc->capacity && alloc->names )
@@ -1527,6 +1530,7 @@ cp_name_ensure(
     if( existing )
         return existing;
     char name[256];
+    cp_lookup_note_mutation();
     snprintf(name, sizeof(name), "%s_%d", cp_type(type)->name, id);
     uniquify(&ctx->names.packs[type], name, sizeof(name));
     lc_pack_set(&ctx->names.packs[type], id, name);
@@ -1550,7 +1554,11 @@ cp_name_find(
      * Every record has a line now (`cp_names_save`), so a miss here is a real miss
      * and is reported as one rather than guessed at.
      */
-    int id = lc_pack_find(&ctx->names.packs[type], name);
+    int id;
+
+    if( g_cp_recording )
+        cp_lookup_note(CP_LOOKUP_NAME_FIND, type, 0, name);
+    id = lc_pack_find(&ctx->names.packs[type], name);
     if( id >= 0 )
         return id;
     return lc_pack_find(&ctx->names.alloc[type], name);
@@ -1562,6 +1570,8 @@ cp_name_find_alloc(
     enum CP_TypeId type,
     const char* name)
 {
+    if( g_cp_recording )
+        cp_lookup_note(CP_LOOKUP_NAME_ALLOC, type, 0, name);
     return lc_pack_find(&ctx->names.alloc[type], name);
 }
 
@@ -2110,5 +2120,7 @@ cp_name_is_lane(
 {
     assert(ctx);
     assert(name);
+    if( g_cp_recording )
+        cp_lookup_note(CP_LOOKUP_NAME_LANE, type, 0, name);
     return lc_pack_find(&ctx->names.lane[type], name) >= 0;
 }

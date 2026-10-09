@@ -1,4 +1,5 @@
 #include "cachepack.h"
+#include "cp_incremental.h"
 
 #include "datatypes/dat2_config_param.h"
 
@@ -405,6 +406,16 @@ cp_constants_load(struct CP_Ctx* ctx)
     }
 }
 
+static uint32_t
+constant_hash(const char* name)
+{
+    uint32_t hash = 2166136261u;
+
+    for( ; *name; name++ )
+        hash = (hash ^ (uint8_t)*name) * 16777619u;
+    return hash;
+}
+
 int
 cp_resolve_caret(
     struct CP_Ctx* ctx,
@@ -430,12 +441,49 @@ cp_resolve_caret(
 
     if( !ctx->constants_loaded )
         cp_constants_load(ctx);
-    for( int i = 0; i < ctx->constants_count; i++ )
+    if( g_cp_recording )
+        cp_lookup_note(CP_LOOKUP_CONST_INT, 0, 0, text);
+    /*
+     * The first declaration of the name, as the scan this replaced found it.
+     * Indexed: a param value naming a constant was a walk of ~14,000 of them.
+     */
     {
-        if( strcmp(ctx->constants[i].name, text) == 0 )
+        static int* slots;
+        static uint32_t capacity;
+        static const struct CP_Constant* indexed;
+        static int indexed_count;
+        uint32_t slot;
+
+        if( indexed != ctx->constants || indexed_count != ctx->constants_count )
         {
-            *out_value = ctx->constants[i].value;
-            return 1;
+            capacity = 1024;
+            while( capacity < (uint32_t)ctx->constants_count * 2 + 16 )
+                capacity *= 2;
+            free(slots);
+            slots = (int*)malloc(capacity * sizeof(int));
+            assert(slots);
+            memset(slots, -1, capacity * sizeof(int));
+            for( int i = 0; i < ctx->constants_count; i++ )
+            {
+                slot = constant_hash(ctx->constants[i].name) & (capacity - 1);
+                while( slots[slot] >= 0 &&
+                       strcmp(ctx->constants[slots[slot]].name, ctx->constants[i].name) != 0 )
+                    slot = (slot + 1) & (capacity - 1);
+                if( slots[slot] < 0 )
+                    slots[slot] = i;
+            }
+            indexed = ctx->constants;
+            indexed_count = ctx->constants_count;
+        }
+        slot = constant_hash(text) & (capacity - 1);
+        while( slots[slot] >= 0 )
+        {
+            if( strcmp(ctx->constants[slots[slot]].name, text) == 0 )
+            {
+                *out_value = ctx->constants[slots[slot]].value;
+                return 1;
+            }
+            slot = (slot + 1) & (capacity - 1);
         }
     }
     return 0;

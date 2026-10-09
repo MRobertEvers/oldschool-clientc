@@ -1060,6 +1060,47 @@ Things worth knowing:
   report **22 of the 23** sites, and leaves the runtime guard printing *"refusing
   to start [label,woman_im_looking_for_a_lady] by id 273"*.
 
+
+### Incremental builds — lessons (2026-10-09)
+
+The compiler is incremental now: `<out>/ssc.state` keeps what each `.rs2` compiled
+to and every question it asked, and a build recompiles only the files whose text
+or answers moved. `docs/serverpack.md` is the design and the measurements. What
+building it taught:
+
+- **Profile before deciding what is slow.** A full compile was 25.7 s, and 66% of
+  it was re-sorting the 250,000-name symbol table: every lookup after an add
+  `qsort`ed it, and the dbtable, builtin and constant loads all interleave adds
+  with lookups. 11% more was the declare pass finding each name with a linear scan
+  of every name before it. Neither was compiling anything. Both are hash indexes
+  now, and a full compile is 2.5 s, byte-identical.
+- **The declare pass is a pure function of a file's text**, so it can be cached.
+  It is split in two: `SSC_ScanDeclarations` reads one file's headers and
+  signatures, and `SSC_DeclarePrepare` / `SSC_DeclareAt` register them against the
+  pack (duplicates, the singleton families, seams) at an id the caller chooses.
+- **Record answers, not dependencies you guess.** A file depends on whatever its
+  lookups returned, so the symbol table and the script-name table report every
+  query to an observer, and the build keeps a digest of each answer. A rebuild
+  re-asks the questions; a proc signature change recompiles exactly its callers, a
+  constant change exactly the files that expand it, and a pack edit that moves no
+  answer recompiles nothing. A query that MISSED is recorded too — a name that
+  starts to exist is a change.
+- **Ids are a contract, not an accident of sort order.** Gosubs compile to ids, so
+  an id that moved because an unrelated file was added would invalidate every
+  caller and every running instance. Ids are kept in the state; a removed script
+  leaves an empty slot, which `script.idx` has always been able to say.
+- **Warnings belong to the file that produced them.** The compiler sends them to a
+  sink per file, so a reused file still reports what it compiled to and the
+  "first 20 ambiguous names" cut is made after the files are merged, exactly as
+  the one-shot compiler printed it.
+- **A directory's mtime is not a change.** Packs land in `server/scripts/build` and
+  selftest screenshots in `server/scripts/selftest`, both inside trees the loaders
+  walk; a directory counts as changed only when its set of subdirectories and
+  loader-relevant files did.
+- **Prove the incremental output equals a full one.** Every dependency scenario in
+  the design note was checked by copying the state into an empty directory and
+  running `--full` (ids kept): the two `script.dat`s must be the same bytes.
+
 ## Tests
 
 ```

@@ -120,6 +120,7 @@ CACHEPACK_SRCS := \
 	$(TOOLS)/cachepack/cp_walk.c \
 	$(TOOLS)/cachepack/cp_merge.c \
 	$(TOOLS)/cachepack/cp_decode.c \
+	$(TOOLS)/cachepack/cp_incremental.c \
 	$(TOOLS)/cachepack/config/cp_flo.c \
 	$(TOOLS)/cachepack/config/cp_var.c \
 	$(TOOLS)/cachepack/config/cp_small.c \

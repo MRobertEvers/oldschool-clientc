@@ -212,6 +212,18 @@ extern const struct CP_KeySpec cp_dbtable_keys[];
 
 /** The spec `key` belongs to in `table` (an INDEXED stem matches its numbered
  *  lines), ignoring `applies`; NULL when none. For callers with no profile. */
+struct RSCache_Register;
+struct RSCache_RegisterField;
+/** RSCache_RegisterFind / RSCache_RegisterFindLine, memoised (cp_keys.c). */
+const struct RSCache_RegisterField*
+cp_register_find(
+    const struct RSCache_Register* reg,
+    const char* name);
+const struct RSCache_RegisterField*
+cp_register_find_line(
+    const struct RSCache_Register* reg,
+    const char* key);
+
 const struct CP_KeySpec*
 cp_key_spec_in(
     const struct CP_KeySpec* table,

@@ -1,14 +1,17 @@
 #!/bin/sh
-# Build BOTH server script packs: the pristine one `ToriRSServer --selftest` reads and
-# the lane pack `run-live.sh` loads for manifests/manifest_osrs239_torirs.ini.
+# Build every server pack: the pristine script pack `ToriRSServer --selftest`
+# reads, the lane script pack `run-live.sh` loads for
+# manifests/manifest_osrs239_torirs.ini, and the server pack. They are separate
+# compiles, not copies (`lanes: 0 of 3` vs `2 of 3`) — see memory
+# `two-script-packs-live-vs-selftest`.
 #
-# They are separate compiles, not copies (`lanes: 2 of 4` vs `4 of 4`), and
-# building only the first is how a session verifies a fix against a pack the
-# game never loads. See memory `two-script-packs-live-vs-selftest`.
+# One command, and it is incremental: a script edit recompiles that file and
+# what depends on it, a config edit repacks that record's type, and nothing to do
+# costs a fraction of a second (docs/serverpack.md). Every tool's output is
+# printed in full; nothing is cut to a last line any more. Extra arguments go to
+# tools/build_packs.py through PACKS_ARGS, e.g.
+#   PACKS_ARGS=--verbose ./tools/tob_build_packs.sh
+#   PACKS_ARGS="--explain tob_maiden.rs2" ./tools/tob_build_packs.sh
 set -e
 cd "$(dirname "$0")/.."
-make -C src torirsserver-scripts-lanes TORIRSSERVER_SCRIPT_LANES="" \
-     TORIRSSERVER_SCRIPT_OUT="$PWD/OSRS-Content/osrs239-content/server/scripts/build" 2>&1 | tail -1
-make -C src torirsserver-scripts-lanes \
-     TORIRSSERVER_SCRIPT_LANES="scape2009_summoning rs558_ancient_curses" \
-     TORIRSSERVER_SCRIPT_OUT="$PWD/OSRS-Content/osrs239-content/server/scripts/build_summoning_curses" 2>&1 | tail -1
+exec make --no-print-directory -C src torirsserver-packs PACKS_ARGS="${PACKS_ARGS:-}"

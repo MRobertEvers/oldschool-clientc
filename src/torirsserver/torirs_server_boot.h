@@ -51,6 +51,11 @@ struct ToriRSServerBootConfig
 void
 ToriRSServer_BootDefaults(struct ToriRSServerBootConfig* config);
 
+/** The content tree the server reads: TORIRSSERVER_CONTENT, else
+ *  OSRS-Content/osrs239-content from the repo root or from src/. */
+const char*
+ToriRSServer_BootContentDir(void);
+
 /** `ToriRSServer_BootLoad`'s refusal: `<content>/server/pack` is missing, or
  *  one of its archives does not validate. The server has no other source for
  *  its npc and loc records, so a caller must not start the world. */

@@ -336,7 +336,7 @@ register_list_family(
 
     if( !set->fields )
         return NULL;
-    field = RSCache_RegisterFindLine(set->fields, key);
+    field = cp_register_find_line(set->fields, key);
     if( !field || (field->text != RSCACHE_REGISTER_TEXT_INDEXED &&
                    field->text != RSCACHE_REGISTER_TEXT_LIST) )
         return NULL;
@@ -534,7 +534,7 @@ cp_merge_add(
                 const struct RSCache_RegisterField* field;
 
                 map_subkey(value, subkey, sizeof(subkey));
-                field = RSCache_RegisterFind(set->fields, subkey);
+                field = cp_register_find(set->fields, subkey);
                 if( field && field->text == RSCACHE_REGISTER_TEXT_PARAM &&
                     field->wire == RSCACHE_REGISTER_WIRE_LIST )
                     at = -1;

@@ -54,13 +54,26 @@ walk_dir(struct CP_Walk* walk, const char* dir, int rank)
     {
         char path[CP_WALK_PATH];
         struct stat info;
+        int is_dir = -1;
 
         if( entry->d_name[0] == '.' )
             continue;
         snprintf(path, sizeof(path), "%s/%s", dir, entry->d_name);
-        if( stat(path, &info) != 0 )
-            continue;
-        if( S_ISDIR(info.st_mode) )
+        /* d_type when the platform has it: a stat() per entry is what made the
+         * walk pay for every selftest screenshot under server/scripts. */
+#ifdef DT_DIR
+        if( entry->d_type == DT_DIR )
+            is_dir = 1;
+        else if( entry->d_type == DT_REG )
+            is_dir = 0;
+#endif
+        if( is_dir < 0 )
+        {
+            if( stat(path, &info) != 0 )
+                continue;
+            is_dir = S_ISDIR(info.st_mode) ? 1 : 0;
+        }
+        if( is_dir )
             walk_dir(walk, path, rank);
         else
             push(walk, path, rank);
@@ -89,11 +102,13 @@ cp_walk_tree(
     return walk->count;
 }
 
+static const struct CP_Walk* g_compare_walk;
+
 static int
 compare(const void* a, const void* b)
 {
-    const struct CP_WalkFile* x = (const struct CP_WalkFile*)a;
-    const struct CP_WalkFile* y = (const struct CP_WalkFile*)b;
+    const struct CP_WalkFile* x = &g_compare_walk->files[*(const int*)a];
+    const struct CP_WalkFile* y = &g_compare_walk->files[*(const int*)b];
 
     if( x->rank != y->rank )
         return x->rank - y->rank;
@@ -107,37 +122,38 @@ cp_walk_find(
     const char** out_paths,
     int out_capacity)
 {
-    struct CP_WalkFile* ordered;
+    /* The order is a cache over a walk that never changes after cp_walk_tree,
+     * so building it is not a change a caller can see; hence the cast. */
+    struct CP_Walk* cache = (struct CP_Walk*)walk;
     int matched = 0;
 
     if( walk->count <= 0 )
         return 0;
     /*
-     * Sorted per call rather than once, because the set is tiny (104 files across
-     * the two roots that use this) and a sort here cannot be forgotten by a caller
-     * that adds a root later. Rank first, then path: the order a merge depends on.
+     * Rank first, then path: the order a merge depends on. Sorted once per walk
+     * now; it was sorted per call, over a copy of every entry, and each match
+     * then searched the whole walk for its own path again — a few seconds per
+     * server pack once server/scripts held 54,000 files.
      */
-    ordered = (struct CP_WalkFile*)malloc((size_t)walk->count * sizeof(*ordered));
-    if( !ordered )
-        return 0;
-    memcpy(ordered, walk->files, (size_t)walk->count * sizeof(*ordered));
-    qsort(ordered, (size_t)walk->count, sizeof(*ordered), compare);
-
+    if( !walk->ordered )
+    {
+        cache->order = (int*)malloc((size_t)walk->count * sizeof(int));
+        if( !cache->order )
+            return 0;
+        for( int i = 0; i < walk->count; i++ )
+            cache->order[i] = i;
+        g_compare_walk = walk;
+        qsort(cache->order, (size_t)walk->count, sizeof(int), compare);
+        g_compare_walk = NULL;
+        cache->ordered = 1;
+    }
     for( int i = 0; i < walk->count && matched < out_capacity; i++ )
     {
-        if( strcmp(ordered[i].ext, ext) != 0 )
-            continue;
-        /* Borrowed from `walk`, not from `ordered`, which is about to go away. */
-        for( int j = 0; j < walk->count; j++ )
-        {
-            if( strcmp(walk->files[j].path, ordered[i].path) == 0 )
-            {
-                out_paths[matched++] = walk->files[j].path;
-                break;
-            }
-        }
+        const struct CP_WalkFile* file = &walk->files[walk->order[i]];
+
+        if( strcmp(file->ext, ext) == 0 )
+            out_paths[matched++] = file->path;
     }
-    free(ordered);
     return matched;
 }
 
@@ -145,5 +161,6 @@ void
 cp_walk_free(struct CP_Walk* walk)
 {
     free(walk->files);
+    free(walk->order);
     memset(walk, 0, sizeof(*walk));
 }

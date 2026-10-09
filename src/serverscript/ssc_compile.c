@@ -18,6 +18,7 @@
  */
 
 #include "ssc.h"
+#include "ssc_hash.h"
 #include <assert.h>
 
 #include "ss_meta.h"
@@ -169,6 +170,11 @@ struct SSC_Compiler
     int last_call_str_returns;
     int name_count;
     int name_capacity;
+    /** Open-addressed index over `names`: script ids, -1 for an empty slot.
+     *  SSC_NAME_SLOTS is a power of two at least twice SSC_MAX_SCRIPTS. The
+     *  declare pass used to find every name with a linear scan of all the names
+     *  before it, which is quadratic in the tree: 11% of a full compile. */
+    int32_t* name_slots;
 
     struct SSVM_Script* scripts;
     int script_count;
@@ -235,15 +241,23 @@ struct SSC_Compiler
      * rather than reported as a duplicate.
      */
     int weak_source;
-    /** How many names the strong roots declared, fixed before the weak pass
-     *  starts. A weak declaration is an override candidate only against those:
-     *  two weak files sharing a name is the ordinary duplicate, not a seam. */
-    int strong_name_count;
+    /** Script id -> 1 when a strong root declared it. A weak declaration is an
+     *  override candidate only against those: two weak files sharing a name is
+     *  the ordinary duplicate, not a seam. */
+    uint8_t* name_strong;
     /** The seam names a lane took over, so the compile pass drops those bodies
      *  instead of writing them over the lane's at the same id. */
     char (*shadowed)[SSC_MAX_NAME];
     int shadowed_count;
     int shadowed_capacity;
+
+    /** Optional: told every script name a compile looks up (ssc_build.c). */
+    SSC_QueryObserver observe;
+    void* observe_context;
+    /** Optional: where warnings go instead of stderr (ssc_build.c keeps them
+     *  per source file, so a reused file still reports what it compiled to). */
+    SSC_WarningSink warn_sink;
+    void* warn_context;
 
     struct SSC_Build build;
     struct SSC_Lexer lexer;
@@ -434,17 +448,71 @@ parse_expression(struct SSC_Compiler* compiler, int* is_string);
 static int
 parse_statement(struct SSC_Compiler* compiler);
 
+enum
+{
+    SSC_NAME_SLOTS = SSC_MAX_SCRIPTS * 2
+};
+
+static uint32_t
+script_name_hash(const char* name)
+{
+    uint32_t hash = 2166136261u;
+
+    for( ; *name; name++ )
+        hash = (hash ^ (uint8_t)*name) * 16777619u;
+    return hash;
+}
+
+/** The index slot holding `name`, or the empty slot where it would go. */
+static uint32_t
+script_name_slot(const struct SSC_Compiler* compiler, const char* name)
+{
+    uint32_t slot = script_name_hash(name) & (SSC_NAME_SLOTS - 1);
+
+    for( ;; )
+    {
+        int32_t id = compiler->name_slots[slot];
+
+        if( id < 0 || strcmp(compiler->names[id], name) == 0 )
+            return slot;
+        slot = (slot + 1) & (SSC_NAME_SLOTS - 1);
+    }
+}
+
 static int
 script_id_for_name(struct SSC_Compiler* compiler, const char* name)
 {
-    int i;
+    if( compiler->observe )
+        compiler->observe(compiler->observe_context, SSC_QUERY_SCRIPT, name, 0);
+    return compiler->name_slots[script_name_slot(compiler, name)];
+}
 
-    for( i = 0; i < compiler->name_count; i++ )
-    {
-        if( strcmp(compiler->names[i], name) == 0 )
-            return i;
-    }
-    return -1;
+/** A warning: to the sink when one is set, else straight to stderr as before.
+ *  `ambiguous` marks the bare-name family the summary line counts. */
+static void
+compile_warn(struct SSC_Compiler* compiler, int ambiguous, const char* fmt, ...)
+{
+    char text[1024];
+    va_list args;
+
+    va_start(args, fmt);
+    vsnprintf(text, sizeof(text), fmt, args);
+    va_end(args);
+    if( compiler->warn_sink )
+        compiler->warn_sink(compiler->warn_context, ambiguous, text);
+    else
+        fputs(text, stderr);
+}
+
+/** Index `names[id]`. A name already indexed keeps its first id, which is the
+ *  answer the linear scan this replaced gave. */
+static void
+script_name_index(struct SSC_Compiler* compiler, int id)
+{
+    uint32_t slot = script_name_slot(compiler, compiler->names[id]);
+
+    if( compiler->name_slots[slot] < 0 )
+        compiler->name_slots[slot] = id;
 }
 
 /* ------------------------------------------------------------------ */
@@ -607,10 +675,10 @@ warn_carrier_read(
     carrier = SSC_SymbolsCarrier(compiler->symbols, varp);
     if( !carrier || carrier->exempt || carrier->read_exempt )
         return;
-    fprintf(stderr,
-            "sscompile: %s:%d: warning: `%%%s` reads varp %d whole, and %d varbit(s) are "
-            "packed into it — this is the container, not a value\n",
-            compiler->lexer.file, compiler->lexer.current.line, name, varp, carrier->bits);
+    compile_warn(compiler, 0,
+                 "sscompile: %s:%d: warning: `%%%s` reads varp %d whole, and %d varbit(s) are "
+                 "packed into it — this is the container, not a value\n",
+                 compiler->lexer.file, compiler->lexer.current.line, name, varp, carrier->bits);
 }
 
 /**
@@ -1807,6 +1875,10 @@ report_ambiguous_name(
      * summary line is what always shows, and `SSCOMPILE_AMBIGUOUS=all` is how
      * the whole list is taken when somebody is working through it.
      */
+    /* A sink takes every one and decides itself what to show: ssc_build.c
+     * replays a reused file's warnings, so the cut has to be made after the
+     * files are merged, not inside one of them. */
+    if( !compiler->warn_sink )
     {
         static int show_all = -1;
 
@@ -1829,15 +1901,26 @@ report_ambiguous_name(
     shown = count < (int)(sizeof(kinds) / sizeof(kinds[0]))
                 ? count
                 : (int)(sizeof(kinds) / sizeof(kinds[0]));
-    fprintf(stderr, "sscompile: %s:%d: warning: '%s' names ", compiler->lexer.file,
-            compiler->lexer.current.line, name);
-    for( i = 0; i < shown; i++ )
-        fprintf(stderr, "%s%s %d", i ? " and " : "", SSC_SymbolKindLabel(kinds[i]->kind),
-                kinds[i]->value);
-    if( count > shown )
-        fprintf(stderr, " and %d more", count - shown);
-    fprintf(stderr, "; nothing here says which, so %s %d is what compiled\n",
-            SSC_SymbolKindLabel(taken->kind), taken->value);
+    {
+        char text[1024];
+        size_t used = 0;
+
+        used += (size_t)snprintf(text + used, sizeof(text) - used,
+                                 "sscompile: %s:%d: warning: '%s' names ", compiler->lexer.file,
+                                 compiler->lexer.current.line, name);
+        for( i = 0; i < shown && used < sizeof(text); i++ )
+            used += (size_t)snprintf(text + used, sizeof(text) - used, "%s%s %d",
+                                     i ? " and " : "", SSC_SymbolKindLabel(kinds[i]->kind),
+                                     kinds[i]->value);
+        if( count > shown && used < sizeof(text) )
+            used += (size_t)snprintf(text + used, sizeof(text) - used, " and %d more",
+                                     count - shown);
+        if( used < sizeof(text) )
+            snprintf(text + used, sizeof(text) - used,
+                     "; nothing here says which, so %s %d is what compiled\n",
+                     SSC_SymbolKindLabel(taken->kind), taken->value);
+        compile_warn(compiler, 1, "%s", text);
+    }
 }
 
 /**
@@ -2087,12 +2170,12 @@ parse_expression(struct SSC_Compiler* compiler, int* is_string)
                 symbol = stated ? NULL : SSC_SymbolsFindValue(compiler->symbols, text);
                 if( symbol )
                 {
-                    fprintf(stderr,
-                            "sscompile: %s:%d: note: '%s' names both a script and a "
-                            "symbol of kind %d (value %d); the script wins in this "
-                            "position\n",
-                            compiler->lexer.file, compiler->lexer.current.line, text,
-                            (int)symbol->kind, symbol->value);
+                    compile_warn(compiler, 0,
+                                 "sscompile: %s:%d: note: '%s' names both a script and a "
+                                 "symbol of kind %d (value %d); the script wins in this "
+                                 "position\n",
+                                 compiler->lexer.file, compiler->lexer.current.line, text,
+                                 (int)symbol->kind, symbol->value);
                 }
                 emit(compiler, SS_OP_PUSH_CONSTANT_INT, script_id);
                 SSC_LexNext(lexer);
@@ -3269,6 +3352,11 @@ SSC_New(struct SSC_Symbols* symbols)
     compiler->name_param_kinds = (uint8_t(*)[SS_MAX_PARAM_TYPES])calloc(
         SSC_MAX_SCRIPTS, SS_MAX_PARAM_TYPES);
     compiler->name_capacity = SSC_MAX_SCRIPTS;
+    compiler->name_strong = (uint8_t*)calloc(SSC_MAX_SCRIPTS, 1);
+    assert(compiler->name_strong);
+    compiler->name_slots = (int32_t*)malloc(SSC_NAME_SLOTS * sizeof(int32_t));
+    assert(compiler->name_slots);
+    memset(compiler->name_slots, -1, SSC_NAME_SLOTS * sizeof(int32_t));
     if( compiler->name_int_args && compiler->name_str_args && compiler->name_str_return &&
         compiler->name_int_returns && compiler->name_str_returns )
     {
@@ -3300,6 +3388,8 @@ SSC_Free(struct SSC_Compiler* compiler)
         SSVM_ScriptFree(&compiler->scripts[i]);
     free(compiler->scripts);
     free(compiler->names);
+    free(compiler->name_slots);
+    free(compiler->name_strong);
     free(compiler->name_int_args);
     free(compiler->name_str_args);
     free(compiler->name_str_return);
@@ -3372,16 +3462,38 @@ read_file(const char* path, size_t* out_length)
     return data;
 }
 
+/*
+ * The declare pass, in two halves.
+ *
+ * SSC_ScanDeclarations reads one file's headers into SSC_Decl records — names
+ * and signatures, nothing that depends on any other file or on the symbol
+ * table — so an incremental build can keep a file's declarations and skip
+ * reading it. SSC_DeclarePrepare and SSC_DeclareAt then register those against
+ * the whole pack: the duplicate rules, the seam rule, and the id. The id is the
+ * caller's to choose (ssc_build.c keeps them stable across builds); SSC_Declare
+ * is the old single-call form and hands out the next free id.
+ */
 int
-SSC_Declare(
-    struct SSC_Compiler* compiler,
+SSC_ScanDeclarations(
     const char* path,
+    struct SSC_Decl** out_decls,
+    int* out_count,
     struct SSC_Diag* diag)
 {
     size_t length = 0;
-    char* source = read_file(path, &length);
+    char* source;
     struct SSC_Lexer lexer;
+    struct SSC_Decl* decls = NULL;
+    int count = 0;
+    int capacity = 0;
 
+    assert(path);
+    assert(out_decls);
+    assert(out_count);
+
+    *out_decls = NULL;
+    *out_count = 0;
+    source = read_file(path, &length);
     if( !source )
     {
         if( diag )
@@ -3399,6 +3511,7 @@ SSC_Declare(
         {
             char trigger[64];
             char subject[SSC_MAX_NAME];
+            struct SSC_Decl* decl;
 
             SSC_LexNext(&lexer);
             if( lexer.current.kind != SSC_TOK_IDENT )
@@ -3415,223 +3528,295 @@ SSC_Declare(
             if( strcmp(trigger, "command") == 0 )
                 continue;
 
-            /*
-             * A seam a lane took over. The lane's declaration already holds the
-             * name and this one must not become a second id — that is precisely
-             * the duplicate the check below refuses. Recorded rather than merely
-             * skipped, because the emit pass has to drop this body too: it would
-             * otherwise resolve the same name back to the lane's id and write
-             * the default over the lane's real script.
-             *
-             * Only against the strong roots. Two seams sharing a name, or two
-             * lanes, is the ordinary duplicate and is still an error.
-             */
-            if( compiler->weak_source )
+            if( count == capacity )
             {
-                char seam_name[SSC_MAX_NAME];
-                int existing;
-
-                snprintf(seam_name, sizeof(seam_name), "[%.32s,%.90s]", trigger, subject);
-                existing = script_id_for_name(compiler, seam_name);
-                if( existing >= 0 && existing < compiler->strong_name_count )
-                {
-                    shadow_add(compiler, seam_name);
-                    continue;
-                }
+                capacity = capacity ? capacity * 2 : 16;
+                decls = (struct SSC_Decl*)realloc(decls, (size_t)capacity * sizeof(*decls));
+                assert(decls);
             }
+            decl = &decls[count++];
+            memset(decl, 0, sizeof(*decl));
+            snprintf(decl->name, sizeof(decl->name), "[%.32s,%.90s]", trigger, subject);
+            decl->line = lexer.current.line;
+            decl->singleton = strcmp(trigger, "debugproc") == 0
+                                  ? 1
+                                  : (strcmp(trigger, "login") == 0 && strcmp(subject, "_") == 0
+                                         ? 2
+                                         : 0);
+            /* -1: no header was seen, which is what an id never declared reads
+             * as to a call site. */
+            decl->int_args = -1;
+            decl->str_args = -1;
+            decl->str_return = -1;
+            decl->int_returns = -1;
+            decl->str_returns = -1;
 
             /*
-             * Some script names are singleton entry points. Two declarations
-             * cannot be composed and there is no meaningful precedence: the
-             * old compiler assigned both declarations a slot and finish_script
-             * then resolved both bodies back to the first matching name,
-             * silently replacing whichever body compiled first.
+             * The argument list, counted the same way parse_arg_list does.
              *
-             * That behavior first hid a second [debugproc,crystal_set]. It also
-             * let quest NPC bootstraps replace [login,_], skipping the canonical
-             * login's IF_SETEVENTS burst and making every backpack item inert.
-             * Reject both singleton families during the declaration pass so a
-             * source-order winner can never reach a script pack.
+             * `lexer.current` is the `]` here; a header with arguments has
+             * `(type $name, ...)` immediately after it. Only the types are
+             * needed — enough to check a call site pushed the right number
+             * onto each of the two stacks — so this reads them and leaves
+             * the real parse to the emit pass.
              */
-            if( strcmp(trigger, "debugproc") == 0 ||
-                (strcmp(trigger, "login") == 0 && strcmp(subject, "_") == 0) )
+            if( SSC_LexIsPunct(&lexer, "]") )
             {
-                char full_name[SSC_MAX_NAME];
-
-                snprintf(full_name, sizeof(full_name), "[%.32s,%.90s]", trigger, subject);
-                if( script_id_for_name(compiler, full_name) >= 0 )
+                SSC_LexNext(&lexer);
+                if( SSC_LexIsPunct(&lexer, "(") )
                 {
-                    if( diag )
-                    {
-                        snprintf(diag->file, sizeof(diag->file), "%s", path);
-                        diag->line = lexer.current.line;
-                        if( strcmp(trigger, "debugproc") == 0 )
-                            snprintf(
-                                diag->message,
-                                sizeof(diag->message),
-                                "duplicate global debug command '%s'; keep exactly one declaration",
-                                full_name);
-                        else
-                            snprintf(
-                                diag->message,
-                                sizeof(diag->message),
-                                "duplicate global login trigger '%s'; keep one canonical declaration and call procedures from it",
-                                full_name);
-                    }
-                    free(source);
-                    return 0;
-                }
-            }
+                    int ints = 0;
+                    int strs = 0;
+                    int params = 0;
 
-            if( compiler->name_count < compiler->name_capacity )
-            {
-                int slot = compiler->name_count;
-
-                snprintf(compiler->names[slot], SSC_MAX_NAME, "[%.32s,%.90s]", trigger, subject);
-                compiler->name_count++;
-
-                /*
-                 * A name declared twice does not compose and has no precedence
-                 * rule: both declarations take an id, but finish_script resolves
-                 * every body back to the FIRST matching name, so the file the
-                 * compiler happens to reach LAST silently replaces the other's
-                 * body and the loser's id is left empty. That is how Sheep
-                 * Shearer, Rune Mysteries and A Tail of Two Cats all became
-                 * unstartable — no diagnostic, correct-looking source, dead
-                 * content.
-                 *
-                 * A hard error, like the singleton families above (debugproc,
-                 * [login,_]): the tree carried a backlog of 67 of these and now
-                 * carries none, so the only thing a duplicate can be from here
-                 * is a regression. Two files that both need one npc or loc share
-                 * it the way areas/lumbridge/scripts/fred_the_farmer.rs2 and
-                 * quest_coldwar do — one trigger, branching into a `[label,...]`
-                 * the other file owns.
-                 */
-                if( script_id_for_name(compiler, compiler->names[slot]) != slot )
-                {
-                    if( diag )
-                    {
-                        snprintf(diag->file, sizeof(diag->file), "%s", path);
-                        diag->line = lexer.current.line;
-                        snprintf(diag->message, sizeof(diag->message),
-                                 "duplicate script name '%s'; declare it once and branch "
-                                 "into a [label,...] from the other file",
-                                 compiler->names[slot]);
-                    }
-                    free(source);
-                    return 0;
-                }
-
-                /*
-                 * The argument list, counted the same way parse_arg_list does.
-                 *
-                 * `lexer.current` is the `]` here; a header with arguments has
-                 * `(type $name, ...)` immediately after it. Only the types are
-                 * needed — enough to check a call site pushed the right number
-                 * onto each of the two stacks — so this reads them and leaves
-                 * the real parse to the emit pass.
-                 */
-                if( SSC_LexIsPunct(&lexer, "]") )
-                {
                     SSC_LexNext(&lexer);
-                    if( SSC_LexIsPunct(&lexer, "(") )
+                    while( !SSC_LexIsPunct(&lexer, ")") && lexer.current.kind != SSC_TOK_EOF )
                     {
-                        int ints = 0;
-                        int strs = 0;
-                        int params = 0;
-
-                        SSC_LexNext(&lexer);
-                        while( !SSC_LexIsPunct(&lexer, ")") &&
-                               lexer.current.kind != SSC_TOK_EOF )
+                        if( lexer.current.kind == SSC_TOK_IDENT )
                         {
-                            if( lexer.current.kind == SSC_TOK_IDENT )
-                            {
-                                if( type_is_string(lexer.current.text) )
-                                    strs++;
-                                else
-                                    ints++;
-                                /* The type is also what a bare argument at that
-                                 * position should resolve as — see
-                                 * name_param_kinds. Read here rather than in
-                                 * parse_header_lists because a call site can be
-                                 * compiled before its callee's body. */
-                                if( params < SS_MAX_PARAM_TYPES )
-                                    compiler->name_param_kinds[slot][params++] =
-                                        (uint8_t)param_type_kind(lexer.current.text);
-                            }
-                            SSC_LexNext(&lexer); /* the type */
-                            if( lexer.current.kind == SSC_TOK_LOCAL )
-                                SSC_LexNext(&lexer); /* the $name */
-                            if( SSC_LexIsPunct(&lexer, ",") )
-                                SSC_LexNext(&lexer);
+                            if( type_is_string(lexer.current.text) )
+                                strs++;
+                            else
+                                ints++;
+                            /* The type is also what a bare argument at that
+                             * position should resolve as — see
+                             * name_param_kinds. Read here rather than in
+                             * parse_header_lists because a call site can be
+                             * compiled before its callee's body. */
+                            if( params < SS_MAX_PARAM_TYPES )
+                                decl->param_kinds[params++] =
+                                    (uint8_t)param_type_kind(lexer.current.text);
                         }
-                        compiler->name_int_args[slot] = (int8_t)ints;
-                        compiler->name_str_args[slot] = (int8_t)strs;
-                        /* Past the `)`, so the return list below is looked for
-                         * where it actually starts. */
-                        if( SSC_LexIsPunct(&lexer, ")") )
+                        SSC_LexNext(&lexer); /* the type */
+                        if( lexer.current.kind == SSC_TOK_LOCAL )
+                            SSC_LexNext(&lexer); /* the $name */
+                        if( SSC_LexIsPunct(&lexer, ",") )
                             SSC_LexNext(&lexer);
                     }
-                    else
-                    {
-                        compiler->name_int_args[slot] = 0;
-                        compiler->name_str_args[slot] = 0;
-                    }
-                    /*
-                     * The return list, which follows the argument list:
-                     * `[proc,stat_name](stat $stat)(string)`. Two things are
-                     * recorded — which stack a single answer landed on
-                     * (name_str_return) and how many values land on each
-                     * (name_int_returns / name_str_returns), which is what lets
-                     * a multi-return call be passed straight into another call's
-                     * argument list.
-                     */
-                    compiler->name_str_return[slot] = 0;
-                    compiler->name_int_returns[slot] = 0;
-                    compiler->name_str_returns[slot] = 0;
-                    if( SSC_LexIsPunct(&lexer, "(") )
-                    {
-                        int returns = 0;
-                        int strings = 0;
-
+                    decl->int_args = (int8_t)ints;
+                    decl->str_args = (int8_t)strs;
+                    /* Past the `)`, so the return list below is looked for
+                     * where it actually starts. */
+                    if( SSC_LexIsPunct(&lexer, ")") )
                         SSC_LexNext(&lexer);
-                        while( !SSC_LexIsPunct(&lexer, ")") &&
-                               lexer.current.kind != SSC_TOK_EOF )
-                        {
-                            if( lexer.current.kind == SSC_TOK_IDENT )
-                            {
-                                returns++;
-                                if( type_is_string(lexer.current.text) )
-                                    strings++;
-                            }
-                            SSC_LexNext(&lexer);
-                            if( SSC_LexIsPunct(&lexer, ",") )
-                                SSC_LexNext(&lexer);
-                        }
-                        compiler->name_str_return[slot] =
-                            (int8_t)(returns == 1 && strings == 1);
-                        compiler->name_int_returns[slot] = (int8_t)(returns - strings);
-                        compiler->name_str_returns[slot] = (int8_t)strings;
-                    }
-                    continue;
                 }
-            }
-            else
-            {
-                /* Never drop a name quietly: the symptom is a later file
-                 * failing to resolve a proc that visibly exists, which reads as
-                 * a parser bug rather than a capacity one. */
-                free(source);
-                return fail(compiler, "more than %d scripts; raise SSC_MAX_SCRIPTS",
-                            SSC_MAX_SCRIPTS);
+                else
+                {
+                    decl->int_args = 0;
+                    decl->str_args = 0;
+                }
+                /*
+                 * The return list, which follows the argument list:
+                 * `[proc,stat_name](stat $stat)(string)`. Two things are
+                 * recorded — which stack a single answer landed on
+                 * (name_str_return) and how many values land on each
+                 * (name_int_returns / name_str_returns), which is what lets
+                 * a multi-return call be passed straight into another call's
+                 * argument list.
+                 */
+                decl->str_return = 0;
+                decl->int_returns = 0;
+                decl->str_returns = 0;
+                if( SSC_LexIsPunct(&lexer, "(") )
+                {
+                    int returns = 0;
+                    int strings = 0;
+
+                    SSC_LexNext(&lexer);
+                    while( !SSC_LexIsPunct(&lexer, ")") && lexer.current.kind != SSC_TOK_EOF )
+                    {
+                        if( lexer.current.kind == SSC_TOK_IDENT )
+                        {
+                            returns++;
+                            if( type_is_string(lexer.current.text) )
+                                strings++;
+                        }
+                        SSC_LexNext(&lexer);
+                        if( SSC_LexIsPunct(&lexer, ",") )
+                            SSC_LexNext(&lexer);
+                    }
+                    decl->str_return = (int8_t)(returns == 1 && strings == 1);
+                    decl->int_returns = (int8_t)(returns - strings);
+                    decl->str_returns = (int8_t)strings;
+                }
+                continue;
             }
         }
         SSC_LexNext(&lexer);
     }
 
     free(source);
+    *out_decls = decls;
+    *out_count = count;
     return 1;
+}
+
+int
+SSC_DeclarePrepare(
+    struct SSC_Compiler* compiler,
+    const struct SSC_Decl* decl,
+    const char* path,
+    int weak,
+    struct SSC_Diag* diag)
+{
+    int existing;
+
+    assert(compiler);
+    assert(decl);
+    assert(path);
+
+    existing = script_id_for_name(compiler, decl->name);
+
+    /*
+     * A seam a lane took over. The lane's declaration already holds the
+     * name and this one must not become a second id — that is precisely
+     * the duplicate the check below refuses. Recorded rather than merely
+     * skipped, because the emit pass has to drop this body too: it would
+     * otherwise resolve the same name back to the lane's id and write
+     * the default over the lane's real script.
+     *
+     * Only against the strong roots. Two seams sharing a name, or two
+     * lanes, is the ordinary duplicate and is still an error.
+     */
+    if( weak && existing >= 0 && compiler->name_strong[existing] )
+    {
+        shadow_add(compiler, decl->name);
+        return 0;
+    }
+
+    /*
+     * Some script names are singleton entry points. Two declarations
+     * cannot be composed and there is no meaningful precedence: the
+     * old compiler assigned both declarations a slot and finish_script
+     * then resolved both bodies back to the first matching name,
+     * silently replacing whichever body compiled first.
+     *
+     * That behavior first hid a second [debugproc,crystal_set]. It also
+     * let quest NPC bootstraps replace [login,_], skipping the canonical
+     * login's IF_SETEVENTS burst and making every backpack item inert.
+     * Reject both singleton families during the declaration pass so a
+     * source-order winner can never reach a script pack.
+     */
+    if( existing >= 0 && decl->singleton )
+    {
+        if( diag )
+        {
+            snprintf(diag->file, sizeof(diag->file), "%s", path);
+            diag->line = decl->line;
+            if( decl->singleton == 1 )
+                snprintf(diag->message, sizeof(diag->message),
+                         "duplicate global debug command '%s'; keep exactly one declaration",
+                         decl->name);
+            else
+                snprintf(diag->message, sizeof(diag->message),
+                         "duplicate global login trigger '%s'; keep one canonical declaration "
+                         "and call procedures from it",
+                         decl->name);
+        }
+        return -1;
+    }
+
+    /*
+     * A name declared twice does not compose and has no precedence
+     * rule: both declarations take an id, but finish_script resolves
+     * every body back to the FIRST matching name, so the file the
+     * compiler happens to reach LAST silently replaces the other's
+     * body and the loser's id is left empty. That is how Sheep
+     * Shearer, Rune Mysteries and A Tail of Two Cats all became
+     * unstartable — no diagnostic, correct-looking source, dead
+     * content.
+     *
+     * A hard error, like the singleton families above (debugproc,
+     * [login,_]): the tree carried a backlog of 67 of these and now
+     * carries none, so the only thing a duplicate can be from here
+     * is a regression. Two files that both need one npc or loc share
+     * it the way areas/lumbridge/scripts/fred_the_farmer.rs2 and
+     * quest_coldwar do — one trigger, branching into a `[label,...]`
+     * the other file owns.
+     */
+    if( existing >= 0 )
+    {
+        if( diag )
+        {
+            snprintf(diag->file, sizeof(diag->file), "%s", path);
+            diag->line = decl->line;
+            snprintf(diag->message, sizeof(diag->message),
+                     "duplicate script name '%s'; declare it once and branch "
+                     "into a [label,...] from the other file",
+                     decl->name);
+        }
+        return -1;
+    }
+    return 1;
+}
+
+int
+SSC_DeclareAt(
+    struct SSC_Compiler* compiler,
+    const struct SSC_Decl* decl,
+    int id,
+    int weak)
+{
+    assert(compiler);
+    assert(decl);
+    assert(id >= 0);
+
+    /* Never drop a name quietly: the symptom is a later file failing to
+     * resolve a proc that visibly exists, which reads as a parser bug rather
+     * than a capacity one. */
+    if( id >= compiler->name_capacity )
+        return fail(compiler, "more than %d scripts; raise SSC_MAX_SCRIPTS", SSC_MAX_SCRIPTS);
+    assert(compiler->names[id][0] == '\0');
+
+    snprintf(compiler->names[id], SSC_MAX_NAME, "%s", decl->name);
+    script_name_index(compiler, id);
+    compiler->name_strong[id] = (uint8_t)!weak;
+    compiler->name_int_args[id] = decl->int_args;
+    compiler->name_str_args[id] = decl->str_args;
+    compiler->name_str_return[id] = decl->str_return;
+    compiler->name_int_returns[id] = decl->int_returns;
+    compiler->name_str_returns[id] = decl->str_returns;
+    memcpy(compiler->name_param_kinds[id], decl->param_kinds, SS_MAX_PARAM_TYPES);
+    if( id >= compiler->name_count )
+        compiler->name_count = id + 1;
+    return 1;
+}
+
+int
+SSC_DeclareTableSize(struct SSC_Compiler* compiler, int size)
+{
+    assert(compiler);
+    if( size > compiler->name_capacity )
+        return fail(compiler, "more than %d scripts; raise SSC_MAX_SCRIPTS", SSC_MAX_SCRIPTS);
+    if( size > compiler->name_count )
+        compiler->name_count = size;
+    return 1;
+}
+
+int
+SSC_Declare(
+    struct SSC_Compiler* compiler,
+    const char* path,
+    struct SSC_Diag* diag)
+{
+    struct SSC_Decl* decls = NULL;
+    int count = 0;
+    int ok;
+
+    if( !SSC_ScanDeclarations(path, &decls, &count, diag) )
+        return 0;
+    ok = 1;
+    for( int i = 0; i < count && ok; i++ )
+    {
+        int prepared = SSC_DeclarePrepare(compiler, &decls[i], path, compiler->weak_source, diag);
+
+        if( prepared < 0 )
+            ok = 0;
+        else if( prepared > 0 )
+            ok = SSC_DeclareAt(compiler, &decls[i], compiler->name_count, compiler->weak_source);
+    }
+    free(decls);
+    return ok;
 }
 
 /** Move the finished build into a script slot. */
@@ -4183,7 +4368,6 @@ SSC_CompileRoots(
      */
     for( i = 0; i < strong_count && ok; i++ )
         ok = SSC_Declare(compiler, strong[i], diag);
-    compiler->strong_name_count = compiler->name_count;
     compiler->weak_source = 1;
     for( i = 0; i < weak_count && ok; i++ )
         ok = SSC_Declare(compiler, weak[i], diag);
@@ -4259,8 +4443,9 @@ SSC_RecompileFile(struct SSC_Compiler* compiler, const char* path, struct SSC_Di
     }
     /* The declaration-only candidate owns no script bodies yet. */
     next->name_count = compiler->name_count;
-    next->strong_name_count = compiler->strong_name_count;
+    memcpy(next->name_strong, compiler->name_strong, (size_t)compiler->name_count);
     memcpy(next->names, compiler->names, (size_t)compiler->name_count * sizeof(*compiler->names));
+    memcpy(next->name_slots, compiler->name_slots, SSC_NAME_SLOTS * sizeof(int32_t));
 #define COPY_DECL(field) memcpy(next->field, compiler->field, (size_t)compiler->name_count * sizeof(*compiler->field))
     COPY_DECL(name_int_args); COPY_DECL(name_str_args); COPY_DECL(name_str_return);
     COPY_DECL(name_int_returns); COPY_DECL(name_str_returns); COPY_DECL(name_param_kinds);
@@ -4374,4 +4559,71 @@ SSC_Write(
     fclose(dat);
     fclose(idx);
     return 1;
+}
+
+void
+SSC_SetObserver(
+    struct SSC_Compiler* compiler,
+    SSC_QueryObserver observe,
+    void* context)
+{
+    assert(compiler);
+    compiler->observe = observe;
+    compiler->observe_context = context;
+    compiler->symbols->observe = observe;
+    compiler->symbols->observe_context = context;
+}
+
+void
+SSC_SetWarningSink(
+    struct SSC_Compiler* compiler,
+    SSC_WarningSink sink,
+    void* context)
+{
+    assert(compiler);
+    compiler->warn_sink = sink;
+    compiler->warn_context = context;
+}
+
+uint64_t
+SSC_ScriptQueryDigest(
+    struct SSC_Compiler* compiler,
+    const char* name)
+{
+    uint64_t h = ssc_hash_u64(SSC_HASH_SEED, SSC_QUERY_SCRIPT);
+    int id;
+
+    assert(compiler);
+    assert(name);
+    id = compiler->name_slots[script_name_slot(compiler, name)];
+    h = ssc_hash_u64(h, (uint64_t)(uint32_t)id);
+    if( id < 0 )
+        return h;
+    h = ssc_hash_u64(h, compiler->name_strong[id]);
+    h = ssc_hash_u64(h, (uint64_t)(uint8_t)compiler->name_int_args[id]);
+    h = ssc_hash_u64(h, (uint64_t)(uint8_t)compiler->name_str_args[id]);
+    h = ssc_hash_u64(h, (uint64_t)(uint8_t)compiler->name_str_return[id]);
+    h = ssc_hash_u64(h, (uint64_t)(uint8_t)compiler->name_int_returns[id]);
+    h = ssc_hash_u64(h, (uint64_t)(uint8_t)compiler->name_str_returns[id]);
+    return ssc_hash_u64(h, ssc_hash_bytes(compiler->name_param_kinds[id], SS_MAX_PARAM_TYPES,
+                                          SSC_HASH_SEED));
+}
+
+int
+SSC_IsShadowed(
+    struct SSC_Compiler* compiler,
+    const char* name)
+{
+    assert(compiler);
+    assert(name);
+    return is_shadowed(compiler, name);
+}
+
+void
+SSC_SetWeakSource(
+    struct SSC_Compiler* compiler,
+    int weak)
+{
+    assert(compiler);
+    compiler->weak_source = weak;
 }

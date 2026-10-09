@@ -420,14 +420,27 @@ fingerprint_walk(
         char child[2048];
         char path[2048];
         struct stat info;
+        int is_dir = -1;
 
         if( entry->d_name[0] == '.' )
             continue;
         snprintf(child, sizeof(child), "%s/%s", rel, entry->d_name);
         snprintf(path, sizeof(path), "%s/%s", srcdir, child);
-        if( stat(path, &info) != 0 )
-            continue;
-        if( S_ISDIR(info.st_mode) )
+        /* d_type first: a stat() per entry was most of this walk once
+         * server/scripts held ~50,000 selftest screenshots. */
+#ifdef DT_DIR
+        if( entry->d_type == DT_DIR )
+            is_dir = 1;
+        else if( entry->d_type == DT_REG )
+            is_dir = 0;
+#endif
+        if( is_dir < 0 )
+        {
+            if( stat(path, &info) != 0 )
+                continue;
+            is_dir = S_ISDIR(info.st_mode) ? 1 : 0;
+        }
+        if( is_dir )
         {
             fingerprint_walk(files, srcdir, child, configs_only, only_extension);
             continue;
@@ -491,6 +504,67 @@ mix_bytes(
     return fnv1a(hash, bytes + i, size - i);
 }
 
+/* The fingerprint's file set, sorted: everything a server pack is built from. */
+static void
+fingerprint_collect(
+    struct FingerprintFiles* files,
+    const char* srcdir,
+    const char* const* lanes,
+    int lane_count)
+{
+    memset(files, 0, sizeof(*files));
+    fingerprint_walk(files, srcdir, "configs", 0, NULL);
+    fingerprint_walk(files, srcdir, "fields", 0, NULL);
+    fingerprint_walk(files, srcdir, "pack", 0, NULL);
+    fingerprint_walk(files, srcdir, "interfaces", 0, "compack");
+    fingerprint_walk(files, srcdir, "server/scripts", 1, NULL);
+    for( int l = 0; l < lane_count; l++ )
+    {
+        char rel[512];
+
+        snprintf(rel, sizeof(rel), "ported/%s/configs", lanes[l]);
+        fingerprint_walk(files, srcdir, rel, 0, NULL);
+    }
+    {
+        char dir[2048];
+        DIR* handle;
+        struct dirent* entry;
+
+        snprintf(dir, sizeof(dir), "%s/ported", srcdir);
+        handle = opendir(dir);
+        while( handle && (entry = readdir(handle)) != NULL )
+        {
+            char rel[512];
+
+            if( entry->d_name[0] == '.' )
+                continue;
+            snprintf(rel, sizeof(rel), "ported/%s/pack", entry->d_name);
+            fingerprint_walk(files, srcdir, rel, 0, NULL);
+        }
+        if( handle )
+            closedir(handle);
+    }
+    qsort(files->paths, (size_t)files->count, sizeof(*files->paths), fingerprint_order);
+}
+
+int
+RSCache_ServerPackInputs(
+    const char* srcdir,
+    const char* const* lanes,
+    int lane_count,
+    char*** out_paths)
+{
+    struct FingerprintFiles files;
+
+    assert(srcdir);
+    assert(out_paths);
+    assert(lane_count >= 0);
+    assert(lane_count == 0 || lanes);
+    fingerprint_collect(&files, srcdir, lanes, lane_count);
+    *out_paths = files.paths;
+    return files.count;
+}
+
 uint64_t
 RSCache_ServerPackFingerprint(
     const char* srcdir,
@@ -510,39 +584,7 @@ RSCache_ServerPackFingerprint(
     assert(lane_count >= 0);
     assert(lane_count == 0 || lanes);
     assert(chunk);
-    memset(&files, 0, sizeof(files));
-    fingerprint_walk(&files, srcdir, "configs", 0, NULL);
-    fingerprint_walk(&files, srcdir, "fields", 0, NULL);
-    fingerprint_walk(&files, srcdir, "pack", 0, NULL);
-    fingerprint_walk(&files, srcdir, "interfaces", 0, "compack");
-    fingerprint_walk(&files, srcdir, "server/scripts", 1, NULL);
-    for( int l = 0; l < lane_count; l++ )
-    {
-        char rel[512];
-
-        snprintf(rel, sizeof(rel), "ported/%s/configs", lanes[l]);
-        fingerprint_walk(&files, srcdir, rel, 0, NULL);
-    }
-    {
-        char dir[2048];
-        DIR* handle;
-        struct dirent* entry;
-
-        snprintf(dir, sizeof(dir), "%s/ported", srcdir);
-        handle = opendir(dir);
-        while( handle && (entry = readdir(handle)) != NULL )
-        {
-            char rel[512];
-
-            if( entry->d_name[0] == '.' )
-                continue;
-            snprintf(rel, sizeof(rel), "ported/%s/pack", entry->d_name);
-            fingerprint_walk(&files, srcdir, rel, 0, NULL);
-        }
-        if( handle )
-            closedir(handle);
-    }
-    qsort(files.paths, (size_t)files.count, sizeof(*files.paths), fingerprint_order);
+    fingerprint_collect(&files, srcdir, lanes, lane_count);
 
     hash = fnv1a(hash, &version, sizeof(version));
     for( int l = 0; l < lane_count; l++ )

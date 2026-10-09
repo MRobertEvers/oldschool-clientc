@@ -62,15 +62,12 @@ as the scripts pack already did.
 """
 
 import ast
-import ctypes
-import errno
 import fcntl
 import hashlib
 import os
 import shutil
 import subprocess
 import sys
-import tempfile
 import time
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
@@ -468,92 +465,28 @@ def _servpack_current(inputs):
     return True, hashlib.sha256((inputs + outputs).encode("utf-8")).hexdigest()[:8]
 
 
-# renamex_np(RENAME_SWAP) on macOS, renameat2(RENAME_EXCHANGE) on Linux: both
-# flags are 2. AT_FDCWD is Linux's -100.
-_RENAME_EXCHANGE_FLAG = 2
-_AT_FDCWD = -100
-
-
-def _exchange(first, second):
-    """Atomically exchange two directories. False when this platform or
-    filesystem has no such call (the caller falls back to two renames)."""
-    try:
-        libc = ctypes.CDLL(None, use_errno=True)
-    except OSError:
-        return False
-    a = os.fsencode(first)
-    b = os.fsencode(second)
-    if sys.platform == "darwin" and hasattr(libc, "renamex_np"):
-        call = libc.renamex_np
-        call.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint]
-        result = call(a, b, _RENAME_EXCHANGE_FLAG)
-    elif sys.platform.startswith("linux") and hasattr(libc, "renameat2"):
-        call = libc.renameat2
-        call.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p,
-                         ctypes.c_uint]
-        result = call(_AT_FDCWD, a, _AT_FDCWD, b, _RENAME_EXCHANGE_FLAG)
-    else:
-        return False
-    if result == 0:
-        return True
-    error = ctypes.get_errno()
-    if error in (errno.EINVAL, errno.ENOTSUP, errno.ENOSYS, getattr(errno, "EOPNOTSUPP", -1)):
-        return False
-    raise OSError(error, os.strerror(error), first, None, second)
-
-
-def _swap_into_place(staging, live):
-    """Put the finished pack at `live` without a moment in which `live` holds
-    a partial one. After an exchange `staging` holds the old pack (the caller
-    removes it); without one, the old pack is renamed away and the new one
-    renamed in -- two renames, never a half-written directory."""
-    if not os.path.isdir(live):
-        os.rename(staging, live)
-        return "renamed into place"
-    if _exchange(staging, live):
-        return "swapped into place"
-    retired = os.path.join(os.path.dirname(live), "%s%d" % (SERVPACK_RETIRED_PREFIX, os.getpid()))
-    os.rename(live, retired)
-    os.rename(staging, live)
-    shutil.rmtree(retired, ignore_errors=True)
-    return "renamed into place (no atomic exchange here)"
-
-
 def _servpack_build(run, label):
-    """Called holding LOCK_PATH exclusive. cachepack writes into a staging
-    directory beside the pack, seeded with the live pack's stamp: when that
-    stamp is current, cachepack says "up to date" and writes nothing (the
-    live pack stays); otherwise it builds a whole pack there, which is swapped
-    in. The live pack is never cleared or written in place."""
+    """Called holding LOCK_PATH exclusive. cachepack builds the live pack in
+    place: it holds the pack directory's own lock (`<pack>/.pack.lock`, which
+    the server takes shared while it reads), reuses every type whose inputs and
+    lookups did not move, and replaces the store file by file only when an
+    archive changed (3rd/rscache/tools/cachepack/cp_incremental.c,
+    docs/serverpack.md). The staging directory and the directory swap this used
+    to do are what cachepack now does itself, per file."""
     parent = os.path.dirname(SERVPACK_DIR)
     os.makedirs(parent, exist_ok=True)
-    # A staging/retired directory left by a killed rebuild: nobody else
-    # builds while this lock is held exclusive.
+    # A staging/retired directory left by a killed rebuild of the old helper.
     for entry in os.scandir(parent):
         if entry.name.startswith((SERVPACK_STAGING_PREFIX, SERVPACK_RETIRED_PREFIX)):
             shutil.rmtree(entry.path, ignore_errors=True)
-    staging = tempfile.mkdtemp(prefix=SERVPACK_STAGING_PREFIX, dir=parent)
-    try:
-        os.chmod(staging, 0o755)
-        live_stamp = os.path.join(SERVPACK_DIR, SERVPACK_STAMP)
-        if os.path.isfile(live_stamp):
-            shutil.copyfile(live_stamp, os.path.join(staging, SERVPACK_STAMP))
-        code = run(["make", "-C", os.path.join(REPO_ROOT, "src"), "torirsserver-servpack-direct",
-                    "SERVPACK_OUT=%s" % staging])
-        if code != 0:
-            return code
-        if not os.path.isfile(os.path.join(staging, SERVPACK_DAT2)):
-            print("%s: cachepack found the server pack on disk current with its tree"
-                  % label, flush=True)
-            return 0
-        assert os.path.isfile(os.path.join(staging, SERVPACK_STAMP)), \
-            "cachepack succeeded and left an unstamped server pack in %s" % staging
-        how = _swap_into_place(staging, SERVPACK_DIR)
-        print("%s: server pack rebuilt and %s" % (label, how), flush=True)
-        return 0
-    finally:
-        if os.path.isdir(staging):
-            shutil.rmtree(staging, ignore_errors=True)
+    code = run(["make", "-C", os.path.join(REPO_ROOT, "src"), "torirsserver-servpack-direct",
+                "SERVPACK_OUT=%s" % SERVPACK_DIR])
+    if code != 0:
+        return code
+    assert os.path.isfile(os.path.join(SERVPACK_DIR, SERVPACK_STAMP)), \
+        "cachepack succeeded and left an unstamped server pack in %s" % SERVPACK_DIR
+    print("%s: server pack current in %s" % (label, SERVPACK_DIR), flush=True)
+    return 0
 
 
 def ensure_server_pack(run, label="servpack", force=False):
