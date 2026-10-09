@@ -5631,6 +5631,17 @@ put_npc_extended_v5(
         flag |= V5_NPC_TRANSFORMATION;
     if( has_face )
         flag |= V5_NPC_FACING;
+    /* TORIRS_FACE_TRACE=1: every face an observer is sent for an npc, with
+     * the server's own latch, for a boss whose turns a client does not
+     * show (Verzik's web throws). */
+    {
+        static int face_trace = -1;
+        if( face_trace < 0 )
+            face_trace = getenv("TORIRS_FACE_TRACE") ? 1 : 0;
+        if( face_trace && has_face )
+            fprintf(stderr, "face: type=%d face_entity=%d face_xz=%d,%d to_pid=%d masks=0x%x\n", npc->type,
+                    npc->face_entity, npc->face_x, npc->face_z, recipient->pid, classic);
+    }
 
     if( getenv("TORIRSSERVER_EXT_DEBUG") )
         fprintf(stderr, "ext npc: classic=0x%x flag=0x%x hit=%d/%d seq=%d\n", classic, flag,
@@ -5949,6 +5960,15 @@ put_npc_extended(
         {
             int const face_entity =
                 ToriRSServer_FaceEntityForClient(recipient, npc->face_entity);
+            /* TORIRS_FACE_TRACE=1: every FACE_ENTITY an observer is sent, with
+             * the server's own id, for a boss whose turns a client does not
+             * show (Verzik's web throws). */
+            static int face_trace = -1;
+            if( face_trace < 0 )
+                face_trace = getenv("TORIRS_FACE_TRACE") ? 1 : 0;
+            if( face_trace )
+                fprintf(stderr, "face: type=%d face_entity=%d to_pid=%d wire=%d\n", npc->type,
+                        npc->face_entity, recipient->pid, face_entity < 0 ? -1 : face_entity);
             rsab_p2(buf, face_entity < 0 ? 0xffff : face_entity);
         }
     }

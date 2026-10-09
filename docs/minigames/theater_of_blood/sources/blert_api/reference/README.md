@@ -1968,177 +1968,177 @@ Where each role stands (offset from the boss's SW tile, share of the phase's tic
 
 ## Verzik, normal, scale 3
 
-20 rooms (27 candidates, 20 death-free, 0 used with a death in the room); harvested 2026-10-06; file `verzik_normal_3.json`.
+20 rooms (25 candidates, 20 death-free, 0 used with a death in the room); harvested 2026-10-08; file `verzik_normal_3.json`.
 Roles seen (by what each raider did): melee1+melee2+melee3 x20.
 
 | Number | median [min-max] n |
 |---|---|
-| `boss.attacks.verzik_p2_bounce` | 1 [1-1] n=7 |
-| `boss.attacks.verzik_p2_cabbage` | 22.5 [18-28] n=20 |
-| `boss.attacks.verzik_p2_mage` | 9 [5-14] n=20 |
-| `boss.attacks.verzik_p2_purple` | 2 [1-2] n=20 |
+| `boss.attacks.verzik_p2_bounce` | 1 [1-2] n=15 |
+| `boss.attacks.verzik_p2_cabbage` | 22 [18-33] n=20 |
+| `boss.attacks.verzik_p2_mage` | 9.5 [5-15] n=20 |
+| `boss.attacks.verzik_p2_purple` | 1 [1-2] n=20 |
 | `boss.attacks.verzik_p2_zap` | 5 [4-6] n=20 |
 | `boss.attacks.verzik_p3_ball` | 1 [1-1] n=2 |
-| `boss.attacks.verzik_p3_mage` | 6 [2-11] n=19 |
-| `boss.attacks.verzik_p3_melee` | 1 [1-2] n=7 |
-| `boss.attacks.verzik_p3_range` | 6.5 [1-14] n=20 |
+| `boss.attacks.verzik_p3_mage` | 7 [3-12] n=20 |
+| `boss.attacks.verzik_p3_melee` | 1 [1-1] n=3 |
+| `boss.attacks.verzik_p3_range` | 6.5 [1-11] n=20 |
 | `boss.attacks.verzik_p3_webs` | 1 [1-1] n=20 |
-| `boss.attacks.verzik_p3_yellows` | 1 [1-1] n=6 |
+| `boss.attacks.verzik_p3_yellows` | 1 [1-1] n=7 |
 | `boss.cadence` | 4 [4-4] n=20 |
-| `boss.first_attack` | 101.5 [76-168] n=20 |
-| `boss.hit_on_recorder.verzik_p2_bounce` | 9 [0-34] n=3 |
-| `boss.hit_on_recorder.verzik_p2_mage` | 0 [0-1] n=77 |
-| `boss.hit_on_recorder.verzik_p2_zap` | 5 [3-14] n=48 |
-| `boss.hit_on_recorder.verzik_p3_ball` | 0 [0-0] n=1 |
-| `boss.hit_on_recorder.verzik_p3_mage` | 5 [0-21] n=38 |
-| `boss.hit_on_recorder.verzik_p3_melee` | 19 [10-28] n=2 |
-| `boss.hit_on_recorder.verzik_p3_range` | 0 [0-18] n=54 |
-| `outcome.boss_death_tick` | 438.5 [359-607] n=20 |
-| `outcome.boss_heal` | 2782.5 [2577-2940] n=20 |
+| `boss.first_attack` | 83 [74-134] n=20 |
+| `boss.hit_on_recorder.verzik_p2_bounce` | 0 [0-23] n=4 |
+| `boss.hit_on_recorder.verzik_p2_mage` | 0 [0-0] n=82 |
+| `boss.hit_on_recorder.verzik_p2_zap` | 5 [3-48] n=46 |
+| `boss.hit_on_recorder.verzik_p3_ball` | 0 [0-0] n=2 |
+| `boss.hit_on_recorder.verzik_p3_mage` | 4 [0-19] n=60 |
+| `boss.hit_on_recorder.verzik_p3_melee` | 0 [0-0] n=3 |
+| `boss.hit_on_recorder.verzik_p3_range` | 0 [0-40] n=72 |
+| `outcome.boss_death_tick` | 404 [362-568] n=20 |
+| `outcome.boss_heal` | 2763.5 [2641-3137] n=20 |
 | `outcome.deaths` | 0 [0-0] n=20 |
-| `outcome.hp_lost.melee1` | 153 [69-170] n=12 |
-| `outcome.hp_lost.melee2` | 173.5 [98-259] n=10 |
-| `outcome.hp_lost.melee3` | 130 [88-133] n=3 |
+| `outcome.hp_lost.melee1` | 147.5 [113-246] n=14 |
+| `outcome.hp_lost.melee2` | 181 [117-212] n=5 |
+| `outcome.hp_lost.melee3` | 127 [99-200] n=5 |
 | `outcome.leaks` | 0 [0-0] n=20 |
-| `outcome.phase.phase2.boss_heal` | 198 [65-313] n=20 |
+| `outcome.phase.phase2.boss_heal` | 158 [115-500] n=20 |
 | `outcome.phase.phase2.leaks` | 0 [0-0] n=20 |
-| `outcome.phase.phase2.start` | 85.5 [60-152] n=20 |
-| `outcome.phase.phase2.ticks` | 210 [170-261] n=20 |
-| `outcome.phase.phase3.boss_heal` | 2561.5 [2492-2658] n=20 |
+| `outcome.phase.phase2.start` | 67 [58-118] n=20 |
+| `outcome.phase.phase2.ticks` | 199.5 [166-256] n=20 |
+| `outcome.phase.phase3.boss_heal` | 2547 [2507-2783] n=20 |
 | `outcome.phase.phase3.leaks` | 0 [0-0] n=20 |
-| `outcome.phase.phase3.start` | 288.5 [233-413] n=20 |
-| `outcome.phase.phase3.ticks` | 134.5 [122-200] n=20 |
+| `outcome.phase.phase3.start` | 266.5 [231-365] n=20 |
+| `outcome.phase.phase3.ticks` | 138.5 [120-211] n=20 |
 | `outcome.phase.start.boss_heal` | 0 [0-0] n=20 |
 | `outcome.phase.start.leaks` | 0 [0-0] n=20 |
 | `outcome.phase.start.start` | 0 [0-0] n=20 |
-| `outcome.phase.start.ticks` | 85.5 [60-152] n=20 |
-| `outcome.room_ticks` | 438.5 [359-607] n=20 |
-| `output.phase.phase2.boss_hp_per_tick` | 12.575 [9.99-14.78] n=20 |
-| `output.phase.phase2.boss_pct_per_tick` | 0.516 [0.41-0.607] n=20 |
-| `output.phase.phase3.boss_hp_per_tick` | 18.85 [13-20.88] n=20 |
-| `output.phase.phase3.boss_pct_per_tick` | 0.774 [0.533-0.857] n=20 |
+| `outcome.phase.start.ticks` | 67 [58-118] n=20 |
+| `outcome.room_ticks` | 404 [362-568] n=20 |
+| `output.phase.phase2.boss_hp_per_tick` | 13.155 [10.65-15.16] n=20 |
+| `output.phase.phase2.boss_pct_per_tick` | 0.54 [0.437-0.622] n=20 |
+| `output.phase.phase3.boss_hp_per_tick` | 18.525 [12.96-21.19] n=20 |
+| `output.phase.phase3.boss_pct_per_tick` | 0.76 [0.532-0.87] n=20 |
 | `output.phase.start.boss_hp_per_tick` | 0 [0-0] n=20 |
 | `output.phase.start.boss_pct_per_tick` | 0 [0-0] n=20 |
-| `role.melee1.barrage_pct` | 0 [0-0] n=20 |
-| `role.melee1.boss_targeted_pct` | 23.5 [0-78.1] n=20 |
-| `role.melee1.cadence` | 5 [4-5] n=20 |
-| `role.melee1.eat_at_hp_pct` | 64 [12-109] n=73 |
-| `role.melee1.magic_pct` | 9.2 [7.2-17] n=20 |
-| `role.melee1.melee_pct` | 88 [83-91.7] n=20 |
-| `role.melee1.phase.phase2.attacks_add` | 6 [2-13] n=20 |
-| `role.melee1.phase.phase2.attacks_boss` | 31 [26-41] n=20 |
-| `role.melee1.phase.phase2.dist_boss` | 2 [1-4] n=20 |
-| `role.melee1.phase.phase2.eats` | 1.5 [0-4] n=12 |
+| `role.melee1.barrage_pct` | 0 [0-2.4] n=20 |
+| `role.melee1.boss_targeted_pct` | 21.95 [10.7-70.4] n=20 |
+| `role.melee1.cadence` | 5 [5-5] n=20 |
+| `role.melee1.eat_at_hp_pct` | 62 [8-100] n=90 |
+| `role.melee1.magic_pct` | 8.8 [6-11.5] n=20 |
+| `role.melee1.melee_pct` | 88.35 [77.5-94] n=20 |
+| `role.melee1.phase.phase2.attacks_add` | 6 [2-15] n=20 |
+| `role.melee1.phase.phase2.attacks_boss` | 29 [25-37] n=20 |
+| `role.melee1.phase.phase2.dist_boss` | 2 [2-4] n=20 |
+| `role.melee1.phase.phase2.eats` | 1 [0-5] n=14 |
 | `role.melee1.phase.phase3.attacks_add` | 0 [0-0] n=20 |
-| `role.melee1.phase.phase3.attacks_boss` | 24 [22-33] n=20 |
-| `role.melee1.phase.phase3.dist_boss` | 5 [4.5-5] n=20 |
-| `role.melee1.phase.phase3.eats` | 2 [0-6] n=12 |
+| `role.melee1.phase.phase3.attacks_boss` | 25 [22-34] n=20 |
+| `role.melee1.phase.phase3.dist_boss` | 5 [4-5] n=20 |
+| `role.melee1.phase.phase3.eats` | 2 [0-8] n=14 |
 | `role.melee1.phase.start.attacks_add` | 0 [0-0] n=20 |
-| `role.melee1.phase.start.attacks_boss` | 17 [13-25] n=20 |
+| `role.melee1.phase.start.attacks_boss` | 14 [12-23] n=20 |
 | `role.melee1.phase.start.dist_boss` | 9 [5-9] n=20 |
-| `role.melee1.phase.start.eats` | 0.5 [0-6] n=12 |
-| `role.melee1.prayer.verzik_p2_mage.lit_ticks` | 39 [18-50] n=19 |
+| `role.melee1.phase.start.eats` | 0 [0-4] n=14 |
+| `role.melee1.prayer.verzik_p2_mage.lit_ticks` | 31 [5-50] n=19 |
 | `role.melee1.prayer.verzik_p2_mage.right_pct` | 100 [100-100] n=19 |
-| `role.melee1.prayer.verzik_p3_mage.lit_ticks` | 18 [5-50] n=5 |
-| `role.melee1.prayer.verzik_p3_mage.right_pct` | 58.35 [0-87.5] n=6 |
-| `role.melee1.prayer.verzik_p3_melee.right_pct` | 0 [0-0] n=2 |
-| `role.melee1.prayer.verzik_p3_range.lit_ticks` | 17.25 [5-28] n=6 |
-| `role.melee1.prayer.verzik_p3_range.right_pct` | 52.8 [33.3-87.5] n=6 |
-| `role.melee1.ranged_pct` | 1.35 [0-4.5] n=20 |
-| `role.melee2.barrage_pct` | 0 [0-1.2] n=20 |
-| `role.melee2.boss_targeted_pct` | 18.3 [3.1-72.2] n=20 |
+| `role.melee1.prayer.verzik_p3_mage.lit_ticks` | 23.5 [5-50] n=6 |
+| `role.melee1.prayer.verzik_p3_mage.right_pct` | 63.35 [50-83.3] n=6 |
+| `role.melee1.prayer.verzik_p3_melee.right_pct` | 0 [0-0] n=1 |
+| `role.melee1.prayer.verzik_p3_range.lit_ticks` | 14.5 [4-50] n=6 |
+| `role.melee1.prayer.verzik_p3_range.right_pct` | 69.45 [14.3-85.7] n=6 |
+| `role.melee1.ranged_pct` | 1.45 [0-14.6] n=20 |
+| `role.melee2.barrage_pct` | 0 [0-4.7] n=20 |
+| `role.melee2.boss_targeted_pct` | 19.25 [4.5-66.7] n=20 |
 | `role.melee2.cadence` | 5 [5-5] n=20 |
-| `role.melee2.eat_at_hp_pct` | 60 [7-102] n=73 |
-| `role.melee2.magic_pct` | 7.55 [4.2-14.1] n=20 |
-| `role.melee2.melee_pct` | 89.9 [85.9-95.8] n=20 |
-| `role.melee2.phase.phase2.attacks_add` | 5 [2-8] n=20 |
-| `role.melee2.phase.phase2.attacks_boss` | 30.5 [25-39] n=20 |
-| `role.melee2.phase.phase2.dist_boss` | 2 [2-4] n=20 |
-| `role.melee2.phase.phase2.eats` | 2 [0-5] n=10 |
-| `role.melee2.phase.phase3.attacks_add` | 0 [0-1] n=20 |
-| `role.melee2.phase.phase3.attacks_boss` | 24 [21-32] n=20 |
+| `role.melee2.eat_at_hp_pct` | 67 [14-109] n=44 |
+| `role.melee2.magic_pct` | 6.35 [4.3-17.6] n=20 |
+| `role.melee2.melee_pct` | 92.45 [82.4-95.6] n=20 |
+| `role.melee2.phase.phase2.attacks_add` | 4.5 [2-9] n=20 |
+| `role.melee2.phase.phase2.attacks_boss` | 30 [25-37] n=20 |
+| `role.melee2.phase.phase2.dist_boss` | 3 [1-4] n=20 |
+| `role.melee2.phase.phase2.eats` | 2 [0-3] n=5 |
+| `role.melee2.phase.phase3.attacks_add` | 0 [0-2] n=20 |
+| `role.melee2.phase.phase3.attacks_boss` | 24.5 [21-33] n=20 |
 | `role.melee2.phase.phase3.dist_boss` | 5 [3-5] n=20 |
-| `role.melee2.phase.phase3.eats` | 2 [0-5] n=10 |
+| `role.melee2.phase.phase3.eats` | 3 [0-7] n=5 |
 | `role.melee2.phase.start.attacks_add` | 0 [0-0] n=20 |
-| `role.melee2.phase.start.attacks_boss` | 15 [10-26] n=20 |
-| `role.melee2.phase.start.dist_boss` | 9 [6-9] n=20 |
-| `role.melee2.phase.start.eats` | 1 [0-8] n=10 |
-| `role.melee2.prayer.verzik_p2_mage.lit_ticks` | 34 [13-50] n=18 |
+| `role.melee2.phase.start.attacks_boss` | 13 [11-24] n=20 |
+| `role.melee2.phase.start.dist_boss` | 9 [5-9] n=20 |
+| `role.melee2.phase.start.eats` | 3 [0-6] n=5 |
+| `role.melee2.prayer.verzik_p2_mage.lit_ticks` | 45.75 [15-50] n=18 |
 | `role.melee2.prayer.verzik_p2_mage.right_pct` | 100 [100-100] n=18 |
-| `role.melee2.prayer.verzik_p3_mage.lit_ticks` | 7 [2-50] n=5 |
-| `role.melee2.prayer.verzik_p3_mage.right_pct` | 60 [33.3-90.9] n=5 |
-| `role.melee2.prayer.verzik_p3_melee.right_pct` | 0 [0-0] n=2 |
-| `role.melee2.prayer.verzik_p3_range.lit_ticks` | 13.25 [6-22.5] n=4 |
-| `role.melee2.prayer.verzik_p3_range.right_pct` | 66.7 [0-85.7] n=5 |
-| `role.melee2.ranged_pct` | 0 [0-4.8] n=20 |
-| `role.melee3.barrage_pct` | 0 [0-1.2] n=20 |
-| `role.melee3.boss_targeted_pct` | 31.3 [13-69.7] n=20 |
+| `role.melee2.prayer.verzik_p3_mage.lit_ticks` | 12 [10-33] n=3 |
+| `role.melee2.prayer.verzik_p3_mage.right_pct` | 55.6 [42.9-90] n=3 |
+| `role.melee2.prayer.verzik_p3_melee.right_pct` | 0 [0-0] n=1 |
+| `role.melee2.prayer.verzik_p3_range.lit_ticks` | 6.75 [5-8.5] n=2 |
+| `role.melee2.prayer.verzik_p3_range.right_pct` | 40 [0-42.9] n=3 |
+| `role.melee2.ranged_pct` | 0 [0-2.9] n=20 |
+| `role.melee3.barrage_pct` | 0 [0-1.1] n=20 |
+| `role.melee3.boss_targeted_pct` | 47 [11.1-71.4] n=20 |
 | `role.melee3.cadence` | 5 [5-5] n=20 |
-| `role.melee3.eat_at_hp_pct` | 72.5 [28-104] n=16 |
-| `role.melee3.magic_pct` | 6.65 [4-16] n=20 |
-| `role.melee3.melee_pct` | 92.55 [80.2-96] n=20 |
-| `role.melee3.phase.phase2.attacks_add` | 5.5 [2-8] n=20 |
-| `role.melee3.phase.phase2.attacks_boss` | 29 [26-39] n=20 |
-| `role.melee3.phase.phase2.dist_boss` | 2 [1-4] n=20 |
-| `role.melee3.phase.phase2.eats` | 3 [1-3] n=3 |
+| `role.melee3.eat_at_hp_pct` | 56.5 [1-101] n=26 |
+| `role.melee3.magic_pct` | 7.35 [3.4-18.5] n=20 |
+| `role.melee3.melee_pct` | 92.3 [81.5-95.6] n=20 |
+| `role.melee3.phase.phase2.attacks_add` | 3.5 [2-14] n=20 |
+| `role.melee3.phase.phase2.attacks_boss` | 30 [25-34] n=20 |
+| `role.melee3.phase.phase2.dist_boss` | 3 [1-4] n=20 |
+| `role.melee3.phase.phase2.eats` | 1 [0-4] n=5 |
 | `role.melee3.phase.phase3.attacks_add` | 0 [0-1] n=20 |
-| `role.melee3.phase.phase3.attacks_boss` | 23 [19-29] n=20 |
+| `role.melee3.phase.phase3.attacks_boss` | 24 [20-32] n=20 |
 | `role.melee3.phase.phase3.dist_boss` | 5 [3-5] n=20 |
-| `role.melee3.phase.phase3.eats` | 1 [0-1] n=3 |
+| `role.melee3.phase.phase3.eats` | 0 [0-4] n=5 |
 | `role.melee3.phase.start.attacks_add` | 0 [0-0] n=20 |
-| `role.melee3.phase.start.attacks_boss` | 13 [11-22] n=20 |
+| `role.melee3.phase.start.attacks_boss` | 13 [11-23] n=20 |
 | `role.melee3.phase.start.dist_boss` | 9 [5-9] n=20 |
-| `role.melee3.phase.start.eats` | 2 [0-2] n=3 |
-| `role.melee3.prayer.verzik_p2_mage.lit_ticks` | 32.75 [7-50] n=20 |
-| `role.melee3.prayer.verzik_p2_mage.right_pct` | 100 [75-100] n=20 |
-| `role.melee3.prayer.verzik_p3_mage.lit_ticks` | 10.25 [5-50] n=8 |
-| `role.melee3.prayer.verzik_p3_mage.right_pct` | 55 [37.5-88.9] n=8 |
-| `role.melee3.prayer.verzik_p3_melee.right_pct` | 0 [0-0] n=3 |
-| `role.melee3.prayer.verzik_p3_range.lit_ticks` | 13.75 [4-29.5] n=8 |
-| `role.melee3.prayer.verzik_p3_range.right_pct` | 33.3 [0-85.7] n=9 |
+| `role.melee3.phase.start.eats` | 1 [0-3] n=5 |
+| `role.melee3.prayer.verzik_p2_mage.lit_ticks` | 33.5 [3-50] n=20 |
+| `role.melee3.prayer.verzik_p2_mage.right_pct` | 100 [100-100] n=20 |
+| `role.melee3.prayer.verzik_p3_mage.lit_ticks` | 36.25 [5-50] n=10 |
+| `role.melee3.prayer.verzik_p3_mage.right_pct` | 75 [0-91.7] n=11 |
+| `role.melee3.prayer.verzik_p3_melee.right_pct` | 0 [0-0] n=1 |
+| `role.melee3.prayer.verzik_p3_range.lit_ticks` | 12 [4-50] n=9 |
+| `role.melee3.prayer.verzik_p3_range.right_pct` | 60 [0-80] n=11 |
 | `role.melee3.ranged_pct` | 0 [0-4.5] n=20 |
-| `react.phase.phase2.melee1.attack` | 14 [14-15] n=20 |
-| `react.phase.phase2.melee1.step` | 0 [0-15] n=20 |
-| `react.phase.phase2.melee1.swap` | 5.5 [0-11] n=2 |
-| `react.phase.phase2.melee2.attack` | 14 [14-14] n=20 |
-| `react.phase.phase2.melee2.step` | 0 [0-14] n=20 |
-| `react.phase.phase2.melee2.swap` | 1.5 [0-9] n=4 |
-| `react.phase.phase2.melee3.attack` | 14 [14-16] n=20 |
-| `react.phase.phase2.melee3.step` | 0 [0-15] n=20 |
-| `react.phase.phase2.melee3.swap` | 2.5 [1-4] n=2 |
-| `react.phase.phase3.melee1.attack` | 7 [7-8] n=20 |
-| `react.phase.phase3.melee1.step` | 1 [0-3] n=20 |
-| `react.phase.phase3.melee1.swap` | 3 [2-5] n=3 |
-| `react.phase.phase3.melee2.attack` | 7 [7-9] n=20 |
-| `react.phase.phase3.melee2.step` | 0.5 [0-2] n=20 |
-| `react.phase.phase3.melee2.swap` | 4.5 [0-9] n=2 |
-| `react.phase.phase3.melee3.attack` | 7 [7-12] n=20 |
-| `react.phase.phase3.melee3.step` | 0 [0-3] n=20 |
-| `react.phase.phase3.melee3.swap` | 20 [20-20] n=1 |
+| `react.phase.phase2.melee1.attack` | 14 [14-14] n=19 |
+| `react.phase.phase2.melee1.step` | 0 [0-9] n=20 |
+| `react.phase.phase2.melee1.swap` | 2 [0-10] n=5 |
+| `react.phase.phase2.melee2.attack` | 14 [14-15] n=19 |
+| `react.phase.phase2.melee2.step` | 0 [0-15] n=20 |
+| `react.phase.phase2.melee2.swap` | 2 [0-3] n=3 |
+| `react.phase.phase2.melee3.attack` | 14 [14-20] n=19 |
+| `react.phase.phase2.melee3.step` | 0 [0-14] n=20 |
+| `react.phase.phase2.melee3.swap` | 0 [0-0] n=2 |
+| `react.phase.phase3.melee1.attack` | 7 [7-9] n=20 |
+| `react.phase.phase3.melee1.step` | 1 [0-7] n=20 |
+| `react.phase.phase3.melee1.swap` | 10.5 [8-13] n=2 |
+| `react.phase.phase3.melee2.attack` | 7 [7-8] n=20 |
+| `react.phase.phase3.melee2.step` | 1 [0-3] n=20 |
+| `react.phase.phase3.melee2.swap` | 8 [8-8] n=3 |
+| `react.phase.phase3.melee3.attack` | 7 [7-11] n=20 |
+| `react.phase.phase3.melee3.step` | 1 [0-4] n=20 |
+| `react.phase.phase3.melee3.swap` | 0 [0-0] n=1 |
 
 Weapons per role and phase (Blert's weapon name, variants merged, or the id it does not know: rooms using it / median attacks in those rooms):
 
-- `melee1|phase2`: SCYTHE: 16 / 32.5, CLAW: 14 / 1, BLOWPIPE: 12 / 2, NOXIOUS_HALBERD: 2 / 39.5
-- `melee1|phase3`: SCYTHE: 16 / 22, CLAW: 12 / 1, CHALLY: 7 / 1, NOXIOUS_HALBERD: 2 / 29
-- `melee1|start`: DAWN: 20 / 4, EYE_OF_AYAK: 18 / 3.5, SCYTHE: 16 / 8, NOXIOUS_HALBERD: 2 / 10.5
-- `melee2|phase2`: SCYTHE: 18 / 34, CLAW: 12 / 1, BLOWPIPE: 7 / 2, SOULREAPER_AXE: 2 / 41.5
-- `melee2|phase3`: SCYTHE: 18 / 23, CLAW: 14 / 1, CHALLY: 5 / 1, SOULREAPER_AXE: 2 / 25
-- `melee2|start`: DAWN: 20 / 4, SCYTHE: 18 / 10, EYE_OF_AYAK: 18 / 1, SULPHUR_BLADES: 2 / 5.5
-- `melee3|phase2`: SCYTHE: 17 / 32, CLAW: 11 / 1, BLOWPIPE: 8 / 2, NOXIOUS_HALBERD: 3 / 39
-- `melee3|phase3`: SCYTHE: 17 / 21, CLAW: 10 / 1.5, CHALLY: 6 / 1, NOXIOUS_HALBERD: 3 / 24
-- `melee3|start`: DAWN: 20 / 4, SCYTHE: 17 / 8, EYE_OF_AYAK: 12 / 1, CLAW: 2 / 1
+- `melee1|phase2`: SCYTHE: 20 / 32, BLOWPIPE: 17 / 2, CLAW: 15 / 1, SULPHUR_BLADES: 3 / 1
+- `melee1|phase3`: SCYTHE: 20 / 23, CLAW: 13 / 1, CHALLY: 5 / 1, ZCB: 3 / 1
+- `melee1|start`: SCYTHE: 20 / 8.5, DAWN: 20 / 4, EYE_OF_AYAK: 19 / 2, CLAW: 3 / 1
+- `melee2|phase2`: SCYTHE: 18 / 33, CLAW: 11 / 1, BLOWPIPE: 6 / 1, NOXIOUS_HALBERD: 2 / 41.5
+- `melee2|phase3`: SCYTHE: 18 / 23, CLAW: 13 / 1, ZCB: 3 / 1, NOXIOUS_HALBERD: 2 / 28.5
+- `melee2|start`: DAWN: 20 / 4, SCYTHE: 18 / 9, EYE_OF_AYAK: 10 / 4, SULPHUR_BLADES: 1 / 11
+- `melee3|phase2`: SCYTHE: 18 / 31, CLAW: 7 / 1, BLOWPIPE: 7 / 1, CHALLY: 3 / 1
+- `melee3|phase3`: SCYTHE: 18 / 23, CLAW: 13 / 1, CHALLY: 10 / 1, NOXIOUS_HALBERD: 1 / 30
+- `melee3|start`: DAWN: 20 / 4, SCYTHE: 18 / 9, EYE_OF_AYAK: 12 / 1.5, CLAW: 3 / 1
 
 Where each role stands (offset from the boss's SW tile, share of the phase's ticks, top 3):
 
-- `melee1|phase2`: (-1,2) 21%, (-1,0) 12%, (3,1) 8%
-- `melee1|phase3`: (0,5) 13%, (1,-5) 10%, (-3,-1) 3%
-- `melee1|start`: (-1,9) 45%, (-5,4) 13%, (-3,4) 9%
-- `melee2|phase2`: (-1,2) 24%, (3,0) 11%, (3,1) 6%
-- `melee2|phase3`: (0,5) 10%, (1,-5) 9%, (5,-1) 4%
-- `melee2|start`: (-1,9) 52%, (-5,4) 11%, (-3,4) 8%
-- `melee3|phase2`: (1,-1) 12%, (3,0) 11%, (1,-2) 10%
-- `melee3|phase3`: (1,-5) 10%, (0,5) 5%, (5,2) 4%
-- `melee3|start`: (-1,9) 47%, (-5,4) 14%, (-3,4) 9%
+- `melee1|phase2`: (-1,2) 31%, (-2,2) 9%, (3,2) 6%
+- `melee1|phase3`: (0,5) 8%, (1,-5) 8%, (5,1) 5%
+- `melee1|start`: (-1,9) 55%, (-5,4) 10%, (-3,4) 8%
+- `melee2|phase2`: (3,1) 10%, (-1,2) 8%, (1,-1) 8%
+- `melee2|phase3`: (0,5) 9%, (1,-5) 8%, (1,-3) 4%
+- `melee2|start`: (-1,9) 52%, (-5,4) 12%, (-3,4) 11%
+- `melee3|phase2`: (-1,2) 10%, (3,1) 10%, (-1,1) 7%
+- `melee3|phase3`: (1,-5) 7%, (0,5) 6%, (5,2) 4%
+- `melee3|start`: (-1,9) 47%, (-5,4) 12%, (-3,4) 10%
 
 ## Xarpus, normal, scale 3
 

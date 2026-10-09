@@ -3840,6 +3840,19 @@ lua_drive_players(struct lua_State* L)
         lua_setfield(L, -2, "x");
         lua_pushinteger(L, g_app->world->_base_tile_z + player->grid_position.z);
         lua_setfield(L, -2, "z");
+        /* server_x/server_z: the server's whole tile (route[0] while a route
+         * is in flight, the tile the player will stand on at the tick's end),
+         * where x/z is the stepping tile the figure is drawn on. Scriptrun's
+         * rows carry the same field, so a planner reads one name on both
+         * lanes (Verzik P3 live: raiders and tornadoes read a tile behind). */
+        lua_pushinteger(L, g_app->world->_base_tile_x +
+                               (player->pathing.route_length > 0 ? player->pathing.route_x[0]
+                                                                  : player->grid_position.x));
+        lua_setfield(L, -2, "server_x");
+        lua_pushinteger(L, g_app->world->_base_tile_z +
+                               (player->pathing.route_length > 0 ? player->pathing.route_z[0]
+                                                                  : player->grid_position.z));
+        lua_setfield(L, -2, "server_z");
         lua_pushinteger(L, player->grid_position.level);
         lua_setfield(L, -2, "level");
         lua_pushinteger(L, player->server_pid);

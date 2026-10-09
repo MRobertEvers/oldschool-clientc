@@ -1006,6 +1006,15 @@ d_players(lua_State* L)
         lua_pushinteger(L, world->_base_tile_z +
                                (p->pathing.route_length > 0 ? p->pathing.route_z[0] : p->grid_position.z));
         lua_setfield(L, -2, "z");
+        /* the server's whole tile, the same reading as `x`/`z` here; the
+         * client's rows carry the stepping tile in x/z and the server tile
+         * under this name, so a bot reads server_x on both lanes */
+        lua_pushinteger(L, world->_base_tile_x +
+                               (p->pathing.route_length > 0 ? p->pathing.route_x[0] : p->grid_position.x));
+        lua_setfield(L, -2, "server_x");
+        lua_pushinteger(L, world->_base_tile_z +
+                               (p->pathing.route_length > 0 ? p->pathing.route_z[0] : p->grid_position.z));
+        lua_setfield(L, -2, "server_z");
         lua_pushinteger(L, p->grid_position.level);
         lua_setfield(L, -2, "level");
         lua_pushinteger(L, p->server_pid);
