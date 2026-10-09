@@ -83,94 +83,100 @@ def room(path):
     return out
 
 
-W = []
-for f in sorted(glob.glob(sys.argv[1] + '/*-*.json')):
-    W += room(f)
-print('waves', len(W), 'distinct patterns', len({w['pattern'] for w in W}),
-      'crabs/wave', collections.Counter(len(w['pattern']) for w in W))
-print('freezers per room-wave', collections.Counter(len(w['freezers']) for w in W))
-one = [w for w in W if len(w['freezers']) == 1]
-print('\n== FREEZER (waves with exactly one freezer: %d)' % len(one))
-for wi in (0, 1, 2):
-    tiles = collections.Counter(list(w['f_tile'].values())[0] for w in one if w['wave'] == wi)
-    print(' wave %d freezer tile at spawn-1 (top): %s' % (wi, tiles.most_common(6)))
-# cast schedule: first cast offset, gaps, cast count
-first = collections.Counter(); gaps = collections.Counter(); cnt = collections.Counter()
-for w in one:
-    cs = []
-    for t, p, who in w['casts']:
-        if not cs or t - cs[-1][0] > 1:
-            cs.append((t, p))
-    if cs:
-        first[cs[0][0]] += 1
-        for a, b in zip(cs, cs[1:]): gaps[b[0] - a[0]] += 1
-    cnt[len(cs)] += 1
-    w['seq'] = cs
-print(' first cast offset', sorted(first.items()))
-print(' cast gaps', sorted(gaps.items())[:12])
-print(' casts per wave', sorted(cnt.items()))
-# per point: P(frozen | present), cast index when frozen
-fz = collections.Counter(); pres = collections.Counter(); idx = collections.defaultdict(collections.Counter)
-for w in one:
-    order = []
-    for t, p in w['seq']:
-        if p not in order: order.append(p)
-    for p in w['pattern']:
-        pres[p] += 1
-        if p in order:
-            fz[p] += 1; idx[p][order.index(p)] += 1
-print(' point: frozen/present, freeze rank histogram')
-for p in ORDER:
-    print('  %-4s %3d/%3d  %s' % (p, fz[p], pres[p], sorted(idx[p].items())))
-# precedence: among waves with both A and B present, freezer froze A before B
-prec = collections.defaultdict(lambda: [0, 0])
-for w in one:
-    order = []
-    for t, p in w['seq']:
-        if p not in order: order.append(p)
-    for a in w['pattern']:
-        for b in w['pattern']:
-            if a >= b: continue
-            ia = order.index(a) if a in order else 99; ib = order.index(b) if b in order else 99
-            if ia == ib: continue
-            prec[(a, b)][0 if ia < ib else 1] += 1
-print(' precedence A<B (A first, B first):')
-for (a, b), (x, y) in sorted(prec.items(), key=lambda kv: (ORDER.index(kv[0][0]), ORDER.index(kv[0][1]))):
-    print('   %s<%s %d:%d' % (a, b, x, y) if ORDER.index(a) < ORDER.index(b) else '   %s<%s %d:%d' % (b, a, y, x))
-print('\n== DPS')
-dfirst = collections.defaultdict(collections.Counter); dp = collections.defaultdict(lambda: [0, 0])
-side = collections.Counter(); dtile = collections.Counter()
-for w in one:
-    fz_name = w['freezers'][0]
-    ds = [d for d in w['hits'] if d != fz_name]
-    for d in ds:
-        dtile[w['d_tile'][d]] += 1
-        seen = []
-        for t, p, a in sorted(w['hits'][d]):
-            if p not in seen:
-                seen.append(p); dfirst[p][t] += 1
-        sides = {p[0] for p in seen}
-        side[''.join(sorted(sides))] += 1
-    # team precedence: first DPS hit per point
-    fh = {}
-    for d in ds:
-        for t, p, a in w['hits'][d]:
-            fh[p] = min(fh.get(p, 999), t)
-    for a in w['pattern']:
-        for b in w['pattern']:
-            if ORDER.index(a) >= ORDER.index(b): continue
-            ta, tb = fh.get(a, 999), fh.get(b, 999)
-            if ta == tb: continue
-            dp[(a, b)][0 if ta < tb else 1] += 1
-print(' dps first-hit offset per point:')
-for p in ORDER:
-    c = dfirst[p]; n = sum(c.values())
-    print('  %-4s n=%3d median %s  %s' % (p, n, sorted(c.elements())[n // 2] if n else '-', sorted(c.items())[:10]))
-print(' sides a DPS touched', side.most_common())
-print(' dps tile at spawn-1', dtile.most_common(8))
-print(' dps precedence:', ' '.join('%s<%s %d:%d' % (a, b, x, y) for (a, b), (x, y) in sorted(dp.items(), key=lambda kv: (ORDER.index(kv[0][0]), ORDER.index(kv[0][1])))))
-print('\n== FATE per point')
-for p in ORDER:
-    c = collections.Counter(w['fate'][p][0] for w in W if p in w['fate'])
-    lk = sorted(w['fate'][p][1] for w in W if p in w['fate'] and w['fate'][p][0] == 'L')
-    print('  %-4s %s leak ticks %s' % (p, dict(c), lk[:12]))
+
+def main():
+    W = []
+    for f in sorted(glob.glob(sys.argv[1] + '/*-*.json')):
+        W += room(f)
+    print('waves', len(W), 'distinct patterns', len({w['pattern'] for w in W}),
+          'crabs/wave', collections.Counter(len(w['pattern']) for w in W))
+    print('freezers per room-wave', collections.Counter(len(w['freezers']) for w in W))
+    one = [w for w in W if len(w['freezers']) == 1]
+    print('\n== FREEZER (waves with exactly one freezer: %d)' % len(one))
+    for wi in (0, 1, 2):
+        tiles = collections.Counter(list(w['f_tile'].values())[0] for w in one if w['wave'] == wi)
+        print(' wave %d freezer tile at spawn-1 (top): %s' % (wi, tiles.most_common(6)))
+    # cast schedule: first cast offset, gaps, cast count
+    first = collections.Counter(); gaps = collections.Counter(); cnt = collections.Counter()
+    for w in one:
+        cs = []
+        for t, p, who in w['casts']:
+            if not cs or t - cs[-1][0] > 1:
+                cs.append((t, p))
+        if cs:
+            first[cs[0][0]] += 1
+            for a, b in zip(cs, cs[1:]): gaps[b[0] - a[0]] += 1
+        cnt[len(cs)] += 1
+        w['seq'] = cs
+    print(' first cast offset', sorted(first.items()))
+    print(' cast gaps', sorted(gaps.items())[:12])
+    print(' casts per wave', sorted(cnt.items()))
+    # per point: P(frozen | present), cast index when frozen
+    fz = collections.Counter(); pres = collections.Counter(); idx = collections.defaultdict(collections.Counter)
+    for w in one:
+        order = []
+        for t, p in w['seq']:
+            if p not in order: order.append(p)
+        for p in w['pattern']:
+            pres[p] += 1
+            if p in order:
+                fz[p] += 1; idx[p][order.index(p)] += 1
+    print(' point: frozen/present, freeze rank histogram')
+    for p in ORDER:
+        print('  %-4s %3d/%3d  %s' % (p, fz[p], pres[p], sorted(idx[p].items())))
+    # precedence: among waves with both A and B present, freezer froze A before B
+    prec = collections.defaultdict(lambda: [0, 0])
+    for w in one:
+        order = []
+        for t, p in w['seq']:
+            if p not in order: order.append(p)
+        for a in w['pattern']:
+            for b in w['pattern']:
+                if a >= b: continue
+                ia = order.index(a) if a in order else 99; ib = order.index(b) if b in order else 99
+                if ia == ib: continue
+                prec[(a, b)][0 if ia < ib else 1] += 1
+    print(' precedence A<B (A first, B first):')
+    for (a, b), (x, y) in sorted(prec.items(), key=lambda kv: (ORDER.index(kv[0][0]), ORDER.index(kv[0][1]))):
+        print('   %s<%s %d:%d' % (a, b, x, y) if ORDER.index(a) < ORDER.index(b) else '   %s<%s %d:%d' % (b, a, y, x))
+    print('\n== DPS')
+    dfirst = collections.defaultdict(collections.Counter); dp = collections.defaultdict(lambda: [0, 0])
+    side = collections.Counter(); dtile = collections.Counter()
+    for w in one:
+        fz_name = w['freezers'][0]
+        ds = [d for d in w['hits'] if d != fz_name]
+        for d in ds:
+            dtile[w['d_tile'][d]] += 1
+            seen = []
+            for t, p, a in sorted(w['hits'][d]):
+                if p not in seen:
+                    seen.append(p); dfirst[p][t] += 1
+            sides = {p[0] for p in seen}
+            side[''.join(sorted(sides))] += 1
+        # team precedence: first DPS hit per point
+        fh = {}
+        for d in ds:
+            for t, p, a in w['hits'][d]:
+                fh[p] = min(fh.get(p, 999), t)
+        for a in w['pattern']:
+            for b in w['pattern']:
+                if ORDER.index(a) >= ORDER.index(b): continue
+                ta, tb = fh.get(a, 999), fh.get(b, 999)
+                if ta == tb: continue
+                dp[(a, b)][0 if ta < tb else 1] += 1
+    print(' dps first-hit offset per point:')
+    for p in ORDER:
+        c = dfirst[p]; n = sum(c.values())
+        print('  %-4s n=%3d median %s  %s' % (p, n, sorted(c.elements())[n // 2] if n else '-', sorted(c.items())[:10]))
+    print(' sides a DPS touched', side.most_common())
+    print(' dps tile at spawn-1', dtile.most_common(8))
+    print(' dps precedence:', ' '.join('%s<%s %d:%d' % (a, b, x, y) for (a, b), (x, y) in sorted(dp.items(), key=lambda kv: (ORDER.index(kv[0][0]), ORDER.index(kv[0][1])))))
+    print('\n== FATE per point')
+    for p in ORDER:
+        c = collections.Counter(w['fate'][p][0] for w in W if p in w['fate'])
+        lk = sorted(w['fate'][p][1] for w in W if p in w['fate'] and w['fate'][p][0] == 'L')
+        print('  %-4s %s leak ticks %s' % (p, dict(c), lk[:12]))
+
+
+if __name__ == "__main__":
+    main()

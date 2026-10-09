@@ -5561,6 +5561,14 @@ ToriRSServer_NpcHeadbarFill(const struct ToriRSServerNpc* npc, int* width_out)
     if( left < 0 )
         left = 0;
     fill = (left * width) / span;
+    /* A living npc's bar is never empty: the game draws a sliver down to its
+     * last hitpoint, and a reader takes an empty bar for a corpse (Blert's
+     * plugin, which reads hitpoints off this ratio, has Maiden's Matomenos
+     * leaking at 1 of 75 -- an empty bar would have said 0). Floored to 0,
+     * a crab on 1 of 75 read as dead and the solver left it to thaw and leak
+     * (seed v2b/sa, two in one wave). */
+    if( fill == 0 && left > 0 )
+        fill = 1;
     return fill > width ? width : fill;
 }
 
