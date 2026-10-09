@@ -384,6 +384,80 @@ down at T: stomp T+29 reading the end of T+28 (gap <= 3 and seen), rise T+33
 - **PASS**: 0 fly, hand and stomp hits; no deaths; <= 3 downs on 14/16; median
   room <= 160 ticks.
 
+### 4.2.1 Bloat v1: the implementation plan (2026-10-09, after Maiden)
+
+What Maiden changes here: the walk lag is ONE tick on both lanes (a walk
+decided after seeing d moves me in d+1, seed v2a), so plan step k is my tile
+at the end of d+k and Bloat's npc phase on d+k+1 reads it, from his footprint
+before that tick's step (pos k) or after it (pos k+1): both are watchers on
+step k (Q1 needs no answer). Every rule is measure -> decide -> act in
+`tob_bloat.lua` on the shared loop (`tob.lua`); test `test/raids/tob_bloat.lua`.
+
+- **MEASURE**: his row (`tob_bloat`, SW tile, seq `tob_bloat_sleep` and its
+  tick), the boss bar permille (varbit 6448), the shadows (map graphics
+  `tob_bloat_falling_flesh1..4`) keyed (tile, first-seen tick), the raiders.
+- **THE LAP, learned**: from the entry, before the start, his SW tile every
+  tick until it repeats with the same successor (Q2: the corner switch is
+  `npc_range(corner) <= 1` on a 5x5, so the lap's corners are observed, not
+  assumed). Position = index on the lap; direction = the sign of the index
+  steps seen; speed = 1 or 2 indices a tick.
+- **CLOCK**: phase WALK / DOWN; down = the sleep seq's tick T; stomp T+29
+  (reads end of T+28); rise T+33 (reads end of T+32). Turn cooldown estimate:
+  32 walking ticks from the start and from each seen reversal; when it is 0
+  the prediction carries the reversed branch too. Speed both ways within 3%
+  of 60% / below 40%.
+- **DECIDE, WALK (hide)**: watchers (5x5, LETHAL) for each step k = 1..H
+  (H 5): his predicted footprint at k and k+1, each branch; shadows: forbid
+  the tile at first_seen+1..first_seen+2 LETHAL (impact D+3 reads end of D+2);
+  teammates: zone gap <= 3 SOFT (the fly spread); a pull toward his
+  predicted down site once the down is eligible (start+39 / rise+35). No
+  target: he is not attacked while he walks.
+- **DECIDE, DOWN (T+1..T+28)**: target him, melee goal beside his footprint;
+  stomp zone gap 0..3 LETHAL at [T+28, T+28] (the planner's horizon walks me
+  out from T+26); then RISE: watchers on his down footprint at end of T+32 and
+  on his first rise steps (both directions when a turn is possible).
+- **START**: every seat learns the lap first. The leader starts, and a member
+  crosses, only when a plan FROM the crossing tile (39,31) with the predicted
+  watchers finds a lethal-free path (the same planner, a hypothetical origin).
+- **CHANNELS**: Protect from Missiles while he walks, Piety in the down (both
+  lit in the down), super combat redose, anglerfish under 60.
+- **KIT**: the Learner/Void kit's melee set (tentacle, void melee), as Maiden's
+  DPS; every seat melee.
+- **PROBES, seed 1**: fly hits (who saw whom: his tile at end of T-1 and T),
+  hand hits, stomp hits, downs and their ticks against Blert's first down
+  39..48 and down-to-down 68..75, the learned lap's length and corners.
+- **PASS**: his death; no deaths; 0 fly, hand and stomp damage; downs
+  <= 4 on 14/16 seeds. RULING (seed b1): Blert's 2-3 downs are scythes; a
+  tentacle swings at most ~7 times in a 27-tick down (3 raiders ~420), so
+  this kit's floor is 4 downs. The lever is arriving: seed b1's member hid on
+  the far side and reached him at T+7 (5 swings a down, ~300 a down).
+
+### 4.2.2 Bloat v1: what it took (2026-10-09)
+
+- **THE ROOM IS SYNCED, NOT WAITED ON.** A built room's boss is live (Bloat
+  patrols from the build), so the fight's opening state depended on how long
+  the party took to gather, which differs by lane (live members joined 5
+  ticks later on seed sa). `::tobsyncroom` (tob.rs2) respawns the unstarted
+  room's boss as the build made him: a new npc life (its own random stream),
+  his timers from that tick, his spawn tile. The leader types it once, after
+  `::synctimers`, behind the `ready` barrier, and a `synced` barrier follows.
+  The leader then answers on the first tick its crossing is unseen. That is
+  the same tick on both lanes, because the boss's state is. Any room whose
+  boss lives before the barrier uses the same two lines.
+- **LANE IDENTITY** (seed sa, live vs scriptrun, the room's rows aligned on
+  the HUD bar): 330 of 330 ticks identical. That needed the peer's drive fix:
+  api_drive.tick is the last SERVER_TICK_END the client APPLIED. Before it,
+  live decided a tick early: the start was 58 ticks after the respawn live,
+  59 on scriptrun.
+- **THE RISE PULL.** The hug-ring pull (opposite him, behind the tank) runs
+  from the stomp's tick of a down to the rise, aimed at where he will be after
+  the rise. Without it, a seat that attacked from his LEADING side was walked
+  at when he got up (seed sl: the leader west of him at the NE corner, 37
+  ticks in his sight, three flies). A longer horizon (H 12) is not the fix:
+  it moved the trap to seed sj (18 flies).
+- **RESULT**: 32 of 32 scriptrun seeds (sa..sp, ta..tp) kill him with 0
+  damage taken by any raider, 4-5 downs.
+
 ### 4.3 Nylocas (`solver_specs/nylocas.md`)
 
 Facts: supports exist from the start (room tick 0); waves on the 4-tick cycle

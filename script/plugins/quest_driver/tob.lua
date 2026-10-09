@@ -619,11 +619,25 @@ end
 
 -- The leader's start: click the barrier, answer the question. Blocking (a
 -- dialogue is a few ticks), so a room calls it only when its rule says go.
-function QD.raid._tob_leader_start(S)
+-- With `answer_go`, the question is OPENED first and answered on the first
+-- tick the room's rule allows: the answer steps me across on the next tick,
+-- where the click and the walk to the barrier took a number of ticks no rule
+-- can predict (Bloat seed b1: 24).
+function QD.raid._tob_leader_start(S, answer_go)
     local cr, cd = QD.player.click_loc("tob_arena_barrier", 1)
     assert(cr == "ok", S.who .. ": the barrier click answered " .. tostring(cr) .. " " .. tostring(cd))
-    local pr, pd = QD.chat.play({ "options", "choose:Yes, begin the fight." })
-    assert(pr == "ok", S.who .. ": the start question answered " .. tostring(pr) .. " " .. tostring(pd))
+    local or_, od = QD.chat.play({ "options" })
+    assert(or_ == "ok", S.who .. ": the start question answered " .. tostring(or_) .. " " .. tostring(od))
+    if answer_go then
+        local deadline = api_drive.tick() + 300
+        while not answer_go(S, QD.raid._tob_measure(S)) do
+            assert(api_drive.tick() <= deadline, S.who .. ": the room's start rule never allowed the answer")
+            await({ event = "server_tick", match = function() return true end,
+                note = S.who .. ": holding the start question" }, 3)
+        end
+    end
+    local pr, pd = QD.chat.play({ "choose:Yes, begin the fight." })
+    assert(pr == "ok", S.who .. ": the start answer answered " .. tostring(pr) .. " " .. tostring(pd))
     QD.raid._tob_trace(S, api_drive.tick(), "started the room")
 end
 
@@ -641,8 +655,10 @@ function QD.raid._tob_member_cross(S, F)
 end
 
 -- The start, every seat: `go(S, F)` is the room's rule for the leader; a
--- member waits for the leader inside. Returns when I am inside.
-function QD.raid._tob_start(S, go, max_ticks)
+-- member waits for the leader inside and, when the room gives one,
+-- `member_go(S, F)` (Bloat: a crossing his flies cannot see). Returns when I
+-- am inside.
+function QD.raid._tob_start(S, go, max_ticks, member_go, answer_go)
     local B = QD.raid._tob_barrier(S)
     S.barrier = B
     local deadline = api_drive.tick() + (max_ticks or 300)
@@ -650,7 +666,7 @@ function QD.raid._tob_start(S, go, max_ticks)
         local F = QD.raid._tob_measure(S)
         if QD.raid._tob_inside(B, F.me.x, F.me.z) then return F end
         if S.role == 1 then
-            if go == nil or go(S, F) then QD.raid._tob_leader_start(S) end
+            if go == nil or go(S, F) then QD.raid._tob_leader_start(S, answer_go) end
         else
             -- the leader by its name (seat 1 is the party's orb slot 0)
             local leader = QD.party.name(1)
@@ -658,7 +674,7 @@ function QD.raid._tob_start(S, go, max_ticks)
             for _, rd in ipairs(F.mates) do
                 if QD.party._same(rd.name, leader) and QD.raid._tob_inside(B, rd.x, rd.z) then leader_in = true end
             end
-            if leader_in then QD.raid._tob_member_cross(S, F) end
+            if leader_in and (member_go == nil or member_go(S, F)) then QD.raid._tob_member_cross(S, F) end
         end
         await({ event = "server_tick", match = function() return true end,
             note = S.who .. ": waiting at the barrier" }, 3)
