@@ -24,6 +24,7 @@
 #include <assert.h>
 
 #include "content/content_fields.h"
+#include "content/content_name_index.h"
 #include "content/content_register.h"
 #include "content/content_value.h"
 #include "torirs_server.h"
@@ -1065,19 +1066,20 @@ struct Constant
 static struct Constant* g_constants;
 static int g_constant_count;
 static int g_constant_capacity;
+/* name -> position in g_constants. The loader asks for every new line's name
+ * to refuse a duplicate, which a scan made O(n^2) over the tree's constants. */
+static struct ContentNameIndex g_constant_index;
 
 const char*
 ToriRSServer_ContentConstant(const char* name)
 {
+    int at;
+
     assert(name);
     if( *name == '^' )
         name++;
-    for( int i = 0; i < g_constant_count; i++ )
-    {
-        if( strcmp(g_constants[i].name, name) == 0 )
-            return g_constants[i].text;
-    }
-    return NULL;
+    at = ContentNameIndex_Find(&g_constant_index, name);
+    return at < 0 ? NULL : g_constants[at].text;
 }
 
 int
@@ -1123,6 +1125,12 @@ static int g_npc_def_capacity;
 static struct ToriRSServerEnumDef* g_enum_defs;
 static int g_enum_def_count;
 static int g_enum_def_capacity;
+/* symbol -> position in g_enum_defs, for the first g_enum_indexed defs. The
+ * list holds every server-pack enum (~5,900), and a scan of it was asked for
+ * by name for every appearance slot of every player every tick. Defs only
+ * append between frees, so the index catches up on the next lookup. */
+static struct ContentNameIndex g_enum_index;
+static int g_enum_indexed;
 
 static struct ToriRSServerVarpDef* g_varp_defs;
 static int g_varp_def_count;
@@ -1213,12 +1221,19 @@ ToriRSServer_ContentNpcParam(
 const struct ToriRSServerEnumDef*
 ToriRSServer_ContentEnum(const char* symbol)
 {
-    for( int i = 0; i < g_enum_def_count; i++ )
+    int at;
+
+    assert(symbol);
+    /* In storage order, and the first symbol added wins: the def a front-to-back
+     * scan met first. */
+    for( ; g_enum_indexed < g_enum_def_count; g_enum_indexed++ )
     {
-        if( g_enum_defs[i].symbol && strcmp(g_enum_defs[i].symbol, symbol) == 0 )
-            return &g_enum_defs[i];
+        if( g_enum_defs[g_enum_indexed].symbol )
+            ContentNameIndex_Add(&g_enum_index, g_enum_defs[g_enum_indexed].symbol,
+                                 g_enum_indexed);
     }
-    return NULL;
+    at = ContentNameIndex_Find(&g_enum_index, symbol);
+    return at < 0 ? NULL : &g_enum_defs[at];
 }
 
 const struct ToriRSServerEnumDef*
@@ -1446,7 +1461,11 @@ load_constant_config(const char* path)
         g_constants =
             grow(g_constants, &g_constant_capacity, g_constant_count, sizeof(*g_constants));
         g_constants[g_constant_count].name = strdup(line + 1);
+        assert(g_constants[g_constant_count].name);
         g_constants[g_constant_count].text = strdup(value);
+        assert(g_constants[g_constant_count].text);
+        ContentNameIndex_Add(&g_constant_index, g_constants[g_constant_count].name,
+                             g_constant_count);
         g_constant_count++;
     }
     fclose(file);
@@ -3162,6 +3181,8 @@ ToriRSServer_ContentFree(void)
     free(g_enum_defs);
     g_enum_defs = NULL;
     g_enum_def_count = g_enum_def_capacity = 0;
+    ContentNameIndex_Free(&g_enum_index);
+    g_enum_indexed = 0;
     for( int i = 0; i < g_constant_count; i++ )
     {
         free(g_constants[i].name);
@@ -3170,6 +3191,7 @@ ToriRSServer_ContentFree(void)
     free(g_constants);
     g_constants = NULL;
     g_constant_count = g_constant_capacity = 0;
+    ContentNameIndex_Free(&g_constant_index);
     free(g_param_types);
     g_param_types = NULL;
     g_param_type_count = 0;

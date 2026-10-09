@@ -6338,6 +6338,14 @@ test-content-value: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/content_value_test content/test/content_value_test.c
 	./$(OBJ_DIR)/content_value_test
 
+# content/content_name_index.h, the loader's name -> position index (enum
+# symbols, .constant names), against the first-match scan it replaced.
+# Header-only, like content_value.h.
+.PHONY: test-content-name-index
+test-content-name-index: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/content_name_index_test content/test/content_name_index_test.c
+	./$(OBJ_DIR)/content_name_index_test
+
 # The server hosted in-process: a real client subsystem and a real server joined
 # by two byte buffers, no socket and no thread. Links the server core (no
 # main()) against the client's net stack. If this hangs, the login handshake has
