@@ -57,4 +57,12 @@ NetTransport_Free(struct NetTransport* t)
 struct ToriRSServerEmbed;
 struct ToriRSServerEmbed* NetTransport_TestClock(struct NetTransport* t, unsigned long long now);
 
+/* The unlocked clock (App_SpeedUnlock): `cycles` is every client logic cycle
+ * run so far, handed over each frame before the poll. The in-process server
+ * then runs on cycles x 20 ms instead of the wall clock, so its 600 ms tick is
+ * exactly 30 client cycles however fast frames come. A test clock, when one is
+ * handed over, still wins: its driver owns the world's time. Only the embed
+ * transport has a server whose clock is this client's; `t` must be one. */
+void NetTransport_CycleClock(struct NetTransport* t, unsigned long long cycles);
+
 #endif

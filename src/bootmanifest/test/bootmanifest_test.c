@@ -65,6 +65,7 @@ test_load_fields(void)
 
     CHECK(strcmp(bm.rev_name, "xrsps233") == 0);
     CHECK(strcmp(bm.transport, "ws") == 0);
+    CHECK(bm.clock_unlocked == 1);
     CHECK(strcmp(bm.host, "example.com") == 0);
     CHECK(bm.port == 1234);
     CHECK(strcmp(bm.ws_host, "ws.example.com") == 0);

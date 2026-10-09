@@ -3411,7 +3411,8 @@ App_ViewDetachPlayerClient(struct App* app);
  *  owes, and a watched client's world clock steps 20 ms a frame (main.c
  *  on_demand_world_clock). A bounded run (TORIRS_MAX_FRAMES) is locked from
  *  boot; a client that hosts a party (api.drive.party_host) engages it there,
- *  because a party plays in lock step. At the 50 fps pace that is real speed.
+ *  because a party plays in lock step; an unlocked client (App_SpeedUnlock)
+ *  is locked from boot. At the 50 fps pace that is real speed.
  *  Never released, not even when the party is: the world clock has stepped
  *  20 ms a frame since, and the wall clock may be behind it. */
 int
@@ -3419,6 +3420,31 @@ App_FrameLocked(void);
 
 void
 App_FrameLockEngage(void);
+
+/** UNLOCKED CLOCK (`--unlocked`, TORIRS_UNLOCKED=1, `[net:boot]
+ *  clock=unlocked`): the client runs as fast as the machine allows, and so
+ *  does the world it plays in. Implies the FRAME LOCK above -- every frame
+ *  pays exactly k logic cycles, whatever the wall clock says -- and main.c
+ *  drops the frame-cap wait. The one thing that does not move is the ratio:
+ *  the embedded server's 600 ms tick is clocked off App_LogicCyclesRun
+ *  (NetTransport_CycleClock), so a server tick is always 30 client cycles
+ *  however fast either one runs. Only the in-process server's clock is this
+ *  client's to drive, so main.c refuses it on any other transport. Set at
+ *  boot, never released. */
+void
+App_SpeedUnlock(void);
+
+int
+App_SpeedUnlocked(void);
+
+/** Every logic cycle the frame loop actually ran, counted after the settle
+ *  fence (a cycle charged and owed to the next frame is counted when it
+ *  runs). The unlocked clock's world time is this x 20 ms. */
+void
+App_LogicCyclesNote(int cycles);
+
+uint64_t
+App_LogicCyclesRun(void);
 
 /** Swap which view the input stage acts through: 1 = the PlayerClient view
  *  (its menu is moved into interact.minimenu, the storage the UI step

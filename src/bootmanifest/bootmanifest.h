@@ -15,6 +15,8 @@
  *                 source=disk|ondemand
  *                 quirks=none|kronos|void_rs634_no_xteas  dir=<path>  spawn=<x>,<z>
  *   [net:boot]    rev=<name>  transport=tcp|ws|embed  host=<h>  port=<n>
+ *                 clock=real|unlocked  (unlocked: as fast as the machine
+ *                 allows, embed only; --unlocked / TORIRS_UNLOCKED win)
  *                 scripts=<embedded-server compiled script directory>
  *                 ws_host=<h>  ws_port=<n>
  *                 client_version=<n>  rsa_exp=<hex>  rsa_mod=<hex>
@@ -269,6 +271,10 @@ struct BootManifest
     /* [net:boot] */
     char rev_name[32];
     char transport[16]; /* "tcp" | "ws"; "" = unset */
+    /* clock=real|unlocked: 1 = the unlocked clock (App_SpeedUnlock); the
+     * client and its embedded server run as fast as the machine allows, 30
+     * client cycles a server tick. 0 = real time (the default). */
+    int clock_unlocked;
     char host[128];
     int port; /* 0 = unset */
     /* Where a browser reaches the same server; "" / 0 = fall back to host/port.

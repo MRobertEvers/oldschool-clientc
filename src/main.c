@@ -2013,6 +2013,9 @@ static char const* sim_setvarp;
 static char const* sim_settab;
 static int sim_settab_done;
 static int uncapped;
+/* --unlocked: the unlocked clock (App_SpeedUnlock), resolved with
+ * TORIRS_UNLOCKED and `[net:boot] clock=` where the transport is chosen. */
+static int unlocked_opt;
 /* TORIRS_PACE_SPIN=1: burn the pacing wait instead of sleeping it. Profiling
  * aid for isolating wake-up cost from render cost; see docs/PERF_HARNESS.md. */
 static int pace_spin;
@@ -2534,6 +2537,21 @@ on_demand_world_clock(void)
     if( step_ms == 0 && !App_FrameLocked() )
     {
         frame_clock = PlatformWindow_Ticks64();
+        return frame_clock;
+    }
+    /* An unlocked client (App_SpeedUnlock) steps only on a frame that ran
+     * its cycles, the rule the transport's own cycle clock keeps: a frame
+     * that ran none (a loading screen, a settle pause) must not move the
+     * world, or 30 cycles stop being one tick. The transport stretches the
+     * step by k as it does every test clock's. */
+    if( App_SpeedUnlocked() && step_ms == 0 )
+    {
+        static uint64_t cycles_seen;
+        uint64_t const cycles = App_LogicCyclesRun();
+
+        if( cycles != cycles_seen )
+            frame_clock += 20u;
+        cycles_seen = cycles;
         return frame_clock;
     }
     frame_clock += (unsigned long long)(step_ms > 0 ? step_ms : 20);
@@ -3252,7 +3270,14 @@ frame_loop_step(void)
                     app.world_view_valid ? app.world_emit_desc.h : 0);
                 PlatformWindow_PollCommands(platform, &bus);
                 if( sock )
+                {
+                    /* The unlocked clock: the server's time is the cycles
+                     * the client has run, so it is handed over before the
+                     * poll that may tick it. */
+                    if( App_SpeedUnlocked() )
+                        NetTransport_CycleClock(sock, App_LogicCyclesRun());
                     NetTransport_Poll(sock, app.net, &bus);
+                }
             }
 
             /* Scheduled plugin settings edits use the normal validated config API. */
@@ -6260,7 +6285,7 @@ main_print_usage(char const* program)
         "[--bmp] [--connect host[:port]] [--port N] [--offline] [--user U] "
         "[--pass P] [--rev lc254|lc245_2|xrsps233] "
         "[--js5|--no-js5] [--js5-host H] [--js5-port N] "
-        "[--js5-fallback-port N] [--js5-revision N] [--uncapped] "
+        "[--js5-fallback-port N] [--js5-revision N] [--uncapped] [--unlocked] "
         "[--pacer gameshell|deadline] "
         "[--windowmode fixed|resizable] [--window WxH] "
         "[--opengl3|--opengl3-zbuffer|--webgl1|--webgl1-zbuffer|"
@@ -6413,6 +6438,11 @@ main_parse_argument_layer(
         if( strcmp(argv[argi], "--uncapped") == 0 )
         {
             uncapped = 1;
+            continue;
+        }
+        if( strcmp(argv[argi], "--unlocked") == 0 )
+        {
+            unlocked_opt = 1;
             continue;
         }
         if( strcmp(argv[argi], "--pacer") == 0 && argi + 1 < argc )
@@ -8564,6 +8594,57 @@ main(
                                  cfg.connect_port > 0 ? cfg.connect_port : 43594,
                                  app.net->rev->name)
                            : NULL;
+
+            /*
+             * THE UNLOCKED CLOCK: `--unlocked`, TORIRS_UNLOCKED=1, or
+             * `[net:boot] clock=unlocked` (the flag wins, then the env, as
+             * for the pacer and the transport).
+             *
+             * The client stops pacing itself and runs as fast as the machine
+             * allows: every frame pays exactly one logic cycle (the frame
+             * lock, App_FrameLocked) and the frame-cap wait is skipped
+             * (--uncapped). The ONE invariant is the ratio -- 30 client cycles
+             * to one 600 ms server tick -- so the server has to be unlocked
+             * with it: the embedded server's tick is clocked off the cycles
+             * the client has run (NetTransport_CycleClock, every frame below).
+             * A server across a socket ticks on its own wall clock; a client
+             * running faster than it would play its animations and timers
+             * ahead of the world, so that is refused. No transport at all (an
+             * offline client) has no tick to keep step with.
+             */
+            {
+                char const* env_unlocked = getenv("TORIRS_UNLOCKED");
+                int unlocked = boot_manifest.clock_unlocked;
+
+                if( env_unlocked && env_unlocked[0] )
+                    unlocked = atoi(env_unlocked) != 0;
+                if( unlocked_opt )
+                    unlocked = 1;
+                if( unlocked )
+                {
+#if defined(TORIRS_PLATFORM_WEB)
+                    /* requestAnimationFrame paces every frame; there is no
+                     * wait here to drop, so "unlocked" would be the display's
+                     * refresh rate in cycles -- a faster clock, not a free one. */
+                    fprintf(stderr, "torirs: the unlocked clock is not available in a browser "
+                                    "(requestAnimationFrame paces the frame)\n");
+                    exit(2);
+#else
+                    if( sock && transport_kind != NET_TRANSPORT_EMBED )
+                    {
+                        fprintf(stderr,
+                                "torirs: the unlocked clock needs the in-process server "
+                                "(transport=embed): a server across a socket ticks on its "
+                                "own clock, and 30 client cycles must stay one tick\n");
+                        exit(2);
+                    }
+                    App_SpeedUnlock();
+                    uncapped = 1;
+                    TORIRS_REPORT("clock: unlocked (one logic cycle a frame, no frame cap; "
+                                  "the embedded server ticks every 30 cycles)\n");
+#endif
+                }
+            }
         }
 
         /* TORIRS_SIM_OPENMAIN=<iface>: once the gameframe is up, mount an

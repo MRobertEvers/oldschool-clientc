@@ -53,6 +53,9 @@
 /* The server's own tick. Matched to the real one rather than to the frame rate:
  * a client rendering at 144 Hz must not run the world 144 times a second. */
 #define EMBED_TICK_MS 600
+/* The client's logic cycle (APP_LOGIC_TICK_MS): the unlocked clock's step, so
+ * EMBED_TICK_MS / EMBED_CYCLE_MS = 30 cycles make one tick. */
+#define EMBED_CYCLE_MS 20
 
 struct NetTransportEmbed
 {
@@ -70,6 +73,11 @@ struct NetTransportEmbed
      * instead of reading the wall clock. @see embed_poll_clock_ms. */
     int poll_clock_ms;
     unsigned long long poll_clock_now;
+    /* The unlocked clock (NetTransport_CycleClock): the client's logic cycles
+     * run so far, and the count the last clock step saw. */
+    int cycle_clock;
+    unsigned long long cycle_now;
+    unsigned long long cycle_last;
     /* TORIRS_LOGIC_CYCLES_PER_FRAME (k): a frame is k logic cycles, so each
      * clock step is k x 20 ms of game time. @see embed_clock_step. */
     int cycles_per_frame;
@@ -357,6 +365,16 @@ embed_clock_step(struct NetTransportEmbed* self)
         self->test_last = self->test_now;
         now = (long)(self->test_origin +
                      (self->test_now - self->test_origin) * (unsigned long long)self->cycles_per_frame);
+    }
+    else if( self->cycle_clock )
+    {
+        /* The unlocked clock: world time is the client's cycles x 20 ms, so
+         * the tick below falls on every 30th cycle however fast frames come,
+         * and a frame that ran no cycle (a loading screen, a settle pause)
+         * moves the world not at all. Already k cycles a frame at k > 1. */
+        stepped = self->cycle_now != self->cycle_last;
+        self->cycle_last = self->cycle_now;
+        now = (long)(self->cycle_now * EMBED_CYCLE_MS);
     }
     else if( self->poll_clock_ms > 0 )
     {
@@ -910,6 +928,16 @@ NetTransport_TestClock(struct NetTransport* t, unsigned long long now)
     return self->embed;
 }
 
+void
+NetTransport_CycleClock(struct NetTransport* t, unsigned long long cycles)
+{
+    assert(t);
+    assert(t->vtable == &k_embed_vtable);
+    struct NetTransportEmbed* self = (struct NetTransportEmbed*)t;
+    self->cycle_clock = 1;
+    self->cycle_now = cycles;
+}
+
 struct NetTransport*
 NetTransport_NewEmbed(int default_port, char const* rev_name)
 {
@@ -961,6 +989,15 @@ NetTransport_TestClock(struct NetTransport* t, unsigned long long now)
 {
     (void)t; (void)now;
     return NULL;
+}
+
+void
+NetTransport_CycleClock(struct NetTransport* t, unsigned long long cycles)
+{
+    (void)cycles;
+    assert(t);
+    /* No embed transport exists in this build, so `t` is a socket one. */
+    assert(!"NetTransport_CycleClock: this build has no embedded server");
 }
 
 #endif

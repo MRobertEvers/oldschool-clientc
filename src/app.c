@@ -58,11 +58,40 @@ long g_torirs_frame_no = 0;
 long g_torirs_max_frames = 0;
 /* Engaged at run time by a party host (App_FrameLockEngage). */
 static int s_frame_lock_engaged = 0;
+/* Set once at boot by the unlocked-clock setting (App_SpeedUnlock). */
+static int s_speed_unlocked = 0;
+/* Logic cycles the frame loop has run, ever (App_LogicCyclesRun). */
+static uint64_t s_logic_cycles_run = 0;
 
 int
 App_FrameLocked(void)
 {
-    return g_torirs_max_frames > 0 || s_frame_lock_engaged;
+    return g_torirs_max_frames > 0 || s_frame_lock_engaged || s_speed_unlocked;
+}
+
+void
+App_SpeedUnlock(void)
+{
+    s_speed_unlocked = 1;
+}
+
+int
+App_SpeedUnlocked(void)
+{
+    return s_speed_unlocked;
+}
+
+void
+App_LogicCyclesNote(int cycles)
+{
+    assert(cycles >= 0);
+    s_logic_cycles_run += (uint64_t)cycles;
+}
+
+uint64_t
+App_LogicCyclesRun(void)
+{
+    return s_logic_cycles_run;
 }
 
 void

@@ -999,6 +999,10 @@ App_RunOnce(
         {
             ticks = 0;
         }
+        /* The cycles that ran, not the ones paid: the unlocked clock ticks the
+         * world off this count (App_SpeedUnlock), so a cycle the fence owed
+         * to the next frame is counted when it runs there. */
+        App_LogicCyclesNote(ticks);
 
         /* The movers interpolate the same elapsed time the tick accumulator
          * was just given -- already clamped, and measured off the same clock.

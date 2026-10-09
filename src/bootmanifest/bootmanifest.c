@@ -670,6 +670,17 @@ bm_set_kv(
             snprintf(bm->transport, sizeof(bm->transport), "%s", value);
             return;
         }
+        if( strcmp(key, "clock") == 0 )
+        {
+            if( strcmp(value, "unlocked") == 0 )
+                bm->clock_unlocked = 1;
+            else if( strcmp(value, "real") == 0 )
+                bm->clock_unlocked = 0;
+            else
+                TORIRS_LOG("bootmanifest: [net:boot] clock must be real|unlocked, got '%s'\n",
+                    value);
+            return;
+        }
         if( strcmp(key, "host") == 0 )
         {
             snprintf(bm->host, sizeof(bm->host), "%s", value);
