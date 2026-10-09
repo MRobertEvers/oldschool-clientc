@@ -307,3 +307,86 @@ one of their 837 ticks. What stood between the lanes, in the order found:
     for the read, nobody fresh was in range and the target ate the 74. For
     the target and next roles inside their read window the order that
     keeps the tile is the tile itself; with it se bounces both balls clean.
+
+## What the Blert crab calibration added (2026-10-09)
+
+Blert's Normal trio rooms (`build/blert/verzik`, 25 rooms, 106 P2/P3 crabs,
+116 reds) read per tick, against sixteen scriptrun seeds. The reading tool is
+the per-crab timeline: for every crab, its spawn tick, the tick of each
+step, the nearest raider's distance every tick, and its death tick. Aggregate
+statistics (median lifetime, moved fraction) hid every one of the rules
+below; the timelines gave them up at once.
+
+48. **A wave is a coin per raider at four fixed points, not one crab per
+    raider on the line to her.** Blert's trio waves are 1, 2 or 3 crabs
+    (P2 13/13/8, P3 10/12/3) at the room's w, ne, n and e crab points
+    (ours 6421,91 / 6441,95 / 6431,96 / 6440,91, her instance base 6400,64).
+    The old placement put exactly one crab per raider between her and that
+    raider, which no Blert room shows. The west and east points go to the
+    raider nearest them, the north to the one left over.
+49. **The crab's clock: still on +0..+2, first step on +3, one tile a tick,
+    stop on the first tick it STARTS within 2 of its raider, blast on the
+    last step +5, never before +10, and 29 if it never arrives.** 101 of
+    101 Blert crabs that moved took their first step on +3; every crab that
+    spawned within 2 of a raider still took that step; 14 of 14 that stopped
+    by +5 blew on +10; 9 of 9 that never arrived blew on +29. The floor
+    matters on the e point, where a raider often stands within 2 at the
+    spawn: without it the crab blew on +6.
+50. **`npc_setmode(none)` does not cancel a queued walk.** The reference's
+    NPC_SETMODE never touches the waypoint `npc_walk` queued (the engine's
+    note at SS_OP_NPC_SETMODE), so a crab that lit its fuse while its last
+    step was blocked took that step a tick or two later, onto its raider's
+    tile. A walk to its own tile is the stop; that is what the arrival
+    branch issues now.
+51. **A stuck crab is Blert's too.** Four of Blert's 43 P3 crabs never moved
+    and blew on +29, every one at the n point with her body between it and
+    its raider; ours do the same on the e point when she stands on it. Do
+    not "fix" the stuck counter.
+52. **The first purple cast is a 35% roll, not the wiki's 25%.** Blert's
+    first cast lands on attack 1 in 10 of 25 rooms, attack 2 in 7, 3 in 3,
+    4 in 2 (mean 3.5); at 25% ours averaged slot 6.9 over sixteen seeds. The
+    crabs ride that cast, so this is the P2 crab wave's timing. The later
+    casts (floor 19 attacks, then a coin) already matched: +91..+99.
+53. **Reds spawn at her south-west tile −4,+1 and +4,+1**, 58 and 58 of
+    Blert's 116; ours were −2,0 and +4,0.
+54. **What still differs is the raiders, not the crabs.** Blert's crabs live
+    a median 14 (P2) and 15 (P3) and die 2.5 tiles from the nearest raider;
+    ours 11 and 10, 1.5 tiles: Blert's players walk away from a crab the
+    tick it stops ("M2.4" on nearly every timeline), ours stand. Blert's
+    reds live 42-44 and die on the next summon with hp left (14 of 116
+    killed); ours are killed by the bots inside 7-30 ticks. Both are solver
+    choices, written here so nobody reads them as content bugs.
+55. **Draw every coin before any spawn.** With `~tob_verzik_add_crab` inside
+    the hunt loop, the coin drawn right after a spawn came up heads 24% of
+    the time against 44% after a tails: HHH once in 65 fight waves where a
+    fair coin gives eight, HTH seventeen. The same loop fired from
+    `::tobcrabs 1` (the player's stream) or from her queue was fair. The
+    wave now decides every raider's coin and point first and adds the crabs
+    after the hunt (fair: HHH 4 of 65, even conditionals). What the spawn op
+    does to the next draw of her stream is not root-caused; do not put an
+    `npc_add` between two rolls that must be independent.
+56. **Queue id 2 is the engine's damage hook.** Every combat hit on an npc
+    lands through its `[ai_queue2,...]`. A `[ai_queue2,verzik_phase2]` added
+    for a probe turned every raider hit on her into a purple cast with a crab
+    wave (46 purples in one P2, waves of 6) and failed every seed for an
+    hour, for every session on the tree. Debug entry points go on
+    `[debugproc]` only; a queue handler on a boss form is live content.
+57. **A content edit costs three minutes of packs for four seconds of test**
+    (measured 2026-10-09: tob_build_packs.sh 60 s, torirsserver-servpack
+    124 s, one scriptrun seed 4 s at 417 ticks/s). The server refuses a stale
+    pack, and another session's edit to any file under the content tree
+    makes the pack stale again between a build and a run. Batch content
+    edits; never a one-line change per run.
+58. **The varp allocator renames what you declare.** A new `[varpNNNN_name]`
+    block is rewritten by the pack build to `[varp<next>_varpNNNN_name]` from
+    `pack/varp.alloc`, and again on the next build if the name still starts
+    with `varp`. Declare the name without a number and let the allocator
+    assign it, or do not add varps for a probe.
+59. **Her P3 standing is the solver's doing, not the follow's.** Over 279 P3
+    ticks of seed sa she stepped 11 times: the raiders stand at range 1 and
+    step to range 0 only on her attack tick (the scan-tick dodge), and the
+    follow takes no step on an attack tick, so the walk-off never fires; when
+    all three stood under her on a non-attack tick (+69) she stepped out in
+    three ticks. The follow itself is a sign-of-the-difference diagonal step
+    (`~tob_verzik_p3_follow`), not the engine's `playerfollow` naive path,
+    which is what a kiting tank would show up.
