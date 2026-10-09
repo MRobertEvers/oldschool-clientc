@@ -5283,6 +5283,26 @@ sound_synth_ticklog(
     ToriRSServer_TicklogSound(srv, player, sound, loops, delay, source, coord, radius, -1);
 }
 
+/*
+ * The player a player-variable op addresses. `.%name` is the SECONDARY
+ * player's variable: the compiler sets bit 16 of the var op's operand
+ * (ssc_compile.c, "Var ops carry the flag in bit 16"), and var opcodes sit
+ * below 100, so the VM's per-command dot latch never sees it. Masked off and
+ * ignored, a `.%varp` read the PRIMARY player -- in an npc's timer, which has
+ * none, a NULL one: every Verzik P3 seed segfaulted on
+ * `~tob_dbg_attack`'s `.%varp6880_tob_dbg_attacks` under `.huntnext`
+ * (2026-10-09).
+ */
+static struct ToriRSServerPlayer*
+var_player(
+    struct SSVM_State* state,
+    struct ToriRSServerPlayer* player)
+{
+    if( state->script->int_operands[state->pc] & (1 << 16) )
+        return (struct ToriRSServerPlayer*)SSVM_ActiveSlot(state, SSVM_ENT_PLAYER, SSVM_SECONDARY);
+    return player;
+}
+
 int
 ToriRSServer_ScriptCommand(
     struct SSVM_State* state,
@@ -6100,8 +6120,9 @@ ToriRSServer_ScriptCommand(
          * npc's timer, a map queue) reading one is the content bug, and it
          * stops here, named: before this it read whatever player the server
          * had bound last (2026-10-09, `~tob_dbg_attack` from a boss timer). */
-        assert(player);
-        SSVM_PushInt(state, player->varps[varp]);
+        struct ToriRSServerPlayer* target = var_player(state, player);
+        assert(target);
+        SSVM_PushInt(state, target->varps[varp]);
         return 1;
     }
 
@@ -6117,7 +6138,8 @@ ToriRSServer_ScriptCommand(
             SSVM_Abort(state, "varp %d is outside the mock's range", varp);
             return 1;
         }
-        assert(player);
+        struct ToriRSServerPlayer* target = var_player(state, player);
+        assert(target);
         /*
          * Assignment always marks the varp for transmission, even when the
          * value is unchanged.
@@ -6133,14 +6155,17 @@ ToriRSServer_ScriptCommand(
          * `ToriRSServer_WorldMarkVarp` is idempotent within a tick, so a script
          * writing the same varp repeatedly still produces one packet.
          */
-        player->varps[varp] = value;
-        ToriRSServer_WorldMarkVarp(player, varp);
+        target->varps[varp] = value;
+        ToriRSServer_WorldMarkVarp(target, varp);
         /* And whatever engine state hangs off this varp. Writing the array and
          * marking it for transmission is only *reporting* the change; a varp
          * like `option_run` is where a piece of engine state actually lives,
          * and skipping this is how the run orb came to light up while the
-         * player kept walking. */
-        ToriRSServer_WorldVarpWritten(srv, varp, value);
+         * player kept walking. The side effects act on the server's active
+         * player, so a dotted write to anyone else has none
+         * (`ToriRSServer_WorldSetVarpOn`'s rule). */
+        if( target == player || target == srv->active_player )
+            ToriRSServer_WorldVarpWritten(srv, varp, value);
         return 1;
     }
 
@@ -13493,8 +13518,10 @@ ToriRSServer_ScriptCommand(
     case SS_OP_PUSH_VARBIT:
     {
         int varbit_id = state->script->int_operands[state->pc] & 0xffff;
+        struct ToriRSServerPlayer* target = var_player(state, player);
 
-        SSVM_PushInt(state, ToriRSServer_VarbitGet(player, varbit_id));
+        assert(target);
+        SSVM_PushInt(state, ToriRSServer_VarbitGet(target, varbit_id));
         return 1;
     }
 
@@ -13511,7 +13538,10 @@ ToriRSServer_ScriptCommand(
          * always read from. Writing through `srv->active_player` instead meant
          * a script that hunted a set and wrote a varbit to each read one player
          * and wrote another - see `ToriRSServer_VarbitSetOn`. */
-        if( ToriRSServer_VarbitSetOn(srv, player, varbit_id, (int)value) < 0 )
+        struct ToriRSServerPlayer* target = var_player(state, player);
+
+        assert(target);
+        if( ToriRSServer_VarbitSetOn(srv, target, varbit_id, (int)value) < 0 )
             SSVM_Abort(state, "varbit %d is not in the cache", varbit_id);
         return 1;
     }
