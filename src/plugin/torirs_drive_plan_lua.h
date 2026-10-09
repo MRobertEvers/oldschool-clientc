@@ -16,6 +16,7 @@
  *   forbid  = { {x, z, t0, t1, cost, tier}, ... }
  *   zones   = { {x, z, size (or x0,z0,x1,z1), lo, hi, t0, t1, cost, tier, require}, ... }
  *   pulls   = { {x, z, size, weight, t0, t1}, ... }
+ *   watchers = { {x, z, size, t0, t1, cost, tier}, ... }  seen by the near-edge rule
  *   goal    = { x, z, size, side, under_ok, off_side, under, pull }
  *   edge    = { x0, z0, x1, z1, margin, weight }
  *
@@ -233,6 +234,26 @@ DrivePlanLua(
     spec.n_pulls = n;
     lua_pop(L, 1);
 
+    n = drive_plan_list(L, spec_idx, "watchers", COLLISION_PLAN_WATCHERS_MAX);
+    for( i = 1; i <= n; i++ )
+    {
+        struct CollisionPlanWatcher* w = &spec.watchers[i - 1];
+        lua_rawgeti(L, -1, i);
+        k = lua_gettop(L);
+        w->x = drive_plan_field_int(L, k, "x", 0, 1) - base_x;
+        w->z = drive_plan_field_int(L, k, "z", 0, 1) - base_z;
+        w->size = drive_plan_field_int(L, k, "size", 1, 0);
+        w->t0 = drive_plan_field_int(L, k, "t0", -1, 0);
+        w->t1 = drive_plan_field_int(L, k, "t1", 1 << 30, 0);
+        w->cost = drive_plan_field_num(L, k, "cost", 1.0);
+        w->tier = drive_plan_field_tier(L, k, COLLISION_PLAN_LETHAL);
+        luaL_argcheck(L, w->size >= 1 && w->x >= 0 && w->z >= 0 && w->x + w->size <= cm->size_x
+                && w->z + w->size <= cm->size_z, spec_idx, "a watcher's footprint is outside the scene");
+        lua_pop(L, 1);
+    }
+    spec.n_watchers = n;
+    lua_pop(L, 1);
+
     lua_getfield(L, spec_idx, "goal");
     if( !lua_isnil(L, -1) )
     {
@@ -303,7 +324,7 @@ DrivePlanLua(
     lua_setfield(L, -2, "expanded");
     if( res.why_kind )
     {
-        static char const* const kinds[] = { "", "forbid", "zone", "chaser" };
+        static char const* const kinds[] = { "", "forbid", "zone", "chaser", "watcher" };
         lua_pushfstring(L, "%s[%d] k%d", kinds[res.why_kind], res.why_index + 1, res.why_k);
         lua_setfield(L, -2, "why");
     }

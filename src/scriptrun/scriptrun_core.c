@@ -1164,7 +1164,7 @@ core_zone_sub(
         if( pkt->id == 65535 )
             break;
         core_zone_tile(core, pkt->pos, &x, &z, &level);
-        if( core->map_anim_count < SCRIPTRUN_MAP_ANIMS )
+        assert(core->map_anim_count < SCRIPTRUN_MAP_ANIMS);
         {
             struct ScriptrunMapAnim* a = &core->map_anims[core->map_anim_count++];
             a->spotanim = pkt->id;
@@ -1181,8 +1181,7 @@ core_zone_sub(
     {
         struct PktMapProjAnim const* pkt = payload;
         struct ScriptrunProjectile* p;
-        if( core->projectile_count >= SCRIPTRUN_PROJECTILES )
-            break;
+        assert(core->projectile_count < SCRIPTRUN_PROJECTILES);
         core_zone_tile(core, pkt->pos, &x, &z, &level);
         p = &core->projectiles[core->projectile_count++];
         p->spotanim = pkt->spotanim;

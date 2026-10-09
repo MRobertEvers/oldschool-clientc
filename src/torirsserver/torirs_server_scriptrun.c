@@ -90,7 +90,9 @@ enum
     SCRIPTRUN_INPUTS = 64,
     /* The side panel a fresh login shows (the stone order in TAB_NAMES). */
     SCRIPTRUN_TAB_INVENTORY = 3,
+    SCRIPTRUN_TAB_EQUIPMENT = 4,
     SCRIPTRUN_TAB_PRAYER = 5,
+    SCRIPTRUN_TAB_MAGIC = 6,
 };
 
 struct ScriptBot
@@ -1311,6 +1313,59 @@ push_press(
  * named copy when the caller pins one (an attack's reach_element). Answers
  * the pressed row ({row_text, element_id}) where the client answers nothing:
  * the callers that press through the menu read it. */
+/* api_drive.cast_npc(npc_id, spell_component, [element_id]) -> result
+ *
+ * A spell cast on an npc: what the client does with the spell's "Cast" row
+ * armed (drive_pointer_spell_arm) and the npc's "Cast <spell> -> <npc>" row
+ * pressed, which leaves as OPNPCT (the npc's slot, the spell's component).
+ * The spellbook is a side panel: a spell on a display-hidden spellbook is
+ * refused as the client refuses it (app_minimenu_ui_pick_live_reason). The
+ * copy is the named element when one is given, else the nearest, as
+ * d_world_op. Rune and level checks are the server's ([apnpct,...]). */
+static int
+d_cast_npc(lua_State* L)
+{
+    struct ScriptBot* bot = bot_of(L);
+    struct ScriptrunCore* c = bot->core;
+    int type_id = (int)luaL_checkinteger(L, 1);
+    int component = (int)luaL_checkinteger(L, 2);
+    int want_element = (int)luaL_optinteger(L, 3, -1);
+    struct World_EntityPool* pool = &c->world->entities.npc;
+    struct WorldEntity_NPC const* best = NULL;
+    int best_d = 1 << 30;
+    int px = 0, pz = 0, plevel = 0;
+    uint8_t payload[8];
+
+    if( !panel_showing(bot, component) )
+        return push_result(L, "refused", "the spell's panel is display-hidden");
+    if( !ScriptrunCore_LocalTile(c, &px, &pz, &plevel) )
+        return push_result(L, "not_found", "not placed yet");
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_NPC const* npc = World_EntityPoolGet(pool, i);
+        int tx, tz, d;
+        if( !npc || npc->server_slot < 0 || (npc->npc_id != type_id && npc->base_npc_id != type_id) )
+            continue;
+        if( want_element >= 0 && npc->element_id != want_element )
+            continue;
+        tx = c->world->_base_tile_x + npc->grid_position.x;
+        tz = c->world->_base_tile_z + npc->grid_position.z;
+        d = cheb(tx, tz, px, pz);
+        if( d < best_d )
+        {
+            best_d = d;
+            best = npc;
+        }
+    }
+    if( !best )
+        return push_result(L, "not_found", want_element >= 0 ? "that npc copy is not in view"
+                                                              : "no such npc in view");
+    put2(payload, best->server_slot);
+    put4(payload + 2, component);
+    handle(bot, PKTOUT_NAME_OPNPCT, payload, 6);
+    return push_result(L, "ok", NULL);
+}
+
 static int
 d_world_op(lua_State* L)
 {
@@ -1548,8 +1603,8 @@ d_tab(lua_State* L)
     return push_result(L, "ok", NULL);
 }
 
-/* Is the panel holding `component` showing?  The backpack and the prayer
- * book are side panels: only the selected tab's is displayed, and the
+/* Is the panel holding `component` showing?  The backpack, the worn tab, the
+ * prayer book and the spellbook are side panels: only the selected tab's is displayed, and the
  * client's dispatcher refuses a press on a display-hidden node
  * (app_minimenu.c app_minimenu_ui_pick_live_reason). */
 static int
@@ -1560,11 +1615,17 @@ panel_showing(
     int group = (component >> 16) & 0xffff;
     int inventory = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_INTERFACE, "inventory");
     int prayer = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_INTERFACE, "prayerbook");
+    int spellbook = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_INTERFACE, "magic_spellbook");
+    int worn = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_INTERFACE, "wornitems");
 
     if( group == inventory )
         return bot->tab == SCRIPTRUN_TAB_INVENTORY;
     if( group == prayer )
         return bot->tab == SCRIPTRUN_TAB_PRAYER;
+    if( group == spellbook )
+        return bot->tab == SCRIPTRUN_TAB_MAGIC;
+    if( group == worn )
+        return bot->tab == SCRIPTRUN_TAB_EQUIPMENT;
     return 1;
 }
 
@@ -2281,6 +2342,7 @@ push_drive_table(
     bind(L, bot, "message_serial", d_message_serial);
     bind(L, bot, "move_to", d_move_to);
     bind(L, bot, "world_op", d_world_op);
+    bind(L, bot, "cast_npc", d_cast_npc);
     bind(L, bot, "inv_op", d_inv_op);
     bind(L, bot, "if_click", d_if_click);
     bind(L, bot, "resume", d_resume);

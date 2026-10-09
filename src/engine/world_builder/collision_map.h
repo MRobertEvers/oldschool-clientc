@@ -908,6 +908,14 @@ collision_map_naive_path(
  * toward that tile. The cost is charged where the path's tile at the end of
  * tick now + k is the chaser's tile then (the touch lands on now + k + 1).
  *
+ * Watchers price being SEEN: a watcher is an npc footprint over a tick
+ * window, and a path tile at the end of a tick in that window is charged when
+ * the watcher sees it by the ToB near-edge rule (tob_bloat.rs2
+ * ~tob_bloat_sees): a tile under the footprint is seen; a tile outside its
+ * x span is seen when any tile of the footprint's near column has line of
+ * sight to it (collision_map_line_of_sight, rsmod rayCastLine), and the same
+ * with the near row for a tile outside its z span.
+ *
  * The two-step move's middle tile follows the flood's own parent order (W,
  * E, S, N before the diagonals): the straight step along the dominant axis
  * first, the diagonal second. Forbidden tiles are charged on the middle tile
@@ -925,6 +933,7 @@ enum
     COLLISION_PLAN_FORBID_MAX = 256,
     COLLISION_PLAN_ZONES_MAX = 48,
     COLLISION_PLAN_PULLS_MAX = 8,
+    COLLISION_PLAN_WATCHERS_MAX = 48,
 };
 
 struct CollisionPlanForbid
@@ -963,6 +972,16 @@ struct CollisionPlanChaser
     int tier;
 };
 
+/* An npc footprint (SW tile, size) that sees by the near-edge rule above,
+ * over the absolute tick window [t0, t1]. */
+struct CollisionPlanWatcher
+{
+    int x, z, size;
+    int t0, t1;
+    double cost;
+    int tier;
+};
+
 /* The attack goal: a footprint at (x, z) of `size`. Beside it (gap 1, not
  * on a diagonal: where melee reaches) costs 0 on the preferred `side` (0 W,
  * 1 N, 2 E, 3 S; -1 any) and `off_side` elsewhere; under it `under` when
@@ -993,11 +1012,12 @@ struct CollisionPlanSpec
     int beam;           /* 1..COLLISION_PLAN_BEAM_MAX */
     int steps_per_tick; /* 2 running, 1 walking */
     double move_cost;   /* soft, per step taken */
-    int n_forbid, n_zones, n_pulls, n_chasers;
+    int n_forbid, n_zones, n_pulls, n_chasers, n_watchers;
     struct CollisionPlanForbid forbid[COLLISION_PLAN_FORBID_MAX];
     struct CollisionPlanZone zones[COLLISION_PLAN_ZONES_MAX];
     struct CollisionPlanPull pulls[COLLISION_PLAN_PULLS_MAX];
     struct CollisionPlanChaser chasers[COLLISION_PLAN_CHASERS_MAX];
+    struct CollisionPlanWatcher watchers[COLLISION_PLAN_WATCHERS_MAX];
     struct CollisionPlanGoal goal;
     struct CollisionPlanEdge edge;
 };
@@ -1010,7 +1030,8 @@ struct CollisionPlanResult
     int mid_x, mid_z;                   /* the first move's middle tile, or -1 */
     double lethal, damage, soft;
     /* the earliest lethal charge on the chosen path: kind 0 none, 1 forbid,
-     * 2 zone, 3 chaser; `why_index` its index in the spec; `why_k` its step */
+     * 2 zone, 3 chaser, 4 watcher; `why_index` its index in the spec;
+     * `why_k` its step */
     int why_kind, why_index, why_k;
     int expanded;                       /* nodes expanded, for the budget trace */
 };

@@ -2868,8 +2868,46 @@ plan_charge_forbid(struct PlanNode* n, const struct CollisionPlanSpec* spec, int
     }
 }
 
+/* Does watcher `w` see (x, z)? The near-edge rule of collision_map.h's
+ * watcher note: under the footprint, or a clear ray from any tile of the
+ * near column (x outside the span) or near row (z outside the span). */
+static int
+plan_seen(struct CollisionMap* cm, const struct CollisionPlanWatcher* w, int x, int z)
+{
+    int x1 = w->x + w->size - 1, z1 = w->z + w->size - 1;
+    int out_x = x < w->x || x > x1;
+    int out_z = z < w->z || z > z1;
+    int i;
+    if( !out_x && !out_z )
+        return 1;
+    if( out_x )
+    {
+        int cx = x < w->x ? w->x : x1;
+        for( i = w->z; i <= z1; i++ )
+        {
+            if( collision_map_line_of_sight(cm, cx, i, x, z, 1, 1, 1, 1, 0) )
+                return 1;
+        }
+    }
+    if( out_z )
+    {
+        int cz = z < w->z ? w->z : z1;
+        for( i = w->x; i <= x1; i++ )
+        {
+            if( collision_map_line_of_sight(cm, i, cz, x, z, 1, 1, 1, 1, 0) )
+                return 1;
+        }
+    }
+    return 0;
+}
+
 static void
-plan_score(struct PlanNode* n, const struct CollisionPlanSpec* spec, int k, int steps)
+plan_score(
+    struct CollisionMap* cm,
+    struct PlanNode* n,
+    const struct CollisionPlanSpec* spec,
+    int k,
+    int steps)
 {
     int t = spec->now + k;
     int i;
@@ -2928,6 +2966,14 @@ plan_score(struct PlanNode* n, const struct CollisionPlanSpec* spec, int k, int 
     {
         if( n->cx[i] == n->x && n->cz[i] == n->z )
             plan_charge(n, spec, spec->chasers[i].tier, spec->chasers[i].cost, 3, i, k);
+    }
+    for( i = 0; i < spec->n_watchers; i++ )
+    {
+        const struct CollisionPlanWatcher* w = &spec->watchers[i];
+        if( t < w->t0 || t > w->t1 )
+            continue;
+        if( plan_seen(cm, w, n->x, n->z) )
+            plan_charge(n, spec, w->tier, w->cost, 4, i, k);
     }
     n->soft += spec->move_cost * (double)steps;
 }
@@ -2995,6 +3041,16 @@ collision_plan(
     assert(spec->n_forbid >= 0 && spec->n_forbid <= COLLISION_PLAN_FORBID_MAX);
     assert(spec->n_zones >= 0 && spec->n_zones <= COLLISION_PLAN_ZONES_MAX);
     assert(spec->n_pulls >= 0 && spec->n_pulls <= COLLISION_PLAN_PULLS_MAX);
+    assert(spec->n_watchers >= 0 && spec->n_watchers <= COLLISION_PLAN_WATCHERS_MAX);
+    for( i = 0; i < spec->n_watchers; i++ )
+    {
+        /* every tile a watcher casts from is inside the map */
+        assert(spec->watchers[i].size >= 1);
+        assert(spec->watchers[i].x >= 0);
+        assert(spec->watchers[i].z >= 0);
+        assert(spec->watchers[i].x + spec->watchers[i].size <= cm->size_x);
+        assert(spec->watchers[i].z + spec->watchers[i].size <= cm->size_z);
+    }
     assert(spec->src_x >= 0 && spec->src_x < cm->size_x);
     assert(spec->src_z >= 0 && spec->src_z < cm->size_z);
 
@@ -3094,7 +3150,7 @@ collision_plan(
                 n->why_index = from->why_index;
                 n->why_k = from->why_k;
                 n->order = cand_n;
-                plan_score(n, spec, k, steps);
+                plan_score(cm, n, spec, k, steps);
                 cand_n++;
             }
         }

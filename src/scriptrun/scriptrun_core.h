@@ -43,7 +43,11 @@ enum
     SCRIPTRUN_MESSAGES = 256,
     SCRIPTRUN_TEXT = 256,
     SCRIPTRUN_PROJECTILES = 256,
-    SCRIPTRUN_MAP_ANIMS = 256,
+    /* Bloat's hand volleys below 40% put ~320 floor graphics in the
+     * 40-tick window (16 shadows + 16 splats every 4 ticks); a full ring
+     * is an assert, never a dropped graphic (the dropped one is the newest,
+     * the one a bot must dodge). */
+    SCRIPTRUN_MAP_ANIMS = 1024,
     SCRIPTRUN_LOCS = 1024,
     SCRIPTRUN_OBJS = 512,
     SCRIPTRUN_MOUNTS = 64,
