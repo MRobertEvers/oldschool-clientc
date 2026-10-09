@@ -41,6 +41,9 @@ local function run(t)
     t.check("p1.solve", result == "ok", tostring(detail))
     t.expect("party.barrier.p1done", t.party.barrier("p1done", 900))
     if role ~= 1 then
+        -- the leader's measures below take ticks; every raider's trace must
+        -- reach its last boundary (party.lockstep), so the party ends together
+        t.expect("party.barrier.done", t.party.barrier("done", 900))
         t.finish(0)
         return
     end
@@ -86,6 +89,7 @@ local function run(t)
         "P1 %s ticks (t%s..t%s); damage taken %d: %s; dealt %d (Dawnbringer %d in %d specials); scythe swings %s",
         tostring(p1s and p1e and (p1e - p1s)), tostring(p1s), tostring(p1e), total,
         #list > 0 and table.concat(list, ", ") or "none", dealt, dawn, specs, table.concat(sw, ", ")))
+    t.expect("party.barrier.done", t.party.barrier("done", 900))
     t.finish(0)
 end
 

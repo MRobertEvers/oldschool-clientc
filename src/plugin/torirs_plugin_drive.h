@@ -477,6 +477,9 @@ enum DriveSymbolKind
     DRIVE_SYMBOL_INV,
     /* waves seam npc_record_reads: t.seq.length takes a seq symbol. */
     DRIVE_SYMBOL_SEQ,
+    /* raid solvers name a boss's projectiles (t.raid.verzik_p2_solve: the
+     * urnbomb and the Athanatos flight); scriptrun already served it. */
+    DRIVE_SYMBOL_SPOTANIM,
     DRIVE_SYMBOL_KIND_COUNT
 };
 

@@ -542,10 +542,12 @@ static enum ToriRSServerPackKind const DRIVE_SYMBOL_PACK[DRIVE_SYMBOL_KIND_COUNT
     TORIRSSERVER_PACK_STAT,
     TORIRSSERVER_PACK_INV,
     TORIRSSERVER_PACK_SEQ,
+    TORIRSSERVER_PACK_SPOTANIM,
 };
 
 static char const* const DRIVE_SYMBOL_KIND_NAMES[DRIVE_SYMBOL_KIND_COUNT] = {
     "npc", "obj", "loc", "component", "interface", "varp", "varbit", "stat", "inv", "seq",
+    "spotanim",
 };
 
 /* -1 on a typo: a test's own mistake, not a contract violation, and the Lua

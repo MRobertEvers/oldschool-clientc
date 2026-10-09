@@ -49,7 +49,9 @@ that would have prevented each round.
     tick, answers visible only after it), **enforce the client's
     400,000-instruction budget per wait**, and **model client-side refusals**
     (a held-item op on a hidden panel). Each gap let a scriptrun pass hide a
-    live failure.
+    live failure. That includes the API surface: scriptrun's `drive.symbol`
+    took `spotanim` and the client's did not, so 16 clean scriptrun seeds
+    died on the first live tick of P2's prepare.
 11. **Keep two-times headroom on the budget** (`TORIRS_SCRIPTRUN_STEP_BUDGET=200000`).
     Search the arena before the fight; per tick, only look results up.
 
