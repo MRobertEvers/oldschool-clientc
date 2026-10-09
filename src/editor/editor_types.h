@@ -100,9 +100,10 @@ struct Editor_Loc
  *   - `trailing` is the bytes past the last tile in the encoded stream. Nothing
  *     reads them, but 1,612 of 2,934 OldSchool 239 squares have a non-zero one
  *     and a re-encode without it is short.
- *   - `foreign` is every `.jm2` section after `==== MAP ====` — the server's
- *     `==== NPC ====` and `==== OBJ ====` spawns. Those belong to the content
- *     layer, not the cache, and the editor is not their editor.
+ *   - `foreign` is every `.jm2` section after `==== MAP ====` that the editor
+ *     does not own, kept verbatim. Spawns are not among them: they live in
+ *     `.spawn` files under `server/scripts/`, and cachepack refuses a square
+ *     that still carries an `==== NPC ====` or `==== OBJ ====` section.
  */
 struct Editor_Square
 {

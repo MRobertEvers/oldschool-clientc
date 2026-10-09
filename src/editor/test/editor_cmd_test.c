@@ -293,17 +293,18 @@ test_parse_reports_bad_input(void)
     Editor_SquareFree(&square);
 }
 
-/** The server's spawn sections survive a load/save cycle untouched. */
+/** A section the editor does not own survives a load/save cycle untouched.
+ *  Spawns are not such a section: they live in `.spawn` files, and cachepack
+ *  refuses a jm2 that carries one. */
 static void
 test_foreign_sections_survive(void)
 {
     struct Editor_Square square;
     const char* source = "==== MAP ====\n"
                          "0 0 0: h5 u2\n"
-                         "\n==== NPC ====\n"
-                         "0 10 10: 3021\n"
-                         "==== OBJ ====\n"
-                         "0 11 11: 995 100\n";
+                         "\n==== NOTE ====\n"
+                         "0 10 10: kept as written\n"
+                         "second line\n";
     char* text;
     size_t size;
 
@@ -311,8 +312,8 @@ test_foreign_sections_survive(void)
     Editor_Jm2Parse(&square, source, strlen(source));
 
     check(square.foreign != NULL, "foreign sections were captured");
-    check(strstr(square.foreign, "3021") != NULL, "npc spawn kept");
-    check(strstr(square.foreign, "995 100") != NULL, "obj spawn kept");
+    check(strstr(square.foreign, "kept as written") != NULL, "first foreign line kept");
+    check(strstr(square.foreign, "second line") != NULL, "second foreign line kept");
 
     size = Editor_Jm2Emit(&square, NULL, 0);
     text = malloc(size + 1);

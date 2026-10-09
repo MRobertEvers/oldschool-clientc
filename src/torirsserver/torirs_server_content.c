@@ -5,7 +5,11 @@
  *
  *   .pack   `id=name`, one line each, one file per namespace
  *   configs `[symbol]` sections of `key=value`, with `param=<name>,<value>`
- *   .jm2    `==== SECTION ====` banners over `level x z: fields...` lines
+ *   .spawn  `==== NPC ====` / `==== OBJ ====` banners over `name x z level` rows
+ *
+ * The map squares (`maps/m<x>_<z>.jm2`) are not read here: they are the cache's
+ * terrain, and a spawn is never in one (cachepack refuses a square that has
+ * one; see map_read in cp_decode.c).
  *
  * Nothing here is clever. The value of matching the reference's syntax exactly
  * is that a LostCity config can be pasted in and a config written here can be
@@ -1682,137 +1686,6 @@ ToriRSServer_ContentStructParam(
 }
 
 /* ------------------------------------------------------------------ */
-/* .jm2 maps                                                           */
-/* ------------------------------------------------------------------ */
-
-/*
- * LostCity's map format, of which only two sections are read here.
- *
- *   ==== NPC ====
- *   <level> <x> <z>: <npc id>
- *   ==== OBJ ====
- *   <level> <x> <z>: <obj id> <count>
- *
- * x and z are local to the 64x64 map square named by the filename, so a spawn
- * is stable no matter where the mock's scene happens to be centred.
- *
- * MAP and LOC are deliberately not read: terrain and scenery come from
- * cache.osrs230, which is the same data the client draws, and a second copy
- * that could disagree with it is a bug waiting to be written.
- */
-
-enum Jm2Section
-{
-    JM2_NONE = 0,
-    JM2_MAP,
-    JM2_LOC,
-    JM2_NPC,
-    JM2_OBJ,
-};
-
-/**
- * Almost every .jm2 contains only MAP and LOC data, which this server does not
- * consume. Check cheaply for the two tokens that can make a file relevant
- * before paying for millions of fgets/trim/section operations. Keeping two
- * bytes of overlap makes a token split across fread blocks visible.
- */
-static int
-jm2_may_have_spawns(FILE* file)
-{
-    unsigned char bytes[65536 + 2];
-    size_t carry = 0;
-    size_t got;
-
-    while( (got = fread(bytes + carry, 1, sizeof(bytes) - carry, file)) > 0 )
-    {
-        size_t total = carry + got;
-
-        for( size_t i = 0; i + 2 < total; i++ )
-        {
-            if( (bytes[i] == 'N' && bytes[i + 1] == 'P' && bytes[i + 2] == 'C') ||
-                (bytes[i] == 'O' && bytes[i + 1] == 'B' && bytes[i + 2] == 'J') )
-            {
-                rewind(file);
-                return 1;
-            }
-        }
-        carry = total < 2 ? total : 2;
-        if( carry )
-            memmove(bytes, bytes + total - carry, carry);
-    }
-    return 0;
-}
-
-static void
-load_jm2(
-    const char* path,
-    int map_x,
-    int map_z)
-{
-    FILE* file = fopen(path, "rb");
-    char raw[512];
-    enum Jm2Section section = JM2_NONE;
-    int line_number = 0;
-
-    if( !file )
-        return;
-    if( !jm2_may_have_spawns(file) )
-    {
-        fclose(file);
-        return;
-    }
-    while( fgets(raw, sizeof(raw), file) )
-    {
-        char* line = ToriRSServer_ContentCleanLine(raw);
-        int level, local_x, local_z, id, count;
-
-        line_number++;
-        if( !*line )
-            continue;
-
-        if( strncmp(line, "====", 4) == 0 )
-        {
-            if( strstr(line, "NPC") )
-                section = JM2_NPC;
-            else if( strstr(line, "OBJ") )
-                section = JM2_OBJ;
-            else if( strstr(line, "LOC") )
-                section = JM2_LOC;
-            else
-                section = JM2_MAP;
-            continue;
-        }
-        /*
-         * Spawns used to live here and no longer do — see
-         * `server/scripts/areas/lumbridge/configs/lumbridge.spawn` for the whole
-         * argument. What is left is the refusal, and it has to be loud.
-         *
-         * If this simply stopped reading them, a tree that had not migrated
-         * would load with **zero spawns and no message**: an empty world that
-         * looks like a scene bug rather than a content one. So an old-format
-         * section is an error naming the file and the fix, which fails
-         * `ToriRSServer_Pack` instead of booting an empty Lumbridge.
-         */
-        if( section == JM2_NPC || section == JM2_OBJ )
-        {
-            CONTENT_ERROR("%s:%d: `%s` is a spawn, and spawns are server content — "
-                          "move this square's ==== NPC ==== / ==== OBJ ==== sections "
-                          "into a .spawn file under server/scripts/\n",
-                          path, line_number, line);
-            continue;
-        }
-        (void)map_x;
-        (void)map_z;
-        (void)level;
-        (void)local_x;
-        (void)local_z;
-        (void)id;
-        (void)count;
-    }
-    fclose(file);
-}
-
-/* ------------------------------------------------------------------ */
 /* .spawn configs                                                      */
 /* ------------------------------------------------------------------ */
 
@@ -1834,12 +1707,19 @@ load_jm2(
  * cache bump could silently repoint at a different creature — and it already
  * had (`sos_pest_giantspider1`, level 50, standing in the Lumbridge Swamp).
  */
+enum SpawnSection
+{
+    SPAWN_NONE = 0,
+    SPAWN_NPC,
+    SPAWN_OBJ,
+};
+
 static void
 load_spawn_config(const char* path)
 {
     FILE* file = fopen(path, "rb");
     char raw[512];
-    enum Jm2Section section = JM2_NONE;
+    enum SpawnSection section = SPAWN_NONE;
     int line_number = 0;
 
     if( !file )
@@ -1862,19 +1742,19 @@ load_spawn_config(const char* path)
         if( strncmp(line, "====", 4) == 0 )
         {
             if( strstr(line, "NPC") )
-                section = JM2_NPC;
+                section = SPAWN_NPC;
             else if( strstr(line, "OBJ") )
-                section = JM2_OBJ;
+                section = SPAWN_OBJ;
             else
             {
                 CONTENT_ERROR("%s:%d: `%s` — a .spawn file has ==== NPC ==== and "
                               "==== OBJ ==== sections and nothing else\n",
                               path, line_number, line);
-                section = JM2_NONE;
+                section = SPAWN_NONE;
             }
             continue;
         }
-        if( section == JM2_NONE )
+        if( section == SPAWN_NONE )
         {
             CONTENT_ERROR("%s:%d: `%s` before any ==== NPC ==== / ==== OBJ ==== header\n",
                           path, line_number, line);
@@ -1887,10 +1767,10 @@ load_spawn_config(const char* path)
         {
             CONTENT_ERROR("%s:%d: expected `<name> <x> <z> <level>%s`, got `%s`\n",
                           path, line_number,
-                          section == JM2_OBJ ? " [count]" : "", line);
+                          section == SPAWN_OBJ ? " [count]" : "", line);
             continue;
         }
-        if( section == JM2_NPC && fields > 4 )
+        if( section == SPAWN_NPC && fields > 4 )
         {
             CONTENT_ERROR("%s:%d: an npc spawn has no count\n", path, line_number);
             continue;
@@ -1924,16 +1804,16 @@ load_spawn_config(const char* path)
         else
         {
             id = ToriRSServer_ContentSymbol(
-                section == JM2_NPC ? TORIRSSERVER_PACK_NPC : TORIRSSERVER_PACK_OBJ, name);
+                section == SPAWN_NPC ? TORIRSSERVER_PACK_NPC : TORIRSSERVER_PACK_OBJ, name);
             if( id < 0 )
             {
                 CONTENT_ERROR("%s:%d: `%s` is not in configs/all.%s.compack\n", path, line_number,
-                              name, section == JM2_NPC ? "npc" : "obj");
+                              name, section == SPAWN_NPC ? "npc" : "obj");
                 continue;
             }
         }
 
-        if( section == JM2_NPC )
+        if( section == SPAWN_NPC )
         {
             g_npc_spawns = grow(g_npc_spawns, &g_npc_spawn_capacity, g_npc_spawn_count,
                                 sizeof(*g_npc_spawns));
@@ -2228,32 +2108,6 @@ ToriRSServer_ContentMultiway(
             high = mid - 1;
     }
     return 0;
-}
-
-static void
-load_maps(const char* dir)
-{
-    DIR* handle = opendir(dir);
-    struct dirent* entry;
-    char path[1024];
-
-    if( !handle )
-        return;
-    while( (entry = readdir(handle)) != NULL )
-    {
-        int map_x, map_z;
-
-        if( !has_suffix(entry->d_name, ".jm2") )
-            continue;
-        if( sscanf(entry->d_name, "m%d_%d.jm2", &map_x, &map_z) != 2 )
-        {
-            CONTENT_ERROR("maps/%s: expected m<x>_<z>.jm2\n", entry->d_name);
-            continue;
-        }
-        snprintf(path, sizeof(path), "%s/%s", dir, entry->d_name);
-        load_jm2(path, map_x, map_z);
-    }
-    closedir(handle);
 }
 
 /* ------------------------------------------------------------------ */
@@ -2838,8 +2692,6 @@ ToriRSServer_ContentLoad(
      * resolve against the packs the loader has already read. */
     walk_configs(path, ".spawn", load_spawn_config);
 
-    snprintf(path, sizeof(path), "%s/maps", dir);
-    load_maps(path);
     snprintf(path, sizeof(path), "%s/maps/multiway.csv", dir);
     load_multiway(path);
 

@@ -63,6 +63,9 @@ static int g_table_capacity;
 static struct ToriRSServerDbRow* g_rows;
 static int g_row_count;
 static int g_row_capacity;
+/* Bumped whenever a row is added, re-tabled or freed: the lookup indexes below
+ * are rebuilt from g_rows on the first lookup after it moves. */
+static int g_rows_generation = 1;
 
 static void*
 db_grow(
@@ -216,17 +219,164 @@ ToriRSServer_DbTable(int table_id)
     return NULL;
 }
 
+/*
+ * The lookup indexes: built from g_rows on first use after the row set moves
+ * (g_rows_generation), never per query.
+ *
+ * Every lookup here used to be a walk of all ~30k rows, and `query_row` made
+ * that a walk per CANDIDATE: `db_findnext` over a table asked
+ * `ToriRSServer_DbRowInTable(table, i)` for each i, which re-walked g_rows from
+ * the start to find the table's i-th row. That was half the server's time in a
+ * raid scriptrun (every attack's db_find over the combat tables).
+ *
+ * Both indexes hold storage positions, and order ties by storage position, so
+ * every answer is the one the linear walk gave: the FIRST row with an id, and a
+ * table's rows in load order.
+ *
+ *   g_by_row_id    positions sorted (row_id, position)
+ *   g_by_table     positions sorted (table_id, position); a table's rows are
+ *                  one contiguous span, named by g_table_spans
+ */
+struct DbTableSpan
+{
+    int table_id;
+    int first; /* into g_by_table */
+    int count;
+};
+
+static int* g_by_row_id;
+static int* g_by_table;
+static struct DbTableSpan* g_table_spans;
+static int g_table_span_count;
+static int g_index_generation;
+
+static int
+db_by_row_id_cmp(
+    const void* a,
+    const void* b)
+{
+    int left = *(const int*)a;
+    int right = *(const int*)b;
+
+    if( g_rows[left].row_id != g_rows[right].row_id )
+        return g_rows[left].row_id < g_rows[right].row_id ? -1 : 1;
+    return left < right ? -1 : left > right ? 1 : 0;
+}
+
+static int
+db_by_table_cmp(
+    const void* a,
+    const void* b)
+{
+    int left = *(const int*)a;
+    int right = *(const int*)b;
+
+    if( g_rows[left].table_id != g_rows[right].table_id )
+        return g_rows[left].table_id < g_rows[right].table_id ? -1 : 1;
+    return left < right ? -1 : left > right ? 1 : 0;
+}
+
+static void
+db_index_free(void)
+{
+    free(g_by_row_id);
+    free(g_by_table);
+    free(g_table_spans);
+    g_by_row_id = NULL;
+    g_by_table = NULL;
+    g_table_spans = NULL;
+    g_table_span_count = 0;
+    g_index_generation = 0;
+}
+
+static void
+db_index_build(void)
+{
+    if( g_index_generation == g_rows_generation )
+        return;
+    db_index_free();
+    g_index_generation = g_rows_generation;
+    if( g_row_count <= 0 )
+        return;
+    g_by_row_id = malloc((size_t)g_row_count * sizeof(*g_by_row_id));
+    assert(g_by_row_id);
+    g_by_table = malloc((size_t)g_row_count * sizeof(*g_by_table));
+    assert(g_by_table);
+    g_table_spans = malloc((size_t)g_row_count * sizeof(*g_table_spans));
+    assert(g_table_spans);
+    for( int i = 0; i < g_row_count; i++ )
+    {
+        g_by_row_id[i] = i;
+        g_by_table[i] = i;
+    }
+    qsort(g_by_row_id, (size_t)g_row_count, sizeof(*g_by_row_id), db_by_row_id_cmp);
+    qsort(g_by_table, (size_t)g_row_count, sizeof(*g_by_table), db_by_table_cmp);
+    for( int i = 0; i < g_row_count; i++ )
+    {
+        int table_id = g_rows[g_by_table[i]].table_id;
+
+        if( g_table_span_count == 0 ||
+            g_table_spans[g_table_span_count - 1].table_id != table_id )
+        {
+            g_table_spans[g_table_span_count].table_id = table_id;
+            g_table_spans[g_table_span_count].first = i;
+            g_table_spans[g_table_span_count].count = 0;
+            g_table_span_count++;
+        }
+        g_table_spans[g_table_span_count - 1].count++;
+    }
+}
+
+/** The table's span in g_by_table, or NULL when it has no rows. */
+static const struct DbTableSpan*
+db_table_span(int table_id)
+{
+    int low = 0;
+    int high;
+
+    db_index_build();
+    high = g_table_span_count - 1;
+    while( low <= high )
+    {
+        int mid = low + (high - low) / 2;
+
+        if( g_table_spans[mid].table_id == table_id )
+            return &g_table_spans[mid];
+        if( g_table_spans[mid].table_id < table_id )
+            low = mid + 1;
+        else
+            high = mid - 1;
+    }
+    return NULL;
+}
+
 const struct ToriRSServerDbRow*
 ToriRSServer_DbRow(int row_id)
 {
+    int low = 0;
+    int high;
+    int found = -1;
+
     if( row_id < 0 )
         return NULL;
-    for( int i = 0; i < g_row_count; i++ )
+    db_index_build();
+    high = g_row_count - 1;
+    /* The lowest position holding the id: the row the linear walk met first. */
+    while( low <= high )
     {
-        if( g_rows[i].row_id == row_id )
-            return &g_rows[i];
+        int mid = low + (high - low) / 2;
+        int mid_id = g_rows[g_by_row_id[mid]].row_id;
+
+        if( mid_id >= row_id )
+        {
+            if( mid_id == row_id )
+                found = mid;
+            high = mid - 1;
+        }
+        else
+            low = mid + 1;
     }
-    return NULL;
+    return found < 0 ? NULL : &g_rows[g_by_row_id[found]];
 }
 
 const struct ToriRSServerDbRowColumn*
@@ -264,14 +414,9 @@ ToriRSServer_DbColumnIndex(
 int
 ToriRSServer_DbRowCount(int table_id)
 {
-    int count = 0;
+    const struct DbTableSpan* span = db_table_span(table_id);
 
-    for( int i = 0; i < g_row_count; i++ )
-    {
-        if( g_rows[i].table_id == table_id )
-            count++;
-    }
-    return count;
+    return span ? span->count : 0;
 }
 
 /*
@@ -313,7 +458,8 @@ ToriRSServer_DbRowCount(int table_id)
  * filter would make of it — `action` alone is 2174 rows.
  */
 static int* g_ordered;          /* indices into g_rows, sorted (table, row id) */
-static int g_ordered_count;     /* rows covered; 0 when the view needs rebuilding */
+static int g_ordered_count;     /* rows covered */
+static int g_ordered_generation; /* g_rows_generation it was built from */
 
 static int
 db_ordered_cmp(
@@ -333,11 +479,12 @@ db_ordered_cmp(
 static void
 db_ordered_build(void)
 {
-    if( g_ordered_count == g_row_count && g_ordered )
+    if( g_ordered_generation == g_rows_generation )
         return;
     free(g_ordered);
     g_ordered = NULL;
     g_ordered_count = 0;
+    g_ordered_generation = g_rows_generation;
     if( g_row_count <= 0 )
         return;
     g_ordered = malloc((size_t)g_row_count * sizeof(*g_ordered));
@@ -353,29 +500,39 @@ ToriRSServer_DbRowInTableOrdered(
     int table_id,
     int index)
 {
+    int low = 0;
+    int high;
+    int first = -1;
+
     if( index < 0 )
         return NULL;
     db_ordered_build();
     if( !g_ordered )
         return NULL;
-    /* Sorted by (table_id, row_id), so a table's rows are contiguous. */
-    for( int i = 0; i < g_ordered_count; i++ )
+    /* Sorted by (table_id, row_id), so a table's rows are contiguous: find the
+     * first of them, then step `index` into the run. */
+    high = g_ordered_count - 1;
+    while( low <= high )
     {
-        const struct ToriRSServerDbRow* first = &g_rows[g_ordered[i]];
+        int mid = low + (high - low) / 2;
+        int mid_table = g_rows[g_ordered[mid]].table_id;
 
-        if( first->table_id < table_id )
-            continue;
-        if( first->table_id > table_id )
-            return NULL;
-        if( i + index >= g_ordered_count )
-            return NULL;
+        if( mid_table >= table_id )
         {
-            const struct ToriRSServerDbRow* row = &g_rows[g_ordered[i + index]];
-
-            return row->table_id == table_id ? row : NULL;
+            if( mid_table == table_id )
+                first = mid;
+            high = mid - 1;
         }
+        else
+            low = mid + 1;
     }
-    return NULL;
+    if( first < 0 || first + index >= g_ordered_count )
+        return NULL;
+    {
+        const struct ToriRSServerDbRow* row = &g_rows[g_ordered[first + index]];
+
+        return row->table_id == table_id ? row : NULL;
+    }
 }
 
 const struct ToriRSServerDbRow*
@@ -383,19 +540,14 @@ ToriRSServer_DbRowInTable(
     int table_id,
     int index)
 {
-    int seen = 0;
+    const struct DbTableSpan* span;
 
     if( index < 0 )
         return NULL;
-    for( int i = 0; i < g_row_count; i++ )
-    {
-        if( g_rows[i].table_id != table_id )
-            continue;
-        if( seen == index )
-            return &g_rows[i];
-        seen++;
-    }
-    return NULL;
+    span = db_table_span(table_id);
+    if( !span || index >= span->count )
+        return NULL;
+    return &g_rows[g_by_table[span->first + index]];
 }
 
 /* ------------------------------------------------------------------ */
@@ -462,6 +614,8 @@ ToriRSServer_DbFree(void)
     g_rows = NULL;
     g_row_count = 0;
     g_row_capacity = 0;
+    g_rows_generation++;
+    db_index_free();
 
     for( int i = 0; i < g_table_count; i++ )
     {
@@ -487,6 +641,7 @@ ToriRSServer_DbFree(void)
     free(g_ordered);
     g_ordered = NULL;
     g_ordered_count = 0;
+    g_ordered_generation = 0;
 }
 
 /* ------------------------------------------------------------------ */
@@ -558,6 +713,7 @@ ToriRSServer_DbEnsureRow(
         if( has_values )
             return NULL;
         row->table_id = table_id;
+        g_rows_generation++;
         return row;
     }
 
@@ -567,6 +723,7 @@ ToriRSServer_DbEnsureRow(
     row->symbol = strdup(symbol);
     row->row_id = row_id;
     row->table_id = table_id;
+    g_rows_generation++;
     return row;
 }
 

@@ -1408,17 +1408,16 @@ const struct CP_AssetCodec cp_codec_interface = { "if", NULL, interface_write, i
  * through `extra255` — which meant the archive an import produced depended on what
  * the filesystem happened to hold. The filepack states it instead.
  *
- * **The jm2 is shared with the server, and only one of its sections is ours.**
- * A square's `==== NPC ====` and `==== OBJ ====` spawns are content too, but they
- * live on the server and never enter the cache — LostCity keeps them in the same
- * file as the terrain, and so does this. So the codec owns MAP and treats every
- * other section as somebody else's: preserved verbatim when unpacking over an
- * existing file, skipped when packing. Without that, unpacking would delete the
- * server's spawns and packing would try to read `0 1 63: 1265` as a tile.
+ * **A spawn is never in the jm2.** LostCity keeps a square's `==== NPC ====` and
+ * `==== OBJ ====` spawns in the same file as its terrain; this tree does not. They
+ * are server content and live in `.spawn` files under `server/scripts/`, and the
+ * server never opens a jm2. So a spawn banner here is a tree in the old format, and
+ * packing refuses it by name (map_read) rather than skipping it: skipped, it would
+ * be a spawn nothing loads, and the world would just be missing an npc.
  *
- * The spawns stay with the terrain rather than moving to the `.jl2` because they are
- * the square's, not file 1's — and because `maps/m<x>_<z>.jm2` is the path the server
- * already scans.
+ * The codec owns MAP. Any other section is still preserved verbatim when unpacking
+ * over an existing file and skipped when packing, so a section some other tool
+ * keeps beside the terrain survives a round trip.
  */
 
 #define CP_MAP_TERRAIN_FILE 0
@@ -1454,7 +1453,7 @@ map_reencodes_exactly(
 }
 
 /**
- * MAP is the cache's; anything else in the jm2 belongs to the server.
+ * MAP is the cache's; anything else in the jm2 belongs to somebody else.
  *
  * LOC is still named here even though locs now live in the `.jl2`, because a jm2
  * written before the split still has a LOC section and carrying it forward as
@@ -1889,6 +1888,15 @@ map_read(
             continue;
         if( line[0] == '=' )
         {
+            if( strstr(line, "NPC") || strstr(line, "OBJ") )
+            {
+                fprintf(stderr,
+                        "cachepack: %s: `%s` — spawns are not map data; move this "
+                        "section into a .spawn file under server/scripts/\n",
+                        path, line);
+                ok = 0;
+                break;
+            }
             if( strstr(line, "LOC") )
                 section = CP_JM2_LOC;
             else if( strstr(line, "MAP") )
@@ -2024,9 +2032,9 @@ map_read(
     }
     free(text);
 
-    /* A jm2 the server authored for a square the cache has no terrain for is all
-     * spawns. Encoding it would put a blank square into the cache, which reads as
-     * a black hole in the world rather than as the absence it is. */
+    /* A jm2 with no MAP or LOC section has no terrain for the cache. Encoding it
+     * would put a blank square into the cache, which reads as a black hole in
+     * the world rather than as the absence it is. */
     if( !seen_ours )
         ok = 0;
 

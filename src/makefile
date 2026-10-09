@@ -5944,6 +5944,17 @@ test-torirsserver-param: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DI
 		$(OBJ_DIR)/rsprot_buf.o -lm
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/param_test
 
+# The server's dbrow store: every lookup (by id, a table's n-th row in load
+# order and in ascending id, the row count) against the linear walk it
+# replaced, across rows added after a lookup, a row moving table, and a
+# free and reload. No cache and no content tree; well under a second.
+.PHONY: test-torirsserver-db
+test-torirsserver-db: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/torirsserver -o $(OBJ_DIR)/server_db_test \
+		torirsserver/test/server_db_test.c torirsserver/torirs_server_db.c \
+		$(RSCACHE_DIR)/src/rscache_valuetype.c
+	./$(OBJ_DIR)/server_db_test
+
 # The two run-energy models the era table selects between, and the era/name
 # wiring that selects them. Two source files and no fixtures: the formulas were
 # split out of the world tick precisely so they could be checked without a

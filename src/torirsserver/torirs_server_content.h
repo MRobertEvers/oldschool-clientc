@@ -13,7 +13,7 @@ struct RSCache_ServerPack;
  *                                       .loc  loc overlays (doors, stairs)
  *                                       .constant  `^name = value`
  *                                       .dbtable / .dbrow  (see torirs_server_db.h)
- *   content/maps/m<x>_<z>.jm2           `==== NPC ====` / `==== OBJ ====`
+ *                                       .spawn  `==== NPC ====` / `==== OBJ ====`
  *   content/scripts/<area>/             .rs2  behaviour (see torirs_server_scripts.c)
  *
  * Why a reader rather than a packer: LostCity's own tooling compiles this tree

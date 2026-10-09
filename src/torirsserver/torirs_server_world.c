@@ -5788,8 +5788,8 @@ advance_npcs(struct ToriRSServer* srv)
 /*
  * Objs on the floor.
  *
- * Two kinds, and the distinction is LostCity's: a *spawn* comes from a map
- * square's `==== OBJ ====` section and comes back on a timer after it is taken;
+ * Two kinds, and the distinction is LostCity's: a *spawn* comes from a
+ * `.spawn` file's `==== OBJ ====` section and comes back on a timer after it is taken;
  * a *drop* is left by a kill and expires. Collapsing the two would mean either
  * a world that empties permanently or loot that never goes away.
  *

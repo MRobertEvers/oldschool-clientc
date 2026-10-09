@@ -739,11 +739,12 @@ A few things worth knowing:
   the bytes they came from, and only a byte-exact match gets a `.jm2`. That one
   square falls back to `.map`, and the other 2,933 are guaranteed to pack back to
   what they were: **14,702 / 14,702 map files byte-identical.**
-- **A jm2's foreign sections belong to somebody else.** MAP and LOC are the cache's;
-  `==== NPC ====` and `==== OBJ ====` are a server's spawns living in the same file
-  (which is how LostCity keeps them). Unpacking over an existing `.jm2` preserves
-  every section it does not own, and packing skips them — so a content tree can hold
-  both halves of a square without either tool eating the other's work.
+- **A jm2 holds no spawns.** MAP and LOC are the cache's. LostCity keeps a square's
+  `==== NPC ====` and `==== OBJ ====` spawns in the same file; this tree keeps them in
+  `.spawn` files under `server/scripts/`, the server never opens a jm2, and packing
+  refuses a jm2 that still has a spawn section rather than skip a spawn nothing would
+  load. Any other section it does not own is preserved when unpacking over an
+  existing `.jm2` and skipped when packing.
 - **Sprite palettes are written out, not re-derived.** Two entries can hold the
   same colour, so RGB does not determine the index. Alpha rides in the BMP, which
   is 32-bit BGRA.
