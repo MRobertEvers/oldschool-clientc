@@ -1377,13 +1377,17 @@ enum DriveResult DriveUi_PlayerTile(
  *  from the player's whole tile on the client's collision map --
  *  collision_map_route_tiles, the server's own flood (api.drive.route).
  *  entity_size > 0: to the reach of that size's entity with its south-west
- *  tile at dst. DRIVE_NOT_FOUND: no route; DRIVE_REFUSED: dst outside the
- *  scene; DRIVE_NOT_VISIBLE: no player or world. */
+ *  tile at dst. from_x/from_z >= 0: plan the walk from that absolute tile
+ *  instead of the player's (a planner asking "and from there?"); -1 for the
+ *  player's own. DRIVE_NOT_FOUND: no route; DRIVE_REFUSED: dst or from
+ *  outside the scene; DRIVE_NOT_VISIBLE: no player or world. */
 enum DriveResult DriveUi_Route(
     struct App* app,
     int dst_x,
     int dst_z,
     int entity_size,
+    int from_x,
+    int from_z,
     int* out_x,
     int* out_z,
     int cap,

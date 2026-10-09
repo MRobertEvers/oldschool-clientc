@@ -1428,6 +1428,8 @@ DriveUi_Route(
     int dst_x,
     int dst_z,
     int entity_size,
+    int from_x,
+    int from_z,
     int* out_x,
     int* out_z,
     int cap,
@@ -1472,7 +1474,15 @@ DriveUi_Route(
         return DRIVE_NO_ROW;
     base_x = app->world->_base_tile_x;
     base_z = app->world->_base_tile_z;
-    if( player->pathing.route_length > 0 )
+    if( from_x >= 0 && from_z >= 0 )
+    {
+        src_x = from_x - base_x;
+        src_z = from_z - base_z;
+        if( src_x < 0 || src_z < 0 || src_x >= app->world->_scene_size ||
+            src_z >= app->world->_scene_size )
+            return DRIVE_REFUSED;
+    }
+    else if( player->pathing.route_length > 0 )
     {
         src_x = player->pathing.route_x[0];
         src_z = player->pathing.route_z[0];
@@ -2447,12 +2457,26 @@ lua_drive_route(struct lua_State* L)
     int z = PluginDrive_ArgInt(L, 2);
     int size = 0, run = 0, count = 0, arrive_x = 0, arrive_z = 0, nearest = 0, per, ticks, i;
     int from_x = 0, from_z = 0, from_level = 0;
+    int start_x = -1, start_z = -1;
     enum DriveResult result;
 
     assert(app);
     if( lua_gettop(L) >= 3 && !lua_isnil(L, 3) )
     {
         luaL_checktype(L, 3, LUA_TTABLE);
+        /* opts.from = {x, z}: plan from that tile instead of the player's */
+        lua_getfield(L, 3, "from");
+        if( !lua_isnil(L, -1) )
+        {
+            luaL_checktype(L, -1, LUA_TTABLE);
+            lua_getfield(L, -1, "x");
+            start_x = (int)luaL_checkinteger(L, -1);
+            lua_pop(L, 1);
+            lua_getfield(L, -1, "z");
+            start_z = (int)luaL_checkinteger(L, -1);
+            lua_pop(L, 1);
+        }
+        lua_pop(L, 1);
         lua_getfield(L, 3, "size");
         if( !lua_isnil(L, -1) )
             size = (int)luaL_checkinteger(L, -1);
@@ -2466,8 +2490,8 @@ lua_drive_route(struct lua_State* L)
         lua_pop(L, 1);
     }
     luaL_argcheck(L, size >= 0, 3, "opts.size is an entity size, 0 or more");
-    result = DriveUi_Route(
-        app, x, z, size, path_x, path_z, DRIVE_UI_ROUTE_CAP, &count, &arrive_x, &arrive_z, &nearest);
+    result = DriveUi_Route(app, x, z, size, start_x, start_z, path_x, path_z, DRIVE_UI_ROUTE_CAP, &count,
+        &arrive_x, &arrive_z, &nearest);
     lua_pushstring(L, DriveResultName(result));
     if( result != DRIVE_OK )
     {
@@ -2475,6 +2499,11 @@ lua_drive_route(struct lua_State* L)
         return 2;
     }
     DriveUi_PlayerTile(app, &from_x, &from_z, &from_level);
+    if( start_x >= 0 )
+    {
+        from_x = start_x;
+        from_z = start_z;
+    }
     per = run ? 2 : 1;
     ticks = (count + per - 1) / per;
     lua_createtable(L, 0, 6);

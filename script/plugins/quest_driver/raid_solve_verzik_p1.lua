@@ -838,7 +838,16 @@ function QD.raid.verzik_p1_prepare(opts)
                     if S.covers[p.key] == nil then todo = p break end
                 end
                 if todo == nil then
-                    return { geo = S.geo, covers = S.covers, item_paths = S.item_paths, pillars = #pillars }
+                    -- the room's origin, for the phases after the pillars are
+                    -- gone (C: west pillars at local x 25, the near row at
+                    -- local z 30 -- ^tob_verzik_pillar_*_l[xz])
+                    local bx, bz = nil, nil
+                    for _, p in ipairs(pillars) do
+                        bx = bx and math.min(bx, p.x) or p.x
+                        bz = bz and math.max(bz, p.z) or p.z
+                    end
+                    return { geo = S.geo, covers = S.covers, item_paths = S.item_paths, pillars = #pillars,
+                        base = { x = bx - 25, z = bz - 30 } }
                 end
                 QD.raid._vzp1_cover_for(S, v, pillars, todo)
             end

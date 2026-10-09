@@ -34,6 +34,7 @@
 #include "torirs_server_scene.h"
 #include "torirs_server_save.h"
 #include "engine/world_builder/collision_map.h"
+#include "features/features.h"
 #include <rscache.h>
 
 #include "game/rs_entity_sync.h"
@@ -1572,6 +1573,163 @@ d_tab_by_name(lua_State* L)
     return 2;
 }
 
+/* api.drive.route(x, z [, {size, run, from = {x, z}}]): the client's
+ * lua_drive_route / DriveUi_Route, over this bot's own collision map (the
+ * client's collision_map_route_tiles, the server's own flood), with the
+ * client's OSRS click features.  Same answer shape. */
+enum
+{
+    SCRIPTRUN_ROUTE_CAP = 4000,
+};
+
+static int
+d_route(lua_State* L)
+{
+    static int path_x[SCRIPTRUN_ROUTE_CAP];
+    static int path_z[SCRIPTRUN_ROUTE_CAP];
+    struct ScriptBot* bot = bot_of(L);
+    struct ScriptrunCore* c = bot->core;
+    struct World* world = c->world;
+    struct ToriRS_FeatureTable const* features = ToriRS_Features_OSRS();
+    struct CollisionNearestOpts nearest_opts = { 0 };
+    struct CollisionApproach approach = { 0 };
+    int x = (int)luaL_checkinteger(L, 1);
+    int z = (int)luaL_checkinteger(L, 2);
+    int size = 0, run = 0, start_x = -1, start_z = -1;
+    int px = 0, pz = 0, level = 0;
+    int base_x, base_z, src_x, src_z, arrive_x, arrive_z, nearest = 0, steps, per, ticks;
+    struct CollisionMap* cm;
+
+    if( lua_gettop(L) >= 3 && !lua_isnil(L, 3) )
+    {
+        luaL_checktype(L, 3, LUA_TTABLE);
+        lua_getfield(L, 3, "from");
+        if( !lua_isnil(L, -1) )
+        {
+            luaL_checktype(L, -1, LUA_TTABLE);
+            lua_getfield(L, -1, "x");
+            start_x = (int)luaL_checkinteger(L, -1);
+            lua_pop(L, 1);
+            lua_getfield(L, -1, "z");
+            start_z = (int)luaL_checkinteger(L, -1);
+            lua_pop(L, 1);
+        }
+        lua_pop(L, 1);
+        lua_getfield(L, 3, "size");
+        if( !lua_isnil(L, -1) )
+            size = (int)luaL_checkinteger(L, -1);
+        lua_pop(L, 1);
+        lua_getfield(L, 3, "run");
+        if( !lua_isnil(L, -1) )
+        {
+            luaL_checktype(L, -1, LUA_TBOOLEAN);
+            run = lua_toboolean(L, -1);
+        }
+        lua_pop(L, 1);
+    }
+    luaL_argcheck(L, size >= 0, 3, "opts.size is an entity size, 0 or more");
+    if( !c->have_collision || !ScriptrunCore_LocalTile(c, &px, &pz, &level) )
+    {
+        lua_pushstring(L, "not_visible");
+        lua_pushnil(L);
+        return 2;
+    }
+    if( level < 0 )
+        level = 0;
+    if( level >= COLLISION_LEVELS )
+        level = COLLISION_LEVELS - 1;
+    cm = world->collision_maps[level];
+    if( !cm )
+    {
+        lua_pushstring(L, "no_row");
+        lua_pushnil(L);
+        return 2;
+    }
+    base_x = world->_base_tile_x;
+    base_z = world->_base_tile_z;
+    src_x = (start_x >= 0 ? start_x : px) - base_x;
+    src_z = (start_z >= 0 ? start_z : pz) - base_z;
+    if( src_x < 0 || src_z < 0 || src_x >= world->_scene_size || src_z >= world->_scene_size ||
+        x - base_x < 0 || z - base_z < 0 || x - base_x >= world->_scene_size || z - base_z >= world->_scene_size )
+    {
+        lua_pushstring(L, "refused");
+        lua_pushnil(L);
+        return 2;
+    }
+    if( size > 0 )
+    {
+        collision_approach_from_shape(-2, 0, size, size, 0, 1, &approach);
+        nearest_opts.range = features->op_click_nearest_range;
+        nearest_opts.max_dist = 100;
+        nearest_opts.rank_by_rect_distance = features->nearest_ranks_by_rect_distance;
+        nearest_opts.unbounded = 0;
+    }
+    else
+    {
+        collision_nearest_opts_from_model(features->ground_click_nearest_model, &nearest_opts);
+        nearest_opts.unbounded = features->ground_click_nearest_unbounded;
+    }
+    arrive_x = x - base_x;
+    arrive_z = z - base_z;
+    steps = collision_map_route_tiles(cm, src_x, src_z, x - base_x, z - base_z, size > 0 ? &approach : NULL,
+                                      &nearest_opts, path_x, path_z, SCRIPTRUN_ROUTE_CAP, &nearest, &arrive_x,
+                                      &arrive_z);
+    if( steps < 0 )
+    {
+        lua_pushstring(L, "not_found");
+        lua_pushnil(L);
+        return 2;
+    }
+    per = run ? 2 : 1;
+    ticks = (steps + per - 1) / per;
+    lua_pushstring(L, "ok");
+    lua_createtable(L, 0, 6);
+    lua_createtable(L, steps, 0);
+    for( int i = 0; i < steps; i++ )
+    {
+        lua_createtable(L, 0, 3);
+        lua_pushinteger(L, path_x[i] + base_x);
+        lua_setfield(L, -2, "x");
+        lua_pushinteger(L, path_z[i] + base_z);
+        lua_setfield(L, -2, "z");
+        lua_pushboolean(L, run && (i % 2) == 1);
+        lua_setfield(L, -2, "run");
+        lua_rawseti(L, -2, i + 1);
+    }
+    lua_setfield(L, -2, "tiles");
+    lua_createtable(L, ticks, 0);
+    for( int i = 0; i < ticks; i++ )
+    {
+        int k = (i + 1) * per - 1;
+        if( k > steps - 1 )
+            k = steps - 1;
+        lua_createtable(L, 0, 2);
+        lua_pushinteger(L, path_x[k] + base_x);
+        lua_setfield(L, -2, "x");
+        lua_pushinteger(L, path_z[k] + base_z);
+        lua_setfield(L, -2, "z");
+        lua_rawseti(L, -2, i + 1);
+    }
+    lua_setfield(L, -2, "ticks");
+    lua_createtable(L, 0, 2);
+    lua_pushinteger(L, arrive_x + base_x);
+    lua_setfield(L, -2, "x");
+    lua_pushinteger(L, arrive_z + base_z);
+    lua_setfield(L, -2, "z");
+    lua_setfield(L, -2, "arrive");
+    lua_createtable(L, 0, 2);
+    lua_pushinteger(L, start_x >= 0 ? start_x : px);
+    lua_setfield(L, -2, "x");
+    lua_pushinteger(L, start_x >= 0 ? start_z : pz);
+    lua_setfield(L, -2, "z");
+    lua_setfield(L, -2, "from");
+    lua_pushboolean(L, nearest != 0);
+    lua_setfield(L, -2, "nearest");
+    lua_pushboolean(L, run != 0);
+    lua_setfield(L, -2, "run");
+    return 2;
+}
+
 static int
 d_modal_group(lua_State* L)
 {
@@ -2063,6 +2221,7 @@ push_drive_table(
     bind(L, bot, "widget_text", d_widget_text);
     bind(L, bot, "modal_group", d_modal_group);
     bind(L, bot, "tab", d_tab);
+    bind(L, bot, "route", d_route);
     bind(L, bot, "tab_by_name", d_tab_by_name);
     bind(L, bot, "pause_pending", d_pause_pending);
     bind(L, bot, "meslayer_mode", d_meslayer_mode);
